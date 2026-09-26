@@ -45,6 +45,7 @@
 .qd-label { font-size: 11px; color: var(--qd-muted); margin-bottom: 2px; }
 .qd-client { font-size: 22px; font-weight: 700; line-height: 1.25; margin-bottom: 4px; }
 .qd-to > div:not(.qd-label):not(.qd-client) { color: var(--qd-ink-2); }
+.qd-to > [dir='ltr'] { text-align: right; }
 
 .qd-section { padding-top: 28px; break-inside: avoid; }
 .qd-section h2 {
@@ -92,7 +93,7 @@
   border: 1px solid currentColor; border-radius: 4px; padding: 1px 6px; white-space: nowrap;
 }
 
-.qd-price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.qd-price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
 .qd-sum th { font-weight: 400; color: var(--qd-ink-2); }
 .qd-sum tr.sub th, .qd-sum tr.sub td { font-weight: 600; color: var(--qd-ink); }
 .qd-sum tr.total th, .qd-sum tr.total td {

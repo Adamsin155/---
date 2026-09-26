@@ -320,9 +320,11 @@ $('btn-preview').addEventListener('click', (e) => {
   $('dlg-preview').querySelector('.close').focus();
 });
 
-$('btn-print').addEventListener('click', () => {
+$('btn-print').addEventListener('click', async () => {
   if (!validateClient()) return;
-  $('print-root').replaceChildren(renderQuoteDoc(currentModel()));
+  const doc = renderQuoteDoc(currentModel());
+  $('print-root').replaceChildren(doc);
+  await Promise.all([...doc.querySelectorAll('img')].map((img) => img.decode().catch(() => {})));
   window.print();
 });
 

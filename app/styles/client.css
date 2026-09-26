@@ -75,7 +75,7 @@ button, input { font: inherit; color: inherit; }
 .req { color: var(--pink); }
 .cinput {
   width: 100%; min-height: 48px; padding: 10px 14px; border-radius: 8px;
-  border: 1px solid #C9CEDB; background: #fff; font-size: 16px;
+  border: 1px solid #848DA3; background: #fff; font-size: 16px;
 }
 .cinput:focus { outline: none; border-color: var(--purple); box-shadow: 0 0 0 3px rgba(83, 2, 223, .14); }
 .cinput[aria-invalid='true'] { border-color: var(--danger); }
@@ -85,13 +85,13 @@ button, input { font: inherit; color: inherit; }
   min-height: 36px; padding: 4px 8px;
 }
 .pad {
-  position: relative; height: 180px; border-radius: 8px; border: 1px dashed #AEB5C7; background: #FAFBFD;
+  position: relative; height: 180px; border-radius: 8px; border: 1px dashed #7C869C; background: #FAFBFD;
   touch-action: none;
 }
 .pad.is-invalid { border-color: var(--danger); }
 .pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
 .pad-hint {
-  position: absolute; inset-inline: 0; bottom: 42px; text-align: center; color: #8A93A8; pointer-events: none; font-size: 14px;
+  position: absolute; inset-inline: 0; bottom: 42px; text-align: center; color: #5B6680; pointer-events: none; font-size: 14px;
 }
 .pad::after {
   content: ''; position: absolute; inset-inline: 28px; bottom: 34px; border-bottom: 1px solid #C9CEDB; pointer-events: none;
@@ -127,12 +127,13 @@ button, input { font: inherit; color: inherit; }
 .signed h2 { margin: 0 0 2px; font-size: 19px; }
 .signed p { margin: 0; color: var(--ink-2); }
 
-#print-root { display: none; }
+/* Ctrl+P and the print button both print the document as shown. */
 @media print {
   @page { size: A4; margin: 14mm 12mm; }
   body { background: #fff; }
-  body > *:not(#print-root) { display: none !important; }
-  #print-root { display: block; }
+  .cbar, .cstrip, .signbox, .signed, #state { display: none !important; }
+  .cmain { display: block; max-width: none; padding: 0; }
+  .paper { box-shadow: none; border-radius: 0; }
 }
 @media (max-width: 640px) {
   .cbar { padding-inline: 12px; gap: 8px; }

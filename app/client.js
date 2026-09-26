@@ -263,11 +263,7 @@ $('sign-form').addEventListener('submit', async (e) => {
   }
 });
 
-$('btn-print').addEventListener('click', () => {
-  if (!quote) return;
-  $('print-root').replaceChildren(renderQuoteDoc(quote.model, docMeta(quote)));
-  window.print();
-});
+$('btn-print').addEventListener('click', () => window.print());
 
 new ResizeObserver(sizeCanvas).observe(wrap);
 load();

@@ -196,7 +196,8 @@ await step('preview renders text safely and matches summary', async () => {
 
 await step('print renders only the quote', async () => {
   await page.locator('#btn-print').click();
-  assert.equal(await page.evaluate(() => window.__printed), 1);
+  await page.waitForFunction(() => window.__printed === 1);
+  assert.ok(await page.locator('#print-root img.qd-logo').evaluate((img) => img.complete && img.naturalWidth > 0), 'logo loaded before print');
   await page.emulateMedia({ media: 'print' });
   assert.ok(await page.locator('#print-root .qd').isVisible());
   assert.ok(!(await page.locator('.topbar').isVisible()));
@@ -272,6 +273,13 @@ await step('reopening a signed link shows signed, no second signature', async ()
   await client.locator('#signed').waitFor();
   assert.ok(await client.locator('#signbox').isHidden());
   assert.equal(await text(client, '#status'), 'נחתם');
+});
+
+await step('client page prints the document with Ctrl+P (no blank page)', async () => {
+  await client.emulateMedia({ media: 'print' });
+  assert.ok(await client.locator('.qd').isVisible());
+  assert.ok(await client.locator('.cbar').isHidden());
+  await client.emulateMedia({ media: 'screen' });
 });
 
 await step('bad and unknown tokens show a clear message', async () => {
