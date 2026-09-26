@@ -3,7 +3,7 @@
 
 import {
   VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES,
-  PAID_ADDONS, FREE_ADDONS, DOC_TYPES, packageId,
+  PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, packageId,
 } from './catalog.js';
 import { PROVIDER, agreementSections } from './legal.js';
 
@@ -130,6 +130,25 @@ export function termsText(sel) {
     + 'תוספות ללא עלות אינן משנות את המחיר.';
 }
 
+// What the agreement needs to know about the selected package.
+function agreementContext(sel, { tier, paid, free, totals }) {
+  const specs = SPECS[packageId(sel.tier, sel.influencer)];
+  return {
+    termMonths: TERM_MONTHS,
+    totals,
+    packageName: tier.name,
+    influencer: INFLUENCERS[sel.influencer].name,
+    tier: sel.tier,
+    shootDays: specs.shootDays,
+    hasCh14: specs.ch14 > 0 || sel.free.extraCh14 === true,
+    influencerPosts: specs.collabs > 0 || specs.stories > 0 || sel.free.simeonStories > 0
+      || sel.paid.includes('natali-reel') || sel.paid.includes('natali-story'),
+    simeonJoin: sel.free.simeonJoin === true,
+    paid: paid.map((p) => ({ id: p.id, name: p.name })),
+    free: free.map((f) => ({ id: f.id, name: f.name, qty: f.qty })),
+  };
+}
+
 // The quote model rendered on screen, in the client link and in exports.
 // Everything the client sees is stored in it, so the server-side hash covers it.
 export function buildQuoteModel(sel, client = {}, meta = {}) {
@@ -180,9 +199,7 @@ export function buildQuoteModel(sel, client = {}, meta = {}) {
     termMonths: TERM_MONTHS,
     totals,
     terms: termsText(sel),
-    legal: docType.signable
-      ? agreementSections({ termMonths: TERM_MONTHS, totals, packageName: tier.name, influencer: INFLUENCERS[sel.influencer].name, hasAddons: paid.length > 0 })
-      : null,
+    legal: docType.signable ? agreementSections(agreementContext(sel, { tier, paid, free, totals })) : null,
     selection: sel,
   };
 }

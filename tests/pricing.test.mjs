@@ -157,10 +157,42 @@ test('document type: quote has no legal text, agreement syncs price into the ter
   const a = buildQuoteModel({ ...sel('social-tv', 'natali', ['photographer']), docType: 'agreement' }, { name: 'x', companyId: '514729938' });
   assert.equal(a.signable, true);
   assert.equal(a.client.companyId, '514729938');
-  assert.equal(a.legal.length, 7);
-  assert.match(a.legal[1].items[0], /6,900 ₪ לחודש \+ מע״מ כחוק, למשך 12 חודשים \(סה״כ 82,800 ₪ \+ מע״מ\)/);
-  assert.match(a.legal[1].items[0], /והתוספות שנבחרו/);
+  const payment = a.legal.find((s) => s.title === 'התמורה ותנאי תשלום');
+  assert.match(payment.items[0], /6,900 ₪ לחודש \+ מע״מ כחוק, למשך 12 חודשים \(סה״כ 82,800 ₪ \+ מע״מ\)/);
+  assert.match(payment.items[0], /והתוספות שנבחרו/);
   const b = buildQuoteModel({ ...sel('social', 'simeon'), docType: 'agreement' }, { name: 'x' });
-  assert.doesNotMatch(b.legal[1].items[0], /התוספות/);
+  assert.doesNotMatch(b.legal.find((s) => s.title === 'התמורה ותנאי תשלום').items[0], /התוספות/);
   assert.throws(() => validateSelection({ ...sel('social', 'simeon'), docType: 'contract' }));
+});
+
+test('agreement text follows the selected package', () => {
+  const agr = (s) => buildQuoteModel({ ...s, docType: 'agreement' }, { name: 'x' }).legal;
+  const titles = (l) => l.map((s) => s.title);
+  const text = (l) => l.map((s) => `${s.title} ${s.items.join(' ')}`).join(' ');
+
+  // Channel 14 section only when the package or the free add-on includes it.
+  assert.ok(titles(agr(sel('social-tv', 'natali'))).includes('אייטם בערוץ 14'));
+  assert.ok(!titles(agr(sel('social', 'natali'))).includes('אייטם בערוץ 14'));
+  assert.ok(titles(agr(sel('social', 'natali', [], { extraCh14: true }))).includes('אייטם בערוץ 14'));
+
+  // Influencer names, podcast definition, multiple shoot days, monthly photographer.
+  assert.match(text(agr(sel('social', 'natali'))), /עם נטלי דדון/);
+  assert.match(text(agr(sel('social', 'natali', [], { simeonJoin: true }))), /ובהשתתפות סמיון, מישל ודניס ביום הצילום/);
+  assert.match(text(agr(sel('podcast', 'simeon'))), /יום הקלטת הפודקאסט/);
+  assert.match(text(agr(sel('social-tv', 'simeon'))), /כלולים 2 ימי צילום/);
+  assert.match(text(agr(sel('social', 'simeon', ['photographer']))), /ביקור חודשי שלא התקיים/);
+  assert.doesNotMatch(text(agr(sel('social', 'simeon'))), /ביקור חודשי/);
+
+  // Owner's additions are present.
+  const all = text(agr(sel('social-tv', 'natali', ['photographer'])));
+  for (const re of [/בתוך 30 ימי עסקים מיום הצילום הראשון/, /אינה מתחייבת לכמות תכנים/, /שירותים ולא תוצאות/,
+    /להפרת זכויות יוצרים/, /חסימה, השעיה, הגבלה/, /המלצות מקצועיות/, /לדברים שהלקוח או מי מטעמו אמרו/]) {
+    assert.match(all, re);
+  }
+
+  // Cross references resolve to real clause numbers.
+  const l = agr(sel('social-tv', 'natali'));
+  const exitNo = titles(l).indexOf('סיום ההתקשרות לפני תום התקופה') + 1;
+  assert.match(text(l), new RegExp(`לפי פרק ${exitNo}`));
+  assert.doesNotMatch(text(l), /undefined/);
 });
