@@ -16,7 +16,8 @@ docs/
   roles.md           חלוקת האחריות בין הסוכנים
   brand/
     implementation-research.md
-    brand-guide.md       (טרם הועלה)
+    brand-guide.md       מדריך המותג וצבעי הלוגו
+    logo-reference.jpg   הלוגו (צילום מסך, יש להחליף בקובץ מקור)
     design-research.md   (טרם הועלה)
 ```
 
