@@ -27,63 +27,76 @@
 
   <main class="shell" id="main">
     <div class="page-head">
-      <div>
-        <div class="kicker latin">QUOTE BUILDER</div>
+      <div class="page-title">
+        <div class="eyebrow"><span class="pulse" aria-hidden="true"></span><span dir="ltr">QUOTE BUILDER</span></div>
         <h1>הצעת מחיר חדשה</h1>
-        <p>המחירים חודשיים, לפני מע״מ, בהתחייבות ל־12 חודשים.</p>
+        <p>בוחרים חבילה, מתאימים תוספות, ושולחים ללקוח קישור לחתימה.</p>
       </div>
+      <dl class="facts">
+        <div><dt>תקופה</dt><dd>12 חודשים</dd></div>
+        <div><dt>מע״מ</dt><dd dir="ltr">18%</dd></div>
+        <div><dt>תמחור</dt><dd>חודשי</dd></div>
+        <div><dt>כמויות</dt><dd>שנתיות</dd></div>
+      </dl>
     </div>
 
+    <nav class="stepnav" aria-label="שלבי ההצעה">
+      <a href="#sec-package" class="is-active" aria-current="step"><span class="n">01</span>חבילה</a>
+      <a href="#sec-addons"><span class="n">02</span>תוספות</a>
+      <a href="#sec-client"><span class="n">03</span>לקוח</a>
+      <a href="#summary" class="to-summary"><span class="n">04</span>סיכום</a>
+    </nav>
+
     <div class="work">
-      <section class="block" aria-labelledby="s1">
-        <div class="block-head">
-          <span class="idx">01</span><h2 id="s1">חבילה ומשפיענים</h2>
-          <span class="hint">כמויות לשנה</span>
-        </div>
+      <section class="block" id="sec-package" aria-labelledby="s1">
+        <header class="block-head">
+          <span class="idx">01</span>
+          <div><h2 id="s1">חבילה ומשפיענים</h2><p class="sub">בחרו משפיענים, ואז את רמת החבילה.</p></div>
+        </header>
         <div class="block-body">
           <fieldset>
             <legend class="field-label">משפיענים</legend>
-            <div class="segmented" id="influencers"></div>
+            <div class="influencers" id="influencers"></div>
           </fieldset>
           <fieldset>
-            <legend class="sr-only">חבילה</legend>
+            <legend class="field-label">חבילה <span class="legend-note">· השוואת כמויות שנתיות</span></legend>
             <div class="tiers" id="tiers"></div>
           </fieldset>
           <div class="included" id="included"></div>
         </div>
       </section>
 
-      <section class="block" aria-labelledby="s2">
-        <div class="block-head">
-          <span class="idx">02</span><h2 id="s2">תוספות</h2>
-          <span class="hint">התוספות המוצגות זמינות בחבילה שנבחרה</span>
-        </div>
+      <section class="block" id="sec-addons" aria-labelledby="s2">
+        <header class="block-head">
+          <span class="idx">02</span>
+          <div><h2 id="s2">תוספות</h2><p class="sub">מוצגות רק התוספות שזמינות בחבילה שנבחרה.</p></div>
+        </header>
         <div class="block-body">
           <div class="notice" id="removed-notice" role="status" hidden>
             <span id="removed-text"></span>
             <button type="button" class="x" id="removed-close" aria-label="סגירת ההודעה">×</button>
           </div>
           <div class="group">
-            <div class="group-head"><h3 id="paid-h">תוספות בתשלום</h3><span class="meta">מחיר לחודש, לפני מע״מ, ל־12 חודשים</span></div>
-            <div class="rows" id="paid" role="group" aria-labelledby="paid-h"></div>
+            <div class="group-head"><h3 id="paid-h">תוספות בתשלום</h3><span class="meta">לפני מע״מ · מחויב ל־12 חודשים</span></div>
+            <div class="tiles" id="paid" role="group" aria-labelledby="paid-h"></div>
           </div>
           <div class="group">
-            <div class="group-head"><h3 id="free-h">תוספות ללא עלות</h3><span class="meta">לא משנות את המחיר ומופיעות בהצעה</span></div>
-            <div class="rows" id="free" role="group" aria-labelledby="free-h"></div>
+            <div class="group-head"><h3 id="free-h">תוספות ללא עלות</h3><span class="meta">לא משנות את המחיר · מופיעות בהצעה</span></div>
+            <div class="tiles" id="free" role="group" aria-labelledby="free-h"></div>
           </div>
         </div>
       </section>
 
-      <section class="block" aria-labelledby="s3">
-        <div class="block-head">
-          <span class="idx">03</span><h2 id="s3">פרטי הלקוח</h2>
-          <span class="hint"><span class="req" aria-hidden="true">*</span> שדה חובה</span>
-        </div>
+      <section class="block" id="sec-client" aria-labelledby="s3">
+        <header class="block-head">
+          <span class="idx">03</span>
+          <div><h2 id="s3">פרטי הלקוח</h2><p class="sub">הפרטים יופיעו בראש ההצעה. <span class="req" aria-hidden="true">*</span> שדה חובה.</p></div>
+        </header>
         <div class="block-body">
           <form class="form-grid" id="client-form" novalidate>
             <div class="field">
               <label for="c-name">שם הלקוח<span class="req" aria-hidden="true">*</span></label>
-              <input class="input" id="c-name" name="name" autocomplete="name" required maxlength="120" aria-describedby="c-name-err">
+              <input class="input" id="c-name" name="name" autocomplete="name" required maxlength="120" aria-describedby="c-name-err" placeholder="לדוגמה: דנה לוי">
               <div class="err" id="c-name-err" hidden>יש למלא את שם הלקוח כדי להפיק הצעה.</div>
             </div>
             <div class="field">
@@ -92,11 +105,11 @@
             </div>
             <div class="field">
               <label for="c-phone">טלפון</label>
-              <input class="input" id="c-phone" name="phone" type="tel" dir="ltr" autocomplete="tel" inputmode="tel" maxlength="40">
+              <input class="input" id="c-phone" name="phone" type="tel" dir="ltr" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="050-000-0000">
             </div>
             <div class="field">
               <label for="c-email">אימייל</label>
-              <input class="input" id="c-email" name="email" type="email" dir="ltr" autocomplete="email" maxlength="160" aria-describedby="c-email-err">
+              <input class="input" id="c-email" name="email" type="email" dir="ltr" autocomplete="email" maxlength="160" aria-describedby="c-email-err" placeholder="name@company.co.il">
               <div class="err" id="c-email-err" hidden>כתובת האימייל לא תקינה.</div>
             </div>
             <div class="field wide">
@@ -110,21 +123,23 @@
 
     <aside class="summary" id="summary" aria-labelledby="sum-h">
       <div class="summary-head">
-        <div class="kicker" id="sum-h">סיכום הצעה</div>
+        <div class="summary-kicker"><span id="sum-h">סיכום הצעה</span><span class="live" aria-hidden="true">LIVE</span></div>
         <div class="summary-pkg" id="sum-pkg" dir="auto"></div>
         <div class="summary-inf" id="sum-inf"></div>
       </div>
       <div class="summary-body" id="sum-lines"></div>
       <div class="totals">
-        <dl>
+        <div class="grand">
+          <span class="grand-label">לחודש, כולל מע״מ</span>
+          <span class="grand-amount" id="t-mgross"></span>
+        </div>
+        <dl class="breakdown">
           <dt>לחודש, לפני מע״מ</dt><dd id="t-mnet"></dd>
           <dt id="t-vat-label">מע״מ 18%</dt><dd id="t-mvat"></dd>
-          <div class="grand" style="display:contents"><dt>לחודש, כולל מע״מ</dt><dd id="t-mgross"></dd></div>
         </dl>
-        <dl class="term">
-          <span class="caption">סה״כ ל־12 חודשים</span>
-          <dt>לפני מע״מ</dt><dd id="t-ynet"></dd>
-          <dt>כולל מע״מ</dt><dd id="t-ygross"></dd>
+        <dl class="breakdown term">
+          <dt>12 חודשים, לפני מע״מ</dt><dd id="t-ynet"></dd>
+          <dt class="strong">12 חודשים, כולל מע״מ</dt><dd id="t-ygross" class="strong"></dd>
         </dl>
         <p class="term-note" id="term-note"></p>
         <div class="sr-only" aria-live="polite" id="live-total"></div>

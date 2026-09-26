@@ -110,7 +110,7 @@ await step('default: Social · Simeon 3,900 → 4,602 incl. VAT', async () => {
 });
 
 await step('Social+TV · Natali + photographer + reel + story = 8,200 / 1,476 / 9,676 / 116,112', async () => {
-  await page.locator('input[name=influencer][value=natali]').check();
+  await page.locator('label[for="inf-natali"]').click();
   await page.locator('label[for="tier-social-tv"]').click();
   for (const id of ['photographer', 'natali-reel', 'natali-story']) await page.locator(`label[for="paid-${id}"]`).click();
   assert.equal(await text(page, '#t-mnet'), '8,200 ₪');
@@ -141,7 +141,7 @@ await step('Simeon join unlocks free Simeon stories; free items listed, price un
   assert.equal(await page.locator('#free-graphics').inputValue(), '0');
   await page.locator('#free-graphics-inc').click();
   assert.equal(await text(page, '#t-mgross'), '9,676 ₪');
-  assert.match(await text(page, '#sum-lines'), /סטורי אצל סמיון, מישל ודניס · 3/);
+  assert.match(await text(page, '#sum-lines'), /סטורי אצל סמיון, מישל ודניס × 3/);
 });
 
 await step('keyboard: stepper keeps focus after click', async () => {
@@ -151,7 +151,7 @@ await step('keyboard: stepper keeps focus after click', async () => {
 });
 
 await step('switch Natali → Simeon removes Natali items + join, explains', async () => {
-  await page.locator('input[name=influencer][value=simeon]').check();
+  await page.locator('label[for="inf-simeon"]').click();
   assert.ok(await page.locator('#removed-notice').isVisible());
   const note = await text(page, '#removed-text');
   assert.match(note, /העלאה אצל נטלי/);

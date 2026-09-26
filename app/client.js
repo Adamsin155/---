@@ -156,10 +156,10 @@ function drawTyped(c, w, hgt) {
   c.textAlign = 'center';
   c.textBaseline = 'alphabetic';
   let size = Math.round(hgt * 0.34);
-  c.font = `italic 600 ${size}px 'IBM Plex Sans Hebrew', sans-serif`;
+  c.font = `italic 600 ${size}px 'Rubik', sans-serif`;
   while (c.measureText(name).width > w * 0.85 && size > 12) {
     size -= 2;
-    c.font = `italic 600 ${size}px 'IBM Plex Sans Hebrew', sans-serif`;
+    c.font = `italic 600 ${size}px 'Rubik', sans-serif`;
   }
   c.direction = 'rtl';
   c.fillText(name, w / 2, hgt * 0.72);

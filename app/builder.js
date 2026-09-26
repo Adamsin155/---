@@ -20,20 +20,40 @@ async function getSupa() {
 
 /* ── Rendering ─────────────────────────────── */
 
+const MONOGRAM = { natali: 'נד', simeon: 'סמד' };
+const TIER_INDEX = { podcast: 'P', social: 'S', 'social-tv': 'S+TV' };
+// Largest value of each comparison row across all packages, for the meters.
+const SPEC_MAX = Object.fromEntries(SPEC_ROWS.map((r) => [r.key, Math.max(...Object.values(SPECS).map((s) => s[r.key]))]));
+
 function renderInfluencers() {
   const box = $('influencers');
-  box.replaceChildren(...Object.values(INFLUENCERS).map((inf) => h('label', {},
-    h('input', {
-      type: 'radio', name: 'influencer', value: inf.id, checked: state.influencer === inf.id,
-      onchange: () => update({ influencer: inf.id }),
-    }),
-    h('span', {}, inf.name),
-  )));
+  box.replaceChildren(...Object.values(INFLUENCERS).map((inf) => {
+    const id = `inf-${inf.id}`;
+    const on = state.influencer === inf.id;
+    return h('div', { class: 'inf' },
+      h('input', {
+        type: 'radio', name: 'influencer', id, value: inf.id, checked: on,
+        onchange: () => update({ influencer: inf.id }, { focus: id }),
+      }),
+      h('label', { for: id },
+        h('span', { class: 'mono', 'aria-hidden': 'true' }, MONOGRAM[inf.id]),
+        h('span', { class: 'inf-text' },
+          h('span', { class: 'inf-name' }, inf.name),
+          h('span', { class: 'inf-sub' }, '3 חבילות זמינות'),
+        ),
+        h('span', { class: 'radio-dot', 'aria-hidden': 'true' }),
+      ),
+    );
+  }));
 }
 
-function specValue(v) {
-  if (!v) return h('span', { class: 'v none', 'aria-label': 'לא כלול' }, '—');
-  return h('span', { class: 'v' }, String(v));
+function specRow(r, v) {
+  const pct = SPEC_MAX[r.key] ? Math.round((v / SPEC_MAX[r.key]) * 100) : 0;
+  return h('li', { class: v ? '' : 'is-none' },
+    h('span', { class: 'k' }, r.label),
+    h('span', { class: 'meter', 'aria-hidden': 'true' }, h('span', { style: `inline-size:${pct}%` })),
+    v ? h('span', { class: 'v' }, String(v)) : h('span', { class: 'v', 'aria-label': 'לא כלול' }, '—'),
+  );
 }
 
 function renderTiers() {
@@ -46,20 +66,22 @@ function renderTiers() {
     return h('div', { class: 'tier' },
       h('input', {
         type: 'radio', name: 'tier', id, value: tier.id, checked: state.tier === tier.id,
-        onchange: () => update({ tier: tier.id }),
+        onchange: () => update({ tier: tier.id }, { focus: id }),
       }),
       h('label', { for: id },
         h('div', { class: 'tier-top' },
-          h('div', { class: 'tier-name' }, h('span', { dir: 'ltr' }, tier.short), h('span', { class: 'tier-check', 'aria-hidden': 'true' })),
-          h('div', { class: 'tier-inf' }, tier.id === 'podcast' ? `פודקאסט · ${INFLUENCERS[state.influencer].name}` : INFLUENCERS[state.influencer].name),
-          h('div', { class: 'tier-price' },
-            h('span', { class: 'num', dir: 'ltr' }, formatILS(pkg.price)),
-            h('small', {}, 'לחודש · לפני מע״מ'),
+          h('div', { class: 'tier-row' },
+            h('span', { class: 'tier-code', dir: 'ltr', 'aria-hidden': 'true' }, TIER_INDEX[tier.id]),
+            h('span', { class: 'tier-name', dir: 'ltr' }, tier.short),
+            h('span', { class: 'radio-dot', 'aria-hidden': 'true' }),
           ),
+          h('div', { class: 'tier-price' },
+            h('span', { class: 'amount', dir: 'ltr' }, formatILS(pkg.price)),
+            h('span', { class: 'per' }, 'לחודש · לפני מע״מ'),
+          ),
+          h('div', { class: 'tier-term', dir: 'rtl' }, h('span', { dir: 'ltr' }, formatILS(pkg.price * TERM_MONTHS)), ' ל־12 חודשים'),
         ),
-        h('ul', { class: 'tier-specs' }, SPEC_ROWS.map((r) => h('li', {},
-          h('span', { class: 'k' }, r.label), specValue(specs[r.key]),
-        ))),
+        h('ul', { class: 'specs' }, SPEC_ROWS.map((r) => specRow(r, specs[r.key]))),
       ),
     );
   }));
@@ -71,13 +93,21 @@ function renderIncluded() {
   const tier = TIERS.find((t) => t.id === state.tier);
   $('included').replaceChildren(
     h('div', { class: 'included-head' },
-      h('span', {}, 'כלול ב־', h('strong', { dir: 'ltr' }, tier.short), ` · ${INFLUENCERS[state.influencer].name}`),
-      h('span', {}, 'כמויות לשנה'),
+      h('span', { class: 'included-title' }, 'מה כלול ב־', h('bdi', {}, tier.short), ` · ${INFLUENCERS[state.influencer].name}`),
+      h('span', { class: 'tag' }, 'כמויות לשנה'),
     ),
     h('ul', {}, pkg.includes.map((i) => h('li', {},
-      h('span', { class: 'num' }, i.qty === null ? '✓' : String(i.qty)),
+      h('span', { class: 'inc-qty' + (i.qty === null ? ' is-check' : '') }, i.qty === null ? '✓' : String(i.qty)),
       h('span', {}, i.label),
     ))),
+  );
+}
+
+function priceBlock(monthly, sign = '+') {
+  return h('span', { class: 'tile-price' },
+    h('span', { class: 'm', dir: 'ltr' }, `${sign}${formatILS(monthly)}`),
+    h('span', { class: 'per' }, 'לחודש'),
+    h('span', { class: 'y' }, h('bdi', {}, formatILS(monthly * TERM_MONTHS)), ' ל־12 ח׳'),
   );
 }
 
@@ -86,19 +116,17 @@ function renderPaid() {
   $('paid').replaceChildren(...available.map((a) => {
     const on = state.paid.includes(a.id);
     const id = `paid-${a.id}`;
-    return h('label', { class: 'row' + (on ? ' is-on' : ''), for: id },
-      h('input', {
-        type: 'checkbox', class: 'cbox', id, checked: on,
-        onchange: (e) => togglePaid(a.id, e.target.checked),
-      }),
-      h('div', {},
-        h('div', { class: 'row-title' }, a.name),
-        h('div', { class: 'row-detail' }, a.detail),
+    return h('label', { class: 'tile' + (on ? ' is-on' : ''), for: id },
+      h('span', { class: 'tile-head' },
+        h('span', { class: 'tile-title' }, a.name),
+        h('input', {
+          type: 'checkbox', class: 'cbox', id, checked: on,
+          onchange: (e) => togglePaid(a.id, e.target.checked),
+        }),
       ),
-      h('div', { class: 'row-price' },
-        h('span', { class: 'm', dir: 'ltr' }, `+${formatILS(a.price)}`),
-        h('span', { class: 'y' }, h('span', { dir: 'ltr' }, formatILS(a.price * TERM_MONTHS)), ' ל־12 חודשים'),
-      ),
+      h('span', { class: 'tile-detail' }, a.detail),
+      h('span', { class: 'tile-foot' }, priceBlock(a.price),
+        a.monthlyOutput ? h('span', { class: 'tag tag-warn' }, 'תפוקה חודשית') : null),
     );
   }));
 }
@@ -118,27 +146,27 @@ function stepper(key, def) {
       set(Number.isFinite(n) ? n : 0);
     },
   });
-  return h('div', { class: 'row-end' },
-    h('span', { class: 'limit' + (value >= def.max ? ' at-max' : ''), id: `${id}-limit` },
-      value >= def.max ? `מקסימום ${def.max}` : `עד ${def.max}`),
-    h('div', { class: 'stepper', dir: 'ltr' },
+  const pct = Math.round((value / def.max) * 100);
+  return h('span', { class: 'qty-ctl' },
+    h('span', { class: 'stepper', dir: 'ltr' },
       h('button', { type: 'button', id: `${id}-dec`, 'aria-label': `הפחתת ${def.name}`, disabled: value <= 0, onclick: () => set(value - 1, `${id}-dec`) }, '−'),
       input,
       h('button', { type: 'button', id: `${id}-inc`, 'aria-label': `הוספת ${def.name}`, disabled: value >= def.max, onclick: () => set(value + 1, `${id}-inc`) }, '+'),
     ),
+    h('span', { class: 'gauge' },
+      h('span', { class: 'meter', 'aria-hidden': 'true' }, h('span', { style: `inline-size:${pct}%` })),
+      h('span', { class: 'limit' + (value >= def.max ? ' at-max' : ''), id: `${id}-limit` },
+        value >= def.max ? `מקסימום ${def.max}` : `${value} מתוך ${def.max}`),
+    ),
   );
 }
 
-function toggleRow(key, def, badge) {
+function toggleTile(key, def, badge) {
   const id = `free-${key}`;
   const on = state.free[key];
-  return h('label', { class: 'row free-row' + (on ? ' is-on' : ''), for: id, style: 'grid-template-columns: minmax(0,1fr) auto' },
-    h('div', {},
-      h('div', { class: 'row-title' }, def.name, badge ? h('span', { class: 'badge' }, badge) : null),
-      h('div', { class: 'row-detail' }, def.detail),
-    ),
-    h('div', { class: 'row-end' },
-      h('span', { class: 'state-label', 'aria-hidden': 'true' }, on ? 'נבחר · ללא עלות' : 'לא נבחר'),
+  return h('label', { class: 'tile' + (on ? ' is-on' : ''), for: id },
+    h('span', { class: 'tile-head' },
+      h('span', { class: 'tile-title' }, def.name, badge ? h('span', { class: 'tag tag-warn' }, badge) : null),
       h('span', { class: 'switch' },
         h('input', {
           type: 'checkbox', role: 'switch', id, checked: on,
@@ -147,28 +175,34 @@ function toggleRow(key, def, badge) {
         h('span', { 'aria-hidden': 'true' }),
       ),
     ),
+    h('span', { class: 'tile-detail' }, def.detail),
+    h('span', { class: 'tile-foot' },
+      h('span', { class: 'tag tag-free' }, 'ללא עלות'),
+      h('span', { class: 'state-label', 'aria-hidden': 'true' }, on ? 'נבחר' : 'לא נבחר'),
+    ),
   );
 }
 
-function quantityRow(key, def, detail) {
-  return h('div', { class: 'row free-row' + (state.free[key] > 0 ? ' is-on' : ''), style: 'grid-template-columns: minmax(0,1fr) auto' },
-    h('div', {},
-      h('label', { class: 'row-title', for: `free-${key}` }, def.name),
-      h('div', { class: 'row-detail' }, detail),
+function quantityTile(key, def, detail) {
+  return h('div', { class: 'tile' + (state.free[key] > 0 ? ' is-on' : '') },
+    h('span', { class: 'tile-head' },
+      h('label', { class: 'tile-title', for: `free-${key}` }, def.name),
+      h('span', { class: 'tag tag-free' }, 'ללא עלות'),
     ),
-    stepper(key, def),
+    h('span', { class: 'tile-detail' }, detail),
+    h('span', { class: 'tile-foot' }, stepper(key, def)),
   );
 }
 
 function renderFree() {
-  const rows = [quantityRow('graphics', FREE_ADDONS.graphics, 'בנוסף לגרפיקות שבחבילה, לשנה')];
-  if (freeAddonAvailable('simeonJoin', state)) rows.push(toggleRow('simeonJoin', FREE_ADDONS.simeonJoin));
+  const tiles = [quantityTile('graphics', FREE_ADDONS.graphics, 'בנוסף לגרפיקות שבחבילה · לשנה')];
+  if (freeAddonAvailable('simeonJoin', state)) tiles.push(toggleTile('simeonJoin', FREE_ADDONS.simeonJoin));
   if (freeAddonAvailable('simeonStories', state)) {
-    rows.push(quantityRow('simeonStories', FREE_ADDONS.simeonStories,
-      state.influencer === 'natali' ? 'זמין כי סמיון צורף לחבילה · לשנה' : 'בנוסף למה שכלול בחבילה, לשנה'));
+    tiles.push(quantityTile('simeonStories', FREE_ADDONS.simeonStories,
+      state.influencer === 'natali' ? 'זמין כי סמיון צורף לחבילה · לשנה' : 'בנוסף למה שכלול בחבילה · לשנה'));
   }
-  rows.push(toggleRow('extraCh14', FREE_ADDONS.extraCh14, 'חריג'));
-  $('free').replaceChildren(...rows);
+  tiles.push(toggleTile('extraCh14', FREE_ADDONS.extraCh14, 'חריג'));
+  $('free').replaceChildren(...tiles);
 }
 
 function renderSummary() {
@@ -178,20 +212,29 @@ function renderSummary() {
   $('sum-pkg').textContent = tier.name;
   $('sum-inf').textContent = INFLUENCERS[state.influencer].name;
 
+  const line = (name, val, cls = '') => h('li', { class: cls },
+    h('span', { class: 'name' }, name), h('span', { class: 'lead', 'aria-hidden': 'true' }), val);
   const lines = [
-    h('li', {}, h('span', { class: 'name' }, 'חבילה'), h('span', { class: 'val', dir: 'ltr' }, formatILS(model.package.monthly))),
-    ...model.paid.map((p) => h('li', {}, h('span', { class: 'name' }, p.name), h('span', { class: 'val', dir: 'ltr' }, formatILS(p.monthly)))),
+    line('חבילה', h('span', { class: 'val', dir: 'ltr' }, formatILS(model.package.monthly))),
+    ...model.paid.map((p) => line(p.name, h('span', { class: 'val', dir: 'ltr' }, `+${formatILS(p.monthly)}`))),
   ];
-  const free = model.free.map((f) => h('li', {},
-    h('span', { class: 'name' }, f.qty ? `${f.name} · ${f.qty}` : f.name),
-    h('span', { class: 'free' }, 'ללא עלות'),
-  ));
+  const free = model.free.map((f) => line(f.qty ? `${f.name} × ${f.qty}` : f.name, h('span', { class: 'free' }, '0 ₪'), 'is-free'));
+
+  // Composition of the monthly price: package vs. paid add-ons.
+  const pkgPct = (model.package.monthly / t.monthlyNet) * 100;
+  const bar = h('div', { class: 'compo', role: 'img', 'aria-label': `חבילה ${Math.round(pkgPct)}% מהמחיר החודשי` },
+    h('span', { class: 'compo-pkg', style: `inline-size:${pkgPct}%` }),
+    h('span', { class: 'compo-add', style: `inline-size:${100 - pkgPct}%` }),
+  );
   $('sum-lines').replaceChildren(...[
-    h('p', { class: 'lines-label' }, 'לחודש, לפני מע״מ'),
-    h('ul', { class: 'lines' }, lines),
-    free.length ? h('p', { class: 'lines-label' }, 'הטבות ללא עלות') : null,
-    free.length ? h('ul', { class: 'lines' }, free) : null,
-  ].filter(Boolean));
+    bar,
+    h('div', { class: 'compo-legend' },
+      h('span', {}, h('i', { class: 'dot-pkg' }), 'חבילה'),
+      h('span', {}, h('i', { class: 'dot-add' }), `תוספות · ${model.paid.length}`),
+      h('span', {}, h('i', { class: 'dot-free' }), `הטבות · ${model.free.length}`),
+    ),
+    h('ul', { class: 'lines' }, lines, free),
+  ]);
 
   const set = (id, v) => { $(id).textContent = formatILS(v); $(id).setAttribute('dir', 'ltr'); };
   set('t-mnet', t.monthlyNet);
@@ -228,6 +271,25 @@ function render({ focus } = {}) {
     if (el && !el.disabled) el.focus();
     else $(focus.replace(/-(inc|dec)$/, ''))?.focus();
   }
+}
+
+/* ── Section navigation ────────────────────── */
+function setupSectionNav() {
+  // The summary is always on screen (sticky), so only the three work sections drive the state.
+  const links = [...document.querySelectorAll('.stepnav a')].filter((a) => a.getAttribute('href') !== '#summary');
+  const sections = links.map((a) => document.querySelector(a.getAttribute('href')));
+  const obs = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      if (!en.isIntersecting) continue;
+      const i = sections.indexOf(en.target);
+      links.forEach((a, j) => {
+        a.classList.toggle('is-active', j === i);
+        a.classList.toggle('is-done', j < i);
+        if (j === i) a.setAttribute('aria-current', 'step'); else a.removeAttribute('aria-current');
+      });
+    }
+  }, { rootMargin: '-35% 0px -55% 0px' });
+  sections.forEach((s) => s && obs.observe(s));
 }
 
 /* ── State changes ─────────────────────────── */
@@ -359,19 +421,16 @@ $('btn-html').addEventListener('click', async () => {
   if (!validateClient()) return;
   try {
     const fontFiles = [
-      ['IBM Plex Sans Hebrew', 400, 'plex-hebrew-hebrew-400'], ['IBM Plex Sans Hebrew', 400, 'plex-hebrew-latin-400'],
-      ['IBM Plex Sans Hebrew', 600, 'plex-hebrew-hebrew-600'], ['IBM Plex Sans Hebrew', 600, 'plex-hebrew-latin-600'],
-      ['IBM Plex Sans Hebrew', 700, 'plex-hebrew-hebrew-700'], ['IBM Plex Sans Hebrew', 700, 'plex-hebrew-latin-700'],
-      ['IBM Plex Mono', 400, 'plex-mono-latin-400'], ['IBM Plex Mono', 600, 'plex-mono-latin-600'],
+      ['Rubik', 'rubik-hebrew', 'U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F'],
+      ['Rubik', 'rubik-latin', 'U+0000-00FF,U+2000-206F'],
     ];
     const [css, logo, ...fonts] = await Promise.all([
       fetch('app/styles/quote.css').then((r) => r.text()),
       toDataUrl('app/assets/logo.png'),
-      ...fontFiles.map(([, , f]) => toDataUrl(`app/fonts/${f}.woff2`)),
+      ...fontFiles.map(([, f]) => toDataUrl(`app/fonts/${f}.woff2`)),
     ]);
-    const fontCss = fontFiles.map(([family, weight, f], i) => `@font-face{font-family:'${family}';font-weight:${weight};`
-      + `src:url(${fonts[i].replace('application/octet-stream', 'font/woff2')}) format('woff2');`
-      + (f.includes('hebrew-hebrew') ? 'unicode-range:U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F;' : '') + '}').join('');
+    const fontCss = fontFiles.map(([family, f, range], i) => `@font-face{font-family:'${family}';font-weight:300 900;`
+      + `src:url(${fonts[i].replace('application/octet-stream', 'font/woff2')}) format('woff2');unicode-range:${range};}`).join('');
     const model = currentModel();
     const doc = renderQuoteDoc(model, { logoSrc: logo });
     const safeTitle = `הצעת מחיר · ${model.client.name}`.replace(/[<>&"]/g, '');
@@ -545,4 +604,5 @@ $('sh-copy').addEventListener('click', async () => {
 
 /* ── Boot ──────────────────────────────────── */
 render();
+setupSectionNav();
 refreshSession();

@@ -7,7 +7,7 @@
   --qd-soft: #F5F6FA;
   --qd-accent: #5302DF;
   --qd-pink: #F82272;
-  font-family: 'IBM Plex Sans Hebrew', system-ui, sans-serif;
+  font-family: 'Rubik', system-ui, sans-serif;
   color: var(--qd-ink);
   background: #FFFFFF;
   width: 100%;
@@ -21,7 +21,8 @@
 }
 .qd *, .qd *::before, .qd *::after { box-sizing: border-box; }
 .qd .num {
-  font-family: 'IBM Plex Mono', 'IBM Plex Sans Hebrew', ui-monospace, monospace;
+  font-family: 'Rubik', system-ui, sans-serif;
+  font-feature-settings: 'tnum';
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }

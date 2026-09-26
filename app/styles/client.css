@@ -15,7 +15,7 @@
 [hidden] { display: none !important; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
-  font-family: 'IBM Plex Sans Hebrew', system-ui, sans-serif; font-size: 15px; line-height: 1.5;
+  font-family: 'Rubik', system-ui, sans-serif; font-size: 15px; line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 :focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
@@ -42,7 +42,7 @@ button, input { font: inherit; color: inherit; }
 }
 .cstrip-main { display: flex; align-items: baseline; gap: 8px; }
 .cstrip-main .num {
-  font-family: 'IBM Plex Mono', 'IBM Plex Sans Hebrew', monospace; font-variant-numeric: tabular-nums;
+  font-family: 'Rubik', system-ui, sans-serif; font-variant-numeric: tabular-nums;
   font-size: 22px; font-weight: 600;
 }
 .cstrip-main span:last-child { font-size: 13.5px; color: #C9D1E6; }
