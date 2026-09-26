@@ -1,6 +1,6 @@
 import {
   INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS, SPEC_ROWS, SPECS,
-  VAT_RATE_PERCENT, TERM_MONTHS, packageId,
+  VAT_RATE_PERCENT, TERM_MONTHS, DOC_TYPES, packageId,
 } from './catalog.js';
 import {
   emptySelection, reconcile, computeTotals, buildQuoteModel, formatILS,
@@ -258,7 +258,23 @@ function announce(t) {
   $('live-total').textContent = `סה״כ לחודש כולל מע״מ: ${formatILS(t.monthlyGross)}`;
 }
 
+function renderDocType() {
+  const doc = DOC_TYPES[state.docType];
+  const signable = doc.signable;
+  $('page-h1').textContent = signable ? 'הסכם התקשרות חדש' : 'הצעת מחיר חדשה';
+  document.title = `${signable ? 'הסכם התקשרות' : 'הצעת מחיר'} · astrateg`;
+  $('sum-doc').textContent = doc.name;
+  $('btn-link').textContent = signable ? 'יצירת קישור לחתימה' : 'יצירת קישור לצפייה';
+  $('act-hint').textContent = signable
+    ? 'הלקוח קורא את ההסכם וחותם אונליין · נשמר ב״הצעות שנשלחו״'
+    : 'הלקוח צופה בהצעה, בלי חתימה · נשמר ב״הצעות שנשלחו״';
+  document.querySelectorAll('#doc-switch [data-doc]').forEach((b) => {
+    b.setAttribute('aria-checked', String(b.dataset.doc === state.docType));
+  });
+}
+
 function render({ focus } = {}) {
+  renderDocType();
   renderInfluencers();
   renderTiers();
   renderIncluded();
@@ -330,6 +346,7 @@ function readClient() {
     company: $('c-company').value,
     phone: $('c-phone').value,
     email: $('c-email').value,
+    companyId: $('c-companyid').value,
     notes: $('c-notes').value,
   };
 }
@@ -337,14 +354,18 @@ function readClient() {
 function validateClient() {
   const name = $('c-name');
   const email = $('c-email');
+  const cid = $('c-companyid');
   const nameOk = name.value.trim().length > 0;
   const emailOk = !email.value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim());
+  const cidOk = !cid.value.trim() || /^[0-9][0-9-]{3,18}$/.test(cid.value.trim());
+  cid.setAttribute('aria-invalid', String(!cidOk));
+  $('c-companyid-err').hidden = cidOk;
   name.setAttribute('aria-invalid', String(!nameOk));
   $('c-name-err').hidden = nameOk;
   email.setAttribute('aria-invalid', String(!emailOk));
   $('c-email-err').hidden = emailOk;
-  if (!nameOk || !emailOk) {
-    const target = !nameOk ? name : email;
+  if (!nameOk || !emailOk || !cidOk) {
+    const target = !nameOk ? name : !cidOk ? cid : email;
     target.scrollIntoView({ block: 'center', behavior: 'smooth' });
     target.focus({ preventScroll: true });
     return false;
@@ -352,7 +373,7 @@ function validateClient() {
   return true;
 }
 
-['c-name', 'c-email'].forEach((id) => $(id).addEventListener('input', () => {
+['c-name', 'c-email', 'c-companyid'].forEach((id) => $(id).addEventListener('input', () => {
   if ($(id).getAttribute('aria-invalid') === 'true') {
     const ok = id === 'c-name' ? $(id).value.trim().length > 0 : true;
     if (ok) { $(id).setAttribute('aria-invalid', 'false'); $(`${id}-err`).hidden = true; }
@@ -433,7 +454,7 @@ $('btn-html').addEventListener('click', async () => {
       + `src:url(${fonts[i].replace('application/octet-stream', 'font/woff2')}) format('woff2');unicode-range:${range};}`).join('');
     const model = currentModel();
     const doc = renderQuoteDoc(model, { logoSrc: logo });
-    const safeTitle = `הצעת מחיר · ${model.client.name}`.replace(/[<>&"]/g, '');
+    const safeTitle = `${model.docTitle} · ${model.client.name}`.replace(/[<>&"]/g, '');
     const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">`
       + `<meta name="viewport" content="width=device-width, initial-scale=1"><title>${safeTitle}</title>`
       + `<style>${fontCss}body{margin:0;background:#fff}@page{size:A4;margin:14mm 12mm}${css}</style></head>`
@@ -556,12 +577,20 @@ async function createLink(btn) {
     created.push({ id: data.id, number: data.number, clientName, gross: currentModel().totals.monthlyGross });
     renderPrevQuotes(prev);
     $('sh-number').textContent = data.number;
+    const signable = DOC_TYPES[state.docType].signable;
+    $('sh-doc').textContent = signable ? 'ההסכם' : 'ההצעה';
+    $('sh-what').textContent = signable
+      ? 'שלחו אותו ללקוח, והוא יוכל לקרוא את ההסכם ולחתום עליו.'
+      : 'שלחו אותו ללקוח, והוא יוכל לצפות בהצעה (ללא חתימה).';
+    $('sh-status').textContent = signable ? 'ממתין לחתימה' : 'נשלח לצפייה';
     $('sh-link').value = link;
     $('sh-open').href = link;
     const name = readClient().name.trim();
-    const text = `שלום ${name}, מצורפת הצעת המחיר מאסטרטג (${data.number}). אפשר לעיין ולחתום כאן:\n${link}`;
+    const text = signable
+      ? `שלום ${name}, מצורף הסכם ההתקשרות מאסטרטג (${data.number}). אפשר לעיין ולחתום כאן:\n${link}`
+      : `שלום ${name}, מצורפת הצעת המחיר מאסטרטג (${data.number}). לצפייה:\n${link}`;
     $('sh-wa').href = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    $('sh-mail').href = `mailto:${encodeURIComponent(readClient().email.trim())}?subject=${encodeURIComponent(`הצעת מחיר ${data.number} · astrateg`)}&body=${encodeURIComponent(text)}`;
+    $('sh-mail').href = `mailto:${encodeURIComponent(readClient().email.trim())}?subject=${encodeURIComponent(`${DOC_TYPES[state.docType].name} ${data.number} · astrateg`)}&body=${encodeURIComponent(text)}`;
     openDialog($('dlg-share'), btn);
     $('sh-link').select();
   } catch (err) {
@@ -603,6 +632,21 @@ $('sh-copy').addEventListener('click', async () => {
 });
 
 /* ── Boot ──────────────────────────────────── */
+/* ── Document type ─────────────────────────── */
+function chooseDoc(type, focusTarget) {
+  update({ docType: type });
+  document.body.classList.remove('is-choosing');
+  $('start').hidden = true;
+  if (focusTarget) focusTarget.focus();
+}
+document.querySelectorAll('.start-card').forEach((b) => b.addEventListener('click', () => {
+  chooseDoc(b.dataset.doc);
+  window.scrollTo({ top: 0 });
+  $('page-h1').setAttribute('tabindex', '-1');
+  $('page-h1').focus();
+}));
+document.querySelectorAll('#doc-switch [data-doc]').forEach((b) => b.addEventListener('click', () => chooseDoc(b.dataset.doc, b)));
+
 render();
 setupSectionNav();
 refreshSession();

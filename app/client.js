@@ -23,7 +23,7 @@ function docMeta(q) {
     number: q.number,
     createdAt: q.createdAt,
     docHash: q.docHash,
-    signOnline: q.status !== 'signed',
+    signOnline: q.status !== 'signed' && q.model.signable !== false,
     signature: q.status === 'signed'
       ? { name: q.signerName, signedAt: q.signedAt, png: q.signaturePng, hash: q.signatureHash }
       : null,
@@ -32,7 +32,11 @@ function docMeta(q) {
 
 function render(q) {
   quote = q;
-  document.title = `הצעת מחיר ${q.number} · astrateg`;
+  const title = q.model.docTitle || 'הצעת מחיר';
+  // Older quotes (before document types) were all signable.
+  const signable = q.model.signable !== false;
+  document.title = `${title} ${q.number} · astrateg`;
+  $('cbar-title').textContent = title;
   $('doc').replaceChildren(renderQuoteDoc(q.model, docMeta(q)));
   $('doc').hidden = false;
   $('state').hidden = true;
@@ -40,7 +44,7 @@ function render(q) {
   const tot = q.model.totals;
   $('strip-month').textContent = formatILS(tot.monthlyGross);
   $('strip-sub').textContent = `${q.model.termMonths} חודשים · סה״כ ${formatILS(tot.termGross)} כולל מע״מ`;
-  $('strip-go').hidden = q.status === 'signed';
+  $('strip-go').hidden = !signable || q.status === 'signed';
   $('strip').hidden = false;
   if (q.consentText) $('consent-text').textContent = q.consentText;
 
@@ -52,6 +56,10 @@ function render(q) {
     $('signbox').hidden = true;
     $('signed').hidden = false;
     $('signed-text').textContent = `נחתם על ידי ${q.signerName} ב־${formatDate(q.signedAt, true)}. אפשר להדפיס או לשמור עותק כ־PDF.`;
+  } else if (!signable) {
+    status.textContent = 'לעיון';
+    $('signbox').hidden = true;
+    $('signed').hidden = true;
   } else {
     status.textContent = 'ממתין לחתימה';
     $('signbox').hidden = false;

@@ -10,7 +10,7 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const LIMITS = { name: 120, company: 120, phone: 40, email: 160, notes: 2000 };
+const LIMITS = { name: 120, company: 120, companyId: 20, phone: 40, email: 160, notes: 2000 };
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -27,11 +27,13 @@ function cleanClient(raw: Record<string, unknown> = {}) {
     out[key] = value;
   }
   if (!out.name) throw new Error('client name required');
+  if (out.companyId && !/^[0-9][0-9-]{3,18}$/.test(out.companyId)) throw new Error('invalid company id');
   return out;
 }
 
 function cleanSelection(raw: any) {
   const sel = {
+    docType: raw?.docType,
     tier: raw?.tier,
     influencer: raw?.influencer,
     paid: Array.isArray(raw?.paid) ? [...raw.paid] : raw?.paid,

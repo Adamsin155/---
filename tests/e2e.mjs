@@ -63,6 +63,7 @@ async function fakeSupabase(route) {
     if (!q) return json(404, { code: 'P0002', message: 'quote not found' });
     if (q.status === 'signed') return json(409, { code: '23505', message: 'quote already signed' });
     if (!body.p_consent) return json(400, { code: '22023', message: 'consent required' });
+    if (q.model.signable === false) return json(400, { code: '22023', message: 'this document does not require a signature' });
     assert.match(body.p_signature, /^data:image\/png;base64,/);
     assert.ok(body.p_signature.length < 400000, 'signature size');
     Object.assign(q, { status: 'signed', signer_name: body.p_name.trim(), signed_at: new Date().toISOString(), signature_png: body.p_signature });
@@ -103,6 +104,15 @@ const page = await newPage();
 console.log('page');
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.evaluate(() => { window.print = () => { window.__printed = (window.__printed || 0) + 1; }; });
+
+await step('start screen: choose a document type before building', async () => {
+  assert.ok(await page.locator('#start').isVisible());
+  assert.ok(await page.locator('#sec-package').isHidden());
+  await page.locator('#start-agreement').click();
+  assert.ok(await page.locator('#sec-package').isVisible());
+  assert.equal(await text(page, '#page-h1'), 'הסכם התקשרות חדש');
+  assert.equal(await text(page, '#btn-link'), 'יצירת קישור לחתימה');
+});
 
 await step('default: Social · Simeon 3,900 → 4,602 incl. VAT', async () => {
   assert.equal(await text(page, '#t-mnet'), '3,900 ₪');
@@ -177,6 +187,7 @@ await step('preview renders text safely and matches summary', async () => {
   await page.locator('#c-company').fill('Cafe Noir בע"מ');
   await page.locator('#c-phone').fill('050-123-4567');
   await page.locator('#c-email').fill('dana@example.com');
+  await page.locator('#c-companyid').fill('514729938');
   await page.locator('#c-notes').fill('שורה ראשונה\nשורה <b>שנייה</b>');
   await page.locator('#btn-preview').click();
   const dlg = page.locator('#dlg-preview');
@@ -189,6 +200,11 @@ await step('preview renders text safely and matches summary', async () => {
   assert.match(docText, /97,704 ₪/);
   assert.match(docText, /ללא עלות/);
   assert.match(docText, /8 תכנים בכל חודש/);
+  assert.match(docText, /הסכם התקשרות/);
+  assert.match(docText, /תנאי ההסכם/);
+  assert.match(docText, /6,900 ₪ לחודש \+ מע״מ כחוק/);
+  assert.match(docText, /514729938/);
+  assert.match(docText, /אסטרטג טכנולוגיות בע״מ/);
   await shot(page, '02-preview', false);
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'btn-preview', 'focus returns');
@@ -275,7 +291,7 @@ await step('client sign: validation, draw, consent, signed state', async () => {
   await client.locator('#btn-sign').click();
   await client.locator('#signed').waitFor();
   assert.match(await text(client, '#signed-text'), /דנה לוי/);
-  assert.ok(await client.locator('.qd-sign.is-signed img').isVisible());
+  assert.ok(await client.locator('.qd-sign-box.is-signed img').isVisible());
   assert.ok(await client.locator('#signbox').isHidden());
   await shot(client, '06-client-signed');
 });
@@ -327,9 +343,35 @@ await step('dashboard lists the signed quote (same session)', async () => {
   assert.match(await dash.locator('#toast').innerText(), /הסיסמה עודכנה/);
 });
 
+await step('quote (view only): no legal text, link opens without signing', async () => {
+  const p = await page.context().newPage();
+  await p.goto(BASE, { waitUntil: 'networkidle' });
+  await p.locator('#start-quote').click();
+  assert.equal(await text(p, '#btn-link'), 'יצירת קישור לצפייה');
+  await p.locator('#c-name').fill('לקוח הצעה');
+  await p.locator('#btn-preview').click();
+  const doc = await p.locator('#dlg-preview').innerText();
+  assert.match(doc, /הצעת מחיר/);
+  assert.doesNotMatch(doc, /תנאי ההסכם/);
+  assert.doesNotMatch(doc, /חתימות הצדדים/);
+  await p.keyboard.press('Escape');
+  await p.locator('#btn-link').click();
+  await p.locator('#dlg-share').waitFor();
+  assert.match(await text(p, '#sh-status'), /נשלח לצפייה/);
+  const qlink = await p.locator('#sh-link').inputValue();
+  const c = await newPage({ width: 390, height: 844 });
+  await c.goto(qlink, { waitUntil: 'networkidle' });
+  await c.locator('.qd').waitFor();
+  assert.ok(await c.locator('#signbox').isHidden(), 'no signing for a quote');
+  assert.ok(await c.locator('#strip-go').isHidden());
+  assert.equal(await text(c, '#status'), 'לעיון');
+  await shot(c, '09-client-quote');
+});
+
 await step('mobile builder: price bar visible, no horizontal scroll', async () => {
   const m = await newPage({ width: 360, height: 740 });
   await m.goto(BASE, { waitUntil: 'networkidle' });
+  await m.locator('#start-quote').click();
   assert.ok(await m.locator('#mobilebar').isVisible());
   const overflow = await m.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(overflow <= 0, `horizontal overflow ${overflow}px`);

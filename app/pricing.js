@@ -3,11 +3,13 @@
 
 import {
   VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES,
-  PAID_ADDONS, FREE_ADDONS, packageId,
+  PAID_ADDONS, FREE_ADDONS, DOC_TYPES, packageId,
 } from './catalog.js';
+import { PROVIDER, agreementSections } from './legal.js';
 
 export function emptySelection() {
   return {
+    docType: 'quote',
     tier: 'social',
     influencer: 'simeon',
     paid: [],
@@ -53,6 +55,7 @@ function isWholeInRange(n, max) {
 export function validateSelection(sel) {
   const errors = [];
   if (!sel || typeof sel !== 'object') throw new Error('selection missing');
+  if (!DOC_TYPES[sel.docType]) errors.push(`unknown document type: ${sel.docType}`);
   if (!TIERS.some((t) => t.id === sel.tier)) errors.push(`unknown tier: ${sel.tier}`);
   if (!INFLUENCERS[sel.influencer]) errors.push(`unknown influencer: ${sel.influencer}`);
   if (!Array.isArray(sel.paid)) errors.push('paid must be an array');
@@ -145,8 +148,14 @@ export function buildQuoteModel(sel, client = {}, meta = {}) {
   if (sel.free.simeonStories > 0) free.push({ id: 'simeonStories', name: FREE_ADDONS.simeonStories.name, qty: sel.free.simeonStories });
   if (sel.free.extraCh14) free.push({ id: 'extraCh14', name: FREE_ADDONS.extraCh14.name, detail: FREE_ADDONS.extraCh14.detail });
 
+  const totals = computeTotals(sel);
+  const docType = DOC_TYPES[sel.docType] || DOC_TYPES.quote;
   return {
-    version: 1,
+    version: 2,
+    docType: docType.id,
+    docTitle: docType.name,
+    signable: docType.signable,
+    provider: PROVIDER,
     number: meta.number || null,
     createdAt: meta.createdAt || null,
     client: {
@@ -154,6 +163,7 @@ export function buildQuoteModel(sel, client = {}, meta = {}) {
       company: (client.company || '').trim(),
       phone: (client.phone || '').trim(),
       email: (client.email || '').trim(),
+      companyId: (client.companyId || '').trim(),
       notes: (client.notes || '').trim(),
     },
     package: {
@@ -168,8 +178,11 @@ export function buildQuoteModel(sel, client = {}, meta = {}) {
     free,
     vatRate: VAT_RATE_PERCENT,
     termMonths: TERM_MONTHS,
-    totals: computeTotals(sel),
+    totals,
     terms: termsText(sel),
+    legal: docType.signable
+      ? agreementSections({ termMonths: TERM_MONTHS, totals, packageName: tier.name, influencer: INFLUENCERS[sel.influencer].name, hasAddons: paid.length > 0 })
+      : null,
     selection: sel,
   };
 }

@@ -9,10 +9,16 @@ let filter = 'all';
 const STATUS = {
   sent: 'ממתין לחתימה',
   viewed: 'נצפה',
+  shared: 'נשלח לצפייה',
+  seen: 'נצפה',
   signed: 'נחתם',
   cancelled: 'בוטל',
 };
-const statusOf = (q) => (q.status === 'sent' && q.first_viewed_at ? 'viewed' : q.status);
+// View-only quotes have no signing step: they are either shared or seen.
+const statusOf = (q) => {
+  if (q.status === 'sent' && q.signable === 'false') return q.first_viewed_at ? 'seen' : 'shared';
+  return q.status === 'sent' && q.first_viewed_at ? 'viewed' : q.status;
+};
 
 let toastTimer;
 function toast(msg) {
@@ -37,6 +43,7 @@ function renderStats() {
   $('stats').replaceChildren(
     stat('הצעות', String(quotes.length)),
     stat('ממתינות לחתימה', String(count('sent') + count('viewed'))),
+    stat('הצעות לצפייה', String(count('shared') + count('seen'))),
     stat('נחתמו', String(count('signed'))),
     stat('חודשי בהצעות חתומות', formatILS(signedMonthly)),
   );
@@ -45,7 +52,7 @@ function renderStats() {
 
 function renderFilters() {
   const opts = [['all', 'הכול'], ['open', 'ממתינות'], ['signed', 'נחתמו'], ['cancelled', 'בוטלו']];
-  const n = (k) => quotes.filter((q) => k === 'all' || (k === 'open' ? ['sent', 'viewed'].includes(statusOf(q)) : statusOf(q) === k)).length;
+  const n = (k) => quotes.filter((q) => k === 'all' || (k === 'open' ? ['sent', 'viewed', 'shared', 'seen'].includes(statusOf(q)) : statusOf(q) === k)).length;
   $('filters').replaceChildren(...opts.map(([k, label]) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(filter === k),
     onclick: () => { filter = k; renderFilters(); renderRows(); },
@@ -73,15 +80,15 @@ function renderRows() {
   const list = quotes.filter((q) => {
     const s = statusOf(q);
     if (filter === 'all') return true;
-    if (filter === 'open') return s === 'sent' || s === 'viewed';
+    if (filter === 'open') return ['sent', 'viewed', 'shared', 'seen'].includes(s);
     return s === filter;
   });
   $('rows').replaceChildren(...list.map((q) => {
     const s = statusOf(q);
     const link = quoteLink(q.token);
-    const when = s === 'signed' ? formatDate(q.signed_at, true) : s === 'viewed' ? formatDate(q.first_viewed_at, true) : '';
+    const when = s === 'signed' ? formatDate(q.signed_at, true) : (s === 'viewed' || s === 'seen') ? formatDate(q.first_viewed_at, true) : '';
     return h('tr', {},
-      h('td', { class: 'num', dir: 'ltr' }, q.number),
+      h('td', {}, h('span', { class: 'num', dir: 'ltr' }, q.number), h('small', { class: 'doc-type' }, q.doc || 'הצעת מחיר')),
       h('td', { class: 'client' }, q.client_name, q.signer_name && s === 'signed' ? h('small', {}, `נחתם ע״י ${q.signer_name}`) : null),
       h('td', { class: 'client' }, h('span', { dir: 'auto' }, q.tier || ''), h('small', {}, q.influencer || '')),
       h('td', { class: 'amt', dir: 'ltr' }, formatILS(q.monthly_gross_agorot)),
@@ -90,7 +97,7 @@ function renderRows() {
       h('td', {}, h('div', { class: 'acts' },
         s !== 'cancelled' ? h('a', { class: 'btn btn-sm btn-ghost', href: link, target: '_blank', rel: 'noopener' }, 'פתיחה') : null,
         s !== 'cancelled' ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => copy(link) }, 'העתקת קישור') : null,
-        s === 'sent' || s === 'viewed'
+        ['sent', 'viewed', 'shared', 'seen'].includes(s)
           ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: (e) => cancel(q, e.currentTarget) }, 'ביטול')
           : null,
       )),
@@ -104,7 +111,7 @@ async function loadQuotes() {
   $('state').textContent = 'טוען…';
   const { data, error } = await supabase
     .from('quotes')
-    .select('id, token, number, client_name, monthly_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer')
+    .select('id, token, number, client_name, monthly_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer, doc:model->>docTitle, signable:model->>signable')
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) { $('state').textContent = explainError(error); return; }

@@ -2,6 +2,13 @@
 // Shared by the builder, the client page and the create-quote edge function.
 
 export const VAT_RATE_PERCENT = 18;
+
+// Document types chosen before building: a quote is informational only;
+// an agreement adds the legal terms and requires the client's signature.
+export const DOC_TYPES = {
+  quote: { id: 'quote', name: 'הצעת מחיר', signable: false },
+  agreement: { id: 'agreement', name: 'הסכם התקשרות', signable: true },
+};
 export const TERM_MONTHS = 12;
 
 export const INFLUENCERS = {

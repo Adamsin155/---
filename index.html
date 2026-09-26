@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="app/styles/app.css">
   <link rel="stylesheet" href="app/styles/quote.css">
 </head>
-<body>
+<body class="is-choosing">
   <header class="topbar">
     <a class="brand" href="./" aria-label="astrateg · מחולל הצעות מחיר">
       <span class="brand-chip"><img src="app/assets/logo-mark.png" alt=""></span>
@@ -26,11 +26,34 @@
   </header>
 
   <main class="shell" id="main">
+    <section class="start" id="start" aria-labelledby="start-h">
+      <div class="eyebrow"><span class="pulse" aria-hidden="true"></span><span dir="ltr">NEW DOCUMENT</span></div>
+      <h1 id="start-h">מה מכינים ללקוח?</h1>
+      <p>בוחרים את סוג המסמך. אפשר לשנות גם בהמשך.</p>
+      <div class="start-grid">
+        <button type="button" class="start-card" id="start-quote" data-doc="quote">
+          <span class="start-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 12h6M10 16h6"/></svg></span>
+          <span class="start-title">הצעת מחיר</span>
+          <span class="start-desc">פירוט החבילה, התוספות והמחירים. בלי מלל משפטי ובלי חתימה.</span>
+          <span class="start-foot">הדפסה · PDF · קישור לצפייה</span>
+        </button>
+        <button type="button" class="start-card" id="start-agreement" data-doc="agreement">
+          <span class="start-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M9.5 17c1.2-1.6 2-1.6 2.6 0 .5 1.3 1.3 1.3 2.4-.4"/></svg></span>
+          <span class="start-title">הסכם התקשרות</span>
+          <span class="start-desc">הפירוט המלא ובנוסף תנאי ההסכם, והלקוח חותם דיגיטלית.</span>
+          <span class="start-foot">קישור לחתימה · מעקב סטטוס</span>
+        </button>
+      </div>
+    </section>
+
     <div class="page-head">
       <div class="page-title">
         <div class="eyebrow"><span class="pulse" aria-hidden="true"></span><span dir="ltr">QUOTE BUILDER</span></div>
-        <h1>הצעת מחיר חדשה</h1>
-        <p>בוחרים חבילה, מתאימים תוספות, ושולחים ללקוח קישור לחתימה.</p>
+        <h1 id="page-h1">הצעת מחיר חדשה</h1>
+        <div class="doc-switch" role="radiogroup" aria-label="סוג המסמך" id="doc-switch">
+          <button type="button" role="radio" data-doc="quote" aria-checked="true">הצעת מחיר</button>
+          <button type="button" role="radio" data-doc="agreement" aria-checked="false">הסכם התקשרות</button>
+        </div>
       </div>
       <dl class="facts">
         <div><dt>תקופה</dt><dd>12 חודשים</dd></div>
@@ -104,6 +127,11 @@
               <input class="input" id="c-company" name="company" autocomplete="organization" maxlength="120">
             </div>
             <div class="field">
+              <label for="c-companyid">ח.פ / ע.מ</label>
+              <input class="input" id="c-companyid" name="companyId" dir="ltr" inputmode="numeric" maxlength="20" aria-describedby="c-companyid-err" placeholder="9 ספרות">
+              <div class="err" id="c-companyid-err" hidden>מספר לא תקין. יש להזין ספרות בלבד.</div>
+            </div>
+            <div class="field">
               <label for="c-phone">טלפון</label>
               <input class="input" id="c-phone" name="phone" type="tel" dir="ltr" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="050-000-0000">
             </div>
@@ -123,7 +151,7 @@
 
     <aside class="summary" id="summary" aria-labelledby="sum-h">
       <div class="summary-head">
-        <div class="summary-kicker"><span id="sum-h">סיכום הצעה</span><span class="live" aria-hidden="true">LIVE</span></div>
+        <div class="summary-kicker"><span id="sum-h">סיכום · <span id="sum-doc">הצעת מחיר</span></span><span class="live" aria-hidden="true">LIVE</span></div>
         <div class="summary-pkg" id="sum-pkg" dir="auto"></div>
         <div class="summary-inf" id="sum-inf"></div>
       </div>
@@ -146,7 +174,7 @@
       </div>
       <div class="actions">
         <button type="button" class="btn btn-primary" id="btn-link">יצירת קישור לחתימה</button>
-        <p class="act-hint">הלקוח צופה וחותם אונליין · נשמר ב״הצעות שנשלחו״</p>
+        <p class="act-hint" id="act-hint">הלקוח צופה וחותם אונליין · נשמר ב״הצעות שנשלחו״</p>
         <button type="button" class="btn" id="btn-preview">תצוגה מקדימה</button>
         <p class="act-group">עותק ללא חתימה אונליין</p>
         <div class="pair">
@@ -202,13 +230,13 @@
       <button type="button" class="close" data-close aria-label="סגירה">×</button>
     </div>
     <div class="dlg-body">
-      <p>הצעה <strong class="num" id="sh-number" dir="ltr"></strong> נשמרה. הקישור עדיין לא נשלח — שלחו אותו ללקוח, והוא יוכל לצפות בהצעה ולחתום עליה.</p>
+      <p><span id="sh-doc">הצעה</span> <strong class="num" id="sh-number" dir="ltr"></strong> נשמרה. הקישור עדיין לא נשלח. <span id="sh-what">שלחו אותו ללקוח, והוא יוכל לצפות בהצעה ולחתום עליה.</span></p>
       <label class="field-label" for="sh-link">קישור ללקוח</label>
       <div class="linkbox">
         <input class="input" id="sh-link" readonly>
         <button type="button" class="btn" id="sh-copy">העתקה</button>
       </div>
-      <div class="status-line"><span class="dot on"></span>ממתין לחתימה · אפשר לעקוב בעמוד ״הצעות שנשלחו״</div>
+      <div class="status-line"><span class="dot on"></span><span id="sh-status">ממתין לחתימה</span> · אפשר לעקוב בעמוד ״הצעות שנשלחו״</div>
       <div id="sh-prev"></div>
     </div>
     <div class="dlg-foot">

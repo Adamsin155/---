@@ -31,44 +31,77 @@ export function formatDate(value, withTime = false) {
 
 const money = (agorot) => h('span', { class: 'num', dir: 'ltr' }, formatILS(agorot));
 
-// meta: { number, createdAt, docHash, logoSrc, signature: { name, signedAt, png } }
+// Provider details for documents saved before they were stored in the model.
+const PROVIDER_FALLBACK = {
+  name: 'אסטרטג טכנולוגיות בע״מ', companyId: '514729938',
+  addresses: ['הבונים 5, רמת גן', 'האורזים 23, נתניה'], email: 'info@astrateg.com',
+};
+
+function party(label, lines) {
+  return h('div', { class: 'qd-party' },
+    h('div', { class: 'qd-label' }, label),
+    lines.filter(Boolean),
+  );
+}
+
+function sectionHead(title, aside) {
+  return h('div', { class: 'qd-sec-head' }, h('h2', {}, title), aside ? h('span', { class: 'qd-aside' }, aside) : null);
+}
+
+// meta: { number, createdAt, docHash, logoSrc, signOnline,
+//         signature: { name, signedAt, png, hash } }
 export function renderQuoteDoc(model, meta = {}) {
   const t = model.totals;
   const c = model.client;
-  const number = meta.number || model.number;
-
-  const header = h('header', { class: 'qd-head' },
-    h('img', { class: 'qd-logo', src: meta.logoSrc || 'app/assets/logo.png', alt: 'astrateg' }),
-    h('dl', { class: 'qd-meta' },
-      h('div', {}, h('dt', {}, 'הצעת מחיר'), h('dd', { class: 'num', dir: 'ltr' }, number || 'טיוטה')),
-      h('div', {}, h('dt', {}, 'תאריך'), h('dd', {}, formatDate(meta.createdAt || model.createdAt))),
-      h('div', {}, h('dt', {}, 'תקופה'), h('dd', {}, `${model.termMonths} חודשים`)),
-    ),
-  );
-
-  const clientLines = [
-    c.company && h('div', {}, c.company),
-    c.phone && h('div', { class: 'num', dir: 'ltr' }, c.phone),
-    c.email && h('div', { dir: 'ltr' }, c.email),
-  ];
-  const to = h('section', { class: 'qd-to' },
-    h('div', { class: 'qd-label' }, 'לכבוד'),
-    h('div', { class: 'qd-client' }, c.name || '—'),
-    ...clientLines,
-  );
-
   const pkg = model.package;
-  const includes = h('table', { class: 'qd-table qd-includes' },
-    h('caption', {}, 'מה כלול בחבילה · כמויות לשנה'),
-    h('thead', {}, h('tr', {}, h('th', { scope: 'col', class: 'qty' }, 'כמות'), h('th', { scope: 'col' }, 'פריט'))),
-    h('tbody', {}, pkg.includes.map((i) => h('tr', {},
-      h('td', { class: 'qty num' }, i.qty === null ? '✓' : String(i.qty)),
-      h('td', {}, i.label),
-    ))),
+  const number = meta.number || model.number;
+  const createdAt = meta.createdAt || model.createdAt;
+  const title = model.docTitle || 'הצעת מחיר';
+  const isAgreement = model.docType === 'agreement';
+  const provider = model.provider || PROVIDER_FALLBACK;
+
+  const header = h('header', { class: 'qd-top' },
+    h('div', { class: 'qd-titles' },
+      h('span', { class: 'qd-type' }, isAgreement ? 'מסמך לחתימה' : 'לעיון'),
+      h('h1', {}, title),
+      h('div', { class: 'qd-meta' },
+        h('span', {}, 'מס׳ ', h('b', { class: 'num', dir: 'ltr' }, number || 'טיוטה')),
+        h('span', {}, formatDate(createdAt)),
+        h('span', {}, `${model.termMonths} חודשים`),
+      ),
+    ),
+    h('img', { class: 'qd-logo', src: meta.logoSrc || 'app/assets/logo.png', alt: 'astrateg' }),
   );
 
+  const parties = h('section', { class: 'qd-parties' },
+    party('מאת', [
+      h('div', { class: 'qd-party-name' }, provider.name),
+      h('div', {}, 'ח.פ ', h('span', { class: 'num', dir: 'ltr' }, provider.companyId)),
+      h('div', {}, provider.addresses.join(' · ')),
+      h('div', { dir: 'ltr', class: 'qd-ltr' }, provider.email),
+    ]),
+    party('לכבוד', [
+      h('div', { class: 'qd-party-name qd-client' }, c.name || '—'),
+      c.company ? h('div', {}, c.company) : null,
+      c.companyId ? h('div', {}, 'ח.פ ', h('span', { class: 'num', dir: 'ltr' }, c.companyId)) : null,
+      c.phone ? h('div', { dir: 'ltr', class: 'qd-ltr num' }, c.phone) : null,
+      c.email ? h('div', { dir: 'ltr', class: 'qd-ltr' }, c.email) : null,
+    ]),
+  );
+
+  const stat = (label, value, sub, cls = '') => h('div', { class: `qd-stat ${cls}` },
+    h('div', { class: 'qd-stat-label' }, label), h('div', { class: 'qd-stat-value' }, money(value)),
+    sub ? h('div', { class: 'qd-stat-sub' }, sub) : null);
+  const hero = h('section', { class: 'qd-hero' },
+    stat('לחודש', t.monthlyNet, '+ מע״מ', 'is-main'),
+    stat('לחודש כולל מע״מ', t.monthlyGross, `מע״מ ${model.vatRate}%`),
+    stat(`סה״כ ל־${model.termMonths} חודשים`, t.termGross, 'כולל מע״מ'),
+  );
+
+  const counted = pkg.includes.filter((i) => i.qty !== null);
+  const services = pkg.includes.filter((i) => i.qty === null);
   const pkgSection = h('section', { class: 'qd-section' },
-    h('h2', {}, 'החבילה'),
+    sectionHead('החבילה', 'כמויות לשנה'),
     h('div', { class: 'qd-pkg' },
       h('div', {},
         h('div', { class: 'qd-pkg-name', dir: 'auto' }, pkg.tierName),
@@ -76,95 +109,105 @@ export function renderQuoteDoc(model, meta = {}) {
       ),
       h('div', { class: 'qd-pkg-price' }, money(pkg.monthly), h('small', {}, 'לחודש · לפני מע״מ')),
     ),
-    includes,
+    h('div', { class: 'qd-grid' }, counted.map((i) => h('div', { class: 'qd-cell' },
+      h('div', { class: 'qd-cell-n num' }, String(i.qty)),
+      h('div', { class: 'qd-cell-l' }, i.label),
+    ))),
+    services.length ? h('ul', { class: 'qd-checks' }, services.map((i) => h('li', {}, i.label))) : null,
   );
 
   const paidSection = model.paid.length ? h('section', { class: 'qd-section' },
-    h('h2', {}, 'תוספות בתשלום'),
-    h('table', { class: 'qd-table' },
-      h('thead', {}, h('tr', {},
-        h('th', { scope: 'col' }, 'תוספת'),
-        h('th', { scope: 'col', class: 'amt' }, 'לחודש'),
-        h('th', { scope: 'col', class: 'amt' }, `ל־${model.termMonths} חודשים`),
-      )),
-      h('tbody', {}, model.paid.map((p) => h('tr', {},
-        h('td', {}, h('div', { class: 'qd-strong' }, p.name), h('div', { class: 'qd-muted' }, p.detail)),
-        h('td', { class: 'amt' }, money(p.monthly)),
-        h('td', { class: 'amt' }, money(p.term)),
-      ))),
-    ),
-    h('p', { class: 'qd-note' }, 'המחירים לפני מע״מ.'),
+    sectionHead('תוספות בתשלום', 'לפני מע״מ'),
+    h('div', { class: 'qd-rows' }, model.paid.map((p) => h('div', { class: 'qd-row' },
+      h('div', {}, h('div', { class: 'qd-strong' }, p.name), h('div', { class: 'qd-muted' }, p.detail)),
+      h('div', { class: 'qd-row-price' }, money(p.monthly), h('small', {}, 'לחודש')),
+    ))),
   ) : null;
 
   const freeSection = model.free.length ? h('section', { class: 'qd-section' },
-    h('h2', {}, 'הטבות ללא עלות'),
-    h('ul', { class: 'qd-free' }, model.free.map((f) => h('li', {},
-      h('span', {},
-        f.qty ? h('span', { class: 'num qd-qty' }, String(f.qty)) : null,
-        h('span', { class: 'qd-strong' }, f.name),
-        f.detail ? h('span', { class: 'qd-muted' }, ` · ${f.detail}`) : null,
+    sectionHead('הטבות ללא עלות'),
+    h('div', { class: 'qd-rows' }, model.free.map((f) => h('div', { class: 'qd-row' },
+      h('div', {},
+        h('div', { class: 'qd-strong' }, f.qty ? `${f.name} · ${f.qty}` : f.name),
+        f.detail ? h('div', { class: 'qd-muted' }, f.detail) : null,
       ),
       h('span', { class: 'qd-tag' }, 'ללא עלות'),
     ))),
   ) : null;
 
-  const row = (label, value, cls = '') => h('tr', { class: cls },
-    h('th', { scope: 'row' }, label), h('td', { class: 'amt' }, money(value)));
-
+  const priceRow = (label, m, cls = '') => h('tr', { class: cls },
+    h('th', { scope: 'row' }, label),
+    h('td', { class: 'amt' }, money(m)),
+    h('td', { class: 'amt' }, money(m * model.termMonths)),
+  );
   const pricing = h('section', { class: 'qd-section qd-pricing' },
-    h('h2', {}, 'סיכום מחיר'),
-    h('div', { class: 'qd-price-grid' },
-      h('table', { class: 'qd-table qd-sum' },
-        h('caption', {}, 'תשלום חודשי'),
-        h('tbody', {},
-          row('חבילה', pkg.monthly),
-          model.paid.map((p) => row(p.name, p.monthly)),
-          row('סה״כ לחודש לפני מע״מ', t.monthlyNet, 'sub'),
-          row(`מע״מ ${model.vatRate}%`, t.monthlyVat),
-          row('סה״כ לחודש כולל מע״מ', t.monthlyGross, 'total'),
-        ),
-      ),
-      h('table', { class: 'qd-table qd-sum' },
-        h('caption', {}, `סה״כ ל־${model.termMonths} חודשים`),
-        h('tbody', {},
-          row('לפני מע״מ', t.termNet),
-          row(`מע״מ ${model.vatRate}%`, t.termVat),
-          row('כולל מע״מ', t.termGross, 'total'),
-        ),
+    sectionHead('פירוט מחיר'),
+    h('table', { class: 'qd-table' },
+      h('thead', {}, h('tr', {},
+        h('th', { scope: 'col' }, 'פריט'),
+        h('th', { scope: 'col', class: 'amt' }, 'לחודש'),
+        h('th', { scope: 'col', class: 'amt' }, `ל־${model.termMonths} חודשים`),
+      )),
+      h('tbody', {},
+        priceRow(`חבילה · ${pkg.tierName}`, pkg.monthly),
+        model.paid.map((p) => priceRow(p.name, p.monthly)),
+        priceRow('סה״כ לפני מע״מ', t.monthlyNet, 'sub'),
+        priceRow(`מע״מ ${model.vatRate}%`, t.monthlyVat),
+        priceRow('סה״כ כולל מע״מ', t.monthlyGross, 'total'),
       ),
     ),
     h('p', { class: 'qd-terms' }, model.terms || termsText(model.selection)),
   );
 
   const notes = c.notes ? h('section', { class: 'qd-section' },
-    h('h2', {}, 'הערות'),
+    sectionHead('הערות'),
     h('p', { class: 'qd-notes' }, c.notes),
   ) : null;
 
+  const legal = isAgreement && model.legal ? h('section', { class: 'qd-section qd-legal' },
+    sectionHead('תנאי ההסכם'),
+    h('ol', { class: 'qd-clauses' }, model.legal.map((sec, i) => h('li', {},
+      h('h3', {}, h('span', { class: 'num qd-cl-h' }, `${i + 1}.`), sec.title),
+      h('ol', {}, sec.items.map((item, j) => h('li', {},
+        h('span', { class: 'qd-cl-n num' }, `${i + 1}.${j + 1}`), h('span', {}, item),
+      ))),
+    ))),
+  ) : null;
+
   const sig = meta.signature;
-  const signature = h('section', { class: 'qd-section qd-sign' + (sig ? ' is-signed' : '') },
-    h('h2', {}, 'אישור הלקוח'),
-    sig
-      ? h('div', { class: 'qd-sign-grid' },
-        h('div', {}, h('div', { class: 'qd-label' }, 'שם החותם/ת'), h('div', { class: 'qd-strong' }, sig.name)),
-        h('div', {}, h('div', { class: 'qd-label' }, 'נחתם בתאריך'), h('div', {}, formatDate(sig.signedAt, true))),
-        h('div', { class: 'qd-sign-img' }, h('div', { class: 'qd-label' }, 'חתימה'), h('img', { src: sig.png, alt: `חתימה של ${sig.name}` })),
-      )
-      : meta.signOnline
-        ? h('p', { class: 'qd-note' }, 'החתימה מתבצעת אונליין, בטופס שבהמשך העמוד.')
-        : h('div', { class: 'qd-sign-grid' },
-        h('div', {}, h('div', { class: 'qd-label' }, 'שם'), h('div', { class: 'qd-line' })),
-        h('div', {}, h('div', { class: 'qd-label' }, 'תאריך'), h('div', { class: 'qd-line' })),
-        h('div', {}, h('div', { class: 'qd-label' }, 'חתימה'), h('div', { class: 'qd-line' })),
+  const clientSign = sig
+    ? h('div', { class: 'qd-sign-box is-signed' },
+      h('div', { class: 'qd-label' }, 'הלקוח'),
+      h('div', { class: 'qd-strong' }, sig.name),
+      h('img', { src: sig.png, alt: `חתימה של ${sig.name}` }),
+      h('div', { class: 'qd-muted' }, `נחתם ב־${formatDate(sig.signedAt, true)}`),
+    )
+    : h('div', { class: 'qd-sign-box' },
+      h('div', { class: 'qd-label' }, 'הלקוח'),
+      meta.signOnline
+        ? h('p', { class: 'qd-muted' }, 'החתימה מתבצעת אונליין, בטופס שבהמשך העמוד.')
+        : [h('div', { class: 'qd-line' }), h('div', { class: 'qd-muted' }, 'שם, חתימה ותאריך')],
+    );
+  const signature = isAgreement ? h('section', { class: 'qd-section qd-sign' },
+    sectionHead('חתימות הצדדים'),
+    h('div', { class: 'qd-sign-grid' },
+      clientSign,
+      h('div', { class: 'qd-sign-box' },
+        h('div', { class: 'qd-label' }, 'הספק'),
+        h('div', { class: 'qd-strong' }, provider.name),
+        h('div', { class: 'qd-muted' }, 'ח.פ ', h('span', { class: 'num', dir: 'ltr' }, provider.companyId)),
       ),
-  );
+    ),
+  ) : null;
 
   const foot = h('footer', { class: 'qd-foot' },
-    h('span', {}, 'astrateg · ONE STEP AHEAD'),
-    meta.docHash ? h('span', { class: 'num', dir: 'ltr', title: 'טביעת המסמך (SHA-256)' }, `DOC ${meta.docHash.slice(0, 16)}`) : null,
-    meta.signature?.hash ? h('span', { class: 'num', dir: 'ltr', title: 'טביעת החתימה (SHA-256)' }, `SIG ${meta.signature.hash.slice(0, 16)}`) : null,
+    h('span', {}, `${provider.name} · ${provider.email}`),
+    h('span', { class: 'qd-hashes' },
+      meta.docHash ? h('span', { class: 'num', dir: 'ltr', title: 'טביעת המסמך (SHA-256)' }, `DOC ${meta.docHash.slice(0, 12)}`) : null,
+      meta.signature?.hash ? h('span', { class: 'num', dir: 'ltr', title: 'טביעת החתימה (SHA-256)' }, `SIG ${meta.signature.hash.slice(0, 12)}`) : null,
+    ),
   );
 
-  return h('article', { class: 'qd', dir: 'rtl', lang: 'he' },
-    header, to, pkgSection, paidSection, freeSection, pricing, notes, signature, foot);
+  return h('article', { class: `qd qd--${isAgreement ? 'agreement' : 'quote'}`, dir: 'rtl', lang: 'he' },
+    header, parties, hero, pkgSection, paidSection, freeSection, pricing, notes, legal, signature, foot);
 }

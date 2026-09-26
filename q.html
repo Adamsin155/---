@@ -14,7 +14,7 @@
 <body>
   <header class="cbar">
     <img src="app/assets/logo-mark.png" alt="astrateg" class="cbar-logo">
-    <span class="cbar-title">הצעת מחיר</span>
+    <span class="cbar-title" id="cbar-title">הצעת מחיר</span>
     <span class="cbar-status" id="status" hidden></span>
     <button type="button" class="cbtn cbtn-ghost" id="btn-print" hidden>הדפסה / שמירה כ־PDF</button>
   </header>
@@ -35,8 +35,8 @@
 
     <section class="signbox" id="signbox" aria-labelledby="sign-h" hidden>
       <div class="signbox-head">
-        <h2 id="sign-h">אישור וחתימה על ההצעה</h2>
-        <p>בדקו את פרטי ההצעה, מלאו את שמכם וחתמו בתיבה. אחרי החתימה ההצעה ננעלת ולא ניתן לשנות אותה.</p>
+        <h2 id="sign-h">אישור וחתימה על ההסכם</h2>
+        <p>קראו את ההסכם ואת פרטי ההתקשרות, מלאו את שמכם וחתמו בתיבה. אחרי החתימה המסמך ננעל ולא ניתן לשנות אותו.</p>
       </div>
       <form id="sign-form" novalidate>
         <div class="cfield">
@@ -64,14 +64,14 @@
         <div class="cerr" id="s-consent-err" hidden>יש לאשר את ההצעה כדי לחתום.</div>
 
         <div class="cerr cerr-box" id="sign-err" role="alert" hidden></div>
-        <button type="submit" class="cbtn cbtn-primary" id="btn-sign">חתימה ואישור ההצעה</button>
+        <button type="submit" class="cbtn cbtn-primary" id="btn-sign">חתימה ואישור ההסכם</button>
       </form>
     </section>
 
     <section class="signed" id="signed" hidden tabindex="-1">
       <div class="signed-mark" aria-hidden="true">✓</div>
       <div>
-        <h2>ההצעה נחתמה</h2>
+        <h2>ההסכם נחתם</h2>
         <p id="signed-text"></p>
       </div>
     </section>

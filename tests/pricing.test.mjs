@@ -148,3 +148,19 @@ test('catalog: comparison specs match the included items', async () => {
     assert.equal(s.photographers, find(pkg, /צלמים/) || (find(pkg, /עם צלם/) ? 1 : 0), `${id} photographers`);
   }
 });
+
+test('document type: quote has no legal text, agreement syncs price into the terms', () => {
+  const q = buildQuoteModel(sel('social', 'natali'), { name: 'x' });
+  assert.equal(q.docType, 'quote');
+  assert.equal(q.signable, false);
+  assert.equal(q.legal, null);
+  const a = buildQuoteModel({ ...sel('social-tv', 'natali', ['photographer']), docType: 'agreement' }, { name: 'x', companyId: '514729938' });
+  assert.equal(a.signable, true);
+  assert.equal(a.client.companyId, '514729938');
+  assert.equal(a.legal.length, 7);
+  assert.match(a.legal[1].items[0], /6,900 ₪ לחודש \+ מע״מ כחוק, למשך 12 חודשים \(סה״כ 82,800 ₪ \+ מע״מ\)/);
+  assert.match(a.legal[1].items[0], /והתוספות שנבחרו/);
+  const b = buildQuoteModel({ ...sel('social', 'simeon'), docType: 'agreement' }, { name: 'x' });
+  assert.doesNotMatch(b.legal[1].items[0], /התוספות/);
+  assert.throws(() => validateSelection({ ...sel('social', 'simeon'), docType: 'contract' }));
+});
