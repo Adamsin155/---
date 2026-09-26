@@ -205,12 +205,18 @@ await step('print renders only the quote', async () => {
   await page.emulateMedia({ media: 'screen' });
 });
 
+await step('Ctrl+P (beforeprint) renders the current selection', async () => {
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  assert.match(await page.locator('#print-root').innerText(), /8,142 ₪/);
+});
+
 await step('HTML download is a self-contained, escaped file', async () => {
   const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('#btn-html').click()]);
   assert.match(dl.suggestedFilename(), /\.html$/);
   const fs = await import('node:fs/promises');
   const html = await fs.readFile(await dl.path(), 'utf8');
   assert.ok(html.includes('data:image/png;base64,'), 'logo embedded');
+  assert.ok(html.includes('font/woff2') && !html.includes('fonts.googleapis'), 'fonts embedded');
   assert.ok(!html.includes('<img src=x'), 'user html escaped');
   assert.ok(html.includes('&lt;img src=x'), 'escaped text present');
 });
@@ -226,7 +232,13 @@ await step('create link: wrong password shows error, then login + share dialog',
   await page.locator('#lg-pass').fill('correct-horse');
   await page.locator('#lg-submit').click();
   await page.locator('#dlg-share').waitFor();
-  assert.match(await text(page, '#sh-number'), /AST-2026-0001/);
+  assert.equal(db.size, 1, 'one quote created');
+  await page.keyboard.press('Escape');
+  await page.locator('#btn-link').dblclick();
+  await page.locator('#dlg-share').waitFor();
+  assert.equal(db.size, 2, 'double click creates one more quote, not two');
+  assert.match(await text(page, '#sh-prev'), /קיימת הצעה פתוחה/);
+  assert.match(await text(page, '#sh-number'), /AST-2026-000[12]/);
   assert.match(await page.locator('#sh-link').inputValue(), /q\.html\?t=[0-9a-f-]{36}$/);
   assert.match(await page.locator('#sh-wa').getAttribute('href'), /^https:\/\/wa\.me\/\?text=/);
   assert.match(await text(page, '#session-who'), /seller@astrateg\.test/);
@@ -241,7 +253,7 @@ await step('client link shows the same quote', async () => {
   await client.locator('.qd').waitFor();
   assert.equal(await client.locator('.qd-client').innerText(), nasty);
   const t = await client.locator('.qd').innerText();
-  assert.match(t, /AST-2026-0001/);
+  assert.match(t, /AST-2026-0002/);
   assert.match(t, /8,142 ₪/);
   assert.match(t, /97,704 ₪/);
   assert.equal(await client.locator('#s-name').inputValue(), '', 'signer types their own name');
@@ -296,7 +308,11 @@ await step('dashboard lists the signed quote (same session)', async () => {
   await dash.goto(`${BASE}quotes.html`, { waitUntil: 'networkidle' });
   await dash.locator('#rows tr').first().waitFor();
   const row = await dash.locator('#rows tr').first().innerText();
-  assert.match(row, /AST-2026-0001/);
+  assert.match(row, /AST-2026-0002/);
+  await dash.setViewportSize({ width: 360, height: 740 });
+  const overflow = await dash.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  assert.ok(overflow <= 0, `quotes list horizontal overflow ${overflow}px`);
+  await dash.setViewportSize({ width: 1440, height: 900 });
   assert.match(row, /נחתם/);
   assert.match(row, /דנה לוי/);
   await shot(dash, '07-dashboard', false);

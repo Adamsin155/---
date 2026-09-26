@@ -59,7 +59,11 @@ async function cancel(q, btn) {
   if (!confirm(`לבטל את הצעה ${q.number}? הלקוח לא יוכל לפתוח את הקישור או לחתום.`)) return;
   btn.disabled = true;
   const { error } = await supabase.rpc('cancel_quote', { p_id: q.id });
-  if (error) { toast(explainError(error)); btn.disabled = false; return; }
+  if (error) {
+    toast(/only unsigned/.test(error.message || '') ? `לא ניתן לבטל את ${q.number}: ההצעה כבר נחתמה או בוטלה.` : explainError(error));
+    await loadQuotes();
+    return;
+  }
   toast(`ההצעה ${q.number} בוטלה.`);
   await loadQuotes();
 }

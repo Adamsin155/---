@@ -133,7 +133,6 @@ function point(e) {
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   canvas.setPointerCapture(e.pointerId);
-  typed = false;
   current = [point(e)];
   strokes.push(current);
   clearPadError();
@@ -156,14 +155,14 @@ function drawTyped(c, w, hgt) {
   c.fillStyle = '#031432';
   c.textAlign = 'center';
   c.textBaseline = 'alphabetic';
-  let size = 40;
+  let size = Math.round(hgt * 0.34);
   c.font = `italic 600 ${size}px 'IBM Plex Sans Hebrew', sans-serif`;
-  while (c.measureText(name).width > w - 60 && size > 16) {
+  while (c.measureText(name).width > w * 0.85 && size > 12) {
     size -= 2;
     c.font = `italic 600 ${size}px 'IBM Plex Sans Hebrew', sans-serif`;
   }
   c.direction = 'rtl';
-  c.fillText(name, w / 2, hgt - 44);
+  c.fillText(name, w / 2, hgt * 0.72);
   c.restore();
 }
 

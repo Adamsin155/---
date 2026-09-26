@@ -1,7 +1,7 @@
 // Renders the client-facing quote document from a quote model.
 // All user-provided text goes through text nodes, never innerHTML.
 
-import { formatILS } from './pricing.js';
+import { formatILS, termsText } from './pricing.js';
 
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
@@ -133,7 +133,7 @@ export function renderQuoteDoc(model, meta = {}) {
         ),
       ),
     ),
-    h('p', { class: 'qd-terms' }, model.terms),
+    h('p', { class: 'qd-terms' }, model.terms || termsText(model.selection)),
   );
 
   const notes = c.notes ? h('section', { class: 'qd-section' },

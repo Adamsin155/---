@@ -17,6 +17,7 @@
   font-size: 14px;
   line-height: 1.55;
   box-sizing: border-box;
+  overflow-wrap: anywhere;
 }
 .qd *, .qd *::before, .qd *::after { box-sizing: border-box; }
 .qd .num {

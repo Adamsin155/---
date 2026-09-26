@@ -114,7 +114,7 @@ function stepper(key, def) {
     id, type: 'number', inputmode: 'numeric', min: 0, max: def.max, step: 1, value: String(value),
     'aria-describedby': `${id}-limit`,
     onchange: (e) => {
-      const n = Number.parseInt(e.target.value, 10);
+      const n = Math.round(Number(e.target.value));
       set(Number.isFinite(n) ? n : 0);
     },
   });
@@ -233,9 +233,12 @@ function render({ focus } = {}) {
 /* ── State changes ─────────────────────────── */
 
 function showRemoved(names) {
-  if (!names.length) return;
-  $('removed-text').textContent = `הוסרו כי אינם זמינים בחבילה שנבחרה: ${names.join(', ')}.`;
+  if (!names.length) {
+    $('removed-notice').hidden = true;
+    return;
+  }
   $('removed-notice').hidden = false;
+  $('removed-text').textContent = `הוסרו כי אינם זמינים בחבילה שנבחרה: ${names.join(', ')}.`;
 }
 
 function update(patch, opts = {}) {
@@ -328,6 +331,20 @@ $('btn-print').addEventListener('click', async () => {
   window.print();
 });
 
+// Ctrl+P prints the current quote too, never a stale or empty page.
+window.addEventListener('beforeprint', () => {
+  const name = $('c-name').value.trim();
+  $('print-root').replaceChildren(name
+    ? renderQuoteDoc(currentModel())
+    : h('p', { style: 'font: 16px sans-serif; padding: 40px' }, 'כדי להדפיס הצעת מחיר יש למלא את שם הלקוח.'));
+});
+
+function localStamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
 async function toDataUrl(url) {
   const blob = await (await fetch(url)).blob();
   return new Promise((resolve, reject) => {
@@ -341,22 +358,31 @@ async function toDataUrl(url) {
 $('btn-html').addEventListener('click', async () => {
   if (!validateClient()) return;
   try {
-    const [css, logo] = await Promise.all([
+    const fontFiles = [
+      ['IBM Plex Sans Hebrew', 400, 'plex-hebrew-hebrew-400'], ['IBM Plex Sans Hebrew', 400, 'plex-hebrew-latin-400'],
+      ['IBM Plex Sans Hebrew', 600, 'plex-hebrew-hebrew-600'], ['IBM Plex Sans Hebrew', 600, 'plex-hebrew-latin-600'],
+      ['IBM Plex Sans Hebrew', 700, 'plex-hebrew-hebrew-700'], ['IBM Plex Sans Hebrew', 700, 'plex-hebrew-latin-700'],
+      ['IBM Plex Mono', 400, 'plex-mono-latin-400'], ['IBM Plex Mono', 600, 'plex-mono-latin-600'],
+    ];
+    const [css, logo, ...fonts] = await Promise.all([
       fetch('app/styles/quote.css').then((r) => r.text()),
       toDataUrl('app/assets/logo.png'),
+      ...fontFiles.map(([, , f]) => toDataUrl(`app/fonts/${f}.woff2`)),
     ]);
+    const fontCss = fontFiles.map(([family, weight, f], i) => `@font-face{font-family:'${family}';font-weight:${weight};`
+      + `src:url(${fonts[i].replace('application/octet-stream', 'font/woff2')}) format('woff2');`
+      + (f.includes('hebrew-hebrew') ? 'unicode-range:U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F;' : '') + '}').join('');
     const model = currentModel();
     const doc = renderQuoteDoc(model, { logoSrc: logo });
     const safeTitle = `הצעת מחיר · ${model.client.name}`.replace(/[<>&"]/g, '');
     const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">`
       + `<meta name="viewport" content="width=device-width, initial-scale=1"><title>${safeTitle}</title>`
-      + `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&display=swap">`
-      + `<style>body{margin:0;background:#fff}@page{size:A4;margin:14mm 12mm}${css}</style></head>`
+      + `<style>${fontCss}body{margin:0;background:#fff}@page{size:A4;margin:14mm 12mm}${css}</style></head>`
       + `<body>${doc.outerHTML}</body></html>`;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const a = h('a', {
       href: URL.createObjectURL(blob),
-      download: `astrateg-quote-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')}.html`,
+      download: `astrateg-quote-${localStamp()}.html`,
     });
     document.body.append(a);
     a.click();
@@ -439,14 +465,21 @@ function askLogin() {
   });
 }
 
+let creating = false;
 $('btn-link').addEventListener('click', async (e) => {
-  if (!validateClient()) return;
+  if (creating || !validateClient()) return;
   const btn = e.currentTarget;
-  let staff = await refreshSession();
-  if (!staff?.isStaff) {
-    const ok = await askLogin();
-    if (!ok) return;
+  creating = true;
+  try {
+    const staff = await refreshSession();
+    if (!staff?.isStaff && !(await askLogin())) return;
+    await createLink(btn);
+  } finally {
+    creating = false;
   }
+});
+
+async function createLink(btn) {
   busy(btn, true, 'יוצר קישור…');
   try {
     const s = await getSupa();
@@ -478,7 +511,7 @@ $('btn-link').addEventListener('click', async (e) => {
   } finally {
     busy(btn, false);
   }
-});
+}
 
 function renderPrevQuotes(prev) {
   const box = $('sh-prev');
