@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>מחולל הצעות מחיר · astrateg</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quote.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="astrateg · מחולל הצעות מחיר">
+      <span class="brand-chip"><img src="app/assets/logo-mark.png" alt=""></span>
+      <span class="brand-name">astrateg</span>
+      <span class="brand-sep" aria-hidden="true">/</span>
+      <span class="brand-product">הצעות מחיר</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="./" aria-current="page">הצעה חדשה</a>
+      <a class="navlink" href="quotes.html">הצעות שנשלחו</a>
+      <span class="session" id="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+    </nav>
+  </header>
+
+  <main class="shell" id="main">
+    <div class="page-head">
+      <div>
+        <div class="kicker latin">QUOTE BUILDER</div>
+        <h1>הצעת מחיר חדשה</h1>
+        <p>המחירים חודשיים, לפני מע״מ, בהתחייבות ל־12 חודשים.</p>
+      </div>
+    </div>
+
+    <div class="work">
+      <section class="block" aria-labelledby="s1">
+        <div class="block-head">
+          <span class="idx">01</span><h2 id="s1">חבילה ומשפיענים</h2>
+          <span class="hint">כמויות לשנה</span>
+        </div>
+        <div class="block-body">
+          <fieldset>
+            <legend class="field-label">משפיענים</legend>
+            <div class="segmented" id="influencers"></div>
+          </fieldset>
+          <fieldset>
+            <legend class="sr-only">חבילה</legend>
+            <div class="tiers" id="tiers"></div>
+          </fieldset>
+          <div class="included" id="included"></div>
+        </div>
+      </section>
+
+      <section class="block" aria-labelledby="s2">
+        <div class="block-head">
+          <span class="idx">02</span><h2 id="s2">תוספות</h2>
+          <span class="hint">התוספות המוצגות זמינות בחבילה שנבחרה</span>
+        </div>
+        <div class="block-body">
+          <div class="notice" id="removed-notice" role="status" hidden>
+            <span id="removed-text"></span>
+            <button type="button" class="x" id="removed-close" aria-label="סגירת ההודעה">×</button>
+          </div>
+          <div class="group">
+            <div class="group-head"><h3 id="paid-h">תוספות בתשלום</h3><span class="meta">מחיר לחודש, לפני מע״מ, ל־12 חודשים</span></div>
+            <div class="rows" id="paid" role="group" aria-labelledby="paid-h"></div>
+          </div>
+          <div class="group">
+            <div class="group-head"><h3 id="free-h">תוספות ללא עלות</h3><span class="meta">לא משנות את המחיר ומופיעות בהצעה</span></div>
+            <div class="rows" id="free" role="group" aria-labelledby="free-h"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="block" aria-labelledby="s3">
+        <div class="block-head">
+          <span class="idx">03</span><h2 id="s3">פרטי הלקוח</h2>
+          <span class="hint"><span class="req" aria-hidden="true">*</span> שדה חובה</span>
+        </div>
+        <div class="block-body">
+          <form class="form-grid" id="client-form" novalidate>
+            <div class="field">
+              <label for="c-name">שם הלקוח<span class="req" aria-hidden="true">*</span></label>
+              <input class="input" id="c-name" name="name" autocomplete="name" required maxlength="120" aria-describedby="c-name-err">
+              <div class="err" id="c-name-err" hidden>יש למלא את שם הלקוח כדי להפיק הצעה.</div>
+            </div>
+            <div class="field">
+              <label for="c-company">שם העסק</label>
+              <input class="input" id="c-company" name="company" autocomplete="organization" maxlength="120">
+            </div>
+            <div class="field">
+              <label for="c-phone">טלפון</label>
+              <input class="input" id="c-phone" name="phone" type="tel" dir="ltr" autocomplete="tel" inputmode="tel" maxlength="40">
+            </div>
+            <div class="field">
+              <label for="c-email">אימייל</label>
+              <input class="input" id="c-email" name="email" type="email" dir="ltr" autocomplete="email" maxlength="160" aria-describedby="c-email-err">
+              <div class="err" id="c-email-err" hidden>כתובת האימייל לא תקינה.</div>
+            </div>
+            <div class="field wide">
+              <label for="c-notes">הערות שיופיעו בהצעה</label>
+              <textarea class="input" id="c-notes" name="notes" maxlength="2000"></textarea>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <aside class="summary" id="summary" aria-labelledby="sum-h">
+      <div class="summary-head">
+        <div class="kicker" id="sum-h">סיכום הצעה</div>
+        <div class="summary-pkg" id="sum-pkg" dir="auto"></div>
+        <div class="summary-inf" id="sum-inf"></div>
+      </div>
+      <div class="summary-body" id="sum-lines"></div>
+      <div class="totals">
+        <dl>
+          <dt>לחודש, לפני מע״מ</dt><dd id="t-mnet"></dd>
+          <dt id="t-vat-label">מע״מ 18%</dt><dd id="t-mvat"></dd>
+          <div class="grand" style="display:contents"><dt>לחודש, כולל מע״מ</dt><dd id="t-mgross"></dd></div>
+        </dl>
+        <dl class="term">
+          <span class="caption">סה״כ ל־12 חודשים</span>
+          <dt>לפני מע״מ</dt><dd id="t-ynet"></dd>
+          <dt>כולל מע״מ</dt><dd id="t-ygross"></dd>
+        </dl>
+        <p class="term-note" id="term-note"></p>
+        <div class="sr-only" aria-live="polite" id="live-total"></div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="btn-link">יצירת קישור לחתימה</button>
+        <button type="button" class="btn" id="btn-preview">תצוגה מקדימה</button>
+        <div class="pair">
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-print">הדפסה / שמירה כ־PDF</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-html">הורדת קובץ HTML</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <div class="mobilebar" id="mobilebar">
+    <div class="amt"><span class="num" id="mb-total" dir="ltr"></span><small>לחודש, כולל מע״מ</small></div>
+    <a class="btn btn-sm" href="#summary">לסיכום ולהפקה</a>
+  </div>
+
+  <dialog class="preview" id="dlg-preview" aria-labelledby="pv-h">
+    <div class="dlg-head">
+      <h2 id="pv-h">תצוגה מקדימה</h2>
+      <span class="hint" style="color:var(--muted);font-size:13px">כך הלקוח יראה את ההצעה</span>
+      <button type="button" class="close" data-close aria-label="סגירת התצוגה המקדימה">×</button>
+    </div>
+    <div class="preview-body" id="preview-body"></div>
+  </dialog>
+
+  <dialog id="dlg-login" aria-labelledby="lg-h">
+    <form method="dialog" id="login-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p>כדי ליצור קישור שהלקוח יכול לחתום עליו, יש להתחבר עם חשבון הצוות.</p>
+        <div class="field" style="margin-bottom:14px">
+          <label for="lg-email">אימייל</label>
+          <input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="lg-pass">סיסמה</label>
+          <input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required>
+        </div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-share" aria-labelledby="sh-h">
+    <div class="dlg-head">
+      <h2 id="sh-h">הקישור מוכן</h2>
+      <button type="button" class="close" data-close aria-label="סגירה">×</button>
+    </div>
+    <div class="dlg-body">
+      <p>הצעה <strong class="num" id="sh-number" dir="ltr"></strong> נשמרה. הקישור עדיין לא נשלח — שלחו אותו ללקוח, והוא יוכל לצפות בהצעה ולחתום עליה.</p>
+      <label class="field-label" for="sh-link">קישור ללקוח</label>
+      <div class="linkbox">
+        <input class="input" id="sh-link" readonly>
+        <button type="button" class="btn" id="sh-copy">העתקה</button>
+      </div>
+      <div class="status-line"><span class="dot on"></span>ממתין לחתימה · אפשר לעקוב בעמוד ״הצעות שנשלחו״</div>
+    </div>
+    <div class="dlg-foot">
+      <a class="btn btn-ghost" id="sh-open" target="_blank" rel="noopener">פתיחת הקישור</a>
+      <a class="btn btn-ghost" id="sh-mail">שליחה במייל</a>
+      <a class="btn btn-primary" id="sh-wa" target="_blank" rel="noopener">שליחה בוואטסאפ</a>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <div id="print-root"></div>
+
+  <script type="module" src="app/builder.js"></script>
+</body>
+</html>

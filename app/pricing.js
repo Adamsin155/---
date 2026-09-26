@@ -1,0 +1,169 @@
+// Pure pricing and eligibility engine. No DOM access.
+// Rules: docs/pricing-rules.md. Amounts are integers in agorot.
+
+import {
+  VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES,
+  PAID_ADDONS, FREE_ADDONS, packageId,
+} from './catalog.js';
+
+export function emptySelection() {
+  return {
+    tier: 'social',
+    influencer: 'simeon',
+    paid: [],
+    free: { graphics: 0, simeonStories: 0, simeonJoin: false, extraCh14: false },
+  };
+}
+
+export function isNataliPackage(sel) {
+  return sel.influencer === 'natali';
+}
+
+export function isSimeonSocial(sel) {
+  return sel.influencer === 'simeon' && sel.tier !== 'podcast';
+}
+
+export function paidAddonAvailable(addon, sel) {
+  if (addon.eligibility === 'all') return true;
+  if (addon.eligibility === 'natali') return isNataliPackage(sel);
+  if (addon.eligibility === 'simeon-social') return isSimeonSocial(sel);
+  return false;
+}
+
+export function freeAddonAvailable(id, sel) {
+  switch (id) {
+    case 'graphics':
+    case 'extraCh14':
+      return true;
+    case 'simeonJoin':
+      return isNataliPackage(sel);
+    case 'simeonStories':
+      return isSimeonSocial(sel) || (isNataliPackage(sel) && sel.free.simeonJoin === true);
+    default:
+      return false;
+  }
+}
+
+function isWholeInRange(n, max) {
+  return Number.isInteger(n) && n >= 0 && n <= max;
+}
+
+// Throws on malformed input (unknown ids, duplicates, bad quantities).
+// Used by the server to reject anything the UI would never produce.
+export function validateSelection(sel) {
+  const errors = [];
+  if (!sel || typeof sel !== 'object') throw new Error('selection missing');
+  if (!TIERS.some((t) => t.id === sel.tier)) errors.push(`unknown tier: ${sel.tier}`);
+  if (!INFLUENCERS[sel.influencer]) errors.push(`unknown influencer: ${sel.influencer}`);
+  if (!Array.isArray(sel.paid)) errors.push('paid must be an array');
+  else {
+    const seen = new Set();
+    for (const id of sel.paid) {
+      const addon = PAID_ADDONS.find((a) => a.id === id);
+      if (!addon) errors.push(`unknown paid add-on: ${id}`);
+      else if (seen.has(id)) errors.push(`duplicate paid add-on: ${id}`);
+      else if (errors.length === 0 && !paidAddonAvailable(addon, sel)) errors.push(`paid add-on not available: ${id}`);
+      seen.add(id);
+    }
+  }
+  const f = sel.free || {};
+  if (!isWholeInRange(f.graphics, FREE_ADDONS.graphics.max)) errors.push('graphics out of range');
+  if (!isWholeInRange(f.simeonStories, FREE_ADDONS.simeonStories.max)) errors.push('simeonStories out of range');
+  if (typeof f.simeonJoin !== 'boolean') errors.push('simeonJoin must be boolean');
+  if (typeof f.extraCh14 !== 'boolean') errors.push('extraCh14 must be boolean');
+  if (errors.length === 0) {
+    if (f.simeonJoin && !freeAddonAvailable('simeonJoin', sel)) errors.push('simeonJoin not available');
+    if (f.simeonStories > 0 && !freeAddonAvailable('simeonStories', sel)) errors.push('simeonStories not available');
+  }
+  if (errors.length) throw new Error(errors.join('; '));
+  return true;
+}
+
+// Drops choices that are no longer eligible after a package change.
+// Returns the cleaned selection and the names of what was removed.
+export function reconcile(sel) {
+  const removed = [];
+  const next = { ...sel, paid: [...sel.paid], free: { ...sel.free } };
+
+  next.paid = next.paid.filter((id) => {
+    const addon = PAID_ADDONS.find((a) => a.id === id);
+    const ok = addon && paidAddonAvailable(addon, next);
+    if (!ok && addon) removed.push(addon.name);
+    return ok;
+  });
+  if (next.free.simeonJoin && !freeAddonAvailable('simeonJoin', next)) {
+    next.free.simeonJoin = false;
+    removed.push(FREE_ADDONS.simeonJoin.name);
+  }
+  if (next.free.simeonStories > 0 && !freeAddonAvailable('simeonStories', next)) {
+    next.free.simeonStories = 0;
+    removed.push(FREE_ADDONS.simeonStories.name);
+  }
+  return { selection: next, removed };
+}
+
+export function computeTotals(sel) {
+  const pkg = PACKAGES[packageId(sel.tier, sel.influencer)];
+  const addons = sel.paid.map((id) => PAID_ADDONS.find((a) => a.id === id));
+  const monthlyNet = pkg.price + addons.reduce((s, a) => s + a.price, 0);
+  const monthlyVat = Math.round((monthlyNet * VAT_RATE_PERCENT) / 100);
+  const monthlyGross = monthlyNet + monthlyVat;
+  return {
+    monthlyNet,
+    monthlyVat,
+    monthlyGross,
+    termNet: monthlyNet * TERM_MONTHS,
+    termVat: monthlyVat * TERM_MONTHS,
+    termGross: monthlyGross * TERM_MONTHS,
+  };
+}
+
+// The quote model rendered on screen, in the client link and in exports.
+export function buildQuoteModel(sel, client = {}, meta = {}) {
+  const pid = packageId(sel.tier, sel.influencer);
+  const pkg = PACKAGES[pid];
+  const tier = TIERS.find((t) => t.id === sel.tier);
+  const paid = PAID_ADDONS
+    .filter((a) => sel.paid.includes(a.id))
+    .map((a) => ({
+      id: a.id, name: a.name, detail: a.detail,
+      monthly: a.price, term: a.price * TERM_MONTHS,
+    }));
+  const free = [];
+  if (sel.free.graphics > 0) free.push({ id: 'graphics', name: FREE_ADDONS.graphics.name, qty: sel.free.graphics });
+  if (sel.free.simeonJoin) free.push({ id: 'simeonJoin', name: FREE_ADDONS.simeonJoin.name, detail: FREE_ADDONS.simeonJoin.detail });
+  if (sel.free.simeonStories > 0) free.push({ id: 'simeonStories', name: FREE_ADDONS.simeonStories.name, qty: sel.free.simeonStories });
+  if (sel.free.extraCh14) free.push({ id: 'extraCh14', name: FREE_ADDONS.extraCh14.name, detail: FREE_ADDONS.extraCh14.detail });
+
+  return {
+    version: 1,
+    number: meta.number || null,
+    createdAt: meta.createdAt || null,
+    client: {
+      name: (client.name || '').trim(),
+      company: (client.company || '').trim(),
+      phone: (client.phone || '').trim(),
+      email: (client.email || '').trim(),
+      notes: (client.notes || '').trim(),
+    },
+    package: {
+      id: pid,
+      tierName: tier.name,
+      influencer: INFLUENCERS[sel.influencer].name,
+      monthly: pkg.price,
+      term: pkg.price * TERM_MONTHS,
+      includes: pkg.includes,
+    },
+    paid,
+    free,
+    vatRate: VAT_RATE_PERCENT,
+    termMonths: TERM_MONTHS,
+    totals: computeTotals(sel),
+    selection: sel,
+  };
+}
+
+const ils = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 2, minimumFractionDigits: 0 });
+export function formatILS(agorot) {
+  return `${ils.format(agorot / 100)} ₪`;
+}

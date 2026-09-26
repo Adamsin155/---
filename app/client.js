@@ -1,0 +1,261 @@
+// Client-facing quote page: loads a quote by token and lets the client sign it.
+import { renderQuoteDoc, formatDate } from './quote-doc.js';
+
+const $ = (id) => document.getElementById(id);
+const token = new URLSearchParams(location.search).get('t') || '';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+let quote = null;
+let supa = null;
+
+function showState(title, text) {
+  const box = $('state');
+  const h1 = document.createElement('h1');
+  h1.textContent = title;
+  const p = document.createElement('p');
+  p.textContent = text;
+  box.replaceChildren(h1, p);
+  box.hidden = false;
+}
+
+function docMeta(q) {
+  return {
+    number: q.number,
+    createdAt: q.createdAt,
+    docHash: q.docHash,
+    signature: q.status === 'signed'
+      ? { name: q.signerName, signedAt: q.signedAt, png: q.signaturePng }
+      : null,
+  };
+}
+
+function render(q) {
+  quote = q;
+  document.title = `הצעת מחיר ${q.number} · astrateg`;
+  $('doc').replaceChildren(renderQuoteDoc(q.model, docMeta(q)));
+  $('doc').hidden = false;
+  $('state').hidden = true;
+  $('btn-print').hidden = false;
+  $('term-months').textContent = String(q.model.termMonths);
+
+  const status = $('status');
+  status.hidden = false;
+  if (q.status === 'signed') {
+    status.textContent = 'נחתם';
+    status.classList.add('is-signed');
+    $('signbox').hidden = true;
+    $('signed').hidden = false;
+    $('signed-text').textContent = `נחתם על ידי ${q.signerName} ב־${formatDate(q.signedAt, true)}. אפשר להדפיס או לשמור עותק כ־PDF.`;
+  } else {
+    status.textContent = 'ממתין לחתימה';
+    $('signbox').hidden = false;
+    $('signed').hidden = true;
+  }
+}
+
+async function load() {
+  if (!UUID.test(token)) {
+    showState('הקישור אינו תקין', 'ייתכן שהקישור הועתק באופן חלקי. בקשו מאיש המכירות לשלוח אותו שוב.');
+    return;
+  }
+  try {
+    supa = await import('./supa.js');
+    const { data, error } = await supa.supabase.rpc('get_quote', { p_token: token });
+    if (error) throw error;
+    if (!data) {
+      showState('ההצעה לא נמצאה', 'ייתכן שההצעה בוטלה או שהקישור שגוי. פנו לאיש המכירות שלכם.');
+      return;
+    }
+    render(data);
+  } catch {
+    showState('לא הצלחנו לטעון את ההצעה', 'בדקו את החיבור לאינטרנט ורעננו את העמוד.');
+  }
+}
+
+/* ── Signature pad ─────────────────────────── */
+const canvas = $('pad');
+const wrap = $('pad-wrap');
+const ctx = canvas.getContext('2d');
+let strokes = [];
+let current = null;
+let typed = false;
+
+function sizeCanvas() {
+  const r = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(r.width * dpr);
+  canvas.height = Math.round(r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  redraw();
+}
+
+function drawStroke(pts, c = ctx, w = canvas.getBoundingClientRect().width, hgt = canvas.getBoundingClientRect().height) {
+  if (!pts.length) return;
+  c.lineWidth = 2.4;
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.strokeStyle = '#031432';
+  c.beginPath();
+  c.moveTo(pts[0][0] * w, pts[0][1] * hgt);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = ((pts[i][0] + pts[i + 1][0]) / 2) * w;
+    const my = ((pts[i][1] + pts[i + 1][1]) / 2) * hgt;
+    c.quadraticCurveTo(pts[i][0] * w, pts[i][1] * hgt, mx, my);
+  }
+  const last = pts[pts.length - 1];
+  c.lineTo(last[0] * w + (pts.length === 1 ? 0.1 : 0), last[1] * hgt);
+  c.stroke();
+}
+
+function redraw() {
+  const r = canvas.getBoundingClientRect();
+  ctx.clearRect(0, 0, r.width, r.height);
+  if (typed) drawTyped(ctx, r.width, r.height);
+  strokes.forEach((s) => drawStroke(s));
+  wrap.classList.toggle('has-ink', hasInk());
+}
+
+function hasInk() {
+  return typed || strokes.some((s) => s.length > 1);
+}
+
+function point(e) {
+  const r = canvas.getBoundingClientRect();
+  return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
+  typed = false;
+  current = [point(e)];
+  strokes.push(current);
+  clearPadError();
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!current) return;
+  current.push(point(e));
+  redraw();
+});
+const end = () => { current = null; redraw(); };
+canvas.addEventListener('pointerup', end);
+canvas.addEventListener('pointercancel', end);
+
+$('pad-clear').addEventListener('click', () => { strokes = []; typed = false; redraw(); });
+
+function drawTyped(c, w, hgt) {
+  const name = $('s-name').value.trim();
+  if (!name) return;
+  c.save();
+  c.fillStyle = '#031432';
+  c.textAlign = 'center';
+  c.textBaseline = 'alphabetic';
+  let size = 40;
+  c.font = `italic 600 ${size}px 'IBM Plex Sans Hebrew', sans-serif`;
+  while (c.measureText(name).width > w - 60 && size > 16) {
+    size -= 2;
+    c.font = `italic 600 ${size}px 'IBM Plex Sans Hebrew', sans-serif`;
+  }
+  c.direction = 'rtl';
+  c.fillText(name, w / 2, hgt - 44);
+  c.restore();
+}
+
+// Keyboard-friendly alternative: sign with the typed name.
+const typedBtn = document.createElement('button');
+typedBtn.type = 'button';
+typedBtn.className = 'linkbtn';
+typedBtn.textContent = 'חתימה עם השם המוקלד';
+typedBtn.addEventListener('click', () => {
+  if (!$('s-name').value.trim()) {
+    setError('s-name', 's-name-err', true);
+    $('s-name').focus();
+    return;
+  }
+  strokes = [];
+  typed = true;
+  redraw();
+  clearPadError();
+});
+$('pad-clear').before(typedBtn);
+$('s-name').addEventListener('input', () => {
+  setError('s-name', 's-name-err', false);
+  if (typed) redraw();
+});
+
+function exportSignature() {
+  const r = canvas.getBoundingClientRect();
+  const w = 600;
+  const hgt = Math.round((w * r.height) / r.width);
+  const out = document.createElement('canvas');
+  out.width = w;
+  out.height = hgt;
+  const c = out.getContext('2d');
+  if (typed) drawTyped(c, w, hgt);
+  strokes.forEach((s) => drawStroke(s, c, w, hgt));
+  return out.toDataURL('image/png');
+}
+
+/* ── Signing ───────────────────────────────── */
+function setError(fieldId, errId, on) {
+  if (fieldId) $(fieldId).setAttribute('aria-invalid', String(on));
+  $(errId).hidden = !on;
+}
+function clearPadError() {
+  wrap.classList.remove('is-invalid');
+  $('pad-err').hidden = true;
+}
+$('s-consent').addEventListener('change', () => setError(null, 's-consent-err', false));
+
+$('sign-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('s-name').value.trim();
+  const nameOk = name.length >= 2;
+  const inkOk = hasInk();
+  const consentOk = $('s-consent').checked;
+  setError('s-name', 's-name-err', !nameOk);
+  wrap.classList.toggle('is-invalid', !inkOk);
+  $('pad-err').hidden = inkOk;
+  setError(null, 's-consent-err', !consentOk);
+  $('sign-err').hidden = true;
+  if (!nameOk) return $('s-name').focus();
+  if (!inkOk) return typedBtn.focus();
+  if (!consentOk) return $('s-consent').focus();
+
+  const btn = $('btn-sign');
+  const label = btn.textContent;
+  btn.disabled = true;
+  const spin = document.createElement('span');
+  spin.className = 'spin';
+  btn.replaceChildren(spin, 'שומר את החתימה…');
+  try {
+    const { data, error } = await supa.supabase.rpc('sign_quote', {
+      p_token: token, p_name: name, p_signature: exportSignature(), p_consent: true,
+    });
+    if (error) throw error;
+    render(data);
+    $('signed').focus();
+    $('signed').scrollIntoView({ block: 'center', behavior: 'smooth' });
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (/already signed/.test(msg)) {
+      await load();
+      return;
+    }
+    $('sign-err').textContent = /not found/.test(msg)
+      ? 'ההצעה כבר אינה זמינה לחתימה. פנו לאיש המכירות.'
+      : 'החתימה לא נשמרה. בדקו את החיבור לאינטרנט ונסו שוב — הפרטים שמילאתם נשמרו בעמוד.';
+    $('sign-err').hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+});
+
+$('btn-print').addEventListener('click', () => {
+  if (!quote) return;
+  $('print-root').replaceChildren(renderQuoteDoc(quote.model, docMeta(quote)));
+  window.print();
+});
+
+new ResizeObserver(sizeCanvas).observe(wrap);
+load();

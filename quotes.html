@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>הצעות שנשלחו · astrateg</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="astrateg · מחולל הצעות מחיר">
+      <span class="brand-chip"><img src="app/assets/logo-mark.png" alt=""></span>
+      <span class="brand-name">astrateg</span>
+      <span class="brand-sep" aria-hidden="true">/</span>
+      <span class="brand-product">הצעות מחיר</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="./">הצעה חדשה</a>
+      <a class="navlink" href="quotes.html" aria-current="page">הצעות שנשלחו</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+    </nav>
+  </header>
+
+  <main class="list-shell">
+    <div class="page-head">
+      <div>
+        <div class="kicker latin">QUOTES</div>
+        <h1>הצעות שנשלחו</h1>
+        <p>סטטוס חתימה של כל הקישורים שנוצרו.</p>
+      </div>
+      <div class="head-actions">
+        <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh" hidden>רענון</button>
+        <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+      </div>
+    </div>
+
+    <div class="stats" id="stats" hidden></div>
+
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>הרשימה זמינה לאנשי צוות מורשים בלבד.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+      </form>
+    </section>
+
+    <section class="block" id="list-block" hidden aria-label="רשימת הצעות">
+      <div class="filters" role="group" aria-label="סינון לפי סטטוס" id="filters"></div>
+      <div class="table-wrap">
+        <table class="qtable">
+          <thead>
+            <tr>
+              <th scope="col">מספר</th>
+              <th scope="col">לקוח</th>
+              <th scope="col" class="amt">לחודש כולל מע״מ</th>
+              <th scope="col">נוצר</th>
+              <th scope="col">סטטוס</th>
+              <th scope="col"><span class="sr-only">פעולות</span></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="empty" hidden></p>
+    </section>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script type="module" src="app/dashboard.js"></script>
+</body>
+</html>

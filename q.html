@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>הצעת מחיר · astrateg</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/quote.css">
+  <link rel="stylesheet" href="app/styles/client.css">
+</head>
+<body>
+  <header class="cbar">
+    <img src="app/assets/logo-mark.png" alt="astrateg" class="cbar-logo">
+    <span class="cbar-title">הצעת מחיר</span>
+    <span class="cbar-status" id="status" hidden></span>
+    <button type="button" class="cbtn cbtn-ghost" id="btn-print" hidden>הדפסה / שמירה כ־PDF</button>
+  </header>
+
+  <main class="cmain">
+    <div class="cstate" id="state" role="status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>טוען את ההצעה…</p>
+    </div>
+
+    <div class="paper" id="doc" hidden></div>
+
+    <section class="signbox" id="signbox" aria-labelledby="sign-h" hidden>
+      <div class="signbox-head">
+        <h2 id="sign-h">אישור וחתימה על ההצעה</h2>
+        <p>בדקו את פרטי ההצעה, מלאו את שמכם וחתמו בתיבה. אחרי החתימה ההצעה ננעלת ולא ניתן לשנות אותה.</p>
+      </div>
+      <form id="sign-form" novalidate>
+        <div class="cfield">
+          <label for="s-name">שם מלא של החותם/ת <span aria-hidden="true" class="req">*</span></label>
+          <input id="s-name" class="cinput" autocomplete="name" maxlength="120" required aria-describedby="s-name-err">
+          <div class="cerr" id="s-name-err" hidden>יש למלא שם מלא.</div>
+        </div>
+
+        <div class="cfield">
+          <div class="pad-head">
+            <span class="pad-label" id="pad-label">חתימה <span aria-hidden="true" class="req">*</span></span>
+            <button type="button" class="linkbtn" id="pad-clear">ניקוי</button>
+          </div>
+          <div class="pad" id="pad-wrap">
+            <canvas id="pad" role="img" aria-labelledby="pad-label" aria-describedby="pad-hint"></canvas>
+            <span class="pad-hint" id="pad-hint">חתמו כאן עם האצבע או העכבר</span>
+          </div>
+          <div class="cerr" id="pad-err" hidden>יש לחתום בתיבה.</div>
+        </div>
+
+        <label class="consent">
+          <input type="checkbox" id="s-consent" aria-describedby="s-consent-err">
+          <span>קראתי את הצעת המחיר ואני מאשר/ת אותה, כולל תקופת ההתחייבות ל־<span id="term-months">12</span> חודשים והמחירים המפורטים בה.</span>
+        </label>
+        <div class="cerr" id="s-consent-err" hidden>יש לאשר את ההצעה כדי לחתום.</div>
+
+        <div class="cerr cerr-box" id="sign-err" role="alert" hidden></div>
+        <button type="submit" class="cbtn cbtn-primary" id="btn-sign">חתימה ואישור ההצעה</button>
+      </form>
+    </section>
+
+    <section class="signed" id="signed" hidden tabindex="-1">
+      <div class="signed-mark" aria-hidden="true">✓</div>
+      <div>
+        <h2>ההצעה נחתמה</h2>
+        <p id="signed-text"></p>
+      </div>
+    </section>
+  </main>
+
+  <div id="print-root"></div>
+  <script type="module" src="app/client.js"></script>
+</body>
+</html>
