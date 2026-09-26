@@ -26,6 +26,7 @@ function setSession(staff) {
   $('session-dot').classList.toggle('on', !!staff?.isStaff);
   $('session-who').textContent = staff ? staff.email : 'לא מחובר';
   $('btn-logout').hidden = !staff;
+  $('btn-password').hidden = !staff;
   $('btn-refresh').hidden = !staff?.isStaff;
 }
 
@@ -151,5 +152,28 @@ $('login-form').addEventListener('submit', async (e) => {
 });
 $('btn-logout').addEventListener('click', async () => { await supabase.auth.signOut(); await boot(); });
 $('btn-refresh').addEventListener('click', loadQuotes);
+
+const pwDialog = $('dlg-password');
+pwDialog.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === pwDialog) pwDialog.close(); });
+pwDialog.addEventListener('close', () => $('btn-password').focus());
+$('btn-password').addEventListener('click', () => {
+  $('pw-form').reset();
+  $('pw-err').hidden = true;
+  pwDialog.showModal();
+  $('pw-new').focus();
+});
+$('pw-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw = $('pw-new').value;
+  const fail = (msg) => { $('pw-err').textContent = msg; $('pw-err').hidden = false; };
+  if (pw.length < 10) return fail('הסיסמה צריכה להכיל לפחות 10 תווים.');
+  if (pw !== $('pw-again').value) return fail('הסיסמאות אינן זהות.');
+  $('pw-submit').disabled = true;
+  const { error } = await supabase.auth.updateUser({ password: pw });
+  $('pw-submit').disabled = false;
+  if (error) return fail(/same/i.test(error.message) ? 'זו הסיסמה הנוכחית. בחרו סיסמה אחרת.' : explainError(error));
+  pwDialog.close();
+  toast('הסיסמה עודכנה.');
+});
 
 boot();

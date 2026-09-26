@@ -34,6 +34,7 @@
       </div>
       <div class="head-actions">
         <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh" hidden>רענון</button>
+        <button type="button" class="btn btn-sm btn-ghost" id="btn-password" hidden>שינוי סיסמה</button>
         <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
       </div>
     </div>
@@ -74,6 +75,31 @@
 
     <p class="state" id="state" role="status"></p>
   </main>
+
+  <dialog id="dlg-password" aria-labelledby="pw-h">
+    <form id="pw-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="pw-h">שינוי סיסמה</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <div class="field" style="margin-bottom:14px">
+          <label for="pw-new">סיסמה חדשה</label>
+          <input class="input" id="pw-new" type="password" dir="ltr" autocomplete="new-password" minlength="10" required aria-describedby="pw-hint">
+          <div style="font-size:12.5px;color:var(--muted);margin-top:6px" id="pw-hint">לפחות 10 תווים.</div>
+        </div>
+        <div class="field">
+          <label for="pw-again">אימות הסיסמה</label>
+          <input class="input" id="pw-again" type="password" dir="ltr" autocomplete="new-password" required>
+        </div>
+        <div class="err" id="pw-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="pw-submit">שמירה</button>
+      </div>
+    </form>
+  </dialog>
 
   <div class="toast" id="toast" role="status" hidden></div>
   <script type="module" src="app/dashboard.js"></script>

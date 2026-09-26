@@ -316,6 +316,15 @@ await step('dashboard lists the signed quote (same session)', async () => {
   assert.match(row, /נחתם/);
   assert.match(row, /דנה לוי/);
   await shot(dash, '07-dashboard', false);
+  await dash.locator('#btn-password').click();
+  await dash.locator('#pw-new').fill('short');
+  await dash.locator('#pw-submit').click();
+  assert.match(await dash.locator('#pw-err').innerText(), /10 תווים/);
+  await dash.locator('#pw-new').fill('a-long-new-password');
+  await dash.locator('#pw-again').fill('a-long-new-password');
+  await dash.locator('#pw-submit').click();
+  await dash.locator('#toast').waitFor();
+  assert.match(await dash.locator('#toast').innerText(), /הסיסמה עודכנה/);
 });
 
 await step('mobile builder: price bar visible, no horizontal scroll', async () => {

@@ -20,14 +20,15 @@
   - הלקוח ניגש רק להצעה של הקישור שלו (מזהה אקראי של 122 ביט). בחתימה נשמרים שם, תמונת החתימה, זמן, כתובת IP ודפדפן. אחרי החתימה ההצעה ננעלת.
   - מבנה מסד הנתונים: `supabase/migrations/`.
 
-## הפעלה ראשונה
+## פרסום וגישה
 
-1. **GitHub Pages:** בריפו, Settings → Pages → Source: *Deploy from a branch*. בוחרים את הענף `claude/amazing-tesla-bvt0sx` ואת התיקייה `/ (root)`. האתר יעלה בכתובת `https://adamsin155.github.io/---/`.
-2. **משתמש צוות:** ב־Supabase, Authentication → Users → *Add user*, עם אימייל וסיסמה ועם *Auto Confirm User*. הכתובת `adam@astrateg.com` כבר מורשית.
-3. **הוספת איש מכירות נוסף:** יוצרים לו משתמש כמו בסעיף 2, ומוסיפים את האימייל שלו להרשאות ב־SQL Editor:
-   ```sql
-   insert into public.staff (email) values ('name@astrateg.com');
-   ```
+- **האתר:** https://adamsin155.github.io/---/ . הוא מתפרסם מהענף `gh-pages`. כדי לפרסם גרסה חדשה מריצים `git push origin claude/amazing-tesla-bvt0sx:gh-pages`.
+- **כניסת צוות:** משתמש `adam@astrateg.com` קיים ומורשה. את הסיסמה מחליפים בעמוד ״הצעות שנשלחו״, בכפתור ״שינוי סיסמה״.
+- **הוספת איש מכירות:** ב־Supabase, Authentication → Users → *Add user* עם *Auto Confirm User*. אחר כך מריצים ב־SQL Editor:
+  ```sql
+  insert into public.staff (email) values ('name@astrateg.com');
+  ```
+- **מומלץ:** לכבות הרשמה חופשית (Authentication → Sign In / Providers → *Allow new users to sign up*). גם כשההרשמה פתוחה, משתמש שנרשם לבד לא מקבל שום גישה.
 
 ## בדיקות
 
