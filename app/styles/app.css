@@ -373,6 +373,13 @@ label.tile:hover { border-color: var(--line-strong); }
 textarea.input { min-height: 104px; resize: vertical; }
 .input[aria-invalid='true'] { border-color: var(--danger); }
 .err { color: var(--danger); font-size: 13px; margin-top: 6px; }
+.note-ok { color: var(--ok); font-size: 13px; margin-top: 6px; }
+.btn-text {
+  background: none; border: 0; padding: 6px 2px; min-height: 36px; cursor: pointer;
+  font: inherit; font-size: 13.5px; color: var(--accent); justify-self: start;
+}
+.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
+.btn-text:disabled { opacity: .6; cursor: default; text-decoration: none; }
 
 /* ── Summary ─────────────────────────────── */
 .summary {

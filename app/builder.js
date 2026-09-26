@@ -515,6 +515,7 @@ function askLogin() {
     const dlg = $('dlg-login');
     const form = $('login-form');
     $('lg-err').hidden = true;
+    $('lg-msg').hidden = true;
     const onSubmit = async (e) => {
       e.preventDefault();
       const btn = $('lg-submit');
@@ -544,6 +545,34 @@ function askLogin() {
     $('lg-email').focus();
   });
 }
+
+$('lg-forgot').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const err = $('lg-err');
+  const msg = $('lg-msg');
+  err.hidden = true;
+  msg.hidden = true;
+  btn.disabled = true;
+  try {
+    const s = await getSupa();
+    const email = $('lg-email').value.trim();
+    if (!s.looksLikeEmail(email)) {
+      err.textContent = s.RESET_NEEDS_EMAIL;
+      err.hidden = false;
+      $('lg-email').focus();
+      return;
+    }
+    await s.sendPasswordReset(email);
+    msg.textContent = s.RESET_SENT;
+    msg.hidden = false;
+  } catch (e2) {
+    const s = await getSupa().catch(() => null);
+    err.textContent = s ? s.explainError(e2) : 'אין חיבור לשרת.';
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 let creating = false;
 $('btn-link').addEventListener('click', async (e) => {

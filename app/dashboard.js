@@ -1,4 +1,7 @@
-import { supabase, currentStaff, quoteLink, explainError } from './supa.js';
+import {
+  supabase, currentStaff, quoteLink, explainError,
+  sendPasswordReset, consumeRecoveryLink, looksLikeEmail, RESET_NEEDS_EMAIL, RESET_SENT,
+} from './supa.js';
 import { h, formatDate } from './quote-doc.js';
 import { formatILS } from './pricing.js';
 
@@ -146,6 +149,7 @@ $('login-form').addEventListener('submit', async (e) => {
   const btn = $('lg-submit');
   btn.disabled = true;
   $('lg-err').hidden = true;
+  $('lg-msg').hidden = true;
   const { error } = await supabase.auth.signInWithPassword({
     email: $('lg-email').value.trim(), password: $('lg-pass').value,
   });
@@ -157,18 +161,43 @@ $('login-form').addEventListener('submit', async (e) => {
   }
   await boot();
 });
+$('lg-forgot').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const email = $('lg-email').value.trim();
+  $('lg-err').hidden = true;
+  $('lg-msg').hidden = true;
+  if (!looksLikeEmail(email)) {
+    $('lg-err').textContent = RESET_NEEDS_EMAIL;
+    $('lg-err').hidden = false;
+    $('lg-email').focus();
+    return;
+  }
+  btn.disabled = true;
+  try {
+    await sendPasswordReset(email);
+    $('lg-msg').textContent = RESET_SENT;
+    $('lg-msg').hidden = false;
+  } catch (err) {
+    $('lg-err').textContent = explainError(err);
+    $('lg-err').hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+});
 $('btn-logout').addEventListener('click', async () => { await supabase.auth.signOut(); await boot(); });
 $('btn-refresh').addEventListener('click', loadQuotes);
 
 const pwDialog = $('dlg-password');
 pwDialog.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === pwDialog) pwDialog.close(); });
 pwDialog.addEventListener('close', () => $('btn-password').focus());
-$('btn-password').addEventListener('click', () => {
+function openPasswordDialog(recovery = false) {
   $('pw-form').reset();
   $('pw-err').hidden = true;
+  $('pw-h').textContent = recovery ? 'בחירת סיסמה חדשה' : 'שינוי סיסמה';
   pwDialog.showModal();
   $('pw-new').focus();
-});
+}
+$('btn-password').addEventListener('click', () => openPasswordDialog());
 $('pw-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const pw = $('pw-new').value;
@@ -183,4 +212,13 @@ $('pw-form').addEventListener('submit', async (e) => {
   toast('הסיסמה עודכנה.');
 });
 
-boot();
+(async () => {
+  const link = await consumeRecoveryLink();
+  await boot();
+  if (link === 'recovery') openPasswordDialog(true);
+  if (link === 'expired') {
+    const msg = 'הקישור לאיפוס הסיסמה אינו תקף או שפג תוקפו. אפשר לבקש קישור חדש דרך ״שכחתי סיסמה״.';
+    if ($('login-block').hidden) toast(msg);
+    else { $('lg-err').textContent = msg; $('lg-err').hidden = false; }
+  }
+})();

@@ -8,6 +8,8 @@ import { validateSelection, buildQuoteModel } from '../app/pricing.js';
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const recoverRequests = [];
+const passwordUpdates = [];
 const USER = { id: randomUUID(), email: 'seller@astrateg.test', aud: 'authenticated', role: 'authenticated' };
 const JWT = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: USER.id, email: USER.email, role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 })}.sig`;
 const db = new Map();
@@ -35,7 +37,11 @@ async function fakeSupabase(route) {
     if (body.password !== 'correct-horse') return json(400, { error: 'invalid_grant', error_description: 'Invalid login credentials', msg: 'Invalid login credentials', code: 'invalid_credentials' });
     return json(200, { access_token: JWT, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user: USER });
   }
-  if (p === '/auth/v1/user') return json(200, USER);
+  if (p === '/auth/v1/recover') { recoverRequests.push({ ...body, redirect_to: url.searchParams.get('redirect_to') }); return json(200, {}); }
+  if (p === '/auth/v1/user') {
+    if (req.method() === 'PUT') { passwordUpdates.push(body.password); return json(200, USER); }
+    return json(200, USER);
+  }
   if (p === '/auth/v1/logout') return route.fulfill({ status: 204 });
   if (p === '/rest/v1/rpc/is_staff') return json(200, (req.headers().authorization || '').includes(JWT));
   if (p === '/functions/v1/create-quote') {
@@ -366,6 +372,56 @@ await step('quote (view only): no legal text, link opens without signing', async
   assert.ok(await c.locator('#strip-go').isHidden());
   assert.equal(await text(c, '#status'), 'לעיון');
   await shot(c, '09-client-quote');
+});
+
+await step('forgot password: asks for email, sends reset link to the quotes page', async () => {
+  const f = await newPage();
+  await f.goto(`${BASE}quotes.html`, { waitUntil: 'networkidle' });
+  await f.locator('#lg-forgot').click();
+  assert.match(await text(f, '#lg-err'), /הזינו את כתובת האימייל/);
+  await f.locator('#lg-email').fill('seller@astrateg.test');
+  await f.locator('#lg-forgot').click();
+  await f.locator('#lg-msg').waitFor();
+  assert.match(await text(f, '#lg-msg'), /נשלח אליה קישור/);
+  assert.ok(await f.locator('#lg-err').isHidden());
+  const last = recoverRequests.at(-1);
+  assert.equal(last.email, 'seller@astrateg.test');
+  assert.equal(last.redirect_to, `${BASE}quotes.html`);
+  assert.deepEqual(f.errors, []);
+});
+
+await step('forgot password from the builder login dialog', async () => {
+  const b = await newPage();
+  await b.goto(BASE, { waitUntil: 'networkidle' });
+  await b.locator('#start-quote').click();
+  await b.locator('#c-name').fill('בדיקה');
+  await b.locator('#btn-link').click();
+  await b.locator('#dlg-login').waitFor();
+  await b.locator('#lg-email').fill('seller@astrateg.test');
+  await b.locator('#lg-forgot').click();
+  await b.locator('#lg-msg').waitFor();
+  assert.equal(recoverRequests.at(-1).redirect_to, `${BASE}quotes.html`);
+  assert.deepEqual(b.errors, []);
+});
+
+await step('reset link signs in and asks for a new password; expired link explains', async () => {
+  const r = await newPage();
+  await r.goto(`${BASE}quotes.html#access_token=${JWT}&expires_in=3600&refresh_token=r&token_type=bearer&type=recovery`, { waitUntil: 'networkidle' });
+  await r.locator('#dlg-password').waitFor();
+  assert.equal(await text(r, '#pw-h'), 'בחירת סיסמה חדשה');
+  assert.ok(!(await r.evaluate(() => location.hash)), 'token removed from the address bar');
+  await r.locator('#pw-new').fill('new-password-123');
+  await r.locator('#pw-again').fill('new-password-123');
+  await r.locator('#pw-submit').click();
+  await r.locator('#dlg-password').waitFor({ state: 'hidden' });
+  assert.equal(passwordUpdates.at(-1), 'new-password-123');
+  assert.ok(await r.locator('#list-block').isVisible());
+
+  const x = await newPage();
+  await x.goto(`${BASE}quotes.html#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`, { waitUntil: 'networkidle' });
+  await x.locator('#lg-err').waitFor();
+  assert.match(await text(x, '#lg-err'), /פג תוקפו/);
+  assert.deepEqual([...r.errors, ...x.errors], []);
 });
 
 await step('mobile builder: price bar visible, no horizontal scroll', async () => {
