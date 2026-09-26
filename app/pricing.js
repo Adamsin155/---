@@ -118,7 +118,17 @@ export function computeTotals(sel) {
   };
 }
 
+export function termsText(sel) {
+  const monthly = sel.paid.includes('photographer')
+    ? ', למעט שירות הצלם החודשי שמספק 8 תכנים בכל חודש.'
+    : '.';
+  return `המחירים חודשיים ובהתחייבות ל־${TERM_MONTHS} חודשים. `
+    + `הכמויות בחבילה ובתוספות הן לשנה${monthly} `
+    + 'תוספות ללא עלות אינן משנות את המחיר.';
+}
+
 // The quote model rendered on screen, in the client link and in exports.
+// Everything the client sees is stored in it, so the server-side hash covers it.
 export function buildQuoteModel(sel, client = {}, meta = {}) {
   const pid = packageId(sel.tier, sel.influencer);
   const pkg = PACKAGES[pid];
@@ -159,6 +169,7 @@ export function buildQuoteModel(sel, client = {}, meta = {}) {
     vatRate: VAT_RATE_PERCENT,
     termMonths: TERM_MONTHS,
     totals: computeTotals(sel),
+    terms: termsText(sel),
     selection: sel,
   };
 }

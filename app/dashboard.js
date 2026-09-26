@@ -78,6 +78,7 @@ function renderRows() {
     return h('tr', {},
       h('td', { class: 'num', dir: 'ltr' }, q.number),
       h('td', { class: 'client' }, q.client_name, q.signer_name && s === 'signed' ? h('small', {}, `נחתם ע״י ${q.signer_name}`) : null),
+      h('td', { class: 'client' }, h('span', { dir: 'auto' }, q.tier || ''), h('small', {}, q.influencer || '')),
       h('td', { class: 'amt', dir: 'ltr' }, formatILS(q.monthly_gross_agorot)),
       h('td', {}, formatDate(q.created_at), h('small', { style: 'display:block;color:var(--muted);font-size:12px' }, q.created_by_email || '')),
       h('td', {}, h('span', { class: `pill ${s}` }, STATUS[s], when ? h('small', {}, ` · ${when}`) : null)),
@@ -98,7 +99,7 @@ async function loadQuotes() {
   $('state').textContent = 'טוען…';
   const { data, error } = await supabase
     .from('quotes')
-    .select('id, token, number, client_name, monthly_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name')
+    .select('id, token, number, client_name, monthly_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer')
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) { $('state').textContent = explainError(error); return; }

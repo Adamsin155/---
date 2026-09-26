@@ -31,19 +31,6 @@ export function formatDate(value, withTime = false) {
 
 const money = (agorot) => h('span', { class: 'num', dir: 'ltr' }, formatILS(agorot));
 
-function termsText(model) {
-  const hasPhotographer = model.paid.some((p) => p.id === 'photographer');
-  const parts = [
-    `המחירים חודשיים ובהתחייבות ל־${model.termMonths} חודשים.`,
-    'הכמויות בחבילה ובתוספות הן לשנה',
-  ];
-  parts[1] += hasPhotographer
-    ? ', למעט שירות הצלם החודשי שמספק 8 תכנים בכל חודש.'
-    : '.';
-  parts.push('תוספות ללא עלות אינן משנות את המחיר.');
-  return parts.join(' ');
-}
-
 // meta: { number, createdAt, docHash, logoSrc, signature: { name, signedAt, png } }
 export function renderQuoteDoc(model, meta = {}) {
   const t = model.totals;
@@ -146,7 +133,7 @@ export function renderQuoteDoc(model, meta = {}) {
         ),
       ),
     ),
-    h('p', { class: 'qd-terms' }, termsText(model)),
+    h('p', { class: 'qd-terms' }, model.terms),
   );
 
   const notes = c.notes ? h('section', { class: 'qd-section' },
@@ -163,7 +150,9 @@ export function renderQuoteDoc(model, meta = {}) {
         h('div', {}, h('div', { class: 'qd-label' }, 'נחתם בתאריך'), h('div', {}, formatDate(sig.signedAt, true))),
         h('div', { class: 'qd-sign-img' }, h('div', { class: 'qd-label' }, 'חתימה'), h('img', { src: sig.png, alt: `חתימה של ${sig.name}` })),
       )
-      : h('div', { class: 'qd-sign-grid' },
+      : meta.signOnline
+        ? h('p', { class: 'qd-note' }, 'החתימה מתבצעת אונליין, בטופס שבהמשך העמוד.')
+        : h('div', { class: 'qd-sign-grid' },
         h('div', {}, h('div', { class: 'qd-label' }, 'שם'), h('div', { class: 'qd-line' })),
         h('div', {}, h('div', { class: 'qd-label' }, 'תאריך'), h('div', { class: 'qd-line' })),
         h('div', {}, h('div', { class: 'qd-label' }, 'חתימה'), h('div', { class: 'qd-line' })),
@@ -172,7 +161,8 @@ export function renderQuoteDoc(model, meta = {}) {
 
   const foot = h('footer', { class: 'qd-foot' },
     h('span', {}, 'astrateg · ONE STEP AHEAD'),
-    meta.docHash ? h('span', { class: 'num', dir: 'ltr', title: 'מזהה המסמך (SHA-256)' }, `DOC ${meta.docHash.slice(0, 16)}`) : null,
+    meta.docHash ? h('span', { class: 'num', dir: 'ltr', title: 'טביעת המסמך (SHA-256)' }, `DOC ${meta.docHash.slice(0, 16)}`) : null,
+    meta.signature?.hash ? h('span', { class: 'num', dir: 'ltr', title: 'טביעת החתימה (SHA-256)' }, `SIG ${meta.signature.hash.slice(0, 16)}`) : null,
   );
 
   return h('article', { class: 'qd', dir: 'rtl', lang: 'he' },

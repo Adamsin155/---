@@ -36,6 +36,23 @@ button, input { font: inherit; color: inherit; }
 .cbar .cbtn { margin-inline-start: auto; }
 
 .cmain { max-width: 880px; margin: 0 auto; padding: 28px 16px 64px; display: grid; gap: 20px; }
+.cstrip {
+  display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap;
+  padding: 14px 18px; border-radius: 10px; background: var(--ink); color: #fff;
+}
+.cstrip-main { display: flex; align-items: baseline; gap: 8px; }
+.cstrip-main .num {
+  font-family: 'IBM Plex Mono', 'IBM Plex Sans Hebrew', monospace; font-variant-numeric: tabular-nums;
+  font-size: 22px; font-weight: 600;
+}
+.cstrip-main span:last-child { font-size: 13.5px; color: #C9D1E6; }
+.cstrip-sub { font-size: 13.5px; color: #C9D1E6; }
+.cstrip-go {
+  margin-inline-start: auto; color: var(--ink); background: var(--pink); text-decoration: none;
+  font-weight: 600; font-size: 14px; padding: 8px 14px; border-radius: 8px; min-height: 40px;
+  display: inline-flex; align-items: center;
+}
+.cstrip-go:focus-visible { outline-color: #fff; }
 .paper { background: #fff; border-radius: 10px; box-shadow: 0 1px 2px rgba(3, 20, 50, .06), 0 10px 30px rgba(3, 20, 50, .06); overflow: hidden; }
 
 .cstate { text-align: center; padding: 72px 16px; color: var(--ink-2); }
@@ -123,5 +140,7 @@ button, input { font: inherit; color: inherit; }
   .cbar .cbtn { padding: 8px 12px; font-size: 13.5px; }
   .cmain { padding: 12px 8px 40px; gap: 12px; }
   .signbox, .signed { padding: 20px 16px; }
+  .cstrip { padding: 12px 14px; }
+  .cstrip-go { width: 100%; justify-content: center; margin-inline-start: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }

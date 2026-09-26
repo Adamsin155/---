@@ -133,7 +133,7 @@ export const FREE_ADDONS = {
 export const SPEC_ROWS = [
   { key: 'videos', label: 'סרטונים' },
   { key: 'graphics', label: 'גרפיקות' },
-  { key: 'shootDays', label: 'ימי צילום' },
+  { key: 'shootDays', label: 'ימי צילום עם המשפיענים' },
   { key: 'photographers', label: 'צלמים' },
   { key: 'collabs', label: 'קולאבים באינסטגרם' },
   { key: 'stories', label: 'סטורי אצל המשפיענים' },
@@ -141,8 +141,8 @@ export const SPEC_ROWS = [
 ];
 
 export const SPECS = {
-  'podcast-natali': { videos: 20, graphics: 20, shootDays: 1, photographers: 1, collabs: 0, stories: 0, ch14: 0 },
-  'podcast-simeon': { videos: 20, graphics: 20, shootDays: 1, photographers: 1, collabs: 0, stories: 0, ch14: 0 },
+  'podcast-natali': { videos: 20, graphics: 20, shootDays: 0, photographers: 1, collabs: 0, stories: 0, ch14: 0 },
+  'podcast-simeon': { videos: 20, graphics: 20, shootDays: 0, photographers: 1, collabs: 0, stories: 0, ch14: 0 },
   'social-simeon': { videos: 25, graphics: 35, shootDays: 1, photographers: 2, collabs: 1, stories: 0, ch14: 0 },
   'social-tv-simeon': { videos: 42, graphics: 42, shootDays: 2, photographers: 2, collabs: 3, stories: 3, ch14: 1 },
   'social-natali': { videos: 25, graphics: 35, shootDays: 1, photographers: 2, collabs: 0, stories: 0, ch14: 0 },

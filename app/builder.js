@@ -138,7 +138,7 @@ function toggleRow(key, def, badge) {
       h('div', { class: 'row-detail' }, def.detail),
     ),
     h('div', { class: 'row-end' },
-      h('span', { class: 'row-price' }, h('span', { class: 'free' }, 'ללא עלות')),
+      h('span', { class: 'state-label', 'aria-hidden': 'true' }, on ? 'נבחר · ללא עלות' : 'לא נבחר'),
       h('span', { class: 'switch' },
         h('input', {
           type: 'checkbox', role: 'switch', id, checked: on,
@@ -201,6 +201,7 @@ function renderSummary() {
   set('t-ygross', t.termGross);
   $('t-vat-label').textContent = `מע״מ ${VAT_RATE_PERCENT}%`;
   $('mb-total').textContent = formatILS(t.monthlyGross);
+  $('mb-net').textContent = formatILS(t.monthlyNet);
   $('term-note').textContent = state.paid.includes('photographer')
     ? 'התחייבות ל־12 חודשים. הכמויות שנתיות, למעט הצלם החודשי: 8 תכנים בכל חודש.'
     : 'התחייבות ל־12 חודשים. כל הכמויות בחבילה ובתוספות הן לשנה.';
@@ -353,7 +354,7 @@ $('btn-html').addEventListener('click', async () => {
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const a = h('a', {
       href: URL.createObjectURL(blob),
-      download: `quote-${new Date().toISOString().slice(0, 10)}.html`,
+      download: `astrateg-quote-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')}.html`,
     });
     document.body.append(a);
     a.click();
@@ -366,6 +367,9 @@ $('btn-html').addEventListener('click', async () => {
 });
 
 /* ── Share link ────────────────────────────── */
+
+// Quotes created in this session, to warn about duplicates for the same client.
+const created = [];
 
 let toastTimer;
 function toast(msg) {
@@ -453,6 +457,10 @@ $('btn-link').addEventListener('click', async (e) => {
       throw detail;
     }
     const link = s.quoteLink(data.token);
+    const clientName = readClient().name.trim();
+    const prev = created.filter((c) => c.clientName === clientName && !c.cancelled);
+    created.push({ id: data.id, number: data.number, clientName, gross: currentModel().totals.monthlyGross });
+    renderPrevQuotes(prev);
     $('sh-number').textContent = data.number;
     $('sh-link').value = link;
     $('sh-open').href = link;
@@ -469,6 +477,26 @@ $('btn-link').addEventListener('click', async (e) => {
     busy(btn, false);
   }
 });
+
+function renderPrevQuotes(prev) {
+  const box = $('sh-prev');
+  box.replaceChildren(...prev.map((p) => h('div', { class: 'prev-quote' },
+    h('span', {}, 'ללקוח זה קיימת הצעה פתוחה ', h('strong', { class: 'num', dir: 'ltr' }, p.number),
+      ' (', h('span', { dir: 'ltr' }, formatILS(p.gross)), ' לחודש). הלקוח יכול לחתום על שתיהן.'),
+    h('button', {
+      type: 'button', class: 'btn btn-sm',
+      onclick: async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        const s = await getSupa();
+        const { error } = await s.supabase.rpc('cancel_quote', { p_id: p.id });
+        if (error) { btn.disabled = false; toast(s.explainError(error)); return; }
+        p.cancelled = true;
+        btn.closest('.prev-quote').replaceChildren(`הצעה ${p.number} בוטלה. הקישור הקודם כבר לא פעיל.`);
+      },
+    }, `ביטול ${p.number}`),
+  )));
+}
 
 $('sh-copy').addEventListener('click', async () => {
   try {

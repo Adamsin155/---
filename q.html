@@ -25,6 +25,12 @@
       <p>טוען את ההצעה…</p>
     </div>
 
+    <div class="cstrip" id="strip" hidden>
+      <div class="cstrip-main"><span class="num" id="strip-month" dir="ltr"></span><span>לחודש כולל מע״מ</span></div>
+      <div class="cstrip-sub" id="strip-sub"></div>
+      <a class="cstrip-go" href="#signbox" id="strip-go">למעבר לחתימה</a>
+    </div>
+
     <div class="paper" id="doc" hidden></div>
 
     <section class="signbox" id="signbox" aria-labelledby="sign-h" hidden>
@@ -53,7 +59,7 @@
 
         <label class="consent">
           <input type="checkbox" id="s-consent" aria-describedby="s-consent-err">
-          <span>קראתי את הצעת המחיר ואני מאשר/ת אותה, כולל תקופת ההתחייבות ל־<span id="term-months">12</span> חודשים והמחירים המפורטים בה.</span>
+          <span id="consent-text">קראתי את הצעת המחיר ואני מאשר/ת אותה, כולל תקופת ההתחייבות ל־12 חודשים והמחירים המפורטים בה.</span>
         </label>
         <div class="cerr" id="s-consent-err" hidden>יש לאשר את ההצעה כדי לחתום.</div>
 

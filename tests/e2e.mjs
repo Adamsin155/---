@@ -16,6 +16,7 @@ let seq = 0;
 function view(q) {
   return {
     number: q.number, createdAt: q.created_at, model: q.model, docHash: 'ab'.repeat(32),
+    consentText: `קראתי ואני מאשר/ת את הצעת המחיר ${q.number}`, signatureHash: q.signature_png ? 'cd'.repeat(32) : null,
     status: q.status, signerName: q.signer_name, signedAt: q.signed_at, signaturePng: q.signature_png,
   };
 }
@@ -72,7 +73,7 @@ async function fakeSupabase(route) {
     q.status = 'cancelled';
     return json(200, null);
   }
-  if (p === '/rest/v1/quotes') return json(200, [...db.values()].reverse());
+  if (p === '/rest/v1/quotes') return json(200, [...db.values()].reverse().map((q) => ({ ...q, tier: q.model.package.tierName, influencer: q.model.package.influencer })));
   return json(404, { message: `unmocked ${p}` });
 }
 

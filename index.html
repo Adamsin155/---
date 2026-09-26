@@ -131,17 +131,19 @@
       </div>
       <div class="actions">
         <button type="button" class="btn btn-primary" id="btn-link">יצירת קישור לחתימה</button>
+        <p class="act-hint">הלקוח צופה וחותם אונליין · נשמר ב״הצעות שנשלחו״</p>
         <button type="button" class="btn" id="btn-preview">תצוגה מקדימה</button>
+        <p class="act-group">עותק ללא חתימה אונליין</p>
         <div class="pair">
-          <button type="button" class="btn btn-ghost btn-sm" id="btn-print">הדפסה / שמירה כ־PDF</button>
-          <button type="button" class="btn btn-ghost btn-sm" id="btn-html">הורדת קובץ HTML</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-print">הדפסה או PDF</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-html">קובץ HTML</button>
         </div>
       </div>
     </aside>
   </main>
 
   <div class="mobilebar" id="mobilebar">
-    <div class="amt"><span class="num" id="mb-total" dir="ltr"></span><small>לחודש, כולל מע״מ</small></div>
+    <div class="amt"><span class="num" id="mb-total" dir="ltr"></span><small>לחודש כולל מע״מ · <span dir="ltr" id="mb-net"></span> לפני מע״מ</small></div>
     <a class="btn btn-sm" href="#summary">לסיכום ולהפקה</a>
   </div>
 
@@ -192,6 +194,7 @@
         <button type="button" class="btn" id="sh-copy">העתקה</button>
       </div>
       <div class="status-line"><span class="dot on"></span>ממתין לחתימה · אפשר לעקוב בעמוד ״הצעות שנשלחו״</div>
+      <div id="sh-prev"></div>
     </div>
     <div class="dlg-foot">
       <a class="btn btn-ghost" id="sh-open" target="_blank" rel="noopener">פתיחת הקישור</a>

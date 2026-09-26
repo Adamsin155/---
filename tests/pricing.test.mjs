@@ -141,7 +141,7 @@ test('catalog: comparison specs match the included items', async () => {
     assert.ok(s, `specs for ${id}`);
     assert.equal(s.videos, find(pkg, /סרטונ/), `${id} videos`);
     assert.equal(s.graphics, find(pkg, /^גרפיקות$/), `${id} graphics`);
-    assert.equal(s.shootDays, find(pkg, /(יום|ימי) צילום/), `${id} shootDays`);
+    assert.equal(s.shootDays, find(pkg, /(יום|ימי) צילום.*(סמיון|נטלי)/), `${id} shootDays`);
     assert.equal(s.collabs, find(pkg, /קולאב/), `${id} collabs`);
     assert.equal(s.stories, find(pkg, /^סטורי/), `${id} stories`);
     assert.equal(s.ch14, find(pkg, /ערוץ 14/), `${id} ch14`);

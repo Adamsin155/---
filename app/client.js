@@ -1,5 +1,6 @@
 // Client-facing quote page: loads a quote by token and lets the client sign it.
 import { renderQuoteDoc, formatDate } from './quote-doc.js';
+import { formatILS } from './pricing.js';
 
 const $ = (id) => document.getElementById(id);
 const token = new URLSearchParams(location.search).get('t') || '';
@@ -22,8 +23,9 @@ function docMeta(q) {
     number: q.number,
     createdAt: q.createdAt,
     docHash: q.docHash,
+    signOnline: q.status !== 'signed',
     signature: q.status === 'signed'
-      ? { name: q.signerName, signedAt: q.signedAt, png: q.signaturePng }
+      ? { name: q.signerName, signedAt: q.signedAt, png: q.signaturePng, hash: q.signatureHash }
       : null,
   };
 }
@@ -35,7 +37,12 @@ function render(q) {
   $('doc').hidden = false;
   $('state').hidden = true;
   $('btn-print').hidden = false;
-  $('term-months').textContent = String(q.model.termMonths);
+  const tot = q.model.totals;
+  $('strip-month').textContent = formatILS(tot.monthlyGross);
+  $('strip-sub').textContent = `${q.model.termMonths} חודשים · סה״כ ${formatILS(tot.termGross)} כולל מע״מ`;
+  $('strip-go').hidden = q.status === 'signed';
+  $('strip').hidden = false;
+  if (q.consentText) $('consent-text').textContent = q.consentText;
 
   const status = $('status');
   status.hidden = false;
@@ -237,6 +244,11 @@ $('sign-form').addEventListener('submit', async (e) => {
     $('signed').scrollIntoView({ block: 'center', behavior: 'smooth' });
   } catch (err) {
     const msg = String(err?.message || '');
+    if (/staff cannot sign/.test(msg)) {
+      $('sign-err').textContent = 'את ההצעה חותם הלקוח. אתם מחוברים כאנשי צוות, לכן החתימה נחסמה. פתחו את הקישור בדפדפן שבו אינכם מחוברים.';
+      $('sign-err').hidden = false;
+      return;
+    }
     if (/already signed/.test(msg)) {
       await load();
       return;
