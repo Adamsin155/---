@@ -176,7 +176,7 @@ test('agreement text follows the selected package', () => {
   assert.ok(titles(agr(sel('social', 'natali', [], { extraCh14: true }))).includes('אייטם בערוץ 14'));
 
   // Influencer names, podcast definition, multiple shoot days, monthly photographer.
-  assert.match(text(agr(sel('social', 'natali'))), /עם נטלי דדון/);
+  assert.match(text(agr(sel('social', 'natali'))), /בהשתתפות נטלי דדון/);
   assert.match(text(agr(sel('social', 'natali', [], { simeonJoin: true }))), /ובהשתתפות סמיון, מישל ודניס ביום הצילום/);
   assert.match(text(agr(sel('podcast', 'simeon'))), /יום הקלטת הפודקאסט/);
   assert.match(text(agr(sel('social-tv', 'simeon'))), /כלולים 2 ימי צילום/);
@@ -193,6 +193,6 @@ test('agreement text follows the selected package', () => {
   // Cross references resolve to real clause numbers.
   const l = agr(sel('social-tv', 'natali'));
   const exitNo = titles(l).indexOf('סיום ההתקשרות לפני תום התקופה') + 1;
-  assert.match(text(l), new RegExp(`לפי פרק ${exitNo}`));
+  assert.match(text(l), new RegExp(`או פרק ${exitNo}\\.`));
   assert.doesNotMatch(text(l), /undefined/);
 });
