@@ -12,6 +12,8 @@
 
 **למפתח שמשלב את המערכת במערכת אחרת:** [מסמך מסירה](docs/HANDOFF.md).
 
+**בפיתוח: מערכת התשלומים החודשית** — הזנת עסקאות וחישוב חודשי של עמלות, תשלומים לספקים, משכורות, הוצאות וחלוקת רווח. השיטה ב־[כללי החישוב](docs/payouts/rules.md). הערכים העסקיים (שכר, אחוזים, עלויות) לא נשמרים בריפו, כי הוא ציבורי.
+
 ## איך זה בנוי
 
 - **אתר סטטי** (HTML, CSS ו־JavaScript, בלי שלב בנייה) שמתארח ב־GitHub Pages.
@@ -52,7 +54,9 @@ app/fonts/  Rubik + JetBrains Mono (OFL), מתארחים מקומית
 app/vendor/ supabase-js (MIT)
 supabase/   migrations, functions/create-quote
 docs/       כללי תמחור, חלוקת אחריות, מדריך מותג, מחקר
-.claude/agents/  סוכני UX, עיצוב, טכנולוגיה, איכות, מחקר ועוזר משפטי
+.claude/agents/  סוכני UX, עיצוב, טכנולוגיה, איכות, מחקר ועוזר משפטי;
+                 payouts-*: טכנולוגיה, עיצוב, בקרה ומחקר למערכת התשלומים
+private/         נתונים עסקיים רגישים — מוחרג מ־git
 ```
 
 שינוי מחיר, כמות, זכאות או נוסח ההסכם: מעדכנים את `docs/pricing-rules.md`, `app/catalog.js` או `app/legal.js`, מריצים `npm test`, ופורסים מחדש את הפונקציה `create-quote` (היא כוללת את `app/pricing.js`, `app/catalog.js` ו־`app/legal.js`).
