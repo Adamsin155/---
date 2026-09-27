@@ -37,6 +37,14 @@ const SPEC_ITEM = {
   ch14: { simeon: 'ch14', natali: 'ch14' },
 };
 
+// Monthly variable costs entered per month (fuel, car depreciation, meetings).
+export const MONTH_ITEM_KINDS = {
+  fuel: 'דלק',
+  depreciation: 'פחת רכב',
+  meetings: 'תיאום פגישות',
+  other: 'אחר',
+};
+
 export const SOURCE_LABEL = {
   package: 'מעבר לחבילת הבסיס',
   paid: 'תוספת בתשלום',
@@ -200,12 +208,17 @@ export function computeDeal(deal, settings, warn = () => {}) {
     photographer: prod?.photographer || 0,
     makeup: prod?.makeupPerDay !== undefined ? 0 : prod?.makeup || 0,
   };
+  const seller = (deal.seller || '').trim();
+  const closer = seller ? (settings.perDealPeople || []).find((p) => p.name === seller) : null;
   return {
     kind: 'deal',
     id: deal.id,
     date: deal.date,
     client: deal.client,
-    seller: deal.seller || '',
+    seller,
+    closerFee: closer ? { name: closer.name, amount: closer.amount || 0 } : null,
+    cancelledOn: deal.cancelledOn || null,
+    paidMonths: deal.paidMonths ?? null,
     note: deal.note || '',
     packageId: pid,
     packageName: packageName(sel),
@@ -249,9 +262,11 @@ export function computeIncome(entry, settings) {
 function finishLine(line) {
   const commissionTotal = line.commissions.reduce((s, c) => s + c.amount, 0);
   const productionTotal = line.production.influencer + line.production.photographer + line.production.makeup;
+  const closerTotal = line.closerFee?.amount || 0;
   line.commissionTotal = commissionTotal;
   line.productionTotal = productionTotal;
-  line.contribution = line.value - line.paymentReal - commissionTotal - productionTotal - line.itemsReal;
+  line.closerTotal = closerTotal;
+  line.contribution = line.value - line.paymentReal - commissionTotal - productionTotal - line.itemsReal - closerTotal;
   return line;
 }
 
@@ -307,6 +322,27 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
       l.shootDays = days;
     });
   }
+  // Cancelled deals: everyone on percentages gives back the share of their
+  // commission for the months the client will not pay, in the month of the
+  // cancellation (the deal's own month may already be locked).
+  for (const d of deals.filter((x) => x.cancelledOn && inMonth(x.cancelledOn, month)).sort((a, b) => byDate({ date: a.cancelledOn }, { date: b.cancelledOn }))) {
+    const v = settingsOn(versions, d.date) || monthSettings;
+    try {
+      const orig = computeDeal(d, v.data);
+      const remaining = TERM_MONTHS - d.paidMonths;
+      lines.push({
+        kind: 'clawback', id: d.id, date: d.cancelledOn, dealDate: d.date, client: d.client,
+        packageName: orig.packageName, family: orig.family, paidMonths: d.paidMonths,
+        value: 0, paymentReal: 0, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0, base: 0,
+        closerFee: null, production: { influencer: 0, photographer: 0, makeup: 0 },
+        commissions: orig.commissions.map((c) => ({
+          ...c, original: c.amount, amount: -Math.round((c.amount * remaining) / TERM_MONTHS),
+        })),
+      });
+    } catch (e) {
+      errors.push(`ביטול העסקה ״${d.client}״ לא חושב: ${e.message}`);
+    }
+  }
   for (const e of incomes.filter((x) => inMonth(x.date, month)).sort(byDate)) {
     const v = settingsOn(versions, e.date) || monthSettings;
     lines.push(computeIncome(e, v.data));
@@ -317,9 +353,18 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
   const dealLines = lines.filter((l) => l.kind === 'deal');
   const incomeLines = lines.filter((l) => l.kind === 'income');
 
-  const employees = (ms.employees || []).map((e) => ({ ...e, amount: e.salary }));
+  // Payroll employees cost the salary plus the employer's share; invoice
+  // workers cost the invoice only.
+  const employees = (ms.employees || []).map((e) => {
+    const employerCost = e.payroll ? applyBp(e.salary, ms.employerCostBp || 0) : 0;
+    return { ...e, employerCost, amount: e.salary + employerCost };
+  });
   const recurring = (ms.expenses || []).map((e) => ({ ...e, payee: e.payee || e.name }));
-  const oneOff = expenses.filter((e) => e.month === month);
+  const oneOff = expenses.filter((e) => e.month === month).map((e) => {
+    const kind = MONTH_ITEM_KINDS[e.kind] ? e.kind : 'other';
+    const amount = kind === 'meetings' ? (e.qty || 0) * (ms.meetingRate || 0) : e.amount;
+    return { ...e, kind, amount, payee: e.payee || (kind === 'meetings' ? ms.meetingPayee : '') || e.label };
+  });
   const fixed = sum(employees, (e) => e.amount) + sum(recurring, (e) => e.amount) + sum(oneOff, (e) => e.amount);
 
   const revenue = sum(lines, (l) => l.value);
@@ -327,7 +372,9 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
   const commissions = sum(lines, (l) => l.commissionTotal);
   const production = sum(lines, (l) => l.productionTotal);
   const itemsReal = sum(lines, (l) => l.itemsReal);
-  const variable = paymentReal + commissions + production + itemsReal;
+  const closerFees = sum(lines, (l) => l.closerTotal);
+  const clawbacks = sum(lines.filter((l) => l.kind === 'clawback'), (l) => l.commissionTotal);
+  const variable = paymentReal + commissions + production + itemsReal + closerFees;
   const profit = revenue - variable - fixed;
   const incomeContribution = sum(incomeLines, (l) => l.contribution);
 
@@ -347,13 +394,15 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
     lines,
     counts: {
       deals: dealLines.length,
+      cancellations: lines.filter((l) => l.kind === 'clawback').length,
       byFamily: countBy(dealLines, (l) => l.family),
       byPackage: countBy(dealLines, (l) => l.packageId),
     },
     totals: {
       revenue, dealsRevenue: sum(dealLines, (l) => l.value), incomeRevenue: sum(incomeLines, (l) => l.value),
-      paymentReal, commissions, production, itemsReal, variable, fixed,
+      paymentReal, commissions, production, itemsReal, closerFees, clawbacks, variable, fixed,
       employees: sum(employees, (e) => e.amount),
+      employerCost: sum(employees, (e) => e.employerCost),
       recurring: sum(recurring, (e) => e.amount),
       oneOff: sum(oneOff, (e) => e.amount),
       profit,
@@ -400,49 +449,80 @@ export function payeesOf(report, ms) {
   const names = ms.payees || {};
   for (const l of report.lines) {
     add('פיימנט', 'payment', l.client, l.paymentReal);
-    const who = l.kind === 'deal' ? `${l.client} · ${l.packageName}` : l.client;
+    const who = l.kind === 'deal' ? `${l.client} · ${l.packageName}`
+      : l.kind === 'clawback' ? `קיזוז: ${l.client} בוטלה אחרי ${l.paidMonths} חודשים` : l.client;
     for (const c of l.commissions) add(c.name, 'commission', who, c.amount);
+    if (l.closerFee) add(l.closerFee.name, 'commission', `עמלת סגירה · ${l.client}`, l.closerFee.amount);
     add(names.influencer?.[l.family] || INFLUENCERS[l.family]?.name, 'influencer', who, l.production.influencer);
     add(names.photographer || 'צלם', 'supplier', who, l.production.photographer);
     add(names.makeup || 'מאפרת', 'supplier', who, l.production.makeup);
     for (const it of l.items) add(it.payee, 'supplier', `${it.name}${it.qty > 1 ? ` ×${it.qty}` : ''} · ${l.client}`, it.real);
   }
-  for (const e of report.employees) add(e.name, 'employee', e.role || 'משכורת', e.amount);
+  for (const e of report.employees) {
+    add(e.name, 'employee', e.payroll ? `משכורת${e.role ? ` · ${e.role}` : ''}` : `חשבונית${e.role ? ` · ${e.role}` : ''}`, e.salary);
+    add(e.name, 'employee', 'עלות מעסיק', e.employerCost);
+  }
   for (const e of report.recurring) add(e.payee, 'expense', e.name, e.amount);
-  for (const e of report.oneOff) add(e.payee || e.label, 'expense', e.label, e.amount);
+  for (const e of report.oneOff) add(e.payee, 'expense', monthItemLabel(e, ms), e.amount);
   for (const p of report.partners) add(p.name, 'partner', 'חלק ברווח', p.amount);
   const order = { commission: 0, influencer: 1, supplier: 2, employee: 3, expense: 4, payment: 5, partner: 6 };
   return [...map.values()].sort((a, b) => order[a.kind] - order[b.kind] || b.total - a.total);
 }
 
+export function monthItemLabel(e, ms = {}) {
+  if (e.kind === 'meetings') return `${MONTH_ITEM_KINDS.meetings}: ${e.qty || 0} × ${(ms.meetingRate || 0) / 100} ₪`;
+  if (e.kind === 'other') return e.label;
+  return e.label && e.label !== MONTH_ITEM_KINDS[e.kind] ? `${MONTH_ITEM_KINDS[e.kind]} · ${e.label}` : MONTH_ITEM_KINDS[e.kind];
+}
+
 // What a commission earner is shown: only commission-side values.
-export function commissionStatement(report, personId) {
+// Accepts the person's id or name. Shows their commissions (with the
+// deductions they are told about), clawbacks, per-deal fees, and their own
+// other payments this month. No real costs, other people or profit.
+export function commissionStatement(report, who) {
   const rows = [];
   let name = '';
   for (const l of report.lines) {
-    const c = l.commissions.find((x) => x.personId === personId);
-    if (!c) continue;
-    name = c.name;
-    rows.push({
-      kind: l.kind,
-      date: l.date,
-      client: l.client,
-      packageName: l.packageName || 'הכנסה נוספת',
-      value: l.value,
-      payment: l.paymentCommission,
-      deductions: l.items
-        .filter((it) => it.commission)
-        .map((it) => ({ name: it.name, qty: it.qty, source: it.source, amount: it.commission })),
-      base: l.base,
-      rateBp: c.rateBp,
-      amount: c.amount,
-    });
+    const c = l.commissions.find((x) => x.personId === who || x.name === who);
+    if (c) {
+      name = c.name;
+      rows.push({
+        kind: l.kind,
+        date: l.date,
+        dealDate: l.dealDate,
+        paidMonths: l.paidMonths,
+        client: l.client,
+        packageName: l.packageName || 'הכנסה נוספת',
+        value: l.value,
+        payment: l.paymentCommission,
+        deductions: l.items
+          .filter((it) => it.commission)
+          .map((it) => ({ name: it.name, qty: it.qty, source: it.source, amount: it.commission })),
+        base: l.base,
+        rateBp: c.rateBp,
+        original: c.original,
+        amount: c.amount,
+      });
+    }
+    if (l.closerFee && l.closerFee.name === (name || who)) {
+      name = l.closerFee.name;
+      rows.push({ kind: 'closer', date: l.date, client: l.client, packageName: l.packageName, amount: l.closerFee.amount });
+    }
   }
+  name ||= typeof who === 'string' ? who : '';
+  const extras = [
+    ...(report.recurring || []).filter((e) => e.payee === name).map((e) => ({ label: e.name, amount: e.amount })),
+    ...(report.oneOff || []).filter((e) => e.payee === name).map((e) => ({ label: monthItemLabel(e, { meetingRate: e.qty ? e.amount / e.qty : 0 }), amount: e.amount })),
+  ];
+  const commissionTotal = rows.reduce((s, r) => s + r.amount, 0);
+  const extrasTotal = extras.reduce((s, e) => s + e.amount, 0);
   return {
     month: report.month,
-    personId,
+    personId: who,
     name,
     rows,
-    total: rows.reduce((s, r) => s + r.amount, 0),
+    extras,
+    commissionTotal,
+    total: commissionTotal + extrasTotal,
   };
 }

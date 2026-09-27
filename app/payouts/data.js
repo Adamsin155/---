@@ -33,23 +33,27 @@ export async function saveSettings(effectiveFrom, data, note) {
 const dealFromRow = (r) => ({
   id: r.id, date: r.deal_date, client: r.client, selection: r.selection,
   perks: r.perks || [], seller: r.seller || '', note: r.note || '', quoteId: r.quote_id,
+  cancelledOn: r.cancelled_on || null, paidMonths: r.paid_months ?? null,
 });
 
 export async function loadMonth(month) {
   const { first, last } = monthBounds(month);
-  const [deals, incomes, expenses, lock] = await Promise.all([
+  const [deals, cancelled, incomes, expenses, lock] = await Promise.all([
     supabase.from('payout_deals').select('*').gte('deal_date', first).lte('deal_date', last).order('deal_date'),
+    supabase.from('payout_deals').select('*').gte('cancelled_on', first).lte('cancelled_on', last).order('cancelled_on'),
     supabase.from('payout_incomes').select('*').gte('income_date', first).lte('income_date', last).order('income_date'),
     supabase.from('payout_expenses').select('*').eq('month', month).order('created_at'),
     supabase.from('payout_locks').select('month, report, locked_at').eq('month', month).maybeSingle(),
   ]);
   return {
-    deals: check(deals).map(dealFromRow),
+    // Deals closed this month, plus older deals cancelled this month.
+    deals: [...new Map([...check(deals), ...check(cancelled)].map((r) => [r.id, dealFromRow(r)])).values()],
     incomes: check(incomes).map((r) => ({
       id: r.id, date: r.income_date, label: r.label, family: r.family, amount: Number(r.amount_agorot), note: r.note || '',
     })),
     expenses: check(expenses).map((r) => ({
       id: r.id, month: r.month, label: r.label, payee: r.payee || '', amount: Number(r.amount_agorot),
+      kind: r.kind || 'other', qty: r.qty ?? null,
     })),
     lock: check(lock),
   };
@@ -70,6 +74,18 @@ export async function saveDeal(d) {
   else check(await supabase.from('payout_deals').insert(row));
 }
 
+// Deals of the last `months` months, for picking one to cancel.
+export async function loadRecentDeals(fromDate) {
+  const rows = check(await supabase.from('payout_deals').select('*').gte('deal_date', fromDate).order('deal_date', { ascending: false }));
+  return rows.map(dealFromRow);
+}
+
+// Only the cancellation columns change, so a deal from a locked month can be
+// cancelled while the cancellation month is open.
+export async function saveCancellation(id, cancelledOn, paidMonths) {
+  check(await supabase.from('payout_deals').update({ cancelled_on: cancelledOn, paid_months: paidMonths }).eq('id', id));
+}
+
 export async function deleteRow(table, id) {
   check(await supabase.from(table).delete().eq('id', id));
 }
@@ -81,7 +97,10 @@ export async function saveIncome(e) {
 }
 
 export async function saveExpense(e) {
-  const row = { month: e.month, label: e.label.trim(), payee: e.payee?.trim() || null, amount_agorot: e.amount };
+  const row = {
+    month: e.month, label: e.label.trim(), payee: e.payee?.trim() || null, amount_agorot: e.amount,
+    kind: e.kind || 'other', qty: e.qty ?? null,
+  };
   if (e.id) check(await supabase.from('payout_expenses').update(row).eq('id', e.id));
   else check(await supabase.from('payout_expenses').insert(row));
 }
@@ -107,6 +126,7 @@ export function explain(err) {
   if (/rate limit|security purposes/i.test(msg)) return 'נשלחו יותר מדי בקשות. נסו שוב בעוד כמה דקות.';
   if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return 'אין חיבור לשרת. בדקו את החיבור לאינטרנט ונסו שוב.';
   if (/duplicate key/.test(msg)) return 'הרשומה כבר קיימת.';
+  if (/payout_deals_cancel_after/.test(msg)) return 'תאריך הביטול לא יכול להיות לפני תאריך הסגירה.';
   if (/JWT|not authenticated|401/.test(msg)) return 'יש להתחבר מחדש.';
   return 'הפעולה לא הושלמה. נסו שוב בעוד רגע.';
 }

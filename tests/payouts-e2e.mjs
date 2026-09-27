@@ -45,7 +45,11 @@ const SETTINGS = {
     'podcast-natali': { influencerPerDay: ils(9000), clientsPerDay: 3, makeupPerDay: ils(70), photographer: ils(100), makeup: 0 },
   },
   payees: { influencer: { simeon: 'משפיען ס', natali: 'משפיענית נ' }, photographer: 'צלם', makeup: 'מאפרת' },
-  employees: [{ id: 'e1', name: 'עובד בדיקה', role: 'עורך', salary: ils(1000) }],
+  employees: [{ id: 'e1', name: 'עובד בדיקה', role: 'עורך', salary: ils(1000), payroll: true }],
+  employerCostBp: 2000,
+  perDealPeople: [{ id: 'c1', name: 'סוגר בדיקה', amount: ils(250) }],
+  meetingRate: ils(40),
+  meetingPayee: 'מוכרת בדיקה',
   expenses: [{ id: 'x1', name: 'פרסום בדיקה', amount: ils(500) }],
   partners: [
     { id: 'p1', name: 'שותף 1', weight: 1 },
@@ -208,6 +212,8 @@ await dlg.getByLabel('תאריך סגירה').fill('2026-09-30');
 await dlg.getByRole('radio', { name: /Social all in one/ }).check();
 await dlg.getByRole('radio', { name: 'סמיון, מישל ודניס' }).check();
 await dlg.getByLabel('גרפיקות נוספות').selectOption('24');
+await dlg.getByLabel('מי סגר').selectOption('סוגר בדיקה');
+await dlg.getByText('סוגר בדיקה · עמלת סגירה').waitFor();
 await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 assert.equal(tables.payout_deals.length, 2);
@@ -215,12 +221,13 @@ const saved = tables.payout_deals.find((d) => d.client.startsWith('מסעדת'))
 assert.deepEqual(saved.selection.paid, ['photographer']);
 assert.equal(saved.selection.discount, 10000);
 assert.deepEqual(saved.perks, [{ id: 'natali-story', qty: 1 }]);
+assert.equal(tables.payout_deals.find((d) => d.client === 'לקוח שני').seller, 'סוגר בדיקה');
 console.log('ok  deals saved with the chosen package, add-ons, perk and discount');
 
 // Screen numbers match the engine.
 const expected = computeMonth({
   month: '2026-09',
-  deals: tables.payout_deals.map((d) => ({ id: d.id, date: d.deal_date, client: d.client, selection: d.selection, perks: d.perks })),
+  deals: tables.payout_deals.map((d) => ({ id: d.id, date: d.deal_date, client: d.client, selection: d.selection, perks: d.perks, seller: d.seller })),
   versions: [{ effectiveFrom: '2026-01-01', data: SETTINGS }],
 });
 await page.goto(`${BASE}payouts/#/deals/2026-09`);
@@ -249,12 +256,29 @@ await dlg.getByRole('button', { name: 'שמירה' }).click();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 assert.equal(tables.payout_incomes[0].amount_agorot, 123450);
 await page.getByRole('button', { name: 'הוספה' }).nth(1).click();
+await dlg.getByLabel('סוג').selectOption('other');
+await dlg.getByLabel('למי').fill('ספק בדיקה');
 await dlg.getByLabel('תיאור').fill('אירוע לקוחות');
 await dlg.getByLabel('סכום (₪)').fill('750');
 await dlg.getByRole('button', { name: 'שמירה' }).dblclick();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 assert.equal(tables.payout_expenses.length, 1, 'double click saves once');
 assert.equal(tables.payout_expenses[0].amount_agorot, 75000);
+await page.getByRole('button', { name: 'הוספה' }).nth(1).click();
+await dlg.getByLabel('סוג').selectOption('meetings');
+assert.equal(await dlg.getByLabel('למי').inputValue(), 'מוכרת בדיקה', 'meetings default payee');
+await dlg.getByLabel('מספר פגישות שתואמו').fill('5');
+await dlg.getByRole('button', { name: 'שמירה' }).click();
+await page.getByRole('dialog').waitFor({ state: 'hidden' });
+const meet = tables.payout_expenses.find((e) => e.kind === 'meetings');
+assert.equal(meet.qty, 5);
+assert.equal(meet.amount_agorot, ils(200));
+await page.getByRole('button', { name: 'הוספה' }).nth(1).click();
+await dlg.getByLabel('למי').fill('עובד בדיקה');
+await dlg.getByLabel('סכום (₪)').fill('320');
+await dlg.getByRole('button', { name: 'שמירה' }).click();
+await page.getByRole('dialog').waitFor({ state: 'hidden' });
+assert.equal(tables.payout_expenses.find((e) => e.payee === 'עובד בדיקה').kind, 'fuel');
 console.log('ok  extra income and one-off expense');
 
 // Payouts and the commission statement.
@@ -265,11 +289,12 @@ assert.ok(await noHScroll(page), 'no horizontal scroll (phone payouts)');
 await shot(page, 'phone-pay');
 await page.getByText('מוכרת בדיקה').click();
 await page.getByRole('button', { name: 'דוח עמלה להצגה' }).first().click();
-await dlg.getByText('סה״כ עמלה לחודש').waitFor();
+await dlg.getByText('סה״כ לחודש').waitFor();
 const stText = await dlg.locator('.statement').innerText();
 const full = computeMonth({
   month: '2026-09',
-  deals: tables.payout_deals.map((d) => ({ id: d.id, date: d.deal_date, client: d.client, selection: d.selection, perks: d.perks })),
+  deals: tables.payout_deals.map((d) => ({ id: d.id, date: d.deal_date, client: d.client, selection: d.selection, perks: d.perks, seller: d.seller })),
+  expenses: tables.payout_expenses.map((e) => ({ id: e.id, month: e.month, kind: e.kind, label: e.label, payee: e.payee, qty: e.qty, amount: e.amount_agorot })),
   incomes: tables.payout_incomes.map((e) => ({ id: e.id, date: e.income_date, label: e.label, family: e.family, amount: e.amount_agorot })),
   versions: [{ effectiveFrom: '2026-01-01', data: SETTINGS }],
 });
@@ -302,6 +327,37 @@ for (const el of await page.getByLabel('חלקים').all()) await el.fill('0');
 await page.getByRole('button', { name: 'שמירת גרסה חדשה של ההגדרות' }).click();
 await page.getByText(/לפחות לשותף אחד/).first().waitFor();
 console.log('ok  settings versioned; bad partner split rejected');
+
+// Pay screen: employer cost and closing fee.
+await page.goto(`${BASE}payouts/#/pay/2026-09`);
+await page.getByText('עובד בדיקה').click();
+await page.getByText('עלות מעסיק').waitFor();
+assert.ok((await page.locator('#view').innerText()).includes(fmt(ils(1000 + 200 + 320))), 'salary + employer cost + fuel');
+await page.getByText('סוגר בדיקה').click();
+await page.getByText(/עמלת סגירה · לקוח שני/).waitFor();
+console.log('ok  employer cost, fuel, meetings and closing fee on the pay screen');
+
+// Cancel a September deal in October: clawback of 11/12 in October.
+await page.goto(`${BASE}payouts/#/deals/2026-10`);
+await page.getByRole('heading', { name: '0 עסקאות' }).waitFor();
+await page.getByRole('button', { name: 'ביטול עסקה' }).click();
+await dlg.getByLabel('העסקה').selectOption(tables.payout_deals.find((d) => d.client.startsWith('מסעדת')).id);
+await dlg.getByLabel('תאריך הביטול').fill('2026-10-20');
+await dlg.getByLabel('תאריך הביטול').dispatchEvent('change');
+assert.equal(await dlg.getByLabel('כמה חודשים הלקוח שילם').inputValue(), '1');
+await shot(page, 'phone-cancel');
+await dlg.getByRole('button', { name: 'שמירת הביטול' }).click();
+await page.getByRole('dialog').waitFor({ state: 'hidden' });
+const cancelled = tables.payout_deals.find((d) => d.client.startsWith('מסעדת'));
+assert.equal(cancelled.cancelled_on, '2026-10-20');
+assert.equal(cancelled.paid_months, 1);
+await page.getByRole('heading', { name: 'עסקאות שבוטלו החודש' }).waitFor();
+// 11/12 of the hand-computed commissions (11,399.20 and 5% × 56,996 = 2,849.80), rounded per person.
+const back = -(Math.round((ils(11399.20) * 11) / 12) + Math.round((ils(2849.80) * 11) / 12));
+assert.ok((await page.locator('#view').innerText()).includes(fmt(-back)), `clawback ${fmt(-back)}`);
+await page.goto(`${BASE}payouts/#/deals/2026-09`);
+await page.getByText(/בוטלה 20 באוק/).waitFor();
+console.log('ok  cancellation claws back the unpaid months in the cancellation month');
 
 // Lock and unlock.
 await page.goto(`${BASE}payouts/#/month/2026-09`);

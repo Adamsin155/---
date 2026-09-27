@@ -5,8 +5,8 @@ import { h } from '../quote-doc.js';
 import { reconcile, paidAddonAvailable, freeAddonAvailable } from '../pricing.js';
 import { PACKAGES, PAID_ADDONS, TIERS, INFLUENCERS, FREE_ADDONS, TERM_MONTHS, packageId } from '../catalog.js';
 import {
-  ITEMS, SOURCE_LABEL, computeMonth, computeDeal, commissionStatement, settingsOn,
-  monthBounds, shiftMonth, packageName,
+  ITEMS, SOURCE_LABEL, MONTH_ITEM_KINDS, computeMonth, computeDeal, commissionStatement, settingsOn,
+  monthBounds, shiftMonth, packageName, monthItemLabel,
 } from './engine.js';
 import * as db from './data.js';
 
@@ -32,6 +32,10 @@ function formatILS(agorot) {
 const money = (agorot, cls = '') => h('span', { class: `num ${cls}`.trim(), dir: 'ltr' }, formatILS(agorot));
 const signed = (agorot) => (agorot < 0
   ? h('span', { class: 'neg' }, 'הפסד ', money(-agorot))
+  : money(agorot));
+// A negative amount owed back by a person (commission clawback).
+const offset = (agorot) => (agorot < 0
+  ? h('span', { class: 'neg' }, 'קיזוז ', money(-agorot))
   : money(agorot));
 const pct = (bp) => `${(bp / 100).toLocaleString('he-IL', { maximumFractionDigits: 2 })}%`;
 const shekelsText = (agorot) => (agorot === null || agorot === undefined ? '' : String(agorot / 100));
@@ -337,12 +341,14 @@ function viewMonth() {
       row('הכנסות מעסקאות', money(t.dealsRevenue)),
       t.incomeRevenue ? row('הכנסה נוספת', money(t.incomeRevenue)) : null,
       row('פיימנט', money(t.paymentReal)),
-      row('עמלות', money(t.commissions)),
+      row('עמלות', money(t.commissions - (t.clawbacks || 0))),
+      t.clawbacks ? row('קיזוז עמלות מעסקאות שבוטלו', money(t.clawbacks)) : null,
+      t.closerFees ? row('עמלות סגירה לעסקה', money(t.closerFees)) : null,
       row('הפקה (משפיענים, צלם, מאפרת)', money(t.production)),
       row('רכיבים, תוספות וצ׳ופרים', money(t.itemsReal)),
-      row('משכורות', money(t.employees)),
+      row(t.employerCost ? 'משכורות, כולל עלות מעסיק' : 'משכורות', money(t.employees)),
       row('הוצאות קבועות', money(t.recurring)),
-      t.oneOff ? row('הוצאות חד־פעמיות', money(t.oneOff)) : null,
+      t.oneOff ? row('הוצאות משתנות של החודש', money(t.oneOff)) : null,
       row('רווח', signed(t.profit), true),
     ),
     incomeSection(r),
@@ -366,17 +372,32 @@ function incomeSection(r) {
 }
 
 function expenseSection() {
-  const list = state.data.expenses;
+  const list = state.report.oneOff || [];
+  const byId = new Map(state.data.expenses.map((e) => [e.id, e]));
   return h('section', { class: 'card', 'aria-labelledby': 'h-exp' },
     h('div', { class: 'card-head' },
-      h('h2', { id: 'h-exp' }, 'הוצאות חד־פעמיות'),
+      h('h2', { id: 'h-exp' }, 'הוצאות משתנות של החודש'),
       isLocked() ? null : btn('הוספה', { class: 'btn btn-sm', onclick: () => openExpense() })),
-    h('p', { class: 'muted small' }, 'הוצאה שחלה רק על החודש הזה. הוצאות שחוזרות כל חודש מוגדרות במסך ההגדרות.'),
+    h('p', { class: 'muted small' }, 'דלק, פחת רכב, תיאום פגישות וכל הוצאה שחלה רק על החודש הזה. הוצאות שחוזרות כל חודש מוגדרות במסך ההגדרות.'),
     list.length ? h('ul', { class: 'list' }, list.map((e) => h('li', {},
-      h('button', { type: 'button', class: 'list-btn', disabled: isLocked(), onclick: () => openExpense(e) },
-        h('span', {}, h('bdi', {}, e.label), e.payee ? h('small', {}, h('bdi', {}, e.payee)) : null),
-        money(e.amount))))) : h('p', { class: 'empty' }, 'אין הוצאות חד־פעמיות בחודש הזה.'),
+      h('button', { type: 'button', class: 'list-btn', disabled: isLocked() || !byId.has(e.id), onclick: () => openExpense(byId.get(e.id)) },
+        h('span', {}, h('bdi', {}, e.payee), h('small', {}, h('bdi', {}, monthItemLabel(e, currentSettings(state.month)?.data)))),
+        money(e.amount))))) : h('p', { class: 'empty' }, 'אין הוצאות משתנות בחודש הזה.'),
   );
+}
+
+const currentSettings = (month) => settingsOn(state.versions, monthBounds(month).last);
+
+// Everyone the business pays, for pickers.
+function knownPeople(data) {
+  if (!data) return [];
+  const names = [
+    ...(data.employees || []).map((e) => e.name),
+    ...(data.commissionPeople || []).map((p) => p.name),
+    ...(data.perDealPeople || []).map((p) => p.name),
+    data.meetingPayee,
+  ].filter(Boolean);
+  return [...new Set(names)];
 }
 
 function lockSection() {
@@ -451,6 +472,7 @@ function confirmUnlock() {
 function viewDeals() {
   const r = state.report;
   const lines = (r.lines || []).filter((l) => l.kind === 'deal');
+  const clawbacks = (r.lines || []).filter((l) => l.kind === 'clawback');
   const dealById = new Map(state.data.deals.map((d) => [d.id, d]));
   const t = r.totals || {};
   return h('div', { class: 'stack' },
@@ -458,16 +480,19 @@ function viewDeals() {
     notices(r),
     h('div', { class: 'card-head page-head' },
       h('h2', {}, `${lines.length} עסקאות`),
-      isLocked() ? null : btn('עסקה חדשה', { class: 'btn btn-primary btn-sm', onclick: () => openDeal() })),
+      isLocked() ? null : h('div', { class: 'head-btns' },
+        btn('ביטול עסקה', { class: 'btn btn-sm', onclick: () => openCancel() }),
+        btn('עסקה חדשה', { class: 'btn btn-primary btn-sm', onclick: () => openDeal() }))),
     lines.length ? h('ul', { class: 'deals' }, lines.map((l) => h('li', {},
       h('button', {
         type: 'button', class: 'deal', disabled: isLocked() || !dealById.has(l.id),
         onclick: () => openDeal(dealById.get(l.id)),
       },
       h('span', { class: 'deal-main' },
-        h('span', { class: 'deal-client' }, h('bdi', {}, l.client)),
+        h('span', { class: 'deal-client' }, h('bdi', {}, l.client),
+          l.cancelledOn ? h('span', { class: 'tag-cancel' }, `בוטלה ${dateLabel(l.cancelledOn)}`) : null),
         h('span', { class: 'deal-pkg' }, h('bdi', { dir: 'auto' }, l.packageName)),
-        h('span', { class: 'deal-meta' }, dateLabel(l.date), l.seller ? [' · ', h('bdi', {}, l.seller)] : null,
+        h('span', { class: 'deal-meta' }, dateLabel(l.date), l.seller ? [' · סגר: ', h('bdi', {}, l.seller)] : null,
           l.items.length ? ` · ${l.items.length} רכיבים` : null)),
       h('span', { class: 'deal-nums' },
         h('span', {}, h('small', {}, 'שווי'), money(l.value)),
@@ -478,9 +503,104 @@ function viewDeals() {
       isLocked() ? null : btn('הוספת עסקה ראשונה', { class: 'btn btn-primary', onclick: () => openDeal() })),
     lines.length ? h('div', { class: 'card' },
       h('div', { class: 'row' }, h('span', {}, 'סך שווי העסקאות'), money(t.dealsRevenue)),
-      h('div', { class: 'row' }, h('span', {}, 'סך עמלות'), money(lines.reduce((s, l) => s + l.commissionTotal, 0))),
+      h('div', { class: 'row' }, h('span', {}, 'סך עמלות'), money(lines.reduce((s, l) => s + l.commissionTotal + l.closerTotal, 0))),
       h('div', { class: 'row strong' }, h('span', {}, 'רווח מהעסקאות לפני הוצאות קבועות'), signed(lines.reduce((s, l) => s + l.contribution, 0)))) : null,
+    clawbacks.length ? h('section', { class: 'card', 'aria-labelledby': 'h-claw' },
+      h('h2', { id: 'h-claw' }, 'עסקאות שבוטלו החודש'),
+      h('p', { class: 'muted small' }, 'העמלה מתקזזת לכל מקבלי האחוזים, לפי החודשים שהלקוח לא ישלם.'),
+      h('ul', { class: 'list' }, clawbacks.map((l) => h('li', {},
+        h('button', { type: 'button', class: 'list-btn', disabled: isLocked() || !dealById.has(l.id), onclick: () => openCancel(dealById.get(l.id)) },
+          h('span', {}, h('bdi', {}, l.client), h('small', {}, `נסגרה ${dateLabel(l.dealDate)} · בוטלה אחרי ${l.paidMonths} חודשים`)),
+          offset(l.commissionTotal)))))) : null,
   );
+}
+
+// Whole months between the closing date and the cancellation date (0–12).
+function monthsBetween(from, to) {
+  const [fy, fm, fd] = from.split('-').map(Number);
+  const [ty, tm, td] = to.split('-').map(Number);
+  const m = (ty - fy) * 12 + (tm - fm) - (td < fd ? 1 : 0);
+  return Math.max(0, Math.min(TERM_MONTHS, m));
+}
+
+async function openCancel(preset) {
+  if (isLocked()) { toast('החודש נעול. פתחו אותו כדי לרשום ביטול.'); return; }
+  let deals;
+  try {
+    deals = preset ? [preset] : await db.loadRecentDeals(monthBounds(shiftMonth(state.month, -TERM_MONTHS)).first);
+  } catch (e) { toast(db.explain(e)); return; }
+  if (!deals.length) { toast('אין עסקאות מהשנה האחרונה.'); return; }
+  const dealIn = h('select', { class: 'input' }, deals.map((d) => h('option', { value: d.id },
+    `${d.client} · ${dateLabel(d.date)} ${d.date.slice(0, 4)}${d.cancelledOn ? ' · כבר בוטלה' : ''}`)));
+  const dateIn = h('input', { class: 'input', type: 'date', value: defaultDealDate() });
+  const monthsIn = h('select', { class: 'input' }, Array.from({ length: TERM_MONTHS + 1 }, (_, i) => h('option', { value: String(i) }, `${i} חודשים`)));
+  const preview = h('div', { class: 'preview' });
+  const errBox = h('div');
+  const pick = () => deals.find((d) => d.id === dealIn.value);
+  const fill = () => {
+    const d = pick();
+    dateIn.value = d.cancelledOn || defaultDealDate();
+    dateIn.min = d.date;
+    monthsIn.value = String(d.paidMonths ?? monthsBetween(d.date, dateIn.value));
+    draw();
+  };
+  const draw = () => {
+    const d = pick();
+    const v = settingsOn(state.versions, d.date);
+    if (!v) { preview.replaceChildren(h('p', { class: 'warn-text' }, 'אין הגדרות לתאריך העסקה.')); return; }
+    let l;
+    try { l = computeDeal(d, v.data); } catch { preview.replaceChildren(h('p', { class: 'warn-text' }, 'העסקה לא תקינה.')); return; }
+    const remaining = TERM_MONTHS - Number(monthsIn.value);
+    preview.replaceChildren(h('h3', {}, `קיזוז ${remaining} מתוך 12 חודשים`),
+      ...l.commissions.map((c) => h('div', { class: 'row' }, h('span', {}, `${c.name} · עמלה ${formatILS(c.amount)}`), offset(-Math.round((c.amount * remaining) / TERM_MONTHS)))),
+      h('p', { class: 'muted small' }, `הקיזוז נרשם בחודש של תאריך הביטול.`));
+  };
+  dealIn.addEventListener('change', fill);
+  dateIn.addEventListener('change', () => { monthsIn.value = String(monthsBetween(pick().date, dateIn.value)); draw(); });
+  monthsIn.addEventListener('change', draw);
+  if (preset) dealIn.value = preset.id;
+  fill();
+  const save = btn('שמירת הביטול', {
+    class: 'btn btn-primary',
+    onclick: async () => {
+      const d = pick();
+      setFieldError(dateIn, '');
+      if (!dateIn.value || dateIn.value < d.date) {
+        setFieldError(dateIn, 'תאריך הביטול חייב להיות אחרי תאריך הסגירה.');
+        errBox.replaceChildren(errorSummary([[dateIn, 'תאריך הביטול חייב להיות אחרי תאריך הסגירה.']]));
+        errBox.firstChild.focus();
+        return;
+      }
+      if (save.disabled) return;
+      save.disabled = true;
+      try {
+        await db.saveCancellation(d.id, dateIn.value, Number(monthsIn.value));
+        closeSheet(); toast('הביטול נשמר.');
+        const m = dateIn.value.slice(0, 7);
+        if (m !== state.month) go('deals', m); else await refresh();
+      } catch (e) { save.disabled = false; errBox.replaceChildren(h('div', { class: 'err-summary', role: 'alert' }, db.explain(e))); }
+    },
+  });
+  const undo = btn('העסקה לא בוטלה (הסרת הביטול)', {
+    class: 'btn btn-danger',
+    onclick: async (e) => {
+      const d = pick();
+      if (!d.cancelledOn) { toast('העסקה הזו לא מסומנת כמבוטלת.'); return; }
+      const b = e.currentTarget;
+      b.disabled = true;
+      try { await db.saveCancellation(d.id, null, null); closeSheet(); toast('הביטול הוסר.'); await refresh(); } catch (err) { b.disabled = false; toast(db.explain(err)); }
+    },
+  });
+  openSheet({
+    title: 'ביטול עסקה',
+    body: [errBox,
+      field('העסקה', dealIn, { hint: 'עסקאות מ־12 החודשים האחרונים.' }),
+      h('div', { class: 'two-col' },
+        field('תאריך הביטול', dateIn),
+        field('כמה חודשים הלקוח שילם', monthsIn, { hint: 'מחושב מהתאריכים; אפשר לשנות.' })),
+      preview],
+    foot: [save, btn('סגירה', { class: 'btn btn-ghost', 'data-close': true }), undo],
+  });
 }
 
 // ---------- deal form ----------
@@ -499,15 +619,26 @@ async function openDeal(existing) {
   const d = existing
     ? structuredClone(existing)
     : { date: defaultDealDate(), client: '', selection: emptyDealSelection(), perks: [], seller: '', note: '' };
-  if (!existing) db.lastSeller().then((s) => { if (s && !sellerIn.value) sellerIn.value = s; }).catch(() => {});
+  if (!existing) {
+    db.lastSeller().then((s) => {
+      if (s && !sellerIn.value && [...sellerIn.options].some((o) => o.value === s)) { sellerIn.value = s; update(); }
+    }).catch(() => {});
+  }
 
   const dateIn = h('input', { class: 'input', type: 'date', value: d.date, required: true });
   const clientIn = textInput(d.client, { autocomplete: 'off', maxlength: '200', required: true });
   const discountIn = moneyInput(d.selection.discount || 0);
-  const sellerIn = textInput(d.seller, { list: 'sellers', autocomplete: 'off', maxlength: '100' });
+  // Who closed the deal: people on percentages and people paid per deal.
+  const sellerSet = settingsOn(state.versions, d.date)?.data || {};
+  const sellerNames = [...new Set([
+    ...(sellerSet.commissionPeople || []).map((p) => p.name),
+    ...(sellerSet.perDealPeople || []).map((p) => p.name),
+    d.seller,
+  ].filter(Boolean))];
+  const sellerIn = h('select', { class: 'input' },
+    h('option', { value: '' }, 'לא צוין'),
+    sellerNames.map((n) => h('option', { value: n, selected: n === d.seller }, n)));
   const noteIn = h('textarea', { class: 'input', rows: '2', maxlength: '2000' }, d.note || '');
-  const sellers = new Set(settingsOn(state.versions, d.date)?.data.commissionPeople?.map((p) => p.name) || []);
-  const datalist = h('datalist', { id: 'sellers' }, [...sellers].map((n) => h('option', { value: n })));
 
   const pkgBox = h('div');
   const addonsBox = h('div');
@@ -619,7 +750,8 @@ async function openDeal(existing) {
     }
     const row = (label, value, cls) => h('div', { class: `row ${cls || ''}` }, h('span', {}, label), value);
     const prod = l.production.influencer + l.production.photographer + l.production.makeup;
-    const contribution = l.value - l.paymentReal - l.commissions.reduce((s, c) => s + c.amount, 0) - prod - l.itemsReal;
+    const closer = l.closerFee?.amount || 0;
+    const contribution = l.value - l.paymentReal - l.commissions.reduce((s, c) => s + c.amount, 0) - prod - l.itemsReal - closer;
     preview.replaceChildren(...[
       h('h3', {}, 'חישוב העסקה'),
       row(`שווי ל־${TERM_MONTHS} חודשים`, money(l.value)),
@@ -627,9 +759,10 @@ async function openDeal(existing) {
       l.items.map((it) => row(`${it.name}${it.qty > 1 ? ` ×${it.qty}` : ''} · ${SOURCE_LABEL[it.source]}`, it.commission === 0 && [...warns].some((w) => w.endsWith(it.id)) ? h('span', { class: 'warn-text' }, 'עלות לא הוגדרה') : money(-it.commission), 'sub')),
       row('בסיס עמלה', money(l.base), 'strong'),
       l.commissions.map((c) => row(`${c.name} · ${pct(c.rateBp)}`, money(c.amount), 'sub')),
+      l.closerFee ? row(`${l.closerFee.name} · עמלת סגירה`, money(l.closerFee.amount), 'sub') : null,
       row('הפקה', l.pooled ? h('span', { class: 'muted small' }, 'המשפיענית מתחלקת בסוף החודש', ' + ', money(prod)) : money(prod)),
       row(l.pooled ? 'רווח מהעסקה, לפני המשפיענית' : 'רווח מהעסקה', signed(contribution), 'strong'),
-    ].flat());
+    ].flat().filter(Boolean));
     if (announceIt) announce.textContent = `בסיס עמלה ${formatILS(l.base)}. רווח מהעסקה ${formatILS(contribution)}.`;
   }
 
@@ -639,6 +772,7 @@ async function openDeal(existing) {
     update(true);
   }
 
+  sellerIn.addEventListener('change', () => update(true));
   for (const el of [dateIn, discountIn]) {
     el.addEventListener('input', () => update());
     el.addEventListener('change', () => update(true));
@@ -699,8 +833,7 @@ async function openDeal(existing) {
           pkgBox, removedNote, addonsBox, perksBox,
           h('div', { class: 'two-col' },
             field('הנחה חודשית (₪)', discountIn, { hint: '0 עד 200 ₪ לחודש, לפני מע״מ.' }),
-            field('מי סגר', sellerIn, { hint: 'לתיעוד בלבד. כל מקבלי העמלה מקבלים מכל עסקה.' })),
-          datalist,
+            field('מי סגר', sellerIn, { hint: 'מקבלי האחוזים מקבלים מכל עסקה. מי שמוגדר עם תשלום לכל עסקה שסגר, מקבל אותו כשהוא מסומן כאן.' })),
           field('הערה', noteIn)),
         h('aside', { class: 'form-side' }, preview, announce)),
     ],
@@ -749,32 +882,57 @@ function openIncome(existing) {
 
 function openExpense(existing) {
   if (isLocked()) return;
-  const e = existing || { label: '', payee: '', amount: null };
-  const labelIn = textInput(e.label, { maxlength: '200' });
-  const payeeIn = textInput(e.payee, { maxlength: '200' });
-  const amountIn = moneyInput(e.amount);
+  const set = currentSettings(state.month)?.data || {};
+  const e = existing || { kind: 'fuel', label: '', payee: '', amount: null, qty: null };
+  const kindIn = h('select', { class: 'input' }, Object.entries(MONTH_ITEM_KINDS).map(([k, label]) => h('option', { value: k, selected: e.kind === k }, label)));
+  const payeeIn = textInput(e.payee || (e.kind === 'meetings' ? set.meetingPayee || '' : ''), { maxlength: '200', list: 'people', autocomplete: 'off' });
+  const people = h('datalist', { id: 'people' }, knownPeople(set).map((n) => h('option', { value: n })));
+  const labelIn = textInput(e.kind === 'other' ? e.label : (e.label !== MONTH_ITEM_KINDS[e.kind] ? e.label : ''), { maxlength: '200' });
+  const amountIn = moneyInput(e.kind === 'meetings' ? null : e.amount);
+  const qtyIn = textInput(e.qty ?? '', { inputmode: 'numeric', dir: 'ltr', autocomplete: 'off' });
+  const amountField = field('סכום (₪)', amountIn);
+  const qtyField = field('מספר פגישות שתואמו', qtyIn, { hint: `${formatILS(set.meetingRate || 0)} לכל פגישה, לפי ההגדרות.` });
+  const labelField = field('תיאור', labelIn);
+  const sync = () => {
+    const k = kindIn.value;
+    amountField.hidden = k === 'meetings';
+    qtyField.hidden = k !== 'meetings';
+    labelField.querySelector('label').firstChild.textContent = k === 'other' ? 'תיאור' : 'הערה (לא חובה)';
+    if (k === 'meetings' && !payeeIn.value) payeeIn.value = set.meetingPayee || '';
+  };
+  kindIn.addEventListener('change', sync);
+  sync();
   const errBox = h('div');
   const save = btn('שמירה', {
     class: 'btn btn-primary',
     onclick: async () => {
       const errors = [];
-      for (const el of [labelIn, amountIn]) setFieldError(el, '');
+      const k = kindIn.value;
+      for (const el of [labelIn, amountIn, qtyIn, payeeIn]) setFieldError(el, '');
       const amount = parseMoney(amountIn.value);
-      if (!labelIn.value.trim()) errors.push([labelIn, 'חסר תיאור.']);
-      if (!Number.isFinite(amount) || amount === null) errors.push([amountIn, 'סכום בשקלים.']);
+      const qty = /^\d+$/.test(qtyIn.value.trim()) ? Number(qtyIn.value.trim()) : NaN;
+      if (!payeeIn.value.trim()) errors.push([payeeIn, 'למי שייכת ההוצאה?']);
+      if (k === 'other' && !labelIn.value.trim()) errors.push([labelIn, 'חסר תיאור.']);
+      if (k === 'meetings' && !(qty >= 0 && qty <= 10000)) errors.push([qtyIn, 'מספר פגישות שלם.']);
+      if (k !== 'meetings' && (!Number.isFinite(amount) || amount === null)) errors.push([amountIn, 'סכום בשקלים.']);
       errors.forEach(([el, m]) => setFieldError(el, m));
       if (errors.length) { errBox.replaceChildren(errorSummary(errors)); errBox.firstChild.focus(); return; }
       if (save.disabled) return;
       save.disabled = true;
       try {
-        await db.saveExpense({ id: existing?.id, month: state.month, label: labelIn.value, payee: payeeIn.value, amount });
+        await db.saveExpense({
+          id: existing?.id, month: state.month, kind: k, payee: payeeIn.value,
+          label: labelIn.value.trim() || MONTH_ITEM_KINDS[k],
+          amount: k === 'meetings' ? qty * (set.meetingRate || 0) : amount,
+          qty: k === 'meetings' ? qty : null,
+        });
         closeSheet(); toast('נשמר.'); await refresh();
       } catch (err) { save.disabled = false; errBox.replaceChildren(h('div', { class: 'err-summary', role: 'alert' }, db.explain(err))); }
     },
   });
   openSheet({
-    title: existing ? 'עריכת הוצאה' : `הוצאה חד־פעמית · ${monthLabel(state.month)}`,
-    body: [errBox, field('תיאור', labelIn), field('למי משלמים', payeeIn, { hint: 'לא חובה' }), field('סכום (₪)', amountIn)],
+    title: existing ? 'עריכת הוצאה' : `הוצאה משתנה · ${monthLabel(state.month)}`,
+    body: [errBox, field('סוג', kindIn), field('למי', payeeIn, { hint: 'עובד, מקבל עמלה או ספק.' }), people, amountField, qtyField, labelField],
     foot: [save, btn('ביטול', { class: 'btn btn-ghost', 'data-close': true }),
       existing ? btn('מחיקה', { class: 'btn btn-danger', onclick: async () => { if (!confirm('למחוק?')) return; try { await db.deleteRow('payout_expenses', existing.id); closeSheet(); await refresh(); } catch (err) { toast(db.explain(err)); } } }) : null],
   });
@@ -790,8 +948,6 @@ const KIND_LABEL = {
 function viewPay() {
   const r = state.report;
   if (r.empty) return h('div', { class: 'stack' }, notices(r));
-  const personIdByName = new Map();
-  for (const l of r.lines) for (const c of l.commissions) personIdByName.set(c.name, c.personId);
   const groups = {};
   for (const p of r.payees) (groups[p.kind] ||= []).push(p);
   const toPay = r.payees.filter((p) => p.kind !== 'partner' && p.kind !== 'payment').reduce((s, p) => s + p.total, 0);
@@ -801,10 +957,10 @@ function viewPay() {
     Object.entries(KIND_LABEL).filter(([k]) => groups[k]).map(([k, label]) => h('section', { class: 'pay-group', 'aria-labelledby': `h-${k}` },
       h('h2', { id: `h-${k}` }, label, h('span', { class: 'group-total' }, money(groups[k].reduce((s, p) => s + p.total, 0)))),
       groups[k].map((p) => h('details', { class: 'payee' },
-        h('summary', {}, h('span', { class: 'payee-name' }, h('bdi', {}, p.name)), p.total < 0 ? signed(p.total) : money(p.total, 'payee-amt')),
+        h('summary', {}, h('span', { class: 'payee-name' }, h('bdi', {}, p.name)), p.total < 0 ? (k === 'partner' ? signed(p.total) : offset(p.total)) : money(p.total, 'payee-amt')),
         h('ul', { class: 'payee-lines' }, p.lines.map((ln) => h('li', {}, h('bdi', {}, ln.label), money(ln.amount)))),
-        k === 'commission' && personIdByName.has(p.name)
-          ? btn('דוח עמלה להצגה', { class: 'btn btn-sm', onclick: () => openStatement(personIdByName.get(p.name)) })
+        k === 'commission'
+          ? btn('דוח עמלה להצגה', { class: 'btn btn-sm', onclick: () => openStatement(p.name) })
           : null,
       )),
     )),
@@ -816,33 +972,65 @@ function viewPay() {
 function statementText(st) {
   const lines = [`דוח עמלות · ${monthLabel(st.month)} · ${st.name}`, ''];
   for (const r of st.rows) {
-    lines.push(`${r.client} · ${r.packageName}`);
-    lines.push(`שווי ${formatILS(r.value)} − פיימנט ${formatILS(r.payment)}${r.deductions.map((x) => ` − ${x.name} (${SOURCE_LABEL[x.source]}) ${formatILS(x.amount)}`).join('')}`);
-    lines.push(`בסיס ${formatILS(r.base)} × ${pct(r.rateBp)} = ${formatILS(r.amount)}`, '');
+    if (r.kind === 'clawback') {
+      lines.push(`קיזוז: ${r.client} · ${r.packageName} בוטלה אחרי ${r.paidMonths} חודשים`);
+      lines.push(`עמלה מקורית ${formatILS(r.original)} × ${12 - r.paidMonths}/12 = ${formatILS(r.amount)}`, '');
+    } else if (r.kind === 'closer') {
+      lines.push(`עמלת סגירה · ${r.client}: ${formatILS(r.amount)}`, '');
+    } else {
+      lines.push(`${r.client} · ${r.packageName}`);
+      lines.push(`שווי ${formatILS(r.value)} − פיימנט ${formatILS(r.payment)}${r.deductions.map((x) => ` − ${x.name} (${SOURCE_LABEL[x.source]}) ${formatILS(x.amount)}`).join('')}`);
+      lines.push(`בסיס ${formatILS(r.base)} × ${pct(r.rateBp)} = ${formatILS(r.amount)}`, '');
+    }
   }
-  lines.push(`סה״כ: ${formatILS(st.total)}`);
+  if (st.extras.length) {
+    lines.push(`סה״כ עמלות: ${formatILS(st.commissionTotal)}`, '', 'תשלומים נוספים:');
+    for (const e of st.extras) lines.push(`${e.label}: ${formatILS(e.amount)}`);
+    lines.push('');
+  }
+  lines.push(`סה״כ לחודש: ${formatILS(st.total)}`);
   return lines.join('\n');
 }
 
-function openStatement(personId) {
-  const st = commissionStatement(state.report, personId);
+function statementRow(r) {
+  const head = (sub) => h('div', { class: 'st-client' }, h('bdi', {}, r.client), h('small', {}, sub));
+  if (r.kind === 'clawback') {
+    return h('div', { class: 'st-row' },
+      head([`בוטלה ב־${dateLabel(r.date)} אחרי ${r.paidMonths} חודשים · `, h('bdi', { dir: 'auto' }, r.packageName)]),
+      h('div', { class: 'row' }, h('span', {}, 'עמלה מקורית'), money(r.original)),
+      h('div', { class: 'row strong' }, h('span', {}, `קיזוז · ${12 - r.paidMonths} מתוך 12 חודשים`), offset(r.amount)));
+  }
+  if (r.kind === 'closer') {
+    return h('div', { class: 'st-row' },
+      head([`${dateLabel(r.date)} · `, h('bdi', { dir: 'auto' }, r.packageName || '')]),
+      h('div', { class: 'row strong' }, h('span', {}, 'עמלת סגירה'), money(r.amount)));
+  }
+  return h('div', { class: 'st-row' },
+    head([`${dateLabel(r.date)} · `, h('bdi', { dir: 'auto' }, r.packageName)]),
+    h('div', { class: 'row' }, h('span', {}, 'שווי העסקה'), money(r.value)),
+    h('div', { class: 'row sub' }, h('span', {}, 'פיימנט'), money(-r.payment)),
+    r.deductions.map((x) => h('div', { class: 'row sub' }, h('span', {}, `${x.name}${x.qty > 1 ? ` ×${x.qty}` : ''} `, h('small', { class: 'muted' }, `(${SOURCE_LABEL[x.source]})`)), money(-x.amount))),
+    h('div', { class: 'row' }, h('span', {}, 'בסיס עמלה'), money(r.base)),
+    h('div', { class: 'row strong' }, h('span', {}, `עמלה · ${pct(r.rateBp)}`), money(r.amount)));
+}
+
+function openStatement(who) {
+  const st = commissionStatement(state.report, who);
   const doc = h('div', { class: 'statement' },
     h('div', { class: 'st-head' },
       h('img', { src: '../app/assets/logo.png', alt: 'astrateg', class: 'st-logo' }),
       h('div', {}, h('div', { class: 'st-title' }, 'דוח עמלות'), h('div', {}, monthLabel(st.month)), h('div', { class: 'st-name' }, h('bdi', {}, st.name)))),
-    st.rows.length ? st.rows.map((r) => h('div', { class: 'st-row' },
-      h('div', { class: 'st-client' }, h('bdi', {}, r.client), h('small', {}, `${dateLabel(r.date)} · `, h('bdi', { dir: 'auto' }, r.packageName))),
-      h('div', { class: 'row' }, h('span', {}, 'שווי העסקה'), money(r.value)),
-      h('div', { class: 'row sub' }, h('span', {}, 'פיימנט'), money(-r.payment)),
-      r.deductions.map((x) => h('div', { class: 'row sub' }, h('span', {}, `${x.name}${x.qty > 1 ? ` ×${x.qty}` : ''} `, h('small', { class: 'muted' }, `(${SOURCE_LABEL[x.source]})`)), money(-x.amount))),
-      h('div', { class: 'row' }, h('span', {}, 'בסיס עמלה'), money(r.base)),
-      h('div', { class: 'row strong' }, h('span', {}, `עמלה · ${pct(r.rateBp)}`), money(r.amount)),
-    )) : h('p', {}, 'אין עסקאות בחודש הזה.'),
-    h('div', { class: 'row total' }, h('span', {}, 'סה״כ עמלה לחודש'), money(st.total)),
+    st.rows.length ? st.rows.map(statementRow) : h('p', {}, 'אין עסקאות בחודש הזה.'),
+    st.extras.length ? [
+      h('div', { class: 'row strong' }, h('span', {}, 'סה״כ עמלות'), offset(st.commissionTotal)),
+      h('h3', { class: 'st-sub' }, 'תשלומים נוספים החודש'),
+      st.extras.map((e) => h('div', { class: 'row' }, h('span', {}, h('bdi', {}, e.label)), money(e.amount))),
+    ] : null,
+    h('div', { class: 'row total' }, h('span', {}, 'סה״כ לחודש'), offset(st.total)),
   );
   openSheet({
     title: `דוח עמלה · ${st.name}`,
-    body: [h('p', { class: 'muted small no-print' }, 'זה מה שמקבל העמלה רואה: הניכויים לחישוב העמלה בלבד, בלי עלויות אמיתיות, משכורות, רווח או עמלות של אחרים.'), doc],
+    body: [h('p', { class: 'muted small no-print' }, 'זה מה שמקבל העמלה רואה: הניכויים לחישוב העמלה בלבד, בלי עלויות אמיתיות, משכורות של אחרים, רווח או עמלות של אחרים.'), doc],
     foot: [
       btn('הדפסה או שמירה כ־PDF', { class: 'btn btn-primary', onclick: () => {
         document.body.classList.add('print-statement');
@@ -961,15 +1149,34 @@ function viewSettings() {
               ? moneyField('מאפרת ליום צילום (₪)', () => p.makeupPerDay, (v) => { p.makeupPerDay = v; }, { context: ctx })
               : moneyField('מאפרת (₪)', () => p.makeup, (v) => { p.makeup = v; }, { context: ctx })));
       })),
-    listSection('עובדים', 'משכורת חודשית.', s.employees,
+    section('עלות מעסיק', 'נוספת על המשכורת של עובדים בתלוש. מי שעובד כנגד חשבונית נספר לפי החשבונית בלבד.',
+      h('div', { class: 'two-col' }, pctField('עלות מעסיק (%)', () => s.employerCostBp || 0, (v) => { s.employerCostBp = v; }))),
+    listSection('עובדים', 'משכורת חודשית, או סכום החשבונית החודשית למי שאינו בתלוש.', s.employees,
+      (e, ctx) => h('div', { class: 'emp-row' },
+        h('div', { class: 'three-col' },
+          textField('שם', () => e.name, (v) => { e.name = v; }, { context: ctx }),
+          (() => { const inp = textInput(e.role || '', { maxlength: '100' }); reg(inp, (v) => v.trim(), (v) => { e.role = v; }, 'תפקיד'); return field('תפקיד', inp, { context: e.name || ctx }); })(),
+          moneyField(e.payroll ? 'משכורת (₪)' : 'חשבונית חודשית (₪)', () => e.salary, (v) => { e.salary = v; }, { context: e.name || ctx })),
+        (() => {
+          const cb = h('input', { type: 'checkbox', checked: !!e.payroll });
+          reg(cb, () => cb.checked, (v) => { e.payroll = v; }, 'תלוש');
+          return h('label', { class: 'choice inline' }, cb, h('span', { class: 'choice-body' },
+            h('span', { class: 'choice-label' }, 'בתלוש (מוסיפים עלות מעסיק)'), h('span', { class: 'sr-only' }, ` · ${e.name || ctx}`)));
+        })()),
+      () => ({ id: `e${Date.now().toString(36)}`, name: '', role: '', salary: 0, payroll: true })),
+    listSection('תשלום לכל עסקה שסגר', 'למי שמקבל סכום קבוע על כל עסקה שהוא סוגר (לא אחוזים). מסמנים אותו ב״מי סגר״ בעסקה.', s.perDealPeople ||= [],
+      (p, ctx) => h('div', { class: 'two-col' },
+        textField('שם', () => p.name, (v) => { p.name = v; }, { context: ctx }),
+        moneyField('סכום לעסקה (₪)', () => p.amount, (v) => { p.amount = v; }, { context: p.name || ctx })),
+      () => ({ id: `d${Date.now().toString(36)}`, name: '', amount: 0 })),
+    section('תיאום פגישות', 'הסכום לכל פגישה שתואמה. את מספר הפגישות מזינים בכל חודש ב״הוצאות משתנות של החודש״.',
+      h('div', { class: 'two-col' },
+        moneyField('לכל פגישה (₪)', () => s.meetingRate || 0, (v) => { s.meetingRate = v; }),
+        (() => { const inp = textInput(s.meetingPayee || '', { maxlength: '100' }); reg(inp, (v) => v.trim(), (v) => { s.meetingPayee = v; }, 'מקבל התשלום'); return field('מקבל התשלום', inp); })())),
+    listSection('הוצאות קבועות', 'חוזרות כל חודש: פרסום ממומן, משרד, תוספים, תשלום חודשי קבוע לאדם וכו׳.', s.expenses,
       (e, ctx) => h('div', { class: 'three-col' },
-        textField('שם', () => e.name, (v) => { e.name = v; }, { context: ctx }),
-        (() => { const inp = textInput(e.role || '', { maxlength: '100' }); reg(inp, (v) => v.trim(), (v) => { e.role = v; }, 'תפקיד'); return field('תפקיד', inp, { context: e.name || ctx }); })(),
-        moneyField('משכורת (₪)', () => e.salary, (v) => { e.salary = v; }, { context: e.name || ctx })),
-      () => ({ id: `e${Date.now().toString(36)}`, name: '', role: '', salary: 0 })),
-    listSection('הוצאות קבועות', 'חוזרות כל חודש: פרסום ממומן, משרד, תוספים וכו׳.', s.expenses,
-      (e, ctx) => h('div', { class: 'two-col' },
         textField('הוצאה', () => e.name, (v) => { e.name = v; }, { context: ctx }),
+        (() => { const inp = textInput(e.payee || '', { maxlength: '100' }); reg(inp, (v) => v.trim(), (v) => { e.payee = v || undefined; }, 'למי'); return field('למי (לא חובה)', inp, { context: e.name || ctx }); })(),
         moneyField('סכום לחודש (₪)', () => e.amount, (v) => { e.amount = v; }, { context: e.name || ctx })),
       () => ({ id: `x${Date.now().toString(36)}`, name: '', amount: 0 })),
     listSection('שותפים', 'חלק יחסי: 1, 1, 1 היא חלוקה שווה לשלושה. 2, 1, 1 היא חצי, רבע ורבע.', s.partners,

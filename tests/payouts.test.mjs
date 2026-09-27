@@ -60,6 +60,7 @@ const deal = (tier, influencer, opts = {}) => ({
     discount: opts.discount || 0,
   },
   perks: opts.perks || [],
+  seller: opts.seller || '',
 });
 const commission = (line, id) => line.commissions.find((c) => c.personId === id).amount;
 
@@ -275,12 +276,89 @@ test('partner weights: thirds are exact, bad weights are reported', () => {
   assert.ok(computeMonth({ month: '2026-09', deals: [], versions: V(s) }).errors.some((e) => e.includes('השותפים')));
 });
 
+test('employer cost is added for payroll employees only', () => {
+  const s = S();
+  s.employerCostBp = 2000;
+  s.employees = [
+    { id: 'e1', name: 'בתלוש', role: 'x', salary: ils(1000), payroll: true },
+    { id: 'e2', name: 'בחשבונית', role: 'y', salary: ils(1000), payroll: false },
+  ];
+  const r = computeMonth({ month: '2026-09', versions: V(s) });
+  assert.equal(r.totals.employees, ils(1200 + 1000));
+  assert.equal(r.totals.employerCost, ils(200));
+  const p = r.payees.find((x) => x.name === 'בתלוש');
+  assert.deepEqual(p.lines.map((l) => l.amount), [ils(1000), ils(200)]);
+});
+
+test('per-deal closing fee goes to the person marked as the closer', () => {
+  const s = S();
+  s.perDealPeople = [{ id: 'c', name: 'סוגר', amount: ils(250) }];
+  const r = computeMonth({
+    month: '2026-09',
+    deals: [deal('social', 'natali', { seller: 'סוגר' }), deal('social', 'natali', { seller: 'מוכר א' }), deal('social', 'simeon')],
+    versions: V(s),
+  });
+  assert.equal(r.totals.closerFees, ils(250));
+  assert.equal(r.payees.find((p) => p.name === 'סוגר').total, ils(250));
+  assert.equal(r.lines[0].contribution, r.lines[1].contribution - ils(250), 'fee reduces the deal profit');
+  assert.equal(commissionStatement(r, 'סוגר').total, ils(250));
+  const t = r.totals;
+  assert.equal(t.revenue, t.paymentReal + t.commissions + t.production + t.itemsReal + t.closerFees + t.fixed + t.profit);
+});
+
+test('cancellation claws back the unpaid share of every commission in the cancellation month', () => {
+  const d = { ...deal('social', 'natali', { date: '2026-03-10' }), cancelledOn: '2026-09-12', paidMonths: 6 };
+  const orig = computeDeal(d, S());
+  const march = computeMonth({ month: '2026-03', deals: [d], versions: V() });
+  assert.equal(march.counts.deals, 1);
+  assert.equal(march.totals.clawbacks, 0);
+  const sep = computeMonth({ month: '2026-09', deals: [d], versions: V() });
+  assert.equal(sep.counts.deals, 0);
+  assert.equal(sep.counts.cancellations, 1);
+  const back = sep.lines[0].commissions;
+  assert.equal(back[0].amount, -Math.round(commission(orig, 'a') / 2));
+  assert.equal(back[1].amount, -Math.round(commission(orig, 'b') / 2));
+  assert.equal(sep.totals.clawbacks, back[0].amount + back[1].amount);
+  assert.equal(sep.totals.revenue, 0);
+  assert.equal(sep.totals.profit, -sep.totals.clawbacks - sep.totals.fixed);
+  const st = commissionStatement(sep, 'a');
+  assert.equal(st.rows[0].kind, 'clawback');
+  assert.equal(st.total, back[0].amount);
+  const none = computeMonth({ month: '2026-09', deals: [{ ...d, paidMonths: 12 }], versions: V() });
+  assert.ok(none.lines[0].commissions.every((c) => c.amount === 0));
+  const all = computeMonth({ month: '2026-09', deals: [{ ...d, paidMonths: 0 }], versions: V() });
+  assert.equal(all.lines[0].commissions[0].amount, -commission(orig, 'a'));
+});
+
+test('monthly variable costs: fuel, depreciation, meetings at the set rate', () => {
+  const s = S();
+  s.meetingRate = ils(40);
+  s.meetingPayee = 'מתאמת';
+  const r = computeMonth({
+    month: '2026-09',
+    expenses: [
+      { id: '1', month: '2026-09', kind: 'fuel', label: 'דלק', payee: 'עובד', amount: ils(320) },
+      { id: '2', month: '2026-09', kind: 'depreciation', label: 'פחת רכב', payee: 'עובד', amount: ils(150) },
+      { id: '3', month: '2026-09', kind: 'meetings', label: 'תיאום פגישות', payee: '', qty: 7, amount: 0 },
+      { id: '4', month: '2026-08', kind: 'fuel', label: 'דלק', payee: 'עובד', amount: ils(999) },
+    ],
+    versions: V(s),
+  });
+  assert.equal(r.totals.oneOff, ils(320 + 150 + 280));
+  assert.equal(r.payees.find((p) => p.name === 'מתאמת').total, ils(280));
+  assert.equal(r.payees.find((p) => p.name === 'עובד').total, ils(1000 + 320 + 150), 'salary and month costs on one card');
+  const st = commissionStatement(r, 'מתאמת');
+  assert.equal(st.extras[0].amount, ils(280));
+});
+
 // Owner's Excel ("רווח והפסד חודשי"), reproduced from local private data.
 const excelPath = new URL('../private/excel-case.json', import.meta.url);
 const settingsPath = new URL('../private/payouts-settings.json', import.meta.url);
 test('Excel acceptance case', { skip: !existsSync(excelPath) && 'private/excel-case.json not present' }, () => {
   const xl = JSON.parse(readFileSync(excelPath, 'utf8'));
   const data = JSON.parse(readFileSync(settingsPath, 'utf8'));
+  data.employerCostBp = 0; // the Excel predates employer cost
+  data.expenses = data.expenses.filter((e) => !e.payee); // and the fixed monthly pay added later
   const incomes = xl.income.map((x, i) => ({ id: `x${i}`, date: '2026-09-10', label: `x${i}`, ...x }));
   const expenses = xl.production.map((amount, i) => ({ id: `p${i}`, month: '2026-09', label: `p${i}`, amount }));
   const r = computeMonth({ month: '2026-09', incomes, expenses, versions: [{ effectiveFrom: '2026-01-01', data }] });

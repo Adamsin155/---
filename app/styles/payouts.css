@@ -379,3 +379,8 @@ dialog::backdrop { background: rgba(3, 20, 50, 0.55); }
 @media (prefers-reduced-motion: no-preference) {
   .btn, .choice, .list-btn, .deal { transition: background-color 0.15s, border-color 0.15s; }
 }
+.st-sub { margin-top: 8px; font-size: 15px; }
+.head-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.tag-cancel { display: inline-block; margin-inline-start: 8px; padding: 1px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: var(--danger-bg); color: var(--danger); vertical-align: middle; }
+.emp-row { display: grid; gap: 8px; }
+.choice.inline { min-height: 44px; border-style: dashed; }
