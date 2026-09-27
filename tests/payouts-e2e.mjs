@@ -386,6 +386,28 @@ assert.equal(await dlg.getByLabel('סכום העסקה הכולל (₪, לפני
 await dlg.getByRole('button', { name: 'ביטול' }).click();
 console.log('ok  personal offer deal');
 
+// Cheque deal: 12 cheques book half now and the rest six months later.
+await page.goto(`${BASE}payouts/#/deals/2026-09`);
+await page.getByRole('button', { name: 'עסקה חדשה' }).first().click();
+await dlg.getByLabel('שם הלקוח').fill('לקוח צ׳קים');
+await dlg.getByLabel('תאריך סגירה').fill('2026-09-05');
+await dlg.getByRole('radio', { name: /^Social all in one/ }).check();
+await dlg.getByRole('radio', { name: 'נטלי דדון' }).first().check();
+await dlg.getByRole('radio', { name: 'צ׳קים' }).check();
+await dlg.getByLabel('מספר הצ׳קים').selectOption('12');
+await dlg.locator('.preview').getByText(/עכשיו 6 מתוך 12 צ׳קים/).waitFor();
+assert.ok((await dlg.locator('.preview').innerText()).includes('23,400'), 'half the revenue now');
+await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
+await page.getByRole('dialog').waitFor({ state: 'hidden' });
+const cheque = tables.payout_deals.find((d) => d.client === 'לקוח צ׳קים');
+assert.equal(cheque.pay_method, 'checks');
+assert.equal(cheque.installments, 12);
+await page.getByText('צ׳קים ×12').waitFor();
+await page.goto(`${BASE}payouts/#/deals/2027-03`);
+await page.getByRole('heading', { name: 'יתרות צ׳קים שנכנסות החודש' }).waitFor();
+assert.ok((await page.locator('#view').innerText()).includes('23,400'), 'other half six months later');
+console.log('ok  cheque deal books half now and half after six months');
+
 // Change password from the account dialog.
 await page.getByRole('button', { name: 'חשבון' }).click();
 await dlg.getByLabel('סיסמה חדשה').fill('another-pass-123');

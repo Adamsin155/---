@@ -1,7 +1,7 @@
 // Database access for the payouts app. Every table is owner-only (RLS);
 // this file only maps rows to the shapes engine.js expects.
 import { supabase } from './client.js';
-import { monthBounds } from './engine.js';
+import { monthBounds, shiftMonth, DEFER_MONTHS } from './engine.js';
 
 function check({ data, error }) {
   if (error) throw error;
@@ -34,20 +34,24 @@ const dealFromRow = (r) => ({
   id: r.id, date: r.deal_date, client: r.client, selection: r.selection,
   perks: r.perks || [], seller: r.seller || '', note: r.note || '', quoteId: r.quote_id,
   cancelledOn: r.cancelled_on || null, paidMonths: r.paid_months ?? null,
+  payMethod: r.pay_method || 'payment', installments: r.installments ?? null,
 });
 
 export async function loadMonth(month) {
   const { first, last } = monthBounds(month);
-  const [deals, cancelled, incomes, expenses, lock] = await Promise.all([
+  const due = monthBounds(shiftMonth(month, -DEFER_MONTHS));
+  const [deals, cancelled, cheques, incomes, expenses, lock] = await Promise.all([
     supabase.from('payout_deals').select('*').gte('deal_date', first).lte('deal_date', last).order('deal_date'),
     supabase.from('payout_deals').select('*').gte('cancelled_on', first).lte('cancelled_on', last).order('cancelled_on'),
+    // Cheque deals whose deferred part falls in this month.
+    supabase.from('payout_deals').select('*').eq('pay_method', 'checks').gte('deal_date', due.first).lte('deal_date', due.last).order('deal_date'),
     supabase.from('payout_incomes').select('*').gte('income_date', first).lte('income_date', last).order('income_date'),
     supabase.from('payout_expenses').select('*').eq('month', month).order('created_at'),
     supabase.from('payout_locks').select('month, report, locked_at').eq('month', month).maybeSingle(),
   ]);
   return {
     // Deals closed this month, plus older deals cancelled this month.
-    deals: [...new Map([...check(deals), ...check(cancelled)].map((r) => [r.id, dealFromRow(r)])).values()],
+    deals: [...new Map([...check(deals), ...check(cancelled), ...check(cheques)].map((r) => [r.id, dealFromRow(r)])).values()],
     incomes: check(incomes).map((r) => ({
       id: r.id, date: r.income_date, label: r.label, family: r.family, amount: Number(r.amount_agorot), note: r.note || '',
     })),
@@ -69,6 +73,8 @@ export async function saveDeal(d) {
   const row = {
     deal_date: d.date, client: d.client.trim(), selection: d.selection,
     perks: d.perks, seller: d.seller?.trim() || null, note: d.note?.trim() || null,
+    pay_method: d.payMethod === 'checks' ? 'checks' : 'payment',
+    installments: d.payMethod === 'checks' ? d.installments : null,
   };
   if (d.id) check(await supabase.from('payout_deals').update(row).eq('id', d.id));
   else check(await supabase.from('payout_deals').insert(row));

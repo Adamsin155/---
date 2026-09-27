@@ -388,6 +388,67 @@ test('monthly variable costs: fuel, depreciation, meetings at the set rate', () 
   assert.equal(st.extras[0].amount, ils(280));
 });
 
+test('cheques: no payment fee; up to 6 cheques books everything now', () => {
+  const d = { ...deal('social', 'natali', { date: '2026-03-10' }), payMethod: 'checks', installments: 6 };
+  const l = computeDeal(d, S());
+  assert.equal(l.paymentReal, 0);
+  assert.equal(l.paymentCommission, 0);
+  assert.equal(l.base, ils(46800));
+  assert.equal(l.value, ils(46800));
+  assert.equal(commission(l, 'a'), ils(9360));
+  assert.equal(l.deferred, undefined);
+  const sep = computeMonth({ month: '2026-09', deals: [d], versions: V() });
+  assert.equal(sep.lines.length, 0, 'nothing deferred');
+  assert.throws(() => computeDeal({ ...d, installments: 13 }, S()));
+});
+
+test('cheques: 12 cheques book half now and half six months later', () => {
+  const d = { ...deal('social', 'natali', { date: '2026-03-10' }), payMethod: 'checks', installments: 12 };
+  const mar = computeMonth({ month: '2026-03', deals: [d], versions: V() });
+  assert.equal(mar.totals.revenue, ils(23400));
+  assert.equal(mar.lines[0].commissions[0].amount, ils(4680), 'half of 9,360');
+  const sep = computeMonth({ month: '2026-09', deals: [d], versions: V() });
+  assert.equal(sep.lines.length, 1);
+  assert.equal(sep.lines[0].kind, 'deferred');
+  assert.equal(sep.totals.revenue, ils(23400));
+  assert.equal(sep.lines[0].commissions[0].amount, ils(4680));
+  assert.equal(commissionStatement(sep, 'a').total, ils(4680));
+  const t = sep.totals;
+  assert.equal(t.revenue, t.paymentReal + t.commissions + t.production + t.itemsReal + t.closerFees + t.fixed + t.profit);
+  const aug = computeMonth({ month: '2026-08', deals: [d], versions: V() });
+  assert.equal(aug.lines.length, 0);
+});
+
+test('cheques: 7 cheques book 6/7 now and 1/7 later; parts add up exactly', () => {
+  const d = { ...deal('social-tv', 'simeon', { date: '2026-01-31' }), payMethod: 'checks', installments: 7 };
+  const now = computeMonth({ month: '2026-01', deals: [d], versions: V() }).lines[0];
+  const later = computeMonth({ month: '2026-07', deals: [d], versions: V() }).lines[0];
+  assert.equal(now.value + later.value, ils(58800));
+  assert.equal(now.value, Math.round((ils(58800) * 6) / 7));
+  for (let i = 0; i < now.commissions.length; i += 1) {
+    assert.equal(now.commissions[i].amount + later.commissions[i].amount, now.full.commissions[i].amount);
+  }
+});
+
+test('cheques: cancelled before the deferred month gives back only what was booked beyond the months paid', () => {
+  const base = { ...deal('social', 'natali', { date: '2026-03-10' }), payMethod: 'checks', installments: 12 };
+  const full = computeDeal(base, S()).full;
+  // Cancelled after 4 months: half was booked, 4/12 was earned, so 2/12 comes back; nothing deferred later.
+  const d = { ...base, cancelledOn: '2026-07-15', paidMonths: 4 };
+  const jul = computeMonth({ month: '2026-07', deals: [d], versions: V() });
+  assert.equal(jul.totals.revenue, -Math.round((full.value * 2) / 12));
+  assert.equal(jul.lines[0].commissions[0].amount, -Math.round((full.commissions[0].amount * 2) / 12));
+  assert.equal(computeMonth({ month: '2026-09', deals: [d], versions: V() }).lines.length, 0, 'deferred part dropped');
+  // Cancelled after 8 months: all was booked, 8/12 earned, 4/12 comes back.
+  const late = { ...base, cancelledOn: '2026-11-15', paidMonths: 8 };
+  const nov = computeMonth({ month: '2026-11', deals: [late], versions: V() });
+  assert.equal(nov.lines[0].commissions[0].amount, -Math.round((full.commissions[0].amount * 4) / 12));
+  // Cancelled after 2 months with payment by processor: unchanged rule.
+  const pay = { ...deal('social', 'natali', { date: '2026-03-10' }), cancelledOn: '2026-05-10', paidMonths: 2 };
+  const may = computeMonth({ month: '2026-05', deals: [pay], versions: V() });
+  assert.equal(may.totals.revenue, -ils(46800 * 10 / 12));
+});
+
 // Owner's Excel ("רווח והפסד חודשי"), reproduced from local private data.
 const excelPath = new URL('../private/excel-case.json', import.meta.url);
 const settingsPath = new URL('../private/payouts-settings.json', import.meta.url);

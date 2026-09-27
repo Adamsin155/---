@@ -45,6 +45,14 @@ export const MONTH_ITEM_KINDS = {
   other: 'אחר',
 };
 
+// Cheque deals: up to this many cheques are booked at once. With more, the
+// deal month books that share of the revenue and commissions, and the rest
+// is booked DEFER_MONTHS later.
+export const CHECKS_UPFRONT = 6;
+export const DEFER_MONTHS = 6;
+
+export const PAY_METHODS = { payment: 'פיימנט', checks: 'צ׳קים' };
+
 export const SOURCE_LABEL = {
   package: 'מעבר לחבילת הבסיס',
   paid: 'תוספת בתשלום',
@@ -169,8 +177,8 @@ function itemCost(settings, id, qty, which, warn) {
 // ---------- revenue lines ----------
 
 // The commission part of any revenue: payment first, then deductions.
-function commissionSide(value, family, deductions, settings) {
-  const payment = applyBp(value, settings.payment.commissionBp);
+function commissionSide(value, family, deductions, settings, paymentBp = settings.payment.commissionBp) {
+  const payment = applyBp(value, paymentBp);
   const base = Math.max(0, value - payment - deductions);
   const commissions = (settings.commissionPeople || []).map((p) => {
     const rateBp = p.rates?.[family] ?? 0;
@@ -190,6 +198,28 @@ export function validateCustomSelection(sel) {
 }
 
 export function computeDeal(deal, settings, warn = () => {}) {
+  return splitCheques(computeDealFull(deal, settings, warn));
+}
+
+// Keeps the full amounts, then books only the first cheques' share now.
+function splitCheques(line) {
+  line.full = { value: line.value, commissions: line.commissions.map((c) => ({ ...c })) };
+  const n = line.installments;
+  if (line.payMethod !== 'checks' || n <= CHECKS_UPFRONT) return line;
+  const part = (a) => Math.round((a * CHECKS_UPFRONT) / n);
+  const nowValue = part(line.value);
+  const now = line.commissions.map((c) => ({ ...c, full: c.amount, amount: part(c.amount) }));
+  line.deferred = {
+    month: shiftMonth(line.date.slice(0, 7), DEFER_MONTHS),
+    value: line.value - nowValue,
+    commissions: line.commissions.map((c, i) => ({ ...c, full: c.amount, amount: c.amount - now[i].amount })),
+  };
+  line.value = nowValue;
+  line.commissions = now;
+  return line;
+}
+
+function computeDealFull(deal, settings, warn = () => {}) {
   const sel = deal.selection;
   const custom = sel.custom === true;
   if (custom) validateCustomSelection(sel);
@@ -211,7 +241,11 @@ export function computeDeal(deal, settings, warn = () => {}) {
   }));
   const deductions = items.reduce((s, it) => s + it.commission, 0);
   const itemsReal = items.reduce((s, it) => s + it.real, 0);
-  const side = commissionSide(value, family, deductions, settings);
+  // Cheques do not go through the payment processor, so no fee is taken.
+  const checks = deal.payMethod === 'checks';
+  const n = checks ? deal.installments : null;
+  if (checks && !(Number.isInteger(n) && n >= 1 && n <= TERM_MONTHS)) throw new Error('cheque deals need 1–12 instalments');
+  const side = commissionSide(value, family, deductions, settings, checks ? 0 : undefined);
 
   const prodKey = custom ? packageId('social', sel.influencer) : pid;
   const prod = settings.production?.[prodKey];
@@ -241,7 +275,9 @@ export function computeDeal(deal, settings, warn = () => {}) {
     pool: prod?.influencerPerDay ? { perDay: prod.influencerPerDay, clientsPerDay: prod.clientsPerDay, makeupPerDay: prod.makeupPerDay } : null,
     monthly,
     value,
-    paymentReal: applyBp(value, settings.payment.realBp),
+    payMethod: checks ? 'checks' : 'payment',
+    installments: n,
+    paymentReal: checks ? 0 : applyBp(value, settings.payment.realBp),
     paymentCommission: side.payment,
     items,
     deductions,
@@ -346,17 +382,44 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
       const orig = computeDeal(d, v.data);
       const remaining = TERM_MONTHS - d.paidMonths;
       const share = (a) => -Math.round((a * remaining) / TERM_MONTHS);
+      // What was booked by the cancellation month (a cheque deal's deferred
+      // part is booked only if the cancellation comes on or after it), minus
+      // what the months paid earned. Never below zero.
+      const deferredBooked = !orig.deferred || d.cancelledOn.slice(0, 7) >= orig.deferred.month;
+      const rNum = deferredBooked ? 1 : CHECKS_UPFRONT;
+      const rDen = deferredBooked ? 1 : d.installments;
+      const num = rNum * TERM_MONTHS - d.paidMonths * rDen;
+      const back = (a) => (num > 0 ? -Math.round((a * num) / (rDen * TERM_MONTHS)) : 0);
       lines.push({
         kind: 'clawback', id: d.id, date: d.cancelledOn, dealDate: d.date, client: d.client,
         packageName: orig.packageName, family: orig.family, paidMonths: d.paidMonths,
-        originalValue: orig.value,
-        value: share(orig.value), paymentReal: 0, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0, base: 0,
+        originalValue: orig.full.value, payMethod: orig.payMethod, installments: orig.installments,
+        value: back(orig.full.value), paymentReal: 0, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0, base: 0,
         closerFee: orig.closerFee ? { name: orig.closerFee.name, original: orig.closerFee.amount, amount: share(orig.closerFee.amount) } : null,
         production: { influencer: 0, photographer: 0, makeup: 0 },
-        commissions: orig.commissions.map((c) => ({ ...c, original: c.amount, amount: share(c.amount) })),
+        commissions: orig.full.commissions.map((c) => ({ ...c, original: c.amount, amount: back(c.amount) })),
       });
     } catch (e) {
       errors.push(`ביטול העסקה ״${d.client}״ לא חושב: ${e.message}`);
+    }
+  }
+  // Cheque deals from DEFER_MONTHS ago: the rest of their revenue and
+  // commissions, unless the deal was cancelled before this month.
+  const dueFrom = shiftMonth(month, -DEFER_MONTHS);
+  for (const d of deals.filter((x) => x.payMethod === 'checks' && x.installments > CHECKS_UPFRONT && inMonth(x.date, dueFrom)).sort(byDate)) {
+    if (d.cancelledOn && d.cancelledOn.slice(0, 7) < month) continue;
+    const v = settingsOn(versions, d.date) || monthSettings;
+    try {
+      const orig = computeDeal(d, v.data);
+      lines.push({
+        kind: 'deferred', id: d.id, date: monthBounds(month).first, dealDate: d.date, client: d.client,
+        packageName: orig.packageName, family: orig.family, payMethod: 'checks', installments: d.installments,
+        value: orig.deferred.value, paymentReal: 0, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0,
+        base: orig.base, closerFee: null, production: { influencer: 0, photographer: 0, makeup: 0 },
+        commissions: orig.deferred.commissions,
+      });
+    } catch (e) {
+      errors.push(`יתרת הצ׳קים של ״${d.client}״ לא חושבה: ${e.message}`);
     }
   }
   for (const e of incomes.filter((x) => inMonth(x.date, month)).sort(byDate)) {
@@ -417,6 +480,7 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
     totals: {
       revenue, dealsRevenue: sum(dealLines, (l) => l.value), incomeRevenue: sum(incomeLines, (l) => l.value),
       cancelledRevenue: sum(lines.filter((l) => l.kind === 'clawback'), (l) => l.value),
+      deferredRevenue: sum(lines.filter((l) => l.kind === 'deferred'), (l) => l.value),
       paymentReal, commissions, production, itemsReal, closerFees, clawbacks, variable, fixed,
       employees: sum(employees, (e) => e.amount),
       employerCost: sum(employees, (e) => e.employerCost),
@@ -466,8 +530,9 @@ export function payeesOf(report, ms) {
   const names = ms.payees || {};
   for (const l of report.lines) {
     add('פיימנט', 'payment', l.client, l.paymentReal);
-    const who = l.kind === 'deal' ? `${l.client} · ${l.packageName}`
-      : l.kind === 'clawback' ? `קיזוז: ${l.client} בוטלה אחרי ${l.paidMonths} חודשים` : l.client;
+    const who = l.kind === 'deal' ? `${l.client} · ${l.packageName}${l.deferred ? ` · ${CHECKS_UPFRONT} מתוך ${l.installments} צ׳קים` : ''}`
+      : l.kind === 'clawback' ? `קיזוז: ${l.client} בוטלה אחרי ${l.paidMonths} חודשים`
+        : l.kind === 'deferred' ? `${l.client} · יתרת ${l.installments - CHECKS_UPFRONT} מתוך ${l.installments} צ׳קים` : l.client;
     for (const c of l.commissions) add(c.name, 'commission', who, c.amount);
     if (l.closerFee) add(l.closerFee.name, 'commission', l.kind === 'clawback' ? `קיזוז עמלת סגירה: ${l.client} בוטלה אחרי ${l.paidMonths} חודשים` : `עמלת סגירה · ${l.client}`, l.closerFee.amount);
     add(names.influencer?.[l.family] || INFLUENCERS[l.family]?.name, 'influencer', who, l.production.influencer);
@@ -511,7 +576,7 @@ export function commissionStatement(report, who) {
         paidMonths: l.paidMonths,
         client: l.client,
         packageName: l.packageName || 'הכנסה נוספת',
-        value: l.value,
+        value: l.kind === 'deal' && l.full ? l.full.value : l.value,
         payment: l.paymentCommission,
         deductions: l.items
           .filter((it) => it.commission)
@@ -519,6 +584,9 @@ export function commissionStatement(report, who) {
         base: l.base,
         rateBp: c.rateBp,
         original: c.original,
+        full: c.full,
+        payMethod: l.payMethod,
+        installments: l.installments,
         amount: c.amount,
       });
     }
