@@ -1,6 +1,8 @@
 // Payouts app: screens, forms and dialogs. Calculations live in engine.js,
 // database access in data.js. User text is always rendered as text nodes.
-import { supabase, sendPasswordReset, looksLikeEmail, RESET_NEEDS_EMAIL, RESET_SENT } from '../supa.js';
+import {
+  supabase, sendPasswordReset, consumeRecoveryLink, looksLikeEmail, RESET_NEEDS_EMAIL, RESET_SENT,
+} from '../supa.js';
 import { h } from '../quote-doc.js';
 import { reconcile, paidAddonAvailable, freeAddonAvailable } from '../pricing.js';
 import { PACKAGES, PAID_ADDONS, TIERS, INFLUENCERS, FREE_ADDONS, TERM_MONTHS, packageId } from '../catalog.js';
@@ -155,8 +157,48 @@ async function route() {
 
 // ---------- boot / auth ----------
 
+// The reset link returns here; the page itself sets the new password.
+const appHome = () => new URL('./', window.location.href.split('#')[0]).href;
+
+function showSetPassword() {
+  const pass = h('input', { class: 'input', type: 'password', dir: 'ltr', autocomplete: 'new-password', minlength: '10', required: true });
+  const again = h('input', { class: 'input', type: 'password', dir: 'ltr', autocomplete: 'new-password', required: true });
+  const err = h('div', { class: 'form-err', role: 'alert', hidden: true });
+  const submit = h('button', { type: 'submit', class: 'btn btn-primary btn-block' }, 'שמירת הסיסמה');
+  const form = h('form', { class: 'login card', novalidate: true },
+    h('h1', {}, 'בחירת סיסמה חדשה'),
+    field('סיסמה חדשה', pass, { hint: 'לפחות 10 תווים.' }),
+    field('אימות הסיסמה', again),
+    err, submit);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+    if (pass.value.length < 10) { err.textContent = 'הסיסמה צריכה להיות באורך 10 תווים לפחות.'; err.hidden = false; pass.focus(); return; }
+    if (pass.value !== again.value) { err.textContent = 'הסיסמאות לא זהות.'; err.hidden = false; again.focus(); return; }
+    submit.disabled = true;
+    const { error } = await supabase.auth.updateUser({ password: pass.value });
+    submit.disabled = false;
+    if (error) { err.textContent = db.explain(error); err.hidden = false; return; }
+    toast('הסיסמה עודכנה.');
+    state.session = await db.session();
+    await enter();
+  });
+  $('view').replaceChildren(form);
+  pass.focus();
+}
+
 async function boot() {
+  const recovery = await consumeRecoveryLink();
+  if (recovery === 'recovery') {
+    state.session = await db.session();
+    return showSetPassword();
+  }
   state.session = await db.session();
+  if (recovery === 'expired' && !state.session) {
+    showLogin();
+    setState('קישור האיפוס פג תוקף או כבר נוצל. בקשו קישור חדש ב״שכחתי סיסמה״.');
+    return;
+  }
   supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_OUT') { state.session = null; state.owner = false; showLogin(); }
     else if (session) state.session = session;
@@ -211,7 +253,7 @@ function showLogin() {
         err.hidden = true; msg.hidden = true;
         const v = email.value.trim();
         if (!looksLikeEmail(v)) { err.textContent = RESET_NEEDS_EMAIL; err.hidden = false; email.focus(); return; }
-        try { await sendPasswordReset(v); msg.textContent = RESET_SENT; msg.hidden = false; } catch (e) { err.textContent = db.explain(e); err.hidden = false; }
+        try { await sendPasswordReset(v, appHome()); msg.textContent = RESET_SENT; msg.hidden = false; } catch (e) { err.textContent = db.explain(e); err.hidden = false; }
       },
     }, 'שכחתי סיסמה'),
   );

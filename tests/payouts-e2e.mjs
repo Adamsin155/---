@@ -58,6 +58,7 @@ const SETTINGS = {
 };
 
 const recoverRequests = [];
+const passwordUpdates = [];
 const tables = {
   payout_owners: [{ user_id: OWNER.id, email: OWNER.email }],
   payout_settings: [{ id: randomUUID(), effective_from: '2026-01-01', data: SETTINGS, note: 'בדיקה', created_at: new Date().toISOString() }],
@@ -101,7 +102,7 @@ async function fakeSupabase(route) {
     return json(200, { access_token: jwt(u), token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user: u });
   }
   if (p === '/auth/v1/recover') { recoverRequests.push(url.searchParams.get('redirect_to')); return json(200, {}); }
-  if (p === '/auth/v1/user') return json(200, OWNER);
+  if (p === '/auth/v1/user') { if (req.method() === 'PUT') passwordUpdates.push(body.password); return json(200, OWNER); }
   if (p === '/auth/v1/logout') return route.fulfill({ status: 204, headers });
   const m = p.match(/^\/rest\/v1\/(\w+)$/);
   if (!m) return json(404, { message: 'not found' });
@@ -189,9 +190,22 @@ const noHScroll = async (page) => page.evaluate(() => document.documentElement.s
   await page.getByLabel('אימייל').fill(OWNER.email);
   await page.getByRole('button', { name: 'שכחתי סיסמה' }).click();
   await page.getByText(/נשלח אליה קישור/).waitFor();
-  assert.equal(recoverRequests.at(-1), `${BASE}quotes.html`);
+  assert.equal(recoverRequests.at(-1), `${BASE}payouts/`);
+  // The link from the email lands back here and asks for a new password.
+  await page.goto('about:blank');
+  await page.goto(`${BASE}payouts/#access_token=${jwt(OWNER)}&refresh_token=r&expires_in=3600&token_type=bearer&type=recovery`);
+  await page.getByRole('heading', { name: 'בחירת סיסמה חדשה' }).waitFor();
+  assert.ok(!page.url().includes('access_token'), 'token removed from the address bar');
+  await page.getByLabel('סיסמה חדשה').fill('short');
+  await page.getByRole('button', { name: 'שמירת הסיסמה' }).click();
+  await page.getByText('הסיסמה צריכה להיות באורך 10 תווים לפחות.').waitFor();
+  await page.getByLabel('סיסמה חדשה').fill('correct-horse-2');
+  await page.getByLabel('אימות הסיסמה').fill('correct-horse-2');
+  await page.getByRole('button', { name: 'שמירת הסיסמה' }).click();
+  await page.getByRole('heading', { name: 'חלוקה לשותפים' }).waitFor();
+  assert.equal(passwordUpdates.at(-1), 'correct-horse-2');
   await page.context().close();
-  console.log('ok  password reset link points to the quotes page');
+  console.log('ok  password reset returns to the app and sets a new password');
 }
 
 // 2. Owner flow on a phone.
@@ -416,7 +430,7 @@ await shot(page, 'desktop-pay');
 
 // Manifest is valid JSON with a scope that excludes the quote pages.
 const manifest = await (await page.request.get(`${BASE}payouts/manifest.webmanifest`)).json();
-assert.equal(manifest.scope, '/---/payouts/');
+assert.ok(manifest.scope.endsWith('/payouts/') && manifest.start_url === manifest.scope, 'scope limited to the app');
 assert.equal(manifest.display, 'standalone');
 
 await browser.close();
