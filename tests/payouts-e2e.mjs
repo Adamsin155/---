@@ -57,6 +57,7 @@ const SETTINGS = {
   ],
 };
 
+const recoverRequests = [];
 const tables = {
   payout_owners: [{ user_id: OWNER.id, email: OWNER.email }],
   payout_settings: [{ id: randomUUID(), effective_from: '2026-01-01', data: SETTINGS, note: 'בדיקה', created_at: new Date().toISOString() }],
@@ -99,6 +100,7 @@ async function fakeSupabase(route) {
     if (!u || body.password !== 'correct-horse') return json(400, { error: 'invalid_grant', error_description: 'Invalid login credentials', msg: 'Invalid login credentials', code: 'invalid_credentials' });
     return json(200, { access_token: jwt(u), token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user: u });
   }
+  if (p === '/auth/v1/recover') { recoverRequests.push(url.searchParams.get('redirect_to')); return json(200, {}); }
   if (p === '/auth/v1/user') return json(200, OWNER);
   if (p === '/auth/v1/logout') return route.fulfill({ status: 204, headers });
   const m = p.match(/^\/rest\/v1\/(\w+)$/);
@@ -178,6 +180,18 @@ const noHScroll = async (page) => page.evaluate(() => document.documentElement.s
   assert.equal(await page.locator('#nav').isVisible(), false);
   await page.context().close();
   console.log('ok  non-owner refused');
+}
+
+// Password reset from the payouts login returns to the quotes page, which sets the new password.
+{
+  const page = await newPage({ width: 390, height: 844 });
+  await page.goto(`${BASE}payouts/#/month/2026-09`);
+  await page.getByLabel('אימייל').fill(OWNER.email);
+  await page.getByRole('button', { name: 'שכחתי סיסמה' }).click();
+  await page.getByText(/נשלח אליה קישור/).waitFor();
+  assert.equal(recoverRequests.at(-1), `${BASE}quotes.html`);
+  await page.context().close();
+  console.log('ok  password reset link points to the quotes page');
 }
 
 // 2. Owner flow on a phone.
