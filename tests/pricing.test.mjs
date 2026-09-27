@@ -178,8 +178,16 @@ test('agreement text follows the selected package', () => {
   // Influencer names, podcast definition, multiple shoot days, monthly photographer.
   assert.match(text(agr(sel('social', 'natali'))), /בהשתתפות נטלי דדון/);
   assert.match(text(agr(sel('social', 'natali', [], { simeonJoin: true }))), /ובהשתתפות סמיון, מישל ודניס ביום הצילום/);
-  assert.match(text(agr(sel('podcast', 'simeon'))), /יום הקלטת הפודקאסט/);
+  assert.match(text(agr(sel('podcast', 'simeon'))), /הקלטת הפודקאסט עם המשפיענים תתקיים במשרדי אסטרטג, ברחוב האורזים 23, נתניה/);
+  assert.match(text(agr(sel('podcast', 'simeon'))), /באותו יום עם הקלטת הפודקאסט או ביום נפרד, לפי קביעת אסטרטג/);
   assert.match(text(agr(sel('social-tv', 'simeon'))), /כלולים 2 ימי צילום/);
+  // The paid extra Simeon day is counted.
+  assert.match(text(agr(sel('social-tv', 'simeon', ['simeon-day']))), /כלולים 3 ימי צילום/);
+  assert.match(text(agr(sel('social', 'simeon', ['simeon-day']))), /כלולים 2 ימי צילום/);
+  assert.match(text(agr(sel('social', 'simeon', ['simeon-day']))), /כל יום צילום/);
+  // Invoices and the signing deadline.
+  assert.match(text(agr(sel('social', 'simeon'))), /חשבונית מס כדין תופק/);
+  assert.match(text(agr(sel('social', 'simeon'))), /בתוך 72 שעות ממועד הפקתו/);
   assert.match(text(agr(sel('social', 'simeon', ['photographer']))), /ביקור חודשי שלא התקיים/);
   assert.doesNotMatch(text(agr(sel('social', 'simeon'))), /ביקור חודשי/);
 
@@ -195,4 +203,35 @@ test('agreement text follows the selected package', () => {
   const exitNo = titles(l).indexOf('סיום ההתקשרות לפני תום התקופה') + 1;
   assert.match(text(l), new RegExp(`או פרק ${exitNo}\\.`));
   assert.doesNotMatch(text(l), /undefined/);
+});
+
+test('discount: up to 200 ILS a month, whole shekels, shown in totals and terms', () => {
+  const s = { ...sel('social', 'natali', ['natali-reel']), discount: 20000 };
+  validateSelection(s);
+  const t = shekels(computeTotals(s));
+  assert.equal(t.monthlyList, 4900);
+  assert.equal(t.discount, 200);
+  assert.equal(t.monthlyNet, 4700);
+  assert.equal(t.monthlyGross, 5546);
+  assert.equal(t.termGross, 66552);
+  for (const bad of [20100, -100, 150, 1.5, '100']) {
+    assert.throws(() => validateSelection({ ...sel('social', 'natali'), discount: bad }), /discount/);
+  }
+  validateSelection({ ...sel('social', 'natali'), discount: undefined });
+  const a = buildQuoteModel({ ...s, docType: 'agreement' }, { name: 'x' });
+  const payment = a.legal.find((x) => x.title === 'התמורה ותנאי תשלום').items[0];
+  assert.match(payment, /4,700 ₪ לחודש \+ מע״מ כחוק, לאחר הנחה של 200 ₪ לחודש/);
+  const none = buildQuoteModel({ ...sel('social', 'natali'), docType: 'agreement' }, { name: 'x' });
+  assert.doesNotMatch(none.legal.find((x) => x.title === 'התמורה ותנאי תשלום').items[0], /הנחה/);
+});
+
+test('validity: quote 48 hours, agreement 72 hours', () => {
+  assert.equal(buildQuoteModel(sel('social', 'natali'), { name: 'x' }).validHours, 48);
+  assert.equal(buildQuoteModel({ ...sel('social', 'natali'), docType: 'agreement' }, { name: 'x' }).validHours, 72);
+});
+
+test('client fields drop bidi control characters', () => {
+  const m = buildQuoteModel(sel('social', 'natali'), { name: '\u202Eevil\u202C ', company: 'a\u2066b' });
+  assert.equal(m.client.name, 'evil');
+  assert.equal(m.client.company, 'ab');
 });

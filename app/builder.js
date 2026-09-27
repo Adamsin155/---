@@ -1,12 +1,12 @@
 import {
   INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS, SPEC_ROWS, SPECS,
-  VAT_RATE_PERCENT, TERM_MONTHS, DOC_TYPES, packageId,
+  VAT_RATE_PERCENT, TERM_MONTHS, DOC_TYPES, MAX_DISCOUNT, packageId,
 } from './catalog.js';
 import {
   emptySelection, reconcile, computeTotals, buildQuoteModel, formatILS,
   paidAddonAvailable, freeAddonAvailable,
 } from './pricing.js';
-import { h, renderQuoteDoc } from './quote-doc.js';
+import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
 
 const $ = (id) => document.getElementById(id);
 let state = emptySelection();
@@ -217,11 +217,12 @@ function renderSummary() {
   const lines = [
     line('חבילה', h('span', { class: 'val', dir: 'ltr' }, formatILS(model.package.monthly))),
     ...model.paid.map((p) => line(p.name, h('span', { class: 'val', dir: 'ltr' }, `+${formatILS(p.monthly)}`))),
-  ];
+    t.discount ? line('הנחה', h('span', { class: 'val is-discount', dir: 'ltr' }, `−${formatILS(t.discount)}`)) : null,
+  ].filter(Boolean);
   const free = model.free.map((f) => line(f.qty ? `${f.name} × ${f.qty}` : f.name, h('span', { class: 'free' }, '0 ₪'), 'is-free'));
 
   // Composition of the monthly price: package vs. paid add-ons.
-  const pkgPct = (model.package.monthly / t.monthlyNet) * 100;
+  const pkgPct = (model.package.monthly / t.monthlyList) * 100;
   const bar = h('div', { class: 'compo', role: 'img', 'aria-label': `חבילה ${Math.round(pkgPct)}% מהמחיר החודשי` },
     h('span', { class: 'compo-pkg', style: `inline-size:${pkgPct}%` }),
     h('span', { class: 'compo-add', style: `inline-size:${100 - pkgPct}%` }),
@@ -319,6 +320,30 @@ function showRemoved(names) {
   $('removed-text').textContent = `הוסרו כי אינם זמינים בחבילה שנבחרה: ${names.join(', ')}.`;
 }
 
+/* ── Draft: survives a refresh or a visit to another page in this tab ── */
+const DRAFT_KEY = 'astrateg-draft';
+const CLIENT_FIELDS = ['c-name', 'c-company', 'c-companyid', 'c-phone', 'c-email', 'c-notes'];
+function saveDraft() {
+  if (document.body.classList.contains('is-choosing')) return;
+  try {
+    const client = Object.fromEntries(CLIENT_FIELDS.map((id) => [id, $(id).value]));
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ state, client }));
+  } catch { /* storage unavailable */ }
+}
+function restoreDraft() {
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
+    if (!draft?.state || !DOC_TYPES[draft.state.docType]) return false;
+    const { selection } = reconcile({ ...emptySelection(), ...draft.state, free: { ...emptySelection().free, ...draft.state.free } });
+    state = selection;
+    for (const id of CLIENT_FIELDS) if (typeof draft.client?.[id] === 'string') $(id).value = draft.client[id];
+    $('discount').value = String((state.discount || 0) / 100);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function update(patch, opts = {}) {
   const active = document.activeElement;
   const focusId = opts.focus || (active && active.id) || null;
@@ -327,6 +352,7 @@ function update(patch, opts = {}) {
   state = selection;
   showRemoved(removed);
   render({ focus: focusId });
+  saveDraft();
   if (focusName) document.querySelector(`input[name="${focusName}"]:checked`)?.focus();
 }
 
@@ -380,6 +406,15 @@ function validateClient() {
   }
 }));
 $('client-form').addEventListener('submit', (e) => e.preventDefault());
+CLIENT_FIELDS.forEach((id) => $(id).addEventListener('input', saveDraft));
+
+/* ── Discount ──────────────────────────────── */
+function readDiscount() {
+  const v = Math.round(Number($('discount').value));
+  return Number.isFinite(v) ? Math.min(Math.max(v, 0), MAX_DISCOUNT / 100) : 0;
+}
+$('discount').addEventListener('input', () => update({ discount: readDiscount() * 100 }, { focus: 'discount' }));
+$('discount').addEventListener('change', () => { $('discount').value = String(readDiscount()); });
 
 /* ── Output: preview, print, HTML file ─────── */
 
@@ -615,10 +650,11 @@ async function createLink(btn) {
     $('sh-link').value = link;
     $('sh-open').href = link;
     const name = readClient().name.trim();
+    const hours = DOC_TYPES[state.docType].validHours;
     const text = signable
-      ? `שלום ${name}, מצורף הסכם ההתקשרות מאסטרטג (${data.number}). אפשר לעיין ולחתום כאן:\n${link}`
-      : `שלום ${name}, מצורפת הצעת המחיר מאסטרטג (${data.number}). לצפייה:\n${link}`;
-    $('sh-wa').href = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      ? `שלום ${name}, מצורף הסכם ההתקשרות מאסטרטג (${data.number}) ל־12 חודשים. אפשר לעיין ולחתום כאן בתוך ${hours} שעות:\n${link}`
+      : `שלום ${name}, מצורפת הצעת המחיר מאסטרטג (${data.number}), בתוקף ל־${hours} שעות. לצפייה:\n${link}`;
+    $('sh-wa').href = whatsappLink(readClient().phone, text);
     $('sh-mail').href = `mailto:${encodeURIComponent(readClient().email.trim())}?subject=${encodeURIComponent(`${DOC_TYPES[state.docType].name} ${data.number} · astrateg`)}&body=${encodeURIComponent(text)}`;
     openDialog($('dlg-share'), btn);
     $('sh-link').select();
@@ -666,6 +702,7 @@ function chooseDoc(type, focusTarget) {
   update({ docType: type });
   document.body.classList.remove('is-choosing');
   $('start').hidden = true;
+  saveDraft();
   if (focusTarget) focusTarget.focus();
 }
 document.querySelectorAll('.start-card').forEach((b) => b.addEventListener('click', () => {
@@ -676,6 +713,10 @@ document.querySelectorAll('.start-card').forEach((b) => b.addEventListener('clic
 }));
 document.querySelectorAll('#doc-switch [data-doc]').forEach((b) => b.addEventListener('click', () => chooseDoc(b.dataset.doc, b)));
 
+if (restoreDraft()) {
+  document.body.classList.remove('is-choosing');
+  $('start').hidden = true;
+}
 render();
 setupSectionNav();
 refreshSession();

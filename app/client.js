@@ -22,10 +22,11 @@ function docMeta(q) {
   return {
     number: q.number,
     createdAt: q.createdAt,
+    validUntil: q.expiresAt,
     docHash: q.docHash,
-    signOnline: q.status !== 'signed' && q.model.signable !== false,
+    signOnline: q.status !== 'signed' && q.model.signable !== false && !q.expired,
     signature: q.status === 'signed'
-      ? { name: q.signerName, signedAt: q.signedAt, png: q.signaturePng, hash: q.signatureHash }
+      ? { name: q.signerName, signedAt: q.signedAt, png: q.signaturePng, hash: q.signatureHash, consent: q.consentText }
       : null,
   };
 }
@@ -44,7 +45,8 @@ function render(q) {
   const tot = q.model.totals;
   $('strip-month').textContent = formatILS(tot.monthlyGross);
   $('strip-sub').textContent = `${q.model.termMonths} חודשים · סה״כ ${formatILS(tot.termGross)} כולל מע״מ`;
-  $('strip-go').hidden = !signable || q.status === 'signed';
+  $('strip-go').hidden = !signable || q.status === 'signed' || q.expired;
+  $('expired').hidden = !(q.expired && q.status !== 'signed');
   $('strip').hidden = false;
   if (q.consentText) $('consent-text').textContent = q.consentText;
 
@@ -56,6 +58,14 @@ function render(q) {
     $('signbox').hidden = true;
     $('signed').hidden = false;
     $('signed-text').textContent = `נחתם על ידי ${q.signerName} ב־${formatDate(q.signedAt, true)}. אפשר להדפיס או לשמור עותק כ־PDF.`;
+  } else if (q.expired) {
+    status.textContent = 'פג תוקף';
+    status.classList.add('is-expired');
+    $('signbox').hidden = true;
+    $('signed').hidden = true;
+    $('expired-text').textContent = signable
+      ? `המועד לחתימה על ההסכם הסתיים ב־${formatDate(q.expiresAt, true)}. כדי להתקשר, בקשו מאיש המכירות הסכם מעודכן.`
+      : `תוקף ההצעה הסתיים ב־${formatDate(q.expiresAt, true)}. לקבלת הצעה מעודכנת פנו לאיש המכירות.`;
   } else if (!signable) {
     status.textContent = 'לעיון';
     $('signbox').hidden = true;
@@ -254,6 +264,10 @@ $('sign-form').addEventListener('submit', async (e) => {
     if (/staff cannot sign/.test(msg)) {
       $('sign-err').textContent = 'את ההצעה חותם הלקוח. אתם מחוברים כאנשי צוות, לכן החתימה נחסמה. פתחו את הקישור בדפדפן שבו אינכם מחוברים.';
       $('sign-err').hidden = false;
+      return;
+    }
+    if (/expired/.test(msg)) {
+      await load();
       return;
     }
     if (/already signed/.test(msg)) {

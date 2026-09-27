@@ -3,7 +3,7 @@
 
 import {
   VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES,
-  PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, packageId,
+  PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, MAX_DISCOUNT, packageId,
 } from './catalog.js';
 import { PROVIDER, agreementSections } from './legal.js';
 
@@ -14,6 +14,7 @@ export function emptySelection() {
     influencer: 'simeon',
     paid: [],
     free: { graphics: 0, simeonStories: 0, simeonJoin: false, extraCh14: false },
+    discount: 0,
   };
 }
 
@@ -74,6 +75,8 @@ export function validateSelection(sel) {
   if (!isWholeInRange(f.simeonStories, FREE_ADDONS.simeonStories.max)) errors.push('simeonStories out of range');
   if (typeof f.simeonJoin !== 'boolean') errors.push('simeonJoin must be boolean');
   if (typeof f.extraCh14 !== 'boolean') errors.push('extraCh14 must be boolean');
+  const d = sel.discount ?? 0;
+  if (!isWholeInRange(d, MAX_DISCOUNT) || d % 100 !== 0) errors.push('discount out of range');
   if (errors.length === 0) {
     if (f.simeonJoin && !freeAddonAvailable('simeonJoin', sel)) errors.push('simeonJoin not available');
     if (f.simeonStories > 0 && !freeAddonAvailable('simeonStories', sel)) errors.push('simeonStories not available');
@@ -108,10 +111,14 @@ export function reconcile(sel) {
 export function computeTotals(sel) {
   const pkg = PACKAGES[packageId(sel.tier, sel.influencer)];
   const addons = sel.paid.map((id) => PAID_ADDONS.find((a) => a.id === id));
-  const monthlyNet = pkg.price + addons.reduce((s, a) => s + a.price, 0);
+  const monthlyList = pkg.price + addons.reduce((s, a) => s + a.price, 0);
+  const discount = sel.discount || 0;
+  const monthlyNet = monthlyList - discount;
   const monthlyVat = Math.round((monthlyNet * VAT_RATE_PERCENT) / 100);
   const monthlyGross = monthlyNet + monthlyVat;
   return {
+    monthlyList,
+    discount,
     monthlyNet,
     monthlyVat,
     monthlyGross,
@@ -135,11 +142,12 @@ function agreementContext(sel, { tier, paid, free, totals }) {
   const specs = SPECS[packageId(sel.tier, sel.influencer)];
   return {
     termMonths: TERM_MONTHS,
+    validHours: DOC_TYPES.agreement.validHours,
     totals,
     packageName: tier.name,
     influencer: INFLUENCERS[sel.influencer].name,
     tier: sel.tier,
-    shootDays: specs.shootDays,
+    shootDays: specs.shootDays + (sel.paid.includes('simeon-day') ? 1 : 0),
     hasCh14: specs.ch14 > 0 || sel.free.extraCh14 === true,
     influencerPosts: specs.collabs > 0 || specs.stories > 0 || sel.free.simeonStories > 0
       || sel.paid.includes('natali-reel') || sel.paid.includes('natali-story'),
@@ -169,21 +177,24 @@ export function buildQuoteModel(sel, client = {}, meta = {}) {
 
   const totals = computeTotals(sel);
   const docType = DOC_TYPES[sel.docType] || DOC_TYPES.quote;
+  // Bidi control characters could make the displayed name differ from the stored one.
+  const clean = (v) => String(v || '').replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '').trim();
   return {
     version: 2,
     docType: docType.id,
     docTitle: docType.name,
     signable: docType.signable,
+    validHours: docType.validHours,
     provider: PROVIDER,
     number: meta.number || null,
     createdAt: meta.createdAt || null,
     client: {
-      name: (client.name || '').trim(),
-      company: (client.company || '').trim(),
-      phone: (client.phone || '').trim(),
-      email: (client.email || '').trim(),
-      companyId: (client.companyId || '').trim(),
-      notes: (client.notes || '').trim(),
+      name: clean(client.name),
+      company: clean(client.company),
+      phone: clean(client.phone),
+      email: clean(client.email),
+      companyId: clean(client.companyId),
+      notes: clean(client.notes),
     },
     package: {
       id: pid,

@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>הצעת מחיר · astrateg</title>
+  <title>מסמך מאסטרטג · astrateg</title>
+  <meta property="og:title" content="מסמך מאסטרטג טכנולוגיות">
+  <meta property="og:description" content="הצעת מחיר או הסכם התקשרות, לעיון ולחתימה אונליין.">
+  <meta property="og:image" content="app/assets/logo.png">
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="app/assets/logo-mark.png">
@@ -14,7 +17,7 @@
 <body>
   <header class="cbar">
     <img src="app/assets/logo-mark.png" alt="astrateg" class="cbar-logo">
-    <span class="cbar-title" id="cbar-title">הצעת מחיר</span>
+    <span class="cbar-title" id="cbar-title">מסמך מאסטרטג</span>
     <span class="cbar-status" id="status" hidden></span>
     <button type="button" class="cbtn cbtn-ghost" id="btn-print" hidden>הדפסה / שמירה כ־PDF</button>
   </header>
@@ -22,7 +25,7 @@
   <main class="cmain">
     <div class="cstate" id="state" role="status">
       <div class="spinner" aria-hidden="true"></div>
-      <p>טוען את ההצעה…</p>
+      <p>טוען את המסמך…</p>
     </div>
 
     <div class="cstrip" id="strip" hidden>
@@ -30,6 +33,11 @@
       <div class="cstrip-sub" id="strip-sub"></div>
       <a class="cstrip-go" href="#signbox" id="strip-go">למעבר לחתימה</a>
     </div>
+
+    <section class="expired" id="expired" role="status" hidden>
+      <h2>פג תוקף</h2>
+      <p id="expired-text"></p>
+    </section>
 
     <div class="paper" id="doc" hidden></div>
 
@@ -54,17 +62,18 @@
             <canvas id="pad" role="img" aria-labelledby="pad-label" aria-describedby="pad-hint"></canvas>
             <span class="pad-hint" id="pad-hint">חתמו כאן עם האצבע או העכבר</span>
           </div>
-          <div class="cerr" id="pad-err" hidden>יש לחתום בתיבה.</div>
+          <div class="cerr" id="pad-err" role="alert" hidden>יש לחתום בתיבה.</div>
         </div>
 
         <label class="consent">
           <input type="checkbox" id="s-consent" aria-describedby="s-consent-err">
-          <span id="consent-text">קראתי את הצעת המחיר ואני מאשר/ת אותה, כולל תקופת ההתחייבות ל־12 חודשים והמחירים המפורטים בה.</span>
+          <span id="consent-text">קראתי ואני מאשר/ת את המסמך.</span>
         </label>
-        <div class="cerr" id="s-consent-err" hidden>יש לאשר את ההצעה כדי לחתום.</div>
+        <div class="cerr" id="s-consent-err" role="alert" hidden>יש לסמן את האישור כדי לחתום.</div>
 
         <div class="cerr cerr-box" id="sign-err" role="alert" hidden></div>
         <button type="submit" class="cbtn cbtn-primary" id="btn-sign">חתימה ואישור ההסכם</button>
+        <p class="privacy">המידע שנאסף בחתימה (שם, חתימה, כתובת IP ופרטי הדפדפן) משמש לכריתת ההסכם ולתיעוד החתימה בלבד. אין חובה חוקית למסור אותו, אך בלעדיו לא ניתן לחתום. המידע נשמר אצל אסטרטג טכנולוגיות בע״מ ואצל ספקי התשתית שלה. לעיון ולתיקון: <span dir="ltr">info@astrateg.com</span></p>
       </form>
     </section>
 

@@ -35,6 +35,8 @@
 .doc-type { display: block; font-size: 12px; color: var(--muted); }
 .pill.signed { color: var(--ok); }
 .pill.cancelled { color: var(--muted); }
+.pill.expired { color: var(--danger); }
+.qtable small.until, .qtable small.by { display: block; color: var(--muted); font-size: 12px; }
 .pill small { color: var(--muted); font-weight: 400; }
 .empty, .state { color: var(--muted); text-align: center; padding: 32px 16px; margin: 0; }
 .state:empty { display: none; }
@@ -44,4 +46,14 @@
   .stats { grid-template-columns: 1fr 1fr; }
   .stats .stat:last-child { grid-column: 1 / -1; }
   .page-head { flex-wrap: wrap; }
+  /* Rows become cards so status and actions stay on screen. */
+  .qtable thead { display: none; }
+  .qtable, .qtable tbody, .qtable tr, .qtable td { display: block; width: 100%; }
+  .qtable tr { padding: 12px 14px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .qtable td { padding: 0; border: 0; white-space: normal; min-width: 0; }
+  .qtable td[data-label]::before { content: attr(data-label); display: block; font-size: 11.5px; color: var(--muted); }
+  .qtable .client { min-width: 0; }
+  .qtable .amt { text-align: start; }
+  .qtable .acts-cell { grid-column: 1 / -1; }
+  .qtable .acts { justify-content: flex-start; flex-wrap: wrap; }
 }

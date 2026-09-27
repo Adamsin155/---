@@ -18,6 +18,7 @@ let seq = 0;
 function view(q) {
   return {
     number: q.number, createdAt: q.created_at, model: q.model, docHash: 'ab'.repeat(32),
+    expiresAt: q.expires_at, expired: q.status !== 'signed' && new Date(q.expires_at) < new Date(),
     consentText: `קראתי ואני מאשר/ת את הצעת המחיר ${q.number}`, signatureHash: q.signature_png ? 'cd'.repeat(32) : null,
     status: q.status, signerName: q.signer_name, signedAt: q.signed_at, signaturePng: q.signature_png,
   };
@@ -53,6 +54,8 @@ async function fakeSupabase(route) {
       created_at: new Date().toISOString(), created_by_email: USER.email,
       model: buildQuoteModel(body.selection, body.client), status: 'sent',
     };
+    q.expires_at = new Date(Date.parse(q.created_at) + q.model.validHours * 3600e3).toISOString();
+    q.model.validUntil = q.expires_at;
     q.client_name = q.model.client.name;
     q.monthly_gross_agorot = q.model.totals.monthlyGross;
     db.set(q.token, q);
@@ -68,6 +71,7 @@ async function fakeSupabase(route) {
     const q = db.get(body.p_token);
     if (!q) return json(404, { code: 'P0002', message: 'quote not found' });
     if (q.status === 'signed') return json(409, { code: '23505', message: 'quote already signed' });
+    if (new Date(q.expires_at) < new Date()) return json(400, { code: '22023', message: 'quote expired' });
     if (!body.p_consent) return json(400, { code: '22023', message: 'consent required' });
     if (q.model.signable === false) return json(400, { code: '22023', message: 'this document does not require a signature' });
     assert.match(body.p_signature, /^data:image\/png;base64,/);
@@ -80,7 +84,10 @@ async function fakeSupabase(route) {
     q.status = 'cancelled';
     return json(200, null);
   }
-  if (p === '/rest/v1/quotes') return json(200, [...db.values()].reverse().map((q) => ({ ...q, tier: q.model.package.tierName, influencer: q.model.package.influencer })));
+  if (p === '/rest/v1/quotes') return json(200, [...db.values()].reverse().map((q) => ({
+    ...q, tier: q.model.package.tierName, influencer: q.model.package.influencer,
+    doc: q.model.docTitle, signable: String(q.model.signable), phone: q.model.client.phone,
+  })));
   return json(404, { message: `unmocked ${p}` });
 }
 
@@ -262,7 +269,7 @@ await step('create link: wrong password shows error, then login + share dialog',
   assert.match(await text(page, '#sh-prev'), /קיימת הצעה פתוחה/);
   assert.match(await text(page, '#sh-number'), /AST-2026-000[12]/);
   assert.match(await page.locator('#sh-link').inputValue(), /q\.html\?t=[0-9a-f-]{36}$/);
-  assert.match(await page.locator('#sh-wa').getAttribute('href'), /^https:\/\/wa\.me\/\?text=/);
+  assert.match(await page.locator('#sh-wa').getAttribute('href'), /^https:\/\/wa\.me\/972501234567\?text=/);
   assert.match(await text(page, '#session-who'), /seller@astrateg\.test/);
   await shot(page, '04-share', false);
 });
@@ -422,6 +429,73 @@ await step('reset link signs in and asks for a new password; expired link explai
   await x.locator('#lg-err').waitFor();
   assert.match(await text(x, '#lg-err'), /פג תוקפו/);
   assert.deepEqual([...r.errors, ...x.errors], []);
+});
+
+await step('discount: up to 200 ILS a month, shown in summary, document and agreement', async () => {
+  const d = await newPage();
+  await d.goto(BASE, { waitUntil: 'networkidle' });
+  await d.locator('#start-agreement').click();
+  await d.locator('#discount').fill('150');
+  assert.equal(await text(d, '#t-mnet'), '3,750 ₪');
+  assert.match(await text(d, '#sum-lines'), /הנחה/);
+  await d.locator('#discount').fill('500');
+  assert.equal(await text(d, '#t-mnet'), '3,700 ₪', 'capped at 200');
+  await d.locator('#discount').blur();
+  assert.equal(await d.locator('#discount').inputValue(), '200');
+  await d.locator('#c-name').fill('בדיקת הנחה');
+  await d.locator('#btn-preview').click();
+  const doc = await text(d, '#preview-body');
+  assert.match(doc, /הנחה/);
+  assert.match(doc, /לאחר הנחה של 200 ₪ לחודש/);
+  assert.match(doc, /לחתימה בתוך 72 שעות מההפקה/);
+  assert.deepEqual(d.errors, []);
+});
+
+await step('draft survives a refresh', async () => {
+  const d = await newPage();
+  await d.goto(BASE, { waitUntil: 'networkidle' });
+  await d.locator('#start-quote').click();
+  await d.locator('label[for="paid-photographer"]').click();
+  await d.locator('#c-name').fill('טיוטה שנשמרה');
+  await d.reload({ waitUntil: 'networkidle' });
+  assert.ok(await d.locator('#start').isHidden(), 'start screen skipped');
+  assert.equal(await d.locator('#c-name').inputValue(), 'טיוטה שנשמרה');
+  assert.equal(await text(d, '#t-mnet'), '5,900 ₪');
+});
+
+await step('quote link: disclaimer and validity; expired link cannot be signed', async () => {
+  const [q] = [...db.values()].filter((x) => x.model.docType === 'quote');
+  const c = await newPage();
+  await c.goto(`${BASE}q.html?t=${q.token}`, { waitUntil: 'networkidle' });
+  assert.match(await text(c, '.qd'), /אינו הצעה לכריתת חוזה/);
+  assert.match(await text(c, '.qd'), /בתוקף עד/);
+  const a = [...db.values()].find((x) => x.model.docType === 'agreement' && x.status === 'sent');
+  a.expires_at = new Date(Date.now() - 60e3).toISOString();
+  const e = await newPage({ width: 390, height: 844 });
+  await e.goto(`${BASE}q.html?t=${a.token}`, { waitUntil: 'networkidle' });
+  await e.locator('#expired').waitFor();
+  assert.equal(await text(e, '#status'), 'פג תוקף');
+  assert.ok(await e.locator('#signbox').isHidden());
+  assert.ok(await e.locator('#strip-go').isHidden());
+  assert.match(await text(e, '#expired-text'), /הסכם מעודכן/);
+  await shot(e, '10-expired');
+});
+
+await step('dashboard on mobile: cards show status and actions, expired filter', async () => {
+  const m = await newPage({ width: 390, height: 844 });
+  await m.goto(`${BASE}quotes.html`, { waitUntil: 'networkidle' });
+  await m.locator('#lg-email').fill('seller@astrateg.test');
+  await m.locator('#lg-pass').fill('correct-horse');
+  await m.locator('#lg-submit').click();
+  await m.locator('#rows tr').first().waitFor();
+  const overflow = await m.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  assert.ok(overflow <= 0, `horizontal overflow ${overflow}px`);
+  const pill = m.locator('#rows .pill').first();
+  const box = await pill.boundingBox();
+  assert.ok(box && box.x >= 0 && box.x + box.width <= 390, 'status visible');
+  assert.ok(await m.locator('#filters button', { hasText: 'פג תוקף' }).isVisible());
+  assert.match(await text(m, '#rows'), /פג תוקף/);
+  await shot(m, '11-dashboard-mobile');
 });
 
 await step('mobile builder: price bar visible, no horizontal scroll', async () => {

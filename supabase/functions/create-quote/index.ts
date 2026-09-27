@@ -43,6 +43,7 @@ function cleanSelection(raw: any) {
       simeonJoin: raw?.free?.simeonJoin,
       extraCh14: raw?.free?.extraCh14,
     },
+    discount: raw?.discount ?? 0,
   };
   validateSelection(sel);
   return sel;

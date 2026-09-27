@@ -5,10 +5,14 @@ export const VAT_RATE_PERCENT = 18;
 
 // Document types chosen before building: a quote is informational only;
 // an agreement adds the legal terms and requires the client's signature.
+// validHours: how long the link stays valid (quote) or signable (agreement).
 export const DOC_TYPES = {
-  quote: { id: 'quote', name: 'הצעת מחיר', signable: false },
-  agreement: { id: 'agreement', name: 'הסכם התקשרות', signable: true },
+  quote: { id: 'quote', name: 'הצעת מחיר', signable: false, validHours: 48 },
+  agreement: { id: 'agreement', name: 'הסכם התקשרות', signable: true, validHours: 72 },
 };
+
+// Optional monthly discount a seller may give on any package, in agorot.
+export const MAX_DISCOUNT = 20000;
 export const TERM_MONTHS = 12;
 
 export const INFLUENCERS = {

@@ -2,7 +2,7 @@ import {
   supabase, currentStaff, quoteLink, explainError,
   sendPasswordReset, consumeRecoveryLink, looksLikeEmail, RESET_NEEDS_EMAIL, RESET_SENT,
 } from './supa.js';
-import { h, formatDate } from './quote-doc.js';
+import { h, formatDate, whatsappLink } from './quote-doc.js';
 import { formatILS } from './pricing.js';
 
 const $ = (id) => document.getElementById(id);
@@ -15,10 +15,13 @@ const STATUS = {
   shared: 'נשלח לצפייה',
   seen: 'נצפה',
   signed: 'נחתם',
+  expired: 'פג תוקף',
   cancelled: 'בוטל',
 };
+const OPEN = ['sent', 'viewed', 'shared', 'seen'];
 // View-only quotes have no signing step: they are either shared or seen.
 const statusOf = (q) => {
+  if (q.status === 'sent' && q.expires_at && new Date(q.expires_at) < new Date()) return 'expired';
   if (q.status === 'sent' && q.signable === 'false') return q.first_viewed_at ? 'seen' : 'shared';
   return q.status === 'sent' && q.first_viewed_at ? 'viewed' : q.status;
 };
@@ -54,8 +57,8 @@ function renderStats() {
 }
 
 function renderFilters() {
-  const opts = [['all', 'הכול'], ['open', 'ממתינות'], ['signed', 'נחתמו'], ['cancelled', 'בוטלו']];
-  const n = (k) => quotes.filter((q) => k === 'all' || (k === 'open' ? ['sent', 'viewed', 'shared', 'seen'].includes(statusOf(q)) : statusOf(q) === k)).length;
+  const opts = [['all', 'הכול'], ['open', 'ממתינות'], ['signed', 'נחתמו'], ['expired', 'פג תוקף'], ['cancelled', 'בוטלו']];
+  const n = (k) => quotes.filter((q) => k === 'all' || (k === 'open' ? OPEN.includes(statusOf(q)) : statusOf(q) === k)).length;
   $('filters').replaceChildren(...opts.map(([k, label]) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(filter === k),
     onclick: () => { filter = k; renderFilters(); renderRows(); },
@@ -83,24 +86,29 @@ function renderRows() {
   const list = quotes.filter((q) => {
     const s = statusOf(q);
     if (filter === 'all') return true;
-    if (filter === 'open') return ['sent', 'viewed', 'shared', 'seen'].includes(s);
+    if (filter === 'open') return OPEN.includes(s);
     return s === filter;
   });
   $('rows').replaceChildren(...list.map((q) => {
     const s = statusOf(q);
     const link = quoteLink(q.token);
     const when = s === 'signed' ? formatDate(q.signed_at, true) : (s === 'viewed' || s === 'seen') ? formatDate(q.first_viewed_at, true) : '';
+    const open = OPEN.includes(s);
+    const agreement = q.signable !== 'false';
+    const reminder = `שלום ${q.client_name}, רק מזכירים ש${agreement ? 'הסכם ההתקשרות' : 'הצעת המחיר'} מאסטרטג (${q.number}) ממתינ${agreement ? '' : 'ה'} לך כאן${q.expires_at ? `, ${agreement ? 'לחתימה' : 'בתוקף'} עד ${formatDate(q.expires_at, true)}` : ''}:\n${link}`;
     return h('tr', {},
-      h('td', {}, h('span', { class: 'num', dir: 'ltr' }, q.number), h('small', { class: 'doc-type' }, q.doc || 'הצעת מחיר')),
-      h('td', { class: 'client' }, q.client_name, q.signer_name && s === 'signed' ? h('small', {}, `נחתם ע״י ${q.signer_name}`) : null),
-      h('td', { class: 'client' }, h('span', { dir: 'auto' }, q.tier || ''), h('small', {}, q.influencer || '')),
-      h('td', { class: 'amt', dir: 'ltr' }, formatILS(q.monthly_gross_agorot)),
-      h('td', {}, formatDate(q.created_at), h('small', { style: 'display:block;color:var(--muted);font-size:12px' }, q.created_by_email || '')),
-      h('td', {}, h('span', { class: `pill ${s}` }, STATUS[s], when ? h('small', {}, ` · ${when}`) : null)),
-      h('td', {}, h('div', { class: 'acts' },
+      h('td', { 'data-label': 'מספר' }, h('span', { class: 'num', dir: 'ltr' }, q.number), h('small', { class: 'doc-type' }, q.doc || 'הצעת מחיר')),
+      h('td', { class: 'client', 'data-label': 'לקוח' }, q.client_name, q.signer_name && s === 'signed' ? h('small', {}, `נחתם ע״י ${q.signer_name}`) : null),
+      h('td', { class: 'client', 'data-label': 'חבילה' }, h('span', { dir: 'auto' }, q.tier || ''), h('small', {}, q.influencer || '')),
+      h('td', { class: 'amt', dir: 'ltr', 'data-label': 'לחודש' }, formatILS(q.monthly_gross_agorot)),
+      h('td', { 'data-label': 'נוצר' }, formatDate(q.created_at), h('small', { class: 'by' }, q.created_by_email || '')),
+      h('td', { 'data-label': 'סטטוס' }, h('span', { class: `pill ${s}` }, STATUS[s], when ? h('small', {}, ` · ${when}`) : null),
+        open && q.expires_at ? h('small', { class: 'until' }, `${agreement ? 'לחתימה' : 'בתוקף'} עד ${formatDate(q.expires_at, true)}`) : null),
+      h('td', { class: 'acts-cell' }, h('div', { class: 'acts' },
+        open ? h('a', { class: 'btn btn-sm btn-ghost', href: whatsappLink(q.phone, reminder), target: '_blank', rel: 'noopener' }, 'תזכורת בוואטסאפ') : null,
         s !== 'cancelled' ? h('a', { class: 'btn btn-sm btn-ghost', href: link, target: '_blank', rel: 'noopener' }, 'פתיחה') : null,
         s !== 'cancelled' ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => copy(link) }, 'העתקת קישור') : null,
-        ['sent', 'viewed', 'shared', 'seen'].includes(s)
+        open
           ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: (e) => cancel(q, e.currentTarget) }, 'ביטול')
           : null,
       )),
@@ -114,7 +122,7 @@ async function loadQuotes() {
   $('state').textContent = 'טוען…';
   const { data, error } = await supabase
     .from('quotes')
-    .select('id, token, number, client_name, monthly_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer, doc:model->>docTitle, signable:model->>signable')
+    .select('id, token, number, client_name, monthly_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer, doc:model->>docTitle, signable:model->>signable, expires_at, phone:model->client->>phone')
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) { $('state').textContent = explainError(error); return; }

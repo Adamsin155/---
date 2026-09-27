@@ -118,6 +118,11 @@
 }
 .qd-table tr.total th { padding-inline-start: 12px; border-radius: 0 8px 8px 0; }
 .qd-table tr.total td:last-child { padding-inline-end: 12px; border-radius: 8px 0 0 8px; }
+.qd-table tr.total td.amt { padding-inline-start: 20px; }
+.qd-table tr.discount th, .qd-table tr.discount td { color: #0B7A4B; }
+.qd-valid { color: var(--qd-pink); font-weight: 500; }
+.qd-disclaimer { margin: 10px 0 0; font-size: 12px; color: var(--qd-muted); line-height: 1.55; }
+.qd-consent { margin: 8px 0 0; font-size: 11.5px; color: var(--qd-ink-2); line-height: 1.5; }
 .qd-terms {
   margin: 14px 0 0; padding: 12px 14px; border-radius: 10px; border: 1px dashed #CFD4E2;
   font-size: 12.5px; color: var(--qd-ink-2);
@@ -165,6 +170,7 @@
   .qd-sign-grid { grid-template-columns: 1fr; }
   .qd-table .amt { padding-inline-start: 12px; width: auto; }
   .qd-table tr.total th, .qd-table tr.total td { font-size: 13.5px; }
+  .qd-table tr.total td.amt { padding-inline-start: 12px; }
   .qd-table tbody th { font-size: 13px; }
 }
 

@@ -281,6 +281,12 @@ legend { padding: 0; }
 .group-head { display: flex; align-items: baseline; gap: 4px 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .group-head h3 { margin: 0; font-size: 16px; white-space: nowrap; }
 .group-head .meta { font-size: 13px; color: var(--muted); }
+.val.is-discount { color: var(--ok); }
+.discount { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.discount-input { position: relative; inline-size: 140px; }
+.discount-input .input { padding-inline-end: 34px; font-family: var(--mono); }
+.discount-input span { position: absolute; inset-inline-end: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.discount-hint { margin: 0; color: var(--muted); font-size: 13px; flex: 1 1 220px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
 .tile {
   display: flex; flex-direction: column; gap: 6px; min-height: 148px;

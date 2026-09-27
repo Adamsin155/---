@@ -29,6 +29,14 @@ export function formatDate(value, withTime = false) {
   return (withTime ? dateTimeFmt : dateFmt).format(d);
 }
 
+// WhatsApp link, straight to the client's chat when the phone number is usable.
+export function whatsappLink(phone, text) {
+  let d = String(phone || '').replace(/\D/g, '');
+  if (d.startsWith('0')) d = `972${d.slice(1)}`;
+  const to = d.length >= 11 && d.length <= 15 ? d : '';
+  return `https://wa.me/${to}?text=${encodeURIComponent(text)}`;
+}
+
 const money = (agorot) => h('span', { class: 'num', dir: 'ltr' }, formatILS(agorot));
 
 // Provider details for documents saved before they were stored in the model.
@@ -48,8 +56,8 @@ function sectionHead(title, aside) {
   return h('div', { class: 'qd-sec-head' }, h('h2', {}, title), aside ? h('span', { class: 'qd-aside' }, aside) : null);
 }
 
-// meta: { number, createdAt, docHash, logoSrc, signOnline,
-//         signature: { name, signedAt, png, hash } }
+// meta: { number, createdAt, validUntil, docHash, logoSrc, signOnline,
+//         signature: { name, signedAt, png, hash, consent } }
 export function renderQuoteDoc(model, meta = {}) {
   const t = model.totals;
   const c = model.client;
@@ -59,6 +67,10 @@ export function renderQuoteDoc(model, meta = {}) {
   const title = model.docTitle || 'הצעת מחיר';
   const isAgreement = model.docType === 'agreement';
   const provider = model.provider || PROVIDER_FALLBACK;
+  const validUntil = meta.validUntil || model.validUntil;
+  const validity = validUntil
+    ? `${isAgreement ? 'לחתימה עד' : 'בתוקף עד'} ${formatDate(validUntil, true)}`
+    : model.validHours ? `${isAgreement ? 'לחתימה בתוך' : 'בתוקף'} ${model.validHours} שעות מההפקה` : null;
 
   const header = h('header', { class: 'qd-top' },
     h('div', { class: 'qd-titles' },
@@ -68,6 +80,7 @@ export function renderQuoteDoc(model, meta = {}) {
         h('span', {}, 'מס׳ ', h('b', { class: 'num', dir: 'ltr' }, number || 'טיוטה')),
         h('span', {}, formatDate(createdAt)),
         h('span', {}, `${model.termMonths} חודשים`),
+        validity ? h('span', { class: 'qd-valid' }, validity) : null,
       ),
     ),
     h('img', { class: 'qd-logo', src: meta.logoSrc || 'app/assets/logo.png', alt: 'astrateg' }),
@@ -151,12 +164,20 @@ export function renderQuoteDoc(model, meta = {}) {
       h('tbody', {},
         priceRow(`חבילה · ${pkg.tierName}`, pkg.monthly),
         model.paid.map((p) => priceRow(p.name, p.monthly)),
+        t.discount ? h('tr', { class: 'discount' },
+          h('th', { scope: 'row' }, 'הנחה'),
+          h('td', { class: 'amt' }, h('span', { class: 'num', dir: 'ltr' }, `−${formatILS(t.discount)}`)),
+          h('td', { class: 'amt' }, h('span', { class: 'num', dir: 'ltr' }, `−${formatILS(t.discount * model.termMonths)}`)),
+        ) : null,
         priceRow('סה״כ לפני מע״מ', t.monthlyNet, 'sub'),
         priceRow(`מע״מ ${model.vatRate}%`, t.monthlyVat),
         priceRow('סה״כ כולל מע״מ', t.monthlyGross, 'total'),
       ),
     ),
     h('p', { class: 'qd-terms' }, model.terms || termsText(model.selection)),
+    isAgreement ? null : h('p', { class: 'qd-disclaimer' },
+      'מסמך זה הוא הצעת מחיר לעיון בלבד, ואינו הצעה לכריתת חוזה. ההתקשרות תיכנס לתוקף רק בחתימה על הסכם ההתקשרות של אסטרטג. '
+      + `ההצעה בתוקף ${model.validHours || 48} שעות ממועד הפקתה, וזמינות המשפיענים כפופה לאישור במועד החתימה.`),
   );
 
   const notes = c.notes ? h('section', { class: 'qd-section' },
@@ -181,6 +202,7 @@ export function renderQuoteDoc(model, meta = {}) {
       h('div', { class: 'qd-strong' }, sig.name),
       h('img', { src: sig.png, alt: `חתימה של ${sig.name}` }),
       h('div', { class: 'qd-muted' }, `נחתם ב־${formatDate(sig.signedAt, true)}`),
+      sig.consent ? h('p', { class: 'qd-consent' }, `החותם אישר: ״${sig.consent}״`) : null,
     )
     : h('div', { class: 'qd-sign-box' },
       h('div', { class: 'qd-label' }, 'הלקוח'),
