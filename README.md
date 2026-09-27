@@ -10,6 +10,8 @@
 | `q.html?t=…` | הלקוח | צופה בהצעה, מקליד שם, חותם ומאשר |
 | `quotes.html` | צוות | רשימת ההצעות שנשלחו, סטטוס (ממתין, נצפה, נחתם, בוטל), העתקת קישור וביטול |
 
+**למפתח שמשלב את המערכת במערכת אחרת:** [מסמך מסירה](docs/HANDOFF.md).
+
 ## איך זה בנוי
 
 - **אתר סטטי** (HTML, CSS ו־JavaScript, בלי שלב בנייה) שמתארח ב־GitHub Pages.
@@ -36,7 +38,7 @@
 
 ```bash
 npm install
-npm test                                # מנוע התמחור: מקרי הקבלה ו־34 צירופים
+npm test                                # מנוע התמחור: מקרי הקבלה, 34 צירופים, הנחה, תוקף ונוסח ההסכם
 npx http-server -p 8080 . & node tests/e2e.mjs   # תהליך מלא בדפדפן מול שרת מדומה
 ```
 
@@ -46,11 +48,11 @@ npx http-server -p 8080 . & node tests/e2e.mjs   # תהליך מלא בדפדפ�
 index.html, q.html, quotes.html
 app/        catalog.js, pricing.js, quote-doc.js, builder.js, client.js, dashboard.js, supa.js
 app/styles/ app.css (ממשק), quote.css (מסמך ההצעה), client.css, quotes.css
-app/fonts/  IBM Plex Sans Hebrew + IBM Plex Mono (OFL), מתארחים מקומית
+app/fonts/  Rubik + JetBrains Mono (OFL), מתארחים מקומית
 app/vendor/ supabase-js (MIT)
 supabase/   migrations, functions/create-quote
 docs/       כללי תמחור, חלוקת אחריות, מדריך מותג, מחקר
-.claude/agents/  סוכני UX, עיצוב, טכנולוגיה, איכות ומחקר
+.claude/agents/  סוכני UX, עיצוב, טכנולוגיה, איכות, מחקר ועוזר משפטי
 ```
 
 שינוי מחיר, כמות, זכאות או נוסח ההסכם: מעדכנים את `docs/pricing-rules.md`, `app/catalog.js` או `app/legal.js`, מריצים `npm test`, ופורסים מחדש את הפונקציה `create-quote` (היא כוללת את `app/pricing.js`, `app/catalog.js` ו־`app/legal.js`).
