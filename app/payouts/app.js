@@ -857,7 +857,8 @@ async function openDeal(existing) {
     preview.replaceChildren(...[
       h('h3', {}, 'חישוב העסקה'),
       row(`שווי ל־${TERM_MONTHS} חודשים`, money(l.value)),
-      row(l.payMethod === 'checks' ? 'פיימנט (אין, תשלום בצ׳קים)' : 'פיימנט', money(-l.paymentCommission)),
+      row(l.payMethod === 'checks' ? 'פיימנט (כפי שמוצג למקבלי העמלה)' : 'פיימנט', money(-l.paymentCommission)),
+      l.payMethod === 'checks' ? row('עלות אמיתית: עמלת צ׳קים', h('span', { class: 'muted small' }, money(-l.paymentReal), l.deferred ? ' עכשיו' : ''), 'sub') : null,
       l.items.map((it) => row(`${it.name}${it.qty > 1 ? ` ×${it.qty}` : ''} · ${SOURCE_LABEL[it.source]}`, it.commission === 0 && [...warns].some((w) => w.endsWith(it.id)) ? h('span', { class: 'warn-text' }, 'עלות לא הוגדרה') : money(-it.commission), 'sub')),
       row('בסיס עמלה', money(l.base), 'strong'),
       l.deferred ? row(`עכשיו ${CHECKS_UPFRONT} מתוך ${l.installments} צ׳קים; היתרה ב${monthLabel(l.deferred.month)}`, h('span', { class: 'muted small' }, `הכנסה עכשיו `, money(l.value)), 'sub') : null,
@@ -1076,7 +1077,7 @@ function openExpense(existing) {
 
 const KIND_LABEL = {
   commission: 'עמלות', influencer: 'משפיענים', supplier: 'הפקה וספקים', employee: 'משכורות', expense: 'הוצאות',
-  payment: 'פיימנט (מנוכה אוטומטית)', partner: 'שותפים',
+  payment: 'פיימנט ועמלת צ׳קים (מנוכים אוטומטית)', partner: 'שותפים',
 };
 
 function viewPay() {
@@ -1099,7 +1100,7 @@ function viewPay() {
       )),
     )),
     h('div', { class: 'paybar', role: 'group', 'aria-label': 'סיכום תשלומים' },
-      h('span', {}, 'סה״כ לתשלום החודש, בלי פיימנט ושותפים'), money(toPay)),
+      h('span', {}, 'סה״כ לתשלום החודש, בלי פיימנט, צ׳קים ושותפים'), money(toPay)),
   );
 }
 
@@ -1269,10 +1270,11 @@ function viewSettings() {
       h('h2', {}, 'הגדרות בתוקף'),
       h('p', { class: 'muted' }, `ההגדרות שמוצגות כאן בתוקף מ־${current.effectiveFrom}. שמירה יוצרת גרסה חדשה מהתאריך שתבחרו: עסקאות מהתאריך הזה והלאה, ומשכורות והוצאות של החודש שבו הוא נופל, יחושבו לפיה. עסקאות לפני התאריך וחודשים נעולים לא משתנים.`),
       h('div', { class: 'two-col' }, field('בתוקף מתאריך', fromIn, { hint: minDate ? `לא לפני ${minDate} (אחרי החודש הנעול האחרון).` : null }), field('הערה לגרסה', noteIn, { hint: 'לא חובה. למשל: עדכון אחוזי עמלה' }))),
-    section('פיימנט', 'אחוז מההכנסה שיורד ראשון. ״מוצג למקבלי עמלה״ הוא מה שמשמש לחישוב העמלה ומופיע בדוח שלהם.',
-      h('div', { class: 'two-col' },
+    section('פיימנט וצ׳קים', 'אחוז מההכנסה שיורד ראשון. ״מוצג למקבלי עמלה״ משמש לחישוב העמלה ומופיע בדוח שלהם, גם בעסקאות צ׳קים. העלות האמיתית (פיימנט או צ׳קים) משמשת לחישוב הרווח.',
+      h('div', { class: 'three-col' },
         pctField('אחוז אמיתי', () => s.payment.realBp, (v) => { s.payment.realBp = v; }),
-        pctField('מוצג למקבלי עמלה', () => s.payment.commissionBp, (v) => { s.payment.commissionBp = v; }))),
+        pctField('מוצג למקבלי עמלה', () => s.payment.commissionBp, (v) => { s.payment.commissionBp = v; }),
+        pctField('עמלת צ׳קים אמיתית (%)', () => s.payment.checksRealBp ?? s.payment.realBp, (v) => { s.payment.checksRealBp = v; }))),
     listSection('מקבלי עמלה', 'אחוז מבסיס העמלה, לפי משפחת המשפיענים של העסקה.', s.commissionPeople,
       (p, ctx) => h('div', { class: 'three-col' },
         textField('שם', () => p.name, (v) => { p.name = v; }, { context: ctx }),

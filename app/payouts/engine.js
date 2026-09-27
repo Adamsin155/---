@@ -208,13 +208,16 @@ function splitCheques(line) {
   if (line.payMethod !== 'checks' || n <= CHECKS_UPFRONT) return line;
   const part = (a) => Math.round((a * CHECKS_UPFRONT) / n);
   const nowValue = part(line.value);
+  const nowFee = part(line.paymentReal);
   const now = line.commissions.map((c) => ({ ...c, full: c.amount, amount: part(c.amount) }));
   line.deferred = {
     month: shiftMonth(line.date.slice(0, 7), DEFER_MONTHS),
     value: line.value - nowValue,
+    paymentReal: line.paymentReal - nowFee,
     commissions: line.commissions.map((c, i) => ({ ...c, full: c.amount, amount: c.amount - now[i].amount })),
   };
   line.value = nowValue;
+  line.paymentReal = nowFee;
   line.commissions = now;
   return line;
 }
@@ -241,11 +244,13 @@ function computeDealFull(deal, settings, warn = () => {}) {
   }));
   const deductions = items.reduce((s, it) => s + it.commission, 0);
   const itemsReal = items.reduce((s, it) => s + it.real, 0);
-  // Cheques do not go through the payment processor, so no fee is taken.
+  // Cheques: commission earners are shown the same fee as the payment
+  // processor; the real cost to the business is the cheque fee.
   const checks = deal.payMethod === 'checks';
   const n = checks ? deal.installments : null;
   if (checks && !(Number.isInteger(n) && n >= 1 && n <= TERM_MONTHS)) throw new Error('cheque deals need 1–12 instalments');
-  const side = commissionSide(value, family, deductions, settings, checks ? 0 : undefined);
+  const side = commissionSide(value, family, deductions, settings);
+  const realFeeBp = checks ? (settings.payment.checksRealBp ?? settings.payment.realBp) : settings.payment.realBp;
 
   const prodKey = custom ? packageId('social', sel.influencer) : pid;
   const prod = settings.production?.[prodKey];
@@ -277,7 +282,7 @@ function computeDealFull(deal, settings, warn = () => {}) {
     value,
     payMethod: checks ? 'checks' : 'payment',
     installments: n,
-    paymentReal: checks ? 0 : applyBp(value, settings.payment.realBp),
+    paymentReal: applyBp(value, realFeeBp),
     paymentCommission: side.payment,
     items,
     deductions,
@@ -414,7 +419,7 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
       lines.push({
         kind: 'deferred', id: d.id, date: monthBounds(month).first, dealDate: d.date, client: d.client,
         packageName: orig.packageName, family: orig.family, payMethod: 'checks', installments: d.installments,
-        value: orig.deferred.value, paymentReal: 0, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0,
+        value: orig.deferred.value, paymentReal: orig.deferred.paymentReal, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0,
         base: orig.base, closerFee: null, production: { influencer: 0, photographer: 0, makeup: 0 },
         commissions: orig.deferred.commissions,
       });
@@ -529,7 +534,7 @@ export function payeesOf(report, ms) {
   };
   const names = ms.payees || {};
   for (const l of report.lines) {
-    add('פיימנט', 'payment', l.client, l.paymentReal);
+    add(l.payMethod === 'checks' ? 'עמלת צ׳קים' : 'פיימנט', 'payment', l.client, l.paymentReal);
     const who = l.kind === 'deal' ? `${l.client} · ${l.packageName}${l.deferred ? ` · ${CHECKS_UPFRONT} מתוך ${l.installments} צ׳קים` : ''}`
       : l.kind === 'clawback' ? `קיזוז: ${l.client} בוטלה אחרי ${l.paidMonths} חודשים`
         : l.kind === 'deferred' ? `${l.client} · יתרת ${l.installments - CHECKS_UPFRONT} מתוך ${l.installments} צ׳קים` : l.client;

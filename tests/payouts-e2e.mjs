@@ -20,7 +20,7 @@ const jwt = (u) => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: u.id, emai
 const USERS = { 'owner@astrateg.test': OWNER, 'seller@astrateg.test': OTHER };
 
 const SETTINGS = {
-  payment: { realBp: 800, commissionBp: 1000 },
+  payment: { realBp: 800, commissionBp: 1000, checksRealBp: 450 },
   commissionPeople: [
     { id: 'a', name: 'מוכרת בדיקה', rates: { simeon: 1000, natali: 2000 } },
     { id: 'b', name: 'מנהל בדיקה', rates: { simeon: 500, natali: 500 } },
@@ -397,6 +397,9 @@ await dlg.getByRole('radio', { name: 'צ׳קים' }).check();
 await dlg.getByLabel('מספר הצ׳קים').selectOption('12');
 await dlg.locator('.preview').getByText(/עכשיו 6 מתוך 12 צ׳קים/).waitFor();
 assert.ok((await dlg.locator('.preview').innerText()).includes('23,400'), 'half the revenue now');
+// Shown fee 10% of 46,800 = 4,680; real cheque fee 4.5% = 2,106, half now = 1,053.
+assert.ok((await dlg.locator('.preview').innerText()).includes('4,680'), 'shown processor fee');
+assert.ok((await dlg.locator('.preview').innerText()).includes('1,053'), 'real cheque fee, half now');
 await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 const cheque = tables.payout_deals.find((d) => d.client === 'לקוח צ׳קים');

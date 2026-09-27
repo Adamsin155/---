@@ -13,7 +13,7 @@ const ils = (n) => Math.round(n * 100);
 
 // Synthetic settings, deliberately round and unlike the real ones.
 const S = () => ({
-  payment: { realBp: 1000, commissionBp: 1000 },
+  payment: { realBp: 1000, commissionBp: 1000, checksRealBp: 300 },
   commissionPeople: [
     { id: 'a', name: 'מוכר א', rates: { simeon: 1000, natali: 2000 } },
     { id: 'b', name: 'מוכר ב', rates: { simeon: 500, natali: 500 } },
@@ -388,14 +388,19 @@ test('monthly variable costs: fuel, depreciation, meetings at the set rate', () 
   assert.equal(st.extras[0].amount, ils(280));
 });
 
-test('cheques: no payment fee; up to 6 cheques books everything now', () => {
+test('cheques: shown fee as with the processor, real cheque fee; up to 6 cheques books everything now', () => {
   const d = { ...deal('social', 'natali', { date: '2026-03-10' }), payMethod: 'checks', installments: 6 };
   const l = computeDeal(d, S());
-  assert.equal(l.paymentReal, 0);
-  assert.equal(l.paymentCommission, 0);
-  assert.equal(l.base, ils(46800));
+  assert.equal(l.paymentCommission, ils(4680), 'commission earners see the processor fee');
+  assert.equal(l.paymentReal, ils(1404), 'real cost is the cheque fee (3%)');
+  assert.equal(l.base, ils(42120));
   assert.equal(l.value, ils(46800));
-  assert.equal(commission(l, 'a'), ils(9360));
+  assert.equal(commission(l, 'a'), ils(8424));
+  const r = computeMonth({ month: '2026-03', deals: [d], versions: V() });
+  assert.equal(r.payees.find((p) => p.kind === 'payment').name, 'עמלת צ׳קים');
+  const noSetting = S();
+  delete noSetting.payment.checksRealBp;
+  assert.equal(computeDeal(d, noSetting).paymentReal, ils(4680), 'falls back to the processor fee');
   assert.equal(l.deferred, undefined);
   const sep = computeMonth({ month: '2026-09', deals: [d], versions: V() });
   assert.equal(sep.lines.length, 0, 'nothing deferred');
@@ -406,13 +411,15 @@ test('cheques: 12 cheques book half now and half six months later', () => {
   const d = { ...deal('social', 'natali', { date: '2026-03-10' }), payMethod: 'checks', installments: 12 };
   const mar = computeMonth({ month: '2026-03', deals: [d], versions: V() });
   assert.equal(mar.totals.revenue, ils(23400));
-  assert.equal(mar.lines[0].commissions[0].amount, ils(4680), 'half of 9,360');
+  assert.equal(mar.lines[0].commissions[0].amount, ils(4212), 'half of 8,424');
+  assert.equal(mar.totals.paymentReal, ils(702), 'half of the cheque fee now');
   const sep = computeMonth({ month: '2026-09', deals: [d], versions: V() });
   assert.equal(sep.lines.length, 1);
   assert.equal(sep.lines[0].kind, 'deferred');
   assert.equal(sep.totals.revenue, ils(23400));
-  assert.equal(sep.lines[0].commissions[0].amount, ils(4680));
-  assert.equal(commissionStatement(sep, 'a').total, ils(4680));
+  assert.equal(sep.lines[0].commissions[0].amount, ils(4212));
+  assert.equal(sep.totals.paymentReal, ils(702), 'rest of the cheque fee later');
+  assert.equal(commissionStatement(sep, 'a').total, ils(4212));
   const t = sep.totals;
   assert.equal(t.revenue, t.paymentReal + t.commissions + t.production + t.itemsReal + t.closerFees + t.fixed + t.profit);
   const aug = computeMonth({ month: '2026-08', deals: [d], versions: V() });
