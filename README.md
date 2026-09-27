@@ -12,7 +12,19 @@
 
 **למפתח שמשלב את המערכת במערכת אחרת:** [מסמך מסירה](docs/HANDOFF.md).
 
-**בפיתוח: מערכת התשלומים החודשית** — הזנת עסקאות וחישוב חודשי של עמלות, תשלומים לספקים, משכורות, הוצאות וחלוקת רווח. השיטה ב־[כללי החישוב](docs/payouts/rules.md). הערכים העסקיים (שכר, אחוזים, עלויות) לא נשמרים בריפו, כי הוא ציבורי.
+## מערכת התשלומים החודשית
+
+`payouts/` — אפליקציה לבעלים בלבד (אפשר להוסיף אותה למסך הבית בטלפון). מזינים עסקאות שנסגרו, הכנסה נוספת והוצאות חד־פעמיות, והמערכת מחשבת לכל חודש קלנדרי עמלות, תשלומים למשפיענים ולספקים, משכורות, הוצאות קבועות וחלוקת רווח לשותפים. לכל מקבל עמלה יש דוח להצגה שמראה רק את הניכויים לחישוב העמלה.
+
+- **כתובת:** https://adamsin155.github.io/---/payouts/
+- **שיטת החישוב:** [כללי החישוב](docs/payouts/rules.md). המנוע: `app/payouts/engine.js`.
+- **הערכים העסקיים** (אחוזים, עלויות, משכורות, שותפים) נשמרים ב־Supabase בטבלה `payout_settings` ונערכים ממסך ״הגדרות״. הם **לא** נשמרים בריפו, כי הוא ציבורי. עותק מקומי נמצא ב־`private/` (מוחרג מ־git).
+- **גישה:** רק משתמשים בטבלה `payout_owners`, שנפרדת מ־`staff` של הצעות המחיר. הוספת בעלים: יוצרים משתמש ב־Authentication → Users (*Add user*, *Auto Confirm User*) ומריצים ב־SQL Editor:
+  ```sql
+  insert into public.payout_owners (user_id, email)
+  select id, email from auth.users where email = 'name@astrateg.com';
+  ```
+- **נעילת חודש:** אחרי תשלום סוגרים את החודש במסך ״החודש״. השרת חוסם שינוי עסקאות, הכנסות, הוצאות והגדרות שנוגעים לחודש נעול.
 
 ## איך זה בנוי
 
@@ -40,15 +52,18 @@
 
 ```bash
 npm install
-npm test                                # מנוע התמחור: מקרי הקבלה, 34 צירופים, הנחה, תוקף ונוסח ההסכם
+npm test                                # מנוע התמחור ומנוע התשלומים (מקרה האקסל רץ רק כשקיים private/)
 npx http-server -p 8080 . & node tests/e2e.mjs   # תהליך מלא בדפדפן מול שרת מדומה
+node tests/payouts-e2e.mjs                       # מערכת התשלומים בדפדפן, בטלפון ובמחשב, מול שרת מדומה
 ```
 
 ## מבנה
 
 ```
 index.html, q.html, quotes.html
+payouts/    אפליקציית התשלומים: index.html, manifest, אייקונים
 app/        catalog.js, pricing.js, quote-doc.js, builder.js, client.js, dashboard.js, supa.js
+app/payouts/ engine.js (חישוב), data.js (Supabase), app.js (מסכים)
 app/styles/ app.css (ממשק), quote.css (מסמך ההצעה), client.css, quotes.css
 app/fonts/  Rubik + JetBrains Mono (OFL), מתארחים מקומית
 app/vendor/ supabase-js (MIT)

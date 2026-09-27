@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>תשלומים · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#031432">
+  <meta name="apple-mobile-web-app-title" content="תשלומים">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../app/fonts/fonts.css">
+  <link rel="stylesheet" href="../app/styles/payouts.css">
+</head>
+<body>
+  <a class="skip" href="#main">דילוג לתוכן</a>
+  <header class="appbar">
+    <div class="brand">
+      <span class="brand-chip"><img src="../app/assets/logo-mark.png" alt=""></span>
+      <span class="brand-name">astrateg</span>
+      <span class="brand-product">תשלומים</span>
+    </div>
+    <button type="button" class="appbar-btn" id="btn-account" hidden aria-haspopup="dialog">חשבון</button>
+  </header>
+
+  <nav class="nav" id="nav" aria-label="ניווט ראשי" hidden>
+    <a href="#/month" data-route="month"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m6 10V5m6 14v-7m4 7H3"/></svg><span>החודש</span></a>
+    <a href="#/deals" data-route="deals"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 0 1 2-2zm2 5h6m-6 4h6"/></svg><span>עסקאות</span></a>
+    <button type="button" class="nav-add" id="nav-add"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>עסקה חדשה</span></button>
+    <a href="#/pay" data-route="pay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v10H3zM3 11h18M7 15h3"/></svg><span>תשלומים</span></a>
+    <a href="#/settings" data-route="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14.5 3h-5l-.4 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2l.4 2.6h5l.4-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/></svg><span>הגדרות</span></a>
+  </nav>
+
+  <main id="main" tabindex="-1">
+    <div class="monthbar" id="monthbar" hidden>
+      <button type="button" class="icon-btn" id="m-prev" aria-label="החודש הקודם"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      <h1 class="monthbar-title"><span id="m-title"></span><span class="lock-tag" id="m-lock" hidden>נעול</span></h1>
+      <button type="button" class="icon-btn" id="m-next" aria-label="החודש הבא"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+    </div>
+    <div id="view"></div>
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <dialog id="dlg" aria-labelledby="dlg-title">
+    <form method="dialog" class="sheet" id="dlg-form" novalidate>
+      <div class="sheet-head">
+        <h2 id="dlg-title"></h2>
+        <button type="button" class="icon-btn" data-close aria-label="סגירה"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="sheet-body" id="dlg-body"></div>
+      <div class="sheet-foot" id="dlg-foot"></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script type="module" src="../app/payouts/app.js"></script>
+</body>
+</html>
