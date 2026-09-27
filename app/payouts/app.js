@@ -1,9 +1,8 @@
 // Payouts app: screens, forms and dialogs. Calculations live in engine.js,
 // database access in data.js. User text is always rendered as text nodes.
 import {
-  supabase, sendPasswordReset, consumeRecoveryLink, looksLikeEmail, RESET_NEEDS_EMAIL, RESET_SENT,
-} from '../supa.js';
-import { h } from '../quote-doc.js';
+  supabase, sendPasswordReset, consumeRecoveryLink, looksLikeEmail, RESET_NEEDS_EMAIL, RESET_SENT, h,
+} from './client.js';
 import { reconcile, paidAddonAvailable, freeAddonAvailable } from '../pricing.js';
 import { PACKAGES, PAID_ADDONS, TIERS, INFLUENCERS, FREE_ADDONS, TERM_MONTHS, packageId } from '../catalog.js';
 import {

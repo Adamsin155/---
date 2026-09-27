@@ -213,6 +213,11 @@ const page = await newPage({ width: 390, height: 844 });
 await login(page, OWNER.email);
 await page.getByRole('heading', { name: /ספטמבר 2026/ }).waitFor();
 await shot(page, 'phone-month-empty');
+// The payouts session is stored apart from the quote builder's session.
+const keys = await page.evaluate(() => Object.keys(localStorage));
+assert.ok(keys.includes('astrateg-payment-auth'), `own session key (${keys})`);
+assert.ok(!keys.some((k) => k.startsWith('sb-')), `no shared quote-builder session (${keys})`);
+console.log('ok  session kept apart from the quote builder');
 
 await page.getByRole('button', { name: 'עסקה חדשה' }).first().click();
 const dlg = page.getByRole('dialog');

@@ -1,6 +1,6 @@
 // Database access for the payouts app. Every table is owner-only (RLS);
 // this file only maps rows to the shapes engine.js expects.
-import { supabase } from '../supa.js';
+import { supabase } from './client.js';
 import { monthBounds } from './engine.js';
 
 function check({ data, error }) {

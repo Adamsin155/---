@@ -22,8 +22,8 @@ if (existsSync(out)) {
 }
 
 const files = [
-  'app/payouts/app.js', 'app/payouts/data.js', 'app/payouts/engine.js',
-  'app/catalog.js', 'app/pricing.js', 'app/legal.js', 'app/quote-doc.js', 'app/supa.js',
+  'app/payouts/app.js', 'app/payouts/data.js', 'app/payouts/engine.js', 'app/payouts/client.js',
+  'app/catalog.js', 'app/pricing.js', 'app/legal.js',
   'app/styles/payouts.css', 'app/assets/logo.png', 'app/assets/logo-mark.png',
 ];
 for (const f of files) {
