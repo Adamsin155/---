@@ -340,6 +340,7 @@ function viewMonth() {
       h('h2', { id: 'h-break' }, 'מאיפה זה מגיע'),
       row('הכנסות מעסקאות', money(t.dealsRevenue)),
       t.incomeRevenue ? row('הכנסה נוספת', money(t.incomeRevenue)) : null,
+      t.cancelledRevenue ? row('הכנסה שירדה בגלל ביטולים', money(t.cancelledRevenue)) : null,
       row('פיימנט', money(t.paymentReal)),
       row('עמלות', money(t.commissions - (t.clawbacks || 0))),
       t.clawbacks ? row('קיזוז עמלות מעסקאות שבוטלו', money(t.clawbacks)) : null,
@@ -507,11 +508,11 @@ function viewDeals() {
       h('div', { class: 'row strong' }, h('span', {}, 'רווח מהעסקאות לפני הוצאות קבועות'), signed(lines.reduce((s, l) => s + l.contribution, 0)))) : null,
     clawbacks.length ? h('section', { class: 'card', 'aria-labelledby': 'h-claw' },
       h('h2', { id: 'h-claw' }, 'עסקאות שבוטלו החודש'),
-      h('p', { class: 'muted small' }, 'העמלה מתקזזת לכל מקבלי האחוזים, לפי החודשים שהלקוח לא ישלם.'),
+      h('p', { class: 'muted small' }, 'ההכנסה של החודשים שהלקוח לא ישלם יורדת, והעמלות (אחוזים ועמלת סגירה) מתקזזות באותו יחס.'),
       h('ul', { class: 'list' }, clawbacks.map((l) => h('li', {},
         h('button', { type: 'button', class: 'list-btn', disabled: isLocked() || !dealById.has(l.id), onclick: () => openCancel(dealById.get(l.id)) },
-          h('span', {}, h('bdi', {}, l.client), h('small', {}, `נסגרה ${dateLabel(l.dealDate)} · בוטלה אחרי ${l.paidMonths} חודשים`)),
-          offset(l.commissionTotal)))))) : null,
+          h('span', {}, h('bdi', {}, l.client), h('small', {}, `נסגרה ${dateLabel(l.dealDate)} · בוטלה אחרי ${l.paidMonths} חודשים · הכנסה `, money(l.value))),
+          offset(l.commissionTotal + (l.closerTotal || 0))))))) : null,
   );
 }
 
@@ -551,8 +552,11 @@ async function openCancel(preset) {
     let l;
     try { l = computeDeal(d, v.data); } catch { preview.replaceChildren(h('p', { class: 'warn-text' }, 'העסקה לא תקינה.')); return; }
     const remaining = TERM_MONTHS - Number(monthsIn.value);
+    const share = (a) => -Math.round((a * remaining) / TERM_MONTHS);
     preview.replaceChildren(h('h3', {}, `קיזוז ${remaining} מתוך 12 חודשים`),
-      ...l.commissions.map((c) => h('div', { class: 'row' }, h('span', {}, `${c.name} · עמלה ${formatILS(c.amount)}`), offset(-Math.round((c.amount * remaining) / TERM_MONTHS)))),
+      h('div', { class: 'row' }, h('span', {}, `הכנסה שיורדת (מתוך ${formatILS(l.value)})`), money(share(l.value))),
+      ...l.commissions.map((c) => h('div', { class: 'row' }, h('span', {}, `${c.name} · עמלה ${formatILS(c.amount)}`), offset(share(c.amount)))),
+      ...(l.closerFee ? [h('div', { class: 'row' }, h('span', {}, `${l.closerFee.name} · עמלת סגירה ${formatILS(l.closerFee.amount)}`), offset(share(l.closerFee.amount)))] : []),
       h('p', { class: 'muted small' }, `הקיזוז נרשם בחודש של תאריך הביטול.`));
   };
   dealIn.addEventListener('change', fill);
@@ -975,6 +979,8 @@ function statementText(st) {
     if (r.kind === 'clawback') {
       lines.push(`קיזוז: ${r.client} · ${r.packageName} בוטלה אחרי ${r.paidMonths} חודשים`);
       lines.push(`עמלה מקורית ${formatILS(r.original)} × ${12 - r.paidMonths}/12 = ${formatILS(r.amount)}`, '');
+    } else if (r.kind === 'closer' && r.clawback) {
+      lines.push(`קיזוז עמלת סגירה: ${r.client} בוטלה אחרי ${r.paidMonths} חודשים: ${formatILS(r.amount)}`, '');
     } else if (r.kind === 'closer') {
       lines.push(`עמלת סגירה · ${r.client}: ${formatILS(r.amount)}`, '');
     } else {
@@ -998,6 +1004,12 @@ function statementRow(r) {
     return h('div', { class: 'st-row' },
       head([`בוטלה ב־${dateLabel(r.date)} אחרי ${r.paidMonths} חודשים · `, h('bdi', { dir: 'auto' }, r.packageName)]),
       h('div', { class: 'row' }, h('span', {}, 'עמלה מקורית'), money(r.original)),
+      h('div', { class: 'row strong' }, h('span', {}, `קיזוז · ${12 - r.paidMonths} מתוך 12 חודשים`), offset(r.amount)));
+  }
+  if (r.kind === 'closer' && r.clawback) {
+    return h('div', { class: 'st-row' },
+      head([`בוטלה ב־${dateLabel(r.date)} אחרי ${r.paidMonths} חודשים · `, h('bdi', { dir: 'auto' }, r.packageName || '')]),
+      h('div', { class: 'row' }, h('span', {}, 'עמלת סגירה מקורית'), money(r.original)),
       h('div', { class: 'row strong' }, h('span', {}, `קיזוז · ${12 - r.paidMonths} מתוך 12 חודשים`), offset(r.amount)));
   }
   if (r.kind === 'closer') {

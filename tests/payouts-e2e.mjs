@@ -355,6 +355,9 @@ await page.getByRole('heading', { name: 'עסקאות שבוטלו החודש' }
 // 11/12 of the hand-computed commissions (11,399.20 and 5% × 56,996 = 2,849.80), rounded per person.
 const back = -(Math.round((ils(11399.20) * 11) / 12) + Math.round((ils(2849.80) * 11) / 12));
 assert.ok((await page.locator('#view').innerText()).includes(fmt(-back)), `clawback ${fmt(-back)}`);
+await page.goto(`${BASE}payouts/#/month/2026-10`);
+await page.getByText('הכנסה שירדה בגלל ביטולים').waitFor();
+assert.ok((await page.locator('#view').innerText()).includes('74,800'), 'unpaid 11/12 of 81,600 taken off revenue');
 await page.goto(`${BASE}payouts/#/deals/2026-09`);
 await page.getByText(/בוטלה 20 באוק/).waitFor();
 console.log('ok  cancellation claws back the unpaid months in the cancellation month');

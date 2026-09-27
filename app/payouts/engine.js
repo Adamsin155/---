@@ -322,22 +322,24 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
       l.shootDays = days;
     });
   }
-  // Cancelled deals: everyone on percentages gives back the share of their
-  // commission for the months the client will not pay, in the month of the
-  // cancellation (the deal's own month may already be locked).
+  // Cancelled deals, booked in the month of the cancellation (the deal's own
+  // month may already be locked): the revenue of the months the client will
+  // not pay is taken off, and everyone paid on the deal (percentages and the
+  // closing fee) gives back the same share.
   for (const d of deals.filter((x) => x.cancelledOn && inMonth(x.cancelledOn, month)).sort((a, b) => byDate({ date: a.cancelledOn }, { date: b.cancelledOn }))) {
     const v = settingsOn(versions, d.date) || monthSettings;
     try {
       const orig = computeDeal(d, v.data);
       const remaining = TERM_MONTHS - d.paidMonths;
+      const share = (a) => -Math.round((a * remaining) / TERM_MONTHS);
       lines.push({
         kind: 'clawback', id: d.id, date: d.cancelledOn, dealDate: d.date, client: d.client,
         packageName: orig.packageName, family: orig.family, paidMonths: d.paidMonths,
-        value: 0, paymentReal: 0, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0, base: 0,
-        closerFee: null, production: { influencer: 0, photographer: 0, makeup: 0 },
-        commissions: orig.commissions.map((c) => ({
-          ...c, original: c.amount, amount: -Math.round((c.amount * remaining) / TERM_MONTHS),
-        })),
+        originalValue: orig.value,
+        value: share(orig.value), paymentReal: 0, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0, base: 0,
+        closerFee: orig.closerFee ? { name: orig.closerFee.name, original: orig.closerFee.amount, amount: share(orig.closerFee.amount) } : null,
+        production: { influencer: 0, photographer: 0, makeup: 0 },
+        commissions: orig.commissions.map((c) => ({ ...c, original: c.amount, amount: share(c.amount) })),
       });
     } catch (e) {
       errors.push(`ביטול העסקה ״${d.client}״ לא חושב: ${e.message}`);
@@ -400,6 +402,7 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
     },
     totals: {
       revenue, dealsRevenue: sum(dealLines, (l) => l.value), incomeRevenue: sum(incomeLines, (l) => l.value),
+      cancelledRevenue: sum(lines.filter((l) => l.kind === 'clawback'), (l) => l.value),
       paymentReal, commissions, production, itemsReal, closerFees, clawbacks, variable, fixed,
       employees: sum(employees, (e) => e.amount),
       employerCost: sum(employees, (e) => e.employerCost),
@@ -452,7 +455,7 @@ export function payeesOf(report, ms) {
     const who = l.kind === 'deal' ? `${l.client} · ${l.packageName}`
       : l.kind === 'clawback' ? `קיזוז: ${l.client} בוטלה אחרי ${l.paidMonths} חודשים` : l.client;
     for (const c of l.commissions) add(c.name, 'commission', who, c.amount);
-    if (l.closerFee) add(l.closerFee.name, 'commission', `עמלת סגירה · ${l.client}`, l.closerFee.amount);
+    if (l.closerFee) add(l.closerFee.name, 'commission', l.kind === 'clawback' ? `קיזוז עמלת סגירה: ${l.client} בוטלה אחרי ${l.paidMonths} חודשים` : `עמלת סגירה · ${l.client}`, l.closerFee.amount);
     add(names.influencer?.[l.family] || INFLUENCERS[l.family]?.name, 'influencer', who, l.production.influencer);
     add(names.photographer || 'צלם', 'supplier', who, l.production.photographer);
     add(names.makeup || 'מאפרת', 'supplier', who, l.production.makeup);
@@ -506,7 +509,10 @@ export function commissionStatement(report, who) {
     }
     if (l.closerFee && l.closerFee.name === (name || who)) {
       name = l.closerFee.name;
-      rows.push({ kind: 'closer', date: l.date, client: l.client, packageName: l.packageName, amount: l.closerFee.amount });
+      rows.push({
+        kind: 'closer', clawback: l.kind === 'clawback', paidMonths: l.paidMonths, date: l.date,
+        client: l.client, packageName: l.packageName, original: l.closerFee.original, amount: l.closerFee.amount,
+      });
     }
   }
   name ||= typeof who === 'string' ? who : '';
