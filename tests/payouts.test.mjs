@@ -104,7 +104,6 @@ test('base package: commission on value minus payment only', () => {
 });
 
 test('Social + TV extras over the base package are deducted', () => {
-  // The Natali story is not actually given in Social + TV · Natali (add-on only).
   assert.deepEqual(packageExtras('social-tv-natali').map((x) => [x.id, x.qty]), [['ch14', 1]]);
   assert.deepEqual(packageExtras('social-tv-simeon').map((x) => [x.id, x.qty]),
     [['simeon-day', 1], ['simeon-collab', 2], ['simeon-story', 3], ['ch14', 1]]);

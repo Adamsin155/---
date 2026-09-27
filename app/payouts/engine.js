@@ -122,10 +122,6 @@ export function packageName(sel) {
 
 // ---------- items of a deal ----------
 
-// Items the catalog lists in a package that the business does not actually
-// give there (owner, 27.9: the Natali story is sold only as an add-on).
-const NOT_GIVEN_IN_PACKAGE = { 'social-tv-natali': ['natali-story'] };
-
 export function packageExtras(pid) {
   const pkg = PACKAGES[pid];
   if (!pkg || pkg.tier !== 'social-tv') return [];
@@ -137,7 +133,6 @@ export function packageExtras(pid) {
     if (extra <= 0) continue;
     const id = map[pkg.influencer];
     if (!id) throw new Error(`no cost item for extra ${row} in ${pid}`);
-    if (NOT_GIVEN_IN_PACKAGE[pid]?.includes(id)) continue;
     out.push({ id, qty: extra, source: 'package' });
   }
   return out;
