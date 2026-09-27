@@ -591,11 +591,11 @@ function viewDeals() {
 }
 
 // Whole months between the closing date and the cancellation date (0–12).
-function monthsBetween(from, to) {
+function monthsBetween(from, to, term = TERM_MONTHS) {
   const [fy, fm, fd] = from.split('-').map(Number);
   const [ty, tm, td] = to.split('-').map(Number);
   const m = (ty - fy) * 12 + (tm - fm) - (td < fd ? 1 : 0);
-  return Math.max(0, Math.min(TERM_MONTHS, m));
+  return Math.max(0, Math.min(term, m));
 }
 
 async function openCancel(preset) {
@@ -608,7 +608,8 @@ async function openCancel(preset) {
   const dealIn = h('select', { class: 'input' }, deals.map((d) => h('option', { value: d.id },
     `${d.client} · ${dateLabel(d.date)} ${d.date.slice(0, 4)}${d.cancelledOn ? ' · כבר בוטלה' : ''}`)));
   const dateIn = h('input', { class: 'input', type: 'date', value: defaultDealDate() });
-  const monthsIn = h('select', { class: 'input' }, Array.from({ length: TERM_MONTHS + 1 }, (_, i) => h('option', { value: String(i) }, `${i} חודשים`)));
+  const monthsIn = h('select', { class: 'input' });
+  const fillMonths = (t) => monthsIn.replaceChildren(...Array.from({ length: t + 1 }, (_, i) => h('option', { value: String(i) }, `${i} חודשים`)));
   const preview = h('div', { class: 'preview' });
   const errBox = h('div');
   const pick = () => deals.find((d) => d.id === dealIn.value);
@@ -616,7 +617,8 @@ async function openCancel(preset) {
     const d = pick();
     dateIn.value = d.cancelledOn || defaultDealDate();
     dateIn.min = d.date;
-    monthsIn.value = String(d.paidMonths ?? monthsBetween(d.date, dateIn.value));
+    fillMonths(d.termMonths || TERM_MONTHS);
+    monthsIn.value = String(d.paidMonths ?? monthsBetween(d.date, dateIn.value, d.termMonths));
     draw();
   };
   const draw = () => {
@@ -625,7 +627,7 @@ async function openCancel(preset) {
     const r = computeMonth({ month: cancelled.cancelledOn.slice(0, 7), deals: [cancelled], versions: state.versions });
     const l = (r.lines || []).find((x) => x.kind === 'clawback');
     if (!l) { preview.replaceChildren(h('p', { class: 'warn-text' }, (r.errors || [])[0] || 'לא ניתן לחשב את הביטול.')); return; }
-    preview.replaceChildren(h('h3', {}, `הלקוח שילם ${monthsIn.value} מתוך 12 חודשים`),
+    preview.replaceChildren(h('h3', {}, `הלקוח שילם ${monthsIn.value} מתוך ${d.termMonths || TERM_MONTHS} חודשים`),
       h('div', { class: 'row' }, h('span', {}, `הכנסה שיורדת (מתוך ${formatILS(l.originalValue)})`), money(l.value)),
       ...l.commissions.map((c) => h('div', { class: 'row' }, h('span', {}, `${c.name} · עמלה ${formatILS(c.original)}`), offset(c.amount))),
       ...(l.closerFee ? [h('div', { class: 'row' }, h('span', {}, `${l.closerFee.name} · עמלת סגירה ${formatILS(l.closerFee.original)}`), offset(l.closerFee.amount))] : []),
@@ -635,7 +637,7 @@ async function openCancel(preset) {
       h('p', { class: 'muted small' }, 'הקיזוז נרשם בחודש של תאריך הביטול.'));
   };
   dealIn.addEventListener('change', fill);
-  dateIn.addEventListener('change', () => { monthsIn.value = String(monthsBetween(pick().date, dateIn.value)); draw(); });
+  dateIn.addEventListener('change', () => { monthsIn.value = String(monthsBetween(pick().date, dateIn.value, pick().termMonths)); draw(); });
   monthsIn.addEventListener('change', draw);
   if (preset) dealIn.value = preset.id;
   fill();
@@ -711,7 +713,13 @@ async function openDeal(existing) {
   let cFamily = customInit?.influencer || 'natali';
   const customAmountIn = moneyInput(customInit?.amount ?? null);
   let payMethod = d.payMethod === 'checks' ? 'checks' : 'payment';
-  const chequesIn = h('select', { class: 'input' }, Array.from({ length: TERM_MONTHS }, (_, i) => h('option', { value: String(i + 1), selected: (d.installments || 12) === i + 1 }, `${i + 1} צ׳קים`)));
+  let term = d.termMonths === 6 ? 6 : TERM_MONTHS;
+  const chequesIn = h('select', { class: 'input' });
+  const fillCheques = () => {
+    const keep = Math.min(Number(chequesIn.value) || d.installments || term, term);
+    chequesIn.replaceChildren(...Array.from({ length: term }, (_, i) => h('option', { value: String(i + 1), selected: keep === i + 1 }, `${i + 1} צ׳קים`)));
+  };
+  fillCheques();
 
   const dateIn = h('input', { class: 'input', type: 'date', value: d.date, required: true });
   const clientIn = textInput(d.client, { autocomplete: 'off', maxlength: '200', required: true });
@@ -814,8 +822,8 @@ async function openDeal(existing) {
 
   function payFields() {
     return payMethod === 'checks'
-      ? { payMethod: 'checks', installments: Number(chequesIn.value) }
-      : { payMethod: 'payment', installments: null };
+      ? { termMonths: term, payMethod: 'checks', installments: Number(chequesIn.value) }
+      : { termMonths: term, payMethod: 'payment', installments: null };
   }
 
   function currentDeal() {
@@ -856,7 +864,7 @@ async function openDeal(existing) {
     const contribution = l.value - l.paymentReal - l.commissions.reduce((s, c) => s + c.amount, 0) - prod - l.itemsReal - closer;
     preview.replaceChildren(...[
       h('h3', {}, 'חישוב העסקה'),
-      row(`שווי ל־${TERM_MONTHS} חודשים`, money(l.value)),
+      row(`שווי ל־${l.termMonths} חודשים${l.deferred ? ' (עכשיו)' : ''}`, money(l.value)),
       row(l.payMethod === 'checks' ? 'פיימנט (כפי שמוצג למקבלי העמלה)' : 'פיימנט', money(-l.paymentCommission)),
       l.payMethod === 'checks' ? row('עלות אמיתית: עמלת צ׳קים', h('span', { class: 'muted small' }, money(-l.paymentReal), l.deferred ? ' עכשיו' : ''), 'sub') : null,
       l.items.map((it) => row(`${it.name}${it.qty > 1 ? ` ×${it.qty}` : ''} · ${SOURCE_LABEL[it.source]}`, it.commission === 0 && [...warns].some((w) => w.endsWith(it.id)) ? h('span', { class: 'warn-text' }, 'עלות לא הוגדרה') : money(-it.commission), 'sub')),
@@ -864,6 +872,7 @@ async function openDeal(existing) {
       l.deferred ? row(`עכשיו ${CHECKS_UPFRONT} מתוך ${l.installments} צ׳קים; היתרה ב${monthLabel(l.deferred.month)}`, h('span', { class: 'muted small' }, `הכנסה עכשיו `, money(l.value)), 'sub') : null,
       l.commissions.map((c) => row(`${c.name} · ${pct(c.rateBp)}${l.deferred ? ' · עכשיו' : ''}`, money(c.amount), 'sub')),
       l.closerFee ? row(`${l.closerFee.name} · עמלת סגירה`, money(l.closerFee.amount), 'sub') : null,
+      l.termMonths === 6 ? row('חצי שנתי: המשפיענים מקבלים חצי', h('span', { class: 'muted small' }, money(l.production.influencer)), 'sub') : null,
       row('הפקה', l.pooled ? h('span', { class: 'muted small' }, 'המשפיענית מתחלקת בסוף החודש', ' + ', money(prod)) : money(prod)),
       row(l.pooled ? 'רווח מהעסקה, לפני המשפיענית' : 'רווח מהעסקה', signed(contribution), 'strong'),
     ].flat().filter(Boolean));
@@ -888,6 +897,10 @@ async function openDeal(existing) {
   const discountField = field('הנחה חודשית (₪)', discountIn, { hint: '0 עד 200 ₪ לחודש, לפני מע״מ.' });
   const chequesField = field('מספר הצ׳קים', chequesIn, { hint: `עד ${CHECKS_UPFRONT} צ׳קים: כל העמלה עכשיו. יותר: החלק של ${CHECKS_UPFRONT} הצ׳קים עכשיו, והיתרה אחרי ${DEFER_MONTHS} חודשים.` });
   chequesIn.addEventListener('change', () => update(true));
+  const termBox = h('fieldset', { class: 'group' }, h('legend', {}, 'תקופת העסקה'),
+    h('div', { class: 'choices two' },
+      radio('term', '12', 'שנתית', '12 חודשים', term === TERM_MONTHS, () => { term = TERM_MONTHS; fillCheques(); update(true); }),
+      radio('term', '6', 'חצי שנתית', '6 חודשים · המשפיענים מקבלים חצי', term === 6, () => { term = 6; fillCheques(); update(true); })));
   const payBox = h('fieldset', { class: 'group' }, h('legend', {}, 'אמצעי תשלום'),
     h('div', { class: 'choices two' },
       radio('paymethod', 'payment', 'פיימנט', null, payMethod === 'payment', () => { payMethod = 'payment'; chequesField.hidden = true; update(true); }),
@@ -964,7 +977,7 @@ async function openDeal(existing) {
           h('div', { class: 'two-col' },
             field('שם הלקוח', clientIn),
             field('תאריך סגירה', dateIn, { hint: 'העסקה נכנסת לחודש של התאריך הזה.' })),
-          typeBox, customBox, pkgBox, removedNote, addonsBox, perksBox, payBox,
+          typeBox, customBox, pkgBox, removedNote, addonsBox, perksBox, termBox, payBox,
           h('div', { class: 'two-col' },
             discountField,
             field('מי סגר', sellerIn, { hint: 'מקבלי האחוזים מקבלים מכל עסקה. מי שמוגדר עם תשלום לכל עסקה שסגר, מקבל אותו כשהוא מסומן כאן.' })),
@@ -1143,7 +1156,7 @@ function statementRow(r) {
     return h('div', { class: 'st-row' },
       head([`בוטלה ב־${dateLabel(r.date)} אחרי ${r.paidMonths} חודשים · `, h('bdi', { dir: 'auto' }, r.packageName)]),
       h('div', { class: 'row' }, h('span', {}, 'עמלה מקורית'), money(r.original)),
-      h('div', { class: 'row strong' }, h('span', {}, `קיזוז · ${12 - r.paidMonths} מתוך 12 חודשים`), offset(r.amount)));
+      h('div', { class: 'row strong' }, h('span', {}, `קיזוז · ${(r.termMonths || TERM_MONTHS) - r.paidMonths} מתוך ${r.termMonths || TERM_MONTHS} חודשים`), offset(r.amount)));
   }
   if (r.kind === 'deferred') {
     return h('div', { class: 'st-row' },
@@ -1155,7 +1168,7 @@ function statementRow(r) {
     return h('div', { class: 'st-row' },
       head([`בוטלה ב־${dateLabel(r.date)} אחרי ${r.paidMonths} חודשים · `, h('bdi', { dir: 'auto' }, r.packageName || '')]),
       h('div', { class: 'row' }, h('span', {}, 'עמלת סגירה מקורית'), money(r.original)),
-      h('div', { class: 'row strong' }, h('span', {}, `קיזוז · הלקוח שילם ${r.paidMonths} מתוך 12 חודשים`), offset(r.amount)));
+      h('div', { class: 'row strong' }, h('span', {}, `קיזוז · הלקוח שילם ${r.paidMonths} מתוך ${r.termMonths || TERM_MONTHS} חודשים`), offset(r.amount)));
   }
   if (r.kind === 'closer') {
     return h('div', { class: 'st-row' },

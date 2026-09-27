@@ -456,6 +456,24 @@ test('cheques: cancelled before the deferred month gives back only what was book
   assert.equal(may.totals.revenue, -ils(46800 * 10 / 12));
 });
 
+test('half-year deal: 6 monthly payments, half the influencer fee, same photographer', () => {
+  const d = { ...deal('social', 'simeon', { paid: ['photographer'] }), termMonths: 6 };
+  const l = computeDeal(d, S());
+  assert.equal(l.value, ils((3900 + 2000) * 6));
+  assert.equal(l.production.influencer, ils(2500), 'half of 5,000');
+  assert.equal(l.production.photographer, ils(100));
+  assert.equal(l.packageName, 'Social all in one · סמיון, מישל ודניס · חצי שנתי');
+  assert.throws(() => computeDeal({ ...d, payMethod: 'checks', installments: 7 }, S()));
+  // Cancelled after 3 of 6 months: half comes back.
+  const c = computeMonth({ month: '2026-11', deals: [{ ...d, date: '2026-09-15', cancelledOn: '2026-11-20', paidMonths: 3 }], versions: V() });
+  assert.equal(c.totals.revenue, -Math.round(l.value / 2));
+  // Pooled podcast share is halved too.
+  const pod = computeMonth({ month: '2026-09', deals: [{ ...deal('podcast', 'natali'), termMonths: 6 }, deal('podcast', 'natali')], versions: V() });
+  assert.deepEqual(pod.lines.map((x) => x.production.influencer), [ils(2250), ils(4500)]);
+  // Annual stays as before.
+  assert.equal(computeDeal(deal('social', 'simeon'), S()).production.influencer, ils(5000));
+});
+
 // Owner's Excel ("רווח והפסד חודשי"), reproduced from local private data.
 const excelPath = new URL('../private/excel-case.json', import.meta.url);
 const settingsPath = new URL('../private/payouts-settings.json', import.meta.url);

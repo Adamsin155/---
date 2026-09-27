@@ -411,6 +411,27 @@ await page.getByRole('heading', { name: 'יתרות צ׳קים שנכנסות ה
 assert.ok((await page.locator('#view').innerText()).includes('23,400'), 'other half six months later');
 console.log('ok  cheque deal books half now and half after six months');
 
+// Half-year deal: 6 monthly payments, influencers get half, photographer unchanged.
+await page.goto(`${BASE}payouts/#/deals/2026-09`);
+await page.getByRole('button', { name: 'עסקה חדשה' }).first().click();
+await dlg.getByLabel('שם הלקוח').fill('לקוח חצי שנתי');
+await dlg.getByLabel('תאריך סגירה').fill('2026-09-06');
+await dlg.getByRole('radio', { name: /^Social all in one/ }).check();
+await dlg.getByRole('radio', { name: 'סמיון, מישל ודניס' }).first().check();
+await dlg.getByRole('radio', { name: /חצי שנתית/ }).check();
+await dlg.locator('.preview').getByText('שווי ל־6 חודשים').waitFor();
+const halfText = await dlg.locator('.preview').innerText();
+// By hand: 3,900 × 6 = 23,400; influencers 5,000 / 2 = 2,500; production 2,500 + 100 photographer = 2,600.
+for (const v of ['23,400', '2,500', '2,600']) assert.ok(halfText.includes(v), `half-year ${v}`);
+await dlg.getByRole('radio', { name: 'צ׳קים' }).check();
+assert.equal(await dlg.getByLabel('מספר הצ׳קים').locator('option').count(), 6, 'cheques up to the term');
+await dlg.getByRole('radio', { name: 'פיימנט' }).check();
+await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
+await page.getByRole('dialog').waitFor({ state: 'hidden' });
+assert.equal(tables.payout_deals.find((d) => d.client === 'לקוח חצי שנתי').term_months, 6);
+await page.getByText(/חצי שנתי/).first().waitFor();
+console.log('ok  half-year deal');
+
 // Change password from the account dialog.
 await page.getByRole('button', { name: 'חשבון' }).click();
 await dlg.getByLabel('סיסמה חדשה').fill('another-pass-123');

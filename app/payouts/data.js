@@ -35,6 +35,7 @@ const dealFromRow = (r) => ({
   perks: r.perks || [], seller: r.seller || '', note: r.note || '', quoteId: r.quote_id,
   cancelledOn: r.cancelled_on || null, paidMonths: r.paid_months ?? null,
   payMethod: r.pay_method || 'payment', installments: r.installments ?? null,
+  termMonths: r.term_months === 6 ? 6 : 12,
 });
 
 export async function loadMonth(month) {
@@ -75,6 +76,7 @@ export async function saveDeal(d) {
     perks: d.perks, seller: d.seller?.trim() || null, note: d.note?.trim() || null,
     pay_method: d.payMethod === 'checks' ? 'checks' : 'payment',
     installments: d.payMethod === 'checks' ? d.installments : null,
+    term_months: d.termMonths === 6 ? 6 : 12,
   };
   if (d.id) check(await supabase.from('payout_deals').update(row).eq('id', d.id));
   else check(await supabase.from('payout_deals').insert(row));

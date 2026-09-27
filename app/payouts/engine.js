@@ -201,6 +201,10 @@ export function computeDeal(deal, settings, warn = () => {}) {
   return splitCheques(computeDealFull(deal, settings, warn));
 }
 
+export function influencerShare(amount, term) {
+  return term === 6 ? Math.round(amount / 2) : amount;
+}
+
 // Keeps the full amounts, then books only the first cheques' share now.
 function splitCheques(line) {
   line.full = { value: line.value, commissions: line.commissions.map((c) => ({ ...c })) };
@@ -229,11 +233,15 @@ function computeDealFull(deal, settings, warn = () => {}) {
   else validateSelection({ ...sel, docType: 'agreement' });
   const pid = custom ? `custom-${sel.influencer}` : packageId(sel.tier, sel.influencer);
   const family = familyOf(sel);
+  // Term: annual (12 months) or half-year (6). A half-year deal is worth
+  // 6 monthly payments and pays the influencers half; the photographer and
+  // makeup artist are paid the same.
+  const term = deal.termMonths === 6 ? 6 : TERM_MONTHS;
   const value = custom ? sel.amount
     : (PACKAGES[pid].price
       + sel.paid.reduce((s, id) => s + PAID_ADDONS.find((a) => a.id === id).price, 0)
-      - (sel.discount || 0)) * TERM_MONTHS;
-  const monthly = Math.round(value / TERM_MONTHS);
+      - (sel.discount || 0)) * term;
+  const monthly = Math.round(value / term);
 
   const items = (custom ? [] : dealItems(deal)).map((it) => ({
     ...it,
@@ -248,7 +256,7 @@ function computeDealFull(deal, settings, warn = () => {}) {
   // processor; the real cost to the business is the cheque fee.
   const checks = deal.payMethod === 'checks';
   const n = checks ? deal.installments : null;
-  if (checks && !(Number.isInteger(n) && n >= 1 && n <= TERM_MONTHS)) throw new Error('cheque deals need 1–12 instalments');
+  if (checks && !(Number.isInteger(n) && n >= 1 && n <= term)) throw new Error(`cheque deals need 1–${term} instalments`);
   const side = commissionSide(value, family, deductions, settings);
   const realFeeBp = checks ? (settings.payment.checksRealBp ?? settings.payment.realBp) : settings.payment.realBp;
 
@@ -256,7 +264,7 @@ function computeDealFull(deal, settings, warn = () => {}) {
   const prod = settings.production?.[prodKey];
   if (!prod) warn(`missing-production:${prodKey}`);
   const production = {
-    influencer: prod && !prod.influencerPerDay ? prod.influencer || 0 : 0,
+    influencer: prod && !prod.influencerPerDay ? influencerShare(prod.influencer || 0, term) : 0,
     photographer: prod?.photographer || 0,
     makeup: prod?.makeupPerDay !== undefined ? 0 : prod?.makeup || 0,
   };
@@ -273,13 +281,14 @@ function computeDealFull(deal, settings, warn = () => {}) {
     paidMonths: deal.paidMonths ?? null,
     note: deal.note || '',
     packageId: pid,
-    packageName: packageName(sel),
+    packageName: `${packageName(sel)}${term === 6 ? ' · חצי שנתי' : ''}`,
     custom,
     family,
     pooled: !!prod?.influencerPerDay,
     pool: prod?.influencerPerDay ? { perDay: prod.influencerPerDay, clientsPerDay: prod.clientsPerDay, makeupPerDay: prod.makeupPerDay } : null,
     monthly,
     value,
+    termMonths: term,
     payMethod: checks ? 'checks' : 'payment',
     installments: n,
     paymentReal: applyBp(value, realFeeBp),
@@ -372,7 +381,7 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
     // Makeup is also booked per shoot day when set that way.
     const makeup = p.makeupPerDay !== undefined ? allocate(days * p.makeupPerDay, group.map(() => 1)) : null;
     group.forEach((l, i) => {
-      l.production.influencer = shares[i];
+      l.production.influencer = influencerShare(shares[i], l.termMonths);
       if (makeup) l.production.makeup = makeup[i];
       l.shootDays = days;
     });
@@ -385,19 +394,20 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
     const v = settingsOn(versions, d.date) || monthSettings;
     try {
       const orig = computeDeal(d, v.data);
-      const remaining = TERM_MONTHS - d.paidMonths;
-      const share = (a) => -Math.round((a * remaining) / TERM_MONTHS);
+      const term = orig.termMonths;
+      const remaining = term - d.paidMonths;
+      const share = (a) => -Math.round((a * remaining) / term);
       // What was booked by the cancellation month (a cheque deal's deferred
       // part is booked only if the cancellation comes on or after it), minus
       // what the months paid earned. Never below zero.
       const deferredBooked = !orig.deferred || d.cancelledOn.slice(0, 7) >= orig.deferred.month;
       const rNum = deferredBooked ? 1 : CHECKS_UPFRONT;
       const rDen = deferredBooked ? 1 : d.installments;
-      const num = rNum * TERM_MONTHS - d.paidMonths * rDen;
-      const back = (a) => (num > 0 ? -Math.round((a * num) / (rDen * TERM_MONTHS)) : 0);
+      const num = rNum * term - d.paidMonths * rDen;
+      const back = (a) => (num > 0 ? -Math.round((a * num) / (rDen * term)) : 0);
       lines.push({
         kind: 'clawback', id: d.id, date: d.cancelledOn, dealDate: d.date, client: d.client,
-        packageName: orig.packageName, family: orig.family, paidMonths: d.paidMonths,
+        packageName: orig.packageName, family: orig.family, paidMonths: d.paidMonths, termMonths: term,
         originalValue: orig.full.value, payMethod: orig.payMethod, installments: orig.installments,
         value: back(orig.full.value), paymentReal: 0, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0, base: 0,
         closerFee: orig.closerFee ? { name: orig.closerFee.name, original: orig.closerFee.amount, amount: share(orig.closerFee.amount) } : null,
@@ -579,6 +589,7 @@ export function commissionStatement(report, who) {
         date: l.date,
         dealDate: l.dealDate,
         paidMonths: l.paidMonths,
+        termMonths: l.termMonths,
         client: l.client,
         packageName: l.packageName || 'הכנסה נוספת',
         value: l.kind === 'deal' && l.full ? l.full.value : l.value,
@@ -598,7 +609,7 @@ export function commissionStatement(report, who) {
     if (l.closerFee && l.closerFee.name === (name || who)) {
       name = l.closerFee.name;
       rows.push({
-        kind: 'closer', clawback: l.kind === 'clawback', paidMonths: l.paidMonths, date: l.date,
+        kind: 'closer', clawback: l.kind === 'clawback', paidMonths: l.paidMonths, termMonths: l.termMonths, date: l.date,
         client: l.client, packageName: l.packageName, original: l.closerFee.original, amount: l.closerFee.amount,
       });
     }
