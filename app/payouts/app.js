@@ -694,6 +694,13 @@ async function openDeal(existing) {
     }).catch(() => {});
   }
 
+  // Deal type: a catalog package, or a personal offer (total amount + family).
+  const customInit = d.selection.custom ? d.selection : null;
+  if (customInit) d.selection = emptyDealSelection();
+  let mode = customInit ? 'custom' : 'package';
+  let cFamily = customInit?.influencer || 'natali';
+  const customAmountIn = moneyInput(customInit?.amount ?? null);
+
   const dateIn = h('input', { class: 'input', type: 'date', value: d.date, required: true });
   const clientIn = textInput(d.client, { autocomplete: 'off', maxlength: '200', required: true });
   const discountIn = moneyInput(d.selection.discount || 0);
@@ -794,6 +801,13 @@ async function openDeal(existing) {
   }
 
   function currentDeal() {
+    if (mode === 'custom') {
+      const amount = parseMoney(customAmountIn.value);
+      return {
+        ...d, date: dateIn.value, client: clientIn.value, seller: sellerIn.value, note: noteIn.value, perks: [],
+        selection: { custom: true, influencer: cFamily, amount: Number.isFinite(amount) && amount > 0 ? amount : 0 },
+      };
+    }
     const disc = parseMoney(discountIn.value);
     return {
       ...d,
@@ -814,7 +828,7 @@ async function openDeal(existing) {
     try {
       l = computeDeal(cur, v.data, (w) => warns.add(w));
     } catch {
-      preview.replaceChildren(h('p', { class: 'warn-text' }, 'הבחירה לא תקינה. בדקו את ההנחה ואת התוספות.'));
+      preview.replaceChildren(h('p', { class: 'warn-text' }, mode === 'custom' ? 'הזינו את סכום העסקה.' : 'הבחירה לא תקינה. בדקו את ההנחה ואת התוספות.'));
       return;
     }
     const row = (label, value, cls) => h('div', { class: `row ${cls || ''}` }, h('span', {}, label), value);
@@ -850,6 +864,25 @@ async function openDeal(existing) {
   drawAll();
   drawPerks();
 
+  const discountField = field('הנחה חודשית (₪)', discountIn, { hint: '0 עד 200 ₪ לחודש, לפני מע״מ.' });
+  const customBox = h('div', { class: 'stack' },
+    field('סכום העסקה הכולל (₪, לפני מע״מ)', customAmountIn, { hint: 'הסכום לכל תקופת העסקה, כמו באקסל. לא צריך לפרט מה כלול.' }),
+    h('fieldset', { class: 'group' }, h('legend', {}, 'משפיענים'),
+      h('div', { class: 'choices two' }, Object.values(INFLUENCERS).map((inf) => radio('cfamily', inf.id, inf.name, null, cFamily === inf.id,
+        () => { cFamily = inf.id; update(true); })))));
+  customAmountIn.addEventListener('input', () => update());
+  customAmountIn.addEventListener('change', () => update(true));
+  const applyMode = () => {
+    const custom = mode === 'custom';
+    for (const el of [pkgBox, removedNote, addonsBox, perksBox, discountField]) el.hidden = custom;
+    customBox.hidden = !custom;
+    update(true);
+  };
+  const typeBox = h('fieldset', { class: 'group' }, h('legend', {}, 'סוג העסקה'),
+    h('div', { class: 'choices two' },
+      radio('dealtype', 'package', 'חבילה', 'מהחבילות והתוספות', mode === 'package', () => { mode = 'package'; applyMode(); }),
+      radio('dealtype', 'custom', 'הצעה אישית', 'סכום כולל ומשפיענים בלבד', mode === 'custom', () => { mode = 'custom'; applyMode(); })));
+
   const save = h('button', { type: 'button', class: 'btn btn-primary' }, existing ? 'שמירת שינויים' : 'שמירת העסקה');
   save.addEventListener('click', async () => {
     const errors = [];
@@ -858,7 +891,10 @@ async function openDeal(existing) {
     if (!clientIn.value.trim()) errors.push([clientIn, 'חסר שם לקוח.']);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIn.value)) errors.push([dateIn, 'חסר תאריך סגירה.']);
     const disc = parseMoney(discountIn.value);
-    if (disc !== null && (!Number.isFinite(disc) || disc < 0 || disc > 20000 || disc % 100 !== 0)) errors.push([discountIn, 'הנחה חודשית בשקלים שלמים, בין 0 ל־200.']);
+    if (mode === 'package' && disc !== null && (!Number.isFinite(disc) || disc < 0 || disc > 20000 || disc % 100 !== 0)) errors.push([discountIn, 'הנחה חודשית בשקלים שלמים, בין 0 ל־200.']);
+    const customAmount = parseMoney(customAmountIn.value);
+    setFieldError(customAmountIn, '');
+    if (mode === 'custom' && !(Number.isFinite(customAmount) && customAmount > 0)) errors.push([customAmountIn, 'חסר סכום העסקה.']);
     for (const [el, msg] of errors) setFieldError(el, msg);
     if (errors.length) {
       errBox.replaceChildren(errorSummary(errors));
@@ -899,15 +935,16 @@ async function openDeal(existing) {
           h('div', { class: 'two-col' },
             field('שם הלקוח', clientIn),
             field('תאריך סגירה', dateIn, { hint: 'העסקה נכנסת לחודש של התאריך הזה.' })),
-          pkgBox, removedNote, addonsBox, perksBox,
+          typeBox, customBox, pkgBox, removedNote, addonsBox, perksBox,
           h('div', { class: 'two-col' },
-            field('הנחה חודשית (₪)', discountIn, { hint: '0 עד 200 ₪ לחודש, לפני מע״מ.' }),
+            discountField,
             field('מי סגר', sellerIn, { hint: 'מקבלי האחוזים מקבלים מכל עסקה. מי שמוגדר עם תשלום לכל עסקה שסגר, מקבל אותו כשהוא מסומן כאן.' })),
           field('הערה', noteIn)),
         h('aside', { class: 'form-side' }, preview, announce)),
     ],
     foot: [save, btn('ביטול', { class: 'btn btn-ghost', 'data-close': true }), del],
   });
+  applyMode();
   if (!existing) clientIn.focus();
 }
 
@@ -1238,7 +1275,15 @@ function viewSettings() {
           const cb = h('input', { type: 'checkbox', checked: !!e.payroll });
           reg(cb, () => cb.checked, (v) => { e.payroll = v; }, 'תלוש');
           return h('label', { class: 'choice inline' }, cb, h('span', { class: 'choice-body' },
-            h('span', { class: 'choice-label' }, 'בתלוש (מוסיפים עלות מעסיק)'), h('span', { class: 'sr-only' }, ` · ${e.name || ctx}`)));
+            h('span', { class: 'choice-label' }, 'בתלוש'), h('span', { class: 'sr-only' }, ` · ${e.name || ctx}`)));
+        })(),
+        (() => {
+          const cb = h('input', { type: 'checkbox', checked: !!e.costIncluded });
+          reg(cb, () => cb.checked, (v) => { e.costIncluded = v; }, 'כולל עלות מעסיק');
+          return h('label', { class: 'choice inline' }, cb, h('span', { class: 'choice-body' },
+            h('span', { class: 'choice-label' }, 'הסכום כבר כולל עלות מעסיק'),
+            h('span', { class: 'choice-sub' }, 'לא מוסיפים עליו את אחוז עלות המעסיק'),
+            h('span', { class: 'sr-only' }, ` · ${e.name || ctx}`)));
         })()),
       () => ({ id: `e${Date.now().toString(36)}`, name: '', role: '', salary: 0, payroll: true })),
     listSection('תשלום לכל עסקה שסגר', 'למי שמקבל סכום קבוע על כל עסקה שהוא סוגר (לא אחוזים). מסמנים אותו ב״מי סגר״ בעסקה.', s.perDealPeople ||= [],

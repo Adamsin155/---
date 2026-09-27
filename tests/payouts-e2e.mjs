@@ -334,9 +334,9 @@ const full = computeMonth({
 const st = commissionStatement(full, 'a');
 assert.ok(stText.includes(fmt(st.total)), 'statement total');
 // Worked by hand, not by the engine: (4,900 + 2,000 − 100) × 12 = 81,600; payment shown 10% = 8,160;
-// deductions: Channel 14 in the package 2,000 + Natali story in the package 2,222 + monthly
-// photographer 10,000 + Natali story perk 2,222 = 16,444; base 56,996; 20% = 11,399.20.
-for (const v of ['81,600 ₪', '8,160 ₪', '56,996 ₪', '11,399.20 ₪']) assert.ok(stText.includes(v), `hand-computed ${v}`);
+// deductions: Channel 14 in the package 2,000 + monthly photographer 10,000 + Natali story perk
+// 2,222 = 14,222 (the package itself gives no Natali story); base 59,218; 20% = 11,843.60.
+for (const v of ['81,600 ₪', '8,160 ₪', '59,218 ₪', '11,843.60 ₪']) assert.ok(stText.includes(v), `hand-computed ${v}`);
 assert.ok(stText.includes(fmt(ils(2222))), 'shown deduction for the perk');
 assert.ok(!stText.includes(fmt(ils(1111))), 'real perk cost hidden');
 assert.ok(!stText.includes('מנהל בדיקה') && !stText.includes('עובד בדיקה'), 'no other people in statement');
@@ -360,6 +360,31 @@ for (const el of await page.getByLabel('חלקים').all()) await el.fill('0');
 await page.getByRole('button', { name: 'שמירת גרסה חדשה של ההגדרות' }).click();
 await page.getByText(/לפחות לשותף אחד/).first().waitFor();
 console.log('ok  settings versioned; bad partner split rejected');
+
+// Personal offer: total amount and family only.
+await page.goto(`${BASE}payouts/#/deals/2026-09`);
+await page.getByRole('button', { name: 'עסקה חדשה' }).first().click();
+await dlg.getByLabel('שם הלקוח').fill('לקוח ותיק');
+await dlg.getByLabel('תאריך סגירה').fill('2026-09-20');
+await dlg.getByRole('radio', { name: /הצעה אישית/ }).check();
+assert.equal(await dlg.getByRole('group', { name: 'חבילה' }).isVisible(), false, 'package choices hidden');
+await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
+await dlg.getByText('חסר סכום העסקה.').first().waitFor();
+await dlg.getByLabel('סכום העסקה הכולל (₪, לפני מע״מ)').fill('30,000');
+await dlg.getByRole('radio', { name: 'סמיון, מישל ודניס' }).check();
+await dlg.locator('.preview').getByText('בסיס עמלה').waitFor();
+// By hand: 30,000 − 10% shown payment = 27,000 base; Simeon family 10% = 2,700.
+assert.ok((await dlg.locator('.preview').innerText()).includes('2,700'), 'personal offer commission');
+await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
+await page.getByRole('dialog').waitFor({ state: 'hidden' });
+const personal = tables.payout_deals.find((d) => d.client === 'לקוח ותיק');
+assert.deepEqual(personal.selection, { custom: true, influencer: 'simeon', amount: ils(30000) });
+await page.getByText('הצעה אישית · סמיון, מישל ודניס').waitFor();
+await page.getByText('לקוח ותיק').click();
+assert.equal(await dlg.getByRole('radio', { name: /הצעה אישית/ }).isChecked(), true, 'reopens as personal offer');
+assert.equal(await dlg.getByLabel('סכום העסקה הכולל (₪, לפני מע״מ)').inputValue(), '30000');
+await dlg.getByRole('button', { name: 'ביטול' }).click();
+console.log('ok  personal offer deal');
 
 // Change password from the account dialog.
 await page.getByRole('button', { name: 'חשבון' }).click();
@@ -394,8 +419,8 @@ const cancelled = tables.payout_deals.find((d) => d.client.startsWith('מסעד�
 assert.equal(cancelled.cancelled_on, '2026-10-20');
 assert.equal(cancelled.paid_months, 1);
 await page.getByRole('heading', { name: 'עסקאות שבוטלו החודש' }).waitFor();
-// 11/12 of the hand-computed commissions (11,399.20 and 5% × 56,996 = 2,849.80), rounded per person.
-const back = -(Math.round((ils(11399.20) * 11) / 12) + Math.round((ils(2849.80) * 11) / 12));
+// 11/12 of the hand-computed commissions (11,843.60 and 5% × 59,218 = 2,960.90), rounded per person.
+const back = -(Math.round((ils(11843.60) * 11) / 12) + Math.round((ils(2960.90) * 11) / 12));
 assert.ok((await page.locator('#view').innerText()).includes(fmt(-back)), `clawback ${fmt(-back)}`);
 await page.goto(`${BASE}payouts/#/month/2026-10`);
 await page.getByText('הכנסה שירדה בגלל ביטולים').waitFor();

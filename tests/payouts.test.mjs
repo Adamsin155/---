@@ -104,7 +104,8 @@ test('base package: commission on value minus payment only', () => {
 });
 
 test('Social + TV extras over the base package are deducted', () => {
-  assert.deepEqual(packageExtras('social-tv-natali').map((x) => [x.id, x.qty]), [['natali-story', 1], ['ch14', 1]]);
+  // The Natali story is not actually given in Social + TV · Natali (add-on only).
+  assert.deepEqual(packageExtras('social-tv-natali').map((x) => [x.id, x.qty]), [['ch14', 1]]);
   assert.deepEqual(packageExtras('social-tv-simeon').map((x) => [x.id, x.qty]),
     [['simeon-day', 1], ['simeon-collab', 2], ['simeon-story', 3], ['ch14', 1]]);
   assert.deepEqual(packageExtras('social-simeon'), []);
@@ -113,6 +114,33 @@ test('Social + TV extras over the base package are deducted', () => {
   assert.equal(l.value, ils(58800));
   assert.equal(l.deductions, ils(2500));
   assert.equal(l.base, ils(58800 - 5880 - 2500));
+});
+
+test('personal offer: total amount and family only', () => {
+  const d = { id: 'c1', date: '2026-09-10', client: 'הצעה אישית', selection: { custom: true, influencer: 'natali', amount: ils(40000) }, perks: [] };
+  const l = computeDeal(d, S());
+  assert.equal(l.value, ils(40000));
+  assert.equal(l.paymentCommission, ils(4000));
+  assert.equal(l.deductions, 0);
+  assert.equal(l.base, ils(36000));
+  assert.equal(commission(l, 'a'), ils(7200), 'Natali rate');
+  assert.deepEqual(l.production, { influencer: ils(4000), photographer: ils(100), makeup: ils(50) }, 'family Social production');
+  assert.equal(l.packageName, 'הצעה אישית · נטלי דדון');
+  const sim = computeDeal({ ...d, selection: { custom: true, influencer: 'simeon', amount: ils(40000) } }, S());
+  assert.equal(commission(sim, 'a'), ils(3600), 'Simeon rate');
+  assert.throws(() => computeDeal({ ...d, selection: { custom: true, influencer: 'x', amount: 1 } }, S()));
+  assert.throws(() => computeDeal({ ...d, selection: { custom: true, influencer: 'natali', amount: 0 } }, S()));
+  const cancel = computeMonth({ month: '2026-10', deals: [{ ...d, cancelledOn: '2026-10-05', paidMonths: 6 }], versions: V() });
+  assert.equal(cancel.totals.revenue, -ils(20000));
+});
+
+test('salary that already includes employer cost gets no addition', () => {
+  const s = S();
+  s.employerCostBp = 3000;
+  s.employees = [{ id: 'e1', name: 'כולל', role: 'x', salary: ils(1300), payroll: true, costIncluded: true }];
+  const r = computeMonth({ month: '2026-09', versions: V(s) });
+  assert.equal(r.totals.employees, ils(1300));
+  assert.equal(r.totals.employerCost, 0);
 });
 
 test('paid add-on: commission only on the margin over its cost', () => {

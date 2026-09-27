@@ -115,11 +115,16 @@ export function familyOf(sel) {
 }
 
 export function packageName(sel) {
+  if (sel.custom) return `הצעה אישית · ${INFLUENCERS[sel.influencer]?.name || sel.influencer}`;
   const tier = TIERS.find((t) => t.id === sel.tier);
   return `${tier ? tier.name : sel.tier} · ${INFLUENCERS[sel.influencer]?.name || sel.influencer}`;
 }
 
 // ---------- items of a deal ----------
+
+// Items the catalog lists in a package that the business does not actually
+// give there (owner, 27.9: the Natali story is sold only as an add-on).
+const NOT_GIVEN_IN_PACKAGE = { 'social-tv-natali': ['natali-story'] };
 
 export function packageExtras(pid) {
   const pkg = PACKAGES[pid];
@@ -132,6 +137,7 @@ export function packageExtras(pid) {
     if (extra <= 0) continue;
     const id = map[pkg.influencer];
     if (!id) throw new Error(`no cost item for extra ${row} in ${pid}`);
+    if (NOT_GIVEN_IN_PACKAGE[pid]?.includes(id)) continue;
     out.push({ id, qty: extra, source: 'package' });
   }
   return out;
@@ -180,17 +186,28 @@ function commissionSide(value, family, deductions, settings) {
 
 // One deal. Production for pooled packages (podcast with Natali) is filled
 // in at month level because it depends on how many closed that month.
-export function computeDeal(deal, settings, warn = () => {}) {
-  validateSelection({ ...deal.selection, docType: 'agreement' });
-  const sel = deal.selection;
-  const pid = packageId(sel.tier, sel.influencer);
-  const family = familyOf(sel);
-  const monthly = PACKAGES[pid].price
-    + sel.paid.reduce((s, id) => s + PAID_ADDONS.find((a) => a.id === id).price, 0)
-    - (sel.discount || 0);
-  const value = monthly * TERM_MONTHS;
+// A deal outside the catalog ("personal offer"): only the total amount for
+// the whole term and the influencer family are known. No items are deducted;
+// production costs are those of the family's Social package.
+export function validateCustomSelection(sel) {
+  if (!INFLUENCERS[sel.influencer]) throw new Error(`unknown influencer: ${sel.influencer}`);
+  if (!Number.isInteger(sel.amount) || sel.amount <= 0 || sel.amount > 1e10) throw new Error('custom deal amount must be a positive whole number of agorot');
+}
 
-  const items = dealItems(deal).map((it) => ({
+export function computeDeal(deal, settings, warn = () => {}) {
+  const sel = deal.selection;
+  const custom = sel.custom === true;
+  if (custom) validateCustomSelection(sel);
+  else validateSelection({ ...sel, docType: 'agreement' });
+  const pid = custom ? `custom-${sel.influencer}` : packageId(sel.tier, sel.influencer);
+  const family = familyOf(sel);
+  const value = custom ? sel.amount
+    : (PACKAGES[pid].price
+      + sel.paid.reduce((s, id) => s + PAID_ADDONS.find((a) => a.id === id).price, 0)
+      - (sel.discount || 0)) * TERM_MONTHS;
+  const monthly = Math.round(value / TERM_MONTHS);
+
+  const items = (custom ? [] : dealItems(deal)).map((it) => ({
     ...it,
     name: ITEMS[it.id].name,
     payee: settings.items?.[it.id]?.payee || ITEMS[it.id].payee,
@@ -201,8 +218,9 @@ export function computeDeal(deal, settings, warn = () => {}) {
   const itemsReal = items.reduce((s, it) => s + it.real, 0);
   const side = commissionSide(value, family, deductions, settings);
 
-  const prod = settings.production?.[pid];
-  if (!prod) warn(`missing-production:${pid}`);
+  const prodKey = custom ? packageId('social', sel.influencer) : pid;
+  const prod = settings.production?.[prodKey];
+  if (!prod) warn(`missing-production:${prodKey}`);
   const production = {
     influencer: prod && !prod.influencerPerDay ? prod.influencer || 0 : 0,
     photographer: prod?.photographer || 0,
@@ -222,6 +240,7 @@ export function computeDeal(deal, settings, warn = () => {}) {
     note: deal.note || '',
     packageId: pid,
     packageName: packageName(sel),
+    custom,
     family,
     pooled: !!prod?.influencerPerDay,
     pool: prod?.influencerPerDay ? { perDay: prod.influencerPerDay, clientsPerDay: prod.clientsPerDay, makeupPerDay: prod.makeupPerDay } : null,
@@ -358,7 +377,7 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
   // Payroll employees cost the salary plus the employer's share; invoice
   // workers cost the invoice only.
   const employees = (ms.employees || []).map((e) => {
-    const employerCost = e.payroll ? applyBp(e.salary, ms.employerCostBp || 0) : 0;
+    const employerCost = e.payroll && !e.costIncluded ? applyBp(e.salary, ms.employerCostBp || 0) : 0;
     return { ...e, employerCost, amount: e.salary + employerCost };
   });
   const recurring = (ms.expenses || []).map((e) => ({ ...e, payee: e.payee || e.name }));
@@ -462,7 +481,8 @@ export function payeesOf(report, ms) {
     for (const it of l.items) add(it.payee, 'supplier', `${it.name}${it.qty > 1 ? ` ×${it.qty}` : ''} · ${l.client}`, it.real);
   }
   for (const e of report.employees) {
-    add(e.name, 'employee', e.payroll ? `משכורת${e.role ? ` · ${e.role}` : ''}` : `חשבונית${e.role ? ` · ${e.role}` : ''}`, e.salary);
+    const kind = !e.payroll ? 'חשבונית' : e.costIncluded ? 'משכורת כולל עלות מעסיק' : 'משכורת';
+    add(e.name, 'employee', `${kind}${e.role ? ` · ${e.role}` : ''}`, e.salary);
     add(e.name, 'employee', 'עלות מעסיק', e.employerCost);
   }
   for (const e of report.recurring) add(e.payee, 'expense', e.name, e.amount);
