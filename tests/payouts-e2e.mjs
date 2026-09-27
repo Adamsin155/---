@@ -361,6 +361,15 @@ await page.getByRole('button', { name: 'שמירת גרסה חדשה של ההג
 await page.getByText(/לפחות לשותף אחד/).first().waitFor();
 console.log('ok  settings versioned; bad partner split rejected');
 
+// Change password from the account dialog.
+await page.getByRole('button', { name: 'חשבון' }).click();
+await dlg.getByLabel('סיסמה חדשה').fill('another-pass-123');
+await dlg.getByLabel('אימות הסיסמה').fill('another-pass-123');
+await dlg.getByRole('button', { name: 'שמירת סיסמה חדשה' }).click();
+await page.getByText('הסיסמה עודכנה.').waitFor();
+assert.equal(passwordUpdates.at(-1), 'another-pass-123');
+console.log('ok  password change from the account dialog');
+
 // Pay screen: employer cost and closing fee.
 await page.goto(`${BASE}payouts/#/pay/2026-09`);
 await page.getByText('עובד בדיקה').click();

@@ -283,10 +283,34 @@ function showNotOwner() {
 }
 
 $('btn-account').addEventListener('click', () => {
+  const pass = h('input', { class: 'input', type: 'password', dir: 'ltr', autocomplete: 'new-password', minlength: '10' });
+  const again = h('input', { class: 'input', type: 'password', dir: 'ltr', autocomplete: 'new-password' });
+  const err = h('div', { class: 'form-err', role: 'alert', hidden: true });
+  const change = btn('שמירת סיסמה חדשה', {
+    class: 'btn btn-primary',
+    onclick: async () => {
+      err.hidden = true;
+      if (pass.value.length < 10) { err.textContent = 'הסיסמה צריכה להיות באורך 10 תווים לפחות.'; err.hidden = false; pass.focus(); return; }
+      if (pass.value !== again.value) { err.textContent = 'הסיסמאות לא זהות.'; err.hidden = false; again.focus(); return; }
+      change.disabled = true;
+      const { error } = await supabase.auth.updateUser({ password: pass.value });
+      change.disabled = false;
+      if (error) { err.textContent = db.explain(error); err.hidden = false; return; }
+      closeSheet();
+      toast('הסיסמה עודכנה.');
+    },
+  });
   openSheet({
     title: 'חשבון',
-    body: [h('p', {}, 'מחובר בתור ', h('bdi', { dir: 'ltr' }, state.session?.user?.email || ''))],
+    body: [
+      h('p', {}, 'מחובר בתור ', h('bdi', { dir: 'ltr' }, state.session?.user?.email || '')),
+      h('h3', {}, 'שינוי סיסמה'),
+      field('סיסמה חדשה', pass, { hint: 'לפחות 10 תווים.' }),
+      field('אימות הסיסמה', again),
+      err,
+    ],
     foot: [
+      change,
       btn('התנתקות', { class: 'btn', onclick: async () => { closeSheet(); await supabase.auth.signOut(); } }),
       btn('סגירה', { class: 'btn btn-ghost', 'data-close': true }),
     ],
