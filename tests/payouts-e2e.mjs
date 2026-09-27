@@ -176,7 +176,7 @@ const noHScroll = async (page) => page.evaluate(() => document.documentElement.s
 {
   const page = await newPage({ width: 390, height: 844 });
   await login(page, OTHER.email);
-  await page.getByRole('heading', { name: 'אין לך גישה למערכת התשלומים' }).waitFor();
+  await page.getByRole('heading', { name: 'אין לך גישה לאסטרטג פיימנט' }).waitFor();
   assert.equal(await page.locator('#nav').isVisible(), false);
   await page.context().close();
   console.log('ok  non-owner refused');

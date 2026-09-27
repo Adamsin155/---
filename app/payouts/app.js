@@ -200,7 +200,7 @@ function showLogin() {
   const msg = h('div', { class: 'form-ok', role: 'status', hidden: true });
   const submit = h('button', { type: 'submit', class: 'btn btn-primary btn-block' }, 'כניסה');
   const form = h('form', { class: 'login card', novalidate: true },
-    h('h1', {}, 'כניסה למערכת התשלומים'),
+    h('h1', {}, 'כניסה לאסטרטג פיימנט'),
     h('p', { class: 'muted' }, 'למנהלי החברה בלבד. אנשי מכירות מקבלים דוח עמלה נפרד.'),
     field('אימייל', email),
     field('סיסמה', pass),
@@ -234,7 +234,7 @@ function showNotOwner() {
   $('nav').hidden = true;
   $('monthbar').hidden = true;
   $('view').replaceChildren(h('section', { class: 'card narrow' },
-    h('h1', {}, 'אין לך גישה למערכת התשלומים'),
+    h('h1', {}, 'אין לך גישה לאסטרטג פיימנט'),
     h('p', {}, `המשתמש ${state.session.user.email} מחובר, אבל אינו מוגדר כמנהל במערכת הזו.`),
     h('p', { class: 'muted' }, 'מנהל קיים מוסיף גישה ב־Supabase (SQL Editor) לפי ההוראות ב־README.'),
     btn('התנתקות', { class: 'btn', onclick: () => supabase.auth.signOut() }),
@@ -284,7 +284,7 @@ function render() {
   $('m-lock').hidden = !isLocked();
   const views = { month: viewMonth, deals: viewDeals, pay: viewPay, settings: viewSettings };
   $('view').replaceChildren(views[state.route]());
-  document.title = `${{ month: 'החודש', deals: 'עסקאות', pay: 'תשלומים', settings: 'הגדרות' }[state.route]} · ${monthLabel(state.month)} · astrateg`;
+  document.title = `${{ month: 'החודש', deals: 'עסקאות', pay: 'תשלומים', settings: 'הגדרות' }[state.route]} · ${monthLabel(state.month)} · אסטרטג פיימנט`;
 }
 
 $('m-prev').addEventListener('click', () => go(state.route, shiftMonth(state.month, -1)));
