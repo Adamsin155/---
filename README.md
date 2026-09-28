@@ -50,6 +50,9 @@
 
 ## בדיקות
 
+**אוטומטי:** בכל דחיפה של קוד, GitHub Actions מריץ את כל הבדיקות (`.github/workflows/checks.yml`). **אחרי כל שינוי** אפשר להפעיל גם את הסוכן [שומר המערכת](.claude/agents/payouts-guardian.md), שבודק את כל המערכת מול הכללים ומתקן באגים.
+
+
 ```bash
 npm install
 npm test                                # מנוע התמחור ומנוע התשלומים (מקרה האקסל רץ רק כשקיים private/)
