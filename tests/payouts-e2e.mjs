@@ -62,7 +62,7 @@ const passwordUpdates = [];
 const tables = {
   payout_owners: [{ user_id: OWNER.id, email: OWNER.email }],
   payout_settings: [{ id: randomUUID(), effective_from: '2026-01-01', data: SETTINGS, note: 'בדיקה', created_at: new Date().toISOString() }],
-  payout_deals: [], payout_incomes: [], payout_expenses: [], payout_locks: [],
+  payout_deals: [], payout_incomes: [], payout_expenses: [], payout_locks: [], payout_performed: [],
 };
 const locked = (m) => tables.payout_locks.some((l) => l.month === m);
 const monthOf = (t, r) => (t === 'payout_expenses' ? r.month : (r.deal_date || r.income_date || '').slice(0, 7));
@@ -73,7 +73,8 @@ function applyFilters(rows, params) {
     if (['select', 'order', 'limit', 'on_conflict', 'columns'].includes(k)) continue;
     const [op, ...rest] = v.split('.');
     const val = rest.join('.');
-    if (op === 'eq') out = out.filter((r) => String(r[k]) === val);
+    const get = (r) => (k.includes('->>') ? r[k.split('->>')[0]]?.[k.split('->>')[1]] : r[k]);
+    if (op === 'eq') out = out.filter((r) => String(get(r)) === val);
     else if (op === 'gte') out = out.filter((r) => r[k] >= val);
     else if (op === 'lte') out = out.filter((r) => r[k] <= val);
     else if (op === 'not' && val === 'is.null') out = out.filter((r) => r[k] !== null && r[k] !== undefined);
@@ -132,6 +133,12 @@ async function fakeSupabase(route) {
         const row = { id: randomUUID(), created_at: new Date().toISOString(), ...r };
         if (i >= 0) rows[i] = row; else rows.push(row);
         continue;
+      }
+      const conflict = url.searchParams.get('on_conflict');
+      if (conflict) {
+        const cols = conflict.split(',');
+        const i = rows.findIndex((x) => cols.every((c) => x[c] === r[c]));
+        if (i >= 0) { rows[i] = { ...rows[i], ...r }; continue; }
       }
       rows.push({ id: randomUUID(), created_at: new Date().toISOString(), locked_at: new Date().toISOString(), ...r });
     }
@@ -378,7 +385,7 @@ assert.ok((await dlg.locator('.preview').innerText()).includes('2,700'), 'person
 await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 const personal = tables.payout_deals.find((d) => d.client === 'לקוח ותיק');
-assert.deepEqual(personal.selection, { custom: true, influencer: 'simeon', amount: ils(30000) });
+assert.deepEqual(personal.selection, { custom: true, influencer: 'simeon', amount: ils(30000), shootDays: 1 });
 await page.getByText('הצעה אישית · סמיון, מישל ודניס').waitFor();
 await page.getByText('לקוח ותיק').click();
 assert.equal(await dlg.getByRole('radio', { name: /הצעה אישית/ }).isChecked(), true, 'reopens as personal offer');
@@ -431,6 +438,31 @@ await page.getByRole('dialog').waitFor({ state: 'hidden' });
 assert.equal(tables.payout_deals.find((d) => d.client === 'לקוח חצי שנתי').term_months, 6);
 await page.getByText(/חצי שנתי/).first().waitFor();
 console.log('ok  half-year deal');
+
+// Influencer tabs: owed only when the work is marked as done, in that month.
+await page.goto(`${BASE}payouts/#/simeon/2026-09`);
+await page.getByRole('heading', { name: 'ממתין לביצוע' }).waitFor();
+assert.equal(await page.getByRole('link', { name: 'סמיון, מישל ודניס' }).getAttribute('aria-current'), 'page');
+const openText = await page.locator('#view').innerText();
+assert.ok(openText.includes('לקוח שני') && openText.includes('לקוח חצי שנתי'), 'Simeon deals listed as open');
+assert.ok(!openText.includes('מסעדת'), 'Natali deal not in the Simeon tab');
+const row = page.locator('li.task', { hasText: 'לקוח שני' });
+await row.getByLabel('תאריך הביצוע').fill('2026-10-05');
+await row.getByRole('button', { name: 'סימון כבוצע' }).click();
+await page.locator('#toast').getByText(/סומן כבוצע/).waitFor();
+assert.equal(tables.payout_performed.length, 1);
+assert.equal(tables.payout_performed[0].performed_on, '2026-10-05');
+assert.ok((await page.locator('.kpi').first().innerText()).includes('0 ₪'), 'nothing owed in September');
+await page.goto(`${BASE}payouts/#/simeon/2026-10`);
+await page.getByRole('heading', { name: /בוצע באוקטובר/ }).waitFor();
+assert.ok((await page.locator('.kpi').first().innerText()).includes('5,000'), 'owed in the month it was done');
+await shot(page, 'phone-simeon-tab');
+await page.goto(`${BASE}payouts/#/natali/2026-09`);
+await page.getByRole('heading', { name: 'ממתין לביצוע' }).waitFor();
+const natText = await page.locator('#view').innerText();
+assert.ok(natText.includes('סטורי אצל נטלי דדון'), 'Natali post listed as a task');
+assert.ok(await noHScroll(page), 'no horizontal scroll (influencer tab)');
+console.log('ok  influencer tabs');
 
 // Change password from the account dialog.
 await page.getByRole('button', { name: 'חשבון' }).click();

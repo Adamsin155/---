@@ -195,6 +195,7 @@ function commissionSide(value, family, deductions, settings, paymentBp = setting
 export function validateCustomSelection(sel) {
   if (!INFLUENCERS[sel.influencer]) throw new Error(`unknown influencer: ${sel.influencer}`);
   if (!Number.isInteger(sel.amount) || sel.amount <= 0 || sel.amount > 1e10) throw new Error('custom deal amount must be a positive whole number of agorot');
+  if (sel.shootDays !== undefined && !(Number.isInteger(sel.shootDays) && sel.shootDays >= 1 && sel.shootDays <= 10)) throw new Error('shoot days must be 1–10');
 }
 
 export function computeDeal(deal, settings, warn = () => {}) {
@@ -630,4 +631,101 @@ export function commissionStatement(report, who) {
     commissionTotal,
     total: commissionTotal + extrasTotal,
   };
+}
+
+// ---------- influencer tabs ----------
+// Separate from the monthly report: the influencers are owed their share of
+// a deal only when the work is done. Each deal yields tasks; a task marked
+// with a date is owed in that date's month. Shoot days split the deal's
+// influencer fee evenly; a podcast recording day with Natali is paid once per
+// recording date whatever the number of clients; paid posts (reel, story)
+// are owed their cost when posted.
+
+const FAMILY_ITEMS = { natali: ['natali-reel', 'natali-story'], simeon: ['simeon-story', 'simeon-collab'] };
+
+export function shootDaysOf(deal) {
+  const sel = deal.selection;
+  if (sel.custom) return Number.isInteger(sel.shootDays) && sel.shootDays > 0 ? sel.shootDays : 1;
+  const pid = packageId(sel.tier, sel.influencer);
+  const days = SPECS[pid].shootDays + (sel.paid.includes('simeon-day') ? 1 : 0);
+  return Math.max(1, days);
+}
+
+// Tasks of one deal: [{ key, kind: 'day' | 'recording' | 'post', label, amount }]
+// (amount is null for pooled recordings, paid per recording date).
+export function influencerTasks(deal, settings) {
+  const sel = deal.selection;
+  const family = sel.influencer;
+  const term = deal.termMonths === 6 ? 6 : TERM_MONTHS;
+  const tasks = [];
+  const pid = sel.custom ? packageId('social', family) : packageId(sel.tier, family);
+  const prod = settings.production?.[pid] || {};
+  if (!sel.custom && sel.tier === 'podcast' && prod.influencerPerDay !== undefined) {
+    tasks.push({ key: 'recording', kind: 'recording', label: 'יום הקלטת פודקאסט', amount: null });
+  } else {
+    const fee = influencerShare(prod.influencer || 0, term);
+    const n = shootDaysOf(deal);
+    const parts = allocate(fee, Array.from({ length: n }, () => 1));
+    const word = !sel.custom && sel.tier === 'podcast' ? 'יום הקלטה' : 'יום צילום';
+    parts.forEach((amount, i) => tasks.push({
+      key: `day:${i + 1}`, kind: 'day', label: n > 1 ? `${word} ${i + 1} מתוך ${n}` : word, amount,
+    }));
+  }
+  if (!sel.custom) {
+    for (const it of dealItems(deal)) {
+      if (!FAMILY_ITEMS[family]?.includes(it.id)) continue;
+      const cfg = settings.items?.[it.id] || {};
+      const unit = cfg.real || 0;
+      if (!unit) continue;
+      const count = cfg.per === 'deal' ? 1 : it.qty;
+      for (let k = 1; k <= count; k += 1) {
+        tasks.push({
+          key: `${it.id}:${tasks.filter((t) => t.key.startsWith(`${it.id}:`)).length + 1}`,
+          kind: 'post', label: `${ITEMS[it.id].name}${count > 1 ? ` ${k} מתוך ${count}` : ''}`, amount: unit,
+        });
+      }
+    }
+  }
+  return tasks;
+}
+
+// One family's tab for a month.
+// performed: [{ dealId, key, date }]
+export function influencerMonth({ family, month, deals, performed, versions }) {
+  const done = new Map(performed.map((p) => [`${p.dealId}|${p.key}`, p.date]));
+  const due = [];
+  const open = [];
+  const errors = [];
+  const recordingDates = new Map(); // date -> { fee, deals: [] }
+  for (const d of deals.filter((x) => x.selection?.influencer === family).sort(byDate)) {
+    const v = settingsOn(versions, d.date);
+    if (!v) continue;
+    let tasks;
+    try {
+      tasks = influencerTasks(d, v.data);
+    } catch (e) {
+      errors.push(`״${d.client}״: ${e.message}`);
+      continue;
+    }
+    const name = `${packageName(d.selection)}${d.termMonths === 6 ? ' · חצי שנתי' : ''}`;
+    for (const t of tasks) {
+      const date = done.get(`${d.id}|${t.key}`) || null;
+      const row = { dealId: d.id, client: d.client, dealDate: d.date, packageName: name, cancelledOn: d.cancelledOn || null, ...t, date };
+      if (date) {
+        if (!inMonth(date, month)) continue;
+        if (t.kind === 'recording') {
+          const fee = v.data.production?.['podcast-natali']?.influencerPerDay || 0;
+          if (!recordingDates.has(date)) recordingDates.set(date, { fee, clients: [] });
+          recordingDates.get(date).clients.push(row);
+        } else {
+          due.push(row);
+        }
+      } else if (!d.cancelledOn) {
+        open.push(row);
+      }
+    }
+  }
+  const recordings = [...recordingDates.entries()].sort().map(([date, r]) => ({ date, amount: r.fee, clients: r.clients }));
+  const total = due.reduce((s, r) => s + r.amount, 0) + recordings.reduce((s, r) => s + r.amount, 0);
+  return { family, month, due, recordings, open, total, errors };
 }

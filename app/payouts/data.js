@@ -138,3 +138,26 @@ export function explain(err) {
   if (/JWT|not authenticated|401/.test(msg)) return 'יש להתחבר מחדש.';
   return 'הפעולה לא הושלמה. נסו שוב בעוד רגע.';
 }
+
+// ---------- influencer tabs ----------
+
+// Every deal of one influencer family (open tasks can be from any month),
+// with what was marked as done.
+export async function loadInfluencer(family) {
+  const [deals, performed] = await Promise.all([
+    supabase.from('payout_deals').select('*').eq('selection->>influencer', family).order('deal_date'),
+    supabase.from('payout_performed').select('deal_id, task_key, performed_on'),
+  ]);
+  return {
+    deals: check(deals).map(dealFromRow),
+    performed: check(performed).map((r) => ({ dealId: r.deal_id, key: r.task_key, date: r.performed_on })),
+  };
+}
+
+export async function markPerformed(dealId, key, date) {
+  check(await supabase.from('payout_performed').upsert({ deal_id: dealId, task_key: key, performed_on: date }, { onConflict: 'deal_id,task_key' }));
+}
+
+export async function unmarkPerformed(dealId, key) {
+  check(await supabase.from('payout_performed').delete().eq('deal_id', dealId).eq('task_key', key));
+}

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import {
   applyBp, allocate, monthBounds, inMonth, shiftMonth, settingsOn, packageExtras,
-  computeDeal, computeMonth, commissionStatement,
+  computeDeal, computeMonth, commissionStatement, influencerTasks, influencerMonth, shootDaysOf,
 } from '../app/payouts/engine.js';
 
 const ils = (n) => Math.round(n * 100);
@@ -472,6 +472,62 @@ test('half-year deal: 6 monthly payments, half the influencer fee, same photogra
   assert.deepEqual(pod.lines.map((x) => x.production.influencer), [ils(2250), ils(4500)]);
   // Annual stays as before.
   assert.equal(computeDeal(deal('social', 'simeon'), S()).production.influencer, ils(5000));
+});
+
+test('influencer tab: shoot days split the fee and are owed in the month they were done', () => {
+  const d = { ...deal('social-tv', 'simeon', { date: '2026-08-20' }) };
+  assert.equal(shootDaysOf(d), 2);
+  const tasks = influencerTasks(d, S());
+  assert.deepEqual(tasks.map((t) => [t.key, t.amount]), [['day:1', ils(2500)], ['day:2', ils(2500)]]);
+  const performed = [{ dealId: d.id, key: 'day:1', date: '2026-09-03' }];
+  const aug = influencerMonth({ family: 'simeon', month: '2026-08', deals: [d], performed, versions: V() });
+  assert.equal(aug.total, 0, 'nothing owed in the deal month');
+  assert.equal(aug.open.length, 1, 'second day still open');
+  const sep = influencerMonth({ family: 'simeon', month: '2026-09', deals: [d], performed, versions: V() });
+  assert.equal(sep.total, ils(2500));
+  assert.equal(sep.due[0].key, 'day:1');
+  const nat = influencerMonth({ family: 'natali', month: '2026-09', deals: [d], performed, versions: V() });
+  assert.equal(nat.total, 0, 'other family tab unaffected');
+});
+
+test('influencer tab: extra shoot day splits the same fee; half-year halves it; custom deal days', () => {
+  const extra = deal('social', 'simeon', { paid: ['simeon-day'] });
+  assert.deepEqual(influencerTasks(extra, S()).map((t) => t.amount), [ils(2500), ils(2500)]);
+  const half = { ...deal('social', 'simeon'), termMonths: 6 };
+  assert.deepEqual(influencerTasks(half, S()).map((t) => t.amount), [ils(2500)]);
+  const three = { id: 'c', date: '2026-09-01', client: 'x', selection: { custom: true, influencer: 'natali', amount: ils(30000), shootDays: 3 }, perks: [] };
+  const parts = influencerTasks(three, S()).map((t) => t.amount);
+  assert.equal(parts.length, 3);
+  assert.equal(parts.reduce((a, b) => a + b, 0), ils(4000));
+});
+
+test('influencer tab: Natali posts are owed when posted; podcast recording paid once per date', () => {
+  const d = deal('social', 'natali', { paid: ['natali-reel'], perks: [{ id: 'natali-story', qty: 2 }] });
+  const tasks = influencerTasks(d, S());
+  assert.deepEqual(tasks.map((t) => t.key), ['day:1', 'natali-reel:1', 'natali-story:1', 'natali-story:2']);
+  assert.equal(tasks[2].amount, ils(1000));
+  const p1 = deal('podcast', 'natali');
+  const p2 = deal('podcast', 'natali');
+  const p3 = deal('podcast', 'natali');
+  const performed = [
+    { dealId: p1.id, key: 'recording', date: '2026-09-10' },
+    { dealId: p2.id, key: 'recording', date: '2026-09-10' },
+    { dealId: p3.id, key: 'recording', date: '2026-09-24' },
+    { dealId: d.id, key: 'natali-reel:1', date: '2026-09-15' },
+  ];
+  const r = influencerMonth({ family: 'natali', month: '2026-09', deals: [d, p1, p2, p3], performed, versions: V() });
+  assert.equal(r.recordings.length, 2);
+  assert.equal(r.recordings[0].clients.length, 2);
+  assert.equal(r.total, ils(9000) * 2 + ils(400));
+});
+
+test('influencer tab: tasks not done before a cancellation are not owed', () => {
+  const d = { ...deal('social-tv', 'simeon', { date: '2026-08-01' }), cancelledOn: '2026-09-15', paidMonths: 1 };
+  const performed = [{ dealId: d.id, key: 'day:1', date: '2026-08-20' }];
+  const sep = influencerMonth({ family: 'simeon', month: '2026-09', deals: [d], performed, versions: V() });
+  assert.equal(sep.open.length, 0);
+  const aug = influencerMonth({ family: 'simeon', month: '2026-08', deals: [d], performed, versions: V() });
+  assert.equal(aug.total, ils(2500), 'the day done before the cancellation is still owed');
 });
 
 // Owner's Excel ("רווח והפסד חודשי"), reproduced from local private data.

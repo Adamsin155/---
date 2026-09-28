@@ -6,7 +6,7 @@ import {
 import { reconcile, paidAddonAvailable, freeAddonAvailable } from '../pricing.js';
 import { PACKAGES, PAID_ADDONS, TIERS, INFLUENCERS, FREE_ADDONS, TERM_MONTHS, packageId } from '../catalog.js';
 import {
-  ITEMS, SOURCE_LABEL, MONTH_ITEM_KINDS, CHECKS_UPFRONT, DEFER_MONTHS, computeMonth, computeDeal, commissionStatement, settingsOn,
+  ITEMS, SOURCE_LABEL, MONTH_ITEM_KINDS, influencerMonth, CHECKS_UPFRONT, DEFER_MONTHS, computeMonth, computeDeal, commissionStatement, settingsOn,
   monthBounds, shiftMonth, packageName, monthItemLabel,
 } from './engine.js';
 import * as db from './data.js';
@@ -129,7 +129,7 @@ function errorSummary(errors) {
 function parseHash() {
   const [, route = 'month', month] = (location.hash || '').split('/');
   return {
-    route: ['month', 'deals', 'pay', 'settings'].includes(route) ? route : 'month',
+    route: ['month', 'deals', 'pay', 'settings', 'simeon', 'natali'].includes(route) ? route : 'month',
     month: /^\d{4}-\d{2}$/.test(month || '') ? month : null,
   };
 }
@@ -150,9 +150,82 @@ async function route() {
     if (a.dataset.route === state.route) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   }
+  if (INFLUENCER_ROUTES.includes(state.route)) return loadInfluencerTab();
   if (monthChanged || !state.data || state.data.month !== state.month) await loadMonth();
   else render();
 }
+
+// ---------- influencer tabs (separate from the monthly report) ----------
+
+const INFLUENCER_ROUTES = ['simeon', 'natali'];
+
+async function loadInfluencerTab() {
+  const family = state.route;
+  setState('טוען…');
+  try {
+    state.infl = { family, ...(await db.loadInfluencer(family)) };
+    setState('');
+  } catch (e) {
+    setState(db.explain(e));
+    return;
+  }
+  render();
+}
+
+function viewInfluencer(family) {
+  const name = INFLUENCERS[family].name;
+  const r = influencerMonth({ family, month: state.month, deals: state.infl.deals, performed: state.infl.performed, versions: state.versions });
+  const dateIn = () => h('input', { class: 'input input-date', type: 'date', value: today(), 'aria-label': 'תאריך הביצוע' });
+  const act = async (b, fn, msg) => {
+    b.disabled = true;
+    try { await fn(); toast(msg); await loadInfluencerTab(); } catch (e) { b.disabled = false; toast(db.explain(e)); }
+  };
+  const doneRow = (x) => h('li', { class: 'task done' },
+    h('span', { class: 'task-main' },
+      h('span', { class: 'task-title' }, h('bdi', {}, x.client), ' · ', x.label),
+      h('small', {}, `בוצע ${dateLabel(x.date)} · `, h('bdi', { dir: 'auto' }, x.packageName), ` · נסגרה ${dateLabel(x.dealDate)}`)),
+    money(x.amount),
+    btn('ביטול סימון', { class: 'btn btn-sm btn-ghost', onclick: (e) => act(e.currentTarget, () => db.unmarkPerformed(x.dealId, x.key), 'הסימון בוטל.') }));
+  const openRow = (x) => {
+    const d = dateIn();
+    return h('li', { class: 'task' },
+      h('span', { class: 'task-main' },
+        h('span', { class: 'task-title' }, h('bdi', {}, x.client), ' · ', x.label),
+        h('small', {}, h('bdi', { dir: 'auto' }, x.packageName), ` · נסגרה ${dateLabel(x.dealDate)}`)),
+      x.amount === null ? h('span', { class: 'muted small' }, 'לפי יום הקלטה') : money(x.amount),
+      h('span', { class: 'task-act' }, d,
+        btn('סימון כבוצע', {
+          class: 'btn btn-sm btn-primary',
+          onclick: (e) => {
+            if (!d.value) { toast('בחרו תאריך ביצוע.'); d.focus(); return; }
+            act(e.currentTarget, () => db.markPerformed(x.dealId, x.key, d.value), `סומן כבוצע ב־${dateLabel(d.value)}.`);
+          },
+        })));
+  };
+  return h('div', { class: 'stack' },
+    h('section', { class: 'kpis', 'aria-label': `סיכום ${name}` },
+      h('div', { class: 'kpi' }, h('div', { class: 'kpi-k' }, `מגיע ל${name} ב${monthLabel(state.month)}`), h('div', { class: 'kpi-v' }, money(r.total))),
+      h('div', { class: 'kpi' }, h('div', { class: 'kpi-k' }, 'ממתין לביצוע'), h('div', { class: 'kpi-v' }, String(r.open.length)), h('div', { class: 'kpi-s' }, 'ימי צילום ופרסומים'))),
+    h('p', { class: 'muted small' }, 'המשפיענים מקבלים על יום צילום או פרסום רק אחרי שסומן כבוצע, בחודש של תאריך הביצוע. בעסקה עם כמה ימי צילום הסכום מתחלק ביניהם. המסך הזה נפרד ואינו משנה את מסכי החודש והתשלומים.'),
+    r.errors.length ? h('ul', { class: 'notices' }, r.errors.map((t) => h('li', { class: 'error' }, t))) : null,
+    h('section', { class: 'card', 'aria-labelledby': 'h-due' },
+      h('h2', { id: 'h-due' }, `בוצע ב${monthLabel(state.month)}`),
+      r.recordings.length ? h('ul', { class: 'list' }, r.recordings.map((g) => h('li', { class: 'task done' },
+        h('span', { class: 'task-main' },
+          h('span', { class: 'task-title' }, `יום הקלטת פודקאסט · ${dateLabel(g.date)}`),
+          h('small', {}, `${g.clients.length} לקוחות: `, g.clients.map((c, i) => [i ? ', ' : '', h('bdi', {}, c.client)]))),
+        money(g.amount),
+        h('span', { class: 'task-act' }, g.clients.map((c) => btn(`ביטול סימון · ${c.client}`, { class: 'btn btn-sm btn-ghost', onclick: (e) => act(e.currentTarget, () => db.unmarkPerformed(c.dealId, c.key), 'הסימון בוטל.') })))))) : null,
+      r.due.length ? h('ul', { class: 'list' }, r.due.map(doneRow)) : null,
+      !r.due.length && !r.recordings.length ? h('p', { class: 'empty' }, 'עוד לא סומן ביצוע בחודש הזה.') : null,
+      h('div', { class: 'row total' }, h('span', {}, 'סה״כ לתשלום החודש'), money(r.total))),
+    h('section', { class: 'card', 'aria-labelledby': 'h-open' },
+      h('h2', { id: 'h-open' }, 'ממתין לביצוע'),
+      h('p', { class: 'muted small' }, 'מכל העסקאות, מכל חודש. עסקאות שבוטלו לא מופיעות כאן.'),
+      r.open.length ? h('ul', { class: 'list' }, r.open.map(openRow)) : h('p', { class: 'empty' }, 'אין ימי צילום או פרסומים פתוחים.')),
+  );
+}
+
 
 // ---------- boot / auth ----------
 
@@ -346,10 +419,15 @@ const isLocked = () => !!state.data?.lock;
 
 function render() {
   $('m-title').textContent = monthLabel(state.month);
-  $('m-lock').hidden = !isLocked();
-  const views = { month: viewMonth, deals: viewDeals, pay: viewPay, settings: viewSettings };
+  const infl = INFLUENCER_ROUTES.includes(state.route);
+  $('m-lock').hidden = infl || !isLocked();
+  const views = {
+    month: viewMonth, deals: viewDeals, pay: viewPay, settings: viewSettings,
+    simeon: () => viewInfluencer('simeon'), natali: () => viewInfluencer('natali'),
+  };
   $('view').replaceChildren(views[state.route]());
-  document.title = `${{ month: 'החודש', deals: 'עסקאות', pay: 'תשלומים', settings: 'הגדרות' }[state.route]} · ${monthLabel(state.month)} · אסטרטג פיימנט`;
+  const titles = { month: 'החודש', deals: 'עסקאות', pay: 'תשלומים', settings: 'הגדרות', simeon: INFLUENCERS.simeon.name, natali: INFLUENCERS.natali.name };
+  document.title = `${titles[state.route]} · ${monthLabel(state.month)} · אסטרטג פיימנט`;
 }
 
 $('m-prev').addEventListener('click', () => go(state.route, shiftMonth(state.month, -1)));
@@ -358,6 +436,7 @@ $('nav-add').addEventListener('click', () => openDeal());
 
 async function refresh() {
   state.data = null;
+  if (INFLUENCER_ROUTES.includes(state.route)) { await loadInfluencerTab(); return; }
   await loadMonth();
 }
 
@@ -712,6 +791,7 @@ async function openDeal(existing) {
   let mode = customInit ? 'custom' : 'package';
   let cFamily = customInit?.influencer || 'natali';
   const customAmountIn = moneyInput(customInit?.amount ?? null);
+  const customDaysIn = h('select', { class: 'input' }, Array.from({ length: 6 }, (_, i) => h('option', { value: String(i + 1), selected: (customInit?.shootDays || 1) === i + 1 }, String(i + 1))));
   let payMethod = d.payMethod === 'checks' ? 'checks' : 'payment';
   let term = d.termMonths === 6 ? 6 : TERM_MONTHS;
   const chequesIn = h('select', { class: 'input' });
@@ -831,7 +911,7 @@ async function openDeal(existing) {
       const amount = parseMoney(customAmountIn.value);
       return {
         ...d, date: dateIn.value, client: clientIn.value, seller: sellerIn.value, note: noteIn.value, perks: [], ...payFields(),
-        selection: { custom: true, influencer: cFamily, amount: Number.isFinite(amount) && amount > 0 ? amount : 0 },
+        selection: { custom: true, influencer: cFamily, amount: Number.isFinite(amount) && amount > 0 ? amount : 0, shootDays: Number(customDaysIn.value) },
       };
     }
     const disc = parseMoney(discountIn.value);
@@ -909,6 +989,7 @@ async function openDeal(existing) {
   chequesField.hidden = payMethod !== 'checks';
   const customBox = h('div', { class: 'stack' },
     field('סכום העסקה הכולל (₪, לפני מע״מ)', customAmountIn, { hint: 'הסכום לכל תקופת העסקה, כמו באקסל. לא צריך לפרט מה כלול.' }),
+    field('ימי צילום עם המשפיענים', customDaysIn, { hint: 'לחלוקת התשלום למשפיענים בלשונית שלהם.' }),
     h('fieldset', { class: 'group' }, h('legend', {}, 'משפיענים'),
       h('div', { class: 'choices two' }, Object.values(INFLUENCERS).map((inf) => radio('cfamily', inf.id, inf.name, null, cFamily === inf.id,
         () => { cFamily = inf.id; update(true); })))));
