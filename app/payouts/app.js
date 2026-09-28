@@ -6,7 +6,7 @@ import {
 import { reconcile, paidAddonAvailable, freeAddonAvailable } from '../pricing.js';
 import { PACKAGES, PAID_ADDONS, TIERS, INFLUENCERS, FREE_ADDONS, TERM_MONTHS, packageId } from '../catalog.js';
 import {
-  ITEMS, SOURCE_LABEL, MONTH_ITEM_KINDS, influencerMonth, CHECKS_UPFRONT, DEFER_MONTHS, computeMonth, computeDeal, commissionStatement, settingsOn,
+  ITEMS, SOURCE_LABEL, MONTH_ITEM_KINDS, influencerMonth, dealProfitOf, CHECKS_UPFRONT, DEFER_MONTHS, computeMonth, computeDeal, commissionStatement, settingsOn,
   monthBounds, shiftMonth, packageName, monthItemLabel,
 } from './engine.js';
 import * as db from './data.js';
@@ -617,7 +617,11 @@ function confirmUnlock() {
 
 function viewDeals() {
   const r = state.report;
-  const lines = (r.lines || []).filter((l) => l.kind === 'deal');
+  // Snapshots of months locked before per-deal profit existed lack it.
+  const lines = (r.lines || []).filter((l) => l.kind === 'deal').map((l) => (l.dealProfit !== undefined ? l : (() => {
+    const p = dealProfitOf(l);
+    return { ...l, dealProfit: p.profit, dealMarginBp: p.marginBp };
+  })()));
   const clawbacks = (r.lines || []).filter((l) => l.kind === 'clawback');
   const deferred = (r.lines || []).filter((l) => l.kind === 'deferred');
   const dealById = new Map(state.data.deals.map((d) => [d.id, d]));
@@ -643,16 +647,22 @@ function viewDeals() {
         h('span', { class: 'deal-meta' }, dateLabel(l.date), l.seller ? [' · סגר: ', h('bdi', {}, l.seller)] : null,
           l.items.length ? ` · ${l.items.length} רכיבים` : null)),
       h('span', { class: 'deal-nums' },
-        h('span', {}, h('small', {}, 'שווי'), money(l.value)),
+        h('span', {}, h('small', {}, 'שווי העסקה'), money(l.full ? l.full.value : l.value)),
         h('span', {}, h('small', {}, 'בסיס עמלה'), money(l.base)),
-        h('span', {}, h('small', {}, 'רווח מהעסקה'), signed(l.contribution))),
+        h('span', {}, h('small', {}, 'רווח מהעסקה'), signed(l.dealProfit),
+          l.dealMarginBp === null ? null : h('small', { class: `margin${l.dealProfit < 0 ? ' neg' : ''}` }, `${pct(l.dealMarginBp)} רווח`))),
       )))) : h('div', { class: 'card empty-state' },
       h('p', {}, `עוד אין עסקאות ב${monthLabel(state.month)}.`),
       isLocked() ? null : btn('הוספת עסקה ראשונה', { class: 'btn btn-primary', onclick: () => openDeal() })),
     lines.length ? h('div', { class: 'card' },
       h('div', { class: 'row' }, h('span', {}, 'סך שווי העסקאות'), money(t.dealsRevenue)),
       h('div', { class: 'row' }, h('span', {}, 'סך עמלות'), money(lines.reduce((s, l) => s + l.commissionTotal + l.closerTotal, 0))),
-      h('div', { class: 'row strong' }, h('span', {}, 'רווח מהעסקאות לפני הוצאות קבועות'), signed(lines.reduce((s, l) => s + l.contribution, 0)))) : null,
+      h('div', { class: 'row strong' }, h('span', {}, 'רווח מהעסקאות לפני הוצאות קבועות'), signed(lines.reduce((s, l) => s + l.dealProfit, 0))),
+      (() => {
+        const v = lines.reduce((s, l) => s + (l.full ? l.full.value : l.value), 0);
+        const p = lines.reduce((s, l) => s + l.dealProfit, 0);
+        return v ? h('div', { class: 'row' }, h('span', {}, 'אחוז רווח מהעסקאות'), h('span', {}, pct(Math.round((p * 10000) / v)))) : null;
+      })()) : null,
     deferred.length ? h('section', { class: 'card', 'aria-labelledby': 'h-def' },
       h('h2', { id: 'h-def' }, 'יתרות צ׳קים שנכנסות החודש'),
       h('p', { class: 'muted small' }, `עסקאות בצ׳קים מלפני ${DEFER_MONTHS} חודשים: יתרת ההכנסה והעמלות.`),
@@ -940,8 +950,8 @@ async function openDeal(existing) {
     }
     const row = (label, value, cls) => h('div', { class: `row ${cls || ''}` }, h('span', {}, label), value);
     const prod = l.production.influencer + l.production.photographer + l.production.makeup;
-    const closer = l.closerFee?.amount || 0;
-    const contribution = l.value - l.paymentReal - l.commissions.reduce((s, c) => s + c.amount, 0) - prod - l.itemsReal - closer;
+    const deal = dealProfitOf(l);
+    const contribution = deal.profit;
     preview.replaceChildren(...[
       h('h3', {}, 'חישוב העסקה'),
       row(`שווי ל־${l.termMonths} חודשים${l.deferred ? ' (עכשיו)' : ''}`, money(l.value)),
@@ -955,8 +965,9 @@ async function openDeal(existing) {
       l.termMonths === 6 ? row('חצי שנתי: המשפיענים מקבלים חצי', h('span', { class: 'muted small' }, money(l.production.influencer)), 'sub') : null,
       row('הפקה', l.pooled ? h('span', { class: 'muted small' }, 'המשפיענית מתחלקת בסוף החודש', ' + ', money(prod)) : money(prod)),
       row(l.pooled ? 'רווח מהעסקה, לפני המשפיענית' : 'רווח מהעסקה', signed(contribution), 'strong'),
+      deal.marginBp === null ? null : row('אחוז רווח מהעסקה', h('span', { class: deal.profit < 0 ? 'neg' : '' }, pct(deal.marginBp)), 'strong'),
     ].flat().filter(Boolean));
-    if (announceIt) announce.textContent = `בסיס עמלה ${formatILS(l.base)}. רווח מהעסקה ${formatILS(contribution)}.`;
+    if (announceIt) announce.textContent = `בסיס עמלה ${formatILS(l.base)}. רווח מהעסקה ${formatILS(contribution)}${deal.marginBp === null ? '' : `, ${pct(deal.marginBp)}`}.`;
   }
 
   function drawAll() {

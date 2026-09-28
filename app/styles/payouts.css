@@ -265,7 +265,10 @@ textarea.input { min-height: 72px; resize: vertical; }
 .deal-pkg { color: var(--text-2); }
 .deal-meta { color: var(--muted); font-size: 13.5px; }
 .deal-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.deal-nums > span { display: grid; min-width: 0; }
+.deal-nums > span { display: grid; min-width: 0; align-content: start; }
+.deal-nums > span > * { justify-self: start; }
+.deal-nums .margin { color: var(--ok); font-weight: 600; font-size: 12.5px; }
+.deal-nums .margin.neg { color: var(--danger); }
 .deal-nums small { color: var(--muted); font-size: 12.5px; }
 
 /* ── Payouts ────────────────────────── */

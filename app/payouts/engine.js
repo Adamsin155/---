@@ -324,6 +324,18 @@ export function computeIncome(entry, settings) {
   };
 }
 
+// Profit of the whole deal (all cheques, both halves), and its share of
+// the deal's value. The month report books cheque deals in two parts; this
+// is the deal's own result, used on the deal list and in the deal form.
+export function dealProfitOf(line) {
+  const value = line.full ? line.full.value : line.value;
+  const payment = line.paymentReal + (line.deferred?.paymentReal || 0);
+  const commissions = (line.full ? line.full.commissions : line.commissions).reduce((s, c) => s + c.amount, 0);
+  const production = line.production.influencer + line.production.photographer + line.production.makeup;
+  const profit = value - payment - commissions - production - line.itemsReal - (line.closerFee?.amount || 0);
+  return { value, profit, marginBp: value ? Math.round((profit * 10000) / value) : null };
+}
+
 function finishLine(line) {
   const commissionTotal = line.commissions.reduce((s, c) => s + c.amount, 0);
   const productionTotal = line.production.influencer + line.production.photographer + line.production.makeup;
@@ -332,6 +344,11 @@ function finishLine(line) {
   line.productionTotal = productionTotal;
   line.closerTotal = closerTotal;
   line.contribution = line.value - line.paymentReal - commissionTotal - productionTotal - line.itemsReal - closerTotal;
+  if (line.kind === 'deal') {
+    const p = dealProfitOf(line);
+    line.dealProfit = p.profit;
+    line.dealMarginBp = p.marginBp;
+  }
   return line;
 }
 
