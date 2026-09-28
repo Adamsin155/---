@@ -31,6 +31,12 @@ function formatILS(agorot) {
   return `${(agorot % 100 === 0 ? ilsFmt : ilsFmt2).format(agorot / 100)} ₪`;
 }
 const money = (agorot, cls = '') => h('span', { class: `num ${cls}`.trim(), dir: 'ltr' }, formatILS(agorot));
+// Month counts in natural Hebrew.
+const monthsText = (n) => (n === 0 ? 'אף חודש' : n === 1 ? 'חודש אחד' : n === 2 ? 'חודשיים' : `${n} חודשים`);
+// Fills an element the way h() does: nested arrays flatten, null and false are skipped.
+const put = (el, ...kids) => el.replaceChildren(...kids.flat(Infinity).filter((k) => k !== null && k !== undefined && k !== false));
+// A figure with its label above it, aligned to the start (right) edge.
+const fig = (label, value, cls = '') => h('span', { class: `fig ${cls}`.trim() }, h('small', {}, label), value);
 const signed = (agorot) => (agorot < 0
   ? h('span', { class: 'neg' }, 'הפסד ', money(-agorot))
   : money(agorot));
@@ -70,8 +76,8 @@ const setState = (msg) => { $('state').textContent = msg || ''; };
 let onDialogClose = null;
 function openSheet({ title, body, foot, wide = false, onClose }) {
   $('dlg-title').textContent = title;
-  $('dlg-body').replaceChildren(...[].concat(body).filter(Boolean));
-  $('dlg-foot').replaceChildren(...[].concat(foot || []).filter(Boolean));
+  put($('dlg-body'), ...[].concat(body).filter(Boolean));
+  put($('dlg-foot'), ...[].concat(foot || []).filter(Boolean));
   $('dlg').classList.toggle('wide', wide);
   onDialogClose = onClose || null;
   if (!$('dlg').open) $('dlg').showModal();
@@ -119,7 +125,7 @@ function errorSummary(errors) {
   const box = h('div', { class: 'err-summary', tabindex: '-1', role: 'alert' },
     h('strong', {}, 'יש לתקן לפני שמירה:'),
     h('ul', {}, errors.map(([input, msg]) => h('li', {}, h('a', {
-      href: `#${input.id}`, onclick: (e) => { e.preventDefault(); input.focus(); },
+      href: `#${input.id}`, onclick: (e) => { e.preventDefault(); const sec = input.closest('details'); if (sec) sec.open = true; input.focus(); },
     }, msg)))));
   return box;
 }
@@ -184,7 +190,7 @@ function viewInfluencer(family) {
     h('span', { class: 'task-main' },
       h('span', { class: 'task-title' }, h('bdi', {}, x.client), ' · ', x.label),
       h('small', {}, `בוצע ${dateLabel(x.date)} · `, h('bdi', { dir: 'auto' }, x.packageName), ` · נסגרה ${dateLabel(x.dealDate)}`)),
-    money(x.amount),
+    fig('לתשלום', money(x.amount)),
     btn('ביטול סימון', { class: 'btn btn-sm btn-ghost', onclick: (e) => act(e.currentTarget, () => db.unmarkPerformed(x.dealId, x.key), 'הסימון בוטל.') }));
   const openRow = (x) => {
     const d = dateIn();
@@ -192,7 +198,7 @@ function viewInfluencer(family) {
       h('span', { class: 'task-main' },
         h('span', { class: 'task-title' }, h('bdi', {}, x.client), ' · ', x.label),
         h('small', {}, h('bdi', { dir: 'auto' }, x.packageName), ` · נסגרה ${dateLabel(x.dealDate)}`)),
-      x.amount === null ? h('span', { class: 'muted small' }, 'לפי יום הקלטה') : money(x.amount),
+      fig('סכום', x.amount === null ? h('span', {}, 'לפי יום הקלטה') : money(x.amount)),
       h('span', { class: 'task-act' }, d,
         btn('סימון כבוצע', {
           class: 'btn btn-sm btn-primary',
@@ -202,7 +208,7 @@ function viewInfluencer(family) {
           },
         })));
   };
-  return h('div', { class: 'stack' },
+  return h('div', { class: 'stack cols' },
     h('section', { class: 'kpis', 'aria-label': `סיכום ${name}` },
       h('div', { class: 'kpi' }, h('div', { class: 'kpi-k' }, `מגיע ל${name} ב${monthLabel(state.month)}`), h('div', { class: 'kpi-v' }, money(r.total))),
       h('div', { class: 'kpi' }, h('div', { class: 'kpi-k' }, 'ממתין לביצוע'), h('div', { class: 'kpi-v' }, String(r.open.length)), h('div', { class: 'kpi-s' }, 'ימי צילום ופרסומים'))),
@@ -214,7 +220,7 @@ function viewInfluencer(family) {
         h('span', { class: 'task-main' },
           h('span', { class: 'task-title' }, `יום הקלטת פודקאסט · ${dateLabel(g.date)}`),
           h('small', {}, `${g.clients.length} לקוחות: `, g.clients.map((c, i) => [i ? ', ' : '', h('bdi', {}, c.client)]))),
-        money(g.amount),
+        fig('לתשלום', money(g.amount)),
         h('span', { class: 'task-act' }, g.clients.map((c) => btn(`ביטול סימון · ${c.client}`, { class: 'btn btn-sm btn-ghost', onclick: (e) => act(e.currentTarget, () => db.unmarkPerformed(c.dealId, c.key), 'הסימון בוטל.') })))))) : null,
       r.due.length ? h('ul', { class: 'list' }, r.due.map(doneRow)) : null,
       !r.due.length && !r.recordings.length ? h('p', { class: 'empty' }, 'עוד לא סומן ביצוע בחודש הזה.') : null,
@@ -255,7 +261,7 @@ function showSetPassword() {
     state.session = await db.session();
     await enter();
   });
-  $('view').replaceChildren(form);
+  put($('view'), form);
   pass.focus();
 }
 
@@ -340,14 +346,14 @@ function showLogin() {
     state.session = data.session;
     await enter();
   });
-  $('view').replaceChildren(form);
+  put($('view'), form);
   setState('');
 }
 
 function showNotOwner() {
   $('nav').hidden = true;
   $('monthbar').hidden = true;
-  $('view').replaceChildren(h('section', { class: 'card narrow' },
+  put($('view'), h('section', { class: 'card narrow' },
     h('h1', {}, 'אין לך גישה לאסטרטג פיימנט'),
     h('p', {}, `המשתמש ${state.session.user.email} מחובר, אבל אינו מוגדר כמנהל במערכת הזו.`),
     h('p', { class: 'muted' }, 'מנהל קיים מוסיף גישה ב־Supabase (SQL Editor) לפי ההוראות ב־README.'),
@@ -425,7 +431,7 @@ function render() {
     month: viewMonth, deals: viewDeals, pay: viewPay, settings: viewSettings,
     simeon: () => viewInfluencer('simeon'), natali: () => viewInfluencer('natali'),
   };
-  $('view').replaceChildren(views[state.route]());
+  put($('view'), views[state.route]());
   const titles = { month: 'החודש', deals: 'עסקאות', pay: 'תשלומים', settings: 'הגדרות', simeon: INFLUENCERS.simeon.name, natali: INFLUENCERS.natali.name };
   document.title = `${titles[state.route]} · ${monthLabel(state.month)} · אסטרטג פיימנט`;
 }
@@ -466,7 +472,7 @@ function viewMonth() {
   const t = r.totals;
   const kpi = (label, value, sub) => h('div', { class: 'kpi' }, h('div', { class: 'kpi-k' }, label), h('div', { class: 'kpi-v' }, value), sub ? h('div', { class: 'kpi-s' }, sub) : null);
   const row = (label, value, strong) => h('div', { class: `row${strong ? ' strong' : ''}` }, h('span', {}, label), value);
-  return h('div', { class: 'stack' },
+  return h('div', { class: 'stack cols' },
     lockedBanner(),
     notices(r),
     h('section', { class: 'kpis', 'aria-label': 'סיכום החודש' },
@@ -649,20 +655,23 @@ function viewDeals() {
       h('span', { class: 'deal-nums' },
         h('span', {}, h('small', {}, 'שווי העסקה'), money(l.full ? l.full.value : l.value)),
         h('span', {}, h('small', {}, 'בסיס עמלה'), money(l.base)),
-        h('span', {}, h('small', {}, 'רווח מהעסקה'), signed(l.dealProfit),
+        h('span', { class: 'profit' }, h('small', {}, 'רווח מהעסקה'), signed(l.dealProfit),
           l.dealMarginBp === null ? null : h('small', { class: `margin${l.dealProfit < 0 ? ' neg' : ''}` }, `${pct(l.dealMarginBp)} רווח`))),
       )))) : h('div', { class: 'card empty-state' },
       h('p', {}, `עוד אין עסקאות ב${monthLabel(state.month)}.`),
       isLocked() ? null : btn('הוספת עסקה ראשונה', { class: 'btn btn-primary', onclick: () => openDeal() })),
-    lines.length ? h('div', { class: 'card' },
-      h('div', { class: 'row' }, h('span', {}, 'סך שווי העסקאות'), money(t.dealsRevenue)),
-      h('div', { class: 'row' }, h('span', {}, 'סך עמלות'), money(lines.reduce((s, l) => s + l.commissionTotal + l.closerTotal, 0))),
-      h('div', { class: 'row strong' }, h('span', {}, 'רווח מהעסקאות לפני הוצאות קבועות'), signed(lines.reduce((s, l) => s + l.dealProfit, 0))),
-      (() => {
-        const v = lines.reduce((s, l) => s + (l.full ? l.full.value : l.value), 0);
-        const p = lines.reduce((s, l) => s + l.dealProfit, 0);
-        return v ? h('div', { class: 'row' }, h('span', {}, 'אחוז רווח מהעסקאות'), h('span', {}, pct(Math.round((p * 10000) / v)))) : null;
-      })()) : null,
+    lines.length ? (() => {
+      const v = lines.reduce((s, l) => s + (l.full ? l.full.value : l.value), 0);
+      const p = lines.reduce((s, l) => s + l.dealProfit, 0);
+      const tile = (label, value) => h('div', { class: 'tile' }, h('small', {}, label), value);
+      return h('section', { class: 'card', 'aria-labelledby': 'h-dsum' },
+        h('h2', { id: 'h-dsum' }, 'סיכום העסקאות'),
+        h('div', { class: 'tiles' },
+          tile('שווי העסקאות', money(v)),
+          tile('עמלות', money(lines.reduce((s, l) => s + (l.full ? l.full.commissions.reduce((a, c) => a + c.amount, 0) : l.commissionTotal) + l.closerTotal, 0))),
+          tile('רווח לפני הוצאות קבועות', signed(p)),
+          tile('אחוז רווח', h('span', { class: p < 0 ? 'neg' : '' }, v ? pct(Math.round((p * 10000) / v)) : '—'))));
+    })() : null,
     deferred.length ? h('section', { class: 'card', 'aria-labelledby': 'h-def' },
       h('h2', { id: 'h-def' }, 'יתרות צ׳קים שנכנסות החודש'),
       h('p', { class: 'muted small' }, `עסקאות בצ׳קים מלפני ${DEFER_MONTHS} חודשים: יתרת ההכנסה והעמלות.`),
@@ -698,7 +707,7 @@ async function openCancel(preset) {
     `${d.client} · ${dateLabel(d.date)} ${d.date.slice(0, 4)}${d.cancelledOn ? ' · כבר בוטלה' : ''}`)));
   const dateIn = h('input', { class: 'input', type: 'date', value: defaultDealDate() });
   const monthsIn = h('select', { class: 'input' });
-  const fillMonths = (t) => monthsIn.replaceChildren(...Array.from({ length: t + 1 }, (_, i) => h('option', { value: String(i) }, `${i} חודשים`)));
+  const fillMonths = (t) => put(monthsIn, ...Array.from({ length: t + 1 }, (_, i) => h('option', { value: String(i) }, monthsText(i))));
   const preview = h('div', { class: 'preview' });
   const errBox = h('div');
   const pick = () => deals.find((d) => d.id === dealIn.value);
@@ -715,11 +724,19 @@ async function openCancel(preset) {
     const cancelled = { ...d, cancelledOn: dateIn.value || defaultDealDate(), paidMonths: Number(monthsIn.value) };
     const r = computeMonth({ month: cancelled.cancelledOn.slice(0, 7), deals: [cancelled], versions: state.versions });
     const l = (r.lines || []).find((x) => x.kind === 'clawback');
-    if (!l) { preview.replaceChildren(h('p', { class: 'warn-text' }, (r.errors || [])[0] || 'לא ניתן לחשב את הביטול.')); return; }
-    preview.replaceChildren(h('h3', {}, `הלקוח שילם ${monthsIn.value} מתוך ${d.termMonths || TERM_MONTHS} חודשים`),
-      h('div', { class: 'row' }, h('span', {}, `הכנסה שיורדת (מתוך ${formatILS(l.originalValue)})`), money(l.value)),
-      ...l.commissions.map((c) => h('div', { class: 'row' }, h('span', {}, `${c.name} · עמלה ${formatILS(c.original)}`), offset(c.amount))),
-      ...(l.closerFee ? [h('div', { class: 'row' }, h('span', {}, `${l.closerFee.name} · עמלת סגירה ${formatILS(l.closerFee.original)}`), offset(l.closerFee.amount))] : []),
+    if (!l) { put(preview, h('p', { class: 'warn-text' }, (r.errors || [])[0] || 'לא ניתן לחשב את הביטול.')); return; }
+    const who = (name, label, original, amount) => h('div', { class: 'cancel-person' },
+      h('h4', {}, h('bdi', {}, name), ` · ${label}`),
+      h('div', { class: 'tiles' },
+        h('span', { class: 'tile' }, h('small', {}, 'העמלה ששולמה'), money(original)),
+        h('span', { class: 'tile tile-neg' }, h('small', {}, 'קיזוז בחודש הביטול'), money(-amount))));
+    put(preview,
+      h('h3', {}, `הלקוח שילם ${monthsText(Number(monthsIn.value))} מתוך ${d.termMonths || TERM_MONTHS}`),
+      h('div', { class: 'tiles' },
+        h('span', { class: 'tile' }, h('small', {}, 'שווי העסקה'), money(l.originalValue)),
+        h('span', { class: 'tile tile-neg' }, h('small', {}, 'הכנסה שיורדת'), money(-l.value))),
+      l.commissions.map((c) => who(c.name, 'עמלה', c.original, c.amount)),
+      l.closerFee ? who(l.closerFee.name, 'עמלת סגירה', l.closerFee.original, l.closerFee.amount) : null,
       d.payMethod === 'checks' && d.installments > CHECKS_UPFRONT
         ? h('p', { class: 'muted small' }, `עסקת צ׳קים: יתרת ${d.installments - CHECKS_UPFRONT} הצ׳קים לא תיכנס אם הביטול לפני ${monthLabel(shiftMonth(d.date.slice(0, 7), DEFER_MONTHS))}.`)
         : null,
@@ -737,7 +754,7 @@ async function openCancel(preset) {
       setFieldError(dateIn, '');
       if (!dateIn.value || dateIn.value < d.date) {
         setFieldError(dateIn, 'תאריך הביטול חייב להיות אחרי תאריך הסגירה.');
-        errBox.replaceChildren(errorSummary([[dateIn, 'תאריך הביטול חייב להיות אחרי תאריך הסגירה.']]));
+        put(errBox, errorSummary([[dateIn, 'תאריך הביטול חייב להיות אחרי תאריך הסגירה.']]));
         errBox.firstChild.focus();
         return;
       }
@@ -748,7 +765,7 @@ async function openCancel(preset) {
         closeSheet(); toast('הביטול נשמר.');
         const m = dateIn.value.slice(0, 7);
         if (m !== state.month) go('deals', m); else await refresh();
-      } catch (e) { save.disabled = false; errBox.replaceChildren(h('div', { class: 'err-summary', role: 'alert' }, db.explain(e))); }
+      } catch (e) { save.disabled = false; put(errBox, h('div', { class: 'err-summary', role: 'alert' }, db.explain(e))); }
     },
   });
   const undo = btn('העסקה לא בוטלה (הסרת הביטול)', {
@@ -807,7 +824,7 @@ async function openDeal(existing) {
   const chequesIn = h('select', { class: 'input' });
   const fillCheques = () => {
     const keep = Math.min(Number(chequesIn.value) || d.installments || term, term);
-    chequesIn.replaceChildren(...Array.from({ length: term }, (_, i) => h('option', { value: String(i + 1), selected: keep === i + 1 }, `${i + 1} צ׳קים`)));
+    put(chequesIn, ...Array.from({ length: term }, (_, i) => h('option', { value: String(i + 1), selected: keep === i + 1 }, `${i + 1} צ׳קים`)));
   };
   fillCheques();
 
@@ -860,7 +877,7 @@ async function openDeal(existing) {
 
   function drawPackage() {
     const s = d.selection;
-    pkgBox.replaceChildren(
+    put(pkgBox, 
       h('fieldset', { class: 'group' }, h('legend', {}, 'חבילה'),
         h('div', { class: 'choices' }, TIERS.map((t) => radio('tier', t.id, t.name, `${formatILS(PACKAGES[packageId(t.id, s.influencer)].price)} לחודש`, s.tier === t.id,
           () => keepFocus(() => { s.tier = t.id; applyReconcile(); drawAll(); }))))),
@@ -886,7 +903,7 @@ async function openDeal(existing) {
         qtySelect(s.free.simeonStories, FREE_ADDONS.simeonStories.max, (e) => { s.free.simeonStories = Number(e.target.value); update(); }, FREE_ADDONS.simeonStories.name)));
     }
     free.push(check(FREE_ADDONS.extraCh14.name, 'במקרים חריגים בלבד', s.free.extraCh14, (e) => { s.free.extraCh14 = e.target.checked; update(); }));
-    addonsBox.replaceChildren(
+    put(addonsBox, 
       h('fieldset', { class: 'group' }, h('legend', {}, 'תוספות בתשלום'),
         paid.length ? h('div', { class: 'choices' }, paid.map((a) => check(a.name, `${formatILS(a.price)} לחודש`, s.paid.includes(a.id), (e) => {
           s.paid = e.target.checked ? [...s.paid, a.id] : s.paid.filter((x) => x !== a.id);
@@ -904,7 +921,7 @@ async function openDeal(existing) {
         Array.from({ length: 10 }, (_, k) => h('option', { value: String(k + 1), selected: p.qty === k + 1 }, String(k + 1)))),
       h('button', { type: 'button', class: 'icon-btn', 'aria-label': `הסרת צ׳ופר ${i + 1}`, onclick: () => keepFocus(() => { d.perks.splice(i, 1); drawPerks(); update(); }, 'perk-add') },
         h('span', { 'aria-hidden': 'true' }, '×'))));
-    perksBox.replaceChildren(h('fieldset', { class: 'group' }, h('legend', {}, 'צ׳ופרים נוספים'),
+    put(perksBox, h('fieldset', { class: 'group' }, h('legend', {}, 'צ׳ופרים נוספים'),
       h('p', { class: 'muted small' }, 'כל דבר שאיש המכירות נתן בלי תשלום ולא מופיע למעלה. העלות שלו יורדת מבסיס העמלה.'),
       rows,
       btn('הוספת צ׳ופר', { class: 'btn btn-sm', 'data-key': 'perk-add', onclick: () => keepFocus(() => { d.perks.push({ id: 'natali-story', qty: 1 }); drawPerks(); update(); }, `perk:${d.perks.length}`) })));
@@ -939,21 +956,28 @@ async function openDeal(existing) {
   function update(announceIt = false) {
     const cur = currentDeal();
     const v = settingsOn(state.versions, cur.date || defaultDealDate());
-    if (!v) { preview.replaceChildren(h('p', { class: 'warn-text' }, 'אין הגדרות בתוקף לתאריך הזה.')); return; }
+    if (!v) { put(preview, h('p', { class: 'warn-text' }, 'אין הגדרות בתוקף לתאריך הזה.')); return; }
     let l;
     const warns = new Set();
     try {
       l = computeDeal(cur, v.data, (w) => warns.add(w));
     } catch {
-      preview.replaceChildren(h('p', { class: 'warn-text' }, mode === 'custom' ? 'הזינו את סכום העסקה.' : 'הבחירה לא תקינה. בדקו את ההנחה ואת התוספות.'));
+      put(preview, h('p', { class: 'warn-text' }, mode === 'custom' ? 'הזינו את סכום העסקה.' : 'הבחירה לא תקינה. בדקו את ההנחה ואת התוספות.'));
       return;
     }
     const row = (label, value, cls) => h('div', { class: `row ${cls || ''}` }, h('span', {}, label), value);
     const prod = l.production.influencer + l.production.photographer + l.production.makeup;
     const deal = dealProfitOf(l);
     const contribution = deal.profit;
-    preview.replaceChildren(...[
+    put(preview, ...[
       h('h3', {}, 'חישוב העסקה'),
+      // The same figures as the deal card, label above value.
+      h('div', { class: 'deal-nums' },
+        h('span', {}, h('small', {}, 'שווי העסקה'), money(deal.value)),
+        h('span', {}, h('small', {}, 'בסיס עמלה'), money(l.base)),
+        h('span', { class: 'profit' }, h('small', {}, l.pooled ? 'רווח, לפני המשפיענית' : 'רווח מהעסקה'), signed(contribution),
+          deal.marginBp === null ? null : h('small', { class: `margin${deal.profit < 0 ? ' neg' : ''}` }, `${pct(deal.marginBp)} רווח`))),
+      h('h4', { class: 'preview-sub' }, 'פירוט'),
       row(`שווי ל־${l.termMonths} חודשים${l.deferred ? ' (עכשיו)' : ''}`, money(l.value)),
       row(l.payMethod === 'checks' ? 'פיימנט (כפי שמוצג למקבלי העמלה)' : 'פיימנט', money(-l.paymentCommission)),
       l.payMethod === 'checks' ? row('עלות אמיתית: עמלת צ׳קים', h('span', { class: 'muted small' }, money(-l.paymentReal), l.deferred ? ' עכשיו' : ''), 'sub') : null,
@@ -965,7 +989,6 @@ async function openDeal(existing) {
       l.termMonths === 6 ? row('חצי שנתי: המשפיענים מקבלים חצי', h('span', { class: 'muted small' }, money(l.production.influencer)), 'sub') : null,
       row('הפקה', l.pooled ? h('span', { class: 'muted small' }, 'המשפיענית מתחלקת בסוף החודש', ' + ', money(prod)) : money(prod)),
       row(l.pooled ? 'רווח מהעסקה, לפני המשפיענית' : 'רווח מהעסקה', signed(contribution), 'strong'),
-      deal.marginBp === null ? null : row('אחוז רווח מהעסקה', h('span', { class: deal.profit < 0 ? 'neg' : '' }, pct(deal.marginBp)), 'strong'),
     ].flat().filter(Boolean));
     if (announceIt) announce.textContent = `בסיס עמלה ${formatILS(l.base)}. רווח מהעסקה ${formatILS(contribution)}${deal.marginBp === null ? '' : `, ${pct(deal.marginBp)}`}.`;
   }
@@ -1031,7 +1054,7 @@ async function openDeal(existing) {
     if (mode === 'custom' && !(Number.isFinite(customAmount) && customAmount > 0)) errors.push([customAmountIn, 'חסר סכום העסקה.']);
     for (const [el, msg] of errors) setFieldError(el, msg);
     if (errors.length) {
-      errBox.replaceChildren(errorSummary(errors));
+      put(errBox, errorSummary(errors));
       errBox.firstChild.focus();
       return;
     }
@@ -1045,7 +1068,7 @@ async function openDeal(existing) {
       if (m !== state.month) go('deals', m); else await refresh();
     } catch (e) {
       save.disabled = false;
-      errBox.replaceChildren(h('div', { class: 'err-summary', role: 'alert' }, db.explain(e)));
+      put(errBox, h('div', { class: 'err-summary', role: 'alert' }, db.explain(e)));
     }
   });
 
@@ -1102,13 +1125,13 @@ function openIncome(existing) {
       if (!Number.isFinite(amount) || amount === null || amount <= 0) errors.push([amountIn, 'סכום חיובי בשקלים.']);
       if (!dateIn.value) errors.push([dateIn, 'חסר תאריך.']);
       errors.forEach(([el, m]) => setFieldError(el, m));
-      if (errors.length) { errBox.replaceChildren(errorSummary(errors)); errBox.firstChild.focus(); return; }
+      if (errors.length) { put(errBox, errorSummary(errors)); errBox.firstChild.focus(); return; }
       if (save.disabled) return;
       save.disabled = true;
       try {
         await db.saveIncome({ id: existing?.id, date: dateIn.value, label: labelIn.value, family: famIn.value, amount });
         closeSheet(); toast('נשמר.'); await refresh();
-      } catch (err) { save.disabled = false; errBox.replaceChildren(h('div', { class: 'err-summary', role: 'alert' }, db.explain(err))); }
+      } catch (err) { save.disabled = false; put(errBox, h('div', { class: 'err-summary', role: 'alert' }, db.explain(err))); }
     },
   });
   openSheet({
@@ -1156,7 +1179,7 @@ function openExpense(existing) {
       if (k === 'meetings' && !(qty >= 0 && qty <= 10000)) errors.push([qtyIn, 'מספר פגישות שלם.']);
       if (k !== 'meetings' && (!Number.isFinite(amount) || amount === null)) errors.push([amountIn, 'סכום בשקלים.']);
       errors.forEach(([el, m]) => setFieldError(el, m));
-      if (errors.length) { errBox.replaceChildren(errorSummary(errors)); errBox.firstChild.focus(); return; }
+      if (errors.length) { put(errBox, errorSummary(errors)); errBox.firstChild.focus(); return; }
       if (save.disabled) return;
       save.disabled = true;
       try {
@@ -1167,7 +1190,7 @@ function openExpense(existing) {
           qty: k === 'meetings' ? qty : null,
         });
         closeSheet(); toast('נשמר.'); await refresh();
-      } catch (err) { save.disabled = false; errBox.replaceChildren(h('div', { class: 'err-summary', role: 'alert' }, db.explain(err))); }
+      } catch (err) { save.disabled = false; put(errBox, h('div', { class: 'err-summary', role: 'alert' }, db.explain(err))); }
     },
   });
   openSheet({
@@ -1182,7 +1205,7 @@ function openExpense(existing) {
 
 const KIND_LABEL = {
   commission: 'עמלות', influencer: 'משפיענים', supplier: 'הפקה וספקים', employee: 'משכורות', expense: 'הוצאות',
-  payment: 'פיימנט ועמלת צ׳קים (מנוכים אוטומטית)', partner: 'שותפים',
+  payment: 'פיימנט וצ׳קים', partner: 'שותפים',
 };
 
 function viewPay() {
@@ -1195,7 +1218,10 @@ function viewPay() {
     lockedBanner(),
     notices(r),
     Object.entries(KIND_LABEL).filter(([k]) => groups[k]).map(([k, label]) => h('section', { class: 'pay-group', 'aria-labelledby': `h-${k}` },
-      h('h2', { id: `h-${k}` }, label, h('span', { class: 'group-total' }, money(groups[k].reduce((s, p) => s + p.total, 0)))),
+      h('div', { class: 'group-head' },
+        h('h2', { id: `h-${k}` }, label),
+        h('span', { class: 'group-total' }, h('span', { class: 'lbl' }, 'סה״כ'), money(groups[k].reduce((s, p) => s + p.total, 0)))),
+      k === 'payment' ? h('p', { class: 'hint' }, 'מנוכים אוטומטית מהתשלום של הלקוח. לא מעבירים אותם ידנית.') : null,
       groups[k].map((p) => h('details', { class: 'payee' },
         h('summary', {}, h('span', { class: 'payee-name' }, h('bdi', {}, p.name)), p.total < 0 ? (k === 'partner' ? signed(p.total) : offset(p.total)) : money(p.total, 'payee-amt')),
         h('ul', { class: 'payee-lines' }, p.lines.map((ln) => h('li', {}, h('bdi', {}, ln.label), money(ln.amount)))),
@@ -1205,7 +1231,7 @@ function viewPay() {
       )),
     )),
     h('div', { class: 'paybar', role: 'group', 'aria-label': 'סיכום תשלומים' },
-      h('span', {}, 'סה״כ לתשלום החודש, בלי פיימנט, צ׳קים ושותפים'), money(toPay)),
+      h('span', { class: 'lbl' }, 'סה״כ לתשלום החודש', h('small', {}, 'בלי פיימנט, צ׳קים ושותפים')), money(toPay, 'paybar-amt')),
   );
 }
 
@@ -1321,6 +1347,7 @@ function viewSettings() {
   const noteIn = textInput('', { maxlength: '200' });
   const errBox = h('div');
   const inputs = []; // [input, parse, assign, label]
+  const openSections = state.openSettings ||= new Set(['פיימנט וצ׳קים']);
 
   const reg = (input, parse, assign, label) => { inputs.push([input, parse, assign, label]); return input; };
   const moneyField = (label, get, set, { nullable = false, context } = {}) => {
@@ -1351,11 +1378,16 @@ function viewSettings() {
     }
   };
 
-  const section = (title, hint, ...children) => h('section', { class: 'card' }, h('h2', {}, title), hint ? h('p', { class: 'muted small' }, hint) : null, ...children);
+  // Each section folds, so the page stays short on a phone.
+  const section = (title, hint, ...children) => h('details', {
+    class: 'card set-sec', open: openSections.has(title),
+    ontoggle: (e) => { if (e.currentTarget.open) openSections.add(title); else openSections.delete(title); },
+  },
+    h('summary', {}, h('h2', {}, title)), hint ? h('p', { class: 'muted small' }, hint) : null, ...children);
   const listSection = (title, hint, arr, make, blank) => {
     const box = h('div', { class: 'rows' });
     const draw = () => {
-      box.replaceChildren(...arr.map((item, i) => h('div', { class: 'set-row' }, make(item, `${title} ${i + 1}`),
+      put(box, ...arr.map((item, i) => h('div', { class: 'set-row' }, make(item, `${title} ${i + 1}`),
         h('button', { type: 'button', class: 'icon-btn', 'aria-label': `הסרה מ${title}: ${item.name || `שורה ${i + 1}`}`, onclick: () => { syncInputs(); arr.splice(i, 1); redraw(); } }, h('span', { 'aria-hidden': 'true' }, '×')))));
     };
     draw();
@@ -1470,13 +1502,18 @@ function viewSettings() {
     for (const [input, parse, assign, label] of inputs) {
       setFieldError(input, '');
       const v = parse(input.value);
-      if (typeof v === 'number' && Number.isNaN(v)) { errors.push([input, `${label}: ערך לא תקין.`]); setFieldError(input, 'ערך לא תקין.'); } else assign(v);
+      if (typeof v === 'number' && Number.isNaN(v)) {
+        errors.push([input, `${label}: ערך לא תקין.`]);
+        setFieldError(input, 'ערך לא תקין.');
+        const sec = input.closest('details');
+        if (sec) sec.open = true;
+      } else assign(v);
     }
     if (!fromIn.value) errors.push([fromIn, 'חסר תאריך תחילה.']);
     else if (minDate && fromIn.value < minDate) errors.push([fromIn, `התאריך חייב להיות ${minDate} או מאוחר יותר.`]);
     const weights = s.partners.reduce((a, p) => a + p.weight, 0);
     if (!errors.length && s.partners.length && weights <= 0) errors.push([fromIn, 'לפחות לשותף אחד צריך להיות חלק גדול מ־0.']);
-    if (errors.length) { errBox.replaceChildren(errorSummary(errors)); errBox.firstChild.focus(); return; }
+    if (errors.length) { put(errBox, errorSummary(errors)); errBox.firstChild.focus(); return; }
     errBox.replaceChildren();
     const same = versions.find((v) => v.effectiveFrom === fromIn.value);
     if (same && !confirm(`כבר יש גרסה שמתחילה ב־${fromIn.value}. להחליף אותה בערכים האלה?`)) return;
@@ -1486,7 +1523,7 @@ function viewSettings() {
       toast('ההגדרות נשמרו.');
       await refresh();
     } catch (e) {
-      errBox.replaceChildren(h('div', { class: 'err-summary', role: 'alert' }, db.explain(e)));
+      put(errBox, h('div', { class: 'err-summary', role: 'alert' }, db.explain(e)));
     }
   }
 

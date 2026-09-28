@@ -177,7 +177,35 @@ async function login(page, email) {
   await page.getByLabel('סיסמה').fill('correct-horse');
   await page.getByRole('button', { name: 'כניסה' }).click();
 }
-const shot = async (page, name) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true }); };
+// Design checks on every screen we photograph: Hebrew RTL, no stray values,
+// no sideways scroll, and every figure's value sits right under its label.
+async function assertDesign(page, name) {
+  const r = await page.evaluate(() => {
+    const root = document.querySelector('dialog[open]') || document.body;
+    const misaligned = [...root.querySelectorAll('.deal-nums > span, .tile, .fig, .kpi')]
+      .filter((el) => el.offsetParent && el.children.length >= 2)
+      .filter((el) => {
+        const a = el.firstElementChild.getBoundingClientRect();
+        const b = el.children[1].getBoundingClientRect();
+        return Math.abs(a.right - b.right) > 2;
+      }).map((el) => el.innerText.replace(/\s+/g, ' ').slice(0, 40));
+    return {
+      dir: document.documentElement.dir, lang: document.documentElement.lang,
+      text: root.innerText,
+      overflow: document.documentElement.scrollWidth - window.innerWidth,
+      misaligned,
+    };
+  });
+  assert.equal(r.dir, 'rtl', `${name}: page is RTL`);
+  assert.equal(r.lang, 'he', `${name}: page is Hebrew`);
+  assert.ok(!/\bnull\b|undefined|NaN|\[object /.test(r.text), `${name}: no null/undefined/NaN/[object] on screen`);
+  assert.ok(r.overflow <= 1, `${name}: no sideways scroll (${r.overflow}px)`);
+  assert.deepEqual(r.misaligned, [], `${name}: value right under its label`);
+}
+const shot = async (page, name) => {
+  await assertDesign(page, name);
+  if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
+};
 const noHScroll = async (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
 // 1. Non-owner is refused.
@@ -243,6 +271,7 @@ await dlg.getByLabel('צ׳ופר 1', { exact: true }).selectOption('natali-story
 await dlg.getByLabel('הנחה חודשית (₪)').fill('100');
 await dlg.getByLabel('הנחה חודשית (₪)').blur();
 await shot(page, 'phone-deal-form');
+if (OUT) await dlg.locator('.preview').screenshot({ path: `${OUT}/phone-deal-preview.png` });
 await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 
@@ -357,12 +386,15 @@ await page.getByRole('heading', { name: 'מקבלי עמלה' }).waitFor();
 assert.ok(await noHScroll(page), 'no horizontal scroll (phone settings)');
 await shot(page, 'phone-settings');
 await page.getByLabel('בתוקף מתאריך').fill('2026-09-20');
+const openSection = async (name) => { const sec = page.locator('details.set-sec', { has: page.getByRole('heading', { name, exact: true }) }); if (!(await sec.evaluate((d) => d.open))) await sec.locator('summary').click(); };
+await openSection('מקבלי עמלה');
 await page.getByLabel('נטלי דדון (%)').first().fill('25');
 await page.getByRole('button', { name: 'שמירת גרסה חדשה של ההגדרות' }).click();
 await page.getByText('ההגדרות נשמרו.').waitFor();
 assert.equal(tables.payout_settings.length, 2);
 assert.equal(tables.payout_settings[1].data.commissionPeople[0].rates.natali, 2500);
 assert.equal(tables.payout_settings[0].data.commissionPeople[0].rates.natali, 2000, 'old version unchanged');
+await openSection('שותפים');
 for (const el of await page.getByLabel('חלקים').all()) await el.fill('0');
 await page.getByRole('button', { name: 'שמירת גרסה חדשה של ההגדרות' }).click();
 await page.getByText(/לפחות לשותף אחד/).first().waitFor();
@@ -379,7 +411,7 @@ await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
 await dlg.getByText('חסר סכום העסקה.').first().waitFor();
 await dlg.getByLabel('סכום העסקה הכולל (₪, לפני מע״מ)').fill('30,000');
 await dlg.getByRole('radio', { name: 'סמיון, מישל ודניס' }).check();
-await dlg.locator('.preview').getByText('בסיס עמלה').waitFor();
+await dlg.locator('.preview').getByText('בסיס עמלה').first().waitFor();
 // By hand: 30,000 − 10% shown payment = 27,000 base; Simeon family 10% = 2,700.
 assert.ok((await dlg.locator('.preview').innerText()).includes('2,700'), 'personal offer commission');
 await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
@@ -458,7 +490,8 @@ await page.getByRole('heading', { name: /בוצע באוקטובר/ }).waitFor()
 assert.ok((await page.locator('.kpi').first().innerText()).includes('5,000'), 'owed in the month it was done');
 await shot(page, 'phone-simeon-tab');
 await page.goto(`${BASE}payouts/#/natali/2026-09`);
-await page.getByRole('heading', { name: 'ממתין לביצוע' }).waitFor();
+// Simeon's tab has the same headings, so wait for Natali's own content.
+await page.locator('li.task', { hasText: 'סטורי אצל נטלי דדון' }).first().waitFor();
 const natText = await page.locator('#view').innerText();
 assert.ok(natText.includes('סטורי אצל נטלי דדון'), 'Natali post listed as a task');
 assert.ok(await noHScroll(page), 'no horizontal scroll (influencer tab)');
@@ -490,6 +523,8 @@ await dlg.getByLabel('העסקה').selectOption(tables.payout_deals.find((d) => 
 await dlg.getByLabel('תאריך הביטול').fill('2026-10-20');
 await dlg.getByLabel('תאריך הביטול').dispatchEvent('change');
 assert.equal(await dlg.getByLabel('כמה חודשים הלקוח שילם').inputValue(), '1');
+await dlg.locator('.preview').getByText('הלקוח שילם חודש אחד מתוך 12').waitFor();
+assert.ok((await dlg.locator('.preview').innerText()).includes('74,800'), 'cancel preview: revenue taken off');
 await shot(page, 'phone-cancel');
 await dlg.getByRole('button', { name: 'שמירת הביטול' }).click();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
@@ -527,11 +562,14 @@ assert.equal(tables.payout_locks.length, 0);
 console.log('ok  lock blocks edits and earlier settings; unlock works');
 
 // Narrowest phone and desktop.
-await page.setViewportSize({ width: 320, height: 700 });
-for (const r of ['month', 'deals', 'pay', 'settings']) {
-  await page.goto(`${BASE}payouts/#/${r}/2026-09`);
-  await page.waitForTimeout(250);
-  assert.ok(await noHScroll(page), `no horizontal scroll at 320px (${r})`);
+for (const width of [320, 360]) {
+  await page.setViewportSize({ width, height: 700 });
+  for (const r of ['month', 'deals', 'pay', 'simeon', 'natali', 'settings']) {
+    await page.goto(`${BASE}payouts/#/${r}/2026-09`);
+    await page.waitForTimeout(250);
+    assert.ok(await noHScroll(page), `no horizontal scroll at ${width}px (${r})`);
+    await assertDesign(page, `${r} at ${width}px`);
+  }
 }
 await page.setViewportSize({ width: 1280, height: 860 });
 await page.goto(`${BASE}payouts/#/month/2026-09`);
