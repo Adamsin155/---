@@ -189,6 +189,10 @@ main { max-width: 1040px; margin: 0 auto; padding: 0 16px 24px; outline: none; }
 }
 .list-btn small, .hist small { display: block; color: var(--muted); font-size: 13px; }
 .list-btn:disabled { cursor: default; }
+.list-btn:has(.deal-nums) { flex-direction: column; align-items: stretch; }
+.list-btn .deal-nums > span { background: var(--surface); }
+.deal-nums.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.list-main { display: grid; min-width: 0; overflow-wrap: anywhere; }
 .hist { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
 
 /* ── Buttons & inputs ───────────────── */
@@ -276,7 +280,8 @@ textarea.input { min-height: 72px; resize: vertical; }
 .deal-nums .profit { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
 .deal-nums .margin { color: var(--ok); font-weight: 600; font-size: 12.5px; }
 .deal-nums .margin.neg { color: var(--danger); }
-@media (max-width: 359px) { .deal-nums { grid-template-columns: 1fr 1fr; } .deal-nums .profit { grid-column: 1 / -1; } }
+@media (max-width: 399px) { .deal-nums { grid-template-columns: 1fr 1fr; } .deal-nums .profit { grid-column: 1 / -1; } }
+.deal-nums .neg { display: flex; flex-wrap: wrap; column-gap: 4px; }
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 @media (min-width: 720px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .tile { display: grid; gap: 2px; justify-items: start; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); min-width: 0; }
@@ -443,6 +448,7 @@ dialog::backdrop { background: rgba(3, 20, 50, 0.55); }
 }
 .task { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; justify-items: start; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .task.done { border-inline-start: 4px solid var(--ok); }
+.task.void { border-inline-start: 4px dashed var(--muted); }
 .task-main { display: grid; min-width: 0; }
 .task-title { font-weight: 600; overflow-wrap: anywhere; }
 .task-main small { color: var(--muted); font-size: 13px; }

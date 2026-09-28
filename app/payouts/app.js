@@ -167,12 +167,15 @@ const INFLUENCER_ROUTES = ['simeon', 'natali'];
 
 async function loadInfluencerTab() {
   const family = state.route;
+  const ticket = ++loadTicket;
   setState('טוען…');
   try {
-    state.infl = { family, ...(await db.loadInfluencer(family)) };
+    const d = await db.loadInfluencer(family);
+    if (ticket !== loadTicket) return; // a newer screen was asked for meanwhile
+    state.infl = { family, ...d };
     setState('');
   } catch (e) {
-    setState(db.explain(e));
+    if (ticket === loadTicket) setState(db.explain(e));
     return;
   }
   render();
@@ -181,19 +184,20 @@ async function loadInfluencerTab() {
 function viewInfluencer(family) {
   const name = INFLUENCERS[family].name;
   const r = influencerMonth({ family, month: state.month, deals: state.infl.deals, performed: state.infl.performed, versions: state.versions });
-  const dateIn = () => h('input', { class: 'input input-date', type: 'date', value: today(), 'aria-label': 'תאריך הביצוע' });
+  const dateIn = (x) => h('input', { class: 'input input-date', type: 'date', value: today(), 'aria-label': `תאריך הביצוע · ${x.client} · ${x.label}` });
   const act = async (b, fn, msg) => {
     b.disabled = true;
     try { await fn(); toast(msg); await loadInfluencerTab(); } catch (e) { b.disabled = false; toast(db.explain(e)); }
   };
-  const doneRow = (x) => h('li', { class: 'task done' },
+  const doneRow = (x) => h('li', { class: `task ${x.void ? 'void' : 'done'}` },
     h('span', { class: 'task-main' },
       h('span', { class: 'task-title' }, h('bdi', {}, x.client), ' · ', x.label),
       h('small', {}, `בוצע ${dateLabel(x.date)} · `, h('bdi', { dir: 'auto' }, x.packageName), ` · נסגרה ${dateLabel(x.dealDate)}`)),
-    fig('לתשלום', money(x.amount)),
-    btn('ביטול סימון', { class: 'btn btn-sm btn-ghost', onclick: (e) => act(e.currentTarget, () => db.unmarkPerformed(x.dealId, x.key), 'הסימון בוטל.') }));
+    x.void ? null : fig('לתשלום', money(x.amount)),
+    x.void ? fig('לא משולם', h('span', {}, `סומן אחרי ביטול העסקה (${dateLabel(x.cancelledOn)})`)) : null,
+    btn('ביטול סימון', { class: 'btn btn-sm btn-ghost', 'aria-label': `ביטול סימון · ${x.client} · ${x.label}`, onclick: (e) => act(e.currentTarget, () => db.unmarkPerformed(x.dealId, x.key), 'הסימון בוטל.') }));
   const openRow = (x) => {
-    const d = dateIn();
+    const d = dateIn(x);
     return h('li', { class: 'task' },
       h('span', { class: 'task-main' },
         h('span', { class: 'task-title' }, h('bdi', {}, x.client), ' · ', x.label),
@@ -201,7 +205,7 @@ function viewInfluencer(family) {
       fig('סכום', x.amount === null ? h('span', {}, 'לפי יום הקלטה') : money(x.amount)),
       h('span', { class: 'task-act' }, d,
         btn('סימון כבוצע', {
-          class: 'btn btn-sm btn-primary',
+          class: 'btn btn-sm btn-primary', 'aria-label': `סימון כבוצע · ${x.client} · ${x.label}`,
           onclick: (e) => {
             if (!d.value) { toast('בחרו תאריך ביצוע.'); d.focus(); return; }
             act(e.currentTarget, () => db.markPerformed(x.dealId, x.key, d.value), `סומן כבוצע ב־${dateLabel(d.value)}.`);
@@ -223,7 +227,8 @@ function viewInfluencer(family) {
         fig('לתשלום', money(g.amount)),
         h('span', { class: 'task-act' }, g.clients.map((c) => btn(`ביטול סימון · ${c.client}`, { class: 'btn btn-sm btn-ghost', onclick: (e) => act(e.currentTarget, () => db.unmarkPerformed(c.dealId, c.key), 'הסימון בוטל.') })))))) : null,
       r.due.length ? h('ul', { class: 'list' }, r.due.map(doneRow)) : null,
-      !r.due.length && !r.recordings.length ? h('p', { class: 'empty' }, 'עוד לא סומן ביצוע בחודש הזה.') : null,
+      r.voided.length ? h('ul', { class: 'list' }, r.voided.map((x) => doneRow({ ...x, void: true }))) : null,
+      !r.due.length && !r.recordings.length && !r.voided.length ? h('p', { class: 'empty' }, 'עוד לא סומן ביצוע בחודש הזה.') : null,
       h('div', { class: 'row total' }, h('span', {}, 'סה״כ לתשלום החודש'), money(r.total))),
     h('section', { class: 'card', 'aria-labelledby': 'h-open' },
       h('h2', { id: 'h-open' }, 'ממתין לביצוע'),
@@ -398,14 +403,22 @@ $('btn-account').addEventListener('click', () => {
 
 // ---------- month data ----------
 
+// Each load gets a ticket; only the latest one may update the screen, so a
+// slow answer for a month already left never shows under another month.
+let loadTicket = 0;
+
 async function loadMonth() {
+  const month = state.month;
+  const ticket = ++loadTicket;
   setState('טוען…');
   try {
-    const d = await db.loadMonth(state.month);
-    state.data = { month: state.month, ...d };
+    const d = await db.loadMonth(month);
+    if (ticket !== loadTicket) return;
+    state.data = { month, ...d };
     recompute();
     setState('');
   } catch (e) {
+    if (ticket !== loadTicket) return;
     state.data = null;
     setState(db.explain(e));
     $('view').replaceChildren();
@@ -624,9 +637,19 @@ function confirmUnlock() {
 function viewDeals() {
   const r = state.report;
   // Snapshots of months locked before per-deal profit existed lack it.
-  const lines = (r.lines || []).filter((l) => l.kind === 'deal').map((l) => (l.dealProfit !== undefined ? l : (() => {
+  // A deal in a locked month may have been cancelled later: the card follows it.
+  const live = new Map(state.data.deals.map((d) => [d.id, d]));
+  const lines = (r.lines || []).filter((l) => l.kind === 'deal').map((l) => {
+    const d = live.get(l.id);
+    return d && d.cancelledOn !== (l.cancelledOn || null)
+      ? { ...l, cancelledOn: d.cancelledOn, paidMonths: d.paidMonths, dealProfit: undefined } : l;
+  }).map((l) => (l.dealProfit !== undefined ? l : (() => {
     const p = dealProfitOf(l);
     return { ...l, dealProfit: p.profit, dealMarginBp: p.marginBp };
+  })())).map((l) => (l.closerTotal !== undefined && l.commissionTotal !== undefined ? l : (() => {
+    // Snapshots locked before these fields existed.
+    const commissionTotal = l.commissions.reduce((a, c) => a + c.amount, 0);
+    return { ...l, commissionTotal, closerTotal: l.closerFee?.amount || 0 };
   })()));
   const clawbacks = (r.lines || []).filter((l) => l.kind === 'clawback');
   const deferred = (r.lines || []).filter((l) => l.kind === 'deferred');
@@ -651,11 +674,11 @@ function viewDeals() {
           l.payMethod === 'checks' ? h('span', { class: 'tag-cheques' }, `צ׳קים ×${l.installments}`) : null),
         h('span', { class: 'deal-pkg' }, h('bdi', { dir: 'auto' }, l.packageName)),
         h('span', { class: 'deal-meta' }, dateLabel(l.date), l.seller ? [' · סגר: ', h('bdi', {}, l.seller)] : null,
-          l.items.length ? ` · ${l.items.length} רכיבים` : null)),
+          l.items.length ? ` · ${l.items.length === 1 ? 'רכיב אחד' : `${l.items.length} רכיבים`}` : null)),
       h('span', { class: 'deal-nums' },
         h('span', {}, h('small', {}, 'שווי העסקה'), money(l.full ? l.full.value : l.value)),
         h('span', {}, h('small', {}, 'בסיס עמלה'), money(l.base)),
-        h('span', { class: 'profit' }, h('small', {}, 'רווח מהעסקה'), signed(l.dealProfit),
+        h('span', { class: 'profit' }, h('small', {}, l.cancelledOn ? 'רווח אחרי הביטול' : 'רווח מהעסקה'), signed(l.dealProfit),
           l.dealMarginBp === null ? null : h('small', { class: `margin${l.dealProfit < 0 ? ' neg' : ''}` }, `${pct(l.dealMarginBp)} רווח`))),
       )))) : h('div', { class: 'card empty-state' },
       h('p', {}, `עוד אין עסקאות ב${monthLabel(state.month)}.`),
@@ -683,8 +706,10 @@ function viewDeals() {
       h('p', { class: 'muted small' }, 'ההכנסה של החודשים שהלקוח לא ישלם יורדת, והעמלות (אחוזים ועמלת סגירה) מתקזזות באותו יחס.'),
       h('ul', { class: 'list' }, clawbacks.map((l) => h('li', {},
         h('button', { type: 'button', class: 'list-btn', disabled: isLocked() || !dealById.has(l.id), onclick: () => openCancel(dealById.get(l.id)) },
-          h('span', {}, h('bdi', {}, l.client), h('small', {}, `נסגרה ${dateLabel(l.dealDate)} · בוטלה אחרי ${l.paidMonths} חודשים · הכנסה `, money(l.value))),
-          offset(l.commissionTotal + (l.closerTotal || 0))))))) : null,
+          h('span', { class: 'list-main' }, h('bdi', {}, l.client), h('small', {}, `נסגרה ${dateLabel(l.dealDate)} · הלקוח שילם ${monthsText(l.paidMonths)} מתוך ${l.termMonths}`)),
+          h('span', { class: 'deal-nums two' },
+            h('span', {}, h('small', {}, 'הכנסה שיורדת'), money(-l.value)),
+            h('span', {}, h('small', {}, 'קיזוז עמלות'), money(-(l.commissionTotal + (l.closerTotal || 0)))))))))) : null,
   );
 }
 
@@ -969,26 +994,36 @@ async function openDeal(existing) {
     const prod = l.production.influencer + l.production.photographer + l.production.makeup;
     const deal = dealProfitOf(l);
     const contribution = deal.profit;
+    const fullReal = l.paymentReal + (l.deferred?.paymentReal || 0);
+    const fullCommissions = l.full ? l.full.commissions : l.commissions;
+    const gross = dealProfitOf({ ...l, cancelledOn: null }).profit;
     put(preview, ...[
       h('h3', {}, 'חישוב העסקה'),
       // The same figures as the deal card, label above value.
       h('div', { class: 'deal-nums' },
         h('span', {}, h('small', {}, 'שווי העסקה'), money(deal.value)),
         h('span', {}, h('small', {}, 'בסיס עמלה'), money(l.base)),
-        h('span', { class: 'profit' }, h('small', {}, l.pooled ? 'רווח, לפני המשפיענית' : 'רווח מהעסקה'), signed(contribution),
+        h('span', { class: 'profit' }, h('small', {}, l.cancelledOn ? 'רווח אחרי הביטול' : l.pooled ? 'רווח, לפני המשפיענית' : 'רווח מהעסקה'), signed(contribution),
           deal.marginBp === null ? null : h('small', { class: `margin${deal.profit < 0 ? ' neg' : ''}` }, `${pct(deal.marginBp)} רווח`))),
-      h('h4', { class: 'preview-sub' }, 'פירוט'),
-      row(`שווי ל־${l.termMonths} חודשים${l.deferred ? ' (עכשיו)' : ''}`, money(l.value)),
-      row(l.payMethod === 'checks' ? 'פיימנט (כפי שמוצג למקבלי העמלה)' : 'פיימנט', money(-l.paymentCommission)),
-      l.payMethod === 'checks' ? row('עלות אמיתית: עמלת צ׳קים', h('span', { class: 'muted small' }, money(-l.paymentReal), l.deferred ? ' עכשיו' : ''), 'sub') : null,
-      l.items.map((it) => row(`${it.name}${it.qty > 1 ? ` ×${it.qty}` : ''} · ${SOURCE_LABEL[it.source]}`, it.commission === 0 && [...warns].some((w) => w.endsWith(it.id)) ? h('span', { class: 'warn-text' }, 'עלות לא הוגדרה') : money(-it.commission), 'sub')),
+      // Commission side: what the commission earners see.
+      h('h4', { class: 'preview-sub' }, 'איך מחושב בסיס העמלה'),
+      row(`שווי ל־${l.termMonths} חודשים`, money(deal.value)),
+      row(l.payMethod === 'checks' ? 'פיימנט (כפי שמוצג למקבלי העמלה)' : 'פיימנט', money(-l.paymentCommission || 0)),
+      l.items.map((it) => row(`${it.name}${it.qty > 1 ? ` ×${it.qty}` : ''} · ${SOURCE_LABEL[it.source]}`, it.commission === 0 && [...warns].some((w) => w.endsWith(it.id)) ? h('span', { class: 'warn-text' }, 'עלות לא הוגדרה') : money(-it.commission || 0), 'sub')),
       row('בסיס עמלה', money(l.base), 'strong'),
-      l.deferred ? row(`עכשיו ${CHECKS_UPFRONT} מתוך ${l.installments} צ׳קים; היתרה ב${monthLabel(l.deferred.month)}`, h('span', { class: 'muted small' }, `הכנסה עכשיו `, money(l.value)), 'sub') : null,
-      l.commissions.map((c) => row(`${c.name} · ${pct(c.rateBp)}${l.deferred ? ' · עכשיו' : ''}`, money(c.amount), 'sub')),
-      l.closerFee ? row(`${l.closerFee.name} · עמלת סגירה`, money(l.closerFee.amount), 'sub') : null,
-      l.termMonths === 6 ? row('חצי שנתי: המשפיענים מקבלים חצי', h('span', { class: 'muted small' }, money(l.production.influencer)), 'sub') : null,
-      row('הפקה', l.pooled ? h('span', { class: 'muted small' }, 'המשפיענית מתחלקת בסוף החודש', ' + ', money(prod)) : money(prod)),
-      row(l.pooled ? 'רווח מהעסקה, לפני המשפיענית' : 'רווח מהעסקה', signed(contribution), 'strong'),
+      // Owner side: real costs, adds up to the profit.
+      h('h4', { class: 'preview-sub' }, 'איך מחושב הרווח'),
+      row(`שווי ל־${l.termMonths} חודשים`, money(deal.value)),
+      row(l.payMethod === 'checks' ? 'עמלת צ׳קים (עלות אמיתית)' : 'פיימנט (עלות אמיתית)', money(-fullReal || 0)),
+      fullCommissions.map((c) => row(`עמלה · ${c.name} · ${pct(c.rateBp)}`, money(-c.amount || 0), 'sub')),
+      l.closerFee ? row(`עמלת סגירה · ${l.closerFee.name}`, money(-l.closerFee.amount || 0), 'sub') : null,
+      l.itemsReal ? row('רכיבים, תוספות וצ׳ופרים (עלות אמיתית)', money(-l.itemsReal)) : null,
+      row(l.pooled ? 'הפקה, בלי יום ההקלטה' : 'הפקה', money(-prod || 0)),
+      l.pooled ? row(`${l.termMonths === 6 ? 'חצי שנתי: ' : ''}יום ההקלטה (משפיענית${l.pool?.makeupPerDay !== undefined ? ' ומאפרת' : ''}) מתחלק בין הלקוחות בסוף החודש`, h('span', { class: 'muted small' }, '—'), 'sub')
+        : l.termMonths === 6 ? row('מתוך ההפקה: המשפיענים (חצי, עסקה חצי שנתית)', h('span', { class: 'muted small' }, money(l.production.influencer)), 'sub') : null,
+      l.cancelledOn ? row(`ביטול: הלקוח שילם ${monthsText(l.paidMonths ?? 0)} מתוך ${l.termMonths}`, signed(deal.profit - gross), 'sub') : null,
+      row(l.cancelledOn ? 'רווח אחרי הביטול' : l.pooled ? 'רווח מהעסקה, לפני יום ההקלטה' : 'רווח מהעסקה', signed(contribution), 'strong'),
+      l.deferred ? h('p', { class: 'muted small' }, `צ׳קים: עכשיו ${CHECKS_UPFRONT} מתוך ${l.installments}, היתרה ב${monthLabel(l.deferred.month)}. הכנסה עכשיו `, money(l.value), ' · עמלת צ׳קים עכשיו ', money(l.paymentReal), '.') : null,
     ].flat().filter(Boolean));
     if (announceIt) announce.textContent = `בסיס עמלה ${formatILS(l.base)}. רווח מהעסקה ${formatILS(contribution)}${deal.marginBp === null ? '' : `, ${pct(deal.marginBp)}`}.`;
   }
@@ -1243,10 +1278,10 @@ function statementText(st) {
       continue;
     }
     if (r.kind === 'clawback') {
-      lines.push(`קיזוז: ${r.client} · ${r.packageName} בוטלה אחרי ${r.paidMonths} חודשים`);
-      lines.push(`עמלה מקורית ${formatILS(r.original)}; קיזוז ${formatILS(r.amount)}`, '');
+      lines.push(`קיזוז: ${r.client} · ${r.packageName} בוטלה, הלקוח שילם ${monthsText(r.paidMonths)} מתוך ${r.termMonths || TERM_MONTHS}`);
+      lines.push(`עמלה מקורית ${formatILS(r.original)}${r.booked !== r.original ? `; שולם עד כה ${formatILS(r.booked)}` : ''}; מגיע על ${monthsText(r.paidMonths)} ${formatILS((r.booked ?? r.original) + r.amount)}; קיזוז ${formatILS(r.amount)}`, '');
     } else if (r.kind === 'closer' && r.clawback) {
-      lines.push(`קיזוז עמלת סגירה: ${r.client} בוטלה אחרי ${r.paidMonths} חודשים: ${formatILS(r.amount)}`, '');
+      lines.push(`קיזוז עמלת סגירה: ${r.client} בוטלה אחרי ${monthsText(r.paidMonths)}: ${formatILS(r.amount)}`, '');
     } else if (r.kind === 'closer') {
       lines.push(`עמלת סגירה · ${r.client}: ${formatILS(r.amount)}`, '');
     } else {
@@ -1272,9 +1307,11 @@ function statementRow(r) {
   const head = (sub) => h('div', { class: 'st-client' }, h('bdi', {}, r.client), h('small', {}, sub));
   if (r.kind === 'clawback') {
     return h('div', { class: 'st-row' },
-      head([`בוטלה ב־${dateLabel(r.date)} אחרי ${r.paidMonths} חודשים · `, h('bdi', { dir: 'auto' }, r.packageName)]),
-      h('div', { class: 'row' }, h('span', {}, 'עמלה מקורית'), money(r.original)),
-      h('div', { class: 'row strong' }, h('span', {}, `קיזוז · ${(r.termMonths || TERM_MONTHS) - r.paidMonths} מתוך ${r.termMonths || TERM_MONTHS} חודשים`), offset(r.amount)));
+      head([`בוטלה ב־${dateLabel(r.date)}, הלקוח שילם ${monthsText(r.paidMonths)} מתוך ${r.termMonths || TERM_MONTHS} · `, h('bdi', { dir: 'auto' }, r.packageName)]),
+      h('div', { class: 'row' }, h('span', {}, 'עמלה מקורית על כל העסקה'), money(r.original)),
+      r.booked !== r.original ? h('div', { class: 'row' }, h('span', {}, `שולם עד כה (${CHECKS_UPFRONT} מתוך ${r.installments} צ׳קים)`), money(r.booked)) : null,
+      h('div', { class: 'row' }, h('span', {}, `מגיע על ${monthsText(r.paidMonths)} ששולמו`), money((r.booked ?? r.original) + r.amount)),
+      h('div', { class: 'row strong' }, h('span', {}, 'קיזוז'), offset(r.amount)));
   }
   if (r.kind === 'deferred') {
     return h('div', { class: 'st-row' },
@@ -1284,9 +1321,9 @@ function statementRow(r) {
   }
   if (r.kind === 'closer' && r.clawback) {
     return h('div', { class: 'st-row' },
-      head([`בוטלה ב־${dateLabel(r.date)} אחרי ${r.paidMonths} חודשים · `, h('bdi', { dir: 'auto' }, r.packageName || '')]),
+      head([`בוטלה ב־${dateLabel(r.date)} אחרי ${monthsText(r.paidMonths)} · `, h('bdi', { dir: 'auto' }, r.packageName || '')]),
       h('div', { class: 'row' }, h('span', {}, 'עמלת סגירה מקורית'), money(r.original)),
-      h('div', { class: 'row strong' }, h('span', {}, `קיזוז · הלקוח שילם ${r.paidMonths} מתוך ${r.termMonths || TERM_MONTHS} חודשים`), offset(r.amount)));
+      h('div', { class: 'row strong' }, h('span', {}, `קיזוז · הלקוח שילם ${monthsText(r.paidMonths)} מתוך ${r.termMonths || TERM_MONTHS} חודשים`), offset(r.amount)));
   }
   if (r.kind === 'closer') {
     return h('div', { class: 'st-row' },

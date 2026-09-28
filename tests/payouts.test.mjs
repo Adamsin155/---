@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import {
   applyBp, allocate, monthBounds, inMonth, shiftMonth, settingsOn, packageExtras,
-  computeDeal, computeMonth, commissionStatement, influencerTasks, influencerMonth, shootDaysOf,
+  computeDeal, computeMonth, commissionStatement, influencerTasks, influencerMonth, shootDaysOf, dealProfitOf,
 } from '../app/payouts/engine.js';
 
 const ils = (n) => Math.round(n * 100);
@@ -445,6 +445,10 @@ test('cheques: cancelled before the deferred month gives back only what was book
   const jul = computeMonth({ month: '2026-07', deals: [d], versions: V() });
   assert.equal(jul.totals.revenue, -Math.round((full.value * 2) / 12));
   assert.equal(jul.lines[0].commissions[0].amount, -Math.round((full.commissions[0].amount * 2) / 12));
+  // The statement explains it: paid so far (6 of 12 cheques), earned by 4 months, the difference back.
+  const st = commissionStatement(jul, 'מוכר א').rows[0];
+  assert.equal(st.booked, computeDeal(base, S()).commissions[0].amount);
+  assert.equal(st.booked + st.amount, Math.round((full.commissions[0].amount * 6) / 12) - Math.round((full.commissions[0].amount * 2) / 12));
   assert.equal(computeMonth({ month: '2026-09', deals: [d], versions: V() }).lines.length, 0, 'deferred part dropped');
   // Cancelled after 8 months: all was booked, 8/12 earned, 4/12 comes back.
   const late = { ...base, cancelledOn: '2026-11-15', paidMonths: 8 };
@@ -454,6 +458,26 @@ test('cheques: cancelled before the deferred month gives back only what was book
   const pay = { ...deal('social', 'natali', { date: '2026-03-10' }), cancelledOn: '2026-05-10', paidMonths: 2 };
   const may = computeMonth({ month: '2026-05', deals: [pay], versions: V() });
   assert.equal(may.totals.revenue, -ils(46800 * 10 / 12));
+});
+
+test('a cancelled deal shows the profit left after the cancellation, as the months book it', () => {
+  // Sum of the deal's contribution over every month it touches.
+  const booked = (d, months) => months.reduce((sum, m) => sum + computeMonth({ month: m, deals: [d], versions: V() })
+    .lines.reduce((s, l) => s + l.contribution, 0), 0);
+  const months = ['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11'];
+  const cases = [
+    { ...deal('social', 'natali', { date: '2026-03-10', client: 'תשלום' }), cancelledOn: '2026-05-10', paidMonths: 2 },
+    { ...deal('social', 'natali', { date: '2026-03-10', client: 'צ׳קים מוקדם' }), payMethod: 'checks', installments: 12, cancelledOn: '2026-07-15', paidMonths: 4 },
+    { ...deal('social', 'natali', { date: '2026-03-10', client: 'צ׳קים מאוחר' }), payMethod: 'checks', installments: 12, cancelledOn: '2026-11-15', paidMonths: 8 },
+    { ...deal('social', 'simeon', { date: '2026-03-10', client: 'אפס' }), payMethod: 'checks', installments: 7, cancelledOn: '2026-03-20', paidMonths: 0 },
+  ];
+  for (const d of cases) {
+    const line = computeMonth({ month: '2026-03', deals: [d], versions: V() }).lines.find((l) => l.kind === 'deal');
+    assert.equal(line.dealProfit, booked(d, months), d.client);
+    assert.equal(dealProfitOf(line).profit, line.dealProfit);
+  }
+  const zero = computeMonth({ month: '2026-03', deals: [cases[3]], versions: V() }).lines.find((l) => l.kind === 'deal');
+  assert.ok(zero.dealProfit < 0, 'cancelled before any payment: a loss, not a full-year profit');
 });
 
 test('half-year deal: 6 monthly payments, half the influencer fee, same photographer', () => {
@@ -528,6 +552,11 @@ test('influencer tab: tasks not done before a cancellation are not owed', () => 
   assert.equal(sep.open.length, 0);
   const aug = influencerMonth({ family: 'simeon', month: '2026-08', deals: [d], performed, versions: V() });
   assert.equal(aug.total, ils(2500), 'the day done before the cancellation is still owed');
+  // Marked done after the cancellation date: listed, not owed.
+  const late = [...performed, { dealId: d.id, key: 'day:2', date: '2026-09-20' }];
+  const sepLate = influencerMonth({ family: 'simeon', month: '2026-09', deals: [d], performed: late, versions: V() });
+  assert.equal(sepLate.total, 0);
+  assert.equal(sepLate.voided.length, 1);
 });
 
 // Owner's Excel ("רווח והפסד חודשי"), reproduced from local private data.

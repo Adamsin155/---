@@ -20,7 +20,7 @@ const jwt = (u) => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: u.id, emai
 const USERS = { 'owner@astrateg.test': OWNER, 'seller@astrateg.test': OTHER };
 
 const SETTINGS = {
-  payment: { realBp: 800, commissionBp: 1000, checksRealBp: 450 },
+  payment: { realBp: 800, commissionBp: 1000, checksRealBp: 300 },
   commissionPeople: [
     { id: 'a', name: 'מוכרת בדיקה', rates: { simeon: 1000, natali: 2000 } },
     { id: 'b', name: 'מנהל בדיקה', rates: { simeon: 500, natali: 500 } },
@@ -57,6 +57,7 @@ const SETTINGS = {
   ],
 };
 
+const slowMonths = new Set();
 const recoverRequests = [];
 const passwordUpdates = [];
 const tables = {
@@ -116,6 +117,8 @@ async function fakeSupabase(route) {
   const rows = tables[t];
   const guard = (r) => (t !== 'payout_settings' && t !== 'payout_locks' && locked(monthOf(t, r)));
   if (req.method() === 'GET') {
+    // A month can be made slow, to test answers arriving out of order.
+    if (t === 'payout_locks' && slowMonths.has((url.searchParams.get('month') || '').replace('eq.', ''))) await new Promise((r) => setTimeout(r, 900));
     const out = applyFilters(rows, url.searchParams);
     if ((req.headers().accept || '').includes('vnd.pgrst.object')) {
       return out.length ? json(200, out[0]) : json(406, { code: 'PGRST116', message: 'no rows', details: 'The result contains 0 rows' });
@@ -282,7 +285,7 @@ await dlg.getByRole('radio', { name: /Social all in one/ }).check();
 await dlg.getByRole('radio', { name: 'סמיון, מישל ודניס' }).check();
 await dlg.getByLabel('גרפיקות נוספות').selectOption('24');
 await dlg.getByLabel('מי סגר').selectOption('סוגר בדיקה');
-await dlg.getByText('סוגר בדיקה · עמלת סגירה').waitFor();
+await dlg.getByText('עמלת סגירה · סוגר בדיקה').waitFor();
 await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 assert.equal(tables.payout_deals.length, 2);
@@ -434,11 +437,11 @@ await dlg.getByRole('radio', { name: /^Social all in one/ }).check();
 await dlg.getByRole('radio', { name: 'נטלי דדון' }).first().check();
 await dlg.getByRole('radio', { name: 'צ׳קים' }).check();
 await dlg.getByLabel('מספר הצ׳קים').selectOption('12');
-await dlg.locator('.preview').getByText(/עכשיו 6 מתוך 12 צ׳קים/).waitFor();
+await dlg.locator('.preview').getByText(/עכשיו 6 מתוך 12/).waitFor();
 assert.ok((await dlg.locator('.preview').innerText()).includes('23,400'), 'half the revenue now');
-// Shown fee 10% of 46,800 = 4,680; real cheque fee 4.5% = 2,106, half now = 1,053.
+// Shown fee 10% of 46,800 = 4,680; real cheque fee (synthetic 3%) = 1,404, half now = 702.
 assert.ok((await dlg.locator('.preview').innerText()).includes('4,680'), 'shown processor fee');
-assert.ok((await dlg.locator('.preview').innerText()).includes('1,053'), 'real cheque fee, half now');
+assert.ok((await dlg.locator('.preview').innerText()).includes(fmt(ils(702))), 'real cheque fee, half now');
 await dlg.getByRole('button', { name: 'שמירת העסקה' }).click();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 const cheque = tables.payout_deals.find((d) => d.client === 'לקוח צ׳קים');
@@ -458,7 +461,7 @@ await dlg.getByLabel('תאריך סגירה').fill('2026-09-06');
 await dlg.getByRole('radio', { name: /^Social all in one/ }).check();
 await dlg.getByRole('radio', { name: 'סמיון, מישל ודניס' }).first().check();
 await dlg.getByRole('radio', { name: /חצי שנתית/ }).check();
-await dlg.locator('.preview').getByText('שווי ל־6 חודשים').waitFor();
+await dlg.locator('.preview').getByText('שווי ל־6 חודשים').first().waitFor();
 const halfText = await dlg.locator('.preview').innerText();
 // By hand: 3,900 × 6 = 23,400; influencers 5,000 / 2 = 2,500; production 2,500 + 100 photographer = 2,600.
 for (const v of ['23,400', '2,500', '2,600']) assert.ok(halfText.includes(v), `half-year ${v}`);
@@ -582,6 +585,20 @@ await dlg.getByRole('button', { name: 'ביטול' }).click();
 await page.goto(`${BASE}payouts/#/pay/2026-09`);
 await page.getByRole('heading', { name: /עמלות/ }).waitFor();
 await shot(page, 'desktop-pay');
+
+// Two quick month changes: the slow answer for the month already left must not show.
+await page.goto(`${BASE}payouts/#/deals/2026-09`);
+await page.getByRole('heading', { name: /עסקאות$/ }).first().waitFor();
+const sepHeading = await page.locator('#view h2').first().innerText();
+assert.notEqual(sepHeading, '0 עסקאות');
+slowMonths.add('2026-10');
+await page.locator('#m-next').click();
+await page.locator('#m-prev').click();
+await page.waitForTimeout(1500);
+slowMonths.clear();
+assert.match(await page.locator('#m-title').innerText(), /ספטמבר/);
+assert.equal(await page.locator('#view h2').first().innerText(), sepHeading, 'September shows September, not the late October answer');
+console.log('ok  quick month changes keep the right month');
 
 // Manifest is valid JSON with a scope that excludes the quote pages.
 const manifest = await (await page.request.get(`${BASE}payouts/manifest.webmanifest`)).json();

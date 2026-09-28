@@ -327,13 +327,48 @@ export function computeIncome(entry, settings) {
 // Profit of the whole deal (all cheques, both halves), and its share of
 // the deal's value. The month report books cheque deals in two parts; this
 // is the deal's own result, used on the deal list and in the deal form.
+// What a cancellation takes back from a deal line (see the clawback lines in
+// computeMonth). `back` applies to the revenue and the percentage commissions:
+// what was booked by the cancellation month (a cheque deal's deferred part is
+// booked only if the cancellation comes on or after it), minus what the months
+// paid earned, never below zero. `share` applies to the closing fee: the
+// months not paid.
+export function cancelTerms(line, cancelledOn, paidMonths) {
+  const term = line.termMonths || 12;
+  const remaining = term - paidMonths;
+  const deferredBooked = !line.deferred || cancelledOn.slice(0, 7) >= line.deferred.month;
+  const rNum = deferredBooked ? 1 : CHECKS_UPFRONT;
+  const rDen = deferredBooked ? 1 : line.installments;
+  const num = rNum * term - paidMonths * rDen;
+  return {
+    deferredBooked,
+    back: (a) => (num > 0 ? -Math.round((a * num) / (rDen * term)) : 0),
+    share: (a) => -Math.round((a * remaining) / term),
+  };
+}
+
+// Profit and profit % of a whole deal (both cheque parts). A cancelled deal
+// shows what is left after the cancellation: the revenue and commissions it
+// keeps, and the costs that stay.
 export function dealProfitOf(line) {
-  const value = line.full ? line.full.value : line.value;
-  const payment = line.paymentReal + (line.deferred?.paymentReal || 0);
-  const commissions = (line.full ? line.full.commissions : line.commissions).reduce((s, c) => s + c.amount, 0);
   const production = line.production.influencer + line.production.photographer + line.production.makeup;
-  const profit = value - payment - commissions - production - line.itemsReal - (line.closerFee?.amount || 0);
-  return { value, profit, marginBp: value ? Math.round((profit * 10000) / value) : null };
+  const sumC = (cs) => cs.reduce((s, c) => s + c.amount, 0);
+  const full = line.full || { value: line.value, commissions: line.commissions };
+  let value; let payment; let commissions; let closer = line.closerFee?.amount || 0;
+  if (line.cancelledOn && line.paidMonths !== null && line.paidMonths !== undefined) {
+    const t = cancelTerms(line, line.cancelledOn, line.paidMonths);
+    const booked = t.deferredBooked && line.deferred;
+    value = line.value + (booked ? line.deferred.value : 0) + t.back(full.value);
+    payment = line.paymentReal + (booked ? line.deferred.paymentReal : 0);
+    commissions = sumC(line.commissions) + (booked ? sumC(line.deferred.commissions) : 0) + sumC(full.commissions.map((c) => ({ amount: t.back(c.amount) })));
+    closer += t.share(closer);
+  } else {
+    value = full.value;
+    payment = line.paymentReal + (line.deferred?.paymentReal || 0);
+    commissions = sumC(full.commissions);
+  }
+  const profit = value - payment - commissions - production - line.itemsReal - closer;
+  return { value, profit, marginBp: value > 0 ? Math.round((profit * 10000) / value) : null };
 }
 
 function finishLine(line) {
@@ -413,16 +448,7 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
     try {
       const orig = computeDeal(d, v.data);
       const term = orig.termMonths;
-      const remaining = term - d.paidMonths;
-      const share = (a) => -Math.round((a * remaining) / term);
-      // What was booked by the cancellation month (a cheque deal's deferred
-      // part is booked only if the cancellation comes on or after it), minus
-      // what the months paid earned. Never below zero.
-      const deferredBooked = !orig.deferred || d.cancelledOn.slice(0, 7) >= orig.deferred.month;
-      const rNum = deferredBooked ? 1 : CHECKS_UPFRONT;
-      const rDen = deferredBooked ? 1 : d.installments;
-      const num = rNum * term - d.paidMonths * rDen;
-      const back = (a) => (num > 0 ? -Math.round((a * num) / (rDen * term)) : 0);
+      const { back, share, deferredBooked } = cancelTerms(orig, d.cancelledOn, d.paidMonths);
       lines.push({
         kind: 'clawback', id: d.id, date: d.cancelledOn, dealDate: d.date, client: d.client,
         packageName: orig.packageName, family: orig.family, paidMonths: d.paidMonths, termMonths: term,
@@ -430,7 +456,11 @@ export function computeMonth({ month, deals = [], incomes = [], expenses = [], v
         value: back(orig.full.value), paymentReal: 0, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0, base: 0,
         closerFee: orig.closerFee ? { name: orig.closerFee.name, original: orig.closerFee.amount, amount: share(orig.closerFee.amount) } : null,
         production: { influencer: 0, photographer: 0, makeup: 0 },
-        commissions: orig.full.commissions.map((c) => ({ ...c, original: c.amount, amount: back(c.amount) })),
+        // booked: what was paid on the deal so far (a cheque deal before its
+        // deferred month: only the first cheques' share).
+        commissions: orig.full.commissions.map((c, i) => ({
+          ...c, original: c.amount, booked: deferredBooked ? c.amount : orig.commissions[i].amount, amount: back(c.amount),
+        })),
       });
     } catch (e) {
       errors.push(`ביטול העסקה ״${d.client}״ לא חושב: ${e.message}`);
@@ -618,6 +648,7 @@ export function commissionStatement(report, who) {
         base: l.base,
         rateBp: c.rateBp,
         original: c.original,
+        booked: c.booked,
         full: c.full,
         payMethod: l.payMethod,
         installments: l.installments,
@@ -712,6 +743,7 @@ export function influencerMonth({ family, month, deals, performed, versions }) {
   const done = new Map(performed.map((p) => [`${p.dealId}|${p.key}`, p.date]));
   const due = [];
   const open = [];
+  const voided = []; // marked done after the deal was cancelled: not owed
   const errors = [];
   const recordingDates = new Map(); // date -> { fee, deals: [] }
   for (const d of deals.filter((x) => x.selection?.influencer === family).sort(byDate)) {
@@ -730,6 +762,7 @@ export function influencerMonth({ family, month, deals, performed, versions }) {
       const row = { dealId: d.id, client: d.client, dealDate: d.date, packageName: name, cancelledOn: d.cancelledOn || null, ...t, date };
       if (date) {
         if (!inMonth(date, month)) continue;
+        if (d.cancelledOn && date > d.cancelledOn) { voided.push(row); continue; }
         if (t.kind === 'recording') {
           const fee = v.data.production?.['podcast-natali']?.influencerPerDay || 0;
           if (!recordingDates.has(date)) recordingDates.set(date, { fee, clients: [] });
@@ -744,5 +777,5 @@ export function influencerMonth({ family, month, deals, performed, versions }) {
   }
   const recordings = [...recordingDates.entries()].sort().map(([date, r]) => ({ date, amount: r.fee, clients: r.clients }));
   const total = due.reduce((s, r) => s + r.amount, 0) + recordings.reduce((s, r) => s + r.amount, 0);
-  return { family, month, due, recordings, open, total, errors };
+  return { family, month, due, recordings, open, voided, total, errors };
 }
