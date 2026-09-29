@@ -11,6 +11,7 @@
 | `quotes.html` | צוות | רשימת ההצעות שנשלחו, סטטוס (ממתין, נצפה, נחתם, בוטל), העתקת קישור וביטול |
 | `clients.html` | צוות | **פרוטוקול עבודה:** ״מה עליי״ (הפריטים הפתוחים של כל עובד בכל הלקוחות), רשימת לקוחות עם שלב והתקדמות, ובקרה יומית (תהליכים 32–33). פתיחת לקוח חדש, גם מהסכם חתום |
 | `client.html?id=…` | צוות | כרטיס לקוח: הפרוטוקול לפי שלבים, סימון וי לפי תפקיד (מי ומתי), ״לא רלוונטי״, מועדי יעד מחושבים, משימות והיסטוריה |
+| `team.html` | הבעלים, עירית וליאור | **צוות וכניסות:** מי מחובר ומי עוד לא, הוספת כתובת מייל, גישה לכספת (הבעלים), ו**קישור כניסה אישי** לשליחה בוואטסאפ, לכניסה ראשונה או לסיסמה שנשכחה, בלי מייל. הקישור פותח את `clients.html` ומבקש לבחור סיסמה. הפונקציה: `supabase/functions/staff-admin` |
 
 **פרוטוקול העבודה:** [איך זה בנוי ואיך מוסיפים פרוטוקול](docs/protocols/README.md).
 
@@ -63,6 +64,7 @@ npm test                                # מנועי התמחור, הפרוטו�
 npx http-server -p 8080 . & node tests/e2e.mjs   # תהליך מלא בדפדפן מול שרת מדומה
 node tests/protocol-e2e.mjs                       # כרטיס הלקוח בדפדפן מול שרת מדומה
 node tests/protocol-office-e2e.mjs                # מה עליי, בקרה, ביצועים וסיכום בוקר מול שרת מדומה
+node tests/team-e2e.mjs                           # צוות וכניסות, קישור כניסה ובחירת סיסמה מול שרת מדומה
 node tests/payouts-e2e.mjs                       # מערכת התשלומים בדפדפן, בטלפון ובמחשב, מול שרת מדומה
 ```
 
@@ -76,7 +78,7 @@ app/payouts/ engine.js (חישוב), data.js (Supabase), app.js (מסכים)
 app/styles/ app.css (ממשק), quote.css (מסמך ההצעה), client.css, quotes.css
 app/fonts/  Rubik + JetBrains Mono (OFL), מתארחים מקומית
 app/vendor/ supabase-js (MIT)
-supabase/   migrations, functions/create-quote
+supabase/   migrations, functions/create-quote, functions/staff-admin
 docs/       כללי תמחור, חלוקת אחריות, מדריך מותג, מחקר
 .claude/agents/  סוכני UX, עיצוב, טכנולוגיה, איכות, מחקר ועוזר משפטי;
                  payouts-*: טכנולוגיה, עיצוב, בקרה ומחקר למערכת התשלומים
