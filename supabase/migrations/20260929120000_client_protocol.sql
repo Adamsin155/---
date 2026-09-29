@@ -95,18 +95,26 @@ end $$;
 create trigger protocol_checks_log after insert or update or delete on public.protocol_checks
 for each row execute function public.protocol_checks_log();
 
+-- Who created a task and who finished it always come from the session.
 create function public.client_tasks_stamp() returns trigger
 language plpgsql set search_path = '' as $$
+declare me text := lower(coalesce(auth.jwt() ->> 'email', ''));
 begin
-  if new.done_at is not null and (tg_op = 'INSERT' or old.done_at is null) then
-    new.done_at := now();
-    new.done_by_email := lower(coalesce(auth.jwt() ->> 'email', ''));
-  elsif new.done_at is null then
-    new.done_by_email := null;
-  end if;
-  if tg_op = 'UPDATE' then
+  if tg_op = 'INSERT' then
+    new.created_by_email := me;
+    new.created_at := now();
+  else
     new.created_by_email := old.created_by_email;
     new.created_at := old.created_at;
+  end if;
+  if new.done_at is null then
+    new.done_by_email := null;
+  elsif tg_op = 'INSERT' or old.done_at is null then
+    new.done_at := now();
+    new.done_by_email := me;
+  else
+    new.done_at := old.done_at;
+    new.done_by_email := old.done_by_email;
   end if;
   return new;
 end $$;
@@ -118,12 +126,17 @@ create function public.clients_touch() returns trigger
 language plpgsql set search_path = '' as $$
 begin
   new.updated_at := now();
-  new.created_at := old.created_at;
-  new.created_by_email := old.created_by_email;
+  if tg_op = 'INSERT' then
+    new.created_at := now();
+    new.created_by_email := lower(coalesce(auth.jwt() ->> 'email', ''));
+  else
+    new.created_at := old.created_at;
+    new.created_by_email := old.created_by_email;
+  end if;
   return new;
 end $$;
 
-create trigger clients_touch before update on public.clients
+create trigger clients_touch before insert or update on public.clients
 for each row execute function public.clients_touch();
 
 alter table public.clients enable row level security;
@@ -140,10 +153,17 @@ create policy "staff read log" on public.protocol_log
 create policy "staff manage tasks" on public.client_tasks
   for all to authenticated using (public.is_staff()) with check (public.is_staff());
 
--- Clients are removed only by marking them ended; no deletes from the browser.
-revoke delete on public.clients from anon, authenticated;
-revoke all on public.protocol_log from anon;
-revoke insert, update, delete on public.protocol_log from authenticated;
+-- Staff see each other's names in the protocol (who checked what).
+create policy "staff read staff" on public.staff
+  for select to authenticated using (public.is_staff());
+
+-- Clients are removed only by marking them ended, and tasks only by marking
+-- them done; nothing is deleted from the browser. The log is append-only.
+revoke delete, truncate on public.clients from anon, authenticated;
+revoke delete, truncate on public.client_tasks from anon, authenticated;
+revoke truncate on public.protocol_checks from anon, authenticated;
+revoke all on public.protocol_log from anon, authenticated;
+grant select on public.protocol_log to authenticated;
 
 -- Staff pick which person in the protocol they are (for "my work").
 create function public.set_my_person(p_person text) returns void

@@ -44,7 +44,8 @@
 
     <div id="app" class="pr-app" hidden>
       <a class="back" href="clients.html#clients">→ כל הלקוחות</a>
-      <header class="block cc-head" id="cc-head" aria-live="polite"></header>
+      <header class="block cc-head" id="cc-head"></header>
+      <div class="cc-sticky" id="cc-sticky" aria-hidden="true"></div>
       <div class="viewbar" id="viewbar"></div>
       <div id="phases" class="phases"></div>
       <section class="block cc-side" id="tasks" aria-labelledby="tasks-h">
@@ -110,6 +111,24 @@
     </form>
   </dialog>
 
+  <dialog id="dlg-na" aria-labelledby="na-h">
+    <form id="na-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="na-h">סימון כלא רלוונטי</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p id="na-item"></p>
+        <div class="field"><label for="na-reason">למה הפריט לא רלוונטי ללקוח הזה?</label><textarea class="input" id="na-reason" rows="3" maxlength="500"></textarea></div>
+        <div class="err" id="na-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="na-submit">סימון כלא רלוונטי</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="dlg-call" aria-labelledby="call-h">
     <form id="call-form" novalidate>
       <div class="dlg-head">
@@ -128,7 +147,7 @@
     </form>
   </dialog>
 
-  <div class="toast" id="toast" role="status" hidden></div>
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="app/client-card.js"></script>
 </body>
 </html>

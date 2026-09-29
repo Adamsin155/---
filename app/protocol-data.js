@@ -111,6 +111,13 @@ export async function signedQuotes() {
   return quotes.filter((q) => !used.has(q.id));
 }
 
+// Who is who: staff email -> person key, for showing names instead of emails.
+export async function loadDirectory() {
+  const { data, error } = await supabase.from('staff').select('email, person');
+  if (error) return {};
+  return Object.fromEntries(data.filter((r) => r.person).map((r) => [r.email, r.person]));
+}
+
 export async function myPerson() {
   const { data: s } = await supabase.auth.getSession();
   const email = s?.session?.user?.email?.toLowerCase();

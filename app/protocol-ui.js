@@ -4,19 +4,25 @@ import {
 } from './supa.js';
 import { h } from './quote-doc.js';
 import { PEOPLE } from './protocol.js';
+import { businessDaysBetween } from './protocol-logic.js';
 
 export { h };
 export const $ = (id) => document.getElementById(id);
 // replaceChildren without the null/false placeholders that conditional rendering leaves.
 export const fill = (el, ...kids) => el.replaceChildren(...kids.flat().filter((k) => k !== null && k !== undefined && k !== false));
 
+// The toast is a live region that stays in the page, so every message is announced.
+// An optional action (for example "undo") keeps it up longer.
 let toastTimer;
-export function toast(msg) {
+export function toast(msg, action = null) {
   const t = $('toast');
-  t.textContent = msg;
-  t.hidden = false;
+  fill(t, h('span', {}, msg), action ? h('button', {
+    type: 'button', class: 'toast-act',
+    onclick: () => { t.classList.remove('on'); action.run(); },
+  }, action.label) : null);
+  t.classList.add('on');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 3600);
+  toastTimer = setTimeout(() => { t.classList.remove('on'); fill(t); }, action ? 7000 : 4000);
 }
 
 export function errorText(err) {
@@ -30,8 +36,13 @@ export function errorText(err) {
 export const personChip = (key, extra = '') => h('span', { class: `pchip p-${key} ${extra}`.trim() }, PEOPLE[key]?.name || key);
 export const peopleChips = (keys) => h('span', { class: 'pchips' }, ...keys.map((k) => personChip(k)));
 
-// Staff are shown by the name part of their email.
-export const who = (email) => (email ? String(email).split('@')[0] : '');
+// Staff are shown by their name in the protocol when known, else by their email's name part.
+export const directory = {};
+export const who = (email) => {
+  if (!email) return '';
+  const p = directory[String(email).toLowerCase()];
+  return p && PEOPLE[p] ? PEOPLE[p].name : String(email).split('@')[0];
+};
 
 const dayFmt = new Intl.DateTimeFormat('he-IL', { weekday: 'short', day: 'numeric', month: 'numeric' });
 const timeFmt = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -50,13 +61,15 @@ export function formatWhen(d, now = new Date()) {
 export const formatDay = (d) => (d ? fullFmt.format(new Date(d)) : '');
 export const formatStamp = (v) => (v ? `${dayFmt.format(new Date(v))} ${timeFmt.format(new Date(v))}` : '');
 
+// Late by minutes or hours within a day; beyond that in business days (weekends do not count).
 export function lateBy(d, now = new Date()) {
   const mins = Math.round((now - d) / 6e4);
-  if (mins < 60) return `${mins} דק׳`;
+  if (mins < 60) return `${Math.max(mins, 1)} דק׳`;
   const hours = Math.round(mins / 60);
   if (hours < 24) return hours === 1 ? 'שעה' : `${hours} שעות`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? 'יום' : `${days} ימים`;
+  const days = businessDaysBetween(d, now);
+  if (days <= 1) return 'יום עסקים';
+  return `${days} ימי עסקים`;
 }
 
 export const STATUS_TEXT = {
@@ -71,6 +84,8 @@ export function statusBadge(status, dueAt, now = new Date()) {
 export function dueText(state, now = new Date()) {
   if (state.status === 'done') return '';
   if (state.dueAt) return `יעד: ${formatWhen(state.dueAt, now)}`;
+  const from = state.proc.start?.from || '';
+  if (/^p\d/.test(from) && !state.startAt) return `ממתין לסיום תהליך ${from.replace(/^p0?/, '').replace('b', 'ב')}`;
   if (state.proc.start && !state.startAt) return 'ממתין לתאריך';
   if (state.startAt && state.startAt > now) return `מתחיל: ${formatWhen(state.startAt, now)}`;
   return '';

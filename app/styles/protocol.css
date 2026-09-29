@@ -1,14 +1,14 @@
 /* Client protocol pages. Builds on app.css tokens; brand: docs/brand/brand-guide.md */
 :root {
-  --late: var(--warn);          /* overdue: measured, not alarm red */
-  --late-soft: rgba(255, 193, 94, 0.10);
+  --late: var(--danger);        /* overdue; always with an icon and text */
+  --late-soft: rgba(255, 107, 139, 0.10);
   --ok-soft: rgba(61, 214, 140, 0.12);
-  /* Person cues: always paired with the name in text. */
-  --p-irit: #F94E8E;
+  /* Person cues: always paired with the name in text, and never a status colour. */
+  --p-irit: #F2A0C2;
   --p-lior: #6FB7FF;
-  --p-ofir: #A980EF;
-  --p-shirel: #FFC15E;
-  --p-ilai: #3DD68C;
+  --p-ofir: #C9B3F7;
+  --p-shirel: #E3C49A;
+  --p-ilai: #5CD0C8;
   --p-editor: #C3CBE0;
 }
 
@@ -64,7 +64,7 @@
   font-size: 15px; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
 }
 .tab:hover { color: var(--text); }
-.tab[aria-selected='true'] { color: var(--text); border-bottom-color: var(--pink); }
+.tab[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
 
 /* Checkboxes */
 .cbx {
@@ -82,11 +82,18 @@
 
 /* Items (client card, tasks, my work) */
 .items, .tlist, .wlist, .clist, .hlist, .stuck { list-style: none; margin: 0; padding: 0; }
-.item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); min-height: 44px; }
+.item { display: flex; align-items: flex-start; gap: 8px; border-top: 1px solid var(--line); min-height: 44px; }
 .item:first-child { border-top: 0; }
 .item .cbx { margin-top: 1px; }
-.ibody { flex: 1; min-width: 0; }
-.ilabel { display: block; cursor: pointer; color: var(--text); line-height: 1.45; padding-block: 1px; }
+/* The whole row checks the box. */
+.irow { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; cursor: pointer; }
+.is-na .irow, .is-blocked .irow { cursor: default; }
+.recurring { align-items: center; gap: 12px; padding: 10px 0; }
+.ibody { flex: 1; min-width: 0; display: block; }
+.ilabel { display: block; color: var(--text); line-height: 1.45; padding-block: 1px; }
+.blocked { color: var(--text-2); }
+.blocked::before { content: '⏸ '; }
+.is-blocked .ilabel { color: var(--text-2); }
 .is-na .ilabel { color: var(--muted); cursor: default; }
 .is-busy { opacity: .75; }
 .imeta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 3px; font-size: 12.5px; color: var(--muted); }
@@ -94,7 +101,11 @@
 .inote { display: block; white-space: pre-wrap; color: var(--text-2); font-size: 13px; }
 .tag { display: inline-block; margin-inline-start: 8px; padding: 0 7px; border-radius: 6px; font-size: 12px; color: var(--text-2); background: var(--panel-2); vertical-align: 1px; }
 .imeta .tag { margin: 0; }
-.na-btn { flex: none; font-size: 13px; color: var(--muted); min-height: 32px; padding-inline: 4px; }
+.na-btn { flex: none; font-size: 13px; color: var(--muted); min-height: 44px; padding-inline: 8px; }
+@media (hover: hover) and (pointer: fine) {
+  .na-btn:not(.is-opt) { opacity: 0; }
+  .item:hover .na-btn, .item:focus-within .na-btn, .is-na .na-btn { opacity: 1; }
+}
 .na-btn:hover { color: var(--text); }
 .item.is-mine .ilabel { font-weight: 500; }
 .late { color: var(--late); }
@@ -117,7 +128,7 @@
 
 .phases { display: grid; gap: 12px; }
 .phase { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
-.phase.is-current { border-color: var(--line-strong); box-shadow: inset 3px 0 0 var(--pink); }
+.phase.is-current { border-color: var(--line-strong); border-inline-start: 3px solid var(--accent); }
 .phase > summary {
   list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 18px; min-height: 56px; flex-wrap: wrap;
 }
@@ -127,17 +138,19 @@
 .ph-idx { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; color: var(--accent); background: var(--accent-soft); flex: none; }
 .ph-title { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 180px; }
 .ph-title h2 { margin: 0; font-size: 17px; }
-.ph-now { font-size: 12px; font-weight: 600; color: var(--on-pink); background: var(--pink); padding: 1px 8px; border-radius: 999px; }
+.ph-now { font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 1px 8px; border-radius: 999px; }
 .ph-meta { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-2); }
 .ph-note { margin: 0; padding: 0 18px 10px; color: var(--text-2); font-size: 14px; }
 .procs { display: grid; gap: 10px; padding: 0 12px 12px; }
 
 .proc { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px 16px; scroll-margin-top: calc(var(--topbar-h) + 16px); }
 .proc.s-overdue { border-color: color-mix(in srgb, var(--late) 45%, var(--line)); background: linear-gradient(var(--late-soft), var(--late-soft)), var(--bg-2); }
-.proc.s-done { background: transparent; }
-.proc.is-mine { box-shadow: inset 3px 0 0 var(--accent); }
-.proc.is-dim { opacity: .62; }
-.proc.is-dim:hover, .proc.is-dim:focus-within { opacity: 1; }
+.proc.s-done { background: transparent; padding-block: 8px; }
+.proc.s-done .proc-title h3 { margin: 0; }
+.proc.is-mine { border-inline-start: 3px solid var(--accent); }
+/* Other people's processes recede by outline, not by opacity, so text keeps its contrast. */
+.proc.is-dim { background: transparent; border-style: dashed; }
+.proc.is-dim .proc-title h3, .proc.is-dim .pnum { color: var(--text-2); }
 .proc:target { outline: 2px solid var(--accent); outline-offset: 2px; }
 .proc-head { display: flex; align-items: flex-start; gap: 12px; }
 .pnum { flex: none; min-width: 30px; height: 30px; padding-inline: 6px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; font-weight: 600; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
@@ -150,9 +163,10 @@
 .proc-what, .proc-note, .proc-guide, .proc-rule { margin: 10px 0 0; font-size: 14px; color: var(--text-2); }
 .proc-note { font-size: 13px; color: var(--muted); }
 .proc-guide { padding: 8px 12px; border-radius: var(--radius-sm); background: var(--panel); }
-.proc-rule { padding: 8px 12px; border-radius: var(--radius-sm); background: rgba(248, 34, 114, 0.08); border-inline-start: 3px solid var(--pink); color: var(--text); }
-.proc .items { margin-top: 8px; }
-.need { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--late-soft); border: 1px solid rgba(255, 193, 94, 0.35); font-size: 14px; }
+.proc-rule { padding: 8px 12px; border-radius: var(--radius-sm); background: var(--panel-2); border-inline-start: 3px solid var(--text-2); color: var(--text); }
+.proc .items { margin-top: 8px; max-inline-size: 860px; }
+.need { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(255, 193, 94, 0.10); border: 1px solid rgba(255, 193, 94, 0.35); font-size: 14px; }
+.ph-need { margin: 0 12px 10px; }
 .need .btn { margin-inline-start: auto; }
 .show-done { margin-top: 8px; font-size: 13.5px; }
 
@@ -224,7 +238,7 @@ select.input { appearance: auto; }
   .cc-head { padding: 16px; }
   .cc-top h1 { font-size: 24px; }
   .phase > summary { padding: 12px 14px; }
-  .ph-meta .pbar { display: none; }
+  .ph-meta .pbar { inline-size: 56px; }
   .procs { padding: 0 8px 8px; }
   .proc { padding: 12px; }
   .proc-head { flex-wrap: wrap; }
@@ -252,3 +266,90 @@ select.input { appearance: auto; }
 }
 /* app.css prints only #print-root (the quote); the protocol pages print their main area. */
 @media print { body > main#main { display: grid !important; } }
+
+/* Mono for numbers, dates and codes */
+/* Mono only for pure numbers: Hebrew words in dates keep Rubik. */
+.pr-app .num[dir='ltr'], .pnum, .ph-idx, .ctable td.num, .chip .n { font-family: var(--mono); font-size: .92em; letter-spacing: -.01em; }
+.small { font-size: 12.5px; font-weight: 400; }
+
+/* Completed processes in a phase fold into one row */
+.done-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; inline-size: 100%; min-height: 48px; padding: 8px 14px;
+  border: 1px dashed var(--line-strong); border-radius: var(--radius-md); background: transparent; color: var(--text-2);
+  font-size: 14px; cursor: pointer; text-align: start;
+}
+.done-row:hover { background: var(--panel-2); color: var(--text); }
+.done-row .btn-text { margin-inline-start: auto; }
+
+/* Next step in the header */
+.cc-next {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; min-height: 48px;
+  border-radius: var(--radius-md); background: var(--panel-2); color: var(--text); text-decoration: none; font-weight: 500;
+}
+.cc-next .k { font-size: 12.5px; color: var(--muted); font-weight: 400; }
+.cc-next.s-overdue { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--late) 50%, transparent); }
+.cc-next:hover { background: #10306A; }
+
+/* Sticky progress on phones */
+.cc-sticky { display: none; }
+@media (max-width: 760px) {
+  .cc-sticky {
+    display: flex; align-items: center; gap: 10px; position: sticky; top: var(--topbar-h); z-index: 20;
+    margin-inline: -12px; padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line); font-size: 13.5px;
+  }
+  .cc-sticky .sticky-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cc-sticky .pbar { inline-size: 72px; }
+  .proc { scroll-margin-top: calc(var(--topbar-h) + 56px); }
+}
+
+/* Shared processes */
+.claim { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.claim .btn-sm { min-height: 36px; }
+
+/* Person picker: chips on wide screens, a select on phones */
+.narrow-only { display: none !important; }
+.person-select { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); inline-size: 100%; }
+.person-select .input { min-height: 44px; flex: 1; }
+@media (max-width: 760px) {
+  .wide-only { display: none !important; }
+  .narrow-only { display: flex !important; }
+}
+
+/* First visit: who am I */
+.who-panel { padding: 20px 4px 8px; display: grid; gap: 10px; justify-items: start; }
+.who-panel h2 { margin: 0; font-size: 19px; }
+.who-panel p { margin: 0; }
+.who-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; inline-size: 100%; }
+.who-btn {
+  display: grid; gap: 2px; text-align: start; padding: 12px 14px; min-height: 64px; border-radius: var(--radius-md); cursor: pointer;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line-strong); border-inline-start: 4px solid var(--pc);
+}
+.who-btn span { font-size: 13px; color: var(--text-2); }
+.who-btn:hover { background: #10306A; }
+
+/* My work: grouped by client and process */
+.wprocs { list-style: none; margin: 0; padding: 0; }
+.wproc { border-top: 1px solid var(--line); padding: 12px 0 4px; }
+.wproc-h { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 13.5px; color: var(--text-2); }
+.wproc-h .wclient { font-size: 15px; min-height: 32px; display: inline-flex; align-items: center; }
+.wproc-h .sbadge { margin-inline-start: auto; }
+.wproc .witem { border-top: 0; padding: 0; }
+.wrow { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; min-height: 44px; cursor: pointer; }
+.g-overdue .wgroup-h { color: var(--late); }
+
+/* Toast stays in the page as a live region; shown only while it has a message */
+.pr-toast { display: flex; align-items: center; gap: 12px; bottom: calc(16px + env(safe-area-inset-bottom)); transition: opacity .15s; }
+.pr-toast:not(.on) { opacity: 0; pointer-events: none; }
+.toast-act { border: 0; background: transparent; color: var(--brand-purple); font: inherit; font-weight: 600; cursor: pointer; min-height: 32px; padding-inline: 4px; text-decoration: underline; }
+.pr-app { padding-bottom: 56px; }
+
+@media print {
+  :root {
+    --late: #B42318; --ok: #1A7F4B; --accent: #5302DF; --accent-soft: #F1EBFD; --panel-2: #EEF1F7; --line-strong: #9AA5C0;
+    --p-irit: #B0306A; --p-lior: #1F5FA8; --p-ofir: #5302DF; --p-shirel: #8A5A12; --p-ilai: #0E7A72; --p-editor: #56617E;
+  }
+  .facts, .cc-facts { background: #fff !important; }
+  .ph-idx { color: #5302DF; }
+  .cc-sticky, .cc-next, .done-row, .claim .btn, .ph-need .btn, .pr-toast { display: none !important; }
+  .phase::details-content { content-visibility: visible; }
+}

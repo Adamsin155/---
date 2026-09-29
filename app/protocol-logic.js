@@ -49,7 +49,7 @@ export function applicableProcesses(client) {
 // A check counts for a recurring item only within its period.
 export function isResolved(item, check, now = new Date()) {
   if (!check) return false;
-  if (item.recurring === 'weekly') return now - new Date(check.at) < 7 * DAY;
+  if (item.recurring === 'weekly') return check.state === 'done' && now - new Date(check.at) < 7 * DAY;
   return check.state === 'done' || check.state === 'na';
 }
 
@@ -113,9 +113,25 @@ export function resolveTime(spec, client, procs, checks, now = new Date()) {
 
 const phaseIndex = (key) => PHASES.findIndex((p) => p.key === key);
 
-// Missing client details a process depends on.
-export function missingFields(proc, client) {
-  return (proc.needs || []).filter((f) => client[f] === null || client[f] === undefined || client[f] === '');
+// Missing client details a process (or phase) depends on.
+const blank = (v) => v === null || v === undefined || v === '';
+export function missingFields(entry, client) {
+  return (entry.needs || []).filter((f) => blank(client[f]));
+}
+
+// Why an item cannot be checked yet: unfinished prerequisite items or missing client details.
+export function blockers(item, client, checks) {
+  const items = (item.requires || []).filter((k) => checks[k]?.state !== 'done');
+  const fields = (item.requiresFields || []).filter((f) => blank(client[f]));
+  return items.length || fields.length ? { items, fields } : null;
+}
+
+// A process with several owners can be taken by one of them.
+export const CLAIM = (procId) => `${procId}.claim`;
+export function claimOf(proc, checks) {
+  if (proc.owners.length < 2) return null;
+  const c = checks[CLAIM(proc.id)];
+  return c && c.state === 'done' && c.note ? { person: c.note, at: c.at, by_email: c.by_email } : null;
 }
 
 // Full state of a client's protocol. `checks` maps item key -> { state, at, by_email }.
@@ -139,7 +155,9 @@ export function clientState(client, checks = {}, now = new Date()) {
   for (const s of states) {
     const pi = phaseIndex(s.proc.phase);
     // Ready: its start anchor has passed; or, with no start anchor, its phase has been reached.
-    s.ready = s.touched || (s.proc.start ? !!(s.startAt && s.startAt <= now) : pi <= cur);
+    s.ready = s.touched || (s.proc.start ? !!(s.startAt && s.startAt <= now) : pi <= cur)
+      || !!(s.dueAt && s.dueAt < now); // a passed deadline makes it actionable regardless
+    s.claim = claimOf(s.proc, checks);
     if (s.proc.recurring) {
       const item = s.proc.items[0];
       const done = isResolved(item, checks[item.key], now);
@@ -155,32 +173,57 @@ export function clientState(client, checks = {}, now = new Date()) {
 
   const phases = PHASES.map((ph) => {
     const list = states.filter((s) => s.proc.phase === ph.key);
-    const required = list.reduce((n, s) => n + (s.proc.recurring ? 0 : s.required), 0);
-    const resolved = list.reduce((n, s) => n + (s.proc.recurring ? 0 : s.resolved), 0);
-    return { ...ph, states: list, required, resolved, complete: list.some((s) => !s.proc.recurring) && list.every((s) => s.complete || s.proc.recurring) };
+    const counted = list.filter((s) => !s.proc.recurring);
+    return { ...ph, states: list, procsTotal: counted.length, procsDone: counted.filter((s) => s.complete).length, complete: list.some((s) => !s.proc.recurring) && list.every((s) => s.complete || s.proc.recurring) };
   }).filter((ph) => ph.states.length);
 
-  const required = phases.filter((ph) => ph.key !== 'renewal').reduce((n, ph) => n + ph.required, 0);
-  const resolved = phases.filter((ph) => ph.key !== 'renewal').reduce((n, ph) => n + ph.resolved, 0);
+  // Progress is counted in processes everywhere; renewal is not part of delivery.
+  const counted = states.filter((x) => !x.proc.recurring && x.proc.phase !== 'renewal');
   return {
     phases, states, current,
-    required, resolved,
+    procsTotal: counted.length,
+    procsDone: counted.filter((x) => x.complete).length,
     overdue: states.filter((s) => s.status === 'overdue').length,
   };
 }
 
-// Open items a person can act on now, across processes of one client.
+// Open items a person can act on now in one client. Items blocked by a
+// prerequisite are left out; a shared process taken by someone else is too.
+// An ended client keeps only its closing process.
 export function openItemsFor(person, client, checks, state, now = new Date()) {
   const out = [];
   for (const s of state.states) {
     if (!s.ready || s.status === 'done') continue;
+    if (client.status === 'ended' && s.proc.id !== 'p35') continue;
     for (const i of s.proc.items) {
       if (person && !i.owners.includes(person)) continue;
-      if (i.optional || isResolved(i, checks[i.key], now)) continue;
-      out.push({ client, proc: s.proc, item: i, status: s.status, dueAt: s.dueAt });
+      const shared = i.owners === s.proc.owners || i.owners.join() === s.proc.owners.join();
+      if (person && shared && s.claim && s.claim.person !== person) continue;
+      if (i.optional || isResolved(i, checks[i.key], now) || blockers(i, client, checks)) continue;
+      out.push({ client, proc: s.proc, item: i, status: s.status, dueAt: s.dueAt, claim: shared ? s.claim : null, shared: shared && s.proc.owners.length > 1 });
     }
   }
   return out;
+}
+
+// Time buckets for "my work".
+export function bucketOf(status, dueAt, now = new Date()) {
+  if (status === 'overdue') return 'overdue';
+  if (!dueAt) return status === 'due' ? 'week' : 'later';
+  const days = Math.round((new Date(dueAt).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / DAY);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  if (days < 7) return 'week';
+  return 'later';
+}
+
+// Business days between two moments (Sunday–Thursday), for "late by".
+export function businessDaysBetween(from, to) {
+  const d = new Date(from); d.setHours(0, 0, 0, 0);
+  const end = new Date(to); end.setHours(0, 0, 0, 0);
+  let n = 0;
+  while (d < end) { d.setDate(d.getDate() + 1); if (isBusinessDay(d)) n += 1; }
+  return n;
 }
 
 const RANK = { overdue: 0, today: 1, due: 2, open: 3, waiting: 4, done: 5 };

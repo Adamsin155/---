@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { PROCESSES, PEOPLE, PHASES } from '../app/protocol.js';
 import {
   addBusinessDays, applicableProcesses, clientState, openItemsFor, resolveTime, missingFields,
+  blockers, bucketOf, businessDaysBetween,
 } from '../app/protocol-logic.js';
 
 const doc = readFileSync(new URL('../docs/protocols/general.md', import.meta.url), 'utf8');
@@ -38,6 +39,55 @@ test('whatsapp group and characterization checklists match the document', () => 
   for (const who of ['ליאור', 'עירית', 'אופיר', 'שיראל', 'עילאי', 'הלקוח']) assert.ok(p2.items.some((i) => i.label.startsWith(who)), who);
   const p4 = PROCESSES.find((p) => p.id === 'p04');
   assert.equal(p4.items.filter((i) => i.key !== 'p04.saved').length, 11);
+  // Lists in the document are separate items, not one combined check.
+  const count = (id, prefix) => PROCESSES.find((p) => p.id === id).items.filter((i) => i.key.startsWith(prefix)).length;
+  assert.equal(count('p07', 'p07.r.'), 7);
+  assert.equal(count('p09', 'p09.c.'), 7);
+  assert.equal(count('p12', 'p12.t.'), 7);
+  assert.equal(count('p15', 'p15.d.'), 4);
+});
+
+test('sequence rules: send only after the review, calendar only with shoot details', () => {
+  const p7sent = PROCESSES.find((p) => p.id === 'p07').items.find((i) => i.key === 'p07.sent');
+  assert.equal(blockers(p7sent, {}, {}).items.length, 7);
+  const allReviewed = Object.fromEntries(p7sent.requires.map((k) => [k, { state: 'done', at: '2026-10-01T10:00:00+03:00' }]));
+  assert.equal(blockers(p7sent, {}, allReviewed), null);
+  const naReview = { ...allReviewed, 'p07.r.logo': { state: 'na', at: '2026-10-01T10:00:00+03:00' } };
+  assert.deepEqual(blockers(p7sent, {}, naReview).items, ['p07.r.logo']); // not relevant is not a review
+  const p26sent = PROCESSES.find((p) => p.id === 'p26').items.find((i) => i.key === 'p26.sent');
+  assert.deepEqual(blockers(p26sent, {}, {}).items, ['p25.approved']);
+  const cal = PROCESSES.find((p) => p.id === 'p11').items.find((i) => i.key === 'p11.calendar');
+  assert.deepEqual(blockers(cal, { shoot_type: 'dms' }, {}).fields, ['shoot_at']);
+  // Blocked items are not offered in "my work".
+  const c = { ...base, id: 'c', char_at: '2026-10-01T08:00:00+03:00' };
+  const now = at('2026-10-01T12:00:00+03:00');
+  const irit = openItemsFor('irit', c, {}, clientState(c, {}, now), now).map((x) => x.item.key);
+  assert.ok(irit.includes('p07.r.logo') && !irit.includes('p07.sent'));
+});
+
+test('a shared process taken by one owner leaves the other owner\'s list', () => {
+  const c = { ...base, id: 'c', char_at: '2026-10-01T08:00:00+03:00' };
+  const checks = { 'p05.access': { state: 'done', at: '2026-10-01T09:00:00+03:00' }, 'p05.logo': { state: 'done', at: '2026-10-01T09:00:00+03:00' },
+    'p05.colors': { state: 'done', at: '2026-10-01T09:00:00+03:00' }, 'p05.photos': { state: 'done', at: '2026-10-01T09:00:00+03:00' }, 'p05.videos': { state: 'done', at: '2026-10-01T09:00:00+03:00' },
+    'p06.claim': { state: 'done', note: 'ilai', at: '2026-10-01T09:10:00+03:00' } };
+  const now = at('2026-10-01T09:20:00+03:00');
+  const s = clientState(c, checks, now);
+  assert.equal(s.states.find((x) => x.proc.id === 'p06').claim.person, 'ilai');
+  const keys = (p) => openItemsFor(p, c, checks, s, now).map((x) => x.item.key);
+  assert.ok(keys('ilai').includes('p06.verified'));
+  assert.ok(!keys('shirel').includes('p06.verified'));
+});
+
+test('my-work buckets and business-day lateness', () => {
+  const now = at('2026-10-01T10:00:00+03:00'); // Thursday
+  assert.equal(bucketOf('overdue', at('2026-09-30T10:00:00+03:00'), now), 'overdue');
+  assert.equal(bucketOf('today', at('2026-10-01T18:00:00+03:00'), now), 'today');
+  assert.equal(bucketOf('open', at('2026-10-02T11:00:00+03:00'), now), 'tomorrow');
+  assert.equal(bucketOf('open', at('2026-10-05T11:00:00+03:00'), now), 'week');
+  assert.equal(bucketOf('open', at('2026-10-20T11:00:00+03:00'), now), 'later');
+  assert.equal(bucketOf('open', null, now), 'later');
+  // Thursday to Sunday is one business day, not three calendar days.
+  assert.equal(businessDaysBetween(at('2026-10-01T10:00:00+03:00'), at('2026-10-04T10:00:00+03:00')), 1);
 });
 
 test('shoot type decides which shoot-day processes apply', () => {
@@ -132,6 +182,18 @@ test('open items per person follow owners and readiness', () => {
   assert.ok(shirel.some((x) => x.item.key === 'p04.address'));
   assert.ok(!shirel.some((x) => x.item.key === 'p17.place')); // shoot not scheduled yet
   assert.ok(!openItemsFor('ofir', c, {}, s, now).some((x) => x.item.key === 'p04.address'));
+});
+
+test('renewal talk is late once the 60-day mark passes', () => {
+  const c = { ...base, contract_end: '2026-12-31' };
+  const s = clientState(c, {}, at('2026-11-15T10:00:00+02:00'));
+  assert.equal(s.states.find((x) => x.proc.id === 'p34').status, 'overdue');
+});
+
+test('a not-relevant weekly call is not a call', () => {
+  const c = { ...base };
+  const s = clientState(c, { 'p31.call': { state: 'na', at: '2026-10-01T10:00:00+03:00' } }, at('2026-10-02T10:00:00+03:00'));
+  assert.equal(s.states.find((x) => x.proc.id === 'p31').status, 'due');
 });
 
 test('weekly call is due again seven days after the last one', () => {

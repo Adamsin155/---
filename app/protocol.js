@@ -40,13 +40,15 @@ const isDms = (c) => c.shoot_type === 'dms';
 //   from 'pNN' means "when process NN was completed".
 //   prevBusinessDay: the business day before the anchor ("the day before the shoot").
 // `sla` is the protocol's own wording and is always shown.
+// Item `requires`: keys that must be done first ("only after Ofir approves").
+// A process with several owners can be claimed by one of them (key `pNN.claim`).
 
 export const PHASES = [
   { key: 'onboarding', title: 'קליטת לקוח ואפיון' },
   { key: 'parallel', title: 'מיד לאחר פגישת האפיון', note: 'התהליכים בשלב הזה מתחילים במקביל.' },
   { key: 'prep', title: 'הכנה ליום הצילום' },
-  { key: 'eve', title: 'יום לפני הצילום' },
-  { key: 'shoot', title: 'יום הצילום' },
+  { key: 'eve', title: 'יום לפני הצילום', needs: ['shoot_type', 'shoot_at'] },
+  { key: 'shoot', title: 'יום הצילום', needs: ['shoot_type', 'shoot_at'] },
   { key: 'post', title: 'עריכה ומסירה' },
   { key: 'publish', title: 'לאחר אישור התוכן' },
   { key: 'ongoing', title: 'ניהול שוטף' },
@@ -118,6 +120,7 @@ export const PROCESSES = [
     sla: 'מיד במהלך או מיד לאחר פגישת האפיון',
     start: { from: 'char' }, due: { from: 'charEnd' },
     what: 'מקבלים מהלקוח גישה לכל הרשתות הרלוונטיות ולוקחים גם את חומרי המותג.',
+    needs: ['characterizer', 'has_logo'],
     items: [
       { key: 'p05.access', label: 'התקבלה גישה לכל הרשתות הרלוונטיות' },
       { key: 'p05.logo', label: 'לוגו' },
@@ -153,8 +156,9 @@ export const PROCESSES = [
     what: 'עילאי מכין 9 גרפיקות לפי האפיון והשפה של העסק. עירית או ליאור בודקים, ואז הן נשלחות ללקוח לאישור. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת אליו.',
     items: [
       { key: 'p07.made', label: '9 גרפיקות הוכנו לפי האפיון ושפת העסק' },
-      { key: 'p07.review', label: 'נבדקו: כתיב, טלפון, כתובת, לוגו, פרטי העסק, ניסוחים ועיצוב', owners: ['irit', 'lior'] },
-      { key: 'p07.sent', label: 'נשלחו ללקוח לאישור', owners: ['irit', 'lior'] },
+      ...[['spelling', 'כתיב'], ['phone', 'טלפון'], ['address', 'כתובת'], ['logo', 'לוגו'], ['details', 'פרטי העסק'], ['wording', 'ניסוחים'], ['design', 'עיצוב']]
+        .map(([k, l]) => ({ key: `p07.r.${k}`, label: `נבדק: ${l}`, owners: ['irit', 'lior'] })),
+      { key: 'p07.sent', label: 'נשלחו ללקוח לאישור', owners: ['irit', 'lior'], requires: ['p07.r.spelling', 'p07.r.phone', 'p07.r.address', 'p07.r.logo', 'p07.r.details', 'p07.r.wording', 'p07.r.design'] },
       { key: 'p07.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
       { key: 'p07.approved', label: 'הלקוח אישר את הגרפיקות', owners: ['irit', 'lior'] },
     ],
@@ -175,7 +179,8 @@ export const PROCESSES = [
     what: 'עילאי פותח קובץ Excel שנתי ללקוח. בשלב זה מכינים רק את המבנה; הסרטונים נוספים אחרי העריכה.',
     items: [
       { key: 'p09.file', label: 'נפתח קובץ Excel שנתי ללקוח' },
-      { key: 'p09.columns', label: 'במבנה: שם הלקוח, כל חודשי השנה, מספר סרטון, קישור, יום, תאריך, שעה' },
+      ...[['name', 'שם הלקוח'], ['months', 'כל חודשי השנה'], ['num', 'מספר סרטון'], ['link', 'קישור לסרטון'], ['day', 'יום'], ['date', 'תאריך'], ['time', 'שעה']]
+        .map(([k, l]) => ({ key: `p09.c.${k}`, label: `בגאנט: ${l}` })),
     ],
   },
   {
@@ -202,13 +207,13 @@ export const PROCESSES = [
       { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר' },
       { key: 'p11.ok.shirel', label: 'שיראל (כותבת התוכן) אישרה' },
       { key: 'p11.ok.photographer', label: 'הצלם אישר' },
-      { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם' },
+      { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'] },
     ],
   },
   {
     id: 'p11b', num: '11ב', phase: 'prep', title: 'יום צילום עם נטלי: מאפרת והסעה', owners: ['lior'],
     sla: 'מיד לאחר שנסגר תאריך יום הצילום עם נטלי',
-    when: isNatali, start: { from: 'p11' },
+    when: isNatali, start: { from: 'p11' }, due: { from: 'p11' },
     what: 'יום צילום עם נטלי לא נחשב סגור עד שגם המאפרת וגם ההסעה סודרו.',
     items: [
       { key: 'p11b.makeup', label: 'מאפרת תואמה, מגיעה לביתה של נטלי שעתיים לפני הצילום' },
@@ -226,7 +231,9 @@ export const PROCESSES = [
     },
     items: [
       { key: 'p12.read', label: 'האפיון נקרא לעומק' },
-      { key: 'p12.call', label: 'שיחה עם הלקוח: שירותים לקידום, מסרים, מה אסור להגיד, מוצרים מרכזיים, מבצעים, שאלות נפוצות, נושאים לצילום' },
+      { key: 'p12.call', label: 'בוצעה שיחה עם הלקוח לדגשים לסרטונים' },
+      ...[['services', 'אילו שירותים חשוב לו לקדם'], ['messages', 'אילו מסרים חשובים'], ['dont', 'דברים שאסור להגיד'], ['products', 'מוצרים מרכזיים'], ['offers', 'מבצעים'], ['faq', 'שאלות נפוצות'], ['topics', 'נושאים שהוא רוצה שיופיעו בצילום']]
+        .map(([k, l]) => ({ key: `p12.t.${k}`, label: `נלקח מהלקוח: ${l}` })),
       { key: 'p12.scripts', label: 'התסריטים הוכנו (בדרך כלל 36) לפי החבילה והמשפיענים' },
       { key: 'p12.docs', label: 'התסריטים מסודרים ב־Google Docs לפי סדר הצילום' },
     ],
@@ -266,7 +273,8 @@ export const PROCESSES = [
       { key: 'p15.influencers', label: 'נשלחה תזכורת למשפיענים' },
       { key: 'p15.client', label: 'נשלחה תזכורת ללקוח' },
       { key: 'p15.crew', label: 'נשלחה תזכורת לצוות יום הצילום' },
-      { key: 'p15.details', label: 'לכולם יש שעה, כתובת, תוכן מאושר ופרטי יום הצילום' },
+      ...[['time', 'שעה'], ['address', 'כתובת'], ['content', 'תוכן מאושר'], ['details', 'פרטי יום הצילום']]
+        .map(([k, l]) => ({ key: `p15.d.${k}`, label: `לכולם יש: ${l}` })),
       { key: 'p15.explain', label: 'בוצעה שיחת הסבר עם הלקוח' },
       { key: 'p15.natali.makeup', label: 'המאפרת אישרה הגעה לביתה של נטלי שעתיים לפני הצילום', owners: ['lior'], when: isNatali },
       { key: 'p15.natali.ride', label: 'ההסעה של נטלי סגורה ומאושרת', owners: ['lior'], when: isNatali },
@@ -363,7 +371,7 @@ export const PROCESSES = [
     items: [
       { key: 'p23.made', label: 'כל הגרפיקות הושלמו (בדרך כלל עוד 27)' },
       { key: 'p23.ofir', label: 'אופיר בדק ואישר', owners: ['ofir'] },
-      { key: 'p23.sent', label: 'נשלחו ללקוח', owners: ['irit'] },
+      { key: 'p23.sent', label: 'נשלחו ללקוח', owners: ['irit'], requires: ['p23.ofir'] },
       { key: 'p23.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
     ],
   },
@@ -393,7 +401,7 @@ export const PROCESSES = [
     sla: 'מיד לאחר אישור אופיר',
     start: { from: 'p25' }, due: { from: 'p25' },
     items: [
-      { key: 'p26.sent', label: 'הסרטונים נשלחו ללקוח לאישור' },
+      { key: 'p26.sent', label: 'הסרטונים נשלחו ללקוח לאישור', requires: ['p25.approved'] },
       { key: 'p26.call', label: 'הלקוח לא הגיב תוך 5 דקות ועירית התקשרה לוודא שראה', optional: true },
     ],
   },
@@ -423,7 +431,7 @@ export const PROCESSES = [
     items: [
       { key: 'p29.filled', label: 'הגאנט מלא ותואם לתזמון בפועל', owners: ['ilai'] },
       { key: 'p29.told', label: 'עילאי עדכן את עירית שהגאנט מוכן', owners: ['ilai'] },
-      { key: 'p29.sent', label: 'הגאנט הועבר ללקוח', owners: ['irit'] },
+      { key: 'p29.sent', label: 'הגאנט הועבר ללקוח', owners: ['irit'], requires: ['p29.filled'] },
     ],
   },
   {
@@ -439,7 +447,7 @@ export const PROCESSES = [
     id: 'p31', num: '31', phase: 'ongoing', title: 'שיחת לקוח שבועית', owners: ['lior'],
     sla: 'פעם בשבוע, בימי רביעי או חמישי',
     recurring: 'weekly', start: { from: 'p30' },
-    what: 'עוברים עם הלקוח על קמפיינים, לידים, תוצאות, סרטונים, תכנים שעלו ועתידיים, בעיות, שיפורים ובקשות חדשות. הכול מתועד במערכת; כל משימה נפתחת במערכת עם מבצע.',
+    what: 'עוברים עם הלקוח על קמפיינים, לידים, תוצאות, סרטונים, תכנים שעלו, תכנים עתידיים, בעיות, דברים שצריך לשפר ובקשות חדשות. הכול מתועד בסיכום השיחה; כל משימה נפתחת ברשימת המשימות עם מבצע.',
     items: [
       { key: 'p31.call', label: 'בוצעה שיחה שבועית ותועדה', recurring: 'weekly' },
     ],
@@ -447,7 +455,7 @@ export const PROCESSES = [
   {
     id: 'p34', num: '34', phase: 'renewal', title: 'חידוש חוזה', owners: ['lior'],
     sla: 'מתחילים 60 יום לפני סיום החוזה',
-    start: { from: 'contractEnd', days: -60 }, due: { from: 'contractEnd' },
+    start: { from: 'contractEnd', days: -60 }, due: { from: 'contractEnd', days: -60, at: '23:59' },
     items: [
       { key: 'p34.talk', label: 'התחלנו לדבר עם הלקוח על המשך העבודה' },
       { key: 'p34.satisfaction', label: 'נבדקה שביעות רצון' },

@@ -152,11 +152,18 @@ assert.match(mine, /לשלוח ללקוח את רשימת השאלות לראי�
 assert.doesNotMatch(mine, /כתובת מלאה של העסק/); // Ofir's characterization items are not Irit's
 await shot('01-my-work');
 
-// Check an item straight from "my work".
+// Grouped by client and process: the seven WhatsApp items are one group.
+assert.equal(await page.locator('.wproc:has-text("פתיחת קבוצת WhatsApp")').count(), 1);
+// Check an item straight from "my work", then undo it from the toast.
 const firstLabel = await page.locator('.witem .wlabel').first().innerText();
-await page.locator('.witem .cbx').first().check();
-await page.waitForSelector('.witem.is-done');
+const before = await page.locator('.witem').count();
+await page.locator('.witem .cbx').first().click();
+await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('סומן כבוצע'));
+assert.equal(await page.locator('.witem').count(), before - 1);
 assert.ok(db.protocol_checks.some((c) => c.state === 'done' && c.by_email === USER.email) || db.client_tasks.some((t) => t.done_at), `saved: ${firstLabel}`);
+await page.click('.toast-act');
+await page.waitForFunction((n) => document.querySelectorAll('.witem').length === n, before);
+assert.ok(!db.protocol_checks.some((c) => c.by_email === USER.email && c.state === 'done') && !db.client_tasks.some((t) => t.done_at), 'undo cleared the check');
 
 // Clients tab
 await page.click('#tab-clients');
@@ -183,33 +190,50 @@ assert.equal(created.quote_id, signedQuote.id);
 assert.equal(created.shoot_type, 'natali');
 
 // Client card: Natali-only processes show, the DMS day does not.
-await page.waitForSelector('#p01');
+await page.waitForSelector('#p02');
 assert.equal(await page.locator('#p11b').count(), 1);
 assert.equal(await page.locator('#p21').count(), 0);
 assert.match(await page.locator('#p11').textContent(), /חסר בפרטי הלקוח: מועד יום הצילום/);
-await page.check('#i-p01-prepared');
-await page.waitForFunction(() => document.querySelector('#i-p01-prepared')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
-assert.ok(db.protocol_checks.some((c) => c.client_id === created.id && c.item_key === 'p01.prepared'));
-assert.match(await page.locator('#p01').textContent(), /בוצע · irit/);
+// The signed agreement already covers process 1: it is done and folded away.
+assert.deepEqual(db.protocol_checks.filter((c) => c.client_id === created.id).map((c) => c.item_key).sort(), ['p01.prepared', 'p01.sent', 'p01.signed']);
+assert.equal(await page.locator('#p01').count(), 0);
+assert.match(await page.locator('.done-row').first().innerText(), /1 תהליכים הושלמו/);
+await page.check('#i-p02-opened');
+await page.waitForFunction(() => document.querySelector('#i-p02-opened')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
+assert.ok(db.protocol_checks.some((c) => c.client_id === created.id && c.item_key === 'p02.opened'));
+assert.match(await page.locator('#p02').textContent(), /בוצע · עירית/); // names, not email prefixes
 // Focus stays on the checkbox after saving.
-assert.equal(await page.evaluate(() => document.activeElement?.id), 'i-p01-prepared');
+assert.equal(await page.evaluate(() => document.activeElement?.id), 'i-p02-opened');
+// Sending the graphics waits for the review items.
+assert.equal(await page.locator('#i-p07-sent').isDisabled(), true);
+assert.match(await page.locator('#p07').textContent(), /ממתין ל: 7 בדיקות למעלה/);
+
+// A required item needs a reason to be marked not relevant.
+await page.click('#i-p02-intro-na', { force: true });
+await page.waitForSelector('#dlg-na[open]');
+await page.click('#na-submit');
+assert.equal(await page.isVisible('#na-err'), true);
+await page.fill('#na-reason', 'הלקוח ביקש הודעה מליאור בלבד');
+await page.click('#na-submit');
+await page.waitForFunction(() => document.querySelector('#i-p02-intro')?.closest('.item').classList.contains('is-na'));
+assert.equal(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p02.intro').note, 'הלקוח ביקש הודעה מליאור בלבד');
 
 // Not relevant, then back
-await page.click('#i-p05-menu-na');
+await page.click('#i-p05-menu-na'); // optional: no reason needed
 await page.waitForFunction(() => document.querySelector('#i-p05-menu')?.closest('.item').classList.contains('is-na'));
 assert.equal(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p05.menu').state, 'na');
 
 // A failed save rolls the checkbox back and says so.
 failNextCheck = true;
 // A plain click: check() would retry once it sees the rollback.
-await page.click('#i-p01-sent');
-await page.waitForFunction(() => !document.querySelector('#i-p01-sent').checked && !document.querySelector('.is-busy'));
+await page.click('#i-p02-m-lior');
+await page.waitForFunction(() => !document.querySelector('#i-p02-m-lior').checked && !document.querySelector('.is-busy'));
 assert.match(await page.locator('#toast').innerText(), /הסימון לא נשמר/);
-assert.ok(!db.protocol_checks.some((c) => c.client_id === created.id && c.item_key === 'p01.sent'));
+assert.ok(!db.protocol_checks.some((c) => c.client_id === created.id && c.item_key === 'p02.m.lior'));
 
 // Uncheck is recorded in history
-await page.uncheck('#i-p01-prepared');
-await page.waitForFunction(() => !document.querySelector('.is-busy') && !document.querySelector('#i-p01-prepared').checked);
+await page.uncheck('#i-p02-opened');
+await page.waitForFunction(() => !document.querySelector('.is-busy') && !document.querySelector('#i-p02-opened').checked);
 await page.waitForFunction(() => /ביטל\/ה סימון/.test(document.querySelector('#hist-list').innerText));
 
 // Edit details: Shirel characterizes, so access moves to Lior or Irit; no logo adds Ilai's logo item.
@@ -226,6 +250,10 @@ assert.match(p5, /עירית/);
 assert.doesNotMatch(p5, /אופיר/);
 // Sunday shoot: reminder due on Thursday, the previous business day, at 11:00.
 assert.match(await page.locator('#p15').textContent(), /11:00/);
+// Shared process: Irit takes it, and it shows as hers.
+await page.click('#p05 .claim .btn');
+await page.waitForFunction(() => /עירית לקח/.test(document.querySelector('#p05 .claim')?.textContent || ''));
+assert.equal(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p05.claim').note, 'irit');
 
 // Tasks
 await page.fill('#task-title', 'להזמין מאפרת לנטלי');
@@ -236,8 +264,8 @@ assert.equal(db.client_tasks.at(-1).owner, 'lior');
 
 // Reload keeps everything
 await page.reload();
-await page.waitForSelector('#p01');
-assert.equal(await page.isChecked('#i-p01-prepared'), false);
+await page.waitForSelector('#p02');
+assert.equal(await page.isChecked('#i-p02-opened'), false);
 assert.match(await page.locator('#p05').textContent(), /לא רלוונטי/);
 
 // Person focus: only Shirel's processes
