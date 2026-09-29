@@ -156,13 +156,13 @@ function nextFor(s) {
 function autoBanner() {
   const c = client;
   if (c.created_by_email !== 'system' || c.verified_at || c.status === 'cancelled') return null;
-  const num = quote?.number || 'חתום';
   return h('div', { class: 'auto-note', role: 'note' },
-    h('p', {}, `הלקוח נפתח אוטומטית כשנחתם הסכם ${num}${quote?.signed_at ? ` ב־${formatStamp(quote.signed_at)}` : ''}. מההסכם מולאו: חבילה, משפיענים, כמויות, סוג יום צילום וסיום חוזה. כדאי לעבור עליהם.`),
+    h('p', {}, 'הלקוח נפתח אוטומטית כשנחתם הסכם ', quote?.number ? h('bdi', { class: 'num', dir: 'ltr' }, quote.number) : 'חתום',
+      `${quote?.signed_at ? ` ב־${formatStamp(quote.signed_at)}` : ''}. מההסכם מולאו: חבילה, משפיענים, כמויות, סוג יום צילום וסיום חוזה. כדאי לעבור עליהם.`),
     h('div', { class: 'auto-acts' },
       h('button', { type: 'button', class: 'btn btn-sm btn-primary', onclick: () => saveClient({ verified_at: new Date().toISOString() }, 'הפרטים אושרו.') }, 'הפרטים נכונים'),
       h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEdit() }, 'עריכת פרטים'),
-      h('button', { type: 'button', class: 'btn-text warn', onclick: () => openCancel() }, 'ההסכם בוטל')));
+      h('button', { type: 'button', class: 'btn-text danger', onclick: () => openCancel() }, 'ההסכם בוטל')));
 }
 
 function linksRow() {
@@ -343,7 +343,7 @@ function roundHeader(ph) {
     h('span', {}, [r.shoot_type ? SHOOT_TYPES[r.shoot_type].name : null, r.shoot_at ? `יום צילום ${formatStamp(r.shoot_at)}` : 'מועד יום הצילום טרם נקבע'].filter(Boolean).join(' · ')),
     h('button', { type: 'button', class: 'btn-text', onclick: () => openRound(r.n) }, 'עריכת הסבב'),
     calendarMenu('shoot', r.n),
-    has ? null : h('button', { type: 'button', class: 'btn-text warn', onclick: () => deleteRound(r.n) }, 'מחיקת הסבב'));
+    has ? null : h('button', { type: 'button', class: 'btn-text danger', onclick: () => deleteRound(r.n) }, 'מחיקת הסבב'));
 }
 
 function renderPhases(s) {
@@ -406,7 +406,6 @@ function waitLine(x) {
   if (!x.wait) return null;
   const w = x.wait;
   return h('div', { class: 'wait-line', id: `${x.proc.id}-wait` },
-    statusBadge('client', null),
     h('span', {}, `מאז ${formatStamp(w.at)} · ${who(w.by_email)}${w.reason ? ` · ״${w.reason}״` : ''}${w.recheck ? ` · לבדוק שוב: ${formatDay(w.recheck)}` : ''}`),
     h('button', { type: 'button', class: 'btn-text', onclick: () => openWait(x) }, 'עריכה'),
     h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(x) }, 'סיום המתנה'));

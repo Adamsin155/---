@@ -424,7 +424,9 @@ function autoBanner() {
       const q = quoteInfo.get(c.quote_id);
       const at = q?.signed_at || c.created_at;
       return h('p', {},
-        `לקוח חדש נפתח אוטומטית: ${c.name}${q ? ` · הסכם ${q.number}` : ''}${at ? ` · לפני ${lateBy(new Date(at), now)}` : ''} `,
+        `לקוח חדש נפתח אוטומטית: ${c.name}`,
+        q ? [' · הסכם ', h('bdi', { class: 'num', dir: 'ltr' }, q.number)] : null,
+        `${at ? ` · לפני ${lateBy(new Date(at), now)}` : ''} `,
         h('a', { href: clientUrl(c.id) }, 'לכרטיס'));
     }),
     list.length > 3 ? h('p', { class: 'muted' }, `ועוד ${list.length - 3}`) : null);
@@ -647,7 +649,7 @@ function nextStep(c, s) {
 
 function autoTag(c) {
   const q = quoteInfo.get(c.quote_id);
-  return h('span', { class: 'auto-tag' }, `חדש · נפתח אוטומטית${q ? ` מהסכם ${q.number}` : ' מהסכם'}`);
+  return h('span', { class: 'auto-tag' }, 'חדש · נפתח אוטומטית מהסכם', q ? [' ', h('bdi', { class: 'num', dir: 'ltr' }, q.number)] : null);
 }
 
 function renderClients() {

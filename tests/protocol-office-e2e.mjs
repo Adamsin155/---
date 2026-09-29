@@ -210,7 +210,7 @@ assert.equal(await page.evaluate(() => window.__asked), 0, 'no permission reques
 
 // ── §10 auto-opened client: banner, short tag; cancelled client is gone ──
 const mine = await page.locator('#mine-list').innerText();
-assert.match(await page.locator('.auto-banner[role="status"]').innerText(), /לקוח חדש נפתח אוטומטית: סלון יופי אור · הסכם AST-2026-0014 · לפני 3 דק׳/);
+assert.match(await page.locator('.auto-banner[role="status"]').innerText(), /לקוח חדש נפתח אוטומטית: סלון יופי אור · הסכם\s*AST-2026-0014 · לפני 3 דק׳/);
 assert.match(await page.locator('.wproc:has(.wclient:text("סלון יופי אור"))').first().innerText(), /חדש/);
 assert.doesNotMatch(mine, /מאפיית כהן|להחזיר מקדמה/);
 
@@ -289,7 +289,7 @@ await toastHas('WhatsApp נפתח עם הסיכום. השליחה עצמה נע�
 // ── Clients tab: auto-opened first in every filter, waiting flag and filters ──
 await page.click('#tab-clients');
 await page.waitForSelector('.crow');
-assert.match(await page.locator('.crow').first().innerText(), /סלון יופי אור[^]*חדש · נפתח אוטומטית מהסכם AST-2026-0014[^]*נחתם היום 09:57/);
+assert.match(await page.locator('.crow').first().innerText(), /סלון יופי אור[^]*חדש · נפתח אוטומטית מהסכם\s*AST-2026-0014[^]*נחתם היום 09:57/);
 assert.match(await page.locator('.crow:has-text("קפה גליה") .cflags').innerText(), /ממתין ללקוח · 1/);
 await page.click('#client-filters .chip:text("ממתין ללקוח")');
 assert.deepEqual(await page.locator('.crow strong').allInnerTexts(), ['קפה גליה']);

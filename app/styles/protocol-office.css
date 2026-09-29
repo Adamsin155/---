@@ -10,11 +10,7 @@
 .notify-row .hint { margin: 0; }
 
 .wproc-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding-top: 6px; }
-.bulk-btn { font-weight: 500; }
-.wait-line {
-  margin: 6px 0 0; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-2);
-  background: rgba(255, 193, 94, 0.07); border-inline-start: 3px solid var(--warn);
-}
+.wproc .wait-line { margin-top: 6px; padding-block: 6px; }
 .wait-line .tag { margin-inline-start: 8px; }
 .wproc.s-client .wclient { color: var(--text); }
 
@@ -79,7 +75,7 @@ a.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
 .rv-day.is-done { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
 .rv-day.is-done .rv-icon { background: currentColor; box-shadow: none; }
 .rv-day.is-done .rv-icon::before { content: ''; width: 6px; height: 3px; border: solid var(--bg); border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
-.rv-day.is-miss { color: var(--late); }
+.rv-day.is-miss { color: var(--muted); } /* a past day without a review: noted, not alarmed */
 .rv-day.is-miss .rv-icon::before { content: '×'; font-size: 11px; font-weight: 700; line-height: 1; }
 .rv-day.is-pending { color: var(--muted); border-style: dashed; }
 .rv-day .rv-s { color: inherit; }
