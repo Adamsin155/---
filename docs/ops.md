@@ -1,0 +1,138 @@
+# תפעול: פריסה, סודות, מיגרציות, גיבויים וכתובת קבועה
+
+*מסמך קצר למי שמפעיל את המערכת. פרויקט ה־Supabase: `astrateg-quotes` (‏`czncjzziqrqtezpwxxpz`). הרקע: [התוכנית, שלב 0 ונספח ב](plan/system-plan.md), [החלטה 5](plan/decisions.md).*
+
+## 1. פונקציות Edge
+
+כרגע יש פונקציה אחת, `create-quote`, עם `verify_jwt=true`. היא מחשבת את המחיר מחדש בשרת עם אותו מנוע תמחור שהדפדפן משתמש בו.
+
+**הקבצים שנפרסים יחד:**
+
+| קובץ | מה זה |
+|---|---|
+| `supabase/functions/create-quote/index.ts` | הפונקציה |
+| `supabase/functions/_shared/app/pricing.js` | עותק של `app/pricing.js` |
+| `supabase/functions/_shared/app/catalog.js` | עותק של `app/catalog.js` |
+| `supabase/functions/_shared/app/legal.js` | עותק של `app/legal.js` |
+
+- העותקים ב־`_shared/app/` נוצרים בסקריפט, והפונקציה מייבאת רק אותם (`../_shared/app/pricing.js`). כך היא לא תלויה במאגר ציבורי.
+- **לא עורכים אותם ביד.** עורכים את `app/` ומריצים `node scripts/sync-functions.mjs`. הסקריפט עוקב אחרי כל ה־import היחסיים, ולכן קובץ חדש ש־`pricing.js` מייבא מתווסף לבד.
+- `node scripts/sync-functions.mjs --check` נכשל אם עותק חסר, ישן או מיותר. ה־CI מריץ אותו בכל דחיפה, וגם `npm test` בודק את זה (`tests/sync-functions.test.mjs`).
+- פונקציה חדשה שצריכה מודול מ־`app/`, למשל מנוע הפרוטוקול לתזכורות: מוסיפים אותו ל־`ENTRIES` בסקריפט, מריצים, ומייבאים מ־`../_shared/app/…`.
+
+**פריסה:**
+
+1. `node scripts/sync-functions.mjs --check` ו־`npm test`. שניהם צריכים לעבור.
+2. אחת משתי הדרכים:
+   - **Supabase CLI**, מתיקיית השורש של המאגר:
+     ```bash
+     supabase functions deploy create-quote --project-ref czncjzziqrqtezpwxxpz --use-api
+     ```
+     ה־CLI עוקב אחרי ה־import ומעלה את `_shared` יחד עם הפונקציה. `verify_jwt` נשאר `true` כברירת מחדל. אם ה־CLI דורש `supabase/config.toml`, מריצים פעם אחת `supabase init` ובודקים את הקובץ לפני שמוסיפים אותו למאגר.
+   - **MCP ‏`deploy_edge_function`** (או ה־Management API): מעלים את ארבעת הקבצים שבטבלה, כל אחד בשם היחסי ל־`supabase/functions/`: ‏`create-quote/index.ts`, ‏`_shared/app/pricing.js`, ‏`_shared/app/catalog.js` ו־`_shared/app/legal.js`. ‏`entrypoint_path` הוא `create-quote/index.ts`, ו־`verify_jwt` הוא `true`. התוכן זהה לקבצים במאגר, כולל שורת הכותרת. עוד לא ניסינו את הדרך הזו בפרויקט. אם היא נכשלת עם השמות האלה, פורסים ב־CLI.
+3. בדיקה אחרי הפריסה:
+   - ב־`get_edge_function` או בלוח הבקרה מופיעים ארבעת הקבצים, ובקוד אין `raw.githubusercontent`.
+   - יוצרים הצעה מהמחולל (`index.html`, כפתור הקישור ללקוח) ומקבלים קישור. אחר כך מבטלים אותה ב״הצעות שנשלחו״.
+   - אם משהו נכשל: Edge Functions → create-quote → Logs.
+
+*עד השינוי הזה, גרסה 6 נפרסה עם import מ־`raw.githubusercontent.com` בקומיט `e75a713`. הכתובת הזו תחזיר 404 כשהמאגר ייסגר, ולכן חייבים לפרוס מחדש בשיטה החדשה **לפני** שסוגרים אותו.*
+
+## 2. פרסום האתר (GitHub Pages)
+
+האתר מוגש מהענף `gh-pages`. **כל קובץ בענף הזה ציבורי** לכל מי שמגיע לנתיב שלו, גם כשהמאגר פרטי. לכן מפרסמים רק את קבצי האתר:
+
+- **מתפרסם:** דפי ה־HTML שבשורש (`index.html`, ‏`q.html`, ‏`quotes.html`, ‏`client.html`, ‏`clients.html`), ‏`clients.webmanifest`, התיקיות `app/` ו־`payouts/`, ‏`.nojekyll`, ו־`CNAME` כשהוא קיים.
+- **לא מתפרסם:** `docs/`, ‏`supabase/`, ‏`tests/`, ‏`scripts/`, ‏`.claude/`, ‏`.github/`, ‏`README.md` ו־`package*.json`. הרשימה נקבעת ב־`scripts/build-pages.mjs`.
+- `app/` ציבורי מעצם טבעו, כי הדפדפן מריץ אותו. זה כולל את `pricing.js`, ‏`catalog.js` ו־`legal.js`. לכן לא שמים ב־`app/` שום דבר שאסור שיראו.
+
+**איך מפרסמים:** עומדים על הענף שרוצים לפרסם. מתפרסם רק מה שנשמר ב־commit.
+
+```bash
+git fetch origin gh-pages
+node scripts/build-pages.mjs --commit
+```
+
+- הסקריפט יוצר commit שיש בו רק את קבצי האתר, מעל `origin/gh-pages`. הוא מדפיס את פקודת הדחיפה, `git push origin <sha>:refs/heads/gh-pages`, ולא דוחף בעצמו. אם הדחיפה נדחית, מריצים שוב את שתי הפקודות.
+- **לא** מפרסמים יותר ב־`git push origin <ענף>:gh-pages`. הפקודה הזו מפרסמת את כל המאגר.
+- תצוגה מקדימה: `node scripts/build-pages.mjs /tmp/pages`, ומגישים את התיקייה. ה־CI מריץ את בדיקות הדפדפן מול תיקייה כזו, כך שקובץ שהאתר צריך ולא מתפרסם נתפס שם.
+- דף HTML חדש בשורש מתפרסם לבד. תיקייה חדשה שהאתר טוען מוסיפים ל־`DIRS` בסקריפט. `tests/build-pages.test.mjs` נכשל אם דף מפנה לקובץ שלא מתפרסם.
+- בדיקה אחרי הפרסום: האתר עובד, ו־`https://adamsin155.github.io/---/docs/ops.md` מחזיר 404.
+- הפרסומים הקודמים, עם כל המאגר, נשארים בהיסטוריה של `gh-pages`. ‏Pages מגיש רק את ה־commit האחרון, וכשהמאגר פרטי גם ההיסטוריה פרטית.
+
+## 3. סודות ומשתני סביבה (שמות בלבד)
+
+`create-quote` קוראת:
+
+| משתנה | בשביל מה |
+|---|---|
+| `SUPABASE_URL` | כתובת הפרויקט |
+| `SUPABASE_ANON_KEY` (מפתח ישן, JWT) | לקוח Supabase בשם המשתמש שקרא: `auth.getUser()` ו־`rpc('is_staff')` |
+| `SUPABASE_SERVICE_ROLE_KEY` (מפתח ישן, JWT) | שמירת ההצעה בטבלה `quotes`, עוקף RLS |
+| הכותרת `Authorization` של הבקשה | ה־JWT של איש הצוות המחובר |
+
+- את כל המשתנים האלה Supabase מזריקה לבד. אין סודות שהגדרנו ביד. אם יתווספו (למשל ספק מייל), מגדירים אותם ב־Edge Functions → Secrets או ב־`supabase secrets set`, ולעולם לא בקובץ במאגר.
+- המפתחות החדשים זמינים לפונקציות כ־`SUPABASE_PUBLISHABLE_KEYS` ו־`SUPABASE_SECRET_KEYS`: אובייקט JSON, והמפתח הראשי נמצא תחת `default`.
+- בדפדפן: `app/supa.js` מחזיק את כתובת הפרויקט ואת המפתח הציבורי `sb_publishable_…`. הוא ציבורי מעצם הגדרתו. ההגנה היא RLS.
+- מחוץ למאגר: טוקן הגישה של ה־CLI (`SUPABASE_ACCESS_TOKEN`) וסיסמת מסד הנתונים. הם אישיים ונשמרים רק בלוח הבקרה ובמחשב של מי שפורס.
+
+## 4. מעבר למפתחות החדשים: עד 31.12.2026
+
+לפי Supabase, המפתחות הישנים `anon` ו־`service_role`, שמבוססים על JWT, עובדים עד סוף 2026. האתר כבר משתמש ב־`sb_publishable_`, ורק `create-quote` עוד תלויה במפתחות הישנים. היעד שלנו הוא להשלים את המעבר עד 1.12.2026, כדי להשאיר מרווח.
+
+1. Settings → API Keys: מוודאים שיש מפתח publishable ומפתח secret בשם `default`.
+2. ב־`create-quote`:
+   - במקום `SUPABASE_ANON_KEY` קוראים `JSON.parse(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS')!).default`.
+   - במקום `SUPABASE_SERVICE_ROLE_KEY` קוראים `JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS')!).default`.
+   - ה־JWT של המשתמש ממשיך לעבור בכותרת `Authorization`, כמו היום.
+3. `verify_jwt` המובנה מבין רק JWT. אם עוברים גם למפתחות חתימה חדשים (JWT signing keys), או שפונקציה נקראת עם מפתח `sb_secret_`, מגדירים לה `verify_jwt=false` ובודקים בקוד. `create-quote` כבר בודקת בעצמה (`getUser` מחזיר 401, ו־`is_staff` מחזיר 403).
+4. קריאות מ־`pg_net` ומהתזמון לפונקציות: שולחים את מפתח ה־secret בכותרת `apikey`, לא ב־`Authorization`. את המפתח שומרים ב־Vault, לא בטקסט של ה־SQL.
+5. כשכלום כבר לא משתמש במפתחות הישנים, מכבים אותם ב־Settings → API Keys. אפשר להדליק אותם שוב אם משהו נשבר.
+
+## 5. מיגרציות
+
+- כל שינוי במסד הוא קובץ חדש: `supabase/migrations/<YYYYMMDDHHMMSS>_<שם>.sql`, עם חותמת זמן מאוחרת מהקובץ האחרון. **לא עורכים מיגרציה שכבר הוחלה**; מתקנים בקובץ חדש.
+- מי שמחזיק את הגישה ל־Supabase מחיל אותן, לפי הסדר:
+  - בודקים מה כבר הוחל: `list_migrations` ב־MCP, או Database → Migrations.
+  - מחילים כל קובץ חסר עם `apply_migration` ב־MCP. השם הוא שם הקובץ בלי החותמת ובלי `.sql`, למשל `drop_set_my_person`.
+  - אחרי זה מריצים `get_advisors` (אבטחה) ואת הבדיקות.
+- ההיסטוריה במסד נשמרת לפי שעת ההחלה, ולא לפי החותמת שבשם הקובץ. לכן לא משתמשים ב־`supabase db push` בלי ליישר קודם את ההיסטוריה (`supabase migration repair`), כי אחרת הוא ינסה להריץ הכול מחדש.
+
+## 6. גיבויים
+
+- הפרויקט על **Supabase Pro** (שודרג ב־29.9.2026, החלטה 4). יש גיבוי אוטומטי יומי, ו־7 הימים האחרונים זמינים ב־Database → Backups → Scheduled backups.
+- שחזור מחזיר את **כל** המסד לנקודת הגיבוי, והפרויקט לא זמין בזמן השחזור. PITR (שחזור לרגע מסוים) הוא תוסף בתשלום, והוא לא מופעל.
+- הגיבוי כולל את כספת הגישות (`vault.secrets`), מוצפנת. הוא לא כולל קבצים ב־Storage, שבה אנחנו לא משתמשים כרגע.
+- מומלץ, לפי התוכנית: פעם בשבוע `supabase db dump` מוצפן, שנשמר **מחוץ** למאגר. עדיין לא הוקם.
+
+## 7. לפני שהופכים את המאגר לפרטי
+
+- [ ] `create-quote` נפרסה מחדש מ־`_shared` (גרסה 7 ומעלה), ובקוד שבשרת אין `raw.githubusercontent` (סעיף 1).
+- [ ] לחשבון GitHub ‏`Adamsin155` יש **GitHub Pro** (כ־$4 לחודש). בחשבון חינמי, מאגר פרטי מכבה את GitHub Pages. ב־Pro האתר ממשיך לעבוד **והוא ציבורי**: Pages מגיש לכל אחד כל קובץ שבענף `gh-pages`. המאגר הפרטי מסתיר רק את מה שלא פורסם שם.
+- [ ] ב־`gh-pages` יש רק קבצי האתר: פרסמו לפחות פעם אחת ב־`node scripts/build-pages.mjs --commit` (סעיף 2), ו־`https://adamsin155.github.io/---/docs/ops.md` מחזיר 404. עד היום נדחף לשם כל המאגר, ובלי הצעד הזה התוכנית, המיגרציות והקוד של הפונקציות יישארו ציבוריים דרך האתר גם אחרי הסגירה. `app/` נשאר ציבורי בכל מקרה (סעיף 2).
+- [ ] הכתובת הקבועה עובדת (סעיף 8). עדיף לעשות את זה קודם, כדי לא לשנות שני דברים באותו יום.
+- [ ] ב־Supabase, ב־Authentication → URL Configuration: ‏Site URL ו־Redirect URLs כוללים את הכתובת שבשימוש, אחרת קישור איפוס הסיסמה לא יחזור לאתר.
+- [ ] מי שצריך גישה לקוד (מפתחים, סוכני Claude דרך אפליקציית GitHub) נוסף כ־collaborator. אחרי הסגירה אי אפשר יותר לקרוא את הקוד בלי הרשאה.
+- [ ] דקות של GitHub Actions: במאגר פרטי הן נספרות (ב־Pro יש 3,000 בחודש). הבדיקות בכל דחיפה לוקחות כמה דקות, וזה מספיק.
+- [ ] לזכור שהסגירה לא מוחקת את מה שכבר היה ציבורי. היסטוריית ה־git כבר נחשפה. אין בה סודות, רק המפתח הציבורי, ואם יתברר שנכנס סוד, מחליפים אותו.
+- [ ] האתר הנפרד `astrateg-payment` (נבנה ב־`scripts/build-payment-site.mjs`) הוא מאגר ציבורי עם עותק של `app/payouts/` ו־`pricing.js`/`catalog.js`/`legal.js`. צריך להחליט אם גם אותו לסגור, או להפסיק לעדכן אותו ולהשתמש ב־`/payouts/` שבכתובת החדשה.
+
+## 8. כתובת קבועה: `app.astrateg.com`
+
+לפי החלטה 5 נשארים על GitHub Pages, רק עם כתובת משלנו.
+
+1. **DNS**, אצל רשם הדומיין: רשומת `CNAME` בשם `app` שמצביעה על `adamsin155.github.io` (בלי שם המאגר ובלי נתיב).
+2. **אימות הדומיין ב־GitHub** (מומלץ, מונע השתלטות): ב־Settings של החשבון → Pages → Add a domain ‏`astrateg.com`. מוסיפים את רשומת ה־TXT שהמסך מציג, ולוחצים Verify.
+3. **קובץ `CNAME`** בשורש המאגר, עם שורה אחת: `app.astrateg.com`, ב־commit בענף שמפרסמים ממנו. ‏`scripts/build-pages.mjs` מצרף אותו לקבצים שמתפרסמים (סעיף 2). כל פרסום מחליף את כל התוכן של `gh-pages`, ולכן בלי הקובץ במקור הכתובת תימחק בפרסום הבא.
+4. ב־Settings של המאגר → Pages → Custom domain: ‏`app.astrateg.com` → Save. כשהתעודה מוכנה (בדרך כלל תוך שעה), מסמנים **Enforce HTTPS**. ‏GitHub שומר את הדומיין גם כ־commit משלו ב־`gh-pages`, ולכן לפני הפרסום הבא מריצים `git fetch origin gh-pages` (כמו בסעיף 2).
+5. **נתיבים**: האתר עובר מ־`/---/` לשורש `/`. מעדכנים את `id`, ‏`start_url` ו־`scope` ב־`clients.webmanifest` וב־`payouts/manifest.webmanifest` מ־`/---/…` ל־`/…`, ואת הכתובות ב־`README.md`.
+6. **Supabase Auth** → URL Configuration:
+   - Site URL: ‏`https://app.astrateg.com/`
+   - Redirect URLs: מוסיפים `https://app.astrateg.com/quotes.html` ו־`https://app.astrateg.com/payouts/`
+   - את הכתובות הישנות של `adamsin155.github.io` משאירים עד שכולם עברו.
+7. **בדיקה:**
+   - קישור הצעה ישן (`https://adamsin155.github.io/---/q.html?t=…`) נפתח. GitHub מפנה אוטומטית מהכתובת הישנה לדומיין, וצריך לוודא שהפרמטר `t` נשמר.
+   - `/payouts/` נפתח.
+   - איפוס סיסמה חוזר לאתר.
+8. **מה משתנה לצוות:**
+   - הכניסה השמורה, האפליקציה המותקנת במסך הבית וההתראות קשורות לכתובת. כולם יתחברו מחדש, ומי שהתקין יתקין מחדש.
+   - לכן מחליפים כתובת **לפני** שמפיצים לצוות את התקנת האפליקציה.

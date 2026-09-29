@@ -44,7 +44,7 @@
 
 ## פרסום וגישה
 
-- **האתר:** https://adamsin155.github.io/---/ . הוא מתפרסם מהענף `gh-pages`. כדי לפרסם גרסה חדשה מריצים `git push origin claude/amazing-tesla-bvt0sx:gh-pages`.
+- **האתר:** https://adamsin155.github.io/---/ . הוא מתפרסם מהענף `gh-pages`, שמכיל רק את קבצי האתר, כי כל מה שבו ציבורי. כדי לפרסם גרסה חדשה, עומדים על `claude/amazing-tesla-bvt0sx` אחרי commit, מריצים `git fetch origin gh-pages && node scripts/build-pages.mjs --commit`, ואז את פקודת ה־`git push` שהסקריפט מדפיס. פרטים: [מדריך התפעול](docs/ops.md), סעיף 2.
 - **כניסת צוות:** משתמש `adam@astrateg.com` קיים ומורשה. את הסיסמה מחליפים בעמוד ״הצעות שנשלחו״, בכפתור ״שינוי סיסמה״.
 - **שכחתי סיסמה:** כפתור במסך הכניסה שולח קישור איפוס למייל. הקישור פותח את עמוד ״הצעות שנשלחו״ ומבקש סיסמה חדשה. כדי שהקישור יחזור לאתר ולא לכתובת ברירת המחדל, יש להגדיר ב־Supabase (Authentication → URL Configuration): *Site URL* ‏`https://adamsin155.github.io/---/` ולהוסיף ל־*Redirect URLs* את `https://adamsin155.github.io/---/quotes.html`. שירות המייל המובנה של Supabase מוגבל בכמות שליחות; לשימוש קבוע כדאי לחבר SMTP משלכם (Authentication → Emails → SMTP Settings).
 - **הוספת איש מכירות:** ב־Supabase, Authentication → Users → *Add user* עם *Auto Confirm User*. אחר כך מריצים ב־SQL Editor:
@@ -78,11 +78,12 @@ app/payouts/ engine.js (חישוב), data.js (Supabase), app.js (מסכים)
 app/styles/ app.css (ממשק), quote.css (מסמך ההצעה), client.css, quotes.css
 app/fonts/  Rubik + JetBrains Mono (OFL), מתארחים מקומית
 app/vendor/ supabase-js (MIT)
-supabase/   migrations, functions/create-quote, functions/staff-admin
+supabase/   migrations, functions/create-quote, functions/staff-admin, functions/_shared/app (עותק שנוצר מ־app/)
+scripts/    sync-functions (עותק app/ לפונקציות), build-pages (מה שמתפרסם ל־gh-pages), build-payment-site
 docs/       כללי תמחור, חלוקת אחריות, מדריך מותג, מחקר
 .claude/agents/  סוכני UX, עיצוב, טכנולוגיה, איכות, מחקר ועוזר משפטי;
                  payouts-*: טכנולוגיה, עיצוב, בקרה ומחקר למערכת התשלומים
 private/         נתונים עסקיים רגישים — מוחרג מ־git
 ```
 
-שינוי מחיר, כמות, זכאות או נוסח ההסכם: מעדכנים את `docs/pricing-rules.md`, `app/catalog.js` או `app/legal.js`, מריצים `npm test`, ופורסים מחדש את הפונקציה `create-quote`. בפריסה, ה־import של `app/pricing.js` ב־`index.ts` מוחלף בכתובת קבועה של אותו קובץ בקומיט שנדחף (`https://raw.githubusercontent.com/Adamsin155/---/<commit>/app/pricing.js`), כך שהשרת טוען בדיוק את `pricing.js`, `catalog.js` ו־`legal.js` של אותו קומיט. גרסה 6 נפרסה מהקומיט `e75a713`.
+שינוי מחיר, כמות, זכאות או נוסח ההסכם: מעדכנים את `docs/pricing-rules.md`, `app/catalog.js` או `app/legal.js`, מריצים `node scripts/sync-functions.mjs` (מעדכן את העותק של `pricing.js`, `catalog.js` ו־`legal.js` ב־`supabase/functions/_shared/app/`) ו־`npm test`, ופורסים מחדש את הפונקציה `create-quote` עם העותק. הפונקציה לא טוענת קוד מהמאגר. פריסה, סודות, מיגרציות, גיבויים וכתובת קבועה: [מדריך התפעול](docs/ops.md).

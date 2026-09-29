@@ -21,11 +21,17 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Edge functions' copy of app/ is up to date (supabase/functions/_shared/app)
+        run: node scripts/sync-functions.mjs --check
       - name: Calculation tests
         run: npm test
+      # The browser tests run against the published set only (what
+      # scripts/build-pages.mjs puts on gh-pages), so a file the site needs
+      # but the build leaves out fails here, not in production.
       - name: Browser tests (payouts app, quote builder, client protocol, team accounts, standalone site)
         run: |
-          npx --yes http-server -p 8080 -s . > /dev/null 2>&1 &
+          node scripts/build-pages.mjs /tmp/pages
+          npx --yes http-server /tmp/pages -p 8080 -s > /dev/null 2>&1 &
           npx --yes wait-on -t 30000 http://localhost:8080/payouts/
           node tests/payouts-e2e.mjs
           node tests/e2e.mjs
