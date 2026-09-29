@@ -393,3 +393,21 @@ test('employee protocol details: who assigns the editor, Irit checks, Nirel brie
   assert.ok(BRIEF_FIELDS.some(([k]) => k === 'disliked'));
   for (const k of BRIEF_MUST) assert.ok(BRIEF_FIELDS.some(([f]) => f === k), k);
 });
+
+test('photographer: his own shoot-day processes, due around the shoot, in every round', () => {
+  const c = { ...base, id: 'c', shoot_type: 'natali', shoot_at: '2026-10-05T10:00:00+03:00' };
+  const mine = applicableProcesses(c).filter((p) => p.owners.includes('eli')).map((p) => p.id);
+  assert.deepEqual(mine, ['p17b', 'p18b', 'p19b']);
+  const p19b = PROCESSES.find((p) => p.id === 'p19b');
+  assert.equal(p19b.items.find((i) => i.key === 'p19b.handed').noBulk, true); // handing the drive is confirmed one by one
+  // Arrival is due when the influencers arrive; he starts an hour earlier.
+  const now = at('2026-10-05T09:30:00+03:00');
+  const s = clientState(c, {}, now).states.find((x) => x.proc.id === 'p17b');
+  assert.equal(s.dueAt.toISOString(), new Date('2026-10-05T10:00:00+03:00').toISOString());
+  assert.equal(s.startAt.toISOString(), new Date('2026-10-05T09:00:00+03:00').toISOString());
+  assert.ok(openItemsFor('eli', c, {}, clientState(c, {}, now), now).some((x) => x.item.key === 'p17b.broll'));
+  assert.ok(!openItemsFor('eli', c, {}, clientState(c, {}, now), now).some((x) => x.item.key.startsWith('p17.')));
+  assert.equal(PEOPLE.eli.name, 'אלי');
+  const r2 = { ...c, rounds: [{ n: 2, shoot_type: 'dms', shoot_at: '2026-11-05T10:00:00+02:00' }] };
+  assert.deepEqual(applicableProcesses(r2).filter((p) => p.owners.includes('eli')).map((p) => p.id), ['p17b', 'p18b', 'p19b', 'r2-p17b', 'r2-p18b', 'r2-p19b']);
+});

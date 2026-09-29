@@ -24,7 +24,7 @@
 | מה | קובץ |
 |---|---|
 | הפרוטוקול הכללי כפי שנמסר | `docs/protocols/general.md` |
-| הפרוטוקולים האישיים | `docs/protocols/irit.md`, `lior.md`, `ofir.md`, `nirel.md`, `editors.md` |
+| הפרוטוקולים האישיים | `docs/protocols/irit.md`, `lior.md`, `ofir.md`, `nirel.md`, `editors.md`, `photographer.md` |
 | מה נקבע כשהכללי והאישיים סותרים, ושאלות פתוחות | `docs/protocols/merge.md` |
 | הפרוטוקול כנתונים: שלבים, תהליכים, מבצעים, פריטים, תנאים, מועדים | `app/protocol.js` |
 | תנאים, מועדים, ימי עסקים, סטטוסים, "מה עליי" | `app/protocol-logic.js` |
