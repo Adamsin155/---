@@ -1,0 +1,18 @@
+{
+  "id": "/---/clients.html",
+  "name": "אסטרטג · לקוחות ופרוטוקול",
+  "short_name": "אסטרטג לקוחות",
+  "description": "מה עליי, כרטיסי לקוחות ופרוטוקול העבודה של המשרד.",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/---/clients.html#mine",
+  "scope": "/---/",
+  "display": "standalone",
+  "background_color": "#020A1D",
+  "theme_color": "#031432",
+  "icons": [
+    { "src": "payouts/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "payouts/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "payouts/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

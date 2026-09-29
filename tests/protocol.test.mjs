@@ -280,3 +280,31 @@ test('package quantities in the database match the catalog', async () => {
   assert.deepEqual(Object.keys(rows).sort(), Object.keys(SPECS).sort());
   for (const [id, s] of Object.entries(SPECS)) assert.deepEqual(rows[id], [s.videos, s.graphics, s.shootDays], id);
 });
+
+test('calendar: Google link and a valid .ics with Hebrew text', async () => {
+  const { googleCalendarUrl, icsText } = await import('../app/calendar.js');
+  const ev = { uid: 'c1-shoot@astrateg', title: 'יום צילום: מספרת רון, דניס', start: '2026-10-07T10:00:00+03:00', minutes: 300, details: 'שורה 1\nשורה 2; עם, פסיקים', location: 'הבונים 5, רמת גן' };
+  const url = new URL(googleCalendarUrl(ev));
+  assert.equal(url.searchParams.get('dates'), '20261007T070000Z/20261007T120000Z');
+  assert.equal(url.searchParams.get('text'), ev.title);
+  const ics = icsText(ev);
+  assert.match(ics, /^BEGIN:VCALENDAR\r\n/);
+  assert.match(ics, /DTSTART:20261007T070000Z\r\n/);
+  assert.match(ics, /DTEND:20261007T120000Z\r\n/);
+  for (const line of ics.split('\r\n')) assert.ok(new TextEncoder().encode(line).length <= 75, line);
+  const unfolded = ics.replace(/\r\n /g, '');
+  assert.ok(unfolded.includes('DESCRIPTION:שורה 1\\nשורה 2\\; עם\\, פסיקים\r\n'));
+  assert.ok(unfolded.includes('SUMMARY:יום צילום: מספרת רון\\, דניס\r\n'));
+});
+
+test('performance report: on-time rate and median time per process and person', async () => {
+  const { performanceReport } = await import('../app/protocol-logic.js');
+  const p1 = PROCESSES.find((p) => p.id === 'p01').items.map((i) => i.key);
+  const a = { ...base, id: 'a', deal_at: '2026-10-01T09:00:00+03:00' };
+  const b = { ...base, id: 'b', deal_at: '2026-10-01T10:00:00+03:00' };
+  const checks = { a: done(p1, '2026-10-01T09:03:00+03:00'), b: done(p1, '2026-10-01T11:00:00+03:00') };
+  const r = performanceReport([a, b], checks, { days: 30, now: at('2026-10-05T10:00:00+03:00') });
+  const p = r.processes.find((x) => x.key === 'p01');
+  assert.deepEqual([p.done, p.onTime, p.late], [2, 1, 1]);
+  assert.equal(r.people.find((x) => x.key === 'irit').rate, 0.5);
+});

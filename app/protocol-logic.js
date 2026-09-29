@@ -318,3 +318,41 @@ export function businessDaysBetween(from, to) {
 
 const RANK = { overdue: 0, today: 1, due: 2, open: 3, client: 4, waiting: 5, done: 6 };
 export const byUrgency = (a, b) => (RANK[a.status] - RANK[b.status]) || ((a.dueAt?.getTime() ?? Infinity) - (b.dueAt?.getTime() ?? Infinity));
+
+// Performance: for processes completed within the window, how many met their
+// due date and how long they took from start to completion (median, minutes).
+// Per person: processes they own (or took, when shared).
+export function performanceReport(clients, checksByClient, { days = 30, now = new Date() } = {}) {
+  const since = new Date(now.getTime() - days * DAY);
+  const byProc = new Map();
+  const byPerson = new Map();
+  const add = (map, key, row) => {
+    if (!map.has(key)) map.set(key, { key, done: 0, onTime: 0, late: 0, durations: [] });
+    const m = map.get(key);
+    m.done += 1;
+    if (row.onTime) m.onTime += 1; else m.late += 1;
+    if (row.minutes !== null) m.durations.push(row.minutes);
+  };
+  for (const c of clients) {
+    const s = clientState(c, checksByClient[c.id] || {}, now);
+    for (const x of s.states) {
+      if (!x.complete || !x.completedAt || x.completedAt < since || !x.dueAt) continue;
+      const row = {
+        onTime: x.completedAt <= x.dueAt,
+        minutes: x.startAt && x.completedAt > x.startAt ? Math.round((x.completedAt - x.startAt) / 6e4) : null,
+      };
+      add(byProc, x.proc.id.replace(/^r\d+-/, ''), row);
+      for (const p of x.claim ? [x.claim.person] : x.proc.owners) add(byPerson, p, row);
+    }
+  }
+  const finish = (m) => {
+    const d = [...m.durations].sort((a, b) => a - b);
+    const median = d.length ? (d.length % 2 ? d[(d.length - 1) / 2] : Math.round((d[d.length / 2 - 1] + d[d.length / 2]) / 2)) : null;
+    return { key: m.key, done: m.done, onTime: m.onTime, late: m.late, rate: m.done ? m.onTime / m.done : null, medianMinutes: median };
+  };
+  return {
+    since,
+    processes: [...byProc.values()].map(finish),
+    people: [...byPerson.values()].map(finish),
+  };
+}

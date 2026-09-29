@@ -13,7 +13,7 @@ async function all(build) {
   }
 }
 
-const CLIENT_COLS = 'id, name, business, phone, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, notes, quote_id, created_at, created_by_email';
+const CLIENT_COLS = 'id, name, business, phone, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, notes, quote_id, created_at, created_by_email, links, deliverables, rounds';
 const CHECK_COLS = 'client_id, item_key, state, note, by_email, at';
 const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at';
 
@@ -130,4 +130,34 @@ export async function myPerson() {
 export async function setMyPerson(person) {
   const { error } = await supabase.rpc('set_my_person', { p_person: person });
   if (error) throw error;
+}
+
+// Daily reviews (processes 32 and 33) since a given day: [{ day, kind, by_email, at, note }].
+export async function loadReviews(sinceDay) {
+  const { data, error } = await supabase.from('office_reviews').select('day, kind, note, by_email, at')
+    .gte('day', sinceDay).order('day', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function markReview(day, kind, note = null) {
+  const { data, error } = await supabase.from('office_reviews')
+    .upsert({ day, kind, note }, { onConflict: 'day,kind' }).select('day, kind, note, by_email, at').single();
+  if (error) throw error;
+  return data;
+}
+
+// The signed agreement a client was opened from (for its number and package lines).
+export async function loadQuoteSummary(id) {
+  const { data, error } = await supabase.from('quotes')
+    .select('id, number, signed_at, token, package:model->package, paid:model->paid, free:model->free')
+    .eq('id', id).maybeSingle();
+  if (error) return null;
+  return data;
+}
+
+// All checks with their times, for the performance report.
+export async function loadAllLog(sinceIso) {
+  return all(() => supabase.from('protocol_log').select('client_id, item_key, action, by_email, at')
+    .gte('at', sinceIso).order('at'));
 }
