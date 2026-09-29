@@ -117,13 +117,18 @@ a.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
 .s-escalation .sicon::before { transform: rotate(-45deg); }
 .wproc-h .sbadge.s-urgent, .wproc-h .sbadge.s-escalation { margin-inline-start: 0; }
 .wproc.is-urgent { border-inline-start: 3px solid var(--late); padding-inline-start: 12px; }
-.g-urgent .wgroup-h { color: var(--late); }
+.g-urgent .wgroup-h, .g-escalation .wgroup-h { color: var(--late); }
+.g-escalation .wgroup-h > .sicon {
+  width: 12px; height: 12px; border-radius: 2px; display: inline-grid; place-items: center; background: currentColor; transform: rotate(45deg);
+}
+.g-escalation .wgroup-h > .sicon::before { content: '!'; font-size: 9px; font-weight: 800; color: var(--bg); transform: rotate(-45deg); }
 .g-urgent .wgroup-h > .sicon, .ctl-urgent .wgroup-h > .sicon {
   width: 14px; height: 14px; border-radius: 50%; display: inline-grid; place-items: center; background: currentColor;
 }
 .g-urgent .wgroup-h > .sicon::before, .ctl-urgent .wgroup-h > .sicon::before { content: '!'; font-size: 10px; font-weight: 800; color: var(--bg); }
 .task-meta { margin: 2px 0 0; font-size: 13px; color: var(--text-2); }
 .thu-card .pbar { inline-size: 160px; margin-top: 6px; }
+.g-thu .thu-card { border-inline-start: 3px solid var(--accent); padding-inline-start: 12px; padding-bottom: 12px; }
 
 /* A task's brief, folded under it */
 .witem.has-brief { flex-wrap: wrap; }
@@ -189,8 +194,12 @@ details.brief > summary { cursor: pointer; color: var(--accent); min-height: 32p
 .edit-jobs > li { padding-top: 8px; border-top: 1px solid var(--line); }
 .edit-jobs .wclient { color: var(--text); font-weight: 500; min-height: 32px; display: inline-flex; align-items: center; }
 .edit-steps { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }
-.edit-steps li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
-.edit-k { color: var(--text-2); min-inline-size: 11em; }
+.edit-steps li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 10px; }
+.edit-steps li > .muted { grid-column: 2; font-size: 12.5px; }
+.edit-k { color: var(--text-2); grid-row: span 2; }
+.late-procs { margin-top: 4px; }
+.late-procs li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; }
+.late-procs .muted { white-space: nowrap; }
 .await-editor { display: grid; gap: 4px; }
 
 /* System integrity */
@@ -226,7 +235,6 @@ details.brief > summary { cursor: pointer; color: var(--accent); min-height: 32p
   details.brief { padding-inline-start: 0; }
   .ctable .group-row { display: block; padding: 12px 14px 4px; }
   .ctable .group-row th { display: block; padding: 0; border: 0; }
-  .edit-k { min-inline-size: 0; flex: 1 1 100%; }
   #dlg-status .dlg-foot .btn { flex: 1 1 100%; min-height: 44px; }
 }
 /* Four tabs fit a 360px screen. */

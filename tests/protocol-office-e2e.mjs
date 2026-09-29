@@ -16,7 +16,7 @@ const serverNow = () => new Date(Date.now() + skew).toISOString();
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const USER = { id: randomUUID(), email: 'irit@astrateg.test', aud: 'authenticated', role: 'authenticated' };
-const JWT = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: USER.id, email: USER.email, role: 'authenticated', exp: Math.floor(NOW / 1000) + 86400 })}.sig`;
+const JWT = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: USER.id, email: USER.email, role: 'authenticated', exp: Math.floor(NOW / 1000) + 30 * 86400 })}.sig`; // valid through the Thursday check
 
 const hoursAgo = (n) => new Date(NOW - n * 36e5).toISOString();
 const minsAgo = (n) => new Date(NOW - n * 6e4).toISOString();
@@ -112,7 +112,7 @@ async function fakeSupabase(route) {
   const p = url.pathname;
   if (p === '/auth/v1/token') {
     if (body.password !== 'correct-horse') return json(400, { error: 'invalid_grant', msg: 'Invalid login credentials', code: 'invalid_credentials' });
-    return json(200, { access_token: JWT, token_type: 'bearer', expires_in: 86400, expires_at: Math.floor(NOW / 1000) + 86400, refresh_token: 'r', user: USER });
+    return json(200, { access_token: JWT, token_type: 'bearer', expires_in: 30 * 86400, expires_at: Math.floor(NOW / 1000) + 30 * 86400, refresh_token: 'r', user: USER });
   }
   if (p === '/auth/v1/user') return json(200, USER);
   if (p === '/auth/v1/logout') return route.fulfill({ status: 204 });
@@ -429,6 +429,182 @@ assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי
 assert.equal(await page.locator('.auto-banner').count(), 1); // Irit's view shows the banner
 db.staff[0].person = 'irit';
 
+// ── Batch 3: new people, urgent tasks, escalations, briefs, Ofir's control ──
+// Every required item of the processes in these phases, closed at `when`.
+const doneThrough = (c, phases, when) => {
+  for (const p of applicableProcesses(c)) if (phases.includes(p.phase)) for (const i of p.items) if (!i.optional) check(c, i.key, when);
+};
+const UP_TO_SHOOT = ['onboarding', 'parallel', 'prep', 'eve', 'shoot'];
+// Shot on Sunday, drive back and assigned to Nirel (Natali's editor) on Monday.
+const natali = client({ name: 'סטודיו נטלי', phone: '050-1234567', shoot_type: 'natali', characterizer: 'ofir', has_logo: true, editor: 'nirel',
+  deal_at: hoursAgo(24 * 14), char_at: hoursAgo(24 * 13), shoot_at: hoursAgo(48) });
+doneThrough(natali, UP_TO_SHOOT, hoursAgo(26));
+for (const k of ['p22a.drive', 'p22a.load', 'p22a.assigned']) check(natali, k, hoursAgo(25));
+// Shot too, but no editor yet: waits for Ofir, and the post phase is missing its editor.
+const sea = client({ name: 'מסעדת הים', phone: '050-7654321', shoot_type: 'dms', characterizer: 'shirel', has_logo: true,
+  deal_at: hoursAgo(24 * 10), char_at: hoursAgo(24 * 9), shoot_at: hoursAgo(48) });
+doneThrough(sea, UP_TO_SHOOT, hoursAgo(26));
+// Nothing happened since 3.9: no activity for weeks, processes late by more than two business days.
+const idle = client({ name: 'חנות ישנה', characterizer: 'ofir', deal_at: '2026-09-01T07:00:00Z', char_at: '2026-09-02T07:00:00Z' });
+doneThrough(idle, ['onboarding'], '2026-09-03T08:00:00Z');
+const task = (o) => db.client_tasks.push({ id: randomUUID(), done_at: null, done_by_email: null, source: null, brief: null, urgent: false, due_on: null, ...o });
+task({ client_id: seeded.id, title: 'להחליף את הלוגו בגרפיקה 4', owner: 'irit', urgent: true, created_by_email: 'lior@astrateg.test', created_at: minsAgo(30) });
+task({ client_id: waiting.id, title: 'לקוח מתלונן: הגרפיקות לא מתאימות לעסק', owner: 'lior', source: 'escalation', due_on: '2026-09-22', created_by_email: 'ofir@astrateg.test', created_at: hoursAgo(2) });
+task({ client_id: natali.id, title: 'תיקון כתובית בסרטון 3', owner: 'nirel', due_on: '2026-09-23', created_by_email: 'lior@astrateg.test', created_at: hoursAgo(3),
+  brief: { problem: 'שגיאת כתיב בכתובית של סרטון 3', change: 'לתקן את המילה ״מספרה״', keep: 'הקצב והמוזיקה', result: 'סרטון מתוקן בדרייב', materials: '' } });
+db.staff.push({ email: 'nirel@astrateg.test', person: 'nirel' });
+db.staff[0].person = 'irit';
+await page.reload();
+await page.waitForSelector('#view-mine:not([hidden]) .witem');
+
+// Urgent first, above "overdue", with a text badge; who opened it and when.
+const order3 = await page.locator('#mine-list .wgroup').evaluateAll((els) => els.map((e) => e.className));
+assert.match(order3[0], /g-urgent/);
+assert.match(order3[1], /g-overdue/);
+const urgentCard = page.locator('.g-urgent .wproc');
+assert.equal(await urgentCard.count(), 1);
+assert.match(await page.locator('.g-urgent .wgroup-h').innerText(), /^דחוף/);
+assert.match(await urgentCard.innerText(), /מספרת רון[^]*דחוף[^]*נפתח ע״י ליאור[^]*להחליף את הלוגו בגרפיקה 4/);
+assert.equal(await urgentCard.locator('.sbadge.s-urgent .sicon').count(), 1);
+// People: the new ones appear, the "assigned editor" placeholder does not.
+const chips = await page.locator('#mine-people .chip').allInnerTexts();
+for (const n of ['ניראל', 'נדיה', 'יריב', 'אנה']) assert.ok(chips.some((c) => c.startsWith(n)), chips.join('|'));
+assert.ok(!chips.some((c) => /העורך המשויך/.test(c)), chips.join('|'));
+assert.ok(!(await page.locator('#mine-select option').allInnerTexts()).some((o) => /העורך המשויך/.test(o)));
+// The morning summary leads with urgent work.
+const sum3 = await waText('#mine-tools .wa-link');
+assert.match(sum3, /\n\nדחוף \(1\):\n- מספרת רון · להחליף את הלוגו בגרפיקה 4\nבאיחור \(/);
+await shot('09-urgent-first');
+// Nirel's list: the task shows its brief, folded.
+await page.click('#mine-people .chip:has-text("ניראל")');
+const briefTask = page.locator('.wproc:has(.wclient:text("סטודיו נטלי")):has-text("תיקון כתובית בסרטון 3")');
+await briefTask.waitFor();
+assert.equal(await briefTask.locator('details.brief').getAttribute('open'), null);
+await briefTask.locator('details.brief summary').click();
+const brief = await briefTask.locator('.brief-list').innerText();
+assert.match(brief, /מה הבעיה המדויקת\s*שגיאת כתיב בכתובית של סרטון 3/);
+assert.match(brief, /מה צריך להישאר כמו שהוא\s*הקצב והמוזיקה/);
+assert.doesNotMatch(brief, /אילו חומרים רלוונטיים/); // empty fields are left out
+// Nirel's editing work (process 22 of the client assigned to her) is in her list too.
+assert.ok(await page.locator('.wproc:has(.wclient:text("סטודיו נטלי")):has-text("עריכת הסרטונים")').count() >= 1);
+assert.match(await waText('#mine-tools .wa-link'), /^בוקר טוב ניראל,/);
+await shot('10-nirel-brief');
+// Lior's list: the exception reported to him, on top.
+await page.click('#mine-people .chip:has-text("ליאור")');
+// Not marked urgent: its own group right after "urgent", still above "overdue".
+const esc = page.locator('.g-escalation .wproc:has(.wclient:text("קפה גליה"))');
+await esc.waitFor();
+const liorGroups = await page.locator('#mine-list .wgroup').evaluateAll((els) => els.map((e) => e.className));
+assert.ok(liorGroups.findIndex((c) => /g-escalation/.test(c)) < liorGroups.findIndex((c) => /g-overdue/.test(c)), liorGroups.join('|'));
+assert.equal(await page.locator('.g-urgent .wproc:has(.wclient:text("קפה גליה"))').count(), 0);
+assert.match(await waText('#mine-tools .wa-link'), /חריגות שדווחו \(1\):\n- חריגה שדווחה: קפה גליה · לקוח מתלונן: הגרפיקות לא מתאימות לעסק/);
+assert.match(await esc.innerText(), /חריגה שדווחה[^]*דווח ע״י אופיר[^]*לקוח מתלונן: הגרפיקות לא מתאימות לעסק/);
+assert.equal(await esc.locator('.sbadge.s-escalation').count(), 1);
+
+// Control: urgent and exceptions lead; editors grouped; Ofir's sections.
+await page.click('#tab-control');
+await page.waitForSelector('.ctl-esc');
+const secs = await page.locator('#control > *').evaluateAll((els) => els.map((e) => e.className));
+assert.match(secs[0], /ctl-nav/);
+assert.match(secs[1], /ctl-urgent/);
+assert.match(secs[2], /ctl-esc/);
+assert.match(await page.locator('.ctl-urgent').innerText(), /מספרת רון[^]*דחוף[^]*להחליף את הלוגו בגרפיקה 4[^]*עירית/);
+const escRow = await page.locator('.ctl-esc .task-row').innerText();
+assert.match(escRow, /קפה גליה[^]*חריגה שדווחה[^]*לקוח מתלונן: הגרפיקות לא מתאימות לעסק[^]*ליאור/);
+assert.match(escRow, /דווח ע״י אופיר · .* · לפני (2 שעות|שעתיים)/);
+const bodyRows = await page.locator('.ctable tbody tr').allInnerTexts();
+assert.ok(bodyRows.some((r) => /^עורכים/.test(r.trim())), 'editors sub-heading');
+for (const n of ['ניראל', 'נדיה', 'יריב', 'אנה']) assert.ok(bodyRows.some((r) => r.includes(n)), n);
+assert.ok(!bodyRows.some((r) => /העורך המשויך/.test(r)));
+assert.match(await page.locator('.ctable thead').innerText(), /דחוף/);
+const team3 = await waText('.team-summary .wa-link');
+assert.match(team3, /\nעירית: דחוף 1 · באיחור /);
+assert.match(team3, /\nניראל: באיחור \d+ · להיום \d+/);
+assert.match(team3, /חריגות פתוחות אצל ליאור \(1\):\n- קפה גליה · לקוח מתלונן: הגרפיקות לא מתאימות לעסק/);
+// Editor load: every editor in the same order, Nirel "Natali only", due dates of the editing steps.
+assert.deepEqual(await page.locator('.editor-card .editor-head .pchip').allInnerTexts(), ['נדיה', 'יריב', 'אנה', 'ניראל']);
+const nirelCard = page.locator('.editor-card:has(.pchip:text("ניראל"))');
+const nirelText = await nirelCard.innerText();
+assert.match(nirelText, /נטלי בלבד/);
+assert.match(nirelText, /1 לקוח בעריכה · 1 משימה פתוחה/);
+assert.match(nirelText, /סטודיו נטלי[^]*22 · עריכה[^]*יעד[^]*24 · העלאה לדרייב והעברה לאופיר[^]*27 · תיקונים וסגירה/);
+assert.match(await page.locator('.editor-card:has(.pchip:text("נדיה"))').innerText(), /0 לקוחות בעריכה · 0 משימות פתוחות[^]*אין כרגע לקוחות בעריכה/);
+assert.match(await page.locator('.await-editor').innerText(), /ממתינים לשיוך עורך[^]*מסעדת הים[^]*22א · העברה לעריכה ושיוך לעורך/);
+// System integrity, each row linking to the client (and process).
+const health = page.locator('.health-sec');
+assert.match(await health.locator('.h-idle').innerText(), /חנות ישנה[^]*פעילות אחרונה/);
+assert.doesNotMatch(await health.locator('.h-idle').innerText(), /סטודיו נטלי|מספרת רון/);
+assert.match(await health.locator('.h-nodue').innerText(), /מספרת רון · להחליף את הלוגו בגרפיקה 4/);
+assert.match(await health.locator('.h-missing').innerText(), /מסעדת הים · חסר: עורך משויך/);
+const lateRow = health.locator('.h-late li:has-text("חנות ישנה")').first();
+assert.match(await lateRow.locator('a').nth(1).getAttribute('href'), new RegExp(`client\\.html\\?id=${idle.id}#p\\d`));
+assert.doesNotMatch(await health.locator('.h-late').innerText(), /פיצה נאפולי/); // late, but not by more than two business days
+// Jump links reach a section.
+await page.click('.ctl-nav .chip:has-text("תקינות המערכת")');
+assert.equal(await page.evaluate(() => document.activeElement.id), 'ctl-health');
+await shot('11-control-batch3');
+
+// Weekly status summary: every client in work, progress, the dialog.
+const inWorkN = db.clients.filter((c) => c.status === 'active' || c.status === 'ending').length;
+const status = page.locator('.status-sec');
+assert.match(await status.locator('.status-progress').innerText(), new RegExp(`סוכמו 0 מתוך ${inWorkN} לקוחות`));
+assert.equal(await status.locator('.status-row').count(), inWorkN);
+assert.equal(await status.locator('.status-row:has-text("מאפיית כהן")').count(), 0);
+await status.locator('button[aria-label="כתיבת סיכום המצב של סטודיו נטלי"]').click();
+await page.waitForSelector('#dlg-status[open]');
+assert.equal(await page.locator('#status-h').innerText(), 'סיכום מצב · סטודיו נטלי');
+assert.match(await page.locator('#status-ctx').innerText(), /מהמערכת: שלב: עריכה ומסירה/);
+assert.deepEqual(await page.locator('#stf-owner option').allInnerTexts(), ['בחירה', 'עירית', 'ליאור', 'אופיר', 'שיראל', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה']);
+await page.click('#status-save');
+assert.match(await page.locator('#status-err').innerText(), /^חסר: מצב נוכחי, פעולה הבאה, אחראי, מועד יעד\./);
+assert.equal(await page.getAttribute('#stf-owner', 'aria-invalid'), 'true');
+assert.equal(await page.evaluate(() => document.activeElement.id), 'stf-current');
+await page.click('#status-ctx .btn-text:text("מילוי מהמערכת")');
+assert.equal(await page.inputValue('#stf-current'), 'עריכה ומסירה');
+await page.fill('#stf-current', 'הסרטונים בעריכה');
+await page.fill('#stf-missing', '12 סרטונים');
+await page.fill('#stf-next', 'בדיקת סטטוס מול ניראל');
+await page.selectOption('#stf-owner', 'ofir');
+await page.fill('#stf-due', '2026-09-24');
+await page.click('#status-next');
+await toastHas(`סיכום המצב של סטודיו נטלי נשמר. סוכמו 1 מתוך ${inWorkN} לקוחות.`);
+const note1 = db.client_status_notes.find((n) => n.client_id === natali.id);
+assert.deepEqual({ ...note1, by_email: undefined, at: undefined }, {
+  client_id: natali.id, week: '2026-09-20', current: 'הסרטונים בעריכה', missing: '12 סרטונים', next: 'בדיקת סטטוס מול ניראל',
+  owner: 'ofir', due_on: '2026-09-24', by_email: undefined, at: undefined,
+});
+// "Save and next" opens the next client not summarised yet.
+await page.waitForSelector('#dlg-status[open]');
+assert.notEqual(await page.locator('#status-h').innerText(), 'סיכום מצב · סטודיו נטלי');
+await page.locator('#dlg-status .dlg-foot [data-close]').click();
+const row1 = status.locator('.status-row:has(.wclient:text("סטודיו נטלי"))');
+assert.match(await row1.innerText(), /סוכם[^]*מצב נוכחי\s*הסרטונים בעריכה[^]*מה חסר\s*12 סרטונים[^]*פעולה הבאה\s*בדיקת סטטוס מול ניראל[^]*אחראי\s*אופיר[^]*מועד יעד\s*ה׳ 24\.9[^]*נכתב ע״י עירית/);
+assert.match(await status.locator('.status-progress').innerText(), new RegExp(`סוכמו 1 מתוך ${inWorkN}`));
+// The next action becomes a task in the system.
+await row1.locator('button:text("פתיחת משימה")').click();
+await toastHas('נפתחה משימה לאופיר: בדיקת סטטוס מול ניראל');
+const made = db.client_tasks.find((t) => t.source === 'status');
+assert.deepEqual([made.client_id, made.title, made.owner, made.due_on], [natali.id, 'בדיקת סטטוס מול ניראל', 'ofir', '2026-09-24']);
+assert.match(await row1.innerText(), /נפתחה משימה/);
+assert.equal(await row1.locator('button:text("פתיחת משימה")').count(), 0);
+// Editing keeps the saved values.
+await row1.locator('button:text("עריכה")').click();
+await page.waitForSelector('#dlg-status[open]');
+assert.equal(await page.inputValue('#stf-missing'), '12 סרטונים');
+assert.equal(await page.inputValue('#stf-owner'), 'ofir');
+await page.locator('#dlg-status .dlg-foot [data-close]').click();
+// A next action for Nirel needs a brief: the task is opened in the card.
+await status.locator('button[aria-label="כתיבת סיכום המצב של מסעדת הים"]').click();
+await page.waitForSelector('#dlg-status[open]');
+await page.fill('#stf-current', 'ממתין לשיוך עורך');
+await page.fill('#stf-next', 'לתקן את הלוגו בסגיר');
+await page.selectOption('#stf-owner', 'nirel');
+await page.fill('#stf-due', '2026-09-23');
+await page.click('#status-save');
+await toastHas(`סוכמו 2 מתוך ${inWorkN} לקוחות.`);
+assert.match(await status.locator('.status-row:has(.wclient:text("מסעדת הים")) a:has-text("פתיחת משימה לניראל בכרטיס (עם בריף)")').getAttribute('href'), new RegExp(`${sea.id}#tasks$`));
+await shot('12-status-summary');
+
 // ── Mobile 360px ──
 const mob = await ctx.newPage();
 watch(mob);
@@ -446,6 +622,56 @@ assert.ok(bb.height >= 44, `bulk button ${bb.height}px high`);
 assert.equal(await mob.locator('details.g-client').getAttribute('open'), null, 'waiting group folds on phones');
 const tabsFit = await mob.evaluate(() => { const t = document.querySelector('.tabs'); return t.scrollWidth <= t.clientWidth + 1; });
 assert.ok(tabsFit, 'four tabs fit at 360px');
+// The weekly summary dialog fills the phone screen without sideways scrolling; its buttons are 44px.
+await mob.goto(`${BASE}clients.html#control`);
+await mob.locator('.status-sec .status-edit').first().click();
+await mob.waitForSelector('#dlg-status[open]');
+assert.ok(await noHScroll(mob), 'status dialog scrolls sideways at 360px');
+assert.ok((await mob.locator('#status-save').boundingBox()).height >= 44);
+assert.ok((await mob.locator('.ctl-nav .chip').first().boundingBox()).height >= 44);
+await shot('15-mobile-status-dialog', mob);
+await mob.locator('#dlg-status .dlg-foot [data-close]').click();
+
+// ── Thursday, as Ofir: the mandatory pass over every client ──
+// No review of process 33 since Sunday: three business days.
+db.office_reviews = db.office_reviews.filter((r) => !(r.kind === 'p33' && r.day === '2026-09-22'));
+db.staff[0].person = 'ofir';
+const THU = new Date('2026-09-24T06:30:00Z'); // 09:30 in Jerusalem
+const thuCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
+await thuCtx.clock.install({ time: THU });
+skew = THU.getTime() - Date.now();
+await thuCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await thuCtx.addInitScript(fakeNotifications);
+const thu = await thuCtx.newPage();
+watch(thu);
+await thu.goto(`${BASE}clients.html`);
+await thu.fill('#lg-email', USER.email);
+await thu.fill('#lg-pass', 'correct-horse');
+await thu.click('#lg-submit');
+await thu.waitForSelector('#view-mine:not([hidden]) .wproc');
+const thuCard = thu.locator('.g-thu .thu-card');
+const thuGroups = await thu.locator('#mine-list .wgroup').evaluateAll((els) => els.map((e) => e.className));
+assert.ok(thuGroups.findIndex((c) => /g-thu/.test(c)) < thuGroups.findIndex((c) => /g-overdue/.test(c)), thuGroups.join('|'));
+assert.match(await thuCard.innerText(), new RegExp(`מעבר חובה של יום חמישי: סיכום מצב לכל הלקוחות \\(2/${inWorkN}\\)`));
+assert.match(await waText('#mine-tools .wa-link', thu), new RegExp(`מעבר חובה של יום חמישי \\(1\\):\\n- סיכום מצב לכל הלקוחות: סוכמו 2 מתוך ${inWorkN}`));
+await shot('13-thursday-ofir', thu);
+await thuCard.locator('a:text("מעבר לסיכום המצב")').click();
+await thu.waitForSelector('#view-control:not([hidden]) .status-sec');
+assert.equal(await thu.evaluate(() => document.activeElement.id), 'ctl-status');
+const p33row = thu.locator('.rv-row').nth(1);
+assert.match(await p33row.innerText(), /עבר יותר מיומיים מהבקרה האחרונה[^]*הבקרה האחרונה: א׳ 20\.9/);
+assert.equal(await thu.locator('.rv-row').first().locator('.rv-stale').count(), 0); // process 32 is daily, flagged elsewhere
+await shot('14-thursday-control', thu);
+// Once every client is summarised, the card leaves Ofir's list.
+for (const c of db.clients.filter((x) => x.status === 'active' || x.status === 'ending')) {
+  if (!db.client_status_notes.some((n) => n.client_id === c.id)) db.client_status_notes.push({ client_id: c.id, week: '2026-09-20', current: 'בבדיקה', missing: null, next: null, owner: null, due_on: null, by_email: 'ofir@astrateg.test', at: THU.toISOString() });
+}
+await thu.click('#btn-refresh');
+await thu.waitForFunction((n) => document.querySelector('.status-progress')?.textContent.includes(`סוכמו ${n} מתוך ${n}`), inWorkN);
+await thu.click('#tab-mine');
+await thu.waitForSelector('#view-mine:not([hidden]) .wproc');
+assert.equal(await thu.locator('.thu-card').count(), 0);
+await thuCtx.close();
 
 assert.deepEqual(errors, []);
 await browser.close();

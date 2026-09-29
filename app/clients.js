@@ -16,7 +16,7 @@ import {
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar,
   mountSession, store, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
-  isUrgentTask, isEscalation,
+  isUrgentTask, isEscalation, TASK_SOURCES,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 
@@ -188,14 +188,14 @@ function workFor(person) {
     if (!client || !live(client)) continue;
     const dueAt = t.due_on ? new Date(`${t.due_on}T23:59:59`) : null;
     const status = dueAt && dueAt < now ? 'overdue' : dueAt && dueAt.toDateString() === now.toDateString() ? 'today' : 'open';
-    groups.set(`task:${t.id}`, { key: `task:${t.id}`, client, task: t, status, dueAt, urgent: isUrgentTask(t), entries: [{ client, task: t }] });
+    groups.set(`task:${t.id}`, { key: `task:${t.id}`, client, task: t, status, dueAt, urgent: isUrgentTask(t), escalation: isEscalation(t), entries: [{ client, task: t }] });
   }
   return [...groups.values()].sort(byUrgency);
 }
 
-// "Urgent" comes before "overdue": an urgent task is done at that moment (Lior's protocol),
-// and so is an exception reported to Lior.
-const bucketFor = (g, now = new Date()) => (g.urgent ? 'urgent' : bucketOf(g.status, g.dueAt, now));
+// "Urgent" comes before "overdue": an urgent task is done at that moment (Lior's protocol).
+// Exceptions reported to Lior come right after it, urgent or not.
+const bucketFor = (g, now = new Date()) => (g.urgent ? 'urgent' : g.escalation ? 'escalation' : bucketOf(g.status, g.dueAt, now));
 const byReported = (a, b) => (isEscalation(b.task) - isEscalation(a.task)) || (new Date(a.task.created_at) - new Date(b.task.created_at));
 
 function nextFocusAfter(input) {
@@ -411,7 +411,7 @@ function waitLine(wait, id) {
 
 // Who opened an urgent task or reported an exception, and since when.
 function taskMeta(t, now = new Date()) {
-  if (!isUrgentTask(t) || !t.created_at) return null;
+  if (!(isUrgentTask(t) || isEscalation(t)) || !t.created_at) return null;
   const by = t.created_by_email ? who(t.created_by_email) : '';
   return h('p', { class: 'task-meta' },
     `${isEscalation(t) ? 'דווח' : 'נפתח'}${by ? ` ע״י ${by}` : ''} · ${formatStamp(t.created_at)} · לפני ${lateBy(new Date(t.created_at), now)}`);
@@ -419,13 +419,13 @@ function taskMeta(t, now = new Date()) {
 
 function groupCard(g, person) {
   // A reported exception is named by its badge; its reason is the task's own title below.
-  const title = g.task ? (isEscalation(g.task) ? null : 'משימה') : procLabel(g.proc);
+  const title = g.task ? (isEscalation(g.task) ? null : ['משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ')) : procLabel(g.proc);
   const href = clientUrl(g.client.id, g.proc ? `#${g.proc.id}` : '#tasks');
   const owners = g.task ? [g.task.owner] : [...new Set(g.entries.flatMap((e) => e.item.owners))];
   const bulk = bulkFor(g);
   const waitId = `wl-${g.key}`.replace(/[^\w-]/g, '_');
   const canWait = !g.task && !g.proc.recurring;
-  return h('li', { class: `wproc s-${g.status}${g.urgent ? ' is-urgent' : ''}`, 'data-key': g.key },
+  return h('li', { class: `wproc s-${g.status}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
     h('div', { class: 'wproc-h', 'aria-describedby': g.wait ? waitId : null },
       h('a', { class: 'wclient', href }, g.client.name),
       isAuto(g.client) ? h('span', { class: 'auto-tag' }, 'חדש') : null,
@@ -455,7 +455,7 @@ function groupCard(g, person) {
     })));
 }
 
-const BUCKETS = [['urgent', 'דחוף'], ['overdue', 'באיחור'], ['today', 'היום'], ['tomorrow', 'מחר'], ['week', 'השבוע'], ['later', 'בהמשך'], ['client', 'ממתין ללקוח']];
+const BUCKETS = [['urgent', 'דחוף'], ['escalation', 'חריגות שדווחו'], ['overdue', 'באיחור'], ['today', 'היום'], ['tomorrow', 'מחר'], ['week', 'השבוע'], ['later', 'בהמשך'], ['client', 'ממתין ללקוח']];
 
 // Clients the signing trigger opened, shown to Irit and to the whole-team view (spec §10).
 function autoBanner() {
@@ -511,10 +511,12 @@ function renderMine() {
     return;
   }
   const today = dayIso(new Date());
-  fill(wrap, banner, ...BUCKETS.map(([k, title]) => {
+  // Thursday's pass is a fixed card of its own, right after urgent work.
+  const thuGroup = thursday ? h('section', { class: 'wgroup g-thu', 'aria-label': 'מעבר חובה של יום חמישי' }, h('ul', { class: 'wprocs' }, thursday)) : null;
+  fill(wrap, banner, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, (() => {
     let g = list.filter((x) => bucketFor(x) === k);
-    if (k === 'urgent') g = g.sort(byReported);
-    const extra = k === 'today' ? [thursday, review ? reviewCard(review) : null].filter(Boolean) : [];
+    if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
+    const extra = k === 'today' && review ? [reviewCard(review)] : [];
     if (!g.length && !extra.length) return null;
     if (k === 'client') {
       // What reached its recheck day first, then the longest wait.
@@ -528,10 +530,10 @@ function renderMine() {
       h('ul', { class: 'wprocs' }, ...g.map((x) => groupCard(x, person))));
     }
     return h('section', { class: `wgroup g-${k}`, 'aria-label': title },
-      h('h2', { class: 'wgroup-h' }, k === 'urgent' ? [h('span', { class: 'sicon', 'aria-hidden': 'true' }), title] : title,
+      h('h2', { class: 'wgroup-h' }, k === 'urgent' || k === 'escalation' ? [h('span', { class: 'sicon', 'aria-hidden': 'true' }), title] : title,
         h('span', { class: 'n' }, String(g.length + extra.length))),
       h('ul', { class: 'wprocs' }, ...extra, ...g.map((x) => groupCard(x, person))));
-  }));
+  })()]));
 }
 
 // ── Morning summary via WhatsApp (spec §6a) ──
@@ -545,14 +547,15 @@ function personSummary(person, now = new Date()) {
   const today = dayIso(now);
   const until = (d) => (d.getHours() === 23 && d.getMinutes() === 59 ? 'עד סוף היום' : `עד ${hm(d)}`);
   const line = (g) => `${g.client.name} · ${procLabel(g.proc, ' ')}`;
-  const taskLine = (g) => `${g.client.name} · ${g.task.title}${g.dueAt ? ` · עד ${dm(g.dueAt)}` : ''}`;
+  const taskLine = (g) => `${isEscalation(g.task) ? 'חריגה שדווחה: ' : ''}${g.client.name} · ${g.task.title}${g.dueAt ? ` · עד ${dm(g.dueAt)}` : ''}`;
   const sections = [
-    ['דחוף', w.filter((g) => g.urgent).sort(byReported), (g) => `${isEscalation(g.task) ? 'חריגה שדווחה: ' : ''}${taskLine(g)}`],
+    ['דחוף', w.filter((g) => g.urgent).sort(byReported), taskLine],
+    ['חריגות שדווחו', w.filter((g) => g.escalation && !g.urgent).sort(byReported), taskLine],
     ['באיחור', procs.filter((g) => g.status === 'overdue'), (g) => `${line(g)} · באיחור ${lateBy(g.dueAt, now)}`],
     ['היום', procs.filter((g) => bucketOf(g.status, g.dueAt, now) === 'today'), (g) => (g.dueAt ? `${line(g)} · ${until(g.dueAt)}` : line(g))],
     ['מחר', procs.filter((g) => bucketOf(g.status, g.dueAt, now) === 'tomorrow'), line],
     ['ממתין ללקוח, לבדוק היום', procs.filter((g) => g.status === 'client' && recheckDue(g.wait, today)), (g) => `${line(g)}${g.wait?.reason ? ` · ${g.wait.reason}` : ''}`],
-    ['משימות', w.filter((g) => g.task && !g.urgent).sort((a, b) => (a.dueAt?.getTime() ?? Infinity) - (b.dueAt?.getTime() ?? Infinity)), taskLine],
+    ['משימות', w.filter((g) => g.task && !g.urgent && !g.escalation).sort((a, b) => (a.dueAt?.getTime() ?? Infinity) - (b.dueAt?.getTime() ?? Infinity)), taskLine],
   ].filter(([, list]) => list.length);
   // Ofir's Thursday pass over every client (process 33).
   const pass = person === 'ofir' ? thursdayPass(now) : null;
@@ -1119,9 +1122,10 @@ function statusSection(now) {
 const statusDlg = $('dlg-status');
 let statusFor = null;
 statusDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === statusDlg) statusDlg.close(); });
+const STATUS_REQUIRED = new Set(['current', 'next']);
 fill($('status-fields'), ...STATUS_FIELDS.map(([k, label, hint]) => h('div', { class: 'field' },
-  h('label', { for: `stf-${k}` }, label),
-  h('textarea', { class: 'input', id: `stf-${k}`, rows: 2, maxlength: k === 'next' ? 500 : 1000, placeholder: hint }))));
+  h('label', { for: `stf-${k}` }, label, STATUS_REQUIRED.has(k) ? null : h('span', { class: 'muted small' }, ' (אם יש)')),
+  h('textarea', { class: 'input', id: `stf-${k}`, rows: 2, maxlength: k === 'next' ? 500 : 1000, placeholder: hint, required: STATUS_REQUIRED.has(k) }))));
 
 // What the system already knows about the client, to write the summary from.
 function systemFacts(c) {
@@ -1165,6 +1169,8 @@ function openStatus(c) {
     $(`stf-${k}`).value = note?.[k] || '';
     $(`stf-${k}`).removeAttribute('aria-invalid');
   }
+  $('stf-owner').removeAttribute('aria-invalid');
+  $('stf-due').removeAttribute('aria-invalid');
   fill($('stf-owner'), h('option', { value: '' }, 'בחירה'),
     h('optgroup', { label: 'צוות' }, ...officePeople().map((p) => h('option', { value: p.key, selected: note?.owner === p.key }, p.name))),
     h('optgroup', { label: 'עורכים' }, ...editorPeople().map((p) => h('option', { value: p.key, selected: note?.owner === p.key }, p.name))));
@@ -1188,11 +1194,14 @@ $('status-form').addEventListener('submit', async (e) => {
     current: val('stf-current'), missing: val('stf-missing'), next: val('stf-next'),
     owner: $('stf-owner').value || null, due_on: $('stf-due').value || null,
   };
-  $('stf-current').setAttribute('aria-invalid', String(!row.current));
-  if (!row.current) {
-    $('status-err').textContent = 'כתבו לפחות איפה הלקוח נמצא עכשיו.';
+  // Ofir's protocol: every summary has the current state, the next action, who owns it and by when.
+  const required = [['current', 'stf-current', 'מצב נוכחי'], ['next', 'stf-next', 'פעולה הבאה'], ['owner', 'stf-owner', 'אחראי'], ['due_on', 'stf-due', 'מועד יעד']];
+  const missing = required.filter(([k]) => !row[k]);
+  for (const [k, id] of required) $(id).setAttribute('aria-invalid', String(!row[k]));
+  if (missing.length) {
+    $('status-err').textContent = `חסר: ${missing.map(([, , label]) => label).join(', ')}. לכל לקוח רושמים מצב נוכחי, פעולה הבאה, אחראי ומועד יעד.`;
     $('status-err').hidden = false;
-    $('stf-current').focus();
+    $(missing[0][1]).focus();
     return;
   }
   for (const b of statusDlg.querySelectorAll('.dlg-foot .btn')) b.disabled = true;
@@ -1295,9 +1304,16 @@ function integrity(now) {
   };
 }
 
+// One row per client, its most overdue process first.
+function lateByClient(late) {
+  const m = new Map();
+  for (const r of late) (m.get(r.c.id) || m.set(r.c.id, { c: r.c, list: [] }).get(r.c.id)).list.push(r.x);
+  return [...m.values()];
+}
+
 function healthSection(now) {
   const { idle, noDue, missing, late } = integrity(now);
-  const total = idle.length + noDue.length + missing.length + late.length;
+  const total = idle.length + noDue.length + missing.length + lateByClient(late).length;
   const group = (cls, title, list, row) => (list.length ? h('div', { class: `health-group ${cls}` },
     h('h3', { class: 'health-h' }, title, h('span', { class: 'n' }, String(list.length))),
     h('ul', { class: 'stuck health-list' }, ...list.map(row))) : null);
@@ -1305,10 +1321,12 @@ function healthSection(now) {
     secHead('ctl-health', 'תקינות המערכת', total),
     h('p', { class: 'perf-intro' }, 'המערכת צריכה לשקף את המצב בפועל: לכל לקוח שלב נכון, לכל משימה אחראי ומועד יעד, ואף לקוח לא נתקע בין שלבים.'),
     total ? [
-      group('h-late', 'באיחור של יותר מיומיים', late, ({ c, x }) => h('li', {},
-        h('a', { class: 'wclient', href: clientUrl(c.id) }, c.name), ' · ',
-        h('a', { href: clientUrl(c.id, `#${x.proc.id}`) }, procLabel(x.proc)), ' ', peopleChips(peopleOf(x)),
-        h('span', { class: 'muted' }, ` · באיחור ${lateBy(x.dueAt, now)}`))),
+      group('h-late', 'תהליכים באיחור של יותר מיומיים', lateByClient(late), ({ c, list }) => h('li', {},
+        h('a', { class: 'wclient', href: clientUrl(c.id) }, c.name),
+        h('span', { class: 'muted' }, ` · ${list.length === 1 ? 'תהליך אחד' : `${list.length} תהליכים`}`),
+        h('ul', { class: 'late-procs' }, ...list.map((x) => h('li', {},
+          h('a', { href: clientUrl(c.id, `#${x.proc.id}`) }, procLabel(x.proc)), ' ', peopleChips(peopleOf(x)),
+          h('span', { class: 'muted' }, ` · באיחור ${lateBy(x.dueAt, now)}`)))))),
       group('h-idle', 'לקוחות בלי פעילות 5 ימי עסקים ומעלה', idle, ({ c, at: t }) => h('li', {},
         h('a', { class: 'wclient', href: clientUrl(c.id) }, c.name),
         h('span', { class: 'muted' }, ` · ${phaseTitle(c) || ''} · פעילות אחרונה ${formatStamp(t)} (${businessDaysBetween(t, now)} ימי עסקים)`))),
@@ -1388,7 +1406,7 @@ function renderControl() {
       ['ctl-wait', 'ממתין ללקוח', byClient.size],
       ['ctl-status', 'סיכום מצב שבועי', sw ? `${sw.done}/${sw.total}` : null],
       ['ctl-editors', 'עומס עורכים', null],
-      ['ctl-health', 'תקינות המערכת', health.idle.length + health.noDue.length + health.missing.length + health.late.length],
+      ['ctl-health', 'תקינות המערכת', health.idle.length + health.noDue.length + health.missing.length + lateByClient(health.late).length],
     ]),
     urgentSection(now),
     escalationSection(now),

@@ -165,16 +165,20 @@ export async function loadQuoteNumbers(ids) {
 import { BRIEF_FIELDS } from './protocol.js';
 
 export const isEscalation = (t) => t?.source === 'escalation';
-// An escalation to Lior is handled at once, like a task marked urgent.
-export const isUrgentTask = (t) => !!t?.urgent || isEscalation(t);
+// Urgent is the task's own flag only (the card sorts by it too); an escalation is urgent only when marked so.
+export const isUrgentTask = (t) => !!t?.urgent;
 export const hasBrief = (t) => !!t?.brief && BRIEF_FIELDS.some(([k]) => String(t.brief[k] ?? '').trim());
 
-// "Urgent" or "reported exception": text and icon, never colour alone. Null for an ordinary task.
+// Where a task came from, for a short neutral label ('escalation' has its own badge).
+export const TASK_SOURCES = {
+  p31: 'משיחה שבועית', p33: 'מהבקרה', status: 'מסיכום מצב', pause: 'עריכה הושהתה', followup: 'בדיקה אחרי שיחה',
+};
+
+// "Urgent" and "reported exception": text and icon, never colour alone. Null for an ordinary task.
 export function taskBadge(t) {
-  if (!isUrgentTask(t)) return null;
-  const esc = isEscalation(t);
-  return h('span', { class: `sbadge ${esc ? 's-escalation' : 's-urgent'}` },
-    h('span', { class: 'sicon', 'aria-hidden': 'true' }), esc ? 'חריגה שדווחה' : 'דחוף');
+  const badge = (cls, text) => h('span', { class: `sbadge ${cls}` }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), text);
+  const list = [isUrgentTask(t) ? badge('s-urgent', 'דחוף') : null, isEscalation(t) ? badge('s-escalation', 'חריגה שדווחה') : null].filter(Boolean);
+  return list.length ? list : null;
 }
 
 // The brief of a task (what exactly to fix), folded under the task.
