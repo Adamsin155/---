@@ -97,7 +97,6 @@ export const PACKAGES = {
       { qty: 42, label: 'גרפיקות' },
       { qty: 2, label: 'צלמים לווידאו וסטילס בבית העסק' },
       { qty: 1, label: 'אייטם בערוץ 14' },
-      { qty: 1, label: 'סטורי אצל נטלי דדון' },
     ],
   },
 };
@@ -157,7 +156,7 @@ export const SPECS = {
   'social-simeon': { videos: 25, graphics: 35, shootDays: 1, photographers: 2, collabs: 1, stories: 0, ch14: 0 },
   'social-tv-simeon': { videos: 42, graphics: 42, shootDays: 2, photographers: 2, collabs: 3, stories: 3, ch14: 1 },
   'social-natali': { videos: 25, graphics: 35, shootDays: 1, photographers: 2, collabs: 0, stories: 0, ch14: 0 },
-  'social-tv-natali': { videos: 42, graphics: 42, shootDays: 1, photographers: 2, collabs: 0, stories: 1, ch14: 1 },
+  'social-tv-natali': { videos: 42, graphics: 42, shootDays: 1, photographers: 2, collabs: 0, stories: 0, ch14: 1 },
 };
 
 export function packageId(tier, influencer) {

@@ -1,0 +1,781 @@
+// Monthly payouts engine. Pure functions, no DOM and no network.
+// Rules: docs/payouts/rules.md. Money is integer agorot, rates are basis
+// points (1% = 100). Business values come from settings stored in the
+// database, never from this file: the repository is public.
+
+import { PACKAGES, PAID_ADDONS, SPECS, INFLUENCERS, TIERS, TERM_MONTHS, packageId } from '../catalog.js';
+import { validateSelection } from '../pricing.js';
+
+// Cost items the engine knows how to derive from a deal. Their costs live
+// in settings.items[id] = { real, commission, per: 'unit' | 'deal' }.
+export const ITEMS = {
+  'natali-story': { name: 'סטורי אצל נטלי דדון', payee: 'נטלי דדון' },
+  'natali-reel': { name: 'העלאה אצל נטלי דדון', payee: 'נטלי דדון' },
+  'simeon-story': { name: 'סטורי אצל סמיון, מישל ודניס', payee: 'סמיון, מישל ודניס' },
+  'simeon-collab': { name: 'קולאב אצל סמיון, מישל ודניס', payee: 'סמיון, מישל ודניס' },
+  'simeon-day': { name: 'יום צילום נוסף עם סמיון, מישל ודניס', payee: 'סמיון, מישל ודניס' },
+  'simeon-join': { name: 'צירוף סמיון לחבילת נטלי', payee: 'סמיון, מישל ודניס' },
+  ch14: { name: 'אייטם בערוץ 14', payee: 'ערוץ 14' },
+  'photographer-monthly': { name: 'צלם חודשי', payee: 'צלם חודשי' },
+  graphics: { name: 'גרפיקות נוספות', payee: 'גרפיקות' },
+};
+
+// Paid add-on id (catalog) -> cost item id.
+export const PAID_ITEM = {
+  photographer: 'photographer-monthly',
+  'natali-reel': 'natali-reel',
+  'natali-story': 'natali-story',
+  'simeon-day': 'simeon-day',
+};
+
+// What a Social + TV package has beyond the Social package of the same
+// influencer, per SPECS row, mapped to cost items.
+const SPEC_ITEM = {
+  shootDays: { simeon: 'simeon-day' },
+  collabs: { simeon: 'simeon-collab' },
+  stories: { simeon: 'simeon-story', natali: 'natali-story' },
+  ch14: { simeon: 'ch14', natali: 'ch14' },
+};
+
+// Monthly variable costs entered per month (fuel, car depreciation, meetings).
+export const MONTH_ITEM_KINDS = {
+  fuel: 'דלק',
+  depreciation: 'פחת רכב',
+  meetings: 'תיאום פגישות',
+  other: 'אחר',
+};
+
+// Cheque deals: up to this many cheques are booked at once. With more, the
+// deal month books that share of the revenue and commissions, and the rest
+// is booked DEFER_MONTHS later.
+export const CHECKS_UPFRONT = 6;
+export const DEFER_MONTHS = 6;
+
+export const PAY_METHODS = { payment: 'פיימנט', checks: 'צ׳קים' };
+
+export const SOURCE_LABEL = {
+  package: 'מעבר לחבילת הבסיס',
+  paid: 'תוספת בתשלום',
+  free: 'הטבה ללא תשלום',
+  perk: 'צ׳ופר',
+};
+
+// ---------- arithmetic ----------
+
+// amount × bp / 10000, rounded half away from zero, in integer agorot.
+export function applyBp(amount, bp) {
+  const n = amount * bp;
+  const q = Math.trunc(n / 10000);
+  const r = n - q * 10000;
+  if (Math.abs(r) * 2 >= 10000) return q + Math.sign(n);
+  return q;
+}
+
+// Splits `total` by integer weights so the parts add up exactly
+// (largest remainder; ties go to the earlier entry).
+export function allocate(total, weights) {
+  const sum = weights.reduce((s, w) => s + w, 0);
+  if (sum <= 0 || weights.length === 0) return weights.map(() => 0);
+  const sign = total < 0 ? -1 : 1;
+  const abs = Math.abs(total);
+  const raw = weights.map((w) => (abs * w) / sum);
+  const parts = raw.map(Math.floor);
+  let left = abs - parts.reduce((s, p) => s + p, 0);
+  const order = raw.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  for (let k = 0; left > 0; k = (k + 1) % order.length, left -= 1) parts[order[k][1]] += 1;
+  return parts.map((p) => p * sign);
+}
+
+// ---------- dates ----------
+
+export function monthBounds(month) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error(`bad month: ${month}`);
+  const [y, m] = month.split('-').map(Number);
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { first: `${month}-01`, last: `${month}-${String(days).padStart(2, '0')}`, days };
+}
+
+export function inMonth(date, month) {
+  const { first, last } = monthBounds(month);
+  return date >= first && date <= last;
+}
+
+export function shiftMonth(month, delta) {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+// ---------- settings ----------
+
+// versions: [{ effectiveFrom: 'YYYY-MM-DD', data }]. Returns the version in
+// effect on `date` (the latest one that started on or before it).
+export function settingsOn(versions, date) {
+  let best = null;
+  for (const v of versions) {
+    if (v.effectiveFrom <= date && (!best || v.effectiveFrom > best.effectiveFrom)) best = v;
+  }
+  return best;
+}
+
+export function familyOf(sel) {
+  return sel.influencer;
+}
+
+export function packageName(sel) {
+  if (sel.custom) return `הצעה אישית · ${INFLUENCERS[sel.influencer]?.name || sel.influencer}`;
+  const tier = TIERS.find((t) => t.id === sel.tier);
+  return `${tier ? tier.name : sel.tier} · ${INFLUENCERS[sel.influencer]?.name || sel.influencer}`;
+}
+
+// ---------- items of a deal ----------
+
+export function packageExtras(pid) {
+  const pkg = PACKAGES[pid];
+  if (!pkg || pkg.tier !== 'social-tv') return [];
+  const base = SPECS[packageId('social', pkg.influencer)];
+  const spec = SPECS[pid];
+  const out = [];
+  for (const [row, map] of Object.entries(SPEC_ITEM)) {
+    const extra = spec[row] - base[row];
+    if (extra <= 0) continue;
+    const id = map[pkg.influencer];
+    if (!id) throw new Error(`no cost item for extra ${row} in ${pid}`);
+    out.push({ id, qty: extra, source: 'package' });
+  }
+  return out;
+}
+
+// Every cost item a deal carries, with where it came from.
+export function dealItems(deal) {
+  const sel = deal.selection;
+  const list = [...packageExtras(packageId(sel.tier, sel.influencer))];
+  for (const a of sel.paid) list.push({ id: PAID_ITEM[a], qty: 1, source: 'paid' });
+  const f = sel.free || {};
+  if (f.graphics > 0) list.push({ id: 'graphics', qty: f.graphics, source: 'free' });
+  if (f.simeonStories > 0) list.push({ id: 'simeon-story', qty: f.simeonStories, source: 'free' });
+  if (f.simeonJoin) list.push({ id: 'simeon-join', qty: 1, source: 'free' });
+  if (f.extraCh14) list.push({ id: 'ch14', qty: 1, source: 'free' });
+  for (const p of deal.perks || []) {
+    if (!ITEMS[p.id]) throw new Error(`unknown perk: ${p.id}`);
+    if (!Number.isInteger(p.qty) || p.qty < 1 || p.qty > 99) throw new Error(`bad perk quantity: ${p.id}`);
+    list.push({ id: p.id, qty: p.qty, source: 'perk' });
+  }
+  return list;
+}
+
+function itemCost(settings, id, qty, which, warn) {
+  const cfg = settings.items?.[id] || {};
+  const unit = cfg[which];
+  if (unit === null || unit === undefined) {
+    warn(`missing-cost:${id}`);
+    return 0;
+  }
+  return cfg.per === 'deal' ? unit : unit * qty;
+}
+
+// ---------- revenue lines ----------
+
+// The commission part of any revenue: payment first, then deductions.
+function commissionSide(value, family, deductions, settings, paymentBp = settings.payment.commissionBp) {
+  const payment = applyBp(value, paymentBp);
+  const base = Math.max(0, value - payment - deductions);
+  const commissions = (settings.commissionPeople || []).map((p) => {
+    const rateBp = p.rates?.[family] ?? 0;
+    return { personId: p.id, name: p.name, rateBp, amount: applyBp(base, rateBp) };
+  });
+  return { payment, base, commissions };
+}
+
+// One deal. Production for pooled packages (podcast with Natali) is filled
+// in at month level because it depends on how many closed that month.
+// A deal outside the catalog ("personal offer"): only the total amount for
+// the whole term and the influencer family are known. No items are deducted;
+// production costs are those of the family's Social package.
+export function validateCustomSelection(sel) {
+  if (!INFLUENCERS[sel.influencer]) throw new Error(`unknown influencer: ${sel.influencer}`);
+  if (!Number.isInteger(sel.amount) || sel.amount <= 0 || sel.amount > 1e10) throw new Error('custom deal amount must be a positive whole number of agorot');
+  if (sel.shootDays !== undefined && !(Number.isInteger(sel.shootDays) && sel.shootDays >= 1 && sel.shootDays <= 10)) throw new Error('shoot days must be 1–10');
+}
+
+export function computeDeal(deal, settings, warn = () => {}) {
+  return splitCheques(computeDealFull(deal, settings, warn));
+}
+
+export function influencerShare(amount, term) {
+  return term === 6 ? Math.round(amount / 2) : amount;
+}
+
+// Keeps the full amounts, then books only the first cheques' share now.
+function splitCheques(line) {
+  line.full = { value: line.value, commissions: line.commissions.map((c) => ({ ...c })) };
+  const n = line.installments;
+  if (line.payMethod !== 'checks' || n <= CHECKS_UPFRONT) return line;
+  const part = (a) => Math.round((a * CHECKS_UPFRONT) / n);
+  const nowValue = part(line.value);
+  const nowFee = part(line.paymentReal);
+  const now = line.commissions.map((c) => ({ ...c, full: c.amount, amount: part(c.amount) }));
+  line.deferred = {
+    month: shiftMonth(line.date.slice(0, 7), DEFER_MONTHS),
+    value: line.value - nowValue,
+    paymentReal: line.paymentReal - nowFee,
+    commissions: line.commissions.map((c, i) => ({ ...c, full: c.amount, amount: c.amount - now[i].amount })),
+  };
+  line.value = nowValue;
+  line.paymentReal = nowFee;
+  line.commissions = now;
+  return line;
+}
+
+function computeDealFull(deal, settings, warn = () => {}) {
+  const sel = deal.selection;
+  const custom = sel.custom === true;
+  if (custom) validateCustomSelection(sel);
+  else validateSelection({ ...sel, docType: 'agreement' });
+  const pid = custom ? `custom-${sel.influencer}` : packageId(sel.tier, sel.influencer);
+  const family = familyOf(sel);
+  // Term: annual (12 months) or half-year (6). A half-year deal is worth
+  // 6 monthly payments and pays the influencers half; the photographer and
+  // makeup artist are paid the same.
+  const term = deal.termMonths === 6 ? 6 : TERM_MONTHS;
+  const value = custom ? sel.amount
+    : (PACKAGES[pid].price
+      + sel.paid.reduce((s, id) => s + PAID_ADDONS.find((a) => a.id === id).price, 0)
+      - (sel.discount || 0)) * term;
+  const monthly = Math.round(value / term);
+
+  const items = (custom ? [] : dealItems(deal)).map((it) => ({
+    ...it,
+    name: ITEMS[it.id].name,
+    payee: settings.items?.[it.id]?.payee || ITEMS[it.id].payee,
+    real: itemCost(settings, it.id, it.qty, 'real', warn),
+    commission: itemCost(settings, it.id, it.qty, 'commission', warn),
+  }));
+  const deductions = items.reduce((s, it) => s + it.commission, 0);
+  const itemsReal = items.reduce((s, it) => s + it.real, 0);
+  // Cheques: commission earners are shown the same fee as the payment
+  // processor; the real cost to the business is the cheque fee.
+  const checks = deal.payMethod === 'checks';
+  const n = checks ? deal.installments : null;
+  if (checks && !(Number.isInteger(n) && n >= 1 && n <= term)) throw new Error(`cheque deals need 1–${term} instalments`);
+  const side = commissionSide(value, family, deductions, settings);
+  const realFeeBp = checks ? (settings.payment.checksRealBp ?? settings.payment.realBp) : settings.payment.realBp;
+
+  const prodKey = custom ? packageId('social', sel.influencer) : pid;
+  const prod = settings.production?.[prodKey];
+  if (!prod) warn(`missing-production:${prodKey}`);
+  const production = {
+    influencer: prod && !prod.influencerPerDay ? influencerShare(prod.influencer || 0, term) : 0,
+    photographer: prod?.photographer || 0,
+    makeup: prod?.makeupPerDay !== undefined ? 0 : prod?.makeup || 0,
+  };
+  const seller = (deal.seller || '').trim();
+  const closer = seller ? (settings.perDealPeople || []).find((p) => p.name === seller) : null;
+  return {
+    kind: 'deal',
+    id: deal.id,
+    date: deal.date,
+    client: deal.client,
+    seller,
+    closerFee: closer ? { name: closer.name, amount: closer.amount || 0 } : null,
+    cancelledOn: deal.cancelledOn || null,
+    paidMonths: deal.paidMonths ?? null,
+    note: deal.note || '',
+    packageId: pid,
+    packageName: `${packageName(sel)}${term === 6 ? ' · חצי שנתי' : ''}`,
+    custom,
+    family,
+    pooled: !!prod?.influencerPerDay,
+    pool: prod?.influencerPerDay ? { perDay: prod.influencerPerDay, clientsPerDay: prod.clientsPerDay, makeupPerDay: prod.makeupPerDay } : null,
+    monthly,
+    value,
+    termMonths: term,
+    payMethod: checks ? 'checks' : 'payment',
+    installments: n,
+    paymentReal: applyBp(value, realFeeBp),
+    paymentCommission: side.payment,
+    items,
+    deductions,
+    itemsReal,
+    base: side.base,
+    commissions: side.commissions,
+    production,
+  };
+}
+
+// Revenue that is not a new deal (e.g. cheques of an existing deal).
+export function computeIncome(entry, settings) {
+  const side = commissionSide(entry.amount, entry.family, 0, settings);
+  return {
+    kind: 'income',
+    id: entry.id,
+    date: entry.date,
+    client: entry.label,
+    family: entry.family,
+    value: entry.amount,
+    paymentReal: applyBp(entry.amount, settings.payment.realBp),
+    paymentCommission: side.payment,
+    items: [],
+    deductions: 0,
+    itemsReal: 0,
+    base: side.base,
+    commissions: side.commissions,
+    production: { influencer: 0, photographer: 0, makeup: 0 },
+  };
+}
+
+// Profit of the whole deal (all cheques, both halves), and its share of
+// the deal's value. The month report books cheque deals in two parts; this
+// is the deal's own result, used on the deal list and in the deal form.
+// What a cancellation takes back from a deal line (see the clawback lines in
+// computeMonth). `back` applies to the revenue and the percentage commissions:
+// what was booked by the cancellation month (a cheque deal's deferred part is
+// booked only if the cancellation comes on or after it), minus what the months
+// paid earned, never below zero. `share` applies to the closing fee: the
+// months not paid.
+export function cancelTerms(line, cancelledOn, paidMonths) {
+  const term = line.termMonths || 12;
+  const remaining = term - paidMonths;
+  const deferredBooked = !line.deferred || cancelledOn.slice(0, 7) >= line.deferred.month;
+  const rNum = deferredBooked ? 1 : CHECKS_UPFRONT;
+  const rDen = deferredBooked ? 1 : line.installments;
+  const num = rNum * term - paidMonths * rDen;
+  return {
+    deferredBooked,
+    back: (a) => (num > 0 ? -Math.round((a * num) / (rDen * term)) : 0),
+    share: (a) => -Math.round((a * remaining) / term),
+  };
+}
+
+// Profit and profit % of a whole deal (both cheque parts). A cancelled deal
+// shows what is left after the cancellation: the revenue and commissions it
+// keeps, and the costs that stay.
+export function dealProfitOf(line) {
+  const production = line.production.influencer + line.production.photographer + line.production.makeup;
+  const sumC = (cs) => cs.reduce((s, c) => s + c.amount, 0);
+  const full = line.full || { value: line.value, commissions: line.commissions };
+  let value; let payment; let commissions; let closer = line.closerFee?.amount || 0;
+  if (line.cancelledOn && line.paidMonths !== null && line.paidMonths !== undefined) {
+    const t = cancelTerms(line, line.cancelledOn, line.paidMonths);
+    const booked = t.deferredBooked && line.deferred;
+    value = line.value + (booked ? line.deferred.value : 0) + t.back(full.value);
+    payment = line.paymentReal + (booked ? line.deferred.paymentReal : 0);
+    commissions = sumC(line.commissions) + (booked ? sumC(line.deferred.commissions) : 0) + sumC(full.commissions.map((c) => ({ amount: t.back(c.amount) })));
+    closer += t.share(closer);
+  } else {
+    value = full.value;
+    payment = line.paymentReal + (line.deferred?.paymentReal || 0);
+    commissions = sumC(full.commissions);
+  }
+  const profit = value - payment - commissions - production - line.itemsReal - closer;
+  return { value, profit, marginBp: value > 0 ? Math.round((profit * 10000) / value) : null };
+}
+
+function finishLine(line) {
+  const commissionTotal = line.commissions.reduce((s, c) => s + c.amount, 0);
+  const productionTotal = line.production.influencer + line.production.photographer + line.production.makeup;
+  const closerTotal = line.closerFee?.amount || 0;
+  line.commissionTotal = commissionTotal;
+  line.productionTotal = productionTotal;
+  line.closerTotal = closerTotal;
+  line.contribution = line.value - line.paymentReal - commissionTotal - productionTotal - line.itemsReal - closerTotal;
+  if (line.kind === 'deal') {
+    const p = dealProfitOf(line);
+    line.dealProfit = p.profit;
+    line.dealMarginBp = p.marginBp;
+  }
+  return line;
+}
+
+// ---------- month ----------
+
+const WARN_TEXT = {
+  'missing-cost': (id) => `לא הוגדרה עלות ל״${ITEMS[id]?.name || id}״. חושב כ־0 ₪.`,
+  'missing-production': (id) => `לא הוגדרו עלויות הפקה לחבילה ${id}.`,
+};
+
+// input: { month, deals, incomes, expenses, versions }
+//   deals:    [{ id, date, client, selection, perks, seller, note }]
+//   incomes:  [{ id, date, label, family, amount }]
+//   expenses: [{ id, month, label, payee, amount }]  one-off for this month
+export function computeMonth({ month, deals = [], incomes = [], expenses = [], versions }) {
+  const { last } = monthBounds(month);
+  const monthSettings = settingsOn(versions, last);
+  const warnings = new Set();
+  const warn = (w) => warnings.add(w);
+  const errors = [];
+  if (!monthSettings) {
+    return { month, empty: true, errors: ['אין הגדרות בתוקף לחודש הזה.'], warnings: [] };
+  }
+  const ms = monthSettings.data;
+
+  const lines = [];
+  for (const d of deals.filter((x) => inMonth(x.date, month)).sort(byDate)) {
+    const v = settingsOn(versions, d.date) || monthSettings;
+    try {
+      lines.push(computeDeal(d, v.data, warn));
+    } catch (e) {
+      errors.push(`עסקה ״${d.client}״ (${d.date}) לא חושבה: ${e.message}`);
+    }
+  }
+  // Pooled influencer fee: a shoot day per group of clients, split between
+  // the deals of that package closed this month.
+  const pooledByPkg = {};
+  for (const l of lines) if (l.pooled) (pooledByPkg[l.packageId] ||= []).push(l);
+  // The fee terms are those in effect for the latest deal of the group.
+  for (const group of Object.values(pooledByPkg)) {
+    const p = group[group.length - 1].pool;
+    if (!(p.perDay >= 0) || !(p.clientsPerDay > 0)) {
+      warn(`missing-production:${group[0].packageId}`);
+      continue;
+    }
+    const days = Math.ceil(group.length / p.clientsPerDay);
+    const shares = allocate(days * p.perDay, group.map(() => 1));
+    // Makeup is also booked per shoot day when set that way.
+    const makeup = p.makeupPerDay !== undefined ? allocate(days * p.makeupPerDay, group.map(() => 1)) : null;
+    group.forEach((l, i) => {
+      l.production.influencer = influencerShare(shares[i], l.termMonths);
+      if (makeup) l.production.makeup = makeup[i];
+      l.shootDays = days;
+    });
+  }
+  // Cancelled deals, booked in the month of the cancellation (the deal's own
+  // month may already be locked): the revenue of the months the client will
+  // not pay is taken off, and everyone paid on the deal (percentages and the
+  // closing fee) gives back the same share.
+  for (const d of deals.filter((x) => x.cancelledOn && inMonth(x.cancelledOn, month)).sort((a, b) => byDate({ date: a.cancelledOn }, { date: b.cancelledOn }))) {
+    const v = settingsOn(versions, d.date) || monthSettings;
+    try {
+      const orig = computeDeal(d, v.data);
+      const term = orig.termMonths;
+      const { back, share, deferredBooked } = cancelTerms(orig, d.cancelledOn, d.paidMonths);
+      lines.push({
+        kind: 'clawback', id: d.id, date: d.cancelledOn, dealDate: d.date, client: d.client,
+        packageName: orig.packageName, family: orig.family, paidMonths: d.paidMonths, termMonths: term,
+        originalValue: orig.full.value, payMethod: orig.payMethod, installments: orig.installments,
+        value: back(orig.full.value), paymentReal: 0, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0, base: 0,
+        closerFee: orig.closerFee ? { name: orig.closerFee.name, original: orig.closerFee.amount, amount: share(orig.closerFee.amount) } : null,
+        production: { influencer: 0, photographer: 0, makeup: 0 },
+        // booked: what was paid on the deal so far (a cheque deal before its
+        // deferred month: only the first cheques' share).
+        commissions: orig.full.commissions.map((c, i) => ({
+          ...c, original: c.amount, booked: deferredBooked ? c.amount : orig.commissions[i].amount, amount: back(c.amount),
+        })),
+      });
+    } catch (e) {
+      errors.push(`ביטול העסקה ״${d.client}״ לא חושב: ${e.message}`);
+    }
+  }
+  // Cheque deals from DEFER_MONTHS ago: the rest of their revenue and
+  // commissions, unless the deal was cancelled before this month.
+  const dueFrom = shiftMonth(month, -DEFER_MONTHS);
+  for (const d of deals.filter((x) => x.payMethod === 'checks' && x.installments > CHECKS_UPFRONT && inMonth(x.date, dueFrom)).sort(byDate)) {
+    if (d.cancelledOn && d.cancelledOn.slice(0, 7) < month) continue;
+    const v = settingsOn(versions, d.date) || monthSettings;
+    try {
+      const orig = computeDeal(d, v.data);
+      lines.push({
+        kind: 'deferred', id: d.id, date: monthBounds(month).first, dealDate: d.date, client: d.client,
+        packageName: orig.packageName, family: orig.family, payMethod: 'checks', installments: d.installments,
+        value: orig.deferred.value, paymentReal: orig.deferred.paymentReal, paymentCommission: 0, items: [], deductions: 0, itemsReal: 0,
+        base: orig.base, closerFee: null, production: { influencer: 0, photographer: 0, makeup: 0 },
+        commissions: orig.deferred.commissions,
+      });
+    } catch (e) {
+      errors.push(`יתרת הצ׳קים של ״${d.client}״ לא חושבה: ${e.message}`);
+    }
+  }
+  for (const e of incomes.filter((x) => inMonth(x.date, month)).sort(byDate)) {
+    const v = settingsOn(versions, e.date) || monthSettings;
+    lines.push(computeIncome(e, v.data));
+  }
+  lines.forEach(finishLine);
+
+  const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
+  const dealLines = lines.filter((l) => l.kind === 'deal');
+  const incomeLines = lines.filter((l) => l.kind === 'income');
+
+  // Payroll employees cost the salary plus the employer's share; invoice
+  // workers cost the invoice only.
+  const employees = (ms.employees || []).map((e) => {
+    const employerCost = e.payroll && !e.costIncluded ? applyBp(e.salary, ms.employerCostBp || 0) : 0;
+    return { ...e, employerCost, amount: e.salary + employerCost };
+  });
+  const recurring = (ms.expenses || []).map((e) => ({ ...e, payee: e.payee || e.name }));
+  const oneOff = expenses.filter((e) => e.month === month).map((e) => {
+    const kind = MONTH_ITEM_KINDS[e.kind] ? e.kind : 'other';
+    const amount = kind === 'meetings' ? (e.qty || 0) * (ms.meetingRate || 0) : e.amount;
+    return { ...e, kind, amount, payee: e.payee || (kind === 'meetings' ? ms.meetingPayee : '') || e.label };
+  });
+  const fixed = sum(employees, (e) => e.amount) + sum(recurring, (e) => e.amount) + sum(oneOff, (e) => e.amount);
+
+  const revenue = sum(lines, (l) => l.value);
+  const paymentReal = sum(lines, (l) => l.paymentReal);
+  const commissions = sum(lines, (l) => l.commissionTotal);
+  const production = sum(lines, (l) => l.productionTotal);
+  const itemsReal = sum(lines, (l) => l.itemsReal);
+  const closerFees = sum(lines, (l) => l.closerTotal);
+  const clawbacks = sum(lines.filter((l) => l.kind === 'clawback'), (l) => l.commissionTotal);
+  const variable = paymentReal + commissions + production + itemsReal + closerFees;
+  const profit = revenue - variable - fixed;
+  const incomeContribution = sum(incomeLines, (l) => l.contribution);
+
+  const partners = ms.partners || [];
+  // Shares are relative weights (1, 1, 1 = thirds), so equal splits are exact.
+  const weights = partners.map((p) => p.weight);
+  const weightSum = sum(weights, (w) => w);
+  if (partners.length && (weights.some((w) => !Number.isInteger(w) || w < 0) || weightSum <= 0)) {
+    errors.push('חלקי השותפים לא תקינים.');
+  }
+  const partnerAmounts = allocate(profit, weights);
+  const partnerExcl = allocate(profit - incomeContribution, weights);
+
+  const report = {
+    month,
+    settingsFrom: monthSettings.effectiveFrom,
+    lines,
+    counts: {
+      deals: dealLines.length,
+      cancellations: lines.filter((l) => l.kind === 'clawback').length,
+      byFamily: countBy(dealLines, (l) => l.family),
+      byPackage: countBy(dealLines, (l) => l.packageId),
+    },
+    totals: {
+      revenue, dealsRevenue: sum(dealLines, (l) => l.value), incomeRevenue: sum(incomeLines, (l) => l.value),
+      cancelledRevenue: sum(lines.filter((l) => l.kind === 'clawback'), (l) => l.value),
+      deferredRevenue: sum(lines.filter((l) => l.kind === 'deferred'), (l) => l.value),
+      paymentReal, commissions, production, itemsReal, closerFees, clawbacks, variable, fixed,
+      employees: sum(employees, (e) => e.amount),
+      employerCost: sum(employees, (e) => e.employerCost),
+      recurring: sum(recurring, (e) => e.amount),
+      oneOff: sum(oneOff, (e) => e.amount),
+      profit,
+      profitExcludingIncome: profit - incomeContribution,
+      marginBp: revenue ? Math.round((profit * 10000) / revenue) : null,
+    },
+    partners: partners.map((p, i) => ({
+      ...p, shareBp: weightSum > 0 ? Math.round((p.weight * 10000) / weightSum) : 0,
+      amount: partnerAmounts[i], amountExcludingIncome: partnerExcl[i],
+    })),
+    employees,
+    recurring,
+    oneOff,
+    errors,
+    warnings: [...warnings].map((w) => {
+      const [k, id] = w.split(':');
+      return WARN_TEXT[k] ? WARN_TEXT[k](id) : w;
+    }),
+  };
+  report.payees = payeesOf(report, ms);
+  return report;
+}
+
+function byDate(a, b) {
+  return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+}
+
+function countBy(arr, f) {
+  const out = {};
+  for (const x of arr) out[f(x)] = (out[f(x)] || 0) + 1;
+  return out;
+}
+
+// "How much to pay each person": one entry per payee with its lines.
+export function payeesOf(report, ms) {
+  const map = new Map();
+  const add = (name, kind, label, amount) => {
+    if (!amount) return;
+    if (!map.has(name)) map.set(name, { name, kind, total: 0, lines: [] });
+    const p = map.get(name);
+    p.total += amount;
+    p.lines.push({ label, amount });
+  };
+  const names = ms.payees || {};
+  for (const l of report.lines) {
+    add(l.payMethod === 'checks' ? 'עמלת צ׳קים' : 'פיימנט', 'payment', l.client, l.paymentReal);
+    const who = l.kind === 'deal' ? `${l.client} · ${l.packageName}${l.deferred ? ` · ${CHECKS_UPFRONT} מתוך ${l.installments} צ׳קים` : ''}`
+      : l.kind === 'clawback' ? `קיזוז: ${l.client} בוטלה אחרי ${l.paidMonths} חודשים`
+        : l.kind === 'deferred' ? `${l.client} · יתרת ${l.installments - CHECKS_UPFRONT} מתוך ${l.installments} צ׳קים` : l.client;
+    for (const c of l.commissions) add(c.name, 'commission', who, c.amount);
+    if (l.closerFee) add(l.closerFee.name, 'commission', l.kind === 'clawback' ? `קיזוז עמלת סגירה: ${l.client} בוטלה אחרי ${l.paidMonths} חודשים` : `עמלת סגירה · ${l.client}`, l.closerFee.amount);
+    add(names.influencer?.[l.family] || INFLUENCERS[l.family]?.name, 'influencer', who, l.production.influencer);
+    add(names.photographer || 'צלם', 'supplier', who, l.production.photographer);
+    add(names.makeup || 'מאפרת', 'supplier', who, l.production.makeup);
+    for (const it of l.items) add(it.payee, 'supplier', `${it.name}${it.qty > 1 ? ` ×${it.qty}` : ''} · ${l.client}`, it.real);
+  }
+  for (const e of report.employees) {
+    const kind = !e.payroll ? 'חשבונית' : e.costIncluded ? 'משכורת כולל עלות מעסיק' : 'משכורת';
+    add(e.name, 'employee', `${kind}${e.role ? ` · ${e.role}` : ''}`, e.salary);
+    add(e.name, 'employee', 'עלות מעסיק', e.employerCost);
+  }
+  for (const e of report.recurring) add(e.payee, 'expense', e.name, e.amount);
+  for (const e of report.oneOff) add(e.payee, 'expense', monthItemLabel(e, ms), e.amount);
+  for (const p of report.partners) add(p.name, 'partner', 'חלק ברווח', p.amount);
+  const order = { commission: 0, influencer: 1, supplier: 2, employee: 3, expense: 4, payment: 5, partner: 6 };
+  return [...map.values()].sort((a, b) => order[a.kind] - order[b.kind] || b.total - a.total);
+}
+
+export function monthItemLabel(e, ms = {}) {
+  if (e.kind === 'meetings') return `${MONTH_ITEM_KINDS.meetings}: ${e.qty || 0} × ${(ms.meetingRate || 0) / 100} ₪`;
+  if (e.kind === 'other') return e.label;
+  return e.label && e.label !== MONTH_ITEM_KINDS[e.kind] ? `${MONTH_ITEM_KINDS[e.kind]} · ${e.label}` : MONTH_ITEM_KINDS[e.kind];
+}
+
+// What a commission earner is shown: only commission-side values.
+// Accepts the person's id or name. Shows their commissions (with the
+// deductions they are told about), clawbacks, per-deal fees, and their own
+// other payments this month. No real costs, other people or profit.
+export function commissionStatement(report, who) {
+  const rows = [];
+  let name = '';
+  for (const l of report.lines) {
+    const c = l.commissions.find((x) => x.personId === who || x.name === who);
+    if (c) {
+      name = c.name;
+      rows.push({
+        kind: l.kind,
+        date: l.date,
+        dealDate: l.dealDate,
+        paidMonths: l.paidMonths,
+        termMonths: l.termMonths,
+        client: l.client,
+        packageName: l.packageName || 'הכנסה נוספת',
+        value: l.kind === 'deal' && l.full ? l.full.value : l.value,
+        payment: l.paymentCommission,
+        deductions: l.items
+          .filter((it) => it.commission)
+          .map((it) => ({ name: it.name, qty: it.qty, source: it.source, amount: it.commission })),
+        base: l.base,
+        rateBp: c.rateBp,
+        original: c.original,
+        booked: c.booked,
+        full: c.full,
+        payMethod: l.payMethod,
+        installments: l.installments,
+        amount: c.amount,
+      });
+    }
+    if (l.closerFee && l.closerFee.name === (name || who)) {
+      name = l.closerFee.name;
+      rows.push({
+        kind: 'closer', clawback: l.kind === 'clawback', paidMonths: l.paidMonths, termMonths: l.termMonths, date: l.date,
+        client: l.client, packageName: l.packageName, original: l.closerFee.original, amount: l.closerFee.amount,
+      });
+    }
+  }
+  name ||= typeof who === 'string' ? who : '';
+  const extras = [
+    ...(report.recurring || []).filter((e) => e.payee === name).map((e) => ({ label: e.name, amount: e.amount })),
+    ...(report.oneOff || []).filter((e) => e.payee === name).map((e) => ({ label: monthItemLabel(e, { meetingRate: e.qty ? e.amount / e.qty : 0 }), amount: e.amount })),
+  ];
+  const commissionTotal = rows.reduce((s, r) => s + r.amount, 0);
+  const extrasTotal = extras.reduce((s, e) => s + e.amount, 0);
+  return {
+    month: report.month,
+    personId: who,
+    name,
+    rows,
+    extras,
+    commissionTotal,
+    total: commissionTotal + extrasTotal,
+  };
+}
+
+// ---------- influencer tabs ----------
+// Separate from the monthly report: the influencers are owed their share of
+// a deal only when the work is done. Each deal yields tasks; a task marked
+// with a date is owed in that date's month. Shoot days split the deal's
+// influencer fee evenly; a podcast recording day with Natali is paid once per
+// recording date whatever the number of clients; paid posts (reel, story)
+// are owed their cost when posted.
+
+const FAMILY_ITEMS = { natali: ['natali-reel', 'natali-story'], simeon: ['simeon-story', 'simeon-collab'] };
+
+export function shootDaysOf(deal) {
+  const sel = deal.selection;
+  if (sel.custom) return Number.isInteger(sel.shootDays) && sel.shootDays > 0 ? sel.shootDays : 1;
+  const pid = packageId(sel.tier, sel.influencer);
+  const days = SPECS[pid].shootDays + (sel.paid.includes('simeon-day') ? 1 : 0);
+  return Math.max(1, days);
+}
+
+// Tasks of one deal: [{ key, kind: 'day' | 'recording' | 'post', label, amount }]
+// (amount is null for pooled recordings, paid per recording date).
+export function influencerTasks(deal, settings) {
+  const sel = deal.selection;
+  const family = sel.influencer;
+  const term = deal.termMonths === 6 ? 6 : TERM_MONTHS;
+  const tasks = [];
+  const pid = sel.custom ? packageId('social', family) : packageId(sel.tier, family);
+  const prod = settings.production?.[pid] || {};
+  if (!sel.custom && sel.tier === 'podcast' && prod.influencerPerDay !== undefined) {
+    tasks.push({ key: 'recording', kind: 'recording', label: 'יום הקלטת פודקאסט', amount: null });
+  } else {
+    const fee = influencerShare(prod.influencer || 0, term);
+    const n = shootDaysOf(deal);
+    const parts = allocate(fee, Array.from({ length: n }, () => 1));
+    const word = !sel.custom && sel.tier === 'podcast' ? 'יום הקלטה' : 'יום צילום';
+    parts.forEach((amount, i) => tasks.push({
+      key: `day:${i + 1}`, kind: 'day', label: n > 1 ? `${word} ${i + 1} מתוך ${n}` : word, amount,
+    }));
+  }
+  if (!sel.custom) {
+    for (const it of dealItems(deal)) {
+      if (!FAMILY_ITEMS[family]?.includes(it.id)) continue;
+      const cfg = settings.items?.[it.id] || {};
+      const unit = cfg.real || 0;
+      if (!unit) continue;
+      const count = cfg.per === 'deal' ? 1 : it.qty;
+      for (let k = 1; k <= count; k += 1) {
+        tasks.push({
+          key: `${it.id}:${tasks.filter((t) => t.key.startsWith(`${it.id}:`)).length + 1}`,
+          kind: 'post', label: `${ITEMS[it.id].name}${count > 1 ? ` ${k} מתוך ${count}` : ''}`, amount: unit,
+        });
+      }
+    }
+  }
+  return tasks;
+}
+
+// One family's tab for a month.
+// performed: [{ dealId, key, date }]
+export function influencerMonth({ family, month, deals, performed, versions }) {
+  const done = new Map(performed.map((p) => [`${p.dealId}|${p.key}`, p.date]));
+  const due = [];
+  const open = [];
+  const voided = []; // marked done after the deal was cancelled: not owed
+  const errors = [];
+  const recordingDates = new Map(); // date -> { fee, deals: [] }
+  for (const d of deals.filter((x) => x.selection?.influencer === family).sort(byDate)) {
+    const v = settingsOn(versions, d.date);
+    if (!v) continue;
+    let tasks;
+    try {
+      tasks = influencerTasks(d, v.data);
+    } catch (e) {
+      errors.push(`״${d.client}״: ${e.message}`);
+      continue;
+    }
+    const name = `${packageName(d.selection)}${d.termMonths === 6 ? ' · חצי שנתי' : ''}`;
+    for (const t of tasks) {
+      const date = done.get(`${d.id}|${t.key}`) || null;
+      const row = { dealId: d.id, client: d.client, dealDate: d.date, packageName: name, cancelledOn: d.cancelledOn || null, ...t, date };
+      if (date) {
+        if (!inMonth(date, month)) continue;
+        if (d.cancelledOn && date > d.cancelledOn) { voided.push(row); continue; }
+        if (t.kind === 'recording') {
+          const fee = v.data.production?.['podcast-natali']?.influencerPerDay || 0;
+          if (!recordingDates.has(date)) recordingDates.set(date, { fee, clients: [] });
+          recordingDates.get(date).clients.push(row);
+        } else {
+          due.push(row);
+        }
+      } else if (!d.cancelledOn) {
+        open.push(row);
+      }
+    }
+  }
+  const recordings = [...recordingDates.entries()].sort().map(([date, r]) => ({ date, amount: r.fee, clients: r.clients }));
+  const total = due.reduce((s, r) => s + r.amount, 0) + recordings.reduce((s, r) => s + r.amount, 0);
+  return { family, month, due, recordings, open, voided, total, errors };
+}

@@ -23,8 +23,9 @@ export const RESET_SENT = 'אם הכתובת רשומה במערכת, נשלח �
 export const looksLikeEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 // Sends a reset link. The link opens the quotes page, which asks for a new password.
-export async function sendPasswordReset(email) {
-  const redirectTo = new URL('quotes.html', window.location.href).href;
+// Resolved from this file, so it works from the site root and from payouts/.
+// A page that handles the link itself (like the payouts app) passes its own address.
+export async function sendPasswordReset(email, redirectTo = new URL('../quotes.html', import.meta.url).href) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
   if (error) throw error;
 }
