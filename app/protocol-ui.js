@@ -74,6 +74,7 @@ export function lateBy(d, now = new Date()) {
 
 export const STATUS_TEXT = {
   overdue: 'באיחור', today: 'להיום', open: 'פתוח', waiting: 'טרם התחיל', done: 'הושלם', due: 'לביצוע השבוע',
+  client: 'ממתין ללקוח',
 };
 
 export function statusBadge(status, dueAt, now = new Date()) {
@@ -146,3 +147,12 @@ export const store = {
   get(k) { try { return localStorage.getItem(`astrateg.${k}`); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(`astrateg.${k}`, v); } catch { /* private mode */ } },
 };
+
+// Agreement numbers for clients opened from a signed agreement: Map id -> { number, signed_at }.
+export async function loadQuoteNumbers(ids) {
+  const list = [...new Set(ids.filter(Boolean))];
+  if (!list.length) return new Map();
+  const { data, error } = await supabase.from('quotes').select('id, number, signed_at').in('id', list);
+  if (error) throw error;
+  return new Map(data.map((q) => [q.id, q]));
+}

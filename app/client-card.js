@@ -1,23 +1,30 @@
 // Client card: the client's protocol by phase, checked off by each person in
-// their role, with tasks and a full history of who checked what and when.
-import { PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS } from './protocol.js';
+// their role, with links, package quantities, shoot rounds, tasks, the weekly
+// call and a full history of who checked what and when.
 import {
-  clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM,
+  PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
+} from './protocol.js';
+import {
+  clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
+  waitNote, parseWaitNote, bulkEligible, roundsOf, isBusinessDay,
 } from './protocol-logic.js';
 import {
-  loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, addTask, setTaskDone, updateClient,
-  myPerson, loadDirectory,
+  loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
+  addTask, setTaskDone, updateClient, myPerson, loadDirectory, loadQuoteSummary,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
   statusBadge, dueText, progressBar, mountSession, store, directory,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
+import { googleCalendarUrl, downloadIcs } from './calendar.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
 let checks = {};
 let tasks = [];
+let log = [];
+let quote = null;            // the signed agreement the client was opened from
 let myEmail = '';
 let me = null;               // this user's person key
 let focusPerson = '';        // highlighted person ('' = everyone)
@@ -27,13 +34,19 @@ const openPhases = new Set();
 const shownDone = new Set(); // phases whose completed processes the user expanded
 const pending = new Set();
 
+const baseKey = (key) => key.replace(/^r\d+\./, '');
+const roundOfKey = (key) => Number(/^r(\d+)\./.exec(key)?.[1] || 1);
 const ITEM_INDEX = new Map(PROCESSES.flatMap((p) => p.items.map((i) => [i.key, { proc: p, item: i }])));
+const labelOf = (key) => ITEM_INDEX.get(baseKey(key))?.item.label || key;
 const FIELD_NAMES = {
   characterizer: 'מי מבצע את האפיון', char_at: 'מועד פגישת האפיון', shoot_type: 'סוג יום הצילום',
   shoot_at: 'מועד יום הצילום', has_logo: 'האם יש ללקוח לוגו',
 };
 const FIELD_INPUT = { characterizer: 'ed-characterizer', char_at: 'ed-char-at', shoot_type: 'ed-shoot-type', shoot_at: 'ed-shoot-at', has_logo: 'ed-logo' };
-const labelOf = (key) => ITEM_INDEX.get(key)?.item.label || key;
+// The link each process works with, shown inside the process.
+const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p09: 'gantt', p10: 'meta', p12: 'scripts', p24: 'drive' };
+// Processes where the client is part of the work: "waiting on client" is offered even before they are late.
+const CLIENT_PROCS = new Set(['p05', 'p07', 'p11', 'p13', 'p23', 'p26', 'p27']);
 
 async function load() {
   if (!id) { $('state').textContent = 'לא נבחר לקוח.'; return; }
@@ -44,6 +57,7 @@ async function load() {
     client = c;
     checks = ch[id] || {};
     tasks = t;
+    if (c.quote_id && (!quote || quote.id !== c.quote_id)) quote = await loadQuoteSummary(c.quote_id);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
@@ -59,8 +73,8 @@ function render() {
   if (!openPhases.size) {
     openPhases.add(s.current);
     for (const ph of s.phases) if (ph.states.some((x) => x.status === 'overdue')) openPhases.add(ph.key);
-    const tp = PROCESSES.find((p) => p.id === location.hash.slice(1));
-    if (tp) openPhases.add(tp.phase);
+    const tp = s.states.find((x) => x.proc.id === location.hash.slice(1));
+    if (tp) openPhases.add(tp.proc.phase);
   }
   renderHead(s);
   renderViewbar();
@@ -75,17 +89,165 @@ function renderKeepingFocus(focusId = document.activeElement?.id) {
   window.scrollTo({ top: y });
   const el = focusId && document.getElementById(focusId);
   if (el && !el.disabled) el.focus({ preventScroll: true });
-  else if (focusId) document.getElementById(focusId.replace(/-na$/, ''))?.focus({ preventScroll: true });
+  else if (focusId) document.getElementById(focusId.replace(/-(na|bulk)$/, ''))?.focus({ preventScroll: true });
+}
+
+// ── Calendar ────────────────────────────────
+const cardUrl = () => location.href.replace(/#.*$/, '');
+function charEvent() {
+  const c = client;
+  return {
+    uid: `${c.id}-char@astrateg`, title: `פגישת אפיון · ${c.name}`, start: c.char_at, minutes: 120,
+    location: c.address || '',
+    details: [c.characterizer ? `מבצע האפיון: ${PEOPLE[c.characterizer].name}.` : null, c.phone ? `טלפון הלקוח: ${c.phone}.` : null, `כרטיס הלקוח: ${cardUrl()}`].filter(Boolean).join('\n'),
+  };
+}
+// The team arrives an hour before the influencers (process 17); the shoot lasts 3 hours
+// with Natali (process 20) and about 5.5 with Denis, Michel and Semion (process 21).
+function shootEvent(n = 1) {
+  const r = n === 1 ? { shoot_at: client.shoot_at, shoot_type: client.shoot_type } : roundsOf(client).find((x) => x.n === n) || {};
+  const type = r.shoot_type || client.shoot_type;
+  const arrive = new Date(r.shoot_at);
+  const start = new Date(arrive.getTime() - 36e5);
+  const minutes = 60 + (type === 'dms' ? 330 : 180);
+  const hhmm = arrive.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return {
+    uid: `${client.id}-shoot-${n}@astrateg`,
+    title: `יום צילום${n > 1 ? ` ${n}` : ''} · ${client.name}${type ? ` · ${SHOOT_TYPES[type].name}` : ''}`,
+    start, minutes, location: client.address || '',
+    details: [`הגעת המשפיענים: ${hhmm}. הצוות מגיע שעה לפני.`, 'מנהל יום הצילום: ליאור.',
+      client.links?.scripts ? `תסריטים: ${client.links.scripts}` : null, `כרטיס הלקוח: ${cardUrl()}`].filter(Boolean).join('\n'),
+  };
+}
+function calendarMenu(kind, n = 1) {
+  const has = kind === 'char' ? client.char_at : (n === 1 ? client.shoot_at : roundsOf(client).find((x) => x.n === n)?.shoot_at);
+  if (!has) return null;
+  const ev = () => (kind === 'char' ? charEvent() : shootEvent(n));
+  const name = kind === 'char' ? 'פגישת האפיון' : 'יום הצילום';
+  const p11 = n === 1 ? 'p11.calendar' : `r${n}.p11.calendar`;
+  return h('details', { class: 'cal' },
+    h('summary', { 'aria-label': `הוספת ${name} ליומן` }, 'הוספה ליומן'),
+    h('div', { class: 'cal-menu' },
+      client.address ? null : h('p', { class: 'hint' }, 'אין כתובת עסק בכרטיס, והאירוע ייווצר בלי מקום. ',
+        h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit('ed-address') }, 'הוספת כתובת')),
+      h('a', { class: 'btn btn-sm btn-ghost', href: googleCalendarUrl(ev()), target: '_blank', rel: 'noopener' }, 'Google Calendar'),
+      h('button', {
+        type: 'button', class: 'btn btn-sm btn-ghost',
+        onclick: () => {
+          downloadIcs(kind === 'char' ? `אפיון-${client.name}` : `יום-צילום-${client.name}`, ev());
+          if (kind !== 'shoot') return;
+          const mine = me && PEOPLE.irit && me === 'irit' && !checks[p11];
+          toast('קובץ היומן ירד. אחרי ששלחתם אותו לכולם, סמנו ״יום הצילום הוכנס ליומן של כולם״.',
+            mine ? { label: 'סימון כבוצע', run: () => mark(p11, 'done', null) } : null);
+        },
+      }, 'קובץ יומן (‎.ics)')));
 }
 
 // ── Header ──────────────────────────────────
-function fact(k, v) {
-  return h('div', { class: 'fact' }, h('dt', {}, k), h('dd', {}, v || h('span', { class: 'muted' }, 'לא הוזן')));
+function fact(k, v, extra = null) {
+  return h('div', { class: 'fact' }, h('dt', {}, k), h('dd', {}, v || h('span', { class: 'muted' }, 'לא הוזן'), extra));
 }
 
 function nextFor(s) {
-  const person = focusPerson || null;
-  return openItemsFor(person, client, checks, s).sort(byUrgency)[0] || null;
+  const open = openItemsFor(focusPerson || null, client, checks, s).sort(byUrgency);
+  return open.find((x) => x.status !== 'client') || open[0] || null;
+}
+
+function autoBanner() {
+  const c = client;
+  if (c.created_by_email !== 'system' || c.verified_at || c.status === 'cancelled') return null;
+  const num = quote?.number || 'חתום';
+  return h('div', { class: 'auto-note', role: 'note' },
+    h('p', {}, `הלקוח נפתח אוטומטית כשנחתם הסכם ${num}${quote?.signed_at ? ` ב־${formatStamp(quote.signed_at)}` : ''}. מההסכם מולאו: חבילה, משפיענים, כמויות, סוג יום צילום וסיום חוזה. כדאי לעבור עליהם.`),
+    h('div', { class: 'auto-acts' },
+      h('button', { type: 'button', class: 'btn btn-sm btn-primary', onclick: () => saveClient({ verified_at: new Date().toISOString() }, 'הפרטים אושרו.') }, 'הפרטים נכונים'),
+      h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEdit() }, 'עריכת פרטים'),
+      h('button', { type: 'button', class: 'btn-text warn', onclick: () => openCancel() }, 'ההסכם בוטל')));
+}
+
+function linksRow() {
+  const links = client.links || {};
+  const set = LINKS.filter((l) => links[l.key]);
+  const missing = LINKS.filter((l) => !links[l.key] && checks[l.after]?.state === 'done');
+  return h('nav', { class: 'cc-links', 'aria-label': 'קישורים של הלקוח' },
+    h('span', { class: 'me-label' }, 'קישורים:'),
+    set.length || missing.length
+      ? h('ul', { class: 'chips-row' },
+        ...set.map((l) => h('li', {}, h('a', { class: 'chip link-chip', href: links[l.key], target: '_blank', rel: 'noopener' },
+          l.label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')))),
+        ...missing.map((l) => h('li', {}, h('button', { type: 'button', class: 'chip chip-missing', onclick: () => openEdit(`ed-link-${l.key}`) }, `חסר: ${l.label}`))))
+      : h('span', { class: 'muted' }, 'אין קישורים עדיין.'),
+    h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit(`ed-link-${LINKS[0].key}`) }, set.length ? 'עריכת קישורים' : 'הוספת קישורים'));
+}
+
+// ── Package quantities and shoot rounds ─────
+const saveTimers = {};
+function bump(key, delta) {
+  const d = client.deliverables || {};
+  const done = { ...(d.done || {}) };
+  const before = done[key] || 0;
+  const next = Math.max(0, before + delta);
+  if (next === before) return;
+  done[key] = next;
+  client = { ...client, deliverables: { ...d, done } };
+  renderKeepingFocus();
+  clearTimeout(saveTimers[key]);
+  const status = document.getElementById(`deliv-${key}-s`);
+  if (status) status.textContent = 'שומר…';
+  const original = saveTimers[`${key}-from`] ?? before;
+  saveTimers[`${key}-from`] = original;
+  saveTimers[key] = setTimeout(async () => {
+    delete saveTimers[`${key}-from`];
+    delete saveTimers[key];
+    try {
+      client = await updateClient(id, { deliverables: client.deliverables });
+    } catch (err) {
+      const back = { ...(client.deliverables.done || {}), [key]: original };
+      client = { ...client, deliverables: { ...client.deliverables, done: back } };
+      toast(`הכמות לא נשמרה ולכן חזרה ל־${original}. ${errorText(err)}`);
+    }
+    renderKeepingFocus();
+  }, 800);
+}
+
+function roundsSummary(s) {
+  const total = client.deliverables?.shoot_days;
+  const rounds = [{ n: 1, shoot_at: client.shoot_at }, ...roundsOf(client)];
+  const parts = rounds.map((r) => {
+    const phase = r.n === 1 ? null : s.phases.find((p) => p.key === `round-${r.n}`);
+    const done = r.n === 1 ? ['prep', 'eve', 'shoot', 'post', 'publish'].every((k) => s.phases.find((p) => p.key === k)?.complete !== false)
+      : phase?.complete;
+    return `סבב ${r.n}${done ? ' הושלם' : r.shoot_at ? ` ב־${formatDay(r.shoot_at)}` : ' · טרם נקבע'}`;
+  });
+  return h('div', { class: 'deliv-row' },
+    h('span', { class: 'deliv-k' }, 'ימי צילום'),
+    h('span', {}, parts.join(' · '), total ? h('span', { class: 'num muted' }, ` · ${rounds.length} מתוך ${total}`) : null),
+    h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openRound() }, 'הוספת סבב צילום'));
+}
+
+function deliverablesBlock(s) {
+  const d = client.deliverables || {};
+  const rows = DELIVERABLES.filter((x) => (d[x.key] || 0) > 0);
+  const hasAny = rows.length || d.shoot_days !== undefined;
+  return h('section', { class: 'deliv', 'aria-labelledby': 'deliv-h' },
+    h('div', { class: 'deliv-head' }, h('h2', { id: 'deliv-h' }, 'מה כלול בחבילה'), h('span', { class: 'hint' }, 'נספר כשהלקוח קיבל ואישר.')),
+    hasAny ? null : h('p', { class: 'muted' }, 'הכמויות בחבילה לא הוזנו. ',
+      h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit('ed-deliv-videos') }, 'הזנת כמויות')),
+    ...rows.map((x) => {
+      const total = d[x.key];
+      const done = d.done?.[x.key] || 0;
+      const over = done > total ? ` (${done - total} מעבר לחבילה)` : '';
+      return h('div', { class: 'deliv-row' },
+        h('span', { class: 'deliv-k' }, x.label),
+        h('span', { class: 'deliv-v', id: `deliv-${x.key}-v`, 'aria-live': 'polite' }, `נמסרו ${done} מתוך ${total}${over}`),
+        progressBar(Math.min(done, total), total, `${x.label} שנמסרו`),
+        h('span', { class: 'deliv-btns' },
+          h('button', { type: 'button', class: 'step', id: `deliv-${x.key}-minus`, 'aria-label': `הפחתת ${x.one} שנמסר`, disabled: done === 0, onclick: () => bump(x.key, -1) }, '−'),
+          h('button', { type: 'button', class: 'step', id: `deliv-${x.key}-plus`, 'aria-label': `הוספת ${x.one} שנמסר`, onclick: () => bump(x.key, 1) }, '+')),
+        h('span', { class: 'hint', id: `deliv-${x.key}-s` }));
+    }),
+    roundsSummary(s),
+    d.updated_at ? h('p', { class: 'hint' }, `עודכן · ${who(d.updated_by)} · ${formatStamp(d.updated_at)}`) : null);
 }
 
 function renderHead(s) {
@@ -94,12 +256,17 @@ function renderHead(s) {
     h('a', { href: `tel:${c.phone.replace(/[^\d+]/g, '')}`, dir: 'ltr' }, c.phone), ' · ',
     h('a', { href: whatsappLink(c.phone, ''), target: '_blank', rel: 'noopener' }, 'WhatsApp')) : null;
   const charBy = c.characterizer ? PEOPLE[c.characterizer].name : null;
-  const phaseTitle = s.phases.find((p) => p.key === s.current)?.title;
+  const cur = s.phases.find((p) => p.key === s.current);
   const next = nextFor(s);
+  const nextLabel = next?.status === 'client'
+    ? `ממתין ללקוח (${next.proc.num} · ${next.proc.title})`
+    : next ? `${next.proc.num} · ${next.proc.title}` : null;
   fill($('cc-head'),
+    autoBanner(),
+    c.status === 'cancelled' ? h('div', { class: 'auto-note', role: 'note' }, h('p', {}, `ההסכם בוטל${c.closed_reason ? `: ${c.closed_reason}` : '.'}`)) : null,
     h('div', { class: 'cc-top' },
       h('div', {},
-        h('div', { class: 'kicker' }, c.status === 'active' ? `שלב נוכחי: ${phaseTitle}` : CLIENT_STATUS[c.status]),
+        h('div', { class: 'kicker' }, c.status === 'active' ? `שלב נוכחי: ${cur?.title || ''}` : CLIENT_STATUS[c.status]),
         h('h1', {}, c.name),
         h('p', { class: 'muted' }, [c.business, c.package_name].filter(Boolean).join(' · ') || ' ')),
       h('div', { class: 'head-actions' },
@@ -110,19 +277,24 @@ function renderHead(s) {
       h('strong', { class: 'num', dir: 'ltr' }, `${s.procsDone}/${s.procsTotal}`),
       progressBar(s.procsDone, s.procsTotal, 'תהליכים שהושלמו'),
       s.overdue ? statusBadge('overdue', null) : null,
-      s.overdue ? h('span', { class: 'num' }, `${s.overdue} תהליכים`) : null),
+      s.overdue ? h('span', { class: 'num' }, `${s.overdue} תהליכים`) : null,
+      s.waitingOnClient ? statusBadge('client', null) : null,
+      s.waitingOnClient ? h('span', { class: 'num' }, `${s.waitingOnClient} תהליכים`) : null),
     next ? h('a', { class: `cc-next s-${next.status}`, href: `#${next.proc.id}`, onclick: (e) => { e.preventDefault(); goTo(next.proc.id); } },
       h('span', { class: 'k' }, focusPerson ? `הצעד הבא אצל ${PEOPLE[focusPerson].name}` : 'הצעד הבא'),
-      h('span', {}, `${next.proc.num} · ${next.proc.title}`),
-      statusBadge(next.status, next.dueAt)) : null,
+      h('span', {}, nextLabel),
+      next.status === 'client' ? null : statusBadge(next.status, next.dueAt)) : null,
     h('dl', { class: 'facts cc-facts' },
       fact('טלפון', phone),
+      fact('כתובת העסק', c.address),
       fact('פרטי העסקה התקבלו', c.deal_at ? formatStamp(c.deal_at) : null),
-      fact('פגישת אפיון', c.char_at ? `${formatStamp(c.char_at)}${charBy ? ` · ${charBy}` : ''}` : charBy),
-      fact('יום צילום', [c.shoot_type ? SHOOT_TYPES[c.shoot_type].name : null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null),
+      fact('פגישת אפיון', c.char_at ? `${formatStamp(c.char_at)}${charBy ? ` · ${charBy}` : ''}` : charBy, calendarMenu('char')),
+      fact('יום צילום', [c.shoot_type ? SHOOT_TYPES[c.shoot_type].name : null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot')),
       fact('לוגו', c.has_logo === true ? 'יש' : c.has_logo === false ? 'אין, עילאי מכין' : null),
       fact('עורך', c.editor_name),
       fact('סיום החוזה', c.contract_end ? formatDay(c.contract_end) : null)),
+    linksRow(),
+    deliverablesBlock(s),
     c.notes ? h('p', { class: 'cc-notes' }, c.notes) : null,
   );
   fill($('cc-sticky'),
@@ -133,8 +305,8 @@ function renderHead(s) {
 }
 
 function goTo(procId) {
-  const p = PROCESSES.find((x) => x.id === procId);
-  if (p) { openPhases.add(p.phase); shownDone.add(p.phase); render(); }
+  const st = clientState(client, checks).states.find((x) => x.proc.id === procId);
+  if (st) { openPhases.add(st.proc.phase); shownDone.add(st.proc.phase); render(); }
   const el = document.getElementById(procId);
   el?.scrollIntoView({ block: 'start' });
   el?.querySelector('.cbx:not(:disabled)')?.focus({ preventScroll: true });
@@ -163,6 +335,17 @@ function renderViewbar() {
 }
 
 // ── Phases and processes ────────────────────
+function roundHeader(ph) {
+  const r = roundsOf(client).find((x) => x.n === ph.round);
+  if (!r) return null;
+  const has = Object.keys(checks).some((k) => k.startsWith(`r${r.n}.`));
+  return h('div', { class: 'round-head' },
+    h('span', {}, [r.shoot_type ? SHOOT_TYPES[r.shoot_type].name : null, r.shoot_at ? `יום צילום ${formatStamp(r.shoot_at)}` : 'מועד יום הצילום טרם נקבע'].filter(Boolean).join(' · ')),
+    h('button', { type: 'button', class: 'btn-text', onclick: () => openRound(r.n) }, 'עריכת הסבב'),
+    calendarMenu('shoot', r.n),
+    has ? null : h('button', { type: 'button', class: 'btn-text warn', onclick: () => deleteRound(r.n) }, 'מחיקת הסבב'));
+}
+
 function renderPhases(s) {
   const now = new Date();
   fill($('phases'), ...s.phases.map((ph, idx) => {
@@ -171,8 +354,8 @@ function renderPhases(s) {
     const late = ph.states.filter((x) => x.status === 'overdue').length;
     const done = list.filter((x) => x.complete);
     const showDone = printing || shownDone.has(ph.key) || done.length === list.length;
-    const missing = missingFields(ph, client);
-    const det = h('details', { class: `phase${ph.key === s.current ? ' is-current' : ''}`, open: printing || openPhases.has(ph.key) },
+    const missing = missingFields(ph.round ? { needs: [] } : ph, client);
+    const det = h('details', { class: `phase${ph.key === s.current ? ' is-current' : ''}${ph.round ? ' is-round' : ''}`, open: printing || openPhases.has(ph.key) },
       h('summary', {},
         h('span', { class: 'ph-idx num' }, String(idx + 1)),
         h('span', { class: 'ph-title' }, h('h2', {}, ph.title), ph.key === s.current ? h('span', { class: 'ph-now' }, 'השלב הנוכחי') : null),
@@ -181,6 +364,7 @@ function renderPhases(s) {
           ph.complete ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'הושלם') : null,
           ph.procsTotal ? h('span', { class: 'num', dir: 'ltr' }, `${ph.procsDone}/${ph.procsTotal}`) : null,
           ph.procsTotal ? progressBar(ph.procsDone, ph.procsTotal, `תהליכים שהושלמו בשלב ${ph.title}`) : null)),
+      ph.round ? roundHeader(ph) : null,
       ph.note ? h('p', { class: 'ph-note' }, ph.note) : null,
       missing.length ? h('div', { class: 'need ph-need', role: 'note' },
         h('span', {}, `חלק מהתהליכים בשלב תלויים בפרטים שחסרים: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`),
@@ -190,7 +374,9 @@ function renderPhases(s) {
           type: 'button', class: 'done-row', 'aria-expanded': 'false', onclick: () => { shownDone.add(ph.key); render(); },
         }, h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' })),
         `${done.length} תהליכים הושלמו (${done.map((x) => x.proc.num).join(', ')})`, h('span', { class: 'btn-text' }, 'הצגה')) : null,
-        ...list.filter((x) => showDone || !x.complete).map((x) => procCard(x, now))));
+        ...list.filter((x) => showDone || !x.complete).map((x) => procCard(x, now)),
+        ph.key === 'publish' || ph.round ? h('div', { class: 'round-add' },
+          h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => openRound() }, 'הוספת סבב צילום')) : null));
     det.addEventListener('toggle', () => {
       if (printing) return;
       openPhases.delete('__none');
@@ -216,35 +402,115 @@ async function setClaim(p, person) {
   if (ok) toast(person ? `לקחת את תהליך ${p.num}.` : 'התהליך שוחרר.');
 }
 
+function waitLine(x) {
+  if (!x.wait) return null;
+  const w = x.wait;
+  return h('div', { class: 'wait-line', id: `${x.proc.id}-wait` },
+    statusBadge('client', null),
+    h('span', {}, `מאז ${formatStamp(w.at)} · ${who(w.by_email)}${w.reason ? ` · ״${w.reason}״` : ''}${w.recheck ? ` · לבדוק שוב: ${formatDay(w.recheck)}` : ''}`),
+    h('button', { type: 'button', class: 'btn-text', onclick: () => openWait(x) }, 'עריכה'),
+    h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(x) }, 'סיום המתנה'));
+}
+
+async function endWait(x) {
+  const prev = checks[WAIT(x.proc)];
+  const ok = await mark(WAIT(x.proc), null, null);
+  if (ok) toast('ההמתנה הסתיימה. התהליך חוזר לחישוב הרגיל.', { label: 'ביטול', run: () => mark(WAIT(x.proc), 'done', null, prev?.note) });
+}
+
+function bulkButton(x) {
+  const items = bulkEligible(x, me, client, checks);
+  if (items.length < 2) return null;
+  const open = x.proc.items.filter((i) => !i.optional && !isResolved(i, checks[i.key]));
+  const all = items.length === open.length;
+  const label = all ? `סימון כל התהליך כבוצע (${items.length})` : `סימון כל הפריטים שלי כבוצעו (${items.length})`;
+  return h('button', {
+    type: 'button', class: 'btn btn-sm btn-ghost bulk-btn', id: `${x.proc.id}-bulk`,
+    'aria-label': `סימון ${items.length} פריטים כבוצעו בתהליך ${x.proc.num} · ${x.proc.title}`,
+    onclick: () => markBulk(x, items),
+  }, label);
+}
+
+async function markBulk(x, items) {
+  const keys = items.map((i) => i.key);
+  const prev = Object.fromEntries(keys.map((k) => [k, checks[k]]));
+  const note = 'בסימון כל התהליך';
+  for (const k of keys) { pending.add(k); checks[k] = { state: 'done', note, at: new Date().toISOString(), by_email: myEmail }; }
+  renderKeepingFocus(`${x.proc.id}-bulk`);
+  try {
+    const rows = await setChecksBulk(id, keys, 'done', note);
+    for (const r of rows) checks[r.item_key] = r;
+  } catch (err) {
+    for (const k of keys) { if (prev[k]) checks[k] = prev[k]; else delete checks[k]; }
+    for (const k of keys) pending.delete(k);
+    renderKeepingFocus(`${x.proc.id}-bulk`);
+    toast(`הסימון לא נשמר ולכן בוטל. אף פריט לא סומן. ${errorText(err)}`);
+    return;
+  }
+  for (const k of keys) pending.delete(k);
+  render();
+  // Focus: the first item still open in this process, else the process heading.
+  const left = document.querySelector(`#${CSS.escape(x.proc.id)} .cbx:not(:checked):not(:disabled)`);
+  (left || document.getElementById(`${x.proc.id}-h`))?.focus?.();
+  loadHistory();
+  const stillOpen = x.proc.items.filter((i) => !i.optional && !checks[i.key]).map((i) => `״${i.label}״`);
+  const where = `בתהליך ${x.proc.num} · ${x.proc.title}`;
+  toast(stillOpen.length ? `סומנו ${keys.length} פריטים. ${stillOpen.join(', ')} נשאר פתוח לסימון נפרד.` : `סומנו ${keys.length} פריטים ${where}.`, {
+    label: 'ביטול',
+    run: async () => {
+      try {
+        await clearChecksBulk(id, keys);
+        for (const k of keys) delete checks[k];
+        renderKeepingFocus(`${x.proc.id}-bulk`);
+        loadHistory();
+        toast(`הסימון של ${keys.length} הפריטים בוטל.`);
+      } catch (err) {
+        toast(`הביטול לא נשמר. הפריטים נשארו מסומנים. ${errorText(err)}`);
+      }
+    },
+  });
+}
+
 function procCard(x, now) {
   const p = x.proc;
+  const pid = p.id.replace(/^r\d+-/, '');
   const mine = focusPerson && p.items.some((i) => i.owners.includes(focusPerson));
   const dim = focusPerson && !mine && x.status !== 'overdue';
-  const missing = missingFields(p, client);
-  const guidance = p.guidance ? (client.shoot_type ? [p.guidance[client.shoot_type]] : Object.values(p.guidance)) : [];
+  const ctx = p.ctx || client;
+  const missing = missingFields(p, ctx);
+  const guidance = p.guidance ? (ctx.shoot_type ? [p.guidance[ctx.shoot_type]] : Object.values(p.guidance)) : [];
   const compact = x.complete && !printing;
-  return h('article', { class: `proc s-${x.status}${mine ? ' is-mine' : ''}${dim ? ' is-dim' : ''}`, id: p.id, 'aria-labelledby': `${p.id}-h` },
+  const link = PROC_LINK[pid] && client.links?.[PROC_LINK[pid]];
+  const linkDef = LINKS.find((l) => l.key === PROC_LINK[pid]);
+  const pkgQty = pid === 'p22' ? client.deliverables?.videos : pid === 'p23' ? client.deliverables?.graphics : null;
+  const canWait = !x.complete && !p.recurring && (x.ready || CLIENT_PROCS.has(pid));
+  return h('article', { class: `proc s-${x.status}${mine ? ' is-mine' : ''}${dim ? ' is-dim' : ''}`, id: p.id, 'aria-labelledby': `${p.id}-h`, 'aria-describedby': x.wait ? `${p.id}-wait` : null },
     h('header', { class: 'proc-head' },
       h('span', { class: 'pnum num' }, p.num),
       h('div', { class: 'proc-title' },
-        h('h3', { id: `${p.id}-h` }, p.title),
+        h('h3', { id: `${p.id}-h`, tabindex: '-1' }, p.title),
         h('div', { class: 'proc-meta' },
           peopleChips(x.claim ? [x.claim.person] : p.owners),
           compact ? null : h('span', { class: 'sla' }, p.sla),
           dueText(x, now) ? h('span', { class: 'due num' }, dueText(x, now)) : null,
+          pkgQty && !compact ? h('span', { class: 'muted' }, `בחבילה של הלקוח: ${pkgQty}`) : null,
           claimLine(x))),
       h('div', { class: 'proc-status' },
         statusBadge(x.status, x.dueAt, now),
-        p.recurring || compact ? null : h('span', { class: 'num muted', dir: 'ltr' }, `${x.resolved}/${x.required}`))),
+        p.recurring || compact ? null : h('span', { class: 'num muted', dir: 'ltr' }, `${x.resolved}/${x.required}`),
+        canWait && !x.wait ? h('button', { type: 'button', class: 'btn-text wait-btn', onclick: () => openWait(x) }, 'ממתין ללקוח') : null)),
     compact ? null : [
+      waitLine(x),
       p.ownerNote ? h('p', { class: 'proc-note' }, p.ownerNote) : null,
       missing.length ? h('div', { class: 'need', role: 'note' },
         h('span', {}, `חסר בפרטי הלקוח: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`),
-        h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEdit(FIELD_INPUT[missing[0]]) }, 'השלמת פרטים')) : null,
+        h('button', { type: 'button', class: 'btn btn-sm', onclick: () => (p.ctx ? openRound(p.ctx.round) : openEdit(FIELD_INPUT[missing[0]])) }, 'השלמת פרטים')) : null,
       p.what ? h('p', { class: 'proc-what' }, p.what) : null,
+      link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${linkDef.label}`) : null,
       ...guidance.map((g) => h('p', { class: 'proc-guide' }, g)),
       p.rule ? h('p', { class: 'proc-rule' }, h('strong', {}, 'חובה: '), p.rule) : null,
       h('ul', { class: 'items' }, ...p.items.map((i) => itemRow(p, i))),
+      bulkButton(x),
     ],
   );
 }
@@ -254,7 +520,7 @@ function itemRow(p, i) {
   const state = c && isResolved(i, c) ? c.state : null;
   const cid = `i-${i.key.replace(/\./g, '-')}`;
   const busy = pending.has(i.key);
-  const block = state ? null : blockers(i, client, checks);
+  const block = state ? null : blockers(i, p.ctx || client, checks);
   const ownOwners = i.owners.join() !== p.owners.join();
   const mine = focusPerson && i.owners.includes(focusPerson);
   const meta = [];
@@ -264,8 +530,8 @@ function itemRow(p, i) {
     if (c.note) meta.push(h('span', { class: 'inote' }, c.state === 'na' ? `סיבה: ${c.note}` : c.note));
   }
   if (block) {
-    const here = block.items.filter((k) => ITEM_INDEX.get(k)?.proc.id === p.id);
-    const there = block.items.filter((k) => !here.includes(k)).map((k) => `${labelOf(k)} (תהליך ${ITEM_INDEX.get(k)?.proc.num})`);
+    const here = block.items.filter((k) => ITEM_INDEX.get(baseKey(k))?.proc.id === p.id.replace(/^r\d+-/, ''));
+    const there = block.items.filter((k) => !here.includes(k)).map((k) => `${labelOf(k)} (תהליך ${ITEM_INDEX.get(baseKey(k))?.proc.num})`);
     const why = [
       ...(here.length > 2 ? [`${here.length} בדיקות למעלה`] : here.map(labelOf)),
       ...there,
@@ -279,17 +545,9 @@ function itemRow(p, i) {
   if (i.optional && !c) meta.push(h('span', { class: 'tag' }, 'אם רלוונטי'));
   if (ownOwners) meta.push(peopleChips(i.owners));
 
-  if (i.recurring) {
-    return h('li', { class: `item recurring${state ? ' is-done' : ''}${mine ? ' is-mine' : ''}` },
-      h('span', { class: `rmark${state ? ' on' : ''}`, 'aria-hidden': 'true' }),
-      h('div', { class: 'ibody' },
-        h('span', { class: 'ilabel' }, i.label),
-        h('div', { class: 'imeta' },
-          c ? h('span', { class: 'by' }, `שיחה אחרונה: ${formatStamp(c.at)} · ${who(c.by_email)}`) : h('span', { class: 'muted' }, 'עוד לא תועדה שיחה'),
-          c?.note ? h('span', { class: 'inote' }, c.note) : null)),
-      h('button', { type: 'button', class: 'btn btn-sm', disabled: busy, onclick: () => openCall(i.key) }, 'תיעוד שיחה'));
-  }
+  if (i.recurring) return callRow(p, i, state, c, busy, mine);
 
+  const calendar = baseKey(i.key) === 'p11.calendar' && !state ? calendarMenu('shoot', roundOfKey(i.key)) : null;
   const naLabel = state === 'na' ? 'החזרה לפתוח' : i.optional ? 'לא נדרש' : 'לא רלוונטי';
   return h('li', { class: `item${state === 'done' ? ' is-done' : ''}${state === 'na' ? ' is-na' : ''}${mine ? ' is-mine' : ''}${busy ? ' is-busy' : ''}${block ? ' is-blocked' : ''}` },
     h('label', { class: 'irow', for: cid },
@@ -301,6 +559,7 @@ function itemRow(p, i) {
       h('span', { class: 'ibody' },
         h('span', { class: 'ilabel' }, i.label, state === 'na' ? h('span', { class: 'tag' }, i.optional ? 'לא נדרש' : 'לא רלוונטי') : null),
         meta.length ? h('span', { class: 'imeta', id: `${cid}-m` }, ...meta) : null)),
+    calendar,
     state === 'done' ? null : h('button', {
       type: 'button', class: `btn-text na-btn${i.optional ? ' is-opt' : ''}`, disabled: busy, id: `${cid}-na`,
       'aria-label': `${naLabel}: ${i.label}`,
@@ -336,11 +595,32 @@ async function mark(key, state, focusId, note = null) {
   }
 }
 
-// ── "Not relevant" needs a reason for required items ──
-const naDlg = $('dlg-na');
+async function saveClient(fields, done) {
+  try {
+    client = await updateClient(id, fields);
+    render();
+    if (done) toast(done);
+    return true;
+  } catch (err) {
+    toast(`${errorText(err)}`);
+    return false;
+  }
+}
+
+// ── Dialogs ─────────────────────────────────
+const dialogs = [];
+function dialog(dlgId, onClose) {
+  const d = $(dlgId);
+  dialogs.push(d);
+  d.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === d) d.close(); });
+  if (onClose) d.addEventListener('close', onClose);
+  return d;
+}
+const showErr = (elId, msg) => { $(elId).textContent = msg; $(elId).hidden = false; };
+
+// "Not relevant" needs a reason for required items.
 let naTarget = null;
-naDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === naDlg) naDlg.close(); });
-naDlg.addEventListener('close', () => { if (naTarget) document.getElementById(naTarget.focusId)?.focus(); });
+const naDlg = dialog('dlg-na', () => { if (naTarget) document.getElementById(naTarget.focusId)?.focus(); });
 function openNa(item, focusId) {
   naTarget = { item, focusId };
   $('na-form').reset();
@@ -352,31 +632,258 @@ function openNa(item, focusId) {
 $('na-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const reason = $('na-reason').value.trim();
-  if (!reason) { $('na-err').textContent = 'כתבו בקצרה למה הפריט לא רלוונטי ללקוח הזה.'; $('na-err').hidden = false; $('na-reason').focus(); return; }
+  if (!reason) { showErr('na-err', 'כתבו בקצרה למה הפריט לא רלוונטי ללקוח הזה.'); $('na-reason').focus(); return; }
   $('na-submit').disabled = true;
   const ok = await mark(naTarget.item.key, 'na', naTarget.focusId, reason);
   $('na-submit').disabled = false;
   if (ok) naDlg.close();
 });
 
-// ── Weekly call ─────────────────────────────
-const callDlg = $('dlg-call');
+// Waiting on the client: a reason is required, a recheck date is optional.
+let waitTarget = null;
+const waitDlg = dialog('dlg-wait');
+function nextBusinessDayIso() {
+  const d = new Date();
+  do d.setDate(d.getDate() + 1); while (!isBusinessDay(d));
+  return d.toLocaleDateString('en-CA');
+}
+function openWait(x) {
+  waitTarget = x;
+  $('wait-form').reset();
+  $('wait-err').hidden = true;
+  $('wait-ctx').textContent = `${client.name} · תהליך ${x.proc.num} · ${x.proc.title}`;
+  $('wait-reason').value = x.wait?.reason || '';
+  $('wait-recheck').value = x.wait?.recheck || nextBusinessDayIso();
+  waitDlg.showModal();
+  $('wait-reason').focus();
+}
+$('wait-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const reason = $('wait-reason').value.trim();
+  if (!reason) { showErr('wait-err', 'כתבו בקצרה למה ממתינים, כדי שמי שבודק יידע מה לבקש מהלקוח.'); $('wait-reason').focus(); return; }
+  $('wait-submit').disabled = true;
+  const key = WAIT(waitTarget.proc);
+  const hadWait = !!checks[key];
+  const ok = await mark(key, 'done', null, waitNote(reason, $('wait-recheck').value || null));
+  $('wait-submit').disabled = false;
+  if (!ok) return;
+  waitDlg.close();
+  const x = waitTarget;
+  toast(`תהליך ${x.proc.num} סומן כממתין ללקוח.`, hadWait ? null : { label: 'ביטול', run: () => mark(key, null, null) });
+});
+
+// The weekly call: nine topics from process 31 and tasks that came up.
+const callDlg = dialog('dlg-call');
 let callKey = null;
-callDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === callDlg) callDlg.close(); });
+let callRows = 0;
+const callNote = (c) => {
+  try { const v = JSON.parse(c?.note || ''); if (v && v.topics) return v; } catch { /* plain text */ }
+  return c?.note ? { text: c.note } : null;
+};
+function callSummary(v) {
+  if (!v) return null;
+  if (v.text) return h('dl', { class: 'call-sum' }, h('dt', {}, 'סיכום'), h('dd', {}, v.text));
+  return h('dl', { class: 'call-sum' }, ...CALL_TOPICS.filter(([k]) => v.topics[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, v.topics[k])]));
+}
+const pastCalls = (key) => log.filter((r) => r.item_key === key && r.action === 'done').map((r) => ({ ...r, v: callNote(r) }));
+function callTasks(call) {
+  if (!call) return [];
+  const t0 = new Date(call.at).getTime();
+  return tasks.filter((t) => t.source === 'p31' && Math.abs(new Date(t.created_at).getTime() - t0) < 15 * 6e4);
+}
+function callRow(p, i, state, c, busy, mine) {
+  const calls = pastCalls(i.key);
+  const last = callNote(c);
+  const when = last?.at || c?.at;
+  return h('li', { class: `item recurring${state ? ' is-done' : ''}${mine ? ' is-mine' : ''}` },
+    h('span', { class: `rmark${state ? ' on' : ''}`, 'aria-hidden': 'true' }),
+    h('div', { class: 'ibody' },
+      h('span', { class: 'ilabel' }, i.label),
+      h('div', { class: 'imeta' },
+        c ? h('span', { class: 'by' }, `שיחה אחרונה: ${formatStamp(when)} · ${who(c.by_email)}`) : h('span', { class: 'muted' }, 'עוד לא תועדה שיחה')),
+      last ? h('details', { class: 'call-show' }, h('summary', {}, 'הצגת הסיכום'), callSummary(last)) : null,
+      calls.length > 1 ? h('details', { class: 'call-show' }, h('summary', {}, `שיחות קודמות (${calls.length - 1})`),
+        h('ul', { class: 'call-list' }, ...calls.slice(1).map((r) => h('li', {},
+          h('details', {}, h('summary', {}, `${formatStamp(r.v?.at || r.at)} · ${who(r.by_email)} · ${callTasks(r).length} משימות`), callSummary(r.v)))))) : null),
+    h('button', { type: 'button', class: 'btn btn-sm', disabled: busy, onclick: () => openCall(i.key) }, 'תיעוד שיחה'));
+}
+function addCallTask(focus = true) {
+  callRows += 1;
+  const n = callRows;
+  const row = h('div', { class: 'call-task', id: `ct-${n}` },
+    h('div', { class: 'field grow' }, h('label', { for: `ct-${n}-t` }, 'מה צריך לעשות'), h('input', { class: 'input', id: `ct-${n}-t`, autocomplete: 'off' })),
+    h('div', { class: 'field' }, h('label', { for: `ct-${n}-o` }, 'מי מבצע'),
+      h('select', { class: 'input', id: `ct-${n}-o` }, h('option', { value: '' }, 'בחירה…'), ...Object.values(PEOPLE).map((pp) => h('option', { value: pp.key }, pp.name)))),
+    h('div', { class: 'field' }, h('label', { for: `ct-${n}-d` }, 'עד תאריך'), h('input', { class: 'input', id: `ct-${n}-d`, type: 'date', dir: 'ltr' })),
+    h('button', {
+      type: 'button', class: 'btn-text', 'aria-label': `הסרת המשימה ${n}`,
+      onclick: () => {
+        const prev = row.previousElementSibling;
+        row.remove();
+        updateCallSubmit();
+        (prev?.querySelector('input') || $('call-add-task')).focus();
+      },
+    }, 'הסרה'));
+  row.addEventListener('input', updateCallSubmit);
+  $('call-tasks').append(row);
+  updateCallSubmit();
+  if (focus) $(`ct-${n}-t`).focus();
+}
+function callTaskRows() {
+  return [...$('call-tasks').querySelectorAll('.call-task')].map((r) => {
+    const [t, o, d] = r.querySelectorAll('input, select');
+    return { row: r, t, o, title: t.value.trim(), owner: o.value, due: d.value || null };
+  }).filter((x) => x.title || x.owner);
+}
+function updateCallSubmit() {
+  const n = callTaskRows().length;
+  $('call-submit').textContent = n ? `שמירת השיחה ו־${n} משימות` : 'שמירת השיחה';
+}
+$('call-add-task').addEventListener('click', () => addCallTask());
+let callSavedFor = null; // a call already saved while some of its tasks failed
 function openCall(key) {
   callKey = key;
+  callSavedFor = null;
   $('call-form').reset();
   $('call-err').hidden = true;
+  $('call-h').textContent = `תיעוד שיחה שבועית · ${client.name}`;
+  const pad = (n) => String(n).padStart(2, '0');
+  const d = new Date();
+  $('call-at').value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  fill($('call-topics'), ...CALL_TOPICS.map(([k, l]) => h('div', { class: 'field' },
+    h('label', { for: `call-${k}` }, l), h('textarea', { class: 'input', id: `call-${k}`, rows: '1', maxlength: '500' }))));
+  for (const el of $('call-topics').querySelectorAll('input, textarea')) el.disabled = false;
+  fill($('call-tasks'));
+  callRows = 0;
+  updateCallSubmit();
+  const prev = pastCalls(key)[0];
+  fill($('call-prev'), prev ? h('details', { class: 'call-prev' },
+    h('summary', {}, `מהשיחה הקודמת (${formatStamp(prev.v?.at || prev.at)} · ${who(prev.by_email)})`),
+    prev.v?.topics ? h('dl', { class: 'call-sum' }, ...[['upcoming', 'תכנים עתידיים'], ['requests', 'בקשות חדשות'], ['improve', 'דברים שצריך לשפר']]
+      .filter(([k]) => prev.v.topics[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, prev.v.topics[k])])) : callSummary(prev.v),
+    (() => {
+      const ts = callTasks(prev);
+      return ts.length ? h('ul', { class: 'call-list' }, ...ts.map((t) => h('li', {}, `${t.title} · `,
+        t.done_at ? 'בוצע' : `פתוח · ${PEOPLE[t.owner]?.name || t.owner}${t.due_on ? ` · עד ${formatDay(t.due_on)}` : ''}`))) : null;
+    })()) : null);
   callDlg.showModal();
-  $('call-note').focus();
+  $('call-campaigns').focus();
 }
 $('call-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  $('call-err').hidden = true;
+  const topics = Object.fromEntries(CALL_TOPICS.map(([k]) => [k, $(`call-${k}`).value.trim()]).filter(([, v]) => v));
+  if (!callSavedFor && !Object.keys(topics).length) { showErr('call-err', 'לא נכתב דבר בסיכום. כתבו לפחות נושא אחד שעלה בשיחה.'); $('call-campaigns').focus(); return; }
+  const rows = callTaskRows();
+  for (const r of rows) {
+    r.t.removeAttribute('aria-invalid'); r.o.removeAttribute('aria-invalid');
+    if (r.title && !r.owner) { r.o.setAttribute('aria-invalid', 'true'); showErr('call-err', `בחרו מי מבצע את המשימה ״${r.title}״.`); r.o.focus(); return; }
+    if (!r.title && r.owner) { r.t.setAttribute('aria-invalid', 'true'); showErr('call-err', 'כתבו מה צריך לעשות, או הסירו את השורה.'); r.t.focus(); return; }
+  }
   $('call-submit').disabled = true;
-  const ok = await mark(callKey, 'done', null, $('call-note').value.trim() || null);
+  if (!callSavedFor) {
+    const at = $('call-at').value ? new Date($('call-at').value).toISOString() : new Date().toISOString();
+    const ok = await mark(callKey, 'done', null, JSON.stringify({ v: 1, at, topics }));
+    if (!ok) { showErr('call-err', 'השיחה לא נשמרה. הטקסט נשאר כאן.'); $('call-submit').disabled = false; return; }
+    callSavedFor = callKey;
+  }
+  const failed = [];
+  for (const r of rows) {
+    try {
+      const t = await addTask({ client_id: id, title: r.title, owner: r.owner, due_on: r.due, source: 'p31' });
+      tasks = [t, ...tasks];
+      r.row.remove();
+    } catch { failed.push(r); }
+  }
   $('call-submit').disabled = false;
-  if (ok) { callDlg.close(); toast('השיחה תועדה.'); }
+  renderTasks();
+  render();
+  if (failed.length) {
+    for (const el of $('call-topics').querySelectorAll('textarea')) el.disabled = true;
+    showErr('call-err', `השיחה נשמרה, אבל ${failed.length === 1 ? 'משימה אחת לא נשמרה' : `${failed.length} משימות לא נשמרו`}. נסו לשמור שוב.`);
+    updateCallSubmit();
+    return;
+  }
+  callDlg.close();
+  const owners = rows.map((r) => PEOPLE[r.owner].name);
+  toast(rows.length ? `השיחה תועדה, ונפתחו ${rows.length} משימות (${owners.join(', ')}).` : 'השיחה תועדה.');
 });
+
+// Cancelling a client opened from an agreement: closed with a reason, never deleted.
+const cancelDlg = dialog('dlg-cancel');
+function openCancel() {
+  $('cancel-form').reset();
+  $('cancel-err').hidden = true;
+  cancelDlg.showModal();
+  $('cancel-reason').focus();
+}
+$('cancel-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const reason = $('cancel-reason').value.trim();
+  if (!reason) { showErr('cancel-err', 'כתבו בקצרה למה ההסכם בוטל.'); $('cancel-reason').focus(); return; }
+  $('cancel-submit').disabled = true;
+  const ok = await saveClient({ status: 'cancelled', closed_reason: reason }, 'הלקוח נסגר. ההיסטוריה שלו נשמרה.');
+  $('cancel-submit').disabled = false;
+  if (ok) cancelDlg.close();
+});
+
+// Extra shoot rounds.
+const roundDlg = dialog('dlg-round');
+let roundEditing = null;
+function openRound(n = null) {
+  roundEditing = n;
+  const rounds = roundsOf(client);
+  const r = n ? rounds.find((x) => x.n === n) : null;
+  const nextN = n || rounds.length + 2;
+  const total = client.deliverables?.shoot_days;
+  $('round-form').reset();
+  $('round-err').hidden = true;
+  $('round-h').textContent = `סבב צילום ${nextN}`;
+  $('round-type').value = r?.shoot_type || client.shoot_type || 'natali';
+  const pad = (v) => String(v).padStart(2, '0');
+  const d = r?.shoot_at ? new Date(r.shoot_at) : null;
+  $('round-at').value = d ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
+  $('round-note').hidden = !!n;
+  const over = !n && total !== undefined && nextN > total;
+  $('round-extra-wrap').hidden = !over;
+  $('round-extra-text').textContent = `בחבילה של הלקוח כלולים ${total} ימי צילום, וזה יהיה הסבב ה־${nextN}. נרכש יום צילום נוסף`;
+  $('round-submit').textContent = n ? 'שמירת הסבב' : 'הוספת הסבב';
+  roundDlg.showModal();
+  $('round-type').focus();
+}
+$('round-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!$('round-extra-wrap').hidden && !$('round-extra').checked) {
+    showErr('round-err', 'סמנו שנרכש יום צילום נוסף, או בטלו את הוספת הסבב.');
+    $('round-extra').focus();
+    return;
+  }
+  const rounds = roundsOf(client);
+  const at = $('round-at').value ? new Date($('round-at').value).toISOString() : null;
+  const next = roundEditing
+    ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at } : r))
+    : [...rounds, { n: rounds.length + 2, shoot_type: $('round-type').value, shoot_at: at, start_at: new Date().toISOString() }];
+  $('round-submit').disabled = true;
+  try {
+    client = await updateClient(id, { rounds: next });
+    roundDlg.close();
+    const n = roundEditing || rounds.length + 2;
+    openPhases.add(`round-${n}`);
+    render();
+    if (!roundEditing) {
+      toast(`נוסף סבב צילום ${n}. תהליך 11 (קביעת יום צילום) פתוח אצל עירית.`);
+      document.getElementById(`r${n}-p11`)?.scrollIntoView({ block: 'start' });
+    } else toast('הסבב נשמר.');
+  } catch (err) {
+    showErr('round-err', `הסבב לא נוסף. ${errorText(err)}`);
+  }
+  $('round-submit').disabled = false;
+});
+async function deleteRound(n) {
+  if (!confirm(`למחוק את סבב צילום ${n}? אין בו סימונים.`)) return;
+  const rest = roundsOf(client).filter((r) => r.n !== n);
+  if (await saveClient({ rounds: rest }, `סבב צילום ${n} נמחק.`)) openPhases.delete(`round-${n}`);
+}
 
 // ── Tasks ───────────────────────────────────
 fill($('task-owner'), ...Object.values(PEOPLE).map((p) => h('option', { value: p.key }, p.name)));
@@ -394,6 +901,7 @@ function renderTasks() {
           h('span', { class: 'ilabel' }, t.title),
           h('span', { class: 'imeta' },
             personChip(t.owner),
+            t.source === 'p31' ? h('span', { class: 'tag' }, 'מהשיחה השבועית') : null,
             t.due_on ? h('span', { class: `num${late ? ' late' : ''}` }, `${late ? 'באיחור · ' : ''}עד ${formatDay(t.due_on)}`) : null,
             t.done_at ? h('span', { class: 'by' }, `בוצע · ${who(t.done_by_email)} · ${formatStamp(t.done_at)}`) : h('span', { class: 'by' }, `נפתח ע״י ${who(t.created_by_email)} · ${formatStamp(t.created_at)}`)))));
   };
@@ -435,37 +943,57 @@ $('task-form').addEventListener('submit', async (e) => {
 
 // ── History ─────────────────────────────────
 const ACTION = { done: 'סימן/ה כבוצע', na: 'סימן/ה לא רלוונטי', clear: 'ביטל/ה סימון' };
+function historyText(r) {
+  const round = roundOfKey(r.item_key);
+  const pre = round > 1 ? `סבב ${round} · ` : '';
+  const base = baseKey(r.item_key);
+  const mk = /^(p\d+b?)\.(claim|wait)$/.exec(base);
+  if (mk) {
+    const num = PROCESSES.find((p) => p.id === mk[1])?.num;
+    if (mk[2] === 'claim') return `${r.action === 'clear' ? 'שחרר/ה' : 'לקח/ה'} את תהליך ${pre}${num}`;
+    return r.action === 'clear' ? `סיים/ה המתנה ללקוח בתהליך ${pre}${num}`
+      : `סימן/ה ממתין ללקוח בתהליך ${pre}${num}: ${parseWaitNote(r.note).reason}`;
+  }
+  if (base === 'p31.call' && r.action === 'done') return `תיעד/ה שיחה שבועית`;
+  return null;
+}
 async function loadHistory() {
-  let log = [];
   try { log = await loadLog(id); } catch { return; }
   fill($('hist-list'), ...(log.length ? log.map((r) => {
-    const claimed = /\.claim$/.test(r.item_key);
-    const ref = ITEM_INDEX.get(r.item_key);
-    const procNum = PROCESSES.find((p) => CLAIM(p) === r.item_key)?.num;
-    const text = claimed
-      ? (r.action === 'clear' ? `שחרר/ה את תהליך ${procNum}` : `לקח/ה את תהליך ${procNum}`)
-      : `${ACTION[r.action]}: `;
+    const special = historyText(r);
+    const ref = ITEM_INDEX.get(baseKey(r.item_key));
+    const round = roundOfKey(r.item_key);
+    const procId = round > 1 ? `r${round}-${ref?.proc.id}` : ref?.proc.id;
     return h('li', {},
       h('span', { class: 'num muted' }, formatStamp(r.at)), ' ',
-      h('strong', {}, who(r.by_email)), ` ${text}`,
-      !claimed && ref ? h('a', { href: `#${ref.proc.id}`, onclick: (e) => { e.preventDefault(); goTo(ref.proc.id); } }, `${ref.proc.num} · ${ref.item.label}`) : null,
-      !claimed && !ref ? r.item_key : null,
-      r.note && !claimed ? h('div', { class: 'inote' }, r.note) : null);
+      h('strong', {}, who(r.by_email)), ` ${special || `${ACTION[r.action]}: `}`,
+      !special && ref ? h('a', { href: `#${procId}`, onclick: (e) => { e.preventDefault(); goTo(procId); } }, `${round > 1 ? `סבב ${round} · ` : ''}${ref.proc.num} · ${ref.item.label}`) : null,
+      !special && !ref ? r.item_key : null,
+      r.note && !special && r.note !== 'בסימון כל התהליך' ? h('div', { class: 'inote' }, r.note) : null);
   }) : [h('li', { class: 'empty' }, 'עוד לא סומן דבר.')]));
+  // The last call summary may have changed.
+  if (!pending.size) renderKeepingFocus();
 }
 
 // ── Edit client ─────────────────────────────
-const edDlg = $('dlg-edit');
-edDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === edDlg) edDlg.close(); });
+const edDlg = dialog('dlg-edit');
 const pad = (n) => String(n).padStart(2, '0');
 const toLocal = (v) => { if (!v) return ''; const d = new Date(v); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const fromLocal = (v) => (v ? new Date(v).toISOString() : null);
+const DELIV_FIELDS = [...DELIVERABLES.map((x) => [x.key, x.label]), ['shoot_days', 'ימי צילום']];
+fill($('ed-deliv'), ...DELIV_FIELDS.map(([k, l]) => h('div', { class: 'field' },
+  h('label', { for: `ed-deliv-${k}` }, l), h('input', { class: 'input', id: `ed-deliv-${k}`, type: 'number', min: '0', max: '999', inputmode: 'numeric', dir: 'ltr' }))));
+fill($('ed-links'), ...LINKS.map((l) => h('div', { class: 'field' },
+  h('label', { for: `ed-link-${l.key}` }, l.label),
+  h('input', { class: 'input', id: `ed-link-${l.key}`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: `https://${l.hint}/…`, 'aria-describedby': `ed-link-${l.key}-h` }),
+  h('div', { class: 'hint', id: `ed-link-${l.key}-h` }))));
 
 function openEdit(focusId = 'ed-name') {
   const c = client;
   $('ed-err').hidden = true;
   $('ed-name').value = c.name || '';
   $('ed-business').value = c.business || '';
+  $('ed-address').value = c.address || '';
   $('ed-phone').value = c.phone || '';
   $('ed-package').value = c.package_name || '';
   $('ed-deal').value = toLocal(c.deal_at);
@@ -478,31 +1006,60 @@ function openEdit(focusId = 'ed-name') {
   $('ed-editor').value = c.editor_name || '';
   $('ed-contract-end').value = c.contract_end || '';
   $('ed-notes').value = c.notes || '';
+  for (const [k] of DELIV_FIELDS) $(`ed-deliv-${k}`).value = c.deliverables?.[k] ?? '';
+  for (const l of LINKS) { $(`ed-link-${l.key}`).value = c.links?.[l.key] || ''; $(`ed-link-${l.key}-h`).textContent = ''; $(`ed-link-${l.key}`).removeAttribute('aria-invalid'); }
   edDlg.showModal();
   $(focusId).focus();
 }
+
+// Links only: a password, token or code in the address is refused.
+const SECRET = /[?&#](password|pass|pwd|token|secret|code)=/i;
+function readLinks() {
+  const out = {};
+  for (const l of LINKS) {
+    const input = $(`ed-link-${l.key}`);
+    const v = input.value.trim();
+    const hint = $(`ed-link-${l.key}-h`);
+    input.removeAttribute('aria-invalid');
+    hint.textContent = '';
+    if (!v) continue;
+    if (!/^https:\/\/\S+$/i.test(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'זה לא נראה כמו קישור. העתיקו את הכתובת המלאה, שמתחילה ב־https://', input }; }
+    if (SECRET.test(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'אפשר לשמור כאן רק קישור. סיסמאות וקודי גישה לא נשמרים במערכת.', input }; }
+    const domain = l.hint.split('/')[0].split('.').slice(-2).join('.');
+    if (!v.toLowerCase().includes(domain)) hint.textContent = `הקישור לא נראה כמו קישור של ${l.label}. נשמר בכל זאת.`;
+    out[l.key] = v;
+  }
+  return { links: out };
+}
+
 $('ed-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = $('ed-name').value.trim();
-  const fail = (msg) => { $('ed-err').textContent = msg; $('ed-err').hidden = false; };
-  if (!name) { $('ed-name').focus(); return fail('חסר שם לקוח.'); }
+  const fail = (msg, el) => { showErr('ed-err', msg); el?.focus(); };
+  if (!name) return fail('חסר שם לקוח.', $('ed-name'));
   // Ending a client closes its work only after process 35 is done.
   const status = $('ed-status').value;
   const p35 = PROCESSES.find((p) => p.id === 'p35').items.map((i) => i.key);
   if (status === 'ended' && client.status !== 'ended' && !p35.every((k) => checks[k])) {
-    $('ed-status').focus();
-    return fail('לפני שמסמנים ״הסתיים״ צריך לסגור את תהליך 35 (עצירת קמפיינים, הסרת גישות וסגירת חיבורים). בחרו ״מסיים התקשרות״ כדי שהתהליך יופיע.');
+    return fail('לפני שמסמנים ״הסתיים״ צריך לסגור את תהליך 35 (עצירת קמפיינים, הסרת גישות וסגירת חיבורים). בחרו ״מסיים התקשרות״ כדי שהתהליך יופיע.', $('ed-status'));
+  }
+  const { links, error, input } = readLinks();
+  if (error) return fail(error, input);
+  const deliverables = { ...(client.deliverables || {}) };
+  for (const [k] of DELIV_FIELDS) {
+    const v = $(`ed-deliv-${k}`).value;
+    if (v === '') delete deliverables[k]; else deliverables[k] = Math.max(0, Math.round(Number(v)));
   }
   const val = (i) => $(i).value.trim() || null;
   $('ed-submit').disabled = true;
   try {
     client = await updateClient(id, {
-      name, business: val('ed-business'), phone: val('ed-phone'), package_name: val('ed-package'),
+      name, business: val('ed-business'), address: val('ed-address'), phone: val('ed-phone'), package_name: val('ed-package'),
       deal_at: fromLocal($('ed-deal').value) || client.deal_at, status,
       char_at: fromLocal($('ed-char-at').value), characterizer: val('ed-characterizer'),
       has_logo: $('ed-logo').value === '' ? null : $('ed-logo').value === 'true',
       shoot_type: val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor_name: val('ed-editor'),
-      contract_end: val('ed-contract-end'), notes: val('ed-notes'),
+      contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables,
     });
     edDlg.close();
     render();
@@ -517,7 +1074,8 @@ $('ed-form').addEventListener('submit', async (e) => {
 window.addEventListener('beforeprint', () => { if (client) { printing = true; render(); } });
 window.addEventListener('afterprint', () => { if (client) { printing = false; render(); } });
 
-const busy = () => pending.size || edDlg.open || callDlg.open || naDlg.open;
+// No refresh while something is being saved or typed in a dialog.
+const busy = () => pending.size || Object.keys(saveTimers).length || dialogs.some((d) => d.open);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && client && !busy()) load(); });
 setInterval(() => { if (!document.hidden && client && !busy()) renderKeepingFocus(); }, 60e3);
 

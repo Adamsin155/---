@@ -28,7 +28,8 @@ let failNextCheck = false;
 // Seed: one client mid-way, one just signed.
 const seeded = { id: randomUUID(), name: 'מספרת רון', business: 'רון עיצוב שיער', phone: '052-7654321', package_name: 'Social + TV · דניס, מישל וסמיון',
   shoot_type: 'dms', characterizer: 'ofir', has_logo: true, editor_name: null, deal_at: hoursAgo(80), char_at: hoursAgo(50), shoot_at: daysFromNow(2),
-  contract_end: '2027-09-20', status: 'active', notes: null, quote_id: null, created_at: hoursAgo(80), created_by_email: USER.email };
+  contract_end: '2027-09-20', status: 'active', notes: null, quote_id: null, created_at: hoursAgo(80), created_by_email: USER.email,
+  address: 'הרצל 10, תל אביב', links: {}, deliverables: { videos: 42, graphics: 42, shoot_days: 2, collabs: 3, stories: 3, ch14: 1, done: { videos: 0 } }, rounds: [], verified_at: null, verified_by: null, closed_reason: null };
 const fresh = { ...seeded, id: randomUUID(), name: 'פיצה נאפולי', business: null, phone: null, package_name: null, shoot_type: null, characterizer: null,
   has_logo: null, deal_at: hoursAgo(3), char_at: null, shoot_at: null, contract_end: null };
 db.clients.push(seeded, fresh);
@@ -46,6 +47,8 @@ function applyFilters(rows, params) {
     else if (v.startsWith('neq.')) out = out.filter((r) => String(r[k]) !== v.slice(4));
     else if (v === 'is.null') out = out.filter((r) => r[k] === null || r[k] === undefined);
     else if (v === 'not.is.null') out = out.filter((r) => r[k] !== null && r[k] !== undefined);
+    else if (v.startsWith('in.(')) { const set = v.slice(4, -1).split(',').map((x) => x.replace(/^"|"$/g, '')); out = out.filter((r) => set.includes(String(r[k]))); }
+    else if (v.startsWith('gte.')) out = out.filter((r) => String(r[k]) >= v.slice(4));
   }
   return out;
 }
@@ -97,11 +100,11 @@ async function fakeSupabase(route) {
         db.protocol_log.push({ id: db.protocol_log.length + 1, client_id: r.client_id, item_key: r.item_key, action: r.state, note: r.note, by_email: USER.email, at: now });
         out.push(row);
       } else if (table === 'clients') {
-        const row = { business: null, phone: null, package_name: null, shoot_type: null, characterizer: null, has_logo: null, editor_name: null, char_at: null, shoot_at: null, contract_end: null, status: 'active', notes: null, quote_id: null, deal_at: now, ...r, id: randomUUID(), created_at: now, created_by_email: USER.email };
+        const row = { address: null, links: {}, deliverables: {}, rounds: [], verified_at: null, verified_by: null, closed_reason: null, business: null, phone: null, package_name: null, shoot_type: null, characterizer: null, has_logo: null, editor_name: null, char_at: null, shoot_at: null, contract_end: null, status: 'active', notes: null, quote_id: null, deal_at: now, ...r, id: randomUUID(), created_at: now, created_by_email: USER.email };
         db.clients.push(row);
         out.push(row);
       } else if (table === 'client_tasks') {
-        const row = { due_on: null, done_at: null, done_by_email: null, ...r, id: randomUUID(), created_by_email: USER.email, created_at: now };
+        const row = { due_on: null, done_at: null, done_by_email: null, source: null, ...r, id: randomUUID(), created_by_email: USER.email, created_at: now };
         db.client_tasks.push(row);
         out.push(row);
       }
@@ -260,6 +263,87 @@ await page.fill('#task-title', 'להזמין מאפרת לנטלי');
 await page.selectOption('#task-owner', 'lior');
 await page.click('#task-submit');
 await page.waitForFunction(() => /להזמין מאפרת לנטלי/.test(document.querySelector('#task-list').innerText));
+assert.equal(db.client_tasks.at(-1).owner, 'lior');
+
+// Mark a whole process: process 3 has two items, both Irit's.
+await page.evaluate(() => { document.querySelector('#p03')?.closest('details').setAttribute('open', ''); });
+await page.waitForSelector('#p03-bulk');
+assert.match(await page.locator('#p03-bulk').innerText(), /סימון כל התהליך כבוצע \(2\)/);
+await page.click('#p03-bulk');
+await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('סומנו 2 פריטים'));
+assert.equal(db.protocol_checks.filter((c) => c.client_id === created.id && c.item_key.startsWith('p03.')).length, 2);
+await page.click('.toast-act');
+await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('בוטל'));
+assert.equal(db.protocol_checks.filter((c) => c.client_id === created.id && c.item_key.startsWith('p03.')).length, 0);
+
+// Waiting on the client: a reason is required; the process leaves "overdue".
+await page.click('#p02 .wait-btn');
+await page.waitForSelector('#dlg-wait[open]');
+await page.click('#wait-submit');
+assert.equal(await page.isVisible('#wait-err'), true);
+await page.fill('#wait-reason', 'הלקוח עוד לא הצטרף לקבוצה');
+await page.click('#wait-submit');
+await page.waitForSelector('#p02.s-client');
+assert.match(await page.locator('#p02 .wait-line').innerText(), /הלקוח עוד לא הצטרף לקבוצה/);
+assert.equal(JSON.parse(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p02.wait').note).reason, 'הלקוח עוד לא הצטרף לקבוצה');
+await page.click('#p02 .wait-line button:has-text("סיום המתנה")');
+await page.waitForFunction(() => !document.querySelector('#p02.s-client'));
+
+// Links: passwords are refused, links are saved and shown.
+await page.click('#btn-edit');
+await page.fill('#ed-link-drive', 'https://drive.google.com/x?password=1');
+await page.click('#ed-submit');
+assert.match(await page.locator('#ed-err').innerText(), /סיסמאות/);
+await page.fill('#ed-link-drive', 'https://drive.google.com/drive/folders/abc');
+await page.fill('#ed-address', 'הבונים 5, רמת גן');
+await page.fill('#ed-deliv-videos', '25');
+await page.fill('#ed-deliv-shoot_days', '1');
+await page.click('#ed-submit');
+await page.waitForSelector('.cc-links a.link-chip');
+assert.equal(db.clients.find((c) => c.id === created.id).links.drive, 'https://drive.google.com/drive/folders/abc');
+
+// Package quantities: + saves after a short pause.
+assert.match(await page.locator('#deliv-videos-v').innerText(), /נמסרו 0 מתוך 25/);
+await page.click('#deliv-videos-plus');
+await page.click('#deliv-videos-plus');
+assert.match(await page.locator('#deliv-videos-v').innerText(), /נמסרו 2 מתוך 25/);
+await page.waitForFunction((cid) => true, created.id);
+await page.waitForTimeout(1200);
+assert.equal(db.clients.find((c) => c.id === created.id).deliverables.done.videos, 2);
+
+// Calendar: Google link with the team arriving an hour before the influencers.
+const gcal = await page.locator('.cc-facts details.cal a').nth(1).getAttribute('href');
+assert.match(gcal, /dates=20261011T060000Z%2F20261011T100000Z/); // Natali: 09:00–13:00 Israel time
+
+// Extra shoot round beyond the package asks for a purchased day.
+await page.click('.deliv-row .btn:has-text("הוספת סבב צילום")');
+await page.waitForSelector('#dlg-round[open]');
+await page.click('#round-submit');
+assert.match(await page.locator('#round-err').innerText(), /נרכש יום צילום נוסף/);
+await page.check('#round-extra');
+await page.fill('#round-at', '2027-03-10T10:00');
+await page.click('#round-submit');
+await page.waitForSelector('#r2-p11', { state: 'attached' });
+assert.equal(db.clients.find((c) => c.id === created.id).rounds[0].n, 2);
+assert.equal(await page.locator('#r2-p11b').count(), 1);
+
+// Structured weekly call with a task.
+await page.evaluate(() => document.querySelectorAll('details.phase').forEach((d) => { d.open = true; }));
+await page.click('#p31 .recurring .btn');
+await page.waitForSelector('#dlg-call[open]');
+await page.click('#call-submit');
+assert.match(await page.locator('#call-err').innerText(), /לא נכתב דבר/);
+await page.fill('#call-campaigns', 'קמפיין לידים רץ טוב');
+await page.click('#call-add-task');
+await page.fill('#ct-1-t', 'לשלוח הצעה לסרטון נוסף');
+await page.click('#call-submit');
+assert.match(await page.locator('#call-err').innerText(), /בחרו מי מבצע/);
+await page.selectOption('#ct-1-o', 'lior');
+await page.click('#call-submit');
+await page.waitForFunction(() => !document.querySelector('#dlg-call[open]'));
+const call = db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p31.call');
+assert.equal(JSON.parse(call.note).topics.campaigns, 'קמפיין לידים רץ טוב');
+assert.equal(db.client_tasks.at(-1).source, 'p31');
 assert.equal(db.client_tasks.at(-1).owner, 'lior');
 
 // Reload keeps everything
