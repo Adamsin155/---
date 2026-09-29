@@ -3,10 +3,13 @@
 // import them. Who may do what:
 //  - The owner (staff.person is null): everything.
 //  - Irit and Lior (TEAM_MANAGERS): list the team, add a staff row for someone who
-//    is not a manager, and make sign-in links for anyone but the owner.
-//  - Only the owner sets the vault flag, removes a row, or creates or changes the
-//    owner's row or a manager's row (a manager can make links for others, so that
-//    power is granted by the owner alone).
+//    is not a manager and has no login yet, and make sign-in links for anyone but
+//    the owner, a payouts owner, or (when the manager has no vault) someone with
+//    the vault. A sign-in link lets its holder into that account, so a manager
+//    never gets one that opens more than the manager already has.
+//  - Only the owner sets the vault flag, removes a row, adds an email that already
+//    has a login, or creates or changes the owner's row or a manager's row (a
+//    manager can make links for others, so that power is granted by the owner alone).
 
 // Keep in step with STAFF_PEOPLE in app/protocol.js and TEAM_MANAGERS in
 // app/team-rules.js (the unit tests compare them). A copy, because the deployed
@@ -29,6 +32,8 @@ export const ERR = {
   badPerson: 'bad_person',
   badRedirect: 'bad_redirect',
   personTaken: 'person_taken',
+  emailTaken: 'email_taken',
+  hasLogin: 'has_login',
   ownRole: 'own_role',
   cannotRemoveSelf: 'cannot_remove_self',
   notFound: 'not_found',
@@ -96,22 +101,30 @@ export function corsHeaders(origin, requested) {
   return headers;
 }
 
-// Add or change a staff row. `input` is the request body: { email, person?, vault? };
-// `personTaken` says whether another row already has that person.
-export function planUpsert({ role, callerEmail, existing, input, personTaken = false }) {
+// Add or change a staff row. `input` is the request body: { email, person?, vault?, mode? }.
+// mode 'add' (the team screen's "add an email" form) only ever creates a row: an
+// email already on the list is refused, so a mistyped address never moves someone
+// into another role. `personTaken` says whether another row (not this email)
+// already has the requested person; `hasLogin` whether the email already has a login.
+export function planUpsert({ role, callerEmail, existing, input, personTaken = false, hasLogin = false }) {
   const email = normEmail(input?.email);
   if (!email) return fail(400, ERR.badEmail);
+  if (input.mode !== undefined && input.mode !== 'add') return fail(400, ERR.badRequest);
   const hasPerson = Object.prototype.hasOwnProperty.call(input, 'person');
   const person = hasPerson ? (input.person ?? null) : existing ? (existing.person ?? null) : undefined;
   if (person === undefined) return fail(400, ERR.badPerson);
   if (person !== null && !PERSONS.includes(person)) return fail(400, ERR.badPerson);
   if (input.vault !== undefined && typeof input.vault !== 'boolean') return fail(400, ERR.badRequest);
+  if (input.mode === 'add' && existing) return fail(409, ERR.emailTaken);
   if (role !== 'owner') {
     if (role !== 'manager') return fail(403, ERR.notAllowed);
     if (input.vault !== undefined) return fail(403, ERR.ownerOnly);
     if (existing && isManagerRow(existing)) return fail(403, ERR.ownerOnly);
     if (isManagerRow({ person })) return fail(403, ERR.ownerOnly);
-    if (!existing && personTaken) return fail(409, ERR.personTaken);
+    // A login outside the staff list (a former employee, a payouts owner): once on
+    // the list, a manager could make a sign-in link into it. The owner adds those.
+    if (!existing && hasLogin) return fail(409, ERR.hasLogin);
+    if (personTaken && (!existing || existing.person !== person)) return fail(409, ERR.personTaken);
   } else if (existing && existing.email === callerEmail && person !== (existing.person ?? null)) {
     // The owner does not change their own role here (that would lock them out).
     return fail(409, ERR.ownRole);
@@ -127,11 +140,18 @@ export function planRemove({ role, callerEmail, existing }) {
   return { ok: true };
 }
 
-// A sign-in link only for someone on the staff list; the owner's only by the owner.
-export function planLink({ role, target, redirectTo }) {
+// A sign-in link only for someone on the staff list. The link opens that account,
+// so a manager gets none that opens more than the manager already has: not the
+// owner's, not a payouts owner's (`targetIsPayoutOwner`, by the target's login),
+// and not a vault account's unless the manager (`me`, the caller's staff row) has
+// the vault too.
+export function planLink({ role, me = null, target, redirectTo, targetIsPayoutOwner = false }) {
   if (role !== 'owner' && role !== 'manager') return fail(403, ERR.notAllowed);
   if (!target) return fail(404, ERR.notStaff);
-  if (isOwnerRow(target) && role !== 'owner') return fail(403, ERR.ownerOnly);
+  if (role !== 'owner') {
+    if (isOwnerRow(target) || targetIsPayoutOwner) return fail(403, ERR.ownerOnly);
+    if (target.vault && !me?.vault) return fail(403, ERR.ownerOnly);
+  }
   const page = allowedRedirect(redirectTo);
   if (!page) return fail(400, ERR.badRedirect);
   return { ok: true, page };

@@ -9,7 +9,7 @@
 //
 // POST JSON { action, ... }:
 //   list                           → { caller, rows }
-//   upsert { email, person, vault? } → { ok }
+//   upsert { email, person?, vault?, mode? } → { ok }  (mode 'add': a new row only)
 //   remove { email }               → { ok }            (owner only; the login itself stays)
 //   link   { email, redirectTo }   → { link, type }    ('invite' or 'recovery')
 // Errors: { error: code } with the codes in ERR. Links and tokens are never logged.
@@ -44,6 +44,14 @@ async function staffRow(email: string): Promise<Row | null> {
   const { data, error } = await admin.from('staff').select('email, person, vault, created_at').eq('email', email).maybeSingle();
   if (error) throw error;
   return data as Row | null;
+}
+
+// payout_owners is keyed by the login, not by the staff row. An error stops the
+// link (throws) rather than skipping the check.
+async function isPayoutOwner(userId: string): Promise<boolean> {
+  const { data, error } = await admin.from('payout_owners').select('user_id').eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return !!data;
 }
 
 // The latest link made for each email (the log is optional: without its table the list still works).
@@ -99,7 +107,7 @@ Deno.serve(async (req) => {
         ]);
         if (error) throw error;
         return json(200, {
-          caller: { email: callerEmail, person: me!.person ?? null, owner: role === 'owner' },
+          caller: { email: callerEmail, person: me!.person ?? null, owner: role === 'owner', vault: !!me!.vault },
           rows: (rows as Row[]).map((r) => summarize(r, users.get(r.email) ?? null, links.get(r.email) ?? null)),
         });
       }
@@ -108,13 +116,20 @@ Deno.serve(async (req) => {
         const email = normEmail(body.email);
         if (!email) return json(400, { error: ERR.badEmail });
         const existing = await staffRow(email);
+        // What only a manager's request is checked against (see planUpsert): another
+        // row with the same person, and a login that is not on the staff list yet.
         let personTaken = false;
-        if (!existing && typeof body.person === 'string') {
-          const { count, error } = await admin.from('staff').select('email', { count: 'exact', head: true }).eq('person', body.person);
-          if (error) throw error;
-          personTaken = (count ?? 0) > 0;
+        let hasLogin = false;
+        if (role === 'manager') {
+          if (typeof body.person === 'string' && body.person !== existing?.person) {
+            const { count, error } = await admin.from('staff').select('email', { count: 'exact', head: true })
+              .eq('person', body.person).neq('email', email);
+            if (error) throw error;
+            personTaken = (count ?? 0) > 0;
+          }
+          if (!existing) hasLogin = (await authUsers()).has(email);
         }
-        const plan: Plan = planUpsert({ role, callerEmail, existing, input: body, personTaken });
+        const plan: Plan = planUpsert({ role, callerEmail, existing, input: body, personTaken, hasLogin });
         if (!plan.ok) return json(plan.status!, { error: plan.error });
         const { error } = plan.insert
           ? await admin.from('staff').insert(plan.row)
@@ -140,10 +155,11 @@ Deno.serve(async (req) => {
         const email = normEmail(body.email);
         if (!email) return json(400, { error: ERR.badEmail });
         const target = await staffRow(email);
-        const plan: Plan = planLink({ role, target, redirectTo: body.redirectTo });
+        const authUser = target ? (await authUsers()).get(email) ?? null : null;
+        const targetIsPayoutOwner = role === 'manager' && authUser ? await isPayoutOwner(authUser.id) : false;
+        const plan: Plan = planLink({ role, me, target, redirectTo: body.redirectTo, targetIsPayoutOwner });
         if (!plan.ok) return json(plan.status!, { error: plan.error });
-        const users = await authUsers();
-        const type = linkTypeFor(users.get(email) ?? null);
+        const type = linkTypeFor(authUser);
         const options = { redirectTo: plan.page as string };
         const { data, error } = type === 'invite'
           ? await admin.auth.admin.generateLink({ type: 'invite', email, options })

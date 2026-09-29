@@ -21,6 +21,8 @@ const ERRORS = {
   bad_person: 'התפקיד לא מוכר. רעננו את הדף.',
   bad_redirect: 'הקישור לא נוצר, כי העמוד נפתח מכתובת לא מוכרת. פתחו אותו מהכתובת הרגילה של המערכת.',
   person_taken: 'לאדם הזה כבר יש כתובת. להחלפת כתובת פנו לבעלים.',
+  email_taken: 'הכתובת כבר שייכת למישהו אחר בצוות.',
+  has_login: 'לכתובת הזו כבר יש חשבון במערכת. רק הבעלים יכול להוסיף אותה לצוות.',
   own_role: 'אי אפשר לשנות כאן את התפקיד של עצמך.',
   cannot_remove_self: 'אי אפשר להסיר את עצמך.',
   not_found: 'השורה כבר לא קיימת. רעננו את הדף.',
@@ -154,9 +156,14 @@ function linkPanel(e) {
       + `הוא תקף ל${LINK_VALID_FOR} ולכניסה אחת. אם פג או הלך לאיבוד, יוצרים כאן קישור חדש בכל רגע.`));
 }
 
+// A link opens that account, so Irit and Lior make none for the owner, nor for
+// someone with the vault when they have no vault themselves (the function checks
+// the same, and also refuses a payouts owner's login).
+const linkOnlyByOwner = (row) => !caller?.owner && (row.person === null || (row.vault && !caller?.vault));
+
 function rowView(e) {
   const me = e.row && caller && e.row.email === caller.email;
-  const canLink = !!e.row && (caller?.owner || e.person !== null);
+  const canLink = !!e.row && !linkOnlyByOwner(e.row);
   const canRemove = !!e.row && caller?.owner && !me;
   const pending = e.row && busy.has(e.row.email);
   return h('li', { class: 'tm-row', id: `row-${e.id}`, 'data-person': e.person ?? 'owner' },
@@ -169,7 +176,8 @@ function rowView(e) {
       canLink ? h('button', {
         type: 'button', class: 'btn btn-sm', id: `mklink-${e.id}`, disabled: pending, onclick: () => makeLink(e),
         'aria-label': `${links.has(e.row.email) ? 'קישור כניסה חדש' : 'יצירת קישור כניסה'} ל${e.name}`,
-      }, links.has(e.row.email) ? 'קישור חדש' : 'יצירת קישור כניסה') : null,
+      }, links.has(e.row.email) ? 'קישור חדש' : 'יצירת קישור כניסה')
+        : e.row && !me ? h('span', { class: 'muted tm-owner-link', id: `ownerlink-${e.id}` }, 'רק הבעלים יוצר קישור כניסה לחשבון הזה.') : null,
       canRemove ? h('button', {
         type: 'button', class: 'btn-text tm-remove', id: `remove-${e.id}`, disabled: pending, onclick: () => removeRow(e),
         'aria-label': `הסרת ${e.name} מהצוות`,
@@ -193,7 +201,16 @@ async function addEmail(e, inputId) {
     toast(ERRORS.bad_email);
     return;
   }
-  const ok = await run(email, () => call('upsert', { email, person: e.person }));
+  // Someone else's address: say whose, and change nothing (the function refuses it too).
+  const other = rows.find((r) => r.email === email);
+  if (other) {
+    input.setAttribute('aria-invalid', 'true');
+    input.focus();
+    toast(`הכתובת כבר שייכת ${other.person === null ? 'לבעלים' : `ל${nameOfEmail(email)}`}.`);
+    return;
+  }
+  input.removeAttribute('aria-invalid');
+  const ok = await run(email, () => call('upsert', { email, person: e.person, mode: 'add' }));
   if (!ok) return;
   toast(`הכתובת של ${e.name} נשמרה. עכשיו אפשר ליצור קישור כניסה.`);
   await load();

@@ -26,6 +26,8 @@ addUser('irit@astrateg.test', { last_sign_in_at: hoursAgo(2) });
 addUser('lior@astrateg.test', { last_sign_in_at: hoursAgo(26) });
 addUser('ofir@astrateg.test', { email_confirmed_at: null, invited_at: hoursAgo(30) });
 addUser('yariv@astrateg.test', { last_sign_in_at: hoursAgo(3) });
+// A payouts owner's login that is not on the staff list.
+const payoutOwners = new Set([addUser('books@astrateg.test', { last_sign_in_at: hoursAgo(5) }).id]);
 const staff = [
   { email: 'owner@astrateg.test', person: null, vault: true, created_at: hoursAgo(900) },
   { email: 'irit@astrateg.test', person: 'irit', vault: true, created_at: hoursAgo(800) },
@@ -58,14 +60,18 @@ function staffAdmin(caller, body) {
   if (!role) return [403, { error: 'not_allowed' }];
   const find = (email) => staff.find((r) => r.email === email) || null;
   if (body.action === 'list') {
-    return [200, { caller: { email: caller.email, person: me.person, owner: role === 'owner' }, rows: staff.map((r) => summarize(r, users.get(r.email), lastLink.get(r.email))) }];
+    return [200, { caller: { email: caller.email, person: me.person, owner: role === 'owner', vault: !!me.vault }, rows:staff.map((r) => summarize(r, users.get(r.email), lastLink.get(r.email))) }];
   }
   const email = normEmail(body.email);
   if (!email) return [400, { error: 'bad_email' }];
   if (body.action === 'upsert') {
     const existing = find(email);
-    const personTaken = !existing && staff.some((r) => r.person === body.person);
-    const plan = planUpsert({ role, callerEmail: caller.email, existing, input: body, personTaken });
+    // As in index.ts: checked for a manager only.
+    const manager = role === 'manager';
+    const personTaken = manager && typeof body.person === 'string' && body.person !== existing?.person
+      && staff.some((r) => r.person === body.person && r.email !== email);
+    const hasLogin = manager && !existing && users.has(email);
+    const plan = planUpsert({ role, callerEmail: caller.email, existing, input: body, personTaken, hasLogin });
     if (!plan.ok) return [plan.status, { error: plan.error }];
     if (existing) Object.assign(existing, { person: plan.row.person, vault: plan.row.vault });
     else staff.push({ ...plan.row, created_at: new Date().toISOString() });
@@ -79,9 +85,12 @@ function staffAdmin(caller, body) {
     return [200, { ok: true }];
   }
   if (body.action === 'link') {
-    const plan = planLink({ role, target: find(email), redirectTo: body.redirectTo });
+    const target = find(email);
+    const authUser = target ? users.get(email) || null : null;
+    const targetIsPayoutOwner = role === 'manager' && !!authUser && payoutOwners.has(authUser.id);
+    const plan = planLink({ role, me, target, redirectTo: body.redirectTo, targetIsPayoutOwner });
     if (!plan.ok) return [plan.status, { error: plan.error }];
-    const type = linkTypeFor(users.get(email) || null);
+    const type = linkTypeFor(authUser);
     if (type === 'invite') addUser(email, { email_confirmed_at: null, invited_at: new Date().toISOString() });
     const hash = randomBytes(16).toString('hex');
     tokens.set(hash, { email, type, used: false });
@@ -208,11 +217,24 @@ await step('owner adds Eli\'s email and creates an invite link: copy and WhatsAp
   await owner.click('#save-eli');
   await toastHas(owner, 'כתובת המייל לא תקינה');
   assert.equal(await owner.getAttribute('#email-eli', 'aria-invalid'), 'true');
+  // Someone else's address is refused, and their row stays as it was.
+  const upserts = fnCalls.filter((c) => c.action === 'upsert').length;
+  await owner.fill('#email-eli', 'Yariv@Astrateg.test');
+  await owner.click('#save-eli');
+  await toastHas(owner, 'הכתובת כבר שייכת ליריב');
+  assert.equal(await owner.getAttribute('#email-eli', 'aria-invalid'), 'true');
+  assert.equal(fnCalls.filter((c) => c.action === 'upsert').length, upserts, 'nothing is sent');
+  assert.deepEqual(staffAdmin(users.get('owner@astrateg.test'), { action: 'upsert', mode: 'add', email: 'yariv@astrateg.test', person: 'eli' }),
+    [409, { error: 'email_taken' }], 'the function refuses it too');
+  assert.equal(staff.find((r) => r.email === 'yariv@astrateg.test').person, 'yariv');
+  assert.match(await text(owner, '#row-yariv'), /yariv@astrateg\.test/);
   await owner.fill('#email-eli', ' Eli@Astrateg.TEST ');
   await owner.click('#save-eli');
   await owner.waitForSelector('#mklink-eli');
   assert.deepEqual(staff.at(-1).email, 'eli@astrateg.test');
   assert.deepEqual([staff.at(-1).person, staff.at(-1).vault], ['eli', false]);
+  assert.deepEqual(fnCalls.filter((c) => c.action === 'upsert').at(-1),
+    { by: 'owner@astrateg.test', action: 'upsert', email: 'eli@astrateg.test', person: 'eli', mode: 'add' });
   assert.match(await text(owner, '#row-eli'), /eli@astrateg\.test/);
 
   await owner.click('#mklink-eli');
@@ -269,14 +291,15 @@ await step('clients.html shows the team link to the owner', async () => {
 });
 
 // ── Irit ──────────────────────────────────
+const irit = await newPage();
 await step('Irit manages the team without the owner\'s powers', async () => {
-  const irit = await newPage();
   await signIn(irit, 'team.html', 'irit@astrateg.test');
   await irit.waitForSelector('#team-list .tm-row');
   assert.equal(await irit.locator('.tm-vault-btn').count(), 0, 'no vault switch');
   assert.ok(await irit.locator('.tm-vault').count() > 0, 'the vault shows as a badge');
   assert.equal(await irit.locator('.tm-remove').count(), 0, 'no removing');
   assert.equal(await irit.locator('#mklink-owner').count(), 0, 'no link for the owner');
+  assert.equal(await text(irit, '#ownerlink-owner'), 'רק הבעלים יוצר קישור כניסה לחשבון הזה.');
   assert.match(await text(irit, '#row-irit'), /זה אני/);
   await irit.click('#mklink-ofir');
   await irit.waitForSelector('#link-ofir');
@@ -290,6 +313,61 @@ await step('Irit manages the team without the owner\'s powers', async () => {
   await irit.goto(`${BASE}clients.html`);
   await irit.waitForSelector('#app:not([hidden])');
   await irit.waitForFunction(() => !document.getElementById('nav-team').hidden);
+});
+
+await step('Irit cannot put a login that is not on the team, or someone else\'s address, into a row', async () => {
+  await irit.goto(`${BASE}team.html`);
+  await irit.waitForSelector('#email-anna');
+  const before = staff.length;
+  await irit.fill('#email-anna', 'books@astrateg.test');
+  await irit.click('#save-anna');
+  await toastHas(irit, 'לכתובת הזו כבר יש חשבון במערכת. רק הבעלים יכול להוסיף אותה לצוות.');
+  assert.deepEqual(fnCalls.filter((c) => c.action === 'upsert').at(-1),
+    { by: 'irit@astrateg.test', action: 'upsert', email: 'books@astrateg.test', person: 'anna', mode: 'add' });
+  assert.equal(staff.length, before);
+  await irit.fill('#email-anna', 'yariv@astrateg.test');
+  await irit.click('#save-anna');
+  await toastHas(irit, 'הכתובת כבר שייכת ליריב');
+  assert.equal(await irit.getAttribute('#email-anna', 'aria-invalid'), 'true');
+  assert.equal(staff.find((r) => r.email === 'yariv@astrateg.test').person, 'yariv');
+  assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'upsert', mode: 'add', email: 'yariv@astrateg.test', person: 'anna' }),
+    [409, { error: 'email_taken' }]);
+});
+
+await step('a payouts owner\'s login gets a link from the owner only', async () => {
+  // The owner may put that login on the team (it has no link of its own yet).
+  await owner.goto(`${BASE}team.html`);
+  await owner.waitForSelector('#email-anna');
+  await owner.fill('#email-anna', 'books@astrateg.test');
+  await owner.click('#save-anna');
+  await owner.waitForSelector('#mklink-anna');
+  const links = tokens.size;
+  await irit.click('#btn-refresh');
+  await irit.waitForSelector('#mklink-anna');
+  await irit.click('#mklink-anna');
+  await toastHas(irit, 'רק הבעלים יכול לעשות את זה.');
+  assert.equal(await irit.locator('#link-anna').count(), 0);
+  assert.equal(tokens.size, links, 'no link made');
+  await owner.click('#mklink-anna');
+  await owner.waitForSelector('#link-anna');
+  assert.match(await owner.inputValue('#link-anna'), /#type=recovery&token_hash=/);
+});
+
+await step('without the vault, Lior gets no link into an account that has it', async () => {
+  await owner.click('#vault-lior');
+  await owner.waitForSelector('#vault-lior[aria-pressed="false"]');
+  const lior = await newPage();
+  await signIn(lior, 'team.html', 'lior@astrateg.test');
+  await lior.waitForSelector('#team-list .tm-row');
+  for (const who of ['ofir', 'irit']) {
+    assert.equal(await lior.locator(`#mklink-${who}`).count(), 0, who);
+    assert.equal(await text(lior, `#ownerlink-${who}`), 'רק הבעלים יוצר קישור כניסה לחשבון הזה.');
+  }
+  assert.equal(await lior.locator('#mklink-yariv').count(), 1, 'no vault: a link as before');
+  assert.equal(await lior.locator('#mklink-lior').count(), 1, 'their own');
+  const redirectTo = `${BASE}clients.html`;
+  assert.deepEqual(staffAdmin(users.get('lior@astrateg.test'), { action: 'link', email: 'ofir@astrateg.test', redirectTo }), [403, { error: 'owner_only' }]);
+  assert.equal(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: 'ofir@astrateg.test', redirectTo })[0], 200, 'Irit still has the vault');
 });
 
 // ── An editor ─────────────────────────────

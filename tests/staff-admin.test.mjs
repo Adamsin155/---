@@ -103,6 +103,34 @@ test('upsert: Irit and Lior add staff without the vault, and never touch the own
   assert.equal(planUpsert({ role: null, callerEmail: 'n@a.test', existing: null, input: { email: 'x@a.test', person: 'eli' } }).error, ERR.notAllowed);
 });
 
+test('upsert: adding an email already on the list never moves that person into another role', () => {
+  const irit = { role: 'manager', callerEmail: 'irit@a.test' };
+  const owner = { role: 'owner', callerEmail: OWNER };
+  // Irit types Nirel's email into Ofir's empty row; the owner types Irit's.
+  assert.deepEqual(planUpsert({ ...irit, existing: row('nirel@a.test', 'nirel'), input: { email: 'nirel@a.test', person: 'ofir', mode: 'add' } }),
+    { ok: false, status: 409, error: ERR.emailTaken });
+  assert.deepEqual(planUpsert({ ...owner, existing: row('irit@a.test', 'irit', true), input: { email: 'Irit@a.test', person: 'ofir', mode: 'add' } }),
+    { ok: false, status: 409, error: ERR.emailTaken });
+  assert.equal(planUpsert({ ...owner, existing: row(OWNER, null, true), input: { email: OWNER, person: 'ofir', mode: 'add' } }).error, ERR.emailTaken);
+  assert.equal(planUpsert({ ...irit, existing: row(OWNER, null, true), input: { email: OWNER, person: 'ofir', mode: 'add' } }).error, ERR.emailTaken);
+  // A new email is added as before.
+  assert.deepEqual(planUpsert({ ...irit, existing: null, input: { email: 'eli@a.test', person: 'eli', mode: 'add' } }),
+    { ok: true, insert: true, row: { email: 'eli@a.test', person: 'eli', vault: false } });
+  assert.equal(planUpsert({ ...owner, existing: null, input: { email: 'eli@a.test', person: 'eli', mode: 'add' } }).ok, true);
+  assert.equal(planUpsert({ ...owner, existing: null, input: { email: 'eli@a.test', person: 'eli', mode: 'edit' } }).error, ERR.badRequest);
+  // A manager's edit may not give a role that another row already has.
+  assert.equal(planUpsert({ ...irit, existing: row('n@a.test', 'nadia'), input: { email: 'n@a.test', person: 'yariv' }, personTaken: true }).error, ERR.personTaken);
+  assert.equal(planUpsert({ ...irit, existing: row('n@a.test', 'nadia'), input: { email: 'n@a.test', person: 'nadia' }, personTaken: true }).ok, true);
+});
+
+test('upsert: only the owner adds an email that already has a login (a manager could then make a link into it)', () => {
+  const input = { email: 'books@a.test', person: 'eli', mode: 'add' };
+  assert.deepEqual(planUpsert({ role: 'manager', callerEmail: 'irit@a.test', existing: null, input, hasLogin: true }),
+    { ok: false, status: 409, error: ERR.hasLogin });
+  assert.equal(planUpsert({ role: 'manager', callerEmail: 'irit@a.test', existing: null, input, hasLogin: false }).ok, true);
+  assert.equal(planUpsert({ role: 'owner', callerEmail: OWNER, existing: null, input, hasLogin: true }).ok, true);
+});
+
 test('remove: owner only, never their own row', () => {
   assert.equal(planRemove({ role: 'owner', callerEmail: OWNER, existing: row('n@a.test', 'nadia') }).ok, true);
   assert.equal(planRemove({ role: 'owner', callerEmail: OWNER, existing: row(OWNER, null) }).error, ERR.cannotRemoveSelf);
@@ -112,13 +140,31 @@ test('remove: owner only, never their own row', () => {
 
 test('link: only for staff, the owner\'s only by the owner, only to an allowed page', () => {
   const page = LINK_PAGES[1];
-  assert.deepEqual(planLink({ role: 'manager', target: row('n@a.test', 'nadia'), redirectTo: page }), { ok: true, page });
-  assert.equal(planLink({ role: 'manager', target: row('l@a.test', 'lior'), redirectTo: page }).ok, true);
+  const irit = row('i@a.test', 'irit', true);
+  assert.deepEqual(planLink({ role: 'manager', me: irit, target: row('n@a.test', 'nadia'), redirectTo: page }), { ok: true, page });
+  assert.equal(planLink({ role: 'manager', me: irit, target: row('l@a.test', 'lior', true), redirectTo: page }).ok, true);
   assert.equal(planLink({ role: 'owner', target: row(OWNER, null), redirectTo: page }).ok, true);
-  assert.equal(planLink({ role: 'manager', target: row(OWNER, null), redirectTo: page }).error, ERR.ownerOnly);
+  assert.equal(planLink({ role: 'manager', me: irit, target: row(OWNER, null), redirectTo: page }).error, ERR.ownerOnly);
   assert.equal(planLink({ role: 'owner', target: null, redirectTo: page }).error, ERR.notStaff);
   assert.equal(planLink({ role: 'owner', target: row('n@a.test', 'nadia'), redirectTo: 'https://evil.example/clients.html' }).error, ERR.badRedirect);
   assert.equal(planLink({ role: null, target: row('n@a.test', 'nadia'), redirectTo: page }).error, ERR.notAllowed);
+});
+
+test('link: a manager gets no link into more than the manager has (the vault, a payouts owner)', () => {
+  const page = LINK_PAGES[0];
+  const ofir = row('o@a.test', 'ofir', true);
+  const nadia = row('n@a.test', 'nadia', false);
+  const iritNoVault = row('i@a.test', 'irit', false);
+  // The owner took Irit's vault away: she cannot get into Ofir's (or Lior's) account to read it.
+  assert.deepEqual(planLink({ role: 'manager', me: iritNoVault, target: ofir, redirectTo: page }), { ok: false, status: 403, error: ERR.ownerOnly });
+  assert.equal(planLink({ role: 'manager', me: iritNoVault, target: row('l@a.test', 'lior', true), redirectTo: page }).error, ERR.ownerOnly);
+  assert.equal(planLink({ role: 'manager', target: ofir, redirectTo: page }).error, ERR.ownerOnly, 'no caller row: no vault');
+  assert.equal(planLink({ role: 'manager', me: iritNoVault, target: nadia, redirectTo: page }).ok, true);
+  assert.equal(planLink({ role: 'manager', me: row('i@a.test', 'irit', true), target: ofir, redirectTo: page }).ok, true);
+  assert.equal(planLink({ role: 'owner', me: row(OWNER, null, false), target: ofir, redirectTo: page }).ok, true);
+  // A payouts owner's login, whatever its staff row says.
+  assert.equal(planLink({ role: 'manager', me: row('i@a.test', 'irit', true), target: nadia, redirectTo: page, targetIsPayoutOwner: true }).error, ERR.ownerOnly);
+  assert.equal(planLink({ role: 'owner', target: nadia, redirectTo: page, targetIsPayoutOwner: true }).ok, true);
 });
 
 test('first link invites; later ones reset the password; the link carries only the token hash, in the fragment', () => {
@@ -161,6 +207,11 @@ test('the function is deployable on its own and does not log links or tokens', (
   assert.deepEqual(imports.sort(), ['./rules.js', 'npm:@supabase/supabase-js@2']);
   assert.match(src, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(src, /auth\.getUser\(token\)/);
+  // The function hands the rules what they check (a manager's own vault, a payouts
+  // owner's login, an email that already has a login).
+  assert.match(src, /planLink\(\{ role, me, target, redirectTo: body\.redirectTo, targetIsPayoutOwner \}\)/);
+  assert.match(src, /from\('payout_owners'\)/);
+  assert.match(src, /planUpsert\(\{ role, callerEmail, existing, input: body, personTaken, hasLogin \}\)/);
   const logs = [...src.matchAll(/console\.\w+\(([^;]*)\);/g)];
   assert.ok(logs.length >= 2);
   for (const m of logs) {
