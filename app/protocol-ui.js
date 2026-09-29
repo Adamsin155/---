@@ -3,7 +3,7 @@ import {
   supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, RESET_NEEDS_EMAIL, RESET_SENT,
 } from './supa.js';
 import { h } from './quote-doc.js';
-import { PEOPLE } from './protocol.js';
+import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';
 import { businessDaysBetween } from './protocol-logic.js';
 
 export { h };
@@ -75,6 +75,11 @@ export function lateBy(d, now = new Date()) {
   return `${days} ימי עסקים`;
 }
 
+// Processes where the client is part of the work (access, approvals, corrections):
+// "waiting on the client" is offered there even before they are late, and it is
+// the only place an 'own' role marks a wait.
+export const CLIENT_PROCS = new Set(['p05', 'p07', 'p11', 'p13', 'p23', 'p26', 'p27']);
+
 export const STATUS_TEXT = {
   overdue: 'באיחור', today: 'להיום', open: 'פתוח', waiting: 'טרם התחיל', done: 'הושלם', due: 'לביצוע השבוע',
   client: 'ממתין ללקוח',
@@ -85,12 +90,20 @@ export function statusBadge(status, dueAt, now = new Date()) {
   return h('span', { class: `sbadge s-${status}` }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), text);
 }
 
+const numOf = (id) => PROCESSES.find((p) => p.id === id)?.num || id.replace(/^p0?/, '');
+const itemLabel = (key) => PROCESSES.flatMap((p) => p.items).find((i) => i.key === key)?.label || key;
 export function dueText(state, now = new Date()) {
   if (state.status === 'done') return '';
   if (state.dueAt) return `יעד: ${formatWhen(state.dueAt, now)}`;
   const from = state.proc.start?.from || '';
-  if (/^p\d/.test(from) && !state.startAt) return `ממתין לסיום תהליך ${from.replace(/^p0?/, '').replace('b', 'ב')}`;
-  if (state.proc.start && !state.startAt) return 'ממתין לתאריך';
+  if (state.proc.start && !state.startAt) {
+    // What it waits for: a process, or one item ("the editor was assigned"), or a date.
+    const proc = /^(?:r\d+-)?(p\d+[a-z]?)$/.exec(from);
+    if (proc) return `ממתין לסיום תהליך ${numOf(proc[1])}`;
+    const item = /^item:(?:r\d+\.)?((p\d+[a-z]?)\..+)$/.exec(from);
+    if (item) return `ממתין ל: ${itemLabel(item[1])} (תהליך ${numOf(item[2])})`;
+    return 'ממתין לתאריך';
+  }
   if (state.startAt && state.startAt > now) return `מתחיל: ${formatWhen(state.startAt, now)}`;
   return '';
 }
@@ -145,7 +158,19 @@ export function mountSession(onReady) {
   return boot();
 }
 
-// Remembered per browser; the database copy (staff.person) wins when set.
+// Who is signed in, from the database (staff.person), and what they see (SCOPE in
+// protocol.js). The owner's row has no person and sees the office. This shapes the
+// screens only: what anyone may read or change is decided by the database.
+// If the lookup fails, nothing is assumed: the screens show only a notice.
+export async function viewerOf(email) {
+  const { data, error } = await supabase.from('staff').select('person').eq('email', String(email || '').toLowerCase()).maybeSingle();
+  if (error) return { me: null, scope: 'own', error };
+  const person = data?.person || null;
+  return { me: person && person !== 'editor' && PEOPLE[person] ? person : null, scope: scopeOf(person), error: null };
+}
+export const VIEWER_UNKNOWN = 'לא הצלחנו לזהות את המשתמש שלך בפרוטוקול. רעננו את הדף; אם זה חוזר, פנו למנהל המערכת.';
+
+// Per-browser conveniences only (never who the user is).
 export const store = {
   get(k) { try { return localStorage.getItem(`astrateg.${k}`); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(`astrateg.${k}`, v); } catch { /* private mode */ } },

@@ -7,16 +7,17 @@ import {
 import {
   clientState, openItemsFor, byUrgency, bucketOf, CLAIM, WAIT, waitNote, bulkEligible, isResolved,
   isBusinessDay, businessDaysBetween, addBusinessDays, resolveTime, weekKey, roundsOf, parseDate,
+  upcomingFor, involves,
 } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, setTaskDone, createClient,
-  signedQuotes, myPerson, setMyPerson, loadDirectory, loadReviews, markReview, loadAllLog, addTask,
+  signedQuotes, loadDirectory, loadReviews, markReview, loadAllLog, addTask,
   loadStatusNotes, saveStatusNote,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar,
   mountSession, store, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
-  isUrgentTask, isEscalation, TASK_SOURCES,
+  isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 
@@ -29,8 +30,10 @@ let statusNotes = null;     // client_status_notes of this week and the last (nu
 let statusError = null;
 let lastLog = new Map();    // client id -> time of the latest history entry (last 3 weeks)
 let quoteInfo = new Map();  // quote id -> { number, signed_at }, for clients opened automatically
-let me = null;              // this user's person key
-let minePerson = null;      // whose work the "my work" tab shows ('' = everyone)
+let me = null;              // this user's person key (staff.person; null for the owner)
+let scope = 'office';       // 'own': only my work and my clients; 'office': plus the office screens
+let viewerError = null;     // the signed-in person could not be looked up
+let minePerson = null;      // whose work the "my work" tab shows ('' = everyone; office only)
 let view = 'mine';
 let clientFilter = 'active';
 let lastLoad = 0;
@@ -78,12 +81,14 @@ async function load() {
     return;
   }
   // Reviews and agreement numbers are extras: the page works without them.
-  const [rv, qi, sn, lg] = await Promise.allSettled([
+  // They serve the office screens only, so an 'own' view does not load them.
+  const none = { status: 'rejected', reason: null };
+  const [rv, qi, sn, lg] = scope === 'office' ? await Promise.allSettled([
     loadReviews(dayIso(lastBusinessDays(7, now).at(-1))),
     loadQuoteNumbers(clients.filter(isAuto).map((c) => c.quote_id)),
     loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }),
     loadAllLog(new Date(now.getTime() - 21 * 864e5).toISOString()),
-  ]);
+  ]) : [none, none, none, none];
   reviews = rv.status === 'fulfilled' ? rv.value : null;
   reviewsError = rv.status === 'rejected' ? rv.reason : null;
   if (qi.status === 'fulfilled') quoteInfo = qi.value;
@@ -110,53 +115,57 @@ function renderKeepingFocus() {
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
 }
 
-// ── Identity ────────────────────────────────
-async function chooseMe(key) {
-  me = key; minePerson = key; store.set('me', key);
-  lastLate = null;
-  try { await setMyPerson(key); } catch { /* kept locally */ }
-  renderMe();
-  setView('mine');
-}
+// ── Identity and scope ──────────────────────
+// Who I am comes from the database (staff.person); nobody picks it. The owner has
+// no person and sees the office, and can show any one person's list.
 function renderMe() {
   const bar = $('me-bar');
   if (me) {
-    fill(bar, h('span', { class: 'me-label' }, 'אני:'), personChip(me, 'is-me'), h('span', { class: 'muted' }, PEOPLE[me].role),
-      h('button', { type: 'button', class: 'btn-text', onclick: () => { me = null; minePerson = null; lastLate = null; renderMe(); render(); } }, 'החלפה'));
-    return;
+    fill(bar, h('span', { class: 'me-label' }, 'אני:'), personChip(me, 'is-me'), h('span', { class: 'muted' }, PEOPLE[me].role));
+  } else if (scope === 'office') {
+    fill(bar, h('span', { class: 'me-label' }, 'תצוגת משרד:'), h('span', { class: 'muted' }, 'העבודה של כל הצוות. אפשר להציג את הרשימה של כל עובד.'));
+  } else {
+    fill(bar, h('p', { class: 'err', role: 'alert' }, viewerError ? VIEWER_UNKNOWN : 'לא הוגדר לך תפקיד בפרוטוקול. פנו למנהל המערכת.'));
   }
-  fill(bar);
 }
-const whoGrid = (list) => h('div', { class: 'who-grid' }, ...list.map((p) => h('button', {
-  type: 'button', class: `who-btn p-${p.key}`, onclick: () => chooseMe(p.key),
-}, h('strong', {}, p.name), h('span', {}, p.role))));
-function identityPanel() {
-  return h('div', { class: 'who-panel' },
-    h('h2', {}, 'מי את/ה בפרוטוקול?'),
-    h('p', { class: 'muted' }, 'בוחרים פעם אחת, ואז ״מה עליי״ מציג את הפריטים הפתוחים שלך בכל הלקוחות.'),
-    whoGrid(officePeople()),
-    h('h3', { class: 'who-sub' }, 'עורכים'),
-    whoGrid(editorPeople()),
-    h('button', { type: 'button', class: 'btn-text', onclick: () => { minePerson = ''; renderMine(); } }, 'להציג את הפריטים של כל הצוות'));
+
+// 'own': only "my work" and my clients. The office screens are not offered at all.
+function applyScope() {
+  const own = scope === 'own';
+  document.documentElement.dataset.scope = scope;
+  $('tab-control').hidden = own;
+  $('tab-performance').hidden = own;
+  $('btn-new').hidden = own;
+  $('tab-clients').textContent = own ? 'הלקוחות שלי' : 'לקוחות';
+  $('tab-mine').textContent = me ? 'מה עליי' : 'עבודת הצוות';
+  const head = document.querySelector('#app .page-head');
+  if (own && head) {
+    const h1 = head.querySelector('h1');
+    const sub = head.querySelector('h1 + p');
+    if (h1) h1.textContent = me ? `שלום ${PEOPLE[me].name}` : 'הפרוטוקול שלי';
+    if (sub) sub.textContent = 'מה פתוח אצלך עכשיו לפי הפרוטוקול שלך, והלקוחות שיש לך בהם עבודה.';
+  }
 }
 
 // ── Tabs ────────────────────────────────────
 const TABS = ['mine', 'clients', 'control', 'performance'];
+const tabsShown = () => TABS.filter((t) => !$(`tab-${t}`).hidden);
 function setView(v, focus = false) {
-  view = v;
+  view = tabsShown().includes(v) ? v : 'mine';
   for (const t of TABS) {
-    $(`tab-${t}`).setAttribute('aria-selected', String(t === v));
-    $(`tab-${t}`).tabIndex = t === v ? 0 : -1;
-    $(`view-${t}`).hidden = t !== v;
+    $(`tab-${t}`).setAttribute('aria-selected', String(t === view));
+    $(`tab-${t}`).tabIndex = t === view ? 0 : -1;
+    $(`view-${t}`).hidden = t !== view;
   }
-  if (focus) $(`tab-${v}`).focus();
-  history.replaceState(null, '', `#${v}`);
+  if (focus) $(`tab-${view}`).focus();
+  history.replaceState(null, '', `#${view}`);
   render();
 }
 for (const t of TABS) $(`tab-${t}`).addEventListener('click', () => setView(t));
 document.querySelector('.tabs').addEventListener('keydown', (e) => {
-  const i = TABS.indexOf(view);
-  const next = { ArrowLeft: TABS[(i + 1) % TABS.length], ArrowRight: TABS[(i + TABS.length - 1) % TABS.length], Home: TABS[0], End: TABS[TABS.length - 1] }[e.key];
+  const list = tabsShown();
+  const i = list.indexOf(view);
+  const next = { ArrowLeft: list[(i + 1) % list.length], ArrowRight: list[(i + list.length - 1) % list.length], Home: list[0], End: list[list.length - 1] }[e.key];
   if (!next) return;
   e.preventDefault();
   setView(next, true);
@@ -424,7 +433,8 @@ function groupCard(g, person) {
   const owners = g.task ? [g.task.owner] : [...new Set(g.entries.flatMap((e) => e.item.owners))];
   const bulk = bulkFor(g);
   const waitId = `wl-${g.key}`.replace(/[^\w-]/g, '_');
-  const canWait = !g.task && !g.proc.recurring;
+  // 'own' roles mark a wait only where the client is part of their work (approvals, corrections).
+  const canWait = !g.task && !g.proc.recurring && (scope === 'office' || CLIENT_PROCS.has(baseId(g.proc)));
   return h('li', { class: `wproc s-${g.status}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
     h('div', { class: 'wproc-h', 'aria-describedby': g.wait ? waitId : null },
       h('a', { class: 'wclient', href }, g.client.name),
@@ -475,45 +485,96 @@ function autoBanner() {
     list.length > 3 ? h('p', { class: 'muted' }, `ועוד ${list.length - 3}`) : null);
 }
 
+// ── Coming up: not checkable yet ─────────────
+// Processes of the person with a known start in the next 30 days, one card per
+// client and shoot round. For the photographer these are the coming shoot days.
+const fromShoot = (proc) => proc.start?.from === 'shoot' || proc.due?.from === 'shoot';
+function upcomingGroups(person, now = new Date()) {
+  const groups = new Map();
+  for (const c of clients) {
+    for (const s of upcomingFor(person, c, stateOf(c), now)) {
+      const round = Number(roundOf(s.proc) || 1);
+      const k = `${c.id}:${round}`;
+      if (!groups.has(k)) groups.set(k, { key: k, client: c, round, shootAt: null, startAt: s.startAt, list: [] });
+      const g = groups.get(k);
+      g.list.push(s);
+      if (s.startAt < g.startAt) g.startAt = s.startAt;
+      if (fromShoot(s.proc)) g.shootAt = parseDate((s.proc.ctx || c).shoot_at);
+    }
+  }
+  return [...groups.values()].sort((a, b) => a.startAt - b.startAt);
+}
+
+function upcomingCard(g) {
+  return h('li', { class: 'wproc s-waiting soon-card', 'data-key': `soon:${g.key}` },
+    h('div', { class: 'wproc-h' },
+      h('a', { class: 'wclient', href: clientUrl(g.client.id, `#${g.list[0].proc.id}`) }, g.client.name),
+      h('span', { class: 'wtitle' }, [g.shootAt ? 'יום צילום' : null, g.round > 1 ? `סבב ${g.round}` : null].filter(Boolean).join(' · ') || 'מתחיל בקרוב'),
+      h('span', { class: 'num' }, g.shootAt ? `הגעת המשפיענים: ${formatWhen(g.shootAt)}` : `מתחיל: ${formatWhen(g.startAt)}`)),
+    g.shootAt && g.client.address ? h('p', { class: 'task-meta' }, `כתובת: ${g.client.address}`) : null,
+    h('ul', { class: 'soon-list' }, ...g.list.map((s) => h('li', {},
+      h('span', {}, `${s.proc.num} · ${s.proc.title}`), ' ', h('span', { class: 'muted num' }, `· מתחיל ${formatWhen(s.startAt)}`)))));
+}
+
+// Open for 'own' views (it is often all they have this week); folded in the office.
+function upcomingSection(list, open) {
+  if (!list.length) return null;
+  const title = 'בקרוב · עוד לא לסימון';
+  const n = h('span', { class: 'n' }, String(list.length));
+  const body = h('ul', { class: 'wprocs' }, ...list.map(upcomingCard));
+  if (open) return h('section', { class: 'wgroup g-soon', 'aria-label': title }, h('h2', { class: 'wgroup-h' }, title, n), body);
+  return h('details', { class: 'wgroup g-soon' }, h('summary', { class: 'wgroup-h' }, title, n), body);
+}
+
 function renderMine() {
   const wrap = $('mine-list');
-  if (!me && minePerson === null) {
+  const own = scope === 'own';
+  if (own && !me) {
+    $('mine-people').hidden = true;
     fill($('mine-people'));
     fill($('mine-tools'));
-    fill(wrap, identityPanel());
+    fill(wrap, h('p', { class: 'empty' }, viewerError ? VIEWER_UNKNOWN : 'לא הוגדר לך תפקיד בפרוטוקול, ולכן אין כאן רשימה. פנו למנהל המערכת.'));
     return;
   }
-  const person = minePerson || null;
-  const opts = [...STAFF_PEOPLE().map((p) => [p.key, p.key === me ? `${p.name} (אני)` : p.name]), ['', 'כל הצוות']];
-  const count = (k) => workFor(k || null).length;
-  fill($('mine-people'),
-    h('div', { class: 'chips-row wide-only' }, ...opts.map(([k, label]) => h('button', {
-      type: 'button', class: 'chip', 'aria-pressed': String((minePerson || '') === k),
-      onclick: () => { minePerson = k; renderMine(); },
-    }, label, h('span', { class: 'n' }, String(count(k)))))),
-    h('label', { class: 'narrow-only person-select' }, h('span', {}, 'מציג:'),
-      h('select', { class: 'input', id: 'mine-select', onchange: (ev) => { minePerson = ev.currentTarget.value; renderMine(); } },
-        ...opts.map(([k, label]) => h('option', { value: k, selected: (minePerson || '') === k }, `${label} (${count(k)})`)))));
+  // An 'own' view is always the signed-in person's; the office can show anyone's.
+  const person = own ? me : minePerson || null;
+  $('mine-people').hidden = own;
+  if (own) {
+    fill($('mine-people'));
+  } else {
+    const opts = [...STAFF_PEOPLE().map((p) => [p.key, p.key === me ? `${p.name} (אני)` : p.name]), ['', 'כל הצוות']];
+    const count = (k) => workFor(k || null).length;
+    fill($('mine-people'),
+      h('div', { class: 'chips-row wide-only' }, ...opts.map(([k, label]) => h('button', {
+        type: 'button', class: 'chip', 'aria-pressed': String((minePerson || '') === k),
+        onclick: () => { minePerson = k; renderMine(); },
+      }, label, h('span', { class: 'n' }, String(count(k)))))),
+      h('label', { class: 'narrow-only person-select' }, h('span', {}, 'מציג:'),
+        h('select', { class: 'input', id: 'mine-select', onchange: (ev) => { minePerson = ev.currentTarget.value; renderMine(); } },
+          ...opts.map(([k, label]) => h('option', { value: k, selected: (minePerson || '') === k }, `${label} (${count(k)})`)))));
+  }
   fill($('mine-tools'),
-    person ? summaryActions(person, 'mine') : null,
+    !own && person ? summaryActions(person, 'mine') : null,
     person && person === me ? notifyRow() : null);
 
+  const nothing = person === me ? 'אין כרגע משהו פתוח אצלך.' : person ? `אין כרגע משהו פתוח אצל ${PEOPLE[person].name}.` : 'אין כרגע פריטים פתוחים.';
   if (!clients.length) {
-    fill(wrap, h('p', { class: 'empty' }, 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.'));
+    fill(wrap, h('p', { class: 'empty' }, own ? nothing : 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.'));
     return;
   }
   const list = workFor(person);
+  const soon = person ? upcomingSection(upcomingGroups(person), own) : null;
   const review = person ? OFFICE_REVIEWS.find((r) => r.owner === person && reviewPending(r)) : null;
   const thursday = person === 'ofir' ? thursdayCard() : null;
   const banner = !person || person === 'irit' ? autoBanner() : null;
   if (!list.length && !review && !thursday) {
-    fill(wrap, banner, h('p', { class: 'empty' }, person ? `אין כרגע משהו פתוח אצל ${PEOPLE[person].name}.` : 'אין כרגע פריטים פתוחים.'));
+    fill(wrap, banner, h('p', { class: 'empty' }, nothing), soon);
     return;
   }
   const today = dayIso(new Date());
   // Thursday's pass is a fixed card of its own, right after urgent work.
   const thuGroup = thursday ? h('section', { class: 'wgroup g-thu', 'aria-label': 'מעבר חובה של יום חמישי' }, h('ul', { class: 'wprocs' }, thursday)) : null;
-  fill(wrap, banner, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, (() => {
+  fill(wrap, banner, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, k === 'client' ? soon : null, (() => {
     let g = list.filter((x) => bucketFor(x) === k);
     if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
     const extra = k === 'today' && review ? [reviewCard(review)] : [];
@@ -711,17 +772,37 @@ function autoTag(c) {
   return h('span', { class: 'auto-tag' }, 'חדש · נפתח אוטומטית מהסכם', q ? [' ', h('bdi', { class: 'num', dir: 'ltr' }, q.number)] : null);
 }
 
+// An 'own' view lists only the person's clients: open or scheduled work of theirs,
+// an open task, or the client's editing assigned to them.
+function myClients(person) {
+  return clients.filter((c) => involves(person, c, checks[c.id] || {}, stateOf(c))
+    || tasks.some((t) => t.client_id === c.id && t.owner === person && live(c)));
+}
+
+// "Your next step" in one client: open work first, then what starts soon.
+function myNextIn(c, work, soon) {
+  const g = work.find((x) => x.client.id === c.id);
+  if (g) return h('span', {}, g.task ? `משימה: ${g.task.title} ` : `${procLabel(g.proc)} `, statusBadge(g.status, g.dueAt));
+  const u = soon.find((x) => x.client.id === c.id);
+  if (u) return h('span', {}, `${u.shootAt ? 'יום צילום' : `${u.list[0].proc.num} · ${u.list[0].proc.title}`} · מתחיל ${formatWhen(u.startAt)}`);
+  return h('span', { class: 'muted' }, 'אין כרגע משהו פתוח אצלך');
+}
+
 function renderClients() {
+  const own = scope === 'own';
   const FILTERS = [['active', 'פעילים'], ['late', 'עם איחור'], ['client', 'ממתין ללקוח'], ['ending', 'מסיימים'], ['ended', 'הסתיימו'], ['cancelled', 'בוטלו']];
-  fill($('client-filters'), ...FILTERS.map(([k, label]) => h('button', {
-    type: 'button', class: 'chip', 'aria-pressed': String(clientFilter === k),
-    onclick: () => { clientFilter = k; renderClients(); },
-  }, label)));
+  fill($('client-filters'), own ? h('p', { class: 'muted mine-hint' }, 'לקוחות שיש לך בהם עבודה פתוחה או מתוכננת, או שהעריכה שלהם אצלך.')
+    : FILTERS.map(([k, label]) => h('button', {
+      type: 'button', class: 'chip', 'aria-pressed': String(clientFilter === k),
+      onclick: () => { clientFilter = k; renderClients(); },
+    }, label)));
 
   const q = $('client-search').value.trim();
   const open = (c) => c.status === 'active' || c.status === 'ending';
-  const list = clients.filter((c) => {
-    if (q && !`${c.name} ${c.business || ''} ${c.phone || ''}`.includes(q)) return false;
+  const pool = own ? (me ? myClients(me) : []) : clients;
+  const list = pool.filter((c) => {
+    if (q && !`${c.name} ${c.business || ''} ${own ? '' : c.phone || ''}`.includes(q)) return false;
+    if (own) return true;
     if (clientFilter === 'active') return c.status === 'active';
     if (clientFilter === 'late') return open(c) && stateOf(c).overdue > 0;
     if (clientFilter === 'client') return open(c) && stateOf(c).waitingOnClient > 0;
@@ -729,37 +810,40 @@ function renderClients() {
   }).sort((a, b) => (isAuto(b) - isAuto(a)) || (stateOf(b).overdue - stateOf(a).overdue) || (new Date(b.deal_at) - new Date(a.deal_at)));
 
   if (!list.length) {
-    fill($('client-list'), h('p', { class: 'empty' }, clients.length ? 'אין לקוחות בסינון הזה.' : 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.'));
+    fill($('client-list'), h('p', { class: 'empty' }, own ? 'אין כרגע לקוחות עם עבודה שלך.'
+      : clients.length ? 'אין לקוחות בסינון הזה.' : 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.'));
     return;
   }
   const now = new Date();
+  const work = own ? workFor(me) : [];
+  const soon = own ? upcomingGroups(me, now) : [];
   fill($('client-list'), h('ul', { class: 'clist' }, ...list.map((c) => {
     const s = stateOf(c);
-    const phase = PHASES.find((p) => p.key === s.current);
-    const next = live(c) ? nextStep(c, s) : null;
+    const next = live(c) && !own ? nextStep(c, s) : null;
     const signed = quoteInfo.get(c.quote_id)?.signed_at;
     return h('li', {},
       h('a', { class: 'crow', href: clientUrl(c.id) },
         h('div', { class: 'cname' },
           h('strong', {}, c.name),
-          isAuto(c) ? autoTag(c) : null,
+          isAuto(c) && !own ? autoTag(c) : null,
           isAuto(c) && signed ? h('small', { class: 'auto-when' }, `נחתם ${formatWhen(new Date(signed), now)}`) : null,
           h('small', {}, [c.business, c.package_name].filter(Boolean).join(' · ') || ' ')),
         h('div', { class: 'cphase' },
           h('span', { class: 'k' }, 'שלב'),
-          h('span', {}, c.status === 'active' ? phase?.title : CLIENT_STATUS[c.status])),
-        h('div', { class: 'cprog' },
+          h('span', {}, c.status === 'active' ? phaseTitle(c) : CLIENT_STATUS[c.status])),
+        own ? null : h('div', { class: 'cprog' },
           h('span', { class: 'k' }, 'תהליכים שהושלמו'),
           h('span', { class: 'num', dir: 'ltr' }, `${s.procsDone}/${s.procsTotal}`),
           progressBar(s.procsDone, s.procsTotal, 'תהליכים שהושלמו')),
         h('div', { class: 'cnext' },
-          h('span', { class: 'k' }, 'הצעד הבא'),
-          !next ? h('span', { class: 'muted' }, 'אין פריטים פתוחים')
-            : next.waiting ? h('span', {}, `ממתין ללקוח (${procLabel(next.proc)})`)
-              : h('span', {}, `${procLabel(next.proc)} `, peopleChips(next.owners))),
+          h('span', { class: 'k' }, own ? 'הצעד הבא שלך' : 'הצעד הבא'),
+          own ? myNextIn(c, work, soon)
+            : !next ? h('span', { class: 'muted' }, 'אין פריטים פתוחים')
+              : next.waiting ? h('span', {}, `ממתין ללקוח (${procLabel(next.proc)})`)
+                : h('span', {}, `${procLabel(next.proc)} `, peopleChips(next.owners))),
         h('div', { class: 'cflags' },
-          live(c) && s.overdue ? h('span', { class: 'flag' }, statusBadge('overdue', null), h('span', { class: 'num' }, ` · ${s.overdue} תהליכים`)) : null,
-          live(c) && s.waitingOnClient ? h('span', { class: 'flag' }, statusBadge('client', null), h('span', { class: 'num' }, ` · ${s.waitingOnClient}`)) : null,
+          live(c) && s.overdue && !own ? h('span', { class: 'flag' }, statusBadge('overdue', null), h('span', { class: 'num' }, ` · ${s.overdue} תהליכים`)) : null,
+          live(c) && s.waitingOnClient && !own ? h('span', { class: 'flag' }, statusBadge('client', null), h('span', { class: 'num' }, ` · ${s.waitingOnClient}`)) : null,
           c.shoot_at && live(c) ? h('span', { class: 'muted' }, `צילום: ${formatWhen(new Date(c.shoot_at))}`) : null)));
   })));
 }
@@ -1457,6 +1541,7 @@ function renderControl() {
 // ── Performance (spec §8) ────────────────────
 let perfDays = 30;
 const perfLog = new Map(); // days -> { rows } | { error }
+// Irit, Ofir and the owner (no person) see the table by person.
 const TEAM_VIEWERS = new Set(OFFICE_REVIEWS.map((r) => r.owner));
 const baseId = (proc) => proc.id.replace(/^r\d+-/, '');
 
@@ -1586,7 +1671,7 @@ async function renderPerformance() {
     procTable,
     h('h2', { class: 'wgroup-h' }, 'שיחה שבועית (31)'),
     h('p', { class: 'perf-calls' }, calls.due ? `שיחות שתועדו: ${calls.done} מתוך ${calls.due} שבועות־לקוח` : 'עוד אין לקוחות בשלב השיחות השבועיות בתקופה הזו.'),
-    TEAM_VIEWERS.has(me) ? h('section', { class: 'perf-team', 'aria-label': 'לפי עובד' },
+    TEAM_VIEWERS.has(me) || !me ? h('section', { class: 'perf-team', 'aria-label': 'לפי עובד' },
       h('h2', { class: 'wgroup-h' }, 'לפי עובד'),
       h('p', { class: 'perf-intro' }, 'אחוז נמוך בתהליך הוא קודם כול סימן לבדוק את התהליך או את היעד.'),
       personTable('לפי עובד', STAFF_PEOPLE().map((p) => p.key))) : null);
@@ -1650,7 +1735,7 @@ $('new-form').addEventListener('submit', async (e) => {
 $('btn-refresh').addEventListener('click', () => { perfLog.clear(); load(); });
 window.addEventListener('hashchange', () => {
   const v = location.hash.slice(1);
-  if (TABS.includes(v) && v !== view && !$('app').hidden) setView(v);
+  if (tabsShown().includes(v) && v !== view && !$('app').hidden) setView(v);
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('app').hidden && !busy()) load(); });
 // Statuses depend on the clock: every minute, even in a background tab, check
@@ -1666,14 +1751,17 @@ function tick() {
 }
 setInterval(tick, 60e3);
 
-mountSession(async () => {
-  Object.assign(directory, await loadDirectory());
-  me = (await myPerson()) || store.get('me') || null;
-  if (me && !isStaff(me)) me = null; // the "assigned editor" placeholder is not a person
-  minePerson = me;
+mountSession(async (staff) => {
+  const [dir, viewer] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
+  Object.assign(directory, dir);
+  ({ me, scope } = viewer);
+  viewerError = viewer.error;
+  // Always land on the signed-in person's own list; the owner lands on the whole team.
+  minePerson = scope === 'own' ? me : me || '';
+  applyScope();
   renderMe();
   const fromHash = location.hash.slice(1);
-  view = TABS.includes(fromHash) ? fromHash : 'mine';
+  view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();
   setView(view);
 });

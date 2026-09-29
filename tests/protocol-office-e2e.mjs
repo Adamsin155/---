@@ -375,7 +375,7 @@ assert.match(await page.locator('.perf-table tr:has-text("3 · קביעת פגי
 assert.match(perf, /הנתונים שלי/);
 assert.match(perf, /אחוז נמוך בתהליך הוא קודם כול סימן לבדוק את התהליך או את היעד/);
 const people = await page.locator('.perf-team tbody tr td:first-child').allInnerTexts();
-assert.deepEqual(people, ['עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה']);
+assert.deepEqual(people, ['עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה', 'אלי']); // protocol v4: the photographer
 await page.click('#performance .chip:text("90 הימים האחרונים")');
 await page.waitForSelector('#performance .chip[aria-pressed="true"]:text("90")');
 await page.waitForSelector('.perf-team tbody tr');
@@ -554,7 +554,7 @@ await status.locator('button[aria-label="כתיבת סיכום המצב של ס�
 await page.waitForSelector('#dlg-status[open]');
 assert.equal(await page.locator('#status-h').innerText(), 'סיכום מצב · סטודיו נטלי');
 assert.match(await page.locator('#status-ctx').innerText(), /מהמערכת: שלב: עריכה ומסירה/);
-assert.deepEqual(await page.locator('#stf-owner option').allInnerTexts(), ['בחירה', 'עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה']);
+assert.deepEqual(await page.locator('#stf-owner option').allInnerTexts(), ['בחירה', 'עירית', 'ליאור', 'אופיר', 'עילאי', 'אלי', 'ניראל', 'נדיה', 'יריב', 'אנה']);
 await page.click('#status-save');
 assert.match(await page.locator('#status-err').innerText(), /^חסר: מצב נוכחי, פעולה הבאה, אחראי, מועד יעד\./);
 assert.equal(await page.getAttribute('#stf-owner', 'aria-invalid'), 'true');

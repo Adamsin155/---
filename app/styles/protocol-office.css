@@ -74,7 +74,7 @@ a.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
 .rv-icon { width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1.5px currentColor; }
 .rv-day.is-done { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
 .rv-day.is-done .rv-icon { background: currentColor; box-shadow: none; }
-.rv-day.is-done .rv-icon::before { content: ''; width: 6px; height: 3px; border: solid var(--bg); border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
+.rv-day.is-done .rv-icon::before { content: ''; width: 6px; height: 3px; border: solid var(--on-fill); border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
 .rv-day.is-miss { color: var(--muted); } /* a past day without a review: noted, not alarmed */
 .rv-day.is-miss .rv-icon::before { content: '×'; font-size: 11px; font-weight: 700; line-height: 1; }
 .rv-day.is-pending { color: var(--muted); border-style: dashed; }
@@ -112,7 +112,7 @@ a.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
 /* Urgent / reported exception: a filled icon with "!" and the word, never colour alone. */
 .sbadge.s-urgent, .sbadge.s-escalation { color: var(--late); font-weight: 600; }
 .s-urgent .sicon, .s-escalation .sicon { background: currentColor; box-shadow: none; }
-.s-urgent .sicon::before, .s-escalation .sicon::before { content: '!'; font-size: 10px; font-weight: 800; line-height: 1; color: var(--bg); }
+.s-urgent .sicon::before, .s-escalation .sicon::before { content: '!'; font-size: 10px; font-weight: 800; line-height: 1; color: var(--on-fill); }
 .s-escalation .sicon { border-radius: 2px; transform: rotate(45deg) scale(.86); }
 .s-escalation .sicon::before { transform: rotate(-45deg); }
 .wproc-h .sbadge.s-urgent, .wproc-h .sbadge.s-escalation { margin-inline-start: 0; }
@@ -121,11 +121,11 @@ a.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
 .g-escalation .wgroup-h > .sicon {
   width: 12px; height: 12px; border-radius: 2px; display: inline-grid; place-items: center; background: currentColor; transform: rotate(45deg);
 }
-.g-escalation .wgroup-h > .sicon::before { content: '!'; font-size: 9px; font-weight: 800; color: var(--bg); transform: rotate(-45deg); }
+.g-escalation .wgroup-h > .sicon::before { content: '!'; font-size: 9px; font-weight: 800; color: var(--on-fill); transform: rotate(-45deg); }
 .g-urgent .wgroup-h > .sicon, .ctl-urgent .wgroup-h > .sicon {
   width: 14px; height: 14px; border-radius: 50%; display: inline-grid; place-items: center; background: currentColor;
 }
-.g-urgent .wgroup-h > .sicon::before, .ctl-urgent .wgroup-h > .sicon::before { content: '!'; font-size: 10px; font-weight: 800; color: var(--bg); }
+.g-urgent .wgroup-h > .sicon::before, .ctl-urgent .wgroup-h > .sicon::before { content: '!'; font-size: 10px; font-weight: 800; color: var(--on-fill); }
 .task-meta { margin: 2px 0 0; font-size: 13px; color: var(--text-2); }
 .thu-card .pbar { inline-size: 160px; margin-top: 6px; }
 .g-thu .thu-card { border-inline-start: 3px solid var(--accent); padding-inline-start: 12px; padding-bottom: 12px; }

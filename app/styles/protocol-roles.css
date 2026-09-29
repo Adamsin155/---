@@ -1,1 +1,33 @@
-/* Role views: what each person sees (owned by the protocol-ux-roles agent). */
+/* Role views: what each person sees (owned by the protocol-ux-roles agent).
+   html[data-scope] is 'own' (only my work) or 'office' (plus the office screens). */
+
+/* ── "My work": coming up, not checkable yet (the photographer's shoot days) ── */
+details.g-soon > summary { list-style: none; cursor: pointer; min-height: 44px; }
+details.g-soon > summary::-webkit-details-marker { display: none; }
+details.g-soon > summary::after {
+  content: ''; width: 7px; height: 7px; border: solid var(--muted); border-width: 0 2px 2px 0;
+  transform: rotate(45deg); margin-inline-start: 4px; transition: transform .15s;
+}
+details.g-soon[open] > summary::after { transform: rotate(-135deg); }
+.soon-card .wproc-h .num { margin-inline-start: auto; color: var(--text); font-weight: 500; }
+.soon-list { list-style: none; margin: 6px 0 8px; padding: 0; display: grid; gap: 4px; font-size: 14px; color: var(--text-2); }
+.soon-list li { padding-inline-start: 14px; position: relative; }
+.soon-list li::before { content: ''; position: absolute; inset-inline-start: 2px; top: .6em; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
+
+/* ── Clients list of an 'own' view ── */
+.mine-hint { margin: 0; font-size: 14px; }
+
+/* ── Client card ── */
+.view-note { margin: 0; font-size: 14px; color: var(--text-2); }
+.view-toggle { white-space: nowrap; }
+.others-note { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.cc-next.is-none { margin: 0; background: var(--panel-2, var(--bg-2)); font-weight: 400; }
+.cc-next.s-waiting .muted { font-weight: 400; }
+
+/* 'own' roles: quotes are not part of their protocol. */
+html[data-scope='own'] .topbar nav a[href='./'],
+html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
+
+@media (max-width: 760px) {
+  .view-toggle { min-height: 44px; }
+}

@@ -346,6 +346,33 @@ export function openItemsFor(person, client, checks, state, now = new Date()) {
   return out;
 }
 
+// Items of `person` in a process; in a shared process taken by someone else, only
+// the items that are theirs alone.
+export function itemsOf(person, s) {
+  if (!person) return [];
+  return s.proc.items.filter((i) => i.owners.includes(person)
+    && !(s.claim && s.claim.person !== person && i.owners.join() === s.proc.owners.join()));
+}
+
+// Processes of `person` that have not started yet but have a known start within
+// `days` (for the photographer: the coming shoot days). Not checkable yet.
+export function upcomingFor(person, client, state, now = new Date(), days = 30) {
+  if (!person || client.status === 'cancelled' || client.status === 'ended') return [];
+  const until = now.getTime() + days * DAY;
+  return state.states.filter((s) => !s.ready && !s.complete && s.startAt && s.startAt > now
+    && s.startAt.getTime() <= until && itemsOf(person, s).length);
+}
+
+// Whether `person` works on this client: an open item of theirs in a process that
+// started or has a start date, or the client's (or a round's) editing is theirs.
+export function involves(person, client, checks, state, now = new Date()) {
+  if (!person || client.status === 'cancelled') return false;
+  const inWork = client.status === 'active' || client.status === 'ending';
+  if (inWork && (client.editor === person || roundsOf(client).some((r) => r.editor === person))) return true;
+  return state.states.some((s) => (s.ready || s.startAt) && (client.status !== 'ended' || s.proc.id === 'p35')
+    && itemsOf(person, s).some((i) => !i.optional && !isResolved(i, checks[i.key], now)));
+}
+
 // Time buckets for "my work".
 export function bucketOf(status, dueAt, now = new Date()) {
   if (status === 'overdue') return 'overdue';

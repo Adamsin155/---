@@ -225,8 +225,23 @@ const created = db.clients.find((c) => c.name === 'דנה לוי');
 assert.equal(created.quote_id, signedQuote.id);
 assert.equal(created.shoot_type, 'natali');
 
-// Client card: Natali-only processes show, the DMS day does not.
+// Irit's card opens on her own processes and items; the whole protocol is one explicit click away.
 await page.waitForSelector('#p02');
+assert.match(await page.locator('#viewbar').innerText(), /רק התהליכים והפריטים שלך/);
+assert.equal(await page.locator('#p11').count(), 1); // hers
+assert.equal(await page.locator('#p11b').count(), 0); // Lior's
+// Process 7 is Ilai's graphics: Irit sees her review items; Ilai's own item is summed up in one line.
+assert.equal(await page.locator('#i-p07-made').count(), 0);
+assert.equal(await page.locator('#i-p07-r-spelling').count(), 1);
+assert.match(await page.locator('#p07 .others-note').textContent(), /ועוד פריט אחד בתהליך הזה אצל עילאי/);
+assert.match(await page.locator('.cc-next .k').innerText(), /הצעד הבא שלך/);
+assert.match(await page.locator('#p02 .others-note').textContent(), /ועוד 2 פריטים בתהליך הזה אצל ליאור/); // p02.deal, p02.team
+assert.equal(await page.locator('#i-p02-deal').count(), 0);
+await page.click('#view-toggle');
+await page.waitForSelector('#p11b', { state: 'attached' });
+assert.equal(await page.innerText('#view-toggle'), 'רק התהליכים שלי');
+assert.equal(await page.evaluate(() => document.activeElement?.id), 'view-toggle');
+// Client card: Natali-only processes show, the DMS day does not.
 assert.equal(await page.locator('#p11b').count(), 1);
 assert.equal(await page.locator('#p21').count(), 0);
 assert.match(await page.locator('#p11').textContent(), /חסר בפרטי הלקוח: מועד יום הצילום/);
@@ -491,14 +506,29 @@ await page.focus('#i-p06-verified');
 await page.keyboard.press('Space');
 await page.waitForFunction(() => document.querySelector('#i-p06-verified').checked && !document.querySelector('.is-busy'));
 
-// A video editor: no passwords, and a paused edit tells Lior and Ofir.
+// A video editor ('own'): only her processes, none of the office's controls, no vault;
+// a paused edit tells Lior and Ofir.
 db.staff[0].person = 'nadia';
 db.staff[0].vault = false;
 seeded.editor = 'nadia';
+seeded.links = { drive: 'https://drive.google.com/drive/folders/ron' };
 await page.goto(`${BASE}client.html?id=${seeded.id}`);
 await page.waitForSelector('#p22', { state: 'attached' });
-assert.equal(await page.isHidden('#access-add'), true);
-assert.match(await page.locator('#access-list').textContent(), /לצוות המשרד בלבד/);
+assert.equal(await page.isHidden('#access'), true);
+const nadiaProcs = await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id));
+assert.ok(nadiaProcs.length && nadiaProcs.every((x) => ['p22', 'p24', 'p27'].includes(x)), nadiaProcs.join());
+assert.equal(await page.locator('#view-toggle').count(), 0); // no "whole protocol" for 'own'
+assert.match(await page.locator('#viewbar').innerText(), /רק התהליכים והפריטים שלך בלקוח הזה/);
+for (const sel of ['#btn-edit', '.deliv', '.round-add', '.auto-note .btn', '.cc-links .btn-text', '.chip-missing']) assert.equal(await page.locator(sel).count(), 0, sel);
+assert.equal(await page.isVisible('#btn-escalate'), true); // exceptions still go to Lior
+assert.equal(await page.isHidden('#history'), true);
+assert.equal(await page.isHidden('#tasks'), true); // no task of hers here, and no task form
+assert.match(await page.locator('.cc-links').innerText(), /תיקיית Drive/); // the links to work with stay
+assert.doesNotMatch(await page.locator('.cc-facts').innerText(), /טלפון|סיום החוזה/);
+assert.match(await page.locator('.cc-progress').innerText(), /התהליכים שלי שהושלמו/);
+assert.equal(await page.locator('#app > a.back').innerText(), '→ מה עליי');
+// Why her editing waits, in one line.
+assert.match(await page.locator('.cc-next').innerText(), /התהליך הבא שלך[^]*22 · עריכת הסרטונים[^]*ממתין ל: הלקוח שויך לעורך והכונן הועבר אליו \(תהליך 22א\)/);
 await page.evaluate(() => { document.querySelector('#p22')?.closest('details').setAttribute('open', ''); });
 await page.click('#p22 button:has-text("עצירת העריכה")');
 await page.waitForSelector('#dlg-pause[open]');
@@ -509,10 +539,66 @@ await page.fill('#pause-left', 'כתוביות ומוזיקה');
 await page.fill('#pause-why', 'סרטון דחוף ללקוח אחר');
 await page.click('#pause-submit');
 await page.waitForSelector('#p22 .pause-line');
+await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('ליאור ואופיר עודכנו'));
 assert.equal(JSON.parse(db.protocol_checks.find((c) => c.client_id === seeded.id && c.item_key === 'p22.pause').note).left, 'כתוביות ומוזיקה');
 assert.deepEqual(db.client_tasks.filter((t) => t.client_id === seeded.id && /עצר/.test(t.title)).map((t) => t.owner).sort(), ['lior', 'ofir']);
 await page.click('#p22 .pause-line button:has-text("חזרה לעריכה")');
 await page.waitForFunction(() => !document.querySelector('#p22 .pause-line'));
+// A task given to her shows (only hers), without the form to open tasks.
+db.client_tasks.push({ id: randomUUID(), client_id: seeded.id, title: 'לקצר את סרטון 4', owner: 'nadia', due_on: null, done_at: null, done_by_email: null, created_by_email: 'ofir@astrateg.test', created_at: hoursAgo(1), source: null, brief: null, urgent: false });
+await page.reload();
+await page.waitForSelector('#tasks:not([hidden]) .tlist .item');
+assert.equal(await page.isHidden('#task-form'), true);
+assert.deepEqual(await page.locator('#task-list .ilabel').allInnerTexts(), ['לקצר את סרטון 4']);
+await shot('09-editor-card');
+
+// Her "my work": no picker, no one else's list, no office tabs, only her clients.
+await page.goto(`${BASE}clients.html`);
+await page.waitForSelector('#view-mine:not([hidden]) .wproc');
+assert.equal(await page.getAttribute('#tab-mine', 'aria-selected'), 'true');
+assert.match(await page.locator('#me-bar').innerText(), /נדיה/);
+assert.equal(await page.locator('.who-panel, #mine-people .chip, #mine-select').count(), 0);
+for (const t of ['#tab-control', '#tab-performance', '#btn-new']) assert.equal(await page.isHidden(t), true, t);
+assert.match(await page.locator('#mine-list').innerText(), /מספרת רון[^]*לקצר את סרטון 4/);
+assert.doesNotMatch(await page.locator('#mine-list').innerText(), /פיצה נאפולי|דנה לוי/);
+await page.goto(`${BASE}clients.html#control`); // the office screens are not reachable by link either
+await page.waitForSelector('#view-mine:not([hidden])');
+assert.equal(await page.isHidden('#view-control'), true);
+await page.click('#tab-clients');
+await page.waitForSelector('.crow');
+assert.equal(await page.innerText('#tab-clients'), 'הלקוחות שלי');
+assert.deepEqual(await page.locator('.crow strong').allInnerTexts(), ['מספרת רון']); // the client she edits
+assert.match(await page.locator('.crow .cnext').innerText(), /הצעד הבא שלך[^]*לקצר את סרטון 4/);
+assert.equal(await page.locator('#client-filters .chip').count(), 0);
+await shot('10-editor-clients');
+db.client_tasks = db.client_tasks.filter((t) => t.owner !== 'nadia');
+
+// The photographer ('own'): the coming shoot day is in his list before it starts,
+// and the card shows only his three shoot-day processes.
+db.staff[0].person = 'eli';
+await page.goto(`${BASE}clients.html`);
+await page.waitForSelector('#view-mine:not([hidden]) .g-soon');
+const soon = page.locator('.g-soon .soon-card:has(.wclient:text("מספרת רון"))');
+assert.match(await soon.innerText(), /יום צילום[^]*הגעת המשפיענים[^]*כתובת: הרצל 10, תל אביב[^]*17ב · הצלם: הגעה, ציוד ובי־רול[^]*18ב[^]*19ב/);
+assert.equal(await page.locator('.g-soon .cbx').count(), 0); // not checkable before the day
+assert.equal(await page.locator('#mine-people .chip, #tab-control:not([hidden])').count(), 0);
+assert.ok(await noHScroll(page));
+await shot('11-photographer-mine');
+await soon.locator('.wclient').click();
+await page.waitForSelector('#p17b');
+assert.equal(new URL(page.url()).hash, '#p17b');
+const eliProcs = await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id));
+assert.deepEqual(eliProcs, ['p17b', 'p18b', 'p19b']);
+assert.match(await page.locator('.cc-facts').innerText(), /הרצל 10, תל אביב/);
+// One click: arriving an hour early is checked on the card.
+await page.check('#i-p17b-arrived');
+await page.waitForFunction(() => document.querySelector('#i-p17b-arrived')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
+assert.ok(db.protocol_checks.some((c) => c.client_id === seeded.id && c.item_key === 'p17b.arrived' && c.state === 'done'));
+// Handing the drive to Lior is confirmed on its own, never in bulk.
+assert.equal(await page.locator('#i-p19b-handed').count(), 1);
+await shot('12-photographer-card');
+db.protocol_checks = db.protocol_checks.filter((c) => !(c.client_id === seeded.id && c.item_key === 'p17b.arrived'));
+
 db.staff[0].person = 'irit';
 db.staff[0].vault = true;
 seeded.editor = null;

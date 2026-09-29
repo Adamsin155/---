@@ -11,12 +11,12 @@ import {
 } from './protocol-logic.js';
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
-  addTask, setTaskDone, updateClient, myPerson, loadDirectory, loadQuoteSummary, loadCalls,
+  addTask, setTaskDone, updateClient, loadDirectory, loadQuoteSummary, loadCalls,
   loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
-  statusBadge, dueText, progressBar, mountSession, store, directory,
+  statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { googleCalendarUrl, downloadIcs } from './calendar.js';
@@ -33,9 +33,13 @@ let access = [];             // network logins (without passwords)
 let vaultOk = false;         // may this user see and edit logins (editors may not)
 let statusNote = null;       // Ofir's latest weekly summary
 let myEmail = '';
-let me = null;               // this user's person key
-let focusPerson = '';        // highlighted person ('' = everyone)
-let onlyFocus = false;       // hide processes the person has nothing in
+let me = null;               // this user's person key (staff.person; null for the owner)
+let scope = 'office';        // 'own': only my processes and items; 'office': may show the whole protocol
+let viewerError = null;      // the signed-in person could not be looked up
+let showAll = false;         // office: the whole protocol instead of only mine (an explicit choice)
+let focusPerson = '';        // whole protocol: highlighted person ('' = everyone)
+let onlyFocus = false;       // whole protocol: hide processes the person has nothing in
+let resolved = new Map();    // item key -> { proc, item } with owners resolved, for the current render
 let printing = false;
 const openPhases = new Set();
 const shownDone = new Set(); // phases whose completed processes the user expanded
@@ -52,8 +56,17 @@ const FIELD_NAMES = {
 const FIELD_INPUT = { characterizer: 'ed-characterizer', char_at: 'ed-char-at', shoot_type: 'ed-shoot-type', shoot_at: 'ed-shoot-at', has_logo: 'ed-logo', editor: 'ed-editor' };
 // The link each process works with, shown inside the process.
 const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p09: 'gantt', p10: 'meta', p12: 'scripts', p24: 'drive' };
-// Processes where the client is part of the work: "waiting on client" is offered even before they are late.
-const CLIENT_PROCS = new Set(['p05', 'p07', 'p11', 'p13', 'p23', 'p26', 'p27']);
+// What this user sees. 'own' roles see only their processes and items, and none of
+// the office's controls (client details, rounds, package counts, closing the client).
+// Office users see theirs first and can show the whole protocol. The owner has no
+// person and sees the whole protocol, highlighting anyone. Screens only: the
+// database decides what each user may read or change.
+const own = () => scope === 'own';
+const mineOnly = () => !!me && !showAll;
+const viewPerson = () => (mineOnly() ? me : focusPerson);
+const hasPart = (proc, person) => proc.items.some((i) => i.owners.includes(person));
+const canAddTask = () => scope === 'office'; // 'own' roles report through the exception and pause forms
+const names = (keys) => keys.map((k) => PEOPLE[k]?.name || k).join(', ');
 
 async function load() {
   if (!id) { $('state').textContent = 'לא נבחר לקוח.'; return; }
@@ -66,8 +79,8 @@ async function load() {
     tasks = t;
     if (c.quote_id && (!quote || quote.id !== c.quote_id)) quote = await loadQuoteSummary(c.quote_id);
     [access, statusNote] = await Promise.all([
-      loadAccess(id).catch(() => []),
-      loadStatusNotes({ clientId: id }).then((r) => r[0] || null).catch(() => null),
+      vaultOk ? loadAccess(id).catch(() => []) : [],
+      own() ? null : loadStatusNotes({ clientId: id }).then((r) => r[0] || null).catch(() => null),
     ]);
   } catch (err) {
     $('state').textContent = errorText(err);
@@ -81,10 +94,16 @@ async function load() {
 
 function render() {
   const s = clientState(client, checks, new Date());
+  resolved = new Map(s.states.flatMap((x) => x.proc.items.map((i) => [i.key, { proc: x.proc, item: i }])));
   if (!openPhases.size) {
-    openPhases.add(s.current);
-    for (const ph of s.phases) if (ph.states.some((x) => x.status === 'overdue')) openPhases.add(ph.key);
     const tp = s.states.find((x) => x.proc.id === location.hash.slice(1));
+    // A link to someone else's process (from the office screens) shows the whole protocol.
+    if (tp && mineOnly() && !own() && !hasPart(tp.proc, me)) showAll = true;
+    const shown = mineOnly() ? s.states.filter((x) => hasPart(x.proc, me)) : s.states;
+    // In "mine" the current phase is where my open work is.
+    const cur = mineOnly() ? s.phases.find((ph) => shown.some((x) => x.proc.phase === ph.key && !x.complete && !x.proc.recurring))?.key : null;
+    openPhases.add(cur || s.current);
+    for (const x of shown) if (x.status === 'overdue') openPhases.add(x.proc.phase);
     if (tp) openPhases.add(tp.proc.phase);
   }
   renderHead(s);
@@ -141,7 +160,7 @@ function calendarMenu(kind, n = 1) {
     h('summary', { 'aria-label': `הוספת ${name} ליומן` }, 'הוספה ליומן'),
     h('div', { class: 'cal-menu' },
       client.address ? null : h('p', { class: 'hint' }, 'אין כתובת עסק בכרטיס, והאירוע ייווצר בלי מקום. ',
-        h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit('ed-address') }, 'הוספת כתובת')),
+        own() ? null : h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit('ed-address') }, 'הוספת כתובת')),
       h('a', { class: 'btn btn-sm btn-ghost', href: googleCalendarUrl(ev()), target: '_blank', rel: 'noopener' }, 'Google Calendar'),
       h('button', {
         type: 'button', class: 'btn btn-sm btn-ghost',
@@ -171,13 +190,22 @@ function fact(k, v, extra = null) {
 }
 
 function nextFor(s) {
-  const open = openItemsFor(focusPerson || null, client, checks, s).sort(byUrgency);
+  const open = openItemsFor(viewPerson() || null, client, checks, s).sort(byUrgency);
   return open.find((x) => x.status !== 'client') || open[0] || null;
+}
+
+// With nothing of mine to check now: my next process and what it waits for, or a plain "nothing".
+function nothingNext(s) {
+  const x = client.status === 'cancelled' ? null : s.states.find((y) => !y.complete && !y.proc.recurring && hasPart(y.proc, me));
+  if (!x) return h('p', { class: 'cc-next is-none' }, h('span', { class: 'k' }, 'הצעד הבא שלך'), h('span', {}, 'אין כרגע משהו פתוח אצלך בלקוח הזה.'));
+  const why = dueText(x, new Date()) || 'ממתין לפריטים קודמים בפרוטוקול';
+  return h('a', { class: 'cc-next s-waiting', href: `#${x.proc.id}`, onclick: (e) => { e.preventDefault(); goTo(x.proc.id); } },
+    h('span', { class: 'k' }, 'התהליך הבא שלך'), h('span', {}, `${x.proc.num} · ${x.proc.title}`), h('span', { class: 'muted' }, why));
 }
 
 function autoBanner() {
   const c = client;
-  if (c.created_by_email !== 'system' || c.verified_at || c.status === 'cancelled') return null;
+  if (own() || c.created_by_email !== 'system' || c.verified_at || c.status === 'cancelled') return null;
   return h('div', { class: 'auto-note', role: 'note' },
     h('p', {}, 'הלקוח נפתח אוטומטית כשנחתם הסכם ', quote?.number ? h('bdi', { class: 'num', dir: 'ltr' }, quote.number) : 'חתום',
       `${quote?.signed_at ? ` ב־${formatStamp(quote.signed_at)}` : ''}. מההסכם מולאו: חבילה, משפיענים, כמויות, סוג יום צילום וסיום חוזה. כדאי לעבור עליהם.`),
@@ -190,6 +218,13 @@ function autoBanner() {
 function linksRow() {
   const links = client.links || {};
   const set = LINKS.filter((l) => links[l.key]);
+  // 'own': the links to work with, nothing to edit.
+  if (own()) {
+    return set.length ? h('nav', { class: 'cc-links', 'aria-label': 'קישורים של הלקוח' },
+      h('span', { class: 'me-label' }, 'קישורים:'),
+      h('ul', { class: 'chips-row' }, ...set.map((l) => h('li', {}, h('a', { class: 'chip link-chip', href: links[l.key], target: '_blank', rel: 'noopener' },
+        l.label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')))))) : null;
+  }
   const missing = LINKS.filter((l) => !links[l.key] && checks[l.after]?.state === 'done');
   return h('nav', { class: 'cc-links', 'aria-label': 'קישורים של הלקוח' },
     h('span', { class: 'me-label' }, 'קישורים:'),
@@ -205,7 +240,7 @@ function linksRow() {
 // Ofir's latest weekly summary of where the client stands.
 function statusNoteBlock() {
   const n = statusNote;
-  if (!n) return null;
+  if (!n || own()) return null;
   const parts = STATUS_FIELDS.map(([k, l]) => (n[k] ? [h('dt', {}, l), h('dd', {}, n[k])] : null)).filter(Boolean).flat();
   return h('section', { class: 'status-note', 'aria-label': 'סיכום מצב שבועי' },
     h('div', { class: 'deliv-head' }, h('h2', {}, 'סיכום מצב שבועי'),
@@ -218,12 +253,10 @@ function statusNoteBlock() {
 // ── Access vault ────────────────────────────
 const STATUS_LABEL = { ok: 'תקינה', broken: 'לא עובדת', missing: 'אין רשת' };
 const networkName = (k) => NETWORKS.find(([n]) => n === k)?.[1] || k;
+// Shown only to whoever may use the vault (can_use_vault in the database).
 function renderAccess() {
-  $('access-add').hidden = !vaultOk;
-  if (!vaultOk) {
-    fill($('access-list'), h('li', { class: 'empty' }, 'הגישות לרשתות זמינות לצוות המשרד בלבד.'));
-    return;
-  }
+  $('access').hidden = !vaultOk;
+  if (!vaultOk) return;
   fill($('access-list'), ...(access.length ? access.map((a) => h('li', { class: `access-row a-${a.status}` },
     h('div', { class: 'access-main' },
       h('strong', {}, networkName(a.network)), a.label ? h('span', { class: 'muted' }, ` · ${a.label}`) : null,
@@ -240,6 +273,7 @@ function renderAccess() {
     : [h('li', { class: 'empty' }, 'עוד לא הוכנסו גישות. כל גישה תקינה נכנסת לכאן מיד, לא נשארת בוואטסאפ.')]));
 }
 async function refreshAccess() {
+  if (!vaultOk) return;
   try { access = await loadAccess(id); } catch { /* keep the old list */ }
   renderAccess();
   await refreshAccessLog();
@@ -355,6 +389,14 @@ function renderHead(s) {
   const nextLabel = next?.status === 'client'
     ? `ממתין ללקוח (${next.proc.num} · ${next.proc.title})`
     : next ? `${next.proc.num} · ${next.proc.title}` : null;
+  const vp = viewPerson();
+  // 'own': progress of my processes only; the office sees the client's.
+  const counted = s.states.filter((x) => !x.proc.recurring && x.proc.phase !== 'renewal' && (!own() || hasPart(x.proc, me)));
+  const prog = own()
+    ? { done: counted.filter((x) => x.complete).length, total: counted.length, label: 'התהליכים שלי שהושלמו', overdue: counted.filter((x) => x.status === 'overdue').length, waiting: counted.filter((x) => x.status === 'client').length }
+    : { done: s.procsDone, total: s.procsTotal, label: 'תהליכים שהושלמו', overdue: s.overdue, waiting: s.waitingOnClient };
+  const shootFact = fact('יום צילום', [c.shoot_type ? SHOOT_TYPES[c.shoot_type].name : null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot'));
+  const editorFact = fact('עורך', c.editor ? PEOPLE[c.editor]?.name : c.editor_name);
   fill($('cc-head'),
     autoBanner(),
     c.status === 'cancelled' ? h('div', { class: 'auto-note', role: 'note' }, h('p', {}, `ההסכם בוטל${c.closed_reason ? `: ${c.closed_reason}` : '.'}`)) : null,
@@ -366,50 +408,74 @@ function renderHead(s) {
       h('div', { class: 'head-actions' },
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-escalate', onclick: () => openEscalate() }, 'דיווח חריגה לליאור'),
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => window.print() }, 'הדפסה'),
-        h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'))),
+        own() ? null : h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'))),
     h('div', { class: 'cc-progress' },
-      h('span', {}, 'תהליכים שהושלמו'),
-      h('strong', { class: 'num', dir: 'ltr' }, `${s.procsDone}/${s.procsTotal}`),
-      progressBar(s.procsDone, s.procsTotal, 'תהליכים שהושלמו'),
-      s.overdue ? statusBadge('overdue', null) : null,
-      s.overdue ? h('span', { class: 'num' }, `${s.overdue} תהליכים`) : null,
-      s.waitingOnClient ? statusBadge('client', null) : null,
-      s.waitingOnClient ? h('span', { class: 'num' }, `${s.waitingOnClient} תהליכים`) : null),
+      h('span', {}, prog.label),
+      h('strong', { class: 'num', dir: 'ltr' }, `${prog.done}/${prog.total}`),
+      progressBar(prog.done, prog.total, prog.label),
+      prog.overdue ? statusBadge('overdue', null) : null,
+      prog.overdue ? h('span', { class: 'num' }, `${prog.overdue} תהליכים`) : null,
+      prog.waiting ? statusBadge('client', null) : null,
+      prog.waiting ? h('span', { class: 'num' }, `${prog.waiting} תהליכים`) : null),
     next ? h('a', { class: `cc-next s-${next.status}`, href: `#${next.proc.id}`, onclick: (e) => { e.preventDefault(); goTo(next.proc.id); } },
-      h('span', { class: 'k' }, focusPerson ? `הצעד הבא אצל ${PEOPLE[focusPerson].name}` : 'הצעד הבא'),
+      h('span', { class: 'k' }, vp === me && me ? 'הצעד הבא שלך' : vp ? `הצעד הבא אצל ${PEOPLE[vp].name}` : 'הצעד הבא'),
       h('span', {}, nextLabel),
-      next.status === 'client' ? null : statusBadge(next.status, next.dueAt)) : null,
-    h('dl', { class: 'facts cc-facts' },
-      fact('טלפון', phone),
-      fact('כתובת העסק', c.address),
-      fact('פרטי העסקה התקבלו', c.deal_at ? formatStamp(c.deal_at) : null),
-      fact('פגישת אפיון', c.char_at ? `${formatStamp(c.char_at)}${charBy ? ` · ${charBy}` : ''}` : charBy, calendarMenu('char')),
-      fact('יום צילום', [c.shoot_type ? SHOOT_TYPES[c.shoot_type].name : null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot')),
-      fact('לוגו', c.has_logo === true ? 'יש' : c.has_logo === false ? 'אין, עילאי מכין' : null),
-      fact('עורך', c.editor ? PEOPLE[c.editor]?.name : c.editor_name),
-      fact('סיום החוזה', c.contract_end ? formatDay(c.contract_end) : null)),
+      next.status === 'client' ? null : statusBadge(next.status, next.dueAt, new Date()))
+      : mineOnly() ? nothingNext(s) : null,
+    // 'own': only the details that serve the work (where, when, who edits).
+    own() ? h('dl', { class: 'facts cc-facts' }, fact('כתובת העסק', c.address), shootFact, editorFact)
+      : h('dl', { class: 'facts cc-facts' },
+        fact('טלפון', phone),
+        fact('כתובת העסק', c.address),
+        fact('פרטי העסקה התקבלו', c.deal_at ? formatStamp(c.deal_at) : null),
+        fact('פגישת אפיון', c.char_at ? `${formatStamp(c.char_at)}${charBy ? ` · ${charBy}` : ''}` : charBy, calendarMenu('char')),
+        shootFact,
+        fact('לוגו', c.has_logo === true ? 'יש' : c.has_logo === false ? 'אין, עילאי מכין' : null),
+        editorFact,
+        fact('סיום החוזה', c.contract_end ? formatDay(c.contract_end) : null)),
     statusNoteBlock(),
     linksRow(),
-    deliverablesBlock(s),
+    own() ? null : deliverablesBlock(s),
     c.notes ? h('p', { class: 'cc-notes' }, c.notes) : null,
   );
   fill($('cc-sticky'),
     h('span', { class: 'sticky-name' }, c.name),
-    h('strong', { class: 'num', dir: 'ltr' }, `${s.procsDone}/${s.procsTotal}`),
-    progressBar(s.procsDone, s.procsTotal, 'תהליכים שהושלמו'),
-    s.overdue ? statusBadge('overdue', null) : null);
+    h('strong', { class: 'num', dir: 'ltr' }, `${prog.done}/${prog.total}`),
+    progressBar(prog.done, prog.total, prog.label),
+    prog.overdue ? statusBadge('overdue', null) : null);
 }
 
 function goTo(procId) {
   const st = clientState(client, checks).states.find((x) => x.proc.id === procId);
+  // Someone else's process (from the history) needs the whole protocol; 'own' views link only to their own.
+  if (st && mineOnly() && !own() && !hasPart(st.proc, me)) showAll = true;
   if (st) { openPhases.add(st.proc.phase); shownDone.add(st.proc.phase); render(); }
   const el = document.getElementById(procId);
   el?.scrollIntoView({ block: 'start' });
   el?.querySelector('.cbx:not(:disabled)')?.focus({ preventScroll: true });
 }
 
-// ── Person focus ────────────────────────────
+// ── What is shown ──────────────────────────
+// 'own': always only mine. Office: mine by default, the whole protocol on request
+// (remembered in this browser), where one person can be highlighted. The owner
+// sees the whole protocol and can highlight anyone ("view as").
 function renderViewbar() {
+  const acts = h('div', { class: 'viewbar-acts' },
+    h('button', { type: 'button', class: 'btn-text', onclick: () => { for (const p of clientState(client, checks).phases) { openPhases.add(p.key); shownDone.add(p.key); } render(); } }, 'פתיחת הכול'),
+    h('button', { type: 'button', class: 'btn-text', onclick: () => { openPhases.clear(); openPhases.add('__none'); shownDone.clear(); render(); } }, 'קיפול'));
+  const toggle = me && !own() ? h('button', {
+    type: 'button', class: 'btn btn-sm btn-ghost view-toggle', id: 'view-toggle',
+    onclick: () => { showAll = !showAll; store.set('card.all', showAll ? '1' : ''); renderKeepingFocus('view-toggle'); },
+  }, showAll ? 'רק התהליכים שלי' : 'הצגת כל הפרוטוקול') : null;
+  if (own() && !me) {
+    fill($('viewbar'), h('p', { class: 'err', role: 'alert' }, viewerError ? VIEWER_UNKNOWN : 'לא הוגדר לך תפקיד בפרוטוקול. פנו למנהל המערכת.'));
+    return;
+  }
+  if (mineOnly()) {
+    fill($('viewbar'), h('p', { class: 'view-note' }, h('span', { class: 'me-label' }, 'מוצג:'), ' ',
+      own() ? 'רק התהליכים והפריטים שלך בלקוח הזה.' : 'רק התהליכים והפריטים שלך.'), toggle, acts);
+    return;
+  }
   const opts = [['', 'כל הצוות'], ...STAFF_PEOPLE().map((p) => [p.key, p.key === me ? `${p.name} (אני)` : p.name])];
   const choose = (k) => { focusPerson = k; store.set('focus', k); render(); };
   fill($('viewbar'),
@@ -424,9 +490,8 @@ function renderViewbar() {
     focusPerson ? h('label', { class: 'only' },
       h('input', { type: 'checkbox', checked: onlyFocus, onchange: (e) => { onlyFocus = e.currentTarget.checked; render(); } }),
       ` רק התהליכים של ${PEOPLE[focusPerson].name}`) : null,
-    h('div', { class: 'viewbar-acts' },
-      h('button', { type: 'button', class: 'btn-text', onclick: () => { for (const p of clientState(client, checks).phases) { openPhases.add(p.key); shownDone.add(p.key); } render(); } }, 'פתיחת הכול'),
-      h('button', { type: 'button', class: 'btn-text', onclick: () => { openPhases.clear(); openPhases.add('__none'); shownDone.clear(); render(); } }, 'קיפול')),
+    toggle,
+    acts,
   );
 }
 
@@ -437,17 +502,25 @@ function roundHeader(ph) {
   const has = Object.keys(checks).some((k) => k.startsWith(`r${r.n}.`));
   return h('div', { class: 'round-head' },
     h('span', {}, [r.shoot_type ? SHOOT_TYPES[r.shoot_type].name : null, r.shoot_at ? `יום צילום ${formatStamp(r.shoot_at)}` : 'מועד יום הצילום טרם נקבע'].filter(Boolean).join(' · ')),
-    h('button', { type: 'button', class: 'btn-text', onclick: () => openRound(r.n) }, 'עריכת הסבב'),
+    own() ? null : h('button', { type: 'button', class: 'btn-text', onclick: () => openRound(r.n) }, 'עריכת הסבב'),
     calendarMenu('shoot', r.n),
-    has ? null : h('button', { type: 'button', class: 'btn-text danger', onclick: () => deleteRound(r.n) }, 'מחיקת הסבב'));
+    has || own() ? null : h('button', { type: 'button', class: 'btn-text danger', onclick: () => deleteRound(r.n) }, 'מחיקת הסבב'));
 }
 
 function renderPhases(s) {
   const now = new Date();
-  fill($('phases'), ...s.phases.map((ph, idx) => {
-    const list = ph.states.filter((x) => !onlyFocus || !focusPerson || x.proc.items.some((i) => i.owners.includes(focusPerson)));
+  if (own() && !me) { fill($('phases')); return; }
+  // Whose processes are listed: mine, or (whole protocol) the highlighted person's when asked.
+  const only = mineOnly() ? me : onlyFocus && focusPerson ? focusPerson : null;
+  const phases = s.phases.map((ph, idx) => {
+    const list = ph.states.filter((x) => !only || hasPart(x.proc, only));
     if (!list.length) return null;
-    const late = ph.states.filter((x) => x.status === 'overdue').length;
+    // "Mine": the phase's counts are of my processes.
+    const counted = list.filter((x) => !x.proc.recurring);
+    const meta = mineOnly()
+      ? { late: list.filter((x) => x.status === 'overdue').length, done: counted.filter((x) => x.complete).length, total: counted.length, complete: counted.length > 0 && counted.every((x) => x.complete) }
+      : { late: ph.states.filter((x) => x.status === 'overdue').length, done: ph.procsDone, total: ph.procsTotal, complete: ph.complete };
+    const late = meta.late;
     const done = list.filter((x) => x.complete);
     const showDone = printing || shownDone.has(ph.key) || done.length === list.length;
     const missing = missingFields(ph.round ? { needs: [] } : ph, client);
@@ -457,21 +530,21 @@ function renderPhases(s) {
         h('span', { class: 'ph-title' }, h('h2', {}, ph.title), ph.key === s.current ? h('span', { class: 'ph-now' }, 'השלב הנוכחי') : null),
         h('span', { class: 'ph-meta' },
           late ? statusBadge('overdue', null) : null,
-          ph.complete ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'הושלם') : null,
-          ph.procsTotal ? h('span', { class: 'num', dir: 'ltr' }, `${ph.procsDone}/${ph.procsTotal}`) : null,
-          ph.procsTotal ? progressBar(ph.procsDone, ph.procsTotal, `תהליכים שהושלמו בשלב ${ph.title}`) : null)),
+          meta.complete ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'הושלם') : null,
+          meta.total ? h('span', { class: 'num', dir: 'ltr' }, `${meta.done}/${meta.total}`) : null,
+          meta.total ? progressBar(meta.done, meta.total, `${mineOnly() ? 'התהליכים שלי' : 'תהליכים'} שהושלמו בשלב ${ph.title}`) : null)),
       ph.round ? roundHeader(ph) : null,
       ph.note ? h('p', { class: 'ph-note' }, ph.note) : null,
       missing.length ? h('div', { class: 'need ph-need', role: 'note' },
-        h('span', {}, `חלק מהתהליכים בשלב תלויים בפרטים שחסרים: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`),
-        h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEdit(FIELD_INPUT[missing[0]]) }, 'השלמת פרטים')) : null,
+        h('span', {}, `חלק מהתהליכים בשלב תלויים בפרטים שחסרים: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`, own() ? ' המשרד משלים אותם.' : ''),
+        own() ? null : h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEdit(FIELD_INPUT[missing[0]]) }, 'השלמת פרטים')) : null,
       h('div', { class: 'procs' },
         !showDone && done.length ? h('button', {
           type: 'button', class: 'done-row', 'aria-expanded': 'false', onclick: () => { shownDone.add(ph.key); render(); },
         }, h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' })),
         `${done.length} תהליכים הושלמו (${done.map((x) => x.proc.num).join(', ')})`, h('span', { class: 'btn-text' }, 'הצגה')) : null,
         ...list.filter((x) => showDone || !x.complete).map((x) => procCard(x, now)),
-        ph.key === 'publish' || ph.round ? h('div', { class: 'round-add' },
+        (ph.key === 'publish' || ph.round) && !own() ? h('div', { class: 'round-add' },
           h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => openRound() }, 'הוספת סבב צילום')) : null));
     det.addEventListener('toggle', () => {
       if (printing) return;
@@ -479,7 +552,10 @@ function renderPhases(s) {
       if (det.open) openPhases.add(ph.key); else openPhases.delete(ph.key);
     });
     return h('section', { class: 'phase-wrap', 'aria-label': ph.title }, det);
-  }));
+  });
+  const none = mineOnly() && !phases.some(Boolean);
+  fill($('phases'), ...phases, none ? h('p', { class: 'empty' }, own() ? 'אין לך תהליכים בלקוח הזה.'
+    : 'אין לך תהליכים בלקוח הזה. ״הצגת כל הפרוטוקול״ מציג את כל התהליכים.') : null);
 }
 
 function claimLine(x) {
@@ -586,8 +662,15 @@ async function markBulk(x, items) {
 function procCard(x, now) {
   const p = x.proc;
   const pid = p.id.replace(/^r\d+-/, '');
-  const mine = focusPerson && p.items.some((i) => i.owners.includes(focusPerson));
-  const dim = focusPerson && !mine && x.status !== 'overdue';
+  // Highlighting a person applies to the whole protocol; in "mine" everything shown is mine.
+  const hl = mineOnly() ? '' : focusPerson;
+  const mine = hl && hasPart(p, hl);
+  const dim = hl && !mine && x.status !== 'overdue';
+  // "Mine": only my items; the others' are summed up in one line.
+  const items = mineOnly() ? p.items.filter((i) => i.owners.includes(me)) : p.items;
+  const hidden = p.items.filter((i) => !items.includes(i));
+  const req = items.filter((i) => !i.optional);
+  const count = mineOnly() ? { resolved: req.filter((i) => isResolved(i, checks[i.key])).length, required: req.length } : x;
   const ctx = p.ctx || client;
   const missing = missingFields(p, ctx);
   const guidance = p.guidance ? (ctx.shoot_type ? [p.guidance[ctx.shoot_type]] : Object.values(p.guidance)) : [];
@@ -595,7 +678,8 @@ function procCard(x, now) {
   const link = PROC_LINK[pid] && client.links?.[PROC_LINK[pid]];
   const linkDef = LINKS.find((l) => l.key === PROC_LINK[pid]);
   const pkgQty = pid === 'p22' ? client.deliverables?.videos : pid === 'p23' ? client.deliverables?.graphics : null;
-  const canWait = !x.complete && !p.recurring && (x.ready || CLIENT_PROCS.has(pid));
+  // 'own' roles mark a wait only where the client is part of their work.
+  const canWait = !x.complete && !p.recurring && (own() ? CLIENT_PROCS.has(pid) : x.ready || CLIENT_PROCS.has(pid));
   return h('article', { class: `proc s-${x.status}${mine ? ' is-mine' : ''}${dim ? ' is-dim' : ''}`, id: p.id, 'aria-labelledby': `${p.id}-h`, 'aria-describedby': x.wait ? `${p.id}-wait` : null },
     h('header', { class: 'proc-head' },
       h('span', { class: 'pnum num' }, p.num),
@@ -609,7 +693,7 @@ function procCard(x, now) {
           claimLine(x))),
       h('div', { class: 'proc-status' },
         statusBadge(x.status, x.dueAt, now),
-        p.recurring || compact ? null : h('span', { class: 'num muted', dir: 'ltr' }, `${x.resolved}/${x.required}`),
+        p.recurring || compact ? null : h('span', { class: 'num muted', dir: 'ltr' }, `${count.resolved}/${count.required}`),
         x.complete && !printing ? h('button', {
           type: 'button', class: 'btn-text', 'aria-expanded': String(!compact), id: `${p.id}-items`,
           onclick: () => { if (compact) shownProcs.add(p.id); else shownProcs.delete(p.id); renderKeepingFocus(`${p.id}-items`); },
@@ -620,13 +704,15 @@ function procCard(x, now) {
       pid === 'p22' || pid === 'p27' ? pauseLine(x) : null,
       p.ownerNote ? h('p', { class: 'proc-note' }, p.ownerNote) : null,
       missing.length ? h('div', { class: 'need', role: 'note' },
-        h('span', {}, `חסר בפרטי הלקוח: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`),
-        h('button', { type: 'button', class: 'btn btn-sm', onclick: () => (p.ctx ? openRound(p.ctx.round) : openEdit(FIELD_INPUT[missing[0]])) }, 'השלמת פרטים')) : null,
+        h('span', {}, `חסר בפרטי הלקוח: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`, own() ? ' המשרד משלים אותם.' : ''),
+        own() ? null : h('button', { type: 'button', class: 'btn btn-sm', onclick: () => (p.ctx ? openRound(p.ctx.round) : openEdit(FIELD_INPUT[missing[0]])) }, 'השלמת פרטים')) : null,
       p.what ? h('p', { class: 'proc-what' }, p.what) : null,
       link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${linkDef.label}`) : null,
       ...guidance.map((g) => h('p', { class: 'proc-guide' }, g)),
       p.rule ? h('p', { class: 'proc-rule' }, h('strong', {}, 'חובה: '), p.rule) : null,
-      h('ul', { class: 'items' }, ...p.items.map((i) => itemRow(p, i))),
+      h('ul', { class: 'items' }, ...items.map((i) => itemRow(p, i))),
+      hidden.length ? h('p', { class: 'others-note' },
+        `ועוד ${hidden.length === 1 ? 'פריט אחד' : `${hidden.length} פריטים`} בתהליך הזה אצל ${names([...new Set(hidden.flatMap((i) => i.owners))].filter((o) => o !== me))}.`) : null,
       bulkButton(x),
     ],
   );
@@ -639,7 +725,7 @@ function itemRow(p, i) {
   const busy = pending.has(i.key);
   const block = state ? null : blockers(i, p.ctx || client, checks);
   const ownOwners = i.owners.join() !== p.owners.join();
-  const mine = focusPerson && i.owners.includes(focusPerson);
+  const mine = !mineOnly() && focusPerson && i.owners.includes(focusPerson);
   const meta = [];
   if (c && (!i.recurring)) {
     const verb = c.state === 'na' ? (i.optional ? 'לא נדרש' : 'סומן לא רלוונטי') : 'בוצע';
@@ -647,10 +733,21 @@ function itemRow(p, i) {
     if (c.note) meta.push(h('span', { class: 'inote' }, c.state === 'na' ? `סיבה: ${c.note}` : c.note));
   }
   if (block) {
-    const here = block.items.filter((k) => ITEM_INDEX.get(baseKey(k))?.proc.id === p.id.replace(/^r\d+-/, ''));
-    const there = block.items.filter((k) => !here.includes(k)).map((k) => `${labelOf(k)} (תהליך ${ITEM_INDEX.get(baseKey(k))?.proc.num})`);
+    // "Waiting for": items above in this process, others' items, items of other processes.
+    // In "mine" the others' items are not shown, so they are named with who holds them.
+    const ref = (k) => resolved.get(k) || { proc: ITEM_INDEX.get(baseKey(k))?.proc, item: { owners: [] } };
+    const by = (keys) => names([...new Set(keys.flatMap((k) => ref(k).item.owners))].filter((o) => o !== me));
+    const shown = (k) => !mineOnly() || ref(k).item.owners.includes(me);
+    const inProc = block.items.filter((k) => ref(k).proc?.id === p.id);
+    const here = inProc.filter(shown);
+    const held = inProc.filter((k) => !shown(k));
+    const there = block.items.filter((k) => !inProc.includes(k)).map((k) => {
+      const who_ = mineOnly() ? by([k]) : '';
+      return `${labelOf(k)} (תהליך ${ref(k).proc?.num}${who_ ? ` · ${who_}` : ''})`;
+    });
     const why = [
       ...(here.length > 2 ? [`${here.length} בדיקות למעלה`] : here.map(labelOf)),
+      ...(held.length > 2 ? [`${held.length} בדיקות של ${by(held)}`] : held.map((k) => `${labelOf(k)} (${by([k])})`)),
       ...there,
     ];
     const text = [
@@ -1017,7 +1114,7 @@ fill($('esc-reason'), ...ESCALATIONS.map((r) => h('option', { value: r }, r)));
 function openEscalate(procId = '') {
   $('esc-form').reset();
   $('esc-err').hidden = true;
-  const open = clientState(client, checks).states.filter((x) => !x.complete && !x.proc.recurring);
+  const open = clientState(client, checks).states.filter((x) => !x.complete && !x.proc.recurring && (!own() || hasPart(x.proc, me)));
   fill($('esc-proc'), h('option', { value: '' }, 'כללי'), ...open.map((x) => h('option', { value: x.proc.id }, `${x.proc.num} · ${x.proc.title}`)));
   $('esc-proc').value = procId;
   escDlg.showModal();
@@ -1174,8 +1271,12 @@ function syncBrief() {
 }
 $('task-owner').addEventListener('change', syncBrief);
 function renderTasks() {
-  const open = tasks.filter((t) => !t.done_at);
-  const done = tasks.filter((t) => t.done_at).slice(0, 20);
+  // 'own': only the tasks given to me; the section is gone when there are none.
+  const list = own() ? tasks.filter((t) => t.owner === me) : tasks;
+  $('tasks').hidden = own() && !list.length;
+  $('task-form').hidden = !canAddTask();
+  const open = list.filter((t) => !t.done_at);
+  const done = list.filter((t) => t.done_at).slice(0, 20);
   const today = new Date().toLocaleDateString('en-CA');
   const row = (t) => {
     const tid = `t-${t.id}`;
@@ -1199,7 +1300,7 @@ function renderTasks() {
         h('dl', { class: 'call-sum' }, ...BRIEF_FIELDS.filter(([k]) => t.brief[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, t.brief[k])]))) : null);
   };
   open.sort((a, b) => Number(b.urgent) - Number(a.urgent));
-  if (!tasks.length) fill($('task-list'), h('li', { class: 'empty' }, 'אין משימות פתוחות.'));
+  if (!list.length) fill($('task-list'), h('li', { class: 'empty' }, 'אין משימות פתוחות.'));
   else fill($('task-list'), ...open.map(row), ...done.map(row));
 }
 async function toggleTask(t, input) {
@@ -1271,6 +1372,7 @@ function historyText(r) {
   return null;
 }
 async function loadHistory() {
+  if (own()) return; // 'own' views show neither the history nor the weekly call
   try { [log, calls] = await Promise.all([loadLog(id), loadCalls(id)]); } catch { return; }
   fill($('hist-list'), ...(log.length ? log.map((r) => {
     const special = historyText(r);
@@ -1411,16 +1513,33 @@ const busy = () => pending.size || Object.keys(saveTimers).length || dialogs.som
 document.addEventListener('visibilitychange', () => { if (!document.hidden && client && !busy()) load(); });
 setInterval(() => { if (!document.hidden && client && !busy()) renderKeepingFocus(); }, 60e3);
 
+// The parts of the page that depend on who is looking, set once after sign-in.
+function applyScope() {
+  document.documentElement.dataset.scope = scope;
+  if (!own()) return;
+  const back = document.querySelector('#app > a.back');
+  if (back) { back.href = 'clients.html#mine'; back.textContent = '→ מה עליי'; }
+  $('history').hidden = true;
+  $('tasks-h').textContent = 'המשימות שלי';
+  const sub = document.querySelector('#tasks .side-head p');
+  if (sub) sub.textContent = 'משימות שנפתחו לך בלקוח הזה.';
+  // My work first; the vault (when mine to use) after it.
+  $('phases').after($('access'));
+}
+
 mountSession(async (staff) => {
   myEmail = staff.email;
-  Object.assign(directory, await loadDirectory());
-  me = (await myPerson()) || store.get('me') || null;
-  if (me && !PEOPLE[me]) me = null;
-  // A saved choice ('' = whole team) wins; otherwise start from the user's own work.
+  const [dir, viewer, vault] = await Promise.all([loadDirectory(), viewerOf(staff.email), canUseVault()]);
+  Object.assign(directory, dir);
+  ({ me, scope } = viewer);
+  viewerError = viewer.error;
+  vaultOk = vault;
+  // Mine by default; the whole protocol only when an office user chose it (or for the owner).
+  showAll = !me || (!own() && store.get('card.all') === '1');
   const saved = store.get('focus');
-  focusPerson = saved !== null ? saved : me || '';
+  focusPerson = saved !== null && !own() ? saved : me || '';
   if (focusPerson && !PEOPLE[focusPerson]) focusPerson = '';
-  vaultOk = await canUseVault();
+  applyScope();
   await load();
   refreshAccess();
   const target = location.hash && document.getElementById(location.hash.slice(1));
