@@ -1,0 +1,284 @@
+// End-to-end check of the client protocol pages against an in-memory fake of Supabase.
+// Run: npx http-server -p 8080 . &  then  node tests/protocol-e2e.mjs [outDir]
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+
+const BASE = process.env.BASE_URL || 'http://localhost:8080/';
+const OUT = process.argv[2] || null;
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const USER = { id: randomUUID(), email: 'irit@astrateg.test', aud: 'authenticated', role: 'authenticated' };
+const JWT = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: USER.id, email: USER.email, role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 })}.sig`;
+
+const hoursAgo = (n) => new Date(Date.now() - n * 36e5).toISOString();
+const daysFromNow = (n, h = 10) => { const d = new Date(); d.setDate(d.getDate() + n); d.setHours(h, 0, 0, 0); return d.toISOString(); };
+const signedQuote = { id: randomUUID(), number: 'AST-2026-0042', client_name: 'דנה לוי', signed_at: hoursAgo(1), status: 'signed',
+  company: 'סטודיו דנה', phone: '050-1234567', tier: 'Social all in one', influencer: 'נטלי דדון', package_id: 'social-natali', term_months: 12 };
+
+const db = {
+  staff: [{ email: USER.email, person: 'irit' }],
+  quotes: [signedQuote],
+  clients: [],
+  protocol_checks: [],
+  protocol_log: [],
+  client_tasks: [],
+};
+let failNextCheck = false;
+
+// Seed: one client mid-way, one just signed.
+const seeded = { id: randomUUID(), name: 'מספרת רון', business: 'רון עיצוב שיער', phone: '052-7654321', package_name: 'Social + TV · דניס, מישל וסמיון',
+  shoot_type: 'dms', characterizer: 'ofir', has_logo: true, editor_name: null, deal_at: hoursAgo(80), char_at: hoursAgo(50), shoot_at: daysFromNow(2),
+  contract_end: '2027-09-20', status: 'active', notes: null, quote_id: null, created_at: hoursAgo(80), created_by_email: USER.email };
+const fresh = { ...seeded, id: randomUUID(), name: 'פיצה נאפולי', business: null, phone: null, package_name: null, shoot_type: null, characterizer: null,
+  has_logo: null, deal_at: hoursAgo(3), char_at: null, shoot_at: null, contract_end: null };
+db.clients.push(seeded, fresh);
+const doneKeys = ['p01.prepared', 'p01.sent', 'p01.signed', 'p02.opened', 'p02.m.lior', 'p02.m.irit', 'p02.m.ofir', 'p02.m.shirel', 'p02.m.ilai', 'p02.m.client', 'p02.intro', 'p03.who', 'p03.scheduled',
+  'p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved', 'p05.access', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos'];
+for (const k of doneKeys) db.protocol_checks.push({ client_id: seeded.id, item_key: k, state: 'done', note: null, by_email: 'ofir@astrateg.test', at: hoursAgo(49) });
+db.protocol_checks.push({ client_id: seeded.id, item_key: 'p05.menu', state: 'na', note: null, by_email: 'ofir@astrateg.test', at: hoursAgo(49) });
+db.client_tasks.push({ id: randomUUID(), client_id: seeded.id, title: 'לשלוח ללקוח את רשימת השאלות לראיון', owner: 'irit', due_on: new Date().toISOString().slice(0, 10), done_at: null, done_by_email: null, created_by_email: 'lior@astrateg.test', created_at: hoursAgo(5) });
+
+function applyFilters(rows, params) {
+  let out = rows;
+  for (const [k, v] of params) {
+    if (['select', 'order', 'offset', 'limit', 'on_conflict', 'columns'].includes(k)) continue;
+    if (v.startsWith('eq.')) out = out.filter((r) => String(r[k]) === v.slice(3));
+    else if (v.startsWith('neq.')) out = out.filter((r) => String(r[k]) !== v.slice(4));
+    else if (v === 'is.null') out = out.filter((r) => r[k] === null || r[k] === undefined);
+    else if (v === 'not.is.null') out = out.filter((r) => r[k] !== null && r[k] !== undefined);
+  }
+  return out;
+}
+
+async function fakeSupabase(route) {
+  const req = route.request();
+  const url = new URL(req.url());
+  const body = req.postData() ? JSON.parse(req.postData()) : null;
+  const headers = req.headers();
+  const json = (status, data) => route.fulfill({
+    status, contentType: 'application/json', body: JSON.stringify(data),
+    headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' },
+  });
+  if (req.method() === 'OPTIONS') return json(200, {});
+  const p = url.pathname;
+  if (p === '/auth/v1/token') {
+    if (body.password !== 'correct-horse') return json(400, { error: 'invalid_grant', error_description: 'Invalid login credentials', msg: 'Invalid login credentials', code: 'invalid_credentials' });
+    return json(200, { access_token: JWT, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user: USER });
+  }
+  if (p === '/auth/v1/user') return json(200, USER);
+  if (p === '/auth/v1/logout') return route.fulfill({ status: 204 });
+  const authed = (headers.authorization || '').includes(JWT);
+  if (p === '/rest/v1/rpc/is_staff') return json(200, authed);
+  if (p === '/rest/v1/rpc/set_my_person') { db.staff[0].person = body.p_person; return json(200, null); }
+  const m = /^\/rest\/v1\/(\w+)$/.exec(p);
+  if (!m || !db[m[1]]) return json(404, { message: 'not found' });
+  if (!authed) return json(401, { message: 'permission denied' });
+  const table = m[1];
+  const single = (headers.accept || '').includes('vnd.pgrst.object');
+  const reply = (rows) => (single ? (rows.length ? json(200, rows[0]) : json(406, { message: 'no rows' })) : json(200, rows));
+  const now = new Date().toISOString();
+
+  if (req.method() === 'GET') {
+    let rows = applyFilters(db[table], url.searchParams);
+    if (table === 'protocol_log') rows = [...rows].reverse();
+    const off = Number(url.searchParams.get('offset') || 0);
+    const lim = Number(url.searchParams.get('limit') || 1e9);
+    return reply(rows.slice(off, off + lim));
+  }
+  if (req.method() === 'POST') {
+    const rows = Array.isArray(body) ? body : [body];
+    const out = [];
+    for (const r of rows) {
+      if (table === 'protocol_checks') {
+        if (failNextCheck) { failNextCheck = false; return json(500, { message: 'Failed to fetch' }); }
+        const row = { ...r, by_email: USER.email, at: now };
+        const i = db.protocol_checks.findIndex((x) => x.client_id === r.client_id && x.item_key === r.item_key);
+        if (i >= 0) db.protocol_checks[i] = row; else db.protocol_checks.push(row);
+        db.protocol_log.push({ id: db.protocol_log.length + 1, client_id: r.client_id, item_key: r.item_key, action: r.state, note: r.note, by_email: USER.email, at: now });
+        out.push(row);
+      } else if (table === 'clients') {
+        const row = { business: null, phone: null, package_name: null, shoot_type: null, characterizer: null, has_logo: null, editor_name: null, char_at: null, shoot_at: null, contract_end: null, status: 'active', notes: null, quote_id: null, deal_at: now, ...r, id: randomUUID(), created_at: now, created_by_email: USER.email };
+        db.clients.push(row);
+        out.push(row);
+      } else if (table === 'client_tasks') {
+        const row = { due_on: null, done_at: null, done_by_email: null, ...r, id: randomUUID(), created_by_email: USER.email, created_at: now };
+        db.client_tasks.push(row);
+        out.push(row);
+      }
+    }
+    return reply(out);
+  }
+  if (req.method() === 'PATCH') {
+    const rows = applyFilters(db[table], url.searchParams);
+    for (const r of rows) {
+      Object.assign(r, body);
+      if (table === 'client_tasks') r.done_by_email = r.done_at ? USER.email : null;
+    }
+    return reply(rows);
+  }
+  if (req.method() === 'DELETE') {
+    const rows = applyFilters(db[table], url.searchParams);
+    db[table] = db[table].filter((r) => !rows.includes(r));
+    if (table === 'protocol_checks') for (const r of rows) db.protocol_log.push({ id: db.protocol_log.length + 1, client_id: r.client_id, item_key: r.item_key, action: 'clear', note: null, by_email: USER.email, at: now });
+    return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
+  }
+  return json(405, {});
+}
+
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
+await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+const page = await ctx.newPage();
+const errors = [];
+page.on('pageerror', (e) => errors.push(String(e)));
+page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
+const shot = async (name, pg = page) => { if (OUT) await pg.screenshot({ path: `${OUT}/${name}.png`, fullPage: true }); };
+const noHScroll = async (pg) => pg.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+
+// Login
+await page.goto(`${BASE}clients.html`);
+await page.fill('#lg-email', USER.email);
+await page.fill('#lg-pass', 'correct-horse');
+await page.click('#lg-submit');
+await page.waitForSelector('#app:not([hidden])');
+
+// My work: Irit's open items across clients, most urgent first.
+await page.waitForSelector('#view-mine:not([hidden]) .witem');
+assert.equal(await page.getAttribute('#tab-mine', 'aria-selected'), 'true');
+const mine = await page.locator('#mine-list').innerText();
+assert.match(mine, /באיחור/);
+assert.match(mine, /פיצה נאפולי/);
+assert.match(mine, /לשלוח ללקוח את רשימת השאלות לראיון/); // task from the weekly call
+assert.doesNotMatch(mine, /כתובת מלאה של העסק/); // Ofir's characterization items are not Irit's
+await shot('01-my-work');
+
+// Check an item straight from "my work".
+const firstLabel = await page.locator('.witem .wlabel').first().innerText();
+await page.locator('.witem .cbx').first().check();
+await page.waitForSelector('.witem.is-done');
+assert.ok(db.protocol_checks.some((c) => c.state === 'done' && c.by_email === USER.email) || db.client_tasks.some((t) => t.done_at), `saved: ${firstLabel}`);
+
+// Clients tab
+await page.click('#tab-clients');
+await page.waitForSelector('.crow');
+assert.equal(await page.locator('.crow').count(), 2);
+await shot('02-clients');
+
+// Control tab
+await page.click('#tab-control');
+await page.waitForSelector('.ctable');
+assert.match(await page.locator('#control').innerText(), /לקוחות עם איחור/);
+await shot('03-control');
+
+// New client from a signed agreement
+await page.click('#btn-new');
+await page.waitForSelector('#from-quote-field:not([hidden])');
+await page.selectOption('#new-quote', signedQuote.id);
+assert.equal(await page.inputValue('#new-name'), 'דנה לוי');
+assert.equal(await page.inputValue('#new-shoot-type'), 'natali');
+await page.click('#new-submit');
+await page.waitForURL(/client\.html\?id=/);
+const created = db.clients.find((c) => c.name === 'דנה לוי');
+assert.equal(created.quote_id, signedQuote.id);
+assert.equal(created.shoot_type, 'natali');
+
+// Client card: Natali-only processes show, the DMS day does not.
+await page.waitForSelector('#p01');
+assert.equal(await page.locator('#p11b').count(), 1);
+assert.equal(await page.locator('#p21').count(), 0);
+assert.match(await page.locator('#p11').textContent(), /חסר בפרטי הלקוח: מועד יום הצילום/);
+await page.check('#i-p01-prepared');
+await page.waitForFunction(() => document.querySelector('#i-p01-prepared')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
+assert.ok(db.protocol_checks.some((c) => c.client_id === created.id && c.item_key === 'p01.prepared'));
+assert.match(await page.locator('#p01').textContent(), /בוצע · irit/);
+// Focus stays on the checkbox after saving.
+assert.equal(await page.evaluate(() => document.activeElement?.id), 'i-p01-prepared');
+
+// Not relevant, then back
+await page.click('#i-p05-menu-na');
+await page.waitForFunction(() => document.querySelector('#i-p05-menu')?.closest('.item').classList.contains('is-na'));
+assert.equal(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p05.menu').state, 'na');
+
+// A failed save rolls the checkbox back and says so.
+failNextCheck = true;
+// A plain click: check() would retry once it sees the rollback.
+await page.click('#i-p01-sent');
+await page.waitForFunction(() => !document.querySelector('#i-p01-sent').checked && !document.querySelector('.is-busy'));
+assert.match(await page.locator('#toast').innerText(), /הסימון לא נשמר/);
+assert.ok(!db.protocol_checks.some((c) => c.client_id === created.id && c.item_key === 'p01.sent'));
+
+// Uncheck is recorded in history
+await page.uncheck('#i-p01-prepared');
+await page.waitForFunction(() => !document.querySelector('.is-busy') && !document.querySelector('#i-p01-prepared').checked);
+await page.waitForFunction(() => /ביטל\/ה סימון/.test(document.querySelector('#hist-list').innerText));
+
+// Edit details: Shirel characterizes, so access moves to Lior or Irit; no logo adds Ilai's logo item.
+await page.click('#btn-edit');
+await page.fill('#ed-char-at', '2026-10-01T10:00');
+await page.selectOption('#ed-characterizer', 'shirel');
+await page.selectOption('#ed-logo', 'false');
+await page.fill('#ed-shoot-at', '2026-10-11T10:00');
+await page.click('#ed-submit');
+await page.waitForSelector('#i-p05-newlogo');
+const p5 = await page.locator('#p05 .proc-meta').textContent();
+assert.match(p5, /ליאור/);
+assert.match(p5, /עירית/);
+assert.doesNotMatch(p5, /אופיר/);
+// Sunday shoot: reminder due on Thursday, the previous business day, at 11:00.
+assert.match(await page.locator('#p15').textContent(), /11:00/);
+
+// Tasks
+await page.fill('#task-title', 'להזמין מאפרת לנטלי');
+await page.selectOption('#task-owner', 'lior');
+await page.click('#task-submit');
+await page.waitForFunction(() => /להזמין מאפרת לנטלי/.test(document.querySelector('#task-list').innerText));
+assert.equal(db.client_tasks.at(-1).owner, 'lior');
+
+// Reload keeps everything
+await page.reload();
+await page.waitForSelector('#p01');
+assert.equal(await page.isChecked('#i-p01-prepared'), false);
+assert.match(await page.locator('#p05').textContent(), /לא רלוונטי/);
+
+// Person focus: only Shirel's processes
+await page.click('.viewbar .chip:has-text("שיראל")');
+await page.check('.only input');
+await page.evaluate(() => document.querySelectorAll('details.phase').forEach((d) => { d.open = true; }));
+const shown = await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id));
+assert.ok(shown.includes('p04') && shown.includes('p12') && !shown.includes('p10'), shown.join());
+await page.uncheck('.only input');
+await page.click('.viewbar .chip:has-text("כל הצוות")');
+await shot('04-client-card');
+
+// Seeded client, mid-way
+await page.goto(`${BASE}client.html?id=${seeded.id}`);
+await page.waitForSelector('#p21', { state: 'attached' });
+await shot('05-client-midway');
+
+// Keyboard: tab to a checkbox and toggle with space.
+await page.focus('#i-p06-verified');
+await page.keyboard.press('Space');
+await page.waitForFunction(() => document.querySelector('#i-p06-verified').checked && !document.querySelector('.is-busy'));
+
+// Mobile
+const mob = await ctx.newPage();
+await mob.setViewportSize({ width: 360, height: 780 });
+await mob.goto(`${BASE}client.html?id=${seeded.id}`);
+await mob.waitForSelector('#p06', { state: 'attached' });
+assert.ok(await noHScroll(mob), 'client card scrolls sideways at 360px');
+const box = await mob.locator('#i-p06-name').boundingBox();
+const row = await mob.locator('#i-p06-name').evaluate((el) => el.closest('.item').getBoundingClientRect().height);
+assert.ok(box.width >= 24 && row >= 44, `touch target ${box.width}x${row}`);
+await shot('06-mobile-card', mob);
+await mob.goto(`${BASE}clients.html#clients`);
+await mob.waitForSelector('.crow');
+assert.ok(await noHScroll(mob), 'clients list scrolls sideways at 360px');
+await shot('07-mobile-clients', mob);
+await mob.goto(`${BASE}clients.html#mine`);
+await mob.waitForSelector('.witem');
+assert.ok(await noHScroll(mob), 'my work scrolls sideways at 360px');
+await shot('08-mobile-mine', mob);
+
+assert.deepEqual(errors, []);
+await browser.close();
+console.log('protocol e2e: all checks passed');

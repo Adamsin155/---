@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>לקוחות ופרוטוקול · astrateg</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="clients.html" aria-label="astrateg · לקוחות ופרוטוקול">
+      <span class="brand-chip"><img src="app/assets/logo-mark.png" alt=""></span>
+      <span class="brand-name">astrateg</span>
+      <span class="brand-sep" aria-hidden="true">/</span>
+      <span class="brand-product">לקוחות</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="clients.html" aria-current="page">לקוחות</a>
+      <a class="navlink" href="./">הצעה חדשה</a>
+      <a class="navlink" href="quotes.html">הצעות שנשלחו</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>הלקוחות והפרוטוקול זמינים לאנשי צוות מורשים בלבד.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app" hidden>
+      <div class="page-head">
+        <div>
+          <div class="kicker latin">CLIENT PROTOCOL</div>
+          <h1>לקוחות ופרוטוקול עבודה</h1>
+          <p>כל לקוח, איפה הוא נמצא בפרוטוקול, ומה פתוח אצל מי.</p>
+        </div>
+        <div class="head-actions">
+          <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+          <button type="button" class="btn btn-sm btn-primary" id="btn-new">לקוח חדש</button>
+        </div>
+      </div>
+
+      <div class="me-bar" id="me-bar"></div>
+
+      <div class="tabs" role="tablist" aria-label="תצוגה">
+        <button type="button" role="tab" class="tab" id="tab-mine" aria-controls="view-mine">מה עליי</button>
+        <button type="button" role="tab" class="tab" id="tab-clients" aria-controls="view-clients">לקוחות</button>
+        <button type="button" role="tab" class="tab" id="tab-control" aria-controls="view-control">בקרה יומית</button>
+      </div>
+
+      <section class="block" id="view-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
+        <div class="filters" role="group" aria-label="של מי" id="mine-people"></div>
+        <div id="mine-list" class="mine-list"></div>
+      </section>
+
+      <section class="block" id="view-clients" role="tabpanel" aria-labelledby="tab-clients" hidden>
+        <div class="filters list-tools">
+          <div role="group" aria-label="סינון לפי סטטוס" id="client-filters" class="chips-row"></div>
+          <label class="search"><span class="sr-only">חיפוש לקוח</span><input class="input" id="client-search" type="search" placeholder="חיפוש לקוח"></label>
+        </div>
+        <div id="client-list" class="client-list"></div>
+      </section>
+
+      <section class="block" id="view-control" role="tabpanel" aria-labelledby="tab-control" hidden>
+        <div class="control" id="control"></div>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <dialog id="dlg-new" aria-labelledby="new-h">
+    <form id="new-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="new-h">לקוח חדש</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body form-grid">
+        <div class="field span-2" id="from-quote-field" hidden>
+          <label for="new-quote">פתיחה מהסכם חתום</label>
+          <select class="input" id="new-quote"><option value="">בלי הסכם (מילוי ידני)</option></select>
+          <div class="hint">בחירת הסכם ממלאת את פרטי הלקוח, החבילה, המשפיענים ותאריך סיום החוזה.</div>
+        </div>
+        <div class="field"><label for="new-name">שם הלקוח</label><input class="input" id="new-name" required autocomplete="off"></div>
+        <div class="field"><label for="new-business">שם העסק</label><input class="input" id="new-business" autocomplete="off"></div>
+        <div class="field"><label for="new-phone">טלפון</label><input class="input" id="new-phone" type="tel" dir="ltr" autocomplete="off"></div>
+        <div class="field"><label for="new-package">חבילה</label><input class="input" id="new-package" autocomplete="off"></div>
+        <div class="field"><label for="new-shoot-type">סוג יום צילום</label>
+          <select class="input" id="new-shoot-type"><option value="">עוד לא ידוע</option><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
+        <div class="field"><label for="new-contract-end">סיום החוזה</label><input class="input" id="new-contract-end" type="date" dir="ltr"></div>
+        <div class="err span-2" id="new-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="new-submit">פתיחת כרטיס לקוח</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script type="module" src="app/clients.js"></script>
+</body>
+</html>

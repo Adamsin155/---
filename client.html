@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>כרטיס לקוח · astrateg</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="clients.html" aria-label="astrateg · לקוחות ופרוטוקול">
+      <span class="brand-chip"><img src="app/assets/logo-mark.png" alt=""></span>
+      <span class="brand-name">astrateg</span>
+      <span class="brand-sep" aria-hidden="true">/</span>
+      <span class="brand-product">לקוחות</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="clients.html">לקוחות</a>
+      <a class="navlink" href="./">הצעה חדשה</a>
+      <a class="navlink" href="quotes.html">הצעות שנשלחו</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>כרטיס הלקוח זמין לאנשי צוות מורשים בלבד.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app" hidden>
+      <a class="back" href="clients.html#clients">→ כל הלקוחות</a>
+      <header class="block cc-head" id="cc-head" aria-live="polite"></header>
+      <div class="viewbar" id="viewbar"></div>
+      <div id="phases" class="phases"></div>
+      <section class="block cc-side" id="tasks" aria-labelledby="tasks-h">
+        <div class="side-head"><h2 id="tasks-h">משימות</h2><p class="muted">משימות שנפתחו בשיחה השבועית או בבקרה, עם מבצע אחראי.</p></div>
+        <form class="task-form" id="task-form" novalidate>
+          <div class="field grow"><label for="task-title">משימה חדשה</label><input class="input" id="task-title" autocomplete="off"></div>
+          <div class="field"><label for="task-owner">מי מבצע</label><select class="input" id="task-owner"></select></div>
+          <div class="field"><label for="task-due">עד תאריך</label><input class="input" id="task-due" type="date" dir="ltr"></div>
+          <button type="submit" class="btn btn-sm" id="task-submit">הוספה</button>
+        </form>
+        <ul class="tlist" id="task-list"></ul>
+      </section>
+      <section class="block cc-side" id="history" aria-labelledby="hist-h">
+        <div class="side-head"><h2 id="hist-h">היסטוריה</h2><p class="muted">כל סימון וביטול סימון, מי ומתי.</p></div>
+        <ol class="hlist" id="hist-list"></ol>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <dialog id="dlg-edit" aria-labelledby="ed-h">
+    <form id="ed-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="ed-h">פרטי הלקוח</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body form-grid">
+        <div class="field"><label for="ed-name">שם הלקוח</label><input class="input" id="ed-name" required autocomplete="off"></div>
+        <div class="field"><label for="ed-business">שם העסק</label><input class="input" id="ed-business" autocomplete="off"></div>
+        <div class="field"><label for="ed-phone">טלפון</label><input class="input" id="ed-phone" type="tel" dir="ltr" autocomplete="off"></div>
+        <div class="field"><label for="ed-package">חבילה</label><input class="input" id="ed-package" autocomplete="off"></div>
+        <div class="field"><label for="ed-deal">קבלת פרטי העסקה</label><input class="input" id="ed-deal" type="datetime-local" dir="ltr"></div>
+        <div class="field"><label for="ed-status">סטטוס</label>
+          <select class="input" id="ed-status"><option value="active">פעיל</option><option value="ending">מסיים התקשרות</option><option value="ended">הסתיים</option></select></div>
+        <fieldset class="span-2 fs">
+          <legend>אפיון</legend>
+          <div class="form-grid inner">
+            <div class="field"><label for="ed-char-at">מועד פגישת האפיון</label><input class="input" id="ed-char-at" type="datetime-local" dir="ltr"></div>
+            <div class="field"><label for="ed-characterizer">מי מבצע</label>
+              <select class="input" id="ed-characterizer"><option value="">טרם נקבע</option><option value="ofir">אופיר</option><option value="shirel">שיראל</option></select></div>
+            <div class="field"><label for="ed-logo">יש ללקוח לוגו?</label>
+              <select class="input" id="ed-logo"><option value="">לא ידוע</option><option value="true">כן</option><option value="false">לא, עילאי מכין לוגו</option></select></div>
+          </div>
+        </fieldset>
+        <fieldset class="span-2 fs">
+          <legend>יום צילום</legend>
+          <div class="form-grid inner">
+            <div class="field"><label for="ed-shoot-type">עם מי</label>
+              <select class="input" id="ed-shoot-type"><option value="">טרם נקבע</option><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
+            <div class="field"><label for="ed-shoot-at">מועד הגעת המשפיענים</label><input class="input" id="ed-shoot-at" type="datetime-local" dir="ltr"></div>
+            <div class="field"><label for="ed-editor">עורך (אופיר בוחר)</label><input class="input" id="ed-editor" autocomplete="off"></div>
+          </div>
+        </fieldset>
+        <div class="field"><label for="ed-contract-end">סיום החוזה</label><input class="input" id="ed-contract-end" type="date" dir="ltr"></div>
+        <div class="field span-2"><label for="ed-notes">הערות</label><textarea class="input" id="ed-notes" rows="3"></textarea></div>
+        <div class="err span-2" id="ed-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="ed-submit">שמירה</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-call" aria-labelledby="call-h">
+    <form id="call-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="call-h">תיעוד שיחה שבועית</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p>קמפיינים, לידים, תוצאות, סרטונים, תכנים שעלו ועתידיים, בעיות, שיפורים ובקשות חדשות. משימות שעלו בשיחה מוסיפים ברשימת המשימות עם מבצע.</p>
+        <div class="field"><label for="call-note">סיכום השיחה</label><textarea class="input" id="call-note" rows="6" maxlength="2000"></textarea></div>
+        <div class="err" id="call-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="call-submit">שמירת השיחה</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script type="module" src="app/client-card.js"></script>
+</body>
+</html>
