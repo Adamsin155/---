@@ -2,7 +2,7 @@
 // processes 32 and 33) and the performance report.
 import {
   PEOPLE, STAFF_PEOPLE, EDITORS, PHASES, PROCESSES, CLIENT_STATUS, OFFICE_REVIEWS, REVIEW_TOPICS,
-  STATUS_FIELDS, BRIEF_REQUIRED,
+  STATUS_FIELDS, BRIEF_REQUIRED, STATIONS, DELIVERABLES,
 } from './protocol.js';
 import {
   clientState, openItemsFor, byUrgency, bucketOf, CLAIM, WAIT, waitNote, bulkEligible, isResolved,
@@ -20,6 +20,8 @@ import {
   isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
+import { PACKAGES } from './catalog.js';
+import { IMPORT_NOTE, PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
 
 let clients = [];
 let checks = {};
@@ -1679,13 +1681,71 @@ async function renderPerformance() {
       personTable('לפי עובד', STAFF_PEOPLE().map((p) => p.key))) : null);
 }
 
-// ── New client ──────────────────────────────
+// ── New client: the deal details, or an existing client imported mid-way ──
 const dlg = $('dlg-new');
 let quotesForNew = [];
+let importing = false;
+let derivedShoot = false;   // the shoot type shown was set from the package, not picked
+let pendingChecks = null;   // the client opened but its first checks did not save: submitting retries only them
+const P01 = ['p01.prepared', 'p01.sent', 'p01.signed'];
+const pad2 = (n) => String(n).padStart(2, '0');
+const toLocalInput = (v) => { const d = new Date(v); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const fromLocalInput = (v) => (v ? new Date(v).toISOString() : null);
+const quoteOf = () => quotesForNew.find((x) => x.id === $('new-quote').value) || null;
+// The agreement's add-ons count only while its own package is the one chosen.
+const selectionFor = (pkg, q) => (q && q.package_id === pkg ? q.selection : null);
+const delivText = (d) => [...DELIVERABLES.map((x) => [x.label, d[x.key]]), ['ימי צילום', d.shoot_days]]
+  .filter(([, n]) => n > 0).map(([l, n]) => `${l} ${n}`).join(' · ');
+// A field fixed after a failed save stops being marked; the message goes when none is left.
+function clearInvalid(el) {
+  if (!el?.hasAttribute('aria-invalid')) return;
+  el.removeAttribute('aria-invalid');
+  if (!dlg.querySelector('[aria-invalid]')) $('new-err').hidden = true;
+}
+
+fill($('new-package'), h('option', { value: '' }, 'לא מהקטלוג (כמויות בכרטיס)'), ...PACKAGE_OPTIONS.map((p) => h('option', { value: p.id }, p.name)));
+fill($('new-station'), h('option', { value: '' }, 'בחירת תחנה'), ...STATIONS.map((st, i) => h('option', { value: st.key }, `${i + 1}. ${st.title}`)));
+
+function setMode(imp) {
+  importing = imp;
+  $('new-mode-new').setAttribute('aria-pressed', String(!imp));
+  $('new-mode-import').setAttribute('aria-pressed', String(imp));
+  $('new-import').hidden = !imp;
+  $('new-station').required = imp;
+  $('new-submit').textContent = imp ? 'ייבוא הלקוח' : 'פתיחת כרטיס לקוח';
+}
+$('new-mode-new').addEventListener('click', () => setMode(false));
+$('new-mode-import').addEventListener('click', () => { setMode(true); $('new-station').focus(); });
+
+// Quantities and the shoot type follow the package, for manual opens too.
+function packageChanged() {
+  const pkg = $('new-package').value;
+  const q = quoteOf();
+  const d = dealDeliverables(pkg, selectionFor(pkg, q));
+  $('new-package-hint').textContent = Object.keys(d).length
+    ? `בכרטיס: ${delivText(d)}${selectionFor(pkg, q) ? ' (כולל התוספות בהסכם)' : ''}`
+    : 'את הכמויות מזינים בכרטיס הלקוח.';
+  const st = shootTypeOf(pkg);
+  if (st) { $('new-shoot-type').value = st; clearInvalid($('new-shoot-type')); } else if (derivedShoot) $('new-shoot-type').value = '';
+  derivedShoot = !!st;
+  $('new-shoot-hint').textContent = st ? 'לפי החבילה.' : 'לבחור במפורש.';
+}
+$('new-package').addEventListener('change', packageChanged);
+$('new-shoot-type').addEventListener('change', () => { derivedShoot = false; $('new-shoot-hint').textContent = ''; });
+for (const type of ['input', 'change']) dlg.addEventListener(type, (e) => clearInvalid(e.target));
+
 dlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === dlg) dlg.close(); });
+// Closed before the first checks were saved: the client is there, so the list shows it.
+dlg.addEventListener('close', () => { if (pendingChecks) { pendingChecks = null; load(); } });
 $('btn-new').addEventListener('click', async () => {
   $('new-form').reset();
   $('new-err').hidden = true;
+  for (const el of dlg.querySelectorAll('[aria-invalid]')) el.removeAttribute('aria-invalid');
+  pendingChecks = null;
+  derivedShoot = false;
+  setMode(false);
+  packageChanged();
+  $('new-submit').disabled = false;
   dlg.showModal();
   $('new-name').focus();
   try {
@@ -1696,42 +1756,87 @@ $('btn-new').addEventListener('click', async () => {
     ...quotesForNew.map((q) => h('option', { value: q.id }, `${q.number} · ${q.client_name}${q.company ? ` (${q.company})` : ''} · נחתם ${formatDay(q.signed_at)}`)));
 });
 $('new-quote').addEventListener('change', () => {
-  const q = quotesForNew.find((x) => x.id === $('new-quote').value);
-  if (!q) return;
+  const q = quoteOf();
+  if (!q) { packageChanged(); return; }
   $('new-name').value = q.client_name || '';
   $('new-business').value = q.company || '';
   $('new-phone').value = q.phone || '';
-  $('new-package').value = [q.tier, q.influencer].filter(Boolean).join(' · ');
-  $('new-shoot-type').value = /נטלי/.test(q.influencer || '') ? 'natali' : q.influencer ? 'dms' : '';
+  // The shoot type comes from the agreement's package in the catalog.
+  $('new-package').value = PACKAGES[q.package_id] ? q.package_id : '';
+  packageChanged();
   const end = new Date(q.signed_at);
   end.setMonth(end.getMonth() + (Number(q.term_months) || 12));
   $('new-contract-end').value = end.toLocaleDateString('en-CA');
+  $('new-deal-at').value = q.signed_at ? toLocalInput(q.signed_at) : '';
 });
+
+// The client's first checks: process 1 when it was signed in the system, and the
+// import of everything before its station. Each batch saves whole or not at all.
+async function saveFirstChecks(p) {
+  if (p.signed.length) { await setChecksBulk(p.row.id, p.signed, 'done', p.signedNote); p.signed = []; }
+  if (p.imported.length) { await setChecksBulk(p.row.id, p.imported, 'done', IMPORT_NOTE); p.imported = []; }
+}
+
 $('new-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const name = $('new-name').value.trim();
-  const fail = (msg) => { $('new-err').textContent = msg; $('new-err').hidden = false; };
-  $('new-name').setAttribute('aria-invalid', String(!name));
-  if (!name) { $('new-name').focus(); return fail('חסר שם לקוח.'); }
-  const q = quotesForNew.find((x) => x.id === $('new-quote').value);
-  const val = (id) => $(id).value.trim() || null;
+  const fail = (msg, el = null) => {
+    $('new-err').textContent = msg; $('new-err').hidden = false;
+    if (el) { el.setAttribute('aria-invalid', 'true'); el.focus(); }
+  };
+  $('new-err').hidden = true;
+  for (const el of dlg.querySelectorAll('[aria-invalid]')) el.removeAttribute('aria-invalid');
   $('new-submit').disabled = true;
-  try {
-    // The deal reaches the office now, so the clocks of processes 1–3 start now.
-    const row = await createClient({
-      name, business: val('new-business'), phone: val('new-phone'), package_name: val('new-package'),
-      shoot_type: val('new-shoot-type'), contract_end: val('new-contract-end'), quote_id: q?.id || null,
-    });
-    // An agreement signed in the system already covers process 1.
-    if (q) {
-      const note = `נחתם במערכת: ${q.number}`;
-      await Promise.allSettled(['p01.prepared', 'p01.sent', 'p01.signed'].map((k) => setCheck(row.id, k, 'done', note)));
+  const done = async () => {
+    try {
+      await saveFirstChecks(pendingChecks);
+      location.href = clientUrl(pendingChecks.row.id);
+    } catch (err) {
+      fail(`הלקוח נפתח, אבל הסימונים ${importing ? 'של הייבוא ' : ''}לא נשמרו (${errorText(err)}). לחיצה נוספת תנסה לשמור אותם שוב.`);
+      $('new-submit').textContent = 'שמירת הסימונים';
+      $('new-submit').disabled = false;
     }
-    location.href = clientUrl(row.id);
-  } catch (err) {
-    fail(errorText(err));
-    $('new-submit').disabled = false;
+  };
+  if (pendingChecks) return done();
+
+  const name = $('new-name').value.trim();
+  const shoot = $('new-shoot-type').value;
+  const station = importing ? $('new-station').value : '';
+  const invalid = !name ? ['חסר שם לקוח.', $('new-name')]
+    : !shoot ? ['חסר סוג יום הצילום: נטלי דדון, או דניס, מישל וסמיון.', $('new-shoot-type')]
+      : importing && !station ? ['בחרו את התחנה שבה הלקוח נמצא עכשיו.', $('new-station')] : null;
+  if (invalid) { $('new-submit').disabled = false; return fail(...invalid); }
+  const q = quoteOf();
+  const pkg = $('new-package').value;
+  const val = (id) => $(id).value.trim() || null;
+  const fields = {
+    name, business: val('new-business'), phone: val('new-phone'),
+    package_name: packageName(pkg) || (q ? [q.tier, q.influencer].filter(Boolean).join(' · ') || null : null),
+    shoot_type: shoot, contract_end: val('new-contract-end'), quote_id: q?.id || null,
+    deliverables: dealDeliverables(pkg, selectionFor(pkg, q)),
+  };
+  // The deal clock starts at the signature. A new deal without an agreement
+  // reaches the office now (the database default); an import may know its dates.
+  const typed = importing ? $('new-deal-at').value : '';
+  const dealAt = q?.signed_at && (!typed || typed === toLocalInput(q.signed_at)) ? q.signed_at : fromLocalInput(typed);
+  if (dealAt) fields.deal_at = dealAt;
+  if (importing) {
+    fields.char_at = fromLocalInput($('new-char-at').value);
+    fields.shoot_at = fromLocalInput($('new-shoot-at').value);
   }
+  let row;
+  try {
+    row = await createClient(fields);
+  } catch (err) {
+    $('new-submit').disabled = false;
+    return fail(errorText(err));
+  }
+  // An agreement signed in the system already covers process 1.
+  const signed = q ? P01 : [];
+  pendingChecks = {
+    row, signed, signedNote: q ? `נחתם במערכת: ${q.number}` : null,
+    imported: importing ? importKeys(row, station).filter((k) => !signed.includes(k)) : [],
+  };
+  return done();
 });
 
 $('btn-refresh').addEventListener('click', () => { perfLog.clear(); load(); });

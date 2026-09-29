@@ -3,6 +3,9 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { STATIONS } from '../app/protocol.js';
+import { clientState } from '../app/protocol-logic.js';
+import { importKeys } from '../app/client-open.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -13,7 +16,8 @@ const JWT = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: USER.id, email: U
 const hoursAgo = (n) => new Date(Date.now() - n * 36e5).toISOString();
 const daysFromNow = (n, h = 10) => { const d = new Date(); d.setDate(d.getDate() + n); d.setHours(h, 0, 0, 0); return d.toISOString(); };
 const signedQuote = { id: randomUUID(), number: 'AST-2026-0042', client_name: 'דנה לוי', signed_at: hoursAgo(1), status: 'signed',
-  company: 'סטודיו דנה', phone: '050-1234567', tier: 'Social all in one', influencer: 'נטלי דדון', package_id: 'social-natali', term_months: 12 };
+  company: 'סטודיו דנה', phone: '050-1234567', tier: 'Social all in one', influencer: 'נטלי דדון', package_id: 'social-natali', term_months: 12,
+  selection: { tier: 'social', influencer: 'natali', paid: ['natali-story'], free: { graphics: 4, simeonStories: 0, simeonJoin: false, extraCh14: false } } };
 
 const db = {
   staff: [{ email: USER.email, person: 'irit', vault: true }],
@@ -212,17 +216,25 @@ await page.waitForSelector('.ctable');
 assert.match(await page.locator('#control').innerText(), /לקוחות עם איחור/);
 await shot('03-control');
 
-// New client from a signed agreement
+// New client from a signed agreement: the deal clock starts at the signature, and the
+// shoot type and quantities come from the agreement's package (with its add-ons).
 await page.click('#btn-new');
 await page.waitForSelector('#from-quote-field:not([hidden])');
+assert.equal(await page.innerText('#new-h'), 'פרטי עסקה');
 await page.selectOption('#new-quote', signedQuote.id);
 assert.equal(await page.inputValue('#new-name'), 'דנה לוי');
+assert.equal(await page.inputValue('#new-package'), 'social-natali');
 assert.equal(await page.inputValue('#new-shoot-type'), 'natali');
+assert.match(await page.innerText('#new-shoot-hint'), /לפי החבילה/);
+assert.match(await page.innerText('#new-package-hint'), /סרטונים 25 · גרפיקות 39[^]*כולל התוספות בהסכם/);
 await page.click('#new-submit');
 await page.waitForURL(/client\.html\?id=/);
 const created = db.clients.find((c) => c.name === 'דנה לוי');
 assert.equal(created.quote_id, signedQuote.id);
 assert.equal(created.shoot_type, 'natali');
+assert.equal(created.deal_at, signedQuote.signed_at);
+assert.equal(created.package_name, 'Social all in one · נטלי דדון');
+assert.deepEqual(created.deliverables, { videos: 25, graphics: 39, shoot_days: 1, collabs: 0, stories: 1, ch14: 0, monthly: 0 });
 
 // Irit's card opens on her own processes and items; the whole protocol is one explicit click away.
 await page.waitForSelector('#p02');
@@ -603,6 +615,87 @@ db.staff[0].person = 'irit';
 db.staff[0].vault = true;
 seeded.editor = null;
 
+// Manual open ("פרטי עסקה"): the shoot type is required; a catalog package sets it and fills the quantities.
+await page.goto(`${BASE}clients.html#clients`);
+await page.waitForSelector('.crow');
+await page.click('#btn-new');
+await page.waitForSelector('#dlg-new[open]');
+assert.ok((await page.locator('#new-package option').allTextContents()).includes('Social + TV all in one · סמיון, מישל ודניס'));
+await page.fill('#new-name', 'קפה גליל');
+const clientsBefore = db.clients.length;
+await page.click('#new-submit');
+assert.match(await page.locator('#new-err').innerText(), /חסר סוג יום הצילום/);
+assert.equal(await page.getAttribute('#new-shoot-type', 'aria-invalid'), 'true');
+assert.equal(db.clients.length, clientsBefore);
+await page.selectOption('#new-package', 'social-tv-simeon');
+assert.equal(await page.inputValue('#new-shoot-type'), 'dms'); // from the package in the catalog
+assert.equal(await page.isHidden('#new-err'), true);
+assert.equal(await page.getAttribute('#new-shoot-type', 'aria-invalid'), null);
+assert.match(await page.innerText('#new-package-hint'), /סרטונים 42 · גרפיקות 42/);
+await page.selectOption('#new-package', ''); // outside the catalog nothing is guessed
+assert.equal(await page.inputValue('#new-shoot-type'), '');
+await page.selectOption('#new-package', 'social-tv-simeon');
+await shot('13-new-deal');
+await page.click('#new-submit');
+await page.waitForURL(/client\.html\?id=/);
+const manual = db.clients.find((c) => c.name === 'קפה גליל');
+assert.equal(manual.shoot_type, 'dms');
+assert.equal(manual.package_name, 'Social + TV all in one · סמיון, מישל ודניס');
+assert.deepEqual(manual.deliverables, { videos: 42, graphics: 42, shoot_days: 2, collabs: 3, stories: 3, ch14: 1, monthly: 0 });
+assert.ok(Math.abs(Date.now() - new Date(manual.deal_at)) < 5 * 60e3, 'a new deal reaches the office now');
+assert.equal(db.protocol_checks.filter((c) => c.client_id === manual.id).length, 0);
+// Scripts and graphics follow the package, not a fixed 36.
+await page.waitForSelector('#p02', { state: 'attached' });
+if (await page.innerText('#view-toggle') !== 'רק התהליכים שלי') await page.click('#view-toggle');
+await page.waitForSelector('#p12', { state: 'attached' });
+assert.match(await page.locator('#p12 .pkg-qty').textContent(), /בחבילה של הלקוח: 42 סרטונים/);
+assert.match(await page.locator('#p23 .pkg-qty').textContent(), /בחבילה של הלקוח: 42 גרפיקות/);
+assert.match(await page.locator('#i-p12-scripts').evaluate((el) => el.closest('.item').textContent), /לפי החבילה/);
+for (const pid of ['#p12', '#p23']) assert.doesNotMatch(await page.locator(pid).textContent(), /(^|\D)36(\D|$)|עוד 27/, pid);
+
+// Importing a client already in editing: everything before "עריכה ובקרה" is marked
+// 'ייבוא' by the signed-in user, with the known dates, and none of it shows as late.
+await page.goto(`${BASE}clients.html#clients`);
+await page.waitForSelector('.crow');
+await page.click('#btn-new');
+await page.waitForSelector('#dlg-new[open]');
+assert.equal(await page.isHidden('#new-import'), true);
+await page.click('#new-mode-import');
+assert.equal(await page.getAttribute('#new-mode-import', 'aria-pressed'), 'true');
+assert.equal(await page.isVisible('#new-import'), true);
+assert.deepEqual((await page.locator('#new-station option').allTextContents()).slice(1),
+  ['1. הצטרפות', '2. אפיון', '3. תוכן ואישור', '4. יום צילום', '5. עריכה ובקרה', '6. פרסום', '7. שוטף', '8. חידוש']);
+await page.fill('#new-name', 'מאפיית שיבולת');
+await page.selectOption('#new-package', 'social-natali');
+await page.click('#new-submit');
+assert.match(await page.locator('#new-err').innerText(), /התחנה/);
+await page.selectOption('#new-station', 'post');
+await page.fill('#new-deal-at', '2026-08-02T10:00');
+await page.fill('#new-char-at', '2026-08-04T10:00');
+await page.fill('#new-shoot-at', '2026-08-20T10:00');
+await shot('14-import');
+await page.click('#new-submit');
+await page.waitForURL(/client\.html\?id=/);
+const imported = db.clients.find((c) => c.name === 'מאפיית שיבולת');
+assert.equal(imported.shoot_type, 'natali');
+assert.equal(imported.deal_at, new Date('2026-08-02T10:00:00+03:00').toISOString());
+assert.equal(imported.char_at, new Date('2026-08-04T10:00:00+03:00').toISOString());
+assert.equal(imported.shoot_at, new Date('2026-08-20T10:00:00+03:00').toISOString());
+const impChecks = db.protocol_checks.filter((c) => c.client_id === imported.id);
+assert.deepEqual(impChecks.map((c) => c.item_key).sort(), importKeys(imported, 'post').sort());
+assert.ok(impChecks.every((c) => c.state === 'done' && c.note === 'ייבוא' && c.by_email === USER.email), 'import checks');
+assert.ok(impChecks.some((c) => c.item_key === 'p19b.handed') && impChecks.some((c) => c.item_key === 'p11b.ride'));
+const postOn = new Set(STATIONS.slice(4).flatMap((st) => st.procs));
+assert.ok(!impChecks.some((c) => postOn.has(c.item_key.split('.')[0])), 'nothing from the station on is marked');
+const beforePost = new Set(STATIONS.slice(0, 4).flatMap((st) => st.procs));
+const impState = clientState(imported, Object.fromEntries(impChecks.map((c) => [c.item_key, c])), new Date());
+assert.ok(impState.states.filter((x) => beforePost.has(x.proc.id)).every((x) => x.status === 'done'));
+assert.equal(impState.current, 'post');
+await page.waitForSelector('#p22a', { state: 'attached' });
+const lateProcs = await page.locator('.proc.s-overdue').evaluateAll((els) => els.map((e) => e.id));
+assert.ok(lateProcs.every((pid) => postOn.has(pid)), `late before the station: ${lateProcs}`);
+await shot('15-imported-card');
+
 // Mobile
 const mob = await ctx.newPage();
 await mob.setViewportSize({ width: 360, height: 780 });
@@ -617,6 +710,15 @@ await mob.goto(`${BASE}clients.html#clients`);
 await mob.waitForSelector('.crow');
 assert.ok(await noHScroll(mob), 'clients list scrolls sideways at 360px');
 await shot('07-mobile-clients', mob);
+// The deal form, in import mode, fits a phone.
+await mob.click('#btn-new');
+await mob.waitForSelector('#dlg-new[open]');
+await mob.click('#new-mode-import');
+const dlgBox = await mob.locator('#dlg-new').boundingBox();
+assert.ok(dlgBox.x >= 0 && dlgBox.x + dlgBox.width <= 360, `deal form ${dlgBox.x}+${dlgBox.width}`);
+assert.ok(await mob.locator('#new-station').evaluate((el) => el.getBoundingClientRect().right <= 360));
+await shot('07b-mobile-import', mob);
+await mob.click('#dlg-new [data-close]');
 await mob.goto(`${BASE}clients.html#mine`);
 await mob.waitForSelector('.witem');
 assert.ok(await noHScroll(mob), 'my work scrolls sideways at 360px');
