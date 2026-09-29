@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { PROCESSES, PEOPLE, PHASES } from '../app/protocol.js';
 import {
   addBusinessDays, applicableProcesses, clientState, openItemsFor, resolveTime, missingFields,
-  blockers, bucketOf, businessDaysBetween, addWorkingMinutes, phasesFor, WAIT,
+  blockers, bucketOf, businessDaysBetween, addWorkingMinutes, phasesFor, WAIT, upcomingFor, involves, itemsOf,
 } from '../app/protocol-logic.js';
 
 const doc = readFileSync(new URL('../docs/protocols/general.md', import.meta.url), 'utf8');
@@ -410,4 +410,44 @@ test('photographer: his own shoot-day processes, due around the shoot, in every 
   assert.equal(PEOPLE.eli.name, 'אלי');
   const r2 = { ...c, rounds: [{ n: 2, shoot_type: 'dms', shoot_at: '2026-11-05T10:00:00+02:00' }] };
   assert.deepEqual(applicableProcesses(r2).filter((p) => p.owners.includes('eli')).map((p) => p.id), ['p17b', 'p18b', 'p19b', 'r2-p17b', 'r2-p18b', 'r2-p19b']);
+});
+
+test('role views: coming shoot days, "my clients", items of a taken shared process', async () => {
+  const { SCOPE, scopeOf } = await import('../app/protocol.js');
+  assert.equal(scopeOf(null), 'office'); // the owner
+  for (const p of ['irit', 'lior', 'ofir']) assert.equal(scopeOf(p), 'office', p);
+  for (const p of ['ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli']) assert.equal(scopeOf(p), 'own', p);
+  assert.equal(scopeOf('someone-new'), 'own'); // unknown people see only their own work
+  assert.ok(Object.keys(SCOPE).every((k) => PEOPLE[k]));
+
+  const c = { ...base, id: 'c', shoot_type: 'dms', characterizer: 'ofir', char_at: '2026-10-01T12:00:00+03:00', shoot_at: '2026-10-12T10:00:00+03:00' };
+  const now = at('2026-10-05T12:00:00+03:00');
+  const st = clientState(c, {}, now);
+  // The photographer: nothing to check yet, but the shoot day is coming, with the three processes of that day.
+  assert.deepEqual(openItemsFor('eli', c, {}, st, now), []);
+  assert.deepEqual(upcomingFor('eli', c, st, now).map((s) => s.proc.id), ['p17b', 'p18b', 'p19b']);
+  assert.deepEqual(upcomingFor('eli', c, st, now, 5), []); // beyond the window
+  assert.equal(involves('eli', c, {}, st, now), true);
+  // No shoot date: not his client yet.
+  const noShoot = { ...c, shoot_at: null };
+  assert.equal(involves('eli', noShoot, {}, clientState(noShoot, {}, now), now), false);
+  // Editors: the client is theirs once assigned, not before.
+  assert.equal(involves('nadia', c, {}, st, now), false);
+  const edited = { ...c, editor: 'nadia' };
+  assert.equal(involves('nadia', edited, {}, clientState(edited, {}, now), now), true);
+  assert.equal(involves('yariv', edited, {}, clientState(edited, {}, now), now), false);
+  const cancelled = { ...edited, status: 'cancelled' };
+  assert.equal(involves('nadia', cancelled, {}, clientState(cancelled, {}, now), now), false);
+  // Ilai works on a client whose processes of his have started, until his items there are done.
+  assert.equal(involves('ilai', c, {}, st, now), true);
+  const ilaiKeys = st.states.filter((s) => s.ready || s.startAt).flatMap((s) => itemsOf('ilai', s)).filter((i) => !i.optional).map((i) => i.key);
+  const allDone = done(ilaiKeys, '2026-10-02T10:00:00+03:00');
+  assert.equal(involves('ilai', c, allDone, clientState(c, allDone, now), now), false);
+  // A shared process taken by Lior (22א, Ofir or Lior): its shared items are no longer Ofir's.
+  const p22a = (checks) => clientState(c, checks, now).states.find((s) => s.proc.id === 'p22a');
+  assert.deepEqual(itemsOf('ofir', p22a({})).map((i) => i.key), ['p22a.load', 'p22a.assigned']);
+  const claimed = { 'p22a.claim': { state: 'done', note: 'lior', at: '2026-10-02T10:00:00+03:00' } };
+  assert.deepEqual(itemsOf('ofir', p22a(claimed)), []);
+  assert.deepEqual(itemsOf('lior', p22a(claimed)).map((i) => i.key), ['p22a.drive', 'p22a.load', 'p22a.assigned']);
+  assert.deepEqual(itemsOf(null, p22a({})), []);
 });

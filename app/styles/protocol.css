@@ -453,18 +453,6 @@ select.input { appearance: auto; }
   .narrow-only { display: flex !important; }
 }
 
-/* First visit: who am I */
-.who-panel { padding: 20px 4px 8px; display: grid; gap: 10px; justify-items: start; }
-.who-panel h2 { margin: 0; font-size: 19px; }
-.who-panel p { margin: 0; }
-.who-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; inline-size: 100%; }
-.who-btn {
-  display: grid; gap: 2px; text-align: start; padding: 12px 14px; min-height: 64px; border-radius: var(--radius-md); cursor: pointer;
-  background: var(--panel); color: var(--text); border: 1px solid var(--line-strong); border-inline-start: 4px solid var(--pc);
-}
-.who-btn span { font-size: 13px; color: var(--text-2); }
-.who-btn:hover { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong)); border-inline-start-color: var(--pc); }
-
 /* My work: grouped by client and process */
 .wprocs { list-style: none; margin: 0; padding: 0; }
 .wproc { border-top: 1px solid var(--line); padding: 12px 0 4px; }

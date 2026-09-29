@@ -488,7 +488,9 @@ function autoBanner() {
 // ── Coming up: not checkable yet ─────────────
 // Processes of the person with a known start in the next 30 days, one card per
 // client and shoot round. For the photographer these are the coming shoot days.
-const fromShoot = (proc) => proc.start?.from === 'shoot' || proc.due?.from === 'shoot';
+// A process of the shoot day itself (in any round), not one that merely starts from it.
+const SHOOT_DAY = new Set(PROCESSES.filter((p) => p.phase === 'shoot').map((p) => p.id));
+const onShootDay = (proc) => SHOOT_DAY.has(proc.id.replace(/^r\d+-/, ''));
 function upcomingGroups(person, now = new Date()) {
   const groups = new Map();
   for (const c of clients) {
@@ -499,7 +501,7 @@ function upcomingGroups(person, now = new Date()) {
       const g = groups.get(k);
       g.list.push(s);
       if (s.startAt < g.startAt) g.startAt = s.startAt;
-      if (fromShoot(s.proc)) g.shootAt = parseDate((s.proc.ctx || c).shoot_at);
+      if (onShootDay(s.proc)) g.shootAt = parseDate((s.proc.ctx || c).shoot_at);
     }
   }
   return [...groups.values()].sort((a, b) => a.startAt - b.startAt);

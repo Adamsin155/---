@@ -76,7 +76,6 @@ async function fakeSupabase(route) {
   if (p === '/auth/v1/logout') return route.fulfill({ status: 204 });
   const authed = (headers.authorization || '').includes(JWT);
   if (p === '/rest/v1/rpc/is_staff') return json(200, authed);
-  if (p === '/rest/v1/rpc/set_my_person') { db.staff[0].person = body.p_person; return json(200, null); }
   // Access vault: the password never sits on the row, only in the secret store.
   const vaultOk = authed && db.staff[0].vault; // an admin-set flag, not the self-chosen person
   const logAccess = (a, action) => db.client_access_log.push({ id: db.client_access_log.length + 1, access_id: a.id, client_id: a.client_id, network: a.network, action, by_email: USER.email, at: new Date().toISOString() });
@@ -237,6 +236,7 @@ assert.match(await page.locator('#p07 .others-note').textContent(), /ועוד פ
 assert.match(await page.locator('.cc-next .k').innerText(), /הצעד הבא שלך/);
 assert.match(await page.locator('#p02 .others-note').textContent(), /ועוד 2 פריטים בתהליך הזה אצל ליאור/); // p02.deal, p02.team
 assert.equal(await page.locator('#i-p02-deal').count(), 0);
+await shot('04a-client-card-mine');
 await page.click('#view-toggle');
 await page.waitForSelector('#p11b', { state: 'attached' });
 assert.equal(await page.innerText('#view-toggle'), 'רק התהליכים שלי');

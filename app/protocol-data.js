@@ -141,20 +141,6 @@ export async function loadDirectory() {
   return Object.fromEntries(data.filter((r) => r.person).map((r) => [r.email, r.person]));
 }
 
-export async function myPerson() {
-  const { data: s } = await supabase.auth.getSession();
-  const email = s?.session?.user?.email?.toLowerCase();
-  if (!email) return null;
-  const { data, error } = await supabase.from('staff').select('person').eq('email', email).maybeSingle();
-  if (error) return null;
-  return data?.person || null;
-}
-
-export async function setMyPerson(person) {
-  const { error } = await supabase.rpc('set_my_person', { p_person: person });
-  if (error) throw error;
-}
-
 // Daily reviews (processes 32 and 33) since a given day: [{ day, kind, by_email, at, note }].
 export async function loadReviews(sinceDay) {
   const { data, error } = await supabase.from('office_reviews').select('day, kind, note, by_email, at, note_by, note_at')

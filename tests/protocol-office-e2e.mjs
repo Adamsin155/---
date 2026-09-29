@@ -7,6 +7,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
+import { PROCESSES } from '../app/protocol.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -118,7 +119,6 @@ async function fakeSupabase(route) {
   if (p === '/auth/v1/logout') return route.fulfill({ status: 204 });
   const authed = (headers.authorization || '').includes(JWT);
   if (p === '/rest/v1/rpc/is_staff') return json(200, authed);
-  if (p === '/rest/v1/rpc/set_my_person') { db.staff[0].person = body.p_person; return json(200, null); }
   const m = /^\/rest\/v1\/(\w+)$/.exec(p);
   if (!m || !db[m[1]]) return json(404, { message: 'not found' });
   if (!authed) return json(401, { message: 'permission denied' });
@@ -631,6 +631,101 @@ assert.ok((await mob.locator('#status-save').boundingBox()).height >= 44);
 assert.ok((await mob.locator('.ctl-nav .chip').first().boundingBox()).height >= 44);
 await shot('15-mobile-status-dialog', mob);
 await mob.locator('#dlg-status .dlg-foot [data-close]').click();
+
+// ── Role views: everyone lands on their own work ──
+// Ilai ('own'): his list only. No picker, no one else's list, no office screens, not even by link.
+db.staff[0].person = 'ilai';
+await page.goto('about:blank'); // a real load (the same address with another hash would not reload)
+await page.goto(`${BASE}clients.html#control`);
+await page.waitForSelector('#view-mine:not([hidden]) .wproc');
+assert.equal(new URL(page.url()).hash, '#mine');
+assert.match(await page.locator('#me-bar').innerText(), /עילאי/);
+for (const sel of ['#tab-control', '#tab-performance', '#btn-new', '#mine-people', '#view-control']) assert.equal(await page.isHidden(sel), true, sel);
+assert.equal(await page.locator('.who-panel, .auto-banner, .rv-card, .thu-card, #mine-tools .wa-link').count(), 0);
+// Every card is a process with an item of his.
+const ilaiTitles = await page.locator('#mine-list .wproc:not(.soon-card) .wtitle').allInnerTexts();
+assert.ok(ilaiTitles.length >= 5, ilaiTitles.join('|'));
+for (const t of ilaiTitles) {
+  const proc = PROCESSES.find((p) => p.num === /^(?:סבב \d+ · )?([^ ]+) · /.exec(t)?.[1]);
+  assert.ok(proc?.items.some((i) => [].concat(i.owners || proc.owners).includes('ilai')), t);
+}
+assert.match(await page.locator('.g-overdue .wproc:has(.wclient:text("מספרת רון")):has-text("בדיקת הגישות וסידור הרשתות")').innerText(), /באיחור/);
+// His graphics start on the shoot day: coming up, not called his shoot day.
+const ilaiSoon = page.locator('.g-soon .soon-card:has(.wclient:text("מספרת רון"))');
+assert.match(await ilaiSoon.innerText(), /23 · הכנת יתרת הגרפיקות · מתחיל/);
+assert.doesNotMatch(await ilaiSoon.innerText(), /יום צילום|הגעת המשפיענים/);
+await shot('16-ilai-mine');
+// Only the clients he works on: not the fresh ones yet, never the cancelled or ended.
+await page.click('#tab-clients');
+await page.waitForSelector('.crow');
+assert.deepEqual((await page.locator('.crow strong').allInnerTexts()).sort(), ['חנות ישנה', 'מסעדת הים', 'מספרת רון', 'סטודיו נטלי', 'קפה גליה'].sort());
+assert.equal(await page.locator('.crow .cprog, #client-filters .chip').count(), 0);
+// The arrow keys move between his two tabs only.
+await page.focus('#tab-clients');
+await page.keyboard.press('ArrowLeft');
+assert.equal(await page.getAttribute('#tab-mine', 'aria-selected'), 'true');
+await page.keyboard.press('End');
+assert.equal(await page.getAttribute('#tab-clients', 'aria-selected'), 'true');
+// His card: only his processes (with the second round's), none of the office's controls; one click checks.
+await page.goto(`${BASE}client.html?id=${seeded.id}#p06`);
+await page.waitForSelector('#p06');
+assert.deepEqual(await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id)), ['p06', 'p07', 'p09', 'p23', 'p28', 'p29', 'r2-p28', 'r2-p29']);
+for (const sel of ['#btn-edit', '#view-toggle', '.deliv', '.status-note', '.round-add', '.round-head button', '#task-form:not([hidden])']) assert.equal(await page.locator(sel).count(), 0, sel);
+assert.equal(await page.isHidden('#access'), true); // the vault is not his in this fake
+assert.equal(await page.isHidden('#history'), true);
+// Lior's optional item in process 6 is summed up, not listed.
+assert.equal(await page.locator('#i-p06-recovered').count(), 0);
+assert.match(await page.locator('#p06 .others-note').innerText(), /ועוד פריט אחד בתהליך הזה אצל ליאור/);
+await page.check('#i-p06-verified');
+await page.waitForFunction(() => document.querySelector('#i-p06-verified')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
+assert.ok(db.protocol_checks.some((c) => c.client_id === seeded.id && c.item_key === 'p06.verified'));
+db.protocol_checks = db.protocol_checks.filter((c) => !(c.client_id === seeded.id && c.item_key === 'p06.verified'));
+await shot('17-ilai-card');
+// On a phone: no sideways scrolling, 44px rows.
+const mobIlai = await ctx.newPage();
+watch(mobIlai);
+await mobIlai.setViewportSize({ width: 360, height: 780 });
+await mobIlai.goto(`${BASE}clients.html`);
+await mobIlai.waitForSelector('#view-mine:not([hidden]) .witem');
+assert.ok(await noHScroll(mobIlai), 'Ilai\'s list scrolls sideways at 360px');
+assert.ok(await mobIlai.locator('.witem').first().evaluate((el) => el.getBoundingClientRect().height) >= 44);
+await shot('18-mobile-ilai-mine', mobIlai);
+await mobIlai.goto(`${BASE}client.html?id=${seeded.id}`);
+await mobIlai.waitForSelector('#p06', { state: 'attached' });
+assert.ok(await noHScroll(mobIlai), 'Ilai\'s card scrolls sideways at 360px');
+await mobIlai.close();
+
+// The owner (no person): the office, the whole team first, anyone's list on request.
+db.staff[0].person = null;
+await page.goto(`${BASE}clients.html`);
+await page.waitForSelector('#view-mine:not([hidden]) .wproc');
+assert.match(await page.locator('#me-bar').innerText(), /תצוגת משרד/);
+assert.equal(await page.innerText('#tab-mine'), 'עבודת הצוות');
+assert.match(await page.locator('#mine-people .chip[aria-pressed="true"]').innerText(), /^כל הצוות/);
+assert.equal(await page.locator('.who-panel').count(), 0);
+for (const sel of ['#tab-control', '#tab-performance', '#btn-new']) assert.equal(await page.isVisible(sel), true, sel);
+await page.click('#mine-people .chip:has-text("אלי")');
+await page.waitForSelector('details.g-soon'); // the photographer's coming shoot day, folded in the office
+await page.locator('details.g-soon summary').click();
+assert.match(await page.locator('.g-soon').innerText(), /מספרת רון[^]*יום צילום[^]*17ב/);
+await page.click('#tab-performance');
+await page.waitForSelector('.perf-team'); // the table by person
+await page.goto(`${BASE}client.html?id=${seeded.id}`);
+await page.waitForSelector('#p04', { state: 'attached' }); // the whole protocol
+assert.equal(await page.locator('#view-toggle').count(), 0);
+assert.ok(await page.locator('.viewbar .chip').count() >= 10, 'highlight anyone');
+
+// Irit (office): her card opens on hers; a link to someone else's process shows the whole protocol.
+db.staff[0].person = 'irit';
+await page.goto(`${BASE}client.html?id=${fresh.id}`);
+await page.waitForSelector('#view-toggle');
+assert.equal(await page.innerText('#view-toggle'), 'הצגת כל הפרוטוקול');
+assert.equal(await page.locator('#p06').count(), 0); // Ilai's
+assert.equal(await page.locator('#p02').count(), 1); // hers
+await page.goto('about:blank');
+await page.goto(`${BASE}client.html?id=${seeded.id}#p06`);
+await page.waitForSelector('#p06');
+assert.equal(await page.innerText('#view-toggle'), 'רק התהליכים שלי');
 
 // ── Thursday, as Ofir: the mandatory pass over every client ──
 // No review of process 33 since Sunday: three business days.
