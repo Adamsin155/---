@@ -1,8 +1,9 @@
 // Creates a shareable quote. The price is recomputed here from the same
 // pricing engine the builder uses, so the client link never trusts totals
-// sent from the browser.
+// sent from the browser. ../_shared/app/ is a generated copy of app/
+// (node scripts/sync-functions.mjs), deployed together with this file.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { validateSelection, buildQuoteModel } from '../../../app/pricing.js';
+import { validateSelection, buildQuoteModel } from '../_shared/app/pricing.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',

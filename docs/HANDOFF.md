@@ -106,7 +106,7 @@ npx http-server -p 8080 . &                # אתר מקומי
 node tests/e2e.mjs                         # 27 בדיקות דפדפן מול Supabase מדומה
 ```
 
-פריסת הפונקציה: `supabase functions deploy create-quote` (הפונקציה מייבאת את `../../../app/*.js`, לכן יש לפרוס מתיקיית השורש של המאגר).
+פריסת הפונקציה: `node scripts/sync-functions.mjs` ואז `supabase functions deploy create-quote`. הפונקציה מייבאת עותק של `app/*.js` מ־`supabase/functions/_shared/app/`, שנוצר בסקריפט. הפירוט ב־[מדריך התפעול](ops.md).
 
 ## 8. גישות שבעל המערכת צריך לתת
 

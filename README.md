@@ -76,11 +76,11 @@ app/payouts/ engine.js (חישוב), data.js (Supabase), app.js (מסכים)
 app/styles/ app.css (ממשק), quote.css (מסמך ההצעה), client.css, quotes.css
 app/fonts/  Rubik + JetBrains Mono (OFL), מתארחים מקומית
 app/vendor/ supabase-js (MIT)
-supabase/   migrations, functions/create-quote
+supabase/   migrations, functions/create-quote, functions/_shared/app (עותק שנוצר מ־app/)
 docs/       כללי תמחור, חלוקת אחריות, מדריך מותג, מחקר
 .claude/agents/  סוכני UX, עיצוב, טכנולוגיה, איכות, מחקר ועוזר משפטי;
                  payouts-*: טכנולוגיה, עיצוב, בקרה ומחקר למערכת התשלומים
 private/         נתונים עסקיים רגישים — מוחרג מ־git
 ```
 
-שינוי מחיר, כמות, זכאות או נוסח ההסכם: מעדכנים את `docs/pricing-rules.md`, `app/catalog.js` או `app/legal.js`, מריצים `npm test`, ופורסים מחדש את הפונקציה `create-quote`. בפריסה, ה־import של `app/pricing.js` ב־`index.ts` מוחלף בכתובת קבועה של אותו קובץ בקומיט שנדחף (`https://raw.githubusercontent.com/Adamsin155/---/<commit>/app/pricing.js`), כך שהשרת טוען בדיוק את `pricing.js`, `catalog.js` ו־`legal.js` של אותו קומיט. גרסה 6 נפרסה מהקומיט `e75a713`.
+שינוי מחיר, כמות, זכאות או נוסח ההסכם: מעדכנים את `docs/pricing-rules.md`, `app/catalog.js` או `app/legal.js`, מריצים `node scripts/sync-functions.mjs` (מעדכן את העותק של `pricing.js`, `catalog.js` ו־`legal.js` ב־`supabase/functions/_shared/app/`) ו־`npm test`, ופורסים מחדש את הפונקציה `create-quote` עם העותק. הפונקציה לא טוענת קוד מהמאגר. פריסה, סודות, מיגרציות, גיבויים וכתובת קבועה: [מדריך התפעול](docs/ops.md).
