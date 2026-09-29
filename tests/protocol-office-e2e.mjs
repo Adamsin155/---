@@ -402,10 +402,10 @@ assert.equal(await page.getAttribute('#tab-mine', 'aria-selected'), 'true');
 await page.keyboard.press('End');
 assert.equal(await page.getAttribute('#tab-performance', 'aria-selected'), 'true');
 
-// ── §6b notifications: asked only on click; one per process; none on first load ──
+// ── §6b notifications: asked only on click; once per process (a new deal's three: once); none on first load ──
 await page.click('#tab-mine');
 await page.click('#btn-notify');
-await page.waitForSelector('.notify-row:has-text("התראות איחור פעילות בדפדפן הזה.")');
+await page.waitForSelector('.notify-row:has-text("התראות על איחורים ועל לקוח שלא ענה פעילות בדפדפן הזה.")');
 assert.equal(await page.evaluate(() => window.__asked), 1);
 await page.reload();
 await page.waitForSelector('.witem');
@@ -419,9 +419,11 @@ for (let i = 0; i < 12; i += 1) { await page.clock.runFor(61_000); skew += 61_00
 const notes = await page.evaluate(() => window.__notes);
 // One notification per process, however many checks ran (12 here).
 assert.equal(new Set(notes.map((n) => `${n.title}|${n.body}`)).size, notes.length, JSON.stringify(notes));
-const late = notes.filter((n) => n.title === 'באיחור: גלידה בנמל' && n.body.startsWith('תהליך 1 '));
+// Its three 5-minute clocks (processes 1-3) run out together in the "now" bar:
+// one notification for the three, and none again when they turn overdue.
+const late = notes.filter((n) => /גלידה בנמל/.test(n.title));
 assert.equal(late.length, 1, JSON.stringify(notes));
-assert.match(late[0].body, /^תהליך 1 · הכנת חוזה\. היעד היה היום 10:\d\d\.$/);
+assert.deepEqual([late[0].title, late[0].body], ['נגמר הזמן: גלידה בנמל', 'עסקה חדשה: חוזה, קבוצה ומועד אפיון (תהליכים 1, 2, 3).']);
 assert.ok(!notes.some((n) => /קפה גליה/.test(n.title)), 'no notification for waiting on the client');
 await page.evaluate(() => { delete document.hidden; });
 assert.ok(soon);

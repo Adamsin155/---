@@ -37,6 +37,7 @@ jobs:
           node tests/e2e.mjs
           node tests/protocol-e2e.mjs
           node tests/protocol-office-e2e.mjs
+          node tests/now-bar-e2e.mjs
           node tests/team-e2e.mjs
           node tests/messages-e2e.mjs
           node tests/handoffs-e2e.mjs

@@ -1407,10 +1407,12 @@ function historyText(r) {
   const base = baseKey(r.item_key);
   const handed = describeMark(base, r.note);
   if (handed) return r.action === 'clear' ? `ביטל/ה רישום העברה: ${pre}${handed}` : `פתח/ה וואטסאפ להעברה: ${pre}${handed}`;
-  const mk = /^(p\d+[ab]?)\.(claim|wait|waited|pause)$/.exec(base);
+  const mk = /^(p\d+[ab]?)\.(claim|wait|waited|pause|answered)$/.exec(base);
   if (mk) {
     const num = PROCESSES.find((p) => p.id === mk[1])?.num;
     if (mk[2] === 'claim') return `${r.action === 'clear' ? 'שחרר/ה' : 'לקח/ה'} את תהליך ${pre}${num}`;
+    // From the "now" bar: the client answered after the sending (app/clocks.js).
+    if (mk[2] === 'answered') return r.action === 'clear' ? `ביטל/ה את הסימון שהלקוח ענה (תהליך ${pre}${num})` : `סימן/ה שהלקוח ענה (תהליך ${pre}${num})`;
     if (mk[2] === 'waited') {
       if (r.action === 'clear') return `איפס/ה את זמן ההמתנה ללקוח בתהליך ${pre}${num}`;
       const { min, ext } = readWaited(r.note);
