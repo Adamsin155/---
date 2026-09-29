@@ -13,7 +13,8 @@
 //   remove { email }               → { ok }            (owner only; the login itself stays)
 //   link   { email, redirectTo }   → { link, type }    ('invite' or 'recovery')
 //   phone  { email, phone }        → { ok, phone }     (WhatsApp number for the handoff
-//                                    buttons; empty clears it; stored as 972XXXXXXXXX)
+//                                    buttons; empty clears it; stored as 972XXXXXXXXX;
+//                                    never on the owner's row)
 // Errors: { error: code } with the codes in ERR. Links and tokens are never logged.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {

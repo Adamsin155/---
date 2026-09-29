@@ -52,6 +52,9 @@ export function formatPhone(stored) {
   return m ? `0${m[1]}-${m[2]}-${m[3]}` : d ? `+${d}` : '';
 }
 
-// Who may set a number on the team screen: the owner anyone's, Irit and Lior
-// anyone's but the owner's (the function checks the same).
-export const canEditPhone = (caller, row) => !!caller && !!row && (!!caller.owner || row.person !== null);
+// Which rows have a number on the team screen (the screen opens only for the owner,
+// Irit and Lior, who set anyone's): everyone's but the owner's, which keeps none,
+// since no handoff goes to the owner and all staff read the staff list. The
+// function checks the same.
+export const hasPhone = (row) => !!row && row.person !== null && row.person !== undefined;
+export const canEditPhone = (caller, row) => !!caller && hasPhone(row);

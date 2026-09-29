@@ -12,7 +12,13 @@ import {
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-const hoursAgo = (n) => new Date(Date.now() - n * 36e5).toISOString();
+// The page clock is pinned to Tuesday 20.10.2026 11:00 in Jerusalem, and the fake
+// server follows it: "today" and "yesterday" never depend on when the suite runs
+// (just after midnight, a sign-in an hour ago was yesterday).
+const NOW = new Date('2026-10-20T08:00:00Z');
+const skew = NOW.getTime() - Date.now();
+const serverNow = () => new Date(Date.now() + skew).toISOString();
+const hoursAgo = (n) => new Date(NOW - n * 36e5).toISOString();
 
 // Logins (auth users) and the staff list. Nadia has a staff row but no login; Eli has neither.
 const users = new Map();
@@ -38,9 +44,9 @@ const staff = [
 ];
 const tables = { clients: [], protocol_checks: [], client_tasks: [], quotes: [], office_reviews: [], client_status_notes: [], protocol_log: [] };
 
-const EXP = Math.floor(Date.now() / 1000) + 3 * 3600;
+const EXP = Math.floor(NOW / 1000) + 3 * 3600;
 const jwtFor = (u) => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: u.id, email: u.email, role: 'authenticated', exp: EXP })}.sig`;
-const sessionFor = (u) => ({ access_token: jwtFor(u), token_type: 'bearer', expires_in: EXP - Math.floor(Date.now() / 1000), expires_at: EXP, refresh_token: `r-${u.id}`, user: u });
+const sessionFor = (u) => ({ access_token: jwtFor(u), token_type: 'bearer', expires_in: EXP - Math.floor(Date.parse(serverNow()) / 1000), expires_at: EXP, refresh_token: `r-${u.id}`, user: u });
 const userOf = (headers) => {
   const token = /^Bearer (.+)$/.exec(headers.authorization || '')?.[1];
   return [...users.values()].find((u) => jwtFor(u) === token) || null;
@@ -74,7 +80,7 @@ function staffAdmin(caller, body) {
     const plan = planUpsert({ role, callerEmail: caller.email, existing, input: body, personTaken, hasLogin });
     if (!plan.ok) return [plan.status, { error: plan.error }];
     if (existing) Object.assign(existing, { person: plan.row.person, vault: plan.row.vault });
-    else staff.push({ ...plan.row, created_at: new Date().toISOString() });
+    else staff.push({ ...plan.row, created_at: serverNow() });
     return [200, { ok: true }];
   }
   if (body.action === 'remove') {
@@ -98,10 +104,10 @@ function staffAdmin(caller, body) {
     const plan = planLink({ role, me, target, redirectTo: body.redirectTo, targetIsPayoutOwner });
     if (!plan.ok) return [plan.status, { error: plan.error }];
     const type = linkTypeFor(authUser);
-    if (type === 'invite') addUser(email, { email_confirmed_at: null, invited_at: new Date().toISOString() });
+    if (type === 'invite') addUser(email, { email_confirmed_at: null, invited_at: serverNow() });
     const hash = randomBytes(16).toString('hex');
     tokens.set(hash, { email, type, used: false });
-    lastLink.set(email, { at: new Date().toISOString(), by_email: caller.email });
+    lastLink.set(email, { at: serverNow(), by_email: caller.email });
     return [200, { link: buildLoginLink(plan.page, type, hash), type }];
   }
   return [400, { error: 'unknown_action' }];
@@ -122,7 +128,7 @@ async function fakeSupabase(route) {
   if (p === '/auth/v1/token') {
     const u = users.get(String(body.email || '').toLowerCase());
     if (!u || body.password !== 'correct-horse') return json(400, { error: 'invalid_grant', msg: 'Invalid login credentials', code: 'invalid_credentials' });
-    u.last_sign_in_at = new Date().toISOString();
+    u.last_sign_in_at = serverNow();
     return json(200, sessionFor(u));
   }
   if (p === '/auth/v1/verify') {
@@ -131,8 +137,8 @@ async function fakeSupabase(route) {
     if (!t || t.used || t.type !== body.type) return json(403, { code: 403, error_code: 'otp_expired', msg: 'Email link is invalid or has expired' });
     t.used = true;
     const u = users.get(t.email);
-    u.email_confirmed_at ||= new Date().toISOString();
-    u.last_sign_in_at = new Date().toISOString();
+    u.email_confirmed_at ||= serverNow();
+    u.last_sign_in_at = serverNow();
     return json(200, sessionFor(u));
   }
   if (p === '/auth/v1/user') {
@@ -161,6 +167,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 const errors = [];
 async function newPage(viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
+  await ctx.clock.install({ time: new Date(serverNow()) });
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
   const page = await ctx.newPage();
@@ -242,12 +249,17 @@ await step('owner sets a WhatsApp number for the handoff buttons: checked, kept 
   await toastHas(owner, 'המספר של ליאור נשמר');
   assert.equal(await owner.evaluate(() => document.activeElement?.id), 'phone-edit-lior');
   assert.equal(await text(owner, '#phone-edit-lior'), 'עריכה');
-  // Cancel keeps the number; the owner's own row has one too.
+  // Cancel keeps the number.
   await owner.click('#phone-edit-lior');
   assert.equal(await owner.inputValue('#phone-lior'), '052-555-1234');
   await owner.click('#phone-cancel-lior');
   await owner.waitForSelector('#phone-edit-lior');
-  assert.equal(await owner.locator('#phone-edit-owner').count(), 1);
+  // The owner's row keeps no number: no handoff goes there, and all staff read the staff list.
+  assert.equal(await owner.locator('#phone-edit-owner').count(), 0);
+  assert.doesNotMatch(await text(owner, '#row-owner'), /וואטסאפ/);
+  assert.deepEqual(staffAdmin(users.get('owner@astrateg.test'), { action: 'phone', email: 'owner@astrateg.test', phone: '0501234567' }),
+    [400, { error: 'owner_no_phone' }]);
+  assert.equal(staff.find((r) => r.person === null).phone, undefined);
 });
 
 let eliLink;
@@ -361,8 +373,8 @@ await step('Irit manages the team without the owner\'s powers', async () => {
 await step('Irit sets and clears a colleague\'s WhatsApp number, but not the owner\'s', async () => {
   await irit.goto(`${BASE}team.html`);
   await irit.waitForSelector('#phone-edit-yariv');
-  assert.equal(await irit.locator('#phone-edit-owner').count(), 0, 'the owner\'s number is the owner\'s');
-  assert.match(await text(irit, '#row-owner'), /וואטסאפ: אין מספר/);
+  assert.equal(await irit.locator('#phone-edit-owner').count(), 0, 'the owner\'s row keeps no number');
+  assert.doesNotMatch(await text(irit, '#row-owner'), /וואטסאפ/);
   assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'phone', email: 'owner@astrateg.test', phone: '0501234567' }),
     [403, { error: 'owner_only' }]);
   await irit.click('#phone-edit-yariv');
@@ -457,7 +469,7 @@ await step('an editor gets a friendly "no access", and no team link', async () =
 await step('a recovery URL asks for a password, then continues into the app', async () => {
   const r = await newPage();
   const ofir = users.get('ofir@astrateg.test');
-  ofir.email_confirmed_at = new Date().toISOString();
+  ofir.email_confirmed_at = serverNow();
   await r.goto(`${BASE}clients.html#access_token=${jwtFor(ofir)}&refresh_token=r&expires_in=3600&token_type=bearer&type=recovery`);
   await r.waitForSelector('#sp-form');
   assert.equal(await text(r, '#sp-h'), 'בחירת סיסמה חדשה');

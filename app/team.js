@@ -8,7 +8,7 @@ import { STAFF_PEOPLE } from './protocol.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, formatWhen } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import {
-  canManageTeam, loginState, linkMessage, LINK_VALID_FOR, TEAM_MANAGERS, normPhone, formatPhone, canEditPhone,
+  canManageTeam, loginState, linkMessage, LINK_VALID_FOR, TEAM_MANAGERS, normPhone, formatPhone, canEditPhone, hasPhone,
 } from './team-rules.js';
 
 let rows = [];               // staff rows with their login state (from the function)
@@ -25,6 +25,7 @@ const ERRORS = {
   bad_person: 'התפקיד לא מוכר. רעננו את הדף.',
   bad_redirect: 'הקישור לא נוצר, כי העמוד נפתח מכתובת לא מוכרת. פתחו אותו מהכתובת הרגילה של המערכת.',
   bad_phone: 'המספר לא תקין. צריך מספר נייד ישראלי, למשל 050-1234567.',
+  owner_no_phone: 'לבעלים לא שומרים מספר: כפתורי ההעברה לא שולחים אליו.',
   person_taken: 'לאדם הזה כבר יש כתובת. להחלפת כתובת פנו לבעלים.',
   email_taken: 'הכתובת כבר שייכת למישהו אחר בצוות.',
   has_login: 'לכתובת הזו כבר יש חשבון במערכת. רק הבעלים יכול להוסיף אותה לצוות.',
@@ -136,9 +137,10 @@ function emailView(e) {
     h('button', { type: 'submit', class: 'btn btn-sm', id: `save-${e.id}` }, 'שמירה'));
 }
 
-// The WhatsApp number that the handoff buttons open a chat with.
+// The WhatsApp number that the handoff buttons open a chat with (none for the owner:
+// no handoff goes there).
 function phoneView(e) {
-  if (!e.row) return null;
+  if (!hasPhone(e.row)) return null;
   const email = e.row.email;
   const can = canEditPhone(caller, e.row);
   const inputId = `phone-${e.id}`;

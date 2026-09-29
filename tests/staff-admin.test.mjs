@@ -285,11 +285,15 @@ test('WhatsApp numbers: Israeli mobiles only, kept as 972 and nine digits; the p
   assert.match(src, /check \(action in \('upsert', 'remove', 'link', 'phone'\)\)/);
 });
 
-test('phone: the owner sets anyone\'s number, Irit and Lior anyone\'s but the owner\'s; empty clears it', () => {
+test('phone: the owner, Irit and Lior set anyone\'s number on the team; the owner\'s row keeps none; empty clears it', () => {
   const nadia = row('n@a.test', 'nadia');
   const lior = row('l@a.test', 'lior', true);
   const owner = row(OWNER, null, true);
-  assert.deepEqual(planPhone({ role: 'owner', target: owner, input: { email: OWNER, phone: '050-1234567' } }), { ok: true, phone: '972501234567' });
+  // No handoff goes to the owner, and all staff read the staff list: no number there.
+  for (const phone of ['050-1234567', '', null]) {
+    assert.deepEqual(planPhone({ role: 'owner', target: owner, input: { email: OWNER, phone } }), { ok: false, status: 400, error: ERR.ownerNoPhone }, String(phone));
+  }
+  assert.equal(ERR.ownerNoPhone, 'owner_no_phone');
   assert.deepEqual(planPhone({ role: 'owner', target: nadia, input: { email: 'n@a.test', phone: '+972 52 555 1234' } }), { ok: true, phone: '972525551234' });
   assert.deepEqual(planPhone({ role: 'manager', target: nadia, input: { email: 'n@a.test', phone: '0541112233' } }), { ok: true, phone: '972541112233' });
   // A number is contact details, not a power: a manager sets a manager's (and their own).
@@ -304,8 +308,11 @@ test('phone: the owner sets anyone\'s number, Irit and Lior anyone\'s but the ow
   assert.equal(planPhone({ role: 'owner', target: null, input: { email: 'x@a.test', phone: '0501234567' } }).error, ERR.notStaff);
   assert.equal(planPhone({ role: null, target: nadia, input: { email: 'n@a.test', phone: '0501234567' } }).error, ERR.notAllowed);
   // The team screen offers the same.
-  const { canEditPhone } = teamRules;
-  assert.equal(canEditPhone({ owner: true }, owner), true);
+  const { canEditPhone, hasPhone } = teamRules;
+  assert.equal(hasPhone(owner), false);
+  assert.equal(hasPhone(nadia), true);
+  assert.equal(canEditPhone({ owner: true }, owner), false);
+  assert.equal(canEditPhone({ owner: true }, nadia), true);
   assert.equal(canEditPhone({ owner: false, person: 'irit' }, owner), false);
   assert.equal(canEditPhone({ owner: false, person: 'irit' }, lior), true);
   assert.equal(canEditPhone({ owner: false, person: 'irit' }, nadia), true);

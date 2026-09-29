@@ -26,9 +26,14 @@ const assigner = (ctx, checks, pre) => {
 //          the check completes that process).
 //   label: the short name shown in the card's "העברות" line and in the prompt.
 //   to:    one or more next people. Each has
-//     id      a short stable id (the record of the send is `<process>.handoff.<id>`),
+//     id      a short stable id (the record of the send is `<process>.handoff.<id>`;
+//             the person it went to is kept in the record's note),
 //     person  a person key, or (ctx, checks, roundPrefix) → person key,
+//     who     for a person resolved from the client: who that is, in words,
 //     proc    the process the next person works on (the link opens it; its due date),
+//     until   (optional) the item that shows the next person has done their part;
+//             by default, their process being complete. After that the handoff is
+//             no longer offered,
 //     text    the message; {client} is the client's name,
 //     due     [{ label, proc?, minutes?, nextBusinessDayAt?, now? }]:
 //               proc              that process's due date (Israel time, office rules),
@@ -41,7 +46,7 @@ export const HANDOFFS = [
   {
     id: 'access', on: 'p05.access', label: 'גישות התקבלו',
     to: [{
-      id: 'ilai', person: 'ilai', proc: 'p06',
+      id: 'ilai', person: 'ilai', proc: 'p06', until: 'p06.verified',
       text: 'גישות התקבלו ל{client}. יש לך 30 דק׳ לבדוק אותן מהכספת במערכת ולסדר את העמודים.',
       due: [{ label: 'יעד', proc: 'p06', minutes: 30 }],
     }],
@@ -49,7 +54,7 @@ export const HANDOFFS = [
   {
     id: 'graphics9', on: 'p07.made', label: '9 גרפיקות מוכנות לבדיקה',
     to: [{
-      id: 'irit', person: 'irit', proc: 'p07',
+      id: 'irit', person: 'irit', proc: 'p07', until: 'p07.sent',
       text: '9 הגרפיקות הראשונות של {client} מוכנות לבדיקה שלך, ואחריה לשליחה ללקוח.',
       due: [{ label: 'יעד', proc: 'p07' }],
     }],
@@ -57,7 +62,7 @@ export const HANDOFFS = [
   {
     id: 'shootDone', on: 'p19', label: 'יום הצילום הסתיים',
     to: [{
-      id: 'ofir', person: assigner, proc: 'p22a',
+      id: 'assigner', person: assigner, who: 'מי שמשייך את העורך', proc: 'p22a', until: 'p22a.assigned',
       text: 'יום הצילום של {client} הסתיים. צריך לשייך עורך ולהעביר אליו את הכונן.',
       // ה8: the assignment is due by 12:00 on the next business day (a hard stop).
       due: [{ label: 'יעד', nextBusinessDayAt: '12:00' }],
@@ -66,7 +71,7 @@ export const HANDOFFS = [
   {
     id: 'editor', on: 'p22a.assigned', label: 'עורך שויך',
     to: [{
-      id: 'editor', person: editorOf, proc: 'p22',
+      id: 'editor', person: editorOf, who: 'העורך המשויך', proc: 'p22', until: 'p22.received',
       text: 'הלקוח {client} עובר לעריכה אצלך. הכונן, התסריטים והלוגו בכרטיס הלקוח.',
       due: [{ label: 'בדרייב ואצל אופיר לבקרה', proc: 'p24' }, { label: 'סגירה, כולל תיקוני הלקוח', proc: 'p27' }],
     }],
@@ -74,7 +79,7 @@ export const HANDOFFS = [
   {
     id: 'graphicsRest', on: 'p23.made', label: 'יתרת הגרפיקות מוכנה לבדיקה',
     to: [{
-      id: 'ofir', person: 'ofir', proc: 'p23',
+      id: 'ofir', person: 'ofir', proc: 'p23', until: 'p23.ofir',
       text: 'יתרת הגרפיקות של {client} מוכנה לבדיקה שלך.',
       // Decision 16: Ofir checks within an hour.
       due: [{ label: 'יעד', minutes: 60 }],
@@ -83,7 +88,7 @@ export const HANDOFFS = [
   {
     id: 'graphicsOk', on: 'p23.ofir', label: 'אופיר אישר את יתרת הגרפיקות',
     to: [{
-      id: 'irit', person: 'irit', proc: 'p23',
+      id: 'irit', person: 'irit', proc: 'p23', until: 'p23.sent',
       text: 'אופיר אישר את יתרת הגרפיקות של {client}. אפשר לשלוח אותן ללקוח.',
       due: [{ label: 'יעד', now: true }],
     }],
@@ -122,7 +127,7 @@ export const HANDOFFS = [
   {
     id: 'gantt', on: 'p29.filled', label: 'הגאנט מלא',
     to: [{
-      id: 'irit', person: 'irit', proc: 'p29',
+      id: 'irit', person: 'irit', proc: 'p29', until: 'p29.sent',
       text: 'הגאנט של {client} מלא ותואם לתזמון. לשלוח אותו ללקוח.',
       due: [{ label: 'יעד', proc: 'p29' }],
     }],
@@ -139,21 +144,25 @@ const procOfPoint = (point) => (isProcId(point.on) ? point.on : point.on.split('
 export const HANDOFF_MARK = /^(?:r\d+\.)?p\d+[a-z]?\.handoff\.[a-z0-9]+$/;
 export const markKeyOf = (pre, point, target) => `${pre}${procOfPoint(point)}.handoff.${target.id}`;
 
-// A record key in words, for the card's history: "גישות התקבלו → עילאי". Null when
-// the key is not a handoff record.
-export function describeMark(key) {
+// The name to write, and the "to X" form for a button ("לשלוח לעילאי").
+export const nameOf = (person) => (person && person !== 'editor' && PEOPLE[person] ? PEOPLE[person].name : null);
+export const toName = (person) => (nameOf(person) ? `ל${nameOf(person)}` : 'לעורך המשויך');
+
+// A record key in words, for the card's history: "גישות התקבלו → עילאי". `note` is
+// the record's note: the person WhatsApp was opened for (Lior, when he took the
+// editor assignment; the editor by name). Null when the key is not a handoff record.
+export function describeMark(key, note = null) {
   const m = /^(?:r\d+\.)?(p\d+[a-z]?)\.handoff\.([a-z0-9]+)$/.exec(String(key || ''));
   if (!m) return null;
   for (const point of HANDOFFS) {
     const target = procOfPoint(point) === m[1] && point.to.find((t) => t.id === m[2]);
-    if (target) return `${point.label} → ${PEOPLE[target.id] && target.id !== 'editor' ? PEOPLE[target.id].name : 'העורך'}`;
+    if (target) return `${point.label} → ${nameOf(note) || nameOf(typeof target.person === 'string' ? target.person : null) || target.who}`;
   }
   return null;
 }
 
-// The name to write, and the "to X" form for a button ("לשלוח לעילאי").
-export const nameOf = (person) => (person && person !== 'editor' && PEOPLE[person] ? PEOPLE[person].name : null);
-export const toName = (person) => (nameOf(person) ? `ל${nameOf(person)}` : 'לעורך המשויך');
+// A client that was cancelled or has ended has nothing more to hand over.
+export const isClosed = (client) => client?.status === 'cancelled' || client?.status === 'ended';
 
 // ── Israel time in words ──────────────────
 const WEEKDAYS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
@@ -199,9 +208,13 @@ export function dueText(due, now = new Date()) {
 }
 
 // Build the offers of one point: the next people, their due dates and the record keys.
+//   handled  the next person already did their part (the target's `until` item, or
+//            their process complete): nothing to hand over any more.
+//   sentTo   the person WhatsApp was opened for, from the record's note.
 function offersOf(point, { client, checks, state, n, triggerKey, triggerAt, now }) {
   const pre = n ? `r${n}.` : '';
   const sid = (pid) => (n && ROUND_IDS.has(pid) ? `r${n}-${pid}` : pid);
+  const keyIn = (base) => (n && ROUND_IDS.has(base.split('.')[0]) ? `${pre}${base}` : base);
   const stateOf = (pid) => state.states.find((s) => s.proc.id === sid(pid)) || null;
   const trig = stateOf(procOfPoint(point));
   const ctx = trig?.proc.ctx || client;
@@ -209,10 +222,13 @@ function offersOf(point, { client, checks, state, n, triggerKey, triggerAt, now 
   return point.to.map((target) => {
     const person = typeof target.person === 'function' ? target.person(ctx, checks, pre) : target.person;
     const markKey = markKeyOf(pre, point, target);
+    const sent = checks[markKey]?.state === 'done' ? checks[markKey] : null;
+    const handled = (!!target.until && ['done', 'na'].includes(checks[keyIn(target.until)]?.state)) || !!stateOf(target.proc)?.complete;
     return {
       point, target, person, name: nameOf(person), toName: toName(person), known: !!nameOf(person),
       clientId: client.id, clientName: `${client.name}${roundName}`, round: n,
-      procId: sid(target.proc), triggerKey, triggerAt, markKey, sent: checks[markKey]?.state === 'done' ? checks[markKey] : null,
+      procId: sid(target.proc), trigProcId: sid(procOfPoint(point)), triggerKey, triggerAt, markKey,
+      sent, sentTo: nameOf(sent?.note), handled,
       text: target.text.replaceAll('{client}', `${client.name}${roundName}`),
       dues: target.due.map((spec) => resolveDue(spec, { stateOf, triggerAt, now })),
     };
@@ -226,10 +242,11 @@ const parseKey = (key) => {
 
 // What to offer right after `key` was checked: the handoffs it triggers, one entry
 // per next person. `from` (the person who checked) never gets a message from
-// themselves. `state` may be passed when already computed (clientState).
+// themselves. Nothing on a closed client, or for a next person who already did
+// their part. `state` may be passed when already computed (clientState).
 export function handoffsFor(client, checks, key, { now = new Date(), from = null, state = null } = {}) {
   const k = parseKey(key);
-  if (!k || HANDOFF_MARK.test(key) || checks[key]?.state !== 'done') return [];
+  if (!k || isClosed(client) || HANDOFF_MARK.test(key) || checks[key]?.state !== 'done') return [];
   const st = state || clientState(client, checks, now);
   const sid = k.n && ROUND_IDS.has(k.procId) ? `r${k.n}-${k.procId}` : k.procId;
   const trig = st.states.find((s) => s.proc.id === sid);
@@ -243,15 +260,27 @@ export function handoffsFor(client, checks, key, { now = new Date(), from = null
     const triggerAt = byItem ? new Date(checks[key].at || now) : trig.completedAt || new Date(checks[key].at || now);
     out.push(...offersOf(point, { client, checks, state: st, n: k.n, triggerKey: key, triggerAt, now }));
   }
-  return out.filter((o) => !from || o.person !== from);
+  return out.filter((o) => !o.handled && (!from || o.person !== from));
 }
 
-// The handoffs out of one process of the card (a state from clientState): those
-// whose trigger is done, and any already sent. For the "העברות" line.
+// Whether the check behind an offer still stands: its item still checked, or (a
+// process trigger) its process still complete, on a client still in work. An
+// offer whose check was undone has nothing to hand over.
+export function stillStands(offer, client, checks, now = new Date()) {
+  if (!checks || isClosed(client)) return false;
+  if (!isProcId(offer.point.on)) return checks[offer.triggerKey]?.state === 'done';
+  return !!clientState(client, checks, now).states.find((s) => s.proc.id === offer.trigProcId)?.complete;
+}
+
+// The handoffs out of one process of the card (a state from clientState), for its
+// "העברות" line: those still to hand over (the trigger is done, the client is in
+// work and the next person has not done their part yet), and any already opened
+// in WhatsApp (kept as a record). `live` says whether a button belongs there.
 export function handoffsOf(client, checks, state, procState, now = new Date()) {
   const n = procState.proc.ctx?.round || null;
   const pid = procState.proc.id.replace(/^r\d+-/, '');
   const pre = n ? `r${n}.` : '';
+  const open = !isClosed(client);
   const out = [];
   for (const point of HANDOFFS) {
     if (procOfPoint(point) !== pid) continue;
@@ -259,12 +288,15 @@ export function handoffsOf(client, checks, state, procState, now = new Date()) {
     const triggerKey = byProc ? null : `${pre}${point.on}`;
     const done = byProc ? procState.complete : checks[triggerKey]?.state === 'done';
     const sent = point.to.some((t) => checks[markKeyOf(pre, point, t)]?.state === 'done');
-    if (!done && !sent) continue;
+    if (!(done && open) && !sent) continue;
     const triggerAt = byProc ? procState.completedAt : checks[triggerKey] ? new Date(checks[triggerKey].at) : null;
     // A process trigger: the last required item checked stands for the trigger.
     const key = triggerKey || procState.proc.items.filter((i) => !i.optional && checks[i.key]?.state === 'done')
       .sort((a, b) => new Date(checks[b.key].at) - new Date(checks[a.key].at))[0]?.key || null;
-    out.push(...offersOf(point, { client, checks, state, n, triggerKey: key, triggerAt, now }).map((o) => ({ ...o, done })));
+    for (const o of offersOf(point, { client, checks, state, n, triggerKey: key, triggerAt, now })) {
+      const live = done && open && !o.handled;
+      if (live || o.sent) out.push({ ...o, done, live });
+    }
   }
   return out;
 }

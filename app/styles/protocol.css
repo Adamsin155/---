@@ -651,9 +651,11 @@ dialog.dlg-wide .dlg-foot { border-top: 1px solid var(--line); padding-top: 14px
 }
 
 /* ── Handoffs: a ready WhatsApp message to the next person (app/handoff-ui.js) ── */
-/* The prompt sits above the toast and stays until it is closed. */
+/* The prompt sits above the toast (bottom 16px) and stays until it is closed. When
+   the toast wraps to more lines, the prompt rises above it (--toast-room: the
+   toast's height, set by handoff-ui.js). */
 .handoff {
-  position: fixed; z-index: 55; inset-inline: 16px; bottom: calc(72px + env(safe-area-inset-bottom));
+  position: fixed; z-index: 55; inset-inline: 16px; bottom: calc(max(72px, var(--toast-room, 0px) + 28px) + env(safe-area-inset-bottom));
   margin-inline: auto; max-inline-size: 520px; display: grid; gap: 10px; padding: 10px 14px 14px;
   background: var(--panel); color: var(--text); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
   border-radius: var(--radius-md); box-shadow: 0 16px 40px -12px rgba(3, 20, 50, 0.35);
@@ -673,6 +675,13 @@ dialog.dlg-wide .dlg-foot { border-top: 1px solid var(--line); padding-top: 14px
 .handoff-wa { min-height: 44px; justify-self: start; max-inline-size: 100%; white-space: normal; }
 .handoff-nophone { margin: 0; }
 .has-handoff .pr-app { padding-bottom: 260px; }
+/* Phones: a tighter prompt, so it covers less of the list (the due time follows the name). */
+@media (max-width: 420px) {
+  .handoff { padding: 6px 12px 10px; gap: 6px; }
+  .handoff-row + .handoff-row { padding-top: 6px; }
+  .handoff-due { display: inline; }
+  .handoff-due::before { content: ' · '; }
+}
 
 /* The "העברות" line of a process in the client card. */
 .handoff-line {

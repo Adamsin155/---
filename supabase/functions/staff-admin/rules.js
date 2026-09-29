@@ -11,8 +11,8 @@
 //    has a login, or creates or changes the owner's row or a manager's row (a
 //    manager can make links for others, so that power is granted by the owner alone).
 //  - A WhatsApp number (for the handoff buttons) is contact details, not a power:
-//    the owner sets anyone's, Irit and Lior anyone's but the owner's. Only an
-//    Israeli mobile number is kept, as 972XXXXXXXXX.
+//    the owner, Irit and Lior set anyone's on the team. The owner's row keeps no
+//    number (no handoff goes there). Only an Israeli mobile number is kept, as 972XXXXXXXXX.
 
 // Keep in step with STAFF_PEOPLE in app/protocol.js and TEAM_MANAGERS in
 // app/team-rules.js (the unit tests compare them). A copy, because the deployed
@@ -35,6 +35,7 @@ export const ERR = {
   badPerson: 'bad_person',
   badRedirect: 'bad_redirect',
   badPhone: 'bad_phone',
+  ownerNoPhone: 'owner_no_phone',
   personTaken: 'person_taken',
   emailTaken: 'email_taken',
   hasLogin: 'has_login',
@@ -154,11 +155,13 @@ export function planUpsert({ role, callerEmail, existing, input, personTaken = f
 }
 
 // Set or clear someone's WhatsApp number. `input` is { email, phone } (phone empty
-// or null clears it). `target` is the staff row of that email.
+// or null clears it). `target` is the staff row of that email. The owner's row
+// keeps no number: no handoff goes to the owner, and every staff member can read
+// the staff list, so a number there would only be exposed.
 export function planPhone({ role, target, input }) {
   if (role !== 'owner' && role !== 'manager') return fail(403, ERR.notAllowed);
   if (!target) return fail(404, ERR.notStaff);
-  if (role !== 'owner' && isOwnerRow(target)) return fail(403, ERR.ownerOnly);
+  if (isOwnerRow(target)) return fail(role === 'owner' ? 400 : 403, role === 'owner' ? ERR.ownerNoPhone : ERR.ownerOnly);
   const v = input?.phone;
   if (v === null || v === undefined || (typeof v === 'string' && !v.trim())) return { ok: true, phone: null };
   if (typeof v !== 'string') return fail(400, ERR.badPhone);

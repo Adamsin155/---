@@ -2,9 +2,10 @@
 -- opens a chat with the next person with the message ready (app/handoffs.js).
 -- Digits only, in international form without the plus (972501234567); set only
 -- through the staff-admin function (team.html: the owner, Irit and Lior), which
--- keeps Israeli mobile numbers only. Staff already read the staff list
--- ("staff read staff", select granted to authenticated), so the app reads the
--- numbers from there; anyone else sees at most their own row.
+-- keeps Israeli mobile numbers only, and none on the owner's row (no handoff goes
+-- to the owner). Staff already read the staff list ("staff read staff", select
+-- granted to authenticated), so the app reads the numbers from there; anyone else
+-- sees at most their own row.
 alter table public.staff add column if not exists phone text
   constraint staff_phone_check check (phone is null or phone ~ '^\+?[0-9]{8,15}$');
 

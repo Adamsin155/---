@@ -22,6 +22,7 @@ import { whatsappLink } from './quote-doc.js';
 import { googleCalendarUrl, downloadIcs } from './calendar.js';
 import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
 import { describeMark } from './handoffs.js';
+import { canManageTeam } from './team-rules.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 
 const id = new URLSearchParams(location.search).get('id');
@@ -656,7 +657,7 @@ async function markBulk(x, items) {
   // A process completed this way no longer waits on the client (as with a single check).
   await endWaitIfComplete(keys[0]);
   render();
-  offerHandoff({ client, keys, checks, me, onSent: afterHandoff });
+  offerHandoff({ client, keys, checks: () => checks, me, canTeam: canTeam(), onSent: afterHandoff });
   // Focus: the first item still open in this process; else the next open process in the phase; else the phase.
   const left = document.querySelector(`#${CSS.escape(x.proc.id)} .cbx:not(:checked):not(:disabled)`);
   const phaseEl = document.getElementById(x.proc.id)?.closest('details.phase')
@@ -684,6 +685,8 @@ async function markBulk(x, items) {
 
 // After WhatsApp was opened for a handoff: the "העברות" line and the history show it.
 const afterHandoff = () => { renderKeepingFocus(); loadHistory(); };
+// A missing WhatsApp number: the team page (where it is added) is linked only for those who can open it.
+const canTeam = () => canManageTeam({ me, scope, error: viewerError });
 
 function procCard(x, now, s) {
   const p = x.proc;
@@ -708,7 +711,7 @@ function procCard(x, now, s) {
   // 'own' roles mark a wait only where the client is part of their work.
   const canWait = !x.complete && !p.recurring && (own() ? CLIENT_PROCS.has(pid) : x.ready || CLIENT_PROCS.has(pid));
   // Handoffs out of this process: who the work went to, and a WhatsApp button.
-  const handoffs = printing ? null : handoffLine({ client, checks, state: s, x, me, onSent: afterHandoff });
+  const handoffs = printing ? null : handoffLine({ client, checks: () => checks, state: s, x, me, canTeam: canTeam(), onSent: afterHandoff });
   return h('article', { class: `proc s-${x.status}${mine ? ' is-mine' : ''}${dim ? ' is-dim' : ''}`, id: p.id, 'aria-labelledby': `${p.id}-h`, 'aria-describedby': x.wait ? `${p.id}-wait` : null },
     h('header', { class: 'proc-head' },
       h('span', { class: 'pnum num' }, p.num),
@@ -832,7 +835,7 @@ async function mark(key, state, focusId, note = null) {
     renderKeepingFocus(focusId);
     loadHistory();
     // A handoff item: offer the ready WhatsApp message to the next person.
-    if (state === 'done') offerHandoff({ client, key, checks, me, onSent: afterHandoff });
+    if (state === 'done') offerHandoff({ client, key, checks: () => checks, me, canTeam: canTeam(), onSent: afterHandoff });
     else dropHandoff(key);
     return true;
   } catch (err) {
@@ -1402,7 +1405,7 @@ function historyText(r) {
   const round = roundOfKey(r.item_key);
   const pre = round > 1 ? `סבב ${round} · ` : '';
   const base = baseKey(r.item_key);
-  const handed = describeMark(base);
+  const handed = describeMark(base, r.note);
   if (handed) return r.action === 'clear' ? `ביטל/ה רישום העברה: ${pre}${handed}` : `פתח/ה וואטסאפ להעברה: ${pre}${handed}`;
   const mk = /^(p\d+[ab]?)\.(claim|wait|waited|pause)$/.exec(base);
   if (mk) {
