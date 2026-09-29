@@ -79,7 +79,8 @@ async function load() {
   if (!client) $('state').textContent = 'טוען…';
   try {
     const [c, ch, t] = await Promise.all([loadClient(id), loadChecks(id), loadTasks({ clientId: id })]);
-    if (!c) { $('state').textContent = 'הלקוח לא נמצא.'; $('app').hidden = true; return; }
+    if (!c) { showMissing(); return; }
+    $('state').classList.remove('no-access');
     client = c;
     checks = ch[id] || {};
     tasks = t;
@@ -96,6 +97,26 @@ async function load() {
   document.title = `${client.name} · כרטיס לקוח · astrateg`;
   renderKeepingFocus();
   loadHistory();
+}
+
+// No client came back. The database shows each person only the clients they work
+// on, so for an 'own' role this is usually a client that is not theirs (or no longer
+// is: the editing moved to someone else); for the office, a wrong or old link.
+function showMissing() {
+  client = null;
+  $('app').hidden = true;
+  const st = $('state');
+  st.classList.add('no-access');
+  document.title = own() ? 'אין גישה ללקוח · astrateg' : 'הלקוח לא נמצא · astrateg';
+  fill(st, ...(own() ? [
+    h('strong', {}, 'אין לך גישה ללקוח הזה.'),
+    h('span', {}, 'כאן נפתחים רק לקוחות שיש לך בהם עבודה: עריכה ששויכה אליך, יום צילום קרוב או משימה שלך. אם צריך אותו, פנו לליאור.'),
+    h('a', { class: 'btn', href: 'clients.html#mine' }, '→ מה עליי'),
+  ] : [
+    h('strong', {}, 'הלקוח לא נמצא.'),
+    h('span', {}, 'ייתכן שהקישור שגוי או ישן.'),
+    h('a', { class: 'btn', href: 'clients.html#clients' }, '→ כל הלקוחות'),
+  ]));
 }
 
 function render() {
@@ -259,7 +280,7 @@ function statusNoteBlock() {
 // ── Access vault ────────────────────────────
 const STATUS_LABEL = { ok: 'תקינה', broken: 'לא עובדת', missing: 'אין רשת' };
 const networkName = (k) => NETWORKS.find(([n]) => n === k)?.[1] || k;
-// Shown only to whoever may use the vault (can_use_vault in the database).
+// Shown only to whoever may use this client's vault (can_use_client_vault in the database).
 function renderAccess() {
   $('access').hidden = !vaultOk;
   if (!vaultOk) return;
@@ -1585,7 +1606,8 @@ function applyScope() {
 
 mountSession(async (staff) => {
   myEmail = staff.email;
-  const [dir, viewer, vault] = await Promise.all([loadDirectory(), viewerOf(staff.email), canUseVault()]);
+  // The vault of this client: the vault flag and, outside the office, a client assigned to me.
+  const [dir, viewer, vault] = await Promise.all([loadDirectory(), viewerOf(staff.email), canUseVault(id)]);
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
   viewerError = viewer.error;

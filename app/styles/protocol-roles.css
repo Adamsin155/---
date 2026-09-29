@@ -24,6 +24,11 @@ details.g-soon[open] > summary::after { transform: rotate(-135deg); }
 .cc-next.is-none { margin: 0; background: var(--panel-2, var(--bg-2)); font-weight: 400; }
 .cc-next.s-waiting .muted { font-weight: 400; }
 
+/* A client this person may not open, or that is not there. */
+.state.no-access { display: grid; gap: 8px; justify-items: center; max-width: 34rem; margin-inline: auto; line-height: 1.6; }
+.state.no-access strong { color: var(--text); font-size: 17px; }
+.state.no-access .btn { margin-top: 6px; text-decoration: none; }
+
 /* 'own' roles: quotes are not part of their protocol. */
 html[data-scope='own'] .topbar nav a[href='./'],
 html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
