@@ -42,19 +42,22 @@ test('quantities follow the package, with the agreement add-ons when there are a
   assert.deepEqual(dealDeliverables(''), {});
 });
 
-test('import marks every applicable item before the station, and nothing from it on', () => {
+test('import marks every item before the station, and nothing from it on', () => {
   const client = {
     id: 'c', status: 'active', shoot_type: 'natali', characterizer: 'ofir', has_logo: true,
     deal_at: '2026-08-02T10:00:00+03:00', char_at: '2026-08-04T10:00:00+03:00', shoot_at: '2026-08-20T10:00:00+03:00',
   };
-  assert.deepEqual(importKeys(client, 'join'), []);
-  assert.deepEqual(importKeys(client, 'unknown'), []);
-  const keys = importKeys(client, 'post');
+  assert.deepEqual(importKeys('join'), []);
+  assert.deepEqual(importKeys('unknown'), []);
+  const keys = importKeys('post');
   const before = new Set(STATIONS.slice(0, 4).flatMap((s) => s.procs));
   assert.ok(keys.length > 100);
+  assert.equal(new Set(keys).size, keys.length);
   for (const k of keys) assert.ok(before.has(k.split('.')[0]), k);
   for (const k of ['p01.signed', 'p05.menu', 'p11b.makeup', 'p15.natali.ride', 'p20.focus', 'p19b.handed']) assert.ok(keys.includes(k), k);
-  for (const k of ['p21.fun', 'p05.newlogo', 'p22a.assigned', 'p23.made']) assert.ok(!keys.includes(k), k); // DMS day, has a logo, from the station on
+  // Items that do not apply yet are marked too: the other shoot day, a new logo.
+  for (const k of ['p21.fun', 'p05.newlogo']) assert.ok(keys.includes(k), k);
+  for (const k of ['p22a.assigned', 'p23.made']) assert.ok(!keys.includes(k), k); // from the station on
 
   const now = new Date('2026-09-29T12:00:00+03:00');
   const checks = Object.fromEntries(keys.map((k) => [k, { state: 'done', note: IMPORT_NOTE, at: now.toISOString() }]));
@@ -63,9 +66,31 @@ test('import marks every applicable item before the station, and nothing from it
   assert.equal(s.current, 'post');
 });
 
+test('details filled on the card after an import do not reopen anything before the station', () => {
+  // Imported at "עריכה ובקרה" without knowing about the logo; the shoot type is corrected later.
+  const imported = {
+    id: 'c', status: 'active', shoot_type: 'natali', characterizer: 'ofir', has_logo: null,
+    deal_at: '2026-08-02T10:00:00+03:00', char_at: '2026-08-04T10:00:00+03:00', shoot_at: '2026-08-20T10:00:00+03:00',
+  };
+  const at = new Date('2026-09-29T12:00:00+03:00');
+  const checks = Object.fromEntries(importKeys('post').map((k) => [k, { state: 'done', note: IMPORT_NOTE, at: at.toISOString() }]));
+  const before = new Set(STATIONS.slice(0, 4).flatMap((s) => s.procs));
+  for (const later of [
+    { has_logo: false },
+    { shoot_type: 'dms' },
+    { has_logo: false, shoot_type: 'dms', characterizer: 'lior' },
+  ]) {
+    for (const now of [at, new Date('2026-10-05T12:00:00+03:00')]) {
+      const s = clientState({ ...imported, ...later }, checks, now);
+      const open = s.states.filter((x) => before.has(x.proc.id) && x.status !== 'done').map((x) => `${x.proc.id}:${x.status}`);
+      assert.deepEqual(open, [], JSON.stringify(later));
+      assert.equal(s.current, 'post', JSON.stringify(later));
+    }
+  }
+});
+
 test('the weekly call keeps its own rhythm: an import never marks it', () => {
-  const client = { status: 'active', shoot_type: 'dms', deal_at: '2026-01-04T10:00:00+02:00', contract_end: '2027-01-04' };
-  const keys = importKeys(client, 'renewal');
+  const keys = importKeys('renewal');
   assert.ok(!keys.some((k) => k.startsWith('p31.')));
   assert.ok(keys.includes('p30.live'));
   assert.ok(!keys.some((k) => k.startsWith('p34.') || k.startsWith('p35.')));

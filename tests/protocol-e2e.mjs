@@ -682,7 +682,7 @@ assert.equal(imported.deal_at, new Date('2026-08-02T10:00:00+03:00').toISOString
 assert.equal(imported.char_at, new Date('2026-08-04T10:00:00+03:00').toISOString());
 assert.equal(imported.shoot_at, new Date('2026-08-20T10:00:00+03:00').toISOString());
 const impChecks = db.protocol_checks.filter((c) => c.client_id === imported.id);
-assert.deepEqual(impChecks.map((c) => c.item_key).sort(), importKeys(imported, 'post').sort());
+assert.deepEqual(impChecks.map((c) => c.item_key).sort(), importKeys('post').sort());
 assert.ok(impChecks.every((c) => c.state === 'done' && c.note === 'ייבוא' && c.by_email === USER.email), 'import checks');
 assert.ok(impChecks.some((c) => c.item_key === 'p19b.handed') && impChecks.some((c) => c.item_key === 'p11b.ride'));
 const postOn = new Set(STATIONS.slice(4).flatMap((st) => st.procs));
@@ -692,9 +692,62 @@ const impState = clientState(imported, Object.fromEntries(impChecks.map((c) => [
 assert.ok(impState.states.filter((x) => beforePost.has(x.proc.id)).every((x) => x.status === 'done'));
 assert.equal(impState.current, 'post');
 await page.waitForSelector('#p22a', { state: 'attached' });
-const lateProcs = await page.locator('.proc.s-overdue').evaluateAll((els) => els.map((e) => e.id));
+// Every process before the station is on the card, and done: none of them late or due today.
+const shownBefore = async () => page.locator('.proc').evaluateAll((els, ids) => els.filter((e) => ids.includes(e.id))
+  .map((e) => `${e.id}:${[...e.classList].find((c) => c.startsWith('s-'))}`), [...beforePost]);
+const impBefore = impState.states.filter((x) => beforePost.has(x.proc.id)).map((x) => `${x.proc.id}:s-done`);
+assert.deepEqual((await shownBefore()).sort(), impBefore.sort());
+const lateProcs = await page.locator('.proc.s-overdue, .proc.s-today').evaluateAll((els) => els.map((e) => e.id));
 assert.ok(lateProcs.every((pid) => postOn.has(pid)), `late before the station: ${lateProcs}`);
+assert.equal(await page.locator('.phase.is-current h2').innerText(), 'עריכה ומסירה');
 await shot('15-imported-card');
+// Details the import did not ask for, filled on the card later (no logo, the other shoot day),
+// reopen nothing before the station.
+Object.assign(imported, { has_logo: false, shoot_type: 'dms' });
+await page.reload();
+await page.waitForSelector('#p22a', { state: 'attached' });
+assert.deepEqual((await shownBefore()).sort(),
+  clientState(imported, Object.fromEntries(impChecks.map((c) => [c.item_key, c])), new Date()).states
+    .filter((x) => beforePost.has(x.proc.id)).map((x) => `${x.proc.id}:s-done`).sort());
+assert.ok((await shownBefore()).some((x) => x === 'p21:s-done') && (await shownBefore()).includes('p05:s-done'));
+assert.equal(await page.locator('.phase.is-current h2').innerText(), 'עריכה ומסירה');
+
+// The client opens but the import's checks fail to save: the dialog does not close
+// quietly (that would lose the import), and pressing again saves only the checks.
+await page.goto(`${BASE}clients.html#clients`);
+await page.waitForSelector('.crow');
+await page.click('#btn-new');
+await page.waitForSelector('#dlg-new[open]');
+await page.click('#new-mode-import');
+await page.fill('#new-name', 'גלידה אמיתית');
+await page.selectOption('#new-package', 'social-simeon');
+await page.selectOption('#new-station', 'content');
+failNextCheck = true;
+await page.click('#new-submit');
+await page.waitForSelector('#new-err:not([hidden])');
+assert.match(await page.innerText('#new-err'), /הלקוח נפתח, אבל הסימונים של הייבוא לא נשמרו/);
+assert.equal(await page.innerText('#new-submit'), 'שמירת הסימונים');
+const gelato = () => db.clients.filter((c) => c.name === 'גלידה אמיתית');
+assert.equal(gelato().length, 1);
+assert.equal(db.protocol_checks.filter((c) => c.client_id === gelato()[0].id).length, 0);
+const asked = [];
+const answer = (d) => { asked.push(d.message()); d.dismiss(); };
+page.on('dialog', answer);
+await page.keyboard.press('Escape');
+await page.click('#dlg-new [data-close]');
+await page.keyboard.press('Escape');
+await page.keyboard.press('Escape'); // may close without a cancel the page can stop: it reopens
+await page.waitForTimeout(100);
+page.off('dialog', answer);
+assert.ok(asked.length >= 2 && asked.every((m) => /סימוני הייבוא לא נשמרו/.test(m)), asked.join(' | '));
+assert.equal(await page.locator('#dlg-new').evaluate((d) => d.open), true);
+assert.match(await page.innerText('#new-err'), /לא נשמרו/);
+await page.click('#new-submit');
+await page.waitForURL(/client\.html\?id=/);
+assert.equal(gelato().length, 1, 'the retry does not open the client twice');
+const gelatoChecks = db.protocol_checks.filter((c) => c.client_id === gelato()[0].id);
+assert.deepEqual(gelatoChecks.map((c) => c.item_key).sort(), importKeys('content').sort());
+assert.ok(gelatoChecks.every((c) => c.note === 'ייבוא'));
 
 // Mobile
 const mob = await ctx.newPage();

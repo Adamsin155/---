@@ -1734,9 +1734,28 @@ $('new-package').addEventListener('change', packageChanged);
 $('new-shoot-type').addEventListener('change', () => { derivedShoot = false; $('new-shoot-hint').textContent = ''; });
 for (const type of ['input', 'change']) dlg.addEventListener(type, (e) => clearInvalid(e.target));
 
-dlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === dlg) dlg.close(); });
-// Closed before the first checks were saved: the client is there, so the list shows it.
-dlg.addEventListener('close', () => { if (pendingChecks) { pendingChecks = null; load(); } });
+// The client opened but its first checks did not save. Closing drops the retry, and
+// nothing else can redo an import: everything before the station would show as late.
+// So the dialog closes only after the user agrees to lose them.
+const unsaved = () => !!(pendingChecks && (pendingChecks.signed.length || pendingChecks.imported.length));
+let letGo = false;
+function mayClose() {
+  if (!unsaved()) return true;
+  letGo = confirm(pendingChecks.imported.length
+    ? 'הלקוח כבר נפתח, אבל סימוני הייבוא לא נשמרו. בלעדיהם כל מה שלפני התחנה יופיע באיחור, ואי אפשר להריץ את הייבוא שוב. לסגור בכל זאת?'
+    : 'הלקוח כבר נפתח, אבל הסימון של תהליך 1 (נחתם במערכת) לא נשמר. לסגור בכל זאת?');
+  if (!letGo) $('new-submit').focus();
+  return letGo;
+}
+dlg.addEventListener('click', (e) => { if ((e.target.closest('[data-close]') || e.target === dlg) && mayClose()) dlg.close(); });
+dlg.addEventListener('cancel', (e) => { if (e.cancelable && !mayClose()) e.preventDefault(); });
+dlg.addEventListener('close', () => {
+  // An Escape the browser does not let the page stop: reopen, with the retry still there.
+  if (unsaved() && !letGo) { dlg.showModal(); $('new-submit').focus(); return; }
+  letGo = false;
+  // Closed after the client opened: the list shows it.
+  if (pendingChecks) { pendingChecks = null; load(); }
+});
 $('btn-new').addEventListener('click', async () => {
   $('new-form').reset();
   $('new-err').hidden = true;
@@ -1791,7 +1810,7 @@ $('new-form').addEventListener('submit', async (e) => {
       await saveFirstChecks(pendingChecks);
       location.href = clientUrl(pendingChecks.row.id);
     } catch (err) {
-      fail(`הלקוח נפתח, אבל הסימונים ${importing ? 'של הייבוא ' : ''}לא נשמרו (${errorText(err)}). לחיצה נוספת תנסה לשמור אותם שוב.`);
+      fail(`הלקוח נפתח, אבל הסימונים ${pendingChecks.imported.length ? 'של הייבוא ' : ''}לא נשמרו (${errorText(err)}). לחיצה נוספת תנסה לשמור אותם שוב.`);
       $('new-submit').textContent = 'שמירת הסימונים';
       $('new-submit').disabled = false;
     }
@@ -1834,7 +1853,7 @@ $('new-form').addEventListener('submit', async (e) => {
   const signed = q ? P01 : [];
   pendingChecks = {
     row, signed, signedNote: q ? `נחתם במערכת: ${q.number}` : null,
-    imported: importing ? importKeys(row, station).filter((k) => !signed.includes(k)) : [],
+    imported: importing ? importKeys(station).filter((k) => !signed.includes(k)) : [],
   };
   return done();
 });

@@ -2,8 +2,8 @@
 // shoot type, quantities), and importing a client that is already mid-way.
 // Pure logic, shared by the new-client dialog and the unit tests.
 import { PACKAGES, TIERS, INFLUENCERS } from './catalog.js';
-import { STATIONS } from './protocol.js';
-import { applicableProcesses, packageDeliverables } from './protocol-logic.js';
+import { STATIONS, PROCESSES } from './protocol.js';
+import { packageDeliverables } from './protocol-logic.js';
 
 // Every check an import makes carries exactly this note, so reports can leave it out.
 export const IMPORT_NOTE = 'ייבוא';
@@ -30,14 +30,17 @@ export function dealDeliverables(id, selection = null) {
 
 export const stationIndex = (key) => STATIONS.findIndex((s) => s.key === key);
 
-// What an import marks done: every applicable item of every process in the
-// stations before `stationKey`. The weekly call is recurring: it keeps its own
-// rhythm and is never marked by an import.
-export function importKeys(client, stationKey) {
+// What an import marks done: every item of every process in the stations before
+// `stationKey`, including the ones that do not apply to the client yet. Whether it
+// has a logo, or who came to the shoot, is often filled in on the card only after
+// the import; an item that starts to apply then (a new logo, the other shoot day)
+// is already behind the client and must not reopen as late. A check on an item
+// that does not apply is ignored by clientState. The weekly call is recurring: it
+// keeps its own rhythm and is never marked by an import.
+export function importKeys(stationKey) {
   const i = stationIndex(stationKey);
   if (i < 0) return [];
   const before = new Set(STATIONS.slice(0, i).flatMap((s) => s.procs));
-  return applicableProcesses(client)
-    .filter((p) => before.has(p.id) && !p.recurring)
+  return PROCESSES.filter((p) => before.has(p.id) && !p.recurring)
     .flatMap((p) => p.items.filter((it) => !it.recurring).map((it) => it.key));
 }
