@@ -30,6 +30,7 @@ jobs:
           node tests/payouts-e2e.mjs
           node tests/e2e.mjs
           node tests/protocol-e2e.mjs
+          node tests/protocol-office-e2e.mjs
           node scripts/build-payment-site.mjs /tmp/site/payouts /payouts/
           (cd /tmp/site && npx --yes http-server -p 8082 -s . > /dev/null 2>&1 &)
           npx --yes wait-on -t 30000 http://localhost:8082/payouts/

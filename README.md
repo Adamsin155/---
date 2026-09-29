@@ -61,7 +61,8 @@
 npm install
 npm test                                # מנועי התמחור, הפרוטוקול והתשלומים (מקרה האקסל רץ רק כשקיים private/)
 npx http-server -p 8080 . & node tests/e2e.mjs   # תהליך מלא בדפדפן מול שרת מדומה
-node tests/protocol-e2e.mjs                       # פרוטוקול הלקוחות בדפדפן מול שרת מדומה
+node tests/protocol-e2e.mjs                       # כרטיס הלקוח בדפדפן מול שרת מדומה
+node tests/protocol-office-e2e.mjs                # מה עליי, בקרה, ביצועים וסיכום בוקר מול שרת מדומה
 node tests/payouts-e2e.mjs                       # מערכת התשלומים בדפדפן, בטלפון ובמחשב, מול שרת מדומה
 ```
 

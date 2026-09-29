@@ -1,0 +1,141 @@
+/* Office views of the clients page (batch 2): bulk marking and waiting on the
+   client in "my work", morning summary, daily reviews, performance.
+   Builds on app.css, quotes.css and protocol.css. Brand: docs/brand/brand-guide.md */
+
+/* ── My work ─────────────────────────────── */
+.mine-tools { display: grid; gap: 6px; padding: 10px 16px 0; }
+.mine-tools:empty { display: none; }
+.summary-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.notify-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; margin: 0; font-size: 13.5px; color: var(--text-2); }
+.notify-row .hint { margin: 0; }
+
+.wproc-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding-top: 6px; }
+.bulk-btn { font-weight: 500; }
+.wait-line {
+  margin: 6px 0 0; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-2);
+  background: rgba(255, 193, 94, 0.07); border-inline-start: 3px solid var(--warn);
+}
+.wait-line .tag { margin-inline-start: 8px; }
+.wproc.s-client .wclient { color: var(--text); }
+
+/* "Waiting on the client" is the last group and folds on phones. */
+details.g-client > summary { list-style: none; cursor: pointer; min-height: 44px; }
+details.g-client > summary::-webkit-details-marker { display: none; }
+details.g-client > summary::after {
+  content: ''; width: 7px; height: 7px; border: solid var(--muted); border-width: 0 2px 2px 0;
+  transform: rotate(45deg); margin-inline-start: 4px; transition: transform .15s;
+}
+details.g-client[open] > summary::after { transform: rotate(-135deg); }
+.g-client .wgroup-h { color: var(--warn); }
+
+/* Auto-opened clients (signed agreement) */
+.auto-tag {
+  display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+  white-space: normal; line-height: 1.5;
+}
+.cname .auto-tag { margin-block: 3px 1px; }
+.cname .auto-when { display: block; color: var(--text-2); }
+.auto-banner {
+  display: grid; gap: 4px; margin: 12px 0 4px; padding: 10px 14px; border-radius: var(--radius-md);
+  background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); font-size: 14px;
+}
+.auto-banner p { margin: 0; }
+.auto-banner a { color: var(--accent); font-weight: 500; }
+
+a.btn-text { text-decoration: none; display: inline-flex; align-items: center; }
+a.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Clients list flags */
+.cflags .flag { display: block; }
+
+/* ── Daily control ───────────────────────── */
+.rv-panel { display: grid; gap: 10px; margin-bottom: 8px; }
+.rv-panel > .wgroup-h { margin-bottom: 0; }
+.rv-row {
+  display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--radius-md);
+  background: var(--bg-2); border: 1px solid var(--line);
+}
+.rv-main { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; }
+.rv-state { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; }
+.rv-check { padding: 6px 0; font-weight: 500; }
+.rv-check .cbx:disabled { opacity: 1; cursor: default; }
+.rv-by { font-size: 13.5px; color: var(--text-2); }
+.rv-meta { margin: 0; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.rv-off { margin: 0; }
+.rv-general, .rv-cnote { margin: 0; font-size: 13.5px; color: var(--text-2); }
+.rv-cnote { margin-top: 4px; padding-inline-start: 10px; border-inline-start: 2px solid var(--line-strong); }
+.rv-topics summary, .rv-narrow summary { cursor: pointer; font-size: 13.5px; color: var(--accent); min-height: 32px; display: flex; align-items: center; }
+.rv-topics ul { margin: 4px 0 0; padding-inline-start: 18px; font-size: 13.5px; color: var(--text-2); columns: 2 220px; }
+.rv-sum { margin: 0; font-size: 13.5px; color: var(--text-2); }
+.rv-week { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.rv-day {
+  display: grid; gap: 1px; justify-items: start; padding: 6px 8px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); font-size: 12.5px; color: var(--text-2); min-width: 0;
+}
+.rv-d { font-weight: 600; color: var(--text); }
+.rv-s { overflow-wrap: anywhere; }
+.rv-icon { width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1.5px currentColor; }
+.rv-day.is-done { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+.rv-day.is-done .rv-icon { background: currentColor; box-shadow: none; }
+.rv-day.is-done .rv-icon::before { content: ''; width: 6px; height: 3px; border: solid var(--bg); border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
+.rv-day.is-miss { color: var(--late); }
+.rv-day.is-miss .rv-icon::before { content: '×'; font-size: 11px; font-weight: 700; line-height: 1; }
+.rv-day.is-pending { color: var(--muted); border-style: dashed; }
+.rv-day .rv-s { color: inherit; }
+.rv-narrow { display: none; }
+
+.team-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; }
+.row-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0 14px; }
+.waiting-list .wait-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.contact { display: inline-flex; gap: 14px; }
+.waiting-list .tag, .stuck .tag { margin-inline-start: 6px; }
+
+/* Notes dialog */
+#dlg-notes { max-width: min(640px, calc(100vw - 32px)); }
+#dlg-notes .dlg-body { max-height: calc(100vh - 200px); overflow: auto; display: grid; gap: 14px; }
+.notes-fields { display: grid; gap: 12px; }
+.note-field .btn-text { justify-self: start; }
+.wait-ctx { margin: 0; font-weight: 500; color: var(--text); }
+
+/* ── Performance ─────────────────────────── */
+.perf { padding: 12px 18px 18px; display: grid; gap: 10px; }
+.perf-intro { margin: 0; font-size: 13.5px; color: var(--text-2); max-inline-size: 760px; }
+.perf-calls { margin: 0; font-size: 14px; }
+.perf-table .sla { max-inline-size: 260px; color: var(--text-2); font-size: 13px; }
+.perf-table .rate { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.perf-table .rate .pbar { inline-size: 64px; }
+.perf-proc summary { cursor: pointer; font-weight: 500; min-height: 32px; }
+.perf-proc ul { margin: 6px 0 0; padding-inline-start: 16px; font-size: 13px; color: var(--text-2); display: grid; gap: 2px; }
+.perf-table .tag { margin-top: 4px; white-space: normal; }
+.perf-people td { vertical-align: middle; }
+
+/* ── Phones ──────────────────────────────── */
+@media (max-width: 760px) {
+  .mine-tools { padding-inline: 12px; }
+  .summary-acts .btn { flex: 1 1 100%; min-height: 44px; }
+  .wproc-acts > * { min-height: 44px; }
+  .wproc-acts .bulk-btn { flex: 1 1 100%; }
+  .rv-wide { display: none !important; }
+  .rv-narrow { display: block; }
+  .rv-narrow .rv-week { grid-template-columns: 1fr; }
+  .rv-day { grid-auto-flow: column; justify-content: start; align-items: center; gap: 8px; }
+  .rv-check, .rv-main .btn { min-height: 44px; }
+  .contact a, .row-acts > *, .waiting-list a.btn-text, .note-field .btn-text { min-height: 44px; display: inline-flex; align-items: center; }
+  .row-acts { justify-content: flex-start; }
+  .perf { padding-inline: 12px; }
+  .perf-table .sla { max-inline-size: none; }
+  /* Labels of the card layout stay in the text face, not the mono of the numbers. */
+  .ctable td[data-label]::before { font-family: var(--font); letter-spacing: normal; font-size: 11.5px; }
+  .team-summary .btn { flex: 1 1 100%; min-height: 44px; }
+}
+/* Four tabs fit a 360px screen. */
+@media (max-width: 420px) {
+  .tab { padding-inline: 10px; font-size: 14.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  details.g-client > summary::after { transition: none; }
+}
+@media print {
+  .wproc-acts, .mine-tools, .team-summary, .row-acts { display: none !important; }
+}

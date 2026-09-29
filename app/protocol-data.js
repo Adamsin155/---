@@ -148,7 +148,7 @@ export async function setMyPerson(person) {
 
 // Daily reviews (processes 32 and 33) since a given day: [{ day, kind, by_email, at, note }].
 export async function loadReviews(sinceDay) {
-  const { data, error } = await supabase.from('office_reviews').select('day, kind, note, by_email, at')
+  const { data, error } = await supabase.from('office_reviews').select('day, kind, note, by_email, at, note_by, note_at')
     .gte('day', sinceDay).order('day', { ascending: false });
   if (error) throw error;
   return data;
@@ -156,7 +156,7 @@ export async function loadReviews(sinceDay) {
 
 export async function markReview(day, kind, note = null) {
   const { data, error } = await supabase.from('office_reviews')
-    .upsert({ day, kind, note }, { onConflict: 'day,kind' }).select('day, kind, note, by_email, at').single();
+    .upsert({ day, kind, note }, { onConflict: 'day,kind' }).select('day, kind, note, by_email, at, note_by, note_at').single();
   if (error) throw error;
   return data;
 }

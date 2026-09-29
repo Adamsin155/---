@@ -433,3 +433,5 @@ dialog.dlg-wide .dlg-body { max-height: calc(100vh - 200px); overflow: auto; dis
 @media print {
   .deliv-btns, details.cal, .wait-btn, .bulk-btn, .round-add, .auto-acts { display: none !important; }
 }
+/* Mobile table labels are words, not numbers. */
+.ctable td.num::before { font-family: var(--font); letter-spacing: 0; }

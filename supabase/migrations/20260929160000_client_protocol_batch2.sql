@@ -78,8 +78,35 @@ create table public.office_reviews (
   primary key (day, kind)
 );
 
+alter table public.office_reviews add column note_by text, add column note_at timestamptz;
+
+-- Who marked the review and when stay as first recorded; adding notes later
+-- stamps only the note.
+create function public.office_reviews_stamp() returns trigger
+language plpgsql set search_path = '' as $$
+declare me text := coalesce(nullif(lower(coalesce(auth.jwt() ->> 'email', '')), ''), 'system');
+begin
+  if tg_op = 'INSERT' then
+    new.by_email := me;
+    new.at := now();
+    new.note_by := case when new.note is null then null else me end;
+    new.note_at := case when new.note is null then null else now() end;
+  else
+    new.by_email := old.by_email;
+    new.at := old.at;
+    if new.note is distinct from old.note then
+      new.note_by := me;
+      new.note_at := now();
+    else
+      new.note_by := old.note_by;
+      new.note_at := old.note_at;
+    end if;
+  end if;
+  return new;
+end $$;
+
 create trigger office_reviews_stamp before insert or update on public.office_reviews
-for each row execute function public.protocol_stamp();
+for each row execute function public.office_reviews_stamp();
 
 alter table public.office_reviews enable row level security;
 create policy "staff manage reviews" on public.office_reviews

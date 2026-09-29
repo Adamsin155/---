@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="app/styles/app.css">
   <link rel="stylesheet" href="app/styles/quotes.css">
   <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-office.css">
 </head>
 <body>
   <header class="topbar">
@@ -66,10 +67,12 @@
         <button type="button" role="tab" class="tab" id="tab-mine" aria-controls="view-mine">מה עליי</button>
         <button type="button" role="tab" class="tab" id="tab-clients" aria-controls="view-clients">לקוחות</button>
         <button type="button" role="tab" class="tab" id="tab-control" aria-controls="view-control">בקרה יומית</button>
+        <button type="button" role="tab" class="tab" id="tab-performance" aria-controls="view-performance">ביצועים</button>
       </div>
 
       <section class="block" id="view-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
         <div class="filters" role="group" aria-label="של מי" id="mine-people"></div>
+        <div class="mine-tools" id="mine-tools"></div>
         <div id="mine-list" class="mine-list"></div>
       </section>
 
@@ -83,6 +86,10 @@
 
       <section class="block" id="view-control" role="tabpanel" aria-labelledby="tab-control" hidden>
         <div class="control" id="control"></div>
+      </section>
+
+      <section class="block" id="view-performance" role="tabpanel" aria-labelledby="tab-performance" hidden>
+        <div class="perf" id="performance"></div>
       </section>
     </div>
 
@@ -113,6 +120,45 @@
       <div class="dlg-foot">
         <button type="button" class="btn btn-ghost" data-close>ביטול</button>
         <button type="submit" class="btn btn-primary" id="new-submit">פתיחת כרטיס לקוח</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-wait" aria-labelledby="wait-h">
+    <form id="wait-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="wait-h">ממתין ללקוח</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body form-grid">
+        <p class="span-2 wait-ctx" id="wait-ctx"></p>
+        <div class="field span-2"><label for="wait-reason">למה ממתינים?</label>
+          <textarea class="input" id="wait-reason" rows="2" maxlength="300" required placeholder="למשל: הלקוח עוד לא שלח גישה לאינסטגרם"></textarea></div>
+        <div class="field"><label for="wait-recheck">לבדוק שוב ב־</label><input class="input" id="wait-recheck" type="date" dir="ltr"></div>
+        <p class="hint span-2">התהליך יוצג כ״ממתין ללקוח״ ולא כ״באיחור״. כשהלקוח חוזר, מסמנים את הפריטים כרגיל, וההמתנה מסתיימת לבד.</p>
+        <div class="err span-2" id="wait-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="wait-submit">סימון כממתין ללקוח</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-notes" aria-labelledby="notes-h">
+    <form id="notes-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="notes-h">הערות לבקרה של היום</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body notes-body">
+        <div id="notes-fields" class="notes-fields"></div>
+        <div class="field"><label for="notes-general">הערות נוספות</label><textarea class="input" id="notes-general" rows="3"></textarea></div>
+        <div class="err" id="notes-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="notes-submit">שמירת ההערות</button>
       </div>
     </form>
   </dialog>
