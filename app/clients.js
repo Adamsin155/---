@@ -25,6 +25,7 @@ import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, 
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
 import { canManageTeam } from './team-rules.js';
+import { canSendMessages } from './messages-logic.js';
 
 let clients = [];
 let checks = {};
@@ -1935,6 +1936,7 @@ mountSession(async (staff) => {
   ({ me, scope } = viewer);
   viewerError = viewer.error;
   $('nav-team').hidden = !canManageTeam(viewer);
+  $('nav-messages').hidden = !canSendMessages(viewer);
   // Always land on the signed-in person's own list; the owner lands on the whole team.
   minePerson = scope === 'own' ? me : me || '';
   applyScope();

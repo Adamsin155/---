@@ -32,6 +32,7 @@
 | תנאים, מועדים, ימי עסקים, סטטוסים, "מה עליי" | `app/protocol-logic.js` |
 | שעון ישראל (ימים, שעות, מעבר לשעון חורף) | `app/tz.js` |
 | פתיחת לקוח: שם החבילה, סוג יום הצילום והכמויות מהקטלוג, וייבוא לפי תחנה | `app/client-open.js` |
+| הודעות ללקוחות: איזו הודעה מקבל כל לקוח היום, והנוסחים | `app/messages-logic.js`, `messages.html`, `supabase/migrations/20260930100000_client_messages.sql` |
 | טבלאות והרשאות | `supabase/migrations/20260929120000_client_protocol.sql` |
 | מחקר מערכות והחלטות | `docs/protocols/research.md` |
 
