@@ -5,6 +5,7 @@ import {
 import { h } from './quote-doc.js';
 import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';
 import { businessDaysBetween } from './protocol-logic.js';
+import { TZ, partsIL, daysBetweenIL, dayFromKeyIL } from './tz.js';
 
 export { h };
 export const $ = (id) => document.getElementById(id);
@@ -47,22 +48,27 @@ export const who = (email) => {
   return p && PEOPLE[p] ? PEOPLE[p].name : String(email).split('@')[0];
 };
 
-const dayFmt = new Intl.DateTimeFormat('he-IL', { weekday: 'short', day: 'numeric', month: 'numeric' });
-const timeFmt = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
-const fullFmt = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'numeric', year: 'numeric' });
+// Dates are shown in Israel time on every device (a phone abroad shows the office's clock).
+const dayFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'numeric' });
+const timeFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+const fullFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, day: 'numeric', month: 'numeric', year: 'numeric' });
 
-const isEndOfDay = (d) => d.getHours() === 23 && d.getMinutes() === 59;
+const isEndOfDay = (d) => { const p = partsIL(d); return p.hour === 23 && p.minute === 59; };
 export function formatWhen(d, now = new Date()) {
   if (!d) return '';
   const t = isEndOfDay(d) ? '' : ` ${timeFmt.format(d)}`;
-  const days = Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / 864e5);
+  const days = daysBetweenIL(now, d);
   if (days === 0) return `היום${t}`;
   if (days === 1) return `מחר${t}`;
   if (days === -1) return `אתמול${t}`;
   return `${dayFmt.format(d)}${t}`;
 }
-export const formatDay = (d) => (d ? fullFmt.format(new Date(d)) : '');
+// A bare day ('2026-10-01': a recheck date, a contract end) is that Israel day.
+export const formatDay = (d) => (d ? fullFmt.format(dayFromKeyIL(d) || new Date(d)) : '');
 export const formatStamp = (v) => (v ? `${dayFmt.format(new Date(v))} ${timeFmt.format(new Date(v))}` : '');
+
+// A length of office time: "40 דק׳", "2 ש׳", "3 ש׳ ו־15 דק׳".
+export const officeMinutes = (min) => (min < 60 ? `${min} דק׳` : `${Math.floor(min / 60)} ש׳${min % 60 ? ` ו־${min % 60} דק׳` : ''}`);
 
 // Late by minutes or hours within a day; beyond that in business days (weekends do not count).
 export function lateBy(d, now = new Date()) {
@@ -94,6 +100,8 @@ const numOf = (id) => PROCESSES.find((p) => p.id === id)?.num || id.replace(/^p0
 const itemLabel = (key) => PROCESSES.flatMap((p) => p.items).find((i) => i.key === key)?.label || key;
 export function dueText(state, now = new Date()) {
   if (state.status === 'done') return '';
+  // Waiting on the client moved the deadline on (office time); say by how much.
+  if (state.dueAt && state.waited > 0) return `יעד: ${formatWhen(state.dueAt, now)} · הוארך ב־${officeMinutes(state.waited)} של המתנה ללקוח`;
   if (state.dueAt) return `יעד: ${formatWhen(state.dueAt, now)}`;
   const from = state.proc.start?.from || '';
   if (state.proc.start && !state.startAt) {

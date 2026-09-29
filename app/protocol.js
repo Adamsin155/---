@@ -8,11 +8,12 @@
 
 export const PROTOCOL_VERSION = 4;
 
-// Office hours. Deadlines of minutes or hours that start from an office event
-// (a deal coming in, a finished process) run only inside these hours; a deal
-// that arrives at night is due the next working morning. Proposal for the
-// owner to confirm: see docs/protocols/roadmap.md, Q3.
-export const WORK_HOURS = { start: 9, end: 18 };
+// Office hours, in Israel time (decisions 1–2 in docs/plan/decisions.md).
+// Deadlines of minutes or hours that start from an office event (a deal coming
+// in, a finished process) run only inside these hours; a deal that arrives at
+// night is due the next working morning. On erev chag (EREV in holidays.js) the
+// office closes at erevEnd; Chol HaMoed is a normal day.
+export const WORK_HOURS = { start: 9, end: 18, erevEnd: 13 };
 
 // People named in the protocol. `key` is stored in the database (staff.person).
 export const PEOPLE = {

@@ -7,7 +7,7 @@ import {
 import {
   clientState, openItemsFor, byUrgency, bucketOf, CLAIM, WAIT, waitNote, bulkEligible, isResolved,
   isBusinessDay, businessDaysBetween, addBusinessDays, resolveTime, weekKey, roundsOf, parseDate,
-  upcomingFor, involves,
+  upcomingFor, involves, WAITED, waitOf, parseWaitNote, endWaitNote, isImported,
 } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, setTaskDone, createClient,
@@ -20,6 +20,7 @@ import {
   isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
+import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL } from './tz.js';
 
 let clients = [];
 let checks = {};
@@ -47,13 +48,15 @@ function stateOf(c) {
 }
 
 // ── Small helpers ───────────────────────────
-const dayIso = (d) => new Date(d).toLocaleDateString('en-CA');
-const dm = (d) => `${d.getDate()}.${d.getMonth() + 1}`;
+// Days and hours are Israel's (tz.js), whatever the zone of the device.
+const dayIso = (d) => dayKeyIL(d);
+const dm = (d) => { const p = partsIL(d); return `${p.day}.${p.month}`; };
 const WEEKDAY = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
-// A bare date (yyyy-mm-dd) as "ב׳ 30.9", read as a local calendar day.
-const dayShort = (iso) => { const [y, m, d] = String(iso).split('-').map(Number); const x = new Date(y, m - 1, d); return `${WEEKDAY[x.getDay()]} ${dm(x)}`; };
-const weekdayLong = new Intl.DateTimeFormat('he-IL', { weekday: 'long' });
-const hm = (d) => new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(d));
+// A bare date (yyyy-mm-dd) as "ב׳ 30.9", read as an Israel calendar day.
+const dayShort = (iso) => { const x = dayFromKeyIL(iso); return x ? `${WEEKDAY[weekdayIL(x)]} ${dm(x)}` : String(iso); };
+const weekdayLong = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, weekday: 'long' });
+const hmFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+const hm = (d) => hmFmt.format(new Date(d));
 const live = (c) => c.status !== 'cancelled';
 // A client opened by the signing trigger stays "new" until someone confirms its details.
 const isAuto = (c) => c.created_by_email === 'system' && !c.verified_at && live(c);
@@ -195,8 +198,8 @@ function workFor(person) {
     if (person && t.owner !== person) continue;
     const client = clients.find((c) => c.id === t.client_id);
     if (!client || !live(client)) continue;
-    const dueAt = t.due_on ? new Date(`${t.due_on}T23:59:59`) : null;
-    const status = dueAt && dueAt < now ? 'overdue' : dueAt && dueAt.toDateString() === now.toDateString() ? 'today' : 'open';
+    const dueAt = t.due_on ? endOfDayIL(dayFromKeyIL(t.due_on)) : null;
+    const status = dueAt && dueAt < now ? 'overdue' : dueAt && t.due_on === dayIso(now) ? 'today' : 'open';
     groups.set(`task:${t.id}`, { key: `task:${t.id}`, client, task: t, status, dueAt, urgent: isUrgentTask(t), escalation: isEscalation(t), entries: [{ client, task: t }] });
   }
   return [...groups.values()].sort(byUrgency);
@@ -382,25 +385,42 @@ $('wait-form').addEventListener('submit', async (e) => {
   }
 });
 
+// Puts a check back as it was before (or removes it): undo and rollback.
+async function restoreCheck(cid, key, row) {
+  const cs = (checks[cid] ||= {});
+  if (row) cs[key] = await setCheck(cid, key, row.state, row.note ?? null);
+  else { await clearCheck(cid, key); delete cs[key]; }
+}
+
+// Ending a wait stops the client's clock: its office minutes are added to the
+// process's waited time first, and the deadline moves on by them (decision 3).
+// Undoing a wait that was just marked adds nothing.
 async function endWait(g, isUndo = false) {
-  const prev = checks[g.client.id]?.[WAIT(g.proc)];
+  const cid = g.client.id;
+  const cs = (checks[cid] ||= {});
+  const prev = cs[WAIT(g.proc)];
+  const prevWaited = cs[WAITED(g.proc)];
+  const since = waitOf(g.proc, cs)?.at || null;
   try {
-    await clearCheck(g.client.id, WAIT(g.proc));
+    if (!isUndo) cs[WAITED(g.proc)] = await setCheck(cid, WAITED(g.proc), 'done', endWaitNote(g.proc, cs));
+    await clearCheck(cid, WAIT(g.proc));
   } catch (err) {
+    if (!isUndo) await restoreCheck(cid, WAITED(g.proc), prevWaited).catch(() => {});
     toast(`${isUndo ? 'הביטול' : 'סיום ההמתנה'} לא נשמר. ${errorText(err)}`);
     return;
   }
-  delete checks[g.client.id][WAIT(g.proc)];
-  states.delete(g.client.id);
+  delete cs[WAIT(g.proc)];
+  states.delete(cid);
   renderKeepingFocus();
   if (isUndo) { toast('הסימון בוטל.'); return; }
-  toast('ההמתנה הסתיימה. התהליך חוזר לחישוב הרגיל.', {
+  toast('ההמתנה הסתיימה. היעד הוארך בזמן ההמתנה.', {
     label: 'ביטול',
     run: async () => {
       try {
-        const row = await setCheck(g.client.id, WAIT(g.proc), 'done', prev?.note ?? null);
-        (checks[g.client.id] ||= {})[WAIT(g.proc)] = row;
-        states.delete(g.client.id);
+        const p = parseWaitNote(prev?.note);
+        cs[WAIT(g.proc)] = await setCheck(cid, WAIT(g.proc), 'done', waitNote(p.reason, p.recheck, since));
+        await restoreCheck(cid, WAITED(g.proc), prevWaited);
+        states.delete(cid);
         renderKeepingFocus();
         toast('ההמתנה חזרה.');
       } catch (err) { toast(`הביטול לא נשמר. ${errorText(err)}`); }
@@ -608,7 +628,7 @@ function personSummary(person, now = new Date()) {
   const w = workFor(person);
   const procs = w.filter((g) => !g.task);
   const today = dayIso(now);
-  const until = (d) => (d.getHours() === 23 && d.getMinutes() === 59 ? 'עד סוף היום' : `עד ${hm(d)}`);
+  const until = (d) => { const p = partsIL(d); return p.hour === 23 && p.minute === 59 ? 'עד סוף היום' : `עד ${hm(d)}`; };
   const line = (g) => `${g.client.name} · ${procLabel(g.proc, ' ')}`;
   const taskLine = (g) => `${isEscalation(g.task) ? 'חריגה שדווחה: ' : ''}${g.client.name} · ${g.task.title}${g.dueAt ? ` · עד ${dm(g.dueAt)}` : ''}`;
   const sections = [
@@ -854,11 +874,10 @@ $('client-search').addEventListener('input', renderClients);
 // ── Daily reviews (spec §7) ──────────────────
 function lastBusinessDays(n, now = new Date()) {
   const out = [];
-  const d = new Date(now);
-  d.setHours(12, 0, 0, 0);
+  let d = atTimeIL(now, 12);
   for (let guard = 0; out.length < n && guard < 60; guard += 1) {
-    if (isBusinessDay(d)) out.push(new Date(d));
-    d.setDate(d.getDate() - 1);
+    if (isBusinessDay(d)) out.push(d);
+    d = addDaysIL(d, -1);
   }
   return out;
 }
@@ -930,7 +949,7 @@ function reviewWeek(r, now) {
   const items = days.map((d) => {
     const iso = dayIso(d);
     const rec = reviewOn(iso, reviewKind(r));
-    const label = iso === today ? 'היום' : `${WEEKDAY[d.getDay()]} ${dm(d)}`;
+    const label = iso === today ? 'היום' : `${WEEKDAY[weekdayIL(d)]} ${dm(d)}`;
     const cls = rec ? 'is-done' : iso === today ? 'is-pending' : 'is-miss';
     const text = rec ? `בוצעה ${hm(rec.at)} · ${who(rec.by_email)}` : iso === today ? 'טרם בוצעה' : 'לא בוצעה';
     return { cls, label, text };
@@ -992,7 +1011,7 @@ function clientNotes(c, now) {
     const rec = reviewOn(today, reviewKind(r));
     const text = rec && parseReviewNote(rec.note).clients[c.id];
     if (!text) return null;
-    return h('p', { class: 'rv-cnote' }, `${who(rec.by_email)}, ${new Date(rec.at).getHours() < 12 ? 'הבוקר' : 'היום'}: ״${text}״`);
+    return h('p', { class: 'rv-cnote' }, `${who(rec.by_email)}, ${partsIL(rec.at).hour < 12 ? 'הבוקר' : 'היום'}: ״${text}״`);
   });
 }
 
@@ -1109,7 +1128,7 @@ function statusWeek(now = new Date()) {
 }
 // Thursday: every client gets a summary, without exception.
 function thursdayPass(now = new Date()) {
-  if (now.getDay() !== 4 || statusNotes === null || !isBusinessDay(now)) return null;
+  if (weekdayIL(now) !== 4 || statusNotes === null || !isBusinessDay(now)) return null;
   const w = statusWeek(now);
   return w.total && w.done < w.total ? w : null;
 }
@@ -1548,7 +1567,9 @@ const TEAM_VIEWERS = new Set(OFFICE_REVIEWS.map((r) => r.owner));
 const baseId = (proc) => proc.id.replace(/^r\d+-/, '');
 
 // Processes closed in the window, with their due date and how long they took.
-// A process closed entirely as "not relevant" is not counted.
+// A process closed entirely as "not relevant" is not counted, and neither is
+// imported history. Waiting on the client is not the employee's time: the due
+// date already moved on by it (office minutes), and it is taken off the duration.
 function closings(days, now) {
   const since = new Date(now.getTime() - days * 864e5);
   const out = [];
@@ -1560,13 +1581,15 @@ function closings(days, now) {
       if (!x.complete || !x.completedAt || x.completedAt < since || !x.dueAt) continue;
       const req = x.proc.items.filter((i) => !i.optional);
       if (req.length && req.every((i) => cs[i.key]?.state === 'na')) continue;
+      if (isImported(x.proc, cs)) continue;
       // Without its own start, a process starts at the anchor of its due date.
       const start = x.startAt || resolveTime({ from: x.proc.due?.from }, x.proc.ctx || c, procs, cs, now);
+      const ms = start && x.completedAt > start ? Math.max(0, x.completedAt - start - x.waited * 6e4) : null;
       out.push({
-        key: baseId(x.proc), client: c, proc: x.proc, dueAt: x.dueAt, completedAt: x.completedAt, start,
+        key: baseId(x.proc), client: c, proc: x.proc, dueAt: x.dueAt, baseDueAt: x.baseDueAt, completedAt: x.completedAt, start,
         onTime: x.completedAt <= x.dueAt,
-        ms: start && x.completedAt > start ? x.completedAt - start : null,
-        targetMs: start && x.dueAt > start ? x.dueAt - start : null,
+        ms, workedTo: ms === null ? null : new Date(start.getTime() + ms),
+        targetMs: start && x.baseDueAt > start ? x.baseDueAt - start : null,
         people: peopleOf(x),
       });
     }
@@ -1609,7 +1632,7 @@ async function renderPerformance() {
   const chips = h('div', { class: 'chips-row', role: 'group', 'aria-label': 'תקופה' }, ...[30, 90].map((d) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(perfDays === d), onclick: () => { perfDays = d; renderPerformance(); },
   }, `${d} הימים האחרונים`)));
-  const intro = h('p', { class: 'perf-intro' }, 'נמדד מהיעד המחושב עד שהתהליך נסגר. ימי עבודה א׳–ה׳, בלי חגים ובתוך שעות העבודה. תהליך שכולו ״לא רלוונטי״ לא נספר. זמן שבו התהליך המתין ללקוח נספר.');
+  const intro = h('p', { class: 'perf-intro' }, 'נמדד מהיעד המחושב עד שהתהליך נסגר. ימי עבודה א׳–ה׳, בלי חגים ובתוך שעות העבודה (בערב חג עד 13:00). תהליך שכולו ״לא רלוונטי״ לא נספר, וגם לא היסטוריה שיובאה. זמן שבו התהליך המתין ללקוח לא נספר: היעד הוארך בזמן הזה.');
   const days = perfDays;
   if (!perfLog.has(days)) {
     fill(box, chips, intro, h('p', { class: 'state' }, 'מחשב…'));
@@ -1643,13 +1666,13 @@ async function renderPerformance() {
         h('td', { 'data-label': 'תהליך', class: 'client' },
           h('details', { class: 'perf-proc' }, h('summary', {}, `${p.num} · ${p.title}`),
             h('ul', {}, ...list.sort((a, b) => b.completedAt - a.completedAt).map((r) => h('li', {},
-              `${r.client.name}${roundOf(r.proc) ? ` · סבב ${roundOf(r.proc)}` : ''} · יעד ${formatWhen(r.dueAt, now)} · נסגר ${formatWhen(r.completedAt, now)}${r.ms !== null ? ` · ${lateBy(r.start, r.completedAt)}` : ''}${r.onTime ? '' : ' · אחרי היעד'}`)))),
+              `${r.client.name}${roundOf(r.proc) ? ` · סבב ${roundOf(r.proc)}` : ''} · יעד ${formatWhen(r.dueAt, now)} · נסגר ${formatWhen(r.completedAt, now)}${r.ms !== null ? ` · ${lateBy(r.start, r.workedTo)}` : ''}${r.onTime ? '' : ' · אחרי היעד'}`)))),
           flag ? h('span', { class: 'tag tag-warn' }, 'כדאי לבדוק את התהליך או את היעד') : null),
         h('td', { 'data-label': 'זמן ביצוע בפרוטוקול', class: 'client sla' }, p.sla),
         h('td', { 'data-label': 'נסגרו', class: 'num' }, String(list.length)),
         h('td', { 'data-label': 'בזמן', class: 'client' }, onTimeCell(list.length, onTime)),
-        h('td', { 'data-label': 'זמן בפועל (חציון)' }, med ? lateBy(med.start, med.completedAt) : '—'),
-        h('td', { 'data-label': 'יעד' }, tgt ? lateBy(tgt.start, tgt.dueAt) : '—'));
+        h('td', { 'data-label': 'זמן בפועל (חציון)' }, med ? lateBy(med.start, med.workedTo) : '—'),
+        h('td', { 'data-label': 'יעד' }, tgt ? lateBy(tgt.start, tgt.baseDueAt) : '—'));
     }))));
 
   const personRow = (key) => {

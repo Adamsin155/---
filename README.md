@@ -59,7 +59,7 @@
 
 ```bash
 npm install
-npm test                                # מנועי התמחור, הפרוטוקול והתשלומים (מקרה האקסל רץ רק כשקיים private/)
+npm test                                # מנועי התמחור, הפרוטוקול והתשלומים, שלוש פעמים: UTC, ניו יורק וירושלים (מקרה האקסל רץ רק כשקיים private/)
 npx http-server -p 8080 . & node tests/e2e.mjs   # תהליך מלא בדפדפן מול שרת מדומה
 node tests/protocol-e2e.mjs                       # כרטיס הלקוח בדפדפן מול שרת מדומה
 node tests/protocol-office-e2e.mjs                # מה עליי, בקרה, ביצועים וסיכום בוקר מול שרת מדומה

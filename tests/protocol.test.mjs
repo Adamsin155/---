@@ -1,5 +1,4 @@
 // Protocol engine: coverage of the written protocol, conditions, due dates and progress.
-process.env.TZ = 'Asia/Jerusalem';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -8,6 +7,7 @@ import {
   addBusinessDays, applicableProcesses, clientState, openItemsFor, resolveTime, missingFields,
   blockers, bucketOf, businessDaysBetween, addWorkingMinutes, phasesFor, WAIT, upcomingFor, involves, itemsOf,
 } from '../app/protocol-logic.js';
+import { dayKeyIL as day, weekdayIL } from '../app/tz.js';
 
 const doc = readFileSync(new URL('../docs/protocols/general.md', import.meta.url), 'utf8');
 const base = { deal_at: '2026-10-01T09:00:00+03:00', status: 'active' };
@@ -125,9 +125,9 @@ test('characterizer decides who takes the network access; no logo adds a logo ta
 
 test('business days skip Friday and Saturday', () => {
   // Thursday + 3 business days -> Tuesday.
-  assert.equal(addBusinessDays(at('2026-10-01T12:00:00+03:00'), 3).toDateString(), at('2026-10-06T12:00:00+03:00').toDateString());
+  assert.equal(day(addBusinessDays(at('2026-10-01T12:00:00+03:00'), 3)), '2026-10-06');
   // Wednesday shoot + 5, counting from the next business day -> next Wednesday.
-  assert.equal(addBusinessDays(at('2026-10-07T10:00:00+03:00'), 5).toDateString(), at('2026-10-14T12:00:00+03:00').toDateString());
+  assert.equal(day(addBusinessDays(at('2026-10-07T10:00:00+03:00'), 5)), '2026-10-14');
 });
 
 test('due dates follow the protocol anchors', () => {
@@ -137,7 +137,7 @@ test('due dates follow the protocol anchors', () => {
   assert.equal(iso(due('p01')), iso(at('2026-10-01T09:05:00+03:00')));
   assert.equal(iso(due('p04')), iso(at('2026-10-01T12:00:00+03:00')));
   assert.equal(iso(due('p07')), iso(at('2026-10-01T14:00:00+03:00'))); // 2h after the meeting's window
-  assert.equal(due('p12').toDateString(), at('2026-10-06T12:00:00+03:00').toDateString());
+  assert.equal(day(due('p12')), '2026-10-06');
   assert.equal(iso(due('p15')), iso(at('2026-10-06T11:00:00+03:00')));
   assert.equal(iso(due('p16')), iso(at('2026-10-07T00:00:00+03:00')));
   // A Sunday shoot: the reminder goes out on Thursday, the previous business day.
@@ -148,11 +148,11 @@ test('due dates follow the protocol anchors', () => {
   // Assigned on Wednesday: videos with Ofir by Monday (3 business days), client closed by Tuesday (4).
   const assigned = { 'p22a.assigned': { state: 'done', at: '2026-10-07T15:00:00+03:00' } };
   const due2 = (id) => resolveTime(procs.find((p) => p.id === id).due, c, procs, assigned, at('2026-10-07T16:00:00+03:00'));
-  assert.equal(due2('p22').toDateString(), at('2026-10-12T12:00:00+03:00').toDateString());
-  assert.equal(due2('p24').toDateString(), at('2026-10-12T12:00:00+03:00').toDateString());
-  assert.equal(due2('p27').toDateString(), at('2026-10-13T12:00:00+03:00').toDateString());
+  assert.equal(day(due2('p22')), '2026-10-12');
+  assert.equal(day(due2('p24')), '2026-10-12');
+  assert.equal(day(due2('p27')), '2026-10-13');
   const p34 = procs.find((p) => p.id === 'p34');
-  assert.equal(resolveTime(p34.start, c, procs, {}).toDateString(), at('2027-08-02T12:00:00+03:00').toDateString());
+  assert.equal(day(resolveTime(p34.start, c, procs, {})), '2027-08-02');
   // Missing anchors give no due date rather than a wrong one.
   const bare = { ...base };
   const bp = applicableProcesses(bare);
@@ -260,10 +260,10 @@ test('an extra shoot round repeats the shoot processes with their own keys and d
   const s = clientState(c, {}, at('2027-03-02T10:00:00+02:00'));
   const sa = clientState(c, { 'r2.p22a.assigned': { state: 'done', at: '2027-03-10T15:00:00+02:00' } }, at('2027-03-11T10:00:00+02:00'));
   const r2p22 = sa.states.find((x) => x.proc.id === 'r2-p22');
-  assert.equal(r2p22.dueAt.toDateString(), at('2027-03-15T12:00:00+02:00').toDateString()); // 3 business days from the round's own assignment
+  assert.equal(day(r2p22.dueAt), '2027-03-15'); // 3 business days from the round's own assignment
   assert.equal(sa.states.find((x) => x.proc.id === 'p22').dueAt, null); // round 1 is not assigned yet
   const r2p12 = s.states.find((x) => x.proc.id === 'r2-p12');
-  assert.equal(r2p12.dueAt.toDateString(), at('2027-03-04T12:00:00+02:00').toDateString()); // 3 business days from the round start
+  assert.equal(day(r2p12.dueAt), '2027-03-04'); // 3 business days from the round start
   // Round 1 progress is unaffected by round 2 checks and vice versa.
   const checks = { 'r2.p11.influencers': { state: 'done', at: '2027-03-01T10:00:00+02:00' } };
   const s2 = clientState(c, checks, at('2027-03-02T10:00:00+02:00'));
@@ -331,7 +331,7 @@ test('performance report: on-time rate and median time per process and person', 
 
 test('holidays: Yom Kippur and Pesach are not business days', () => {
   // Characterization on Thursday 17.9.2026: Sun 20 (1), Yom Kippur Mon 21 skipped, Tue 22 (2), Wed 23 (3).
-  assert.equal(addBusinessDays(at('2026-09-17T10:00:00+03:00'), 3).toDateString(), at('2026-09-23T12:00:00+03:00').toDateString());
+  assert.equal(day(addBusinessDays(at('2026-09-17T10:00:00+03:00'), 3)), '2026-09-23');
   // A deal on erev Pesach 2027 evening is due after the holiday.
   assert.equal(addWorkingMinutes(at('2027-04-21T19:00:00+03:00'), 5).toISOString(), at('2027-04-25T09:05:00+03:00').toISOString());
 });
@@ -379,7 +379,7 @@ test('renewal deadline never falls on a day off', () => {
   const c = { ...base, contract_end: '2027-09-29' };
   const procs = applicableProcesses(c);
   const d = resolveTime(procs.find((p) => p.id === 'p34').due, c, procs, {});
-  assert.ok(d.getDay() !== 5 && d.getDay() !== 6, d.toString());
+  assert.ok(weekdayIL(d) !== 5 && weekdayIL(d) !== 6, d.toISOString());
 });
 
 test('employee protocol details: who assigns the editor, Irit checks, Nirel brief', async () => {

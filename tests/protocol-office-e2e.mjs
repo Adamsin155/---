@@ -276,8 +276,10 @@ const w3 = db.protocol_checks.find((c) => c.client_id === fresh.id && c.item_key
 assert.deepEqual(JSON.parse(w3.note), { reason: 'הלקוח לא עונה לטלפון', recheck: '2026-09-23' });
 assert.match(await page.locator('.g-client').innerText(), /פיצה נאפולי/);
 await page.locator('.g-client .wproc:has(.wclient:text("פיצה נאפולי")) .btn-text:text("סיום המתנה")').click();
-await toastHas('ההמתנה הסתיימה. התהליך חוזר לחישוב הרגיל.');
+await toastHas('ההמתנה הסתיימה. היעד הוארך בזמן ההמתנה.');
 assert.ok(!db.protocol_checks.some((c) => c.client_id === fresh.id && c.item_key === 'p03.wait'));
+// The wait's office minutes are kept on the process (decision 3): the deadline moves on by them.
+assert.ok(JSON.parse(db.protocol_checks.find((c) => c.client_id === fresh.id && c.item_key === 'p03.waited').note).min >= 0);
 
 // ── §6a morning summary for Irit ──
 const summary = await waText('#mine-tools .wa-link');
@@ -757,6 +759,26 @@ const p33row = thu.locator('.rv-row').nth(1);
 assert.match(await p33row.innerText(), /עבר יותר מיומיים מהבקרה האחרונה[^]*הבקרה האחרונה: א׳ 20\.9/);
 assert.equal(await thu.locator('.rv-row').first().locator('.rv-stale').count(), 0); // process 32 is daily, flagged elsewhere
 await shot('14-thursday-control', thu);
+
+// The office day is Israel's on any device: at 01:30 on Thursday in Jerusalem a
+// phone set to New York (still Wednesday 18:30 there) shows Thursday's pass.
+const THU_NY = new Date('2026-09-23T22:30:00Z');
+const nyCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'America/New_York', viewport: { width: 1280, height: 900 } });
+await nyCtx.clock.install({ time: THU_NY });
+await nyCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await nyCtx.addInitScript(fakeNotifications);
+const ny = await nyCtx.newPage();
+watch(ny);
+await ny.goto(`${BASE}clients.html`);
+await ny.fill('#lg-email', USER.email);
+await ny.fill('#lg-pass', 'correct-horse');
+await ny.click('#lg-submit');
+await ny.waitForSelector('#view-mine:not([hidden]) .wproc');
+assert.equal(await ny.evaluate(() => new Date().getDay()), 3, 'the device thinks it is Wednesday');
+assert.equal(await ny.locator('.g-thu .thu-card').count(), 1);
+assert.match(await waText('#mine-tools .wa-link', ny), /הסיכום שלך ליום חמישי 24\.9:/);
+await nyCtx.close();
+
 // Once every client is summarised, the card leaves Ofir's list.
 for (const c of db.clients.filter((x) => x.status === 'active' || x.status === 'ending')) {
   if (!db.client_status_notes.some((n) => n.client_id === c.id)) db.client_status_notes.push({ client_id: c.id, week: '2026-09-20', current: 'בבדיקה', missing: null, next: null, owner: null, due_on: null, by_email: 'ofir@astrateg.test', at: THU.toISOString() });

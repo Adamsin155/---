@@ -409,6 +409,9 @@ assert.match(await page.locator('#p02 .wait-line').innerText(), /הלקוח עו
 assert.equal(JSON.parse(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p02.wait').note).reason, 'הלקוח עוד לא הצטרף לקבוצה');
 await page.click('#p02 .wait-line button:has-text("סיום המתנה")');
 await page.waitForFunction(() => !document.querySelector('#p02.s-client'));
+// The wait's office minutes are kept on the process: its deadline moves on by them.
+assert.equal(typeof JSON.parse(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p02.waited').note).min, 'number');
+assert.ok(!db.protocol_checks.some((c) => c.client_id === created.id && c.item_key === 'p02.wait'));
 
 // Links: passwords are refused, links are saved and shown.
 await page.click('#btn-edit');
