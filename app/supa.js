@@ -30,18 +30,42 @@ export async function sendPasswordReset(email, redirectTo = new URL('../quotes.h
   if (error) throw error;
 }
 
+// Reads a sign-in link from the address bar and clears it from there. Two kinds:
+//  - A personal link from the team screen (team.html): #type=invite|recovery&token_hash=…
+//    Nothing is spent until the person chooses a password (verifyLink), so a
+//    WhatsApp link preview that opens the address cannot use it up.
+//  - Supabase's own redirect (the reset email): #access_token=…&refresh_token=…&type=…
+// Returns { type, tokenHash } | { type, accessToken, refreshToken } | { expired: true } | null.
+export const LINK_TYPES = ['invite', 'recovery'];
+export function readAuthLink() {
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  if (!params.has('access_token') && !params.has('token_hash') && !params.has('error')) return null;
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+  const type = params.get('type');
+  if (params.get('token_hash')) return LINK_TYPES.includes(type) ? { type, tokenHash: params.get('token_hash') } : { expired: true };
+  if (params.get('access_token') && params.get('refresh_token')) {
+    return { type, accessToken: params.get('access_token'), refreshToken: params.get('refresh_token') };
+  }
+  return { expired: true };
+}
+
+// Signs in with a link read by readAuthLink. Returns the error, or null when it worked.
+export async function verifyLink(link) {
+  const { error } = link.tokenHash
+    ? await supabase.auth.verifyOtp({ token_hash: link.tokenHash, type: link.type })
+    : await supabase.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken });
+  return error || null;
+}
+// A failure to reach the server (worth a retry), not a used or expired link.
+export const isOffline = (err) => /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(String(err?.message || err || '')) || err?.name === 'AuthRetryableFetchError';
+
 // Signs in from a reset link (#access_token=…&type=recovery) and clears it from
 // the address bar. Returns 'recovery', 'expired' or null.
 export async function consumeRecoveryLink() {
-  const params = new URLSearchParams(window.location.hash.slice(1));
-  if (!params.has('access_token') && !params.has('error')) return null;
-  history.replaceState(null, '', window.location.pathname + window.location.search);
-  if (params.get('type') !== 'recovery' || !params.get('refresh_token')) return 'expired';
-  const { error } = await supabase.auth.setSession({
-    access_token: params.get('access_token'),
-    refresh_token: params.get('refresh_token'),
-  });
-  return error ? 'expired' : 'recovery';
+  const link = readAuthLink();
+  if (!link) return null;
+  if (link.expired || !LINK_TYPES.includes(link.type)) return 'expired';
+  return (await verifyLink(link)) ? 'expired' : 'recovery';
 }
 
 export function quoteLink(token) {

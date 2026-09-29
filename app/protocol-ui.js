@@ -5,6 +5,7 @@ import {
 import { h } from './quote-doc.js';
 import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';
 import { businessDaysBetween } from './protocol-logic.js';
+import { landFromLink, LINK_EXPIRED, PASSWORD_SAVED } from './set-password.js';
 
 export { h };
 export const $ = (id) => document.getElementById(id);
@@ -115,6 +116,7 @@ export function progressBar(done, total, label) {
 }
 
 // Session bar + login form. Calls onReady(staff) once a staff member is signed in.
+// A personal sign-in link in the address bar first asks for a password (set-password.js).
 export function mountSession(onReady) {
   const setSession = (staff) => {
     $('session-dot').classList.toggle('on', !!staff?.isStaff);
@@ -155,7 +157,17 @@ export function mountSession(onReady) {
     e.currentTarget.disabled = false;
   });
   $('btn-logout').addEventListener('click', async () => { await supabase.auth.signOut(); location.reload(); });
-  return boot();
+  // Opened from a personal sign-in link (team.html): choose a password first.
+  return (async () => {
+    const landed = await landFromLink();
+    if (landed === 'password') toast(PASSWORD_SAVED);
+    const result = await boot();
+    if (landed === 'expired') {
+      if ($('login-block').hidden) toast(LINK_EXPIRED);
+      else { $('lg-err').textContent = LINK_EXPIRED; $('lg-err').hidden = false; }
+    }
+    return result;
+  })();
 }
 
 // Who is signed in, from the database (staff.person), and what they see (SCOPE in

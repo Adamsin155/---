@@ -1,0 +1,8 @@
+# Supabase CLI settings for deploying functions from this repo
+# (supabase functions deploy <name> --project-ref czncjzziqrqtezpwxxpz).
+project_id = "astrateg-quotes"
+
+# The team screen's function checks the caller's token itself (in code), so the
+# gateway's JWT check is off. See supabase/functions/staff-admin/index.ts.
+[functions.staff-admin]
+verify_jwt = false

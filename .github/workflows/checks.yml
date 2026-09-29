@@ -23,7 +23,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Calculation tests
         run: npm test
-      - name: Browser tests (payouts app, quote builder, client protocol, standalone site)
+      - name: Browser tests (payouts app, quote builder, client protocol, team accounts, standalone site)
         run: |
           npx --yes http-server -p 8080 -s . > /dev/null 2>&1 &
           npx --yes wait-on -t 30000 http://localhost:8080/payouts/
@@ -31,6 +31,7 @@ jobs:
           node tests/e2e.mjs
           node tests/protocol-e2e.mjs
           node tests/protocol-office-e2e.mjs
+          node tests/team-e2e.mjs
           node scripts/build-payment-site.mjs /tmp/site/payouts /payouts/
           (cd /tmp/site && npx --yes http-server -p 8082 -s . > /dev/null 2>&1 &)
           npx --yes wait-on -t 30000 http://localhost:8082/payouts/

@@ -20,6 +20,7 @@ import {
   isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
+import { canManageTeam } from './team-rules.js';
 
 let clients = [];
 let checks = {};
@@ -1758,6 +1759,7 @@ mountSession(async (staff) => {
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
   viewerError = viewer.error;
+  $('nav-team').hidden = !canManageTeam(viewer);
   // Always land on the signed-in person's own list; the owner lands on the whole team.
   minePerson = scope === 'own' ? me : me || '';
   applyScope();
