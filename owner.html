@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>מה דורש אותי · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-office.css">
+  <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/owner.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="owner.html" aria-label="astrateg · מבט על הלקוחות">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">מבט על</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="clients.html#mine" id="nav-work">לקוחות</a>
+      <a class="navlink" href="owner.html" aria-current="page" id="nav-owner">מה דורש אותי</a>
+      <a class="navlink nav-messages" href="messages.html" id="nav-messages" hidden>הודעות ללקוחות</a>
+      <a class="navlink" href="./">הצעה חדשה</a>
+      <a class="navlink" href="quotes.html">הצעות שנשלחו</a>
+      <a class="navlink" href="team.html" id="nav-team" hidden>צוות</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>המבט על הלקוחות זמין לבעלים, לעירית, לליאור ולאופיר.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app" hidden>
+      <div id="ow-page" class="ow-page" hidden>
+        <div class="page-head">
+          <div>
+            <div class="kicker latin">OWNER VIEW</div>
+            <h1 id="ow-title">מה דורש אותי</h1>
+            <p id="ow-sub">רק מה שחרג, עם שם אחד וסיבה אחת. הכול מחושב ממה שהצוות מסמן.</p>
+          </div>
+          <div class="head-actions">
+            <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+            <a class="btn btn-sm" href="clients.html#mine" id="link-work">עבודת הצוות</a>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="תצוגה" id="ow-tabs">
+          <button type="button" role="tab" class="tab" id="tab-now" aria-controls="view-now">מה דורש אותי</button>
+          <button type="button" role="tab" class="tab" id="tab-all" aria-controls="view-all">כל הלקוחות במבט</button>
+        </div>
+
+        <section class="block ow-view" id="view-now" role="tabpanel" aria-labelledby="tab-now" hidden>
+          <h2 class="sr-only">במספרים</h2>
+          <ul class="ow-stats" id="ow-stats"></ul>
+          <h2 class="wgroup-h" id="rows-h" tabindex="-1">דורש תשומת לב</h2>
+          <ol class="ow-rows" id="ow-rows" aria-labelledby="rows-h"></ol>
+          <p class="ow-empty" id="ow-empty" hidden>הכול לפי התוכנית</p>
+          <p class="ow-more" id="ow-more" hidden></p>
+          <section class="ow-answers" id="ow-answers" aria-labelledby="ans-h" hidden>
+            <h2 class="wgroup-h" id="ans-h">תשובות אחרונות</h2>
+            <ul class="ow-alist" id="ow-alist"></ul>
+          </section>
+        </section>
+
+        <section class="block ow-view" id="view-all" role="tabpanel" aria-labelledby="tab-all" hidden>
+          <div class="chips-row ga-filters" role="group" aria-label="סינון לפי צבע" id="ga-filters"></div>
+          <ul class="ga-list" id="ga-list"></ul>
+          <section class="board" aria-labelledby="board-h">
+            <div class="board-head">
+              <h2 class="wgroup-h" id="board-h">מה יתבצע אצל הלקוחות</h2>
+              <div class="chips-row" role="group" aria-label="תקופה" id="board-range"></div>
+            </div>
+            <p class="board-sum" id="board-sum"></p>
+            <div id="board"></div>
+          </section>
+        </section>
+      </div>
+
+      <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
+        <p>המבט על כל הלקוחות פתוח לבעלים, לעירית, לליאור ולאופיר. העבודה שלך נמצאת ב״מה עליי״.</p>
+        <a class="btn" href="clients.html#mine">מעבר למה עליי</a>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <dialog id="dlg-ask" aria-labelledby="ask-h">
+    <form id="ask-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="ask-h">שאלה לאחראי</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p class="ask-ctx" id="ask-ctx"></p>
+        <div class="field">
+          <label for="ask-text" id="ask-label">השאלה</label>
+          <textarea class="input" id="ask-text" rows="3" maxlength="1000" required aria-describedby="ask-hint"></textarea>
+          <p class="hint" id="ask-hint">השאלה נשמרת עם הלקוח ומגיעה לאחראי ב״מה עליי״. התשובה תופיע כאן, באותה שורה.</p>
+        </div>
+        <div class="err" id="ask-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="ask-submit">שליחת השאלה</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/owner.js"></script>
+</body>
+</html>

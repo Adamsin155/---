@@ -24,6 +24,9 @@ import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-
 import { describeMark } from './handoffs.js';
 import { canManageTeam } from './team-rules.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
+import { clientHealth, station, timeline } from './health.js';
+import { healthHead, timelineBlock } from './health-ui.js';
+import { loadHealthExtras } from './owner-data.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -36,6 +39,9 @@ let quote = null;            // the signed agreement the client was opened from
 let access = [];             // network logins (without passwords)
 let vaultOk = false;         // may this user see and edit logins (editors may not)
 let statusNote = null;       // Ofir's latest weekly summary
+let statusNotes = null;      // all of them (null: not loaded), for the Thursday rule
+let healthExtras = null;     // messages, history and date changes, for the colour (office only)
+let tlAll = false;           // the timeline shows everything done, not only the latest
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
 let scope = 'office';        // 'own': only my processes and items; 'office': may show the whole protocol
@@ -84,10 +90,12 @@ async function load() {
     checks = ch[id] || {};
     tasks = t;
     if (c.quote_id && (!quote || quote.id !== c.quote_id)) quote = await loadQuoteSummary(c.quote_id);
-    [access, statusNote] = await Promise.all([
+    [access, statusNotes, healthExtras] = await Promise.all([
       vaultOk ? loadAccess(id).catch(() => []) : [],
-      own() ? null : loadStatusNotes({ clientId: id }).then((r) => r[0] || null).catch(() => null),
+      own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
+      own() ? null : loadHealthExtras(id, new Date(Date.now() - 30 * 864e5).toISOString()),
     ]);
+    statusNote = statusNotes?.[0] || null;
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
@@ -116,7 +124,27 @@ function render() {
   renderAccess();
   renderViewbar();
   renderPhases(s);
+  renderTimeline(s);
   renderTasks();
+}
+
+// ── The colour, now and next, and the timeline (office only; section 6, screen 3) ──
+function healthNow(s) {
+  const now = new Date();
+  const ex = {
+    now, checks, tasks: tasks.filter((t) => !t.done_at), statusNotes,
+    messages: healthExtras?.messages ?? null, log: healthExtras?.log ?? null, dateChanges: healthExtras?.dateChanges ?? null,
+    access: vaultOk ? access.map((a) => ({ ...a, client_id: client.id })) : null,
+  };
+  return { health: clientHealth(client, s, ex), st: station(client, s, ex), now };
+}
+function renderTimeline(s) {
+  const slot = $('tl-slot');
+  if (own() || !client) { fill(slot); return; }
+  const now = new Date();
+  fill(slot, timelineBlock(timeline(client, s, checks, now), {
+    now, showAll: tlAll, link: goTo, onToggle: () => { tlAll = !tlAll; renderKeepingFocus('tl-toggle'); },
+  }));
 }
 
 // Periodic and background refreshes must not move keyboard focus or scroll.
@@ -415,6 +443,8 @@ function renderHead(s) {
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-escalate', onclick: () => openEscalate() }, 'דיווח חריגה לליאור'),
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => window.print() }, 'הדפסה'),
         own() ? null : h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'))),
+    // Office: the colour and why, now (station, who, until when), next (and what the client owes).
+    own() || c.status === 'cancelled' || c.status === 'ended' ? null : (() => { const x = healthNow(s); return healthHead(x.health, x.st, x.now); })(),
     h('div', { class: 'cc-progress' },
       h('span', {}, prog.label),
       h('strong', { class: 'num', dir: 'ltr' }, `${prog.done}/${prog.total}`),

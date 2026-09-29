@@ -5,7 +5,7 @@
   "description": "מה עליי, כרטיסי לקוחות ופרוטוקול העבודה של המשרד.",
   "lang": "he",
   "dir": "rtl",
-  "start_url": "/---/clients.html#mine",
+  "start_url": "/---/clients.html",
   "scope": "/---/",
   "display": "standalone",
   "background_color": "#020A1D",

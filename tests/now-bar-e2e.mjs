@@ -345,7 +345,7 @@ await mob.close();
 
 // ── Whose clocks: the owner sees everyone's, with their names; Ilai only his ──
 db.staff[0].person = null;
-await page.goto(`${BASE}clients.html`);
+await page.goto(`${BASE}clients.html#mine`); // the owner's own landing is owner.html
 await page.waitForSelector('#now-bar .now-clock');
 assert.match(await page.locator('.now-hint').innerText(), /אצל הצוות/);
 assert.match(await page.locator(clockSel('answer', ron, 'p26')).locator('.pchips').innerText(), /עירית/);
