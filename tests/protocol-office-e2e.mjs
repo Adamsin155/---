@@ -47,7 +47,7 @@ const check = (c, key, when, by = 'ofir@astrateg.test', state = 'done', note = n
   db.protocol_log.push({ id: db.protocol_log.length + 1, client_id: c.id, item_key: key, action: state, note, by_email: by, at: when });
 };
 const P1 = ['p01.prepared', 'p01.sent', 'p01.signed'];
-const P2 = ['p02.opened', 'p02.m.lior', 'p02.m.irit', 'p02.m.ofir', 'p02.m.shirel', 'p02.m.ilai', 'p02.m.client', 'p02.intro', 'p02.deal'];
+const P2 = ['p02.opened', 'p02.m.lior', 'p02.m.irit', 'p02.m.ofir', 'p02.m.ilai', 'p02.m.client', 'p02.intro', 'p02.deal'];
 const P3 = ['p03.who', 'p03.available', 'p03.scheduled', 'p03.calendar'];
 const P4 = ['p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved', 'p04.followup'];
 
@@ -56,11 +56,11 @@ const seeded = client({ name: 'מספרת רון', business: 'רון עיצוב 
   deal_at: hoursAgo(80), char_at: hoursAgo(50), shoot_at: new Date(NOW.getTime() + 2 * 864e5).toISOString(),
   rounds: [{ n: 2, shoot_type: 'dms', shoot_at: null, start_at: hoursAgo(30) }] });
 for (const k of [...P1, ...P2, ...P3, ...P4, 'p05.access', 'p05.vault', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos']) check(seeded, k, hoursAgo(49));
-// Just in, WhatsApp group opened already by Ofir: Irit's bulk button offers the other 7.
+// Just in, WhatsApp group opened already by Ofir: Irit's bulk button offers the other 6.
 const fresh = client({ name: 'פיצה נאפולי', deal_at: hoursAgo(3) });
 check(fresh, 'p02.opened', hoursAgo(1));
 // Waiting on the client for access since last Wednesday; recheck is today.
-const waiting = client({ name: 'קפה גליה', phone: '054-1112233', characterizer: 'shirel', deal_at: hoursAgo(24 * 8), char_at: hoursAgo(24 * 7) });
+const waiting = client({ name: 'קפה גליה', phone: '054-1112233', deal_at: hoursAgo(24 * 8), char_at: hoursAgo(24 * 7) });
 for (const k of [...P1, ...P2, ...P3, ...P4]) check(waiting, k, hoursAgo(24 * 7 - 1));
 check(waiting, 'p05.wait', hoursAgo(24 * 6), 'lior@astrateg.test', 'done', JSON.stringify({ reason: 'הלקוח עוד לא שלח גישה לאינסטגרם', recheck: '2026-09-22' }));
 // Opened by the signing trigger three minutes ago.
@@ -240,21 +240,21 @@ assert.match(waitGroup, /״הלקוח עוד לא שלח גישה לאינסטג
 assert.equal(await page.locator('.g-overdue .wproc:has-text("קפה גליה"):has-text("לקיחת גישות")').count(), 0);
 await shot('01-my-work');
 
-// ── §1 bulk: 7 of Irit's items in process 2 of the fresh client, then undo ──
+// ── §1 bulk: 6 of Irit's items in process 2 of the fresh client, then undo ──
 const p2card = page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("פתיחת קבוצת WhatsApp")');
-assert.equal(await p2card.locator('.bulk-btn').innerText(), 'סימון כל הפריטים שלי כבוצעו (7)'); // p02.deal is Lior's (protocol v2)
-assert.equal(await p2card.locator('.bulk-btn').getAttribute('aria-label'), 'סימון 7 פריטים כבוצעו בתהליך 2 · פתיחת קבוצת WhatsApp');
+assert.equal(await p2card.locator('.bulk-btn').innerText(), 'סימון כל הפריטים שלי כבוצעו (6)'); // p02.deal and p02.team are Lior's; Shirel removed in v3
+assert.equal(await p2card.locator('.bulk-btn').getAttribute('aria-label'), 'סימון 6 פריטים כבוצעו בתהליך 2 · פתיחת קבוצת WhatsApp');
 // A failed save marks nothing.
 failNextCheck = true;
 await p2card.locator('.bulk-btn').click();
 await toastHas('אף פריט לא סומן');
 assert.equal(db.protocol_checks.filter((c) => c.client_id === fresh.id).length, 1);
 await p2card.locator('.bulk-btn').click();
-await toastHas('סומנו 7 פריטים בתהליך 2 · פתיחת קבוצת WhatsApp.');
-assert.equal(db.protocol_checks.filter((c) => c.client_id === fresh.id && c.item_key.startsWith('p02.')).length, 8);
+await toastHas('סומנו 6 פריטים בתהליך 2 · פתיחת קבוצת WhatsApp.');
+assert.equal(db.protocol_checks.filter((c) => c.client_id === fresh.id && c.item_key.startsWith('p02.')).length, 7);
 assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("פתיחת קבוצת WhatsApp")').count(), 0);
 await page.click('.toast-act');
-await toastHas('הסימון של 7 הפריטים בוטל.');
+await toastHas('הסימון של 6 הפריטים בוטל.');
 // Undo removes only what the bulk action marked: Ofir's earlier check stays.
 assert.deepEqual(db.protocol_checks.filter((c) => c.client_id === fresh.id).map((c) => c.item_key), ['p02.opened']);
 await page.waitForSelector('.wproc:has(.wclient:text("פיצה נאפולי")) .bulk-btn');
@@ -375,7 +375,7 @@ assert.match(await page.locator('.perf-table tr:has-text("3 · קביעת פגי
 assert.match(perf, /הנתונים שלי/);
 assert.match(perf, /אחוז נמוך בתהליך הוא קודם כול סימן לבדוק את התהליך או את היעד/);
 const people = await page.locator('.perf-team tbody tr td:first-child').allInnerTexts();
-assert.deepEqual(people, ['עירית', 'ליאור', 'אופיר', 'שיראל', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה']);
+assert.deepEqual(people, ['עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה']);
 await page.click('#performance .chip:text("90 הימים האחרונים")');
 await page.waitForSelector('#performance .chip[aria-pressed="true"]:text("90")');
 await page.waitForSelector('.perf-team tbody tr');
@@ -441,7 +441,7 @@ const natali = client({ name: 'סטודיו נטלי', phone: '050-1234567', sho
 doneThrough(natali, UP_TO_SHOOT, hoursAgo(26));
 for (const k of ['p22a.drive', 'p22a.load', 'p22a.assigned']) check(natali, k, hoursAgo(25));
 // Shot too, but no editor yet: waits for Ofir, and the post phase is missing its editor.
-const sea = client({ name: 'מסעדת הים', phone: '050-7654321', shoot_type: 'dms', characterizer: 'shirel', has_logo: true,
+const sea = client({ name: 'מסעדת הים', phone: '050-7654321', shoot_type: 'dms', characterizer: null, has_logo: true,
   deal_at: hoursAgo(24 * 10), char_at: hoursAgo(24 * 9), shoot_at: hoursAgo(48) });
 doneThrough(sea, UP_TO_SHOOT, hoursAgo(26));
 // Nothing happened since 3.9: no activity for weeks, processes late by more than two business days.
@@ -554,7 +554,7 @@ await status.locator('button[aria-label="כתיבת סיכום המצב של ס�
 await page.waitForSelector('#dlg-status[open]');
 assert.equal(await page.locator('#status-h').innerText(), 'סיכום מצב · סטודיו נטלי');
 assert.match(await page.locator('#status-ctx').innerText(), /מהמערכת: שלב: עריכה ומסירה/);
-assert.deepEqual(await page.locator('#stf-owner option').allInnerTexts(), ['בחירה', 'עירית', 'ליאור', 'אופיר', 'שיראל', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה']);
+assert.deepEqual(await page.locator('#stf-owner option').allInnerTexts(), ['בחירה', 'עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה']);
 await page.click('#status-save');
 assert.match(await page.locator('#status-err').innerText(), /^חסר: מצב נוכחי, פעולה הבאה, אחראי, מועד יעד\./);
 assert.equal(await page.getAttribute('#stf-owner', 'aria-invalid'), 'true');

@@ -7,7 +7,6 @@
   --p-irit: #F2A0C2;
   --p-lior: #6FB7FF;
   --p-ofir: #C9B3F7;
-  --p-shirel: #E3C49A;
   --p-ilai: #5CD0C8;
   --p-editor: #C3CBE0;
 }
@@ -29,7 +28,7 @@
 }
 .pchip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--pc, var(--muted)); }
 .p-irit { --pc: var(--p-irit); } .p-lior { --pc: var(--p-lior); } .p-ofir { --pc: var(--p-ofir); }
-.p-shirel { --pc: var(--p-shirel); } .p-ilai { --pc: var(--p-ilai); } .p-editor { --pc: var(--p-editor); }
+.p-ilai { --pc: var(--p-ilai); } .p-editor { --pc: var(--p-editor); }
 .pchip.is-me { font-size: 14px; padding: 3px 12px; }
 
 .me-bar, .viewbar, .chips-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
@@ -348,7 +347,7 @@ select.input { appearance: auto; }
 @media print {
   :root {
     --late: #B42318; --ok: #1A7F4B; --accent: #5302DF; --accent-soft: #F1EBFD; --panel-2: #EEF1F7; --line-strong: #9AA5C0;
-    --p-irit: #B0306A; --p-lior: #1F5FA8; --p-ofir: #5302DF; --p-shirel: #8A5A12; --p-ilai: #0E7A72; --p-editor: #56617E;
+    --p-irit: #B0306A; --p-lior: #1F5FA8; --p-ofir: #5302DF; --p-ilai: #0E7A72; --p-editor: #56617E;
   }
   .facts, .cc-facts { background: #fff !important; }
   .ph-idx { color: #5302DF; }

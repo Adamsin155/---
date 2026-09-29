@@ -26,7 +26,7 @@ test('every numbered process in the written protocol exists, except the office-w
 test('keys are unique and every owner is a known person', () => {
   const keys = PROCESSES.flatMap((p) => p.items.map((i) => i.key));
   assert.equal(new Set(keys).size, keys.length);
-  const all = [{}, { characterizer: 'ofir' }, { characterizer: 'shirel' }];
+  const all = [{}, { characterizer: 'ofir' }, { characterizer: 'lior' }];
   for (const c of all) for (const p of applicableProcesses({ ...c, shoot_type: 'natali', has_logo: false, status: 'ending' })) {
     for (const o of p.owners) assert.ok(PEOPLE[o], `${p.id} owner ${o}`);
     for (const i of p.items) for (const o of i.owners) assert.ok(PEOPLE[o], `${i.key} owner ${o}`);
@@ -36,7 +36,7 @@ test('keys are unique and every owner is a known person', () => {
 
 test('whatsapp group and characterization checklists match the document', () => {
   const p2 = PROCESSES.find((p) => p.id === 'p02');
-  for (const who of ['ליאור', 'עירית', 'אופיר', 'שיראל', 'עילאי', 'הלקוח']) assert.ok(p2.items.some((i) => i.label.startsWith(who)), who);
+  for (const who of ['ליאור', 'עירית', 'אופיר', 'עילאי', 'הלקוח']) assert.ok(p2.items.some((i) => i.label.startsWith(who)), who);
   const p4 = PROCESSES.find((p) => p.id === 'p04');
   assert.equal(p4.items.filter((i) => !['p04.saved', 'p04.followup', 'p04.tasks'].includes(i.key)).length, 11);
   // Lists in the document are separate items, not one combined check.
@@ -66,16 +66,21 @@ test('sequence rules: send only after the review, calendar only with shoot detai
 });
 
 test('a shared process taken by one owner leaves the other owner\'s list', () => {
-  const c = { ...base, id: 'c', char_at: '2026-10-01T08:00:00+03:00' };
-  const checks = { 'p05.access': { state: 'done', at: '2026-10-01T09:00:00+03:00' }, 'p05.logo': { state: 'done', at: '2026-10-01T09:00:00+03:00' },
-    'p05.colors': { state: 'done', at: '2026-10-01T09:00:00+03:00' }, 'p05.photos': { state: 'done', at: '2026-10-01T09:00:00+03:00' }, 'p05.videos': { state: 'done', at: '2026-10-01T09:00:00+03:00' },
-    'p06.claim': { state: 'done', note: 'ilai', at: '2026-10-01T09:10:00+03:00' } };
-  const now = at('2026-10-01T09:20:00+03:00');
+  // Process 22א (assigning the editor) belongs to Ofir or Lior.
+  const c = { ...base, id: 'c', char_at: '2026-10-01T08:00:00+03:00', shoot_type: 'dms', shoot_at: '2026-10-05T10:00:00+03:00' };
+  const done = { state: 'done', at: '2026-10-05T16:00:00+03:00' };
+  const p19 = applicableProcesses(c).find((p) => p.id === 'p19');
+  const checks = Object.fromEntries(p19.items.map((i) => [i.key, done]));
+  const now = at('2026-10-05T17:00:00+03:00');
+  const before = (p) => openItemsFor(p, c, checks, clientState(c, checks, now), now).map((x) => x.item.key);
+  assert.ok(before('ofir').includes('p22a.load') && before('lior').includes('p22a.load'));
+  checks['p22a.claim'] = { state: 'done', note: 'ofir', at: '2026-10-05T16:30:00+03:00' };
   const s = clientState(c, checks, now);
-  assert.equal(s.states.find((x) => x.proc.id === 'p06').claim.person, 'ilai');
+  assert.equal(s.states.find((x) => x.proc.id === 'p22a').claim.person, 'ofir');
   const keys = (p) => openItemsFor(p, c, checks, s, now).map((x) => x.item.key);
-  assert.ok(keys('ilai').includes('p06.verified'));
-  assert.ok(!keys('shirel').includes('p06.verified'));
+  assert.ok(keys('ofir').includes('p22a.load'));
+  assert.ok(!keys('lior').includes('p22a.load'));
+  assert.ok(keys('lior').includes('p22a.drive')); // his own item stays
 });
 
 test('my-work buckets and business-day lateness', () => {
@@ -107,12 +112,13 @@ test('shoot type decides which shoot-day processes apply', () => {
 test('characterizer decides who takes the network access; no logo adds a logo task', () => {
   const p5 = (c) => applicableProcesses(c).find((p) => p.id === 'p05');
   assert.deepEqual(p5({ characterizer: 'ofir' }).owners, ['ofir']);
-  assert.deepEqual(p5({ characterizer: 'shirel' }).owners, ['irit']); // Irit takes the access from the client
+  assert.deepEqual(p5({}).owners, ['irit']); // no characterizer set: Irit takes the access from the client
   assert.deepEqual(p5({ characterizer: 'lior' }).owners, ['lior']);
   const p6 = applicableProcesses({}).find((p) => p.id === 'p06');
   assert.deepEqual(p6.items.find((i) => i.key === 'p06.recovered').owners, ['lior']);
   assert.deepEqual(p6.items.find((i) => i.key === 'p06.newpages').owners, ['ilai']);
-  assert.deepEqual(applicableProcesses({ characterizer: 'shirel' }).find((p) => p.id === 'p04').owners, ['shirel']);
+  assert.deepEqual(applicableProcesses({ characterizer: 'lior' }).find((p) => p.id === 'p04').owners, ['lior']);
+  assert.deepEqual(applicableProcesses({}).find((p) => p.id === 'p04').owners, ['ofir']); // Ofir characterizes by default
   assert.ok(p5({ has_logo: false }).items.some((i) => i.key === 'p05.newlogo' && i.owners[0] === 'ilai'));
   assert.ok(!p5({ has_logo: true }).items.some((i) => i.key === 'p05.newlogo'));
 });
@@ -199,15 +205,16 @@ test('not relevant resolves a required item; optional items never block', () => 
 });
 
 test('open items per person follow owners and readiness', () => {
-  const c = { ...base, id: 'c1', characterizer: 'shirel', char_at: '2026-10-01T10:00:00+03:00' };
+  const c = { ...base, id: 'c1', characterizer: 'lior', char_at: '2026-10-01T10:00:00+03:00' };
   const now = at('2026-10-01T10:30:00+03:00');
   const s = clientState(c, {}, now);
   const irit = openItemsFor('irit', c, {}, s, now);
   assert.ok(irit.some((x) => x.item.key === 'p01.signed'));
-  assert.ok(irit.some((x) => x.item.key === 'p05.access')); // Shirel characterizes, so Irit or Lior take access
-  const shirel = openItemsFor('shirel', c, {}, s, now);
-  assert.ok(shirel.some((x) => x.item.key === 'p04.address'));
-  assert.ok(!shirel.some((x) => x.item.key === 'p17.place')); // shoot not scheduled yet
+  assert.ok(!irit.some((x) => x.item.key === 'p05.access')); // Lior characterizes, so he takes the access
+  const lior = openItemsFor('lior', c, {}, s, now);
+  assert.ok(lior.some((x) => x.item.key === 'p04.address'));
+  assert.ok(lior.some((x) => x.item.key === 'p05.access'));
+  assert.ok(!lior.some((x) => x.item.key === 'p17.place')); // shoot not scheduled yet
   assert.ok(!openItemsFor('ofir', c, {}, s, now).some((x) => x.item.key === 'p04.address'));
 });
 
@@ -339,7 +346,7 @@ test('bulk marking never marks a confirmation by the client or others', async ()
   assert.ok(keys.includes('p07.r.logo'));
   assert.ok(!keys.includes('p07.approved') && !keys.includes('p07.sent'));
   const p13 = s.states.find((x) => x.proc.id === 'p13');
-  assert.ok(!bulkEligible(p13, 'shirel', c, {}, now).some((i) => i.key === 'p13.approved'));
+  assert.ok(!bulkEligible(p13, 'lior', c, {}, now).some((i) => i.key === 'p13.approved'));
 });
 
 test('process 6 starts when access arrives, not when all brand materials are in', () => {

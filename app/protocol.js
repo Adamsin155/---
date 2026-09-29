@@ -4,8 +4,9 @@
 // win; every such choice is listed in docs/protocols/merge.md.
 // Item keys are stored with each check, so never rename or reuse a key; retire it
 // instead and add a new one. Bump PROTOCOL_VERSION when the protocol changes.
+// Retired in v3 (Shirel removed from the protocol): p02.m.shirel, p11.ok.shirel.
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 // Office hours. Deadlines of minutes or hours that start from an office event
 // (a deal coming in, a finished process) run only inside these hours; a deal
@@ -18,7 +19,6 @@ export const PEOPLE = {
   irit: { key: 'irit', name: 'עירית', role: 'מנהלת משרד ותפעול לקוחות' },
   lior: { key: 'lior', name: 'ליאור', role: 'ניהול, תוכן, קמפיינים וימי צילום' },
   ofir: { key: 'ofir', name: 'אופיר', role: 'אפיונים, פיקוח ובקרת איכות' },
-  shirel: { key: 'shirel', name: 'שיראל', role: 'אפיונים ובדיקת גישות' },
   ilai: { key: 'ilai', name: 'עילאי', role: 'גרפיקה, סושיאל ותזמון' },
   nirel: { key: 'nirel', name: 'ניראל', role: 'עריכת סרטוני נטלי, גרפיקה ומשימות מורכבות', editor: true },
   nadia: { key: 'nadia', name: 'נדיה', role: 'עריכת וידאו', editor: true },
@@ -36,7 +36,7 @@ export const EDITORS = ['nadia', 'yariv', 'anna', 'nirel'];
 export const editorsFor = (shootType) => (shootType === 'natali' ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));
 
 // Who can run the characterization meeting. Lior goes only when Ofir and Shirel cannot.
-export const CHARACTERIZERS = ['ofir', 'shirel', 'lior'];
+export const CHARACTERIZERS = ['ofir', 'lior'];
 
 // Social networks kept in the access vault (the passwords themselves are encrypted in the database).
 export const NETWORKS = [
@@ -121,7 +121,7 @@ export const CALL_TOPICS = [
 ];
 
 // Owners may depend on the client (who ran the characterization, which editor was assigned).
-const characterizer = (c) => (c.characterizer ? [c.characterizer] : ['ofir', 'shirel']);
+const characterizer = (c) => (c.characterizer ? [c.characterizer] : ['ofir']);
 // Whoever characterizes takes the access in the meeting; otherwise Irit gets it from the client.
 const accessOwners = (c) => (c.characterizer === 'ofir' || c.characterizer === 'lior' ? [c.characterizer] : ['irit']);
 const editorOf = (c) => (c.editor ? [c.editor] : ['editor']);
@@ -172,7 +172,6 @@ export const PROCESSES = [
       { key: 'p02.m.lior', label: 'ליאור בקבוצה' },
       { key: 'p02.m.irit', label: 'עירית בקבוצה' },
       { key: 'p02.m.ofir', label: 'אופיר בקבוצה' },
-      { key: 'p02.m.shirel', label: 'שיראל בקבוצה' },
       { key: 'p02.m.ilai', label: 'עילאי בקבוצה' },
       { key: 'p02.m.client', label: 'הלקוח בקבוצה' },
       { key: 'p02.intro', label: 'נשלחה הודעת היכרות מטעם ליאור ועירית', owners: ['irit', 'lior'] },
@@ -184,11 +183,11 @@ export const PROCESSES = [
     id: 'p03', num: '3', phase: 'onboarding', title: 'קביעת פגישת אפיון', owners: ['irit'],
     sla: 'עד 5 דקות מרגע שאיש המכירות שולח את פרטי הלקוח',
     due: { from: 'deal', minutes: 5 },
-    what: 'בודקים מי מבצע את האפיון (אופיר או שיראל) ואת זמינותו, ומתאמים עם הלקוח פגישה פיזית במועד המוקדם ביותר. עד 3 פגישות אפיון ביום; לכל פגישה משוריין חלון של שעתיים. פתיחת הקבוצה וקביעת האפיון נעשות במקביל.',
-    ownerNote: 'ליאור יוצא לאפיון רק כשאופיר ושיראל לא יכולים ואין עובד אחר. אופיר מודיע לו ומעביר שם, מועד, כתובת ושעה.',
+    what: 'בודקים את הזמינות של מבצע האפיון (אופיר), ומתאמים עם הלקוח פגישה פיזית במועד המוקדם ביותר. עד 3 פגישות אפיון ביום; לכל פגישה משוריין חלון של שעתיים. פתיחת הקבוצה וקביעת האפיון נעשות במקביל.',
+    ownerNote: 'ליאור יוצא לאפיון רק כשאופיר לא יכול ואין עובד אחר. אופיר מודיע לו ומעביר שם, מועד, כתובת ושעה.',
     needs: ['characterizer', 'char_at'],
     items: [
-      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (אופיר, שיראל, או ליאור כשאין אחר)' },
+      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (אופיר, או ליאור כשאופיר לא יכול)' },
       { key: 'p03.available', label: 'נבדקה זמינות מבצע האפיון' },
       { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים', requiresFields: ['characterizer', 'char_at'] },
       { key: 'p03.calendar', label: 'הפגישה הוכנסה ליומן' },
@@ -236,7 +235,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p06', num: '6', phase: 'onboarding', title: 'בדיקת הגישות וסידור הרשתות', owners: ['ilai', 'shirel'],
+    id: 'p06', num: '6', phase: 'onboarding', title: 'בדיקת הגישות וסידור הרשתות', owners: ['ilai'],
     sla: 'עד 30 דקות מרגע קבלת הגישות',
     start: { from: 'item:p05.access' }, due: { from: 'item:p05.access', minutes: 30 },
     what: 'בודקים שכל שם משתמש וסיסמה עובדים. גישה לא תקינה: מתקשרים ללקוח ומאפסים או משחזרים איתו. אין עמודים: פותחים עמודים חדשים באותו חלון זמן.',
@@ -311,7 +310,6 @@ export const PROCESSES = [
       { key: 'p11.ok.client', label: 'הלקוח אישר את המועד', noBulk: true },
       { key: 'p11.ok.influencers', label: 'המשפיענים אישרו', noBulk: true },
       { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר', noBulk: true },
-      { key: 'p11.ok.shirel', label: 'שיראל אישרה', noBulk: true },
       { key: 'p11.ok.photographer', label: 'הצלם אישר', noBulk: true },
       { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'] },
     ],
@@ -384,8 +382,8 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p15', round: true, num: '15', phase: 'eve', title: 'תזכורת לצוות וללקוח', owners: ['lior', 'shirel'],
-    ownerNote: 'ליאור או שיראל שולחים את התזכורות; עירית בודקת באותה שעה שזה בוצע, ומעדכנת את ליאור מיד אם יש בעיה.',
+    id: 'p15', round: true, num: '15', phase: 'eve', title: 'תזכורת לצוות וללקוח', owners: ['lior'],
+    ownerNote: 'ליאור שולח את התזכורות; עירית בודקת באותה שעה שזה בוצע, ומעדכנת את ליאור מיד אם יש בעיה.',
     sla: 'יום לפני הצילום, בסביבות 11:00',
     start: { from: 'shoot', prevBusinessDay: true, at: '00:00' }, due: { from: 'shoot', prevBusinessDay: true, at: '11:00' },
     what: 'שולחים תזכורת ומוודאים שלכולם יש שעה, כתובת, תוכן מאושר ופרטי יום הצילום. בנוסף, שיחת הסבר עם הלקוח על מהלך היום ומה להכין.',

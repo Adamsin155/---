@@ -37,7 +37,7 @@ const seeded = { id: randomUUID(), name: 'מספרת רון', business: 'רון 
 const fresh = { ...seeded, id: randomUUID(), name: 'פיצה נאפולי', business: null, phone: null, package_name: null, shoot_type: null, characterizer: null,
   has_logo: null, deal_at: hoursAgo(3), char_at: null, shoot_at: null, contract_end: null };
 db.clients.push(seeded, fresh);
-const doneKeys = ['p01.prepared', 'p01.sent', 'p01.signed', 'p02.opened', 'p02.m.lior', 'p02.m.irit', 'p02.m.ofir', 'p02.m.shirel', 'p02.m.ilai', 'p02.m.client', 'p02.intro', 'p03.who', 'p03.scheduled',
+const doneKeys = ['p01.prepared', 'p01.sent', 'p01.signed', 'p02.opened', 'p02.m.lior', 'p02.m.irit', 'p02.m.ofir', 'p02.m.ilai', 'p02.m.client', 'p02.intro', 'p03.who', 'p03.scheduled',
   'p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved', 'p05.access', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos'];
 for (const k of doneKeys) db.protocol_checks.push({ client_id: seeded.id, item_key: k, state: 'done', note: null, by_email: 'ofir@astrateg.test', at: hoursAgo(49) });
 db.protocol_checks.push({ client_id: seeded.id, item_key: 'p05.menu', state: 'na', note: null, by_email: 'ofir@astrateg.test', at: hoursAgo(49) });
@@ -272,16 +272,17 @@ await page.uncheck('#i-p02-opened');
 await page.waitForFunction(() => !document.querySelector('.is-busy') && !document.querySelector('#i-p02-opened').checked);
 await page.waitForFunction(() => /ביטל\/ה סימון/.test(document.querySelector('#hist-list').innerText));
 
-// Edit details: Shirel characterizes, so access moves to Irit; no logo adds Ilai's logo item.
+// Edit details: Lior characterizes, so he takes the access too; no logo adds Ilai's logo item.
 await page.click('#btn-edit');
 await page.fill('#ed-char-at', '2026-10-01T10:00');
-await page.selectOption('#ed-characterizer', 'shirel');
+assert.deepEqual(await page.locator('#ed-characterizer option').evaluateAll((os) => os.map((o) => o.value)), ['', 'ofir', 'lior']);
+await page.selectOption('#ed-characterizer', 'lior');
 await page.selectOption('#ed-logo', 'false');
 await page.fill('#ed-shoot-at', '2026-10-11T10:00');
 await page.click('#ed-submit');
 await page.waitForSelector('#i-p05-newlogo');
 const p5 = await page.locator('#p05 .proc-meta').textContent();
-assert.match(p5, /עירית/); // Irit's protocol: she asks for the access when Ofir or Lior do not characterize
+assert.match(p5, /ליאור/); // whoever characterizes (Ofir or Lior) takes the access in the meeting
 assert.doesNotMatch(p5, /אופיר/);
 // Sunday shoot: reminder due on Thursday, the previous business day, at 11:00.
 assert.match(await page.locator('#p15').textContent(), /11:00/);
@@ -470,12 +471,12 @@ await page.waitForSelector('#p02');
 assert.equal(await page.isChecked('#i-p02-opened'), false);
 assert.match(await page.locator('#p05').textContent(), /לא רלוונטי/);
 
-// Person focus: only Shirel's processes
-await page.click('.viewbar .chip:has-text("שיראל")');
+// Person focus: only Ilai's processes
+await page.click('.viewbar .chip:has-text("עילאי")');
 await page.check('.only input');
 await page.evaluate(() => document.querySelectorAll('details.phase').forEach((d) => { d.open = true; }));
 const shown = await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id));
-assert.ok(shown.includes('p04') && shown.includes('p06') && !shown.includes('p12') && !shown.includes('p10'), shown.join()); // scripts are Lior's in v2
+assert.ok(shown.includes('p06') && !shown.includes('p04') && !shown.includes('p12') && !shown.includes('p10'), shown.join());
 await page.uncheck('.only input');
 await page.click('.viewbar .chip:has-text("כל הצוות")');
 await shot('04-client-card');
