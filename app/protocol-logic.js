@@ -221,6 +221,15 @@ export function blockers(item, client, checks) {
 const markKey = (proc, kind) => `${proc.keyBase || proc.id}.${kind}`;
 export const CLAIM = (proc) => markKey(proc, 'claim');
 export const WAIT = (proc) => markKey(proc, 'wait');
+// Editing paused for another task (Nirel and the editors must say so first).
+export const PAUSE = (proc) => markKey(proc, 'pause');
+export function pauseOf(proc, checks) {
+  const c = checks[PAUSE(proc)];
+  if (!c || c.state !== 'done') return null;
+  let v = {};
+  try { v = JSON.parse(c.note) || {}; } catch { /* plain text */ }
+  return { ...v, at: c.at, by_email: c.by_email };
+}
 export function claimOf(proc, checks) {
   if (proc.owners.length < 2) return null;
   const c = checks[CLAIM(proc)];
@@ -416,4 +425,11 @@ export function packageDeliverables(model) {
     ch14: spec.ch14 + (free.extraCh14 ? 1 : 0),
     monthly: paid.includes('photographer') ? 8 * TERM_MONTHS : 0,
   };
+}
+
+// The Sunday that starts the week of `d`, as a local YYYY-MM-DD key.
+export function weekKey(d = new Date()) {
+  const x = new Date(d);
+  x.setDate(x.getDate() - x.getDay());
+  return dayKey(x);
 }

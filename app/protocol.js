@@ -28,6 +28,9 @@ export const PEOPLE = {
   editor: { key: 'editor', name: 'העורך המשויך', role: 'עד ששויך עורך' },
 };
 
+// Real people (everyone but the "assigned editor" placeholder): for pickers and lists.
+export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor');
+
 // Editors a client can be assigned to. Nirel edits only Natali Dadon's videos.
 export const EDITORS = ['nadia', 'yariv', 'anna', 'nirel'];
 export const editorsFor = (shootType) => (shootType === 'natali' ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));

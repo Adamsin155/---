@@ -13,9 +13,9 @@ async function all(build) {
   }
 }
 
-const CLIENT_COLS = 'id, name, business, address, phone, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, notes, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, closed_reason';
+const CLIENT_COLS = 'id, name, business, address, phone, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, notes, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, closed_reason, editor';
 const CHECK_COLS = 'client_id, item_key, state, note, by_email, at';
-const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at, source';
+const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at, source, brief, urgent';
 
 export async function loadClients({ includeEnded = false } = {}) {
   return all(() => {
@@ -185,4 +185,66 @@ export async function loadQuoteSummary(id) {
 export async function loadAllLog(sinceIso) {
   return all(() => supabase.from('protocol_log').select('client_id, item_key, action, by_email, at')
     .gte('at', sinceIso).order('at'));
+}
+
+// ── Access vault ─────────────────────────────
+// The list never contains passwords; a password is read only through
+// access_reveal(), which logs who viewed it and when.
+export async function loadAccess(clientId) {
+  const { data, error } = await supabase.from('client_access')
+    .select('id, network, label, username, status, note, updated_by, updated_at, has_secret:secret_id')
+    .eq('client_id', clientId).order('created_at');
+  if (error) throw error;
+  return data.map((r) => ({ ...r, has_secret: !!r.has_secret }));
+}
+
+export async function saveAccess(clientId, a) {
+  const { data, error } = await supabase.rpc('access_save', {
+    p_client: clientId, p_id: a.id || null, p_network: a.network, p_label: a.label || null,
+    p_username: a.username || null, p_password: a.password || null, p_status: a.status || 'ok', p_note: a.note || null,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function revealAccess(id) {
+  const { data, error } = await supabase.rpc('access_reveal', { p_id: id });
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteAccess(id) {
+  const { error } = await supabase.rpc('access_delete', { p_id: id });
+  if (error) throw error;
+}
+
+export async function loadAccessLog(clientId, limit = 30) {
+  const { data, error } = await supabase.from('client_access_log')
+    .select('id, network, action, by_email, at').eq('client_id', clientId).order('at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data;
+}
+
+export async function canUseVault() {
+  const { data, error } = await supabase.rpc('can_use_vault');
+  return !error && data === true;
+}
+
+// ── Ofir's weekly status summaries ───────────
+// week = the Sunday of the week (local date, YYYY-MM-DD).
+const NOTE_COLS = 'client_id, week, current, missing, next, owner, due_on, by_email, at';
+export async function loadStatusNotes({ clientId = null, sinceWeek = null } = {}) {
+  return all(() => {
+    let q = supabase.from('client_status_notes').select(NOTE_COLS).order('week', { ascending: false });
+    if (clientId) q = q.eq('client_id', clientId);
+    if (sinceWeek) q = q.gte('week', sinceWeek);
+    return q;
+  });
+}
+
+export async function saveStatusNote(note) {
+  const { data, error } = await supabase.from('client_status_notes')
+    .upsert(note, { onConflict: 'client_id,week' }).select(NOTE_COLS).single();
+  if (error) throw error;
+  return data;
 }

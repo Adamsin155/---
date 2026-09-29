@@ -51,6 +51,14 @@
       <a class="back" href="clients.html#clients">→ כל הלקוחות</a>
       <header class="block cc-head" id="cc-head"></header>
       <div class="cc-sticky" id="cc-sticky" aria-hidden="true"></div>
+      <section class="block cc-side" id="access" aria-labelledby="access-h">
+        <div class="side-head access-head">
+          <div><h2 id="access-h">גישות לרשתות</h2><p class="muted">כל גישה תקינה נכנסת לכאן מיד. הסיסמאות מוצפנות, וכל צפייה נרשמת.</p></div>
+          <button type="button" class="btn btn-sm" id="access-add">הוספת גישה</button>
+        </div>
+        <ul class="access-list" id="access-list"></ul>
+        <details class="access-log"><summary>מי צפה ושינה ומתי</summary><ol class="hlist" id="access-log"></ol></details>
+      </section>
       <div class="viewbar" id="viewbar"></div>
       <div id="phases" class="phases"></div>
       <section class="block cc-side" id="tasks" aria-labelledby="tasks-h">
@@ -59,7 +67,13 @@
           <div class="field grow"><label for="task-title">משימה חדשה</label><input class="input" id="task-title" autocomplete="off"></div>
           <div class="field"><label for="task-owner">מי מבצע</label><select class="input" id="task-owner"></select></div>
           <div class="field"><label for="task-due">עד תאריך</label><input class="input" id="task-due" type="date" dir="ltr"></div>
+          <label class="only"><input type="checkbox" id="task-urgent"> דחוף</label>
           <button type="submit" class="btn btn-sm" id="task-submit">הוספה</button>
+          <details class="task-brief span-all" id="task-brief-box">
+            <summary id="task-brief-sum">בריף למשימה (לא חובה)</summary>
+            <p class="hint" id="task-brief-hint">מי שמקבל משימת תיקון צריך לקבל בריף מדויק. לא שולחים הנחיה כללית כמו ״הלקוח לא מרוצה, תבינו מה הוא רוצה״.</p>
+            <div class="brief-grid" id="task-brief"></div>
+          </details>
         </form>
         <ul class="tlist" id="task-list"></ul>
       </section>
@@ -92,7 +106,7 @@
           <div class="form-grid inner">
             <div class="field"><label for="ed-char-at">מועד פגישת האפיון</label><input class="input" id="ed-char-at" type="datetime-local" dir="ltr"></div>
             <div class="field"><label for="ed-characterizer">מי מבצע</label>
-              <select class="input" id="ed-characterizer"><option value="">טרם נקבע</option><option value="ofir">אופיר</option><option value="shirel">שיראל</option></select></div>
+              <select class="input" id="ed-characterizer"><option value="">טרם נקבע</option><option value="ofir">אופיר</option><option value="shirel">שיראל</option><option value="lior">ליאור (רק כשאין אחר)</option></select></div>
             <div class="field"><label for="ed-logo">יש ללקוח לוגו?</label>
               <select class="input" id="ed-logo"><option value="">לא ידוע</option><option value="true">כן</option><option value="false">לא, עילאי מכין לוגו</option></select></div>
           </div>
@@ -103,7 +117,7 @@
             <div class="field"><label for="ed-shoot-type">עם מי</label>
               <select class="input" id="ed-shoot-type"><option value="">טרם נקבע</option><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
             <div class="field"><label for="ed-shoot-at">מועד הגעת המשפיענים</label><input class="input" id="ed-shoot-at" type="datetime-local" dir="ltr"></div>
-            <div class="field"><label for="ed-editor">עורך (אופיר בוחר)</label><input class="input" id="ed-editor" autocomplete="off"></div>
+            <div class="field"><label for="ed-editor">עורך (אופיר משייך)</label><select class="input" id="ed-editor"></select></div>
           </div>
         </fieldset>
         <fieldset class="span-2 fs" id="ed-deliv-fs">
@@ -219,6 +233,7 @@
       <div class="dlg-body">
         <div class="field"><label for="round-type">סוג יום הצילום</label>
           <select class="input" id="round-type"><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
+        <div class="field" style="margin-top:12px"><label for="round-editor">עורך לסבב (אופיר משייך)</label><select class="input" id="round-editor"></select></div>
         <div class="field" style="margin-top:12px"><label for="round-at">מועד הגעת המשפיענים</label><input class="input" id="round-at" type="datetime-local" dir="ltr" aria-describedby="round-at-hint">
           <div class="hint" id="round-at-hint">אפשר להזין אחר כך. בלי מועד, תהליכי יום הצילום יבקשו אותו.</div></div>
         <p class="hint" id="round-note">תהליכים 11–30 (חוץ מ־23, הגרפיקות השנתיות) ייפתחו מחדש לסבב הזה. זמני הביצוע שנספרים ״מהאפיון״ ייספרו מרגע הוספת הסבב.</p>
@@ -228,6 +243,72 @@
       <div class="dlg-foot">
         <button type="button" class="btn btn-ghost" data-close>ביטול</button>
         <button type="submit" class="btn btn-primary" id="round-submit">הוספת הסבב</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-access" aria-labelledby="acc-h">
+    <form id="acc-form" novalidate autocomplete="off">
+      <div class="dlg-head">
+        <h2 id="acc-h">גישה לרשת</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body form-grid">
+        <div class="field"><label for="acc-network">רשת</label><select class="input" id="acc-network"></select></div>
+        <div class="field"><label for="acc-status">מצב הגישה</label>
+          <select class="input" id="acc-status"><option value="ok">תקינה</option><option value="broken">לא עובדת: ליאור משחזר עם הלקוח</option><option value="missing">אין רשת: עילאי פותח</option></select></div>
+        <div class="field"><label for="acc-label">שם החשבון או העמוד (לא חובה)</label><input class="input" id="acc-label"></div>
+        <div class="field"><label for="acc-username">שם משתמש / מייל / טלפון</label><input class="input" id="acc-username" dir="ltr" autocomplete="off"></div>
+        <div class="field span-2"><label for="acc-password">סיסמה</label><input class="input" id="acc-password" type="password" dir="ltr" autocomplete="new-password" aria-describedby="acc-password-h">
+          <div class="hint" id="acc-password-h">נשמרת מוצפנת. בעריכה, שדה ריק משאיר את הסיסמה הקיימת.</div></div>
+        <div class="field span-2"><label for="acc-note">הערה (לא חובה)</label><input class="input" id="acc-note" maxlength="500"></div>
+        <label class="only span-2" id="acc-task-wrap" hidden><input type="checkbox" id="acc-task" checked> <span id="acc-task-text"></span></label>
+        <div class="err span-2" id="acc-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="acc-submit">שמירה</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-escalate" aria-labelledby="esc-h">
+    <form id="esc-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="esc-h">דיווח חריגה לליאור</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p class="hint">ליאור הוא הכתובת הניהולית. הדיווח נפתח אצלו כמשימה, ומופיע בבקרה עד שייסגר.</p>
+        <div class="field"><label for="esc-reason">מה קרה</label><select class="input" id="esc-reason"></select></div>
+        <div class="field" style="margin-top:12px"><label for="esc-proc">באיזה תהליך (לא חובה)</label><select class="input" id="esc-proc"></select></div>
+        <div class="field" style="margin-top:12px"><label for="esc-details">פרטים</label><textarea class="input" id="esc-details" rows="3" maxlength="400"></textarea></div>
+        <label class="only"><input type="checkbox" id="esc-urgent" checked> דחוף: מטפלים באותו רגע</label>
+        <div class="err" id="esc-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="esc-submit">שליחה לליאור</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-pause" aria-labelledby="pause-h">
+    <form id="pause-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="pause-h">עצירת העריכה למשימה אחרת</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p class="hint">לא עוזבים עריכה באמצע בלי להודיע. ליאור ואופיר יקבלו עדכון.</p>
+        <div class="field"><label for="pause-stage">באיזה שלב העריכה</label><input class="input" id="pause-stage" maxlength="200"></div>
+        <div class="field" style="margin-top:12px"><label for="pause-left">מה נשאר לסיים</label><input class="input" id="pause-left" maxlength="200"></div>
+        <div class="field" style="margin-top:12px"><label for="pause-why">לאיזו משימה עוברים</label><input class="input" id="pause-why" maxlength="200"></div>
+        <div class="err" id="pause-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="pause-submit">עצירה ועדכון</button>
       </div>
     </form>
   </dialog>

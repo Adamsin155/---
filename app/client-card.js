@@ -3,14 +3,16 @@
 // call and a full history of who checked what and when.
 import {
   PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
+  STAFF_PEOPLE, editorsFor, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, STATUS_FIELDS,
 } from './protocol.js';
 import {
   clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
-  waitNote, parseWaitNote, bulkEligible, roundsOf, isBusinessDay,
+  waitNote, parseWaitNote, bulkEligible, roundsOf, isBusinessDay, PAUSE, pauseOf,
 } from './protocol-logic.js';
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
   addTask, setTaskDone, updateClient, myPerson, loadDirectory, loadQuoteSummary, loadCalls,
+  loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
@@ -27,6 +29,9 @@ let log = [];
 let calls = [];               // weekly-call log rows, newest first
 const shownProcs = new Set(); // completed processes whose items the user opened
 let quote = null;            // the signed agreement the client was opened from
+let access = [];             // network logins (without passwords)
+let vaultOk = false;         // may this user see and edit logins (editors may not)
+let statusNote = null;       // Ofir's latest weekly summary
 let myEmail = '';
 let me = null;               // this user's person key
 let focusPerson = '';        // highlighted person ('' = everyone)
@@ -42,9 +47,9 @@ const ITEM_INDEX = new Map(PROCESSES.flatMap((p) => p.items.map((i) => [i.key, {
 const labelOf = (key) => ITEM_INDEX.get(baseKey(key))?.item.label || key;
 const FIELD_NAMES = {
   characterizer: 'מי מבצע את האפיון', char_at: 'מועד פגישת האפיון', shoot_type: 'סוג יום הצילום',
-  shoot_at: 'מועד יום הצילום', has_logo: 'האם יש ללקוח לוגו',
+  shoot_at: 'מועד יום הצילום', has_logo: 'האם יש ללקוח לוגו', editor: 'העורך המשויך',
 };
-const FIELD_INPUT = { characterizer: 'ed-characterizer', char_at: 'ed-char-at', shoot_type: 'ed-shoot-type', shoot_at: 'ed-shoot-at', has_logo: 'ed-logo' };
+const FIELD_INPUT = { characterizer: 'ed-characterizer', char_at: 'ed-char-at', shoot_type: 'ed-shoot-type', shoot_at: 'ed-shoot-at', has_logo: 'ed-logo', editor: 'ed-editor' };
 // The link each process works with, shown inside the process.
 const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p09: 'gantt', p10: 'meta', p12: 'scripts', p24: 'drive' };
 // Processes where the client is part of the work: "waiting on client" is offered even before they are late.
@@ -60,6 +65,10 @@ async function load() {
     checks = ch[id] || {};
     tasks = t;
     if (c.quote_id && (!quote || quote.id !== c.quote_id)) quote = await loadQuoteSummary(c.quote_id);
+    [access, statusNote] = await Promise.all([
+      loadAccess(id).catch(() => []),
+      loadStatusNotes({ clientId: id }).then((r) => r[0] || null).catch(() => null),
+    ]);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
@@ -79,6 +88,7 @@ function render() {
     if (tp) openPhases.add(tp.proc.phase);
   }
   renderHead(s);
+  renderAccess();
   renderViewbar();
   renderPhases(s);
   renderTasks();
@@ -192,6 +202,73 @@ function linksRow() {
     h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit(`ed-link-${LINKS[0].key}`) }, set.length ? 'עריכת קישורים' : 'הוספת קישורים'));
 }
 
+// Ofir's latest weekly summary of where the client stands.
+function statusNoteBlock() {
+  const n = statusNote;
+  if (!n) return null;
+  const parts = STATUS_FIELDS.map(([k, l]) => (n[k] ? [h('dt', {}, l), h('dd', {}, n[k])] : null)).filter(Boolean).flat();
+  return h('section', { class: 'status-note', 'aria-label': 'סיכום מצב שבועי' },
+    h('div', { class: 'deliv-head' }, h('h2', {}, 'סיכום מצב שבועי'),
+      h('span', { class: 'hint' }, `${who(n.by_email)} · ${formatStamp(n.at)}`)),
+    h('dl', { class: 'call-sum' }, ...parts,
+      n.owner ? h('dt', {}, 'אחראי') : null, n.owner ? h('dd', {}, PEOPLE[n.owner]?.name || n.owner) : null,
+      n.due_on ? h('dt', {}, 'מועד יעד') : null, n.due_on ? h('dd', {}, formatDay(n.due_on)) : null));
+}
+
+// ── Access vault ────────────────────────────
+const STATUS_LABEL = { ok: 'תקינה', broken: 'לא עובדת', missing: 'אין רשת' };
+const networkName = (k) => NETWORKS.find(([n]) => n === k)?.[1] || k;
+function renderAccess() {
+  $('access-add').hidden = !vaultOk;
+  if (!vaultOk) {
+    fill($('access-list'), h('li', { class: 'empty' }, 'הגישות לרשתות זמינות לצוות המשרד בלבד.'));
+    return;
+  }
+  fill($('access-list'), ...(access.length ? access.map((a) => h('li', { class: `access-row a-${a.status}` },
+    h('div', { class: 'access-main' },
+      h('strong', {}, networkName(a.network)), a.label ? h('span', { class: 'muted' }, ` · ${a.label}`) : null,
+      h('div', { class: 'imeta' },
+        a.username ? h('span', { dir: 'ltr', class: 'num' }, a.username) : h('span', { class: 'muted' }, 'אין שם משתמש'),
+        h('span', { class: `tag${a.status === 'ok' ? '' : ' tag-warn'}` }, STATUS_LABEL[a.status]),
+        h('span', { class: 'by' }, `עודכן · ${who(a.updated_by)} · ${formatStamp(a.updated_at)}`),
+        a.note ? h('span', { class: 'inote' }, a.note) : null),
+      h('div', { class: 'secret', id: `sec-${a.id}`, 'aria-live': 'polite' })),
+    h('div', { class: 'access-acts' },
+      a.has_secret ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => reveal(a) }, 'הצגת סיסמה') : h('span', { class: 'muted' }, 'אין סיסמה'),
+      h('button', { type: 'button', class: 'btn-text', onclick: () => openAccess(a) }, 'עריכה'),
+      h('button', { type: 'button', class: 'btn-text danger', onclick: () => removeAccess(a) }, 'מחיקה'))))
+    : [h('li', { class: 'empty' }, 'עוד לא הוכנסו גישות. כל גישה תקינה נכנסת לכאן מיד, לא נשארת בוואטסאפ.')]));
+}
+async function refreshAccess() {
+  try { access = await loadAccess(id); } catch { /* keep the old list */ }
+  renderAccess();
+  try {
+    const rows = await loadAccessLog(id);
+    const verb = { create: 'הוסיף/ה', update: 'עדכן/ה', reveal: 'צפה/תה בסיסמה של', delete: 'מחק/ה' };
+    fill($('access-log'), ...(rows.length ? rows.map((r) => h('li', {}, h('span', { class: 'num muted' }, formatStamp(r.at)), ' ',
+      h('strong', {}, who(r.by_email)), ` ${verb[r.action]} ${networkName(r.network)}`)) : [h('li', { class: 'empty' }, 'אין עדיין פעולות.')]));
+  } catch { /* the log is informational */ }
+}
+const revealTimers = {};
+async function reveal(a) {
+  const box = $(`sec-${a.id}`);
+  try {
+    const pw = await revealAccess(a.id);
+    fill(box, h('span', { class: 'num', dir: 'ltr' }, pw || '—'),
+      h('button', { type: 'button', class: 'btn-text', onclick: async () => { try { await navigator.clipboard.writeText(pw || ''); toast('הסיסמה הועתקה.'); } catch { toast('ההעתקה לא הצליחה.'); } } }, 'העתקה'),
+      h('span', { class: 'hint' }, 'הצפייה נרשמה. הסיסמה תוסתר בעוד 30 שניות.'));
+    clearTimeout(revealTimers[a.id]);
+    revealTimers[a.id] = setTimeout(() => { const b = document.getElementById(`sec-${a.id}`); if (b) fill(b); }, 30e3);
+    refreshAccess();
+  } catch (err) {
+    toast(`לא ניתן להציג את הסיסמה. ${errorText(err)}`);
+  }
+}
+async function removeAccess(a) {
+  if (!confirm(`למחוק את הגישה ל־${networkName(a.network)}? הסיסמה תימחק מהכספת.`)) return;
+  try { await deleteAccess(a.id); toast('הגישה נמחקה.'); refreshAccess(); } catch (err) { toast(errorText(err)); }
+}
+
 // ── Package quantities and shoot rounds ─────
 const saveTimers = {};
 function bump(key, delta) {
@@ -282,6 +359,7 @@ function renderHead(s) {
         h('h1', {}, c.name),
         h('p', { class: 'muted' }, [c.business, c.package_name].filter(Boolean).join(' · ') || ' ')),
       h('div', { class: 'head-actions' },
+        h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-escalate', onclick: () => openEscalate() }, 'דיווח חריגה לליאור'),
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => window.print() }, 'הדפסה'),
         h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'))),
     h('div', { class: 'cc-progress' },
@@ -303,8 +381,9 @@ function renderHead(s) {
       fact('פגישת אפיון', c.char_at ? `${formatStamp(c.char_at)}${charBy ? ` · ${charBy}` : ''}` : charBy, calendarMenu('char')),
       fact('יום צילום', [c.shoot_type ? SHOOT_TYPES[c.shoot_type].name : null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot')),
       fact('לוגו', c.has_logo === true ? 'יש' : c.has_logo === false ? 'אין, עילאי מכין' : null),
-      fact('עורך', c.editor_name),
+      fact('עורך', c.editor ? PEOPLE[c.editor]?.name : c.editor_name),
       fact('סיום החוזה', c.contract_end ? formatDay(c.contract_end) : null)),
+    statusNoteBlock(),
     linksRow(),
     deliverablesBlock(s),
     c.notes ? h('p', { class: 'cc-notes' }, c.notes) : null,
@@ -326,7 +405,7 @@ function goTo(procId) {
 
 // ── Person focus ────────────────────────────
 function renderViewbar() {
-  const opts = [['', 'כל הצוות'], ...Object.values(PEOPLE).map((p) => [p.key, p.key === me ? `${p.name} (אני)` : p.name])];
+  const opts = [['', 'כל הצוות'], ...STAFF_PEOPLE().map((p) => [p.key, p.key === me ? `${p.name} (אני)` : p.name])];
   const choose = (k) => { focusPerson = k; store.set('focus', k); render(); };
   fill($('viewbar'),
     h('div', { class: 'chips-row wide-only', role: 'group', 'aria-label': 'הדגשה לפי עובד' },
@@ -429,6 +508,19 @@ async function endWait(x) {
   if (ok) toast('ההמתנה הסתיימה. התהליך חוזר לחישוב הרגיל.', { label: 'ביטול', run: () => mark(WAIT(x.proc), 'done', null, waitNote(w.reason, w.recheck, w.at)) });
 }
 
+// Editing paused for another task: who, at what stage, what is left, and for what.
+function pauseLine(x) {
+  const p = pauseOf(x.proc, checks);
+  const editorsHere = x.proc.owners;
+  const canPause = me && (editorsHere.includes(me) || PEOPLE[me]?.editor);
+  if (!p) {
+    return !x.complete && canPause ? h('button', { type: 'button', class: 'btn-text', onclick: () => openPause(x) }, 'עצירת העריכה למשימה אחרת') : null;
+  }
+  return h('div', { class: 'wait-line pause-line' },
+    h('span', {}, `העריכה נעצרה · ${who(p.by_email)} · ${formatStamp(p.at)}${p.stage ? ` · שלב: ${p.stage}` : ''}${p.left ? ` · נשאר: ${p.left}` : ''}${p.why ? ` · בגלל: ${p.why}` : ''}`),
+    h('button', { type: 'button', class: 'btn-text', onclick: () => resumeEditing(x) }, 'חזרה לעריכה'));
+}
+
 function bulkButton(x) {
   const items = bulkEligible(x, me, client, checks);
   if (items.length < 2) return null;
@@ -519,6 +611,7 @@ function procCard(x, now) {
         canWait && !x.wait ? h('button', { type: 'button', class: 'btn-text wait-btn', onclick: () => openWait(x) }, 'ממתין ללקוח') : null)),
     compact ? null : [
       waitLine(x),
+      pid === 'p22' ? pauseLine(x) : null,
       p.ownerNote ? h('p', { class: 'proc-note' }, p.ownerNote) : null,
       missing.length ? h('div', { class: 'need', role: 'note' },
         h('span', {}, `חסר בפרטי הלקוח: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`),
@@ -743,7 +836,7 @@ function addCallTask(focus = true) {
   const row = h('div', { class: 'call-task', id: `ct-${n}` },
     h('div', { class: 'field grow' }, h('label', { for: `ct-${n}-t` }, 'מה צריך לעשות'), h('input', { class: 'input', id: `ct-${n}-t`, autocomplete: 'off' })),
     h('div', { class: 'field' }, h('label', { for: `ct-${n}-o` }, 'מי מבצע'),
-      h('select', { class: 'input', id: `ct-${n}-o` }, h('option', { value: '' }, 'בחירה…'), ...Object.values(PEOPLE).map((pp) => h('option', { value: pp.key }, pp.name)))),
+      h('select', { class: 'input', id: `ct-${n}-o` }, h('option', { value: '' }, 'בחירה…'), ...STAFF_PEOPLE().map((pp) => h('option', { value: pp.key }, pp.name)))),
     h('div', { class: 'field' }, h('label', { for: `ct-${n}-d` }, 'עד תאריך'), h('input', { class: 'input', id: `ct-${n}-d`, type: 'date', dir: 'ltr' })),
     h('button', {
       type: 'button', class: 'btn-text', 'aria-label': `הסרת המשימה ${n}`,
@@ -842,10 +935,133 @@ $('call-form').addEventListener('submit', async (e) => {
     updateCallSubmit();
     return;
   }
+  // Irit checks after every weekly call that everything is documented and every task has an owner.
+  try {
+    const due = new Date(); do due.setDate(due.getDate() + 1); while (!isBusinessDay(due));
+    const t = await addTask({ client_id: id, title: 'לוודא שהשיחה השבועית מתועדת ושלכל משימה שעלתה יש אחראי', owner: 'irit', due_on: due.toLocaleDateString('en-CA'), source: 'p31' });
+    tasks = [t, ...tasks];
+    renderTasks();
+  } catch { /* the call itself is saved */ }
   callSavedFor = null;
   callDlg.close();
   toast(callTaskOwners.length ? `השיחה תועדה, ${tasksPhrase(callTaskOwners)}.` : 'השיחה תועדה.');
 });
+
+// Access vault dialog.
+const accDlg = dialog('dlg-access');
+let accEditing = null;
+fill($('acc-network'), ...NETWORKS.map(([k, l]) => h('option', { value: k }, l)));
+function syncAccTask() {
+  const st = $('acc-status').value;
+  $('acc-task-wrap').hidden = st === 'ok' || !!accEditing;
+  $('acc-task-text').textContent = st === 'broken' ? 'לפתוח משימה לליאור: לשחזר את הגישה עם הלקוח' : 'לפתוח משימה לעילאי: לפתוח את הרשת ללקוח';
+}
+$('acc-status').addEventListener('change', syncAccTask);
+function openAccess(a = null) {
+  accEditing = a;
+  $('acc-form').reset();
+  $('acc-err').hidden = true;
+  $('acc-h').textContent = a ? `גישה: ${networkName(a.network)}` : 'גישה חדשה לרשת';
+  if (a) {
+    $('acc-network').value = a.network; $('acc-status').value = a.status; $('acc-label').value = a.label || '';
+    $('acc-username').value = a.username || ''; $('acc-note').value = a.note || '';
+  }
+  syncAccTask();
+  accDlg.showModal();
+  $('acc-network').focus();
+}
+$('access-add').addEventListener('click', () => openAccess());
+$('acc-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const st = $('acc-status').value;
+  const a = {
+    id: accEditing?.id, network: $('acc-network').value, status: st, label: $('acc-label').value.trim(),
+    username: $('acc-username').value.trim(), password: $('acc-password').value, note: $('acc-note').value.trim(),
+  };
+  if (st === 'ok' && !a.username) { showErr('acc-err', 'לגישה תקינה צריך שם משתמש.'); $('acc-username').focus(); return; }
+  $('acc-submit').disabled = true;
+  try {
+    await saveAccess(id, a);
+    $('acc-password').value = '';
+    if (!accEditing && st !== 'ok' && $('acc-task').checked) {
+      const owner = st === 'broken' ? 'lior' : 'ilai';
+      const title = st === 'broken' ? `לשחזר עם הלקוח את הגישה ל־${networkName(a.network)} ולהכניס לכספת` : `לפתוח ללקוח ${networkName(a.network)} ולהכניס את הגישה לכספת`;
+      const t = await addTask({ client_id: id, title, owner, urgent: true });
+      tasks = [t, ...tasks];
+      renderTasks();
+    }
+    accDlg.close();
+    toast('הגישה נשמרה בכספת.');
+    refreshAccess();
+  } catch (err) {
+    showErr('acc-err', `הגישה לא נשמרה. ${errorText(err)}`);
+  }
+  $('acc-submit').disabled = false;
+});
+
+// Escalation to Lior: a task for him, urgent by default.
+const escDlg = dialog('dlg-escalate');
+fill($('esc-reason'), ...ESCALATIONS.map((r) => h('option', { value: r }, r)));
+function openEscalate(procId = '') {
+  $('esc-form').reset();
+  $('esc-err').hidden = true;
+  const open = clientState(client, checks).states.filter((x) => !x.complete && !x.proc.recurring);
+  fill($('esc-proc'), h('option', { value: '' }, 'כללי'), ...open.map((x) => h('option', { value: x.proc.id }, `${x.proc.num} · ${x.proc.title}`)));
+  $('esc-proc').value = procId;
+  escDlg.showModal();
+  $('esc-reason').focus();
+}
+$('esc-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const details = $('esc-details').value.trim();
+  if (!details) { showErr('esc-err', 'כתבו בקצרה מה קרה, כדי שליאור יוכל להחליט.'); $('esc-details').focus(); return; }
+  const procText = $('esc-proc').selectedOptions[0]?.textContent;
+  const title = `${$('esc-reason').value}${$('esc-proc').value ? ` (תהליך ${procText})` : ''}: ${details}`.slice(0, 500);
+  $('esc-submit').disabled = true;
+  try {
+    const t = await addTask({ client_id: id, title, owner: 'lior', urgent: $('esc-urgent').checked, source: 'escalation' });
+    tasks = [t, ...tasks];
+    renderTasks();
+    escDlg.close();
+    toast('הדיווח נשלח לליאור ומופיע אצלו ב״מה עליי״.');
+  } catch (err) {
+    showErr('esc-err', `הדיווח לא נשמר. ${errorText(err)}`);
+  }
+  $('esc-submit').disabled = false;
+});
+
+// Pausing the editing for another task: Lior and Ofir are told.
+const pauseDlg = dialog('dlg-pause');
+let pauseTarget = null;
+function openPause(x) {
+  pauseTarget = x;
+  $('pause-form').reset();
+  $('pause-err').hidden = true;
+  pauseDlg.showModal();
+  $('pause-stage').focus();
+}
+$('pause-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const v = { stage: $('pause-stage').value.trim(), left: $('pause-left').value.trim(), why: $('pause-why').value.trim() };
+  if (!v.stage || !v.left) { showErr('pause-err', 'כתבו באיזה שלב העריכה ומה נשאר, כדי שליאור ואופיר יוכלו להיערך.'); (v.stage ? $('pause-left') : $('pause-stage')).focus(); return; }
+  $('pause-submit').disabled = true;
+  const ok = await mark(PAUSE(pauseTarget.proc), 'done', null, JSON.stringify(v));
+  if (ok) {
+    const who_ = PEOPLE[me]?.name || 'העורך';
+    const title = `${who_} עצר/ה את העריכה של ${client.name}: שלב ${v.stage}, נשאר ${v.left}${v.why ? `, בגלל ${v.why}` : ''}`.slice(0, 500);
+    try {
+      for (const owner of ['lior', 'ofir']) tasks = [await addTask({ client_id: id, title, owner, source: 'escalation' }), ...tasks];
+    } catch { /* the pause itself is saved and visible */ }
+    renderTasks();
+    pauseDlg.close();
+    toast('העריכה סומנה כעצורה, וליאור ואופיר עודכנו.');
+  }
+  $('pause-submit').disabled = false;
+});
+async function resumeEditing(x) {
+  const ok = await mark(PAUSE(x.proc), null, null);
+  if (ok) toast('העריכה חזרה לפעילות.');
+}
 
 // Cancelling a client opened from an agreement: closed with a reason, never deleted.
 const cancelDlg = dialog('dlg-cancel');
@@ -879,6 +1095,9 @@ function openRound(n = null) {
   $('round-err').hidden = true;
   $('round-h').textContent = `סבב צילום ${nextN}`;
   $('round-type').value = r?.shoot_type || client.shoot_type || 'natali';
+  fill($('round-editor'), h('option', { value: '' }, 'טרם שויך'),
+    ...editorsFor($('round-type').value).map((k) => h('option', { value: k }, PEOPLE[k].name)));
+  $('round-editor').value = r?.editor || '';
   const pad = (v) => String(v).padStart(2, '0');
   const d = r?.shoot_at ? new Date(r.shoot_at) : null;
   $('round-at').value = d ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
@@ -900,8 +1119,8 @@ $('round-form').addEventListener('submit', async (e) => {
   const rounds = roundsOf(client);
   const at = $('round-at').value ? new Date($('round-at').value).toISOString() : null;
   const next = roundEditing
-    ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at } : r))
-    : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, start_at: new Date().toISOString() }];
+    ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null } : r))
+    : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null, start_at: new Date().toISOString() }];
   $('round-submit').disabled = true;
   try {
     client = await updateClient(id, { rounds: next });
@@ -925,7 +1144,16 @@ async function deleteRound(n) {
 }
 
 // ── Tasks ───────────────────────────────────
-fill($('task-owner'), ...Object.values(PEOPLE).map((p) => h('option', { value: p.key }, p.name)));
+fill($('task-owner'), ...STAFF_PEOPLE().map((p) => h('option', { value: p.key }, p.name)));
+// A brief for the task. Required for Nirel: she does not work out alone what the client wants.
+fill($('task-brief'), ...BRIEF_FIELDS.map(([k, l]) => h('div', { class: 'field' },
+  h('label', { for: `tb-${k}` }, l), h('textarea', { class: 'input', id: `tb-${k}`, rows: '2', maxlength: '500' }))));
+function syncBrief() {
+  const need = BRIEF_REQUIRED.has($('task-owner').value);
+  $('task-brief-sum').textContent = need ? `בריף למשימה (חובה אצל ${PEOPLE[$('task-owner').value].name})` : 'בריף למשימה (לא חובה)';
+  if (need) $('task-brief-box').open = true;
+}
+$('task-owner').addEventListener('change', syncBrief);
 function renderTasks() {
   const open = tasks.filter((t) => !t.done_at);
   const done = tasks.filter((t) => t.done_at).slice(0, 20);
@@ -940,10 +1168,16 @@ function renderTasks() {
           h('span', { class: 'ilabel' }, t.title),
           h('span', { class: 'imeta' },
             personChip(t.owner),
+            t.urgent && !t.done_at ? h('span', { class: 'tag tag-urgent' }, '⚡ דחוף') : null,
             t.source === 'p31' ? h('span', { class: 'tag' }, 'מהשיחה השבועית') : null,
+            t.source === 'escalation' ? h('span', { class: 'tag tag-warn' }, 'חריגה לליאור') : null,
+            t.source === 'status' ? h('span', { class: 'tag' }, 'מסיכום המצב') : null,
             t.due_on ? h('span', { class: `num${late ? ' late' : ''}` }, `${late ? 'באיחור · ' : ''}עד ${formatDay(t.due_on)}`) : null,
-            t.done_at ? h('span', { class: 'by' }, `בוצע · ${who(t.done_by_email)} · ${formatStamp(t.done_at)}`) : h('span', { class: 'by' }, `נפתח ע״י ${who(t.created_by_email)} · ${formatStamp(t.created_at)}`)))));
+            t.done_at ? h('span', { class: 'by' }, `בוצע · ${who(t.done_by_email)} · ${formatStamp(t.done_at)}`) : h('span', { class: 'by' }, `נפתח ע״י ${who(t.created_by_email)} · ${formatStamp(t.created_at)}`)))),
+      t.brief ? h('details', { class: 'call-show task-brief-show' }, h('summary', {}, 'בריף'),
+        h('dl', { class: 'call-sum' }, ...BRIEF_FIELDS.filter(([k]) => t.brief[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, t.brief[k])]))) : null);
   };
+  open.sort((a, b) => Number(b.urgent) - Number(a.urgent));
   if (!tasks.length) fill($('task-list'), h('li', { class: 'empty' }, 'אין משימות פתוחות.'));
   else fill($('task-list'), ...open.map(row), ...done.map(row));
 }
@@ -965,12 +1199,27 @@ $('task-form').addEventListener('submit', async (e) => {
   const title = $('task-title').value.trim();
   $('task-title').setAttribute('aria-invalid', String(!title));
   if (!title) { $('task-title').focus(); toast('כתבו מה צריך לעשות.'); return; }
+  const brief = Object.fromEntries(BRIEF_FIELDS.map(([k]) => [k, $(`tb-${k}`).value.trim()]).filter(([, v]) => v));
+  const owner = $('task-owner').value;
+  if (BRIEF_REQUIRED.has(owner) && (!brief.problem || !brief.change || !brief.result)) {
+    $('task-brief-box').open = true;
+    const miss = !brief.problem ? 'problem' : !brief.change ? 'change' : 'result';
+    $(`tb-${miss}`).focus();
+    toast(`למשימה אצל ${PEOPLE[owner].name} צריך בריף: מה הבעיה, מה לשנות ומה התוצאה הרצויה.`);
+    return;
+  }
   $('task-submit').disabled = true;
   try {
-    const row = await addTask({ client_id: id, title, owner: $('task-owner').value, due_on: $('task-due').value || null });
+    const row = await addTask({
+      client_id: id, title, owner, due_on: $('task-due').value || null,
+      urgent: $('task-urgent').checked, brief: Object.keys(brief).length ? brief : null,
+    });
     tasks = [row, ...tasks];
     $('task-title').value = '';
     $('task-due').value = '';
+    $('task-urgent').checked = false;
+    for (const [k] of BRIEF_FIELDS) $(`tb-${k}`).value = '';
+    $('task-brief-box').open = false;
     renderTasks();
     toast(`המשימה נוספה אצל ${PEOPLE[row.owner].name}.`);
   } catch (err) {
@@ -986,10 +1235,11 @@ function historyText(r) {
   const round = roundOfKey(r.item_key);
   const pre = round > 1 ? `סבב ${round} · ` : '';
   const base = baseKey(r.item_key);
-  const mk = /^(p\d+b?)\.(claim|wait)$/.exec(base);
+  const mk = /^(p\d+[ab]?)\.(claim|wait|pause)$/.exec(base);
   if (mk) {
     const num = PROCESSES.find((p) => p.id === mk[1])?.num;
     if (mk[2] === 'claim') return `${r.action === 'clear' ? 'שחרר/ה' : 'לקח/ה'} את תהליך ${pre}${num}`;
+    if (mk[2] === 'pause') return r.action === 'clear' ? `חזר/ה לעריכה (${pre}${num})` : `עצר/ה את העריכה (${pre}${num})`;
     return r.action === 'clear' ? `סיים/ה המתנה ללקוח בתהליך ${pre}${num}`
       : `סימן/ה ממתין ללקוח בתהליך ${pre}${num}: ${parseWaitNote(r.note).reason}`;
   }
@@ -1042,7 +1292,9 @@ function openEdit(focusId = 'ed-name') {
   $('ed-logo').value = c.has_logo === null || c.has_logo === undefined ? '' : String(c.has_logo);
   $('ed-shoot-type').value = c.shoot_type || '';
   $('ed-shoot-at').value = toLocal(c.shoot_at);
-  $('ed-editor').value = c.editor_name || '';
+  fill($('ed-editor'), h('option', { value: '' }, 'טרם שויך'),
+    ...editorsFor(c.shoot_type).map((k) => h('option', { value: k }, `${PEOPLE[k].name}${k === 'nirel' ? ' (נטלי בלבד)' : ''}`)));
+  $('ed-editor').value = c.editor || '';
   $('ed-contract-end').value = c.contract_end || '';
   $('ed-notes').value = c.notes || '';
   for (const [k] of DELIV_FIELDS) $(`ed-deliv-${k}`).value = c.deliverables?.[k] ?? '';
@@ -1097,7 +1349,7 @@ $('ed-form').addEventListener('submit', async (e) => {
       deal_at: fromLocal($('ed-deal').value) || client.deal_at, status,
       char_at: fromLocal($('ed-char-at').value), characterizer: val('ed-characterizer'),
       has_logo: $('ed-logo').value === '' ? null : $('ed-logo').value === 'true',
-      shoot_type: val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor_name: val('ed-editor'),
+      shoot_type: val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor: val('ed-editor'),
       contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables,
     });
     edDlg.close();
@@ -1128,7 +1380,9 @@ mountSession(async (staff) => {
   const saved = store.get('focus');
   focusPerson = saved !== null ? saved : me || '';
   if (focusPerson && !PEOPLE[focusPerson]) focusPerson = '';
+  vaultOk = await canUseVault();
   await load();
+  refreshAccess();
   const target = location.hash && document.getElementById(location.hash.slice(1));
   if (target) target.scrollIntoView({ block: 'start' });
 });
