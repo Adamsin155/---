@@ -37,6 +37,7 @@ jobs:
           node tests/e2e.mjs
           node tests/protocol-e2e.mjs
           node tests/protocol-office-e2e.mjs
+          node tests/now-bar-e2e.mjs
           node tests/team-e2e.mjs
           node scripts/build-payment-site.mjs /tmp/site/payouts /payouts/
           (cd /tmp/site && npx --yes http-server -p 8082 -s . > /dev/null 2>&1 &)

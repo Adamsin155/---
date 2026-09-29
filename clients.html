@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="app/styles/protocol.css">
   <link rel="stylesheet" href="app/styles/protocol-office.css">
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/protocol-now.css">
 </head>
 <body>
   <header class="topbar">
@@ -72,6 +73,7 @@
       </div>
 
       <section class="block" id="view-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
+        <section class="now-bar" id="now-bar" aria-labelledby="now-h" hidden></section>
         <div class="filters" role="group" aria-label="של מי" id="mine-people"></div>
         <div class="mine-tools" id="mine-tools"></div>
         <div id="mine-list" class="mine-list"></div>
@@ -208,6 +210,7 @@
   </dialog>
 
   <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="sr-only" id="now-live" aria-live="assertive" aria-atomic="true"></div>
   <script type="module" src="app/clients.js"></script>
 </body>
 </html>
