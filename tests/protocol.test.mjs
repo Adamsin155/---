@@ -38,12 +38,12 @@ test('whatsapp group and characterization checklists match the document', () => 
   const p2 = PROCESSES.find((p) => p.id === 'p02');
   for (const who of ['ליאור', 'עירית', 'אופיר', 'שיראל', 'עילאי', 'הלקוח']) assert.ok(p2.items.some((i) => i.label.startsWith(who)), who);
   const p4 = PROCESSES.find((p) => p.id === 'p04');
-  assert.equal(p4.items.filter((i) => i.key !== 'p04.saved').length, 11);
+  assert.equal(p4.items.filter((i) => !['p04.saved', 'p04.followup'].includes(i.key)).length, 11);
   // Lists in the document are separate items, not one combined check.
   const count = (id, prefix) => PROCESSES.find((p) => p.id === id).items.filter((i) => i.key.startsWith(prefix)).length;
   assert.equal(count('p07', 'p07.r.'), 7);
   assert.equal(count('p09', 'p09.c.'), 7);
-  assert.equal(count('p12', 'p12.t.'), 7);
+  assert.equal(count('p12a', 'p12a.t.'), 10); // Lior's content call: ten topics
   assert.equal(count('p15', 'p15.d.'), 4);
 });
 
@@ -107,7 +107,11 @@ test('shoot type decides which shoot-day processes apply', () => {
 test('characterizer decides who takes the network access; no logo adds a logo task', () => {
   const p5 = (c) => applicableProcesses(c).find((p) => p.id === 'p05');
   assert.deepEqual(p5({ characterizer: 'ofir' }).owners, ['ofir']);
-  assert.deepEqual(p5({ characterizer: 'shirel' }).owners, ['lior', 'irit']);
+  assert.deepEqual(p5({ characterizer: 'shirel' }).owners, ['irit']); // Irit takes the access from the client
+  assert.deepEqual(p5({ characterizer: 'lior' }).owners, ['lior']);
+  const p6 = applicableProcesses({}).find((p) => p.id === 'p06');
+  assert.deepEqual(p6.items.find((i) => i.key === 'p06.recovered').owners, ['lior']);
+  assert.deepEqual(p6.items.find((i) => i.key === 'p06.newpages').owners, ['ilai']);
   assert.deepEqual(applicableProcesses({ characterizer: 'shirel' }).find((p) => p.id === 'p04').owners, ['shirel']);
   assert.ok(p5({ has_logo: false }).items.some((i) => i.key === 'p05.newlogo' && i.owners[0] === 'ilai'));
   assert.ok(!p5({ has_logo: true }).items.some((i) => i.key === 'p05.newlogo'));
@@ -134,7 +138,13 @@ test('due dates follow the protocol anchors', () => {
   const sun = { ...c, shoot_at: '2026-10-11T10:00:00+03:00' };
   const sp = applicableProcesses(sun);
   assert.equal(iso(resolveTime(sp.find((p) => p.id === 'p15').due, sun, sp, {})), iso(at('2026-10-08T11:00:00+03:00')));
-  assert.equal(due('p22').toDateString(), at('2026-10-14T12:00:00+03:00').toDateString());
+  assert.equal(due('p22'), null); // editing counts from the editor assignment, not the shoot
+  // Assigned on Wednesday: videos with Ofir by Monday (3 business days), client closed by Tuesday (4).
+  const assigned = { 'p22a.assigned': { state: 'done', at: '2026-10-07T15:00:00+03:00' } };
+  const due2 = (id) => resolveTime(procs.find((p) => p.id === id).due, c, procs, assigned, at('2026-10-07T16:00:00+03:00'));
+  assert.equal(due2('p22').toDateString(), at('2026-10-12T12:00:00+03:00').toDateString());
+  assert.equal(due2('p24').toDateString(), at('2026-10-12T12:00:00+03:00').toDateString());
+  assert.equal(due2('p27').toDateString(), at('2026-10-13T12:00:00+03:00').toDateString());
   const p34 = procs.find((p) => p.id === 'p34');
   assert.equal(resolveTime(p34.start, c, procs, {}).toDateString(), at('2027-08-02T12:00:00+03:00').toDateString());
   // Missing anchors give no due date rather than a wrong one.
@@ -182,7 +192,8 @@ test('status: overdue only for unfinished work past its due date', () => {
 
 test('not relevant resolves a required item; optional items never block', () => {
   const c = { ...base };
-  const p10 = { 'p10.checked': { state: 'done', at: '2026-10-01T10:00:00+03:00' }, 'p10.ready': { state: 'na', at: '2026-10-01T10:00:00+03:00' } };
+  const p10 = Object.fromEntries(PROCESSES.find((p) => p.id === 'p10').items.filter((i) => !i.optional)
+    .map((i) => [i.key, { state: i.key === 'p10.ready' ? 'na' : 'done', at: '2026-10-01T10:00:00+03:00' }]));
   const s = clientState(c, p10, at('2026-10-01T10:30:00+03:00'));
   assert.equal(s.states.find((x) => x.proc.id === 'p10').complete, true);
 });
@@ -240,8 +251,10 @@ test('an extra shoot round repeats the shoot processes with their own keys and d
   assert.deepEqual(r2.find((p) => p.id === 'r2-p26').items.find((i) => i.key === 'r2.p26.sent').requires, ['r2.p25.approved']);
   assert.deepEqual(phasesFor(c).map((p) => p.key).slice(-4), ['publish', 'round-2', 'ongoing', 'renewal']);
   const s = clientState(c, {}, at('2027-03-02T10:00:00+02:00'));
-  const r2p22 = s.states.find((x) => x.proc.id === 'r2-p22');
-  assert.equal(r2p22.dueAt.toDateString(), at('2027-03-17T12:00:00+02:00').toDateString()); // 5 business days from the round's shoot
+  const sa = clientState(c, { 'r2.p22a.assigned': { state: 'done', at: '2027-03-10T15:00:00+02:00' } }, at('2027-03-11T10:00:00+02:00'));
+  const r2p22 = sa.states.find((x) => x.proc.id === 'r2-p22');
+  assert.equal(r2p22.dueAt.toDateString(), at('2027-03-15T12:00:00+02:00').toDateString()); // 3 business days from the round's own assignment
+  assert.equal(sa.states.find((x) => x.proc.id === 'p22').dueAt, null); // round 1 is not assigned yet
   const r2p12 = s.states.find((x) => x.proc.id === 'r2-p12');
   assert.equal(r2p12.dueAt.toDateString(), at('2027-03-04T12:00:00+02:00').toDateString()); // 3 business days from the round start
   // Round 1 progress is unaffected by round 2 checks and vice versa.

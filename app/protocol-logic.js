@@ -87,7 +87,7 @@ export function roundContext(client, r) {
   return {
     ...client, round: r.n,
     shoot_type: r.shoot_type || client.shoot_type, shoot_at: r.shoot_at || null,
-    char_at: r.start_at || null,
+    char_at: r.start_at || null, editor: r.editor || null,
   };
 }
 
@@ -96,7 +96,13 @@ export function applicableProcesses(client) {
   const extra = roundsOf(client).flatMap((r) => {
     const ctx = roundContext(client, r);
     const pre = (k) => `r${r.n}.${k}`;
-    const shift = (spec) => (spec && ROUND_IDS.has(spec.from) ? { ...spec, from: `r${r.n}-${spec.from}` } : spec);
+    const shift = (spec) => {
+      if (!spec) return spec;
+      if (ROUND_IDS.has(spec.from)) return { ...spec, from: `r${r.n}-${spec.from}` };
+      const item = /^item:(p\d+[a-z]?)\./.exec(spec.from);
+      if (item && ROUND_IDS.has(item[1])) return { ...spec, from: `item:${pre(spec.from.slice(5))}` };
+      return spec;
+    };
     return PROCESSES.filter((p) => p.round && applies(p, ctx)).map((p) => {
       const x = resolve(p, ctx);
       return {

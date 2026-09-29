@@ -1,8 +1,11 @@
-// The office's general work protocol: the code mirror of docs/protocols/general.md.
+// The office's work protocol: the code mirror of docs/protocols/general.md merged
+// with each employee's protocol (docs/protocols/irit.md, lior.md, ofir.md,
+// nirel.md, editors.md). Where they differ, the employee protocols are newer and
+// win; every such choice is listed in docs/protocols/merge.md.
 // Item keys are stored with each check, so never rename or reuse a key; retire it
 // instead and add a new one. Bump PROTOCOL_VERSION when the protocol changes.
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 // Office hours. Deadlines of minutes or hours that start from an office event
 // (a deal coming in, a finished process) run only inside these hours; a deal
@@ -12,13 +15,51 @@ export const WORK_HOURS = { start: 9, end: 18 };
 
 // People named in the protocol. `key` is stored in the database (staff.person).
 export const PEOPLE = {
-  irit: { key: 'irit', name: 'עירית', role: 'מנהלת המשרד' },
-  lior: { key: 'lior', name: 'ליאור', role: 'קמפיינים וניהול יום צילום' },
-  ofir: { key: 'ofir', name: 'אופיר', role: 'אפיון ובקרת איכות' },
-  shirel: { key: 'shirel', name: 'שיראל', role: 'כתיבת תוכן' },
-  ilai: { key: 'ilai', name: 'עילאי', role: 'גרפיקה וסושיאל' },
-  editor: { key: 'editor', name: 'עורך', role: 'עריכת וידאו' },
+  irit: { key: 'irit', name: 'עירית', role: 'מנהלת משרד ותפעול לקוחות' },
+  lior: { key: 'lior', name: 'ליאור', role: 'ניהול, תוכן, קמפיינים וימי צילום' },
+  ofir: { key: 'ofir', name: 'אופיר', role: 'אפיונים, פיקוח ובקרת איכות' },
+  shirel: { key: 'shirel', name: 'שיראל', role: 'אפיונים ובדיקת גישות' },
+  ilai: { key: 'ilai', name: 'עילאי', role: 'גרפיקה, סושיאל ותזמון' },
+  nirel: { key: 'nirel', name: 'ניראל', role: 'עריכת סרטוני נטלי, גרפיקה ומשימות מורכבות', editor: true },
+  nadia: { key: 'nadia', name: 'נדיה', role: 'עריכת וידאו', editor: true },
+  yariv: { key: 'yariv', name: 'יריב', role: 'עריכת וידאו', editor: true },
+  anna: { key: 'anna', name: 'אנה', role: 'עריכת וידאו', editor: true },
+  // Until Ofir assigns an editor, editing items belong to "the assigned editor".
+  editor: { key: 'editor', name: 'העורך המשויך', role: 'עד ששויך עורך' },
 };
+
+// Editors a client can be assigned to. Nirel edits only Natali Dadon's videos.
+export const EDITORS = ['nadia', 'yariv', 'anna', 'nirel'];
+export const editorsFor = (shootType) => (shootType === 'natali' ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));
+
+// Who can run the characterization meeting. Lior goes only when Ofir and Shirel cannot.
+export const CHARACTERIZERS = ['ofir', 'shirel', 'lior'];
+
+// Social networks kept in the access vault (the passwords themselves are encrypted in the database).
+export const NETWORKS = [
+  ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['tiktok', 'TikTok'], ['youtube', 'YouTube'],
+  ['google', 'Google Business'], ['meta', 'Meta Business'], ['other', 'אחר'],
+];
+
+// Reasons to escalate to Lior (every employee protocol: "update Lior on any exception").
+export const ESCALATIONS = [
+  'עובד אינו עומד בזמן', 'לקוח אינו משתף פעולה', 'לקוח מתלונן', 'משימה תקועה', 'עיכוב ביום צילום',
+  'בעיה בתהליך', 'בקשה חריגה של לקוח', 'בעיה בין עובדים', 'נדרשת החלטה ניהולית', 'אין מי שייצא לאפיון',
+];
+
+// A brief for tasks handed to Nirel (and anyone else who fixes something for a client):
+// she does not work out alone what the client wants.
+export const BRIEF_FIELDS = [
+  ['problem', 'מה הבעיה המדויקת'], ['change', 'מה בדיוק צריך לשנות'], ['keep', 'מה צריך להישאר כמו שהוא'],
+  ['result', 'מה התוצאה הרצויה'], ['materials', 'אילו חומרים רלוונטיים'],
+];
+export const BRIEF_REQUIRED = new Set(['nirel']);
+
+// Ofir's Thursday status summary for every client.
+export const STATUS_FIELDS = [
+  ['current', 'מצב נוכחי', 'איפה הלקוח נמצא עכשיו'], ['missing', 'מה חסר', 'מה עדיין לא בוצע'],
+  ['next', 'פעולה הבאה', 'מה צריך לקרות עכשיו'],
+];
 
 export const SHOOT_TYPES = {
   natali: { key: 'natali', name: 'נטלי דדון' },
@@ -33,7 +74,7 @@ export const CLIENT_STATUS = {
 };
 
 // Processes that must be checked item by item, never with "mark the whole process":
-// the ones with a hard rule (18, 19, 21), approval only (25), and the recurring call (31).
+// the ones with a hard rule (18, 19, 21), quality control (25), and the recurring call (31).
 export const NO_BULK = new Set(['p18', 'p19', 'p21', 'p25', 'p31']);
 
 // Links kept in the client card (never passwords), in display order, with the
@@ -63,8 +104,8 @@ export const APPROVALS = new Set(['p25.approved', 'p13.approved', 'p27.approved'
 
 // The two daily reviews (processes 32 and 33) and what each one goes over.
 export const REVIEW_TOPICS = {
-  p32: ['חוזים', 'חתימות', 'קבוצות WhatsApp', 'הודעות פתיחה', 'אפיונים', 'ימי צילום', 'משימות', 'אישורי לקוחות', 'עובדים שטרם ביצעו משימות', 'לקוחות שצריך ליצור איתם קשר'],
-  p33: ['איפה כל לקוח נמצא', 'מה חסר', 'למה חסר', 'אצל מי המשימה', 'מה תקוע', 'מה צריך לבצע היום'],
+  p32: ['חוזים', 'חתימות', 'קבוצות WhatsApp', 'הודעות פתיחה', 'פגישות אפיון', 'ימי צילום', 'משימות פתוחות', 'אישורי לקוחות', 'תיקונים', 'עובדים שטרם סיימו משימות', 'לקוחות שצריך לחזור אליהם', 'הודעות יומיות ללקוחות'],
+  p33: ['איפה כל לקוח נמצא', 'מה כבר בוצע', 'מה חסר ולמה', 'אצל מי המשימה ומתי היא אמורה להסתיים', 'האם הלקוח מחכה לתשובה או לחומר', 'מה תקוע ולמה', 'מה צריך לעשות כדי לקדם', 'תקינות המערכת: סטטוסים, אחראים ומועדי יעד'],
 };
 
 // The nine topics of the weekly call (process 31), in the protocol's order.
@@ -74,19 +115,17 @@ export const CALL_TOPICS = [
   ['improve', 'דברים שצריך לשפר'], ['requests', 'בקשות חדשות'],
 ];
 
-// Owners may depend on the client (who ran the characterization meeting).
+// Owners may depend on the client (who ran the characterization, which editor was assigned).
 const characterizer = (c) => (c.characterizer ? [c.characterizer] : ['ofir', 'shirel']);
-const accessOwners = (c) => {
-  if (c.characterizer === 'ofir') return ['ofir'];
-  if (c.characterizer === 'shirel') return ['lior', 'irit'];
-  return ['ofir', 'lior', 'irit'];
-};
+// Whoever characterizes takes the access in the meeting; otherwise Irit gets it from the client.
+const accessOwners = (c) => (c.characterizer === 'ofir' || c.characterizer === 'lior' ? [c.characterizer] : ['irit']);
+const editorOf = (c) => (c.editor ? [c.editor] : ['editor']);
 const isNatali = (c) => c.shoot_type === 'natali';
 const isDms = (c) => c.shoot_type === 'dms';
 
 // Anchors for due dates. `start` is when a process can begin; `due` is its deadline.
 //   { from: 'deal' | 'char' | 'charEnd' | 'shoot' | 'contractEnd' | 'p05' … , minutes|hours|days|businessDays|at }
-//   from 'pNN' means "when process NN was completed".
+//   from 'pNN' means "when process NN was completed"; 'item:pNN.x' when that one item was done.
 //   prevBusinessDay: the business day before the anchor ("the day before the shoot").
 // `sla` is the protocol's own wording and is always shown.
 // `round: true`: the process repeats for every extra shoot round (a second shoot day).
@@ -131,18 +170,22 @@ export const PROCESSES = [
       { key: 'p02.m.shirel', label: 'שיראל בקבוצה' },
       { key: 'p02.m.ilai', label: 'עילאי בקבוצה' },
       { key: 'p02.m.client', label: 'הלקוח בקבוצה' },
-      { key: 'p02.intro', label: 'נשלחה הודעת היכרות מטעם ליאור ועירית' },
+      { key: 'p02.intro', label: 'נשלחה הודעת היכרות מטעם ליאור ועירית', owners: ['irit', 'lior'] },
+      { key: 'p02.deal', label: 'ליאור בדק שאין בעסקה או בחבילה משהו חריג שדורש טיפול ניהולי', owners: ['lior'] },
     ],
   },
   {
     id: 'p03', num: '3', phase: 'onboarding', title: 'קביעת פגישת אפיון', owners: ['irit'],
     sla: 'עד 5 דקות מרגע שאיש המכירות שולח את פרטי הלקוח',
     due: { from: 'deal', minutes: 5 },
-    what: 'בודקים מי מבצע את האפיון (אופיר או שיראל) ומתאמים עם הלקוח פגישה פיזית במועד המוקדם ביותר. עד 3 פגישות אפיון ביום; לכל פגישה משוריין חלון של שעתיים.',
+    what: 'בודקים מי מבצע את האפיון (אופיר או שיראל) ואת זמינותו, ומתאמים עם הלקוח פגישה פיזית במועד המוקדם ביותר. עד 3 פגישות אפיון ביום; לכל פגישה משוריין חלון של שעתיים. פתיחת הקבוצה וקביעת האפיון נעשות במקביל.',
+    ownerNote: 'ליאור יוצא לאפיון רק כשאופיר ושיראל לא יכולים ואין עובד אחר. אופיר מודיע לו ומעביר שם, מועד, כתובת ושעה.',
     needs: ['characterizer', 'char_at'],
     items: [
-      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (אופיר או שיראל)' },
-      { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים' },
+      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (אופיר, שיראל, או ליאור כשאין אחר)' },
+      { key: 'p03.available', label: 'נבדקה זמינות מבצע האפיון' },
+      { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים', requiresFields: ['characterizer', 'char_at'] },
+      { key: 'p03.calendar', label: 'הפגישה הוכנסה ליומן' },
     ],
   },
   {
@@ -162,18 +205,21 @@ export const PROCESSES = [
       { key: 'p04.graphics', label: 'צרכים לגרפיקה' },
       { key: 'p04.campaigns', label: 'צרכים לקמפיינים' },
       { key: 'p04.special', label: 'דגשים מיוחדים' },
-      { key: 'p04.saved', label: 'האפיון נשמר במערכת' },
+      { key: 'p04.saved', label: 'האפיון נשמר במערכת בצורה מלאה וברורה' },
+      { key: 'p04.followup', label: 'עירית וידאה שהאפיון התקיים ונשמר ושאין מידע שחסר להמשך (חוסר: לליאור)', owners: ['irit'] },
     ],
   },
   {
     id: 'p05', num: '5', phase: 'onboarding', title: 'לקיחת גישות לרשתות', owners: accessOwners,
-    ownerNote: 'אם אופיר מבצע את האפיון: אופיר. אם שיראל מבצעת: ליאור או עירית מבקשים את הגישות בקבוצת ה־WhatsApp.',
+    ownerNote: 'מי שמבצע את האפיון לוקח את הגישות בפגישה. אחרת עירית בודקת מול הלקוח אילו רשתות יש לו ואם הוא יודע את הגישות. גישה שלא עובדת: משימה לליאור. אין רשתות: משימה לעילאי לפתוח.',
     sla: 'מיד במהלך או מיד לאחר פגישת האפיון',
     start: { from: 'char' }, due: { from: 'charEnd' },
     what: 'מקבלים מהלקוח גישה לכל הרשתות הרלוונטיות ולוקחים גם את חומרי המותג.',
+    rule: 'כל גישה תקינה נכנסת מיד לכספת הגישות במערכת. אין להשאיר גישות רק בוואטסאפ, בהודעות פרטיות או אצל אחד העובדים.',
     needs: ['characterizer', 'has_logo'],
     items: [
       { key: 'p05.access', label: 'התקבלה גישה לכל הרשתות הרלוונטיות' },
+      { key: 'p05.vault', label: 'כל הגישות הוכנסו לכספת הגישות במערכת', owners: ['irit'] },
       { key: 'p05.logo', label: 'לוגו' },
       { key: 'p05.colors', label: 'צבעי מותג' },
       { key: 'p05.photos', label: 'תמונות' },
@@ -189,8 +235,8 @@ export const PROCESSES = [
     what: 'בודקים שכל שם משתמש וסיסמה עובדים. גישה לא תקינה: מתקשרים ללקוח ומאפסים או משחזרים איתו. אין עמודים: פותחים עמודים חדשים באותו חלון זמן.',
     items: [
       { key: 'p06.verified', label: 'כל שמות המשתמש והסיסמאות נבדקו ועובדים' },
-      { key: 'p06.recovered', label: 'גישות לא תקינות אופסו או שוחזרו עם הלקוח', optional: true },
-      { key: 'p06.newpages', label: 'נפתחו עמודים חדשים (אם לא היו)', optional: true },
+      { key: 'p06.recovered', label: 'גישות לא תקינות אופסו או שוחזרו עם הלקוח והוכנסו לכספת', owners: ['lior'], optional: true },
+      { key: 'p06.newpages', label: 'נפתחו רשתות חדשות (אם לא היו) והגישות הוכנסו לכספת', owners: ['ilai'], optional: true },
       { key: 'p06.name', label: 'שם העמוד סודר' },
       { key: 'p06.bio', label: 'Bio נכתב או תוקן' },
       { key: 'p06.details', label: 'פרטי העסק עודכנו' },
@@ -220,7 +266,8 @@ export const PROCESSES = [
     start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2 },
     what: 'אופיר מכין עד 4 Highlights לפי העסק והמידע מפגישת האפיון.',
     items: [
-      { key: 'p08.done', label: 'הוכנו עד 4 Highlights לפי העסק והאפיון' },
+      { key: 'p08.done', label: 'הוכנו עד 4 Highlights לפי השירותים, המוצרים ושפת העסק' },
+      { key: 'p08.saved', label: 'ה־Highlights נשמרו במקום המסודר של הלקוח ומוכנים לעמוד' },
     ],
   },
   {
@@ -240,8 +287,9 @@ export const PROCESSES = [
     start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2 },
     what: 'ליאור בודק שקיימת תשתית פרסום תקינה ב־Meta. אם אין, מקים ומסדר מנהל מודעות במלואו.',
     items: [
-      { key: 'p10.checked', label: 'נבדקה תשתית הפרסום ב־Meta' },
-      { key: 'p10.setup', label: 'הוקם וסודר מנהל מודעות (אם לא היה)', optional: true },
+      ...[['business', 'חשבון עסקי'], ['ads', 'מנהל מודעות'], ['page', 'עמוד פייסבוק'], ['ig', 'אינסטגרם'], ['links', 'החיבורים הנדרשים לפרסום'], ['perms', 'הרשאות מתאימות']]
+        .map(([k, l]) => ({ key: `p10.c.${k}`, label: `נבדק ותקין: ${l}` })),
+      { key: 'p10.setup', label: 'הוקם וסודר מה שלא היה קיים', optional: true },
       { key: 'p10.ready', label: 'התשתית מוכנה לקמפיינים' },
     ],
   },
@@ -249,14 +297,14 @@ export const PROCESSES = [
     id: 'p11', round: true, num: '11', phase: 'prep', title: 'קביעת יום צילום', owners: ['irit'],
     sla: 'חובה לסגור תאריך בתוך עד 3 ימי עסקים מהאפיון',
     start: { from: 'charEnd' }, due: { from: 'char', businessDays: 3 },
-    what: 'בודקים בחוזה אילו משפיענים הלקוח רכש ומתאמים מועד מול כל הצדדים. אחרי שכולם אישרו, מכניסים את יום הצילום ליומן של כולם.',
+    what: 'בודקים בחוזה אילו משפיענים הלקוח רכש ומתאמים מועד מול כל הצדדים. יום הצילום לא נחשב סגור עד שכולם אישרו והתאריך ביומן של כולם ובמערכת.',
     needs: ['shoot_type', 'shoot_at'],
     items: [
       { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו' },
       { key: 'p11.ok.client', label: 'הלקוח אישר את המועד', noBulk: true },
       { key: 'p11.ok.influencers', label: 'המשפיענים אישרו', noBulk: true },
       { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר', noBulk: true },
-      { key: 'p11.ok.shirel', label: 'שיראל (כותבת התוכן) אישרה', noBulk: true },
+      { key: 'p11.ok.shirel', label: 'שיראל אישרה', noBulk: true },
       { key: 'p11.ok.photographer', label: 'הצלם אישר', noBulk: true },
       { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'] },
     ],
@@ -272,32 +320,44 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p12', round: true, num: '12', phase: 'prep', title: 'כתיבת התוכן ליום הצילום', owners: ['shirel'],
+    id: 'p12a', round: true, num: '12א', phase: 'prep', title: 'שיחת דגשים לתוכן', owners: ['lior'],
+    sla: 'יום עסקים אחד לאחר פגישת האפיון',
+    start: { from: 'charEnd' }, due: { from: 'char', businessDays: 1 },
+    what: 'ליאור עובר לעומק על האפיון ומתקשר ללקוח לשיחת דגשים, כדי לדעת בדיוק אילו מסרים נכנסים לתוכן של יום הצילום.',
+    items: [
+      { key: 'p12a.read', label: 'האפיון נקרא לעומק' },
+      { key: 'p12a.call', label: 'בוצעה שיחת דגשים עם הלקוח' },
+      ...[['services', 'אילו שירותים הכי חשוב לקדם'], ['products', 'אילו מוצרים חשוב להציג'], ['messages', 'אילו מסרים חייבים להופיע'], ['dont', 'דברים שאסור להגיד'],
+        ['offers', 'מבצעים ומחירים'], ['faq', 'שאלות נפוצות של לקוחות'], ['topics', 'נושאים שהלקוח רוצה בסרטונים'], ['objections', 'התנגדויות שחוזרות אצל לקוחות'],
+        ['advantages', 'יתרונות מרכזיים של העסק'], ['focus', 'שירותים או מוצרים שצריך לתת להם יותר דגש']]
+        .map(([k, l]) => ({ key: `p12a.t.${k}`, label: `נלקח מהלקוח: ${l}` })),
+    ],
+  },
+  {
+    id: 'p12', round: true, num: '12', phase: 'prep', title: 'כתיבת התסריטים ליום הצילום', owners: ['lior'],
     sla: 'עד 3 ימי עסקים מפגישת האפיון',
     start: { from: 'charEnd' }, due: { from: 'char', businessDays: 3 },
-    what: 'שיראל עוברת לעומק על האפיון, מתקשרת ללקוח לדגשים, ומכינה בדרך כלל 36 תסריטים לפי החבילה, האפיון, השיחה והמשפיענים.',
+    what: 'ליאור מכין בדרך כלל 36 תסריטים לפי החבילה, האפיון, שיחת הדגשים, העסק, קהל היעד והמשפיענים שמגיעים ליום הצילום.',
     guidance: {
-      natali: 'יום עם נטלי: הפניות ברורות לצופה, ראיונות עם הלקוח, סרטוני הסברה, היכרות עם העסק והמקום, הצגת השירותים, מיני־סצנות ותוכן מקצועי. תוכן מסודר, מקצועי ומניע לפעולה.',
-      dms: 'יום עם דניס, מישל וסמיון: סרטונים מצחיקים, רעיונות משוגעים, תוכן ויראלי, סצנות באנרגיה גבוהה, וגם הסברה, היכרות וראיונות. בראיונות חייבים למקד אותם בשאלות ובמסרים שנקבעו מראש.',
+      natali: 'יום עם נטלי: הפניות ברורות לצופה, ראיונות עם הלקוח, סרטוני הסברה, היכרות עם העסק והמקום, הצגת השירותים, מיני־סצנות ותוכן מקצועי ומדויק. מסודר, ברור ומניע לפעולה; פחות קומדיה מוגזמת.',
+      dms: 'יום עם דניס, מישל וסמיון: סרטונים מצחיקים, רעיונות משוגעים, תוכן ויראלי, סצנות באנרגיה גבוהה וסיטואציות, וגם הסברה, היכרות וראיונות. גם תוכן מצחיק חייב להיות קשור לעסק ולמסר שהלקוח רוצה להעביר.',
     },
     items: [
-      { key: 'p12.read', label: 'האפיון נקרא לעומק' },
-      { key: 'p12.call', label: 'בוצעה שיחה עם הלקוח לדגשים לסרטונים' },
-      ...[['services', 'אילו שירותים חשוב לו לקדם'], ['messages', 'אילו מסרים חשובים'], ['dont', 'דברים שאסור להגיד'], ['products', 'מוצרים מרכזיים'], ['offers', 'מבצעים'], ['faq', 'שאלות נפוצות'], ['topics', 'נושאים שהוא רוצה שיופיעו בצילום']]
-        .map(([k, l]) => ({ key: `p12.t.${k}`, label: `נלקח מהלקוח: ${l}` })),
-      { key: 'p12.scripts', label: 'התסריטים הוכנו (בדרך כלל 36) לפי החבילה והמשפיענים' },
+      { key: 'p12.scripts', label: 'התסריטים הוכנו (בדרך כלל 36) לפי החבילה, הדגשים והמשפיענים', requires: ['p12a.call'] },
+      { key: 'p12.numbered', label: 'לכל סרטון מספר ברור, כדי לסמן אותו ביום הצילום' },
       { key: 'p12.docs', label: 'התסריטים מסודרים ב־Google Docs לפי סדר הצילום' },
     ],
   },
   {
-    id: 'p13', round: true, num: '13', phase: 'prep', title: 'שיחת Zoom לאישור התוכן', owners: ['shirel'],
+    id: 'p13', round: true, num: '13', phase: 'prep', title: 'שיחת Zoom לאישור התוכן', owners: ['lior'],
     sla: '3 ימי עסקים לאחר פגישת האפיון, ללא הגבלת משך עד שהלקוח מאשר',
     start: { from: 'p12' }, due: { from: 'char', businessDays: 3 },
-    what: 'שיחת Zoom מוקלטת עם הלקוח על התוכן, עם שינויים והבהרות עד שהלקוח מאשר. תיקונים שנשארו: שיראל, עד יום עסקים אחד.',
+    what: 'שיחת Zoom מוקלטת: עוברים על התסריטים, מסבירים את הרעיונות, מקבלים הערות ומשנים ניסוחים, עד שיש אישור ברור. תיקונים שנשארו: ליאור, עד יום עסקים אחד, והגרסה הסופית היא זו שב־Google Docs.',
+    rule: 'לא מגיעים ליום צילום עם תוכן שלא עבר אישור לקוח.',
     items: [
       { key: 'p13.zoom', label: 'התקיימה שיחת Zoom מוקלטת' },
       { key: 'p13.approved', label: 'הלקוח אישר את התסריטים', requires: ['p13.zoom'], noBulk: true },
-      { key: 'p13.fixes', label: 'תיקונים שנשארו אחרי השיחה בוצעו (עד יום עסקים אחד)', optional: true },
+      { key: 'p13.fixes', label: 'תיקונים שנשארו אחרי הזום בוצעו ועודכנו ב־Google Docs (עד יום עסקים אחד)', optional: true },
     ],
   },
   {
@@ -313,10 +373,12 @@ export const PROCESSES = [
       { key: 'p14.shootday', label: 'יום צילום' },
       { key: 'p14.team', label: 'משימות צוות' },
       { key: 'p14.missing', label: 'חוסרים מהלקוח' },
+      { key: 'p14.delays', label: 'אין עיכוב מצד אחד העובדים (אם יש: מתועד ועודכן ליאור)' },
     ],
   },
   {
-    id: 'p15', round: true, num: '15', phase: 'eve', title: 'תזכורת לצוות וללקוח', owners: ['shirel', 'lior'],
+    id: 'p15', round: true, num: '15', phase: 'eve', title: 'תזכורת לצוות וללקוח', owners: ['lior', 'shirel'],
+    ownerNote: 'ליאור או שיראל שולחים את התזכורות; עירית בודקת באותה שעה שזה בוצע, ומעדכנת את ליאור מיד אם יש בעיה.',
     sla: 'יום לפני הצילום, בסביבות 11:00',
     start: { from: 'shoot', prevBusinessDay: true, at: '00:00' }, due: { from: 'shoot', prevBusinessDay: true, at: '11:00' },
     what: 'שולחים תזכורת ומוודאים שלכולם יש שעה, כתובת, תוכן מאושר ופרטי יום הצילום. בנוסף, שיחת הסבר עם הלקוח על מהלך היום ומה להכין.',
@@ -329,40 +391,42 @@ export const PROCESSES = [
       { key: 'p15.explain', label: 'בוצעה שיחת הסבר עם הלקוח' },
       { key: 'p15.natali.makeup', label: 'המאפרת אישרה הגעה לביתה של נטלי שעתיים לפני הצילום', owners: ['lior'], when: isNatali },
       { key: 'p15.natali.ride', label: 'ההסעה של נטלי סגורה ומאושרת', owners: ['lior'], when: isNatali },
+      { key: 'p15.irit', label: 'עירית וידאה שהתזכורות נשלחו, שהלקוח זוכר ושאין משימה פתוחה שתפגע ביום הצילום', owners: ['irit'] },
     ],
   },
   {
-    id: 'p16', round: true, num: '16', phase: 'eve', title: 'וידוא אחרון לפני יום הצילום', owners: ['shirel', 'lior'],
+    id: 'p16', round: true, num: '16', phase: 'eve', title: 'תדרוך הצלם והכנת יום הצילום', owners: ['lior'],
     sla: 'בערב שלפני יום הצילום',
     start: { from: 'shoot', prevBusinessDay: true, at: '00:00' }, due: { from: 'shoot', days: 0, at: '00:00' },
     items: [
-      { key: 'p16.content', label: 'התוכן מוכן ומאושר' },
-      { key: 'p16.influencers', label: 'המשפיענים קיבלו תזכורת' },
-      { key: 'p16.address', label: 'יש לכולם כתובת' },
-      { key: 'p16.photographer', label: 'הצלם קיבל תדרוך' },
-      { key: 'p16.client', label: 'הלקוח קיבל הסבר' },
+      { key: 'p16.photographer', label: 'הצלם קיבל את פרטי יום הצילום' },
+      { key: 'p16.plan', label: 'עברנו עם הצלם על תוכנית היום' },
+      { key: 'p16.early', label: 'הצלם יודע להגיע שעה לפני המשפיענים' },
       { key: 'p16.drive', label: 'הכונן מוכן' },
+      { key: 'p16.content', label: 'קובץ התסריטים הסופי מוכן ומאושר' },
+      { key: 'p16.open', label: 'אין משימה פתוחה שעלולה לעצור את יום הצילום' },
     ],
   },
   {
-    id: 'p17', round: true, num: '17', phase: 'shoot', title: 'הכנת המקום לפני הגעת המשפיענים', owners: ['lior', 'shirel'],
-    ownerNote: 'ליאור, שיראל והצלם. מנהל יום הצילום: ליאור בלבד.',
+    id: 'p17', round: true, num: '17', phase: 'shoot', title: 'הגעה מוקדמת והכנת המקום', owners: ['lior'],
+    ownerNote: 'ליאור והצלם. מנהל יום הצילום: ליאור בלבד.',
     sla: 'שעה לפני הגעת המשפיענים',
     start: { from: 'shoot', hours: -1 }, due: { from: 'shoot' },
     items: [
+      { key: 'p17.handdrive', label: 'הכונן נמסר לצלם' },
       { key: 'p17.place', label: 'העסק סודר' },
       { key: 'p17.client', label: 'הלקוח הוכן' },
       { key: 'p17.order', label: 'עברנו על סדר התסריטים' },
       { key: 'p17.zones', label: 'הוכנו אזורי צילום' },
       { key: 'p17.brief', label: 'הצלם תודרך' },
-      { key: 'p17.broll', label: 'הצלם התחיל לצלם B-Roll' },
+      { key: 'p17.broll', label: 'הצלם התחיל מיד לצלם B-Roll; כל ה־B-Roll המרכזי צולם עד הגעת המשפיענים' },
     ],
   },
   {
-    id: 'p18', round: true, num: '18', phase: 'shoot', title: 'מעקב אחר הסרטונים במהלך הצילום', owners: ['lior', 'shirel'],
+    id: 'p18', round: true, num: '18', phase: 'shoot', title: 'ניהול יום הצילום והתסריטים', owners: ['lior'],
     sla: 'לאורך כל יום הצילום',
     start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
-    what: 'עובדים לפי סדר התסריטים ב־Google Docs. כל סרטון שהסתיים מסומן בירוק וממשיכים לבא.',
+    what: 'ליאור מנהל את סדר היום ומחזיק את קובץ התסריטים: מסביר מה מצלמים, שומר על המסר, מקדם את הצוות בזמן ופותר בעיות. כל סרטון שהסתיים מסומן בירוק ב־Google Docs.',
     rule: 'אסור לסיים יום צילום לפני שצולמה כל כמות הסרטונים שהלקוח צריך לקבל.',
     items: [
       { key: 'p18.order', label: 'עבדנו לפי סדר התסריטים וסימנו כל סרטון בירוק' },
@@ -370,18 +434,19 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p19', round: true, num: '19', phase: 'shoot', title: 'סיום יום צילום', owners: ['lior', 'shirel'],
+    id: 'p19', round: true, num: '19', phase: 'shoot', title: 'סיום יום צילום', owners: ['lior'],
     sla: 'מיד בסיום הצילום ולפני שהצוות עוזב',
     start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
-    rule: 'אסור לעזוב יום צילום בלי סרטון המלצה ובלי בדיקה שהחומרים נמצאים בכונן.',
+    rule: 'ליאור לא עוזב יום צילום בלי הכונן, בלי סרטון המלצה ובלי בדיקה שכל החומרים בכונן.',
     items: [
+      { key: 'p19.all', label: 'כל הסרטונים צולמו וסומנו' },
       { key: 'p19.testimonial', label: 'צולם סרטון המלצה של הלקוח עם המשפיענים (חובה)' },
-      { key: 'p19.drive', label: 'כל חומרי הצילום נמצאים בכונן', owners: ['shirel'] },
-      { key: 'p19.took', label: 'הכונן נלקח מהצלם' },
+      { key: 'p19.drive', label: 'כל חומרי הצילום נמצאים בכונן, והכונן מסודר' },
+      { key: 'p19.took', label: 'הכונן חזר לליאור מהצלם' },
     ],
   },
   {
-    id: 'p20', round: true, num: '20', phase: 'shoot', title: 'ניהול יום צילום עם נטלי דדון', owners: ['lior', 'shirel'],
+    id: 'p20', round: true, num: '20', phase: 'shoot', title: 'ניהול יום צילום עם נטלי דדון', owners: ['lior'],
     sla: 'צילום בפועל עד 3 שעות',
     when: isNatali, start: { from: 'shoot' }, due: { from: 'shoot', hours: 3 },
     what: 'יום ממוקד לפי התסריטים שאושרו: הפניות לצופה, ראיון עם הלקוח, הסברה, היכרות עם העסק והמקום, הצגת שירותים ומיני־סצנות. מסר ברור, מקצועי ומניע לפעולה, לא קומדיה מוגזמת.',
@@ -391,11 +456,11 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p21', round: true, num: '21', phase: 'shoot', title: 'ניהול יום צילום עם דניס, מישל וסמיון', owners: ['lior', 'shirel'],
+    id: 'p21', round: true, num: '21', phase: 'shoot', title: 'ניהול יום צילום עם דניס, מישל וסמיון', owners: ['lior'],
     sla: 'צילום בפועל כ־5 שעות, אחרי עד חצי שעה התארגנות',
     when: isDms, start: { from: 'shoot' }, due: { from: 'shoot', minutes: 330 },
     what: 'עם ההגעה: עד חצי שעה להתרענן, לאכול, להתארגן ולקבל תדרוך. רוב התוכן מצחיק, משוגע, אנרגטי וויראלי, ובנוסף הסברה, היכרות עם העסק והשירותים וראיונות עם הלקוח.',
-    rule: 'בראיונות ממקדים את דניס, מישל וסמיון בשאלה ובמסר שאושרו מראש. שיחה שגולשת: עוצרים, ממקדים וחוזרים לשאלה.',
+    rule: 'בראיונות ליאור ממקד את דניס, מישל וסמיון בשאלה, במסר ובנושא שהוגדרו בתסריט. ראיון שמתפזר: עוצרים, ממקדים וחוזרים לשאלה.',
     items: [
       { key: 'p21.break', label: 'ניתנה עד חצי שעה להתארגנות ותדרוך, ואז התחלנו' },
       { key: 'p21.fun', label: 'צולם התוכן המצחיק, האנרגטי והוויראלי' },
@@ -404,14 +469,35 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p22', round: true, num: '22', phase: 'post', title: 'עריכת 36 הסרטונים', owners: ['editor'],
-    ownerNote: 'בסיום יום הצילום אופיר בוחר איזה עורך יערוך את חומר הגלם.',
-    sla: 'עד 5 ימי עסקים; הספירה מתחילה ביום העסקים שאחרי יום הצילום',
-    start: { from: 'shoot' }, due: { from: 'shoot', businessDays: 5 },
-    what: 'חמשת ימי העסקים כוללים עריכה, בדיקה, המתנה לתגובת הלקוח וסבב תיקונים אחד.',
+    id: 'p22a', round: true, num: '22א', phase: 'post', title: 'העברה לעריכה ושיוך לעורך', owners: ['ofir'],
+    sla: 'מיד לאחר יום הצילום וקבלת חומרי הצילום',
+    start: { from: 'p19' }, due: { from: 'p19' },
+    what: 'ליאור מחזיר את הכונן. אופיר בודק את עומס העורכים (מי פנוי, מי מחזיק הרבה לקוחות, אילו משימות פתוחות, מי יעמוד בזמן) ומשייך את הלקוח. מכאן מתחילה ספירת זמני העריכה.',
+    needs: ['editor'],
     items: [
-      { key: 'p22.assigned', label: 'אופיר בחר עורך', owners: ['ofir'] },
-      { key: 'p22.edited', label: 'כל הסרטונים נערכו' },
+      { key: 'p22a.drive', label: 'ליאור החזיר את הכונן', owners: ['lior'] },
+      { key: 'p22a.load', label: 'נבדק עומס העורכים: נדיה, יריב, אנה (וניראל לנטלי)' },
+      { key: 'p22a.assigned', label: 'הלקוח שויך לעורך והכונן הועבר אליו', requiresFields: ['editor'] },
+    ],
+  },
+  {
+    id: 'p22', round: true, num: '22', phase: 'post', title: 'עריכת הסרטונים', owners: editorOf,
+    ownerNote: 'העורך שאופיר שייך. ניראל עורכת רק סרטוני נטלי דדון.',
+    sla: 'עד סוף יום העסקים השלישי מקבלת הלקוח: כל הסרטונים ערוכים, בדוקים ואצל אופיר',
+    start: { from: 'item:p22a.assigned' }, due: { from: 'item:p22a.assigned', businessDays: 3 },
+    what: 'עורכים לפי התסריטים ולפי מה שצולם, בלי לשנות את משמעות הסרטון. יוצרים גיוון בקצב, ב־B-Roll, במעברים, במבנה ובהצגת הטקסטים.',
+    rule: 'חסר לוגו או מספר טלפון: מדווחים מיד לליאור או לעירית, לא מגלים בסוף העריכה. אופיר לא אמור למצוא טעויות בסיסיות.',
+    items: [
+      { key: 'p22.received', label: 'התקבל הכונן; עודכן שהעריכה התחילה' },
+      { key: 'p22.check.footage', label: 'כל חומרי הצילום קיימים' },
+      { key: 'p22.check.scripts', label: 'התסריטים וסדר הסרטונים ברורים' },
+      { key: 'p22.check.logo', label: 'יש לוגו תקין של העסק' },
+      { key: 'p22.check.phone', label: 'יש מספר טלפון תקין של העסק' },
+      { key: 'p22.edited', label: 'כל הסרטונים נערכו לפי התסריטים' },
+      { key: 'p22.self.spelling', label: 'בדיקה עצמית: אין שגיאות כתיב בכתוביות, כותרות, שמות, טלפונים, מחירים וטקסטים' },
+      { key: 'p22.self.broll', label: 'בדיקה עצמית: אותה תבנית B-Roll לא חוזרת ביותר מ־3 סרטונים' },
+      { key: 'p22.self.closing', label: 'בדיקה עצמית: סגיר נקי — לוגו, "לפרטים נוספים התקשרו" ומספר הטלפון, בלי תוספות' },
+      { key: 'p22.self.complete', label: 'בדיקה עצמית: כל כמות הסרטונים הושלמה ותואמת לתסריטים' },
     ],
   },
   {
@@ -421,30 +507,35 @@ export const PROCESSES = [
     what: 'משלימים את כל 36 הגרפיקות (בדרך כלל עוד 27). אופיר בודק; אחרי אישורו נשלחות ללקוח. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת.',
     items: [
       { key: 'p23.made', label: 'כל הגרפיקות הושלמו (בדרך כלל עוד 27)' },
-      { key: 'p23.ofir', label: 'אופיר בדק ואישר', owners: ['ofir'] },
+      ...[['design', 'העיצוב מתאים לעסק'], ['errors', 'אין טעויות'], ['logo', 'הלוגו נכון'], ['contact', 'הטלפון והכתובת נכונים'],
+        ['match', 'המידע תואם לאפיון'], ['pro', 'הגרפיקות ברמה מקצועית'], ['variety', 'אין חזרתיות מוגזמת בין הגרפיקות']]
+        .map(([k, l]) => ({ key: `p23.q.${k}`, label: `אופיר בדק: ${l}`, owners: ['ofir'] })),
+      { key: 'p23.ofir', label: 'אופיר אישר את הגרפיקות (תיקון: משימה לעילאי)', owners: ['ofir'], requires: ['p23.q.design', 'p23.q.errors', 'p23.q.logo', 'p23.q.contact', 'p23.q.match', 'p23.q.pro', 'p23.q.variety'] },
       { key: 'p23.sent', label: 'נשלחו ללקוח', owners: ['irit'], requires: ['p23.ofir'] },
       { key: 'p23.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
     ],
   },
   {
-    id: 'p24', round: true, num: '24', phase: 'post', title: 'העלאת הסרטונים המוכנים', owners: ['editor', 'ofir'],
-    sla: 'מיד ברגע שהעריכה הסתיימה',
-    start: { from: 'p22' }, due: { from: 'p22' },
+    id: 'p24', round: true, num: '24', phase: 'post', title: 'העלאה לדרייב והעברה לאופיר', owners: editorOf,
+    sla: 'עד סוף יום העסקים השלישי',
+    start: { from: 'p22' }, due: { from: 'item:p22a.assigned', businessDays: 3 },
     items: [
-      { key: 'p24.folder', label: 'נפתחה תיקייה מסודרת עם שם הלקוח', owners: ['ofir'] },
-      { key: 'p24.drive', label: 'התוכן הועלה ל־Google Drive', owners: ['editor'] },
-      { key: 'p24.dropbox', label: 'התוכן הועלה ל־Dropbox (לפי הצורך)', owners: ['editor'], optional: true },
-      { key: 'p24.notify', label: 'נשלחה הודעה בקבוצת העורכים שהלקוח מוכן', owners: ['editor'] },
+      { key: 'p24.folder', label: 'יש תיקייה מסודרת עם שם הלקוח', owners: ['ofir'] },
+      { key: 'p24.drive', label: 'כל הסרטונים הועלו ל־Google Drive וכל הקבצים עלו תקין' },
+      { key: 'p24.dropbox', label: 'התוכן הועלה ל־Dropbox (לפי הצורך)', optional: true },
+      { key: 'p24.notify', label: 'העורך עדכן את אופיר שהלקוח מוכן לבקרה' },
     ],
   },
   {
-    id: 'p25', round: true, num: '25', phase: 'post', title: 'בדיקת הסרטונים', owners: ['ofir'],
-    sla: 'עד שעה מרגע שהעורך הודיע שהחומרים מוכנים',
+    id: 'p25', round: true, num: '25', phase: 'post', title: 'בקרת איכות על הסרטונים', owners: ['ofir'],
+    sla: 'עד שעה מרגע שהעורך הודיע שהלקוח מוכן',
     start: { from: 'p24' }, due: { from: 'p24', hours: 1 },
-    rule: 'רק לאחר אישור אופיר מותר לשלוח את הסרטונים ללקוח.',
+    rule: 'רק לאחר אישור אופיר מותר לשלוח את הסרטונים ללקוח. בעיה: התיקון חוזר לעורך כמשימה במערכת.',
     items: [
-      { key: 'p25.qa', label: 'בוצעה בקרת איכות על כל הסרטונים' },
-      { key: 'p25.approved', label: 'אופיר אישר שליחה ללקוח' },
+      ...[['editing', 'העריכה ברמה טובה'], ['errors', 'אין טעויות'], ['clear', 'הסרטונים ברורים'], ['match', 'התוכן תואם למה שצולם'],
+        ['pro', 'אין קטעים לא מקצועיים'], ['fit', 'הסרטונים מתאימים ללקוח']]
+        .map(([k, l]) => ({ key: `p25.q.${k}`, label: `נבדק: ${l}` })),
+      { key: 'p25.approved', label: 'אופיר אישר: החומר מוכן לשליחה ללקוח', requires: ['p25.q.editing', 'p25.q.errors', 'p25.q.clear', 'p25.q.match', 'p25.q.pro', 'p25.q.fit'] },
     ],
   },
   {
@@ -457,12 +548,16 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p27', round: true, num: '27', phase: 'post', title: 'תיקוני וידאו', owners: ['editor'],
-    sla: 'תיקונים שהתקבלו בזמן במהלך היום: באותו יום. מאוחר: עד יום עסקים אחד',
-    start: { from: 'p26' }, due: { from: 'p26', businessDays: 1 },
+    id: 'p27', round: true, num: '27', phase: 'post', title: 'תיקוני הלקוח וסגירת העריכה', owners: editorOf,
+    sla: 'ביום העסקים הרביעי: כל תיקוני הלקוח סגורים והגרסאות הסופיות בדרייב',
+    start: { from: 'p26' }, due: { from: 'item:p22a.assigned', businessDays: 4 },
+    what: 'ללקוח סבב תיקונים אחד. עירית מקבלת את ההערות, מוודאת שהן ברורות ומתעדת; העורך מתקן, בודק מחדש ומחליף את הקבצים. בסוף הלקוח עובר לעילאי לתזמון ולגאנט.',
     items: [
-      { key: 'p27.fixes', label: 'בוצע סבב תיקונים אחד לפי ההערות שאושרו מול הלקוח', optional: true },
+      { key: 'p27.notes', label: 'הערות הלקוח התקבלו, ברורות ומתועדות', owners: ['irit'], optional: true },
+      { key: 'p27.fixes', label: 'כל התיקונים בוצעו ונבדקו מחדש', optional: true },
+      { key: 'p27.final', label: 'הגרסאות הסופיות בדרייב, בלי גרסאות ישנות שמבלבלות' },
       { key: 'p27.approved', label: 'הלקוח אישר את הסרטונים', owners: ['irit'], requires: ['p26.sent'], noBulk: true },
+      { key: 'p27.toilai', label: 'הלקוח הועבר לעילאי לתזמון ולגאנט', requires: ['p27.final'] },
     ],
   },
   {
@@ -490,15 +585,15 @@ export const PROCESSES = [
     sla: 'עד יום עסקים אחד מרגע קבלת הסרטונים המוכנים',
     start: { from: 'p25' }, due: { from: 'p25', businessDays: 1 },
     items: [
-      { key: 'p30.picked', label: 'נבחרו הסרטונים המתאימים' },
-      { key: 'p30.live', label: 'הוקמו קמפיינים לפי הצרכים, המטרות והתקציב של הלקוח' },
+      { key: 'p30.picked', label: 'נבחרו הסרטונים המתאימים ביותר' },
+      { key: 'p30.live', label: 'הוקמו קמפיינים לפי המטרות, השירותים, קהל היעד, התקציב וסוג הפניות הרצוי' },
     ],
   },
   {
     id: 'p31', num: '31', phase: 'ongoing', title: 'שיחת לקוח שבועית', owners: ['lior'],
     sla: 'פעם בשבוע, בימי רביעי או חמישי',
     recurring: 'weekly', start: { from: 'p30' },
-    what: 'עוברים עם הלקוח על קמפיינים, לידים, תוצאות, סרטונים, תכנים שעלו, תכנים עתידיים, בעיות, דברים שצריך לשפר ובקשות חדשות. הכול מתועד בסיכום השיחה; כל משימה נפתחת ברשימת המשימות עם מבצע.',
+    what: 'עוברים עם הלקוח על קמפיינים, לידים, תוצאות, סרטונים, תכנים שעלו, תכנים עתידיים, בעיות, דברים שצריך לשפר ובקשות חדשות. הכול מתועד בסיכום השיחה; כל משימה נפתחת עם אחראי ברור. לאורך התקופה ליאור בודק גם ביצועים, לידים, הודעות, עלויות, קריאייטיבים וצורך באופטימיזציה. עירית בודקת אחרי השיחה שלכל משימה יש אחראי.',
     items: [
       { key: 'p31.call', label: 'בוצעה שיחה שבועית ותועדה', recurring: 'weekly' },
     ],
@@ -508,8 +603,10 @@ export const PROCESSES = [
     sla: 'מתחילים 60 יום לפני סיום החוזה',
     start: { from: 'contractEnd', days: -60 }, due: { from: 'contractEnd', days: -60, at: '23:59' },
     items: [
-      { key: 'p34.talk', label: 'התחלנו לדבר עם הלקוח על המשך העבודה' },
+      { key: 'p34.state', label: 'נבדקו מצב הלקוח והתוצאות' },
       { key: 'p34.satisfaction', label: 'נבדקה שביעות רצון' },
+      { key: 'p34.problems', label: 'זוהו בעיות' },
+      { key: 'p34.talk', label: 'התחלנו לדבר עם הלקוח על המשך העבודה' },
       { key: 'p34.issues', label: 'טופלו נושאים שיכולים להשפיע על החידוש' },
     ],
   },
@@ -519,14 +616,16 @@ export const PROCESSES = [
     when: (c) => c.status === 'ending' || c.status === 'ended', due: { from: 'contractEnd' },
     items: [
       { key: 'p35.campaigns', label: 'הקמפיינים נעצרו' },
-      { key: 'p35.access', label: 'הוסרו גישות לפי הצורך' },
+      { key: 'p35.access', label: 'הוסרו גישות לפי הצורך (ונמחקו מכספת הגישות)' },
       { key: 'p35.connections', label: 'נסגרו חיבורים רלוונטיים' },
+      { key: 'p35.drive', label: 'החומרים של הלקוח נשארים שמורים בדרייב' },
+      { key: 'p35.system', label: 'המערכת עודכנה' },
     ],
   },
 ];
 
 // Processes 32 and 33 are office-wide daily reviews, served by the control view.
 export const OFFICE_REVIEWS = [
-  { num: '32', title: 'בקרה על ביצוע המשימות', owner: 'irit', sla: 'בכל יום עבודה' },
-  { num: '33', title: 'בקרה על כל רשימת הלקוחות', owner: 'ofir', sla: 'בכל יום עבודה' },
+  { num: '32', title: 'בקרה על ביצוע המשימות', owner: 'irit', sla: 'בכל יום עבודה, כולל הודעות יומיות ללקוחות' },
+  { num: '33', title: 'בקרה על כל רשימת הלקוחות', owner: 'ofir', sla: 'לפחות פעם ביומיים; ביום חמישי מעבר מלא עם סיכום מצב לכל לקוח' },
 ];
