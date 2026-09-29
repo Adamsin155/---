@@ -7,7 +7,7 @@ import {
 } from './protocol.js';
 import {
   clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
-  waitNote, parseWaitNote, bulkEligible, roundsOf, isBusinessDay, PAUSE, pauseOf,
+  waitNote, parseWaitNote, bulkEligible, roundsOf, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited,
 } from './protocol-logic.js';
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
@@ -16,10 +16,11 @@ import {
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
-  statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS,
+  statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { googleCalendarUrl, downloadIcs } from './calendar.js';
+import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -56,6 +57,8 @@ const FIELD_NAMES = {
 const FIELD_INPUT = { characterizer: 'ed-characterizer', char_at: 'ed-char-at', shoot_type: 'ed-shoot-type', shoot_at: 'ed-shoot-at', has_logo: 'ed-logo', editor: 'ed-editor' };
 // The link each process works with, shown inside the process.
 const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p09: 'gantt', p10: 'meta', p12: 'scripts', p24: 'drive' };
+// The package quantity each process works to (the protocol's wording says "by the package").
+const PKG_QTY = { p12: 'videos', p18: 'videos', p22: 'videos', p23: 'graphics' };
 // What this user sees. 'own' roles see only their processes and items, and none of
 // the office's controls (client details, rounds, package counts, closing the client).
 // Office users see theirs first and can show the whole protocol. The owner has no
@@ -141,7 +144,7 @@ function shootEvent(n = 1) {
   const arrive = new Date(r.shoot_at);
   const start = new Date(arrive.getTime() - 36e5);
   const minutes = 60 + (type === 'dms' ? 330 : 180);
-  const hhmm = arrive.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const hhmm = arrive.toLocaleTimeString('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
   return {
     uid: `${client.id}-shoot-${n}@astrateg`,
     title: `יום צילום${n > 1 ? ` ${n}` : ''} · ${client.name}${type ? ` · ${SHOOT_TYPES[type].name}` : ''}`,
@@ -583,10 +586,25 @@ function waitLine(x) {
     h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(x) }, 'סיום המתנה'));
 }
 
+// Ending a wait stops the client's clock: its office minutes are added to the
+// process's waited time first, and the deadline moves on by them (decision 3).
 async function endWait(x) {
   const w = x.wait;
-  const ok = await mark(WAIT(x.proc), null, null);
-  if (ok) toast('ההמתנה הסתיימה. התהליך חוזר לחישוב הרגיל.', { label: 'ביטול', run: () => mark(WAIT(x.proc), 'done', null, waitNote(w.reason, w.recheck, w.at)) });
+  const tk = WAITED(x.proc);
+  const prevWaited = checks[tk];
+  const ended = endWaitNote(client, x.proc, checks);
+  const setWaited = (note) => mark(tk, note === null ? null : 'done', null, note);
+  if (!await setWaited(ended)) return;
+  if (!await mark(WAIT(x.proc), null, null)) { await setWaited(prevWaited?.note ?? null); return; }
+  toast(endWaitText(prevWaited?.note, ended), {
+    label: 'ביטול',
+    // The waited time goes back first, then the wait; if the wait cannot be
+    // restored, the finished wait's minutes are kept (never counted twice or lost).
+    run: async () => {
+      if (!await setWaited(prevWaited?.note ?? null)) return;
+      if (!await mark(WAIT(x.proc), 'done', null, waitNote(w.reason, w.recheck, w.at))) await setWaited(ended);
+    },
+  });
 }
 
 // Editing paused for another task: who, at what stage, what is left, and for what.
@@ -633,6 +651,8 @@ async function markBulk(x, items) {
     return;
   }
   for (const k of keys) pending.delete(k);
+  // A process completed this way no longer waits on the client (as with a single check).
+  await endWaitIfComplete(keys[0]);
   render();
   // Focus: the first item still open in this process; else the next open process in the phase; else the phase.
   const left = document.querySelector(`#${CSS.escape(x.proc.id)} .cbx:not(:checked):not(:disabled)`);
@@ -677,7 +697,8 @@ function procCard(x, now) {
   const compact = x.complete && !printing && !shownProcs.has(p.id);
   const link = PROC_LINK[pid] && client.links?.[PROC_LINK[pid]];
   const linkDef = LINKS.find((l) => l.key === PROC_LINK[pid]);
-  const pkgQty = pid === 'p22' ? client.deliverables?.videos : pid === 'p23' ? client.deliverables?.graphics : null;
+  const pkgQty = PKG_QTY[pid] ? client.deliverables?.[PKG_QTY[pid]] : null;
+  const pkgUnit = DELIVERABLES.find((d) => d.key === PKG_QTY[pid])?.label;
   // 'own' roles mark a wait only where the client is part of their work.
   const canWait = !x.complete && !p.recurring && (own() ? CLIENT_PROCS.has(pid) : x.ready || CLIENT_PROCS.has(pid));
   return h('article', { class: `proc s-${x.status}${mine ? ' is-mine' : ''}${dim ? ' is-dim' : ''}`, id: p.id, 'aria-labelledby': `${p.id}-h`, 'aria-describedby': x.wait ? `${p.id}-wait` : null },
@@ -689,7 +710,7 @@ function procCard(x, now) {
           peopleChips(x.claim ? [x.claim.person] : p.owners),
           compact ? null : h('span', { class: 'sla' }, p.sla),
           dueText(x, now) ? h('span', { class: 'due num' }, dueText(x, now)) : null,
-          pkgQty && !compact ? h('span', { class: 'muted' }, `בחבילה של הלקוח: ${pkgQty}`) : null,
+          pkgQty && !compact ? h('span', { class: 'muted pkg-qty' }, `בחבילה של הלקוח: ${pkgQty} ${pkgUnit}`) : null,
           claimLine(x))),
       h('div', { class: 'proc-status' },
         statusBadge(x.status, x.dueAt, now),
@@ -810,14 +831,27 @@ async function mark(key, state, focusId, note = null) {
   }
 }
 
-// A process that is complete no longer waits on the client: the wait mark is removed (and logged).
+// A process that is complete no longer waits on the client: the wait mark is
+// removed (and logged), and its office minutes until completion are kept.
 async function endWaitIfComplete(key) {
-  if (/\.(claim|wait)$/.test(key)) return;
+  if (/\.(claim|wait|waited|pause)$/.test(key)) return;
   const st = clientState(client, checks).states.find((x) => x.proc.items.some((i) => i.key === key));
   if (!st?.complete) return;
   const wk = WAIT(st.proc);
+  const tk = WAITED(st.proc);
   if (!checks[wk]) return;
-  try { await clearCheck(id, wk); delete checks[wk]; } catch { /* the wait stays; harmless */ }
+  const prevWaited = checks[tk];
+  try { checks[tk] = await setCheck(id, tk, 'done', endWaitNote(client, st.proc, checks)); } catch { return; /* the wait stays and counts until completion */ }
+  try {
+    await clearCheck(id, wk);
+    delete checks[wk];
+  } catch {
+    // The wait stays and still counts until completion, so the added minutes go back.
+    try {
+      if (prevWaited) checks[tk] = await setCheck(id, tk, prevWaited.state, prevWaited.note);
+      else { await clearCheck(id, tk); delete checks[tk]; }
+    } catch { /* best effort */ }
+  }
 }
 
 async function saveClient(fields, done) {
@@ -868,9 +902,9 @@ $('na-form').addEventListener('submit', async (e) => {
 let waitTarget = null;
 const waitDlg = dialog('dlg-wait');
 function nextBusinessDayIso() {
-  const d = new Date();
-  do d.setDate(d.getDate() + 1); while (!isBusinessDay(d));
-  return d.toLocaleDateString('en-CA');
+  let d = new Date();
+  do d = addDaysIL(d, 1); while (!isBusinessDay(d));
+  return dayKeyIL(d);
 }
 function openWait(x) {
   waitTarget = x;
@@ -980,9 +1014,7 @@ function openCall(key) {
   $('call-form').reset();
   $('call-err').hidden = true;
   $('call-h').textContent = `תיעוד שיחה שבועית · ${client.name}`;
-  const pad = (n) => String(n).padStart(2, '0');
-  const d = new Date();
-  $('call-at').value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  $('call-at').value = inputValueIL(new Date());
   fill($('call-topics'), ...CALL_TOPICS.map(([k, l]) => h('div', { class: 'field' },
     h('label', { for: `call-${k}` }, l), h('textarea', { class: 'input', id: `call-${k}`, rows: '1', maxlength: '500' }))));
   for (const el of $('call-topics').querySelectorAll('input, textarea')) el.disabled = false;
@@ -1021,7 +1053,7 @@ $('call-form').addEventListener('submit', async (e) => {
   }
   $('call-submit').disabled = true;
   if (!callSavedFor) {
-    const at = $('call-at').value ? new Date($('call-at').value).toISOString() : new Date().toISOString();
+    const at = (fromInputIL($('call-at').value) || new Date()).toISOString();
     const ok = await mark(callKey, 'done', null, JSON.stringify({ v: 1, at, topics }));
     if (!ok) { showErr('call-err', 'השיחה לא נשמרה. הטקסט נשאר כאן. בדקו את החיבור ונסו שוב.'); $('call-submit').disabled = false; return; }
     callSavedFor = callKey;
@@ -1046,8 +1078,7 @@ $('call-form').addEventListener('submit', async (e) => {
   }
   // Irit checks after every weekly call that everything is documented and every task has an owner.
   try {
-    const due = new Date(); do due.setDate(due.getDate() + 1); while (!isBusinessDay(due));
-    const t = await addTask({ client_id: id, title: 'לוודא שהשיחה השבועית מתועדת ושלכל משימה שעלתה יש אחראי', owner: 'irit', due_on: due.toLocaleDateString('en-CA'), source: 'followup' });
+    const t = await addTask({ client_id: id, title: 'לוודא שהשיחה השבועית מתועדת ושלכל משימה שעלתה יש אחראי', owner: 'irit', due_on: nextBusinessDayIso(), source: 'followup' });
     tasks = [t, ...tasks];
     renderTasks();
   } catch { /* the call itself is saved */ }
@@ -1209,9 +1240,7 @@ function openRound(n = null) {
   $('round-h').textContent = `סבב צילום ${nextN}`;
   $('round-type').value = r?.shoot_type || client.shoot_type || 'natali';
   fillEditors('round-editor', $('round-type').value, r?.editor);
-  const pad = (v) => String(v).padStart(2, '0');
-  const d = r?.shoot_at ? new Date(r.shoot_at) : null;
-  $('round-at').value = d ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
+  $('round-at').value = inputValueIL(r?.shoot_at);
   $('round-note').hidden = !!n;
   const over = !n && total !== undefined && nextN > total;
   $('round-extra-wrap').hidden = !over;
@@ -1233,7 +1262,7 @@ $('round-form').addEventListener('submit', async (e) => {
     return;
   }
   const rounds = roundsOf(client);
-  const at = $('round-at').value ? new Date($('round-at').value).toISOString() : null;
+  const at = fromInputIL($('round-at').value)?.toISOString() || null;
   const next = roundEditing
     ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null } : r))
     : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null, start_at: new Date().toISOString() }];
@@ -1277,7 +1306,7 @@ function renderTasks() {
   $('task-form').hidden = !canAddTask();
   const open = list.filter((t) => !t.done_at);
   const done = list.filter((t) => t.done_at).slice(0, 20);
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = dayKeyIL(new Date());
   const row = (t) => {
     const tid = `t-${t.id}`;
     const late = !t.done_at && t.due_on && t.due_on < today;
@@ -1360,10 +1389,17 @@ function historyText(r) {
   const round = roundOfKey(r.item_key);
   const pre = round > 1 ? `סבב ${round} · ` : '';
   const base = baseKey(r.item_key);
-  const mk = /^(p\d+[ab]?)\.(claim|wait|pause)$/.exec(base);
+  const mk = /^(p\d+[ab]?)\.(claim|wait|waited|pause)$/.exec(base);
   if (mk) {
     const num = PROCESSES.find((p) => p.id === mk[1])?.num;
     if (mk[2] === 'claim') return `${r.action === 'clear' ? 'שחרר/ה' : 'לקח/ה'} את תהליך ${pre}${num}`;
+    if (mk[2] === 'waited') {
+      if (r.action === 'clear') return `איפס/ה את זמן ההמתנה ללקוח בתהליך ${pre}${num}`;
+      const { min, ext } = readWaited(r.note);
+      const moved = ext === min ? 'היעד הוארך בהתאם'
+        : ext ? `היעד הוארך ב־${officeMinutes(ext)}: המתנה שהתחילה אחרי היעד לא מאריכה אותו` : 'היעד לא הוארך: ההמתנה התחילה אחרי היעד';
+      return `זמן ההמתנה ללקוח בתהליך ${pre}${num} עד כה: ${officeMinutes(min)} בשעות המשרד. ${moved}`;
+    }
     if (mk[2] === 'pause') return r.action === 'clear' ? `חזר/ה לעריכה (${pre}${num})` : `עצר/ה את העריכה (${pre}${num})`;
     return r.action === 'clear' ? `סיים/ה המתנה ללקוח בתהליך ${pre}${num}`
       : `סימן/ה ממתין ללקוח בתהליך ${pre}${num}: ${parseWaitNote(r.note).reason}`;
@@ -1392,9 +1428,9 @@ async function loadHistory() {
 
 // ── Edit client ─────────────────────────────
 const edDlg = dialog('dlg-edit');
-const pad = (n) => String(n).padStart(2, '0');
-const toLocal = (v) => { if (!v) return ''; const d = new Date(v); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-const fromLocal = (v) => (v ? new Date(v).toISOString() : null);
+// The date fields are Israel time on every device.
+const toLocal = (v) => inputValueIL(v);
+const fromLocal = (v) => fromInputIL(v)?.toISOString() || null;
 const DELIV_FIELDS = [...DELIVERABLES.map((x) => [x.key, x.label]), ['shoot_days', 'ימי צילום']];
 fill($('ed-deliv'), ...DELIV_FIELDS.map(([k, l]) => h('div', { class: 'field' },
   h('label', { for: `ed-deliv-${k}` }, l), h('input', { class: 'input', id: `ed-deliv-${k}`, type: 'number', min: '0', max: '999', inputmode: 'numeric', dir: 'ltr' }))));

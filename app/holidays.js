@@ -12,10 +12,13 @@
 // Pesach 2028-04-10 eve, Yom HaAtzma'ut 2028-05-02, Shavuot 2028-05-30 eve,
 // YK 2028-09-30 (Sat), Shemini Atzeret 2028-10-12.
 // Verified 2026-09-29 against @hebcal/core (Israel schedule): the closed days match exactly.
-// Regenerate before 2029 (script in docs/protocols/research-implementation.md).
+// Regenerate before 2029 (script in docs/protocols/research-implementation.md);
+// a unit test fails from 90 days before COVERAGE.to.
 //
-// Dates are local Israeli calendar days. Compare with a LOCAL key
-// (getFullYear/getMonth/getDate), never with toISOString() (UTC shifts the day).
+// Dates are Israel calendar days. Look them up with the lookups at the end of
+// this file (an Israel day key from tz.js), never with the device's local date
+// or toISOString() (a phone abroad or UTC shifts the day).
+import { dayKeyIL, daysBetweenIL, dayFromKeyIL } from './tz.js';
 
 export const COVERAGE = { from: '2026-01-01', to: '2028-12-31' };
 
@@ -43,8 +46,9 @@ export const HOLIDAYS = [
   { date: '2028-10-12', name: 'שמיני עצרת ושמחת תורה' },
 ];
 
-// Erev chag (usually a half day). Default: business day. Office decides.
-// Days that are also Chol HaMoed appear in both lists.
+// Erev chag: a business day, but the office closes at 13:00 (WORK_HOURS.erevEnd
+// in protocol.js; decision 2). Days that are also Chol HaMoed appear in both lists,
+// and the erev rule wins.
 export const EREV = [
   // 2026 (erev RH 09-11, erev Sukkot 09-25, Hoshana Raba 10-02 are Fridays — not listed)
   { date: '2026-04-01', name: 'ערב פסח' },
@@ -65,7 +69,7 @@ export const EREV = [
   { date: '2028-10-11', name: 'הושענא רבה (ערב שמיני עצרת)' },
 ];
 
-// Chol HaMoed, Sunday–Thursday only. Default: business day. Office decides.
+// Chol HaMoed, Sunday–Thursday only: a normal business day (decision 2).
 export const CHOL_HAMOED = [
   // 2026
   { date: '2026-04-05', name: 'חול המועד פסח' },
@@ -94,3 +98,13 @@ export const CHOL_HAMOED = [
   { date: '2028-10-10', name: 'חול המועד סוכות' },
   { date: '2028-10-11', name: 'הושענא רבה' },
 ];
+
+// Lookups by the Israel calendar day of a moment.
+const byDay = (list) => new Map(list.map((h) => [h.date, h]));
+const CLOSED = byDay(HOLIDAYS);
+const EREV_DAYS = byDay(EREV);
+export const holidayOn = (d) => CLOSED.get(dayKeyIL(d)) || null;
+export const erevOn = (d) => (CLOSED.has(dayKeyIL(d)) ? null : EREV_DAYS.get(dayKeyIL(d)) || null);
+
+// Days from the Israel day of `now` to the last day the lists cover.
+export const coverageDaysLeft = (now = new Date()) => daysBetweenIL(now, dayFromKeyIL(COVERAGE.to));

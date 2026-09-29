@@ -2,12 +2,13 @@
 // processes 32 and 33) and the performance report.
 import {
   PEOPLE, STAFF_PEOPLE, EDITORS, PHASES, PROCESSES, CLIENT_STATUS, OFFICE_REVIEWS, REVIEW_TOPICS,
-  STATUS_FIELDS, BRIEF_REQUIRED,
+  STATUS_FIELDS, BRIEF_REQUIRED, STATIONS, DELIVERABLES,
 } from './protocol.js';
 import {
   clientState, openItemsFor, byUrgency, bucketOf, CLAIM, WAIT, waitNote, bulkEligible, isResolved,
-  isBusinessDay, businessDaysBetween, addBusinessDays, resolveTime, weekKey, roundsOf, parseDate,
-  upcomingFor, involves,
+  isBusinessDay, businessDaysBetween, addBusinessDays, weekKey, roundsOf, parseDate,
+  upcomingFor, involves, WAITED, waitOf, parseWaitNote, endWaitNote, isImported, IMPORT_NOTE,
+  workedMinutes, targetMinutes, durationStart,
 } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, setTaskDone, createClient,
@@ -17,9 +18,13 @@ import {
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar,
   mountSession, store, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
-  isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS,
+  isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
+import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
+import { PACKAGES } from './catalog.js';
+import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
+import { canManageTeam } from './team-rules.js';
 
 let clients = [];
 let checks = {};
@@ -47,13 +52,15 @@ function stateOf(c) {
 }
 
 // ── Small helpers ───────────────────────────
-const dayIso = (d) => new Date(d).toLocaleDateString('en-CA');
-const dm = (d) => `${d.getDate()}.${d.getMonth() + 1}`;
+// Days and hours are Israel's (tz.js), whatever the zone of the device.
+const dayIso = (d) => dayKeyIL(d);
+const dm = (d) => { const p = partsIL(d); return `${p.day}.${p.month}`; };
 const WEEKDAY = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
-// A bare date (yyyy-mm-dd) as "ב׳ 30.9", read as a local calendar day.
-const dayShort = (iso) => { const [y, m, d] = String(iso).split('-').map(Number); const x = new Date(y, m - 1, d); return `${WEEKDAY[x.getDay()]} ${dm(x)}`; };
-const weekdayLong = new Intl.DateTimeFormat('he-IL', { weekday: 'long' });
-const hm = (d) => new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(d));
+// A bare date (yyyy-mm-dd) as "ב׳ 30.9", read as an Israel calendar day.
+const dayShort = (iso) => { const x = dayFromKeyIL(iso); return x ? `${WEEKDAY[weekdayIL(x)]} ${dm(x)}` : String(iso); };
+const weekdayLong = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, weekday: 'long' });
+const hmFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+const hm = (d) => hmFmt.format(new Date(d));
 const live = (c) => c.status !== 'cancelled';
 // A client opened by the signing trigger stays "new" until someone confirms its details.
 const isAuto = (c) => c.created_by_email === 'system' && !c.verified_at && live(c);
@@ -195,8 +202,8 @@ function workFor(person) {
     if (person && t.owner !== person) continue;
     const client = clients.find((c) => c.id === t.client_id);
     if (!client || !live(client)) continue;
-    const dueAt = t.due_on ? new Date(`${t.due_on}T23:59:59`) : null;
-    const status = dueAt && dueAt < now ? 'overdue' : dueAt && dueAt.toDateString() === now.toDateString() ? 'today' : 'open';
+    const dueAt = t.due_on ? endOfDayIL(dayFromKeyIL(t.due_on)) : null;
+    const status = dueAt && dueAt < now ? 'overdue' : dueAt && t.due_on === dayIso(now) ? 'today' : 'open';
     groups.set(`task:${t.id}`, { key: `task:${t.id}`, client, task: t, status, dueAt, urgent: isUrgentTask(t), escalation: isEscalation(t), entries: [{ client, task: t }] });
   }
   return [...groups.values()].sort(byUrgency);
@@ -224,6 +231,7 @@ async function toggleEntry(e, input) {
       const row = await setCheck(e.client.id, e.item.key, 'done');
       (checks[e.client.id] ||= {})[e.item.key] = row;
       states.delete(e.client.id);
+      await endWaitIfComplete(e.client, e.proc);
     }
   } catch (err) {
     input.checked = false;
@@ -315,6 +323,7 @@ async function bulkMark(g, bulk, btn) {
   }
   for (const r of rows) (checks[c.id] ||= {})[r.item_key] = r;
   states.delete(c.id);
+  await endWaitIfComplete(c, g.proc);
   const cs = checks[c.id];
   // Items that were blocked stay open for a separate, deliberate check.
   const left = g.proc.items.filter((i) => !i.optional && i.owners.includes(me) && !isResolved(i, cs[i.key]));
@@ -382,30 +391,73 @@ $('wait-form').addEventListener('submit', async (e) => {
   }
 });
 
+// Puts a check back as it was before (or removes it): undo and rollback.
+async function restoreCheck(cid, key, row) {
+  const cs = (checks[cid] ||= {});
+  if (row) cs[key] = await setCheck(cid, key, row.state, row.note ?? null);
+  else { await clearCheck(cid, key); delete cs[key]; }
+}
+
+// Ending a wait stops the client's clock: its office minutes are added to the
+// process's waited time first, and the deadline moves on by them (decision 3).
+// Undoing a wait that was just marked adds nothing.
 async function endWait(g, isUndo = false) {
-  const prev = checks[g.client.id]?.[WAIT(g.proc)];
+  const cid = g.client.id;
+  const cs = (checks[cid] ||= {});
+  const prev = cs[WAIT(g.proc)];
+  const prevWaited = cs[WAITED(g.proc)];
+  const since = waitOf(g.proc, cs)?.at || null;
+  let ended = null;
   try {
-    await clearCheck(g.client.id, WAIT(g.proc));
+    if (!isUndo) ended = cs[WAITED(g.proc)] = await setCheck(cid, WAITED(g.proc), 'done', endWaitNote(g.client, g.proc, cs));
+    await clearCheck(cid, WAIT(g.proc));
   } catch (err) {
+    if (!isUndo) await restoreCheck(cid, WAITED(g.proc), prevWaited).catch(() => {});
     toast(`${isUndo ? 'הביטול' : 'סיום ההמתנה'} לא נשמר. ${errorText(err)}`);
     return;
   }
-  delete checks[g.client.id][WAIT(g.proc)];
-  states.delete(g.client.id);
+  delete cs[WAIT(g.proc)];
+  states.delete(cid);
   renderKeepingFocus();
   if (isUndo) { toast('הסימון בוטל.'); return; }
-  toast('ההמתנה הסתיימה. התהליך חוזר לחישוב הרגיל.', {
+  toast(endWaitText(prevWaited?.note, ended?.note), {
     label: 'ביטול',
+    // The waited time goes back first, then the wait; if the wait cannot be
+    // restored, the finished wait's minutes are kept (never counted twice or lost).
     run: async () => {
       try {
-        const row = await setCheck(g.client.id, WAIT(g.proc), 'done', prev?.note ?? null);
-        (checks[g.client.id] ||= {})[WAIT(g.proc)] = row;
-        states.delete(g.client.id);
-        renderKeepingFocus();
+        await restoreCheck(cid, WAITED(g.proc), prevWaited);
+      } catch (err) { toast(`הביטול לא נשמר. ${errorText(err)}`); return; }
+      try {
+        const p = parseWaitNote(prev?.note);
+        cs[WAIT(g.proc)] = await setCheck(cid, WAIT(g.proc), 'done', waitNote(p.reason, p.recheck, since));
         toast('ההמתנה חזרה.');
-      } catch (err) { toast(`הביטול לא נשמר. ${errorText(err)}`); }
+      } catch (err) {
+        await restoreCheck(cid, WAITED(g.proc), ended).catch(() => {});
+        toast(`הביטול לא נשמר. ${errorText(err)}`);
+      }
+      states.delete(cid);
+      renderKeepingFocus();
     },
   });
+}
+
+// A process completed from "my work" no longer waits on the client: the wait
+// ends at the completion and its office minutes are kept (as on the client card).
+async function endWaitIfComplete(c, proc) {
+  const cs = checks[c.id] || {};
+  if (!cs[WAIT(proc)]) return;
+  states.delete(c.id);
+  if (!stateOf(c).states.find((x) => x.proc.id === proc.id)?.complete) return;
+  const prevWaited = cs[WAITED(proc)];
+  try { cs[WAITED(proc)] = await setCheck(c.id, WAITED(proc), 'done', endWaitNote(c, proc, cs)); } catch { return; /* the wait stays and counts until completion */ }
+  try {
+    await clearCheck(c.id, WAIT(proc));
+    delete cs[WAIT(proc)];
+  } catch {
+    await restoreCheck(c.id, WAITED(proc), prevWaited).catch(() => {}); // the wait still counts until completion
+  }
+  states.delete(c.id);
 }
 
 function waitLine(wait, id) {
@@ -608,7 +660,7 @@ function personSummary(person, now = new Date()) {
   const w = workFor(person);
   const procs = w.filter((g) => !g.task);
   const today = dayIso(now);
-  const until = (d) => (d.getHours() === 23 && d.getMinutes() === 59 ? 'עד סוף היום' : `עד ${hm(d)}`);
+  const until = (d) => { const p = partsIL(d); return p.hour === 23 && p.minute === 59 ? 'עד סוף היום' : `עד ${hm(d)}`; };
   const line = (g) => `${g.client.name} · ${procLabel(g.proc, ' ')}`;
   const taskLine = (g) => `${isEscalation(g.task) ? 'חריגה שדווחה: ' : ''}${g.client.name} · ${g.task.title}${g.dueAt ? ` · עד ${dm(g.dueAt)}` : ''}`;
   const sections = [
@@ -854,11 +906,10 @@ $('client-search').addEventListener('input', renderClients);
 // ── Daily reviews (spec §7) ──────────────────
 function lastBusinessDays(n, now = new Date()) {
   const out = [];
-  const d = new Date(now);
-  d.setHours(12, 0, 0, 0);
+  let d = atTimeIL(now, 12);
   for (let guard = 0; out.length < n && guard < 60; guard += 1) {
-    if (isBusinessDay(d)) out.push(new Date(d));
-    d.setDate(d.getDate() - 1);
+    if (isBusinessDay(d)) out.push(d);
+    d = addDaysIL(d, -1);
   }
   return out;
 }
@@ -930,7 +981,7 @@ function reviewWeek(r, now) {
   const items = days.map((d) => {
     const iso = dayIso(d);
     const rec = reviewOn(iso, reviewKind(r));
-    const label = iso === today ? 'היום' : `${WEEKDAY[d.getDay()]} ${dm(d)}`;
+    const label = iso === today ? 'היום' : `${WEEKDAY[weekdayIL(d)]} ${dm(d)}`;
     const cls = rec ? 'is-done' : iso === today ? 'is-pending' : 'is-miss';
     const text = rec ? `בוצעה ${hm(rec.at)} · ${who(rec.by_email)}` : iso === today ? 'טרם בוצעה' : 'לא בוצעה';
     return { cls, label, text };
@@ -992,7 +1043,7 @@ function clientNotes(c, now) {
     const rec = reviewOn(today, reviewKind(r));
     const text = rec && parseReviewNote(rec.note).clients[c.id];
     if (!text) return null;
-    return h('p', { class: 'rv-cnote' }, `${who(rec.by_email)}, ${new Date(rec.at).getHours() < 12 ? 'הבוקר' : 'היום'}: ״${text}״`);
+    return h('p', { class: 'rv-cnote' }, `${who(rec.by_email)}, ${partsIL(rec.at).hour < 12 ? 'הבוקר' : 'היום'}: ״${text}״`);
   });
 }
 
@@ -1109,7 +1160,7 @@ function statusWeek(now = new Date()) {
 }
 // Thursday: every client gets a summary, without exception.
 function thursdayPass(now = new Date()) {
-  if (now.getDay() !== 4 || statusNotes === null || !isBusinessDay(now)) return null;
+  if (weekdayIL(now) !== 4 || statusNotes === null || !isBusinessDay(now)) return null;
   const w = statusWeek(now);
   return w.total && w.done < w.total ? w : null;
 }
@@ -1547,8 +1598,10 @@ const perfLog = new Map(); // days -> { rows } | { error }
 const TEAM_VIEWERS = new Set(OFFICE_REVIEWS.map((r) => r.owner));
 const baseId = (proc) => proc.id.replace(/^r\d+-/, '');
 
-// Processes closed in the window, with their due date and how long they took.
-// A process closed entirely as "not relevant" is not counted.
+// Processes closed in the window, with their due date and how long they took,
+// in office minutes (the protocol's target too). A process closed entirely as
+// "not relevant" is not counted, and neither is imported history. Waiting on the
+// client is not the employee's time: it is taken off the duration.
 function closings(days, now) {
   const since = new Date(now.getTime() - days * 864e5);
   const out = [];
@@ -1560,13 +1613,13 @@ function closings(days, now) {
       if (!x.complete || !x.completedAt || x.completedAt < since || !x.dueAt) continue;
       const req = x.proc.items.filter((i) => !i.optional);
       if (req.length && req.every((i) => cs[i.key]?.state === 'na')) continue;
-      // Without its own start, a process starts at the anchor of its due date.
-      const start = x.startAt || resolveTime({ from: x.proc.due?.from }, x.proc.ctx || c, procs, cs, now);
+      if (isImported(x.proc, cs)) continue;
+      const start = durationStart(x, c, procs, cs, now);
       out.push({
-        key: baseId(x.proc), client: c, proc: x.proc, dueAt: x.dueAt, completedAt: x.completedAt, start,
+        key: baseId(x.proc), client: c, proc: x.proc, dueAt: x.dueAt, completedAt: x.completedAt,
         onTime: x.completedAt <= x.dueAt,
-        ms: start && x.completedAt > start ? x.completedAt - start : null,
-        targetMs: start && x.dueAt > start ? x.dueAt - start : null,
+        min: workedMinutes(x, start),
+        targetMin: targetMinutes(x, start),
         people: peopleOf(x),
       });
     }
@@ -1585,7 +1638,8 @@ function onTimeCell(done, onTime) {
       h('span', { class: 'pbar-fill', style: `inline-size:${Math.round((onTime / done) * 100)}%` })));
 }
 
-// Weekly calls (31): logged calls out of the client-weeks the call was due.
+// Weekly calls (31): logged calls out of the client-weeks the call was due
+// (imported history is not a call made that week).
 function weeklyCalls(log, days, now) {
   const since = new Date(now.getTime() - days * 864e5);
   let due = 0; let done = 0;
@@ -1596,7 +1650,7 @@ function weeklyCalls(log, days, now) {
     const weeks = Math.floor((now - from) / (7 * 864e5));
     if (weeks <= 0) continue;
     due += weeks;
-    const hit = new Set(log.filter((l) => l.client_id === c.id && l.item_key === 'p31.call' && l.action === 'done' && new Date(l.at) >= from)
+    const hit = new Set(log.filter((l) => l.client_id === c.id && l.item_key === 'p31.call' && l.action === 'done' && l.note !== IMPORT_NOTE && new Date(l.at) >= from)
       .map((l) => Math.floor((new Date(l.at) - from) / (7 * 864e5))).filter((i) => i < weeks));
     done += hit.size;
   }
@@ -1609,7 +1663,7 @@ async function renderPerformance() {
   const chips = h('div', { class: 'chips-row', role: 'group', 'aria-label': 'תקופה' }, ...[30, 90].map((d) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(perfDays === d), onclick: () => { perfDays = d; renderPerformance(); },
   }, `${d} הימים האחרונים`)));
-  const intro = h('p', { class: 'perf-intro' }, 'נמדד מהיעד המחושב עד שהתהליך נסגר. ימי עבודה א׳–ה׳, בלי חגים ובתוך שעות העבודה. תהליך שכולו ״לא רלוונטי״ לא נספר. זמן שבו התהליך המתין ללקוח נספר.');
+  const intro = h('p', { class: 'perf-intro' }, 'נמדד מהיעד המחושב עד שהתהליך נסגר. הזמנים בשעות העבודה: א׳–ה׳, בלי חגים, 09:00–18:00 (בערב חג עד 13:00). תהליך שכולו ״לא רלוונטי״ לא נספר, וגם לא היסטוריה שיובאה. זמן שבו התהליך המתין ללקוח לא נספר: הוא יורד מהזמן בפועל, והיעד הוארך בו אם ההמתנה התחילה לפני היעד.');
   const days = perfDays;
   if (!perfLog.has(days)) {
     fill(box, chips, intro, h('p', { class: 'state' }, 'מחשב…'));
@@ -1636,20 +1690,20 @@ async function renderPerformance() {
     h('thead', {}, h('tr', {}, ...['תהליך', 'זמן ביצוע בפרוטוקול', 'נסגרו', 'בזמן', 'זמן בפועל (חציון)', 'יעד'].map((t) => h('th', { scope: 'col' }, t)))),
     h('tbody', {}, ...byProc.map(({ p, list }) => {
       const onTime = list.filter((r) => r.onTime).length;
-      const med = medianRow(list, 'ms');
-      const tgt = medianRow(list, 'targetMs');
-      const flag = list.length >= FEW && med && tgt && med.ms > 2 * tgt.targetMs;
+      const med = medianRow(list, 'min');
+      const tgt = medianRow(list, 'targetMin');
+      const flag = list.length >= FEW && med && tgt && med.min > 2 * tgt.targetMin;
       return h('tr', {},
         h('td', { 'data-label': 'תהליך', class: 'client' },
           h('details', { class: 'perf-proc' }, h('summary', {}, `${p.num} · ${p.title}`),
             h('ul', {}, ...list.sort((a, b) => b.completedAt - a.completedAt).map((r) => h('li', {},
-              `${r.client.name}${roundOf(r.proc) ? ` · סבב ${roundOf(r.proc)}` : ''} · יעד ${formatWhen(r.dueAt, now)} · נסגר ${formatWhen(r.completedAt, now)}${r.ms !== null ? ` · ${lateBy(r.start, r.completedAt)}` : ''}${r.onTime ? '' : ' · אחרי היעד'}`)))),
+              `${r.client.name}${roundOf(r.proc) ? ` · סבב ${roundOf(r.proc)}` : ''} · יעד ${formatWhen(r.dueAt, now)} · נסגר ${formatWhen(r.completedAt, now)}${r.min !== null ? ` · ${officeMinutes(r.min)} בשעות העבודה` : ''}${r.onTime ? '' : ' · אחרי היעד'}`)))),
           flag ? h('span', { class: 'tag tag-warn' }, 'כדאי לבדוק את התהליך או את היעד') : null),
         h('td', { 'data-label': 'זמן ביצוע בפרוטוקול', class: 'client sla' }, p.sla),
         h('td', { 'data-label': 'נסגרו', class: 'num' }, String(list.length)),
         h('td', { 'data-label': 'בזמן', class: 'client' }, onTimeCell(list.length, onTime)),
-        h('td', { 'data-label': 'זמן בפועל (חציון)' }, med ? lateBy(med.start, med.completedAt) : '—'),
-        h('td', { 'data-label': 'יעד' }, tgt ? lateBy(tgt.start, tgt.dueAt) : '—'));
+        h('td', { 'data-label': 'זמן בפועל (חציון)' }, med ? officeMinutes(med.min) : '—'),
+        h('td', { 'data-label': 'יעד' }, tgt ? officeMinutes(tgt.targetMin) : '—'));
     }))));
 
   const personRow = (key) => {
@@ -1679,13 +1733,91 @@ async function renderPerformance() {
       personTable('לפי עובד', STAFF_PEOPLE().map((p) => p.key))) : null);
 }
 
-// ── New client ──────────────────────────────
+// ── New client: the deal details, or an existing client imported mid-way ──
 const dlg = $('dlg-new');
 let quotesForNew = [];
-dlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === dlg) dlg.close(); });
+let importing = false;
+let derivedShoot = false;   // the shoot type shown was set from the package, not picked
+let pendingChecks = null;   // the client opened but its first checks did not save: submitting retries only them
+const P01 = ['p01.prepared', 'p01.sent', 'p01.signed'];
+const pad2 = (n) => String(n).padStart(2, '0');
+// Date inputs are in Israel time, whatever the device's zone.
+const toLocalInput = (v) => inputValueIL(new Date(v));
+const fromLocalInput = (v) => (v ? fromInputIL(v)?.toISOString() ?? null : null);
+const quoteOf = () => quotesForNew.find((x) => x.id === $('new-quote').value) || null;
+// The agreement's add-ons count only while its own package is the one chosen.
+const selectionFor = (pkg, q) => (q && q.package_id === pkg ? q.selection : null);
+const delivText = (d) => [...DELIVERABLES.map((x) => [x.label, d[x.key]]), ['ימי צילום', d.shoot_days]]
+  .filter(([, n]) => n > 0).map(([l, n]) => `${l} ${n}`).join(' · ');
+// A field fixed after a failed save stops being marked; the message goes when none is left.
+function clearInvalid(el) {
+  if (!el?.hasAttribute('aria-invalid')) return;
+  el.removeAttribute('aria-invalid');
+  if (!dlg.querySelector('[aria-invalid]')) $('new-err').hidden = true;
+}
+
+fill($('new-package'), h('option', { value: '' }, 'לא מהקטלוג (כמויות בכרטיס)'), ...PACKAGE_OPTIONS.map((p) => h('option', { value: p.id }, p.name)));
+fill($('new-station'), h('option', { value: '' }, 'בחירת תחנה'), ...STATIONS.map((st, i) => h('option', { value: st.key }, `${i + 1}. ${st.title}`)));
+
+function setMode(imp) {
+  importing = imp;
+  $('new-mode-new').setAttribute('aria-pressed', String(!imp));
+  $('new-mode-import').setAttribute('aria-pressed', String(imp));
+  $('new-import').hidden = !imp;
+  $('new-station').required = imp;
+  $('new-submit').textContent = imp ? 'ייבוא הלקוח' : 'פתיחת כרטיס לקוח';
+}
+$('new-mode-new').addEventListener('click', () => setMode(false));
+$('new-mode-import').addEventListener('click', () => { setMode(true); $('new-station').focus(); });
+
+// Quantities and the shoot type follow the package, for manual opens too.
+function packageChanged() {
+  const pkg = $('new-package').value;
+  const q = quoteOf();
+  const d = dealDeliverables(pkg, selectionFor(pkg, q));
+  $('new-package-hint').textContent = Object.keys(d).length
+    ? `בכרטיס: ${delivText(d)}${selectionFor(pkg, q) ? ' (כולל התוספות בהסכם)' : ''}`
+    : 'את הכמויות מזינים בכרטיס הלקוח.';
+  const st = shootTypeOf(pkg);
+  if (st) { $('new-shoot-type').value = st; clearInvalid($('new-shoot-type')); } else if (derivedShoot) $('new-shoot-type').value = '';
+  derivedShoot = !!st;
+  $('new-shoot-hint').textContent = st ? 'לפי החבילה.' : 'לבחור במפורש.';
+}
+$('new-package').addEventListener('change', packageChanged);
+$('new-shoot-type').addEventListener('change', () => { derivedShoot = false; $('new-shoot-hint').textContent = ''; });
+for (const type of ['input', 'change']) dlg.addEventListener(type, (e) => clearInvalid(e.target));
+
+// The client opened but its first checks did not save. Closing drops the retry, and
+// nothing else can redo an import: everything before the station would show as late.
+// So the dialog closes only after the user agrees to lose them.
+const unsaved = () => !!(pendingChecks && (pendingChecks.signed.length || pendingChecks.imported.length));
+let letGo = false;
+function mayClose() {
+  if (!unsaved()) return true;
+  letGo = confirm(pendingChecks.imported.length
+    ? 'הלקוח כבר נפתח, אבל סימוני הייבוא לא נשמרו. בלעדיהם כל מה שלפני התחנה יופיע באיחור, ואי אפשר להריץ את הייבוא שוב. לסגור בכל זאת?'
+    : 'הלקוח כבר נפתח, אבל הסימון של תהליך 1 (נחתם במערכת) לא נשמר. לסגור בכל זאת?');
+  if (!letGo) $('new-submit').focus();
+  return letGo;
+}
+dlg.addEventListener('click', (e) => { if ((e.target.closest('[data-close]') || e.target === dlg) && mayClose()) dlg.close(); });
+dlg.addEventListener('cancel', (e) => { if (e.cancelable && !mayClose()) e.preventDefault(); });
+dlg.addEventListener('close', () => {
+  // An Escape the browser does not let the page stop: reopen, with the retry still there.
+  if (unsaved() && !letGo) { dlg.showModal(); $('new-submit').focus(); return; }
+  letGo = false;
+  // Closed after the client opened: the list shows it.
+  if (pendingChecks) { pendingChecks = null; load(); }
+});
 $('btn-new').addEventListener('click', async () => {
   $('new-form').reset();
   $('new-err').hidden = true;
+  for (const el of dlg.querySelectorAll('[aria-invalid]')) el.removeAttribute('aria-invalid');
+  pendingChecks = null;
+  derivedShoot = false;
+  setMode(false);
+  packageChanged();
+  $('new-submit').disabled = false;
   dlg.showModal();
   $('new-name').focus();
   try {
@@ -1696,42 +1828,86 @@ $('btn-new').addEventListener('click', async () => {
     ...quotesForNew.map((q) => h('option', { value: q.id }, `${q.number} · ${q.client_name}${q.company ? ` (${q.company})` : ''} · נחתם ${formatDay(q.signed_at)}`)));
 });
 $('new-quote').addEventListener('change', () => {
-  const q = quotesForNew.find((x) => x.id === $('new-quote').value);
-  if (!q) return;
+  const q = quoteOf();
+  if (!q) { packageChanged(); return; }
   $('new-name').value = q.client_name || '';
   $('new-business').value = q.company || '';
   $('new-phone').value = q.phone || '';
-  $('new-package').value = [q.tier, q.influencer].filter(Boolean).join(' · ');
-  $('new-shoot-type').value = /נטלי/.test(q.influencer || '') ? 'natali' : q.influencer ? 'dms' : '';
-  const end = new Date(q.signed_at);
-  end.setMonth(end.getMonth() + (Number(q.term_months) || 12));
-  $('new-contract-end').value = end.toLocaleDateString('en-CA');
+  // The shoot type comes from the agreement's package in the catalog.
+  $('new-package').value = PACKAGES[q.package_id] ? q.package_id : '';
+  packageChanged();
+  const p = partsIL(new Date(q.signed_at));
+  $('new-contract-end').value = dayKeyIL(dateIL(p.year, p.month + (Number(q.term_months) || 12), p.day, 12));
+  $('new-deal-at').value = q.signed_at ? toLocalInput(q.signed_at) : '';
 });
+
+// The client's first checks: process 1 when it was signed in the system, and the
+// import of everything before its station. Each batch saves whole or not at all.
+async function saveFirstChecks(p) {
+  if (p.signed.length) { await setChecksBulk(p.row.id, p.signed, 'done', p.signedNote); p.signed = []; }
+  if (p.imported.length) { await setChecksBulk(p.row.id, p.imported, 'done', IMPORT_NOTE); p.imported = []; }
+}
+
 $('new-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const name = $('new-name').value.trim();
-  const fail = (msg) => { $('new-err').textContent = msg; $('new-err').hidden = false; };
-  $('new-name').setAttribute('aria-invalid', String(!name));
-  if (!name) { $('new-name').focus(); return fail('חסר שם לקוח.'); }
-  const q = quotesForNew.find((x) => x.id === $('new-quote').value);
-  const val = (id) => $(id).value.trim() || null;
+  const fail = (msg, el = null) => {
+    $('new-err').textContent = msg; $('new-err').hidden = false;
+    if (el) { el.setAttribute('aria-invalid', 'true'); el.focus(); }
+  };
+  $('new-err').hidden = true;
+  for (const el of dlg.querySelectorAll('[aria-invalid]')) el.removeAttribute('aria-invalid');
   $('new-submit').disabled = true;
-  try {
-    // The deal reaches the office now, so the clocks of processes 1–3 start now.
-    const row = await createClient({
-      name, business: val('new-business'), phone: val('new-phone'), package_name: val('new-package'),
-      shoot_type: val('new-shoot-type'), contract_end: val('new-contract-end'), quote_id: q?.id || null,
-    });
-    // An agreement signed in the system already covers process 1.
-    if (q) {
-      const note = `נחתם במערכת: ${q.number}`;
-      await Promise.allSettled(['p01.prepared', 'p01.sent', 'p01.signed'].map((k) => setCheck(row.id, k, 'done', note)));
+  const done = async () => {
+    try {
+      await saveFirstChecks(pendingChecks);
+      location.href = clientUrl(pendingChecks.row.id);
+    } catch (err) {
+      fail(`הלקוח נפתח, אבל הסימונים ${pendingChecks.imported.length ? 'של הייבוא ' : ''}לא נשמרו (${errorText(err)}). לחיצה נוספת תנסה לשמור אותם שוב.`);
+      $('new-submit').textContent = 'שמירת הסימונים';
+      $('new-submit').disabled = false;
     }
-    location.href = clientUrl(row.id);
-  } catch (err) {
-    fail(errorText(err));
-    $('new-submit').disabled = false;
+  };
+  if (pendingChecks) return done();
+
+  const name = $('new-name').value.trim();
+  const shoot = $('new-shoot-type').value;
+  const station = importing ? $('new-station').value : '';
+  const invalid = !name ? ['חסר שם לקוח.', $('new-name')]
+    : !shoot ? ['חסר סוג יום הצילום: נטלי דדון, או דניס, מישל וסמיון.', $('new-shoot-type')]
+      : importing && !station ? ['בחרו את התחנה שבה הלקוח נמצא עכשיו.', $('new-station')] : null;
+  if (invalid) { $('new-submit').disabled = false; return fail(...invalid); }
+  const q = quoteOf();
+  const pkg = $('new-package').value;
+  const val = (id) => $(id).value.trim() || null;
+  const fields = {
+    name, business: val('new-business'), phone: val('new-phone'),
+    package_name: packageName(pkg) || (q ? [q.tier, q.influencer].filter(Boolean).join(' · ') || null : null),
+    shoot_type: shoot, contract_end: val('new-contract-end'), quote_id: q?.id || null,
+    deliverables: dealDeliverables(pkg, selectionFor(pkg, q)),
+  };
+  // The deal clock starts at the signature. A new deal without an agreement
+  // reaches the office now (the database default); an import may know its dates.
+  const typed = importing ? $('new-deal-at').value : '';
+  const dealAt = q?.signed_at && (!typed || typed === toLocalInput(q.signed_at)) ? q.signed_at : fromLocalInput(typed);
+  if (dealAt) fields.deal_at = dealAt;
+  if (importing) {
+    fields.char_at = fromLocalInput($('new-char-at').value);
+    fields.shoot_at = fromLocalInput($('new-shoot-at').value);
   }
+  let row;
+  try {
+    row = await createClient(fields);
+  } catch (err) {
+    $('new-submit').disabled = false;
+    return fail(errorText(err));
+  }
+  // An agreement signed in the system already covers process 1.
+  const signed = q ? P01 : [];
+  pendingChecks = {
+    row, signed, signedNote: q ? `נחתם במערכת: ${q.number}` : null,
+    imported: importing ? importKeys(station).filter((k) => !signed.includes(k)) : [],
+  };
+  return done();
 });
 
 $('btn-refresh').addEventListener('click', () => { perfLog.clear(); load(); });
@@ -1758,6 +1934,7 @@ mountSession(async (staff) => {
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
   viewerError = viewer.error;
+  $('nav-team').hidden = !canManageTeam(viewer);
   // Always land on the signed-in person's own list; the owner lands on the whole team.
   minePerson = scope === 'own' ? me : me || '';
   applyScope();

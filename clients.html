@@ -29,6 +29,7 @@
       <a class="navlink" href="clients.html" aria-current="page">לקוחות</a>
       <a class="navlink" href="./">הצעה חדשה</a>
       <a class="navlink" href="quotes.html">הצעות שנשלחו</a>
+      <a class="navlink" href="team.html" id="nav-team" hidden>צוות</a>
       <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
       <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
     </nav>
@@ -99,22 +100,40 @@
   <dialog id="dlg-new" aria-labelledby="new-h">
     <form id="new-form" novalidate>
       <div class="dlg-head">
-        <h2 id="new-h">לקוח חדש</h2>
+        <h2 id="new-h">פרטי עסקה</h2>
         <button type="button" class="close" data-close aria-label="סגירה">×</button>
       </div>
       <div class="dlg-body form-grid">
+        <div class="span-2 chips-row" role="group" aria-label="סוג הפתיחה">
+          <button type="button" class="chip" id="new-mode-new" aria-pressed="true">עסקה חדשה</button>
+          <button type="button" class="chip" id="new-mode-import" aria-pressed="false">ייבוא לקוח קיים</button>
+        </div>
         <div class="field span-2" id="from-quote-field" hidden>
           <label for="new-quote">פתיחה מהסכם חתום</label>
           <select class="input" id="new-quote"><option value="">בלי הסכם (מילוי ידני)</option></select>
-          <div class="hint">בחירת הסכם ממלאת את פרטי הלקוח, החבילה, המשפיענים ותאריך סיום החוזה.</div>
+          <div class="hint">בחירת הסכם ממלאת את פרטי הלקוח, החבילה, סוג יום הצילום, הכמויות ותאריך סיום החוזה. שעון העסקה מתחיל בשעת החתימה.</div>
         </div>
         <div class="field"><label for="new-name">שם הלקוח</label><input class="input" id="new-name" required autocomplete="off"></div>
         <div class="field"><label for="new-business">שם העסק</label><input class="input" id="new-business" autocomplete="off"></div>
         <div class="field"><label for="new-phone">טלפון</label><input class="input" id="new-phone" type="tel" dir="ltr" autocomplete="off"></div>
-        <div class="field"><label for="new-package">חבילה</label><input class="input" id="new-package" autocomplete="off"></div>
+        <div class="field"><label for="new-package">חבילה</label>
+          <select class="input" id="new-package" aria-describedby="new-package-hint"></select>
+          <div class="hint" id="new-package-hint"></div></div>
         <div class="field"><label for="new-shoot-type">סוג יום צילום</label>
-          <select class="input" id="new-shoot-type"><option value="">עוד לא ידוע</option><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
+          <select class="input" id="new-shoot-type" required aria-describedby="new-shoot-hint"><option value="">בחירה</option><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select>
+          <div class="hint" id="new-shoot-hint"></div></div>
         <div class="field"><label for="new-contract-end">סיום החוזה</label><input class="input" id="new-contract-end" type="date" dir="ltr"></div>
+        <fieldset class="span-2 fs" id="new-import" hidden>
+          <legend>ייבוא לקוח קיים</legend>
+          <div class="form-grid">
+            <div class="field span-2"><label for="new-station">איפה הלקוח עומד עכשיו</label>
+              <select class="input" id="new-station" aria-describedby="new-station-hint"></select>
+              <div class="hint" id="new-station-hint">כל מה שלפני התחנה יסומן ״ייבוא״, לא ייספר בביצועים ולא יופיע כאיחור. מהתחנה והלאה מסמנים כרגיל.</div></div>
+            <div class="field"><label for="new-deal-at">קבלת פרטי העסקה</label><input class="input" id="new-deal-at" type="datetime-local" dir="ltr"></div>
+            <div class="field"><label for="new-char-at">פגישת האפיון</label><input class="input" id="new-char-at" type="datetime-local" dir="ltr"></div>
+            <div class="field"><label for="new-shoot-at">יום הצילום</label><input class="input" id="new-shoot-at" type="datetime-local" dir="ltr"></div>
+          </div>
+        </fieldset>
         <div class="err span-2" id="new-err" role="alert" hidden></div>
       </div>
       <div class="dlg-foot">

@@ -1,28 +1,34 @@
 // Pure protocol logic: which processes apply to a client, who owns them,
-// due dates and progress. Shared by the browser and the unit tests.
-// Times are computed in the viewer's local time zone (the office is in Israel).
+// due dates and progress. Shared by the browser and the unit tests; no DOM, so it
+// can also run in an edge function.
+// Every date is computed in Israel time (tz.js), whatever the zone of the device
+// or the server: office hours, business days, "today" and the day before a shoot.
 import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS } from './protocol.js';
 import { SPECS, TERM_MONTHS } from './catalog.js';
-import { HOLIDAYS } from './holidays.js';
+import { holidayOn as closedOn, erevOn } from './holidays.js';
+import {
+  dateIL, dayKeyIL, weekdayIL, atTimeIL, endOfDayIL, addDaysIL, daysBetweenIL,
+} from './tz.js';
 
 const DAY = 864e5;
-const HOLIDAY_SET = new Set(HOLIDAYS.map((h) => h.date));
-const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 // Israeli work week: Sunday to Thursday, except the holidays in holidays.js.
-export const isBusinessDay = (d) => d.getDay() !== 5 && d.getDay() !== 6 && !HOLIDAY_SET.has(dayKey(d));
-export const holidayOn = (d) => HOLIDAYS.find((h) => h.date === dayKey(d)) || null;
+export const isBusinessDay = (d) => { const w = weekdayIL(d); return w !== 5 && w !== 6 && !closedOn(d); };
+export const holidayOn = closedOn;
+export { erevOn };
+
+// Office hours of the Israel day of `d`: 09:00–18:00, and until 13:00 on erev chag.
+const openAt = (d) => atTimeIL(d, WORK_HOURS.start);
+const closeAt = (d) => atTimeIL(d, erevOn(d) ? WORK_HOURS.erevEnd : WORK_HOURS.end);
+// Walks whole days from noon, far from any clock change (Israel changes at 02:00).
+const nextDay = (d, step = 1) => addDaysIL(atTimeIL(d, 12), step);
 
 // The next moment inside office hours (the moment itself when it already is).
 export function nextWorkMoment(date) {
   const d = new Date(date);
-  const start = () => { d.setHours(WORK_HOURS.start, 0, 0, 0); };
-  if (!isBusinessDay(d) || d.getHours() >= WORK_HOURS.end) {
-    do d.setDate(d.getDate() + 1); while (!isBusinessDay(d));
-    start();
-  } else if (d.getHours() < WORK_HOURS.start) {
-    start();
-  }
-  return d;
+  if (isBusinessDay(d) && d < closeAt(d)) return d < openAt(d) ? openAt(d) : d;
+  let n = d;
+  do n = nextDay(n); while (!isBusinessDay(n));
+  return openAt(n);
 }
 
 // Adds minutes of office time: the clock stops at night, on weekends and holidays.
@@ -30,7 +36,7 @@ export function addWorkingMinutes(date, minutes) {
   let d = nextWorkMoment(date);
   let left = minutes;
   while (left > 0) {
-    const close = new Date(d); close.setHours(WORK_HOURS.end, 0, 0, 0);
+    const close = closeAt(d);
     const room = (close - d) / 6e4;
     if (left <= room) return new Date(d.getTime() + left * 6e4);
     left -= room;
@@ -38,29 +44,41 @@ export function addWorkingMinutes(date, minutes) {
   }
   return d;
 }
+
+// Minutes of office time between two moments (the employee's clock).
+export function workingMinutesBetween(from, to) {
+  const end = new Date(to);
+  let d = nextWorkMoment(from);
+  let total = 0;
+  while (d < end) {
+    const close = closeAt(d);
+    total += (Math.min(close, end) - d) / 6e4;
+    d = nextWorkMoment(close);
+  }
+  return Math.round(total);
+}
 // Anchors that are office events run on office time; a meeting or a shoot runs on the real clock.
 const onOfficeClock = (from) => from === 'deal' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
 
-const endOfDay = (d) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; };
-const sameDay = (a, b) => a.toDateString() === b.toDateString();
+const sameDay = (a, b) => dayKeyIL(a) === dayKeyIL(b);
 
 // End of the nth business day after `date` (the count starts the next business day).
 export function addBusinessDays(date, n) {
-  const d = new Date(date);
+  let d = new Date(date);
   let left = n;
   while (left > 0) {
-    d.setDate(d.getDate() + 1);
+    d = nextDay(d);
     if (isBusinessDay(d)) left -= 1;
   }
-  return endOfDay(d);
+  return endOfDayIL(d);
 }
 
 export function parseDate(v) {
   if (!v) return null;
   if (v instanceof Date) return v;
-  // A bare date (contract end) is a local calendar day.
+  // A bare date (contract end) is an Israel calendar day.
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
-  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  if (m) return dateIL(+m[1], +m[2], +m[3]);
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
 }
@@ -181,21 +199,21 @@ export function resolveTime(spec, client, procs, checks, now = new Date()) {
   }
   let d = new Date(base);
   if (spec.prevBusinessDay) {
-    do d.setDate(d.getDate() - 1); while (!isBusinessDay(d));
+    do d = addDaysIL(d, -1); while (!isBusinessDay(d));
   }
-  if (spec.days !== undefined) d.setDate(d.getDate() + spec.days);
+  if (spec.days !== undefined) d = addDaysIL(d, spec.days);
   if (spec.days !== undefined || spec.prevBusinessDay) {
     if (spec.at) {
       const [hh, mm] = spec.at.split(':').map(Number);
-      d.setHours(hh, mm, hh === 23 && mm === 59 ? 59 : 0, 0);
+      d = atTimeIL(d, hh, mm, hh === 23 && mm === 59 ? 59 : 0);
     }
   }
   if (spec.hours) d = new Date(d.getTime() + spec.hours * 36e5);
   if (spec.minutes) d = new Date(d.getTime() + spec.minutes * 6e4);
   // A bare contract-end date is due by the end of that day.
-  if (spec.from === 'contractEnd' && spec.days === undefined) d = endOfDay(d);
+  if (spec.from === 'contractEnd' && spec.days === undefined) d = endOfDayIL(d);
   // Counted back from the contract end, a deadline on a day off moves to the business day before.
-  if (spec.from === 'contractEnd' && spec.days < 0) while (!isBusinessDay(d)) d.setDate(d.getDate() - 1);
+  if (spec.from === 'contractEnd' && spec.days < 0) while (!isBusinessDay(d)) d = addDaysIL(d, -1);
   return d;
 }
 
@@ -253,6 +271,52 @@ export function waitOf(proc, checks) {
   return { ...parseWaitNote(c.note), at: since || c.at, by_email: c.by_email };
 }
 
+// Waiting on the client stops the employee's clock (decision 3). Each finished
+// wait adds its office minutes to the process's `waited` mark, note JSON {min, ext}:
+// `min` is all the time waited on the client (the client's response time, never
+// the employee's), `ext` the part that moved the deadline. A wait moves the
+// deadline only when it began before the deadline as it stood then: the clock
+// stops with the time the employee had left, and time already overrun is not
+// given back.
+export const WAITED = (proc) => markKey(proc, 'waited');
+const wholeMinutes = (v) => Math.max(0, Math.round(Number(v) || 0));
+export const waitedNote = (min, ext = min) => JSON.stringify({ min: wholeMinutes(min), ext: Math.min(wholeMinutes(ext), wholeMinutes(min)) });
+// The `waited` note as {min, ext}; a note without `ext` moved the deadline by all of it.
+export function readWaited(note) {
+  let v = null;
+  try { v = JSON.parse(note); } catch { /* not JSON */ }
+  if (!v || typeof v !== 'object') return { min: 0, ext: 0 };
+  const min = wholeMinutes(v.min);
+  return { min, ext: v.ext === undefined ? min : Math.min(min, wholeMinutes(v.ext)) };
+}
+export function waitedOf(proc, checks) {
+  const c = checks[WAITED(proc)];
+  return c && c.state === 'done' ? readWaited(c.note) : { min: 0, ext: 0 };
+}
+// Office minutes the process waited on the client until `until` — the finished
+// waits, and the current one while it lasts — as {min, ext}. `baseDueAt` is the
+// process's own deadline: the current wait moves it only if it began before the
+// deadline moved by the earlier waits (without a deadline, nothing moves).
+export function waitedMinutes(proc, checks, until = new Date(), baseDueAt = null) {
+  const past = waitedOf(proc, checks);
+  const w = waitOf(proc, checks);
+  const since = w ? new Date(w.at) : null;
+  const running = since && since < until ? workingMinutesBetween(since, until) : 0;
+  const moves = running > 0 && baseDueAt && since < (past.ext ? addWorkingMinutes(baseDueAt, past.ext) : baseDueAt);
+  return { min: past.min + running, ext: past.ext + (moves ? running : 0) };
+}
+// Ending a wait at `now`: the note for the `waited` mark with the current wait
+// added. A process completed during the wait counts it until the completion.
+export function endWaitNote(client, proc, checks, now = new Date()) {
+  const s = clientState(client, checks, now).states.find((x) => x.proc.id === proc.id);
+  return s ? waitedNote(s.waited, s.extended) : waitedNote(waitedMinutes(proc, checks, now).min, waitedOf(proc, checks).ext);
+}
+
+// History brought in when an existing client was imported (note exactly "ייבוא"):
+// it keeps the process's place in the protocol, but never counts in the statistics.
+export const IMPORT_NOTE = 'ייבוא';
+export const isImported = (proc, checks) => proc.items.some((i) => checks[i.key]?.note === IMPORT_NOTE);
+
 // Items `person` may close together with "mark the whole process": open,
 // unblocked, required, theirs (and, in a shared process taken by someone else, none).
 export function bulkEligible(state, person, client, checks, now = new Date()) {
@@ -275,10 +339,15 @@ export function clientState(client, checks = {}, now = new Date()) {
     const touched = p.items.some((i) => checks[i.key]);
     const complete = p.recurring ? false : resolved === required.length;
     const startAt = resolveTime(p.start, ctx, procs, checks, now);
-    const dueAt = p.recurring ? null : resolveTime(p.due, ctx, procs, checks, now);
+    const baseDueAt = p.recurring ? null : resolveTime(p.due, ctx, procs, checks, now);
+    const doneAt = complete ? completedAt(p, checks, now) : null;
+    // Waiting on the client (office minutes): `waited` in all, `extended` the part
+    // that moved the deadline on.
+    const w = waitedMinutes(p, checks, doneAt || now, baseDueAt);
+    const dueAt = baseDueAt && w.ext ? addWorkingMinutes(baseDueAt, w.ext) : baseDueAt;
     return {
-      proc: p, required: required.length, resolved, complete, touched, startAt, dueAt,
-      completedAt: complete ? completedAt(p, checks, now) : null,
+      proc: p, required: required.length, resolved, complete, touched, startAt, dueAt, baseDueAt,
+      waited: w.min, extended: w.ext, completedAt: doneAt,
     };
   });
 
@@ -378,7 +447,7 @@ export function bucketOf(status, dueAt, now = new Date()) {
   if (status === 'overdue') return 'overdue';
   if (status === 'client') return 'client';
   if (!dueAt) return status === 'due' ? 'week' : 'later';
-  const days = Math.round((new Date(dueAt).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / DAY);
+  const days = daysBetweenIL(now, dueAt);
   if (days <= 0) return 'today';
   if (days === 1) return 'tomorrow';
   if (days < 7) return 'week';
@@ -387,19 +456,38 @@ export function bucketOf(status, dueAt, now = new Date()) {
 
 // Business days between two moments (Sunday–Thursday), for "late by".
 export function businessDaysBetween(from, to) {
-  const d = new Date(from); d.setHours(0, 0, 0, 0);
-  const end = new Date(to); end.setHours(0, 0, 0, 0);
+  const end = dayKeyIL(to);
+  let d = new Date(from);
   let n = 0;
-  while (d < end) { d.setDate(d.getDate() + 1); if (isBusinessDay(d)) n += 1; }
+  while (dayKeyIL(d) < end) { d = nextDay(d); if (isBusinessDay(d)) n += 1; }
   return n;
 }
 
 const RANK = { overdue: 0, today: 1, due: 2, open: 3, client: 4, waiting: 5, done: 6 };
 export const byUrgency = (a, b) => (RANK[a.status] - RANK[b.status]) || ((a.dueAt?.getTime() ?? Infinity) - (b.dueAt?.getTime() ?? Infinity));
 
+// How long a completed process took the office: office minutes from its start
+// (without one, the anchor of its due date) to completion, less the time it
+// waited on the client. Null when there is no start before the completion.
+export function workedMinutes(state, start) {
+  if (!start || !state.completedAt || state.completedAt <= start) return null;
+  return Math.max(0, workingMinutesBetween(start, state.completedAt) - (state.waited || 0));
+}
+// The protocol's own time for it, in the same office minutes (null when none).
+export function targetMinutes(state, start) {
+  if (!start || !state.baseDueAt || state.baseDueAt <= start) return null;
+  return workingMinutesBetween(start, state.baseDueAt) || null;
+}
+// Where a process's duration is counted from: its start, else the anchor of its due date.
+export const durationStart = (state, client, procs, checks, now = new Date()) => state.startAt
+  || resolveTime({ from: state.proc.due?.from }, state.proc.ctx || client, procs, checks, now);
+
 // Performance: for processes completed within the window, how many met their
-// due date and how long they took from start to completion (median, minutes).
-// Per person: processes they own (or took, when shared).
+// due date and how long they took from start to completion (median, office
+// minutes). Time spent waiting on the client is left out: the due date already
+// moved on by it (when it began in time), and its office minutes are taken off
+// the duration. Imported history is not counted. Per person: processes they own
+// (or took, when shared).
 export function performanceReport(clients, checksByClient, { days = 30, now = new Date() } = {}) {
   const since = new Date(now.getTime() - days * DAY);
   const byProc = new Map();
@@ -412,12 +500,14 @@ export function performanceReport(clients, checksByClient, { days = 30, now = ne
     if (row.minutes !== null) m.durations.push(row.minutes);
   };
   for (const c of clients) {
-    const s = clientState(c, checksByClient[c.id] || {}, now);
+    const checks = checksByClient[c.id] || {};
+    const s = clientState(c, checks, now);
+    const procs = s.states.map((x) => x.proc);
     for (const x of s.states) {
-      if (!x.complete || !x.completedAt || x.completedAt < since || !x.dueAt) continue;
+      if (!x.complete || !x.completedAt || x.completedAt < since || !x.dueAt || isImported(x.proc, checks)) continue;
       const row = {
         onTime: x.completedAt <= x.dueAt,
-        minutes: x.startAt && x.completedAt > x.startAt ? Math.round((x.completedAt - x.startAt) / 6e4) : null,
+        minutes: workedMinutes(x, durationStart(x, c, procs, checks, now)),
       };
       add(byProc, x.proc.id.replace(/^r\d+-/, ''), row);
       for (const p of x.claim ? [x.claim.person] : x.proc.owners) add(byPerson, p, row);
@@ -454,9 +544,7 @@ export function packageDeliverables(model) {
   };
 }
 
-// The Sunday that starts the week of `d`, as a local YYYY-MM-DD key.
+// The Sunday that starts the Israel week of `d`, as a YYYY-MM-DD key.
 export function weekKey(d = new Date()) {
-  const x = new Date(d);
-  x.setDate(x.getDate() - x.getDay());
-  return dayKey(x);
+  return dayKeyIL(nextDay(d, -weekdayIL(d)));
 }
