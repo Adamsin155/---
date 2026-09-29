@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import {
-  roleOf, planUpsert, planRemove, planLink, linkTypeFor, buildLoginLink, summarize, normEmail,
+  roleOf, planUpsert, planRemove, planLink, planPhone, linkTypeFor, buildLoginLink, summarize, normEmail,
 } from '../supabase/functions/staff-admin/rules.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
@@ -30,7 +30,7 @@ addUser('yariv@astrateg.test', { last_sign_in_at: hoursAgo(3) });
 const payoutOwners = new Set([addUser('books@astrateg.test', { last_sign_in_at: hoursAgo(5) }).id]);
 const staff = [
   { email: 'owner@astrateg.test', person: null, vault: true, created_at: hoursAgo(900) },
-  { email: 'irit@astrateg.test', person: 'irit', vault: true, created_at: hoursAgo(800) },
+  { email: 'irit@astrateg.test', person: 'irit', vault: true, phone: '972500000001', created_at: hoursAgo(800) },
   { email: 'lior@astrateg.test', person: 'lior', vault: true, created_at: hoursAgo(700) },
   { email: 'ofir@astrateg.test', person: 'ofir', vault: true, created_at: hoursAgo(600) },
   { email: 'nadia@astrateg.test', person: 'nadia', vault: false, created_at: hoursAgo(500) },
@@ -83,6 +83,13 @@ function staffAdmin(caller, body) {
     if (!plan.ok) return [plan.status, { error: plan.error }];
     staff.splice(staff.indexOf(existing), 1);
     return [200, { ok: true }];
+  }
+  if (body.action === 'phone') {
+    const target = find(email);
+    const plan = planPhone({ role, target, input: body });
+    if (!plan.ok) return [plan.status, { error: plan.error }];
+    target.phone = plan.phone;
+    return [200, { ok: true, phone: plan.phone }];
   }
   if (body.action === 'link') {
     const target = find(email);
@@ -211,6 +218,38 @@ await step('owner toggles the vault (with a confirmation)', async () => {
   assert.deepEqual(fnCalls.at(-2), { by: 'owner@astrateg.test', action: 'upsert', email: 'nadia@astrateg.test', vault: true });
 });
 
+await step('owner sets a WhatsApp number for the handoff buttons: checked, kept as 972…, shown as 05X', async () => {
+  assert.match(await text(owner, '#row-irit'), /וואטסאפ: 050-000-0001/);
+  assert.match(await text(owner, '#row-lior'), /וואטסאפ: אין מספר/);
+  assert.equal(await owner.locator('#phone-edit-eli').count(), 0, 'no number before there is a staff row');
+  assert.equal(await owner.getAttribute('#phone-edit-lior', 'aria-label'), 'הוספת מספר הוואטסאפ של ליאור');
+  await owner.click('#phone-edit-lior');
+  assert.equal(await owner.evaluate(() => document.activeElement?.id), 'phone-lior');
+  assert.equal(await owner.getAttribute('#phone-lior', 'type'), 'tel');
+  const calls = fnCalls.length;
+  await owner.fill('#phone-lior', '03-1234567');
+  await owner.click('#phone-save-lior');
+  await toastHas(owner, 'צריך מספר נייד ישראלי');
+  assert.equal(await owner.getAttribute('#phone-lior', 'aria-invalid'), 'true');
+  assert.equal(fnCalls.length, calls, 'a landline is not sent');
+  assert.deepEqual(staffAdmin(users.get('owner@astrateg.test'), { action: 'phone', email: 'lior@astrateg.test', phone: '03-1234567' }),
+    [400, { error: 'bad_phone' }], 'the function refuses it too');
+  await owner.fill('#phone-lior', '+972 52-555-1234');
+  await owner.press('#phone-lior', 'Enter');
+  await owner.waitForFunction(() => /וואטסאפ: 052-555-1234/.test(document.querySelector('#row-lior')?.textContent || ''));
+  assert.deepEqual(fnCalls.filter((c) => c.action === 'phone').at(-1), { by: 'owner@astrateg.test', action: 'phone', email: 'lior@astrateg.test', phone: '972525551234' });
+  assert.equal(staff.find((r) => r.person === 'lior').phone, '972525551234');
+  await toastHas(owner, 'המספר של ליאור נשמר');
+  assert.equal(await owner.evaluate(() => document.activeElement?.id), 'phone-edit-lior');
+  assert.equal(await text(owner, '#phone-edit-lior'), 'עריכה');
+  // Cancel keeps the number; the owner's own row has one too.
+  await owner.click('#phone-edit-lior');
+  assert.equal(await owner.inputValue('#phone-lior'), '052-555-1234');
+  await owner.click('#phone-cancel-lior');
+  await owner.waitForSelector('#phone-edit-lior');
+  assert.equal(await owner.locator('#phone-edit-owner').count(), 1);
+});
+
 let eliLink;
 await step('owner adds Eli\'s email and creates an invite link: copy and WhatsApp', async () => {
   await owner.fill('#email-eli', 'not-an-email');
@@ -279,6 +318,10 @@ await step('owner on a phone: no sideways scrolling', async () => {
   await phone.waitForSelector('#team-list .tm-row');
   await phone.click('#mklink-lior');
   await phone.waitForSelector('#link-lior');
+  await phone.click('#phone-edit-yariv');
+  await phone.waitForSelector('#phone-yariv');
+  const save = await phone.locator('#phone-save-yariv').boundingBox();
+  assert.ok(save.height >= 44, `touch target ${save.height}px`);
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
   await shot(phone, 'team-02-phone');
 });
@@ -313,6 +356,29 @@ await step('Irit manages the team without the owner\'s powers', async () => {
   await irit.goto(`${BASE}clients.html`);
   await irit.waitForSelector('#app:not([hidden])');
   await irit.waitForFunction(() => !document.getElementById('nav-team').hidden);
+});
+
+await step('Irit sets and clears a colleague\'s WhatsApp number, but not the owner\'s', async () => {
+  await irit.goto(`${BASE}team.html`);
+  await irit.waitForSelector('#phone-edit-yariv');
+  assert.equal(await irit.locator('#phone-edit-owner').count(), 0, 'the owner\'s number is the owner\'s');
+  assert.match(await text(irit, '#row-owner'), /וואטסאפ: אין מספר/);
+  assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'phone', email: 'owner@astrateg.test', phone: '0501234567' }),
+    [403, { error: 'owner_only' }]);
+  await irit.click('#phone-edit-yariv');
+  await irit.fill('#phone-yariv', '054 111 2233');
+  await irit.click('#phone-save-yariv');
+  await irit.waitForFunction(() => /וואטסאפ: 054-111-2233/.test(document.querySelector('#row-yariv')?.textContent || ''));
+  assert.equal(staff.find((r) => r.person === 'yariv').phone, '972541112233');
+  // Lior is a manager, and a number is not a power: Irit may set his.
+  assert.equal(await irit.locator('#phone-edit-lior').count(), 1);
+  await irit.click('#phone-edit-yariv');
+  await irit.fill('#phone-yariv', '');
+  await irit.click('#phone-save-yariv');
+  await toastHas(irit, 'המספר של יריב נמחק');
+  await irit.waitForFunction(() => /וואטסאפ: אין מספר/.test(document.querySelector('#row-yariv')?.textContent || ''));
+  assert.equal(staff.find((r) => r.person === 'yariv').phone, null);
+  assert.deepEqual(fnCalls.filter((c) => c.action === 'phone').at(-1), { by: 'irit@astrateg.test', action: 'phone', email: 'yariv@astrateg.test', phone: null });
 });
 
 await step('Irit cannot put a login that is not on the team, or someone else\'s address, into a row', async () => {

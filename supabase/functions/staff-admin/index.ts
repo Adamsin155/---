@@ -12,10 +12,12 @@
 //   upsert { email, person?, vault?, mode? } → { ok }  (mode 'add': a new row only)
 //   remove { email }               → { ok }            (owner only; the login itself stays)
 //   link   { email, redirectTo }   → { link, type }    ('invite' or 'recovery')
+//   phone  { email, phone }        → { ok, phone }     (WhatsApp number for the handoff
+//                                    buttons; empty clears it; stored as 972XXXXXXXXX)
 // Errors: { error: code } with the codes in ERR. Links and tokens are never logged.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
-  ERR, normEmail, roleOf, bearer, corsHeaders, planUpsert, planRemove, planLink, linkTypeFor,
+  ERR, normEmail, roleOf, bearer, corsHeaders, planUpsert, planRemove, planLink, planPhone, linkTypeFor,
   buildLoginLink, summarize, linkErrorCode,
 } from './rules.js';
 
@@ -23,7 +25,7 @@ const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-type Row = { email: string; person: string | null; vault: boolean; created_at?: string };
+type Row = { email: string; person: string | null; vault: boolean; phone?: string | null; created_at?: string };
 // What the rules return: { ok: true, ... } or { ok: false, status, error }.
 type Plan = { ok: boolean; status?: number; error?: string; [key: string]: any };
 type AuthUser = { id: string; email?: string; email_confirmed_at?: string; last_sign_in_at?: string; invited_at?: string };
@@ -44,6 +46,17 @@ async function staffRow(email: string): Promise<Row | null> {
   const { data, error } = await admin.from('staff').select('email, person, vault, created_at').eq('email', email).maybeSingle();
   if (error) throw error;
   return data as Row | null;
+}
+
+// The whole staff list for the team screen. Until the phone column exists (its
+// migration, 20260930100100_staff_phone.sql), the list is read without it.
+async function staffList(): Promise<Row[]> {
+  const withPhone = await admin.from('staff').select('email, person, vault, phone, created_at').order('created_at');
+  if (!withPhone.error) return withPhone.data as Row[];
+  if (withPhone.error.code !== '42703') throw withPhone.error;
+  const { data, error } = await admin.from('staff').select('email, person, vault, created_at').order('created_at');
+  if (error) throw error;
+  return data as Row[];
 }
 
 // payout_owners is keyed by the login, not by the staff row. An error stops the
@@ -100,15 +113,10 @@ Deno.serve(async (req) => {
 
     switch (body.action) {
       case 'list': {
-        const [{ data: rows, error }, users, links] = await Promise.all([
-          admin.from('staff').select('email, person, vault, created_at').order('created_at'),
-          authUsers(),
-          lastLinks(),
-        ]);
-        if (error) throw error;
+        const [rows, users, links] = await Promise.all([staffList(), authUsers(), lastLinks()]);
         return json(200, {
           caller: { email: callerEmail, person: me!.person ?? null, owner: role === 'owner', vault: !!me!.vault },
-          rows: (rows as Row[]).map((r) => summarize(r, users.get(r.email) ?? null, links.get(r.email) ?? null)),
+          rows: rows.map((r) => summarize(r, users.get(r.email) ?? null, links.get(r.email) ?? null)),
         });
       }
 
@@ -172,6 +180,19 @@ Deno.serve(async (req) => {
         }
         await log(callerEmail, 'link', email, { type });
         return json(200, { link: buildLoginLink(plan.page, type, hashed), type });
+      }
+
+      case 'phone': {
+        const email = normEmail(body.email);
+        if (!email) return json(400, { error: ERR.badEmail });
+        const target = await staffRow(email);
+        const plan: Plan = planPhone({ role, target, input: body });
+        if (!plan.ok) return json(plan.status!, { error: plan.error });
+        const { error } = await admin.from('staff').update({ phone: plan.phone }).eq('email', email);
+        if (error) throw error;
+        // Who changed a number, not the number itself.
+        await log(callerEmail, 'phone', email, { cleared: plan.phone === null });
+        return json(200, { ok: true, phone: plan.phone });
       }
 
       default:

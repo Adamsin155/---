@@ -25,6 +25,7 @@ import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, 
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
 import { canManageTeam } from './team-rules.js';
+import { offerHandoff } from './handoff-ui.js';
 
 let clients = [];
 let checks = {};
@@ -242,6 +243,7 @@ async function toggleEntry(e, input) {
   renderMine();
   if (next) document.getElementById(next)?.focus();
   toast(`סומן כבוצע: ${e.task ? e.task.title : e.item.label}`, { label: 'ביטול', run: () => undo(e) });
+  offerHandoff({ client: e.client, key: e.task ? null : e.item.key, checks: checks[e.client.id], me });
 }
 
 async function undo(e) {

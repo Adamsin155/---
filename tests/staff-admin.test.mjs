@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   PERSONS, TEAM_MANAGERS, LINK_PAGES, ERR, normEmail, roleOf, bearer, allowedRedirect, allowedOrigin, corsHeaders,
-  planUpsert, planRemove, planLink, linkTypeFor, buildLoginLink, summarize, linkErrorCode,
+  planUpsert, planRemove, planLink, planPhone, linkTypeFor, buildLoginLink, summarize, linkErrorCode, normPhone,
 } from '../supabase/functions/staff-admin/rules.js';
 import * as teamRules from '../app/team-rules.js';
 import { STAFF_PEOPLE } from '../app/protocol.js';
@@ -185,12 +185,14 @@ test('the list never carries tokens or user metadata', () => {
   };
   const out = summarize({ email: 'n@a.test', person: 'nadia', vault: true, created_at: '2026-09-01' }, authUser, { at: '2026-09-29T10:00:00Z', by_email: 'i@a.test' });
   assert.deepEqual(out, {
-    email: 'n@a.test', person: 'nadia', vault: true, created_at: '2026-09-01', has_login: true, confirmed: true,
+    email: 'n@a.test', person: 'nadia', vault: true, phone: null, created_at: '2026-09-01', has_login: true, confirmed: true,
     last_sign_in_at: '2026-09-29T09:00:00Z', invited_at: '2026-09-28T08:00:00Z', last_link_at: '2026-09-29T10:00:00Z', last_link_by: 'i@a.test',
   });
   assert.doesNotMatch(JSON.stringify(out), /SECRET|050/);
+  // The staff row's own WhatsApp number (the handoff buttons), never the login's.
+  assert.equal(summarize({ email: 'n@a.test', person: 'nadia', vault: false, phone: '972501234567' }, authUser).phone, '972501234567');
   assert.deepEqual(summarize({ email: 'x@a.test', person: null, vault: false }), {
-    email: 'x@a.test', person: null, vault: false, created_at: null, has_login: false, confirmed: false,
+    email: 'x@a.test', person: null, vault: false, phone: null, created_at: null, has_login: false, confirmed: false,
     last_sign_in_at: null, invited_at: null, last_link_at: null, last_link_by: null,
   });
 });
@@ -212,6 +214,10 @@ test('the function is deployable on its own and does not log links or tokens', (
   assert.match(src, /planLink\(\{ role, me, target, redirectTo: body\.redirectTo, targetIsPayoutOwner \}\)/);
   assert.match(src, /from\('payout_owners'\)/);
   assert.match(src, /planUpsert\(\{ role, callerEmail, existing, input: body, personTaken, hasLogin \}\)/);
+  // A number is set by the rules' answer only, and the log says who, never the number.
+  assert.match(src, /planPhone\(\{ role, target, input: body \}\)/);
+  assert.match(src, /update\(\{ phone: plan\.phone \}\)/);
+  assert.match(src, /log\(callerEmail, 'phone', email, \{ cleared: plan\.phone === null \}\)/);
   const logs = [...src.matchAll(/console\.\w+\(([^;]*)\);/g)];
   assert.ok(logs.length >= 2);
   for (const m of logs) {
@@ -250,4 +256,59 @@ test('team screen: login state and the WhatsApp message', () => {
   assert.match(invite, /שעה/);
   assert.ok(invite.endsWith(link), 'the link comes last, on its own line');
   assert.match(linkMessage({ name: '', link, type: 'recovery' }), /^היי,\n.*סיסמה חדשה/);
+});
+
+const PHONES = [
+  ['050-1234567', '972501234567'], ['0501234567', '972501234567'], ['050 123 4567', '972501234567'],
+  ['+972 50-123-4567', '972501234567'], ['972501234567', '972501234567'], ['(052) 5551234', '972525551234'],
+  ['00972-54-1112233', '972541112233'], ['+972-(0)58-765-4321', '972587654321'], ['  053.111.2222 ', '972531112222'],
+  ['03-1234567', null], ['04 8123456', null], ['+1 555 123 4567', null], ['00501234567', null], ['050+1234567', null],
+  ['05012345678', null], ['050123456', null], ['abc', null], ['050-123-4567 ext 2', null], ['', null], [null, null], [undefined, null],
+];
+
+test('WhatsApp numbers: Israeli mobiles only, kept as 972 and nine digits; the page checks the same way', () => {
+  for (const [input, want] of PHONES) {
+    assert.equal(normPhone(input), want, JSON.stringify(input));
+    assert.equal(teamRules.normPhone(input), want, `app/team-rules.js: ${JSON.stringify(input)}`);
+  }
+  const { formatPhone } = teamRules;
+  assert.equal(formatPhone('972501234567'), '050-123-4567');
+  assert.equal(formatPhone('972587654321'), '058-765-4321');
+  assert.equal(formatPhone(null), '');
+  assert.equal(formatPhone('4915112345678'), '+4915112345678'); // not ours: shown as stored
+  // The database accepts what the function stores (and nothing but digits and a leading +).
+  const src = readFileSync(new URL('../supabase/migrations/20260930100100_staff_phone.sql', import.meta.url), 'utf8');
+  const rule = new RegExp(/phone ~ '([^']+)'/.exec(src)[1]);
+  for (const [, want] of PHONES) if (want) assert.match(want, rule);
+  for (const bad of ['050-1234567', '97250123456a', '+', '1234567']) assert.doesNotMatch(bad, rule, bad);
+  assert.match(src, /add column if not exists phone text/);
+  assert.match(src, /check \(action in \('upsert', 'remove', 'link', 'phone'\)\)/);
+});
+
+test('phone: the owner sets anyone\'s number, Irit and Lior anyone\'s but the owner\'s; empty clears it', () => {
+  const nadia = row('n@a.test', 'nadia');
+  const lior = row('l@a.test', 'lior', true);
+  const owner = row(OWNER, null, true);
+  assert.deepEqual(planPhone({ role: 'owner', target: owner, input: { email: OWNER, phone: '050-1234567' } }), { ok: true, phone: '972501234567' });
+  assert.deepEqual(planPhone({ role: 'owner', target: nadia, input: { email: 'n@a.test', phone: '+972 52 555 1234' } }), { ok: true, phone: '972525551234' });
+  assert.deepEqual(planPhone({ role: 'manager', target: nadia, input: { email: 'n@a.test', phone: '0541112233' } }), { ok: true, phone: '972541112233' });
+  // A number is contact details, not a power: a manager sets a manager's (and their own).
+  assert.equal(planPhone({ role: 'manager', target: lior, input: { email: 'l@a.test', phone: '0541112233' } }).ok, true);
+  assert.deepEqual(planPhone({ role: 'manager', target: owner, input: { email: OWNER, phone: '0541112233' } }), { ok: false, status: 403, error: ERR.ownerOnly });
+  for (const clear of ['', '   ', null, undefined]) {
+    assert.deepEqual(planPhone({ role: 'manager', target: nadia, input: { email: 'n@a.test', phone: clear } }), { ok: true, phone: null }, String(clear));
+  }
+  for (const bad of ['03-1234567', '12345', 501234567, ['0501234567'], { n: 1 }, true]) {
+    assert.deepEqual(planPhone({ role: 'owner', target: nadia, input: { email: 'n@a.test', phone: bad } }), { ok: false, status: 400, error: ERR.badPhone }, JSON.stringify(bad));
+  }
+  assert.equal(planPhone({ role: 'owner', target: null, input: { email: 'x@a.test', phone: '0501234567' } }).error, ERR.notStaff);
+  assert.equal(planPhone({ role: null, target: nadia, input: { email: 'n@a.test', phone: '0501234567' } }).error, ERR.notAllowed);
+  // The team screen offers the same.
+  const { canEditPhone } = teamRules;
+  assert.equal(canEditPhone({ owner: true }, owner), true);
+  assert.equal(canEditPhone({ owner: false, person: 'irit' }, owner), false);
+  assert.equal(canEditPhone({ owner: false, person: 'irit' }, lior), true);
+  assert.equal(canEditPhone({ owner: false, person: 'irit' }, nadia), true);
+  assert.equal(canEditPhone(null, nadia), false);
+  assert.equal(canEditPhone({ owner: true }, null), false);
 });

@@ -10,6 +10,9 @@
 //  - Only the owner sets the vault flag, removes a row, adds an email that already
 //    has a login, or creates or changes the owner's row or a manager's row (a
 //    manager can make links for others, so that power is granted by the owner alone).
+//  - A WhatsApp number (for the handoff buttons) is contact details, not a power:
+//    the owner sets anyone's, Irit and Lior anyone's but the owner's. Only an
+//    Israeli mobile number is kept, as 972XXXXXXXXX.
 
 // Keep in step with STAFF_PEOPLE in app/protocol.js and TEAM_MANAGERS in
 // app/team-rules.js (the unit tests compare them). A copy, because the deployed
@@ -31,6 +34,7 @@ export const ERR = {
   badEmail: 'bad_email',
   badPerson: 'bad_person',
   badRedirect: 'bad_redirect',
+  badPhone: 'bad_phone',
   personTaken: 'person_taken',
   emailTaken: 'email_taken',
   hasLogin: 'has_login',
@@ -50,6 +54,22 @@ export function normEmail(value) {
   const v = String(value ?? '').trim().toLowerCase();
   if (!v || v.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return null;
   return v;
+}
+
+// An Israeli mobile number in international digits (972 and 9 digits starting
+// with 5), or null when it is not one. Accepts the usual ways of writing it:
+// 050-1234567, 050 123 4567, +972 50-123-4567, 972501234567, (050) 1234567.
+// Keep in step with normPhone in app/team-rules.js (the unit tests compare them).
+export function normPhone(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw.length > 32 || !/^\+?[\d\s().-]+$/.test(raw)) return null;
+  let d = raw.replace(/\D/g, '');
+  // An international prefix (+ or 00) must be Israel's.
+  if (d.startsWith('00')) d = d.slice(2);
+  if ((raw.startsWith('+') || /^\D*00/.test(raw)) && !d.startsWith('972')) return null;
+  if (d.startsWith('972')) d = d.slice(3);
+  if (d.startsWith('0')) d = d.slice(1);
+  return /^5\d{8}$/.test(d) ? `972${d}` : null;
 }
 
 export const isOwnerRow = (row) => !!row && (row.person === null || row.person === undefined);
@@ -133,6 +153,20 @@ export function planUpsert({ role, callerEmail, existing, input, personTaken = f
   return { ok: true, insert: !existing, row: { email, person, vault } };
 }
 
+// Set or clear someone's WhatsApp number. `input` is { email, phone } (phone empty
+// or null clears it). `target` is the staff row of that email.
+export function planPhone({ role, target, input }) {
+  if (role !== 'owner' && role !== 'manager') return fail(403, ERR.notAllowed);
+  if (!target) return fail(404, ERR.notStaff);
+  if (role !== 'owner' && isOwnerRow(target)) return fail(403, ERR.ownerOnly);
+  const v = input?.phone;
+  if (v === null || v === undefined || (typeof v === 'string' && !v.trim())) return { ok: true, phone: null };
+  if (typeof v !== 'string') return fail(400, ERR.badPhone);
+  const phone = normPhone(v);
+  if (!phone) return fail(400, ERR.badPhone);
+  return { ok: true, phone };
+}
+
 export function planRemove({ role, callerEmail, existing }) {
   if (role !== 'owner') return fail(403, ERR.ownerOnly);
   if (!existing) return fail(404, ERR.notFound);
@@ -174,6 +208,7 @@ export function summarize(row, authUser = null, lastLink = null) {
     email: row.email,
     person: row.person ?? null,
     vault: !!row.vault,
+    phone: row.phone ?? null,
     created_at: row.created_at ?? null,
     has_login: !!authUser,
     confirmed: !!authUser?.email_confirmed_at,

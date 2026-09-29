@@ -20,6 +20,8 @@ import {
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { googleCalendarUrl, downloadIcs } from './calendar.js';
+import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
+import { describeMark } from './handoffs.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 
 const id = new URLSearchParams(location.search).get('id');
@@ -546,7 +548,7 @@ function renderPhases(s) {
           type: 'button', class: 'done-row', 'aria-expanded': 'false', onclick: () => { shownDone.add(ph.key); render(); },
         }, h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' })),
         `${done.length} תהליכים הושלמו (${done.map((x) => x.proc.num).join(', ')})`, h('span', { class: 'btn-text' }, 'הצגה')) : null,
-        ...list.filter((x) => showDone || !x.complete).map((x) => procCard(x, now)),
+        ...list.filter((x) => showDone || !x.complete).map((x) => procCard(x, now, s)),
         (ph.key === 'publish' || ph.round) && !own() ? h('div', { class: 'round-add' },
           h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => openRound() }, 'הוספת סבב צילום')) : null));
     det.addEventListener('toggle', () => {
@@ -654,6 +656,7 @@ async function markBulk(x, items) {
   // A process completed this way no longer waits on the client (as with a single check).
   await endWaitIfComplete(keys[0]);
   render();
+  offerHandoff({ client, keys, checks, me, onSent: afterHandoff });
   // Focus: the first item still open in this process; else the next open process in the phase; else the phase.
   const left = document.querySelector(`#${CSS.escape(x.proc.id)} .cbx:not(:checked):not(:disabled)`);
   const phaseEl = document.getElementById(x.proc.id)?.closest('details.phase')
@@ -668,7 +671,7 @@ async function markBulk(x, items) {
     run: async () => {
       try {
         await clearChecksBulk(id, keys);
-        for (const k of keys) delete checks[k];
+        for (const k of keys) { delete checks[k]; dropHandoff(k); }
         renderKeepingFocus(`${x.proc.id}-bulk`);
         loadHistory();
         toast(`הסימון של ${keys.length} הפריטים בוטל.`);
@@ -679,7 +682,10 @@ async function markBulk(x, items) {
   });
 }
 
-function procCard(x, now) {
+// After WhatsApp was opened for a handoff: the "העברות" line and the history show it.
+const afterHandoff = () => { renderKeepingFocus(); loadHistory(); };
+
+function procCard(x, now, s) {
   const p = x.proc;
   const pid = p.id.replace(/^r\d+-/, '');
   // Highlighting a person applies to the whole protocol; in "mine" everything shown is mine.
@@ -701,6 +707,8 @@ function procCard(x, now) {
   const pkgUnit = DELIVERABLES.find((d) => d.key === PKG_QTY[pid])?.label;
   // 'own' roles mark a wait only where the client is part of their work.
   const canWait = !x.complete && !p.recurring && (own() ? CLIENT_PROCS.has(pid) : x.ready || CLIENT_PROCS.has(pid));
+  // Handoffs out of this process: who the work went to, and a WhatsApp button.
+  const handoffs = printing ? null : handoffLine({ client, checks, state: s, x, me, onSent: afterHandoff });
   return h('article', { class: `proc s-${x.status}${mine ? ' is-mine' : ''}${dim ? ' is-dim' : ''}`, id: p.id, 'aria-labelledby': `${p.id}-h`, 'aria-describedby': x.wait ? `${p.id}-wait` : null },
     h('header', { class: 'proc-head' },
       h('span', { class: 'pnum num' }, p.num),
@@ -720,6 +728,7 @@ function procCard(x, now) {
           onclick: () => { if (compact) shownProcs.add(p.id); else shownProcs.delete(p.id); renderKeepingFocus(`${p.id}-items`); },
         }, compact ? 'הצגת הפריטים' : 'הסתרת הפריטים') : null,
         canWait && !x.wait ? h('button', { type: 'button', class: 'btn-text wait-btn', onclick: () => openWait(x) }, 'ממתין ללקוח') : null)),
+    compact ? handoffs : null,
     compact ? null : [
       waitLine(x),
       pid === 'p22' || pid === 'p27' ? pauseLine(x) : null,
@@ -732,6 +741,7 @@ function procCard(x, now) {
       ...guidance.map((g) => h('p', { class: 'proc-guide' }, g)),
       p.rule ? h('p', { class: 'proc-rule' }, h('strong', {}, 'חובה: '), p.rule) : null,
       h('ul', { class: 'items' }, ...items.map((i) => itemRow(p, i))),
+      handoffs,
       hidden.length ? h('p', { class: 'others-note' },
         `ועוד ${hidden.length === 1 ? 'פריט אחד' : `${hidden.length} פריטים`} בתהליך הזה אצל ${names([...new Set(hidden.flatMap((i) => i.owners))].filter((o) => o !== me))}.`) : null,
       bulkButton(x),
@@ -821,6 +831,9 @@ async function mark(key, state, focusId, note = null) {
     await endWaitIfComplete(key);
     renderKeepingFocus(focusId);
     loadHistory();
+    // A handoff item: offer the ready WhatsApp message to the next person.
+    if (state === 'done') offerHandoff({ client, key, checks, me, onSent: afterHandoff });
+    else dropHandoff(key);
     return true;
   } catch (err) {
     pending.delete(key);
@@ -1389,6 +1402,8 @@ function historyText(r) {
   const round = roundOfKey(r.item_key);
   const pre = round > 1 ? `סבב ${round} · ` : '';
   const base = baseKey(r.item_key);
+  const handed = describeMark(base);
+  if (handed) return r.action === 'clear' ? `ביטל/ה רישום העברה: ${pre}${handed}` : `פתח/ה וואטסאפ להעברה: ${pre}${handed}`;
   const mk = /^(p\d+[ab]?)\.(claim|wait|waited|pause)$/.exec(base);
   if (mk) {
     const num = PROCESSES.find((p) => p.id === mk[1])?.num;
@@ -1578,6 +1593,8 @@ mountSession(async (staff) => {
   applyScope();
   await load();
   refreshAccess();
+  // The team's WhatsApp numbers, for the handoff buttons in the card.
+  ensurePhones().then(() => { if (client && !busy()) renderKeepingFocus(); });
   const target = location.hash && document.getElementById(location.hash.slice(1));
   if (target) target.scrollIntoView({ block: 'start' });
 });
