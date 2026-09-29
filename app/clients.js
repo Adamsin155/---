@@ -26,6 +26,7 @@ import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
 import { canManageTeam } from './team-rules.js';
 import { canSendMessages } from './messages-logic.js';
+import { offerHandoff, dropHandoff } from './handoff-ui.js';
 
 let clients = [];
 let checks = {};
@@ -243,6 +244,7 @@ async function toggleEntry(e, input) {
   renderMine();
   if (next) document.getElementById(next)?.focus();
   toast(`סומן כבוצע: ${e.task ? e.task.title : e.item.label}`, { label: 'ביטול', run: () => undo(e) });
+  offerHandoff({ client: e.client, key: e.task ? null : e.item.key, checks: () => checks[e.client.id], me, canTeam: canManageTeam({ me, scope, error: viewerError }) });
 }
 
 async function undo(e) {
@@ -254,6 +256,7 @@ async function undo(e) {
       await clearCheck(e.client.id, e.item.key);
       delete checks[e.client.id][e.item.key];
       states.delete(e.client.id);
+      dropHandoff(e.item.key);
     }
     renderMine();
     toast('הסימון בוטל.');

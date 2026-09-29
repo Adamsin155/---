@@ -18,6 +18,12 @@
 .tm-add { display: flex; gap: 6px; }
 .tm-add .input { flex: 1; min-width: 0; min-height: 40px; padding-block: 7px; font-size: 14px; }
 .tm-add .btn { flex: none; min-height: 40px; }
+/* The WhatsApp number that the handoff buttons open a chat with. */
+.tm-phone { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; margin: 4px 0 0; font-size: 13.5px; }
+.tm-phone .num { font-size: 14px; }
+.tm-phone-edit { min-height: 36px; }
+.tm-phone-form { margin-top: 6px; flex-wrap: wrap; align-items: center; }
+.tm-phone-form .input { flex: 1 1 140px; }
 .tm-state { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; }
 .tm-last { font-size: 12.5px; }
 .s-none.sbadge { color: var(--muted); }
@@ -46,6 +52,7 @@
 .tm-help h2 { margin: 0 0 8px; font-size: 17px; }
 .tm-help ol { margin: 0 0 8px; padding-inline-start: 20px; display: grid; gap: 4px; color: var(--text-2); }
 .tm-help p { margin: 0; font-size: 14px; }
+.tm-help p + p { margin-top: 6px; }
 
 .tm-noaccess { max-inline-size: 520px; inline-size: 100%; justify-self: center; margin-top: 24px; padding: 28px 24px; text-align: center; display: grid; gap: 10px; justify-items: center; }
 .tm-noaccess h2 { margin: 0; font-size: 20px; }
@@ -57,7 +64,8 @@
 }
 @media (max-width: 760px) {
   .tm-row { grid-template-columns: minmax(0, 1fr); padding: 14px 12px; }
-  .tm-acts .btn, .tm-link .linkbox .btn { min-height: 44px; }
+  .tm-acts .btn, .tm-link .linkbox .btn, .tm-phone-edit, .tm-phone-form .btn, .tm-phone-form .btn-text { min-height: 44px; }
+  .tm-phone-form .input { min-height: 44px; }
   .tm-link .linkbox .btn { flex: 1 1 auto; }
   .tm-help { padding: 14px; }
 }

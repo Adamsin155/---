@@ -28,7 +28,7 @@ jobs:
       # The browser tests run against the published set only (what
       # scripts/build-pages.mjs puts on gh-pages), so a file the site needs
       # but the build leaves out fails here, not in production.
-      - name: Browser tests (payouts app, quote builder, client protocol, team accounts, client messages, standalone site)
+      - name: Browser tests (payouts app, quote builder, client protocol, team accounts, client messages, handoffs, standalone site)
         run: |
           node scripts/build-pages.mjs /tmp/pages
           npx --yes http-server /tmp/pages -p 8080 -s > /dev/null 2>&1 &
@@ -39,6 +39,7 @@ jobs:
           node tests/protocol-office-e2e.mjs
           node tests/team-e2e.mjs
           node tests/messages-e2e.mjs
+          node tests/handoffs-e2e.mjs
           node scripts/build-payment-site.mjs /tmp/site/payouts /payouts/
           (cd /tmp/site && npx --yes http-server -p 8082 -s . > /dev/null 2>&1 &)
           npx --yes wait-on -t 30000 http://localhost:8082/payouts/
