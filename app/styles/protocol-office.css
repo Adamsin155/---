@@ -106,6 +106,100 @@ a.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
 .perf-table .tag { margin-top: 4px; white-space: normal; }
 .perf-people td { vertical-align: middle; }
 
+/* ── Batch 3: people, urgent tasks, escalations, Ofir's control ── */
+.who-sub { margin: 6px 0 0; font-size: 14px; font-weight: 600; color: var(--text-2); }
+
+/* Urgent / reported exception: a filled icon with "!" and the word, never colour alone. */
+.sbadge.s-urgent, .sbadge.s-escalation { color: var(--late); font-weight: 600; }
+.s-urgent .sicon, .s-escalation .sicon { background: currentColor; box-shadow: none; }
+.s-urgent .sicon::before, .s-escalation .sicon::before { content: '!'; font-size: 10px; font-weight: 800; line-height: 1; color: var(--bg); }
+.s-escalation .sicon { border-radius: 2px; transform: rotate(45deg) scale(.86); }
+.s-escalation .sicon::before { transform: rotate(-45deg); }
+.wproc-h .sbadge.s-urgent, .wproc-h .sbadge.s-escalation { margin-inline-start: 0; }
+.wproc.is-urgent { border-inline-start: 3px solid var(--late); padding-inline-start: 12px; }
+.g-urgent .wgroup-h { color: var(--late); }
+.g-urgent .wgroup-h > .sicon, .ctl-urgent .wgroup-h > .sicon {
+  width: 14px; height: 14px; border-radius: 50%; display: inline-grid; place-items: center; background: currentColor;
+}
+.g-urgent .wgroup-h > .sicon::before, .ctl-urgent .wgroup-h > .sicon::before { content: '!'; font-size: 10px; font-weight: 800; color: var(--bg); }
+.task-meta { margin: 2px 0 0; font-size: 13px; color: var(--text-2); }
+.thu-card .pbar { inline-size: 160px; margin-top: 6px; }
+
+/* A task's brief, folded under it */
+.witem.has-brief { flex-wrap: wrap; }
+.witem.has-brief > .wrow { flex: 1 1 100%; }
+details.brief { flex: 1 1 100%; margin: -4px 0 8px; padding-inline-start: 34px; font-size: 13.5px; }
+details.brief > summary { cursor: pointer; color: var(--accent); min-height: 32px; display: inline-flex; align-items: center; }
+.brief-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 4px 0 0; }
+.brief-list dt { color: var(--muted); }
+.brief-list dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+
+/* Control: jump links, sections */
+.ctl-nav ul { list-style: none; margin: 0; padding: 0; }
+.control [tabindex='-1'] { scroll-margin-top: calc(var(--topbar-h, 64px) + 12px); }
+.control [tabindex='-1']:focus { outline: none; }
+.control [tabindex='-1']:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.ctl-sec { display: grid; gap: 8px; min-width: 0; }
+.ctl-sec > .wgroup-h { margin-bottom: 0; }
+.ctl-sec .perf-intro { max-inline-size: 760px; }
+.ctl-none { margin: 0; font-size: 14px; }
+.ctl-urgent > .wgroup-h { color: var(--late); }
+.task-list { list-style: none; margin: 0; padding: 0; }
+.task-row { padding: 10px 0; border-top: 1px solid var(--line); display: grid; gap: 2px; }
+.task-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 14px; }
+.task-head .wclient { font-size: 15px; font-weight: 500; color: var(--text); min-height: 32px; display: inline-flex; align-items: center; }
+.task-row details.brief { padding-inline-start: 0; margin: 2px 0 0; }
+.rv-stale { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; font-size: 13.5px; color: var(--text-2); }
+.rv-stale .tag { margin-inline-start: 0; }
+
+/* Per-person table: editors under their own heading */
+.ctable .group-row th {
+  text-align: start; padding: 10px 16px 6px; font-size: 13px; font-weight: 600; color: var(--text-2);
+  background: transparent; border-bottom: 1px solid var(--line);
+}
+
+/* Weekly status summary */
+.status-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; font-size: 14.5px; font-weight: 500; }
+.status-progress .pbar { inline-size: 160px; }
+.status-list { list-style: none; margin: 0; padding: 0; }
+.status-row { padding: 10px 0; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+.status-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.status-head .wclient { font-size: 15px; font-weight: 500; color: var(--text); min-height: 32px; display: inline-flex; align-items: center; }
+.status-head .status-edit { margin-inline-start: auto; }
+.status-sum { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; margin: 0; font-size: 13.5px; }
+.status-sum dt { color: var(--muted); }
+.status-sum dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.status-by { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 13px; }
+.status-task { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.status-body { display: grid; gap: 14px; }
+.status-body > p { margin: 0; }
+.status-fields { display: grid; gap: 12px; }
+.status-fields textarea { resize: vertical; min-height: 56px; }
+.status-ctx { font-size: 13.5px; color: var(--text-2); }
+.status-ctx .btn-text { display: inline-flex; min-height: 32px; align-items: center; }
+.status-prev { font-size: 13px; color: var(--muted); padding-inline-start: 10px; border-inline-start: 2px solid var(--line-strong); }
+
+/* Editor load: never ranked, always in the same order */
+.editor-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
+.editor-card { padding: 12px 14px; border-radius: var(--radius-md); background: var(--bg-2); border: 1px solid var(--line); display: grid; gap: 8px; align-content: start; min-width: 0; }
+.editor-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.editor-head .tag { margin-inline-start: 0; }
+.editor-count { font-size: 13.5px; color: var(--text-2); }
+.edit-jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.edit-jobs > li { padding-top: 8px; border-top: 1px solid var(--line); }
+.edit-jobs .wclient { color: var(--text); font-weight: 500; min-height: 32px; display: inline-flex; align-items: center; }
+.edit-steps { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }
+.edit-steps li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+.edit-k { color: var(--text-2); min-inline-size: 11em; }
+.await-editor { display: grid; gap: 4px; }
+
+/* System integrity */
+.health-group { display: grid; gap: 2px; }
+.health-h { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 14px; font-weight: 600; color: var(--text-2); }
+.health-h .n { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.health-list > li { font-size: 14px; }
+.health-list .pchips { margin-inline-start: 4px; }
+
 /* ── Phones ──────────────────────────────── */
 @media (max-width: 760px) {
   .mine-tools { padding-inline: 12px; }
@@ -124,6 +218,16 @@ a.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
   /* Labels of the card layout stay in the text face, not the mono of the numbers. */
   .ctable td[data-label]::before { font-family: var(--font); letter-spacing: normal; font-size: 11.5px; }
   .team-summary .btn { flex: 1 1 100%; min-height: 44px; }
+  .ctl-nav .chip, .status-edit, .status-by .btn, .status-by .btn-text, .status-task a, details.brief > summary,
+  .status-ctx .btn-text, .task-head .wclient, .status-head .wclient, .edit-jobs .wclient, .health-list a { min-height: 44px; display: inline-flex; align-items: center; }
+  .status-head .status-edit.btn { flex: 1 1 100%; justify-content: center; }
+  .status-sum, .brief-list { grid-template-columns: 1fr; gap: 0; }
+  .status-sum dd, .brief-list dd { margin-bottom: 6px; }
+  details.brief { padding-inline-start: 0; }
+  .ctable .group-row { display: block; padding: 12px 14px 4px; }
+  .ctable .group-row th { display: block; padding: 0; border: 0; }
+  .edit-k { min-inline-size: 0; flex: 1 1 100%; }
+  #dlg-status .dlg-foot .btn { flex: 1 1 100%; min-height: 44px; }
 }
 /* Four tabs fit a 360px screen. */
 @media (max-width: 420px) {
@@ -133,5 +237,6 @@ a.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
   details.g-client > summary::after { transition: none; }
 }
 @media print {
-  .wproc-acts, .mine-tools, .team-summary, .row-acts { display: none !important; }
+  .wproc-acts, .mine-tools, .team-summary, .row-acts, .ctl-nav, .status-edit { display: none !important; }
+  details.brief::details-content { content-visibility: visible; }
 }

@@ -6,6 +6,7 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { applicableProcesses } from '../app/protocol-logic.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -30,6 +31,7 @@ const db = {
   protocol_log: [],
   client_tasks: [],
   office_reviews: [],
+  client_status_notes: [],
 };
 let failNextCheck = false;
 
@@ -37,6 +39,7 @@ const base = {
   business: null, phone: null, package_name: null, shoot_type: null, characterizer: null, has_logo: null, editor_name: null,
   char_at: null, shoot_at: null, contract_end: '2027-09-20', status: 'active', notes: null, quote_id: null,
   created_by_email: USER.email, links: {}, deliverables: {}, rounds: [], verified_at: null, verified_by: null, closed_reason: null, address: null,
+  editor: null,
 };
 const client = (o) => { const c = { ...base, id: randomUUID(), created_at: o.deal_at, ...o }; db.clients.push(c); return c; };
 const check = (c, key, when, by = 'ofir@astrateg.test', state = 'done', note = null) => {
@@ -44,15 +47,15 @@ const check = (c, key, when, by = 'ofir@astrateg.test', state = 'done', note = n
   db.protocol_log.push({ id: db.protocol_log.length + 1, client_id: c.id, item_key: key, action: state, note, by_email: by, at: when });
 };
 const P1 = ['p01.prepared', 'p01.sent', 'p01.signed'];
-const P2 = ['p02.opened', 'p02.m.lior', 'p02.m.irit', 'p02.m.ofir', 'p02.m.shirel', 'p02.m.ilai', 'p02.m.client', 'p02.intro'];
-const P3 = ['p03.who', 'p03.scheduled'];
-const P4 = ['p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved'];
+const P2 = ['p02.opened', 'p02.m.lior', 'p02.m.irit', 'p02.m.ofir', 'p02.m.shirel', 'p02.m.ilai', 'p02.m.client', 'p02.intro', 'p02.deal'];
+const P3 = ['p03.who', 'p03.available', 'p03.scheduled', 'p03.calendar'];
+const P4 = ['p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved', 'p04.followup'];
 
 // Mid-way client with a second shoot round.
 const seeded = client({ name: 'מספרת רון', business: 'רון עיצוב שיער', phone: '052-7654321', shoot_type: 'dms', characterizer: 'ofir', has_logo: true,
   deal_at: hoursAgo(80), char_at: hoursAgo(50), shoot_at: new Date(NOW.getTime() + 2 * 864e5).toISOString(),
   rounds: [{ n: 2, shoot_type: 'dms', shoot_at: null, start_at: hoursAgo(30) }] });
-for (const k of [...P1, ...P2, ...P3, ...P4, 'p05.access', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos']) check(seeded, k, hoursAgo(49));
+for (const k of [...P1, ...P2, ...P3, ...P4, 'p05.access', 'p05.vault', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos']) check(seeded, k, hoursAgo(49));
 // Just in, WhatsApp group opened already by Ofir: Irit's bulk button offers the other 7.
 const fresh = client({ name: 'פיצה נאפולי', deal_at: hoursAgo(3) });
 check(fresh, 'p02.opened', hoursAgo(1));
@@ -141,13 +144,18 @@ async function fakeSupabase(route) {
         if (i >= 0) db.protocol_checks[i] = row; else db.protocol_checks.push(row);
         db.protocol_log.push({ id: db.protocol_log.length + 1, client_id: r.client_id, item_key: r.item_key, action: r.state, note: r.note, by_email: USER.email, at: now });
         out.push(row);
+      } else if (table === 'client_status_notes') {
+        const row = { current: null, missing: null, next: null, owner: null, due_on: null, ...r, by_email: USER.email, at: now };
+        const i = db.client_status_notes.findIndex((x) => x.client_id === r.client_id && x.week === r.week);
+        if (i >= 0) db.client_status_notes[i] = row; else db.client_status_notes.push(row);
+        out.push(row);
       } else if (table === 'office_reviews') {
         const row = { note: null, ...r, by_email: USER.email, at: now };
         const i = db.office_reviews.findIndex((x) => x.day === r.day && x.kind === r.kind);
         if (i >= 0) db.office_reviews[i] = row; else db.office_reviews.push(row);
         out.push(row);
       } else {
-        const row = { ...r, id: randomUUID(), created_at: now, created_by_email: USER.email };
+        const row = { ...(table === 'client_tasks' ? { done_at: null, source: null, brief: null, urgent: false, due_on: null } : {}), ...r, id: randomUUID(), created_at: now, created_by_email: USER.email };
         db[table].push(row);
         out.push(row);
       }
@@ -234,7 +242,7 @@ await shot('01-my-work');
 
 // ── §1 bulk: 7 of Irit's items in process 2 of the fresh client, then undo ──
 const p2card = page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("פתיחת קבוצת WhatsApp")');
-assert.equal(await p2card.locator('.bulk-btn').innerText(), 'סימון כל התהליך כבוצע (7)');
+assert.equal(await p2card.locator('.bulk-btn').innerText(), 'סימון כל הפריטים שלי כבוצעו (7)'); // p02.deal is Lior's (protocol v2)
 assert.equal(await p2card.locator('.bulk-btn').getAttribute('aria-label'), 'סימון 7 פריטים כבוצעו בתהליך 2 · פתיחת קבוצת WhatsApp');
 // A failed save marks nothing.
 failNextCheck = true;
@@ -250,8 +258,8 @@ await toastHas('הסימון של 7 הפריטים בוטל.');
 // Undo removes only what the bulk action marked: Ofir's earlier check stays.
 assert.deepEqual(db.protocol_checks.filter((c) => c.client_id === fresh.id).map((c) => c.item_key), ['p02.opened']);
 await page.waitForSelector('.wproc:has(.wclient:text("פיצה נאפולי")) .bulk-btn');
-// Process 3 has two open items of Irit's, so it gets the button too.
-assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון") .bulk-btn').innerText(), 'סימון כל התהליך כבוצע (2)');
+// Process 3 has open items of Irit's, so it gets the button too.
+assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון") .bulk-btn').innerText(), 'סימון כל הפריטים שלי כבוצעו (3)'); // p03.scheduled waits for the characterizer and date
 
 // ── §4 mark "waiting on the client" from my work ──
 const p3card = page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון")');
@@ -367,7 +375,7 @@ assert.match(await page.locator('.perf-table tr:has-text("3 · קביעת פגי
 assert.match(perf, /הנתונים שלי/);
 assert.match(perf, /אחוז נמוך בתהליך הוא קודם כול סימן לבדוק את התהליך או את היעד/);
 const people = await page.locator('.perf-team tbody tr td:first-child').allInnerTexts();
-assert.deepEqual(people, ['עירית', 'ליאור', 'אופיר', 'שיראל', 'עילאי', 'עורך']);
+assert.deepEqual(people, ['עירית', 'ליאור', 'אופיר', 'שיראל', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה']);
 await page.click('#performance .chip:text("90 הימים האחרונים")');
 await page.waitForSelector('#performance .chip[aria-pressed="true"]:text("90")');
 await page.waitForSelector('.perf-team tbody tr');
@@ -416,7 +424,8 @@ assert.deepEqual(await page.locator('.perf-me tbody td:first-child').allInnerTex
 await page.click('#tab-mine');
 await page.click('#mine-people .chip:has-text("עירית")');
 await page.waitForSelector('.wproc:has(.wclient:text("פיצה נאפולי"))');
-assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי")) .bulk-btn').count(), 0);
+// (Process 3 has no items of Lior's; in process 2 he has his own two, p02.intro and p02.deal.)
+assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון") .bulk-btn').count(), 0);
 assert.equal(await page.locator('.auto-banner').count(), 1); // Irit's view shows the banner
 db.staff[0].person = 'irit';
 

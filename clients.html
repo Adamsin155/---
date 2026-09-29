@@ -163,6 +163,31 @@
     </form>
   </dialog>
 
+  <dialog id="dlg-status" class="dlg-wide" aria-labelledby="status-h">
+    <form id="status-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="status-h">סיכום מצב</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body status-body">
+        <p class="status-ctx" id="status-ctx"></p>
+        <div id="status-fields" class="status-fields"></div>
+        <div class="form-grid">
+          <div class="field"><label for="stf-owner">אחראי לפעולה הבאה</label><select class="input" id="stf-owner"></select></div>
+          <div class="field"><label for="stf-due">מועד יעד</label><input class="input" id="stf-due" type="date" dir="ltr"></div>
+        </div>
+        <p class="hint">פעולה הבאה עם אחראי ומועד יעד אפשר לפתוח כמשימה מרשימת הסיכומים.</p>
+        <p class="status-prev" id="status-prev" hidden></p>
+        <div class="err" id="status-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn" id="status-save">שמירה</button>
+        <button type="submit" class="btn btn-primary" id="status-next">שמירה ומעבר ללקוח הבא</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="app/clients.js"></script>
 </body>

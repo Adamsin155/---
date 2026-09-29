@@ -159,3 +159,29 @@ export async function loadQuoteNumbers(ids) {
   if (error) throw error;
   return new Map(data.map((q) => [q.id, q]));
 }
+
+// ── Tasks: urgent flag, escalations to Lior, briefs ──
+// (Import declarations are hoisted, so this one works from the end of the module.)
+import { BRIEF_FIELDS } from './protocol.js';
+
+export const isEscalation = (t) => t?.source === 'escalation';
+// An escalation to Lior is handled at once, like a task marked urgent.
+export const isUrgentTask = (t) => !!t?.urgent || isEscalation(t);
+export const hasBrief = (t) => !!t?.brief && BRIEF_FIELDS.some(([k]) => String(t.brief[k] ?? '').trim());
+
+// "Urgent" or "reported exception": text and icon, never colour alone. Null for an ordinary task.
+export function taskBadge(t) {
+  if (!isUrgentTask(t)) return null;
+  const esc = isEscalation(t);
+  return h('span', { class: `sbadge ${esc ? 's-escalation' : 's-urgent'}` },
+    h('span', { class: 'sicon', 'aria-hidden': 'true' }), esc ? 'חריגה שדווחה' : 'דחוף');
+}
+
+// The brief of a task (what exactly to fix), folded under the task.
+export function briefDetails(t, open = false) {
+  if (!hasBrief(t)) return null;
+  return h('details', { class: 'brief', open },
+    h('summary', {}, 'בריף למשימה'),
+    h('dl', { class: 'brief-list' }, ...BRIEF_FIELDS.filter(([k]) => String(t.brief[k] ?? '').trim())
+      .flatMap(([k, label]) => [h('dt', {}, label), h('dd', {}, String(t.brief[k]).trim())])));
+}
