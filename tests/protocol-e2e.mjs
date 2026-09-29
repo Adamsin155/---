@@ -363,13 +363,13 @@ const accTask = db.client_tasks.at(-1);
 assert.deepEqual([accTask.owner, accTask.urgent], ['lior', true]);
 assert.match(accTask.title, /פייסבוק|Facebook/i);
 
-// Mark a whole process: process 3 has two items, both Irit's.
+// Mark a whole process: process 3 has four items, all Irit's.
 await page.evaluate(() => { document.querySelector('#p03')?.closest('details').setAttribute('open', ''); });
 await page.waitForSelector('#p03-bulk');
-assert.match(await page.locator('#p03-bulk').innerText(), /סימון כל התהליך כבוצע \(2\)/);
+assert.match(await page.locator('#p03-bulk').innerText(), /סימון כל התהליך כבוצע \(4\)/);
 await page.click('#p03-bulk');
-await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('סומנו 2 פריטים'));
-assert.equal(db.protocol_checks.filter((c) => c.client_id === created.id && c.item_key.startsWith('p03.')).length, 2);
+await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('סומנו 4 פריטים'));
+assert.equal(db.protocol_checks.filter((c) => c.client_id === created.id && c.item_key.startsWith('p03.')).length, 4);
 await page.click('.toast-act');
 await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('בוטל'));
 assert.equal(db.protocol_checks.filter((c) => c.client_id === created.id && c.item_key.startsWith('p03.')).length, 0);
@@ -397,13 +397,13 @@ await page.fill('#ed-address', 'הבונים 5, רמת גן');
 await page.fill('#ed-deliv-videos', '25');
 await page.fill('#ed-deliv-shoot_days', '1');
 // Natali clients can be edited by Nirel too.
-assert.ok((await page.locator('#ed-editor option').allTextContents()).some((t) => /נירל/.test(t)));
+assert.ok((await page.locator('#ed-editor option').allTextContents()).some((t) => /ניראל/.test(t)));
 await page.selectOption('#ed-editor', 'nirel');
 await page.click('#ed-submit');
 await page.waitForSelector('.cc-links a.link-chip');
 assert.equal(db.clients.find((c) => c.id === created.id).links.drive, 'https://drive.google.com/drive/folders/abc');
 assert.equal(db.clients.find((c) => c.id === created.id).editor, 'nirel');
-assert.match(await page.locator('#p22 .proc-meta').textContent(), /נירל/);
+assert.match(await page.locator('#p22 .proc-meta').textContent(), /ניראל/);
 
 // Package quantities: + saves after a short pause.
 assert.match(await page.locator('#deliv-videos-v').innerText(), /נמסרו 0 מתוך 25/);
@@ -461,7 +461,7 @@ await page.click('.viewbar .chip:has-text("שיראל")');
 await page.check('.only input');
 await page.evaluate(() => document.querySelectorAll('details.phase').forEach((d) => { d.open = true; }));
 const shown = await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id));
-assert.ok(shown.includes('p04') && shown.includes('p12') && !shown.includes('p10'), shown.join());
+assert.ok(shown.includes('p04') && shown.includes('p06') && !shown.includes('p12') && !shown.includes('p10'), shown.join()); // scripts are Lior's in v2
 await page.uncheck('.only input');
 await page.click('.viewbar .chip:has-text("כל הצוות")');
 await shot('04-client-card');
