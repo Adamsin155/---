@@ -158,6 +158,29 @@ export const PHASES = [
   { key: 'renewal', title: 'חידוש וסיום' },
 ];
 
+// The 8 stations of the client journey (docs/plan/system-plan.md, section 4):
+// where an existing client is placed when imported, and the owner's bar. Each
+// station is a run of processes in PROCESSES order; against PHASES above:
+//   הצטרפות      onboarding 1–3 (the deal, the WhatsApp group, setting the meeting)
+//   אפיון        onboarding 4–6 (the meeting, access, the pages) + parallel 7–10
+//   תוכן ואישור  prep (11, 11ב, 12א, 12, 13, 14)
+//   יום צילום    eve (15, 16) + shoot (17–21, with 17ב, 18ב, 19ב)
+//   עריכה ובקרה  post (22א, 22, 23, 24, 25, 26, 27)
+//   פרסום        publish (28, 29, 30)
+//   שוטף         ongoing (31)
+//   חידוש        renewal (34, 35)
+// tests/client-open.test.mjs checks that every process sits in exactly one station.
+export const STATIONS = [
+  { key: 'join', title: 'הצטרפות', procs: ['p01', 'p02', 'p03'] },
+  { key: 'char', title: 'אפיון', procs: ['p04', 'p05', 'p06', 'p07', 'p08', 'p09', 'p10'] },
+  { key: 'content', title: 'תוכן ואישור', procs: ['p11', 'p11b', 'p12a', 'p12', 'p13', 'p14'] },
+  { key: 'shoot', title: 'יום צילום', procs: ['p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21'] },
+  { key: 'post', title: 'עריכה ובקרה', procs: ['p22a', 'p22', 'p23', 'p24', 'p25', 'p26', 'p27'] },
+  { key: 'publish', title: 'פרסום', procs: ['p28', 'p29', 'p30'] },
+  { key: 'ongoing', title: 'שוטף', procs: ['p31'] },
+  { key: 'renewal', title: 'חידוש', procs: ['p34', 'p35'] },
+];
+
 export const PROCESSES = [
   {
     id: 'p01', num: '1', phase: 'onboarding', title: 'הכנת חוזה', owners: ['irit'],
@@ -350,13 +373,13 @@ export const PROCESSES = [
     id: 'p12', round: true, num: '12', phase: 'prep', title: 'כתיבת התסריטים ליום הצילום', owners: ['lior'],
     sla: 'עד 3 ימי עסקים מפגישת האפיון',
     start: { from: 'charEnd' }, due: { from: 'char', businessDays: 3 },
-    what: 'ליאור מכין בדרך כלל 36 תסריטים לפי החבילה, האפיון, שיחת הדגשים, העסק, קהל היעד והמשפיענים שמגיעים ליום הצילום.',
+    what: 'ליאור מכין תסריטים לפי החבילה (תסריט לכל סרטון), האפיון, שיחת הדגשים, העסק, קהל היעד והמשפיענים שמגיעים ליום הצילום.',
     guidance: {
       natali: 'יום עם נטלי: הפניות ברורות לצופה, ראיונות עם הלקוח, סרטוני הסברה, היכרות עם העסק והמקום, הצגת השירותים, מיני־סצנות ותוכן מקצועי ומדויק. מסודר, ברור ומניע לפעולה; פחות קומדיה מוגזמת.',
       dms: 'יום עם דניס, מישל וסמיון: סרטונים מצחיקים, רעיונות משוגעים, תוכן ויראלי, סצנות באנרגיה גבוהה וסיטואציות, וגם הסברה, היכרות וראיונות. גם תוכן מצחיק חייב להיות קשור לעסק ולמסר שהלקוח רוצה להעביר.',
     },
     items: [
-      { key: 'p12.scripts', label: 'התסריטים הוכנו (בדרך כלל 36) לפי החבילה, הדגשים והמשפיענים', requires: ['p12a.call'] },
+      { key: 'p12.scripts', label: 'התסריטים הוכנו לפי החבילה (תסריט לכל סרטון), הדגשים והמשפיענים', requires: ['p12a.call'] },
       { key: 'p12.numbered', label: 'לכל סרטון מספר ברור, כדי לסמן אותו ביום הצילום' },
       { key: 'p12.docs', label: 'התסריטים מסודרים ב־Google Docs לפי סדר הצילום' },
     ],
@@ -561,9 +584,9 @@ export const PROCESSES = [
     id: 'p23', num: '23', phase: 'post', title: 'הכנת יתרת הגרפיקות', owners: ['ilai'],
     sla: 'עד יום עסקים אחד, במקביל לעריכת הסרטונים',
     start: { from: 'shoot' }, due: { from: 'shoot', businessDays: 1 },
-    what: 'משלימים את כל 36 הגרפיקות (בדרך כלל עוד 27). אופיר בודק; אחרי אישורו נשלחות ללקוח. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת.',
+    what: 'משלימים את כל הגרפיקות לפי החבילה (היתרה אחרי 9 הגרפיקות הראשונות). אופיר בודק; אחרי אישורו נשלחות ללקוח. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת.',
     items: [
-      { key: 'p23.made', label: 'כל הגרפיקות הושלמו (בדרך כלל עוד 27)' },
+      { key: 'p23.made', label: 'כל הגרפיקות לפי החבילה הושלמו (היתרה אחרי 9 הראשונות)' },
       ...[['design', 'העיצוב מתאים לעסק'], ['errors', 'אין טעויות'], ['logo', 'הלוגו נכון'], ['contact', 'הטלפון והכתובת נכונים'],
         ['match', 'המידע תואם לאפיון'], ['pro', 'הגרפיקות ברמה מקצועית'], ['variety', 'אין חזרתיות מוגזמת בין הגרפיקות']]
         .map(([k, l]) => ({ key: `p23.q.${k}`, label: `אופיר בדק: ${l}`, owners: ['ofir'] })),

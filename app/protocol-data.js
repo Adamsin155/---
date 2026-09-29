@@ -124,7 +124,7 @@ export async function updateClient(id, fields) {
 export async function signedQuotes() {
   const [{ data: quotes, error }, { data: linked, error: e2 }] = await Promise.all([
     supabase.from('quotes')
-      .select('id, number, client_name, signed_at, company:model->client->>company, phone:model->client->>phone, tier:model->package->>tierName, influencer:model->package->>influencer, package_id:model->package->>id, term_months:model->>termMonths')
+      .select('id, number, client_name, signed_at, company:model->client->>company, phone:model->client->>phone, tier:model->package->>tierName, influencer:model->package->>influencer, package_id:model->package->>id, selection:model->selection, term_months:model->>termMonths')
       .eq('status', 'signed').order('signed_at', { ascending: false }).limit(200),
     supabase.from('clients').select('quote_id').not('quote_id', 'is', null),
   ]);

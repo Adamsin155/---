@@ -57,6 +57,8 @@ const FIELD_NAMES = {
 const FIELD_INPUT = { characterizer: 'ed-characterizer', char_at: 'ed-char-at', shoot_type: 'ed-shoot-type', shoot_at: 'ed-shoot-at', has_logo: 'ed-logo', editor: 'ed-editor' };
 // The link each process works with, shown inside the process.
 const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p09: 'gantt', p10: 'meta', p12: 'scripts', p24: 'drive' };
+// The package quantity each process works to (the protocol's wording says "by the package").
+const PKG_QTY = { p12: 'videos', p18: 'videos', p22: 'videos', p23: 'graphics' };
 // What this user sees. 'own' roles see only their processes and items, and none of
 // the office's controls (client details, rounds, package counts, closing the client).
 // Office users see theirs first and can show the whole protocol. The owner has no
@@ -695,7 +697,8 @@ function procCard(x, now) {
   const compact = x.complete && !printing && !shownProcs.has(p.id);
   const link = PROC_LINK[pid] && client.links?.[PROC_LINK[pid]];
   const linkDef = LINKS.find((l) => l.key === PROC_LINK[pid]);
-  const pkgQty = pid === 'p22' ? client.deliverables?.videos : pid === 'p23' ? client.deliverables?.graphics : null;
+  const pkgQty = PKG_QTY[pid] ? client.deliverables?.[PKG_QTY[pid]] : null;
+  const pkgUnit = DELIVERABLES.find((d) => d.key === PKG_QTY[pid])?.label;
   // 'own' roles mark a wait only where the client is part of their work.
   const canWait = !x.complete && !p.recurring && (own() ? CLIENT_PROCS.has(pid) : x.ready || CLIENT_PROCS.has(pid));
   return h('article', { class: `proc s-${x.status}${mine ? ' is-mine' : ''}${dim ? ' is-dim' : ''}`, id: p.id, 'aria-labelledby': `${p.id}-h`, 'aria-describedby': x.wait ? `${p.id}-wait` : null },
@@ -707,7 +710,7 @@ function procCard(x, now) {
           peopleChips(x.claim ? [x.claim.person] : p.owners),
           compact ? null : h('span', { class: 'sla' }, p.sla),
           dueText(x, now) ? h('span', { class: 'due num' }, dueText(x, now)) : null,
-          pkgQty && !compact ? h('span', { class: 'muted' }, `בחבילה של הלקוח: ${pkgQty}`) : null,
+          pkgQty && !compact ? h('span', { class: 'muted pkg-qty' }, `בחבילה של הלקוח: ${pkgQty} ${pkgUnit}`) : null,
           claimLine(x))),
       h('div', { class: 'proc-status' },
         statusBadge(x.status, x.dueAt, now),
