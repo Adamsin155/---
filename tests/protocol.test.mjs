@@ -38,7 +38,7 @@ test('whatsapp group and characterization checklists match the document', () => 
   const p2 = PROCESSES.find((p) => p.id === 'p02');
   for (const who of ['ליאור', 'עירית', 'אופיר', 'שיראל', 'עילאי', 'הלקוח']) assert.ok(p2.items.some((i) => i.label.startsWith(who)), who);
   const p4 = PROCESSES.find((p) => p.id === 'p04');
-  assert.equal(p4.items.filter((i) => !['p04.saved', 'p04.followup'].includes(i.key)).length, 11);
+  assert.equal(p4.items.filter((i) => !['p04.saved', 'p04.followup', 'p04.tasks'].includes(i.key)).length, 11);
   // Lists in the document are separate items, not one combined check.
   const count = (id, prefix) => PROCESSES.find((p) => p.id === id).items.filter((i) => i.key.startsWith(prefix)).length;
   assert.equal(count('p07', 'p07.r.'), 7);
@@ -373,4 +373,16 @@ test('renewal deadline never falls on a day off', () => {
   const procs = applicableProcesses(c);
   const d = resolveTime(procs.find((p) => p.id === 'p34').due, c, procs, {});
   assert.ok(d.getDay() !== 5 && d.getDay() !== 6, d.toString());
+});
+
+test('employee protocol details: who assigns the editor, Irit checks, Nirel brief', async () => {
+  const { BRIEF_FIELDS, BRIEF_MUST } = await import('../app/protocol.js');
+  const p22a = PROCESSES.find((p) => p.id === 'p22a');
+  assert.deepEqual(p22a.owners, ['ofir', 'lior']); // Ofir or Lior assigns the editor
+  assert.deepEqual(p22a.items.find((i) => i.key === 'p22a.irit').owners, ['irit']);
+  const keys = PROCESSES.flatMap((p) => p.items.map((i) => i.key));
+  for (const k of ['p02.team', 'p04.tasks', 'p17.plan']) assert.ok(keys.includes(k), k);
+  assert.deepEqual(BRIEF_MUST, ['problem', 'change', 'keep', 'result']);
+  assert.ok(BRIEF_FIELDS.some(([k]) => k === 'disliked'));
+  for (const k of BRIEF_MUST) assert.ok(BRIEF_FIELDS.some(([f]) => f === k), k);
 });

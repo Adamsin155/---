@@ -16,7 +16,7 @@ const signedQuote = { id: randomUUID(), number: 'AST-2026-0042', client_name: '�
   company: 'סטודיו דנה', phone: '050-1234567', tier: 'Social all in one', influencer: 'נטלי דדון', package_id: 'social-natali', term_months: 12 };
 
 const db = {
-  staff: [{ email: USER.email, person: 'irit' }],
+  staff: [{ email: USER.email, person: 'irit', vault: true }],
   quotes: [signedQuote],
   clients: [],
   protocol_checks: [],
@@ -78,7 +78,7 @@ async function fakeSupabase(route) {
   if (p === '/rest/v1/rpc/is_staff') return json(200, authed);
   if (p === '/rest/v1/rpc/set_my_person') { db.staff[0].person = body.p_person; return json(200, null); }
   // Access vault: the password never sits on the row, only in the secret store.
-  const vaultOk = authed && !['nadia', 'yariv', 'anna'].includes(db.staff[0].person);
+  const vaultOk = authed && db.staff[0].vault; // an admin-set flag, not the self-chosen person
   const logAccess = (a, action) => db.client_access_log.push({ id: db.client_access_log.length + 1, access_id: a.id, client_id: a.client_id, network: a.network, action, by_email: USER.email, at: new Date().toISOString() });
   if (p === '/rest/v1/rpc/can_use_vault') return json(200, vaultOk);
   if (p.startsWith('/rest/v1/rpc/access_') && !vaultOk) return json(400, { message: 'not allowed' });
@@ -309,6 +309,13 @@ assert.equal(db.client_tasks.length, tasksBefore);
 await page.fill('#tb-problem', 'הפתיח ארוך מדי');
 await page.fill('#tb-change', 'לקצר ל־3 שניות');
 await page.fill('#tb-result', 'פתיח קצר עם הלוגו');
+await page.click('#task-submit'); // still missing: what stays as it is
+await page.waitForFunction(() => document.activeElement?.id === 'tb-keep');
+await page.fill('#tb-keep', 'המוזיקה והצבעים');
+await page.click('#task-submit'); // and when it is due
+await page.waitForFunction(() => document.activeElement?.id === 'task-due');
+assert.equal(db.client_tasks.length, tasksBefore);
+await page.fill('#task-due', '2026-10-05');
 await page.check('#task-urgent');
 await page.click('#task-submit');
 await page.waitForFunction(() => /לתקן את הפתיח/.test(document.querySelector('#task-list').innerText));
@@ -404,6 +411,13 @@ await page.waitForSelector('.cc-links a.link-chip');
 assert.equal(db.clients.find((c) => c.id === created.id).links.drive, 'https://drive.google.com/drive/folders/abc');
 assert.equal(db.clients.find((c) => c.id === created.id).editor, 'nirel');
 assert.match(await page.locator('#p22 .proc-meta').textContent(), /ניראל/);
+// Nirel edits only Natali's clients: a different shoot type refuses her instead of dropping her silently.
+await page.click('#btn-edit');
+await page.selectOption('#ed-shoot-type', 'dms');
+assert.equal(await page.inputValue('#ed-editor'), 'nirel');
+await page.click('#ed-submit');
+assert.match(await page.locator('#ed-err').innerText(), /נטלי/);
+await page.click('#dlg-edit [data-close]');
 
 // Package quantities: + saves after a short pause.
 assert.match(await page.locator('#deliv-videos-v').innerText(), /נמסרו 0 מתוך 25/);
@@ -446,9 +460,9 @@ await page.click('#call-submit');
 await page.waitForFunction(() => !document.querySelector('#dlg-call[open]'));
 const call = db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p31.call');
 assert.equal(JSON.parse(call.note).topics.campaigns, 'קמפיין לידים רץ טוב');
-const callTasks = db.client_tasks.filter((t) => t.client_id === created.id && t.source === 'p31');
-assert.deepEqual(callTasks.map((t) => t.owner), ['lior', 'irit']); // Irit checks every call is documented
-assert.match(callTasks[1].title, /מתועדת/);
+assert.deepEqual(db.client_tasks.filter((t) => t.client_id === created.id && t.source === 'p31').map((t) => t.owner), ['lior']);
+// Irit checks every call is documented and every task has an owner.
+assert.match(db.client_tasks.find((t) => t.client_id === created.id && t.source === 'followup' && t.owner === 'irit').title, /מתועדת/);
 
 // Reload keeps everything
 await page.reload();
@@ -478,6 +492,7 @@ await page.waitForFunction(() => document.querySelector('#i-p06-verified').check
 
 // A video editor: no passwords, and a paused edit tells Lior and Ofir.
 db.staff[0].person = 'nadia';
+db.staff[0].vault = false;
 seeded.editor = 'nadia';
 await page.goto(`${BASE}client.html?id=${seeded.id}`);
 await page.waitForSelector('#p22', { state: 'attached' });
@@ -498,6 +513,7 @@ assert.deepEqual(db.client_tasks.filter((t) => t.client_id === seeded.id && /ע�
 await page.click('#p22 .pause-line button:has-text("חזרה לעריכה")');
 await page.waitForFunction(() => !document.querySelector('#p22 .pause-line'));
 db.staff[0].person = 'irit';
+db.staff[0].vault = true;
 seeded.editor = null;
 
 // Mobile

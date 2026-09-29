@@ -53,10 +53,12 @@ export const ESCALATIONS = [
 // A brief for tasks handed to Nirel (and anyone else who fixes something for a client):
 // she does not work out alone what the client wants.
 export const BRIEF_FIELDS = [
-  ['problem', 'מה הבעיה המדויקת'], ['change', 'מה בדיוק צריך לשנות'], ['keep', 'מה צריך להישאר כמו שהוא'],
+  ['problem', 'מה הבעיה המדויקת'], ['disliked', 'מה הלקוח לא אהב'], ['change', 'מה בדיוק צריך לשנות'], ['keep', 'מה צריך להישאר כמו שהוא'],
   ['result', 'מה התוצאה הרצויה'], ['materials', 'אילו חומרים רלוונטיים'],
 ];
 export const BRIEF_REQUIRED = new Set(['nirel']);
+// What Nirel must always receive (nirel.md): the problem, what to change, what stays, the result.
+export const BRIEF_MUST = ['problem', 'change', 'keep', 'result'];
 
 // Ofir's Thursday status summary for every client.
 export const STATUS_FIELDS = [
@@ -175,6 +177,7 @@ export const PROCESSES = [
       { key: 'p02.m.client', label: 'הלקוח בקבוצה' },
       { key: 'p02.intro', label: 'נשלחה הודעת היכרות מטעם ליאור ועירית', owners: ['irit', 'lior'] },
       { key: 'p02.deal', label: 'ליאור בדק שאין בעסקה או בחבילה משהו חריג שדורש טיפול ניהולי', owners: ['lior'] },
+      { key: 'p02.team', label: 'ליאור וידא שהלקוח יודע מי הגורמים שמטפלים בו', owners: ['lior'] },
     ],
   },
   {
@@ -210,6 +213,7 @@ export const PROCESSES = [
       { key: 'p04.special', label: 'דגשים מיוחדים' },
       { key: 'p04.saved', label: 'האפיון נשמר במערכת בצורה מלאה וברורה' },
       { key: 'p04.followup', label: 'עירית וידאה שהאפיון התקיים ונשמר ושאין מידע שחסר להמשך (חוסר: לליאור)', owners: ['irit'] },
+      { key: 'p04.tasks', label: 'עירית וידאה שנפתחו כל המשימות שצריכות להתחיל אחרי האפיון', owners: ['irit'] },
     ],
   },
   {
@@ -417,6 +421,7 @@ export const PROCESSES = [
     start: { from: 'shoot', hours: -1 }, due: { from: 'shoot' },
     items: [
       { key: 'p17.handdrive', label: 'הכונן נמסר לצלם' },
+      { key: 'p17.plan', label: 'עברנו על תוכנית היום' },
       { key: 'p17.place', label: 'העסק סודר' },
       { key: 'p17.client', label: 'הלקוח הוכן' },
       { key: 'p17.order', label: 'עברנו על סדר התסריטים' },
@@ -472,15 +477,16 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p22a', round: true, num: '22א', phase: 'post', title: 'העברה לעריכה ושיוך לעורך', owners: ['ofir'],
+    id: 'p22a', round: true, num: '22א', phase: 'post', title: 'העברה לעריכה ושיוך לעורך', owners: ['ofir', 'lior'],
     sla: 'מיד לאחר יום הצילום וקבלת חומרי הצילום',
     start: { from: 'p19' }, due: { from: 'p19' },
-    what: 'ליאור מחזיר את הכונן. אופיר בודק את עומס העורכים (מי פנוי, מי מחזיק הרבה לקוחות, אילו משימות פתוחות, מי יעמוד בזמן) ומשייך את הלקוח. מכאן מתחילה ספירת זמני העריכה.',
+    what: 'ליאור מחזיר את הכונן. אופיר (או ליאור) בודק את עומס העורכים (מי פנוי, מי מחזיק הרבה לקוחות, אילו משימות פתוחות, מי יעמוד בזמן) ומשייך את הלקוח. מכאן מתחילה ספירת זמני העריכה.',
     needs: ['editor'],
     items: [
       { key: 'p22a.drive', label: 'ליאור החזיר את הכונן', owners: ['lior'] },
       { key: 'p22a.load', label: 'נבדק עומס העורכים: נדיה, יריב, אנה (וניראל לנטלי)' },
       { key: 'p22a.assigned', label: 'הלקוח שויך לעורך והכונן הועבר אליו', requiresFields: ['editor'] },
+      { key: 'p22a.irit', label: 'עירית וידאה שהלקוח הועבר לעורך, מי העורך, ומתי מתחילה ומסתיימת העריכה', owners: ['irit'], requires: ['p22a.assigned'] },
     ],
   },
   {

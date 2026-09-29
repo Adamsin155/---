@@ -3,7 +3,7 @@
 // call and a full history of who checked what and when.
 import {
   PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
-  STAFF_PEOPLE, editorsFor, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, STATUS_FIELDS,
+  STAFF_PEOPLE, editorsFor, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
 } from './protocol.js';
 import {
   clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
@@ -232,7 +232,7 @@ function renderAccess() {
         h('span', { class: `tag${a.status === 'ok' ? '' : ' tag-warn'}` }, STATUS_LABEL[a.status]),
         h('span', { class: 'by' }, `עודכן · ${who(a.updated_by)} · ${formatStamp(a.updated_at)}`),
         a.note ? h('span', { class: 'inote' }, a.note) : null),
-      h('div', { class: 'secret', id: `sec-${a.id}`, 'aria-live': 'polite' })),
+      h('div', { class: 'secret', id: `sec-${a.id}` })),
     h('div', { class: 'access-acts' },
       a.has_secret ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => reveal(a) }, 'הצגת סיסמה') : h('span', { class: 'muted' }, 'אין סיסמה'),
       h('button', { type: 'button', class: 'btn-text', onclick: () => openAccess(a) }, 'עריכה'),
@@ -261,6 +261,7 @@ async function reveal(a) {
     fill(box, h('span', { class: 'num', dir: 'ltr' }, pw || '—'),
       h('button', { type: 'button', class: 'btn-text', onclick: async () => { try { await navigator.clipboard.writeText(pw || ''); toast('הסיסמה הועתקה.'); } catch { toast('ההעתקה לא הצליחה.'); } } }, 'העתקה'),
       h('span', { class: 'hint' }, 'הצפייה נרשמה. הסיסמה תוסתר בעוד 30 שניות.'));
+    toast('הסיסמה מוצגת ליד הרשת. הצפייה נרשמה.');
     clearTimeout(revealTimers[a.id]);
     revealTimers[a.id] = setTimeout(() => { const b = document.getElementById(`sec-${a.id}`); if (b) fill(b); }, 30e3);
     refreshAccessLog();
@@ -515,8 +516,9 @@ async function endWait(x) {
 // Editing paused for another task: who, at what stage, what is left, and for what.
 function pauseLine(x) {
   const p = pauseOf(x.proc, checks);
-  const editorsHere = x.proc.owners;
-  const canPause = me && (editorsHere.includes(me) || PEOPLE[me]?.editor);
+  // The assigned editor pauses (any editor while none is assigned); Lior and Ofir can too.
+  const owners = x.proc.owners;
+  const canPause = me && (owners.includes(me) || ['lior', 'ofir'].includes(me) || (owners.includes('editor') && PEOPLE[me]?.editor));
   if (!p) {
     return !x.complete && canPause ? h('button', { type: 'button', class: 'btn-text', onclick: () => openPause(x) }, 'עצירת העריכה למשימה אחרת') : null;
   }
@@ -615,7 +617,7 @@ function procCard(x, now) {
         canWait && !x.wait ? h('button', { type: 'button', class: 'btn-text wait-btn', onclick: () => openWait(x) }, 'ממתין ללקוח') : null)),
     compact ? null : [
       waitLine(x),
-      pid === 'p22' ? pauseLine(x) : null,
+      pid === 'p22' || pid === 'p27' ? pauseLine(x) : null,
       p.ownerNote ? h('p', { class: 'proc-note' }, p.ownerNote) : null,
       missing.length ? h('div', { class: 'need', role: 'note' },
         h('span', {}, `חסר בפרטי הלקוח: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`),
@@ -913,6 +915,12 @@ $('call-form').addEventListener('submit', async (e) => {
     r.t.removeAttribute('aria-invalid'); r.o.removeAttribute('aria-invalid');
     if (r.title && !r.owner) { r.o.setAttribute('aria-invalid', 'true'); showErr('call-err', `בחרו מי מבצע את המשימה ״${r.title}״.`); r.o.focus(); return; }
     if (!r.title && r.owner) { r.t.setAttribute('aria-invalid', 'true'); showErr('call-err', 'כתבו מה צריך לעשות, או הסירו את השורה.'); r.t.focus(); return; }
+    if (r.title && BRIEF_REQUIRED.has(r.owner)) {
+      r.o.setAttribute('aria-invalid', 'true');
+      showErr('call-err', `משימה ל${PEOPLE[r.owner].name} צריכה בריף מלא. שמרו את השיחה בלי השורה הזו, ופתחו את המשימה בטופס ״משימות״ שבכרטיס.`);
+      r.o.focus();
+      return;
+    }
   }
   $('call-submit').disabled = true;
   if (!callSavedFor) {
@@ -942,7 +950,7 @@ $('call-form').addEventListener('submit', async (e) => {
   // Irit checks after every weekly call that everything is documented and every task has an owner.
   try {
     const due = new Date(); do due.setDate(due.getDate() + 1); while (!isBusinessDay(due));
-    const t = await addTask({ client_id: id, title: 'לוודא שהשיחה השבועית מתועדת ושלכל משימה שעלתה יש אחראי', owner: 'irit', due_on: due.toLocaleDateString('en-CA'), source: 'p31' });
+    const t = await addTask({ client_id: id, title: 'לוודא שהשיחה השבועית מתועדת ושלכל משימה שעלתה יש אחראי', owner: 'irit', due_on: due.toLocaleDateString('en-CA'), source: 'followup' });
     tasks = [t, ...tasks];
     renderTasks();
   } catch { /* the call itself is saved */ }
@@ -952,12 +960,12 @@ $('call-form').addEventListener('submit', async (e) => {
 });
 
 // Access vault dialog.
-const accDlg = dialog('dlg-access');
+const accDlg = dialog('dlg-access', () => { $('acc-password').value = ''; });
 let accEditing = null;
 fill($('acc-network'), ...NETWORKS.map(([k, l]) => h('option', { value: k }, l)));
 function syncAccTask() {
   const st = $('acc-status').value;
-  $('acc-task-wrap').hidden = st === 'ok' || !!accEditing;
+  $('acc-task-wrap').hidden = st === 'ok' || accEditing?.status === st;
   $('acc-task-text').textContent = st === 'broken' ? 'לפתוח משימה לליאור: לשחזר את הגישה עם הלקוח' : 'לפתוח משימה לעילאי: לפתוח את הרשת ללקוח';
 }
 $('acc-status').addEventListener('change', syncAccTask);
@@ -987,7 +995,7 @@ $('acc-form').addEventListener('submit', async (e) => {
   try {
     await saveAccess(id, a);
     $('acc-password').value = '';
-    if (!accEditing && st !== 'ok' && $('acc-task').checked) {
+    if (st !== 'ok' && accEditing?.status !== st && $('acc-task').checked) {
       const owner = st === 'broken' ? 'lior' : 'ilai';
       const title = st === 'broken' ? `לשחזר עם הלקוח את הגישה ל־${networkName(a.network)} ולהכניס לכספת` : `לפתוח ללקוח ${networkName(a.network)} ולהכניס את הגישה לכספת`;
       const t = await addTask({ client_id: id, title, owner, urgent: true });
@@ -1053,12 +1061,16 @@ $('pause-form').addEventListener('submit', async (e) => {
   if (ok) {
     const who_ = PEOPLE[me]?.name || 'העורך';
     const title = `${who_} עצר/ה את העריכה של ${client.name}: שלב ${v.stage}, נשאר ${v.left}${v.why ? `, בגלל ${v.why}` : ''}`.slice(0, 500);
-    try {
-      for (const owner of ['lior', 'ofir']) tasks = [await addTask({ client_id: id, title, owner, source: 'escalation' }), ...tasks];
-    } catch { /* the pause itself is saved and visible */ }
+    const told = [];
+    for (const owner of ['lior', 'ofir']) {
+      try { tasks = [await addTask({ client_id: id, title, owner, source: 'pause' }), ...tasks]; told.push(owner); } catch { /* reported below */ }
+    }
     renderTasks();
     pauseDlg.close();
-    toast('העריכה סומנה כעצורה, וליאור ואופיר עודכנו.');
+    const missed = ['lior', 'ofir'].filter((o) => !told.includes(o)).map((o) => PEOPLE[o].name);
+    toast(missed.length
+      ? `העריכה סומנה כעצורה, אבל העדכון ל${missed.join(' ול')} לא נשמר. עדכנו אותם ישירות.`
+      : 'העריכה סומנה כעצורה, וליאור ואופיר עודכנו.');
   }
   $('pause-submit').disabled = false;
 });
@@ -1099,9 +1111,7 @@ function openRound(n = null) {
   $('round-err').hidden = true;
   $('round-h').textContent = `סבב צילום ${nextN}`;
   $('round-type').value = r?.shoot_type || client.shoot_type || 'natali';
-  fill($('round-editor'), h('option', { value: '' }, 'טרם שויך'),
-    ...editorsFor($('round-type').value).map((k) => h('option', { value: k }, PEOPLE[k].name)));
-  $('round-editor').value = r?.editor || '';
+  fillEditors('round-editor', $('round-type').value, r?.editor);
   const pad = (v) => String(v).padStart(2, '0');
   const d = r?.shoot_at ? new Date(r.shoot_at) : null;
   $('round-at').value = d ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
@@ -1118,6 +1128,11 @@ $('round-form').addEventListener('submit', async (e) => {
   if (!$('round-extra-wrap').hidden && !$('round-extra').checked) {
     showErr('round-err', 'סמנו שנרכש יום צילום נוסף, או בטלו את הוספת הסבב.');
     $('round-extra').focus();
+    return;
+  }
+  if (!editorFits($('round-editor').value, $('round-type').value)) {
+    showErr('round-err', `${PEOPLE[$('round-editor').value]?.name || 'העורך'} עורכת רק ימי צילום של נטלי דדון. בחרו עורך אחר.`);
+    $('round-editor').focus();
     return;
   }
   const rounds = roundsOf(client);
@@ -1175,6 +1190,8 @@ function renderTasks() {
             t.urgent && !t.done_at ? h('span', { class: 'tag tag-urgent' }, '⚡ דחוף') : null,
             t.source === 'p31' ? h('span', { class: 'tag' }, 'מהשיחה השבועית') : null,
             t.source === 'escalation' ? h('span', { class: 'tag tag-warn' }, 'חריגה לליאור') : null,
+            t.source === 'pause' ? h('span', { class: 'tag' }, 'עריכה נעצרה') : null,
+            t.source === 'followup' ? h('span', { class: 'tag' }, 'אחרי השיחה השבועית') : null,
             t.source === 'status' ? h('span', { class: 'tag' }, 'מסיכום המצב') : null,
             t.due_on ? h('span', { class: `num${late ? ' late' : ''}` }, `${late ? 'באיחור · ' : ''}עד ${formatDay(t.due_on)}`) : null,
             t.done_at ? h('span', { class: 'by' }, `בוצע · ${who(t.done_by_email)} · ${formatStamp(t.done_at)}`) : h('span', { class: 'by' }, `נפתח ע״י ${who(t.created_by_email)} · ${formatStamp(t.created_at)}`)))),
@@ -1205,12 +1222,15 @@ $('task-form').addEventListener('submit', async (e) => {
   if (!title) { $('task-title').focus(); toast('כתבו מה צריך לעשות.'); return; }
   const brief = Object.fromEntries(BRIEF_FIELDS.map(([k]) => [k, $(`tb-${k}`).value.trim()]).filter(([, v]) => v));
   const owner = $('task-owner').value;
-  if (BRIEF_REQUIRED.has(owner) && (!brief.problem || !brief.change || !brief.result)) {
-    $('task-brief-box').open = true;
-    const miss = !brief.problem ? 'problem' : !brief.change ? 'change' : 'result';
-    $(`tb-${miss}`).focus();
-    toast(`למשימה אצל ${PEOPLE[owner].name} צריך בריף: מה הבעיה, מה לשנות ומה התוצאה הרצויה.`);
-    return;
+  if (BRIEF_REQUIRED.has(owner)) {
+    const miss = BRIEF_MUST.find((k) => !brief[k]);
+    if (miss) {
+      $('task-brief-box').open = true;
+      $(`tb-${miss}`).focus();
+      toast(`למשימה אצל ${PEOPLE[owner].name} צריך בריף: מה הבעיה, מה לשנות, מה נשאר כמו שהוא ומה התוצאה הרצויה.`);
+      return;
+    }
+    if (!$('task-due').value) { $('task-due').focus(); toast(`למשימה אצל ${PEOPLE[owner].name} צריך לקבוע עד מתי.`); return; }
   }
   $('task-submit').disabled = true;
   try {
@@ -1296,9 +1316,7 @@ function openEdit(focusId = 'ed-name') {
   $('ed-logo').value = c.has_logo === null || c.has_logo === undefined ? '' : String(c.has_logo);
   $('ed-shoot-type').value = c.shoot_type || '';
   $('ed-shoot-at').value = toLocal(c.shoot_at);
-  fill($('ed-editor'), h('option', { value: '' }, 'טרם שויך'),
-    ...editorsFor(c.shoot_type).map((k) => h('option', { value: k }, `${PEOPLE[k].name}${k === 'nirel' ? ' (נטלי בלבד)' : ''}`)));
-  $('ed-editor').value = c.editor || '';
+  fillEditors('ed-editor', c.shoot_type, c.editor);
   $('ed-contract-end').value = c.contract_end || '';
   $('ed-notes').value = c.notes || '';
   for (const [k] of DELIV_FIELDS) $(`ed-deliv-${k}`).value = c.deliverables?.[k] ?? '';
@@ -1306,6 +1324,21 @@ function openEdit(focusId = 'ed-name') {
   edDlg.showModal();
   $(focusId).focus();
 }
+
+// Editors a shoot type allows (Nirel edits only Natali's clients). A stored
+// editor the type no longer allows stays listed and marked, so saving never
+// drops it silently; the save refuses it instead.
+function fillEditors(selId, shootType, current) {
+  const keys = editorsFor(shootType);
+  const extra = current && !keys.includes(current) ? [current] : [];
+  fill($(selId), h('option', { value: '' }, 'טרם שויך'),
+    ...keys.map((k) => h('option', { value: k }, `${PEOPLE[k].name}${k === 'nirel' ? ' (נטלי בלבד)' : ''}`)),
+    ...extra.map((k) => h('option', { value: k }, `${PEOPLE[k]?.name || k} (לא מתאים לסוג יום הצילום)`)));
+  $(selId).value = current || '';
+}
+const editorFits = (editor, shootType) => !editor || editorsFor(shootType).includes(editor);
+$('ed-shoot-type').addEventListener('change', () => fillEditors('ed-editor', $('ed-shoot-type').value || null, $('ed-editor').value || null));
+$('round-type').addEventListener('change', () => fillEditors('round-editor', $('round-type').value, $('round-editor').value || null));
 
 // Links only: a password, token or code in the address is refused.
 const SECRET = /\/\/[^/?#@\s]+:[^/?#@\s]*@|[?&#;]([a-z_]*(password|passwd|pass|pwd|token|secret|apikey|api_key|key|auth|sig|signature)|code)=/i;
@@ -1340,6 +1373,9 @@ $('ed-form').addEventListener('submit', async (e) => {
   }
   const { links, error, input } = readLinks();
   if (error) return fail(error, input);
+  if (!editorFits($('ed-editor').value, $('ed-shoot-type').value || null)) {
+    return fail(`${PEOPLE[$('ed-editor').value]?.name || 'העורך'} עורכת רק לקוחות של נטלי דדון. בחרו עורך אחר.`, $('ed-editor'));
+  }
   const deliverables = { ...(client.deliverables || {}) };
   for (const [k] of DELIV_FIELDS) {
     const v = $(`ed-deliv-${k}`).value;
