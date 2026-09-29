@@ -1,17 +1,21 @@
 // "צוות וכניסות" (team.html): everyone's login at a glance, and a personal sign-in
 // link to send by WhatsApp for a first login or a forgotten password, with no email.
+// Also each person's WhatsApp number, for the handoff buttons (app/handoffs.js).
 // For the owner, Irit and Lior; the staff-admin function checks the same on the
 // server (supabase/functions/staff-admin/). Links are kept only in this page's memory.
 import { supabase } from './supa.js';
 import { STAFF_PEOPLE } from './protocol.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, formatWhen } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
-import { canManageTeam, loginState, linkMessage, LINK_VALID_FOR, TEAM_MANAGERS } from './team-rules.js';
+import {
+  canManageTeam, loginState, linkMessage, LINK_VALID_FOR, TEAM_MANAGERS, normPhone, formatPhone, canEditPhone, hasPhone,
+} from './team-rules.js';
 
 let rows = [];               // staff rows with their login state (from the function)
 let caller = null;           // { email, person, owner }
 const links = new Map();     // email -> { link, type, name } made on this page
 const busy = new Set();      // emails with a request in flight
+const editingPhone = new Set(); // emails whose WhatsApp number is being edited
 
 const ERRORS = {
   not_signed_in: 'יש להתחבר מחדש.',
@@ -20,6 +24,8 @@ const ERRORS = {
   bad_email: 'כתובת המייל לא תקינה.',
   bad_person: 'התפקיד לא מוכר. רעננו את הדף.',
   bad_redirect: 'הקישור לא נוצר, כי העמוד נפתח מכתובת לא מוכרת. פתחו אותו מהכתובת הרגילה של המערכת.',
+  bad_phone: 'המספר לא תקין. צריך מספר נייד ישראלי, למשל 050-1234567.',
+  owner_no_phone: 'לבעלים לא שומרים מספר: כפתורי ההעברה לא שולחים אליו.',
   person_taken: 'לאדם הזה כבר יש כתובת. להחלפת כתובת פנו לבעלים.',
   email_taken: 'הכתובת כבר שייכת למישהו אחר בצוות.',
   has_login: 'לכתובת הזו כבר יש חשבון במערכת. רק הבעלים יכול להוסיף אותה לצוות.',
@@ -96,7 +102,7 @@ async function load() {
 // Re-rendering replaces the rows: keep focus and anything typed but not saved yet.
 function render() {
   const focusId = document.activeElement?.id;
-  const typed = [...document.querySelectorAll('.tm-add .input')].map((i) => [i.id, i.value]);
+  const typed = [...document.querySelectorAll('.tm-add .input, .tm-phone-form .input')].map((i) => [i.id, i.value]);
   fill($('team-list'), entries().map(rowView));
   for (const [id, value] of typed) { const el = document.getElementById(id); if (el) el.value = value; }
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
@@ -129,6 +135,34 @@ function emailView(e) {
     h('label', { class: 'sr-only', for: inputId }, `כתובת המייל של ${e.name}`),
     h('input', { class: 'input', id: inputId, type: 'email', dir: 'ltr', placeholder: 'כתובת מייל', autocomplete: 'off', required: true }),
     h('button', { type: 'submit', class: 'btn btn-sm', id: `save-${e.id}` }, 'שמירה'));
+}
+
+// The WhatsApp number that the handoff buttons open a chat with (none for the owner:
+// no handoff goes there).
+function phoneView(e) {
+  if (!hasPhone(e.row)) return null;
+  const email = e.row.email;
+  const can = canEditPhone(caller, e.row);
+  const inputId = `phone-${e.id}`;
+  if (can && editingPhone.has(email)) {
+    return h('form', { class: 'tm-add tm-phone-form', novalidate: true, onsubmit: (ev) => { ev.preventDefault(); savePhone(e, inputId); } },
+      h('label', { class: 'sr-only', for: inputId }, `מספר הוואטסאפ של ${e.name}`),
+      h('input', {
+        class: 'input', id: inputId, type: 'tel', dir: 'ltr', inputmode: 'tel', autocomplete: 'off', placeholder: '050-1234567',
+        value: formatPhone(e.row.phone), 'aria-describedby': `${inputId}-h`,
+      }),
+      h('button', { type: 'submit', class: 'btn btn-sm', id: `phone-save-${e.id}`, disabled: busy.has(email) }, 'שמירה'),
+      h('button', { type: 'button', class: 'btn-text', id: `phone-cancel-${e.id}`, onclick: () => { editingPhone.delete(email); render(); document.getElementById(`phone-edit-${e.id}`)?.focus(); } }, 'ביטול'),
+      h('span', { class: 'sr-only', id: `${inputId}-h` }, 'נייד ישראלי. שדה ריק מוחק את המספר.'));
+  }
+  return h('p', { class: 'tm-phone' },
+    h('span', {}, h('span', { class: 'muted' }, 'וואטסאפ: '),
+      e.row.phone ? h('bdi', { dir: 'ltr', class: 'num' }, formatPhone(e.row.phone)) : h('span', { class: 'muted' }, 'אין מספר')),
+    can ? h('button', {
+      type: 'button', class: 'btn-text tm-phone-edit', id: `phone-edit-${e.id}`, disabled: busy.has(email),
+      'aria-label': `${e.row.phone ? 'עריכת' : 'הוספת'} מספר הוואטסאפ של ${e.name}`,
+      onclick: () => { editingPhone.add(email); render(); document.getElementById(inputId)?.focus(); },
+    }, e.row.phone ? 'עריכה' : 'הוספת מספר') : null);
 }
 
 function lastLinkView(row) {
@@ -170,7 +204,7 @@ function rowView(e) {
     h('div', { class: 'tm-who' },
       h('div', { class: 'tm-name' }, h('h3', {}, e.name), me ? h('span', { class: 'tag' }, 'זה אני') : null),
       h('p', { class: 'muted tm-role' }, e.role)),
-    h('div', { class: 'tm-email' }, emailView(e)),
+    h('div', { class: 'tm-email' }, emailView(e), phoneView(e)),
     h('div', { class: 'tm-state' }, statusView(e.row), vaultView(e), lastLinkView(e.row)),
     h('div', { class: 'tm-acts' },
       canLink ? h('button', {
@@ -215,6 +249,26 @@ async function addEmail(e, inputId) {
   toast(`הכתובת של ${e.name} נשמרה. עכשיו אפשר ליצור קישור כניסה.`);
   await load();
   document.getElementById(`mklink-${e.id}`)?.focus();
+}
+
+async function savePhone(e, inputId) {
+  const input = $(inputId);
+  const value = input.value.trim();
+  const phone = value ? normPhone(value) : null;
+  if (value && !phone) {
+    input.setAttribute('aria-invalid', 'true');
+    input.focus();
+    toast(ERRORS.bad_phone);
+    return;
+  }
+  input.removeAttribute('aria-invalid');
+  const email = e.row.email;
+  const ok = await run(email, () => call('phone', { email, phone }));
+  if (!ok) { document.getElementById(inputId)?.focus(); return; }
+  editingPhone.delete(email);
+  toast(phone ? `המספר של ${e.name} נשמר. כפתורי ההעברה יפתחו איתו שיחה ישירה.` : `המספר של ${e.name} נמחק.`);
+  await load();
+  document.getElementById(`phone-edit-${e.id}`)?.focus();
 }
 
 async function toggleVault(e) {

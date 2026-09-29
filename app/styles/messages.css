@@ -1,0 +1,96 @@
+/* Client messages (messages.html): the day's queue, one card per client, and
+   the templates editor. Builds on protocol.css (light brand shell, badges, chips). */
+.msg-page { display: grid; gap: 16px; min-width: 0; }
+.msg-page > * { min-width: 0; }
+.msg-summary { margin: 0; font-size: 14.5px; color: var(--text-2); }
+.msg-summary:empty { display: none; }
+.msg-filters .chip { min-height: 40px; }
+
+.msg-queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.msg-card {
+  display: grid; gap: 10px; min-width: 0; padding: 16px 18px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+  border-inline-start: 4px solid var(--line-strong);
+}
+.msg-card > * { min-width: 0; margin: 0; }
+/* After a send the next card takes the focus (not its text, so no keyboard pops up):
+   it clears the sticky bar when scrolled to, and shows where the queue went on. */
+.msg-card { scroll-margin-top: calc(var(--topbar-h, 64px) + 12px); }
+.msg-card:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.msg-card.k-delay { border-inline-start-color: var(--warn); }
+.msg-card.k-milestone { border-inline-start-color: var(--accent); }
+.msg-card.k-thursday { border-inline-start-color: var(--ok); }
+.msg-card.is-sent { background: var(--bg-2); border-inline-start-color: var(--ok); box-shadow: none; }
+.msg-card.is-busy { opacity: .75; }
+
+.msg-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.msg-name { margin: 0; font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
+.msg-name a { color: var(--text); text-decoration: none; }
+.msg-name a:hover { color: var(--accent-deep); text-decoration: underline; }
+.msg-name small { margin-inline-start: 8px; font-size: 13.5px; font-weight: 400; color: var(--muted); }
+.msg-station { margin: 0; }
+
+.msg-why { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 14px; color: var(--text-2); }
+/* The kind of message: always a word, the colour only repeats it. */
+.mk { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
+.mk::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.mk-delay { color: var(--warn); }
+.mk-milestone { color: var(--accent-deep); }
+.mk-thursday { color: var(--ok); }
+.mk-daily { color: var(--text-2); }
+
+.msg-pick { max-inline-size: 420px; }
+.msg-pick label { margin-bottom: 4px; }
+.msg-pick .input { min-height: 44px; padding-block: 8px; }
+.msg-text { min-height: 112px; font-size: 15px; line-height: 1.55; }
+.msg-fill { font-size: 13px; color: var(--warn); }
+.msg-risk { font-size: 13.5px; color: var(--text); padding: 8px 10px; border-radius: var(--radius-sm); background: var(--warn-soft); border: 1px solid var(--warn-line); }
+.msg-undo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13.5px; color: var(--text-2); }
+.msg-undo .btn-text { min-height: 44px; padding-inline: 8px; }
+.msg-err { margin: 0; }
+.msg-note { font-size: 12.5px; color: var(--muted); }
+
+.msg-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.msg-acts .btn { min-height: 44px; }
+.msg-skip { min-height: 44px; padding-inline: 8px; margin-inline-start: auto; }
+
+.msg-body { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; color: var(--text-2); }
+.msg-nohist { font-size: 13px; color: var(--muted); }
+details.msg-history > summary {
+  cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 6px;
+  font-size: 14px; color: var(--accent); list-style: none;
+}
+details.msg-history > summary::-webkit-details-marker { display: none; }
+details.msg-history > summary::after {
+  content: ''; width: 7px; height: 7px; border: solid currentColor; border-width: 0 2px 2px 0;
+  transform: rotate(45deg); margin-inline-start: 2px; transition: transform .15s;
+}
+details.msg-history[open] > summary::after { transform: rotate(-135deg); }
+.msg-hlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.msg-hlist li { padding-top: 8px; border-top: 1px solid var(--line); }
+.msg-hmeta { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+.msg-empty {
+  margin: 0; padding: 24px 16px; text-align: center; color: var(--text-2);
+  background: var(--panel); border: 1px dashed var(--line-strong); border-radius: var(--radius-md);
+}
+
+.msg-noaccess { max-inline-size: 520px; inline-size: 100%; justify-self: center; margin-top: 24px; padding: 28px 24px; text-align: center; display: grid; gap: 10px; justify-items: center; }
+.msg-noaccess h2 { margin: 0; font-size: 20px; }
+.msg-noaccess p { margin: 0; color: var(--text-2); }
+
+#dlg-templates .tpl-body .field label { margin-bottom: 6px; }
+#dlg-templates .tpl-text { min-height: 220px; font-size: 15px; line-height: 1.55; }
+#dlg-templates .hint { margin: 6px 0 0; }
+
+@media (max-width: 760px) {
+  .msg-card { padding: 14px 12px; }
+  .msg-filters .chip, .head-actions .btn { min-height: 44px; }
+  .msg-acts .btn { flex: 1 1 100%; }
+  .msg-skip { margin-inline-start: 0; }
+  .msg-pick { max-inline-size: none; }
+  #dlg-templates .dlg-foot .btn { flex: 1 1 100%; min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  details.msg-history > summary::after { transition: none; }
+}

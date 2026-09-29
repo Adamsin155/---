@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>צוות וכניסות · astrateg</title>
+  <title>הודעות ללקוחות · astrateg</title>
   <meta name="robots" content="noindex">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="app/assets/logo-mark.png">
@@ -18,20 +18,21 @@
   <link rel="stylesheet" href="app/styles/protocol.css">
   <link rel="stylesheet" href="app/styles/protocol-office.css">
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
-  <link rel="stylesheet" href="app/styles/team.css">
+  <link rel="stylesheet" href="app/styles/messages.css">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="clients.html" aria-label="astrateg · לקוחות ופרוטוקול">
       <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
       <span class="brand-sep" aria-hidden="true"></span>
-      <span class="brand-product">צוות</span>
+      <span class="brand-product">הודעות</span>
     </a>
     <nav aria-label="ניווט ראשי">
       <a class="navlink" href="clients.html">לקוחות</a>
+      <a class="navlink" href="messages.html" aria-current="page">הודעות ללקוחות</a>
       <a class="navlink" href="./">הצעה חדשה</a>
       <a class="navlink" href="quotes.html">הצעות שנשלחו</a>
-      <a class="navlink" href="team.html" aria-current="page">צוות</a>
+      <a class="navlink" href="team.html" id="nav-team" hidden>צוות</a>
       <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
       <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
     </nav>
@@ -41,7 +42,7 @@
     <section class="block" id="login-block" hidden aria-labelledby="lg-h">
       <form class="login" id="login-form" novalidate>
         <h2 id="lg-h">כניסה לצוות</h2>
-        <p>ניהול הצוות והכניסות זמין לבעלים, לעירית ולליאור.</p>
+        <p>ההודעות ללקוחות זמינות לבעלים, לעירית ולליאור.</p>
         <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
         <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
         <div class="err" id="lg-err" role="alert" hidden></div>
@@ -52,38 +53,28 @@
     </section>
 
     <div id="app" class="pr-app" hidden>
-      <div id="team-page" hidden>
+      <div id="msg-page" class="msg-page" hidden>
         <div class="page-head">
           <div>
-            <div class="kicker latin">TEAM ACCESS</div>
-            <h1>צוות וכניסות</h1>
-            <p>לכל אחד בצוות כניסה משלו. כאן יוצרים קישור כניסה אישי ושולחים אותו בוואטסאפ, גם כשמישהו שכח סיסמה.</p>
+            <div class="kicker latin">CLIENT MESSAGES</div>
+            <h1>הודעות ללקוחות</h1>
+            <p>לכל לקוח הודעה אחת ביום לכל היותר. עוברים על התור, מעדכנים את הנוסח אם צריך, ושולחים בוואטסאפ.</p>
           </div>
           <div class="head-actions">
             <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+            <button type="button" class="btn btn-sm" id="btn-templates" aria-haspopup="dialog">עריכת נוסחים</button>
           </div>
         </div>
 
-        <section class="block tm-block" aria-labelledby="tm-h">
-          <h2 class="sr-only" id="tm-h">הצוות</h2>
-          <ul class="tm-list" id="team-list"></ul>
-        </section>
-
-        <section class="block tm-help" aria-labelledby="help-h">
-          <h2 id="help-h">איך זה עובד</h2>
-          <ol>
-            <li>למי שאין עדיין כתובת מייל, מוסיפים אותה בשורה שלו.</li>
-            <li>לוחצים ״יצירת קישור כניסה״ ושולחים את הקישור בוואטסאפ לאותו אדם בלבד.</li>
-            <li>הוא פותח את הקישור, בוחר סיסמה, ונשאר מחובר בטלפון. מעכשיו נכנסים עם המייל והסיסמה.</li>
-          </ol>
-          <p class="muted">שכחו סיסמה? יוצרים קישור חדש באותו כפתור. אין צורך במייל.</p>
-          <p class="muted">מספר הוואטסאפ בשורה של כל אחד משמש את כפתורי ההעברה בכרטיס הלקוח: ״לשלוח לעילאי בוואטסאפ״ פותח שיחה ישירה איתו, עם ההודעה מוכנה. בלי מספר, בוחרים את השיחה בוואטסאפ.</p>
-        </section>
+        <p class="msg-summary" id="msg-summary" role="status"></p>
+        <div class="chips-row msg-filters" role="group" aria-label="סינון לפי תחנה" id="msg-filters"></div>
+        <ol class="msg-queue" id="msg-queue" aria-label="תור ההודעות להיום"></ol>
+        <p class="msg-empty" id="msg-empty" tabindex="-1" hidden></p>
       </div>
 
-      <section class="block tm-noaccess" id="no-access" hidden aria-labelledby="na-h">
+      <section class="block msg-noaccess" id="no-access" hidden aria-labelledby="na-h">
         <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
-        <p>ניהול הצוות והכניסות פתוח לבעלים, לעירית ולליאור. צריכים קישור כניסה חדש? פנו אליהם.</p>
+        <p>ההודעות ללקוחות פתוחות לבעלים, לעירית ולליאור.</p>
         <a class="btn" href="clients.html">חזרה ללקוחות</a>
       </section>
     </div>
@@ -91,7 +82,38 @@
     <p class="state" id="state" role="status"></p>
   </main>
 
+  <dialog id="dlg-templates" class="dlg-wide" aria-labelledby="tpl-h">
+    <form id="tpl-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="tpl-h">נוסחי ההודעות</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body tpl-body">
+        <div class="field">
+          <label for="tpl-key">איזה נוסח</label>
+          <select class="input" id="tpl-key"></select>
+        </div>
+        <div class="field">
+          <label for="tpl-title">שם הנוסח</label>
+          <input class="input" id="tpl-title" maxlength="120" required autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="tpl-text">הנוסח</label>
+          <textarea class="input tpl-text" id="tpl-text" rows="10" maxlength="4000" required aria-describedby="tpl-vars tpl-meta"></textarea>
+          <p class="hint" id="tpl-vars"></p>
+          <p class="hint" id="tpl-meta"></p>
+        </div>
+        <div class="err" id="tpl-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>סגירה</button>
+        <button type="button" class="btn" id="tpl-default">חזרה לנוסח המקורי</button>
+        <button type="submit" class="btn btn-primary" id="tpl-save">שמירת הנוסח</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app/team.js"></script>
+  <script type="module" src="app/messages.js"></script>
 </body>
 </html>

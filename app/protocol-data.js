@@ -141,6 +141,17 @@ export async function loadDirectory() {
   return Object.fromEntries(data.filter((r) => r.person).map((r) => [r.email, r.person]));
 }
 
+// WhatsApp numbers of the team by person (staff.phone, set on the team screen), for
+// the handoff buttons. Staff read the staff list ("staff read staff"). No column
+// yet (its migration not applied) or an error: no numbers, and WhatsApp asks whom to send to.
+export async function loadStaffPhones() {
+  const { data, error } = await supabase.from('staff').select('person, phone').not('person', 'is', null);
+  if (error) return {};
+  const out = {};
+  for (const r of data) if (r.person && r.phone && !out[r.person]) out[r.person] = r.phone;
+  return out;
+}
+
 // Daily reviews (processes 32 and 33) since a given day: [{ day, kind, by_email, at, note }].
 export async function loadReviews(sinceDay) {
   const { data, error } = await supabase.from('office_reviews').select('day, kind, note, by_email, at, note_by, note_at')

@@ -45,20 +45,24 @@ export function addWorkingMinutes(date, minutes) {
   return d;
 }
 
-// Minutes of office time between two moments (the employee's clock).
-export function workingMinutesBetween(from, to) {
+// Office time between two moments, in milliseconds (a running clock, to the second).
+export function officeMsBetween(from, to) {
   const end = new Date(to);
   let d = nextWorkMoment(from);
   let total = 0;
   while (d < end) {
     const close = closeAt(d);
-    total += (Math.min(close, end) - d) / 6e4;
+    total += Math.min(close, end) - d;
     d = nextWorkMoment(close);
   }
-  return Math.round(total);
+  return total;
 }
+// Minutes of office time between two moments (the employee's clock).
+export const workingMinutesBetween = (from, to) => Math.round(officeMsBetween(from, to) / 6e4);
 // Anchors that are office events run on office time; a meeting or a shoot runs on the real clock.
 const onOfficeClock = (from) => from === 'deal' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
+// Whether resolveTime counts a due spec in office minutes (and so a clock of it stops at night).
+export const onOfficeTime = (spec) => !!spec && !spec.businessDays && onOfficeClock(spec.from) && spec.days === undefined && !spec.prevBusinessDay;
 
 const sameDay = (a, b) => dayKeyIL(a) === dayKeyIL(b);
 
@@ -194,7 +198,7 @@ export function resolveTime(spec, client, procs, checks, now = new Date()) {
   const base = anchor(spec.from, client, procs, checks, now);
   if (!base) return null;
   if (spec.businessDays) return addBusinessDays(base, spec.businessDays);
-  if (onOfficeClock(spec.from) && spec.days === undefined && !spec.prevBusinessDay) {
+  if (onOfficeTime(spec)) {
     return addWorkingMinutes(base, (spec.hours || 0) * 60 + (spec.minutes || 0));
   }
   let d = new Date(base);
@@ -239,6 +243,9 @@ export function blockers(item, client, checks) {
 const markKey = (proc, kind) => `${proc.keyBase || proc.id}.${kind}`;
 export const CLAIM = (proc) => markKey(proc, 'claim');
 export const WAIT = (proc) => markKey(proc, 'wait');
+// The client answered after work was sent to them (processes 7, 23, 26): stops
+// the "client did not answer" clock of that sending (app/clocks.js).
+export const ANSWERED = (proc) => markKey(proc, 'answered');
 // Editing paused for another task (Nirel and the editors must say so first).
 export const PAUSE = (proc) => markKey(proc, 'pause');
 export function pauseOf(proc, checks) {

@@ -1,0 +1,69 @@
+/* The "now" bar at the top of "my work" (clients.html): the protocol clocks
+   running right now (app/now-bar.js). Builds on app.css and protocol.css tokens;
+   brand: docs/brand/brand-guide.md. A clock that ran out says so in words
+   ("נגמר לפני") as well as in red; colour is never the only cue. */
+.now-bar {
+  margin: 14px 16px 0; padding: 12px 14px 14px; display: grid; gap: 10px;
+  border-radius: var(--radius-md); background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-inline-start: 4px solid var(--accent);
+}
+.now-bar[hidden] { display: none; }
+.now-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+.now-h { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; font-weight: 600; color: var(--accent-deep); }
+.now-h:focus { outline: none; }
+.now-h:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.now-h .n { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.now-hint { margin: 0; font-size: 13px; color: var(--muted); }
+
+.now-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.now-clock {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 8px 14px;
+  padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-2); border: 1px solid var(--line);
+}
+.now-time { display: grid; justify-items: center; text-align: center; line-height: 1.25; }
+.now-state { font-size: 12px; color: var(--text-2); }
+.now-left {
+  font-family: var(--mono); font-size: 24px; font-weight: 600; color: var(--accent-deep);
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em; white-space: nowrap;
+}
+.now-clock.is-paused .now-left { color: var(--muted); }
+.now-body { display: grid; gap: 1px; min-width: 0; }
+.now-client {
+  justify-self: start; min-height: 28px; display: inline-flex; align-items: center;
+  font-size: 15px; font-weight: 500; color: var(--text); text-decoration: none;
+}
+.now-client:hover { color: var(--accent-deep); text-decoration: underline; text-underline-offset: 3px; }
+.now-what { font-size: 14.5px; font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
+.now-meta { font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+.now-body .pchips { margin-top: 4px; }
+
+/* Ran out: red, and in words. */
+.now-clock[data-state='expired'] { background: var(--late-soft); border-color: color-mix(in srgb, var(--late) 45%, var(--line)); }
+.now-clock[data-state='expired'] .now-state,
+.now-clock[data-state='expired'] .now-left,
+.now-clock[data-state='expired'] .now-what { color: var(--late); }
+.now-clock[data-state='expired'] .now-left { font-family: var(--font); font-size: 18px; }
+.now-clock[data-state='expired'] .now-what { font-weight: 600; }
+
+/* "The client did not answer": two big buttons under the clock. */
+.now-acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.now-acts .btn { flex: 1 1 200px; min-height: 52px; font-size: 16px; }
+.now-call bdi { font-weight: 500; }
+/* Still running: "the client answered" alone, small, under the text (the client may answer in time). */
+.now-clock[data-state='running'] .now-acts { grid-column: 2; }
+.now-clock[data-state='running'] .now-acts .btn { flex: 0 0 auto; min-height: 44px; font-size: 14px; }
+.now-nophone { margin: 0; flex: 1 1 200px; align-self: center; font-size: 14px; color: var(--text-2); }
+
+@media (max-width: 760px) {
+  .now-bar { margin-inline: 12px; padding-inline: 12px; }
+  .now-clock { grid-template-columns: 76px minmax(0, 1fr); gap: 8px 10px; padding-inline: 10px; }
+  .now-left { font-size: 21px; }
+  .now-clock[data-state='expired'] .now-left { font-size: 16px; }
+  .now-client, .now-nophone a { min-height: 44px; }
+  .now-nophone a { display: inline-flex; align-items: center; }
+  .now-acts .btn { flex-basis: 100%; }
+}
+@media print {
+  .now-bar { display: none !important; }
+}

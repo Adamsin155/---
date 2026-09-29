@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="app/styles/protocol.css">
   <link rel="stylesheet" href="app/styles/protocol-office.css">
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/protocol-now.css">
 </head>
 <body>
   <header class="topbar">
@@ -27,6 +28,7 @@
     </a>
     <nav aria-label="ניווט ראשי">
       <a class="navlink" href="clients.html" aria-current="page">לקוחות</a>
+      <a class="navlink nav-messages" href="messages.html" id="nav-messages" hidden>הודעות ללקוחות</a>
       <a class="navlink" href="./">הצעה חדשה</a>
       <a class="navlink" href="quotes.html">הצעות שנשלחו</a>
       <a class="navlink" href="team.html" id="nav-team" hidden>צוות</a>
@@ -58,6 +60,7 @@
         </div>
         <div class="head-actions">
           <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+          <a class="btn btn-sm" href="messages.html" id="cta-messages" hidden>הודעות ללקוחות</a>
           <button type="button" class="btn btn-sm btn-primary" id="btn-new">לקוח חדש</button>
         </div>
       </div>
@@ -72,6 +75,7 @@
       </div>
 
       <section class="block" id="view-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
+        <section class="now-bar" id="now-bar" aria-labelledby="now-h" hidden></section>
         <div class="filters" role="group" aria-label="של מי" id="mine-people"></div>
         <div class="mine-tools" id="mine-tools"></div>
         <div id="mine-list" class="mine-list"></div>
@@ -208,6 +212,7 @@
   </dialog>
 
   <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="sr-only" id="now-live" aria-live="assertive" aria-atomic="true"></div>
   <script type="module" src="app/clients.js"></script>
 </body>
 </html>

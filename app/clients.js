@@ -8,8 +8,10 @@ import {
   clientState, openItemsFor, byUrgency, bucketOf, CLAIM, WAIT, waitNote, bulkEligible, isResolved,
   isBusinessDay, businessDaysBetween, addBusinessDays, weekKey, roundsOf, parseDate,
   upcomingFor, involves, WAITED, waitOf, parseWaitNote, endWaitNote, isImported, IMPORT_NOTE,
-  workedMinutes, targetMinutes, durationStart,
+  workedMinutes, targetMinutes, durationStart, ANSWERED,
 } from './protocol-logic.js';
+import { clocksFor, clockTime } from './clocks.js';
+import { renderNowBar, updateNowBar, clockRows, ranOutText } from './now-bar.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, setTaskDone, createClient,
   signedQuotes, loadDirectory, loadReviews, markReview, loadAllLog, addTask,
@@ -25,6 +27,8 @@ import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, 
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
 import { canManageTeam } from './team-rules.js';
+import { canSendMessages } from './messages-logic.js';
+import { offerHandoff, dropHandoff } from './handoff-ui.js';
 
 let clients = [];
 let checks = {};
@@ -108,6 +112,7 @@ async function load() {
   states.clear();
   lastLoad = Date.now();
   $('state').textContent = '';
+  rebuildClocks();
   watchNewClients();
   checkLate();
   if (!document.hidden) renderKeepingFocus();
@@ -242,6 +247,7 @@ async function toggleEntry(e, input) {
   renderMine();
   if (next) document.getElementById(next)?.focus();
   toast(`סומן כבוצע: ${e.task ? e.task.title : e.item.label}`, { label: 'ביטול', run: () => undo(e) });
+  offerHandoff({ client: e.client, key: e.task ? null : e.item.key, checks: () => checks[e.client.id], me, canTeam: canManageTeam({ me, scope, error: viewerError }) });
 }
 
 async function undo(e) {
@@ -253,6 +259,7 @@ async function undo(e) {
       await clearCheck(e.client.id, e.item.key);
       delete checks[e.client.id][e.item.key];
       states.delete(e.client.id);
+      dropHandoff(e.item.key);
     }
     renderMine();
     toast('הסימון בוטל.');
@@ -583,6 +590,8 @@ function upcomingSection(list, open) {
 function renderMine() {
   const wrap = $('mine-list');
   const own = scope === 'own';
+  rebuildClocks();
+  paintNowBar();
   if (own && !me) {
     $('mine-people').hidden = true;
     fill($('mine-people'));
@@ -754,7 +763,7 @@ function notifyRow() {
   if (st === 'none') return null;
   if (st === 'blocked') return h('p', { class: 'notify-row muted' }, 'ההתראות חסומות בדפדפן. אפשר לאפשר אותן בהגדרות האתר.');
   if (st === 'on') {
-    return h('p', { class: 'notify-row' }, 'התראות איחור פעילות בדפדפן הזה. ',
+    return h('p', { class: 'notify-row' }, 'התראות על איחורים ועל לקוח שלא ענה פעילות בדפדפן הזה. ',
       h('button', { type: 'button', class: 'btn-text', onclick: () => { store.set('notify', 'off'); renderMine(); } }, 'כיבוי'));
   }
   return h('div', { class: 'notify-row' },
@@ -766,23 +775,66 @@ function notifyRow() {
         if (p === 'granted') store.set('notify', 'on');
         renderMine();
       },
-    }, 'התראה כשמשהו שלי נכנס לאיחור'),
+    }, 'התראה כשמשהו שלי נכנס לאיחור או כשלקוח לא ענה'),
     h('span', { class: 'hint' }, 'עובד רק כשהעמוד פתוח בדפדפן, גם בלשונית ברקע.'));
 }
 
-function alertOnce(key, title, body, href) {
-  const k = `notified.${key}.${dayIso(new Date())}`;
-  if (store.get(k)) return;
-  store.set(k, '1');
-  if (document.hidden) {
-    try {
-      const n = new Notification(title, { body, tag: key });
-      n.onclick = () => { window.focus(); location.href = href; n.close(); };
-    } catch { /* the browser refused */ }
-  } else {
-    toast(`${title} · ${body}`, { label: 'מעבר', run: () => { location.href = href; } });
-  }
+// A system notification; a click opens `href`. Chrome on Android lets only a
+// service worker show one (`new Notification` throws a TypeError there), so
+// from the first such refusal app/notify-sw.js shows them.
+let workerNotes = false;
+let noteWorker = null;
+function notifyWorker() {
+  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+  noteWorker ||= navigator.serviceWorker.register(new URL('./notify-sw.js', import.meta.url))
+    .then((reg) => (reg.active ? reg : new Promise((resolve) => {
+      const sw = reg.installing || reg.waiting;
+      if (!sw) { resolve(null); return; }
+      sw.addEventListener('statechange', () => {
+        if (sw.state === 'activated') resolve(reg);
+        else if (sw.state === 'redundant') resolve(null);
+      });
+    })))
+    .catch(() => null);
+  return noteWorker;
 }
+function showNote(title, body, tag, href) {
+  if (!workerNotes) {
+    try {
+      const n = new Notification(title, { body, tag });
+      n.onclick = () => { window.focus(); location.href = href; n.close(); };
+      return;
+    } catch (err) {
+      if (err?.name !== 'TypeError') return; // the browser refused
+      workerNotes = true;
+    }
+  }
+  const url = new URL(href, location.href).href;
+  notifyWorker().then((reg) => reg?.showNotification(title, { body, tag, data: { href: url } })).catch(() => { /* refused */ });
+}
+
+// Alerts once a day for `keys` (one key, or every process a row of the "now"
+// bar covers). With the page hidden: a notification. `ring`: a clock of the
+// "now" bar ran out; it also notifies when the page is open but its window is
+// not in front, and on the "my work" tab it needs no toast (the bar shows it,
+// in red, and it is read out). Returns 'note', 'toast' or null.
+function alertOnce(keys, title, body, href, { ring = false } = {}) {
+  const day = dayIso(new Date());
+  const ks = [keys].flat().map((key) => `notified.${key}.${day}`);
+  if (ks.every((k) => store.get(k))) return null;
+  for (const k of ks) store.set(k, '1');
+  if (document.hidden || (ring && !document.hasFocus())) {
+    showNote(title, body, [keys].flat()[0], href);
+    return 'note';
+  }
+  if (ring && view === 'mine') return null;
+  toast(`${title} · ${body}`, { label: 'מעבר', run: () => { location.href = href; } });
+  return 'toast';
+}
+
+// A process alerts once a day, whether its clock in the "now" bar ran out or
+// it turned overdue, whichever came first.
+const procAlertKey = (c) => `${c.client.id}:${c.proc.id}`;
 
 // Processes of `me` that turned overdue since the previous check. The first
 // check only records the state: on load every overdue process is "new".
@@ -795,9 +847,102 @@ function checkLate() {
   if (!prev || notifyState() !== 'on') return;
   for (const g of late) {
     if (prev.has(g.key)) continue;
-    alertOnce(`${g.client.id}:${g.proc.id}`, `באיחור: ${g.client.name}`,
+    alertOnce(procAlertKey(g), `באיחור: ${g.client.name}`,
       `תהליך ${procLabel(g.proc)}. היעד היה ${formatWhen(g.dueAt)}.`, clientUrl(g.client.id, `#${g.proc.id}`));
   }
+}
+
+// ── "Now" bar: the clocks running right now (app/clocks.js) ──
+// Stage 1: they run while this page is open (a server engine takes over in stage 3).
+// The signed-in person's own clocks; the owner (no person) sees everyone's.
+let clocks = [];
+let clockSeen = new Map(); // clock id -> 'running' | 'expired' at the last second
+const clockPerson = () => me || (scope === 'office' && !viewerError ? null : undefined);
+function rebuildClocks(now = new Date()) {
+  const person = clockPerson();
+  clocks = person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf });
+}
+function paintNowBar() {
+  renderNowBar($('now-bar'), clocks, { everyone: !me, onAnswered: markAnswered });
+}
+
+// Once a second: the countdowns, without rebuilding anything else. Only a clock
+// seen running and now run out counts as running out while the page is open.
+function clockTick() {
+  if ($('app').hidden) return;
+  const now = new Date();
+  const seen = new Map();
+  const ranOut = [];
+  for (const c of clocks) {
+    const { state } = clockTime(c, now);
+    if (state === 'expired' && clockSeen.get(c.id) === 'running') ranOut.push(c);
+    seen.set(c.id, state);
+  }
+  clockSeen = seen;
+  if (ranOut.length) clocksRanOut(ranOut);
+  const bar = $('now-bar');
+  if (!document.hidden && view === 'mine' && !bar.hidden) updateNowBar(bar, clocks, { now, onAnswered: markAnswered });
+}
+setInterval(clockTick, 1000);
+
+// Clocks ran out: one alert per row of the bar (the new deal's three processes
+// are one "time is up"). With notifications on, a notification when the page is
+// not in front, a toast on another tab; every process of the row counts as
+// alerted, so turning overdue a minute later does not alert it again. Read out
+// at once, unless the one toast already says it (a toast is a live region too).
+// My bar has only my clocks; the owner hears the team's only while looking at them.
+function clocksRanOut(list) {
+  if (!me && !(view === 'mine' && !document.hidden)) return;
+  const rows = clockRows(list);
+  const toasted = !me || notifyState() !== 'on' ? [] : rows.filter((r) => {
+    const t = ranOutText(r);
+    const keys = r.clocks.map((c) => (c.kind === 'answer' ? c.id : procAlertKey(c)));
+    return alertOnce(keys, t.title, t.body, clientUrl(r.client.id, `#${r.proc.id}`), { ring: true }) === 'toast';
+  });
+  if (rows.length === 1 && toasted.length === 1) return;
+  fill($('now-live'), h('p', {}, rows.map((r) => { const t = ranOutText(r); return `${t.title}. ${t.body}`; }).join(' ')));
+}
+
+// "The client answered": stops that clock (the ANSWERED mark), with undo.
+async function markAnswered(c, btn) {
+  const cid = c.client.id;
+  const key = ANSWERED(c.proc);
+  const index = [...document.querySelectorAll('#now-bar .now-clock')].findIndex((li) => li.dataset.clock === c.id);
+  btn.disabled = true;
+  let row;
+  try {
+    row = await setCheck(cid, key, 'done');
+  } catch (err) {
+    btn.disabled = false;
+    toast(`הסימון לא נשמר. ${errorText(err)}`);
+    return;
+  }
+  (checks[cid] ||= {})[key] = row;
+  states.delete(cid);
+  rebuildClocks();
+  paintNowBar();
+  // Focus moves on to the next clock (or back to the list when the bar is empty).
+  const items = [...document.querySelectorAll('#now-bar .now-clock')];
+  const next = items[Math.min(index, items.length - 1)];
+  (next?.querySelector('.now-answered, .now-client') || document.querySelector('#mine-list .cbx:not(:disabled)') || $('tab-mine')).focus();
+  toast(`סומן שהלקוח ענה: ${c.client.name} · ${c.what}.`, { label: 'ביטול', run: () => unmarkAnswered(c) });
+}
+
+async function unmarkAnswered(c) {
+  const cid = c.client.id;
+  const key = ANSWERED(c.proc);
+  try {
+    await clearCheck(cid, key);
+  } catch (err) {
+    toast(`הביטול לא נשמר. ${errorText(err)}`);
+    return;
+  }
+  if (checks[cid]) delete checks[cid][key];
+  states.delete(cid);
+  rebuildClocks();
+  paintNowBar();
+  document.querySelector(`#now-bar .now-clock[data-clock="${CSS.escape(c.id)}"] .now-answered`)?.focus();
+  toast('הסימון בוטל. השעון חזר לפס.');
 }
 
 // A client the signing trigger opened while this page was open (spec §10).
@@ -1924,6 +2069,7 @@ function tick() {
   states.clear();
   // Fresh data every 5 minutes: a screen left open all day shows other people's checks.
   if (Date.now() - lastLoad > 5 * 60e3 && (document.hidden ? notifyState() === 'on' : !busy())) { load(); return; }
+  rebuildClocks();
   checkLate();
   if (!document.hidden && !busy()) renderKeepingFocus();
 }
@@ -1935,6 +2081,8 @@ mountSession(async (staff) => {
   ({ me, scope } = viewer);
   viewerError = viewer.error;
   $('nav-team').hidden = !canManageTeam(viewer);
+  // The top bar folds away on phones: the page head keeps a way in to the messages.
+  $('nav-messages').hidden = $('cta-messages').hidden = !canSendMessages(viewer);
   // Always land on the signed-in person's own list; the owner lands on the whole team.
   minePerson = scope === 'own' ? me : me || '';
   applyScope();
