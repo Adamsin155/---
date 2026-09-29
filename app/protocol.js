@@ -6,7 +6,7 @@
 // instead and add a new one. Bump PROTOCOL_VERSION when the protocol changes.
 // Retired in v3 (Shirel removed from the protocol): p02.m.shirel, p11.ok.shirel.
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 // Office hours. Deadlines of minutes or hours that start from an office event
 // (a deal coming in, a finished process) run only inside these hours; a deal
@@ -24,9 +24,16 @@ export const PEOPLE = {
   nadia: { key: 'nadia', name: 'נדיה', role: 'עריכת וידאו', editor: true },
   yariv: { key: 'yariv', name: 'יריב', role: 'עריכת וידאו', editor: true },
   anna: { key: 'anna', name: 'אנה', role: 'עריכת וידאו', editor: true },
+  eli: { key: 'eli', name: 'אלי', role: 'צלם ימי הצילום' },
   // Until Ofir assigns an editor, editing items belong to "the assigned editor".
   editor: { key: 'editor', name: 'העורך המשויך', role: 'עד ששויך עורך' },
 };
+
+// What each person sees when they sign in. 'office': their own work first, plus
+// the office screens (all clients, daily control, performance). 'own': only their
+// own work and the clients it belongs to. The owner (no person) sees the office.
+export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own' };
+export const scopeOf = (person) => (person ? SCOPE[person] || 'own' : 'office');
 
 // Real people (everyone but the "assigned editor" placeholder): for pickers and lists.
 export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor');
@@ -429,6 +436,21 @@ export const PROCESSES = [
     ],
   },
   {
+    id: 'p17b', round: true, num: '17ב', phase: 'shoot', title: 'הצלם: הגעה, ציוד ובי־רול לפני המשפיענים', owners: ['eli'],
+    sla: 'שעה לפני הגעת המשפיענים',
+    start: { from: 'shoot', hours: -1 }, due: { from: 'shoot' },
+    what: 'הצלם מגיע שעה לפני המשפיענים בעיקר כדי לסיים את כל הבי־רול של העסק לפני שהם מגיעים, כך שכשהם מגיעים מתחילים מיד בסרטונים. ההתארגנות מהירה, כדי להשאיר את רוב השעה לבי־רול.',
+    rule: 'לא משאירים את הבי־רול הכללי של העסק לזמן שבו המשפיענים כבר במקום. בי־רול נקודתי שקשור למשפיען או לסצנה מסוימת אפשר להשלים במהלך היום.',
+    items: [
+      { key: 'p17b.arrived', label: 'הגעתי שעה לפני המשפיענים' },
+      { key: 'p17b.drive', label: 'קיבלתי את הכונן מליאור (באחריותי עד סוף היום)' },
+      { key: 'p17b.gear', label: 'נבדקו מצלמות, סוללות, כרטיסי זיכרון, מיקרופונים ותאורה' },
+      { key: 'p17b.zones', label: 'עברתי עם ליאור על אזורי הצילום: זוויות, תאורה וסאונד, רקע נקי ובלי דברים מיותרים בפריים' },
+      { key: 'p17b.broll', label: 'כל הבי־רול המרכזי של העסק צולם לפני הגעת המשפיענים: המקום, חזית ופנים, מוצרים, שירותים, עובדים, שילוט, אווירה ותהליכי עבודה' },
+      { key: 'p17b.variety', label: 'הבי־רול מגוון: תקריבים וצילומים רחבים, זוויות ומוצרים שונים, מספיק אפשרויות לעורכים' },
+    ],
+  },
+  {
     id: 'p18', round: true, num: '18', phase: 'shoot', title: 'ניהול יום הצילום והתסריטים', owners: ['lior'],
     sla: 'לאורך כל יום הצילום',
     start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
@@ -437,6 +459,18 @@ export const PROCESSES = [
     items: [
       { key: 'p18.order', label: 'עבדנו לפי סדר התסריטים וסימנו כל סרטון בירוק' },
       { key: 'p18.all', label: 'צולמה כל כמות הסרטונים שהלקוח צריך לקבל' },
+    ],
+  },
+  {
+    id: 'p18b', round: true, num: '18ב', phase: 'shoot', title: 'הצלם: צילום הסרטונים לפי הסדר', owners: ['eli'],
+    sla: 'לאורך כל יום הצילום',
+    start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
+    what: 'ליאור מנהל את יום הצילום. הצלם עובד לפי סדר הסרטונים והתסריטים שליאור מגדיר, ובכל סרטון מוודא: תמונה חדה, פריים נכון, תאורה, סאונד ומיקרופון תקינים, בלי רעשי רקע חריגים, המצולם במקום הנכון והשוט מתאים לסוג הסרטון.',
+    rule: 'אם יש תקלה, לא ממשיכים לסרטון הבא בלי לפתור אותה. לא מחכים לסוף היום כדי להבין איזה קובץ שייך לאיזה סרטון.',
+    items: [
+      { key: 'p18b.order', label: 'צילמתי לפי סדר התסריטים של ליאור' },
+      { key: 'p18b.quality', label: 'בכל סרטון נבדקו חדות, פריים, תאורה, סאונד ומיקרופון' },
+      { key: 'p18b.numbered', label: 'לכל חומר ברור לאיזה מספר סרטון הוא שייך; גרסאות של אותו סרטון שמורות יחד' },
     ],
   },
   {
@@ -449,6 +483,21 @@ export const PROCESSES = [
       { key: 'p19.testimonial', label: 'צולם סרטון המלצה של הלקוח עם המשפיענים (חובה)' },
       { key: 'p19.drive', label: 'כל חומרי הצילום נמצאים בכונן, והכונן מסודר' },
       { key: 'p19.took', label: 'הכונן חזר לליאור מהצלם' },
+    ],
+  },
+  {
+    id: 'p19b', round: true, num: '19ב', phase: 'shoot', title: 'הצלם: סידור הכונן ומסירה לליאור', owners: ['eli'],
+    sla: 'מיד בסיום הצילום ולפני עזיבת המקום',
+    start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
+    what: 'בכונן שתי תיקיות: בי־רול, וסרטונים לפי סדר התסריטים (סרטון 01, סרטון 02 וכן הלאה). העורך לא אמור לפתוח עשרות קבצים ולנחש מה שייך לאיזה סרטון.',
+    rule: 'הצלם לא עוזב לפני שכל החומרים בכונן, מסודרים בתיקיות, והכונן בידיים של ליאור. אסור לפרמט או למחוק כרטיס זיכרון לפני שנבדק שכל החומר בכונן תקין.',
+    items: [
+      { key: 'p19b.folders', label: 'בכונן תיקיית בי־רול ותיקיית סרטונים, וכל סרטון במספר שלו לפי התסריטים' },
+      { key: 'p19b.complete', label: 'כל הסרטונים וכל הבי־רול בכונן, בלי קבצים חסרים' },
+      { key: 'p19b.opens', label: 'הקבצים נפתחים תקין והמספור תואם לסדר התסריטים' },
+      { key: 'p19b.cards', label: 'לא נשאר חומר רק על כרטיסי הזיכרון; שום כרטיס לא פורמט לפני הבדיקה' },
+      { key: 'p19b.handed', label: 'מסרתי את הכונן לליאור, והוא אישר שקיבל', noBulk: true },
+      { key: 'p19b.notes', label: 'עדכנתי את ליאור על בעיה בסרטון או על גרסה או חומר שהעורך צריך לדעת עליהם', optional: true },
     ],
   },
   {
