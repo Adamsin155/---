@@ -2,7 +2,7 @@
 
 המסמך מיועד למפתח שישלב את המערכת במערכת קיימת. הוא מתאר מה נבנה, איפה כל דבר נמצא, מה חייב להישמר בשילוב, ודרכים אפשריות לשלב.
 
-- **קוד:** https://github.com/adamsin155/--- (ענף `claude/amazing-tesla-bvt0sx`; האתר החי מתפרסם מהענף `gh-pages`)
+- **קוד:** https://github.com/adamsin155/--- (ענף `claude/amazing-tesla-bvt0sx`; האתר החי מתפרסם מהענף `gh-pages`, רק עם קבצי האתר, ב־`scripts/build-pages.mjs`)
 - **אתר חי:** https://adamsin155.github.io/---/
 - **שרת:** פרויקט Supabase ‏`czncjzziqrqtezpwxxpz` (Postgres, Auth, Edge Functions)
 

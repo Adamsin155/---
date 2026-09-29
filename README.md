@@ -43,7 +43,7 @@
 
 ## פרסום וגישה
 
-- **האתר:** https://adamsin155.github.io/---/ . הוא מתפרסם מהענף `gh-pages`. כדי לפרסם גרסה חדשה מריצים `git push origin claude/amazing-tesla-bvt0sx:gh-pages`.
+- **האתר:** https://adamsin155.github.io/---/ . הוא מתפרסם מהענף `gh-pages`, שמכיל רק את קבצי האתר, כי כל מה שבו ציבורי. כדי לפרסם גרסה חדשה, עומדים על `claude/amazing-tesla-bvt0sx` אחרי commit, מריצים `git fetch origin gh-pages && node scripts/build-pages.mjs --commit`, ואז את פקודת ה־`git push` שהסקריפט מדפיס. פרטים: [מדריך התפעול](docs/ops.md), סעיף 2.
 - **כניסת צוות:** משתמש `adam@astrateg.com` קיים ומורשה. את הסיסמה מחליפים בעמוד ״הצעות שנשלחו״, בכפתור ״שינוי סיסמה״.
 - **שכחתי סיסמה:** כפתור במסך הכניסה שולח קישור איפוס למייל. הקישור פותח את עמוד ״הצעות שנשלחו״ ומבקש סיסמה חדשה. כדי שהקישור יחזור לאתר ולא לכתובת ברירת המחדל, יש להגדיר ב־Supabase (Authentication → URL Configuration): *Site URL* ‏`https://adamsin155.github.io/---/` ולהוסיף ל־*Redirect URLs* את `https://adamsin155.github.io/---/quotes.html`. שירות המייל המובנה של Supabase מוגבל בכמות שליחות; לשימוש קבוע כדאי לחבר SMTP משלכם (Authentication → Emails → SMTP Settings).
 - **הוספת איש מכירות:** ב־Supabase, Authentication → Users → *Add user* עם *Auto Confirm User*. אחר כך מריצים ב־SQL Editor:
@@ -77,6 +77,7 @@ app/styles/ app.css (ממשק), quote.css (מסמך ההצעה), client.css, quo
 app/fonts/  Rubik + JetBrains Mono (OFL), מתארחים מקומית
 app/vendor/ supabase-js (MIT)
 supabase/   migrations, functions/create-quote, functions/_shared/app (עותק שנוצר מ־app/)
+scripts/    sync-functions (עותק app/ לפונקציות), build-pages (מה שמתפרסם ל־gh-pages), build-payment-site
 docs/       כללי תמחור, חלוקת אחריות, מדריך מותג, מחקר
 .claude/agents/  סוכני UX, עיצוב, טכנולוגיה, איכות, מחקר ועוזר משפטי;
                  payouts-*: טכנולוגיה, עיצוב, בקרה ומחקר למערכת התשלומים
