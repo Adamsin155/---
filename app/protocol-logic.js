@@ -272,26 +272,45 @@ export function waitOf(proc, checks) {
 }
 
 // Waiting on the client stops the employee's clock (decision 3). Each finished
-// wait adds its office minutes to the process's `waited` mark, note JSON {min},
-// and the process's due time moves on by that many office minutes.
+// wait adds its office minutes to the process's `waited` mark, note JSON {min, ext}:
+// `min` is all the time waited on the client (the client's response time, never
+// the employee's), `ext` the part that moved the deadline. A wait moves the
+// deadline only when it began before the deadline as it stood then: the clock
+// stops with the time the employee had left, and time already overrun is not
+// given back.
 export const WAITED = (proc) => markKey(proc, 'waited');
-export const waitedNote = (min) => JSON.stringify({ min: Math.max(0, Math.round(min)) });
+const wholeMinutes = (v) => Math.max(0, Math.round(Number(v) || 0));
+export const waitedNote = (min, ext = min) => JSON.stringify({ min: wholeMinutes(min), ext: Math.min(wholeMinutes(ext), wholeMinutes(min)) });
+// The `waited` note as {min, ext}; a note without `ext` moved the deadline by all of it.
+export function readWaited(note) {
+  let v = null;
+  try { v = JSON.parse(note); } catch { /* not JSON */ }
+  if (!v || typeof v !== 'object') return { min: 0, ext: 0 };
+  const min = wholeMinutes(v.min);
+  return { min, ext: v.ext === undefined ? min : Math.min(min, wholeMinutes(v.ext)) };
+}
 export function waitedOf(proc, checks) {
   const c = checks[WAITED(proc)];
-  if (!c || c.state !== 'done') return 0;
-  let min = 0;
-  try { min = Number(JSON.parse(c.note)?.min) || 0; } catch { /* not a number */ }
-  return Math.max(0, Math.round(min));
+  return c && c.state === 'done' ? readWaited(c.note) : { min: 0, ext: 0 };
 }
-// Office minutes the process waited on the client until `until`: the finished
-// waits, and the current one while it lasts.
-export function waitedMinutes(proc, checks, until = new Date()) {
+// Office minutes the process waited on the client until `until` — the finished
+// waits, and the current one while it lasts — as {min, ext}. `baseDueAt` is the
+// process's own deadline: the current wait moves it only if it began before the
+// deadline moved by the earlier waits (without a deadline, nothing moves).
+export function waitedMinutes(proc, checks, until = new Date(), baseDueAt = null) {
+  const past = waitedOf(proc, checks);
   const w = waitOf(proc, checks);
-  const running = w && new Date(w.at) < until ? workingMinutesBetween(w.at, until) : 0;
-  return waitedOf(proc, checks) + running;
+  const since = w ? new Date(w.at) : null;
+  const running = since && since < until ? workingMinutesBetween(since, until) : 0;
+  const moves = running > 0 && baseDueAt && since < (past.ext ? addWorkingMinutes(baseDueAt, past.ext) : baseDueAt);
+  return { min: past.min + running, ext: past.ext + (moves ? running : 0) };
 }
-// Ending a wait: the note for the `waited` mark with the finished wait added.
-export const endWaitNote = (proc, checks, now = new Date()) => waitedNote(waitedMinutes(proc, checks, now));
+// Ending a wait at `now`: the note for the `waited` mark with the current wait
+// added. A process completed during the wait counts it until the completion.
+export function endWaitNote(client, proc, checks, now = new Date()) {
+  const s = clientState(client, checks, now).states.find((x) => x.proc.id === proc.id);
+  return s ? waitedNote(s.waited, s.extended) : waitedNote(waitedMinutes(proc, checks, now).min, waitedOf(proc, checks).ext);
+}
 
 // History brought in when an existing client was imported (note exactly "ייבוא"):
 // it keeps the process's place in the protocol, but never counts in the statistics.
@@ -322,12 +341,13 @@ export function clientState(client, checks = {}, now = new Date()) {
     const startAt = resolveTime(p.start, ctx, procs, checks, now);
     const baseDueAt = p.recurring ? null : resolveTime(p.due, ctx, procs, checks, now);
     const doneAt = complete ? completedAt(p, checks, now) : null;
-    // Time spent waiting on the client moves the deadline on (office minutes).
-    const waited = baseDueAt ? waitedMinutes(p, checks, doneAt || now) : 0;
-    const dueAt = waited ? addWorkingMinutes(baseDueAt, waited) : baseDueAt;
+    // Waiting on the client (office minutes): `waited` in all, `extended` the part
+    // that moved the deadline on.
+    const w = waitedMinutes(p, checks, doneAt || now, baseDueAt);
+    const dueAt = baseDueAt && w.ext ? addWorkingMinutes(baseDueAt, w.ext) : baseDueAt;
     return {
-      proc: p, required: required.length, resolved, complete, touched, startAt, dueAt, baseDueAt, waited,
-      completedAt: doneAt,
+      proc: p, required: required.length, resolved, complete, touched, startAt, dueAt, baseDueAt,
+      waited: w.min, extended: w.ext, completedAt: doneAt,
     };
   });
 
@@ -446,11 +466,28 @@ export function businessDaysBetween(from, to) {
 const RANK = { overdue: 0, today: 1, due: 2, open: 3, client: 4, waiting: 5, done: 6 };
 export const byUrgency = (a, b) => (RANK[a.status] - RANK[b.status]) || ((a.dueAt?.getTime() ?? Infinity) - (b.dueAt?.getTime() ?? Infinity));
 
+// How long a completed process took the office: office minutes from its start
+// (without one, the anchor of its due date) to completion, less the time it
+// waited on the client. Null when there is no start before the completion.
+export function workedMinutes(state, start) {
+  if (!start || !state.completedAt || state.completedAt <= start) return null;
+  return Math.max(0, workingMinutesBetween(start, state.completedAt) - (state.waited || 0));
+}
+// The protocol's own time for it, in the same office minutes (null when none).
+export function targetMinutes(state, start) {
+  if (!start || !state.baseDueAt || state.baseDueAt <= start) return null;
+  return workingMinutesBetween(start, state.baseDueAt) || null;
+}
+// Where a process's duration is counted from: its start, else the anchor of its due date.
+export const durationStart = (state, client, procs, checks, now = new Date()) => state.startAt
+  || resolveTime({ from: state.proc.due?.from }, state.proc.ctx || client, procs, checks, now);
+
 // Performance: for processes completed within the window, how many met their
-// due date and how long they took from start to completion (median, minutes).
-// Time spent waiting on the client is left out: the due date already moved on by
-// it, and its office minutes are taken off the duration. Imported history is not
-// counted. Per person: processes they own (or took, when shared).
+// due date and how long they took from start to completion (median, office
+// minutes). Time spent waiting on the client is left out: the due date already
+// moved on by it (when it began in time), and its office minutes are taken off
+// the duration. Imported history is not counted. Per person: processes they own
+// (or took, when shared).
 export function performanceReport(clients, checksByClient, { days = 30, now = new Date() } = {}) {
   const since = new Date(now.getTime() - days * DAY);
   const byProc = new Map();
@@ -468,11 +505,9 @@ export function performanceReport(clients, checksByClient, { days = 30, now = ne
     const procs = s.states.map((x) => x.proc);
     for (const x of s.states) {
       if (!x.complete || !x.completedAt || x.completedAt < since || !x.dueAt || isImported(x.proc, checks)) continue;
-      // Without its own start, a process starts at the anchor of its due date.
-      const start = x.startAt || resolveTime({ from: x.proc.due?.from }, x.proc.ctx || c, procs, checks, now);
       const row = {
         onTime: x.completedAt <= x.dueAt,
-        minutes: start && x.completedAt > start ? Math.max(0, Math.round((x.completedAt - start) / 6e4) - x.waited) : null,
+        minutes: workedMinutes(x, durationStart(x, c, procs, checks, now)),
       };
       add(byProc, x.proc.id.replace(/^r\d+-/, ''), row);
       for (const p of x.claim ? [x.claim.person] : x.proc.owners) add(byPerson, p, row);

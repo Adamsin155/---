@@ -7,7 +7,7 @@ import {
 } from './protocol.js';
 import {
   clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
-  waitNote, parseWaitNote, bulkEligible, roundsOf, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote,
+  waitNote, parseWaitNote, bulkEligible, roundsOf, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited,
 } from './protocol-logic.js';
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
@@ -16,7 +16,7 @@ import {
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
-  statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes,
+  statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { googleCalendarUrl, downloadIcs } from './calendar.js';
@@ -590,12 +590,18 @@ async function endWait(x) {
   const w = x.wait;
   const tk = WAITED(x.proc);
   const prevWaited = checks[tk];
-  const restoreWaited = () => mark(tk, prevWaited?.state || null, null, prevWaited?.note ?? null);
-  if (!await mark(tk, 'done', null, endWaitNote(x.proc, checks))) return;
-  if (!await mark(WAIT(x.proc), null, null)) { await restoreWaited(); return; }
-  toast('ההמתנה הסתיימה. היעד הוארך בזמן ההמתנה.', {
+  const ended = endWaitNote(client, x.proc, checks);
+  const setWaited = (note) => mark(tk, note === null ? null : 'done', null, note);
+  if (!await setWaited(ended)) return;
+  if (!await mark(WAIT(x.proc), null, null)) { await setWaited(prevWaited?.note ?? null); return; }
+  toast(endWaitText(prevWaited?.note, ended), {
     label: 'ביטול',
-    run: async () => { if (await restoreWaited()) await mark(WAIT(x.proc), 'done', null, waitNote(w.reason, w.recheck, w.at)); },
+    // The waited time goes back first, then the wait; if the wait cannot be
+    // restored, the finished wait's minutes are kept (never counted twice or lost).
+    run: async () => {
+      if (!await setWaited(prevWaited?.note ?? null)) return;
+      if (!await mark(WAIT(x.proc), 'done', null, waitNote(w.reason, w.recheck, w.at))) await setWaited(ended);
+    },
   });
 }
 
@@ -643,6 +649,8 @@ async function markBulk(x, items) {
     return;
   }
   for (const k of keys) pending.delete(k);
+  // A process completed this way no longer waits on the client (as with a single check).
+  await endWaitIfComplete(keys[0]);
   render();
   // Focus: the first item still open in this process; else the next open process in the phase; else the phase.
   const left = document.querySelector(`#${CSS.escape(x.proc.id)} .cbx:not(:checked):not(:disabled)`);
@@ -830,7 +838,7 @@ async function endWaitIfComplete(key) {
   const tk = WAITED(st.proc);
   if (!checks[wk]) return;
   const prevWaited = checks[tk];
-  try { checks[tk] = await setCheck(id, tk, 'done', endWaitNote(st.proc, checks, st.completedAt || new Date())); } catch { return; /* the wait stays and counts until completion */ }
+  try { checks[tk] = await setCheck(id, tk, 'done', endWaitNote(client, st.proc, checks)); } catch { return; /* the wait stays and counts until completion */ }
   try {
     await clearCheck(id, wk);
     delete checks[wk];
@@ -1383,10 +1391,11 @@ function historyText(r) {
     const num = PROCESSES.find((p) => p.id === mk[1])?.num;
     if (mk[2] === 'claim') return `${r.action === 'clear' ? 'שחרר/ה' : 'לקח/ה'} את תהליך ${pre}${num}`;
     if (mk[2] === 'waited') {
-      let min = 0;
-      try { min = Number(JSON.parse(r.note)?.min) || 0; } catch { /* not a number */ }
-      return r.action === 'clear' ? `איפס/ה את זמן ההמתנה ללקוח בתהליך ${pre}${num}`
-        : `זמן ההמתנה ללקוח בתהליך ${pre}${num} עד כה: ${officeMinutes(min)} בשעות המשרד. היעד הוארך בהתאם`;
+      if (r.action === 'clear') return `איפס/ה את זמן ההמתנה ללקוח בתהליך ${pre}${num}`;
+      const { min, ext } = readWaited(r.note);
+      const moved = ext === min ? 'היעד הוארך בהתאם'
+        : ext ? `היעד הוארך ב־${officeMinutes(ext)}: המתנה שהתחילה אחרי היעד לא מאריכה אותו` : 'היעד לא הוארך: ההמתנה התחילה אחרי היעד';
+      return `זמן ההמתנה ללקוח בתהליך ${pre}${num} עד כה: ${officeMinutes(min)} בשעות המשרד. ${moved}`;
     }
     if (mk[2] === 'pause') return r.action === 'clear' ? `חזר/ה לעריכה (${pre}${num})` : `עצר/ה את העריכה (${pre}${num})`;
     return r.action === 'clear' ? `סיים/ה המתנה ללקוח בתהליך ${pre}${num}`

@@ -4,7 +4,7 @@ import {
 } from './supa.js';
 import { h } from './quote-doc.js';
 import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';
-import { businessDaysBetween } from './protocol-logic.js';
+import { businessDaysBetween, readWaited } from './protocol-logic.js';
 import { TZ, partsIL, daysBetweenIL, dayFromKeyIL } from './tz.js';
 
 export { h };
@@ -81,6 +81,16 @@ export function lateBy(d, now = new Date()) {
   return `${days} ימי עסקים`;
 }
 
+// After a wait ends: whether it moved the deadline (a wait that began after the
+// deadline does not). `before` and `after` are the notes of the `waited` mark.
+export function endWaitText(before, after) {
+  const a = readWaited(before);
+  const b = readWaited(after);
+  if (b.ext > a.ext) return 'ההמתנה הסתיימה. היעד הוארך בזמן ההמתנה.';
+  if (b.min > a.min) return 'ההמתנה הסתיימה. היא התחילה אחרי היעד, ולכן היעד לא זז.';
+  return 'ההמתנה הסתיימה.';
+}
+
 // Processes where the client is part of the work (access, approvals, corrections):
 // "waiting on the client" is offered there even before they are late, and it is
 // the only place an 'own' role marks a wait.
@@ -101,7 +111,7 @@ const itemLabel = (key) => PROCESSES.flatMap((p) => p.items).find((i) => i.key =
 export function dueText(state, now = new Date()) {
   if (state.status === 'done') return '';
   // Waiting on the client moved the deadline on (office time); say by how much.
-  if (state.dueAt && state.waited > 0) return `יעד: ${formatWhen(state.dueAt, now)} · הוארך ב־${officeMinutes(state.waited)} של המתנה ללקוח`;
+  if (state.dueAt && state.extended > 0) return `יעד: ${formatWhen(state.dueAt, now)} · הוארך ב־${officeMinutes(state.extended)} של המתנה ללקוח`;
   if (state.dueAt) return `יעד: ${formatWhen(state.dueAt, now)}`;
   const from = state.proc.start?.from || '';
   if (state.proc.start && !state.startAt) {

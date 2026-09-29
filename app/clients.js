@@ -6,8 +6,9 @@ import {
 } from './protocol.js';
 import {
   clientState, openItemsFor, byUrgency, bucketOf, CLAIM, WAIT, waitNote, bulkEligible, isResolved,
-  isBusinessDay, businessDaysBetween, addBusinessDays, resolveTime, weekKey, roundsOf, parseDate,
-  upcomingFor, involves, WAITED, waitOf, parseWaitNote, endWaitNote, isImported,
+  isBusinessDay, businessDaysBetween, addBusinessDays, weekKey, roundsOf, parseDate,
+  upcomingFor, involves, WAITED, waitOf, parseWaitNote, endWaitNote, isImported, IMPORT_NOTE,
+  workedMinutes, targetMinutes, durationStart,
 } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, setTaskDone, createClient,
@@ -17,7 +18,7 @@ import {
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar,
   mountSession, store, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
-  isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS,
+  isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL } from './tz.js';
@@ -227,6 +228,7 @@ async function toggleEntry(e, input) {
       const row = await setCheck(e.client.id, e.item.key, 'done');
       (checks[e.client.id] ||= {})[e.item.key] = row;
       states.delete(e.client.id);
+      await endWaitIfComplete(e.client, e.proc);
     }
   } catch (err) {
     input.checked = false;
@@ -318,6 +320,7 @@ async function bulkMark(g, bulk, btn) {
   }
   for (const r of rows) (checks[c.id] ||= {})[r.item_key] = r;
   states.delete(c.id);
+  await endWaitIfComplete(c, g.proc);
   const cs = checks[c.id];
   // Items that were blocked stay open for a separate, deliberate check.
   const left = g.proc.items.filter((i) => !i.optional && i.owners.includes(me) && !isResolved(i, cs[i.key]));
@@ -401,8 +404,9 @@ async function endWait(g, isUndo = false) {
   const prev = cs[WAIT(g.proc)];
   const prevWaited = cs[WAITED(g.proc)];
   const since = waitOf(g.proc, cs)?.at || null;
+  let ended = null;
   try {
-    if (!isUndo) cs[WAITED(g.proc)] = await setCheck(cid, WAITED(g.proc), 'done', endWaitNote(g.proc, cs));
+    if (!isUndo) ended = cs[WAITED(g.proc)] = await setCheck(cid, WAITED(g.proc), 'done', endWaitNote(g.client, g.proc, cs));
     await clearCheck(cid, WAIT(g.proc));
   } catch (err) {
     if (!isUndo) await restoreCheck(cid, WAITED(g.proc), prevWaited).catch(() => {});
@@ -413,19 +417,44 @@ async function endWait(g, isUndo = false) {
   states.delete(cid);
   renderKeepingFocus();
   if (isUndo) { toast('הסימון בוטל.'); return; }
-  toast('ההמתנה הסתיימה. היעד הוארך בזמן ההמתנה.', {
+  toast(endWaitText(prevWaited?.note, ended?.note), {
     label: 'ביטול',
+    // The waited time goes back first, then the wait; if the wait cannot be
+    // restored, the finished wait's minutes are kept (never counted twice or lost).
     run: async () => {
+      try {
+        await restoreCheck(cid, WAITED(g.proc), prevWaited);
+      } catch (err) { toast(`הביטול לא נשמר. ${errorText(err)}`); return; }
       try {
         const p = parseWaitNote(prev?.note);
         cs[WAIT(g.proc)] = await setCheck(cid, WAIT(g.proc), 'done', waitNote(p.reason, p.recheck, since));
-        await restoreCheck(cid, WAITED(g.proc), prevWaited);
-        states.delete(cid);
-        renderKeepingFocus();
         toast('ההמתנה חזרה.');
-      } catch (err) { toast(`הביטול לא נשמר. ${errorText(err)}`); }
+      } catch (err) {
+        await restoreCheck(cid, WAITED(g.proc), ended).catch(() => {});
+        toast(`הביטול לא נשמר. ${errorText(err)}`);
+      }
+      states.delete(cid);
+      renderKeepingFocus();
     },
   });
+}
+
+// A process completed from "my work" no longer waits on the client: the wait
+// ends at the completion and its office minutes are kept (as on the client card).
+async function endWaitIfComplete(c, proc) {
+  const cs = checks[c.id] || {};
+  if (!cs[WAIT(proc)]) return;
+  states.delete(c.id);
+  if (!stateOf(c).states.find((x) => x.proc.id === proc.id)?.complete) return;
+  const prevWaited = cs[WAITED(proc)];
+  try { cs[WAITED(proc)] = await setCheck(c.id, WAITED(proc), 'done', endWaitNote(c, proc, cs)); } catch { return; /* the wait stays and counts until completion */ }
+  try {
+    await clearCheck(c.id, WAIT(proc));
+    delete cs[WAIT(proc)];
+  } catch {
+    await restoreCheck(c.id, WAITED(proc), prevWaited).catch(() => {}); // the wait still counts until completion
+  }
+  states.delete(c.id);
 }
 
 function waitLine(wait, id) {
@@ -1566,10 +1595,10 @@ const perfLog = new Map(); // days -> { rows } | { error }
 const TEAM_VIEWERS = new Set(OFFICE_REVIEWS.map((r) => r.owner));
 const baseId = (proc) => proc.id.replace(/^r\d+-/, '');
 
-// Processes closed in the window, with their due date and how long they took.
-// A process closed entirely as "not relevant" is not counted, and neither is
-// imported history. Waiting on the client is not the employee's time: the due
-// date already moved on by it (office minutes), and it is taken off the duration.
+// Processes closed in the window, with their due date and how long they took,
+// in office minutes (the protocol's target too). A process closed entirely as
+// "not relevant" is not counted, and neither is imported history. Waiting on the
+// client is not the employee's time: it is taken off the duration.
 function closings(days, now) {
   const since = new Date(now.getTime() - days * 864e5);
   const out = [];
@@ -1582,14 +1611,12 @@ function closings(days, now) {
       const req = x.proc.items.filter((i) => !i.optional);
       if (req.length && req.every((i) => cs[i.key]?.state === 'na')) continue;
       if (isImported(x.proc, cs)) continue;
-      // Without its own start, a process starts at the anchor of its due date.
-      const start = x.startAt || resolveTime({ from: x.proc.due?.from }, x.proc.ctx || c, procs, cs, now);
-      const ms = start && x.completedAt > start ? Math.max(0, x.completedAt - start - x.waited * 6e4) : null;
+      const start = durationStart(x, c, procs, cs, now);
       out.push({
-        key: baseId(x.proc), client: c, proc: x.proc, dueAt: x.dueAt, baseDueAt: x.baseDueAt, completedAt: x.completedAt, start,
+        key: baseId(x.proc), client: c, proc: x.proc, dueAt: x.dueAt, completedAt: x.completedAt,
         onTime: x.completedAt <= x.dueAt,
-        ms, workedTo: ms === null ? null : new Date(start.getTime() + ms),
-        targetMs: start && x.baseDueAt > start ? x.baseDueAt - start : null,
+        min: workedMinutes(x, start),
+        targetMin: targetMinutes(x, start),
         people: peopleOf(x),
       });
     }
@@ -1608,7 +1635,8 @@ function onTimeCell(done, onTime) {
       h('span', { class: 'pbar-fill', style: `inline-size:${Math.round((onTime / done) * 100)}%` })));
 }
 
-// Weekly calls (31): logged calls out of the client-weeks the call was due.
+// Weekly calls (31): logged calls out of the client-weeks the call was due
+// (imported history is not a call made that week).
 function weeklyCalls(log, days, now) {
   const since = new Date(now.getTime() - days * 864e5);
   let due = 0; let done = 0;
@@ -1619,7 +1647,7 @@ function weeklyCalls(log, days, now) {
     const weeks = Math.floor((now - from) / (7 * 864e5));
     if (weeks <= 0) continue;
     due += weeks;
-    const hit = new Set(log.filter((l) => l.client_id === c.id && l.item_key === 'p31.call' && l.action === 'done' && new Date(l.at) >= from)
+    const hit = new Set(log.filter((l) => l.client_id === c.id && l.item_key === 'p31.call' && l.action === 'done' && l.note !== IMPORT_NOTE && new Date(l.at) >= from)
       .map((l) => Math.floor((new Date(l.at) - from) / (7 * 864e5))).filter((i) => i < weeks));
     done += hit.size;
   }
@@ -1632,7 +1660,7 @@ async function renderPerformance() {
   const chips = h('div', { class: 'chips-row', role: 'group', 'aria-label': 'תקופה' }, ...[30, 90].map((d) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(perfDays === d), onclick: () => { perfDays = d; renderPerformance(); },
   }, `${d} הימים האחרונים`)));
-  const intro = h('p', { class: 'perf-intro' }, 'נמדד מהיעד המחושב עד שהתהליך נסגר. ימי עבודה א׳–ה׳, בלי חגים ובתוך שעות העבודה (בערב חג עד 13:00). תהליך שכולו ״לא רלוונטי״ לא נספר, וגם לא היסטוריה שיובאה. זמן שבו התהליך המתין ללקוח לא נספר: היעד הוארך בזמן הזה.');
+  const intro = h('p', { class: 'perf-intro' }, 'נמדד מהיעד המחושב עד שהתהליך נסגר. הזמנים בשעות העבודה: א׳–ה׳, בלי חגים, 09:00–18:00 (בערב חג עד 13:00). תהליך שכולו ״לא רלוונטי״ לא נספר, וגם לא היסטוריה שיובאה. זמן שבו התהליך המתין ללקוח לא נספר: הוא יורד מהזמן בפועל, והיעד הוארך בו אם ההמתנה התחילה לפני היעד.');
   const days = perfDays;
   if (!perfLog.has(days)) {
     fill(box, chips, intro, h('p', { class: 'state' }, 'מחשב…'));
@@ -1659,20 +1687,20 @@ async function renderPerformance() {
     h('thead', {}, h('tr', {}, ...['תהליך', 'זמן ביצוע בפרוטוקול', 'נסגרו', 'בזמן', 'זמן בפועל (חציון)', 'יעד'].map((t) => h('th', { scope: 'col' }, t)))),
     h('tbody', {}, ...byProc.map(({ p, list }) => {
       const onTime = list.filter((r) => r.onTime).length;
-      const med = medianRow(list, 'ms');
-      const tgt = medianRow(list, 'targetMs');
-      const flag = list.length >= FEW && med && tgt && med.ms > 2 * tgt.targetMs;
+      const med = medianRow(list, 'min');
+      const tgt = medianRow(list, 'targetMin');
+      const flag = list.length >= FEW && med && tgt && med.min > 2 * tgt.targetMin;
       return h('tr', {},
         h('td', { 'data-label': 'תהליך', class: 'client' },
           h('details', { class: 'perf-proc' }, h('summary', {}, `${p.num} · ${p.title}`),
             h('ul', {}, ...list.sort((a, b) => b.completedAt - a.completedAt).map((r) => h('li', {},
-              `${r.client.name}${roundOf(r.proc) ? ` · סבב ${roundOf(r.proc)}` : ''} · יעד ${formatWhen(r.dueAt, now)} · נסגר ${formatWhen(r.completedAt, now)}${r.ms !== null ? ` · ${lateBy(r.start, r.workedTo)}` : ''}${r.onTime ? '' : ' · אחרי היעד'}`)))),
+              `${r.client.name}${roundOf(r.proc) ? ` · סבב ${roundOf(r.proc)}` : ''} · יעד ${formatWhen(r.dueAt, now)} · נסגר ${formatWhen(r.completedAt, now)}${r.min !== null ? ` · ${officeMinutes(r.min)} בשעות העבודה` : ''}${r.onTime ? '' : ' · אחרי היעד'}`)))),
           flag ? h('span', { class: 'tag tag-warn' }, 'כדאי לבדוק את התהליך או את היעד') : null),
         h('td', { 'data-label': 'זמן ביצוע בפרוטוקול', class: 'client sla' }, p.sla),
         h('td', { 'data-label': 'נסגרו', class: 'num' }, String(list.length)),
         h('td', { 'data-label': 'בזמן', class: 'client' }, onTimeCell(list.length, onTime)),
-        h('td', { 'data-label': 'זמן בפועל (חציון)' }, med ? lateBy(med.start, med.workedTo) : '—'),
-        h('td', { 'data-label': 'יעד' }, tgt ? lateBy(tgt.start, tgt.baseDueAt) : '—'));
+        h('td', { 'data-label': 'זמן בפועל (חציון)' }, med ? officeMinutes(med.min) : '—'),
+        h('td', { 'data-label': 'יעד' }, tgt ? officeMinutes(tgt.targetMin) : '—'));
     }))));
 
   const personRow = (key) => {

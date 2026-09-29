@@ -9,7 +9,7 @@ import { PROCESSES } from '../app/protocol.js';
 import {
   applicableProcesses, clientState, resolveTime, addBusinessDays, addWorkingMinutes, nextWorkMoment, workingMinutesBetween,
   isBusinessDay, bucketOf, businessDaysBetween, weekKey, parseDate, performanceReport, WAIT, WAITED, waitNote, waitedNote,
-  waitedMinutes, endWaitNote, isImported, IMPORT_NOTE, erevOn,
+  waitedMinutes, endWaitNote, readWaited, isImported, IMPORT_NOTE, erevOn,
 } from '../app/protocol-logic.js';
 import { COVERAGE, coverageDaysLeft } from '../app/holidays.js';
 import {
@@ -130,14 +130,14 @@ test('waiting on the client stops the clock and moves the deadline on', () => {
   const waiting = { [WAIT(p1)]: { state: 'done', note: waitNote('לא עונה', null), at: '2026-10-01T09:02:00+03:00' } };
   const w = stateOf(c, waiting, '2026-10-01T09:32:00+03:00', 'p01');
   assert.equal(w.status, 'client');
-  assert.equal(w.waited, 30);
+  assert.deepEqual([w.waited, w.extended], [30, 30]);
   assert.equal(iso(w.baseDueAt), iso(at('2026-10-01T09:05:00+03:00')));
   assert.equal(iso(w.dueAt), iso(at('2026-10-01T09:35:00+03:00')));
   // Ending the wait at 10:02 keeps its 60 office minutes; an earlier wait of 15 adds up.
-  assert.equal(endWaitNote(p1, waiting, at('2026-10-01T10:02:00+03:00')), '{"min":60}');
+  assert.equal(endWaitNote(c, p1, waiting, at('2026-10-01T10:02:00+03:00')), '{"min":60,"ext":60}');
   assert.equal(WAITED(p1), 'p01.waited');
   const earlier = { ...waiting, [WAITED(p1)]: { state: 'done', note: waitedNote(15), at: '2026-10-01T09:01:00+03:00' } };
-  assert.equal(waitedMinutes(p1, earlier, at('2026-10-01T10:02:00+03:00')), 75);
+  assert.deepEqual(waitedMinutes(p1, earlier, at('2026-10-01T10:02:00+03:00'), at('2026-10-01T09:05:00+03:00')), { min: 75, ext: 75 });
   // After the wait: the due time is 60 office minutes later (10:05), so 10:03 is not late and 10:06 is.
   const after = { [WAITED(p1)]: { state: 'done', note: waitedNote(60), at: '2026-10-01T10:02:00+03:00' } };
   assert.equal(iso(stateOf(c, after, '2026-10-01T10:03:00+03:00', 'p01').dueAt), iso(at('2026-10-01T10:05:00+03:00')));
@@ -152,8 +152,43 @@ test('waiting on the client stops the clock and moves the deadline on', () => {
   assert.equal(f.status, 'done');
   assert.equal(f.waited, 48);
   assert.ok(f.completedAt <= f.dueAt);
-  // Garbage in the mark is ignored.
-  assert.equal(waitedMinutes(p1, { [WAITED(p1)]: { state: 'done', note: 'x', at: '2026-10-01T10:00:00+03:00' } }), 0);
+  assert.equal(endWaitNote(c, p1, finished, at('2026-10-02T12:00:00+03:00')), '{"min":48,"ext":48}');
+  // Garbage in the mark is ignored; a note without `ext` moved the deadline by all of it.
+  assert.deepEqual(waitedMinutes(p1, { [WAITED(p1)]: { state: 'done', note: 'x', at: '2026-10-01T10:00:00+03:00' } }), { min: 0, ext: 0 });
+  assert.deepEqual(readWaited('{"min":40}'), { min: 40, ext: 40 });
+  assert.deepEqual(readWaited('{"min":40,"ext":90}'), { min: 40, ext: 40 });
+  assert.deepEqual(readWaited(null), { min: 0, ext: 0 });
+});
+
+test('a wait that began before the deadline stops the clock; one after it gives nothing back', () => {
+  const c = { ...base, id: 'w' }; // process 1 is due Thursday 1.10.2026 09:05
+  const p1 = applicableProcesses(c).find((p) => p.id === 'p01');
+  const wait = (since) => ({ [WAIT(p1)]: { state: 'done', note: waitNote('לא עונה', null), at: since } });
+  // Marked at 09:04, one minute left: the whole wait (to 11:04) moves the deadline, and that minute is still there after it.
+  const inTime = wait('2026-10-01T09:04:00+03:00');
+  assert.equal(endWaitNote(c, p1, inTime, at('2026-10-01T11:04:00+03:00')), '{"min":120,"ext":120}');
+  const afterIn = { [WAITED(p1)]: { state: 'done', note: waitedNote(120), at: '2026-10-01T11:04:00+03:00' } };
+  assert.equal(iso(stateOf(c, afterIn, '2026-10-01T11:04:30+03:00', 'p01').dueAt), iso(at('2026-10-01T11:05:00+03:00')));
+  // Nobody acted; on Sunday 12:00 the process is marked as waiting, and the wait ends on Monday 12:00.
+  const lateWait = wait('2026-10-04T12:00:00+03:00');
+  const during = stateOf(c, lateWait, '2026-10-05T11:00:00+03:00', 'p01');
+  assert.equal(during.status, 'client'); // stuck on the client now
+  assert.deepEqual([during.waited, during.extended], [480, 0]);
+  assert.equal(iso(during.dueAt), iso(at('2026-10-01T09:05:00+03:00')));
+  const note = endWaitNote(c, p1, lateWait, at('2026-10-05T12:00:00+03:00'));
+  assert.equal(note, '{"min":540,"ext":0}');
+  const afterLate = { [WAITED(p1)]: { state: 'done', note, at: '2026-10-05T12:00:00+03:00' } };
+  const x = stateOf(c, afterLate, '2026-10-05T12:10:00+03:00', 'p01');
+  assert.equal(iso(x.dueAt), iso(at('2026-10-01T09:05:00+03:00')));
+  assert.equal(x.status, 'overdue'); // still late: the time overrun is not given back
+  // Closed on Monday 12:30: late in the report, and the wait is still not counted as work.
+  const closed = { ...afterLate, ...done(keysOf('p01'), '2026-10-05T12:30:00+03:00') };
+  const r = performanceReport([c], { w: closed }, { days: 30, now: at('2026-10-06T10:00:00+03:00') }).processes.find((y) => y.key === 'p01');
+  assert.deepEqual([r.done, r.onTime, r.late, r.medianMinutes], [1, 0, 1, 1290 - 540]); // Thu 540 + Sun 540 + Mon 210 office minutes, less the wait
+  // Two waits: the first in time moves the deadline to 09:35; the second begins at 10:00, after it, and moves nothing.
+  const two = { ...wait('2026-10-01T10:00:00+03:00'), [WAITED(p1)]: { state: 'done', note: waitedNote(30), at: '2026-10-01T09:32:00+03:00' } };
+  assert.equal(endWaitNote(c, p1, two, at('2026-10-01T11:00:00+03:00')), '{"min":90,"ext":30}');
+  assert.equal(iso(stateOf(c, two, '2026-10-01T10:30:00+03:00', 'p01').dueAt), iso(at('2026-10-01T09:35:00+03:00')));
 });
 
 test('performance report: waited time excluded, imported history ignored', () => {
@@ -178,6 +213,27 @@ test('performance report: waited time excluded, imported history ignored', () =>
   assert.deepEqual([p.done, p.onTime, p.late, p.medianMinutes], [1, 1, 0, 3]);
   assert.equal(r.processes.find((x) => x.key === 'p02').done, 1);
   assert.equal(r.people.find((x) => x.key === 'irit').rate, 1);
+});
+
+test('performance report: a wait over the night and the weekend is not work', () => {
+  const p1 = keysOf('p01');
+  const now = at('2026-10-06T10:00:00+03:00');
+  const median = (c, checks) => performanceReport([c], { [c.id]: checks }, { days: 30, now }).processes.find((x) => x.key === 'p01');
+  // Deal Thursday 1.10 16:00 (due 16:05); waiting from 16:02 to Sunday 10:00 (178 office minutes); closed Sunday 10:03.
+  const d = { ...base, id: 'd', deal_at: '2026-10-01T16:00:00+03:00' };
+  const dp = applicableProcesses(d).find((p) => p.id === 'p01');
+  const dWait = { [WAIT(dp)]: { state: 'done', note: waitNote('לא עונה', null), at: '2026-10-01T16:02:00+03:00' } };
+  const dNote = endWaitNote(d, dp, dWait, at('2026-10-04T10:00:00+03:00'));
+  assert.equal(dNote, '{"min":178,"ext":178}');
+  const dChecks = { [WAITED(dp)]: { state: 'done', note: dNote, at: '2026-10-04T10:00:00+03:00' }, ...done(p1, '2026-10-04T10:03:00+03:00') };
+  assert.equal(iso(stateOf(d, dChecks, '2026-10-04T10:03:00+03:00', 'p01').dueAt), iso(at('2026-10-04T10:03:00+03:00')));
+  const dr = median(d, dChecks);
+  assert.deepEqual([dr.onTime, dr.medianMinutes], [1, 5]);
+  // Deal Thursday 09:00; waiting from 09:02 to Sunday 09:02 (540 office minutes); closed Sunday 09:04: 4 minutes of work.
+  const e = { ...base, id: 'e' };
+  const eChecks = { [WAITED(dp)]: { state: 'done', note: waitedNote(540), at: '2026-10-04T09:02:00+03:00' }, ...done(p1, '2026-10-04T09:04:00+03:00') };
+  const er = median(e, eChecks);
+  assert.deepEqual([er.onTime, er.medianMinutes], [1, 4]);
 });
 
 // The holiday list ends at COVERAGE.to; business-day math beyond it would count
