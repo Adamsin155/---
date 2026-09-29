@@ -29,7 +29,46 @@ export const CLIENT_STATUS = {
   active: 'פעיל',
   ending: 'מסיים התקשרות',
   ended: 'הסתיים',
+  cancelled: 'ההסכם בוטל',
 };
+
+// Processes that must be checked item by item, never with "mark the whole process":
+// the ones with a hard rule (18, 19, 21), approval only (25), and the recurring call (31).
+export const NO_BULK = new Set(['p18', 'p19', 'p21', 'p25', 'p31']);
+
+// Links kept in the client card (never passwords), in display order, with the
+// item after which each one is expected.
+export const LINKS = [
+  { key: 'whatsapp', label: 'קבוצת WhatsApp', after: 'p02.opened', hint: 'chat.whatsapp.com' },
+  { key: 'drive', label: 'תיקיית Drive', after: 'p24.folder', hint: 'drive.google.com' },
+  { key: 'scripts', label: 'תסריטים (Google Docs)', after: 'p12.docs', hint: 'docs.google.com' },
+  { key: 'gantt', label: 'גאנט שנתי', after: 'p09.file', hint: 'docs.google.com/spreadsheets' },
+  { key: 'dropbox', label: 'Dropbox', after: 'p24.dropbox', hint: 'dropbox.com' },
+  { key: 'metricool', label: 'Metricool', after: 'p06.metricool', hint: 'metricool.com' },
+  { key: 'meta', label: 'Meta Business', after: 'p10.ready', hint: 'business.facebook.com' },
+];
+
+// Package quantities shown in the card, in order.
+export const DELIVERABLES = [
+  { key: 'videos', label: 'סרטונים', one: 'סרטון' },
+  { key: 'graphics', label: 'גרפיקות', one: 'גרפיקה' },
+  { key: 'collabs', label: 'קולאבים', one: 'קולאב' },
+  { key: 'stories', label: 'סטורי אצל המשפיענים', one: 'סטורי' },
+  { key: 'ch14', label: 'אייטם בערוץ 14', one: 'אייטם' },
+];
+
+// The two daily reviews (processes 32 and 33) and what each one goes over.
+export const REVIEW_TOPICS = {
+  p32: ['חוזים', 'חתימות', 'קבוצות WhatsApp', 'הודעות פתיחה', 'אפיונים', 'ימי צילום', 'משימות', 'אישורי לקוחות', 'עובדים שטרם ביצעו משימות', 'לקוחות שצריך ליצור איתם קשר'],
+  p33: ['איפה כל לקוח נמצא', 'מה חסר', 'למה חסר', 'אצל מי המשימה', 'מה תקוע', 'מה צריך לבצע היום'],
+};
+
+// The nine topics of the weekly call (process 31), in the protocol's order.
+export const CALL_TOPICS = [
+  ['campaigns', 'קמפיינים'], ['leads', 'לידים'], ['results', 'תוצאות'], ['videos', 'סרטונים'],
+  ['published', 'תכנים שעלו'], ['upcoming', 'תכנים עתידיים'], ['problems', 'בעיות'],
+  ['improve', 'דברים שצריך לשפר'], ['requests', 'בקשות חדשות'],
+];
 
 // Owners may depend on the client (who ran the characterization meeting).
 const characterizer = (c) => (c.characterizer ? [c.characterizer] : ['ofir', 'shirel']);

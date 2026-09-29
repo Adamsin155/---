@@ -13,9 +13,9 @@ async function all(build) {
   }
 }
 
-const CLIENT_COLS = 'id, name, business, phone, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, notes, quote_id, created_at, created_by_email, links, deliverables, rounds';
+const CLIENT_COLS = 'id, name, business, address, phone, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, notes, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, closed_reason';
 const CHECK_COLS = 'client_id, item_key, state, note, by_email, at';
-const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at';
+const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at, source';
 
 export async function loadClients({ includeEnded = false } = {}) {
   return all(() => {
@@ -48,6 +48,20 @@ export async function setCheck(clientId, key, state, note = null) {
     .select(CHECK_COLS).single();
   if (error) throw error;
   return data;
+}
+
+// Several items in one request: all are saved or none are.
+export async function setChecksBulk(clientId, keys, state, note = null) {
+  const { data, error } = await supabase.from('protocol_checks')
+    .upsert(keys.map((k) => ({ client_id: clientId, item_key: k, state, note })), { onConflict: 'client_id,item_key' })
+    .select(CHECK_COLS);
+  if (error) throw error;
+  return data;
+}
+
+export async function clearChecksBulk(clientId, keys) {
+  const { error } = await supabase.from('protocol_checks').delete().eq('client_id', clientId).in('item_key', keys);
+  if (error) throw error;
 }
 
 export async function clearCheck(clientId, key) {

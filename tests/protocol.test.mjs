@@ -276,9 +276,9 @@ test('completion time is kept for the performance report', () => {
 test('package quantities in the database match the catalog', async () => {
   const { SPECS } = await import('../app/catalog.js');
   const sql = readFileSync(new URL('../supabase/migrations/20260929160000_client_protocol_batch2.sql', import.meta.url), 'utf8');
-  const rows = Object.fromEntries([...sql.matchAll(/\('([a-z-]+)', (\d+), (\d+), (\d+)\)/g)].map((m) => [m[1], [+m[2], +m[3], +m[4]]]));
+  const rows = Object.fromEntries([...sql.matchAll(/\('([a-z-]+)', (\d+), (\d+), (\d+), (\d+), (\d+), (\d+)\)/g)].map((m) => [m[1], m.slice(2).map(Number)]));
   assert.deepEqual(Object.keys(rows).sort(), Object.keys(SPECS).sort());
-  for (const [id, s] of Object.entries(SPECS)) assert.deepEqual(rows[id], [s.videos, s.graphics, s.shootDays], id);
+  for (const [id, s] of Object.entries(SPECS)) assert.deepEqual(rows[id], [s.videos, s.graphics, s.shootDays, s.collabs, s.stories, s.ch14], id);
 });
 
 test('calendar: Google link and a valid .ics with Hebrew text', async () => {
@@ -307,4 +307,11 @@ test('performance report: on-time rate and median time per process and person', 
   const p = r.processes.find((x) => x.key === 'p01');
   assert.deepEqual([p.done, p.onTime, p.late], [2, 1, 1]);
   assert.equal(r.people.find((x) => x.key === 'irit').rate, 0.5);
+});
+
+test('holidays: Yom Kippur and Pesach are not business days', () => {
+  // Characterization on Thursday 17.9.2026: Sun 20 (1), Yom Kippur Mon 21 skipped, Tue 22 (2), Wed 23 (3).
+  assert.equal(addBusinessDays(at('2026-09-17T10:00:00+03:00'), 3).toDateString(), at('2026-09-23T12:00:00+03:00').toDateString());
+  // A deal on erev Pesach 2027 evening is due after the holiday.
+  assert.equal(addWorkingMinutes(at('2027-04-21T19:00:00+03:00'), 5).toISOString(), at('2027-04-25T09:05:00+03:00').toISOString());
 });

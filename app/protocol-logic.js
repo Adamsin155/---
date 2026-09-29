@@ -1,7 +1,7 @@
 // Pure protocol logic: which processes apply to a client, who owns them,
 // due dates and progress. Shared by the browser and the unit tests.
 // Times are computed in the viewer's local time zone (the office is in Israel).
-import { PHASES, PROCESSES, WORK_HOURS } from './protocol.js';
+import { PHASES, PROCESSES, WORK_HOURS, NO_BULK } from './protocol.js';
 import { HOLIDAYS } from './holidays.js';
 
 const DAY = 864e5;
@@ -208,9 +208,28 @@ export function claimOf(proc, checks) {
   const c = checks[CLAIM(proc)];
   return c && c.state === 'done' && c.note ? { person: c.note, at: c.at, by_email: c.by_email } : null;
 }
+// The wait note is JSON {reason, recheck}; a plain note is read as the reason.
+export function parseWaitNote(note) {
+  try {
+    const v = JSON.parse(note);
+    if (v && typeof v === 'object') return { reason: v.reason || '', recheck: v.recheck || null };
+  } catch { /* plain text */ }
+  return { reason: note || '', recheck: null };
+}
+export const waitNote = (reason, recheck) => JSON.stringify({ reason, recheck: recheck || null });
 export function waitOf(proc, checks) {
   const c = checks[WAIT(proc)];
-  return c && c.state === 'done' ? { note: c.note, at: c.at, by_email: c.by_email } : null;
+  return c && c.state === 'done' ? { ...parseWaitNote(c.note), at: c.at, by_email: c.by_email } : null;
+}
+
+// Items `person` may close together with "mark the whole process": open,
+// unblocked, required, theirs (and, in a shared process taken by someone else, none).
+export function bulkEligible(state, person, client, checks, now = new Date()) {
+  const p = state.proc;
+  if (!person || p.recurring || NO_BULK.has(p.id.replace(/^r\d+-/, '')) || state.complete) return [];
+  if (state.claim && state.claim.person !== person) return [];
+  return p.items.filter((i) => !i.optional && i.owners.includes(person)
+    && !isResolved(i, checks[i.key], now) && !blockers(i, p.ctx || client, checks));
 }
 
 // Full state of a client's protocol. `checks` maps item key -> { state, at, by_email }.
@@ -281,6 +300,7 @@ export function clientState(client, checks = {}, now = new Date()) {
 // An ended client keeps only its closing process.
 export function openItemsFor(person, client, checks, state, now = new Date()) {
   const out = [];
+  if (client.status === 'cancelled') return out;
   for (const s of state.states) {
     if (!s.ready || s.status === 'done') continue;
     if (client.status === 'ended' && s.proc.id !== 'p35') continue;
