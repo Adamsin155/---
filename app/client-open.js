@@ -3,10 +3,10 @@
 // Pure logic, shared by the new-client dialog and the unit tests.
 import { PACKAGES, TIERS, INFLUENCERS } from './catalog.js';
 import { STATIONS, PROCESSES } from './protocol.js';
-import { packageDeliverables } from './protocol-logic.js';
+import { packageDeliverables, IMPORT_NOTE } from './protocol-logic.js';
 
 // Every check an import makes carries exactly this note, so reports can leave it out.
-export const IMPORT_NOTE = 'ייבוא';
+export { IMPORT_NOTE };
 
 // A package by its name, as the signing trigger writes it ("Social all in one · נטלי דדון").
 export function packageName(id) {

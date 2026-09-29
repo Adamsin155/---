@@ -23,7 +23,7 @@ import {
 import { whatsappLink } from './quote-doc.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
-import { IMPORT_NOTE, PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
+import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
 import { canManageTeam } from './team-rules.js';
 
 let clients = [];
