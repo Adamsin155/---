@@ -1,8 +1,11 @@
 // End-to-end check of the "now" bar at the top of "my work" (clients.html,
 // app/now-bar.js): live countdowns, "the client did not answer" with its two
-// buttons, the answer mark with undo, a clock running out while the page is
-// open, and a 360px phone. Against an in-memory fake of Supabase; the page
-// clock starts on Monday 5.10.2026 10:00 in Jerusalem and is then driven by the test.
+// buttons, the answer mark with undo (also before the time is up), clocks
+// running out while the page is open (read out; with notifications on, a toast
+// on another tab or one notification per row), a 360px phone, and Chrome on
+// Android, where only a service worker may notify. Against an in-memory fake of
+// Supabase; the page clock starts on Monday 5.10.2026 10:00 in Jerusalem and is
+// then driven by the test.
 // Run: npx http-server -p 8080 -s . &  then  node tests/now-bar-e2e.mjs [outDir]
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
@@ -44,6 +47,9 @@ check(gallia, 'p07.sent', minsAgo(12));
 // The videos went out at 09:57:30: five minutes, until 10:02:30.
 const ron = onboarded({ name: 'מספרת רון', phone: '052-7654321' });
 check(ron, 'p26.sent', minsAgo(2.5));
+// The 9 graphics went out at 09:57: running until 10:07; the client answers in time.
+const ohr = onboarded({ name: 'מאפיית אור' });
+check(ohr, 'p07.sent', minsAgo(3));
 // Answered already: no clock.
 const quiet = onboarded({ name: 'סטודיו שקט', phone: '050-0000000' });
 check(quiet, 'p07.sent', minsAgo(20));
@@ -126,11 +132,26 @@ const fakeNotifications = () => {
   window.Notification = FakeNotification;
 };
 
+// Every toast and every read-out text, in order (a toast lasts seconds).
+const recordSaid = () => {
+  window.__toasts = [];
+  window.__said = [];
+  document.addEventListener('DOMContentLoaded', () => {
+    const watchText = (id, list) => {
+      const el = document.getElementById(id);
+      if (el) new MutationObserver(() => { if (el.textContent) list.push(el.textContent); }).observe(el, { childList: true, subtree: true });
+    };
+    watchText('toast', window.__toasts);
+    watchText('now-live', window.__said);
+  });
+};
+
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
 await ctx.clock.install({ time: NOW });
 await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
 await ctx.addInitScript(fakeNotifications);
+await ctx.addInitScript(recordSaid);
 const page = await ctx.newPage();
 const errors = [];
 const watch = (pg) => {
@@ -138,7 +159,12 @@ const watch = (pg) => {
   pg.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
 };
 watch(page);
-const shot = async (name, pg = page) => { if (OUT) await pg.screenshot({ path: `${OUT}/${name}.png`, fullPage: true }); };
+// The whole page, and the bar alone (readable at full size).
+const shot = async (name, pg = page) => {
+  if (!OUT) return;
+  await pg.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
+  if (await pg.locator('#now-bar:not([hidden])').count()) await pg.locator('#now-bar').screenshot({ path: `${OUT}/${name}-bar.png` });
+};
 const noHScroll = async (pg) => pg.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const toastHas = (text) => page.waitForFunction((t) => document.querySelector('#toast.on')?.textContent.includes(t), text);
 const clockSel = (kind, c, proc) => `#now-bar .now-clock[data-clock^="${kind}:${c.id}:${proc}"]`;
@@ -157,10 +183,10 @@ const T1 = new Date(T0.getTime() + 1000);
 
 // ── The bar: first in "my work", most urgent first, the right time left ──
 assert.equal(await page.locator('#view-mine > *').first().getAttribute('id'), 'now-bar');
-assert.match(await page.locator('#now-h').innerText(), /^עכשיו\s*4$/);
+assert.match(await page.locator('#now-h').innerText(), /^עכשיו\s*5$/);
 const order = await page.locator('#now-bar .now-clock').evaluateAll((els) => els.map((e) => `${e.dataset.clock.split(':')[0]}:${e.querySelector('.now-client').textContent}:${e.dataset.state}`));
 // The new deal's three clocks end together: one row. So do the two processes due at 10:40.
-assert.deepEqual(order, ['answer:קפה גליה:expired', 'answer:מספרת רון:running', 'deal:פיצה נאפולי:running', 'soon:חנות הים:running']);
+assert.deepEqual(order, ['answer:קפה גליה:expired', 'answer:מספרת רון:running', 'deal:פיצה נאפולי:running', 'answer:מאפיית אור:running', 'soon:חנות הים:running']);
 assert.equal(await page.locator(`#now-bar .now-clock[data-clock*="${quiet.id}"]`).count(), 0, 'an answered sending has no clock');
 const dealDue = new Date(new Date(deal.deal_at).getTime() + 5 * 6e4); // 10:03:00
 const ronDue = new Date(NOW.getTime() + 2.5 * 6e4);                   // 10:02:30
@@ -171,7 +197,7 @@ assert.match(await page.locator(clockSel('answer', ron, 'p26')).innerText(), /נ
 assert.equal(await left(clockSel('soon', sea, 'p04')), clockDigits(40 * 6e4 - 21_000)); // 39:39
 assert.match(await page.locator(clockSel('soon', sea, 'p04')).innerText(), /ביצוע פגישת אפיון ולקיחת גישות לרשתות[^]*תהליכים 4, 5 · יעד היום 10:40/);
 // The seconds are a timer (never read out every second); running out is said at once.
-assert.equal(await page.locator('#now-bar .now-time[role="timer"]').count(), 4);
+assert.equal(await page.locator('#now-bar .now-time[role="timer"]').count(), 5);
 assert.equal(await page.getAttribute('#now-live', 'aria-live'), 'assertive');
 await shot('01-now-bar');
 
@@ -194,7 +220,10 @@ assert.equal(await gal.locator('.now-answered').innerText(), 'הלקוח ענה'
 assert.equal(await gal.locator('.now-call').getAttribute('href'), 'tel:0541112233');
 assert.match(await gal.locator('.now-call').innerText(), /להתקשר\s*054-1112233/);
 for (const b of [gal.locator('.now-answered'), gal.locator('.now-call')]) assert.ok((await b.boundingBox()).height >= 44);
-assert.equal(await page.locator('#now-bar .now-answered').count(), 1); // only the one that ran out
+// "Call" only where the time is up; a running one has a small "the client answered".
+assert.equal(await page.locator('#now-bar .now-call').count(), 1);
+assert.deepEqual(await page.locator('#now-bar .now-answered').evaluateAll((els) => els.map((e) => `${e.closest('.now-clock').dataset.state}:${e.classList.contains('btn-sm')}`)),
+  ['expired:false', 'running:true', 'running:true']);
 
 // A failed save marks nothing and keeps the clock.
 failNextCheck = true;
@@ -217,35 +246,73 @@ assert.equal(await page.evaluate(() => document.activeElement.textContent), 'ה�
 await gal.locator('.now-answered').click();
 await toastHas('סומן שהלקוח ענה');
 assert.equal(await gal.count(), 0);
+assert.match(await page.locator('#now-h').innerText(), /^עכשיו\s*4$/);
+
+// ── The client answered in time: the running clock stops, no alarm follows ──
+const ohrClock = page.locator(clockSel('answer', ohr, 'p07'));
+assert.equal(await ohrClock.getAttribute('data-state'), 'running');
+assert.equal(await ohrClock.locator('.now-call').count(), 0);
+assert.ok((await ohrClock.locator('.now-answered').boundingBox()).height >= 44);
+await ohrClock.locator('.now-answered').click();
+await toastHas('סומן שהלקוח ענה: מאפיית אור · 9 הגרפיקות הראשונות.');
+assert.ok(db.protocol_checks.some((c) => c.client_id === ohr.id && c.item_key === 'p07.answered' && c.state === 'done'));
+assert.equal(await ohrClock.count(), 0);
 assert.match(await page.locator('#now-h').innerText(), /^עכשיו\s*3$/);
 
 // ── A clock runs out while the page is open ──
 // The videos' five minutes end at 10:02:30: red in place, its buttons, read out.
+// "The client answered" is the same button, grown: if it had focus, it keeps it.
 const ronClock = page.locator(clockSel('answer', ron, 'p26'));
+await ronClock.locator('.now-answered').focus();
 await page.clock.runFor(ronDue - (T1.getTime() + 3000) + 1000);
-await ronClock.locator('.now-answered').waitFor();
+await ronClock.locator('.now-call').waitFor();
 assert.equal(await ronClock.getAttribute('data-state'), 'expired');
+assert.equal(await page.evaluate(() => document.activeElement.textContent), 'הלקוח ענה');
+assert.equal(await page.evaluate(() => document.activeElement.closest('.now-clock')?.querySelector('.now-client')?.textContent), 'מספרת רון');
+assert.equal(await ronClock.locator('.now-answered.btn-sm').count(), 0);
+assert.equal(await ronClock.locator('.now-answered, .now-call').count(), 2);
 assert.match(await ronClock.innerText(), /נגמר לפני[^]*הלקוח לא ענה: הסרטונים[^]*עברו 5 דקות בלי תשובה/);
 assert.equal(await ronClock.locator('.now-call').getAttribute('href'), 'tel:0527654321');
 assert.equal(await page.locator('#now-live').innerText(), 'הלקוח לא ענה: מספרת רון. הסרטונים (תהליך 26). עברו 5 דקות בלי תשובה: להתקשר.');
 await shot('02-ran-out');
 
-// Notifications on (asked earlier, on a click) and the tab in the background:
-// the new deal's clocks run out at 10:03, one notification per process.
-await page.evaluate(() => { localStorage.setItem('fake.perm', 'granted'); localStorage.setItem('astrateg.notify', 'on'); });
+// Notifications on (asked earlier, on a click). On another tab of the page, in
+// front: the new deal's clocks run out at 10:03 with one toast for the row, not
+// three, and not again when the three processes turn overdue a minute later.
+await page.evaluate(() => { localStorage.setItem('fake.perm', 'granted'); localStorage.setItem('astrateg.notify', 'on'); document.hasFocus = () => true; });
+await page.click('#tab-clients');
+await page.clock.runFor(dealDue - (ronDue.getTime() + 1000) + 1000);
+await toastHas('נגמר הזמן: פיצה נאפולי · עסקה חדשה: חוזה, קבוצה ומועד אפיון (תהליכים 1, 2, 3).');
+assert.equal(await page.locator('#toast .toast-act').innerText(), 'מעבר');
+assert.deepEqual(await page.evaluate(() => window.__notes), []);
+await page.clock.runFor(3 * 60e3);
+const toasts = await page.evaluate(() => window.__toasts);
+assert.equal(toasts.filter((t) => t.includes('פיצה נאפולי') && !t.startsWith('סומן')).length, 1, JSON.stringify(toasts));
+// The toast is a live region: said once, not twice.
+assert.ok(!(await page.evaluate(() => window.__said)).some((t) => t.includes('פיצה נאפולי')));
+
+// The page in the background: the two processes of "חנות הים" due at 10:40 run
+// out: one notification for the row, none when they turn overdue.
+await page.click('#tab-mine');
 await page.evaluate(() => Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }));
-await page.clock.runFor(40_000);
+const seaDue = new Date(NOW.getTime() + 40 * 6e4);
+await page.clock.runFor(seaDue - (dealDue.getTime() + 1000 + 3 * 60e3) + 3 * 60e3);
 const notes = await page.evaluate(() => window.__notes);
-const dealNotes = notes.filter((n) => n.title === 'באיחור: פיצה נאפולי');
-assert.deepEqual(dealNotes.map((n) => n.body.replace(/ · .*/, '')), ['תהליך 1', 'תהליך 2', 'תהליך 3'], JSON.stringify(notes));
-assert.match(dealNotes[0].body, /^תהליך 1 · הכנת חוזה\. היעד היה היום 10:03\.$/);
+const seaNotes = notes.filter((n) => n.title.includes('חנות הים'));
+assert.equal(seaNotes.length, 1, JSON.stringify(notes));
+assert.match(seaNotes[0].title, /^נגמר הזמן: חנות הים$/);
+assert.match(seaNotes[0].body, /\(תהליכים 4, 5\)\.$/);
 assert.equal(new Set(notes.map((n) => `${n.title}|${n.body}`)).size, notes.length, 'no notification twice');
+// Nothing about what was already said or answered in time.
+assert.ok(!notes.some((n) => /פיצה נאפולי|מאפיית אור|קפה גליה/.test(n.title)), JSON.stringify(notes));
+assert.ok(!(await page.evaluate(() => [...window.__said, ...window.__toasts])).some((t) => t.includes('מאפיית אור') && !t.startsWith('סומן')));
 await page.evaluate(() => { delete document.hidden; });
 await page.clock.runFor(1000);
 assert.equal(await page.locator(clockSel('deal', deal, 'p01')).getAttribute('data-state'), 'expired');
 assert.match(await page.locator(clockSel('deal', deal, 'p01')).innerText(), /נגמר לפני[^]*עסקה חדשה: חוזה, קבוצה ומועד אפיון/);
+assert.equal(await page.locator(clockSel('soon', sea, 'p04')).getAttribute('data-state'), 'expired');
 // Read out once, for the row.
-assert.equal(await page.locator('#now-live').innerText(), 'נגמר הזמן: פיצה נאפולי. עסקה חדשה: חוזה, קבוצה ומועד אפיון (תהליכים 1, 2, 3).');
+assert.match(await page.locator('#now-live').innerText(), /^נגמר הזמן: חנות הים\. .*\(תהליכים 4, 5\)\.$/);
 // A clock that was already red when the page opened is not "new": nothing on load.
 await page.clock.resume();
 await page.reload();
@@ -276,7 +343,7 @@ assert.ok(b.y >= a.y + a.height, 'stacked on a phone');
 await shot('03-phone', mob);
 await mob.close();
 
-// ── Whose clocks: the owner sees everyone's, with their names; Ilai has none here ──
+// ── Whose clocks: the owner sees everyone's, with their names; Ilai only his ──
 db.staff[0].person = null;
 await page.goto(`${BASE}clients.html`);
 await page.waitForSelector('#now-bar .now-clock');
@@ -289,8 +356,89 @@ await page.goto('about:blank');
 await page.goto(`${BASE}clients.html`);
 await page.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.match(await page.locator('#me-bar').innerText(), /עילאי/);
+// His one clock: the sea shop's annual Gantt (process 9), due 10:45.
+assert.deepEqual(await page.locator('#now-bar .now-clock').evaluateAll((els) => els.map((e) => e.dataset.clock)), [`soon:${sea.id}:p09`]);
+// No clock of his at all: no bar.
+sea.status = 'ended';
+await page.reload();
+await page.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.equal(await page.isHidden('#now-bar'), true);
+sea.status = 'active';
 db.staff[0].person = 'irit';
+
+// ── A deadline that is not a clock still alerts when it turns overdue ──
+// Lior's shoot day is due by the end of the day (never a clock in the bar).
+// The page is open from 23:57:30 in the background, notifications on; once the
+// day is over, the overdue check alerts it, once.
+const shootDay = onboarded({ name: 'בית קפה צילום', shoot_at: '2026-10-05T07:00:00Z' });
+db.staff[0].person = 'lior';
+const nightCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
+await nightCtx.clock.install({ time: new Date('2026-10-05T20:57:30Z') });
+await nightCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await nightCtx.addInitScript(fakeNotifications);
+await nightCtx.addInitScript(() => { try { localStorage.setItem('fake.perm', 'granted'); localStorage.setItem('astrateg.notify', 'on'); } catch { /* about:blank */ } });
+const night = await nightCtx.newPage();
+watch(night);
+await night.goto(`${BASE}clients.html`);
+await night.fill('#lg-email', USER.email);
+await night.fill('#lg-pass', 'correct-horse');
+await night.click('#lg-submit');
+await night.waitForSelector('#view-mine:not([hidden]) .wproc');
+assert.equal(await night.locator(`#now-bar .now-clock[data-clock*="${shootDay.id}"]`).count(), 0);
+await night.evaluate(() => Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }));
+await night.clock.runFor(3 * 60e3);
+const nightNotes = await night.evaluate(() => window.__notes);
+const p18 = nightNotes.filter((n) => n.title === 'באיחור: בית קפה צילום' && n.body.startsWith('תהליך 18 '));
+assert.equal(p18.length, 1, JSON.stringify(nightNotes));
+assert.match(p18[0].body, /^תהליך 18 · ניהול יום הצילום והתסריטים\. היעד היה /);
+assert.equal(new Set(nightNotes.map((n) => `${n.title}|${n.body}`)).size, nightNotes.length, 'no notification twice');
+await nightCtx.close();
+db.staff[0].person = 'irit';
+shootDay.status = 'ended';
+
+// ── Chrome on Android: `new Notification` throws; a service worker shows it ──
+// The page opens at 10:02 on a phone, with notifications on; the videos' clock
+// of "מספרת רון" runs out at 10:02:30 while the page is in the background.
+const androidNotifications = () => {
+  window.__swNotes = [];
+  class AndroidNotification {
+    constructor() { throw new TypeError("Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead."); }
+    static get permission() { return 'granted'; }
+    static async requestPermission() { return 'granted'; }
+  }
+  window.Notification = AndroidNotification;
+  ServiceWorkerRegistration.prototype.showNotification = function showNotification(title, opts = {}) {
+    window.__swNotes.push({ title, body: opts.body, tag: opts.tag, href: opts.data?.href, scope: this.scope, state: this.active?.state });
+    return Promise.resolve();
+  };
+  try { localStorage.setItem('astrateg.notify', 'on'); } catch { /* about:blank */ }
+};
+const droidCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true });
+await droidCtx.clock.install({ time: new Date(NOW.getTime() + 2 * 6e4) });
+await droidCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await droidCtx.addInitScript(androidNotifications);
+const droid = await droidCtx.newPage();
+watch(droid);
+await droid.goto(`${BASE}clients.html`);
+await droid.fill('#lg-email', USER.email);
+await droid.fill('#lg-pass', 'correct-horse');
+await droid.click('#lg-submit');
+await droid.waitForSelector(`${clockSel('answer', ron, 'p26')}[data-state="running"]`);
+assert.match(await droid.locator('.notify-row').innerText(), /התראות על איחורים ועל לקוח שלא ענה פעילות בדפדפן הזה/);
+// A running "did not answer" on a phone: the small button fits, 44px high.
+assert.ok(await noHScroll(droid), 'the bar scrolls sideways at 360px');
+const smallBox = await droid.locator(`${clockSel('answer', ron, 'p26')} .now-answered.btn-sm`).boundingBox();
+assert.ok(smallBox.height >= 44 && smallBox.x >= 0 && smallBox.x + smallBox.width <= 360, JSON.stringify(smallBox));
+await shot('04-phone-running', droid);
+await droid.evaluate(() => Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }));
+await droid.clock.runFor(35_000);
+await droid.waitForFunction(() => window.__swNotes.length > 0);
+const sw = await droid.evaluate(() => window.__swNotes);
+assert.equal(sw.length, 1, JSON.stringify(sw));
+assert.deepEqual([sw[0].title, sw[0].body, sw[0].state], ['הלקוח לא ענה: מספרת רון', 'הסרטונים (תהליך 26). עברו 5 דקות בלי תשובה: להתקשר.', 'activated']);
+assert.equal(sw[0].href, `${BASE}client.html?id=${ron.id}#p26`);
+assert.equal(sw[0].scope, `${BASE}app/`); // it controls no page
+await droidCtx.close();
 
 assert.deepEqual(errors, []);
 await browser.close();

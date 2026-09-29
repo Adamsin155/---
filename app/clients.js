@@ -759,7 +759,7 @@ function notifyRow() {
   if (st === 'none') return null;
   if (st === 'blocked') return h('p', { class: 'notify-row muted' }, 'ההתראות חסומות בדפדפן. אפשר לאפשר אותן בהגדרות האתר.');
   if (st === 'on') {
-    return h('p', { class: 'notify-row' }, 'התראות איחור פעילות בדפדפן הזה. ',
+    return h('p', { class: 'notify-row' }, 'התראות על איחורים ועל לקוח שלא ענה פעילות בדפדפן הזה. ',
       h('button', { type: 'button', class: 'btn-text', onclick: () => { store.set('notify', 'off'); renderMine(); } }, 'כיבוי'));
   }
   return h('div', { class: 'notify-row' },
@@ -771,30 +771,66 @@ function notifyRow() {
         if (p === 'granted') store.set('notify', 'on');
         renderMine();
       },
-    }, 'התראה כשמשהו שלי נכנס לאיחור'),
+    }, 'התראה כשמשהו שלי נכנס לאיחור או כשלקוח לא ענה'),
     h('span', { class: 'hint' }, 'עובד רק כשהעמוד פתוח בדפדפן, גם בלשונית ברקע.'));
 }
 
-// `ring`: a protocol clock of the "now" bar. It also notifies when the page is
-// open but its window is not in front; in front, the bar itself shows it (no toast).
-function alertOnce(key, title, body, href, { ring = false } = {}) {
-  const k = `notified.${key}.${dayIso(new Date())}`;
-  if (store.get(k)) return;
-  store.set(k, '1');
-  if (document.hidden || (ring && !document.hasFocus())) {
+// A system notification; a click opens `href`. Chrome on Android lets only a
+// service worker show one (`new Notification` throws a TypeError there), so
+// from the first such refusal app/notify-sw.js shows them.
+let workerNotes = false;
+let noteWorker = null;
+function notifyWorker() {
+  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+  noteWorker ||= navigator.serviceWorker.register(new URL('./notify-sw.js', import.meta.url))
+    .then((reg) => (reg.active ? reg : new Promise((resolve) => {
+      const sw = reg.installing || reg.waiting;
+      if (!sw) { resolve(null); return; }
+      sw.addEventListener('statechange', () => {
+        if (sw.state === 'activated') resolve(reg);
+        else if (sw.state === 'redundant') resolve(null);
+      });
+    })))
+    .catch(() => null);
+  return noteWorker;
+}
+function showNote(title, body, tag, href) {
+  if (!workerNotes) {
     try {
-      const n = new Notification(title, { body, tag: key });
+      const n = new Notification(title, { body, tag });
       n.onclick = () => { window.focus(); location.href = href; n.close(); };
-    } catch { /* the browser refused */ }
-  } else if (!ring) {
-    toast(`${title} · ${body}`, { label: 'מעבר', run: () => { location.href = href; } });
+      return;
+    } catch (err) {
+      if (err?.name !== 'TypeError') return; // the browser refused
+      workerNotes = true;
+    }
   }
+  const url = new URL(href, location.href).href;
+  notifyWorker().then((reg) => reg?.showNotification(title, { body, tag, data: { href: url } })).catch(() => { /* refused */ });
 }
 
-// One alert per process: the same one when it turns overdue and when its clock
-// in the "now" bar runs out, whichever comes first.
-const lateAlert = (client, proc, dueAt, ring = false) => alertOnce(`${client.id}:${proc.id}`, `באיחור: ${client.name}`,
-  `תהליך ${procLabel(proc)}. היעד היה ${formatWhen(dueAt)}.`, clientUrl(client.id, `#${proc.id}`), { ring });
+// Alerts once a day for `keys` (one key, or every process a row of the "now"
+// bar covers). With the page hidden: a notification. `ring`: a clock of the
+// "now" bar ran out; it also notifies when the page is open but its window is
+// not in front, and on the "my work" tab it needs no toast (the bar shows it,
+// in red, and it is read out). Returns 'note', 'toast' or null.
+function alertOnce(keys, title, body, href, { ring = false } = {}) {
+  const day = dayIso(new Date());
+  const ks = [keys].flat().map((key) => `notified.${key}.${day}`);
+  if (ks.every((k) => store.get(k))) return null;
+  for (const k of ks) store.set(k, '1');
+  if (document.hidden || (ring && !document.hasFocus())) {
+    showNote(title, body, [keys].flat()[0], href);
+    return 'note';
+  }
+  if (ring && view === 'mine') return null;
+  toast(`${title} · ${body}`, { label: 'מעבר', run: () => { location.href = href; } });
+  return 'toast';
+}
+
+// A process alerts once a day, whether its clock in the "now" bar ran out or
+// it turned overdue, whichever came first.
+const procAlertKey = (c) => `${c.client.id}:${c.proc.id}`;
 
 // Processes of `me` that turned overdue since the previous check. The first
 // check only records the state: on load every overdue process is "new".
@@ -807,7 +843,8 @@ function checkLate() {
   if (!prev || notifyState() !== 'on') return;
   for (const g of late) {
     if (prev.has(g.key)) continue;
-    lateAlert(g.client, g.proc, g.dueAt);
+    alertOnce(procAlertKey(g), `באיחור: ${g.client.name}`,
+      `תהליך ${procLabel(g.proc)}. היעד היה ${formatWhen(g.dueAt)}.`, clientUrl(g.client.id, `#${g.proc.id}`));
   }
 }
 
@@ -844,18 +881,22 @@ function clockTick() {
 }
 setInterval(clockTick, 1000);
 
-// Clocks ran out: read out at once (one sentence per row of the bar), and a
-// notification per process when they are on and the page is not in front.
+// Clocks ran out: one alert per row of the bar (the new deal's three processes
+// are one "time is up"). With notifications on, a notification when the page is
+// not in front, a toast on another tab; every process of the row counts as
+// alerted, so turning overdue a minute later does not alert it again. Read out
+// at once, unless the one toast already says it (a toast is a live region too).
 // My bar has only my clocks; the owner hears the team's only while looking at them.
 function clocksRanOut(list) {
   if (!me && !(view === 'mine' && !document.hidden)) return;
-  fill($('now-live'), h('p', {}, clockRows(list).map((r) => { const t = ranOutText(r); return `${t.title}. ${t.body}`; }).join(' ')));
-  if (!me || notifyState() !== 'on') return;
-  for (const c of list) {
-    if (c.kind !== 'answer') { lateAlert(c.client, c.proc, c.deadline, true); continue; }
-    const t = ranOutText({ ...c, clocks: [c] });
-    alertOnce(c.id, t.title, t.body, clientUrl(c.client.id, `#${c.proc.id}`), { ring: true });
-  }
+  const rows = clockRows(list);
+  const toasted = !me || notifyState() !== 'on' ? [] : rows.filter((r) => {
+    const t = ranOutText(r);
+    const keys = r.clocks.map((c) => (c.kind === 'answer' ? c.id : procAlertKey(c)));
+    return alertOnce(keys, t.title, t.body, clientUrl(r.client.id, `#${r.proc.id}`), { ring: true }) === 'toast';
+  });
+  if (rows.length === 1 && toasted.length === 1) return;
+  fill($('now-live'), h('p', {}, rows.map((r) => { const t = ranOutText(r); return `${t.title}. ${t.body}`; }).join(' ')));
 }
 
 // "The client answered": stops that clock (the ANSWERED mark), with undo.

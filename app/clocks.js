@@ -13,7 +13,7 @@
 //   soon    any other process of the person due within the next hour.
 // A clock that ran out stays in the bar, red, until the end of that day (a
 // "soon" one for an hour; after that it is in the "overdue" list).
-import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, ANSWERED, WAIT, IMPORT_NOTE } from './protocol-logic.js';
+import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, ANSWERED, waitOf, IMPORT_NOTE } from './protocol-logic.js';
 import { endOfDayIL, partsIL } from './tz.js';
 
 const MIN = 6e4;
@@ -128,7 +128,9 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
       const since = (key) => { const x = checks[key]; return !!x && x.state === 'done' && new Date(x.at) >= sentAt; };
       const round = kb.slice(0, kb.length - baseId(s.proc).length); // 'r2.' in a second shoot round
       if (since(ANSWERED(s.proc)) || since(`${kb}.call`) || (spec.approval && since(round + spec.approval))) continue;
-      if (checks[WAIT(s.proc)]?.state === 'done') continue;
+      // A wait that began before this sending (say, for the client's material) is not an answer to it.
+      const wait = waitOf(s.proc, checks);
+      if (wait && new Date(wait.at) >= sentAt) continue;
       const call = s.proc.items.find((i) => i.key === `${kb}.call`);
       const people = call ? call.owners : s.proc.owners;
       if (person && !people.includes(person)) continue;

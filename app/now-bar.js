@@ -1,9 +1,10 @@
 // The "now" bar at the top of "my work" (clients.html): the clocks of
 // app/clocks.js as live countdowns. It is drawn with the list; between those
 // renders `updateNowBar` changes only the countdown texts, once a second, so
-// nothing else is rebuilt and focus never moves. A clock that runs out while
-// the page is open turns red in place; "the client did not answer" then gets
-// its two buttons, "the client answered" and "call" (a tel: link).
+// nothing else is rebuilt and focus never moves. "The client answered" is there
+// from the sending (a small button: the client may answer within the minutes);
+// when that clock runs out the row turns red in place and the button grows,
+// next to "call" (a tel: link).
 import { h, fill, formatWhen, lateBy, peopleChips } from './protocol-ui.js';
 import { clockTime, clockDigits } from './clocks.js';
 
@@ -54,17 +55,25 @@ export function ranOutText(row) {
 const stateLabel = (t, now) => (t.state === 'expired' ? 'נגמר לפני' : t.paused ? `עצור עד ${formatWhen(t.resumeAt, now)}` : 'נשארו');
 const leftText = (row, t, now) => (t.state === 'expired' ? lateBy(row.deadline, now) : clockDigits(t.remaining));
 
-function answerActs(row, onAnswered) {
+// "Call": the client's number, as a link and in text.
+function callAct(row) {
+  const sid = clockDomId(row.id);
+  return row.phone
+    ? h('a', { class: 'btn btn-primary now-call', id: `now-call-${sid}`, href: telHref(row.phone), 'aria-describedby': `now-a-${sid}` },
+      'להתקשר', h('bdi', { class: 'num', dir: 'ltr' }, row.phone))
+    : h('p', { class: 'now-nophone' }, 'אין מספר טלפון בכרטיס הלקוח. ', h('a', { href: cardUrl(row) }, 'לכרטיס הלקוח'));
+}
+
+// While the clock runs: "the client answered" alone, small. Once it ran out:
+// big, with "call" next to it.
+function answerActs(row, onAnswered, expired) {
   const sid = clockDomId(row.id);
   return h('div', { class: 'now-acts' },
     h('button', {
-      type: 'button', class: 'btn now-answered', id: `now-ans-${sid}`, 'aria-describedby': `now-a-${sid} now-w-${sid}`,
+      type: 'button', class: `btn now-answered${expired ? '' : ' btn-sm'}`, id: `now-ans-${sid}`, 'aria-describedby': `now-a-${sid} now-w-${sid}`,
       onclick: (ev) => onAnswered(row, ev.currentTarget),
     }, 'הלקוח ענה'),
-    row.phone
-      ? h('a', { class: 'btn btn-primary now-call', id: `now-call-${sid}`, href: telHref(row.phone), 'aria-describedby': `now-a-${sid}` },
-        'להתקשר', h('bdi', { class: 'num', dir: 'ltr' }, row.phone))
-      : h('p', { class: 'now-nophone' }, 'אין מספר טלפון בכרטיס הלקוח. ', h('a', { href: cardUrl(row) }, 'לכרטיס הלקוח')));
+    expired ? callAct(row) : null);
 }
 
 function rowItem(row, now, everyone, onAnswered) {
@@ -80,7 +89,7 @@ function rowItem(row, now, everyone, onAnswered) {
       h('span', { class: 'now-what', id: `now-w-${sid}` }, rowWhat(row, t)),
       h('span', { class: 'now-meta' }, rowMeta(row, t, now)),
       everyone ? peopleChips(row.people) : null),
-    t.state === 'expired' && row.kind === 'answer' ? answerActs(row, onAnswered) : null);
+    row.kind === 'answer' ? answerActs(row, onAnswered, t.state === 'expired') : null);
 }
 
 // The whole bar; hidden when there is no clock. `everyone`: the owner's view,
@@ -92,13 +101,14 @@ export function renderNowBar(el, clocks, { now = new Date(), everyone = false, o
   fill(el,
     h('div', { class: 'now-head' },
       h('h2', { class: 'now-h', id: 'now-h', tabindex: '-1' }, 'עכשיו', h('span', { class: 'n' }, String(rows.length))),
-      h('p', { class: 'now-hint' }, `${everyone ? 'השעונים שרצים עכשיו אצל הצוות.' : 'השעונים שרצים עכשיו אצלך.'} הם רצים רק כשהעמוד הזה פתוח.`)),
+      h('p', { class: 'now-hint' }, `${everyone ? 'השעונים שרצים עכשיו אצל הצוות.' : 'השעונים שרצים עכשיו אצלך.'} התראה כשהזמן נגמר מגיעה רק כשהעמוד הזה פתוח.`)),
     h('ul', { class: 'now-list' }, ...rows.map((r) => rowItem(r, now, everyone, onAnswered))));
 }
 
 const setText = (el, text) => { if (el && el.textContent !== text) el.textContent = text; };
 
 // Once a second: the countdowns, and a row whose time ran out turns red in place.
+// Its "the client answered" button stays the same element (it may have focus).
 export function updateNowBar(el, clocks, { now = new Date(), onAnswered }) {
   const rows = new Map(clockRows(clocks).map((r) => [r.id, r]));
   for (const li of el.querySelectorAll('.now-clock')) {
@@ -112,7 +122,10 @@ export function updateNowBar(el, clocks, { now = new Date(), onAnswered }) {
     li.dataset.state = t.state;
     setText(li.querySelector('.now-what'), rowWhat(row, t));
     setText(li.querySelector('.now-meta'), rowMeta(row, t, now));
-    // Added after the rest, so whatever has focus keeps it.
-    if (t.state === 'expired' && row.kind === 'answer' && !li.querySelector('.now-acts')) li.append(answerActs(row, onAnswered));
+    if (row.kind !== 'answer' || t.state !== 'expired') continue;
+    const acts = li.querySelector('.now-acts');
+    if (!acts) { li.append(answerActs(row, onAnswered, true)); continue; }
+    acts.querySelector('.now-answered')?.classList.remove('btn-sm');
+    if (!acts.querySelector('.now-call, .now-nophone')) acts.append(callAct(row));
   }
 }

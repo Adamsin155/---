@@ -107,6 +107,13 @@ test('the answer (or a call, an approval, a wait) stops the clock; only after th
   assert.deepEqual(procs({ ...sent, ...done(['p07.call'], '2026-10-05T10:12:00+03:00') }), ['p23', 'p26']);
   assert.deepEqual(procs({ ...sent, ...done(['p07.approved', 'p27.approved'], '2026-10-05T12:00:30+03:00') }), ['p23']);
   assert.deepEqual(procs({ ...sent, 'p23.wait': { state: 'done', at: '2026-10-05T11:20:00+03:00', note: '{}' } }), ['p07', 'p26']);
+  // A wait that began before the sending (say, for the client's material) is not an answer to it.
+  const waitFrom = (at, note = '{}') => ({ [WAIT(p07)]: { state: 'done', at, note } });
+  assert.deepEqual(procs({ ...sent, ...waitFrom('2026-10-05T09:00:00+03:00') }), ['p07', 'p23', 'p26']);
+  assert.deepEqual(procs({ ...sent, ...waitFrom('2026-10-05T10:05:00+03:00') }), ['p23', 'p26']);
+  // Edited after the sending, the wait keeps its start (`since`): still from before.
+  const edited = JSON.stringify({ reason: 'חומרים', recheck: null, since: '2026-10-05T09:00:00+03:00' });
+  assert.deepEqual(procs({ ...sent, ...waitFrom('2026-10-05T10:05:00+03:00', edited) }), ['p07', 'p23', 'p26']);
   // An answer to an earlier sending does not stop the clock of the next one (sent again after a fix).
   const again = { ...sent, ...done(['p07.answered'], '2026-10-05T09:30:00+03:00') };
   assert.deepEqual(procs(again), ['p07', 'p23', 'p26']);

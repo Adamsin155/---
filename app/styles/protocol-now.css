@@ -50,6 +50,9 @@
 .now-acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
 .now-acts .btn { flex: 1 1 200px; min-height: 52px; font-size: 16px; }
 .now-call bdi { font-weight: 500; }
+/* Still running: "the client answered" alone, small, under the text (the client may answer in time). */
+.now-clock[data-state='running'] .now-acts { grid-column: 2; }
+.now-clock[data-state='running'] .now-acts .btn { flex: 0 0 auto; min-height: 44px; font-size: 14px; }
 .now-nophone { margin: 0; flex: 1 1 200px; align-self: center; font-size: 14px; color: var(--text-2); }
 
 @media (max-width: 760px) {
