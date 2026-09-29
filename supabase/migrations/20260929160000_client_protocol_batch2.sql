@@ -18,6 +18,9 @@ alter table public.clients drop constraint clients_status_check;
 alter table public.clients add constraint clients_status_check
   check (status in ('active', 'ending', 'ended', 'cancelled'));
 
+-- One client per signed agreement.
+create unique index clients_quote_id_key on public.clients (quote_id) where quote_id is not null;
+
 -- Tasks opened from the weekly call are marked so the next call can show them.
 alter table public.client_tasks add column source text check (source is null or source in ('p31', 'p33'));
 
@@ -61,9 +64,17 @@ begin
     else
       new.verified_by := old.verified_by;
     end if;
+    -- Who last changed the delivered counts is stamped here, never taken from the browser.
+    new.deliverables := new.deliverables - 'updated_by' - 'updated_at';
     if new.deliverables -> 'done' is distinct from old.deliverables -> 'done' then
       new.deliverables := new.deliverables || jsonb_build_object('updated_by', me, 'updated_at', now());
+    elsif old.deliverables ? 'updated_by' then
+      new.deliverables := new.deliverables || jsonb_build_object('updated_by', old.deliverables -> 'updated_by', 'updated_at', old.deliverables -> 'updated_at');
     end if;
+  end if;
+  -- Each extra shoot round has its own number: its items are keyed by it.
+  if (select count(*) <> count(distinct r ->> 'n') from jsonb_array_elements(new.rounds) r) then
+    raise exception 'round numbers must be unique';
   end if;
   return new;
 end $$;
@@ -119,8 +130,8 @@ create function public.package_deliverables(model jsonb) returns jsonb
 language sql immutable set search_path = '' as $$
   with p as (
     select model -> 'package' ->> 'id' as id,
-           coalesce((model -> 'selection' -> 'free' ->> 'graphics')::int, 0) as free_graphics,
-           coalesce(model -> 'selection' -> 'paid', '[]'::jsonb) ? 'simeon-day' as extra_day
+           coalesce(model -> 'selection' -> 'paid', '[]'::jsonb) as paid,
+           coalesce(model -> 'selection' -> 'free', '{}'::jsonb) as free
   ), s as (
     select p.*, v.videos, v.graphics, v.shoot_days, v.collabs, v.stories, v.ch14
     from p join (values
@@ -135,9 +146,12 @@ language sql immutable set search_path = '' as $$
   select coalesce((
     select jsonb_build_object(
       'videos', videos,
-      'graphics', graphics + free_graphics,
-      'shoot_days', shoot_days + case when extra_day then 1 else 0 end,
-      'collabs', collabs, 'stories', stories, 'ch14', ch14)
+      'graphics', graphics + coalesce((free ->> 'graphics')::int, 0),
+      'shoot_days', shoot_days + case when paid ? 'simeon-day' then 1 else 0 end,
+      'collabs', collabs + case when paid ? 'natali-reel' then 1 else 0 end,
+      'stories', stories + coalesce((free ->> 'simeonStories')::int, 0) + case when paid ? 'natali-story' then 1 else 0 end,
+      'ch14', ch14 + case when coalesce((free ->> 'extraCh14')::boolean, false) then 1 else 0 end,
+      'monthly', case when paid ? 'photographer' then 96 else 0 end)
     from s), '{}'::jsonb);
 $$;
 
@@ -147,26 +161,34 @@ $$;
 create function public.open_client_on_signing() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare
-  m jsonb := new.model;
+  m jsonb;
   cid uuid;
-  influencer text := m -> 'selection' ->> 'influencer';
-  months int := coalesce((m ->> 'termMonths')::int, 12);
-  signed timestamptz := coalesce(new.signed_at, now());
+  months int;
+  signed timestamptz;
 begin
-  if new.status <> 'signed' or old.status = 'signed' or coalesce((m ->> 'signable')::boolean, false) is not true then
+  if new.status is distinct from 'signed' or old.status = 'signed' then
     return new;
   end if;
-  if exists (select 1 from public.clients where quote_id = new.id) then
-    return new;
-  end if;
+  -- Everything that reads the agreement runs inside the protected block, so a
+  -- surprising value can never undo the signature.
   begin
+    m := new.model;
+    -- Agreements are signable; older ones saved before the flag existed are too.
+    if coalesce((m ->> 'signable')::boolean, true) is not true then
+      return new;
+    end if;
+    if exists (select 1 from public.clients where quote_id = new.id) then
+      return new;
+    end if;
+    months := coalesce(round((m ->> 'termMonths')::numeric)::int, 12);
+    signed := coalesce(new.signed_at, now());
     insert into public.clients (name, business, phone, package_name, shoot_type, deal_at, contract_end, quote_id, deliverables)
     values (
       coalesce(nullif(btrim(m -> 'client' ->> 'name'), ''), new.client_name),
       nullif(btrim(m -> 'client' ->> 'company'), ''),
       nullif(btrim(m -> 'client' ->> 'phone'), ''),
       concat_ws(' · ', m -> 'package' ->> 'tierName', m -> 'package' ->> 'influencer'),
-      case influencer when 'natali' then 'natali' when 'simeon' then 'dms' end,
+      case m -> 'selection' ->> 'influencer' when 'natali' then 'natali' when 'simeon' then 'dms' end,
       signed,
       ((signed at time zone 'Asia/Jerusalem')::date + make_interval(months => months))::date,
       new.id,

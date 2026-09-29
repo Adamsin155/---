@@ -53,7 +53,7 @@ test('sequence rules: send only after the review, calendar only with shoot detai
   const allReviewed = Object.fromEntries(p7sent.requires.map((k) => [k, { state: 'done', at: '2026-10-01T10:00:00+03:00' }]));
   assert.equal(blockers(p7sent, {}, allReviewed), null);
   const naReview = { ...allReviewed, 'p07.r.logo': { state: 'na', at: '2026-10-01T10:00:00+03:00' } };
-  assert.deepEqual(blockers(p7sent, {}, naReview).items, ['p07.r.logo']); // not relevant is not a review
+  assert.equal(blockers(p7sent, {}, naReview), null); // a review item that does not apply does not hold sending
   const p26sent = PROCESSES.find((p) => p.id === 'p26').items.find((i) => i.key === 'p26.sent');
   assert.deepEqual(blockers(p26sent, {}, {}).items, ['p25.approved']);
   const cal = PROCESSES.find((p) => p.id === 'p11').items.find((i) => i.key === 'p11.calendar');
@@ -314,4 +314,50 @@ test('holidays: Yom Kippur and Pesach are not business days', () => {
   assert.equal(addBusinessDays(at('2026-09-17T10:00:00+03:00'), 3).toDateString(), at('2026-09-23T12:00:00+03:00').toDateString());
   // A deal on erev Pesach 2027 evening is due after the holiday.
   assert.equal(addWorkingMinutes(at('2027-04-21T19:00:00+03:00'), 5).toISOString(), at('2027-04-25T09:05:00+03:00').toISOString());
+});
+
+test('bulk marking never marks a confirmation by the client or others', async () => {
+  const { bulkEligible } = await import('../app/protocol-logic.js');
+  const c = { ...base, id: 'c', char_at: '2026-10-01T08:00:00+03:00' };
+  const now = at('2026-10-01T12:00:00+03:00');
+  const s = clientState(c, {}, now);
+  const p7 = s.states.find((x) => x.proc.id === 'p07');
+  const keys = bulkEligible(p7, 'irit', c, {}, now).map((i) => i.key);
+  assert.ok(keys.includes('p07.r.logo'));
+  assert.ok(!keys.includes('p07.approved') && !keys.includes('p07.sent'));
+  const p13 = s.states.find((x) => x.proc.id === 'p13');
+  assert.ok(!bulkEligible(p13, 'shirel', c, {}, now).some((i) => i.key === 'p13.approved'));
+});
+
+test('process 6 starts when access arrives, not when all brand materials are in', () => {
+  const c = { ...base };
+  const checks = { 'p05.access': { state: 'done', at: '2026-10-20T11:00:00+03:00' } };
+  const s = clientState(c, checks, at('2026-10-27T10:00:00+02:00'));
+  const p6 = s.states.find((x) => x.proc.id === 'p06');
+  assert.equal(p6.dueAt.toISOString(), at('2026-10-20T11:30:00+03:00').toISOString());
+  assert.equal(p6.status, 'overdue');
+});
+
+test('a not-relevant review item unblocks sending; a not-relevant approval does not', () => {
+  const allNa = Object.fromEntries(['spelling', 'phone', 'address', 'logo', 'details', 'wording', 'design'].map((k) => [`p07.r.${k}`, { state: 'na', at: '2026-10-01T10:00:00+03:00' }]));
+  const sent = PROCESSES.find((p) => p.id === 'p07').items.find((i) => i.key === 'p07.sent');
+  assert.equal(blockers(sent, {}, allNa), null);
+  const p26 = PROCESSES.find((p) => p.id === 'p26').items.find((i) => i.key === 'p26.sent');
+  assert.deepEqual(blockers(p26, {}, { 'p25.approved': { state: 'na', at: '2026-10-01T10:00:00+03:00' } }).items, ['p25.approved']);
+});
+
+test('package quantities include add-ons', async () => {
+  const { packageDeliverables } = await import('../app/protocol-logic.js');
+  const d = packageDeliverables({ package: { id: 'social-tv-simeon' }, selection: { paid: ['simeon-day', 'photographer'], free: { graphics: 5, simeonStories: 2, extraCh14: true } } });
+  assert.deepEqual(d, { videos: 42, graphics: 47, shoot_days: 3, collabs: 3, stories: 5, ch14: 2, monthly: 96 });
+  const n = packageDeliverables({ package: { id: 'social-natali' }, selection: { paid: ['natali-reel', 'natali-story'], free: {} } });
+  assert.equal(n.collabs, 1);
+  assert.equal(n.stories, 1);
+});
+
+test('renewal deadline never falls on a day off', () => {
+  const c = { ...base, contract_end: '2027-09-29' };
+  const procs = applicableProcesses(c);
+  const d = resolveTime(procs.find((p) => p.id === 'p34').due, c, procs, {});
+  assert.ok(d.getDay() !== 5 && d.getDay() !== 6, d.toString());
 });

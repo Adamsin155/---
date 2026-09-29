@@ -29,6 +29,8 @@ export function errorText(err) {
   const msg = String(err?.message || err || '');
   if (/violates row-level security|permission denied/i.test(msg)) return 'אין הרשאה לפעולה. יש להתחבר מחדש עם משתמש צוות.';
   if (/relation .* does not exist|Could not find the table/i.test(msg)) return 'טבלאות הלקוחות עוד לא הוקמו במסד הנתונים.';
+  if (/clients_quote_id_key/i.test(msg)) return 'מההסכם הזה כבר נפתח לקוח. הוא מופיע ברשימת הלקוחות.';
+  if (/round numbers must be unique/i.test(msg)) return 'יש כבר סבב צילום עם המספר הזה. רעננו את הדף ונסו שוב.';
   return explainError(err);
 }
 

@@ -1,7 +1,8 @@
 // Pure protocol logic: which processes apply to a client, who owns them,
 // due dates and progress. Shared by the browser and the unit tests.
 // Times are computed in the viewer's local time zone (the office is in Israel).
-import { PHASES, PROCESSES, WORK_HOURS, NO_BULK } from './protocol.js';
+import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS } from './protocol.js';
+import { SPECS, TERM_MONTHS } from './catalog.js';
 import { HOLIDAYS } from './holidays.js';
 
 const DAY = 864e5;
@@ -38,7 +39,7 @@ export function addWorkingMinutes(date, minutes) {
   return d;
 }
 // Anchors that are office events run on office time; a meeting or a shoot runs on the real clock.
-const onOfficeClock = (from) => from === 'deal' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from);
+const onOfficeClock = (from) => from === 'deal' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
 
 const endOfDay = (d) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; };
 const sameDay = (a, b) => a.toDateString() === b.toDateString();
@@ -153,6 +154,11 @@ function anchor(from, client, procs, checks, now) {
     case 'shoot': return parseDate(client.shoot_at);
     case 'contractEnd': return parseDate(client.contract_end);
     default: {
+      // `item:p05.access`: when that one item was done (process 6 starts when access arrives).
+      if (from.startsWith('item:')) {
+        const c = checks[from.slice(5)];
+        return c && c.state === 'done' ? new Date(c.at) : null;
+      }
       const p = procs.find((x) => x.id === from);
       return p ? completedAt(p, checks, now) : null;
     }
@@ -182,6 +188,8 @@ export function resolveTime(spec, client, procs, checks, now = new Date()) {
   if (spec.minutes) d = new Date(d.getTime() + spec.minutes * 6e4);
   // A bare contract-end date is due by the end of that day.
   if (spec.from === 'contractEnd' && spec.days === undefined) d = endOfDay(d);
+  // Counted back from the contract end, a deadline on a day off moves to the business day before.
+  if (spec.from === 'contractEnd' && spec.days < 0) while (!isBusinessDay(d)) d.setDate(d.getDate() - 1);
   return d;
 }
 
@@ -193,7 +201,11 @@ export function missingFields(entry, client) {
 
 // Why an item cannot be checked yet: unfinished prerequisite items or missing client details.
 export function blockers(item, client, checks) {
-  const items = (item.requires || []).filter((k) => checks[k]?.state !== 'done');
+  // "Not relevant" satisfies a prerequisite, except an approval, which must really be given.
+  const items = (item.requires || []).filter((k) => {
+    const st = checks[k]?.state;
+    return !(st === 'done' || (st === 'na' && !APPROVALS.has(k.replace(/^r\d+\./, ''))));
+  });
   const fields = (item.requiresFields || []).filter((f) => blank(client[f]));
   return items.length || fields.length ? { items, fields } : null;
 }
@@ -216,10 +228,14 @@ export function parseWaitNote(note) {
   } catch { /* plain text */ }
   return { reason: note || '', recheck: null };
 }
-export const waitNote = (reason, recheck) => JSON.stringify({ reason, recheck: recheck || null });
+export const waitNote = (reason, recheck, since = null) => JSON.stringify({ reason, recheck: recheck || null, ...(since ? { since } : {}) });
+// `since` keeps the start of the wait when its reason or date is edited later.
 export function waitOf(proc, checks) {
   const c = checks[WAIT(proc)];
-  return c && c.state === 'done' ? { ...parseWaitNote(c.note), at: c.at, by_email: c.by_email } : null;
+  if (!c || c.state !== 'done') return null;
+  let since = null;
+  try { since = JSON.parse(c.note)?.since || null; } catch { /* plain text */ }
+  return { ...parseWaitNote(c.note), at: since || c.at, by_email: c.by_email };
 }
 
 // Items `person` may close together with "mark the whole process": open,
@@ -228,7 +244,7 @@ export function bulkEligible(state, person, client, checks, now = new Date()) {
   const p = state.proc;
   if (!person || p.recurring || NO_BULK.has(p.id.replace(/^r\d+-/, '')) || state.complete) return [];
   if (state.claim && state.claim.person !== person) return [];
-  return p.items.filter((i) => !i.optional && i.owners.includes(person)
+  return p.items.filter((i) => !i.optional && !i.noBulk && i.owners.includes(person)
     && !isResolved(i, checks[i.key], now) && !blockers(i, p.ctx || client, checks));
 }
 
@@ -374,5 +390,24 @@ export function performanceReport(clients, checksByClient, { days = 30, now = ne
     since,
     processes: [...byProc.values()].map(finish),
     people: [...byPerson.values()].map(finish),
+  };
+}
+
+// Package quantities from a signed agreement's model. Mirrors
+// public.package_deliverables() in the batch-2 migration.
+export function packageDeliverables(model) {
+  const sel = model?.selection;
+  const spec = SPECS[model?.package?.id];
+  if (!sel || !spec) return {};
+  const paid = sel.paid || [];
+  const free = sel.free || {};
+  return {
+    videos: spec.videos,
+    graphics: spec.graphics + (free.graphics || 0),
+    shoot_days: spec.shootDays + (paid.includes('simeon-day') ? 1 : 0),
+    collabs: spec.collabs + (paid.includes('natali-reel') ? 1 : 0),
+    stories: spec.stories + (free.simeonStories || 0) + (paid.includes('natali-story') ? 1 : 0),
+    ch14: spec.ch14 + (free.extraCh14 ? 1 : 0),
+    monthly: paid.includes('photographer') ? 8 * TERM_MONTHS : 0,
   };
 }

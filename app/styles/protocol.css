@@ -461,6 +461,10 @@ dialog.dlg-wide .dlg-foot { border-top: 1px solid var(--line); padding-top: 14px
   .rv-topics summary, .rv-narrow summary, .perf-proc summary, .call-show > summary, .call-prev > summary { min-height: 44px; }
   .pr-app .btn-text { min-width: 44px; }
   dialog .close { width: 44px; height: 44px; }
+  .back, .cc-facts dd a, .hlist a, .stuck a, .rv-row a, .wproc-h a, .copy-btn, .wait-line .btn-text, .claim .btn-text {
+    display: inline-flex; align-items: center; min-height: 44px;
+  }
+  .auto-acts .btn-text, .cal-menu .btn { inline-size: 100%; justify-content: center; }
   dialog.dlg-wide { height: 100dvh; max-height: 100dvh; border: 0; }
   dialog.dlg-wide .dlg-foot { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 }

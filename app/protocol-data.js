@@ -69,6 +69,15 @@ export async function clearCheck(clientId, key) {
   if (error) throw error;
 }
 
+// Weekly calls with their summaries, independent of how busy the history is.
+export async function loadCalls(clientId, limit = 20) {
+  const { data, error } = await supabase.from('protocol_log')
+    .select('id, item_key, action, note, by_email, at').eq('client_id', clientId).eq('action', 'done')
+    .like('item_key', '%p31.call').order('at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data;
+}
+
 export async function loadLog(clientId, limit = 60) {
   const { data, error } = await supabase.from('protocol_log')
     .select('id, item_key, action, note, by_email, at').eq('client_id', clientId)
@@ -154,9 +163,11 @@ export async function loadReviews(sinceDay) {
   return data;
 }
 
-export async function markReview(day, kind, note = null) {
+// Marking never sends a note, so it cannot wipe notes written from another screen.
+export async function markReview(day, kind, note) {
+  const row = note === undefined || note === null ? { day, kind } : { day, kind, note };
   const { data, error } = await supabase.from('office_reviews')
-    .upsert({ day, kind, note }, { onConflict: 'day,kind' }).select('day, kind, note, by_email, at, note_by, note_at').single();
+    .upsert(row, { onConflict: 'day,kind' }).select('day, kind, note, by_email, at, note_by, note_at').single();
   if (error) throw error;
   return data;
 }

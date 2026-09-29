@@ -10,7 +10,7 @@ import {
 } from './protocol-logic.js';
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
-  addTask, setTaskDone, updateClient, myPerson, loadDirectory, loadQuoteSummary,
+  addTask, setTaskDone, updateClient, myPerson, loadDirectory, loadQuoteSummary, loadCalls,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
@@ -24,6 +24,8 @@ let client = null;
 let checks = {};
 let tasks = [];
 let log = [];
+let calls = [];               // weekly-call log rows, newest first
+const shownProcs = new Set(); // completed processes whose items the user opened
 let quote = null;            // the signed agreement the client was opened from
 let myEmail = '';
 let me = null;               // this user's person key
@@ -136,12 +138,22 @@ function calendarMenu(kind, n = 1) {
         onclick: () => {
           downloadIcs(kind === 'char' ? `אפיון-${client.name}` : `יום-צילום-${client.name}`, ev());
           if (kind !== 'shoot') return;
-          const mine = me && PEOPLE.irit && me === 'irit' && !checks[p11];
+          const owners = clientState(client, checks).states.flatMap((x) => x.proc.items).find((it) => it.key === p11)?.owners || [];
+          const mine = me && owners.includes(me) && !checks[p11];
           toast('קובץ היומן ירד. אחרי ששלחתם אותו לכולם, סמנו ״יום הצילום הוכנס ליומן של כולם״.',
             mine ? { label: 'סימון כבוצע', run: () => mark(p11, 'done', null) } : null);
         },
       }, 'קובץ יומן (‎.ics)')));
 }
+
+// Escape closes an open calendar menu and returns focus to its button.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const open = document.activeElement?.closest('details.cal[open]') || document.querySelector('details.cal[open]');
+  if (!open) return;
+  open.open = false;
+  open.querySelector('summary').focus();
+});
 
 // ── Header ──────────────────────────────────
 function fact(k, v, extra = null) {
@@ -412,9 +424,9 @@ function waitLine(x) {
 }
 
 async function endWait(x) {
-  const prev = checks[WAIT(x.proc)];
+  const w = x.wait;
   const ok = await mark(WAIT(x.proc), null, null);
-  if (ok) toast('ההמתנה הסתיימה. התהליך חוזר לחישוב הרגיל.', { label: 'ביטול', run: () => mark(WAIT(x.proc), 'done', null, prev?.note) });
+  if (ok) toast('ההמתנה הסתיימה. התהליך חוזר לחישוב הרגיל.', { label: 'ביטול', run: () => mark(WAIT(x.proc), 'done', null, waitNote(w.reason, w.recheck, w.at)) });
 }
 
 function bulkButton(x) {
@@ -448,9 +460,12 @@ async function markBulk(x, items) {
   }
   for (const k of keys) pending.delete(k);
   render();
-  // Focus: the first item still open in this process, else the process heading.
+  // Focus: the first item still open in this process; else the next open process in the phase; else the phase.
   const left = document.querySelector(`#${CSS.escape(x.proc.id)} .cbx:not(:checked):not(:disabled)`);
-  (left || document.getElementById(`${x.proc.id}-h`))?.focus?.();
+  const phaseEl = document.getElementById(x.proc.id)?.closest('details.phase')
+    || [...document.querySelectorAll('details.phase')].find((d) => d.querySelector('.done-row'));
+  const nextProc = phaseEl?.querySelector('.proc:not(.s-done) h3');
+  (left || nextProc || phaseEl?.querySelector('summary'))?.focus?.();
   loadHistory();
   const stillOpen = x.proc.items.filter((i) => !i.optional && !checks[i.key]).map((i) => `״${i.label}״`);
   const where = `בתהליך ${x.proc.num} · ${x.proc.title}`;
@@ -478,7 +493,7 @@ function procCard(x, now) {
   const ctx = p.ctx || client;
   const missing = missingFields(p, ctx);
   const guidance = p.guidance ? (ctx.shoot_type ? [p.guidance[ctx.shoot_type]] : Object.values(p.guidance)) : [];
-  const compact = x.complete && !printing;
+  const compact = x.complete && !printing && !shownProcs.has(p.id);
   const link = PROC_LINK[pid] && client.links?.[PROC_LINK[pid]];
   const linkDef = LINKS.find((l) => l.key === PROC_LINK[pid]);
   const pkgQty = pid === 'p22' ? client.deliverables?.videos : pid === 'p23' ? client.deliverables?.graphics : null;
@@ -497,6 +512,10 @@ function procCard(x, now) {
       h('div', { class: 'proc-status' },
         statusBadge(x.status, x.dueAt, now),
         p.recurring || compact ? null : h('span', { class: 'num muted', dir: 'ltr' }, `${x.resolved}/${x.required}`),
+        x.complete && !printing ? h('button', {
+          type: 'button', class: 'btn-text', 'aria-expanded': String(!compact), id: `${p.id}-items`,
+          onclick: () => { if (compact) shownProcs.add(p.id); else shownProcs.delete(p.id); renderKeepingFocus(`${p.id}-items`); },
+        }, compact ? 'הצגת הפריטים' : 'הסתרת הפריטים') : null,
         canWait && !x.wait ? h('button', { type: 'button', class: 'btn-text wait-btn', onclick: () => openWait(x) }, 'ממתין ללקוח') : null)),
     compact ? null : [
       waitLine(x),
@@ -582,6 +601,7 @@ async function mark(key, state, focusId, note = null) {
     if (state) checks[key] = await setCheck(id, key, state, note);
     else await clearCheck(id, key);
     pending.delete(key);
+    await endWaitIfComplete(key);
     renderKeepingFocus(focusId);
     loadHistory();
     return true;
@@ -592,6 +612,16 @@ async function mark(key, state, focusId, note = null) {
     toast(`הסימון לא נשמר ולכן בוטל. ${errorText(err)}`);
     return false;
   }
+}
+
+// A process that is complete no longer waits on the client: the wait mark is removed (and logged).
+async function endWaitIfComplete(key) {
+  if (/\.(claim|wait)$/.test(key)) return;
+  const st = clientState(client, checks).states.find((x) => x.proc.items.some((i) => i.key === key));
+  if (!st?.complete) return;
+  const wk = WAIT(st.proc);
+  if (!checks[wk]) return;
+  try { await clearCheck(id, wk); delete checks[wk]; } catch { /* the wait stays; harmless */ }
 }
 
 async function saveClient(fields, done) {
@@ -663,11 +693,12 @@ $('wait-form').addEventListener('submit', async (e) => {
   $('wait-submit').disabled = true;
   const key = WAIT(waitTarget.proc);
   const hadWait = !!checks[key];
-  const ok = await mark(key, 'done', null, waitNote(reason, $('wait-recheck').value || null));
+  const ok = await mark(key, 'done', null, waitNote(reason, $('wait-recheck').value || null, waitTarget.wait?.at || null));
   $('wait-submit').disabled = false;
   if (!ok) return;
   waitDlg.close();
   const x = waitTarget;
+  document.querySelector(`#${CSS.escape(x.proc.id)}-wait button:last-child`)?.focus();
   toast(`תהליך ${x.proc.num} סומן כממתין ללקוח.`, hadWait ? null : { label: 'ביטול', run: () => mark(key, null, null) });
 });
 
@@ -684,7 +715,7 @@ function callSummary(v) {
   if (v.text) return h('dl', { class: 'call-sum' }, h('dt', {}, 'סיכום'), h('dd', {}, v.text));
   return h('dl', { class: 'call-sum' }, ...CALL_TOPICS.filter(([k]) => v.topics[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, v.topics[k])]));
 }
-const pastCalls = (key) => log.filter((r) => r.item_key === key && r.action === 'done').map((r) => ({ ...r, v: callNote(r) }));
+const pastCalls = (key) => calls.filter((r) => r.item_key === key).map((r) => ({ ...r, v: callNote(r) }));
 function callTasks(call) {
   if (!call) return [];
   const t0 = new Date(call.at).getTime();
@@ -740,9 +771,16 @@ function updateCallSubmit() {
 }
 $('call-add-task').addEventListener('click', () => addCallTask());
 let callSavedFor = null; // a call already saved while some of its tasks failed
+let callTaskOwners = [];  // tasks saved for this call so far, across attempts
+const tasksPhrase = (owners) => (owners.length === 1 ? `ונפתחה משימה אחת (${owners[0]})` : `ונפתחו ${owners.length} משימות (${owners.join(', ')})`);
+// Closing with tasks that failed to save loses them: ask first.
+callDlg.addEventListener('cancel', (e) => {
+  if (callSavedFor && callTaskRows().length && !confirm('יש משימות שלא נשמרו. לסגור בכל זאת? הן לא יישמרו.')) e.preventDefault();
+});
 function openCall(key) {
   callKey = key;
   callSavedFor = null;
+  callTaskOwners = [];
   $('call-form').reset();
   $('call-err').hidden = true;
   $('call-h').textContent = `תיעוד שיחה שבועית · ${client.name}`;
@@ -783,7 +821,7 @@ $('call-form').addEventListener('submit', async (e) => {
   if (!callSavedFor) {
     const at = $('call-at').value ? new Date($('call-at').value).toISOString() : new Date().toISOString();
     const ok = await mark(callKey, 'done', null, JSON.stringify({ v: 1, at, topics }));
-    if (!ok) { showErr('call-err', 'השיחה לא נשמרה. הטקסט נשאר כאן.'); $('call-submit').disabled = false; return; }
+    if (!ok) { showErr('call-err', 'השיחה לא נשמרה. הטקסט נשאר כאן. בדקו את החיבור ונסו שוב.'); $('call-submit').disabled = false; return; }
     callSavedFor = callKey;
   }
   const failed = [];
@@ -791,6 +829,7 @@ $('call-form').addEventListener('submit', async (e) => {
     try {
       const t = await addTask({ client_id: id, title: r.title, owner: r.owner, due_on: r.due, source: 'p31' });
       tasks = [t, ...tasks];
+      callTaskOwners.push(PEOPLE[r.owner].name);
       r.row.remove();
     } catch { failed.push(r); }
   }
@@ -803,9 +842,9 @@ $('call-form').addEventListener('submit', async (e) => {
     updateCallSubmit();
     return;
   }
+  callSavedFor = null;
   callDlg.close();
-  const owners = rows.map((r) => PEOPLE[r.owner].name);
-  toast(rows.length ? `השיחה תועדה, ונפתחו ${rows.length} משימות (${owners.join(', ')}).` : 'השיחה תועדה.');
+  toast(callTaskOwners.length ? `השיחה תועדה, ${tasksPhrase(callTaskOwners)}.` : 'השיחה תועדה.');
 });
 
 // Cancelling a client opened from an agreement: closed with a reason, never deleted.
@@ -826,14 +865,15 @@ $('cancel-form').addEventListener('submit', async (e) => {
   if (ok) cancelDlg.close();
 });
 
-// Extra shoot rounds.
+// Extra shoot rounds. Numbers are never reused: a round's items are keyed by its number.
+const nextRoundNumber = () => Math.max(1, ...roundsOf(client).map((r) => r.n)) + 1;
 const roundDlg = dialog('dlg-round');
 let roundEditing = null;
 function openRound(n = null) {
   roundEditing = n;
   const rounds = roundsOf(client);
   const r = n ? rounds.find((x) => x.n === n) : null;
-  const nextN = n || rounds.length + 2;
+  const nextN = n || nextRoundNumber();
   const total = client.deliverables?.shoot_days;
   $('round-form').reset();
   $('round-err').hidden = true;
@@ -861,12 +901,12 @@ $('round-form').addEventListener('submit', async (e) => {
   const at = $('round-at').value ? new Date($('round-at').value).toISOString() : null;
   const next = roundEditing
     ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at } : r))
-    : [...rounds, { n: rounds.length + 2, shoot_type: $('round-type').value, shoot_at: at, start_at: new Date().toISOString() }];
+    : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, start_at: new Date().toISOString() }];
   $('round-submit').disabled = true;
   try {
     client = await updateClient(id, { rounds: next });
     roundDlg.close();
-    const n = roundEditing || rounds.length + 2;
+    const n = roundEditing || next.at(-1).n;
     openPhases.add(`round-${n}`);
     render();
     if (!roundEditing) {
@@ -957,7 +997,7 @@ function historyText(r) {
   return null;
 }
 async function loadHistory() {
-  try { log = await loadLog(id); } catch { return; }
+  try { [log, calls] = await Promise.all([loadLog(id), loadCalls(id)]); } catch { return; }
   fill($('hist-list'), ...(log.length ? log.map((r) => {
     const special = historyText(r);
     const ref = ITEM_INDEX.get(baseKey(r.item_key));
@@ -1012,7 +1052,7 @@ function openEdit(focusId = 'ed-name') {
 }
 
 // Links only: a password, token or code in the address is refused.
-const SECRET = /[?&#](password|pass|pwd|token|secret|code)=/i;
+const SECRET = /\/\/[^/?#@\s]+:[^/?#@\s]*@|[?&#;]([a-z_]*(password|passwd|pass|pwd|token|secret|apikey|api_key|key|auth|sig|signature)|code)=/i;
 function readLinks() {
   const out = {};
   for (const l of LINKS) {
@@ -1074,7 +1114,8 @@ window.addEventListener('beforeprint', () => { if (client) { printing = true; re
 window.addEventListener('afterprint', () => { if (client) { printing = false; render(); } });
 
 // No refresh while something is being saved or typed in a dialog.
-const busy = () => pending.size || Object.keys(saveTimers).length || dialogs.some((d) => d.open);
+const busy = () => pending.size || Object.keys(saveTimers).length || dialogs.some((d) => d.open)
+  || !!document.querySelector('#app details:not(.phase)[open]');
 document.addEventListener('visibilitychange', () => { if (!document.hidden && client && !busy()) load(); });
 setInterval(() => { if (!document.hidden && client && !busy()) renderKeepingFocus(); }, 60e3);
 

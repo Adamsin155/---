@@ -267,7 +267,7 @@ async function bulkMark(g, bulk, btn) {
   btn.disabled = true;
   let rows;
   try {
-    rows = await setChecksBulk(c.id, keys, 'done');
+    rows = await setChecksBulk(c.id, keys, 'done', 'בסימון כל התהליך');
   } catch (err) {
     btn.disabled = false;
     toast(`הסימון לא נשמר ולכן בוטל. אף פריט לא סומן. ${errorText(err)}`);
@@ -737,7 +737,7 @@ async function doMarkReview(r, input) {
   if (input) input.disabled = true;
   const day = dayIso(new Date());
   try {
-    const row = await markReview(day, reviewKind(r), null);
+    const row = await markReview(day, reviewKind(r));
     reviews = [row, ...(reviews || []).filter((x) => !(x.day === row.day && x.kind === row.kind))];
   } catch (err) {
     if (input) { input.checked = false; input.disabled = false; }
@@ -1182,7 +1182,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && !$
 function tick() {
   if ($('app').hidden) return;
   states.clear();
-  if (document.hidden && notifyState() === 'on' && Date.now() - lastLoad > 5 * 60e3) { load(); return; }
+  // Fresh data every 5 minutes: a screen left open all day shows other people's checks.
+  if (Date.now() - lastLoad > 5 * 60e3 && (document.hidden ? notifyState() === 'on' : !busy())) { load(); return; }
   checkLate();
   if (!document.hidden && !busy()) renderKeepingFocus();
 }

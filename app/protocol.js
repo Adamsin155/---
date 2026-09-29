@@ -55,7 +55,11 @@ export const DELIVERABLES = [
   { key: 'collabs', label: 'קולאבים', one: 'קולאב' },
   { key: 'stories', label: 'סטורי אצל המשפיענים', one: 'סטורי' },
   { key: 'ch14', label: 'אייטם בערוץ 14', one: 'אייטם' },
+  { key: 'monthly', label: 'תכנים מהצלם החודשי', one: 'תוכן' },
 ];
+
+// Approvals that "not relevant" never replaces: what depends on them waits for a real approval.
+export const APPROVALS = new Set(['p25.approved', 'p13.approved', 'p27.approved', 'p07.approved']);
 
 // The two daily reviews (processes 32 and 33) and what each one goes over.
 export const REVIEW_TOPICS = {
@@ -86,6 +90,7 @@ const isDms = (c) => c.shoot_type === 'dms';
 //   prevBusinessDay: the business day before the anchor ("the day before the shoot").
 // `sla` is the protocol's own wording and is always shown.
 // `round: true`: the process repeats for every extra shoot round (a second shoot day).
+// Item `noBulk`: a confirmation by the client or someone outside the office; never marked in bulk.
 // Item `requires`: keys that must be done first ("only after Ofir approves").
 // A process with several owners can be claimed by one of them (key `pNN.claim`).
 
@@ -180,7 +185,7 @@ export const PROCESSES = [
   {
     id: 'p06', num: '6', phase: 'onboarding', title: 'בדיקת הגישות וסידור הרשתות', owners: ['ilai', 'shirel'],
     sla: 'עד 30 דקות מרגע קבלת הגישות',
-    start: { from: 'p05' }, due: { from: 'p05', minutes: 30 },
+    start: { from: 'item:p05.access' }, due: { from: 'item:p05.access', minutes: 30 },
     what: 'בודקים שכל שם משתמש וסיסמה עובדים. גישה לא תקינה: מתקשרים ללקוח ומאפסים או משחזרים איתו. אין עמודים: פותחים עמודים חדשים באותו חלון זמן.',
     items: [
       { key: 'p06.verified', label: 'כל שמות המשתמש והסיסמאות נבדקו ועובדים' },
@@ -206,7 +211,7 @@ export const PROCESSES = [
         .map(([k, l]) => ({ key: `p07.r.${k}`, label: `נבדק: ${l}`, owners: ['irit', 'lior'] })),
       { key: 'p07.sent', label: 'נשלחו ללקוח לאישור', owners: ['irit', 'lior'], requires: ['p07.r.spelling', 'p07.r.phone', 'p07.r.address', 'p07.r.logo', 'p07.r.details', 'p07.r.wording', 'p07.r.design'] },
       { key: 'p07.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
-      { key: 'p07.approved', label: 'הלקוח אישר את הגרפיקות', owners: ['irit', 'lior'] },
+      { key: 'p07.approved', label: 'הלקוח אישר את הגרפיקות', owners: ['irit', 'lior'], requires: ['p07.sent'], noBulk: true },
     ],
   },
   {
@@ -248,11 +253,11 @@ export const PROCESSES = [
     needs: ['shoot_type', 'shoot_at'],
     items: [
       { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו' },
-      { key: 'p11.ok.client', label: 'הלקוח אישר את המועד' },
-      { key: 'p11.ok.influencers', label: 'המשפיענים אישרו' },
-      { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר' },
-      { key: 'p11.ok.shirel', label: 'שיראל (כותבת התוכן) אישרה' },
-      { key: 'p11.ok.photographer', label: 'הצלם אישר' },
+      { key: 'p11.ok.client', label: 'הלקוח אישר את המועד', noBulk: true },
+      { key: 'p11.ok.influencers', label: 'המשפיענים אישרו', noBulk: true },
+      { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר', noBulk: true },
+      { key: 'p11.ok.shirel', label: 'שיראל (כותבת התוכן) אישרה', noBulk: true },
+      { key: 'p11.ok.photographer', label: 'הצלם אישר', noBulk: true },
       { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'] },
     ],
   },
@@ -291,7 +296,7 @@ export const PROCESSES = [
     what: 'שיחת Zoom מוקלטת עם הלקוח על התוכן, עם שינויים והבהרות עד שהלקוח מאשר. תיקונים שנשארו: שיראל, עד יום עסקים אחד.',
     items: [
       { key: 'p13.zoom', label: 'התקיימה שיחת Zoom מוקלטת' },
-      { key: 'p13.approved', label: 'הלקוח אישר את התסריטים' },
+      { key: 'p13.approved', label: 'הלקוח אישר את התסריטים', requires: ['p13.zoom'], noBulk: true },
       { key: 'p13.fixes', label: 'תיקונים שנשארו אחרי השיחה בוצעו (עד יום עסקים אחד)', optional: true },
     ],
   },
@@ -457,7 +462,7 @@ export const PROCESSES = [
     start: { from: 'p26' }, due: { from: 'p26', businessDays: 1 },
     items: [
       { key: 'p27.fixes', label: 'בוצע סבב תיקונים אחד לפי ההערות שאושרו מול הלקוח', optional: true },
-      { key: 'p27.approved', label: 'הלקוח אישר את הסרטונים', owners: ['irit'] },
+      { key: 'p27.approved', label: 'הלקוח אישר את הסרטונים', owners: ['irit'], requires: ['p26.sent'], noBulk: true },
     ],
   },
   {
