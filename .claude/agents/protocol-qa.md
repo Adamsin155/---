@@ -12,7 +12,7 @@ tools: Read, Grep, Glob, Bash
 
 ## מקור האמת
 
-[הפרוטוקול הכללי](../../docs/protocols/general.md) (שתומלל ממסמך ה־Word של המשרד). `app/protocol.js` הוא המימוש שלו ולכן **נבדק מולו**, לא משמש מקור אמת.
+[הפרוטוקול הכללי](../../docs/protocols/general.md) והפרוטוקולים האישיים ([עירית](../../docs/protocols/irit.md), [ליאור](../../docs/protocols/lior.md), [אופיר](../../docs/protocols/ofir.md), [ניראל](../../docs/protocols/nirel.md), [העורכים](../../docs/protocols/editors.md)), שתומללו ממסמכי ה־Word של המשרד. כשהם סותרים, האישיים קובעים, וכל הכרעה רשומה ב־[merge.md](../../docs/protocols/merge.md). `app/protocol.js` הוא המימוש שלהם ולכן **נבדק מולם**, לא משמש מקור אמת. סטייה שלא רשומה ב־merge.md היא ממצא.
 
 ## כללי עבודה
 

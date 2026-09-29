@@ -472,3 +472,54 @@ dialog.dlg-wide .dlg-foot { border-top: 1px solid var(--line); padding-top: 14px
   :root { --warn: #8A5A00; }
   .wait-line .btn-text, .cc-links .btn-text, .deliv-row > .btn, .round-head .btn-text, .round-head details.cal, .wait-btn, .cc-facts details.cal { display: none !important; }
 }
+
+/* ── Protocol v2: employee protocols ───────── */
+:root { --p-nirel: #FFB38A; --p-nadia: #9FE3A5; --p-yariv: #F7D774; --p-anna: #B8C7FF; }
+.p-nirel { --pc: var(--p-nirel); } .p-nadia { --pc: var(--p-nadia); } .p-yariv { --pc: var(--p-yariv); } .p-anna { --pc: var(--p-anna); }
+
+/* Access vault */
+.access-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.access-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.access-list .empty { padding: 12px 0; color: var(--muted); font-size: 13.5px; }
+.access-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2);
+}
+.access-row.a-broken, .access-row.a-missing { border-inline-start: 3px solid var(--warn); }
+.access-main { flex: 1 1 200px; min-width: 0; }
+.access-main .imeta { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-top: 4px; font-size: 13px; color: var(--text-2); }
+.access-main .num[dir="ltr"] { overflow-wrap: anywhere; }
+.access-acts { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; }
+.secret { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.secret:not(:empty) { margin-top: 8px; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
+.secret .num { font-size: 15px; letter-spacing: .02em; overflow-wrap: anywhere; user-select: all; }
+.secret .hint { margin: 0; flex-basis: 100%; }
+.access-log { margin-top: 12px; }
+.access-log > summary { cursor: pointer; color: var(--accent); font-size: 13px; min-height: 32px; display: flex; align-items: center; }
+.access-log .hlist { margin-top: 6px; max-height: 260px; }
+
+/* Ofir's weekly summary */
+.status-note { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--panel-2); border-inline-start: 3px solid var(--p-ofir); }
+.status-note .call-sum { margin-bottom: 0; }
+
+/* Tasks: urgent and briefs */
+.tag.tag-urgent { color: var(--late); background: var(--late-soft); border: 1px solid color-mix(in srgb, var(--late) 55%, transparent); font-weight: 600; }
+.task-form .span-all { flex: 1 1 100%; }
+.task-brief > summary { cursor: pointer; color: var(--accent); font-size: 13.5px; min-height: 36px; display: flex; align-items: center; }
+.task-brief[open] > summary { margin-bottom: 4px; }
+.brief-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 8px; }
+.brief-grid textarea { min-height: 44px; resize: vertical; }
+.task-brief-show { margin-top: 4px; }
+
+/* Editing paused for another task */
+.pause-line { background: rgba(111, 183, 255, 0.08); border-inline-start-color: var(--p-lior); }
+
+@media (max-width: 760px) {
+  .brief-grid { grid-template-columns: 1fr; }
+  .access-acts { inline-size: 100%; }
+  .access-acts .btn-sm, .access-log > summary, .task-brief > summary { min-height: 44px; }
+}
+@media print {
+  /* Never print client passwords or the vault. */
+  #access, .secret, .task-brief { display: none !important; }
+}

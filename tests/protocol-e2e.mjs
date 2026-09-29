@@ -22,7 +22,11 @@ const db = {
   protocol_checks: [],
   protocol_log: [],
   client_tasks: [],
+  client_access: [],
+  client_access_log: [],
+  client_status_notes: [],
 };
+const secrets = new Map();
 let failNextCheck = false;
 
 // Seed: one client mid-way, one just signed.
@@ -73,6 +77,30 @@ async function fakeSupabase(route) {
   const authed = (headers.authorization || '').includes(JWT);
   if (p === '/rest/v1/rpc/is_staff') return json(200, authed);
   if (p === '/rest/v1/rpc/set_my_person') { db.staff[0].person = body.p_person; return json(200, null); }
+  // Access vault: the password never sits on the row, only in the secret store.
+  const vaultOk = authed && !['nadia', 'yariv', 'anna'].includes(db.staff[0].person);
+  const logAccess = (a, action) => db.client_access_log.push({ id: db.client_access_log.length + 1, access_id: a.id, client_id: a.client_id, network: a.network, action, by_email: USER.email, at: new Date().toISOString() });
+  if (p === '/rest/v1/rpc/can_use_vault') return json(200, vaultOk);
+  if (p.startsWith('/rest/v1/rpc/access_') && !vaultOk) return json(400, { message: 'not allowed' });
+  if (p === '/rest/v1/rpc/access_save') {
+    let a = db.client_access.find((x) => x.id === body.p_id);
+    const fields = { network: body.p_network, label: body.p_label || null, username: body.p_username || null, status: body.p_status || 'ok', note: body.p_note || null, updated_by: USER.email, updated_at: new Date().toISOString() };
+    if (a) Object.assign(a, fields); else { a = { id: randomUUID(), client_id: body.p_client, has_secret: null, created_at: fields.updated_at, ...fields }; db.client_access.push(a); }
+    if (body.p_password) { secrets.set(a.id, body.p_password); a.has_secret = randomUUID(); }
+    logAccess(a, body.p_id ? 'update' : 'create');
+    return json(200, a.id);
+  }
+  if (p === '/rest/v1/rpc/access_reveal') {
+    const a = db.client_access.find((x) => x.id === body.p_id);
+    if (!a) return json(400, { message: 'access not found' });
+    logAccess(a, 'reveal');
+    return json(200, secrets.get(a.id) ?? null);
+  }
+  if (p === '/rest/v1/rpc/access_delete') {
+    const a = db.client_access.find((x) => x.id === body.p_id);
+    if (a) { db.client_access = db.client_access.filter((x) => x !== a); secrets.delete(a.id); logAccess(a, 'delete'); }
+    return json(200, null);
+  }
   const m = /^\/rest\/v1\/(\w+)$/.exec(p);
   if (!m || !db[m[1]]) return json(404, { message: 'not found' });
   if (!authed) return json(401, { message: 'permission denied' });
@@ -83,7 +111,7 @@ async function fakeSupabase(route) {
 
   if (req.method() === 'GET') {
     let rows = applyFilters(db[table], url.searchParams);
-    if (table === 'protocol_log') rows = [...rows].reverse();
+    if (table === 'protocol_log' || table === 'client_access_log') rows = [...rows].reverse();
     const off = Number(url.searchParams.get('offset') || 0);
     const lim = Number(url.searchParams.get('limit') || 1e9);
     return reply(rows.slice(off, off + lim));
@@ -104,8 +132,13 @@ async function fakeSupabase(route) {
         db.clients.push(row);
         out.push(row);
       } else if (table === 'client_tasks') {
-        const row = { due_on: null, done_at: null, done_by_email: null, source: null, ...r, id: randomUUID(), created_by_email: USER.email, created_at: now };
+        const row = { due_on: null, done_at: null, done_by_email: null, source: null, brief: null, urgent: false, ...r, id: randomUUID(), created_by_email: USER.email, created_at: now };
         db.client_tasks.push(row);
+        out.push(row);
+      } else if (table === 'client_status_notes') {
+        const row = { ...r, by_email: USER.email, at: now };
+        const i = db.client_status_notes.findIndex((x) => x.client_id === r.client_id && x.week === r.week);
+        if (i >= 0) db.client_status_notes[i] = row; else db.client_status_notes.push(row);
         out.push(row);
       }
     }
@@ -239,7 +272,7 @@ await page.uncheck('#i-p02-opened');
 await page.waitForFunction(() => !document.querySelector('.is-busy') && !document.querySelector('#i-p02-opened').checked);
 await page.waitForFunction(() => /ביטל\/ה סימון/.test(document.querySelector('#hist-list').innerText));
 
-// Edit details: Shirel characterizes, so access moves to Lior or Irit; no logo adds Ilai's logo item.
+// Edit details: Shirel characterizes, so access moves to Irit; no logo adds Ilai's logo item.
 await page.click('#btn-edit');
 await page.fill('#ed-char-at', '2026-10-01T10:00');
 await page.selectOption('#ed-characterizer', 'shirel');
@@ -248,15 +281,15 @@ await page.fill('#ed-shoot-at', '2026-10-11T10:00');
 await page.click('#ed-submit');
 await page.waitForSelector('#i-p05-newlogo');
 const p5 = await page.locator('#p05 .proc-meta').textContent();
-assert.match(p5, /ליאור/);
-assert.match(p5, /עירית/);
+assert.match(p5, /עירית/); // Irit's protocol: she asks for the access when Ofir or Lior do not characterize
 assert.doesNotMatch(p5, /אופיר/);
 // Sunday shoot: reminder due on Thursday, the previous business day, at 11:00.
 assert.match(await page.locator('#p15').textContent(), /11:00/);
 // Shared process: Irit takes it, and it shows as hers.
-await page.click('#p05 .claim .btn');
-await page.waitForFunction(() => /עירית לקח/.test(document.querySelector('#p05 .claim')?.textContent || ''));
-assert.equal(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p05.claim').note, 'irit');
+await page.evaluate(() => { document.querySelector('#p29')?.closest('details').setAttribute('open', ''); });
+await page.click('#p29 .claim .btn');
+await page.waitForFunction(() => /עירית לקח/.test(document.querySelector('#p29 .claim')?.textContent || ''));
+assert.equal(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p29.claim').note, 'irit');
 
 // Tasks
 await page.fill('#task-title', 'להזמין מאפרת לנטלי');
@@ -264,6 +297,71 @@ await page.selectOption('#task-owner', 'lior');
 await page.click('#task-submit');
 await page.waitForFunction(() => /להזמין מאפרת לנטלי/.test(document.querySelector('#task-list').innerText));
 assert.equal(db.client_tasks.at(-1).owner, 'lior');
+
+// Nirel gets a brief, never a vague instruction: problem, change and the result wanted.
+await page.fill('#task-title', 'לתקן את הפתיח בסרטון');
+await page.selectOption('#task-owner', 'nirel');
+assert.equal(await page.evaluate(() => document.querySelector('#task-brief-box').open), true);
+const tasksBefore = db.client_tasks.length;
+await page.click('#task-submit');
+await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('צריך בריף'));
+assert.equal(db.client_tasks.length, tasksBefore);
+await page.fill('#tb-problem', 'הפתיח ארוך מדי');
+await page.fill('#tb-change', 'לקצר ל־3 שניות');
+await page.fill('#tb-result', 'פתיח קצר עם הלוגו');
+await page.check('#task-urgent');
+await page.click('#task-submit');
+await page.waitForFunction(() => /לתקן את הפתיח/.test(document.querySelector('#task-list').innerText));
+const briefTask = db.client_tasks.at(-1);
+assert.equal(briefTask.owner, 'nirel');
+assert.equal(briefTask.urgent, true);
+assert.equal(briefTask.brief.change, 'לקצר ל־3 שניות');
+assert.match(await page.locator('#task-list').innerText(), /דחוף/);
+
+// Escalation to Lior: details are required; it lands as an urgent task of his.
+await page.click('#btn-escalate');
+await page.waitForSelector('#dlg-escalate[open]');
+await page.click('#esc-submit');
+assert.equal(await page.isVisible('#esc-err'), true);
+await page.fill('#esc-details', 'הלקוח לא מאשר את הסקריפט כבר שבוע');
+await page.check('#esc-urgent');
+await page.click('#esc-submit');
+await page.waitForFunction(() => !document.querySelector('#dlg-escalate[open]'));
+const esc = db.client_tasks.at(-1);
+assert.deepEqual([esc.owner, esc.source, esc.urgent], ['lior', 'escalation', true]);
+assert.match(esc.title, /הלקוח לא מאשר את הסקריפט/);
+
+// Access vault: a working login needs a user name; the password is stored apart and shown on request only.
+await page.click('#access-add');
+await page.waitForSelector('#dlg-access[open]');
+await page.selectOption('#acc-network', 'instagram');
+await page.click('#acc-submit');
+assert.match(await page.locator('#acc-err').innerText(), /שם משתמש/);
+await page.fill('#acc-username', 'ron.hair');
+await page.fill('#acc-password', 'S3cret!pw');
+await page.click('#acc-submit');
+await page.waitForSelector('.access-row');
+assert.equal(db.client_access.length, 1);
+assert.ok(!JSON.stringify(db.client_access).includes('S3cret'), 'password stored on the row');
+assert.doesNotMatch(await page.locator('#access').textContent(), /S3cret/);
+await page.click('.access-row button:has-text("הצגת סיסמה")');
+await page.waitForFunction(() => /S3cret!pw/.test(document.querySelector('.access-row .secret')?.textContent || ''));
+assert.equal(db.client_access_log.at(-1).action, 'reveal');
+await page.waitForFunction(() => /צפה\/תה בסיסמה/.test(document.querySelector('#access-log').textContent));
+// The password stays on screen after the log refreshes.
+await page.waitForTimeout(300);
+assert.match(await page.locator('.access-row .secret').textContent(), /S3cret!pw/);
+// A broken login opens an urgent task for Lior to restore it.
+await page.click('#access-add');
+await page.waitForSelector('#dlg-access[open]');
+await page.selectOption('#acc-network', 'facebook');
+await page.selectOption('#acc-status', 'broken');
+assert.equal(await page.isVisible('#acc-task-wrap'), true);
+await page.click('#acc-submit');
+await page.waitForFunction(() => document.querySelectorAll('.access-row').length === 2);
+const accTask = db.client_tasks.at(-1);
+assert.deepEqual([accTask.owner, accTask.urgent], ['lior', true]);
+assert.match(accTask.title, /פייסבוק|Facebook/i);
 
 // Mark a whole process: process 3 has two items, both Irit's.
 await page.evaluate(() => { document.querySelector('#p03')?.closest('details').setAttribute('open', ''); });
@@ -298,9 +396,14 @@ await page.fill('#ed-link-drive', 'https://drive.google.com/drive/folders/abc');
 await page.fill('#ed-address', 'הבונים 5, רמת גן');
 await page.fill('#ed-deliv-videos', '25');
 await page.fill('#ed-deliv-shoot_days', '1');
+// Natali clients can be edited by Nirel too.
+assert.ok((await page.locator('#ed-editor option').allTextContents()).some((t) => /נירל/.test(t)));
+await page.selectOption('#ed-editor', 'nirel');
 await page.click('#ed-submit');
 await page.waitForSelector('.cc-links a.link-chip');
 assert.equal(db.clients.find((c) => c.id === created.id).links.drive, 'https://drive.google.com/drive/folders/abc');
+assert.equal(db.clients.find((c) => c.id === created.id).editor, 'nirel');
+assert.match(await page.locator('#p22 .proc-meta').textContent(), /נירל/);
 
 // Package quantities: + saves after a short pause.
 assert.match(await page.locator('#deliv-videos-v').innerText(), /נמסרו 0 מתוך 25/);
@@ -343,8 +446,9 @@ await page.click('#call-submit');
 await page.waitForFunction(() => !document.querySelector('#dlg-call[open]'));
 const call = db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p31.call');
 assert.equal(JSON.parse(call.note).topics.campaigns, 'קמפיין לידים רץ טוב');
-assert.equal(db.client_tasks.at(-1).source, 'p31');
-assert.equal(db.client_tasks.at(-1).owner, 'lior');
+const callTasks = db.client_tasks.filter((t) => t.client_id === created.id && t.source === 'p31');
+assert.deepEqual(callTasks.map((t) => t.owner), ['lior', 'irit']); // Irit checks every call is documented
+assert.match(callTasks[1].title, /מתועדת/);
 
 // Reload keeps everything
 await page.reload();
@@ -371,6 +475,30 @@ await shot('05-client-midway');
 await page.focus('#i-p06-verified');
 await page.keyboard.press('Space');
 await page.waitForFunction(() => document.querySelector('#i-p06-verified').checked && !document.querySelector('.is-busy'));
+
+// A video editor: no passwords, and a paused edit tells Lior and Ofir.
+db.staff[0].person = 'nadia';
+seeded.editor = 'nadia';
+await page.goto(`${BASE}client.html?id=${seeded.id}`);
+await page.waitForSelector('#p22', { state: 'attached' });
+assert.equal(await page.isHidden('#access-add'), true);
+assert.match(await page.locator('#access-list').textContent(), /לצוות המשרד בלבד/);
+await page.evaluate(() => { document.querySelector('#p22')?.closest('details').setAttribute('open', ''); });
+await page.click('#p22 button:has-text("עצירת העריכה")');
+await page.waitForSelector('#dlg-pause[open]');
+await page.click('#pause-submit');
+assert.equal(await page.isVisible('#pause-err'), true);
+await page.fill('#pause-stage', 'חיתוך ראשון');
+await page.fill('#pause-left', 'כתוביות ומוזיקה');
+await page.fill('#pause-why', 'סרטון דחוף ללקוח אחר');
+await page.click('#pause-submit');
+await page.waitForSelector('#p22 .pause-line');
+assert.equal(JSON.parse(db.protocol_checks.find((c) => c.client_id === seeded.id && c.item_key === 'p22.pause').note).left, 'כתוביות ומוזיקה');
+assert.deepEqual(db.client_tasks.filter((t) => t.client_id === seeded.id && /עצר/.test(t.title)).map((t) => t.owner).sort(), ['lior', 'ofir']);
+await page.click('#p22 .pause-line button:has-text("חזרה לעריכה")');
+await page.waitForFunction(() => !document.querySelector('#p22 .pause-line'));
+db.staff[0].person = 'irit';
+seeded.editor = null;
 
 // Mobile
 const mob = await ctx.newPage();

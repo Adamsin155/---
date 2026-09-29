@@ -242,6 +242,10 @@ function renderAccess() {
 async function refreshAccess() {
   try { access = await loadAccess(id); } catch { /* keep the old list */ }
   renderAccess();
+  await refreshAccessLog();
+}
+// Only the log: re-rendering the list would wipe a password being shown.
+async function refreshAccessLog() {
   try {
     const rows = await loadAccessLog(id);
     const verb = { create: 'הוסיף/ה', update: 'עדכן/ה', reveal: 'צפה/תה בסיסמה של', delete: 'מחק/ה' };
@@ -259,7 +263,7 @@ async function reveal(a) {
       h('span', { class: 'hint' }, 'הצפייה נרשמה. הסיסמה תוסתר בעוד 30 שניות.'));
     clearTimeout(revealTimers[a.id]);
     revealTimers[a.id] = setTimeout(() => { const b = document.getElementById(`sec-${a.id}`); if (b) fill(b); }, 30e3);
-    refreshAccess();
+    refreshAccessLog();
   } catch (err) {
     toast(`לא ניתן להציג את הסיסמה. ${errorText(err)}`);
   }
