@@ -174,11 +174,11 @@ async function undo(e) {
 async function claim(g, take) {
   try {
     if (take) {
-      const row = await setCheck(g.client.id, CLAIM(g.proc.id), 'done', me);
-      (checks[g.client.id] ||= {})[CLAIM(g.proc.id)] = row;
+      const row = await setCheck(g.client.id, CLAIM(g.proc), 'done', me);
+      (checks[g.client.id] ||= {})[CLAIM(g.proc)] = row;
     } else {
-      await clearCheck(g.client.id, CLAIM(g.proc.id));
-      delete checks[g.client.id][CLAIM(g.proc.id)];
+      await clearCheck(g.client.id, CLAIM(g.proc));
+      delete checks[g.client.id][CLAIM(g.proc)];
     }
     states.delete(g.client.id);
     renderKeepingFocus();

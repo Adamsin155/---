@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { PROCESSES, PEOPLE, PHASES } from '../app/protocol.js';
 import {
   addBusinessDays, applicableProcesses, clientState, openItemsFor, resolveTime, missingFields,
-  blockers, bucketOf, businessDaysBetween,
+  blockers, bucketOf, businessDaysBetween, addWorkingMinutes, phasesFor, WAIT,
 } from '../app/protocol-logic.js';
 
 const doc = readFileSync(new URL('../docs/protocols/general.md', import.meta.url), 'utf8');
@@ -143,6 +143,22 @@ test('due dates follow the protocol anchors', () => {
   assert.equal(resolveTime(bp.find((p) => p.id === 'p12').due, bare, bp, {}), null);
 });
 
+test('short deadlines run on office hours', () => {
+  const c = { ...base, deal_at: '2026-10-08T18:30:00+03:00' }; // Thursday evening
+  const procs = applicableProcesses(c);
+  const due = resolveTime(procs.find((p) => p.id === 'p01').due, c, procs, {});
+  assert.equal(iso(due), iso(at('2026-10-11T09:05:00+03:00'))); // Sunday 09:05
+  // Not late on Sunday morning before the office opens.
+  const s = clientState(c, {}, at('2026-10-11T08:30:00+03:00'));
+  assert.notEqual(s.states.find((x) => x.proc.id === 'p01').status, 'overdue');
+  // Two hours from 17:00 carry over to the next working morning.
+  assert.equal(iso(addWorkingMinutes(at('2026-10-07T17:00:00+03:00'), 120)), iso(at('2026-10-08T10:00:00+03:00')));
+  // A meeting on the real clock is not shifted.
+  const m = { ...base, char_at: '2026-10-07T19:00:00+03:00' };
+  const mp = applicableProcesses(m);
+  assert.equal(iso(resolveTime(mp.find((p) => p.id === 'p04').due, m, mp, {})), iso(at('2026-10-07T21:00:00+03:00')));
+});
+
 test('a finished characterization moves the parallel deadlines to its real end', () => {
   const c = { ...base, char_at: '2026-10-01T10:00:00+03:00' };
   const p4keys = PROCESSES.find((p) => p.id === 'p04').items.map((i) => i.key);
@@ -210,4 +226,57 @@ test('renewal and ending processes', () => {
   const ids = (c) => applicableProcesses(c).map((p) => p.id);
   assert.ok(!ids({ ...base }).includes('p35'));
   assert.ok(ids({ ...base, status: 'ending' }).includes('p35'));
+});
+
+test('an extra shoot round repeats the shoot processes with their own keys and dates', () => {
+  const c = { ...base, id: 'c', shoot_type: 'dms', char_at: '2026-10-01T10:00:00+03:00', shoot_at: '2026-10-07T10:00:00+03:00',
+    rounds: [{ n: 2, start_at: '2027-03-01T09:00:00+02:00', shoot_at: '2027-03-10T10:00:00+02:00', shoot_type: 'natali' }] };
+  const procs = applicableProcesses(c);
+  const r2 = procs.filter((p) => p.phase === 'round-2');
+  assert.ok(r2.some((p) => p.id === 'r2-p11b'), 'Natali round gets 11b even in a DMS client');
+  assert.ok(!r2.some((p) => p.id === 'r2-p21'));
+  assert.ok(!r2.some((p) => p.id === 'r2-p04' || p.id === 'r2-p23'));
+  assert.ok(r2.every((p) => p.items.every((i) => i.key.startsWith('r2.'))));
+  assert.deepEqual(r2.find((p) => p.id === 'r2-p26').items.find((i) => i.key === 'r2.p26.sent').requires, ['r2.p25.approved']);
+  assert.deepEqual(phasesFor(c).map((p) => p.key).slice(-4), ['publish', 'round-2', 'ongoing', 'renewal']);
+  const s = clientState(c, {}, at('2027-03-02T10:00:00+02:00'));
+  const r2p22 = s.states.find((x) => x.proc.id === 'r2-p22');
+  assert.equal(r2p22.dueAt.toDateString(), at('2027-03-17T12:00:00+02:00').toDateString()); // 5 business days from the round's shoot
+  const r2p12 = s.states.find((x) => x.proc.id === 'r2-p12');
+  assert.equal(r2p12.dueAt.toDateString(), at('2027-03-04T12:00:00+02:00').toDateString()); // 3 business days from the round start
+  // Round 1 progress is unaffected by round 2 checks and vice versa.
+  const checks = { 'r2.p11.influencers': { state: 'done', at: '2027-03-01T10:00:00+02:00' } };
+  const s2 = clientState(c, checks, at('2027-03-02T10:00:00+02:00'));
+  assert.equal(s2.states.find((x) => x.proc.id === 'p11').resolved, 0);
+  assert.equal(s2.states.find((x) => x.proc.id === 'r2-p11').resolved, 1);
+});
+
+test('waiting on the client is shown apart from our own delays', () => {
+  const c = { ...base, id: 'c' };
+  const p1 = applicableProcesses(c).find((p) => p.id === 'p01');
+  const checks = { [WAIT(p1)]: { state: 'done', note: 'הלקוח לא חתם עדיין', at: '2026-10-01T09:10:00+03:00' } };
+  const s = clientState(c, checks, at('2026-10-01T12:00:00+03:00'));
+  const x = s.states.find((y) => y.proc.id === 'p01');
+  assert.equal(x.status, 'client');
+  assert.equal(x.late, true);
+  assert.equal(s.overdue, 2); // processes 2 and 3 are late on us; process 1 is not
+  assert.equal(s.waitingOnClient, 1);
+  assert.equal(bucketOf('client', x.dueAt), 'client');
+});
+
+test('completion time is kept for the performance report', () => {
+  const c = { ...base };
+  const keys = PROCESSES.find((p) => p.id === 'p01').items.map((i) => i.key);
+  const s = clientState(c, done(keys, '2026-10-01T09:04:00+03:00'), at('2026-10-01T12:00:00+03:00'));
+  const x = s.states.find((y) => y.proc.id === 'p01');
+  assert.equal(iso(x.completedAt), iso(at('2026-10-01T09:04:00+03:00')));
+  assert.ok(x.completedAt <= x.dueAt);
+});
+
+test('package quantities in the database match the catalog', async () => {
+  const { SPECS } = await import('../app/catalog.js');
+  const sql = readFileSync(new URL('../supabase/migrations/20260929160000_client_protocol_batch2.sql', import.meta.url), 'utf8');
+  const rows = Object.fromEntries([...sql.matchAll(/\('([a-z-]+)', (\d+), (\d+), (\d+)\)/g)].map((m) => [m[1], [+m[2], +m[3], +m[4]]]));
+  assert.deepEqual(Object.keys(rows).sort(), Object.keys(SPECS).sort());
+  for (const [id, s] of Object.entries(SPECS)) assert.deepEqual(rows[id], [s.videos, s.graphics, s.shootDays], id);
 });

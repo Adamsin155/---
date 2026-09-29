@@ -4,6 +4,12 @@
 
 export const PROTOCOL_VERSION = 1;
 
+// Office hours. Deadlines of minutes or hours that start from an office event
+// (a deal coming in, a finished process) run only inside these hours; a deal
+// that arrives at night is due the next working morning. Proposal for the
+// owner to confirm: see docs/protocols/roadmap.md, Q3.
+export const WORK_HOURS = { start: 9, end: 18 };
+
 // People named in the protocol. `key` is stored in the database (staff.person).
 export const PEOPLE = {
   irit: { key: 'irit', name: 'עירית', role: 'מנהלת המשרד' },
@@ -40,6 +46,7 @@ const isDms = (c) => c.shoot_type === 'dms';
 //   from 'pNN' means "when process NN was completed".
 //   prevBusinessDay: the business day before the anchor ("the day before the shoot").
 // `sla` is the protocol's own wording and is always shown.
+// `round: true`: the process repeats for every extra shoot round (a second shoot day).
 // Item `requires`: keys that must be done first ("only after Ofir approves").
 // A process with several owners can be claimed by one of them (key `pNN.claim`).
 
@@ -195,7 +202,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p11', num: '11', phase: 'prep', title: 'קביעת יום צילום', owners: ['irit'],
+    id: 'p11', round: true, num: '11', phase: 'prep', title: 'קביעת יום צילום', owners: ['irit'],
     sla: 'חובה לסגור תאריך בתוך עד 3 ימי עסקים מהאפיון',
     start: { from: 'charEnd' }, due: { from: 'char', businessDays: 3 },
     what: 'בודקים בחוזה אילו משפיענים הלקוח רכש ומתאמים מועד מול כל הצדדים. אחרי שכולם אישרו, מכניסים את יום הצילום ליומן של כולם.',
@@ -211,7 +218,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p11b', num: '11ב', phase: 'prep', title: 'יום צילום עם נטלי: מאפרת והסעה', owners: ['lior'],
+    id: 'p11b', round: true, num: '11ב', phase: 'prep', title: 'יום צילום עם נטלי: מאפרת והסעה', owners: ['lior'],
     sla: 'מיד לאחר שנסגר תאריך יום הצילום עם נטלי',
     when: isNatali, start: { from: 'p11' }, due: { from: 'p11' },
     what: 'יום צילום עם נטלי לא נחשב סגור עד שגם המאפרת וגם ההסעה סודרו.',
@@ -221,7 +228,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p12', num: '12', phase: 'prep', title: 'כתיבת התוכן ליום הצילום', owners: ['shirel'],
+    id: 'p12', round: true, num: '12', phase: 'prep', title: 'כתיבת התוכן ליום הצילום', owners: ['shirel'],
     sla: 'עד 3 ימי עסקים מפגישת האפיון',
     start: { from: 'charEnd' }, due: { from: 'char', businessDays: 3 },
     what: 'שיראל עוברת לעומק על האפיון, מתקשרת ללקוח לדגשים, ומכינה בדרך כלל 36 תסריטים לפי החבילה, האפיון, השיחה והמשפיענים.',
@@ -239,7 +246,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p13', num: '13', phase: 'prep', title: 'שיחת Zoom לאישור התוכן', owners: ['shirel'],
+    id: 'p13', round: true, num: '13', phase: 'prep', title: 'שיחת Zoom לאישור התוכן', owners: ['shirel'],
     sla: '3 ימי עסקים לאחר פגישת האפיון, ללא הגבלת משך עד שהלקוח מאשר',
     start: { from: 'p12' }, due: { from: 'char', businessDays: 3 },
     what: 'שיחת Zoom מוקלטת עם הלקוח על התוכן, עם שינויים והבהרות עד שהלקוח מאשר. תיקונים שנשארו: שיראל, עד יום עסקים אחד.',
@@ -250,7 +257,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p14', num: '14', phase: 'prep', title: 'Follow-up עד יום הצילום', owners: ['irit'],
+    id: 'p14', round: true, num: '14', phase: 'prep', title: 'Follow-up עד יום הצילום', owners: ['irit'],
     sla: 'מעקב שוטף מדי יום עד יום הצילום',
     start: { from: 'charEnd' }, due: { from: 'shoot' },
     what: 'מוודאים שאין דבר שיכול לעצור את יום הצילום. מסמנים כל נושא כשהוא סגור.',
@@ -265,7 +272,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p15', num: '15', phase: 'eve', title: 'תזכורת לצוות וללקוח', owners: ['shirel', 'lior'],
+    id: 'p15', round: true, num: '15', phase: 'eve', title: 'תזכורת לצוות וללקוח', owners: ['shirel', 'lior'],
     sla: 'יום לפני הצילום, בסביבות 11:00',
     start: { from: 'shoot', prevBusinessDay: true, at: '00:00' }, due: { from: 'shoot', prevBusinessDay: true, at: '11:00' },
     what: 'שולחים תזכורת ומוודאים שלכולם יש שעה, כתובת, תוכן מאושר ופרטי יום הצילום. בנוסף, שיחת הסבר עם הלקוח על מהלך היום ומה להכין.',
@@ -281,7 +288,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p16', num: '16', phase: 'eve', title: 'וידוא אחרון לפני יום הצילום', owners: ['shirel', 'lior'],
+    id: 'p16', round: true, num: '16', phase: 'eve', title: 'וידוא אחרון לפני יום הצילום', owners: ['shirel', 'lior'],
     sla: 'בערב שלפני יום הצילום',
     start: { from: 'shoot', prevBusinessDay: true, at: '00:00' }, due: { from: 'shoot', days: 0, at: '00:00' },
     items: [
@@ -294,7 +301,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p17', num: '17', phase: 'shoot', title: 'הכנת המקום לפני הגעת המשפיענים', owners: ['lior', 'shirel'],
+    id: 'p17', round: true, num: '17', phase: 'shoot', title: 'הכנת המקום לפני הגעת המשפיענים', owners: ['lior', 'shirel'],
     ownerNote: 'ליאור, שיראל והצלם. מנהל יום הצילום: ליאור בלבד.',
     sla: 'שעה לפני הגעת המשפיענים',
     start: { from: 'shoot', hours: -1 }, due: { from: 'shoot' },
@@ -308,7 +315,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p18', num: '18', phase: 'shoot', title: 'מעקב אחר הסרטונים במהלך הצילום', owners: ['lior', 'shirel'],
+    id: 'p18', round: true, num: '18', phase: 'shoot', title: 'מעקב אחר הסרטונים במהלך הצילום', owners: ['lior', 'shirel'],
     sla: 'לאורך כל יום הצילום',
     start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
     what: 'עובדים לפי סדר התסריטים ב־Google Docs. כל סרטון שהסתיים מסומן בירוק וממשיכים לבא.',
@@ -319,7 +326,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p19', num: '19', phase: 'shoot', title: 'סיום יום צילום', owners: ['lior', 'shirel'],
+    id: 'p19', round: true, num: '19', phase: 'shoot', title: 'סיום יום צילום', owners: ['lior', 'shirel'],
     sla: 'מיד בסיום הצילום ולפני שהצוות עוזב',
     start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
     rule: 'אסור לעזוב יום צילום בלי סרטון המלצה ובלי בדיקה שהחומרים נמצאים בכונן.',
@@ -330,7 +337,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p20', num: '20', phase: 'shoot', title: 'ניהול יום צילום עם נטלי דדון', owners: ['lior', 'shirel'],
+    id: 'p20', round: true, num: '20', phase: 'shoot', title: 'ניהול יום צילום עם נטלי דדון', owners: ['lior', 'shirel'],
     sla: 'צילום בפועל עד 3 שעות',
     when: isNatali, start: { from: 'shoot' }, due: { from: 'shoot', hours: 3 },
     what: 'יום ממוקד לפי התסריטים שאושרו: הפניות לצופה, ראיון עם הלקוח, הסברה, היכרות עם העסק והמקום, הצגת שירותים ומיני־סצנות. מסר ברור, מקצועי ומניע לפעולה, לא קומדיה מוגזמת.',
@@ -340,7 +347,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p21', num: '21', phase: 'shoot', title: 'ניהול יום צילום עם דניס, מישל וסמיון', owners: ['lior', 'shirel'],
+    id: 'p21', round: true, num: '21', phase: 'shoot', title: 'ניהול יום צילום עם דניס, מישל וסמיון', owners: ['lior', 'shirel'],
     sla: 'צילום בפועל כ־5 שעות, אחרי עד חצי שעה התארגנות',
     when: isDms, start: { from: 'shoot' }, due: { from: 'shoot', minutes: 330 },
     what: 'עם ההגעה: עד חצי שעה להתרענן, לאכול, להתארגן ולקבל תדרוך. רוב התוכן מצחיק, משוגע, אנרגטי וויראלי, ובנוסף הסברה, היכרות עם העסק והשירותים וראיונות עם הלקוח.',
@@ -353,7 +360,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p22', num: '22', phase: 'post', title: 'עריכת 36 הסרטונים', owners: ['editor'],
+    id: 'p22', round: true, num: '22', phase: 'post', title: 'עריכת 36 הסרטונים', owners: ['editor'],
     ownerNote: 'בסיום יום הצילום אופיר בוחר איזה עורך יערוך את חומר הגלם.',
     sla: 'עד 5 ימי עסקים; הספירה מתחילה ביום העסקים שאחרי יום הצילום',
     start: { from: 'shoot' }, due: { from: 'shoot', businessDays: 5 },
@@ -376,7 +383,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p24', num: '24', phase: 'post', title: 'העלאת הסרטונים המוכנים', owners: ['editor', 'ofir'],
+    id: 'p24', round: true, num: '24', phase: 'post', title: 'העלאת הסרטונים המוכנים', owners: ['editor', 'ofir'],
     sla: 'מיד ברגע שהעריכה הסתיימה',
     start: { from: 'p22' }, due: { from: 'p22' },
     items: [
@@ -387,7 +394,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p25', num: '25', phase: 'post', title: 'בדיקת הסרטונים', owners: ['ofir'],
+    id: 'p25', round: true, num: '25', phase: 'post', title: 'בדיקת הסרטונים', owners: ['ofir'],
     sla: 'עד שעה מרגע שהעורך הודיע שהחומרים מוכנים',
     start: { from: 'p24' }, due: { from: 'p24', hours: 1 },
     rule: 'רק לאחר אישור אופיר מותר לשלוח את הסרטונים ללקוח.',
@@ -397,7 +404,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p26', num: '26', phase: 'post', title: 'שליחת הסרטונים ללקוח', owners: ['irit'],
+    id: 'p26', round: true, num: '26', phase: 'post', title: 'שליחת הסרטונים ללקוח', owners: ['irit'],
     sla: 'מיד לאחר אישור אופיר',
     start: { from: 'p25' }, due: { from: 'p25' },
     items: [
@@ -406,7 +413,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p27', num: '27', phase: 'post', title: 'תיקוני וידאו', owners: ['editor'],
+    id: 'p27', round: true, num: '27', phase: 'post', title: 'תיקוני וידאו', owners: ['editor'],
     sla: 'תיקונים שהתקבלו בזמן במהלך היום: באותו יום. מאוחר: עד יום עסקים אחד',
     start: { from: 'p26' }, due: { from: 'p26', businessDays: 1 },
     items: [
@@ -415,7 +422,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p28', num: '28', phase: 'publish', title: 'תזמון שנתי', owners: ['ilai'],
+    id: 'p28', round: true, num: '28', phase: 'publish', title: 'תזמון שנתי', owners: ['ilai'],
     ownerNote: 'עילאי או מנהל הסושיאל.',
     sla: 'עד שעתיים מרגע שהתוכן מוכן ומאושר',
     start: { from: 'p27' }, due: { from: 'p27', hours: 2 },
@@ -424,7 +431,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p29', num: '29', phase: 'publish', title: 'מילוי הגאנט ושליחה ללקוח', owners: ['ilai', 'irit'],
+    id: 'p29', round: true, num: '29', phase: 'publish', title: 'מילוי הגאנט ושליחה ללקוח', owners: ['ilai', 'irit'],
     sla: 'במקביל לתזמון, בתוך אותן שעתיים',
     start: { from: 'p27' }, due: { from: 'p27', hours: 2 },
     what: 'על כל תוכן שמתוזמן מעדכנים בגאנט מספר סרטון, קישור, יום, תאריך ושעה, כך שהגאנט והתזמון תמיד תואמים.',
@@ -435,7 +442,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p30', num: '30', phase: 'publish', title: 'בניית הקמפיינים', owners: ['lior'],
+    id: 'p30', round: true, num: '30', phase: 'publish', title: 'בניית הקמפיינים', owners: ['lior'],
     sla: 'עד יום עסקים אחד מרגע קבלת הסרטונים המוכנים',
     start: { from: 'p25' }, due: { from: 'p25', businessDays: 1 },
     items: [

@@ -212,7 +212,7 @@ function claimLine(x) {
 }
 
 async function setClaim(p, person) {
-  const ok = await mark(CLAIM(p.id), person ? 'done' : null, null, person);
+  const ok = await mark(CLAIM(p), person ? 'done' : null, null, person);
   if (ok) toast(person ? `לקחת את תהליך ${p.num}.` : 'התהליך שוחרר.');
 }
 
@@ -441,7 +441,7 @@ async function loadHistory() {
   fill($('hist-list'), ...(log.length ? log.map((r) => {
     const claimed = /\.claim$/.test(r.item_key);
     const ref = ITEM_INDEX.get(r.item_key);
-    const procNum = PROCESSES.find((p) => CLAIM(p.id) === r.item_key)?.num;
+    const procNum = PROCESSES.find((p) => CLAIM(p) === r.item_key)?.num;
     const text = claimed
       ? (r.action === 'clear' ? `שחרר/ה את תהליך ${procNum}` : `לקח/ה את תהליך ${procNum}`)
       : `${ACTION[r.action]}: `;
