@@ -24,7 +24,8 @@ grant execute on function public.can_message_clients() to authenticated;
 -- One row per message. The key never changes (the app looks it up); the office
 -- edits the title and the body. {x} is filled by the app, [x] is filled by hand
 -- before sending. A daily message belongs to one of the 8 stations (1–8, the
--- order of STATIONS in app/protocol.js).
+-- order of STATIONS in app/protocol.js); a station may have a variant
+-- ('daily.post_nodate': editing, when no promised date is ahead).
 create table public.message_templates (
   key text primary key check (key ~ '^[a-z][a-z_]*(\.[a-z_]+)?$'),
   title text not null check (length(btrim(title)) between 1 and 120),
@@ -35,7 +36,6 @@ create table public.message_templates (
   updated_at timestamptz not null default now(),
   constraint message_templates_daily_station check ((kind = 'daily') = (station is not null))
 );
-create unique index message_templates_daily_key on public.message_templates (station) where kind = 'daily';
 
 -- Who changed a template and when. The key, the kind and the station stay as created.
 create function public.message_templates_stamp() returns trigger
@@ -53,10 +53,14 @@ end $$;
 
 create trigger message_templates_stamp before insert or update on public.message_templates
 for each row execute function public.message_templates_stamp();
+-- Trigger functions are not an API: only the trigger calls them.
+revoke execute on function public.message_templates_stamp() from public, anon, authenticated;
 
 -- ── Messages sent ─────────────────────────
 -- Append-only: a row is the record that a message was sent, and it is never
--- changed or removed from the browser. `ref` says what the message was about,
+-- changed. The one exception is an undo: whoever recorded a message may remove
+-- their own record within 5 minutes (a tap by mistake, or backing out of
+-- WhatsApp without sending); after that it stays. `ref` says what the message was about,
 -- so the same milestone or delay is not suggested twice: a milestone
 -- ('welcome', 'r2.thanks' in an extra shoot round) or a promised process
 -- ('p27', 'r2.p27'). Daily and Thursday messages have none.
@@ -87,6 +91,7 @@ end $$;
 
 create trigger client_messages_stamp before insert on public.client_messages
 for each row execute function public.client_messages_stamp();
+revoke execute on function public.client_messages_stamp() from public, anon, authenticated;
 
 -- ── Access ────────────────────────────────
 alter table public.message_templates enable row level security;
@@ -102,11 +107,19 @@ create policy "office reads messages" on public.client_messages
   for select to authenticated using (public.can_message_clients());
 create policy "office records messages" on public.client_messages
   for insert to authenticated with check (public.can_message_clients());
+-- Undo: the sender, their own record, within 5 minutes of it (the database's clock).
+create policy "sender undoes a fresh record" on public.client_messages
+  for delete to authenticated using (
+    public.can_message_clients()
+    and sent_by_email = lower(coalesce(auth.jwt() ->> 'email', ''))
+    and sent_at > now() - interval '5 minutes'
+  );
 
 revoke all on public.message_templates from anon;
 revoke all on public.client_messages from anon;
 revoke delete, truncate on public.message_templates from authenticated;
-revoke update, delete, truncate on public.client_messages from authenticated;
+revoke update, truncate on public.client_messages from authenticated;
+grant select, insert, delete on public.client_messages to authenticated;
 
 -- ── The templates as written (decision 25) ──
 -- The same text as DEFAULT_TEMPLATES in app/messages-logic.js; tests/messages.test.mjs
@@ -121,19 +134,19 @@ insert into public.message_templates (key, title, kind, station, body) values
 התאריכים הקרובים:
 {תאריכים}
 
-מה נצטרך מכם: לוגו, צבעי המותג, ותמונות וסרטונים שכבר יש לכם. את הגישות לרשתות נקבל מכם בשיחה, לא כאן בקבוצה.
+מה נצטרך מכם: לוגו, צבעי המותג, ותמונות וסרטונים שכבר יש לכם. את הגישות לרשתות לא שולחים בהודעה: נקבל אותן מכם בשיחה.
 
-בכל יום חמישי תקבלו כאן עדכון קצר: מה עשינו, מה הלאה ומה צריך מכם. בכל שאלה אפשר לכתוב לנו כאן.$t$),
+בכל יום חמישי תקבלו מאיתנו עדכון קצר: מה עשינו, מה הלאה ומה צריך מכם. בכל שאלה אפשר לכתוב לנו.$t$),
   ('access', 'מצב החומרים והגישות', 'milestone', null, $t$היי {לקוח}, עדכון קצר על החומרים לעמוד: התקבלו {התקבלו} מתוך {מתוך}.
 עוד חסר: {חסר}.
-חומרים אפשר לשלוח כאן בקבוצה. את הגישות לרשתות לא שולחים בקבוצה: נתאם שיחה קצרה ונקבל אותן מכם בטלפון.$t$),
+את החומרים אפשר לשלוח לנו בוואטסאפ. את הגישות לרשתות לא שולחים בהודעה: נתאם שיחה קצרה ונקבל אותן מכם בטלפון.$t$),
   ('summary', 'מה הבנו על העסק', 'milestone', null, $t$היי {לקוח}, תודה על פגישת האפיון! כדי לוודא שהבנו נכון, זה מה שהבנו על {עסק}:
 1. מה העסק עושה: [להשלים]
 2. למי אתם פונים: [להשלים]
 3. מה מייחד אתכם: [להשלים]
 4. מה המטרה שלנו יחד: [להשלים]
 5. על מה נשים דגש בתוכן: [להשלים]
-משהו לא מדויק? כתבו לנו כאן ונתקן.$t$),
+משהו לא מדויק? כתבו לנו ונתקן.$t$),
   ('scripts', 'תסריטים לאישור', 'milestone', null, $t$היי {לקוח}, התסריטים ליום הצילום מוכנים!
 נקבע איתכם זום קצר כדי לעבור עליהם יחד ולאשר. לא מצלמים שום דבר שלא אישרתם.
 מתי נוח לכם לזום?$t$),
@@ -142,7 +155,7 @@ insert into public.message_templates (key, title, kind, station, body) values
 איפה: {כתובת}
 מי מגיע: {מגיעים}
 מה להכין: העסק מסודר ונקי, מוצרים ושירותים מוכנים לצילום, שילוט ותאורה דולקים, ועובדים שמוכנים להופיע. בשעה הראשונה מצלמים את העסק עצמו, לפני שהמשפיענים מגיעים.
-אם משהו השתנה, כתבו לנו כאן עוד היום.$t$),
+אם משהו השתנה, כתבו לנו עוד היום.$t$),
   ('thanks', 'תודה אחרי הצילום', 'milestone', null, $t$היי {לקוח}, תודה על יום צילום מעולה!
 החומרים כבר בדרך לעריכה, והסרטונים יהיו סגורים עד {תאריך}, כולל סבב תיקונים.
 ושאלה קצרה: מ־1 עד 5, איך היה יום הצילום בשבילכם?$t$),
@@ -163,13 +176,14 @@ insert into public.message_templates (key, title, kind, station, body) values
   ('delay', 'הודעה על עיכוב', 'delay', null, $t$היי {לקוח}, רצינו לעדכן מראש לגבי {מה}: זה ייקח קצת יותר זמן ממה שתכננו.
 במקום {תאריך}, זה יהיה מוכן עד [מועד חדש].
 מצטערים על העיכוב. אנחנו על זה.$t$),
-  ('daily.join', 'הודעה יומית: הצטרפות', 'daily', 1, $t$היי {לקוח}, אנחנו מסדרים את כל מה שצריך כדי להתחיל: הצוות, פגישת האפיון והחומרים. אם יש שאלה, אנחנו כאן בקבוצה.$t$),
-  ('daily.char', 'הודעה יומית: אפיון', 'daily', 2, $t$היי {לקוח}, אנחנו בשלב האפיון: לומדים את העסק לעומק ומסדרים את העמוד, הגרפיקות הראשונות וה־Highlights. נעדכן כאן כשיש משהו לאישור.$t$),
+  ('daily.join', 'הודעה יומית: הצטרפות', 'daily', 1, $t$היי {לקוח}, אנחנו מסדרים את כל מה שצריך כדי להתחיל: הצוות, פגישת האפיון והחומרים. אם יש שאלה, כתבו לנו.$t$),
+  ('daily.char', 'הודעה יומית: אפיון', 'daily', 2, $t$היי {לקוח}, אנחנו בשלב האפיון: לומדים את העסק לעומק ומסדרים את העמוד, הגרפיקות הראשונות וה־Highlights. נעדכן אתכם כשיש משהו לאישור.$t$),
   ('daily.content', 'הודעה יומית: תוכן ואישור', 'daily', 3, $t$היי {לקוח}, היום אנחנו עובדים על התוכן ליום הצילום: הדגשים והתסריטים. לפני שמצלמים, הכול מגיע אליכם לאישור.$t$),
-  ('daily.shoot', 'הודעה יומית: יום צילום', 'daily', 4, $t$היי {לקוח}, יום הצילום בפתח ואנחנו מתכוננים אליו. אם יש משהו שחשוב לכם שנדע, כתבו לנו כאן.$t$),
-  ('daily.post', 'הודעה יומית: עריכה ובקרה', 'daily', 5, $t$היי {לקוח}, הסרטונים שלכם בעריכה. הם יהיו סגורים עד {תאריך}, ונשלח לכם אותם כאן.$t$),
-  ('daily.publish', 'הודעה יומית: פרסום', 'daily', 6, $t$היי {לקוח}, אנחנו מתזמנים את התכנים שלכם ומכינים את הקמפיינים. נעדכן כאן ברגע שהם עולים.$t$),
+  ('daily.shoot', 'הודעה יומית: יום צילום', 'daily', 4, $t$היי {לקוח}, יום הצילום בפתח ואנחנו מתכוננים אליו. אם יש משהו שחשוב לכם שנדע, כתבו לנו.$t$),
+  ('daily.post', 'הודעה יומית: עריכה ובקרה', 'daily', 5, $t$היי {לקוח}, הסרטונים שלכם בעריכה. נשלח לכם אותם לאישור, והכול יהיה סגור עד {תאריך}.$t$),
+  ('daily.post_nodate', 'הודעה יומית: עריכה ובקרה, בלי מועד', 'daily', 5, $t$היי {לקוח}, הסרטונים שלכם בעריכה ואנחנו על זה. נעדכן אתכם ברגע שהם מוכנים.$t$),
+  ('daily.publish', 'הודעה יומית: פרסום', 'daily', 6, $t$היי {לקוח}, אנחנו מתזמנים את התכנים שלכם ומכינים את הקמפיינים. נעדכן אתכם ברגע שהם עולים.$t$),
   ('daily.ongoing', 'הודעה יומית: שוטף', 'daily', 7, $t$היי {לקוח}, התכנים שלכם ממשיכים לעלות לפי הגאנט. יש מבצע, אירוע או משהו חדש בעסק? ספרו לנו ונשלב אותו.$t$),
-  ('daily.renewal', 'הודעה יומית: חידוש', 'daily', 8, $t$היי {לקוח}, אנחנו מסכמים את התוצאות של השנה שלנו יחד לקראת שיחת ההמשך. יש משהו שתרצו שנבדוק? כתבו לנו כאן.$t$)
+  ('daily.renewal', 'הודעה יומית: חידוש', 'daily', 8, $t$היי {לקוח}, אנחנו מסכמים את התוצאות של השנה שלנו יחד לקראת שיחת ההמשך. יש משהו שתרצו שנבדוק? כתבו לנו.$t$)
 on conflict (key) do nothing;
 -- seed:end

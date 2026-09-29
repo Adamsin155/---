@@ -1936,7 +1936,8 @@ mountSession(async (staff) => {
   ({ me, scope } = viewer);
   viewerError = viewer.error;
   $('nav-team').hidden = !canManageTeam(viewer);
-  $('nav-messages').hidden = !canSendMessages(viewer);
+  // The top bar folds away on phones: the page head keeps a way in to the messages.
+  $('nav-messages').hidden = $('cta-messages').hidden = !canSendMessages(viewer);
   // Always land on the signed-in person's own list; the owner lands on the whole team.
   minePerson = scope === 'own' ? me : me || '';
   applyScope();

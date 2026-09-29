@@ -8,10 +8,17 @@
 // The rules:
 //  - At most ONE proactive message per client per Israel day. The database
 //    enforces the same (client_messages_one_per_day).
-//  - Today's message, the first that applies: a notice of a delay (always before
-//    the promised date), the day before a shoot, a milestone that happened since
-//    its message was last sent, the Thursday update, and otherwise the daily
-//    message of the client's station. The others stay available as options.
+//  - Today's message, the first that applies: the day before a shoot, a notice
+//    of a delay when a promised date is today or the office is already behind on
+//    it (always before the date), a milestone that happened since its message was
+//    last sent, the Thursday update, and otherwise the daily message of the
+//    client's station. The others stay available as options; a delay notice a
+//    business day ahead of the date is one of them.
+//  - A message the protocol already has a check for (the welcome is 2's intro,
+//    the day-before message is 15's reminder to the client) is not suggested once
+//    that check is done; sending it from the queue checks it (messages.js).
+//  - The copy never says "here in the group": the queue sends to the client's
+//    number or to the group, and the same words fit both.
 //  - Clients that ended or were cancelled get nothing, and nobody does on a day
 //    the office is closed (Friday, Saturday, holidays).
 //  - Imported history (checks with the note "ייבוא") is never a milestone.
@@ -42,9 +49,12 @@ export const MESSAGE_KINDS = {
 // the page; the table wins, and a default fills in only when a row is missing.
 // {x} is filled by the system; [x] marks a place the sender fills by hand. A
 // message with either left in it cannot be sent.
-const daily = (key, body) => {
+const daily = (key, body, variant = null, note = null) => {
   const i = STATIONS.findIndex((s) => s.key === key);
-  return { key: `daily.${key}`, title: `הודעה יומית: ${STATIONS[i].title}`, kind: 'daily', station: i + 1, body };
+  return {
+    key: `daily.${key}${variant ? `_${variant}` : ''}`, title: `הודעה יומית: ${STATIONS[i].title}${note ? `, ${note}` : ''}`,
+    kind: 'daily', station: i + 1, body,
+  };
 };
 
 export const DEFAULT_TEMPLATES = [
@@ -58,15 +68,15 @@ export const DEFAULT_TEMPLATES = [
 התאריכים הקרובים:
 {תאריכים}
 
-מה נצטרך מכם: לוגו, צבעי המותג, ותמונות וסרטונים שכבר יש לכם. את הגישות לרשתות נקבל מכם בשיחה, לא כאן בקבוצה.
+מה נצטרך מכם: לוגו, צבעי המותג, ותמונות וסרטונים שכבר יש לכם. את הגישות לרשתות לא שולחים בהודעה: נקבל אותן מכם בשיחה.
 
-בכל יום חמישי תקבלו כאן עדכון קצר: מה עשינו, מה הלאה ומה צריך מכם. בכל שאלה אפשר לכתוב לנו כאן.`,
+בכל יום חמישי תקבלו מאיתנו עדכון קצר: מה עשינו, מה הלאה ומה צריך מכם. בכל שאלה אפשר לכתוב לנו.`,
   },
   {
     key: 'access', title: 'מצב החומרים והגישות', kind: 'milestone', station: null,
     body: `היי {לקוח}, עדכון קצר על החומרים לעמוד: התקבלו {התקבלו} מתוך {מתוך}.
 עוד חסר: {חסר}.
-חומרים אפשר לשלוח כאן בקבוצה. את הגישות לרשתות לא שולחים בקבוצה: נתאם שיחה קצרה ונקבל אותן מכם בטלפון.`,
+את החומרים אפשר לשלוח לנו בוואטסאפ. את הגישות לרשתות לא שולחים בהודעה: נתאם שיחה קצרה ונקבל אותן מכם בטלפון.`,
   },
   {
     key: 'summary', title: 'מה הבנו על העסק', kind: 'milestone', station: null,
@@ -76,7 +86,7 @@ export const DEFAULT_TEMPLATES = [
 3. מה מייחד אתכם: [להשלים]
 4. מה המטרה שלנו יחד: [להשלים]
 5. על מה נשים דגש בתוכן: [להשלים]
-משהו לא מדויק? כתבו לנו כאן ונתקן.`,
+משהו לא מדויק? כתבו לנו ונתקן.`,
   },
   {
     key: 'scripts', title: 'תסריטים לאישור', kind: 'milestone', station: null,
@@ -91,7 +101,7 @@ export const DEFAULT_TEMPLATES = [
 איפה: {כתובת}
 מי מגיע: {מגיעים}
 מה להכין: העסק מסודר ונקי, מוצרים ושירותים מוכנים לצילום, שילוט ותאורה דולקים, ועובדים שמוכנים להופיע. בשעה הראשונה מצלמים את העסק עצמו, לפני שהמשפיענים מגיעים.
-אם משהו השתנה, כתבו לנו כאן עוד היום.`,
+אם משהו השתנה, כתבו לנו עוד היום.`,
   },
   {
     key: 'thanks', title: 'תודה אחרי הצילום', kind: 'milestone', station: null,
@@ -134,14 +144,16 @@ export const DEFAULT_TEMPLATES = [
 במקום {תאריך}, זה יהיה מוכן עד [מועד חדש].
 מצטערים על העיכוב. אנחנו על זה.`,
   },
-  daily('join', 'היי {לקוח}, אנחנו מסדרים את כל מה שצריך כדי להתחיל: הצוות, פגישת האפיון והחומרים. אם יש שאלה, אנחנו כאן בקבוצה.'),
-  daily('char', 'היי {לקוח}, אנחנו בשלב האפיון: לומדים את העסק לעומק ומסדרים את העמוד, הגרפיקות הראשונות וה־Highlights. נעדכן כאן כשיש משהו לאישור.'),
+  daily('join', 'היי {לקוח}, אנחנו מסדרים את כל מה שצריך כדי להתחיל: הצוות, פגישת האפיון והחומרים. אם יש שאלה, כתבו לנו.'),
+  daily('char', 'היי {לקוח}, אנחנו בשלב האפיון: לומדים את העסק לעומק ומסדרים את העמוד, הגרפיקות הראשונות וה־Highlights. נעדכן אתכם כשיש משהו לאישור.'),
   daily('content', 'היי {לקוח}, היום אנחנו עובדים על התוכן ליום הצילום: הדגשים והתסריטים. לפני שמצלמים, הכול מגיע אליכם לאישור.'),
-  daily('shoot', 'היי {לקוח}, יום הצילום בפתח ואנחנו מתכוננים אליו. אם יש משהו שחשוב לכם שנדע, כתבו לנו כאן.'),
-  daily('post', 'היי {לקוח}, הסרטונים שלכם בעריכה. הם יהיו סגורים עד {תאריך}, ונשלח לכם אותם כאן.'),
-  daily('publish', 'היי {לקוח}, אנחנו מתזמנים את התכנים שלכם ומכינים את הקמפיינים. נעדכן כאן ברגע שהם עולים.'),
+  daily('shoot', 'היי {לקוח}, יום הצילום בפתח ואנחנו מתכוננים אליו. אם יש משהו שחשוב לכם שנדע, כתבו לנו.'),
+  daily('post', 'היי {לקוח}, הסרטונים שלכם בעריכה. נשלח לכם אותם לאישור, והכול יהיה סגור עד {תאריך}.'),
+  // The same station when there is no promised date ahead (it passed, or there is no shoot date).
+  daily('post', 'היי {לקוח}, הסרטונים שלכם בעריכה ואנחנו על זה. נעדכן אתכם ברגע שהם מוכנים.', 'nodate', 'בלי מועד'),
+  daily('publish', 'היי {לקוח}, אנחנו מתזמנים את התכנים שלכם ומכינים את הקמפיינים. נעדכן אתכם ברגע שהם עולים.'),
   daily('ongoing', 'היי {לקוח}, התכנים שלכם ממשיכים לעלות לפי הגאנט. יש מבצע, אירוע או משהו חדש בעסק? ספרו לנו ונשלב אותו.'),
-  daily('renewal', 'היי {לקוח}, אנחנו מסכמים את התוצאות של השנה שלנו יחד לקראת שיחת ההמשך. יש משהו שתרצו שנבדוק? כתבו לנו כאן.'),
+  daily('renewal', 'היי {לקוח}, אנחנו מסכמים את התוצאות של השנה שלנו יחד לקראת שיחת ההמשך. יש משהו שתרצו שנבדוק? כתבו לנו.'),
 ];
 
 // What the system fills in each template ({לקוח} and {עסק} everywhere).
@@ -194,6 +206,7 @@ export const messageText = (option, templates) => fillTemplate(templates.get(opt
 
 // WhatsApp links only (never automation): to the client's number, in its 972…
 // form, when the card has one; otherwise with no number, and the sender picks the group.
+// The templates are worded for either.
 export const waLink = (phone, text) => whatsappLink(phone, text);
 export const groupLink = (text) => whatsappLink('', text);
 
@@ -351,7 +364,8 @@ const earlier = (a, b) => (a && b ? (a < b ? a : b) : a || b);
 // `base`: once per client, not per shoot round. `when`: still relevant now.
 // `urgent`: goes first.
 const MILESTONES = [
-  { key: 'welcome', station: 'join', base: true, fresh: 2, at: (x) => x.doneAt('p02.opened') },
+  // Process 2's intro message is this one: once it is checked, it went out.
+  { key: 'welcome', station: 'join', base: true, fresh: 2, at: (x) => x.doneAt('p02.opened'), when: (x) => !x.isDone('p02.intro') },
   {
     key: 'access', station: 'char', base: true, fresh: 3, at: (x) => x.completed('p04'),
     when: (x) => !x.st('p05')?.complete && materialsOf(x.checks).missing.length > 0,
@@ -359,12 +373,14 @@ const MILESTONES = [
   { key: 'summary', station: 'char', base: true, fresh: 2, at: (x) => x.completed('p04') },
   { key: 'scripts', station: 'content', fresh: 3, at: (x) => x.completed('p12'), when: (x) => !x.isDone('p13.approved') },
   {
-    // Only on the business day before the shoot.
+    // Only on the business day before the shoot; process 15's reminder to the
+    // client is this message, so once it is checked it went out.
     key: 'eve', station: 'shoot', urgent: true, fresh: 0,
     at: (x, now) => {
       const shoot = parseDate(x.ctx.shoot_at);
       return shoot && shoot > now && dayKeyIL(eveOf(shoot)) === dayKeyIL(now) && !x.st('p19')?.complete ? startOfDayIL(now) : null;
     },
+    when: (x) => !x.isDone('p15.client'),
   },
   {
     // From the business day after the shoot ("למחרת").
@@ -386,14 +402,42 @@ const MILESTONES = [
 ];
 const ORDER = new Map(MILESTONES.map((m, i) => [m.key, i]));
 
+// The protocol item a message sent from the queue fulfils, and the note it is
+// checked with: the welcome is process 2's intro, the day-before message is
+// process 15's reminder to the client (in an extra shoot round, that round's).
+// `m` is a client_messages row ({template_key, ref}) or an option ({key, ref}).
+export const SENT_CHECK_NOTE = 'נשלחה ממרכז ההודעות';
+export function protocolCheckOf(m) {
+  const key = m?.template_key ?? m?.key;
+  const pre = /^r\d+\./.exec(m?.ref || '')?.[0] || '';
+  if (key === 'welcome' && !pre) return 'p02.intro';
+  if (key === 'eve') return `${pre}p15.client`;
+  return null;
+}
+
 // Promises to the client that get a notice of delay up to a business day before
 // their date (section 4: ה4, ה5, ה8, ה9). `due`: the promised date, when it is
-// not the process's own due date (ה8 counts from the shoot).
+// not the process's own due date (ה8 counts from the shoot). `chain`: the
+// processes that lead to it; one of them late for the office means the promise
+// is at risk (not 26, due the moment 25 is done: it is "late" for the minutes
+// until Irit sends the videos). `onClient(x, open)`: the ball is in the client's court (an
+// approval or notes are what is left), so a delay would not be ours. `open`:
+// the keys of the process's required items still open.
 const PROMISES = [
-  { proc: 'p11', what: 'קביעת יום הצילום' },
-  { proc: 'p12', what: 'התסריטים ליום הצילום' },
-  { proc: 'p27', what: 'סגירת הסרטונים', due: (x) => promisedClosing(x.ctx.shoot_at) },
-  { proc: 'p30', what: 'העלאת הקמפיינים' },
+  {
+    proc: 'p11', what: 'קביעת יום הצילום', chain: ['p11'],
+    // Everyone else confirmed the date; the client's approval (and then the calendar) is left.
+    onClient: (x, open) => !x.isDone('p11.ok.client') && open.every((k) => /\.ok\.client$|\.calendar$/.test(k)),
+  },
+  { proc: 'p12', what: 'התסריטים ליום הצילום', chain: ['p12a', 'p12'] },
+  {
+    proc: 'p27', what: 'סגירת הסרטונים', due: (x) => promisedClosing(x.ctx.shoot_at),
+    chain: ['p22a', 'p22', 'p24', 'p25', 'p27'],
+    // The videos are with the client: no notes back yet, or only the approval is left.
+    onClient: (x, open) => x.isDone('p26.sent') && !x.isDone('p27.approved')
+      && (!x.isDone('p27.notes') || open.every((k) => /\.approved$|\.toilai$/.test(k))),
+  },
+  { proc: 'p30', what: 'העלאת הקמפיינים', chain: ['p30'] },
 ];
 
 // The client and each extra shoot round, with helpers over its checks and states.
@@ -427,16 +471,26 @@ const currentOf = (xs, client, state, now) => {
 const roundNote = (x) => (x.round ? ` (סבב צילום ${x.round})` : '');
 
 // The next three dates, for the welcome message (never an internal deadline).
-function nextDatesText(c) {
-  const char = parseDate(c.char_at);
-  const shoot = parseDate(c.shoot_at);
+// Only dates still ahead: one that already passed is left out, and with none
+// left, the sender writes them by hand.
+function nextDatesText(c, now) {
+  const ahead = (d) => (d && d > now ? d : null);
+  const charAt = parseDate(c.char_at);
+  const shootAt = parseDate(c.shoot_at);
+  const char = ahead(charAt);
+  const shoot = ahead(shootAt);
   const at = (d) => `${dayText(d)} בשעה ${timeText(d)}`;
-  return [
-    char ? `פגישת האפיון: ${at(char)}` : 'פגישת האפיון: נתאם איתכם מועד בשעות הקרובות',
-    `עמוד מסודר ו־9 גרפיקות ראשונות לאישור: ${char ? `ביום האפיון, ${dayText(char)}` : 'ביום האפיון'}`,
-    shoot ? `יום הצילום: ${at(shoot)}`
-      : `קביעת יום הצילום: ${char ? `עד ${dayText(addBusinessDays(char, 3))}` : 'עד 3 ימי עסקים אחרי האפיון'}`,
-  ].join('\n');
+  const lines = [];
+  if (!charAt) lines.push('פגישת האפיון: נתאם איתכם מועד בשעות הקרובות', 'עמוד מסודר ו־9 גרפיקות ראשונות לאישור: ביום האפיון');
+  else if (char) lines.push(`פגישת האפיון: ${at(char)}`, `עמוד מסודר ו־9 גרפיקות ראשונות לאישור: ביום האפיון, ${dayText(char)}`);
+  if (shoot) lines.push(`יום הצילום: ${at(shoot)}`);
+  else if (!shootAt) {
+    // Promise ה4: the shoot day is set within 3 business days of the meeting.
+    const setBy = charAt ? ahead(addBusinessDays(charAt, 3)) : null;
+    if (!charAt) lines.push('קביעת יום הצילום: עד 3 ימי עסקים אחרי האפיון');
+    else if (setBy) lines.push(`קביעת יום הצילום: עד ${dayText(setBy)}`);
+  }
+  return lines.length ? lines.join('\n') : '[התאריכים הקרובים]';
 }
 
 // Variables and a one-line reason for a milestone.
@@ -446,7 +500,7 @@ function milestoneOption(m, x, at, now) {
   switch (m.key) {
     case 'welcome':
       vars['צוות'] = teamText();
-      vars['תאריכים'] = nextDatesText(x.client);
+      vars['תאריכים'] = nextDatesText(x.client, now);
       reason = `הקבוצה נפתחה ${relDay(at, now)}`;
       break;
     case 'access': {
@@ -467,11 +521,14 @@ function milestoneOption(m, x, at, now) {
       break;
     }
     case 'thanks': case 'videos': {
+      // A promised date that already passed is never repeated to the client: the
+      // {תאריך} stays open, and the sender writes the new date.
       const closing = promisedClosing(x.ctx.shoot_at);
-      if (closing) vars['תאריך'] = dayText(closing);
-      reason = m.key === 'thanks'
-        ? `יום הצילום הסתיים${closing ? `. הסרטונים סגורים עד ${dayText(closing)}` : ''}`
-        : `הסרטונים נשלחו ללקוח ${relDay(at, now)}`;
+      const ahead = closing && closing > now;
+      if (ahead) vars['תאריך'] = dayText(closing);
+      reason = m.key === 'thanks' ? 'יום הצילום הסתיים' : `הסרטונים נשלחו ללקוח ${relDay(at, now)}`;
+      if (ahead && m.key === 'thanks') reason += `. הסרטונים סגורים עד ${dayText(closing)}`;
+      if (closing && !ahead) reason += `. מועד הסגירה שהבטחנו (${dayText(closing)}) כבר עבר: כותבים מועד חדש`;
       break;
     }
     case 'first_post': reason = 'התכנים תוזמנו לפרסום'; break;
@@ -504,26 +561,39 @@ function pendingMilestones(xs, messages, now, station) {
       if (businessDaysBetween(at, now) > m.fresh || stationAt(m.station) < station - 1) continue;
       // A later step of the journey already reached the client: this one is behind them.
       if (list.some((o) => ORDER.get(o.m.key) > ORDER.get(m.key) && o.sent && o.at > at)) continue;
-      out.push({ m, option: milestoneOption(m, x, at, now) });
+      out.push({ urgent: !!m.urgent, option: milestoneOption(m, x, at, now) });
     }
   }
-  return [...out.filter((p) => p.m.urgent), ...out.filter((p) => !p.m.urgent)].map((p) => p.option);
+  return [...out.filter((p) => p.urgent), ...out.filter((p) => !p.urgent)];
 }
 
+// Notices of delay, each { urgent, option }. A promise not kept yet a business
+// day before its date is an option; it leads the day (`urgent`) only on the date
+// itself, or when the office is already late on a step that leads to it. Being
+// unfinished the day before is often normal (the scripts are written on day 3),
+// and the client must not get an apology for work that is on time.
 function delayNotices(xs, messages, now) {
   const out = [];
   for (const x of xs) {
     for (const p of PROMISES) {
       const s = x.st(p.proc);
       if (!s || s.complete || s.wait) continue; // done, or waiting on the client (not our delay)
+      const open = s.proc.items.filter((i) => !i.optional && !resolvedCheck(x.checks, i.key)).map((i) => i.key);
+      if (p.onClient && p.onClient(x, open)) continue; // what is left is the client's
       const due = p.due ? p.due(x) : s.dueAt;
-      if (!due || due <= now || businessDaysBetween(now, due) > 1) continue; // always before the date
+      if (!due || due <= now) continue; // always before the date
+      const days = businessDaysBetween(now, due);
+      if (days > 1) continue;
       const ref = `${x.pre}${p.proc}`;
       if (messages.some((m) => m.kind === 'delay' && m.ref === ref)) continue;
+      const behind = p.chain.some((id) => { const c = x.st(id); return !!c && c.late && !c.wait; });
       out.push({
-        kind: 'delay', key: 'delay', ref, at: now,
-        reason: `הבטחנו את ${p.what} עד ${dayText(due)}, וזה עוד לא הושלם${roundNote(x)}`,
-        vars: { 'מה': p.what, 'תאריך': dayText(due) },
+        urgent: days === 0 || behind,
+        option: {
+          kind: 'delay', key: 'delay', ref, at: now,
+          reason: `הבטחנו את ${p.what} עד ${dayText(due)}, וזה עוד לא הושלם${roundNote(x)}`,
+          vars: { 'מה': p.what, 'תאריך': dayText(due) },
+        },
       });
     }
   }
@@ -584,7 +654,7 @@ export function thursdayVars(client, checks, state, now = new Date()) {
   return {
     'עשינו': did.length ? listText(did.slice(0, 4)) : '[מה עשינו השבוע]',
     'הלאה': listText(next.slice(0, 2)),
-    'צריך': need.length ? listText([...new Set(need)]) : 'כרגע כלום. אם עולה שאלה, אנחנו כאן',
+    'צריך': need.length ? listText([...new Set(need)]) : 'כרגע כלום. אם עולה שאלה, כתבו לנו',
   };
 }
 
@@ -602,21 +672,44 @@ export function suggestFor(client, checks = {}, messages = [], now = new Date(),
   if (!isBusinessDay(now)) return { ...base, dayOff: true };
 
   const xs = contextsOf(client, checks, st);
-  const options = [...delayNotices(xs, messages, now), ...pendingMilestones(xs, messages, now, station)];
+  const delays = delayNotices(xs, messages, now);
+  const milestones = pendingMilestones(xs, messages, now, station);
+  const pick = (list, urgent) => list.filter((p) => p.urgent === urgent).map((p) => p.option);
+  // The day before a shoot, then a delay that cannot wait, then the milestones.
+  const options = [...pick(milestones, true), ...pick(delays, true), ...pick(milestones, false)];
   if (weekdayIL(now) === 4) {
     options.push({ kind: 'thursday', key: 'thursday', ref: null, at: now, reason: 'יום חמישי: עדכון שבועי בשלוש שורות', vars: thursdayVars(client, checks, st, now) });
   }
-  // A promised date that already passed is never repeated to the client: the
-  // {תאריך} stays open, and the sender writes the new date.
-  const closing = promisedClosing(currentOf(xs, client, st, now).ctx.shoot_at);
-  options.push({
-    kind: 'daily', key: `daily.${STATIONS[station].key}`, ref: null, at: now,
-    reason: `הודעה יומית · תחנה: ${STATIONS[station].title}`,
-    vars: closing && closing > now ? { 'תאריך': dayText(closing) } : {},
-  });
+  options.push(dailyOption(station, currentOf(xs, client, st, now).ctx, now));
+  // A promise at risk but not due yet: an option, after the day's message.
+  options.push(...pick(delays, false));
   const who = { 'לקוח': client.name || '', 'עסק': client.business || client.name || '' };
   for (const o of options) o.vars = { ...who, ...o.vars };
   return { ...base, options };
+}
+
+// The daily message of the station. A promised date that already passed is
+// never repeated to the client: editing then gets the message without a date.
+// A shoot day that is behind the client but not closed in the card (process 19)
+// no longer gets "the shoot day is coming".
+function dailyOption(station, ctx, now) {
+  let key = STATIONS[station].key;
+  let reason = `הודעה יומית · תחנה: ${STATIONS[station].title}`;
+  const shoot = parseDate(ctx.shoot_at);
+  if (key === 'shoot' && shoot && daysBetweenIL(shoot, now) >= 1) {
+    key = 'post';
+    reason += `. יום הצילום היה ${relDay(shoot, now)} ועוד לא נסגר בכרטיס (תהליך 19)`;
+  }
+  const vars = {};
+  if (key === 'post') {
+    const closing = promisedClosing(ctx.shoot_at);
+    if (closing && closing > now) vars['תאריך'] = dayText(closing);
+    else {
+      key = 'post_nodate';
+      if (closing) reason += `. מועד הסגירה שהבטחנו (${dayText(closing)}) כבר עבר, ולכן בלי תאריך`;
+    }
+  }
+  return { kind: 'daily', key: `daily.${key}`, ref: null, at: now, reason, vars };
 }
 
 // The day's queue: every open client; those still to message first (the most

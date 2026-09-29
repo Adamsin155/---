@@ -4,11 +4,15 @@
 // WhatsApp with it (a link only, never automation) and records that it was
 // sent. What to suggest is decided in messages-logic.js; the database stamps
 // who sent and when, and keeps to one message per client per Israel day.
+// A record made by mistake (WhatsApp closed without sending) can be undone by
+// whoever made it, for UNDO_MINUTES; the database holds to the same window.
+// Sending the welcome or the day-before message checks the protocol item that
+// is that message (2's intro, 15's reminder to the client).
 // For the owner, Irit and Lior (the database lets the office in: can_message_clients()).
 import { supabase } from './supa.js';
 import { STATIONS } from './protocol.js';
 import { isBusinessDay } from './protocol-logic.js';
-import { loadClients, loadChecks, loadDirectory } from './protocol-data.js';
+import { loadClients, loadChecks, loadDirectory, setCheck, clearCheck } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, store,
 } from './protocol-ui.js';
@@ -16,13 +20,15 @@ import { dayKeyIL } from './tz.js';
 import { canManageTeam } from './team-rules.js';
 import {
   dayQueue, templatesByKey, messageText, unfilledIn, unknownVars, templateVars, waLink, groupLink, canSendMessages,
-  DEFAULT_TEMPLATES, MESSAGE_KINDS, dayText, timeText,
+  protocolCheckOf, SENT_CHECK_NOTE, DEFAULT_TEMPLATES, MESSAGE_KINDS, dayText, timeText,
 } from './messages-logic.js';
 
 const MSG_COLS = 'id, client_id, kind, template_key, ref, body, sent_by_email, sent_at';
 const TPL_COLS = 'key, title, body, kind, station, updated_by, updated_at';
 const HISTORY_DAYS = 180;
 const PAGE = 1000;
+// The database lets the sender remove a fresh record for 5 minutes ("sender undoes a fresh record").
+const UNDO_MINUTES = 5;
 
 let clients = [];
 let checks = {};
@@ -34,10 +40,12 @@ let entries = [];             // today's queue (dayQueue)
 let day = null;               // the Israel day the queue was built for
 let lastLoad = 0;
 let station = store.get('messages.station') || 'all';
+let myEmail = '';
 const drafts = new Map();     // client id -> { opt, text }: the chosen option and the text as edited
 const recording = new Set();  // client ids whose record is on its way
 const failed = new Map();     // client id -> { option, text, error }: opened in WhatsApp, not recorded
 const errors = new Map();     // client id -> what to fix before sending
+const undoing = new Set();    // message ids whose undo is on its way
 const openHistory = new Set();
 
 const optId = (o) => `${o.kind}:${o.ref || o.key}`;
@@ -114,7 +122,13 @@ function renderSummary(now) {
   const all = entries.filter((e) => !e.dayOff);
   const todo = pending(all).length;
   const done = all.length - todo;
-  $('msg-summary').textContent = `${dayText(now)} · ${todo === 1 ? 'הודעה אחת לשליחה' : `${todo} הודעות לשליחה`} · ${done === 1 ? 'לקוח אחד כבר קיבל הודעה היום' : `${done} לקוחות כבר קיבלו הודעה היום`}`;
+  const next = [
+    dayText(now),
+    todo === 0 ? 'אין עוד הודעות לשליחה' : todo === 1 ? 'הודעה אחת לשליחה' : `${todo} הודעות לשליחה`,
+    done === 0 ? 'עוד לא נשלחו הודעות היום' : done === 1 ? 'לקוח אחד כבר קיבל הודעה היום' : `${done} לקוחות כבר קיבלו הודעה היום`,
+  ].join(' · ');
+  // A status line: changed only when it says something new, so it is not read out on every refresh.
+  if ($('msg-summary').textContent !== next) $('msg-summary').textContent = next;
 }
 
 function renderFilters() {
@@ -159,10 +173,14 @@ function renderKeepingFocus() {
   }
 }
 
-// "אבן דרך: ברוכים הבאים"; a daily template's title already says what it is.
+// "אבן דרך: ברוכים הבאים"; a daily template's title already says what it is; a
+// delay says which promise ("הודעה על עיכוב: סגירת הסרטונים"), and an extra
+// shoot round says which round, so two options never read the same.
 function optionLabel(o) {
   const title = templates.get(o.key)?.title || o.key;
-  return o.kind === 'daily' ? title : `${MESSAGE_KINDS[o.kind]}: ${title}`;
+  if (o.kind === 'daily') return title;
+  const round = /^r(\d+)\./.exec(o.ref || '')?.[1];
+  return `${MESSAGE_KINDS[o.kind]}: ${o.kind === 'delay' ? o.vars['מה'] : title}${round ? ` (סבב צילום ${round})` : ''}`;
 }
 
 function kindBadge(kind) {
@@ -192,13 +210,24 @@ function history(e) {
     h('p', { class: 'msg-body' }, m.body)))));
 }
 
+// A record of mine made in the last few minutes: I may still undo it.
+const undoable = (m) => !!m && !!myEmail && m.sent_by_email === myEmail
+  && Date.now() - new Date(m.sent_at).getTime() < UNDO_MINUTES * 60e3;
+
 function sentCard(e) {
   const m = e.sent;
-  return h('li', { class: 'msg-card is-sent', id: `msg-${e.client.id}`, 'aria-labelledby': `msg-h-${e.client.id}` },
+  const id = e.client.id;
+  return h('li', { class: 'msg-card is-sent', id: `msg-${id}`, tabindex: '-1', 'aria-labelledby': `msg-h-${id}` },
     head(e),
     h('p', { class: 'msg-why' },
       h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'כבר נשלח היום'),
       h('span', {}, `${timeText(new Date(m.sent_at))} · ${who(m.sent_by_email)} · ${templates.get(m.template_key)?.title || MESSAGE_KINDS[m.kind] || ''}`)),
+    undoable(m) ? h('div', { class: 'msg-undo' },
+      h('span', { id: `msg-undo-note-${id}` }, 'לא נשלח בפועל בוואטסאפ? אפשר לבטל את הרישום בדקות הקרובות.'),
+      h('button', {
+        type: 'button', class: 'btn-text', id: `msg-undo-${id}`, disabled: undoing.has(m.id),
+        'aria-describedby': `msg-h-${id} msg-undo-note-${id}`, onclick: () => undo(m),
+      }, 'ביטול הרישום')) : null,
     history(e));
 }
 
@@ -219,9 +248,13 @@ function card(e) {
     onclick: (ev) => onSend(ev, e, group),
   }, group ? 'שליחה לקבוצה' : 'שליחה ומעבר לבא', h('span', { class: 'sr-only' }, ' (נפתח בוואטסאפ)'));
 
-  return h('li', { class: `msg-card k-${o.kind}${busy ? ' is-busy' : ''}`, id: `msg-${id}`, 'aria-labelledby': `msg-h-${id}` },
+  // A promise at risk that is not today's suggestion: said on the card, one choice away.
+  const risk = e.options.find((x) => x.kind === 'delay' && optId(x) !== optId(o));
+
+  return h('li', { class: `msg-card k-${o.kind}${busy ? ' is-busy' : ''}`, id: `msg-${id}`, tabindex: '-1', 'aria-labelledby': `msg-h-${id}` },
     head(e),
     h('p', { class: 'msg-why' }, kindBadge(o.kind), h('span', {}, o.reason)),
+    risk ? h('p', { class: 'msg-risk' }, `${risk.reason}. אם זה יתעכב, בוחרים ״הודעה על עיכוב״ ב״איזו הודעה״.`) : null,
     e.options.length > 1 ? h('div', { class: 'field msg-pick' },
       h('label', { for: `msg-opt-${id}` }, 'איזו הודעה'),
       h('select', {
@@ -308,9 +341,16 @@ function nextAfter(id) {
   return rest[0]?.client.id || null;
 }
 
+// The next client's card, not its text: focusing a text field would open the
+// phone's keyboard over the card on the way back from WhatsApp. A screen reader
+// reads the card's name; Tab goes on into it.
 function focusCard(id) {
-  const ta = id && document.getElementById(`msg-text-${id}`);
-  if (ta) { ta.focus(); return; }
+  const card = id && document.getElementById(`msg-${id}`);
+  if (card) {
+    card.focus({ preventScroll: true });
+    card.scrollIntoView({ block: 'start', behavior: 'instant' });
+    return;
+  }
   const empty = $('msg-empty');
   if (!empty.hidden) empty.focus();
 }
@@ -343,8 +383,54 @@ async function record(e, { option, text }) {
   drafts.delete(c.id);
   build();
   render();
-  toast(`נרשם: נשלחה הודעה ל${c.name}.`);
+  toast(`נרשם: נשלחה הודעה ל${c.name}.`, { label: 'ביטול', run: () => undo(data) });
   focusCard(next);
+  checkSent(data);
+}
+
+// The protocol item that is this message (2's intro, 15's reminder), checked
+// once it was sent from the queue. If that fails, the card still has it to check by hand.
+async function checkSent(m) {
+  const key = protocolCheckOf(m);
+  const cs = (checks[m.client_id] ||= {});
+  if (!key || cs[key]?.state === 'done') return;
+  try { cs[key] = await setCheck(m.client_id, key, 'done', SENT_CHECK_NOTE); } catch { return; }
+  // Undone while the check was on its way: take it back too.
+  if (!messages.some((x) => x.id === m.id)) {
+    try { await clearCheck(m.client_id, key); delete cs[key]; } catch { /* the card can uncheck it */ }
+  }
+  build();
+  renderKeepingFocus();
+}
+
+// Undo a record made by mistake. The database allows it to whoever recorded the
+// message, within UNDO_MINUTES; the protocol item it checked is unchecked too.
+async function undo(m) {
+  if (undoing.has(m.id)) return;
+  const c = clients.find((x) => x.id === m.client_id);
+  undoing.add(m.id);
+  renderKeepingFocus();
+  const { data, error } = await supabase.from('client_messages').delete().eq('id', m.id).select('id');
+  undoing.delete(m.id);
+  if (error || !data?.length) {
+    renderKeepingFocus();
+    toast(error ? `הרישום לא בוטל. ${explain(error)}` : `אי אפשר לבטל: עברו יותר מ־${UNDO_MINUTES} דקות מהרישום, או שמישהו אחר רשם אותו.`);
+    return;
+  }
+  messages = messages.filter((x) => x.id !== m.id);
+  const key = protocolCheckOf(m);
+  const ck = key && checks[m.client_id]?.[key];
+  if (ck && ck.note === SENT_CHECK_NOTE && ck.by_email === m.sent_by_email) {
+    try { await clearCheck(m.client_id, key); delete checks[m.client_id][key]; } catch { /* stays checked; the card can uncheck it */ }
+  }
+  build();
+  // Back in the queue with the text as it was sent.
+  const e = entries.find((x) => x.client.id === m.client_id);
+  const o = e?.options.find((x) => x.key === m.template_key && (x.ref || null) === (m.ref || null));
+  if (o) drafts.set(m.client_id, { opt: optId(o), text: m.body });
+  render();
+  toast(`הרישום בוטל: ההודעה ל${c?.name || 'לקוח'} חזרה לתור.`);
+  focusCard(m.client_id);
 }
 
 // ── Templates ─────────────────────────────
@@ -448,12 +534,14 @@ $('btn-refresh').addEventListener('click', load);
 setInterval(() => {
   if ($('msg-page').hidden || document.hidden) return;
   if (dayKeyIL(new Date()) !== day || Date.now() - lastLoad > 5 * 60e3) load();
+  else if (document.querySelector('.msg-undo')) renderKeepingFocus(); // an undo whose time is up goes away
 }, 60e3);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !$('msg-page').hidden && Date.now() - lastLoad > 60e3) load();
 });
 
 mountSession(async (staff) => {
+  myEmail = String(staff.email || '').toLowerCase();
   const [dir, viewer] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
   Object.assign(directory, dir);
   $('nav-team').hidden = !canManageTeam(viewer);

@@ -6,6 +6,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
+import { applicableProcesses } from '../app/protocol-logic.js';
 import { DEFAULT_TEMPLATES } from '../app/messages-logic.js';
 import { dayKeyIL } from '../app/tz.js';
 
@@ -132,6 +133,28 @@ async function fakeSupabase(route) {
     db.client_messages.push(row);
     return reply([row]);
   }
+  if (req.method() === 'POST' && table === 'protocol_checks') {
+    // An upsert on (client_id, item_key); the database stamps who and when.
+    const rows = (Array.isArray(body) ? body : [body]).map((b) => {
+      const row = { client_id: b.client_id, item_key: b.item_key, state: b.state, note: b.note ?? null, by_email: me.email, at: serverNow().toISOString() };
+      const i = db.protocol_checks.findIndex((x) => x.client_id === b.client_id && x.item_key === b.item_key);
+      if (i >= 0) db.protocol_checks[i] = row; else db.protocol_checks.push(row);
+      return row;
+    });
+    return reply(rows);
+  }
+  if (req.method() === 'DELETE' && table === 'client_messages') {
+    // "sender undoes a fresh record": the office, their own record, within 5 minutes.
+    const gone = applyFilters(db.client_messages, url.searchParams)
+      .filter((r) => office(me) && r.sent_by_email === me.email && serverNow() - new Date(r.sent_at) < 5 * 60e3);
+    db.client_messages = db.client_messages.filter((r) => !gone.includes(r));
+    return reply(gone);
+  }
+  if (req.method() === 'DELETE' && table === 'protocol_checks') {
+    const gone = applyFilters(db.protocol_checks, url.searchParams);
+    db.protocol_checks = db.protocol_checks.filter((r) => !gone.includes(r));
+    return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
+  }
   if (req.method() === 'POST' && table === 'message_templates') {
     if (!office(me)) return json(403, { code: '42501', message: 'new row violates row-level security policy for table "message_templates"' });
     const i = db.message_templates.findIndex((x) => x.key === body.key);
@@ -169,6 +192,7 @@ const shot = async (page, name) => { if (OUT) await page.screenshot({ path: `${O
 const text = (page, sel) => page.locator(sel).innerText();
 const toastHas = (page, s) => page.waitForFunction((x) => document.querySelector('#toast.on')?.textContent.includes(x), s);
 const activeId = (page) => page.evaluate(() => document.activeElement?.id || '');
+const checkOf = (c, key) => db.protocol_checks.find((x) => x.client_id === c.id && x.item_key === key) || null;
 const cardIds = (page) => page.locator('#msg-queue > li').evaluateAll((els) => els.map((e) => e.id.replace(/^msg-/, '')));
 const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const waText = (href) => decodeURIComponent(href.split('?text=')[1]);
@@ -179,6 +203,11 @@ async function sendVia(page, ctx, sel) {
   const url = tab.url();
   await tab.close();
   return url;
+}
+// Waits (up to 3 s) for something the page does after a response.
+async function waitFor(fn) {
+  for (let i = 0; i < 60; i += 1) { if (fn()) return; await new Promise((r) => setTimeout(r, 50)); }
+  assert.fail('timed out');
 }
 let passed = 0;
 async function step(name, fn) {
@@ -211,6 +240,8 @@ await step('Irit sees today\'s queue: the most important first, closed clients o
   assert.match(await text(irit, `#msg-${C.id}`), /הודעה יומית · תחנה: שוטף/);
   assert.match(await text(irit, `#msg-${D.id}`), /כבר נשלח היום[\s\S]*08:30 · ליאור/);
   assert.equal(await irit.locator(`#msg-send-${D.id}`).count(), 0, 'no sending twice in a day');
+  assert.equal(await irit.locator(`#msg-undo-${D.id}`).count(), 0, 'only the sender may undo, and only a fresh record');
+  assert.equal(await text(irit, `#msg-note-${A.id}`), 'השליחה פותחת צ׳אט עם הטלפון שבכרטיס. להודעה בקבוצת הלקוח: ״שליחה לקבוצה״.');
   assert.equal(await irit.locator(`#msg-${E.id}`).count(), 0, 'an ended client is not in the queue');
   // The other options of the day stay one choice away.
   assert.deepEqual(await irit.locator(`#msg-opt-${A.id} option`).allInnerTexts(), ['אבן דרך: ברוכים הבאים', 'הודעה יומית: הצטרפות']);
@@ -247,12 +278,18 @@ await step('a message with a place left to fill does not go out; filled in, it o
   const row = db.client_messages.at(-1);
   assert.deepEqual([row.client_id, row.kind, row.template_key, row.ref, row.body, row.sent_by_email], [F.id, 'delay', 'delay', 'p27', typed.trim(), 'irit@astrateg.test']);
   await toastHas(irit, 'נרשם: נשלחה הודעה למאפיית שי');
-  assert.equal(await activeId(irit), `msg-text-${A.id}`, 'the next client is focused');
+  // The next client's card is focused, not its text (no keyboard over it on a phone).
+  assert.equal(await activeId(irit), `msg-${A.id}`, 'the next client is focused');
+  assert.equal(await irit.locator(`#msg-${A.id}`).getAttribute('aria-labelledby'), `msg-h-${A.id}`);
+  assert.equal(checkOf(F, 'p27.notes'), null, 'a delay notice checks nothing in the protocol');
 });
 
 await step('Irit edits the welcome and sends it: the link carries the edited text to the client\'s number', async () => {
   const extra = '\nנשמח לראות אתכם בפגישה!';
-  await irit.locator(`#msg-text-${A.id}`).press('End');
+  await irit.keyboard.press('Tab'); // from the card into it: the client's name, then the choice of message, then the text
+  await irit.keyboard.press('Tab');
+  await irit.keyboard.press('Tab');
+  assert.equal(await activeId(irit), `msg-text-${A.id}`);
   await irit.keyboard.press('Control+End');
   await irit.keyboard.type(extra);
   const edited = await irit.inputValue(`#msg-text-${A.id}`);
@@ -267,8 +304,33 @@ await step('Irit edits the welcome and sends it: the link carries the edited tex
   await irit.waitForSelector(`#msg-${A.id}.is-sent`);
   const row = db.client_messages.at(-1);
   assert.deepEqual([row.client_id, row.kind, row.template_key, row.ref, row.body], [A.id, 'milestone', 'welcome', 'welcome', edited.trim()]);
-  assert.equal(await activeId(irit), `msg-text-${B.id}`);
+  assert.equal(await activeId(irit), `msg-${B.id}`);
   assert.match(await text(irit, `#msg-${A.id}`), /כבר נשלח היום[\s\S]*עירית · ברוכים הבאים/);
+  // The welcome is process 2's intro message: it is checked in the protocol.
+  await waitFor(() => checkOf(A, 'p02.intro'));
+  assert.deepEqual([checkOf(A, 'p02.intro').state, checkOf(A, 'p02.intro').note, checkOf(A, 'p02.intro').by_email], ['done', 'נשלחה ממרכז ההודעות', 'irit@astrateg.test']);
+});
+
+await step('a record made by mistake is undone by its sender: back in the queue with the text as sent, and the intro unchecked', async () => {
+  const before = db.client_messages.length;
+  const sentBody = db.client_messages.at(-1).body;
+  assert.match(await text(irit, `#msg-${A.id}`), /לא נשלח בפועל בוואטסאפ\?/);
+  await shot(irit, 'messages-01b-undo');
+  await irit.click(`#msg-undo-${A.id}`);
+  await irit.waitForSelector(`#msg-send-${A.id}`);
+  await toastHas(irit, 'הרישום בוטל: ההודעה לפיצה נאפולי חזרה לתור');
+  assert.equal(db.client_messages.length, before - 1);
+  assert.ok(!db.client_messages.some((m) => m.client_id === A.id && dayKeyIL(m.sent_at) === dayKeyIL(serverNow())));
+  await waitFor(() => !checkOf(A, 'p02.intro'));
+  assert.equal(await irit.inputValue(`#msg-text-${A.id}`), sentBody);
+  assert.equal(await activeId(irit), `msg-${A.id}`);
+  // Sent again for real.
+  const url = await sendVia(irit, iritCtx, `#msg-send-${A.id}`);
+  assert.equal(waText(url), sentBody);
+  await irit.waitForSelector(`#msg-${A.id}.is-sent`);
+  assert.equal(db.client_messages.length, before);
+  await waitFor(() => checkOf(A, 'p02.intro'));
+  assert.equal(await activeId(irit), `msg-${B.id}`);
 });
 
 await step('a client without a phone: WhatsApp opens with no number; if the record fails, "סימון כנשלח" records it', async () => {
@@ -287,7 +349,10 @@ await step('a client without a phone: WhatsApp opens with no number; if the reco
   await irit.waitForSelector(`#msg-${B.id}.is-sent`);
   assert.equal(db.client_messages.at(-1).body, waText(url));
   assert.deepEqual([db.client_messages.at(-1).template_key, db.client_messages.at(-1).ref], ['eve', 'eve']);
-  assert.equal(await activeId(irit), `msg-text-${C.id}`);
+  assert.equal(await activeId(irit), `msg-${C.id}`);
+  // The day-before message is process 15's reminder to the client.
+  await waitFor(() => checkOf(B, 'p15.client'));
+  assert.equal(checkOf(B, 'p15.client').note, 'נשלחה ממרכז ההודעות');
 });
 
 await step('filter by station', async () => {
@@ -326,7 +391,7 @@ await step('the last message goes to the group; the queue says everything went o
   assert.deepEqual([db.client_messages.at(-1).kind, db.client_messages.at(-1).template_key], ['daily', 'daily.ongoing']);
   assert.equal(await text(irit, '#msg-empty'), 'כל ההודעות של היום נשלחו. יפה!');
   assert.equal(await activeId(irit), 'msg-empty');
-  assert.equal(await text(irit, '#msg-summary'), 'יום ג׳ 13.10 · 0 הודעות לשליחה · 5 לקוחות כבר קיבלו הודעה היום');
+  assert.equal(await text(irit, '#msg-summary'), 'יום ג׳ 13.10 · אין עוד הודעות לשליחה · 5 לקוחות כבר קיבלו הודעה היום');
   await shot(irit, 'messages-02-all-sent');
 });
 
@@ -353,6 +418,7 @@ await step('an editor gets "no access", asks nothing of the messages tables, and
   await page.waitForSelector('#app:not([hidden])');
   await page.waitForTimeout(300);
   assert.equal(await page.locator('#nav-messages').isHidden(), true);
+  assert.equal(await page.locator('#cta-messages').isHidden(), true);
   await ctx.close();
 });
 
@@ -372,6 +438,8 @@ await step('Ofir sees "no access" on the page; the owner works in it; Irit has t
   await irit.waitForSelector('#app:not([hidden])');
   await irit.waitForFunction(() => !document.getElementById('nav-messages').hidden);
   assert.equal(await irit.getAttribute('#nav-messages', 'href'), 'messages.html');
+  assert.equal(await irit.getAttribute('#cta-messages', 'href'), 'messages.html');
+  assert.equal(await irit.locator('#cta-messages').isVisible(), true);
 });
 
 await step('on a 360px phone (the next day, a new queue): it fits, no sideways scrolling, 44px buttons', async () => {
@@ -381,6 +449,9 @@ await step('on a 360px phone (the next day, a new queue): it fits, no sideways s
   await page.waitForSelector('#msg-queue > li');
   assert.equal(await page.locator('#msg-queue > li.is-sent').count(), 0, 'yesterday\'s messages do not count today');
   assert.equal(await page.locator('#msg-queue .msg-send').count(), 5);
+  assert.equal(await text(page, '#msg-summary'), 'יום ד׳ 14.10 · 5 הודעות לשליחה · עוד לא נשלחו הודעות היום');
+  // The promised date passed yesterday: editing's message without a date, nothing to fill.
+  assert.equal(await page.inputValue(`#msg-text-${F.id}`), 'היי מאפיית שי, הסרטונים שלכם בעריכה ואנחנו על זה. נעדכן אתכם ברגע שהם מוכנים.');
   assert.ok(await noHScroll(page), 'no sideways scroll');
   const heights = await page.locator('.msg-acts .btn, .msg-acts .btn-text, .msg-filters .chip, .msg-pick .input').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
   assert.ok(heights.length > 10 && heights.every((x) => x >= 44), JSON.stringify(heights));
@@ -394,7 +465,14 @@ await step('on a 360px phone (the next day, a new queue): it fits, no sideways s
   await page.goto(`${BASE}clients.html`);
   await page.waitForSelector('#app:not([hidden])');
   await page.waitForFunction(() => !document.getElementById('nav-messages').hidden);
+  // The top bar folds its links away on a phone; the page head keeps the way in.
+  assert.equal(await page.locator('#nav-messages').isVisible(), false);
+  assert.equal(await page.locator('#cta-messages').isVisible(), true);
+  assert.ok((await page.locator('#cta-messages').boundingBox()).height >= 44);
   assert.ok(await noHScroll(page), 'clients.html with the link, no sideways scroll');
+  await shot(page, 'messages-05-phone-clients');
+  await page.click('#cta-messages');
+  await page.waitForSelector('#msg-queue > li');
   await ctx.close();
 });
 
@@ -405,6 +483,26 @@ await step('on a day the office is closed there is no queue', async () => {
   await page.waitForSelector('#msg-empty:not([hidden])');
   assert.match(await text(page, '#msg-empty'), /היום המשרד סגור/);
   assert.equal(await page.locator('#msg-queue > li').count(), 0);
+  await ctx.close();
+});
+
+await step('a promise at risk but not due until tomorrow: the card says so, and the notice is one choice away', async () => {
+  // Met on Sunday 11.10: the shoot day and the scripts are promised by Wednesday 14.10; the content call is done.
+  const G = client('99999999-0000-4000-8000-000000000007', { name: 'מוסך אבי', phone: '050-7778888', deal_at: '2026-10-11T08:00:00+03:00', char_at: '2026-10-11T10:00:00+03:00' });
+  const call = applicableProcesses(G).find((p) => p.id === 'p12a').items.filter((i) => !i.optional).map((i) => check(G, i.key, '2026-10-12T12:00:00+03:00'));
+  db.clients.push(G);
+  db.protocol_checks.push(...imported(G, 'content'), ...call);
+  const ctx = await newContext();
+  const page = await newPage(ctx);
+  await signIn(page, 'messages.html', 'irit@astrateg.test');
+  await page.waitForSelector(`#msg-${G.id}`);
+  assert.match(await text(page, `#msg-${G.id} .msg-why`), /הודעה יומית · תחנה: תוכן ואישור/);
+  assert.equal(await text(page, `#msg-${G.id} .msg-risk`), 'הבטחנו את קביעת יום הצילום עד יום ד׳ 14.10, וזה עוד לא הושלם. אם זה יתעכב, בוחרים ״הודעה על עיכוב״ ב״איזו הודעה״.');
+  assert.deepEqual(await page.locator(`#msg-opt-${G.id} option`).allInnerTexts(),
+    ['הודעה יומית: תוכן ואישור', 'הודעה על עיכוב: קביעת יום הצילום', 'הודעה על עיכוב: התסריטים ליום הצילום']);
+  await page.selectOption(`#msg-opt-${G.id}`, { label: 'הודעה על עיכוב: קביעת יום הצילום' });
+  assert.match(await page.inputValue(`#msg-text-${G.id}`), /^היי מוסך אבי, רצינו לעדכן מראש לגבי קביעת יום הצילום/);
+  assert.match(await text(page, `#msg-${G.id} .msg-risk`), /^הבטחנו את התסריטים ליום הצילום עד יום ד׳ 14\.10/);
   await ctx.close();
 });
 
