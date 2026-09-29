@@ -169,7 +169,7 @@ export async function loadQuoteSummary(id) {
 
 // All checks with their times, for the performance report.
 export async function loadAllLog(sinceIso) {
-  return all(() => supabase.from('protocol_log').select('client_id, item_key, action, by_email, at')
+  return all(() => supabase.from('protocol_log').select('client_id, item_key, action, note, by_email, at')
     .gte('at', sinceIso).order('at'));
 }
 

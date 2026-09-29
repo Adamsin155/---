@@ -77,6 +77,11 @@ oldDeals.forEach((d, i) => {
   for (const k of P1) check(c, k, at(c.deal_at, i < 4 ? 3 : 90));
   if (i < 3) for (const k of P2) check(c, k, at(c.deal_at, 4));
 });
+// Imported at go-live: campaigns built (process 30) three weeks ago, and a weekly call
+// brought in with the import today. Imported history is not a call made this month.
+const imported = client({ name: 'חנות מיובאת', deal_at: '2026-06-01T07:00:00Z', status: 'ended', contract_end: '2027-01-01' });
+for (const k of ['p30.picked', 'p30.live']) check(imported, k, hoursAgo(24 * 21), USER.email, 'done', 'ייבוא');
+check(imported, 'p31.call', hoursAgo(2), USER.email, 'done', 'ייבוא');
 // Earlier daily reviews: Irit on Sunday 20.9 and Thursday 17.9, Ofir on Sunday.
 db.office_reviews.push(
   { day: '2026-09-20', kind: 'p32', note: null, by_email: USER.email, at: '2026-09-20T06:12:00Z' },
@@ -276,8 +281,10 @@ const w3 = db.protocol_checks.find((c) => c.client_id === fresh.id && c.item_key
 assert.deepEqual(JSON.parse(w3.note), { reason: 'הלקוח לא עונה לטלפון', recheck: '2026-09-23' });
 assert.match(await page.locator('.g-client').innerText(), /פיצה נאפולי/);
 await page.locator('.g-client .wproc:has(.wclient:text("פיצה נאפולי")) .btn-text:text("סיום המתנה")').click();
-await toastHas('ההמתנה הסתיימה. התהליך חוזר לחישוב הרגיל.');
+await toastHas('ההמתנה הסתיימה.'); // marked after process 3's deadline: it does not move it
 assert.ok(!db.protocol_checks.some((c) => c.client_id === fresh.id && c.item_key === 'p03.wait'));
+// The wait's office minutes are kept on the process (decision 3): the deadline moves on by them.
+assert.ok(JSON.parse(db.protocol_checks.find((c) => c.client_id === fresh.id && c.item_key === 'p03.waited').note).min >= 0);
 
 // ── §6a morning summary for Irit ──
 const summary = await waText('#mine-tools .wa-link');
@@ -371,6 +378,13 @@ await page.waitForSelector('.perf-table');
 assert.equal(new URL(page.url()).hash, '#performance');
 const perf = await page.locator('#performance').innerText();
 assert.match(await page.locator('.perf-table tr:has-text("1 · הכנת חוזה")').innerText(), /\d+ מתוך \d+ \(\d+%\)/);
+// Actual time and target are both office time: process 1's target is 5 office minutes, whenever the deal came in.
+const p1perf = page.locator('.perf-table tr:has-text("1 · הכנת חוזה")');
+assert.equal(await p1perf.locator('td[data-label="יעד"]').innerText(), '5 דק׳');
+assert.match(await p1perf.locator('td[data-label="זמן בפועל (חציון)"]').innerText(), /^\d+ (דק׳|ש׳)/);
+assert.match(await p1perf.locator('.perf-proc li:has-text("לקוח ותיק 1")').textContent(), / · 3 דק׳ בשעות העבודה$/);
+// The imported weekly call is not counted: three client-weeks due since the imported campaigns, none logged.
+assert.match(perf, /שיחות שתועדו: 0 מתוך 3 שבועות־לקוח/);
 assert.match(await page.locator('.perf-table tr:has-text("3 · קביעת פגישת אפיון")').innerText(), /מעט מדי נתונים \(2\)/);
 assert.match(perf, /הנתונים שלי/);
 assert.match(perf, /אחוז נמוך בתהליך הוא קודם כול סימן לבדוק את התהליך או את היעד/);
@@ -757,6 +771,26 @@ const p33row = thu.locator('.rv-row').nth(1);
 assert.match(await p33row.innerText(), /עבר יותר מיומיים מהבקרה האחרונה[^]*הבקרה האחרונה: א׳ 20\.9/);
 assert.equal(await thu.locator('.rv-row').first().locator('.rv-stale').count(), 0); // process 32 is daily, flagged elsewhere
 await shot('14-thursday-control', thu);
+
+// The office day is Israel's on any device: at 01:30 on Thursday in Jerusalem a
+// phone set to New York (still Wednesday 18:30 there) shows Thursday's pass.
+const THU_NY = new Date('2026-09-23T22:30:00Z');
+const nyCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'America/New_York', viewport: { width: 1280, height: 900 } });
+await nyCtx.clock.install({ time: THU_NY });
+await nyCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await nyCtx.addInitScript(fakeNotifications);
+const ny = await nyCtx.newPage();
+watch(ny);
+await ny.goto(`${BASE}clients.html`);
+await ny.fill('#lg-email', USER.email);
+await ny.fill('#lg-pass', 'correct-horse');
+await ny.click('#lg-submit');
+await ny.waitForSelector('#view-mine:not([hidden]) .wproc');
+assert.equal(await ny.evaluate(() => new Date().getDay()), 3, 'the device thinks it is Wednesday');
+assert.equal(await ny.locator('.g-thu .thu-card').count(), 1);
+assert.match(await waText('#mine-tools .wa-link', ny), /הסיכום שלך ליום חמישי 24\.9:/);
+await nyCtx.close();
+
 // Once every client is summarised, the card leaves Ofir's list.
 for (const c of db.clients.filter((x) => x.status === 'active' || x.status === 'ending')) {
   if (!db.client_status_notes.some((n) => n.client_id === c.id)) db.client_status_notes.push({ client_id: c.id, week: '2026-09-20', current: 'בבדיקה', missing: null, next: null, owner: null, due_on: null, by_email: 'ofir@astrateg.test', at: THU.toISOString() });
@@ -767,6 +801,35 @@ await thu.click('#tab-mine');
 await thu.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.equal(await thu.locator('.thu-card').count(), 0);
 await thuCtx.close();
+
+// ── Completing a process from "my work" ends its wait on the client (decision 3) ──
+// Two new clients wait on the client in process 2 since 09:23 (due 09:25). Irit closes
+// the last item of one with a single check, and the last two of the other in bulk.
+db.staff[0].person = 'irit';
+skew = (await page.evaluate(() => Date.now())) - Date.now(); // the server follows Tuesday's page clock again
+const P2_ALL = [...P2, 'p02.team'];
+const waitingIn2 = (name, open) => {
+  const c = client({ name, deal_at: minsAgo(40) });
+  for (const k of P1) check(c, k, minsAgo(39));
+  for (const k of P2_ALL.filter((x) => !open.includes(x))) check(c, k, minsAgo(38));
+  check(c, 'p02.wait', minsAgo(37), USER.email, 'done', JSON.stringify({ reason: 'הלקוח עוד לא הצטרף לקבוצה', recheck: null }));
+  return c;
+};
+const single = waitingIn2('מאפה שקד', ['p02.m.client']);
+const inBulk = waitingIn2('גלידת הנמל', ['p02.m.client', 'p02.m.ilai']);
+const waitedOf2 = (c) => JSON.parse(db.protocol_checks.find((x) => x.client_id === c.id && x.item_key === 'p02.waited')?.note || 'null');
+await page.goto('about:blank');
+await page.goto(`${BASE}clients.html#mine`);
+const singleCard = page.locator('.g-client .wproc:has(.wclient:text("מאפה שקד"))');
+await singleCard.locator('.cbx').first().check();
+await toastHas('סומן כבוצע: הלקוח בקבוצה');
+assert.ok(!db.protocol_checks.some((x) => x.client_id === single.id && x.item_key === 'p02.wait'));
+const w1 = waitedOf2(single);
+assert.ok(w1 && w1.min >= 37 && w1.ext === w1.min, JSON.stringify(w1)); // began before the deadline: it all moves it
+await page.locator('.g-client .wproc:has(.wclient:text("גלידת הנמל")) .bulk-btn').click();
+await toastHas('סומנו 2 פריטים');
+assert.ok(!db.protocol_checks.some((x) => x.client_id === inBulk.id && x.item_key === 'p02.wait'));
+assert.ok(waitedOf2(inBulk)?.min >= 37, JSON.stringify(waitedOf2(inBulk)));
 
 assert.deepEqual(errors, []);
 await browser.close();

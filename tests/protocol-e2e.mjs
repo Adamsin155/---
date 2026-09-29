@@ -396,6 +396,18 @@ assert.equal(db.protocol_checks.filter((c) => c.client_id === created.id && c.it
 await page.click('.toast-act');
 await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('בוטל'));
 assert.equal(db.protocol_checks.filter((c) => c.client_id === created.id && c.item_key.startsWith('p03.')).length, 0);
+// Completing a process that waits on the client in bulk ends the wait and keeps its time (decision 3).
+db.protocol_checks.push({ client_id: created.id, item_key: 'p03.wait', state: 'done', note: JSON.stringify({ reason: 'הלקוח בודק מועדים', recheck: null }), by_email: USER.email, at: hoursAgo(1) });
+await page.reload();
+await page.evaluate(() => { document.querySelector('#p03')?.closest('details').setAttribute('open', ''); });
+await page.waitForSelector('#p03.s-client #p03-bulk');
+await page.click('#p03-bulk');
+await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('סומנו 4 פריטים'));
+assert.ok(!db.protocol_checks.some((c) => c.client_id === created.id && c.item_key === 'p03.wait'));
+assert.equal(typeof JSON.parse(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p03.waited').note).min, 'number');
+assert.equal(await page.locator('#p03.s-client').count(), 0);
+await page.click('.toast-act');
+await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('בוטל'));
 
 // Waiting on the client: a reason is required; the process leaves "overdue".
 await page.click('#p02 .wait-btn');
@@ -409,6 +421,9 @@ assert.match(await page.locator('#p02 .wait-line').innerText(), /הלקוח עו
 assert.equal(JSON.parse(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p02.wait').note).reason, 'הלקוח עוד לא הצטרף לקבוצה');
 await page.click('#p02 .wait-line button:has-text("סיום המתנה")');
 await page.waitForFunction(() => !document.querySelector('#p02.s-client'));
+// The wait's office minutes are kept on the process: its deadline moves on by them.
+assert.equal(typeof JSON.parse(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p02.waited').note).min, 'number');
+assert.ok(!db.protocol_checks.some((c) => c.client_id === created.id && c.item_key === 'p02.wait'));
 
 // Links: passwords are refused, links are saved and shown.
 await page.click('#btn-edit');
