@@ -42,6 +42,12 @@ const staff = [
   { email: 'nadia@astrateg.test', person: 'nadia', vault: false, created_at: hoursAgo(500) },
   { email: 'yariv@astrateg.test', person: 'yariv', vault: false, created_at: hoursAgo(400) },
 ];
+// Notifications on the phone (public.push_status, office only): Irit on two
+// devices, Lior on one that failed and never confirmed the test, the rest none.
+const pushDevices = {
+  'irit@astrateg.test': { devices: 2, confirmed: 2, last_ok_at: hoursAgo(1), failing: 0 },
+  'lior@astrateg.test': { devices: 1, confirmed: 0, last_ok_at: null, failing: 1 },
+};
 const tables = { clients: [], protocol_checks: [], client_tasks: [], quotes: [], office_reviews: [], client_status_notes: [], protocol_log: [] };
 
 const EXP = Math.floor(NOW / 1000) + 3 * 3600;
@@ -152,6 +158,12 @@ async function fakeSupabase(route) {
     return json(status, data);
   }
   if (p === '/rest/v1/rpc/is_staff') return json(200, !!me?.email_confirmed_at && staff.some((r) => r.email === me.email));
+  if (p === '/rest/v1/rpc/push_status') {
+    if (!me) return json(401, { message: 'permission denied' });
+    const caller = staff.find((r) => r.email === me.email);
+    const office = !!caller && (caller.person === null || ['irit', 'lior', 'ofir'].includes(caller.person));
+    return json(200, office ? staff.map((r) => ({ email: r.email, person: r.person, devices: 0, confirmed: 0, last_ok_at: null, failing: 0, ...pushDevices[r.email] })) : []);
+  }
   const m = /^\/rest\/v1\/(\w+)$/.exec(p);
   if (!m) return json(404, { message: 'not found' });
   if (!me) return json(401, { message: 'permission denied' });
@@ -210,6 +222,11 @@ await step('owner sees everyone: owner first, then the protocol people, with the
   assert.match(await text(owner, '#row-ofir'), /טרם נכנס\/ה/);
   assert.match(await text(owner, '#row-nadia'), /nadia@astrateg\.test[\s\S]*אין חשבון/);
   assert.match(await text(owner, '#row-eli'), /אלי[\s\S]*צלם[\s\S]*אין חשבון/);
+  // Notifications on the phone: devices, and when one last got a message.
+  assert.match(await text(owner, '#row-irit'), /התראות: 2 מכשירים · התקבלה לאחרונה היום/);
+  assert.match(await text(owner, '#row-lior'), /התראות: מכשיר אחד · התראת הניסיון עוד לא אושרה · מכשיר אחד בתקלה/);
+  assert.match(await text(owner, '#row-nadia'), /התראות: לא מחובר\/ה/);
+  assert.doesNotMatch(await text(owner, '#row-eli'), /התראות/); // no staff row, nothing to connect
   assert.equal(await owner.locator('#email-eli').count(), 1, 'a missing email can be added');
   assert.equal(await owner.locator('#mklink-eli').count(), 0, 'no link without an email');
   assert.equal(await owner.locator('#remove-owner').count(), 0, 'the owner cannot remove themselves');

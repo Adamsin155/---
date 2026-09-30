@@ -26,7 +26,7 @@ test('the site is the pages, their manifests, app/ and payouts/ only', () => wit
   const out = join(tmp, 'site');
   build(out);
   const top = readdirSync(out);
-  for (const name of [...PAGES, 'app', 'payouts', '.nojekyll']) assert.ok(top.includes(name), `${name} is not published`);
+  for (const name of [...PAGES, 'app', 'payouts', '.nojekyll', 'sw.js']) assert.ok(top.includes(name), `${name} is not published`);
   for (const name of NEVER) assert.ok(!top.includes(name), `${name} would be public on GitHub Pages`);
   for (const name of top) assert.ok(published(name, statSync(join(out, name)).isDirectory()), name);
   assert.throws(() => build(out), /not empty/);

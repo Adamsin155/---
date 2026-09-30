@@ -13,8 +13,12 @@ import {
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const FUNCTIONS = join(ROOT, 'supabase/functions');
 
-test('shared copy covers pricing.js and everything it imports', () => {
-  assert.deepEqual(modules(), ['catalog.js', 'legal.js', 'pricing.js']);
+test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
+  assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
+  assert.deepEqual(modules(), [
+    'catalog.js', 'clocks.js', 'holidays.js', 'legal.js', 'pricing.js', 'protocol-logic.js', 'protocol.js',
+    'push-config.js', 'reminder-engine.js', 'reminder-rules.js', 'tz.js',
+  ]);
 });
 
 test('every shared copy equals its app/ source under the generated header', () => {
@@ -27,17 +31,30 @@ test('every shared copy equals its app/ source under the generated header', () =
   assert.deepEqual(check(), { missing: [], stale: [], extra: [] });
 });
 
-test('create-quote imports only the shared copy, never the repository', () => {
-  const src = readFileSync(join(FUNCTIONS, 'create-quote/index.ts'), 'utf8');
-  const specs = importsOf(src);
-  assert.ok(specs.includes('../_shared/app/pricing.js'));
-  for (const spec of specs) {
+// Every relative import of a function's files stays inside supabase/functions/
+// and reaches app/ only through the shared copy.
+function localImports(fn, file, seen = new Set()) {
+  const path = join(FUNCTIONS, fn, file);
+  for (const spec of importsOf(readFileSync(path, 'utf8'))) {
     assert.ok(!/githubusercontent|github\.com/.test(spec), `remote import ${spec}`);
     if (!spec.startsWith('.')) continue;
-    const target = resolve(FUNCTIONS, 'create-quote', spec);
+    const target = resolve(dirname(path), spec);
     assert.ok(target.startsWith(FUNCTIONS + '/'), `${spec} leaves supabase/functions/`);
     assert.ok(existsSync(target), `${spec} does not exist`);
+    seen.add(target.slice(FUNCTIONS.length + 1));
   }
+  return seen;
+}
+
+test('create-quote imports only the shared copy, never the repository', () => {
+  assert.ok(importsOf(readFileSync(join(FUNCTIONS, 'create-quote/index.ts'), 'utf8')).includes('../_shared/app/pricing.js'));
+  localImports('create-quote', 'index.ts');
+});
+
+test('the reminders function imports only its own files and the shared copy', () => {
+  const files = new Set(['index.ts', 'tick.js', 'webpush.js', 'http.js'].flatMap((f) => [...localImports('reminders', f)]));
+  assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), ['reminders/http.js', 'reminders/tick.js', 'reminders/webpush.js']);
+  for (const f of files) if (f.startsWith('_shared/app/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
 });
 
 test('the shared pricing engine computes the same quote as app/', async () => {
@@ -61,7 +78,7 @@ test('--check logic reports stale, missing and extra copies; sync repairs them',
     const appDir = join(tmp, 'app');
     const outDir = join(tmp, 'out');
     for (const rel of ['pricing.js', 'catalog.js', 'legal.js']) cpSync(join(APP_DIR, rel), join(appDir, rel));
-    const opts = { appDir, outDir };
+    const opts = { appDir, outDir, entries: ['pricing.js'] };
     assert.deepEqual(check(opts).missing, ['catalog.js', 'legal.js', 'pricing.js']);
     sync(opts);
     assert.deepEqual(check(opts), { missing: [], stale: [], extra: [] });

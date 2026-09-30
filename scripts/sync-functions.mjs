@@ -1,5 +1,5 @@
-// Copies the browser modules the edge functions use (app/pricing.js and every
-// app module it imports, followed recursively) into
+// Copies the browser modules the edge functions use (the ENTRIES below and every
+// app module they import, followed recursively) into
 // supabase/functions/_shared/app/, so a function deploys with its own copy and
 // never loads code from the repository at run time. Relative paths are kept,
 // so the copies import each other exactly as the originals do.
@@ -13,7 +13,9 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 export const APP_DIR = join(ROOT, 'app');
 export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 // The app modules edge functions import. Add one here when a new function needs it.
-export const ENTRIES = ['pricing.js'];
+//   pricing.js                         create-quote
+//   reminder-engine.js, push-config.js reminders (the engine, its rules and the protocol)
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js'];
 
 export const MARK = '// generated — edit app/ instead.';
 export const header = (rel) => `${MARK} Source: app/${rel}. Regenerate: node scripts/sync-functions.mjs\n`;

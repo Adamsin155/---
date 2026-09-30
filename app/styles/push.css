@@ -1,0 +1,50 @@
+/* Notifications on the phone (app/push.js): the "הפעלת התראות" card in "מה עליי",
+   the "התראות" button with its count, and today's list. Builds on the tokens of
+   app.css and protocol.css; 44px targets; state is said in words, never by colour alone. */
+.push-card {
+  margin: 14px 16px 0; padding: 14px 16px; display: grid; gap: 8px;
+  border-radius: var(--radius-md); background: var(--panel); border: 1px solid var(--line);
+  border-inline-start: 4px solid var(--accent);
+}
+.push-card[hidden] { display: none; }
+.push-card[data-state='on'] { padding-block: 8px; border-inline-start-color: var(--ok); }
+.push-card[data-state='blocked'], .push-card[data-state='unsupported'], .push-card[data-state='ios-update'] { border-inline-start-color: var(--line-strong); }
+.push-card p { margin: 0; color: var(--text-2); font-size: 14.5px; }
+.push-h { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); }
+.push-h:focus { outline: none; }
+.push-h:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.push-steps { margin: 0; padding-inline-start: 22px; display: grid; gap: 4px; color: var(--text); font-size: 14.5px; }
+.push-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.push-acts .btn { min-height: 44px; }
+.push-on { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; }
+.push-on .push-h { font-size: 14.5px; font-weight: 500; }
+.push-on .btn-text { min-height: 44px; }
+.push-hint { color: var(--warn) !important; }
+
+.inbox-btn .n {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-inline-start: 6px; padding: 0 6px;
+  border-radius: 999px; background: var(--accent); color: var(--on-fill); font-size: 12px; font-family: var(--mono);
+}
+.dlg-inbox { width: min(560px, calc(100vw - 24px)); }
+.inbox-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin-bottom: 8px; }
+.inbox-tools p { margin: 0; }
+.inbox-tools .btn-text, .inbox-acts .btn-text { min-height: 44px; }
+.inbox-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: min(60vh, 560px); overflow-y: auto; }
+.inbox-row { padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--bg-2); display: grid; gap: 4px; }
+.inbox-row.is-new { border-inline-start: 4px solid var(--accent); background: var(--panel); }
+.inbox-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.inbox-title { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.inbox-new { color: var(--accent-deep); background: var(--accent-soft); border-color: transparent; }
+.dlg-inbox .inbox-body, .dlg-inbox .inbox-meta { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.inbox-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.inbox-acts .btn { min-height: 44px; display: inline-flex; align-items: center; }
+.inbox-snooze select { min-height: 44px; width: auto; }
+
+/* An urgent task: "התחלתי" (decision 9). */
+.task-start { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 0 0; font-size: 14px; color: var(--text-2); }
+.task-start .btn { min-height: 44px; }
+
+@media (max-width: 760px) {
+  .push-card { margin-inline: 12px; padding-inline: 12px; }
+  .push-acts .btn { flex: 1 1 100%; }
+}

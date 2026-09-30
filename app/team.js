@@ -16,6 +16,7 @@ let caller = null;           // { email, person, owner }
 const links = new Map();     // email -> { link, type, name } made on this page
 const busy = new Set();      // emails with a request in flight
 const editingPhone = new Set(); // emails whose WhatsApp number is being edited
+let pushByEmail = null;      // email -> connected devices (public.push_status); null when not available
 
 const ERRORS = {
   not_signed_in: 'יש להתחבר מחדש.',
@@ -84,10 +85,17 @@ function entries() {
   return out;
 }
 
+// Who is connected to notifications on the phone (the reminder engine). Optional:
+// without it (or before its migration) the page shows no notification status.
+async function loadPush() {
+  const { data, error } = await supabase.rpc('push_status');
+  pushByEmail = error ? null : new Map((data || []).map((r) => [r.email, r]));
+}
+
 async function load() {
   $('state').textContent = rows.length ? '' : 'טוען…';
   try {
-    const data = await call('list');
+    const [data] = await Promise.all([call('list'), loadPush().catch(() => { pushByEmail = null; })]);
     rows = data.rows || [];
     caller = data.caller;
   } catch (err) {
@@ -114,6 +122,18 @@ function statusView(row) {
   if (state === 'active') return badge('s-done', `מחובר/ה לאחרונה ${formatWhen(new Date(row.last_sign_in_at))}`);
   if (state === 'pending') return badge('s-waiting', 'טרם נכנס/ה');
   return badge('s-none', 'אין חשבון');
+}
+
+// Notifications on the phone: how many devices, and when one last got a message.
+function pushView(row) {
+  if (!row || !pushByEmail) return null;
+  const p = pushByEmail.get(row.email);
+  if (!p?.devices) return h('span', { class: 'tm-push muted' }, 'התראות: לא מחובר/ה');
+  const parts = [p.devices === 1 ? 'מכשיר אחד' : `${p.devices} מכשירים`];
+  if (p.last_ok_at) parts.push(`התקבלה לאחרונה ${formatWhen(new Date(p.last_ok_at))}`);
+  else if (!p.confirmed) parts.push('התראת הניסיון עוד לא אושרה');
+  if (p.failing) parts.push(p.failing === 1 ? 'מכשיר אחד בתקלה' : `${p.failing} מכשירים בתקלה`);
+  return h('span', { class: 'tm-push' }, `התראות: ${parts.join(' · ')}`);
 }
 
 function vaultView(e) {
@@ -205,7 +225,7 @@ function rowView(e) {
       h('div', { class: 'tm-name' }, h('h3', {}, e.name), me ? h('span', { class: 'tag' }, 'זה אני') : null),
       h('p', { class: 'muted tm-role' }, e.role)),
     h('div', { class: 'tm-email' }, emailView(e), phoneView(e)),
-    h('div', { class: 'tm-state' }, statusView(e.row), vaultView(e), lastLinkView(e.row)),
+    h('div', { class: 'tm-state' }, statusView(e.row), vaultView(e), pushView(e.row), lastLinkView(e.row)),
     h('div', { class: 'tm-acts' },
       canLink ? h('button', {
         type: 'button', class: 'btn btn-sm', id: `mklink-${e.id}`, disabled: pending, onclick: () => makeLink(e),

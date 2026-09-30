@@ -1,5 +1,5 @@
 // Builds what GitHub Pages publishes: the HTML pages at the root, their
-// manifests, app/ and payouts/, and nothing else. Pages serves every file in
+// manifests, the service worker (sw.js), app/ and payouts/, and nothing else. Pages serves every file in
 // the gh-pages branch to anyone, even when the repository is private, so
 // docs/, supabase/, tests/, scripts/ and .claude/ must never be pushed there.
 // app/ stays public by nature: the browser runs it.
@@ -14,7 +14,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 // The top-level entries that make up the site. Anything else stays out of gh-pages.
 export const DIRS = ['app', 'payouts'];
-export const FILES = ['.nojekyll', 'CNAME'];
+// sw.js is the site's service worker: at the root, so its scope covers the pages.
+export const FILES = ['.nojekyll', 'CNAME', 'sw.js'];
 const PAGE = /\.(html|webmanifest)$/;
 export const published = (name, isDir) => (isDir ? DIRS.includes(name) : FILES.includes(name) || PAGE.test(name));
 
