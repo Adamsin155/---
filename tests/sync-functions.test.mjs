@@ -16,7 +16,7 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'catalog.js', 'characterization.js', 'clocks.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js',
+    'calendar-feed.js', 'catalog.js', 'characterization.js', 'clocks.js', 'holidays.js', 'ics.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
     'shoot-prep.js', 'tz.js',
   ]);
@@ -56,6 +56,14 @@ test('the reminders function imports only its own files and the shared copy', ()
   const files = new Set(['index.ts', 'tick.js', 'webpush.js', 'http.js'].flatMap((f) => [...localImports('reminders', f)]));
   assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), ['reminders/http.js', 'reminders/tick.js', 'reminders/webpush.js']);
   for (const f of files) if (f.startsWith('_shared/app/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
+});
+
+test('the calendar function imports only the shared copy', () => {
+  const files = [...localImports('calendar', 'index.ts')];
+  assert.deepEqual(files.sort(), ['_shared/app/calendar-feed.js', '_shared/app/ics.js']);
+  for (const f of files) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
+  const config = readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8');
+  assert.match(config, /\[functions\.calendar\]\s*\nverify_jwt = false/);
 });
 
 test('the shared pricing engine computes the same quote as app/', async () => {

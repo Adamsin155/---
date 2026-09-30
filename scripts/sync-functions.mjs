@@ -15,7 +15,8 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 // The app modules edge functions import. Add one here when a new function needs it.
 //   pricing.js                         create-quote
 //   reminder-engine.js, push-config.js reminders (the engine, its rules and the protocol)
-export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js'];
+//   calendar-feed.js, ics.js           calendar (the personal calendar feed)
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'calendar-feed.js', 'ics.js'];
 
 export const MARK = '// generated — edit app/ instead.';
 export const header = (rel) => `${MARK} Source: app/${rel}. Regenerate: node scripts/sync-functions.mjs\n`;

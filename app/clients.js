@@ -32,6 +32,7 @@ import { canSeeAllClients, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP,
 import { loadDateChanges, loadLogFor } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
+import { mountCalendar } from './calendar-card.js';
 // Stage 3, part 2 (the office's flows): Ilai's day in "מה עליי", the first screens of Ofir and Lior.
 import { ilaiSection, coveredByCard } from './ilai-card.js';
 import { landingNow, officeLinks } from './office-ui.js';
@@ -2152,6 +2153,8 @@ mountSession(async (staff) => {
     who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
     changed: () => { if (view === 'mine' && !$('app').hidden && !busy()) renderMine(); },
   });
+  // "היומן שלי": the personal calendar link (app/calendar-card.js).
+  if (!viewerError) mountCalendar($('cal-card'));
   const fromHash = location.hash.slice(1);
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();

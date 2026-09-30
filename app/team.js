@@ -17,6 +17,7 @@ const links = new Map();     // email -> { link, type, name } made on this page
 const busy = new Set();      // emails with a request in flight
 const editingPhone = new Set(); // emails whose WhatsApp number is being edited
 let pushByEmail = null;      // email -> connected devices (public.push_status); null when not available
+let calByEmail = null;       // email -> personal calendar link (public.calendar_feeds_team, the owner's); null when not available
 
 const ERRORS = {
   not_signed_in: 'יש להתחבר מחדש.',
@@ -92,10 +93,17 @@ async function loadPush() {
   pushByEmail = error ? null : new Map((data || []).map((r) => [r.email, r]));
 }
 
+// Who connected "היומן שלי" (never the link itself). The owner's only: the function
+// returns nothing to anyone else, so the line shows only to the owner.
+async function loadCalendars() {
+  const { data, error } = await supabase.rpc('calendar_feeds_team');
+  calByEmail = error ? null : new Map((data || []).map((r) => [r.email, r]));
+}
+
 async function load() {
   $('state').textContent = rows.length ? '' : 'טוען…';
   try {
-    const [data] = await Promise.all([call('list'), loadPush().catch(() => { pushByEmail = null; })]);
+    const [data] = await Promise.all([call('list'), loadPush().catch(() => { pushByEmail = null; }), loadCalendars().catch(() => { calByEmail = null; })]);
     rows = data.rows || [];
     caller = data.caller;
   } catch (err) {
@@ -134,6 +142,13 @@ function pushView(row) {
   else if (!p.confirmed) parts.push('התראת הניסיון עוד לא אושרה');
   if (p.failing) parts.push(p.failing === 1 ? 'מכשיר אחד בתקלה' : `${p.failing} מכשירים בתקלה`);
   return h('span', { class: 'tm-push' }, `התראות: ${parts.join(' · ')}`);
+}
+
+function calView(row) {
+  if (!row || !calByEmail || !caller?.owner) return null;
+  const c = calByEmail.get(row.email);
+  if (!c) return h('span', { class: 'tm-push tm-cal muted' }, 'יומן: לא מחובר');
+  return h('span', { class: 'tm-push tm-cal' }, `יומן: מחובר${c.last_fetch_at ? ` · התעדכן ${formatWhen(new Date(c.last_fetch_at))}` : ' · עוד לא נקרא'}`);
 }
 
 function vaultView(e) {
@@ -225,7 +240,7 @@ function rowView(e) {
       h('div', { class: 'tm-name' }, h('h3', {}, e.name), me ? h('span', { class: 'tag' }, 'זה אני') : null),
       h('p', { class: 'muted tm-role' }, e.role)),
     h('div', { class: 'tm-email' }, emailView(e), phoneView(e)),
-    h('div', { class: 'tm-state' }, statusView(e.row), vaultView(e), pushView(e.row), lastLinkView(e.row)),
+    h('div', { class: 'tm-state' }, statusView(e.row), vaultView(e), pushView(e.row), calView(e.row), lastLinkView(e.row)),
     h('div', { class: 'tm-acts' },
       canLink ? h('button', {
         type: 'button', class: 'btn btn-sm', id: `mklink-${e.id}`, disabled: pending, onclick: () => makeLink(e),
