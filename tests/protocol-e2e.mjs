@@ -585,7 +585,9 @@ await page.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.equal(await page.getAttribute('#tab-mine', 'aria-selected'), 'true');
 assert.match(await page.locator('#me-bar').innerText(), /נדיה/);
 assert.equal(await page.locator('.who-panel, #mine-people .chip, #mine-select').count(), 0);
-for (const t of ['#tab-control', '#tab-performance', '#btn-new']) assert.equal(await page.isHidden(t), true, t);
+for (const t of ['#tab-control', '#btn-new']) assert.equal(await page.isHidden(t), true, t);
+// Her own row of the team screen only (decision 22): no process table, no one else.
+assert.equal(await page.innerText('#tab-performance'), 'הנתונים שלי');
 assert.match(await page.locator('#mine-list').innerText(), /מספרת רון[^]*לקצר את סרטון 4/);
 assert.doesNotMatch(await page.locator('#mine-list').innerText(), /פיצה נאפולי|דנה לוי/);
 await page.goto(`${BASE}clients.html#control`); // the office screens are not reachable by link either

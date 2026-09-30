@@ -388,12 +388,14 @@ assert.match(perf, /שיחות שתועדו: 0 מתוך 3 שבועות־לקוח
 assert.match(await page.locator('.perf-table tr:has-text("3 · קביעת פגישת אפיון")').innerText(), /מעט מדי נתונים \(2\)/);
 assert.match(perf, /הנתונים שלי/);
 assert.match(perf, /אחוז נמוך בתהליך הוא קודם כול סימן לבדוק את התהליך או את היעד/);
-const people = await page.locator('.perf-team tbody tr td:first-child').allInnerTexts();
-assert.deepEqual(people, ['עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה', 'אלי']); // protocol v4: the photographer
+// Decision 22: the whole team is the owner's and Lior's; Irit sees her own row only.
+assert.equal(await page.locator('.perf-team').count(), 0);
+assert.deepEqual(await page.locator('.perf-me tbody td:first-child').allInnerTexts(), ['עירית']);
 await page.click('#performance .chip:text("90 הימים האחרונים")');
 await page.waitForSelector('#performance .chip[aria-pressed="true"]:text("90")');
-await page.waitForSelector('.perf-team tbody tr');
-assert.deepEqual(await page.locator('.perf-team tbody tr td:first-child').allInnerTexts(), people);
+await page.waitForSelector('.perf-me tbody tr');
+assert.deepEqual(await page.locator('.perf-me tbody td:first-child').allInnerTexts(), ['עירית']);
+assert.equal(await page.locator('.perf-team').count(), 0);
 await shot('04-performance');
 // Arrow keys reach the new tab.
 await page.focus('#tab-performance');
@@ -428,14 +430,15 @@ assert.ok(!notes.some((n) => /קפה גליה/.test(n.title)), 'no notification 
 await page.evaluate(() => { delete document.hidden; });
 assert.ok(soon);
 
-// ── Lior: no team table ──
+// ── Lior: the whole team (decision 22), his own row first ──
 db.staff[0].person = 'lior';
 await page.reload();
 await page.waitForSelector('#app:not([hidden])');
 await page.click('#tab-performance');
 await page.waitForSelector('.perf-table');
-assert.equal(await page.locator('.perf-team').count(), 0);
 assert.deepEqual(await page.locator('.perf-me tbody td:first-child').allInnerTexts(), ['ליאור']);
+assert.deepEqual(await page.locator('.perf-team tbody tr:not(.group-row) td:first-child').allInnerTexts(),
+  ['עירית', 'ליאור', 'אופיר', 'עילאי', 'אלי', 'ניראל', 'נדיה', 'יריב', 'אנה']); // the editors under their own heading
 // Not Irit: the bulk button follows "me", never the person being viewed.
 await page.click('#tab-mine');
 await page.click('#mine-people .chip:has-text("עירית")');
@@ -656,7 +659,8 @@ await page.goto(`${BASE}clients.html#control`);
 await page.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.equal(new URL(page.url()).hash, '#mine');
 assert.match(await page.locator('#me-bar').innerText(), /עילאי/);
-for (const sel of ['#tab-control', '#tab-performance', '#btn-new', '#mine-people', '#view-control']) assert.equal(await page.isHidden(sel), true, sel);
+for (const sel of ['#tab-control', '#btn-new', '#mine-people', '#view-control']) assert.equal(await page.isHidden(sel), true, sel);
+assert.equal(await page.innerText('#tab-performance'), 'הנתונים שלי'); // his own row of the team screen (decision 22)
 assert.equal(await page.locator('.who-panel, .auto-banner, .rv-card, .thu-card, #mine-tools .wa-link').count(), 0);
 // Every card is a process with an item of his.
 const ilaiTitles = await page.locator('#mine-list .wproc:not(.soon-card) .wtitle').allInnerTexts();
@@ -676,12 +680,17 @@ await page.click('#tab-clients');
 await page.waitForSelector('.crow');
 assert.deepEqual((await page.locator('.crow strong').allInnerTexts()).sort(), ['חנות ישנה', 'מסעדת הים', 'מספרת רון', 'סטודיו נטלי', 'קפה גליה'].sort());
 assert.equal(await page.locator('.crow .cprog, #client-filters .chip').count(), 0);
-// The arrow keys move between his two tabs only.
+// The arrow keys move between his three tabs only: his work, his clients, his own numbers.
 await page.focus('#tab-clients');
+await page.keyboard.press('ArrowLeft');
+assert.equal(await page.getAttribute('#tab-performance', 'aria-selected'), 'true');
+await page.waitForSelector('.perf-me tbody tr');
+assert.deepEqual(await page.locator('.perf-me tbody td:first-child').allInnerTexts(), ['עילאי']);
+assert.equal(await page.locator('.perf-team, .perf-table:not(.perf-people), .perf-calls').count(), 0);
 await page.keyboard.press('ArrowLeft');
 assert.equal(await page.getAttribute('#tab-mine', 'aria-selected'), 'true');
 await page.keyboard.press('End');
-assert.equal(await page.getAttribute('#tab-clients', 'aria-selected'), 'true');
+assert.equal(await page.getAttribute('#tab-performance', 'aria-selected'), 'true');
 // His card: only his processes (with the second round's), none of the office's controls; one click checks.
 await page.goto(`${BASE}client.html?id=${seeded.id}#p06`);
 await page.waitForSelector('#p06');
@@ -712,8 +721,9 @@ assert.ok(await noHScroll(mobIlai), 'Ilai\'s card scrolls sideways at 360px');
 await mobIlai.close();
 
 // The owner (no person): the office, the whole team first, anyone's list on request.
+// (He lands on "מה דורש אותי", owner.html; the team's work is its link back, #mine.)
 db.staff[0].person = null;
-await page.goto(`${BASE}clients.html`);
+await page.goto(`${BASE}clients.html#mine`);
 await page.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.match(await page.locator('#me-bar').innerText(), /תצוגת משרד/);
 assert.equal(await page.innerText('#tab-mine'), 'עבודת הצוות');

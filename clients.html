@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="app/styles/protocol-office.css">
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
   <link rel="stylesheet" href="app/styles/protocol-now.css">
+  <link rel="stylesheet" href="app/styles/owner.css">
 </head>
 <body>
   <header class="topbar">
@@ -28,6 +29,7 @@
     </a>
     <nav aria-label="ניווט ראשי">
       <a class="navlink" href="clients.html" aria-current="page">לקוחות</a>
+      <a class="navlink" href="owner.html" id="nav-owner" hidden>מה דורש אותי</a>
       <a class="navlink nav-messages" href="messages.html" id="nav-messages" hidden>הודעות ללקוחות</a>
       <a class="navlink" href="./">הצעה חדשה</a>
       <a class="navlink" href="quotes.html">הצעות שנשלחו</a>
@@ -60,6 +62,7 @@
         </div>
         <div class="head-actions">
           <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+          <a class="btn btn-sm" href="owner.html" id="cta-owner" hidden>מה דורש אותי</a>
           <a class="btn btn-sm" href="messages.html" id="cta-messages" hidden>הודעות ללקוחות</a>
           <button type="button" class="btn btn-sm btn-primary" id="btn-new">לקוח חדש</button>
         </div>
@@ -76,6 +79,7 @@
 
       <section class="block" id="view-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
         <section class="now-bar" id="now-bar" aria-labelledby="now-h" hidden></section>
+        <section class="myq" id="my-questions" aria-labelledby="myq-h" hidden></section>
         <div class="filters" role="group" aria-label="של מי" id="mine-people"></div>
         <div class="mine-tools" id="mine-tools"></div>
         <div id="mine-list" class="mine-list"></div>

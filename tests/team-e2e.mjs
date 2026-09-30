@@ -339,7 +339,7 @@ await step('owner on a phone: no sideways scrolling', async () => {
 });
 
 await step('clients.html shows the team link to the owner', async () => {
-  await owner.goto(`${BASE}clients.html`);
+  await owner.goto(`${BASE}clients.html#mine`); // without the hash the owner lands on owner.html
   await owner.waitForSelector('#app:not([hidden])');
   await owner.waitForFunction(() => !document.getElementById('nav-team').hidden);
   assert.equal(await owner.getAttribute('#nav-team', 'href'), 'team.html');

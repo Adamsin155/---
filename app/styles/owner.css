@@ -1,0 +1,201 @@
+/* The client's colour and the owner's screens (owner.html, app/owner.js), the
+   client card's three-line header and timeline (app/health-ui.js), and the
+   questions block in "מה עליי" (app/questions-ui.js). Builds on app.css and
+   protocol.css tokens; brand: docs/brand/brand-guide.md. The colour is never the
+   only cue: red is a filled circle with "!", yellow a ring with "!", green a
+   filled circle with a tick, and the word is always written. Phones first (360px),
+   every control at least 44px high. */
+
+/* ── The colour badge ── */
+.hbadge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.hbadge.is-sm { font-size: 12px; font-weight: 500; }
+.hicon {
+  width: 16px; height: 16px; border-radius: 50%; flex: none; display: inline-grid; place-items: center;
+  box-shadow: inset 0 0 0 2px currentColor; line-height: 1;
+}
+.hicon::before { font-size: 11px; font-weight: 700; }
+/* Only the badge, the count and the icon take the colour; the row's text stays in ink. */
+.hbadge.h-red, .ow-c.h-red, .hicon.h-red { color: var(--late); }
+.hbadge.h-yellow, .ow-c.h-yellow, .hicon.h-yellow { color: var(--warn); }
+.hbadge.h-green, .ow-c.h-green, .hicon.h-green { color: var(--ok); }
+.h-red > .hicon, .hicon.h-red { background: var(--late); box-shadow: none; }
+.h-red > .hicon::before, .hicon.h-red::before { content: '!'; color: var(--on-fill); }
+.h-yellow > .hicon::before, .hicon.h-yellow::before { content: '!'; color: var(--warn); }
+.h-green > .hicon, .hicon.h-green { background: var(--ok); box-shadow: none; }
+.h-green > .hicon::before, .hicon.h-green::before {
+  content: ''; width: 7px; height: 3.5px; border: solid var(--on-fill); border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg);
+}
+.chip .hicon { width: 13px; height: 13px; margin-inline-end: 2px; }
+.chip .hicon::before { font-size: 9px; }
+
+/* ── Page ── */
+.ow-page .tabs { margin-top: 4px; }
+.ow-view { padding: 16px; }
+.ow-noaccess { padding: 20px; }
+.ow-noaccess p { color: var(--text-2); }
+
+/* ── Screen 1: the four numbers ── */
+.ow-stats { list-style: none; margin: 0 0 6px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.ow-stat {
+  display: grid; align-content: start; gap: 2px; padding: 12px 14px; border-radius: var(--radius-md);
+  background: var(--bg-2); border: 1px solid var(--line); min-width: 0;
+}
+.ow-stat .k { font-size: 12.5px; color: var(--muted); }
+.ow-stat .v { font-size: 30px; font-weight: 600; line-height: 1.15; color: var(--text); }
+.ow-stat .sub { font-size: 12.5px; color: var(--text-2); overflow-wrap: anywhere; }
+.ow-cc { display: grid; gap: 4px; margin-top: 2px; }
+.ow-c { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; }
+.ow-c .v-sm { font-size: 20px; font-weight: 600; min-width: 1.4em; color: var(--text); }
+.ow-trend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.spark { direction: ltr; overflow: visible; flex: none; }
+.spark-base { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; }
+.spark-line { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.spark-dot { fill: var(--muted); stroke: var(--bg-2); stroke-width: 2; }
+.spark-dot.is-now { fill: var(--accent); }
+
+/* ── Screen 1: the rows ── */
+.ow-rows { list-style: none; margin: 0; padding: 0; }
+.ow-row { border-top: 1px solid var(--line); padding: 12px 0 12px 0; padding-inline-start: 12px; border-inline-start: 4px solid transparent; }
+.ow-row.h-red { border-inline-start-color: var(--late); }
+.ow-row.h-yellow { border-inline-start-color: var(--warn-line); }
+/* Waiting on the client: its own colour, never the team's delay. */
+.ow-row.is-waiting { border-inline-start-color: var(--control-edge); border-inline-start-style: dashed; }
+.ow-row-h { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.ow-row-h .wclient { font-size: 16px; font-weight: 600; color: var(--text); min-height: 32px; display: inline-flex; align-items: center; }
+.ow-row-h a.wclient:hover { color: var(--accent-deep); }
+.ow-station { font-size: 13px; color: var(--text-2); background: var(--panel-2); border-radius: 999px; padding: 2px 10px; }
+.ow-reason { margin: 4px 0 0; font-size: 15px; color: var(--text); overflow-wrap: anywhere; }
+.ow-reason strong { font-weight: 600; }
+.ow-waitnote { margin: 4px 0 0; }
+.ow-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.ow-acts .btn { min-height: 44px; }
+.ow-nologin { align-self: center; font-size: 13px; }
+.ow-q { margin-top: 8px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--panel-2); font-size: 14px; }
+.ow-q p { margin: 0; overflow-wrap: anywhere; }
+.ow-q .k { font-weight: 600; color: var(--text-2); }
+.ow-q.is-answered { background: var(--ok-soft); }
+.ow-q .ow-a { margin-top: 4px; color: var(--text); }
+.ow-empty {
+  margin: 12px 0 4px; padding: 22px 16px; text-align: center; font-size: 18px; font-weight: 600; color: var(--ok);
+  background: var(--ok-soft); border-radius: var(--radius-md);
+}
+.ow-more { margin: 10px 0 0; font-size: 14px; color: var(--text-2); }
+.ow-more a { display: inline-flex; min-height: 44px; align-items: center; }
+.ow-answers { margin-top: 12px; }
+.ow-alist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ask-ctx { margin: 0 0 10px; color: var(--text-2); font-size: 14px; overflow-wrap: anywhere; }
+
+/* ── Screen 2: every client in two lines ── */
+.ga-filters { margin-bottom: 10px; }
+.ga-list { list-style: none; margin: 0; padding: 0; }
+.ga-item { border-top: 1px solid var(--line); border-inline-start: 4px solid transparent; }
+.ga-item.h-red { border-inline-start-color: var(--late); }
+.ga-item.h-yellow { border-inline-start-color: var(--warn-line); }
+.ga-item.h-green { border-inline-start-color: color-mix(in srgb, var(--ok) 55%, transparent); }
+.ga-row {
+  display: grid; gap: 2px; width: 100%; min-height: 56px; padding: 10px 12px; text-align: start; cursor: pointer;
+  background: transparent; border: 0; color: inherit; font: inherit;
+}
+.ga-row:hover { background: var(--row-hover); }
+.ga-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ga-l1 { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 10px; color: var(--text); }
+.ga-name { font-size: 15.5px; font-weight: 600; }
+.ga-why { font-size: 14px; color: var(--text-2); overflow-wrap: anywhere; }
+.ga-l2 { font-size: 13.5px; color: var(--text-2); padding-inline-start: 24px; overflow-wrap: anywhere; }
+.ga-row[aria-expanded='true'] .ga-l2::after { content: ''; }
+.ga-more { padding: 4px 12px 14px; padding-inline-start: 36px; display: grid; gap: 10px; }
+.ga-pkg { margin: 0; font-size: 14px; color: var(--text); }
+.ga-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 16px; margin: 0; }
+.ga-facts dt { font-size: 12px; color: var(--muted); }
+.ga-facts dd { margin: 0; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
+.ga-reasons { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
+.ga-more > .btn { justify-self: start; min-height: 44px; }
+
+/* The 8 stations: done, now (named), ahead. */
+.stbar-wrap { display: grid; gap: 4px; }
+.stbar { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; max-width: 360px; }
+.stbar li { height: 8px; border-radius: 4px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.stbar li.is-done { background: color-mix(in srgb, var(--accent) 45%, var(--panel)); box-shadow: none; }
+.stbar li.is-now { background: var(--accent); box-shadow: none; height: 12px; margin-top: -2px; }
+.stbar-now { margin: 0; font-size: 13.5px; color: var(--accent-deep); font-weight: 500; }
+.stbar-now .num { color: var(--muted); font-weight: 400; }
+
+/* ── The board: this week / 30 days ── */
+.board { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 4px; }
+.board-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
+.board-sum { margin: 2px 0 8px; font-size: 13.5px; color: var(--text-2); }
+.board-day + .board-day { margin-top: 10px; }
+.board-dh { margin: 6px 0 4px; font-size: 14px; font-weight: 600; color: var(--text); }
+.board-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.board-ev { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 10px; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--bg-2); border: 1px solid var(--line); font-size: 14px; }
+.board-ev.is-done { opacity: .75; }
+.board-t { color: var(--muted); min-width: 3.4em; }
+.board-what { font-weight: 500; color: var(--text); }
+.board-ev .wclient { min-height: 32px; display: inline-flex; align-items: center; }
+
+/* ── The client card: three lines ── */
+.hhead {
+  margin: 12px 0 4px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--bg-2);
+  border: 1px solid var(--line); border-inline-start: 4px solid var(--ok); display: grid; gap: 4px;
+}
+.hhead.h-red { border-inline-start-color: var(--late); background: linear-gradient(var(--late-soft), var(--late-soft)), var(--bg-2); }
+.hhead.h-yellow { border-inline-start-color: var(--warn-line); background: linear-gradient(var(--warn-soft), var(--warn-soft)), var(--bg-2); }
+.hline { margin: 0; font-size: 14.5px; color: var(--text); overflow-wrap: anywhere; }
+.hline .k { font-weight: 600; color: var(--text-2); }
+.hline-why { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.hwhy { color: var(--text); }
+.hrest { margin: 0; padding-inline-start: 24px; font-size: 13.5px; color: var(--text-2); display: grid; gap: 2px; }
+.hawait { color: var(--text-2); }
+
+/* ── The client card: timeline ── */
+.tl .tl-h { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; font-size: 14.5px; font-weight: 600; color: var(--text-2); }
+.tl .tl-h .n { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.tl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.tl-item { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start; font-size: 14px; padding: 3px 0; }
+.tl-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; box-shadow: inset 0 0 0 2px var(--line-strong); }
+.tl-item.is-done .tl-dot { background: var(--ok); box-shadow: none; }
+.tl-item.is-now .tl-dot { background: var(--accent); box-shadow: none; }
+.tl-item.is-now.s-overdue .tl-dot { background: var(--late); }
+.tl-item.is-unset .tl-meta { color: var(--warn); }
+.tl-body { overflow-wrap: anywhere; }
+.tl-body > a { font-weight: 500; }
+.tl-meta { color: var(--text-2); }
+.tl-body .tag { margin-inline-start: 6px; }
+.tl-toggle { min-height: 44px; }
+.tl-none { margin: 0; font-size: 14px; }
+
+/* ── "מה עליי": questions to me ── */
+.myq {
+  margin: 14px 16px 0; padding: 12px 14px; border-radius: var(--radius-md); background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); border-inline-start: 4px solid var(--brand-purple);
+}
+.myq-h { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 15.5px; font-weight: 600; color: var(--text); }
+.myq-h .n { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.myq-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.myq-item + .myq-item { border-top: 1px solid var(--line); padding-top: 10px; }
+.myq-meta { margin: 0; font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+.myq-meta .wclient { font-weight: 600; }
+.myq-text { margin: 2px 0 6px; font-size: 15px; color: var(--text); overflow-wrap: anywhere; }
+.myq-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.myq-form .field { margin: 0; }
+.myq-form .btn { min-height: 44px; }
+
+@media (max-width: 760px) {
+  .ow-view { padding: 12px; }
+  .ow-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .ow-stat { padding: 10px 12px; }
+  .ow-stat .v { font-size: 26px; }
+  .ga-more { padding-inline-start: 12px; }
+  .ga-l2 { padding-inline-start: 0; }
+  .myq { margin: 12px 12px 0; }
+  .myq-form { grid-template-columns: 1fr; }
+  .board-head .chip, .ga-filters .chip { min-height: 44px; }
+}
+#tl-slot:empty { display: none; }
+
+/* ── Questions about the client, in the card ── */
+.cq-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cq-item { border-top: 1px solid var(--line); padding-top: 10px; }
+.cq-item:first-child { border-top: 0; padding-top: 0; }
+.cq-item p { margin: 0 0 4px; overflow-wrap: anywhere; }
+.cq-meta { font-size: 13px; color: var(--muted); }
