@@ -16,7 +16,7 @@ async function all(build) {
   }
 }
 
-const CLIENT_COLS = 'id, name, business, address, phone, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, notes, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, closed_reason, editor';
+const CLIENT_COLS = 'id, name, business, address, phone, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, notes, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, closed_reason, editor, protocol_version';
 const CHECK_COLS = 'client_id, item_key, state, note, by_email, at';
 const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at, source, brief, urgent, started_at';
 

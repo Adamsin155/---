@@ -64,12 +64,24 @@ async function loadTasks(now: Date): Promise<Row[]> {
   }
 }
 
+// The monthly cycle's marks (stage 5, app/year-rules.js). Until migration
+// 20260930190000_year.sql adds the table, none.
+async function loadMonthMarks(): Promise<Row[]> {
+  try {
+    return await all(() => admin.from('client_month_marks').select('client_id, month, item, state, at').order('client_id').order('month').order('item'));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205') return [];
+    throw err;
+  }
+}
+
 // The database as tick.js sees it (service role: row level security does not apply).
 const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -81,10 +93,11 @@ const db = {
       all(() => admin.from('push_subscriptions').select('id, email, endpoint, p256dh, auth, fail_count').order('id')),
       all(() => admin.from('reminder_log').select(LOG_COLS).eq('status', 'queued').order('id')),
       all(() => admin.from('reminder_log').select(LOG_COLS).gte('created_at', since.toISOString()).order('id')),
+      loadMonthMarks(),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();

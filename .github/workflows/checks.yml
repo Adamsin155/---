@@ -49,6 +49,7 @@ jobs:
           node tests/intake-e2e.mjs
           node tests/status-e2e.mjs
           node tests/whatsapp-e2e.mjs
+          node tests/year-e2e.mjs
           node scripts/build-payment-site.mjs /tmp/site/payouts /payouts/
           (cd /tmp/site && npx --yes http-server -p 8082 -s . > /dev/null 2>&1 &)
           npx --yes wait-on -t 30000 http://localhost:8082/payouts/

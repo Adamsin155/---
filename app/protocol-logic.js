@@ -6,6 +6,7 @@
 import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS } from './protocol.js';
 import { SPECS, TERM_MONTHS } from './catalog.js';
 import { holidayOn as closedOn, erevOn } from './holidays.js';
+import { adjustForVersion, laterDue } from './protocol-versions.js';
 import {
   dateIL, dayKeyIL, weekdayIL, atTimeIL, endOfDayIL, addDaysIL, daysBetweenIL,
 } from './tz.js';
@@ -142,7 +143,8 @@ export function applicableProcesses(client) {
       };
     });
   });
-  return [...base, ...extra];
+  // Stage 5: what the client started under (items added later are "fresh").
+  return adjustForVersion([...base, ...extra], client);
 }
 
 // Phases for this client: the fixed ones, with a phase per extra round before "ongoing".
@@ -372,7 +374,8 @@ export function clientState(client, checks = {}, now = new Date()) {
     const touched = p.items.some((i) => checks[i.key]);
     const complete = p.recurring ? false : resolved === required.length;
     const startAt = resolveTime(p.start, ctx, procs, checks, now);
-    const baseDueAt = p.recurring ? null : resolveTime(p.due, ctx, procs, checks, now);
+    // A deadline a later protocol version shortened keeps the one the client started under.
+    const baseDueAt = p.recurring ? null : laterDue(resolveTime(p.due, ctx, procs, checks, now), p.dueBefore && resolveTime(p.dueBefore, ctx, procs, checks, now));
     const doneAt = complete ? completedAt(p, checks, now) : null;
     // Waiting on the client (office minutes): `waited` in all, `extended` the part
     // that moved the deadline on.
@@ -403,7 +406,9 @@ export function clientState(client, checks = {}, now = new Date()) {
       s.lastAt = checks[item.key]?.at || null;
       continue;
     }
-    s.late = !s.complete && !!(s.dueAt && s.dueAt < now);
+    // Items added to the protocol after the client started never make it late.
+    s.late = !s.complete && !!(s.dueAt && s.dueAt < now)
+      && s.proc.items.some((i) => !i.optional && !i.fresh && !isResolved(i, checks[i.key], now));
     if (s.complete) s.status = 'done';
     else if (s.wait) s.status = 'client'; // stuck on the client, not on us
     else if (s.late) s.status = 'overdue';

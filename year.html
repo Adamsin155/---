@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>שנת החבילה · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-office.css">
+  <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/owner.css">
+  <link rel="stylesheet" href="app/styles/office-flows.css">
+  <link rel="stylesheet" href="app/styles/year.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="clients.html" aria-label="astrateg · לקוחות ופרוטוקול">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">שנת החבילה</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="clients.html#mine">לקוחות</a>
+      <a class="navlink" href="year.html" aria-current="page">שנת החבילה</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>שנת החבילה זמינה למשרד.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app of-app yr-app" hidden>
+      <div id="yr-page" hidden>
+        <div class="page-head">
+          <div>
+            <div class="kicker latin">PACKAGE YEAR</div>
+            <h1>שנת החבילה</h1>
+            <p>באיזה חודש כל לקוח, מה פתוח החודש, ומי מסיים את החבילה ב־90 הימים הקרובים.</p>
+          </div>
+          <div class="head-actions" id="head-actions">
+            <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+            <a class="btn btn-sm" href="clients.html#mine">מה עליי</a>
+          </div>
+        </div>
+        <p class="of-banner is-warn yr-draft" id="yr-draft"><strong>המחזור החודשי הוא טיוטה</strong> — עד שיהיה פרוטוקול כתוב (החלטה 31). הפריטים, האחראים והמועדים הם הצעה של המערכת. אין בו פודקאסט.</p>
+        <nav class="ctl-nav of-jump" aria-label="חלקי העמוד" id="yr-jump"></nav>
+
+        <section class="block of-sec" id="renewals" aria-labelledby="rn-h" tabindex="-1" hidden>
+          <h2 class="wgroup-h" id="rn-h">חידושים ב־90 הימים הקרובים <span class="n" id="rn-n">0</span></h2>
+          <p class="hint">לפי תאריך סיום החבילה. הסיכום מחושב ממה שסומן במערכת. הודעת החידוש ללקוח יוצאת ידנית: הצעת חידוש היא פרסומת, ונשלחת רק בהסכמה או ללקוח קיים עם אפשרות הסרה.</p>
+          <ul class="of-list" id="rn-list"></ul>
+        </section>
+
+        <section class="block of-sec" id="months" aria-labelledby="mo-h" tabindex="-1">
+          <h2 class="wgroup-h" id="mo-h">החודש של כל לקוח <span class="n" id="mo-n">0</span></h2>
+          <p class="hint">משבצת לכל חודש בחבילה. חודש 1 הוא ההצטרפות לפי הפרוטוקול; המחזור החודשי מתחיל בחודש שאחרי התזמון הראשון (28).</p>
+          <ul class="yr-legend" aria-label="מקרא">
+            <li><span class="yr-cell c-done" aria-hidden="true"></span>הושלם</li>
+            <li><span class="yr-cell c-part" aria-hidden="true"></span>בתהליך</li>
+            <li><span class="yr-cell c-late" aria-hidden="true"></span>באיחור</li>
+            <li><span class="yr-cell c-before" aria-hidden="true"></span>הצטרפות</li>
+            <li><span class="yr-cell c-future" aria-hidden="true"></span>עוד לא התחיל</li>
+          </ul>
+          <ul class="of-list yr-rows" id="mo-list"></ul>
+        </section>
+
+        <section class="block of-sec" id="versions" aria-labelledby="vr-h" tabindex="-1">
+          <h2 class="wgroup-h" id="vr-h">גרסאות הפרוטוקול</h2>
+          <div id="vr-body"></div>
+        </section>
+      </div>
+
+      <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
+        <p>שנת החבילה פתוחה למשרד. העבודה שלך נמצאת ב״מה עליי״.</p>
+        <a class="btn" href="clients.html#mine">מעבר למה עליי</a>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/year.js"></script>
+</body>
+</html>
