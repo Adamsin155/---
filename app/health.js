@@ -801,6 +801,17 @@ export function shootsAhead(clients, now = new Date(), days = 7) {
 // the client already moved the deadline (decision 3) and is taken off the time;
 // editing stopped for someone else's task (the pause mark, from the history in
 // `log`) does the same, so neither counts against the person.
+// Process 27 closes only on Ilai's "קיבלתי" (p27.toilai), after the editor's last
+// step, the final versions in the Drive (p27.final): the editor's time ends there,
+// so Ilai's delay is never the editor's lateness (EDITOR_END).
+export const EDITOR_END = { p27: 'p27.final' };
+export function editorEndOf(x, checks = {}) {
+  const key = EDITOR_END[baseId(x.proc.id)];
+  if (!key) return null;
+  const item = x.proc.items.find((i) => i.key.replace(/^r\d+\./, '') === key);
+  const c = item && checks[item.key];
+  return isReal(c) && c.at ? new Date(c.at) : null;
+}
 export function closedProcesses(clients, { stateOf, checksByClient = {}, since, now = new Date(), log = null } = {}) {
   const out = [];
   for (const c of clients) {
@@ -808,8 +819,10 @@ export function closedProcesses(clients, { stateOf, checksByClient = {}, since, 
     const cs = checksByClient[c.id] || {};
     const procs = s.states.map((x) => x.proc);
     const rows = log ? rowsOf(log, c.id) : null;
-    for (const x of s.states) {
-      if (!x.complete || !x.completedAt || x.completedAt < since || !x.dueAt) continue;
+    for (const s0 of s.states) {
+      const end = editorEndOf(s0, cs);
+      const x = end ? { ...s0, completedAt: end } : s0;
+      if ((!x.complete && !end) || !x.completedAt || x.completedAt < since || !x.dueAt) continue;
       const req = x.proc.items.filter((i) => !i.optional);
       if (req.length && req.every((i) => cs[i.key]?.state === 'na')) continue;
       if (isImported(x.proc, cs)) continue;

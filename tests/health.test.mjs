@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applicableProcesses, clientState, WAIT, waitNote, IMPORT_NOTE } from '../app/protocol-logic.js';
 import { importKeys } from '../app/client-open.js';
+import { onTimeOf } from '../app/production.js';
 import {
   clientHealth, station, timeline, ownerRows, officeReasons, colorCounts, lateNow, shootsAhead, closedProcesses,
   onTimeTrend, teamRows, upcomingEvents, weeklyCallDue, deliverablesPace, contractMonth, lastContact,
@@ -461,4 +462,39 @@ test('who sees what: screen 1 the owner; screen 2 also Irit, Lior and Ofir; the 
   // Responsible for editing before an editor is assigned: Ofir assigns.
   const s = { proc: { owners: ['editor'], items: [{ key: 'p22.received', owners: ['editor'] }] }, claim: null };
   assert.equal(responsibleOf(s, {}, {}), 'ofir');
+});
+
+test('27: the editor\'s time ends at the final versions (p27.final), not at Ilai\'s "קיבלתי" (p27.toilai)', () => {
+  const c = { ...base, editor: 'nadia', shoot_at: '2026-10-14T10:00:00+03:00' };
+  const before = {
+    ...onboarded(c), ...done(c, ['p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21'], '2026-10-14T18:00:00+03:00'),
+    ...done(c, ['p22a'], '2026-10-15T12:00:00+03:00', null, 'ofir@x.test'), ...done(c, ['p22', 'p23', 'p24'], '2026-10-19T10:00:00+03:00', null, 'nadia@x.test'),
+    ...done(c, ['p25'], '2026-10-19T11:00:00+03:00', null, 'ofir@x.test'), ...done(c, ['p26'], '2026-10-19T12:00:00+03:00'),
+    ...item('p27.approved', '2026-10-20T09:00:00+03:00'),
+  };
+  const due = clientState(c, before, at('2026-10-20T09:30:00+03:00')).states.find((x) => x.proc.id === 'p27').dueAt;
+  assert.ok(due, 'p27 has a deadline');
+  // The editor put the final versions in the Drive an hour before the deadline; Ilai pressed "קיבלתי" three days late.
+  const finalAt = new Date(due.getTime() - 36e5);
+  const lateIlai = new Date(due.getTime() + 3 * 864e5);
+  const withFinal = { ...before, ...item('p27.final', finalAt.toISOString(), null, 'nadia@x.test') };
+  const closed = { ...withFinal, ...item('p27.toilai', lateIlai.toISOString(), null, 'ilai@x.test') };
+  const rowsAt = (checks, now) => closedProcesses([c], {
+    stateOf: () => clientState(c, checks, now), checksByClient: { c1: checks }, since: at('2026-09-01T00:00:00+03:00'), now,
+  }).filter((r) => r.key === 'p27');
+  const now = new Date(lateIlai.getTime() + 36e5);
+  assert.equal(clientState(c, closed, now).states.find((x) => x.proc.id === 'p27').complete, true);
+  const [row] = rowsAt(closed, now);
+  assert.equal(+row.completedAt, +finalAt);
+  assert.equal(row.onTime, true);
+  assert.deepEqual(row.people, ['nadia']);
+  assert.deepEqual(onTimeOf(rowsAt(closed, now), 'nadia'), { done: 1, onTime: 1, rate: 1 });
+  // Still waiting for Ilai: the editor's part is done and counted already.
+  const [open] = rowsAt(withFinal, now);
+  assert.equal(open.onTime, true);
+  // Final versions after the deadline are the editor's lateness.
+  const lateFinal = { ...closed, ...item('p27.final', new Date(due.getTime() + 36e5).toISOString(), null, 'nadia@x.test') };
+  assert.equal(rowsAt(lateFinal, now)[0].onTime, false);
+  // Not marked "final": nothing is counted for 27 until it closes.
+  assert.deepEqual(rowsAt(before, now), []);
 });
