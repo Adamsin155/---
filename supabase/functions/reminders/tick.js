@@ -116,8 +116,8 @@ async function deliver({ db, push, env, row, kind, now, stats }) {
   }
 }
 
-/** @param {{ db: any, push: any, now?: Date }} args */
-export async function runTick({ db, push, now = new Date() }) {
+/** @param {{ db: any, push: any, wa?: any, now?: Date }} args */
+export async function runTick({ db, push, wa = null, now = new Date() }) {
   const stats = { steps: 0, pushed: 0, queued: 0, app: 0, stale: 0, digests: 0, failed: 0, removed: 0, noDevice: 0, dropped: 0, recovered: 0, lost: 0, rejected: 0, errors: 0 };
   const input = await db.load(now);
   const env = buildEnv({ ...input, now });
@@ -187,6 +187,8 @@ export async function runTick({ db, push, now = new Date() }) {
     }
   }
   await inChunks(sends, PARALLEL, ({ row, kind }) => deliver({ db, push, env, row, kind, now, stats }));
+  // Stage 4: the same rings and digests on WhatsApp too, for whoever agreed (./whatsapp.js).
+  if (wa) await wa.deliver({ sends, env, now, stats });
   return stats;
 }
 

@@ -165,7 +165,12 @@ export function mountSession(onReady) {
     const ok = !!staff?.isStaff;
     $('login-block').hidden = ok;
     $('app').hidden = !ok;
-    if (ok) { markTabSeen(); return onReady(staff); }
+    if (ok) {
+      markTabSeen();
+      // Stage 4: the one-time WhatsApp consent screen, only when the owner turned WhatsApp on (app/whatsapp.js).
+      import('./whatsapp.js').then((m) => m.promptWhatsapp()).catch(() => {});
+      return onReady(staff);
+    }
     if (staff && !staff.isStaff) {
       $('lg-err').textContent = 'המשתמש מחובר אך אינו מורשה. יש לבקש הרשאה ממנהל המערכת.';
       $('lg-err').hidden = false;
