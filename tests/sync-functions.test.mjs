@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  APP_DIR, OUT_DIR, MARK, header, modules, importsOf, check, sync,
+  APP_DIR, OUT_DIR, MARK, header, modules, importsOf, check, sync, FUNCTIONS as FUNCTION_NAMES, deployFiles,
 } from '../scripts/sync-functions.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -72,6 +72,61 @@ test('the calendar function imports only the shared copy', () => {
   for (const f of files) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
   const config = readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8');
   assert.match(config, /\[functions\.calendar\]\s*\nverify_jwt = false/);
+});
+
+// What each function deploys (supabase functions deploy <name> uploads these; docs/ops.md).
+const APP = (...xs) => xs.map((x) => `_shared/app/${x}`);
+const DEPLOY = {
+  calendar: [
+    ...APP('calendar-feed.js', 'catalog.js', 'holidays.js', 'ics.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'tz.js'),
+    'calendar/index.ts',
+  ],
+  'create-quote': [
+    ...APP('catalog.js', 'legal.js', 'pricing.js'),
+    'create-quote/index.ts',
+  ],
+  reminders: [
+    ...APP('catalog.js', 'characterization.js', 'clocks.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-prep.js', 'status-rules.js', 'tz.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
+    '_shared/wa-graph.js',
+    'reminders/http.js',
+    'reminders/index.ts',
+    'reminders/tick.js',
+    'reminders/wa-server.ts',
+    'reminders/webpush.js',
+    'reminders/whatsapp.js',
+  ],
+  'staff-admin': [
+    'staff-admin/index.ts',
+    'staff-admin/rules.js',
+  ],
+  'whatsapp-webhook': [
+    ...APP('catalog.js', 'characterization.js', 'clocks.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'reminder-rules.js', 'shoot-prep.js', 'status-rules.js', 'tz.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
+    '_shared/wa-graph.js',
+    'whatsapp-webhook/index.ts',
+    'whatsapp-webhook/webhook.js',
+  ],
+};
+test('every function, and every file it deploys (the shared copies it reaches are all generated)', () => {
+  const dirs = readdirSync(FUNCTIONS, { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== '_shared').map((e) => e.name).sort();
+  assert.deepEqual(FUNCTION_NAMES, dirs);
+  assert.deepEqual(Object.keys(DEPLOY).sort(), dirs);
+  const reached = new Set();
+  for (const fn of FUNCTION_NAMES) {
+    const files = deployFiles(fn);
+    assert.deepEqual(files, [...DEPLOY[fn]].sort(), fn);
+    for (const f of files) if (f.startsWith('_shared/app/')) reached.add(f.slice('_shared/app/'.length));
+  }
+  // The copies are exactly what the functions reach: nothing generated for nobody.
+  for (const rel of reached) assert.ok(modules().includes(rel), rel);
+  for (const rel of modules()) assert.ok(reached.has(rel), `${rel} is copied but no function reaches it`);
+  // The hand-written shared file is not in the generated folder.
+  assert.ok(!readFileSync(join(FUNCTIONS, '_shared/wa-graph.js'), 'utf8').startsWith(MARK));
+});
+
+test('verify_jwt: off for the functions that check their caller themselves', () => {
+  const config = readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8');
+  const off = [...config.matchAll(/\[functions\.([a-z-]+)\]\s*\nverify_jwt = false/g)].map((m) => m[1]).sort();
+  assert.deepEqual(off, ['calendar', 'reminders', 'staff-admin', 'whatsapp-webhook']);
 });
 
 test('the shared pricing engine computes the same quote as app/', async () => {

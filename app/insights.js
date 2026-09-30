@@ -18,8 +18,9 @@
 //     decision 29: handled within a business day (the day after, as requestDue in
 //     shoot-prep.js), urgent within an office hour. The "received" message goes out
 //     when the request is recorded, so its 2 hours are not measured apart.
-//   - Satisfaction: the surveys table of stage 4, when it exists (a 1–5 score, and a
-//     0–10 recommendation); without it, nothing is claimed.
+//   - Satisfaction: public.client_surveys (stage 4; app/surveys.js): the 1–5 questions
+//     after the shoot and the first delivery, and the 0–10 recommendation (NPS);
+//     when the table cannot be read, nothing is claimed.
 //   - "Not relevant": each item's cases in the month (a client and the item's final
 //     mark in the month: done or not relevant); an item marked not relevant in more
 //     than half of at least NA_MIN_CASES cases is suggested for removal in the next
@@ -34,6 +35,7 @@ import {
 import { closedProcesses, doneEvents } from './health.js';
 import { requestDue, REQUEST } from './shoot-prep.js';
 import { TZ, partsIL, dateIL, dayKeyIL } from './tz.js';
+import { readSurvey, isNps, severeScore, npsOf, average, FIVE_KINDS } from './surveys.js';
 
 // ── Months ─────────────────────────────────
 const pad = (n) => String(n).padStart(2, '0');
@@ -202,25 +204,21 @@ export function requestsReport(tasks, month, now = new Date()) {
   };
 }
 
-// ── Satisfaction (stage 4's surveys, when the table exists) ──
-const pick = (r, keys) => { for (const k of keys) if (r[k] !== null && r[k] !== undefined && r[k] !== '') return r[k]; return null; };
+// ── Satisfaction (public.client_surveys, stage 4; app/surveys.js) ──
+// The answers given in the month (by `at`, the server's time): the two 1–5 questions
+// together and each apart, and the 0–10 recommendation as an NPS. Null when the
+// table could not be read (before its migration): nothing is claimed then.
 export function satisfactionReport(rows, month) {
   if (!Array.isArray(rows)) return null;
-  const scores = [];
-  const nps = [];
-  for (const r of rows) {
-    const v = Number(pick(r, ['score', 'rating', 'value', 'answer']));
-    const at = parseDate(pick(r, ['answered_at', 'responded_at', 'submitted_at', 'created_at', 'at', 'sent_at']));
-    if (!Number.isFinite(v) || !inMonth(at, month)) continue;
-    const kind = String(pick(r, ['kind', 'type', 'question']) || '');
-    if (/nps|recommend|המלצה/i.test(kind) || v > 5) { if (v >= 0 && v <= 10) nps.push(v); } else if (v >= 1 && v <= 5) scores.push(v);
-  }
-  const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
-  const promoters = nps.filter((v) => v >= 9).length;
-  const detractors = nps.filter((v) => v <= 6).length;
+  const answers = rows.map(readSurvey).filter((r) => r && inMonth(r.at, month));
+  const five = answers.filter((r) => !isNps(r.kind));
+  const ten = answers.filter((r) => isNps(r.kind)).map((r) => r.score);
+  const kindOf = (k) => { const xs = five.filter((r) => r.kind === k).map((r) => r.score); return { count: xs.length, avg: average(xs) }; };
   return {
-    count: scores.length, avg, low: scores.filter((v) => v <= 2).length,
-    nps: { count: nps.length, score: nps.length ? Math.round(((promoters - detractors) / nps.length) * 100) : null },
+    count: five.length, avg: average(five.map((r) => r.score)),
+    low: five.filter((r) => severeScore(r.kind, r.score)).length,
+    kinds: Object.fromEntries(FIVE_KINDS.map((k) => [k, kindOf(k)])),
+    nps: { count: ten.length, score: npsOf(ten), low: ten.filter((v) => severeScore('nps', v)).length },
   };
 }
 
@@ -305,7 +303,7 @@ export function pipelineReport(clients, checksByClient, logBy, month, now = new 
 // clients: every client (ended too); checks: { clientId: { key: check } }; log:
 // protocol_log rows from the first month's start (with the whole history of the
 // returns and deliveries, as the page loads them); tasks: client_tasks rows with
-// source 'request'; surveys: rows of the surveys table, or null when there is none.
+// source 'request'; surveys: public.client_surveys rows, or null when unreadable.
 export function computeInsights({ clients = [], checks = {}, log = null, tasks = [], surveys = null, now = new Date(), month = monthKeyIL(now), span = 6 }) {
   const months = monthsUpTo(month, span).map(monthRange);
   const cur = months.at(-1);

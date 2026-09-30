@@ -68,12 +68,13 @@
         <div class="head-actions">
           <button type="button" class="btn btn-sm btn-ghost inbox-btn" id="btn-inbox" aria-haspopup="dialog" hidden>התראות</button>
           <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+          <!-- The screens, one row in one order: the owner's, the office's (app/office-ui.js
+               officeLinks: qa, pass, decisions, insights, the package year), then the rest. -->
           <a class="btn btn-sm" href="owner.html" id="cta-owner" hidden>מה דורש אותי</a>
+          <a class="btn btn-sm" href="prep.html" id="cta-prep" hidden>לפני יום צילום</a>
           <a class="btn btn-sm" href="messages.html" id="cta-messages" hidden>הודעות ללקוחות</a>
           <a class="btn btn-sm" href="editor.html" id="cta-editor" hidden>הלקוחות שלי בעריכה</a>
           <a class="btn btn-sm" href="shoot.html" id="cta-shoot" hidden>ימי צילום</a>
-          <a class="btn btn-sm" href="prep.html" id="cta-prep" hidden>לפני יום צילום</a>
-          <a class="btn btn-sm" href="year.html" id="cta-year" hidden>שנת החבילה</a>
           <button type="button" class="btn btn-sm btn-primary" id="btn-new">לקוח חדש</button>
         </div>
       </div>
@@ -88,10 +89,13 @@
       </div>
 
       <section class="block" id="view-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
+        <!-- One order for the cards of "מה עליי": now, then how I hear (notifications,
+             WhatsApp, my calendar), then the questions, whose list, the month, the work. -->
         <section class="now-bar" id="now-bar" aria-labelledby="now-h" hidden></section>
         <section class="push-card" id="push-card" aria-labelledby="push-h" hidden></section>
-        <section class="myq" id="my-questions" aria-labelledby="myq-h" hidden></section>
+        <section class="push-card wa-card" id="wa-card" aria-labelledby="wa-card-h" hidden></section>
         <section class="cal-card" id="cal-card" aria-labelledby="cal-h" hidden></section>
+        <section class="myq" id="my-questions" aria-labelledby="myq-h" hidden></section>
         <div class="filters" role="group" aria-label="של מי" id="mine-people"></div>
         <div class="mine-tools" id="mine-tools"></div>
         <section class="mc-box" id="my-months" aria-labelledby="mc-h" hidden></section>

@@ -4,6 +4,7 @@
 // stamped by the database. Until that migration is applied the marks read as null
 // ("not there yet") and the screens say so instead of failing.
 import { supabase } from './supa.js';
+import { SURVEY_TABLE, SURVEY_REPORT_COLS } from './surveys.js';
 
 const PAGE = 1000;
 async function all(build) {
@@ -58,14 +59,14 @@ export async function loadAgreements(ids) {
   return new Map(data.map((q) => [q.id, q]));
 }
 
-// Client surveys (another module builds the table): rows of these clients, or null
-// when it is not there or cannot be read. Read with `*` since its shape is not
-// fixed yet; app/renewals.js surveySummary is the one place that reads a row.
+// The clients' answers (public.client_surveys, stage 4; the shape in app/surveys.js):
+// rows of these clients, or null when the table cannot be read (before its
+// migration). The renewals list never fails for it: app/renewals.js surveySummary.
 export async function loadSurveys(clientIds) {
   const list = [...new Set((clientIds || []).filter(Boolean))];
   if (!list.length) return {};
   try {
-    const rows = await all(() => supabase.from('client_surveys').select('*').in('client_id', list));
+    const rows = await all(() => supabase.from(SURVEY_TABLE).select(SURVEY_REPORT_COLS).in('client_id', list));
     const out = {};
     for (const r of rows) (out[r.client_id] ||= []).push(r);
     return out;

@@ -99,6 +99,17 @@ export function liorShoot(env) {
   return { active: cids.size > 0, cids };
 }
 
+// Items added to the protocol after a client started are work, never late
+// (app/protocol-versions.js; the plan, stage 5). A rule says which item its case is
+// about with `fresh(inst)`; otherwise a case of a process that is new as a whole for
+// this client (every required item fresh: 12א for a version 1 client, 17ב–19ב
+// before version 4) counts as fresh. The `overdue` steps of a fresh case are skipped.
+export function freshCase(rule, inst) {
+  if (typeof rule.fresh === 'function') return !!rule.fresh(inst);
+  const items = (inst?.proc?.items || []).filter((i) => !i.optional);
+  return items.length > 0 && items.every((i) => i.fresh);
+}
+
 // Every step of every live ladder due by `until` (default: now), log or not.
 export function candidates(env, { until = env.now } = {}) {
   const out = [];
@@ -109,7 +120,9 @@ export function candidates(env, { until = env.now } = {}) {
       const steps = typeof rule.steps === 'function' ? rule.steps(inst, env) : rule.steps;
       const who = (step) => [typeof step.to === 'function' ? step.to(inst, env) : step.to].flat().filter((p) => p && p !== 'editor');
       const due = [];
+      const fresh = freshCase(rule, inst);
       for (const [n, step] of steps.entries()) {
+        if (fresh && step.overdue) continue;
         const at = timeOf(step, anchors);
         if (!at) continue;
         if (step.expires && anchors[step.expires] && env.now >= anchors[step.expires]) continue;

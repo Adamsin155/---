@@ -239,7 +239,7 @@ mountSession(async (staff) => {
   me = v.me;
   if (!office()) { $('no-access').hidden = false; return; }
   $('yr-page').hidden = false;
-  if (v.scope === 'office') $('head-actions').prepend(...officeLinks(v, 'year.html'));
+  $('head-actions').prepend(...officeLinks(v, 'year.html'));
   $('yr-draft').title = DRAFT_LABEL;
   await load();
   const target = location.hash.slice(1);

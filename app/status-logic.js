@@ -83,10 +83,8 @@ export const QUESTIONS = {
 };
 export const SURVEY_NOTE = 'התשובה נשמרת עם השם שלך ועוזרת לנו לשפר את השירות.';
 export const SURVEY_TITLES = { shoot: 'יום הצילום', delivery: 'הסרטונים', nps: 'המלצה' };
-export const scaleOf = (kind) => (kind === 'nps' ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] : [1, 2, 3, 4, 5]);
-// Lior calls: 3 or less of 5, 6 or less of 10. The owner hears too: 2 or less, 4 or less.
-export const lowScore = (kind, score) => (kind === 'nps' ? score <= 6 : score <= 3);
-export const severeScore = (kind, score) => (kind === 'nps' ? score <= 4 : score <= 2);
+// The scales and the thresholds (Lior calls, the owner hears too): app/surveys.js.
+export { scaleOf, lowScore, severeScore } from './surveys.js';
 
 // ── The WhatsApp checkbox on the signing page (decision 26; legal section 1) ──
 // q.html shows exactly these (tests/status.test.mjs), and the database stores the

@@ -269,7 +269,7 @@ select email, fail_count, last_error, last_ok_at from public.push_subscriptions 
 
 *שלושה חלקים שנבנו במקביל ומוזגו: עמודי ההפקה (`editor.html`, `shoot.html`), זרימות המשרד (סעיף 11) והאפיון ולפני יום צילום (`intake.html`, `prep.html`). גרסת הפרוטוקול 5 כוללת את שני שינויי הפרוטוקול שלהם (`app/protocol.js`).*
 
-- **סדר ההחלה של המיגרציות**, אחרי כל מה שכבר הוחל (עד `20260930130000_assignment_rls.sql`): `20260930140000_production.sql`, אחריה `20260930150000_office_flows.sql`, ואחרונה `20260930160000_intake.sql`. האחרונה בונה מחדש את רשימת המקורות המותרים של `client_tasks.source` ממה שהשאירו הקודמות ומוסיפה `request` ו־`tell`, ולכן היא תמיד אחרונה. `office_reviews.kind` ואורך ההערה של `protocol_checks` מוגדרים רק ב־`20260930150000`. כל השלוש בטוחות להרצה חוזרת. `npm test` מריץ אותן בסדר הזה על PGlite.
+- **סדר ההחלה של המיגרציות**, אחרי כל מה שכבר הוחל (עד `20260930130000_assignment_rls.sql`): `20260930140000_production.sql`, אחריה `20260930150000_office_flows.sql`, ואחרונה `20260930160000_intake.sql`. האחרונה בונה מחדש את רשימת המקורות המותרים של `client_tasks.source` ממה שהשאירו הקודמות ומוסיפה `request` ו־`tell`, ולכן היא אחרונה מבין השלוש (מאז שלב 4, `20260930170000_client_status.sql` בונה את הרשימה שוב, עם כל הערכים; סעיף 17). `office_reviews.kind` ואורך ההערה של `protocol_checks` מוגדרים רק ב־`20260930150000`. כל השלוש בטוחות להרצה חוזרת. `npm test` מריץ אותן בסדר הזה על PGlite.
 - **אחרי ההחלה:** פורסים מחדש את הפונקציה `reminders` עם כל הקבצים של `supabase/functions/_shared/app` (סעיף 10). היא טוענת גם משימות שנסגרו ביומיים האחרונים עם `result`, ואת `brief` של כל משימה.
 - **סימון אחד לכל אירוע:** החזרה לתיקון ותיקוניה הם הסימונים של המשרד (`p25.return.N`, ‏`p25.fixed.N.I`, ‏`p25.fixed.N`, ב־`app/office-marks.js`), גם בעמוד העורך; "מוכן לבדיקה" מחדש אחרי החזרה נחשב תיקון. "קיבלתי" של עילאי על הגרסאות הסופיות הוא הפריט `p27.toilai`; העורך מסמן רק `p27.final`. "האפיון הסתיים" הוא `p04.ended`, והוא עוצר את שעון הבקרה של אופיר גם בדפדפן וגם ב־`ofir_meetings()`. לכל אירוע כלל תזכורת אחד (`qaReturn`, ‏`qa`, ‏`finalReady`).
 - **מה העורך קורא:** טלפון העסק והלוגו מטופס האפיון (`characterizations.fields.phone` ו־`logo_url`), והדגשים משיחת הדגשים (`content_briefs` של אותו סבב), רק השדות עצמם. לא את `clients.phone` ולא את ההערות של המשרד.
@@ -300,7 +300,7 @@ select email, fail_count, last_error, last_ok_at from public.push_subscriptions 
   ```
 - **בדיקות:** `tests/status.test.mjs`, ‏`tests/sql/status.test.mjs` (בתוך `npm test`) ו־`tests/status-e2e.mjs`; החתימה ב־`tests/e2e.mjs`.
 
-## וואטסאפ לצוות (שלב 4)
+## 14. שלב 4: וואטסאפ לצוות
 
 *[התוכנית, שלב 4 והערוץ "וו׳" בסעיף 5](plan/system-plan.md), החלטה 6. הכול בנוי ועובד, אבל **כבוי** עד שיש לבעלים חשבון WhatsApp Cloud API מאומת, מספר ייעודי ותבניות מאושרות. הפוש נשאר הערוץ הראשי: וואטסאפ הוא עותק נוסף, רק למי שהסכים/ה.*
 
@@ -343,10 +343,10 @@ select email, fail_count, last_error, last_ok_at from public.push_subscriptions 
    select vault.create_secret('<App secret>', 'whatsapp_app_secret', 'whatsapp: webhook signature');
    select vault.create_secret('<מחרוזת אקראית, 32 תווים>', 'whatsapp_verify_token', 'whatsapp: webhook subscription');
    ```
-4. **מיגרציה** `20260930180000_whatsapp.sql`, אחרי `20260930160000_intake.sql`. היא בטוחה להרצה חוזרת, והמתג בה כבוי.
+4. **מיגרציה** `20260930180000_whatsapp.sql`, אחרי `20260930170000_client_status.sql` (הסדר המלא: סעיף 17). היא בטוחה להרצה חוזרת, והמתג בה כבוי.
 5. **פריסה:**
-   - `reminders` מחדש, עם הקבצים החדשים: `reminders/wa-server.ts`, `reminders/whatsapp.js`, `_shared/wa-graph.js`, ו־`_shared/app/wa-logic.js` ו־`wa-templates.js` (וכל `_shared/app`, כמו בסעיף 10).
-   - פונקציה חדשה `whatsapp-webhook`, עם `verify_jwt = false` (ב־`supabase/config.toml`; היא בודקת את החתימה בעצמה): `whatsapp-webhook/index.ts`, `whatsapp-webhook/webhook.js`, `_shared/wa-graph.js` וכל `_shared/app`.
+   - `reminders` מחדש, עם הקבצים החדשים: `reminders/wa-server.ts`, `reminders/whatsapp.js`, `_shared/wa-graph.js`, ו־`_shared/app/wa-logic.js` ו־`wa-templates.js` (וכל `_shared/app`, כמו בסעיף 10; הרשימה המלאה: סעיף 17).
+   - פונקציה חדשה `whatsapp-webhook`, עם `verify_jwt = false` (ב־`supabase/config.toml`; היא בודקת את החתימה בעצמה): `whatsapp-webhook/index.ts`, `whatsapp-webhook/webhook.js`, `_shared/wa-graph.js` והעותקים ב־`_shared/app` שהיא מגיעה אליהם (`node scripts/sync-functions.mjs --deploy`).
      `supabase functions deploy whatsapp-webhook --project-ref czncjzziqrqtezpwxxpz --use-api`
 6. **Webhook ב־Meta** (האפליקציה ← WhatsApp ← Configuration): Callback URL ‏`https://czncjzziqrqtezpwxxpz.supabase.co/functions/v1/whatsapp-webhook`, ו־Verify token זהה ל־`whatsapp_verify_token`. אחרי "Verify and save" נרשמים לשדה `messages`.
 7. **פרסום האתר** (סעיף 2): `staff-privacy.html`, `app/whatsapp.js`, `app/wa-team.js`, `app/styles/whatsapp.css`.
@@ -376,7 +376,7 @@ update public.app_settings set value = 'false' where key = 'whatsapp_enabled';
 
 **בדיקות:** `tests/whatsapp.test.mjs` (התבניות מול הכללים של Meta, בחירת התבנית, מי מקבל ומתי, השולח מול `fetch` מזויף, ההרצה עם הערוץ השני, החתימה, בדיקת המנוי והתשובות), `tests/sql/whatsapp.test.mjs` (הרשאות, הסכמה וראיה, מתג, מסירה, תשובות פעם אחת ובשם האדם) ו־`tests/whatsapp-e2e.mjs` (מסך ההסכמה, ביטול, הבעלים, עמוד הצוות, 360px ודף הפרטיות).
 
-## 13. שלב 5: שנת החבילה
+## 15. שלב 5: שנת החבילה
 
 *[התוכנית, שלב 5 וסעיף 4, תחנות 7–8](plan/system-plan.md); [החלטות 31 ו־33](plan/decisions.md). העמוד: `year.html` (המשרד והבעלים, ועילאי לפריטים שלו), עם קישור "שנת החבילה" בראש `clients.html`. הלוגיקה: `app/year-logic.js`, ‏`app/renewals.js`, ‏`app/protocol-versions.js`; התזכורות: `app/year-rules.js` (נוספות ל־`RULES`).*
 
@@ -405,20 +405,20 @@ update public.app_settings set value = 'false' where key = 'whatsapp_enabled';
 - **לקוחות קיימים:** המיגרציה קובעת לכל לקוח שעדיין על 1 את הגרסה לפי מתי נפתח, מול מתי כל גרסה הגיעה לענף הראשי (v2 ב־13:27, v3 ב־14:04, v4 ב־16:00 UTC ב־29.9), ולא יותר מ־4. כלומר כל הלקוחות שקיימים היום נקראים כגרסה 4 ומטה, גם מי שנפתח אחרי שגרסה 5 נכתבה ועד שהמיגרציה הוחלה (הוא מקבל את מועד התסריטים הישן, המקל). המסכים קוראים שורה שעדיין על 1 באותו כלל, כך שהם מסכימים גם לפני ההחלה. שינוי ידני: `update public.clients set protocol_version = 5 where id = '<id>';` ב־SQL Editor.
 
 **חידושים: רשימת 90 הימים (תחנה 8, תהליכים 34–35).** בעמוד, לבעלים, לליאור ולעירית: לקוחות פעילים שהחבילה שלהם מסתיימת בתוך 90 יום, לפי התאריך. לכל אחד שלב תהליך 34 וסיכום תוצאות ממה שכבר במערכת: תוצרים מול החבילה (כמו בקצב שבמסך הבעלים), ימי צילום שהתקיימו, אחוז התהליכים שנסגרו בזמן (בלי היסטוריה מיובאת), המחזור החודשי, ושביעות רצון.
-- **שביעות רצון:** טבלת `client_surveys` נבנית במודול אחר. `app/year-data.js` (`loadSurveys`) קורא אותה רק אם היא קיימת, ו־`surveySummary` ב־`app/renewals.js` הוא המקום היחיד שקורא שורה (`client_id` וציון מספרי ב־`score`/`rating`/`value`; `kind: 'nps'` או ציון מעל 5 הוא שאלת ההמלצה 0–10). כשהטבלה תיקבע, מתאימים רק את הפונקציה הזו.
+- **שביעות רצון:** מ־`client_surveys` של דף המצב (סעיף 13; הצורה ב־`app/surveys.js`): `kind` ‏`shoot` ו־`delivery` בסולם 1–5, ו־`nps` בסולם 0–10, עם `at`. `app/year-data.js` (`loadSurveys`) קורא רק `client_id, kind, score, source, at` (לא את שם העונה), ו־`surveySummary` ב־`app/renewals.js` מסכם: ממוצע ה־1–5, וההמלצה בנפרד; אזהרה על 2 ומטה מ־5 או 4 ומטה מ־10 (הספים של המסד). אם הטבלה לא נקראת, הרשימה לא נכשלת.
 - **"הצעת חידוש":** פותח את בונה ההצעות (`index.html`) עם טיוטה ממולאת: החבילה, התוספות וההנחה מההסכם החתום (`quotes.model.selection`), ושם הלקוח ופרטיו מההסכם; בלקוח שנפתח ידנית, מתוך שם החבילה וסוג הצילום. זו הטיוטה שהבונה כבר שומר בלשונית (`sessionStorage`, `astrateg-draft`), ולכן אין שינוי בבונה. טיוטה אחרת בלשונית מוחלפת רק באישור.
 - **ההודעה ללקוח ידנית.** הצעת חידוש היא פרסומת לפי חוק הספאם (סעיף 7 בתוכנית), ולכן שום דבר כאן לא שולח. העמוד אומר את זה ליד הרשימה.
 - **תזכורות (`renewalList`):** שורת תקציר לליאור ולבעלים 90 יום לפני; לבעלים 60 יום לפני (לליאור כבר יש שורה מהכלל `renewal`, 75/60/45); צלצול אחד לליאור ב־12:00 ביום של תהליך 34 (60 יום לפני, או יום העסקים שלפניו) אם אף פריט שלו לא סומן והוא לא ממתין ללקוח; ו־30 יום לפני שורה לליאור, ולבעלים רק אם כבר נרשמה שיחת חידוש (אחרת הכלל `renewal` מצלצל לו מיד, מקרה 4). נעצר כשתהליך 34 הושלם או כשהלקוח כבר לא פעיל.
 
 **מה נפרס, לפי הסדר:**
-1. המיגרציה `20260930190000_year.sql`, אחרי כל מה שכבר הוחל. בטוחה להרצה חוזרת.
+1. המיגרציה `20260930190000_year.sql`, אחרי `20260930180000_whatsapp.sql` (הסדר המלא: סעיף 17). בטוחה להרצה חוזרת.
 2. פריסה מחדש של הפונקציה `reminders` (סעיף 10; `verify_jwt=false` כמו היום) עם כל `supabase/functions/_shared/app`: נוספו `protocol-versions.js`, ‏`year-logic.js` ו־`year-rules.js`. הפונקציה טוענת גם את `client_month_marks`, ועד שהמיגרציה הוחלה קוראת אותה כריקה.
 3. פרסום האתר (סעיף 2): `year.html` חדש, והקבצים שהשתנו.
 - אין סודות חדשים ב־Vault.
 
 **בדיקות:** `tests/protocol-versions.test.mjs`, ‏`tests/year.test.mjs`, ‏`tests/sql/year.test.mjs` (בתוך `npm test`) ו־`tests/year-e2e.mjs`.
 
-## 13. שלב 6: היומן האישי והתובנות
+## 16. שלב 6: היומן האישי והתובנות
 
 *[התוכנית, שלב 6](plan/system-plan.md). היומן נבנה בלי ה־API של גוגל, כי החלטה 32 (Google Workspace) עוד פתוחה: קישור מנוי ‏(iCalendar) שכל יומן קורא, Google, ‏Apple ו־Outlook.*
 
@@ -435,8 +435,8 @@ update public.app_settings set value = 'false' where key = 'whatsapp_enabled';
 - **מי חיבר:** בעמוד הצוות הבעלים רואה לכל אחד "יומן: מחובר · התעדכן …" או "לא מחובר" (`public.calendar_feeds_team()`), בלי הקישור ובלי ה־hash.
 
 **הפעלה, לפי הסדר:**
-1. מיגרציה `20260930200000_calendar_feeds.sql` (אחרי כל הקודמות; לא תלויה בהן חוץ מ־`staff`). בטוחה להרצה חוזרת.
-2. פריסת הפונקציה `calendar` עם `verify_jwt=false` (ב־`supabase/config.toml`): יומן לא שולח כניסה, והטוקן הוא ההרשאה. הוא נבדק בתוך המסד ב־`public.calendar_feed_check()`, שרק ה־service role רשאי לקרוא. `supabase functions deploy calendar --project-ref czncjzziqrqtezpwxxpz --use-api`, או `deploy_edge_function` עם `entrypoint_path` ‏`calendar/index.ts` והקבצים: `calendar/index.ts` ו־`_shared/app/` ‏`calendar-feed.js`, ‏`ics.js`, ‏`protocol-logic.js`, ‏`protocol.js`, ‏`catalog.js`, ‏`holidays.js`, ‏`tz.js`.
+1. מיגרציה `20260930200000_calendar_feeds.sql` (האחרונה; לא תלויה בקודמות חוץ מ־`staff`; הסדר המלא: סעיף 17). בטוחה להרצה חוזרת.
+2. פריסת הפונקציה `calendar` עם `verify_jwt=false` (ב־`supabase/config.toml`): יומן לא שולח כניסה, והטוקן הוא ההרשאה. הוא נבדק בתוך המסד ב־`public.calendar_feed_check()`, שרק ה־service role רשאי לקרוא. `supabase functions deploy calendar --project-ref czncjzziqrqtezpwxxpz --use-api`, או `deploy_edge_function` עם `entrypoint_path` ‏`calendar/index.ts` והקבצים: `calendar/index.ts` ו־`_shared/app/` ‏`calendar-feed.js`, ‏`ics.js`, ‏`protocol-logic.js`, ‏`protocol-versions.js`, ‏`protocol.js`, ‏`catalog.js`, ‏`holidays.js`, ‏`tz.js` (הרשימה מחושבת: `node scripts/sync-functions.mjs --deploy`).
 3. אין סודות חדשים ב־Vault. משתנה אופציונלי אחד: `SITE_URL` (למשל `https://app.astrateg.com/`) אחרי המעבר לכתובת הקבועה (סעיף 8); בלעדיו הקישורים באירועים הולכים ל־`adamsin155.github.io/---/`.
 4. בדיקה: "מה עליי" ← "חיבור ליומן" ← פותחים את הקישור בדפדפן ומקבלים קובץ `text/calendar`. קישור לא נכון מחזיר 404.
 
@@ -444,8 +444,33 @@ update public.app_settings set value = 'false' where key = 'whatsapp_enabled';
 - **לדעת:** הטוקן עובר בכתובת, ולכן הוא מופיע ביומני הבקשות של הפונקציות ב־Supabase. מי שרואה אותם כבר רואה את כל הנתונים (נספח ב). מי שחושד שהקישור שלו דלף לוחץ "קישור חדש".
 
 **תובנות** (`insights.html`, `app/insights.js`, `app/insights-page.js`):
-- פתוח לבעלים, ולליאור לקריאה (החלטה 22 נותנת לו את מסך הצוות). הקישור ל"מערכת התשלומים" (`payouts/`) רק לבעלים. שאר הצוות מקבל "אין לך גישה". הקישור לעמוד נמצא בכותרת "מה עליי", בעמודי המשרד של ליאור ובניווט של "מה דורש אותי".
-- לא נוספה אף מדיניות: העמוד קורא לקוחות, סימונים, היסטוריה ומשימות לפי הכללים הקיימים של המשרד (סעיף 9), ואת טבלת הסקרים של שלב 4 רק אם היא קיימת (בלעדיה כתוב שהסקרים עוד לא פעילים).
+- פתוח לבעלים, ולליאור לקריאה (החלטה 22 נותנת לו את מסך הצוות). הקישור ל"מערכת התשלומים" (`payouts/`) רק לבעלים. שאר הצוות מקבל "אין לך גישה". הקישור לעמוד נמצא בשורת המסכים בראש `clients.html` ובעמודי המשרד (`officeLinks`, סעיף 17) ובניווט של "מה דורש אותי".
+- לא נוספה אף מדיניות: העמוד קורא לקוחות, סימונים, היסטוריה ומשימות לפי הכללים הקיימים של המשרד (סעיף 9), ואת `client_surveys` של דף המצב (סעיף 13), שהמשרד קורא ("office reads surveys"), ולכן גם הבעלים וליאור. רק העמודות `client_id, kind, score, source, at` מהחודש שנבחר (`app/surveys.js`). שביעות הרצון: ממוצע 1–5 (יום הצילום והסרטונים, יחד וכל אחד), כמה עם 2 ומטה, ו־NPS של שאלת ההמלצה 0–10 (9–10 פחות 0–6). לפני המיגרציה של שלב 4 כתוב שהסקרים עוד לא פעילים.
 - מה מחושב, לחודש שנבחר ומגמה של 6 חודשים: עמידה בזמנים לפי תפקיד ולפי עובד (כמו בעמוד הצוות: בלי המתנה ללקוח ובלי עצירות של אחרים, בלי ייבוא); החזרות מבקרת איכות לפי העורך של אותו יום צילום ולפי הסבב (`p25.return.N`, וגרפיקות `p23.return.N`); ימי עסקים מהצילום עד המסירה הראשונה (`p26.sent`) וסגירה באישור הלקוח תוך 5 ימי עסקים (ה8); פניות לקוח מול החלטה 29 (יום עסקים, דחוף תוך שעת עבודה; אישור הקבלה יוצא כשרושמים את הבקשה ולכן לא נמדד בנפרד); ולכל יום צילום השלבים מהתסריט ועד התזמון (הסימונים הם לכל יום צילום, לא לכל סרטון).
 - **"לא רלוונטי" החודש:** לכל פריט, המקרים בחודש (לקוח, והסימון האחרון שלו בחודש: בוצע או לא רלוונטי). פריט שסומן "לא רלוונטי" ביותר ממחצית המקרים, ובלפחות 3 מקרים, מסומן "להסרה בגרסה הבאה". ההחלטה להסיר נשארת אצל הבעלים, והיא שינוי ב־`app/protocol.js` עם העלאת `PROTOCOL_VERSION`.
 - **בדיקות:** `tests/calendar-feed.test.mjs`, ‏`tests/calendar-function.test.mjs` (הפונקציה עצמה ב־node), ‏`tests/insights.test.mjs`, ‏`tests/sql/calendar.test.mjs` (בתוך `npm test`), ו־`tests/insights-e2e.mjs`.
+
+## 17. שלבים 4–6 יחד: סדר ההחלה, הפריסה ומה יושב בין המודולים
+
+*ארבעה ענפים שנבנו במקביל מאותה נקודה ומוזגו: דף המצב ללקוח (סעיף 13), וואטסאפ לצוות (סעיף 14), שנת החבילה (סעיף 15), היומן והתובנות (סעיף 16).*
+
+**סדר ההחלה של המיגרציות**, אחרי כל מה שכבר הוחל (עד `20260930160000_intake.sql`): `20260930170000_client_status.sql` ← `20260930180000_whatsapp.sql` ← `20260930190000_year.sql` ← `20260930200000_calendar_feeds.sql`. כולן בטוחות להרצה חוזרת, ו־`npm test` מריץ את כולן בסדר הזה על PGlite (`tests/sql/integration.test.mjs` בודק את הסדר).
+- **`client_tasks.source`:** רק `20260930170000` בונה את הרשימה מחדש, ממה שיש במסד ועוד כל הערכים הידועים: `p31`, ‏`p33`, ‏`escalation`, ‏`status`, ‏`pause`, ‏`followup`, ‏`request`, ‏`tell`, ‏`client_fix`, ‏`survey`. שלוש המיגרציות שאחריה לא מוסיפות מקור ("צריך עזרה" בוואטסאפ הוא `escalation`). מיגרציה עתידית שמוסיפה מקור: אותו דפוס (לקרוא את הקיים, להוסיף, לבנות), וכל הרשימה.
+
+**מה פורסים, לכל פונקציה** (`node scripts/sync-functions.mjs --deploy` מדפיס את הרשימה המדויקת; `tests/sync-functions.test.mjs` נכשל כשהיא משתנה):
+
+| פונקציה | `verify_jwt` | הקבצים |
+|---|---|---|
+| `reminders` (פריסה מחדש) | false | `reminders/` ‏(`index.ts`, `tick.js`, `webpush.js`, `http.js`, `wa-server.ts`, `whatsapp.js`), ‏`_shared/wa-graph.js`, ו־23 עותקים ב־`_shared/app` (כל מה שהמנוע מגיע אליו, כולל `status-rules.js`, ‏`protocol-versions.js`, ‏`year-logic.js`, ‏`year-rules.js`, ‏`wa-logic.js`, ‏`wa-templates.js`) |
+| `whatsapp-webhook` (חדשה) | false | `whatsapp-webhook/index.ts`, ‏`whatsapp-webhook/webhook.js`, ‏`_shared/wa-graph.js`, ו־21 עותקים ב־`_shared/app` (התבניות מגיעות לכללי התזכורות) |
+| `calendar` (חדשה) | false | `calendar/index.ts` ו־`_shared/app/` ‏`calendar-feed.js`, ‏`ics.js`, ‏`protocol-logic.js`, ‏`protocol-versions.js`, ‏`protocol.js`, ‏`catalog.js`, ‏`holidays.js`, ‏`tz.js` |
+| `create-quote` | true | בלי שינוי |
+| `staff-admin` | false | בלי שינוי |
+
+**מה הוחלט במיזוג:**
+- **סקרים:** יש טבלה אחת, `client_surveys` של דף המצב. הצורה שלה במקום אחד, `app/surveys.js` (הסוגים, הסולמות, והספים של הטריגר במסד); התובנות (`app/insights.js`) והחידושים (`app/renewals.js`) קוראים רק `client_id, kind, score, source, at`, ושורה שלא בסולם שלה לא נספרת. המשרד קורא את הטבלה, ולכן גם הבעלים וליאור בתובנות.
+- **גרסאות הפרוטוקול מול דף המצב:** האישורים מסמנים `p07.approved`, ‏`p13.approved` ו־`p27.approved`, שקיימים מהגרסה הראשונה, ולכן עובדים לכל לקוח. "לכל סרטון מספר" (`p12.numbered`) נוסף בגרסה 2, ולקוח שהתחיל לפניה לא מחכה לו כדי שהתסריטים יופיעו לאישור (`private.status_items`). בקשת תיקון על סרטונים מסמנת `p27.notes`, פריט "אם רלוונטי", כך שהוא לא משנה איחור או השלמה בשום גרסה.
+- **"קיבלתי" של עילאי** (`p27.toilai`, גרסה 2): ללקוח שהתחיל לפניה עילאי עדיין מקבל "גרסאות סופיות בדרייב" (זו עבודה), אבל ליאור לא מקבל "עילאי לא סימן" (זה איחור). כלל כללי במנוע (`freshCase` ב־`app/reminder-engine.js`): שלבים מסוג איחור (`overdue`) לא יוצאים על פריט שנוסף אחרי שהלקוח התחיל, או על תהליך שכולו חדש בשבילו (12א ו־22א לפני גרסה 2, 17ב–19ב לפני גרסה 4). השיוך של העורך ועצירת 12:00 שלו נשארים, כי הם לא סימון איחור.
+- **"מה עליי", מלמעלה:** "עכשיו", התראות, WhatsApp, "היומן שלי", שאלות אליך, ואז הרשימה (והמחזור החודשי מעליה). הכרטיסים הנסתרים שומרים את מקומם (`#wa-card` קבוע ב־`clients.html`).
+- **שורת המסכים:** בכל עמוד שיש בו, באותו סדר (`officeLinks` ב־`app/office-ui.js`): בקרה ושיוך, מעבר על הלקוחות, החלטות, תובנות, שנת החבילה, כל אחד לפי מי שמחובר, בלי העמוד עצמו. ב־`clients.html` אחריהם: לפני יום צילום, הודעות ללקוחות, העריכה של העורך, ימי צילום. הקישור לדף המצב של לקוח נשאר בכרטיס הלקוח.
+- **הסכמות:** של לקוח (`client_consents`, עם החתימה, מוצגת בכרטיס הלקוח) ושל עובד (`whatsapp_consents` ו־`whatsapp_consent_log`, בעמוד הצוות עם חיבור היומן) נשארות בטבלאות נפרדות.

@@ -14,26 +14,24 @@ import { performanceReport } from './protocol-logic.js';
 import { deliverablesPace, shootContexts } from './health.js';
 import { daysBetweenIL } from './tz.js';
 import { monthOf, cycleFrom, monthState } from './year-logic.js';
+import { readSurvey, isNps, severeScore, average } from './surveys.js';
 
-// ── Satisfaction (a hook) ──────────────────
-// Client surveys are being built in another module (decision 28: 1–5 after the
-// shoot and the first delivery, 0–10 before the renewal). Until then the table may
-// not exist; year.html reads it defensively (app/year-data.js loadSurveys) and this
-// is the one place that reads its rows. A row is used when it has a client_id and a
-// numeric score; `kind` or `scale` telling a 0–10 recommendation apart is optional.
+// ── Satisfaction ───────────────────────────
+// The client's answers in public.client_surveys (stage 4, decision 28; the shape in
+// app/surveys.js): the 1–5 questions after the shoot and the first delivery, and the
+// 0–10 recommendation before the renewal. year.html reads this client's rows
+// (app/year-data.js loadSurveys); null when the table could not be read.
 export function surveySummary(rows) {
   if (!Array.isArray(rows) || !rows.length) return null;
-  const score = (r) => Number(r.score ?? r.rating ?? r.value);
-  const isNps = (r) => r.kind === 'nps' || r.kind === 'recommend' || Number(r.scale) === 10 || score(r) > 5;
-  const valid = rows.filter((r) => Number.isFinite(score(r)));
-  const five = valid.filter((r) => !isNps(r)).map(score);
-  const ten = valid.filter(isNps).map(score);
+  const answers = rows.map(readSurvey).filter(Boolean);
+  const five = answers.filter((r) => !isNps(r.kind));
+  const ten = answers.filter((r) => isNps(r.kind));
   if (!five.length && !ten.length) return null;
-  const avg = (xs) => Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10;
+  const avg = (xs) => Math.round(average(xs.map((r) => r.score)) * 10) / 10;
   const parts = [];
   if (five.length) parts.push(`${avg(five)} מתוך 5 (${five.length === 1 ? 'תשובה אחת' : `${five.length} תשובות`})`);
   if (ten.length) parts.push(`המלצה ${avg(ten)} מתוך 10`);
-  return { text: parts.join(' · '), low: five.some((x) => x <= 2), count: five.length + ten.length };
+  return { text: parts.join(' · '), low: answers.some((r) => severeScore(r.kind, r.score)), count: answers.length };
 }
 
 // ── Results summary ────────────────────────

@@ -109,7 +109,10 @@ const db = {
   client_date_changes: [],
   client_questions: [],
   client_month_marks: marks,
-  client_surveys: [{ id: 1, client_id: A.id, score: 5 }, { id: 2, client_id: A.id, score: 4 }],
+  client_surveys: [
+    { id: 1, client_id: A.id, kind: 'shoot', score: 5, respondent: 'דנה', question: 'q', source: 'page', link_id: null, recorded_by: '', at: '2026-10-02T08:00:00Z', task_id: null },
+    { id: 2, client_id: A.id, kind: 'delivery', score: 4, respondent: 'דנה', question: 'q', source: 'office', link_id: null, recorded_by: 'irit@astrateg.test', at: '2026-10-20T08:00:00Z', task_id: null },
+  ],
   quotes: [{ id: QA, number: 'AST-7', signed_at: IL('2026-03-15T10:00:00'), model }],
 };
 

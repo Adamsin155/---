@@ -109,19 +109,29 @@ test('client requests against decision 29: a business day, urgent within an offi
   assert.equal(requestsReport([{ source: 'request', urgent: true, created_at: T('10-19', '15:00'), done_at: null }], OCT, NOW).openLate, 1);
 });
 
-test('satisfaction: only with the surveys table; 1–5 scores and 0–10 recommendations apart', () => {
+test('satisfaction: public.client_surveys as stage 4 keeps it; 1–5 answers and the 0–10 recommendation apart', () => {
   assert.equal(satisfactionReport(null, OCT), null);
+  // The table's shape (migration 20260930170000): kind shoot | delivery (1–5) | nps (0–10), at (the server's time).
+  const row = (kind, score, at, source = 'page') => ({ client_id: 'c1', kind, score, source, at });
   const r = satisfactionReport([
-    { score: 5, kind: 'shoot', answered_at: T('10-05', '10:00') },
-    { score: 2, kind: 'delivery', created_at: T('10-10', '10:00') },
-    { score: 9, kind: 'nps', answered_at: T('10-11', '10:00') },
-    { score: 6, kind: 'recommend', answered_at: T('10-12', '10:00') },
-    { score: 4, answered_at: '2026-09-20T10:00:00+03:00' },
-    { score: null, kind: 'shoot', answered_at: T('10-12', '10:00') },
+    row('shoot', 5, T('10-05', '10:00')),
+    row('delivery', 2, T('10-10', '10:00'), 'office'),
+    row('shoot', 4, T('10-31', '23:30')), // still October in Israel (20:30 UTC)
+    row('nps', 9, T('10-11', '10:00')),
+    row('nps', 3, T('10-12', '10:00')), // a low recommendation is not a 1–5 answer
+    row('shoot', 4, '2026-09-30T20:59:00Z'), // 23:59 on 30.9 in Israel: September
+    row('shoot', 3, '2026-10-31T22:00:00Z'), // 00:00 on 1.11 in Israel: November
+    row('recommend', 6, T('10-12', '10:00')), // not a kind the table has
+    row('shoot', 7, T('10-12', '10:00')), // off the 1–5 scale
+    { client_id: 'c1', score: 4, at: T('10-12', '10:00') }, // no kind
+    row('delivery', null, T('10-12', '10:00')),
   ], OCT);
-  assert.deepEqual([r.count, r.avg, r.low], [2, 3.5, 1]);
-  assert.deepEqual(r.nps, { count: 2, score: 0 });
-  assert.deepEqual(satisfactionReport([], OCT), { count: 0, avg: null, low: 0, nps: { count: 0, score: null } });
+  assert.deepEqual([r.count, Math.round(r.avg * 100) / 100, r.low], [3, 3.67, 1]);
+  assert.deepEqual(r.kinds, { shoot: { count: 2, avg: 4.5 }, delivery: { count: 1, avg: 2 } });
+  assert.deepEqual(r.nps, { count: 2, score: 0, low: 1 }); // one promoter, one detractor
+  assert.deepEqual(satisfactionReport([], OCT), {
+    count: 0, avg: null, low: 0, kinds: { shoot: { count: 0, avg: null }, delivery: { count: 0, avg: null } }, nps: { count: 0, score: null, low: 0 },
+  });
 });
 
 test('"not relevant": the month\'s final mark per client and item; more than half of at least 3 cases is suggested', () => {

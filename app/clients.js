@@ -2136,7 +2136,7 @@ mountSession(async (staff) => {
   // office's screens (Ofir's queue and pass, Lior's decisions).
   $('cta-editor').hidden = !PEOPLE[me]?.editor;
   $('cta-shoot').hidden = !(me === 'eli' || (scope === 'office' && !viewer.error));
-  document.querySelector('#app .head-actions')?.prepend(...officeLinks(viewer));
+  $('cta-prep').before(...officeLinks(viewer)); // after "מה דורש אותי", before the rest
   // Screen 2, "כל הלקוחות במבט", for Irit, Lior and Ofir; screen 1 for the owner.
   // The top bar folds away on phones: the page head keeps a way in (cta-owner).
   for (const el of [$('nav-owner'), $('cta-owner')]) {
@@ -2148,7 +2148,6 @@ mountSession(async (staff) => {
   $('nav-messages').hidden = $('cta-messages').hidden = !canSendMessages(viewer);
   // Before the shoot day and client requests (prep.html): the office's.
   $('nav-prep').hidden = $('cta-prep').hidden = scope !== 'office' || !!viewerError;
-  $('cta-year').hidden = !worksCycle(viewer);
   // Always land on the signed-in person's own list; the owner lands on the whole team.
   minePerson = scope === 'own' ? me : me || '';
   applyScope();

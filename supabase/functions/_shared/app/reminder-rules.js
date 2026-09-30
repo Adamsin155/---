@@ -170,6 +170,9 @@ export function procCase(env, c, s) {
     name: c.name,
     check,
     resolved: (k) => { const x = check(k); return !!x && (x.state === 'done' || x.state === 'na'); },
+    // An item added to the protocol after this client started (app/protocol-versions.js):
+    // still work, never rung as late (the engine skips `overdue` steps; see freshCase).
+    fresh: (k) => !!s.proc.items.find((it) => it.key === pre + k)?.fresh,
     // When an item was done now (imported history is not an event).
     doneAt: (k) => { const x = check(k); return x && x.state === 'done' && x.note !== IMPORT_NOTE ? new Date(x.at) : null; },
     // The same round's state of another process.
@@ -1163,6 +1166,9 @@ export const RULES = [
   // which closes the editing; Lior's list if not by the end of that business day.
   {
     id: 'finalReady', event: 'גרסאות סופיות עברו לעילאי (27)', procs: ['p27'],
+    // A client who started before "קיבלתי" was in the protocol (p27.toilai, version 2):
+    // Ilai still hears the finals are in the Drive, but Lior's list never calls it late.
+    fresh: (i) => i.fresh('p27.toilai'),
     instances(env) {
       return casesOf(env, 'p27', (i) => !!i.doneAt('p27.final') && !i.resolved('p27.toilai') && !i.s.wait).map((i) => {
         const at = i.doneAt('p27.final');

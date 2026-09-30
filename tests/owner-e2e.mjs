@@ -311,9 +311,9 @@ await step('the one asked sees it at the top of "מה עליי", answers inline,
   assert.equal(new URL(lior.url()).pathname.endsWith('/clients.html'), true);
   const box = lior.locator('#my-questions');
   assert.match(await box.innerText(), /שאלה אליך\s*1[^]*מספרת רון · הבעלים · [^]*על: צילום בסיכון[^]*״הלקוח יאשר את התסריטים עד מחר\?״/);
-  // Right under the "now" bar, above the list.
-  // At the top of "מה עליי": after the "now" bar and the one-time notifications card, before the list.
-  assert.deepEqual(await lior.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 3).map((e) => e.id)), ['now-bar', 'push-card', 'my-questions']);
+  // At the top of "מה עליי": after the "now" bar and how he hears (notifications, WhatsApp,
+  // his calendar), before the list; the hidden cards keep their place.
+  assert.deepEqual(await lior.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 5).map((e) => e.id)), ['now-bar', 'push-card', 'wa-card', 'cal-card', 'my-questions']);
   // His top bar links screen 2, never screen 1.
   assert.equal(await lior.getAttribute('#nav-owner', 'href'), 'owner.html#all');
   assert.equal(await text(lior, '#nav-owner'), 'כל הלקוחות במבט');

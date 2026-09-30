@@ -2,8 +2,8 @@
 // read (decision 22 gives him the team screen). Everything is computed in
 // app/insights.js from what the team marks; this page only loads and draws.
 // Row level security decides what loads (the office reads every client, its marks,
-// history and tasks; migration 20260930130000_assignment_rls.sql); no policy was
-// added for this page. The surveys table (stage 4) is read only if it exists.
+// history and tasks; migration 20260930130000_assignment_rls.sql, and the clients'
+// surveys, 20260930170000_client_status.sql); no policy was added for this page.
 // Charts are plain HTML bars: the number is always written next to the bar, so
 // nothing is said by colour or length alone.
 import { supabase } from './supa.js';
@@ -17,6 +17,8 @@ import {
   $, fill, h, errorText, mountSession, directory, viewerOf, VIEWER_UNKNOWN, officeMinutes, personChip,
 } from './protocol-ui.js';
 import { canManageTeam } from './team-rules.js';
+import { officeLinks } from './office-ui.js';
+import { SURVEY_TABLE, SURVEY_REPORT_COLS } from './surveys.js';
 
 const PAGE = 1000;
 async function all(build) {
@@ -36,14 +38,15 @@ let inflight = null;
 // Client requests (source 'request') opened since a moment.
 const loadRequests = (sinceIso) => all(() => supabase.from('client_tasks')
   .select('id, client_id, title, owner, due_on, done_at, created_at, source, urgent').eq('source', 'request').gte('created_at', sinceIso).order('created_at'));
-// The surveys of stage 4, when the table exists (another module builds it): null
-// otherwise. Its columns are not known here, so every row is read and the month is
-// picked in app/insights.js (satisfactionReport).
-async function loadSurveys() {
+// The clients' answers (public.client_surveys, stage 4; the office reads them, so
+// the owner and Lior do). Null only when the table is not there yet (before
+// migration 20260930170000): the page then says the surveys are not running.
+async function loadSurveys(sinceIso) {
   try {
-    return await all(() => supabase.from('surveys').select('*'));
-  } catch {
-    return null;
+    return await all(() => supabase.from(SURVEY_TABLE).select(SURVEY_REPORT_COLS).gte('at', sinceIso).order('at'));
+  } catch (err) {
+    if (/^(PGRST205|42P01)$/.test(err?.code || '') || /Could not find the table|does not exist/.test(err?.message || '')) return null;
+    throw err;
   }
 }
 // The whole history of the items whose first time counts (returns, deliveries, the stages).
@@ -73,7 +76,7 @@ async function doLoad() {
     const hist = historyKeys(clients);
     const [log, history, tasks, surveys] = await Promise.all([
       loadAllLog(since), loadLogFor(hist).catch(() => null), loadRequests(monthRange(want).start.toISOString()).catch(() => []),
-      loadSurveys(),
+      loadSurveys(monthRange(want).start.toISOString()),
     ]);
     if (want !== month) return;
     data = computeInsights({ clients, checks, log: withHistory(log, history, hist), tasks, surveys, now, month: want });
@@ -180,10 +183,13 @@ function renderSatisfaction() {
   const s = data.satisfaction;
   if (!s) { fill($('in-sat'), h('p', { class: 'muted', id: 'sat-none' }, 'הסקרים ללקוחות עוד לא פעילים במערכת. כשיהיו, הציונים יופיעו כאן.')); return; }
   if (!s.count && !s.nps.count) { fill($('in-sat'), h('p', { class: 'muted', id: 'sat-none' }, 'לא התקבלו תשובות החודש.')); return; }
+  const avgText = (x) => (x.count ? `${(Math.round(x.avg * 10) / 10).toFixed(1)} · ${plural(x.count, 'תשובה אחת', 'תשובות')}` : '—');
   fill($('in-sat'), h('dl', { class: 'in-facts' },
-    h('div', { id: 'sat-avg' }, h('dt', {}, 'ציון ממוצע (1–5)'), h('dd', {}, s.count ? `${(Math.round(s.avg * 10) / 10).toFixed(1)} · ${plural(s.count, 'תשובה אחת', 'תשובות')}` : '—')),
+    h('div', { id: 'sat-avg' }, h('dt', {}, 'ציון ממוצע (1–5)'), h('dd', {}, avgText(s))),
+    h('div', { id: 'sat-shoot' }, h('dt', {}, 'יום הצילום'), h('dd', {}, avgText(s.kinds.shoot))),
+    h('div', { id: 'sat-delivery' }, h('dt', {}, 'הסרטונים'), h('dd', {}, avgText(s.kinds.delivery))),
     h('div', { id: 'sat-low' }, h('dt', {}, 'ציון 2 או פחות'), h('dd', {}, String(s.low))),
-    h('div', { id: 'sat-nps' }, h('dt', {}, 'שאלת ההמלצה (NPS)'), h('dd', {}, s.nps.count ? `${s.nps.score} · ${plural(s.nps.count, 'תשובה אחת', 'תשובות')}` : '—'))));
+    h('div', { id: 'sat-nps' }, h('dt', {}, 'שאלת ההמלצה (NPS, 0–10)'), h('dd', {}, s.nps.count ? `${s.nps.score} · ${plural(s.nps.count, 'תשובה אחת', 'תשובות')}${s.nps.low ? ` · ${s.nps.low} עם 4 או פחות` : ''}` : '—'))));
 }
 
 function renderNa() {
@@ -247,6 +253,7 @@ mountSession(async (staff) => {
   }
   $('in-page').hidden = false;
   $('link-payouts').hidden = !canSeePayouts(v);
+  $('link-payouts').before(...officeLinks(v, 'insights.html'));
   $('in-ro').hidden = v.me !== 'lior';
   if (v.me === 'lior') { $('nav-owner').textContent = 'כל הלקוחות במבט'; $('nav-owner').href = 'owner.html#all'; }
   monthOptions();

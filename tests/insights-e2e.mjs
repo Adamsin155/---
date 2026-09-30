@@ -11,7 +11,7 @@
 //    on time by role and person, returns by editor and round, the shoot to the
 //    first delivery, requests against decision 29, "not relevant" with the item
 //    suggested for removal, each shoot day from the scripts to the scheduling; the
-//    month picker; satisfaction only once the surveys table exists.
+//    month picker; satisfaction only once public.client_surveys exists (office-read).
 //  - Access: the owner (with the payouts link) and Lior (read-only, no payouts
 //    link); Irit, Ofir and an editor get "no access".
 //  - A 360px phone: no sideways scrolling on either page.
@@ -105,10 +105,17 @@ const requests = [
   { id: randomUUID(), client_id: E.id, owner: 'irit', title: 'לשלוח את הגאנט שוב', due_on: '2026-10-20', done_at: null, created_at: T('10-19', '09:30'), source: 'request', urgent: false, brief: null, started_at: null, done_by_email: null, created_by_email: 'irit@astrateg.test' },
 ];
 const liorTask = { id: randomUUID(), client_id: E.id, owner: 'lior', title: 'להתקשר ללקוח על הלוקיישן', due_on: '2026-10-22', done_at: null, created_at: T('10-19', '10:00'), source: null, urgent: false, brief: null, started_at: null, done_by_email: null, created_by_email: 'irit@astrateg.test' };
+// public.client_surveys as stage 4 keeps it (20260930170000_client_status.sql).
+const survey = (id, c, kind, score, at, source = 'page') => ({
+  id: randomUUID(), client_id: c.id, kind, score, respondent: 'לקוח', question: 'q', source, link_id: null, recorded_by: '', at, task_id: null,
+});
 const surveys = [
-  { id: 1, client_id: A.id, kind: 'shoot', score: 5, answered_at: T('10-05', '10:00'), created_at: T('10-05', '09:00') },
-  { id: 2, client_id: B.id, kind: 'delivery', score: 2, answered_at: T('10-16', '10:00'), created_at: T('10-16', '09:00') },
+  survey(1, A, 'shoot', 5, T('10-05', '10:00')),
+  survey(2, B, 'delivery', 2, T('10-16', '10:00'), 'office'),
+  survey(3, C, 'nps', 9, T('10-17', '10:00')),
+  survey(4, E, 'shoot', 4, T('09-20', '10:00')), // September: not this month
 ];
+const SURVEY_COLUMNS = new Set(Object.keys(surveys[0]));
 
 const db = {
   staff, clients: [A, B, C, E], protocol_checks: checks, protocol_log: log, client_tasks: [...requests, liorTask],
@@ -205,6 +212,13 @@ async function fakeSupabase(route) {
     rows = rows.filter((r) => mine.has(table === 'clients' ? r.id : r.client_id));
   }
   if (table === 'client_messages' && !office) rows = [];
+  // "office reads surveys": the owner, Irit, Lior, Ofir and Ilai; and only the table's own columns.
+  if (table === 'client_surveys') {
+    for (const col of (url.searchParams.get('select') || '*').split(',')) {
+      if (col !== '*' && !SURVEY_COLUMNS.has(col.trim())) return json(400, { code: '42703', message: `column client_surveys.${col} does not exist` });
+    }
+    if (!office) rows = [];
+  }
   const off = Number(url.searchParams.get('offset') || 0);
   const lim = Number(url.searchParams.get('limit') || 1e9);
   rows = rows.slice(off, off + lim);
@@ -435,15 +449,18 @@ await step('the month picker: September\'s numbers', async () => {
   await owner.waitForSelector('#qa-nadia');
 });
 
-await step('satisfaction appears once the surveys table exists', async () => {
-  db.surveys = surveys;
+await step('satisfaction appears once the surveys table exists (public.client_surveys, this month only)', async () => {
+  assert.match(await text(owner, '#in-sat'), /הסקרים ללקוחות עוד לא פעילים/);
+  db.client_surveys = surveys;
   await owner.click('#btn-refresh');
   await owner.waitForSelector('#st-sat');
   const S = expect('2026-10', true).satisfaction;
   assert.equal(await text(owner, '#st-sat .v'), S.avg.toFixed(1));
   assert.equal(await text(owner, '#sat-avg dd'), '3.5 · 2 תשובות');
+  assert.equal(await text(owner, '#sat-shoot dd'), '5.0 · תשובה אחת');
+  assert.equal(await text(owner, '#sat-delivery dd'), '2.0 · תשובה אחת');
   assert.equal(await text(owner, '#sat-low dd'), '1');
-  delete db.surveys;
+  assert.equal(await text(owner, '#sat-nps dd'), '100 · תשובה אחת');
 });
 
 await step('a 360px phone: no sideways scrolling', async () => {
@@ -463,7 +480,12 @@ await step('Lior reads it (no payouts link); Irit, Ofir and an editor have no ac
   await l.waitForSelector('#in-page:not([hidden]) #st-ontime');
   assert.equal(await l.isHidden('#link-payouts'), true);
   assert.equal(await l.isVisible('#in-ro'), true);
+  // The office screens' row, as on clients.html: his, without the page itself.
+  assert.deepEqual(await l.evaluate(() => [...document.querySelectorAll('#head-actions .office-link')].map((a) => a.id)), ['cta-qa', 'cta-decisions', 'cta-year']);
   assert.equal(await text(l, '#st-returns .v'), '5');
+  // The surveys are office-read (RLS), and Lior is the office: he sees the scores too.
+  await l.waitForSelector('#st-sat');
+  assert.equal(await text(l, '#sat-avg dd'), '3.5 · 2 תשובות');
   await ctx.close();
   for (const who of ['irit', 'ofir', 'nadia']) {
     const c = await newContext();

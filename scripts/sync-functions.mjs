@@ -5,6 +5,8 @@
 // so the copies import each other exactly as the originals do.
 // Usage: node scripts/sync-functions.mjs          write the copies
 //        node scripts/sync-functions.mjs --check  exit 1 if a copy is stale, missing or extra
+//        node scripts/sync-functions.mjs --deploy what each function deploys (its files,
+//                                                  the hand-written _shared ones, the copies)
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -18,6 +20,11 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 //   wa-logic.js (and wa-templates.js)  reminders and whatsapp-webhook (the WhatsApp channel)
 //   calendar-feed.js, ics.js           calendar (the personal calendar feed)
 export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js'];
+
+// Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
+// the folder has no other, and what each one deploys).
+export const FUNCTIONS = ['calendar', 'create-quote', 'reminders', 'staff-admin', 'whatsapp-webhook'];
+export const FUNCTIONS_DIR = join(ROOT, 'supabase/functions');
 
 export const MARK = '// generated — edit app/ instead.';
 export const header = (rel) => `${MARK} Source: app/${rel}. Regenerate: node scripts/sync-functions.mjs\n`;
@@ -86,6 +93,26 @@ export function check(opts = {}) {
   return { missing, stale, extra };
 }
 
+// What a function deploys: its index.ts and every local file it reaches (its own,
+// the hand-written ones in _shared/ such as _shared/wa-graph.js, and the copies in
+// _shared/app/), paths relative to supabase/functions/, sorted.
+export function deployFiles(fn, { functionsDir = FUNCTIONS_DIR } = {}) {
+  const seen = new Set();
+  const queue = [join(functionsDir, fn, 'index.ts')];
+  while (queue.length) {
+    const file = queue.shift();
+    const rel = posix(relative(functionsDir, file));
+    if (seen.has(rel)) continue;
+    if (rel.startsWith('../')) throw new Error(`${fn} imports ${rel}, which is outside supabase/functions/`);
+    if (!existsSync(file)) throw new Error(`${fn}: ${rel} not found`);
+    seen.add(rel);
+    for (const spec of importsOf(readFileSync(file, 'utf8'))) {
+      if (spec.startsWith('./') || spec.startsWith('../')) queue.push(resolve(dirname(file), spec));
+    }
+  }
+  return [...seen].sort();
+}
+
 // Writes missing or stale copies and removes generated files that are no
 // longer imported. A hand-written file in the folder is an error, not deleted.
 export function sync(opts = {}) {
@@ -104,6 +131,10 @@ export function sync(opts = {}) {
 
 function main(args) {
   const out = posix(relative(ROOT, OUT_DIR));
+  if (args.includes('--deploy')) {
+    for (const fn of FUNCTIONS) console.log(`${fn}:\n${deployFiles(fn).map((f) => `  supabase/functions/${f}`).join('\n')}`);
+    return;
+  }
   if (args.includes('--check')) {
     const { missing, stale, extra } = check();
     const problems = [

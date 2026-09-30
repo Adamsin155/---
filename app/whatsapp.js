@@ -146,7 +146,8 @@ function paintCard() {
   if (!cardEl) return;
   const s = state;
   if (!s?.enabled) { cardEl.hidden = true; return; }
-  if (!cardEl.isConnected) { styles(); cardAnchor?.after(cardEl); }
+  styles();
+  if (!cardEl.isConnected) cardAnchor?.after(cardEl); // a page without its own place for it
   cardEl.hidden = false;
   const head = h('h2', { class: 'push-h', id: 'wa-card-h', tabindex: '-1' }, 'הודעות ב־WhatsApp');
   const act = (id, label, onclick) => h('button', { type: 'button', class: 'btn-text', id, disabled: busy, onclick }, label);
@@ -167,8 +168,8 @@ function paintCard() {
   fill(cardEl, head, ...body);
 }
 
-// The card, right after `anchor` (the notifications card of "מה עליי").
-// It joins the page only while WhatsApp is on.
+// The card: the page's own #wa-card (clients.html keeps its place in "מה עליי"),
+// else right after `anchor` (the notifications card). Shown only while WhatsApp is on.
 export async function mountWhatsappCard(anchor) {
   if (!anchor) return;
   cardAnchor = anchor;

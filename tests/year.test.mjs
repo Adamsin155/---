@@ -243,14 +243,24 @@ test('the results summary: delivered against the package, shoot days, on time, t
   assert.equal(renewalStage(s, { ...checks, 'p34.state': { state: 'done' } }).text, 'תהליך 34: 1 מתוך 5');
 });
 
-test('satisfaction, read from the surveys table when there is one (the hook)', () => {
+test('satisfaction, read from public.client_surveys as stage 4 keeps it', () => {
+  // The table's shape (migration 20260930170000): kind shoot | delivery (1–5) | nps (0–10), at.
+  const row = (kind, score, at = '2026-10-05T07:00:00Z') => ({ client_id: 'x', kind, score, source: 'page', at });
   assert.equal(surveySummary(null), null);
   assert.equal(surveySummary([]), null);
-  assert.equal(surveySummary([{ client_id: 'x', note: 'no score' }]), null);
-  const s = surveySummary([{ score: 5 }, { score: 4 }, { rating: 2 }, { kind: 'nps', score: 9 }]);
-  assert.equal(s.text, '3.7 מתוך 5 (3 תשובות) · המלצה 9 מתוך 10');
-  assert.equal(s.low, true);
-  assert.equal(surveySummary([{ score: 5 }]).text, '5 מתוך 5 (תשובה אחת)');
+  // Not an answer: no kind, a kind the table does not have, a score off its scale, no time.
+  assert.equal(surveySummary([{ client_id: 'x', score: 5, at: '2026-10-05T07:00:00Z' }, row('recommend', 9), row('shoot', 7), row('nps', 11), row('delivery', 0), { ...row('shoot', 4), at: null }]), null);
+  const s = surveySummary([row('shoot', 5), row('delivery', 4), row('nps', 9)]);
+  assert.equal(s.text, '4.5 מתוך 5 (2 תשובות) · המלצה 9 מתוך 10');
+  assert.equal(s.low, false);
+  assert.equal(s.count, 3);
+  // 2 or less of 5, or 4 or less of 10: the owner heard of it, the list warns.
+  assert.equal(surveySummary([row('shoot', 5), row('delivery', 2)]).low, true);
+  assert.equal(surveySummary([row('nps', 4)]).low, true);
+  assert.equal(surveySummary([row('nps', 5)]).low, false);
+  // A score of 6–10 on the recommendation is never read as a 1–5 answer, and 1–5 on it stays a recommendation.
+  assert.equal(surveySummary([row('nps', 3), row('shoot', 5)]).text, '5 מתוך 5 (תשובה אחת) · המלצה 3 מתוך 10');
+  assert.equal(surveySummary([row('shoot', 5)]).text, '5 מתוך 5 (תשובה אחת)');
 });
 
 test('the renewal quote: the signed agreement\'s package and client, else the package name; never unknown', () => {

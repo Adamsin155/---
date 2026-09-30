@@ -174,7 +174,12 @@ create trigger client_status_links_cleanup after delete on public.client_status_
 for each row execute function public.client_status_links_cleanup();
 
 -- ── Task sources: a client's fix request and a survey call ──
--- Rebuilt from the constraint as it stands (other migrations add their own), plus these.
+-- Rebuilt from the constraint as it stands (other migrations add their own), plus the
+-- whole list as it is known here, so a value is never lost whatever ran before:
+-- p31, p33 (20260929160000), escalation, status (20260929180000), pause, followup
+-- (20260929210000), request, tell (20260930160000), and client_fix, survey (here).
+-- The later migrations (180000 WhatsApp, 190000 year, 200000 calendar) add no
+-- source; this is the last one that rebuilds the list (tests/sql/integration.test.mjs).
 do $$
 declare
   def text;
@@ -183,7 +188,7 @@ begin
   select pg_get_constraintdef(c.oid) into def
   from pg_constraint c where c.conname = 'client_tasks_source_check' and c.conrelid = 'public.client_tasks'::regclass;
   select coalesce(array_agg(m[1]), '{}') into vals from regexp_matches(coalesce(def, ''), '''([^'']+)''', 'g') as m;
-  select array_agg(distinct v order by v) into vals from unnest(vals || array['client_fix', 'survey']) as v;
+  select array_agg(distinct v order by v) into vals from unnest(vals || array['p31', 'p33', 'escalation', 'status', 'pause', 'followup', 'request', 'tell', 'client_fix', 'survey']) as v;
   alter table public.client_tasks drop constraint if exists client_tasks_source_check;
   execute format('alter table public.client_tasks add constraint client_tasks_source_check check (source is null or source = any (array[%s]::text[]))',
     (select string_agg(quote_literal(v), ', ') from unnest(vals) as v));
@@ -325,6 +330,7 @@ end $$;
 -- The client's items for approval, per shoot (the main one, then each extra round):
 --   graphics9  the first 9 graphics   sent p07.sent             approved p07.approved
 --   scripts    the scripts            ready p12.scripts+numbered+docs   approved p13.approved
+--              (numbered only from protocol version 2 on)
 --   graphics   the rest of them       sent p23.sent             approved p23.approved (a mark)
 --   videos     the videos             sent p26.sent             approved p27.approved
 -- state: 'approved', 'fixing' (a fix task is open, or for the videos the client's
@@ -368,7 +374,12 @@ begin
       continue when spec.base_only and ctx.n > 1;
       k := pre || spec.approve_key;
       if spec.item = 'scripts' then
-        select case when count(*) = 3 then max(s.at) end into sent_at from public.protocol_checks s
+        -- "Numbered" (p12.numbered) came with protocol version 2: a client who started
+        -- before it (clients.protocol_version, stamped by 20260930190000_year.sql;
+        -- app/protocol-versions.js) is not held back by it.
+        select case when count(*) filter (where s.item_key <> pre || 'p12.numbered') = 2
+                     and (c.protocol_version < 2 or count(*) filter (where s.item_key = pre || 'p12.numbered') = 1)
+                    then max(s.at) end into sent_at from public.protocol_checks s
         where s.client_id = c.id and s.item_key in (pre || 'p12.scripts', pre || 'p12.numbered', pre || 'p12.docs');
       else
         select s.at into sent_at from public.protocol_checks s
