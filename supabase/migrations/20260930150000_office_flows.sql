@@ -10,7 +10,7 @@
 --   change_requests  "בקשת שינוי" (Ofir's protocol, stage 13): the problem, why it
 --                    hurts, the proposal; Lior's decision. Office only.
 --   office_reviews   kind 'campaigns': Lior's weekly campaign check (decision 21).
--- Every table: row level security with public.is_office() / public.can_see_client(),
+-- Every table: row level security with public.is_office() / private.my_clients(),
 -- who and when stamped from the session (auth.jwt()), nothing deleted from the browser.
 -- Safe to run again. Tested in a real Postgres: tests/sql/office-flows.test.mjs.
 
@@ -115,7 +115,7 @@ alter table public.task_decisions enable row level security;
 drop policy if exists "decisions of own clients" on public.task_decisions;
 create policy "decisions of own clients" on public.task_decisions
   for select to authenticated
-  using ((select public.is_office()) or public.can_see_client(client_id));
+  using ((select public.is_office()) or client_id in (select private.my_clients()));
 drop policy if exists "office decides" on public.task_decisions;
 create policy "office decides" on public.task_decisions
   for insert to authenticated
@@ -188,7 +188,8 @@ revoke delete, truncate on public.change_requests from authenticated;
 -- clients, so the times alone (never a client) come from here, by the same rule as
 -- app/office-marks.js ofirMeetings: from the meeting until he marked it done
 -- (MEETING_DONE_KEYS: "האפיון הסתיים", p04.ended, or the form saved, p04.saved; the
--- earlier), at most four hours; not marked, two hours.
+-- earlier), at most four hours; not marked, two hours. Only the last week's
+-- meetings (the check waits an office hour): not a history of Ofir's calendar.
 create or replace function public.ofir_meetings(p_since timestamptz)
 returns table (starts_at timestamptz, ends_at timestamptz)
 language sql stable security definer set search_path = '' as $$
@@ -200,7 +201,7 @@ language sql stable security definer set search_path = '' as $$
                      where s.client_id = c.id and s.item_key in ('p04.ended', 'p04.saved') and s.state = 'done' and s.at > c.char_at) d on true
   where public.is_staff() and c.char_at is not null and coalesce(c.characterizer, 'ofir') = 'ofir'
     and c.status in ('active', 'ending')
-    and c.char_at >= p_since - interval '1 day' and c.char_at <= now() + interval '1 day'
+    and c.char_at >= greatest(p_since, now() - interval '7 days') - interval '1 day' and c.char_at <= now() + interval '1 day'
   order by 1;
 $$;
 revoke execute on function public.ofir_meetings(timestamptz) from public, anon;

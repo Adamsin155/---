@@ -137,3 +137,19 @@ test('the client\'s approval of the scripts is never "not relevant", in any roun
     assert.equal((await q('ofir', "insert into public.protocol_checks (client_id, item_key, state, note) values ($1, $2, 'done', 'x')", [ids.other, key])).affected, 1, key);
   }
 });
+
+test('someone else\'s task that looks like a "tell" does not stop Irit\'s', async () => {
+  const out = await run('nadia', async (tx) => {
+    const { rows: [t] } = await tx.query("insert into public.client_tasks (client_id, title, owner, source) values ($1, 'לתקן באנר', 'nadia', 'request') returning id", [ids.edited]);
+    await tx.query("insert into public.client_tasks (client_id, title, owner, source, brief) values ($1, 'משהו', 'nadia', 'tell', jsonb_build_object('of', $2::text))", [ids.edited, t.id]);
+    await tx.query('update public.client_tasks set done_at = now() where id = $1', [t.id]);
+    return (await tx.query("select owner from public.client_tasks where source = 'tell' and brief->>'of' = $1 order by owner", [t.id])).rows.map((r) => r.owner);
+  });
+  assert.deepEqual(out, ['irit', 'nadia']);
+});
+
+test('the migration can run again', async () => {
+  const { readFileSync } = await import('node:fs');
+  await db.exec(readFileSync(new URL('../../supabase/migrations/20260930160000_intake.sql', import.meta.url), 'utf8'));
+  assert.deepEqual(await names('nadia', 'characterizations'), ['edited']);
+});

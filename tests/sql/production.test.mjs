@@ -82,7 +82,7 @@ test('work that goes to the client: only the office closes Ofir\'s check, and cl
   const { rows: [check] } = await db.query(`insert into public.client_tasks (client_id, title, owner, due_on, brief, created_by_email)
     values ($1, 'לבדוק לפני שליחה ללקוח: באנר', 'ofir', current_date, '{"route":"irit"}', 'nirel@astrateg.test') returning id`, [ids.natali]);
   const sneak = await q('nirel', "update public.client_tasks set brief = brief - 'route', done_at = now() where id = $1", [check.id]);
-  assert.match(sneak.error, /the office checks this work/);
+  assert.match(sneak.error, /the office checks this work|only the office changes where checked work goes/);
   await db.query('delete from public.client_tasks where id = $1', [check.id]);
   // Ofir closes it: Irit gets the send task, with the Drive link; undo takes it back; again: one task.
   const flow = await run('ofir', async (tx) => {
@@ -106,6 +106,56 @@ test('work that goes to the client: only the office closes Ofir\'s check, and cl
     return (await tx.query("select count(*)::int as n from public.client_tasks where owner = 'irit'")).rows[0].n;
   });
   assert.equal(plain, 0);
+});
+
+test('outside the office the route cannot be dodged: not in an earlier update, not by opening the task closed, not with someone else\'s result', async () => {
+  const { rows: [check] } = await db.query(`insert into public.client_tasks (client_id, title, owner, due_on, brief, created_by_email)
+    values ($1, 'לבדוק לפני שליחה ללקוח: באנר', 'ofir', current_date, '{"route":"irit"}', 'nirel@astrateg.test') returning id`, [ids.natali]);
+  // Taking the route out first, then closing: refused at the first step.
+  const twoSteps = await run('nirel', async (tx) => {
+    await tx.query("update public.client_tasks set brief = brief - 'route' where id = $1", [check.id]);
+    return (await tx.query('update public.client_tasks set done_at = now() where id = $1 returning id', [check.id])).rows;
+  });
+  assert.match(twoSteps.error, /only the office changes where checked work goes/);
+  // Nor adding a route to someone's task. Other brief fields still change.
+  const add = await run('nirel', async (tx) => {
+    const { rows: [t] } = await tx.query("insert into public.client_tasks (client_id, title, owner) values ($1, 'x', 'ofir') returning id", [ids.natali]);
+    await tx.query(`update public.client_tasks set brief = '{"route":"irit"}' where id = $1`, [t.id]);
+  });
+  assert.match(add.error, /only the office changes where checked work goes/);
+  const edit = await q('nirel', "update public.client_tasks set brief = brief || '{\"materials\":\"https://drive.google.com/y\"}' where id = $1 returning brief->>'route' as r", [check.id]);
+  assert.deepEqual(edit, [{ r: 'irit' }]);
+  // Opening a routed task already closed.
+  const closed = await q('nirel', `insert into public.client_tasks (client_id, title, owner, brief, done_at)
+    values ($1, 'לבדוק', 'ofir', '{"route":"irit"}', now()) returning id`, [ids.natali]);
+  assert.match(closed.error, /the office checks this work/);
+  // Opening someone else's task with its result already written.
+  const forged = await q('nadia', `insert into public.client_tasks (client_id, title, owner, result, done_at)
+    values ($1, 'באנר', 'nirel', '{"done":"x"}', now()) returning id`, [ids.other]);
+  assert.match(forged.error, /only the task's owner records how it ended/);
+  // One's own is fine; the office's too.
+  assert.equal((await q('nirel', `insert into public.client_tasks (client_id, title, owner, result) values ($1, 'x', 'nirel', '{"done":"x"}') returning id`, [ids.natali])).length, 1);
+  assert.equal((await q('lior', `insert into public.client_tasks (client_id, title, owner, brief, done_at) values ($1, 'x', 'ofir', '{"route":"irit"}', now()) returning id`, [ids.natali])).length, 1);
+  await db.query('delete from public.client_tasks where id = $1', [check.id]);
+});
+
+test('a task someone else opens with the same from_task neither stops Irit\'s "send" nor is taken back with it', async () => {
+  const { rows: [check] } = await db.query(`insert into public.client_tasks (client_id, title, owner, brief)
+    values ($1, 'לבדוק לפני שליחה ללקוח: באנר', 'ofir', '{"route":"irit"}') returning id`, [ids.natali]);
+  // Nirel may open a task on her client (rolled back here; the same row is written below to stay).
+  const decoy = await q('nirel', `insert into public.client_tasks (client_id, title, owner, brief)
+    values ($1, 'משהו', 'nirel', jsonb_build_object('from_task', $2::text)) returning id`, [ids.natali, check.id]);
+  assert.equal(decoy.length, 1);
+  await db.query(`insert into public.client_tasks (client_id, title, owner, brief) values ($1, 'משהו', 'nirel', jsonb_build_object('from_task', $2::text))`, [ids.natali, check.id]);
+  const out = await run('ofir', async (tx) => {
+    const list = async () => (await tx.query("select owner from public.client_tasks where brief->>'from_task' = $1 order by owner", [check.id])).rows.map((r) => r.owner);
+    await tx.query('update public.client_tasks set done_at = now() where id = $1', [check.id]);
+    const closed = await list();
+    await tx.query('update public.client_tasks set done_at = null where id = $1', [check.id]);
+    return { closed, undone: await list() };
+  });
+  assert.deepEqual(out, { closed: ['irit', 'nirel'], undone: ['nirel'] });
+  await db.query("delete from public.client_tasks where id = $1 or brief->>'from_task' = $1::text", [check.id]);
 });
 
 test('the migration can run again', async () => {

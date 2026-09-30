@@ -142,3 +142,18 @@ test('Ofir\'s meetings for those waiting for his check: times only, until he sav
     assert.match((await as(db, null, (tx) => tx.query(`select 1 from public.${t}`))).error, /permission denied/, t);
   }
 });
+
+test('Ofir\'s meetings: only the last week\'s, whatever the caller asks for (not a history of his calendar)', async () => {
+  await db.query("insert into public.clients (name, characterizer, char_at) values ('long ago', 'ofir', now() - interval '60 days'), ('last week', 'ofir', now() - interval '5 days')");
+  const r = await run('nadia', "select starts_at from public.ofir_meetings(now() - interval '400 days')");
+  const ages = r.rows.map((x) => Math.round((Date.now() - new Date(x.starts_at)) / 864e5));
+  assert.ok(ages.includes(5), JSON.stringify(ages));
+  assert.ok(ages.every((d) => d <= 8), JSON.stringify(ages));
+});
+
+test('the migration can run again', async () => {
+  const { readFileSync } = await import('node:fs');
+  await db.exec(readFileSync(new URL('../../supabase/migrations/20260930150000_office_flows.sql', import.meta.url), 'utf8'));
+  const { rows } = await db.query("select count(*)::int as n from pg_policies where tablename in ('office_passes', 'task_decisions', 'change_requests')");
+  assert.equal(rows[0].n, 5);
+});

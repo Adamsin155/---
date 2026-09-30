@@ -19,8 +19,11 @@ alter table public.client_tasks add constraint client_tasks_result_check
 -- ── Work that goes to the client: Ofir checks, then Irit sends ──
 -- The check task Nirel's page opens for Ofir carries brief.route = 'irit'. Only the
 -- office closes such a task (so the check cannot be skipped), and only its owner, or
--- the office, writes a task's result. Signed-in users only: the database's own jobs
--- and the SQL editor are not limited here.
+-- the office, writes a task's result. Outside the office the route stays as the task
+-- was opened with it (taking it out, even in an earlier update, would let the task be
+-- closed without Ofir), and a task is not opened already closed with a route, nor
+-- with someone else's result. Signed-in users only: the database's own jobs and the
+-- SQL editor are not limited here.
 create or replace function public.client_tasks_route_guard() returns trigger
 language plpgsql set search_path = '' as $$
 declare me text := lower(coalesce(auth.jwt() ->> 'email', ''));
@@ -28,8 +31,20 @@ begin
   if me = '' or public.is_office() then
     return new;
   end if;
+  if tg_op = 'INSERT' then
+    if new.result is not null and new.owner is distinct from public.my_person() then
+      raise exception 'not allowed: only the task''s owner records how it ended';
+    end if;
+    if coalesce(new.brief ->> 'route', '') <> '' and new.done_at is not null then
+      raise exception 'not allowed: the office checks this work before it goes to the client';
+    end if;
+    return new;
+  end if;
   if new.result is distinct from old.result and new.owner is distinct from public.my_person() then
     raise exception 'not allowed: only the task''s owner records how it ended';
+  end if;
+  if (old.brief ->> 'route') is distinct from (new.brief ->> 'route') then
+    raise exception 'not allowed: only the office changes where checked work goes';
   end if;
   -- The route as it was or as it is written now: taking it out while closing does not skip the check.
   if coalesce(old.brief ->> 'route', new.brief ->> 'route', '') <> '' and old.done_at is null and new.done_at is not null then
@@ -39,11 +54,13 @@ begin
 end $$;
 revoke execute on function public.client_tasks_route_guard() from public, anon, authenticated;
 drop trigger if exists client_tasks_route_guard on public.client_tasks;
-create trigger client_tasks_route_guard before update on public.client_tasks
+create trigger client_tasks_route_guard before insert or update on public.client_tasks
 for each row execute function public.client_tasks_route_guard();
 
 -- When Ofir closes the check, Irit gets "לשלוח ללקוח" (once; undoing the check within
--- the undo window takes Irit's task back while she has not done it).
+-- the undo window takes Irit's task back while she has not done it). Only Irit's own
+-- open task on the same client counts as "already there": a task someone else opens
+-- with the same from_task neither stops hers nor is taken back with it.
 create or replace function public.client_tasks_route() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -51,7 +68,9 @@ begin
     return new;
   end if;
   if old.done_at is null and new.done_at is not null then
-    if not exists (select 1 from public.client_tasks t where t.brief ->> 'from_task' = new.id::text and t.done_at is null) then
+    if not exists (select 1 from public.client_tasks t
+                   where t.brief ->> 'from_task' = new.id::text and t.owner = 'irit'
+                     and t.client_id = new.client_id and t.done_at is null) then
       insert into public.client_tasks (client_id, title, owner, due_on, brief)
       values (
         new.client_id,
@@ -64,7 +83,8 @@ begin
           'from_task', new.id::text)));
     end if;
   elsif old.done_at is not null and new.done_at is null then
-    delete from public.client_tasks t where t.brief ->> 'from_task' = new.id::text and t.done_at is null;
+    delete from public.client_tasks t
+    where t.brief ->> 'from_task' = new.id::text and t.owner = 'irit' and t.client_id = new.client_id and t.done_at is null;
   end if;
   return new;
 end $$;

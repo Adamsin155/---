@@ -78,7 +78,7 @@ alter table public.content_briefs enable row level security;
 
 drop policy if exists "characterizations of visible clients" on public.characterizations;
 create policy "characterizations of visible clients" on public.characterizations
-  for select to authenticated using (public.can_see_client(client_id));
+  for select to authenticated using ((select public.is_office()) or client_id in (select private.my_clients()));
 drop policy if exists "office adds characterizations" on public.characterizations;
 create policy "office adds characterizations" on public.characterizations
   for insert to authenticated with check ((select public.is_office()));
@@ -88,7 +88,7 @@ create policy "office edits characterizations" on public.characterizations
 
 drop policy if exists "briefs of visible clients" on public.content_briefs;
 create policy "briefs of visible clients" on public.content_briefs
-  for select to authenticated using (public.can_see_client(client_id));
+  for select to authenticated using ((select public.is_office()) or client_id in (select private.my_clients()));
 drop policy if exists "office adds briefs" on public.content_briefs;
 create policy "office adds briefs" on public.content_briefs
   for insert to authenticated with check ((select public.is_office()));
@@ -118,13 +118,15 @@ begin
 end $$;
 
 -- A client's request is done: Irit gets a task to update the client (with a ready
--- message in the app), due today in Israel. Once per request while it is open.
+-- message in the app), due today in Israel. Once per request while her task is open
+-- (only her own open task on that client counts: someone else's cannot stop it).
 create or replace function public.client_requests_tell() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   if new.source = 'request' and new.done_at is not null and old.done_at is null
      and not exists (select 1 from public.client_tasks t
-                     where t.source = 'tell' and t.done_at is null and t.brief ->> 'of' = new.id::text) then
+                     where t.source = 'tell' and t.owner = 'irit' and t.client_id = new.client_id
+                       and t.done_at is null and t.brief ->> 'of' = new.id::text) then
     insert into public.client_tasks (client_id, title, owner, due_on, source, brief)
     values (new.client_id, left('לעדכן את הלקוח: ' || new.title, 500), 'irit',
             (now() at time zone 'Asia/Jerusalem')::date, 'tell',
