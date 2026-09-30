@@ -44,6 +44,8 @@ import { partsIL, dayKeyIL, atTimeIL, addDaysIL, dayFromKeyIL, daysBetweenIL, we
 import {
   missingOf, missingText, briefingOf, pauseText, arrivalOf, driveName, noteOf,
 } from './production.js';
+// Stage 5: the monthly cycle (a draft) and the 90-day renewals list.
+import { YEAR_RULES } from './year-rules.js';
 
 export const OWNER = 'owner';
 // Who has reminders: the owner and the protocol's people (reminder_log.person).
@@ -1201,6 +1203,7 @@ export const RULES = [
     ],
   },
 ];
+RULES.push(...YEAR_RULES);
 
 const NO_CHARACTERIZER = 'אין מי שייצא לאפיון';
 // Exceptions that ring Lior at once instead of waiting for his 12:00 and 16:00 lists.

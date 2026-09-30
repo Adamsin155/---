@@ -758,7 +758,8 @@ test('cancelled and ended clients get no reminders; imported history starts no l
   const c = client(w2);
   importTo(w2, c, 'ongoing');
   marks(w2, c, itemsOf('p30'), IL(2026, 9, 1, 9), IMPORT_NOTE);
-  const list = candidates(buildEnv({ ...w2, now: IL(2026, 10, 7, 11) })).filter((r) => r.clientId === c.id);
+  // The monthly cycle (stage 5, rules month*) is this month's work, not imported history.
+  const list = candidates(buildEnv({ ...w2, now: IL(2026, 10, 7, 11) })).filter((r) => r.clientId === c.id && !r.rule.startsWith('month'));
   assert.deepEqual([...new Set(list.map((r) => r.rule))].sort(), ['weekly']);
 });
 

@@ -17,8 +17,8 @@ test('shared copy covers pricing.js, the reminder engine and everything they imp
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
     'catalog.js', 'characterization.js', 'clocks.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js',
-    'production.js', 'protocol-logic.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
-    'shoot-prep.js', 'tz.js',
+    'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
+    'shoot-prep.js', 'tz.js', 'year-logic.js', 'year-rules.js',
   ]);
 });
 

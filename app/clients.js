@@ -40,6 +40,8 @@ import { folderItemOf } from './qa-logic.js';
 // nobody is sent to their first screen then.
 const ARRIVED_WITH = location.hash;
 import { intakeShortcut } from './intake-ui.js';
+// Stage 5: the monthly cycle (a draft) in "מה עליי", and the way to the package year.
+import { showMonths, worksCycle } from './month-ui.js';
 
 let clients = [];
 let checks = {};
@@ -663,6 +665,7 @@ function renderMine() {
   fill($('mine-tools'),
     !own && person ? summaryActions(person, 'mine') : null,
     person && person === me && !pushActive() ? notifyRow() : null);
+  showMonths($('my-months'), { person, me, office: worksCycle({ me, scope, error: viewerError }), clients, stateOf, checks });
 
   const nothing = person === me ? 'אין כרגע משהו פתוח אצלך.' : person ? `אין כרגע משהו פתוח אצל ${PEOPLE[person].name}.` : 'אין כרגע פריטים פתוחים.';
   if (!clients.length) {
@@ -2143,6 +2146,7 @@ mountSession(async (staff) => {
   $('nav-messages').hidden = $('cta-messages').hidden = !canSendMessages(viewer);
   // Before the shoot day and client requests (prep.html): the office's.
   $('nav-prep').hidden = $('cta-prep').hidden = scope !== 'office' || !!viewerError;
+  $('cta-year').hidden = !worksCycle(viewer);
   // Always land on the signed-in person's own list; the owner lands on the whole team.
   minePerson = scope === 'own' ? me : me || '';
   applyScope();
