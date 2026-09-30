@@ -1,0 +1,18 @@
+/* The client card's block for the status page (app/status-link-ui.js). */
+.st-block { display: grid; gap: 12px; }
+.st-block h3 { margin: 0 0 6px; font-size: 15px; }
+.st-block .muted { margin: 0; }
+.st-state { margin: 0; overflow-wrap: anywhere; }
+.st-state.is-ok { color: var(--ok); }
+.st-acts { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 8px; }
+.st-acts .btn, .st-acts .btn-text { min-height: 44px; }
+.st-danger { color: var(--danger); }
+.st-msg summary, .st-revoke summary, .st-record summary, .st-list details summary { cursor: pointer; color: var(--accent); min-height: 36px; display: inline-flex; align-items: center; }
+.st-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.st-list li { overflow-wrap: anywhere; }
+.st-ok { color: var(--ok); font-weight: 600; }
+.st-fix, .st-low { color: var(--warn); font-weight: 600; }
+.st-note { display: block; color: var(--text-2); font-size: 14px; white-space: pre-wrap; }
+.st-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+.st-form { display: grid; gap: 8px; margin-top: 6px; max-width: 420px; }
+.st-form .btn { justify-self: start; min-height: 44px; }

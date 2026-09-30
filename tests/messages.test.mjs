@@ -4,7 +4,7 @@
 // seed). `npm test` runs this under UTC, America/New_York and Asia/Jerusalem.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { STATIONS } from '../app/protocol.js';
 import { applicableProcesses, clientState, WAIT, waitNote, IMPORT_NOTE } from '../app/protocol-logic.js';
 import { importKeys } from '../app/client-open.js';
@@ -449,7 +449,7 @@ test('templates: defaults, the table wins, filling, and what is left to fill', (
   assert.equal(map.get('welcome').kind, 'milestone');
   assert.equal(map.get('daily.join').isDefault, true);
   assert.equal(map.has('nope'), false);
-  assert.equal(map.size, 21);
+  assert.equal(map.size, 23); // 21 from stage 1, and the 2 survey questions of stage 4
   assert.equal(fillTemplate('היי {לקוח}, חסר {חסר}.', { 'לקוח': 'דנה', 'חסר': '' }), 'היי דנה, חסר {חסר}.');
   assert.deepEqual(unfilledIn('היי {לקוח}, עד [מועד חדש] ו[מועד חדש].'), ['{לקוח}', '[מועד חדש]']);
   assert.deepEqual(unfilledIn('היי דנה!'), []);
@@ -468,9 +468,13 @@ test('templates: defaults, the table wins, filling, and what is left to fill', (
   assert.equal(listText(['א', '9 גרפיקות']), 'א ו־9 גרפיקות');
 });
 
-test('the migration seeds exactly the default templates', () => {
-  const sql = readFileSync(new URL('../supabase/migrations/20260930100000_client_messages.sql', import.meta.url), 'utf8');
-  const seed = sql.split('-- seed:begin')[1].split('-- seed:end')[0];
+test('the migrations seed exactly the default templates', () => {
+  // The first seed (20260930100000_client_messages.sql), then later migrations' seeds, in order.
+  const dir = new URL('../supabase/migrations/', import.meta.url);
+  const seed = readdirSync(dir).filter((f) => /^\d{14}_.+\.sql$/.test(f)).sort()
+    .map((f) => readFileSync(new URL(f, dir), 'utf8'))
+    .filter((sql) => sql.includes('-- seed:begin') && /insert into public\.message_templates/.test(sql))
+    .map((sql) => sql.split('-- seed:begin')[1].split('-- seed:end')[0]).join('\n');
   const rows = [...seed.matchAll(/\(\s*'([^']+)',\s*'((?:[^']|'')*)',\s*'(\w+)',\s*(\d+|null),\s*\$t\$([\s\S]*?)\$t\$\s*\)/g)]
     .map((m) => ({ key: m[1], title: m[2].replace(/''/g, "'"), kind: m[3], station: m[4] === 'null' ? null : Number(m[4]), body: m[5] }));
   assert.deepEqual(rows, DEFAULT_TEMPLATES.map(({ key, title, kind, station, body }) => ({ key, title, kind, station, body })));

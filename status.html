@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>דף המצב שלכם · astrateg</title>
+  <meta name="description" content="איפה אנחנו עומדים, התאריכים הקרובים ומה צריך מכם.">
+  <meta property="og:title" content="דף המצב שלכם באסטרטג">
+  <meta property="og:description" content="איפה אנחנו עומדים, התאריכים הקרובים ומה צריך מכם.">
+  <meta property="og:image" content="app/assets/logo.png">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/status.css">
+</head>
+<body>
+  <a class="skip" href="#main">דילוג לתוכן</a>
+  <header class="sbar">
+    <img src="app/assets/logo-mark.png" alt="astrateg" class="sbar-logo" width="30" height="30">
+    <span class="sbar-title" id="sbar-title">דף המצב</span>
+  </header>
+
+  <main class="smain" id="main" tabindex="-1">
+    <div class="sstate" id="state" role="status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>טוען את הדף…</p>
+    </div>
+
+    <div id="page" hidden>
+      <p class="snote" id="preview" role="note" hidden>אתם מחוברים כאנשי צוות: זו תצוגה של מה שהלקוח רואה. אישורים ותשובות ממלא הלקוח בלבד, והצפייה שלכם לא נרשמת.</p>
+
+      <section class="shero" aria-labelledby="hello-h">
+        <h1 id="hello-h"></h1>
+        <p class="shero-where" id="where"></p>
+        <div class="sbarline" id="stations-bar" aria-hidden="true"></div>
+        <details class="sall">
+          <summary>כל 8 השלבים</summary>
+          <ol class="stations" id="stations"></ol>
+        </details>
+      </section>
+
+      <div class="sreceipt" id="receipt" tabindex="-1" role="status" hidden></div>
+
+      <section class="scard scard-need" id="needs-sec" aria-labelledby="needs-h" hidden>
+        <h2 id="needs-h">מה אנחנו צריכים ממך</h2>
+        <ul class="needs" id="needs"></ul>
+      </section>
+
+      <section class="sgroup" id="approvals-sec" aria-labelledby="appr-h" hidden>
+        <h2 id="appr-h">לאישורך</h2>
+        <div id="items"></div>
+      </section>
+
+      <section class="scard" id="survey" aria-labelledby="survey-h" hidden></section>
+
+      <section class="scard" aria-labelledby="next-h">
+        <h2 id="next-h">התאריכים הקרובים</h2>
+        <ol class="next" id="next"></ol>
+        <p class="muted" id="next-note">אלה התאריכים שהתחייבנו אליהם.</p>
+      </section>
+
+      <section class="scard" id="thursday-sec" aria-labelledby="thu-h" hidden>
+        <h2 id="thu-h">העדכון השבועי האחרון</h2>
+        <p class="stime" id="thu-at"></p>
+        <p class="sprewrap" id="thu-body"></p>
+      </section>
+
+      <section class="scard" aria-labelledby="team-h">
+        <h2 id="team-h">הצוות שלכם</h2>
+        <ul class="team" id="team"></ul>
+      </section>
+
+      <section class="scard" id="links-sec" aria-labelledby="links-h" hidden>
+        <h2 id="links-h">התוצרים שלכם</h2>
+        <ul class="links" id="links"></ul>
+      </section>
+
+      <section class="scard" aria-labelledby="times-h">
+        <h2 id="times-h">כמה מהר נחזור אליכם</h2>
+        <dl class="times" id="times"></dl>
+        <p class="muted" id="hours"></p>
+      </section>
+
+      <section class="scard" id="history-sec" aria-labelledby="hist-h" hidden>
+        <h2 id="hist-h">מה אישרתם וביקשתם</h2>
+        <ol class="history" id="history"></ol>
+      </section>
+    </div>
+
+    <footer class="sfoot">
+      <section aria-labelledby="privacy-h">
+        <h2 id="privacy-h">פרטיות</h2>
+        <ul>
+          <li>אנחנו רושמים כל כניסה לדף הזה ואת מועדה.</li>
+          <li>כשמאשרים, מבקשים תיקון או עונים על שאלה, נשמרים התשובה, השם שהוקלד והמועד. באישור ובבקשת תיקון נשמרים גם כתובת ה־IP ופרטי הדפדפן.</li>
+          <li>המידע משמש לניהול השירות ולתיעוד האישורים, ונשמר אצל אסטרטג ואצל ספקי התשתית שלה.</li>
+          <li>לשאלות, לעיון או לתיקון: <span dir="ltr">info@astrateg.com</span></li>
+          <li>הקישור אישי. אל תעבירו אותו למי שלא מוסמך לאשר בשם העסק.</li>
+        </ul>
+      </section>
+      <details class="a11y" id="a11y">
+        <summary>הצהרת נגישות</summary>
+        <h2 class="sr-only">הצהרת נגישות</h2>
+        <p>אסטרטג רואה חשיבות במתן שירות שוויוני לכל הלקוחות, ופועלת כדי שדף המצב יהיה נגיש גם לאנשים עם מוגבלות.</p>
+        <p><strong>רמת הנגישות:</strong> הדף הונגש לפי התקן הישראלי ת״י 5568, ברמה AA. התקן מבוסס על הנחיות WCAG 2.0.</p>
+        <p><strong>מה הונגש:</strong></p>
+        <ul>
+          <li>מבנה כותרות ברור, ושפת הדף וכיוונו (עברית, מימין לשמאל) מוגדרים.</li>
+          <li>ניווט מלא במקלדת, עם סימון בולט של הרכיב שבפוקוס.</li>
+          <li>לכל כפתור ושדה יש שם ותווית. הודעות שגיאה ואישור מוצגות בטקסט ולא רק בצבע, ומוקראות לקוראי מסך.</li>
+          <li>ניגודיות צבעים לפי התקן. אפשר להגדיל את הטקסט עד 200% בלי לאבד תוכן.</li>
+          <li>הדף מותאם לטלפון ולמחשב. נבדק בבדיקות אוטומטיות בדפדפן Chromium, במסך טלפון ובמחשב.</li>
+        </ul>
+        <p><strong>מגבלות ידועות:</strong> קבצים שמקושרים מהדף לאישור, כמו סרטונים וגרפיקות, הם טיוטות עבודה, וייתכן שעדיין אין בהם כתוביות או טקסט חלופי. אפשר לבקש מאיתנו תיאור או גרסה נגישה.</p>
+        <p><strong>נתקלתם בקושי?</strong> אפשר לקבל כל מידע שבדף, ולאשר או לבקש תיקון, גם בטלפון או ב־WhatsApp מול הצוות. נשמח לשמוע על כל בעיה:</p>
+        <ul>
+          <li><strong>איש/אשת הקשר לנגישות:</strong> עירית, מנהלת המשרד</li>
+          <li><strong>טלפון:</strong> בקבוצת ה־WhatsApp שלכם מולנו</li>
+          <li><strong>דוא״ל:</strong> <span dir="ltr">info@astrateg.com</span></li>
+        </ul>
+        <p>נחזור אליך בתוך יום עסקים.</p>
+        <p><strong>ההצהרה עודכנה:</strong> 30.9.2026 · <strong>בדיקת הנגישות האחרונה של הדף:</strong> 30.9.2026</p>
+      </details>
+    </footer>
+  </main>
+
+  <script type="module" src="app/status.js"></script>
+</body>
+</html>

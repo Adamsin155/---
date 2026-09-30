@@ -76,7 +76,7 @@ async function fakeSupabase(route) {
     if (q.model.signable === false) return json(400, { code: '22023', message: 'this document does not require a signature' });
     assert.match(body.p_signature, /^data:image\/png;base64,/);
     assert.ok(body.p_signature.length < 400000, 'signature size');
-    Object.assign(q, { status: 'signed', signer_name: body.p_name.trim(), signed_at: new Date().toISOString(), signature_png: body.p_signature });
+    Object.assign(q, { status: 'signed', signer_name: body.p_name.trim(), signed_at: new Date().toISOString(), signature_png: body.p_signature, whatsapp: body.p_whatsapp });
     return json(200, view(q));
   }
   if (p === '/rest/v1/rpc/cancel_quote') {
@@ -300,9 +300,16 @@ await step('client sign: validation, draw, consent, signed state', async () => {
   await client.mouse.up();
   await client.locator('#btn-sign').click();
   assert.ok(await client.locator('#s-consent-err').isVisible());
+  // Decision 26: the WhatsApp updates are a separate choice, unchecked, never required.
+  assert.equal(await client.locator('#s-whatsapp').isChecked(), false);
+  assert.ok(await client.locator('#wa-more').isHidden());
+  await client.locator('#wa-what').click();
+  assert.match(await text(client, '#wa-more'), /ההסכמה לא חובה ולא משפיעה על ההסכם/);
+  assert.match(await text(client, '.privacy'), /ואם סימנת את התיבה, גם לעדכוני שירות ב־WhatsApp/);
   await client.locator('#s-consent').check();
   await client.locator('#btn-sign').click();
   await client.locator('#signed').waitFor();
+  assert.equal([...db.values()].find((x) => x.status === 'signed').whatsapp, false, 'signed without the WhatsApp box');
   assert.match(await text(client, '#signed-text'), /דנה לוי/);
   assert.ok(await client.locator('.qd-sign-box.is-signed img').isVisible());
   assert.ok(await client.locator('#signbox').isHidden());
