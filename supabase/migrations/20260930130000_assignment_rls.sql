@@ -267,10 +267,15 @@ do $$
 begin
   if to_regclass('public.client_date_changes') is not null then
     drop policy if exists "staff read date changes" on public.client_date_changes;
+    drop policy if exists "office or own date changes" on public.client_date_changes;
     drop policy if exists "date changes of own clients" on public.client_date_changes;
+    -- The office reads all changes; anyone else only the changes they made
+    -- themselves (the owner screens' rule), and only on clients they still see.
     create policy "date changes of own clients" on public.client_date_changes
       for select to authenticated
-      using ((select public.is_office()) or client_id in (select private.my_clients()));
+      using ((select public.is_office())
+        or (client_id in (select private.my_clients())
+            and by_email = lower(coalesce((select auth.jwt()) ->> 'email', ''))));
   end if;
 end $$;
 

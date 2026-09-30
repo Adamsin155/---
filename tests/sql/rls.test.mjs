@@ -519,8 +519,11 @@ test("the owner screens' history of date changes follows the clients one sees (e
   const { rows: [mine] } = await odb.query("insert into public.clients (name, editor) values ('mine', 'nadia') returning id");
   const { rows: [other] } = await odb.query("insert into public.clients (name, editor) values ('other', 'anna') returning id");
   await odb.query("insert into public.client_date_changes (client_id, field, old_value, new_value, by_email) values ($1, 'shoot_at', 'a', 'b', 'irit@astrateg.test'), ($2, 'shoot_at', 'a', 'b', 'irit@astrateg.test')", [mine.id, other.id]);
+  // Nadia's own changes: one on her client, one on a client she no longer sees.
+  await odb.query("insert into public.client_date_changes (client_id, field, old_value, new_value, by_email) values ($1, 'shoot_at', 'a', 'b', 'nadia@astrateg.test'), ($2, 'shoot_at', 'a', 'b', 'nadia@astrateg.test')", [mine.id, other.id]);
   const seen = async (who) => as(odb, u[who], async (tx) => (await tx.query('select client_id from public.client_date_changes')).rows.map((r) => (r.client_id === mine.id ? 'mine' : 'other')).sort());
-  assert.deepEqual(await seen('irit'), ['mine', 'other']);
+  // The office reads every change; anyone else only their own, on clients they still see.
+  assert.deepEqual(await seen('irit'), ['mine', 'mine', 'other', 'other']);
   assert.deepEqual(await seen('nadia'), ['mine']);
   // Running this migration again changes nothing (it is safe to repeat after the owner screens' one).
   await odb.exec(migrationSql(RLS_FILE));
