@@ -1,6 +1,6 @@
 // Shared view helpers for the client protocol pages: login, people, dates, statuses.
 import {
-  supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, RESET_NEEDS_EMAIL, RESET_SENT,
+  supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT,
 } from './supa.js';
 import { h } from './quote-doc.js';
 import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';
@@ -182,13 +182,13 @@ export function mountSession(onReady) {
     $('lg-submit').disabled = true;
     $('lg-err').hidden = true;
     $('lg-msg').hidden = true;
-    const { error } = await supabase.auth.signInWithPassword({ email: $('lg-email').value.trim(), password: $('lg-pass').value });
+    const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail($('lg-email').value), password: $('lg-pass').value });
     $('lg-submit').disabled = false;
     if (error) { $('lg-err').textContent = explainError(error); $('lg-err').hidden = false; return; }
     await boot();
   });
   $('lg-forgot').addEventListener('click', async (e) => {
-    const email = $('lg-email').value.trim();
+    const email = cleanEmail($('lg-email').value);
     $('lg-err').hidden = true;
     $('lg-msg').hidden = true;
     if (!looksLikeEmail(email)) { $('lg-err').textContent = RESET_NEEDS_EMAIL; $('lg-err').hidden = false; $('lg-email').focus(); return; }

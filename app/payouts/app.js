@@ -1,7 +1,7 @@
 // Payouts app: screens, forms and dialogs. Calculations live in engine.js,
 // database access in data.js. User text is always rendered as text nodes.
 import {
-  supabase, sendPasswordReset, consumeRecoveryLink, looksLikeEmail, RESET_NEEDS_EMAIL, RESET_SENT, h,
+  supabase, sendPasswordReset, consumeRecoveryLink, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, h,
 } from './client.js';
 import { reconcile, paidAddonAvailable, freeAddonAvailable } from '../pricing.js';
 import { PACKAGES, PAID_ADDONS, TIERS, INFLUENCERS, FREE_ADDONS, TERM_MONTHS, packageId } from '../catalog.js';
@@ -334,7 +334,7 @@ function showLogin() {
       type: 'button', class: 'btn-text',
       onclick: async () => {
         err.hidden = true; msg.hidden = true;
-        const v = email.value.trim();
+        const v = cleanEmail(email.value);
         if (!looksLikeEmail(v)) { err.textContent = RESET_NEEDS_EMAIL; err.hidden = false; email.focus(); return; }
         try { await sendPasswordReset(v, appHome()); msg.textContent = RESET_SENT; msg.hidden = false; } catch (e) { err.textContent = db.explain(e); err.hidden = false; }
       },
@@ -343,9 +343,9 @@ function showLogin() {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     err.hidden = true;
-    if (!email.value.trim() || !pass.value) { err.textContent = 'יש למלא אימייל וסיסמה.'; err.hidden = false; return; }
+    if (!cleanEmail(email.value) || !pass.value) { err.textContent = 'יש למלא אימייל וסיסמה.'; err.hidden = false; return; }
     submit.disabled = true;
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.value.trim(), password: pass.value });
+    const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail(email.value), password: pass.value });
     submit.disabled = false;
     if (error) { err.textContent = db.explain(error); err.hidden = false; return; }
     state.session = data.session;
