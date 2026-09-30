@@ -24,6 +24,9 @@ import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-
 import { describeMark } from './handoffs.js';
 import { canManageTeam } from './team-rules.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
+import { clientHealth, station, timeline } from './health.js';
+import { healthHead, timelineBlock, questionsBlock } from './health-ui.js';
+import { loadHealthExtras, loadQuestions } from './owner-data.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -36,6 +39,10 @@ let quote = null;            // the signed agreement the client was opened from
 let access = [];             // network logins (without passwords)
 let vaultOk = false;         // may this user see and edit logins (editors may not)
 let statusNote = null;       // Ofir's latest weekly summary
+let statusNotes = null;      // all of them (null: not loaded), for the Thursday rule
+let healthExtras = null;     // messages, history and date changes, for the colour (office only)
+let tlAll = false;           // the timeline shows everything done, not only the latest
+let questions = null;        // questions to the one responsible about this client (null: none or not loaded)
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
 let scope = 'office';        // 'own': only my processes and items; 'office': may show the whole protocol
@@ -79,15 +86,19 @@ async function load() {
   if (!client) $('state').textContent = 'טוען…';
   try {
     const [c, ch, t] = await Promise.all([loadClient(id), loadChecks(id), loadTasks({ clientId: id })]);
-    if (!c) { $('state').textContent = 'הלקוח לא נמצא.'; $('app').hidden = true; return; }
+    if (!c) { showMissing(); return; }
+    $('state').classList.remove('no-access');
     client = c;
     checks = ch[id] || {};
     tasks = t;
     if (c.quote_id && (!quote || quote.id !== c.quote_id)) quote = await loadQuoteSummary(c.quote_id);
-    [access, statusNote] = await Promise.all([
+    [access, statusNotes, healthExtras, questions] = await Promise.all([
       vaultOk ? loadAccess(id).catch(() => []) : [],
-      own() ? null : loadStatusNotes({ clientId: id }).then((r) => r[0] || null).catch(() => null),
+      own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
+      own() ? null : loadHealthExtras(id, new Date(Date.now() - 30 * 864e5).toISOString()),
+      loadQuestions({ clientId: id }).catch(() => null),
     ]);
+    statusNote = statusNotes?.[0] || null;
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
@@ -96,6 +107,26 @@ async function load() {
   document.title = `${client.name} · כרטיס לקוח · astrateg`;
   renderKeepingFocus();
   loadHistory();
+}
+
+// No client came back. The database shows each person only the clients they work
+// on, so for an 'own' role this is usually a client that is not theirs (or no longer
+// is: the editing moved to someone else); for the office, a wrong or old link.
+function showMissing() {
+  client = null;
+  $('app').hidden = true;
+  const st = $('state');
+  st.classList.add('no-access');
+  document.title = own() ? 'אין גישה ללקוח · astrateg' : 'הלקוח לא נמצא · astrateg';
+  fill(st, ...(own() ? [
+    h('strong', {}, 'אין לך גישה ללקוח הזה.'),
+    h('span', {}, 'כאן נפתחים רק לקוחות שיש לך בהם עבודה: עריכה ששויכה אליך, יום צילום קרוב או משימה שלך. אם צריך אותו, פנו לליאור.'),
+    h('a', { class: 'btn', href: 'clients.html#mine' }, '→ מה עליי'),
+  ] : [
+    h('strong', {}, 'הלקוח לא נמצא.'),
+    h('span', {}, 'ייתכן שהקישור שגוי או ישן.'),
+    h('a', { class: 'btn', href: 'clients.html#clients' }, '→ כל הלקוחות'),
+  ]));
 }
 
 function render() {
@@ -116,7 +147,27 @@ function render() {
   renderAccess();
   renderViewbar();
   renderPhases(s);
+  renderTimeline(s);
   renderTasks();
+}
+
+// ── The colour, now and next, and the timeline (office only; section 6, screen 3) ──
+function healthNow(s) {
+  const now = new Date();
+  const ex = {
+    now, checks, tasks: tasks.filter((t) => !t.done_at), statusNotes,
+    messages: healthExtras?.messages ?? null, log: healthExtras?.log ?? null, dateChanges: healthExtras?.dateChanges ?? null,
+    access: vaultOk ? access.map((a) => ({ ...a, client_id: client.id })) : null,
+  };
+  return { health: clientHealth(client, s, ex), st: station(client, s, ex), now };
+}
+function renderTimeline(s) {
+  const slot = $('tl-slot');
+  if (!client) { fill(slot); return; }
+  const now = new Date();
+  fill(slot, own() ? null : timelineBlock(timeline(client, s, checks, now), {
+    now, showAll: tlAll, link: goTo, onToggle: () => { tlAll = !tlAll; renderKeepingFocus('tl-toggle'); },
+  }), questionsBlock(questions));
 }
 
 // Periodic and background refreshes must not move keyboard focus or scroll.
@@ -259,7 +310,7 @@ function statusNoteBlock() {
 // ── Access vault ────────────────────────────
 const STATUS_LABEL = { ok: 'תקינה', broken: 'לא עובדת', missing: 'אין רשת' };
 const networkName = (k) => NETWORKS.find(([n]) => n === k)?.[1] || k;
-// Shown only to whoever may use the vault (can_use_vault in the database).
+// Shown only to whoever may use this client's vault (can_use_client_vault in the database).
 function renderAccess() {
   $('access').hidden = !vaultOk;
   if (!vaultOk) return;
@@ -415,6 +466,8 @@ function renderHead(s) {
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-escalate', onclick: () => openEscalate() }, 'דיווח חריגה לליאור'),
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => window.print() }, 'הדפסה'),
         own() ? null : h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'))),
+    // Office: the colour and why, now (station, who, until when), next (and what the client owes).
+    own() || c.status === 'cancelled' || c.status === 'ended' ? null : (() => { const x = healthNow(s); return healthHead(x.health, x.st, x.now); })(),
     h('div', { class: 'cc-progress' },
       h('span', {}, prog.label),
       h('strong', { class: 'num', dir: 'ltr' }, `${prog.done}/${prog.total}`),
@@ -1585,7 +1638,8 @@ function applyScope() {
 
 mountSession(async (staff) => {
   myEmail = staff.email;
-  const [dir, viewer, vault] = await Promise.all([loadDirectory(), viewerOf(staff.email), canUseVault()]);
+  // The vault of this client: the vault flag and, outside the office, a client assigned to me.
+  const [dir, viewer, vault] = await Promise.all([loadDirectory(), viewerOf(staff.email), canUseVault(id)]);
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
   viewerError = viewer.error;

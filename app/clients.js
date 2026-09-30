@@ -7,15 +7,14 @@ import {
 import {
   clientState, openItemsFor, byUrgency, bucketOf, CLAIM, WAIT, waitNote, bulkEligible, isResolved,
   isBusinessDay, businessDaysBetween, addBusinessDays, weekKey, roundsOf, parseDate,
-  upcomingFor, involves, WAITED, waitOf, parseWaitNote, endWaitNote, isImported, IMPORT_NOTE,
-  workedMinutes, targetMinutes, durationStart, ANSWERED,
+  upcomingFor, involves, WAITED, waitOf, parseWaitNote, endWaitNote, IMPORT_NOTE, ANSWERED,
 } from './protocol-logic.js';
 import { clocksFor, clockTime } from './clocks.js';
 import { renderNowBar, updateNowBar, clockRows, ranOutText } from './now-bar.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, setTaskDone, createClient,
   signedQuotes, loadDirectory, loadReviews, markReview, loadAllLog, addTask,
-  loadStatusNotes, saveStatusNote,
+  loadStatusNotes, saveStatusNote, setTaskStarted,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar,
@@ -26,9 +25,14 @@ import { whatsappLink } from './quote-doc.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
-import { canManageTeam } from './team-rules.js';
+import { canManageTeam, isOwnerView } from './team-rules.js';
 import { canSendMessages } from './messages-logic.js';
 import { offerHandoff, dropHandoff } from './handoff-ui.js';
+import { canSeeAllClients, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
+import { loadDateChanges, loadLogFor } from './owner-data.js';
+import { refreshQuestions } from './questions-ui.js';
+import { ownerLanded } from './health-ui.js';
+import { mountPush, siteWorker, pushActive } from './push.js';
 
 let clients = [];
 let checks = {};
@@ -116,6 +120,7 @@ async function load() {
   watchNewClients();
   checkLate();
   if (!document.hidden) renderKeepingFocus();
+  refreshQuestions($('my-questions'), me, clients);
 }
 
 // Re-rendering replaces elements; keep keyboard focus and scroll where they were.
@@ -146,7 +151,9 @@ function applyScope() {
   const own = scope === 'own';
   document.documentElement.dataset.scope = scope;
   $('tab-control').hidden = own;
-  $('tab-performance').hidden = own;
+  // Everyone sees their own row of screen 4 (decision 22); 'own' roles only that.
+  $('tab-performance').hidden = own && !me;
+  $('tab-performance').textContent = own ? 'הנתונים שלי' : 'ביצועים';
   $('btn-new').hidden = own;
   $('tab-clients').textContent = own ? 'הלקוחות שלי' : 'לקוחות';
   $('tab-mine').textContent = me ? 'מה עליי' : 'עבודת הצוות';
@@ -505,6 +512,7 @@ function groupCard(g, person) {
       statusBadge(g.status, g.dueAt),
       claimControl(g, person)),
     g.task ? taskMeta(g.task) : null,
+    g.task && g.urgent ? taskStart(g.task) : null,
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
       bulk ? h('button', {
@@ -522,6 +530,29 @@ function groupCard(g, person) {
           h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
         e.task ? briefDetails(e.task) : null);
     })));
+}
+
+// An urgent task: "התחלתי" within 30 office minutes, or it goes back to Lior
+// (decision 9; the reminder engine watches started_at, stamped by the database).
+function taskStart(t) {
+  if (!('started_at' in t)) return null; // before migration 20260930110001
+  if (t.started_at) return h('p', { class: 'task-start' }, `${t.owner === me ? 'התחלת' : 'התחיל/ה'} ${formatStamp(t.started_at)}`);
+  if (t.owner !== me) return null;
+  return h('p', { class: 'task-start' },
+    h('button', { type: 'button', class: 'btn btn-sm btn-primary', onclick: (ev) => startTask(t, ev.currentTarget) }, 'התחלתי'),
+    h('span', { class: 'hint' }, 'בלי ״התחלתי״ תוך 30 דקות עבודה, המשימה עוברת לליאור.'));
+}
+async function startTask(t, btn) {
+  btn.disabled = true;
+  try {
+    Object.assign(t, await setTaskStarted(t.id, true));
+  } catch (err) {
+    btn.disabled = false;
+    toast(`הסימון לא נשמר. ${errorText(err)}`);
+    return;
+  }
+  renderKeepingFocus();
+  toast(`נרשם שהתחלת: ${t.title}`);
 }
 
 const BUCKETS = [['urgent', 'דחוף'], ['escalation', 'חריגות שדווחו'], ['overdue', 'באיחור'], ['today', 'היום'], ['tomorrow', 'מחר'], ['week', 'השבוע'], ['later', 'בהמשך'], ['client', 'ממתין ללקוח']];
@@ -618,7 +649,7 @@ function renderMine() {
   }
   fill($('mine-tools'),
     !own && person ? summaryActions(person, 'mine') : null,
-    person && person === me ? notifyRow() : null);
+    person && person === me && !pushActive() ? notifyRow() : null);
 
   const nothing = person === me ? 'אין כרגע משהו פתוח אצלך.' : person ? `אין כרגע משהו פתוח אצל ${PEOPLE[person].name}.` : 'אין כרגע פריטים פתוחים.';
   if (!clients.length) {
@@ -781,23 +812,10 @@ function notifyRow() {
 
 // A system notification; a click opens `href`. Chrome on Android lets only a
 // service worker show one (`new Notification` throws a TypeError there), so
-// from the first such refusal app/notify-sw.js shows them.
+// from the first such refusal the site's worker (sw.js, the same registration
+// that receives the pushes: app/push.js) shows them.
 let workerNotes = false;
-let noteWorker = null;
-function notifyWorker() {
-  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
-  noteWorker ||= navigator.serviceWorker.register(new URL('./notify-sw.js', import.meta.url))
-    .then((reg) => (reg.active ? reg : new Promise((resolve) => {
-      const sw = reg.installing || reg.waiting;
-      if (!sw) { resolve(null); return; }
-      sw.addEventListener('statechange', () => {
-        if (sw.state === 'activated') resolve(reg);
-        else if (sw.state === 'redundant') resolve(null);
-      });
-    })))
-    .catch(() => null);
-  return noteWorker;
-}
+const notifyWorker = () => siteWorker();
 function showNote(title, body, tag, href) {
   if (!workerNotes) {
     try {
@@ -824,7 +842,8 @@ function alertOnce(keys, title, body, href, { ring = false } = {}) {
   if (ks.every((k) => store.get(k))) return null;
   for (const k of ks) store.set(k, '1');
   if (document.hidden || (ring && !document.hasFocus())) {
-    showNote(title, body, [keys].flat()[0], href);
+    // A clock that ran out also rings from the server when this phone is connected (sw.js): once is enough.
+    if (!(ring && pushActive())) showNote(title, body, [keys].flat()[0], href);
     return 'note';
   }
   if (ring && view === 'mine') return null;
@@ -1736,40 +1755,18 @@ function renderControl() {
   );
 }
 
-// ── Performance (spec §8) ────────────────────
+// ── Performance: screen 4, the team (section 6; decision 22) ──
 let perfDays = 30;
-const perfLog = new Map(); // days -> { rows } | { error }
-// Irit, Ofir and the owner (no person) see the table by person.
-const TEAM_VIEWERS = new Set(OFFICE_REVIEWS.map((r) => r.owner));
+const perfLog = new Map(); // days -> { rows, changes }
 const baseId = (proc) => proc.id.replace(/^r\d+-/, '');
 
 // Processes closed in the window, with their due date and how long they took,
 // in office minutes (the protocol's target too). A process closed entirely as
 // "not relevant" is not counted, and neither is imported history. Waiting on the
-// client is not the employee's time: it is taken off the duration.
-function closings(days, now) {
-  const since = new Date(now.getTime() - days * 864e5);
-  const out = [];
-  for (const c of clients) {
-    const s = stateOf(c);
-    const cs = checks[c.id] || {};
-    const procs = s.states.map((x) => x.proc);
-    for (const x of s.states) {
-      if (!x.complete || !x.completedAt || x.completedAt < since || !x.dueAt) continue;
-      const req = x.proc.items.filter((i) => !i.optional);
-      if (req.length && req.every((i) => cs[i.key]?.state === 'na')) continue;
-      if (isImported(x.proc, cs)) continue;
-      const start = durationStart(x, c, procs, cs, now);
-      out.push({
-        key: baseId(x.proc), client: c, proc: x.proc, dueAt: x.dueAt, completedAt: x.completedAt,
-        onTime: x.completedAt <= x.dueAt,
-        min: workedMinutes(x, start),
-        targetMin: targetMinutes(x, start),
-        people: peopleOf(x),
-      });
-    }
-  }
-  return out;
+// client is not the employee's time, and neither is editing stopped for someone
+// else's task: both are taken off the duration and move the deadline (app/health.js).
+function closings(days, now, log = null) {
+  return closedProcesses(clients, { stateOf, checksByClient: checks, since: new Date(now.getTime() - days * 864e5), now, log });
 }
 const medianRow = (rows, f) => {
   const r = rows.filter((x) => x[f] !== null).sort((a, b) => a[f] - b[f]);
@@ -1802,18 +1799,28 @@ function weeklyCalls(log, days, now) {
   return { due, done };
 }
 
+// Editing jobs an editor holds now, against the cap (null for anyone else).
+const editorLoad = (key) => (EDITORS.includes(key) ? editingJobs().filter((j) => j.editor === key).length : null);
+const TEAM_COLS = ['עובד', 'פתוחים', 'באיחור', 'להשבוע', 'בזמן', 'זמן חציוני מול נורמה', 'עומס עריכה', 'החזרות לתיקון', 'לא רלוונטי', 'שינויי מועד'];
+
 async function renderPerformance() {
   const box = $('performance');
   const now = new Date();
+  const own = scope === 'own';
+  const viewer = { me, scope, error: viewerError };
   const chips = h('div', { class: 'chips-row', role: 'group', 'aria-label': 'תקופה' }, ...[30, 90].map((d) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(perfDays === d), onclick: () => { perfDays = d; renderPerformance(); },
   }, `${d} הימים האחרונים`)));
-  const intro = h('p', { class: 'perf-intro' }, 'נמדד מהיעד המחושב עד שהתהליך נסגר. הזמנים בשעות העבודה: א׳–ה׳, בלי חגים, 09:00–18:00 (בערב חג עד 13:00). תהליך שכולו ״לא רלוונטי״ לא נספר, וגם לא היסטוריה שיובאה. זמן שבו התהליך המתין ללקוח לא נספר: הוא יורד מהזמן בפועל, והיעד הוארך בו אם ההמתנה התחילה לפני היעד.');
+  const intro = h('p', { class: 'perf-intro' }, 'נמדד מהיעד המחושב עד שהתהליך נסגר. הזמנים בשעות העבודה: א׳–ה׳, בלי חגים, 09:00–18:00 (בערב חג עד 13:00). תהליך שכולו ״לא רלוונטי״ לא נספר, וגם לא היסטוריה שיובאה. זמן שבו התהליך המתין ללקוח לא נספר, וגם לא עריכה שנעצרה בגלל משימה של מישהו אחר: הם יורדים מהזמן בפועל, והיעד הוארך בהם אם התחילו לפני היעד.');
   const days = perfDays;
   if (!perfLog.has(days)) {
     fill(box, chips, intro, h('p', { class: 'state' }, 'מחשב…'));
+    const since = new Date(now.getTime() - days * 864e5).toISOString();
     try {
-      perfLog.set(days, { rows: await loadAllLog(new Date(now.getTime() - days * 864e5).toISOString()) });
+      // Returns to fix count against the whole history of their items, not just the window's.
+      const hist = historyKeys(clients);
+      const [rows, changes, full] = await Promise.all([loadAllLog(since), loadDateChanges({ sinceIso: since }).catch(() => null), loadLogFor(hist).catch(() => null)]);
+      perfLog.set(days, { rows: withHistory(rows, full, hist), changes });
     } catch (err) {
       if (view !== 'performance' || days !== perfDays) return;
       fill(box, chips, intro, h('div', { class: 'state' }, `הנתונים לא נטענו. ${errorText(err)} `,
@@ -1822,60 +1829,75 @@ async function renderPerformance() {
     }
     if (view !== 'performance' || days !== perfDays) return;
   }
-  const rows = closings(days, now);
-  const calls = weeklyCalls(perfLog.get(days).rows, days, now);
-  if (!rows.length) {
-    fill(box, chips, intro, h('p', { class: 'empty' }, 'עוד אין מספיק תהליכים שנסגרו בתקופה הזו. הנתונים יופיעו אחרי שייסגרו תהליכים עם יעד מחושב.'),
-      calls.due ? h('p', { class: 'perf-calls' }, `שיחה שבועית (31): שיחות שתועדו: ${calls.done} מתוך ${calls.due} שבועות־לקוח`) : null);
-    return;
-  }
+  const { rows: log, changes } = perfLog.get(days);
+  const rows = closings(days, now, log);
+  const calls = weeklyCalls(log, days, now);
   const byProc = PROCESSES.filter((p) => !p.recurring).map((p) => ({ p, list: rows.filter((r) => r.key === p.id) })).filter((x) => x.list.length);
-  const procTable = h('div', { class: 'table-wrap' }, h('table', { class: 'qtable ctable perf-table' },
-    h('caption', { class: 'sr-only' }, 'לפי תהליך'),
-    h('thead', {}, h('tr', {}, ...['תהליך', 'זמן ביצוע בפרוטוקול', 'נסגרו', 'בזמן', 'זמן בפועל (חציון)', 'יעד'].map((t) => h('th', { scope: 'col' }, t)))),
-    h('tbody', {}, ...byProc.map(({ p, list }) => {
-      const onTime = list.filter((r) => r.onTime).length;
-      const med = medianRow(list, 'min');
-      const tgt = medianRow(list, 'targetMin');
-      const flag = list.length >= FEW && med && tgt && med.min > 2 * tgt.targetMin;
-      return h('tr', {},
-        h('td', { 'data-label': 'תהליך', class: 'client' },
-          h('details', { class: 'perf-proc' }, h('summary', {}, `${p.num} · ${p.title}`),
-            h('ul', {}, ...list.sort((a, b) => b.completedAt - a.completedAt).map((r) => h('li', {},
-              `${r.client.name}${roundOf(r.proc) ? ` · סבב ${roundOf(r.proc)}` : ''} · יעד ${formatWhen(r.dueAt, now)} · נסגר ${formatWhen(r.completedAt, now)}${r.min !== null ? ` · ${officeMinutes(r.min)} בשעות העבודה` : ''}${r.onTime ? '' : ' · אחרי היעד'}`)))),
-          flag ? h('span', { class: 'tag tag-warn' }, 'כדאי לבדוק את התהליך או את היעד') : null),
-        h('td', { 'data-label': 'זמן ביצוע בפרוטוקול', class: 'client sla' }, p.sla),
-        h('td', { 'data-label': 'נסגרו', class: 'num' }, String(list.length)),
-        h('td', { 'data-label': 'בזמן', class: 'client' }, onTimeCell(list.length, onTime)),
-        h('td', { 'data-label': 'זמן בפועל (חציון)' }, med ? officeMinutes(med.min) : '—'),
-        h('td', { 'data-label': 'יעד' }, tgt ? officeMinutes(tgt.targetMin) : '—'));
-    }))));
+  const procTable = !byProc.length ? h('p', { class: 'empty' }, 'עוד אין מספיק תהליכים שנסגרו בתקופה הזו. הנתונים יופיעו אחרי שייסגרו תהליכים עם יעד מחושב.')
+    : h('div', { class: 'table-wrap' }, h('table', { class: 'qtable ctable perf-table' },
+      h('caption', { class: 'sr-only' }, 'לפי תהליך'),
+      h('thead', {}, h('tr', {}, ...['תהליך', 'זמן ביצוע בפרוטוקול', 'נסגרו', 'בזמן', 'זמן בפועל (חציון)', 'יעד'].map((t) => h('th', { scope: 'col' }, t)))),
+      h('tbody', {}, ...byProc.map(({ p, list }) => {
+        const onTime = list.filter((r) => r.onTime).length;
+        const med = medianRow(list, 'min');
+        const tgt = medianRow(list, 'targetMin');
+        const flag = list.length >= FEW && med && tgt && med.min > 2 * tgt.targetMin;
+        return h('tr', {},
+          h('td', { 'data-label': 'תהליך', class: 'client' },
+            h('details', { class: 'perf-proc' }, h('summary', {}, `${p.num} · ${p.title}`),
+              h('ul', {}, ...list.sort((a, b) => b.completedAt - a.completedAt).map((r) => h('li', {},
+                `${r.client.name}${roundOf(r.proc) ? ` · סבב ${roundOf(r.proc)}` : ''} · יעד ${formatWhen(r.dueAt, now)} · נסגר ${formatWhen(r.completedAt, now)}${r.min !== null ? ` · ${officeMinutes(r.min)} בשעות העבודה` : ''}${r.onTime ? '' : ' · אחרי היעד'}`)))),
+            flag ? h('span', { class: 'tag tag-warn' }, 'כדאי לבדוק את התהליך או את היעד') : null),
+          h('td', { 'data-label': 'זמן ביצוע בפרוטוקול', class: 'client sla' }, p.sla),
+          h('td', { 'data-label': 'נסגרו', class: 'num' }, String(list.length)),
+          h('td', { 'data-label': 'בזמן', class: 'client' }, onTimeCell(list.length, onTime)),
+          h('td', { 'data-label': 'זמן בפועל (חציון)' }, med ? officeMinutes(med.min) : '—'),
+          h('td', { 'data-label': 'יעד' }, tgt ? officeMinutes(tgt.targetMin) : '—'));
+      }))));
 
-  const personRow = (key) => {
-    const mine = rows.filter((r) => r.people.includes(key));
-    const w = workFor(key);
-    return h('tr', {},
-      h('td', { 'data-label': 'עובד' }, personChip(key)),
-      h('td', { 'data-label': 'תהליכים שנסגרו', class: 'num' }, String(mine.length)),
-      h('td', { 'data-label': 'בזמן', class: 'client' }, onTimeCell(mine.length, mine.filter((r) => r.onTime).length)),
-      h('td', { 'data-label': 'פתוחים עכשיו', class: 'num' }, String(w.filter((g) => !g.task && g.status !== 'client').length)),
-      h('td', { 'data-label': 'ממתינים ללקוח', class: 'num' }, String(w.filter((g) => g.status === 'client').length)));
+  // One row per person: open, late and this week; on time; median against the
+  // norm; an editor's load against the cap; returns to fix; and the anti-gaming
+  // counts ("not relevant" on a required item, deadline changes).
+  const team = (keys) => teamRows(keys, {
+    work: (k) => workFor(k), rows, log, changes, directory, jobs: editorLoad, clients, since: new Date(now.getTime() - days * 864e5), now,
+  });
+  const personRow = (r) => h('tr', {},
+    h('td', { 'data-label': 'עובד' }, personChip(r.key)),
+    h('td', { 'data-label': 'פתוחים', class: 'num' }, String(r.open)),
+    h('td', { 'data-label': 'באיחור', class: r.late ? 'late num' : 'num' }, String(r.late)),
+    h('td', { 'data-label': 'להשבוע', class: 'num' }, String(r.week)),
+    h('td', { 'data-label': 'בזמן', class: 'client' }, onTimeCell(r.done, r.onTime)),
+    h('td', { 'data-label': 'זמן חציוני מול נורמה' }, r.median === null ? '—' : `${officeMinutes(r.median)}${r.norm ? ` · נורמה ${officeMinutes(r.norm)}` : ''}`),
+    h('td', { 'data-label': 'עומס עריכה' }, r.load === null ? '—' : [`${r.load} מתוך ${r.cap}`, r.load > r.cap ? h('span', { class: 'tag tag-warn' }, 'מעל התקרה') : null]),
+    h('td', { 'data-label': 'החזרות לתיקון', class: 'num' }, String(r.rework)),
+    h('td', { 'data-label': 'לא רלוונטי', class: 'num' }, String(r.na)),
+    h('td', { 'data-label': 'שינויי מועד', class: 'num' }, r.moves === null ? '—' : String(r.moves)));
+  const personTable = (caption, keys) => {
+    const list = team(keys);
+    const office = list.filter((r) => !PEOPLE[r.key]?.editor);
+    const editors = list.filter((r) => PEOPLE[r.key]?.editor);
+    return h('div', { class: 'table-wrap' }, h('table', { class: 'qtable ctable perf-table perf-people' },
+      h('caption', { class: 'sr-only' }, caption),
+      h('thead', {}, h('tr', {}, ...TEAM_COLS.map((t) => h('th', { scope: 'col' }, t)))),
+      office.length ? h('tbody', {}, ...office.map(personRow)) : null,
+      editors.length ? h('tbody', { class: 'editors-group' },
+        office.length ? h('tr', { class: 'group-row' }, h('th', { scope: 'colgroup', colspan: String(TEAM_COLS.length) }, 'עורכים')) : null,
+        ...editors.map(personRow)) : null));
   };
-  const personTable = (caption, keys) => h('div', { class: 'table-wrap' }, h('table', { class: 'qtable ctable perf-table perf-people' },
-    h('caption', { class: 'sr-only' }, caption),
-    h('thead', {}, h('tr', {}, ...['עובד', 'תהליכים שנסגרו', 'בזמן', 'פתוחים עכשיו', 'ממתינים ללקוח'].map((t) => h('th', { scope: 'col' }, t)))),
-    h('tbody', {}, ...keys.map(personRow))));
 
+  // Decision 22: the owner and Lior see everyone; everyone else sees only their own row.
   fill(box, chips, intro,
     me ? h('section', { class: 'perf-me', 'aria-label': 'הנתונים שלי' }, h('h2', { class: 'wgroup-h' }, 'הנתונים שלי'), personTable('הנתונים שלי', [me])) : null,
-    h('h2', { class: 'wgroup-h' }, 'לפי תהליך'),
-    procTable,
-    h('h2', { class: 'wgroup-h' }, 'שיחה שבועית (31)'),
-    h('p', { class: 'perf-calls' }, calls.due ? `שיחות שתועדו: ${calls.done} מתוך ${calls.due} שבועות־לקוח` : 'עוד אין לקוחות בשלב השיחות השבועיות בתקופה הזו.'),
-    TEAM_VIEWERS.has(me) || !me ? h('section', { class: 'perf-team', 'aria-label': 'לפי עובד' },
-      h('h2', { class: 'wgroup-h' }, 'לפי עובד'),
+    own ? null : [
+      h('h2', { class: 'wgroup-h' }, 'לפי תהליך'),
       h('p', { class: 'perf-intro' }, 'אחוז נמוך בתהליך הוא קודם כול סימן לבדוק את התהליך או את היעד.'),
-      personTable('לפי עובד', STAFF_PEOPLE().map((p) => p.key))) : null);
+      procTable,
+      h('h2', { class: 'wgroup-h' }, 'שיחה שבועית (31)'),
+      h('p', { class: 'perf-calls' }, calls.due ? `שיחות שתועדו: ${calls.done} מתוך ${calls.due} שבועות־לקוח` : 'עוד אין לקוחות בשלב השיחות השבועיות בתקופה הזו.')],
+    seesWholeTeam(viewer) ? h('section', { class: 'perf-team', 'aria-label': 'הצוות' },
+      h('h2', { class: 'wgroup-h' }, 'הצוות'),
+      h('p', { class: 'perf-intro' }, `כל אחד בצוות רואה רק את השורה שלו. אין טבלת דירוג. עומס עריכה: לקוחות בעריכה מול תקרה של ${EDITOR_CAP}. ״לא רלוונטי״ ושינויי מועד נספרים לפי מי שסימן.`),
+      personTable('הצוות', STAFF_PEOPLE().map((p) => p.key))) : null);
 }
 
 // ── New client: the deal details, or an existing client imported mid-way ──
@@ -2080,6 +2102,15 @@ mountSession(async (staff) => {
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
   viewerError = viewer.error;
+  // The owner lands on "מה דורש אותי" (owner.html), which links back here (#mine):
+  // once per tab, so the "לקוחות" links of the other pages still open the list.
+  if (isOwnerView(viewer) && !location.hash && !ownerLanded()) { location.replace('owner.html'); return; }
+  // Screen 2, "כל הלקוחות במבט", for Irit, Lior and Ofir; screen 1 for the owner.
+  // The top bar folds away on phones: the page head keeps a way in (cta-owner).
+  for (const el of [$('nav-owner'), $('cta-owner')]) {
+    el.hidden = !canSeeAllClients(viewer);
+    if (!isOwnerView(viewer)) { el.href = 'owner.html#all'; el.textContent = 'כל הלקוחות במבט'; }
+  }
   $('nav-team').hidden = !canManageTeam(viewer);
   // The top bar folds away on phones: the page head keeps a way in to the messages.
   $('nav-messages').hidden = $('cta-messages').hidden = !canSendMessages(viewer);
@@ -2087,6 +2118,11 @@ mountSession(async (staff) => {
   minePerson = scope === 'own' ? me : me || '';
   applyScope();
   renderMe();
+  // Notifications on the phone and today's list (app/push.js); the owner's list is 'owner'.
+  mountPush({
+    who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
+    changed: () => { if (view === 'mine' && !$('app').hidden && !busy()) renderMine(); },
+  });
   const fromHash = location.hash.slice(1);
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();
