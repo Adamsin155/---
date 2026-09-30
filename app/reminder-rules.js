@@ -1099,8 +1099,8 @@ export const RULES = [
       return out;
     },
     steps: [
-      { id: 'ring', to: (i) => i.who, level: 'ring', exempt: 'urgent', when: (i) => i.urgent, title: (i) => `${personName(i.task.owner)} סיימה: ${i.name} · ${i.task.title}`, body: (i) => briefBody(i.task.result) },
-      { id: 'quiet', to: (i) => i.who, level: 'quiet', when: (i) => !i.urgent, title: (i) => `${personName(i.task.owner)} סיימה: ${i.name} · ${i.task.title}`, body: (i) => briefBody(i.task.result) },
+      { id: 'ring', to: (i) => i.who, level: 'ring', exempt: 'urgent', when: (i) => i.urgent, title: (i) => `${personName(i.task.owner)} סיים/ה: ${i.name} · ${i.task.title}`, body: (i) => briefBody(i.task.result) },
+      { id: 'quiet', to: (i) => i.who, level: 'quiet', when: (i) => !i.urgent, title: (i) => `${personName(i.task.owner)} סיים/ה: ${i.name} · ${i.task.title}`, body: (i) => briefBody(i.task.result) },
     ],
   },
 

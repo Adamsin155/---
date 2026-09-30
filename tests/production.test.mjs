@@ -437,7 +437,7 @@ test('a paused edit for someone else\'s urgent task says so; a finished brief re
   const list = due(w, IL(2026, 10, 19, 12));
   const ring = one(list, 'briefDone', 'ring');
   assert.deepEqual([ring.person, ring.exempt], ['lior', 'urgent']);
-  assert.equal(ring.title, 'ניראל סיימה: מספרת רון · באנר');
+  assert.equal(ring.title, 'ניראל סיים/ה: מספרת רון · באנר');
   const quiet = one(list, 'briefDone', 'quiet');
   assert.equal(quiet.person, 'irit');
   assert.equal(quiet.body, 'בוצע: הבאנר מוכן · נשאר: גרסה לבנה (נפתחה משימת המשך) · אופיר בודק, ואז עירית שולחת ללקוח');
