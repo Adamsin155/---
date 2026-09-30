@@ -29,7 +29,12 @@ export function toast(msg, action = null) {
 
 export function errorText(err) {
   const msg = String(err?.message || err || '');
-  if (/violates row-level security|permission denied/i.test(msg)) return 'אין הרשאה לפעולה. יש להתחבר מחדש עם משתמש צוות.';
+  // Each person may change only the clients they work on (the database decides): a
+  // client moved to someone else while the page was open is refused.
+  if (/violates row-level security/i.test(msg)) return 'אין לך הרשאה לפעולה הזו. אם העבודה בלקוח הועברה למישהו אחר, רעננו את הדף.';
+  if (/permission denied/i.test(msg)) return 'אין הרשאה לפעולה. יש להתחבר מחדש עם משתמש צוות.';
+  // An update that reached no row: the row is gone, or no longer this person's to see.
+  if (err?.code === 'PGRST116' || /Cannot coerce the result to a single JSON object/i.test(msg)) return 'הפעולה לא נשמרה: הלקוח או הפריט כבר לא זמינים לך. רעננו את הדף.';
   if (/relation .* does not exist|Could not find the table/i.test(msg)) return 'טבלאות הלקוחות עוד לא הוקמו במסד הנתונים.';
   if (/not allowed/i.test(msg)) return 'אין לך הרשאה לפעולה הזו.';
   if (/clients_quote_id_key/i.test(msg)) return 'מההסכם הזה כבר נפתח לקוח. הוא מופיע ברשימת הלקוחות.';

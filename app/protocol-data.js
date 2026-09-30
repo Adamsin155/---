@@ -1,5 +1,8 @@
-// Data access for the client protocol pages. Row level security limits every
-// table to staff; who checked an item and when are stamped by the database.
+// Data access for the client protocol pages. Row level security decides what each
+// person reads and changes: the office sees every client; everyone else only the
+// clients they work on (supabase/migrations/20260930130000_assignment_rls.sql), so
+// a list can come back shorter or empty, and a client not theirs as null. Who
+// checked an item and when are stamped by the database.
 import { supabase } from './supa.js';
 
 const PAGE = 1000;
@@ -222,7 +225,15 @@ export async function loadAccessLog(clientId, limit = 30) {
   return data;
 }
 
-export async function canUseVault() {
+// May this user use the vault: the vault flag (staff.vault) and, for one client,
+// outside the office, a client assigned to them. Until the database has the
+// per-client check (its migration not applied yet), the flag alone decides.
+export async function canUseVault(clientId = null) {
+  if (clientId) {
+    const { data, error, status } = await supabase.rpc('can_use_client_vault', { p_client: clientId });
+    if (!error) return data === true;
+    if (status !== 404 && error.code !== 'PGRST202') return false;
+  }
   const { data, error } = await supabase.rpc('can_use_vault');
   return !error && data === true;
 }
