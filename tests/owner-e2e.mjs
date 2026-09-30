@@ -306,7 +306,7 @@ await step('"שאלה לאחראי": saved with the client and the one person, w
 await step('the one asked sees it at the top of "מה עליי", answers inline, and the answer shows in the owner\'s row', async () => {
   const lctx = await newContext();
   const lior = await newPage(lctx);
-  await signIn(lior, 'clients.html', 'lior@astrateg.test');
+  await signIn(lior, 'clients.html#mine', 'lior@astrateg.test'); // his first screen is decisions.html (it shows the question too)
   await lior.waitForSelector('#my-questions:not([hidden]) .myq-item');
   assert.equal(new URL(lior.url()).pathname.endsWith('/clients.html'), true);
   const box = lior.locator('#my-questions');

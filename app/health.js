@@ -855,6 +855,11 @@ export const trendSince = (now = new Date(), weeks = 8) => onTimeTrend([], now, 
 // made again (Ilai), the videos handed to Ofir again (the editor). Each time after
 // the first is one return to fix, counted for the item's owner.
 const REWORK = ['p07.made', 'p23.made', 'p24.notify'];
+// Ofir's returns for fixes (app/office-marks.js: p25.return.N for the videos handed
+// in 24, p23.return.N for the rest of the graphics). Where he returned work, each
+// return is one; the work handed in again after it is not counted a second time.
+const RETURNS = { 'p24.notify': 'p25', 'p23.made': 'p23' };
+const RETURNS_MAX = 6; // rounds whose whole history is loaded (historyKeys)
 export function reworkCounts(clients, log, since = null) {
   const out = new Map();
   for (const c of clients) {
@@ -862,10 +867,17 @@ export function reworkCounts(clients, log, since = null) {
     if (!rows.length) continue;
     for (const p of applicableProcesses(c)) {
       for (const i of p.items) {
-        if (!REWORK.includes(i.key.replace(/^r\d+\./, ''))) continue;
-        const ev = doneEvents(rows, i.key).slice(1).filter((r) => !since || new Date(r.at) >= since);
-        if (!ev.length) continue;
-        for (const o of i.owners.filter((k) => k !== 'editor')) out.set(o, (out.get(o) || 0) + ev.length);
+        const base = i.key.replace(/^r\d+\./, '');
+        if (!REWORK.includes(base)) continue;
+        const inWindow = (r) => !since || new Date(r.at) >= since;
+        const again = doneEvents(rows, i.key).slice(1).filter(inWindow).length;
+        const pre = i.key.slice(0, i.key.length - base.length);
+        const ret = RETURNS[base] ? new RegExp(`^${pre.replace('.', '\\.')}${RETURNS[base]}\\.return\\.\\d+$`) : null;
+        const returns = ret ? [...new Set(rows.filter((r) => ret.test(r.item_key)).map((r) => r.item_key))]
+          .reduce((n, k) => n + doneEvents(rows, k).slice(0, 1).filter(inWindow).length, 0) : 0;
+        const n = Math.max(again, returns);
+        if (!n) continue;
+        for (const o of i.owners.filter((k) => k !== 'editor')) out.set(o, (out.get(o) || 0) + n);
       }
     }
   }
@@ -878,7 +890,14 @@ const HISTORY = [...REWORK, 'p07.sent', 'p23.sent', 'p27.notes'];
 export function historyKeys(clients) {
   const out = new Set();
   for (const c of clients) {
-    for (const p of applicableProcesses(c)) for (const i of p.items) if (HISTORY.includes(i.key.replace(/^r\d+\./, ''))) out.add(i.key);
+    for (const p of applicableProcesses(c)) {
+      for (const i of p.items) {
+        const base = i.key.replace(/^r\d+\./, '');
+        if (!HISTORY.includes(base)) continue;
+        out.add(i.key);
+        if (RETURNS[base]) for (let n = 1; n <= RETURNS_MAX; n += 1) out.add(`${i.key.slice(0, i.key.length - base.length)}${RETURNS[base]}.return.${n}`);
+      }
+    }
   }
   return [...out].sort();
 }

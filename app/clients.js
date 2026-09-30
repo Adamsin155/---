@@ -33,6 +33,13 @@ import { loadDateChanges, loadLogFor } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
 import { ownerLanded } from './health-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
+// Stage 3, part 2 (the office's flows): Ilai's day in "מה עליי", the first screens of Ofir and Lior.
+import { ilaiSection, coveredByCard } from './ilai-card.js';
+import { firstScreenOf, firstLanded, officeLinks } from './office-ui.js';
+import { folderItemOf } from './qa-logic.js';
+import { TAB_FRESH } from './protocol-ui.js';
+// A link to a part of this page (#mine, #control, a sign-in link) opens that part.
+const ARRIVED_WITH_HASH = !!location.hash;
 
 let clients = [];
 let checks = {};
@@ -250,6 +257,9 @@ async function toggleEntry(e, input) {
     if (e.task) {
       await setTaskDone(e.task.id, true);
       tasks = tasks.filter((t) => t.id !== e.task.id);
+      // Ofir's folder task (24) is the item "יש תיקייה מסודרת": done together.
+      const folder = folderItemOf(e.task);
+      if (folder) try { (checks[e.client.id] ||= {})[folder] = await setCheck(e.client.id, folder, 'done'); states.delete(e.client.id); } catch { /* the item stays for the card */ }
     } else {
       const row = await setCheck(e.client.id, e.item.key, 'done');
       (checks[e.client.id] ||= {})[e.item.key] = row;
@@ -273,6 +283,8 @@ async function undo(e) {
     if (e.task) {
       const row = await setTaskDone(e.task.id, false);
       tasks = [row, ...tasks];
+      const folder = folderItemOf(e.task);
+      if (folder && checks[e.client.id]?.[folder]) try { await clearCheck(e.client.id, folder); delete checks[e.client.id][folder]; states.delete(e.client.id); } catch { /* the item stays */ }
     } else {
       await clearCheck(e.client.id, e.item.key);
       delete checks[e.client.id][e.item.key];
@@ -667,19 +679,24 @@ function renderMine() {
     fill(wrap, h('p', { class: 'empty' }, own ? nothing : 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.'));
     return;
   }
-  const list = workFor(person);
+  // Ilai: the characterization day's card (and the rest of his graphics, the final
+  // versions, the Gantt) comes first and replaces the process groups it covers.
+  const ilaiCtx = person === 'ilai' ? { clients, checks, stateOf, me, viewer: { me, scope, error: viewerError }, refresh: () => { if (view === 'mine' && !busy()) renderKeepingFocus(); } } : null;
+  const ilai = ilaiCtx ? ilaiSection(ilaiCtx) : null;
+  const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
+  const list = workFor(person).filter((g) => !covered(g));
   const soon = person ? upcomingSection(upcomingGroups(person), own) : null;
   const review = person ? OFFICE_REVIEWS.find((r) => r.owner === person && reviewPending(r)) : null;
   const thursday = person === 'ofir' ? thursdayCard() : null;
   const banner = !person || person === 'irit' ? autoBanner() : null;
   if (!list.length && !review && !thursday) {
-    fill(wrap, banner, h('p', { class: 'empty' }, nothing), soon);
+    fill(wrap, banner, ilai, ilai ? null : h('p', { class: 'empty' }, nothing), soon);
     return;
   }
   const today = dayIso(new Date());
   // Thursday's pass is a fixed card of its own, right after urgent work.
   const thuGroup = thursday ? h('section', { class: 'wgroup g-thu', 'aria-label': 'מעבר חובה של יום חמישי' }, h('ul', { class: 'wprocs' }, thursday)) : null;
-  fill(wrap, banner, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, k === 'client' ? soon : null, (() => {
+  fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, k === 'client' ? soon : null, (() => {
     let g = list.filter((x) => bucketFor(x) === k);
     if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
     const extra = k === 'today' && review ? [reviewCard(review)] : [];
@@ -1300,6 +1317,7 @@ function taskRow({ t, c }, now) {
       personChip(t.owner),
       t.due_on ? h('span', { class: 'muted num' }, `עד ${dayShort(t.due_on)}`) : null),
     taskMeta(t, now),
+    t.urgent ? taskStart(t) : null,
     briefDetails(t));
 }
 
@@ -2122,6 +2140,10 @@ mountSession(async (staff) => {
   $('cta-editor').hidden = !home || home !== 'editor.html';
   // The shoot day: Eli's page, Lior's shoot-day mode, and the counter the office watches.
   $('cta-shoot').hidden = !(me === 'eli' || (scope === 'office' && !viewer.error));
+  // Ofir lands on the quality-control queue, Lior on "החלטות" (section 3): when the
+  // tab opens on this page (the installed app, a new tab), not from a link inside it.
+  if (TAB_FRESH && !ARRIVED_WITH_HASH && !firstLanded() && firstScreenOf(me)) { location.replace(firstScreenOf(me)); return; }
+  document.querySelector('#app .head-actions')?.prepend(...officeLinks(viewer));
   // Screen 2, "כל הלקוחות במבט", for Irit, Lior and Ofir; screen 1 for the owner.
   // The top bar folds away on phones: the page head keeps a way in (cta-owner).
   for (const el of [$('nav-owner'), $('cta-owner')]) {

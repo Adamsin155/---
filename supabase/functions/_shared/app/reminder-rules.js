@@ -32,13 +32,16 @@
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 import { PEOPLE, STAFF_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
 import {
-  isBusinessDay, addWorkingMinutes, officeMsBetween, parseDate, IMPORT_NOTE, isImported, pauseOf,
-  businessDaysBetween, weekKey, erevOn,
+  isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf,
+  businessDaysBetween, weekKey, erevOn, nextWorkMoment,
 } from './protocol-logic.js';
 import { ANSWER_CLOCKS } from './clocks.js';
+import {
+  QA_KINDS, qaState, qaDue, SHIFT_KEY, readShift, ACCESS_FIXED, readAccessFix,
+} from './office-marks.js';
 import { partsIL, dayKeyIL, atTimeIL, addDaysIL, dayFromKeyIL, daysBetweenIL, weekdayIL } from './tz.js';
 import {
-  qaReturnOf, missingOf, missingText, briefingOf, pauseText, arrivalOf, nextWorkClose, driveName, noteOf, ilaiGot,
+  missingOf, missingText, briefingOf, pauseText, arrivalOf, driveName, noteOf,
 } from './production.js';
 
 export const OWNER = 'owner';
@@ -314,13 +317,16 @@ export const RULES = [
         // updated_at, and must not start the ladder again or push the owner's step back.
         const at = parseDate(a.broken_since) || parseDate(a.updated_at);
         if (!c || a.status !== 'broken' || !at) continue;
-        out.push({ id: `${a.id}@${at.toISOString()}`, cid: c.id, client: c, name: c.name, ref: 'p06', url: clientUrl(c.id, 'access'), network: a.network, anchors: { event: at } });
+        // Lior closed it as partly fixed ("עדיין חסר"): it stays red, and only the owner's screen follows it.
+        const fix = readAccessFix(env.checksOf(c)[`p06.fixed.${a.network}`]);
+        const partial = !!fix?.partial && fix.at >= new Date(at.getTime() - 5 * MIN);
+        out.push({ id: `${a.id}@${at.toISOString()}`, cid: c.id, client: c, name: c.name, ref: 'p06', url: clientUrl(c.id, 'access'), network: a.network, partial, anchors: { event: at } });
       }
       return out;
     },
     steps: [
-      { id: 'now', to: 'lior', level: 'ring', exception: true, title: (i) => `גישה לא עובדת: ${i.name}`, body: (i) => `${NETWORK_NAME[i.network] || i.network}. לתקן עם הלקוח ולעדכן בכספת.` },
-      { id: 'again', officeMinutes: 120, to: 'lior', level: 'ring', exception: true, title: (i) => `גישה עדיין לא עובדת: ${i.name}`, body: (i) => `${NETWORK_NAME[i.network] || i.network}. עברו שעתיים עבודה.` },
+      { id: 'now', to: 'lior', level: 'ring', exception: true, when: (i) => !i.partial, title: (i) => `גישה לא עובדת: ${i.name}`, body: (i) => `${NETWORK_NAME[i.network] || i.network}. לתקן עם הלקוח ולעדכן בכספת.` },
+      { id: 'again', officeMinutes: 120, to: 'lior', level: 'ring', exception: true, when: (i) => !i.partial, title: (i) => `גישה עדיין לא עובדת: ${i.name}`, body: (i) => `${NETWORK_NAME[i.network] || i.network}. עברו שעתיים עבודה.` },
       { id: 'board', businessDays: 1, to: OWNER, level: 'board', overdue: true, title: (i) => `גישה שבורה יותר מיום עסקים: ${i.name}`, body: (i) => NETWORK_NAME[i.network] || i.network },
     ],
   },
@@ -499,7 +505,13 @@ export const RULES = [
       return casesOf(env, 'p22', (i) => !!i.ctx.editor && !!i.doneAt('p22a.assigned') && !pauseOf(i.proc, i.checks) && !i.s.wait)
         .map((i) => {
           const p24 = i.same('p24');
-          return { ...i, id: i.proc.id, who: i.ctx.editor, url: EDITOR_URL(i.cid), ready: !!p24 && (p24.complete || i.resolved('p24.notify')), p24due: p24?.dueAt, p27due: i.same('p27')?.dueAt, anchors: { event: i.doneAt('p22a.assigned') } };
+          const assigned = i.doneAt('p22a.assigned');
+          // Lior moved the deadlines (editing paused): days 2 and 3 move with them.
+          const shift = readShift(i.checks[SHIFT_KEY(i.pre)]);
+          return {
+            ...i, id: i.proc.id, who: i.ctx.editor, url: EDITOR_URL(i.cid), ready: !!p24 && (p24.complete || i.resolved('p24.notify')), p24due: p24?.dueAt, p27due: i.same('p27')?.dueAt,
+            anchors: { event: assigned, days: shift ? businessDayFrom(assigned, shift) : assigned },
+          };
         })
         .filter((i) => !i.ready);
     },
@@ -508,44 +520,48 @@ export const RULES = [
       { id: 'nostart', officeMinutes: 120, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved('p22.received'), title: (i) => `עוד לא התחלת: ${i.name}`, body: () => 'עברו שעתיים עבודה מאז שהכונן נמסר. ללחוץ "קיבלתי את הכונן והתחלתי".' },
       { id: 'nostartLior', officeMinutes: 240, to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עברו 4 שעות עבודה מהשיוך.' },
       { id: 'ofir', officeMinutes: 240, to: 'ofir', level: 'quiet', when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עותק לידיעה: עברו 4 שעות עבודה מהשיוך.' },
-      { id: 'day2', businessDays: 2, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 2 מתוך 3: ${i.name}`, body: () => '' },
-      { id: 'day3', businessDays: 3, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 3 מתוך 3: ${i.name}`, body: () => 'עד סוף היום: הכול בדרייב ואצל אופיר.' },
-      { id: 'day3pm', businessDays: 3, at: '15:00', to: (i) => i.who, level: 'ring', title: (i) => `היום יום 3: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
+      { id: 'day2', from: 'days', businessDays: 2, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 2 מתוך 3: ${i.name}`, body: () => '' },
+      { id: 'day3', from: 'days', businessDays: 3, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 3 מתוך 3: ${i.name}`, body: () => 'עד סוף היום: הכול בדרייב ואצל אופיר.' },
+      { id: 'day3pm', from: 'days', businessDays: 3, at: '15:00', to: (i) => i.who, level: 'ring', title: (i) => `היום יום 3: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
     ],
   },
 
-  // 23: the rest of the graphics. Ofir checks when Ilai marks them ready; Irit
-  // sends once Ofir approved.
+  // 23: the rest of the graphics. Ofir checks when Ilai marks them ready (and again
+  // after each round of fixes: its own case, so each check rings once; decision 16:
+  // within the hour); Irit sends once Ofir approved.
   {
     id: 'graphicsRest', event: 'יתרת גרפיקות (23)', procs: ['p23'],
     instances(env) {
       return casesOf(env, 'p23', (i) => !halted(i)).flatMap((i) => {
-        if (i.doneAt('p23.made') && !i.resolved('p23.ofir')) return [{ ...i, id: 'p23.made', stage: 'ofir', anchors: { event: i.doneAt('p23.made') } }];
+        const q = qaState(i.checks, i.pre, 'graphics');
+        if (q.stage === 'ofir') return [{ ...i, id: q.returns ? `p23.fixed.${q.returns}` : 'p23.made', stage: 'ofir', round: q.round, anchors: { event: q.readyAt } }];
         if (i.doneAt('p23.ofir') && !i.resolved('p23.sent')) return [{ ...i, id: 'p23.ofir', stage: 'irit', anchors: { event: i.doneAt('p23.ofir') } }];
         return [];
       });
     },
     steps: [
-      { id: 'ofir', to: 'ofir', level: 'ring', when: (i) => i.stage === 'ofir', title: (i) => `יתרת הגרפיקות מוכנה לבדיקה: ${i.name}`, body: () => 'יעד: שעה.' },
+      { id: 'ofir', to: 'ofir', level: 'ring', when: (i) => i.stage === 'ofir', title: (i) => `${i.round > 1 ? `התיקונים מוכנים לבדיקה (סבב ${i.round - 1})` : 'יתרת הגרפיקות מוכנה לבדיקה'}: ${i.name}`, body: () => 'יעד: שעה.' },
       { id: 'irit', to: 'irit', level: 'ring', when: (i) => i.stage === 'irit', title: (i) => `לשלוח ללקוח: יתרת הגרפיקות · ${i.name}`, body: () => 'אופיר אישר.' },
     ],
   },
 
   // 24→25: ready for quality control. Ofir at once and again after 40 office
   // minutes (the clock stops while he is in a characterization, decision 11);
-  // Lior's list after an office hour. A return for fixes (p25.return) stops it; the
-  // editor's "סמן הכול תוקן" marks p24.notify again, which starts a new clock.
+  // Lior's list after an office hour.
+  // After a return for fixes, "the fixes are ready" (or the videos marked ready
+  // again) starts the same ladder for the new check.
   {
     id: 'qa', event: 'מוכן לבדיקה (24→25)', procs: ['p25'],
     instances(env) {
-      return casesOf(env, 'p25', (i) => !!i.doneAt('p24.notify') && !i.resolved('p25.approved') && !halted(i) && !qaReturnOf(i.checks, i.pre))
-        .map((i) => {
-          const at = i.doneAt('p24.notify');
-          return { ...i, id: `${i.proc.id}@${at.toISOString()}`, anchors: { event: at, due40: qaClock(env, at, 40), due60: qaClock(env, at, 60) } };
-        });
+      return casesOf(env, 'p25', (i) => !halted(i)).flatMap((i) => {
+        const q = qaState(i.checks, i.pre, 'videos');
+        if (q.stage !== 'ofir') return [];
+        const at = q.readyAt;
+        return [{ ...i, id: `${i.proc.id}@${at.toISOString()}`, round: q.round, anchors: { event: at, due40: qaClock(env, at, 40), due60: qaClock(env, at, 60) } }];
+      });
     },
     steps: [
-      { id: 'now', to: 'ofir', level: 'ring', title: (i) => `מוכן לבדיקה: ${i.name}`, body: (i, env) => `הסרטונים בדרייב. בקרה עד ${whenText(i.anchors.due60, env.now)}.` },
+      { id: 'now', to: 'ofir', level: 'ring', title: (i) => `${i.round > 1 ? `התיקונים מוכנים לבדיקה (סבב ${i.round - 1})` : 'מוכן לבדיקה'}: ${i.name}`, body: (i, env) => `הסרטונים בדרייב. בקרה עד ${whenText(i.anchors.due60, env.now)}.` },
       { id: 'again', from: 'due40', to: 'ofir', level: 'ring', title: (i) => `מחכה לבקרה 40 דקות: ${i.name}`, body: () => 'העורך מחכה לבקרת האיכות.' },
       { id: 'lior', from: 'due60', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `בקרת איכות לא בוצעה תוך שעה: ${i.name}`, body: () => 'אופיר עוד לא אישר או החזיר לתיקון.' },
     ],
@@ -715,6 +731,8 @@ export const RULES = [
       // "אין מי שייצא לאפיון" rings at once (the matrix); every other exception goes to his list.
       { id: 'nobody', to: (i) => i.who, level: 'ring', exception: true, when: (i) => i.task.title.startsWith(NO_CHARACTERIZER), title: (i) => `אין מי שייצא לאפיון: ${i.name}`, body: (i) => i.task.title.slice(NO_CHARACTERIZER.length).replace(/^[\s:(]+/, '') },
       { id: 'list', to: (i) => i.who, level: 'digest', list: true, when: (i) => !i.task.title.startsWith(NO_CHARACTERIZER), title: (i) => `חריגה: ${i.name}`, body: (i) => i.task.title },
+      // The matrix: when nobody can go, Irit is told too (quiet).
+      { id: 'nobodyIrit', to: 'irit', level: 'quiet', when: (i) => i.task.title.startsWith(NO_CHARACTERIZER) && i.who !== 'irit', title: (i) => `אין מי שייצא לאפיון: ${i.name}`, body: (i) => `עבר לליאור. ${i.task.title.slice(NO_CHARACTERIZER.length).replace(/^[\s:(]+/, '')}` },
       { id: 'board', businessDays: 1, to: OWNER, level: 'board', overdue: true, title: (i) => `חריגה פתוחה יותר מיום עסקים: ${i.name}`, body: (i) => i.task.title },
     ],
   },
@@ -947,6 +965,9 @@ export const RULES = [
     id: 'campaignCheck', event: 'בדיקת קמפיינים שבועית (החלטה 21)', procs: [],
     instances(env) {
       if (weekdayIL(env.now) !== 2 || !isBusinessDay(env.now)) return [];
+      // Marked done this week on Lior's screen (office_reviews kind 'campaigns'): nothing to remind.
+      const sunday = weekKey(env.now);
+      if (env.reviews.some((r) => r.kind === 'campaigns' && r.day >= sunday)) return [];
       const live = casesOf(env, 'p30', (i) => !i.pre && i.s.complete).map((i) => i.name);
       return live.length ? [{ id: dayKeyIL(env.now), cid: null, name: '', live, url: MINE_URL, anchors: { event: atTimeIL(env.now, 0) } }] : [];
     },
@@ -996,50 +1017,16 @@ export const RULES = [
     ],
   },
 
-  // 25: Ofir returned the videos for fixes (p25.return). The editor at once; Lior's
-  // list if not back by the fix date; the owner's screen from the second round.
-  {
-    id: 'qaReturn', event: 'הוחזר לתיקון מאופיר (25)', procs: ['p24', 'p25'],
-    instances(env) {
-      return casesOf(env, 'p25', (i) => !!qaReturnOf(i.checks, i.pre) && !i.resolved('p25.approved')).map((i) => {
-        const r = qaReturnOf(i.checks, i.pre);
-        return { ...i, id: `${i.proc.id}@${r.at.toISOString()}`, who: i.ctx.editor, ret: r, url: EDITOR_URL(i.cid), anchors: { event: r.at, due: r.due } };
-      });
-    },
-    steps: [
-      { id: 'editor', to: (i) => i.who, level: 'ring', title: (i) => `הוחזר לתיקון: ${i.name}`, body: (i, env) => `${i.ret.videos.length ? `${i.ret.videos.length} סרטונים` : 'הסרטונים'} · סבב ${i.ret.round}${i.ret.due ? ` · עד ${whenText(i.ret.due, env.now)}` : ''}.` },
-      { id: 'lior', from: 'due', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `תיקון לא חזר לאופיר במועד: ${i.name}${i.who ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
-      { id: 'board', to: OWNER, level: 'board', overdue: true, when: (i) => i.ret.round >= 2, title: (i) => `סבב תיקונים ${i.ret.round} בסרטונים: ${i.name}`, body: (i) => (i.who ? personName(i.who) : '') },
-    ],
-  },
-
   // 27: the client's notes reached the editor (Irit typed them): a ring at once.
   // Lateness of 27 itself goes to Lior's list with a copy to Ofir (`late`).
   {
     id: 'clientFixes', event: 'הערות לקוח (27)', procs: ['p27'],
     instances(env) {
-      return casesOf(env, 'p27', (i) => !!i.doneAt('p27.notes') && !i.resolved('p27.fixes') && !i.resolved('p27.approved') && !i.resolved('p27.toilai'))
+      return casesOf(env, 'p27', (i) => !!i.doneAt('p27.notes') && !i.resolved('p27.fixes') && !i.resolved('p27.approved') && !i.resolved('p27.final'))
         .map((i) => ({ ...i, id: `${i.proc.id}@${i.doneAt('p27.notes').toISOString()}`, who: i.ctx.editor, url: EDITOR_URL(i.cid), anchors: { event: i.doneAt('p27.notes') } }));
     },
     steps: [
       { id: 'editor', to: (i) => i.who, level: 'ring', title: (i) => `הערות הלקוח הגיעו: ${i.name}`, body: () => 'לתקן, להחליף בדרייב ולסמן. התיקונים עוברים ישר לעילאי.' },
-    ],
-  },
-
-  // 27: the final versions went to Ilai. Ilai (quiet) at once; Lior's list if he did
-  // not mark "קיבלתי" (p27.ilai) by the end of that business day.
-  {
-    id: 'finals', event: 'גרסאות סופיות עברו לעילאי (27)', procs: ['p27'],
-    instances(env) {
-      return casesOf(env, 'p27', (i) => !!i.doneAt('p27.toilai') && !ilaiGot(i.checks, i.pre)).map((i) => {
-        const at = i.doneAt('p27.toilai');
-        // Ilai's view of the card shows his own processes: the button sits on his 28.
-        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, url: clientUrl(i.cid, i.proc.id.replace(/p27$/, 'p28')), anchors: { event: at, eod: nextWorkClose(at) } };
-      });
-    },
-    steps: [
-      { id: 'ilai', to: 'ilai', level: 'quiet', title: (i) => `הגרסאות הסופיות אצלך: ${i.name}`, body: () => 'לסמן "קיבלתי" בכרטיס הלקוח, ואז תזמון וגאנט.' },
-      { id: 'lior', from: 'eod', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `עילאי לא סימן "קיבלתי" על הגרסאות הסופיות: ${i.name}`, body: () => '' },
     ],
   },
 
@@ -1062,6 +1049,73 @@ export const RULES = [
     steps: [
       { id: 'ring', to: (i) => i.who, level: 'ring', exempt: 'urgent', when: (i) => i.urgent, title: (i) => `${personName(i.task.owner)} סיימה: ${i.name} · ${i.task.title}`, body: (i) => briefBody(i.task.result) },
       { id: 'quiet', to: (i) => i.who, level: 'quiet', when: (i) => !i.urgent, title: (i) => `${personName(i.task.owner)} סיימה: ${i.name} · ${i.task.title}`, body: (i) => briefBody(i.task.result) },
+    ],
+  },
+
+  // Returned for fixes by Ofir (23, 25): the editor (videos) or Ilai (graphics) at
+  // once, with the list and the due time; Lior's list if not fixed by then; the
+  // owner's screen on a second round.
+  {
+    id: 'qaReturn', event: 'הוחזר לתיקון מאופיר (23, 25)', procs: ['p23', 'p25'],
+    instances(env) {
+      const out = [];
+      for (const kind of ['videos', 'graphics']) {
+        const k = QA_KINDS[kind];
+        for (const i of casesOf(env, k.base, (x) => !halted(x, { claim: false }))) {
+          const q = qaState(i.checks, i.pre, kind);
+          if (q.stage !== 'fixing') continue;
+          const r = q.open;
+          out.push({
+            ...i, id: `${i.proc.id}.return.${r.n}`, kind, n: r.n, issues: r.issues.length, left: r.issues.length - r.fixed.size, who: k.fixer(i.ctx), what: k.title,
+            url: kind === 'videos' ? EDITOR_URL(i.cid) : clientUrl(i.cid), anchors: { event: r.at, due: r.due },
+          });
+        }
+      }
+      return out;
+    },
+    steps: [
+      { id: 'now', to: (i) => i.who, level: 'ring', title: (i) => `הוחזר לתיקון (סבב ${i.n}): ${i.name}`, body: (i, env) => `${i.what}: ${i.issues === 1 ? 'בעיה אחת' : `${i.issues} בעיות`} מאופיר.${i.anchors.due ? ` לתקן עד ${whenText(i.anchors.due, env.now)}.` : ''}` },
+      { id: 'late', from: 'due', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `תיקון לא הושלם במועד: ${i.name} · ${personName(i.who)}`, body: (i) => `${i.what}, סבב ${i.n}: עוד ${i.left} מתוך ${i.issues}.` },
+      { id: 'board', to: OWNER, level: 'board', overdue: true, when: (i) => i.n >= 2, title: (i) => `סבב תיקונים ${i.n} מאופיר: ${i.name}`, body: (i) => `${i.what} · ${personName(i.who)}` },
+    ],
+  },
+
+  // 6: Lior closed a broken login (fixed, or partly: "עדיין חסר"). Irit and Ilai are told (quiet).
+  {
+    id: 'accessClosed', event: 'גישה שבורה נסגרה (6)', procs: ['p06'],
+    instances(env) {
+      const out = [];
+      for (const c of env.clients) {
+        for (const [key, check] of Object.entries(env.checksOf(c))) {
+          const m = ACCESS_FIXED.exec(key);
+          const v = m && readAccessFix(check);
+          if (!v) continue;
+          out.push({ id: `${m[1]}@${v.at.toISOString()}`, cid: c.id, client: c, name: c.name, ref: 'p06', url: clientUrl(c.id, 'access'), network: m[1], fix: v, anchors: { event: v.at } });
+        }
+      }
+      return out;
+    },
+    steps: ['irit', 'ilai'].map((p) => ({
+      id: p, to: p, level: 'quiet',
+      title: (i) => `${i.fix.partial ? 'גישה תוקנה חלקית' : 'גישה תוקנה'}: ${i.name}`,
+      body: (i) => `${NETWORK_NAME[i.network] || i.network}.${i.fix.partial ? ` עדיין חסר: ${i.fix.missing}` : ''}`,
+    })),
+  },
+
+  // 27: the final versions are in the Drive. Ilai at once (quiet) to press "קיבלתי",
+  // which closes the editing; Lior's list if not by the end of that business day.
+  {
+    id: 'finalReady', event: 'גרסאות סופיות עברו לעילאי (27)', procs: ['p27'],
+    instances(env) {
+      return casesOf(env, 'p27', (i) => !!i.doneAt('p27.final') && !i.resolved('p27.toilai') && !i.s.wait).map((i) => {
+        const at = i.doneAt('p27.final');
+        const start = nextWorkMoment(at);
+        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, anchors: { event: at, close: atTimeIL(start, erevOn(start) ? WORK_HOURS.erevEnd : WORK_HOURS.end) } };
+      });
+    },
+    steps: [
+      { id: 'ilai', to: 'ilai', level: 'quiet', title: (i) => `גרסאות סופיות בדרייב: ${i.name}`, body: () => 'לבדוק ולסמן ״קיבלתי״. זה סוגר את העריכה.' },
+      { id: 'lior', from: 'close', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `עילאי לא סימן ״קיבלתי״ על הגרסאות הסופיות: ${i.name}`, body: () => 'באותו יום עסקים.' },
     ],
   },
 
@@ -1108,21 +1162,7 @@ function dailyDigest(i, env, to, text) {
 // Ofir's quality clock (decision 11): office minutes from `from`, stopped while he
 // is in a characterization meeting (from its start until it is marked done, or
 // two hours).
-export function qaClock(env, from, minutes) {
-  let due = addWorkingMinutes(from, minutes);
-  for (let n = 0; n < 10; n += 1) {
-    let extra = 0;
-    for (const [a, b] of env.ofirMeetings) {
-      const s = Math.max(a, from);
-      const e = Math.min(b, due);
-      if (e > s) extra += officeMsBetween(new Date(s), new Date(e));
-    }
-    const next = addWorkingMinutes(from, minutes + Math.round(extra / MIN));
-    if (next.getTime() === due.getTime()) break;
-    due = next;
-  }
-  return due;
-}
+export const qaClock = (env, from, minutes) => qaDue(env.ofirMeetings, from, minutes);
 
 // The rule a reminder key belongs to (keys are `rule:client:case:step@person`).
 export const ruleOfKey = (key) => String(key).split(':')[0];

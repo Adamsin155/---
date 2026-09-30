@@ -22,6 +22,7 @@ import {
 } from './reminder-rules.js';
 import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf } from './protocol-logic.js';
 import { STAFF_PEOPLE } from './protocol.js';
+import { ofirMeetings as meetingsOf } from './office-marks.js';
 import { dayKeyIL, atTimeIL, dayFromKeyIL, weekdayIL, addDaysIL, endOfDayIL } from './tz.js';
 import { shootCases, quietWindow } from './production.js';
 
@@ -74,19 +75,9 @@ export function buildEnv({
   return env;
 }
 
-// Ofir's characterization meetings, [start, end] in ms: from the meeting until it
-// was marked done, or two hours (decision 11 stops his quality clock meanwhile).
-function ofirMeetings(env) {
-  const out = [];
-  for (const c of env.clients) {
-    const at = parseDate(c.char_at);
-    if (!at || (c.characterizer && c.characterizer !== 'ofir')) continue;
-    const p4 = env.stateOf(c).states.find((s) => s.proc.id === 'p04');
-    const end = p4?.complete && p4.completedAt ? p4.completedAt : new Date(at.getTime() + 2 * 36e5);
-    if (end > at) out.push([at.getTime(), end.getTime()]);
-  }
-  return out;
-}
+// Ofir's characterization meetings (decision 11 stops his quality clock meanwhile):
+// app/office-marks.js, shared with his screen.
+const ofirMeetings = (env) => meetingsOf(env.clients, env.checksOf);
 
 // Lior on a shoot (decision 8 and "מצב שקט"), a flag recorded in the checks: from
 // Eli's "הגעתי" (p17b.arrived; or Lior's own start, p18.quiet) until the drive is
