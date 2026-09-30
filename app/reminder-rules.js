@@ -44,6 +44,10 @@ import { partsIL, dayKeyIL, atTimeIL, addDaysIL, dayFromKeyIL, daysBetweenIL, we
 import {
   missingOf, missingText, briefingOf, pauseText, arrivalOf, driveName, noteOf,
 } from './production.js';
+// Stage 4: the client's fix requests and low scores (their own ladders).
+import { STATUS_RULES, STATUS_SOURCES } from './status-rules.js';
+// Stage 5: the monthly cycle (a draft) and the 90-day renewals list.
+import { YEAR_RULES } from './year-rules.js';
 
 export const OWNER = 'owner';
 // Who has reminders: the owner and the protocol's people (reminder_log.person).
@@ -165,6 +169,9 @@ export function procCase(env, c, s) {
     name: c.name,
     check,
     resolved: (k) => { const x = check(k); return !!x && (x.state === 'done' || x.state === 'na'); },
+    // An item added to the protocol after this client started (app/protocol-versions.js):
+    // still work, never rung as late (the engine skips `overdue` steps; see freshCase).
+    fresh: (k) => !!s.proc.items.find((it) => it.key === pre + k)?.fresh,
     // When an item was done now (imported history is not an event).
     doneAt: (k) => { const x = check(k); return x && x.state === 'done' && x.note !== IMPORT_NOTE ? new Date(x.at) : null; },
     // The same round's state of another process.
@@ -762,7 +769,7 @@ export const RULES = [
   {
     id: 'task', event: 'משימה רגילה', procs: [],
     instances(env) {
-      return env.tasks.filter((t) => !t.urgent && t.source !== 'escalation' && t.source !== TELL && !t.done_at && env.clientById.has(t.client_id)).map((t) => {
+      return env.tasks.filter((t) => !t.urgent && t.source !== 'escalation' && t.source !== TELL && !STATUS_SOURCES.has(t.source) && !t.done_at && env.clientById.has(t.client_id)).map((t) => {
         const c = env.clientById.get(t.client_id);
         const creator = env.personOf(t.created_by_email);
         return { id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, creator: creator && creator !== t.owner ? creator : null, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at), due: t.due_on ? dayFromKeyIL(t.due_on) : null } };
@@ -1158,6 +1165,9 @@ export const RULES = [
   // which closes the editing; Lior's list if not by the end of that business day.
   {
     id: 'finalReady', event: 'גרסאות סופיות עברו לעילאי (27)', procs: ['p27'],
+    // A client who started before "קיבלתי" was in the protocol (p27.toilai, version 2):
+    // Ilai still hears the finals are in the Drive, but Lior's list never calls it late.
+    fresh: (i) => i.fresh('p27.toilai'),
     instances(env) {
       return casesOf(env, 'p27', (i) => !!i.doneAt('p27.final') && !i.resolved('p27.toilai') && !i.s.wait).map((i) => {
         const at = i.doneAt('p27.final');
@@ -1200,7 +1210,9 @@ export const RULES = [
       { id: 'ofir', to: 'ofir', level: 'quiet', overdue: true, when: (i) => QUALITY.has(baseId(i.proc.id)) && !i.owners.includes('ofir'), title: (i) => `באיחור: ${i.name} · ${procName(i.proc)}`, body: (i) => `עותק לידיעה: ${names(i.owners.map(personName))}.` },
     ],
   },
+  ...STATUS_RULES,
 ];
+RULES.push(...YEAR_RULES);
 
 const NO_CHARACTERIZER = 'אין מי שייצא לאפיון';
 // Exceptions that ring Lior at once instead of waiting for his 12:00 and 16:00 lists.

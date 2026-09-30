@@ -154,6 +154,18 @@ export const DEFAULT_TEMPLATES = [
   daily('publish', 'היי {לקוח}, אנחנו מתזמנים את התכנים שלכם ומכינים את הקמפיינים. נעדכן אתכם ברגע שהם עולים.'),
   daily('ongoing', 'היי {לקוח}, התכנים שלכם ממשיכים לעלות לפי הגאנט. יש מבצע, אירוע או משהו חדש בעסק? ספרו לנו ונשלב אותו.'),
   daily('renewal', 'היי {לקוח}, אנחנו מסכמים את התוצאות של השנה שלנו יחד לקראת שיחת ההמשך. יש משהו שתרצו שנבדוק? כתבו לנו.'),
+  // Stage 4 (decision 28): the satisfaction questions, seeded by
+  // 20260930170000_client_status.sql. The shoot day's question is in "thanks".
+  {
+    key: 'survey_delivery', title: 'שאלה על הסרטונים', kind: 'milestone', station: null,
+    body: `היי {לקוח}, שאלה אחת, לא חובה: מ־1 עד 5, כמה אתם מרוצים מהסרטונים שקיבלתם?
+אפשר לענות לנו בהודעה או בדף המצב שלכם. התשובה עוזרת לנו לשפר את השירות.`,
+  },
+  {
+    key: 'survey_nps', title: 'שאלת המלצה', kind: 'milestone', station: null,
+    body: `היי {לקוח}, שאלה אחת, לא חובה: מ־0 עד 10, כמה סביר שתמליצו על אסטרטג לעסק אחר?
+אפשר לענות לנו בהודעה או בדף המצב שלכם. התשובה עוזרת לנו לשפר את השירות.`,
+  },
 ];
 
 // What the system fills in each template ({לקוח} and {עסק} everywhere).
@@ -240,7 +252,7 @@ export function promisedClosing(shootAt) {
 }
 
 // The team as the client sees it, in the welcome message.
-const CLIENT_ROLES = [
+export const CLIENT_ROLES = [
   ['lior', 'מנהל הלקוח, תוכן, ימי צילום וקמפיינים'],
   ['irit', 'תפעול ולקוחות, הכתובת שלכם לכל שאלה'],
   ['ofir', 'אפיון העסק ובקרת איכות'],
@@ -392,12 +404,21 @@ const MILESTONES = [
     },
   },
   { key: 'videos', station: 'post', fresh: 2, at: (x) => x.doneAt('p26.sent'), when: (x) => !x.isDone('p27.approved') },
+  // Decision 28: one question after the first delivery (the videos approved, or their final versions).
+  { key: 'survey_delivery', station: 'post', base: true, fresh: 3, at: (x) => earlier(x.doneAt('p27.approved'), x.doneAt('p27.final')) },
   { key: 'first_post', station: 'publish', base: true, fresh: 3, at: (x) => earlier(x.completed('p28'), x.doneAt('p29.sent')) },
   { key: 'campaign', station: 'publish', fresh: 3, at: (x) => x.completed('p30') },
   {
     key: 'renewal', station: 'renewal', base: true, fresh: 10,
     at: (x) => (x.client.contract_end ? x.st('p34')?.startAt || null : null),
     when: (x) => !x.isDone('p34.talk'),
+  },
+  // The recommendation question, from the same day as the renewal but never with it:
+  // the renewal goes first, and one message a day keeps them apart (the legal drafts, section 5).
+  {
+    key: 'survey_nps', station: 'renewal', base: true, fresh: 10,
+    at: (x) => (x.client.contract_end ? x.st('p34')?.startAt || null : null),
+    when: (x) => x.client.status === 'active',
   },
 ];
 const ORDER = new Map(MILESTONES.map((m, i) => [m.key, i]));
@@ -535,6 +556,8 @@ function milestoneOption(m, x, at, now) {
     }
     case 'first_post': reason = 'התכנים תוזמנו לפרסום'; break;
     case 'campaign': reason = `הקמפיינים הוקמו ${relDay(at, now)}`; break;
+    case 'survey_delivery': reason = `הסרטונים נמסרו ${relDay(at, now)}: שאלה אחת מ־1 עד 5`; break;
+    case 'survey_nps': reason = 'שאלת המלצה מ־0 עד 10, 60 יום לפני החידוש. לא באותו יום עם הודעת החידוש'; break;
     case 'renewal': {
       const end = parseDate(x.client.contract_end);
       vars['תאריך'] = dayText(end);

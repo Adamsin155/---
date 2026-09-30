@@ -39,17 +39,23 @@ export function landingNow({ me, viewer, arrived = '', fresh = TAB_FRESH }) {
 }
 export { firstLanded, markFirstLanded };
 
-// The office screens in the page head: Ofir's two, Lior's decisions (and the
-// assignment, which he takes when Ofir cannot), all three for the owner.
+// The office screens in the page head, one row in one order on every page that
+// shows it (clients.html, qa, pass, decisions, year, insights): Ofir's two, Lior's
+// decisions (and the assignment, which he takes when Ofir cannot), all three for the
+// owner; the monthly insights for the owner and Lior; the package year for the
+// office and Ilai (app/month-ui.js worksCycle). The page itself is left out.
 export function officeLinks(viewer, current = '') {
   const me = viewer?.me || null;
-  const owner = !me && viewer?.scope === 'office' && !viewer?.error;
+  const ok = !!viewer && !viewer.error;
+  const owner = ok && !me && viewer.scope === 'office';
   const list = [
-    ['qa.html', 'בקרה ושיוך', me === 'ofir' || me === 'lior' || owner],
-    ['pass.html', 'מעבר על הלקוחות', me === 'ofir' || owner],
-    ['decisions.html', 'החלטות', me === 'lior' || me === 'ofir' || owner],
-  ].filter(([href, , ok]) => ok && href !== current);
-  return list.map(([href, label]) => h('a', { class: 'btn btn-sm office-link', href }, label));
+    ['qa', 'qa.html', 'בקרה ושיוך', me === 'ofir' || me === 'lior' || owner],
+    ['pass', 'pass.html', 'מעבר על הלקוחות', me === 'ofir' || owner],
+    ['decisions', 'decisions.html', 'החלטות', me === 'lior' || me === 'ofir' || owner],
+    ['insights', 'insights.html', 'תובנות', ok && (me === 'lior' || owner)],
+    ['year', 'year.html', 'שנת החבילה', ok && (viewer.scope === 'office' || me === 'ilai')],
+  ].filter(([, href, , show]) => show && href !== current);
+  return list.map(([id, href, label]) => h('a', { class: 'btn btn-sm office-link', id: `cta-${id}`, href }, label));
 }
 
 // ── "התחלתי" on an urgent task (decision 9) ─

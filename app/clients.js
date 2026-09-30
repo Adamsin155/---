@@ -32,6 +32,8 @@ import { canSeeAllClients, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP,
 import { loadDateChanges, loadLogFor } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
+import { mountWhatsappCard } from './whatsapp.js';
+import { mountCalendar } from './calendar-card.js';
 // Stage 3, part 2 (the office's flows): Ilai's day in "מה עליי", the first screens of Ofir and Lior.
 import { ilaiSection, coveredByCard } from './ilai-card.js';
 import { landingNow, officeLinks } from './office-ui.js';
@@ -40,6 +42,8 @@ import { folderItemOf } from './qa-logic.js';
 // nobody is sent to their first screen then.
 const ARRIVED_WITH = location.hash;
 import { intakeShortcut } from './intake-ui.js';
+// Stage 5: the monthly cycle (a draft) in "מה עליי", and the way to the package year.
+import { showMonths, worksCycle } from './month-ui.js';
 
 let clients = [];
 let checks = {};
@@ -663,6 +667,7 @@ function renderMine() {
   fill($('mine-tools'),
     !own && person ? summaryActions(person, 'mine') : null,
     person && person === me && !pushActive() ? notifyRow() : null);
+  showMonths($('my-months'), { person, me, office: worksCycle({ me, scope, error: viewerError }), clients, stateOf, checks });
 
   const nothing = person === me ? 'אין כרגע משהו פתוח אצלך.' : person ? `אין כרגע משהו פתוח אצל ${PEOPLE[person].name}.` : 'אין כרגע פריטים פתוחים.';
   if (!clients.length) {
@@ -2131,7 +2136,7 @@ mountSession(async (staff) => {
   // office's screens (Ofir's queue and pass, Lior's decisions).
   $('cta-editor').hidden = !PEOPLE[me]?.editor;
   $('cta-shoot').hidden = !(me === 'eli' || (scope === 'office' && !viewer.error));
-  document.querySelector('#app .head-actions')?.prepend(...officeLinks(viewer));
+  $('cta-prep').before(...officeLinks(viewer)); // after "מה דורש אותי", before the rest
   // Screen 2, "כל הלקוחות במבט", for Irit, Lior and Ofir; screen 1 for the owner.
   // The top bar folds away on phones: the page head keeps a way in (cta-owner).
   for (const el of [$('nav-owner'), $('cta-owner')]) {
@@ -2150,8 +2155,11 @@ mountSession(async (staff) => {
   // Notifications on the phone and today's list (app/push.js); the owner's list is 'owner'.
   mountPush({
     who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
-    changed: () => { if (view === 'mine' && !$('app').hidden && !busy()) renderMine(); },
+    changed: () => { if (view === 'mine' && !$('app').hidden && !busy()) renderKeepingFocus(); },
   });
+  mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
+  // "היומן שלי": the personal calendar link (app/calendar-card.js).
+  if (!viewerError) mountCalendar($('cal-card'));
   const fromHash = location.hash.slice(1);
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();

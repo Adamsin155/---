@@ -254,6 +254,8 @@ $('sign-form').addEventListener('submit', async (e) => {
   try {
     const { data, error } = await supa.supabase.rpc('sign_quote', {
       p_token: token, p_name: name, p_signature: exportSignature(), p_consent: true,
+      // Decision 26: a separate, optional choice; never a condition of signing.
+      p_whatsapp: $('s-whatsapp').checked,
     });
     if (error) throw error;
     render(data);
@@ -285,6 +287,13 @@ $('sign-form').addEventListener('submit', async (e) => {
 });
 
 $('btn-print').addEventListener('click', () => window.print());
+
+// "מה זה?" under the WhatsApp checkbox: one line, opened on demand.
+$('wa-what').addEventListener('click', () => {
+  const open = $('wa-more').hidden;
+  $('wa-more').hidden = !open;
+  $('wa-what').setAttribute('aria-expanded', String(open));
+});
 
 new ResizeObserver(sizeCanvas).observe(wrap);
 load();

@@ -35,6 +35,11 @@ import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { folderItemOf } from './qa-logic.js';
 import { loadOfirMeetings } from './office-data.js';
 import { intakeShortcut, mountClientIntake, describeIntakeMark } from './intake-ui.js';
+// Stage 4: the client's status page, approvals, surveys and WhatsApp consent.
+import { mountClientStatus } from './status-link-ui.js';
+// Stage 5: the monthly cycle (a draft), and items newer than the client's protocol version.
+import { mountClientMonth, worksCycle } from './month-ui.js';
+import { freshText } from './protocol-versions.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -155,10 +160,12 @@ function render() {
   }
   renderHead(s);
   mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus() });
+  mountClientStatus($('st-slot'), { client, scope, me, toast });
   renderAccess();
   renderQa(s);
   renderViewbar();
   renderPhases(s);
+  mountClientMonth($('mc-slot'), { client, state: s, me, scope, office: worksCycle({ me, scope, error: viewerError }), rerender: () => renderKeepingFocus() });
   renderTimeline(s);
   renderTasks();
 }
@@ -891,6 +898,7 @@ function itemRow(p, i) {
     meta.push(h('span', { class: 'blocked', id: `${cid}-b` }, text));
   }
   if (i.optional && !c) meta.push(h('span', { class: 'tag' }, 'אם רלוונטי'));
+  if (i.fresh && !state) meta.push(h('span', { class: 'tag tag-fresh' }, freshText(i.fresh)));
   if (ownOwners) meta.push(peopleChips(i.owners));
 
   if (i.recurring) return callRow(p, i, state, c, busy, mine);
