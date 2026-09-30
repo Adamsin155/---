@@ -31,8 +31,15 @@ import { offerHandoff, dropHandoff } from './handoff-ui.js';
 import { canSeeAllClients, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
 import { loadDateChanges, loadLogFor } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
-import { ownerLanded } from './health-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
+// Stage 3, part 2 (the office's flows): Ilai's day in "מה עליי", the first screens of Ofir and Lior.
+import { ilaiSection, coveredByCard } from './ilai-card.js';
+import { landingNow, officeLinks } from './office-ui.js';
+import { folderItemOf } from './qa-logic.js';
+// A link to a part of this page (#mine, #control, a sign-in link) opens that part:
+// nobody is sent to their first screen then.
+const ARRIVED_WITH = location.hash;
+import { intakeShortcut } from './intake-ui.js';
 
 let clients = [];
 let checks = {};
@@ -239,6 +246,9 @@ async function toggleEntry(e, input) {
     if (e.task) {
       await setTaskDone(e.task.id, true);
       tasks = tasks.filter((t) => t.id !== e.task.id);
+      // Ofir's folder task (24) is the item "יש תיקייה מסודרת": done together.
+      const folder = folderItemOf(e.task);
+      if (folder) try { (checks[e.client.id] ||= {})[folder] = await setCheck(e.client.id, folder, 'done'); states.delete(e.client.id); } catch { /* the item stays for the card */ }
     } else {
       const row = await setCheck(e.client.id, e.item.key, 'done');
       (checks[e.client.id] ||= {})[e.item.key] = row;
@@ -262,6 +272,8 @@ async function undo(e) {
     if (e.task) {
       const row = await setTaskDone(e.task.id, false);
       tasks = [row, ...tasks];
+      const folder = folderItemOf(e.task);
+      if (folder && checks[e.client.id]?.[folder]) try { await clearCheck(e.client.id, folder); delete checks[e.client.id][folder]; states.delete(e.client.id); } catch { /* the item stays */ }
     } else {
       await clearCheck(e.client.id, e.item.key);
       delete checks[e.client.id][e.item.key];
@@ -513,6 +525,7 @@ function groupCard(g, person) {
       claimControl(g, person)),
     g.task ? taskMeta(g.task) : null,
     g.task && g.urgent ? taskStart(g.task) : null,
+    g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope }) : null,
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
       bulk ? h('button', {
@@ -656,19 +669,24 @@ function renderMine() {
     fill(wrap, h('p', { class: 'empty' }, own ? nothing : 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.'));
     return;
   }
-  const list = workFor(person);
+  // Ilai: the characterization day's card (and the rest of his graphics, the final
+  // versions, the Gantt) comes first and replaces the process groups it covers.
+  const ilaiCtx = person === 'ilai' ? { clients, checks, stateOf, me, viewer: { me, scope, error: viewerError }, refresh: () => { if (view === 'mine' && !busy()) renderKeepingFocus(); } } : null;
+  const ilai = ilaiCtx ? ilaiSection(ilaiCtx) : null;
+  const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
+  const list = workFor(person).filter((g) => !covered(g));
   const soon = person ? upcomingSection(upcomingGroups(person), own) : null;
   const review = person ? OFFICE_REVIEWS.find((r) => r.owner === person && reviewPending(r)) : null;
   const thursday = person === 'ofir' ? thursdayCard() : null;
   const banner = !person || person === 'irit' ? autoBanner() : null;
   if (!list.length && !review && !thursday) {
-    fill(wrap, banner, h('p', { class: 'empty' }, nothing), soon);
+    fill(wrap, banner, ilai, ilai ? null : h('p', { class: 'empty' }, nothing), soon);
     return;
   }
   const today = dayIso(new Date());
   // Thursday's pass is a fixed card of its own, right after urgent work.
   const thuGroup = thursday ? h('section', { class: 'wgroup g-thu', 'aria-label': 'מעבר חובה של יום חמישי' }, h('ul', { class: 'wprocs' }, thursday)) : null;
-  fill(wrap, banner, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, k === 'client' ? soon : null, (() => {
+  fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, k === 'client' ? soon : null, (() => {
     let g = list.filter((x) => bucketFor(x) === k);
     if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
     const extra = k === 'today' && review ? [reviewCard(review)] : [];
@@ -1289,6 +1307,7 @@ function taskRow({ t, c }, now) {
       personChip(t.owner),
       t.due_on ? h('span', { class: 'muted num' }, `עד ${dayShort(t.due_on)}`) : null),
     taskMeta(t, now),
+    t.urgent ? taskStart(t) : null,
     briefDetails(t));
 }
 
@@ -2102,9 +2121,17 @@ mountSession(async (staff) => {
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
   viewerError = viewer.error;
-  // The owner lands on "מה דורש אותי" (owner.html), which links back here (#mine):
-  // once per tab, so the "לקוחות" links of the other pages still open the list.
-  if (isOwnerView(viewer) && !location.hash && !ownerLanded()) { location.replace('owner.html'); return; }
+  // Everyone's first screen (app/office-ui.js firstScreenOf): the owner's "מה דורש
+  // אותי", Ofir's queue, Lior's decisions, the editors' page, Eli's shoot days. Only
+  // when the tab opens here without a view, once per tab; "מה עליי" stays #mine.
+  const first = landingNow({ me, viewer, arrived: ARRIVED_WITH || location.hash });
+  if (first) { location.replace(first); return; }
+  // The shortcuts of each role in the page head: the editors' page; the shoot day
+  // (Eli's page, Lior's shoot-day mode and the counter the office watches); the
+  // office's screens (Ofir's queue and pass, Lior's decisions).
+  $('cta-editor').hidden = !PEOPLE[me]?.editor;
+  $('cta-shoot').hidden = !(me === 'eli' || (scope === 'office' && !viewer.error));
+  document.querySelector('#app .head-actions')?.prepend(...officeLinks(viewer));
   // Screen 2, "כל הלקוחות במבט", for Irit, Lior and Ofir; screen 1 for the owner.
   // The top bar folds away on phones: the page head keeps a way in (cta-owner).
   for (const el of [$('nav-owner'), $('cta-owner')]) {
@@ -2114,6 +2141,8 @@ mountSession(async (staff) => {
   $('nav-team').hidden = !canManageTeam(viewer);
   // The top bar folds away on phones: the page head keeps a way in to the messages.
   $('nav-messages').hidden = $('cta-messages').hidden = !canSendMessages(viewer);
+  // Before the shoot day and client requests (prep.html): the office's.
+  $('nav-prep').hidden = $('cta-prep').hidden = scope !== 'office' || !!viewerError;
   // Always land on the signed-in person's own list; the owner lands on the whole team.
   minePerson = scope === 'own' ? me : me || '';
   applyScope();

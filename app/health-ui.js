@@ -4,18 +4,14 @@
 // app/health.js; colour is never the only cue (an icon and the word go with it).
 import { STATIONS } from './protocol.js';
 import { COLORS, personName, dayText } from './health.js';
-import { h, personChip, formatWhen, formatStamp, who, directory } from './protocol-ui.js';
+import {
+  h, personChip, formatWhen, formatStamp, who, directory, markFirstLanded,
+} from './protocol-ui.js';
 
-// The owner lands on screen 1 once per tab (the installed app, a sign-in, a new
-// tab); after that a plain link to clients.html opens the clients list. The mark
-// lives in this tab's session storage; without storage he always lands there.
-const LANDED = 'astrateg.ownerLanded';
-export function markOwnerLanded() {
-  try { sessionStorage.setItem(LANDED, '1'); } catch { /* no storage: nothing to remember */ }
-}
-export function ownerLanded() {
-  try { return sessionStorage.getItem(LANDED) === '1'; } catch { return false; }
-}
+// The owner lands on screen 1 once per tab (the one landing rule of every role:
+// app/office-ui.js firstScreenOf); after that a plain link to clients.html opens
+// the clients list.
+export const markOwnerLanded = markFirstLanded;
 
 // "אדום", "צהוב", "ירוק", with a shape: ! in a filled circle, ! in a ring, a tick.
 export const healthBadge = (color, extra = '') => h('span', { class: `hbadge h-${color} ${extra}`.trim() },

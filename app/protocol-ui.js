@@ -138,6 +138,18 @@ export function progressBar(done, total, label) {
     h('span', { class: 'pbar-fill', style: `inline-size:${pct}%` }));
 }
 
+// Whether this tab had not shown any page of the app before this one (a new tab,
+// the installed app starting): the first screens land only then (app/office-ui.js).
+const TAB_SEEN = 'astrateg.tabSeen';
+export const TAB_FRESH = (() => { try { return !sessionStorage.getItem(TAB_SEEN); } catch { return true; } })();
+const markTabSeen = () => { try { sessionStorage.setItem(TAB_SEEN, '1'); } catch { /* no storage */ } };
+// Landed on the first screen in this tab (app/office-ui.js firstScreenOf): set by
+// clients.html when it sends the person there, and by the first screens themselves.
+// Without storage: as landed, so the list is never left behind by itself.
+const LANDED = 'astrateg.firstLanded';
+export function markFirstLanded() { try { sessionStorage.setItem(LANDED, '1'); } catch { /* no storage */ } }
+export function firstLanded() { try { return sessionStorage.getItem(LANDED) === '1'; } catch { return true; } }
+
 // Session bar + login form. Calls onReady(staff) once a staff member is signed in.
 // A personal sign-in link in the address bar first asks for a password (set-password.js).
 export function mountSession(onReady) {
@@ -153,7 +165,7 @@ export function mountSession(onReady) {
     const ok = !!staff?.isStaff;
     $('login-block').hidden = ok;
     $('app').hidden = !ok;
-    if (ok) return onReady(staff);
+    if (ok) { markTabSeen(); return onReady(staff); }
     if (staff && !staff.isStaff) {
       $('lg-err').textContent = 'המשתמש מחובר אך אינו מורשה. יש לבקש הרשאה ממנהל המערכת.';
       $('lg-err').hidden = false;

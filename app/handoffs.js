@@ -117,9 +117,11 @@ export const HANDOFFS = [
     ],
   },
   {
-    id: 'final', on: 'p27.toilai', label: 'הגרסאות הסופיות עברו לעילאי',
+    // The editor's final versions in the Drive (p27.final); Ilai's "קיבלתי" is
+    // p27.toilai (protocol v5), so once he marked it there is nothing to send.
+    id: 'final', on: 'p27.final', label: 'הגרסאות הסופיות עברו לעילאי',
     to: [{
-      id: 'ilai', person: 'ilai', proc: 'p28',
+      id: 'ilai', person: 'ilai', proc: 'p28', until: 'p27.toilai',
       text: 'הגרסאות הסופיות של {client} בדרייב. אפשר לתזמן את התכנים ולמלא את הגאנט.',
       due: [{ label: 'יעד', proc: 'p28' }],
     }],

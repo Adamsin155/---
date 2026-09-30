@@ -5,8 +5,14 @@
 // Item keys are stored with each check, so never rename or reuse a key; retire it
 // instead and add a new one. Bump PROTOCOL_VERSION when the protocol changes.
 // Retired in v3 (Shirel removed from the protocol): p02.m.shirel, p11.ok.shirel.
+// v5 (stage 3, part 2: the office's flows and the intake, one version):
+//   - Retired: p29.told ("הגאנט מלא" tells Irit by itself, system-plan section 3).
+//   - p27.toilai is Ilai's "קיבלתי" on the final versions (it closes the editing).
+//   - Scripts are due at the end of business day 2 and the Zoom on day 3 (decision 14).
+//   - After "the characterization ended" (the mark p04.ended, decision 12) the rest
+//     of the form is due within 60 minutes.
 
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 // Office hours, in Israel time (decisions 1–2 in docs/plan/decisions.md).
 // Deadlines of minutes or hours that start from an office event (a deal coming
@@ -140,6 +146,7 @@ const isDms = (c) => c.shoot_type === 'dms';
 //   { from: 'deal' | 'char' | 'charEnd' | 'shoot' | 'contractEnd' | 'p05' … , minutes|hours|days|businessDays|at }
 //   from 'pNN' means "when process NN was completed"; 'item:pNN.x' when that one item was done.
 //   prevBusinessDay: the business day before the anchor ("the day before the shoot").
+//   afterMark: { key, minutes }: once that mark is done, the deadline is `minutes` after it.
 // `sla` is the protocol's own wording and is always shown.
 // `round: true`: the process repeats for every extra shoot round (a second shoot day).
 // Item `noBulk`: a confirmation by the client or someone outside the office; never marked in bulk.
@@ -226,8 +233,10 @@ export const PROCESSES = [
   },
   {
     id: 'p04', num: '4', phase: 'onboarding', title: 'ביצוע פגישת אפיון', owners: characterizer,
-    sla: 'עד שעתיים',
-    start: { from: 'char' }, due: { from: 'char', hours: 2 },
+    sla: 'עד שעתיים; אחרי "האפיון הסתיים" שאר הטופס תוך 60 דקות',
+    // Decision 12: once "the characterization ended" is marked (with its 4 short
+    // fields), the full form is due 60 minutes later.
+    start: { from: 'char' }, due: { from: 'char', hours: 2, afterMark: { key: 'p04.ended', minutes: 60 } },
     what: 'מגיעים פיזית לעסק ועוברים עם הלקוח על כל המידע הנדרש לעבודה. בסיום הפגישה האפיון נשמר במערכת.',
     items: [
       { key: 'p04.address', label: 'כתובת מלאה של העסק' },
@@ -371,8 +380,8 @@ export const PROCESSES = [
   },
   {
     id: 'p12', round: true, num: '12', phase: 'prep', title: 'כתיבת התסריטים ליום הצילום', owners: ['lior'],
-    sla: 'עד 3 ימי עסקים מפגישת האפיון',
-    start: { from: 'charEnd' }, due: { from: 'char', businessDays: 3 },
+    sla: 'עד סוף יום העסקים השני מפגישת האפיון, כדי שהזום ייכנס ביום השלישי',
+    start: { from: 'charEnd' }, due: { from: 'char', businessDays: 2 }, // decision 14
     what: 'ליאור מכין תסריטים לפי החבילה (תסריט לכל סרטון), האפיון, שיחת הדגשים, העסק, קהל היעד והמשפיענים שמגיעים ליום הצילום.',
     guidance: {
       natali: 'יום עם נטלי: הפניות ברורות לצופה, ראיונות עם הלקוח, סרטוני הסברה, היכרות עם העסק והמקום, הצגת השירותים, מיני־סצנות ותוכן מקצועי ומדויק. מסודר, ברור ומניע לפעולה; פחות קומדיה מוגזמת.',
@@ -386,7 +395,7 @@ export const PROCESSES = [
   },
   {
     id: 'p13', round: true, num: '13', phase: 'prep', title: 'שיחת Zoom לאישור התוכן', owners: ['lior'],
-    sla: '3 ימי עסקים לאחר פגישת האפיון, ללא הגבלת משך עד שהלקוח מאשר',
+    sla: 'ביום העסקים השלישי לאחר פגישת האפיון, ללא הגבלת משך עד שהלקוח מאשר',
     start: { from: 'p12' }, due: { from: 'char', businessDays: 3 },
     what: 'שיחת Zoom מוקלטת: עוברים על התסריטים, מסבירים את הרעיונות, מקבלים הערות ומשנים ניסוחים, עד שיש אישור ברור. תיקונים שנשארו: ליאור, עד יום עסקים אחד, והגרסה הסופית היא זו שב־Google Docs.',
     rule: 'לא מגיעים ליום צילום עם תוכן שלא עבר אישור לקוח.',
@@ -637,7 +646,7 @@ export const PROCESSES = [
       { key: 'p27.fixes', label: 'כל התיקונים בוצעו ונבדקו מחדש', optional: true },
       { key: 'p27.final', label: 'הגרסאות הסופיות בדרייב, בלי גרסאות ישנות שמבלבלות' },
       { key: 'p27.approved', label: 'הלקוח אישר את הסרטונים', owners: ['irit'], requires: ['p26.sent'], noBulk: true },
-      { key: 'p27.toilai', label: 'הלקוח הועבר לעילאי לתזמון ולגאנט', requires: ['p27.final'] },
+      { key: 'p27.toilai', label: 'עילאי קיבל את הגרסאות הסופיות לתזמון ולגאנט (״קיבלתי״)', owners: ['ilai'], requires: ['p27.final'] },
     ],
   },
   {
@@ -656,7 +665,6 @@ export const PROCESSES = [
     what: 'על כל תוכן שמתוזמן מעדכנים בגאנט מספר סרטון, קישור, יום, תאריך ושעה, כך שהגאנט והתזמון תמיד תואמים.',
     items: [
       { key: 'p29.filled', label: 'הגאנט מלא ותואם לתזמון בפועל', owners: ['ilai'] },
-      { key: 'p29.told', label: 'עילאי עדכן את עירית שהגאנט מוכן', owners: ['ilai'] },
       { key: 'p29.sent', label: 'הגאנט הועבר ללקוח', owners: ['irit'], requires: ['p29.filled'] },
     ],
   },

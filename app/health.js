@@ -31,6 +31,8 @@ import {
 } from './protocol-logic.js';
 import { stationOf, promisedClosing, materialsOf, SENT_CHECK_NOTE } from './messages-logic.js';
 import { isOwnerView } from './team-rules.js';
+import { AUTO_NOTE } from './characterization.js';
+import { TOPIC_NOTE } from './shoot-prep.js';
 import {
   partsIL, dayKeyIL, weekdayIL, atTimeIL, addDaysIL, startOfDayIL, endOfDayIL, daysBetweenIL, dayFromKeyIL,
 } from './tz.js';
@@ -677,7 +679,8 @@ export function station(client, state, extras = {}) {
 // Done (who and when; what the system did by itself is marked automatic, imported
 // history as imported), now (open, with its deadline), and planned (computed
 // dates; "not set yet, must be set by X" when a date is missing).
-const AUTO_NOTES = [SENT_CHECK_NOTE];
+// (The characterization form and the shoot-day blockers close some items by themselves.)
+const AUTO_NOTES = [SENT_CHECK_NOTE, AUTO_NOTE, TOPIC_NOTE];
 export const isAutoCheck = (c) => !!c && (c.by_email === 'system' || AUTO_NOTES.includes(c.note) || /^נחתם במערכת/.test(c.note || ''));
 export function timeline(client, state, checks = {}, now = new Date()) {
   const byId = new Map(state.states.map((s) => [s.proc.id, s]));
@@ -798,6 +801,17 @@ export function shootsAhead(clients, now = new Date(), days = 7) {
 // the client already moved the deadline (decision 3) and is taken off the time;
 // editing stopped for someone else's task (the pause mark, from the history in
 // `log`) does the same, so neither counts against the person.
+// Process 27 closes only on Ilai's "קיבלתי" (p27.toilai), after the editor's last
+// step, the final versions in the Drive (p27.final): the editor's time ends there,
+// so Ilai's delay is never the editor's lateness (EDITOR_END).
+export const EDITOR_END = { p27: 'p27.final' };
+export function editorEndOf(x, checks = {}) {
+  const key = EDITOR_END[baseId(x.proc.id)];
+  if (!key) return null;
+  const item = x.proc.items.find((i) => i.key.replace(/^r\d+\./, '') === key);
+  const c = item && checks[item.key];
+  return isReal(c) && c.at ? new Date(c.at) : null;
+}
 export function closedProcesses(clients, { stateOf, checksByClient = {}, since, now = new Date(), log = null } = {}) {
   const out = [];
   for (const c of clients) {
@@ -805,8 +819,10 @@ export function closedProcesses(clients, { stateOf, checksByClient = {}, since, 
     const cs = checksByClient[c.id] || {};
     const procs = s.states.map((x) => x.proc);
     const rows = log ? rowsOf(log, c.id) : null;
-    for (const x of s.states) {
-      if (!x.complete || !x.completedAt || x.completedAt < since || !x.dueAt) continue;
+    for (const s0 of s.states) {
+      const end = editorEndOf(s0, cs);
+      const x = end ? { ...s0, completedAt: end } : s0;
+      if ((!x.complete && !end) || !x.completedAt || x.completedAt < since || !x.dueAt) continue;
       const req = x.proc.items.filter((i) => !i.optional);
       if (req.length && req.every((i) => cs[i.key]?.state === 'na')) continue;
       if (isImported(x.proc, cs)) continue;
@@ -855,6 +871,11 @@ export const trendSince = (now = new Date(), weeks = 8) => onTimeTrend([], now, 
 // made again (Ilai), the videos handed to Ofir again (the editor). Each time after
 // the first is one return to fix, counted for the item's owner.
 const REWORK = ['p07.made', 'p23.made', 'p24.notify'];
+// Ofir's returns for fixes (app/office-marks.js: p25.return.N for the videos handed
+// in 24, p23.return.N for the rest of the graphics). Where he returned work, each
+// return is one; the work handed in again after it is not counted a second time.
+const RETURNS = { 'p24.notify': 'p25', 'p23.made': 'p23' };
+const RETURNS_MAX = 6; // rounds whose whole history is loaded (historyKeys)
 export function reworkCounts(clients, log, since = null) {
   const out = new Map();
   for (const c of clients) {
@@ -862,10 +883,17 @@ export function reworkCounts(clients, log, since = null) {
     if (!rows.length) continue;
     for (const p of applicableProcesses(c)) {
       for (const i of p.items) {
-        if (!REWORK.includes(i.key.replace(/^r\d+\./, ''))) continue;
-        const ev = doneEvents(rows, i.key).slice(1).filter((r) => !since || new Date(r.at) >= since);
-        if (!ev.length) continue;
-        for (const o of i.owners.filter((k) => k !== 'editor')) out.set(o, (out.get(o) || 0) + ev.length);
+        const base = i.key.replace(/^r\d+\./, '');
+        if (!REWORK.includes(base)) continue;
+        const inWindow = (r) => !since || new Date(r.at) >= since;
+        const again = doneEvents(rows, i.key).slice(1).filter(inWindow).length;
+        const pre = i.key.slice(0, i.key.length - base.length);
+        const ret = RETURNS[base] ? new RegExp(`^${pre.replace('.', '\\.')}${RETURNS[base]}\\.return\\.\\d+$`) : null;
+        const returns = ret ? [...new Set(rows.filter((r) => ret.test(r.item_key)).map((r) => r.item_key))]
+          .reduce((n, k) => n + doneEvents(rows, k).slice(0, 1).filter(inWindow).length, 0) : 0;
+        const n = Math.max(again, returns);
+        if (!n) continue;
+        for (const o of i.owners.filter((k) => k !== 'editor')) out.set(o, (out.get(o) || 0) + n);
       }
     }
   }
@@ -878,7 +906,14 @@ const HISTORY = [...REWORK, 'p07.sent', 'p23.sent', 'p27.notes'];
 export function historyKeys(clients) {
   const out = new Set();
   for (const c of clients) {
-    for (const p of applicableProcesses(c)) for (const i of p.items) if (HISTORY.includes(i.key.replace(/^r\d+\./, ''))) out.add(i.key);
+    for (const p of applicableProcesses(c)) {
+      for (const i of p.items) {
+        const base = i.key.replace(/^r\d+\./, '');
+        if (!HISTORY.includes(base)) continue;
+        out.add(i.key);
+        if (RETURNS[base]) for (let n = 1; n <= RETURNS_MAX; n += 1) out.add(`${i.key.slice(0, i.key.length - base.length)}${RETURNS[base]}.return.${n}`);
+      }
+    }
   }
   return [...out].sort();
 }

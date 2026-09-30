@@ -429,7 +429,9 @@ const PROMISES = [
     // Everyone else confirmed the date; the client's approval (and then the calendar) is left.
     onClient: (x, open) => !x.isDone('p11.ok.client') && open.every((k) => /\.ok\.client$|\.calendar$/.test(k)),
   },
-  { proc: 'p12', what: 'התסריטים ליום הצילום', chain: ['p12a', 'p12'] },
+  // Promise ה5 is the scripts and the Zoom within 3 business days: the date of 13.
+  // The scripts' own target is a day earlier (decision 14), an internal margin.
+  { proc: 'p12', what: 'התסריטים ליום הצילום', due: (x) => x.st('p13')?.dueAt || null, chain: ['p12a', 'p12'] },
   {
     proc: 'p27', what: 'סגירת הסרטונים', due: (x) => promisedClosing(x.ctx.shoot_at),
     chain: ['p22a', 'p22', 'p24', 'p25', 'p27'],

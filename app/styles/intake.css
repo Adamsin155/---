@@ -1,0 +1,152 @@
+/* The characterization, the content and the days before a shoot (intake.html,
+   prep.html), and the characterization's summary on the client card. Phones
+   first: one column, 44px targets, nothing wider than the screen. Builds on
+   protocol.css (the light brand shell and its tokens). */
+.ik-app, .pp-app { display: grid; gap: 14px; min-width: 0; }
+.ik-app > *, .pp-app > * { min-width: 0; }
+.ik-head h1 { margin: 0; font-size: 26px; line-height: 1.2; overflow-wrap: anywhere; }
+.ik-head p { margin: 4px 0 0; }
+.ik-round { display: flex; align-items: center; gap: 8px; margin-top: 10px; max-inline-size: 320px; }
+.ik-round .input { min-height: 44px; }
+
+/* Section links: a row of large tabs that wraps on a phone. */
+.ik-tabs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.ik-tab {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: var(--panel); color: var(--text); text-decoration: none; font-size: 15px;
+}
+.ik-tab:hover { background: var(--accent-soft); color: var(--text); }
+.ik-tab.is-on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+.ik-card, .pp-card {
+  display: grid; gap: 12px; min-width: 0; padding: 18px; margin: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+}
+.ik-card > *, .pp-card > * { min-width: 0; margin: 0; }
+.ik-card h2, .pp-card h2 { font-size: 20px; line-height: 1.3; }
+.ik-card h2:focus { outline: none; }
+.ik-stack { display: grid; gap: 14px; }
+.ik-done { border-inline-start: 4px solid var(--ok); }
+.ok-line { color: var(--ok); font-weight: 600; }
+.ik-note { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--warn-soft); border: 1px solid var(--warn-line); color: var(--text); }
+.ik-draft { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--text); }
+.ik-draft .btn-text { min-height: 44px; }
+.ik-progress { font-weight: 600; color: var(--accent-deep); }
+
+.ik-field { margin: 0; }
+.ik-field label { font-size: 15px; color: var(--text); font-weight: 600; }
+.ik-field.is-key label { color: var(--accent-deep); }
+.ik-field .hint { margin: 6px 0 0; }
+.ik-field .err:empty { display: none; }
+.ik-text { min-height: 72px; resize: vertical; line-height: 1.55; font-size: 16px; overflow: hidden; }
+.ik-card .input { font-size: 16px; } /* 16px: no zoom on focus in iOS */
+
+/* Choices as big buttons (radio groups). */
+.ik-seg, .ik-nets, .ik-group { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 8px; }
+.ik-seg legend, .ik-nets > legend, .ik-group > legend { padding: 0; font-size: 15px; font-weight: 600; margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ik-seg-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.ik-opt { position: relative; display: inline-flex; }
+.ik-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.ik-opt span {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 6px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--control-edge); background: var(--panel); font-size: 15px;
+}
+.ik-opt input:checked + span { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-deep); font-weight: 600; }
+.ik-opt input:checked + span::before { content: '✓'; margin-inline-end: 6px; }
+.ik-opt input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+.ik-seg.is-invalid .ik-opt span, .ik-nets.is-invalid .ik-net .ik-opt span { border-color: var(--danger); }
+.ik-seg .err:empty, .ik-nets .err:empty { display: none; }
+.ik-net { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-2); }
+.ik-login { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+.ik-more { display: flex; align-items: center; gap: 8px; max-inline-size: 320px; }
+.ik-more .input { min-height: 44px; }
+
+.ik-check { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 4px 0; font-size: 15px; cursor: pointer; }
+.ik-check input { inline-size: 22px; block-size: 22px; margin-top: 2px; flex: none; accent-color: var(--accent); }
+.ik-item .hint { margin: 0 32px 0 0; }
+.ik-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ik-approve { display: grid; gap: 6px; }
+.ik-context summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent); }
+.ik-context dl { display: grid; gap: 4px; margin: 0; }
+.ik-context dt { font-weight: 600; font-size: 13.5px; color: var(--text-2); margin-top: 6px; }
+.ik-context dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.ik-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+.ik-big { min-height: 48px; font-size: 16px; padding-inline: 20px; }
+.ik-actions .hint { margin-inline-end: auto; }
+/* The save button stays in reach on a long form. */
+.ik-sticky { position: sticky; bottom: 0; z-index: 2; padding: 10px 0; background: linear-gradient(to top, var(--panel) 75%, transparent); }
+
+/* ── prep.html: Irit before the shoot day ── */
+.pp-summary { margin: 0; color: var(--text-2); }
+.pp-filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.pp-card.is-closed { border-inline-start: 4px solid var(--ok); }
+.pp-card.has-block { border-inline-start: 4px solid var(--danger); }
+.pp-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.pp-head h2 a { color: var(--text); text-decoration: none; }
+.pp-head h2 a:hover { text-decoration: underline; }
+.pp-when { font-size: 14.5px; color: var(--text-2); }
+.pp-sub { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.pp-sub h3 { margin: 0; font-size: 16px; }
+.pp-parties { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.pp-party .btn { inline-size: 100%; min-height: 48px; justify-content: flex-start; }
+.pp-party .btn[aria-pressed='true'] { background: var(--ok-soft); border-color: var(--ok); color: var(--text); }
+.pp-party .btn[aria-pressed='true']::before { content: '✓'; margin-inline-end: 8px; color: var(--ok); font-weight: 700; }
+.pp-party small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.pp-status { font-weight: 600; }
+.pp-status.is-ok { color: var(--ok); }
+.pp-status.is-open { color: var(--warn); }
+.pp-blockers, .pp-checks, .pp-requests { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pp-blocker { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--late-soft); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); }
+.pp-blocker.is-seen { background: var(--bg-2); border-color: var(--line); }
+.pp-blocker.is-reported { background: var(--warn-soft); border-color: var(--warn-line); }
+.pp-blocker p { margin: 0; }
+.pp-topic { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.pp-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-acts .btn { min-height: 44px; }
+.pp-clear { color: var(--ok); margin: 0; }
+.pp-check { display: grid; gap: 4px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.pp-check:last-child { border-bottom: 0; }
+.pp-check-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.pp-sys { font-size: 13px; }
+.pp-sys.is-ok { color: var(--ok); }
+.pp-sys.is-fail { color: var(--danger); }
+.pp-check .hint { margin: 0; }
+.pp-form { display: grid; gap: 10px; }
+.pp-form .row2 { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+.pp-request { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-2); }
+.pp-request p { margin: 0; overflow-wrap: anywhere; }
+.pp-msg { white-space: pre-wrap; font-size: 14px; color: var(--text-2); padding: 8px 10px; background: var(--panel); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
+
+/* ── The client card: what the characterization and the focus call gave ── */
+.ik-summary { display: grid; gap: 10px; }
+.ik-summary h2 { margin: 0; font-size: 18px; }
+.ik-facts { display: grid; gap: 6px 16px; grid-template-columns: max-content 1fr; margin: 0; }
+.ik-facts dt { color: var(--text-2); font-size: 14px; }
+.ik-facts dd { margin: 0; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.ik-facts .btn-text { min-height: 44px; }
+.ik-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.ik-links .btn { min-height: 44px; }
+.brief-view { display: grid; gap: 8px; }
+.brief-view h2 { margin: 0; font-size: 17px; }
+.brief-hl, .brief-list { display: grid; gap: 4px; margin: 0; }
+.brief-hl dt, .brief-list dt { font-weight: 600; font-size: 13.5px; color: var(--text-2); margin-top: 4px; }
+.brief-hl dd, .brief-list dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.brief-hl dt.is-must { color: var(--ok); }
+.brief-hl dt.is-dont { color: var(--danger); }
+.brief-hl dd.is-must, .brief-hl dd.is-dont { padding: 6px 10px; border-radius: var(--radius-sm); background: var(--bg-2); }
+
+@media (max-width: 760px) {
+  .ik-card, .pp-card { padding: 14px 12px; }
+  .ik-head h1 { font-size: 22px; }
+  .ik-login, .pp-form .row2 { grid-template-columns: 1fr; }
+  .ik-actions .btn, .ik-big { flex: 1 1 100%; }
+  .ik-facts { grid-template-columns: 1fr; }
+  .ik-facts dt { margin-top: 6px; }
+}
+/* "Not checked yet" is the absence of an answer: no tick, no fill. */
+.ik-opt input[value='']:checked + span { background: var(--panel-2); border-color: var(--line-strong); color: var(--text-2); font-weight: 400; }
+.ik-opt input[value='']:checked + span::before { content: none; }
+details.pp-sub > summary.pp-sum { cursor: pointer; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-weight: 600; }
+details.pp-sub[open] > summary.pp-sum { margin-bottom: 4px; }
