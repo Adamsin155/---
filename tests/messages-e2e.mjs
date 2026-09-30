@@ -414,7 +414,7 @@ await step('an editor gets "no access", asks nothing of the messages tables, and
   assert.match(await text(page, '#no-access'), /אין לך גישה לעמוד הזה/);
   assert.equal(await page.locator('#msg-page').isHidden(), true);
   assert.ok(!requests.slice(before).some((r) => r.table === 'client_messages' || r.table === 'message_templates'));
-  await page.goto(`${BASE}clients.html`);
+  await page.goto(`${BASE}clients.html#mine`); // an editor's first screen is editor.html
   await page.waitForSelector('#app:not([hidden])');
   await page.waitForTimeout(300);
   assert.equal(await page.locator('#nav-messages').isHidden(), true);

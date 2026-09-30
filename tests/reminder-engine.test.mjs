@@ -323,8 +323,18 @@ test('photographer briefing (16): 17:00 Lior and Eli; 20:00 Lior if Eli did not 
   importTo(w, c, 'shoot');
   const at17 = due(w, IL(2026, 10, 14, 17));
   one(at17, 'briefing', 'lior', 'lior');
-  const eli = one(at17, 'briefing', 'eli', 'eli');
-  assert.match(eli.body, /הגעה ב־10:00, רחוב הים 3/);
+  // Eli gets the briefing once Lior sent it (with the drive label), not an empty one.
+  none(at17, 'briefing', 'eli');
+  mark(w, c, 'p16.brief', IL(2026, 10, 14, 17, 20), JSON.stringify({ label: 'כונן 3', notes: '' }));
+  none(due(w, IL(2026, 10, 14, 17, 20)), 'briefing', 'lior');
+  const eli = one(due(w, IL(2026, 10, 14, 17, 20)), 'briefing', 'eli', 'eli');
+  assert.match(eli.body, /הגעה ב־10:00, רחוב הים 3 · כונן 3/);
+  assert.doesNotMatch(eli.body, /סוללות/); // the gear list is on Eli's page only
+  assert.equal(eli.url, `shoot.html?id=${c.id}`);
+  // Sent earlier in the day: it reaches Eli at 17:00.
+  mark(w, c, 'p16.brief', IL(2026, 10, 14, 12), JSON.stringify({ label: 'A' }));
+  none(due(w, IL(2026, 10, 14, 16, 59)), 'briefing', 'eli');
+  assert.equal(hhmm(one(due(w, IL(2026, 10, 14, 17)), 'briefing', 'eli').at), '14.10 17:00');
   const r20 = one(due(w, IL(2026, 10, 14, 20)), 'briefing', '2000', 'lior');
   assert.equal(r20.shoot, true);
   mark(w, c, 'p16.photographer', IL(2026, 10, 14, 17, 30));
@@ -545,15 +555,32 @@ test('decision 8: on Lior\'s shoot day his exceptions go to Ofir', () => {
   const other = client(w, { name: 'אחר' });
   importTo(w, other, 'ongoing');
   w.tasks.push({ id: 't9', client_id: other.id, title: 'לקוח כועס', owner: 'lior', source: 'escalation', urgent: true, created_at: IL(2026, 10, 15, 12).toISOString() });
+  // The quiet mode is a recorded flag: not before Eli marks "הגעתי".
+  assert.equal(buildEnv({ ...w, now: IL(2026, 10, 15, 12) }).liorShoot.active, false);
+  assert.equal(one(due(w, IL(2026, 10, 15, 12)), 'urgent', 'now').person, 'lior');
+  mark(w, shoot, 'p17b.arrived', IL(2026, 10, 15, 10, 5));
+  // A mark from another day (imported, or a moved shoot) does not start it.
+  assert.equal(buildEnv({ ...w, now: IL(2026, 10, 15, 10) }).liorShoot.active, false);
   const env = buildEnv({ ...w, now: IL(2026, 10, 15, 12) });
   assert.equal(env.liorShoot.active, true);
   const r = one(computeReminders({ env }), 'urgent', 'now');
   assert.equal(r.person, 'ofir');
   assert.match(r.title, /^ליאור ביום צילום · משימה דחופה: אחר/);
   assert.match(r.key, /@lior$/); // still Lior's step: it goes out once
-  // After the day is closed (19), Lior again.
-  marks(w, shoot, itemsOf('p19'), IL(2026, 10, 15, 15));
+  // Once the drive is back, confirmed by both Eli and Lior, Lior again (before the day is closed).
+  mark(w, shoot, 'p19b.handed', IL(2026, 10, 15, 15));
+  assert.equal(buildEnv({ ...w, now: IL(2026, 10, 15, 15, 30) }).liorShoot.active, true);
+  mark(w, shoot, 'p19.took', IL(2026, 10, 15, 15, 10));
+  assert.equal(buildEnv({ ...w, now: IL(2026, 10, 15, 15, 30) }).liorShoot.active, false);
   assert.equal(one(due(w, IL(2026, 10, 15, 16)), 'urgent', 'now').person, 'lior');
+  // Lior can start it himself (p18.quiet) when Eli has not marked yet; the day closed (19) ends it.
+  const w2 = world();
+  const s2 = client(w2, { shoot_at: IL(2026, 10, 15, 11).toISOString() });
+  importTo(w2, s2, 'shoot');
+  mark(w2, s2, 'p18.quiet', IL(2026, 10, 15, 9, 50));
+  assert.equal(buildEnv({ ...w2, now: IL(2026, 10, 15, 9, 55) }).liorShoot.active, true);
+  marks(w2, s2, itemsOf('p19'), IL(2026, 10, 15, 15));
+  assert.equal(buildEnv({ ...w2, now: IL(2026, 10, 15, 15, 1) }).liorShoot.active, false);
 });
 
 test('exception to Lior (not urgent): his list at once, the owner\'s screen after a business day', () => {

@@ -507,7 +507,7 @@ await step('the team screen: a worker sees only their own row; the owner and Lio
   await wctx.close();
   const nctx = await newContext();
   const nadia = await newPage(nctx);
-  await signIn(nadia, 'clients.html', 'nadia@astrateg.test');
+  await signIn(nadia, 'clients.html#mine', 'nadia@astrateg.test'); // an editor's first screen is editor.html
   await nadia.waitForSelector('#view-mine:not([hidden])');
   assert.equal(await text(nadia, '#tab-performance'), 'הנתונים שלי');
   await nadia.click('#tab-performance');

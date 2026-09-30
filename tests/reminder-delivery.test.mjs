@@ -148,6 +148,8 @@ test('Lior\'s lists at 12:00 and 16:00 carry his queued escalations; none while 
   const shootWorld = office();
   shootWorld.clients[0].shoot_at = IL(2026, 10, 15, 11).toISOString();
   for (const k of Object.keys(shootWorld.checks.c1)) if (/^p1[79]b?\./.test(k)) delete shootWorld.checks.c1[k];
+  // The quiet mode is a recorded flag: Eli's "הגעתי" on the day starts it.
+  shootWorld.checks.c1['p17b.arrived'] = { state: 'done', at: IL(2026, 10, 15, 10, 5).toISOString(), note: null };
   const held = [...log, row({ id: 77, person: 'lior', status: 'queued', channel: 'digest', level: 'ring', rule: 'deal', key: 'l2', reason: 'shoot_mode', title: 'עסקה חדשה בלי טיפול: בטא' })];
   const during = planDigests({ env: envAt(IL(2026, 10, 15, 12), shootWorld), log: held, active: new Set(['l1', 'l2']) });
   assert.deepEqual(during, []);

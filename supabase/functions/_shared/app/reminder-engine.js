@@ -23,6 +23,7 @@ import {
 import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf } from './protocol-logic.js';
 import { STAFF_PEOPLE } from './protocol.js';
 import { dayKeyIL, atTimeIL, dayFromKeyIL, weekdayIL, addDaysIL, endOfDayIL } from './tz.js';
+import { shootCases, quietWindow } from './production.js';
 
 const MIN = 6e4;
 const live = (c) => c.status === 'active' || c.status === 'ending';
@@ -60,6 +61,8 @@ export function buildEnv({
       return states.get(c.id);
     },
     tasks: tasks.filter((t) => !t.done_at),
+    // Tasks finished lately (the server loads the last two days): "the requester hears".
+    doneTasks: tasks.filter((t) => t.done_at),
     access, reviews, statusNotes, messages, subscriptions, staff,
     personOf: (email) => people.get(String(email || '').toLowerCase()) || null,
     emailsOf: (person) => [...people].filter(([, p]) => p === person).map(([e]) => e),
@@ -85,23 +88,20 @@ function ofirMeetings(env) {
   return out;
 }
 
-// Lior on a shoot (decision 8 and "מצב שקט"): from Eli's arrival (an hour before
-// the influencers, or his "הגעתי" if earlier) until the day is closed (19) or the
-// day ends. Meanwhile his exceptions go to Ofir and his other rings wait.
+// Lior on a shoot (decision 8 and "מצב שקט"), a flag recorded in the checks: from
+// Eli's "הגעתי" (p17b.arrived; or Lior's own start, p18.quiet) until the drive is
+// back and confirmed by both (p19b.handed and p19.took), the day is closed (19) or
+// the day ends (app/production.js quietWindow). Meanwhile his exceptions go to Ofir
+// and his other rings wait for one summary after it.
 export function liorShoot(env) {
   const now = env.now;
   const cids = new Set();
   for (const c of env.clients) {
-    const shoots = [{ pre: '', at: parseDate(c.shoot_at) }, ...roundsOf(c).map((r) => ({ pre: `r${r.n}`, at: parseDate(r.shoot_at) }))];
-    for (const { pre, at } of shoots) {
-      if (!at || dayKeyIL(at) !== dayKeyIL(now)) continue;
-      const checks = env.checksOf(c);
-      const arrived = checks[`${pre ? `${pre}.` : ''}p17b.arrived`];
-      let start = new Date(at.getTime() - 36e5);
-      if (arrived?.state === 'done' && new Date(arrived.at) < start) start = new Date(arrived.at);
-      const p19 = env.stateOf(c).states.find((s) => s.proc.id === (pre ? `${pre}-p19` : 'p19'));
-      const end = p19?.complete && p19.completedAt ? p19.completedAt : endOfDayIL(at);
-      if (now >= start && now < end) cids.add(c.id);
+    for (const sc of shootCases(c)) {
+      if (dayKeyIL(sc.shootAt) !== dayKeyIL(now)) continue;
+      const p19 = env.stateOf(c).states.find((s) => s.proc.id === (sc.pre ? `r${sc.n}-p19` : 'p19'));
+      const w = quietWindow(sc, env.checksOf(c), p19?.complete ? p19.completedAt : null);
+      if (w && now >= w.from && now < w.to) cids.add(c.id);
     }
   }
   return { active: cids.size > 0, cids };

@@ -236,7 +236,7 @@ async function step(name, fn) {
 // ── An editor ───────────────────────────────
 const nadia = await newPage();
 await step('an editor\'s "מה עליי" and client list hold only her clients, from rows the database returned', async () => {
-  await signIn(nadia, 'clients.html', 'nadia');
+  await signIn(nadia, 'clients.html#mine', 'nadia'); // an editor's first screen is editor.html
   await nadia.waitForSelector('#view-mine:not([hidden]) .wproc');
   const mine = await text(nadia, '#mine-list');
   assert.match(mine, /מספרת רון[^]*עריכת הסרטונים/);
@@ -318,7 +318,7 @@ await step('the editing moves to someone else while her card is open: the next c
 // ── An editor with nothing yet ──────────────
 await step('an editor with no clients: friendly empty lists, no errors', async () => {
   const yariv = await newPage();
-  await signIn(yariv, 'clients.html', 'yariv');
+  await signIn(yariv, 'clients.html#mine', 'yariv');
   await yariv.waitForSelector('#mine-list .empty');
   assert.equal(await text(yariv, '#mine-list'), 'אין כרגע משהו פתוח אצלך.');
   await yariv.click('#tab-clients');
@@ -361,7 +361,7 @@ await step('Nirel opens a Natali client she does not edit, without its logins; h
 // ── Eli ─────────────────────────────────────
 await step('Eli sees the shoot coming up; a shoot from 12 days ago is no longer his', async () => {
   const eli = await newPage();
-  await signIn(eli, 'clients.html', 'eli');
+  await signIn(eli, 'clients.html#mine', 'eli'); // Eli's first screen is shoot.html
   await eli.waitForSelector('#view-mine:not([hidden]) .g-soon');
   assert.match(await text(eli, '#mine-list'), /מאפיית הכרמל/);
   assert.doesNotMatch(await text(eli, '#mine-list'), /גלידה ישנה/);

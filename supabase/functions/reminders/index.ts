@@ -49,6 +49,20 @@ async function all(build: () => any): Promise<Row[]> {
 }
 const chunks = <T>(list: T[], n: number): T[][] => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
 
+// Open tasks, and the ones finished in the last two days with their result (a
+// brief task Nirel finished: the requester hears, rule `briefDone`). Until
+// migration 20260930140000 adds client_tasks.result, open tasks only.
+const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, created_by_email, created_at, source, urgent, started_at';
+async function loadTasks(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  try {
+    return await all(() => admin.from('client_tasks').select(`${TASK_COLS}, result`).or(`done_at.is.null,done_at.gte."${since}"`).order('id'));
+  } catch (err) {
+    if ((err as { code?: string })?.code !== '42703') throw err;
+    return all(() => admin.from('client_tasks').select(TASK_COLS).is('done_at', null).order('id'));
+  }
+}
+
 // The database as tick.js sees it (service role: row level security does not apply).
 const db = {
   async load(now: Date) {
@@ -57,7 +71,7 @@ const db = {
     const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
-      all(() => admin.from('client_tasks').select('id, client_id, title, owner, due_on, done_at, created_by_email, created_at, source, urgent, started_at').is('done_at', null).order('id')),
+      loadTasks(now),
       all(() => admin.from('staff').select('email, person').order('email')),
       all(() => admin.from('client_access').select('id, client_id, network, status, updated_at').eq('status', 'broken').order('id')),
       all(() => admin.from('office_reviews').select('day, kind').gte('day', dayKeyIL(addDaysIL(now, -14))).order('day')),
