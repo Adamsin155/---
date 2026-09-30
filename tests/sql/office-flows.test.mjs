@@ -128,6 +128,13 @@ test('Ofir\'s meetings for those waiting for his check: times only, until he sav
   await db.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p04.saved', 'done')", [rows[0].id]);
   const saved = await run('nadia', 'select * from public.ofir_meetings(now())');
   assert.ok(new Date(saved.rows[0].ends_at) - new Date(saved.rows[0].starts_at) < 36e5);
+  // "האפיון הסתיים" (p04.ended, decision 12) ends the meeting as well, like app/office-marks.js MEETING_DONE_KEYS.
+  const [{ id: ended }] = (await db.query("insert into public.clients (name, characterizer, char_at) values ('ended', 'ofir', now() - interval '40 minutes') returning id")).rows;
+  const before = (await run('nadia', 'select * from public.ofir_meetings(now()) order by starts_at')).rows[0];
+  assert.equal(new Date(before.ends_at) - new Date(before.starts_at), 2 * 36e5);
+  await db.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p04.ended', 'done')", [ended]);
+  const tapped = (await run('nadia', 'select * from public.ofir_meetings(now()) order by starts_at')).rows[0];
+  assert.ok(new Date(tapped.ends_at) - new Date(tapped.starts_at) < 36e5);
   // Not for anyone outside the staff.
   assert.match((await as(db, null, (tx) => tx.query('select * from public.ofir_meetings(now())'))).error, /permission denied/);
 });

@@ -29,7 +29,8 @@ const run = (who, fn) => as(db, users[who], fn);
 const q = (who, sql, params = []) => run(who, async (tx) => (await tx.query(sql, params)).rows);
 
 test('the new marks of the production pages pass the key rule, in a round too', async () => {
-  const keys = ['p22.missing', 'p25.return', 'p24.fixed', 'p27.fixed', 'p27.ilai', 'p16.brief', 'p17b.brollq', 'p18.shot', 'p18.quiet', 'r2.p22.missing', 'r3.p17b.brollq'];
+  // (Returns for fixes are the office's marks, p25.return.N / p25.fixed.N.I, tested in office-flows.test.mjs.)
+  const keys = ['p22.missing', 'p27.fixed', 'p16.brief', 'p17b.brollq', 'p18.shot', 'p18.quiet', 'r2.p22.missing', 'r3.p17b.brollq', 'r2.p25.fixed.1.0'];
   const out = await q('lior', `insert into public.protocol_checks (client_id, item_key, state, note)
     select $1, k, 'done', '{}' from unnest($2::text[]) k returning item_key`, [ids.other, keys]);
   assert.deepEqual(out.map((r) => r.item_key).sort(), [...keys].sort());

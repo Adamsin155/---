@@ -3,7 +3,8 @@
 // every Natali client and her brief tasks; Eli: the shoots of the last 7 days to the
 // next 30); these loaders only choose the columns. The client's own phone and the
 // office's notes are never loaded here: the editors and Eli work with the business
-// details from the characterization (plan §3, "ולא את הטלפון האישי של הלקוח").
+// details from the characterization (plan §3, "ולא את הטלפון האישי של הלקוח";
+// loaded with app/intake-data.js loadCharacterizations).
 import { supabase } from './supa.js';
 
 const WORK_COLS = 'id, name, business, address, package_name, shoot_type, has_logo, editor, char_at, shoot_at, contract_end, status, links, deliverables, rounds, created_at';
@@ -23,16 +24,6 @@ async function all(build) {
 export async function loadWorkClients() {
   return all(() => supabase.from('clients').select(WORK_COLS)
     .in('status', ['active', 'ending']).order('shoot_at', { ascending: true, nullsFirst: false }));
-}
-
-// The characterization of each client (address, business phone, logo link…), when
-// the characterization form has saved one (public.characterizations). Without the
-// table, or without access, there is nothing: the page asks to report what is missing.
-export async function loadCharacterizations(ids) {
-  if (!ids.length) return {};
-  const { data, error } = await supabase.from('characterizations').select('client_id, fields').in('client_id', ids);
-  if (error || !Array.isArray(data)) return {};
-  return Object.fromEntries(data.map((r) => [r.client_id, r]));
 }
 
 // Tasks with how they ended (client_tasks.result, migration 20260930140000). Before

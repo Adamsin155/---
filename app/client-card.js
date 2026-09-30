@@ -709,18 +709,6 @@ async function endWait(x) {
   });
 }
 
-// Ilai's "קיבלתי" on the editor's final versions (27; the mark p27.ilai): the
-// editing task closes (editor.html). Ilai, or the office on his behalf (decision 23).
-function finalsLine(x) {
-  const kb = (x.proc.keyBase || x.proc.id).replace(/p28$/, 'p27');
-  if (checks[`${kb}.toilai`]?.state !== 'done') return null;
-  const got = checks[`${kb}.ilai`];
-  if (got?.state === 'done') return h('p', { class: 'wait-line' }, `עילאי קיבל את הגרסאות הסופיות · ${who(got.by_email)} · ${formatStamp(got.at)}`);
-  const can = me === 'ilai' || ['irit', 'lior', 'ofir'].includes(me) || (!me && !own());
-  return h('div', { class: 'wait-line' }, h('span', {}, 'הגרסאות הסופיות עברו לעילאי.'),
-    can ? h('button', { type: 'button', class: 'btn btn-sm', id: `${x.proc.id}-ilai`, onclick: () => mark(`${kb}.ilai`, 'done', `${x.proc.id}-ilai`, me === 'ilai' ? null : 'בשם עילאי') }, 'קיבלתי את הגרסאות הסופיות') : null);
-}
-
 // Editing paused for another task: who, at what stage, what is left, and for what.
 function pauseLine(x) {
   const p = pauseOf(x.proc, checks);
@@ -846,8 +834,6 @@ function procCard(x, now, s) {
     compact ? null : [
       waitLine(x),
       pid === 'p22' || pid === 'p27' ? pauseLine(x) : null,
-      // On 27, and on Ilai's own 28 (his view shows only his processes).
-      pid === 'p27' || (pid === 'p28' && mineOnly()) ? finalsLine(x) : null,
       p.ownerNote ? h('p', { class: 'proc-note' }, p.ownerNote) : null,
       missing.length ? h('div', { class: 'need', role: 'note' },
         h('span', {}, `חסר בפרטי הלקוח: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`, own() ? ' המשרד משלים אותם.' : ''),

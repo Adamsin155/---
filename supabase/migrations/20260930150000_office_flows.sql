@@ -183,8 +183,9 @@ revoke delete, truncate on public.change_requests from anon, authenticated;
 -- ── Ofir's meetings, for the one waiting for his check ──
 -- "אופיר באפיון, בקרה עד HH:MM" (decision 11): the editor does not see Ofir's other
 -- clients, so the times alone (never a client) come from here, by the same rule as
--- app/office-marks.js ofirMeetings: from the meeting until he marked it saved
--- (p04.saved), at most four hours; not marked, two hours.
+-- app/office-marks.js ofirMeetings: from the meeting until he marked it done
+-- (MEETING_DONE_KEYS: "האפיון הסתיים", p04.ended, or the form saved, p04.saved; the
+-- earlier), at most four hours; not marked, two hours.
 create or replace function public.ofir_meetings(p_since timestamptz)
 returns table (starts_at timestamptz, ends_at timestamptz)
 language sql stable security definer set search_path = '' as $$
@@ -193,7 +194,7 @@ language sql stable security definer set search_path = '' as $$
               else least(d.at, c.char_at + interval '4 hours') end
   from public.clients c
   left join lateral (select min(s.at) as at from public.protocol_checks s
-                     where s.client_id = c.id and s.item_key = 'p04.saved' and s.state = 'done' and s.at > c.char_at) d on true
+                     where s.client_id = c.id and s.item_key in ('p04.ended', 'p04.saved') and s.state = 'done' and s.at > c.char_at) d on true
   where public.is_staff() and c.char_at is not null and coalesce(c.characterizer, 'ofir') = 'ofir'
     and c.status in ('active', 'ending')
     and c.char_at >= p_since - interval '1 day' and c.char_at <= now() + interval '1 day'

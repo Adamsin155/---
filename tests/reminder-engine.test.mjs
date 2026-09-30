@@ -11,6 +11,7 @@ import { PROCESSES } from '../app/protocol.js';
 import { IMPORT_NOTE } from '../app/protocol-logic.js';
 import { importKeys } from '../app/client-open.js';
 import { dateIL, partsIL } from '../app/tz.js';
+import { returnNote, returnKey, fixedKey } from '../app/office-marks.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
 const STAFF = [
@@ -61,6 +62,34 @@ test('every rule has an id, the matrix row it implements, and valid steps', () =
       }
     }
   }
+});
+
+// Stage 3, part 2 merged three branches that each rang some of the same events
+// (a return for fixes, the final versions to Ilai, Ofir's clock): one rule each.
+test('one ring per editing event: the return, the fixes back with Ofir, the final versions and Ilai\'s "קיבלתי"', () => {
+  const w = world();
+  const c = client(w, { editor: 'nadia', shoot_at: IL(2026, 10, 15, 11).toISOString() });
+  importTo(w, c, 'post');
+  for (const id of ['p22a', 'p22', 'p24', 'p25', 'p26', 'p27']) for (const i of PROCESSES.find((p) => p.id === id).items) delete w.checks[c.id][i.key];
+  mark(w, c, 'p22a.assigned', IL(2026, 10, 18, 10));
+  mark(w, c, 'p22.received', IL(2026, 10, 18, 11));
+  mark(w, c, 'p24.notify', IL(2026, 10, 20, 11));
+  const rings = (now, who) => due(w, now).filter((r) => r.person === who && r.level === 'ring').map((r) => `${r.rule}.${r.step}`);
+  assert.deepEqual(rings(IL(2026, 10, 20, 11), 'ofir'), ['qa.now']);
+  mark(w, c, returnKey('', 'videos', 1), IL(2026, 10, 20, 11, 20), returnNote([{ ref: '1', text: 'x' }], IL(2026, 10, 20, 18)));
+  assert.deepEqual(rings(IL(2026, 10, 20, 11, 20), 'nadia'), ['qaReturn.now']);
+  assert.deepEqual(rings(IL(2026, 10, 20, 11, 40), 'ofir'), [], 'his clock stops on a return');
+  mark(w, c, fixedKey('', 'videos', 1), IL(2026, 10, 20, 13));
+  assert.deepEqual(rings(IL(2026, 10, 20, 13), 'ofir'), ['qa.now']);
+  assert.deepEqual(rings(IL(2026, 10, 20, 13), 'nadia'), []);
+  mark(w, c, 'p25.approved', IL(2026, 10, 20, 13, 30));
+  mark(w, c, 'p26.sent', IL(2026, 10, 20, 14));
+  mark(w, c, 'p27.approved', IL(2026, 10, 21, 10));
+  mark(w, c, 'p27.final', IL(2026, 10, 21, 11));
+  const ilai = due(w, IL(2026, 10, 21, 11)).filter((r) => r.person === 'ilai' && /סופיות/.test(r.title));
+  assert.deepEqual(ilai.map((r) => `${r.rule}.${r.step}.${r.level}`), ['finalReady.ilai.quiet']);
+  mark(w, c, 'p27.toilai', IL(2026, 10, 21, 12)); // Ilai's "קיבלתי" (protocol v5)
+  none(due(w, IL(2026, 10, 21, 18)), 'finalReady');
 });
 
 test('office time helpers: 30 office minutes before a morning deadline start the day before', () => {

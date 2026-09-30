@@ -4,7 +4,10 @@
 // business phone with the ready closing line, Eli's notes and the 12א highlights;
 // and one button for the next step (app/production.js editorState):
 //   ממתין לכונן → (1) קיבלתי את הכונן והתחלתי → (2) מוכן לבדיקה → (3) תיקונים מאופיר
-//   → (4) תיקונים הושלמו, הגרסאות הסופיות בדרייב → אצל עילאי until he marks "קיבלתי".
+//   (the office's returns, app/office-ui.js fixList) → (4) תיקונים הושלמו, הגרסאות
+//   הסופיות בדרייב → אצל עילאי until he marks "קיבלתי" (p27.toilai).
+// The business phone and the logo come from the characterization form, the
+// highlights from the focus call (app/intake-data.js, app/briefs.js).
 // Nirel also gets her "בריפים" inbox here. Each editor sees their own on-time and
 // first-pass numbers, never anyone else's.
 import { PEOPLE } from './protocol.js';
@@ -13,7 +16,11 @@ import { dayFromKeyIL, endOfDayIL } from './tz.js';
 import {
   loadChecks, setCheck, clearCheck, setChecksBulk, addTask, setTaskDone, setTaskStarted, loadAllLog, loadDirectory,
 } from './protocol-data.js';
-import { loadWorkClients, loadCharacterizations, loadMyTasks, loadOpenTasksOf, finishTask } from './production-data.js';
+import { loadWorkClients, loadMyTasks, loadOpenTasksOf, finishTask } from './production-data.js';
+import { loadCharacterizations, loadBriefsOf } from './intake-data.js';
+import { highlightsOf, briefBlock } from './briefs.js';
+import { fixList } from './office-ui.js';
+import { QA_KINDS } from './office-marks.js';
 import {
   $, fill, h, toast, errorText, mountSession, viewerOf, directory, formatStamp, formatWhen, briefDetails, taskBadge,
   isUrgentTask, hasBrief, VIEWER_UNKNOWN,
@@ -28,6 +35,8 @@ let clients = [];
 let checks = {};
 let tasks = [];
 let chars = {};
+let briefs = {};
+let viewer = null;
 let statsLog = null;
 let lastLoad = 0;
 const states = new Map();
@@ -51,7 +60,8 @@ async function load() {
     return;
   }
   states.clear();
-  chars = await loadCharacterizations(allJobs().map((j) => j.client.id));
+  const ids = [...new Set(allJobs().map((j) => j.client.id))];
+  [chars, briefs] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids)]);
   lastLoad = Date.now();
   $('state').textContent = '';
   await tidyBlocks();
@@ -146,17 +156,17 @@ function sheetBlock(job) {
       h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: `${id}-cp-closing`, onclick: () => copy(s.closing, 'נוסח הסגיר') }, 'העתקת הסגיר')) : null);
 }
 
-// "מה חייבים להגיד ומה אסור" from the 12א call. Until the highlights form lands
-// (app/briefs.js, the intake module), what Lior noted on those two items.
+// "מה חייבים להגיד ומה אסור" from Lior's focus call (12א, public.content_briefs of
+// this shoot round; app/briefs.js), and the call's other answers below them.
 function highlightsBlock(job) {
-  const c = cs(job.client);
-  const note = (k) => P.noteOf(c[`${job.pre}p12a.t.${k}`]);
-  const must = note('messages');
-  const dont = note('dont');
-  const body = must || dont
-    ? h('dl', { class: 'ed-hl' }, must ? [h('dt', {}, 'חייבים להגיד'), h('dd', {}, must)] : null, dont ? [h('dt', {}, 'אסור להגיד'), h('dd', {}, dont)] : null)
+  const brief = briefs[job.client.id]?.[job.round] || null;
+  const hl = highlightsOf(brief);
+  const rest = briefBlock(brief, { heading: 'שאר הדגשים משיחת הדגשים', id: `${cardId(job)}-brief` });
+  const body = hl
+    ? h('dl', { class: 'ed-hl' }, hl.must ? [h('dt', {}, 'חייבים להגיד'), h('dd', {}, hl.must)] : null, hl.dont ? [h('dt', {}, 'אסור להגיד'), h('dd', {}, hl.dont)] : null)
     : h('p', { class: 'muted' }, 'עוד לא נרשמו דגשים משיחת הדגשים (12א). אם חסר, לשאול את ליאור.');
-  return h('details', { class: 'ed-more', open: !!(must || dont) }, h('summary', {}, 'מה חייבים להגיד ומה אסור'), body);
+  return h('details', { class: 'ed-more', open: !!hl }, h('summary', {}, 'מה חייבים להגיד ומה אסור'), body,
+    rest ? h('details', { class: 'ed-more ed-brief' }, h('summary', {}, 'כל הדגשים מהשיחה'), rest) : null);
 }
 function eliNotes(job) {
   const text = P.noteOf(cs(job.client)[`${job.pre}p19b.notes`]);
@@ -177,10 +187,10 @@ function stateBlock(job, st) {
         h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, onclick: () => openReady(job) }, 'מוכן לבדיקה'),
         st.blocked ? null : missingBtn);
     case 'qa':
-      return h('p', { class: 'ed-wait' }, `אצל אופיר מאז ${formatWhen(st.since, now)}. יעד הבקרה: שעת עבודה. תיקונים, אם יהיו, יופיעו כאן.`);
-    case 'fixes': return fixesBlock(job, st, 'qa');
+      return h('p', { class: 'ed-wait' }, `${st.round > 1 ? 'התיקונים אצל אופיר לבדיקה חוזרת' : 'אצל אופיר'} מאז ${formatWhen(st.since, now)}. יעד הבקרה: שעת עבודה. תיקונים, אם יהיו, יופיעו כאן.`);
+    case 'fixes': return qaFixes(job);
     case 'client': return h('p', { class: 'ed-wait' }, 'אופיר אישר. הסרטונים אצל הלקוח. הערות הלקוח יופיעו כאן.');
-    case 'clientFixes': return fixesBlock(job, st, 'client');
+    case 'clientFixes': return clientFixesBlock(job, st);
     case 'final':
       return h('div', { class: 'ed-act' },
         h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, onclick: (e) => finish(job, st, e.currentTarget) }, 'תיקונים הושלמו, הגרסאות הסופיות בדרייב'),
@@ -190,16 +200,29 @@ function stateBlock(job, st) {
   }
 }
 
-// Fixes, one line per video: from Ofir ('qa') or from the client ('client').
-function fixesBlock(job, st, from) {
+// Ofir's return for fixes: the office's list (app/office-ui.js), the same one the
+// client card shows, with "תוקן" per issue and "סמן הכול תוקן". The last one fixed
+// sends the videos back to Ofir (p25.fixed.N; his clock starts again).
+function qaFixes(job) {
+  const c = job.client;
+  return h('div', { class: 'ed-fixes' }, fixList({
+    client: c, checks: cs(c), kind: 'videos', pre: job.pre, fixer: QA_KINDS.videos.fixer(job.ctx), me, viewer,
+    onChange: () => {
+      states.delete(c.id);
+      renderKeepingFocus(`${cardId(job)}-h`);
+      if (P.editorState(job, cs(c)).key === 'qa') offerHandoff({ client: c, key: `${job.pre}p24.notify`, checks: () => cs(c), me });
+    },
+  }));
+}
+
+// The client's notes, one line per video (Irit typed them, process 27).
+function clientFixesBlock(job, st) {
   const id = cardId(job);
-  const list = from === 'qa' ? st.ret.videos : st.notes.videos;
-  const text = from === 'qa' ? st.ret.text : st.notes.text;
+  const list = st.notes.videos;
+  const text = st.notes.text;
   const fixed = st.fixed || new Set();
   const left = list.filter((v) => !fixed.has(v.n));
-  const head = from === 'qa'
-    ? `אופיר החזיר לתיקון · סבב ${st.ret.round}${st.ret.due ? ` · עד ${P.dueWords(st.ret.due, new Date())}` : ''}`
-    : 'הערות הלקוח · מתקנים ומעבירים ישר לעילאי';
+  const head = 'הערות הלקוח · מתקנים ומעבירים ישר לעילאי';
   return h('div', { class: 'ed-fixes' },
     h('p', { class: 'ed-fixes-h' }, head),
     text ? h('p', { class: 'ed-note' }, text) : null,
@@ -209,12 +232,12 @@ function fixesBlock(job, st, from) {
         h('span', { class: 'ed-fix-n num' }, `סרטון ${v.n}`),
         h('span', { class: 'ed-fix-t' }, v.text || ''),
         done ? h('span', { class: 'tag' }, 'תוקן')
-          : h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-fix-${v.n}`, 'aria-label': `סרטון ${v.n} תוקן`, onclick: (e) => markFixed(job, st, from, [v.n], e.currentTarget) }, 'תוקן'));
+          : h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-fix-${v.n}`, 'aria-label': `סרטון ${v.n} תוקן`, onclick: (e) => markFixed(job, st, [v.n], e.currentTarget) }, 'תוקן'));
     })) : null,
     h('div', { class: 'ed-act' },
-      h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, onclick: (e) => markFixed(job, st, from, list.map((v) => v.n), e.currentTarget) },
+      h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, onclick: (e) => markFixed(job, st, list.map((v) => v.n), e.currentTarget) },
         list.length && left.length < list.length ? `סמן את השאר תוקן (${left.length})` : 'סמן הכול תוקן'),
-      h('span', { class: 'hint' }, from === 'qa' ? 'כשהכול תוקן, זה חוזר לאופיר לבדיקה.' : 'כשהכול תוקן: ״תיקונים הושלמו״.')));
+      h('span', { class: 'hint' }, 'כשהכול תוקן: ״תיקונים הושלמו״.')));
 }
 
 function pauseBlock(job, st) {
@@ -445,31 +468,19 @@ $('ready-form').addEventListener('submit', async (e) => {
   }
 });
 
-// ── (3) Fixes ───────────────────────────────
-async function markFixed(job, st, from, videos, btn) {
+// ── (3) The client's fixes ──────────────────
+// (Ofir's fixes are the office's list: qaFixes above.)
+async function markFixed(job, st, videos, btn) {
   btn.disabled = true;
   try {
-    if (from === 'qa') {
-      const list = st.ret.videos;
-      const fixed = new Set([...st.fixed, ...videos]);
-      await markOne(job, 'p24.fixed', P.fixedNote(st.ret.round, [...fixed]));
-      if (!list.length || list.every((v) => fixed.has(v.n))) {
-        await markOne(job, 'p24.notify', `תיקונים · סבב ${st.ret.round}`);
-        toast(`התיקונים חזרו לאופיר לבדיקה: ${jobName(job)}.`);
-        renderKeepingFocus(`${cardId(job)}-h`);
-        offerHandoff({ client: job.client, key: `${job.pre}p24.notify`, checks: () => cs(job.client), me });
-        return;
-      }
-    } else {
-      const list = st.notes.videos;
-      const fixed = new Set([...st.fixed, ...videos]);
-      await markOne(job, 'p27.fixed', P.clientFixedNote([...fixed]));
-      if (!list.length || list.every((v) => fixed.has(v.n))) {
-        await markOne(job, 'p27.fixes', 'בעמוד העריכה');
-        toast('כל תיקוני הלקוח סומנו. עכשיו: ״תיקונים הושלמו, הגרסאות הסופיות בדרייב״.');
-        renderKeepingFocus(`${cardId(job)}-go`);
-        return;
-      }
+    const list = st.notes.videos;
+    const fixed = new Set([...st.fixed, ...videos]);
+    await markOne(job, 'p27.fixed', P.clientFixedNote([...fixed]));
+    if (!list.length || list.every((v) => fixed.has(v.n))) {
+      await markOne(job, 'p27.fixes', 'בעמוד העריכה');
+      toast('כל תיקוני הלקוח סומנו. עכשיו: ״תיקונים הושלמו, הגרסאות הסופיות בדרייב״.');
+      renderKeepingFocus(`${cardId(job)}-go`);
+      return;
     }
     toast(`סומן: ${videos.map((n) => `סרטון ${n}`).join(', ')} תוקן.`);
     renderKeepingFocus(`${cardId(job)}-go`);
@@ -480,14 +491,16 @@ async function markFixed(job, st, from, videos, btn) {
 }
 
 // ── (4) Final versions to Ilai ──────────────
+// The editor marks the final versions in the Drive (p27.final); Ilai gets them
+// (app/reminder-rules.js finalReady) and his "קיבלתי" (p27.toilai) closes the job.
 async function finish(job, st, btn) {
   if (!P.canFinish(st)) return;
   btn.disabled = true;
   try {
-    await markMany(job, [...(st.notes ? ['p27.fixes'] : []), 'p27.final', 'p27.toilai'], 'בעמוד העריכה');
+    await markMany(job, [...(st.notes ? ['p27.fixes'] : []), 'p27.final'], 'בעמוד העריכה');
     toast(`הגרסאות הסופיות עברו לעילאי: ${jobName(job)}. נסגר כשהוא מסמן ״קיבלתי״.`);
     renderKeepingFocus(`${cardId(job)}-h`);
-    offerHandoff({ client: job.client, key: `${job.pre}p27.toilai`, checks: () => cs(job.client), me });
+    offerHandoff({ client: job.client, key: `${job.pre}p27.final`, checks: () => cs(job.client), me });
   } catch (err) {
     btn.disabled = false;
     toast(`הסימון לא נשמר. ${errorText(err)}`);
@@ -709,8 +722,7 @@ function renderStats() {
   const jobs = allJobs().map((j) => ({
     videos: P.videosPerDay(j.ctx),
     approved: cs(j.client)[`${j.pre}p25.approved`]?.state === 'done',
-    firstReturn: P.firstReturnFrom((statsLog || []).filter((r) => r.client_id === j.client.id), `${j.pre}p25.return`)
-      || (P.qaReturnOf(cs(j.client), j.pre) ? { videos: P.qaReturnOf(cs(j.client), j.pre).videos } : null),
+    firstReturn: P.firstReturnOf(cs(j.client), j.pre),
   }));
   const fp = P.firstPassOf(jobs);
   sec.hidden = false;
@@ -736,7 +748,8 @@ setInterval(() => {
 }, 60e3);
 
 mountSession(async (staff) => {
-  const [dir, viewer] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
+  let dir;
+  [dir, viewer] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
   Object.assign(directory, dir);
   me = viewer.me;
   if (!me || !PEOPLE[me]?.editor) {

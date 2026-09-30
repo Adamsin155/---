@@ -11,7 +11,7 @@ import { PROCESSES } from '../app/protocol.js';
 import { clientState, IMPORT_NOTE } from '../app/protocol-logic.js';
 import { computeReminders } from '../app/reminder-engine.js';
 import {
-  qaState, qaRounds, ofirMeetings, returnKey, fixedKey, fixedItemKey, returnNote, readReturn, fixDue, qaDue, qaWaited, meetingNow,
+  qaState, qaRounds, ofirMeetings, MEETING_DONE_KEYS, returnKey, fixedKey, fixedItemKey, returnNote, readReturn, fixDue, qaDue, qaWaited, meetingNow,
   describeOfficeMark, SHIFT_KEY, shiftNote, accessFixedKey, accessFixNote, QA_KINDS,
 } from '../app/office-marks.js';
 import {
@@ -158,6 +158,10 @@ test('Ofir\'s one-hour clock stops while he is in a characterization (decision 1
   // Saved only the next morning: the meeting stops counting after four hours.
   mark(w, a, 'p04.saved', IL(2026, 10, 21, 9, 30));
   assert.equal(hhmm(new Date(ofirMeetings(w.clients, (c) => w.checks[c.id])[0][1])), '20.10 14:00');
+  // "האפיון הסתיים" (p04.ended, decision 12) ends it too, before the full form is saved.
+  assert.deepEqual(MEETING_DONE_KEYS, ['p04.ended', 'p04.saved']);
+  mark(w, a, 'p04.ended', IL(2026, 10, 20, 10, 50));
+  assert.equal(hhmm(new Date(ofirMeetings(w.clients, (c) => w.checks[c.id])[0][1])), '20.10 10:50');
 });
 
 test('the QA queue: first due first, with the round, the waiting time and the rounds of a second shoot', () => {

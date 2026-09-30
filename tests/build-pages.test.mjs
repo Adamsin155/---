@@ -10,7 +10,8 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { build, commitSite, published } from '../scripts/build-pages.mjs';
 import { importsOf } from '../scripts/sync-functions.mjs';
 
-const PAGES = ['index.html', 'q.html', 'quotes.html', 'client.html', 'clients.html', 'editor.html', 'shoot.html', 'clients.webmanifest'];
+const PAGES = ['index.html', 'q.html', 'quotes.html', 'client.html', 'clients.html', 'owner.html', 'editor.html', 'shoot.html',
+  'qa.html', 'pass.html', 'decisions.html', 'intake.html', 'prep.html', 'clients.webmanifest'];
 const NEVER = ['docs', 'supabase', 'tests', 'scripts', '.claude', '.github', 'private', 'node_modules',
   'README.md', 'package.json', 'package-lock.json', '.gitignore'];
 

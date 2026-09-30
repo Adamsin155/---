@@ -20,6 +20,25 @@ export async function loadCharacterization(clientId) {
   return data;
 }
 
+// The characterizations and focus calls of several clients at once (the editors'
+// page): only the content, not who saved it. Without the table (before the
+// migration) or without access: nothing, and the page says what is missing.
+export async function loadCharacterizations(ids) {
+  if (!ids.length) return {};
+  const { data, error } = await supabase.from('characterizations').select('client_id, fields').in('client_id', ids);
+  if (error || !Array.isArray(data)) return {};
+  return Object.fromEntries(data.map((r) => [r.client_id, r]));
+}
+// { clientId: { round: row } }
+export async function loadBriefsOf(ids) {
+  if (!ids.length) return {};
+  const { data, error } = await supabase.from('content_briefs').select('client_id, round, fields').in('client_id', ids);
+  if (error || !Array.isArray(data)) return {};
+  const out = {};
+  for (const r of data) (out[r.client_id] ||= {})[r.round] = r;
+  return out;
+}
+
 // Saves the fields (merging is the caller's); `complete` stamps the first completion.
 export async function saveCharacterization(clientId, fields, complete) {
   const row = { client_id: clientId, fields, completed_at: complete ? new Date().toISOString() : null };

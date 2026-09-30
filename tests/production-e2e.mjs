@@ -5,8 +5,11 @@
 //   - Nadia on a 360px phone: lands on her page, sees only her client, day 1 of 3 and
 //     both dates in words, the business phone (never the client's own), and walks
 //     the four buttons: the drive with its 4 checks, a missing logo ("חסום" and
-//     back), the self-check, Ofir's per-video fixes, the client's fixes, the final
-//     versions to Ilai, and the card closes when Ilai marks "קיבלתי".
+//     back), the self-check, Ofir's return (the office's list, p25.return.N, with
+//     "תוקן" per issue), the client's fixes, the final versions to Ilai (p27.final),
+//     and the card closes when Ilai marks "קיבלתי" (his item p27.toilai). The
+//     business phone and logo come from the characterization form, the highlights
+//     from the focus call (content_briefs).
 //   - Nirel: an urgent brief while editing asks "לעצור את העריכה?" prefilled, the
 //     pause says "עצירה לבקשת ליאור", finishing the brief records what was done and
 //     opens the follow-ups; resuming closes the pause notices.
@@ -20,6 +23,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
 import { PROCESSES } from '../app/protocol.js';
+import { returnNote } from '../app/office-marks.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -71,8 +75,8 @@ const db = {
     ...imported(A, 'post').filter((r) => !EDITING.has(r.item_key)),
     check(A, 'p22a.assigned', '2026-10-18T10:00:00'),
     check(A, 'p19b.notes', '2026-10-15T16:00:00', 'בסרטון 2 יש שתי גרסאות. הסאונד בסרטון 3 מהמיקרופון השני.', 'eli@astrateg.test'),
-    check(A, 'p12a.t.messages', '2026-10-06T10:00:00', 'להגיד שיש חניה חינם', 'lior@astrateg.test'),
-    check(A, 'p12a.t.dont', '2026-10-06T10:00:00', 'לא להזכיר מחירים', 'lior@astrateg.test'),
+    // Only an item checked: the words themselves are in the focus call's row (content_briefs).
+    check(A, 'p12a.t.messages', '2026-10-06T10:00:00', null, 'lior@astrateg.test'),
     ...imported(B, 'post').filter((r) => !EDITING.has(r.item_key)), check(B, 'p22a.assigned', '2026-10-18T10:00:00'),
     ...imported(N, 'post').filter((r) => !EDITING.has(r.item_key)), check(N, 'p22a.assigned', '2026-10-18T10:00:00'),
     ...imported(Tc, 'ongoing'),
@@ -81,7 +85,12 @@ const db = {
   client_tasks: [
     { id: randomUUID(), client_id: Tc.id, title: 'תיקון באנר לקמפיין', owner: 'nirel', due_on: '2026-10-19', done_at: null, done_by_email: null, created_by_email: 'lior@astrateg.test', created_at: T('2026-10-19T09:00:00').toISOString(), source: null, urgent: true, started_at: null, result: null, brief: { problem: 'הבאנר לא קריא', change: 'להגדיל כותרת', keep: 'הצבעים', result: 'באנר קריא בטלפון' } },
   ],
-  characterizations: [{ client_id: A.id, fields: { business_phone: '03-5551234', logo_link: 'https://drive.google.com/logo-a' } }],
+  // The intake's form (app/characterization.js): fields.phone is the business's, fields.logo_url its logo.
+  characterizations: [{ client_id: A.id, fields: { address: 'הרצל 10, תל אביב', phone: '03-5551234', logo_url: 'https://drive.google.com/logo-a', services: 'תספורות' }, completed_at: null, completed_by: null, by_email: 'ofir@astrateg.test', at: '2026-10-05T12:00:00+03:00' }],
+  content_briefs: [
+    { client_id: A.id, round: 1, fields: { messages: 'להגיד שיש חניה חינם', dont: 'לא להזכיר מחירים', faq: 'כמה זמן לוקחת צביעה' }, by_email: 'lior@astrateg.test', at: '2026-10-06T10:00:00+03:00' },
+    { client_id: B.id, round: 1, fields: { messages: 'מסר של קפה גולן' }, by_email: 'lior@astrateg.test', at: '2026-10-06T10:00:00+03:00' },
+  ],
   protocol_log: [], push_subscriptions: [], reminder_log: [],
 };
 
@@ -100,7 +109,7 @@ function sees(me, c) {
 function visibleRows(me, table) {
   const rows = db[table];
   if (table === 'clients') return rows.filter((c) => sees(me, c));
-  if (['protocol_checks', 'protocol_log', 'client_tasks', 'characterizations'].includes(table)) return rows.filter((r) => sees(me, db.clients.find((c) => c.id === r.client_id)));
+  if (['protocol_checks', 'protocol_log', 'client_tasks', 'characterizations', 'content_briefs'].includes(table)) return rows.filter((r) => sees(me, db.clients.find((c) => c.id === r.client_id)));
   if (table === 'push_subscriptions' || table === 'reminder_log') return [];
   return rows;
 }
@@ -278,8 +287,10 @@ await step('an editor lands on "הלקוחות שלי בעריכה" and sees onl
   assert.match(await text(page, `${card} .ed-phone`), /03-5551234/);
   assert.match(await text(page, `${card} .ed-closing`), /לפרטים נוספים התקשרו: 03-5551234/);
   assert.match(await text(page, card), /בסרטון 2 יש שתי גרסאות/); // Eli's notes
-  assert.match(await text(page, card), /להגיד שיש חניה חינם/);
-  assert.match(await text(page, card), /לא להזכיר מחירים/);
+  assert.match(await text(page, `${card} .ed-hl`), /חייבים להגיד\s*להגיד שיש חניה חינם/);
+  assert.match(await text(page, `${card} .ed-hl`), /אסור להגיד\s*לא להזכיר מחירים/);
+  assert.match(await page.locator(`${card} .ed-brief`).textContent(), /כמה זמן לוקחת צביעה/); // the call's other answers
+  assert.doesNotMatch(await page.content(), /מסר של קפה גולן/); // another editor's client
   assert.equal(await text(page, `${card} .ed-state`), 'ממתין לכונן');
   // Never the client's own phone, nor the office's notes: not on the page and not even asked for.
   const html = await page.content();
@@ -291,6 +302,17 @@ await step('an editor lands on "הלקוחות שלי בעריכה" and sees onl
   assert.ok(await noHScroll(page), 'no horizontal scroll at 360px');
   assert.ok(await height(page, `#${A_ID}-go`) >= 44);
   await shot(page, 'editor-360');
+  // One landing a tab: clients.html opens the list now (no bounce), with a shortcut
+  // back to her page; "כל העבודה שלי" is clients.html#mine.
+  assert.equal(await page.locator('a[href="clients.html#mine"]:visible').count() > 0, true);
+  await page.goto(`${BASE}clients.html`);
+  await page.waitForTimeout(300);
+  await page.waitForSelector('#cta-editor:not([hidden])');
+  assert.equal(await page.locator('#cta-shoot').isHidden(), true);
+  assert.equal(new URL(page.url()).pathname.endsWith('/clients.html'), true);
+  await page.click('#cta-editor');
+  await page.waitForURL(/editor\.html$/);
+  await page.waitForSelector(`#${A_ID}-go`);
 });
 
 await step('(1) the drive arrived: the 4 checks are required; "קיבלתי את הכונן והתחלתי"', async () => {
@@ -352,23 +374,33 @@ await step('(2) "מוכן לבדיקה": the self-check (with Dropbox), then Ofi
   assert.match(await text(page, '#handoff'), /אופיר/);
 });
 
-await step('(3) Ofir\'s fixes, per video: "תוקן" and then the rest; it goes back to Ofir', async () => {
+await step('(3) Ofir\'s return (the office\'s marks): "תוקן" per issue, the last one sends it back to Ofir', async () => {
   const { page } = nadia;
   clockNow = new Date(clockNow.getTime() + 36e5);
   clockSetAt = Date.now();
-  set(A, 'p25.return', JSON.stringify({ round: 1, due: T('2026-10-19T17:00:00').toISOString(), videos: [{ n: 2, text: 'שגיאת כתיב בכתובית' }, { n: 3, text: 'הסגיר בלי טלפון' }] }));
+  // Ofir returned it on qa.html (app/office-marks.js: p25.return.1, issues by video).
+  set(A, 'p25.return.1', returnNote([{ ref: '2', text: 'שגיאת כתיב בכתובית' }, { ref: '3', text: 'הסגיר בלי טלפון' }], T('2026-10-19T17:00:00')));
   await reload(page);
   assert.equal(await text(page, `${card} .ed-state`), 'תיקונים מאופיר');
-  assert.match(await text(page, `${card} .ed-fixes-h`), /אופיר החזיר לתיקון · סבב 1 · עד היום 17:00/);
-  await page.click(`#${A_ID}-fix-2`);
-  await toastHas(page, 'סרטון 2 תוקן');
-  assert.deepEqual(JSON.parse(checkOf(A, 'p24.fixed').note), { round: 1, videos: [2] });
-  assert.equal(await text(page, `#${A_ID}-go`), 'סמן את השאר תוקן (1)');
-  const before = checkOf(A, 'p24.notify').at;
-  await page.click(`#${A_ID}-go`);
-  await toastHas(page, 'חזרו לאופיר');
-  assert.notEqual(checkOf(A, 'p24.notify').at, before);
+  const fx = `fx-${A.id}-p25-1`;
+  assert.match(await text(page, `${card} .fix-h`), /הוחזר לתיקון · סבב 1 · .* · לתקן עד היום 17:00/);
+  assert.match(await text(page, `${card} .fix-items`), /סרטון 2: שגיאת כתיב בכתובית[^]*סרטון 3: הסגיר בלי טלפון/);
+  assert.ok(await page.locator(`#${fx}-all`).isVisible()); // "סמן הכול תוקן" while two are left
+  assert.ok(await noHScroll(page), 'no horizontal scroll at 360px with the fixes');
+  await page.click(`#${fx}-0`);
+  await toastHas(page, 'סומן שתוקן');
+  assert.ok(checkOf(A, 'p25.fixed.1.0'));
+  assert.equal(checkOf(A, 'p25.fixed.1'), null);
+  assert.equal(await page.locator(`#${fx}-all`).count(), 0);
+  const notify = checkOf(A, 'p24.notify').at;
+  await page.click(`#${fx}-1`);
+  await toastHas(page, 'חזרה לבדיקה של אופיר');
+  assert.ok(checkOf(A, 'p25.fixed.1.1') && checkOf(A, 'p25.fixed.1'));
+  assert.equal(checkOf(A, 'p24.notify').at, notify, 'the fixed mark is enough; the videos are not marked ready again');
+  assert.equal(checkOf(A, 'p25.return'), null, 'never production\'s old key');
+  assert.equal(checkOf(A, 'p24.fixed'), null, 'never production\'s old key');
   assert.equal(await text(page, `${card} .ed-state`), 'אצל אופיר לבקרה');
+  assert.match(await text(page, `${card} .ed-wait`), /^התיקונים אצל אופיר לבדיקה חוזרת/);
 });
 
 await step('the client\'s fixes, then (4) the final versions go to Ilai; the card closes when he marks "קיבלתי"', async () => {
@@ -387,16 +419,21 @@ await step('the client\'s fixes, then (4) the final versions go to Ilai; the car
   assert.equal(await text(page, `#${A_ID}-go`), 'תיקונים הושלמו, הגרסאות הסופיות בדרייב');
   await page.click(`#${A_ID}-go`);
   await toastHas(page, 'עברו לעילאי');
-  assert.ok(checkOf(A, 'p27.final') && checkOf(A, 'p27.toilai'));
+  assert.ok(checkOf(A, 'p27.final'));
+  assert.equal(checkOf(A, 'p27.toilai'), null, 'the editor never marks Ilai\'s "קיבלתי"');
   assert.equal(await text(page, `${card} .ed-state`), 'אצל עילאי');
-  // Ilai marks "קיבלתי" in the client card: on his own process 28 (his view shows only his).
+  await page.waitForSelector('#handoff:not([hidden])');
+  assert.match(await text(page, '#handoff'), /עילאי/);
+  // Ilai marks "קיבלתי" in the client card: his own item on 27 (p27.toilai, protocol v5).
   const ilai = await scene('2026-10-19T15:00:00', { width: 1280, height: 900 });
-  await signIn(ilai.page, `client.html?id=${A.id}#p28`, 'ilai');
-  await ilai.page.waitForSelector('#p28-ilai');
-  assert.match(await text(ilai.page, '#p28'), /הגרסאות הסופיות עברו לעילאי/);
-  await ilai.page.click('#p28-ilai');
-  await ilai.page.waitForFunction(() => /עילאי קיבל את הגרסאות הסופיות/.test(document.getElementById('p28')?.textContent || ''));
-  assert.equal(checkOf(A, 'p27.ilai').by_email, 'ilai@astrateg.test');
+  await signIn(ilai.page, `client.html?id=${A.id}#p27`, 'ilai');
+  const got = ilai.page.locator('#p27 label', { hasText: 'עילאי קיבל את הגרסאות הסופיות' }).locator('input');
+  await got.waitFor();
+  await got.check();
+  for (let i = 0; i < 100 && !checkOf(A, 'p27.toilai'); i += 1) await ilai.page.waitForTimeout(100);
+  assert.equal(checkOf(A, 'p27.toilai').by_email, 'ilai@astrateg.test');
+  assert.equal(checkOf(A, 'p27.ilai'), null);
+  assert.equal(await ilai.page.locator('button', { hasText: 'קיבלתי את הגרסאות הסופיות' }).count(), 0, 'one "קיבלתי" only: the item');
   await ilai.ctx.close();
   await reload(page);
   assert.equal(await page.locator('.ed-card').count(), 0);

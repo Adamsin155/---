@@ -143,6 +143,12 @@ export function progressBar(done, total, label) {
 const TAB_SEEN = 'astrateg.tabSeen';
 export const TAB_FRESH = (() => { try { return !sessionStorage.getItem(TAB_SEEN); } catch { return true; } })();
 const markTabSeen = () => { try { sessionStorage.setItem(TAB_SEEN, '1'); } catch { /* no storage */ } };
+// Landed on the first screen in this tab (app/office-ui.js firstScreenOf): set by
+// clients.html when it sends the person there, and by the first screens themselves.
+// Without storage: as landed, so the list is never left behind by itself.
+const LANDED = 'astrateg.firstLanded';
+export function markFirstLanded() { try { sessionStorage.setItem(LANDED, '1'); } catch { /* no storage */ } }
+export function firstLanded() { try { return sessionStorage.getItem(LANDED) === '1'; } catch { return true; } }
 
 // Session bar + login form. Calls onReady(staff) once a staff member is signed in.
 // A personal sign-in link in the address bar first asks for a password (set-password.js).

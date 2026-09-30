@@ -13,21 +13,20 @@
 //                { what: ['logo', 'phone', 'footage'], note }); it holds while the
 //                process waits (p22.wait, and p24/p27 with it), so the deadline is
 //                "חסום", not late (decision 3 moves it on by the blocked time)
-//   p25.return   Ofir returned the videos for fixes (note JSON { round, due,
-//                videos: [{ n, text }], text }), written by Ofir's QA screen
-//   p24.fixed    the editor's fixes of that return (note JSON { round, videos: [n] });
-//                all fixed = p24.notify again, so Ofir's QA clock starts over
 //   p27.fixed    the client's fixes done so far (note JSON { videos: [n] }); all of
 //                them = the existing item p27.fixes
-//   p27.ilai     Ilai received the final versions ("קיבלתי"): the editing task closes
 //   p16.brief    Lior's briefing to Eli (note JSON { label, notes }): the drive label
 //   p17b.brollq  Eli's answer to "הבי־רול גמור?" 15 minutes before (note 'yes' | 'no')
 //   p18.shot     Lior's counter "צולמו X מתוך Y" (note JSON { videos: [1, 2, …] })
 //   p18.quiet    Lior started the shoot's quiet mode himself (Eli had not arrived yet)
+// Ofir's returns for fixes and the editor's "תוקן" are the office's marks
+// (app/office-marks.js: p25.return.N, p25.fixed.N.I, p25.fixed.N; marking the
+// videos ready again, p24.notify, after a return counts as fixed too), and Ilai's
+// "קיבלתי" on the final versions is the item p27.toilai (protocol v5).
 // The existing items they sit with: p22.received + p22.check.* (the drive arrived,
 // 4 checks), p22.edited + p22.self.* + p24.drive + p24.dropbox + p24.notify ("מוכן
 // לבדיקה"), p27.notes (Irit: the client's notes, JSON { videos: [{ n, text }] } or
-// plain text), p27.fixes, p27.final + p27.toilai (button 4), p16.photographer (Eli's
+// plain text), p27.fixes, p27.final (button 4) and Ilai's p27.toilai, p16.photographer (Eli's
 // "קיבלתי" on the briefing), p17b.arrived / p17b.drive (arrival), p17b.gear (the
 // gear list), p19b.folders / complete / opens / cards / handed (the finish),
 // p19b.notes (Eli's notes for the editor, in its note), p19.testimonial / p19.took
@@ -38,6 +37,8 @@ import {
   roundsOf, roundContext, businessDaysBetween, parseDate, erevOn, IMPORT_NOTE, addBusinessDays, isBusinessDay, nextWorkMoment,
 } from './protocol-logic.js';
 import { partsIL, dayKeyIL, daysBetweenIL, atTimeIL, endOfDayIL, addDaysIL } from './tz.js';
+import { qaState, qaRounds } from './office-marks.js';
+import { businessPhoneOf, logoUrlOf, closingLine, validUrl } from './characterization.js';
 
 const MIN = 6e4;
 const HOUR = 36e5;
@@ -125,22 +126,6 @@ function videoNotes(note) {
   return { videos, text: String(v.text || '').trim(), round: Number(v.round) || null, due: v.due || null };
 }
 
-// Ofir's latest return for fixes, while it is newer than the editor's last "מוכן לבדיקה".
-export function qaReturnOf(checks, pre = '') {
-  const r = checks?.[`${pre}p25.return`];
-  if (!r || r.state !== 'done') return null;
-  const at = new Date(r.at);
-  const notify = atOf(checks, `${pre}p24.notify`);
-  if (notify && notify > at) return null;
-  const v = videoNotes(r.note);
-  return { at, round: v.round || 1, due: parseDate(v.due), videos: v.videos, text: v.text, by_email: r.by_email };
-}
-// Videos the editor marked fixed for that return.
-export function fixedOf(checks, pre = '', round = 1) {
-  const v = json(checks?.[`${pre}p24.fixed`]?.note);
-  return new Set(v && Number(v.round) === Number(round) ? nums(v.videos) : []);
-}
-export const fixedNote = (round, videos) => JSON.stringify({ round, videos: nums(videos) });
 // The client's notes (Irit types them per video, process 27).
 export function clientNotesOf(checks, pre = '') {
   const r = checks?.[`${pre}p27.notes`];
@@ -200,15 +185,16 @@ export function editingCases(client, checks, person, state) {
   return out;
 }
 
-// Ilai received the final versions: his "קיבלתי" (p27.ilai), or he already began
-// scheduling or the Gantt with them (28, 29).
-export const ilaiGot = (checks, pre = '') => ['p27.ilai', 'p28.scheduled', 'p29.filled'].some((k) => done(checks, pre + k));
+// Ilai received the final versions: his "קיבלתי" (the item p27.toilai, protocol v5),
+// or he already began scheduling or the Gantt with them (28, 29).
+export const ilaiGot = (checks, pre = '') => ['p27.toilai', 'p28.scheduled', 'p29.filled'].some((k) => done(checks, pre + k));
 
 // The state of one editing job: the four buttons of §3 in order.
 //   waiting      "ממתין לכונן" → (1) "קיבלתי את הכונן והתחלתי"
 //   editing      → (2) "מוכן לבדיקה"
-//   qa           with Ofir
-//   fixes        Ofir returned it: per-video "תוקן" / "סמן הכול תוקן" → back to Ofir
+//   qa           with Ofir (first check, or again after a round of fixes)
+//   fixes        Ofir returned it (p25.return.N): per-issue "תוקן" / "סמן הכול תוקן"
+//                (app/office-ui.js fixList) → back to Ofir
 //   client       Ofir approved; with the client
 //   clientFixes  the client's notes: per video → p27.fixes
 //   final        → (4) "תיקונים הושלמו, הגרסאות הסופיות בדרייב"
@@ -221,7 +207,7 @@ export function editorState(job, checks) {
   const pause = checks?.[k('p22.pause')]?.state === 'done' ? (json(checks[k('p22.pause')].note) || {}) : null;
   const base = { blocked: missingOf(checks, job.pre), paused: pause ? { ...pause, at: checks[k('p22.pause')].at, by_email: checks[k('p22.pause')].by_email } : null };
   if (ilaiGot(checks, job.pre)) return { ...base, key: 'done', blocked: null, paused: null };
-  if (is('p27.toilai')) return { ...base, key: 'ilai' };
+  if (is('p27.final')) return { ...base, key: 'ilai' };
   if (!is('p22.received')) return { ...base, key: 'waiting' };
   if (is('p25.approved')) {
     const notes = clientNotesOf(checks, job.pre);
@@ -229,9 +215,9 @@ export function editorState(job, checks) {
     if (notes) return { ...base, key: 'clientFixes', notes, fixed: clientFixedOf(checks, job.pre) };
     return { ...base, key: 'client' };
   }
-  const ret = qaReturnOf(checks, job.pre);
-  if (ret) return { ...base, key: 'fixes', ret, fixed: fixedOf(checks, job.pre, ret.round) };
-  if (is('p24.notify')) return { ...base, key: 'qa', since: atOf(checks, k('p24.notify')) };
+  const q = qaState(checks || {}, job.pre, 'videos');
+  if (q.stage === 'fixing') return { ...base, key: 'fixes', ret: q.open, qa: q };
+  if (q.stage === 'ofir') return { ...base, key: 'qa', since: q.readyAt, round: q.round };
   return { ...base, key: 'editing' };
 }
 export const STATE_TEXT = {
@@ -264,17 +250,17 @@ export const readyKeys = (needsDropbox) => ['p22.edited', ...selfCheck(needsDrop
 export const needsDropbox = (client) => !!String(client?.links?.dropbox || '').trim();
 
 // ── What the editor needs from the business ──
-// The business phone and the logo come from the characterization (intake:
-// public.characterizations.fields); the client's own phone (clients.phone) is never
-// read here. Field names are read loosely until the forms settle.
-const pick = (o, keys) => { for (const k of keys) { const v = String(o?.[k] ?? '').trim(); if (v) return v; } return ''; };
+// The business phone and the logo link come from the characterization form
+// (public.characterizations.fields.phone / .logo_url, app/characterization.js);
+// the client's own phone (clients.phone) is never read here. A logo link the office
+// put in the card's links is the fallback.
 export function sheetOf(client, charRow = null) {
-  const f = charRow?.fields || {};
-  const phone = pick(f, ['business_phone', 'businessPhone', 'phone']);
-  const logo = pick(f, ['logo_link', 'logoLink', 'logo_url', 'logo']) || pick(client?.links, ['logo']);
-  return { phone, logo: /^https?:\/\//i.test(logo) ? logo : '', closing: phone ? closingLine(phone) : '' };
+  const phone = businessPhoneOf(charRow) || '';
+  const cardLogo = String(client?.links?.logo || '').trim();
+  const logo = logoUrlOf(charRow) || (validUrl(cardLogo) ? cardLogo : '');
+  return { phone, logo, closing: phone ? closingLine(phone) : '' };
 }
-export const closingLine = (phone) => `לפרטים נוספים התקשרו: ${phone}`;
+export { closingLine };
 
 // ── The editor's own numbers (no leaderboard) ──
 // On time: of the editing processes they closed (22, 24, 27; rows of
@@ -285,8 +271,8 @@ export function onTimeOf(rows, person) {
   return { done: mine.length, onTime, rate: mine.length ? onTime / mine.length : null };
 }
 // First pass: of the videos Ofir decided on the first time, how many he did not
-// return. From the history of p25.return / p25.approved per job: the first return
-// (its videos, or the whole batch when it lists none), or an approval with no return.
+// return. Per job: the first return (p25.return.1, its videos, or the whole batch
+// when it names none), or an approval with no return.
 export function firstPassOf(jobs) {
   let videos = 0;
   let first = 0;
@@ -299,11 +285,13 @@ export function firstPassOf(jobs) {
   }
   return { videos, first, rate: videos ? first / videos : null };
 }
-// The first return of each job, from protocol_log rows (oldest first).
-export function firstReturnFrom(logRows, key) {
-  const row = (logRows || []).filter((r) => r.item_key === key && r.action === 'done' && r.note !== IMPORT_NOTE)
-    .sort((a, b) => new Date(a.at) - new Date(b.at))[0];
-  return row ? videoNotes(row.note) : null;
+// The first return of a job (round 1 of app/office-marks.js), as { videos: [n] }:
+// the numbered videos its issues name (an issue without a number: the whole batch).
+export function firstReturnOf(checks, pre = '') {
+  const r = qaRounds(checks || {}, pre, 'videos')[0];
+  if (!r) return null;
+  const refs = r.issues.map((x) => Number(String(x.ref).replace(/[^\d]/g, '')));
+  return { videos: refs.length && refs.every((n) => Number.isInteger(n) && n > 0) ? nums(refs) : [] };
 }
 export const percent = (rate) => (rate === null || rate === undefined ? '—' : `${Math.round(rate * 100)}%`);
 
@@ -353,7 +341,8 @@ export function pausePrefill(job, st, now = new Date()) {
   const stage = `${STATE_TEXT[st?.key] || 'בעריכה'}${day > 0 ? ` · ${editingDayText(day, now)}` : ''}`;
   const videos = videosPerDay(job.ctx);
   const due = job.p24?.dueAt;
-  const left = st?.key === 'fixes' ? `תיקונים מאופיר (${(st.ret?.videos?.length || 0) - (st.fixed?.size || 0) || 'כל'} סרטונים)`
+  const open = st?.key === 'fixes' ? (st.ret?.issues?.length || 0) - (st.ret?.fixed?.size || 0) : 0;
+  const left = st?.key === 'fixes' ? `תיקונים מאופיר (${open === 1 ? 'תיקון אחד' : open > 1 ? `${open} תיקונים` : 'כל התיקונים'})`
     : st?.key === 'clientFixes' ? 'תיקוני הלקוח'
       : `${videos ? `${videos} סרטונים` : 'הסרטונים'}${due ? `, אצל אופיר עד ${dueWords(due, now)}` : ''}`;
   return { stage, left };
@@ -471,10 +460,7 @@ export function markHistory(base, r) {
   const v = json(r.note) || {};
   switch (base) {
     case 'p22.missing': return clear ? 'סימן/ה שהחוסר אצל העורך טופל' : `דיווח/ה שחסר לעריכה: ${missingText(v.what) || 'חומר'}${v.note ? ` (${v.note})` : ''}`;
-    case 'p25.return': return clear ? 'ביטל/ה החזרה לתיקון' : `החזיר/ה לתיקון (סבב ${v.round || 1}${Array.isArray(v.videos) ? `, ${v.videos.length} סרטונים` : ''})`;
-    case 'p24.fixed': return clear ? null : `סימן/ה תיקונים מאופיר: סרטונים ${nums(v.videos).join(', ') || '—'}`;
     case 'p27.fixed': return clear ? null : `סימן/ה תיקוני לקוח: סרטונים ${nums(v.videos).join(', ') || '—'}`;
-    case 'p27.ilai': return clear ? 'ביטל/ה את קבלת הגרסאות הסופיות' : 'עילאי קיבל את הגרסאות הסופיות';
     case 'p16.brief': return clear ? 'ביטל/ה את התדריך לאלי' : `שלח/ה תדריך לאלי${v.label ? `, ${driveName(v.label)}` : ''}`;
     case 'p17b.brollq': return clear ? null : r.note === 'no' ? 'ענה/תה שהבי־רול לא גמור' : 'ענה/תה שהבי־רול גמור';
     case 'p18.shot': return clear ? 'איפס/ה את מונה הסרטונים' : `מונה יום הצילום: צולמו ${nums(v.videos).length}`;

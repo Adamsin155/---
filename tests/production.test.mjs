@@ -7,10 +7,12 @@ import assert from 'node:assert/strict';
 import * as P from '../app/production.js';
 import { clientState } from '../app/protocol-logic.js';
 import { computeReminders, buildEnv } from '../app/reminder-engine.js';
+import { RULES } from '../app/reminder-rules.js';
 import { PROCESSES } from '../app/protocol.js';
 import { importKeys } from '../app/client-open.js';
 import { IMPORT_NOTE } from '../app/protocol-logic.js';
 import { dateIL, partsIL, endOfDayIL } from '../app/tz.js';
+import { returnNote, returnKey, fixedKey, fixedItemKey } from '../app/office-marks.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
 const hhmm = (d) => { const p = partsIL(d); return `${p.day}.${p.month} ${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`; };
@@ -91,16 +93,26 @@ test('editor states: waiting → editing → QA → fixes → QA → client → 
   // (2) Ready for QA.
   for (const k of P.readyKeys(false)) checks[k] = done(IL(2026, 10, 20, 12));
   assert.equal(stOf(c, checks).key, 'qa');
-  // (3) Ofir returns two videos; one fixed, then all → back to Ofir.
-  checks['p25.return'] = done(IL(2026, 10, 20, 13), JSON.stringify({ round: 1, due: IL(2026, 10, 20, 17).toISOString(), videos: [{ n: 2, text: 'כתובית' }, { n: 4, text: 'סגיר' }] }));
+  // (3) Ofir returns two videos (the office's marks, app/office-marks.js); one
+  // fixed, then all → back to Ofir, round 2 of his check.
+  checks[returnKey('', 'videos', 1)] = done(IL(2026, 10, 20, 13), returnNote([{ ref: '2', text: 'כתובית' }, { ref: '4', text: 'סגיר' }], IL(2026, 10, 20, 17)));
   let st = stOf(c, checks);
   assert.equal(st.key, 'fixes');
-  assert.deepEqual(st.ret.videos.map((v) => v.n), [2, 4]);
+  assert.deepEqual(st.ret.issues.map((v) => v.ref), ['2', '4']);
   assert.equal(hhmm(st.ret.due), '20.10 17:00');
-  checks['p24.fixed'] = done(IL(2026, 10, 20, 14), P.fixedNote(1, [2]));
-  assert.deepEqual([...stOf(c, checks).fixed], [2]);
-  checks['p24.fixed'] = done(IL(2026, 10, 20, 15), P.fixedNote(1, [2, 4]));
-  checks['p24.notify'] = done(IL(2026, 10, 20, 15), 'תיקונים · סבב 1');
+  checks[fixedItemKey('', 'videos', 1, 0)] = done(IL(2026, 10, 20, 14));
+  assert.deepEqual([...stOf(c, checks).ret.fixed], [0]);
+  assert.equal(P.pausePrefill({ ...P.editingCases(c, checks, 'nadia', clientState(c, checks, IL(2026, 10, 20, 14)))[0] }, stOf(c, checks), IL(2026, 10, 20, 14)).left, 'תיקונים מאופיר (תיקון אחד)');
+  checks[fixedItemKey('', 'videos', 1, 1)] = done(IL(2026, 10, 20, 15));
+  checks[fixedKey('', 'videos', 1)] = done(IL(2026, 10, 20, 15));
+  st = stOf(c, checks);
+  assert.equal(st.key, 'qa');
+  assert.equal(st.round, 2);
+  assert.equal(hhmm(st.since), '20.10 15:00');
+  // Marking the videos ready again after a return counts as fixed too (office's rule).
+  checks[returnKey('', 'videos', 2)] = done(IL(2026, 10, 20, 15, 30), returnNote([{ ref: '', text: 'הקצב' }], null));
+  assert.equal(stOf(c, checks).key, 'fixes');
+  checks['p24.notify'] = done(IL(2026, 10, 20, 15, 45));
   assert.equal(stOf(c, checks).key, 'qa');
   // Ofir approved: with the client; the client's notes per video; all fixed → final.
   checks['p25.approved'] = done(IL(2026, 10, 20, 16));
@@ -115,14 +127,13 @@ test('editor states: waiting → editing → QA → fixes → QA → client → 
   checks['p27.fixes'] = done(IL(2026, 10, 21, 12));
   assert.equal(stOf(c, checks).key, 'final');
   assert.equal(P.canFinish(stOf(c, checks)), true);
-  // (4) → Ilai; closes when he marks "קיבלתי".
+  // (4) → Ilai (the editor marks p27.final); closes when he marks "קיבלתי" (p27.toilai, protocol v5).
   checks['p27.final'] = done(IL(2026, 10, 21, 13));
-  checks['p27.toilai'] = done(IL(2026, 10, 21, 13));
   assert.equal(stOf(c, checks).key, 'ilai');
   checks['p28.scheduled'] = done(IL(2026, 10, 21, 15));
   assert.equal(stOf(c, checks).key, 'done', 'Ilai already scheduled with them');
   delete checks['p28.scheduled'];
-  checks['p27.ilai'] = done(IL(2026, 10, 21, 14));
+  checks['p27.toilai'] = done(IL(2026, 10, 21, 14));
   assert.equal(stOf(c, checks).key, 'done');
 });
 
@@ -131,11 +142,11 @@ test('editor states: the client approved without notes opens button 4; a text-on
   checks['p22a.assigned'] = done(IL(2026, 10, 18, 10));
   checks['p22.received'] = done(IL(2026, 10, 18, 11));
   checks['p24.notify'] = done(IL(2026, 10, 20, 12));
-  checks['p25.return'] = done(IL(2026, 10, 20, 13), 'הקצב איטי בכל הסרטונים');
+  checks[returnKey('', 'videos', 1)] = done(IL(2026, 10, 20, 13), returnNote([{ ref: '', text: 'הקצב איטי בכל הסרטונים' }], null));
   const st = stOf(c, checks);
   assert.equal(st.key, 'fixes');
-  assert.deepEqual(st.ret.videos, []);
-  assert.equal(st.ret.text, 'הקצב איטי בכל הסרטונים');
+  assert.deepEqual(st.ret.issues, [{ ref: '', text: 'הקצב איטי בכל הסרטונים' }]);
+  assert.deepEqual(P.firstReturnOf(checks, ''), { videos: [] }, 'no video named: the whole batch');
   checks['p24.notify'] = done(IL(2026, 10, 20, 15));
   checks['p25.approved'] = done(IL(2026, 10, 20, 16));
   checks['p27.approved'] = done(IL(2026, 10, 21, 10));
@@ -159,17 +170,24 @@ test('the self-check and the start checks are existing items; "מוכן לבדי
   assert.equal(P.needsDropbox({ links: {} }), false);
   // Every new mark passes the database's key rule (protocol_checks_item_key_check).
   const rule = /^(r[0-9]+\.)?p[0-9]+[ab]?\.[a-z0-9.]+$/;
-  for (const k of ['p22.missing', 'p25.return', 'p24.fixed', 'p27.fixed', 'p27.ilai', 'p16.brief', 'p17b.brollq', 'p18.shot', 'p18.quiet', 'r2.p22.missing']) assert.match(k, rule);
+  for (const k of ['p22.missing', 'p27.fixed', 'p16.brief', 'p17b.brollq', 'p18.shot', 'p18.quiet', 'r2.p22.missing']) assert.match(k, rule);
+  // Production's own return, fix and receipt marks are gone: the office's keys and p27.toilai (v5) are the only ones.
+  for (const k of ['qaReturnOf', 'fixedOf', 'fixedNote', 'firstReturnFrom']) assert.equal(P[k], undefined, k);
+  for (const k of ['p25.return', 'p24.fixed', 'p27.ilai']) assert.equal(P.markHistory(k, { action: 'done', note: '{}' }), null, k);
 });
 
 test('the business sheet: phone and logo from the characterization, never the client\'s own phone', () => {
   const c = baseClient({ phone: '050-0000000', links: { logo: 'https://drive.google.com/logo' } });
   assert.deepEqual(P.sheetOf(c, null), { phone: '', logo: 'https://drive.google.com/logo', closing: '' });
-  const s = P.sheetOf(c, { fields: { business_phone: '03-5555555', logo_link: 'https://drive.google.com/l2' } });
+  // The intake's form fields (app/characterization.js businessPhoneOf / logoUrlOf): fields.phone and fields.logo_url.
+  const s = P.sheetOf(c, { fields: { phone: '03-5555555', logo_url: 'https://drive.google.com/l2' } });
   assert.equal(s.phone, '03-5555555');
   assert.equal(s.logo, 'https://drive.google.com/l2');
   assert.equal(s.closing, 'לפרטים נוספים התקשרו: 03-5555555');
-  assert.equal(P.sheetOf(c, { fields: { logo: 'javascript:alert(1)' } }).logo, '', 'only web links');
+  // Other names are not read (the form never writes them).
+  assert.equal(P.sheetOf(baseClient(), { fields: { business_phone: '03-1', logo_link: 'https://x.test/l' } }).phone, '');
+  assert.equal(P.sheetOf(baseClient(), { fields: { logo_url: 'javascript:alert(1)' } }).logo, '', 'only web links');
+  assert.equal(P.sheetOf(baseClient({ links: { logo: 'javascript:alert(1)' } }), null).logo, '', 'only web links');
 });
 
 test('pause for someone else\'s urgent task: labelled "עצירה לבקשת", prefilled stage and what is left', () => {
@@ -194,11 +212,15 @@ test('first pass: the videos Ofir did not return the first time; on time: the ed
     { videos: 5, approved: false, firstReturn: { videos: [] } }, // returned as a whole
     { videos: 8, approved: false, firstReturn: null }, // not decided yet: not counted
   ]), { videos: 25, first: 18, rate: 18 / 25 });
-  const log = [
-    { item_key: 'p25.return', action: 'done', at: '2026-10-20T10:00:00Z', note: JSON.stringify({ videos: [1, 2, 3] }) },
-    { item_key: 'p25.return', action: 'done', at: '2026-10-21T10:00:00Z', note: JSON.stringify({ videos: [1] }) },
-  ];
-  assert.equal(P.firstReturnFrom(log, 'p25.return').videos.length, 3);
+  // The first return is round 1 of the office's marks (p25.return.1), whatever came after.
+  const checks = {
+    [returnKey('', 'videos', 1)]: done(IL(2026, 10, 20, 10), returnNote([{ ref: '1', text: 'a' }, { ref: 'סרטון 2', text: 'b' }, { ref: '3', text: 'c' }, { ref: '3', text: 'd' }], null)),
+    [returnKey('', 'videos', 2)]: done(IL(2026, 10, 21, 10), returnNote([{ ref: '1', text: 'a' }], null)),
+    [returnKey('r2.', 'videos', 1)]: done(IL(2026, 10, 21, 10), returnNote([{ ref: '5', text: 'a' }], null)),
+  };
+  assert.deepEqual(P.firstReturnOf(checks, ''), { videos: [1, 2, 3] });
+  assert.deepEqual(P.firstReturnOf(checks, 'r2.'), { videos: [5] });
+  assert.equal(P.firstReturnOf({}, ''), null);
   const rows = [{ key: 'p22', people: ['nadia'], onTime: true }, { key: 'p24', people: ['nadia'], onTime: false }, { key: 'p23', people: ['ilai'], onTime: true }];
   assert.deepEqual(P.onTimeOf(rows, 'nadia'), { done: 2, onTime: 1, rate: 0.5 });
   assert.equal(P.percent(0.5), '50%');
@@ -331,29 +353,37 @@ test('missing logo / phone / footage: Irit at once, Lior after 3 office hours; t
   none(due(w, IL(2026, 10, 18, 14)), 'editorMissing');
 });
 
-test('QA return: the editor at once; the QA clock stops; "all fixed" starts a new one; the owner from round 2', () => {
+test('QA return (the office\'s rule, one per event): the editor at once on their page; the QA clock stops; fixed starts a new one; the owner from round 2', () => {
   const w = world();
   w.cs['p22a.assigned'] = done(IL(2026, 10, 18, 10));
   w.cs['p24.notify'] = done(IL(2026, 10, 20, 11));
   one(due(w, IL(2026, 10, 20, 11)), 'qa', 'now');
-  w.cs['p25.return'] = done(IL(2026, 10, 20, 11, 20), JSON.stringify({ round: 1, due: IL(2026, 10, 20, 15).toISOString(), videos: [{ n: 3, text: 'x' }] }));
-  const r = one(due(w, IL(2026, 10, 20, 11, 20)), 'qaReturn', 'editor');
-  assert.equal(r.person, 'nadia');
+  w.cs[returnKey('', 'videos', 1)] = done(IL(2026, 10, 20, 11, 20), returnNote([{ ref: '3', text: 'x' }], IL(2026, 10, 20, 15)));
+  const list = due(w, IL(2026, 10, 20, 11, 20));
+  // Exactly one ring for the return (no second rule rings the same event).
+  assert.deepEqual(list.filter((r) => r.person === 'nadia' && r.level === 'ring').map((r) => `${r.rule}.${r.step}`), ['qaReturn.now']);
+  const r = one(list, 'qaReturn', 'now');
   assert.equal(r.url, 'editor.html#c-c1');
-  assert.match(r.body, /^1 סרטונים · סבב 1 · עד היום 15:00\.$/);
+  assert.match(r.body, /^סרטונים: בעיה אחת מאופיר\. לתקן עד היום 15:00\.$/);
   none(due(w, IL(2026, 10, 20, 11, 40)), 'qa', 'again'); // Ofir's clock stopped: the videos are with the editor
   none(due(w, IL(2026, 10, 20, 12)), 'qaReturn', 'board');
-  assert.equal(one(due(w, IL(2026, 10, 20, 15)), 'qaReturn', 'lior').list, true);
-  w.cs['p24.fixed'] = done(IL(2026, 10, 20, 14), P.fixedNote(1, [3]));
-  w.cs['p24.notify'] = done(IL(2026, 10, 20, 14), 'תיקונים · סבב 1');
+  assert.equal(one(due(w, IL(2026, 10, 20, 15)), 'qaReturn', 'late').list, true);
+  // Fixed (the office's "סמן הכול תוקן"): back to Ofir, a new check with its own key.
+  w.cs[fixedItemKey('', 'videos', 1, 0)] = done(IL(2026, 10, 20, 14));
+  w.cs[fixedKey('', 'videos', 1)] = done(IL(2026, 10, 20, 14));
   none(due(w, IL(2026, 10, 20, 15)), 'qaReturn');
   const again = one(due(w, IL(2026, 10, 20, 14)), 'qa', 'now');
-  assert.match(again.key, /2026-10-20T11:00:00\.000Z|p25@/);
-  w.cs['p25.return'] = done(IL(2026, 10, 20, 14, 30), JSON.stringify({ round: 2, videos: [3] }));
+  assert.match(again.title, /^התיקונים מוכנים לבדיקה \(סבב 1\)/);
+  assert.equal(again.key, `qa:c1:p25@${IL(2026, 10, 20, 14).toISOString()}:now@ofir`, 'the new check has its own key (it rings once)');
+  w.cs[returnKey('', 'videos', 2)] = done(IL(2026, 10, 20, 14, 30), returnNote([{ ref: '3', text: 'y' }], null));
   one(due(w, IL(2026, 10, 20, 14, 30)), 'qaReturn', 'board');
+  // Marked ready again from the editor's page (p24.notify) after the return: fixed too.
+  w.cs['p24.notify'] = done(IL(2026, 10, 20, 15));
+  none(due(w, IL(2026, 10, 20, 15)), 'qaReturn');
+  one(due(w, IL(2026, 10, 20, 15)), 'qa', 'now');
 });
 
-test('client notes ring the editor; the final versions reach Ilai quietly, Lior\'s list at the end of that business day', () => {
+test('client notes ring the editor; the final versions (p27.final) reach Ilai quietly, once; Lior\'s list at the end of that business day', () => {
   const w = world();
   w.cs['p22a.assigned'] = done(IL(2026, 10, 18, 10));
   w.cs['p25.approved'] = done(IL(2026, 10, 20, 12));
@@ -364,17 +394,20 @@ test('client notes ring the editor; the final versions reach Ilai quietly, Lior\
   w.cs['p27.fixes'] = done(IL(2026, 10, 21, 16));
   none(due(w, IL(2026, 10, 21, 16)), 'clientFixes');
   w.cs['p27.final'] = done(IL(2026, 10, 21, 16, 30));
-  w.cs['p27.toilai'] = done(IL(2026, 10, 21, 16, 30));
-  const fin = one(due(w, IL(2026, 10, 21, 16, 30)), 'finals', 'ilai');
-  assert.deepEqual([fin.level, fin.url], ['quiet', 'client.html?id=c1#p28']);
-  none(due(w, IL(2026, 10, 21, 17, 59)), 'finals', 'lior');
-  assert.equal(hhmm(one(due(w, IL(2026, 10, 21, 18)), 'finals', 'lior').at), '21.10 18:00');
+  const list = due(w, IL(2026, 10, 21, 16, 30));
+  assert.deepEqual(list.filter((r) => /סופיות/.test(r.title)).map((r) => `${r.rule}.${r.step}`), ['finalReady.ilai']);
+  assert.equal(RULES.filter((r) => r.id === 'finals').length, 0, 'one rule for the final versions');
+  const fin = one(list, 'finalReady', 'ilai');
+  assert.deepEqual([fin.level, fin.url], ['quiet', 'client.html?id=c1#p27']); // his item p27.toilai
+  none(due(w, IL(2026, 10, 21, 17, 59)), 'finalReady', 'lior');
+  assert.equal(hhmm(one(due(w, IL(2026, 10, 21, 18)), 'finalReady', 'lior').at), '21.10 18:00');
   // After hours: the end of the next office day.
-  w.cs['p27.toilai'] = done(IL(2026, 10, 21, 19));
-  none(due(w, IL(2026, 10, 21, 20)), 'finals', 'lior');
-  assert.equal(hhmm(one(due(w, IL(2026, 10, 22, 18)), 'finals', 'lior').at), '22.10 18:00');
-  w.cs['p27.ilai'] = done(IL(2026, 10, 22, 9));
-  none(due(w, IL(2026, 10, 22, 18)), 'finals');
+  w.cs['p27.final'] = done(IL(2026, 10, 21, 19));
+  none(due(w, IL(2026, 10, 21, 20)), 'finalReady', 'lior');
+  assert.equal(hhmm(one(due(w, IL(2026, 10, 22, 18)), 'finalReady', 'lior').at), '22.10 18:00');
+  // Ilai's "קיבלתי" is p27.toilai (protocol v5).
+  w.cs['p27.toilai'] = done(IL(2026, 10, 22, 9));
+  none(due(w, IL(2026, 10, 22, 18)), 'finalReady');
 });
 
 test('shoot day: "הבי־רול לא גמור" rings Lior at once (a shoot event); "cards" names the drive label; no B-roll question once answered', () => {

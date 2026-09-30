@@ -31,15 +31,14 @@ import { offerHandoff, dropHandoff } from './handoff-ui.js';
 import { canSeeAllClients, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
 import { loadDateChanges, loadLogFor } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
-import { ownerLanded } from './health-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
 // Stage 3, part 2 (the office's flows): Ilai's day in "מה עליי", the first screens of Ofir and Lior.
 import { ilaiSection, coveredByCard } from './ilai-card.js';
-import { firstScreenOf, firstLanded, officeLinks } from './office-ui.js';
+import { landingNow, officeLinks } from './office-ui.js';
 import { folderItemOf } from './qa-logic.js';
-import { TAB_FRESH } from './protocol-ui.js';
-// A link to a part of this page (#mine, #control, a sign-in link) opens that part.
-const ARRIVED_WITH_HASH = !!location.hash;
+// A link to a part of this page (#mine, #control, a sign-in link) opens that part:
+// nobody is sent to their first screen then.
+const ARRIVED_WITH = location.hash;
 import { intakeShortcut } from './intake-ui.js';
 
 let clients = [];
@@ -138,17 +137,6 @@ function renderKeepingFocus() {
   render();
   window.scrollTo({ top: y });
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
-}
-
-// The production pages are the first screen of the editors and of Eli: the first
-// visit in a tab without a view in the address goes there (sessionStorage, guarded).
-function landedOnce(page) {
-  const key = `astrateg.landed.${page}`;
-  try {
-    if (sessionStorage.getItem(key) === '1') return true;
-    sessionStorage.setItem(key, '1');
-  } catch { return true; /* no storage: stay here rather than loop */ }
-  return false;
 }
 
 // ── Identity and scope ──────────────────────
@@ -2133,18 +2121,16 @@ mountSession(async (staff) => {
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
   viewerError = viewer.error;
-  // The owner lands on "מה דורש אותי" (owner.html), which links back here (#mine):
-  // once per tab, so the "לקוחות" links of the other pages still open the list.
-  if (isOwnerView(viewer) && !location.hash && !ownerLanded()) { location.replace('owner.html'); return; }
-  // The editors and Eli land on their own page (editor.html, shoot.html), once per tab.
-  const home = PEOPLE[me]?.editor ? 'editor.html' : me === 'eli' ? 'shoot.html' : null;
-  if (home && !location.hash && !landedOnce(home)) { location.replace(home); return; }
-  $('cta-editor').hidden = !home || home !== 'editor.html';
-  // The shoot day: Eli's page, Lior's shoot-day mode, and the counter the office watches.
+  // Everyone's first screen (app/office-ui.js firstScreenOf): the owner's "מה דורש
+  // אותי", Ofir's queue, Lior's decisions, the editors' page, Eli's shoot days. Only
+  // when the tab opens here without a view, once per tab; "מה עליי" stays #mine.
+  const first = landingNow({ me, viewer, arrived: ARRIVED_WITH || location.hash });
+  if (first) { location.replace(first); return; }
+  // The shortcuts of each role in the page head: the editors' page; the shoot day
+  // (Eli's page, Lior's shoot-day mode and the counter the office watches); the
+  // office's screens (Ofir's queue and pass, Lior's decisions).
+  $('cta-editor').hidden = !PEOPLE[me]?.editor;
   $('cta-shoot').hidden = !(me === 'eli' || (scope === 'office' && !viewer.error));
-  // Ofir lands on the quality-control queue, Lior on "החלטות" (section 3): when the
-  // tab opens on this page (the installed app, a new tab), not from a link inside it.
-  if (TAB_FRESH && !ARRIVED_WITH_HASH && !firstLanded() && firstScreenOf(me)) { location.replace(firstScreenOf(me)); return; }
   document.querySelector('#app .head-actions')?.prepend(...officeLinks(viewer));
   // Screen 2, "כל הלקוחות במבט", for Irit, Lior and Ofir; screen 1 for the owner.
   // The top bar folds away on phones: the page head keeps a way in (cta-owner).

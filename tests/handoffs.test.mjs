@@ -47,7 +47,7 @@ test('every handoff point uses real protocol keys, and its record fits the datab
     }
   }
   // The points of the plan's reminder matrix, in protocol order.
-  assert.deepEqual(HANDOFFS.map((p) => p.on), ['p05.access', 'p07.made', 'p19', 'p22a.assigned', 'p23.made', 'p23.ofir', 'p24.notify', 'p25.approved', 'p27.toilai', 'p29.filled']);
+  assert.deepEqual(HANDOFFS.map((p) => p.on), ['p05.access', 'p07.made', 'p19', 'p22a.assigned', 'p23.made', 'p23.ofir', 'p24.notify', 'p25.approved', 'p27.final', 'p29.filled']);
 });
 
 test('who is next at each point', () => {
@@ -61,7 +61,7 @@ test('who is next at each point', () => {
   assert.deepEqual(next('p23.ofir'), ['irit']);
   assert.deepEqual(next('p24.notify'), ['ofir']);
   assert.deepEqual(next('p25.approved'), ['irit', 'lior']);
-  assert.deepEqual(next('p27.toilai'), ['ilai']);
+  assert.deepEqual(next('p27.final'), ['ilai']);
   assert.deepEqual(next('p29.filled'), ['irit']);
   // The shoot day is done when process 19 is complete: Ofir assigns the editor,
   // or Lior when he took the assignment (process 22א is shared).
@@ -144,11 +144,16 @@ test('due times: next business day at 12:00, office hours, right away, already l
   const [early] = offer(c, { 'p07.made': done('2026-10-19T13:00:00+03:00') }, 'p07.made', '2026-10-19T13:01:00+03:00');
   assert.match(msg(early, '2026-10-19T13:01:00+03:00'), /\nיעד: היום 14:00\n/);
   // Final versions before the client approved: no clock yet, so the protocol's words.
-  const [fin] = offer(c, { 'p27.final': done('2026-10-29T10:00:00+02:00'), 'p27.toilai': done('2026-10-29T10:00:00+02:00') }, 'p27.toilai', '2026-10-29T10:01:00+02:00');
+  const [fin] = offer(c, { 'p27.final': done('2026-10-29T10:00:00+02:00') }, 'p27.final', '2026-10-29T10:01:00+02:00');
   assert.match(msg(fin, '2026-10-29T10:01:00+02:00'), /\nיעד: עד שעתיים מרגע שהתוכן מוכן ומאושר\n/);
   const approved = all('p27', '2026-10-29T10:00:00+02:00');
-  const [fin2] = offer(c, approved, 'p27.toilai', '2026-10-29T10:01:00+02:00');
-  assert.match(msg(fin2, '2026-10-29T10:01:00+02:00'), /\nיעד: היום 12:00\n/);
+  const { 'p27.toilai': got, ...finals } = approved;
+  // Approved too: Ilai's two hours start with his "קיבלתי" (p27.toilai closes 27), so still the words.
+  const [fin2] = offer(c, finals, 'p27.final', '2026-10-29T10:01:00+02:00');
+  assert.match(msg(fin2, '2026-10-29T10:01:00+02:00'), /\nיעד: עד שעתיים מרגע שהתוכן מוכן ומאושר\n/);
+  // Ilai already marked "קיבלתי" (p27.toilai, protocol v5): nothing to send him.
+  assert.deepEqual(offer(c, approved, 'p27.final', '2026-10-29T10:01:00+02:00'), []);
+  assert.ok(got);
   const [gantt] = offer(c, { ...approved, 'p29.filled': done('2026-10-29T11:00:00+02:00') }, 'p29.filled', '2026-10-29T11:01:00+02:00');
   assert.match(msg(gantt, '2026-10-29T11:01:00+02:00'), /^היי עירית,\nהגאנט של מספרת רון מלא ותואם לתזמון\. לשלוח אותו ללקוח\.\nיעד: היום 12:00\n/);
 });

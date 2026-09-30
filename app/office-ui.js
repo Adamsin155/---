@@ -5,20 +5,39 @@
 // line of a process in the client card. The logic is app/office-marks.js.
 import { PEOPLE } from './protocol.js';
 import { setCheck, setChecksBulk, setTaskStarted } from './protocol-data.js';
-import { h, toast, errorText, formatStamp, formatWhen, who } from './protocol-ui.js';
+import {
+  h, toast, errorText, formatStamp, formatWhen, who, TAB_FRESH, firstLanded, markFirstLanded,
+} from './protocol-ui.js';
+import { isOwnerView } from './team-rules.js';
 import {
   QA_KINDS, qaState, fixedKey, fixedItemKey, qaDue,
 } from './office-marks.js';
 
 // ── The first screen ────────────────────────
-// Ofir lands on the quality-control queue, Lior on "החלטות" (section 3), once per
-// tab (the installed app, a sign-in, a new tab); after that the links open where
-// they point. Kept in this tab's session storage; without it, they always land.
-export const FIRST_SCREEN = { ofir: 'qa.html', lior: 'decisions.html' };
-const LANDED = 'astrateg.firstLanded';
-export function markFirstLanded() { try { sessionStorage.setItem(LANDED, '1'); } catch { /* no storage */ } }
-export function firstLanded() { try { return sessionStorage.getItem(LANDED) === '1'; } catch { return false; } }
-export const firstScreenOf = (me) => FIRST_SCREEN[me] || null;
+// One landing rule for everyone (sections 3 and 6): the owner lands on "מה דורש
+// אותי" (owner.html), Ofir on the quality-control queue, Lior on "החלטות", the
+// editors and Nirel on their editing page, Eli on his shoot days. Irit and Ilai
+// stay on "מה עליי". Only when the tab opens on clients.html without a view (#…),
+// and once per tab (the installed app, a sign-in, a new tab; this tab's session
+// storage); after that every link opens where it points, and "מה עליי" is always
+// clients.html#mine. Each role also has a shortcut to its screen on that page.
+export const FIRST_SCREEN = { ofir: 'qa.html', lior: 'decisions.html', eli: 'shoot.html' };
+export const EDITOR_SCREEN = 'editor.html';
+export const OWNER_SCREEN = 'owner.html';
+export function firstScreenOf(me, viewer = null) {
+  if (!me) return isOwnerView(viewer) ? OWNER_SCREEN : null;
+  if (PEOPLE[me]?.editor) return EDITOR_SCREEN;
+  return FIRST_SCREEN[me] || null;
+}
+// Where clients.html sends this person now, or null: `arrived` is the hash the page
+// was opened with (a sign-in link, #mine, #control…). Marks the landing.
+export function landingNow({ me, viewer, arrived = '', fresh = TAB_FRESH }) {
+  if (!fresh || arrived || firstLanded()) return null;
+  const page = firstScreenOf(me, viewer);
+  if (page) markFirstLanded();
+  return page;
+}
+export { firstLanded, markFirstLanded };
 
 // The office screens in the page head: Ofir's two, Lior's decisions (and the
 // assignment, which he takes when Ofir cannot), all three for the owner.

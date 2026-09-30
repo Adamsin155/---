@@ -122,12 +122,12 @@ export function fixDue(now = new Date()) {
 
 // ── Ofir's quality clock (decision 11) ───────
 // His characterization meetings, [start, end] in ms: from the meeting until he
-// marked it done (MEETING_DONE_KEYS), at most 4 hours; not marked, two hours. His
-// one-hour clock stops meanwhile. public.ofir_meetings() in the database
-// (20260930150000_office_flows.sql) answers the same for those who do not see his
-// clients (the editors). "האפיון הסתיים" (decision 12), when it has its own mark,
-// belongs first in MEETING_DONE_KEYS (and in that function).
-export const MEETING_DONE_KEYS = ['p04.saved'];
+// marked it done (MEETING_DONE_KEYS: "האפיון הסתיים", p04.ended, decision 12; or
+// the full form saved, p04.saved; the earlier of them), at most 4 hours; not
+// marked, two hours. His one-hour clock stops meanwhile and runs on from the tap.
+// public.ofir_meetings() in the database (20260930150000_office_flows.sql) answers
+// the same, with the same keys, for those who do not see his clients (the editors).
+export const MEETING_DONE_KEYS = ['p04.ended', 'p04.saved'];
 export const MEETING_HOURS = 2;
 export const MEETING_MAX_HOURS = 4;
 export function ofirMeetings(clients, checksOf) {
