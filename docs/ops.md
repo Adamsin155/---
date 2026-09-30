@@ -321,7 +321,7 @@ select email, fail_count, last_error, last_ok_at from public.push_subscriptions 
      `supabase functions deploy whatsapp-webhook --project-ref czncjzziqrqtezpwxxpz --use-api`
 6. **Webhook ב־Meta** (האפליקציה ← WhatsApp ← Configuration): Callback URL ‏`https://czncjzziqrqtezpwxxpz.supabase.co/functions/v1/whatsapp-webhook`, ו־Verify token זהה ל־`whatsapp_verify_token`. אחרי "Verify and save" נרשמים לשדה `messages`.
 7. **פרסום האתר** (סעיף 2): `staff-privacy.html`, `app/whatsapp.js`, `app/wa-team.js`, `app/styles/whatsapp.css`.
-8. **הדלקה:** הבעלים מסכים/ה במסך ההסכמה (ובודק/ת שהגיעה הודעה), ואז בעמוד הצוות ← "הפעלת הודעות WhatsApp". מעכשיו כל אחד מקבל את המסך בכניסה הבאה.
+8. **הדלקה:** בעמוד הצוות ← "הפעלת הודעות WhatsApp" (הכפתור לא פעיל כל עוד חסר סוד). מעכשיו כל אחד, גם הבעלים, מקבל את מסך ההסכמה בכניסה הבאה. הבעלים מסכים/ה ראשון/ה, ובודק/ת שהגיעה הודעה: הצלצול הבא, או התקציר של 18:00. אם משהו לא עובד, מכבים באותו כפתור. ההסכמות נשמרות.
 
 **בדיקה ותפעול:**
 ```sql

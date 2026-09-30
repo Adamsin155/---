@@ -22,6 +22,7 @@ let cardEl = null;
 let cardAnchor = null;
 let dialogEl = null;
 let busy = false;
+let draftPhone = null;           // what the owner typed, kept across repaints
 
 function styles() {
   if (document.querySelector('link[data-wa-css]')) return;
@@ -64,7 +65,7 @@ function paintDialog(note = '') {
   const t = s.text;
   const ownerPhone = s.owner ? h('div', { class: 'field wa-phone' },
     h('label', { for: 'wa-phone' }, 'המספר שלך'),
-    h('input', { class: 'input', id: 'wa-phone', type: 'tel', dir: 'ltr', inputmode: 'tel', autocomplete: 'tel', placeholder: '050-1234567', value: formatPhone(s.phone), 'aria-describedby': 'wa-phone-h' }),
+    h('input', { class: 'input', id: 'wa-phone', type: 'tel', dir: 'ltr', inputmode: 'tel', autocomplete: 'tel', placeholder: '050-1234567', value: draftPhone ?? formatPhone(s.phone), 'aria-describedby': 'wa-phone-h', 'aria-invalid': note && draftPhone !== null && !normPhone(draftPhone) ? 'true' : null }),
     h('span', { class: 'hint', id: 'wa-phone-h' }, 'נייד ישראלי. נשמר רק אצלך ובמערכת, לא ברשימת הצוות.')) : null;
   const choice = (label, value) => h('button', { type: 'button', class: 'btn wa-choice', id: `wa-${value}`, disabled: busy, onclick: () => decide(value) }, label);
   fill(dialogEl,
@@ -91,13 +92,12 @@ async function decide(choice) {
   if (busy || !state) return;
   let phone = null;
   if (state.owner) {
-    const input = dialogEl.querySelector('#wa-phone');
-    const typed = input?.value.trim() || '';
-    phone = typed ? normPhone(typed) : null;
+    draftPhone = dialogEl.querySelector('#wa-phone')?.value.trim() || '';
+    phone = draftPhone ? normPhone(draftPhone) : null;
     if (choice === 'whatsapp' && !phone) {
-      input?.setAttribute('aria-invalid', 'true');
-      input?.focus();
-      toast('צריך מספר נייד ישראלי, למשל 050-1234567.');
+      // Said inside the screen (a toast would sit behind it).
+      paintDialog('צריך מספר נייד ישראלי, למשל 050-1234567.');
+      dialogEl.querySelector('#wa-phone')?.focus();
       return;
     }
   }
@@ -114,6 +114,7 @@ async function decide(choice) {
     return;
   }
   state = data?.text ? data : state;
+  draftPhone = null;
   dialogEl.close();
   toast(choice === 'whatsapp' ? 'נרשם. הודעות העבודה יגיעו גם ב־WhatsApp.' : 'נרשם. ההתראות ימשיכו להגיע באפליקציה בלבד.');
   paintCard();

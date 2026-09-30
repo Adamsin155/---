@@ -260,8 +260,12 @@ await step('the owner keeps no number on the staff list: types one on the screen
   assert.equal(await p.locator('label[for="wa-phone"]').innerText(), 'המספר שלך');
   await p.fill('#wa-phone', '03-1234567');
   await p.click('#wa-whatsapp');
-  await toastHas(p, 'צריך מספר נייד ישראלי');
+  // Said inside the screen, with the field marked and focused, and what was typed kept.
+  await p.waitForSelector('#dlg-wa .wa-note[role="alert"]');
+  assert.match(await p.locator('#dlg-wa .wa-note').innerText(), /צריך מספר נייד ישראלי/);
   assert.equal(await p.getAttribute('#wa-phone', 'aria-invalid'), 'true');
+  assert.equal(await p.evaluate(() => document.activeElement?.id), 'wa-phone');
+  assert.equal(await p.inputValue('#wa-phone'), '03-1234567');
   assert.equal(calls.filter((c) => c.by === 'owner@astrateg.test' && c.path === 'whatsapp_decide').length, 0);
   await p.fill('#wa-phone', '050-222-2222');
   await p.click('#wa-whatsapp');
@@ -311,6 +315,8 @@ await step('Irit on the team screen sees the same lines, but no switch', async (
   await p.waitForSelector('#wa-panel');
   assert.equal(await p.locator('#wa-toggle').count(), 0);
   assert.match(await p.locator('#row-ilai').innerText(), /WhatsApp: עוד לא בחר\/ה · יש מספר/);
+  await p.setViewportSize({ width: 360, height: 740 });
+  assert.ok(await noHScroll(p), 'the team screen on a phone');
   await ctx.close();
 });
 
