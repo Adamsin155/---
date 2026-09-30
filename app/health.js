@@ -31,6 +31,8 @@ import {
 } from './protocol-logic.js';
 import { stationOf, promisedClosing, materialsOf, SENT_CHECK_NOTE } from './messages-logic.js';
 import { isOwnerView } from './team-rules.js';
+import { AUTO_NOTE } from './characterization.js';
+import { TOPIC_NOTE } from './shoot-prep.js';
 import {
   partsIL, dayKeyIL, weekdayIL, atTimeIL, addDaysIL, startOfDayIL, endOfDayIL, daysBetweenIL, dayFromKeyIL,
 } from './tz.js';
@@ -677,7 +679,8 @@ export function station(client, state, extras = {}) {
 // Done (who and when; what the system did by itself is marked automatic, imported
 // history as imported), now (open, with its deadline), and planned (computed
 // dates; "not set yet, must be set by X" when a date is missing).
-const AUTO_NOTES = [SENT_CHECK_NOTE];
+// (The characterization form and the shoot-day blockers close some items by themselves.)
+const AUTO_NOTES = [SENT_CHECK_NOTE, AUTO_NOTE, TOPIC_NOTE];
 export const isAutoCheck = (c) => !!c && (c.by_email === 'system' || AUTO_NOTES.includes(c.note) || /^נחתם במערכת/.test(c.note || ''));
 export function timeline(client, state, checks = {}, now = new Date()) {
   const byId = new Map(state.states.map((s) => [s.proc.id, s]));

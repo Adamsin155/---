@@ -259,16 +259,21 @@ test('shoot day not closed (11): Irit\'s digest each morning, 16:00 ring on busi
   none(due(w, IL(2026, 10, 7, 8, 30)), 'shootDate');
 });
 
-test('scripts (12): a daily count for Lior; a ring at 12:00 on business day 3', () => {
+test('scripts (12): due at the end of business day 2 (decision 14): a daily count for Lior; a ring at 12:00 on day 2', () => {
   const w = world();
-  const c = client(w, { char_at: IL(2026, 10, 4, 10).toISOString() });
+  const c = client(w, { char_at: IL(2026, 10, 4, 10).toISOString() }); // Sunday
   importTo(w, c, 'content');
   for (const k of itemsOf('p12')) delete w.checks[c.id][k];
-  assert.match(one(due(w, IL(2026, 10, 6, 8, 30)), 'scripts', 'd2026-10-06', 'lior').title, /יום 2 מתוך 3/);
-  none(due(w, IL(2026, 10, 7, 11, 59)), 'scripts', 'day3');
-  one(due(w, IL(2026, 10, 7, 12)), 'scripts', 'day3', 'lior');
-  marks(w, c, itemsOf('p12'), IL(2026, 10, 7, 11));
-  none(due(w, IL(2026, 10, 7, 12)), 'scripts');
+  assert.match(one(due(w, IL(2026, 10, 5, 8, 30)), 'scripts', 'd2026-10-05', 'lior').title, /יום 1 מתוך 2/);
+  assert.match(one(due(w, IL(2026, 10, 6, 8, 30)), 'scripts', 'd2026-10-06', 'lior').title, /יום 2 מתוך 2/);
+  none(due(w, IL(2026, 10, 6, 11, 59)), 'scripts', 'day2');
+  const ring = one(due(w, IL(2026, 10, 6, 12)), 'scripts', 'day2', 'lior');
+  assert.equal(ring.level, 'ring');
+  assert.match(ring.body, /הזום מחר/);
+  // Day 3 is the Zoom's: no scripts count any more (lateness goes the usual way).
+  none(due(w, IL(2026, 10, 7, 8, 30)), 'scripts', 'd2026-10-07');
+  marks(w, c, itemsOf('p12'), IL(2026, 10, 6, 11));
+  none(due(w, IL(2026, 10, 6, 12)), 'scripts');
 });
 
 test('no client approval of the scripts (13): Lior and Irit 2 business days before; the owner 1 day before, even while waiting', () => {
@@ -714,12 +719,22 @@ test('Natali (11ב): Lior quietly once the date is set; three business days befo
 test('focus call (12א) the next business day; shoot blockers (14) every morning and Lior two days before', () => {
   const w = world();
   const c = client(w, { char_at: IL(2026, 10, 4, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
-  importTo(w, c, 'content');
+  importTo(w, c, 'shoot');
   for (const k of [...itemsOf('p12a'), ...itemsOf('p14')]) delete w.checks[c.id][k];
   assert.equal(one(due(w, IL(2026, 10, 5, 8, 30)), 'focusCall', 'next', 'lior').level, 'digest');
-  assert.match(one(due(w, IL(2026, 10, 12, 8, 30)), 'blockers', 'd2026-10-12', 'irit').title, /8 פתוחים/);
+  // The blockers are computed (shoot-prep.js): the focus call is late, an employee's delay.
+  const mon = one(due(w, IL(2026, 10, 12, 8, 30)), 'blockers', 'd2026-10-12', 'irit');
+  assert.match(mon.title, /חוסמי יום צילום: .* · חוסם אחד/);
+  assert.match(mon.body, /באיחור: 12א · שיחת דגשים לתוכן/);
+  assert.equal(mon.url, `prep.html?id=${c.id}`);
   one(due(w, IL(2026, 10, 13, 10)), 'blockers', 'lior', 'lior');
-  marks(w, c, itemsOf('p14'), IL(2026, 10, 13, 9));
+  // Reported to Lior from Irit's list: it is his exception now, no second ring.
+  w.tasks.push({ id: 'b1', client_id: c.id, title: 'חוסם ליום הצילום: באיחור', owner: 'lior', source: 'escalation', urgent: true, brief: { blocker: 'delays:p12a' }, created_at: IL(2026, 10, 13, 9).toISOString() });
+  none(due(w, IL(2026, 10, 13, 10)), 'blockers', 'lior');
+  w.tasks.length = 0;
+  // Nothing blocks any more (the open p14 items alone are not blockers): no line.
+  marks(w, c, itemsOf('p12a'), IL(2026, 10, 12, 9));
+  none(due(w, IL(2026, 10, 13, 8, 30)), 'blockers');
   none(due(w, IL(2026, 10, 13, 10)), 'blockers');
 });
 

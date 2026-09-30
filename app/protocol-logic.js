@@ -62,6 +62,14 @@ export const workingMinutesBetween = (from, to) => Math.round(officeMsBetween(fr
 // Anchors that are office events run on office time; a meeting or a shoot runs on the real clock.
 const onOfficeClock = (from) => from === 'deal' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
 // Whether resolveTime counts a due spec in office minutes (and so a clock of it stops at night).
+// "The characterization ended" (decision 12): a mark with the 4 short fields in its
+// note, tapped at the end of the meeting. It starts the clocks of processes 5–10
+// (their anchor charEnd) before the full form is typed; the form is due 60 minutes later.
+export const CHAR_ENDED = 'p04.ended';
+export function charEndedAt(checks) {
+  const c = checks?.[CHAR_ENDED];
+  return c && c.state === 'done' && c.at ? new Date(c.at) : null;
+}
 export const onOfficeTime = (spec) => !!spec && !spec.businessDays && onOfficeClock(spec.from) && spec.days === undefined && !spec.prevBusinessDay;
 
 const sameDay = (a, b) => dayKeyIL(a) === dayKeyIL(b);
@@ -171,8 +179,11 @@ function anchor(from, client, procs, checks, now) {
     case 'charEnd': {
       // Inside a round there is no meeting: the round starts when it was added.
       if (client.round) return parseDate(client.char_at);
-      // End of the characterization meeting: when process 4 was completed,
+      // End of the characterization meeting: "the characterization ended" (decision
+      // 12: one tap, before the full form), else when process 4 was completed,
       // otherwise the end of its two-hour window.
+      const ended = charEndedAt(checks);
+      if (ended) return ended;
       const p4 = procs.find((p) => p.id === 'p04');
       const done = p4 && completedAt(p4, checks, now);
       if (done) return done;
@@ -195,6 +206,8 @@ function anchor(from, client, procs, checks, now) {
 
 export function resolveTime(spec, client, procs, checks, now = new Date()) {
   if (!spec) return null;
+  const after = spec.afterMark && checks[spec.afterMark.key];
+  if (after && after.state === 'done') return new Date(new Date(after.at).getTime() + spec.afterMark.minutes * 6e4);
   const base = anchor(spec.from, client, procs, checks, now);
   if (!base) return null;
   if (spec.businessDays) return addBusinessDays(base, spec.businessDays);

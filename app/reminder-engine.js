@@ -19,7 +19,7 @@ import {
   RULES, OWNER, timeOf, inSendHours, atIL, DAILY_CAP, STALE_MINUTES, FOLD, DIGESTS, RING_TARGETS, personName, MINE_URL,
   baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey,
 } from './reminder-rules.js';
-import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf } from './protocol-logic.js';
+import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf, charEndedAt } from './protocol-logic.js';
 import { STAFF_PEOPLE } from './protocol.js';
 import { dayKeyIL, atTimeIL, dayFromKeyIL, weekdayIL, addDaysIL, endOfDayIL } from './tz.js';
 
@@ -70,15 +70,17 @@ export function buildEnv({
   return env;
 }
 
-// Ofir's characterization meetings, [start, end] in ms: from the meeting until it
-// was marked done, or two hours (decision 11 stops his quality clock meanwhile).
+// Ofir's characterization meetings, [start, end] in ms: from the meeting until he
+// tapped "the characterization ended" (or process 4 was completed), or two hours
+// (decision 11 stops his quality clock meanwhile; it runs on from the tap).
 function ofirMeetings(env) {
   const out = [];
   for (const c of env.clients) {
     const at = parseDate(c.char_at);
     if (!at || (c.characterizer && c.characterizer !== 'ofir')) continue;
     const p4 = env.stateOf(c).states.find((s) => s.proc.id === 'p04');
-    const end = p4?.complete && p4.completedAt ? p4.completedAt : new Date(at.getTime() + 2 * 36e5);
+    const ended = charEndedAt(env.checksOf(c));
+    const end = ended || (p4?.complete && p4.completedAt ? p4.completedAt : new Date(at.getTime() + 2 * 36e5));
     if (end > at) out.push([at.getTime(), end.getTime()]);
   }
   return out;

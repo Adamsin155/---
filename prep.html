@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>לפני יום צילום · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/intake.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="clients.html" aria-label="astrateg · לקוחות ופרוטוקול">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">לפני יום צילום</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="clients.html">לקוחות</a>
+      <a class="navlink" href="prep.html" aria-current="page">לפני יום צילום</a>
+      <a class="navlink" href="messages.html">הודעות ללקוחות</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>ימי הצילום ובקשות הלקוחות זמינים לצוות המשרד.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app pp-app" hidden>
+      <div class="page-head">
+        <div>
+          <div class="kicker latin">BEFORE THE SHOOT</div>
+          <h1>לפני יום צילום ובקשות לקוחות</h1>
+          <p>סגירת יום הצילום מול כולם, חוסמים, בדיקת יום לפני, ובקשות שהלקוחות שלחו.</p>
+        </div>
+        <div class="head-actions">
+          <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+        </div>
+      </div>
+      <p class="pp-summary" id="pp-summary" role="status"></p>
+      <div class="pp-filter" id="pp-filter"></div>
+      <section aria-labelledby="shoots-h" id="shoots">
+        <h2 id="shoots-h" class="sr-only">ימי צילום</h2>
+        <ul class="pp-list" id="pp-shoots"></ul>
+      </section>
+      <section class="pp-card" aria-labelledby="req-h" id="requests">
+        <h2 id="req-h">בקשות לקוחות</h2>
+        <div id="pp-requests"></div>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/prep.js"></script>
+</body>
+</html>

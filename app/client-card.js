@@ -27,6 +27,7 @@ import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 import { clientHealth, station, timeline } from './health.js';
 import { healthHead, timelineBlock, questionsBlock } from './health-ui.js';
 import { loadHealthExtras, loadQuestions } from './owner-data.js';
+import { intakeShortcut, mountClientIntake, describeIntakeMark } from './intake-ui.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -144,6 +145,7 @@ function render() {
     if (tp) openPhases.add(tp.proc.phase);
   }
   renderHead(s);
+  mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus() });
   renderAccess();
   renderViewbar();
   renderPhases(s);
@@ -794,6 +796,7 @@ function procCard(x, now, s) {
         own() ? null : h('button', { type: 'button', class: 'btn btn-sm', onclick: () => (p.ctx ? openRound(p.ctx.round) : openEdit(FIELD_INPUT[missing[0]])) }, 'השלמת פרטים')) : null,
       p.what ? h('p', { class: 'proc-what' }, p.what) : null,
       link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${linkDef.label}`) : null,
+      printing ? null : intakeShortcut(p.id, client.id, { checks, scope, complete: x.complete }),
       ...guidance.map((g) => h('p', { class: 'proc-guide' }, g)),
       p.rule ? h('p', { class: 'proc-rule' }, h('strong', {}, 'חובה: '), p.rule) : null,
       h('ul', { class: 'items' }, ...items.map((i) => itemRow(p, i))),
@@ -861,7 +864,7 @@ function itemRow(p, i) {
         h('span', { class: 'ilabel' }, i.label, state === 'na' ? h('span', { class: 'tag' }, i.optional ? 'לא נדרש' : 'לא רלוונטי') : null),
         meta.length ? h('span', { class: 'imeta', id: `${cid}-m` }, ...meta) : null)),
     calendar,
-    state === 'done' ? null : h('button', {
+    state === 'done' || (baseKey(i.key) === 'p13.approved' && state !== 'na') ? null : h('button', {
       type: 'button', class: `btn-text na-btn${i.optional ? ' is-opt' : ''}`, disabled: busy, id: `${cid}-na`,
       'aria-label': `${naLabel}: ${i.label}`,
       onclick: () => {
@@ -1458,6 +1461,8 @@ function historyText(r) {
   const round = roundOfKey(r.item_key);
   const pre = round > 1 ? `סבב ${round} · ` : '';
   const base = baseKey(r.item_key);
+  const intake = describeIntakeMark(base, r);
+  if (intake) return `${pre}${intake}`;
   const handed = describeMark(base, r.note);
   if (handed) return r.action === 'clear' ? `ביטל/ה רישום העברה: ${pre}${handed}` : `פתח/ה וואטסאפ להעברה: ${pre}${handed}`;
   const mk = /^(p\d+[ab]?)\.(claim|wait|waited|pause|answered)$/.exec(base);
