@@ -473,6 +473,9 @@ test('every client table has row level security, and no policy on it lets every 
     // The owner's questions (20260930120000_owner_screens.sql): the office asks; the person
     // asked reads and answers their own, even about a client they no longer see.
     client_questions: /can_ask_questions|is_my_question/,
+    // The reminder log (20260930110000_reminders.sql): each row is a notification
+    // addressed to one person; the owner and Lior read the whole log (decision 22).
+    reminder_log: /reminder_person\(\)/,
   };
   for (const p of policies) {
     assert.match(p.expr, OWN_RULE[p.tablename] || RULES, `${p.tablename} / "${p.policyname}" does not check who the client belongs to: ${p.expr}`);

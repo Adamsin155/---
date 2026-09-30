@@ -437,7 +437,7 @@ const sw = await droid.evaluate(() => window.__swNotes);
 assert.equal(sw.length, 1, JSON.stringify(sw));
 assert.deepEqual([sw[0].title, sw[0].body, sw[0].state], ['הלקוח לא ענה: מספרת רון', 'הסרטונים (תהליך 26). עברו 5 דקות בלי תשובה: להתקשר.', 'activated']);
 assert.equal(sw[0].href, `${BASE}client.html?id=${ron.id}#p26`);
-assert.equal(sw[0].scope, `${BASE}app/`); // it controls no page
+assert.equal(sw[0].scope, BASE); // the site's one worker (sw.js), which also receives the pushes
 await droidCtx.close();
 
 assert.deepEqual(errors, []);

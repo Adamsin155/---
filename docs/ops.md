@@ -4,7 +4,7 @@
 
 ## 1. פונקציות Edge
 
-כרגע יש פונקציה אחת, `create-quote`, עם `verify_jwt=true`. היא מחשבת את המחיר מחדש בשרת עם אותו מנוע תמחור שהדפדפן משתמש בו.
+`create-quote` (עם `verify_jwt=true`) מתוארת כאן. `staff-admin` ו־`reminders` רצות עם `verify_jwt=false` ובודקות את הקורא בקוד; `reminders` מתוארת בסעיף 10. היא מחשבת את המחיר מחדש בשרת עם אותו מנוע תמחור שהדפדפן משתמש בו.
 
 **הקבצים שנפרסים יחד:**
 
@@ -166,3 +166,80 @@ node scripts/build-pages.mjs --commit
   rollback;
   ```
   עורך מקבל רק את מספר הלקוחות שלו, ואיש משרד את כולם.
+
+## 10. מנוע התזכורות
+
+*שלב 3 ([התוכנית, עיקרון 4 וסעיף 5](plan/system-plan.md), החלטות 7–24). הכללים עצמם הם נתונים ב־`app/reminder-rules.js`; ההרצה ב־`app/reminder-engine.js`.*
+
+**איך זה עובד:** בכל דקה `pg_cron` מריץ את `public.reminders_tick()`, שקוראת לפונקציה `reminders` עם סוד מה־Vault. הפונקציה טוענת את הלקוחות, הסימונים והמשימות (במפתח השירות), מחשבת בשעון ישראל אילו שלבים בסולמות הגיעו, ורושמת כל שלב ב־`public.reminder_log` עם מפתח ייחודי. לכן כל שלב יוצא פעם אחת, גם כששתי הרצות חופפות. אחר כך היא שולחת Web Push לטלפונים שב־`public.push_subscriptions`.
+
+- **רמות:** צלצול (פוש), שקט (רק ב"התראות" במערכת), שורה בתקציר, ולוח הבעלים.
+- **שעות שליחה:** א׳–ה׳ 08:30–19:00, לא בחגים. מה שמגיע מחוץ להן ממתין לתקציר הבא. אירועי יום צילום (התדריך ב־17:00, הבדיקה ב־20:00, שעוני ההגעה) יוצאים בכל מקרה.
+- **תקרה:** עד 6 צלצולים ביום לאדם, לא כולל שעוני פרוטוקול, יום צילום ודחוף. מה שמעבר נכנס לתקציר הבא.
+- **תקצירים:** 08:30 לכל אחד (עד 5 שורות, קודם מה שבאיחור, וגם מה שמתוזמן ל־09:00–09:30). ליאור גם ב־12:00 וב־16:00. הבעלים ב־18:00 (בחמישי עם הדוח השבועי), וביום העסקים הראשון בשבוע ב־08:30 "השבוע הקרוב".
+- **יום צילום של ליאור (החלטה 8):** החריגות שלו עוברות לאופיר, ושאר ההודעות שלו מחכות לסיכום אחד אחרי היום.
+- **עצירה:** "בוצע", "אני על זה", "ממתין ללקוח", עצירת עריכה ו"לדחות עד…" עוצרים את הסולם. שלב שהיה צריך לצאת לפני יותר מכמה שעות (למשל בהפעלה הראשונה) נרשם כ־`stale` ולא נשלח באיחור.
+
+**מה נפרס** (הפונקציה `reminders`, ‏`verify_jwt=false`, כי היא בודקת בעצמה את סוד ה־cron ואת המשתמש):
+
+| קובץ | מה זה |
+|---|---|
+| `supabase/functions/reminders/index.ts` | הפונקציה: `tick` מה־cron, `test` מהטלפון |
+| `supabase/functions/reminders/tick.js` | הרצה אחת: שלבים, יומן, תקצירים ושליחה |
+| `supabase/functions/reminders/webpush.js` | הצפנת Web Push וחתימת VAPID (WebCrypto בלבד) |
+| `supabase/functions/reminders/http.js` | CORS וכותרות |
+| `supabase/functions/_shared/app/reminder-engine.js`, `reminder-rules.js`, `protocol-logic.js`, `protocol.js`, `clocks.js`, `tz.js`, `holidays.js`, `catalog.js`, `push-config.js` | עותקים של `app/` (סעיף 1). לא עורכים ביד |
+
+**הפעלה, לפי הסדר:**
+
+1. מיגרציות: `20260930110000_reminders.sql` ו־`20260930110001_task_started.sql`.
+2. שלושה סודות ב־Vault (ב־SQL Editor, לא בקובץ ולא בצ'אט ציבורי):
+   ```sql
+   select vault.create_secret('<סוד ה-cron>', 'reminders_cron_secret', 'reminders: pg_cron → function');
+   select vault.create_secret('<המפתח הפרטי של VAPID>', 'vapid_private_key', 'reminders: Web Push signing key');
+   select vault.create_secret('mailto:<כתובת של המשרד>', 'vapid_subject', 'reminders: VAPID contact');
+   ```
+   - סוד ה־cron: מחרוזת אקראית של 32 תווים לפחות (למשל `openssl rand -base64 32 | tr '+/' '-_' | tr -d '='`).
+   - המפתח הפרטי של VAPID: ה־base64url של המפתח הפרטי (32 בתים) שתואם למפתח הציבורי ב־`app/push-config.js`. לא נכנס למאגר.
+   - החלפה: `select vault.update_secret(id, '<ערך חדש>') from vault.secrets where name = '<שם>';`
+3. פריסת הפונקציה עם כל הקבצים שבטבלה: `supabase functions deploy reminders --project-ref czncjzziqrqtezpwxxpz --use-api` (ההגדרה `verify_jwt = false` נמצאת ב־`supabase/config.toml`), או `deploy_edge_function` ב־MCP עם `entrypoint_path` ‏`reminders/index.ts` ו־`verify_jwt: false`.
+4. מיגרציה `20260930110002_reminders_cron.sql`: מפעילה את `pg_cron` ומתזמנת את `reminders-tick` כל דקה (ואת ניקוי ההיסטוריה של ה־cron פעם ביום). בלי סוד ב־Vault ההרצה לא קוראת לשום דבר, כך שהסדר לא מסוכן.
+5. פרסום האתר (סעיף 2). `sw.js` בשורש הוא ה־service worker של האתר, והוא מתפרסם עם הדפים.
+
+**תזמון ועצירה:**
+```sql
+select jobname, schedule, active from cron.job;                        -- מה מתוזמן
+select cron.unschedule('reminders-tick');                              -- עצירה
+select cron.schedule('reminders-tick', '* * * * *', 'select public.reminders_tick()');  -- הפעלה מחדש
+```
+
+**בדיקה:**
+- הרצה ידנית: `select public.reminders_tick();`, ואחרי כמה שניות:
+  ```sql
+  select id, status_code, content from net._http_response order by id desc limit 3;   -- 200 עם מספרים, או 202 busy
+  select * from public.reminder_runs order by id desc limit 5;                         -- ok, stats, error
+  ```
+  ‏401 = הסוד ב־Vault לא תואם; 500 עם `vapid_missing` ב־`reminder_runs.error` = חסר מפתח VAPID או subject.
+- בטלפון: "מה עליי" ← "הפעלת התראות" ← מגיעה התראת ניסיון ← "קיבלתי". באייפון קודם "הוספה למסך הבית" (iOS 16.4 ומעלה), ופותחים מהמסך הבית.
+- בעמוד הצוות רואים לכל אחד כמה מכשירים מחוברים ומתי התקבלה התראה לאחרונה.
+
+**קריאת היומן:**
+```sql
+-- מה יצא היום, למי ואיך
+select created_at at time zone 'Asia/Jerusalem' as at, person, level, channel, status, reason, title
+from public.reminder_log where created_at > now() - interval '1 day' order by id desc;
+-- צלצולים לאדם ביום (מול היעדים שבסעיף 5 בתוכנית)
+select person, (created_at at time zone 'Asia/Jerusalem')::date as day, count(*)
+from public.reminder_log where level = 'ring' and channel = 'push' and status = 'sent' and not exempt group by 1, 2 order by 2 desc, 1;
+-- תקלות שליחה ומכשירים בעייתיים
+select created_at, person, title, reason from public.reminder_log where status = 'failed' order by id desc limit 20;
+select email, fail_count, last_error, last_ok_at from public.push_subscriptions where fail_count > 0;
+```
+- מכשיר שה־push service מחזיר עליו 404 או 410 נמחק לבד. כל תקלה אחרת נרשמת בשורה (`failed`) ובמכשיר (`fail_count`, ‏`last_error`).
+- `reminder_runs` נשמר 14 יום, `cron.job_run_details` שבוע.
+
+**אבטחה:**
+- המפתח הפרטי של VAPID וסוד ה־cron נמצאים רק ב־Vault. רק פונקציות של `service_role` קוראות אותם (`reminders_vapid`, ‏`reminders_check_secret`), וסוד ה־cron נבדק בתוך מסד הנתונים.
+- כל אחד רואה ומוחק רק את המכשירים שלו, ומכשיר עובר למי שחיבר אותו אחרון. את היומן כל אחד קורא רק לעצמו; הבעלים וליאור רואים את כולו (החלטה 22).
+- מי שיש לו גישה ל־SQL Editor או למפתח השירות יכול לקרוא את ה־Vault, כמו בכספת הגישות (סעיף 3).
+- החלפת זוג המפתחות של VAPID מנתקת את כל הטלפונים: כל אחד מחבר מחדש מהכרטיס ב"מה עליי".

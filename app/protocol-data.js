@@ -18,7 +18,7 @@ async function all(build) {
 
 const CLIENT_COLS = 'id, name, business, address, phone, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, notes, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, closed_reason, editor';
 const CHECK_COLS = 'client_id, item_key, state, note, by_email, at';
-const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at, source, brief, urgent';
+const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at, source, brief, urgent, started_at';
 
 export async function loadClients({ includeEnded = false } = {}) {
   return all(() => {
@@ -90,12 +90,19 @@ export async function loadLog(clientId, limit = 60) {
 }
 
 export async function loadTasks({ clientId = null, openOnly = false } = {}) {
-  return all(() => {
-    let q = supabase.from('client_tasks').select(TASK_COLS).order('created_at', { ascending: false });
+  const read = (cols) => all(() => {
+    let q = supabase.from('client_tasks').select(cols).order('created_at', { ascending: false });
     if (clientId) q = q.eq('client_id', clientId);
     if (openOnly) q = q.is('done_at', null);
     return q;
   });
+  try {
+    return await read(TASK_COLS);
+  } catch (err) {
+    // Until migration 20260930110001 adds started_at ("התחלתי"), tasks load without it.
+    if (err?.code !== '42703') throw err;
+    return read(TASK_COLS.replace(', started_at', ''));
+  }
 }
 
 export async function addTask(task) {
@@ -107,6 +114,14 @@ export async function addTask(task) {
 export async function setTaskDone(id, done) {
   const { data, error } = await supabase.from('client_tasks')
     .update({ done_at: done ? new Date().toISOString() : null }).eq('id', id).select(TASK_COLS).single();
+  if (error) throw error;
+  return data;
+}
+
+// "התחלתי" on an urgent task (the database stamps when and who).
+export async function setTaskStarted(id, started) {
+  const { data, error } = await supabase.from('client_tasks')
+    .update({ started_at: started ? new Date().toISOString() : null }).eq('id', id).select(TASK_COLS).single();
   if (error) throw error;
   return data;
 }

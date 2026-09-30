@@ -26,6 +26,7 @@
 .tm-phone-form .input { flex: 1 1 140px; }
 .tm-state { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; }
 .tm-last { font-size: 12.5px; }
+.tm-push { font-size: 12.5px; color: var(--text-2); }
 .s-none.sbadge { color: var(--muted); }
 .s-none .sicon { box-shadow: inset 0 0 0 1.5px currentColor; opacity: .7; }
 .tm-vault { margin: 0; }

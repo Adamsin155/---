@@ -6,3 +6,9 @@ project_id = "astrateg-quotes"
 # gateway's JWT check is off. See supabase/functions/staff-admin/index.ts.
 [functions.staff-admin]
 verify_jwt = false
+
+# The reminder engine: pg_cron calls it with the cron secret, and a signed-in
+# staff member calls it for a test notification; both are checked in code. See
+# supabase/functions/reminders/index.ts.
+[functions.reminders]
+verify_jwt = false

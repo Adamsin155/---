@@ -312,7 +312,8 @@ await step('the one asked sees it at the top of "מה עליי", answers inline,
   const box = lior.locator('#my-questions');
   assert.match(await box.innerText(), /שאלה אליך\s*1[^]*מספרת רון · הבעלים · [^]*על: צילום בסיכון[^]*״הלקוח יאשר את התסריטים עד מחר\?״/);
   // Right under the "now" bar, above the list.
-  assert.equal(await lior.evaluate(() => document.getElementById('my-questions').previousElementSibling.id), 'now-bar');
+  // At the top of "מה עליי": after the "now" bar and the one-time notifications card, before the list.
+  assert.deepEqual(await lior.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 3).map((e) => e.id)), ['now-bar', 'push-card', 'my-questions']);
   // His top bar links screen 2, never screen 1.
   assert.equal(await lior.getAttribute('#nav-owner', 'href'), 'owner.html#all');
   assert.equal(await text(lior, '#nav-owner'), 'כל הלקוחות במבט');

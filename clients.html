@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
   <link rel="stylesheet" href="app/styles/protocol-now.css">
   <link rel="stylesheet" href="app/styles/owner.css">
+  <link rel="stylesheet" href="app/styles/push.css">
 </head>
 <body>
   <header class="topbar">
@@ -61,6 +62,7 @@
           <p>כל לקוח, איפה הוא נמצא בפרוטוקול, ומה פתוח אצל מי.</p>
         </div>
         <div class="head-actions">
+          <button type="button" class="btn btn-sm btn-ghost inbox-btn" id="btn-inbox" aria-haspopup="dialog" hidden>התראות</button>
           <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
           <a class="btn btn-sm" href="owner.html" id="cta-owner" hidden>מה דורש אותי</a>
           <a class="btn btn-sm" href="messages.html" id="cta-messages" hidden>הודעות ללקוחות</a>
@@ -79,6 +81,7 @@
 
       <section class="block" id="view-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
         <section class="now-bar" id="now-bar" aria-labelledby="now-h" hidden></section>
+        <section class="push-card" id="push-card" aria-labelledby="push-h" hidden></section>
         <section class="myq" id="my-questions" aria-labelledby="myq-h" hidden></section>
         <div class="filters" role="group" aria-label="של מי" id="mine-people"></div>
         <div class="mine-tools" id="mine-tools"></div>
@@ -213,6 +216,20 @@
         <button type="submit" class="btn btn-primary" id="status-next">שמירה ומעבר ללקוח הבא</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="dlg-inbox" class="dlg-inbox" aria-labelledby="inbox-h">
+    <div class="dlg-head">
+      <h2 id="inbox-h" tabindex="-1">התראות היום</h2>
+      <button type="button" class="close" data-close aria-label="סגירה">×</button>
+    </div>
+    <div class="dlg-body">
+      <div class="inbox-tools">
+        <p class="muted" id="inbox-sum"></p>
+        <button type="button" class="btn-text" id="inbox-read">סימון הכול כנקרא</button>
+      </div>
+      <ul class="inbox-list" id="inbox-list"></ul>
+    </div>
   </dialog>
 
   <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>

@@ -14,7 +14,7 @@ import { renderNowBar, updateNowBar, clockRows, ranOutText } from './now-bar.js'
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, setTaskDone, createClient,
   signedQuotes, loadDirectory, loadReviews, markReview, loadAllLog, addTask,
-  loadStatusNotes, saveStatusNote,
+  loadStatusNotes, saveStatusNote, setTaskStarted,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar,
@@ -32,6 +32,7 @@ import { canSeeAllClients, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP,
 import { loadDateChanges, loadLogFor } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
 import { ownerLanded } from './health-ui.js';
+import { mountPush, siteWorker, pushActive } from './push.js';
 
 let clients = [];
 let checks = {};
@@ -511,6 +512,7 @@ function groupCard(g, person) {
       statusBadge(g.status, g.dueAt),
       claimControl(g, person)),
     g.task ? taskMeta(g.task) : null,
+    g.task && g.urgent ? taskStart(g.task) : null,
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
       bulk ? h('button', {
@@ -528,6 +530,29 @@ function groupCard(g, person) {
           h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
         e.task ? briefDetails(e.task) : null);
     })));
+}
+
+// An urgent task: "התחלתי" within 30 office minutes, or it goes back to Lior
+// (decision 9; the reminder engine watches started_at, stamped by the database).
+function taskStart(t) {
+  if (!('started_at' in t)) return null; // before migration 20260930110001
+  if (t.started_at) return h('p', { class: 'task-start' }, `${t.owner === me ? 'התחלת' : 'התחיל/ה'} ${formatStamp(t.started_at)}`);
+  if (t.owner !== me) return null;
+  return h('p', { class: 'task-start' },
+    h('button', { type: 'button', class: 'btn btn-sm btn-primary', onclick: (ev) => startTask(t, ev.currentTarget) }, 'התחלתי'),
+    h('span', { class: 'hint' }, 'בלי ״התחלתי״ תוך 30 דקות עבודה, המשימה עוברת לליאור.'));
+}
+async function startTask(t, btn) {
+  btn.disabled = true;
+  try {
+    Object.assign(t, await setTaskStarted(t.id, true));
+  } catch (err) {
+    btn.disabled = false;
+    toast(`הסימון לא נשמר. ${errorText(err)}`);
+    return;
+  }
+  renderKeepingFocus();
+  toast(`נרשם שהתחלת: ${t.title}`);
 }
 
 const BUCKETS = [['urgent', 'דחוף'], ['escalation', 'חריגות שדווחו'], ['overdue', 'באיחור'], ['today', 'היום'], ['tomorrow', 'מחר'], ['week', 'השבוע'], ['later', 'בהמשך'], ['client', 'ממתין ללקוח']];
@@ -624,7 +649,7 @@ function renderMine() {
   }
   fill($('mine-tools'),
     !own && person ? summaryActions(person, 'mine') : null,
-    person && person === me ? notifyRow() : null);
+    person && person === me && !pushActive() ? notifyRow() : null);
 
   const nothing = person === me ? 'אין כרגע משהו פתוח אצלך.' : person ? `אין כרגע משהו פתוח אצל ${PEOPLE[person].name}.` : 'אין כרגע פריטים פתוחים.';
   if (!clients.length) {
@@ -787,23 +812,10 @@ function notifyRow() {
 
 // A system notification; a click opens `href`. Chrome on Android lets only a
 // service worker show one (`new Notification` throws a TypeError there), so
-// from the first such refusal app/notify-sw.js shows them.
+// from the first such refusal the site's worker (sw.js, the same registration
+// that receives the pushes: app/push.js) shows them.
 let workerNotes = false;
-let noteWorker = null;
-function notifyWorker() {
-  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
-  noteWorker ||= navigator.serviceWorker.register(new URL('./notify-sw.js', import.meta.url))
-    .then((reg) => (reg.active ? reg : new Promise((resolve) => {
-      const sw = reg.installing || reg.waiting;
-      if (!sw) { resolve(null); return; }
-      sw.addEventListener('statechange', () => {
-        if (sw.state === 'activated') resolve(reg);
-        else if (sw.state === 'redundant') resolve(null);
-      });
-    })))
-    .catch(() => null);
-  return noteWorker;
-}
+const notifyWorker = () => siteWorker();
 function showNote(title, body, tag, href) {
   if (!workerNotes) {
     try {
@@ -830,7 +842,8 @@ function alertOnce(keys, title, body, href, { ring = false } = {}) {
   if (ks.every((k) => store.get(k))) return null;
   for (const k of ks) store.set(k, '1');
   if (document.hidden || (ring && !document.hasFocus())) {
-    showNote(title, body, [keys].flat()[0], href);
+    // A clock that ran out also rings from the server when this phone is connected (sw.js): once is enough.
+    if (!(ring && pushActive())) showNote(title, body, [keys].flat()[0], href);
     return 'note';
   }
   if (ring && view === 'mine') return null;
@@ -2105,6 +2118,11 @@ mountSession(async (staff) => {
   minePerson = scope === 'own' ? me : me || '';
   applyScope();
   renderMe();
+  // Notifications on the phone and today's list (app/push.js); the owner's list is 'owner'.
+  mountPush({
+    who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
+    changed: () => { if (view === 'mine' && !$('app').hidden && !busy()) renderMine(); },
+  });
   const fromHash = location.hash.slice(1);
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();

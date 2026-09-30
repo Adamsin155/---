@@ -199,3 +199,6 @@
 .cq-item:first-child { border-top: 0; padding-top: 0; }
 .cq-item p { margin: 0 0 4px; overflow-wrap: anywhere; }
 .cq-meta { font-size: 13px; color: var(--muted); }
+
+/* The page-head buttons wrap on phones instead of widening the page (360px). */
+.page-head .head-actions { flex-wrap: wrap; max-width: 100%; min-width: 0; }
