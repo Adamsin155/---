@@ -242,6 +242,12 @@ const text = (page, sel) => page.locator(sel).innerText();
 const toastHas = (page, s) => page.waitForFunction((x) => document.querySelector('#toast.on')?.textContent.includes(x), s);
 const checkOf = (c, key) => db.protocol_checks.find((x) => x.client_id === c.id && x.item_key === key) || null;
 const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+// Visible form controls without a name a screen reader can say (a <label>, aria-label(ledby) or title).
+const unlabeled = (page) => page.evaluate(() => [...document.querySelectorAll('input:not([type=hidden]), select, textarea')]
+  .filter((e) => e.offsetParent && !e.closest('.sr-only'))
+  .filter((e) => ![...(e.labels || [])].some((l) => l.textContent.trim()) && !e.getAttribute('aria-label')?.trim()
+    && !(e.getAttribute('aria-labelledby') || '').split(/\s+/).some((id) => document.getElementById(id)?.textContent.trim()) && !e.title?.trim())
+  .map((e) => `${e.tagName}#${e.id}.${e.className}`));
 const height = (page, sel) => page.locator(sel).evaluate((el) => el.getBoundingClientRect().height);
 const set = (c, key, note = null, by = 'ofir@astrateg.test') => {
   const row = { client_id: c.id, item_key: key, state: 'done', note, by_email: by, at: serverNow() };
@@ -300,6 +306,7 @@ await step('an editor lands on "הלקוחות שלי בעריכה" and sees onl
   await toastHas(page, 'נוסח הסגיר הועתק');
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'לפרטים נוספים התקשרו: 03-5551234');
   assert.ok(await noHScroll(page), 'no horizontal scroll at 360px');
+  assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   assert.ok(await height(page, `#${A_ID}-go`) >= 44);
   await shot(page, 'editor-360');
   // One landing a tab: clients.html opens the list now (no bounce), with a shortcut
@@ -387,6 +394,7 @@ await step('(3) Ofir\'s return (the office\'s marks): "תוקן" per issue, the 
   assert.match(await text(page, `${card} .fix-items`), /סרטון 2: שגיאת כתיב בכתובית[^]*סרטון 3: הסגיר בלי טלפון/);
   assert.ok(await page.locator(`#${fx}-all`).isVisible()); // "סמן הכול תוקן" while two are left
   assert.ok(await noHScroll(page), 'no horizontal scroll at 360px with the fixes');
+  assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await page.click(`#${fx}-0`);
   await toastHas(page, 'סומן שתוקן');
   assert.ok(checkOf(A, 'p25.fixed.1.0'));
@@ -481,6 +489,7 @@ await step('Nirel: an urgent brief while editing asks to pause, prefilled; the p
   assert.match(notices[0].title, /\(לבקשת ליאור\)$/);
   assert.match(await text(page, `#${nc} .ed-pause`), /^עצירה לבקשת ליאור/);
   assert.ok(await noHScroll(page));
+  assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   nirelPage = { page, ctx, nc, t };
 });
 await step('Nirel finishes the brief: done, left and the Drive link; the requester\'s follow-up and Ofir\'s check open', async () => {
@@ -539,6 +548,7 @@ await step('Lior sends the 17:00 briefing to Eli with the drive label', async ()
   assert.match(await text(page, b), /אלי עוד לא אישר/);
   assert.match(await page.locator(`${b} a:has-text("גם בוואטסאפ")`).getAttribute('href'), /^https:\/\/wa\.me\/972500000009\?text=/);
   assert.ok(await noHScroll(page));
+  assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await ctx.close();
 });
 
@@ -566,6 +576,7 @@ await step('Eli lands on "ימי הצילום שלי": his arrival, the scripts,
   await toastHas(page, 'הציוד מוכן');
   assert.ok(checkOf(S, 'p17b.gear'));
   assert.ok(await noHScroll(page));
+  assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await shot(page, 'eli-eve');
   await ctx.close();
 });
@@ -605,6 +616,7 @@ await step('Eli on the day: "הגעתי", the drive, "הבי־רול לא גמו
   assert.match(await text(page, `${sCard} .sh-finish`), /ממתין שליאור יאשר שקיבל/);
   for (const k of ['p19b.handed', 'p18b.order', 'p18b.quality', 'p18b.numbered']) assert.ok(checkOf(S, k), k);
   assert.ok(await noHScroll(page));
+  assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await shot(page, 'eli-day');
   eliPage = { page, ctx };
 });
@@ -633,6 +645,7 @@ await step('Lior\'s shoot-day mode: quiet mode from Eli\'s arrival, the timeline
   await page.click(`#${S_ID}-took`);
   await page.waitForFunction((id) => !document.getElementById(`${id}-close`)?.disabled, S_ID);
   assert.ok(await noHScroll(page));
+  assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await shot(page, 'lior-shoot');
   await page.click(`#${S_ID}-close`);
   await toastHas(page, 'יום הצילום נסגר');

@@ -282,6 +282,12 @@ async function signIn(page, path, who) {
 }
 const shot = async (page, name) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true }); };
 const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+// Visible form controls without a name a screen reader can say (a <label>, aria-label(ledby) or title).
+const unlabeled = (page, root = 'body') => page.evaluate((r) => [...document.querySelectorAll(`${r} input:not([type=hidden]), ${r} select, ${r} textarea`)]
+  .filter((e) => e.offsetParent && !e.closest('.sr-only'))
+  .filter((e) => ![...(e.labels || [])].some((l) => l.textContent.trim()) && !e.getAttribute('aria-label')?.trim()
+    && !(e.getAttribute('aria-labelledby') || '').split(/\s+/).some((id) => document.getElementById(id)?.textContent.trim()) && !e.title?.trim())
+  .map((e) => `${e.tagName}#${e.id}.${e.className}`), root);
 const toastHas = (page, t) => page.waitForFunction((x) => document.querySelector('#toast.on')?.textContent.includes(x), t);
 let passed = 0;
 async function step(name, fn) {
@@ -612,6 +618,8 @@ await step('a 360px phone: no sideways scrolling and 44px targets on the three s
       .filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44 && !e.closest('.topbar, .sr-only, #now-bar, .now-bar, #push-card'))
       .map((e) => `${e.tagName}.${e.className}:${e.textContent.trim().slice(0, 20)}:${Math.round(e.getBoundingClientRect().height)}`), root);
     assert.deepEqual(small, [], `${path}: targets under 44px`);
+    await page.evaluate((r) => document.querySelectorAll(`${r} details`).forEach((d) => { d.open = true; }), root);
+    assert.deepEqual(await unlabeled(page, root), [], `${path}: form controls without a label`);
     await shot(page, `office-07-phone-${path.split('.')[0]}`);
     if (OUT && process.env.PHONE_PAGES) {
       const h = await page.evaluate(() => document.documentElement.scrollHeight);

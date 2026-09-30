@@ -252,6 +252,12 @@ const shot = async (page, name) => { if (OUT) await page.screenshot({ path: `${O
 const shotOf = async (page, sel, name) => { if (OUT) await page.locator(sel).first().screenshot({ path: `${OUT}/${name}.png` }); };
 const toastHas = (page, s) => page.waitForFunction((x) => document.querySelector('#toast.on')?.textContent.includes(x), s);
 const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+// Visible form controls without a name a screen reader can say (a <label>, aria-label(ledby) or title).
+const unlabeled = (page) => page.evaluate(() => [...document.querySelectorAll('input:not([type=hidden]), select, textarea')]
+  .filter((e) => e.offsetParent && !e.closest('.sr-only'))
+  .filter((e) => ![...(e.labels || [])].some((l) => l.textContent.trim()) && !e.getAttribute('aria-label')?.trim()
+    && !(e.getAttribute('aria-labelledby') || '').split(/\s+/).some((id) => document.getElementById(id)?.textContent.trim()) && !e.title?.trim())
+  .map((e) => `${e.tagName}#${e.id}.${e.className}`));
 const checkOf = (c, key) => db.protocol_checks.find((x) => x.client_id === c.id && x.item_key === key) || null;
 const heightOf = async (page, sel) => (await page.locator(sel).first().boundingBox())?.height || 0;
 let passed = 0;
@@ -274,6 +280,7 @@ await step('"מה עליי": the characterization links straight to "האפיו�
 
 await step('"האפיון הסתיים" asks for the 4 short fields, in plain Hebrew, and marks what is missing', async () => {
   assert.ok(await noHScroll(ofir));
+  assert.deepEqual(await unlabeled(ofir), [], 'form controls without a label');
   await ofir.click('#end-submit');
   await toastHas(ofir, 'חסרים פרטים');
   assert.equal(await ofir.getAttribute('#end-address', 'aria-invalid'), 'true');
@@ -320,6 +327,7 @@ await step('with the 4 fields: the mark, the vault per network, process 5 and th
   assert.equal(await ofir.inputValue('#form-phone'), '03-5551234');
   assert.match(await ofir.locator('#form-progress').innerText(), /מולאו 2 מתוך 11/);
   assert.ok(await noHScroll(ofir));
+  assert.deepEqual(await unlabeled(ofir), [], 'form controls without a label');
   await shot(ofir, '02-form-360');
 });
 
@@ -384,6 +392,7 @@ await step('"האפיון הסתיים" shows what started, and the card shows t
   await ofir.waitForSelector('.ik-summary');
   assert.match(await ofir.locator('.ik-summary').innerText(), /03-5551234/);
   assert.ok(await noHScroll(ofir));
+  assert.deepEqual(await unlabeled(ofir), [], 'form controls without a label');
   // The history names the mark in words.
   await ofir.waitForFunction(() => /סימן\/ה שהאפיון הסתיים/.test(document.getElementById('hist-list')?.textContent || ''));
 });
@@ -408,6 +417,7 @@ await step('Lior\'s focus call (12א): the 10 topics, the two that matter to the
   await lior.fill('#focus-services', 'ארוחות בוקר');
   await lior.check('#focus-read');
   assert.ok(await noHScroll(lior));
+  assert.deepEqual(await unlabeled(lior), [], 'form controls without a label');
   await lior.click('#focus-done');
   await toastHas(lior, 'שיחת הדגשים נשמרה והסתיימה');
   const brief = db.content_briefs.find((b) => b.client_id === B.id && b.round === 1);
@@ -450,6 +460,7 @@ await step('scripts and Zoom (12, 13): the link to the client\'s links, the Zoom
   await lior.waitForSelector('.ik-approve .ok-line');
   assert.equal(checkOf(B, 'p13.approved').state, 'done');
   assert.ok(await noHScroll(lior));
+  assert.deepEqual(await unlabeled(lior), [], 'form controls without a label');
   await shot(lior, '05-scripts-360');
 });
 await liorCtx.close();
@@ -469,6 +480,7 @@ await step('the editor sees what must and must not be said, and the business pho
   // Nothing to fill for her: no forms, no links to the office's pages.
   assert.equal(await page.locator('.ik-summary a[href^="intake.html"], .ik-summary a[href^="prep.html"]').count(), 0);
   assert.ok(await noHScroll(page));
+  assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await shot(page, '06-editor-card-360');
   // The intake page itself is the office's.
   await page.goto(`${BASE}intake.html?id=${B.id}#focus`);
@@ -500,6 +512,7 @@ await step('the coordinator (11): a separate approval for each side; the day is 
   // Closed with everyone: folded to one line, the approvals a tap away.
   assert.equal(await irit.locator(`${card} details.pp-sub summary`).count(), 1);
   assert.ok(await noHScroll(irit));
+  assert.deepEqual(await unlabeled(irit), [], 'form controls without a label');
   await shot(irit, '07-coordinator-360');
 });
 
@@ -570,6 +583,7 @@ await step('a client\'s request: one tap opens a task with an owner and a due da
   assert.match(decodeURIComponent(wa.split('?text=')[1]), /קיבלנו את הבקשה: "להעלות סטורי על מבצע החגים"\. הבקשה אצל עילאי, ונחזור אליכם עד יום ד׳ 14\.10\./);
   assert.match(await irit.locator('#requests').innerText(), /בקשות בטיפול \(1\)/);
   assert.ok(await noHScroll(irit));
+  assert.deepEqual(await unlabeled(irit), [], 'form controls without a label');
   await shot(irit, '10-request-360');
   await shotOf(irit, '#requests', '10b-requests-360');
 });
@@ -608,6 +622,7 @@ await step('Irit\'s card for a client: the request and the shoot-day screens are
   // The client's approval of the scripts has no "not relevant" button.
   assert.equal(await irit.locator('#i-p13-approved-na').count(), 0);
   assert.ok(await noHScroll(irit));
+  assert.deepEqual(await unlabeled(irit), [], 'form controls without a label');
 });
 await iritCtx.close();
 
