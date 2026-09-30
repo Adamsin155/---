@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
 import { PROCESSES } from '../app/protocol.js';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -105,6 +106,8 @@ function applyFilters(rows, params) {
   return out;
 }
 
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -198,7 +201,7 @@ const fakeNotifications = () => {
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
 await ctx.clock.install({ time: NOW });
-await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
 await ctx.route('https://wa.me/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<p>wa</p>' }));
 await ctx.addInitScript(fakeNotifications);
 const page = await ctx.newPage();
@@ -762,7 +765,7 @@ const THU = new Date('2026-09-24T06:30:00Z'); // 09:30 in Jerusalem
 const thuCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
 await thuCtx.clock.install({ time: THU });
 skew = THU.getTime() - Date.now();
-await thuCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await thuCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
 await thuCtx.addInitScript(fakeNotifications);
 const thu = await thuCtx.newPage();
 watch(thu);
@@ -791,7 +794,7 @@ await shot('14-thursday-control', thu);
 const THU_NY = new Date('2026-09-23T22:30:00Z');
 const nyCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'America/New_York', viewport: { width: 1280, height: 900 } });
 await nyCtx.clock.install({ time: THU_NY });
-await nyCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await nyCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
 await nyCtx.addInitScript(fakeNotifications);
 const ny = await nyCtx.newPage();
 watch(ny);

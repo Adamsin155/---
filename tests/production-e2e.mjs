@@ -24,6 +24,7 @@ import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
 import { PROCESSES } from '../app/protocol.js';
 import { returnNote } from '../app/office-marks.js';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -135,6 +136,8 @@ function project(rows, select) {
 }
 const clientReads = []; // [person, the columns asked for]
 
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -222,7 +225,7 @@ async function scene(at, viewport = { width: 360, height: 780 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, hasTouch: viewport.width < 500 });
   await ctx.clock.install({ time: clockNow });
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
-  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   for (const host of ['https://wa.me/**', 'https://waze.com/**', 'https://www.google.com/**', 'https://drive.google.com/**', 'https://docs.google.com/**', 'https://www.dropbox.com/**']) {
     await ctx.route(host, (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>x</title>' }));
   }

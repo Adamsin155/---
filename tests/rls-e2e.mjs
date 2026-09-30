@@ -12,6 +12,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -57,7 +58,7 @@ const shotAndAssigned = (o) => {
   return c;
 };
 // Nadia edits Ron; a task of hers is open in Cafe; Pizza is the office's only.
-const ron = shotAndAssigned({ name: 'מספרת רון', editor: 'nadia' });
+const ron = shotAndAssigned({ name: 'מספרת רון', editor: 'nadia', notes: 'הערה של המשרד: לקוח רגיש למחיר' });
 const cafe = client({ name: 'קפה גליה', deal_at: hoursAgo(24 * 20) });
 db.client_tasks.push({ id: randomUUID(), client_id: cafe.id, title: 'לקצר את סרטון 4', owner: 'nadia', due_on: '2026-10-21', done_at: null, done_by_email: null, created_by_email: 'ofir@astrateg.test', created_at: hoursAgo(3), source: null, brief: null, urgent: false });
 const pizza = shotAndAssigned({ name: 'פיצה נאפולי', editor: 'anna' });
@@ -114,6 +115,8 @@ function applyFilters(rows, params) {
   return out;
 }
 
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -207,7 +210,7 @@ const errors = [];
 async function newPage({ viewport = { width: 1280, height: 900 } } = {}) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
   await ctx.clock.install({ time: NOW });
-  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
@@ -279,6 +282,9 @@ await step('her own client opens as before: a check is saved in her name, and pa
   await nadia.goto(`${BASE}client.html?id=${ron.id}`);
   await nadia.waitForSelector('#i-p22-received');
   assert.equal(await nadia.isHidden('#access'), true); // no vault flag
+  // The office's columns never reach her (20260930210000_hardening.sql): not the client's phone, not the notes.
+  const card = await text(nadia, '#cc-head');
+  assert.doesNotMatch(card, /050-7654321|הערה של המשרד/);
   await nadia.check('#i-p22-received');
   await nadia.waitForFunction(() => document.querySelector('#i-p22-received')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
   assert.equal(db.protocol_checks.find((c) => c.client_id === ron.id && c.item_key === 'p22.received')?.by_email, 'nadia@astrateg.test');
@@ -378,6 +384,9 @@ await step('the office sees every client and its vault; a wrong link says "הל�
   await signIn(irit, 'clients.html#clients', 'irit');
   await irit.waitForSelector('.crow');
   assert.equal(await irit.locator('.crow').count(), db.clients.filter((c) => c.status === 'active').length);
+  await irit.goto(`${BASE}client.html?id=${ron.id}`);
+  await irit.waitForSelector('.cc-notes');
+  assert.match(await text(irit, '#cc-head'), /050-7654321[^]*הערה של המשרד: לקוח רגיש למחיר/);
   await irit.goto(`${BASE}client.html?id=${pizza.id}`);
   await irit.waitForSelector('#access:not([hidden]) .access-row');
   await irit.goto(`${BASE}client.html?id=${randomUUID()}`);

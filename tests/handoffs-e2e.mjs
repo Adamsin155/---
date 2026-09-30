@@ -11,6 +11,7 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -93,6 +94,8 @@ function applyFilters(rows, params) {
   return out;
 }
 
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -158,7 +161,7 @@ let slowPhones = 0;  // ms the fake waits before sending the team's numbers
 async function newPage({ timezoneId = 'Asia/Jerusalem', viewport = { width: 1280, height: 900 } } = {}) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId, viewport });
   await ctx.clock.install({ time: NOW });
-  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   // WhatsApp itself is never reached: the test only sees what it would have opened.
   await ctx.route('https://wa.me/**', (route) => { opened.push(route.request().url()); return route.fulfill({ status: 200, contentType: 'text/html', body: '<p>wa</p>' }); });
   const page = await ctx.newPage();

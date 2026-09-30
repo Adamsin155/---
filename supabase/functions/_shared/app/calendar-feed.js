@@ -145,8 +145,10 @@ export function feedEvents({ person, clients = [], checks = {}, tasks = [], now 
         });
       }
       // The Zoom that approves the scripts (13): Lior's.
+      // Not when the Zoom is no longer needed (the client approved the scripts on the
+      // status page: p13.zoom 'na', docs/ops.md section 17).
       const zoom = cs[`${x.pre}p13.zoomat`];
-      const zoomAt = zoom?.state === 'done' ? parseDate(zoom.note) : null;
+      const zoomAt = zoom?.state === 'done' && cs[`${x.pre}p13.zoom`]?.state !== 'na' ? parseDate(zoom.note) : null;
       if (person === 'lior' && inRange(zoomAt)) {
         out.push({
           uid: `zoom-${c.id}-${x.n}@astrateg`, kind: 'zoom', title: `זום לאישור התסריטים${round} · ${c.name}`, start: zoomAt, minutes: 60,

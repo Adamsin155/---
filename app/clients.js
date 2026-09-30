@@ -2155,7 +2155,7 @@ mountSession(async (staff) => {
   // Notifications on the phone and today's list (app/push.js); the owner's list is 'owner'.
   mountPush({
     who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
-    changed: () => { if (view === 'mine' && !$('app').hidden && !busy()) renderMine(); },
+    changed: () => { if (view === 'mine' && !$('app').hidden && !busy()) renderKeepingFocus(); },
   });
   mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
   // "היומן שלי": the personal calendar link (app/calendar-card.js).

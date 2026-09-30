@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
 import { PROCESSES } from '../app/protocol.js';
 import { dayKeyIL } from '../app/tz.js';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -117,6 +118,8 @@ function requestsTell(t, by) {
   });
 }
 
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -229,7 +232,7 @@ const PHONE = { width: 360, height: 740 };
 async function newContext(viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, hasTouch: viewport.width < 500, isMobile: viewport.width < 500 });
   await ctx.clock.setFixedTime(NOW);
-  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   await ctx.route('https://wa.me/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>wa</title>' }));
   await ctx.route('https://calendar.google.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>cal</title>' }));
   return ctx;
@@ -593,11 +596,18 @@ await step('when the request is done, Irit gets "לעדכן את הלקוח" wit
   const ctx = await newContext();
   const ilai = await newPage(ctx);
   await signIn(ilai, 'clients.html#mine', 'ilai@astrateg.test');
-  const box = ilai.locator('.witem:has-text("להעלות סטורי על מבצע החגים") .cbx');
-  await box.waitFor();
-  await box.check();
-  await ilai.waitForFunction(() => document.querySelector('#toast.on'));
+  const item = ilai.locator('.witem:has-text("להעלות סטורי על מבצע החגים")');
+  await item.locator('.cbx').waitFor();
+  // The cards above the list (notifications, calendar, questions) load after it; the
+  // list stays put once the page is quiet.
+  await ilai.waitForLoadState('networkidle');
+  // click(), not check(): the finished task leaves the list as soon as it is saved, and
+  // check() then looks for the checkbox again to see it checked, until its timeout.
+  await item.locator('.cbx').click();
+  await toastHas(ilai, 'סומן כבוצע: להעלות סטורי על מבצע החגים');
+  await item.waitFor({ state: 'detached' });
   await ctx.close();
+  assert.ok(db.client_tasks.find((x) => x.client_id === D.id && x.source === 'request')?.done_at, 'the request is done');
   const tell = db.client_tasks.find((x) => x.source === 'tell' && x.client_id === D.id);
   assert.ok(tell, 'the tell task opened');
   await irit.click('#btn-refresh');

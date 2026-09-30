@@ -9,6 +9,7 @@ import { importKeys } from '../app/client-open.js';
 import { applicableProcesses } from '../app/protocol-logic.js';
 import { DEFAULT_TEMPLATES } from '../app/messages-logic.js';
 import { dayKeyIL } from '../app/tz.js';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -86,6 +87,8 @@ function applyFilters(rows, params) {
   return out;
 }
 
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -170,7 +173,7 @@ const errors = [];
 async function newContext(viewport = { width: 1280, height: 900 }, now = NOW) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
   await ctx.clock.setFixedTime(now);
-  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   await ctx.route('https://wa.me/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>wa</title>' }));
   return ctx;
 }

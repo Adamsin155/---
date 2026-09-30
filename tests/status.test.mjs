@@ -15,7 +15,7 @@ import { computeReminders } from '../app/reminder-engine.js';
 import { RULES } from '../app/reminder-rules.js';
 import { dateIL, partsIL } from '../app/tz.js';
 import { importKeys } from '../app/client-open.js';
-import { IMPORT_NOTE } from '../app/protocol-logic.js';
+import { IMPORT_NOTE, clientState } from '../app/protocol-logic.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
 const marks = (obj) => Object.fromEntries(Object.entries(obj).map(([k, at]) => [k, { s: 'done', at: at ? at.toISOString() : null }]));
@@ -198,6 +198,22 @@ test('the videos\' first round rings the editor once, through the protocol\'s ow
   assert.deepEqual(rings, ['clientFixes.editor']);
 });
 
+test('the videos\' notes with no editor on that shoot: Ofir\'s task rings him (clientFixes has nobody to ring)', () => {
+  const w = world();
+  w.clients[0].editor = null;
+  w.checks.c1['p26.sent'] = { client_id: 'c1', item_key: 'p26.sent', state: 'done', note: null, at: IL(2026, 10, 12, 10).toISOString() };
+  for (const k of ['p27.approved', 'p27.final', 'p27.fixes', 'p27.toilai', 'p27.notes']) delete w.checks.c1[k];
+  w.checks.c1['p27.notes'] = { client_id: 'c1', item_key: 'p27.notes', state: 'done', note: JSON.stringify({ text: 'סרטון 3', via: 'status' }), at: IL(2026, 10, 13, 10).toISOString() };
+  w.tasks.push(task({ owner: 'ofir', source: 'client_fix', brief: { item: 'videos', item_key: 'p27.approved', notes_marked: true, round: 1 } }));
+  const got = computeReminders({ ...w, now: IL(2026, 10, 13, 10, 1) });
+  assert.deepEqual(of(got, 'clientFix'), ['now@ofir:ring']);
+  assert.deepEqual(of(got, 'clientFixes'), []);
+  // A round with its own editor: that editor's ladder, and this one stays quiet.
+  w.clients[0].rounds = [{ n: 2, editor: 'nadia', shoot_type: 'dms', shoot_at: IL(2026, 10, 1, 11).toISOString() }];
+  w.tasks[0].brief = { item: 'videos', item_key: 'r2.p27.approved', notes_marked: true, round: 1 };
+  assert.deepEqual(of(computeReminders({ ...w, now: IL(2026, 10, 13, 10, 1) }), 'clientFix'), []);
+});
+
 test('a low score: Lior rings once to call; 2 or less rings the owner too; not called a day after the due day: the owner\'s screen', () => {
   const w = world();
   w.tasks.push(task({ id: 't3', owner: 'lior', source: 'survey', title: 'להתקשר ללקוח: ציון 3 מתוך 5', due_on: '2026-10-14', brief: { kind: 'shoot', score: 3, owner_alert: false } }));
@@ -211,4 +227,24 @@ test('a low score: Lior rings once to call; 2 or less rings the owner too; not c
   const later = computeReminders({ ...w, now: IL(2026, 10, 15, 8, 31), log: got.map((r) => ({ key: r.key })) });
   assert.deepEqual(of(later, 'clientScore'), ['board@owner:board', 'board@owner:board']);
   assert.equal(hhmm(later.find((r) => r.rule === 'clientScore').at), '15.10 08:30');
+});
+
+test('the scripts approved on the page while the Zoom was open: the Zoom is \'na\', process 13 closes, and nothing reminds about it', () => {
+  const w = world();
+  const c = w.clients[0];
+  c.shoot_at = IL(2026, 10, 22, 11).toISOString();
+  for (const k of Object.keys(w.checks.c1)) if (/^p(1[2-9]|2\d|3\d)/.test(k)) delete w.checks.c1[k];
+  const at = IL(2026, 10, 13, 9).toISOString();
+  for (const k of ['p12a.read', 'p12.scripts', 'p12.numbered', 'p12.docs']) w.checks.c1[k] = { client_id: 'c1', item_key: k, state: 'done', note: null, at };
+  const now = IL(2026, 10, 20, 10);
+  const open = clientState(c, w.checks.c1, now).states.find((x) => x.proc.id === 'p13');
+  assert.equal(open.complete, false);
+  // What approve_item writes (20260930210000_hardening.sql).
+  w.checks.c1['p13.approved'] = { client_id: 'c1', item_key: 'p13.approved', state: 'done', note: 'אושר בדף המצב על ידי דנה', at };
+  w.checks.c1['p13.zoom'] = { client_id: 'c1', item_key: 'p13.zoom', state: 'na', note: 'אושר בדף המצב', at };
+  assert.equal(clientState(c, w.checks.c1, now).states.find((x) => x.proc.id === 'p13').complete, true);
+  const got = computeReminders({ ...w, now });
+  assert.deepEqual(got.filter((r) => r.ref === 'p13'), []);
+  const sql = readFileSync(new URL('../supabase/migrations/20260930210000_hardening.sql', import.meta.url), 'utf8');
+  assert.match(sql, /regexp_replace\(p_key, 'approved\$', 'zoom'\), 'na', 'אושר בדף המצב'\)/);
 });

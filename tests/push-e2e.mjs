@@ -10,6 +10,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { VAPID_PUBLIC_KEY } from '../app/push-config.js';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -65,6 +66,8 @@ function applyFilters(rows, params) {
   }
   return out;
 }
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -185,7 +188,7 @@ const errors = [];
 async function open(who, { viewport = { width: 1280, height: 900 }, push = {}, mobile = false } = {}) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, isMobile: mobile, hasTouch: mobile });
   await ctx.clock.install({ time: NOW });
-  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   await ctx.addInitScript(fakePush, { key: VAPID_PUBLIC_KEY, ...push });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));

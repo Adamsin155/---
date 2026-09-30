@@ -170,6 +170,9 @@ test('feed: the meeting for its characterizer (with the address) and the owner; 
   const zoom = feed('lior').filter((e) => e.kind === 'zoom');
   assert.deepEqual(zoom.map((e) => [e.title, e.start.toISOString(), e.minutes]), [['זום לאישור התסריטים · מספרת רון', '2026-10-21T12:00:00.000Z', 60]]);
   assert.equal(feed('ofir').filter((e) => e.kind === 'zoom').length, 0);
+  // The client approved the scripts on the status page: the Zoom is 'na', and leaves the calendar.
+  const approved = { ...checks, [A.id]: { ...checks[A.id], 'p13.zoom': { state: 'na', note: 'אושר בדף המצב', at: '2026-10-20T09:00:00+03:00' } } };
+  assert.equal(feedEvents({ person: 'lior', clients: [A, B, C], checks: approved, now: NOW }).filter((e) => e.kind === 'zoom').length, 0);
 });
 
 test('feed: deadlines of one\'s own open processes: the editor\'s editing, never someone else\'s client', () => {

@@ -24,6 +24,7 @@ import { applicableProcesses } from '../app/protocol-logic.js';
 import { computeInsights, pct, monthRange } from '../app/insights.js';
 import { feedEvents, feedName, tokenFrom, feedUrl } from '../app/calendar-feed.js';
 import { buildCalendar } from '../app/ics.js';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -151,6 +152,8 @@ function applyFilters(rows, params) {
   return out;
 }
 const fnCalls = [];
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -233,7 +236,7 @@ async function newContext(viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
   await ctx.clock.install({ time: NOW });
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
-  await ctx.route(`${SUPA}/**`, fakeSupabase);
+  await ctx.route(`${SUPA}/**`, withClientColumns(fakeSupabase, CLIENT_SHAPE));
   return ctx;
 }
 async function newPage(ctx) {

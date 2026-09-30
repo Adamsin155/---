@@ -207,7 +207,8 @@ test('nobody else sees anything: a login not on the staff list, an unconfirmed s
     }
     assert.deepEqual(await rows(who, 'select public.my_person() as p, public.is_office() as o'), [{ p: null, o: false }], who);
   }
-  assert.deepEqual(await rows('anon', 'select 1 from public.clients'), []);
+  // anon has no privilege on the clients at all (20260930210000_hardening.sql).
+  assert.match((await tryAs('anon', 'select 1 from public.clients')).error, /permission denied/);
   assert.match((await tryAs('anon', 'select public.can_see_client($1)', [ids.plain])).error, /permission denied/);
   assert.match((await tryAs('anon', 'select public.is_office()')).error, /permission denied/);
 });
@@ -226,25 +227,33 @@ test("Ofir's weekly summaries and the daily reviews are the office's only", asyn
 
 // ── Writing ──────────────────────────────────
 test('checks: written and cleared only on a client one can see; the stamp is the session', async () => {
-  const ok = await tryAs('nadia', "insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.start', 'done') returning by_email", [ids.ron]);
+  const ok = await tryAs('nadia', "insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.received', 'done') returning by_email", [ids.ron]);
   assert.deepEqual(ok.rows, [{ by_email: 'nadia@astrateg.test' }]);
-  // Upsert, as the app sends it.
-  const up = await tryAs('nadia', "insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p01.signed', 'na') on conflict (client_id, item_key) do update set state = excluded.state returning state", [ids.ron]);
+  // Upsert, as the app sends it (an item of hers: 20260930210000_hardening.sql limits the rest).
+  const up = await tryAs('nadia', "insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.edited', 'na') on conflict (client_id, item_key) do update set state = excluded.state returning state", [ids.ron]);
   assert.deepEqual(up.rows, [{ state: 'na' }]);
-  assert.match((await tryAs('nadia', "insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.start', 'done')", [ids.plain])).error, RLS);
-  assert.match((await tryAs('nadia', "insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p01.signed', 'na') on conflict (client_id, item_key) do update set state = excluded.state", [ids.plain])).error, RLS);
+  assert.match((await tryAs('nadia', "insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.received', 'done')", [ids.plain])).error, RLS);
+  assert.match((await tryAs('nadia', "insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.edited', 'na') on conflict (client_id, item_key) do update set state = excluded.state", [ids.plain])).error, RLS);
   assert.equal((await tryAs('nadia', "update public.protocol_checks set state = 'na' where client_id = $1", [ids.plain])).affected, 0);
   assert.equal((await tryAs('nadia', 'delete from public.protocol_checks where client_id = $1', [ids.plain])).affected, 0);
-  assert.equal((await tryAs('nadia', 'delete from public.protocol_checks where client_id = $1', [ids.ron])).affected, 1);
+  // On her own client she clears her own items; Irit's "signed" (p01.signed) is not hers to clear.
+  assert.equal((await tryAs('nadia', 'delete from public.protocol_checks where client_id = $1', [ids.ron])).affected, 0);
+  assert.equal((await run('nadia', async (tx) => {
+    await tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.received', 'done')", [ids.ron]);
+    return (await tx.query('delete from public.protocol_checks where client_id = $1', [ids.ron])).affectedRows;
+  })), 1);
   // Moving a check to a client she cannot see is refused too.
-  assert.match((await tryAs('nadia', 'update public.protocol_checks set client_id = $2 where client_id = $1', [ids.ron, ids.plain])).error, RLS);
+  assert.match((await run('nadia', async (tx) => {
+    await tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.received', 'done')", [ids.ron]);
+    return tx.query("update public.protocol_checks set client_id = $2 where client_id = $1 and item_key = 'p22.received'", [ids.ron, ids.plain]);
+  })).error, RLS);
   // Eli checks his shoot-day items on a client with a shoot in the window.
   assert.equal((await tryAs('eli', "insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p17b.arrived', 'done')", [ids.shootSoon])).affected, 1);
   assert.match((await tryAs('eli', "insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p17b.arrived', 'done')", [ids.shootOld])).error, RLS);
   // The history row is written by the trigger, with who did it.
   const log = await run('nadia', async (tx) => {
-    await tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.start', 'done')", [ids.ron]);
-    return (await tx.query("select action, by_email from public.protocol_log where client_id = $1 and item_key = 'p22.start'", [ids.ron])).rows;
+    await tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.received', 'done')", [ids.ron]);
+    return (await tx.query("select action, by_email from public.protocol_log where client_id = $1 and item_key = 'p22.received'", [ids.ron])).rows;
   });
   assert.deepEqual(log, [{ action: 'done', by_email: 'nadia@astrateg.test' }]);
 });
@@ -450,8 +459,9 @@ test('signing an agreement still opens its client by itself (anon signs; the off
   });
 });
 
-test('quotes and payouts keep their rules: every staff member reads quotes; payouts are for payout owners', async () => {
-  assert.ok((await rows('nadia', 'select 1 from public.quotes')).length >= 1);
+test('quotes are the office\'s (20260930210000_hardening.sql: the agreement carries the client\'s phone); payouts are for payout owners', async () => {
+  for (const who of ['owner', 'irit', 'lior', 'ofir', 'ilai']) assert.ok((await rows(who, 'select 1 from public.quotes')).length >= 1, who);
+  for (const who of ['nadia', 'nirel', 'eli']) assert.deepEqual(await rows(who, 'select 1 from public.quotes'), [], who);
   assert.deepEqual(await rows('irit', 'select 1 from public.payout_deals'), []);
 });
 
@@ -467,7 +477,8 @@ test('every client table has row level security, and no policy on it lets every 
   const policies = (await db.query(`
     select tablename, policyname, coalesce(qual, '') || ' ' || coalesce(with_check, '') as expr
     from pg_policies where schemaname = 'public' and tablename = any($1)`, [tables.map((t) => t.t)])).rows;
-  const RULES = /is_office|my_clients|my_assigned_clients|can_see_client|can_message_clients|can_use_client_vault/;
+  // (month_write_ok: is_office, and Ilai only his own items of the monthly cycle.)
+  const RULES = /is_office|my_clients|my_assigned_clients|can_see_client|can_message_clients|can_use_client_vault|month_write_ok/;
   // Tables with a rule of their own, and why.
   const OWN_RULE = {
     // The owner's questions (20260930120000_owner_screens.sql): the office asks; the person

@@ -11,6 +11,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { clockDigits } from '../app/clocks.js';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -73,6 +74,8 @@ function applyFilters(rows, params) {
   return out;
 }
 let failNextCheck = false;
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -149,7 +152,7 @@ const recordSaid = () => {
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
 await ctx.clock.install({ time: NOW });
-await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
 await ctx.addInitScript(fakeNotifications);
 await ctx.addInitScript(recordSaid);
 const page = await ctx.newPage();
@@ -374,7 +377,7 @@ const shootDay = onboarded({ name: 'בית קפה צילום', shoot_at: '2026-1
 db.staff[0].person = 'lior';
 const nightCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
 await nightCtx.clock.install({ time: new Date('2026-10-05T20:57:30Z') });
-await nightCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await nightCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
 await nightCtx.addInitScript(fakeNotifications);
 await nightCtx.addInitScript(() => { try { localStorage.setItem('fake.perm', 'granted'); localStorage.setItem('astrateg.notify', 'on'); } catch { /* about:blank */ } });
 const night = await nightCtx.newPage();
@@ -415,7 +418,7 @@ const androidNotifications = () => {
 };
 const droidCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true });
 await droidCtx.clock.install({ time: new Date(NOW.getTime() + 2 * 6e4) });
-await droidCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+await droidCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
 await droidCtx.addInitScript(androidNotifications);
 const droid = await droidCtx.newPage();
 watch(droid);

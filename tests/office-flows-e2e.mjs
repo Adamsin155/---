@@ -22,6 +22,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
 import { buildEnv, candidates } from '../app/reminder-engine.js';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -163,6 +164,8 @@ function applyFilters(rows, params) {
 }
 const KEYS = { protocol_checks: ['client_id', 'item_key'], office_reviews: ['day', 'kind'], client_status_notes: ['client_id', 'week'], office_passes: ['day'], task_decisions: ['task_id'] };
 
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -264,7 +267,7 @@ const errors = [];
 async function newContext(time = TUE, viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
   await ctx.clock.install({ time });
-  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   await ctx.route('https://wa.me/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<p>wa</p>' }));
   return ctx;
 }

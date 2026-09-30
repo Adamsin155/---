@@ -16,22 +16,59 @@ async function all(build) {
   }
 }
 
-const CLIENT_COLS = 'id, name, business, address, phone, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, notes, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, closed_reason, editor, protocol_version';
+// The office's columns of a client (its own phone, the office's notes, why an
+// agreement was cancelled) are not readable from public.clients since
+// 20260930210000_hardening.sql: the office reads them through
+// public.clients_private(), and nobody else gets them (they come back null). Before
+// that migration the function is missing, and they are read from the table as before.
+export const CLIENT_PRIVATE = ['phone', 'notes', 'closed_reason'];
+const CLIENT_COLS = 'id, name, business, address, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, editor, protocol_version';
+const LEGACY_COLS = `${CLIENT_COLS}, ${CLIENT_PRIVATE.join(', ')}`;
 const CHECK_COLS = 'client_id, item_key, state, note, by_email, at';
 const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at, source, brief, urgent, started_at';
 
+// { id: { phone, notes, closed_reason } }: the office's clients (all of them when
+// `ids` is null); {} for anyone else; null before the migration.
+const missingFunction = (error, status) => error?.code === 'PGRST202' || error?.code === '42883' || status === 404;
+async function privateFields(ids = null) {
+  const { data, error, status } = await supabase.rpc('clients_private', ids ? { p_ids: ids } : {});
+  if (error) {
+    if (missingFunction(error, status)) return null;
+    throw error;
+  }
+  return Object.fromEntries((data || []).map((r) => [r.id, r]));
+}
+const withPrivate = (row, priv) => row && {
+  ...row, phone: priv[row.id]?.phone ?? null, notes: priv[row.id]?.notes ?? null, closed_reason: priv[row.id]?.closed_reason ?? null,
+};
+// One client row as the pages use it: the office's columns added (null outside the office).
+async function complete(row) {
+  if (!row) return row;
+  const priv = await privateFields([row.id]);
+  if (priv) return withPrivate(row, priv);
+  const { data, error } = await supabase.from('clients').select(LEGACY_COLS).eq('id', row.id).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function loadClients({ includeEnded = false } = {}) {
-  return all(() => {
-    let q = supabase.from('clients').select(CLIENT_COLS).order('deal_at', { ascending: false });
+  const read = (cols) => all(() => {
+    let q = supabase.from('clients').select(cols).order('deal_at', { ascending: false });
     if (!includeEnded) q = q.neq('status', 'ended');
     return q;
   });
+  const [rows, priv] = await Promise.all([read(CLIENT_COLS), privateFields()]);
+  return priv ? rows.map((r) => withPrivate(r, priv)) : read(LEGACY_COLS);
 }
 
 export async function loadClient(id) {
-  const { data, error } = await supabase.from('clients').select(CLIENT_COLS).eq('id', id).maybeSingle();
+  const [{ data, error }, priv] = await Promise.all([
+    supabase.from('clients').select(CLIENT_COLS).eq('id', id).maybeSingle(),
+    privateFields([id]),
+  ]);
   if (error) throw error;
-  return data;
+  if (!data || priv) return data && withPrivate(data, priv);
+  return complete(data);
 }
 
 // Checks grouped by client: { clientId: { itemKey: check } }.
@@ -129,13 +166,13 @@ export async function setTaskStarted(id, started) {
 export async function createClient(fields) {
   const { data, error } = await supabase.from('clients').insert(fields).select(CLIENT_COLS).single();
   if (error) throw error;
-  return data;
+  return complete(data);
 }
 
 export async function updateClient(id, fields) {
   const { data, error } = await supabase.from('clients').update(fields).eq('id', id).select(CLIENT_COLS).single();
   if (error) throw error;
-  return data;
+  return complete(data);
 }
 
 // Signed agreements that no client was opened from yet.

@@ -84,6 +84,9 @@ export function showMonths(el, ctx) {
   if (!el) return;
   if (!ctx.person || !ctx.office) { el.hidden = true; el.replaceChildren(); return; }
   ensureMarks();
+  // Until the marks are read, nothing: items already marked would show as open (and
+  // late), then vanish, moving the list below them. ensureMarks draws it once they are in.
+  if (cache.rows === undefined) { el.hidden = true; el.replaceChildren(); return; }
   const grouped = groupMarks(cache.rows || []);
   const now = new Date();
   const byClient = [];
@@ -143,7 +146,9 @@ export function mountClientMonth(slot, ctx) {
   const marks = marksByKey(cardCache.rows || []);
   const own = ctx.scope === 'own';
   let body;
-  if (from === null) body = [h('p', { class: 'muted' }, 'המחזור החודשי מתחיל בחודש שאחרי התזמון הראשון (תהליך 28).')];
+  // Until the marks are read, no count and no items (they would all read as open and late).
+  if (cardCache.rows === undefined && from !== null && !m.over && m.n >= from) body = [h('p', { class: 'muted', role: 'status' }, 'טוען את הסימונים…')];
+  else if (from === null) body = [h('p', { class: 'muted' }, 'המחזור החודשי מתחיל בחודש שאחרי התזמון הראשון (תהליך 28).')];
   else if (m.over) body = [h('p', { class: 'muted' }, 'תקופת החבילה הסתיימה.')];
   else if (m.n < from) body = [h('p', { class: 'muted' }, `המחזור החודשי מתחיל בחודש ${from}.`)];
   else {

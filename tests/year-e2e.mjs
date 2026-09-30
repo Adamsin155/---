@@ -20,6 +20,7 @@ import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
 import { buildQuoteModel, emptySelection } from '../app/pricing.js';
 import { dateIL } from '../app/tz.js';
+import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -135,6 +136,8 @@ function applyFilters(rows, params) {
   }
   return out;
 }
+// public.clients as the database answers it since 20260930210000_hardening.sql (tests/fake-clients.mjs).
+const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -204,7 +207,7 @@ const errors = [];
 async function newContext(viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
   await ctx.clock.install({ time: NOW });
-  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   return ctx;
 }
 async function newPage(ctx) {
@@ -269,7 +272,9 @@ await step('Ilai on a phone (360px): the list fits, targets are 44px', async () 
   await pctx.close();
 });
 await step('Ilai marks it: saved for month 9 in his name, and it leaves his list (with an undo)', async () => {
-  await ilai.locator('#my-months .mitem .cbx').check();
+  // click(), not check(): the marked item leaves the list at once (check() would look
+  // for it again to see it checked, until its timeout).
+  await ilai.locator('#my-months .mitem .cbx').click();
   await toastHas(ilai, 'סומן: חודש 9 מתוכנן');
   const row = db.client_month_marks.find((r) => r.client_id === A.id && r.month === 9 && r.item === 'plan');
   assert.deepEqual([row?.state, row?.by_email, row?.note], ['done', 'ilai@astrateg.test', null]);
@@ -277,8 +282,9 @@ await step('Ilai marks it: saved for month 9 in his name, and it leaves his list
   await ilai.click('#toast .toast-act');
   await ilai.waitForSelector('#my-months:not([hidden]) .mitem');
   assert.equal(db.client_month_marks.some((r) => r.client_id === A.id && r.month === 9), false);
-  await ilai.locator('#my-months .mitem .cbx').check();
+  await ilai.locator('#my-months .mitem .cbx').click();
   await ilai.waitForSelector('#my-months', { state: 'hidden' });
+  assert.equal(db.client_month_marks.find((r) => r.client_id === A.id && r.month === 9 && r.item === 'plan')?.state, 'done');
 });
 
 await ictx.close();
