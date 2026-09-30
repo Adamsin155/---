@@ -12,3 +12,9 @@ verify_jwt = false
 # supabase/functions/reminders/index.ts.
 [functions.reminders]
 verify_jwt = false
+
+# Meta's WhatsApp webhook: Meta calls it without a Supabase token; it checks the
+# signature (X-Hub-Signature-256) and the verify token itself. See
+# supabase/functions/whatsapp-webhook/index.ts.
+[functions.whatsapp-webhook]
+verify_jwt = false

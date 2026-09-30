@@ -18,7 +18,7 @@ test('shared copy covers pricing.js, the reminder engine and everything they imp
   assert.deepEqual(modules(), [
     'catalog.js', 'characterization.js', 'clocks.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
-    'shoot-prep.js', 'tz.js',
+    'shoot-prep.js', 'tz.js', 'wa-logic.js', 'wa-templates.js',
   ]);
 });
 
@@ -53,8 +53,16 @@ test('create-quote imports only the shared copy, never the repository', () => {
 });
 
 test('the reminders function imports only its own files and the shared copy', () => {
-  const files = new Set(['index.ts', 'tick.js', 'webpush.js', 'http.js'].flatMap((f) => [...localImports('reminders', f)]));
-  assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), ['reminders/http.js', 'reminders/tick.js', 'reminders/webpush.js']);
+  const files = new Set(['index.ts', 'tick.js', 'webpush.js', 'http.js', 'wa-server.ts', 'whatsapp.js'].flatMap((f) => [...localImports('reminders', f)]));
+  assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), [
+    '_shared/wa-graph.js', 'reminders/http.js', 'reminders/tick.js', 'reminders/wa-server.ts', 'reminders/webpush.js', 'reminders/whatsapp.js',
+  ]);
+  for (const f of files) if (f.startsWith('_shared/app/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
+});
+
+test('the whatsapp-webhook function imports only its own files and the shared copies', () => {
+  const files = new Set(['index.ts', 'webhook.js'].flatMap((f) => [...localImports('whatsapp-webhook', f)]));
+  assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), ['_shared/wa-graph.js', 'whatsapp-webhook/webhook.js']);
   for (const f of files) if (f.startsWith('_shared/app/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
 });
 

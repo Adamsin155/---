@@ -70,3 +70,14 @@
   .tm-link .linkbox .btn { flex: 1 1 auto; }
   .tm-help { padding: 14px; }
 }
+
+/* WhatsApp for the team (app/wa-team.js): the switch (the owner) and each person's choice. */
+.tm-wa p + p, .tm-wa .tm-wa-acts + p { margin-top: 6px; }
+.tm-wa-acts { margin-top: 8px; }
+.tm-wa-acts .btn { min-height: 44px; }
+
+/* The employee privacy notice (staff-privacy.html). */
+.staff-privacy { max-inline-size: 760px; inline-size: 100%; justify-self: center; margin-top: 16px; }
+.staff-privacy h1 { margin: 6px 0 12px; font-size: 22px; line-height: 1.35; }
+.staff-privacy h2 { margin: 18px 0 6px; }
+.staff-privacy ul { margin: 0; padding-inline-start: 20px; display: grid; gap: 4px; color: var(--text-2); font-size: 14.5px; }

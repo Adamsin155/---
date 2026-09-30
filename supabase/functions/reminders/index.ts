@@ -18,6 +18,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { runTick, sendTest } from './tick.js';
 import { sendWebPush } from './webpush.js';
+import { whatsappChannel } from './wa-server.ts';
 import { corsHeaders, bearer, ACTIONS } from './http.js';
 import { VAPID_PUBLIC_KEY } from '../_shared/app/push-config.js';
 import { atTimeIL, addDaysIL, dayKeyIL, weekdayIL } from '../_shared/app/tz.js';
@@ -184,7 +185,9 @@ Deno.serve(async (req) => {
     if (leaseError) { console.error('reminders: begin failed', codeOf(leaseError)); return json(500, { error: 'server_error' }); }
     if (!runId) return json(202, { busy: true });
     try {
-      const stats = await runTick({ db, push: await pusher(), now: new Date() });
+      // Stage 4: WhatsApp copies when the owner turned them on (null otherwise; never stops the tick).
+      const wa = await whatsappChannel(admin).catch((e) => { console.error('reminders: WhatsApp off', codeOf(e)); return null; });
+      const stats = await runTick({ db, push: await pusher(), wa, now: new Date() });
       // A send that could not be recorded stays pending and is taken again later.
       await admin.rpc('reminders_end', { p_id: runId, p_ok: !stats.errors, p_stats: stats, p_error: stats.errors ? 'send_not_recorded' : null });
       return json(200, stats);
