@@ -1,3 +1,4 @@
+// generated — edit app/ instead. Source: app/messages-logic.js. Regenerate: node scripts/sync-functions.mjs
 // Client messages center (messages.html): which proactive message each client
 // gets today, and the office's message templates. docs/plan/system-plan.md,
 // section 7 ("מה הלקוח מקבל") and Irit's day (section 3).

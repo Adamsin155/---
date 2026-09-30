@@ -152,6 +152,7 @@ node scripts/build-pages.mjs --commit
 - **עמודי ההפקה** (`editor.html`, `shoot.html`, מיגרציה `20260930140000_production.sql`): העמודים של העורכים ושל אלי לא מבקשים את הטלפון של הלקוח ואת ההערות של המשרד (`app/production-data.js`); טלפון העסק מגיע מהאפיון. המסד עדיין מחזיר את `clients.phone` לכל מי שרואה את הלקוח אם מבקשים אותו ישירות; הפרדה במסד תדרוש העברה של העמודה לטבלה של המשרד. `client_tasks.result` (איך בריף הסתיים) נכתב רק בידי בעל המשימה או המשרד, ומשימת בדיקה של אופיר עם `brief.route = 'irit'` נסגרת רק בידי המשרד, וסגירתה פותחת לעירית "לשלוח ללקוח" (החלטה 19).
 - **כתיבה:** מסמנים פריטים ופותחים משימות רק בלקוח שרואים. באותו לקוח מותר לפתוח משימה גם למישהו אחר, למשל חריגה לליאור או עצירת עריכה. את פרטי הלקוח עצמם (שם, מועדים, העורך המשויך, סבבים וכמויות) מוסיף ומשנה רק המשרד.
 - **משימה נשארת אצל מי שהיא שלו:** רק המשרד מעביר משימה לאדם אחר או ללקוח אחר, ורק המשרד פותח מחדש משימה שנסגרה לפני יותר מ־30 יום. ביטול "בוצע" מיד אחרי הסימון עובד לכולם. כך אי אפשר להשתלט על משימה של מישהו אחר כדי להגיע ללקוח או לכספת שלו.
+- **האפיון ושיחת הדגשים** (`20260930160000_intake.sql`): `characterizations` ו־`content_briefs` נקראות לפי `can_see_client` (גם העורך המשויך, ניראל בלקוח נטלי ואלי סביב יום צילום), ונכתבות רק בידי המשרד (`is_office`). לא נמחקות מהדפדפן.
 - **מסכי הבעלים** (`20260930120000_owner_screens.sql`): היסטוריית שינויי התאריכים (`client_date_changes`) מוצגת לפי אותו כלל של הלקוחות. השאלות לאחראי (`client_questions`) נשארות בכלל שלהן: המשרד שואל וקורא, ומי שנשאל קורא ועונה על שלו, גם על לקוח שכבר אינו שלו.
 - **כשהעבודה עוברת:** כשאופיר מעביר עריכה לעורך אחר, העורך הקודם מפסיק לראות את הלקוח, אלא אם יש לו שם משימה. סימון שהוא מנסה לשמור בכרטיס שעדיין פתוח אצלו נדחה עם הסבר. מי שפותח קישור ללקוח שאינו שלו מקבל "אין לך גישה ללקוח הזה" וקישור ל"מה עליי".
 - **לא השתנה:** טבלת הצעות המחיר פתוחה לקריאה לכל איש צוות, ואפליקציית התשלומים רק לבעלי התשלומים. מי שיש לו גישה ל־SQL Editor או למפתח ה־service role עוקף את כל ההרשאות האלה (נספח ב בתוכנית), ולכן הגישה ללוח הניהול מוגבלת.
@@ -194,7 +195,7 @@ node scripts/build-pages.mjs --commit
 | `supabase/functions/reminders/tick.js` | הרצה אחת: שלבים, יומן, תקצירים ושליחה |
 | `supabase/functions/reminders/webpush.js` | הצפנת Web Push וחתימת VAPID (WebCrypto בלבד) |
 | `supabase/functions/reminders/http.js` | CORS וכותרות |
-| `supabase/functions/_shared/app/reminder-engine.js`, `reminder-rules.js`, `production.js`, `office-marks.js`, `protocol-logic.js`, `protocol.js`, `clocks.js`, `tz.js`, `holidays.js`, `catalog.js`, `push-config.js` | עותקים של `app/` (סעיף 1). לא עורכים ביד |
+| `supabase/functions/_shared/app/reminder-engine.js`, `reminder-rules.js`, `production.js`, `office-marks.js`, `shoot-prep.js`, `characterization.js`, `protocol-logic.js`, `protocol.js`, `messages-logic.js`, `quote-doc.js`, `pricing.js`, `legal.js`, `clocks.js`, `tz.js`, `holidays.js`, `catalog.js`, `push-config.js` | עותקים של `app/` (סעיף 1). לא עורכים ביד; `node scripts/sync-functions.mjs` מראה את הרשימה המלאה |
 
 **הפעלה, לפי הסדר:**
 

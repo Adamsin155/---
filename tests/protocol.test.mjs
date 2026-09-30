@@ -137,7 +137,8 @@ test('due dates follow the protocol anchors', () => {
   assert.equal(iso(due('p01')), iso(at('2026-10-01T09:05:00+03:00')));
   assert.equal(iso(due('p04')), iso(at('2026-10-01T12:00:00+03:00')));
   assert.equal(iso(due('p07')), iso(at('2026-10-01T14:00:00+03:00'))); // 2h after the meeting's window
-  assert.equal(day(due('p12')), '2026-10-06');
+  assert.equal(day(due('p12')), '2026-10-05'); // end of business day 2 (decision 14)
+  assert.equal(day(due('p13')), '2026-10-06'); // the Zoom on day 3
   assert.equal(iso(due('p15')), iso(at('2026-10-06T11:00:00+03:00')));
   assert.equal(iso(due('p16')), iso(at('2026-10-07T00:00:00+03:00')));
   // A Sunday shoot: the reminder goes out on Thursday, the previous business day.
@@ -263,7 +264,7 @@ test('an extra shoot round repeats the shoot processes with their own keys and d
   assert.equal(day(r2p22.dueAt), '2027-03-15'); // 3 business days from the round's own assignment
   assert.equal(sa.states.find((x) => x.proc.id === 'p22').dueAt, null); // round 1 is not assigned yet
   const r2p12 = s.states.find((x) => x.proc.id === 'r2-p12');
-  assert.equal(day(r2p12.dueAt), '2027-03-04'); // 3 business days from the round start
+  assert.equal(day(r2p12.dueAt), '2027-03-03'); // 2 business days from the round start (decision 14)
   // Round 1 progress is unaffected by round 2 checks and vice versa.
   const checks = { 'r2.p11.influencers': { state: 'done', at: '2027-03-01T10:00:00+02:00' } };
   const s2 = clientState(c, checks, at('2027-03-02T10:00:00+02:00'));

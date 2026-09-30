@@ -52,7 +52,7 @@ const chunks = <T>(list: T[], n: number): T[][] => Array.from({ length: Math.cei
 // Open tasks, and the ones finished in the last two days with their result (a
 // brief task Nirel finished: the requester hears, rule `briefDone`). Until
 // migration 20260930140000 adds client_tasks.result, open tasks only.
-const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, created_by_email, created_at, source, urgent, started_at';
+const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, created_by_email, created_at, source, urgent, started_at, brief';
 async function loadTasks(now: Date): Promise<Row[]> {
   const since = new Date(now.getTime() - 2 * 864e5).toISOString();
   try {

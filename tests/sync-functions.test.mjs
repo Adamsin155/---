@@ -16,8 +16,9 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'catalog.js', 'clocks.js', 'holidays.js', 'legal.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol.js',
-    'push-config.js', 'reminder-engine.js', 'reminder-rules.js', 'tz.js',
+    'catalog.js', 'characterization.js', 'clocks.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js',
+    'production.js', 'protocol-logic.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
+    'shoot-prep.js', 'tz.js',
   ]);
 });
 

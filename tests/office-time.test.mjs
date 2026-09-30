@@ -70,7 +70,7 @@ test('identical deadlines under UTC, New York and Jerusalem', () => {
   const due = (id) => iso(resolveTime(procs.find((p) => p.id === id).due, c, procs, checks, at(nows[0])));
   assert.equal(due('p01'), iso(at('2026-10-25T09:03:00+02:00'))); // Thursday 17:58 + 5 office minutes
   assert.equal(due('p15'), iso(at('2026-10-29T11:00:00+02:00'))); // Sunday shoot: Thursday 11:00
-  assert.equal(due('p12'), iso(at('2026-10-28T23:59:59.999+02:00'))); // 3 business days from Sunday night
+  assert.equal(due('p12'), iso(at('2026-10-27T23:59:59.999+02:00'))); // 2 business days from Sunday night (decision 14)
   assert.deepEqual(runs[0].weeks, ['2026-10-18', '2026-10-25', '2026-10-25', '2026-11-01']);
   assert.equal(runs[0].late, 6); // Thursday night to the Sunday a week later: 6 business days
   assert.deepEqual(runs[0].days.map((b, i) => (b ? '1' : '0')).join('').match(/1+|0+/g).map((s) => s.length), [24, 48, 24]); // Thu, Fri–Sat off, Sun

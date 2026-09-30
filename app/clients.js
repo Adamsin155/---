@@ -40,6 +40,7 @@ import { folderItemOf } from './qa-logic.js';
 import { TAB_FRESH } from './protocol-ui.js';
 // A link to a part of this page (#mine, #control, a sign-in link) opens that part.
 const ARRIVED_WITH_HASH = !!location.hash;
+import { intakeShortcut } from './intake-ui.js';
 
 let clients = [];
 let checks = {};
@@ -536,6 +537,7 @@ function groupCard(g, person) {
       claimControl(g, person)),
     g.task ? taskMeta(g.task) : null,
     g.task && g.urgent ? taskStart(g.task) : null,
+    g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope }) : null,
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
       bulk ? h('button', {
@@ -2153,6 +2155,8 @@ mountSession(async (staff) => {
   $('nav-team').hidden = !canManageTeam(viewer);
   // The top bar folds away on phones: the page head keeps a way in to the messages.
   $('nav-messages').hidden = $('cta-messages').hidden = !canSendMessages(viewer);
+  // Before the shoot day and client requests (prep.html): the office's.
+  $('nav-prep').hidden = $('cta-prep').hidden = scope !== 'office' || !!viewerError;
   // Always land on the signed-in person's own list; the owner lands on the whole team.
   minePerson = scope === 'own' ? me : me || '';
   applyScope();
