@@ -38,9 +38,12 @@ import { ANSWER_CLOCKS } from './clocks.js';
 import { partsIL, dayKeyIL, atTimeIL, addDaysIL, dayFromKeyIL, daysBetweenIL, weekdayIL } from './tz.js';
 
 export const OWNER = 'owner';
-// Sending hours (section 5): Sunday–Thursday 08:30–19:00, not on holidays. Shoot-day
+// Who has reminders: the owner and the protocol's people (reminder_log.person).
+export const REMINDER_PEOPLE = new Set([OWNER, ...STAFF_PEOPLE().map((p) => p.key)]);
+// Sending hours (section 5): Sunday–Thursday 08:30–19:00, not on holidays. On erev
+// chag the office works until 13:00 (decision 2), and so do the rings. Shoot-day
 // events are the exception. The digests run inside them.
-export const SEND_HOURS = { from: 8 * 60 + 30, to: 19 * 60 };
+export const SEND_HOURS = { from: 8 * 60 + 30, to: 19 * 60, erevTo: WORK_HOURS.erevEnd * 60 };
 // At most 6 rings a day for each person, not counting protocol clocks, shoot days and urgent work.
 export const DAILY_CAP = 6;
 // Digest times (principle 4, section 3, decision 24).
@@ -57,6 +60,9 @@ export const STALE_MINUTES = { ring: 6 * 60, quiet: 6 * 60, board: 24 * 60, dige
 // Steps that report something that happened (a missed call, a missed review): once
 // queued, they stay in the next digest even though the day that produced them is over.
 export const FACTS = new Set(['control32.lior', 'control33.lior', 'thursday.lior', 'thursday.board', 'weekly.missed']);
+// The end of the key of Lior's copy of an exception that went to Ofir on his shoot
+// day (decision 8): held for his summary after the day, never pushed.
+export const SHOOT_COPY = '+shoot';
 // 'rule.step' of a reminder key (`rule:client:case:step@person`; the case may hold ':').
 export const stepOfKey = (key) => { const parts = String(key).split(':'); return `${parts[0]}.${parts.at(-1).split('@')[0]}`; };
 
@@ -69,7 +75,7 @@ const hm = (s) => s.split(':').map(Number);
 export const minuteOfDay = (d) => { const p = partsIL(d); return p.hour * 60 + p.minute; };
 export const atIL = (d, s) => { const [h, m] = hm(s); return atTimeIL(d, h, m); };
 // Whether a push may go out at `d` (outside it only shoot-day events do).
-export const inSendHours = (d) => isBusinessDay(d) && minuteOfDay(d) >= SEND_HOURS.from && minuteOfDay(d) < SEND_HOURS.to;
+export const inSendHours = (d) => isBusinessDay(d) && minuteOfDay(d) >= SEND_HOURS.from && minuteOfDay(d) < (erevOn(d) ? SEND_HOURS.erevTo : SEND_HOURS.to);
 // The nth business day after (n > 0) or before (n < 0) the Israel day of `d`, same wall time.
 export function businessDayFrom(d, n) {
   const p = partsIL(d);
@@ -296,7 +302,10 @@ export const RULES = [
       const out = [];
       for (const a of env.access) {
         const c = env.clientById.get(a.client_id);
-        const at = parseDate(a.updated_at);
+        // Since when it is broken (client_access.broken_since, kept by a trigger): an
+        // edit of a broken row (a note, a new password that still fails) moves
+        // updated_at, and must not start the ladder again or push the owner's step back.
+        const at = parseDate(a.broken_since) || parseDate(a.updated_at);
         if (!c || a.status !== 'broken' || !at) continue;
         out.push({ id: `${a.id}@${at.toISOString()}`, cid: c.id, client: c, name: c.name, ref: 'p06', url: clientUrl(c.id, 'access'), network: a.network, anchors: { event: at } });
       }
@@ -400,7 +409,7 @@ export const RULES = [
       { id: '1030', prevBusinessDays: 1, at: '10:30', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => openItems(i, EVE_SENT).length > 0, title: (i, env) => `צילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: () => 'הנוסחים מוכנים: ללקוח, למשפיענים ולצוות. לשלוח ולסמן בכרטיס.' },
       { id: '1115', prevBusinessDays: 1, at: '11:15', to: 'irit', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.resolved('p15.irit'), title: (i) => `בדיקת יום לפני: ${i.name}`, body: () => 'לוודא שהתזכורות נשלחו, שהלקוח זוכר ושאין משימה פתוחה. כל פריט שנכשל: לליאור.' },
       { id: '1200', prevBusinessDays: 1, at: '12:00', to: 'lior', level: 'ring', exempt: 'urgent', shoot: true, expires: 'shoot', when: (i) => openOf(i, 'lior').length > 0, title: (i) => `דחוף: יום לפני הצילום עוד פתוח · ${i.name}`, body: (i) => `עוד פתוח: ${openOf(i, 'lior').length} פריטים בתהליך 15.` },
-      { id: '1500', prevBusinessDays: 1, at: '15:00', to: OWNER, level: 'ring', expires: 'shoot', when: (i) => openItems(i, EVE_SENT).length > 0, title: (i) => `צילום בסיכון: ${i.name}`, body: (i, env) => `התזכורות של יום לפני הצילום עוד לא נשלחו. הצילום ${whenText(i.anchors.shoot, env.now)}.` },
+      { id: '1500', prevBusinessDays: 1, at: '15:00', to: OWNER, level: 'ring', shoot: true, expires: 'shoot', when: (i) => openItems(i, EVE_SENT).length > 0, title: (i) => `צילום בסיכון: ${i.name}`, body: (i, env) => `התזכורות של יום לפני הצילום עוד לא נשלחו. הצילום ${whenText(i.anchors.shoot, env.now)}.` },
     ],
   },
 

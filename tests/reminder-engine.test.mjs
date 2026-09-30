@@ -5,7 +5,7 @@
 // what level and when; and that a stop condition ends the ladder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeReminders, candidates, buildEnv } from '../app/reminder-engine.js';
+import { computeReminders, candidates, buildEnv, planDelivery } from '../app/reminder-engine.js';
 import { RULES, SNOOZE, officeMinutesBefore, businessDayFrom, inSendHours } from '../app/reminder-rules.js';
 import { PROCESSES } from '../app/protocol.js';
 import { IMPORT_NOTE } from '../app/protocol-logic.js';
@@ -202,6 +202,23 @@ test('broken access: Lior at once and after two office hours; the owner after a 
   none(due(w, IL(2026, 10, 7, 16)), 'broken');
 });
 
+test('broken access: editing the row while it is still broken does not start the ladder again or delay the owner', () => {
+  const w = world();
+  const c = client(w, { name: 'מספרה' });
+  importTo(w, c, 'content');
+  const a = { id: 'a1', client_id: c.id, network: 'instagram', status: 'broken', broken_since: IL(2026, 10, 6, 16).toISOString(), updated_at: IL(2026, 10, 6, 16).toISOString() };
+  w.access.push(a);
+  const first = one(due(w, IL(2026, 10, 6, 16)), 'broken', 'now', 'lior');
+  const log = candidates(buildEnv({ ...w, now: IL(2026, 10, 6, 18) })).map((r) => r.key); // "now" and "again" went out
+  // Lior adds a note (a new password that still fails) the next morning.
+  a.updated_at = IL(2026, 10, 7, 10).toISOString();
+  const later = due(w, IL(2026, 10, 7, 10, 1), log);
+  none(later, 'broken', 'now');
+  none(later, 'broken', 'again');
+  assert.equal(one(due(w, IL(2026, 10, 7, 16), log), 'broken', 'board', 'owner').key.split(':')[0], 'broken');
+  assert.ok(candidates(buildEnv({ ...w, now: IL(2026, 10, 7, 16) })).some((r) => r.key === first.key));
+});
+
 test('9 graphics ready: Irit at once, Lior after 30 minutes (decision 7); waiting on the client or sending stops it', () => {
   const w = world();
   const c = client(w);
@@ -294,6 +311,17 @@ test('no client approval of the scripts (13): Lior and Irit 2 business days befo
   delete w2.checks[c2.id]['p13.approved'];
   assert.equal(hhmm(one(due(w2, IL(2026, 10, 14, 10)), 'approval', 'lior').at), '14.10 10:00');
   assert.equal(hhmm(one(due(w2, IL(2026, 10, 15, 10)), 'approval', 'owner').at), '15.10 10:00');
+});
+
+test('the day before the shoot on erev chag: the owner\'s 15:00 "shoot at risk" still rings (a shoot-day event)', () => {
+  // Shavuot is Friday 11.6.2027: the business day before a Sunday shoot is erev chag, closed at 13:00.
+  const w = world();
+  const c = client(w, { shoot_at: IL(2027, 6, 13, 11).toISOString(), contract_end: '2028-12-31' });
+  importTo(w, c, 'shoot');
+  const at = IL(2027, 6, 10, 15);
+  const owner = one(due(w, at), 'eve', '1500', 'owner');
+  const [r] = planDelivery({ reminders: [owner], now: at, log: [] });
+  assert.deepEqual([r.channel, r.status], ['push', 'sent']);
 });
 
 test('the day before the shoot (15): 10:30 Lior, 11:15 Irit, 12:00 Lior urgent, 15:00 the owner', () => {
@@ -547,10 +575,18 @@ test('decision 8: on Lior\'s shoot day his exceptions go to Ofir', () => {
   w.tasks.push({ id: 't9', client_id: other.id, title: 'לקוח כועס', owner: 'lior', source: 'escalation', urgent: true, created_at: IL(2026, 10, 15, 12).toISOString() });
   const env = buildEnv({ ...w, now: IL(2026, 10, 15, 12) });
   assert.equal(env.liorShoot.active, true);
-  const r = one(computeReminders({ env }), 'urgent', 'now');
-  assert.equal(r.person, 'ofir');
+  const list = computeReminders({ env });
+  const r = one(list, 'urgent', 'now', 'ofir');
   assert.match(r.title, /^ליאור ביום צילום · משימה דחופה: אחר/);
   assert.match(r.key, /@lior$/); // still Lior's step: it goes out once
+  // "ליאור מקבל סיכום בסוף היום": a copy for Lior, held for his summary, never pushed.
+  const copy = one(list, 'urgent', 'now', 'lior');
+  assert.equal(copy.key, `${r.key}+shoot`);
+  assert.match(copy.title, /^הועבר לאופיר · משימה דחופה: אחר/);
+  const [held] = planDelivery({ reminders: [copy], now: env.now, log: [], liorShoot: env.liorShoot });
+  assert.deepEqual([held.channel, held.status, held.reason], ['digest', 'queued', 'shoot_mode']);
+  // An exception Lior already got before the shoot is not copied into his summary.
+  assert.equal(computeReminders({ env, log: [r.key] }).filter((x) => x.rule === 'urgent' && x.step === 'now').length, 0);
   // After the day is closed (19), Lior again.
   marks(w, shoot, itemsOf('p19'), IL(2026, 10, 15, 15));
   assert.equal(one(due(w, IL(2026, 10, 15, 16)), 'urgent', 'now').person, 'lior');

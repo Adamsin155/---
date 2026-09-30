@@ -210,3 +210,65 @@ test('the whole morning: a tick at 08:30 queues what came overnight and the dige
   assert.deepEqual(d.fold.map((r) => r.key).sort(), ['deal:c3:deal:due@irit']);
   assert.ok(d.lines.some((l) => l.includes('גמא')), d.lines.join('\n'));
 });
+
+test('Lior\'s shoot day never closed: no summary at midnight; the next morning\'s digest carries what waited, once', () => {
+  const w = office();
+  w.clients[0].shoot_at = IL(2026, 10, 14, 11).toISOString(); // Wednesday
+  for (const k of Object.keys(w.checks.c1)) if (/^p1[79]b?\./.test(k)) delete w.checks.c1[k];
+  const held = [row({ id: 90, person: 'lior', status: 'queued', channel: 'digest', level: 'ring', rule: 'deal', key: 'h1', reason: 'shoot_mode', created_at: IL(2026, 10, 14, 12).toISOString(), title: 'עסקה חדשה בלי טיפול: בטא' })];
+  assert.equal(buildEnv({ ...w, staff: STAFF, now: IL(2026, 10, 14, 23, 59) }).liorShoot.active, true);
+  // 00:00: the shoot day is over, but it is the middle of the night.
+  assert.deepEqual(planDigests({ env: envAt(IL(2026, 10, 15, 0, 0), w), log: held, active: new Set(['h1']) }), []);
+  // 08:30: his morning digest carries it; no second message with the same lines.
+  const morning = planDigests({ env: envAt(IL(2026, 10, 15, 8, 30), w), log: held, active: new Set(['h1']) }).filter((d) => d.person === 'lior');
+  assert.deepEqual(morning.map((d) => d.kind), ['morning']);
+  assert.deepEqual(morning[0].include.map((r) => r.key), ['h1']);
+  // Closed at 21:00 on the shoot day itself: the summary goes out then (a shoot-day event).
+  for (const k of importKeys('post').filter((x) => x.startsWith('p19.'))) w.checks.c1[k] = { state: 'done', at: IL(2026, 10, 14, 21).toISOString(), note: null };
+  assert.deepEqual(planDigests({ env: envAt(IL(2026, 10, 14, 21, 1), w), log: held, active: new Set(['h1']) }).map((d) => d.kind), ['shoot']);
+});
+
+test('decision 8: the exceptions Ofir took on Lior\'s shoot day are in Lior\'s summary after it', () => {
+  const w = office();
+  w.clients[0].shoot_at = IL(2026, 10, 14, 11).toISOString();
+  for (const k of Object.keys(w.checks.c1)) if (/^p1[79]b?\./.test(k)) delete w.checks.c1[k];
+  for (const k of importKeys('post').filter((x) => x.startsWith('p19.'))) w.checks.c1[k] = { state: 'done', at: IL(2026, 10, 14, 15).toISOString(), note: null };
+  // Held during the day: the copy of an urgent task that went to Ofir (the task is done by now).
+  const copy = row({ id: 91, person: 'lior', status: 'queued', channel: 'digest', level: 'ring', rule: 'urgent', key: 'urgent:c2:t9:now@lior+shoot', reason: 'shoot_mode', client_id: 'c2', created_at: IL(2026, 10, 14, 12).toISOString(), title: 'הועבר לאופיר · משימה דחופה: בטא' });
+  const after = planDigests({ env: envAt(IL(2026, 10, 14, 15, 30), w), log: [copy], active: new Set() });
+  const summary = after.find((d) => d.kind === 'shoot');
+  assert.ok(summary, JSON.stringify(after));
+  assert.deepEqual(summary.lines, ['הועבר לאופיר · משימה דחופה: בטא']);
+  assert.deepEqual(summary.include.map((r) => r.key), ['urgent:c2:t9:now@lior+shoot']);
+});
+
+test('erev chag: the office closes at 13:00, and so do the rings and Lior\'s 16:00 list; the owner\'s 18:00 stays', () => {
+  const erev = (h, m = 0) => IL(2027, 4, 21, h, m); // Wednesday, erev Pesach
+  assert.deepEqual(plan([ring('irit', erev(12, 59))], erev(12, 59)).map((r) => r.status), ['sent']);
+  const [late] = plan([ring('irit', erev(14))], erev(14));
+  assert.deepEqual([late.status, late.reason], ['queued', 'quiet_hours']);
+  // A shoot-day event still goes out.
+  assert.equal(plan([ring('lior', erev(17), { shoot: true, exempt: 'shoot' })], erev(17))[0].status, 'sent');
+  const log = [row({ person: 'lior', status: 'queued', channel: 'digest', level: 'digest', rule: 'late', key: 'l1', title: 'באיחור: אלפא' })];
+  assert.equal(planDigests({ env: envAt(erev(12), office()), log, active: new Set(['l1']) })[0].key, 'digest:list12:lior:2027-04-21');
+  assert.deepEqual(planDigests({ env: envAt(erev(16), office()), log, active: new Set(['l1']) }), []);
+  // A normal day's 16:00 list is untouched.
+  assert.equal(planDigests({ env: envAt(IL(2027, 4, 20, 16), office()), log, active: new Set(['l1']) })[0].key, 'digest:list16:lior:2027-04-20');
+});
+
+test('the weekly report comes on the last business day of the week when Thursday is a holiday', () => {
+  // Thursday 22.4.2027 is Pesach: the report is in Wednesday's 18:00 digest.
+  const wed = planDigests({ env: envAt(IL(2027, 4, 21, 18), office()), log: [], active: new Set() }).find((d) => d.person === 'owner');
+  assert.equal(wed.title, 'חריגות היום ודוח שבועי');
+  assert.ok(wed.lines.includes('דוח שבועי:'), wed.lines.join('\n'));
+  // An ordinary Wednesday has none.
+  const plainWed = planDigests({ env: envAt(IL(2026, 10, 7, 18), office()), log: [], active: new Set() }).find((d) => d.person === 'owner');
+  assert.equal(plainWed.title, 'חריגות היום');
+});
+
+test('the owner\'s Sunday 08:30 digest carries what waited for him over the weekend', () => {
+  const waited = row({ id: 95, person: 'owner', status: 'queued', channel: 'digest', level: 'ring', rule: 'renewal', key: 'renewal:c1:p34@2026-11-07:owner30@owner', reason: 'quiet_hours', client_id: 'c1', created_at: IL(2026, 10, 10, 10).toISOString(), title: 'חידוש בלי שיחה, 30 יום לפני הסיום: אלפא' });
+  const sun = planDigests({ env: envAt(IL(2026, 10, 11, 8, 30), office()), log: [waited], active: new Set([waited.key]) }).find((d) => d.kind === 'week');
+  assert.equal(sun.lines[0], 'חידוש בלי שיחה, 30 יום לפני הסיום: אלפא');
+  assert.deepEqual(sun.include.map((r) => r.key), [waited.key]);
+});

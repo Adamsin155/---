@@ -6,10 +6,11 @@
 --   push_subscriptions  each staff member's devices (Web Push). A person sees and
 --                       changes only their own, through the functions below; the
 --                       office (owner, Irit, Lior, Ofir) sees who is connected.
---   reminder_log        every ladder step the engine handled: sent, queued for a
---                       digest, suppressed or failed. The key is unique: that is how
---                       each step goes out once. Everyone reads their own rows (the
---                       owner and Lior read all: the team screen) and marks them read.
+--   reminder_log        every ladder step the engine handled: pending (claimed, being
+--                       pushed), sent, queued for a digest, suppressed or failed. The
+--                       key is unique: that is how each step goes out once. Everyone
+--                       reads their own rows (the owner and Lior read all: the team
+--                       screen) and marks them read.
 --   reminder_runs       one row per tick: its lease (one tick at a time) and health.
 --
 -- Secrets are never here: the cron secret and the VAPID private key live in Vault
@@ -77,7 +78,7 @@ create function public.push_unsubscribe(p_endpoint text) returns boolean
 language plpgsql security definer set search_path = '' as $$
 begin
   delete from public.push_subscriptions
-  where endpoint = p_endpoint and email = lower(coalesce(auth.jwt() ->> 'email', ''));
+  where endpoint = p_endpoint and email = lower(coalesce(auth.jwt() ->> 'email', '')) and public.is_staff();
   return found;
 end $$;
 
@@ -86,7 +87,7 @@ create function public.push_confirm(p_endpoint text) returns boolean
 language plpgsql security definer set search_path = '' as $$
 begin
   update public.push_subscriptions set confirmed_at = now()
-  where endpoint = p_endpoint and email = lower(coalesce(auth.jwt() ->> 'email', ''));
+  where endpoint = p_endpoint and email = lower(coalesce(auth.jwt() ->> 'email', '')) and public.is_staff();
   return found;
 end $$;
 
@@ -124,7 +125,10 @@ create table public.reminder_log (
   person text not null check (person in ('owner', 'irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli')),
   level text not null check (level in ('ring', 'quiet', 'digest', 'board')),
   channel text not null check (channel in ('push', 'app', 'digest')),
-  status text not null check (status in ('sent', 'queued', 'suppressed', 'failed')),
+  -- 'pending': claimed by a tick and being pushed; 'sent' or 'failed' once the push
+  -- services answered. A tick that stopped in between leaves it pending, and a
+  -- later tick takes it again (public.reminders_reclaim).
+  status text not null check (status in ('pending', 'sent', 'queued', 'suppressed', 'failed')),
   reason text check (reason is null or length(reason) <= 200),
   exempt boolean not null default false,  -- a protocol clock, shoot day, urgent, digest or test: not in the daily cap
   client_id uuid references public.clients (id) on delete set null,
@@ -136,17 +140,22 @@ create table public.reminder_log (
   created_at timestamptz not null default now(),
   sent_at timestamptz,       -- when it reached a device, the app or a digest
   read_at timestamptz,
-  digest_key text            -- the digest that carried a queued line
+  digest_key text,           -- the digest that carried a queued line
+  claimed_at timestamptz not null default now(),  -- when a tick last took it (a pending push)
+  attempts smallint not null default 0            -- how many times a later tick took it again
 );
 create index reminder_log_person_idx on public.reminder_log (person, created_at desc);
 create index reminder_log_queued_idx on public.reminder_log (person) where status = 'queued';
 create index reminder_log_created_idx on public.reminder_log (created_at);
+create index reminder_log_pending_idx on public.reminder_log (claimed_at) where status = 'pending';
 
--- The protocol person of the signed-in staff member ('owner' for the owner's row).
+-- The protocol person of the signed-in staff member ('owner' for the owner's row);
+-- null unless the login is a confirmed staff member (public.is_staff(), as every
+-- other staff rule since 20260926203000_harden_signing.sql).
 create function public.reminder_person() returns text
 language sql stable security definer set search_path = '' as $$
   select coalesce(s.person, 'owner') from public.staff s
-  where s.email = lower(coalesce(auth.jwt() ->> 'email', ''))
+  where s.email = lower(coalesce(auth.jwt() ->> 'email', '')) and public.is_staff()
   limit 1;
 $$;
 
@@ -234,13 +243,47 @@ language sql security definer set search_path = '' as $$
   update public.reminder_runs set finished_at = now(), ok = p_ok, stats = p_stats, error = left(p_error, 200) where id = p_id;
 $$;
 
+-- Pushes a tick claimed before p_before and never finished (it timed out or was
+-- stopped): taken again in one statement, so two ticks never take the same row.
+create function public.reminders_reclaim(p_before timestamptz) returns setof public.reminder_log
+language sql set search_path = '' as $$
+  update public.reminder_log set claimed_at = now(), attempts = attempts + 1
+  where status = 'pending' and claimed_at < p_before
+  returning *;
+$$;
+
+-- ── Broken access: since when ──
+-- The reminder ladder of process 6 runs from the moment the access broke:
+-- when a row became 'broken'. Editing a row that is still broken (a note, another
+-- password that fails) keeps it, so the ladder does not start over; any other
+-- status clears it. Kept here, never written by the app.
+alter table public.client_access add column if not exists broken_since timestamptz;
+update public.client_access set broken_since = updated_at where status = 'broken' and broken_since is null;
+create function public.client_access_broken_since() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if new.status <> 'broken' then
+    new.broken_since := null;
+  elsif tg_op = 'UPDATE' and old.status = 'broken' then
+    new.broken_since := coalesce(old.broken_since, old.updated_at);
+  else
+    new.broken_since := now();
+  end if;
+  return new;
+end $$;
+create trigger client_access_broken_since before insert or update on public.client_access
+for each row execute function public.client_access_broken_since();
+revoke execute on function public.client_access_broken_since() from public, anon, authenticated;
+
 revoke execute on function public.reminders_known(text[]) from public, anon, authenticated;
 revoke execute on function public.reminders_check_secret(text) from public, anon, authenticated;
 revoke execute on function public.reminders_vapid() from public, anon, authenticated;
 revoke execute on function public.reminders_begin() from public, anon, authenticated;
 revoke execute on function public.reminders_end(bigint, boolean, jsonb, text) from public, anon, authenticated;
+revoke execute on function public.reminders_reclaim(timestamptz) from public, anon, authenticated;
 grant execute on function public.reminders_known(text[]) to service_role;
 grant execute on function public.reminders_check_secret(text) to service_role;
 grant execute on function public.reminders_vapid() to service_role;
 grant execute on function public.reminders_begin() to service_role;
 grant execute on function public.reminders_end(bigint, boolean, jsonb, text) to service_role;
+grant execute on function public.reminders_reclaim(timestamptz) to service_role;

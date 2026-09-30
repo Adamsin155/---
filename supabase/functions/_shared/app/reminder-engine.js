@@ -18,7 +18,7 @@
 //   planDigests({ env, now, log, active, lookahead }) → the digests due now.
 import {
   RULES, OWNER, timeOf, inSendHours, atIL, DAILY_CAP, STALE_MINUTES, FOLD, DIGESTS, RING_TARGETS, personName, MINE_URL,
-  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey,
+  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY,
 } from './reminder-rules.js';
 import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf } from './protocol-logic.js';
 import { STAFF_PEOPLE } from './protocol.js';
@@ -150,29 +150,37 @@ export function candidates(env, { until = env.now } = {}) {
     }
   }
   // Decision 8: on Lior's shoot day his exceptions go to Ofir (the key stays his,
-  // so the step still goes out once).
+  // so the step still goes out once), and Lior gets them in his summary after the
+  // day ("ליאור מקבל סיכום בסוף היום"): a copy of each, held for it.
   if (env.liorShoot.active) {
+    const copies = [];
     for (const r of out) {
       if (r.person === 'lior' && r.exception && !env.liorShoot.cids.has(r.clientId)) {
+        copies.push({ ...r, key: `${r.key}${SHOOT_COPY}`, exception: false, exempt: null, copy: true, title: `הועבר לאופיר · ${r.title}` });
         r.person = 'ofir';
         r.title = `ליאור ביום צילום · ${r.title}`;
       }
     }
+    out.push(...copies);
   }
   return out;
 }
 
 const keysOf = (log) => (log instanceof Set ? log : new Set([...(log || [])].map((x) => (typeof x === 'string' ? x : x.key))));
+// Whether a step is not in the log yet. Lior's copy of an exception (decision 8)
+// is new only with the exception itself: one he already got before the shoot is
+// not in his summary.
+export const notKnown = (known) => (r) => !known.has(r.key) && !(r.copy && known.has(r.key.slice(0, -SHOOT_COPY.length)));
 
 // The steps due now that the log does not have yet (spec: computeReminders).
 export function computeReminders({ log = [], until, env = null, ...input }) {
   const e = env || buildEnv(input);
-  const known = keysOf(log);
-  return candidates(e, { until }).filter((r) => !known.has(r.key));
+  return candidates(e, { until }).filter(notKnown(keysOf(log)));
 }
 
 // ── Delivery ──────────────────────────────
-const isPushRing = (row) => row.level === 'ring' && row.channel === 'push' && row.status === 'sent';
+// A ring that went (or is going, 'pending') to the phone.
+const isPushRing = (row) => row.level === 'ring' && row.channel === 'push' && (row.status === 'sent' || row.status === 'pending');
 // Rings a person got today that count against the cap (not protocol clocks, shoot days, urgent or tests).
 export function ringsToday(log, now) {
   const day = dayKeyIL(now);
@@ -195,6 +203,7 @@ export function planDelivery({ reminders, now, log = [], liorShoot = { active: f
   return sorted.map((r) => {
     const age = (now - r.at) / MIN;
     if (age > STALE_MINUTES[r.level]) return { ...r, channel: r.level === 'digest' ? 'digest' : 'app', status: 'suppressed', reason: 'stale' };
+    if (r.copy) return { ...r, channel: 'digest', status: 'queued', reason: 'shoot_mode' }; // decision 8: for Lior's summary only
     if (r.level === 'board' || r.level === 'quiet') return { ...r, channel: 'app', status: 'sent', reason: null };
     if (r.level === 'digest') return { ...r, channel: 'digest', status: 'queued', reason: null };
     if (!r.shoot && !inSendHours(now)) return { ...r, channel: 'digest', status: 'queued', reason: 'quiet_hours' };
@@ -287,8 +296,9 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
   const within = (hhmm) => { const t = atIL(now, hhmm); return now >= t && now - t < 60 * MIN; };
   const queuedFor = (person) => log.filter((r) => r.status === 'queued' && r.person === person);
   const clientName = (id) => env.clientById.get(id)?.name || '';
-  // A queued line is carried only while it is still true (or it reports a fact).
-  const holds = (r) => active.has(r.key) || FACTS.has(stepOfKey(r.key));
+  // A queued line is carried only while it is still true (or it reports a fact, like
+  // an exception Ofir took on Lior's shoot day).
+  const holds = (r) => active.has(r.key) || FACTS.has(stepOfKey(r.key)) || String(r.key).endsWith(SHOOT_COPY);
   const split = (rows) => ({ keep: rows.filter(holds), drop: rows.filter((r) => !holds(r)) });
   const staffPeople = STAFF_PEOPLE().map((p) => p.key).filter((k) => env.hasStaff(k));
   const business = isBusinessDay(now);
@@ -308,7 +318,8 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
   }
   if (business) {
     for (const t of DIGESTS.lists) {
-      if (!within(t)) continue;
+      // Not after the office closed on erev chag (the 16:00 list): its lines wait for the morning.
+      if (!within(t) || !inSendHours(atIL(now, t))) continue;
       const { keep, drop } = split(queuedFor('lior'));
       if (env.liorShoot.active) { if (drop.length) out.push({ key: null, person: 'lior', drop }); continue; }
       const lines = digestLines({ rows: keep, max: 8, clientName });
@@ -316,10 +327,13 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
       out.push({ key: `digest:list${t.slice(0, 2)}:lior:${day}`, kind: 'list', person: 'lior', title: `הרשימה של ${t}`, lines, url: MINE_URL, include: keep, drop });
     }
   }
-  // After the shoot: what waited for Lior meanwhile, in one message (unless a list
-  // goes out at this very moment and carries it).
+  // After the shoot: what waited for Lior meanwhile, in one message, on the shoot
+  // day itself or within the sending hours (a shoot day never closed ends at
+  // midnight: then the morning digest carries it), and unless a list or his morning
+  // digest goes out at this very moment and carries it.
   const heldForShoot = queuedFor('lior').filter((r) => r.reason === 'shoot_mode');
-  if (heldForShoot.length && !env.liorShoot.active && !out.some((d) => d.kind === 'list')) {
+  const heldToday = heldForShoot.some((r) => !r.created_at || dayKeyIL(asDate(r.created_at)) === day);
+  if (heldForShoot.length && !env.liorShoot.active && (heldToday || inSendHours(now)) && !out.some((d) => d.person === 'lior' && d.key)) {
     const { keep, drop } = split(queuedFor('lior'));
     const lines = digestLines({ rows: keep, max: 8, clientName });
     const last = Math.max(...heldForShoot.map((r) => Number(r.id) || 0));
@@ -331,12 +345,17 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
     const { keep, drop } = split([...sinceDay, ...queuedFor(OWNER)]);
     let lines = digestLines({ rows: keep, max: 10, clientName });
     if (!lines.length) lines = ['הכול לפי התוכנית.'];
-    const thursday = weekdayIL(now) === 4;
-    if (thursday) lines = [...lines, ...weeklyReport(env, log, now)];
-    out.push({ key: `digest:owner18:owner:${day}`, kind: 'owner', person: OWNER, title: thursday ? 'חריגות היום ודוח שבועי' : 'חריגות היום', lines, url: 'clients.html', include: keep.filter((r) => r.status === 'queued'), drop: drop.filter((r) => r.status === 'queued') });
+    // The weekly report: Thursday, or the last business day of the week when Thursday is a holiday.
+    const weekly = lastBusinessDayOfWeek(now);
+    if (weekly) lines = [...lines, ...weeklyReport(env, log, now)];
+    out.push({ key: `digest:owner18:owner:${day}`, kind: 'owner', person: OWNER, title: weekly ? 'חריגות היום ודוח שבועי' : 'חריגות היום', lines, url: 'clients.html', include: keep.filter((r) => r.status === 'queued'), drop: drop.filter((r) => r.status === 'queued') });
   }
   if (env.hasStaff(OWNER) && business && within(DIGESTS.ownerWeek) && firstBusinessDayOfWeek(now)) {
-    out.push({ key: `digest:week:owner:${day}`, kind: 'week', person: OWNER, title: 'השבוע הקרוב', lines: weekAhead(env, now), url: 'clients.html', include: [], drop: [] });
+    // Also what waited for the owner since the last digest (an immediate case that
+    // came on the weekend, like a renewal 30 days before on a Saturday).
+    const { keep, drop } = split(queuedFor(OWNER));
+    const lines = [...digestLines({ rows: keep, max: 5, clientName }), ...weekAhead(env, now)];
+    out.push({ key: `digest:week:owner:${day}`, kind: 'week', person: OWNER, title: 'השבוע הקרוב', lines, url: 'clients.html', include: keep, drop });
   }
   return out.map((d) => (d.key ? { ...d, body: d.lines.join('\n') } : d));
 }
@@ -346,6 +365,14 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
 function firstBusinessDayOfWeek(now) {
   const noon = atTimeIL(now, 12);
   for (let i = 1; i <= weekdayIL(now); i += 1) if (isBusinessDay(addDaysIL(noon, -i))) return false;
+  return true;
+}
+
+// No business day later in this Israel week (Sunday–Thursday): Thursday, or the
+// day before when Thursday is a holiday.
+function lastBusinessDayOfWeek(now) {
+  const noon = atTimeIL(now, 12);
+  for (let i = 1; i <= 4 - weekdayIL(now); i += 1) if (isBusinessDay(addDaysIL(noon, i))) return false;
   return true;
 }
 
@@ -392,7 +419,21 @@ export function weekAhead(env, now) {
   return lines.length ? lines : ['אין אירועים מתוכננים השבוע.'];
 }
 
-// Payload of a push, as the service worker (sw.js) reads it.
-export const pushPayload = ({ id = null, key, title, body, url, level }) => JSON.stringify({
-  title, body: body || '', url: url || MINE_URL, tag: key, id, level,
-});
+// Payload of a push, as the service worker (sw.js) reads it. A push message holds
+// at most 4096 bytes after encryption (RFC 8291; supabase/functions/reminders/
+// webpush.js refuses more), and Hebrew is two bytes a letter: a long title or a
+// digest of long task titles is cut to fit, with the whole text in "התראות".
+export const PUSH_MAX_BYTES = 3000;
+const utf8 = (s) => new TextEncoder().encode(s).length;
+export function pushPayload({ id = null, key, title, body, url, level }) {
+  const msg = { title: String(title || '').slice(0, 150), url: url || MINE_URL, tag: key, id, level };
+  const fit = (text) => JSON.stringify({ title: msg.title, body: text, url: msg.url, tag: msg.tag, id: msg.id, level: msg.level });
+  // Without its body a payload is well under the limit (a short title, a url and a key).
+  let text = String(body || '');
+  let out = fit(text);
+  while (text && utf8(out) > PUSH_MAX_BYTES) {
+    text = text.slice(0, Math.max(0, text.length - Math.ceil((utf8(out) - PUSH_MAX_BYTES) / 3) - 2));
+    out = fit(text ? `${text}…` : '');
+  }
+  return out;
+}

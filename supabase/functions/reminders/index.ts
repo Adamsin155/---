@@ -59,7 +59,7 @@ const db = {
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       all(() => admin.from('client_tasks').select('id, client_id, title, owner, due_on, done_at, created_by_email, created_at, source, urgent, started_at').is('done_at', null).order('id')),
       all(() => admin.from('staff').select('email, person').order('email')),
-      all(() => admin.from('client_access').select('id, client_id, network, status, updated_at').eq('status', 'broken').order('id')),
+      all(() => admin.from('client_access').select('id, client_id, network, status, broken_since, updated_at').eq('status', 'broken').order('id')),
       all(() => admin.from('office_reviews').select('day, kind').gte('day', dayKeyIL(addDaysIL(now, -14))).order('day')),
       all(() => admin.from('client_status_notes').select('client_id, week').gte('week', weekKey(now)).order('week')),
       all(() => admin.from('client_messages').select('client_id, sent_at').gte('sent_at', today.toISOString()).order('sent_at')),
@@ -88,6 +88,13 @@ const db = {
       out.push(...(data ?? []));
     }
     return out;
+  },
+  // Pushes left 'pending' by a tick that stopped before they were sent (claimed
+  // before `before`), taken again atomically: two ticks never take the same one.
+  async reclaim(before: Date) {
+    const { data, error } = await admin.rpc('reminders_reclaim', { p_before: before.toISOString() });
+    if (error) throw error;
+    return (data ?? []) as Row[];
   },
   async updateLog(ids: number[], patch: Row) {
     for (const part of chunks(ids.filter(Boolean), 200)) {
@@ -164,7 +171,8 @@ Deno.serve(async (req) => {
     if (!runId) return json(202, { busy: true });
     try {
       const stats = await runTick({ db, push: await pusher(), now: new Date() });
-      await admin.rpc('reminders_end', { p_id: runId, p_ok: true, p_stats: stats, p_error: null });
+      // A send that could not be recorded stays pending and is taken again later.
+      await admin.rpc('reminders_end', { p_id: runId, p_ok: !stats.errors, p_stats: stats, p_error: stats.errors ? 'send_not_recorded' : null });
       return json(200, stats);
     } catch (e) {
       // Only a short code: messages from the database are not written to the log.

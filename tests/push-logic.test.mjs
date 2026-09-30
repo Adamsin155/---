@@ -59,6 +59,7 @@ test('the list: today (Israel day), newest first, without suppressed steps or qu
   assert.deepEqual(list.map((r) => r.id), [2, 6, 1]);
   assert.equal(unreadCount(list), 2);
   assert.equal(deliveryText({ status: 'queued', reason: 'cap' }), 'יגיע בתקציר הבא');
+  assert.equal(deliveryText({ status: 'pending', channel: 'push', level: 'ring' }), 'נשלח עכשיו לטלפון');
   assert.equal(deliveryText({ status: 'queued', reason: 'shoot_mode' }), 'יגיע בסיכום אחרי יום הצילום');
   assert.equal(deliveryText({ status: 'sent', channel: 'app', reason: 'no_device' }), 'בתוך המערכת (אין טלפון מחובר)');
   assert.equal(deliveryText({ status: 'failed' }), 'לא נשלח לטלפון: תקלה. מופיע כאן.');

@@ -59,6 +59,7 @@ export const unreadCount = (rows) => rows.filter((r) => !r.read_at).length;
 // How a row reached the person, in words (never by colour alone).
 export function deliveryText(r) {
   if (r.status === 'failed') return 'לא נשלח לטלפון: תקלה. מופיע כאן.';
+  if (r.status === 'pending') return 'נשלח עכשיו לטלפון';
   if (r.status === 'queued') return r.reason === 'shoot_mode' ? 'יגיע בסיכום אחרי יום הצילום' : 'יגיע בתקציר הבא';
   if (r.channel === 'digest') return 'נכלל בתקציר';
   if (r.channel === 'push') return r.level === 'digest' ? 'תקציר, נשלח לטלפון' : 'נשלח לטלפון';
