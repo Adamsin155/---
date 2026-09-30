@@ -19,17 +19,31 @@
 --     someone else there (an exception reported to Lior, a paused edit) stays allowed.
 --   - Client details (clients rows) are added and changed by the office only.
 --   - The access vault: the vault flag (staff.vault, set by the admin) and, outside
---     the office, a client assigned to the person (their editing or a task of
---     theirs), as the plan says for Nirel: "כספת: רק ללקוחות שהיא משויכת אליהם".
---     Seeing a Natali client is not enough to see its logins. This holds for the
---     rows, their log, and access_save / access_reveal / access_delete.
+--     the office, a client assigned to the person: their editing, or a task that
+--     someone else opened for them (open, or finished in the last 30 days), as the
+--     plan says for Nirel: "כספת: רק ללקוחות שהיא משויכת אליהם". Seeing a Natali
+--     client is not enough to see its logins, and neither is a task one opened for
+--     oneself (Nirel sees every Natali client, so she could otherwise give herself
+--     any of their logins). This holds for the rows, their log, and access_save /
+--     access_reveal / access_delete.
+--   - A task stays with its person and client: only the office moves it to another
+--     person or client, or reopens one finished more than 30 days ago (otherwise a
+--     task could be taken over, or revived, to reach a client or its vault).
 --   - Ofir's weekly summaries and the daily reviews: the office only.
+--   - The owner's screens (20260930120000_owner_screens.sql), when that migration is
+--     in: the history of date changes follows the clients one sees. The questions
+--     keep their own rule (the office, and the person asked).
 -- The quote and payout tables do not change. The triggers that stamp who and when
 -- stay as they are (they only set values on the row being written).
 --
--- can_see_client(id) is the rule for one client. The policies use the same rule in
--- its set form, private.my_clients(), which a query computes once, so an editor's
--- list does not run the rule again for each of thousands of checks.
+-- Two forms of the same rule. The policies use the set form, private.my_clients()
+-- (and private.my_assigned_clients() for the vault), which a query computes once,
+-- so an editor's list does not run the rule again for each of thousands of checks.
+-- can_see_client(id) and can_use_client_vault(id) answer for one client with a few
+-- index lookups, so they stay cheap when called per row; never call the set form
+-- once per row. tests/sql/rls.test.mjs checks that both forms agree.
+-- Every statement here can run again safely (re-running the file after the owner
+-- screens' migration tightens their table too).
 -- Tested against every migration in a real Postgres: tests/sql/rls.test.mjs.
 
 -- ── Who is signed in ─────────────────────────
@@ -51,87 +65,151 @@ language sql stable security definer set search_path = '' as $$
   );
 $$;
 
--- ── Clients of one person (not the office) ──
--- Assigned: their editing (the main shoot or any round), or a task of theirs that is
--- open or was finished in the last 30 days. This is also what opens the vault.
+-- Eli's window: a shoot day (the main one, or any round's) from 7 days ago to 30
+-- days ahead, in Israel days. A round's date that does not read as a time is skipped.
+create or replace function private.shoot_in_window(p_shoot timestamptz, p_rounds jsonb) returns boolean
+language sql stable set search_path = '' as $$
+  with today as (select (now() at time zone 'Asia/Jerusalem')::date as d)
+  select exists (
+    select 1 from today, (
+      select p_shoot as at
+      union all
+      select case when pg_input_is_valid(r ->> 'shoot_at', 'timestamptz') then (r ->> 'shoot_at')::timestamptz end
+      from jsonb_array_elements(coalesce(p_rounds, '[]'::jsonb)) r
+    ) s
+    where (s.at at time zone 'Asia/Jerusalem')::date between today.d - 7 and today.d + 30);
+$$;
+
+-- ── The set form (for the policies) ──────────
+-- Assigned (not the office): their editing (the main shoot or any round), or a task
+-- someone else opened for them that is open or was finished in the last 30 days.
+-- This is what opens the vault.
 create or replace function private.my_assigned_clients() returns setof uuid
 language sql stable security definer set search_path = '' as $$
-  with me as (select public.my_person() as p)
+  with me as (select public.my_person() as p, lower(coalesce(auth.jwt() ->> 'email', '')) as e)
   select c.id from public.clients c, me
   where me.p is not null and (
     c.editor = me.p
     or exists (select 1 from jsonb_array_elements(c.rounds) r where r ->> 'editor' = me.p))
   union
   select t.client_id from public.client_tasks t, me
-  where t.owner = me.p and (t.done_at is null or t.done_at > now() - interval '30 days');
+  where t.owner = me.p and t.created_by_email is distinct from me.e
+    and (t.done_at is null or t.done_at > now() - interval '30 days');
 $$;
 
--- Everything they may see: the assigned clients, plus every Natali client for
--- Nirel, plus the clients with a shoot day from 7 days ago to 30 days ahead for Eli
--- (Israel days; a round's date that does not read as a time is skipped).
+-- Everything they may see: the assigned clients, a client with a task of theirs
+-- (open or finished in the last 30 days, whoever opened it), every Natali client for
+-- Nirel, and the clients in Eli's shoot window for Eli.
 create or replace function private.my_clients() returns setof uuid
 language sql stable security definer set search_path = '' as $$
-  with me as (select public.my_person() as p),
-       today as (select (now() at time zone 'Asia/Jerusalem')::date as d)
+  with me as (select public.my_person() as p)
   select a.id from private.my_assigned_clients() as a(id)
+  union
+  select t.client_id from public.client_tasks t, me
+  where t.owner = me.p and (t.done_at is null or t.done_at > now() - interval '30 days')
   union
   select c.id from public.clients c, me
   where me.p = 'nirel' and c.shoot_type = 'natali'
   union
-  select c.id from public.clients c, me, today
-  where me.p = 'eli' and exists (
-    select 1 from (
-      select c.shoot_at as at
-      union all
-      select case when pg_input_is_valid(r ->> 'shoot_at', 'timestamptz') then (r ->> 'shoot_at')::timestamptz end
-      from jsonb_array_elements(c.rounds) r
-    ) s
-    where (s.at at time zone 'Asia/Jerusalem')::date between today.d - 7 and today.d + 30);
+  select c.id from public.clients c, me
+  where me.p = 'eli' and private.shoot_in_window(c.shoot_at, c.rounds);
 $$;
 
--- ── The rule, for one client ─────────────────
+-- ── The same rule, for one client ────────────
+-- A few index lookups; safe to call once per row.
+create or replace function private.is_assigned(p_client uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  with me as (select public.my_person() as p, lower(coalesce(auth.jwt() ->> 'email', '')) as e)
+  select me.p is not null and (
+    exists (select 1 from public.clients c where c.id = p_client
+      and (c.editor = me.p or exists (select 1 from jsonb_array_elements(c.rounds) r where r ->> 'editor' = me.p)))
+    or exists (select 1 from public.client_tasks t where t.client_id = p_client and t.owner = me.p
+      and t.created_by_email is distinct from me.e
+      and (t.done_at is null or t.done_at > now() - interval '30 days')))
+  from me;
+$$;
+
 create or replace function public.can_see_client(p_client uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select public.is_office() or exists (select 1 from private.my_clients() as m(id) where m.id = p_client);
+  with me as (select public.my_person() as p)
+  select public.is_office() or (me.p is not null and (
+    private.is_assigned(p_client)
+    or exists (select 1 from public.client_tasks t where t.client_id = p_client and t.owner = me.p
+      and (t.done_at is null or t.done_at > now() - interval '30 days'))
+    or exists (select 1 from public.clients c where c.id = p_client and (
+      (me.p = 'nirel' and c.shoot_type = 'natali')
+      or (me.p = 'eli' and private.shoot_in_window(c.shoot_at, c.rounds))))))
+  from me;
 $$;
 
 -- The access vault of one client (the card asks before showing the logins).
 create or replace function public.can_use_client_vault(p_client uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select public.can_use_vault() and (public.is_office()
-    or exists (select 1 from private.my_assigned_clients() as m(id) where m.id = p_client));
+  select public.can_use_vault() and (public.is_office() or private.is_assigned(p_client));
 $$;
+
+-- The lookups above: a client's tasks by person (the open-task index covers open ones only).
+create index if not exists client_tasks_client_owner_idx on public.client_tasks (client_id, owner);
 
 revoke execute on function public.my_person() from public, anon;
 revoke execute on function public.is_office() from public, anon;
+revoke execute on function private.shoot_in_window(timestamptz, jsonb) from public, anon;
 revoke execute on function private.my_assigned_clients() from public, anon;
 revoke execute on function private.my_clients() from public, anon;
+revoke execute on function private.is_assigned(uuid) from public, anon;
 revoke execute on function public.can_see_client(uuid) from public, anon;
 revoke execute on function public.can_use_client_vault(uuid) from public, anon;
 grant execute on function public.my_person() to authenticated;
 grant execute on function public.is_office() to authenticated;
+grant execute on function private.shoot_in_window(timestamptz, jsonb) to authenticated;
 grant execute on function private.my_assigned_clients() to authenticated;
 grant execute on function private.my_clients() to authenticated;
+grant execute on function private.is_assigned(uuid) to authenticated;
 grant execute on function public.can_see_client(uuid) to authenticated;
 grant execute on function public.can_use_client_vault(uuid) to authenticated;
+
+-- ── A task stays with its person and client ──
+-- Only the office moves a task to another person or client, or reopens one finished
+-- more than 30 days ago. Signed-in users only: the database's own jobs (service
+-- role, no email in the token) and the SQL editor are not limited here.
+create or replace function public.client_tasks_guard() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if coalesce(auth.jwt() ->> 'email', '') = '' or public.is_office() then
+    return new;
+  end if;
+  if new.owner is distinct from old.owner or new.client_id is distinct from old.client_id
+     or (new.done_at is null and old.done_at < now() - interval '30 days') then
+    raise exception 'not allowed: only the office moves a task, or reopens an old one';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.client_tasks_guard() from public, anon, authenticated;
+drop trigger if exists client_tasks_guard on public.client_tasks;
+create trigger client_tasks_guard before update on public.client_tasks
+for each row execute function public.client_tasks_guard();
 
 -- ── Policies ─────────────────────────────────
 -- (select …) around a function without arguments: computed once per query.
 
 -- Clients: seen by the rule; added and changed by the office.
 drop policy if exists "staff manage clients" on public.clients;
+drop policy if exists "see own clients" on public.clients;
 create policy "see own clients" on public.clients
   for select to authenticated
   using ((select public.is_office()) or id in (select private.my_clients()));
+drop policy if exists "office adds clients" on public.clients;
 create policy "office adds clients" on public.clients
   for insert to authenticated
   with check ((select public.is_office()));
+drop policy if exists "office edits clients" on public.clients;
 create policy "office edits clients" on public.clients
   for update to authenticated
   using ((select public.is_office())) with check ((select public.is_office()));
 
 -- Protocol checks: read and written only on clients one can see.
 drop policy if exists "staff manage checks" on public.protocol_checks;
+drop policy if exists "checks of own clients" on public.protocol_checks;
 create policy "checks of own clients" on public.protocol_checks
   for all to authenticated
   using ((select public.is_office()) or client_id in (select private.my_clients()))
@@ -139,12 +217,14 @@ create policy "checks of own clients" on public.protocol_checks
 
 -- The history (written only by the trigger).
 drop policy if exists "staff read log" on public.protocol_log;
+drop policy if exists "history of own clients" on public.protocol_log;
 create policy "history of own clients" on public.protocol_log
   for select to authenticated
   using ((select public.is_office()) or client_id in (select private.my_clients()));
 
 -- Tasks: on clients one can see, for anyone (an exception reported to Lior).
 drop policy if exists "staff manage tasks" on public.client_tasks;
+drop policy if exists "tasks of own clients" on public.client_tasks;
 create policy "tasks of own clients" on public.client_tasks
   for all to authenticated
   using ((select public.is_office()) or client_id in (select private.my_clients()))
@@ -152,10 +232,12 @@ create policy "tasks of own clients" on public.client_tasks
 
 -- Ofir's weekly summaries and the daily reviews: the office only.
 drop policy if exists "staff manage status notes" on public.client_status_notes;
+drop policy if exists "office manages status notes" on public.client_status_notes;
 create policy "office manages status notes" on public.client_status_notes
   for all to authenticated
   using ((select public.is_office())) with check ((select public.is_office()));
 drop policy if exists "staff manage reviews" on public.office_reviews;
+drop policy if exists "office manages reviews" on public.office_reviews;
 create policy "office manages reviews" on public.office_reviews
   for all to authenticated
   using ((select public.is_office())) with check ((select public.is_office()));
@@ -164,14 +246,33 @@ create policy "office manages reviews" on public.office_reviews
 -- assigned client. Writes still go only through the functions below.
 drop policy if exists "vault users read access" on public.client_access;
 drop policy if exists "vault users read access log" on public.client_access_log;
+drop policy if exists "vault of assigned clients" on public.client_access;
 create policy "vault of assigned clients" on public.client_access
   for select to authenticated
   using ((select public.can_use_vault())
     and ((select public.is_office()) or client_id in (select private.my_assigned_clients())));
+drop policy if exists "vault log of assigned clients" on public.client_access_log;
 create policy "vault log of assigned clients" on public.client_access_log
   for select to authenticated
   using ((select public.can_use_vault())
     and ((select public.is_office()) or client_id in (select private.my_assigned_clients())));
+
+-- ── The owner's screens (20260930120000_owner_screens.sql), when present ──
+-- The history of date changes (a moved shoot day, a task's due day) follows the
+-- clients one sees, like the protocol history. Questions (client_questions) keep
+-- that migration's rule: the office asks and reads; the person asked reads and
+-- answers their own, even about a client they no longer see (the owner chose to
+-- ask them). If this file ran before that migration, run this block again after it.
+do $$
+begin
+  if to_regclass('public.client_date_changes') is not null then
+    drop policy if exists "staff read date changes" on public.client_date_changes;
+    drop policy if exists "date changes of own clients" on public.client_date_changes;
+    create policy "date changes of own clients" on public.client_date_changes
+      for select to authenticated
+      using ((select public.is_office()) or client_id in (select private.my_clients()));
+  end if;
+end $$;
 
 -- ── The vault's functions check the client too ──
 create or replace function public.access_save(

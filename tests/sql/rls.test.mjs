@@ -5,7 +5,7 @@
 // The rule is in supabase/migrations/20260930130000_assignment_rls.sql.
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { freshDatabase, as } from './pg.mjs';
+import { freshDatabase, as, migrationFiles, migrationSql } from './pg.mjs';
 
 const DAY = 864e5;
 const at = (days) => new Date(Date.now() + days * DAY).toISOString();
@@ -27,6 +27,7 @@ const PEOPLE = {
   nirel: { person: 'nirel', vault: true },
   nadia: { person: 'nadia', vault: false },
   yariv: { person: 'yariv', vault: false },
+  anna: { person: 'anna', vault: false },
   eli: { person: 'eli', vault: false },
 };
 
@@ -47,6 +48,14 @@ const CLIENTS = {
   roundSoon: { shoot_type: 'dms', rounds: [{ n: 2, shoot_type: 'dms', shoot_at: at(10) }] }, // Eli: a round in 10 days
   badRound: { shoot_type: 'dms', rounds: [{ n: 2, shoot_at: 'לא תאריך' }, { n: 3 }] },      // rounds without a real date
   plain: { shoot_type: 'dms' },                                                           // the office's only
+  // Eli's window at its edges, in Israel days ([days from today in Israel, Israel clock time]).
+  // The ones marked * fall on another day in UTC, so a rule on UTC days would get them wrong.
+  edgeIn7: { shoot_type: 'dms', shootIL: [-7, '00:30'] },                                 // * UTC: 8 days ago
+  edgeOut8: { shoot_type: 'dms', shootIL: [-8, '23:30'] },
+  edgeIn30: { shoot_type: 'dms', shootIL: [30, '23:30'] },
+  edgeOut31: { shoot_type: 'dms', shootIL: [31, '00:30'] },                               // * UTC: 30 days ahead
+  roundEdgeIn: { shoot_type: 'dms', roundIL: [-7, '01:00'] },                             // * a round, as the app writes it (ISO, UTC)
+  roundEdgeOut: { shoot_type: 'dms', roundIL: [31, '01:00'] },                            // *
 };
 const ALL = Object.keys(CLIENTS).sort();
 
@@ -58,6 +67,8 @@ const TASKS = [
   ['dmsBrief', 'task-brief-nirel', 'nirel', null],
   ['plain', 'task-plain-lior', 'lior', null],
   ['ron', 'task-ron-lior', 'lior', null],
+  ['ron', 'task-ron-old-nadia', 'nadia', 45],
+  ['natOther', 'task-natother-lior', 'lior', null],
 ];
 
 before(async () => {
@@ -76,10 +87,15 @@ before(async () => {
   }
   await db.query("insert into public.staff (email, person, vault) values ('unconfirmed@astrateg.test', 'nadia', true)");
 
+  // A time given as [days from today in Israel, Israel clock time], computed by the database.
+  const IL = "((((now() at time zone 'Asia/Jerusalem')::date + $1::int) + $2::time) at time zone 'Asia/Jerusalem')";
+  const israelTime = async ([days, time]) => (await db.query(`select to_char(${IL} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at`, [days, time])).rows[0].at;
   for (const [name, c] of Object.entries(CLIENTS)) {
+    const shootAt = c.shootIL ? await israelTime(c.shootIL) : c.shoot_at || null;
+    const rounds = c.roundIL ? [{ n: 2, shoot_type: 'dms', shoot_at: await israelTime(c.roundIL) }] : c.rounds || [];
     const { rows } = await db.query(
       'insert into public.clients (name, shoot_type, editor, shoot_at, rounds) values ($1, $2, $3, $4, $5) returning id',
-      [name, c.shoot_type || null, c.editor || null, c.shoot_at || null, JSON.stringify(c.rounds || [])],
+      [name, c.shoot_type || null, c.editor || null, shootAt, JSON.stringify(rounds)],
     );
     ids[name] = rows[0].id;
     names[rows[0].id] = name;
@@ -129,8 +145,9 @@ const RLS = /violates row-level security/;
 const SEES = {
   nadia: ['ron', 'roundTwo', 'taskOpen', 'taskRecent'],
   yariv: ['roundTwo'],
+  anna: [],
   nirel: ['dmsBrief', 'natEdit', 'natOther'],
-  eli: ['roundSoon', 'shootPast', 'shootSoon'],
+  eli: ['edgeIn30', 'edgeIn7', 'roundEdgeIn', 'roundSoon', 'shootPast', 'shootSoon'],
 };
 
 // ── Reading ──────────────────────────────────
@@ -149,6 +166,7 @@ test('the office (owner, Irit, Lior, Ofir, Ilai) sees every client, check, task 
 test('an editor sees the clients she edits (main shoot or a round) and those with a task of hers, open or finished in the last 30 days', async () => {
   assert.deepEqual(await clientNames('nadia', 'clients'), SEES.nadia);
   assert.deepEqual(await clientNames('yariv', 'clients'), SEES.yariv);
+  assert.deepEqual(await clientNames('anna', 'clients'), []); // an editor with nothing assigned
   assert.deepEqual(await rows('nadia', 'select public.is_office() as o, public.my_person() as p'), [{ o: false, p: 'nadia' }]);
 });
 
@@ -156,7 +174,7 @@ test('Nirel sees every Natali client and the clients with a task (brief) for her
   assert.deepEqual(await clientNames('nirel', 'clients'), SEES.nirel);
 });
 
-test('Eli sees the clients with a shoot day from 7 days ago to 30 days ahead, the main one or a round', async () => {
+test('Eli sees the clients with a shoot day from 7 days ago to 30 days ahead in Israel days, the main one or a round', async () => {
   assert.deepEqual(await clientNames('eli', 'clients'), SEES.eli);
 });
 
@@ -169,12 +187,12 @@ test('checks, history and tasks follow the clients each person sees', async () =
   }
   // Nadia sees the tasks on her clients (her own, and Lior's on a client she edits), not the others.
   assert.deepEqual(sorted((await rows('nadia', 'select title from public.client_tasks')).map((r) => r.title)),
-    ['task-open-nadia', 'task-recent-nadia', 'task-ron-lior']);
-  assert.deepEqual((await rows('nirel', 'select title from public.client_tasks')).map((r) => r.title), ['task-brief-nirel']);
+    ['task-open-nadia', 'task-recent-nadia', 'task-ron-lior', 'task-ron-old-nadia']);
+  assert.deepEqual(sorted((await rows('nirel', 'select title from public.client_tasks')).map((r) => r.title)), ['task-brief-nirel', 'task-natother-lior']);
 });
 
 test('can_see_client() gives the same answer as the policies, client by client', async () => {
-  for (const who of ['owner', 'irit', 'ilai', 'nadia', 'yariv', 'nirel', 'eli', 'stranger', 'unconfirmed']) {
+  for (const who of ['owner', 'irit', 'ilai', 'nadia', 'yariv', 'anna', 'nirel', 'eli', 'stranger', 'unconfirmed']) {
     const got = await rows(who, 'select c.id, public.can_see_client(c.id) as ok from unnest($1::uuid[]) as c(id)', [Object.values(ids)]);
     const yes = sorted(got.filter((r) => r.ok).map((r) => names[r.id]));
     const expected = ['owner', 'irit', 'ilai'].includes(who) ? ALL : SEES[who] || [];
@@ -236,7 +254,8 @@ test('tasks: on a visible client, also for someone else (an exception to Lior); 
   assert.deepEqual(esc.rows, [{ owner: 'lior', created_by_email: 'nadia@astrateg.test' }]);
   assert.match((await tryAs('nadia', "insert into public.client_tasks (client_id, title, owner) values ($1, 'x', 'lior')", [ids.plain])).error, RLS);
   assert.equal((await tryAs('nadia', 'update public.client_tasks set done_at = now() where id = $1', [taskIds['task-plain-lior']])).affected, 0);
-  assert.match((await tryAs('nadia', 'update public.client_tasks set client_id = $2 where id = $1', [taskIds['task-open-nadia'], ids.plain])).error, RLS);
+  // (refused by the task guard before the policy gets to it)
+  assert.match((await tryAs('nadia', 'update public.client_tasks set client_id = $2 where id = $1', [taskIds['task-open-nadia'], ids.plain])).error, /violates row-level security|not allowed/);
   // Finishing her own task: stamped, and the client stays hers for 30 days.
   const done = await run('nadia', async (tx) => {
     const r = await tx.query('update public.client_tasks set done_at = now() where id = $1 returning done_by_email', [taskIds['task-open-nadia']]);
@@ -324,6 +343,84 @@ test('access_reveal / access_save / access_delete: only on a client whose vault 
   assert.match((await tryAs('irit', "update public.client_access set username = 'x' where id = $1", [accessIds.plain])).error, /permission denied/);
 });
 
+test('a task one opens for oneself does not open the vault: Nirel sees every Natali client, not its logins', async () => {
+  const vaultAfter = (who, owner) => run(who, async (tx) => {
+    await tx.query("insert into public.client_tasks (client_id, title, owner) values ($1, 'גרפיקה', $2)", [ids.natOther, owner]);
+    await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: users.nirel.id, email: users.nirel.email, role: 'authenticated' })]);
+    const ok = (await tx.query('select public.can_use_client_vault($1) as ok', [ids.natOther])).rows[0].ok;
+    const rowsSeen = (await tx.query('select 1 from public.client_access where client_id = $1', [ids.natOther])).rows.length;
+    let reveal;
+    try { reveal = (await tx.query('select public.access_reveal($1) as pw', [accessIds.natOther])).rows[0].pw; } catch (err) { reveal = err.message; }
+    return { ok, rowsSeen, reveal };
+  });
+  // Her own task on it: still no logins.
+  assert.deepEqual(await vaultAfter('nirel', 'nirel'), { ok: false, rowsSeen: 0, reveal: 'not allowed' });
+  // A brief the office opened for her: the client is assigned to her, and its logins open.
+  assert.deepEqual(await vaultAfter('ofir', 'nirel'), { ok: true, rowsSeen: 1, reveal: 'pw-natOther' });
+  // Her own task still counts for seeing a client (the rule for tasks), just not for the vault.
+  const seen = await run('nirel', async (tx) => {
+    await tx.query("insert into public.client_tasks (client_id, title, owner) values ($1, 'x', 'nirel')", [ids.natOther]);
+    return (await tx.query('select public.can_see_client($1) as ok', [ids.natOther])).rows[0].ok;
+  });
+  assert.equal(seen, true);
+});
+
+test('a task stays with its person and client: only the office moves it, or reopens one finished long ago', async () => {
+  const NOT = /not allowed/;
+  // Taking over Lior's task on a Natali client she sees (it would count as a task opened for her by someone else).
+  assert.match((await tryAs('nirel', "update public.client_tasks set owner = 'nirel' where id = $1", [taskIds['task-natother-lior']])).error, NOT);
+  // Moving her brief to another client she sees.
+  assert.match((await tryAs('nirel', 'update public.client_tasks set client_id = $2 where id = $1', [taskIds['task-brief-nirel'], ids.natOther])).error, NOT);
+  // Reopening her task finished 45 days ago (on a client she still edits); 10 days ago is fine (a mistaken tap).
+  assert.match((await tryAs('nadia', 'update public.client_tasks set done_at = null where id = $1', [taskIds['task-ron-old-nadia']])).error, NOT);
+  assert.equal((await tryAs('nadia', 'update public.client_tasks set done_at = null where id = $1', [taskIds['task-recent-nadia']])).affected, 1);
+  // Finishing, and changing the title or the due day of a visible task, stay open to her.
+  assert.equal((await tryAs('nadia', "update public.client_tasks set title = 'y', due_on = '2026-12-01', done_at = now() where id = $1", [taskIds['task-ron-lior']])).affected, 1);
+  // The office reassigns and moves tasks.
+  assert.equal((await tryAs('lior', "update public.client_tasks set owner = 'anna', client_id = $2 where id = $1", [taskIds['task-natother-lior'], ids.plain])).affected, 1);
+  assert.equal((await tryAs('ofir', 'update public.client_tasks set done_at = null where id = $1', [taskIds['task-old-nadia']])).affected, 1);
+  // The database's own jobs (service role: no email in the token) are not limited.
+  const job = await db.transaction(async (tx) => {
+    await tx.query('set local role service_role');
+    await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: 'service_role' })]);
+    const r = await tx.query("update public.client_tasks set owner = 'irit' where id = $1", [taskIds['task-plain-lior']]);
+    await tx.rollback();
+    return r.affectedRows;
+  });
+  assert.equal(job, 1);
+});
+
+test('the one-client checks agree with the policies, the vault too', async () => {
+  for (const who of ['owner', 'irit', 'nirel', 'nadia', 'eli', 'stranger']) {
+    const got = await rows(who, 'select c.id, public.can_use_client_vault(c.id) as ok from unnest($1::uuid[]) as c(id)', [Object.keys(accessIds).map((n) => ids[n])]);
+    const byFn = sorted(got.filter((r) => r.ok).map((r) => names[r.id]));
+    assert.deepEqual(byFn, await clientNames(who, 'client_access'), who);
+  }
+});
+
+test('the one-client checks stay cheap when a query calls them for every row', async () => {
+  // 1500 more clients and tasks, rolled back. Computing the whole set once per row
+  // (the first version) took minutes here; a few index lookups per row take well under a second.
+  const out = await run('eli', async (tx) => {
+    await tx.query('reset role');
+    await tx.query(`insert into public.clients (name, shoot_type, shoot_at, rounds)
+      select 'bulk' || g, 'dms', now() + (g % 60 - 20) * interval '1 day',
+             jsonb_build_array(jsonb_build_object('n', 2, 'editor', 'anna', 'shoot_at', (now() + (g % 90) * interval '1 day')::text))
+      from generate_series(1, 1500) g`);
+    await tx.query("insert into public.client_tasks (client_id, title, owner) select id, 't', 'eli' from public.clients where name like 'bulk%' and random() < 0.2");
+    await tx.query('set local role authenticated');
+    const t0 = performance.now();
+    const perRow = (await tx.query('select count(*)::int as n from public.clients where public.can_see_client(id)')).rows[0].n;
+    const ms = performance.now() - t0;
+    const policy = (await tx.query('select count(*)::int as n from public.clients')).rows[0].n;
+    const vault = (await tx.query('select count(*)::int as n from public.clients where public.can_use_client_vault(id)')).rows[0].n;
+    return { perRow, policy, ms, vault };
+  });
+  assert.equal(out.perRow, out.policy);
+  assert.equal(out.vault, 0); // no vault flag
+  assert.ok(out.ms < 5000, `can_see_client over ${out.policy}+ rows took ${Math.round(out.ms)} ms`);
+});
+
 // ── Unchanged ────────────────────────────────
 test('signing an agreement still opens its client by itself (anon signs; the office sees it, editors do not)', async () => {
   const model = { signable: true, docType: 'agreement', termMonths: 12, client: { name: 'חתימה חדשה', phone: '050' },
@@ -371,8 +468,14 @@ test('every client table has row level security, and no policy on it lets every 
     select tablename, policyname, coalesce(qual, '') || ' ' || coalesce(with_check, '') as expr
     from pg_policies where schemaname = 'public' and tablename = any($1)`, [tables.map((t) => t.t)])).rows;
   const RULES = /is_office|my_clients|my_assigned_clients|can_see_client|can_message_clients|can_use_client_vault/;
+  // Tables with a rule of their own, and why.
+  const OWN_RULE = {
+    // The owner's questions (20260930120000_owner_screens.sql): the office asks; the person
+    // asked reads and answers their own, even about a client they no longer see.
+    client_questions: /can_ask_questions|is_my_question/,
+  };
   for (const p of policies) {
-    assert.match(p.expr, RULES, `${p.tablename} / "${p.policyname}" does not check who the client belongs to: ${p.expr}`);
+    assert.match(p.expr, OWN_RULE[p.tablename] || RULES, `${p.tablename} / "${p.policyname}" does not check who the client belongs to: ${p.expr}`);
   }
 });
 
@@ -384,4 +487,43 @@ test('before this migration every staff member saw every client (what the migrat
   const seen = await as(old, { id: u.id, email: 'nadia@astrateg.test' }, async (tx) => (await tx.query('select name from public.clients')).rows.length);
   assert.equal(seen, 2);
   await old.close();
+});
+
+test("the owner screens' history of date changes follows the clients one sees (either order of merging)", async () => {
+  // Before this migration; then, when the owner screens' migration is not in this
+  // tree yet, its table as it creates it (every staff member reads it); then this
+  // migration and everything after it.
+  const RLS_FILE = migrationFiles().find((f) => f.endsWith('_assignment_rls.sql'));
+  const odb = await freshDatabase({ upTo: RLS_FILE });
+  const hasOwner = (await odb.query("select to_regclass('public.client_date_changes') is not null as ok")).rows[0].ok;
+  if (!hasOwner) {
+    await odb.exec(`
+      create table public.client_date_changes (
+        id bigint generated always as identity primary key,
+        client_id uuid not null references public.clients (id) on delete cascade,
+        field text not null, old_value text, new_value text, by_email text not null,
+        at timestamptz not null default now());
+      alter table public.client_date_changes enable row level security;
+      create policy "staff read date changes" on public.client_date_changes
+        for select to authenticated using ((select public.is_staff()));
+      revoke all on public.client_date_changes from anon, authenticated;
+      grant select on public.client_date_changes to authenticated;`);
+  }
+  for (const f of migrationFiles().filter((x) => x >= RLS_FILE)) await odb.exec(migrationSql(f));
+  const u = {};
+  for (const [key, person] of [['irit', 'irit'], ['nadia', 'nadia']]) {
+    const { rows: [r] } = await odb.query('insert into auth.users (email, email_confirmed_at) values ($1, now()) returning id', [`${key}@astrateg.test`]);
+    u[key] = { id: r.id, email: `${key}@astrateg.test` };
+    await odb.query('insert into public.staff (email, person) values ($1, $2)', [u[key].email, person]);
+  }
+  const { rows: [mine] } = await odb.query("insert into public.clients (name, editor) values ('mine', 'nadia') returning id");
+  const { rows: [other] } = await odb.query("insert into public.clients (name, editor) values ('other', 'anna') returning id");
+  await odb.query("insert into public.client_date_changes (client_id, field, old_value, new_value, by_email) values ($1, 'shoot_at', 'a', 'b', 'irit@astrateg.test'), ($2, 'shoot_at', 'a', 'b', 'irit@astrateg.test')", [mine.id, other.id]);
+  const seen = async (who) => as(odb, u[who], async (tx) => (await tx.query('select client_id from public.client_date_changes')).rows.map((r) => (r.client_id === mine.id ? 'mine' : 'other')).sort());
+  assert.deepEqual(await seen('irit'), ['mine', 'other']);
+  assert.deepEqual(await seen('nadia'), ['mine']);
+  // Running this migration again changes nothing (it is safe to repeat after the owner screens' one).
+  await odb.exec(migrationSql(RLS_FILE));
+  assert.deepEqual(await seen('nadia'), ['mine']);
+  await odb.close();
 });

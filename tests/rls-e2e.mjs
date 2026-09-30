@@ -4,8 +4,8 @@
 // database: the office sees every client; an editor the clients she edits or has a
 // task in; Nirel also every Natali client; Eli the clients with a shoot day from 7
 // days ago to 30 days ahead; the vault needs the vault flag and, outside the office,
-// an assigned client. Hidden rows simply do not come back, and writes on them are
-// refused as Postgres refuses them. (The rule itself is tested in a real Postgres:
+// an assigned client (her editing, or a task someone else opened for her). Hidden
+// rows simply do not come back, and writes on them are refused as Postgres refuses them. (The rule itself is tested in a real Postgres:
 // tests/sql/rls.test.mjs.) The page clock is Tuesday 20.10.2026 10:00 in Jerusalem.
 // Run: npx http-server -p 8080 -s . &  then  node tests/rls-e2e.mjs [outDir]
 import { chromium } from 'playwright';
@@ -79,11 +79,14 @@ const oldShoot = shotAndAssigned({ name: 'גלידה ישנה', shoot_at: hoursA
 const OFFICE = new Set(['irit', 'lior', 'ofir', 'ilai']);
 const staffOf = (u) => db.staff.find((s) => s.email === u?.email) || null;
 const isOffice = (s) => !!s && (s.person === null || OFFICE.has(s.person));
-const assigned = (s, c) => !!s?.person && (c.editor === s.person || (c.rounds || []).some((r) => r.editor === s.person)
-  || db.client_tasks.some((t) => t.client_id === c.id && t.owner === s.person && (!t.done_at || new Date(serverNow()) - new Date(t.done_at) < 30 * DAY)));
+// A task of theirs, open or finished in the last 30 days; for the vault, only one someone else opened for them.
+const taskFor = (s, c, { byOthers = false } = {}) => db.client_tasks.some((t) => t.client_id === c.id && t.owner === s.person
+  && (!byOthers || t.created_by_email !== s.email) && (!t.done_at || new Date(serverNow()) - new Date(t.done_at) < 30 * DAY));
+const edits = (s, c) => c.editor === s.person || (c.rounds || []).some((r) => r.editor === s.person);
+const assigned = (s, c) => !!s?.person && (edits(s, c) || taskFor(s, c, { byOthers: true }));
 const inShootWindow = (c) => [c.shoot_at, ...(c.rounds || []).map((r) => r.shoot_at)].filter(Boolean)
   .some((at) => { const d = (new Date(at) - new Date(serverNow())) / DAY; return d >= -7.5 && d <= 30.5; });
-const sees = (s, c) => isOffice(s) || assigned(s, c) || (s?.person === 'nirel' && c.shoot_type === 'natali') || (s?.person === 'eli' && inShootWindow(c));
+const sees = (s, c) => isOffice(s) || assigned(s, c) || (!!s?.person && taskFor(s, c)) || (s?.person === 'nirel' && c.shoot_type === 'natali') || (s?.person === 'eli' && inShootWindow(c));
 const vaultOf = (s, c) => !!s?.vault && (isOffice(s) || assigned(s, c));
 const visibleRows = (s, table) => {
   const client = (id) => db.clients.find((c) => c.id === id);
@@ -326,7 +329,7 @@ await step('an editor with no clients: friendly empty lists, no errors', async (
 });
 
 // ── Nirel and the vault ─────────────────────
-await step('Nirel opens a Natali client she does not edit, without its logins; her own client shows them', async () => {
+await step('Nirel opens a Natali client she does not edit, without its logins; her own client shows them; a task she opens for herself does not, a brief from Ofir does', async () => {
   const nirel = await newPage();
   await signIn(nirel, `client.html?id=${natOther.id}`, 'nirel');
   await nirel.waitForSelector('#cc-head h1, #cc-head .cc-name, #phases');
@@ -341,6 +344,17 @@ await step('Nirel opens a Natali client she does not edit, without its logins; h
   // A client of neither kind.
   await nirel.goto(`${BASE}client.html?id=${pizza.id}`);
   await nirel.waitForSelector('.state.no-access');
+  // A task she opened for herself on the other Natali client: her task shows, the logins do not.
+  const task = (by) => ({ id: randomUUID(), client_id: natOther.id, title: `גרפיקה לסטורי (${by})`, owner: 'nirel', due_on: '2026-10-22', done_at: null, done_by_email: null, created_by_email: `${by}@astrateg.test`, created_at: hoursAgo(1), source: null, brief: null, urgent: false });
+  db.client_tasks.push(task('nirel'));
+  await nirel.goto(`${BASE}client.html?id=${natOther.id}`);
+  await nirel.waitForFunction(() => /גרפיקה לסטורי \(nirel\)/.test(document.querySelector('#tasks:not([hidden])')?.textContent || ''));
+  assert.equal(await nirel.isHidden('#access'), true);
+  // A brief Ofir opened for her there: now the client is assigned to her, and its logins show.
+  db.client_tasks.push(task('ofir'));
+  await nirel.reload();
+  await nirel.waitForSelector('#access:not([hidden]) .access-row');
+  db.client_tasks = db.client_tasks.filter((t) => t.client_id !== natOther.id);
   await nirel.context().close();
 });
 
