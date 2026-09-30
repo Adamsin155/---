@@ -206,10 +206,15 @@ node scripts/build-pages.mjs --commit
    select vault.create_secret('<המפתח הפרטי של VAPID>', 'vapid_private_key', 'reminders: Web Push signing key');
    select vault.create_secret('mailto:<כתובת של המשרד>', 'vapid_subject', 'reminders: VAPID contact');
    ```
+   (בפועל, 30.9.2026: שלושת הסודות נוספו. סוד ה־cron נוצר בתוך מסד הנתונים ב־`gen_random_bytes` ואף אחד לא ראה אותו; `vapid_subject` הוא כתובת האתר ב־https ולא מייל, כדי שלא תופיע כתובת אישית.)
    - סוד ה־cron: מחרוזת אקראית של 32 תווים לפחות (למשל `openssl rand -base64 32 | tr '+/' '-_' | tr -d '='`).
    - המפתח הפרטי של VAPID: ה־base64url של המפתח הפרטי (32 בתים) שתואם למפתח הציבורי ב־`app/push-config.js`. לא נכנס למאגר.
    - החלפה: `select vault.update_secret(id, '<ערך חדש>') from vault.secrets where name = '<שם>';`
 3. פריסת הפונקציה עם כל הקבצים שבטבלה: `supabase functions deploy reminders --project-ref czncjzziqrqtezpwxxpz --use-api` (ההגדרה `verify_jwt = false` נמצאת ב־`supabase/config.toml`), או `deploy_edge_function` ב־MCP עם `entrypoint_path` ‏`reminders/index.ts` ו־`verify_jwt: false`.
+   - **כך היא פרוסה היום (30.9.2026):** דרך MCP, בקובץ אחד בלבד, `index.ts`, שמייבא את הפונקציה מהמאגר בקומיט קבוע:
+     `import 'https://raw.githubusercontent.com/Adamsin155/---/<sha מלא>/supabase/functions/reminders/index.ts';`
+     ה־bundler של Supabase מוריד את הקוד (כולל `../_shared/app/*` באותו קומיט) בזמן הפריסה ואורז אותו, כך שהפונקציה לא תלויה ב־GitHub בזמן ריצה, והקוד שרץ הוא בדיוק הקוד שנבדק בקומיט הזה. לפני פריסה: הקומיט חייב להיות ב־GitHub (`git push`), וה־sha מלא (40 תווים; קיצור נכשל ב־"Module not found"). אם המאגר יהפוך לפרטי, הדרך הזו מפסיקה לעבוד בפריסה הבאה (מה שכבר פרוס ממשיך לרוץ): אז פורסים ב־CLI.
+   - אחרי פריסה: `select * from public.reminder_runs order by id desc limit 3;` בדקה הבאה, `ok = true`.
 4. מיגרציה `20260930110002_reminders_cron.sql`: מפעילה את `pg_cron` ומתזמנת את `reminders-tick` כל דקה (ואת ניקוי ההיסטוריה של ה־cron פעם ביום). בלי סוד ב־Vault ההרצה לא קוראת לשום דבר, כך שהסדר לא מסוכן.
 5. פרסום האתר (סעיף 2). `sw.js` בשורש הוא ה־service worker של האתר, והוא מתפרסם עם הדפים.
 
