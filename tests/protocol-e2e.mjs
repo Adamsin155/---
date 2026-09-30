@@ -579,8 +579,9 @@ assert.equal(await page.isHidden('#task-form'), true);
 assert.deepEqual(await page.locator('#task-list .ilabel').allInnerTexts(), ['לקצר את סרטון 4']);
 await shot('09-editor-card');
 
-// Her "my work": no picker, no one else's list, no office tabs, only her clients.
-await page.goto(`${BASE}clients.html`);
+// Her "my work": no picker, no one else's list, no office tabs, only her clients. (She
+// lands on editor.html, her first screen; "מה עליי" is one tap away.)
+await page.goto(`${BASE}clients.html#mine`);
 await page.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.equal(await page.getAttribute('#tab-mine', 'aria-selected'), 'true');
 assert.match(await page.locator('#me-bar').innerText(), /נדיה/);
@@ -605,7 +606,8 @@ db.client_tasks = db.client_tasks.filter((t) => t.owner !== 'nadia');
 // The photographer ('own'): the coming shoot day is in his list before it starts,
 // and the card shows only his three shoot-day processes.
 db.staff[0].person = 'eli';
-await page.goto(`${BASE}clients.html`);
+await page.goto('about:blank'); // a fresh load, not a jump within the page
+await page.goto(`${BASE}clients.html#mine`); // Eli's first screen is shoot.html
 await page.waitForSelector('#view-mine:not([hidden]) .g-soon');
 const soon = page.locator('.g-soon .soon-card:has(.wclient:text("מספרת רון"))');
 assert.match(await soon.innerText(), /יום צילום[^]*הגעת המשפיענים[^]*כתובת: הרצל 10, תל אביב[^]*17ב · הצלם: הגעה, ציוד ובי־רול[^]*18ב[^]*19ב/);

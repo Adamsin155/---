@@ -476,7 +476,7 @@ await step('an editor gets a friendly "no access", and no team link', async () =
   assert.equal(await yariv.locator('#team-page').isHidden(), true);
   assert.equal(fnCalls.length, before, 'the page does not ask the function');
   assert.deepEqual(staffAdmin(users.get('yariv@astrateg.test'), { action: 'list' }), [403, { error: 'not_allowed' }]);
-  await yariv.goto(`${BASE}clients.html`);
+  await yariv.goto(`${BASE}clients.html#mine`); // an editor's first screen is editor.html
   await yariv.waitForSelector('#app:not([hidden])');
   await yariv.waitForTimeout(200);
   assert.equal(await yariv.locator('#nav-team').isHidden(), true);

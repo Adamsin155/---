@@ -132,6 +132,17 @@ function renderKeepingFocus() {
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
 }
 
+// The production pages are the first screen of the editors and of Eli: the first
+// visit in a tab without a view in the address goes there (sessionStorage, guarded).
+function landedOnce(page) {
+  const key = `astrateg.landed.${page}`;
+  try {
+    if (sessionStorage.getItem(key) === '1') return true;
+    sessionStorage.setItem(key, '1');
+  } catch { return true; /* no storage: stay here rather than loop */ }
+  return false;
+}
+
 // ── Identity and scope ──────────────────────
 // Who I am comes from the database (staff.person); nobody picks it. The owner has
 // no person and sees the office, and can show any one person's list.
@@ -2105,6 +2116,12 @@ mountSession(async (staff) => {
   // The owner lands on "מה דורש אותי" (owner.html), which links back here (#mine):
   // once per tab, so the "לקוחות" links of the other pages still open the list.
   if (isOwnerView(viewer) && !location.hash && !ownerLanded()) { location.replace('owner.html'); return; }
+  // The editors and Eli land on their own page (editor.html, shoot.html), once per tab.
+  const home = PEOPLE[me]?.editor ? 'editor.html' : me === 'eli' ? 'shoot.html' : null;
+  if (home && !location.hash && !landedOnce(home)) { location.replace(home); return; }
+  $('cta-editor').hidden = !home || home !== 'editor.html';
+  // The shoot day: Eli's page, Lior's shoot-day mode, and the counter the office watches.
+  $('cta-shoot').hidden = !(me === 'eli' || (scope === 'office' && !viewer.error));
   // Screen 2, "כל הלקוחות במבט", for Irit, Lior and Ofir; screen 1 for the owner.
   // The top bar folds away on phones: the page head keeps a way in (cta-owner).
   for (const el of [$('nav-owner'), $('cta-owner')]) {

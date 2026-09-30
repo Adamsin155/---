@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>הלקוחות שלי בעריכה · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-office.css">
+  <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/push.css">
+  <link rel="stylesheet" href="app/styles/production.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="editor.html" aria-label="astrateg · הלקוחות שלי בעריכה">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">עריכה</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="editor.html" aria-current="page">העריכה שלי</a>
+      <a class="navlink" href="clients.html#mine">כל העבודה שלי</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>העמוד של העורכים: הלקוחות שבעריכה אצלך.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app prod-page" hidden>
+      <div class="page-head">
+        <div>
+          <div class="kicker latin">EDITING</div>
+          <h1 id="ed-h1">הלקוחות שלי בעריכה</h1>
+          <p id="ed-sub">לכל לקוח: באיזה יום את/ה, עד מתי, וכפתור אחד לשלב הבא.</p>
+        </div>
+        <div class="head-actions">
+          <button type="button" class="btn btn-sm btn-ghost inbox-btn" id="btn-inbox" aria-haspopup="dialog" hidden>התראות</button>
+          <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+          <a class="btn btn-sm btn-ghost" href="clients.html#mine">כל העבודה שלי</a>
+        </div>
+      </div>
+
+      <section class="push-card" id="push-card" aria-labelledby="push-h" hidden></section>
+      <p class="prod-summary" id="ed-summary" role="status"></p>
+      <div class="prod-list" id="ed-list"></div>
+      <section class="prod-sec" id="ed-briefs" aria-labelledby="briefs-h" hidden></section>
+      <section class="prod-sec prod-stats" id="ed-stats" aria-labelledby="stats-h" hidden></section>
+
+      <section class="block prod-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">העמוד הזה לעורכים</h2>
+        <p>כאן העורכים (נדיה, יריב, אנה וניראל) רואים את הלקוחות שבעריכה אצלם.</p>
+        <a class="btn" href="clients.html">חזרה ללקוחות</a>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <!-- (1) The drive arrived: four checks, or "something is missing". -->
+  <dialog id="dlg-start" aria-labelledby="start-h">
+    <form id="start-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="start-h">קיבלתי את הכונן</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p class="muted" id="start-ctx"></p>
+        <fieldset class="prod-checks">
+          <legend>לפני שמתחילים: יש לך את כל אלה?</legend>
+          <div id="start-list"></div>
+        </fieldset>
+        <p class="hint">משהו חסר? ״חסר לוגו / טלפון / חומר״ מודיע לעירית מיד, והמועד שלך מסומן ״חסום״ ולא ״באיחור״ עד שזה מגיע.</p>
+        <div class="err" id="start-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" id="start-missing">חסר לוגו / טלפון / חומר</button>
+        <button type="submit" class="btn btn-primary" id="start-submit">קיבלתי את הכונן והתחלתי</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- What is missing, to Irit at once. -->
+  <dialog id="dlg-missing" aria-labelledby="miss-h">
+    <form id="miss-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="miss-h">מה חסר?</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p class="muted" id="miss-ctx"></p>
+        <fieldset class="prod-checks">
+          <legend>חסר לי</legend>
+          <div id="miss-list"></div>
+        </fieldset>
+        <div class="field">
+          <label for="miss-note">פירוט (לא חובה)</label>
+          <textarea class="input" id="miss-note" rows="2" maxlength="500" placeholder="למשל: הלוגו בכרטיס מטושטש"></textarea>
+        </div>
+        <p class="hint">עירית מקבלת הודעה עכשיו. אם זה לא נפתר תוך 3 שעות עבודה, ליאור.</p>
+        <div class="err" id="miss-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="miss-submit">לדווח לעירית</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- (2) Ready for QA: the short self-check. -->
+  <dialog id="dlg-ready" aria-labelledby="ready-h">
+    <form id="ready-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="ready-h">מוכן לבדיקה</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p class="muted" id="ready-ctx"></p>
+        <fieldset class="prod-checks">
+          <legend>בדיקה עצמית לפני שאופיר רואה</legend>
+          <div id="ready-list"></div>
+        </fieldset>
+        <p class="hint">הלחיצה מודיעה לאופיר ומפעילה לו שעון של שעה לבקרה.</p>
+        <div class="err" id="ready-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="ready-submit">מוכן לבדיקה: לאופיר</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Pausing the editing for another task. -->
+  <dialog id="dlg-pause" aria-labelledby="pause-h">
+    <form id="pause-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="pause-h">עצירת העריכה</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p class="muted" id="pause-ctx"></p>
+        <div class="field"><label for="pause-stage">באיזה שלב העריכה</label><input class="input" id="pause-stage" maxlength="200" autocomplete="off" required></div>
+        <div class="field"><label for="pause-left">מה נשאר</label><input class="input" id="pause-left" maxlength="200" autocomplete="off" required></div>
+        <div class="field"><label for="pause-why">בגלל איזו משימה (לא חובה)</label><input class="input" id="pause-why" maxlength="200" autocomplete="off"></div>
+        <p class="hint">ליאור ואופיר מקבלים עדכון. כשחוזרים לעריכה, העדכונים נסגרים לבד.</p>
+        <div class="err" id="pause-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="pause-submit">לעצור את העריכה</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- An urgent task taken while editing: pause it first? -->
+  <dialog id="dlg-urgent" aria-labelledby="urg-h">
+    <form id="urg-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="urg-h">לעצור את העריכה?</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p id="urg-ctx"></p>
+        <div id="urg-jobs"></div>
+        <p class="hint">זמן העצירה לא נספר נגדך: הוא מסומן ״עצירה לבקשת״ מי שביקש את המשימה.</p>
+        <div class="err" id="urg-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" id="urg-nopause">להתחיל בלי לעצור</button>
+        <button type="submit" class="btn btn-primary" id="urg-submit">לעצור ולהתחיל</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Finishing a brief task (Nirel). -->
+  <dialog id="dlg-done" aria-labelledby="done-h">
+    <form id="done-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="done-h">סיום המשימה</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p class="muted" id="done-ctx"></p>
+        <div class="field"><label for="done-done">מה בוצע</label><textarea class="input" id="done-done" rows="3" maxlength="1000" required aria-describedby="done-done-err"></textarea><p class="err" id="done-done-err" hidden></p></div>
+        <div class="field"><label for="done-left">מה נשאר (ריק אם כלום)</label><textarea class="input" id="done-left" rows="2" maxlength="1000"></textarea></div>
+        <div class="field"><label for="done-drive">קישור לדרייב</label><input class="input" id="done-drive" type="url" dir="ltr" inputmode="url" maxlength="500" required placeholder="https://drive.google.com/…" aria-describedby="done-drive-err"><p class="err" id="done-drive-err" hidden></p></div>
+        <label class="prod-check"><input type="checkbox" id="done-client" class="cbx"> <span>העבודה יוצאת ללקוח (גרפיקה, לקוח בעייתי): אופיר בודק ועירית שולחת</span></label>
+        <p class="hint">מי שביקש מקבל הודעה. אם נשאר משהו, נפתחת לו משימת המשך.</p>
+        <div class="err" id="done-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="done-submit">סיום ושליחה</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-inbox" class="dlg-inbox" aria-labelledby="inbox-h">
+    <div class="dlg-head">
+      <h2 id="inbox-h" tabindex="-1">התראות היום</h2>
+      <button type="button" class="close" data-close aria-label="סגירה">×</button>
+    </div>
+    <div class="dlg-body">
+      <div class="inbox-tools">
+        <p class="muted" id="inbox-sum"></p>
+        <button type="button" class="btn-text" id="inbox-read">סימון הכול כנקרא</button>
+      </div>
+      <ul class="inbox-list" id="inbox-list"></ul>
+    </div>
+  </dialog>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/editor.js"></script>
+</body>
+</html>
