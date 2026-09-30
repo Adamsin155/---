@@ -211,6 +211,7 @@ node scripts/build-pages.mjs --commit
    - המפתח הפרטי של VAPID: ה־base64url של המפתח הפרטי (32 בתים) שתואם למפתח הציבורי ב־`app/push-config.js`. לא נכנס למאגר.
    - החלפה: `select vault.update_secret(id, '<ערך חדש>') from vault.secrets where name = '<שם>';`
 3. פריסת הפונקציה עם כל הקבצים שבטבלה: `supabase functions deploy reminders --project-ref czncjzziqrqtezpwxxpz --use-api` (ההגדרה `verify_jwt = false` נמצאת ב־`supabase/config.toml`), או `deploy_edge_function` ב־MCP עם `entrypoint_path` ‏`reminders/index.ts` ו־`verify_jwt: false`.
+   - **מה פרוס עכשיו (30.9.2026, 14:30):** `reminders` (גרסה 3), `calendar` (1) ו־`whatsapp-webhook` (1), שלושתן מהקומיט `9db09888f799952ee4472aed4ff00a8c1cd1d014`, ‏`verify_jwt = false`. כל המיגרציות עד `20260930210000_hardening.sql` הוחלו. `whatsapp-webhook` עונה 503 "not ready" עד שארבעת הסודות של וואטסאפ ב־Vault.
    - **כך היא פרוסה היום (30.9.2026):** דרך MCP, בקובץ אחד בלבד, `index.ts`, שמייבא את הפונקציה מהמאגר בקומיט קבוע:
      `import 'https://raw.githubusercontent.com/Adamsin155/---/<sha מלא>/supabase/functions/reminders/index.ts';`
      ה־bundler של Supabase מוריד את הקוד (כולל `../_shared/app/*` באותו קומיט) בזמן הפריסה ואורז אותו, כך שהפונקציה לא תלויה ב־GitHub בזמן ריצה, והקוד שרץ הוא בדיוק הקוד שנבדק בקומיט הזה. לפני פריסה: הקומיט חייב להיות ב־GitHub (`git push`), וה־sha מלא (40 תווים; קיצור נכשל ב־"Module not found"). אם המאגר יהפוך לפרטי, הדרך הזו מפסיקה לעבוד בפריסה הבאה (מה שכבר פרוס ממשיך לרוץ): אז פורסים ב־CLI.
