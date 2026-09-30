@@ -24,6 +24,7 @@ import {
   $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN,
 } from './protocol-ui.js';
 import { canManageTeam } from './team-rules.js';
+import { canSeeInsights } from './insights.js';
 import { canSendMessages } from './messages-logic.js';
 import { TZ, dayKeyIL, daysBetweenIL } from './tz.js';
 
@@ -420,6 +421,7 @@ mountSession(async (staff) => {
   Object.assign(directory, dir);
   viewer = v;
   $('nav-team').hidden = !canManageTeam(v);
+  $('nav-insights').hidden = !canSeeInsights(v);
   $('nav-messages').hidden = !canSendMessages(v);
   if (!canSeeAllClients(v)) {
     $('no-access').hidden = false;

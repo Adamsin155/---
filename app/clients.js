@@ -33,6 +33,7 @@ import { loadDateChanges, loadLogFor } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
 import { mountWhatsappCard } from './whatsapp.js';
+import { mountCalendar } from './calendar-card.js';
 // Stage 3, part 2 (the office's flows): Ilai's day in "מה עליי", the first screens of Ofir and Lior.
 import { ilaiSection, coveredByCard } from './ilai-card.js';
 import { landingNow, officeLinks } from './office-ui.js';
@@ -2158,6 +2159,8 @@ mountSession(async (staff) => {
     changed: () => { if (view === 'mine' && !$('app').hidden && !busy()) renderMine(); },
   });
   mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
+  // "היומן שלי": the personal calendar link (app/calendar-card.js).
+  if (!viewerError) mountCalendar($('cal-card'));
   const fromHash = location.hash.slice(1);
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>תובנות · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-office.css">
+  <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/owner.css">
+  <link rel="stylesheet" href="app/styles/insights.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="insights.html" aria-label="astrateg · תובנות">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">תובנות</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="clients.html#mine">מה עליי</a>
+      <a class="navlink" href="owner.html" id="nav-owner">מה דורש אותי</a>
+      <a class="navlink" href="insights.html" aria-current="page">תובנות</a>
+      <a class="navlink" href="team.html" id="nav-team" hidden>צוות</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>התובנות זמינות לבעלים ולליאור.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app" hidden>
+      <div id="in-page" class="in-page" hidden>
+        <div class="page-head">
+          <div>
+            <div class="kicker latin">INSIGHTS</div>
+            <h1>תובנות החודש</h1>
+            <p>מגמות מתוך מה שהצוות מסמן ממילא: עמידה בזמנים, החזרות, מסירות, פניות, ומה בפרוטוקול כנראה מיותר.</p>
+          </div>
+          <div class="head-actions">
+            <label class="in-month"><span>חודש</span><select class="input" id="in-month"></select></label>
+            <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+            <a class="btn btn-sm" href="payouts/" id="link-payouts" hidden>מערכת התשלומים</a>
+          </div>
+        </div>
+        <p class="in-ro" id="in-ro" hidden>לקריאה בלבד. כל המספרים מחושבים מהסימונים, ואין כאן מה לסמן.</p>
+
+        <section class="block in-sec" aria-labelledby="h-sum">
+          <h2 class="sr-only" id="h-sum">במספרים</h2>
+          <ul class="ow-stats in-stats" id="in-stats"></ul>
+        </section>
+
+        <section class="block in-sec" aria-labelledby="h-ontime">
+          <h2 class="in-h" id="h-ontime">עמידה בזמנים</h2>
+          <p class="in-sub">תהליכים שנסגרו בחודש. זמן המתנה ללקוח ועצירות שמישהו אחר גרם לא נספרים על העובד.</p>
+          <h3 class="in-h3">לפי תפקיד</h3>
+          <ul class="bars" id="in-roles"></ul>
+          <h3 class="in-h3">לפי עובד</h3>
+          <ul class="bars" id="in-people"></ul>
+          <details class="in-trend">
+            <summary>המגמה ב־6 החודשים האחרונים</summary>
+            <div class="in-scroll" tabindex="0" role="region" aria-labelledby="h-trend"><table class="in-table" id="in-trend"><caption id="h-trend">בזמן לפי חודש</caption></table></div>
+          </details>
+          <details class="in-late" id="in-late-wrap">
+            <summary>מה נסגר באיחור החודש</summary>
+            <ul class="in-list" id="in-late"></ul>
+          </details>
+        </section>
+
+        <section class="block in-sec" aria-labelledby="h-qa">
+          <h2 class="in-h" id="h-qa">החזרות מבקרת איכות</h2>
+          <p class="in-sub">הסימונים של אופיר ״הוחזר לתיקון״ בחודש, לפי העורך של אותו יום צילום ולפי הסבב.</p>
+          <ul class="in-list" id="in-qa"></ul>
+        </section>
+
+        <section class="block in-sec" aria-labelledby="h-delivery">
+          <h2 class="in-h" id="h-delivery">מהצילום למסירה</h2>
+          <p class="in-sub">ימי עסקים מיום הצילום ועד שהסרטונים נשלחו ללקוח לראשונה, וסגירה עם אישור הלקוח מול ההבטחה (5 ימי עסקים).</p>
+          <ul class="in-list" id="in-delivery"></ul>
+        </section>
+
+        <section class="block in-sec" aria-labelledby="h-req">
+          <h2 class="in-h" id="h-req">פניות לקוח</h2>
+          <p class="in-sub">מול החלטה 29: טיפול תוך יום עסקים, דחוף תוך שעה. אישור הקבלה יוצא כשרושמים את הבקשה, ולכן לא נמדד בנפרד.</p>
+          <dl class="in-facts" id="in-req"></dl>
+        </section>
+
+        <section class="block in-sec" aria-labelledby="h-sat">
+          <h2 class="in-h" id="h-sat">שביעות רצון</h2>
+          <div id="in-sat"></div>
+        </section>
+
+        <section class="block in-sec" aria-labelledby="h-na">
+          <h2 class="in-h" id="h-na">״לא רלוונטי״ החודש</h2>
+          <p class="in-sub">פריט שסומן ״לא רלוונטי״ ביותר ממחצית המקרים (לפחות 3 מקרים) מוצע להסרה בגרסת הפרוטוקול הבאה.</p>
+          <ul class="in-list" id="in-na"></ul>
+        </section>
+
+        <section class="block in-sec" aria-labelledby="h-pipe">
+          <h2 class="in-h" id="h-pipe">מהתסריט ועד התזמון</h2>
+          <p class="in-sub">לכל יום צילום: מתי עבר כל שלב, וכמה ימי עסקים בין שלב לשלב. הסימונים הם לכל יום צילום, לא לכל סרטון.</p>
+          <ul class="pipe-list" id="in-pipe"></ul>
+        </section>
+      </div>
+
+      <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
+        <p>התובנות פתוחות לבעלים ולליאור. העבודה שלך נמצאת ב״מה עליי״.</p>
+        <a class="btn" href="clients.html#mine">מעבר למה עליי</a>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/insights-page.js"></script>
+</body>
+</html>

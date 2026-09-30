@@ -18,3 +18,9 @@ verify_jwt = false
 # supabase/functions/whatsapp-webhook/index.ts.
 [functions.whatsapp-webhook]
 verify_jwt = false
+
+# The personal calendar feed: a calendar app sends no login; the secret token in
+# the link is checked in code (public.calendar_feed_check). See
+# supabase/functions/calendar/index.ts.
+[functions.calendar]
+verify_jwt = false

@@ -1,0 +1,78 @@
+/* "תובנות" (insights.html, app/insights-page.js). Builds on the tokens of app.css,
+   protocol.css and owner.css (the number tiles). One hue for every bar (the accent),
+   and every bar has its number written beside it: nothing is said by colour or
+   length alone. Phones first (360px): no table wider than the screen outside its
+   own scroll region; 44px targets. */
+.in-page .page-head { flex-wrap: wrap; }
+.in-page .head-actions { flex-wrap: wrap; align-items: flex-end; }
+.in-page .head-actions .btn { min-height: 44px; display: inline-flex; align-items: center; }
+.in-month { display: grid; gap: 2px; font-size: 12.5px; color: var(--muted); }
+.in-month .input { min-height: 44px; width: auto; min-width: 150px; }
+.in-ro { margin: 0 0 10px; color: var(--text-2); font-size: 14px; }
+.in-sec { padding: 16px; margin-bottom: 14px; }
+.in-h { margin: 0 0 4px; font-size: 19px; }
+.in-h3 { margin: 14px 0 6px; font-size: 15px; color: var(--text-2); font-weight: 600; }
+.in-sub { margin: 0 0 8px; color: var(--text-2); font-size: 14px; }
+.in-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+/* ── Bars ── */
+.bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bar-row {
+  display: grid; grid-template-columns: minmax(110px, 14em) minmax(60px, 1fr) auto; align-items: center; gap: 4px 12px;
+  padding: 4px 0; min-width: 0;
+}
+.bar-label { display: grid; font-size: 14.5px; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.bar-sub { font-size: 12.5px; color: var(--muted); }
+.bar-track { position: relative; height: 12px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
+.bar-fill { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 4px; background: var(--accent); }
+.bar-val { font-size: 14px; color: var(--text); white-space: nowrap; }
+.bar-row.is-empty .bar-val { color: var(--muted); }
+
+/* ── Lists, facts and the trend table ── */
+.in-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.in-fact { font-size: 14.5px; }
+.in-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 16px; margin: 0; }
+.in-facts dt { font-size: 12.5px; color: var(--muted); }
+.in-facts dd { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); }
+.in-trend, .in-late { margin-top: 12px; }
+.in-trend summary, .in-late summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 500; color: var(--accent-deep); }
+.in-scroll { overflow-x: auto; max-width: 100%; }
+.in-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.in-table { border-collapse: collapse; font-size: 13.5px; min-width: 100%; }
+.in-table caption { text-align: start; font-size: 12.5px; color: var(--muted); padding-bottom: 4px; }
+.in-table th, .in-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: start; white-space: nowrap; }
+.in-table thead th { color: var(--muted); font-weight: 500; }
+.in-table .is-total th, .in-table .is-total td { font-weight: 600; }
+
+/* ── "Not relevant" ── */
+.na-row { padding: 8px 0; border-top: 1px solid var(--line); }
+.na-row.is-suggest { border-inline-start: 4px solid var(--warn-line); padding-inline-start: 10px; }
+.na-item { margin: 0; color: var(--text); font-size: 14.5px; }
+.na-meta { margin: 2px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13.5px; }
+.na-flag { color: var(--warn); }
+.na-flag .sicon::before { content: '!'; font-size: 10px; font-weight: 700; line-height: 1; }
+
+/* ── From the scripts to the scheduling ── */
+.pipe-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.pipe { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-2); }
+.pipe-h { margin: 0 0 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.pipe-stages { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; }
+.pipe-st { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 6px; font-size: 13.5px; }
+.pipe-icon { grid-row: span 2; width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); display: inline-grid; place-items: center; }
+.pipe-label { color: var(--text); }
+.pipe-when { color: var(--text-2); font-size: 12.5px; }
+.pipe-st.is-done .pipe-icon { background: var(--ok); box-shadow: none; }
+.pipe-st.is-done .pipe-icon::before { content: ''; width: 7px; height: 3.5px; border: solid var(--on-fill); border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
+.pipe-st.is-next .pipe-icon { box-shadow: inset 0 0 0 2px var(--accent); }
+.pipe-st.is-next .pipe-icon::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.pipe-st.is-next .pipe-when { color: var(--accent-deep); font-weight: 600; }
+.pipe-st.is-imported .pipe-icon { box-shadow: inset 0 0 0 1.5px var(--muted); }
+.pipe-total { margin: 6px 0 0; font-size: 13px; }
+
+@media (max-width: 760px) {
+  .in-sec { padding: 12px; }
+  .bar-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .bar-row .bar-track { grid-column: 1 / -1; grid-row: 2; }
+  .in-month { flex: 1 1 100%; }
+  .in-month .input { width: 100%; }
+}

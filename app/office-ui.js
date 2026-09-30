@@ -40,7 +40,8 @@ export function landingNow({ me, viewer, arrived = '', fresh = TAB_FRESH }) {
 export { firstLanded, markFirstLanded };
 
 // The office screens in the page head: Ofir's two, Lior's decisions (and the
-// assignment, which he takes when Ofir cannot), all three for the owner.
+// assignment, which he takes when Ofir cannot), all three for the owner; the
+// monthly insights for the owner and Lior (insights.html).
 export function officeLinks(viewer, current = '') {
   const me = viewer?.me || null;
   const owner = !me && viewer?.scope === 'office' && !viewer?.error;
@@ -48,6 +49,7 @@ export function officeLinks(viewer, current = '') {
     ['qa.html', 'בקרה ושיוך', me === 'ofir' || me === 'lior' || owner],
     ['pass.html', 'מעבר על הלקוחות', me === 'ofir' || owner],
     ['decisions.html', 'החלטות', me === 'lior' || me === 'ofir' || owner],
+    ['insights.html', 'תובנות', me === 'lior' || owner],
   ].filter(([href, , ok]) => ok && href !== current);
   return list.map(([href, label]) => h('a', { class: 'btn btn-sm office-link', href }, label));
 }
