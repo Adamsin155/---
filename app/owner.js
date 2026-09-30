@@ -12,13 +12,14 @@ import {
   loadClients, loadChecks, loadTasks, loadAllLog, loadStatusNotes, loadReviews, loadDirectory,
 } from './protocol-data.js';
 import {
-  loadMessagesSince, loadAccessStatus, loadDateChanges, loadQuestions, askQuestion, withdrawQuestion,
+  loadMessagesSince, loadAccessStatus, loadDateChanges, loadQuestions, askQuestion, withdrawQuestion, loadLogFor,
 } from './owner-data.js';
 import {
   clientHealth, station, ownerRows, officeReasons, colorCounts, lateNow, shootsAhead, closedProcesses, onTimeTrend,
   trendSince, upcomingEvents, canSeeOwnerScreen, canSeeAllClients, personName, bySeverity, COLORS, dayText,
+  historyKeys, withHistory,
 } from './health.js';
-import { healthBadge, reasonText, nextText, stationBar } from './health-ui.js';
+import { healthBadge, reasonText, nextText, stationBar, markOwnerLanded } from './health-ui.js';
 import {
   $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN,
 } from './protocol-ui.js';
@@ -60,7 +61,14 @@ const groupBy = (rows, key) => {
 };
 
 // ── Data ────────────────────────────────────
-async function load() {
+// One load at a time: the refresh button, coming back to the app and the timer
+// share the one in flight, so a slower, older answer never overwrites a newer one.
+let inflight = null;
+function load() {
+  inflight ||= doLoad().finally(() => { inflight = null; });
+  return inflight;
+}
+async function doLoad() {
   if (!entries.length) $('state').textContent = 'טוען…';
   const now = new Date();
   try {
@@ -73,13 +81,16 @@ async function load() {
   const since30 = new Date(now.getTime() - 30 * 864e5);
   const since = new Date(Math.min(+trendSince(now), +since30)).toISOString();
   // Each extra is optional: without it, its rule is left out, never assumed.
+  // Rounds of corrections count the whole history of their items, not just the window's.
+  const hist = historyKeys(clients);
   const got = await Promise.allSettled([
     loadAllLog(since), loadMessagesSince(since30.toISOString()), loadAccessStatus(),
     loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }), loadReviews(dayKeyIL(new Date(now.getTime() - 14 * 864e5))),
-    loadDateChanges({ sinceIso: since30.toISOString() }), loadQuestions({ sinceIso: since30.toISOString() }),
+    loadDateChanges({ sinceIso: since30.toISOString() }), loadQuestions({ sinceIso: since30.toISOString() }), loadLogFor(hist),
   ]);
   const ok = (i) => (got[i].status === 'fulfilled' ? got[i].value : null);
   [log, messages, access, notes, reviews, changes] = [0, 1, 2, 3, 4, 5].map(ok);
+  log = withHistory(log, ok(7), hist);
   questions = ok(6) || [];
   lastLoad = Date.now();
   $('state').textContent = '';
@@ -211,7 +222,9 @@ const rowHref = (r) => (r.client ? clientUrl(r.client.id, r.procId && !r.taskId 
 function rowItem(r, i) {
   const q = questionFor(r);
   const name = r.client ? r.client.name : r.code === 'thursday' ? 'סיכום חמישי' : 'המשרד';
-  const canAsk = isOwner && !!PEOPLE[r.who] && r.who !== 'editor';
+  // Only someone who can sign in can read and answer a question.
+  const canAsk = isOwner && !!PEOPLE[r.who] && r.who !== 'editor' && Object.values(directory).includes(r.who);
+  const noLogin = isOwner && !canAsk && !!PEOPLE[r.who] && r.who !== 'editor';
   return h('li', { class: `ow-row h-${r.color}${r.waiting ? ' is-waiting' : ''}`, 'data-key': r.key },
     h('div', { class: 'ow-row-h' },
       healthBadge(r.color),
@@ -227,7 +240,8 @@ function rowItem(r, i) {
       canAsk ? h('button', {
         type: 'button', class: 'btn btn-sm btn-ghost ask-btn', id: `ask-${i}`, 'aria-label': `שאלה ל${personName(r.who)} על ${name}`,
         onclick: () => openAsk(r, `ask-${i}`),
-      }, 'שאלה לאחראי') : null));
+      }, 'שאלה לאחראי') : null,
+      noLogin ? h('span', { class: 'muted ow-nologin' }, `אין ל${personName(r.who)} כניסה למערכת`) : null));
 }
 
 function renderNow() {
@@ -389,7 +403,10 @@ window.addEventListener('hashchange', () => {
   const v = location.hash.slice(1);
   if (tabsShown().includes(v) && v !== view && !$('app').hidden) setView(v);
 });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('ow-page').hidden && !busy()) load(); });
+// Back in the app: fresh data, unless it was loaded in the last minute.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !$('ow-page').hidden && !busy() && Date.now() - lastLoad > 60e3) load();
+});
 // The colours depend on the clock: recomputed every minute; fresh data every 5 minutes.
 setInterval(() => {
   if ($('ow-page').hidden || document.hidden || busy()) return;
@@ -410,6 +427,8 @@ mountSession(async (staff) => {
     return;
   }
   isOwner = canSeeOwnerScreen(v);
+  // Landed: from now on in this tab, "לקוחות" opens the clients list, not this screen.
+  if (isOwner) markOwnerLanded();
   $('ow-page').hidden = false;
   // Screen 1 is the owner's; Irit, Lior and Ofir open straight on screen 2.
   $('tab-now').hidden = !isOwner;

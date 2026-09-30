@@ -196,10 +196,13 @@ for each row execute function public.client_tasks_log_due_change();
 revoke execute on function public.client_tasks_log_due_change() from public, anon, authenticated;
 
 alter table public.client_date_changes enable row level security;
--- Staff read it, as they read the protocol history (protocol_log). Screen 4
--- shows each person only their own row (decision 22); that is the screen's rule,
--- like the rest of the performance view.
-create policy "staff read date changes" on public.client_date_changes
-  for select to authenticated using ((select public.is_staff()));
+-- The office (the owner, Irit, Lior, Ofir: the shoot day moved turns a client
+-- red on their screens) reads every change; anyone else on the staff reads only
+-- the changes they made themselves, their own row of screen 4 (decision 22).
+create policy "office or own date changes" on public.client_date_changes
+  for select to authenticated using (
+    (select public.can_ask_questions())
+    or ((select public.is_staff()) and by_email = lower(coalesce((select auth.jwt()) ->> 'email', '')))
+  );
 revoke all on public.client_date_changes from anon, authenticated;
 grant select on public.client_date_changes to authenticated;

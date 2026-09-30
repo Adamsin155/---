@@ -69,6 +69,7 @@
 .ow-waitnote { margin: 4px 0 0; }
 .ow-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .ow-acts .btn { min-height: 44px; }
+.ow-nologin { align-self: center; font-size: 13px; }
 .ow-q { margin-top: 8px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--panel-2); font-size: 14px; }
 .ow-q p { margin: 0; overflow-wrap: anywhere; }
 .ow-q .k { font-weight: 600; color: var(--text-2); }
@@ -191,3 +192,10 @@
   .board-head .chip, .ga-filters .chip { min-height: 44px; }
 }
 #tl-slot:empty { display: none; }
+
+/* ── Questions about the client, in the card ── */
+.cq-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cq-item { border-top: 1px solid var(--line); padding-top: 10px; }
+.cq-item:first-child { border-top: 0; padding-top: 0; }
+.cq-item p { margin: 0 0 4px; overflow-wrap: anywhere; }
+.cq-meta { font-size: 13px; color: var(--muted); }

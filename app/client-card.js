@@ -25,8 +25,8 @@ import { describeMark } from './handoffs.js';
 import { canManageTeam } from './team-rules.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 import { clientHealth, station, timeline } from './health.js';
-import { healthHead, timelineBlock } from './health-ui.js';
-import { loadHealthExtras } from './owner-data.js';
+import { healthHead, timelineBlock, questionsBlock } from './health-ui.js';
+import { loadHealthExtras, loadQuestions } from './owner-data.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -42,6 +42,7 @@ let statusNote = null;       // Ofir's latest weekly summary
 let statusNotes = null;      // all of them (null: not loaded), for the Thursday rule
 let healthExtras = null;     // messages, history and date changes, for the colour (office only)
 let tlAll = false;           // the timeline shows everything done, not only the latest
+let questions = null;        // questions to the one responsible about this client (null: none or not loaded)
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
 let scope = 'office';        // 'own': only my processes and items; 'office': may show the whole protocol
@@ -90,10 +91,11 @@ async function load() {
     checks = ch[id] || {};
     tasks = t;
     if (c.quote_id && (!quote || quote.id !== c.quote_id)) quote = await loadQuoteSummary(c.quote_id);
-    [access, statusNotes, healthExtras] = await Promise.all([
+    [access, statusNotes, healthExtras, questions] = await Promise.all([
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
       own() ? null : loadHealthExtras(id, new Date(Date.now() - 30 * 864e5).toISOString()),
+      loadQuestions({ clientId: id }).catch(() => null),
     ]);
     statusNote = statusNotes?.[0] || null;
   } catch (err) {
@@ -140,11 +142,11 @@ function healthNow(s) {
 }
 function renderTimeline(s) {
   const slot = $('tl-slot');
-  if (own() || !client) { fill(slot); return; }
+  if (!client) { fill(slot); return; }
   const now = new Date();
-  fill(slot, timelineBlock(timeline(client, s, checks, now), {
+  fill(slot, own() ? null : timelineBlock(timeline(client, s, checks, now), {
     now, showAll: tlAll, link: goTo, onToggle: () => { tlAll = !tlAll; renderKeepingFocus('tl-toggle'); },
-  }));
+  }), questionsBlock(questions));
 }
 
 // Periodic and background refreshes must not move keyboard focus or scroll.

@@ -8,7 +8,10 @@
 //  - Screen 2: two lines per client, a tap opens the rest; the board of the week / 30 days.
 //  - Irit opens screen 2 but not screen 1; an editor neither; a worker sees only
 //    their own row of the team screen, the owner and Lior everyone.
-//  - The client card: three lines (colour and why, now, next) and the timeline.
+//  - The client card: three lines (colour and why, now, next), the timeline and the
+//    questions asked about the client. After landing, "לקוחות" opens the list; a
+//    question is offered only to someone who can sign in; on a phone Irit reaches
+//    screen 2 from the page head.
 //  - Everything green: "הכול לפי התוכנית". A 360px phone: no sideways scrolling, 44px targets.
 // Run: npx http-server -p 8080 -s . &  then  node tests/owner-e2e.mjs [outDir]
 import { chromium } from 'playwright';
@@ -55,8 +58,8 @@ const JOIN = ['p01', 'p02', 'p03'];
 const CHAR = ['p04', 'p05', 'p06', 'p07', 'p08', 'p09', 'p10'];
 const onboard = (c) => { doneAll(c, JOIN, '2026-10-11T09:03:00+03:00'); doneAll(c, CHAR, '2026-10-12T12:00:00+03:00'); };
 
-// Red: the shoot is on Thursday, two business days away, and the client has not approved the scripts.
-const A = client('aaaaaaaa-0000-4000-8000-000000000001', { name: 'מספרת רון', shoot_at: '2026-10-22T11:00:00+03:00', address: 'הרצל 10' });
+// Red: the shoot is tomorrow (Wednesday), a business day away, and the client has not approved the scripts.
+const A = client('aaaaaaaa-0000-4000-8000-000000000001', { name: 'מספרת רון', shoot_at: '2026-10-21T11:00:00+03:00', address: 'הרצל 10' });
 onboard(A);
 doneAll(A, ['p11', 'p12a', 'p12'], '2026-10-14T12:00:00+03:00', 'lior@astrateg.test');
 one(A, 'p13.zoom', '2026-10-19T12:00:00+03:00', null, 'lior@astrateg.test');
@@ -150,6 +153,7 @@ async function fakeSupabase(route) {
     // Row level security, as the migration has it.
     if (table === 'client_messages' && !office(me)) rows = [];
     if (table === 'client_questions' && !office(me)) rows = rows.filter((r) => r.to_person === mine);
+    if (table === 'client_date_changes' && !office(me)) rows = rows.filter((r) => r.by_email === me.email);
     if (table === 'client_access' && !staff.find((r) => r.email === me.email)?.vault) rows = [];
     const off = Number(url.searchParams.get('offset') || 0);
     const lim = Number(url.searchParams.get('limit') || 1e9);
@@ -240,7 +244,7 @@ await step('four numbers: the colours, late now, on time over 8 weeks with its t
   const spark = stats.nth(2).locator('svg.spark');
   assert.equal(await spark.getAttribute('role'), 'img');
   assert.match(await spark.getAttribute('aria-label'), /^בזמן לפי שבוע, מהישן לחדש: (—|\d+%)(, (—|\d+%)){7}$/);
-  assert.match(await stats.nth(3).innerText(), /ימי צילום · 7 ימים\s*1\s*מספרת רון ה׳ 22\.10/);
+  assert.match(await stats.nth(3).innerText(), /ימי צילום · 7 ימים\s*1\s*מספרת רון ד׳ 21\.10/);
   await shot(owner, 'owner-01-screen1');
 });
 
@@ -250,12 +254,12 @@ await step('rows most severe first: client, station, one name, one reason; waiti
   const lines = await rows.evaluateAll((els) => els.map((e) => [e.querySelector('.wclient').textContent, e.querySelector('.hbadge').textContent,
     e.querySelector('.ow-station')?.textContent || '', e.querySelector('.pchip').textContent, e.querySelector('.ow-reason strong').textContent]));
   assert.deepEqual(lines, [
-    ['מספרת רון', 'אדום', 'תוכן ואישור', 'ליאור', 'צילום בסיכון'],
+    ['מספרת רון', 'אדום', 'יום צילום', 'ליאור', 'צילום בסיכון'],
     ['קפה גליה', 'אדום', 'תוכן ואישור', 'עירית', 'באיחור 3 ימי עסקים'],
     ['סטודיו דנה', 'צהוב', 'תוכן ואישור', 'עירית', 'ממתין ללקוח 4 ימי עסקים'],
     ['המשרד', 'צהוב', '', 'עירית', 'הבקרה היומית לא בוצעה'],
   ]);
-  assert.match(await rows.nth(0).locator('.ow-reason').innerText(), /אין אישור לקוח על התסריטים, הצילום ב־ה׳ 22\.10/);
+  assert.match(await rows.nth(0).locator('.ow-reason').innerText(), /אין אישור לקוח על התסריטים, הצילום מחר/);
   assert.match(await rows.nth(1).locator('.ow-reason').innerText(), /11 · קביעת יום צילום/);
   assert.equal(await rows.nth(2).evaluate((el) => el.classList.contains('is-waiting')), true);
   assert.match(await rows.nth(2).innerText(), /ממתינים ללקוח, לא עיכוב של הצוות/);
@@ -357,10 +361,10 @@ await step('screen 2: two lines per client, most severe first; a tap opens the r
   assert.match(await more.innerText(), /Social all in one · נטלי דדון · חודש 1 מתוך 12/);
   assert.equal(await more.locator('.stbar li').count(), 8);
   assert.equal(await more.locator('.stbar li[aria-current="step"]').count(), 1);
-  assert.match(await more.locator('.stbar-now').innerText(), /3\/8\s*תוכן ואישור/);
+  assert.match(await more.locator('.stbar-now').innerText(), /4\/8\s*יום צילום/);
   assert.match(await more.innerText(), /ממתין ללקוח\s*אישור התסריטים/);
   assert.match(await more.innerText(), /מגע אחרון\s*אתמול 12:00/); // the Zoom call, after the day's message
-  assert.match(await more.innerText(), /בתחנה\s*6 ימים · מאז ד׳ 14\.10/);
+  assert.match(await more.innerText(), /בתחנה\s*נכנס היום/); // the day before the shoot starts the shoot station
   // Keyboard: Enter closes it again.
   await owner.keyboard.press('Enter');
   assert.equal(await owner.isHidden(`#ga-${A.id}`), true);
@@ -379,9 +383,9 @@ await step('screen 2: two lines per client, most severe first; a tap opens the r
 
 await step('the board: this week, and 30 days', async () => {
   const week = await owner.locator('#board .board-ev').evaluateAll((els) => els.map((e) => [e.querySelector('.board-what').textContent, e.querySelector('.wclient').textContent, e.querySelector('.pchip').textContent]));
-  assert.deepEqual(week, [['פגישת אפיון', 'פיצה נאפולי', 'אופיר'], ['יום צילום', 'מספרת רון', 'ליאור']]);
+  assert.deepEqual(week, [['יום צילום', 'מספרת רון', 'ליאור'], ['פגישת אפיון', 'פיצה נאפולי', 'אופיר']]);
   assert.match(await text(owner, '#board-sum'), /אפיונים: 1 · ימי צילום: 1 · מסירות: 0 · קמפיינים: 0 · חידושים: 0/);
-  assert.match(await owner.locator('.board-dh').first().innerText(), /^ה׳ 22\.10$/);
+  assert.match(await owner.locator('.board-dh').first().innerText(), /^מחר · ד׳ 21\.10$/);
   await owner.click('#range-30');
   await owner.waitForSelector('#range-30[aria-pressed="true"]');
   const month = await owner.locator('#board .board-what').allInnerTexts();
@@ -395,8 +399,8 @@ await step('the client card: three lines (the colour and why, now, next) and the
   assert.equal(await head.evaluate((el) => el.classList.contains('h-red')), true);
   const lines = await head.locator('.hline').allInnerTexts();
   assert.equal(lines.length, 3);
-  assert.match(lines[0], /^אדום\s*צילום בסיכון · אין אישור לקוח על התסריטים, הצילום ב־ה׳ 22\.10\s*ליאור$/);
-  assert.match(lines[1], /^עכשיו: תוכן ואישור · /);
+  assert.match(lines[0], /^אדום\s*צילום בסיכון · אין אישור לקוח על התסריטים, הצילום מחר\s*ליאור$/);
+  assert.match(lines[1], /^עכשיו: יום צילום · ליאור · /);
   assert.match(lines[2], /^הבא: אישור התסריטים · ליאור · [^]* · מחכים מהלקוח: אישור התסריטים$/);
   // The timeline: what was done (who and when), what is open, what is planned.
   const tl = owner.locator('#timeline');
@@ -404,12 +408,18 @@ await step('the client card: three lines (the colour and why, now, next) and the
   assert.match(await tl.locator('.tl-done').innerText(), /12 · כתיבת התסריטים לשבוע הצילום|12 · כתיבת התסריטים/);
   assert.match(await tl.locator('.tl-done').innerText(), /ליאור · /);
   assert.match(await tl.locator('.tl-now').innerText(), /13 · שיחת Zoom לאישור התוכן · ליאור/);
-  // Editing has no date until an editor is assigned; it must be set by the end of the shoot day.
-  assert.match(await tl.locator('.tl-planned').innerText(), /22 · עריכת הסרטונים · אופיר · טרם נקבע · חייב להיקבע עד יום ה׳, 22\.10/);
+  // Assigning the editor (22א) hangs on the shoot day: it must be set by then. Editing (22)
+  // hangs on 22א, whose own deadline is not known yet: "not set", with no date claimed.
+  const planned = await tl.locator('.tl-planned').innerText();
+  assert.match(planned, /22א · העברה לעריכה ושיוך לעורך · ליאור · טרם נקבע · חייב להיקבע עד מחר/);
+  assert.match(planned, /22 · עריכת הסרטונים · אופיר · טרם נקבע(\n|$)/);
   // Show everything done, and back; the link opens the process.
   await owner.click('#tl-toggle');
   assert.equal(await owner.getAttribute('#tl-toggle', 'aria-expanded'), 'true');
   assert.ok(await tl.locator('.tl-done li').count() > 5);
+  // The question asked from screen 1 is recorded in the card, with its answer.
+  const cq = owner.locator('#questions');
+  assert.match(await cq.innerText(), /שאלות לאחראי[^]*הבעלים שאל\/ה את ליאור[^]*על: צילום בסיכון[^]*״הלקוח יאשר את התסריטים עד מחר\?״[^]*ליאור: ״הזום איתו מחר ב־10:00, אישור עד הצהריים״/);
   await tl.locator('.tl-now a').first().click();
   await owner.waitForFunction(() => document.getElementById('p13')?.closest('details')?.open);
   // Imported history is marked as such; the owner sees it on the imported client.
@@ -419,6 +429,39 @@ await step('the client card: three lines (the colour and why, now, next) and the
   assert.equal(await owner.locator('.hhead').evaluate((el) => el.classList.contains('h-green')), true);
   assert.match(await owner.locator('.hhead .hline').first().innerText(), /ירוק\s*הכול לפי התוכנית/);
   await shot(owner, 'owner-04-card');
+});
+
+await step('after landing, the owner\'s "לקוחות" links open the clients list (not screen 1 again)', async () => {
+  await owner.goto(`${BASE}client.html?id=${B.id}`);
+  await owner.waitForSelector('.hhead');
+  await owner.click('nav a.navlink[href="clients.html"]');
+  await owner.waitForSelector('#view-mine:not([hidden]), #view-clients:not([hidden])');
+  await owner.waitForTimeout(300);
+  assert.match(new URL(owner.url()).pathname, /\/clients\.html$/);
+  // Screen 1 is one tap away in the page head, which stays on phones too.
+  assert.equal(await owner.isHidden('#cta-owner'), false);
+  assert.equal(await owner.getAttribute('#cta-owner', 'href'), 'owner.html');
+  assert.equal(await text(owner, '#cta-owner'), 'מה דורש אותי');
+  // And screen 1's own "לקוחות" opens the list.
+  await owner.goto(`${BASE}owner.html`);
+  await owner.waitForSelector('#view-now:not([hidden]) .ow-row');
+  assert.equal(await owner.getAttribute('#nav-work', 'href'), 'clients.html#clients');
+});
+
+await step('"שאלה לאחראי" only to someone who can sign in', async () => {
+  // A fresh exception on the imported client, for Ilai, who has no login yet.
+  db.client_tasks.push({ id: randomUUID(), client_id: E.id, title: 'הלקוח ביקש לשנות את הלוגו', owner: 'ilai', done_at: null, due_on: null, urgent: false, source: 'escalation', created_at: '2026-10-20T09:30:00+03:00', created_by_email: 'lior@astrateg.test' });
+  await owner.click('#btn-refresh');
+  const row = owner.locator(`#ow-rows > li:has(a.wclient[href="client.html?id=${E.id}"])`);
+  await row.waitFor();
+  assert.match(await row.locator('.ow-reason').innerText(), /חריגה פתוחה/);
+  assert.equal(await row.locator('.ask-btn').count(), 0);
+  assert.equal(await row.locator('.ow-nologin').innerText(), 'אין לעילאי כניסה למערכת');
+  // Lior, who has a login, can still be asked.
+  assert.equal(await owner.locator('#ow-rows > li').nth(0).locator('.ask-btn').count(), 1);
+  db.client_tasks = [];
+  await owner.click('#btn-refresh');
+  await owner.waitForFunction((id) => !document.querySelector(`#ow-rows a.wclient[href="client.html?id=${id}"]`), E.id);
 });
 
 await step('Irit opens screen 2 but not screen 1; an editor opens neither', async () => {
@@ -527,6 +570,21 @@ await step('a 360px phone: no sideways scrolling, 44px targets, on both screens'
   assert.ok(await noHScroll(phone), 'the team screen scrolls sideways at 360px');
   await shot(phone, 'owner-09-phone-team');
   await pctx.close();
+  // Irit on a phone: the top bar folds away, and the page head keeps the way into screen 2.
+  const ictx = await newContext({ width: 360, height: 780 });
+  const irit = await newPage(ictx);
+  await signIn(irit, 'clients.html', 'irit@astrateg.test');
+  await irit.waitForSelector('#view-mine:not([hidden])');
+  assert.equal(await irit.locator('#nav-owner').isVisible(), false);
+  const cta = irit.locator('#cta-owner');
+  assert.equal(await cta.isVisible(), true);
+  assert.equal(await cta.getAttribute('href'), 'owner.html#all');
+  assert.equal(await cta.innerText(), 'כל הלקוחות במבט');
+  assert.ok((await cta.boundingBox()).height >= 44);
+  assert.ok(await noHScroll(irit), 'clients.html scrolls sideways at 360px');
+  await cta.click();
+  await irit.waitForSelector('#view-all:not([hidden]) .ga-item');
+  await ictx.close();
 });
 
 assert.deepEqual(errors, []);

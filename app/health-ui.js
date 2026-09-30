@@ -4,7 +4,18 @@
 // app/health.js; colour is never the only cue (an icon and the word go with it).
 import { STATIONS } from './protocol.js';
 import { COLORS, personName, dayText } from './health.js';
-import { h, personChip, formatWhen, formatStamp, who } from './protocol-ui.js';
+import { h, personChip, formatWhen, formatStamp, who, directory } from './protocol-ui.js';
+
+// The owner lands on screen 1 once per tab (the installed app, a sign-in, a new
+// tab); after that a plain link to clients.html opens the clients list. The mark
+// lives in this tab's session storage; without storage he always lands there.
+const LANDED = 'astrateg.ownerLanded';
+export function markOwnerLanded() {
+  try { sessionStorage.setItem(LANDED, '1'); } catch { /* no storage: nothing to remember */ }
+}
+export function ownerLanded() {
+  try { return sessionStorage.getItem(LANDED) === '1'; } catch { return false; }
+}
 
 // "אדום", "צהוב", "ירוק", with a shape: ! in a filled circle, ! in a ring, a tick.
 export const healthBadge = (color, extra = '') => h('span', { class: `hbadge h-${color} ${extra}`.trim() },
@@ -88,6 +99,22 @@ export function timelineBlock(tl, { now = new Date(), showAll = false, onToggle 
     tl.planned.length ? h('ol', { class: 'tl-list tl-planned' }, ...tl.planned.map((x) => item(`is-planned${x.when ? '' : ' is-unset'}`, x,
       h('span', { class: 'tl-meta' }, ` · ${personName(x.who)} · ${whenText(x, now)}`))))
       : h('p', { class: 'muted tl-none' }, 'אין תהליכים מתוכננים.'));
+}
+
+// The questions asked about the client from screen 1 ("השאלה נרשמת בכרטיס
+// הלקוח"), newest first, with their answers. Row level security decides which
+// ones this user reads (the office all, the one asked their own). Nothing when none.
+const askerName = (email) => (directory[String(email || '').toLowerCase()] ? who(email) : 'הבעלים');
+export function questionsBlock(list, { shown = 10 } = {}) {
+  if (!list?.length) return null;
+  return h('section', { class: 'block cc-side cq', id: 'questions', 'aria-labelledby': 'cq-h' },
+    h('div', { class: 'side-head' }, h('h2', { id: 'cq-h' }, 'שאלות לאחראי'),
+      h('p', { class: 'muted' }, 'שאלות מ״מה דורש אותי״ על הלקוח הזה, והתשובות.')),
+    h('ul', { class: 'cq-list' }, ...list.slice(0, shown).map((q) => h('li', { class: `cq-item${q.answer ? ' is-answered' : ''}` },
+      h('p', { class: 'cq-meta' }, `${askerName(q.asked_by)} שאל/ה את ${personName(q.to_person)} · ${formatStamp(q.asked_at)}${q.context ? ` · על: ${q.context}` : ''}`),
+      h('p', { class: 'cq-text' }, `״${q.question}״`),
+      q.answer ? h('p', { class: 'cq-a' }, h('strong', {}, `${who(q.answered_by) || personName(q.to_person)}:`), ` ״${q.answer}״ · ${formatStamp(q.answered_at)}`)
+        : h('p', { class: 'muted cq-wait' }, 'ממתין לתשובה')))));
 }
 
 export { dayText };

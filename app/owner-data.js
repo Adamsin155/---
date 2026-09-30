@@ -45,6 +45,13 @@ export async function loadClientLog(clientId) {
   return all(() => supabase.from('protocol_log').select('client_id, item_key, action, note, by_email, at').eq('client_id', clientId).order('at'));
 }
 
+// The whole history of some items across the clients (returns to fix, rounds of
+// corrections: app/health.js historyKeys), with no date floor.
+export async function loadLogFor(keys) {
+  if (!keys.length) return [];
+  return all(() => supabase.from('protocol_log').select('client_id, item_key, action, note, by_email, at').in('item_key', keys).order('at'));
+}
+
 // ── Questions ──────────────────────────────
 const Q_COLS = 'id, client_id, to_person, about, context, question, asked_by, asked_at, answer, answered_by, answered_at';
 export async function loadQuestions({ sinceIso = null, toPerson = null, openOnly = false, clientId = null } = {}) {

@@ -6,15 +6,18 @@
 //
 // The colour is computed by rules, never set by hand:
 //   red     a critical item late by more than 2 business days; a shoot day that
-//           moved or is at risk; a login broken for more than 2 business days; an
-//           urgent exception, or one open for more than a business day (an urgent
-//           task open for more than 4 office hours too); a client score of 2 or
-//           less; the deliverables behind the promised pace.
-//   yellow  due tomorrow and not started; waiting on the client for more than 2
-//           business days; a second round of corrections or more; no contact with
-//           the client for 2 business days; no activity for 5; a missing Thursday
-//           summary; a score of 3. Also anything late that is not red (yet), a late
-//           task and a fresh exception: already past "due tomorrow".
+//           moved or is at risk (no approved scripts a business day before, or the
+//           day-before reminders not sent by 15:00), or whose own preparation (11,
+//           Natali's 11b) is still open close to it; a login broken for more than 2
+//           business days; an urgent exception, or one open for more than a
+//           business day (an urgent task open for more than 4 office hours too); a
+//           client score of 2 or less; the deliverables behind the promised pace.
+//   yellow  due today or on the next business day and not started; waiting on the
+//           client for more than 2 business days; a second round of corrections or
+//           more; no contact with the client for 2 business days; no activity for
+//           5; stuck in a station longer than its norm; a missing Thursday summary;
+//           a score of 3. Also anything late that is not red (yet), a late task and
+//           a fresh exception: already past "due tomorrow".
 //   green   otherwise.
 // Every reason names ONE responsible person and says why in a few words.
 // Time waiting on the client never counts against the staff: a process that waits
@@ -49,6 +52,10 @@ export const seesWholeTeam = (v) => isOwnerView(v) || (!!v && !v.error && v.me =
 export const EDITOR_CAP = 2;          // editing jobs an editor holds at once
 export const SHOOT_MOVED_DAYS = 3;    // a moved shoot day stays red this many business days
 export const THURSDAY_AT = 13;        // Ofir's Thursday summary is due at 13:00 (decision 20)
+// How many whole business days a client may stay in a station before it is
+// "stuck" (screen 1). The ongoing work and the renewal have no norm. A station
+// that waits for a date already set (the meeting, the shoot day) is not stuck.
+export const STATION_NORM = { join: 2, char: 5, content: 10, shoot: 3, post: 8, publish: 5 };
 const OFFICE_DAY = (WORK_HOURS.end - WORK_HOURS.start) * 60;
 const URGENT_OPEN = 4 * 60;           // an urgent task open 4 office hours (decision 24)
 // A process that is not a promise to the client or its clock: the daily follow-up
@@ -57,9 +64,9 @@ const NOT_CRITICAL = new Set(['p14']);
 
 // Order of the reasons, most severe first, within each colour.
 const RANK = {
-  'shoot-risk': 10, 'shoot-moved': 11, 'escalation-urgent': 12, late: 13, access: 14, 'escalation-open': 15,
+  'shoot-risk': 10, 'shoot-moved': 11, 'shoot-prep': 11.5, 'escalation-urgent': 12, late: 13, access: 14, 'escalation-open': 15,
   'urgent-task': 16, 'score-low': 17, pace: 18,
-  'late-soon': 30, 'late-task': 31, 'due-soon': 32, waiting: 33, escalation: 34, revision: 35, review32: 36,
+  'late-soon': 30, 'late-task': 31, 'due-soon': 32, stuck: 32.5, waiting: 33, escalation: 34, revision: 35, review32: 36,
   review33: 37, 'score-mid': 38, 'no-contact': 39, quiet: 40, thursday: 41,
 };
 export const bySeverity = (a, b) => (COLOR_RANK[a.color] - COLOR_RANK[b.color]) || ((RANK[a.code] ?? 99) - (RANK[b.code] ?? 99))
@@ -69,18 +76,24 @@ const baseId = (id) => String(id).replace(/^r\d+-/, '');
 const roundOf = (id) => Number(/^r(\d+)-/.exec(id)?.[1] || 0);
 export const procName = (proc) => `${roundOf(proc.id) ? `סבב ${roundOf(proc.id)} · ` : ''}${proc.num} · ${proc.title}`;
 const isDone = (checks, key) => checks[key]?.state === 'done';
+// Done, or marked "not relevant".
+const isResolvedKey = (checks, key) => checks[key]?.state === 'done' || checks[key]?.state === 'na';
 const isReal = (c) => !!c && c.state === 'done' && c.note !== IMPORT_NOTE;
 const WEEKDAY = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 export const dayText = (d) => { const p = partsIL(d); return `${WEEKDAY[p.weekday]} ${p.day}.${p.month}`; };
 const cut = (s, n = 80) => { const t = String(s || '').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 
-// "20 דק׳", "3 שעות", "יום עסקים", "2 ימי עסקים": how long since `from`.
+// "20 דק׳", "3 שעות עבודה", "יום עסקים", "2 ימי עסקים": how long since `from`.
+// From another day: in business days (a deadline at the end of Monday, seen on
+// Tuesday at 10:00, is a business day late, not "10 hours"). Within the day: in
+// office time, since the evening and the weekend are nobody's delay.
 export function lateWords(from, now = new Date()) {
-  const mins = Math.round((now - from) / 6e4);
+  const days = businessDaysBetween(from, now);
+  if (days >= 1) return bdaysWords(days);
+  const mins = Math.round(workingMinutesBetween(from, now));
   if (mins < 60) return `${Math.max(mins, 1)} דק׳`;
   const hours = Math.round(mins / 60);
-  if (hours < 24) return hours === 1 ? 'שעה' : `${hours} שעות`;
-  return bdaysWords(Math.max(1, businessDaysBetween(from, now)));
+  return hours === 1 ? 'שעת עבודה' : `${hours} שעות עבודה`;
 }
 export const bdaysWords = (n) => (n === 1 ? 'יום עסקים' : `${n} ימי עסקים`);
 
@@ -289,10 +302,15 @@ export function thursdayDue(now = new Date()) {
   return { at: atTimeIL(thu, THURSDAY_AT), week: weekKey(thu) };
 }
 
-// The business day before a moment.
+// The business day before a moment, and the one after it.
 function prevBusinessDay(d) {
   let x = addDaysIL(atTimeIL(d, 12), -1);
   for (let i = 0; i < 30 && !isBusinessDay(x); i += 1) x = addDaysIL(x, -1);
+  return x;
+}
+function nextBusinessDay(d) {
+  let x = addDaysIL(atTimeIL(d, 12), 1);
+  for (let i = 0; i < 30 && !isBusinessDay(x); i += 1) x = addDaysIL(x, 1);
   return x;
 }
 const whenWords = (d, now) => {
@@ -341,11 +359,17 @@ export function clientHealth(client, state, extras = {}) {
     const st = (id) => byId.get(`${x.pid}${id}`);
     const ahead = businessDaysBetween(now, shoot);
     const round = x.n > 1 ? ` (סבב ${x.n})` : '';
-    const risk = (s, whom, what) => add('red', 'shoot-risk', { who: whom, text: 'צילום בסיכון', what: `${what}, הצילום ${whenWords(shoot, now)}${round}`, procId: s?.proc.id || `${x.pid}p19`, days: 0, since: shoot });
-    if (ahead <= 2 && !isDone(checks, `${x.pre}p13.approved`)) risk(st('p13'), 'lior', 'אין אישור לקוח על התסריטים');
-    if (ahead <= 2 && st('p11') && !st('p11').complete) risk(st('p11'), who(st('p11')) || 'irit', 'יום הצילום עוד לא נסגר מול כולם');
-    if (x.ctx.shoot_type === 'natali' && ahead <= 3 && st('p11b') && !st('p11b').complete) risk(st('p11b'), 'lior', 'המאפרת וההסעה של נטלי עוד לא סודרו');
+    // "צילום בסיכון" is exactly the plan's two cases (section 3; decision 24 alerts
+    // the owner on it): no client approval of the scripts a business day before
+    // the shoot, or the day-before reminders not sent by 15:00.
+    const risk = (s, whom, what, code = 'shoot-risk', text = 'צילום בסיכון') => add('red', code, { who: whom, text, what: `${what}, הצילום ${whenWords(shoot, now)}${round}`, procId: s?.proc.id || `${x.pid}p19`, days: 0, since: shoot });
+    if (ahead <= 1 && !isResolvedKey(checks, `${x.pre}p13.approved`)) risk(st('p13'), 'lior', 'אין אישור לקוח על התסריטים');
     if (now >= atTimeIL(prevBusinessDay(shoot), 15) && st('p15') && !st('p15').complete) risk(st('p15'), 'lior', 'התזכורות של יום לפני לא נשלחו');
+    // The shoot day's own preparation not closed close to it: red too (a default
+    // waiting for the office's decision, docs/protocols/README.md), but not the alert.
+    const prep = (s, whom, what) => risk(s, whom, what, 'shoot-prep', 'הכנת יום הצילום לא הושלמה');
+    if (ahead <= 2 && st('p11') && !st('p11').complete) prep(st('p11'), who(st('p11')) || 'irit', 'יום הצילום עוד לא נסגר מול כולם');
+    if (x.ctx.shoot_type === 'natali' && ahead <= 3 && st('p11b') && !st('p11b').complete) prep(st('p11b'), 'lior', 'המאפרת וההסעה של נטלי עוד לא סודרו');
   }
   const moves = new Map();
   for (const ch of extras.dateChanges || []) {
@@ -406,12 +430,14 @@ export function clientHealth(client, state, extras = {}) {
     });
   }
 
-  // Due tomorrow and nobody started. Not a process that cannot start yet, nor one waiting on the client.
+  // Due today or on the next business day (Sunday, seen on Thursday) and nobody
+  // started. Not a process that cannot start yet, nor one waiting on the client.
+  const soonUntil = dayKeyIL(nextBusinessDay(now));
   for (const s of state.states) {
     if (s.proc.recurring || s.complete || !s.dueAt || !s.ready || s.touched || s.status === 'client' || s.status === 'overdue') continue;
     if (s.startAt && s.startAt > now) continue;
-    if (daysBetweenIL(now, s.dueAt) !== 1) continue;
-    add('yellow', 'due-soon', { who: who(s), text: 'מועד מחר ועוד לא התחילו', what: procName(s.proc), procId: s.proc.id });
+    if (s.dueAt < now || dayKeyIL(s.dueAt) > soonUntil) continue;
+    add('yellow', 'due-soon', { who: who(s), text: `מועד ${whenWords(s.dueAt, now)} ועוד לא התחילו`, what: procName(s.proc), procId: s.proc.id, since: s.dueAt });
   }
 
   // Waiting on the client for more than 2 business days: Irit follows it up.
@@ -447,10 +473,32 @@ export function clientHealth(client, state, extras = {}) {
   // No activity for 5 business days, unless the client is holding the work.
   if (!state.states.some((s) => s.status === 'client')) {
     const last = extras.lastActivity || lastActivity(client, { checks, tasks: extras.tasks, statusNotes: extras.statusNotes, log: extras.log, messages: extras.messages });
-    const days = last ? businessDaysBetween(last, now) : 0;
+    // Whole business days, as for "no contact": today is not over yet.
+    const days = last ? businessDaysBetween(last, now) - (isBusinessDay(now) ? 1 : 0) : 0;
     if (days >= 5) {
       const step = currentStep(client, state, checks, now);
       add('yellow', 'quiet', { who: step?.who || 'ofir', text: `אין פעילות ${bdaysWords(days)}`, what: `פעילות אחרונה: ${dayText(last)}`, procId: step?.procId || null, days, since: last });
+    }
+  }
+
+  // Stuck in its station longer than the norm, unless the client is holding the
+  // work or the station waits for a date that is set (the meeting, the shoot day).
+  if (!state.states.some((s) => s.status === 'client')) {
+    const index = stationOf(client, state, now);
+    const key = STATIONS[index].key;
+    const norm = STATION_NORM[key];
+    const since = norm ? stationSince(client, state, checks, index, now) : null;
+    const dateAhead = (key === 'join' && parseDate(client.char_at) > now)
+      || (key === 'content' && shootContexts(client).some((x) => parseDate(x.ctx.shoot_at) > now));
+    if (since && !dateAhead) {
+      const days = businessDaysBetween(since, now) - (isBusinessDay(now) ? 1 : 0);
+      if (days > norm) {
+        const step = currentStep(client, state, checks, now);
+        add('yellow', 'stuck', {
+          who: step?.who || 'ofir', text: `בתחנה ${bdaysWords(days)}`, what: `${STATIONS[index].title} · הנורמה עד ${bdaysWords(norm)}`,
+          procId: step?.procId || null, days, since,
+        });
+      }
     }
   }
 
@@ -514,12 +562,14 @@ function setterOf(from, pid) {
   return /^(r\d+-)?p\d+[a-z]?$/.test(from) ? from : null;
 }
 // A date not known yet must be set by the deadline of the process that sets it.
-export function mustSetBy(s, byId, depth = 0) {
-  if (!s || depth > 6) return null;
+// Only that process's own deadline: when it has none yet either, nothing is
+// claimed (the shoot day is not due on the deal's day because the meeting is).
+export function mustSetBy(s, byId) {
+  if (!s) return null;
   const pid = /^r\d+-/.exec(s.proc.id)?.[0] || '';
   const setter = byId.get(setterOf((s.proc.due || s.proc.start)?.from, pid));
   if (!setter || setter === s) return null;
-  return setter.dueAt || mustSetBy(setter, byId, depth + 1);
+  return setter.dueAt || null;
 }
 
 // The next milestone: { procId, what, who, when, mustSetBy, status }. In each part
@@ -820,6 +870,23 @@ export function reworkCounts(clients, log, since = null) {
     }
   }
   return out;
+}
+
+// Items whose whole history counts: returns to fix and rounds of corrections. A
+// window of the log would take the first event inside it for the original.
+const HISTORY = [...REWORK, 'p07.sent', 'p23.sent', 'p27.notes'];
+export function historyKeys(clients) {
+  const out = new Set();
+  for (const c of clients) {
+    for (const p of applicableProcesses(c)) for (const i of p.items) if (HISTORY.includes(i.key.replace(/^r\d+\./, ''))) out.add(i.key);
+  }
+  return [...out].sort();
+}
+// The log of a period, with the whole history of those items in place of its part of it.
+export function withHistory(log, history, keys) {
+  if (!log || !history) return log;
+  const set = new Set(keys);
+  return [...log.filter((r) => !set.has(r.item_key)), ...history.filter((r) => set.has(r.item_key))];
 }
 
 // "Not relevant" on a required item, and deadline changes, by who marked them

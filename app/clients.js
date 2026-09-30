@@ -28,9 +28,10 @@ import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys
 import { canManageTeam, isOwnerView } from './team-rules.js';
 import { canSendMessages } from './messages-logic.js';
 import { offerHandoff, dropHandoff } from './handoff-ui.js';
-import { canSeeAllClients, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP } from './health.js';
-import { loadDateChanges } from './owner-data.js';
+import { canSeeAllClients, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
+import { loadDateChanges, loadLogFor } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
+import { ownerLanded } from './health-ui.js';
 
 let clients = [];
 let checks = {};
@@ -1803,8 +1804,10 @@ async function renderPerformance() {
     fill(box, chips, intro, h('p', { class: 'state' }, 'מחשב…'));
     const since = new Date(now.getTime() - days * 864e5).toISOString();
     try {
-      const [rows, changes] = await Promise.all([loadAllLog(since), loadDateChanges({ sinceIso: since }).catch(() => null)]);
-      perfLog.set(days, { rows, changes });
+      // Returns to fix count against the whole history of their items, not just the window's.
+      const hist = historyKeys(clients);
+      const [rows, changes, full] = await Promise.all([loadAllLog(since), loadDateChanges({ sinceIso: since }).catch(() => null), loadLogFor(hist).catch(() => null)]);
+      perfLog.set(days, { rows: withHistory(rows, full, hist), changes });
     } catch (err) {
       if (view !== 'performance' || days !== perfDays) return;
       fill(box, chips, intro, h('div', { class: 'state' }, `הנתונים לא נטענו. ${errorText(err)} `,
@@ -2086,11 +2089,15 @@ mountSession(async (staff) => {
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
   viewerError = viewer.error;
-  // The owner lands on "מה דורש אותי" (owner.html), which links back here (#mine).
-  if (isOwnerView(viewer) && !location.hash) { location.replace('owner.html'); return; }
+  // The owner lands on "מה דורש אותי" (owner.html), which links back here (#mine):
+  // once per tab, so the "לקוחות" links of the other pages still open the list.
+  if (isOwnerView(viewer) && !location.hash && !ownerLanded()) { location.replace('owner.html'); return; }
   // Screen 2, "כל הלקוחות במבט", for Irit, Lior and Ofir; screen 1 for the owner.
-  $('nav-owner').hidden = !canSeeAllClients(viewer);
-  if (!isOwnerView(viewer)) { $('nav-owner').href = 'owner.html#all'; $('nav-owner').textContent = 'כל הלקוחות במבט'; }
+  // The top bar folds away on phones: the page head keeps a way in (cta-owner).
+  for (const el of [$('nav-owner'), $('cta-owner')]) {
+    el.hidden = !canSeeAllClients(viewer);
+    if (!isOwnerView(viewer)) { el.href = 'owner.html#all'; el.textContent = 'כל הלקוחות במבט'; }
+  }
   $('nav-team').hidden = !canManageTeam(viewer);
   // The top bar folds away on phones: the page head keeps a way in to the messages.
   $('nav-messages').hidden = $('cta-messages').hidden = !canSendMessages(viewer);
