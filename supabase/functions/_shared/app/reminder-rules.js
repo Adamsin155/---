@@ -1186,6 +1186,9 @@ export const RULES = [
           if (pauseOf(i.proc, i.checks)) continue;
           // After "the characterization ended", the form has its own ladder (charForm).
           if (baseId(s.proc.id) === 'p04' && i.resolved(CHAR_ENDED)) continue;
+          // The final versions are in the Drive: only Ilai's "קיבלתי" (p27.toilai) keeps
+          // 27 open, and finalReady follows it; not a second line, nor the editor's lateness.
+          if (baseId(s.proc.id) === 'p27' && i.resolved('p27.final')) continue;
           const owners = s.claim ? [s.claim.person] : s.proc.owners;
           out.push({ ...i, id: `${s.proc.id}@${s.dueAt.toISOString()}`, owners, anchors: { event: s.dueAt } });
         }

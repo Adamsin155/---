@@ -70,7 +70,8 @@ drop policy if exists "office manages passes" on public.office_passes;
 create policy "office manages passes" on public.office_passes
   for all to authenticated
   using ((select public.is_office())) with check ((select public.is_office()));
-revoke delete, truncate on public.office_passes from anon, authenticated;
+revoke all on public.office_passes from anon;
+revoke delete, truncate on public.office_passes from authenticated;
 
 -- ── Lior's decisions on exceptions ───────────
 create table if not exists public.task_decisions (
@@ -123,7 +124,8 @@ drop policy if exists "office updates decisions" on public.task_decisions;
 create policy "office updates decisions" on public.task_decisions
   for update to authenticated
   using ((select public.is_office())) with check ((select public.is_office()));
-revoke delete, truncate on public.task_decisions from anon, authenticated;
+revoke all on public.task_decisions from anon;
+revoke delete, truncate on public.task_decisions from authenticated;
 
 -- ── Change requests (Ofir → Lior) ────────────
 create table if not exists public.change_requests (
@@ -178,7 +180,8 @@ create policy "office manages change requests" on public.change_requests
   for all to authenticated
   using ((select public.is_office()))
   with check ((select public.is_office()) and (client_id is null or public.can_see_client(client_id)));
-revoke delete, truncate on public.change_requests from anon, authenticated;
+revoke all on public.change_requests from anon;
+revoke delete, truncate on public.change_requests from authenticated;
 
 -- ── Ofir's meetings, for the one waiting for his check ──
 -- "אופיר באפיון, בקרה עד HH:MM" (decision 11): the editor does not see Ofir's other

@@ -88,8 +88,12 @@ test('one ring per editing event: the return, the fixes back with Ofir, the fina
   mark(w, c, 'p27.final', IL(2026, 10, 21, 11));
   const ilai = due(w, IL(2026, 10, 21, 11)).filter((r) => r.person === 'ilai' && /סופיות/.test(r.title));
   assert.deepEqual(ilai.map((r) => `${r.rule}.${r.step}.${r.level}`), ['finalReady.ilai.quiet']);
-  mark(w, c, 'p27.toilai', IL(2026, 10, 21, 12)); // Ilai's "קיבלתי" (protocol v5)
-  none(due(w, IL(2026, 10, 21, 18)), 'finalReady');
+  // Ilai late on it past 27's deadline: finalReady tells Lior, not a second "late" line naming the editor.
+  const late = due(w, IL(2026, 10, 26, 10));
+  one(late, 'finalReady', 'lior');
+  assert.deepEqual(late.filter((r) => r.rule === 'late' && /27/.test(r.title)).map((r) => r.key), []);
+  mark(w, c, 'p27.toilai', IL(2026, 10, 26, 11)); // Ilai's "קיבלתי" (protocol v5)
+  none(due(w, IL(2026, 10, 26, 18)), 'finalReady');
 });
 
 test('office time helpers: 30 office minutes before a morning deadline start the day before', () => {

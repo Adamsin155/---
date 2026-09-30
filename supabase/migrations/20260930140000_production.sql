@@ -31,7 +31,8 @@ begin
   if new.result is distinct from old.result and new.owner is distinct from public.my_person() then
     raise exception 'not allowed: only the task''s owner records how it ended';
   end if;
-  if coalesce(new.brief ->> 'route', '') <> '' and old.done_at is null and new.done_at is not null then
+  -- The route as it was or as it is written now: taking it out while closing does not skip the check.
+  if coalesce(old.brief ->> 'route', new.brief ->> 'route', '') <> '' and old.done_at is null and new.done_at is not null then
     raise exception 'not allowed: the office checks this work before it goes to the client';
   end if;
   return new;

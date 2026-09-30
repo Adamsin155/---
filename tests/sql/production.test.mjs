@@ -78,6 +78,12 @@ test('work that goes to the client: only the office closes Ofir\'s check, and cl
   });
   assert.equal(out.closed, false);
   assert.match(out.error, /the office checks this work/);
+  // Nor by taking the route out in the same update.
+  const { rows: [check] } = await db.query(`insert into public.client_tasks (client_id, title, owner, due_on, brief, created_by_email)
+    values ($1, 'לבדוק לפני שליחה ללקוח: באנר', 'ofir', current_date, '{"route":"irit"}', 'nirel@astrateg.test') returning id`, [ids.natali]);
+  const sneak = await q('nirel', "update public.client_tasks set brief = brief - 'route', done_at = now() where id = $1", [check.id]);
+  assert.match(sneak.error, /the office checks this work/);
+  await db.query('delete from public.client_tasks where id = $1', [check.id]);
   // Ofir closes it: Irit gets the send task, with the Drive link; undo takes it back; again: one task.
   const flow = await run('ofir', async (tx) => {
     const { rows: [t] } = await tx.query(`insert into public.client_tasks (client_id, title, owner, due_on, brief)

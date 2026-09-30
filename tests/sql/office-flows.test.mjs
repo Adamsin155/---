@@ -137,4 +137,8 @@ test('Ofir\'s meetings for those waiting for his check: times only, until he sav
   assert.ok(new Date(tapped.ends_at) - new Date(tapped.starts_at) < 36e5);
   // Not for anyone outside the staff.
   assert.match((await as(db, null, (tx) => tx.query('select * from public.ofir_meetings(now())'))).error, /permission denied/);
+  // Nor the new tables: nothing granted to anon at all (as the intake's tables).
+  for (const t of ['office_passes', 'task_decisions', 'change_requests']) {
+    assert.match((await as(db, null, (tx) => tx.query(`select 1 from public.${t}`))).error, /permission denied/, t);
+  }
 });
