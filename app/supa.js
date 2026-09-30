@@ -21,6 +21,13 @@ export async function currentStaff() {
 export const RESET_NEEDS_EMAIL = 'הזינו את כתובת האימייל שלכם, ואז לחצו על ״שכחתי סיסמה״.';
 export const RESET_SENT = 'אם הכתובת רשומה במערכת, נשלח אליה קישור לבחירת סיסמה חדשה. הקישור תקף לזמן מוגבל.';
 export const looksLikeEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+// An email as typed on a Hebrew page or phone keyboard can carry invisible direction
+// marks (U+200E/U+200F and the like) and full-width characters; the server then
+// refuses it ("invalid format"). Strip them, normalize, and lower-case.
+export const cleanEmail = (v) => String(v ?? '')
+  .normalize('NFKC')
+  .replace(/[­؜​-‏‪-‮⁠-⁩﻿\s]/g, '')
+  .toLowerCase();
 
 // Sends a reset link. The link opens the quotes page, which asks for a new password.
 // Resolved from this file, so it works from the site root and from payouts/.

@@ -558,7 +558,7 @@ function askLogin() {
       try {
         const s = await getSupa();
         const { error } = await s.supabase.auth.signInWithPassword({
-          email: $('lg-email').value.trim(), password: $('lg-pass').value,
+          email: s.cleanEmail($('lg-email').value), password: $('lg-pass').value,
         });
         if (error) throw error;
         const staff = await refreshSession();
@@ -590,7 +590,7 @@ $('lg-forgot').addEventListener('click', async (e) => {
   btn.disabled = true;
   try {
     const s = await getSupa();
-    const email = $('lg-email').value.trim();
+    const email = s.cleanEmail($('lg-email').value);
     if (!s.looksLikeEmail(email)) {
       err.textContent = s.RESET_NEEDS_EMAIL;
       err.hidden = false;

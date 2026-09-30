@@ -1,6 +1,6 @@
 import {
   supabase, currentStaff, quoteLink, explainError,
-  sendPasswordReset, consumeRecoveryLink, looksLikeEmail, RESET_NEEDS_EMAIL, RESET_SENT,
+  sendPasswordReset, consumeRecoveryLink, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT,
 } from './supa.js';
 import { h, formatDate, whatsappLink } from './quote-doc.js';
 import { formatILS } from './pricing.js';
@@ -159,7 +159,7 @@ $('login-form').addEventListener('submit', async (e) => {
   $('lg-err').hidden = true;
   $('lg-msg').hidden = true;
   const { error } = await supabase.auth.signInWithPassword({
-    email: $('lg-email').value.trim(), password: $('lg-pass').value,
+    email: cleanEmail($('lg-email').value), password: $('lg-pass').value,
   });
   btn.disabled = false;
   if (error) {
@@ -171,7 +171,7 @@ $('login-form').addEventListener('submit', async (e) => {
 });
 $('lg-forgot').addEventListener('click', async (e) => {
   const btn = e.currentTarget;
-  const email = $('lg-email').value.trim();
+  const email = cleanEmail($('lg-email').value);
   $('lg-err').hidden = true;
   $('lg-msg').hidden = true;
   if (!looksLikeEmail(email)) {

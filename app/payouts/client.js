@@ -19,6 +19,11 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 export const RESET_NEEDS_EMAIL = 'הזינו את כתובת האימייל שלכם, ואז לחצו על ״שכחתי סיסמה״.';
 export const RESET_SENT = 'אם הכתובת רשומה במערכת, נשלח אליה קישור לבחירת סיסמה חדשה. הקישור תקף לזמן מוגבל.';
 export const looksLikeEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+// Invisible direction marks from a Hebrew keyboard make the server refuse the address.
+export const cleanEmail = (v) => String(v ?? '')
+  .normalize('NFKC')
+  .replace(/[\u00AD\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF\s]/g, '')
+  .toLowerCase();
 
 // The reset link comes back to this app, which asks for the new password.
 export async function sendPasswordReset(email, redirectTo) {
