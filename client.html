@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="app/styles/quotes.css">
   <link rel="stylesheet" href="app/styles/protocol.css">
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/office-flows.css">
   <link rel="stylesheet" href="app/styles/owner.css">
 </head>
 <body>
@@ -60,6 +61,7 @@
         <ul class="access-list" id="access-list"></ul>
         <details class="access-log"><summary>מי צפה ושינה ומתי</summary><ol class="hlist" id="access-log"></ol></details>
       </section>
+      <section class="block qa-block" id="qa-block" aria-labelledby="qa-block-h" hidden></section>
       <div class="viewbar" id="viewbar"></div>
       <div id="phases" class="phases"></div>
       <div id="tl-slot"></div>
@@ -169,6 +171,10 @@
       <div class="dlg-body">
         <div id="call-prev"></div>
         <div class="field"><label for="call-at">מועד השיחה</label><input class="input" id="call-at" type="datetime-local" dir="ltr"></div>
+        <div class="form-grid call-numbers">
+          <div class="field"><label for="call-leads">לידים מאז השיחה הקודמת (לא חובה)</label><input class="input" id="call-leads" type="number" min="0" max="100000" step="1" inputmode="numeric" dir="ltr"></div>
+          <div class="field"><label for="call-spend">הוצאה על פרסום, ₪ (לא חובה)</label><input class="input" id="call-spend" type="number" min="0" max="10000000" step="1" inputmode="numeric" dir="ltr"></div>
+        </div>
         <fieldset class="fs">
           <legend>סיכום לפי נושאים</legend>
           <p class="hint">כתבו בקצרה. נושא שלא עלה בשיחה אפשר להשאיר ריק.</p>

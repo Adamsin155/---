@@ -5,8 +5,10 @@
 // Item keys are stored with each check, so never rename or reuse a key; retire it
 // instead and add a new one. Bump PROTOCOL_VERSION when the protocol changes.
 // Retired in v3 (Shirel removed from the protocol): p02.m.shirel, p11.ok.shirel.
+// Retired in v5: p29.told ("הגאנט מלא" tells Irit by itself, system-plan section 3).
+// v5: p27.toilai is Ilai's "קיבלתי" on the final versions (it closes the editing).
 
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 // Office hours, in Israel time (decisions 1–2 in docs/plan/decisions.md).
 // Deadlines of minutes or hours that start from an office event (a deal coming
@@ -637,7 +639,7 @@ export const PROCESSES = [
       { key: 'p27.fixes', label: 'כל התיקונים בוצעו ונבדקו מחדש', optional: true },
       { key: 'p27.final', label: 'הגרסאות הסופיות בדרייב, בלי גרסאות ישנות שמבלבלות' },
       { key: 'p27.approved', label: 'הלקוח אישר את הסרטונים', owners: ['irit'], requires: ['p26.sent'], noBulk: true },
-      { key: 'p27.toilai', label: 'הלקוח הועבר לעילאי לתזמון ולגאנט', requires: ['p27.final'] },
+      { key: 'p27.toilai', label: 'עילאי קיבל את הגרסאות הסופיות לתזמון ולגאנט (״קיבלתי״)', owners: ['ilai'], requires: ['p27.final'] },
     ],
   },
   {
@@ -656,7 +658,6 @@ export const PROCESSES = [
     what: 'על כל תוכן שמתוזמן מעדכנים בגאנט מספר סרטון, קישור, יום, תאריך ושעה, כך שהגאנט והתזמון תמיד תואמים.',
     items: [
       { key: 'p29.filled', label: 'הגאנט מלא ותואם לתזמון בפועל', owners: ['ilai'] },
-      { key: 'p29.told', label: 'עילאי עדכן את עירית שהגאנט מוכן', owners: ['ilai'] },
       { key: 'p29.sent', label: 'הגאנט הועבר ללקוח', owners: ['irit'], requires: ['p29.filled'] },
     ],
   },

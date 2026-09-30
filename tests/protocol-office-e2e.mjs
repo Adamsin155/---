@@ -694,7 +694,8 @@ assert.equal(await page.getAttribute('#tab-performance', 'aria-selected'), 'true
 // His card: only his processes (with the second round's), none of the office's controls; one click checks.
 await page.goto(`${BASE}client.html?id=${seeded.id}#p06`);
 await page.waitForSelector('#p06');
-assert.deepEqual(await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id)), ['p06', 'p07', 'p09', 'p23', 'p28', 'p29', 'r2-p28', 'r2-p29']);
+// 27 too: Ilai's "קיבלתי" on the final versions closes the editing (protocol v5).
+assert.deepEqual(await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id)), ['p06', 'p07', 'p09', 'p23', 'p27', 'p28', 'p29', 'r2-p27', 'r2-p28', 'r2-p29']);
 for (const sel of ['#btn-edit', '#view-toggle', '.deliv', '.status-note', '.round-add', '.round-head button', '#task-form:not([hidden])']) assert.equal(await page.locator(sel).count(), 0, sel);
 assert.equal(await page.isHidden('#access'), true); // the vault is not his in this fake
 assert.equal(await page.isHidden('#history'), true);
@@ -765,7 +766,8 @@ await thuCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
 await thuCtx.addInitScript(fakeNotifications);
 const thu = await thuCtx.newPage();
 watch(thu);
-await thu.goto(`${BASE}clients.html`);
+// Ofir's first screen is the quality-control queue (qa.html); "מה עליי" is one link away.
+await thu.goto(`${BASE}clients.html#mine`);
 await thu.fill('#lg-email', USER.email);
 await thu.fill('#lg-pass', 'correct-horse');
 await thu.click('#lg-submit');
@@ -793,7 +795,7 @@ await nyCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
 await nyCtx.addInitScript(fakeNotifications);
 const ny = await nyCtx.newPage();
 watch(ny);
-await ny.goto(`${BASE}clients.html`);
+await ny.goto(`${BASE}clients.html#mine`);
 await ny.fill('#lg-email', USER.email);
 await ny.fill('#lg-pass', 'correct-horse');
 await ny.click('#lg-submit');

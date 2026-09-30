@@ -188,7 +188,7 @@ async function step(name, fn) {
 // ── "מה עליי" ─────────────────────────────
 const page = await newPage();
 await step('checking the access item in "מה עליי" offers "לשלוח לעילאי" with a ready message', async () => {
-  await signIn(page, 'clients.html');
+  await signIn(page, 'clients.html#mine'); // Ofir's first screen is qa.html; his list is one link away
   const cbx = `#w-${ron.id}-p05_access`;
   await page.waitForSelector(cbx);
   assert.equal(await page.locator('#handoff').isHidden(), true, 'nothing offered before a check');
@@ -263,7 +263,7 @@ await step('undoing the check takes the prompt away at once', async () => {
 const phone = await newPage({ viewport: { width: 360, height: 740 } });
 await step('checked and undone while the numbers are still loading: no prompt comes up', async () => {
   slowPhones = 1500;
-  await signIn(phone, 'clients.html');
+  await signIn(phone, 'clients.html#mine');
   const cbx = `#w-${dana.id}-p05_access`;
   await phone.waitForSelector(cbx);
   const asked = phone.waitForRequest((r) => /\/rest\/v1\/staff\?/.test(r.url()) && /phone/.test(r.url()));

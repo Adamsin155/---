@@ -188,7 +188,7 @@ node scripts/build-pages.mjs --commit
 | `supabase/functions/reminders/tick.js` | הרצה אחת: שלבים, יומן, תקצירים ושליחה |
 | `supabase/functions/reminders/webpush.js` | הצפנת Web Push וחתימת VAPID (WebCrypto בלבד) |
 | `supabase/functions/reminders/http.js` | CORS וכותרות |
-| `supabase/functions/_shared/app/reminder-engine.js`, `reminder-rules.js`, `protocol-logic.js`, `protocol.js`, `clocks.js`, `tz.js`, `holidays.js`, `catalog.js`, `push-config.js` | עותקים של `app/` (סעיף 1). לא עורכים ביד |
+| `supabase/functions/_shared/app/reminder-engine.js`, `reminder-rules.js`, `office-marks.js`, `protocol-logic.js`, `protocol.js`, `clocks.js`, `tz.js`, `holidays.js`, `catalog.js`, `push-config.js` | עותקים של `app/` (סעיף 1). לא עורכים ביד |
 
 **הפעלה, לפי הסדר:**
 
@@ -243,3 +243,11 @@ select email, fail_count, last_error, last_ok_at from public.push_subscriptions 
 - כל אחד רואה ומוחק רק את המכשירים שלו, ומכשיר עובר למי שחיבר אותו אחרון. את היומן כל אחד קורא רק לעצמו; הבעלים וליאור רואים את כולו (החלטה 22).
 - מי שיש לו גישה ל־SQL Editor או למפתח השירות יכול לקרוא את ה־Vault, כמו בכספת הגישות (סעיף 3).
 - החלפת זוג המפתחות של VAPID מנתקת את כל הטלפונים: כל אחד מחבר מחדש מהכרטיס ב"מה עליי".
+
+## 11. זרימות המשרד: אופיר, ליאור ועילאי
+
+*שלב 3, חלק 2 ([התוכנית, סעיף 3](plan/system-plan.md)). המסכים: `qa.html` (אופיר: תור בקרת איכות, אפיונים של היום, שיוך עורכים), `pass.html` (אופיר: המעבר על הלקוחות, תקינות נתונים, סיכום חמישי, "אין מי שייצא לאפיון", בקשת שינוי) ו־`decisions.html` (ליאור: "החלטות"). עילאי מקבל את "יום אפיון: שעתיים" בראש "מה עליי". אופיר וליאור נוחתים על המסך הראשון שלהם כשהלשונית נפתחת על `clients.html`.*
+
+- **האירועים הם סימונים** ב־`protocol_checks`, עם מפתחות קבועים (`app/office-marks.js`): החזרה לתיקון ותיקוניה (`p25.return.N`, `p25.fixed.N`, `p23.…`), סיבת השיוך (`p22a.reason`), הזזת מועדי עריכה (`p22a.shift`), החלטה על עריכה עצורה (`p22.decision`) וסגירת גישה שבורה (`p06.fixed.<רשת>`). מנוע התזכורות קורא אותם בלי טבלה חדשה, ולכן אחרי המיזוג פורסים מחדש את הפונקציה `reminders` (סעיף 10; `office-marks.js` נוסף לעותקים).
+- **המיגרציה** `20260930150000_office_flows.sql` (אחרי `20260930130000_assignment_rls.sql`): הטבלאות `office_passes`, `task_decisions` ו־`change_requests` עם RLS (‏`is_office()` ו־`can_see_client()`), סוג הבקרה `campaigns` ב־`office_reviews`, מקום לרשימת בעיות בהערה של סימון (עד 8000 תווים), והפונקציה `ofir_meetings()` שמחזירה לעורך רק את שעות האפיונים של אופיר ("אופיר באפיון, בקרה עד…"). בטוחה להרצה חוזרת. עד שהיא מוחלת המסכים עובדים בלי השמירה של המעבר, ההחלטות ובקשות השינוי, ואומרים את זה.
+- **בדיקות:** `tests/office-flows.test.mjs`, `tests/sql/office-flows.test.mjs` (בתוך `npm test`) ו־`tests/office-flows-e2e.mjs`.

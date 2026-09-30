@@ -194,11 +194,24 @@ function anchor(from, client, procs, checks, now) {
   }
 }
 
+// Deadlines counted in business days from an item moved on by a decision (Lior,
+// editing still paused the next morning): a `.shift` mark on that item's process,
+// note JSON { days }, adds that many business days (app/office-marks.js).
+export const SHIFT = (keyBase) => `${keyBase}.shift`;
+function shiftDays(from, checks) {
+  const m = /^item:((?:r\d+\.)?p\d+[a-z]?)\./.exec(from || '');
+  const c = m && checks[SHIFT(m[1])];
+  if (!c || c.state !== 'done') return 0;
+  let days = 0;
+  try { days = Number(JSON.parse(c.note)?.days); } catch { /* not JSON */ }
+  return Number.isInteger(days) && days > 0 && days <= 30 ? days : 0;
+}
+
 export function resolveTime(spec, client, procs, checks, now = new Date()) {
   if (!spec) return null;
   const base = anchor(spec.from, client, procs, checks, now);
   if (!base) return null;
-  if (spec.businessDays) return addBusinessDays(base, spec.businessDays);
+  if (spec.businessDays) return addBusinessDays(base, spec.businessDays + shiftDays(spec.from, checks));
   if (onOfficeTime(spec)) {
     return addWorkingMinutes(base, (spec.hours || 0) * 60 + (spec.minutes || 0));
   }

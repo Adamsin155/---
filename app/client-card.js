@@ -27,6 +27,12 @@ import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 import { clientHealth, station, timeline } from './health.js';
 import { healthHead, timelineBlock, questionsBlock } from './health-ui.js';
 import { loadHealthExtras, loadQuestions } from './owner-data.js';
+// Stage 3, part 2: Ofir's returns for fixes, the office's marks in the history, "התחלתי".
+import { qaLine, startControl } from './office-ui.js';
+import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
+import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
+import { folderItemOf } from './qa-logic.js';
+import { loadOfirMeetings } from './office-data.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -43,6 +49,7 @@ let statusNotes = null;      // all of them (null: not loaded), for the Thursday
 let healthExtras = null;     // messages, history and date changes, for the colour (office only)
 let tlAll = false;           // the timeline shows everything done, not only the latest
 let questions = null;        // questions to the one responsible about this client (null: none or not loaded)
+let ofirMeetings = null;     // Ofir's meetings today (times only), for "אופיר באפיון, בקרה עד…" (null: not known)
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
 let scope = 'office';        // 'own': only my processes and items; 'office': may show the whole protocol
@@ -92,11 +99,12 @@ async function load() {
     checks = ch[id] || {};
     tasks = t;
     if (c.quote_id && (!quote || quote.id !== c.quote_id)) quote = await loadQuoteSummary(c.quote_id);
-    [access, statusNotes, healthExtras, questions] = await Promise.all([
+    [access, statusNotes, healthExtras, questions, ofirMeetings] = await Promise.all([
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
       own() ? null : loadHealthExtras(id, new Date(Date.now() - 30 * 864e5).toISOString()),
       loadQuestions({ clientId: id }).catch(() => null),
+      loadOfirMeetings(new Date().toISOString()).catch(() => null),
     ]);
     statusNote = statusNotes?.[0] || null;
   } catch (err) {
@@ -145,10 +153,37 @@ function render() {
   }
   renderHead(s);
   renderAccess();
+  renderQa(s);
   renderViewbar();
   renderPhases(s);
   renderTimeline(s);
   renderTasks();
+}
+
+// ── Ofir's quality control (stage 3, part 2) ──
+// Work with Ofir now (until when: "אופיר באפיון, בקרה עד HH:MM" while he is in a
+// meeting) or returned by him with the list to fix ("תוקן" each, or all). Above the
+// processes, since the returned work's own process may already be folded as done.
+// The office sees all of it; anyone else only what they fix.
+function renderQa(s) {
+  const box = $('qa-block');
+  if (!box) return;
+  const parts = [];
+  for (const x of s.states) {
+    const pid = x.proc.id.replace(/^r\d+-/, '');
+    const kind = { p24: 'videos', p23: 'graphics' }[pid];
+    if (!kind) continue;
+    const pre = x.proc.keyBase.slice(0, -pid.length);
+    const ctx = x.proc.ctx || client;
+    const q = qaState(checks, pre, kind);
+    if (q.stage !== 'ofir' && q.stage !== 'fixing') continue;
+    if (own() && QA_KINDS[kind].fixer(ctx) !== me) continue;
+    parts.push(h('div', { class: 'qa-part' },
+      h('h3', { class: 'qa-part-h' }, `${QA_KINDS[kind].title}${ctx.round ? ` · סבב צילום ${ctx.round}` : ''}`),
+      qaLine({ client, checks, kind, pre, ctx, me, viewer: { me, scope, error: viewerError }, meetings: ofirMeetings, onChange: () => { renderKeepingFocus(); loadHistory(); } })));
+  }
+  box.hidden = !parts.length || printing;
+  fill(box, parts.length ? h('h2', { class: 'qa-block-h', id: 'qa-block-h' }, 'בקרת האיכות של אופיר') : null, ...parts);
 }
 
 // ── The colour, now and next, and the timeline (office only; section 6, screen 3) ──
@@ -333,7 +368,15 @@ async function refreshAccess() {
   if (!vaultOk) return;
   try { access = await loadAccess(id); } catch { /* keep the old list */ }
   renderAccess();
+  await autoAccessCheck();
   await refreshAccessLog();
+}
+// Process 6: once every login in the vault has a status set after the access came
+// in, the check is done by itself (Ilai, system-plan section 3; app/ilai-logic.js).
+async function autoAccessCheck() {
+  const got = checks['p05.access'];
+  if (checks['p06.verified'] || got?.state !== 'done' || !accessChecked(access, got.at)) return;
+  if (await mark('p06.verified', 'done', null, AUTO_ACCESS_NOTE)) toast('כל הרשתות בכספת קיבלו סטטוס: בדיקת הגישות (6) סומנה.');
 }
 // Only the log: re-rendering the list would wipe a password being shown.
 async function refreshAccessLog() {
@@ -887,6 +930,12 @@ async function mark(key, state, focusId, note = null) {
     await endWaitIfComplete(key);
     renderKeepingFocus(focusId);
     loadHistory();
+    // The folder item (24) closes Ofir's folder task with it.
+    if (state === 'done' && /^(r\d+\.)?p24\.folder$/.test(key)) {
+      for (const t of tasks.filter((x) => !x.done_at && folderItemOf(x) === key)) {
+        try { const done = await setTaskDone(t.id, true); tasks = tasks.map((x) => (x.id === t.id ? done : x)); renderTasks(); } catch { /* the task stays */ }
+      }
+    }
     // A handoff item: offer the ready WhatsApp message to the next person.
     if (state === 'done') offerHandoff({ client, key, checks: () => checks, me, canTeam: canTeam(), onSent: afterHandoff });
     else dropHandoff(key);
@@ -1009,10 +1058,22 @@ const callNote = (c) => {
   try { const v = JSON.parse(c?.note || ''); if (v && v.topics) return v; } catch { /* plain text */ }
   return c?.note ? { text: c.note } : null;
 };
+// Leads and ad spend: optional numbers of the weekly call (Lior's campaigns).
+const callNumbers = (v) => [
+  Number.isFinite(v?.leads) ? [h('dt', {}, 'לידים'), h('dd', {}, String(v.leads))] : null,
+  Number.isFinite(v?.spend) ? [h('dt', {}, 'הוצאה על פרסום'), h('dd', {}, `${v.spend.toLocaleString('he-IL')} ₪`)] : null,
+];
 function callSummary(v) {
   if (!v) return null;
   if (v.text) return h('dl', { class: 'call-sum' }, h('dt', {}, 'סיכום'), h('dd', {}, v.text));
-  return h('dl', { class: 'call-sum' }, ...CALL_TOPICS.filter(([k]) => v.topics[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, v.topics[k])]));
+  return h('dl', { class: 'call-sum' }, ...callNumbers(v), ...CALL_TOPICS.filter(([k]) => v.topics?.[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, v.topics[k])]));
+}
+// The optional numbers as typed: whole and not negative, or left out.
+function readCallNumber(elId) {
+  const raw = $(elId).value.trim();
+  if (!raw) return { ok: true, value: undefined };
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? { ok: true, value: n } : { ok: false };
 }
 const pastCalls = (key) => calls.filter((r) => r.item_key === key).map((r) => ({ ...r, v: callNote(r) }));
 function callTasks(call) {
@@ -1093,7 +1154,7 @@ function openCall(key) {
   const prev = pastCalls(key)[0];
   fill($('call-prev'), prev ? h('details', { class: 'call-prev' },
     h('summary', {}, `מהשיחה הקודמת (${formatStamp(prev.v?.at || prev.at)} · ${who(prev.by_email)})`),
-    prev.v?.topics ? h('dl', { class: 'call-sum' }, ...[['upcoming', 'תכנים עתידיים'], ['requests', 'בקשות חדשות'], ['improve', 'דברים שצריך לשפר']]
+    prev.v?.topics ? h('dl', { class: 'call-sum' }, ...callNumbers(prev.v), ...[['upcoming', 'תכנים עתידיים'], ['requests', 'בקשות חדשות'], ['improve', 'דברים שצריך לשפר']]
       .filter(([k]) => prev.v.topics[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, prev.v.topics[k])])) : callSummary(prev.v),
     (() => {
       const ts = callTasks(prev);
@@ -1107,6 +1168,9 @@ $('call-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('call-err').hidden = true;
   const topics = Object.fromEntries(CALL_TOPICS.map(([k]) => [k, $(`call-${k}`).value.trim()]).filter(([, v]) => v));
+  const leads = readCallNumber('call-leads');
+  const spend = readCallNumber('call-spend');
+  if (!leads.ok || !spend.ok) { showErr('call-err', 'לידים והוצאה על פרסום: מספר שלם, בלי מינוס. אפשר להשאיר ריק.'); $(leads.ok ? 'call-spend' : 'call-leads').focus(); return; }
   if (!callSavedFor && !Object.keys(topics).length) { showErr('call-err', 'לא נכתב דבר בסיכום. כתבו לפחות נושא אחד שעלה בשיחה.'); $('call-campaigns').focus(); return; }
   const rows = callTaskRows();
   for (const r of rows) {
@@ -1123,7 +1187,7 @@ $('call-form').addEventListener('submit', async (e) => {
   $('call-submit').disabled = true;
   if (!callSavedFor) {
     const at = (fromInputIL($('call-at').value) || new Date()).toISOString();
-    const ok = await mark(callKey, 'done', null, JSON.stringify({ v: 1, at, topics }));
+    const ok = await mark(callKey, 'done', null, JSON.stringify({ v: 1, at, topics, leads: leads.value, spend: spend.value }));
     if (!ok) { showErr('call-err', 'השיחה לא נשמרה. הטקסט נשאר כאן. בדקו את החיבור ונסו שוב.'); $('call-submit').disabled = false; return; }
     callSavedFor = callKey;
   }
@@ -1395,7 +1459,9 @@ function renderTasks() {
             t.due_on ? h('span', { class: `num${late ? ' late' : ''}` }, `${late ? 'באיחור · ' : ''}עד ${formatDay(t.due_on)}`) : null,
             t.done_at ? h('span', { class: 'by' }, `בוצע · ${who(t.done_by_email)} · ${formatStamp(t.done_at)}`) : h('span', { class: 'by' }, `נפתח ע״י ${who(t.created_by_email)} · ${formatStamp(t.created_at)}`)))),
       t.brief ? h('details', { class: 'call-show task-brief-show' }, h('summary', {}, 'בריף'),
-        h('dl', { class: 'call-sum' }, ...BRIEF_FIELDS.filter(([k]) => t.brief[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, t.brief[k])]))) : null);
+        h('dl', { class: 'call-sum' }, ...BRIEF_FIELDS.filter(([k]) => t.brief[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, t.brief[k])]))) : null,
+      // An urgent task: "התחלתי" within 30 office minutes, or it goes back to Lior (decision 9).
+      t.urgent && !t.done_at ? startControl(t, me, () => renderTasks()) : null);
   };
   open.sort((a, b) => Number(b.urgent) - Number(a.urgent));
   if (!list.length) fill($('task-list'), h('li', { class: 'empty' }, 'אין משימות פתוחות.'));
@@ -1406,6 +1472,9 @@ async function toggleTask(t, input) {
   try {
     const row = await setTaskDone(t.id, input.checked);
     tasks = tasks.map((x) => (x.id === t.id ? row : x));
+    // Ofir's folder task (24) is the item "יש תיקייה מסודרת": done together.
+    const folder = input.checked ? folderItemOf(t) : null;
+    if (folder && checks[folder]?.state !== 'done') await mark(folder, 'done', null);
     renderTasks();
     document.getElementById(`t-${t.id}`)?.focus();
   } catch (err) {
@@ -1460,6 +1529,8 @@ function historyText(r) {
   const base = baseKey(r.item_key);
   const handed = describeMark(base, r.note);
   if (handed) return r.action === 'clear' ? `ביטל/ה רישום העברה: ${pre}${handed}` : `פתח/ה וואטסאפ להעברה: ${pre}${handed}`;
+  const office = describeOfficeMark(base, r.action, r.note);
+  if (office) return `${pre}${office}`;
   const mk = /^(p\d+[ab]?)\.(claim|wait|waited|pause|answered)$/.exec(base);
   if (mk) {
     const num = PROCESSES.find((p) => p.id === mk[1])?.num;

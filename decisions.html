@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>החלטות · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-office.css">
+  <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/owner.css">
+  <link rel="stylesheet" href="app/styles/office-flows.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="clients.html" aria-label="astrateg · לקוחות ופרוטוקול">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">החלטות</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="clients.html#mine">לקוחות</a>
+      <a class="navlink" href="decisions.html" aria-current="page">החלטות</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>ההחלטות זמינות לליאור ולמשרד.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app of-app" hidden>
+      <div id="dc-page" hidden>
+        <div class="page-head">
+          <div>
+            <div class="kicker latin">DECISIONS</div>
+            <h1>החלטות</h1>
+            <p>מה מחכה להחלטה שלך. כל חריגה עוברת מסלול קבוע: סיבה, החלטה, פעולה הבאה עם אחראי ומועד, סגירה.</p>
+          </div>
+          <div class="head-actions" id="head-actions">
+            <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+            <a class="btn btn-sm" href="clients.html#mine" id="link-mine">מה עליי</a>
+          </div>
+        </div>
+        <div id="dc-banners"></div>
+        <section class="myq" id="my-questions" aria-labelledby="myq-h" hidden></section>
+        <nav class="ctl-nav of-jump" aria-label="חלקי העמוד" id="dc-jump"></nav>
+        <section class="block of-sec" aria-labelledby="ex-h">
+          <h2 class="wgroup-h" id="ex-h" tabindex="-1">חריגות שמחכות לך <span class="n" id="ex-n">0</span></h2>
+          <ul class="of-list" id="ex-list"></ul>
+        </section>
+        <section class="block of-sec" aria-labelledby="ur-h">
+          <h2 class="wgroup-h" id="ur-h" tabindex="-1">משימות דחופות <span class="n" id="ur-n">0</span></h2>
+          <p class="hint">משימה דחופה דורשת ״התחלתי״ תוך 30 דקות עבודה; בלי זה היא חוזרת אליך.</p>
+          <ul class="of-list" id="ur-list"></ul>
+        </section>
+        <section class="block of-sec" aria-labelledby="ac-h" id="ac-sec">
+          <h2 class="wgroup-h" id="ac-h" tabindex="-1">גישות שבורות <span class="n" id="ac-n">0</span></h2>
+          <ul class="of-list" id="ac-list"></ul>
+        </section>
+        <section class="block of-sec" aria-labelledby="pz-h">
+          <h2 class="wgroup-h" id="pz-h" tabindex="-1">עריכה שעדיין עצורה <span class="n" id="pz-n">0</span></h2>
+          <p class="hint">עריכה שנעצרה ועדיין עצורה בבוקר שאחרי: להזיז מועדים או להעביר לעורך אחר. אופיר מציע שיבוץ לפי העומס.</p>
+          <ul class="of-list" id="pz-list"></ul>
+        </section>
+        <section class="block of-sec" aria-labelledby="cp-h" id="cp-sec" hidden>
+          <h2 class="wgroup-h" id="cp-h" tabindex="-1">בדיקת קמפיינים שבועית</h2>
+          <div id="cp-body"></div>
+        </section>
+        <section class="block of-sec" aria-labelledby="ls-h">
+          <h2 class="wgroup-h" id="ls-h" tabindex="-1">מהרשימות של 12:00 ו־16:00 <span class="n" id="ls-n">0</span></h2>
+          <p class="hint">ההסלמות שאינן דחופות, בדיוק כמו ברשימות שמגיעות אליך: מה שעדיין נכון עכשיו.</p>
+          <ul class="of-list" id="ls-list"></ul>
+        </section>
+        <section class="block of-sec" aria-labelledby="cq-h">
+          <h2 class="wgroup-h" id="cq-h" tabindex="-1">בקשות שינוי <span class="n" id="cq-n">0</span></h2>
+          <ul class="of-list" id="cq-list"></ul>
+        </section>
+      </div>
+
+      <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
+        <p>ההחלטות פתוחות לליאור ולמשרד. העבודה שלך נמצאת ב״מה עליי״.</p>
+        <a class="btn" href="clients.html#mine">מעבר למה עליי</a>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/decisions.js"></script>
+</body>
+</html>

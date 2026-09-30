@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>בקרה ושיוך · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-office.css">
+  <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/owner.css">
+  <link rel="stylesheet" href="app/styles/office-flows.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="clients.html" aria-label="astrateg · לקוחות ופרוטוקול">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">בקרה ושיוך</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="clients.html#mine">לקוחות</a>
+      <a class="navlink" href="qa.html" aria-current="page">בקרה ושיוך</a>
+      <a class="navlink" href="pass.html">מעבר על הלקוחות</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>בקרת האיכות ושיוך העורכים זמינים לאופיר, לליאור ולמשרד.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app of-app" hidden>
+      <div id="of-page" hidden>
+        <div class="page-head">
+          <div>
+            <div class="kicker latin">QUALITY · EDITORS</div>
+            <h1>בקרה ושיוך</h1>
+            <p>מה מחכה לבקרה שלך ומול יעד של שעה, האפיונים של היום, ולקוחות שמחכים לעורך.</p>
+          </div>
+          <div class="head-actions" id="head-actions">
+            <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+            <a class="btn btn-sm" href="clients.html#mine">מה עליי</a>
+          </div>
+        </div>
+        <div id="of-banners"></div>
+        <section class="myq" id="my-questions" aria-labelledby="myq-h" hidden></section>
+        <nav class="ctl-nav of-jump" aria-label="חלקי העמוד" id="of-jump"></nav>
+        <section class="block of-sec" aria-labelledby="qa-h">
+          <h2 class="wgroup-h" id="qa-h" tabindex="-1">תור בקרת איכות <span class="n" id="qa-n">0</span></h2>
+          <ul class="of-list" id="qa-list"></ul>
+          <div id="qa-fixing"></div>
+        </section>
+        <section class="block of-sec" aria-labelledby="char-h">
+          <h2 class="wgroup-h" id="char-h" tabindex="-1">האפיונים של היום <span class="n" id="char-n">0</span></h2>
+          <ul class="of-list" id="char-list"></ul>
+        </section>
+        <section class="block of-sec" aria-labelledby="assign-h">
+          <h2 class="wgroup-h" id="assign-h" tabindex="-1">ממתינים לשיוך עורך <span class="n" id="assign-n">0</span></h2>
+          <ul class="of-list" id="assign-list"></ul>
+        </section>
+        <section class="block of-sec" aria-labelledby="load-h">
+          <h2 class="wgroup-h" id="load-h" tabindex="-1">עומס עורכים</h2>
+          <ul class="of-load" id="load-list"></ul>
+        </section>
+      </div>
+
+      <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
+        <p>בקרת האיכות ושיוך העורכים פתוחים לאופיר, לליאור ולמשרד. העבודה שלך נמצאת ב״מה עליי״.</p>
+        <a class="btn" href="clients.html#mine">מעבר למה עליי</a>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <dialog id="dlg-qa" class="dlg-wide" aria-labelledby="qa-dlg-h">
+    <form id="qa-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="qa-dlg-h">בקרת איכות</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p class="of-meta" id="qa-meta"></p>
+        <div id="qa-prev"></div>
+        <fieldset class="of-checks" id="qa-checks-box">
+          <legend id="qa-checks-legend">הבדיקות</legend>
+          <div id="qa-checks"></div>
+        </fieldset>
+        <div id="qa-return" hidden>
+          <h3 class="of-sub" id="qa-return-h">החזרה לתיקון</h3>
+          <p class="hint" id="qa-return-hint">לכל שורה: מספר ומה לתקן. העורך מקבל את הרשימה מיד.</p>
+          <ol class="of-issues" id="qa-issues"></ol>
+          <button type="button" class="btn btn-sm" id="qa-add">הוספת שורה</button>
+          <div class="field">
+            <label for="qa-due">לתקן עד</label>
+            <input class="input" id="qa-due" type="datetime-local" dir="ltr" aria-describedby="qa-due-hint">
+            <p class="hint" id="qa-due-hint">הערות עד 13:00 מתוקנות באותו יום; אחרי 13:00 עד סוף יום העסקים הבא.</p>
+          </div>
+        </div>
+        <div class="err" id="qa-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>סגירה</button>
+        <button type="button" class="btn" id="qa-to-return">החזרה לתיקון</button>
+        <button type="button" class="btn" id="qa-back" hidden>חזרה לבדיקות</button>
+        <button type="submit" class="btn btn-primary" id="qa-approve">אישור</button>
+        <button type="button" class="btn btn-primary" id="qa-send-return" hidden>שליחה לתיקון</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-assign" class="dlg-wide" aria-labelledby="as-h">
+    <form id="as-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="as-h">שיוך עורך</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p class="of-meta" id="as-meta"></p>
+        <label class="wrow as-joint" id="as-joint-wrap" for="as-joint" hidden>
+          <input type="checkbox" class="cbx" id="as-joint">
+          <span class="wlabel">יום צילום משותף לנטלי ולסמיון</span>
+        </label>
+        <fieldset class="as-editors">
+          <legend>העורך</legend>
+          <div id="as-editors"></div>
+        </fieldset>
+        <div class="field" id="as-reason-wrap">
+          <label for="as-reason" id="as-reason-label">סיבה</label>
+          <textarea class="input" id="as-reason" rows="2" maxlength="500" aria-describedby="as-reason-hint"></textarea>
+          <p class="hint" id="as-reason-hint"></p>
+        </div>
+        <p class="hint" id="as-after">השיוך מסמן את 22א, פותח לך את משימת התיקייה (24) עד סוף יום העריכה הראשון, ומכין וואטסאפ לעורך עם שני המועדים.</p>
+        <div class="err" id="as-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="as-submit">שיוך</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/qa.js"></script>
+</body>
+</html>

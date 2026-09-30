@@ -379,7 +379,7 @@ await nightCtx.addInitScript(fakeNotifications);
 await nightCtx.addInitScript(() => { try { localStorage.setItem('fake.perm', 'granted'); localStorage.setItem('astrateg.notify', 'on'); } catch { /* about:blank */ } });
 const night = await nightCtx.newPage();
 watch(night);
-await night.goto(`${BASE}clients.html`);
+await night.goto(`${BASE}clients.html#mine`); // Lior's first screen is decisions.html; his list is one link away
 await night.fill('#lg-email', USER.email);
 await night.fill('#lg-pass', 'correct-horse');
 await night.click('#lg-submit');

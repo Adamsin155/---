@@ -1,0 +1,135 @@
+/* The office's screens (stage 3, part 2): Ofir's quality control and assignment
+   (qa.html), his pass over the clients (pass.html), Lior's decisions
+   (decisions.html), Ilai's characterization day in "מה עליי", and the fixes list
+   and quality line in the client card. Builds on app.css, protocol.css and
+   protocol-office.css. Phones first: 44px targets, no sideways scrolling at 360px. */
+
+.of-app .page-head { flex-wrap: wrap; }
+.of-app .head-actions { flex-wrap: wrap; }
+.of-sec { margin-top: 14px; padding: 14px 16px 10px; }
+.of-sec > .wgroup-h { margin: 0 0 8px; }
+.of-jump { margin: 10px 0 0; }
+.of-jump .chips-row { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+
+.of-list, .of-load { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.of-list > .empty, .of-load > .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+.of-card {
+  display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--radius-md);
+  background: var(--bg-2); border: 1px solid var(--line); min-width: 0;
+}
+.of-card.is-late { border-color: color-mix(in srgb, var(--late) 55%, var(--line)); background: var(--late-soft); }
+.of-card.is-done { opacity: .85; }
+.of-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.of-head .wclient { font-weight: 600; font-size: 15.5px; overflow-wrap: anywhere; }
+.of-head .wtitle { color: var(--text-2); font-size: 14px; }
+.of-line { margin: 0; font-size: 14px; color: var(--text-2); overflow-wrap: anywhere; }
+.of-line .late, .of-app .late, .late { color: var(--late); font-weight: 500; }
+.of-time { font-weight: 600; color: var(--accent-deep); }
+.of-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.of-meter { display: block; block-size: 6px; border-radius: 99px; background: var(--panel-2); overflow: hidden; }
+.of-meter > span { display: block; block-size: 100%; background: var(--accent); }
+.of-meter.is-late > span { background: var(--late); }
+.of-banner {
+  margin: 10px 0 0; padding: 10px 14px; border-radius: var(--radius-md); font-size: 14px;
+  background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.of-banner.is-warn { background: var(--warn-soft); border-color: var(--warn-line); }
+.of-fixing { margin-top: 12px; }
+.of-fixing > summary, .of-prev > summary, .qa-hist > summary, .dc-more > summary {
+  cursor: pointer; color: var(--accent); font-size: 14px; min-height: 44px; display: flex; align-items: center;
+}
+.of-fixing .of-list { margin-top: 6px; }
+.of-jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.of-jobs .tag { margin-inline-start: 6px; }
+.office-link { white-space: nowrap; }
+
+/* Dialogs */
+.of-meta { font-size: 14px; color: var(--text-2); }
+.of-prev ul { margin: 4px 0 0; padding-inline-start: 20px; font-size: 14px; }
+.of-checks { border: 0; margin: 0; padding: 0; display: grid; gap: 2px; }
+.of-checks legend, .as-editors legend { font-weight: 600; margin-bottom: 6px; padding: 0; }
+.of-checks .wrow, .as-editors .wrow, .as-joint { min-height: 44px; display: flex; align-items: center; gap: 10px; }
+.of-sub { margin: 0 0 4px; font-size: 16px; }
+.of-issues { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 10px; }
+.of-issue { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-end; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
+.of-issue .of-ref { flex: 0 0 96px; }
+.of-issue .grow { flex: 1 1 200px; min-width: 0; }
+.of-issue textarea { min-height: 44px; resize: vertical; }
+.of-remove { min-height: 44px; }
+.as-editors { border: 0; margin: 0; padding: 0; display: grid; gap: 4px; }
+.as-editor .wlabel { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.as-load { flex-basis: 100%; }
+
+/* The fixes returned by Ofir (client card, Ilai's list) */
+.qa-block { padding: 14px 16px; display: grid; gap: 10px; }
+.qa-block-h { margin: 0; font-size: 17px; }
+.qa-part { display: grid; gap: 4px; }
+.qa-part-h { margin: 0; font-size: 15px; }
+.fix-list { display: grid; gap: 6px; margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--warn-soft); border: 1px solid var(--warn-line); }
+.fix-h { margin: 0; font-size: 14px; }
+.fix-due.late { color: var(--late); }
+.fix-items { margin: 0; padding-inline-start: 20px; display: grid; gap: 6px; font-size: 14px; }
+.fix-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+.fix-item .fix-text { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
+.fix-item.is-fixed .fix-text { color: var(--muted); text-decoration: line-through; }
+.fix-all { justify-self: start; }
+.qa-line { margin-top: 8px; display: grid; gap: 4px; }
+.qa-now { margin: 0; font-size: 14px; color: var(--text-2); }
+.qa-hist ol { margin: 4px 0 0; padding-inline-start: 20px; font-size: 13.5px; display: grid; gap: 6px; }
+.qa-hist ul { margin: 2px 0 0; padding-inline-start: 18px; color: var(--text-2); }
+.task-start { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 0 0; font-size: 13.5px; }
+
+/* The pass over the clients (pass.html) */
+.ps-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 14px; margin: 0 0 10px; }
+.ps-progress .pbar { inline-size: 120px; }
+.ps-row .ps-reasons, .ps-row .ps-changes { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 13.5px; }
+.ps-row .ps-changes { color: var(--accent-deep); }
+.ps-row.is-seen { opacity: .8; }
+.ps-seen { font-size: 13.5px; color: var(--ok); font-weight: 500; }
+.ps-rest { margin-top: 12px; display: grid; gap: 8px; }
+.ps-rest .btn { justify-self: start; }
+.ps-health-group { margin-top: 10px; }
+.ps-health-group > h3 { margin: 0 0 6px; font-size: 15px; }
+.ps-form { display: grid; gap: 8px; margin-top: 8px; }
+.ps-form .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.ps-form textarea { min-height: 44px; resize: vertical; }
+.ps-sum > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; list-style: none; }
+.ps-sum > summary::-webkit-details-marker { display: none; }
+.ps-target { font-weight: 600; }
+.ps-target.late { color: var(--late); }
+
+/* Lior's decisions (decisions.html) */
+.dc-path { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; }
+.dc-path li { padding: 2px 10px; border-radius: 99px; border: 1px solid var(--line-strong); color: var(--muted); }
+.dc-path li.is-done { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); background: var(--ok-soft); }
+.dc-path li.is-now { color: var(--accent-deep); border-color: var(--accent); background: var(--accent-soft); font-weight: 500; }
+.dc-report { margin: 0; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dc-form { display: grid; gap: 8px; }
+.dc-form .row3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px 12px; }
+.dc-choice { display: grid; gap: 6px; }
+.dc-choice .wrow { min-height: 44px; display: flex; align-items: center; gap: 10px; }
+.dc-inline { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; }
+.dc-inline .field { margin: 0; }
+
+/* Ilai's characterization day in "מה עליי" */
+.il-card .il-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.il-card details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; list-style: none; }
+.il-card details > summary::-webkit-details-marker { display: none; }
+.il-part { display: grid; gap: 4px; padding: 8px 0; border-top: 1px dashed var(--line); }
+.il-part > h4 { margin: 0; font-size: 14.5px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.il-checks { display: flex; flex-wrap: wrap; gap: 0 14px; }
+.il-checks .wrow { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; }
+.il-net { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; font-size: 13px; }
+
+@media (max-width: 760px) {
+  .of-sec { padding: 12px; }
+  .of-app .btn, .of-app .btn-sm, .of-acts .btn, .fix-btn, .fix-all, .start-btn, .office-link, .il-card .btn { min-height: 44px; }
+  .of-acts .btn { flex: 1 1 auto; justify-content: center; }
+  .ps-form .row2, .dc-form .row3 { grid-template-columns: 1fr; }
+  .of-issue .of-ref { flex: 1 1 100%; }
+  .of-head a, .of-jobs a, .ps-row a, .dc-card a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+
+/* Choices: native radios, large enough to hit, in the brand violet. */
+.of-app input.radio { inline-size: 22px; block-size: 22px; margin: 0; accent-color: var(--accent); flex: none; }
+.ps-preview { flex-basis: 100%; }
