@@ -44,6 +44,8 @@ import { partsIL, dayKeyIL, atTimeIL, addDaysIL, dayFromKeyIL, daysBetweenIL, we
 import {
   missingOf, missingText, briefingOf, pauseText, arrivalOf, driveName, noteOf,
 } from './production.js';
+// Stage 4: the client's fix requests and low scores (their own ladders).
+import { STATUS_RULES, STATUS_SOURCES } from './status-rules.js';
 
 export const OWNER = 'owner';
 // Who has reminders: the owner and the protocol's people (reminder_log.person).
@@ -762,7 +764,7 @@ export const RULES = [
   {
     id: 'task', event: 'משימה רגילה', procs: [],
     instances(env) {
-      return env.tasks.filter((t) => !t.urgent && t.source !== 'escalation' && t.source !== TELL && !t.done_at && env.clientById.has(t.client_id)).map((t) => {
+      return env.tasks.filter((t) => !t.urgent && t.source !== 'escalation' && t.source !== TELL && !STATUS_SOURCES.has(t.source) && !t.done_at && env.clientById.has(t.client_id)).map((t) => {
         const c = env.clientById.get(t.client_id);
         const creator = env.personOf(t.created_by_email);
         return { id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, creator: creator && creator !== t.owner ? creator : null, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at), due: t.due_on ? dayFromKeyIL(t.due_on) : null } };
@@ -1200,6 +1202,7 @@ export const RULES = [
       { id: 'ofir', to: 'ofir', level: 'quiet', overdue: true, when: (i) => QUALITY.has(baseId(i.proc.id)) && !i.owners.includes('ofir'), title: (i) => `באיחור: ${i.name} · ${procName(i.proc)}`, body: (i) => `עותק לידיעה: ${names(i.owners.map(personName))}.` },
     ],
   },
+  ...STATUS_RULES,
 ];
 
 const NO_CHARACTERIZER = 'אין מי שייצא לאפיון';

@@ -35,6 +35,8 @@ import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { folderItemOf } from './qa-logic.js';
 import { loadOfirMeetings } from './office-data.js';
 import { intakeShortcut, mountClientIntake, describeIntakeMark } from './intake-ui.js';
+// Stage 4: the client's status page, approvals, surveys and WhatsApp consent.
+import { mountClientStatus } from './status-link-ui.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -155,6 +157,7 @@ function render() {
   }
   renderHead(s);
   mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus() });
+  mountClientStatus($('st-slot'), { client, scope, me, toast });
   renderAccess();
   renderQa(s);
   renderViewbar();

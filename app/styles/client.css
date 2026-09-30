@@ -108,6 +108,10 @@ button, input { font: inherit; color: inherit; }
 
 .consent { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; margin: 6px 0 4px; color: var(--ink-2); }
 .consent input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--purple); flex: none; }
+/* Decision 26: the WhatsApp updates, a separate optional choice below the agreement's consent. */
+.wa-consent { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.wa-what { margin-inline-start: 32px; min-height: 32px; }
+.wa-more { margin: 4px 0 0; margin-inline-start: 32px; font-size: 13.5px; color: var(--ink-2); }
 .cerr { color: var(--danger); font-size: 13.5px; margin-top: 6px; }
 .cerr[hidden] { display: none; }
 .cerr-box { padding: 10px 12px; background: #FDEEF2; border-radius: 8px; margin: 14px 0 0; }
