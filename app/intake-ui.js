@@ -14,8 +14,15 @@ import { loadCharacterization, loadBriefs } from './intake-data.js';
 const enc = encodeURIComponent;
 const baseOf = (procId) => String(procId).replace(/^r\d+-/, '');
 
+// The scripts page (scripts.html): Lior's and the owner's (`me` null is the owner;
+// undefined: not known, so not offered). Others reach it by a grant, from the card.
+// (A person the protocol does not know also has `me` null, but not the office's scope.)
+export const writesScripts = (me, scope = 'office') => (me === null && scope === 'office') || me === 'lior';
+export const scriptsHref = (clientId, round = 1) => `scripts.html?id=${enc(clientId)}${round > 1 ? `&round=${round}` : ''}`;
+
 // The form a process is worked in, for the office (null: none, or not the office).
-export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office', complete = false } = {}) {
+// Process 12 (the scripts) goes to the scripts page for Lior and the owner.
+export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office', complete = false, me = undefined } = {}) {
   if (scope !== 'office' || !clientId) return null;
   const b = baseOf(procId);
   const round = Number(/^r(\d+)-/.exec(String(procId))?.[1] || 1);
@@ -23,6 +30,7 @@ export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office'
   const go = (href, label) => h('a', { class: 'btn btn-sm ik-go', href }, label);
   if (b === 'p04' && !complete) return go(`intake.html?id=${enc(clientId)}#${checks[CHAR_ENDED]?.state === 'done' ? 'form' : 'end'}`, checks[CHAR_ENDED]?.state === 'done' ? 'לטופס האפיון' : 'האפיון הסתיים');
   if (b === 'p12a') return go(`intake.html?id=${enc(clientId)}${r}#focus`, 'טופס שיחת הדגשים');
+  if (b === 'p12' && writesScripts(me, scope)) return go(scriptsHref(clientId, round), 'כתיבת תסריטים');
   if (b === 'p12' || b === 'p13') return go(`intake.html?id=${enc(clientId)}${r}#scripts`, 'תסריטים וזום');
   if (['p11', 'p11b', 'p14', 'p15'].includes(b)) return go(`prep.html?id=${enc(clientId)}`, b === 'p15' ? 'בדיקת יום לפני' : b === 'p14' ? 'חוסמי יום צילום' : 'סגירת יום הצילום');
   return null;
@@ -46,10 +54,12 @@ async function copy(text, toast) {
 
 // Fills `slot` with the characterization's facts and the focus call, loading them
 // once per client (re-rendering the card calls it again without a new load).
-export function mountClientIntake(slot, { client, scope = 'office', toast = null, rerender = null }) {
+// `scripts`: this person writes the client's scripts (Lior, the owner, or a grant):
+// the card links to the scripts page, even outside the office.
+export function mountClientIntake(slot, { client, scope = 'office', toast = null, rerender = null, scripts = false }) {
   if (!slot) return;
   if (!client) { slot.replaceChildren(); return; }
-  if (cache.id !== client.id) { slot.replaceChildren(); loadFor(client.id, () => (rerender || (() => mountClientIntake(slot, { client, scope, toast })))()); return; }
+  if (cache.id !== client.id) { slot.replaceChildren(); loadFor(client.id, () => (rerender || (() => mountClientIntake(slot, { client, scope, toast, scripts })))()); return; }
   if (!cache.loaded) return;
   const phone = businessPhoneOf(cache.char);
   const logo = logoUrlOf(cache.char);
@@ -64,10 +74,11 @@ export function mountClientIntake(slot, { client, scope = 'office', toast = null
     logo ? [h('dt', {}, 'לוגו'), h('dd', {}, h('a', { href: logo, target: '_blank', rel: 'noopener' }, 'הורדת הלוגו', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')))] : null,
     colors ? [h('dt', {}, 'צבעי המותג'), h('dd', {}, colors)] : null,
   ].filter(Boolean);
-  const links = office ? h('div', { class: 'ik-links' },
-    h('a', { class: 'btn btn-sm', href: `intake.html?id=${enc(client.id)}` }, 'אפיון ותוכן'),
-    h('a', { class: 'btn btn-sm', href: `prep.html?id=${enc(client.id)}#requests`, id: 'ik-request' }, 'בקשת לקוח'),
-    h('a', { class: 'btn btn-sm btn-ghost', href: `prep.html?id=${enc(client.id)}` }, 'לפני יום צילום')) : null;
+  const links = office || scripts ? h('div', { class: 'ik-links' },
+    office ? h('a', { class: 'btn btn-sm', href: `intake.html?id=${enc(client.id)}` }, 'אפיון ותוכן') : null,
+    scripts ? h('a', { class: 'btn btn-sm', href: scriptsHref(client.id), id: 'ik-scripts' }, 'כתיבת תסריטים') : null,
+    office ? h('a', { class: 'btn btn-sm', href: `prep.html?id=${enc(client.id)}#requests`, id: 'ik-request' }, 'בקשת לקוח') : null,
+    office ? h('a', { class: 'btn btn-sm btn-ghost', href: `prep.html?id=${enc(client.id)}` }, 'לפני יום צילום') : null) : null;
   if (!facts.length && !briefs.length && !links) { slot.replaceChildren(); return; }
   slot.replaceChildren(h('section', { class: 'block cc-side ik-summary', 'aria-labelledby': 'ik-sum-h' },
     h('h2', { id: 'ik-sum-h' }, 'מהאפיון ומשיחת הדגשים'),

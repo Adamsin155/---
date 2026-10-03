@@ -529,7 +529,7 @@ function groupCard(g, person) {
       claimControl(g, person)),
     g.task ? taskMeta(g.task) : null,
     g.task && g.urgent ? taskStart(g.task) : null,
-    g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope }) : null,
+    g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null,
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
       bulk ? h('button', {

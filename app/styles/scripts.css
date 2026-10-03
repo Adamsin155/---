@@ -1,0 +1,128 @@
+/* Writing the scripts (scripts.html). Builds on protocol.css (the light brand
+   shell and its tokens) and intake.css (cards, segmented choices, the round
+   picker). Phones first: one column, 44px targets, 16px text in the fields (no
+   zoom in iOS). On a wide screen the writing column stays readable (~70
+   characters) and the focus points sit beside it, always in view. */
+.sc-app { display: grid; gap: 14px; min-width: 0; }
+.sc-app > * { min-width: 0; }
+.sc-head { display: grid; gap: 6px; }
+.sc-head h1 { margin: 0; font-size: 26px; line-height: 1.2; overflow-wrap: anywhere; }
+.sc-head p { margin: 0; }
+.sc-count { font-size: 16px; font-weight: 600; color: var(--accent-deep); }
+.sc-progress { color: var(--text-2); }
+.sc-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.sc-tools .btn { min-height: 44px; }
+.sc-proto { display: grid; gap: 8px; margin-top: 6px; }
+.sc-proto p { margin: 0; }
+.sc-offer {
+  display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--radius-sm);
+  background: var(--ok-soft); border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent);
+}
+.sc-offer .btn { justify-self: start; min-height: 44px; }
+
+/* The one line for the whole page: saved, saving, offline. */
+.sc-sync { min-height: 24px; font-size: 14px; color: var(--muted); position: sticky; top: 0; z-index: 3; padding: 4px 0; background: var(--bg); }
+.sc-sync:empty { display: none; }
+.sc-sync.is-off { color: var(--warn); font-weight: 600; }
+.sc-sync.is-bad { color: var(--danger); font-weight: 600; }
+
+.sc-layout { display: grid; gap: 16px; min-width: 0; }
+.sc-main, .sc-side { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.sc-side { order: -1; }
+
+.sc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.sc-slot {
+  display: grid; gap: 10px; min-width: 0; padding: 16px; scroll-margin-top: 40px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+  border-inline-start: 4px solid var(--line-strong);
+}
+.sc-slot:focus { outline: none; }
+.sc-slot.is-ready { border-inline-start-color: var(--accent); }
+.sc-slot.is-approved { border-inline-start-color: var(--ok); }
+.sc-slot > * { margin: 0; min-width: 0; }
+.sc-slot-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.sc-slot-h h2 { margin: 0; font-size: 19px; }
+.sc-slot-h .sc-print-one { margin-inline-start: auto; min-height: 44px; }
+.sc-chip { font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--panel-2); color: var(--text-2); }
+.sc-chip.is-ready { background: var(--accent-soft); color: var(--accent-deep); }
+.sc-chip.is-approved { background: var(--ok-soft); color: var(--ok); }
+.sc-field { margin: 0; }
+.sc-field label { font-weight: 600; font-size: 15px; }
+.sc-app .input { font-size: 16px; min-height: 44px; }
+.sc-body { min-height: 140px; resize: vertical; line-height: 1.7; overflow: hidden; }
+.sc-save { font-size: 13.5px; color: var(--muted); }
+.sc-save.is-saved::before { content: '✓ '; color: var(--ok); }
+.sc-save.is-offline { color: var(--warn); font-weight: 600; }
+.sc-save.is-conflict, .sc-save.is-error { color: var(--danger); font-weight: 600; }
+.sc-conflict { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--late-soft); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); }
+.sc-conflict p { margin: 0; }
+.sc-conflict .btn { min-height: 44px; }
+.sc-theirs { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; color: var(--text-2); }
+
+.sc-links { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.sc-links h3 { margin: 0; font-size: 15px; }
+.sc-links p { margin: 0; }
+.sc-linklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.sc-linklist li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sc-linklist a { min-height: 44px; display: inline-flex; align-items: center; overflow-wrap: anywhere; min-width: 0; }
+.sc-unlink { min-height: 44px; margin-inline-start: auto; }
+.sc-link-add { display: flex; gap: 8px; }
+.sc-link-add .input { flex: 1; min-width: 0; }
+.sc-link-add .btn { min-height: 44px; }
+.sc-status .ik-opt span { min-width: 72px; justify-content: center; }
+.sc-status .hint { margin: 0; }
+.sc-add { min-height: 48px; justify-self: start; }
+
+.sc-panel {
+  display: grid; gap: 10px; min-width: 0; padding: 16px; margin: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+}
+.sc-panel > * { margin: 0; min-width: 0; }
+.sc-panel h2 { font-size: 18px; }
+.sc-panel:focus { outline: none; }
+.sc-panel .btn { min-height: 44px; justify-self: start; }
+.sc-focus > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; font-size: 17px; color: var(--accent-deep); }
+.sc-focus[open] > summary { margin-bottom: 4px; }
+.sc-focus .brief-view h2 { font-size: 16px; }
+.brief-hl dt.is-summary { color: var(--accent-deep); }
+.brief-hl dd.is-summary { padding: 6px 10px; border-radius: var(--radius-sm); background: var(--accent-soft); }
+.sc-jump h2 { font-size: 15px; }
+.sc-jump ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+.sc-jumpl {
+  display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: var(--radius-sm);
+  border: 1px dashed var(--line-strong); color: var(--muted); text-decoration: none; font-variant-numeric: tabular-nums;
+}
+.sc-jumpl.has-text { border-style: solid; color: var(--text); background: var(--panel); }
+.sc-jumpl.is-ready { border-color: var(--accent); color: var(--accent-deep); background: var(--accent-soft); }
+.sc-jumpl.is-approved { border-color: var(--ok); color: var(--ok); background: var(--ok-soft); }
+.sc-url { overflow-wrap: anywhere; font-size: 14px; }
+.sc-asclient { display: grid; gap: 4px; }
+.sc-grants { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sc-grants li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.sc-grants li > span { font-weight: 600; min-width: 64px; }
+.sc-access .ik-row .input { min-height: 44px; max-inline-size: 220px; }
+.st-danger { color: var(--danger); }
+.sc-print { display: none; }
+
+/* A wide screen: the writing column and the focus points side by side. */
+@media (min-width: 1000px) {
+  .sc-layout { grid-template-columns: minmax(0, 760px) minmax(260px, 340px); align-items: start; justify-content: start; }
+  .sc-side { order: 0; position: sticky; top: 36px; max-height: calc(100vh - 48px); overflow: auto; }
+  .sc-slot { padding: 20px 22px; }
+  .sc-body { font-size: 17px; }
+}
+
+/* ── Printing: only the scripts that were asked for, clean and black on white ── */
+@media print {
+  body.is-printing > *:not(.sc-print) { display: none !important; }
+  body.is-printing .sc-print { display: block !important; color: #000; background: #fff; font-size: 12.5pt; line-height: 1.6; }
+  body.is-printing::before { display: none !important; }
+  .scp-head { border-bottom: 1.5pt solid #000; padding-bottom: 6pt; margin-bottom: 12pt; }
+  .scp-client { font-size: 16pt; font-weight: 700; margin: 0; }
+  .scp-sub { margin: 2pt 0 0; font-size: 11pt; }
+  .scp-script { break-inside: avoid; page-break-inside: avoid; padding: 8pt 0 12pt; border-bottom: 0.75pt solid #999; }
+  .scp-script h2 { font-size: 14pt; margin: 0 0 6pt; }
+  .scp-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .scp-links p { margin: 8pt 0 2pt; font-weight: 600; font-size: 11pt; }
+  .scp-links ul { margin: 0; padding-inline-start: 16pt; font-size: 10.5pt; overflow-wrap: anywhere; }
+}
