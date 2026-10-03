@@ -54,7 +54,7 @@ let handler;
 before(async () => {
   dir = mkdtempSync(join(tmpdir(), 'calfn-'));
   writeFileSync(join(dir, 'supabase-mock.mjs'), mock);
-  const shared = pathToFileURL(new URL('../supabase/functions/_shared/app/', import.meta.url).pathname).href;
+  const shared = new URL('../supabase/functions/_shared/app/', import.meta.url).href;
   let src = nodeModule.stripTypeScriptTypes(readFileSync(new URL('../supabase/functions/calendar/index.ts', import.meta.url), 'utf8'));
   src = src.replace("'npm:@supabase/supabase-js@2'", `'${pathToFileURL(join(dir, 'supabase-mock.mjs')).href}'`).replaceAll("'../_shared/app/", `'${shared}`);
   writeFileSync(join(dir, 'index.mjs'), src);

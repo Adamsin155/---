@@ -4,13 +4,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const files = readdirSync(new URL('../app/', import.meta.url)).filter((f) => f.endsWith('.js'));
 
 test('every app/*.js module parses', () => {
   const bad = [];
   for (const f of files) {
-    try { execFileSync(process.execPath, ['--check', new URL(`../app/${f}`, import.meta.url).pathname], { stdio: 'pipe' }); }
+    try { execFileSync(process.execPath, ['--check', fileURLToPath(new URL(`../app/${f}`, import.meta.url))], { stdio: 'pipe' }); }
     catch (e) { bad.push(`${f}: ${String(e.stderr).split('\n').find((l) => /Error/.test(l))}`); }
   }
   assert.deepEqual(bad, []);

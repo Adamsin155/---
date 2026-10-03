@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   APP_DIR, OUT_DIR, MARK, header, modules, importsOf, check, sync, FUNCTIONS as FUNCTION_NAMES, deployFiles,
@@ -40,9 +40,9 @@ function localImports(fn, file, seen = new Set()) {
     assert.ok(!/githubusercontent|github\.com/.test(spec), `remote import ${spec}`);
     if (!spec.startsWith('.')) continue;
     const target = resolve(dirname(path), spec);
-    assert.ok(target.startsWith(FUNCTIONS + '/'), `${spec} leaves supabase/functions/`);
+    assert.ok(target.startsWith(FUNCTIONS + sep), `${spec} leaves supabase/functions/`);
     assert.ok(existsSync(target), `${spec} does not exist`);
-    seen.add(target.slice(FUNCTIONS.length + 1));
+    seen.add(target.slice(FUNCTIONS.length + 1).split(sep).join('/'));
   }
   return seen;
 }
