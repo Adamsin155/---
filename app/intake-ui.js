@@ -16,8 +16,10 @@ const baseOf = (procId) => String(procId).replace(/^r\d+-/, '');
 
 // The form a process is worked in, for the office (null: none, or not the office).
 export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office', complete = false } = {}) {
-  if (scope !== 'office' || !clientId) return null;
   const b = baseOf(procId);
+  // The content Gantt (gantt.html): Ilai's processes 9, 28 and 29, for whoever sees the process.
+  if (clientId && ['p09', 'p28', 'p29'].includes(b)) return h('a', { class: 'btn btn-sm ik-go gantt-go', href: `gantt.html?id=${enc(clientId)}` }, 'גאנט התוכן');
+  if (scope !== 'office' || !clientId) return null;
   const round = Number(/^r(\d+)-/.exec(String(procId))?.[1] || 1);
   const r = round > 1 ? `&round=${round}` : '';
   const go = (href, label) => h('a', { class: 'btn btn-sm ik-go', href }, label);
