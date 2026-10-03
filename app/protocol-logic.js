@@ -61,7 +61,7 @@ export function officeMsBetween(from, to) {
 // Minutes of office time between two moments (the employee's clock).
 export const workingMinutesBetween = (from, to) => Math.round(officeMsBetween(from, to) / 6e4);
 // Anchors that are office events run on office time; a meeting or a shoot runs on the real clock.
-const onOfficeClock = (from) => from === 'deal' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
+const onOfficeClock = (from) => from === 'deal' || from === 'group' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
 // Whether resolveTime counts a due spec in office minutes (and so a clock of it stops at night).
 // "The characterization ended" (decision 12): a mark with the 4 short fields in its
 // note, tapped at the end of the meeting. It starts the clocks of processes 5–10
@@ -177,6 +177,13 @@ function completedAt(proc, checks, now) {
 function anchor(from, client, procs, checks, now) {
   switch (from) {
     case 'deal': return parseDate(client.deal_at);
+    case 'group': {
+      // v6: the shoot day is set right after the WhatsApp group is opened (p02.opened).
+      // Inside a round there is no new group: the round starts when it was added.
+      if (client.round) return parseDate(client.char_at);
+      const c = checks['p02.opened'];
+      return c && c.state === 'done' && c.at ? new Date(c.at) : null;
+    }
     case 'char': return parseDate(client.char_at);
     case 'charEnd': {
       // Inside a round there is no meeting: the round starts when it was added.

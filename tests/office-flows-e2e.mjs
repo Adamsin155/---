@@ -61,7 +61,7 @@ const one = (c, key, at, note = null, by = 'irit@astrateg.test') => {
   if (i >= 0) checks[i] = row; else checks.push(row);
 };
 const all = (c, ids, at, note = 'ייבוא') => { for (const k of keysOf(c, ids)) one(c, k, at, note); };
-const UPTO_SHOOT = ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p08', 'p09', 'p10', 'p11', 'p11b', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19b', 'p20', 'p21'];
+const UPTO_SHOOT = ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p09', 'p10', 'p11', 'p11b', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19b', 'p20', 'p21'];
 
 // Videos with Ofir since 09:30 (assigned to Nadia on Sunday).
 const V = client({ name: 'מספרת רון', editor: 'nadia', shoot_at: IL('2026-10-18T10:00:00'), address: 'הרצל 10, תל אביב' });

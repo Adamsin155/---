@@ -56,7 +56,7 @@ const checks = [];
 const doneAll = (c, ids, at, by = 'irit@astrateg.test') => { for (const k of keysFor(c, ids)) checks.push({ client_id: c.id, item_key: k, state: 'done', note: null, by_email: by, at }); };
 const one = (c, key, at, note = null, by = 'irit@astrateg.test') => checks.push({ client_id: c.id, item_key: key, state: 'done', note, by_email: by, at });
 const JOIN = ['p01', 'p02', 'p03'];
-const CHAR = ['p04', 'p05', 'p06', 'p07', 'p08', 'p09', 'p10'];
+const CHAR = ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p09', 'p10'];
 const onboard = (c) => { doneAll(c, JOIN, '2026-10-11T09:03:00+03:00'); doneAll(c, CHAR, '2026-10-12T12:00:00+03:00'); };
 
 // Red: the shoot is tomorrow (Wednesday), a business day away, and the client has not approved the scripts.

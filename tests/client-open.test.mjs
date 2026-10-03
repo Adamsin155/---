@@ -14,7 +14,9 @@ test('the 8 stations cover every process once, in protocol order', () => {
   const phaseAt = (id) => PHASES.findIndex((ph) => ph.key === PROCESSES.find((p) => p.id === id).phase);
   const order = STATIONS.flatMap((s) => s.procs).map(phaseAt);
   assert.deepEqual(order, [...order].sort((a, b) => a - b));
-  assert.deepEqual(STATIONS.find((s) => s.key === 'post').procs.map((id) => PROCESSES.find((p) => p.id === id).phase), Array(7).fill('post'));
+  assert.deepEqual(STATIONS.find((s) => s.key === 'post').procs.map((id) => PROCESSES.find((p) => p.id === id).phase), Array(8).fill('post'));
+  // v6 (3.10.2026): the shoot day is set in the first station, right after the group.
+  assert.deepEqual(STATIONS[0].procs, ['p01', 'p02', 'p03', 'p11', 'p11b']);
 });
 
 test('the shoot type comes from the package in the catalog', () => {

@@ -14,7 +14,7 @@
 //     the protocol through its security definer functions.
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { freshDatabase, as, migrationSql } from './pg.mjs';
+import { freshDatabase, as, migrationSql, migrationFiles } from './pg.mjs';
 import { writerRows, mayWrite, EXTRA_MARKS, OFFICE_WRITERS } from '../../scripts/protocol-writers.mjs';
 import { PROCESSES, EDITORS } from '../../app/protocol.js';
 import { MONTH_ITEMS, SPREAD_ITEMS } from '../../app/year-logic.js';
@@ -63,6 +63,9 @@ before(async () => {
   // The migration, then again (it must be safe to run twice).
   await db.exec(migrationSql(HARDENING));
   await db.exec(migrationSql(HARDENING));
+  // And the ones after it: a later protocol change seeds private.protocol_writers again
+  // (20261003100000_sales_deals.sql: version 6), so the table is the latest migration's.
+  for (const f of migrationFiles().filter((x) => x > HARDENING)) await db.exec(migrationSql(f));
 });
 
 const run = (who, fn) => as(db, who === 'anon' ? null : users[who], fn);
