@@ -31,6 +31,7 @@ import {
 } from './protocol-logic.js';
 import { stationOf, promisedClosing, materialsOf, SENT_CHECK_NOTE } from './messages-logic.js';
 import { isOwnerView } from './team-rules.js';
+import { isManager } from './manager-rules.js';
 import { AUTO_NOTE } from './characterization.js';
 import { TOPIC_NOTE } from './shoot-prep.js';
 import {
@@ -42,11 +43,12 @@ export const COLORS = { red: 'אדום', yellow: 'צהוב', green: 'ירוק' }
 const COLOR_RANK = { red: 0, yellow: 1, green: 2 };
 
 // Who sees what (decision 22 and section 6). Screens only; the database decides
-// what each person may read. Screen 1 ("מה דורש אותי") is the owner's; screen 2
-// ("כל הלקוחות במבט") also Irit's, Lior's and Ofir's; the whole team on screen 4
-// only the owner's and Lior's (everyone else sees their own row).
+// what each person may read. Screen 1 ("מה דורש אותי") is the managers' (the owner,
+// Irit and Ofir: the manager profile, app/manager-rules.js); screen 2 ("כל הלקוחות
+// במבט") also Lior's; the whole team on screen 4 only the owner's and Lior's
+// (everyone else sees their own row).
 export const ALL_CLIENTS_VIEWERS = ['irit', 'lior', 'ofir'];
-export const canSeeOwnerScreen = (v) => isOwnerView(v);
+export const canSeeOwnerScreen = (v) => isManager(v);
 export const canSeeAllClients = (v) => isOwnerView(v) || (!!v && !v.error && ALL_CLIENTS_VIEWERS.includes(v.me));
 export const seesWholeTeam = (v) => isOwnerView(v) || (!!v && !v.error && v.me === 'lior');
 

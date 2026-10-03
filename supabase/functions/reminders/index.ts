@@ -82,7 +82,7 @@ const db = {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
     const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks] = await Promise.all([
-      all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).order('id')),
+      all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
       all(() => admin.from('staff').select('email, person').order('email')),

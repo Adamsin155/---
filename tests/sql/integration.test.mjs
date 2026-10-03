@@ -31,7 +31,7 @@ const q = (who, sql, params = []) => as(db, who ? users[who] : null, async (tx) 
 test('the stage 4–6 migrations come after the live ones, in this order', () => {
   const files = migrationFiles();
   const tail = files.slice(files.indexOf('20260930160000_intake.sql'));
-  assert.deepEqual(tail, [
+  assert.deepEqual(tail.slice(0, 6), [
     '20260930160000_intake.sql', '20260930170000_client_status.sql', '20260930180000_whatsapp.sql',
     '20260930190000_year.sql', '20260930200000_calendar_feeds.sql', '20260930210000_hardening.sql',
   ]);

@@ -476,7 +476,11 @@ test('every client table has row level security, and no policy on it lets every 
   for (const t of tables) assert.equal(t.rls, true, `${t.t}: row level security is off`);
   const policies = (await db.query(`
     select tablename, policyname, coalesce(qual, '') || ' ' || coalesce(with_check, '') as expr
-    from pg_policies where schemaname = 'public' and tablename = any($1)`, [tables.map((t) => t.t)])).rows;
+    from pg_policies where schemaname = 'public' and tablename = any($1) and permissive = 'PERMISSIVE'`, [tables.map((t) => t.t)])).rows;
+  // A restrictive policy only takes away (AND): the one that hides an archived client
+  // (20261003140000_manager_features.sql). Nothing else may be restrictive here.
+  const restrictive = (await db.query("select distinct policyname from pg_policies where schemaname = 'public' and tablename = any($1) and permissive <> 'PERMISSIVE'", [tables.map((t) => t.t)])).rows.map((r) => r.policyname);
+  assert.ok(restrictive.every((n) => n === 'archived clients are hidden'), restrictive.join());
   // (month_write_ok: is_office, and Ilai only his own items of the monthly cycle.)
   const RULES = /is_office|my_clients|my_assigned_clients|can_see_client|can_message_clients|can_use_client_vault|month_write_ok/;
   // Tables with a rule of their own, and why.
@@ -487,6 +491,9 @@ test('every client table has row level security, and no policy on it lets every 
     // The reminder log (20260930110000_reminders.sql): each row is a notification
     // addressed to one person; the owner and Lior read the whole log (decision 22).
     reminder_log: /reminder_person\(\)/,
+    // Who archived or deleted a client (20261003140000_manager_features.sql): the owner and
+    // Ofir; the row outlives the client, so no client rule can apply.
+    client_admin_log: /can_archive_clients/,
   };
   for (const p of policies) {
     assert.match(p.expr, OWN_RULE[p.tablename] || RULES, `${p.tablename} / "${p.policyname}" does not check who the client belongs to: ${p.expr}`);

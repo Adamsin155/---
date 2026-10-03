@@ -9,6 +9,7 @@ import {
   h, toast, errorText, formatStamp, formatWhen, who, TAB_FRESH, firstLanded, markFirstLanded,
 } from './protocol-ui.js';
 import { isOwnerView } from './team-rules.js';
+import { isManager, modeOf } from './manager-rules.js';
 import {
   QA_KINDS, qaState, fixedKey, fixedItemKey, qaDue,
 } from './office-marks.js';
@@ -24,16 +25,20 @@ import {
 export const FIRST_SCREEN = { ofir: 'qa.html', lior: 'decisions.html', eli: 'shoot.html' };
 export const EDITOR_SCREEN = 'editor.html';
 export const OWNER_SCREEN = 'owner.html';
-export function firstScreenOf(me, viewer = null) {
-  if (!me) return isOwnerView(viewer) ? OWNER_SCREEN : null;
+// A manager (the owner, Irit, Ofir; app/manager-rules.js) who chose a profile lands on
+// it: 'manager' on owner.html, 'mine' on their own first screen ("מה עליי" for the
+// owner). `mode` is modeOf(viewer); null for everyone else.
+export function firstScreenOf(me, viewer = null, mode = null) {
+  if (mode === 'manager' && isManager(viewer)) return OWNER_SCREEN;
+  if (!me) return isOwnerView(viewer) && mode !== 'mine' ? OWNER_SCREEN : null;
   if (PEOPLE[me]?.editor) return EDITOR_SCREEN;
   return FIRST_SCREEN[me] || null;
 }
 // Where clients.html sends this person now, or null: `arrived` is the hash the page
 // was opened with (a sign-in link, #mine, #control…). Marks the landing.
-export function landingNow({ me, viewer, arrived = '', fresh = TAB_FRESH }) {
+export function landingNow({ me, viewer, arrived = '', fresh = TAB_FRESH, mode = modeOf(viewer) }) {
   if (!fresh || arrived || firstLanded()) return null;
-  const page = firstScreenOf(me, viewer);
+  const page = firstScreenOf(me, viewer, mode);
   if (page) markFirstLanded();
   return page;
 }

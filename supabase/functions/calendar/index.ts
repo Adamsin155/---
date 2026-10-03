@@ -49,7 +49,7 @@ const CLIENT_COLS = 'id, name, address, shoot_type, characterizer, editor, has_l
 const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, created_at, started_at, urgent, source';
 
 async function load(person: string, now: Date) {
-  const clients = await all(() => admin.from('clients').select(CLIENT_COLS).in('status', ['active', 'ending']).order('id'));
+  const clients = await all(() => admin.from('clients').select(CLIENT_COLS).in('status', ['active', 'ending']).is('archived_at', null).order('id'));
   // The person's own tasks: open, or finished in the last 30 days (who sees what).
   const since = new Date(now.getTime() - 30 * 864e5).toISOString();
   const tasks = person === OWNER ? [] : await all(() => admin.from('client_tasks').select(TASK_COLS)
