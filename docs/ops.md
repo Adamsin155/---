@@ -510,3 +510,22 @@ select phone from public.clients limit 1;                 -- permission denied
 select * from public.clients_private();                   -- אפס שורות
 insert into public.protocol_checks (client_id, item_key, state) values ('<לקוח שלו>', 'p25.approved', 'done'); -- row-level security
 ```
+
+## 19. כתיבת תסריטים (תהליך 12) וקישור לשיתוף
+
+*המסך: `scripts.html` (`app/scripts.js`; הכללים `app/scripts-logic.js`; הנתונים `app/scripts-data.js`). הדף לשיתוף: `scripts-view.html` (`app/scripts-view.js`). המיגרציה: `20261003120000_scripts.sql` (אחרי `20260930210000_hardening.sql`, בטוחה להרצה חוזרת, לא נוגעת בנתונים קיימים).*
+
+- **מי:** ליאור והבעלים (`can_manage_scripts()`) תמיד. ליאור (או הבעלים) פותח גישה לעובד נוסף לפי לקוח (`script_grants`, דרך `scripts_grant`), והעובד מקבל קישור בוואטסאפ. אף אחד אחר, גם לא שאר המשרד, לא קורא את התסריטים (RLS על `client_scripts`). גישה לתסריטים לא פותחת את הלקוח עצמו, את הכספת או את הסימונים. "אושר" מסמנים רק ליאור והבעלים (הטריגר `client_scripts_stamp`).
+- **כמה תסריטים:** כמות הסרטונים בחבילה (`clients.deliverables.videos`, דרך `scripts_client`), ולא פחות ממה שכבר נכתב. אפשר להוסיף תסריט מעבר לחבילה; בסבב צילום נוסף מוסיפים אחד אחד.
+- **שמירה:** כל תסריט נשמר לבד כשמפסיקים להקליד, עם "נשמר · שעה". עד שהמסד מאשר, הטקסט שמור גם בטלפון (`localStorage`). כשאין רשת השמירה מנסה שוב (3, 10, ואז כל 30 שניות, ומיד כשהרשת חוזרת), וטיוטה שלא נשמרה משוחזרת בפתיחה הבאה. לכל תסריט גרסה (`version`): שמירה ממכשיר אחר בינתיים לא נדרסת, והמסך שואל מה לשמור.
+- **הפרוטוקול:** כשכל התסריטים "מוכן", המסך מציע לסמן `p12.scripts` ו־`p12.numbered` (אחרי שיחת הדגשים, `p12a.call`). "להשתמש בו כקישור התסריטים של הלקוח" שומר את הקישור לשיתוף ב־`clients.links.scripts` ומסמן `p12.docs`, כך שדף המצב מציג את התסריטים לאישור. **האישור של הלקוח נשאר `approve_item` בדף המצב**; כשנרשם `p13.approved` (שם, או בידי ליאור), התסריטים במצב "מוכן" של אותו סבב עוברים ל"אושר" (הטריגר `client_scripts_on_approval`). טיוטות נשארות טיוטות.
+- **הקישור לשיתוף:** כמו הקישור של דף המצב: 32 בתים אקראיים, בטבלה (`script_share_links`) רק טביעת SHA-256, הטוקן ב־Vault (`scripts_link:<id>`), תוקף 180 יום, קישור חדש מבטל את הקודם, וטוקן שבוטל נמחק מ־Vault. הדף האנונימי קורא רק `get_scripts(token)`: שם העסק והתסריטים שיש בהם טקסט, עם הקישורים (http/https בלבד). בלי טלפון, הערות, אנשים או מועדים. לקוח שהסתיים: הדף לא נפתח.
+- **סיכום דגשים לקוח:** שדה טקסט חופשי (`content_briefs.fields.summary`) בראש טופס הדגשים ב־`intake.html#focus`, יחד עם 10 הנושאים של 12א. מגיעים אליו מראש דף התסריטים, מהזום ב"תסריטים וזום", ומהאפיון. הוא מוצג ראשון בכל מקום שהדגשים מוצגים: ליד הכתיבה, בכרטיס הלקוח ובעמוד העורך. לא מסמן שום פריט.
+- **להחלה:** פרסום האתר, ואז המיגרציה ב־SQL Editor (או `apply_migration` בשם `scripts`). אין פונקציות Edge ואין סודות חדשים. לפני ההחלה הדף אומר "כתיבת התסריטים עוד לא הוקמה".
+- **בדיקה אחרי ההחלה:**
+  ```sql
+  select client_id, round, n, status, version, by_email, at from public.client_scripts order by at desc limit 10;
+  select client_id, person, granted_by, at from public.script_grants;
+  select id, client_id, expires_at, revoked_at from public.script_share_links order by created_at desc limit 10;
+  ```
+- **בדיקות:** `tests/scripts.test.mjs` ו־`tests/sql/scripts.test.mjs` (בתוך `npm test`), ו־`tests/scripts-e2e.mjs`.

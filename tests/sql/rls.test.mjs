@@ -487,6 +487,11 @@ test('every client table has row level security, and no policy on it lets every 
     // The reminder log (20260930110000_reminders.sql): each row is a notification
     // addressed to one person; the owner and Lior read the whole log (decision 22).
     reminder_log: /reminder_person\(\)/,
+    // The scripts (20261003120000_scripts.sql): Lior and the owner, and the people they
+    // granted the client to; not the rest of the office (tests/sql/scripts.test.mjs).
+    client_scripts: /can_manage_scripts\(\)/,
+    script_grants: /can_manage_scripts\(\)/,
+    script_share_links: /can_manage_scripts\(\)/,
   };
   for (const p of policies) {
     assert.match(p.expr, OWN_RULE[p.tablename] || RULES, `${p.tablename} / "${p.policyname}" does not check who the client belongs to: ${p.expr}`);

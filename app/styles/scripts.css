@@ -21,7 +21,7 @@
 .sc-offer .btn { justify-self: start; min-height: 44px; }
 
 /* The one line for the whole page: saved, saving, offline. */
-.sc-sync { min-height: 24px; font-size: 14px; color: var(--muted); position: sticky; top: 0; z-index: 3; padding: 4px 0; background: var(--bg); }
+.sc-sync { min-height: 24px; font-size: 14px; color: var(--muted); position: sticky; top: var(--topbar-h); z-index: 3; padding: 4px 0; background: var(--bg); }
 .sc-sync:empty { display: none; }
 .sc-sync.is-off { color: var(--warn); font-weight: 600; }
 .sc-sync.is-bad { color: var(--danger); font-weight: 600; }
@@ -86,7 +86,8 @@
 .sc-focus .brief-view h2 { font-size: 16px; }
 .brief-hl dt.is-summary { color: var(--accent-deep); }
 .brief-hl dd.is-summary { padding: 6px 10px; border-radius: var(--radius-sm); background: var(--accent-soft); }
-.sc-jump h2 { font-size: 15px; }
+.sc-focus > summary, .sc-jump > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; font-size: 17px; color: var(--accent-deep); }
+.sc-jump nav { margin-top: 6px; }
 .sc-jump ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
 .sc-jumpl {
   display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: var(--radius-sm);
@@ -114,8 +115,8 @@
 
 /* ── Printing: only the scripts that were asked for, clean and black on white ── */
 @media print {
-  body.is-printing > *:not(.sc-print) { display: none !important; }
-  body.is-printing .sc-print { display: block !important; color: #000; background: #fff; font-size: 12.5pt; line-height: 1.6; }
+  body.is-printing > *:not(.sc-print), body.is-printing > main#main { display: none !important; } /* protocol.css shows main#main in print */
+  body.is-printing > div#sc-print { display: block !important; color: #000; background: #fff; font-size: 12.5pt; line-height: 1.6; }
   body.is-printing::before { display: none !important; }
   .scp-head { border-bottom: 1.5pt solid #000; padding-bottom: 6pt; margin-bottom: 12pt; }
   .scp-client { font-size: 16pt; font-weight: 700; margin: 0; }

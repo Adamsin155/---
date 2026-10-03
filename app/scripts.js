@@ -185,15 +185,15 @@ async function markP12(keys) {
 
 // ── The side: focus points and the jump list ──
 function renderSide() {
-  const block = brief ? briefBlock(brief, { id: 'sc-brief', heading: `דגשי הלקוח${round > 1 ? ` · סבב ${round}` : ''}` }) : null;
+  const block = brief ? briefBlock(brief, { id: 'sc-brief', heading: `משיחת הדגשים ומהזום${round > 1 ? ` · סבב ${round}` : ''}` }) : null;
   fill($('sc-side'),
     h('details', { class: 'sc-panel sc-focus', id: 'sc-focus', open: matchMedia('(min-width: 1000px)').matches },
       h('summary', {}, 'דגשי הלקוח'),
       block || h('p', { class: 'muted' }, briefOk ? 'עוד לא נשמרו דגשים משיחת הדגשים או מהזום.' : 'הדגשים פתוחים למי שעובד על הלקוח.'),
       scope === 'office' ? h('a', { class: 'btn btn-sm', id: 'sc-focus-edit', href: focusHref() }, block ? 'עדכון סיכום הדגשים' : 'מילוי סיכום הדגשים') : null),
-    h('nav', { class: 'sc-panel sc-jump', 'aria-label': 'מעבר לתסריט' },
-      h('h2', {}, 'מעבר לתסריט'),
-      h('ol', { id: 'sc-jump' }, ...slots.map((s) => jumpItem(s)))));
+    h('details', { class: 'sc-panel sc-jump', id: 'sc-jump-box', open: matchMedia('(min-width: 1000px)').matches },
+      h('summary', {}, 'מעבר לתסריט'),
+      h('nav', { 'aria-label': 'מעבר לתסריט' }, h('ol', { id: 'sc-jump' }, ...slots.map((s) => jumpItem(s))))));
 }
 const jumpItem = (s) => h('li', {}, h('a', {
   href: `#s-${s.n}`, class: `sc-jumpl is-${s.status}${hasText(s) ? ' has-text' : ''}`, id: `j-${s.n}`,
