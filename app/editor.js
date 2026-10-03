@@ -18,7 +18,7 @@ import {
 } from './protocol-data.js';
 import { loadWorkClients, loadMyTasks, loadOpenTasksOf, finishTask } from './production-data.js';
 import { loadCharacterizations, loadBriefsOf } from './intake-data.js';
-import { highlightsOf, briefBlock } from './briefs.js';
+import { highlightsOf, briefBlock, SUMMARY } from './briefs.js';
 import { fixList } from './office-ui.js';
 import { QA_KINDS } from './office-marks.js';
 import {
@@ -162,11 +162,13 @@ function highlightsBlock(job) {
   const brief = briefs[job.client.id]?.[job.round] || null;
   const hl = highlightsOf(brief);
   const rest = briefBlock(brief, { heading: 'שאר הדגשים משיחת הדגשים', id: `${cardId(job)}-brief` });
+  // Lior's "סיכום דגשים" (written in the focus call or the Zoom) is inside `rest`, first.
+  const summary = String(brief?.fields?.[SUMMARY] ?? '').trim();
   const body = hl
     ? h('dl', { class: 'ed-hl' }, hl.must ? [h('dt', {}, 'חייבים להגיד'), h('dd', {}, hl.must)] : null, hl.dont ? [h('dt', {}, 'אסור להגיד'), h('dd', {}, hl.dont)] : null)
-    : h('p', { class: 'muted' }, 'עוד לא נרשמו דגשים משיחת הדגשים (12א). אם חסר, לשאול את ליאור.');
-  return h('details', { class: 'ed-more', open: !!hl }, h('summary', {}, 'מה חייבים להגיד ומה אסור'), body,
-    rest ? h('details', { class: 'ed-more ed-brief' }, h('summary', {}, 'כל הדגשים מהשיחה'), rest) : null);
+    : h('p', { class: 'muted' }, summary ? 'אין "חייבים" ו"אסור" משיחת הדגשים. סיכום הדגשים של ליאור למטה.' : 'עוד לא נרשמו דגשים משיחת הדגשים (12א). אם חסר, לשאול את ליאור.');
+  return h('details', { class: 'ed-more', open: !!hl || !!summary }, h('summary', {}, 'מה חייבים להגיד ומה אסור'), body,
+    rest ? h('details', { class: 'ed-more ed-brief', open: !!summary }, h('summary', {}, 'כל הדגשים מהשיחה'), rest) : null);
 }
 function eliNotes(job) {
   const text = P.noteOf(cs(job.client)[`${job.pre}p19b.notes`]);

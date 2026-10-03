@@ -24,7 +24,7 @@ import {
   endedClientFields, formProblems, isComplete, missingFields, filledCount, missingMaterials, formChecks, missingTask, blockingTask,
   MISSING_TITLE, BLOCKING_TITLE, DRAFT_KEY, readDraft, draftText, draftWins, validUrl,
 } from './characterization.js';
-import { FOCUS_TOPICS, MUST, MUST_NOT, briefChecks, emptyTopics, roundKey, NOT_RAISED } from './briefs.js';
+import { FOCUS_TOPICS, MUST, MUST_NOT, briefChecks, emptyTopics, roundKey, NOT_RAISED, SUMMARY, BRIEF_KEYS } from './briefs.js';
 import { loadCharacterization, saveCharacterization, loadBriefs, saveBrief, missingTable } from './intake-data.js';
 import { googleCalendarUrl } from './calendar.js';
 import { inputValueIL, fromInputIL } from './tz.js';
@@ -32,7 +32,7 @@ import { inputValueIL, fromInputIL } from './tz.js';
 const params = new URLSearchParams(location.search);
 const id = params.get('id');
 const SECTIONS = [
-  ['end', 'סיום אפיון'], ['form', 'טופס אפיון'], ['focus', 'שיחת דגשים'], ['scripts', 'תסריטים וזום'],
+  ['end', 'סיום אפיון'], ['form', 'טופס אפיון'], ['focus', 'דגשים לקוח'], ['scripts', 'תסריטים וזום'],
 ];
 let client = null;
 let checks = {};
@@ -58,6 +58,10 @@ let scV = null;              // the scripts link, the Zoom time and its recordin
 let saveTimer = null;
 
 const clean = (v) => String(v ?? '').trim();
+// The scripts page (scripts.html) is Lior's and the owner's (others by a grant there).
+const writesScripts = () => me === null || me === 'lior';
+const scriptsHref = () => `scripts.html?id=${encodeURIComponent(id)}${round > 1 ? `&round=${round}` : ''}`;
+const fromScripts = params.get('from') === 'scripts';
 const pre = () => (round > 1 ? `r${round}.` : '');
 const key = (k) => `${pre()}${k}`;
 const isDone = (k) => checks[k]?.state === 'done';
@@ -90,8 +94,8 @@ async function load() {
   ]);
   $('state').textContent = '';
   document.title = `${client.name} · אפיון ותוכן · astrateg`;
-  $('back').href = `client.html?id=${encodeURIComponent(id)}`;
-  $('back').textContent = `→ לכרטיס של ${client.name}`;
+  $('back').href = fromScripts ? scriptsHref() : `client.html?id=${encodeURIComponent(id)}`;
+  $('back').textContent = fromScripts ? `→ לכתיבת התסריטים של ${client.name}` : `→ לכרטיס של ${client.name}`;
   if (!roundsOf(client).some((r) => r.n === round)) round = 1;
   if (!formV) initForm();
   if (!briefV) initBrief();
@@ -456,12 +460,19 @@ function renderFocus() {
   const context = FORM_FIELDS.filter((f) => !f.short && clean(cf[f.key]));
   const called = isDone(key('p12a.call'));
   return h('form', { class: 'ik-card', id: 'focus-form', novalidate: true, 'aria-labelledby': 'focus-h', onsubmit: (e) => { e.preventDefault(); submitBrief(false); } },
-    h('h2', { id: 'focus-h' }, `שיחת דגשים לתוכן (12א)${round > 1 ? ` · סבב ${round}` : ''}`),
+    h('h2', { id: 'focus-h' }, `סיכום דגשים לקוח · שיחת דגשים (12א)${round > 1 ? ` · סבב ${round}` : ''}`),
     h('p', { class: 'muted' }, [s?.complete ? null : dueWords(s), called ? 'השיחה סומנה כהסתיימה.' : null,
       'התשובות נשמרות בכרטיס הלקוח. העורכים, אופיר (בבקרה) וניראל רואים אותן.'].filter(Boolean).join(' · ')),
+    writesScripts() ? h('a', { class: 'btn btn-sm ik-go', id: 'focus-to-scripts', href: scriptsHref() }, 'לכתיבת התסריטים') : null,
     briefDraftAt ? h('p', { class: 'ik-draft', role: 'status' }, `שוחזרה טיוטה מהטלפון מ־${formatStamp(briefDraftAt)}.`) : null,
     context.length ? h('details', { class: 'ik-context' }, h('summary', {}, 'מה נאמר באפיון'),
       h('dl', {}, ...context.flatMap((f) => [h('dt', {}, f.label), h('dd', {}, cf[f.key])]))) : null,
+    // During the Zoom (13) too: what the client stressed, in Lior's words, first for the editors.
+    field({
+      fid: `focus-${SUMMARY}`, label: 'סיכום דגשים', cls: 'is-key',
+      hint: 'מה הלקוח הדגיש, במילים שלך. אפשר למלא גם בזמן הזום. העורכים רואים את זה ראשון.',
+      control: textArea(briefV[SUMMARY], onTopic(SUMMARY), 4),
+    }),
     h('label', { class: 'ik-check' },
       h('input', { type: 'checkbox', id: 'focus-read', checked: isDone(key('p12a.read')), disabled: isDone(key('p12a.read')) }),
       h('span', {}, 'קראתי את האפיון לעומק')),
@@ -478,7 +489,7 @@ function renderFocus() {
 async function submitBrief(done) {
   if (busy) return;
   const read = $('focus-read') ? $('focus-read').checked : false;
-  const fields = Object.fromEntries(FOCUS_TOPICS.map(([k]) => [k, clean(briefV[k])]).filter(([, v]) => v));
+  const fields = Object.fromEntries(BRIEF_KEYS.map((k) => [k, clean(briefV[k])]).filter(([, v]) => v));
   if (done) {
     const empty = emptyTopics(fields);
     if (empty.length && !confirm(`${empty.length === 1 ? 'נושא אחד ריק ויסומן' : `${empty.length} נושאים ריקים ויסומנו`} "${NOT_RAISED}". להמשיך?`)) return;
@@ -536,6 +547,7 @@ function renderScripts() {
     h('section', { class: 'ik-card', 'aria-labelledby': 'sc-h' },
       h('h2', { id: 'sc-h' }, `תסריטים (12)${round > 1 ? ` · סבב ${round}` : ''}`),
       h('p', { class: 'muted' }, p12?.complete ? 'התסריטים מוכנים.' : `${dueWords(p12) || 'עד סוף יום העסקים השני מהאפיון'}. היעד: סוף יום העסקים השני, כדי שהזום ייכנס ביום השלישי.`),
+      writesScripts() ? h('a', { class: 'btn btn-sm ik-go', id: 'sc-write', href: scriptsHref() }, 'כתיבת התסריטים') : null,
       field({ fid: 'sc-link', label: 'קישור לתסריטים (Google Docs)', hint: 'הקישור נשמר בקישורים של הלקוח.',
         control: textInput(scV.link, (x) => { scV.link = x; }, { type: 'url', inputmode: 'url', dir: 'ltr' }) }),
       h('button', { type: 'button', class: 'btn', id: 'sc-save', disabled: busy, onclick: saveScriptsLink }, link ? 'עדכון הקישור' : 'שמירת הקישור'),
@@ -545,6 +557,7 @@ function renderScripts() {
       h('h2', { id: 'zm-h' }, 'זום לאישור התוכן (13)'),
       h('p', { class: 'muted' }, approved ? 'הלקוח אישר את התסריטים.' : `${dueWords(p13) || 'עד יום העסקים השלישי מהאפיון'}.`),
       link ? null : h('p', { class: 'ik-note' }, 'כשמדביקים את קישור התסריטים, מתאמים זום.'),
+      h('a', { class: 'btn btn-sm ik-go', id: 'zm-focus', href: '#focus' }, 'סיכום דגשים לקוח (גם בזמן הזום)'),
       field({ fid: 'zm-at', label: 'מועד הזום', control: textInput(scV.at, (x) => { scV.at = x; }, { type: 'datetime-local', dir: 'ltr' }) }),
       h('div', { class: 'ik-row' },
         h('button', { type: 'button', class: 'btn', id: 'zm-save', disabled: busy, onclick: saveZoomAt }, zoomAt ? 'עדכון המועד' : 'קביעת הזום'),

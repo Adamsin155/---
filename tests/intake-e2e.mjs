@@ -409,9 +409,11 @@ await step('Lior\'s focus call (12א): the 10 topics, the two that matter to the
   await signIn(lior, `intake.html?id=${B.id}#focus`, 'lior@astrateg.test');
   await lior.waitForSelector('#focus-form');
   const labels = await lior.locator('#focus-form .ik-field label').allInnerTexts();
-  assert.equal(labels.length, 10);
-  assert.match(labels[0], /אילו מסרים חייבים להופיע \(חייבים להגיד\)/);
-  assert.match(labels[1], /דברים שאסור להגיד \(אסור להגיד\)/);
+  // The free-text "סיכום דגשים" (also during the Zoom) first, then the 10 topics.
+  assert.equal(labels.length, 11);
+  assert.match(labels[0], /^סיכום דגשים$/);
+  assert.match(labels[1], /אילו מסרים חייבים להופיע \(חייבים להגיד\)/);
+  assert.match(labels[2], /דברים שאסור להגיד \(אסור להגיד\)/);
   // What the characterization said is at hand.
   await lior.click('.ik-context summary');
   assert.match(await lior.locator('.ik-context').innerText(), /קפה ומאפים/);

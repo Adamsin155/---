@@ -34,7 +34,8 @@ import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
 import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { folderItemOf } from './qa-logic.js';
 import { loadOfirMeetings } from './office-data.js';
-import { intakeShortcut, mountClientIntake, describeIntakeMark } from './intake-ui.js';
+import { intakeShortcut, mountClientIntake, describeIntakeMark, writesScripts } from './intake-ui.js';
+import { canWriteScripts } from './scripts-data.js';
 // Stage 4: the client's status page, approvals, surveys and WhatsApp consent.
 import { mountClientStatus } from './status-link-ui.js';
 // Stage 5: the monthly cycle (a draft), and items newer than the client's protocol version.
@@ -144,6 +145,20 @@ function showMissing() {
   ]));
 }
 
+// The scripts page (scripts.html): Lior and the owner always; anyone else when Lior
+// granted them this client (asked once per client).
+let scriptsGrant = { id: null, ok: false };
+function scriptsOk() {
+  if (viewerError) return false;
+  if (writesScripts(me, scope)) return true;
+  if (scriptsGrant.id !== client.id) {
+    const cid = client.id;
+    scriptsGrant = { id: cid, ok: false };
+    canWriteScripts(cid).then((ok) => { if (ok && scriptsGrant.id === cid) { scriptsGrant.ok = true; renderKeepingFocus(); } });
+  }
+  return scriptsGrant.ok;
+}
+
 function render() {
   const s = clientState(client, checks, new Date());
   resolved = new Map(s.states.flatMap((x) => x.proc.items.map((i) => [i.key, { proc: x.proc, item: i }])));
@@ -159,7 +174,7 @@ function render() {
     if (tp) openPhases.add(tp.proc.phase);
   }
   renderHead(s);
-  mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus() });
+  mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus(), scripts: scriptsOk() });
   mountClientStatus($('st-slot'), { client, scope, me, toast });
   renderAccess();
   renderQa(s);
@@ -847,7 +862,7 @@ function procCard(x, now, s) {
         own() ? null : h('button', { type: 'button', class: 'btn btn-sm', onclick: () => (p.ctx ? openRound(p.ctx.round) : openEdit(FIELD_INPUT[missing[0]])) }, 'השלמת פרטים')) : null,
       p.what ? h('p', { class: 'proc-what' }, p.what) : null,
       link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${linkDef.label}`) : null,
-      printing ? null : intakeShortcut(p.id, client.id, { checks, scope, complete: x.complete }),
+      printing ? null : intakeShortcut(p.id, client.id, { checks, scope, complete: x.complete, me }),
       ...guidance.map((g) => h('p', { class: 'proc-guide' }, g)),
       p.rule ? h('p', { class: 'proc-rule' }, h('strong', {}, 'חובה: '), p.rule) : null,
       h('ul', { class: 'items' }, ...items.map((i) => itemRow(p, i))),

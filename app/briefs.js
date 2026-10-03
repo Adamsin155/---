@@ -21,6 +21,13 @@ export const FOCUS_TOPICS = P12A.items.filter((i) => i.key.startsWith('p12a.t.')
 // The two the editors need first (editors.md: "מה חייבים להגיד ומה אסור").
 export const MUST = 'messages';
 export const MUST_NOT = 'dont';
+// "סיכום דגשים לקוח": Lior's free-text summary of what the client stressed, written
+// during the focus call or the Zoom (13), next to the topics. Not a protocol item:
+// saving it checks nothing. Shown first wherever the answers are read.
+export const SUMMARY = 'summary';
+export const SUMMARY_LABEL = 'סיכום דגשים';
+// The fields a saved brief keeps: the summary and the 10 topics.
+export const BRIEF_KEYS = [SUMMARY, ...FOCUS_TOPICS.map(([k]) => k)];
 // Placeholder shown for a topic that did not come up in the call.
 export const NOT_RAISED = 'לא עלה בשיחה';
 
@@ -60,11 +67,13 @@ export function highlightsOf(brief) {
 export function briefBlock(brief, { heading = 'דגשים משיחת הדגשים (12א)', compact = false, id = 'brief' } = {}) {
   const f = brief?.fields || {};
   const hl = highlightsOf(brief);
+  const summary = clean(f[SUMMARY]);
   const rest = compact ? [] : FOCUS_TOPICS.filter(([k]) => k !== MUST && k !== MUST_NOT && clean(f[k]));
-  if (!hl && !rest.length) return null;
+  if (!hl && !rest.length && !summary) return null;
   const row = (label, text, cls = '') => [h('dt', { class: cls }, label), h('dd', { class: cls }, text)];
   return h('section', { class: 'brief-view', 'aria-labelledby': `${id}-h` },
     h('h2', { id: `${id}-h` }, heading),
+    summary ? h('dl', { class: 'brief-hl brief-summary' }, row(SUMMARY_LABEL, summary, 'is-summary')) : null,
     hl ? h('dl', { class: 'brief-hl' },
       hl.must ? row('חייבים להגיד', hl.must, 'is-must') : null,
       hl.dont ? row('אסור להגיד', hl.dont, 'is-dont') : null) : null,

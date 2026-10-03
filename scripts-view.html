@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>התסריטים ליום הצילום · astrateg</title>
+  <meta name="description" content="התסריטים ליום הצילום, עם קישורי ההשראה.">
+  <meta property="og:title" content="התסריטים ליום הצילום · אסטרטג">
+  <meta property="og:description" content="התסריטים ליום הצילום, עם קישורי ההשראה.">
+  <meta property="og:image" content="app/assets/logo.png">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/status.css">
+  <link rel="stylesheet" href="app/styles/scripts-view.css">
+</head>
+<body>
+  <a class="skip" href="#main">דילוג לתוכן</a>
+  <header class="sbar">
+    <img src="app/assets/logo-mark.png" alt="astrateg" class="sbar-logo" width="30" height="30">
+    <span class="sbar-title" id="sbar-title">התסריטים ליום הצילום</span>
+  </header>
+
+  <main class="smain" id="main" tabindex="-1">
+    <div class="sstate" id="state" role="status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>טוען את התסריטים…</p>
+    </div>
+
+    <div id="page" hidden>
+      <p class="snote" id="preview" role="note" hidden>אתם מחוברים כאנשי צוות: זו תצוגה של מה שמי שקיבל את הקישור רואה.</p>
+      <section class="shero" aria-labelledby="hello-h">
+        <h1 id="hello-h"></h1>
+        <p class="shero-where" id="summary"></p>
+        <div class="vtools">
+          <button type="button" class="vbtn" id="print-all">הדפסה</button>
+        </div>
+      </section>
+      <nav class="scard vjump" id="jump-sec" aria-labelledby="jump-h" hidden>
+        <h2 id="jump-h">מעבר לתסריט</h2>
+        <ol id="jump"></ol>
+      </nav>
+      <ol class="vlist" id="scripts"></ol>
+    </div>
+
+    <footer class="sfoot">
+      <p>הדף לקריאה בלבד. הקישור אישי: אל תעבירו אותו הלאה. לשאלות על התסריטים: ליאור, אסטרטג.</p>
+    </footer>
+  </main>
+
+  <script type="module" src="app/scripts-view.js"></script>
+</body>
+</html>
