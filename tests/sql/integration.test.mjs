@@ -30,7 +30,8 @@ const q = (who, sql, params = []) => as(db, who ? users[who] : null, async (tx) 
 
 test('the stage 4–6 migrations come after the live ones, in this order', () => {
   const files = migrationFiles();
-  const tail = files.slice(files.indexOf('20260930160000_intake.sql'));
+  // Later migrations (the scripts, 20261003120000) come after these.
+  const tail = files.slice(files.indexOf('20260930160000_intake.sql')).slice(0, 6);
   assert.deepEqual(tail, [
     '20260930160000_intake.sql', '20260930170000_client_status.sql', '20260930180000_whatsapp.sql',
     '20260930190000_year.sql', '20260930200000_calendar_feeds.sql', '20260930210000_hardening.sql',
@@ -112,7 +113,7 @@ test('anon runs only the deliberate token functions: the quote, the signature an
   const { rows } = await db.query(`select n.nspname || '.' || p.proname as f from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('public', 'private') and p.prosecdef and has_function_privilege('anon', p.oid, 'execute') order by 1`);
   assert.deepEqual(rows.map((r) => r.f), [
-    'public.answer_survey', 'public.approve_item', 'public.get_quote', 'public.get_status', 'public.request_fix', 'public.sign_quote',
+    'public.answer_survey', 'public.approve_item', 'public.get_quote', 'public.get_scripts', 'public.get_status', 'public.request_fix', 'public.sign_quote',
   ]);
   // And no table of stages 4–6 is open to anon.
   const t = await db.query(`select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
