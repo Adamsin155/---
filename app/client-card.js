@@ -40,6 +40,8 @@ import { mountClientStatus } from './status-link-ui.js';
 // Stage 5: the monthly cycle (a draft), and items newer than the client's protocol version.
 import { mountClientMonth, worksCycle } from './month-ui.js';
 import { freshText } from './protocol-versions.js';
+// The client's files ("תיק לקוח"): materials, deliverables and the client's gallery link.
+import { mountClientFiles } from './files-ui.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -161,6 +163,7 @@ function render() {
   renderHead(s);
   mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus() });
   mountClientStatus($('st-slot'), { client, scope, me, toast });
+  mountClientFiles($('fl-slot'), { client, me: viewerError ? undefined : me, myEmail, toast });
   renderAccess();
   renderQa(s);
   renderViewbar();
@@ -1722,6 +1725,7 @@ function applyScope() {
   if (sub) sub.textContent = 'משימות שנפתחו לך בלקוח הזה.';
   // My work first; the vault (when mine to use) after it.
   $('phases').after($('access'));
+  $('access').after($('fl-slot'));
 }
 
 mountSession(async (staff) => {

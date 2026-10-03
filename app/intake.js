@@ -28,6 +28,8 @@ import { FOCUS_TOPICS, MUST, MUST_NOT, briefChecks, emptyTopics, roundKey, NOT_R
 import { loadCharacterization, saveCharacterization, loadBriefs, saveBrief, missingTable } from './intake-data.js';
 import { googleCalendarUrl } from './calendar.js';
 import { inputValueIL, fromInputIL } from './tz.js';
+// The materials themselves (logo, photos, videos) go into the client's files from the phone.
+import { mountClientFiles, fileCount } from './files-ui.js';
 
 const params = new URLSearchParams(location.search);
 const id = params.get('id');
@@ -43,6 +45,7 @@ let charRow = null;          // public.characterizations (null: not saved yet)
 let charError = null;        // the table is missing, or could not be read
 let briefs = [];             // public.content_briefs of this client
 let me = null;
+let myEmail = '';
 let scope = 'office';
 let section = 'end';
 let round = Math.max(1, Number(params.get('round')) || 1); // a shoot round's focus call and scripts
@@ -347,6 +350,24 @@ function progressText() {
   const n = filledCount(formV);
   return n === FORM_FIELDS.length ? 'כל 11 השדות מולאו.' : `מולאו ${n} מתוך ${FORM_FIELDS.length} שדות.`;
 }
+// The client's materials, uploaded from the phone at the meeting (the camera roll or
+// the camera) into the client's files. A photo or a video marks that material as
+// received in the form (saved with the form, as a tap on "התקבל" would be).
+function filesSlot() {
+  const slot = h('div', { class: 'ik-files' });
+  mountClientFiles(slot, {
+    client, me, myEmail, toast, only: 'materials', compact: true,
+    onUploaded: (kind) => {
+      const mat = kind === 'image' ? 'photos' : kind === 'video_existing' ? 'videos' : null;
+      if (!mat || formV.materials?.[mat] === 'got') return;
+      formV.materials = { ...formV.materials, [mat]: 'got' };
+      writeDraft();
+      render();
+    },
+  });
+  return slot;
+}
+
 function renderForm() {
   const ended = isDone(CHAR_ENDED);
   const p4 = procState('p04', true);
@@ -375,11 +396,12 @@ function renderForm() {
     })),
     h('fieldset', { class: 'ik-group' },
       h('legend', {}, 'מיתוג וחומרים'),
-      hasLogo ? field({ fid: 'form-logo_url', label: 'קישור ללוגו', hint: 'קישור לקובץ בדרייב. בלי סיסמה בקישור.', error: problems.logo_url,
+      hasLogo ? field({ fid: 'form-logo_url', label: 'קישור ללוגו', hint: 'קישור לקובץ, בלי סיסמה בקישור. אפשר במקום זה להעלות את הקובץ עצמו למטה.', error: problems.logo_url,
         control: textInput(formV.logo_url, onField('logo_url'), { type: 'url', inputmode: 'url', dir: 'ltr' }) }) : h('p', { class: 'muted' }, 'אין ללקוח לוגו: עילאי מכין לוגו חדש.'),
       field({ fid: 'form-colors', label: 'צבעי המותג', control: textInput(formV.colors, onField('colors')) }),
       ...MATERIALS.map((m) => radios(`form-mat-${m.key}`, MATERIAL_STATES, formV.materials?.[m.key] || null,
-        (v) => { formV.materials = { ...formV.materials, [m.key]: v }; writeDraft(); }, m.label))),
+        (v) => { formV.materials = { ...formV.materials, [m.key]: v }; writeDraft(); }, m.label)),
+      filesSlot()),
     h('fieldset', { class: 'ik-group' },
       h('legend', {}, 'משהו חסר שחוסם עבודה היום?'),
       h('label', { class: 'ik-check' },
@@ -419,10 +441,14 @@ async function submitForm() {
     return;
   }
   const notes = [];
-  try { await saveChecks(formChecks(f, checks, { hasLogo: client.has_logo })); } catch (err) { notes.push(`הסימונים בפרוטוקול לא נשמרו (${errorText(err)})`); }
+  // A logo uploaded to the client's files counts as received, like a link to it.
+  const logoFile = client.has_logo !== false && fileCount(id, 'logo') > 0;
+  const want = formChecks(f, checks, { hasLogo: client.has_logo });
+  if (logoFile && !want.some((w) => w.key === 'p05.logo') && !['done', 'na'].includes(checks['p05.logo']?.state)) want.push({ key: 'p05.logo', state: 'done', note: null });
+  try { await saveChecks(want); } catch (err) { notes.push(`הסימונים בפרוטוקול לא נשמרו (${errorText(err)})`); }
   // Missing material: one task for Irit; blocking today's work: Lior at once.
   const open = (prefix) => tasks.some((t) => !t.done_at && t.title.startsWith(prefix));
-  const missing = missingMaterials(f, client.has_logo);
+  const missing = missingMaterials(f, client.has_logo).filter((m) => !(logoFile && m === 'לוגו'));
   try {
     if (missing.length && !open(MISSING_TITLE)) { tasks.push(await addTask(missingTask(client, missing))); notes.push('נפתחה משימה לעירית להשלים מהלקוח'); }
     if (f.blocking && !open(BLOCKING_TITLE)) { tasks.push(await addTask(blockingTask(client, f.blocking_what, missing))); notes.push('ליאור קיבל הודעה שחסר מידע שחוסם עבודה היום'); }
@@ -596,6 +622,7 @@ async function saveRecording() {
 // ── Start ─────────────────────────────────
 mountSession(async (staff) => {
   const v = await viewerOf(staff.email);
+  myEmail = staff.email;
   me = v.me;
   scope = v.scope;
   Object.assign(directory, await loadDirectory());
