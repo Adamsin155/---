@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>התוצרים שלכם · astrateg</title>
+  <meta name="description" content="הגרפיקות, הסרטונים, ה־Highlights והאתר שהכנו לכם, במקום אחד.">
+  <meta property="og:title" content="התוצרים שלכם מאסטרטג">
+  <meta property="og:description" content="הגרפיקות, הסרטונים, ה־Highlights והאתר שהכנו לכם, במקום אחד.">
+  <meta property="og:image" content="app/assets/logo.png">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/status.css">
+  <link rel="stylesheet" href="app/styles/gallery.css">
+</head>
+<body>
+  <a class="skip" href="#main">דילוג לתוכן</a>
+  <header class="sbar">
+    <img src="app/assets/logo-mark.png" alt="astrateg" class="sbar-logo" width="30" height="30">
+    <span class="sbar-title" id="sbar-title">התוצרים שלכם</span>
+  </header>
+
+  <main class="smain" id="main" tabindex="-1">
+    <div class="sstate" id="state" role="status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>טוען את התוצרים…</p>
+    </div>
+
+    <div id="page" hidden>
+      <section class="shero" aria-labelledby="hello-h">
+        <h1 id="hello-h"></h1>
+        <p class="shero-where" id="summary"></p>
+        <nav class="gnav" id="gnav" aria-label="קפיצה לסוג"></nav>
+      </section>
+      <div id="sections"></div>
+      <section class="scard" id="empty" hidden>
+        <h2>עוד אין כאן תוצרים</h2>
+        <p class="muted">כשנעלה גרפיקות, סרטונים או את האתר, הם יופיעו כאן. אפשר לשמור את הקישור.</p>
+      </section>
+    </div>
+
+    <footer class="sfoot">
+      <section aria-labelledby="about-h">
+        <h2 id="about-h">על הדף</h2>
+        <ul>
+          <li>הדף לצפייה ולהורדה בלבד. אפשר לשתף אותו עם מי שעובד איתכם על העסק.</li>
+          <li>הקישורים לקבצים מתחדשים בכל פתיחה של הדף. אם קובץ לא נפתח, רעננו את העמוד.</li>
+          <li>אנחנו רושמים מתי הדף נפתח (בלי כתובת IP ובלי פרטי הדפדפן).</li>
+          <li>לשאלות או לבקשת גרסה נגישה של קובץ: <span dir="ltr">info@astrateg.com</span>, או בקבוצת ה־WhatsApp שלכם מולנו.</li>
+        </ul>
+      </section>
+    </footer>
+  </main>
+
+  <dialog id="viewer" aria-labelledby="viewer-h">
+    <div class="gview">
+      <h2 id="viewer-h" class="sr-only">צפייה</h2>
+      <div id="viewer-body"></div>
+      <button type="button" class="sbtn" id="viewer-close">סגירה</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="app/gallery.js"></script>
+</body>
+</html>

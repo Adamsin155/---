@@ -16,7 +16,7 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'calendar-feed.js', 'catalog.js', 'characterization.js', 'clocks.js', 'holidays.js', 'ics.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js',
+    'calendar-feed.js', 'catalog.js', 'characterization.js', 'clocks.js', 'files-logic.js', 'holidays.js', 'ics.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
     'shoot-prep.js', 'status-rules.js', 'tz.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
@@ -81,6 +81,11 @@ const DEPLOY = {
     ...APP('calendar-feed.js', 'catalog.js', 'holidays.js', 'ics.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'tz.js'),
     'calendar/index.ts',
   ],
+  'client-media': [
+    ...APP('files-logic.js'),
+    'client-media/index.ts',
+    'client-media/media.js',
+  ],
   'create-quote': [
     ...APP('catalog.js', 'legal.js', 'pricing.js'),
     'create-quote/index.ts',
@@ -126,7 +131,7 @@ test('every function, and every file it deploys (the shared copies it reaches ar
 test('verify_jwt: off for the functions that check their caller themselves', () => {
   const config = readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8');
   const off = [...config.matchAll(/\[functions\.([a-z-]+)\]\s*\nverify_jwt = false/g)].map((m) => m[1]).sort();
-  assert.deepEqual(off, ['calendar', 'reminders', 'staff-admin', 'whatsapp-webhook']);
+  assert.deepEqual(off, ['calendar', 'client-media', 'reminders', 'staff-admin', 'whatsapp-webhook']);
 });
 
 test('the shared pricing engine computes the same quote as app/', async () => {

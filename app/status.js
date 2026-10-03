@@ -107,14 +107,50 @@ function renderItems() {
   const items = (data.items || []).filter((i) => i.state !== 'approved');
   $('approvals-sec').hidden = !items.length;
   fill($('items'), items.map(itemCard));
+  if (items.some((i) => GFX_ITEMS.includes(i.item))) loadMedia();
+}
+
+// ── The graphics themselves, next to their approval ──
+// The uploaded graphics (the client card's "תוצרים") come through the client-media
+// function with short-lived signed URLs: those uploaded before the first 9 were
+// approved belong to them (process 7), later ones to the rest (process 23). Loaded
+// once, after the page shows; a card without graphics shows only its link, as before.
+let media = null; // { graphics9: [...], graphics: [...] } | null (not loaded, or none)
+let mediaAsked = false;
+const GFX_ITEMS = ['graphics9', 'graphics'];
+async function loadMedia() {
+  if (mediaAsked) return;
+  mediaAsked = true;
+  try {
+    const { data: d, error } = await supa.supabase.functions.invoke('client-media', { body: { t: token, scope: 'status' } });
+    if (error || !d || d.state !== 'ok') return;
+    media = { graphics9: [], graphics: [] };
+    for (const f of d.files || []) if (media[f.item]) media[f.item].push(f);
+    for (const slot of document.querySelectorAll('.sgfx[data-item]')) fillGraphics(slot, slot.dataset.item);
+  } catch { /* the page works without them */ }
+}
+function fillGraphics(slot, item) {
+  const list = media?.[item] || [];
+  slot.hidden = !list.length;
+  if (!list.length) { slot.replaceChildren(); return; }
+  slot.replaceChildren(
+    h('p', { class: 'sgfx-h' }, `הגרפיקות (${list.length}). לחיצה פותחת כל אחת בגודל מלא.`),
+    h('ul', { class: 'sgfx-grid' }, list.map((f, i) => h('li', {},
+      h('a', { href: f.url, target: '_blank', rel: 'noopener noreferrer' },
+        h('img', { src: f.thumb || f.url, alt: `גרפיקה ${i + 1} מתוך ${list.length}`, loading: 'lazy', decoding: 'async', width: '120', height: '120',
+          onerror: (e) => { if (f.thumb && e.currentTarget.src !== f.url) e.currentTarget.src = f.url; } }),
+        h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)'))))));
 }
 
 function itemCard(it) {
   const id = domId(it.key);
   const label = itemText(it.item, it.shootRound);
+  const gfx = GFX_ITEMS.includes(it.item) ? h('div', { class: 'sgfx', 'data-item': it.item, hidden: true }) : null;
+  if (gfx) fillGraphics(gfx, it.item);
   const head = [
     h('h3', { id: `h-${id}` }, label),
     h('p', { class: 'sitem-meta' }, `סבב ${it.round}`, it.link ? [' · ', h('a', { href: it.link, target: '_blank', rel: 'noopener noreferrer' }, ITEMS[it.item].link, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)'))] : null),
+    gfx,
   ];
   if (it.state === 'fixing') {
     return h('article', { class: 'sitem is-fixing', id: `item-${id}`, 'aria-labelledby': `h-${id}` }, ...head,

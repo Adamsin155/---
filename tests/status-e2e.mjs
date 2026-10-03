@@ -345,7 +345,8 @@ await step('Irit creates the link and copies a ready WhatsApp message with it', 
   assert.match(await text(irit, '#status-block .st-state'), /קישור פעיל עד יום א׳ 11\.4 · עוד לא נפתח/);
   await irit.click('#st-copy-msg');
   await toastHas(irit, 'הועתק');
-  const msg = await irit.evaluate(() => navigator.clipboard.readText());
+  // (Windows' clipboard gives the lines back with \r\n.)
+  const msg = (await irit.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n');
   assert.match(msg, /^היי דנה לוי, זה דף המצב האישי שלכם אצלנו:\n/);
   assert.ok(msg.includes(`${BASE}status.html?t=${token}`), msg);
   assert.match(msg, /הקישור אישי: לא להעביר אותו/);
