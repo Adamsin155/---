@@ -12,6 +12,12 @@
 import { TIERS, INFLUENCERS, PAID_ADDONS, FREE_ADDONS, MAX_DISCOUNT, DOC_TYPES } from './catalog.js';
 import { emptySelection, reconcile, formatILS } from './pricing.js';
 import { addWorkingMinutes, parseDate } from './protocol-logic.js';
+import { isSales } from './protocol.js';
+
+// Sales land on their page, always (clients.html and the office's pages send them
+// there): they have no client work and see nothing of the clients.
+export const SALES_SCREEN = 'deal.html';
+export const landingOf = (person) => (isSales(person) ? SALES_SCREEN : null);
 
 // Irit's clock: 10 minutes of office time from the moment the deal came in.
 export const DEAL_MINUTES = 10;
