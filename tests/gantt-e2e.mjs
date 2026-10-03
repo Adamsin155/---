@@ -375,6 +375,7 @@ await step('he adds an entry of his own from a day: a custom key, moved by hand'
   await ilai.click('#gm-day button:has-text("הוספת פריט ביום הזה")');
   await ilai.waitForSelector('#entry-dlg[open]');
   assert.equal(await ilai.inputValue('#ed-day'), '2026-11-24');
+  assert.doesNotMatch(await ilai.innerText('#entry-dlg'), /\bnull\b|undefined/);
   await ilai.selectOption('#ed-kindsel', 'graphic');
   await ilai.fill('#ed-title', 'גרפיקת בלאק פריידיי');
   await ilai.fill('#ed-time', '11:30');
@@ -465,6 +466,7 @@ await step('the client opens the link without signing in: dates, what went up an
   assert.match(await page.innerText('#gt-title'), /גאנט התוכן · מספרת רון בע״מ/);
   const all = await page.innerText('body');
   for (const secret of ['תכנון חודש', 'שיחת חידוש', 'עלה עם שיר טרנדי', 'הערה של המשרד', 'עדכון מהתבנית', 'הוספת פריט', 'עברו ולא סומנו']) assert.ok(!all.includes(secret), secret);
+  assert.doesNotMatch(all, /\bnull\b|undefined/);
   assert.equal(await page.locator('#btn-regen, #btn-add, #gt-share:not([hidden])').count(), 0);
   await page.click(`#gm-grid .gt-chip[data-key="${posted.key}"]`);
   await page.waitForSelector('#entry-dlg[open]');
@@ -495,6 +497,12 @@ await step('the client\'s editor reads the Gantt and nothing more; an editor wit
   assert.equal(await nadia.locator('#btn-regen, #btn-add').count(), 0);
   assert.equal(await nadia.isVisible('#gt-share'), false);
   assert.equal(await nadia.locator('.gt-chip[draggable="true"]').count(), 0);
+  await nadia.click(`#gm-grid .gt-chip[data-key="${posted.key}"]`);
+  await nadia.waitForSelector('#entry-dlg[open]');
+  await nadia.click('#ed-close');
+  await nadia.click(`td[data-day="${posted.day}"] .gt-daynum`);
+  await nadia.waitForSelector('#gm-day:not([hidden])');
+  assert.doesNotMatch(await nadia.innerText('#app'), /\bnull\b|undefined/);
   await nadia.click(`#gm-grid .gt-chip[data-key="${posted.key}"]`);
   await nadia.waitForSelector('#entry-dlg[open]');
   assert.equal(await nadia.locator('#entry-dlg input').count(), 0);

@@ -193,12 +193,12 @@ function renderStats() {
   const next = rows.filter((e) => kindOf(e).post && e.state === 'planned' && statusOf(e) !== 'late' && e.day >= todayKey()).sort(byWhen)[0];
   const pct = t.posts ? Math.round((t.posted / t.posts) * 100) : 0;
   const stat = (cls, label, value, extra = null) => h('div', { class: `gt-stat ${cls}` }, h('span', { class: 'gt-stat-l' }, label), h('strong', { class: 'gt-stat-v' }, value), extra);
-  $('gt-stats').replaceChildren(
+  $('gt-stats').replaceChildren(...[
     stat('st-posts', 'פרסומים בשנה', String(t.posts)),
     stat('st-up', 'עלו', `${t.posted}`, h('span', { class: 'gt-meter', role: 'img', 'aria-label': `${pct} אחוז עלו` }, h('span', { style: `inline-size:${pct}%` }))),
     SHARE ? null : stat(`st-late${t.late ? ' is-late' : ''}`, 'עברו ולא סומנו שעלו', String(t.late)),
     stat('st-next', 'הפרסום הבא', next ? `${dm(next.day)}${next.time_il ? ` · ${timeText(next.time_il)}` : ''}` : '—', next ? h('span', { class: 'gt-stat-x' }, next.title) : null),
-  );
+  ].filter(Boolean));
 }
 
 function renderGlance() {
@@ -367,11 +367,11 @@ function renderDay() {
   const list = rows.filter((e) => e.day === selectedDay).sort(byWhen);
   const hol = holidayName(selectedDay);
   box.hidden = false;
-  box.replaceChildren(
+  box.replaceChildren(...[
     h('div', { class: 'gt-day-h' }, h('h3', {}, dayLine(selectedDay), hol ? h('span', { class: 'gt-hol' }, hol) : null),
       h('button', { type: 'button', class: 'btn-text', onclick: () => selectDay(selectedDay) }, 'סגירה')),
     list.length ? h('ul', { class: 'gt-rows' }, ...list.map(entryRow)) : h('p', { class: 'gt-none' }, 'אין פריטים ביום הזה.'),
-    canEdit ? h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEntry(null, selectedDay) }, 'הוספת פריט ביום הזה') : null);
+    canEdit ? h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEntry(null, selectedDay) }, 'הוספת פריט ביום הזה') : null].filter(Boolean));
   loadThumbs(box);
 }
 async function loadThumbs(root) {
@@ -436,7 +436,7 @@ function openEntry(e, day = null) {
   const meta = [];
   if (e && !isCustom(e)) meta.push(e.edited ? 'התאריך שונה ידנית: עדכון מהתבנית לא יזיז אותו בלי אישור.' : 'התאריך נקבע לפי התבנית.');
   if (e?.by_email && ui) meta.push(`עודכן לאחרונה: ${ui.who(e.by_email)} · ${ui.formatStamp(e.at)}`);
-  $('ed-body').replaceChildren(
+  $('ed-body').replaceChildren(...[
     h('div', { class: 'gt-form' },
       kindSel ? field('סוג', kindSel) : null,
       field('כותרת', title),
@@ -449,7 +449,7 @@ function openEntry(e, day = null) {
       meta.length ? h('p', { class: 'gt-meta' }, meta.join(' ')) : null,
       h('p', { class: 'err', id: 'ed-err', role: 'alert', hidden: true })),
     e ? h('details', { class: 'gt-view-ro' }, h('summary', {}, 'איך זה נראה ללקוח'), ...readOnlyEntry(e).flat().filter(Boolean)) : null,
-  );
+  ].filter(Boolean));
   foot.push(h('button', { type: 'button', class: 'btn btn-primary', id: 'ed-save', onclick: () => saveFromDialog(e) }, isNew ? 'הוספה' : 'שמירה'));
   if (e && isCustom(e)) foot.push(h('button', { type: 'button', class: 'btn btn-ghost danger', id: 'ed-del', onclick: () => deleteEntry(e) }, 'מחיקה'));
   foot.push(h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => dlg().close() }, 'ביטול'));
