@@ -1,0 +1,139 @@
+/* The manager's pieces: the "המשימות שלי" / "מבט מנהל" switch (every page; loaded by
+   app/manager-ui.js), the contract summary in the client card, the manager table and
+   the archive (owner.html). Builds on app.css and protocol.css tokens; the quote
+   pages (dark) and the protocol pages (light) both read it, so only tokens are used,
+   and the one filled colour is the brand violet with white text (8.6:1).
+   Phones first (360px), every control at least 44px high. */
+
+/* ── The switch ── */
+.mode-bar {
+  display: flex; align-items: center; gap: 10px; padding: 8px 24px;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.mode-k { font-size: 13px; color: var(--muted); }
+.mode-seg {
+  display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.mode-opt {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 18px;
+  border-radius: 999px; text-decoration: none; color: var(--text-2); font-size: 14px; font-weight: 500; white-space: nowrap;
+}
+.mode-opt:hover { color: var(--text); background: var(--panel); }
+.mode-opt.is-on, .mode-opt.is-on:hover { background: var(--brand-purple, #5302DF); color: #fff; box-shadow: 0 4px 12px -8px rgba(83, 2, 223, .8); }
+.mode-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 760px) {
+  .mode-bar { padding: 6px 16px; }
+  .mode-k { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .mode-seg { flex: 1; }
+  .mode-opt { flex: 1; min-height: 44px; padding: 0 10px; }
+}
+@media print { .mode-bar { display: none; } }
+
+/* ── The contract summary (client card) ── */
+.cs { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; }
+.cs-head { display: flex; align-items: baseline; gap: 6px 12px; flex-wrap: wrap; }
+.cs-head h2 { margin: 0; font-size: 15px; }
+.cs-when { font-size: 13px; color: var(--text-2); }
+.cs-when .is-open { color: var(--warn); font-weight: 600; }
+.cs-items { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 8px; }
+.cs-item {
+  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 12px; padding: 10px 12px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius-md); min-width: 0;
+}
+.cs-n { font-size: 22px; font-weight: 600; line-height: 1.1; color: var(--text); white-space: nowrap; }
+.cs-n small { font-size: 14px; font-weight: 500; color: var(--muted); }
+.cs-t { font-size: 13.5px; color: var(--text-2); overflow-wrap: anywhere; }
+.cs-item .pbar { grid-column: 1 / -1; inline-size: 100%; }
+.cs-item.is-over .cs-n { color: var(--ok); }
+.cs p { margin: 0; }
+.cs-flags { font-size: 13.5px; color: var(--text-2); }
+
+/* ── The manager table ── */
+.mt-view { padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.mt-tools { display: grid; grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(120px, 1fr)) auto; gap: 8px; align-items: end; }
+.mt-tools .field { margin: 0; display: grid; gap: 4px; min-width: 0; }
+.mt-tools label { font-size: 12.5px; color: var(--muted); }
+.mt-tools .input { min-height: 44px; inline-size: 100%; }
+.mt-tools .btn { min-height: 44px; }
+.mt-count { margin: 0; font-size: 13px; color: var(--text-2); }
+.mt-wrap {
+  overflow: auto; max-block-size: calc(100vh - 260px); max-block-size: calc(100dvh - 260px); min-block-size: 240px;
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--panel);
+  overscroll-behavior-inline: contain;
+}
+.mt { border-collapse: separate; border-spacing: 0; inline-size: max-content; min-inline-size: 100%; font-size: 13.5px; }
+.mt td { white-space: nowrap; }
+.mt th, .mt td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: start; vertical-align: top; }
+.mt thead th {
+  position: sticky; top: 0; z-index: 2; background: var(--bg); color: var(--muted); font-weight: 500; font-size: 12.5px;
+  white-space: nowrap; padding: 0; box-shadow: inset 0 -1px 0 var(--line-strong);
+}
+.mt thead th > button, .mt thead th > span {
+  display: flex; align-items: center; gap: 4px; inline-size: 100%; min-height: 44px; padding: 0 10px;
+  background: none; border: 0; color: inherit; font: inherit; text-align: start; cursor: pointer;
+}
+.mt thead th > span { cursor: default; }
+.mt thead th[aria-sort] > button { color: var(--accent-deep, var(--accent)); font-weight: 600; }
+.mt thead th > button::after { content: ''; inline-size: 0; block-size: 0; border: 4px solid transparent; opacity: .35; border-block-start-color: currentColor; margin-block-start: 4px; }
+.mt thead th[aria-sort='ascending'] > button::after { opacity: 1; border-block-start-color: transparent; border-block-end-color: currentColor; margin-block: 0 4px; }
+.mt thead th[aria-sort='descending'] > button::after { opacity: 1; }
+.mt thead th > button:hover { color: var(--text); background: var(--panel-2); }
+/* The business stays in view when the table scrolls sideways. */
+.mt th:first-child, .mt td:first-child { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--panel); box-shadow: inset 1px 0 0 var(--line); min-inline-size: 170px; } /* RTL: the line on its left */
+.mt thead th:first-child { z-index: 3; background: var(--bg); }
+.mt tbody tr:hover td { background: var(--row-hover, var(--panel-2)); }
+.mt tbody tr.h-red td:first-child { box-shadow: inset -4px 0 0 var(--late), inset 1px 0 0 var(--line); }
+.mt tbody tr.h-yellow td:first-child { box-shadow: inset -4px 0 0 var(--warn-line, var(--warn)), inset 1px 0 0 var(--line); }
+.mt .mt-name { font-weight: 600; text-decoration: none; }
+.mt .mt-name:hover { text-decoration: underline; }
+.mt .sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+.mt .num { white-space: nowrap; }
+.mt td.is-num { text-align: end; }
+.mt .mt-ratio { display: grid; gap: 4px; min-inline-size: 70px; }
+.mt .mt-ratio .pbar { inline-size: 100%; }
+.mt .mt-step { white-space: normal; min-inline-size: 190px; max-inline-size: 260px; }
+.mt .mt-step .pchip { margin-top: 3px; }
+.mt .mt-why { display: block; font-size: 12px; color: var(--text-2); white-space: normal; min-inline-size: 130px; max-inline-size: 220px; }
+.mt .mt-renew.is-open { color: var(--warn); font-weight: 600; }
+.mt .mt-renew.is-ended { color: var(--muted); }
+.mt-empty { padding: 24px; text-align: center; color: var(--muted); }
+.mt-money-note { margin: 0; font-size: 12.5px; color: var(--muted); }
+@media (max-width: 980px) {
+  .mt-tools { grid-template-columns: 1fr 1fr; }
+  .mt-tools .mt-search { grid-column: 1 / -1; }
+  .mt-tools .mt-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .mt-view { padding: 12px; }
+  .mt-wrap { max-block-size: calc(100dvh - 200px); }
+  .mt th:first-child, .mt td:first-child { min-inline-size: 132px; max-inline-size: 150px; }
+}
+
+/* ── The archive ── */
+.ar-view { padding: 16px; display: grid; gap: 12px; }
+.ar-intro { margin: 0; color: var(--text-2); font-size: 14px; }
+.ar-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ar-item {
+  display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-2);
+}
+.ar-item p { margin: 0; }
+.ar-name { font-weight: 600; }
+.ar-meta { font-size: 13px; color: var(--text-2); }
+.ar-acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.ar-acts .btn { min-height: 44px; }
+.btn-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line-strong)); }
+.btn-danger:hover { background: var(--late-soft, var(--panel-2)); border-color: var(--danger); }
+.btn-danger-fill, .btn-danger-fill:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn-danger-fill:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 760px) {
+  .ar-item { grid-template-columns: 1fr; }
+  .ar-acts { justify-content: stretch; }
+  .ar-acts .btn { flex: 1; }
+}
+/* The permanent deletion dialog */
+.purge-list { margin: 0 0 14px; padding-inline-start: 20px; color: var(--text-2); font-size: 14px; }
+.purge-name { font-weight: 700; color: var(--text); }
+.purge-check { display: flex; gap: 10px; align-items: flex-start; min-height: 44px; font-size: 14px; color: var(--text); }
+.purge-check input { inline-size: 20px; block-size: 20px; flex: none; margin-top: 2px; accent-color: var(--danger); }

@@ -20,6 +20,12 @@ export const canArchive = (v) => isOwnerView(v) || (known(v) && ARCHIVERS.includ
 export const seesFinance = (v) => isManager(v);
 export const canSeeTable = (v) => isOwnerView(v) || (known(v) && TABLE_VIEWERS.includes(v.me));
 
+// The permanent deletion asks for the business name typed again. Compared as people
+// see it (no direction marks, spaces collapsed, any case), like private.same_name()
+// in the migration, which decides.
+const plain = (s) => String(s ?? '').replace(/[‎‏‪-‮⁦-⁩]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+export const sameName = (typed, name) => plain(name) !== '' && plain(typed) === plain(name);
+
 // ── The two profiles ────────────────────────
 export const MODES = {
   mine: { key: 'mine', label: 'המשימות שלי', href: 'clients.html#mine' },

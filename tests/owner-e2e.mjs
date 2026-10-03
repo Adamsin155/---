@@ -6,11 +6,11 @@
 //  - Four numbers, rows most severe first, one name each, "פתיחה" and "שאלה לאחראי";
 //    the question reaches Lior's "מה עליי", he answers there, the answer shows in the row.
 //  - Screen 2: two lines per client, a tap opens the rest; the board of the week / 30 days.
-//  - Irit opens screen 2 but not screen 1; an editor neither; a worker sees only
+//  - The managers (the owner, Irit, Ofir) open screen 1; Lior screen 2 but not screen 1; an editor neither; a worker sees only
 //    their own row of the team screen, the owner and Lior everyone.
 //  - The client card: three lines (colour and why, now, next), the timeline and the
 //    questions asked about the client. After landing, "לקוחות" opens the list; a
-//    question is offered only to someone who can sign in; on a phone Irit reaches
+//    question is offered only to someone who can sign in; on a phone Lior reaches
 //    screen 2 from the page head.
 //  - Everything green: "הכול לפי התוכנית". A 360px phone: no sideways scrolling, 44px targets.
 // Run: npx http-server -p 8080 -s . &  then  node tests/owner-e2e.mjs [outDir]
@@ -468,26 +468,36 @@ await step('"שאלה לאחראי" only to someone who can sign in', async () =
   await owner.waitForFunction((id) => !document.querySelector(`#ow-rows a.wclient[href="client.html?id=${id}"]`), E.id);
 });
 
-await step('Irit opens screen 2 but not screen 1; an editor opens neither', async () => {
+await step('the managers: Irit opens screen 1 too; Lior opens screen 2 but not screen 1; an editor opens neither', async () => {
+  // Irit (and Ofir) have the manager profile (the owner's decision): screen 1 with its questions.
   const ictx = await newContext();
   const irit = await newPage(ictx);
   await signIn(irit, 'owner.html#now', 'irit@astrateg.test');
-  await irit.waitForSelector('#view-all:not([hidden]) .ga-item');
-  assert.equal(new URL(irit.url()).hash, '#all');
-  assert.equal(await irit.isHidden('#tab-now'), true);
-  assert.equal(await irit.isHidden('#ow-tabs'), true);
-  assert.equal(await irit.isHidden('#view-now'), true);
-  assert.equal(await text(irit, '#ow-title'), 'כל הלקוחות במבט');
-  assert.equal(await irit.locator('.ask-btn').count(), 0);
-  // No way into screen 1 by the address either.
-  await irit.evaluate(() => { location.hash = '#now'; });
-  await irit.waitForTimeout(200);
-  assert.equal(await irit.isHidden('#view-now'), true);
-  // Her clients.html is hers, not redirected.
+  await irit.waitForSelector('#view-now:not([hidden]) .ow-row');
+  assert.equal(await irit.isHidden('#tab-now'), false);
+  assert.equal(await text(irit, '#ow-title'), 'מה דורש אותי');
+  assert.ok(await irit.locator('.ask-btn').count() > 0);
+  assert.equal(await text(irit, '#link-work'), 'המשימות שלי');
+  // Her clients.html is still hers by default ("המשימות שלי"), not redirected.
   await irit.goto(`${BASE}clients.html`);
   await irit.waitForSelector('#view-mine:not([hidden])');
   assert.match(irit.url(), /clients\.html/);
   await ictx.close();
+  const lctx = await newContext();
+  const lior = await newPage(lctx);
+  await signIn(lior, 'owner.html#now', 'lior@astrateg.test');
+  await lior.waitForSelector('#view-all:not([hidden]) .ga-item');
+  assert.equal(new URL(lior.url()).hash, '#all');
+  assert.equal(await lior.isHidden('#tab-now'), true);
+  assert.equal(await lior.isHidden('#view-now'), true);
+  assert.equal(await text(lior, '#ow-title'), 'כל הלקוחות במבט');
+  assert.equal(await lior.locator('.ask-btn').count(), 0);
+  // No switch for Lior, and no way into screen 1 by the address either.
+  assert.equal(await lior.locator('#mode-bar').count(), 0);
+  await lior.evaluate(() => { location.hash = '#now'; });
+  await lior.waitForTimeout(200);
+  assert.equal(await lior.isHidden('#view-now'), true);
+  await lctx.close();
   const nctx = await newContext();
   const nadia = await newPage(nctx);
   await signIn(nadia, 'owner.html', 'nadia@astrateg.test');
@@ -574,20 +584,20 @@ await step('a 360px phone: no sideways scrolling, 44px targets, on both screens'
   assert.ok(await noHScroll(phone), 'the team screen scrolls sideways at 360px');
   await shot(phone, 'owner-09-phone-team');
   await pctx.close();
-  // Irit on a phone: the top bar folds away, and the page head keeps the way into screen 2.
+  // Lior on a phone: the top bar folds away, and the page head keeps the way into screen 2.
   const ictx = await newContext({ width: 360, height: 780 });
-  const irit = await newPage(ictx);
-  await signIn(irit, 'clients.html', 'irit@astrateg.test');
-  await irit.waitForSelector('#view-mine:not([hidden])');
-  assert.equal(await irit.locator('#nav-owner').isVisible(), false);
-  const cta = irit.locator('#cta-owner');
+  const lior = await newPage(ictx);
+  await signIn(lior, 'clients.html#mine', 'lior@astrateg.test');
+  await lior.waitForSelector('#view-mine:not([hidden])');
+  assert.equal(await lior.locator('#nav-owner').isVisible(), false);
+  const cta = lior.locator('#cta-owner');
   assert.equal(await cta.isVisible(), true);
   assert.equal(await cta.getAttribute('href'), 'owner.html#all');
   assert.equal(await cta.innerText(), 'כל הלקוחות במבט');
   assert.ok((await cta.boundingBox()).height >= 44);
-  assert.ok(await noHScroll(irit), 'clients.html scrolls sideways at 360px');
+  assert.ok(await noHScroll(lior), 'clients.html scrolls sideways at 360px');
   await cta.click();
-  await irit.waitForSelector('#view-all:not([hidden]) .ga-item');
+  await lior.waitForSelector('#view-all:not([hidden]) .ga-item');
   await ictx.close();
 });
 

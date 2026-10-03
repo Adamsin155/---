@@ -21,12 +21,19 @@ import {
 } from './health.js';
 import { healthBadge, reasonText, nextText, stationBar, markOwnerLanded } from './health-ui.js';
 import {
-  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN,
+  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN, progressBar,
 } from './protocol-ui.js';
 import { canManageTeam } from './team-rules.js';
 import { canSeeInsights } from './insights.js';
 import { canSendMessages } from './messages-logic.js';
 import { TZ, dayKeyIL, daysBetweenIL } from './tz.js';
+// The manager profile (app/manager-rules.js): the table and the archive.
+import { canArchive, canSeeTable, seesFinance, sameName } from './manager-rules.js';
+import {
+  tableRow, columnsFor, filterRows, sortRows, filterOptions, toCsv, csvName, DEFAULT_FILTERS, dayText as dmy, moneyText,
+} from './manager-table.js';
+import { fileCounts } from './contract-summary.js';
+import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeClient } from './manager-data.js';
 
 let viewer = null;
 let isOwner = false;
@@ -42,6 +49,18 @@ let reviews = null;    // daily reviews (processes 32, 33)
 let changes = null;    // date changes of the last 30 days
 let questions = [];    // questions asked in the last 30 days
 let entries = [];      // [{ client, state, health, station }]
+// The manager table and the archive (app/manager-table.js, app/manager-data.js).
+let mayTable = false;  // the owner, Irit, Ofir and Lior
+let showMoney = false; // the owner, Irit and Ofir: the price columns (never Lior)
+let mayArchive = false; // the owner and Ofir
+let finance = null;    // the prices by client id (null: not loaded or not allowed)
+let files = null;      // deliverables uploaded as files (null: no such table, or not readable)
+let tableRows = [];    // one row per client, every status
+let tableShown = [];   // what the table shows now, in order (the CSV exports this)
+let filters = { ...DEFAULT_FILTERS };
+let sortKey = 'color';
+let sortDir = 'asc';
+let archived = null;   // archived_clients() (null: not loaded)
 let view = 'now';
 let colorFilter = '';
 let boardDays = 7;
@@ -54,7 +73,7 @@ const stateOf = (c) => {
 };
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash}`;
 const hmFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
-const busy = () => $('dlg-ask').open;
+const busy = () => $('dlg-ask').open || $('dlg-purge').open;
 const groupBy = (rows, key) => {
   const m = new Map();
   for (const r of rows || []) (m.get(r[key]) || m.set(r[key], []).get(r[key])).push(r);
@@ -88,11 +107,14 @@ async function doLoad() {
     loadAllLog(since), loadMessagesSince(since30.toISOString()), loadAccessStatus(),
     loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }), loadReviews(dayKeyIL(new Date(now.getTime() - 14 * 864e5))),
     loadDateChanges({ sinceIso: since30.toISOString() }), loadQuestions({ sinceIso: since30.toISOString() }), loadLogFor(hist),
+    showMoney ? loadFinance() : null, mayTable ? loadDeliverableFiles() : null,
   ]);
   const ok = (i) => (got[i].status === 'fulfilled' ? got[i].value : null);
   [log, messages, access, notes, reviews, changes] = [0, 1, 2, 3, 4, 5].map(ok);
   log = withHistory(log, ok(7), hist);
   questions = ok(6) || [];
+  finance = ok(8);
+  files = ok(9);
   lastLoad = Date.now();
   $('state').textContent = '';
   compute();
@@ -114,6 +136,13 @@ function compute(now = new Date()) {
     };
     return { client: c, state: s, health: clientHealth(c, s, ex), station: station(c, s, ex) };
   });
+  if (mayTable) {
+    // Every client, also ended and cancelled ones (no colour, no station for them).
+    const byId = new Map(entries.map((e) => [e.client.id, e]));
+    const filesBy = files ? Object.fromEntries([...groupBy(files, 'client_id')].map(([id, rows]) => [id, fileCounts(rows)])) : null;
+    tableRows = allClients.map((c) => tableRow(byId.get(c.id) || { client: c, state: stateOf(c), health: null, station: null },
+      { checks, finance: showMoney ? finance || {} : null, files: filesBy, now }));
+  }
 }
 
 // Re-rendering replaces elements; keyboard focus and the scroll stay where they were.
@@ -126,10 +155,21 @@ function renderKeepingFocus() {
 }
 
 // ── Tabs ────────────────────────────────────
-const TABS = ['now', 'all'];
+const TABS = ['now', 'all', 'table', 'archive'];
 const tabsShown = () => TABS.filter((t) => !$(`tab-${t}`).hidden);
+// The page's heading follows the tab.
+const VIEW_TITLES = {
+  now: ['מה דורש אותי', 'רק מה שחרג, עם שם אחד וסיבה אחת. הכול מחושב ממה שהצוות מסמן.'],
+  all: ['כל הלקוחות במבט', 'איפה כל לקוח, מה הבא, מי ומתי. לחיצה על לקוח מציגה את השאר.'],
+  table: ['כל הלקוחות בטבלה', 'שורה לכל לקוח: מה בחוזה, איפה הוא עומד, מה הבא ומה בוצע. מיון, סינון וייצוא.'],
+  archive: ['ארכיון', 'לקוחות שהועברו לארכיון: שחזור, או מחיקה לצמיתות.'],
+};
 function setView(v, focus = false) {
   view = tabsShown().includes(v) ? v : tabsShown()[0];
+  const [title, sub] = VIEW_TITLES[view];
+  $('ow-title').textContent = title;
+  $('ow-sub').textContent = sub;
+  document.title = title + ' · astrateg';
   for (const t of TABS) {
     $(`tab-${t}`).setAttribute('aria-selected', String(t === view));
     $(`tab-${t}`).tabIndex = t === view ? 0 : -1;
@@ -151,6 +191,8 @@ $('ow-tabs').addEventListener('keydown', (e) => {
 
 function render() {
   if (view === 'now') renderNow();
+  else if (view === 'table') renderTable();
+  else if (view === 'archive') renderArchive();
   else renderAll();
 }
 
@@ -398,8 +440,147 @@ function renderBoard(now) {
       e.done ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'בוצע') : null))))));
 }
 
+// ── The manager table ───────────────────────
+// One row per client: what the contract grants and where the client is. Sorting by
+// any column, filters (station, colour, editor, status), search, a sticky header and
+// business column, sideways scrolling inside the table on a phone, and the CSV.
+const dash = (v) => (v === '' || v === null || v === undefined ? '—' : v);
+function fillSelect(el, options, value) {
+  const same = el.options.length === options.length && options.every(([k, l], i) => el.options[i].value === k && el.options[i].text === l);
+  if (!same) fill(el, options.map(([k, l]) => h('option', { value: k }, l)));
+  el.value = options.some(([k]) => k === value) ? value : options[0][0];
+}
+function ratioCell(x, label) {
+  if (!x) return h('td', { class: 'is-num' }, '—');
+  return h('td', { class: 'is-num' }, h('div', { class: 'mt-ratio' },
+    h('span', { class: 'num', title: x.text }, `${x.done}/${x.total}`), progressBar(Math.min(x.done, x.total), x.total, `${label} שבוצעו`)));
+}
+const CELLS = {
+  name: (r) => h('td', {}, h('a', { class: 'mt-name', href: clientUrl(r.id) }, r.name), r.contact ? h('span', { class: 'sub' }, r.contact) : null),
+  package: (r) => h('td', {}, dash(r.package), !r.package && r.shootType ? h('span', { class: 'sub' }, r.shootType) : null),
+  signed: (r) => h('td', { class: 'num' }, dash(dmy(r.signedAt))),
+  end: (r) => h('td', { class: 'num' }, dash(dmy(r.endAt))),
+  monthly: (r) => h('td', { class: 'is-num num' }, dash(moneyText(r.monthly)), r.quote ? h('span', { class: 'sub', dir: 'ltr' }, r.quote) : null),
+  term: (r) => h('td', { class: 'is-num num' }, dash(moneyText(r.term))),
+  station: (r) => h('td', {}, r.station ? `${r.stationIndex + 1} · ${r.station}` : r.statusText),
+  color: (r) => h('td', {}, r.color ? healthBadge(r.color, 'is-sm') : h('span', { class: 'muted' }, r.statusText), r.reason ? h('span', { class: 'mt-why' }, r.reason) : null),
+  step: (r) => h('td', { class: 'mt-step' }, dash(r.step), r.stepWho ? h('div', {}, personChip(r.stepWho)) : null),
+  editor: (r) => h('td', {}, dash(r.editorName)),
+  shoot: (r) => h('td', { class: 'num' }, r.shootAt ? dmy(r.shootAt) : h('span', { class: 'muted' }, 'טרם נקבע')),
+  videos: (r) => ratioCell(r.videos, 'סרטונים'),
+  graphics: (r) => ratioCell(r.graphics, 'גרפיקות'),
+  renewal: (r) => h('td', {}, r.renewal ? h('span', { class: `mt-renew is-${r.renewal.state}` }, r.renewal.text) : '—'),
+};
+function setSort(key) {
+  if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortKey = key; sortDir = 'asc'; }
+  renderTable();
+  document.getElementById(`mt-sort-${key}`)?.focus();
+}
+function renderTable() {
+  const cols = columnsFor(showMoney);
+  const opts = filterOptions(tableRows);
+  fillSelect($('mt-station'), [['', 'כל התחנות'], ...opts.stations], filters.station);
+  fillSelect($('mt-color'), [['', 'כל הצבעים'], ...opts.colors], filters.color);
+  fillSelect($('mt-editor'), [['', 'כל העורכים'], ...opts.editors], filters.editor);
+  fillSelect($('mt-status'), opts.statuses, filters.status);
+  if ($('mt-q').value !== filters.q) $('mt-q').value = filters.q;
+  tableShown = sortRows(filterRows(tableRows, filters), sortKey, sortDir, cols);
+  fill($('mt-head'), cols.map((c) => h('th', {
+    scope: 'col', class: c.num ? 'is-num' : null, 'aria-sort': sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : null,
+  }, h('button', { type: 'button', id: `mt-sort-${c.key}`, onclick: () => setSort(c.key) }, c.label))));
+  fill($('mt-body'), tableShown.length ? tableShown.map((r) => h('tr', { class: r.color ? `h-${r.color}` : null, 'data-id': r.id }, cols.map((c) => CELLS[c.key](r))))
+    : [h('tr', {}, h('td', { class: 'mt-empty', colspan: String(cols.length) }, tableRows.length ? 'אין לקוחות בסינון הזה.' : 'אין לקוחות.'))]);
+  const open = tableRows.filter((r) => r.status === 'active' || r.status === 'ending').length;
+  $('mt-count').textContent = `${tableShown.length === 1 ? 'לקוח אחד' : `${tableShown.length} לקוחות`} בטבלה · ${open} פעילים ומסיימים בסך הכול`;
+  $('mt-money-note').hidden = !showMoney;
+}
+$('mt-q').addEventListener('input', (e) => { filters.q = e.currentTarget.value; renderTable(); });
+for (const k of ['station', 'color', 'editor', 'status']) {
+  $(`mt-${k}`).addEventListener('change', (e) => { filters[k] = e.currentTarget.value; renderTable(); });
+}
+$('mt-csv').addEventListener('click', () => {
+  const blob = new Blob([toCsv(tableShown, columnsFor(showMoney))], { type: 'text/csv;charset=utf-8' });
+  const a = h('a', { href: URL.createObjectURL(blob), download: csvName(), hidden: true });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast(`יוצא קובץ CSV עם ${tableShown.length === 1 ? 'לקוח אחד' : `${tableShown.length} לקוחות`}${showMoney ? ', כולל המחירים' : ''}.`);
+});
+
+// ── The archive (the owner and Ofir) ────────
+async function renderArchive() {
+  if (archived === null) {
+    fill($('ar-list'), h('li', { class: 'muted' }, 'טוען…'));
+    try { archived = await loadArchived(); } catch (err) { fill($('ar-list'), h('li', { class: 'err' }, errorText(err))); return; }
+    if (view !== 'archive') return;
+  }
+  fill($('ar-list'), archived.length ? archived.map((a) => h('li', { class: 'ar-item', 'data-id': a.id },
+    h('div', {},
+      h('p', { class: 'ar-name' }, a.label),
+      h('p', { class: 'ar-meta' }, [a.package_name, `בארכיון מ־${formatStamp(a.archived_at)}`, a.archived_by ? `על ידי ${who(a.archived_by) || a.archived_by}` : null].filter(Boolean).join(' · '))),
+    h('div', { class: 'ar-acts' },
+      h('button', { type: 'button', class: 'btn btn-sm', id: `ar-restore-${a.id}`, 'aria-label': `שחזור: ${a.label}`, onclick: (e) => restore(a, e.currentTarget) }, 'שחזור'),
+      h('button', { type: 'button', class: 'btn btn-sm btn-danger', id: `ar-purge-${a.id}`, 'aria-label': `מחיקה לצמיתות: ${a.label}`, onclick: () => openPurge(a) }, 'מחיקה לצמיתות'))))
+    : [h('li', { class: 'muted' }, 'אין לקוחות בארכיון.')]);
+}
+async function restore(a, btn) {
+  btn.disabled = true;
+  try {
+    await restoreClient(a.id);
+  } catch (err) {
+    btn.disabled = false;
+    toast(`השחזור לא נשמר. ${errorText(err)}`);
+    return;
+  }
+  archived = archived.filter((x) => x.id !== a.id);
+  toast(`${a.label} שוחזר/ה וחזר/ה לכל הרשימות.`);
+  renderArchive();
+  load();
+}
+const purgeDlg = $('dlg-purge');
+let purgeFor = null;
+purgeDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === purgeDlg) purgeDlg.close(); });
+purgeDlg.addEventListener('close', () => { if (purgeFor) document.getElementById(`ar-purge-${purgeFor.id}`)?.focus(); });
+const purgeReady = () => !!purgeFor && sameName($('purge-text').value, purgeFor.label) && $('purge-sure').checked;
+function openPurge(a) {
+  purgeFor = a;
+  $('purge-name').textContent = a.label;
+  $('purge-label').textContent = `כדי לאשר, הקלידו את שם העסק: ${a.label}`;
+  $('purge-hint').textContent = 'בדיוק כמו שהוא כתוב כאן.';
+  $('purge-text').value = '';
+  $('purge-sure').checked = false;
+  $('purge-err').hidden = true;
+  $('purge-submit').disabled = true;
+  purgeDlg.showModal();
+  $('purge-text').focus();
+}
+for (const id of ['purge-text', 'purge-sure']) $(id).addEventListener('input', () => { $('purge-submit').disabled = !purgeReady(); });
+$('purge-sure').addEventListener('change', () => { $('purge-submit').disabled = !purgeReady(); });
+$('purge-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!purgeReady()) return;
+  const a = purgeFor;
+  $('purge-submit').disabled = true;
+  try {
+    await purgeClient(a.id, $('purge-text').value);
+  } catch (err) {
+    $('purge-err').textContent = `המחיקה לא בוצעה. ${errorText(err)}`;
+    $('purge-err').hidden = false;
+    $('purge-submit').disabled = !purgeReady();
+    return;
+  }
+  archived = archived.filter((x) => x.id !== a.id);
+  purgeFor = null;
+  purgeDlg.close();
+  toast(`${a.label} נמחק/ה לצמיתות.`);
+  renderArchive();
+  $('ar-h').focus?.();
+});
+
 // ── Refresh ─────────────────────────────────
-$('btn-refresh').addEventListener('click', () => load());
+$('btn-refresh').addEventListener('click', () => { archived = null; load(); });
 window.addEventListener('hashchange', () => {
   const v = location.hash.slice(1);
   if (tabsShown().includes(v) && v !== view && !$('app').hidden) setView(v);
@@ -428,23 +609,27 @@ mountSession(async (staff) => {
     if (v.error) fill($('no-access').querySelector('p'), VIEWER_UNKNOWN);
     return;
   }
+  // The manager profile (the owner, Irit and Ofir): screen 1, screen 2, the table.
   isOwner = canSeeOwnerScreen(v);
+  mayTable = canSeeTable(v);
+  showMoney = seesFinance(v);
+  mayArchive = canArchive(v);
   // Landed: from now on in this tab, "לקוחות" opens the clients list, not this screen.
   if (isOwner) markOwnerLanded();
   $('ow-page').hidden = false;
-  // Screen 1 is the owner's; Irit, Lior and Ofir open straight on screen 2.
+  // Screen 1 is the managers'; Lior opens straight on screen 2 (and has the table, without prices).
   $('tab-now').hidden = !isOwner;
-  $('ow-tabs').hidden = !isOwner;
+  $('tab-table').hidden = !mayTable;
+  $('tab-archive').hidden = !mayArchive;
+  $('ow-tabs').hidden = tabsShown().length < 2;
+  // Someone with a person of their own goes back to their own tasks; the owner to the team's work.
+  if (v.me) $('link-work').textContent = 'המשימות שלי';
   if (!isOwner) {
-    $('ow-title').textContent = 'כל הלקוחות במבט';
-    $('ow-sub').textContent = 'איפה כל לקוח, מה הבא, מי ומתי. לחיצה על לקוח מציגה את השאר.';
     $('nav-owner').textContent = 'כל הלקוחות במבט';
     $('nav-owner').href = 'owner.html#all';
-    $('link-work').textContent = 'מה עליי';
-    document.title = 'כל הלקוחות במבט · astrateg';
   }
   const fromHash = location.hash.slice(1);
-  view = isOwner && fromHash !== 'all' ? 'now' : 'all';
+  view = tabsShown().includes(fromHash) ? fromHash : isOwner ? 'now' : 'all';
   await load();
   setView(view);
 });

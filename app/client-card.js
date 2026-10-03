@@ -40,6 +40,10 @@ import { mountClientStatus } from './status-link-ui.js';
 // Stage 5: the monthly cycle (a draft), and items newer than the client's protocol version.
 import { mountClientMonth, worksCycle } from './month-ui.js';
 import { freshText } from './protocol-versions.js';
+// The manager's features: the contract summary, and archiving (the owner and Ofir).
+import { contractSummary, fileCounts } from './contract-summary.js';
+import { loadDeliverableFiles, archiveClient } from './manager-data.js';
+import { canArchive } from './manager-rules.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -57,6 +61,8 @@ let healthExtras = null;     // messages, history and date changes, for the colo
 let tlAll = false;           // the timeline shows everything done, not only the latest
 let questions = null;        // questions to the one responsible about this client (null: none or not loaded)
 let ofirMeetings = null;     // Ofir's meetings today (times only), for "אופיר באפיון, בקרה עד…" (null: not known)
+let delivFiles = null;     // deliverables uploaded as files (null: no such table, or not readable)
+let viewerInfo = null;     // viewerOf(): for archiving
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
 let scope = 'office';        // 'own': only my processes and items; 'office': may show the whole protocol
@@ -106,12 +112,13 @@ async function load() {
     checks = ch[id] || {};
     tasks = t;
     if (c.quote_id && (!quote || quote.id !== c.quote_id)) quote = await loadQuoteSummary(c.quote_id);
-    [access, statusNotes, healthExtras, questions, ofirMeetings] = await Promise.all([
+    [access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles] = await Promise.all([
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
       own() ? null : loadHealthExtras(id, new Date(Date.now() - 30 * 864e5).toISOString()),
       loadQuestions({ clientId: id }).catch(() => null),
       loadOfirMeetings(new Date().toISOString()).catch(() => null),
+      own() ? null : loadDeliverableFiles(id),
     ]);
     statusNote = statusNotes?.[0] || null;
   } catch (err) {
@@ -139,7 +146,7 @@ function showMissing() {
     h('a', { class: 'btn', href: 'clients.html#mine' }, '→ מה עליי'),
   ] : [
     h('strong', {}, 'הלקוח לא נמצא.'),
-    h('span', {}, 'ייתכן שהקישור שגוי או ישן.'),
+    h('span', {}, 'ייתכן שהקישור שגוי או ישן, או שהלקוח הועבר לארכיון.'),
     h('a', { class: 'btn', href: 'clients.html#clients' }, '→ כל הלקוחות'),
   ]));
 }
@@ -518,7 +525,8 @@ function renderHead(s) {
       h('div', { class: 'head-actions' },
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-escalate', onclick: () => openEscalate() }, 'דיווח חריגה לליאור'),
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => window.print() }, 'הדפסה'),
-        own() ? null : h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'))),
+        own() ? null : h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'),
+        canArchive(viewerInfo) ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost btn-danger', id: 'btn-archive', onclick: () => archiveThis() }, 'העברה לארכיון') : null)),
     // Office: the colour and why, now (station, who, until when), next (and what the client owes).
     own() || c.status === 'cancelled' || c.status === 'ended' ? null : (() => { const x = healthNow(s); return healthHead(x.health, x.st, x.now); })(),
     h('div', { class: 'cc-progress' },
@@ -545,6 +553,7 @@ function renderHead(s) {
         fact('לוגו', c.has_logo === true ? 'יש' : c.has_logo === false ? 'אין, עילאי מכין' : null),
         editorFact,
         fact('סיום החוזה', c.contract_end ? formatDay(c.contract_end) : null)),
+    own() ? null : contractBlock(s),
     statusNoteBlock(),
     linksRow(),
     own() ? null : deliverablesBlock(s),
@@ -555,6 +564,41 @@ function renderHead(s) {
     h('strong', { class: 'num', dir: 'ltr' }, `${prog.done}/${prog.total}`),
     progressBar(prog.done, prog.total, prog.label),
     prog.overdue ? statusBadge('overdue', null) : null);
+}
+
+// ── The contract summary (app/contract-summary.js) ──
+// What the signed agreement grants against what was done, from what the team marks,
+// the counter below and the files uploaded as deliverables. The office's (no prices).
+function contractBlock(s) {
+  const now = new Date();
+  const sum = contractSummary(client, s, checks, { files: delivFiles ? fileCounts(delivFiles, client.id) : null, now });
+  const when = [sum.month?.text, client.contract_end ? `סיום החוזה ${formatDay(client.contract_end)}` : null].filter(Boolean).join(' · ');
+  const renewal = sum.renewal ? (sum.renewal.state === 'later' ? `חלון החידוש ${sum.renewal.text}` : sum.renewal.text) : null;
+  return h('section', { class: 'cs', id: 'contract-summary', 'aria-labelledby': 'cs-h' },
+    h('div', { class: 'cs-head' }, h('h2', { id: 'cs-h' }, 'סיכום החוזה'),
+      when ? h('span', { class: 'cs-when' }, when) : null,
+      renewal ? h('span', { class: 'cs-when' }, h('span', { class: sum.renewal.state === 'open' ? 'is-open' : null }, renewal)) : null),
+    sum.empty ? h('p', { class: 'muted' }, 'בכרטיס לא הוזן מה כלול בחוזה. ',
+      h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit('ed-deliv-videos') }, 'הזנת כמויות'))
+      : h('ul', { class: 'cs-items' }, ...sum.items.map((x) => h('li', { class: `cs-item${x.over ? ' is-over' : ''}`, id: `cs-${x.key}` },
+        h('span', { class: 'cs-n num', dir: 'ltr' }, String(x.done), h('small', {}, `/${x.total}`)),
+        h('span', { class: 'cs-t' }, x.text),
+        progressBar(Math.min(x.done, x.total), x.total, `${x.short} שבוצעו`)))),
+    sum.flags.length ? h('p', { class: 'cs-flags' }, `כלול גם: ${sum.flags.join(' · ')}`) : null,
+    sum.empty ? null : h('p', { class: 'hint' }, `בוצע: הגבוה מבין מה שסומן בפרוטוקול, המונה ״נמסרו״ בכרטיס${delivFiles ? ' והקבצים שהועלו' : ''}.`));
+}
+
+// ── Archive (the owner and Ofir; the database checks) ──
+async function archiveThis() {
+  const name = client.business || client.name;
+  if (!confirm(`להעביר את ${name} לארכיון?\nהלקוח ייעלם מכל הרשימות, הדפים והקישורים שלו (גם דף המצב ללקוח) לא ייפתחו, והכספת שלו תיסגר. אפשר לשחזר אותו מהארכיון במבט המנהל.`)) return;
+  try {
+    await archiveClient(client.id);
+  } catch (err) {
+    toast(`ההעברה לארכיון לא נשמרה. ${errorText(err)}`);
+    return;
+  }
+  location.href = 'owner.html#archive';
 }
 
 function goTo(procId) {
@@ -1730,6 +1774,7 @@ mountSession(async (staff) => {
   const [dir, viewer, vault] = await Promise.all([loadDirectory(), viewerOf(staff.email), canUseVault(id)]);
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
+  viewerInfo = viewer;
   viewerError = viewer.error;
   vaultOk = vault;
   // Mine by default; the whole protocol only when an office user chose it (or for the owner).
