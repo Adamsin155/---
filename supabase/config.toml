@@ -24,3 +24,9 @@ verify_jwt = false
 # supabase/functions/calendar/index.ts.
 [functions.calendar]
 verify_jwt = false
+
+# The client's media (the view-only gallery and the graphics on the status page):
+# the visitor has no login; the secret token in the link is checked in code
+# (public.media_for_token). See supabase/functions/client-media/index.ts.
+[functions.client-media]
+verify_jwt = false
