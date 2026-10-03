@@ -15,6 +15,7 @@ import { fixList } from './office-ui.js';
 
 const NETWORK = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', google: 'Google Business', meta: 'Meta Business', other: 'אחר' };
 const STATUS = { ok: 'תקינה', broken: 'לא עובדת', missing: 'אין רשת' };
+const ganttUrl = (id) => `gantt.html?id=${encodeURIComponent(id)}`;
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash ? `#${hash}` : ''}`;
 const isDone = (cs, k) => ['done', 'na'].includes(cs[k]?.state);
 
@@ -162,7 +163,8 @@ function dayCard(x, ctx) {
         h('h4', {}, 'שלד גאנט', gantt.done ? null : until(gantt.due, now)),
         h('label', { class: 'wrow', for: `${idp}-gantt` },
           h('input', { type: 'checkbox', class: 'cbx', id: `${idp}-gantt`, checked: gantt.done, onchange: (e) => mark(ctx, c, GANTT_KEYS, e.currentTarget.checked, e.currentTarget.checked ? 'שלד הגאנט סומן.' : null) }),
-          h('span', { class: 'wlabel' }, 'הקובץ השנתי נפתח עם כל העמודות'))),
+          h('span', { class: 'wlabel' }, 'הקובץ השנתי נפתח עם כל העמודות')),
+        h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-ghost gantt-go', href: ganttUrl(c.id) }, 'גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`)))),
       logo ? h('div', { class: 'il-part' }, h('h4', {}, 'לוגו חדש', logo.done ? null : until(logo.due, now)), check(ctx, c, 'p05.newlogo', 'הכנתי לוגו חדש (אין ללקוח לוגו)', idp)) : null));
 }
 
@@ -216,7 +218,7 @@ function ganttCard(x, ctx) {
   return h('li', { class: 'wproc il-card', 'data-key': `il-gantt:${c.id}:${x.pre}` },
     h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, c.name),
       h('span', { class: 'il-title' }, `גאנט${x.n ? ` · סבב ${x.n}` : ''}`), until(x.state.dueAt)),
-    h('div', { class: 'of-acts' }, h('button', {
+    h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-ghost gantt-go', href: ganttUrl(c.id) }, 'פתיחת גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`)), h('button', {
       type: 'button', class: 'btn btn-sm', id: `il-g-${c.id}-${x.pre.replace(/\W/g, '')}`,
       onclick: (e) => { e.currentTarget.disabled = true; mark(ctx, c, [key], true, 'הגאנט מלא. עירית מקבלת ״לשלוח גאנט״.', { handoff: key }); },
     }, 'הגאנט מלא')));

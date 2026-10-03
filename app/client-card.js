@@ -335,25 +335,26 @@ function autoBanner() {
       h('button', { type: 'button', class: 'btn-text danger', onclick: () => openCancel() }, 'ההסכם בוטל')));
 }
 
+// The content Gantt of the client (gantt.html): in the system, next to the outside links.
+const ganttChip = () => h('li', {}, h('a', { class: 'chip gantt-chip', href: `gantt.html?id=${encodeURIComponent(client.id)}`, id: 'cc-gantt' }, 'גאנט התוכן'));
+
 function linksRow() {
   const links = client.links || {};
   const set = LINKS.filter((l) => links[l.key]);
   // 'own': the links to work with, nothing to edit.
   if (own()) {
-    return set.length ? h('nav', { class: 'cc-links', 'aria-label': 'קישורים של הלקוח' },
+    return h('nav', { class: 'cc-links', 'aria-label': 'קישורים של הלקוח' },
       h('span', { class: 'me-label' }, 'קישורים:'),
-      h('ul', { class: 'chips-row' }, ...set.map((l) => h('li', {}, h('a', { class: 'chip link-chip', href: links[l.key], target: '_blank', rel: 'noopener' },
-        l.label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')))))) : null;
+      h('ul', { class: 'chips-row' }, ganttChip(), ...set.map((l) => h('li', {}, h('a', { class: 'chip link-chip', href: links[l.key], target: '_blank', rel: 'noopener' },
+        l.label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)'))))));
   }
   const missing = LINKS.filter((l) => !links[l.key] && checks[l.after]?.state === 'done');
   return h('nav', { class: 'cc-links', 'aria-label': 'קישורים של הלקוח' },
     h('span', { class: 'me-label' }, 'קישורים:'),
-    set.length || missing.length
-      ? h('ul', { class: 'chips-row' },
+    h('ul', { class: 'chips-row' }, ganttChip(),
         ...set.map((l) => h('li', {}, h('a', { class: 'chip link-chip', href: links[l.key], target: '_blank', rel: 'noopener' },
           l.label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')))),
-        ...missing.map((l) => h('li', {}, h('button', { type: 'button', class: 'chip chip-missing', onclick: () => openEdit(`ed-link-${l.key}`) }, `חסר: ${l.label}`))))
-      : h('span', { class: 'muted' }, 'אין קישורים עדיין.'),
+        ...missing.map((l) => h('li', {}, h('button', { type: 'button', class: 'chip chip-missing', onclick: () => openEdit(`ed-link-${l.key}`) }, `חסר: ${l.label}`)))),
     h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit(`ed-link-${LINKS[0].key}`) }, set.length ? 'עריכת קישורים' : 'הוספת קישורים'));
 }
 
