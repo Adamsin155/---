@@ -167,6 +167,7 @@ export function mountSession(onReady) {
     $('app').hidden = !ok;
     if (ok) {
       markTabSeen();
+      foldScreens(); // the links to other screens: one button on a phone
       // Stage 4: the one-time WhatsApp consent screen, only when the owner turned WhatsApp on (app/whatsapp.js).
       import('./whatsapp.js').then((m) => m.promptWhatsapp()).catch(() => {});
       // The managers' switch, "המשימות שלי" / "מבט מנהל", at the top of every page (app/manager-ui.js).
@@ -267,4 +268,68 @@ export function briefDetails(t, open = false) {
     h('summary', {}, 'בריף למשימה'),
     h('dl', { class: 'brief-list' }, ...BRIEF_FIELDS.filter(([k]) => String(t.brief[k] ?? '').trim())
       .flatMap(([k, label]) => [h('dt', {}, label), h('dd', {}, String(t.brief[k]).trim())])));
+}
+
+// ── Short lists (the phone review of 4.10.2026) ─────────────
+// A long list shows its first `limit` rows and one "הצג עוד" button for the rest.
+// The choice is kept by `key` for the life of the page, so a rebuild of the list
+// (a mark, the minute's tick) does not fold it again. `list` is the element whose
+// children are the rows (a <ul>, an <ol>, a <div>); returns it.
+const shownAll = new Set();
+export const isShownAll = (key) => shownAll.has(key);
+export function capList(list, limit, key, { label = 'הצג עוד', tag = null } = {}) {
+  if (!list) return list;
+  const rows = [...list.children];
+  if (rows.length <= limit + 1 || shownAll.has(key)) return list; // one hidden row is not worth a button
+  const rest = rows.slice(limit);
+  for (const r of rest) r.hidden = true;
+  const more = h(tag || (/^(UL|OL)$/.test(list.tagName) ? 'li' : 'div'), { class: 'more-row' }, h('button', {
+    type: 'button', class: 'btn btn-sm btn-ghost more-btn', 'data-more': key,
+    onclick: () => {
+      shownAll.add(key);
+      for (const r of rest) r.hidden = false;
+      more.remove();
+      rest[0].querySelector('a, button, input, summary, select')?.focus();
+    },
+  }, `${label} (${rest.length})`));
+  list.append(more);
+  return list;
+}
+
+// ── The page head on a phone ────────────────
+// The links to other screens (the row of buttons in the page head) fold behind one
+// "מסכים נוספים" button on a phone when there are more than two of them, so the head
+// stays one row and the work starts on the first screen. On a wide screen the row is
+// as it was (the styles decide: app/styles/protocol.css). Links a page adds later
+// (the office's links, a role's shortcut) join the fold by themselves.
+export function foldScreens(head = document.querySelector('.page-head .head-actions')) {
+  if (!head || head.querySelector(':scope > .screens')) return;
+  const list = h('div', { class: 'screens-list', id: 'screens-list' });
+  const toggle = h('button', { type: 'button', class: 'btn btn-sm screens-toggle', 'aria-expanded': 'false', 'aria-controls': 'screens-list' }, 'מסכים נוספים');
+  const box = h('div', { class: 'screens' }, toggle, list);
+  let counted = -1;
+  const count = () => {
+    const n = [...list.children].filter((a) => !a.hidden && getComputedStyle(a).display !== 'none').length;
+    if (n === counted) return;
+    counted = n;
+    box.classList.toggle('is-fold', n > 2);
+    box.classList.toggle('is-empty', n === 0);
+    toggle.textContent = `מסכים נוספים (${n})`;
+  };
+  const gather = () => {
+    const links = [...head.children].filter((el) => el.tagName === 'A');
+    if (links.length) list.append(...links);
+    count();
+  };
+  toggle.addEventListener('click', () => {
+    const open = toggle.getAttribute('aria-expanded') !== 'true';
+    toggle.setAttribute('aria-expanded', String(open));
+    box.classList.toggle('is-open', open);
+    if (open) [...list.children].find((a) => !a.hidden && getComputedStyle(a).display !== 'none')?.focus();
+  });
+  head.append(box);
+  gather();
+  new MutationObserver(gather).observe(head, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+  // The managers' switch (app/manager-ui.js) arrives later and hides the links it repeats.
+  new MutationObserver(count).observe(document.body, { childList: true });
 }

@@ -206,6 +206,8 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 const errors = [];
 async function newContext(viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
+  // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
+  await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
   await ctx.clock.install({ time: NOW });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   return ctx;
@@ -255,8 +257,8 @@ await step('Ilai: his items of the monthly cycle in "המשימות שלי", lab
   assert.equal(await box.locator('.mc-head a').getAttribute('href'), `client.html?id=${A.id}#month`);
   // Nothing of Galia (all done) or of the old shop (its cycle starts next month); nothing of others.
   assert.doesNotMatch(await box.innerText(), /קפה גליה|חנות ישנה|דוח חודשי|צלם/);
-  // Right after the tools, before the list.
-  assert.deepEqual(await ilai.evaluate(() => [...document.querySelectorAll('#view-mine > *')].map((e) => e.id).slice(-2)), ['my-months', 'mine-list']);
+  // Right after the tools, before the list (and the list's foot: its length, the short list's tools).
+  assert.deepEqual(await ilai.evaluate(() => [...document.querySelectorAll('#view-mine > *')].map((e) => e.id).slice(-3)), ['my-months', 'mine-list', 'mine-foot']);
   assert.equal(await ilai.isVisible('#cta-year'), true);
   await shot(ilai, 'year-01-ilai-mine');
 });

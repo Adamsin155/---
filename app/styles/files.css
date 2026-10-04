@@ -43,6 +43,11 @@
 .fl-post summary { cursor: pointer; color: var(--accent); min-height: 44px; display: flex; align-items: center; }
 .fl-post .field { margin-top: 4px; }
 .fl-post .input { width: 100%; min-height: 44px; }
+/* In the two-column grid of a phone the date and the link stay inside their card. */
+.fl-item > *, .fl-meta > *, .fl-post, .fl-post .field { min-width: 0; }
+.fl-item, .fl-meta { grid-template-columns: minmax(0, 1fr); }
+.fl-post .input { box-sizing: border-box; min-width: 0; max-width: 100%; }
+@media (max-width: 480px) { .fl-post .input { padding-inline: 8px; font-size: 14px; } }
 .fl-acts { display: flex; flex-wrap: wrap; gap: 0 12px; }
 .fl-acts .btn-text { min-height: 44px; }
 .fl-del { color: var(--danger); }

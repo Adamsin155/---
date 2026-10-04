@@ -187,6 +187,8 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 const errors = [];
 async function open(who, { viewport = { width: 1280, height: 900 }, push = {}, mobile = false } = {}) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, isMobile: mobile, hasTouch: mobile });
+  // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
+  await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
   await ctx.clock.install({ time: NOW });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   await ctx.addInitScript(fakePush, { key: VAPID_PUBLIC_KEY, ...push });

@@ -21,7 +21,7 @@ import {
 } from './health.js';
 import { healthBadge, reasonText, nextText, stationBar, markOwnerLanded } from './health-ui.js';
 import {
-  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN, progressBar,
+  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN, progressBar, capList
 } from './protocol-ui.js';
 import { canManageTeam } from './team-rules.js';
 import { canSeeInsights } from './insights.js';
@@ -292,6 +292,7 @@ function renderNow() {
   fill($('ow-stats'), statTiles(now));
   const { rows, more } = ownerRows(entries, { office: officeReasons(reviews, now) });
   fill($('ow-rows'), rows.map(rowItem));
+  capList($('ow-rows'), 8, 'ow:rows');
   $('ow-empty').hidden = rows.length > 0;
   $('rows-h').hidden = !rows.length;
   $('ow-more').hidden = !more;

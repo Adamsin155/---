@@ -559,6 +559,8 @@ await step('Thursday: the pass (עברתי, one tap for the rest, the day\'s con
   await o.click('#tk-submit');
   await toastHas(o, 'נפתחה משימה לליאור');
   assert.ok(db.client_tasks.some((t) => t.source === 'p33' && t.title === 'לבדוק מול העורך מה חסר' && t.due_on === '2026-10-25'));
+  // The list shows its first six clients; the rest are behind "הצג עוד".
+  if (await o.locator('#ps-list .more-btn').count()) await o.click('#ps-list .more-btn');
   while (await o.locator('#ps-list .ps-row:not(.is-seen) button', { hasText: 'עברתי' }).count()) {
     const n = await o.locator('#ps-list .ps-row:not(.is-seen)').count();
     await o.locator('#ps-list .ps-row:not(.is-seen) button', { hasText: 'עברתי' }).first().click();

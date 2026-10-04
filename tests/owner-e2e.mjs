@@ -446,10 +446,13 @@ await step('after landing, the owner\'s "לקוחות" links open the clients li
   await owner.waitForSelector('#view-mine:not([hidden]), #view-clients:not([hidden])');
   await owner.waitForTimeout(300);
   assert.match(new URL(owner.url()).pathname, /\/clients\.html$/);
-  // Screen 1 is one tap away in the page head, which stays on phones too.
-  assert.equal(await owner.isHidden('#cta-owner'), false);
+  // Screen 1 is one tap away: the managers' switch at the top ("מבט מנהל"), on phones too.
+  // The page head does not repeat it (the phone review of 4.10.2026).
+  await owner.waitForSelector('#mode-bar');
+  assert.equal(await owner.isHidden('#cta-owner'), true);
   assert.equal(await owner.getAttribute('#cta-owner', 'href'), 'owner.html');
-  assert.equal(await text(owner, '#cta-owner'), 'מה דורש אותי');
+  assert.equal(await owner.getAttribute('#mode-manager', 'href'), 'owner.html#now');
+  assert.equal(await owner.isVisible('#mode-manager'), true);
   // And screen 1's own "לקוחות" opens the list.
   await owner.goto(`${BASE}owner.html`);
   await owner.waitForSelector('#view-now:not([hidden]) .ow-row');
@@ -594,6 +597,8 @@ await step('a 360px phone: no sideways scrolling, 44px targets, on both screens'
   await signIn(lior, 'clients.html#mine', 'lior@astrateg.test');
   await lior.waitForSelector('#view-mine:not([hidden])');
   assert.equal(await lior.locator('#nav-owner').isVisible(), false);
+  // With more than two screen links the head folds them behind "מסכים נוספים" (4.10.2026).
+  await lior.click('.screens-toggle');
   const cta = lior.locator('#cta-owner');
   assert.equal(await cta.isVisible(), true);
   assert.equal(await cta.getAttribute('href'), 'owner.html#all');

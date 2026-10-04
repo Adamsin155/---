@@ -151,6 +151,8 @@ const recordSaid = () => {
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
+// These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
+await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
 await ctx.clock.install({ time: NOW });
 await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
 await ctx.addInitScript(fakeNotifications);
@@ -376,6 +378,8 @@ db.staff[0].person = 'irit';
 const shootDay = onboarded({ name: 'בית קפה צילום', shoot_at: '2026-10-05T07:00:00Z' });
 db.staff[0].person = 'lior';
 const nightCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
+// These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
+await nightCtx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
 await nightCtx.clock.install({ time: new Date('2026-10-05T20:57:30Z') });
 await nightCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
 await nightCtx.addInitScript(fakeNotifications);
@@ -417,6 +421,8 @@ const androidNotifications = () => {
   try { localStorage.setItem('astrateg.notify', 'on'); } catch { /* about:blank */ }
 };
 const droidCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true });
+// These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
+await droidCtx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
 await droidCtx.clock.install({ time: new Date(NOW.getTime() + 2 * 6e4) });
 await droidCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
 await droidCtx.addInitScript(androidNotifications);
