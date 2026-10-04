@@ -539,6 +539,8 @@ async function refreshSession() {
     const staff = await s.currentStaff();
     $('session-dot').classList.toggle('on', !!staff?.isStaff);
     $('session-who').textContent = staff ? staff.email : 'לא מחובר';
+    // The managers' switch, "המשימות שלי" / "מבט מנהל" (app/manager-ui.js).
+    if (staff?.isStaff) import('./manager-ui.js').then((m) => m.mountModeSwitch(staff.email)).catch(() => {});
     return staff;
   } catch {
     return null;

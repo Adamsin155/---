@@ -154,6 +154,7 @@ test('Ofir\'s meetings: only the last week\'s, whatever the caller asks for (not
 test('the migration can run again', async () => {
   const { readFileSync } = await import('node:fs');
   await db.exec(readFileSync(new URL('../../supabase/migrations/20260930150000_office_flows.sql', import.meta.url), 'utf8'));
-  const { rows } = await db.query("select count(*)::int as n from pg_policies where tablename in ('office_passes', 'task_decisions', 'change_requests')");
+  // (Its own, permissive ones: a later migration adds the restrictive one for archived clients.)
+  const { rows } = await db.query("select count(*)::int as n from pg_policies where tablename in ('office_passes', 'task_decisions', 'change_requests') and permissive = 'PERMISSIVE'");
   assert.equal(rows[0].n, 5);
 });

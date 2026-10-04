@@ -140,6 +140,8 @@ async function boot() {
   setSession(staff);
   if (staff?.isStaff) {
     $('login-block').hidden = true;
+    // The managers' switch, "המשימות שלי" / "מבט מנהל" (app/manager-ui.js).
+    import('./manager-ui.js').then((m) => m.mountModeSwitch(staff.email)).catch(() => {});
     await loadQuotes();
   } else {
     $('login-block').hidden = false;

@@ -20,7 +20,7 @@ const client = {
 };
 const state = { calls: [], fail: false, owner: 'lior' };
 
-// A small stand-in for supabase-js: from(table).select().in().eq().or().order().range() and rpc().
+// A small stand-in for supabase-js: from(table).select().in().eq().is().or().order().range() and rpc().
 const mock = `
 const state = globalThis.__calState;
 function query(table) {
@@ -29,6 +29,7 @@ function query(table) {
     select() { return chain; }, order() { return chain; }, or() { return chain; },
     in(col, vals) { q.filters.push((r) => vals.includes(r[col])); return chain; },
     eq(col, v) { q.filters.push((r) => r[col] === v); return chain; },
+    is(col, v) { q.filters.push((r) => (r[col] ?? null) === v); return chain; },
     range(from, to) {
       state.calls.push('from:' + table);
       const rows = (state.tables[table] || []).filter((r) => q.filters.every((f) => f(r)));

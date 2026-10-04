@@ -25,10 +25,10 @@ import { whatsappLink } from './quote-doc.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
-import { canManageTeam, isOwnerView } from './team-rules.js';
+import { canManageTeam } from './team-rules.js';
 import { canSendMessages } from './messages-logic.js';
 import { offerHandoff, dropHandoff } from './handoff-ui.js';
-import { canSeeAllClients, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
+import { canSeeAllClients, canSeeOwnerScreen, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
 import { loadDateChanges, loadLogFor } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
@@ -2137,11 +2137,11 @@ mountSession(async (staff) => {
   $('cta-editor').hidden = !PEOPLE[me]?.editor;
   $('cta-shoot').hidden = !(me === 'eli' || (scope === 'office' && !viewer.error));
   $('cta-prep').before(...officeLinks(viewer)); // after "מה דורש אותי", before the rest
-  // Screen 2, "כל הלקוחות במבט", for Irit, Lior and Ofir; screen 1 for the owner.
+  // Screen 2, "כל הלקוחות במבט", for Lior; screen 1 for the managers (the owner, Irit, Ofir).
   // The top bar folds away on phones: the page head keeps a way in (cta-owner).
   for (const el of [$('nav-owner'), $('cta-owner')]) {
     el.hidden = !canSeeAllClients(viewer);
-    if (!isOwnerView(viewer)) { el.href = 'owner.html#all'; el.textContent = 'כל הלקוחות במבט'; }
+    if (!canSeeOwnerScreen(viewer)) { el.href = 'owner.html#all'; el.textContent = 'כל הלקוחות במבט'; }
   }
   $('nav-team').hidden = !canManageTeam(viewer);
   // The top bar folds away on phones: the page head keeps a way in to the messages.

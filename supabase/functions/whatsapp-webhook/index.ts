@@ -63,7 +63,7 @@ const db = {
   },
   async client(id: string) {
     if (!UUID.test(id)) return null;
-    const { data, error } = await admin.from('clients').select('id, editor, rounds, shoot_type, shoot_at, char_at').eq('id', id).maybeSingle();
+    const { data, error } = await admin.from('clients').select('id, editor, rounds, shoot_type, shoot_at, char_at').eq('id', id).is('archived_at', null).maybeSingle();
     if (error) throw error;
     return data;
   },
