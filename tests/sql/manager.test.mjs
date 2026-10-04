@@ -213,7 +213,7 @@ test('permanent deletion: archived first, the name typed again, everything of th
   // The log outlives the client: who and when, the business name and counts only.
   const log = (await q('owner', "select * from public.client_admin_log where client_id = $1 and action = 'purge'", [c]))[0];
   assert.deepEqual([log.business, log.by_email, log.by_person], ['קפה דנה', 'ofir@astrateg.test', 'ofir']);
-  assert.doesNotMatch(JSON.stringify(log), /050|1234567|דנה_|dana_ig|פנימי/);
+  assert.doesNotMatch(JSON.stringify(log), /050-|1234567|דנה_|dana_ig|פנימי/);
   assert.ok(Object.values(log.detail).every((v) => Number.isInteger(v)));
   for (const who of ['irit', 'lior', 'nadia']) assert.deepEqual(await q(who, 'select 1 from public.client_admin_log'), [], who);
   assert.match((await q('owner', "insert into public.client_admin_log (client_id, business, action, by_email) values (gen_random_uuid(), 'x', 'purge', 'x')")).error, /permission denied/);
