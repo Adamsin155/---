@@ -150,7 +150,7 @@ function dayCard(x, ctx) {
           class: 'dc-inline', novalidate: true, onsubmit: (e) => saveMetricool(e, ctx, c, `${idp}-mc`),
         },
         h('div', { class: 'field grow' }, h('label', { for: `${idp}-mc` }, 'קישור Metricool'),
-          h('input', { class: 'input', id: `${idp}-mc`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: 'https://app.metricool.com/…', value: c.links?.metricool || '' })),
+          h('input', { class: 'input', id: `${idp}-mc`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: 'https://app.metricool.com/…', value: drafts.get(`${idp}-mc`) ?? (c.links?.metricool || ''), oninput: (e) => drafts.set(`${idp}-mc`, e.currentTarget.value) })),
         h('button', { type: 'submit', class: 'btn btn-sm' }, 'שמירה'))),
       h('div', { class: 'il-part' },
         h('h4', {}, '9 גרפיקות', gfx.done ? null : until(gfx.due, now)),
@@ -168,6 +168,10 @@ function dayCard(x, ctx) {
       logo ? h('div', { class: 'il-part' }, h('h4', {}, 'לוגו חדש', logo.done ? null : until(logo.due, now)), check(ctx, c, 'p05.newlogo', 'הכנתי לוגו חדש (אין ללקוח לוגו)', idp)) : null));
 }
 
+// What is typed in a link field and not saved yet: the list is rebuilt after every mark,
+// and a rebuild must not wipe a link someone is in the middle of typing.
+const drafts = new Map();
+
 async function saveMetricool(e, ctx, c, inputId) {
   e.preventDefault();
   const el = document.getElementById(inputId);
@@ -183,6 +187,7 @@ async function saveMetricool(e, ctx, c, inputId) {
     const updated = await updateClient(c.id, { links: { ...(c.links || {}), metricool: v } });
     Object.assign(c, updated);
   } catch (err) { toast(`הקישור לא נשמר. ${errorText(err)}`); return; }
+  drafts.delete(inputId);
   await mark(ctx, c, ['p06.metricool'], true, 'הקישור נשמר, ו־Metricool סומן כמחובר.');
 }
 
