@@ -770,7 +770,7 @@ await page.click('#new-submit');
 await page.waitForURL(/client\.html\?id=/);
 assert.equal(gelato().length, 1, 'the retry does not open the client twice');
 const gelatoChecks = db.protocol_checks.filter((c) => c.client_id === gelato()[0].id);
-assert.deepEqual(gelatoChecks.map((c) => c.item_key).sort(), importKeys('content').sort());
+assert.deepEqual(gelatoChecks.map((c) => c.item_key).sort(), importKeys('content', { shootSet: false }).sort());
 assert.ok(gelatoChecks.every((c) => c.note === 'ייבוא'));
 
 // Mobile
