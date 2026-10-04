@@ -29,7 +29,7 @@ import {
   isImported, workingMinutesBetween, addWorkingMinutes, workedMinutes, targetMinutes, durationStart, weekKey,
   openItemsFor, byUrgency, bucketOf, PAUSE, erevOn, applicableProcesses,
 } from './protocol-logic.js';
-import { stationOf, promisedClosing, materialsOf, SENT_CHECK_NOTE } from './messages-logic.js';
+import { stationOf, stationSince, promisedClosing, materialsOf, SENT_CHECK_NOTE } from './messages-logic.js';
 import { isOwnerView } from './team-rules.js';
 import { isManager } from './manager-rules.js';
 import { AUTO_NOTE } from './characterization.js';
@@ -519,32 +519,7 @@ export function clientHealth(client, state, extras = {}) {
 }
 
 // ── Where the client is ─────────────────────
-const STATION_OF = new Map(STATIONS.flatMap((st, i) => st.procs.map((p) => [p, i])));
-// Processes that start by themselves: the meeting, the shoot, editing and the renewal.
-const DATED = new Set(['p04', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21', 'p22a', 'p34']);
-
-// When the client came into its station: the first thing done in it (or the
-// meeting, the shoot, the editing starting by itself); otherwise when the station
-// before it was finished. The latest shoot round comes first.
-function stationSince(client, state, checks, index, now) {
-  const scopes = [...roundsOf(client).map((r) => `r${r.n}-`).reverse(), ''];
-  for (const pid of scopes) {
-    const list = state.states.filter((s) => (pid ? s.proc.id.startsWith(pid) : !/^r\d+-/.test(s.proc.id)));
-    const inSt = list.filter((s) => STATION_OF.get(baseId(s.proc.id)) === index);
-    if (!inSt.length) continue;
-    let first = Infinity;
-    for (const s of inSt) {
-      for (const i of s.proc.items) if (checks[i.key]) first = Math.min(first, +new Date(checks[i.key].at));
-      if (DATED.has(baseId(s.proc.id)) && s.startAt && s.startAt <= now) first = Math.min(first, +s.startAt);
-    }
-    if (first === Infinity) {
-      const prev = list.filter((s) => (STATION_OF.get(baseId(s.proc.id)) ?? 99) < index && s.completedAt).map((s) => +s.completedAt);
-      if (prev.length) first = Math.max(...prev);
-    }
-    if (first !== Infinity) return new Date(Math.min(first, +now));
-  }
-  return parseDate(client.deal_at);
-}
+// When the client came into its station: stationSince in app/messages-logic.js.
 
 // Milestones of the journey, in order: the ones the owner and the client wait for.
 const MILESTONES = [

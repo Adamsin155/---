@@ -491,10 +491,14 @@ await step('on a day the office is closed there is no queue', async () => {
 
 await step('a promise at risk but not due until tomorrow: the card says so, and the notice is one choice away', async () => {
   // Met on Sunday 11.10: the shoot day and the scripts are promised by Wednesday 14.10; the content call is done.
-  const G = client('99999999-0000-4000-8000-000000000007', { name: 'מוסך אבי', phone: '050-7778888', deal_at: '2026-10-11T08:00:00+03:00', char_at: '2026-10-11T10:00:00+03:00' });
+  // A client that started before protocol version 6: setting the shoot day is still a promise
+  // to the client (since v6 it is Irit's own target, right after the group). 11 is open.
+  const G = client('99999999-0000-4000-8000-000000000007', { name: 'מוסך אבי', phone: '050-7778888', deal_at: '2026-10-11T08:00:00+03:00', char_at: '2026-10-11T10:00:00+03:00', protocol_version: 5 });
   const call = applicableProcesses(G).find((p) => p.id === 'p12a').items.filter((i) => !i.optional).map((i) => check(G, i.key, '2026-10-12T12:00:00+03:00'));
   db.clients.push(G);
-  db.protocol_checks.push(...imported(G, 'content'), ...call);
+  db.protocol_checks.push(...imported(G, 'content').filter((r) => !/^p11b?\./.test(r.item_key)), ...call);
+  // The station-change message already went out (it is a milestone of its own).
+  db.client_messages.push({ id: 'st-g', client_id: G.id, kind: 'milestone', template_key: 'station_change', ref: 'station.content', body: 'x', sent_by_email: 'irit@astrateg.test', sent_at: '2026-10-12T13:00:00+03:00' });
   const ctx = await newContext();
   const page = await newPage(ctx);
   await signIn(page, 'messages.html', 'irit@astrateg.test');

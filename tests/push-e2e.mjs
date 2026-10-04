@@ -220,7 +220,7 @@ await step('the card offers "הפעלת התראות"; permission is asked only 
   assert.equal(await page.evaluate(() => window.__asked), 0);
   // Right under the "now" bar in "my work".
   const ids = await page.locator('#view-mine > *').evaluateAll((els) => els.map((e) => e.id));
-  assert.deepEqual(ids.slice(0, 2), ['now-bar', 'push-card']);
+  assert.deepEqual(ids.slice(0, 3), ['now-bar', 'deals-card', 'push-card']);
   await shot(page, '01-card');
 });
 

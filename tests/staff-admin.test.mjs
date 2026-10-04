@@ -2,22 +2,26 @@
 // link may open, what the list returns) and the team screen's plain helpers.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import {
   PERSONS, TEAM_MANAGERS, LINK_PAGES, ERR, normEmail, roleOf, bearer, allowedRedirect, allowedOrigin, corsHeaders,
   planUpsert, planRemove, planLink, planPhone, linkTypeFor, buildLoginLink, summarize, linkErrorCode, normPhone,
 } from '../supabase/functions/staff-admin/rules.js';
 import * as teamRules from '../app/team-rules.js';
-import { STAFF_PEOPLE } from '../app/protocol.js';
+import { TEAM_PEOPLE } from '../app/protocol.js';
 
 const OWNER = 'owner@astrateg.test';
 const row = (email, person, vault = false) => ({ email, person, vault });
 
 test('the function knows the same people and managers as the app', () => {
-  assert.deepEqual(PERSONS, STAFF_PEOPLE().map((p) => p.key));
+  // The whole team, sales too (Stav, 3.10.2026: the team screen adds his row).
+  assert.deepEqual(PERSONS, TEAM_PEOPLE().map((p) => p.key));
   assert.deepEqual(TEAM_MANAGERS, teamRules.TEAM_MANAGERS);
-  const src = readFileSync(new URL('../supabase/migrations/20260929230000_photographer.sql', import.meta.url), 'utf8');
-  for (const p of PERSONS) assert.match(src, new RegExp(`'${p}'`), `${p} allowed by staff_person_check`);
+  // The latest migration that sets staff_person_check allows every one of them.
+  const dir = new URL('../supabase/migrations/', import.meta.url);
+  const last = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
+    .map((f) => readFileSync(new URL(f, dir), 'utf8')).filter((s) => /add constraint staff_person_check/.test(s)).at(-1);
+  for (const p of PERSONS) assert.match(last, new RegExp(`'${p}'`), `${p} allowed by staff_person_check`);
 });
 
 test('emails are trimmed and lower-cased; anything else is refused', () => {

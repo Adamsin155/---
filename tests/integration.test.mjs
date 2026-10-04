@@ -39,7 +39,7 @@ const pick = (list, rule, step) => list.filter((r) => r.rule === rule && r.step 
 // The editing is done and the final versions are in the Drive (as tests/office-flows.test.mjs).
 function finals(w, v) {
   const c = client(w, v);
-  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p08', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21', 'p22a']) {
+  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21', 'p22a']) {
     for (const k of itemsOf(id)) mark(w, c, k, IL(2026, 10, 18, 9), 'ייבוא');
   }
   mark(w, c, 'p27.final', IL(2026, 10, 22, 11));
@@ -72,10 +72,12 @@ test('a case is fresh when its rule says so, or when its whole process is newer 
   assert.equal(freshCase({}, { proc: { items: [] } }), false);
   assert.equal(freshCase({}, {}), false); // task and cycle cases have no process
   assert.equal(freshCase({ fresh: () => true }, {}), true);
-  // Whole processes that came later: 12א and 22א (version 2), 17ב–19ב (version 4).
+  // Whole processes that came later: 12א and 22א (version 2), 17ב–19ב (version 4), 7ב and 23ב (version 6).
   const procs = applicableProcesses({ id: 'x', shoot_type: 'dms', rounds: [], protocol_version: 1, created_at: '2026-09-01T07:00:00Z' });
   const whole = procs.filter((p) => freshCase({}, { proc: p })).map((p) => p.id);
-  assert.deepEqual(whole, ['p12a', 'p17b', 'p18b', 'p19b', 'p22a']);
+  assert.deepEqual(whole, ['p07b', 'p12a', 'p17b', 'p18b', 'p19b', 'p22a', 'p23b']);
+  const v5 = applicableProcesses({ id: 'x', shoot_type: 'dms', rounds: [], protocol_version: 5 });
+  assert.deepEqual(v5.filter((p) => freshCase({}, { proc: p })).map((p) => p.id), ['p07b', 'p23b']);
   // Only finalReady names its item; the rule list has no other `fresh`.
   assert.deepEqual(RULES.filter((r) => typeof r.fresh === 'function').map((r) => r.id), ['finalReady']);
 });
@@ -95,8 +97,10 @@ test('the status page\'s approvals work for a client of any version and never ma
     assert.equal(!!items.get('p12.numbered').fresh, v < 2, `p12.numbered, version ${v}`);
     // The videos' notes (a fix request) are optional: marking them never makes anything late or complete.
     assert.equal(items.get('p27.notes').optional, true);
-    // p23.approved is the page's own mark on the rest of the graphics, not a protocol item.
-    assert.equal(items.has('p23.approved'), false);
+    // p23.approved was the page's own mark on the rest of the graphics; since version 6 it is
+    // also an optional item Irit can mark (the same key): new for older clients, never late.
+    assert.equal(items.get('p23.approved').optional, true);
+    assert.equal(!!items.get('p23.approved').fresh, v < 6, `p23.approved, version ${v}`);
   }
   const sql = readFileSync(new URL('../supabase/migrations/20260930170000_client_status.sql', import.meta.url), 'utf8');
   assert.match(sql, new RegExp(`c\\.protocol_version < ${itemSince('p12.numbered')} or count\\(\\*\\) filter \\(where s\\.item_key = pre \\|\\| 'p12\\.numbered'\\) = 1`));

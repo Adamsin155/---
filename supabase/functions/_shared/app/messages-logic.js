@@ -167,6 +167,13 @@ export const DEFAULT_TEMPLATES = [
     body: `היי {לקוח}, שאלה אחת, לא חובה: מ־0 עד 10, כמה סביר שתמליצו על אסטרטג לעסק אחר?
 אפשר לענות לנו בהודעה או בדף המצב שלכם. התשובה עוזרת לנו לשפר את השירות.`,
   },
+  // The owner's decision of 3.10.2026, seeded by 20261003100000_sales_deals.sql: the
+  // client moved on to the next station. Irit sends it herself (the queue and a quiet
+  // reminder), in the owner's own words.
+  {
+    key: 'station_change', title: 'מעבר לשלב הבא', kind: 'milestone', station: null,
+    body: 'היי, אנחנו כרגע לאחר שלב {השלב שהסתיים}, ומתקדמים לשלב {השלב הבא}',
+  },
 ];
 
 // What the system fills in each template ({לקוח} and {עסק} everywhere).
@@ -180,6 +187,7 @@ const EXTRA_VARS = {
   thursday: ['עשינו', 'הלאה', 'צריך'],
   delay: ['מה', 'תאריך'],
   'daily.post': ['תאריך'],
+  station_change: ['השלב שהסתיים', 'השלב הבא'],
 };
 export const templateVars = (key) => ['לקוח', 'עסק', ...(EXTRA_VARS[key] || [])];
 
@@ -349,6 +357,55 @@ export function stationOf(client, state, now = new Date()) {
   return reachedStation(state.states.filter((s) => !isRoundState(s)), now, 0);
 }
 
+// When the client came into its station: the first thing done in it (or the
+// meeting, the shoot, the editing starting by itself); otherwise when the station
+// before it was finished. The latest shoot round comes first. (Shared with the
+// owner's screens, app/health.js.)
+export function stationSince(client, state, checks, index, now) {
+  const scopes = [...roundsOf(client).map((r) => `r${r.n}-`).reverse(), ''];
+  for (const pid of scopes) {
+    const list = state.states.filter((s) => (pid ? s.proc.id.startsWith(pid) : !isRoundState(s)));
+    const inSt = list.filter((s) => STATION_OF.get(baseId(s.proc.id)) === index);
+    if (!inSt.length) continue;
+    let first = Infinity;
+    for (const s of inSt) {
+      for (const i of s.proc.items) if (checks[i.key]) first = Math.min(first, +new Date(checks[i.key].at));
+      if (DATED.has(baseId(s.proc.id)) && s.startAt && s.startAt <= now) first = Math.min(first, +s.startAt);
+    }
+    if (first === Infinity) {
+      const prev = list.filter((s) => (STATION_OF.get(baseId(s.proc.id)) ?? 99) < index && s.completedAt).map((s) => +s.completedAt);
+      if (prev.length) first = Math.max(...prev);
+    }
+    if (first !== Infinity) return new Date(Math.min(first, +now));
+  }
+  return parseDate(client.deal_at);
+}
+
+// The client moved on to its current station (decision of 3.10.2026): Irit sends
+// the client "היי, אנחנו כרגע לאחר שלב X, ומתקדמים לשלב Y" herself, from the
+// messages queue (a milestone of that day) and from a quiet reminder. null on the
+// first station, and when the move is only imported history (a client opened in a
+// later station: nothing happened today). `ref` names the station (and the round),
+// so each move is offered once.
+export function stationChange(client, checks = {}, state = null, now = new Date()) {
+  if (isClosedClient(client)) return null;
+  const st = state || clientState(client, checks, now);
+  const index = stationOf(client, st, now);
+  if (index < 1) return null;
+  const at = stationSince(client, st, checks, index, now);
+  if (!at) return null;
+  const near = (c) => Math.abs(new Date(c.at) - at) < 60e3;
+  if (Object.values(checks).some((c) => c?.note === IMPORT_NOTE && near(c))) return null;
+  const round = activeRound(client, st, now);
+  const pre = round ? `r${round.n}.` : '';
+  return {
+    index, at, from: STATIONS[index - 1].title, to: STATIONS[index].title,
+    ref: `${pre}station.${STATIONS[index].key}`, round: round ? round.n : 0,
+    text: stationChangeText(STATIONS[index - 1].title, STATIONS[index].title),
+  };
+}
+export const stationChangeText = (from, to) => `היי, אנחנו כרגע לאחר שלב ${from}, ומתקדמים לשלב ${to}`;
+
 // ── Today's message ───────────────────────
 const CLOSED = new Set(['ended', 'cancelled']);
 export const isClosedClient = (c) => CLOSED.has(c?.status);
@@ -447,7 +504,9 @@ export function protocolCheckOf(m) {
 // the keys of the process's required items still open.
 const PROMISES = [
   {
-    proc: 'p11', what: 'קביעת יום הצילום', chain: ['p11'],
+    // Since v6 the shoot day is set the business day after the group opens: Irit's own
+    // target, not a promise to the client. A client that started before keeps ה4.
+    proc: 'p11', what: 'קביעת יום הצילום', chain: ['p11'], applies: (x) => !!x.st('p11')?.proc.timingBefore,
     // Everyone else confirmed the date; the client's approval (and then the calendar) is left.
     onClient: (x, open) => !x.isDone('p11.ok.client') && open.every((k) => /\.ok\.client$|\.calendar$/.test(k)),
   },
@@ -497,7 +556,7 @@ const roundNote = (x) => (x.round ? ` (סבב צילום ${x.round})` : '');
 // The next three dates, for the welcome message (never an internal deadline).
 // Only dates still ahead: one that already passed is left out, and with none
 // left, the sender writes them by hand.
-function nextDatesText(c, now) {
+function nextDatesText(c, now, p11 = null) {
   const ahead = (d) => (d && d > now ? d : null);
   const charAt = parseDate(c.char_at);
   const shootAt = parseDate(c.shoot_at);
@@ -509,10 +568,11 @@ function nextDatesText(c, now) {
   else if (char) lines.push(`פגישת האפיון: ${at(char)}`, `עמוד מסודר ו־9 גרפיקות ראשונות לאישור: ביום האפיון, ${dayText(char)}`);
   if (shoot) lines.push(`יום הצילום: ${at(shoot)}`);
   else if (!shootAt) {
-    // Promise ה4: the shoot day is set within 3 business days of the meeting.
-    const setBy = charAt ? ahead(addBusinessDays(charAt, 3)) : null;
-    if (!charAt) lines.push('קביעת יום הצילום: עד 3 ימי עסקים אחרי האפיון');
-    else if (setBy) lines.push(`קביעת יום הצילום: עד ${dayText(setBy)}`);
+    // Promise ה4: since v6 the shoot day is set right after the group is opened (the
+    // due date of 11); a client that started before keeps "3 business days after the meeting".
+    const setBy = ahead(p11?.dueAt || (charAt ? addBusinessDays(charAt, 3) : null));
+    if (setBy) lines.push(`קביעת יום הצילום: עד ${dayText(setBy)}`);
+    else if (!charAt) lines.push('קביעת יום הצילום: בימים הקרובים');
   }
   return lines.length ? lines.join('\n') : '[התאריכים הקרובים]';
 }
@@ -524,7 +584,7 @@ function milestoneOption(m, x, at, now) {
   switch (m.key) {
     case 'welcome':
       vars['צוות'] = teamText();
-      vars['תאריכים'] = nextDatesText(x.client, now);
+      vars['תאריכים'] = nextDatesText(x.client, now, x.st('p11'));
       reason = `הקבוצה נפתחה ${relDay(at, now)}`;
       break;
     case 'access': {
@@ -604,6 +664,7 @@ function delayNotices(xs, messages, now) {
     for (const p of PROMISES) {
       const s = x.st(p.proc);
       if (!s || s.complete || s.wait) continue; // done, or waiting on the client (not our delay)
+      if (p.applies && !p.applies(x)) continue;
       const open = s.proc.items.filter((i) => !i.optional && !resolvedCheck(x.checks, i.key)).map((i) => i.key);
       if (p.onClient && p.onClient(x, open)) continue; // what is left is the client's
       const due = p.due ? p.due(x) : s.dueAt;
@@ -660,7 +721,8 @@ export function thursdayVars(client, checks, state, now = new Date()) {
   for (const s of scope) {
     const id = baseId(s.proc.id);
     if (next.length >= 2) break;
-    if (!STEPS[id] || s.complete || skip.has(id) || STATION_OF.get(id) < station) continue;
+    // The shoot day still to set is always next (since v6 it belongs to the first station).
+    if (!STEPS[id] || s.complete || skip.has(id) || (STATION_OF.get(id) < station && id !== 'p11')) continue;
     next.push(STEPS[id][1]);
   }
   if (!next.length) next.push(STATIONS[station].key === 'renewal' ? 'שיחת סיכום ותכנון ההמשך' : 'השיחה השבועית והמשך התכנים לפי הגאנט');
@@ -700,6 +762,22 @@ export function suggestFor(client, checks = {}, messages = [], now = new Date(),
   const xs = contextsOf(client, checks, st);
   const delays = delayNotices(xs, messages, now);
   const milestones = pendingMilestones(xs, messages, now, station);
+  // The move to a new station, while it is fresh (2 business days) and not sent yet.
+  // A milestone of its own, after any other one of the day: a day with a more specific
+  // milestone (the day before the shoot, scripts to approve…) leaves it for the next
+  // day, and Irit's quiet reminder tells her of the move anyway.
+  const move = stationChange(client, checks, st, now);
+  if (move && !milestones.length && !delays.some((p) => p.urgent) && businessDaysBetween(move.at, now) <= 2
+    && !messages.some((m) => m.ref === move.ref)) {
+    milestones.push({
+      urgent: false,
+      option: {
+        kind: 'milestone', key: 'station_change', ref: move.ref, at: move.at,
+        reason: `עבר לשלב ${move.to} ${relDay(move.at, now)}${move.round ? ` (סבב צילום ${move.round})` : ''}`,
+        vars: { 'השלב שהסתיים': move.from, 'השלב הבא': move.to },
+      },
+    });
+  }
   const pick = (list, urgent) => list.filter((p) => p.urgent === urgent).map((p) => p.option);
   // The day before a shoot, then a delay that cannot wait, then the milestones.
   const options = [...pick(milestones, true), ...pick(delays, true), ...pick(milestones, false)];

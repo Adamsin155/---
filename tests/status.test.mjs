@@ -55,7 +55,8 @@ test('the marks the page reads are client-facing items of the protocol, never an
   const probe = ['p02.opened', 'p04.saved', 'p05.access', 'p05.colors', 'p05.photos', 'p05.videos', 'p11.ok.client', 'p11.calendar', 'p12.scripts', 'p12.numbered', 'p12.docs',
     'p19.all', 'p19.took', 'p23.sent', 'p26.sent', 'p27.fixes', 'p27.final', 'p28.scheduled', 'p29.sent'];
   for (const k of probe) { assert.ok(MARKS.test(k), k); assert.ok(items.has(k), k); }
-  assert.ok(!items.has('p23.approved') && MARKS.test('p23.approved'));
+  // The approval of the rest of the graphics: since v6 an optional item too (Irit may mark it; it starts 23ב).
+  assert.ok(items.has('p23.approved') && MARKS.test('p23.approved'));
 });
 
 test('stations: the same 8 as the office\'s bar, reached by the client\'s milestones', () => {

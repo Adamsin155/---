@@ -18,9 +18,9 @@
 //   planDigests({ env, now, log, active, lookahead }) → the digests due now.
 import {
   RULES, OWNER, timeOf, inSendHours, atIL, DAILY_CAP, STALE_MINUTES, FOLD, DIGESTS, RING_TARGETS, personName, MINE_URL,
-  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY,
+  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, OWNER_LATE_HOURS,
 } from './reminder-rules.js';
-import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf } from './protocol-logic.js';
+import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf, pauseOf } from './protocol-logic.js';
 import { STAFF_PEOPLE } from './protocol.js';
 import { ofirMeetings as meetingsOf } from './office-marks.js';
 import { dayKeyIL, atTimeIL, dayFromKeyIL, weekdayIL, addDaysIL, endOfDayIL } from './tz.js';
@@ -42,6 +42,7 @@ function groupChecks(checks) {
 export function buildEnv({
   clients = [], checks = {}, tasks = [], staff = [], access = [], reviews = [], statusNotes = [], messages = [], subscriptions = [], now = new Date(),
   monthMarks = [], // stage 5: public.client_month_marks rows (app/year-rules.js)
+  deals = [], // 3.10.2026: public.deal_requests rows (Stav's deals, app/deal-logic.js)
 }) {
   const byClient = groupChecks(checks);
   const liveClients = clients.filter(live);
@@ -65,7 +66,7 @@ export function buildEnv({
     tasks: tasks.filter((t) => !t.done_at),
     // Tasks finished lately (the server loads the last two days): "the requester hears".
     doneTasks: tasks.filter((t) => t.done_at),
-    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks,
+    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals,
     personOf: (email) => people.get(String(email || '').toLowerCase()) || null,
     emailsOf: (person) => [...people].filter(([, p]) => p === person).map(([e]) => e),
     hasStaff: (person) => [...people.values()].includes(person),
@@ -349,7 +350,10 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
     const sinceDay = log.filter((r) => r.person === OWNER && r.level === 'board' && r.status === 'sent' && dayKeyIL(asDate(r.created_at)) === day);
     const { keep, drop } = split([...sinceDay, ...queuedFor(OWNER)]);
     let lines = digestLines({ rows: keep, max: 10, clientName });
-    if (!lines.length) lines = ['הכול לפי התוכנית.'];
+    // Everything 24 hours late or more, of everyone, in one section (3.10.2026).
+    const late = lateSummary(env, now);
+    if (!lines.length && !late.length) lines = ['הכול לפי התוכנית.'];
+    lines = [...lines, ...late];
     // The weekly report: Thursday, or the last business day of the week when Thursday is a holiday.
     const weekly = lastBusinessDayOfWeek(now);
     if (weekly) lines = [...lines, ...weeklyReport(env, log, now)];
@@ -363,6 +367,41 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
     out.push({ key: `digest:week:owner:${day}`, kind: 'week', person: OWNER, title: 'השבוע הקרוב', lines, url: 'clients.html', include: keep, drop });
   }
   return out.map((d) => (d.key ? { ...d, body: d.lines.join('\n') } : d));
+}
+
+// The owner's daily summary of lateness (the owner's decision of 3.10.2026): every
+// process and task of every employee that is 24 hours late or more at `now`, in one
+// section of the 18:00 digest, never one message per item. One line per person, the
+// most late first; waiting on the client and paused editing are not late.
+export function lateSummary(env, now = env.now, hours = OWNER_LATE_HOURS) {
+  const cut = now.getTime() - hours * 36e5;
+  const byPerson = new Map();
+  const add = (person, text, at) => {
+    if (!person || person === 'editor') return;
+    if (!byPerson.has(person)) byPerson.set(person, []);
+    byPerson.get(person).push({ text, at: +at });
+  };
+  let n = 0;
+  for (const c of env.clients) {
+    const checks = env.checksOf(c);
+    for (const s of env.stateOf(c).states) {
+      if (s.status !== 'overdue' || s.proc.recurring || !s.dueAt || +s.dueAt > cut || pauseOf(s.proc, checks)) continue;
+      n += 1;
+      for (const p of (s.claim ? [s.claim.person] : s.proc.owners)) add(p, `${c.name} (${s.proc.num})`, s.dueAt);
+    }
+  }
+  for (const t of env.tasks) {
+    const c = env.clientById.get(t.client_id);
+    if (!c || !t.due_on) continue;
+    const end = endOfDayIL(dayFromKeyIL(t.due_on));
+    if (!end || +end > cut) continue;
+    n += 1;
+    add(t.owner, `${c.name}: ${t.title}`, end);
+  }
+  if (!n) return [];
+  const rows = [...byPerson].map(([p, list]) => ({ p, list: list.sort((a, b) => a.at - b.at) }))
+    .sort((a, b) => b.list.length - a.list.length || a.list[0].at - b.list[0].at);
+  return [`באיחור ${hours} שעות ומעלה (${n}):`, ...rows.map(({ p, list }) => `${personName(p)} (${list.length}): ${short(list.map((x) => x.text), 3)}`)];
 }
 
 // No business day earlier in this Israel week (the owner's "Sunday 08:30" moves

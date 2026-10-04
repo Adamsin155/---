@@ -76,12 +76,47 @@ async function loadMonthMarks(): Promise<Row[]> {
   }
 }
 
+// Stav's deals (3.10.2026, app/deal-logic.js): those still waiting for a contract, and
+// the ones signed in the last two days (the seller hears). Until migration
+// 20261003100000_sales_deals.sql adds the table, none.
+async function loadDeals(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  try {
+    return await all(() => admin.from('deal_requests').select('id, created_at, created_by_email, seller, business_name, contact_name, tier, influencer, paid, free, discount_agorot, status, quote_id, sent_at, signed_at')
+      .or(`status.eq.pending,signed_at.gte."${since}"`).order('id'));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205') return [];
+    throw err;
+  }
+}
+
 // The database as tick.js sees it (service role: row level security does not apply).
 const db = {
+  // The automatic editor assignment (app/auto-assign.js), as qa.html writes it: the
+  // editor on the client (only while it has none: Ofir may have assigned meanwhile)
+  // or on the round, the marks, the reason with `auto`, and Ofir's folder task.
+  async autoAssign(a: Row, now: Date) {
+    if (a.patch) {
+      let q = admin.from('clients').update(a.patch).eq('id', a.clientId);
+      if (!a.n) q = q.is('editor', null);
+      const { data, error } = await q.select('id');
+      if (error) throw error;
+      if (!data?.length) return false; // assigned by hand meanwhile
+    }
+    const rows = [...a.checks, a.reason].map((x: Row) => ({ client_id: a.clientId, item_key: x.key, state: 'done', note: x.note, at: now.toISOString() }));
+    const { error: e1 } = await admin.from('protocol_checks').upsert(rows, { onConflict: 'client_id,item_key', ignoreDuplicates: true });
+    if (e1) throw e1;
+    if (a.task) {
+      const { error: e2 } = await admin.from('client_tasks').insert({ ...a.task, created_by_email: null });
+      if (e2) console.error('reminders: folder task not opened', e2.code ?? 'error');
+    }
+    return true;
+  },
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -94,10 +129,11 @@ const db = {
       all(() => admin.from('reminder_log').select(LOG_COLS).eq('status', 'queued').order('id')),
       all(() => admin.from('reminder_log').select(LOG_COLS).gte('created_at', since.toISOString()).order('id')),
       loadMonthMarks(),
+      loadDeals(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();

@@ -698,7 +698,7 @@ assert.equal(await page.getAttribute('#tab-performance', 'aria-selected'), 'true
 await page.goto(`${BASE}client.html?id=${seeded.id}#p06`);
 await page.waitForSelector('#p06');
 // 27 too: Ilai's "קיבלתי" on the final versions closes the editing (protocol v5).
-assert.deepEqual(await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id)), ['p06', 'p07', 'p09', 'p23', 'p27', 'p28', 'p29', 'r2-p27', 'r2-p28', 'r2-p29']);
+assert.deepEqual(await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id)), ['p06', 'p07', 'p07b', 'p09', 'p23', 'p23b', 'p27', 'p28', 'p29', 'r2-p27', 'r2-p28', 'r2-p29']);
 for (const sel of ['#btn-edit', '#view-toggle', '.deliv', '.status-note', '.round-add', '.round-head button', '#task-form:not([hidden])']) assert.equal(await page.locator(sel).count(), 0, sel);
 assert.equal(await page.isHidden('#access'), true); // the vault is not his in this fake
 assert.equal(await page.isHidden('#history'), true);

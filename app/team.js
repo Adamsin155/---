@@ -4,7 +4,7 @@
 // For the owner, Irit and Lior; the staff-admin function checks the same on the
 // server (supabase/functions/staff-admin/). Links are kept only in this page's memory.
 import { supabase } from './supa.js';
-import { STAFF_PEOPLE } from './protocol.js';
+import { TEAM_PEOPLE } from './protocol.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, formatWhen } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import {
@@ -61,14 +61,14 @@ const nameOfEmail = (email) => {
   const r = rows.find((x) => x.email === email);
   if (!r) return String(email || '').split('@')[0];
   if (r.person === null) return 'הבעלים';
-  return STAFF_PEOPLE().find((p) => p.key === r.person)?.name || r.email.split('@')[0];
+  return TEAM_PEOPLE().find((p) => p.key === r.person)?.name || r.email.split('@')[0];
 };
 
 // Owner first, then everyone in the protocol in its order (one entry per staff row,
 // or an empty one for someone without a row), then rows with no protocol role.
 // Each entry gets a short id for the page: the person's key, numbered when repeated.
 function entries() {
-  const people = STAFF_PEOPLE();
+  const people = TEAM_PEOPLE();
   const out = rows.filter((r) => r.person === null).map((r) => ({ key: 'owner', person: null, name: 'הבעלים', role: 'בעל המשרד', row: r }));
   for (const p of people) {
     const mine = rows.filter((r) => r.person === p.key);

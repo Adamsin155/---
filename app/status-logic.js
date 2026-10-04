@@ -139,7 +139,8 @@ function activeRound(data, now) {
 function reached(x, shootAt, charAt, now, floor = 0) {
   let i = floor;
   if ((charAt && charAt <= now) || x.done('p04.ended') || x.done('p04.saved')) i = Math.max(i, 1);
-  if (['p11.ok.client', 'p11.calendar', 'p12.scripts', 'p12.numbered', 'p12.docs', 'p13.approved'].some(x.done)) i = Math.max(i, 2);
+  // Since v6 the shoot day (11) is set in "הצטרפות", right after the group: it moves nothing on.
+  if (['p12.scripts', 'p12.numbered', 'p12.docs', 'p13.approved'].some(x.done)) i = Math.max(i, 2);
   if (shootAt && now >= eveOf(shootAt)) i = Math.max(i, 3);
   if (x.done('p19.all') || x.done('p19.took') || (shootAt && now > endOfDayIL(shootAt))) i = Math.max(i, 4);
   if (x.done('p27.approved') || x.done('p27.final')) i = Math.max(i, 5);
@@ -177,7 +178,9 @@ export function nextMilestones(data, now = new Date(), max = 3) {
     const charAt = parseDate(c.charAt);
     if (charAt) add('char', 'פגישת האפיון', 'ה1', charAt, true);
     if (charAt && !x.done('p07.sent')) add('page', 'עמוד מסודר ו־9 גרפיקות ראשונות לאישורך', 'ה2', endOfDayIL(charAt));
-    if (charAt && !shootAt) add('shootSet', 'קביעת יום הצילום', 'ה4', addBusinessDays(charAt, 3));
+    // v6: the shoot day is set by the end of the business day after the group was opened.
+    const group = x.at('p02.opened');
+    if (!shootAt && (group || charAt)) add('shootSet', 'קביעת יום הצילום', 'ה4', group ? addBusinessDays(group, 1) : addBusinessDays(charAt, 3));
     if (charAt && !x.done('p13.approved') && !x.done('p19.all')) add('scripts', 'התסריטים ליום הצילום, לאישורך', 'ה5', addBusinessDays(charAt, 3));
   }
   if (shootAt) add('shoot', r ? `יום הצילום (סבב ${r.n})` : 'יום הצילום', 'ה7', shootAt, true);

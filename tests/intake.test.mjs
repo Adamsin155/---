@@ -127,9 +127,9 @@ test('the full form within 60 minutes: the characterizer, then Irit, then Lior\'
   // Process 4 is not reported late by the general rule meanwhile (its own ladder is above).
   const w2 = world(c, { ...imported('char'), ...done(CHAR_ENDED, IL(2026, 10, 6, 11)) });
   none(due(w2, IL(2026, 10, 6, 15)).filter((r) => r.key.includes(':p04@')), 'late');
-  // Without the tap, a late process 4 is still reported the usual way (Lior's own: the owner's screen).
+  // Without the tap, a late process 4 is still reported the usual way (3.10.2026: Ofir and Lior, quietly).
   const w3 = world(c, imported('char'));
-  assert.ok(pick(due(w3, IL(2026, 10, 6, 12, 1)), 'late', 'board').some((r) => r.key.includes(':p04@')));
+  for (const who of ['ofir', 'lior']) assert.ok(pick(due(w3, IL(2026, 10, 6, 12, 1)), 'late', who).some((r) => r.key.includes(':p04@') && r.level === 'quiet'), who);
 });
 
 test('the complete form checks process 4\'s items and closes Irit\'s follow-up by itself', () => {

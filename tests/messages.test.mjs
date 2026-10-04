@@ -44,7 +44,10 @@ test('welcome after the group opens: team, next three dates, what we need, Thurs
   for (const line of ['ליאור: מנהל הלקוח', 'עירית: תפעול ולקוחות', 'אופיר: אפיון העסק', 'עילאי: גרפיקה']) assert.ok(text.includes(line), line);
   assert.ok(text.includes('פגישת האפיון: יום ב׳ 12.10 בשעה 10:00'));
   assert.ok(text.includes('עמוד מסודר ו־9 גרפיקות ראשונות לאישור: ביום האפיון, יום ב׳ 12.10'));
-  assert.ok(text.includes('קביעת יום הצילום: עד יום ה׳ 15.10'), 'promise ה4: 3 business days from the meeting');
+  // v6: the shoot day is set by the end of the business day after the group opened.
+  assert.ok(text.includes('קביעת יום הצילום: עד יום ב׳ 12.10'), 'v6: the business day after the group');
+  // A client that started before v6 keeps promise ה4: 3 business days from the meeting.
+  assert.ok(messageText(suggest({ ...base, protocol_version: 5 }, checks, [], '2026-10-11T10:00:00+03:00').options[0], T).includes('קביעת יום הצילום: עד יום ה׳ 15.10'), 'promise ה4');
   assert.match(text, /לוגו, צבעי המותג/);
   assert.match(text, /בכל יום חמישי תקבלו מאיתנו עדכון קצר/);
   assert.deepEqual(unfilledIn(text), []);
@@ -56,7 +59,7 @@ test('welcome after the group opens: team, next three dates, what we need, Thurs
   // Before the meeting is set (no dates yet): sent once, not again; unsent, it
   // stays 2 business days and no longer.
   const early = { ...base, char_at: null };
-  assert.match(messageText(suggest(early, checks, [], '2026-10-11T10:00:00+03:00').options[0], T), /פגישת האפיון: נתאם איתכם מועד בשעות הקרובות[\s\S]*קביעת יום הצילום: עד 3 ימי עסקים אחרי האפיון/);
+  assert.match(messageText(suggest(early, checks, [], '2026-10-11T10:00:00+03:00').options[0], T), /פגישת האפיון: נתאם איתכם מועד בשעות הקרובות[\s\S]*קביעת יום הצילום: עד יום ב׳ 12.10/);
   assert.deepEqual(kinds(suggest(early, checks, [sent('welcome', '2026-10-11T10:05:00+03:00')], '2026-10-12T09:00:00+03:00')), ['daily:daily.join']);
   assert.equal(suggest(early, checks, [], '2026-10-13T09:00:00+03:00').options[0].key, 'welcome');
   assert.equal(suggest(early, checks, [], '2026-10-14T09:00:00+03:00').options[0].key, 'daily.join');
@@ -172,17 +175,18 @@ test('Thursday: the update in three lines from the system\'s data replaces the d
   };
   const msgs = [sent('welcome', '2026-10-11T09:00:00+03:00'), sent('access', '2026-10-12T15:00:00+03:00'), sent('summary', '2026-10-13T10:00:00+03:00')];
   const s = suggest(c, checks, msgs, '2026-10-15T10:00:00+03:00');
-  assert.deepEqual(kinds(s), ['thursday:thursday', 'daily:daily.content']);
+  // v6: setting the shoot day (11) belongs to the first station; the client is still in the characterization's.
+  assert.deepEqual(kinds(s), ['thursday:thursday', 'daily:daily.char']);
   const text = messageText(s.options[0], T);
   assert.equal(text, [
     'היי דנה, העדכון השבועי שלנו:',
     'מה עשינו השבוע: פתחנו את קבוצת העבודה, קבענו את פגישת האפיון וקיימנו את פגישת האפיון.',
-    'מה הלאה: קביעת יום הצילום ושיחת דגשים לתוכן.',
+    'מה הלאה: קביעת יום הצילום וסידור העמודים ברשתות.',
     'מה צריך מכם: צבעי המותג, תמונות, סרטונים קיימים, אישור על 9 הגרפיקות הראשונות ואישור מועד ליום הצילום.',
     'סוף שבוע נעים!',
   ].join('\n'));
   // Another day: the daily message.
-  assert.deepEqual(kinds(suggest(c, checks, msgs, '2026-10-18T10:00:00+03:00')), ['daily:daily.content']);
+  assert.deepEqual(kinds(suggest(c, checks, msgs, '2026-10-18T10:00:00+03:00')), ['daily:daily.char']);
   // Thursday with a milestone: the milestone first, the update as an option.
   const withScripts = { ...checks, ...done(c, ['p12a', 'p12'], '2026-10-15T09:00:00+03:00') };
   assert.deepEqual(kinds(suggest(c, withScripts, msgs, '2026-10-15T10:00:00+03:00')).slice(0, 2), ['milestone:scripts', 'thursday:thursday']);
@@ -245,18 +249,22 @@ test('a notice of delay: on the promised date, or a business day before it when 
   // The videos were not sent to the client yet: ours.
   assert.equal(suggest(c, { ...checks, ...done(c, ['p22', 'p24', 'p25'], '2026-10-08T12:00:00+03:00') }, msgs, '2026-10-13T09:00:00+03:00').options[0].ref, 'p27');
 
-  // The shoot day (ה4): three business days from the meeting on Monday 12.10 → Thursday 15.10.
-  // The scripts (ה5) have the same date; the content call was due Tuesday 13.10 and is late.
-  const content = imported(base, 'content');
-  const wed = suggest(base, content, [], '2026-10-14T10:00:00+03:00');
+  // The shoot day (ה4), for a client that started before v6: three business days from
+  // the meeting on Monday 12.10 → Thursday 15.10. The scripts (ה5) have the same date;
+  // the content call was due Tuesday 13.10 and is late. (11 still open: not imported.)
+  const v5 = { ...base, protocol_version: 5 };
+  const content = Object.fromEntries(Object.entries(imported(base, 'content')).filter(([k]) => !/^p11b?\./.test(k)));
+  const wed = suggest(v5, content, [], '2026-10-14T10:00:00+03:00');
   assert.deepEqual(kinds(wed), ['delay:p12', 'daily:daily.content', 'delay:p11']);
   assert.equal(wed.options[0].vars['תאריך'], 'יום ה׳ 15.10');
+  // Since v6 the shoot day is Irit's own target (the business day after the group): no notice to the client.
+  assert.deepEqual(kinds(suggest(base, content, [], '2026-10-14T10:00:00+03:00')), ['delay:p12', 'daily:daily.content']);
   // Everyone confirmed the date but the client: the date is theirs to approve.
   const oks = ['p11.influencers', 'p11.ok.influencers', 'p11.ok.lior', 'p11.ok.photographer'].reduce((a, k) => ({ ...a, ...item(k, '2026-10-13T12:00:00+03:00') }), {});
-  assert.deepEqual(kinds(suggest(base, { ...content, ...oks }, [], '2026-10-14T10:00:00+03:00')), ['delay:p12', 'daily:daily.content']);
+  assert.deepEqual(kinds(suggest(v5, { ...content, ...oks }, [], '2026-10-14T10:00:00+03:00')), ['delay:p12', 'daily:daily.content']);
   // Without the photographer's confirmation, it is still ours.
   const { 'p11.ok.photographer': _, ...noPhotographer } = oks;
-  assert.ok(suggest(base, { ...content, ...noPhotographer }, [], '2026-10-14T10:00:00+03:00').options.some((o) => o.ref === 'p11'));
+  assert.ok(suggest(v5, { ...content, ...noPhotographer }, [], '2026-10-14T10:00:00+03:00').options.some((o) => o.ref === 'p11'));
 });
 
 test('one proactive message per Israel day: 00:30 in Israel (21:30 UTC) is already the next day', () => {
@@ -363,14 +371,15 @@ test('a promised date that already passed is never repeated: videos sent late le
 test('the shoot day passed but is not closed in the card: no "the shoot day is coming"', () => {
   const c = { ...base, shoot_at: '2026-10-13T11:00:00+03:00' };
   const checks = imported(c, 'shoot');
-  // On the day itself, the shoot station's message.
-  assert.deepEqual(kinds(suggest(c, checks, [], '2026-10-13T08:00:00+03:00')), ['daily:daily.shoot']);
+  // On the day itself, the shoot station's message (and, since the station began the day
+  // before with the reminders of 15, the station-change message).
+  assert.deepEqual(kinds(suggest(c, checks, [], '2026-10-13T08:00:00+03:00')), ['milestone:station.shoot', 'daily:daily.shoot']);
   // The next day, with process 19 still open: editing's message, and a word to close 19.
   const s = suggest(c, checks, [], '2026-10-14T10:00:00+03:00');
   assert.equal(STATIONS[s.station].key, 'shoot');
-  assert.deepEqual(kinds(s), ['daily:daily.post']);
-  assert.equal(messageText(s.options[0], T), 'היי דנה, הסרטונים שלכם בעריכה. נשלח לכם אותם לאישור, והכול יהיה סגור עד יום ג׳ 20.10.');
-  assert.match(s.options[0].reason, /יום הצילום היה אתמול ועוד לא נסגר בכרטיס \(תהליך 19\)/);
+  assert.deepEqual(kinds(s), ['milestone:station.shoot', 'daily:daily.post']);
+  assert.equal(messageText(s.options[1], T), 'היי דנה, הסרטונים שלכם בעריכה. נשלח לכם אותם לאישור, והכול יהיה סגור עד יום ג׳ 20.10.');
+  assert.match(s.options[1].reason, /יום הצילום היה אתמול ועוד לא נסגר בכרטיס \(תהליך 19\)/);
   // A week and more later, past the promised date too: without a date.
   const late = suggest(c, checks, [], '2026-10-21T10:00:00+03:00');
   assert.deepEqual(kinds(late), ['daily:daily.post_nodate']);
@@ -380,17 +389,22 @@ test('the shoot day passed but is not closed in the card: no "the shoot day is c
 test('the welcome lists only dates still ahead', () => {
   const checks = item('p02.opened', '2026-10-13T09:10:00+03:00');
   const now = '2026-10-13T10:00:00+03:00';
-  // The meeting was last week and its 3-day deadline for the shoot day passed too: none of them is listed.
-  const past = suggest({ ...base, char_at: '2026-10-05T10:00:00+03:00' }, checks, [], now);
+  // A client that started before v6: the meeting was last week and its 3-day deadline
+  // for the shoot day passed too: none of them is listed.
+  const v5 = { ...base, protocol_version: 5 };
+  const past = suggest({ ...v5, char_at: '2026-10-05T10:00:00+03:00' }, checks, [], now);
   assert.equal(past.options[0].key, 'welcome');
   const text = messageText(past.options[0], T);
   assert.doesNotMatch(text, /5\.10|8\.10/);
   assert.deepEqual(unfilledIn(text), ['[התאריכים הקרובים]']);
+  // Since v6 the shoot day is set by the end of the business day after the group: ahead.
+  const v6 = messageText(suggest({ ...base, char_at: '2026-10-05T10:00:00+03:00' }, checks, [], now).options[0], T);
+  assert.match(v6, /התאריכים הקרובים:\nקביעת יום הצילום: עד יום ד׳ 14\.10\n\n/);
   // The meeting passed, the shoot day is set and ahead: only the shoot.
   const shoot = messageText(suggest({ ...base, char_at: '2026-10-05T10:00:00+03:00', shoot_at: '2026-10-20T11:00:00+03:00' }, checks, [], now).options[0], T);
   assert.match(shoot, /התאריכים הקרובים:\nיום הצילום: יום ג׳ 20\.10 בשעה 11:00\n\n/);
   // The meeting was this morning: the deadline for the shoot day is still ahead.
-  const morning = messageText(suggest({ ...base, char_at: '2026-10-13T08:00:00+03:00' }, checks, [], now).options[0], T);
+  const morning = messageText(suggest({ ...v5, char_at: '2026-10-13T08:00:00+03:00' }, checks, [], now).options[0], T);
   // Tuesday 08:00 + 3 business days: Wednesday, Thursday, Sunday.
   assert.match(morning, /התאריכים הקרובים:\nקביעת יום הצילום: עד יום א׳ 18\.10\n\n/);
   assert.deepEqual(unfilledIn(morning), []);
@@ -401,7 +415,8 @@ test('a message the protocol already checked is not suggested again; sending one
   const opened = item('p02.opened', '2026-10-13T09:10:00+03:00');
   const now = '2026-10-13T10:00:00+03:00';
   assert.equal(suggest(base, opened, [], now).options[0].key, 'welcome');
-  assert.deepEqual(kinds(suggest(base, { ...opened, ...item('p02.intro', '2026-10-13T09:20:00+03:00') }, [], now)), ['daily:daily.char']);
+  // (The meeting on Monday moved the client to the characterization station: that message is offered.)
+  assert.deepEqual(kinds(suggest(base, { ...opened, ...item('p02.intro', '2026-10-13T09:20:00+03:00') }, [], now)), ['milestone:station.char', 'daily:daily.char']);
   // The reminder of process 15 went out: no day-before message.
   const c = { ...base, shoot_at: '2026-10-18T11:00:00+03:00' };
   const checks = imported(c, 'shoot');
@@ -431,9 +446,10 @@ test('a later milestone already sent makes an earlier one moot', () => {
 
 test('the day\'s queue: what to send first, those done today last, closed clients out', () => {
   const now = '2026-10-13T10:00:00+03:00';
-  const a = { ...base, id: 'a', name: 'א' };
-  const b = { ...base, id: 'b', name: 'ב' };
-  const d = { ...base, id: 'd', name: 'ד' };
+  // No meeting yet: nobody moved to a new station (that is a milestone of its own).
+  const a = { ...base, id: 'a', name: 'א', char_at: null };
+  const b = { ...base, id: 'b', name: 'ב', char_at: null };
+  const d = { ...base, id: 'd', name: 'ד', char_at: null };
   const e = { ...base, id: 'e', name: 'ה', status: 'ended' };
   const q = dayQueue([d, a, b, e], { b: item('p02.opened', '2026-10-13T09:00:00+03:00') },
     { d: [{ kind: 'daily', template_key: 'daily.join', sent_at: '2026-10-13T09:00:00+03:00' }] }, at(now));
@@ -449,7 +465,7 @@ test('templates: defaults, the table wins, filling, and what is left to fill', (
   assert.equal(map.get('welcome').kind, 'milestone');
   assert.equal(map.get('daily.join').isDefault, true);
   assert.equal(map.has('nope'), false);
-  assert.equal(map.size, 23); // 21 from stage 1, and the 2 survey questions of stage 4
+  assert.equal(map.size, 24); // 21 from stage 1, the 2 survey questions of stage 4, the station change (3.10.2026)
   assert.equal(fillTemplate('היי {לקוח}, חסר {חסר}.', { 'לקוח': 'דנה', 'חסר': '' }), 'היי דנה, חסר {חסר}.');
   assert.deepEqual(unfilledIn('היי {לקוח}, עד [מועד חדש] ו[מועד חדש].'), ['{לקוח}', '[מועד חדש]']);
   assert.deepEqual(unfilledIn('היי דנה!'), []);

@@ -16,8 +16,8 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'calendar-feed.js', 'catalog.js', 'characterization.js', 'clocks.js', 'files-logic.js', 'holidays.js', 'ics.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js',
-    'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
+    'auto-assign.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'clocks.js', 'deal-logic.js', 'decisions-logic.js', 'files-logic.js', 'holidays.js', 'ics.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js',
+    'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
     'shoot-prep.js', 'status-rules.js', 'tz.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
 });
@@ -91,7 +91,7 @@ const DEPLOY = {
     'create-quote/index.ts',
   ],
   reminders: [
-    ...APP('catalog.js', 'characterization.js', 'clocks.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-prep.js', 'status-rules.js', 'tz.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
+    ...APP('auto-assign.js', 'catalog.js', 'characterization.js', 'clocks.js', 'deal-logic.js', 'decisions-logic.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-prep.js', 'status-rules.js', 'tz.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
     'reminders/http.js',
     'reminders/index.ts',
@@ -105,7 +105,7 @@ const DEPLOY = {
     'staff-admin/rules.js',
   ],
   'whatsapp-webhook': [
-    ...APP('catalog.js', 'characterization.js', 'clocks.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'reminder-rules.js', 'shoot-prep.js', 'status-rules.js', 'tz.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
+    ...APP('auto-assign.js', 'catalog.js', 'characterization.js', 'clocks.js', 'deal-logic.js', 'decisions-logic.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'qa-logic.js', 'quote-doc.js', 'reminder-rules.js', 'shoot-prep.js', 'status-rules.js', 'tz.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
     'whatsapp-webhook/index.ts',
     'whatsapp-webhook/webhook.js',

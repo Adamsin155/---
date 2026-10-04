@@ -36,6 +36,8 @@ test('the stage 4–6 migrations come after the live ones, in this order', () =>
   assert.deepEqual(tail, [
     '20260930160000_intake.sql', '20260930170000_client_status.sql', '20260930180000_whatsapp.sql',
     '20260930190000_year.sql', '20260930200000_calendar_feeds.sql', '20260930210000_hardening.sql',
+    // The owner's decisions of 3.10.2026 (Stav's deals, protocol version 6).
+    '20261003100000_sales_deals.sql',
   ]);
 });
 

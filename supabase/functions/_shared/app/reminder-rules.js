@@ -30,11 +30,16 @@
 //       expires   an anchor name: the step is not sent from that moment on
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
-import { PEOPLE, STAFF_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf,
   businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED,
 } from './protocol-logic.js';
+// The owner's decisions of 3.10.2026: Stav's deals, the station-change message, the
+// automatic editor assignment.
+import { DEAL_MINUTES, contractTitle, dealSummary, dealUrl } from './deal-logic.js';
+import { stationChange } from './messages-logic.js';
+import { autoReasonOf } from './auto-assign.js';
 import { shootPrep, reportedOf, TELL, requestOf } from './shoot-prep.js';
 import { BLOCKING_TITLE } from './characterization.js';
 import { ANSWER_CLOCKS } from './clocks.js';
@@ -51,8 +56,8 @@ import { STATUS_RULES, STATUS_SOURCES } from './status-rules.js';
 import { YEAR_RULES } from './year-rules.js';
 
 export const OWNER = 'owner';
-// Who has reminders: the owner and the protocol's people (reminder_log.person).
-export const REMINDER_PEOPLE = new Set([OWNER, ...STAFF_PEOPLE().map((p) => p.key)]);
+// Who has reminders: the owner and the team, sales too (reminder_log.person).
+export const REMINDER_PEOPLE = new Set([OWNER, ...TEAM_PEOPLE().map((p) => p.key)]);
 // Sending hours (section 5): Sunday–Thursday 08:30–19:00, not on holidays. On erev
 // chag the office works until 13:00 (decision 2), and so do the rings. Shoot-day
 // events are the exception. The digests run inside them.
@@ -216,10 +221,17 @@ const TASK_URL = (cid) => clientUrl(cid, 'tasks');
 const dayOfThree = (from, now) => Math.max(1, businessDaysBetween(from, now));
 
 // ── The rules ─────────────────────────────
-// Processes whose lateness has its own escalation below; the others use `late`.
-export const OWN_LATE = new Set(['p01', 'p02', 'p03', 'p06', 'p11', 'p11b', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21', 'p22a', 'p25', 'p31']);
-// Quality and editing: Ofir is copied when these are late (principle 5).
+// Processes whose lateness also has its own ladder below (they keep ringing as
+// before). Since 3.10.2026 every late process, these too, also tells Ofir and Lior
+// quietly (`late`), and 24 hours late it is in the owner's 18:00 summary
+// (lateSummary in app/reminder-engine.js).
+export const OWN_LATE = new Set(['p01', 'p02', 'p03', 'p06', 'p11b', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21', 'p22a', 'p25', 'p31']);
+// Quality and editing (principle 5).
 export const QUALITY = new Set(['p22', 'p23', 'p24', 'p25', 'p27']);
+// Who hears of every late item (the owner's decision of 3.10.2026), quietly.
+export const LATE_WATCHERS = ['ofir', 'lior'];
+// How late an item is before it joins the owner's daily summary (one message, 18:00).
+export const OWNER_LATE_HOURS = 24;
 
 export const RULES = [
   // 1–3: a new deal. Irit at once and again at 5 minutes if the contract, the group
@@ -391,18 +403,21 @@ export const RULES = [
     ],
   },
 
-  // 11: the shoot day is not closed. Irit's digest every morning, a ring at 16:00 on
-  // business day 2, Lior's list and the owner's screen on business day 3.
+  // 11: setting the shoot day. Since v6 (3.10.2026) it starts right after the group is
+  // opened and is due by the end of the next business day (a client that started
+  // before keeps 3 business days from the meeting: the same steps, on its own dates).
+  // Irit in the app when it starts, her digest every morning while it is open, a ring
+  // at 16:00 on the due day. Late: Ofir and Lior quietly, and the owner's summary (`late`).
   {
     id: 'shootDate', event: 'יום צילום לא נסגר (11)', procs: ['p11'],
     instances(env) {
-      return casesOf(env, 'p11', (i) => charAt(i) && !halted(i)).map((i) => ({ ...i, id: i.proc.id, anchors: { event: charAt(i), due: i.s.dueAt } }));
+      return casesOf(env, 'p11', (i) => !!i.s.startAt && !!i.s.dueAt && !halted(i))
+        .map((i) => ({ ...i, id: i.proc.id, anchors: { event: i.s.startAt, due: i.s.dueAt } }));
     },
     steps: (i, env) => [
-      ...dailyDigest(i, env, 'irit', (n) => `יום צילום לא נסגר (יום ${n} מתוך 3): ${i.name}`),
-      { id: 'day2', businessDays: 2, at: '16:00', to: 'irit', level: 'ring', title: () => `יום הצילום עוד לא נסגר: ${i.name}`, body: () => 'היעד: סוף יום העסקים השלישי מהאפיון. חסרים אישורים או תאריך.' },
-      { id: 'day3', businessDays: 3, at: '08:30', to: 'lior', level: 'digest', list: true, overdue: true, title: () => `יום צילום לא נסגר ביום 3: ${i.name}`, body: () => 'עירית עוד לא סגרה תאריך עם כל הצדדים.' },
-      { id: 'board', businessDays: 3, at: '08:30', to: OWNER, level: 'board', overdue: true, title: () => `יום צילום לא נסגר ביום 3: ${i.name}`, body: () => 'באחריות עירית.' },
+      { id: 'start', to: 'irit', level: 'quiet', title: () => `לקבוע יום צילום: ${i.name}`, body: () => `במועד המוקדם ביותר, מול הלקוח, המשפיענים, ליאור ואלי. יעד: ${whenText(i.anchors.due, env.now)}.` },
+      ...dailyDigest(i, env, 'irit', (n) => `יום צילום עוד לא נסגר (יום ${n}): ${i.name}`, 99),
+      { id: 'due16', from: 'due', at: '16:00', to: 'irit', level: 'ring', title: () => `יום הצילום עוד לא נסגר: ${i.name}`, body: () => 'היעד: סוף היום. חסרים אישורים או תאריך.' },
     ],
   },
 
@@ -766,7 +781,8 @@ export const RULES = [
   },
 
   // An ordinary task: quiet when created, in the digest on the morning it is due;
-  // a day late, its owner and whoever opened it (quiet); two days late, Lior's list.
+  // a day late, its owner, whoever opened it, Ofir and Lior (quiet; the owner's
+  // decision of 3.10.2026); from 24 hours late, the owner's 18:00 summary.
   {
     id: 'task', event: 'משימה רגילה', procs: [],
     instances(env) {
@@ -779,8 +795,7 @@ export const RULES = [
     steps: [
       { id: 'created', to: (i) => i.who, level: 'quiet', when: (i) => i.creator !== null || !i.task.created_by_email, title: (i) => `משימה חדשה: ${i.name}`, body: (i) => i.task.title },
       { id: 'due', from: 'due', at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `משימה להיום: ${i.name} · ${i.task.title}`, body: () => '' },
-      { id: 'late', from: 'due', businessDays: 1, at: '08:30', to: (i) => [i.who, i.creator].filter(Boolean), level: 'quiet', overdue: true, title: (i) => `משימה באיחור: ${i.name}`, body: (i) => `${personName(i.who)}: ${i.task.title}` },
-      { id: 'lior', from: 'due', businessDays: 2, at: '08:30', to: (i) => (i.who === 'lior' ? OWNER : 'lior'), level: 'digest', list: true, overdue: true, title: (i) => `משימה באיחור יומיים: ${i.name} · ${personName(i.who)}`, body: (i) => i.task.title },
+      { id: 'late', from: 'due', businessDays: 1, at: '08:30', to: (i) => [...new Set([i.who, i.creator, ...LATE_WATCHERS].filter(Boolean))], level: 'quiet', overdue: true, title: (i) => `משימה באיחור: ${i.name}`, body: (i) => `${personName(i.who)}: ${i.task.title}` },
     ],
   },
 
@@ -1182,15 +1197,19 @@ export const RULES = [
     ],
   },
 
-  // Everything else that is late: a worker's lateness goes to Lior's list, Lior's
-  // to the owner's screen; Ofir gets a copy on quality and editing (principle 5).
+  // Every late item of every employee (the owner's decision of 3.10.2026): Ofir and
+  // Lior hear of it in the app, quietly (the list and the badge, no sound), once per
+  // deadline. Whatever already rings for it (its own ladder above: urgent, the
+  // protocol clocks, the shoot day) keeps ringing. From 24 hours late it is in the
+  // owner's one summary at 18:00 (lateSummary in app/reminder-engine.js), never a
+  // message per item.
   {
     id: 'late', event: 'איחור', procs: [],
     instances(env) {
       const out = [];
       for (const c of env.clients) {
         for (const s of env.stateOf(c).states) {
-          if (s.status !== 'overdue' || s.proc.recurring || OWN_LATE.has(baseId(s.proc.id)) || !s.dueAt) continue;
+          if (s.status !== 'overdue' || s.proc.recurring || !s.dueAt) continue;
           const i = procCase(env, c, s);
           // A claim ("אני על זה") stops the reminders, not the report that it is late.
           if (pauseOf(i.proc, i.checks)) continue;
@@ -1205,10 +1224,93 @@ export const RULES = [
       }
       return out;
     },
+    // `list`: Lior's "החלטות" screen keeps listing what is late (decisions.html), as before.
+    steps: LATE_WATCHERS.map((p) => ({
+      id: p, to: p, level: 'quiet', overdue: true, list: p === 'lior',
+      title: (i) => `באיחור: ${i.name} · ${procName(i.proc)} · ${names(i.owners.filter((o) => o !== 'editor').map(personName)) || 'העורך המשויך'}`,
+      body: (i, env) => `היעד היה ${whenText(i.anchors.event, env.now)}.`,
+    })),
+  },
+
+  // ── The owner's decisions of 3.10.2026 ──
+  // A new deal from the field (Stav, deal.html): "להכין חוזה ל־<עסק>". Irit rings at
+  // once; 10 office minutes later, if the contract was not sent (a quote linked to
+  // the deal, or Irit marked it sent or cancelled), Irit rings again and Ofir too.
+  {
+    id: 'dealNew', event: 'עסקה חדשה מהשטח: חוזה תוך 10 דקות', procs: [],
+    instances(env) {
+      return (env.deals || []).filter((d) => d.status === 'pending' && parseDate(d.created_at)).map((d) => {
+        const at = parseDate(d.created_at);
+        return {
+          id: d.id, cid: null, deal: d, name: d.business_name, seller: env.personOf(d.created_by_email),
+          url: dealUrl(d), anchors: { event: at, due: addWorkingMinutes(at, DEAL_MINUTES) },
+        };
+      });
+    },
     steps: [
-      { id: 'lior', to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => i.owners.some((o) => o !== 'lior'), title: (i) => `באיחור: ${i.name} · ${procName(i.proc)} · ${names(i.owners.filter((o) => o !== 'lior').map(personName))}`, body: () => '' },
-      { id: 'board', to: OWNER, level: 'board', overdue: true, when: (i) => i.owners.includes('lior'), title: (i) => `ליאור באיחור: ${i.name} · ${procName(i.proc)}`, body: () => '' },
-      { id: 'ofir', to: 'ofir', level: 'quiet', overdue: true, when: (i) => QUALITY.has(baseId(i.proc.id)) && !i.owners.includes('ofir'), title: (i) => `באיחור: ${i.name} · ${procName(i.proc)}`, body: (i) => `עותק לידיעה: ${names(i.owners.map(personName))}.` },
+      { id: 'now', to: 'irit', level: 'ring', exempt: 'clock', title: (i) => contractTitle(i.deal), body: (i, env) => `${i.seller ? `מ${personName(i.seller)}: ` : ''}${dealSummary(i.deal)}. יעד ${whenText(i.anchors.due, env.now)}.` },
+      { id: 'due', from: 'due', to: 'irit', level: 'ring', exempt: 'clock', title: (i) => `עברו ${DEAL_MINUTES} דקות: ${contractTitle(i.deal)}`, body: () => 'החוזה עוד לא נשלח.' },
+      { id: 'ofir', from: 'due', to: 'ofir', level: 'ring', exempt: 'clock', title: (i) => `חוזה לא נשלח ${DEAL_MINUTES} דקות: ${i.name}`, body: (i) => `עסקה ${i.seller ? `של ${personName(i.seller)} ` : ''}מחכה לחוזה מעירית.` },
+    ],
+  },
+
+  // The deal's client signed: the seller hears, quietly ("<עסק> חתם 🎉").
+  {
+    id: 'dealSigned', event: 'העסקה נחתמה: לאיש המכירות', procs: [],
+    instances(env) {
+      return (env.deals || []).filter((d) => d.status === 'signed' && parseDate(d.signed_at)).map((d) => ({
+        id: d.id, cid: null, deal: d, name: d.business_name, seller: env.personOf(d.created_by_email), url: 'deal.html',
+        anchors: { event: parseDate(d.signed_at) },
+      })).filter((i) => i.seller && i.seller !== OWNER);
+    },
+    steps: [
+      { id: 'seller', to: (i) => i.seller, level: 'quiet', title: (i) => `${i.name} חתם 🎉`, body: () => 'החוזה נחתם. תודה!' },
+    ],
+  },
+
+  // 7ב, 23ב: the client approved graphics (the status page, or Irit marked "אושר"):
+  // Ilai rings at once, 30 office minutes to post them. Late: `late` (Ofir and Lior).
+  {
+    id: 'graphicsUpload', event: 'גרפיקות אושרו: להעלות לרשתות (7ב, 23ב)', procs: ['p07b', 'p23b'],
+    instances(env) {
+      return ['p07b', 'p23b'].flatMap((b) => casesOf(env, b, (i) => !!i.s.startAt && !!i.s.dueAt && !halted(i)))
+        .map((i) => ({ ...i, id: `${i.proc.id}@${i.s.startAt.toISOString()}`, anchors: { event: i.s.startAt, due: i.s.dueAt } }));
+    },
+    steps: [
+      { id: 'now', to: 'ilai', level: 'ring', exempt: 'clock', title: (i) => `הגרפיקות של ${i.name} אושרו — להעלות לרשתות`, body: (i, env) => `${i.proc.title}. יעד ${whenText(i.anchors.due, env.now)} (30 דקות עבודה).` },
+    ],
+  },
+
+  // The client moved on to the next station: Irit, quietly, with the ready text for
+  // the client's group (she sends it herself; the same message is a milestone in
+  // the messages queue that day).
+  {
+    id: 'stationChange', event: 'הלקוח עבר לשלב הבא: הודעה ללקוח', procs: [],
+    instances(env) {
+      const out = [];
+      for (const c of env.clients) {
+        const m = stationChange(c, env.checksOf(c), env.stateOf(c), env.now);
+        if (m) out.push({ id: m.ref, cid: c.id, client: c, name: c.name, move: m, url: 'messages.html', anchors: { event: m.at } });
+      }
+      return out;
+    },
+    steps: [
+      { id: 'irit', to: 'irit', level: 'quiet', title: (i) => `${i.name} עבר/ה לשלב ${i.move.to}`, body: (i) => `לשלוח בקבוצה: ${i.move.text}` },
+    ],
+  },
+
+  // 22א assigned by the server when the shoot day was closed (app/auto-assign.js):
+  // Ofir hears quietly, and can change it.
+  {
+    id: 'autoAssigned', event: 'עורך שויך אוטומטית (22א)', procs: ['p22a'],
+    instances(env) {
+      return casesOf(env, 'p22a', (i) => !!autoReasonOf(i.checks, i.pre) && !!i.doneAt('p22a.assigned')).map((i) => {
+        const r = autoReasonOf(i.checks, i.pre);
+        return { ...i, id: `${i.proc.id}@${r.editor}`, editor: r.editor, url: 'qa.html', anchors: { event: i.doneAt('p22a.assigned') } };
+      });
+    },
+    steps: [
+      { id: 'ofir', to: 'ofir', level: 'quiet', title: (i) => `שויך אוטומטית: ${i.name} · ${personName(i.editor)}`, body: () => 'לפי העומס, בסיום יום הצילום. אפשר להחליף בבקרה ושיוך.' },
     ],
   },
   ...STATUS_RULES,
