@@ -215,7 +215,8 @@ test('the migrations are safe to run again, with or without the files\' table, a
   const again = await freshDatabase();
   for (const f of [MIGRATION, FK_MIGRATION, MIGRATION, FK_MIGRATION]) await again.exec(migrationSql(f));
   for (const f of migrationFiles().filter((x) => x > FK_MIGRATION)) await again.exec(migrationSql(f));
-  const n = (await again.query("select count(*)::int as n from pg_policies where tablename = 'client_gantt'")).rows[0].n;
+  // Its own four rules; the archive rule (20261003140000_manager_features.sql) is a restrictive fifth.
+  const n = (await again.query("select count(*)::int as n from pg_policies where tablename = 'client_gantt' and permissive = 'PERMISSIVE'")).rows[0].n;
   assert.equal(n, 4);
   assert.equal((await again.query("select count(*)::int as n from pg_constraint where conname = 'client_gantt_file_id_fkey'")).rows[0].n, 1);
   await again.close();
