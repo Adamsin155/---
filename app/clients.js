@@ -38,6 +38,9 @@ import { mountCalendar } from './calendar-card.js';
 import { ilaiSection, coveredByCard } from './ilai-card.js';
 import { landingNow, officeLinks } from './office-ui.js';
 import { folderItemOf } from './qa-logic.js';
+// 3.10.2026: Stav's deals waiting for a contract (the office), and Stav's own page.
+import { mountDeals, refreshDeals } from './deal-ui.js';
+import { landingOf } from './deal-logic.js';
 // A link to a part of this page (#mine, #control, a sign-in link) opens that part:
 // nobody is sent to their first screen then.
 const ARRIVED_WITH = location.hash;
@@ -132,6 +135,7 @@ async function load() {
   checkLate();
   if (!document.hidden) renderKeepingFocus();
   refreshQuestions($('my-questions'), me, clients);
+  refreshDeals();
 }
 
 // Re-rendering replaces elements; keep keyboard focus and scroll where they were.
@@ -2129,6 +2133,8 @@ mountSession(async (staff) => {
   // Everyone's first screen (app/office-ui.js firstScreenOf): the owner's "מה דורש
   // אותי", Ofir's queue, Lior's decisions, the editors' page, Eli's shoot days. Only
   // when the tab opens here without a view, once per tab; "מה עליי" stays #mine.
+  // Sales (Stav) have no client work: always their own page.
+  if (landingOf(me)) { location.replace(landingOf(me)); return; }
   const first = landingNow({ me, viewer, arrived: ARRIVED_WITH || location.hash });
   if (first) { location.replace(first); return; }
   // The shortcuts of each role in the page head: the editors' page; the shoot day
@@ -2160,6 +2166,8 @@ mountSession(async (staff) => {
   mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
   // "היומן שלי": the personal calendar link (app/calendar-card.js).
   if (!viewerError) mountCalendar($('cal-card'));
+  // Stav's deals waiting for a contract (the office): "להכין חוזה ל־…" with its clock.
+  mountDeals($('deals-card'), { me, scope, error: viewerError });
   const fromHash = location.hash.slice(1);
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();

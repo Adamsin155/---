@@ -49,6 +49,8 @@ const client = (id, fields) => ({
   has_logo: true, editor_name: null, editor: null, deal_at: '2026-10-11T09:00:00+03:00', char_at: '2026-10-12T10:00:00+03:00', shoot_at: null,
   contract_end: '2027-10-11', status: 'active', notes: null, quote_id: null, created_at: '2026-10-11T09:00:00+03:00',
   created_by_email: 'irit@astrateg.test', links: {}, deliverables: {}, rounds: [], verified_at: null, verified_by: null, closed_reason: null,
+  // Started under protocol version 5: 11 is due 3 business days after the meeting (v6: tests/owner-decisions.test.mjs).
+  protocol_version: 5,
   ...fields,
 });
 const keysFor = (c, ids) => applicableProcesses(c).filter((p) => ids.includes(p.id)).flatMap((p) => p.items.filter((i) => !i.optional).map((i) => i.key));
@@ -76,6 +78,8 @@ one(C, 'p11.wait', '2026-10-14T10:00:00+03:00', JSON.stringify({ reason: 'הלק
 // Green: a new deal this morning, its meeting on Thursday.
 const D = client('dddddddd-0000-4000-8000-000000000004', { name: 'פיצה נאפולי', deal_at: '2026-10-20T09:00:00+03:00', created_at: '2026-10-20T09:00:00+03:00', char_at: '2026-10-22T09:00:00+03:00' });
 doneAll(D, JOIN, '2026-10-20T09:03:00+03:00');
+// Protocol v6: the shoot day is set right after the group (due the next business day): done here.
+doneAll(D, ['p11'], '2026-10-20T09:30:00+03:00');
 // Green: an imported client in the ongoing station, its weekly call made yesterday.
 const E = client('eeeeeeee-0000-4000-8000-000000000005', {
   name: 'חנות ישנה', deal_at: '2026-03-01T09:00:00+02:00', char_at: '2026-03-03T10:00:00+02:00', shoot_at: '2026-03-10T10:00:00+02:00', contract_end: '2027-03-01',
@@ -316,7 +320,7 @@ await step('the one asked sees it at the top of "מה עליי", answers inline,
   assert.match(await box.innerText(), /שאלה אליך\s*1[^]*מספרת רון · הבעלים · [^]*על: צילום בסיכון[^]*״הלקוח יאשר את התסריטים עד מחר\?״/);
   // At the top of "מה עליי": after the "now" bar and how he hears (notifications, WhatsApp,
   // his calendar), before the list; the hidden cards keep their place.
-  assert.deepEqual(await lior.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 5).map((e) => e.id)), ['now-bar', 'push-card', 'wa-card', 'cal-card', 'my-questions']);
+  assert.deepEqual(await lior.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 6).map((e) => e.id)), ['now-bar', 'deals-card', 'push-card', 'wa-card', 'cal-card', 'my-questions']);
   // His top bar links screen 2, never screen 1.
   assert.equal(await lior.getAttribute('#nav-owner', 'href'), 'owner.html#all');
   assert.equal(await text(lior, '#nav-owner'), 'כל הלקוחות במבט');

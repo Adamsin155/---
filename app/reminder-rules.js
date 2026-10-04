@@ -1223,8 +1223,9 @@ export const RULES = [
       }
       return out;
     },
+    // `list`: Lior's "החלטות" screen keeps listing what is late (decisions.html), as before.
     steps: LATE_WATCHERS.map((p) => ({
-      id: p, to: p, level: 'quiet', overdue: true,
+      id: p, to: p, level: 'quiet', overdue: true, list: p === 'lior',
       title: (i) => `באיחור: ${i.name} · ${procName(i.proc)} · ${names(i.owners.filter((o) => o !== 'editor').map(personName)) || 'העורך המשויך'}`,
       body: (i, env) => `היעד היה ${whenText(i.anchors.event, env.now)}.`,
     })),

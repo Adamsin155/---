@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>עסקה חדשה · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/push.css">
+  <link rel="stylesheet" href="app/styles/deal.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="deal.html" aria-label="astrateg · עסקה חדשה">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">מכירות</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="deal.html" aria-current="page">עסקה חדשה</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell deal-page" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה</h2>
+        <p>העמוד של סוכני השטח: שליחת עסקה חדשה לעירית, והעסקאות שלך.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app" hidden>
+      <div class="page-head">
+        <div>
+          <div class="kicker latin">SALES</div>
+          <h1 id="deal-h1">עסקה חדשה</h1>
+          <p>ממלאים את מה שסגרת עם הלקוח, ועירית מכינה את החוזה תוך 10 דקות עבודה.</p>
+        </div>
+        <div class="head-actions">
+          <button type="button" class="btn btn-sm btn-ghost inbox-btn" id="btn-inbox" aria-haspopup="dialog" hidden>התראות</button>
+        </div>
+      </div>
+
+      <section class="block deal-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">העמוד הזה לסוכני השטח</h2>
+        <p>כאן סוכני השטח שולחים עסקה חדשה לעירית ורואים את העסקאות שלהם.</p>
+        <a class="btn" href="clients.html#mine">למשימות שלי</a>
+      </section>
+
+      <form class="deal-form" id="deal-form" novalidate aria-labelledby="deal-h1" hidden>
+        <fieldset class="deal-sec">
+          <legend>הלקוח</legend>
+          <div class="field">
+            <label for="d-business">שם העסק<span class="req" aria-hidden="true">*</span></label>
+            <input class="input" id="d-business" name="business_name" maxlength="120" autocomplete="organization" required aria-describedby="d-business-err">
+            <div class="err" id="d-business-err" hidden></div>
+          </div>
+          <div class="field">
+            <label for="d-contact">איש קשר<span class="req" aria-hidden="true">*</span></label>
+            <input class="input" id="d-contact" name="contact_name" maxlength="120" autocomplete="name" required aria-describedby="d-contact-err">
+            <div class="err" id="d-contact-err" hidden></div>
+          </div>
+          <div class="field">
+            <label for="d-phone">טלפון<span class="req" aria-hidden="true">*</span></label>
+            <input class="input" id="d-phone" name="phone" type="tel" inputmode="tel" dir="ltr" maxlength="30" autocomplete="tel" required aria-describedby="d-phone-err">
+            <div class="err" id="d-phone-err" hidden></div>
+          </div>
+        </fieldset>
+
+        <fieldset class="deal-sec" aria-describedby="d-tier-err">
+          <legend>חבילה<span class="req" aria-hidden="true">*</span></legend>
+          <div class="deal-choices" id="d-tiers"></div>
+          <div class="err" id="d-tier-err" hidden></div>
+        </fieldset>
+
+        <fieldset class="deal-sec" aria-describedby="d-influencer-err">
+          <legend>משפיענים<span class="req" aria-hidden="true">*</span></legend>
+          <div class="deal-choices" id="d-influencers"></div>
+          <div class="err" id="d-influencer-err" hidden></div>
+        </fieldset>
+
+        <fieldset class="deal-sec">
+          <legend>תוספות</legend>
+          <div class="deal-choices" id="d-addons"></div>
+        </fieldset>
+
+        <fieldset class="deal-sec">
+          <legend>הנחה והערות</legend>
+          <div class="field">
+            <label for="d-discount">הנחה לחודש (₪, עד 200)</label>
+            <input class="input deal-num" id="d-discount" name="discount" type="number" inputmode="numeric" min="0" max="200" step="1" value="0" dir="ltr" aria-describedby="d-discount-err">
+            <div class="err" id="d-discount-err" hidden></div>
+          </div>
+          <div class="field">
+            <label for="d-notes">הערות</label>
+            <textarea class="input" id="d-notes" name="notes" rows="3" maxlength="2000" placeholder="למשל: לחזור אחרי 17:00, הלקוח רוצה להתחיל בעוד שבוע"></textarea>
+          </div>
+        </fieldset>
+
+        <div class="err" id="d-err" role="alert" hidden></div>
+        <button type="submit" class="btn btn-primary deal-submit" id="d-submit">לעירית להכנת חוזה</button>
+      </form>
+
+      <section class="deal-mine" id="deal-mine" aria-labelledby="mine-h" hidden>
+        <h2 id="mine-h">העסקאות שלי</h2>
+        <ul class="deal-list" id="deal-list"></ul>
+      </section>
+      <p class="state" id="state" role="status"></p>
+    </div>
+  </main>
+
+  <dialog id="dlg-inbox" class="dlg-inbox" aria-labelledby="inbox-h">
+    <div class="dlg-head">
+      <h2 id="inbox-h" tabindex="-1">התראות היום</h2>
+      <button type="button" class="close" data-close aria-label="סגירה">×</button>
+    </div>
+    <div class="dlg-body">
+      <div class="inbox-tools">
+        <p class="muted" id="inbox-sum"></p>
+        <button type="button" class="btn-text" id="inbox-read">סימון הכול כנקרא</button>
+      </div>
+      <ul class="inbox-list" id="inbox-list"></ul>
+    </div>
+  </dialog>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/deal.js"></script>
+</body>
+</html>

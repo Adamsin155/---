@@ -27,6 +27,7 @@ export const OWNER_SCREEN = 'owner.html';
 export function firstScreenOf(me, viewer = null) {
   if (!me) return isOwnerView(viewer) ? OWNER_SCREEN : null;
   if (PEOPLE[me]?.editor) return EDITOR_SCREEN;
+  if (PEOPLE[me]?.sales) return 'deal.html'; // Stav (3.10.2026); clients.js sends him there every time
   return FIRST_SCREEN[me] || null;
 }
 // Where clients.html sends this person now, or null: `arrived` is the hash the page

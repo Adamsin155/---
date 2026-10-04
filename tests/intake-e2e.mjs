@@ -62,7 +62,8 @@ const db = {
   clients: [A, B, C, D],
   protocol_checks: [
     ...imported(A, 'char'),
-    ...imported(B, 'content'),
+    // B's shoot day (11) is still to be set (since protocol v6 it belongs to the first station, so the import would mark it).
+    ...imported(B, 'content').filter((r) => !/^p11b?./.test(r.item_key)),
     ...imported(C, 'shoot'), check(C, 'p15.client'), check(C, 'p15.influencers'), check(C, 'p15.natali.makeup'), check(C, 'p15.natali.ride'),
     ...imported(D, 'ongoing'),
   ],
