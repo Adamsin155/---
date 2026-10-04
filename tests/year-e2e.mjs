@@ -2,7 +2,7 @@
 // decisions 31 and 33), against an in-memory fake of Supabase. The browser's clock
 // is fixed on Thursday 12.11.2026 at 10:00 in Israel.
 //  - The monthly cycle, a draft: each owner sees only their own items of it in
-//    "מה עליי", labelled "טיוטה"; Ilai's plan of next month is due today; he marks
+//    "המשימות שלי", labelled "טיוטה"; Ilai's plan of next month is due today; he marks
 //    it and it leaves his list. Ofir sees his overdue report; an editor nothing.
 //  - Versions: a client that started under version 4 is not late on the scripts'
 //    shorter version-5 deadline (day 2), a version-5 client is; an item added after
@@ -242,7 +242,7 @@ async function step(name, fn) {
 const ictx = await newContext();
 const ilai = await newPage(ictx);
 
-await step('Ilai: his items of the monthly cycle in "מה עליי", labelled a draft; next month\'s plan due today', async () => {
+await step('Ilai: his items of the monthly cycle in "המשימות שלי", labelled a draft; next month\'s plan due today', async () => {
   await signIn(ilai, 'clients.html#mine', 'ilai@astrateg.test');
   await ilai.waitForSelector('#my-months:not([hidden]) .mitem');
   const box = ilai.locator('#my-months');

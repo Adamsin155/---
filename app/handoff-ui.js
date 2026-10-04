@@ -1,5 +1,5 @@
 // Handoff buttons on the pages (the data and the wording: app/handoffs.js).
-//  - offerHandoff(): right after a handoff item is checked (client card, "מה עליי"),
+//  - offerHandoff(): right after a handoff item is checked (client card, "המשימות שלי"),
 //    a prompt at the bottom of the screen: "לשלוח לעילאי בוואטסאפ". It stays until
 //    closed (× or Escape) or replaced by the next handoff.
 //  - handoffLine(): the "העברות" line of a process in the client card: who the work

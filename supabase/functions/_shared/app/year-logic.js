@@ -1,6 +1,6 @@
 // generated — edit app/ instead. Source: app/year-logic.js. Regenerate: node scripts/sync-functions.mjs
 // The whole package year (plan stage 5; section 4, stations 7–8; decisions 31 and 33).
-// Pure, no DOM: year.html, "מה עליי", the client card and the reminder rules
+// Pure, no DOM: year.html, "המשימות שלי", the client card and the reminder rules
 // (app/year-rules.js, in the server tick) read the same months and items.
 //
 // The monthly cycle is a DRAFT (decision 31): a temporary process from the plan's
@@ -18,7 +18,7 @@ import { partsIL, dateIL, endOfDayIL, addDaysIL, atTimeIL, dayKeyIL, daysBetween
 
 export const DRAFT_LABEL = 'טיוטה — עד שיהיה פרוטוקול כתוב';
 export const CYCLE_FROM = 2;          // month 1 is the onboarding protocol
-export const SOON_DAYS = 7;           // an item shows in "מה עליי" this many days before its due date
+export const SOON_DAYS = 7;           // an item shows in "המשימות שלי" this many days before its due date
 export const RENEWAL_DAYS = 90;       // the renewals list (station 8)
 
 // ── Months ────────────────────────────────

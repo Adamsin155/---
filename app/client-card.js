@@ -146,7 +146,7 @@ function showMissing() {
   fill(st, ...(own() ? [
     h('strong', {}, 'אין לך גישה ללקוח הזה.'),
     h('span', {}, 'כאן נפתחים רק לקוחות שיש לך בהם עבודה: עריכה ששויכה אליך, יום צילום קרוב או משימה שלך. אם צריך אותו, פנו לליאור.'),
-    h('a', { class: 'btn', href: 'clients.html#mine' }, '→ מה עליי'),
+    h('a', { class: 'btn', href: 'clients.html#mine' }, '→ המשימות שלי'),
   ] : [
     h('strong', {}, 'הלקוח לא נמצא.'),
     h('span', {}, 'ייתכן שהקישור שגוי או ישן, או שהלקוח הועבר לארכיון.'),
@@ -1371,7 +1371,7 @@ $('esc-form').addEventListener('submit', async (e) => {
     tasks = [t, ...tasks];
     renderTasks();
     escDlg.close();
-    toast('הדיווח נשלח לליאור ומופיע אצלו ב״מה עליי״.');
+    toast('הדיווח נשלח לליאור ומופיע אצלו ב״המשימות שלי״.');
   } catch (err) {
     showErr('esc-err', `הדיווח לא נשמר. ${errorText(err)}`);
   }
@@ -1778,7 +1778,7 @@ function applyScope() {
   document.documentElement.dataset.scope = scope;
   if (!own()) return;
   const back = document.querySelector('#app > a.back');
-  if (back) { back.href = 'clients.html#mine'; back.textContent = '→ מה עליי'; }
+  if (back) { back.href = 'clients.html#mine'; back.textContent = '→ המשימות שלי'; }
   $('history').hidden = true;
   $('tasks-h').textContent = 'המשימות שלי';
   const sub = document.querySelector('#tasks .side-head p');

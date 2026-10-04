@@ -11,7 +11,7 @@
 //  - The client's read-only link: created, opened without signing in, with no
 //    internal entry or note; a bad token says so. The print view of a month.
 //  - The editor of the client reads only; an editor without the client does not see it.
-//  - Links from the client card and from Ilai's process 29 in "מה עליי".
+//  - Links from the client card and from Ilai's process 29 in "המשימות שלי".
 //  - A 360px phone: the list by default, the grid with dots, no sideways scrolling.
 // Run: npx http-server -p 8080 -s . &  then  node tests/gantt-e2e.mjs [outDir]
 import { chromium } from 'playwright';
@@ -526,7 +526,7 @@ await step('the client card links to the Gantt, and so do processes 9, 28 and 29
   await irit.click('#cc-gantt');
   await irit.waitForSelector('#gt-cal:not([hidden])');
   await octx.close();
-  // Ilai's "הגאנט מלא" card in "מה עליי" (process 29).
+  // Ilai's "הגאנט מלא" card in "המשימות שלי" (process 29).
   const ictx2 = await newContext();
   const il = await newPage(ictx2);
   await signIn(il, 'clients.html#mine', 'ilai@astrateg.test');

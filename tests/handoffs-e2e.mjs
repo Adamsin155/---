@@ -1,5 +1,5 @@
 // End-to-end check of the handoff buttons (app/handoffs.js, app/handoff-ui.js):
-// checking a handoff item in "מה עליי" or in the client card offers a ready
+// checking a handoff item in "המשימות שלי" or in the client card offers a ready
 // WhatsApp message to the next person, with their number when the team page has
 // it; opening WhatsApp is recorded in the card, never sent by the system. An undone
 // check (also while the numbers load), work the next person already did, and a
@@ -63,7 +63,7 @@ for (const k of ['editing', 'errors', 'clear', 'match', 'pro', 'fit']) check(piz
 // A third client for the card.
 const cafe = client({ name: 'קפה גליה', deal_at: hoursAgo(50), char_at: hoursAgo(2) });
 for (const k of P4) check(cafe, k, hoursAgo(1));
-// A client for "מה עליי" on a phone.
+// A client for "המשימות שלי" on a phone.
 const dana = client({ name: 'סטודיו דנה לעיצוב שיער וטיפוח', deal_at: hoursAgo(50), char_at: hoursAgo(2) });
 for (const k of P4) check(dana, k, hoursAgo(1));
 // Handed over before this feature: Ilai already checked the access. Nothing to send.
@@ -188,9 +188,9 @@ async function step(name, fn) {
   console.log(`ok - ${name}`);
 }
 
-// ── "מה עליי" ─────────────────────────────
+// ── "המשימות שלי" ─────────────────────────────
 const page = await newPage();
-await step('checking the access item in "מה עליי" offers "לשלוח לעילאי" with a ready message', async () => {
+await step('checking the access item in "המשימות שלי" offers "לשלוח לעילאי" with a ready message', async () => {
   await signIn(page, 'clients.html#mine'); // Ofir's first screen is qa.html; his list is one link away
   const cbx = `#w-${ron.id}-p05_access`;
   await page.waitForSelector(cbx);
@@ -262,7 +262,7 @@ await step('undoing the check takes the prompt away at once', async () => {
   assert.equal(opened.length, before, 'WhatsApp was not opened');
 });
 
-// ── "מה עליי" on a phone ─────────────────
+// ── "המשימות שלי" on a phone ─────────────────
 const phone = await newPage({ viewport: { width: 360, height: 740 } });
 await step('checked and undone while the numbers are still loading: no prompt comes up', async () => {
   slowPhones = 1500;

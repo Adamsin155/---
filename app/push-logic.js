@@ -12,7 +12,7 @@ export function platformOf({ userAgent = '', maxTouchPoints = 0, standalone = fa
   return { ios, iosVersion: ios && m ? [Number(m[1]), Number(m[2])] : null, standalone: !!standalone };
 }
 
-// Where this device stands, as the card in "מה עליי" shows it:
+// Where this device stands, as the card in "המשימות שלי" shows it:
 //   unsupported  this browser has no Web Push
 //   ios-update   an iPhone older than iOS 16.4
 //   ios-install  an iPhone, not opened from the home screen yet: add it there first

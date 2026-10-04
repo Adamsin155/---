@@ -255,7 +255,7 @@ const perClient = (names) => {
 
 // Lines of a digest: one line per topic, with a count when several (section 3:
 // "שורה לכל נושא עם מספר"), late things first, each client once per line. At
-// most `max` lines; the last one says how many more are in "מה עליי".
+// most `max` lines; the last one says how many more are in "המשימות שלי".
 export function digestLines({ work = { overdue: [], today: [] }, rows = [], max = 5, clientName = () => '' }) {
   const lines = [];
   const workLine = (label, list) => {
@@ -289,7 +289,7 @@ export function digestLines({ work = { overdue: [], today: [] }, rows = [], max 
   lines.sort((a, b) => a.rank - b.rank);
   if (lines.length <= max) return lines.map((l) => l.text);
   const kept = lines.slice(0, max - 1).map((l) => l.text);
-  return [...kept, `ועוד ${lines.length - kept.length} נושאים ב״מה עליי״`];
+  return [...kept, `ועוד ${lines.length - kept.length} נושאים ב״המשימות שלי״`];
 }
 
 // The digests due at `now` (each goes out within an hour of its time, once: the

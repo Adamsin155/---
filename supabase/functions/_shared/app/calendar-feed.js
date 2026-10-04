@@ -2,7 +2,7 @@
 // The personal calendar feed ("היומן שלי"): what goes into one person's calendar,
 // from the same protocol logic as the screens. Pure (no DOM, no Deno): the edge
 // function supabase/functions/calendar builds the feed with it (a copy in
-// supabase/functions/_shared/app), node tests it, and the card in "מה עליי"
+// supabase/functions/_shared/app), node tests it, and the card in "המשימות שלי"
 // (app/calendar-card.js) takes the link helpers.
 //
 // Each person gets only their own work, and only on the clients they may see (the

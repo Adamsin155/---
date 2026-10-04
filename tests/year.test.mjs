@@ -1,5 +1,5 @@
 // The package year (stage 5): the months of a package, the monthly cycle (a draft,
-// decision 31) with its owners and due dates, who sees what in "מה עליי", its
+// decision 31) with its owners and due dates, who sees what in "המשימות שלי", its
 // gentle reminders, and the 90-day renewals list with its results summary and the
 // prefilled renewal quote. npm test runs this under UTC, New York and Jerusalem.
 import { test } from 'node:test';
@@ -98,7 +98,7 @@ test('item states: done, not relevant, a second shoot day opened in the card, la
   assert.deepEqual([ms.total, ms.done, ms.late], [5, 2, 2]);
 });
 
-test('"מה עליי": this month\'s open items of each owner, and Ilai\'s next month within 7 days; only active clients', () => {
+test('"המשימות שלי": this month\'s open items of each owner, and Ilai\'s next month within 7 days; only active clients', () => {
   const c = client();
   const checks = ongoing();
   const s = clientState(c, checks, IL(2026, 11, 10, 12));

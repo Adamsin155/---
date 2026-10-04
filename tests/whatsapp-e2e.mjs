@@ -1,6 +1,6 @@
 // End-to-end check of the staff WhatsApp channel's screens (stage 4): the one-time
 // consent screen (the words from the database, two equal buttons, the privacy
-// notice, the owner types a number), "later" by closing it, the card in "מה עליי"
+// notice, the owner types a number), "later" by closing it, the card in "המשימות שלי"
 // (on, stop, agree again), nobody asked while WhatsApp is off or without a
 // number, the team screen (who agreed, a number yes or no, this week's messages,
 // the owner's switch, no phone numbers in the WhatsApp lines), a 360px phone, and
@@ -185,7 +185,7 @@ await step('the consent screen opens by itself: the words from the database with
   await shot(page, 'wa-01-consent');
 });
 
-await step('agreeing records the choice with the text version (the number is the office\'s); the card in "מה עליי" says where messages go', async () => {
+await step('agreeing records the choice with the text version (the number is the office\'s); the card in "המשימות שלי" says where messages go', async () => {
   await page.click('#wa-whatsapp');
   await toastHas(page, 'הודעות העבודה יגיעו גם ב־WhatsApp');
   assert.equal(await page.locator('#dlg-wa[open]').count(), 0);
@@ -198,7 +198,7 @@ await step('agreeing records the choice with the text version (the number is the
   assert.equal(await page.evaluate(() => document.getElementById('push-card').nextElementSibling?.id), 'wa-card');
 });
 
-await step('the screen does not come back once chosen; stopping from "מה עליי", and choosing again from there', async () => {
+await step('the screen does not come back once chosen; stopping from "המשימות שלי", and choosing again from there', async () => {
   await page.reload();
   await page.waitForSelector('#wa-card[data-state="on"]');
   await page.waitForTimeout(300);
@@ -323,7 +323,7 @@ await step('Irit on the team screen sees the same lines, but no switch', async (
   await ctx.close();
 });
 
-await step('while WhatsApp is off nobody is asked and "מה עליי" shows nothing about it', async () => {
+await step('while WhatsApp is off nobody is asked and "המשימות שלי" shows nothing about it', async () => {
   wa.enabled = false;
   const { ctx, page: p } = await open('ilai');
   await p.waitForSelector('#view-mine:not([hidden])');

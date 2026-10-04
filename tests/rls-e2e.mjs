@@ -238,7 +238,7 @@ async function step(name, fn) {
 
 // ── An editor ───────────────────────────────
 const nadia = await newPage();
-await step('an editor\'s "מה עליי" and client list hold only her clients, from rows the database returned', async () => {
+await step('an editor\'s "המשימות שלי" and client list hold only her clients, from rows the database returned', async () => {
   await signIn(nadia, 'clients.html#mine', 'nadia'); // an editor's first screen is editor.html
   await nadia.waitForSelector('#view-mine:not([hidden]) .wproc');
   const mine = await text(nadia, '#mine-list');
@@ -251,7 +251,7 @@ await step('an editor\'s "מה עליי" and client list hold only her clients, 
   assert.ok(seen.some(([p, t]) => p === 'nadia' && t === 'clients'));
 });
 
-await step('opening a client that is not hers: "אין לך גישה ללקוח הזה", a way back to "מה עליי", nothing of the client', async () => {
+await step('opening a client that is not hers: "אין לך גישה ללקוח הזה", a way back to "המשימות שלי", nothing of the client', async () => {
   await nadia.goto(`${BASE}client.html?id=${pizza.id}`);
   await nadia.waitForSelector('.state.no-access');
   assert.equal(await nadia.isHidden('#app'), true);
@@ -273,7 +273,7 @@ await step('on a phone the notice fits the screen and its link is a full-size ta
   const box = await phone.locator('#state a').boundingBox();
   assert.ok(box.height >= 44, `link height ${box.height}`);
   await phone.focus('#state a');
-  assert.equal(await phone.evaluate(() => document.activeElement.textContent), '→ מה עליי');
+  assert.equal(await phone.evaluate(() => document.activeElement.textContent), '→ המשימות שלי');
   await shot(phone, 'rls-02-no-access-phone');
   await phone.context().close();
 });

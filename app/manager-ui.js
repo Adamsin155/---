@@ -48,6 +48,6 @@ export async function mountModeSwitch(email) {
   const bar = modeSwitch(viewer);
   const top = document.querySelector('header.topbar');
   if (top) top.after(bar); else document.body.prepend(bar);
-  // Moving between "מה עליי" and the other lists of clients.html keeps the strip right.
+  // Moving between "המשימות שלי" and the other lists of clients.html keeps the strip right.
   window.addEventListener('hashchange', () => document.getElementById('mode-bar')?.replaceWith(modeSwitch(viewer)));
 }

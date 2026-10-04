@@ -1,4 +1,4 @@
-// Ilai's part of "מה עליי" (system-plan section 3, "עילאי"), drawn by
+// Ilai's part of "המשימות שלי" (system-plan section 3, "עילאי"), drawn by
 // app/clients.js: the card "יום אפיון: שעתיים" when a characterization ends (one
 // line per client with only the nearest due; opening it shows the access check,
 // whose vault statuses mark it by themselves, the page setup in 6 quick checks and
@@ -28,7 +28,7 @@ const autoTried = new Set();
 // Cards stay open across the page's re-renders.
 const openCards = new Set();
 
-// Groups of "מה עליי" that the cards already cover (client and process), so
+// Groups of "המשימות שלי" that the cards already cover (client and process), so
 // nothing is listed twice: the day's processes (his new logo in 5, 6, 7, 9), the
 // rest of the graphics (23), the final versions (27) and the Gantt (29).
 export function coveredByCard(ctx) {

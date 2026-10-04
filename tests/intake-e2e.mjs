@@ -271,7 +271,7 @@ async function step(name, fn) { await fn(); passed += 1; console.log(`ok ${passe
 const ofirCtx = await newContext(PHONE);
 const ofir = await newPage(ofirCtx);
 
-await step('"מה עליי": the characterization links straight to "האפיון הסתיים"', async () => {
+await step('"המשימות שלי": the characterization links straight to "האפיון הסתיים"', async () => {
   await signIn(ofir, 'clients.html#mine', 'ofir@astrateg.test');
   await ofir.waitForSelector('.wproc');
   const link = ofir.locator(`.wproc:has(a.wclient:text("${A.name}")) a.ik-go`).first();
@@ -340,7 +340,7 @@ await step('the full form keeps a draft on the phone: leaving and coming back re
   await ofir.fill('#form-audiences', 'גברים 25–45 בתל אביב');
   await ofir.waitForFunction(() => /טיוטה נשמרה בטלפון/.test(document.getElementById('form-draft').textContent));
   assert.match(await ofir.locator('#form-progress').innerText(), /מולאו 4 מתוך 11/);
-  // Away to "מה עליי" (say, a call came in), and back from the link there.
+  // Away to "המשימות שלי" (say, a call came in), and back from the link there.
   await ofir.goto(`${BASE}clients.html#mine`);
   await ofir.waitForSelector('.wproc');
   const back = ofir.locator(`.wproc:has(a.wclient:text("${A.name}")) a.ik-go`).first();

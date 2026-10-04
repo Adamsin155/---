@@ -1,4 +1,4 @@
-// Questions to me, at the top of "מה עליי" (clients.html): the owner (or the
+// Questions to me, at the top of "המשימות שלי" (clients.html): the owner (or the
 // office) asked the one person responsible from screen 1 (owner.html). Each is
 // answered right here; the answer goes back to the owner's row. Open questions
 // only; an answered one leaves the list. Nothing shows when there are none, or

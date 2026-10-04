@@ -769,7 +769,7 @@ await thuCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColu
 await thuCtx.addInitScript(fakeNotifications);
 const thu = await thuCtx.newPage();
 watch(thu);
-// Ofir's first screen is the quality-control queue (qa.html); "מה עליי" is one link away.
+// Ofir's first screen is the quality-control queue (qa.html); "המשימות שלי" is one link away.
 await thu.goto(`${BASE}clients.html#mine`);
 await thu.fill('#lg-email', USER.email);
 await thu.fill('#lg-pass', 'correct-horse');

@@ -45,7 +45,7 @@ export function setMode(mode, storage = globalThis.localStorage) {
   if (!MODES[mode]) return;
   try { storage?.setItem(MODE_KEY, mode); } catch { /* no storage */ }
 }
-// Which profile a page belongs to: owner.html is the manager's, "מה עליי" is mine;
+// Which profile a page belongs to: owner.html is the manager's, "המשימות שלי" is mine;
 // any other page shows the profile last chosen.
 export function modeOfPage(path, hash, saved) {
   const page = String(path || '').split('/').pop() || 'index.html';

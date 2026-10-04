@@ -1,10 +1,10 @@
 // End-to-end check of the owner's screens (owner.html, app/owner.js), the client's
-// colour in the card, the questions in "מה עליי" and the team screen's rule
+// colour in the card, the questions in "המשימות שלי" and the team screen's rule
 // (decision 22), against an in-memory fake of Supabase. The browser's clock is
 // fixed on Tuesday 20.10.2026 at 10:00 in Israel.
 //  - The owner lands on screen 1 ("מה דורש אותי") from clients.html, with a link back.
 //  - Four numbers, rows most severe first, one name each, "פתיחה" and "שאלה לאחראי";
-//    the question reaches Lior's "מה עליי", he answers there, the answer shows in the row.
+//    the question reaches Lior's "המשימות שלי", he answers there, the answer shows in the row.
 //  - Screen 2: two lines per client, a tap opens the rest; the board of the week / 30 days.
 //  - The managers (the owner, Irit, Ofir) open screen 1; Lior screen 2 but not screen 1; an editor neither; a worker sees only
 //    their own row of the team screen, the owner and Lior everyone.
@@ -310,7 +310,7 @@ await step('"שאלה לאחראי": saved with the client and the one person, w
   assert.equal(await owner.locator('#ow-rows > li').nth(1).locator('.ow-q').count(), 0);
 });
 
-await step('the one asked sees it at the top of "מה עליי", answers inline, and the answer shows in the owner\'s row', async () => {
+await step('the one asked sees it at the top of "המשימות שלי", answers inline, and the answer shows in the owner\'s row', async () => {
   const lctx = await newContext();
   const lior = await newPage(lctx);
   await signIn(lior, 'clients.html#mine', 'lior@astrateg.test'); // his first screen is decisions.html (it shows the question too)
@@ -318,7 +318,7 @@ await step('the one asked sees it at the top of "מה עליי", answers inline,
   assert.equal(new URL(lior.url()).pathname.endsWith('/clients.html'), true);
   const box = lior.locator('#my-questions');
   assert.match(await box.innerText(), /שאלה אליך\s*1[^]*מספרת רון · הבעלים · [^]*על: צילום בסיכון[^]*״הלקוח יאשר את התסריטים עד מחר\?״/);
-  // At the top of "מה עליי": after the "now" bar and how he hears (notifications, WhatsApp,
+  // At the top of "המשימות שלי": after the "now" bar and how he hears (notifications, WhatsApp,
   // his calendar), before the list; the hidden cards keep their place.
   assert.deepEqual(await lior.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 6).map((e) => e.id)), ['now-bar', 'deals-card', 'push-card', 'wa-card', 'cal-card', 'my-questions']);
   // His top bar links screen 2, never screen 1.

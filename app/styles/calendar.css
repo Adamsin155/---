@@ -1,4 +1,4 @@
-/* "היומן שלי" in "מה עליי" (app/calendar-card.js) and the calendar line on the team
+/* "היומן שלי" in "המשימות שלי" (app/calendar-card.js) and the calendar line on the team
    screen. Builds on the tokens of app.css and protocol.css; 44px targets; the state
    is said in words. */
 .cal-card {

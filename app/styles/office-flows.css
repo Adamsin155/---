@@ -1,6 +1,6 @@
 /* The office's screens (stage 3, part 2): Ofir's quality control and assignment
    (qa.html), his pass over the clients (pass.html), Lior's decisions
-   (decisions.html), Ilai's characterization day in "מה עליי", and the fixes list
+   (decisions.html), Ilai's characterization day in "המשימות שלי", and the fixes list
    and quality line in the client card. Builds on app.css, protocol.css and
    protocol-office.css. Phones first: 44px targets, no sideways scrolling at 360px. */
 
@@ -111,7 +111,7 @@
 .dc-inline { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; }
 .dc-inline .field { margin: 0; }
 
-/* Ilai's characterization day in "מה עליי" */
+/* Ilai's characterization day in "המשימות שלי" */
 .il-card .il-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
 .il-card details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; list-style: none; }
 .il-card details > summary::-webkit-details-marker { display: none; }

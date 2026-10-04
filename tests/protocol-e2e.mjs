@@ -556,7 +556,7 @@ assert.equal(await page.isHidden('#tasks'), true); // no task of hers here, and 
 assert.match(await page.locator('.cc-links').innerText(), /תיקיית Drive/); // the links to work with stay
 assert.doesNotMatch(await page.locator('.cc-facts').innerText(), /טלפון|סיום החוזה/);
 assert.match(await page.locator('.cc-progress').innerText(), /התהליכים שלי שהושלמו/);
-assert.equal(await page.locator('#app > a.back').innerText(), '→ מה עליי');
+assert.equal(await page.locator('#app > a.back').innerText(), '→ המשימות שלי');
 // Why her editing waits, in one line.
 assert.match(await page.locator('.cc-next').innerText(), /התהליך הבא שלך[^]*22 · עריכת הסרטונים[^]*ממתין ל: הלקוח שויך לעורך והכונן הועבר אליו \(תהליך 22א\)/);
 await page.evaluate(() => { document.querySelector('#p22')?.closest('details').setAttribute('open', ''); });
@@ -583,7 +583,7 @@ assert.deepEqual(await page.locator('#task-list .ilabel').allInnerTexts(), ['ל�
 await shot('09-editor-card');
 
 // Her "my work": no picker, no one else's list, no office tabs, only her clients. (She
-// lands on editor.html, her first screen; "מה עליי" is one tap away.)
+// lands on editor.html, her first screen; "המשימות שלי" is one tap away.)
 await page.goto(`${BASE}clients.html#mine`);
 await page.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.equal(await page.getAttribute('#tab-mine', 'aria-selected'), 'true');

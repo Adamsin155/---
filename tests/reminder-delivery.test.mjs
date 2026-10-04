@@ -128,11 +128,11 @@ test('the 08:30 digest: late first, one line per topic with a count, at most 5 l
   }
 });
 
-test('digest lines: more than 5 topics end with how many more are in "מה עליי"', () => {
+test('digest lines: more than 5 topics end with how many more are in "המשימות שלי"', () => {
   const rows = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((r) => ({ rule: r, key: r, title: `נושא ${r}` }));
   const lines = digestLines({ rows, max: 5 });
   assert.equal(lines.length, 5);
-  assert.equal(lines[4], 'ועוד 3 נושאים ב״מה עליי״');
+  assert.equal(lines[4], 'ועוד 3 נושאים ב״המשימות שלי״');
   const work = { overdue: [{ client: 'א', what: 'x' }, { client: 'ב', what: 'y' }], today: [{ client: 'ג', what: 'z' }] };
   assert.deepEqual(digestLines({ work, rows: [] }), ['באיחור (2): א, ב', 'היום: ג · z']);
 });

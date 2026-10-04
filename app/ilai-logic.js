@@ -1,4 +1,4 @@
-// Ilai's part of "מה עליי" (system-plan section 3, "עילאי"): when a
+// Ilai's part of "המשימות שלי" (system-plan section 3, "עילאי"): when a
 // characterization ends, the card "יום אפיון: שעתיים" with one line per client
 // showing only the nearest due, and inside it the access check (30 minutes; the
 // statuses in the vault mark it), the page setup (6 quick checks; pasting the

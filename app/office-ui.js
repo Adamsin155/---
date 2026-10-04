@@ -1,5 +1,5 @@
 // Shared view pieces of the office's screens (qa.html, pass.html,
-// decisions.html, Ilai's part of "מה עליי" and the client card): the first
+// decisions.html, Ilai's part of "המשימות שלי" and the client card): the first
 // screen each person lands on, the "התחלתי" button of an urgent task, the list
 // of fixes returned by Ofir with "תוקן" / "סמן הכול תוקן", and the quality-control
 // line of a process in the client card. The logic is app/office-marks.js.
@@ -18,15 +18,15 @@ import {
 // One landing rule for everyone (sections 3 and 6): the owner lands on "מה דורש
 // אותי" (owner.html), Ofir on the quality-control queue, Lior on "החלטות", the
 // editors and Nirel on their editing page, Eli on his shoot days. Irit and Ilai
-// stay on "מה עליי". Only when the tab opens on clients.html without a view (#…),
+// stay on "המשימות שלי". Only when the tab opens on clients.html without a view (#…),
 // and once per tab (the installed app, a sign-in, a new tab; this tab's session
-// storage); after that every link opens where it points, and "מה עליי" is always
+// storage); after that every link opens where it points, and "המשימות שלי" is always
 // clients.html#mine. Each role also has a shortcut to its screen on that page.
 export const FIRST_SCREEN = { ofir: 'qa.html', lior: 'decisions.html', eli: 'shoot.html' };
 export const EDITOR_SCREEN = 'editor.html';
 export const OWNER_SCREEN = 'owner.html';
 // A manager (the owner, Irit, Ofir; app/manager-rules.js) who chose a profile lands on
-// it: 'manager' on owner.html, 'mine' on their own first screen ("מה עליי" for the
+// it: 'manager' on owner.html, 'mine' on their own first screen ("המשימות שלי" for the
 // owner). `mode` is modeOf(viewer); null for everyone else.
 export function firstScreenOf(me, viewer = null, mode = null) {
   if (mode === 'manager' && isManager(viewer)) return OWNER_SCREEN;

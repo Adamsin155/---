@@ -100,7 +100,7 @@ export function ackText(result) {
     case 'taken': return 'מישהו אחר כבר לקח את זה. הפרטים במערכת.';
     case 'done': return 'נרשם ״בוצע״. תודה.';
     case 'help': return 'נרשם. ליאור יקבל את הבקשה לעזרה ברשימה הבאה שלו.';
-    case 'withdrawn': return 'הודעות העבודה ב־WhatsApp הופסקו. ההתראות באפליקציה ממשיכות. אפשר להפעיל שוב ב״מה עליי״.';
+    case 'withdrawn': return 'הודעות העבודה ב־WhatsApp הופסקו. ההתראות באפליקציה ממשיכות. אפשר להפעיל שוב ב״המשימות שלי״.';
     case 'duplicate': case 'not_found': return null;
     default: return 'לא נרשם שינוי. להמשך, פתחו את המערכת.';
   }

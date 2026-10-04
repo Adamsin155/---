@@ -412,7 +412,7 @@ await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the 
   await ofir.click('#handoff-close');
   assert.match(await ofir.locator('#assign-list').innerText(), /אין לקוחות שמחכים לשיוך עורך/);
   await shot(ofir, 'office-03-assigned');
-  // The folder task, done from "מה עליי", is item 24 "יש תיקייה מסודרת" too.
+  // The folder task, done from "המשימות שלי", is item 24 "יש תיקייה מסודרת" too.
   await ofir.goto(`${BASE}clients.html#mine`);
   const box = `#w-${N.id}-${folder.id}`.replace(/[^\w#-]/g, '_');
   await ofir.waitForSelector(box);

@@ -675,7 +675,7 @@ await step('who sees what: the office watches the shoot without buttons; an edit
   const eli = await scene('2026-10-22T12:00:00');
   await signIn(eli.page, 'editor.html', 'eli');
   await eli.page.waitForSelector('#no-access:not([hidden])');
-  // "מה עליי" stays one tap away, without a loop back.
+  // "המשימות שלי" stays one tap away, without a loop back.
   await eli.page.goto(`${BASE}clients.html#mine`);
   await eli.page.waitForSelector('#app:not([hidden])');
   assert.match(eli.page.url(), /clients\.html#mine$/);

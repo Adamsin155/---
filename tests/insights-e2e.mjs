@@ -1,4 +1,4 @@
-// End-to-end check of stage 6: the personal calendar card in "מה עליי"
+// End-to-end check of stage 6: the personal calendar card in "המשימות שלי"
 // (app/calendar-card.js) with its feed, and the owner's insights page
 // (insights.html, app/insights-page.js), against an in-memory fake of Supabase.
 // The browser's clock is fixed on Tuesday 20.10.2026 at 10:00 in Israel.
@@ -270,7 +270,7 @@ const lctx = await newContext({ width: 360, height: 780 });
 const lior = await newPage(lctx);
 let firstUrl = null;
 
-await step('"היומן שלי" in "מה עליי": not connected, one button', async () => {
+await step('"היומן שלי" in "המשימות שלי": not connected, one button', async () => {
   await signIn(lior, 'clients.html#mine', 'lior@astrateg.test');
   await lior.waitForSelector('#cal-card:not([hidden]) #cal-make');
   assert.equal(await text(lior, '#cal-h'), 'היומן שלי');

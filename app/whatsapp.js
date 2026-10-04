@@ -5,7 +5,7 @@
 //    alternative, and a link to the employee privacy notice (staff-privacy.html).
 //    Shown only when the owner turned WhatsApp on, until the person chose (or again
 //    when the number they agreed to was changed);
-//  - the card in "מה עליי" (mountWhatsappCard): on or off, stop at any time, or
+//  - the card in "המשימות שלי" (mountWhatsappCard): on or off, stop at any time, or
 //    agree later.
 // The choice is recorded server-side with the time, the wording and the number
 // (public.whatsapp_decide / whatsapp_withdraw). Nothing here shows anyone else's
@@ -128,7 +128,7 @@ export async function promptWhatsapp() {
   await openDialog();
 }
 
-// ── "מה עליי" ──────────────────────────────
+// ── "המשימות שלי" ──────────────────────────────
 async function withdraw() {
   if (busy || !confirm('להפסיק את הודעות העבודה ב־WhatsApp? ההתראות באפליקציה ימשיכו כרגיל.')) return;
   busy = true;
@@ -168,7 +168,7 @@ function paintCard() {
   fill(cardEl, head, ...body);
 }
 
-// The card: the page's own #wa-card (clients.html keeps its place in "מה עליי"),
+// The card: the page's own #wa-card (clients.html keeps its place in "המשימות שלי"),
 // else right after `anchor` (the notifications card). Shown only while WhatsApp is on.
 export async function mountWhatsappCard(anchor) {
   if (!anchor) return;

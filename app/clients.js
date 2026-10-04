@@ -34,7 +34,7 @@ import { refreshQuestions } from './questions-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
 import { mountWhatsappCard } from './whatsapp.js';
 import { mountCalendar } from './calendar-card.js';
-// Stage 3, part 2 (the office's flows): Ilai's day in "מה עליי", the first screens of Ofir and Lior.
+// Stage 3, part 2 (the office's flows): Ilai's day in "המשימות שלי", the first screens of Ofir and Lior.
 import { ilaiSection, coveredByCard } from './ilai-card.js';
 import { landingNow, officeLinks } from './office-ui.js';
 import { folderItemOf } from './qa-logic.js';
@@ -45,7 +45,7 @@ import { landingOf } from './deal-logic.js';
 // nobody is sent to their first screen then.
 const ARRIVED_WITH = location.hash;
 import { intakeShortcut } from './intake-ui.js';
-// Stage 5: the monthly cycle (a draft) in "מה עליי", and the way to the package year.
+// Stage 5: the monthly cycle (a draft) in "המשימות שלי", and the way to the package year.
 import { showMonths, worksCycle } from './month-ui.js';
 
 let clients = [];
@@ -171,7 +171,7 @@ function applyScope() {
   $('tab-performance').textContent = own ? 'הנתונים שלי' : 'ביצועים';
   $('btn-new').hidden = own;
   $('tab-clients').textContent = own ? 'הלקוחות שלי' : 'לקוחות';
-  $('tab-mine').textContent = me ? 'מה עליי' : 'עבודת הצוות';
+  $('tab-mine').textContent = me ? 'המשימות שלי' : 'עבודת הצוות';
   const head = document.querySelector('#app .page-head');
   if (own && head) {
     const h1 = head.querySelector('h1');
@@ -2132,7 +2132,7 @@ mountSession(async (staff) => {
   viewerError = viewer.error;
   // Everyone's first screen (app/office-ui.js firstScreenOf): the owner's "מה דורש
   // אותי", Ofir's queue, Lior's decisions, the editors' page, Eli's shoot days. Only
-  // when the tab opens here without a view, once per tab; "מה עליי" stays #mine.
+  // when the tab opens here without a view, once per tab; "המשימות שלי" stays #mine.
   // Sales (Stav) have no client work: always their own page.
   if (landingOf(me)) { location.replace(landingOf(me)); return; }
   const first = landingNow({ me, viewer, arrived: ARRIVED_WITH || location.hash });

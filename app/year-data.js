@@ -1,4 +1,4 @@
-// Data for the package year (year.html, the cycle in "מה עליי" and the client
+// Data for the package year (year.html, the cycle in "המשימות שלי" and the client
 // card). Row level security decides who reads and writes: the month marks are the
 // office's (supabase/migrations/20260930190000_year.sql). Who marked and when are
 // stamped by the database. Until that migration is applied the marks read as null
