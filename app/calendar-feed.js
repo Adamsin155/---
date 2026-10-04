@@ -60,7 +60,7 @@ export const ELI_AHEAD = 30;
 const LIVE = new Set(['active', 'ending']);
 
 // Where the links in the events open (the site; docs/ops.md, section 8 when it moves).
-export const SITE = 'https://adamsin155.github.io/---/';
+export const SITE = 'https://app.astrateg.tech/';
 const cardUrl = (site, id, hash = '') => `${site}client.html?id=${encodeURIComponent(id)}${hash}`;
 
 // The client and each extra shoot round: its context, item prefix, process prefix and number.
