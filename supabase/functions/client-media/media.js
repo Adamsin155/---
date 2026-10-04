@@ -6,7 +6,7 @@
 // Tested in node: tests/client-media.test.mjs.
 import { downloadName, isImage } from '../_shared/app/files-logic.js';
 
-export const SITE_ORIGINS = ['https://adamsin155.github.io', 'https://app.astrateg.com'];
+export const SITE_ORIGINS = ['https://adamsin155.github.io', 'https://app.astrateg.tech'];
 export const SCOPES = ['gallery', 'status'];
 export const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 // How long a signed URL works (seconds): long enough to watch a video, short enough

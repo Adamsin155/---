@@ -21,8 +21,8 @@ export const PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv
 export const TEAM_MANAGERS = ['irit', 'lior'];
 
 // Pages a sign-in link may open. The link is only for the office's own site.
-export const LINK_PAGES = ['https://adamsin155.github.io/---/clients.html', 'https://app.astrateg.com/clients.html'];
-export const SITE_ORIGINS = ['https://adamsin155.github.io', 'https://app.astrateg.com'];
+export const LINK_PAGES = ['https://adamsin155.github.io/---/clients.html', 'https://app.astrateg.tech/clients.html'];
+export const SITE_ORIGINS = ['https://adamsin155.github.io', 'https://app.astrateg.tech'];
 
 // Error codes (the page turns them into Hebrew).
 export const ERR = {

@@ -117,18 +117,18 @@ node scripts/build-pages.mjs --commit
 - [ ] לזכור שהסגירה לא מוחקת את מה שכבר היה ציבורי. היסטוריית ה־git כבר נחשפה. אין בה סודות, רק המפתח הציבורי, ואם יתברר שנכנס סוד, מחליפים אותו.
 - [ ] האתר הנפרד `astrateg-payment` (נבנה ב־`scripts/build-payment-site.mjs`) הוא מאגר ציבורי עם עותק של `app/payouts/` ו־`pricing.js`/`catalog.js`/`legal.js`. צריך להחליט אם גם אותו לסגור, או להפסיק לעדכן אותו ולהשתמש ב־`/payouts/` שבכתובת החדשה.
 
-## 8. כתובת קבועה: `app.astrateg.com`
+## 8. כתובת קבועה: `app.astrateg.tech`
 
 לפי החלטה 5 נשארים על GitHub Pages, רק עם כתובת משלנו.
 
 1. **DNS**, אצל רשם הדומיין: רשומת `CNAME` בשם `app` שמצביעה על `adamsin155.github.io` (בלי שם המאגר ובלי נתיב).
 2. **אימות הדומיין ב־GitHub** (מומלץ, מונע השתלטות): ב־Settings של החשבון → Pages → Add a domain ‏`astrateg.com`. מוסיפים את רשומת ה־TXT שהמסך מציג, ולוחצים Verify.
-3. **קובץ `CNAME`** בשורש המאגר, עם שורה אחת: `app.astrateg.com`, ב־commit בענף שמפרסמים ממנו. ‏`scripts/build-pages.mjs` מצרף אותו לקבצים שמתפרסמים (סעיף 2). כל פרסום מחליף את כל התוכן של `gh-pages`, ולכן בלי הקובץ במקור הכתובת תימחק בפרסום הבא.
-4. ב־Settings של המאגר → Pages → Custom domain: ‏`app.astrateg.com` → Save. כשהתעודה מוכנה (בדרך כלל תוך שעה), מסמנים **Enforce HTTPS**. ‏GitHub שומר את הדומיין גם כ־commit משלו ב־`gh-pages`, ולכן לפני הפרסום הבא מריצים `git fetch origin gh-pages` (כמו בסעיף 2).
+3. **קובץ `CNAME`** בשורש המאגר, עם שורה אחת: `app.astrateg.tech`, ב־commit בענף שמפרסמים ממנו. ‏`scripts/build-pages.mjs` מצרף אותו לקבצים שמתפרסמים (סעיף 2). כל פרסום מחליף את כל התוכן של `gh-pages`, ולכן בלי הקובץ במקור הכתובת תימחק בפרסום הבא.
+4. ב־Settings של המאגר → Pages → Custom domain: ‏`app.astrateg.tech` → Save. כשהתעודה מוכנה (בדרך כלל תוך שעה), מסמנים **Enforce HTTPS**. ‏GitHub שומר את הדומיין גם כ־commit משלו ב־`gh-pages`, ולכן לפני הפרסום הבא מריצים `git fetch origin gh-pages` (כמו בסעיף 2).
 5. **נתיבים**: האתר עובר מ־`/---/` לשורש `/`. מעדכנים את `id`, ‏`start_url` ו־`scope` ב־`clients.webmanifest` וב־`payouts/manifest.webmanifest` מ־`/---/…` ל־`/…`, ואת הכתובות ב־`README.md`.
 6. **Supabase Auth** → URL Configuration:
-   - Site URL: ‏`https://app.astrateg.com/`
-   - Redirect URLs: מוסיפים `https://app.astrateg.com/quotes.html` ו־`https://app.astrateg.com/payouts/`
+   - Site URL: ‏`https://app.astrateg.tech/`
+   - Redirect URLs: מוסיפים `https://app.astrateg.tech/quotes.html` ו־`https://app.astrateg.tech/payouts/`
    - את הכתובות הישנות של `adamsin155.github.io` משאירים עד שכולם עברו.
 7. **בדיקה:**
    - קישור הצעה ישן (`https://adamsin155.github.io/---/q.html?t=…`) נפתח. GitHub מפנה אוטומטית מהכתובת הישנה לדומיין, וצריך לוודא שהפרמטר `t` נשמר.
@@ -336,7 +336,7 @@ select email, fail_count, last_error, last_ok_at from public.push_subscriptions 
    ```
    לכל שורה: ב־WhatsApp Manager ← Message templates ← Create (קטגוריה Utility, שפה Hebrew, אותו שם, אותו גוף, אותה כותרת תחתונה ואותם כפתורים, לפי הסדר), או ב־API:
    `curl -X POST "https://graph.facebook.com/v23.0/<WABA-ID>/message_templates" -H "Authorization: Bearer <הטוקן>" -H "Content-Type: application/json" -d '<השורה>'`.
-   מחכים לאישור (בדרך כלל דקות עד יום). תבנית שנדחתה: מתקנים ב־`app/wa-templates.js` ומגישים שוב באותו שם. הקישור בכפתור הוא `https://adamsin155.github.io/---/{{1}}`. כשעוברים ל־`app.astrateg.com` (סעיף 8), מעדכנים את `SITE_URL` ומגישים את התבניות מחדש, כי הכתובת היא חלק מהתבנית המאושרת.
+   מחכים לאישור (בדרך כלל דקות עד יום). תבנית שנדחתה: מתקנים ב־`app/wa-templates.js` ומגישים שוב באותו שם. הקישור בכפתור הוא `https://adamsin155.github.io/---/{{1}}`. כשעוברים ל־`app.astrateg.tech` (סעיף 8), מעדכנים את `SITE_URL` ומגישים את התבניות מחדש, כי הכתובת היא חלק מהתבנית המאושרת.
 3. **Vault** (ב־SQL Editor):
    ```sql
    select vault.create_secret('<הטוקן הקבוע>', 'whatsapp_access_token', 'whatsapp: Cloud API token');
@@ -438,7 +438,7 @@ update public.app_settings set value = 'false' where key = 'whatsapp_enabled';
 **הפעלה, לפי הסדר:**
 1. מיגרציה `20260930200000_calendar_feeds.sql` (האחרונה; לא תלויה בקודמות חוץ מ־`staff`; הסדר המלא: סעיף 17). בטוחה להרצה חוזרת.
 2. פריסת הפונקציה `calendar` עם `verify_jwt=false` (ב־`supabase/config.toml`): יומן לא שולח כניסה, והטוקן הוא ההרשאה. הוא נבדק בתוך המסד ב־`public.calendar_feed_check()`, שרק ה־service role רשאי לקרוא. `supabase functions deploy calendar --project-ref czncjzziqrqtezpwxxpz --use-api`, או `deploy_edge_function` עם `entrypoint_path` ‏`calendar/index.ts` והקבצים: `calendar/index.ts` ו־`_shared/app/` ‏`calendar-feed.js`, ‏`ics.js`, ‏`protocol-logic.js`, ‏`protocol-versions.js`, ‏`protocol.js`, ‏`catalog.js`, ‏`holidays.js`, ‏`tz.js` (הרשימה מחושבת: `node scripts/sync-functions.mjs --deploy`).
-3. אין סודות חדשים ב־Vault. משתנה אופציונלי אחד: `SITE_URL` (למשל `https://app.astrateg.com/`) אחרי המעבר לכתובת הקבועה (סעיף 8); בלעדיו הקישורים באירועים הולכים ל־`adamsin155.github.io/---/`.
+3. אין סודות חדשים ב־Vault. משתנה אופציונלי אחד: `SITE_URL` (למשל `https://app.astrateg.tech/`) אחרי המעבר לכתובת הקבועה (סעיף 8); בלעדיו הקישורים באירועים הולכים ל־`adamsin155.github.io/---/`.
 4. בדיקה: "מה עליי" ← "חיבור ליומן" ← פותחים את הקישור בדפדפן ומקבלים קובץ `text/calendar`. קישור לא נכון מחזיר 404.
 
 - **תשובות:** 404 לכל טוקן לא מוכר, שהוחלף או לא תקין (בלי לקרוא נתונים), 405 לכל מה שאינו GET/HEAD, ‏500 בלי פרטים. `Cache-Control: private, max-age=300`, והיומן מתבקש לחזור כל שעה (גוגל מחליט לבד, לפעמים כמה שעות).

@@ -27,7 +27,7 @@ export function ensurePhones(maxAge = 5 * 60e3) {
 }
 const phoneOf = (person) => phones[person] || null;
 
-// client.html on this site (GitHub Pages or app.astrateg.com): location.origin + path.
+// client.html on this site (GitHub Pages or app.astrateg.tech): location.origin + path.
 const clientPage = () => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}client.html`;
 const domId = (key) => key.replace(/\./g, '-');
 const messageOf = (o) => handoffMessage(o, { page: clientPage(), now: new Date() });

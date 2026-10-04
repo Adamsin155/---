@@ -51,22 +51,22 @@ test('links open only the office clients page (any port on localhost)', () => {
   assert.equal(allowedRedirect('http://localhost/clients.html'), 'http://localhost/clients.html');
   for (const bad of [
     'https://evil.example/clients.html', 'https://adamsin155.github.io/---/quotes.html', 'https://adamsin155.github.io/clients.html',
-    'http://app.astrateg.com/clients.html', 'https://app.astrateg.com/clients.html?x=1', 'https://app.astrateg.com/clients.html#a',
-    'https://user:pw@app.astrateg.com/clients.html', 'http://localhost:8092/team.html', 'http://127.0.0.1:8092/clients.html',
-    'https://localhost/clients.html', 'https://app.astrateg.com.evil.example/clients.html', 'javascript:alert(1)', '', null,
+    'http://app.astrateg.tech/clients.html', 'https://app.astrateg.tech/clients.html?x=1', 'https://app.astrateg.tech/clients.html#a',
+    'https://user:pw@app.astrateg.tech/clients.html', 'http://localhost:8092/team.html', 'http://127.0.0.1:8092/clients.html',
+    'https://localhost/clients.html', 'https://app.astrateg.tech.evil.example/clients.html', 'javascript:alert(1)', '', null,
   ]) assert.equal(allowedRedirect(bad), null, String(bad));
 });
 
 test('CORS answers the site origins only', () => {
   assert.equal(allowedOrigin('https://adamsin155.github.io'), 'https://adamsin155.github.io');
-  assert.equal(allowedOrigin('https://app.astrateg.com'), 'https://app.astrateg.com');
+  assert.equal(allowedOrigin('https://app.astrateg.tech'), 'https://app.astrateg.tech');
   assert.equal(allowedOrigin('http://localhost:8092'), 'http://localhost:8092');
   for (const bad of ['https://evil.example', 'http://localhost:8092/x', 'null', '', undefined]) assert.equal(allowedOrigin(bad), null, String(bad));
-  const h = corsHeaders('https://app.astrateg.com', 'authorization, x-client-info, apikey, content-type');
-  assert.equal(h['Access-Control-Allow-Origin'], 'https://app.astrateg.com');
+  const h = corsHeaders('https://app.astrateg.tech', 'authorization, x-client-info, apikey, content-type');
+  assert.equal(h['Access-Control-Allow-Origin'], 'https://app.astrateg.tech');
   assert.equal(h.Vary, 'Origin');
   assert.equal(corsHeaders('https://evil.example')['Access-Control-Allow-Origin'], undefined);
-  assert.equal(corsHeaders('https://app.astrateg.com', 'x\r\nSet-Cookie: a')['Access-Control-Allow-Headers'], 'authorization, x-client-info, apikey, content-type');
+  assert.equal(corsHeaders('https://app.astrateg.tech', 'x\r\nSet-Cookie: a')['Access-Control-Allow-Headers'], 'authorization, x-client-info, apikey, content-type');
 });
 
 test('upsert: the owner may do anything but change their own role', () => {
@@ -253,7 +253,7 @@ test('team screen: login state and the WhatsApp message', () => {
   assert.equal(loginState({ has_login: false }), 'none');
   assert.equal(loginState({ has_login: true, last_sign_in_at: null }), 'pending');
   assert.equal(loginState({ has_login: true, last_sign_in_at: '2026-09-29T09:00:00Z' }), 'active');
-  const link = 'https://app.astrateg.com/clients.html#type=invite&token_hash=abc';
+  const link = 'https://app.astrateg.tech/clients.html#type=invite&token_hash=abc';
   const invite = linkMessage({ name: 'אלי', link, type: 'invite' });
   assert.match(invite, /^היי אלי,/);
   assert.match(invite, /בוחרים סיסמה/);

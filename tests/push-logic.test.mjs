@@ -72,8 +72,8 @@ function worker({ windows = [] } = {}) {
   const opened = [];
   const focused = [];
   const self = {
-    location: new URL('https://app.astrateg.com/sw.js'),
-    registration: { scope: 'https://app.astrateg.com/', showNotification: async (title, opts) => { shown.push({ title, ...opts }); } },
+    location: new URL('https://app.astrateg.tech/sw.js'),
+    registration: { scope: 'https://app.astrateg.tech/', showNotification: async (title, opts) => { shown.push({ title, ...opts }); } },
     clients: {
       matchAll: async () => windows.map((url) => ({ url, focus: async () => { focused.push(url); } })),
       openWindow: async (url) => { opened.push(url); },
@@ -99,9 +99,9 @@ test('sw.js: a push is always shown, with the page it is about (this site only)'
   assert.equal(w.shown[0].body, 'להתקשר');
   assert.equal(w.shown[0].tag, 'answer:1');
   assert.equal(w.shown[0].dir, 'rtl');
-  assert.equal(w.shown[0].data.href, 'https://app.astrateg.com/client.html?id=1#p07');
+  assert.equal(w.shown[0].data.href, 'https://app.astrateg.tech/client.html?id=1#p07');
   await w.fire('push', data({ title: 'x', url: 'https://evil.example/phish' }));
-  assert.equal(w.shown[1].data.href, 'https://app.astrateg.com/clients.html#mine');
+  assert.equal(w.shown[1].data.href, 'https://app.astrateg.tech/clients.html#mine');
   // Not JSON, or no data at all: still a notification (iOS requires one per push).
   await w.fire('push', { data: { json: () => { throw new Error('bad'); }, text: () => 'שלום' } });
   assert.deepEqual([w.shown[2].title, w.shown[2].body], ['אסטרטג', 'שלום']);
@@ -110,12 +110,12 @@ test('sw.js: a push is always shown, with the page it is about (this site only)'
 });
 
 test('sw.js: a tap focuses the window already on the page, or opens it; never another site', async () => {
-  const href = 'https://app.astrateg.com/client.html?id=1#p07';
+  const href = 'https://app.astrateg.tech/client.html?id=1#p07';
   const note = (h) => ({ notification: { data: { href: h }, close: () => {} } });
   const a = worker({ windows: [href] });
   await a.fire('notificationclick', note(href));
   assert.deepEqual([a.focused, a.opened], [[href], []]);
-  const b = worker({ windows: ['https://app.astrateg.com/clients.html'] });
+  const b = worker({ windows: ['https://app.astrateg.tech/clients.html'] });
   await b.fire('notificationclick', note(href));
   assert.deepEqual(b.opened, [href]);
   const c = worker();

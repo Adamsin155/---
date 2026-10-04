@@ -1,6 +1,6 @@
 // HTTP helpers of the reminders function, free of Deno APIs so node tests them.
 // Only the office's own site may call the "test" action from a browser.
-export const SITE_ORIGINS = ['https://adamsin155.github.io', 'https://app.astrateg.com'];
+export const SITE_ORIGINS = ['https://adamsin155.github.io', 'https://app.astrateg.tech'];
 
 export function corsHeaders(origin) {
   const headers = {

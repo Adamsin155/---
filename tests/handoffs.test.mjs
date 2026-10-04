@@ -11,7 +11,7 @@ import {
 } from '../app/handoffs.js';
 
 const at = (s) => new Date(s);
-const PAGE = 'https://app.astrateg.com/client.html';
+const PAGE = 'https://app.astrateg.tech/client.html';
 const done = (when, note = null) => ({ state: 'done', at: when, note, by_email: 'x@astrateg.test' });
 const all = (id, when, only = null) => Object.fromEntries(PROCESSES.find((p) => p.id === id).items
   .filter((i) => !i.optional && (!only || only.includes(i.key))).map((i) => [i.key, done(when)]));
@@ -100,7 +100,7 @@ test('the message: client, what is needed, the due time in Israel time, and the 
     'היי עילאי,',
     'גישות התקבלו למספרת רון. יש לך 30 דק׳ לבדוק אותן מהכספת במערכת ולסדר את העמודים.',
     'יעד: היום 11:30',
-    'כרטיס הלקוח: https://app.astrateg.com/client.html?id=c-1#p06',
+    'כרטיס הלקוח: https://app.astrateg.tech/client.html?id=c-1#p06',
   ].join('\n'));
   // Winter time (after 25.10), ten minutes before the office closes: the 30 minutes
   // run on the next working morning.
@@ -116,7 +116,7 @@ test('both editing deadlines go to the editor, counted in business days from the
     'הלקוח מספרת רון עובר לעריכה אצלך. הכונן, התסריטים והלוגו בכרטיס הלקוח.',
     'בדרייב ואצל אופיר לבקרה: סוף יום ב׳ 12.10',
     'סגירה, כולל תיקוני הלקוח: סוף יום ג׳ 13.10',
-    'כרטיס הלקוח: https://app.astrateg.com/client.html?id=c-1#p22',
+    'כרטיס הלקוח: https://app.astrateg.tech/client.html?id=c-1#p22',
   ].join('\n'));
 });
 
@@ -275,8 +275,8 @@ test('wa.me links: straight to the number when known, otherwise WhatsApp asks wh
   assert.equal(decodeURIComponent(direct.split('?text=')[1]), text);
   assert.ok(waLink('+972-50-123-4567', text).startsWith('https://wa.me/972501234567?text='));
   for (const none of [null, '', 'abc', '12']) assert.ok(waLink(none, text).startsWith('https://wa.me/?text='), String(none));
-  assert.equal(clientLink(PAGE, 'a b', 'r2-p24'), 'https://app.astrateg.com/client.html?id=a%20b#r2-p24');
-  assert.equal(clientLink(PAGE, 'c-1'), 'https://app.astrateg.com/client.html?id=c-1');
+  assert.equal(clientLink(PAGE, 'a b', 'r2-p24'), 'https://app.astrateg.tech/client.html?id=a%20b#r2-p24');
+  assert.equal(clientLink(PAGE, 'c-1'), 'https://app.astrateg.tech/client.html?id=c-1');
 });
 
 test('due times are written on the office clock, whatever the zone of the machine', () => {
