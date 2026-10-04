@@ -541,7 +541,10 @@ await step('the blockers (14): computed from what the system knows; "עברתי"
   assert.equal(checkOf(B, 'p14.graphics')?.note, 'נסגר אוטומטית: אין חוסם');
   await shot(irit, '08-blockers-360');
   await shotOf(irit, card, '08b-card-B-360');
-  await shotOf(irit, `#shoot-${A.id.replace(/[^\w-]/g, '_')}-1`, '08c-card-A-360');
+  // A has no card here, rightly: since protocol v6 the shoot-date process (11) belongs to the
+  // first station, so A's import at the characterization station marked it done, and A has no
+  // shoot ahead (prep.js entries()). A screenshot of that card used to wait here until it timed out.
+  assert.equal(await irit.locator(`#shoot-${A.id.replace(/[^\w-]/g, '_')}-1`).count(), 0);
 });
 
 await step('the day-before check (15): what the system knows is filled in, Irit answers the rest, a failure goes to Lior', async () => {
