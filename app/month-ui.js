@@ -4,7 +4,7 @@
 // year.html uses too. Every item is labelled as a draft (decision 31). The logic:
 // app/year-logic.js; the data: app/year-data.js.
 import { PEOPLE } from './protocol.js';
-import { h, toast, errorText, formatWhen, formatStamp, who, personChip } from './protocol-ui.js';
+import { h, toast, errorText, formatWhen, formatStamp, who, personChip, capList } from './protocol-ui.js';
 import {
   DRAFT_LABEL, openMonthItems, monthOf, cycleFrom, monthState, marksByKey, groupMarks, markKey,
 } from './year-logic.js';
@@ -78,6 +78,7 @@ function ensureMarks() {
     .finally(() => { cache.at = Date.now(); cache.loading = null; if (box && last) showMonths(box, last); });
 }
 // ctx: { person (whose list; null: nobody's), me, office, clients, stateOf, checks }
+let foldOpen = false; // the folded cycle of a short list, as the person left it
 export function showMonths(el, ctx) {
   box = el;
   last = ctx;
@@ -117,13 +118,19 @@ export function showMonths(el, ctx) {
       (el.querySelector('.cbx:not(:disabled)') || document.getElementById('tab-mine'))?.focus();
     } else document.getElementById(focusId)?.focus();
   };
-  el.replaceChildren(
-    h('h2', { class: 'wgroup-h', id: 'mc-h' }, 'המחזור החודשי', h('span', { class: 'tag tag-draft' }, 'טיוטה'), h('span', { class: 'n' }, String(count))),
+  const title = ['המחזור החודשי', h('span', { class: 'tag tag-draft' }, 'טיוטה'), h('span', { class: 'n' }, String(count))];
+  // A short list (ctx.short, "המשימות שלי" by default): the draft cycle waits folded under
+  // its heading, so the protocol's own work comes first; opened, the first clients and "הצג עוד".
+  const wrap = (...kids) => (ctx.short
+    ? [h('details', { class: 'mc-fold', open: foldOpen, ontoggle: (ev) => { foldOpen = ev.currentTarget.open; } }, h('summary', { class: 'wgroup-h', id: 'mc-h' }, ...title), ...kids)]
+    : [h('h2', { class: 'wgroup-h', id: 'mc-h' }, ...title), ...kids]);
+  el.replaceChildren(...wrap(
     draftHint(),
-    h('ul', { class: 'wprocs mc-list', 'aria-labelledby': 'mc-h' }, ...byClient.map(({ c, items, m }) => h('li', { class: 'wproc mc-client' },
+    capList(h('ul', { class: 'wprocs mc-list', 'aria-labelledby': 'mc-h' }, ...byClient.map(({ c, items, m }) => h('li', { class: 'wproc mc-client' },
       h('p', { class: 'mc-head' }, h('a', { class: 'wclient', href: cardUrl(c.id) }, c.name), m ? h('span', { class: 'muted' }, ` · חודש ${m.n} מתוך ${m.of}`) : null),
       h('ul', { class: 'items' }, ...items.map((i) => itemRow(i, { client: c, me: ctx.me, office: ctx.office, pending, onMark: onMark(c) })))))),
-  );
+    ctx.short ? 2 : Infinity, 'months'),
+  ));
 }
 
 // ── The client card ───────────────────────

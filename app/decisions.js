@@ -18,7 +18,7 @@ import {
   loadStatusNotes, saveAccess,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, formatDay, formatStamp, mountSession, directory, viewerOf, who, taskBadge, briefDetails,
+  $, fill, h, toast, errorText, personChip, formatDay, formatStamp, mountSession, directory, viewerOf, who, taskBadge, briefDetails, capList
 } from './protocol-ui.js';
 import {
   urgentState, parseReport, exceptionPath, PATH, decisionRow, linkedTitle, pausedSinceYesterday, decisionNote, withEditor, campaignCheck,
@@ -148,6 +148,8 @@ function render() {
   fill($('ls-list'), ...(list.length ? list.map((r) => h('li', { class: 'of-card' },
     h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: r.url }, r.title), r.overdue ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
     r.body ? h('p', { class: 'of-line' }, r.body) : null)) : [h('li', { class: 'empty' }, 'אין כרגע הסלמות ברשימות.')]));
+  // Long queues are short on the screen: the first five and "הצג עוד" (the count stays whole).
+  for (const id of ['ex-list', 'ur-list', 'ac-list', 'pz-list', 'ls-list']) capList($(id), 5, `dc:${id}`);
   $('cq-n').textContent = String(openReq.length);
   fill($('cq-list'), ...(requests === null ? [h('li', { class: 'empty' }, 'בקשות השינוי עוד לא זמינות במסד הנתונים.')]
     : openReq.length ? openReq.map((r) => requestCard(r)) : [h('li', { class: 'empty' }, 'אין בקשות שינוי פתוחות.')]));

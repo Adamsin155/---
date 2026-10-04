@@ -12,7 +12,7 @@ import {
   loadClients, loadChecks, loadTasks, setCheck, addTask, loadDirectory, loadAllLog, loadStatusNotes, saveStatusNote, loadReviews, markReview,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, formatDay, mountSession, directory, viewerOf, who, progressBar, taskBadge,
+  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, formatDay, mountSession, directory, viewerOf, who, progressBar, taskBadge, capList
 } from './protocol-ui.js';
 import { loadMessagesSince, loadAccessStatus, loadDateChanges } from './owner-data.js';
 import { clientHealth, station, procName } from './health.js';
@@ -148,6 +148,7 @@ function render() {
       h('span', { class: 'muted' }, prev ? `המעבר הקודם: ${formatDay(prev.day)}${prev.by_email ? ` · ${who(prev.by_email)}` : ''}` : 'אין מעבר קודם להשוואה')));
   const attention = rows.filter((r) => r.attention);
   fill($('ps-list'), ...(attention.length ? attention.map((r) => passRow(r, seen[r.client.id], now)) : [h('li', { class: 'empty' }, 'אין לקוחות באדום, בצהוב, שהשתנו או תקועים.')]));
+  capList($('ps-list'), 6, 'ps:list');
   const rest = rows.filter((r) => !r.attention);
   const restOpen = rest.filter((r) => !seen[r.client.id]);
   fill($('ps-rest'), rest.length ? [

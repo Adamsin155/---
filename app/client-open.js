@@ -37,10 +37,14 @@ export const stationIndex = (key) => STATIONS.findIndex((s) => s.key === key);
 // is already behind the client and must not reopen as late. A check on an item
 // that does not apply is ignored by clientState. The weekly call is recurring: it
 // keeps its own rhythm and is never marked by an import.
-export function importKeys(stationKey) {
+// shootSet false: the client is imported before its shoot day took place and no shoot date
+// was given, so setting the shoot day (11, 11ב; in the first station since v6) is still
+// open work for Irit, not history.
+export function importKeys(stationKey, { shootSet = true } = {}) {
   const i = stationIndex(stationKey);
   if (i < 0) return [];
   const before = new Set(STATIONS.slice(0, i).flatMap((s) => s.procs));
+  if (!shootSet && i <= stationIndex('shoot')) for (const p of ['p11', 'p11b']) before.delete(p);
   return PROCESSES.filter((p) => before.has(p.id) && !p.recurring)
     .flatMap((p) => p.items.filter((it) => !it.recurring).map((it) => it.key));
 }

@@ -17,7 +17,7 @@ import {
   loadStatusNotes, saveStatusNote, setTaskStarted,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar,
+  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar, capList,
   mountSession, store, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
   isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
@@ -64,6 +64,7 @@ let minePerson = null;      // whose work the "my work" tab shows ('' = everyone
 let view = 'mine';
 let clientFilter = 'active';
 let lastLoad = 0;
+const laterOpen = new Set();   // the folded "this week" and "later" groups a person opened
 let waitGroupOpen = null;   // the collapsed "waiting on client" group keeps its state across renders
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash}`;
 
@@ -512,7 +513,110 @@ function taskMeta(t, now = new Date()) {
     `${isEscalation(t) ? 'דווח' : 'נפתח'}${by ? ` ע״י ${by}` : ''} · ${formatStamp(t.created_at)} · לפני ${lateBy(new Date(t.created_at), now)}`);
 }
 
+// ── The short list (the phone review of 4.10.2026) ──
+// "המשימות שלי" is short by default: a card per client and process with the client, the
+// action, the deadline in words and ONE action; the checklist, "ממתין ללקוח", the
+// shared-process claim and the exact deadline open with a tap ("פירוט"). Every group
+// shows its first MINE_CAP cards and "הצג עוד". "תצוגה מלאה" (kept per browser) gives
+// the whole list, as it was. Nothing is removed, only folded.
+const MINE_CAP = 5;
+const fullView = () => store.get('mine.full') === 'on';
+const openCards = new Set();   // cards whose details are open: kept across rebuilds
+function viewToggle() {
+  const full = fullView();
+  return h('div', { class: 'view-toggle', role: 'group', 'aria-label': 'אורך הרשימה' },
+    ...[['off', 'תצוגה קצרה'], ['on', 'תצוגה מלאה']].map(([v, label]) => h('button', {
+      type: 'button', class: 'chip', id: `mine-view-${v}`, 'aria-pressed': String((full ? 'on' : 'off') === v),
+      onclick: () => { store.set('mine.full', v); renderMine(); document.getElementById(`mine-view-${v}`)?.focus(); },
+    }, label)));
+}
+// The deadline in words: "באיחור 3 ימי עסקים", "היום עד 14:00", "מחר", "עד יום ה׳, 22.10".
+function whenWords(g, now = new Date()) {
+  if (g.status === 'overdue' && g.dueAt) return `באיחור ${lateBy(g.dueAt, now)}`;
+  if (g.status === 'client') return 'ממתין ללקוח';
+  if (!g.dueAt) return g.urgent ? 'עכשיו' : '';
+  const w = formatWhen(g.dueAt, now);
+  return /^(היום|מחר)$/.test(w) ? w : /^(היום|מחר) /.test(w) ? w.replace(' ', ' עד ') : `עד ${w}`;
+}
+
+function compactCard(g, person) {
+  const href = clientUrl(g.client.id, g.proc ? `#${g.proc.id}` : '#tasks');
+  const owners = g.task ? [g.task.owner] : [...new Set(g.entries.flatMap((e) => e.item.owners))];
+  const bulk = bulkFor(g);
+  const safe = g.key.replace(/[^\w-]/g, '_');
+  const waitId = `wl-${safe}`;
+  const panelId = `wd-${safe}`;
+  const canWait = !g.task && !g.proc.recurring && (scope === 'office' || CLIENT_PROCS.has(baseId(g.proc)));
+  const n = g.entries.length;
+  const one = n === 1;
+  const shortcut = g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null;
+  const start = g.task && g.urgent ? taskStart(g.task) : null;
+  const needsStart = !!start?.querySelector('button');
+  // The action in words: the task, or the process (a single item is named by its own check).
+  const what = g.task ? g.task.title : procLabel(g.proc);
+  const sub = g.task ? [isEscalation(g.task) ? null : 'משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ') : one ? '' : `${n} פריטים לסימון`;
+  const rows = () => h('ul', { class: 'wlist' }, ...g.entries.map((e) => {
+    const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
+    return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
+      h('label', { class: 'wrow', for: id },
+        h('input', { type: 'checkbox', id, class: 'cbx', onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
+        h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
+      e.task ? briefDetails(e.task) : null);
+  }));
+  // The one action: "התחלתי" on an urgent task; the form the process is worked in; the
+  // single item's own check; or the list of items, which opens here.
+  const listIsAction = !needsStart && !shortcut && !one;
+  const single = !needsStart && !shortcut && one;
+  if (shortcut) shortcut.classList.add('wc-go');
+  const extras = [
+    g.dueAt ? h('p', { class: 'wc-due num' }, `יעד: ${formatWhen(g.dueAt)}`) : null,
+    !person ? peopleChips(owners) : null,
+    claimControl(g, person),
+    g.task ? taskMeta(g.task) : null,
+    g.status === 'client' ? waitLine(g.wait, waitId) : null,
+    bulk || canWait ? h('div', { class: 'wproc-acts' },
+      bulk ? h('button', {
+        type: 'button', class: 'btn btn-sm btn-ghost bulk-btn',
+        'aria-label': `סימון ${bulk.items.length} פריטים כבוצעו בתהליך ${procLabel(g.proc)}`,
+        onclick: (ev) => bulkMark(g, bulk, ev.currentTarget),
+      }, bulk.whole ? `סימון כל התהליך כבוצע (${bulk.items.length})` : `סימון כל הפריטים שלי כבוצעו (${bulk.items.length})`) : null,
+      canWait && g.status !== 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => openWait(g) }, 'ממתין ללקוח') : null,
+      canWait && g.status === 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(g) }, 'סיום המתנה') : null) : null,
+    single ? null : rows(),
+  ].filter(Boolean);
+  const open = openCards.has(g.key);
+  const panel = extras.length ? h('div', { class: 'wc-panel', id: panelId, hidden: !open }, ...extras) : null;
+  const toggle = (label, cls) => h('button', {
+    type: 'button', class: cls, 'aria-expanded': String(open), 'aria-controls': panelId,
+    'aria-label': `${label}: ${g.client.name}, ${what}`,
+    onclick: (ev) => {
+      const now = panel.hidden;
+      panel.hidden = !now;
+      if (now) openCards.add(g.key); else openCards.delete(g.key);
+      for (const b of ev.currentTarget.closest('.wproc').querySelectorAll('[aria-controls]')) b.setAttribute('aria-expanded', String(now));
+      if (now) panel.querySelector('.cbx:not(:disabled), button, a')?.focus();
+    },
+  }, label);
+  const when = whenWords(g);
+  return h('li', { class: `wproc wc s-${g.status}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
+    h('div', { class: 'wc-head', 'aria-describedby': g.wait ? waitId : null },
+      h('a', { class: 'wclient', href }, g.client.name),
+      isAuto(g.client) ? h('span', { class: 'auto-tag' }, 'חדש') : null,
+      g.task ? taskBadge(g.task) : null,
+      when ? h('span', { class: `wc-when s-${g.status}` }, when) : null),
+    h('div', { class: 'wc-what' },
+      // A single task is named by its own check below; its kind is the line here.
+      h('p', { class: 'wc-title' }, single && g.task ? h('span', { class: 'wc-sub' }, sub || 'משימה') : [what, sub ? h('span', { class: 'wc-sub' }, ` · ${sub}`) : null]),
+      panel && !listIsAction ? toggle('פירוט', 'btn-text wc-more') : null),
+    start, // "התחלתי", or when it was pressed
+    shortcut,
+    single ? rows() : null,
+    listIsAction ? toggle(`פתיחת הרשימה (${n})`, 'btn btn-sm wc-go wc-open') : null,
+    panel);
+}
+
 function groupCard(g, person) {
+  if (!fullView()) return compactCard(g, person);
   // A reported exception is named by its badge; its reason is the task's own title below.
   const title = g.task ? (isEscalation(g.task) ? null : ['משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ')) : procLabel(g.proc);
   const href = clientUrl(g.client.id, g.proc ? `#${g.proc.id}` : '#tasks');
@@ -635,6 +739,7 @@ function upcomingSection(list, open) {
   const title = 'בקרוב · עוד לא לסימון';
   const n = h('span', { class: 'n' }, String(list.length));
   const body = h('ul', { class: 'wprocs' }, ...list.map(upcomingCard));
+  if (!fullView()) capList(body, MINE_CAP, 'mine:soon');
   if (open) return h('section', { class: 'wgroup g-soon', 'aria-label': title }, h('h2', { class: 'wgroup-h' }, title, n), body);
   return h('details', { class: 'wgroup g-soon' }, h('summary', { class: 'wgroup-h' }, title, n), body);
 }
@@ -648,6 +753,7 @@ function renderMine() {
     $('mine-people').hidden = true;
     fill($('mine-people'));
     fill($('mine-tools'));
+    fill($('mine-foot'));
     fill(wrap, h('p', { class: 'empty' }, viewerError ? VIEWER_UNKNOWN : 'לא הוגדר לך תפקיד בפרוטוקול, ולכן אין כאן רשימה. פנו למנהל המערכת.'));
     return;
   }
@@ -668,10 +774,14 @@ function renderMine() {
         h('select', { class: 'input', id: 'mine-select', onchange: (ev) => { minePerson = ev.currentTarget.value; renderMine(); } },
           ...opts.map(([k, label]) => h('option', { value: k, selected: (minePerson || '') === k }, `${label} (${count(k)})`)))));
   }
-  fill($('mine-tools'),
-    !own && person ? summaryActions(person, 'mine') : null,
-    person && person === me && !pushActive() ? notifyRow() : null);
-  showMonths($('my-months'), { person, me, office: worksCycle({ me, scope, error: viewerError }), clients, stateOf, checks });
+  const full = fullView();
+  $('mine-list').classList.toggle('is-short', !full);
+  // The morning summary and the browser notifications fold on a short list.
+  const tools = [!own && person ? summaryActions(person, 'mine') : null, person && person === me && !pushActive() ? notifyRow() : null].filter(Boolean);
+  fill($('mine-tools'), full ? tools : null);
+  // Under the list: the length of the list, and on a short one the tools.
+  fill($('mine-foot'), tools.length && !full ? h('details', { class: 'mine-more' }, h('summary', {}, 'סיכום בוקר והתראות'), ...tools) : null, viewToggle());
+  showMonths($('my-months'), { person, me, office: worksCycle({ me, scope, error: viewerError }), clients, stateOf, checks, short: !full });
 
   const nothing = person === me ? 'אין כרגע משהו פתוח אצלך.' : person ? `אין כרגע משהו פתוח אצל ${PEOPLE[person].name}.` : 'אין כרגע פריטים פתוחים.';
   if (!clients.length) {
@@ -683,6 +793,7 @@ function renderMine() {
   const ilaiCtx = person === 'ilai' ? { clients, checks, stateOf, me, viewer: { me, scope, error: viewerError }, refresh: () => { if (view === 'mine' && !busy()) renderKeepingFocus(); } } : null;
   const ilai = ilaiCtx ? ilaiSection(ilaiCtx) : null;
   const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
+  if (ilai && !full) capList(ilai.querySelector('.il-list'), MINE_CAP, 'mine:ilai');
   const list = workFor(person).filter((g) => !covered(g));
   const soon = person ? upcomingSection(upcomingGroups(person), own) : null;
   const review = person ? OFFICE_REVIEWS.find((r) => r.owner === person && reviewPending(r)) : null;
@@ -693,6 +804,8 @@ function renderMine() {
     return;
   }
   const today = dayIso(new Date());
+  // A short list: each group shows its first cards and "הצג עוד" (kept per person and group).
+  const cap = (ul, k) => (full ? ul : capList(ul, MINE_CAP, `mine:${person || 'all'}:${k}`));
   // Thursday's pass is a fixed card of its own, right after urgent work.
   const thuGroup = thursday ? h('section', { class: 'wgroup g-thu', 'aria-label': 'מעבר חובה של יום חמישי' }, h('ul', { class: 'wprocs' }, thursday)) : null;
   fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, k === 'client' ? soon : null, (() => {
@@ -709,12 +822,18 @@ function renderMine() {
         ontoggle: (ev) => { waitGroupOpen = ev.currentTarget.open; },
       },
       h('summary', { class: 'wgroup-h' }, title, h('span', { class: 'n' }, String(g.length))),
-      h('ul', { class: 'wprocs' }, ...g.map((x) => groupCard(x, person))));
+      cap(h('ul', { class: 'wprocs' }, ...g.map((x) => groupCard(x, person))), k));
+    }
+    // On a short list what is not for today or tomorrow waits folded, one tap away.
+    if (!full && (k === 'week' || k === 'later')) {
+      return h('details', { class: `wgroup g-${k}`, open: laterOpen.has(k), ontoggle: (ev) => { if (ev.currentTarget.open) laterOpen.add(k); else laterOpen.delete(k); } },
+        h('summary', { class: 'wgroup-h' }, title, h('span', { class: 'n' }, String(g.length))),
+        cap(h('ul', { class: 'wprocs' }, ...g.map((x) => groupCard(x, person))), k));
     }
     return h('section', { class: `wgroup g-${k}`, 'aria-label': title },
       h('h2', { class: 'wgroup-h' }, k === 'urgent' || k === 'escalation' ? [h('span', { class: 'sicon', 'aria-hidden': 'true' }), title] : title,
         h('span', { class: 'n' }, String(g.length + extra.length))),
-      h('ul', { class: 'wprocs' }, ...extra, ...g.map((x) => groupCard(x, person))));
+      cap(h('ul', { class: 'wprocs' }, ...extra, ...g.map((x) => groupCard(x, person))), k));
   })()]));
 }
 
@@ -1062,7 +1181,8 @@ function renderClients() {
   const now = new Date();
   const work = own ? workFor(me) : [];
   const soon = own ? upcomingGroups(me, now) : [];
-  fill($('client-list'), h('ul', { class: 'clist' }, ...list.map((c) => {
+  // A long list shows its first twelve and "הצג עוד" (the search and the filters cover the rest).
+  fill($('client-list'), capList(h('ul', { class: 'clist' }, ...list.map((c) => {
     const s = stateOf(c);
     const next = live(c) && !own ? nextStep(c, s) : null;
     const signed = quoteInfo.get(c.quote_id)?.signed_at;
@@ -1090,7 +1210,7 @@ function renderClients() {
           live(c) && s.overdue && !own ? h('span', { class: 'flag' }, statusBadge('overdue', null), h('span', { class: 'num' }, ` · ${s.overdue} תהליכים`)) : null,
           live(c) && s.waitingOnClient && !own ? h('span', { class: 'flag' }, statusBadge('client', null), h('span', { class: 'num' }, ` · ${s.waitingOnClient}`)) : null,
           c.shoot_at && live(c) ? h('span', { class: 'muted' }, `צילום: ${formatWhen(new Date(c.shoot_at))}`) : null)));
-  })));
+  })), q ? Infinity : 12, `clients:${clientFilter}`));
 }
 $('client-search').addEventListener('input', renderClients);
 
@@ -1645,7 +1765,7 @@ function healthSection(now) {
   const total = idle.length + noDue.length + missing.length + lateByClient(late).length;
   const group = (cls, title, list, row) => (list.length ? h('div', { class: `health-group ${cls}` },
     h('h3', { class: 'health-h' }, title, h('span', { class: 'n' }, String(list.length))),
-    h('ul', { class: 'stuck health-list' }, ...list.map(row))) : null);
+    capList(h('ul', { class: 'stuck health-list' }, ...list.map(row)), 5, `ctl:${cls}`)) : null);
   return h('section', { class: 'ctl-sec health-sec', 'aria-labelledby': 'ctl-health' },
     secHead('ctl-health', 'תקינות המערכת', total),
     h('p', { class: 'perf-intro' }, 'המערכת צריכה לשקף את המצב בפועל: לכל לקוח שלב נכון, לכל משימה אחראי ומועד יעד, ואף לקוח לא נתקע בין שלבים.'),
@@ -1751,7 +1871,7 @@ function renderControl() {
         ...rows.filter((r) => r.p.editor).map(personRow)))),
     h('h2', { class: 'wgroup-h', id: 'ctl-late', tabindex: '-1' }, 'באיחור אצלנו', h('span', { class: 'n' }, String(stuck.length))),
     stuck.length
-      ? h('ul', { class: 'stuck' }, ...stuck.map(({ c, lateProcs, lateTasks }) => h('li', {},
+      ? capList(h('ul', { class: 'stuck' }, ...stuck.map(({ c, lateProcs, lateTasks }) => h('li', {},
         h('a', { href: clientUrl(c.id), class: 'wclient' }, c.name),
         clientNotes(c, now),
         h('ul', {},
@@ -1762,11 +1882,11 @@ function renderControl() {
             h('span', { class: 'muted num' }, ` · יעד ${formatWhen(x.dueAt)}`))),
           ...lateTasks.map((t) => h('li', {},
             h('a', { href: clientUrl(c.id, '#tasks') }, `משימה: ${t.title}`), ' ', personChip(t.owner), taskBadge(t),
-            h('span', { class: 'muted num' }, ` · עד ${formatDay(t.due_on)}`)))))))
+            h('span', { class: 'muted num' }, ` · עד ${formatDay(t.due_on)}`))))))), 6, 'ctl:late')
       : h('p', { class: 'empty' }, 'אין לקוחות עם תהליכים או משימות באיחור.'),
     h('h2', { class: 'wgroup-h', id: 'ctl-wait', tabindex: '-1' }, 'ממתין ללקוח · צריך ליצור קשר', h('span', { class: 'n' }, String(byClient.size))),
     byClient.size
-      ? h('ul', { class: 'stuck waiting-list' }, ...[...byClient.values()].map(({ c, list }) => h('li', {},
+      ? capList(h('ul', { class: 'stuck waiting-list' }, ...[...byClient.values()].map(({ c, list }) => h('li', {},
         h('div', { class: 'wait-head' }, h('a', { href: clientUrl(c.id), class: 'wclient' }, c.name), contactLinks(c)),
         clientNotes(c, now),
         h('ul', {}, ...list.map((x) => h('li', {},
@@ -1775,7 +1895,7 @@ function renderControl() {
           x.wait.reason ? h('span', {}, ` · ״${x.wait.reason}״`) : null,
           x.wait.recheck ? h('span', { class: 'muted' }, ` · לבדוק שוב: ${dayShort(x.wait.recheck)}`) : null,
           recheckDue(x.wait) ? h('span', { class: 'tag tag-warn' }, 'הגיע מועד הבדיקה') : null,
-          businessDaysBetween(new Date(x.wait.at), now) > 2 ? h('span', { class: 'tag' }, 'ממתין יותר מיומיים') : null))))))
+          businessDaysBetween(new Date(x.wait.at), now) > 2 ? h('span', { class: 'tag' }, 'ממתין יותר מיומיים') : null)))))), 6, 'ctl:wait')
       : h('p', { class: 'empty' }, 'אין לקוחות שממתינים להם.'),
     statusSection(now),
     editorSection(now),
@@ -2100,7 +2220,7 @@ $('new-form').addEventListener('submit', async (e) => {
   const signed = q ? P01 : [];
   pendingChecks = {
     row, signed, signedNote: q ? `נחתם במערכת: ${q.number}` : null,
-    imported: importing ? importKeys(station).filter((k) => !signed.includes(k)) : [],
+    imported: importing ? importKeys(station, { shootSet: !!fields.shoot_at }).filter((k) => !signed.includes(k)) : [],
   };
   return done();
 });
