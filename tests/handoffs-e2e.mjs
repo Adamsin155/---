@@ -160,6 +160,8 @@ const opened = [];   // wa.me addresses that WhatsApp was asked to open
 let slowPhones = 0;  // ms the fake waits before sending the team's numbers
 async function newPage({ timezoneId = 'Asia/Jerusalem', viewport = { width: 1280, height: 900 } } = {}) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId, viewport });
+  // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
+  await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
   await ctx.clock.install({ time: NOW });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   // WhatsApp itself is never reached: the test only sees what it would have opened.

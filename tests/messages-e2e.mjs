@@ -468,8 +468,10 @@ await step('on a 360px phone (the next day, a new queue): it fits, no sideways s
   await page.goto(`${BASE}clients.html`);
   await page.waitForSelector('#app:not([hidden])');
   await page.waitForFunction(() => !document.getElementById('nav-messages').hidden);
-  // The top bar folds its links away on a phone; the page head keeps the way in.
+  // The top bar folds its links away on a phone; the page head keeps the way in, behind
+  // "מסכים נוספים" when there are more than two links (the phone review of 4.10.2026).
   assert.equal(await page.locator('#nav-messages').isVisible(), false);
+  await page.click('.screens-toggle');
   assert.equal(await page.locator('#cta-messages').isVisible(), true);
   assert.ok((await page.locator('#cta-messages').boundingBox()).height >= 44);
   assert.ok(await noHScroll(page), 'clients.html with the link, no sideways scroll');

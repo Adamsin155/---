@@ -14,7 +14,7 @@ import { STATIONS } from './protocol.js';
 import { isBusinessDay } from './protocol-logic.js';
 import { loadClients, loadChecks, loadDirectory, setCheck, clearCheck } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, store,
+  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, store, capList
 } from './protocol-ui.js';
 import { dayKeyIL } from './tz.js';
 import { canManageTeam } from './team-rules.js';
@@ -151,6 +151,7 @@ function render() {
   const off = !isBusinessDay(now);
   const list = off ? [] : shown();
   fill($('msg-queue'), list.map(card));
+  capList($('msg-queue'), 5, 'msg:queue'); // a queue: the next ones; the rest one tap away
   const empty = $('msg-empty');
   if (off) empty.textContent = 'היום המשרד סגור (סוף שבוע או חג), ולכן אין היום הודעות יזומות ללקוחות.';
   else if (!list.length) empty.textContent = station === 'all' ? 'אין היום לקוחות פעילים בתור.' : 'אין היום לקוחות בתחנה הזו.';
