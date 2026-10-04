@@ -15,8 +15,8 @@ import { RULE_BY_ID, stepOfKey } from './reminder-rules.js';
 export const WA_LANG = 'he';
 // The site the "פתיחה במערכת" button opens (the variable is the page, e.g.
 // client.html?id=…). The base is part of the approved template: moving the site
-// to app.astrateg.com (docs/ops.md, section 8) means submitting the templates again.
-export const SITE_URL = 'https://adamsin155.github.io/---/';
+// to app.astrateg.tech (docs/ops.md, section 8) means submitting the templates again.
+export const SITE_URL = 'https://app.astrateg.tech/';
 export const OPEN_BUTTON = 'פתיחה במערכת';
 export const FOOTER = 'אסטרטג · הודעת עבודה. להפסקה: השב/י הסר';
 // Quick replies (the plan: "אני על זה" and "צריך עזרה"; "בוצע" only on simple items;
