@@ -107,3 +107,14 @@ test('process wording names no fixed quantity: it follows the package', () => {
   assert.match(PROCESSES.find((p) => p.id === 'p12').items.find((i) => i.key === 'p12.scripts').label, /לפי החבילה/);
   assert.match(PROCESSES.find((p) => p.id === 'p23').items.find((i) => i.key === 'p23.made').label, /לפי החבילה/);
 });
+
+test('import before the shoot day without a shoot date: setting the shoot day stays open', () => {
+  for (const st of ['char', 'content', 'shoot']) {
+    const keys = importKeys(st, { shootSet: false });
+    assert.ok(!keys.some((k) => /^p11b?./.test(k)), st);
+    assert.ok(importKeys(st).some((k) => k.startsWith('p11.')), st);
+    assert.ok(keys.some((k) => k.startsWith('p02.')), st);
+  }
+  // After the shoot took place there is nothing left to set.
+  assert.ok(importKeys('post', { shootSet: false }).some((k) => k.startsWith('p11.')));
+});

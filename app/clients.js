@@ -2220,7 +2220,7 @@ $('new-form').addEventListener('submit', async (e) => {
   const signed = q ? P01 : [];
   pendingChecks = {
     row, signed, signedNote: q ? `נחתם במערכת: ${q.number}` : null,
-    imported: importing ? importKeys(station).filter((k) => !signed.includes(k)) : [],
+    imported: importing ? importKeys(station, { shootSet: !!fields.shoot_at }).filter((k) => !signed.includes(k)) : [],
   };
   return done();
 });
