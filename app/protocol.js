@@ -43,6 +43,7 @@ export const PEOPLE = {
   // Field sales (decision of 3.10.2026): sends new deals to Irit from deal.html and
   // sees only his own deals. Not part of the client protocol (no items, no clients).
   stav: { key: 'stav', name: 'סתיו', role: 'סוכן שטח', sales: true },
+  amos: { key: 'amos', name: 'עמוס', role: 'סוכן שטח', sales: true },
   // Until Ofir assigns an editor, editing items belong to "the assigned editor".
   editor: { key: 'editor', name: 'העורך המשויך', role: 'עד ששויך עורך' },
 };
@@ -51,7 +52,7 @@ export const PEOPLE = {
 // the office screens (all clients, daily control, performance). 'own': only their
 // own work and the clients it belongs to. 'sales': only deal.html and their own
 // deals (no client is theirs). The owner (no person) sees the office.
-export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', stav: 'sales' };
+export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', stav: 'sales', amos: 'sales' };
 export const scopeOf = (person) => (person ? SCOPE[person] || 'own' : 'office');
 export const isSales = (person) => !!PEOPLE[person]?.sales;
 

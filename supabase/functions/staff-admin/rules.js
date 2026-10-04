@@ -17,7 +17,7 @@
 // Keep in step with TEAM_PEOPLE in app/protocol.js and TEAM_MANAGERS in
 // app/team-rules.js (the unit tests compare them). A copy, because the deployed
 // function cannot import files from outside its folder.
-export const PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'stav'];
+export const PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'stav', 'amos'];
 export const TEAM_MANAGERS = ['irit', 'lior'];
 
 // Pages a sign-in link may open. The link is only for the office's own site.
