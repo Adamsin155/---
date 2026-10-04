@@ -1,11 +1,11 @@
 // The content Gantt in a real Postgres (PGlite, every migration applied):
-// supabase/migrations/20261003130000_content_gantt.sql.
+// supabase/migrations/20261003130000_content_gantt.sql and 20261003130100_gantt_file_fk.sql.
 //  - client_gantt: the office (Ilai too) reads and writes; whoever else sees the
 //    client (its editor) only reads; nobody else, not anon. Who and when from the
 //    session; the key, link and kind shapes; internal kinds; the day it went up.
-//  - client_files (the files' migration, built in parallel): only in this test, as
-//    the shared contract has it, to check a file must be the client's own and that
-//    the client's link shows the file's link, never its path.
+//  - client_files (20261003110000_client_files.sql): a file must be the client's own
+//    and exist (a foreign key, set to null when the file row goes), and the client's
+//    link shows the file's link, never its path.
 //  - The client's read-only link: created by the office, the token in Vault, get_gantt
 //    for anon without internal entries or notes; revoked, expired, closed, invalid.
 //  - Safe to run again.
@@ -16,22 +16,17 @@ import { GANTT_KINDS } from '../../app/gantt-template.js';
 import { generatePlan } from '../../app/gantt-logic.js';
 
 const MIGRATION = '20261003130000_content_gantt.sql';
+const FK_MIGRATION = '20261003130100_gantt_file_fk.sql';
 const PEOPLE = { owner: null, irit: 'irit', lior: 'lior', ofir: 'ofir', ilai: 'ilai', nadia: 'nadia', anna: 'anna' };
 const RLS = /row-level security|violates|permission denied|not allowed/i;
 let db;
 const users = {};
 const ids = {};
 
-// public.client_files as the shared contract describes it (the other migration's).
-const CLIENT_FILES = `
-create table if not exists public.client_files (
-  id uuid primary key default gen_random_uuid(), client_id uuid not null references public.clients (id) on delete cascade,
-  kind text not null, label text, storage_path text, mime text, size_bytes bigint, posted_on date, link text,
-  uploaded_by text, created_at timestamptz not null default now(), deleted_at timestamptz);
-alter table public.client_files enable row level security;
-drop policy if exists "files of own clients" on public.client_files;
-create policy "files of own clients" on public.client_files for select to authenticated using (public.can_see_client(client_id));
-grant select on public.client_files to authenticated;`;
+// A file row of public.client_files, with a path of the shape that table requires.
+const addFile = async (client, kind, name, link = null) => (await db.query(
+  'insert into public.client_files (client_id, kind, label, storage_path, link) values ($1, $2, $3, $4, $5) returning id',
+  [client, kind, name, `${client}/${kind}/${crypto.randomUUID()}-${name}`, link])).rows[0].id;
 
 before(async () => {
   db = await freshDatabase();
@@ -117,15 +112,21 @@ test('the database\'s rules: plan and renewal are internal whatever is sent; pos
   assert.deepEqual(p, [true, '2026-05-02', null]);
 });
 
-test('a file must be the client\'s own (public.client_files, when it is there)', async () => {
-  // Before the files' migration: the column takes any id.
-  const before = await run('ilai', "insert into public.client_gantt (client_id, key, kind, title, day, file_id) values ($1, 'video.1', 'video', 't', '2026-05-01', gen_random_uuid()) returning key", [ids.edited]);
-  assert.equal(before.rows?.[0]?.key, 'video.1', before.error);
-  await db.exec(CLIENT_FILES);
-  const mine = (await db.query("insert into public.client_files (client_id, kind, label, storage_path, link) values ($1, 'deliverable_video', 'סרטון 1', 'c/1.mp4', 'https://instagram.com/reel/abc') returning id", [ids.edited])).rows[0].id;
-  const theirs = (await db.query("insert into public.client_files (client_id, kind, label, storage_path) values ($1, 'deliverable_video', 'x', 'c/2.mp4') returning id", [ids.other])).rows[0].id;
-  assert.equal((await run('ilai', "insert into public.client_gantt (client_id, key, kind, title, day, file_id) values ($1, 'video.1', 'video', 't', '2026-05-01', $2) returning key", [ids.edited, mine])).rows?.[0]?.key, 'video.1');
-  assert.match((await run('ilai', "insert into public.client_gantt (client_id, key, kind, title, day, file_id) values ($1, 'video.1', 'video', 't', '2026-05-01', $2)", [ids.edited, theirs])).error, /file not of this client/);
+test('a file must be the client\'s own and exist; removing the file row leaves the entry without it', async () => {
+  const INS = "insert into public.client_gantt (client_id, key, kind, title, day, file_id) values ($1, 'video.1', 'video', 't', '2026-05-01', $2) returning key";
+  const mine = await addFile(ids.edited, 'deliverable_video', 'reel.mp4', 'https://instagram.com/reel/abc');
+  const theirs = await addFile(ids.other, 'deliverable_video', 'x.mp4');
+  assert.equal((await run('ilai', INS, [ids.edited, mine])).rows?.[0]?.key, 'video.1');
+  assert.match((await run('ilai', INS, [ids.edited, theirs])).error, /file not of this client/);
+  assert.match((await run('ilai', INS, [ids.edited, crypto.randomUUID()])).error, /file not of this client|foreign key/);
+  // The foreign key (20261003130100): a file row removed (the SQL editor; the app only soft-deletes) clears the link.
+  const gone = await addFile(ids.edited, 'deliverable_video', 'gone.mp4');
+  await db.query("insert into public.client_gantt (client_id, key, kind, title, day, file_id) values ($1, 'video.2', 'video', 't', '2026-05-02', $2)", [ids.edited, gone]);
+  await db.query('delete from public.client_files where id = $1', [gone]);
+  assert.equal((await db.query("select file_id from public.client_gantt where client_id = $1 and key = 'video.2'", [ids.edited])).rows[0].file_id, null);
+  const fk = await db.query("select confdeltype from pg_constraint where conname = 'client_gantt_file_id_fkey'");
+  assert.equal(fk.rows[0]?.confdeltype, 'n', 'on delete set null');
+  await db.query("delete from public.client_gantt where key = 'video.2'");
   ids.file = mine;
 });
 
@@ -165,7 +166,7 @@ test('the client\'s link: the office creates it, anon reads only what the client
   assert.deepEqual([v.time, v.state, v.link, v.num], ['19:00', 'posted', 'https://instagram.com/reel/abc', null]);
   assert.equal(gr.link, 'https://instagram.com/p/xyz');
   const text = JSON.stringify(g);
-  for (const secret of ['הערה פנימית', 'c/1.mp4', 'תכנון', 'חידוש', 'פנימי', 'ilai@', 'note', 'storage', 'file_id', 'by_email']) assert.ok(!text.includes(secret), secret);
+  for (const secret of ['הערה פנימית', 'reel.mp4', 'deliverable_video/', 'תכנון', 'חידוש', 'פנימי', 'ilai@', 'note', 'storage', 'file_id', 'by_email']) assert.ok(!text.includes(secret), secret);
   // A staff member opening it sees a preview.
   assert.equal((await run('irit', 'select public.get_gantt($1) as g', [link.token])).rows[0].g.preview, true);
   // Wrong or malformed tokens.
@@ -210,13 +211,19 @@ test('anon runs get_gantt and nothing else of it; every table here has row level
   assert.deepEqual(t.rows, [{ relname: 'client_gantt', relrowsecurity: true }, { relname: 'client_gantt_links', relrowsecurity: true }]);
 });
 
-test('the migration is safe to run again, before and after the files\' table, and the later ones still load', async () => {
+test('the migrations are safe to run again, with or without the files\' table, and the later ones still load', async () => {
   const again = await freshDatabase();
-  await again.exec(migrationSql(MIGRATION));
-  await again.exec(CLIENT_FILES);
-  await again.exec(migrationSql(MIGRATION));
-  for (const f of migrationFiles().filter((x) => x > MIGRATION)) await again.exec(migrationSql(f));
+  for (const f of [MIGRATION, FK_MIGRATION, MIGRATION, FK_MIGRATION]) await again.exec(migrationSql(f));
+  for (const f of migrationFiles().filter((x) => x > FK_MIGRATION)) await again.exec(migrationSql(f));
   const n = (await again.query("select count(*)::int as n from pg_policies where tablename = 'client_gantt'")).rows[0].n;
   assert.equal(n, 4);
+  assert.equal((await again.query("select count(*)::int as n from pg_constraint where conname = 'client_gantt_file_id_fkey'")).rows[0].n, 1);
   await again.close();
+  // Without public.client_files (a project where the files' migration is not in yet): both load, no key.
+  const bare = await freshDatabase({ upTo: '20261003110000_client_files.sql' });
+  for (const f of [MIGRATION, FK_MIGRATION, FK_MIGRATION]) await bare.exec(migrationSql(f));
+  assert.equal((await bare.query("select count(*)::int as n from pg_constraint where conname = 'client_gantt_file_id_fkey'")).rows[0].n, 0);
+  await bare.query("insert into public.clients (name) values ('x')");
+  await bare.query("insert into public.client_gantt (client_id, key, kind, title, day, file_id) select id, 'video.1', 'video', 't', '2026-05-01', gen_random_uuid() from public.clients");
+  await bare.close();
 });
