@@ -34,12 +34,19 @@ import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
 import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { folderItemOf } from './qa-logic.js';
 import { loadOfirMeetings } from './office-data.js';
-import { intakeShortcut, mountClientIntake, describeIntakeMark } from './intake-ui.js';
+import { intakeShortcut, mountClientIntake, describeIntakeMark, writesScripts } from './intake-ui.js';
+import { canWriteScripts } from './scripts-data.js';
 // Stage 4: the client's status page, approvals, surveys and WhatsApp consent.
 import { mountClientStatus } from './status-link-ui.js';
 // Stage 5: the monthly cycle (a draft), and items newer than the client's protocol version.
 import { mountClientMonth, worksCycle } from './month-ui.js';
 import { freshText } from './protocol-versions.js';
+// The client's files ("תיק לקוח"): materials, deliverables and the client's gallery link.
+import { mountClientFiles } from './files-ui.js';
+// The manager's features: the contract summary, and archiving (the owner and Ofir).
+import { contractSummary, fileCounts } from './contract-summary.js';
+import { loadDeliverableFiles, archiveClient } from './manager-data.js';
+import { canArchive } from './manager-rules.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -57,6 +64,8 @@ let healthExtras = null;     // messages, history and date changes, for the colo
 let tlAll = false;           // the timeline shows everything done, not only the latest
 let questions = null;        // questions to the one responsible about this client (null: none or not loaded)
 let ofirMeetings = null;     // Ofir's meetings today (times only), for "אופיר באפיון, בקרה עד…" (null: not known)
+let delivFiles = null;     // deliverables uploaded as files (null: no such table, or not readable)
+let viewerInfo = null;     // viewerOf(): for archiving
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
 let scope = 'office';        // 'own': only my processes and items; 'office': may show the whole protocol
@@ -106,12 +115,13 @@ async function load() {
     checks = ch[id] || {};
     tasks = t;
     if (c.quote_id && (!quote || quote.id !== c.quote_id)) quote = await loadQuoteSummary(c.quote_id);
-    [access, statusNotes, healthExtras, questions, ofirMeetings] = await Promise.all([
+    [access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles] = await Promise.all([
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
       own() ? null : loadHealthExtras(id, new Date(Date.now() - 30 * 864e5).toISOString()),
       loadQuestions({ clientId: id }).catch(() => null),
       loadOfirMeetings(new Date().toISOString()).catch(() => null),
+      own() ? null : loadDeliverableFiles(id),
     ]);
     statusNote = statusNotes?.[0] || null;
   } catch (err) {
@@ -136,12 +146,26 @@ function showMissing() {
   fill(st, ...(own() ? [
     h('strong', {}, 'אין לך גישה ללקוח הזה.'),
     h('span', {}, 'כאן נפתחים רק לקוחות שיש לך בהם עבודה: עריכה ששויכה אליך, יום צילום קרוב או משימה שלך. אם צריך אותו, פנו לליאור.'),
-    h('a', { class: 'btn', href: 'clients.html#mine' }, '→ מה עליי'),
+    h('a', { class: 'btn', href: 'clients.html#mine' }, '→ המשימות שלי'),
   ] : [
     h('strong', {}, 'הלקוח לא נמצא.'),
-    h('span', {}, 'ייתכן שהקישור שגוי או ישן.'),
+    h('span', {}, 'ייתכן שהקישור שגוי או ישן, או שהלקוח הועבר לארכיון.'),
     h('a', { class: 'btn', href: 'clients.html#clients' }, '→ כל הלקוחות'),
   ]));
+}
+
+// The scripts page (scripts.html): Lior and the owner always; anyone else when Lior
+// granted them this client (asked once per client).
+let scriptsGrant = { id: null, ok: false };
+function scriptsOk() {
+  if (viewerError) return false;
+  if (writesScripts(me, scope)) return true;
+  if (scriptsGrant.id !== client.id) {
+    const cid = client.id;
+    scriptsGrant = { id: cid, ok: false };
+    canWriteScripts(cid).then((ok) => { if (ok && scriptsGrant.id === cid) { scriptsGrant.ok = true; renderKeepingFocus(); } });
+  }
+  return scriptsGrant.ok;
 }
 
 function render() {
@@ -159,8 +183,9 @@ function render() {
     if (tp) openPhases.add(tp.proc.phase);
   }
   renderHead(s);
-  mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus() });
+  mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus(), scripts: scriptsOk() });
   mountClientStatus($('st-slot'), { client, scope, me, toast });
+  mountClientFiles($('fl-slot'), { client, me: viewerError ? undefined : me, myEmail, toast });
   renderAccess();
   renderQa(s);
   renderViewbar();
@@ -317,25 +342,26 @@ function autoBanner() {
       h('button', { type: 'button', class: 'btn-text danger', onclick: () => openCancel() }, 'ההסכם בוטל')));
 }
 
+// The content Gantt of the client (gantt.html): in the system, next to the outside links.
+const ganttChip = () => h('li', {}, h('a', { class: 'chip gantt-chip', href: `gantt.html?id=${encodeURIComponent(client.id)}`, id: 'cc-gantt' }, 'גאנט התוכן'));
+
 function linksRow() {
   const links = client.links || {};
   const set = LINKS.filter((l) => links[l.key]);
   // 'own': the links to work with, nothing to edit.
   if (own()) {
-    return set.length ? h('nav', { class: 'cc-links', 'aria-label': 'קישורים של הלקוח' },
+    return h('nav', { class: 'cc-links', 'aria-label': 'קישורים של הלקוח' },
       h('span', { class: 'me-label' }, 'קישורים:'),
-      h('ul', { class: 'chips-row' }, ...set.map((l) => h('li', {}, h('a', { class: 'chip link-chip', href: links[l.key], target: '_blank', rel: 'noopener' },
-        l.label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')))))) : null;
+      h('ul', { class: 'chips-row' }, ganttChip(), ...set.map((l) => h('li', {}, h('a', { class: 'chip link-chip', href: links[l.key], target: '_blank', rel: 'noopener' },
+        l.label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)'))))));
   }
   const missing = LINKS.filter((l) => !links[l.key] && checks[l.after]?.state === 'done');
   return h('nav', { class: 'cc-links', 'aria-label': 'קישורים של הלקוח' },
     h('span', { class: 'me-label' }, 'קישורים:'),
-    set.length || missing.length
-      ? h('ul', { class: 'chips-row' },
+    h('ul', { class: 'chips-row' }, ganttChip(),
         ...set.map((l) => h('li', {}, h('a', { class: 'chip link-chip', href: links[l.key], target: '_blank', rel: 'noopener' },
           l.label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')))),
-        ...missing.map((l) => h('li', {}, h('button', { type: 'button', class: 'chip chip-missing', onclick: () => openEdit(`ed-link-${l.key}`) }, `חסר: ${l.label}`))))
-      : h('span', { class: 'muted' }, 'אין קישורים עדיין.'),
+        ...missing.map((l) => h('li', {}, h('button', { type: 'button', class: 'chip chip-missing', onclick: () => openEdit(`ed-link-${l.key}`) }, `חסר: ${l.label}`)))),
     h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit(`ed-link-${LINKS[0].key}`) }, set.length ? 'עריכת קישורים' : 'הוספת קישורים'));
 }
 
@@ -518,7 +544,8 @@ function renderHead(s) {
       h('div', { class: 'head-actions' },
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-escalate', onclick: () => openEscalate() }, 'דיווח חריגה לליאור'),
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => window.print() }, 'הדפסה'),
-        own() ? null : h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'))),
+        own() ? null : h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'),
+        canArchive(viewerInfo) ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost btn-danger', id: 'btn-archive', onclick: () => archiveThis() }, 'העברה לארכיון') : null)),
     // Office: the colour and why, now (station, who, until when), next (and what the client owes).
     own() || c.status === 'cancelled' || c.status === 'ended' ? null : (() => { const x = healthNow(s); return healthHead(x.health, x.st, x.now); })(),
     h('div', { class: 'cc-progress' },
@@ -545,6 +572,7 @@ function renderHead(s) {
         fact('לוגו', c.has_logo === true ? 'יש' : c.has_logo === false ? 'אין, עילאי מכין' : null),
         editorFact,
         fact('סיום החוזה', c.contract_end ? formatDay(c.contract_end) : null)),
+    own() ? null : contractBlock(s),
     statusNoteBlock(),
     linksRow(),
     own() ? null : deliverablesBlock(s),
@@ -555,6 +583,41 @@ function renderHead(s) {
     h('strong', { class: 'num', dir: 'ltr' }, `${prog.done}/${prog.total}`),
     progressBar(prog.done, prog.total, prog.label),
     prog.overdue ? statusBadge('overdue', null) : null);
+}
+
+// ── The contract summary (app/contract-summary.js) ──
+// What the signed agreement grants against what was done, from what the team marks,
+// the counter below and the files uploaded as deliverables. The office's (no prices).
+function contractBlock(s) {
+  const now = new Date();
+  const sum = contractSummary(client, s, checks, { files: delivFiles ? fileCounts(delivFiles, client.id) : null, now });
+  const when = [sum.month?.text, client.contract_end ? `סיום החוזה ${formatDay(client.contract_end)}` : null].filter(Boolean).join(' · ');
+  const renewal = sum.renewal ? (sum.renewal.state === 'later' ? `חלון החידוש ${sum.renewal.text}` : sum.renewal.text) : null;
+  return h('section', { class: 'cs', id: 'contract-summary', 'aria-labelledby': 'cs-h' },
+    h('div', { class: 'cs-head' }, h('h2', { id: 'cs-h' }, 'סיכום החוזה'),
+      when ? h('span', { class: 'cs-when' }, when) : null,
+      renewal ? h('span', { class: 'cs-when' }, h('span', { class: sum.renewal.state === 'open' ? 'is-open' : null }, renewal)) : null),
+    sum.empty ? h('p', { class: 'muted' }, 'בכרטיס לא הוזן מה כלול בחוזה. ',
+      h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit('ed-deliv-videos') }, 'הזנת כמויות'))
+      : h('ul', { class: 'cs-items' }, ...sum.items.map((x) => h('li', { class: `cs-item${x.over ? ' is-over' : ''}`, id: `cs-${x.key}` },
+        h('span', { class: 'cs-n num', dir: 'ltr' }, String(x.done), h('small', {}, `/${x.total}`)),
+        h('span', { class: 'cs-t' }, x.text),
+        progressBar(Math.min(x.done, x.total), x.total, `${x.short} שבוצעו`)))),
+    sum.flags.length ? h('p', { class: 'cs-flags' }, `כלול גם: ${sum.flags.join(' · ')}`) : null,
+    sum.empty ? null : h('p', { class: 'hint' }, `בוצע: הגבוה מבין מה שסומן בפרוטוקול, המונה ״נמסרו״ בכרטיס${delivFiles ? ' והקבצים שהועלו' : ''}.`));
+}
+
+// ── Archive (the owner and Ofir; the database checks) ──
+async function archiveThis() {
+  const name = client.business || client.name;
+  if (!confirm(`להעביר את ${name} לארכיון?\nהלקוח ייעלם מכל הרשימות, הדפים והקישורים שלו (גם דף המצב ללקוח) לא ייפתחו, והכספת שלו תיסגר. אפשר לשחזר אותו מהארכיון במבט המנהל.`)) return;
+  try {
+    await archiveClient(client.id);
+  } catch (err) {
+    toast(`ההעברה לארכיון לא נשמרה. ${errorText(err)}`);
+    return;
+  }
+  location.href = 'owner.html#archive';
 }
 
 function goTo(procId) {
@@ -847,7 +910,7 @@ function procCard(x, now, s) {
         own() ? null : h('button', { type: 'button', class: 'btn btn-sm', onclick: () => (p.ctx ? openRound(p.ctx.round) : openEdit(FIELD_INPUT[missing[0]])) }, 'השלמת פרטים')) : null,
       p.what ? h('p', { class: 'proc-what' }, p.what) : null,
       link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${linkDef.label}`) : null,
-      printing ? null : intakeShortcut(p.id, client.id, { checks, scope, complete: x.complete }),
+      printing ? null : intakeShortcut(p.id, client.id, { checks, scope, complete: x.complete, me }),
       ...guidance.map((g) => h('p', { class: 'proc-guide' }, g)),
       p.rule ? h('p', { class: 'proc-rule' }, h('strong', {}, 'חובה: '), p.rule) : null,
       h('ul', { class: 'items' }, ...items.map((i) => itemRow(p, i))),
@@ -1308,7 +1371,7 @@ $('esc-form').addEventListener('submit', async (e) => {
     tasks = [t, ...tasks];
     renderTasks();
     escDlg.close();
-    toast('הדיווח נשלח לליאור ומופיע אצלו ב״מה עליי״.');
+    toast('הדיווח נשלח לליאור ומופיע אצלו ב״המשימות שלי״.');
   } catch (err) {
     showErr('esc-err', `הדיווח לא נשמר. ${errorText(err)}`);
   }
@@ -1715,13 +1778,14 @@ function applyScope() {
   document.documentElement.dataset.scope = scope;
   if (!own()) return;
   const back = document.querySelector('#app > a.back');
-  if (back) { back.href = 'clients.html#mine'; back.textContent = '→ מה עליי'; }
+  if (back) { back.href = 'clients.html#mine'; back.textContent = '→ המשימות שלי'; }
   $('history').hidden = true;
   $('tasks-h').textContent = 'המשימות שלי';
   const sub = document.querySelector('#tasks .side-head p');
   if (sub) sub.textContent = 'משימות שנפתחו לך בלקוח הזה.';
   // My work first; the vault (when mine to use) after it.
   $('phases').after($('access'));
+  $('access').after($('fl-slot'));
 }
 
 mountSession(async (staff) => {
@@ -1730,6 +1794,7 @@ mountSession(async (staff) => {
   const [dir, viewer, vault] = await Promise.all([loadDirectory(), viewerOf(staff.email), canUseVault(id)]);
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
+  viewerInfo = viewer;
   viewerError = viewer.error;
   vaultOk = vault;
   // Mine by default; the whole protocol only when an office user chose it (or for the owner).

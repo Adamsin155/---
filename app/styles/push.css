@@ -1,4 +1,4 @@
-/* Notifications on the phone (app/push.js): the "הפעלת התראות" card in "מה עליי",
+/* Notifications on the phone (app/push.js): the "הפעלת התראות" card in "המשימות שלי",
    the "התראות" button with its count, and today's list. Builds on the tokens of
    app.css and protocol.css; 44px targets; state is said in words, never by colour alone. */
 .push-card {

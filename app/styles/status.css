@@ -81,6 +81,12 @@ h2 { margin: 0 0 10px; font-size: 18px; }
 .sitem h3 { margin: 0; font-size: 18px; }
 .sitem-meta { margin: 2px 0 12px; color: var(--muted); font-size: 14px; }
 .sitem-meta a { font-weight: 600; }
+/* The uploaded graphics next to their approval (app/status.js, fillGraphics). */
+.sgfx { margin: 0 0 14px; }
+.sgfx-h { margin: 0 0 8px; font-size: 14px; color: var(--ink-2); }
+.sgfx-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sgfx-grid a { display: block; border-radius: 8px; overflow: hidden; background: #F4F5F9; aspect-ratio: 1 / 1; }
+.sgfx-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .sbadge { margin: 0; padding: 10px 12px; border-radius: 8px; background: #F4F5F9; color: var(--ink-2); }
 .sfield { margin: 0 0 12px; }
 .sfield label, .schoice label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }

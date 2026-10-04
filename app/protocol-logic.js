@@ -4,7 +4,7 @@
 // Every date is computed in Israel time (tz.js), whatever the zone of the device
 // or the server: office hours, business days, "today" and the day before a shoot.
 import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS } from './protocol.js';
-import { SPECS, TERM_MONTHS } from './catalog.js';
+import { SPECS, TERM_MONTHS, PACKAGES } from './catalog.js';
 import { holidayOn as closedOn, erevOn } from './holidays.js';
 import { adjustForVersion, laterDue } from './protocol-versions.js';
 import {
@@ -61,7 +61,7 @@ export function officeMsBetween(from, to) {
 // Minutes of office time between two moments (the employee's clock).
 export const workingMinutesBetween = (from, to) => Math.round(officeMsBetween(from, to) / 6e4);
 // Anchors that are office events run on office time; a meeting or a shoot runs on the real clock.
-const onOfficeClock = (from) => from === 'deal' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
+const onOfficeClock = (from) => from === 'deal' || from === 'group' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
 // Whether resolveTime counts a due spec in office minutes (and so a clock of it stops at night).
 // "The characterization ended" (decision 12): a mark with the 4 short fields in its
 // note, tapped at the end of the meeting. It starts the clocks of processes 5–10
@@ -177,6 +177,13 @@ function completedAt(proc, checks, now) {
 function anchor(from, client, procs, checks, now) {
   switch (from) {
     case 'deal': return parseDate(client.deal_at);
+    case 'group': {
+      // v6: the shoot day is set right after the WhatsApp group is opened (p02.opened).
+      // Inside a round there is no new group: the round starts when it was added.
+      if (client.round) return parseDate(client.char_at);
+      const c = checks['p02.opened'];
+      return c && c.state === 'done' && c.at ? new Date(c.at) : null;
+    }
     case 'char': return parseDate(client.char_at);
     case 'charEnd': {
       // Inside a round there is no meeting: the round starts when it was added.
@@ -563,23 +570,32 @@ export function performanceReport(clients, checksByClient, { days = 30, now = ne
   };
 }
 
-// Package quantities from a signed agreement's model. Mirrors
-// public.package_deliverables() in the batch-2 migration.
+// Package quantities from a signed agreement's model: everything the agreement
+// grants that can be counted. Mirrors public.package_deliverables() (last defined in
+// supabase/migrations/20261003140000_manager_features.sql; tests/sql/manager.test.mjs
+// compares the two). photo_days: the podcast packages' shoot day with a photographer
+// at the business (not a day with the influencers, so not in shoot_days);
+// simeon_join: the free "Simeon joins Natali's shoot day". Both only when granted.
 export function packageDeliverables(model) {
   const sel = model?.selection;
-  const spec = SPECS[model?.package?.id];
+  const id = model?.package?.id;
+  const spec = SPECS[id];
   if (!sel || !spec) return {};
   const paid = sel.paid || [];
   const free = sel.free || {};
-  return {
+  const months = Number.isFinite(model?.termMonths) ? Math.round(model.termMonths) : TERM_MONTHS;
+  const out = {
     videos: spec.videos,
     graphics: spec.graphics + (free.graphics || 0),
     shoot_days: spec.shootDays + (paid.includes('simeon-day') ? 1 : 0),
     collabs: spec.collabs + (paid.includes('natali-reel') ? 1 : 0),
     stories: spec.stories + (free.simeonStories || 0) + (paid.includes('natali-story') ? 1 : 0),
     ch14: spec.ch14 + (free.extraCh14 ? 1 : 0),
-    monthly: paid.includes('photographer') ? 8 * TERM_MONTHS : 0,
+    monthly: paid.includes('photographer') ? 8 * months : 0,
   };
+  if (PACKAGES[id]?.tier === 'podcast') out.photo_days = 1;
+  if (free.simeonJoin) out.simeon_join = 1;
+  return out;
 }
 
 // The Sunday that starts the Israel week of `d`, as a YYYY-MM-DD key.

@@ -1,5 +1,5 @@
 // Data for the office's screens (qa.html, pass.html, decisions.html and Ilai's
-// part of "מה עליי"). Row level security decides who reads and writes
+// part of "המשימות שלי"). Row level security decides who reads and writes
 // (supabase/migrations/20260930150000_office_flows.sql): the pass and the change
 // requests are the office's; a decision on an exception is read with its client.
 // Who and when are stamped by the database. Until that migration is applied, the

@@ -1,0 +1,59 @@
+/* "תיק לקוח" in the client card and the characterization form (app/files-ui.js). Phone first. */
+.fl-block { display: grid; gap: 12px; min-width: 0; }
+.fl-block h3 { margin: 0 0 4px; font-size: 16px; }
+.fl-block h4 { margin: 0 0 8px; font-size: 14px; color: var(--text-2); font-weight: 600; }
+.fl-block .muted { margin: 0; }
+.fl-group { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); min-width: 0; }
+.fl-compact .fl-group { border-top: 0; padding-top: 0; }
+.fl-counts { margin: 0; color: var(--text-2); font-size: 14px; overflow-wrap: anywhere; }
+.fl-counts span { white-space: nowrap; }
+.fl-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.fl-add { min-height: 44px; }
+.fl-form { flex-basis: auto; }
+.fl-form[open] { flex-basis: 100%; }
+.fl-form > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; }
+.fl-form > summary::-webkit-details-marker { display: none; }
+.fl-form-body { display: grid; gap: 8px; margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-md); max-width: 460px; }
+.fl-form-body .btn { min-height: 44px; justify-self: start; }
+.fl-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fl-chosen { overflow-wrap: anywhere; }
+.fl-errs:empty { display: none; }
+.fl-errs .err { margin: 0 0 4px; }
+.fl-progress { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.fl-progress:empty { display: none; }
+.fl-progress li { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 10px; align-items: center; font-size: 14px; }
+.fl-progress .fl-pname { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.fl-progress progress { width: 100%; height: 10px; accent-color: var(--brand-pink); }
+.fl-progress .btn-text { min-height: 44px; }
+.fl-pct { font-variant-numeric: tabular-nums; min-width: 3.5ch; text-align: end; }
+
+.fl-kind { min-width: 0; }
+.fl-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.fl-item { display: grid; grid-template-rows: auto 1fr auto; gap: 6px; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px; }
+.fl-media { aspect-ratio: 1 / 1; border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-2); display: grid; place-items: center; }
+.fl-media img, .fl-media video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fl-media video { object-fit: contain; background: #000; }
+.fl-doc { font-weight: 700; color: var(--accent); letter-spacing: .04em; }
+.fl-play { min-height: 44px; min-width: 44px; padding: 8px 14px; border-radius: 999px; border: 0; cursor: pointer; font: inherit; font-weight: 600; background: var(--brand-pink); color: var(--on-pink); }
+.fl-meta { display: grid; gap: 2px; min-width: 0; font-size: 13px; }
+.fl-name { font-size: 14px; overflow-wrap: anywhere; }
+.fl-sub { color: var(--muted); overflow-wrap: anywhere; }
+.fl-link { color: var(--accent); }
+.fl-posted { color: var(--ok); }
+.fl-post summary { cursor: pointer; color: var(--accent); min-height: 44px; display: flex; align-items: center; }
+.fl-post .field { margin-top: 4px; }
+.fl-post .input { width: 100%; min-height: 44px; }
+.fl-acts { display: flex; flex-wrap: wrap; gap: 0 12px; }
+.fl-acts .btn-text { min-height: 44px; }
+.fl-del { color: var(--danger); }
+.fl-gallery { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.fl-gallery:empty { display: none; }
+.fl-gallery .st-state { margin: 0; overflow-wrap: anywhere; }
+.fl-gallery .st-acts { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.fl-gallery .st-acts .btn, .fl-gallery .st-acts .btn-text, #fl-gal-create { min-height: 44px; }
+.fl-gallery .st-danger { color: var(--danger); }
+.fl-compact { display: grid; gap: 10px; margin-top: 6px; }
+.fl-compact .side-head h3 { font-size: 15px; }
+@media (max-width: 400px) {
+  .fl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+}

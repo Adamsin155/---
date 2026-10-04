@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>גאנט התוכן · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#FFFFFF">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/gantt.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="clients.html" id="brand" aria-label="astrateg · לקוחות ופרוטוקול">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">גאנט התוכן</span>
+    </a>
+    <nav aria-label="ניווט ראשי" id="staff-nav">
+      <a class="navlink" href="clients.html#mine">לקוחות</a>
+      <a class="navlink" href="year.html" id="nav-year">שנת החבילה</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell gt-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">כניסה לצוות</h2>
+        <p>גאנט התוכן של הלקוח, לצוות.</p>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app gt-app" hidden>
+      <p class="gt-preview" id="gt-preview" hidden>תצוגה מקדימה: כך הלקוח רואה את הגאנט בקישור שלו.</p>
+
+      <div class="gt-hero" id="gt-hero" hidden>
+        <div class="gt-hero-text">
+          <div class="kicker latin">CONTENT GANTT</div>
+          <h1 id="gt-title">גאנט התוכן</h1>
+          <p class="gt-sub" id="gt-sub"></p>
+        </div>
+        <div class="gt-actions" id="gt-actions"></div>
+      </div>
+
+      <section class="gt-stats" id="gt-stats" aria-label="סיכום" hidden></section>
+
+      <section class="block gt-empty" id="gt-empty" hidden aria-labelledby="ge-h">
+        <h2 id="ge-h">עוד אין גאנט ללקוח הזה</h2>
+        <p id="ge-text"></p>
+        <div class="gt-empty-acts" id="ge-acts"></div>
+      </section>
+
+      <section class="block gt-glance" id="gt-glance" hidden aria-labelledby="gg-h">
+        <div class="gt-sec-head">
+          <h2 id="gg-h">השנה במבט אחד</h2>
+          <p class="hint">כמה מכל סוג בכל חודש בחבילה. מלא: עלה. לחיצה על חודש פותחת אותו בלוח.</p>
+        </div>
+        <div class="gt-glance-scroll" tabindex="0" role="region" aria-label="השנה במבט אחד, גלילה לצדדים">
+          <table class="gt-glance-table" id="gg-table"></table>
+        </div>
+      </section>
+
+      <section class="block gt-cal" id="gt-cal" hidden aria-labelledby="gm-h">
+        <div class="gt-monthbar">
+          <button type="button" class="btn btn-sm btn-ghost gt-nav" id="gm-prev" aria-label="החודש הקודם">‹</button>
+          <div class="gt-month-title">
+            <h2 id="gm-h" aria-live="polite"></h2>
+            <p class="gt-month-pkg" id="gm-pkg"></p>
+          </div>
+          <button type="button" class="btn btn-sm btn-ghost gt-nav" id="gm-next" aria-label="החודש הבא">›</button>
+        </div>
+        <nav class="gt-pills" id="gm-pills" aria-label="חודשי החוזה"></nav>
+        <div class="gt-toolbar">
+          <div class="gt-view" role="group" aria-label="תצוגה">
+            <button type="button" class="gt-view-btn" id="view-grid" aria-pressed="true">לוח</button>
+            <button type="button" class="gt-view-btn" id="view-list" aria-pressed="false">רשימה</button>
+          </div>
+          <ul class="gt-legend" id="gt-legend" aria-label="מקרא"></ul>
+        </div>
+        <div class="gt-print-head" aria-hidden="true">
+          <img src="app/assets/logo.png" alt="" width="403" height="280">
+          <div><strong id="gp-client"></strong><span id="gp-month"></span></div>
+        </div>
+        <div id="gm-grid" class="gt-grid-wrap"></div>
+        <div id="gm-list" class="gt-list-wrap" hidden></div>
+        <div id="gm-day" class="gt-day" hidden aria-live="polite"></div>
+      </section>
+
+      <section class="block gt-share" id="gt-share" hidden aria-labelledby="gs-h">
+        <h2 id="gs-h">קישור ללקוח</h2>
+        <p class="hint">קישור לצפייה בלבד: הלקוח רואה את התאריכים, מה עלה והקישורים לתוכן. בלי תכנון פנימי, בלי הערות ובלי שיחת החידוש.</p>
+        <div id="gs-body"></div>
+      </section>
+
+      <details class="block gt-rules" id="gt-rules" hidden>
+        <summary>איך התבנית בונה את הגאנט</summary>
+        <ul id="gt-rules-list"></ul>
+      </details>
+
+      <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">אין לך גישה ללקוח הזה</h2>
+        <p>הגאנט פתוח למשרד ולמי שעובד על הלקוח.</p>
+        <a class="btn" href="clients.html#mine">מעבר להמשימות שלי</a>
+      </section>
+    </div>
+
+    <section class="block gt-closed" id="closed" hidden></section>
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <dialog class="gt-dlg" id="entry-dlg" aria-labelledby="ed-h">
+    <form method="dialog" id="entry-form" novalidate>
+      <header class="gt-dlg-head">
+        <span class="gt-dlg-kind" id="ed-kind"></span>
+        <h2 id="ed-h"></h2>
+        <button type="button" class="gt-x" id="ed-close" aria-label="סגירה">×</button>
+      </header>
+      <div class="gt-dlg-body" id="ed-body"></div>
+      <footer class="gt-dlg-foot" id="ed-foot"></footer>
+    </form>
+  </dialog>
+
+  <dialog class="gt-dlg" id="regen-dlg" aria-labelledby="rg-h">
+    <form method="dialog" id="regen-form">
+      <header class="gt-dlg-head">
+        <h2 id="rg-h">עדכון מהתבנית</h2>
+        <button type="button" class="gt-x" id="rg-close" aria-label="סגירה">×</button>
+      </header>
+      <div class="gt-dlg-body" id="rg-body"></div>
+      <footer class="gt-dlg-foot">
+        <button type="button" class="btn btn-primary" id="rg-go">עדכון הגאנט</button>
+        <button type="button" class="btn btn-ghost" id="rg-cancel">ביטול</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/gantt.js"></script>
+</body>
+</html>

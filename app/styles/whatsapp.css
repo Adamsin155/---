@@ -1,5 +1,5 @@
 /* Work messages on WhatsApp (app/whatsapp.js): the one-time consent screen on any
-   staff page, and the card in "מה עליי" (it reuses .push-card of push.css). Builds
+   staff page, and the card in "המשימות שלי" (it reuses .push-card of push.css). Builds
    on the tokens of app.css and protocol.css; both choices look the same (the
    consent must be free: neither is the "default"); 44px targets. */
 .wa-dlg { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; overflow: auto; }

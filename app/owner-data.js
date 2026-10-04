@@ -26,7 +26,12 @@ export async function loadMessagesSince(sinceIso, clientId = null) {
 }
 
 // The status of every login (never a user name or a password): a broken one turns the client red.
+// The managers (the owner, Irit, Ofir) read it through access_status_overview(), so
+// screen 1 does not depend on their vault flag; anyone else, or before that
+// migration, from the vault's rows as before.
 export async function loadAccessStatus() {
+  const { data, error } = await supabase.rpc('access_status_overview');
+  if (!error && Array.isArray(data) && data.length) return data;
   return all(() => supabase.from('client_access').select('client_id, network, status, updated_at').order('client_id'));
 }
 

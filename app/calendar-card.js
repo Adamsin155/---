@@ -1,4 +1,4 @@
-// "היומן שלי" in "מה עליי" (clients.html): a personal, secret subscription link
+// "היומן שלי" in "המשימות שלי" (clients.html): a personal, secret subscription link
 // that Google Calendar, Apple Calendar or Outlook reads by itself, with the
 // signed-in person's own shoot days, meetings, Zoom calls and deadlines
 // (app/calendar-feed.js, served by supabase/functions/calendar).

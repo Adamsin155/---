@@ -10,6 +10,11 @@ import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
 
 const $ = (id) => document.getElementById(id);
 let state = emptySelection();
+// Opened from a deal of the field (index.html?deal=<id>, 3.10.2026): its id, so the
+// quote created here is linked to it (the deal becomes "חוזה נשלח", and "נחתם" when
+// the client signs).
+const DEAL_PARAM = new URLSearchParams(location.search).get('deal');
+let dealId = null;
 
 // Supabase loads lazily so the builder still works if the network is down.
 let supa = null;
@@ -327,13 +332,15 @@ function saveDraft() {
   if (document.body.classList.contains('is-choosing')) return;
   try {
     const client = Object.fromEntries(CLIENT_FIELDS.map((id) => [id, $(id).value]));
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ state, client }));
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ state, client, dealId }));
   } catch { /* storage unavailable */ }
 }
-function restoreDraft() {
+function restoreDraft(forDeal = null) {
   try {
     const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
     if (!draft?.state || !DOC_TYPES[draft.state.docType]) return false;
+    // Opened from a deal: only that deal's own draft (a refresh), never another one.
+    if (forDeal && draft.dealId !== forDeal) return false;
     const { selection } = reconcile({ ...emptySelection(), ...draft.state, free: { ...emptySelection().free, ...draft.state.free } });
     state = selection;
     for (const id of CLIENT_FIELDS) if (typeof draft.client?.[id] === 'string') $(id).value = draft.client[id];
@@ -539,6 +546,8 @@ async function refreshSession() {
     const staff = await s.currentStaff();
     $('session-dot').classList.toggle('on', !!staff?.isStaff);
     $('session-who').textContent = staff ? staff.email : 'לא מחובר';
+    // The managers' switch, "המשימות שלי" / "מבט מנהל" (app/manager-ui.js).
+    if (staff?.isStaff) import('./manager-ui.js').then((m) => m.mountModeSwitch(staff.email)).catch(() => {});
     return staff;
   } catch {
     return null;
@@ -636,6 +645,16 @@ async function createLink(btn) {
       throw detail;
     }
     const link = s.quoteLink(data.token);
+    if (dealId) {
+      // The deal's contract is out: linked, Irit's clock stops and Stav sees "חוזה נשלח".
+      try {
+        const { linkQuote } = await import('./deal-data.js');
+        await linkQuote(dealId, data.id);
+        toast('החוזה קושר לעסקה של השטח: הסטטוס עודכן ל״חוזה נשלח״.');
+      } catch {
+        toast('הקישור נוצר, אבל לא קושר לעסקה. לסמן ״החוזה נשלח״ במשימות שלי.');
+      }
+    }
     const clientName = readClient().name.trim();
     const prev = created.filter((c) => c.clientName === clientName && !c.cancelled);
     created.push({ id: data.id, number: data.number, clientName, gross: currentModel().totals.monthlyGross });
@@ -713,10 +732,39 @@ document.querySelectorAll('.start-card').forEach((b) => b.addEventListener('clic
 }));
 document.querySelectorAll('#doc-switch [data-doc]').forEach((b) => b.addEventListener('click', () => chooseDoc(b.dataset.doc, b)));
 
-if (restoreDraft()) {
+// From a deal of the field: an agreement prefilled with what was sold (the package,
+// the influencers, the add-ons, the discount) and the client's details. A refresh
+// keeps what was already edited here (that deal's draft).
+async function openFromDeal(id) {
+  const staff = await refreshSession();
+  if (!staff?.isStaff && !(await askLogin())) return;
+  try {
+    const [{ loadDeal }, { prefillFromDeal, contractTitle }] = await Promise.all([import('./deal-data.js'), import('./deal-logic.js')]);
+    const d = await loadDeal(id);
+    if (!d) { toast('העסקה לא נמצאה, או שאין לך גישה אליה.'); return; }
+    dealId = d.id;
+    if (!restoreDraft(d.id)) {
+      const { selection, client } = prefillFromDeal(d);
+      state = selection;
+      for (const [fid, v] of Object.entries(client)) $(fid).value = v;
+      $('discount').value = String((state.discount || 0) / 100);
+    }
+    document.body.classList.remove('is-choosing');
+    $('start').hidden = true;
+    render();
+    saveDraft();
+    toast(`${contractTitle(d)}: הפרטים מהעסקה נטענו. לבדוק ולהשלים, ואז ליצור קישור.`);
+  } catch (err) {
+    const s = await getSupa().catch(() => null);
+    toast(`העסקה לא נטענה. ${s ? s.explainError(err) : ''}`.trim());
+  }
+}
+
+if (!DEAL_PARAM && restoreDraft()) {
   document.body.classList.remove('is-choosing');
   $('start').hidden = true;
 }
 render();
 setupSectionNav();
-refreshSession();
+if (DEAL_PARAM) openFromDeal(DEAL_PARAM);
+else refreshSession();

@@ -25,24 +25,27 @@ import { whatsappLink } from './quote-doc.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
-import { canManageTeam, isOwnerView } from './team-rules.js';
+import { canManageTeam } from './team-rules.js';
 import { canSendMessages } from './messages-logic.js';
 import { offerHandoff, dropHandoff } from './handoff-ui.js';
-import { canSeeAllClients, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
+import { canSeeAllClients, canSeeOwnerScreen, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
 import { loadDateChanges, loadLogFor } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
 import { mountWhatsappCard } from './whatsapp.js';
 import { mountCalendar } from './calendar-card.js';
-// Stage 3, part 2 (the office's flows): Ilai's day in "מה עליי", the first screens of Ofir and Lior.
+// Stage 3, part 2 (the office's flows): Ilai's day in "המשימות שלי", the first screens of Ofir and Lior.
 import { ilaiSection, coveredByCard } from './ilai-card.js';
 import { landingNow, officeLinks } from './office-ui.js';
 import { folderItemOf } from './qa-logic.js';
+// 3.10.2026: Stav's deals waiting for a contract (the office), and Stav's own page.
+import { mountDeals, refreshDeals } from './deal-ui.js';
+import { landingOf } from './deal-logic.js';
 // A link to a part of this page (#mine, #control, a sign-in link) opens that part:
 // nobody is sent to their first screen then.
 const ARRIVED_WITH = location.hash;
 import { intakeShortcut } from './intake-ui.js';
-// Stage 5: the monthly cycle (a draft) in "מה עליי", and the way to the package year.
+// Stage 5: the monthly cycle (a draft) in "המשימות שלי", and the way to the package year.
 import { showMonths, worksCycle } from './month-ui.js';
 
 let clients = [];
@@ -132,6 +135,7 @@ async function load() {
   checkLate();
   if (!document.hidden) renderKeepingFocus();
   refreshQuestions($('my-questions'), me, clients);
+  refreshDeals();
 }
 
 // Re-rendering replaces elements; keep keyboard focus and scroll where they were.
@@ -167,7 +171,7 @@ function applyScope() {
   $('tab-performance').textContent = own ? 'הנתונים שלי' : 'ביצועים';
   $('btn-new').hidden = own;
   $('tab-clients').textContent = own ? 'הלקוחות שלי' : 'לקוחות';
-  $('tab-mine').textContent = me ? 'מה עליי' : 'עבודת הצוות';
+  $('tab-mine').textContent = me ? 'המשימות שלי' : 'עבודת הצוות';
   const head = document.querySelector('#app .page-head');
   if (own && head) {
     const h1 = head.querySelector('h1');
@@ -529,7 +533,7 @@ function groupCard(g, person) {
       claimControl(g, person)),
     g.task ? taskMeta(g.task) : null,
     g.task && g.urgent ? taskStart(g.task) : null,
-    g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope }) : null,
+    g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null,
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
       bulk ? h('button', {
@@ -2128,7 +2132,9 @@ mountSession(async (staff) => {
   viewerError = viewer.error;
   // Everyone's first screen (app/office-ui.js firstScreenOf): the owner's "מה דורש
   // אותי", Ofir's queue, Lior's decisions, the editors' page, Eli's shoot days. Only
-  // when the tab opens here without a view, once per tab; "מה עליי" stays #mine.
+  // when the tab opens here without a view, once per tab; "המשימות שלי" stays #mine.
+  // Sales (Stav) have no client work: always their own page.
+  if (landingOf(me)) { location.replace(landingOf(me)); return; }
   const first = landingNow({ me, viewer, arrived: ARRIVED_WITH || location.hash });
   if (first) { location.replace(first); return; }
   // The shortcuts of each role in the page head: the editors' page; the shoot day
@@ -2137,11 +2143,11 @@ mountSession(async (staff) => {
   $('cta-editor').hidden = !PEOPLE[me]?.editor;
   $('cta-shoot').hidden = !(me === 'eli' || (scope === 'office' && !viewer.error));
   $('cta-prep').before(...officeLinks(viewer)); // after "מה דורש אותי", before the rest
-  // Screen 2, "כל הלקוחות במבט", for Irit, Lior and Ofir; screen 1 for the owner.
+  // Screen 2, "כל הלקוחות במבט", for Lior; screen 1 for the managers (the owner, Irit, Ofir).
   // The top bar folds away on phones: the page head keeps a way in (cta-owner).
   for (const el of [$('nav-owner'), $('cta-owner')]) {
     el.hidden = !canSeeAllClients(viewer);
-    if (!isOwnerView(viewer)) { el.href = 'owner.html#all'; el.textContent = 'כל הלקוחות במבט'; }
+    if (!canSeeOwnerScreen(viewer)) { el.href = 'owner.html#all'; el.textContent = 'כל הלקוחות במבט'; }
   }
   $('nav-team').hidden = !canManageTeam(viewer);
   // The top bar folds away on phones: the page head keeps a way in to the messages.
@@ -2160,6 +2166,8 @@ mountSession(async (staff) => {
   mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
   // "היומן שלי": the personal calendar link (app/calendar-card.js).
   if (!viewerError) mountCalendar($('cal-card'));
+  // Stav's deals waiting for a contract (the office): "להכין חוזה ל־…" with its clock.
+  mountDeals($('deals-card'), { me, scope, error: viewerError });
   const fromHash = location.hash.slice(1);
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();

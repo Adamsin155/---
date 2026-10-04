@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="app/styles/protocol-office.css">
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
   <link rel="stylesheet" href="app/styles/owner.css">
+  <link rel="stylesheet" href="app/styles/manager.css" data-manager-css>
 </head>
 <body>
   <header class="topbar">
@@ -71,6 +72,8 @@
         <div class="tabs" role="tablist" aria-label="תצוגה" id="ow-tabs">
           <button type="button" role="tab" class="tab" id="tab-now" aria-controls="view-now">מה דורש אותי</button>
           <button type="button" role="tab" class="tab" id="tab-all" aria-controls="view-all">כל הלקוחות במבט</button>
+          <button type="button" role="tab" class="tab" id="tab-table" aria-controls="view-table" hidden>טבלה</button>
+          <button type="button" role="tab" class="tab" id="tab-archive" aria-controls="view-archive" hidden>ארכיון</button>
         </div>
 
         <section class="block ow-view" id="view-now" role="tabpanel" aria-labelledby="tab-now" hidden>
@@ -98,12 +101,41 @@
             <div id="board"></div>
           </section>
         </section>
+
+        <!-- The manager table (app/manager-table.js): one row per client. The price columns
+             are built only for the owner, Irit and Ofir. -->
+        <section class="block ow-view mt-view" id="view-table" role="tabpanel" aria-labelledby="tab-table" hidden>
+          <h2 class="sr-only">כל הלקוחות בטבלה</h2>
+          <div class="mt-tools" role="search" aria-label="סינון הטבלה">
+            <div class="field mt-search"><label for="mt-q">חיפוש</label><input class="input" id="mt-q" type="search" placeholder="עסק, חבילה, עורך" autocomplete="off"></div>
+            <div class="field"><label for="mt-station">תחנה</label><select class="input" id="mt-station"></select></div>
+            <div class="field"><label for="mt-color">מצב</label><select class="input" id="mt-color"></select></div>
+            <div class="field"><label for="mt-editor">עורך</label><select class="input" id="mt-editor"></select></div>
+            <div class="field"><label for="mt-status">סטטוס</label><select class="input" id="mt-status"></select></div>
+            <div class="field mt-actions"><button type="button" class="btn" id="mt-csv">ייצוא CSV</button></div>
+          </div>
+          <p class="mt-count" id="mt-count" role="status" aria-live="polite"></p>
+          <div class="mt-wrap" id="mt-wrap" tabindex="0" role="region" aria-labelledby="tab-table">
+            <table class="mt" id="mt">
+              <thead><tr id="mt-head"></tr></thead>
+              <tbody id="mt-body"></tbody>
+            </table>
+          </div>
+          <p class="mt-money-note" id="mt-money-note" hidden>המחירים מההסכם החתום, כולל מע״מ. רואים אותם רק הבעלים, עירית ואופיר.</p>
+        </section>
+
+        <!-- The archive: the owner and Ofir. Restore, or delete for good with the name typed again. -->
+        <section class="block ow-view ar-view" id="view-archive" role="tabpanel" aria-labelledby="tab-archive" hidden>
+          <h2 class="wgroup-h" id="ar-h" tabindex="-1">ארכיון לקוחות</h2>
+          <p class="ar-intro">לקוח בארכיון לא מופיע באף רשימה, הדפים והקישורים שלו (גם דף המצב ללקוח) לא נפתחים, והכספת שלו סגורה. אפשר לשחזר אותו כמו שהיה, או למחוק אותו לצמיתות.</p>
+          <ul class="ar-list" id="ar-list" aria-labelledby="ar-h"></ul>
+        </section>
       </div>
 
       <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
         <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
-        <p>המבט על כל הלקוחות פתוח לבעלים, לעירית, לליאור ולאופיר. העבודה שלך נמצאת ב״מה עליי״.</p>
-        <a class="btn" href="clients.html#mine">מעבר למה עליי</a>
+        <p>המבט על כל הלקוחות פתוח לבעלים, לעירית, לליאור ולאופיר. העבודה שלך נמצאת ב״המשימות שלי״.</p>
+        <a class="btn" href="clients.html#mine">מעבר להמשימות שלי</a>
       </section>
     </div>
 
@@ -121,13 +153,44 @@
         <div class="field">
           <label for="ask-text" id="ask-label">השאלה</label>
           <textarea class="input" id="ask-text" rows="3" maxlength="1000" required aria-describedby="ask-hint"></textarea>
-          <p class="hint" id="ask-hint">השאלה נשמרת עם הלקוח ומגיעה לאחראי ב״מה עליי״. התשובה תופיע כאן, באותה שורה.</p>
+          <p class="hint" id="ask-hint">השאלה נשמרת עם הלקוח ומגיעה לאחראי ב״המשימות שלי״. התשובה תופיע כאן, באותה שורה.</p>
         </div>
         <div class="err" id="ask-err" role="alert" hidden></div>
       </div>
       <div class="dlg-foot">
         <button type="button" class="btn btn-ghost" data-close>ביטול</button>
         <button type="submit" class="btn btn-primary" id="ask-submit">שליחת השאלה</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-purge" aria-labelledby="purge-h">
+    <form id="purge-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="purge-h">מחיקה לצמיתות</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p>המחיקה של <span class="purge-name" id="purge-name"></span> סופית ואי אפשר לבטל אותה. יימחקו:</p>
+        <ul class="purge-list">
+          <li>הלקוח וכל הפרטים שלו</li>
+          <li>הסימונים בפרוטוקול, ההיסטוריה, המשימות והשאלות</li>
+          <li>ההודעות, ההתראות, האישורים והסקרים</li>
+          <li>הגישות בכספת והסיסמאות, וקישורי דף המצב</li>
+          <li>רשומות הקבצים (הקבצים עצמם באחסון נמחקים בנפרד)</li>
+        </ul>
+        <p>ההסכם החתום נשאר ברשימת ההצעות. נרשם מי מחק ומתי, עם שם העסק בלבד.</p>
+        <div class="field">
+          <label for="purge-text" id="purge-label">כדי לאשר, הקלידו את שם העסק</label>
+          <input class="input" id="purge-text" autocomplete="off" required aria-describedby="purge-hint">
+          <p class="hint" id="purge-hint"></p>
+        </div>
+        <label class="purge-check"><input type="checkbox" id="purge-sure"> <span>הבנתי שאין דרך לשחזר את הלקוח אחרי המחיקה</span></label>
+        <div class="err" id="purge-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-danger-fill" id="purge-submit" disabled>מחיקה לצמיתות</button>
       </div>
     </form>
   </dialog>

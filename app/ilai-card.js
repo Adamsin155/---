@@ -1,4 +1,4 @@
-// Ilai's part of "מה עליי" (system-plan section 3, "עילאי"), drawn by
+// Ilai's part of "המשימות שלי" (system-plan section 3, "עילאי"), drawn by
 // app/clients.js: the card "יום אפיון: שעתיים" when a characterization ends (one
 // line per client with only the nearest due; opening it shows the access check,
 // whose vault statuses mark it by themselves, the page setup in 6 quick checks and
@@ -15,6 +15,7 @@ import { fixList } from './office-ui.js';
 
 const NETWORK = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', google: 'Google Business', meta: 'Meta Business', other: 'אחר' };
 const STATUS = { ok: 'תקינה', broken: 'לא עובדת', missing: 'אין רשת' };
+const ganttUrl = (id) => `gantt.html?id=${encodeURIComponent(id)}`;
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash ? `#${hash}` : ''}`;
 const isDone = (cs, k) => ['done', 'na'].includes(cs[k]?.state);
 
@@ -27,7 +28,7 @@ const autoTried = new Set();
 // Cards stay open across the page's re-renders.
 const openCards = new Set();
 
-// Groups of "מה עליי" that the cards already cover (client and process), so
+// Groups of "המשימות שלי" that the cards already cover (client and process), so
 // nothing is listed twice: the day's processes (his new logo in 5, 6, 7, 9), the
 // rest of the graphics (23), the final versions (27) and the Gantt (29).
 export function coveredByCard(ctx) {
@@ -149,7 +150,7 @@ function dayCard(x, ctx) {
           class: 'dc-inline', novalidate: true, onsubmit: (e) => saveMetricool(e, ctx, c, `${idp}-mc`),
         },
         h('div', { class: 'field grow' }, h('label', { for: `${idp}-mc` }, 'קישור Metricool'),
-          h('input', { class: 'input', id: `${idp}-mc`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: 'https://app.metricool.com/…', value: c.links?.metricool || '' })),
+          h('input', { class: 'input', id: `${idp}-mc`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: 'https://app.metricool.com/…', value: drafts.get(`${idp}-mc`) ?? (c.links?.metricool || ''), oninput: (e) => drafts.set(`${idp}-mc`, e.currentTarget.value) })),
         h('button', { type: 'submit', class: 'btn btn-sm' }, 'שמירה'))),
       h('div', { class: 'il-part' },
         h('h4', {}, '9 גרפיקות', gfx.done ? null : until(gfx.due, now)),
@@ -162,9 +163,14 @@ function dayCard(x, ctx) {
         h('h4', {}, 'שלד גאנט', gantt.done ? null : until(gantt.due, now)),
         h('label', { class: 'wrow', for: `${idp}-gantt` },
           h('input', { type: 'checkbox', class: 'cbx', id: `${idp}-gantt`, checked: gantt.done, onchange: (e) => mark(ctx, c, GANTT_KEYS, e.currentTarget.checked, e.currentTarget.checked ? 'שלד הגאנט סומן.' : null) }),
-          h('span', { class: 'wlabel' }, 'הקובץ השנתי נפתח עם כל העמודות'))),
+          h('span', { class: 'wlabel' }, 'הקובץ השנתי נפתח עם כל העמודות')),
+        h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-ghost gantt-go', href: ganttUrl(c.id) }, 'גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`)))),
       logo ? h('div', { class: 'il-part' }, h('h4', {}, 'לוגו חדש', logo.done ? null : until(logo.due, now)), check(ctx, c, 'p05.newlogo', 'הכנתי לוגו חדש (אין ללקוח לוגו)', idp)) : null));
 }
+
+// What is typed in a link field and not saved yet: the list is rebuilt after every mark,
+// and a rebuild must not wipe a link someone is in the middle of typing.
+const drafts = new Map();
 
 async function saveMetricool(e, ctx, c, inputId) {
   e.preventDefault();
@@ -181,6 +187,7 @@ async function saveMetricool(e, ctx, c, inputId) {
     const updated = await updateClient(c.id, { links: { ...(c.links || {}), metricool: v } });
     Object.assign(c, updated);
   } catch (err) { toast(`הקישור לא נשמר. ${errorText(err)}`); return; }
+  drafts.delete(inputId);
   await mark(ctx, c, ['p06.metricool'], true, 'הקישור נשמר, ו־Metricool סומן כמחובר.');
 }
 
@@ -216,7 +223,7 @@ function ganttCard(x, ctx) {
   return h('li', { class: 'wproc il-card', 'data-key': `il-gantt:${c.id}:${x.pre}` },
     h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, c.name),
       h('span', { class: 'il-title' }, `גאנט${x.n ? ` · סבב ${x.n}` : ''}`), until(x.state.dueAt)),
-    h('div', { class: 'of-acts' }, h('button', {
+    h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-ghost gantt-go', href: ganttUrl(c.id) }, 'פתיחת גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`)), h('button', {
       type: 'button', class: 'btn btn-sm', id: `il-g-${c.id}-${x.pre.replace(/\W/g, '')}`,
       onclick: (e) => { e.currentTarget.disabled = true; mark(ctx, c, [key], true, 'הגאנט מלא. עירית מקבלת ״לשלוח גאנט״.', { handoff: key }); },
     }, 'הגאנט מלא')));

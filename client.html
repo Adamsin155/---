@@ -18,9 +18,11 @@
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
   <link rel="stylesheet" href="app/styles/office-flows.css">
   <link rel="stylesheet" href="app/styles/owner.css">
+  <link rel="stylesheet" href="app/styles/manager.css" data-manager-css>
   <link rel="stylesheet" href="app/styles/intake.css">
   <link rel="stylesheet" href="app/styles/status-card.css">
   <link rel="stylesheet" href="app/styles/year.css">
+  <link rel="stylesheet" href="app/styles/files.css">
 </head>
 <body>
   <header class="topbar">
@@ -58,6 +60,7 @@
       <div class="cc-sticky" id="cc-sticky" aria-hidden="true"></div>
       <div id="ik-slot"></div>
       <div id="st-slot"></div>
+      <div id="fl-slot"></div>
       <section class="block cc-side" id="access" aria-labelledby="access-h">
         <div class="side-head access-head">
           <div><h2 id="access-h">גישות לרשתות</h2><p class="muted">כל גישה תקינה נכנסת לכאן מיד. הסיסמאות מוצפנות, וכל צפייה נרשמת.</p></div>
@@ -228,7 +231,7 @@
       </div>
       <div class="dlg-body">
         <div class="field"><label for="cancel-reason">למה ההסכם בוטל?</label><textarea class="input" id="cancel-reason" rows="3" maxlength="1000"></textarea></div>
-        <p class="hint">הלקוח לא יימחק. הוא ייסגר, ייצא מ״מה עליי״ ומהבקרה, וההיסטוריה שלו תישמר.</p>
+        <p class="hint">הלקוח לא יימחק. הוא ייסגר, ייצא מ״המשימות שלי״ ומהבקרה, וההיסטוריה שלו תישמר.</p>
         <div class="err" id="cancel-err" role="alert" hidden></div>
       </div>
       <div class="dlg-foot">

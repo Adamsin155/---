@@ -11,8 +11,16 @@
 //   - Scripts are due at the end of business day 2 and the Zoom on day 3 (decision 14).
 //   - After "the characterization ended" (the mark p04.ended, decision 12) the rest
 //     of the form is due within 60 minutes.
+// v6 (the owner's decisions of 3.10.2026):
+//   - The shoot day (11, and Natali's 11ב) is set right after the WhatsApp group is
+//     opened (anchor 'group'), by the end of the next business day; both moved to the
+//     station "הצטרפות". Clients that started before keep the old timing
+//     (protocol-versions.js `replace`).
+//   - New: 7ב and 23ב, Ilai uploads the graphics the client approved within 30
+//     office minutes; 23 gets the client's approval as an optional item (p23.approved,
+//     until now only a mark of the status page).
 
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 // Office hours, in Israel time (decisions 1–2 in docs/plan/decisions.md).
 // Deadlines of minutes or hours that start from an office event (a deal coming
@@ -32,18 +40,26 @@ export const PEOPLE = {
   yariv: { key: 'yariv', name: 'יריב', role: 'עריכת וידאו', editor: true },
   anna: { key: 'anna', name: 'אנה', role: 'עריכת וידאו', editor: true },
   eli: { key: 'eli', name: 'אלי', role: 'צלם ימי הצילום' },
+  // Field sales (decision of 3.10.2026): sends new deals to Irit from deal.html and
+  // sees only his own deals. Not part of the client protocol (no items, no clients).
+  stav: { key: 'stav', name: 'סתיו', role: 'סוכן שטח', sales: true },
   // Until Ofir assigns an editor, editing items belong to "the assigned editor".
   editor: { key: 'editor', name: 'העורך המשויך', role: 'עד ששויך עורך' },
 };
 
 // What each person sees when they sign in. 'office': their own work first, plus
 // the office screens (all clients, daily control, performance). 'own': only their
-// own work and the clients it belongs to. The owner (no person) sees the office.
-export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own' };
+// own work and the clients it belongs to. 'sales': only deal.html and their own
+// deals (no client is theirs). The owner (no person) sees the office.
+export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', stav: 'sales' };
 export const scopeOf = (person) => (person ? SCOPE[person] || 'own' : 'office');
+export const isSales = (person) => !!PEOPLE[person]?.sales;
 
-// Real people (everyone but the "assigned editor" placeholder): for pickers and lists.
-export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor');
+// The people of the client protocol (everyone but the "assigned editor" placeholder
+// and sales): for owner pickers, work lists and the reminders' digests.
+export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.sales);
+// Everyone on the team, sales too: the team screen (team.html) and who has reminders.
+export const TEAM_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor');
 
 // Editors a client can be assigned to. Nirel edits only Natali Dadon's videos.
 export const EDITORS = ['nadia', 'yariv', 'anna', 'nirel'];
@@ -119,7 +135,7 @@ export const DELIVERABLES = [
 ];
 
 // Approvals that "not relevant" never replaces: what depends on them waits for a real approval.
-export const APPROVALS = new Set(['p25.approved', 'p13.approved', 'p27.approved', 'p07.approved']);
+export const APPROVALS = new Set(['p25.approved', 'p13.approved', 'p27.approved', 'p07.approved', 'p23.approved']);
 
 // The two daily reviews (processes 32 and 33) and what each one goes over.
 export const REVIEW_TOPICS = {
@@ -143,7 +159,8 @@ const isNatali = (c) => c.shoot_type === 'natali';
 const isDms = (c) => c.shoot_type === 'dms';
 
 // Anchors for due dates. `start` is when a process can begin; `due` is its deadline.
-//   { from: 'deal' | 'char' | 'charEnd' | 'shoot' | 'contractEnd' | 'p05' … , minutes|hours|days|businessDays|at }
+//   { from: 'deal' | 'group' | 'char' | 'charEnd' | 'shoot' | 'contractEnd' | 'p05' … , minutes|hours|days|businessDays|at }
+//   'group': when the WhatsApp group was opened (p02.opened); inside a shoot round, the round's start.
 //   from 'pNN' means "when process NN was completed"; 'item:pNN.x' when that one item was done.
 //   prevBusinessDay: the business day before the anchor ("the day before the shoot").
 //   afterMark: { key, minutes }: once that mark is done, the deadline is `minutes` after it.
@@ -169,20 +186,21 @@ export const PHASES = [
 // where an existing client is placed when imported, and the owner's bar. Each
 // station is a run of processes in PROCESSES order; against PHASES above:
 //   הצטרפות      onboarding 1–3 (the deal, the WhatsApp group, setting the meeting)
-//   אפיון        onboarding 4–6 (the meeting, access, the pages) + parallel 7–10
-//   תוכן ואישור  prep (11, 11ב, 12א, 12, 13, 14)
+//                and, since v6, 11 and 11ב (the shoot day is set right after the group)
+//   אפיון        onboarding 4–6 (the meeting, access, the pages) + parallel 7, 7ב, 8–10
+//   תוכן ואישור  prep (12א, 12, 13, 14)
 //   יום צילום    eve (15, 16) + shoot (17–21, with 17ב, 18ב, 19ב)
-//   עריכה ובקרה  post (22א, 22, 23, 24, 25, 26, 27)
+//   עריכה ובקרה  post (22א, 22, 23, 23ב, 24, 25, 26, 27)
 //   פרסום        publish (28, 29, 30)
 //   שוטף         ongoing (31)
 //   חידוש        renewal (34, 35)
 // tests/client-open.test.mjs checks that every process sits in exactly one station.
 export const STATIONS = [
-  { key: 'join', title: 'הצטרפות', procs: ['p01', 'p02', 'p03'] },
-  { key: 'char', title: 'אפיון', procs: ['p04', 'p05', 'p06', 'p07', 'p08', 'p09', 'p10'] },
-  { key: 'content', title: 'תוכן ואישור', procs: ['p11', 'p11b', 'p12a', 'p12', 'p13', 'p14'] },
+  { key: 'join', title: 'הצטרפות', procs: ['p01', 'p02', 'p03', 'p11', 'p11b'] },
+  { key: 'char', title: 'אפיון', procs: ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p09', 'p10'] },
+  { key: 'content', title: 'תוכן ואישור', procs: ['p12a', 'p12', 'p13', 'p14'] },
   { key: 'shoot', title: 'יום צילום', procs: ['p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21'] },
-  { key: 'post', title: 'עריכה ובקרה', procs: ['p22a', 'p22', 'p23', 'p24', 'p25', 'p26', 'p27'] },
+  { key: 'post', title: 'עריכה ובקרה', procs: ['p22a', 'p22', 'p23', 'p23b', 'p24', 'p25', 'p26', 'p27'] },
   { key: 'publish', title: 'פרסום', procs: ['p28', 'p29', 'p30'] },
   { key: 'ongoing', title: 'שוטף', procs: ['p31'] },
   { key: 'renewal', title: 'חידוש', procs: ['p34', 'p35'] },
@@ -229,6 +247,33 @@ export const PROCESSES = [
       { key: 'p03.available', label: 'נבדקה זמינות מבצע האפיון' },
       { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים', requiresFields: ['characterizer', 'char_at'] },
       { key: 'p03.calendar', label: 'הפגישה הוכנסה ליומן' },
+    ],
+  },
+  {
+    id: 'p11', round: true, num: '11', phase: 'onboarding', title: 'קביעת יום צילום', owners: ['irit'],
+    sla: 'מיד אחרי פתיחת קבוצת ה־WhatsApp, במועד המוקדם ביותר; סגור עד סוף יום העסקים שאחרי פתיחת הקבוצה',
+    // v6 (3.10.2026): right after the group is opened, not after the characterization.
+    // Lior does not set the date (he confirms he can run it, p11.ok.lior).
+    start: { from: 'group' }, due: { from: 'group', businessDays: 1 },
+    what: 'מיד אחרי פתיחת הקבוצה קובעים את יום הצילום במועד המוקדם ביותר. בודקים בחוזה אילו משפיענים הלקוח רכש ומתאמים מועד מול כל הצדדים. יום הצילום לא נחשב סגור עד שכולם אישרו והתאריך ביומן של כולם ובמערכת.',
+    needs: ['shoot_type', 'shoot_at'],
+    items: [
+      { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו' },
+      { key: 'p11.ok.client', label: 'הלקוח אישר את המועד', noBulk: true },
+      { key: 'p11.ok.influencers', label: 'המשפיענים אישרו', noBulk: true },
+      { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר', noBulk: true },
+      { key: 'p11.ok.photographer', label: 'הצלם אישר', noBulk: true },
+      { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'] },
+    ],
+  },
+  {
+    id: 'p11b', round: true, num: '11ב', phase: 'onboarding', title: 'יום צילום עם נטלי: מאפרת והסעה', owners: ['lior'],
+    sla: 'מיד לאחר שנסגר תאריך יום הצילום עם נטלי',
+    when: isNatali, start: { from: 'p11' }, due: { from: 'p11' },
+    what: 'יום צילום עם נטלי לא נחשב סגור עד שגם המאפרת וגם ההסעה סודרו.',
+    items: [
+      { key: 'p11b.makeup', label: 'מאפרת תואמה, מגיעה לביתה של נטלי שעתיים לפני הצילום' },
+      { key: 'p11b.ride', label: 'הסעה של נטלי לבית העסק וחזרה סודרה' },
     ],
   },
   {
@@ -307,6 +352,16 @@ export const PROCESSES = [
     ],
   },
   {
+    id: 'p07b', num: '7ב', phase: 'parallel', title: 'העלאת 9 הגרפיקות שאושרו לרשתות', owners: ['ilai'],
+    sla: 'עד 30 דקות עבודה מאישור הלקוח',
+    // v6: the client approved (the status page, or Irit marked "אושר"): Ilai posts them.
+    start: { from: 'item:p07.approved' }, due: { from: 'item:p07.approved', minutes: 30 },
+    what: 'הלקוח אישר את 9 הגרפיקות הראשונות. עילאי מעלה אותן לרשתות של הלקוח.',
+    items: [
+      { key: 'p07b.posted', label: '9 הגרפיקות שאושרו הועלו לרשתות' },
+    ],
+  },
+  {
     id: 'p08', num: '8', phase: 'parallel', title: 'הכנת Highlights', owners: ['ofir'],
     sla: 'עד שעתיים לאחר האפיון, במקביל לגרפיקות',
     start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2 },
@@ -337,31 +392,6 @@ export const PROCESSES = [
         .map(([k, l]) => ({ key: `p10.c.${k}`, label: `נבדק ותקין: ${l}` })),
       { key: 'p10.setup', label: 'הוקם וסודר מה שלא היה קיים', optional: true },
       { key: 'p10.ready', label: 'התשתית מוכנה לקמפיינים' },
-    ],
-  },
-  {
-    id: 'p11', round: true, num: '11', phase: 'prep', title: 'קביעת יום צילום', owners: ['irit'],
-    sla: 'חובה לסגור תאריך בתוך עד 3 ימי עסקים מהאפיון',
-    start: { from: 'charEnd' }, due: { from: 'char', businessDays: 3 },
-    what: 'בודקים בחוזה אילו משפיענים הלקוח רכש ומתאמים מועד מול כל הצדדים. יום הצילום לא נחשב סגור עד שכולם אישרו והתאריך ביומן של כולם ובמערכת.',
-    needs: ['shoot_type', 'shoot_at'],
-    items: [
-      { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו' },
-      { key: 'p11.ok.client', label: 'הלקוח אישר את המועד', noBulk: true },
-      { key: 'p11.ok.influencers', label: 'המשפיענים אישרו', noBulk: true },
-      { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר', noBulk: true },
-      { key: 'p11.ok.photographer', label: 'הצלם אישר', noBulk: true },
-      { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'] },
-    ],
-  },
-  {
-    id: 'p11b', round: true, num: '11ב', phase: 'prep', title: 'יום צילום עם נטלי: מאפרת והסעה', owners: ['lior'],
-    sla: 'מיד לאחר שנסגר תאריך יום הצילום עם נטלי',
-    when: isNatali, start: { from: 'p11' }, due: { from: 'p11' },
-    what: 'יום צילום עם נטלי לא נחשב סגור עד שגם המאפרת וגם ההסעה סודרו.',
-    items: [
-      { key: 'p11b.makeup', label: 'מאפרת תואמה, מגיעה לביתה של נטלי שעתיים לפני הצילום' },
-      { key: 'p11b.ride', label: 'הסעה של נטלי לבית העסק וחזרה סודרה' },
     ],
   },
   {
@@ -602,6 +632,17 @@ export const PROCESSES = [
       { key: 'p23.ofir', label: 'אופיר אישר את הגרפיקות (תיקון: משימה לעילאי)', owners: ['ofir'], requires: ['p23.q.design', 'p23.q.errors', 'p23.q.logo', 'p23.q.contact', 'p23.q.match', 'p23.q.pro', 'p23.q.variety'] },
       { key: 'p23.sent', label: 'נשלחו ללקוח', owners: ['irit'], requires: ['p23.ofir'] },
       { key: 'p23.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
+      // v6: the client's approval, by Irit here or by the client on the status page (same key).
+      { key: 'p23.approved', label: 'הלקוח אישר את יתרת הגרפיקות', owners: ['irit'], requires: ['p23.sent'], noBulk: true, optional: true },
+    ],
+  },
+  {
+    id: 'p23b', num: '23ב', phase: 'post', title: 'העלאת יתרת הגרפיקות שאושרו לרשתות', owners: ['ilai'],
+    sla: 'עד 30 דקות עבודה מאישור הלקוח',
+    start: { from: 'item:p23.approved' }, due: { from: 'item:p23.approved', minutes: 30 },
+    what: 'הלקוח אישר את יתרת הגרפיקות. עילאי מעלה אותן לרשתות של הלקוח (או מתזמן אותן לפי הגאנט).',
+    items: [
+      { key: 'p23b.posted', label: 'יתרת הגרפיקות שאושרו הועלו לרשתות או תוזמנו' },
     ],
   },
   {

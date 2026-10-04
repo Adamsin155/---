@@ -7,7 +7,9 @@
 //    card and in the work lists as work to do, but they never make their process
 //    late (clientState counts lateness only on the items the client started with);
 //  - a deadline a later version made shorter never makes it late either: its due
-//    date is the later of the one it started under and the current one.
+//    date is the later of the one it started under and the current one;
+//  - a process whose timing a later version replaced as a whole (`replace`: v6 moved
+//    the shoot day to right after the group) keeps the start and due it started under.
 // Nothing else changes for it: what needs what, who owns it and completion are as
 // in the current protocol.
 //
@@ -79,6 +81,20 @@ export const PROTOCOL_HISTORY = [
       p12: { from: 'char', businessDays: 3 },
     },
   },
+  {
+    version: 6, date: '2026-10-03', title: 'יום הצילום מיד אחרי פתיחת הקבוצה, העלאת גרפיקות שאושרו',
+    changes: [
+      'יום הצילום (11, ו־11ב של נטלי) נקבע מיד אחרי פתיחת קבוצת ה־WhatsApp, עד סוף יום העסקים הבא, ועבר לתחנת ההצטרפות.',
+      'נוספו 7ב ו־23ב: עילאי מעלה לרשתות את הגרפיקות שהלקוח אישר, תוך 30 דקות עבודה.',
+      'אישור הלקוח על יתרת הגרפיקות (23) הוא עכשיו גם פריט שעירית יכולה לסמן.',
+    ],
+    items: ['p07b.posted', 'p23.approved', 'p23b.posted'],
+    // A new way of working, not a shorter deadline: a client that started before keeps
+    // the whole old timing of 11 (start and due).
+    replace: {
+      p11: { start: { from: 'charEnd' }, due: { from: 'char', businessDays: 3 } },
+    },
+  },
 ];
 
 export const LATEST = PROTOCOL_HISTORY.at(-1).version;
@@ -111,6 +127,15 @@ export function versionOf(client) {
 }
 export const isOlderClient = (client) => versionOf(client) < PROTOCOL_VERSION;
 
+// The timing a later version replaced as a whole ({ start, due }) for base process
+// `id`, as the client started under it (null: not replaced since).
+export function timingStartedUnder(id, version) {
+  for (const v of PROTOCOL_HISTORY) {
+    if (v.version > version && v.replace?.[id]) return v.replace[id];
+  }
+  return null;
+}
+
 // The due spec a client started under for base process `id` (null: unchanged since).
 export function dueStartedUnder(id, version) {
   for (const v of PROTOCOL_HISTORY) {
@@ -139,6 +164,7 @@ export function adjustForVersion(procs, client) {
     const round = Number(/^r(\d+)-/.exec(p.id)?.[1] || 0);
     const base = p.id.replace(/^r\d+-/, '');
     const before = dueStartedUnder(base, v);
+    const timing = timingStartedUnder(base, v);
     let fresh = false;
     const items = p.items.map((i) => {
       const since = itemSince(i.key);
@@ -146,8 +172,12 @@ export function adjustForVersion(procs, client) {
       fresh = true;
       return { ...i, fresh: since };
     });
-    if (!fresh && !before) return p;
-    return { ...p, items, ...(before ? { dueBefore: shiftSpec(before, round) } : {}) };
+    if (!fresh && !before && !timing) return p;
+    return {
+      ...p, items,
+      ...(before ? { dueBefore: shiftSpec(before, round) } : {}),
+      ...(timing ? { start: shiftSpec(timing.start, round), due: shiftSpec(timing.due, round), timingBefore: true } : {}),
+    };
   });
 }
 

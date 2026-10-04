@@ -1,4 +1,4 @@
-// Notifications on the phone (stage 3), in "מה עליי" (clients.html):
+// Notifications on the phone (stage 3), in "המשימות שלי" (clients.html):
 //  - the "הפעלת התראות" card: on an iPhone first "הוספה למסך הבית" (iOS 16.4+),
 //    and permission is asked only from a button in the installed app; after
 //    connecting, a test notification that the person confirms ("קיבלתי");

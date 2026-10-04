@@ -1,6 +1,6 @@
 /* The client's colour and the owner's screens (owner.html, app/owner.js), the
    client card's three-line header and timeline (app/health-ui.js), and the
-   questions block in "מה עליי" (app/questions-ui.js). Builds on app.css and
+   questions block in "המשימות שלי" (app/questions-ui.js). Builds on app.css and
    protocol.css tokens; brand: docs/brand/brand-guide.md. The colour is never the
    only cue: red is a filled circle with "!", yellow a ring with "!", green a
    filled circle with a tick, and the word is always written. Phones first (360px),
@@ -164,7 +164,7 @@
 .tl-toggle { min-height: 44px; }
 .tl-none { margin: 0; font-size: 14px; }
 
-/* ── "מה עליי": questions to me ── */
+/* ── "המשימות שלי": questions to me ── */
 .myq {
   margin: 14px 16px 0; padding: 12px 14px; border-radius: var(--radius-md); background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); border-inline-start: 4px solid var(--brand-purple);

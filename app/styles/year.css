@@ -1,4 +1,4 @@
-/* The package year (stage 5): year.html, the monthly cycle in "מה עליי" and in the
+/* The package year (stage 5): year.html, the monthly cycle in "המשימות שלי" and in the
    client card, and the "new in the protocol" tag. Builds on app.css, protocol.css
    and office-flows.css. Phones first: 44px targets, no sideways scrolling at 360px. */
 
@@ -8,7 +8,7 @@
 .tag-fresh { background: var(--accent-soft); color: var(--accent-deep); }
 .mc-draft { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
 
-/* "מה עליי": the month's items per client */
+/* "המשימות שלי": the month's items per client */
 .mc-box { padding: 4px 18px 0; }
 .mc-box[hidden] { display: none; }
 .mc-list { list-style: none; margin: 0; padding: 0; }

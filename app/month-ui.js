@@ -1,5 +1,5 @@
 // The monthly cycle on the shared screens, kept here so those screens change by a
-// line or two: its part of "מה עליי" (clients.html, for the person shown), the
+// line or two: its part of "המשימות שלי" (clients.html, for the person shown), the
 // month's block in the client card (client.html#month), and the item rows that
 // year.html uses too. Every item is labelled as a draft (decision 31). The logic:
 // app/year-logic.js; the data: app/year-data.js.
@@ -66,7 +66,7 @@ export async function saveMark(client, item, state, marks, me) {
 
 const draftHint = () => h('p', { class: 'hint mc-draft' }, `${DRAFT_LABEL} (החלטה 31).`);
 
-// ── "מה עליי" ─────────────────────────────
+// ── "המשימות שלי" ─────────────────────────────
 // The marks of all clients, loaded once and again after a minute.
 const cache = { rows: undefined, at: 0, loading: null };
 let box = null;

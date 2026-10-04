@@ -169,6 +169,8 @@ export function mountSession(onReady) {
       markTabSeen();
       // Stage 4: the one-time WhatsApp consent screen, only when the owner turned WhatsApp on (app/whatsapp.js).
       import('./whatsapp.js').then((m) => m.promptWhatsapp()).catch(() => {});
+      // The managers' switch, "המשימות שלי" / "מבט מנהל", at the top of every page (app/manager-ui.js).
+      import('./manager-ui.js').then((m) => m.mountModeSwitch(staff.email)).catch(() => {});
       return onReady(staff);
     }
     if (staff && !staff.isStaff) {
