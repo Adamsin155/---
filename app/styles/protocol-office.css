@@ -239,7 +239,7 @@ details.brief > summary { cursor: pointer; color: var(--accent); min-height: 32p
 }
 /* Four tabs fit a 360px screen. */
 @media (max-width: 420px) {
-  .tab { padding-inline: 10px; font-size: 14.5px; }
+  .tab { padding-inline: 4px; font-size: 13.5px; }
 }
 @media (prefers-reduced-motion: reduce) {
   details.g-client > summary::after { transition: none; }
