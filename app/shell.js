@@ -61,7 +61,11 @@ export function glide(change) {
   if (!motionOn() || typeof document.startViewTransition !== 'function') { change(); return; }
   let ran = false;
   const run = () => { if (!ran) { ran = true; change(); } };
-  try { document.startViewTransition(run); } catch { run(); }
+  try {
+    // A transition the browser gives up on (two things with one name, a hidden tab) still applies the change.
+    const t = document.startViewTransition(run);
+    for (const p of [t.ready, t.finished, t.updateCallbackDone]) p?.catch?.(() => {});
+  } catch { run(); }
 }
 
 // The entrance of a page, once: the blocks rise in order. Only what is on the screen
@@ -93,9 +97,13 @@ export function enterPage(root = document.querySelector('main')) {
 // Big numbers count up once (the first time a screen shows them). The element's text
 // is never changed: the moving figure is drawn over it (shell.css), so anything that
 // reads the page reads the real number from the first moment.
+// `startedAt` (performance.now() of the first time) lets a screen that is built again
+// within that moment carry on from where the figure was, instead of starting over.
 const counted = new WeakSet();
-export function countUp(root) {
-  if (!root || !motionOn()) return;
+const COUNT_MS = 700;
+export function countUp(root, startedAt = performance.now()) {
+  const elapsed = Math.max(0, performance.now() - startedAt);
+  if (!root || !motionOn() || elapsed >= COUNT_MS) return;
   const els = root.matches?.('.ds-num') ? [root] : [...root.querySelectorAll('.ds-num')];
   for (const el of els) {
     const m = /^(\d{1,6})(%?)$/.exec(el.textContent.trim());
@@ -103,9 +111,10 @@ export function countUp(root) {
     counted.add(el);
     el.style.setProperty('--ds-count-color', getComputedStyle(el).color);
     el.style.setProperty('--ds-to', m[1]);
+    el.style.setProperty('--ds-count-delay', `-${Math.round(elapsed)}ms`);
     el.dataset.suf = m[2];
     el.classList.add('ds-counting');
-    const done = () => { el.classList.remove('ds-counting'); el.style.removeProperty('--ds-to'); el.style.removeProperty('--ds-count-color'); delete el.dataset.suf; };
+    const done = () => { el.classList.remove('ds-counting'); el.style.removeProperty('--ds-to'); el.style.removeProperty('--ds-count-delay'); el.style.removeProperty('--ds-count-color'); delete el.dataset.suf; };
     el.addEventListener('animationend', done, { once: true });
     setTimeout(done, 1200);
   }

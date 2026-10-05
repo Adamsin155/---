@@ -4,6 +4,7 @@ import {
 } from './supa.js';
 import { h, formatDate, whatsappLink } from './quote-doc.js';
 import { formatILS } from './pricing.js';
+import { glide, countUp } from './shell.js';
 
 const $ = (id) => document.getElementById(id);
 let quotes = [];
@@ -42,10 +43,11 @@ function setSession(staff) {
   $('btn-refresh').hidden = !staff?.isStaff;
 }
 
+let statsShown = null;
 function renderStats() {
   const count = (s) => quotes.filter((q) => statusOf(q) === s).length;
   const signedMonthly = quotes.filter((q) => q.status === 'signed').reduce((s, q) => s + q.monthly_gross_agorot, 0);
-  const stat = (k, v) => h('div', { class: 'stat' }, h('div', { class: 'k' }, k), h('div', { class: 'v', dir: 'ltr' }, v));
+  const stat = (k, v) => h('div', { class: 'stat' }, h('div', { class: 'k' }, k), h('div', { class: 'v ds-num', dir: 'ltr' }, v));
   $('stats').replaceChildren(
     stat('הצעות', String(quotes.length)),
     stat('ממתינות לחתימה', String(count('sent') + count('viewed'))),
@@ -54,6 +56,9 @@ function renderStats() {
     stat('חודשי בהצעות חתומות', formatILS(signedMonthly)),
   );
   $('stats').hidden = false;
+  // The numbers count up the first time the page shows them.
+  statsShown ??= performance.now();
+  countUp($('stats'), statsShown);
 }
 
 function renderFilters() {
@@ -61,7 +66,7 @@ function renderFilters() {
   const n = (k) => quotes.filter((q) => k === 'all' || (k === 'open' ? OPEN.includes(statusOf(q)) : statusOf(q) === k)).length;
   $('filters').replaceChildren(...opts.map(([k, label]) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(filter === k),
-    onclick: () => { filter = k; renderFilters(); renderRows(); },
+    onclick: () => glide(() => { filter = k; renderFilters(); renderRows(); }),
   }, label, h('span', { class: 'n' }, String(n(k))))));
 }
 

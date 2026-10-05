@@ -123,7 +123,7 @@
 .ds-counting::after {
   content: counter(ds-n) attr(data-suf); counter-reset: ds-n var(--ds-n);
   position: absolute; inset: 0; color: var(--ds-count-color, currentColor); text-align: inherit;
-  animation: ds-count .7s cubic-bezier(.2, .7, .2, 1) both;
+  animation: ds-count .7s cubic-bezier(.2, .7, .2, 1) var(--ds-count-delay, 0s) both;
 }
 /* Meters and bars grow once, while their container carries .ds-grow (growOnce in app/shell.js). */
 .ds-grow .pbar-fill { transform-origin: 100% 50%; animation: ds-grow-x .9s var(--ds-ease) both; }
@@ -143,3 +143,11 @@
   body, body.has-shell, body.has-tabbar { padding: 0 !important; background: #fff; }
   body > main { border-radius: 0; margin: 0; max-width: none; background: #fff; }
 }
+
+/* One pink action a screen. Where the same action repeats down a list, the first (the
+   next thing to do) is the pink one and the rest are navy; a second section's own
+   action is navy too. */
+#msg-queue > li:not(:first-child) .btn-primary, .gt-share .btn-primary {
+  background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); box-shadow: none;
+}
+#msg-queue > li:not(:first-child) .btn-primary:hover, .gt-share .btn-primary:hover { background: var(--ds-navy-2); border-color: var(--ds-navy-2); color: var(--ds-on-navy); }

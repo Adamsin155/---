@@ -321,6 +321,7 @@ function rowItem(r, i) {
 }
 
 let shownOnce = false;
+let countStart = null;
 function renderNow() {
   const now = new Date();
   fill($('ow-stats'), statTiles(now));
@@ -328,7 +329,12 @@ function renderNow() {
   $('wk-card').hidden = !week;
   fill($('wk-card'), week);
   // The numbers count up and the bars grow the first time the screen shows them, never on a rebuild.
-  if (!shownOnce && entries.length) { shownOnce = true; countUp($('ow-stats')); if (week) growOnce($('wk-card')); }
+  // (A second build within that moment, when the rest of the data lands, carries on from where it was.)
+  if (entries.length) {
+    countStart ??= performance.now();
+    countUp($('ow-stats'), countStart);
+    if (week && !shownOnce) { shownOnce = true; growOnce($('wk-card')); }
+  }
   const { rows, more } = ownerRows(entries, { office: officeReasons(reviews, now) });
   fill($('ow-rows'), rows.map(rowItem));
   capList($('ow-rows'), 8, 'ow:rows');
@@ -425,7 +431,8 @@ function clientItem(e, now) {
   const top = e.health.reasons[0];
   const open = expanded.has(c.id);
   const more = `ga-${c.id}`;
-  return h('li', { class: `ga-item h-${e.health.color}`, 'data-id': c.id },
+  // Its own name for the browser's view transition: a filter lets the clients that stay glide to their place.
+  return h('li', { class: `ga-item h-${e.health.color}`, 'data-id': c.id, style: `view-transition-name:ga-${String(c.id).replace(/[^\w-]/g, '')}` },
     h('button', { type: 'button', class: 'ga-row', id: `gab-${c.id}`, 'aria-expanded': String(open), 'aria-controls': more, onclick: () => toggle(c.id) },
       h('span', { class: 'ga-l1' }, healthBadge(e.health.color), h('strong', { class: 'ga-name' }, c.name),
         h('span', { class: 'ga-why' }, top ? `${reasonText(top)} · ${personName(top.who)}` : 'לפי התוכנית')),
@@ -447,7 +454,7 @@ function renderAll() {
   const count = (k) => entries.filter((e) => (k === '' ? true : k === 'waiting' ? e.station.waiting : e.health.color === k)).length;
   fill($('ga-filters'), FILTERS.map(([k, label]) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(colorFilter === k), id: `gaf-${k || 'all'}`,
-    onclick: () => { colorFilter = k; renderAll(); },
+    onclick: () => glide(() => { colorFilter = k; renderAll(); document.getElementById(`gaf-${k || 'all'}`)?.focus(); }),
   }, k && k !== 'waiting' ? h('span', { class: `hicon h-${k}`, 'aria-hidden': 'true' }) : null, label, h('span', { class: 'n' }, String(count(k))))));
   const top = (e) => e.health.reasons[0] || { color: 'green', code: '', days: 0 };
   const list = entries.filter(matches).sort((a, b) => bySeverity(top(a), top(b)) || String(a.client.name).localeCompare(String(b.client.name), 'he'));
@@ -464,7 +471,7 @@ function dayHead(d, now) {
 }
 function renderBoard(now) {
   fill($('board-range'), [[7, 'השבוע'], [30, '30 יום']].map(([d, label]) => h('button', {
-    type: 'button', class: 'chip', 'aria-pressed': String(boardDays === d), id: `range-${d}`, onclick: () => { boardDays = d; renderBoard(new Date()); },
+    type: 'button', class: 'chip', 'aria-pressed': String(boardDays === d), id: `range-${d}`, onclick: () => glide(() => { boardDays = d; renderBoard(new Date()); document.getElementById(`range-${d}`)?.focus(); }),
   }, label)));
   const events = upcomingEvents(clients, stateOf, now, boardDays, checks);
   fill($('board-sum'), Object.entries(KIND).map(([k, label]) => `${label}: ${events.filter((e) => e.kind === k).length}`).join(' · '));
