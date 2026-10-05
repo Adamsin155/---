@@ -10,6 +10,7 @@ import {
 } from './protocol-ui.js';
 import { isOwnerView } from './team-rules.js';
 import { isManager, modeOf } from './manager-rules.js';
+import { officeScreens } from './shell-rules.js';
 import {
   QA_KINDS, qaState, fixedKey, fixedItemKey, qaDue,
 } from './office-marks.js';
@@ -50,18 +51,12 @@ export { firstLanded, markFirstLanded };
 // decisions (and the assignment, which he takes when Ofir cannot), all three for the
 // owner; the monthly insights for the owner and Lior; the package year for the
 // office and Ilai (app/month-ui.js worksCycle). The page itself is left out.
+// The list itself is officeScreens (app/shell-rules.js), which the app menu shows on
+// every page (app/shell.js); these links in a page head are hidden wherever the menu
+// offers the same screen, and stay as the way in if the menu could not be drawn.
 export function officeLinks(viewer, current = '') {
-  const me = viewer?.me || null;
-  const ok = !!viewer && !viewer.error;
-  const owner = ok && !me && viewer.scope === 'office';
-  const list = [
-    ['qa', 'qa.html', 'בקרה ושיוך', me === 'ofir' || me === 'lior' || owner],
-    ['pass', 'pass.html', 'מעבר על הלקוחות', me === 'ofir' || owner],
-    ['decisions', 'decisions.html', 'החלטות', me === 'lior' || me === 'ofir' || owner],
-    ['insights', 'insights.html', 'תובנות', ok && (me === 'lior' || owner)],
-    ['year', 'year.html', 'שנת החבילה', ok && (viewer.scope === 'office' || me === 'ilai')],
-  ].filter(([, href, , show]) => show && href !== current);
-  return list.map(([id, href, label]) => h('a', { class: 'btn btn-sm office-link', id: `cta-${id}`, href }, label));
+  return officeScreens(viewer).filter((s) => s.href !== current)
+    .map((s) => h('a', { class: 'btn btn-sm office-link', id: `cta-${s.id}`, href: s.href }, s.label));
 }
 
 // ── "התחלתי" on an urgent task (decision 9) ─

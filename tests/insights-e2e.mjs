@@ -506,13 +506,16 @@ await step('the office links: the owner and Lior reach the insights, Irit does n
   const o = await newPage(ctx);
   await signIn(o, 'owner.html', 'owner@astrateg.test');
   await o.waitForSelector('#ow-page:not([hidden])');
-  assert.equal(await o.isHidden('#nav-insights'), false);
+  await o.waitForSelector('#side-insights');
+  assert.equal(await o.getAttribute('#side-insights', 'href'), 'insights.html');
   await ctx.close();
   const c2 = await newContext();
   const i = await newPage(c2);
   await signIn(i, 'owner.html#all', 'irit@astrateg.test');
   await i.waitForSelector('#ow-page:not([hidden])');
   assert.equal(await i.isHidden('#nav-insights'), true);
+  await i.waitForSelector('#side-list .side-link');
+  assert.equal(await i.locator('#side-insights').count(), 0);
   await c2.close();
 });
 

@@ -1,0 +1,145 @@
+/* The app shell of the staff pages (app/shell.js): a floating side menu on a wide
+   screen, a floating bottom bar on a phone, the person's name and avatar in the top
+   bar. Also the shared pieces of the new look that are not tied to one page (avatars,
+   big-number tiles, soft cards) and the motion: an entrance once per page, numbers and
+   bars that grow once, a soft dialog; all of it off under prefers-reduced-motion.
+   Loaded last on every staff page; reads tokens.css. */
+
+/* ── The menu ─────────────────────────────── */
+.side { background: var(--ds-surface); }
+.side:empty { visibility: hidden; }
+.side-logo { display: block; padding-inline: 6px; }
+.side-logo img { display: block; block-size: 58px; inline-size: auto; }
+.side-nav { position: relative; display: grid; gap: 2px; }
+.side-k { color: var(--ds-muted); font-size: 12.5px; padding: 4px 12px; }
+.side-list, .mode-bar { display: grid; gap: 2px; }
+.side-link {
+  display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 12px;
+  background: transparent; color: var(--ds-muted); font: inherit; font-size: 15px; text-align: start; text-decoration: none; cursor: pointer;
+  transition: color var(--ds-t-fast), background-color var(--ds-t-fast);
+}
+.side-link:hover { color: var(--ds-ink); background: var(--ds-ground); }
+.side-link[aria-current] { color: var(--ds-ink); font-weight: 600; }
+.side-link:focus-visible { outline-offset: -2px; }
+.side-rail {
+  position: absolute; inset-inline-start: -14px; top: 0; inline-size: 5px; block-size: 30px; opacity: 0;
+  border-start-end-radius: 6px; border-end-end-radius: 6px; background: var(--ds-navy);
+  transition: transform .45s var(--ds-ease), opacity .2s;
+}
+.side-promo {
+  border-radius: var(--ds-r-card); padding: 16px; color: var(--ds-on-navy); text-decoration: none;
+  background: radial-gradient(120% 90% at 0% 0%, var(--ds-navy-2), var(--ds-navy)); display: grid; gap: 8px;
+}
+.side-promo:hover { color: var(--ds-on-navy); box-shadow: var(--ds-shadow-hover); }
+.side-promo strong { font-family: var(--ds-font-h); font-size: 18px; font-weight: 400; line-height: 1.2; }
+.side-promo small { color: #D5DCF0; font-size: 13px; }
+.side-promo:focus-visible { outline-offset: 3px; }
+
+/* The top bar under the shell: the page's place, then who is signed in. */
+.has-shell .session .dot, .has-shell .session .who {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.who-name { color: var(--ds-ink); font-size: 14.5px; font-weight: 500; white-space: nowrap; }
+.topbar .btn-sm { border-color: var(--ds-line-strong); font-weight: 500; }
+
+@media (min-width: 1024px) {
+  body.has-shell { padding-inline-start: calc(var(--ds-gutter) + var(--ds-side-w) + var(--ds-gap)); }
+  body.has-shell .topbar, body.has-shell > main { max-width: none; margin-inline: 0; }
+  .side {
+    position: fixed; z-index: 31; top: 12px; inset-inline-start: var(--ds-gutter); inline-size: var(--ds-side-w);
+    max-block-size: calc(100vh - 24px); max-block-size: calc(100dvh - 24px); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin;
+    border-radius: var(--ds-r-panel); padding: 18px 14px 14px; display: grid; gap: 16px; align-content: start;
+  }
+  .side-sheet, .side-more { display: none !important; }
+  /* The logo is in the menu: the bar names the area of the app instead. */
+  .has-shell .topbar .brand-logo, .has-shell .topbar .brand-chip, .has-shell .topbar .brand-name, .has-shell .topbar .brand-sep { display: none; }
+  .has-shell .topbar .brand-product { font-family: var(--ds-font-h); font-size: 19px; color: var(--ds-ink); }
+  .has-shell .topbar { min-height: 60px; }
+}
+
+/* ── A phone (and anything narrower than the menu needs): the bottom bar ── */
+@media (max-width: 1023.98px) {
+  .side { display: none; }
+  body.has-tabbar { --tabbar-room: 76px; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }
+  body.has-tabbar .side {
+    display: block; position: fixed; z-index: 50; inset-inline: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    max-inline-size: 560px; margin-inline: auto; padding: 6px; border-radius: 22px; box-shadow: var(--ds-shadow-float);
+  }
+  .side-logo, .side-promo, .side-k, .side-rail { display: none; }
+  .side-list { grid-template-columns: repeat(var(--bar-n, 4), minmax(0, 1fr)); gap: 4px; }
+  .side-list > .mode-bar { grid-column: span 2; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .side-link {
+    justify-content: center; text-align: center; font-size: 13px; line-height: 1.2; padding: 6px 4px; min-height: 50px; border-radius: 16px;
+    overflow-wrap: anywhere;
+  }
+  .side-link[aria-current], .side-more.is-on { background: var(--ds-navy); color: var(--ds-on-navy); }
+  .side-link[aria-current]:hover, .side-more.is-on:hover { background: var(--ds-navy-2); color: var(--ds-on-navy); }
+  .side-link[aria-current]:focus-visible, .side-more.is-on:focus-visible { outline-color: #fff; outline-offset: -4px; }
+  .side-more[aria-expanded='true']:not(.is-on) { background: var(--ds-soft); color: var(--ds-ink); }
+  .side-sheet {
+    position: absolute; inset-inline: 0; bottom: calc(100% + 8px); display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    padding: 8px; border-radius: 22px; background: var(--ds-surface); box-shadow: var(--ds-shadow-float);
+    max-block-size: min(60vh, 420px); overflow-y: auto;
+  }
+  .side-sheet .side-link { background: var(--ds-ground); min-height: 48px; font-size: 14px; }
+  .side-sheet .side-link[aria-current] { background: var(--ds-navy); }
+  .has-shell .who-name { display: none; }
+}
+@media (min-width: 761px) and (max-width: 1023.98px) { .has-shell .who-name { display: inline; } }
+
+/* ── Avatars ──────────────────────────────── */
+.ds-av {
+  inline-size: 38px; block-size: 38px; border-radius: 50%; display: inline-grid; place-items: center; flex: none;
+  font-weight: 600; font-size: 13px; line-height: 1; background: var(--av, var(--ds-soft)); color: #1B2340;
+}
+.ds-av-sm { inline-size: 28px; block-size: 28px; font-size: 11px; box-shadow: 0 0 0 2px var(--ds-surface); }
+.ds-av-lg { inline-size: 62px; block-size: 62px; font-size: 19px; }
+.ds-avs { display: inline-flex; }
+.ds-avs .ds-av + .ds-av { margin-inline-start: -8px; }
+
+/* ── Tiles and cards ──────────────────────── */
+.ds-tile { background: var(--ds-ground); border-radius: var(--ds-r-card); padding: 16px; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.ds-tile.is-hero { background: var(--ds-navy-grad); color: var(--ds-on-navy); }
+.ds-card { background: var(--ds-ground); border-radius: var(--ds-r-card); padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.ds-card h2 { margin: 0; font-size: 19px; }
+.ds-num { font-family: var(--ds-font-h); font-variant-numeric: tabular-nums; }
+
+/* ── Motion ───────────────────────────────── */
+@keyframes ds-rise { from { opacity: 0; transform: translateY(14px); } }
+@keyframes ds-pop { from { opacity: 0; transform: translateY(14px); } }
+@keyframes ds-grow-x { from { transform: scaleX(0); } }
+@keyframes ds-grow-y { from { transform: scaleY(0); } }
+.ds-rise { animation: ds-rise var(--ds-t-rise) var(--ds-ease) both; animation-delay: calc(var(--i, 0) * var(--ds-stagger)); }
+.ds-motion dialog[open] { animation: ds-pop .35s var(--ds-ease); }
+.ds-motion dialog[open]::backdrop { animation: ds-fade .25s ease; }
+@keyframes ds-fade { from { opacity: 0; } }
+::view-transition-group(*) { animation-duration: .45s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
+
+/* A number that counts up once: the real text stays in the page, the moving figure is drawn over it. */
+@property --ds-n { syntax: '<integer>'; inherits: false; initial-value: 0; }
+@keyframes ds-count { from { --ds-n: 0; } to { --ds-n: var(--ds-to, 0); } }
+.ds-counting { position: relative; color: transparent !important; }
+.ds-counting::after {
+  content: counter(ds-n) attr(data-suf); counter-reset: ds-n var(--ds-n);
+  position: absolute; inset: 0; color: var(--ds-count-color, currentColor); text-align: inherit;
+  animation: ds-count .7s cubic-bezier(.2, .7, .2, 1) both;
+}
+/* Meters and bars grow once, while their container carries .ds-grow (growOnce in app/shell.js). */
+.ds-grow .pbar-fill { transform-origin: 100% 50%; animation: ds-grow-x .9s var(--ds-ease) both; }
+[dir='ltr'] .ds-grow .pbar-fill { transform-origin: 0 50%; }
+.ds-grow .wk-seg { transform-origin: 50% 100%; animation: ds-grow-y .7s var(--ds-ease) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-rise, dialog[open], dialog[open]::backdrop, .ds-grow .pbar-fill, .ds-grow .wk-seg { animation: none !important; }
+  .ds-counting { color: inherit !important; }
+  .ds-counting::after { content: none; }
+  .side-rail, .side-link { transition: none; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+
+@media print {
+  .side { display: none !important; }
+  body, body.has-shell, body.has-tabbar { padding: 0 !important; background: #fff; }
+  body > main { border-radius: 0; margin: 0; max-width: none; background: #fff; }
+}
