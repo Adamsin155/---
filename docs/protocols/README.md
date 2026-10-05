@@ -48,6 +48,9 @@
 | חיבור הטלפון להתראות ורשימת ״התראות״ | `app/push.js`, `app/push-logic.js`, `app/push-config.js` (המפתח הציבורי בלבד) |
 | השרת שרץ כל דקה, והטבלאות | `supabase/functions/reminders/`, `supabase/migrations/20260930110000_reminders.sql`–`20260930110002_reminders_cron.sql` |
 | שעון ישראל (ימים, שעות, מעבר לשעון חורף) | `app/tz.js` |
+| המסגרת של כל עמודי הצוות: תפריט צד, סרגל תחתון בטלפון, שם המחובר, מתג המנהלים והתנועה ([ops.md, סעיף 25](../ops.md)) | `app/shell.js`, `app/shell-rules.js` (מי רואה איזה מסך), `app/styles/shell.css` |
+| הצבעים, הפינות, הגופנים והתנועה של כל המערכת | `app/styles/tokens.css` |
+| הגרף ״משימות שנסגרו השבוע״ במבט מנהל: הספירה | `app/week-chart.js` |
 | פתיחת לקוח: שם החבילה, סוג יום הצילום והכמויות מהקטלוג, וייבוא לפי תחנה | `app/client-open.js` |
 | הודעות ללקוחות: איזו הודעה מקבל כל לקוח היום, והנוסחים | `app/messages-logic.js`, `messages.html`, `supabase/migrations/20260930100000_client_messages.sql` |
 | טבלאות והרשאות | `supabase/migrations/20260929120000_client_protocol.sql`; מי רואה איזה לקוח (גם בכספת): `supabase/migrations/20260930130000_assignment_rls.sql` ו־[ops.md, סעיף 9](../ops.md) |
