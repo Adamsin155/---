@@ -22,6 +22,7 @@
 .login::before {
   content: ''; justify-self: center; inline-size: 190px; aspect-ratio: 403 / 280; margin-bottom: 6px;
   background: url('../assets/logo.png') center / contain no-repeat;
+  mix-blend-mode: multiply; /* the logo's white ground melts into the card */
 }
 .login h2 { text-align: center; font-size: 24px; }
 .login > p { text-align: center; }
@@ -500,7 +501,7 @@ dialog.dlg-wide .dlg-foot { border-top: 1px solid var(--line); padding-top: 14px
 .access-list .empty { padding: 12px 0; color: var(--muted); font-size: 13.5px; }
 .access-row {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap;
-  padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2);
+  padding: 10px 12px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--panel-2);
 }
 .access-row.a-broken, .access-row.a-missing { border-inline-start: 3px solid var(--warn); }
 .access-main { flex: 1 1 200px; min-width: 0; }
