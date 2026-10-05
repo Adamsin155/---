@@ -27,7 +27,7 @@ export const PROTOCOL_VERSION = 6;
 // in, a finished process) run only inside these hours; a deal that arrives at
 // night is due the next working morning. On erev chag (EREV in holidays.js) the
 // office closes at erevEnd; Chol HaMoed is a normal day.
-export const WORK_HOURS = { start: 9, end: 24, erevEnd: 13 }; // TEMP (5.10.2026 evening test): end is 18
+export const WORK_HOURS = { start: 9, end: 18, erevEnd: 13 };
 
 // People named in the protocol. `key` is stored in the database (staff.person).
 export const PEOPLE = {

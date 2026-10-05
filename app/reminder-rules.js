@@ -60,7 +60,7 @@ export const REMINDER_PEOPLE = new Set([OWNER, ...TEAM_PEOPLE().map((p) => p.key
 // Sending hours (section 5): Sunday–Thursday 08:30–19:00, not on holidays. On erev
 // chag the office works until 13:00 (decision 2), and so do the rings. Shoot-day
 // events are the exception. The digests run inside them.
-export const SEND_HOURS = { from: 8 * 60 + 30, to: 24 * 60, /* TEMP: to is 19 * 60 */ erevTo: WORK_HOURS.erevEnd * 60 };
+export const SEND_HOURS = { from: 8 * 60 + 30, to: 19 * 60, erevTo: WORK_HOURS.erevEnd * 60 };
 // At most 6 rings a day for each person, not counting protocol clocks, shoot days and urgent work.
 export const DAILY_CAP = 6;
 // Digest times (principle 4, section 3, decision 24).
