@@ -239,6 +239,11 @@ export async function loadAllLog(sinceIso) {
     .gte('at', sinceIso).order('at'));
 }
 
+// The tasks marked done since a moment (the week's chart on the manager view, app/week-chart.js).
+export async function loadTasksDoneSince(sinceIso) {
+  return all(() => supabase.from('client_tasks').select('id, client_id, done_at').gte('done_at', sinceIso).order('done_at'));
+}
+
 // ── Access vault ─────────────────────────────
 // The list never contains passwords; a password is read only through
 // access_reveal(), which logs who viewed it and when.

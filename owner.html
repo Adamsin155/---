@@ -9,10 +9,11 @@
   <link rel="icon" href="app/assets/logo-mark.png">
   <link rel="manifest" href="clients.webmanifest">
   <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
-  <meta name="theme-color" content="#FFFFFF">
+  <meta name="theme-color" content="#EEF0F4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
   <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/tokens.css">
   <link rel="stylesheet" href="app/styles/app.css">
   <link rel="stylesheet" href="app/styles/quotes.css">
   <link rel="stylesheet" href="app/styles/protocol.css">
@@ -20,6 +21,7 @@
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
   <link rel="stylesheet" href="app/styles/owner.css">
   <link rel="stylesheet" href="app/styles/manager.css" data-manager-css>
+  <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
   <header class="topbar">
@@ -79,10 +81,16 @@
         <section class="block ow-view" id="view-now" role="tabpanel" aria-labelledby="tab-now" hidden>
           <h2 class="sr-only">במספרים</h2>
           <ul class="ow-stats" id="ow-stats"></ul>
-          <h2 class="wgroup-h" id="rows-h" tabindex="-1">דורש תשומת לב</h2>
-          <ol class="ow-rows" id="ow-rows" aria-labelledby="rows-h"></ol>
-          <p class="ow-empty" id="ow-empty" hidden>הכול לפי התוכנית</p>
-          <p class="ow-more" id="ow-more" hidden></p>
+          <div class="ow-cols">
+            <div class="ds-card ow-main">
+              <h2 class="wgroup-h" id="rows-h" tabindex="-1">דורש תשומת לב</h2>
+              <ol class="ow-rows" id="ow-rows" aria-labelledby="rows-h"></ol>
+              <p class="ow-empty" id="ow-empty" hidden>הכול לפי התוכנית</p>
+              <p class="ow-more" id="ow-more" hidden></p>
+            </div>
+            <!-- The week in bars (app/week-chart.js): closed per office day, and what is still open with that day as its deadline. -->
+            <section class="ds-card wk" id="wk-card" aria-labelledby="wk-h" hidden></section>
+          </div>
           <section class="ow-answers" id="ow-answers" aria-labelledby="ans-h" hidden>
             <h2 class="wgroup-h" id="ans-h">תשובות אחרונות</h2>
             <ul class="ow-alist" id="ow-alist"></ul>
