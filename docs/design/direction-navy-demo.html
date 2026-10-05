@@ -1,0 +1,403 @@
+<title>אסטרטג דמו חי</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Fredoka:wght@400;500;600&family=Heebo:wght@400;500;700&family=Varela+Round&family=Rubik:wght@400;500;600&display=swap">
+<style>
+/* Layout: a floating side menu (right, RTL) and a floating main panel on a soft ground; on a phone the menu becomes a bottom bar and everything stacks. One deep colour leads; the hot colour is only for what is late. */
+:root {
+  --ground: #F0EEF6; --panel: #FFFFFF; --ink: #19123A; --muted: #6F6A8C; --deep: #3A0AA8; --deep-2: #6A2BF0; --on-deep: #FFFFFF; --deep-text: #4A12C8;
+  --soft: #EAE2FD; --mid: #9C7BF4; --hatch: #A9A3C4; --hot: #E11D63; --amber: #9A5B00; --ok: #1B7F52; --line: #E4E0F0;
+  --font-h: 'Fredoka', 'Assistant', sans-serif; --font-b: 'Assistant', Arial, sans-serif;
+  --ease: cubic-bezier(.2, .8, .2, 1); color-scheme: light;
+}
+:root[data-skin="navy"] { --ground: #EEF0F4; --ink: #0B1533; --muted: #646E88; --deep: #071433; --deep-2: #1C2F6B; --deep-text: #0E2260; --soft: #E4E8F3; --mid: #6F86C9; --hatch: #A6AEC2; --hot: #F82272; --line: #E0E4EC; --font-h: 'Varela Round', 'Heebo', sans-serif; --font-b: 'Heebo', Arial, sans-serif }
+:root[data-skin="logo"] { --ground: #F6EEF3; --ink: #23102B; --muted: #7A6680; --deep: #6A0F9E; --deep-2: #F82272; --deep-text: #8A1BB8; --soft: #F7DDEB; --mid: #E86AA6; --hatch: #C2A9BC; --hot: #D81B60; --line: #EEDFE8; --font-h: 'Rubik', 'Assistant', sans-serif; --font-b: 'Rubik', Arial, sans-serif }
+* { box-sizing: border-box }
+html, body { height: 100% }
+body { background: var(--ground); color: var(--ink); font-family: var(--font-b); font-size: 15px; line-height: 1.45; padding-inline: 16px; padding-block: 12px; transition: background-color .4s }
+button { font: inherit; color: inherit; cursor: pointer }
+:focus-visible { outline: 2.5px solid var(--deep-2); outline-offset: 2px }
+.app { max-width: 1380px; margin-inline: auto; display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 14px; align-items: start }
+.skins { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--muted) }
+.skins button { border: 1.5px solid var(--line); background: var(--panel); border-radius: 99px; padding: 7px 14px; display: flex; align-items: center; gap: 8px; min-height: 40px }
+.skins button[aria-pressed="true"] { border-color: var(--ink); font-weight: 600 }
+.skins i { width: 16px; height: 16px; border-radius: 50%; display: inline-block }
+
+/* side menu */
+.side { background: var(--panel); border-radius: 24px; padding: 20px 14px; display: grid; gap: 18px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px) }
+.logo { font-family: var(--font-h); font-size: 23px; font-weight: 600; display: flex; align-items: center; gap: 10px; padding-inline: 8px; direction: ltr; justify-content: flex-end }
+.logo i { width: 32px; height: 32px; border-radius: 11px; background: linear-gradient(135deg, var(--deep), var(--deep-2)) }
+.nav { position: relative; display: grid; gap: 2px }
+.nav small { color: var(--muted); font-size: 12.5px; padding: 4px 12px }
+.nav button { border: 0; background: transparent; text-align: start; padding: 11px 12px; border-radius: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; min-height: 44px; transition: color .2s }
+.nav button[aria-current="page"] { color: var(--ink); font-weight: 600 }
+.nav b { background: var(--deep); color: var(--on-deep); border-radius: 8px; font-size: 12px; padding: 1px 8px; font-weight: 600 }
+.rail { position: absolute; inset-inline-start: -14px; top: 0; width: 5px; height: 30px; border-radius: 0 6px 6px 0; background: var(--deep); transition: transform .45s var(--ease) }
+[dir="rtl"] .rail { border-radius: 6px 0 0 6px }
+.promo { border-radius: 20px; padding: 16px; color: var(--on-deep); background: radial-gradient(120% 90% at 0% 0%, var(--deep-2), var(--deep)); display: grid; gap: 8px }
+.promo strong { font-family: var(--font-h); font-size: 18px; font-weight: 500; line-height: 1.2 }
+.promo small { opacity: .85 }
+
+/* main */
+.main { display: grid; gap: 14px; min-width: 0 }
+.top { background: var(--panel); border-radius: 24px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px }
+.search { background: var(--ground); border-radius: 99px; padding: 11px 18px; color: var(--muted); flex: 1; max-width: 380px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.user { display: flex; align-items: center; gap: 10px; white-space: nowrap }
+.av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 13px; background: var(--av, var(--soft)); color: #2A2140; flex: none }
+.av.sm { width: 28px; height: 28px; font-size: 11px; border: 2px solid var(--panel) }
+.body { background: var(--panel); border-radius: 24px; padding: 22px; display: grid; gap: 18px; min-height: 560px; align-content: start }
+.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 14px; flex-wrap: wrap }
+.head h1 { font-family: var(--font-h); font-size: clamp(30px, 4vw, 40px); font-weight: 500; margin: 0; line-height: 1.05 }
+.head h1 span { display: inline-block }
+.head p { margin: 4px 0 0; color: var(--muted) }
+.acts { display: flex; gap: 8px; flex-wrap: wrap }
+.btn { border-radius: 99px; padding: 12px 22px; font-weight: 600; background: linear-gradient(180deg, var(--deep-2), var(--deep)); color: var(--on-deep); border: 1.5px solid transparent; white-space: nowrap; min-height: 46px; transition: transform .2s var(--ease), box-shadow .2s }
+.btn:hover { box-shadow: 0 6px 16px color-mix(in srgb, var(--deep) 30%, transparent) }
+.btn:active { transform: scale(.96) }
+.btn.line { background: transparent; color: var(--ink); border-color: var(--ink); box-shadow: none }
+:root[data-skin="navy"] .btn:not(.line) { background: var(--hot) }
+:root[data-skin="logo"] .btn:not(.line), :root[data-skin="logo"] .tile.hero, :root[data-skin="logo"] .promo { background: linear-gradient(120deg, var(--deep), var(--deep-2)) }
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px }
+.tile { background: var(--ground); border-radius: 20px; padding: 16px; display: grid; gap: 4px }
+.tile.hero { background: radial-gradient(130% 120% at 100% 0%, var(--deep-2), var(--deep)); color: var(--on-deep) }
+.tile strong { font-family: var(--font-h); font-size: 46px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums }
+.tile small { color: var(--muted) } .tile.hero small { color: inherit; opacity: .85 }
+.tile.bad strong { color: var(--hot) }
+.row3 { display: grid; grid-template-columns: 1.15fr 1fr 1.3fr; gap: 14px }
+.card { background: var(--ground); border-radius: 20px; padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0 }
+.card h2 { margin: 0; font-family: var(--font-h); font-size: 19px; font-weight: 500 }
+.bars { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: end; height: 176px }
+.barcol { display: grid; grid-template-rows: auto 1fr; gap: 5px; height: 100%; text-align: center }
+.barcol > b { font-family: var(--font-h); font-weight: 500; font-size: 15px; font-variant-numeric: tabular-nums }
+.barcol > b small { color: var(--muted); font-family: var(--font-b); font-size: 12px }
+.stack { display: flex; flex-direction: column; justify-content: flex-end; gap: 3px; min-height: 0 }
+.bars .seg-b { border-radius: 14px; background: var(--deep); transform-origin: bottom; transform: scaleY(var(--s, 1)); transition: transform .7s var(--ease); min-height: 6px }
+.bars .today .seg-b.done { background: var(--mid) }
+.bars .seg-b.open { background: repeating-linear-gradient(135deg, var(--hatch) 0 2px, transparent 2px 7px); border: 1px solid var(--hatch) }
+.days5 .now { color: var(--ink); font-weight: 700 }
+.chartkey { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted) }
+.chartkey i { width: 14px; height: 10px; border-radius: 4px; display: inline-block; margin-inline-end: 6px; vertical-align: -1px }
+.chartsum { margin: 0; color: var(--muted); font-size: 14px }
+.chartsum strong { color: var(--ink) }
+.days5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: center; color: var(--muted); font-size: 13px }
+.clock strong { font-family: var(--font-h); font-size: 24px; font-weight: 500; color: var(--deep-text); line-height: 1.15 }
+.clock .t { font-family: var(--font-h); font-size: 40px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1 }
+.list { display: grid; gap: 11px }
+.item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 11px; align-items: center }
+.item strong { display: block; font-weight: 600 }
+.item small { color: var(--muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.tag { border-radius: 8px; padding: 2px 9px; font-size: 12.5px; border: 1px solid currentColor; white-space: nowrap }
+.tag.red { color: var(--hot) } .tag.amber { color: var(--amber) } .tag.ok { color: var(--ok) } .tag.soft { border: 0; background: var(--soft); color: var(--deep-text) }
+
+/* filters and board */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--ground); border-radius: 99px; padding: 5px }
+.seg button { border: 0; background: transparent; border-radius: 99px; padding: 9px 18px; color: var(--muted); min-height: 42px; transition: color .25s, background-color .25s }
+.seg button[aria-pressed="true"] { background: var(--deep); color: var(--on-deep); font-weight: 600 }
+.board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: start }
+.col { background: var(--ground); border-radius: 20px; padding: 12px; display: grid; gap: 10px; align-content: start }
+.col h2 { margin: 2px 4px; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px }
+.col h2 i { width: 9px; height: 9px; border-radius: 50%; background: var(--dot) }
+.col h2 b { margin-inline-start: auto; background: var(--panel); border-radius: 99px; padding: 1px 10px; font-size: 13px }
+.task { background: var(--panel); border-radius: 16px; padding: 13px; display: grid; gap: 9px; border: 0; text-align: start; width: 100%; transition: transform .25s var(--ease), box-shadow .25s }
+.task:hover { transform: translateY(-2px); box-shadow: 0 8px 20px color-mix(in srgb, var(--deep) 12%, transparent) }
+.task .tags { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--muted) }
+.task strong { font-weight: 600; font-size: 15.5px; line-height: 1.3 }
+.task .what { color: var(--muted); font-size: 13.5px }
+.meter { height: 5px; border-radius: 99px; background: var(--ground); overflow: hidden }
+.meter i { display: block; height: 100%; border-radius: 99px; background: var(--deep); width: var(--w); transform-origin: right; transform: scaleX(var(--s, 1)); transition: transform .9s var(--ease) }
+.task .foot { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted) }
+.task .late { color: var(--hot); font-weight: 600 }
+.avs { display: flex } .avs .av + .av { margin-inline-start: -8px }
+.count { color: var(--muted) }
+
+/* calendar */
+.calwrap { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); gap: 14px; align-items: start }
+.calhead { display: flex; justify-content: space-between; align-items: center }
+.calhead h2 { font-size: 24px }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px }
+.cal .dow { text-align: center; color: var(--muted); font-size: 12.5px; padding-block: 2px }
+.day { background: var(--panel); border: 2px solid transparent; border-radius: 14px; min-height: 74px; padding: 7px; display: grid; gap: 3px; align-content: start; text-align: start; transition: background-color .2s, border-color .25s, box-shadow .2s }
+.day:hover { box-shadow: 0 4px 12px color-mix(in srgb, var(--deep) 12%, transparent) }
+.day[aria-pressed="true"] { border-color: var(--deep) }
+.day.out { background: transparent; color: var(--hatch) }
+.day b { font-weight: 600; font-size: 13.5px }
+.day.today b { background: var(--deep); color: var(--on-deep); border-radius: 8px; padding: 0 7px; justify-self: start }
+.chip { border-radius: 6px; padding: 1px 6px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--c-bg); color: var(--c-ink) }
+.chip.video { --c-bg: #E3DBFC; --c-ink: #3A0AA8 } .chip.gfx { --c-bg: #FBD9E7; --c-ink: #A10F4E } .chip.shoot { --c-bg: #D9E8FB; --c-ink: #0E3F8A } .chip.report { --c-bg: #FBEBCB; --c-ink: #7A4A00 }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted) }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-inline-end: 6px }
+.sel h2 { font-size: 26px } .sel small { color: var(--deep-text); font-weight: 600 }
+.ev { background: var(--panel); border-radius: 14px; padding: 11px 13px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; border-inline-start: 4px solid var(--deep) }
+.ev time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px }
+.soon { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center }
+.soon .d { background: var(--soft); color: var(--deep-text); border-radius: 12px; width: 46px; padding: 4px 0; text-align: center; font-family: var(--font-h); font-size: 19px; font-weight: 500; line-height: 1.1 }
+.soon .d small { display: block; font-size: 10.5px; font-family: var(--font-b) }
+
+/* team */
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px }
+.person { background: var(--ground); border-radius: 20px; padding: 18px 14px; display: grid; gap: 8px; justify-items: center; text-align: center }
+.person .av { width: 62px; height: 62px; font-size: 19px }
+.person strong { font-size: 16.5px } .person small { color: var(--muted) }
+.stats { display: grid; grid-template-columns: 1fr 1fr; width: 100%; border-top: 1px solid var(--line); padding-top: 9px }
+.stats b { display: block; font-family: var(--font-h); font-size: 20px; font-weight: 500 }
+.stats span { color: var(--muted); font-size: 12.5px }
+.person .meter { width: 100%; background: var(--panel) }
+
+/* dialog */
+dialog { border: 0; border-radius: 24px; padding: 22px; width: min(440px, calc(100vw - 32px)); background: var(--panel); color: var(--ink); font-family: var(--font-b) }
+dialog::backdrop { background: color-mix(in srgb, var(--ink) 45%, transparent) }
+dialog[open] { animation: dlg .35s var(--ease) }
+dialog h2 { font-family: var(--font-h); font-weight: 500; margin: 0 0 12px; font-size: 24px }
+dialog label { display: grid; gap: 5px; margin-bottom: 12px; color: var(--muted); font-size: 14px }
+dialog input, dialog select { font: inherit; padding: 11px 14px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--ground); color: var(--ink) }
+dialog input:focus, dialog select:focus { border-color: var(--deep); outline: 0 }
+.toast { position: fixed; inset-inline: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); margin-inline: auto; width: max-content; max-width: calc(100vw - 32px); background: var(--ink); color: var(--panel); border-radius: 99px; padding: 11px 20px; transform: translateY(20px); opacity: 0; transition: transform .35s var(--ease), opacity .25s; pointer-events: none }
+.toast.on { transform: none; opacity: 1 }
+
+/* motion: one entrance per page, things rise in order; turned off for reduced motion */
+@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985) } }
+@keyframes ch { from { opacity: 0; transform: translateY(.5em) } }
+@keyframes dlg { from { opacity: 0; transform: translateY(16px) scale(.96) } }
+.enter .rise { animation: rise .55s var(--ease) both; animation-delay: calc(var(--i, 0) * 45ms) }
+.enter .head h1 span { animation: ch .5s var(--ease) both; animation-delay: calc(var(--c, 0) * 28ms) }
+::view-transition-group(*) { animation-duration: .45s; animation-timing-function: cubic-bezier(.2, .8, .2, 1) }
+@media (prefers-reduced-motion: reduce) { .enter .rise, .enter .head h1 span, dialog[open] { animation: none } .rail, .bars div, .meter i, .btn, .task { transition: none } }
+
+@media (max-width: 1080px) { .grid4, .board { grid-template-columns: repeat(2, minmax(0, 1fr)) } .row3, .calwrap { grid-template-columns: minmax(0, 1fr) } }
+@media (max-width: 760px) {
+  body { padding-block: 10px 96px }
+  .app { grid-template-columns: minmax(0, 1fr) }
+  .side { position: fixed; inset-inline: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); top: auto; z-index: 5; padding: 6px; border-radius: 22px; box-shadow: 0 10px 30px color-mix(in srgb, var(--ink) 22%, transparent) }
+  .side .logo, .side .promo, .nav small, .rail { display: none }
+  .nav { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px }
+  .nav button { justify-content: center; text-align: center; font-size: 13px; padding: 10px 4px; min-height: 48px; border-radius: 16px }
+  .nav button[aria-current="page"] { background: var(--deep); color: var(--on-deep) }
+  .nav b { display: none }
+  .body { padding: 16px; border-radius: 20px } .top { border-radius: 20px }
+  .board, .grid4 { grid-template-columns: minmax(0, 1fr) } .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .tile strong { font-size: 36px }
+  .day { min-height: 56px; padding: 5px; border-radius: 10px } .chip { font-size: 0; width: 100%; height: 6px; padding: 0 }
+  .user span { display: none }
+}
+</style>
+
+<div class="app" dir="rtl" lang="he">
+  <div class="skins" role="group" aria-label="צבעים">
+    <span>צבעים:</span>
+    <button type="button" data-skin="" aria-pressed="false"><i style="background:#4A12C8"></i>ה · סגול</button>
+    <button type="button" data-skin="navy" aria-pressed="true"><i style="background:#071433"></i>ו · נייבי</button>
+    <button type="button" data-skin="logo" aria-pressed="false"><i style="background:linear-gradient(120deg,#6A0F9E,#F82272)"></i>ז · צבעי הלוגו</button>
+    <span>זה דמו עם נתוני דוגמה. לחצו על התפריט, על הסינונים, על ימים בלוח ועל "לקוח חדש".</span>
+  </div>
+
+  <aside class="side">
+    <div class="logo">astrateg<i></i></div>
+    <nav class="nav" id="nav" aria-label="ראשי">
+      <span class="rail" id="rail"></span>
+      <small>תפריט</small>
+      <button type="button" data-page="manager" aria-current="page">מבט מנהל</button>
+      <button type="button" data-page="tasks">המשימות שלי <b>8</b></button>
+      <button type="button" data-page="gantt">גאנט תוכן</button>
+      <button type="button" data-page="team">צוות</button>
+    </nav>
+    <div class="promo"><strong>אסטרטג בטלפון</strong><small>התראות על כל משימה, גם כשהאתר סגור</small></div>
+  </aside>
+
+  <div class="main">
+    <div class="top"><div class="search">חיפוש לקוח, עורך או חבילה</div><div class="user"><span>אדם</span><span class="av" style="--av:#FAD4DF">אד</span></div></div>
+    <main class="body" id="body"></main>
+  </div>
+</div>
+
+<dialog id="dlg" dir="rtl">
+  <form method="dialog" id="dlg-form">
+    <h2>לקוח חדש</h2>
+    <label for="f-name">שם העסק<input id="f-name" placeholder="למשל: קפה הפינה" autocomplete="off"></label>
+    <label for="f-pack">חבילה<select id="f-pack"><option>Social</option><option>Social + TV</option><option>Podcast</option></select></label>
+    <div class="acts" style="justify-content:flex-end"><button class="btn line" type="button" id="dlg-x">ביטול</button><button class="btn" type="submit">פתיחת לקוח</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const AV = { 'עירית': '#FAD4DF', 'ליאור': '#D6E6FB', 'אופיר': '#E3DBFC', 'עילאי': '#D5F0E1', 'נדיה': '#FDE9C4', 'יריב': '#D9F0F4', 'אנה': '#F4DCF6', 'אלי': '#E6E9C9', 'סתיו': '#FFE0CC', 'ניראל': '#DDE3FA', 'עמוס': '#E9DCCB' };
+const av = (n, sm) => `<span class="av${sm ? ' sm' : ''}" style="--av:${AV[n] || '#E6E6EE'}" title="${n}">${n.slice(0, 2)}</span>`;
+const split = (t) => [...t].map((c, i) => c === ' ' ? ' ' : `<span style="--c:${i}">${c}</span>`).join('');
+const head = (title, sub, acts = '') => `<div class="head rise"><div><h1>${split(title)}</h1><p>${sub}</p></div><div class="acts">${acts}</div></div>`;
+
+const TASKS = [
+  { id: 't1', col: 'urgent', client: 'קפה הפינה', what: 'להכין חוזה. מסתיו, לפני 2 דקות', tag: 'הצטרפות', due: 'נשארו 07:42', late: false, p: 10, who: ['עירית'], mine: true },
+  { id: 't2', col: 'urgent', client: 'יקב ברזגלי', what: 'אין אישור לקוח על התסריטים, צילום מחר', tag: 'תוכן ואישור', due: 'היום עד 12:00', late: false, p: 70, who: ['ליאור'], mine: false },
+  { id: 't3', col: 'late', client: 'מספרת רון', what: 'לקבוע יום צילום ולאשר מול המשפיענים', tag: 'הצטרפות', due: 'באיחור 3 ימי עסקים', late: true, p: 35, who: ['עירית'], mine: true },
+  { id: 't4', col: 'late', client: 'קינג מיט', what: '9 הגרפיקות מוכנות: לבדוק ולשלוח ללקוח', tag: 'אפיון', due: 'באיחור יום אחד', late: true, p: 80, who: ['עירית', 'עילאי'], mine: true },
+  { id: 't5', col: 'late', client: 'מדיקל ביוטי', what: 'בקרת איכות על 6 סרטונים', tag: 'עריכה ובקרה', due: 'באיחור שעתיים', late: true, p: 60, who: ['אופיר', 'נדיה'], mine: false },
+  { id: 't6', col: 'today', client: 'תלמי שילת', what: 'תזכורת לצוות וללקוח לפני הצילום', tag: 'יום צילום', due: 'היום עד 11:00', late: false, p: 0, who: ['עירית'], mine: true },
+  { id: 't7', col: 'today', client: 'בן שימול', what: 'לשלוח גאנט חודש 2 ללקוח', tag: 'פרסום', due: 'היום עד 16:00', late: false, p: 90, who: ['עירית', 'עילאי'], mine: true },
+  { id: 't8', col: 'today', client: 'גלרי אולם אירועים', what: 'ממתינים ללקוח: חומרים חסרים מהאפיון', tag: 'אפיון', due: 'ממתין ללקוח 4 ימים', late: false, p: 45, who: ['עירית'], mine: true, wait: true },
+  { id: 't9', col: 'tomorrow', client: 'קווין', what: 'שיחה שבועית עם הלקוח', tag: 'שוטף', due: 'מחר 10:00', late: false, p: 0, who: ['ליאור'], mine: false },
+  { id: 't10', col: 'tomorrow', client: 'שווארמה טובול', what: 'סיכום חמישי ועדכון ללקוח', tag: 'שוטף', due: 'מחר עד 13:00', late: false, p: 20, who: ['אופיר', 'עירית'], mine: true },
+];
+const COLS = [['urgent', 'דחוף', 'var(--hot)'], ['late', 'באיחור', 'var(--amber)'], ['today', 'היום', 'var(--deep-2)'], ['tomorrow', 'מחר', 'var(--ok)']];
+const FILTERS = { all: () => true, mine: (t) => t.mine, late: (t) => t.late, wait: (t) => t.wait };
+const EVENTS = { 4: [['video', 'סרטון 27', '19:00', 'מספרת רון']], 5: [['gfx', 'גרפיקה 12', '13:00', 'קינג מיט'], ['report', 'דוח חודשי', '12:00', 'בן שימול']], 6: [['video', 'סרטון 28', '19:00', 'מספרת רון'], ['shoot', 'יום צילום', '10:00', 'יקב ברזגלי']], 7: [['gfx', 'גרפיקה 13', '13:00', 'קינג מיט']], 8: [['video', 'סרטון 29', '19:00', 'מספרת רון']], 11: [['video', 'סרטון 30', '19:00', 'מדיקל ביוטי']], 12: [['gfx', 'גרפיקה 14', '13:00', 'תלמי שילת']], 13: [['video', 'סרטון 31', '19:00', 'מדיקל ביוטי'], ['shoot', 'יום צילום', '11:00', 'קווין']], 15: [['video', 'סרטון 32', '19:00', 'בן שימול']], 18: [['video', 'סרטון 33', '19:00', 'בן שימול']], 20: [['video', 'סרטון 34', '19:00', 'מספרת רון'], ['gfx', 'גרפיקה 15', '13:00', 'קווין']], 22: [['shoot', 'יום צילום', '10:00', 'גלרי אולם אירועים']], 27: [['video', 'סרטון 35', '19:00', 'יקב ברזגלי']], 29: [['report', 'תכנון חודש 3', '16:00', 'כל הלקוחות']] };
+const KIND = { video: 'סרטון', gfx: 'גרפיקה', shoot: 'יום צילום', report: 'דוח ותכנון' };
+const DOW = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'], DAYNAME = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
+const PEOPLE = [['עירית', 'תפעול ולקוחות', 'office', 7, 91, 82], ['ליאור', 'ניהול, תוכן וצילום', 'office', 9, 84, 95], ['אופיר', 'אפיונים ובקרת איכות', 'office', 5, 93, 64], ['עילאי', 'גרפיקה, סושיאל ותזמון', 'office', 6, 88, 71], ['נדיה', 'עריכת וידאו', 'edit', 3, 96, 58], ['יריב', 'עריכת וידאו', 'edit', 2, 90, 40], ['אנה', 'עריכת וידאו', 'edit', 4, 87, 76], ['ניראל', 'עריכת נטלי וגרפיקה', 'edit', 3, 92, 66], ['אלי', 'צלם ימי הצילום', 'field', 2, 100, 35], ['סתיו', 'סוכן שטח', 'field', 1, 100, 20], ['עמוס', 'סוכן שטח', 'field', 1, 100, 15]];
+const state = { page: 'manager', filter: 'all', day: 5, dept: 'all' };
+
+// The week's work, per office day: what was closed (solid), and what is still open with that day as its deadline (hatched).
+const WEEK = [['א׳', 14, 0], ['ב׳', 9, 6], ['ג׳', 0, 8], ['ד׳', 0, 11], ['ה׳', 0, 5]], TODAY_I = 1;
+function weekChart() {
+  const max = Math.max(...WEEK.map(([, d, o]) => d + o));
+  const done = WEEK.reduce((s, w) => s + w[1], 0), open = WEEK.reduce((s, w) => s + w[2], 0);
+  const label = WEEK.map(([n, d, o]) => n + ' ' + d + ' נסגרו, ' + o + ' פתוחות').join('; ');
+  const cols = WEEK.map(([n, d, o], i) => {
+    const top = (d || o) + (d && o ? '<small> +' + o + '</small>' : '');
+    const segOpen = o ? '<div class="seg-b open" style="height:' + (o / max * 100) + '%"></div>' : '';
+    const segDone = d ? '<div class="seg-b done" style="height:' + (d / max * 100) + '%"></div>' : '';
+    return '<div class="barcol' + (i === TODAY_I ? ' today' : '') + '" title="יום ' + n + ': ' + d + ' נסגרו, ' + o + ' פתוחות"><b>' + top + '</b><div class="stack">' + segOpen + segDone + '</div></div>';
+  }).join('');
+  const days = WEEK.map(([n], i) => '<span class="' + (i === TODAY_I ? 'now' : '') + '">' + n + (i === TODAY_I ? ' · היום' : '') + '</span>').join('');
+  return '<div class="card rise"><h2>משימות שנסגרו השבוע</h2>'
+    + '<p class="chartsum"><strong>' + done + ' נסגרו</strong> עד עכשיו, ועוד ' + open + ' פתוחות עד יום חמישי</p>'
+    + '<div class="bars" role="img" aria-label="משימות לפי יום: ' + label + '">' + cols + '</div>'
+    + '<div class="days5">' + days + '</div>'
+    + '<div class="chartkey"><span><i style="background:var(--deep)"></i>נסגרו</span><span><i style="background:repeating-linear-gradient(135deg,var(--hatch) 0 2px,transparent 2px 6px);border:1px solid var(--hatch)"></i>פתוחות, היעד שלהן באותו יום</span></div></div>';
+}
+
+const pages = {
+  manager: () => head('מה דורש אותי', 'רק מה שחרג, עם שם אחד וסיבה אחת', '<button class="btn" type="button" data-act="new">לקוח חדש</button><button class="btn line" type="button" data-act="export">ייצוא לאקסל</button>') + `
+    <div class="grid4">
+      <div class="tile hero rise"><span>לקוחות פעילים</span><strong data-n="21">21</strong><small>3 הצטרפו החודש</small></div>
+      <div class="tile bad rise"><span>באיחור עכשיו</span><strong data-n="3">3</strong><small>בלי "ממתין ללקוח"</small></div>
+      <div class="tile rise"><span>ימי צילום השבוע</span><strong data-n="2">2</strong><small>יקב ברזגלי, מחר 10:00</small></div>
+      <div class="tile rise"><span>בזמן, 8 שבועות</span><strong data-n="88" data-suf="%">88%</strong><small>37 מתוך 42 תהליכים</small></div>
+    </div>
+    <div class="row3">
+      ${weekChart()}
+      <div class="card clock rise"><h2>השעון הקרוב</h2><strong>להכין חוזה לקפה הפינה</strong><small style="color:var(--muted)">עירית, מסתיו לפני 2 דקות</small><span class="t">07:42</span><button class="btn" type="button" data-act="ask">שאלה לאחראי</button></div>
+      <div class="card rise"><h2>דורש תשומת לב</h2><div class="list">
+        <div class="item">${av('ליאור')}<div><strong>מספרת רון</strong><small>צילום מחר, אין אישור על התסריטים</small></div><span class="tag red">ליאור</span></div>
+        <div class="item">${av('עירית')}<div><strong>קינג מיט</strong><small>9 גרפיקות מחכות יום לבדיקה</small></div><span class="tag red">עירית</span></div>
+        <div class="item">${av('עילאי')}<div><strong>גלרי אולם אירועים</strong><small>ממתינים ללקוח 4 ימי עסקים</small></div><span class="tag amber">הלקוח</span></div>
+        <div class="item">${av('נדיה')}<div><strong>מדיקל ביוטי</strong><small>סרטונים סגורים, יום לפני היעד</small></div><span class="tag ok">בזמן</span></div>
+      </div></div>
+    </div>`,
+
+  tasks: () => {
+    const shown = TASKS.filter(FILTERS[state.filter]);
+    return head('המשימות שלי', 'לכל משימה: הלקוח, מה עושים, עד מתי, ומי עוד עליה', '<button class="btn" type="button" data-act="new">לקוח חדש</button>') + `
+    <div class="rise" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="seg" role="group" aria-label="סינון">${[['all', 'הכול'], ['mine', 'רק שלי'], ['late', 'באיחור'], ['wait', 'ממתין ללקוח']].map(([k, l]) => `<button type="button" data-filter="${k}" aria-pressed="${state.filter === k}">${l}</button>`).join('')}</div>
+      <span class="count">${shown.length} משימות</span>
+    </div>
+    <div class="board">${COLS.map(([k, title, dot]) => { const list = shown.filter((t) => t.col === k); return `
+      <section class="col rise"><h2 style="--dot:${dot}"><i></i>${title}<b>${list.length}</b></h2>
+        ${list.map((t) => `<button class="task" type="button" data-task="${t.id}" style="view-transition-name:${t.id}">
+          <span class="tags"><span class="tag soft">${t.tag}</span></span><strong>${t.client}</strong><span class="what">${t.what}</span>
+          <span class="meter"><i style="--w:${t.p}%"></i></span>
+          <span class="foot"><span class="${t.late ? 'late' : ''}">${t.due}</span><span class="avs">${t.who.map((n) => av(n, true)).join('')}</span></span>
+        </button>`).join('')}
+      </section>`; }).join('')}</div>`;
+  },
+
+  gantt: () => {
+    const cells = [];
+    for (let i = 0; i < 4; i++) cells.push(`<div class="day out"><b>${27 + i}</b></div>`);
+    for (let d = 1; d <= 31; d++) cells.push(`<button class="day${d === 5 ? ' today' : ''}" type="button" data-day="${d}" aria-pressed="${state.day === d}" aria-label="${d} באוקטובר"><b>${d}</b>${(EVENTS[d] || []).map(([k, t]) => `<span class="chip ${k}">${t}</span>`).join('')}</button>`);
+    const dow = (4 + state.day - 1) % 7, evs = EVENTS[state.day] || [];
+    const soon = Object.keys(EVENTS).map(Number).filter((d) => d > state.day).slice(0, 4);
+    return head('גאנט תוכן', 'מה עולה לכל לקוח ומתי, לפי החוזה', '<button class="btn line" type="button" data-act="today">היום</button><button class="btn" type="button" data-act="print">הדפסת החודש</button>') + `
+    <div class="calwrap">
+      <div class="card rise">
+        <div class="calhead"><h2>אוקטובר 2026</h2><span class="tag soft">חודש 2 בחבילה</span></div>
+        <div class="cal">${DOW.map((d) => `<div class="dow">${d}</div>`).join('')}${cells.join('')}</div>
+        <div class="legend"><span><i style="background:#6A2BF0"></i>סרטון</span><span><i style="background:#E11D63"></i>גרפיקה</span><span><i style="background:#2F6FD0"></i>יום צילום</span><span><i style="background:#B26A00"></i>דוח ותכנון</span></div>
+      </div>
+      <div style="display:grid;gap:14px">
+        <div class="card sel rise" id="sel"><small>${DAYNAME[dow]}</small><h2>${state.day} באוקטובר</h2>
+          ${evs.length ? evs.map(([k, t, time, client]) => `<div class="ev"><time>${time}</time><div><strong>${t}</strong><div style="color:var(--muted);font-size:13.5px">${client} · ${KIND[k]}</div></div></div>`).join('') : '<p style="margin:0;color:var(--muted)">אין פרסומים ביום הזה. אפשר להוסיף פריט.</p>'}
+        </div>
+        <div class="card rise"><h2>בקרוב</h2><div class="list">${soon.map((d) => `<div class="soon"><span class="d"><small>אוק׳</small>${d}</span><div><strong>${EVENTS[d][0][1]} · ${EVENTS[d][0][3]}</strong><div style="color:var(--muted);font-size:13.5px">${DAYNAME[(4 + d - 1) % 7]}, ${EVENTS[d][0][2]}</div></div></div>`).join('')}</div></div>
+      </div>
+    </div>`;
+  },
+
+  team: () => {
+    const list = PEOPLE.filter((p) => state.dept === 'all' || p[2] === state.dept);
+    return head('צוות', 'מה כל אחד נושא עכשיו, ומי פנוי', '') + `
+    <div class="rise" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="seg" role="group" aria-label="מחלקה">${[['all', 'כולם'], ['office', 'משרד'], ['edit', 'עריכה'], ['field', 'שטח']].map(([k, l]) => `<button type="button" data-dept="${k}" aria-pressed="${state.dept === k}">${l}</button>`).join('')}</div>
+      <span class="count">${list.length} אנשים</span>
+    </div>
+    <div class="people">${list.map(([n, role, , open, ontime, load]) => `
+      <div class="person rise" style="view-transition-name:p-${PEOPLE.findIndex((p) => p[0] === n)}">${av(n)}<strong>${n}</strong><small>${role}</small>
+        <div class="stats"><div><b>${open}</b><span>משימות פתוחות</span></div><div><b>${ontime}%</b><span>בזמן</span></div></div>
+        <div class="meter" title="עומס ${load}%"><i style="--w:${load}%"></i></div><small>עומס ${load}%</small>
+      </div>`).join('')}</div>`;
+  },
+};
+
+const body = $('#body'), rail = $('#rail');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function moveRail() {
+  const b = $('#nav button[aria-current="page"]'); if (!b) return;
+  rail.style.transform = `translateY(${b.offsetTop + (b.offsetHeight - 30) / 2}px)`;
+}
+function countUp(root) {
+  if (reduced) return;
+  for (const el of $$('[data-n]', root)) {
+    const to = +el.dataset.n, suf = el.dataset.suf || '', t0 = performance.now();
+    const step = (t) => { const k = Math.min(1, (t - t0) / 700), e = 1 - Math.pow(1 - k, 3); el.textContent = Math.round(to * e) + suf; if (k < 1) requestAnimationFrame(step); };
+    el.textContent = '0' + suf; requestAnimationFrame(step);
+  }
+}
+function grow(root) {
+  if (reduced) return;
+  const els = $$('.bars .seg-b, .meter i', root);
+  for (const el of els) el.style.setProperty('--s', 0);
+  requestAnimationFrame(() => requestAnimationFrame(() => { for (const el of els) el.style.setProperty('--s', 1); }));
+}
+function render({ enter = true } = {}) {
+  body.innerHTML = pages[state.page]();
+  body.classList.toggle('enter', enter);
+  if (enter) { $$('.rise', body).forEach((el, i) => el.style.setProperty('--i', i)); countUp(body); grow(body); }
+}
+function show(page) {
+  state.page = page;
+  for (const b of $$('#nav button')) b.toggleAttribute('aria-current', false), b.dataset.page === page && b.setAttribute('aria-current', 'page');
+  moveRail(); render();
+  try { history.replaceState(null, '', '#' + page); } catch {}
+}
+// A change inside a page (a filter, a day): what stays glides to its new place.
+function morph(change) {
+  const run = () => { change(); render({ enter: false }); };
+  if (!reduced && document.startViewTransition) document.startViewTransition(run); else run();
+}
+let toastT;
+function toast(text) { const t = $('#toast'); t.textContent = text; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2200); }
+
+$('#nav').addEventListener('click', (e) => { const b = e.target.closest('button[data-page]'); if (b && b.dataset.page !== state.page) show(b.dataset.page); });
+body.addEventListener('click', (e) => {
+  const f = e.target.closest('[data-filter]'); if (f) return morph(() => { state.filter = f.dataset.filter; });
+  const d = e.target.closest('[data-dept]'); if (d) return morph(() => { state.dept = d.dataset.dept; });
+  const day = e.target.closest('[data-day]'); if (day) return morph(() => { state.day = +day.dataset.day; });
+  const task = e.target.closest('[data-task]'); if (task) return toast('בדמו האמיתי: נפתח כרטיס המשימה');
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (act === 'new') $('#dlg').showModal();
+  else if (act === 'today') morph(() => { state.day = 5; });
+  else if (act) toast({ export: 'בדמו האמיתי: יורד קובץ אקסל', ask: 'השאלה נשלחה לעירית', print: 'בדמו האמיתי: נפתחת הדפסה' }[act]);
+});
+$('#dlg-x').addEventListener('click', () => $('#dlg').close());
+$('#dlg-form').addEventListener('submit', () => toast(`נפתח לקוח: ${$('#f-name').value.trim() || 'לקוח חדש'}`));
+for (const b of $$('.skins button')) b.addEventListener('click', () => {
+  const s = b.dataset.skin; if (s) document.documentElement.dataset.skin = s; else delete document.documentElement.dataset.skin;
+  for (const x of $$('.skins button')) x.setAttribute('aria-pressed', String(x === b));
+  try { localStorage.setItem('demo-skin-2', s); } catch {}
+});
+let saved = 'navy'; try { saved = localStorage.getItem('demo-skin-2') ?? 'navy'; } catch {}
+$(`.skins button[data-skin="${saved}"]`)?.click();
+addEventListener('resize', moveRail);
+const start = (location.hash || '').slice(1);
+show(pages[start] ? start : 'manager');
+document.fonts?.ready.then(moveRail);
+</script>
