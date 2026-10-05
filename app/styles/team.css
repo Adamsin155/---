@@ -3,12 +3,15 @@
 #team-page { display: grid; gap: 16px; min-width: 0; }
 #team-page > * { min-width: 0; }
 
-.tm-list { list-style: none; margin: 0; padding: 0; }
+/* A white row per person on the card, with the person's avatar. */
+.tm-list { list-style: none; margin: 0; padding: 10px; display: grid; gap: 8px; }
 .tm-row {
-  display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr) auto;
-  gap: 8px 20px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr) auto;
+  gap: 8px 20px; align-items: center; padding: 14px 16px; border-radius: var(--radius-md); background: var(--ds-surface);
 }
-.tm-row:first-child { border-top: 0; }
+.tm-who { display: flex; align-items: center; gap: 12px; }
+.tm-who .ds-av { inline-size: 46px; block-size: 46px; font-size: 15px; }
+.tm-who-t { min-width: 0; }
 .tm-row > * { min-width: 0; }
 .tm-name { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
 .tm-name h3 { margin: 0; font-size: 16px; }
@@ -41,22 +44,22 @@
 /* The link, once made: copy it or send it by WhatsApp. */
 .tm-link {
   grid-column: 1 / -1; display: grid; gap: 8px; padding: 12px 14px; margin-top: 4px;
-  border-radius: var(--radius-md); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: var(--radius-md); background: var(--panel);
 }
 .tm-link-h { margin: 0; font-weight: 600; font-size: 14px; color: var(--accent-deep); }
 .tm-link .linkbox { flex-wrap: wrap; }
-.tm-link .linkbox .input { flex: 1 1 260px; min-width: 0; min-height: 40px; padding-block: 7px; background: var(--panel); }
+.tm-link .linkbox .input { flex: 1 1 260px; min-width: 0; min-height: 40px; padding-block: 7px; }
 .tm-link .linkbox .btn { flex: none; min-height: 40px; }
 .tm-link-note { margin: 0; color: var(--text-2); }
 
 .tm-help { padding: 18px 22px; }
-.tm-help h2 { margin: 0 0 8px; font-size: 17px; }
+.tm-help h2 { margin: 0 0 8px; font-size: 20px; }
 .tm-help ol { margin: 0 0 8px; padding-inline-start: 20px; display: grid; gap: 4px; color: var(--text-2); }
 .tm-help p { margin: 0; font-size: 14px; }
 .tm-help p + p { margin-top: 6px; }
 
 .tm-noaccess { max-inline-size: 520px; inline-size: 100%; justify-self: center; margin-top: 24px; padding: 28px 24px; text-align: center; display: grid; gap: 10px; justify-items: center; }
-.tm-noaccess h2 { margin: 0; font-size: 20px; }
+.tm-noaccess h2 { margin: 0; font-size: 22px; }
 .tm-noaccess p { margin: 0; color: var(--text-2); }
 
 @media (max-width: 900px) {

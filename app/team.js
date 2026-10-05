@@ -11,6 +11,7 @@ import {
   canManageTeam, loginState, linkMessage, LINK_VALID_FOR, TEAM_MANAGERS, normPhone, formatPhone, canEditPhone, hasPhone,
 } from './team-rules.js';
 import { loadWaTeam, paintWaPanel, waStatusView } from './wa-team.js';
+import { avatar } from './shell.js';
 
 let rows = [];               // staff rows with their login state (from the function)
 let caller = null;           // { email, person, owner }
@@ -240,8 +241,10 @@ function rowView(e) {
   const pending = e.row && busy.has(e.row.email);
   return h('li', { class: 'tm-row', id: `row-${e.id}`, 'data-person': e.person ?? 'owner' },
     h('div', { class: 'tm-who' },
-      h('div', { class: 'tm-name' }, h('h3', {}, e.name), me ? h('span', { class: 'tag' }, 'זה אני') : null),
-      h('p', { class: 'muted tm-role' }, e.role)),
+      avatar(e.person, { name: e.name }),
+      h('div', { class: 'tm-who-t' },
+        h('div', { class: 'tm-name' }, h('h3', {}, e.name), me ? h('span', { class: 'tag' }, 'זה אני') : null),
+        h('p', { class: 'muted tm-role' }, e.role))),
     h('div', { class: 'tm-email' }, emailView(e), phoneView(e)),
     h('div', { class: 'tm-state' }, statusView(e.row), vaultView(e), pushView(e.row), waStatusView(wa, e.row), calView(e.row), lastLinkView(e.row)),
     h('div', { class: 'tm-acts' },
