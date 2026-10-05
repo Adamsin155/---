@@ -70,6 +70,8 @@ a:hover { color: var(--ds-navy); }
 button, input, textarea, select { font: inherit; color: inherit; }
 h1, h2 { font-family: var(--font-h); font-weight: 400; letter-spacing: 0; }
 h3 { font-weight: 600; }
+/* The quote document (quote.css) keeps its own type everywhere it is shown, printed or downloaded. */
+.qd h1, .qd h2 { font-family: inherit; }
 
 /* ── Top bar: a floating white bar ───────── */
 .topbar {

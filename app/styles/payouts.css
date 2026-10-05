@@ -1,21 +1,23 @@
 /* Astrateg payouts app. Brand: docs/brand/brand-guide.md
    Light working surface, navy app bar, bottom nav on phones, side nav on desktop. */
 :root {
-  --navy: #031432;
-  --purple: #5302DF;
-  --purple-deep: #3702AF;
-  --pink: #F82272;
+  /* The palette and the fonts of the whole app (tokens.css); this app keeps its own
+     light and dark behaviour, so the dark values below stay its own. */
+  --navy: var(--ds-navy);
+  --purple: var(--ds-navy-2);
+  --purple-deep: var(--ds-navy);
+  --pink: var(--ds-hot);
 
-  --bg: #F4F5FA;
-  --surface: #FFFFFF;
-  --surface-2: #F8F9FD;
-  --line: #DDE1EC;
-  --line-strong: #8C96B3;   /* 3:1 on white for control edges */
-  --text: #0B1530;
-  --text-2: #36405C;
-  --muted: #56607A;
-  --accent: #5302DF;
-  --accent-soft: #EFE8FD;
+  --bg: var(--ds-ground);
+  --surface: var(--ds-surface);
+  --surface-2: #F6F7FA;
+  --line: var(--ds-line);
+  --line-strong: var(--ds-edge);   /* 4.1:1 on white for control edges */
+  --text: var(--ds-ink);
+  --text-2: var(--ds-ink-2);
+  --muted: var(--ds-muted);
+  --accent: var(--ds-navy-2);
+  --accent-soft: var(--ds-soft);
   --on-accent: #FFFFFF;
   --ok: #0F7B4B;
   --warn-bg: #FFF4DB;
@@ -23,9 +25,9 @@
   --danger: #B3123E;
   --danger-bg: #FDECEF;
 
-  --radius: 14px;
-  --radius-sm: 10px;
-  --font: 'Rubik', system-ui, sans-serif;
+  --radius: 20px;
+  --radius-sm: 14px;
+  --font: var(--ds-font-b);
   --appbar-h: 56px;
   --nav-h: 68px;
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -42,8 +44,8 @@
     --text: #F1F3FA;
     --text-2: #C3CBE0;
     --muted: #A3AECB;
-    --accent: #A980EF;
-    --accent-soft: rgba(169, 128, 239, 0.16);
+    --accent: #B4C3F2;        /* the navy lead, light enough for the dark surface (9.9:1) */
+    --accent-soft: rgba(180, 195, 242, 0.16);
     --on-accent: #031432;
     --ok: #3DD68C;
     --warn-bg: #3A2A05;
@@ -78,6 +80,7 @@ body {
 .small { font-size: 14px; }
 .warn-text { color: var(--warn-text); font-weight: 500; }
 a { color: var(--accent); }
+h1, h2 { font-family: var(--ds-font-h); font-weight: 400; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 button, input, select, textarea { font: inherit; color: inherit; }
 h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; margin: 0; }
@@ -100,7 +103,7 @@ p { margin: 0; }
 .brand-chip { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: #fff; }
 .brand-chip img { width: 26px; height: auto; }
 .brand-name { font-weight: 600; letter-spacing: 0.01em; }
-.brand-product { color: #C9B3F6; font-weight: 500; }
+.brand-product { color: #C5CEEA; font-weight: 500; }
 .appbar-btn {
   min-height: 44px; padding: 0 14px; border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.35); background: transparent; color: #fff; cursor: pointer;
@@ -381,7 +384,7 @@ dialog::backdrop { background: rgba(3, 20, 50, 0.55); }
 .st-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 2px solid #031432; }
 .st-logo { width: 110px; height: auto; }
 .st-title { font-size: 20px; font-weight: 700; }
-.st-name { font-weight: 600; color: #5302DF; }
+.st-name { font-weight: 600; color: #0E2260; }
 .st-row { display: grid; padding: 10px 0; border-bottom: 1px solid #DDE1EC; }
 .st-client { font-weight: 600; display: grid; }
 .st-client small { color: #56607A; font-weight: 400; }
