@@ -25,6 +25,8 @@
 //                 16:00 lists), 'board' (the owner's screen and the 18:00 digest)
 //       exempt    'clock' (a protocol clock), 'shoot' (a shoot-day event, also sent
 //                 outside the sending hours) or 'urgent': not counted in the daily cap
+//       ownHours  true: the rule keeps its own hours (the tasks given on the spot, `nag`:
+//                 09:00–20:00), so the sending hours above do not hold it for a digest
 //       exception true: an exception for Lior (decision 8: on his shoot day it goes to Ofir)
 //       when      (inst, env) → false skips the step (the thing it reminds of is done)
 //       expires   an anchor name: the step is not sent from that moment on
@@ -1510,6 +1512,54 @@ RULES.push(
         title: (i) => (i.ok ? `החוזה של ${i.name} אושר` : `החוזה של ${i.name} לא אושר — בתיקון`),
         body: (i) => (i.ok ? 'עירית שולחת אותו ללקוח.' : 'עירית מתקנת ושולחת שוב לאישור המנהל.'),
       },
+    ],
+  },
+);
+
+// ── Tasks given on the spot (the owner's request of 6.10.2026) ──
+// One self-contained block (its import included). `env.staffTasks`: public.staff_tasks
+// rows, the open ones and those finished in the last two days (app/staff-tasks-logic.js).
+//   nag      an open task rings its assignee at once and then every 10 minutes, with
+//     no end, until they mark "בוצע" (or it is cancelled): the case is then not
+//     returned. One step at a time, the slot `now` falls in; its id names the slot, so
+//     the log's unique key lets each slot out once and never twice, and a slot the
+//     engine missed is not sent late. The window (09:00–20:00 on working days) is the
+//     rule's own (`ownHours`): outside it there is no slot. Not counted in the daily
+//     cap or in the weekly report's rings, and not fed to the lateness notes or the
+//     owner's digest: the ringing itself is the control. On Lior's shoot day his
+//     tasks wait (decision 8, "מצב שקט") and ring again once it is over.
+//   nagDone  the assignee marked "בוצע": whoever gave it hears, quietly.
+import { nagSlot, shortBody, homeUrl, NAG_EVERY } from './staff-tasks-logic.js';
+export const NAG = 'nag';
+const nagFrom = (t) => `מ${personName(t.created_by)}`;
+RULES.push(
+  {
+    id: NAG, event: 'משימה מיידית: כל 10 דקות עד ״בוצע״', procs: [],
+    instances(env) {
+      return (env.staffTasks || []).filter((t) => t.status === 'open' && REMINDER_PEOPLE.has(t.assignee) && !(t.assignee === 'lior' && env.liorShoot?.active)).flatMap((t) => {
+        const slot = nagSlot(parseDate(t.created_at), env.now);
+        return slot ? [{ id: t.id, cid: null, task: t, who: t.assignee, slot, url: homeUrl(t.assignee), anchors: { event: slot.at } }] : [];
+      });
+    },
+    steps: (i) => [{
+      id: i.slot.id, to: i.who, level: 'ring', exempt: NAG, ownHours: true,
+      title: () => (i.slot.first ? `משימה ${nagFrom(i.task)}: ${shortBody(i.task.body)}` : `עוד לא סומן ״בוצע״: ${shortBody(i.task.body)}`),
+      body: (x, env) => [
+        `${nagFrom(i.task)}, ${whenText(parseDate(i.task.created_at), env.now)}`,
+        i.task.client_name ? `לקוח: ${i.task.client_name}` : null,
+        `תזכורת כל ${NAG_EVERY} דקות עד שמסמנים ״בוצע״ ב${i.url === MINE_URL ? '״המשימות שלי״' : 'מערכת'}.`,
+      ].filter(Boolean).join(' · '),
+    }],
+  },
+  {
+    id: 'nagDone', event: 'משימה מיידית: בוצעה', procs: [],
+    instances(env) {
+      return (env.staffTasks || []).filter((t) => t.status === 'done' && parseDate(t.done_at) && t.created_by !== t.assignee && REMINDER_PEOPLE.has(t.created_by)).map((t) => ({
+        id: t.id, cid: null, task: t, who: t.created_by, url: homeUrl(t.created_by), anchors: { event: parseDate(t.done_at) },
+      }));
+    },
+    steps: [
+      { id: 'done', to: (i) => i.who, level: 'quiet', title: (i) => `${personName(i.task.assignee)} סימן/ה ״בוצע״: ${shortBody(i.task.body)}`, body: (i, env) => `נתת את המשימה ${whenText(parseDate(i.task.created_at), env.now)}.` },
     ],
   },
 );

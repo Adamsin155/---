@@ -500,6 +500,10 @@ test('every client table has row level security, and no policy on it lets every 
     // Who archived or deleted a client (20261003140000_manager_features.sql): the owner and
     // Ofir; the row outlives the client, so no client rule can apply.
     client_admin_log: /can_archive_clients/,
+    // The tasks given on the spot (20261011100000_staff_tasks.sql): each row is addressed
+    // to one person; only the assignee, whoever gave it and the owner read it. The client
+    // is an optional note on the task (tests/sql/staff-tasks.test.mjs).
+    staff_tasks: /assignee = reminder_person\(\)/,
   };
   for (const p of policies) {
     assert.match(p.expr, OWN_RULE[p.tablename] || RULES, `${p.tablename} / "${p.policyname}" does not check who the client belongs to: ${p.expr}`);

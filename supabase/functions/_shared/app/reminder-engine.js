@@ -18,7 +18,7 @@
 //   planDigests({ env, now, log, active, lookahead }) → the digests due now.
 import {
   RULES, OWNER, timeOf, inSendHours, atIL, DAILY_CAP, STALE_MINUTES, FOLD, DIGESTS, RING_TARGETS, personName, MINE_URL,
-  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, OWNER_LATE_HOURS,
+  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, OWNER_LATE_HOURS, NAG,
 } from './reminder-rules.js';
 import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf, pauseOf, clientLabel } from './protocol-logic.js';
 import { STAFF_PEOPLE } from './protocol.js';
@@ -46,6 +46,7 @@ export function buildEnv({
   accessLinks = [], // 6.10.2026: public.client_access_links rows (the client's logins form, app/access-logic.js)
   ganttFailures = [], // 6.10.2026: public.client_gantt rows whose post failed in Metricool (mc_status 'error')
   approvals = [], // 6.10.2026: public.quotes rows that went for a manager's approval (app/approvals-logic.js)
+  staffTasks = [], // 6.10.2026: public.staff_tasks rows, the tasks given on the spot (app/staff-tasks-logic.js)
 }) {
   const byClient = groupChecks(checks);
   const liveClients = clients.filter(live);
@@ -69,7 +70,7 @@ export function buildEnv({
     tasks: tasks.filter((t) => !t.done_at),
     // Tasks finished lately (the server loads the last two days): "the requester hears".
     doneTasks: tasks.filter((t) => t.done_at),
-    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals,
+    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks,
     personOf: (email) => people.get(String(email || '').toLowerCase()) || null,
     emailsOf: (person) => [...people].filter(([, p]) => p === person).map(([e]) => e),
     hasStaff: (person) => [...people.values()].includes(person),
@@ -149,7 +150,7 @@ export function candidates(env, { until = env.now } = {}) {
           out.push({
             key: `${rule.id}:${inst.cid || '-'}:${inst.id}:${d.step.id}@${person}`,
             rule: rule.id, step: d.step.id, person, level: d.step.level,
-            exempt: d.step.exempt || null, shoot: !!d.step.shoot, exception: !!d.step.exception,
+            exempt: d.step.exempt || null, shoot: !!d.step.shoot, ownHours: !!d.step.ownHours, exception: !!d.step.exception,
             list: !!d.step.list, overdue: !!d.step.overdue, escalation: d.escalation,
             at: d.at, clientId: inst.cid || null, ref: inst.ref || null, url: inst.url || MINE_URL,
             title: d.step.title(inst, env), body: d.step.body ? d.step.body(inst, env) : '',
@@ -202,7 +203,7 @@ export function ringsToday(log, now) {
 }
 
 // What happens to each new step now. Rings: outside the sending hours they wait for
-// the next digest (a shoot-day event does not); on Lior's shoot day his other rings
+// the next digest (a shoot-day event does not, nor a rule that keeps its own hours); on Lior's shoot day his other rings
 // wait for the summary after it; past 6 a day (exempt ones aside) they go to the
 // next digest. Nothing is sent late: a step that should have gone out hours ago is
 // recorded as stale.
@@ -215,7 +216,7 @@ export function planDelivery({ reminders, now, log = [], liorShoot = { active: f
     if (r.copy) return { ...r, channel: 'digest', status: 'queued', reason: 'shoot_mode' }; // decision 8: for Lior's summary only
     if (r.level === 'board' || r.level === 'quiet') return { ...r, channel: 'app', status: 'sent', reason: null };
     if (r.level === 'digest') return { ...r, channel: 'digest', status: 'queued', reason: null };
-    if (!r.shoot && !inSendHours(now)) return { ...r, channel: 'digest', status: 'queued', reason: 'quiet_hours' };
+    if (!r.shoot && !r.ownHours && !inSendHours(now)) return { ...r, channel: 'digest', status: 'queued', reason: 'quiet_hours' };
     if (r.person === 'lior' && liorShoot.active && !r.shoot && !liorShoot.cids.has(r.clientId)) return { ...r, channel: 'digest', status: 'queued', reason: 'shoot_mode' };
     if (!r.exempt && (count[r.person] || 0) >= DAILY_CAP) return { ...r, channel: 'digest', status: 'queued', reason: 'cap' };
     if (!r.exempt) count[r.person] = (count[r.person] || 0) + 1;
@@ -424,12 +425,13 @@ function lastBusinessDayOfWeek(now) {
 }
 
 // The owner's Thursday report inside the 18:00 digest: rings this week against
-// each person's target, who is not connected, and how much is late now.
+// each person's target (the repeats of a task given on the spot are not counted:
+// they would bury the figure), who is not connected, and how much is late now.
 function weeklyReport(env, log, now) {
   const sunday = atTimeIL(addDaysIL(now, -weekdayIL(now)), 0);
   const rings = {};
   for (const r of log) {
-    if (!isPushRing(r) || r.person === OWNER || asDate(r.sent_at || r.created_at) < sunday) continue;
+    if (!isPushRing(r) || r.person === OWNER || r.rule === NAG || asDate(r.sent_at || r.created_at) < sunday) continue;
     rings[r.person] = (rings[r.person] || 0) + 1;
   }
   const days = Math.max(1, [...Array(5).keys()].filter((i) => isBusinessDay(addDaysIL(sunday, i))).length);
@@ -472,9 +474,12 @@ export function weekAhead(env, now) {
 // digest of long task titles is cut to fit, with the whole text in "התראות".
 export const PUSH_MAX_BYTES = 3000;
 const utf8 = (s) => new TextEncoder().encode(s).length;
+// The repeats of one task given on the spot (rule `nag`) share a tag, the task's, and
+// ask to ring again: on the phone each one replaces the one before instead of piling up.
 export function pushPayload({ id = null, key, title, body, url, level }) {
-  const msg = { title: String(title || '').slice(0, 150), url: url || MINE_URL, tag: key, id, level };
-  const fit = (text) => JSON.stringify({ title: msg.title, body: text, url: msg.url, tag: msg.tag, id: msg.id, level: msg.level });
+  const again = ruleOfKey(key) === NAG;
+  const msg = { title: String(title || '').slice(0, 150), url: url || MINE_URL, tag: again ? String(key).split(':').slice(0, 3).join(':') : key, id, level };
+  const fit = (text) => JSON.stringify({ title: msg.title, body: text, url: msg.url, tag: msg.tag, id: msg.id, level: msg.level, ...(again ? { renotify: true } : {}) });
   // Without its body a payload is well under the limit (a short title, a url and a key).
   let text = String(body || '');
   let out = fit(text);

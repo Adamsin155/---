@@ -144,6 +144,22 @@ async function loadApprovals(now: Date): Promise<Row[]> {
   }
 }
 
+// The tasks given on the spot (6.10.2026, app/staff-tasks-logic.js): the open ones
+// (rule `nag` rings them every 10 minutes) and those finished in the last two days
+// (whoever gave them hears, rule `nagDone`). Until migration
+// 20261011100000_staff_tasks.sql adds the table, none.
+async function loadStaffTasks(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  try {
+    return await all(() => admin.from('staff_tasks').select('id, created_at, created_by, assignee, body, client_id, client_name, status, done_at')
+      .or(`status.eq.open,done_at.gte."${since}"`).order('id'));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205') return [];
+    throw err;
+  }
+}
+
 // The database as tick.js sees it (service role: row level security does not apply).
 const db = {
   // The automatic editor assignment (app/auto-assign.js), as qa.html writes it: the
@@ -169,7 +185,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -181,16 +197,20 @@ const db = {
       all(() => admin.from('client_messages').select('client_id, sent_at').gte('sent_at', today.toISOString()).order('sent_at')),
       all(() => admin.from('push_subscriptions').select('id, email, endpoint, p256dh, auth, fail_count').order('id')),
       all(() => admin.from('reminder_log').select(LOG_COLS).eq('status', 'queued').order('id')),
-      all(() => admin.from('reminder_log').select(LOG_COLS).gte('created_at', since.toISOString()).order('id')),
+      // Not the repeats of the tasks given on the spot (a row every 10 minutes for each
+      // open task): nothing reads them here (the cap and the reports skip them; their
+      // dedupe is `known`), and a week of them would be loaded every minute.
+      all(() => admin.from('reminder_log').select(LOG_COLS).gte('created_at', since.toISOString()).neq('rule', 'nag').order('id')),
       loadMonthMarks(),
       loadDeals(now),
       loadAccessLinks(now),
       loadGanttFailures(now),
       loadApprovals(now),
+      loadStaffTasks(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();

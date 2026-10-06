@@ -42,6 +42,7 @@ import { folderItemOf } from './qa-logic.js';
 // 3.10.2026: Stav's deals waiting for a contract (the office), and Stav's own page.
 import { mountDeals, refreshDeals } from './deal-ui.js';
 import { mountApprovals } from './approvals-ui.js';
+import { mountStaffTasks } from './staff-tasks-ui.js';
 import { landingOf } from './deal-logic.js';
 // A link to a part of this page (#mine, #control, a sign-in link) opens that part:
 // nobody is sent to their first screen then.
@@ -2289,6 +2290,8 @@ mountSession(async (staff) => {
   mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
   // "היומן שלי": the personal calendar link (app/calendar-card.js).
   if (!viewerError) mountCalendar($('cal-card'));
+  // Tasks given on the spot: the ones this person got ("בוצע"), and giving them (Irit, the owner).
+  mountStaffTasks($('staff-tasks-card'), { me, scope, error: viewerError });
   // Stav's deals waiting for a contract (the office): "להכין חוזה ל־…" with its clock.
   mountDeals($('deals-card'), { me, scope, error: viewerError });
   // Exceptional contracts: the approvers decide here; Irit sees "ממתין לאישור", "אושר — אפשר לשלוח", "לא אושר".

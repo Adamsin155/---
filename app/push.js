@@ -220,7 +220,7 @@ async function loadRows() {
   const { data, error } = await supabase.from('reminder_log')
     .select('id, key, rule, level, channel, status, reason, title, body, url, ref, client_id, created_at, sent_at, read_at')
     .eq('person', person).gte('created_at', atTimeIL(new Date(), 0).toISOString())
-    .order('created_at', { ascending: false }).limit(200);
+    .order('created_at', { ascending: false }).limit(1000); // room for the 10-minute repeats of a task (one row is shown)
   if (error) throw error;
   rows = inboxRows(data || []);
 }
