@@ -167,11 +167,11 @@ export function mountSession(onReady) {
     $('app').hidden = !ok;
     if (ok) {
       markTabSeen();
-      foldScreens(); // the links to other screens: one button on a phone
       // Stage 4: the one-time WhatsApp consent screen, only when the owner turned WhatsApp on (app/whatsapp.js).
       import('./whatsapp.js').then((m) => m.promptWhatsapp()).catch(() => {});
-      // The managers' switch, "המשימות שלי" / "מבט מנהל", at the top of every page (app/manager-ui.js).
-      import('./manager-ui.js').then((m) => m.mountModeSwitch(staff.email)).catch(() => {});
+      // The app shell: the menu of this person's screens (the side menu, or the bottom bar on a
+      // phone) with the managers' switch, "המשימות שלי" / "מבט מנהל", as its first entries (app/shell.js).
+      import('./shell.js').then((m) => m.mountShell(staff.email)).catch(() => {});
       return onReady(staff);
     }
     if (staff && !staff.isStaff) {
@@ -294,42 +294,4 @@ export function capList(list, limit, key, { label = 'הצג עוד', tag = null 
   }, `${label} (${rest.length})`));
   list.append(more);
   return list;
-}
-
-// ── The page head on a phone ────────────────
-// The links to other screens (the row of buttons in the page head) fold behind one
-// "מסכים נוספים" button on a phone when there are more than two of them, so the head
-// stays one row and the work starts on the first screen. On a wide screen the row is
-// as it was (the styles decide: app/styles/protocol.css). Links a page adds later
-// (the office's links, a role's shortcut) join the fold by themselves.
-export function foldScreens(head = document.querySelector('.page-head .head-actions')) {
-  if (!head || head.querySelector(':scope > .screens')) return;
-  const list = h('div', { class: 'screens-list', id: 'screens-list' });
-  const toggle = h('button', { type: 'button', class: 'btn btn-sm screens-toggle', 'aria-expanded': 'false', 'aria-controls': 'screens-list' }, 'מסכים נוספים');
-  const box = h('div', { class: 'screens' }, toggle, list);
-  let counted = -1;
-  const count = () => {
-    const n = [...list.children].filter((a) => !a.hidden && getComputedStyle(a).display !== 'none').length;
-    if (n === counted) return;
-    counted = n;
-    box.classList.toggle('is-fold', n > 2);
-    box.classList.toggle('is-empty', n === 0);
-    toggle.textContent = `מסכים נוספים (${n})`;
-  };
-  const gather = () => {
-    const links = [...head.children].filter((el) => el.tagName === 'A');
-    if (links.length) list.append(...links);
-    count();
-  };
-  toggle.addEventListener('click', () => {
-    const open = toggle.getAttribute('aria-expanded') !== 'true';
-    toggle.setAttribute('aria-expanded', String(open));
-    box.classList.toggle('is-open', open);
-    if (open) [...list.children].find((a) => !a.hidden && getComputedStyle(a).display !== 'none')?.focus();
-  });
-  head.append(box);
-  gather();
-  new MutationObserver(gather).observe(head, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
-  // The managers' switch (app/manager-ui.js) arrives later and hides the links it repeats.
-  new MutationObserver(count).observe(document.body, { childList: true });
 }

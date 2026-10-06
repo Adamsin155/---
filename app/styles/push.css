@@ -3,7 +3,7 @@
    app.css and protocol.css; 44px targets; state is said in words, never by colour alone. */
 .push-card {
   margin: 14px 16px 0; padding: 14px 16px; display: grid; gap: 8px;
-  border-radius: var(--radius-md); background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-md); background: var(--panel); border: 1px solid transparent;
   border-inline-start: 4px solid var(--accent);
 }
 .push-card[hidden] { display: none; }
@@ -30,7 +30,7 @@
 .inbox-tools p { margin: 0; }
 .inbox-tools .btn-text, .inbox-acts .btn-text { min-height: 44px; }
 .inbox-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: min(60vh, 560px); overflow-y: auto; }
-.inbox-row { padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--bg-2); display: grid; gap: 4px; }
+.inbox-row { padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid transparent; background: var(--bg-2); display: grid; gap: 4px; }
 .inbox-row.is-new { border-inline-start: 4px solid var(--accent); background: var(--panel); }
 .inbox-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 .inbox-title { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
@@ -48,3 +48,5 @@
   .push-card { margin-inline: 12px; padding-inline: 12px; }
   .push-acts .btn { flex: 1 1 100%; }
 }
+/* Inside a tinted card (the list of "המשימות שלי") these cards are white. */
+.block .push-card, .block .cal-card { background: var(--ds-surface); }

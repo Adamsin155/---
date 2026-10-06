@@ -45,7 +45,7 @@ async function fakeSupabase(route) {
   }
   if (p === '/auth/v1/logout') return route.fulfill({ status: 204 });
   if (p === '/rest/v1/rpc/is_staff') return json(200, (req.headers().authorization || '').includes(JWT));
-  // Who is signed in (app/manager-ui.js): the owner, so the quote pages show the managers' switch.
+  // Who is signed in (app/shell.js): the owner, so the quote pages show the managers' switch.
   if (p === '/rest/v1/staff') return json(200, { person: null });
   if (p === '/functions/v1/create-quote') {
     if (!(req.headers().authorization || '').includes(JWT)) return json(401, { error: 'not signed in' });

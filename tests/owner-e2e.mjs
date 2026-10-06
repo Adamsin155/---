@@ -237,8 +237,10 @@ await step('the owner lands on screen 1 from clients.html, with a link back to t
   assert.equal(await text(owner, '#ow-title'), 'מה דורש אותי');
   assert.equal(await owner.getAttribute('#tab-now', 'aria-selected'), 'true');
   assert.equal(await owner.getAttribute('#link-work', 'href'), 'clients.html#mine');
-  assert.equal(await owner.getAttribute('#nav-owner', 'aria-current'), 'page');
-  assert.equal(await owner.locator('#nav-team').isHidden(), false);
+  // The app menu: the manager profile is the current page, and the owner has the team screen.
+  await owner.waitForSelector('#side-team');
+  assert.equal(await owner.getAttribute('#mode-manager', 'aria-current'), 'page');
+  assert.equal(await owner.getAttribute('#side-team', 'href'), 'team.html');
 });
 
 await step('four numbers: the colours, late now, on time over 8 weeks with its trend, shoot days this week', async () => {
@@ -442,7 +444,7 @@ await step('the client card: three lines (the colour and why, now, next) and the
 await step('after landing, the owner\'s "לקוחות" links open the clients list (not screen 1 again)', async () => {
   await owner.goto(`${BASE}client.html?id=${B.id}`);
   await owner.waitForSelector('.hhead');
-  await owner.click('nav a.navlink[href="clients.html"]');
+  await owner.click('#side-clients');
   await owner.waitForSelector('#view-mine:not([hidden]), #view-clients:not([hidden])');
   await owner.waitForTimeout(300);
   assert.match(new URL(owner.url()).pathname, /\/clients\.html$/);
@@ -591,15 +593,15 @@ await step('a 360px phone: no sideways scrolling, 44px targets, on both screens'
   assert.ok(await noHScroll(phone), 'the team screen scrolls sideways at 360px');
   await shot(phone, 'owner-09-phone-team');
   await pctx.close();
-  // Lior on a phone: the top bar folds away, and the page head keeps the way into screen 2.
+  // Lior on a phone: the bottom bar holds his three screens, and "עוד" keeps the way into screen 2.
   const ictx = await newContext({ width: 360, height: 780 });
   const lior = await newPage(ictx);
   await signIn(lior, 'clients.html#mine', 'lior@astrateg.test');
   await lior.waitForSelector('#view-mine:not([hidden])');
   assert.equal(await lior.locator('#nav-owner').isVisible(), false);
-  // With more than two screen links the head folds them behind "מסכים נוספים" (4.10.2026).
-  await lior.click('.screens-toggle');
-  const cta = lior.locator('#cta-owner');
+  assert.deepEqual(await lior.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'החלטות', 'עוד']);
+  await lior.click('#side-more');
+  const cta = lior.locator('#side-overview');
   assert.equal(await cta.isVisible(), true);
   assert.equal(await cta.getAttribute('href'), 'owner.html#all');
   assert.equal(await cta.innerText(), 'כל הלקוחות במבט');

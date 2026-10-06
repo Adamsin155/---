@@ -4,52 +4,61 @@
 .deal-page .page-head { flex-wrap: wrap; gap: 12px; }
 .deal-form { display: grid; gap: 16px; max-width: 640px; }
 .deal-sec {
-  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel);
-  padding: 14px 16px 16px; margin: 0; min-width: 0;
+  border: 0; border-radius: var(--radius); background: var(--panel);
+  padding: 16px; margin: 0; min-width: 0;
 }
-.deal-sec legend { font-weight: 600; font-size: 16px; padding: 0 6px; color: var(--text); }
+/* The legend is the card's heading, inside the card. */
+.deal-sec legend { float: inline-start; inline-size: 100%; font-family: var(--font-h); font-weight: 400; font-size: 19px; padding: 0; margin-bottom: 6px; color: var(--text); }
+.deal-sec legend + * { clear: both; }
 .deal-sec .field { margin-top: 12px; }
 .deal-sec .field:first-of-type { margin-top: 4px; }
 .deal-choices { display: grid; gap: 8px; margin-top: 6px; }
 .deal-choice {
   display: flex; align-items: flex-start; gap: 12px; min-height: 48px; padding: 10px 12px;
-  border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel); cursor: pointer;
+  border: 2px solid transparent; border-radius: var(--ds-r-ctl); background: var(--ds-surface); cursor: pointer;
+  transition: border-color .2s, box-shadow .2s;
 }
-.deal-choice:hover { border-color: var(--accent); }
-.deal-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
-.deal-choice input { flex: none; width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--accent); }
+.deal-choice:hover { box-shadow: var(--ds-shadow-hover); }
+.deal-choice:has(input:checked) { border-color: var(--ds-navy); }
+.deal-choice input { flex: none; width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--ds-navy); }
 .deal-choice-text { display: grid; gap: 2px; min-width: 0; }
 .deal-choice-label { font-weight: 600; overflow-wrap: anywhere; }
 .deal-choice-sub { color: var(--muted); font-size: 13.5px; overflow-wrap: anywhere; }
 .deal-num { max-width: 140px; }
 .deal-count { margin-top: 4px; }
 .deal-submit { width: 100%; min-height: 52px; font-size: 17px; }
-.deal-mine { margin-top: 28px; max-width: 640px; }
-.deal-mine h2 { font-size: 20px; margin: 0 0 10px; }
+.deal-mine { margin-top: 12px; max-width: 640px; }
+.deal-mine h2 { font-size: 22px; margin: 0 0 10px; }
 .deal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.deal-item { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); padding: 12px 14px; }
+.deal-item { border-radius: var(--radius-md); background: var(--panel); padding: 14px 16px; }
 .deal-item-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .deal-item-name { font-size: 16px; overflow-wrap: anywhere; }
 .deal-item-meta { margin: 6px 0 0; color: var(--text-2); font-size: 14px; overflow-wrap: anywhere; }
-.deal-status { display: inline-block; border-radius: 999px; padding: 3px 12px; font-size: 13.5px; font-weight: 600; border: 1px solid var(--line-strong); white-space: nowrap; }
-.deal-status.is-pending { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-line); }
-.deal-status.is-sent { color: var(--accent-deep); background: var(--accent-soft); border-color: var(--accent); }
-.deal-status.is-signed { color: var(--ok); background: var(--ok-soft); border-color: var(--ok); }
-.deal-status.is-cancelled { color: var(--muted); background: var(--panel-2); }
+.deal-status { display: inline-block; border-radius: 8px; padding: 2px 10px; font-size: 13px; font-weight: 600; white-space: nowrap; background: var(--ds-surface); }
+.deal-status.is-pending { color: var(--warn); background: var(--warn-soft); }
+.deal-status.is-sent { color: var(--accent-deep); background: var(--ds-soft-2); }
+.deal-status.is-signed { color: var(--ok); background: var(--ok-soft); }
+.deal-status.is-cancelled { color: var(--muted); }
 
 /* Irit's card in "המשימות שלי": the deals waiting for a contract, with the clock. */
-.deals-card { border: 2px solid var(--pink); border-radius: var(--radius); background: var(--panel); padding: 14px 16px; margin: 0 0 16px; }
-.deals-card h2 { margin: 0 0 4px; font-size: 18px; }
-.deals-card .hint { margin: 0 0 10px; }
-.deal-task { border-top: 1px solid var(--line); padding: 12px 0 4px; display: grid; gap: 6px; }
-.deal-task:first-of-type { border-top: 0; }
+.deals-card { border-inline-start: 4px solid var(--pink); border-radius: var(--radius); background: var(--panel); padding: 14px 16px; margin: 0; display: grid; gap: 8px; }
+.deals-card h2 { margin: 0; font-size: 20px; }
+.deals-card .hint { margin: 0; }
+.deal-task { border-radius: var(--radius-md); background: var(--ds-surface); padding: 12px 14px; display: grid; gap: 6px; }
 .deal-task-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .deal-task-title { font-weight: 700; font-size: 16px; overflow-wrap: anywhere; }
 .deal-clock { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
-.deal-clock.is-late { color: var(--danger, #B4123F); }
+.deal-clock.is-late { color: var(--late); }
 .deal-task-meta { margin: 0; color: var(--text-2); font-size: 14px; overflow-wrap: anywhere; }
 .deal-task-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .deal-task-acts .btn { min-height: 44px; }
+/* A wide screen: the form, and the agent's deals beside it. */
+@media (min-width: 1180px) {
+  .deal-page .pr-app { grid-template-columns: minmax(0, 640px) minmax(300px, 1fr); column-gap: 22px; align-items: start; }
+  .deal-page .pr-app > * { grid-column: 1 / -1; }
+  .deal-page .pr-app > .deal-form { grid-column: 1; }
+  .deal-page .pr-app > .deal-mine { grid-column: 2; margin-top: 0; max-width: none; position: sticky; top: 12px; }
+}
 /* A phone: the contract button on its own row, the two quiet ones share the next. */
 @media (max-width: 480px) {
   .deal-task-acts .btn { flex: 1 1 40%; }

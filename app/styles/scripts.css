@@ -33,7 +33,7 @@
 .sc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
 .sc-slot {
   display: grid; gap: 10px; min-width: 0; padding: 16px; scroll-margin-top: 40px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+  background: var(--panel); border: 1px solid transparent; border-radius: var(--radius-md); box-shadow: var(--shadow-1);
   border-inline-start: 4px solid var(--line-strong);
 }
 .sc-slot:focus { outline: none; }
@@ -75,7 +75,7 @@
 
 .sc-panel {
   display: grid; gap: 10px; min-width: 0; padding: 16px; margin: 0;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+  background: var(--panel); border: 1px solid transparent; border-radius: var(--radius-md); box-shadow: var(--shadow-1);
 }
 .sc-panel > * { margin: 0; min-width: 0; }
 .sc-panel h2 { font-size: 18px; }

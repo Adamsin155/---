@@ -15,7 +15,7 @@
 .of-list > .empty, .of-load > .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
 .of-card {
   display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--radius-md);
-  background: var(--bg-2); border: 1px solid var(--line); min-width: 0;
+  background: var(--bg-2); border: 1px solid transparent; min-width: 0;
 }
 .of-card.is-late { border-color: color-mix(in srgb, var(--late) 55%, var(--line)); background: var(--late-soft); }
 .of-card.is-done { opacity: .85; }

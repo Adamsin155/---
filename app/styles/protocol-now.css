@@ -4,9 +4,8 @@
    ("נגמר לפני") as well as in red; colour is never the only cue. */
 .now-bar {
   margin: 14px 16px 0; padding: 12px 14px 14px; display: grid; gap: 10px;
-  border-radius: var(--radius-md); background: var(--panel);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
-  border-inline-start: 4px solid var(--accent);
+  border-radius: var(--radius-md); background: var(--ds-surface);
+  border-inline-start: 4px solid var(--ds-navy);
 }
 .now-bar[hidden] { display: none; }
 .now-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
@@ -19,12 +18,12 @@
 .now-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .now-clock {
   display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 8px 14px;
-  padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-2); border: 1px solid var(--line);
+  padding: 10px 12px; border-radius: var(--ds-r-ctl); background: var(--panel); border: 1.5px solid transparent;
 }
 .now-time { display: grid; justify-items: center; text-align: center; line-height: 1.25; }
 .now-state { font-size: 12px; color: var(--text-2); }
 .now-left {
-  font-family: var(--mono); font-size: 24px; font-weight: 600; color: var(--accent-deep);
+  font-family: var(--font-h); font-size: 27px; font-weight: 400; color: var(--accent-deep);
   font-variant-numeric: tabular-nums; letter-spacing: -.02em; white-space: nowrap;
 }
 .now-clock.is-paused .now-left { color: var(--muted); }

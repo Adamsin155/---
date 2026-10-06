@@ -422,6 +422,8 @@ await step('an editor gets "no access", asks nothing of the messages tables, and
   await page.waitForTimeout(300);
   assert.equal(await page.locator('#nav-messages').isHidden(), true);
   assert.equal(await page.locator('#cta-messages').isHidden(), true);
+  await page.waitForSelector('#side-list .side-link');
+  assert.equal(await page.locator('#side-messages').count(), 0);
   await ctx.close();
 });
 
@@ -435,14 +437,17 @@ await step('Ofir sees "no access" on the page; the owner works in it; Irit has t
   const owner = await newPage(octx);
   await signIn(owner, 'messages.html', 'owner@astrateg.test');
   await owner.waitForSelector('#msg-queue > li');
-  assert.equal(await owner.locator('#nav-team').isHidden(), false);
+  await owner.waitForSelector('#side-team');
   await octx.close();
   await irit.goto(`${BASE}clients.html`);
   await irit.waitForSelector('#app:not([hidden])');
   await irit.waitForFunction(() => !document.getElementById('nav-messages').hidden);
   assert.equal(await irit.getAttribute('#nav-messages', 'href'), 'messages.html');
   assert.equal(await irit.getAttribute('#cta-messages', 'href'), 'messages.html');
-  assert.equal(await irit.locator('#cta-messages').isVisible(), true);
+  // The way in is the app menu; the head's own link is not shown twice.
+  await irit.waitForSelector('#side-messages');
+  assert.equal(await irit.getAttribute('#side-messages', 'href'), 'messages.html');
+  assert.equal(await irit.locator('#cta-messages').isVisible(), false);
 });
 
 await step('on a 360px phone (the next day, a new queue): it fits, no sideways scrolling, 44px buttons', async () => {
@@ -468,15 +473,15 @@ await step('on a 360px phone (the next day, a new queue): it fits, no sideways s
   await page.goto(`${BASE}clients.html`);
   await page.waitForSelector('#app:not([hidden])');
   await page.waitForFunction(() => !document.getElementById('nav-messages').hidden);
-  // The top bar folds its links away on a phone; the page head keeps the way in, behind
-  // "מסכים נוספים" when there are more than two links (the phone review of 4.10.2026).
+  // On a phone the bottom bar holds three screens, and "עוד" opens the rest.
   assert.equal(await page.locator('#nav-messages').isVisible(), false);
-  await page.click('.screens-toggle');
-  assert.equal(await page.locator('#cta-messages').isVisible(), true);
-  assert.ok((await page.locator('#cta-messages').boundingBox()).height >= 44);
+  assert.equal(await page.locator('#side-messages').isVisible(), false);
+  await page.click('#side-more');
+  assert.equal(await page.locator('#side-messages').isVisible(), true);
+  assert.ok((await page.locator('#side-messages').boundingBox()).height >= 44);
   assert.ok(await noHScroll(page), 'clients.html with the link, no sideways scroll');
   await shot(page, 'messages-05-phone-clients');
-  await page.click('#cta-messages');
+  await page.click('#side-messages');
   await page.waitForSelector('#msg-queue > li');
   await ctx.close();
 });

@@ -1,41 +1,45 @@
 /* Client link page: light, calm, brand accents only. */
+/* The names this page uses, pointed at the app's tokens (tokens.css). The lead colour is navy. */
 :root {
-  --ink: #031432;
-  --ink-2: #3B4763;
-  --muted: #5B6680;
-  --line: #E3E6EE;
-  --bg: #EEF0F5;
-  --purple: #5302DF;
-  --pink: #F82272;
-  --ok: #0B7A4B;
-  --danger: #C21D4E;
+  --ink: var(--ds-ink);
+  --ink-2: var(--ds-ink-2);
+  --muted: var(--ds-muted);
+  --line: var(--ds-line);
+  --bg: var(--ds-ground);
+  --purple: var(--ds-navy-text);
+  --pink: var(--ds-hot);
+  --ok: var(--ds-ok);
+  --danger: var(--ds-danger);
   color-scheme: light;
 }
+h1, h2 { font-family: var(--ds-font-h); font-weight: 400; }
+/* The quote document (quote.css) keeps its own type. */
+.qd h1, .qd h2 { font-family: inherit; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
-  font-family: 'Rubik', system-ui, sans-serif; font-size: 15px; line-height: 1.5;
+  font-family: var(--ds-font-b); font-size: 15px; line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
-:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+:focus-visible { outline: 2.5px solid var(--ds-navy-2); outline-offset: 2px; }
 button, input { font: inherit; color: inherit; }
 
 .cbar {
   position: sticky; top: 0; z-index: 10;
   display: flex; align-items: center; gap: 12px; height: 60px; padding-inline: 20px;
-  background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+  background: var(--ds-surface); border-bottom: 1px solid var(--line);
 }
 .cbar-logo { height: 30px; width: auto; }
 .cbar-title { font-weight: 600; }
 .cbar-status {
   font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
-  background: #F1ECFD; color: var(--purple);
+  background: var(--ds-soft); color: var(--purple);
 }
-.cbar-status.is-signed { background: #E6F5EE; color: var(--ok); }
-.cbar-status.is-expired { background: #FDECF1; color: var(--danger); }
+.cbar-status.is-signed { background: var(--ds-ok-soft); color: var(--ok); }
+.cbar-status.is-expired { background: var(--ds-danger-soft); color: var(--danger); }
 .expired {
-  background: #fff; border-radius: 10px; padding: 20px 24px; border-top: 3px solid var(--danger);
+  background: #fff; border-radius: var(--ds-r-card); padding: 20px 24px; border-top: 3px solid var(--danger);
   box-shadow: 0 1px 2px rgba(3, 20, 50, .06), 0 10px 30px rgba(3, 20, 50, .06);
 }
 .expired h2 { margin: 0 0 4px; font-size: 18px; color: var(--danger); }
@@ -46,22 +50,22 @@ button, input { font: inherit; color: inherit; }
 .cmain { max-width: 880px; margin: 0 auto; padding: 28px 16px 64px; display: grid; gap: 20px; }
 .cstrip {
   display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap;
-  padding: 14px 18px; border-radius: 10px; background: var(--ink); color: #fff;
+  padding: 14px 18px; border-radius: var(--ds-r-card); background: var(--ds-navy-grad); color: #fff;
 }
 .cstrip-main { display: flex; align-items: baseline; gap: 8px; }
 .cstrip-main .num {
-  font-family: 'Rubik', system-ui, sans-serif; font-variant-numeric: tabular-nums;
+  font-family: var(--ds-font-b); font-variant-numeric: tabular-nums;
   font-size: 22px; font-weight: 600;
 }
 .cstrip-main span:last-child { font-size: 13.5px; color: #C9D1E6; }
 .cstrip-sub { font-size: 13.5px; color: #C9D1E6; }
 .cstrip-go {
   margin-inline-start: auto; color: var(--ink); background: var(--pink); text-decoration: none;
-  font-weight: 600; font-size: 14px; padding: 8px 14px; border-radius: 8px; min-height: 40px;
+  font-weight: 600; font-size: 14px; padding: 8px 18px; border-radius: 999px; min-height: 40px;
   display: inline-flex; align-items: center;
 }
 .cstrip-go:focus-visible { outline-color: #fff; }
-.paper { background: #fff; border-radius: 10px; box-shadow: 0 1px 2px rgba(3, 20, 50, .06), 0 10px 30px rgba(3, 20, 50, .06); overflow: hidden; }
+.paper { background: #fff; border-radius: var(--ds-r-card); box-shadow: 0 1px 2px rgba(3, 20, 50, .06), 0 10px 30px rgba(3, 20, 50, .06); overflow: hidden; }
 
 .cstate { text-align: center; padding: 72px 16px; color: var(--ink-2); }
 .cstate h1 { font-size: 20px; margin: 0 0 6px; color: var(--ink); }
@@ -72,7 +76,7 @@ button, input { font: inherit; color: inherit; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .signbox, .signed {
-  background: #fff; border-radius: 10px; padding: 28px;
+  background: #fff; border-radius: var(--ds-r-card); padding: 28px;
   box-shadow: 0 1px 2px rgba(3, 20, 50, .06), 0 10px 30px rgba(3, 20, 50, .06);
 }
 .signbox { border-top: 3px solid var(--purple); }
@@ -82,7 +86,7 @@ button, input { font: inherit; color: inherit; }
 .cfield label, .pad-label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
 .req { color: var(--pink); }
 .cinput {
-  width: 100%; min-height: 48px; padding: 10px 14px; border-radius: 8px;
+  width: 100%; min-height: 48px; padding: 10px 14px; border-radius: var(--ds-r-ctl);
   border: 1px solid #848DA3; background: #fff; font-size: 16px;
 }
 .cinput:focus { outline: none; border-color: var(--purple); box-shadow: 0 0 0 3px rgba(83, 2, 223, .14); }
@@ -93,7 +97,7 @@ button, input { font: inherit; color: inherit; }
   min-height: 36px; padding: 4px 8px;
 }
 .pad {
-  position: relative; height: 180px; border-radius: 8px; border: 1px dashed #7C869C; background: #FAFBFD;
+  position: relative; height: 180px; border-radius: var(--ds-r-ctl); border: 1.5px dashed var(--ds-edge); background: #fff;
   touch-action: none;
 }
 .pad.is-invalid { border-color: var(--danger); }
@@ -114,11 +118,11 @@ button, input { font: inherit; color: inherit; }
 .wa-more { margin: 4px 0 0; margin-inline-start: 32px; font-size: 13.5px; color: var(--ink-2); }
 .cerr { color: var(--danger); font-size: 13.5px; margin-top: 6px; }
 .cerr[hidden] { display: none; }
-.cerr-box { padding: 10px 12px; background: #FDEEF2; border-radius: 8px; margin: 14px 0 0; }
+.cerr-box { padding: 10px 12px; background: var(--ds-danger-soft); border-radius: var(--ds-r-ctl); margin: 14px 0 0; }
 
 .cbtn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 44px; padding: 10px 18px; border-radius: 8px; border: 1px solid #C9CEDB;
+  min-height: 44px; padding: 10px 22px; border-radius: 999px; border: 1.5px solid var(--ds-ink);
   background: #fff; font-weight: 600; cursor: pointer;
 }
 .cbtn-ghost:hover { background: #F4F5F9; }
@@ -133,7 +137,7 @@ button, input { font: inherit; color: inherit; }
 .signed { display: flex; gap: 16px; align-items: center; border-top: 3px solid var(--ok); }
 .signed:focus { outline: none; }
 .signed-mark {
-  width: 44px; height: 44px; border-radius: 50%; background: #E6F5EE; color: var(--ok);
+  width: 44px; height: 44px; border-radius: 50%; background: var(--ds-ok-soft); color: var(--ok);
   display: grid; place-items: center; font-size: 22px; font-weight: 700; flex: none;
 }
 .signed h2 { margin: 0 0 2px; font-size: 19px; }

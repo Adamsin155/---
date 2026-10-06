@@ -1,0 +1,75 @@
+/* The design tokens of the whole app, in one place (the direction approved 5.10.2026:
+   docs/design/direction-navy-demo.html, the "navy" skin). Every stylesheet reads these:
+   app.css and protocol.css point their own names (--bg, --panel, --accent …) here, the
+   client pages (client.css, status.css, gallery.css, scripts-view.css) and the payouts
+   app take the palette and the fonts.
+   A soft ground, white floating panels with large corners, one deep colour (navy)
+   that leads, and the brand pink only for the one primary action of a screen and for
+   what is late or urgent. Contrast figures are WCAG 2.x. */
+:root {
+  /* Surfaces */
+  --ds-ground: #EEF0F4;        /* the page behind everything, and cards inside a white panel */
+  --ds-surface: #FFFFFF;       /* floating panels, dialogs, fields */
+  --ds-soft: #E4E8F3;          /* quiet fills: tags, hovers, the selected-but-not-current */
+  --ds-soft-2: #D8DEEC;        /* the same, one step deeper (hover of a soft fill) */
+  --ds-line: #DCE0E9;          /* separators inside a card */
+  --ds-line-strong: #C3C9D8;
+  --ds-edge: #737D96;          /* edges of fields and checkboxes: 4.15:1 on white, 3.61:1 on the ground */
+
+  /* Text */
+  --ds-ink: #0B1533;           /* 17.9:1 on white */
+  --ds-ink-2: #2E3957;         /* 10.0:1 on the ground */
+  --ds-muted: #5A6480;         /* 5.88:1 on white, 5.16:1 on the ground (the demo's #646E88 is 4.46:1 there) */
+
+  /* The lead colour */
+  --ds-navy: #071433;
+  --ds-navy-2: #1C2F6B;
+  --ds-navy-text: #0E2260;     /* links and small coloured text: 13.0:1 on the ground */
+  --ds-navy-mid: #6F86C9;      /* a second bar next to navy (3.1:1 on the ground) */
+  --ds-hatch: #7A849C;         /* hatched "still open" bars: 3.3:1 on the ground (the demo's #A6AEC2 is 1.9:1) */
+  --ds-on-navy: #FFFFFF;
+  --ds-navy-grad: radial-gradient(130% 120% at 100% 0%, var(--ds-navy-2), var(--ds-navy));
+
+  /* The hot colour: the one primary action, and late / urgent */
+  --ds-hot: #F82272;
+  --ds-hot-hover: #FF3D85;
+  --ds-on-hot: #0B1533;        /* 4.67:1 on the pink (white is 3.84:1) */
+  --ds-hot-text: #C4124F;      /* "late" as text: 5.92:1 on white, 5.19:1 on the ground */
+  --ds-hot-soft: #FEEAF1;
+
+  /* Meanings that do not change */
+  --ds-ok: #0F6B3D;            /* 5.77:1 on the ground */
+  --ds-ok-soft: #E2F3EA;
+  --ds-amber: #855400;         /* 5.64:1 on the ground */
+  --ds-amber-soft: #FFF3D9;
+  --ds-amber-line: #E2B868;
+  --ds-danger: #B3152B;        /* destructive actions (delete, cancel a quote); never the brand pink */
+  --ds-danger-soft: #FDECEE;
+
+  /* Shape */
+  --ds-r-panel: 24px;
+  --ds-r-card: 20px;
+  --ds-r-item: 16px;
+  --ds-r-ctl: 14px;
+  --ds-r-sm: 10px;
+  --ds-r-pill: 999px;
+  --ds-shadow-float: 0 10px 30px color-mix(in srgb, var(--ds-ink) 14%, transparent);
+  --ds-shadow-hover: 0 8px 20px color-mix(in srgb, var(--ds-navy) 12%, transparent);
+  --ds-shadow-pop: 0 30px 70px -24px color-mix(in srgb, var(--ds-ink) 45%, transparent);
+
+  /* Type: Varela Round for headings and big numbers, Heebo for text (app/fonts/fonts.css). */
+  --ds-font-h: 'Varela Round', 'Heebo', 'Rubik', 'Arial Hebrew', Arial, sans-serif;
+  --ds-font-b: 'Heebo', 'Rubik', 'Arial Hebrew', Arial, system-ui, sans-serif;
+  --ds-font-code: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  /* Motion: short, once, and off under prefers-reduced-motion (shell.css). */
+  --ds-ease: cubic-bezier(.2, .8, .2, 1);
+  --ds-t-fast: .2s;
+  --ds-t-rise: .55s;
+  --ds-stagger: 45ms;
+
+  /* Layout of the app shell (app/shell.js, shell.css) */
+  --ds-side-w: 232px;
+  --ds-gap: 14px;
+  --ds-gutter: max(16px, calc((100vw - 1720px) / 2));
+}
