@@ -334,7 +334,11 @@ await step('Ilai stays on "המשימות שלי": his cards first, the draft mo
   // The draft monthly cycle waits folded; his cards are the first thing in the list.
   assert.equal(await page.locator('#my-months details.mc-fold').getAttribute('open'), null);
   assert.ok(await page.locator('#mine-list .g-ilai .il-list > li:visible').count() <= 6);
-  assert.ok(await heightOf(page) < 3500);
+  // "לקוחות שלא מחוברים ל־Metricool" (section 33): none of this office's 21 clients has a brand
+  // yet, so the card shows its first eight (about 650px, gone once they are connected).
+  assert.equal(await page.locator('#metricool-card .mcn-list > .mcn-row:visible').count(), 8);
+  const tall = await heightOf(page);
+  assert.ok(tall < 4300, `Ilai's page is ${tall}px tall (3,500 before the Metricool card)`);
   await shot(page, 'ilai-01-mine-short');
 });
 

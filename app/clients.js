@@ -43,6 +43,7 @@ import { folderItemOf } from './qa-logic.js';
 import { mountDeals, refreshDeals } from './deal-ui.js';
 import { mountApprovals } from './approvals-ui.js';
 import { mountStaffTasks } from './staff-tasks-ui.js';
+import { mountMetricoolConnect } from './metricool-connect-ui.js';
 import { landingOf } from './deal-logic.js';
 // A link to a part of this page (#mine, #control, a sign-in link) opens that part:
 // nobody is sent to their first screen then.
@@ -2296,6 +2297,8 @@ mountSession(async (staff) => {
   mountDeals($('deals-card'), { me, scope, error: viewerError });
   // Exceptional contracts: the approvers decide here; Irit sees "ממתין לאישור", "אושר — אפשר לשלוח", "לא אושר".
   mountApprovals($('approvals-card'), { me, scope, error: viewerError }, { mail: staff.email, toast, changed: refreshDeals });
+  // Ilai and the owner: the active clients that are not connected to a Metricool brand yet.
+  mountMetricoolConnect($('metricool-card'), { me, scope, error: viewerError });
   const fromHash = location.hash.slice(1);
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();

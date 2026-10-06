@@ -27,6 +27,7 @@
   <link rel="stylesheet" href="app/styles/calendar.css">
   <link rel="stylesheet" href="app/styles/deal.css">
   <link rel="stylesheet" href="app/styles/staff-tasks.css">
+  <link rel="stylesheet" href="app/styles/metricool-connect.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -94,7 +95,7 @@
       </div>
 
       <section class="block" id="view-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
-        <!-- One order for the cards of "המשימות שלי": now, then how I hear (notifications,
+        <!-- One order for the cards of "המשימות שלי": now, the work cards, then how I hear (notifications,
              WhatsApp, my calendar), then the questions, whose list, the month, the work. -->
         <section class="now-bar" id="now-bar" aria-labelledby="now-h" hidden></section>
         <!-- Tasks given on the spot: the ones I got, with "בוצע"; for Irit and the owner, giving one (app/staff-tasks-ui.js). -->
@@ -103,6 +104,8 @@
         <section class="deals-card" id="deals-card" aria-labelledby="deals-h" hidden></section>
         <!-- Exceptional contracts: to approve (the owner, Ofir, Lior) or to follow (app/approvals-ui.js). -->
         <section id="approvals-card" hidden></section>
+        <!-- Clients with no Metricool brand yet: Ilai and the owner connect them here (app/metricool-connect-ui.js). -->
+        <section id="metricool-card" hidden></section>
         <section class="push-card" id="push-card" aria-labelledby="push-h" hidden></section>
         <section class="push-card wa-card" id="wa-card" aria-labelledby="wa-card-h" hidden></section>
         <section class="cal-card" id="cal-card" aria-labelledby="cal-h" hidden></section>

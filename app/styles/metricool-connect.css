@@ -1,0 +1,38 @@
+/* "לקוחות שלא מחוברים ל-Metricool" (6.10.2026): the card in "המשימות שלי" of Ilai and
+   the owner (app/metricool-connect-ui.js). Tokens only (tokens.css); phone first: a client
+   is one short row at 360px (the name, and its button beside it), every target at least 44px. No pink button here: a page keeps it
+   for its one main action. */
+.mcn-card {
+  border-inline-start: 4px solid var(--ds-navy); border-radius: var(--ds-r-card); background: var(--ds-ground);
+  padding: 14px 16px; margin: 0 0 var(--ds-gap); display: grid; gap: 10px; min-width: 0;
+}
+.mcn-card[hidden] { display: none; }
+.mcn-card h2 { margin: 0; font-size: 20px; overflow-wrap: anywhere; }
+.mcn-card h2:focus-visible { outline: 2px solid var(--ds-navy); outline-offset: 4px; border-radius: var(--ds-r-sm); }
+.mcn-card .hint { margin: 0; color: var(--ds-muted); font-size: 14px; }
+.mcn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
+.mcn-row {
+  border-radius: var(--ds-r-item); background: var(--ds-surface); padding: 10px 14px; min-width: 0;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+}
+.mcn-row[hidden] { display: none; }
+.mcn-row.is-open { box-shadow: inset 0 0 0 2px var(--ds-navy-mid); padding-block: 14px; }
+.mcn-who { display: grid; gap: 2px; min-width: 0; flex: 1 1 120px; }
+.mcn-name { font-size: 16px; color: var(--ds-ink); overflow-wrap: anywhere; }
+.mcn-since { color: var(--ds-muted); font-size: 13.5px; }
+.mcn-row > .btn { min-height: 44px; flex: none; }
+.mcn-panel { flex: 1 1 100%; display: grid; gap: 8px; min-width: 0; margin: 0; }
+.mcn-label { font-size: 14px; font-weight: 600; color: var(--ds-ink-2); }
+.mcn-panel select { min-height: 44px; inline-size: 100%; max-inline-size: 420px; min-width: 0; }
+.mcn-panel .err { margin: 0; }
+.mcn-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mcn-acts .btn, .mcn-acts .btn-text { min-height: 44px; }
+/* "חיבור": the card's own main action, navy and filled (pink stays the page's). */
+.mcn-save { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); min-width: 120px; }
+.mcn-save:hover { background: var(--ds-navy-2); border-color: var(--ds-navy-2); color: var(--ds-on-navy); }
+.mcn-more { justify-self: start; min-height: 44px; }
+.mcn-list > .more-row { border-top: 0; padding: 0; }
+@media (max-width: 480px) {
+  .mcn-acts .btn { flex: 1 1 40%; }
+  .mcn-acts .mcn-save { flex-basis: 100%; }
+}

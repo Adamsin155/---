@@ -202,6 +202,19 @@ export async function setBrand(clientId, blogId, brand = null) {
   if (error) throw error;
   return { blogId: data?.blogId || null, brand: data?.brand || null };
 }
+// "ללקוח אין מותג" (20261012100000_metricool_none.sql; docs/ops.md, section 33): whether
+// the client is marked as one that has no Metricool brand and needs none (false also
+// before that migration), and the way back. Ilai or the owner; the database checks.
+export async function loadNoBrand(clientId) {
+  try {
+    const { data, error } = await supabase.from('clients').select('metricool_none').eq('id', clientId).maybeSingle();
+    return !error && !!data?.metricool_none;
+  } catch { return false; }
+}
+export async function setNoBrand(clientId, on) {
+  const { error } = await supabase.rpc('metricool_set_none', { p_client: clientId, p_on: on });
+  if (error) throw error;
+}
 export async function setMetricoolEnabled(on) {
   const { data, error } = await supabase.rpc('metricool_set_enabled', { p_on: on });
   if (error) throw error;

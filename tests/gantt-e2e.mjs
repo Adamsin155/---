@@ -214,6 +214,14 @@ async function fakeSupabase(route) {
     c.metricool_brand = body.p_blog_id ? body.p_brand || null : null;
     return json(200, { blogId: c.metricool_blog_id, brand: c.metricool_brand });
   }
+  // "ללקוח אין מותג" (section 33): Ilai and the owner mark it and undo it.
+  if (p === '/rest/v1/rpc/metricool_set_none') {
+    if (!canEditGantt(me)) return json(403, { code: '42501', message: 'not allowed' });
+    const c = db.clients.find((x) => x.id === body.p_client);
+    if (!c) return json(400, { code: '22023', message: 'client not found' });
+    c.metricool_none = !!body.p_on;
+    return json(200, { none: c.metricool_none });
+  }
   // The edge function `metricool` (supabase/functions/metricool/sync.js runs here against a faked Metricool).
   if (p === '/functions/v1/metricool') {
     metricool.calls.push({ action: body.action, by: me?.email || null });
@@ -877,6 +885,17 @@ await step('Metricool, while the switch is off: a line says so; Ilai connects th
   assert.match(await page.locator('#bd-list .gt-brand.is-taken').innerText(), /מספרת רון[^]*מחובר ללקוח אחר/);
   assert.match(await page.locator('#bd-list .gt-brand:has(input:checked)').innerText(), /סטודיו דנה/);
   await page.click('#bd-close');
+  // A client marked "ללקוח אין מותג" in the card of "המשימות שלי" (section 33): the line
+  // says so, and Ilai takes the mark back from here (the card is gone when its list is empty).
+  C.metricool_none = true;
+  await page.reload();
+  await page.waitForSelector('#btn-brand-back');
+  assert.match(await page.innerText('#gt-mc'), /סומן שללקוח אין מותג ב־Metricool\. הסימון ידני\.\s*ביטול הסימון\s*חיבור למותג ב־Metricool/);
+  await page.click('#btn-brand-back');
+  await toastHas(page, 'הלקוח חזר לרשימת ״לקוחות שלא מחוברים ל־Metricool״.');
+  assert.equal(C.metricool_none, false);
+  assert.match(await page.innerText('#gt-mc'), /הלקוח לא מחובר למותג ב־Metricool\. הסימון ידני\./);
+  assert.equal(await page.locator('#btn-brand-back').count(), 0);
   // When Metricool does not answer, the dialog says so in Hebrew.
   metricool.down = true;
   await page.click('#btn-brand');

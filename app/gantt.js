@@ -112,8 +112,8 @@ async function boot() {
       // Metricool: the owner's switch, this client's brand and its last sync (the office only).
       if (canShare && !missing) {
         brandUi = await import('./gantt-brand.js');
-        const [settings, brands, syncs] = await Promise.all([data.metricoolSettings(), data.loadBrands(id), data.loadSyncs(id)]);
-        mc = { settings, brand: brands ? brands[id] || { blogId: null, brand: null } : undefined, sync: syncs[id] || null };
+        const [settings, brands, syncs, none] = await Promise.all([data.metricoolSettings(), data.loadBrands(id), data.loadSyncs(id), data.loadNoBrand(id)]);
+        mc = { settings, brand: brands ? brands[id] || { blogId: null, brand: null } : undefined, sync: syncs[id] || null, none };
       }
     } catch (err) {
       $('state').textContent = ui.errorText(err);
@@ -197,15 +197,26 @@ function render() {
 // the migration (settings undefined), and nothing for whoever is not the office.
 function renderMetricool() {
   if (SHARE || !brandUi || !mc.settings || mc.brand === undefined || missing) { $('gt-mc').hidden = true; return; }
-  const line = brandUi.clientLine({ enabled: !!mc.settings.enabled, blogId: mc.brand.blogId, brand: mc.brand.brand, sync: mc.sync });
+  // Marked "ללקוח אין מותג" in the card of "המשימות שלי" (section 33): said here, with the way back.
+  const none = !!mc.none && !mc.brand.blogId;
+  const line = none ? { tone: 'off', text: 'סומן שללקוח אין מותג ב־Metricool. הסימון ידני.' }
+    : brandUi.clientLine({ enabled: !!mc.settings.enabled, blogId: mc.brand.blogId, brand: mc.brand.brand, sync: mc.sync });
   const act = canEdit ? h('button', {
     type: 'button', class: 'btn btn-sm btn-ghost gt-mc-act', id: 'btn-brand',
     onclick: () => brandUi.openBrandDialog({
       client, current: mc.brand, toast,
-      onSaved: async (saved) => { mc.brand = saved; mc.sync = null; rows = (await data.loadGantt(client.id).catch(() => rows)) || rows; render(); },
+      onSaved: async (saved) => { mc.brand = saved; mc.sync = null; if (saved.blogId) mc.none = false; rows = (await data.loadGantt(client.id).catch(() => rows)) || rows; render(); },
     }),
   }, mc.brand.blogId ? 'החלפת מותג' : 'חיבור למותג ב־Metricool') : null;
-  brandUi.paintLine($('gt-mc'), line, act);
+  const back = canEdit && none ? h('button', {
+    type: 'button', class: 'btn btn-sm btn-ghost gt-mc-act', id: 'btn-brand-back',
+    onclick: async (e) => {
+      e.currentTarget.disabled = true;
+      try { await data.setNoBrand(client.id, false); mc.none = false; toast('הלקוח חזר לרשימת ״לקוחות שלא מחוברים ל־Metricool״.'); } catch { toast('לא נשמר. נסו שוב.'); }
+      render();
+    },
+  }, 'ביטול הסימון') : null;
+  brandUi.paintLine($('gt-mc'), line, act && back ? h('span', { class: 'gt-mc-acts' }, back, act) : act);
 }
 
 function renderHero() {
