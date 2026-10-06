@@ -357,6 +357,8 @@ const toastHas = (page, s) => page.waitForFunction((x) => document.querySelector
 const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const text = (page, sel) => page.locator(sel).first().innerText();
 const png = (n = 2000) => Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(n)]);
+// A file that starts as an MP4 does (the ftyp box), n bytes in all: uploads are checked by their first bytes.
+const mp4 = (n, fill = 0) => Buffer.concat([Buffer.from('000000186674797069736f6d', 'hex'), Buffer.alloc(n - 12, fill)]);
 const input = (page, kind, scope = '#files-block') => page.locator(`${scope} [data-kind-btn="${kind}"] input[type=file]`);
 const liveFiles = (kind) => db.client_files.filter((f) => f.kind === kind && !f.deleted_at);
 // Every field has a name a screen reader reads.
@@ -413,6 +415,20 @@ await step('a photo over 20MB is refused in Hebrew before anything is sent; a vi
   assert.ok(!calls.slice(before).some((c) => /storage\/v1\/(object\/client-files|upload)/.test(c)), 'nothing uploaded');
 });
 
+// Found live (6.10.2026): a 2 KB text file named .mp4 went up as a video and showed in the gallery.
+await step('a text file named .mp4 is refused by its content, in Hebrew, before anything is sent; so is a fake .png', async () => {
+  const before = calls.length;
+  const videos = liveFiles('deliverable_video').length;
+  await input(irit, 'deliverable_video').setInputFiles({ name: 'not-a-video.mp4', mimeType: 'video/mp4', buffer: Buffer.from('this is plain text, not a video\n'.repeat(64)) });
+  await irit.waitForFunction(() => /אינו סרטון/.test(document.querySelector('#files-block .fl-errs')?.textContent || ''));
+  assert.equal(await text(irit, '#files-block .fl-errs .err'), '"not-a-video.mp4" אינו סרטון: התוכן שלו לא תואם לסוג הקובץ. אפשר להעלות MP4, MOV, WebM או M4V.');
+  await input(irit, 'deliverable_graphic').setInputFiles({ name: 'fake.png', mimeType: 'image/png', buffer: Buffer.from('<html>not an image</html>') });
+  await irit.waitForFunction(() => /אינו תמונה: התוכן/.test(document.querySelector('#files-block .fl-errs')?.textContent || ''));
+  assert.ok(!calls.slice(before).some((c) => /storage\/v1\/(object\/client-files|upload)/.test(c)), 'nothing uploaded');
+  assert.equal(liveFiles('deliverable_video').length, videos);
+  assert.ok(await noHScroll(irit));
+});
+
 await step('a custom addition needs its label', async () => {
   await irit.click('#fl-add-material_other');
   const form = irit.locator('[data-kind-btn="material_other"]');
@@ -426,7 +442,7 @@ await step('a custom addition needs its label', async () => {
 });
 
 await step('a 13MB video goes up resumably in 6MB chunks, with progress', async () => {
-  const p = input(irit, 'deliverable_video').setInputFiles({ name: 'reel final.mp4', mimeType: 'video/mp4', buffer: Buffer.alloc(13 * MB, 7) });
+  const p = input(irit, 'deliverable_video').setInputFiles({ name: 'reel final.mp4', mimeType: 'video/mp4', buffer: mp4(13 * MB, 7) });
   await p;
   await irit.waitForFunction(() => document.querySelector('#fl-deliverables [data-count="deliverable_video"]')?.textContent === 'סרטונים 1', null, { timeout: 30000 });
   const v = liveFiles('deliverable_video')[0];
@@ -539,7 +555,10 @@ await step('Nadia (the editor): sees the files, uploads only videos, deletes not
   assert.deepEqual(visible, ['deliverable_video']);
   assert.equal(await n.locator('#files-block .fl-del').count(), 0);
   assert.equal(await n.locator('.fl-gallery > *').count(), 0);
-  await input(n, 'deliverable_video').setInputFiles({ name: 'v2.mp4', mimeType: 'video/mp4', buffer: Buffer.alloc(2 * MB, 1) });
+  // Found live: the word "null" under a file she cannot edit (a graphic with no posting day).
+  assert.ok(await n.locator('#files-block .fl-item[data-id]').count() >= 3);
+  assert.doesNotMatch(await text(n, '#files-block'), /null|undefined/);
+  await input(n, 'deliverable_video').setInputFiles({ name: 'v2.mp4', mimeType: 'video/mp4', buffer: mp4(2 * MB, 1) });
   await n.waitForFunction(() => document.querySelector('#fl-deliverables [data-count="deliverable_video"]')?.textContent === 'סרטונים 2');
   assert.equal(liveFiles('deliverable_video').at(-1).uploaded_by, 'nadia@astrateg.test');
   // Her own video: she may delete it.

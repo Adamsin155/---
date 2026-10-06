@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  KINDS, kindsOf, maxBytes, fileProblem, safeName, objectPath, fileNameOf, uploadKinds, canDelete, canEdit, counts,
+  KINDS, kindsOf, maxBytes, fileProblem, sniff, contentMismatch, contentProblem, safeName, objectPath, fileNameOf, uploadKinds, canDelete, canEdit, counts,
   galleryUrl, galleryMessage, downloadName, gallerySections, uploadError, formatSize, canManageGallery, validLink, GALLERY_KINDS,
 } from '../app/files-logic.js';
 import { uploadFile, CHUNK, RESUMABLE_OVER } from '../app/upload.js';
@@ -189,4 +189,52 @@ test('a refusal is not retried, and carries the reason', async () => {
   await assert.rejects(uploadFile({ ...base, path: 'c/logo/u-l.png', file: file('l.png', 10, 'image/png'), transport: s.transport }),
     (e) => e.status === 403 && /row-level security/.test(e.message));
   assert.equal(s.calls.length, 1);
+});
+
+// Found live (6.10.2026): a 2 KB text file named .mp4 was accepted as a video.
+test('uploads are checked by their first bytes: the formats we accept, and a mismatch refused in Hebrew', async () => {
+  const hex = (s, pad = 64) => new Uint8Array([...Buffer.from(s, 'hex'), ...new Uint8Array(pad)]);
+  const txt = (s) => new Uint8Array(Buffer.from(s));
+  const SAMPLES = {
+    jpeg: hex('ffd8ffe000104a464946'), png: hex('89504e470d0a1a0a'), gif: txt('GIF89a\u0001\u0000'),
+    webp: new Uint8Array([...Buffer.from('RIFF'), 1, 2, 3, 4, ...Buffer.from('WEBPVP8 ')]),
+    svg: txt('<?xml version="1.0"?>\n<!-- logo -->\n<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
+    pdf: txt('%PDF-1.7\n'), ps: txt('%!PS-Adobe-3.0 EPSF-3.0\n'),
+    mp4: hex('000000186674797069736f6d'), m4v: hex('00000020667479704d345620'), mov: hex('0000001466747970717420200000'),
+    oldMov: hex('000008006d6f6f76'), webm: hex('1a45dfa3'), heic: hex('0000001866747970686569630000'),
+  };
+  assert.deepEqual(Object.fromEntries(Object.entries(SAMPLES).map(([k, b]) => [k, sniff(b)])), {
+    jpeg: 'jpeg', png: 'png', gif: 'gif', webp: 'webp', svg: 'svg', pdf: 'pdf', ps: 'ps', mp4: 'mp4', m4v: 'mp4', mov: 'mov', oldMov: 'mov', webm: 'webm', heic: 'heic',
+  });
+  for (const junk of [txt('this is plain text, not a video'), txt('<html><body>x</body></html>'), new Uint8Array(100), new Uint8Array(2), hex('00000020667479704d344120') /* m4a: audio */]) assert.equal(sniff(junk), null);
+  // What each kind takes.
+  for (const f of ['jpeg', 'png', 'gif', 'webp', 'svg', 'heic']) {
+    assert.equal(contentMismatch('image', 'a', SAMPLES[f]), null, f);
+    assert.equal(contentMismatch('deliverable_graphic', 'a', SAMPLES[f]), null, f);
+    assert.equal(contentMismatch('logo', 'a', SAMPLES[f]), null, f);
+    assert.match(contentMismatch('deliverable_video', 'a.mp4', SAMPLES[f]), /אינו סרטון/, f);
+  }
+  for (const f of ['mp4', 'm4v', 'mov', 'oldMov', 'webm']) {
+    for (const k of ['video_existing', 'deliverable_video', 'deliverable_highlight']) assert.equal(contentMismatch(k, 'v', SAMPLES[f]), null, `${k} ${f}`);
+    assert.match(contentMismatch('image', 'v.jpg', SAMPLES[f]), /אינו תמונה/, f);
+  }
+  for (const f of ['pdf', 'ps']) {
+    assert.equal(contentMismatch('logo', 'logo.ai', SAMPLES[f]), null, f);
+    assert.match(contentMismatch('image', 'x.png', SAMPLES[f]), /אינו תמונה/, f);
+  }
+  // The live case, with its message; kinds without a type rule take anything.
+  const fake = txt('just some text\n'.repeat(130));
+  assert.equal(contentMismatch('deliverable_video', 'clip.mp4', fake), '"clip.mp4" אינו סרטון: התוכן שלו לא תואם לסוג הקובץ. אפשר להעלות MP4, MOV, WebM או M4V.');
+  assert.equal(contentMismatch('deliverable_graphic', 'g.png', fake), '"g.png" אינו תמונה: התוכן שלו לא תואם לסוג הקובץ. אפשר להעלות JPG, PNG, WebP, GIF או SVG.');
+  assert.match(contentMismatch('logo', 'logo.pdf', fake), /אינו קובץ לוגו תקין/);
+  assert.match(contentMismatch('deliverable_highlight', 'h.mp4', fake), /אינו תמונה או סרטון/);
+  for (const k of ['material_other', 'deliverable_other', 'deliverable_site']) assert.equal(contentMismatch(k, 'x', fake), null, k);
+  // In the browser: only the first bytes are read; the size limits are still fileProblem's.
+  let read = null;
+  const asFile = (name, bytes) => ({ name, size: bytes.length, slice: (a, b) => { read = [a, b]; return { arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset + a, bytes.byteOffset + Math.min(b, bytes.length)) }; } });
+  assert.equal(await contentProblem('deliverable_video', asFile('ok.mp4', SAMPLES.mp4)), null);
+  assert.deepEqual(read, [0, 4096]);
+  assert.match(await contentProblem('deliverable_video', asFile('clip.mp4', fake)), /^"clip\.mp4" אינו סרטון/);
+  assert.match(await contentProblem('image', { name: 'x.jpg', slice: () => { throw new Error('gone'); } }), /לא הצלחנו לקרוא את "x\.jpg"/);
+  assert.equal(await contentProblem('material_other', { name: 'x' }), null);
 });

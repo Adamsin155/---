@@ -17,7 +17,7 @@ import { who, formatStamp, formatDay } from './protocol-ui.js';
 import { dayText, timeText, waLink, groupLink } from './messages-logic.js';
 import {
   BUCKET, KINDS, GROUPS, kindsOf, fileProblem, objectPath, fileNameOf, formatSize, isImage, isVideo, validLink,
-  uploadKinds, canDelete, canEdit, counts, isManager, canManageGallery, galleryUrl, galleryMessage, uploadError,
+  uploadKinds, canDelete, canEdit, counts, isManager, canManageGallery, galleryUrl, galleryMessage, uploadError, contentProblem,
 } from './files-logic.js';
 import { uploadFile } from './upload.js';
 
@@ -245,7 +245,9 @@ async function startUploads(bar, kind, files, { progress, err, label = null, lin
   const o = root.__opts;
   const st = data.get(o.client.id);
   err.replaceChildren();
-  const problems = files.map((f) => [f, fileProblem(kind, f)]);
+  // The size and the declared type first; then the first bytes, so a text file renamed
+  // .mp4 is refused here and never reaches the gallery.
+  const problems = await Promise.all(files.map(async (f) => [f, fileProblem(kind, f) || await contentProblem(kind, f)]));
   const bad = problems.filter(([, p]) => p);
   if (bad.length) err.replaceChildren(...bad.map(([, p]) => h('p', { class: 'err' }, p)));
   let all = !bad.length;
@@ -339,7 +341,9 @@ function tile(f, o) {
     h('strong', { class: 'fl-name' }, name),
     h('span', { class: 'fl-sub' }, `${formatStamp(f.created_at)} · ${who(f.uploaded_by) || 'לא ידוע'}${f.size_bytes && !isLinkOnly ? ` · ${formatSize(f.size_bytes)}` : ''}`));
   if (f.link) meta.append(h('a', { class: 'fl-link', href: f.link, target: '_blank', rel: 'noopener noreferrer', dir: 'ltr' }, f.kind === 'deliverable_site' ? 'פתיחת האתר' : 'הפוסט ברשת', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')));
-  if (group === 'deliverables') meta.append(postedPart(f, o, editable));
+  // postedPart is null for a reader with nothing to show: append(null) would print the word "null".
+  const posted = group === 'deliverables' ? postedPart(f, o, editable) : null;
+  if (posted) meta.append(posted);
   const acts = h('div', { class: 'fl-acts' },
     isLinkOnly ? null : h('button', {
       type: 'button', class: 'btn-text', 'aria-label': `הורדה: ${name}`,
