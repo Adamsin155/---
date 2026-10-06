@@ -11,7 +11,9 @@ import { GANTT_RULES, GANTT_KINDS, KIND_ORDER, POSTS_FROM } from '../app/gantt-t
 import { CYCLE_FROM, monthItems, SPREAD_ITEMS, spreadMonth } from '../app/year-logic.js';
 import { HOLIDAYS, EREV } from '../app/holidays.js';
 import { dateIL } from '../app/tz.js';
-import { fileTitle } from '../app/gantt-logic.js';
+import {
+  fileTitle, STATUS_TEXT, CLIENT_STATUS_TEXT, clientStatus, nextState, STATES, toSchedule, weekOf, clientSummary, bySummary, weekAgenda, nextPost,
+} from '../app/gantt-logic.js';
 
 const IL = (y, m, d, h = 10, mi = 0) => dateIL(y, m, d, h, mi).toISOString();
 const FULL = { videos: 42, graphics: 42, shoot_days: 2, collabs: 3, stories: 3, ch14: 1, monthly: 96 };
@@ -252,20 +254,84 @@ test('"עדכון מהתבנית": new entries added, unchanged ones left, dates
 test('status, totals and the year at a glance', () => {
   const now = new Date(IL(2026, 5, 5, 20, 0));
   const e = (day, time_il, kind = 'video', state = 'planned') => ({ day, time_il, kind, state });
-  assert.equal(entryStatus(e('2026-05-05', '19:00'), now), 'late');
+  // "חסר": a post whose time has passed and that is neither scheduled nor up. The only problem state.
+  assert.equal(entryStatus(e('2026-05-05', '19:00'), now), 'missing');
+  assert.equal(entryStatus(e('2026-05-04', '19:00'), now), 'missing');
   assert.equal(entryStatus(e('2026-05-05', '21:00'), now), 'today');
   assert.equal(entryStatus(e('2026-05-04', '19:00', 'video', 'posted'), now), 'posted');
   assert.equal(entryStatus(e('2026-05-04', '19:00', 'report'), now), 'past');
   assert.equal(entryStatus(e('2026-05-06', '19:00'), now), 'planned');
   assert.equal(entryStatus(e('2026-05-01', '19:00', 'video', 'skipped'), now), 'skipped');
+  // "תוזמן": in the planner, its time ahead. Once the time has passed it went up by
+  // itself and counts as up; the stored state stays 'scheduled'.
+  assert.equal(entryStatus(e('2026-05-06', '19:00', 'video', 'scheduled'), now), 'scheduled');
+  assert.equal(entryStatus(e('2026-05-05', '21:00', 'video', 'scheduled'), now), 'scheduled');
+  assert.equal(entryStatus(e('2026-05-05', '20:00', 'video', 'scheduled'), now), 'posted');
+  assert.equal(entryStatus(e('2026-05-04', '19:00', 'video', 'scheduled'), now), 'posted');
+  assert.equal(entryStatus(e('2026-05-04', null, 'video', 'scheduled'), now), 'posted');
+  assert.equal(entryStatus(e('2026-05-04', '19:00', 'video', 'error'), now), 'error');
+  assert.equal(entryStatus(e('2026-05-09', '19:00', 'video', 'error'), now), 'error');
   const c = client();
-  const list = [e('2026-04-19', '19:00', 'video', 'posted'), e('2026-04-26', '19:00'), e('2026-05-10', '13:00', 'graphic'), e('2026-04-20', '12:00', 'report')];
-  assert.deepEqual(totals(list, now), { posts: 3, posted: 1, late: 1 });
-  const g = yearGlance(c, list);
+  const list = [
+    e('2026-04-19', '19:00', 'video', 'posted'), e('2026-04-26', '19:00'), e('2026-04-28', '19:00', 'video', 'scheduled'), e('2026-05-07', '19:00', 'video', 'scheduled'),
+    e('2026-05-03', '19:00', 'video', 'error'), e('2026-05-10', '13:00', 'graphic'), e('2026-04-20', '12:00', 'report'), e('2026-04-21', '19:00', 'video', 'skipped'),
+  ];
+  assert.deepEqual(totals(list, now), { posts: 6, posted: 2, scheduled: 1, missing: 1, errors: 1 });
+  const g = yearGlance(c, list, now);
   assert.deepEqual(g.map((r) => r.kind), ['video', 'graphic', 'report']);
-  assert.deepEqual(g[0].months[1], { n: 2, planned: 2, posted: 1 });
-  assert.deepEqual(g[1].months[1], { n: 2, planned: 1, posted: 0 });
+  assert.deepEqual(g[0].months[1], { n: 2, planned: 5, posted: 2, scheduled: 1, missing: 2 });
+  assert.deepEqual(g[1].months[1], { n: 2, planned: 1, posted: 0, scheduled: 0, missing: 0 });
+  assert.deepEqual(g[2].months[1], { n: 2, planned: 1, posted: 0, scheduled: 0, missing: 0 }, 'a report is never missing');
   assert.equal(g[0].months.length, 12);
+});
+
+test('the words: the team sees חסר and שגיאה, the client only מתוכנן / תוזמן / עלה', () => {
+  assert.deepEqual([STATUS_TEXT.scheduled, STATUS_TEXT.missing, STATUS_TEXT.posted, STATUS_TEXT.error], ['תוזמן', 'חסר', 'עלה', 'שגיאה']);
+  assert.deepEqual([clientStatus('missing'), clientStatus('error'), clientStatus('scheduled'), clientStatus('posted')], ['planned', 'planned', 'scheduled', 'posted']);
+  for (const s of Object.keys(STATUS_TEXT)) assert.ok(!['חסר', 'שגיאה'].includes(CLIENT_STATUS_TEXT[s]), s);
+  assert.doesNotMatch(JSON.stringify(STATUS_TEXT), /עברו ולא|עוד לא סומן/);
+});
+
+test('one tap: planned → scheduled → posted → planned; "סימון כתוזמנו" takes only the planned posts of the range', () => {
+  assert.deepEqual(['planned', 'scheduled', 'posted', 'error', 'skipped'].map(nextState), ['scheduled', 'posted', 'planned', 'scheduled', 'planned']);
+  assert.deepEqual(STATES, ['planned', 'scheduled', 'posted', 'error', 'skipped']);
+  const e = (key, day, kind = 'video', state = 'planned') => ({ key, day, time_il: '19:00', kind, state });
+  const list = [e('a', '2026-05-03'), e('b', '2026-05-04', 'graphic'), e('c', '2026-05-05', 'video', 'posted'), e('d', '2026-05-06', 'report'), e('f', '2026-05-07', 'video', 'scheduled'), e('g', '2026-05-10'), e('h', '2026-05-08', 'video', 'skipped')];
+  assert.deepEqual(toSchedule(list, '2026-05-03', '2026-05-09').map((x) => x.key), ['a', 'b']);
+  assert.deepEqual(toSchedule(list, '2026-05-04', '2026-05-04').map((x) => x.key), ['b']);
+  assert.deepEqual(weekOf('2026-05-06'), { from: '2026-05-03', to: '2026-05-09', days: ['2026-05-03', '2026-05-04', '2026-05-05', '2026-05-06', '2026-05-07', '2026-05-08', '2026-05-09'] });
+  assert.equal(weekOf('2026-05-03').from, '2026-05-03'); // Sunday
+  assert.equal(weekOf('2026-05-09').from, '2026-05-03'); // Saturday
+});
+
+test('the index: a client\'s line (package month, the month\'s counts, the next post), "missing first", and the week across clients', () => {
+  const now = new Date(IL(2026, 5, 5, 20, 0)); // Tuesday; package month 2 is 15.4–14.5
+  const e = (key, day, time_il, kind = 'video', state = 'planned') => ({ key, day, time_il, kind, state });
+  const a = { id: 'a', name: 'רון', business: 'מספרת רון', deal_at: IL(2026, 3, 15), contract_end: '2027-03-15', deliverables: FULL };
+  const b = { id: 'b', name: 'דנה', business: 'אולפן דנה', deal_at: IL(2026, 4, 1), contract_end: '2027-04-01', deliverables: FULL };
+  const z = { id: 'z', name: 'זיו', business: 'זיו נדל״ן', deal_at: IL(2026, 4, 20), contract_end: '2027-04-20', deliverables: FULL };
+  const rowsA = [e('v1', '2026-04-19', '19:00', 'video', 'posted'), e('v2', '2026-05-03', '19:00'), e('v3', '2026-05-04', '19:00', 'video', 'scheduled'), e('v4', '2026-05-07', '19:00', 'video', 'scheduled'),
+    e('g1', '2026-05-06', '13:00', 'graphic'), e('r', '2026-05-06', '12:00', 'report'), e('v9', '2026-05-17', '19:00'), e('old', '2026-04-10', '19:00')];
+  const sa = clientSummary(a, rowsA, now);
+  assert.deepEqual([sa.has, sa.month, sa.of, sa.posts, sa.posted, sa.scheduled, sa.missing, sa.errors], [true, 2, 12, 5, 2, 1, 1, 0]);
+  assert.equal(sa.next.key, 'g1');
+  const sb = clientSummary(b, [e('x', '2026-05-06', '19:00', 'video', 'scheduled')], now);
+  assert.deepEqual([sb.month, sb.missing, sb.scheduled, sb.next.key], [2, 0, 1, 'x']);
+  const sz = clientSummary(z, null, now);
+  assert.deepEqual([sz.has, sz.month, sz.posts, sz.next], [false, 1, 0, null]);
+  assert.equal(clientSummary({ id: 'n', name: 'x', deal_at: null }, null, now).month, 0);
+  // Missing first, then the ones with a Gantt by their next post, then the ones without.
+  assert.deepEqual([sz, sb, sa].sort((p, q) => bySummary(p, q)).map((s) => s.client.id), ['a', 'b', 'z']);
+  assert.deepEqual([sz, sb, sa].sort((p, q) => bySummary(p, q, 'name')).map((s) => s.client.id), ['b', 'z', 'a']);
+  // The week (Sunday 3.5 to Saturday 9.5): posts only, by day and time, with their status.
+  const week = weekAgenda([a, b, z], new Map([['a', rowsA], ['b', [e('x', '2026-05-06', '19:00', 'video', 'scheduled')]]]), now);
+  assert.deepEqual(week.map((d) => [d.day, d.items.map((i) => `${i.client.id}:${i.entry.key}:${i.status}`)]), [
+    ['2026-05-03', ['a:v2:missing']],
+    ['2026-05-04', ['a:v3:posted']],
+    ['2026-05-06', ['a:g1:planned', 'b:x:scheduled']],
+    ['2026-05-07', ['a:v4:scheduled']],
+  ]);
+  assert.equal(nextPost(rowsA, now).key, 'g1');
 });
 
 test('links: only https is shown or opened', () => {
