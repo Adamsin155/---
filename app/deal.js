@@ -61,7 +61,7 @@ function choice(type, name, value, label, sub, checked) {
   const id = `d-${name}-${value}`;
   return h('label', { class: 'deal-choice', for: id },
     h('input', { type, class: type === 'radio' ? 'radio' : 'cbox', name, id, value, checked, onchange: () => { if (name === 'tier' || name === 'influencer') choiceChanged(name); } }),
-    h('span', { class: 'deal-choice-text' }, h('span', { class: 'deal-choice-label', dir: 'auto' }, label), sub ? h('span', { class: 'deal-choice-sub' }, sub) : null));
+    h('span', { class: 'deal-choice-text' }, h('span', { class: 'deal-choice-label', dir: 'auto' }, label), sub ? h('span', { class: 'deal-choice-sub', dir: 'auto' }, sub) : null));
 }
 
 // The add-ons this package allows (the builder's rules); the ones already ticked stay ticked.
