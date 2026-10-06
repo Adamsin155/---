@@ -1,6 +1,6 @@
 // Shared view helpers for the client protocol pages: login, people, dates, statuses.
 import {
-  supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT,
+  supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT,
 } from './supa.js';
 import { h } from './quote-doc.js';
 import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';
@@ -206,11 +206,12 @@ export function mountSession(onReady) {
     try { await sendPasswordReset(email); $('lg-msg').textContent = RESET_SENT; $('lg-msg').hidden = false; } catch (err) { $('lg-err').textContent = explainError(err); $('lg-err').hidden = false; }
     e.currentTarget.disabled = false;
   });
-  $('btn-logout').addEventListener('click', async () => { resetMode(); await supabase.auth.signOut(); location.reload(); });
+  $('btn-logout').addEventListener('click', async () => { resetMode(); await signOutHere(); location.reload(); });
   // Opened from a personal sign-in link (team.html): choose a password first.
   return (async () => {
     const landed = await landFromLink();
     if (landed === 'password') toast(PASSWORD_SAVED);
+    if (landed === 'kept') toast(LINK_KEPT);
     const result = await boot();
     if (landed === 'expired') {
       if ($('login-block').hidden) toast(LINK_EXPIRED);

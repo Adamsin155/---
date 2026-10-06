@@ -15,6 +15,7 @@
 //  - The client card's month block. A 360px phone: no sideways scrolling, 44px targets.
 // Run: npx http-server -p 8080 -s . &  then  node tests/year-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
@@ -215,6 +216,7 @@ async function newContext(viewport = { width: 1280, height: 900 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msgx) => { if (msgx.type() === 'error' && !/Failed to load resource/.test(msgx.text())) errors.push(msgx.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -490,5 +492,6 @@ await step('a 360px phone: year.html without sideways scrolling, 44px targets', 
 });
 
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, [], `browser errors: ${errors.join('\n')}`);
 console.log(`\n${passed} passed`);

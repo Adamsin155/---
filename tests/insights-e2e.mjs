@@ -18,6 +18,7 @@
 // Run: a static server on the repository (or the build of scripts/build-pages.mjs),
 // then  BASE_URL=http://localhost:8134/ node tests/insights-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash, randomBytes } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
@@ -242,6 +243,7 @@ async function newContext(viewport = { width: 1280, height: 900 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msgx) => { if (msgx.type() === 'error' && !/Failed to load resource/.test(msgx.text())) errors.push(msgx.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -528,5 +530,6 @@ await step('the office links: the owner and Lior reach the insights, Irit does n
 });
 
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, [], `page errors:\n${errors.join('\n')}`);
 console.log(`\n${passed} steps passed`);

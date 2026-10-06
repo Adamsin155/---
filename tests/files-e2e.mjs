@@ -18,6 +18,7 @@
 //   - Irit revokes the gallery link and the client gets a friendly message.
 // Run: npx http-server -p 8095 -s -c-1 . &  then  BASE_URL=http://localhost:8095/ node tests/files-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { withClientColumns } from './fake-clients.mjs';
@@ -341,6 +342,7 @@ async function newContext(viewport = { width: 1280, height: 900 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -498,7 +500,7 @@ await step('the client\'s gallery link: Irit creates it and copies a ready Whats
   await toastHas(irit, 'הועתק');
   // (Windows' clipboard gives the lines back with \r\n.)
   const msg = (await irit.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n');
-  assert.equal(msg, galleryMessage(D, `${BASE}gallery.html?t=${galleryToken}`));
+  assert.equal(msg, galleryMessage(D, `${BASE}gallery.html#t=${galleryToken}`)); // after #: it reaches no log of the host (ops.md 36)
   const wa = await irit.getAttribute('#fl-gal-wa', 'href');
   assert.ok(wa.startsWith('https://wa.me/972501112222?text='), wa);
   await shot(irit, '02-card-gallery-link', { fullPage: false, clip: await irit.locator('.fl-gallery').boundingBox() });
@@ -509,7 +511,7 @@ const clientCtx = await newContext(PHONE);
 const cl = await newPage(clientCtx);
 
 await step('the client opens the gallery on a 360px phone: the deliverables, nothing internal', async () => {
-  await cl.goto(`${BASE}gallery.html?t=${galleryToken}`);
+  await cl.goto(`${BASE}gallery.html#t=${galleryToken}`); // the link as it is made now; a ?t= link sent before still opens (the revoked one, below)
   await cl.waitForSelector('#page:not([hidden])');
   assert.equal(await text(cl, '#hello-h'), 'התוצרים של קפה דנה');
   assert.deepEqual(await cl.locator('.gsec h2').allInnerTexts(), ['גרפיקות (3)', 'סרטונים (1)', 'אתר / דף נחיתה (1)']);
@@ -604,5 +606,6 @@ await step('Irit revokes the gallery link: the client gets a friendly message', 
 await clientCtx.close();
 await iritCtx.close();
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, [], errors.join('\n'));
 console.log(`files e2e: ${passed} steps passed`);

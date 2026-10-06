@@ -3,6 +3,7 @@
 // 13.10.2026 at 10:00 in Israel, so the day's queue is the same on any day.
 // Run: npx http-server -p 8080 -s . &  then  node tests/messages-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
@@ -180,6 +181,7 @@ async function newContext(viewport = { width: 1280, height: 900 }, now = NOW) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -521,5 +523,6 @@ await step('a promise at risk but not due until tomorrow: the card says so, and 
 });
 
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, []);
 console.log(`messages-e2e: ${passed} passed`);

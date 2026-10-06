@@ -7,6 +7,7 @@
 // The page clock starts on Monday 5.10.2026 13:05 in Jerusalem.
 // Run: npx http-server -p 8109 -s -c-1 . &  then  BASE_URL=http://localhost:8109/ node tests/highlights-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { clockDigits } from '../app/clocks.js';
@@ -119,6 +120,7 @@ await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
+watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
 const shot = async (name) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true }); };
 const step = async (name, fn) => { await fn(); console.log(`ok - ${name}`); };
@@ -222,4 +224,5 @@ await step('marked: the clock and the work are gone for that client', async () =
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log('highlights e2e: all checks passed');

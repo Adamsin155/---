@@ -15,6 +15,7 @@
 //  - A 360px phone: the list by default, the grid with dots, no sideways scrolling.
 // Run: npx http-server -p 8080 -s . &  then  node tests/gantt-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { dateIL } from '../app/tz.js';
@@ -338,6 +339,7 @@ async function newContext(viewport = { width: 1360, height: 960 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msgx) => { if (msgx.type() === 'error' && !/Failed to load resource/.test(msgx.text())) errors.push(msgx.text()); });
   page.on('dialog', (d) => d.accept());
   open.add(page);
@@ -607,7 +609,7 @@ await step('the client\'s link: created, copied again after a reload', async () 
   await ilai.click('#gs-create');
   await toastHas(ilai, 'נוצר קישור ללקוח');
   shareLink = await ilai.inputValue('#gs-url');
-  assert.match(shareLink, /gantt\.html\?t=[A-Za-z0-9_-]{43}$/);
+  assert.match(shareLink, /gantt\.html#t=[A-Za-z0-9_-]{43}$/); // after #: it reaches no log of the host (ops.md 36)
   await ilai.reload();
   await ilai.waitForSelector('#gs-url');
   assert.equal(await ilai.inputValue('#gs-url'), shareLink);
@@ -1026,5 +1028,6 @@ await step('a 360px phone: the list first, the grid with dots, a tapped day belo
 });
 
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, [], `browser errors: ${errors.join('\n')}`);
 console.log(`\n${passed} passed`);

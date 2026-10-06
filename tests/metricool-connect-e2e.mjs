@@ -18,6 +18,7 @@
 // Run: npx http-server -p 8163 -s -c-1 . &  then
 //      BASE_URL=http://localhost:8163/ node tests/metricool-connect-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -187,6 +188,7 @@ async function newPage(viewport = { width: 1440, height: 900 }) {
   const page = await ctx.newPage();
   page.setDefaultTimeout(8000);
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('request', (r) => { if (/metricool\.com/.test(r.url())) errors.push(`the browser called ${r.url()}`); });
   return page;
@@ -509,5 +511,6 @@ try {
   exitCode = 1;
 } finally {
   await browser.close();
+  noCspViolations();
 }
 process.exit(exitCode);

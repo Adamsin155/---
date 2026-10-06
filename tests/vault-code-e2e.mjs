@@ -15,6 +15,7 @@
 //     everyone's unlocks; Irit (who manages the team, not the owner) has no such card.
 // Run: npx http-server -p 8107 -s -c-1 . &  then  BASE_URL=http://localhost:8107/ node tests/vault-code-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
@@ -215,6 +216,7 @@ async function setTime(t) { NOW = new Date(t); for (const c of contexts) await c
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -251,6 +253,43 @@ await step('before any code exists the vault works exactly as before: Ilai sees 
   assert.equal(await ilai.locator('#dlg-vault-code').count(), 0);
   assert.ok(await ilai.locator('#vault-open').isHidden());
   assert.equal(reveals(), 1);
+});
+
+// Security audit, 6.10.2026 (ops.md 36): a copied password stayed on the clipboard, and
+// "back" could bring a shown one up again from the browser's page cache.
+await step('a copied password leaves the clipboard 30 seconds later; leaving the page hides the shown one and clears the clipboard at once', async () => {
+  const logged = db.client_access_log.length;
+  const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
+  await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
+  await ctx.clock.install({ time: NOW }); // this page's timers move with the test
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
+  const p = await newPage(ctx);
+  await signIn(p, `client.html?id=${D.id}`, 'ilai@astrateg.test');
+  await p.waitForSelector('#access-list .access-row');
+  const clip = () => p.evaluate(() => navigator.clipboard.readText());
+  const shown = () => p.evaluate(() => document.querySelector('#access-list .secret')?.textContent || '');
+  const copy = async () => {
+    await revealBtn(p).click();
+    await p.waitForFunction((s) => document.querySelector('#access-list .secret')?.textContent.includes(s), SECRET);
+    await p.locator('#access-list .secret').first().getByRole('button', { name: 'העתקה' }).click();
+    await p.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('הסיסמה הועתקה. היא תימחק מהלוח בעוד 30 שניות.'));
+  };
+  await copy();
+  assert.equal(await clip(), SECRET);
+  assert.match(await shown(), /הסיסמה תוסתר בעוד 30 שניות, וגם תימחק מהלוח אם הועתקה/);
+  await ctx.clock.fastForward(25e3);
+  assert.equal(await clip(), SECRET, 'still there after 25 seconds');
+  await ctx.clock.fastForward(6e3);
+  await p.waitForFunction(() => navigator.clipboard.readText().then((t) => t === ''));
+  assert.equal(await shown(), '', 'and the shown password is hidden, as before');
+  // Leaving the page (a link, "back", closing the tab): hidden and cleared right away.
+  await copy();
+  assert.equal(await clip(), SECRET);
+  await p.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  assert.equal(await shown(), '');
+  await p.waitForFunction(() => navigator.clipboard.readText().then((t) => t === ''));
+  db.client_access_log.length = logged; // the steps below count the reveals of their own pages
+  await ctx.close();
 });
 
 await step('the owner\'s card on the team page: no code yet, and it says the vault works as it did', async () => {
@@ -498,5 +537,6 @@ await step('Irit manages the team but is not the owner: no "קוד הכספת" c
 await ilaiCtx.close();
 await ownerCtx.close();
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, [], errors.join('\n'));
 console.log(`vault code e2e: ${passed} steps passed`);

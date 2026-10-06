@@ -13,6 +13,7 @@
 //  - with prefers-reduced-motion nothing moves at all.
 // Run: npx http-server -p 8080 -s -c-1 . &  then  node tests/shell-e2e.mjs
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { NOW, SUPA, GALLERY_TOKEN, emailOf, buildWorld, makeFake } from './roles-world.mjs';
 
@@ -36,6 +37,7 @@ async function open(role, { viewport = WIDE, motion = false, reduced = false, pa
   }
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${role}: ${e}`));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(`${role}: ${msg.text()}`); });
   await page.goto(`${BASE}${path}`);
   if (signIn) {
@@ -267,4 +269,5 @@ await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and 
 
 assert.deepEqual(errors, [], 'page errors');
 await browser.close();
+noCspViolations();
 console.log(`shell e2e: ${passed} steps passed`);

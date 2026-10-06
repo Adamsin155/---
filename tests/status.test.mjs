@@ -43,7 +43,7 @@ test('the link: 43 base64url characters, next to the page; the message carries i
   assert.ok(TOKEN.test('a'.repeat(43)));
   assert.ok(!TOKEN.test('a'.repeat(42)) && !TOKEN.test(`${'a'.repeat(42)}=`) && !TOKEN.test(`${'a'.repeat(42)}+`));
   const url = statusUrl('https://adamsin155.github.io/---/client.html?id=x#tasks', `${'A'.repeat(42)}-`);
-  assert.equal(url, `https://adamsin155.github.io/---/status.html?t=${'A'.repeat(42)}-`);
+  assert.equal(url, `https://adamsin155.github.io/---/status.html#t=${'A'.repeat(42)}-`);
   const msg = statusLinkMessage({ name: 'דנה' }, url);
   assert.match(msg, /^היי דנה, זה דף המצב האישי שלכם אצלנו:\nhttps:/);
   assert.doesNotMatch(msg, /[{}[\]]/);

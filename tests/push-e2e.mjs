@@ -7,6 +7,7 @@
 // clock is Monday 5.10.2026 10:00 in Jerusalem.
 // Run: npx http-server -p 8080 -s . &  then  node tests/push-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { VAPID_PUBLIC_KEY } from '../app/push-config.js';
@@ -194,6 +195,7 @@ async function open(who, { viewport = { width: 1280, height: 900 }, push = {}, m
   await ctx.addInitScript(fakePush, { key: VAPID_PUBLIC_KEY, ...push });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
   page.on('dialog', (d) => d.accept());
   await page.goto(`${BASE}clients.html`);
@@ -304,6 +306,35 @@ await step('switching off removes this device only', async () => {
 });
 await iritCtx.close();
 
+// Security audit, 6.10.2026 (ops.md 36): after "התנתקות" on a shared device, the last
+// person's reminders kept arriving on it and their unsaved drafts stayed in the browser.
+await step('signing out: this device stops getting the person\'s notifications, and the drafts kept in the browser are gone', async () => {
+  const { ctx, page: p } = await open('irit');
+  await p.click('#push-card button:has-text("הפעלת התראות")');
+  await p.waitForSelector('#push-card[data-state="confirm"]');
+  assert.equal(db.push_subscriptions.filter((s) => s.email === users.irit.email).length, 1);
+  await p.evaluate(() => {
+    localStorage.setItem('astrateg.scripts.c1.1.3', '{"title":"טיוטה"}');
+    localStorage.setItem('astrateg.charform.c1', '{"address":"x"}');
+    localStorage.setItem('astrateg.brief.c1.1', '{"focus":"x"}');
+    localStorage.setItem('astrateg.messages.station', 'intake');
+    sessionStorage.setItem('astrateg-draft', '{"state":{"discount":250}}');
+  });
+  const before = calls.length;
+  await p.evaluate(() => document.getElementById('btn-logout').click());
+  await p.waitForSelector('#login-block:not([hidden])');
+  assert.ok(calls.slice(before).some((c) => c.path === '/rest/v1/rpc/push_unsubscribe' && c.body.p_endpoint === 'https://push.test/device-1'));
+  assert.equal(db.push_subscriptions.filter((s) => s.email === users.irit.email).length, 0, 'the device left the database');
+  const left = await p.evaluate(() => ({
+    sub: localStorage.getItem('fake.sub'),
+    drafts: Object.keys(localStorage).filter((k) => /^astrateg\.(scripts|charform|brief)\./.test(k)),
+    quote: sessionStorage.getItem('astrateg-draft'),
+    pref: localStorage.getItem('astrateg.messages.station'),
+  }));
+  assert.deepEqual(left, { sub: null, drafts: [], quote: null, pref: 'intake' }, 'drafts gone, a preference stays');
+  await ctx.close();
+});
+
 // ── iPhone ────────────────────────────────
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
 await step('iPhone in Safari: "הוספה למסך הבית" first, and no permission request', async () => {
@@ -381,4 +412,5 @@ await step('before the migrations: no card, no button, and tasks still load (wit
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log(`push-e2e: ${passed} passed`);

@@ -137,8 +137,8 @@ test('"הוספת פלטפורמה": a name, a user name and a password; no plat
   f.extra[0].password = '';
   assert.deepEqual(formProblems(f).errors, { 'x0.password': 'חסרה סיסמה.' });
   f.extra[0].password = 'p';
-  f.notes = 'n'.repeat(1001);
-  assert.match(formProblems(f).errors.notes, /עד 1000 תווים/);
+  f.notes = 'n'.repeat(301);
+  assert.match(formProblems(f).errors.notes, /עד 300 תווים/);
 });
 
 test('what is sent: only what each choice needs; the summary and the confirmation never hold a password', () => {
@@ -187,7 +187,7 @@ test('the words of the page: reassuring, and a plain message for every dead link
   assert.match(PAGE_TEXT.points.join(' '), /מוצפנים/);
   assert.match(PAGE_TEXT.points.join(' '), /רק אנשי הצוות שמטפלים בחשבון/);
   assert.match(PAGE_TEXT.points.join(' '), /אי אפשר לקרוא את הפרטים מהדף הזה/);
-  assert.match(PAGE_TEXT.notesHint, /לא כותבים כאן סיסמאות/);
+  assert.match(PAGE_TEXT.notesWarn, /^אל תכתבו כאן סיסמאות./); // said on its own line since 6.10.2026 (ops.md 36)
   for (const k of ['invalid', 'expired', 'revoked', 'closed', 'locked', 'done', 'insecure', 'error']) assert.ok(CLOSED_TEXT[k][0], k);
   assert.deepEqual(CLOSED_TEXT.done, ['הפרטים התקבלו', '']);
   assert.equal(CLOSED_TEXT.insecure[0], 'פתחו את הקישור בכתובת מאובטחת');

@@ -383,8 +383,13 @@ test('a task stays with its person and client: only the office moves it, or reop
   // Reopening her task finished 45 days ago (on a client she still edits); 10 days ago is fine (a mistaken tap).
   assert.match((await tryAs('nadia', 'update public.client_tasks set done_at = null where id = $1', [taskIds['task-ron-old-nadia']])).error, NOT);
   assert.equal((await tryAs('nadia', 'update public.client_tasks set done_at = null where id = $1', [taskIds['task-recent-nadia']])).affected, 1);
-  // Finishing, and changing the title or the due day of a visible task, stay open to her.
-  assert.equal((await tryAs('nadia', "update public.client_tasks set title = 'y', due_on = '2026-12-01', done_at = now() where id = $1", [taskIds['task-ron-lior']])).affected, 1);
+  // Since 20261014100000_security_hardening.sql a visible task of someone else is no
+  // longer hers to finish or rewrite (it was: "stay open to her"); her own she finishes,
+  // and what it says is the office's (tests/sql/security-hardening.test.mjs has the rest).
+  assert.match((await tryAs('nadia', "update public.client_tasks set title = 'y', due_on = '2026-12-01', done_at = now() where id = $1", [taskIds['task-ron-lior']])).error, /someone else's/);
+  assert.match((await tryAs('nadia', 'update public.client_tasks set done_at = now() where id = $1', [taskIds['task-ron-lior']])).error, /someone else's/);
+  assert.equal((await tryAs('nadia', 'update public.client_tasks set done_at = now() where id = $1', [taskIds['task-open-nadia']])).affected, 1);
+  assert.match((await tryAs('nadia', "update public.client_tasks set title = 'y' where id = $1", [taskIds['task-open-nadia']])).error, /only the office changes what a task says/);
   // The office reassigns and moves tasks.
   assert.equal((await tryAs('lior', "update public.client_tasks set owner = 'anna', client_id = $2 where id = $1", [taskIds['task-natother-lior'], ids.plain])).affected, 1);
   assert.equal((await tryAs('ofir', 'update public.client_tasks set done_at = null where id = $1', [taskIds['task-old-nadia']])).affected, 1);

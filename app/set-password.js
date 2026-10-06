@@ -2,7 +2,7 @@
 // team.html, and sent by WhatsApp; or Supabase's own reset email). The login card
 // shows "choose a password" instead of the login form; once it is saved, the page
 // continues into the app. The session then stays on the device (supa.js).
-import { supabase, readAuthLink, verifyLink, isOffline, explainError, LINK_TYPES } from './supa.js';
+import { supabase, readAuthLink, verifyLink, isOffline, explainError, LINK_TYPES, mayUseLink } from './supa.js';
 import { h } from './quote-doc.js';
 
 export const MIN_PASSWORD = 8;
@@ -12,13 +12,15 @@ export const PASSWORD_SAVED = 'הסיסמה נשמרה. מעכשיו נכנסי�
 const $ = (id) => document.getElementById(id);
 
 // Reads the link from the address bar (and clears it). Returns null when there is
-// none, 'expired' when it cannot be used, 'signed-in' for a link that needs no
-// password, and 'password' once a password was chosen.
+// none, 'expired' when it cannot be used, 'kept' when another account is signed in on
+// this device and the person chose to stay in it, and 'password' once a password was
+// chosen. A link never signs anyone in silently: it is an invite or a recovery link
+// (readAuthLink refuses the rest), and both end in choosing a password.
 export async function landFromLink() {
   const link = readAuthLink();
   if (!link) return null;
-  if (link.expired) return 'expired';
-  if (!LINK_TYPES.includes(link.type)) return (await verifyLink(link)) ? 'expired' : 'signed-in';
+  if (link.expired || !LINK_TYPES.includes(link.type)) return 'expired';
+  if (!(await mayUseLink(link))) return 'kept';
   // Supabase's redirect has already spent the token: sign in now, then ask.
   // A personal link is spent only when the password is submitted.
   if (link.accessToken && (await verifyLink(link))) return 'expired';

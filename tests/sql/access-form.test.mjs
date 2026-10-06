@@ -179,7 +179,8 @@ test('the same rules in the database and on the page', async () => {
     ['Instagram twice', extra({ network: 'instagram', label: null, choice: 'none', username: null, password: null }), 'duplicate'],
     ['the same name twice', { ...ok, entries: [...ok.entries, { network: 'other', label: 'LinkedIn', choice: 'have', username: 'u', password: 'p' }, { network: 'other', label: 'linkedin ', choice: 'have', username: 'u', password: 'p' }] }, 'duplicate'],
     ['TikTok missing', { ...ok, entries: [...ok.entries.slice(0, 2), { network: 'youtube', label: null, choice: 'have', username: 'u', password: 'p' }] }, 'required'],
-    ['notes of 1001 characters', { ...ok, notes: 'n'.repeat(1001) }, 'notes too long'],
+    ['notes of 300 characters', { ...ok, notes: 'n'.repeat(300) }, null],
+    ['notes of 301 characters', { ...ok, notes: 'n'.repeat(301) }, 'notes too long'],
     ['notes that are not text', { ...ok, notes: 7 }, 'notes'],
   ];
   for (const [name, payload, want] of cases) {
@@ -203,11 +204,14 @@ test('a refused submission writes nothing and is counted', async () => {
   assert.deepEqual(await info(token), { state: 'ok', business: 'קפה דנה', preview: false });
 });
 
+// Since 20261014100000_security_hardening.sql a login the office saved is never
+// replaced by the form: the client's goes into a row of its own beside it.
 test('a submission: the vault as access_save writes it, the statuses, process 5, Ilai\'s task; nothing comes back', async () => {
   // Ofir already put Instagram (with a password) and YouTube in the vault.
   const [{ id: insta }] = await keep('ofir', "select public.access_save($1, null, 'instagram', 'העמוד הראשי', 'old_user', 'old-pass', 'ok', 'מהאפיון') as id", [ids.dana]);
   const [{ id: yt }] = await keep('ofir', "select public.access_save($1, null, 'youtube', null, 'dana_yt', 'yt-pass', 'ok', null) as id", [ids.dana]);
   const oldSecret = (await one('select secret_id from public.client_access where id = $1', [insta])).secret_id;
+  const instaBefore = await one('select * from public.client_access where id = $1', [insta]);
   const ytBefore = await one('select * from public.client_access where id = $1', [yt]);
 
   const payload = buildPayload(form({
@@ -218,15 +222,18 @@ test('a submission: the vault as access_save writes it, the statuses, process 5,
   assert.deepEqual(res, { state: 'done' });
 
   const rows = await all('select * from public.client_access where client_id = $1 order by network, label', [ids.dana]);
-  const by = Object.fromEntries(rows.map((r) => [r.network, r]));
-  assert.deepEqual(rows.map((r) => r.network), ['facebook', 'instagram', 'other', 'tiktok', 'youtube']);
-  // Instagram: the same row, updated; the old secret is gone from Vault, the new one holds the client's password.
-  assert.equal(by.instagram.id, insta);
-  assert.deepEqual([by.instagram.status, by.instagram.username, by.instagram.label, by.instagram.updated_by], ['new', 'dana_cafe', 'העמוד הראשי', CLIENT_BY]);
+  const by = Object.fromEntries(rows.filter((r) => r.id !== insta).map((r) => [r.network, r]));
+  assert.deepEqual(rows.map((r) => r.network).sort(), ['facebook', 'instagram', 'instagram', 'other', 'tiktok', 'youtube']);
+  // Instagram: Ofir's row is exactly as it was, its password still in Vault; the client's
+  // login is a second row of the same network, marked as the client's, not checked yet.
+  assert.deepEqual(await one('select * from public.client_access where id = $1', [insta]), instaBefore);
+  assert.equal(await secretOf(oldSecret), 'old-pass');
+  assert.notEqual(by.instagram.id, insta);
+  assert.deepEqual([by.instagram.status, by.instagram.username, by.instagram.updated_by], ['new', 'dana_cafe', CLIENT_BY]);
+  assert.match(by.instagram.label, /^מהלקוח, \d{1,2}\.\d{1,2}\.\d{4}$/);
   assert.notEqual(by.instagram.secret_id, oldSecret);
-  assert.equal(await secretOf(oldSecret), null);
   assert.equal(await secretOf(by.instagram.secret_id), 'Insta-סוד 9!');
-  assert.match(by.instagram.note, /מהלקוח, בטופס פרטי הכניסה/);
+  assert.match(by.instagram.note, /מהלקוח, בטופס פרטי הכניסה.*הפרטים שכבר היו בכספת נשארו בשורה נפרדת/);
   // Facebook: "אין כיום" → missing, no login kept.
   assert.deepEqual([by.facebook.status, by.facebook.username, by.facebook.secret_id, by.facebook.updated_by], ['missing', null, null, CLIENT_BY]);
   // TikTok: "לחדש סיסמה" → broken (since now), the user name kept, no password.
@@ -244,8 +251,10 @@ test('a submission: the vault as access_save writes it, the statuses, process 5,
   assert.ok(l.submitted_at);
   assert.equal(l.secret_id, null);
   assert.equal((await all("select 1 from vault.secrets where name = 'access_link:' || $1", [link.id])).length, 0);
-  assert.deepEqual(l.summary, summaryOf(payload));
-  assert.equal(l.client_note, 'קוד האימות מגיע לטלפון של דנה');
+  assert.deepEqual(l.summary, summaryOf(payload).map((s) => (s.network === 'instagram' ? { ...s, beside: true } : s)));
+  // The client's note: not in the column the office reads, only where the vault's users read it.
+  assert.equal(l.client_note, null);
+  assert.equal(l.client_note_private, 'קוד האימות מגיע לטלפון של דנה');
   const kept = JSON.stringify(l);
   for (const secret of ['Insta-', 'Li-123', 'dana_cafe', 'dana.tt', 'dana@cafe', token]) assert.ok(!kept.includes(secret), secret);
 
@@ -258,7 +267,7 @@ test('a submission: the vault as access_save writes it, the statuses, process 5,
 
   // The vault's log says who set what: the client's form, never an email.
   const log = await all("select network, action, by_email from public.client_access_log where client_id = $1 and by_email = $2 order by id", [ids.dana, CLIENT_BY]);
-  assert.deepEqual(log.map((r) => `${r.network}:${r.action}`), ['instagram:update', 'facebook:create', 'tiktok:create', 'other:create']);
+  assert.deepEqual(log.map((r) => `${r.network}:${r.action}`), ['instagram:create', 'facebook:create', 'tiktok:create', 'other:create']);
 
   // Neither a password nor a user name is in any table outside Vault.
   const dump = JSON.stringify([
@@ -283,23 +292,24 @@ test('one use: the link is closed, and sending again changes nothing', async () 
 });
 
 test('who opens the passwords does not change: the vault flag; the statuses for work say "by the client"', async () => {
-  const rows = await all("select id, network from public.client_access where client_id = $1 and network = 'instagram'", [ids.dana]);
+  const rows = await all("select id, network from public.client_access where client_id = $1 and network = 'instagram' and updated_by = $2", [ids.dana, CLIENT_BY]);
+  assert.equal(rows.length, 1);
   assert.equal((await q('ofir', 'select public.access_reveal($1) as p', [rows[0].id]))[0].p, 'Insta-סוד 9!');
   for (const who of ['irit', 'ilai', 'nadia']) assert.match((await q(who, 'select public.access_reveal($1)', [rows[0].id])).error, /not allowed/, who);
   // Ilai (no vault flag) reads statuses only, and which of them the client set.
   const work = await q('ilai', 'select * from public.access_work_statuses($1)', [[ids.dana]]);
   assert.deepEqual(Object.keys(work[0]).sort(), ['by_client', 'client_id', 'label', 'network', 'status', 'updated_at']);
   assert.deepEqual(work.map((r) => `${r.network}:${r.status}:${r.by_client}`).sort(),
-    ['facebook:missing:true', 'instagram:new:true', 'other:new:true', 'tiktok:broken:true', 'youtube:ok:false']);
+    ['facebook:missing:true', 'instagram:new:true', 'instagram:ok:false', 'other:new:true', 'tiktok:broken:true', 'youtube:ok:false']);
   // Once someone of the office saves a row, its status is theirs.
-  await keep('ofir', "select public.access_save($1, $2, 'instagram', 'העמוד הראשי', 'dana_cafe', null, 'ok', null)", [ids.dana, rows[0].id]);
-  const after = await q('ilai', 'select network, status, by_client from public.access_work_statuses($1)', [[ids.dana]]);
-  assert.deepEqual(after.find((r) => r.network === 'instagram'), { network: 'instagram', status: 'ok', by_client: false });
+  await keep('ofir', "select public.access_save($1, $2, 'instagram', 'העמוד החדש', 'dana_cafe', null, 'ok', null)", [ids.dana, rows[0].id]);
+  const after = await q('ilai', 'select network, label, status, by_client from public.access_work_statuses($1)', [[ids.dana]]);
+  assert.deepEqual(after.find((r) => r.label === 'העמוד החדש'), { network: 'instagram', label: 'העמוד החדש', status: 'ok', by_client: false });
   // The password the client gave stayed (an empty password field keeps it).
   assert.equal((await q('ofir', 'select public.access_reveal($1) as p', [rows[0].id]))[0].p, 'Insta-סוד 9!');
 });
 
-test('a later form wins only for the networks the client filled; process 5 keeps its first time', async () => {
+test('a later form never replaces what the office saved since: it goes beside it; process 5 keeps its first time', async () => {
   const first = await one("select at, note from public.protocol_checks where client_id = $1 and item_key = 'p05.access'", [ids.dana]);
   // Ofir fixed TikTok and put a password meanwhile; then the client fills a new link.
   const tt = await one("select id from public.client_access where client_id = $1 and network = 'tiktok'", [ids.dana]);
@@ -309,24 +319,52 @@ test('a later form wins only for the networks the client filled; process 5 keeps
   f.main.instagram = { choice: 'reset', username: '', password: '' };
   f.main.facebook = { choice: 'none', username: '', password: '' };
   f.main.tiktok = { choice: 'have', username: 'dana.new', password: 'tt-by-client' };
+  const before = await all('select * from public.client_access where client_id = $1 order by id', [ids.dana]);
+  assert.equal(before.length, 6);
   assert.deepEqual(await submit(l2.token, buildPayload(f)), { state: 'done' });
-  const rows = await all('select network, status, username, updated_by, secret_id, id from public.client_access where client_id = $1 order by network', [ids.dana]);
-  assert.equal(rows.length, 5, 'no row is duplicated');
-  const by = Object.fromEntries(rows.map((r) => [r.network, r]));
-  assert.deepEqual([by.tiktok.id, by.tiktok.status, by.tiktok.username], [tt.id, 'new', 'dana.new']);
+  const rows = await all('select * from public.client_access where client_id = $1 order by created_at, id', [ids.dana]);
+  // Every row the office saved (both Instagram rows, TikTok, YouTube) is exactly as it was.
+  for (const b of before.filter((r) => r.updated_by !== CLIENT_BY)) assert.deepEqual(rows.find((r) => r.id === b.id), b, `${b.network} ${b.label}`);
+  assert.equal(before.filter((r) => r.updated_by !== CLIENT_BY).length, 4);
+  const added = rows.filter((r) => !before.some((b) => b.id === r.id));
+  const by = Object.fromEntries(added.map((r) => [r.network, r]));
+  assert.deepEqual(added.map((r) => r.network).sort(), ['instagram', 'tiktok'], 'one row beside each login the office holds');
+  // TikTok: Ofir's password is still in Vault; the client's is in the new row, not checked yet.
+  assert.deepEqual([by.tiktok.status, by.tiktok.username, by.tiktok.updated_by], ['new', 'dana.new', CLIENT_BY]);
   assert.equal(await secretOf(by.tiktok.secret_id), 'tt-by-client');
-  assert.equal((await all("select 1 from vault.secrets where secret = 'tt-by-ofir'")).length, 0, 'the password before it left Vault');
-  // "לחדש סיסמה" without a user name keeps the one in the vault, and its password.
-  assert.deepEqual([by.instagram.status, by.instagram.username], ['broken', 'dana_cafe']);
-  assert.equal(await secretOf(by.instagram.secret_id), 'Insta-סוד 9!');
-  // LinkedIn and YouTube were not in this form.
-  assert.deepEqual([by.other.status, by.youtube.status, by.youtube.updated_by], ['new', 'ok', 'ofir@astrateg.test']);
+  assert.equal(await secretOf(rows.find((r) => r.id === tt.id).secret_id), 'tt-by-ofir');
+  // "לחדש סיסמה" on a login the office confirmed: said in a row of its own, with no login.
+  assert.deepEqual([by.instagram.status, by.instagram.username, by.instagram.secret_id], ['broken', null, null]);
+  assert.match(by.instagram.label, /^מהלקוח, /);
+  // Facebook ("אין כיום", the client's own row): the same row, still one.
+  assert.equal(rows.filter((r) => r.network === 'facebook').length, 1);
+  // No password left Vault.
+  for (const pw of ['old-pass', 'Insta-סוד 9!', 'tt-by-ofir', 'tt-by-client', 'Li-123', 'yt-pass']) {
+    assert.equal((await all('select 1 from vault.secrets where secret = $1', [pw])).length, 1, pw);
+  }
   // Facebook was already "missing": no second task for Ilai.
   assert.equal((await all('select 1 from public.client_tasks where client_id = $1', [ids.dana])).length, 1);
   assert.deepEqual(await one("select at, note from public.protocol_checks where client_id = $1 and item_key = 'p05.access'", [ids.dana]), first);
   // The history: who set TikTok, in order.
   const log = await all("select action, by_email from public.client_access_log where client_id = $1 and network = 'tiktok' order by id", [ids.dana]);
-  assert.deepEqual(log.map((r) => `${r.action}:${r.by_email}`), [`create:${CLIENT_BY}`, 'update:ofir@astrateg.test', `update:${CLIENT_BY}`]);
+  assert.deepEqual(log.map((r) => `${r.action}:${r.by_email}`), [`create:${CLIENT_BY}`, 'update:ofir@astrateg.test', `create:${CLIENT_BY}`]);
+
+  // A third form: the client's own unchecked row (TikTok, 'new') takes the new login in
+  // place, its password replaced inside the same secret; still nothing of the office's moves.
+  const l3 = await create('ofir', ids.dana);
+  const g = emptyForm();
+  g.main.instagram = { choice: 'reset', username: 'dana_ig', password: '' };
+  g.main.facebook = { choice: 'none', username: '', password: '' };
+  g.main.tiktok = { choice: 'have', username: 'dana.newer', password: 'tt-third' };
+  assert.deepEqual(await submit(l3.token, buildPayload(g)), { state: 'done' });
+  const third = await all('select * from public.client_access where client_id = $1 order by created_at, id', [ids.dana]);
+  assert.equal(third.length, rows.length, 'no further rows: the client\'s own rows are updated');
+  const t3 = third.find((r) => r.id === by.tiktok.id);
+  assert.deepEqual([t3.status, t3.username, t3.secret_id], ['new', 'dana.newer', by.tiktok.secret_id]);
+  assert.equal(await secretOf(t3.secret_id), 'tt-third');
+  assert.equal(third.find((r) => r.id === by.instagram.id).username, 'dana_ig');
+  for (const b of before.filter((r) => r.updated_by !== CLIENT_BY)) assert.deepEqual(third.find((r) => r.id === b.id), b);
+  assert.equal(await secretOf(rows.find((r) => r.id === tt.id).secret_id), 'tt-by-ofir');
 });
 
 test('a new link revokes the one that waits; a revoked link and an expired one do not open', async () => {
@@ -417,6 +455,6 @@ test('the migration runs again safely: nothing is lost, nothing is doubled', asy
   assert.deepEqual(checks.map((r) => r.conname), ['client_access_status_check']);
   // The grants are as they were: anon runs the page's two functions, the office the rest.
   assert.deepEqual(await info(token), { state: 'done' });
-  assert.equal((await q('ilai', 'select * from public.access_work_statuses($1)', [[ids.dana]])).length, 5);
+  assert.equal((await q('ilai', 'select * from public.access_work_statuses($1)', [[ids.dana]])).length, 8);
   assert.match((await q('anon', 'select * from public.access_work_statuses()')).error, /permission denied/);
 });

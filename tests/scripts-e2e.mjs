@@ -18,6 +18,7 @@
 //   - the long-writing layout on a desktop.
 // Run: npx http-server -p 8096 -s -c-1 . &  then  BASE_URL=http://localhost:8096/ node tests/scripts-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -262,6 +263,7 @@ async function newContext(viewport = { width: 1280, height: 900 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource|ERR_INTERNET_DISCONNECTED|Failed to fetch/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -451,7 +453,7 @@ await step('the share link: created, copied for WhatsApp, made the client\'s scr
   await lior.click('#sh-create');
   await toastHas(lior, 'נוצר קישור');
   shareLink = await lior.getAttribute('#sh-open', 'href');
-  assert.match(shareLink, /\/scripts-view\.html\?t=[A-Za-z0-9_-]{43}$/);
+  assert.match(shareLink, /\/scripts-view\.html#t=[A-Za-z0-9_-]{43}$/); // after #: it reaches no log of the host (ops.md 36)
   const wa = await lior.getAttribute('#sh-wa', 'href');
   assert.match(wa, /^https:\/\/wa\.me\/\?text=/);
   assert.ok(decodeURIComponent(wa).includes(shareLink));
@@ -564,5 +566,6 @@ await step('desktop: a readable writing column with the focus points beside it',
 });
 
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, [], 'no page errors');
 console.log(`scripts e2e: ${passed} steps passed`);

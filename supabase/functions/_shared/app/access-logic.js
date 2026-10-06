@@ -103,7 +103,9 @@ export const MAX_ENTRIES = 12;
 export const LABEL_MAX = 40;
 export const USER_MAX = 200;
 export const PASS_MAX = 200;
-export const NOTES_MAX = 1000;
+// Short on purpose (6.10.2026, ops.md section 36): the notes say who gets the
+// verification code, and are not a place for a password.
+export const NOTES_MAX = 300;
 
 const clean = (v) => String(v ?? '').trim();
 // Control characters (a pasted line break, a tab) are never part of a login.
@@ -260,7 +262,9 @@ export function confirmLines(payload) {
 export function summaryText(summary = []) {
   const parts = [];
   for (const [choice] of CHOICES) {
-    const names = (summary || []).filter((s) => s.choice === choice).map((s) => platformName(s.network, s.label));
+    // `beside`: the vault already held a login the office saved, so the client's went
+    // into a row of its own next to it (access_form_submit; nothing was replaced).
+    const names = (summary || []).filter((s) => s.choice === choice).map((s) => platformName(s.network, s.label) + (s.beside ? ' (בשורה נפרדת, הקיים נשמר)' : ''));
     if (names.length) parts.push(`${names.join(', ')}: ${CHOICE_OFFICE[choice]}`);
   }
   return parts.join(' · ');
@@ -277,7 +281,8 @@ export const PAGE_TEXT = {
     'רק אנשי הצוות שמטפלים בחשבון שלכם יכולים לפתוח אותם, וכל פתיחה נרשמת.',
     'אחרי השליחה אי אפשר לקרוא את הפרטים מהדף הזה, גם לא עם הקישור.',
   ],
-  notesHint: 'למשל: למי מגיע קוד האימות, או חשבון שמנוהל דרך חשבון אחר. לא כותבים כאן סיסמאות.',
+  notesHint: 'למשל: למי מגיע קוד האימות, או חשבון שמנוהל דרך חשבון אחר.',
+  notesWarn: 'אל תכתבו כאן סיסמאות. סיסמה נכתבת רק בשדה הסיסמה של הפלטפורמה, ורק שם היא נשמרת מוצפנת.',
   thanksTitle: 'תודה! הפרטים התקבלו',
   thanks: 'הפרטים נשמרו מוצפנים, ואנחנו ממשיכים מכאן. אפשר לסגור את הדף.',
 };

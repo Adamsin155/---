@@ -199,7 +199,7 @@ test('a head link is hidden only when the menu offers that screen', () => {
 
 test('names and avatars: two letters on the person\'s pastel; the owner by the address', () => {
   assert.equal(nameOf(v('irit'), 'irit@astrateg.test'), 'עירית');
-  assert.equal(nameOf(OWNER, 'adam@astrateg.com'), 'adam');
+  assert.equal(nameOf(OWNER, 'name@astrateg.com'), 'name');
   assert.equal(initialsOf('עירית'), 'עי');
   assert.equal(initialsOf(' adam '), 'ad');
   assert.equal(initialsOf(''), '');

@@ -2,6 +2,7 @@
 // Supabase (auth + the PostgREST calls data.js makes). Made-up values only.
 // Run: npx http-server -p 8080 . &  then  node tests/payouts-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -170,6 +171,7 @@ async function newPage(viewport) {
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', fakeSupabase);
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -606,5 +608,6 @@ assert.ok(manifest.scope.endsWith('/payouts/') && manifest.start_url === manifes
 assert.equal(manifest.display, 'standalone');
 
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, [], `browser errors: ${errors.join(' | ')}`);
 console.log('all payouts e2e checks passed');

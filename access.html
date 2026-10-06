@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
+  <script src="app/frame-guard.js"></script>
   <title>פרטי הכניסה לרשתות · astrateg</title>
   <meta name="description" content="טופס מאובטח למסירת פרטי הכניסה לרשתות החברתיות.">
   <meta property="og:title" content="פרטי הכניסה לרשתות · אסטרטג">
@@ -49,7 +51,8 @@
 
         <section class="scard" aria-labelledby="notes-h">
           <h2 id="notes-h"><label for="notes">הערות</label> <span class="sopt">לא חובה</span></h2>
-          <textarea class="sinput sarea" id="notes" rows="3" maxlength="1000" dir="auto" autocomplete="off" aria-describedby="notes-hint notes-err"></textarea>
+          <textarea class="sinput sarea" id="notes" rows="3" maxlength="300" dir="auto" autocomplete="off" aria-describedby="notes-warn notes-hint notes-err"></textarea>
+          <p class="shint snote-warn" id="notes-warn"></p>
           <p class="shint" id="notes-hint"></p>
           <p class="serr" id="notes-err" hidden></p>
         </section>

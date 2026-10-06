@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Only this site's own files, and the office's database and files (docs/ops.md, section 36). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
+  <script src="app/frame-guard.js"></script>
   <title>התוצרים שלכם · astrateg</title>
   <meta name="description" content="הגרפיקות, הסרטונים, ה־Highlights והאתר שהכנו לכם, במקום אחד.">
   <meta property="og:title" content="התוצרים שלכם מאסטרטג">

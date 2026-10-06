@@ -7,6 +7,7 @@
 //     the builder prefilled from the deal, and the quote she creates is linked to it.
 // Run: npx http-server -p 8094 -s -c-1 . &  then  BASE_URL=http://localhost:8094/ node tests/deal-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { withClientColumns } from './fake-clients.mjs';
@@ -126,6 +127,7 @@ async function newPage(viewport = { width: 1280, height: 900 }) {
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, { clients: () => tables.clients, staff: () => staff }));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -271,4 +273,5 @@ await step('anyone else on deal.html: "העמוד הזה לסוכני השטח",
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log(`\n${passed} passed`);

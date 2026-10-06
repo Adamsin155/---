@@ -12,6 +12,7 @@
 //    44px targets, the first 12 and "הצג עוד".
 // Run: npx http-server -p 8080 -s -c-1 . &  then  node tests/shoot-table-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -190,6 +191,7 @@ async function newContext(viewport = { width: 1280, height: 900 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   return page;
 }
@@ -426,4 +428,5 @@ await step('360px phones: a card per client, no sideways scroll anywhere, 44px t
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log(`shoot-table-e2e: ${passed} passed`);

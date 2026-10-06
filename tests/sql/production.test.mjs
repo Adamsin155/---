@@ -117,14 +117,18 @@ test('outside the office the route cannot be dodged: not in an earlier update, n
     return (await tx.query('update public.client_tasks set done_at = now() where id = $1 returning id', [check.id])).rows;
   });
   assert.match(twoSteps.error, /only the office changes where checked work goes/);
-  // Nor adding a route to someone's task. Other brief fields still change.
+  // Nor adding a route to someone's task. The other brief fields: since
+  // 20261014100000_security_hardening.sql only the office changes what a task says
+  // (no screen outside the office edits a brief), also for whoever opened the task.
   const add = await run('nirel', async (tx) => {
     const { rows: [t] } = await tx.query("insert into public.client_tasks (client_id, title, owner) values ($1, 'x', 'ofir') returning id", [ids.natali]);
     await tx.query(`update public.client_tasks set brief = '{"route":"irit"}' where id = $1`, [t.id]);
   });
   assert.match(add.error, /only the office changes where checked work goes/);
   const edit = await q('nirel', "update public.client_tasks set brief = brief || '{\"materials\":\"https://drive.google.com/y\"}' where id = $1 returning brief->>'route' as r", [check.id]);
-  assert.deepEqual(edit, [{ r: 'irit' }]);
+  assert.match(edit.error, /someone else's|only the office changes what a task says/);
+  const office = await q('ofir', "update public.client_tasks set brief = brief || '{\"materials\":\"https://drive.google.com/y\"}' where id = $1 returning brief->>'route' as r", [check.id]);
+  assert.deepEqual(office, [{ r: 'irit' }]);
   // Opening a routed task already closed.
   const closed = await q('nirel', `insert into public.client_tasks (client_id, title, owner, brief, done_at)
     values ($1, 'לבדוק', 'ofir', '{"route":"irit"}', now()) returning id`, [ids.natali]);

@@ -3,10 +3,12 @@
 // import them. Who may do what:
 //  - The owner (staff.person is null): everything.
 //  - Irit and Lior (TEAM_MANAGERS): list the team, add a staff row for someone who
-//    is not a manager and has no login yet, and make sign-in links for anyone but
-//    the owner, a payouts owner, or (when the manager has no vault) someone with
-//    the vault. A sign-in link lets its holder into that account, so a manager
-//    never gets one that opens more than the manager already has.
+//    is not a manager and has no login yet, and make sign-in links only for people
+//    outside the office who have no vault (the editors, Eli, the sales agents), and
+//    for themselves. A sign-in link lets its holder into that account (whoever opens
+//    it first chooses the password), so the links of the owner, a payouts owner, the
+//    office accounts (OFFICE_PERSONS) and every account with the vault are made by
+//    the owner alone: first sign-in (invite) and forgotten password (recovery) alike.
 //  - Only the owner sets the vault flag, removes a row, adds an email that already
 //    has a login, or creates or changes the owner's row or a manager's row (a
 //    manager can make links for others, so that power is granted by the owner alone).
@@ -19,6 +21,10 @@
 // function cannot import files from outside its folder.
 export const PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'stav', 'amos'];
 export const TEAM_MANAGERS = ['irit', 'lior'];
+// The office accounts: they see every client, the quotes and the office screens
+// (public.is_office() in the database; SCOPE 'office' and Ilai in app/protocol.js).
+// Keep in step with OFFICE_PERSONS in app/team-rules.js (the unit tests compare them).
+export const OFFICE_PERSONS = ['irit', 'lior', 'ofir', 'ilai'];
 
 // Pages a sign-in link may open. The link is only for the office's own site.
 export const LINK_PAGES = ['https://adamsin155.github.io/---/clients.html', 'https://app.astrateg.tech/clients.html'];
@@ -177,17 +183,24 @@ export function planRemove({ role, callerEmail, existing }) {
   return { ok: true };
 }
 
-// A sign-in link only for someone on the staff list. The link opens that account,
-// so a manager gets none that opens more than the manager already has: not the
-// owner's, not a payouts owner's (`targetIsPayoutOwner`, by the target's login),
-// and not a vault account's unless the manager (`me`, the caller's staff row) has
-// the vault too.
+// Whose sign-in link only the owner makes: the owner's, an office account's and
+// any account with the vault. Whoever opens a link first chooses that account's
+// password, so a manager with such a link could become that person (archive
+// clients as Ofir, approve their own contract as Lior, read the vault under
+// another name). The same for a first sign-in (invite) and a new password (recovery).
+export const linkByOwnerOnly = (row) => isOwnerRow(row) || OFFICE_PERSONS.includes(row?.person) || !!row?.vault;
+
+// A sign-in link only for someone on the staff list. A manager (`me`, the caller's
+// staff row) gets one only for an account outside linkByOwnerOnly that is not a
+// payouts owner's login (`targetIsPayoutOwner`), or for the manager's own account
+// (which opens nothing the manager does not already have).
 export function planLink({ role, me = null, target, redirectTo, targetIsPayoutOwner = false }) {
   if (role !== 'owner' && role !== 'manager') return fail(403, ERR.notAllowed);
   if (!target) return fail(404, ERR.notStaff);
   if (role !== 'owner') {
     if (isOwnerRow(target) || targetIsPayoutOwner) return fail(403, ERR.ownerOnly);
-    if (target.vault && !me?.vault) return fail(403, ERR.ownerOnly);
+    const own = !!me?.email && me.email === target.email;
+    if (!own && linkByOwnerOnly(target)) return fail(403, ERR.ownerOnly);
   }
   const page = allowedRedirect(redirectTo);
   if (!page) return fail(400, ERR.badRedirect);

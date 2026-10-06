@@ -26,7 +26,21 @@ export async function loadAccessLinks(clientIds = null) {
   else if (Array.isArray(clientIds)) q = q.in('client_id', clientIds);
   const { data, error } = await q;
   if (error) { if (missingAccessLinks(error)) return null; throw error; }
-  return Array.isArray(data) ? data : null;
+  if (!Array.isArray(data)) return null;
+  // The client's free-text note: since 20261014100000_security_hardening.sql it is read
+  // only by whoever may use that client's vault, through access_link_notes() (nobody
+  // else gets a row). Before that migration the function is missing and the note
+  // still comes in the column, as it did.
+  const filled = data.filter((l) => l.submitted_at);
+  if (filled.length) {
+    const ids = [...new Set(filled.map((l) => l.client_id))];
+    const { data: notes, error: notesError } = await supabase.rpc('access_link_notes', { p_clients: ids });
+    if (!notesError && Array.isArray(notes)) {
+      const byLink = new Map(notes.map((n) => [n.link_id, n.note]));
+      for (const l of data) if (byLink.has(l.id)) l.client_note = byLink.get(l.id);
+    }
+  }
+  return data;
 }
 
 // The token of a link that can still be filled (null otherwise, or when this user may not copy it).

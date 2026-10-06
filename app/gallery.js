@@ -7,9 +7,10 @@
 import { h } from './quote-doc.js';
 import { KINDS, TOKEN, gallerySections, isImage, isVideo, formatSize } from './files-logic.js';
 import { dayText } from './messages-logic.js';
+import { pageToken } from './link-token.js';
 
 const $ = (id) => document.getElementById(id);
-const token = new URLSearchParams(location.search).get('t') || '';
+const token = pageToken(); // gallery.html#t=… (and ?t=… of a link sent before 6.10.2026)
 let supa = null;
 let refreshTimer = null;
 

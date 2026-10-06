@@ -25,7 +25,8 @@ import { CLIENT_ROLES, dayText, timeText, promisedClosing, fillTemplate } from '
 // 32 random bytes, base64url (the database makes it; status_link_create).
 export const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 export const LINK_DAYS = 180;
-export const statusUrl = (base, token) => new URL(`status.html?t=${encodeURIComponent(token)}`, base).href;
+// The token rides in the fragment (app/link-token.js): it reaches no log of the host.
+export const statusUrl = (base, token) => `${new URL('status.html', base).href}#t=${encodeURIComponent(token)}`;
 
 // The message the office sends with the link (WhatsApp, by link only).
 export const STATUS_LINK_TEMPLATE = `היי {לקוח}, זה דף המצב האישי שלכם אצלנו:

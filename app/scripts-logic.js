@@ -214,6 +214,7 @@ export function saveStateText(state, at = null) {
 
 // ── The share link ─────────────────────────
 export const LINK_DAYS = 180;
-export const shareUrl = (base, token) => new URL(`scripts-view.html?t=${encodeURIComponent(token)}`, base).href;
+// The token rides in the fragment (app/link-token.js): it reaches no log of the host.
+export const shareUrl = (base, token) => `${new URL('scripts-view.html', base).href}#t=${encodeURIComponent(token)}`;
 export const shareMessage = (client, url) =>
   `היי, אלה התסריטים ליום הצילום של ${client?.business || client?.name || ''}:\n${url}\nאפשר לפתוח מהטלפון, עם קישורי ההשראה לכל תסריט.`;

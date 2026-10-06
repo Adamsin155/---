@@ -8,25 +8,16 @@
 // totals are computed here, and the database stores it as approval 'pending'. No
 // token is returned for it: the client's link exists only after a manager approved
 // (public.quote_approve). `revise: <quote id>` stores a corrected version of a contract
-// that went for approval (public.quote_revise). Both are for the office only.
+// that went for approval (public.quote_revise).
+//
+// Who may call: the office only (public.is_office()), for every kind of quote, and
+// only from the office's own site (./http.js; security audit of 6.10.2026, ops.md 36).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateSelection, buildQuoteModel, normalizeSelection, exceptionOf } from '../_shared/app/pricing.js';
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+import { corsHeaders, callerIsOffice } from './http.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LIMITS = { name: 120, company: 120, companyId: 20, phone: 40, email: 160, notes: 2000 };
-
-function json(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
 
 function cleanClient(raw: Record<string, unknown> = {}) {
   const out: Record<string, string> = {};
@@ -62,6 +53,11 @@ function cleanSelection(raw: any) {
 }
 
 Deno.serve(async (req) => {
+  const CORS = corsHeaders(req.headers.get('origin'));
+  const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  });
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json(405, { error: 'method not allowed' });
 
@@ -75,8 +71,9 @@ Deno.serve(async (req) => {
   const user = userData?.user;
   if (!user) return json(401, { error: 'not signed in' });
 
-  const { data: isStaff, error: staffError } = await userClient.rpc('is_staff');
-  if (staffError || isStaff !== true) return json(403, { error: 'not staff' });
+  // The message keeps the words "not staff": the builder turns them into Hebrew
+  // (explainError in app/supa.js), also in a page published before this change.
+  if (!(await callerIsOffice((fn: string) => userClient.rpc(fn)))) return json(403, { error: 'not staff: quotes are prepared by the office' });
 
   let selection, client, revise: string | null = null;
   try {
@@ -92,11 +89,6 @@ Deno.serve(async (req) => {
   }
 
   const exceptions = exceptionOf(selection);
-  // A contract changed by hand, and a corrected version of one: the office only.
-  if (exceptions.length || revise) {
-    const { data: isOffice, error: officeError } = await userClient.rpc('is_office');
-    if (officeError || isOffice !== true) return json(403, { error: 'custom contracts are prepared by the office' });
-  }
 
   const model = buildQuoteModel(selection, client);
   const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);

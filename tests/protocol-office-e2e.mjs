@@ -4,6 +4,7 @@
 // The page clock is fixed to Tuesday 22.9.2026 10:00 (Jerusalem), the day after Yom Kippur.
 // Run: npx http-server -p 8080 . &  then  node tests/protocol-office-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
@@ -210,6 +211,7 @@ const page = await ctx.newPage();
 const errors = [];
 const watch = (pg) => {
   pg.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(pg); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   pg.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
 };
 watch(page);
@@ -868,4 +870,5 @@ assert.ok(waitedOf2(inBulk)?.min >= 37, JSON.stringify(waitedOf2(inBulk)));
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log('protocol office e2e: all checks passed');
