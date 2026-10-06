@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>פרטי הכניסה לרשתות · astrateg</title>
+  <meta name="description" content="טופס מאובטח למסירת פרטי הכניסה לרשתות החברתיות.">
+  <meta property="og:title" content="פרטי הכניסה לרשתות · אסטרטג">
+  <meta property="og:description" content="טופס מאובטח למסירת פרטי הכניסה לרשתות החברתיות.">
+  <meta property="og:image" content="app/assets/logo.png">
+  <meta name="robots" content="noindex, nofollow">
+  <!-- The address of this page (it carries the client's secret link) goes to no other site. -->
+  <meta name="referrer" content="no-referrer">
+  <!-- Nothing from a third party: the page's own files, and the database it writes to. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://czncjzziqrqtezpwxxpz.supabase.co; base-uri 'none'; form-action 'none'">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/tokens.css">
+  <link rel="stylesheet" href="app/styles/access.css">
+</head>
+<body>
+  <a class="skip" href="#main">דילוג לתוכן</a>
+  <header class="sbar">
+    <img src="app/assets/logo-mark.png" alt="astrateg" class="sbar-logo" width="30" height="30">
+    <span class="sbar-title" id="sbar-title">פרטי הכניסה לרשתות</span>
+  </header>
+
+  <main class="smain" id="main" tabindex="-1">
+    <div class="sstate" id="state" role="status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>טוען את הדף…</p>
+    </div>
+
+    <div id="page" hidden>
+      <p class="snote" id="preview" role="note" hidden>אתם מחוברים כאנשי צוות: זו תצוגה של מה שהלקוח רואה. רק הלקוח שולח את הטופס.</p>
+
+      <section class="shero" aria-labelledby="hello-h">
+        <p class="shero-biz" id="business"></p>
+        <h1 id="hello-h"></h1>
+        <p class="shero-why" id="why"></p>
+        <ul class="spoints" id="points"></ul>
+      </section>
+
+      <form id="form" novalidate autocomplete="off">
+        <div id="cards"></div>
+
+        <div id="extras"></div>
+        <button type="button" class="sbtn sbtn-add" id="add">+ הוספת פלטפורמה</button>
+
+        <section class="scard" aria-labelledby="notes-h">
+          <h2 id="notes-h"><label for="notes">הערות</label> <span class="sopt">לא חובה</span></h2>
+          <textarea class="sinput sarea" id="notes" rows="3" maxlength="1000" dir="auto" autocomplete="off" aria-describedby="notes-hint notes-err"></textarea>
+          <p class="shint" id="notes-hint"></p>
+          <p class="serr" id="notes-err" hidden></p>
+        </section>
+
+        <div class="ssend">
+          <p class="serr serr-box" id="form-err" role="alert" tabindex="-1" hidden></p>
+          <button type="submit" class="sbtn sbtn-ok" id="next" disabled aria-describedby="wait">המשך לאישור ושליחה</button>
+          <p class="swait" id="wait" role="status"></p>
+        </div>
+      </form>
+
+      <section class="scard sconfirm" id="confirm" aria-labelledby="confirm-h" tabindex="-1" hidden>
+        <h2 id="confirm-h">רגע לפני השליחה</h2>
+        <p class="shint">זה מה שיישלח. הסיסמאות לא מוצגות כאן.</p>
+        <ul class="sreview" id="review"></ul>
+        <p class="sreview-notes" id="review-notes" hidden></p>
+        <p class="shint">אחרי השליחה הקישור נסגר, ואי אפשר לשנות או לקרוא את הפרטים מהדף הזה.</p>
+        <p class="serr serr-box" id="send-err" role="alert" tabindex="-1" hidden></p>
+        <button type="button" class="sbtn sbtn-ok" id="send">שליחה</button>
+        <button type="button" class="sbtn" id="back">חזרה לעריכה</button>
+      </section>
+    </div>
+
+    <section class="scard sthanks" id="thanks" aria-labelledby="thanks-h" tabindex="-1" hidden>
+      <div class="sthanks-mark" aria-hidden="true">✓</div>
+      <h1 id="thanks-h"></h1>
+      <p id="thanks-text"></p>
+    </section>
+
+    <footer class="sfoot" id="foot" hidden>
+      <section aria-labelledby="privacy-h">
+        <h2 id="privacy-h">פרטיות ואבטחה</h2>
+        <ul>
+          <li>הסיסמאות נשמרות מוצפנות, ולא נשלחות בוואטסאפ או במייל.</li>
+          <li>אנחנו שומרים מתי הטופס נשלח. כתובת ה־IP ופרטי הדפדפן לא נשמרים.</li>
+          <li>הדף לא שומר שום דבר בטלפון: אם סוגרים אותו לפני השליחה, ממלאים מחדש.</li>
+          <li>הקישור אישי, תקף ל־14 יום ולשליחה אחת. אל תעבירו אותו למי שלא מוסמך למסור פרטים בשם העסק.</li>
+          <li>לשאלות, לעיון או למחיקה: <span dir="ltr">info@astrateg.com</span></li>
+        </ul>
+      </section>
+    </footer>
+  </main>
+
+  <script type="module" src="app/access-form.js"></script>
+</body>
+</html>
