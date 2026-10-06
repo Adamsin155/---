@@ -178,7 +178,12 @@ test('the self-check and the start checks are existing items; "מוכן לבדי
 
 test('the business sheet: phone and logo from the characterization, never the client\'s own phone', () => {
   const c = baseClient({ phone: '050-0000000', links: { logo: 'https://drive.google.com/logo' } });
-  assert.deepEqual(P.sheetOf(c, null), { phone: '', logo: 'https://drive.google.com/logo', closing: '' });
+  assert.deepEqual(P.sheetOf(c, null), { phone: '', logo: 'https://drive.google.com/logo', logoFile: null, hasLogo: true, closing: '' });
+  // An uploaded logo file (client_files, kind 'logo') comes first; with neither, there is no logo.
+  const file = { id: 'f1', storage_path: 'c1/logo/x-logo.png' };
+  assert.deepEqual([P.sheetOf(baseClient(), null, file).logoFile, P.sheetOf(baseClient(), null, file).hasLogo, P.sheetOf(baseClient(), null, file).logo], [file, true, '']);
+  assert.equal(P.sheetOf(baseClient(), null, null).hasLogo, false);
+  assert.equal(P.sheetOf(baseClient(), null, { id: 'f2' }).hasLogo, false, 'a row without a path is no file');
   // The intake's form fields (app/characterization.js businessPhoneOf / logoUrlOf): fields.phone and fields.logo_url.
   const s = P.sheetOf(c, { fields: { phone: '03-5555555', logo_url: 'https://drive.google.com/l2' } });
   assert.equal(s.phone, '03-5555555');

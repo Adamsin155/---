@@ -253,12 +253,16 @@ export const needsDropbox = (client) => !!String(client?.links?.dropbox || '').t
 // The business phone and the logo link come from the characterization form
 // (public.characterizations.fields.phone / .logo_url, app/characterization.js);
 // the client's own phone (clients.phone) is never read here. A logo link the office
-// put in the card's links is the fallback.
-export function sheetOf(client, charRow = null) {
+// put in the card's links is the fallback. A logo FILE uploaded to the client's files
+// (public.client_files, kind 'logo') comes first: `logoFile` is its row (the page
+// signs a download link for it), and `logo` the link, when there is one.
+// `hasLogo` is what the start check "יש לוגו תקין של העסק" stands on.
+export function sheetOf(client, charRow = null, logoFile = null) {
   const phone = businessPhoneOf(charRow) || '';
   const cardLogo = String(client?.links?.logo || '').trim();
   const logo = logoUrlOf(charRow) || (validUrl(cardLogo) ? cardLogo : '');
-  return { phone, logo, closing: phone ? closingLine(phone) : '' };
+  const file = logoFile?.storage_path ? logoFile : null;
+  return { phone, logo, logoFile: file, hasLogo: !!(file || logo), closing: phone ? closingLine(phone) : '' };
 }
 export { closingLine };
 

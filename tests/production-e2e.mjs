@@ -93,7 +93,14 @@ const db = {
     { client_id: B.id, round: 1, fields: { messages: 'מסר של קפה גולן' }, by_email: 'lior@astrateg.test', at: '2026-10-06T10:00:00+03:00' },
   ],
   protocol_log: [], push_subscriptions: [], reminder_log: [],
+  // Found live (6.10.2026): the logo was uploaded as a FILE (client_files, kind 'logo'),
+  // and the editor's page said "אין לוגו בכרטיס". B has only the file; N has nothing.
+  client_files: [
+    { id: randomUUID(), client_id: B.id, kind: 'logo', label: null, storage_path: `${B.id}/logo/11111111-1111-4111-8111-111111111111-Golan-Logo.png`, mime: 'image/png', size_bytes: 2008, created_at: '2026-10-05T12:00:00+03:00', deleted_at: null },
+    { id: randomUUID(), client_id: B.id, kind: 'logo', label: null, storage_path: `${B.id}/logo/22222222-2222-4222-8222-222222222222-old.png`, mime: 'image/png', size_bytes: 10, created_at: '2026-10-04T12:00:00+03:00', deleted_at: '2026-10-05T11:00:00+03:00' },
+  ],
 };
+const signRequests = []; // [person, path] of every signed link asked from Storage
 
 // Who sees which client (the database's rule, 20260930130000_assignment_rls.sql).
 const inShootWindow = (c) => [c.shoot_at, ...(c.rounds || []).map((r) => r.shoot_at)].filter(Boolean)
@@ -110,7 +117,7 @@ function sees(me, c) {
 function visibleRows(me, table) {
   const rows = db[table];
   if (table === 'clients') return rows.filter((c) => sees(me, c));
-  if (['protocol_checks', 'protocol_log', 'client_tasks', 'characterizations', 'content_briefs'].includes(table)) return rows.filter((r) => sees(me, db.clients.find((c) => c.id === r.client_id)));
+  if (['protocol_checks', 'protocol_log', 'client_tasks', 'characterizations', 'content_briefs', 'client_files'].includes(table)) return rows.filter((r) => sees(me, db.clients.find((c) => c.id === r.client_id)));
   if (table === 'push_subscriptions' || table === 'reminder_log') return [];
   return rows;
 }
@@ -160,6 +167,16 @@ async function fakeSupabase(route) {
   const me = staffOf(who);
   const now = serverNow();
   if (p === '/rest/v1/rpc/is_staff') return json(200, !!me);
+  // Storage: a signed link only for a file of a client this person sees (the bucket's read policy).
+  const sign = /^\/storage\/v1\/object\/sign\/client-files\/(.+)$/.exec(p);
+  if (sign) {
+    const path = decodeURIComponent(sign[1]);
+    const row = db.client_files.find((f) => f.storage_path === path && !f.deleted_at);
+    if (!me || !row || !sees(me, db.clients.find((c) => c.id === row.client_id))) return json(400, { statusCode: '404', error: 'not_found', message: 'Object not found' });
+    signRequests.push([me.person, path]);
+    return json(200, { signedURL: `/object/sign/client-files/${path}?token=signed` });
+  }
+  if (p.startsWith('/storage/v1/object/sign/')) return json(400, { message: 'not found' });
   const m = /^\/rest\/v1\/(\w+)$/.exec(p);
   if (!m || !db[m[1]]) return json(404, { message: 'not found' });
   if (!me) return json(401, { message: 'permission denied' });
@@ -582,6 +599,44 @@ await step('Eli lands on "ימי הצילום שלי": his arrival, the scripts,
   assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await shot(page, 'eli-eve');
   await ctx.close();
+});
+
+// Found live (6.10.2026): "אין לוגו בכרטיס" although the logo file was uploaded.
+await step('the editor gets the uploaded logo FILE through a signed link; with no logo at all the page and the start check say so', async () => {
+  const yariv = await scene('2026-10-19T10:00:00');
+  await yariv.ctx.route('**/storage/v1/object/sign/client-files/**token=signed**', (r) => r.fulfill({
+    // As Storage answers a signed link with ?download=<name>.
+    status: 200, contentType: 'image/png', body: Buffer.from('89504e470d0a1a0a', 'hex'),
+    headers: { 'content-disposition': `attachment; filename="${new URL(r.request().url()).searchParams.get('download')}"` },
+  }));
+  await signIn(yariv.page, 'editor.html', 'yariv');
+  const cardB = `#c-${B.id}`;
+  await yariv.page.waitForSelector(cardB);
+  assert.doesNotMatch(await text(yariv.page, cardB), /אין לוגו/);
+  const btn = yariv.page.locator(`${cardB}-logo`);
+  assert.equal(await btn.innerText(), 'לוגו להורדה');
+  assert.ok(await height(yariv.page, `${cardB}-logo`) >= 44);
+  const [download] = await Promise.all([yariv.page.waitForEvent('download'), btn.click()]);
+  assert.equal(download.suggestedFilename(), 'Golan-Logo.png');
+  assert.match(download.url(), /\/storage\/v1\/object\/sign\/client-files\/.*Golan-Logo\.png\?token=signed&download=Golan-Logo\.png$/);
+  assert.deepEqual(signRequests, [['yariv', `${B.id}/logo/11111111-1111-4111-8111-111111111111-Golan-Logo.png`]]); // the live file, never the deleted one
+  // The start check stands on the same thing: nothing extra to say when the logo is there.
+  await yariv.page.click(`${cardB}-go`);
+  await yariv.page.waitForSelector('#dlg-start[open]');
+  assert.equal(await yariv.page.locator('#start-nologo').count(), 0);
+  await yariv.page.click('#dlg-start [data-close]');
+  // The file is deleted from the client's files: neither a file nor a link is left.
+  const file = db.client_files.find((x) => x.client_id === B.id && !x.deleted_at);
+  file.deleted_at = serverNow();
+  await reload(yariv.page);
+  await yariv.page.waitForFunction((sel) => /אין לוגו בתיק הלקוח\./.test(document.querySelector(sel)?.textContent || ''), `${cardB} .ed-sheet`);
+  assert.equal(await yariv.page.locator(`${cardB}-logo`).count(), 0);
+  await yariv.page.click(`${cardB}-go`);
+  await yariv.page.waitForSelector('#dlg-start[open]');
+  assert.match(await text(yariv.page, '#start-nologo'), /אין לוגו בתיק הלקוח\. אם הוא לא אצלך: ״חסר לוגו \/ טלפון \/ חומר״\./);
+  assert.ok(await noHScroll(yariv.page));
+  file.deleted_at = null;
+  await yariv.ctx.close();
 });
 
 // ── The shoot day ─────────────────────────
