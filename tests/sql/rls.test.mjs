@@ -482,7 +482,8 @@ test('every client table has row level security, and no policy on it lets every 
   const restrictive = (await db.query("select distinct policyname from pg_policies where schemaname = 'public' and tablename = any($1) and permissive <> 'PERMISSIVE'", [tables.map((t) => t.t)])).rows.map((r) => r.policyname);
   assert.ok(restrictive.every((n) => n === 'archived clients are hidden'), restrictive.join());
   // (month_write_ok: is_office, and Ilai only his own items of the monthly cycle.)
-  const RULES = /is_office|my_clients|my_assigned_clients|can_see_client|can_message_clients|can_use_client_vault|month_write_ok/;
+  // (can_edit_gantt: Ilai and the owner, the only ones who change the content Gantt; 20261007100000.)
+  const RULES = /is_office|my_clients|my_assigned_clients|can_see_client|can_message_clients|can_use_client_vault|month_write_ok|can_edit_gantt/;
   // Tables with a rule of their own, and why.
   const OWN_RULE = {
     // The owner's questions (20260930120000_owner_screens.sql): the office asks; the person

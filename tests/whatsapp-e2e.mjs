@@ -45,6 +45,11 @@ const db = {
   quotes: [], clients: [], protocol_checks: [], protocol_log: [], office_reviews: [], client_status_notes: [], client_tasks: [], push_subscriptions: [], reminder_log: [],
 };
 const calls = [];
+// Metricool as the database and its function answer (nothing leaves the machine).
+const mc = {
+  enabled: false, secrets: { user_token: true, user_id: false }, mapped: 0, synced: 0, failed: 0, lastAt: null, lastError: null,
+  answer: { ok: true, account: 'office@astrateg.test', brands: 14 }, calls: [],
+};
 
 const isOffice = (row) => !!row && (row.person === null || ['irit', 'lior', 'ofir', 'ilai'].includes(row.person));
 // public.whatsapp_my_consent, as in the migration.
@@ -122,6 +127,22 @@ async function fakeSupabase(route) {
     if (body.p_on && !Object.values(wa.secrets).every(Boolean)) return json(400, { code: 'P0001', message: 'not_ready: WhatsApp secrets are missing in Vault' });
     wa.enabled = !!body.p_on;
     return json(200, { enabled: wa.enabled, owner: true, secrets: wa.secrets });
+  }
+  // "חיבור Metricool" (app/metricool-team.js; 20261007100100_metricool.sql): the settings for the
+  // office, the switch for the owner, and the connection check through the edge function.
+  const mcSettings = () => ({ enabled: mc.enabled, owner: row.person === null, canEdit: row.person === null || row.person === 'ilai', secrets: mc.secrets, mapped: mc.mapped, synced: mc.synced, failed: mc.failed, lastAt: mc.lastAt, lastError: mc.lastError });
+  if (p === '/rest/v1/rpc/metricool_settings') return json(200, isOffice(row) ? mcSettings() : null);
+  if (p === '/rest/v1/rpc/metricool_set_enabled') {
+    mc.calls.push({ path: 'metricool_set_enabled', by: me.email, body });
+    if (row.person !== null) return json(403, { code: '42501', message: 'not allowed: owner only' });
+    if (body.p_on && !(mc.secrets.user_token && mc.secrets.user_id)) return json(400, { code: 'P0001', message: 'not_ready: Metricool secrets are missing in Vault' });
+    mc.enabled = !!body.p_on;
+    return json(200, mcSettings());
+  }
+  if (p === '/functions/v1/metricool') {
+    mc.calls.push({ path: 'metricool', by: me.email, body });
+    if (body.action !== 'check' || row.person !== null) return json(403, { error: 'not_allowed' });
+    return json(200, mc.answer);
   }
   if (p === '/rest/v1/rpc/push_status') return json(200, []);
   if (p === '/functions/v1/staff-admin') {
@@ -313,10 +334,70 @@ await step('the team screen (owner): the switch, and per person who agreed, a nu
   await ctx.close();
 });
 
+await step('the team screen (owner): "חיבור Metricool": the secrets by name, no switch while one is missing, the check, the switch, the last sync', async () => {
+  const OUT2 = process.argv[2] || null;
+  const { ctx, page: p } = await open('owner', 'team.html', { viewport: { width: 1440, height: 900 } });
+  await p.waitForSelector('#mc-panel');
+  assert.equal(await p.locator('#mc-panel-h').innerText(), 'חיבור Metricool');
+  assert.match(await p.locator('#mc-state').innerText(), /החיבור ל־Metricool כבוי: מסמנים ״תוזמן״ ו״עלה״ ביד/);
+  assert.deepEqual(await p.locator('#mc-secrets li').allInnerTexts(), ['metricool_user_token · קיים ב־Vault', 'metricool_user_id · חסר ב־Vault']);
+  assert.match(await p.locator('#mc-missing').innerText(), /סעיף 27/);
+  assert.equal(await p.locator('#mc-toggle').isDisabled(), true);
+  assert.equal(await p.locator('#mc-check').isDisabled(), true);
+  assert.equal(mc.calls.length, 0, 'opening the page calls nothing');
+  // The second secret arrives.
+  mc.secrets.user_id = true;
+  await p.click('#btn-refresh');
+  await p.waitForSelector('#mc-toggle:not([disabled])');
+  assert.equal(await p.locator('#mc-missing').count(), 0);
+  await p.click('#mc-check');
+  await p.waitForSelector('#mc-result');
+  assert.equal(await p.locator('#mc-result').innerText(), 'החיבור תקין: החשבון office@astrateg.test, 14 מותגים.');
+  assert.deepEqual(mc.calls.at(-1), { path: 'metricool', by: 'owner@astrateg.test', body: { action: 'check' } });
+  // A token Metricool refuses: said in Hebrew, with what to check.
+  mc.answer = { ok: false, error: 'auth' };
+  await p.click('#mc-check');
+  await p.waitForFunction(() => /החיבור לא עובד/.test(document.getElementById('mc-result')?.textContent || ''));
+  assert.match(await p.locator('#mc-result').innerText(), /Metricool דחה את הטוקן\. צריך לבדוק את metricool_user_token/);
+  mc.answer = { ok: true, account: 'office@astrateg.test', brands: 14 };
+  await p.click('#mc-check');
+  await p.waitForFunction(() => /החיבור תקין/.test(document.getElementById('mc-result')?.textContent || ''));
+  // On: asked first, then the state and the summary of the last sync.
+  await p.click('#mc-toggle');
+  await toastHas(p, 'הסנכרון מ־Metricool הופעל');
+  assert.deepEqual(mc.calls.at(-1).body, { p_on: true });
+  assert.equal(await p.getAttribute('#mc-toggle', 'aria-pressed'), 'true');
+  assert.equal(await p.locator('#mc-toggle').innerText(), 'כיבוי הסנכרון');
+  Object.assign(mc, { mapped: 12, synced: 11, failed: 1, lastAt: new Date(NOW.getTime() - 4 * 60e3).toISOString(), lastError: 'denied' });
+  await p.click('#btn-refresh');
+  await p.waitForFunction(() => /12 לקוחות מחוברים למותג/.test(document.getElementById('mc-summary')?.textContent || ''));
+  assert.match(await p.locator('#mc-summary').innerText(), /12 לקוחות מחוברים למותג · 11 סונכרנו · 1 נכשלו · הסנכרון האחרון לפני \d דקות/);
+  assert.match(await p.locator('#mc-state').innerText(), /Metricool פועל: 12 לקוחות מחוברים, 1 נכשלו בסנכרון האחרון/);
+  // Never a secret's value, and no second pink button on the page because of this card.
+  assert.doesNotMatch(await p.locator('#mc-panel').innerText(), /TOKEN|\bnull\b|undefined/);
+  assert.equal(await p.locator('#mc-panel .btn-primary').count(), 0);
+  if (OUT2) {
+    await p.locator('#mc-panel').scrollIntoViewIfNeeded();
+    await p.screenshot({ path: `${OUT2}/metricool-card-desktop.png`, fullPage: true });
+    await p.setViewportSize({ width: 375, height: 780 });
+    await p.waitForTimeout(200);
+    await p.locator('#mc-panel').scrollIntoViewIfNeeded();
+    await p.screenshot({ path: `${OUT2}/metricool-card-phone.png`, fullPage: true });
+  }
+  await p.setViewportSize({ width: 360, height: 740 });
+  assert.ok(await noHScroll(p), 'the card on a phone');
+  assert.deepEqual(await p.evaluate(() => [...document.querySelectorAll('#mc-panel .btn')].filter((b) => b.getBoundingClientRect().height < 44).map((b) => b.textContent)), []);
+  await p.click('#mc-toggle');
+  await toastHas(p, 'כובה');
+  assert.equal(mc.enabled, false);
+  await ctx.close();
+});
+
 await step('Irit on the team screen sees the same lines, but no switch', async () => {
   const { ctx, page: p } = await open('irit', 'team.html');
   await p.waitForSelector('#wa-panel');
   assert.equal(await p.locator('#wa-toggle').count(), 0);
+  assert.equal(await p.locator('#mc-panel').count(), 0, 'the Metricool card is the owner\'s');
   assert.match(await p.locator('#row-ilai').innerText(), /WhatsApp: עוד לא בחר\/ה · יש מספר/);
   await p.setViewportSize({ width: 360, height: 740 });
   assert.ok(await noHScroll(p), 'the team screen on a phone');

@@ -50,13 +50,14 @@ const run = (who, sql, params = []) => as(db, who ? users[who] : null, async (tx
 });
 const INSERT = "insert into public.client_gantt (client_id, key, kind, title, day, time_il, by_email, at) values ($1, $2, $3, $4, '2026-05-03', '19:00', 'x@y', '2000-01-01') returning by_email, at > now() - interval '1 minute' as fresh, internal";
 
-test('the office (Ilai too) writes the plan, stamped by the session; an editor reads only; nobody else, not anon', async () => {
-  for (const who of ['owner', 'irit', 'lior', 'ofir', 'ilai']) {
+test('Ilai and the owner write the plan, stamped by the session; the rest of the office and an editor read only; nobody else, not anon', async () => {
+  for (const who of ['owner', 'ilai']) {
     const r = await run(who, INSERT, [ids.edited, 'video.1', 'video', 'סרטון 1']);
     assert.equal(r.rows?.[0]?.by_email, `${who}@astrateg.test`, who);
     assert.equal(r.rows[0].fresh, true, who);
   }
-  for (const who of ['nadia', 'anna']) assert.match((await run(who, INSERT, [ids.edited, 'video.1', 'video', 'x'])).error, RLS, who);
+  // 6.10.2026 (20261007100000): Irit, Lior and Ofir only read; they still make the client's link (below).
+  for (const who of ['irit', 'lior', 'ofir', 'nadia', 'anna']) assert.match((await run(who, INSERT, [ids.edited, 'video.1', 'video', 'x'])).error, RLS, who);
   assert.match((await run(null, INSERT, [ids.edited, 'video.1', 'video', 'x'])).error, RLS);
   await db.query("insert into public.client_gantt (client_id, key, kind, title, day) values ($1, 'video.1', 'video', 'סרטון 1', '2026-05-03'), ($2, 'video.1', 'video', 'סרטון 1', '2026-05-03')", [ids.edited, ids.other]);
   // Nadia edits the first client: she reads its plan, and only it; Anna nothing; anon nothing.
@@ -69,7 +70,12 @@ test('the office (Ilai too) writes the plan, stamped by the session; an editor r
   assert.equal((await run('nadia', 'delete from public.client_gantt')).affected, 0);
   assert.equal((await run('ilai', "update public.client_gantt set day = '2026-05-04', edited = true where client_id = $1 returning id", [ids.edited])).affected, 1);
   assert.match((await run('irit', 'truncate public.client_gantt')).error, RLS);
-  assert.equal((await run('lior', 'delete from public.client_gantt where client_id = $1', [ids.other])).affected, 1);
+  for (const who of ['irit', 'lior', 'ofir']) {
+    assert.equal((await run(who, 'select * from public.client_gantt')).rows.length, 2, who);
+    assert.equal((await run(who, "update public.client_gantt set day = '2026-05-04'")).affected, 0, who);
+    assert.equal((await run(who, 'delete from public.client_gantt')).affected, 0, who);
+  }
+  assert.equal((await run('owner', 'delete from public.client_gantt where client_id = $1', [ids.other])).affected, 1);
   await db.query('delete from public.client_gantt');
 });
 
@@ -81,17 +87,17 @@ test('the shapes: every key and kind the template makes is accepted; bad keys, k
   const r = await run('ilai', `insert into public.client_gantt (client_id, key, kind, title, day, time_il, month, num) values ${values.join(', ')} returning key`, [ids.edited, ...plan.entries.map((e) => e.title)]);
   assert.equal(r.rows?.length, plan.entries.length, r.error);
   for (const k of Object.keys(GANTT_KINDS)) {
-    const x = await run('irit', "insert into public.client_gantt (client_id, key, kind, title, day) values ($1, 'custom.1', $2, 't', '2026-05-01') returning kind", [ids.edited, k]);
+    const x = await run('owner', "insert into public.client_gantt (client_id, key, kind, title, day) values ($1, 'custom.1', $2, 't', '2026-05-01') returning kind", [ids.edited, k]);
     assert.equal(x.rows?.[0]?.kind, k, `${k}: ${x.error}`);
   }
   for (const k of ['Video.1', 'video.x', '1video', 'video..1', 'video.1.2.3', "v'; drop"]) {
-    assert.match((await run('irit', "insert into public.client_gantt (client_id, key, kind, title, day) values ($1, $2, 'video', 't', '2026-05-01')", [ids.edited, k])).error, /check constraint/, k);
+    assert.match((await run('owner', "insert into public.client_gantt (client_id, key, kind, title, day) values ($1, $2, 'video', 't', '2026-05-01')", [ids.edited, k])).error, /check constraint/, k);
   }
-  assert.match((await run('irit', "insert into public.client_gantt (client_id, key, kind, title, day) values ($1, 'x.1', 'tiktok', 't', '2026-05-01')", [ids.edited])).error, /check constraint/);
+  assert.match((await run('owner', "insert into public.client_gantt (client_id, key, kind, title, day) values ($1, 'x.1', 'tiktok', 't', '2026-05-01')", [ids.edited])).error, /check constraint/);
   for (const link of ['http://insecure.example', 'javascript:alert(1)', 'https://a b', 'https://x"y']) {
-    assert.match((await run('irit', "insert into public.client_gantt (client_id, key, kind, title, day, link) values ($1, 'custom.2', 'custom', 't', '2026-05-01', $2)", [ids.edited, link])).error, /check constraint/, link);
+    assert.match((await run('owner', "insert into public.client_gantt (client_id, key, kind, title, day, link) values ($1, 'custom.2', 'custom', 't', '2026-05-01', $2)", [ids.edited, link])).error, /check constraint/, link);
   }
-  assert.match((await run('irit', "insert into public.client_gantt (client_id, key, kind, title, day) values ($1, 'custom.3', 'custom', '  ', '2026-05-01')", [ids.edited])).error, /check constraint/);
+  assert.match((await run('owner', "insert into public.client_gantt (client_id, key, kind, title, day) values ($1, 'custom.3', 'custom', '  ', '2026-05-01')", [ids.edited])).error, /check constraint/);
   await db.query('delete from public.client_gantt');
 });
 

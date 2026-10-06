@@ -16,7 +16,7 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'auto-assign.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'clocks.js', 'deal-logic.js', 'decisions-logic.js', 'files-logic.js', 'holidays.js', 'ics.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js',
+    'auto-assign.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'clocks.js', 'deal-logic.js', 'decisions-logic.js', 'files-logic.js', 'holidays.js', 'ics.js', 'legal.js', 'messages-logic.js', 'metricool-logic.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
     'shoot-prep.js', 'status-rules.js', 'tz.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
@@ -90,6 +90,11 @@ const DEPLOY = {
     ...APP('catalog.js', 'legal.js', 'pricing.js'),
     'create-quote/index.ts',
   ],
+  metricool: [
+    ...APP('metricool-logic.js', 'tz.js'),
+    'metricool/index.ts',
+    'metricool/sync.js',
+  ],
   reminders: [
     ...APP('auto-assign.js', 'catalog.js', 'characterization.js', 'clocks.js', 'deal-logic.js', 'decisions-logic.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-prep.js', 'status-rules.js', 'tz.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
@@ -131,7 +136,7 @@ test('every function, and every file it deploys (the shared copies it reaches ar
 test('verify_jwt: off for the functions that check their caller themselves', () => {
   const config = readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8');
   const off = [...config.matchAll(/\[functions\.([a-z-]+)\]\s*\nverify_jwt = false/g)].map((m) => m[1]).sort();
-  assert.deepEqual(off, ['calendar', 'client-media', 'reminders', 'staff-admin', 'whatsapp-webhook']);
+  assert.deepEqual(off, ['calendar', 'client-media', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook']);
 });
 
 test('the shared pricing engine computes the same quote as app/', async () => {

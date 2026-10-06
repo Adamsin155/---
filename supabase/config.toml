@@ -30,3 +30,9 @@ verify_jwt = false
 # (public.media_for_token). See supabase/functions/client-media/index.ts.
 [functions.client-media]
 verify_jwt = false
+
+# Metricool and the content Gantt: pg_cron calls it with the cron secret (the sync),
+# and the office calls it signed in (the account's brands, the owner's connection
+# check); each is checked in code. See supabase/functions/metricool/index.ts.
+[functions.metricool]
+verify_jwt = false
