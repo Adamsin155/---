@@ -25,7 +25,7 @@ import {
 import { whatsappLink } from './quote-doc.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
-import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
+import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys, openedBySigning } from './client-open.js';
 import { canManageTeam } from './team-rules.js';
 import { canSendMessages, stationTitle } from './messages-logic.js';
 import { offerHandoff, dropHandoff } from './handoff-ui.js';
@@ -89,7 +89,8 @@ const hmFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, hour: '2-digit', 
 const hm = (d) => hmFmt.format(new Date(d));
 const live = (c) => c.status !== 'cancelled';
 // A client opened by the signing trigger stays "new" until someone confirms its details.
-const isAuto = (c) => c.created_by_email === 'system' && !c.verified_at && live(c);
+// An imported client is never "new" (openedBySigning in app/client-open.js).
+const isAuto = (c) => openedBySigning(c, checks[c.id]) && !c.verified_at && live(c);
 const roundOf = (proc) => /^r(\d+)-/.exec(proc.id)?.[1] || null;
 const procLabel = (proc, sep = ' · ') => `${roundOf(proc) ? `סבב ${roundOf(proc)} · ` : ''}${proc.num}${sep}${proc.title}`;
 const namesOf = (keys) => keys.map((k) => PEOPLE[k]?.name || k).join(', ');
@@ -176,12 +177,16 @@ function applyScope() {
   $('btn-new').hidden = own;
   $('tab-clients').textContent = own ? 'הלקוחות שלי' : 'לקוחות';
   $('tab-mine').textContent = me ? 'המשימות שלי' : 'עבודת הצוות';
+  // One plain heading for everyone who is a person in the protocol: "שלום <name>" (it
+  // was "לקוחות ופרוטוקול עבודה" for the office and "שלום …" for the rest; 6.10.2026).
+  // The owner's login, which is not a person, keeps the page's own name.
   const head = document.querySelector('#app .page-head');
+  const h1 = head?.querySelector('h1');
+  if (h1 && me) h1.textContent = `שלום ${PEOPLE[me].name}`;
   if (own && head) {
-    const h1 = head.querySelector('h1');
     const sub = head.querySelector('h1 + p');
-    if (h1) h1.textContent = me ? `שלום ${PEOPLE[me].name}` : 'הפרוטוקול שלי';
-    if (sub) sub.textContent = 'מה פתוח אצלך עכשיו לפי הפרוטוקול שלך, והלקוחות שיש לך בהם עבודה.';
+    if (h1 && !me) h1.textContent = 'המשימות שלי';
+    if (sub) sub.textContent = 'מה פתוח אצלך עכשיו, והלקוחות שיש לך בהם עבודה.';
   }
 }
 
@@ -614,7 +619,7 @@ function compactCard(g, person) {
     start, // "התחלתי", or when it was pressed
     shortcut,
     single ? rows() : null,
-    listIsAction ? toggle(`פתיחת הרשימה (${n})`, 'btn btn-sm wc-go wc-open') : null,
+    listIsAction ? toggle(`הצגת הפריטים (${n})`, 'btn btn-sm wc-go wc-open') : null,
     panel);
 }
 
@@ -739,7 +744,7 @@ function upcomingCard(g) {
 // Open for 'own' views (it is often all they have this week); folded in the office.
 function upcomingSection(list, open) {
   if (!list.length) return null;
-  const title = 'בקרוב · עוד לא לסימון';
+  const title = 'בקרוב · עוד אין מה לסמן';
   const n = h('span', { class: 'n' }, String(list.length));
   const body = h('ul', { class: 'wprocs' }, ...list.map(upcomingCard));
   if (!fullView()) capList(body, MINE_CAP, 'mine:soon');

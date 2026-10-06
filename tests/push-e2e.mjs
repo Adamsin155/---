@@ -326,12 +326,18 @@ await step('iPhone from the home screen: the button; an old iOS: update first', 
   await ctx.close();
   const old = await open('irit', { viewport: { width: 360, height: 780 }, mobile: true, push: { ua: IPHONE.replace(/17_4/g, '16_3').replace('17.4', '16.3') } });
   await old.page.waitForSelector('#push-card[data-state="ios-update"]');
+  // Nothing to press here: one line, the explanation a tap away (6.10.2026).
+  assert.match(await old.page.locator('#push-card summary').innerText(), /ההתראות לא פעילות באייפון הזה\s*מה עושים/);
+  await old.page.click('#push-card summary');
   assert.match(await old.page.locator('#push-card').innerText(), /iOS 16\.4 ומעלה/);
   await old.ctx.close();
 });
 await step('blocked in the browser: how to allow it, no button', async () => {
   const { ctx, page: pb } = await open('irit', { push: { permission: 'denied' } });
   await pb.waitForSelector('#push-card[data-state="blocked"]');
+  assert.match(await pb.locator('#push-card summary').innerText(), /ההתראות חסומות\s*מה עושים/);
+  assert.ok((await pb.locator('#push-card').boundingBox()).height <= 56, 'a blocked state is one line');
+  await pb.click('#push-card summary');
   assert.match(await pb.locator('#push-card').innerText(), /ההתראות חסומות[\s\S]*לאפשר/);
   assert.equal(await pb.locator('#push-card button').count(), 0);
   await ctx.close();

@@ -26,6 +26,7 @@ let tasks = [];
 let clients = null; // the picker's list, loaded when the form first opens
 let active = false;
 let formOpen = false;
+let showOpen = false;    // the giver's open tasks: folded until asked for (or until one is sent)
 let showClosed = false;
 let onChange = () => {};
 
@@ -89,6 +90,7 @@ async function send(form) {
   const { error } = await supabase.rpc('staff_task_create', v.args);
   if (error) { toast(explain(error)); btn.disabled = false; return; }
   formOpen = false;
+  showOpen = true; // what was just sent is shown
   const who = personName(v.args.p_assignee);
   toast(nagOpen(new Date()) ? `המשימה נשלחה ל${who}. תזכורת כל ${NAG_EVERY} דקות עד ״בוצע״.` : `המשימה נשמרה. התזכורות ל${who} יתחילו ${formatWhen(nextNagAt(new Date(), new Date()))}.`);
   await refreshStaffTasks();
@@ -167,19 +169,30 @@ function render() {
   box.hidden = !gives && !mine.length;
   if (box.hidden) { fill(box); return; }
   box.classList.toggle('has-mine', mine.length > 0);
+  // The giver's part is one quiet row ("משימה חדשה" and how many are open): the lists
+  // open on demand, so the card never pushes the person's own work down the screen
+  // (the simplicity pass of 6.10.2026). A task one got stays big: it is work to do now.
+  const heading = h('h2', { id: 'staff-tasks-h', tabindex: '-1' }, mine.length ? `משימות שקיבלת (${mine.length})` : 'משימות מיידיות');
+  box.classList.toggle('is-quiet', gives && !mine.length && !formOpen);
+  const newBtn = h('button', { type: 'button', class: 'btn', id: 'st-new', onclick: async (e) => { e.currentTarget.disabled = true; await loadClients(); formOpen = true; render(); box.querySelector('#st-assignee')?.focus(); } }, 'משימה חדשה');
+  const none = given.open.length ? null : h('p', { class: 'hint st-empty' }, 'אין משימות פתוחות שנתת.');
   fill(box,
-    h('h2', { id: 'staff-tasks-h', tabindex: '-1' }, mine.length ? `משימות שקיבלת (${mine.length})` : 'משימות מיידיות'),
+    mine.length ? heading : null,
     ...mine.map((t) => mineItem(t, now)),
     gives ? [
       mine.length ? h('h3', { class: 'st-sub' }, 'משימות שנתת') : null,
-      formOpen ? newForm() : h('div', { class: 'st-acts' },
-        h('button', { type: 'button', class: 'btn', id: 'st-new', onclick: async (e) => { e.currentTarget.disabled = true; await loadClients(); formOpen = true; render(); box.querySelector('#st-assignee')?.focus(); } }, 'משימה חדשה')),
-      given.open.length ? h('h3', { class: 'st-sub', id: 'st-open-h' }, `פתוחות (${given.open.length})`) : h('p', { class: 'hint st-empty' }, 'אין משימות פתוחות שנתת.'),
-      ...given.open.map(givenItem),
-      given.closed.length ? h('button', {
-        type: 'button', class: 'btn-text st-more', id: 'st-closed-toggle', 'aria-expanded': String(showClosed),
-        onclick: () => { showClosed = !showClosed; render(); box.querySelector('#st-closed-toggle')?.focus(); },
-      }, showClosed ? 'הסתרת מה שנסגר' : `מה שנסגר בשבוע האחרון (${given.closed.length})`) : null,
+      ...(formOpen ? [mine.length ? null : heading, newForm(), none]
+        : [h('div', { class: 'st-top' }, h('div', { class: 'st-top-t' }, mine.length ? null : heading, none), newBtn)]),
+      given.open.length || given.closed.length ? h('div', { class: 'st-folds' },
+        given.open.length ? h('h3', { class: 'st-fold-h', id: 'st-open-h' }, h('button', {
+          type: 'button', class: 'btn-text st-more', id: 'st-open-toggle', 'aria-expanded': String(showOpen),
+          onclick: () => { showOpen = !showOpen; render(); box.querySelector('#st-open-toggle')?.focus(); },
+        }, `פתוחות (${given.open.length})`)) : null,
+        given.closed.length ? h('button', {
+          type: 'button', class: 'btn-text st-more', id: 'st-closed-toggle', 'aria-expanded': String(showClosed),
+          onclick: () => { showClosed = !showClosed; render(); box.querySelector('#st-closed-toggle')?.focus(); },
+        }, showClosed ? 'הסתרת מה שנסגר' : `מה שנסגר בשבוע האחרון (${given.closed.length})`) : null) : null,
+      ...(showOpen ? given.open.map(givenItem) : []),
       ...(showClosed ? given.closed.map(givenItem) : []),
     ] : null);
 }

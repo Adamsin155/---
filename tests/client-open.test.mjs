@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { PROCESSES, PHASES, STATIONS } from '../app/protocol.js';
 import { PACKAGES, SPECS } from '../app/catalog.js';
 import { clientState } from '../app/protocol-logic.js';
-import { IMPORT_NOTE, PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from '../app/client-open.js';
+import { IMPORT_NOTE, PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys, isImportedClient, openedBySigning } from '../app/client-open.js';
 
 test('the 8 stations cover every process once, in protocol order', () => {
   assert.deepEqual(STATIONS.map((s) => s.title), ['הצטרפות', 'אפיון', 'תוכן ואישור', 'יום צילום', 'עריכה ובקרה', 'פרסום', 'שוטף', 'חידוש']);
@@ -117,4 +117,25 @@ test('import before the shoot day without a shoot date: setting the shoot day st
   }
   // After the shoot took place there is nothing left to set.
   assert.ok(importKeys('post', { shootSet: false }).some((k) => k.startsWith('p11.')));
+});
+
+// Found live (6.10.2026): 39 imported clients (written by the system itself, their
+// history marked "ייבוא") filled Irit's list with "לקוח חדש נפתח אוטומטית … ועוד 38".
+test('an imported client is never "new, opened by itself": only one the signing trigger opened from an agreement', () => {
+  const signed = { created_by_email: 'system', quote_id: 'q-1' };
+  assert.equal(openedBySigning(signed, {}), true);
+  assert.equal(openedBySigning(signed, undefined), true);
+  // A batch import: the system wrote it, there is no agreement.
+  assert.equal(openedBySigning({ created_by_email: 'system', quote_id: null }, {}), false);
+  // Its history carries the import note, whatever else it has.
+  const imported = Object.fromEntries(importKeys('char').map((k) => [k, { state: 'done', note: IMPORT_NOTE }]));
+  assert.equal(isImportedClient(imported), true);
+  assert.equal(openedBySigning({ created_by_email: 'system', quote_id: null }, imported), false);
+  assert.equal(openedBySigning(signed, imported), false);
+  // A check with another note, or none, is not an import.
+  assert.equal(isImportedClient({ 'p01.contract': { state: 'done', note: 'נחתם במערכת' }, 'p02.group': { state: 'done', note: null } }), false);
+  assert.equal(isImportedClient(null), false);
+  // Opened by a person: never "automatic".
+  assert.equal(openedBySigning({ created_by_email: 'irit@astrateg.test', quote_id: 'q-1' }, {}), false);
+  assert.equal(openedBySigning(null, {}), false);
 });

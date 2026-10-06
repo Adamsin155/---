@@ -20,6 +20,14 @@
 .push-on .push-h { font-size: 14.5px; font-weight: 500; }
 .push-on .btn-text { min-height: 44px; }
 .push-hint { color: var(--warn) !important; }
+/* A state with nothing to press: one line, the explanation a tap away. */
+.push-card[data-state='blocked'], .push-card[data-state='unsupported'], .push-card[data-state='ios-update'] { padding-block: 2px; }
+.push-fold > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; cursor: pointer; list-style: none; }
+.push-fold > summary::-webkit-details-marker { display: none; }
+.push-fold .push-h { font-size: 14.5px; font-weight: 500; }
+.push-fold-k { color: var(--text-2); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.push-fold[open] .push-fold-k { display: none; }
+.push-fold > p { padding-bottom: 10px; }
 
 .inbox-btn .n {
   display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-inline-start: 6px; padding: 0 6px;

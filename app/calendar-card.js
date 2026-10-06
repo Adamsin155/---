@@ -15,6 +15,7 @@ let card = null;
 let status = null;   // { connected, created_at, last_fetch_at } | null (not connected)
 let fresh = null;    // the link made on this page (kept only in this page's memory)
 let busy = false;
+let unfolded = false; // the card is one line until it is opened (or a link was just made)
 
 async function loadStatus() {
   const { data, error } = await supabase.rpc('calendar_feed_status');
@@ -63,8 +64,14 @@ function render() {
     `מחובר מאז ${formatWhen(new Date(status.created_at))}`,
     status.last_fetch_at ? `היומן התעדכן לאחרונה ${formatWhen(new Date(status.last_fetch_at))}` : 'היומן עוד לא קרא את הקישור',
   ].join(' · ') : null;
-  fill(card,
-    h('h2', { class: 'cal-h', id: 'cal-h', tabindex: '-1' }, 'היומן שלי'),
+  // One quiet line in "המשימות שלי" (a one-time setup must not stand before the work;
+  // the simplicity pass of 6.10.2026): the rest opens with a tap, and by itself right
+  // after a link is made.
+  if (fresh) unfolded = true;
+  fill(card, h('details', { class: 'cal-fold', open: unfolded, ontoggle: (e) => { unfolded = e.currentTarget.open; } },
+    h('summary', {},
+      h('h2', { class: 'cal-h', id: 'cal-h', tabindex: '-1' }, 'היומן שלי'),
+      h('span', { class: 'cal-fold-k' }, connected ? 'מחובר' : 'חיבור ליומן של הטלפון')),
     connected ? h('p', { class: 'cal-meta', id: 'cal-meta' }, meta)
       : h('p', {}, 'ימי הצילום, הפגישות והיעדים שלך ביומן של הטלפון או המחשב. מתעדכן לבד, ורק עם העבודה שלך.'),
     fresh ? linkView(fresh) : null,
@@ -72,7 +79,7 @@ function render() {
       connected
         ? [h('button', { type: 'button', class: 'btn-text', id: 'cal-rotate', disabled: busy, onclick: rotate }, 'קישור חדש'),
           h('button', { type: 'button', class: 'btn-text', id: 'cal-revoke', disabled: busy, onclick: revoke }, 'ניתוק')]
-        : h('button', { type: 'button', class: 'btn btn-sm', id: 'cal-make', disabled: busy, onclick: rotate }, 'חיבור ליומן')));
+        : h('button', { type: 'button', class: 'btn btn-sm', id: 'cal-make', disabled: busy, onclick: rotate }, 'חיבור ליומן'))));
 }
 
 async function rotate() {

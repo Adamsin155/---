@@ -661,6 +661,11 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
   .page-head .head-actions .btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
   .mine-foot { padding-inline: 12px; }
   .wc-head .wclient { min-height: 44px; }
+  /* Links a thumb must hit, found under 44px in the simplicity pass of 6.10.2026: the
+     client's name in the monthly cycle, the phone in a new deal, "לכרטיס" in the note
+     about a new client, and the clients' search box. */
+  .mc-head .wclient, .deal-task-meta a, .auto-banner a { display: inline-flex; align-items: center; min-height: 44px; }
+  .search .input { min-height: 44px; }
 }
 @media print { .more-row, .mine-foot, .wc-more, .wc-open { display: none !important; } .wc-panel[hidden] { display: block !important; } }
 
