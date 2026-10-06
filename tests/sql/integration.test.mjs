@@ -113,8 +113,10 @@ test('client consent and staff consent are separate tables', async () => {
 test('anon runs only the deliberate token functions: the quote, the signature, the status page and the content Gantt', async () => {
   const { rows } = await db.query(`select n.nspname || '.' || p.proname as f from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('public', 'private') and p.prosecdef and has_function_privilege('anon', p.oid, 'execute') order by 1`);
+  // … and, since 20261008100000_client_access_form.sql, the client's logins form
+  // (write-only: its two functions return a state and the business name, nothing stored).
   assert.deepEqual(rows.map((r) => r.f), [
-    'public.answer_survey', 'public.approve_item', 'public.get_gantt', 'public.get_quote', 'public.get_scripts', 'public.get_status', 'public.request_fix', 'public.sign_quote',
+    'public.access_form_info', 'public.access_form_submit', 'public.answer_survey', 'public.approve_item', 'public.get_gantt', 'public.get_quote', 'public.get_scripts', 'public.get_status', 'public.request_fix', 'public.sign_quote',
   ]);
   // And no table of stages 4–6 is open to anon.
   const t = await db.query(`select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
