@@ -96,3 +96,29 @@ test('the assigned editor reads the uploaded logo file (the row and the object),
   assert.deepEqual(objs.map((r) => r.name), [mineP]);
   assert.ok(!objs.some((r) => r.name === otherP));
 });
+
+test('the confirmation of an unusual shoot date is kept in the date-change history: on the change\'s row, or a row of its own for a first setting', async () => {
+  const hist = async () => (await db.query("select field, round, old_value is null as first, new_value, by_email, note from public.client_date_changes where client_id = $1 order by id", [ids.dana])).rows;
+  // A first setting makes no row by itself; the note adds one, with no old value.
+  await keep('irit', "update public.clients set char_at = '2026-10-08T07:00:00Z', shoot_at = '2026-10-08T16:00:00Z' where id = $1", [ids.dana]);
+  assert.deepEqual(await hist(), []);
+  await keep('irit', "select public.date_change_note($1, 'shoot_at', null, '2026-10-08T16:00:00+00:00', 'אושר למרות: פחות מ־3 ימי עסקים אחרי פגישת האפיון')", [ids.dana]);
+  assert.deepEqual(await hist(), [{ field: 'shoot_at', round: null, first: true, new_value: '2026-10-08T16:00:00+00:00', by_email: 'irit@astrateg.test', note: 'אושר למרות: פחות מ־3 ימי עסקים אחרי פגישת האפיון' }]);
+  // A change makes its row (the trigger); the note lands on that row, not on a new one.
+  await keep('lior', "update public.clients set shoot_at = '2026-10-07T08:00:00Z' where id = $1", [ids.dana]);
+  await keep('lior', "select public.date_change_note($1, 'shoot_at', null, '2026-10-07T08:00:00+00:00', 'אושר למרות: יום הצילום לפני פגישת האפיון')", [ids.dana]);
+  const rows = await hist();
+  assert.equal(rows.length, 2);
+  assert.deepEqual([rows[1].first, rows[1].by_email, rows[1].note], [false, 'lior@astrateg.test', 'אושר למרות: יום הצילום לפני פגישת האפיון']);
+  // Someone else's change is not annotated by me: Irit's note on Lior's change is a row of hers.
+  await keep('irit', "select public.date_change_note($1, 'shoot_at', null, '2026-10-07T08:00:00+00:00', 'הערה של עירית')", [ids.dana]);
+  assert.equal((await hist()).length, 3);
+  // Who may: the office, on a client it sees. Not an editor (even assigned), not sales, not anon; a real note, a known field.
+  for (const who of ['nadia', 'eli', 'stav']) assert.match((await q(who, "select public.date_change_note($1, 'shoot_at', null, 'x', 'y')", [ids.dana])).error, /not allowed/, who);
+  assert.match((await q('anon', "select public.date_change_note($1, 'shoot_at', null, 'x', 'y')", [ids.dana])).error, /permission denied/);
+  assert.match((await q('irit', "select public.date_change_note($1, 'deal_at', null, 'x', 'y')", [ids.dana])).error, /unknown field/);
+  assert.match((await q('irit', "select public.date_change_note($1, 'shoot_at', null, 'x', '  ')", [ids.dana])).error, /note/);
+  assert.match((await q('irit', "select public.date_change_note($1, 'shoot_at', null, 'x', 'y')", [ids.gone])).error, /not allowed/); // archived
+  // Nobody writes the history directly, as before.
+  assert.ok((await q('irit', "insert into public.client_date_changes (client_id, field, by_email, note) values ($1, 'shoot_at', 'x', 'y')", [ids.dana])).error);
+});

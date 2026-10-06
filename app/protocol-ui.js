@@ -6,6 +6,7 @@ import { h } from './quote-doc.js';
 import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';
 import { businessDaysBetween, readWaited } from './protocol-logic.js';
 import { TZ, partsIL, daysBetweenIL, dayFromKeyIL, needsYear } from './tz.js';
+import { shootDateConcerns, shootDateQuestion, shootDateNote } from './shoot-prep.js';
 import { landFromLink, LINK_EXPIRED, PASSWORD_SAVED } from './set-password.js';
 
 export { h };
@@ -333,4 +334,13 @@ export function foldScreens(head = document.querySelector('.page-head .head-acti
   new MutationObserver(gather).observe(head, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
   // The managers' switch (app/manager-ui.js) arrives later and hides the links it repeats.
   new MutationObserver(count).observe(document.body, { childList: true });
+}
+
+// A shoot date set against the usual order (in the past, before the characterization,
+// or too soon after it): the office is asked to confirm, with the reasons. Returns
+// { ok, note }: `note` is what to keep in the date-change history (null: nothing to ask).
+export function confirmShootDate({ shootAt, charAt = null, now = new Date() }) {
+  const concerns = shootDateConcerns({ shootAt, charAt, now });
+  if (!concerns.length) return { ok: true, note: null };
+  return window.confirm(shootDateQuestion(shootAt, concerns)) ? { ok: true, note: shootDateNote(concerns) } : { ok: false, note: null };
 }

@@ -15,7 +15,7 @@ import {
   loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
+  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who, confirmShootDate,
   statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
@@ -27,7 +27,7 @@ import { canManageTeam } from './team-rules.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 import { clientHealth, station, timeline } from './health.js';
 import { healthHead, timelineBlock, questionsBlock } from './health-ui.js';
-import { loadHealthExtras, loadQuestions } from './owner-data.js';
+import { loadHealthExtras, loadQuestions, noteDateChange } from './owner-data.js';
 // Stage 3, part 2: Ofir's returns for fixes, the office's marks in the history, "התחלתי".
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
@@ -1490,11 +1490,15 @@ $('round-form').addEventListener('submit', async (e) => {
   const next = roundEditing
     ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null } : r))
     : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null, start_at: new Date().toISOString() }];
+  const before = roundEditing ? rounds.find((r) => r.n === roundEditing)?.shoot_at : null;
+  const asked = at && +new Date(at) !== +new Date(before || 0) ? confirmShootDate({ shootAt: at }) : { ok: true, note: null };
+  if (!asked.ok) { $('round-at').focus(); return; }
   $('round-submit').disabled = true;
   try {
     client = await updateClient(id, { rounds: next });
     roundDlg.close();
     const n = roundEditing || next.at(-1).n;
+    if (asked.note) await noteDateChange(id, 'round_shoot_at', n, at, asked.note);
     openPhases.add(`round-${n}`);
     render();
     if (!roundEditing) {
@@ -1760,6 +1764,11 @@ $('ed-form').addEventListener('submit', async (e) => {
     if (v === '') delete deliverables[k]; else deliverables[k] = Math.max(0, Math.round(Number(v)));
   }
   const val = (i) => $(i).value.trim() || null;
+  // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
+  const newShoot = fromLocal($('ed-shoot-at').value);
+  const shootMoved = !!newShoot && +new Date(newShoot) !== +new Date(client.shoot_at || 0);
+  const asked = shootMoved ? confirmShootDate({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value) }) : { ok: true, note: null };
+  if (!asked.ok) { $('ed-shoot-at').focus(); return; }
   $('ed-submit').disabled = true;
   try {
     client = await updateClient(id, {
@@ -1770,6 +1779,7 @@ $('ed-form').addEventListener('submit', async (e) => {
       shoot_type: val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor: val('ed-editor'),
       contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables,
     });
+    if (asked.note) await noteDateChange(id, 'shoot_at', null, newShoot, asked.note);
     edDlg.close();
     render();
     toast('הפרטים נשמרו.');

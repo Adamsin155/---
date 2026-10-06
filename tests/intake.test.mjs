@@ -13,7 +13,7 @@ import {
 import { FOCUS_TOPICS, briefChecks, highlightsOf, emptyTopics, NOT_RAISED } from '../app/briefs.js';
 import {
   coordinatorOf, shootContexts, shootPrep, topicsToClose, seenToday, seenNote, reportedOf, blockerTask, eveOf, checkAt,
-  dayBefore, dayBeforeResult, dayBeforeNote, readDayBefore, dayBeforeText, DAY_BEFORE_LABELS, dayBeforeTask, requestTask, requestDue, requestProblems,
+  dayBefore, dayBeforeResult, dayBeforeNote, readDayBefore, dayBeforeText, DAY_BEFORE_LABELS, dayBeforeTask, shootDateConcerns, shootDateQuestion, shootDateNote, requestTask, requestDue, requestProblems,
   ackMessage, tellMessage, requestOf, TOPICS,
 } from '../app/shoot-prep.js';
 import { clientState, CHAR_ENDED, resolveTime, applicableProcesses } from '../app/protocol-logic.js';
@@ -423,4 +423,28 @@ test('a client request is a task with an owner and a due day; done, Irit is told
   const w2 = world(c, imported('ongoing'), { tasks: [{ ...t, id: 'r1', done_at: null, created_by_email: 'irit@x', created_at: IL(2026, 10, 8, 12).toISOString() }] });
   one(due(w2, IL(2026, 10, 8, 12)), 'task', 'created', 'ilai');
   one(due(w2, IL(2026, 10, 11, 8, 30)), 'task', 'due', 'ilai');
+});
+
+// Found live (6.10.2026): a shoot day was set on the evening of the characterization itself.
+test('a shoot date against the usual order is asked about: in the past, before the characterization, or under 3 business days after it', () => {
+  const now = IL(2026, 10, 6, 12); // Tuesday
+  const char = IL(2026, 10, 8, 10).toISOString(); // Thursday
+  const ask = (shoot, c = char) => shootDateConcerns({ shootAt: shoot.toISOString(), charAt: c, now });
+  // In order: three business days after (Sunday, Monday, Tuesday → from Tuesday 13.10).
+  assert.deepEqual(ask(IL(2026, 10, 13, 11)), []);
+  assert.deepEqual(ask(IL(2026, 11, 2, 11)), []);
+  // The live case: the same evening.
+  assert.deepEqual(ask(IL(2026, 10, 8, 19)), ['פחות מ־3 ימי עסקים אחרי פגישת האפיון (יום ה׳ 8.10): התסריטים עוד לא יהיו כתובים ומאושרים.']);
+  assert.equal(ask(IL(2026, 10, 12, 11)).length, 1); // two business days after
+  // Before the characterization, and in the past.
+  assert.deepEqual(ask(IL(2026, 10, 7, 11)), ['יום הצילום לפני פגישת האפיון (יום ה׳ 8.10).']);
+  assert.deepEqual(ask(IL(2026, 10, 5, 11)), ['המועד כבר עבר.', 'יום הצילום לפני פגישת האפיון (יום ה׳ 8.10).']);
+  // No characterization date (a shoot round): only a date in the past is asked about.
+  assert.deepEqual(ask(IL(2026, 10, 7, 11), null), []);
+  assert.deepEqual(ask(IL(2026, 10, 5, 11), null), ['המועד כבר עבר.']);
+  assert.deepEqual(shootDateConcerns({ shootAt: null, charAt: char, now }), []);
+  const concerns = ask(IL(2026, 10, 8, 19));
+  assert.equal(shootDateQuestion(IL(2026, 10, 8, 19).toISOString(), concerns), `יום הצילום: יום ה׳ 8.10 בשעה 19:00.\n• ${concerns[0]}\n\nלקבוע את המועד בכל זאת?`);
+  assert.equal(shootDateNote(concerns), `אושר למרות: ${concerns[0]}`);
+  assert.ok(shootDateNote(['א'.repeat(600)]).length <= 500);
 });

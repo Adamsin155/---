@@ -917,6 +917,7 @@ export function naCounts(log, directory = {}, since = null) {
 export function moveCounts(changes, directory = {}, since = null) {
   const out = new Map();
   for (const r of changes || []) {
+    if (r.old_value === null && ['shoot_at', 'round_shoot_at'].includes(r.field)) continue; // a first setting, kept for its note (date_change_note): not a change
     if (since && new Date(r.at) < since) continue;
     const who = directory[String(r.by_email || '').toLowerCase()];
     if (who) out.set(who, (out.get(who) || 0) + 1);

@@ -87,6 +87,8 @@ async function fakeSupabase(route) {
   const vaultOk = authed && db.staff[0].vault; // an admin-set flag, not the self-chosen person
   const logAccess = (a, action) => db.client_access_log.push({ id: db.client_access_log.length + 1, access_id: a.id, client_id: a.client_id, network: a.network, action, by_email: USER.email, at: new Date().toISOString() });
   if (p === '/rest/v1/rpc/can_use_vault') return json(200, vaultOk);
+  // The note on a date change (20261006100100_date_change_note.sql).
+  if (p === '/rest/v1/rpc/date_change_note') { dateNotes.push(body); return json(200, dateNotes.length); }
   if (p.startsWith('/rest/v1/rpc/access_') && !vaultOk) return json(400, { message: 'not allowed' });
   if (p === '/rest/v1/rpc/access_save') {
     let a = db.client_access.find((x) => x.id === body.p_id);
@@ -167,6 +169,7 @@ async function fakeSupabase(route) {
   return json(405, {});
 }
 
+const dateNotes = []; // what the card asked to keep in the date-change history
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 // Ids used in a dialog or a form that appear more than once on the page.
 const duplicateIds = (pg) => pg.evaluate(() => {
@@ -317,13 +320,52 @@ assert.deepEqual(await page.locator('#ed-characterizer option').evaluateAll((os)
 await page.selectOption('#ed-characterizer', 'lior');
 await page.selectOption('#ed-logo', 'false');
 await page.fill('#ed-shoot-at', '2026-10-11T10:00');
+// (Once 11.10.2026 has passed, the card asks about a date in the past: accepted here.)
+const acceptAny = (d) => d.accept();
+page.on('dialog', acceptAny);
 await page.click('#ed-submit');
 await page.waitForSelector('#i-p05-newlogo');
+page.off('dialog', acceptAny);
 const p5 = await page.locator('#p05 .proc-meta').textContent();
 assert.match(p5, /ליאור/); // whoever characterizes (Ofir or Lior) takes the access in the meeting
 assert.doesNotMatch(p5, /אופיר/);
 // Sunday shoot: reminder due on Thursday, the previous business day, at 11:00.
 assert.match(await page.locator('#p15').textContent(), /11:00/);
+
+// Found live (6.10.2026): a shoot day set on the evening of the characterization itself was accepted
+// without a word. Not blocked, but asked about with the reason; the answer is kept in the date-change history.
+{
+  const shootBefore = db.clients.find((c) => c.id === created.id).shoot_at;
+  const notesBefore = dateNotes.length;
+  await page.click('#btn-edit');
+  await page.fill('#ed-shoot-at', '2026-10-01T19:00'); // the characterization is at 10:00 that day
+  let asked = null;
+  page.once('dialog', (d) => { asked = d.message(); d.dismiss(); });
+  await page.click('#ed-submit');
+  await page.waitForFunction(() => document.activeElement?.id === 'ed-shoot-at');
+  assert.match(asked, /^יום הצילום: יום ה׳ 1\.10 בשעה 19:00\./);
+  assert.match(asked, /• פחות מ־3 ימי עסקים אחרי פגישת האפיון \(יום ה׳ 1\.10\): התסריטים עוד לא יהיו כתובים ומאושרים\./);
+  assert.match(asked, /לקבוע את המועד בכל זאת\?$/);
+  // "ביטול": nothing saved, the form stays open on the date.
+  assert.equal(db.clients.find((c) => c.id === created.id).shoot_at, shootBefore);
+  assert.equal(await page.locator('#dlg-edit[open]').count(), 1);
+  assert.equal(dateNotes.length, notesBefore);
+  // "אישור": saved, and the confirmation goes into the history with the reason.
+  page.once('dialog', (d) => d.accept());
+  await page.click('#ed-submit');
+  await page.waitForFunction(() => !document.querySelector('#dlg-edit[open]'));
+  assert.equal(new Date(db.clients.find((c) => c.id === created.id).shoot_at).toISOString(), '2026-10-01T16:00:00.000Z');
+  const kept = dateNotes.at(-1);
+  assert.deepEqual([kept.p_client, kept.p_field, kept.p_round], [created.id, 'shoot_at', null]);
+  assert.match(kept.p_note, /^אושר למרות: .*פחות מ־3 ימי עסקים אחרי פגישת האפיון/);
+  // Back to the planned day (three business days and more after the characterization): saving other details asks nothing.
+  await page.click('#btn-edit');
+  await page.fill('#ed-shoot-at', '2026-10-11T10:00');
+  page.on('dialog', acceptAny);
+  await page.click('#ed-submit');
+  await page.waitForFunction(() => !document.querySelector('#dlg-edit[open]'));
+  page.off('dialog', acceptAny);
+}
 // Shared process: Irit takes it, and it shows as hers.
 await page.evaluate(() => { document.querySelector('#p29')?.closest('details').setAttribute('open', ''); });
 await page.click('#p29 .claim .btn');

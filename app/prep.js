@@ -19,8 +19,9 @@ import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, setTaskDone, updateClient, loadDirectory,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, formatDay,
+  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, formatDay, confirmShootDate,
 } from './protocol-ui.js';
+import { noteDateChange } from './owner-data.js';
 import {
   shootContexts, coordinatorOf, shootPrep, topicsToClose, TOPIC_NOTE, TOPICS, seenToday, seenNote, SEEN, reportedOf, blockerTask,
   dayBefore, dayBeforeResult, dayBeforeNote, dayBeforeTask, DAY_BEFORE_KEY, requestTask, requestDue, requestProblems, ackMessage,
@@ -184,9 +185,13 @@ async function saveShoot(c, k) {
   if (type) fields.shoot_type = type;
   if (at) fields.shoot_at = at.toISOString();
   if (!Object.keys(fields).length) { toast('לבחור עם מי מצלמים ומועד.'); return; }
+  // Against the usual order (in the past, before the characterization, too soon after it): ask, with the reason.
+  const asked = at ? confirmShootDate({ shootAt: at, charAt: c.char_at }) : { ok: true, note: null };
+  if (!asked.ok) { $(`sh-at-${k}`).focus(); return; }
   busy = true;
   try {
     const row = await updateClient(c.id, fields);
+    if (asked.note) await noteDateChange(c.id, 'shoot_at', null, fields.shoot_at, asked.note);
     clients = clients.map((x) => (x.id === c.id ? row : x));
     shootDraft.delete(c.id);
     toast('המועד נשמר.');

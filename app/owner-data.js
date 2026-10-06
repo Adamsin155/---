@@ -35,6 +35,14 @@ export async function loadAccessStatus() {
   return all(() => supabase.from('client_access').select('client_id, network, status, updated_at').order('client_id'));
 }
 
+// The note on a date change (why a shoot day was set against the usual order): on
+// the row the change just made, or a row of its own for a first setting. Before the
+// migration (20261006100100) there is nowhere to keep it: false, and nothing breaks.
+export async function noteDateChange(clientId, field, round, newValue, note) {
+  const { error } = await supabase.rpc('date_change_note', { p_client: clientId, p_field: field, p_round: round, p_new: newValue, p_note: note });
+  return !error;
+}
+
 // Deadline changes since a moment (every client, or one).
 export async function loadDateChanges({ sinceIso = null, clientId = null } = {}) {
   return all(() => {

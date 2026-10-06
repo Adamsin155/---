@@ -421,7 +421,9 @@ test('screen 4: open, late, this week, on time, median vs norm, editor load vs c
     row('p10.c.ads', 'na', '2026-10-12T11:00:00+03:00', 'lior@x.test'), row('p05.menu', 'na', '2026-10-12T11:00:00+03:00', 'irit@x.test'),
   ];
   const directory = { 'nadia@x.test': 'nadia', 'lior@x.test': 'lior', 'irit@x.test': 'irit', 'ofir@x.test': 'ofir' };
-  const changes = [{ client_id: 'c1', field: 'shoot_at', at: '2026-10-13T10:00:00+03:00', by_email: 'irit@x.test' }];
+  const changes = [{ client_id: 'c1', field: 'shoot_at', at: '2026-10-13T10:00:00+03:00', by_email: 'irit@x.test' },
+    // A first setting kept only for its confirmation note (date_change_note) is not a moved deadline.
+    { client_id: 'c1', field: 'shoot_at', old_value: null, new_value: '2026-10-20T08:00:00+00:00', at: '2026-10-12T10:00:00+03:00', by_email: 'irit@x.test' }];
   const work = (k) => (k === 'lior' ? [{ status: 'overdue', dueAt: at('2026-10-19T10:00:00+03:00') }, { status: 'today', dueAt: at('2026-10-20T18:00:00+03:00') }, { status: 'client', dueAt: null }] : []);
   const rows = [{ people: ['lior'], onTime: true, min: 60, targetMin: 120 }, { people: ['lior'], onTime: false, min: 200, targetMin: 120 }, { people: ['irit'], onTime: true, min: 5, targetMin: 5 }];
   const t = teamRows(['lior', 'nadia', 'irit'], {

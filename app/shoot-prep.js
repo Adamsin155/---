@@ -347,3 +347,25 @@ export const requestOf = (tell) => clean(tell?.brief?.request) || clean(String(t
 export function tellMessage(client, requestText) {
   return `היי ${firstName(client)}, עדכון על הבקשה שלכם: "${clean(requestText)}". טיפלנו בזה. אם צריך עוד משהו, כתבו לנו.`;
 }
+
+// ── A shoot date against the usual order ──
+// The shoot day comes after the characterization, with time for the scripts to be
+// written and approved (12, 13: three business days). The office is not stopped
+// from setting it otherwise, but is asked to confirm, and the reasons are kept in
+// the history of date changes. Returns the reasons, in Hebrew ([] when all is in order).
+export const SHOOT_MIN_BUSINESS_DAYS = 3;
+export function shootDateConcerns({ shootAt, charAt = null, now = new Date() }) {
+  const shoot = parseDate(shootAt);
+  if (!shoot) return [];
+  const char = parseDate(charAt);
+  const out = [];
+  if (shoot < now) out.push('המועד כבר עבר.');
+  if (char && shoot < char) out.push(`יום הצילום לפני פגישת האפיון (${dayText(char)}).`);
+  else if (char && businessDaysBetween(char, shoot) < SHOOT_MIN_BUSINESS_DAYS) {
+    out.push(`פחות מ־${SHOOT_MIN_BUSINESS_DAYS} ימי עסקים אחרי פגישת האפיון (${dayText(char)}): התסריטים עוד לא יהיו כתובים ומאושרים.`);
+  }
+  return out;
+}
+// The question put to whoever sets it, and the note kept when they confirm.
+export const shootDateQuestion = (shootAt, concerns) => `יום הצילום: ${dayText(parseDate(shootAt))} בשעה ${timeText(parseDate(shootAt))}.\n${concerns.map((c) => `• ${c}`).join('\n')}\n\nלקבוע את המועד בכל זאת?`;
+export const shootDateNote = (concerns) => `אושר למרות: ${concerns.join(' ')}`.slice(0, 500);
