@@ -421,17 +421,35 @@ export function handoffOf(checks, pre = '') {
   const lior = atOf(checks, `${pre}p19.took`);
   return { eli, lior, done: !!(eli && lior), at: eli && lior ? new Date(Math.max(eli, lior)) : null };
 }
-// The shoot day can be closed only with the testimonial video, the full quantity
-// (the counter, or Lior's check when the package has no number) and the drive back.
-export function closeLock(checks, pre = '', target = null) {
+// The shoot day runs from its start (shoot_at, when the influencers arrive): the
+// counter and the closing are not available before it (found live, 6.10.2026: a day
+// counted 25/25 and closed 36 minutes before it began). Eli's steps before the
+// arrival (the briefing, the gear, "הגעתי") are not held by this.
+export const shootStarted = (sc, now = new Date()) => !!sc?.shootAt && now >= sc.shootAt;
+export const startsText = (shootAt) => `מתחיל ב־${clockText(shootAt)}`;
+// The shoot day can be closed only from its start, with the testimonial video, the
+// full quantity (the counter, or Lior's check when the package has no number) and
+// the drive back. `startAt` is the shoot's start; without it only the marks decide.
+export function closeLock(checks, pre = '', target = null, { startAt = null, now = new Date() } = {}) {
   const missing = [];
+  const early = !!startAt && now < startAt;
+  if (early) missing.push(`יום הצילום ${startsText(startAt)}`);
   const shot = shotOf(checks, pre).length;
   if (!done(checks, `${pre}p19.testimonial`)) missing.push('סרטון המלצה');
   if (target ? shot < target : !done(checks, `${pre}p18.all`)) missing.push(target ? `עוד ${target - shot} סרטונים (${counterText(shot, target)})` : 'סימון שכל הכמות צולמה');
   const h = handoffOf(checks, pre);
   if (!h.eli) missing.push('אלי עוד לא סימן שמסר את הכונן');
   if (!h.lior) missing.push('לא אישרת שהכונן חזר אליך');
-  return { ok: !missing.length, missing, shot };
+  return { ok: !missing.length, missing, shot, early };
+}
+// After the day is closed: who edits. The server assigns the editor by itself in the
+// next reminders run (app/auto-assign.js) and tells Ofir quietly; an editor already
+// in the card is kept.
+export function afterCloseText(checks, pre = '', ctx = null) {
+  const editor = ctx?.editor && PEOPLE[ctx.editor] ? PEOPLE[ctx.editor].name : null;
+  if (done(checks, `${pre}p22a.assigned`) && editor) return `העריכה אצל ${editor}.`;
+  if (editor) return `העריכה נשארת אצל ${editor}, כפי שנרשם בכרטיס, ואופיר יקבל על כך הודעה.`;
+  return 'העורך ישויך אוטומטית לפי העומס, ואופיר יקבל על כך הודעה.';
 }
 // What closing the day marks (with the testimonial and the handoff already marked).
 export const CLOSE_KEYS = ['p18.order', 'p18.all', 'p19.all', 'p19.drive'];

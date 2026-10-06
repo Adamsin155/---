@@ -278,6 +278,17 @@ test('shoot-day lock: the testimonial, the full quantity and the drive back, con
   c['p19.took'] = done(IL(2026, 10, 15, 16, 5));
   assert.equal(P.closeLock(c, '', 3).ok, true);
   assert.equal(hhmm(P.handoffOf(c).at), '15.10 16:05');
+  // Not before the day starts (found live: a day closed 36 minutes before its start).
+  const startAt = IL(2026, 10, 15, 11);
+  const early = P.closeLock(c, '', 3, { startAt, now: IL(2026, 10, 15, 10, 24) });
+  assert.deepEqual([early.ok, early.early, early.missing], [false, true, ['יום הצילום מתחיל ב־11:00']]);
+  assert.equal(P.closeLock(c, '', 3, { startAt, now: startAt }).ok, true);
+  assert.equal(P.shootStarted({ shootAt: startAt }, IL(2026, 10, 15, 10, 59)), false);
+  assert.equal(P.shootStarted({ shootAt: startAt }, startAt), true);
+  // What closing says: the editor is assigned by the server; one already in the card is kept.
+  assert.equal(P.afterCloseText(c, '', { editor: null }), 'העורך ישויך אוטומטית לפי העומס, ואופיר יקבל על כך הודעה.');
+  assert.match(P.afterCloseText(c, '', { editor: 'nadia' }), /^העריכה נשארת אצל נדיה/);
+  assert.equal(P.afterCloseText({ 'p22a.assigned': done(IL(2026, 10, 15, 17)) }, '', { editor: 'nadia' }), 'העריכה אצל נדיה.');
   // Without a number in the package: Lior's own check of the quantity.
   assert.deepEqual(P.closeLock(c, '', null).missing, ['סימון שכל הכמות צולמה']);
   // The counter: numbered, the next one, the words.

@@ -585,6 +585,32 @@ await step('Eli lands on "ימי הצילום שלי": his arrival, the scripts,
 });
 
 // ── The shoot day ─────────────────────────
+// Found live (6.10.2026): Lior counted 25/25 and closed the day 36 minutes before it began.
+await step('before the shoot starts: "מתחיל ב־11:00", the counter and the closing are disabled with the reason', async () => {
+  const { page, ctx } = await scene('2026-10-22T10:24:00');
+  await signIn(page, 'shoot.html', 'lior');
+  await page.waitForSelector(sCard);
+  assert.equal(await text(page, `${sCard} .ed-state`), 'מתחיל ב־11:00');
+  assert.equal(await page.isDisabled(`#${S_ID}-plus`), true);
+  assert.match(await text(page, `#${S_ID}-early`), /יום הצילום מתחיל ב־11:00\. המונה והסגירה נפתחים אז\./);
+  assert.equal(await page.getAttribute(`#${S_ID}-plus`, 'aria-describedby'), `${S_ID}-early`);
+  for (const id of ['testimonial', 'took', 'close']) assert.equal(await page.isDisabled(`#${S_ID}-${id}`), true, id);
+  assert.match(await text(page, `#${S_ID}-lock`), /^עוד חסר: יום הצילום מתחיל ב־11:00 · /);
+  assert.equal(checkOf(S, 'p18.shot'), null);
+  assert.ok(await noHScroll(page));
+  await ctx.close();
+});
+// On the day itself "will arrive the evening before" is no longer true.
+await step('Eli on a shoot day that got no briefing: "ליאור עוד לא מילא", not a promise about yesterday', async () => {
+  const { page, ctx } = await scene('2026-10-15T08:00:00');
+  await signIn(page, 'shoot.html', 'eli');
+  const card = `#s-${A.id}`;
+  await page.waitForSelector(card);
+  assert.match(await text(page, `${card} .sh-facts`), /תווית הכונן\s*ליאור עוד לא מילא/);
+  assert.match(await text(page, card), /התדריך: ליאור עוד לא מילא\./);
+  assert.doesNotMatch(await text(page, card), /יגיע בערב שלפני|ימלא בתדריך/);
+  await ctx.close();
+});
 await step('Eli on the day: "הגעתי", the drive, "הבי־רול לא גמור"; the handoff is locked until the list is done', async () => {
   const { page, ctx } = await scene('2026-10-22T09:55:00');
   await signIn(page, 'shoot.html', 'eli');
@@ -651,9 +677,15 @@ await step('Lior\'s shoot-day mode: quiet mode from Eli\'s arrival, the timeline
   assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await shot(page, 'lior-shoot');
   await page.click(`#${S_ID}-close`);
-  await toastHas(page, 'יום הצילום נסגר');
+  // The toast says what really happens: the server assigns the editor by itself.
+  await toastHas(page, 'יום הצילום נסגר. העורך ישויך אוטומטית לפי העומס, ואופיר יקבל על כך הודעה.');
   for (const k of ['p18.order', 'p18.all', 'p19.all', 'p19.drive', 'p19.took', 'p19.testimonial']) assert.ok(checkOf(S, k), k);
-  assert.match(await text(page, sCard), /יום הצילום נסגר/);
+  assert.match(await text(page, sCard), /יום הצילום נסגר[^]*העורך ישויך אוטומטית לפי העומס/);
+  assert.doesNotMatch(await text(page, sCard), /אופיר קיבל/);
+  // Closed: the counter is final (no "+1", no "ביטול סרטון"), and the drive is with Lior.
+  assert.equal(await page.locator(`#${S_ID}-plus, #${S_ID}-minus`).count(), 0);
+  assert.equal(await text(page, `#${S_ID}-count`), 'צולמו 4 מתוך 4');
+  assert.match(await text(page, `${sCard} .sh-facts`), /אלי\s*הגיע 09:55 · הכונן אצל ליאור/);
   await ctx.close();
   // Eli sees the handoff confirmed and may format the cards.
   await reload(eliPage.page);
@@ -665,7 +697,8 @@ await step('who sees what: the office watches the shoot without buttons; an edit
   const irit = await scene('2026-10-22T12:00:00', { width: 1280, height: 900 });
   await signIn(irit.page, 'shoot.html', 'irit');
   await irit.page.waitForSelector(sCard);
-  assert.equal(await irit.page.isDisabled(`#${S_ID}-plus`), true);
+  assert.equal(await irit.page.locator(`#${S_ID}-plus`).count(), 0); // the day is closed: no counter controls
+  assert.equal(await irit.page.locator(`${sCard} button:not([disabled])`).count(), 0);
   assert.match(await text(irit.page, '#sh-sub'), /לצפייה/);
   await irit.ctx.close();
   const yariv = await scene('2026-10-22T12:00:00');
