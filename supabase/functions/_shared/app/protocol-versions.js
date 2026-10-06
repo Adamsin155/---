@@ -96,6 +96,11 @@ export const PROTOCOL_HISTORY = [
       p11: { start: { from: 'charEnd' }, due: { from: 'char', businessDays: 3 } },
     },
   },
+  {
+    version: 7, date: '2026-10-06', title: 'העלאת ה־Highlights לרשתות',
+    changes: ['נוסף 8ב: אחרי שה־Highlights מוכנים, אופיר מעלה אותם לעמודי הלקוח ומסמן, תוך 30 דקות עבודה.'],
+    items: ['p08b.posted'],
+  },
 ];
 
 export const LATEST = PROTOCOL_HISTORY.at(-1).version;

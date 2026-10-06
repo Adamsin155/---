@@ -249,6 +249,9 @@ export const LATE_WATCHERS = ['ofir', 'lior'];
 // How far past its deadline an item is before Ofir and Lior are told (office minutes):
 // a handoff that just landed is not "late" in the minute it arrives (found live, 6.10.2026).
 export const LATE_GRACE_MINUTES = 15;
+// A late process whose own ladder already rings one of the watchers at the deadline
+// (8ב: Ofir, `highlightsUpload`): `late` does not tell that watcher again; the other still hears.
+export const LATE_RUNG = { p08b: 'ofir' };
 // How late an item is before it joins the owner's daily summary (one message, 18:00).
 export const OWNER_LATE_HOURS = 24;
 
@@ -1246,6 +1249,8 @@ export const RULES = [
     // `list`: Lior's "החלטות" screen keeps listing what is late (decisions.html), as before.
     steps: LATE_WATCHERS.map((p) => ({
       id: p, to: p, level: 'quiet', overdue: true, list: p === 'lior', officeMinutes: LATE_GRACE_MINUTES,
+      // Not a second message to the watcher its own ladder already rang for this deadline.
+      when: (i) => LATE_RUNG[baseId(i.proc.id)] !== p,
       title: (i) => `באיחור: ${i.name} · ${procName(i.proc)} · ${names(i.owners.filter((o) => o !== 'editor').map(personName)) || 'העורך המשויך'}`,
       body: (i, env) => `היעד היה ${whenText(i.anchors.event, env.now)}.`,
     })),
@@ -1297,6 +1302,23 @@ export const RULES = [
     },
     steps: [
       { id: 'now', to: 'ilai', level: 'ring', exempt: 'clock', title: (i) => `הגרפיקות של ${i.name} אושרו — להעלות לרשתות`, body: (i, env) => `${i.proc.title}. יעד ${whenText(i.anchors.due, env.now)} (30 דקות עבודה).` },
+    ],
+  },
+
+  // 8ב (v7, the owner's decision of 6.10.2026): the Highlights are ready (process 8
+  // complete, not by importing history). Ofir, who just finished them, is told quietly
+  // and has 30 office minutes to upload them and mark it; when they pass without the
+  // mark he rings (a client that started before v7: the item is new for it, so no
+  // lateness ring; see freshCase). Late: `late` tells Lior (Ofir rang: LATE_RUNG).
+  {
+    id: 'highlightsUpload', event: 'Highlights מוכנים: להעלות לרשתות (8ב)', procs: ['p08b'],
+    instances(env) {
+      return casesOf(env, 'p08b', (i) => !!i.finishedAt('p08') && !!i.s.startAt && !!i.s.dueAt && !halted(i))
+        .map((i) => ({ ...i, id: `${i.proc.id}@${i.s.startAt.toISOString()}`, anchors: { event: i.s.startAt, due: i.s.dueAt } }));
+    },
+    steps: [
+      { id: 'now', to: 'ofir', level: 'quiet', title: (i) => `ה־Highlights מוכנים: להעלות לרשתות תוך 30 דקות · ${i.name}`, body: (i, env) => `${i.proc.title}. יעד ${whenText(i.anchors.due, env.now)} (30 דקות עבודה).` },
+      { id: 'due', from: 'due', to: 'ofir', level: 'ring', exempt: 'clock', overdue: true, title: (i) => `ה־Highlights של ${i.name} עוד לא הועלו לרשתות`, body: (i, env) => `עברו 30 דקות עבודה מאז שהוכנו (היעד היה ${whenText(i.anchors.due, env.now)}). להעלות לעמודי הלקוח ולסמן.` },
     ],
   },
 

@@ -107,7 +107,7 @@ const client = (id, fields) => ({
 });
 const doneAll = (c, ids, at) => Object.fromEntries(applicableProcesses(c).filter((p) => ids.includes(p.id))
   .flatMap((p) => p.items.filter((i) => !i.optional).map((i) => [i.key, { state: 'done', at, note: null, by_email: 'x@astrateg.test' }])));
-const EARLY = ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p09', 'p10'];
+const EARLY = ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10'];
 
 // Ron: meeting today (Ofir), shoot on Sunday 25.10 (Denis, Michel and Semion), a second
 // round in 40 days (beyond Eli's window), editing Nadia's, a Zoom set for tomorrow.

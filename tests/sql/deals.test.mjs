@@ -8,7 +8,6 @@
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { freshDatabase, as, migrationSql } from './pg.mjs';
-import { PROTOCOL_VERSION } from '../../app/protocol.js';
 import { validateDeal } from '../../app/deal-logic.js';
 
 const MIGRATION = '20261003100000_sales_deals.sql';
@@ -115,7 +114,7 @@ test('the quote of a deal signed: the deal is "signed" (and the client opens as 
   assert.ok(d.signed_at);
   // open_client_on_signing still opened the client, with the characterization on Ofir by default.
   const c = (await db.query('select characterizer, protocol_version from public.clients where quote_id = $1', [ids.quote])).rows[0];
-  assert.deepEqual(c, { characterizer: 'ofir', protocol_version: PROTOCOL_VERSION });
+  assert.deepEqual(c, { characterizer: 'ofir', protocol_version: 6 }); // this database stops at this migration (version 6)
   // Stav sees it signed.
   assert.equal((await q('stav', 'select status from public.deal_requests where id = $1', [deal])).rows[0].status, 'signed');
 });
@@ -152,7 +151,7 @@ test('the rest of the migration: Stav in the reminders, Ofir by default, version
   await db.query("insert into public.reminder_log (key, rule, person, level, channel, status, title) values ('dealSigned:-:x:seller@stav', 'dealSigned', 'stav', 'quiet', 'app', 'sent', 'פיצה רון חתם 🎉')");
   assert.equal((await q('stav', 'select title from public.reminder_log')).rows.map((r) => r.title).includes('פיצה רון חתם 🎉'), true);
   const c = (await db.query("insert into public.clients (name) values ('ברירת מחדל') returning characterizer, protocol_version")).rows[0];
-  assert.deepEqual(c, { characterizer: 'ofir', protocol_version: PROTOCOL_VERSION });
+  assert.deepEqual(c, { characterizer: 'ofir', protocol_version: 6 }); // this database stops at this migration (version 6)
   assert.equal((await db.query('select private.protocol_version_current() as v')).rows[0].v, 6);
   // Approved before 7ב and 23ב existed: posted, as imported history (once, though the migration ran twice).
   const posted = (await db.query("select item_key, note from public.protocol_checks where client_id = $1 and item_key like 'p%b.posted' order by 1", [ids.approved])).rows;

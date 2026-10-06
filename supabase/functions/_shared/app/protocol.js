@@ -20,8 +20,11 @@
 //   - New: 7ב and 23ב, Ilai uploads the graphics the client approved within 30
 //     office minutes; 23 gets the client's approval as an optional item (p23.approved,
 //     until now only a mark of the status page).
+// v7 (the owner's decision of 6.10.2026):
+//   - New: 8ב, Ofir uploads the Highlights to the client's pages within 30 office
+//     minutes of preparing them (process 8 complete), and marks it (p08b.posted).
 
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 // Office hours, in Israel time (decisions 1–2 in docs/plan/decisions.md).
 // Deadlines of minutes or hours that start from an office event (a deal coming
@@ -189,7 +192,7 @@ export const PHASES = [
 // station is a run of processes in PROCESSES order; against PHASES above:
 //   הצטרפות      onboarding 1–3 (the deal, the WhatsApp group, setting the meeting)
 //                and, since v6, 11 and 11ב (the shoot day is set right after the group)
-//   אפיון        onboarding 4–6 (the meeting, access, the pages) + parallel 7, 7ב, 8–10
+//   אפיון        onboarding 4–6 (the meeting, access, the pages) + parallel 7, 7ב, 8, 8ב, 9, 10
 //   תוכן ואישור  prep (12א, 12, 13, 14)
 //   יום צילום    eve (15, 16) + shoot (17–21, with 17ב, 18ב, 19ב)
 //   עריכה ובקרה  post (22א, 22, 23, 23ב, 24, 25, 26, 27)
@@ -199,7 +202,7 @@ export const PHASES = [
 // tests/client-open.test.mjs checks that every process sits in exactly one station.
 export const STATIONS = [
   { key: 'join', title: 'הצטרפות', procs: ['p01', 'p02', 'p03', 'p11', 'p11b'] },
-  { key: 'char', title: 'אפיון', procs: ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p09', 'p10'] },
+  { key: 'char', title: 'אפיון', procs: ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10'] },
   { key: 'content', title: 'תוכן ואישור', procs: ['p12a', 'p12', 'p13', 'p14'] },
   { key: 'shoot', title: 'יום צילום', procs: ['p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21'] },
   { key: 'post', title: 'עריכה ובקרה', procs: ['p22a', 'p22', 'p23', 'p23b', 'p24', 'p25', 'p26', 'p27'] },
@@ -371,6 +374,16 @@ export const PROCESSES = [
     items: [
       { key: 'p08.done', label: 'הוכנו עד 4 Highlights לפי השירותים, המוצרים ושפת העסק' },
       { key: 'p08.saved', label: 'ה־Highlights נשמרו במקום המסודר של הלקוח ומוכנים לעמוד' },
+    ],
+  },
+  {
+    id: 'p08b', num: '8ב', phase: 'parallel', title: 'העלאת ה־Highlights לרשתות', owners: ['ofir'],
+    sla: 'עד 30 דקות עבודה מרגע שה־Highlights הוכנו',
+    // v7: the Highlights are ready (process 8 complete: prepared and saved): Ofir uploads them.
+    start: { from: 'p08' }, due: { from: 'p08', minutes: 30 },
+    what: 'אחרי שה־Highlights מוכנים, אופיר מעלה אותם לעמודי הלקוח ומסמן. חצי שעה מרגע שהוכנו.',
+    items: [
+      { key: 'p08b.posted', label: 'ה־Highlights הועלו לעמודי הלקוח ברשתות' },
     ],
   },
   {

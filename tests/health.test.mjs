@@ -29,7 +29,7 @@ const keysFor = (c, ids) => applicableProcesses(c).filter((p) => ids.includes(p.
 const done = (c, ids, when, note = null, by = 'irit@x.test') => Object.fromEntries(keysFor(c, ids).map((k) => [k, { state: 'done', at: when, note, by_email: by }]));
 const item = (key, when, note = null, by = 'irit@x.test') => ({ [key]: { state: 'done', at: when, note, by_email: by } });
 const JOIN = ['p01', 'p02', 'p03'];
-const CHAR = ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p09', 'p10'];
+const CHAR = ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10'];
 const health = (c, checks, now, extras = {}) => clientHealth(c, clientState(c, checks, at(now)), { checks, now: at(now), ...extras });
 const codes = (h) => h.reasons.map((r) => r.code);
 const find = (h, code, procId) => h.reasons.find((r) => (!code || r.code === code) && (!procId || r.procId === procId));
@@ -438,7 +438,7 @@ test('screen 4: open, late, this week, on time, median vs norm, editor load vs c
 
 test('the weekly call is due by Thursday of the week after the last one; the board of the week', () => {
   const c = { ...base, shoot_at: '2026-10-14T10:00:00+03:00' };
-  const all = ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21', 'p22a', 'p22', 'p23', 'p24', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30'];
+  const all = ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21', 'p22a', 'p22', 'p23', 'p24', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30'];
   const checks = { ...done(c, JOIN, '2026-10-11T09:03:00+03:00'), ...done(c, all, '2026-10-20T10:00:00+03:00') };
   const s = clientState(c, checks, at('2026-10-21T10:00:00+03:00')).states.find((x) => x.proc.id === 'p31');
   // Campaigns up on Tuesday 20.10: the first call is due by Thursday of the following week.
