@@ -373,7 +373,8 @@ function customStepper(q, base) {
 function renderLines() {
   const lines = state.custom?.lines || [];
   const setLine = (i, patch) => {
-    const next = lines.map((l, j) => (j === i ? { ...l, ...patch } : l));
+    // The lines as they are now (typing in one field never rebuilds the others).
+    const next = (state.custom?.lines || []).map((l, j) => (j === i ? { ...l, ...patch } : l));
     update({ custom: { ...state.custom, lines: next } });
   };
   const num = (v, max) => (v === '' || !Number.isFinite(Number(v)) || Number(v) <= 0 ? null : clampInt(v, 1, max));
@@ -387,7 +388,7 @@ function renderLines() {
     h('button', {
       type: 'button', class: 'x', id: `cl-del-${i}`, 'aria-label': `הסרת השורה ${l.label || i + 1}`,
       onclick: () => {
-        state = { ...state, custom: { ...state.custom, lines: lines.filter((_, j) => j !== i) } };
+        state = { ...state, custom: { ...state.custom, lines: (state.custom?.lines || []).filter((_, j) => j !== i) } };
         renderLines();
         update({});
         $('custom-add-line').focus();
