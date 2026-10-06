@@ -115,7 +115,7 @@ export function renderQuoteDoc(model, meta = {}) {
   const counted = pkg.includes.filter((i) => i.qty !== null);
   const services = pkg.includes.filter((i) => i.qty === null);
   const pkgSection = h('section', { class: 'qd-section' },
-    sectionHead('החבילה', 'כמויות לשנה'),
+    sectionHead('החבילה', model.termMonths === 12 ? 'כמויות לשנה' : 'כמויות לכל התקופה'),
     h('div', { class: 'qd-pkg' },
       h('div', {},
         h('div', { class: 'qd-pkg-name', dir: 'auto' }, pkg.tierName),
@@ -165,6 +165,8 @@ export function renderQuoteDoc(model, meta = {}) {
       h('tbody', {},
         priceRow(`חבילה · ${pkg.tierName}`, pkg.monthly),
         model.paid.map((p) => priceRow(p.name, p.monthly)),
+        // A contract changed by hand: the added lines that carry a price.
+        (model.extraLines || []).filter((l) => l.monthly).map((l) => priceRow(l.label, l.monthly)),
         t.discount ? h('tr', { class: 'discount' },
           h('th', { scope: 'row' }, 'הנחה'),
           h('td', { class: 'amt' }, h('span', { class: 'num', dir: 'ltr' }, `−${formatILS(t.discount)}`)),
@@ -184,6 +186,12 @@ export function renderQuoteDoc(model, meta = {}) {
   const notes = c.notes ? h('section', { class: 'qd-section' },
     sectionHead('הערות'),
     h('p', { class: 'qd-notes' }, c.notes),
+  ) : null;
+
+  // Special terms of a contract changed by hand. In an agreement they are its last chapter.
+  const special = !isAgreement && model.specialTerms ? h('section', { class: 'qd-section' },
+    sectionHead('תנאים מיוחדים'),
+    h('p', { class: 'qd-notes' }, model.specialTerms),
   ) : null;
 
   const legal = isAgreement && model.legal ? h('section', { class: 'qd-section qd-legal' },
@@ -232,5 +240,5 @@ export function renderQuoteDoc(model, meta = {}) {
   );
 
   return h('article', { class: `qd qd--${isAgreement ? 'agreement' : 'quote'}`, dir: 'rtl', lang: 'he' },
-    header, parties, hero, pkgSection, paidSection, freeSection, pricing, notes, legal, signature, foot);
+    header, parties, hero, pkgSection, paidSection, freeSection, pricing, special, notes, legal, signature, foot);
 }

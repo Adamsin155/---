@@ -621,18 +621,28 @@ export function packageDeliverables(model) {
   if (!sel || !spec) return {};
   const paid = sel.paid || [];
   const free = sel.free || {};
-  const months = Number.isFinite(model?.termMonths) ? Math.round(model.termMonths) : TERM_MONTHS;
+  // A contract changed by hand (selection.custom, app/pricing.js; 6.10.2026): the
+  // package's own quantities as typed (add-ons still add on top), the term, and the
+  // added lines, kept for display only (`extra`, no counters).
+  const custom = sel.custom || {};
+  const qty = custom.qty || {};
+  const num = (key, base) => (Number.isInteger(qty[key]) ? qty[key] : base);
+  const months = Number.isFinite(model?.termMonths) ? Math.round(model.termMonths)
+    : Number.isInteger(custom.termMonths) ? custom.termMonths : TERM_MONTHS;
   const out = {
-    videos: spec.videos,
-    graphics: spec.graphics + (free.graphics || 0),
-    shoot_days: spec.shootDays + (paid.includes('simeon-day') ? 1 : 0),
-    collabs: spec.collabs + (paid.includes('natali-reel') ? 1 : 0),
-    stories: spec.stories + (free.simeonStories || 0) + (paid.includes('natali-story') ? 1 : 0),
-    ch14: spec.ch14 + (free.extraCh14 ? 1 : 0),
-    monthly: paid.includes('photographer') ? 8 * months : 0,
+    videos: num('videos', spec.videos),
+    graphics: num('graphics', spec.graphics) + (free.graphics || 0),
+    shoot_days: num('shootDays', spec.shootDays) + (paid.includes('simeon-day') ? 1 : 0),
+    collabs: num('collabs', spec.collabs) + (paid.includes('natali-reel') ? 1 : 0),
+    stories: num('stories', spec.stories) + (free.simeonStories || 0) + (paid.includes('natali-story') ? 1 : 0),
+    ch14: num('ch14', spec.ch14) + (free.extraCh14 ? 1 : 0),
+    monthly: paid.includes('photographer') ? num('monthly', 8) * months : 0,
   };
-  if (PACKAGES[id]?.tier === 'podcast') out.photo_days = 1;
+  const photoDays = num('photoDays', PACKAGES[id]?.tier === 'podcast' ? 1 : 0);
+  if (photoDays > 0) out.photo_days = photoDays;
   if (free.simeonJoin) out.simeon_join = 1;
+  const lines = Array.isArray(custom.lines) ? custom.lines.filter((l) => l?.label) : [];
+  if (lines.length) out.extra = lines.map((l) => ({ label: l.label, qty: Number.isInteger(l.qty) ? l.qty : null }));
   return out;
 }
 
