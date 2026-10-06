@@ -1,5 +1,5 @@
 -- Custom (exceptional) contracts with a manager's approval (the owner's decisions of
--- 6.10.2026; docs/ops.md, section 27).
+-- 6.10.2026; docs/ops.md, section 28).
 --   1. A quote whose selection carries `custom` (anything that differs from the
 --      built-in rules: quantities, price, a discount above 200 ₪, the term, added
 --      lines, special terms; app/pricing.js exceptionOf) is stored as approval

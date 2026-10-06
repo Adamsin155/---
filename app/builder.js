@@ -1,10 +1,12 @@
 import {
   INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS, SPEC_ROWS, SPECS,
   VAT_RATE_PERCENT, TERM_MONTHS, DOC_TYPES, MAX_DISCOUNT, packageId,
+  CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS,
 } from './catalog.js';
 import {
   emptySelection, reconcile, computeTotals, buildQuoteModel, formatILS,
   paidAddonAvailable, freeAddonAvailable,
+  exceptionOf, normalizeSelection, baseQuantities,
 } from './pricing.js';
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
 
@@ -15,6 +17,12 @@ let state = emptySelection();
 // the client signs).
 const DEAL_PARAM = new URLSearchParams(location.search).get('deal');
 let dealId = null;
+// A contract that went for a manager's approval, opened again to be corrected
+// (index.html?revise=<quote id>, 6.10.2026): what is sent replaces it as a new version.
+const REVISE_PARAM = new URLSearchParams(location.search).get('revise');
+let reviseId = null;
+// "חוזה מותאם אישית" is the office's (the server refuses it from anyone else).
+let office = false;
 
 // Supabase loads lazily so the builder still works if the network is down.
 let supa = null;
@@ -211,7 +219,7 @@ function renderFree() {
 }
 
 function renderSummary() {
-  const model = buildQuoteModel(state, readClient());
+  const model = currentModel();
   const t = model.totals;
   const tier = TIERS.find((x) => x.id === state.tier);
   $('sum-pkg').textContent = tier.name;
@@ -222,12 +230,13 @@ function renderSummary() {
   const lines = [
     line('חבילה', h('span', { class: 'val', dir: 'ltr' }, formatILS(model.package.monthly))),
     ...model.paid.map((p) => line(p.name, h('span', { class: 'val', dir: 'ltr' }, `+${formatILS(p.monthly)}`))),
+    ...(model.extraLines || []).filter((l) => l.monthly).map((l) => line(l.label, h('span', { class: 'val', dir: 'ltr' }, `+${formatILS(l.monthly)}`))),
     t.discount ? line('הנחה', h('span', { class: 'val is-discount', dir: 'ltr' }, `−${formatILS(t.discount)}`)) : null,
   ].filter(Boolean);
   const free = model.free.map((f) => line(f.qty ? `${f.name} × ${f.qty}` : f.name, h('span', { class: 'free' }, '0 ₪'), 'is-free'));
 
   // Composition of the monthly price: package vs. paid add-ons.
-  const pkgPct = (model.package.monthly / t.monthlyList) * 100;
+  const pkgPct = t.monthlyList ? (model.package.monthly / t.monthlyList) * 100 : 100;
   const bar = h('div', { class: 'compo', role: 'img', 'aria-label': `חבילה ${Math.round(pkgPct)}% מהמחיר החודשי` },
     h('span', { class: 'compo-pkg', style: `inline-size:${pkgPct}%` }),
     h('span', { class: 'compo-add', style: `inline-size:${100 - pkgPct}%` }),
@@ -251,9 +260,25 @@ function renderSummary() {
   $('t-vat-label').textContent = `מע״מ ${VAT_RATE_PERCENT}%`;
   $('mb-total').textContent = formatILS(t.monthlyGross);
   $('mb-net').textContent = formatILS(t.monthlyNet);
-  $('term-note').textContent = state.paid.includes('photographer')
-    ? 'התחייבות ל־12 חודשים. הכמויות שנתיות, למעט הצלם החודשי: 8 תכנים בכל חודש.'
-    : 'התחייבות ל־12 חודשים. כל הכמויות בחבילה ובתוספות הן לשנה.';
+  // The term in words: 12 months unless the contract was changed by hand.
+  const months = model.termMonths;
+  const monthsText = months === 1 ? 'חודש אחד' : `${months} חודשים`;
+  $('t-ynet-label').textContent = `${monthsText}, לפני מע״מ`;
+  $('t-ygross-label').textContent = `${monthsText}, כולל מע״מ`;
+  $('fact-term').textContent = monthsText;
+  const perMonth = model.selection.custom?.qty?.monthly ?? MONTHLY_CONTENTS;
+  if (months === TERM_MONTHS && perMonth === MONTHLY_CONTENTS) {
+    $('term-note').textContent = state.paid.includes('photographer')
+      ? 'התחייבות ל־12 חודשים. הכמויות שנתיות, למעט הצלם החודשי: 8 תכנים בכל חודש.'
+      : 'התחייבות ל־12 חודשים. כל הכמויות בחבילה ובתוספות הן לשנה.';
+  } else {
+    $('term-note').textContent = state.paid.includes('photographer')
+      ? `התחייבות ל־${monthsText}. הכמויות לכל התקופה, למעט הצלם החודשי: ${perMonth} תכנים בכל חודש.`
+      : `התחייבות ל־${monthsText}. כל הכמויות בחבילה ובתוספות הן לכל התקופה.`;
+  }
+  const diff = exceptionOf(model.selection);
+  $('sum-diff').hidden = !diff.length;
+  $('sum-diff').replaceChildren(...(diff.length ? [h('strong', {}, 'חוזה חריג'), ` · ${diff.length === 1 ? 'שינוי אחד' : `${diff.length} שינויים`} מהחבילה · נשלח לאישור מנהל לפני הלקוח`] : []));
   return t;
 }
 
@@ -270,14 +295,185 @@ function renderDocType() {
   $('page-h1').textContent = signable ? 'הסכם התקשרות חדש' : 'הצעת מחיר חדשה';
   document.title = `${signable ? 'הסכם התקשרות' : 'הצעת מחיר'} · astrateg`;
   $('sum-doc').textContent = doc.name;
-  $('btn-link').textContent = signable ? 'יצירת קישור לחתימה' : 'יצירת קישור לצפייה';
-  $('act-hint').textContent = signable
-    ? 'הלקוח קורא את ההסכם וחותם אונליין · נשמר ב״הצעות שנשלחו״'
-    : 'הלקוח צופה בהצעה, בלי חתימה · נשמר ב״הצעות שנשלחו״';
+  // A contract that differs from the built-in rules goes to a manager first: no link yet.
+  const exceptional = exceptionOf(selectionToSend()).length > 0;
+  $('btn-link').textContent = exceptional ? 'שליחה לאישור' : signable ? 'יצירת קישור לחתימה' : 'יצירת קישור לצפייה';
+  $('act-hint').textContent = exceptional
+    ? 'חוזה חריג: נשלח לאישור של אדם, אופיר או ליאור · הקישור ללקוח נוצר אחרי האישור'
+    : signable
+      ? 'הלקוח קורא את ההסכם וחותם אונליין · נשמר ב״הצעות שנשלחו״'
+      : 'הלקוח צופה בהצעה, בלי חתימה · נשמר ב״הצעות שנשלחו״';
   document.querySelectorAll('#doc-switch [data-doc]').forEach((b) => {
     b.setAttribute('aria-checked', String(b.dataset.doc === state.docType));
   });
 }
+
+/* ── Custom contract ("חוזה מותאם אישית") ──────
+   The office changes the contract by hand on top of the chosen package: the
+   package's own quantities, its monthly price, the term, a discount of any size,
+   added lines and special terms (state.custom; the rules and the limits are in
+   app/pricing.js and app/catalog.js). The panel "מה שונה מהחבילה" lists the
+   deviations as the server will see them. Any deviation: the contract goes to a
+   manager's approval, and the client's link is made only after it. */
+const customOn = () => !!state.custom;
+const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v))));
+
+// What goes to the server (and into every preview): the selection with the changes
+// made by hand, without anything that equals the package.
+function selectionToSend() {
+  const { custom: c, ...rest } = state;
+  if (!c) return rest;
+  const custom = { discount: rest.discount || 0 };
+  const qty = Object.fromEntries(Object.entries(c.qty || {}).filter(([k, v]) => {
+    const def = CUSTOM_QTY.find((q) => q.key === k);
+    return def && Number.isInteger(v) && (!def.addon || rest.paid.includes(def.addon));
+  }));
+  if (Object.keys(qty).length) custom.qty = qty;
+  if (Number.isInteger(c.price)) custom.price = c.price;
+  if (Number.isInteger(c.termMonths)) custom.termMonths = c.termMonths;
+  const lines = (c.lines || []).filter((l) => String(l.label || '').trim()).map((l) => ({
+    label: String(l.label).trim().slice(0, CUSTOM_LIMITS.lineLabel),
+    ...(Number.isInteger(l.qty) && l.qty > 0 ? { qty: l.qty } : {}),
+    ...(Number.isInteger(l.monthly) && l.monthly > 0 ? { monthly: l.monthly } : {}),
+  }));
+  if (lines.length) custom.lines = lines;
+  if (String(c.terms || '').trim()) custom.terms = c.terms;
+  return normalizeSelection({ ...rest, discount: 0, custom });
+}
+// The most the discount field takes: 200 ₪, or the whole monthly price in a custom contract.
+function discountMax() {
+  if (!customOn()) return MAX_DISCOUNT / 100;
+  return Math.floor(computeTotals(selectionToSend()).monthlyList / 100);
+}
+
+function customStepper(q, base) {
+  const id = `cq-${q.key}`;
+  const min = q.min || 0;
+  const value = Number.isInteger(state.custom.qty?.[q.key]) ? state.custom.qty[q.key] : base;
+  const set = (n, focus = id) => {
+    const v = clampInt(Number.isFinite(Number(n)) ? n : base, min, q.max);
+    const qty = { ...(state.custom.qty || {}) };
+    if (v === base) delete qty[q.key]; else qty[q.key] = v;
+    update({ custom: { ...state.custom, qty } }, { focus });
+  };
+  return h('div', { class: 'custom-q' + (value !== base ? ' is-changed' : '') },
+    h('label', { for: id }, q.name),
+    h('span', { class: 'stepper', dir: 'ltr' },
+      h('button', { type: 'button', id: `${id}-dec`, 'aria-label': `הפחתת ${q.name}`, disabled: value <= min, onclick: () => set(value - 1, `${id}-dec`) }, '−'),
+      h('input', {
+        id, type: 'number', inputmode: 'numeric', min, max: q.max, step: 1, value: String(value), 'aria-describedby': `${id}-was`,
+        onchange: (e) => set(e.target.value === '' ? base : e.target.value),
+      }),
+      h('button', { type: 'button', id: `${id}-inc`, 'aria-label': `הוספת ${q.name}`, disabled: value >= q.max, onclick: () => set(value + 1, `${id}-inc`) }, '+'),
+    ),
+    h('span', { class: 'was', id: `${id}-was` }, value !== base ? `בחבילה: ${base} · שונה` : `בחבילה: ${base}`),
+  );
+}
+
+function renderLines() {
+  const lines = state.custom?.lines || [];
+  const setLine = (i, patch) => {
+    const next = lines.map((l, j) => (j === i ? { ...l, ...patch } : l));
+    update({ custom: { ...state.custom, lines: next } });
+  };
+  const num = (v, max) => (v === '' || !Number.isFinite(Number(v)) || Number(v) <= 0 ? null : clampInt(v, 1, max));
+  $('custom-lines').replaceChildren(...lines.map((l, i) => h('div', { class: 'custom-line' },
+    h('label', { class: 'l-label' }, 'מה כלול',
+      h('input', { class: 'input', id: `cl-label-${i}`, maxlength: CUSTOM_LIMITS.lineLabel, value: l.label || '', oninput: (e) => setLine(i, { label: e.target.value }) })),
+    h('label', {}, 'כמות',
+      h('input', { class: 'input', id: `cl-qty-${i}`, type: 'number', inputmode: 'numeric', min: 1, max: CUSTOM_LIMITS.lineQtyMax, step: 1, dir: 'ltr', value: l.qty ?? '', oninput: (e) => setLine(i, { qty: num(e.target.value, CUSTOM_LIMITS.lineQtyMax) }) })),
+    h('label', {}, '₪ לחודש',
+      h('input', { class: 'input', id: `cl-price-${i}`, type: 'number', inputmode: 'numeric', min: 0, max: CUSTOM_LIMITS.linePriceMax / 100, step: 1, dir: 'ltr', value: l.monthly ? l.monthly / 100 : '', oninput: (e) => { const v = num(e.target.value, CUSTOM_LIMITS.linePriceMax / 100); setLine(i, { monthly: v === null ? null : v * 100 }); } })),
+    h('button', {
+      type: 'button', class: 'x', id: `cl-del-${i}`, 'aria-label': `הסרת השורה ${l.label || i + 1}`,
+      onclick: () => {
+        state = { ...state, custom: { ...state.custom, lines: lines.filter((_, j) => j !== i) } };
+        renderLines();
+        update({});
+        $('custom-add-line').focus();
+      },
+    }, '×'),
+  )));
+  $('custom-add-line').disabled = lines.length >= CUSTOM_LIMITS.lines;
+}
+
+// The text fields keep their own DOM (typing never rebuilds them); called when the
+// state was replaced as a whole: a draft, a deal, a contract opened for correction.
+function syncCustomInputs() {
+  $('custom-terms').value = state.custom?.terms || '';
+  renderLines();
+}
+
+function renderCustom() {
+  const group = $('custom-group');
+  group.hidden = !office;
+  const on = customOn();
+  group.classList.toggle('is-on', on);
+  $('custom-on').checked = on;
+  $('custom-body').hidden = !on;
+  $('disc-meta').textContent = on ? 'בחוזה מותאם: כל סכום · מעל 200 ₪ נדרש אישור מנהל' : 'עד 200 ₪ לחודש · לפני מע״מ';
+  $('discount').max = String(discountMax());
+  if (!on) return;
+  // The price went under the discount: the discount follows it down.
+  if ((state.discount || 0) > discountMax() * 100) {
+    state = { ...state, discount: discountMax() * 100 };
+    $('discount').value = String(state.discount / 100);
+  }
+  const pkg = PACKAGES[packageId(state.tier, state.influencer)];
+  const base = baseQuantities(state);
+  $('custom-qty').replaceChildren(...CUSTOM_QTY
+    .filter((q) => !q.addon || state.paid.includes(q.addon))
+    .map((q) => customStepper(q, base[q.key])));
+  const active = document.activeElement;
+  if (active !== $('custom-price')) $('custom-price').value = String((Number.isInteger(state.custom.price) ? state.custom.price : pkg.price) / 100);
+  if (active !== $('custom-term')) $('custom-term').value = String(Number.isInteger(state.custom.termMonths) ? state.custom.termMonths : TERM_MONTHS);
+  $('custom-price-was').textContent = `בחבילה: ${formatILS(pkg.price)}`;
+  const diff = exceptionOf(selectionToSend());
+  $('custom-diff').replaceChildren(
+    h('h4', {}, 'מה שונה מהחבילה'),
+    diff.length
+      ? h('ul', { id: 'custom-diff-list' }, diff.map((d) => h('li', {}, d.text)))
+      : h('p', {}, 'אין שינוי מהחבילה: זה חוזה רגיל, והוא נשלח ללקוח בלי אישור.'),
+    diff.length ? h('p', { class: 'needs' }, 'נדרש אישור של אדם, אופיר או ליאור לפני שהלקוח מקבל את החוזה.') : null,
+  );
+}
+
+function setCustom(on) {
+  if (on) {
+    state = { ...state, custom: state.custom || {} };
+  } else {
+    const { custom, ...rest } = state;
+    state = { ...rest, discount: Math.min(rest.discount || 0, MAX_DISCOUNT) };
+    $('discount').value = String(state.discount / 100);
+  }
+  syncCustomInputs();
+  update({}, { focus: 'custom-on' });
+}
+$('custom-on').addEventListener('change', (e) => setCustom(e.target.checked));
+$('custom-price').addEventListener('input', (e) => {
+  const pkg = PACKAGES[packageId(state.tier, state.influencer)];
+  const raw = e.target.value;
+  const price = raw === '' || !Number.isFinite(Number(raw)) ? pkg.price : clampInt(raw, 0, CUSTOM_LIMITS.priceMax / 100) * 100;
+  const custom = { ...state.custom };
+  if (price === pkg.price) delete custom.price; else custom.price = price;
+  update({ custom }, { focus: 'custom-price' });
+});
+$('custom-term').addEventListener('input', (e) => {
+  const raw = e.target.value;
+  const term = raw === '' || !Number.isFinite(Number(raw)) ? TERM_MONTHS : clampInt(raw, CUSTOM_LIMITS.termMin, CUSTOM_LIMITS.termMax);
+  const custom = { ...state.custom };
+  if (term === TERM_MONTHS) delete custom.termMonths; else custom.termMonths = term;
+  update({ custom }, { focus: 'custom-term' });
+});
+for (const id of ['custom-price', 'custom-term']) $(id).addEventListener('change', () => { $(id).blur(); renderCustom(); });
+$('custom-terms').addEventListener('input', (e) => update({ custom: { ...state.custom, terms: e.target.value } }, { focus: 'custom-terms' }));
+$('custom-add-line').addEventListener('click', () => {
+  const lines = [...(state.custom.lines || []), { label: '' }];
+  state = { ...state, custom: { ...state.custom, lines } };
+  renderLines();
+  update({});
+  $(`cl-label-${lines.length - 1}`).focus();
+});
 
 function render({ focus } = {}) {
   renderDocType();
@@ -286,6 +482,7 @@ function render({ focus } = {}) {
   renderIncluded();
   renderPaid();
   renderFree();
+  renderCustom();
   const t = renderSummary();
   announce(t);
   if (focus) {
@@ -332,19 +529,23 @@ function saveDraft() {
   if (document.body.classList.contains('is-choosing')) return;
   try {
     const client = Object.fromEntries(CLIENT_FIELDS.map((id) => [id, $(id).value]));
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ state, client, dealId }));
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ state, client, dealId, reviseId }));
   } catch { /* storage unavailable */ }
 }
-function restoreDraft(forDeal = null) {
+function restoreDraft(forDeal = null, forRevise = null) {
   try {
     const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
     if (!draft?.state || !DOC_TYPES[draft.state.docType]) return false;
     // Opened from a deal: only that deal's own draft (a refresh), never another one.
     if (forDeal && draft.dealId !== forDeal) return false;
+    // The same for a contract opened for correction; and its draft never leaks into a new one.
+    if ((forRevise || draft.reviseId) && draft.reviseId !== forRevise) return false;
     const { selection } = reconcile({ ...emptySelection(), ...draft.state, free: { ...emptySelection().free, ...draft.state.free } });
     state = selection;
+    if (state.custom === null || typeof state.custom !== 'object') delete state.custom;
     for (const id of CLIENT_FIELDS) if (typeof draft.client?.[id] === 'string') $(id).value = draft.client[id];
     $('discount').value = String((state.discount || 0) / 100);
+    syncCustomInputs();
     return true;
   } catch {
     return false;
@@ -418,7 +619,7 @@ CLIENT_FIELDS.forEach((id) => $(id).addEventListener('input', saveDraft));
 /* ── Discount ──────────────────────────────── */
 function readDiscount() {
   const v = Math.round(Number($('discount').value));
-  return Number.isFinite(v) ? Math.min(Math.max(v, 0), MAX_DISCOUNT / 100) : 0;
+  return Number.isFinite(v) ? Math.min(Math.max(v, 0), discountMax()) : 0;
 }
 $('discount').addEventListener('input', () => update({ discount: readDiscount() * 100 }, { focus: 'discount' }));
 $('discount').addEventListener('change', () => { $('discount').value = String(readDiscount()); });
@@ -426,7 +627,7 @@ $('discount').addEventListener('change', () => { $('discount').value = String(re
 /* ── Output: preview, print, HTML file ─────── */
 
 function currentModel() {
-  return buildQuoteModel(state, readClient());
+  return buildQuoteModel(selectionToSend(), readClient());
 }
 
 function openDialog(dlg, returnTo) {
@@ -547,7 +748,16 @@ async function refreshSession() {
     $('session-dot').classList.toggle('on', !!staff?.isStaff);
     $('session-who').textContent = staff ? staff.email : 'לא מחובר';
     // The app shell: the menu of this person's screens, with the managers' switch (app/shell.js).
-    if (staff?.isStaff) import('./shell.js').then((m) => m.mountShell(staff.email)).catch(() => {});
+    if (staff?.isStaff) {
+      import('./shell.js').then(async (m) => {
+        m.mountShell(staff.email);
+        // "חוזה מותאם אישית" is offered to the office only.
+        const v = await m.viewerFor(staff.email);
+        const was = office;
+        office = !v.error && v.scope === 'office';
+        if (office !== was) render();
+      }).catch(() => {});
+    } else if (office) { office = false; render(); }
     return staff;
   } catch {
     return null;
@@ -637,12 +847,26 @@ async function createLink(btn) {
   try {
     const s = await getSupa();
     const { data, error } = await s.supabase.functions.invoke('create-quote', {
-      body: { selection: state, client: readClient() },
+      body: { selection: selectionToSend(), client: readClient(), ...(reviseId ? { revise: reviseId } : {}) },
     });
     if (error) {
       let detail = error;
       try { detail = new Error((await error.context.json()).error); } catch { /* keep original */ }
       throw detail;
+    }
+    // An exceptional contract: stored, waiting for a manager. There is no link yet.
+    if (data.approval === 'pending') {
+      if (dealId) {
+        try {
+          const { linkQuote } = await import('./deal-data.js');
+          await linkQuote(dealId, data.id);
+        } catch { /* the deal keeps waiting; Irit can mark it from her tasks */ }
+      }
+      $('pd-number').textContent = data.number;
+      $('pd-list').replaceChildren(...exceptionOf(selectionToSend()).map((d) => h('li', {}, d.text)));
+      openDialog($('dlg-pending'), btn);
+      $('dlg-pending').querySelector('.close').focus();
+      return;
     }
     const link = s.quoteLink(data.token);
     if (dealId) {
@@ -671,7 +895,7 @@ async function createLink(btn) {
     const name = readClient().name.trim();
     const hours = DOC_TYPES[state.docType].validHours;
     const text = signable
-      ? `שלום ${name}, מצורף הסכם ההתקשרות מאסטרטג (${data.number}) ל־12 חודשים. אפשר לעיין ולחתום כאן בתוך ${hours} שעות:\n${link}`
+      ? `שלום ${name}, מצורף הסכם ההתקשרות מאסטרטג (${data.number}) ${currentModel().termMonths === 1 ? 'לחודש אחד' : `ל־${currentModel().termMonths} חודשים`}. אפשר לעיין ולחתום כאן בתוך ${hours} שעות:\n${link}`
       : `שלום ${name}, מצורפת הצעת המחיר מאסטרטג (${data.number}), בתוקף ל־${hours} שעות. לצפייה:\n${link}`;
     $('sh-wa').href = whatsappLink(readClient().phone, text);
     $('sh-mail').href = `mailto:${encodeURIComponent(readClient().email.trim())}?subject=${encodeURIComponent(`${DOC_TYPES[state.docType].name} ${data.number} · astrateg`)}&body=${encodeURIComponent(text)}`;
@@ -679,9 +903,13 @@ async function createLink(btn) {
     $('sh-link').select();
   } catch (err) {
     const s = await getSupa().catch(() => null);
-    toast(s ? s.explainError(err) : 'אין חיבור לשרת.');
+    const msg = String(err?.message || err || '');
+    toast(/custom contracts are prepared by the office/.test(msg) ? 'חוזה מותאם אישית מכינים במשרד בלבד.'
+      : /can no longer be changed/.test(msg) ? 'אי אפשר לשנות את החוזה הזה יותר (נחתם או בוטל).'
+        : s ? s.explainError(err) : 'אין חיבור לשרת.');
   } finally {
     busy(btn, false);
+    renderDocType();
   }
 }
 
@@ -748,23 +976,73 @@ async function openFromDeal(id) {
       state = selection;
       for (const [fid, v] of Object.entries(client)) $(fid).value = v;
       $('discount').value = String((state.discount || 0) / 100);
+      syncCustomInputs();
     }
     document.body.classList.remove('is-choosing');
     $('start').hidden = true;
     render();
     saveDraft();
-    toast(`${contractTitle(d)}: הפרטים מהעסקה נטענו. לבדוק ולהשלים, ואז ליצור קישור.`);
+    toast(state.custom
+      ? `${contractTitle(d)}: הצעה אחרת מהשטח. נפתח חוזה מותאם אישית עם מה שנכתב; לבחור חבילת בסיס, לבדוק, ולשלוח לאישור.`
+      : `${contractTitle(d)}: הפרטים מהעסקה נטענו. לבדוק ולהשלים, ואז ליצור קישור.`);
   } catch (err) {
     const s = await getSupa().catch(() => null);
     toast(`העסקה לא נטענה. ${s ? s.explainError(err) : ''}`.trim());
   }
 }
 
-if (!DEAL_PARAM && restoreDraft()) {
+// A contract that went for approval, opened to be corrected: the same selection and
+// client, in custom mode, with the manager's note on top. Sending stores a new version
+// of the same quote (the create-quote function, `revise`).
+async function openForRevise(id) {
+  const staff = await refreshSession();
+  if (!staff?.isStaff && !(await askLogin())) return;
+  try {
+    const s = await getSupa();
+    const { data: q, error } = await s.supabase.from('quotes')
+      .select('id, number, status, approval, approval_note, model').eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!q || q.status !== 'sent' || !q.approval || q.approval === 'none') {
+      toast('אי אפשר לתקן את החוזה הזה: הוא לא נמצא, נחתם, בוטל, או שלא נשלח לאישור.');
+      return;
+    }
+    reviseId = q.id;
+    if (!restoreDraft(null, q.id)) {
+      const sel = q.model?.selection || {};
+      const { custom: c = {}, ...rest } = sel;
+      const { discount, ...custom } = JSON.parse(JSON.stringify(c || {}));
+      state = reconcile({ ...emptySelection(), ...rest, free: { ...emptySelection().free, ...rest.free }, custom }).selection;
+      if (Number.isInteger(discount)) state.discount = discount;
+      const cl = q.model?.client || {};
+      const map = { 'c-name': cl.name, 'c-company': cl.company, 'c-companyid': cl.companyId, 'c-phone': cl.phone, 'c-email': cl.email, 'c-notes': cl.notes };
+      for (const [fid, v] of Object.entries(map)) $(fid).value = v || '';
+      $('discount').value = String((state.discount || 0) / 100);
+      syncCustomInputs();
+    }
+    const note = $('revise-note');
+    note.hidden = false;
+    note.classList.toggle('is-plain', q.approval !== 'rejected');
+    note.replaceChildren(h('strong', {}, 'תיקון חוזה ', h('bdi', { class: 'num', dir: 'ltr' }, q.number), ' · '),
+      q.approval === 'rejected' ? `לא אושר: ${q.approval_note || ''}`
+        : q.approval === 'approved' ? 'החוזה כבר אושר. כל שינוי בו מחזיר אותו לאישור, והקישור שנשלח ללקוח מפסיק לעבוד עד האישור החדש.'
+          : 'החוזה ממתין לאישור. אפשר לתקן ולשלוח שוב.');
+    document.body.classList.remove('is-choosing');
+    $('start').hidden = true;
+    office = true; // only the office reads the quote above
+    render();
+    saveDraft();
+  } catch (err) {
+    const s = await getSupa().catch(() => null);
+    toast(`החוזה לא נטען. ${s ? s.explainError(err) : ''}`.trim());
+  }
+}
+
+if (!DEAL_PARAM && !REVISE_PARAM && restoreDraft()) {
   document.body.classList.remove('is-choosing');
   $('start').hidden = true;
 }
 render();
 setupSectionNav();
 if (DEAL_PARAM) openFromDeal(DEAL_PARAM);
+else if (REVISE_PARAM) openForRevise(REVISE_PARAM);
 else refreshSession();

@@ -6,6 +6,7 @@
 //   tap for the rest, and the board of what happens this week and in 30 days.
 // Everything is computed from what the team checks (app/health.js); nothing here
 // is marked by hand except the question.
+import { mountApprovals } from './approvals-ui.js';
 import { PEOPLE } from './protocol.js';
 import { clientState, weekKey, clientLabel } from './protocol-logic.js';
 import {
@@ -664,6 +665,8 @@ mountSession(async (staff) => {
   // Landed: from now on in this tab, "לקוחות" opens the clients list, not this screen.
   if (isOwner) markOwnerLanded();
   $('ow-page').hidden = false;
+  // "חוזים חריגים לאישור": on top of the owner's screen (Irit, Ofir and Lior see it here too).
+  mountApprovals($('approvals-card'), v, { mail: staff.email, toast });
   // Screen 1 is the managers'; Lior opens straight on screen 2 (and has the table, without prices).
   $('tab-now').hidden = !isOwner;
   $('tab-table').hidden = !mayTable;
