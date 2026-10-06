@@ -345,6 +345,8 @@ a.gt-row-main { text-decoration: none; }
   .gt-dot { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--k); }
   .gt-dot.s-posted { box-shadow: 0 0 0 1.5px var(--ok); }
   .gt-dot.s-skipped { opacity: 0.35; }
+  .gt-dot.s-scheduled { box-shadow: 0 0 0 1.5px var(--ds-navy-2); }
+  .gt-dot.s-missing, .gt-dot.s-error { box-shadow: 0 0 0 1.5px var(--ds-hot); }
   .gt-grid td.has-items { cursor: pointer; }
   .gt-row { flex-wrap: wrap; padding-inline-end: 4px; }
   .gt-row-main { flex-basis: 100%; }
