@@ -504,6 +504,8 @@ dialog.dlg-wide .dlg-foot { border-top: 1px solid var(--line); padding-top: 14px
   padding: 10px 12px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--panel-2);
 }
 .access-row.a-broken, .access-row.a-missing { border-inline-start: 3px solid var(--warn); }
+/* From the client's logins form, not checked yet. */
+.access-row.a-new { border-inline-start: 3px solid var(--ds-navy-mid); }
 .access-main { flex: 1 1 200px; min-width: 0; }
 .access-main .imeta { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-top: 4px; font-size: 13px; color: var(--text-2); }
 .access-main .num[dir="ltr"] { overflow-wrap: anywhere; }

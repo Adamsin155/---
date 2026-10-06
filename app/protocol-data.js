@@ -264,7 +264,20 @@ export async function saveAccess(clientId, a) {
   return data;
 }
 
+// THE ONE PLACE a stored password is asked for (the only call of access_reveal in
+// the app; the card's "הצגת סיסמה" comes through here). Who may open a password is
+// decided by the database, unchanged: the vault flag and can_use_client_vault().
+//
+// A second step before a password is shown (a code to open passwords, typing the
+// account's password again…) is not built yet: the owner is still deciding how it
+// should work. It plugs in here and nowhere else: `passwordGate` is awaited before
+// every reveal and gets { accessId }; returning false stops the reveal. A page sets
+// it with setPasswordGate(); what the gate collected (a code) would go on to the
+// database as a new argument of access_reveal, which then checks it there.
+let passwordGate = async () => true;
+export const setPasswordGate = (fn) => { passwordGate = typeof fn === 'function' ? fn : async () => true; };
 export async function revealAccess(id) {
+  if (!(await passwordGate({ accessId: id }))) throw new Error('הפתיחה בוטלה.');
   const { data, error } = await supabase.rpc('access_reveal', { p_id: id });
   if (error) throw error;
   return data;
