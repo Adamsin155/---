@@ -177,7 +177,7 @@ function build(viewer, email) {
     mark();
   };
   const mark = () => {
-    const cur = currentOf(items, location.pathname, location.hash);
+    const cur = currentOf(items, location.pathname, location.hash, location.search);
     for (const [id, a] of links) {
       if (id === cur.id) a.setAttribute('aria-current', cur.exact ? 'page' : 'true'); else a.removeAttribute('aria-current');
       a.classList.toggle('is-on', id === cur.id);

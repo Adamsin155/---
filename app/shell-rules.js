@@ -19,6 +19,10 @@ const officeOf = (v) => known(v) && v.scope === 'office';
 const sendsMessages = (v) => known(v) && ((!v.me && v.scope === 'office') || ['irit', 'lior'].includes(v.me));
 const seesInsights = (v) => known(v) && ((!v.me && v.scope === 'office') || v.me === 'lior');
 const seesAllClients = (v) => canSeeTable(v);
+// The index of the content Gantt: the office and Ilai (as worksCycle in month-ui.js).
+export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai');
+// Who changes a Gantt: Ilai and the owner (public.can_edit_gantt() decides).
+export const editsGantt = (v) => known(v) && (v.me === 'ilai' || (!v.me && v.scope === 'office'));
 
 // The office screens, one order everywhere: Ofir's two, Lior's decisions (and the
 // assignment, which he takes when Ofir cannot), all three for the owner; the monthly
@@ -51,6 +55,9 @@ export function menuOf(viewer) {
     list.push({ id: 'overview', href: 'owner.html#all', label: 'כל הלקוחות במבט' }); // Lior: screen 2 and the table
   }
   list.push({ id: 'clients', href: 'clients.html#clients', label: office ? 'לקוחות' : 'הלקוחות שלי' });
+  // The content Gantt of every client (gantt.html without a client), 6.10.2026: Ilai, whose
+  // it is, always has a way in, also with no open work; the owner, Irit, Lior and Ofir read.
+  if (seesGantt(viewer)) list.push({ id: 'gantt', href: 'gantt.html', label: 'גאנט תוכן' });
   list.push(...officeScreens(viewer));
   if (office) list.push({ id: 'prep', href: 'prep.html', label: 'לפני יום צילום' });
   if (sendsMessages(viewer)) list.push({ id: 'messages', href: 'messages.html', label: 'הודעות ללקוחות' });
@@ -58,11 +65,22 @@ export function menuOf(viewer) {
   if (me === 'eli' || office) list.push({ id: 'shoot', href: 'shoot.html', label: 'ימי צילום' });
   list.push({ id: 'quote', href: 'index.html', label: 'הצעה חדשה' }, { id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
-  return list;
+  return unique(list);
+}
+// No screen twice: one entry per id, per address and per name (the first one stays).
+function unique(list) {
+  const seen = new Set();
+  return list.filter((it) => {
+    const keys = [`id:${it.id}`, `href:${it.href}`, `label:${it.label}`];
+    if (keys.some((k) => seen.has(k))) return false;
+    for (const k of keys) seen.add(k);
+    return true;
+  });
 }
 
-// The role's own first screen (app/office-ui.js firstScreenOf), as a menu id.
-const HOME = { ofir: 'qa', lior: 'decisions', eli: 'shoot' };
+// The role's own first screen (app/office-ui.js firstScreenOf), as a menu id; for Ilai,
+// who stays on "המשימות שלי", his own screen is the Gantt.
+const HOME = { ofir: 'qa', lior: 'decisions', eli: 'shoot', ilai: 'gantt' };
 const homeOf = (viewer) => {
   const me = viewer?.me || null;
   if (PEOPLE[me]?.editor) return 'editor';
@@ -88,9 +106,11 @@ const UNDER_CLIENTS = new Set(['client.html', 'gantt.html', 'scripts.html', 'int
 
 // Which menu item is this page: { id, exact }. `exact` is false for a page under an
 // item (a client's card under the clients list), which is marked but is not "the page".
-export function currentOf(items, pathname, hash = '') {
+export function currentOf(items, pathname, hash = '', search = '') {
   const page = pageOf(pathname);
   const same = items.filter((it) => split(it.href).page === page);
+  // gantt.html is the index; with a client (?id=…) it is a page under it.
+  if (same.length === 1 && same[0].id === 'gantt') return { id: 'gantt', exact: !/[?&]id=/.test(String(search)) };
   if (same.length === 1) return { id: same[0].id, exact: true };
   if (same.length > 1) {
     // clients.html holds "המשימות שלי" (no hash, or #mine) and the lists (#clients, #control …).

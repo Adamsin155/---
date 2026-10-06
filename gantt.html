@@ -48,6 +48,40 @@
     </section>
 
     <div id="app" class="pr-app gt-app" hidden>
+      <!-- Without a client (gantt.html): the index of every client's Gantt (app/gantt-index.js). -->
+      <div class="gx" id="gx" hidden>
+        <div class="gt-hero">
+          <div class="gt-hero-text">
+            <div class="kicker latin">CONTENT GANTT</div>
+            <h1 id="gx-h">גאנט תוכן</h1>
+            <p class="gt-sub" id="gx-sub"></p>
+          </div>
+        </div>
+        <p class="gt-mc" id="gx-mc" hidden></p>
+        <section class="block gx-week" aria-labelledby="gxw-h">
+          <div class="gt-sec-head">
+            <h2 id="gxw-h">השבוע</h2>
+            <p class="hint" id="gxw-sub"></p>
+          </div>
+          <div id="gxw-body"></div>
+        </section>
+        <section class="block gx-clients" aria-labelledby="gxc-h">
+          <div class="gt-sec-head gx-head">
+            <h2 id="gxc-h">הלקוחות</h2>
+            <div class="gx-tools">
+              <input class="input" id="gx-q" type="search" placeholder="חיפוש לקוח" aria-label="חיפוש לקוח" autocomplete="off">
+              <div class="gt-view" role="group" aria-label="מיון">
+                <button type="button" class="gt-view-btn" id="gx-sort-missing" aria-pressed="true">חסרים קודם</button>
+                <button type="button" class="gt-view-btn" id="gx-sort-name" aria-pressed="false">לפי שם</button>
+              </div>
+            </div>
+          </div>
+          <ul class="gx-list" id="gx-list"></ul>
+          <p class="gt-none" id="gx-none" hidden></p>
+          <button type="button" class="btn btn-sm btn-ghost gx-more" id="gx-more" hidden></button>
+        </section>
+      </div>
+
       <p class="gt-preview" id="gt-preview" hidden>תצוגה מקדימה: כך הלקוח רואה את הגאנט בקישור שלו.</p>
 
       <div class="gt-hero" id="gt-hero" hidden>
@@ -58,6 +92,9 @@
         </div>
         <div class="gt-actions" id="gt-actions"></div>
       </div>
+
+      <p class="gt-mc" id="gt-mc" hidden></p>
+      <p class="gt-readonly" id="gt-readonly" hidden>צפייה בלבד: את הגאנט מעדכנים עילאי ובעל המשרד. אפשר להדפיס חודש ולשלוח ללקוח את קישור הצפייה.</p>
 
       <section class="gt-stats" id="gt-stats" aria-label="סיכום" hidden></section>
 
@@ -70,7 +107,7 @@
       <section class="block gt-glance" id="gt-glance" hidden aria-labelledby="gg-h">
         <div class="gt-sec-head">
           <h2 id="gg-h">השנה במבט אחד</h2>
-          <p class="hint">כמה מכל סוג בכל חודש בחבילה. מלא: עלה. לחיצה על חודש פותחת אותו בלוח.</p>
+          <p class="hint" id="gg-hint">כמה מכל סוג בכל חודש בחבילה. מלא: עלה. מקווקו: תוזמן. לחיצה על חודש פותחת אותו בלוח.</p>
         </div>
         <div class="gt-glance-scroll" tabindex="0" role="region" aria-label="השנה במבט אחד, גלילה לצדדים">
           <table class="gt-glance-table" id="gg-table"></table>
@@ -93,6 +130,7 @@
             <button type="button" class="gt-view-btn" id="view-list" aria-pressed="false">רשימה</button>
           </div>
           <ul class="gt-legend" id="gt-legend" aria-label="מקרא"></ul>
+          <button type="button" class="btn btn-sm btn-primary gt-bulk" id="btn-bulk" hidden>סימון כתוזמנו</button>
         </div>
         <div class="gt-print-head" aria-hidden="true">
           <img src="app/assets/logo.png" alt="" width="403" height="280">
@@ -148,6 +186,30 @@
         <button type="button" class="btn btn-primary" id="rg-go">עדכון הגאנט</button>
         <button type="button" class="btn btn-ghost" id="rg-cancel">ביטול</button>
       </footer>
+    </form>
+  </dialog>
+
+  <dialog class="gt-dlg" id="bulk-dlg" aria-labelledby="bk-h">
+    <form method="dialog" id="bulk-form">
+      <header class="gt-dlg-head">
+        <h2 id="bk-h">סימון כתוזמנו</h2>
+        <button type="button" class="gt-x" id="bk-close" aria-label="סגירה">×</button>
+      </header>
+      <div class="gt-dlg-body" id="bk-body"></div>
+      <footer class="gt-dlg-foot">
+        <button type="button" class="btn btn-ghost" id="bk-cancel">ביטול</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="gt-dlg" id="brand-dlg" aria-labelledby="bd-h">
+    <form method="dialog" id="brand-form">
+      <header class="gt-dlg-head">
+        <h2 id="bd-h">חיבור למותג ב־Metricool</h2>
+        <button type="button" class="gt-x" id="bd-close" aria-label="סגירה">×</button>
+      </header>
+      <div class="gt-dlg-body" id="bd-body"></div>
+      <footer class="gt-dlg-foot" id="bd-foot"></footer>
     </form>
   </dialog>
 

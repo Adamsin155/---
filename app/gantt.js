@@ -1,19 +1,29 @@
 // "גאנט התוכן" (gantt.html): the client's content year as a calendar.
-//  - Staff (gantt.html?id=…): the office (Ilai, who owns the Gantt, too) makes the
-//    plan from the one template (app/gantt-template.js), moves dates for this client
-//    (drag a chip to another day, or edit its date and time), marks what went up with
-//    its link or one of the client's files, adds entries of its own, prints a month,
-//    and shares a read-only link with the client. Whoever else sees the client (its
-//    editor) reads. "עדכון מהתבנית" keeps dates moved by hand unless that is confirmed.
+//  - Without a client (gantt.html): the index of every client's Gantt, for Ilai, the
+//    owner, Irit, Lior and Ofir (app/gantt-index.js).
+//  - Staff (gantt.html?id=…). The owner's decision of 6.10.2026: Ilai (the Gantt is
+//    his) and the owner make the plan from the one template (app/gantt-template.js),
+//    move dates for this client (drag a chip to another day, or edit its date and
+//    time), set what is scheduled and what went up (one tap on an entry's state, or
+//    "סימון כתוזמנו" for a day, a week or a month), attach a link or one of the client's
+//    files, add entries of their own and connect the client to its brand in Metricool.
+//    Irit, Lior and Ofir read, print a month and create, copy or revoke the client's
+//    read-only link. Whoever else sees the client (its editor) reads. The database
+//    enforces all of it (20261007100000_gantt_roles_statuses.sql).
+//    "עדכון מהתבנית" keeps dates moved by hand unless that is confirmed.
 //  - The client (gantt.html?t=…): the same calendar, read-only, from
-//    public.get_gantt(token): no internal entry, note or file path.
+//    public.get_gantt(token): no internal entry, note or file path, and only
+//    מתוכנן / תוזמן / עלה (never "חסר" or "שגיאה").
 // The logic: app/gantt-logic.js; the data: app/gantt-data.js. All text goes through
 // text nodes, never innerHTML.
 import { GANTT_KINDS, KIND_ORDER, TEMPLATE_TEXT, TEMPLATE_VERSION, WEEKDAY_NAMES } from './gantt-template.js';
 import {
   generatePlan, planDiff, monthGrid, calendarMonths, packageMonthOf, entryStatus, entriesByDay, yearGlance, totals,
   holidayName, contractEndKey, safeLink, isCustom, timeText, STATUS_TEXT, CLIENT_STATUS_TEXT, DAY_KEY, TIME_KEY, byWhen, monthRange, fileTitle,
+  clientStatus, nextState, toSchedule, weekOf, nextPost, addDays,
 } from './gantt-logic.js';
+import { isOwnerView } from './team-rules.js';
+import { clientLabel } from './protocol-logic.js';
 import { termOf } from './year-logic.js';
 import { dayKeyIL } from './tz.js';
 import { glide } from './shell.js'; // a day or a month chosen: the calendar changes softly
@@ -30,7 +40,10 @@ let h;
 let client = null;
 let rows = [];          // the plan's entries
 let files = null;       // Map id -> file (null: no files table yet)
-let canEdit = false;
+let canEdit = false;    // Ilai and the owner: everything
+let canShare = false;   // the office (and Ilai): the client's read-only link, and the index
+let brandUi = null;     // app/gantt-brand.js (staff only)
+let mc = { settings: undefined, brand: undefined, sync: null }; // Metricool: the switch, this client's brand, its last sync
 let missing = false;    // the table is not there yet
 let shown = null;       // { year, month }
 let view = matchMedia('(max-width: 640px)').matches ? 'list' : 'grid';
@@ -52,9 +65,18 @@ const kindStyle = (kind) => `--k:${(GANTT_KINDS[kind] || GANTT_KINDS.custom).col
 const fileOf = (e) => (e.file_id && files ? files.get(e.file_id) || null : null);
 const linkOf = (e) => safeLink(e.link) || safeLink(fileOf(e)?.link);
 const postedOn = (e) => e.posted_on || (e.state === 'posted' ? fileOf(e)?.posted_on : null) || null;
-const statusOf = (e) => entryStatus(e, new Date());
+// The client never sees "חסר" or "שגיאה": on its link both read as planned.
+const statusOf = (e) => (SHARE ? clientStatus(entryStatus(e, new Date())) : entryStatus(e, new Date()));
 const statusText = (s) => (SHARE ? CLIENT_STATUS_TEXT : STATUS_TEXT)[s];
+// ✓ up, a clock for scheduled, ! only for what is missing or failed.
+const stateMark = (s) => (s === 'posted' ? h('span', { class: 'gt-tick', 'aria-hidden': 'true' }, '✓')
+  : s === 'scheduled' ? h('span', { class: 'gt-clock', 'aria-hidden': 'true' })
+    : s === 'missing' || s === 'error' ? h('span', { class: 'gt-warn', 'aria-hidden': 'true' }, '!') : null);
+const stateLabel = (e, s) => (s === 'posted' && postedOn(e) ? `עלה ${dm(postedOn(e))}` : statusText(s));
 const toast = (msg, action) => (ui ? ui.toast(msg, action) : null);
+// The team names a client by the business first, then the contact (clientLabel); the
+// client's own link has the business name only.
+const nameOfClient = () => (SHARE ? client.name : clientLabel(client));
 
 // ── Boot ──────────────────────────────────
 async function boot() {
@@ -68,9 +90,16 @@ async function boot() {
     const id = params.get('id');
     const [dir, viewer] = await Promise.all([loadDirectory().catch(() => ({})), ui.viewerOf(staff.email)]);
     Object.assign(ui.directory, dir);
-    canEdit = worksCycle(viewer);
-    $('nav-year').hidden = !canEdit;
-    if (!id) { $('state').textContent = 'לא נבחר לקוח. פתחו את הגאנט מכרטיס הלקוח.'; return; }
+    // Ilai and the owner change the Gantt; the office (Irit, Lior, Ofir) reads and shares the client's link.
+    canShare = worksCycle(viewer);
+    canEdit = !viewer.error && (viewer.me === 'ilai' || isOwnerView(viewer));
+    $('nav-year').hidden = !canShare;
+    if (!id) {
+      if (!canShare) { $('state').textContent = 'לא נבחר לקוח. פתחו את הגאנט מכרטיס הלקוח.'; return; }
+      const [{ mountIndex }, { loadClients }] = await Promise.all([import('./gantt-index.js'), import('./protocol-data.js')]);
+      await mountIndex({ ui, data, loadClients, canEdit });
+      return;
+    }
     $('state').textContent = 'טוען…';
     try {
       client = await loadClient(id);
@@ -79,13 +108,19 @@ async function boot() {
       missing = r === null;
       rows = r || [];
       files = f ? new Map(f.map((x) => [x.id, x])) : null;
-      if (canEdit && !missing) share = await data.loadShare(id).catch(() => undefined);
+      if (canShare && !missing) share = await data.loadShare(id).catch(() => undefined);
+      // Metricool: the owner's switch, this client's brand and its last sync (the office only).
+      if (canShare && !missing) {
+        brandUi = await import('./gantt-brand.js');
+        const [settings, brands, syncs] = await Promise.all([data.metricoolSettings(), data.loadBrands(id), data.loadSyncs(id)]);
+        mc = { settings, brand: brands ? brands[id] || { blogId: null, brand: null } : undefined, sync: syncs[id] || null };
+      }
     } catch (err) {
       $('state').textContent = ui.errorText(err);
       return;
     }
     $('state').textContent = '';
-    document.title = `גאנט התוכן · ${client.name} · astrateg`;
+    document.title = `גאנט התוכן · ${nameOfClient()} · astrateg`;
     pickMonth();
     render();
   });
@@ -125,11 +160,17 @@ async function bootShare() {
 }
 
 // The month shown first: this month when it is in the contract, else the first.
+// `d` (a day, from the index's week or a reminder) opens that day.
 function pickMonth() {
   const months = calendarMonths(client);
-  const want = params.get('m') || todayKey().slice(0, 7);
+  const day = DAY_KEY.test(params.get('d') || '') ? params.get('d') : null;
+  const want = (day ? day.slice(0, 7) : null) || params.get('m') || todayKey().slice(0, 7);
   const hit = months.find((m) => m.key === want) || (todayKey() > (contractEndKey(client) || '') ? months.at(-1) : months[0]);
   shown = hit ? { year: hit.year, month: hit.month } : null;
+  if (day && hit && hit.key === day.slice(0, 7)) {
+    selectedDay = day;
+    setTimeout(() => (document.querySelector(`.gt-aday[data-day="${day}"]`) || $('gm-day'))?.scrollIntoView?.({ block: 'center' }), 0);
+  }
 }
 
 // ── Render ────────────────────────────────
@@ -142,10 +183,29 @@ function render() {
   if (!has) renderEmpty();
   for (const id of ['gt-stats', 'gt-glance', 'gt-cal']) $(id).hidden = !has || !shown;
   $('gt-rules').hidden = SHARE;
-  $('gt-share').hidden = SHARE || !canEdit || missing || !has;
+  $('gt-share').hidden = SHARE || !canShare || missing || !has;
+  // The office that only reads is told so (and why there is nothing to press).
+  $('gt-readonly').hidden = SHARE || canEdit || !canShare || !has;
+  $('btn-bulk').hidden = !canEdit || !has || !shown;
+  renderMetricool();
   if (has && shown) { renderStats(); renderGlance(); renderMonth(); }
   if (!SHARE) renderRules();
   if (!$('gt-share').hidden) renderShare();
+}
+
+// The line about Metricool, with "חיבור למותג" for Ilai and the owner. Nothing before
+// the migration (settings undefined), and nothing for whoever is not the office.
+function renderMetricool() {
+  if (SHARE || !brandUi || !mc.settings || mc.brand === undefined || missing) { $('gt-mc').hidden = true; return; }
+  const line = brandUi.clientLine({ enabled: !!mc.settings.enabled, blogId: mc.brand.blogId, brand: mc.brand.brand, sync: mc.sync });
+  const act = canEdit ? h('button', {
+    type: 'button', class: 'btn btn-sm btn-ghost gt-mc-act', id: 'btn-brand',
+    onclick: () => brandUi.openBrandDialog({
+      client, current: mc.brand, toast,
+      onSaved: async (saved) => { mc.brand = saved; mc.sync = null; rows = (await data.loadGantt(client.id).catch(() => rows)) || rows; render(); },
+    }),
+  }, mc.brand.blogId ? 'החלפת מותג' : 'חיבור למותג ב־Metricool') : null;
+  brandUi.paintLine($('gt-mc'), line, act);
 }
 
 function renderHero() {
@@ -154,18 +214,20 @@ function renderHero() {
   const deal = client.deal_at ? dayKeyIL(new Date(client.deal_at)) : null;
   const now = todayKey();
   const n = deal ? packageMonthOf(client, now) : 0;
-  $('gt-title').textContent = `גאנט התוכן · ${client.name}`;
+  $('gt-title').textContent = `גאנט התוכן · ${nameOfClient()}`;
   const parts = [];
   if (deal) parts.push(`חוזה מ־${dmy(deal)} עד ${dmy(endKey)}`);
   if (deal && n >= 1 && n <= of) parts.push(`חודש ${n} מתוך ${of}`);
   else if (deal && n > of) parts.push('תקופת החוזה הסתיימה');
   $('gt-sub').textContent = parts.join(' · ');
   const acts = [];
+  if (!SHARE && canShare) acts.push(h('a', { class: 'btn btn-sm btn-ghost', href: 'gantt.html', id: 'to-index' }, 'כל הגאנטים'));
   if (!SHARE) acts.push(h('a', { class: 'btn btn-sm btn-ghost', href: `client.html?id=${enc(client.id)}`, id: 'to-card' }, 'לכרטיס הלקוח'));
   if (rows.length) acts.push(h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-print', onclick: printMonth }, 'הדפסת החודש'));
+  // The one pink action of the screen is "סימון כתוזמנו" (by the calendar); these stay plain.
   if (canEdit && rows.length) {
     acts.push(h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-add', onclick: () => openEntry(null) }, 'הוספת פריט'));
-    acts.push(h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: 'btn-regen', onclick: regenerate }, 'עדכון מהתבנית'));
+    acts.push(h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-regen', onclick: regenerate }, 'עדכון מהתבנית'));
   }
   $('gt-actions').replaceChildren(...acts);
 }
@@ -181,7 +243,7 @@ function renderEmpty() {
     const posts = plan.entries.filter((e) => GANTT_KINDS[e.kind].post).length;
     text = canEdit
       ? `התבנית תיצור ${plan.entries.length} פריטים, מהם ${posts} פרסומים, מ־${dmy(plan.entries[0]?.day)} עד ${dmy(plan.endKey)}, לפי הכמויות בחבילה. אחר כך אפשר להזיז כל תאריך ללקוח הזה בלבד.`
-      : 'עילאי או המשרד יוצרים אותו מהתבנית.';
+      : 'עילאי או בעל המשרד יוצרים אותו מהתבנית.';
     if (canEdit) acts.push(h('button', { type: 'button', class: 'btn btn-primary', id: 'btn-create', onclick: regenerate }, 'יצירת הגאנט מהתבנית'));
   }
   $('ge-text').textContent = text;
@@ -191,20 +253,25 @@ function renderEmpty() {
 function renderStats() {
   const now = new Date();
   const t = totals(rows, now);
-  const next = rows.filter((e) => kindOf(e).post && e.state === 'planned' && statusOf(e) !== 'late' && e.day >= todayKey()).sort(byWhen)[0];
+  const next = nextPost(rows, now);
   const pct = t.posts ? Math.round((t.posted / t.posts) * 100) : 0;
   const stat = (cls, label, value, extra = null) => h('div', { class: `gt-stat ${cls}` }, h('span', { class: 'gt-stat-l' }, label), h('strong', { class: 'gt-stat-v' }, value), extra);
+  // "חסרים": past their time and neither scheduled nor up. The alert colour only when there are any.
+  // A failed post is one of them (it needs someone), and is named. Never on the client's link.
+  const bad = t.missing + t.errors;
   $('gt-stats').replaceChildren(...[
     stat('st-posts', 'פרסומים בשנה', String(t.posts)),
     stat('st-up', 'עלו', `${t.posted}`, h('span', { class: 'gt-meter', role: 'img', 'aria-label': `${pct} אחוז עלו` }, h('span', { style: `inline-size:${pct}%` }))),
-    SHARE ? null : stat(`st-late${t.late ? ' is-late' : ''}`, 'עברו ולא סומנו שעלו', String(t.late)),
+    stat('st-sched', 'תוזמנו', String(t.scheduled)),
+    SHARE ? null : stat(`st-missing${bad ? ' is-missing' : ''}`, 'חסרים', String(bad), t.errors ? h('span', { class: 'gt-stat-x' }, t.errors === 1 ? 'מהם שגיאת פרסום אחת' : `מהם ${t.errors} שגיאות פרסום`) : null),
     stat('st-next', 'הפרסום הבא', next ? `${dm(next.day)}${next.time_il ? ` · ${timeText(next.time_il)}` : ''}` : '—', next ? h('span', { class: 'gt-stat-x' }, next.title) : null),
   ].filter(Boolean));
 }
 
 function renderGlance() {
   const of = termOf(client);
-  const g = yearGlance(client, rows.filter((e) => !SHARE || !['plan', 'renewal'].includes(e.kind)));
+  const g = yearGlance(client, rows.filter((e) => !SHARE || !['plan', 'renewal'].includes(e.kind)), new Date());
+  const pct = (n, of) => Math.round((n / of) * 100);
   const now = packageMonthOf(client, todayKey());
   const head = [h('th', { scope: 'col', class: 'gg-kind' }, 'סוג')];
   for (let n = 1; n <= of; n += 1) {
@@ -216,10 +283,19 @@ function renderGlance() {
   }
   const body = g.map((row) => h('tr', { style: kindStyle(row.kind) },
     h('th', { scope: 'row', class: 'gg-kind' }, h('span', { class: 'gt-swatch', 'aria-hidden': 'true' }), GANTT_KINDS[row.kind].plural),
-    ...row.months.map((c) => h('td', { class: `${c.n === now ? 'is-now' : ''}${c.planned ? '' : ' is-empty'}` },
-      c.planned ? h('span', { class: 'gg-cell', title: `${c.posted} מתוך ${c.planned} עלו` },
-        h('span', { class: 'gg-bar' }, h('span', { style: `block-size:${Math.round((c.posted / c.planned) * 100)}%` })),
-        h('span', { class: 'gg-num' }, kindOf(row).post ? `${c.posted}/${c.planned}` : String(c.planned))) : ''))));
+    ...row.months.map((c) => {
+      // The bar: full for what is up, hatched above it for what is scheduled; a dot when something is missing (never for the client).
+      const miss = SHARE ? 0 : c.missing;
+      const words = [`${c.posted} מתוך ${c.planned} עלו`, c.scheduled ? `${c.scheduled} תוזמנו` : null, miss ? `${miss} חסרים` : null].filter(Boolean).join(', ');
+      return h('td', { class: `${c.n === now ? 'is-now' : ''}${c.planned ? '' : ' is-empty'}${miss ? ' has-missing' : ''}` },
+        c.planned ? h('span', { class: 'gg-cell', title: words },
+          h('span', { class: 'gg-bar' },
+            h('span', { class: 'gg-sched', style: `block-size:${pct(c.posted + c.scheduled, c.planned)}%` }),
+            h('span', { class: 'gg-up', style: `block-size:${pct(c.posted, c.planned)}%` })),
+          h('span', { class: 'gg-num' }, kindOf(row).post ? `${c.posted}/${c.planned}` : String(c.planned)),
+          miss ? h('span', { class: 'gg-miss', 'aria-hidden': 'true' }, '!') : null,
+          h('span', { class: 'sr-only' }, ` (${words})`)) : '');
+    })));
   $('gg-table').replaceChildren(h('thead', {}, h('tr', {}, ...head)), h('tbody', {}, ...body));
 }
 
@@ -247,7 +323,7 @@ function renderMonth() {
   $('gm-h').textContent = monthName(year, month);
   $('gm-h').setAttribute('tabindex', '-1');
   $('gm-pkg').textContent = pkgText(year, month);
-  $('gp-client').textContent = `גאנט התוכן · ${client.name}`;
+  $('gp-client').textContent = `גאנט התוכן · ${client.business || client.name}`;
   $('gp-month').textContent = ` · ${monthName(year, month)} · ${pkgText(year, month)}`;
   $('gm-prev').disabled = i <= 0;
   $('gm-next').disabled = i < 0 || i >= months.length - 1;
@@ -261,7 +337,9 @@ function renderMonth() {
   const visible = rows.filter((e) => e.day.slice(0, 7) === `${year}-${String(month).padStart(2, '0')}`);
   const kinds = new Set(rows.map((e) => e.kind));
   $('gt-legend').replaceChildren(...KIND_ORDER.filter((k) => kinds.has(k)).map((k) => h('li', { style: kindStyle(k) }, h('span', { class: 'gt-swatch', 'aria-hidden': 'true' }), GANTT_KINDS[k].label)),
-    h('li', { class: 'lg-posted' }, h('span', { class: 'gt-tick', 'aria-hidden': 'true' }, '✓'), 'עלה'));
+    h('li', { class: 'lg-sched' }, stateMark('scheduled'), 'תוזמן'),
+    h('li', { class: 'lg-posted' }, stateMark('posted'), 'עלה'),
+    ...(SHARE ? [] : [h('li', { class: 'lg-missing' }, stateMark('missing'), 'חסר')]));
   $('view-grid').setAttribute('aria-pressed', String(view === 'grid'));
   $('view-list').setAttribute('aria-pressed', String(view === 'list'));
   $('gm-grid').hidden = view !== 'grid';
@@ -287,8 +365,7 @@ function chip(e) {
   },
   time ? h('span', { class: 'gt-chip-time num' }, time) : null,
   h('span', { class: 'gt-chip-t' }, e.title),
-  s === 'posted' ? h('span', { class: 'gt-tick', 'aria-hidden': 'true' }, '✓') : null,
-  s === 'late' && !SHARE ? h('span', { class: 'gt-warn', 'aria-hidden': 'true' }, '!') : null);
+  stateMark(s));
 }
 function renderGrid(year, month, visible) {
   const byDay = entriesByDay(visible);
@@ -341,14 +418,25 @@ function entryRow(e) {
   const f = fileOf(e);
   const thumb = f && /^image\//.test(f.mime || '') ? h('img', { class: 'gt-thumb', alt: '', 'data-path': f.storage_path, width: '44', height: '44' })
     : f || link ? h('span', { class: 'gt-thumb is-icon', 'aria-hidden': 'true' }, /^video\//.test(f?.mime || '') || ['video', 'monthly', 'story', 'collab', 'ch14'].includes(e.kind) ? '▶' : '↗') : null;
+  // The state: words for everyone; for Ilai and the owner a button, one tap moves it on
+  // (planned → scheduled → posted → planned), with an undo.
+  const next = nextState(e.state);
+  const stateEl = canEdit && k.post
+    ? h('button', {
+      type: 'button', class: `gt-state gt-state-btn s-${s}`, 'data-key': e.key, 'data-state': e.state,
+      'aria-label': `${e.title}: ${stateLabel(e, s)}. לחיצה מסמנת ״${STATUS_TEXT[next]}״`, title: `לחיצה מסמנת ״${STATUS_TEXT[next]}״`,
+      onclick: () => tapState(e),
+    }, stateMark(s), stateLabel(e, s))
+    : h('span', { class: `gt-state s-${s}` }, stateMark(s), stateLabel(e, s));
   return h('li', { class: `gt-row s-${s}`, style: kindStyle(e.kind), 'data-key': e.key },
     h('button', { type: 'button', class: 'gt-row-main', onclick: () => openEntry(e) },
       h('span', { class: 'gt-row-time num' }, timeText(e.time_il) || 'כל היום'),
       h('span', { class: 'gt-row-text' },
         h('span', { class: 'gt-row-title' }, e.title),
         h('span', { class: 'gt-row-meta' }, h('span', { class: 'gt-swatch', 'aria-hidden': 'true' }), k.label,
-          e.edited && !SHARE ? h('span', { class: 'gt-moved' }, ' · הוזז ידנית') : null)),
-      h('span', { class: `gt-state s-${s}` }, s === 'posted' && postedOn(e) ? `עלה ${dm(postedOn(e))}` : statusText(s))),
+          e.mc_extra && !SHARE ? h('span', { class: 'gt-from-mc' }, ' · מ־Metricool') : null,
+          e.edited && !e.mc_extra && !SHARE ? h('span', { class: 'gt-moved' }, ' · הוזז ידנית') : null))),
+    stateEl,
     thumb,
     link ? h('a', { class: 'btn btn-sm btn-ghost gt-open', href: link, target: '_blank', rel: 'noopener noreferrer' }, 'לתוכן', h('span', { class: 'sr-only' }, ` (${e.title}, נפתח בחלון חדש)`)) : null);
 }
@@ -358,7 +446,7 @@ function renderList(visible) {
   const today = todayKey();
   $('gm-list').replaceChildren(h('ol', { class: 'gt-agenda' }, ...[...byDay].map(([key, list]) => {
     const hol = holidayName(key);
-    return h('li', { class: `gt-aday${key === today ? ' is-today' : ''}` },
+    return h('li', { class: `gt-aday${key === today ? ' is-today' : ''}`, 'data-day': key },
       h('h3', { class: 'gt-aday-h' }, dayLine(key), key === today ? h('span', { class: 'tag' }, 'היום') : null, hol ? h('span', { class: 'gt-hol' }, hol) : null),
       h('ul', { class: 'gt-rows' }, ...list.map(entryRow)));
   })));
@@ -397,13 +485,25 @@ function readOnlyEntry(e) {
   return [
     h('dl', { class: 'gt-facts' },
       h('dt', {}, 'מתי'), h('dd', {}, `${dayLine(e.day)}${e.time_il ? ` · ${timeText(e.time_il)}` : ''}`),
-      h('dt', {}, 'מצב'), h('dd', {}, h('span', { class: `gt-state s-${s}` }, s === 'posted' && postedOn(e) ? `עלה ב־${dmy(postedOn(e))}` : statusText(s))),
+      h('dt', {}, 'מצב'), h('dd', {}, h('span', { class: `gt-state s-${s}` }, stateMark(s), s === 'posted' && postedOn(e) ? `עלה ב־${dmy(postedOn(e))}` : statusText(s))),
+      !SHARE && mcNote(e) ? [h('dt', {}, 'Metricool'), h('dd', {}, mcNote(e))] : null,
       f ? [h('dt', {}, 'קובץ'), h('dd', {}, fileTitle(f))] : null,
       !SHARE && e.note ? [h('dt', {}, 'הערה'), h('dd', {}, e.note)] : null),
     f && /^image\//.test(f.mime || '') ? h('img', { class: 'gt-preview-img', alt: f.label || '', 'data-path': f.storage_path }) : null,
     link ? h('a', { class: 'btn btn-primary gt-open-big', href: link, target: '_blank', rel: 'noopener noreferrer' }, 'צפייה בתוכן', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')) : null,
     !link && f && !SHARE ? h('button', { type: 'button', class: 'btn', onclick: async () => { const u = await data.fileUrl(f.storage_path); if (u) window.open(u, '_blank', 'noopener'); else toast('הקובץ לא נפתח. נסו שוב.'); } }, 'פתיחת הקובץ') : null,
   ];
+}
+// What Metricool says about an entry, for the team: who set the state, and a failure.
+function mcNote(e) {
+  if (!e) return '';
+  const parts = [];
+  if (e.mc_extra) parts.push('הפריט הגיע מהתזמון ב־Metricool ולא מהתבנית');
+  if (e.mc_status === 'error') parts.push(`הפרסום נכשל ב־Metricool${e.mc_error ? ` (${e.mc_error})` : ''}. כדאי לבדוק שם ולתזמן מחדש`);
+  else if (e.source === 'metricool' && e.state !== 'planned') parts.push('המצב סומן לפי Metricool');
+  else if (e.mc_post_id) parts.push('מקושר לפוסט ב־Metricool; המצב סומן ידנית ולכן לא משתנה לבד');
+  if (e.mc_networks?.length) parts.push(e.mc_networks.join(', '));
+  return parts.join(' · ');
 }
 function openEntry(e, day = null) {
   const isNew = !e;
@@ -427,7 +527,9 @@ function openEntry(e, day = null) {
   const dayIn = inp('ed-day', { type: 'date', value: e?.day || day || shownDefaultDay(), required: true, min: dayKeyIL(new Date(client.deal_at)), max: contractEndKey(client) });
   const timeIn = inp('ed-time', { type: 'time', value: timeText(e?.time_il) || '', step: '60' });
   const st = e?.state || 'planned';
-  const states = h('div', { class: 'gt-seg', role: 'radiogroup', 'aria-label': 'מצב' }, ...[['planned', 'מתוכנן'], ['posted', 'עלה'], ['skipped', 'בוטל']].map(([v, l]) => h('label', { class: 'gt-seg-opt' },
+  // "שגיאה" is offered only while the entry is in it (Metricool reports it; nobody marks a failure by hand).
+  const choices = [['planned', 'מתוכנן'], ['scheduled', 'תוזמן'], ['posted', 'עלה'], ...(st === 'error' ? [['error', 'שגיאה']] : []), ['skipped', 'בוטל']];
+  const states = h('div', { class: 'gt-seg', role: 'radiogroup', 'aria-label': 'מצב' }, ...choices.map(([v, l]) => h('label', { class: 'gt-seg-opt' },
     h('input', { type: 'radio', name: 'ed-state', value: v, checked: v === st ? true : null, onchange: () => { $('ed-posted-wrap').hidden = v !== 'posted'; } }), h('span', {}, l))));
   const posted = inp('ed-posted', { type: 'date', value: e?.posted_on || todayKey() });
   const link = inp('ed-link', { type: 'url', dir: 'ltr', value: e?.link || '', placeholder: 'https://', inputmode: 'url' });
@@ -438,7 +540,8 @@ function openEntry(e, day = null) {
   const note = h('textarea', { class: 'input', id: 'ed-note', rows: '2', maxlength: '500' }, e?.note || '');
   const meta = [];
   if (e && !isCustom(e)) meta.push(e.edited ? 'התאריך שונה ידנית: עדכון מהתבנית לא יזיז אותו בלי אישור.' : 'התאריך נקבע לפי התבנית.');
-  if (e?.by_email && ui) meta.push(`עודכן לאחרונה: ${ui.who(e.by_email)} · ${ui.formatStamp(e.at)}`);
+  if (mcNote(e)) meta.push(`${mcNote(e)}.`);
+  if (e?.by_email && ui) meta.push(`עודכן לאחרונה: ${e.by_email === 'system' ? 'הסנכרון מ־Metricool' : ui.who(e.by_email)} · ${ui.formatStamp(e.at)}`);
   $('ed-body').replaceChildren(...[
     h('div', { class: 'gt-form' },
       kindSel ? field('סוג', kindSel) : null,
@@ -454,7 +557,8 @@ function openEntry(e, day = null) {
     e ? h('details', { class: 'gt-view-ro' }, h('summary', {}, 'איך זה נראה ללקוח'), ...readOnlyEntry(e).flat().filter(Boolean)) : null,
   ].filter(Boolean));
   foot.push(h('button', { type: 'button', class: 'btn btn-primary', id: 'ed-save', onclick: () => saveFromDialog(e) }, isNew ? 'הוספה' : 'שמירה'));
-  if (e && isCustom(e)) foot.push(h('button', { type: 'button', class: 'btn btn-ghost danger', id: 'ed-del', onclick: () => deleteEntry(e) }, 'מחיקה'));
+  // A row that came from Metricool leaves when its post leaves there; it is not deleted here.
+  if (e && isCustom(e) && !e.mc_extra) foot.push(h('button', { type: 'button', class: 'btn btn-ghost danger', id: 'ed-del', onclick: () => deleteEntry(e) }, 'מחיקה'));
   foot.push(h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => dlg().close() }, 'ביטול'));
   $('ed-foot').replaceChildren(...foot);
   dlg().showModal();
@@ -495,7 +599,7 @@ async function saveFromDialog(e) {
       if (day !== e.day || (time || null) !== (timeText(e.time_il) || null)) fields.edited = true;
       const row = await data.saveEntry(e.id, fields);
       rows = rows.map((r) => (r.id === e.id ? row : r));
-      toast(state === 'posted' && e.state !== 'posted' ? `סומן שעלה: ${row.title}` : `נשמר: ${row.title}`);
+      toast(state === e.state ? `נשמר: ${row.title}` : state === 'posted' ? `סומן שעלה: ${row.title}` : state === 'scheduled' ? `סומן שתוזמן: ${row.title}` : `נשמר: ${row.title}`);
     }
     dlg().close();
     if (day.slice(0, 7) !== `${shown.year}-${String(shown.month).padStart(2, '0')}`) shown = { year: +day.slice(0, 4), month: +day.slice(5, 7) };
@@ -529,6 +633,61 @@ async function moveEntry(id, day) {
     } catch (err) { toast(`לא הוזז. ${ui.errorText(err)}`); }
   };
   await apply({ day, edited: true, month: Math.max(1, Math.min(termOf(client), packageMonthOf(client, day))) }, `${e.title} הוזז ל${dayLine(day)}`);
+}
+
+// ── Marking by hand: one tap, and a whole day, week or month ──
+// Until Metricool is connected (and for whatever it does not know) Ilai marks by hand.
+const SET_TEXT = { planned: 'חזר ל״מתוכנן״', scheduled: 'סומן שתוזמן', posted: 'סומן שעלה' };
+const redraw = () => { renderStats(); renderGlance(); renderMonth(); };
+async function tapState(e) {
+  const before = e.state;
+  const set = async (state, msg, undo) => {
+    try {
+      const row = await data.saveEntry(e.id, { state });
+      rows = rows.map((r) => (r.id === e.id ? row : r));
+      redraw();
+      toast(msg, undo ? { label: 'ביטול', run: () => set(before, `בוטל: ${e.title} חזר ל״${STATUS_TEXT[before]}״`, false) } : null);
+      document.querySelector(`.gt-state-btn[data-key="${CSS.escape(e.key)}"]`)?.focus();
+    } catch (err) { toast(`לא נשמר. ${ui.errorText(err)}`); }
+  };
+  const next = nextState(before);
+  await set(next, `${SET_TEXT[next]}: ${e.title}`, true);
+}
+// The three ranges "סימון כתוזמנו" offers: the day chosen (or today), its week, the month shown.
+function bulkRanges() {
+  const m = `${shown.year}-${String(shown.month).padStart(2, '0')}`;
+  const t = todayKey();
+  const anchor = selectedDay || (t.startsWith(m) ? t : `${m}-01`);
+  const week = weekOf(anchor);
+  const days = monthGrid(shown.year, shown.month).flat().filter((d) => d.inMonth).map((d) => d.key);
+  return [
+    { id: 'day', label: selectedDay ? `היום שנבחר: ${dayLine(anchor)}` : anchor === t ? `היום: ${dayLine(anchor)}` : dayLine(anchor), from: anchor, to: anchor },
+    { id: 'week', label: `השבוע של ${dm(week.from)}–${dm(week.to)}`, from: week.from, to: week.to },
+    { id: 'month', label: `כל ${monthName(shown.year, shown.month)}`, from: days[0], to: days.at(-1) },
+  ].map((r) => ({ ...r, list: toSchedule(rows, r.from, r.to) }));
+}
+function openBulk() {
+  const n = (x) => (x === 1 ? 'פרסום אחד' : `${x} פרסומים`);
+  $('bk-body').replaceChildren(
+    h('p', { class: 'hint' }, 'מסמן ״תוזמן״ את הפרסומים שעדיין ״מתוכנן״ בטווח שנבחר. מה שכבר עלה, בוטל או תוזמן לא משתנה, ואפשר לבטל מיד אחרי הסימון.'),
+    h('div', { class: 'gt-bulk-opts' }, ...bulkRanges().map((r) => h('button', {
+      type: 'button', class: 'btn gt-bulk-opt', id: `bk-${r.id}`, disabled: r.list.length ? null : true,
+      onclick: () => { $('bulk-dlg').close(); applyBulk(r); },
+    }, h('span', {}, r.label), h('strong', { class: 'num' }, r.list.length ? n(r.list.length) : 'אין מה לסמן')))));
+  $('bulk-dlg').showModal();
+}
+async function applyBulk(range) {
+  const ids = range.list.map((e) => e.id);
+  const put = async (state, msg, undo) => {
+    try {
+      const changed = await data.setStates(ids, state);
+      const by = new Map(changed.map((r) => [r.id, r]));
+      rows = rows.map((r) => by.get(r.id) || r);
+      redraw();
+      toast(msg(changed.length), undo ? { label: 'ביטול', run: () => put('planned', (k) => `בוטל: ${k} חזרו ל״מתוכנן״`, false) } : null);
+    } catch (err) { toast(`לא נשמר. ${ui.errorText(err)}`); }
+  };
+  await put('scheduled', (k) => (k === 1 ? 'פרסום אחד סומן ״תוזמן״' : `${k} פרסומים סומנו ״תוזמן״`), true);
 }
 
 // ── Update from the template ──────────────
@@ -573,13 +732,16 @@ async function applyRegen(plan, overwrite) {
 // ── The client's link ─────────────────────
 function renderShare() {
   const body = [];
+  // The link is the one thing Irit, Lior and Ofir do here: for them it is the pink action.
+  // For Ilai and the owner the pink one is "סימון כתוזמנו", so this stays plain.
+  const main = canEdit ? 'btn' : 'btn btn-primary';
   if (share === undefined) body.push(h('p', { class: 'hint' }, 'הקישור יהיה זמין אחרי שהמיגרציה של הגאנט תוחל.'));
-  else if (!share) body.push(h('button', { type: 'button', class: 'btn btn-primary', id: 'gs-create', onclick: () => makeShare() }, 'יצירת קישור ללקוח'));
+  else if (!share) body.push(h('button', { type: 'button', class: main, id: 'gs-create', onclick: () => makeShare() }, 'יצירת קישור ללקוח'));
   else {
     const url = share.token ? data.shareUrl(share.token) : null;
     body.push(url ? h('div', { class: 'gt-share-row' },
       h('input', { class: 'input', id: 'gs-url', readonly: true, dir: 'ltr', value: url, 'aria-label': 'הקישור ללקוח', onfocus: (ev) => ev.target.select() }),
-      h('button', { type: 'button', class: 'btn btn-primary', id: 'gs-copy', onclick: () => copy(url) }, 'העתקה'),
+      h('button', { type: 'button', class: main, id: 'gs-copy', onclick: () => copy(url) }, 'העתקה'),
       h('a', { class: 'btn btn-ghost', href: url, target: '_blank', rel: 'noopener', id: 'gs-open' }, 'תצוגה מקדימה')) : h('p', { class: 'hint' }, 'הקישור קיים, אבל אי אפשר להציג אותו שוב. אפשר ליצור קישור חדש.'),
     h('p', { class: 'hint' }, `בתוקף עד ${ui.formatDay(dayKeyIL(new Date(share.expires_at)))}.`),
     h('div', { class: 'gt-share-acts' },
@@ -625,7 +787,11 @@ $('view-list').addEventListener('click', () => { view = 'list'; selectedDay = nu
 $('ed-close').addEventListener('click', () => dlg().close());
 $('rg-close').addEventListener('click', () => $('regen-dlg').close());
 $('rg-cancel').addEventListener('click', () => $('regen-dlg').close());
-for (const d of [dlg(), $('regen-dlg')]) d.addEventListener('click', (ev) => { if (ev.target === d) d.close(); });
+$('btn-bulk').addEventListener('click', openBulk);
+$('bk-close').addEventListener('click', () => $('bulk-dlg').close());
+$('bk-cancel').addEventListener('click', () => $('bulk-dlg').close());
+$('bd-close').addEventListener('click', () => $('brand-dlg').close());
+for (const d of [dlg(), $('regen-dlg'), $('bulk-dlg'), $('brand-dlg')]) d.addEventListener('click', (ev) => { if (ev.target === d) d.close(); });
 
 boot();
 
