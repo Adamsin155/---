@@ -77,6 +77,74 @@ export function fileProblem(kind, file) {
   return null;
 }
 
+// ── What a file really is: its first bytes ──
+// Found live (6.10.2026): a 2 KB text file named .mp4 went up as a video and showed in
+// the client's gallery. The name and the type the browser reports come from the
+// extension; the first bytes do not lie. `sniff` names the format, or null:
+//   images     jpeg, png, gif, webp, svg, and the phone's heic / avif
+//   documents  pdf, ps (a logo in PDF, AI or EPS)
+//   videos     mp4 (also m4v and 3gp: the same container), mov, webm
+export const SNIFF_BYTES = 4096;
+const HEIF_BRANDS = /^(heic|heix|hevc|hevx|heim|heis|mif1|msf1|avif|avis)$/;
+const AUDIO_BRANDS = /^(M4A |M4B |M4P )$/;
+const ascii = (b, from, to) => String.fromCharCode(...b.subarray(from, Math.min(to, b.length)));
+export function sniff(input) {
+  const b = input instanceof Uint8Array ? input : new Uint8Array(input || []);
+  if (b.length < 4) return null;
+  const starts = (...sig) => sig.every((v, i) => b[i] === v);
+  if (starts(0xff, 0xd8, 0xff)) return 'jpeg';
+  if (starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'png';
+  if (/^GIF8[79]a/.test(ascii(b, 0, 6))) return 'gif';
+  if (ascii(b, 0, 4) === 'RIFF' && ascii(b, 8, 12) === 'WEBP') return 'webp';
+  if (ascii(b, 0, 5) === '%PDF-') return 'pdf';
+  if (ascii(b, 0, 4) === '%!PS' || starts(0xc5, 0xd0, 0xd3, 0xc6)) return 'ps';
+  if (starts(0x1a, 0x45, 0xdf, 0xa3)) return 'webm';
+  const box = ascii(b, 4, 8);
+  if (box === 'ftyp') {
+    const brand = ascii(b, 8, 12);
+    if (HEIF_BRANDS.test(brand)) return brand.startsWith('avi') ? 'avif' : 'heic';
+    if (AUDIO_BRANDS.test(brand)) return null;
+    return brand === 'qt  ' ? 'mov' : 'mp4';
+  }
+  // An older QuickTime file starts with one of its atoms, without ftyp.
+  if (['moov', 'mdat', 'wide', 'free', 'skip', 'pnot'].includes(box)) return 'mov';
+  // SVG is text: an <svg> element near the top (after a BOM, an XML header, a comment).
+  const text = ascii(b, 0, SNIFF_BYTES).replace(/^\u00ef\u00bb\u00bf/, '').trimStart();
+  if (text.startsWith('<') && /<svg[\s>]/i.test(text)) return 'svg';
+  return null;
+}
+const FORMATS = {
+  image: ['jpeg', 'png', 'gif', 'webp', 'svg', 'heic', 'avif'],
+  video: ['mp4', 'mov', 'webm'],
+  logo: ['pdf', 'ps'],
+};
+// Why this file's content does not fit this kind (in Hebrew), or null. Kinds without
+// a type rule (a custom addition, "other", the site) take any content.
+export function contentMismatch(kind, name, bytes) {
+  const types = KINDS[kind]?.types;
+  if (!types) return null;
+  const format = sniff(bytes);
+  if (format && types.some((t) => FORMATS[t].includes(format))) return null;
+  const n = String(name || 'הקובץ');
+  if (types.includes('logo')) return `"${n}" אינו קובץ לוגו תקין: התוכן שלו לא תואם לסוג הקובץ. אפשר תמונה (JPG, PNG, WebP, GIF, SVG), PDF, AI או EPS.`;
+  if (types.length === 2) return `"${n}" אינו תמונה או סרטון: התוכן שלו לא תואם לסוג הקובץ. אפשר JPG, PNG, WebP, GIF, או סרטון MP4, MOV, WebM, M4V.`;
+  return types[0] === 'video'
+    ? `"${n}" אינו סרטון: התוכן שלו לא תואם לסוג הקובץ. אפשר להעלות MP4, MOV, WebM או M4V.`
+    : `"${n}" אינו תמונה: התוכן שלו לא תואם לסוג הקובץ. אפשר להעלות JPG, PNG, WebP, GIF או SVG.`;
+}
+// The same, reading the file's first bytes in the browser. A file that cannot be
+// read at all is refused too (it could not be uploaded either).
+export async function contentProblem(kind, file) {
+  if (!KINDS[kind]?.types) return null;
+  let bytes;
+  try {
+    bytes = new Uint8Array(await file.slice(0, SNIFF_BYTES).arrayBuffer());
+  } catch {
+    return `לא הצלחנו לקרוא את "${String(file?.name || 'הקובץ')}". בחרו אותו שוב.`;
+  }
+  return contentMismatch(kind, file?.name, bytes);
+}
+
 // A file name the bucket accepts (Storage keys are ASCII): the extension kept, other
 // characters (Hebrew, spaces, slashes) dropped, at most 80 characters.
 export function safeName(name) {

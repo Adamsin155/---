@@ -11,15 +11,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeReminders, buildEnv, lateSummary, planDigests, planDelivery } from '../app/reminder-engine.js';
-import { REMINDER_PEOPLE } from '../app/reminder-rules.js';
+import { REMINDER_PEOPLE, LATE_GRACE_MINUTES } from '../app/reminder-rules.js';
+import { clocksFor, ANSWER_CLOCKS } from '../app/clocks.js';
 import { PROCESSES, PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, scopeOf, isSales, STATIONS } from '../app/protocol.js';
-import { clientState, IMPORT_NOTE } from '../app/protocol-logic.js';
+import { clientState, IMPORT_NOTE, isImmediate, IMMEDIATE_MINUTES } from '../app/protocol-logic.js';
 import { importKeys } from '../app/client-open.js';
 import { dateIL, partsIL } from '../app/tz.js';
 import {
   validateDeal, dealSummary, prefillFromDeal, contractTitle, dealDue, statusText, DEAL_STATUS, addonsFor, pendingDeals, dealUrl, landingOf,
 } from '../app/deal-logic.js';
-import { planAutoAssign, autoReasonOf, AUTO_REASON } from '../app/auto-assign.js';
+import { planAutoAssign, autoReasonOf, AUTO_REASON, AUTO_DRIVE_NOTE } from '../app/auto-assign.js';
 import { stationChange, stationChangeText, suggestFor, templatesByKey, messageText } from '../app/messages-logic.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
@@ -161,7 +162,8 @@ test('the owner\'s summary: everything 24 hours late or more, one section, by pe
   assert.deepEqual(at(IL(2026, 10, 5, 18)), ['באיחור 24 שעות ומעלה (1):', 'עירית (1): אלפא: לשלוח חשבונית']);
   const tue = at(IL(2026, 10, 6, 18));
   // 5, 7, 8, 9 and 10 (the characterization's clocks of Monday) and the task: the most late person first, each oldest first.
-  assert.deepEqual(tue, ['באיחור 24 שעות ומעלה (6):', 'אופיר (2): אלפא (5), אלפא (8)', 'עילאי (2): אלפא (9), אלפא (7)', 'עירית (1): אלפא: לשלוח חשבונית', 'ליאור (1): אלפא (10)']);
+  // (5 is "מיד" after the meeting: late 15 office minutes after it, so 9, due 5 minutes after it, is the oldest.)
+  assert.deepEqual(tue, ['באיחור 24 שעות ומעלה (6):', 'עילאי (2): אלפא (9), אלפא (7)', 'אופיר (2): אלפא (5), אלפא (8)', 'עירית (1): אלפא: לשלוח חשבונית', 'ליאור (1): אלפא (10)']);
   // In the 18:00 digest, as one section; one digest, not a message per item.
   const env = buildEnv({ ...w, now: IL(2026, 10, 6, 18) });
   const d = planDigests({ env, now: IL(2026, 10, 6, 18), log: [], active: new Set() }).filter((x) => x.person === 'owner');
@@ -221,7 +223,9 @@ test('auto-assign: Natali → Nirel; otherwise the least loaded of Nadia, Yariv 
   assert.deepEqual(plan.map((a) => [a.client.name, a.editor]), [['דמס', 'anna'], ['נטלי', 'nirel']]);
   const a = plan[0];
   assert.deepEqual(a.patch, { editor: 'anna' });
-  assert.deepEqual(a.checks.map((x) => x.key), ['p22a.load', 'p22a.assigned', 'p22a.irit']);
+  // Lior confirmed the drive is back when he closed the day (p19.took): 22א's own "the drive came back" closes with it.
+  assert.deepEqual(a.checks.map((x) => x.key), ['p22a.drive', 'p22a.load', 'p22a.assigned', 'p22a.irit']);
+  assert.equal(a.checks[0].note, AUTO_DRIVE_NOTE);
   assert.equal(a.reason.key, 'p22a.reason');
   assert.deepEqual(JSON.parse(a.reason.note), { editor: 'anna', reason: AUTO_REASON, preselected: null, joint: false, auto: true, kept: false });
   assert.deepEqual(a.task, { client_id: dms.id, title: 'פתיחת תיקייה מסודרת בדרייב לעריכה (24)', owner: 'ofir', due_on: '2026-10-19' });
@@ -273,7 +277,9 @@ test('graphics approved (the status page or Irit): Ilai rings at once with 30 of
   assert.equal(r.title, 'הגרפיקות של גרפיקה אושרו — להעלות לרשתות');
   assert.equal(r.exempt, 'clock');
   assert.match(r.body, /יעד היום 13:30/);
-  const late = due(w, IL(2026, 10, 5, 13, 31));
+  // Late at 13:30; Ofir and Lior hear 15 office minutes after that, not in the same minute.
+  assert.ok(!due(w, IL(2026, 10, 5, 13, 44)).some((x) => x.rule === 'late' && x.key.includes(':p07b@')));
+  const late = due(w, IL(2026, 10, 5, 13, 46));
   for (const who of ['ofir', 'lior']) assert.equal(pick(late, 'late', who).find((x) => x.key.includes(':p07b@')).level, 'quiet', who);
   mark(w, c, 'p07b.posted', IL(2026, 10, 5, 13, 20));
   none(due(w, IL(2026, 10, 5, 13, 31)), 'graphicsUpload');
@@ -319,4 +325,75 @@ test('the client moved to the next station: the ready text for Irit (quiet) and 
   // The first station has no "before".
   const fresh = client(w, { name: 'חדש', char_at: null });
   assert.equal(stationChange(fresh, {}, null, IL(2026, 10, 6, 10)), null);
+});
+
+// ── The live run of 6.10.2026: "late" in the minute a handoff landed ──
+test('"מיד" gets 15 office minutes before it is late anywhere; Ofir and Lior hear 15 more after; the minute clocks are as they were', () => {
+  assert.deepEqual([IMMEDIATE_MINUTES, LATE_GRACE_MINUTES], [15, 15]);
+  // Exactly the processes whose deadline is the event that starts them.
+  assert.deepEqual(PROCESSES.filter((p) => isImmediate(p.due)).map((p) => p.id).sort(), ['p05', 'p11b', 'p22a', 'p26']);
+  const w = world();
+  const c = client(w, { name: 'מיידי', editor: 'nadia', shoot_at: IL(2026, 10, 15, 11).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
+  importTo(w, c, 'post');
+  for (const id of ['p25', 'p26', 'p27']) for (const i of PROCESSES.find((p) => p.id === id).items) delete w.checks[c.id][i.key];
+  marks(w, c, itemsOf('p25'), IL(2026, 10, 20, 10)); // Ofir approved at 10:00
+  const p26 = (now) => clientState(c, w.checks[c.id], now).states.find((x) => x.proc.id === 'p26');
+  assert.equal(hhmm(p26(IL(2026, 10, 20, 10, 1)).dueAt), '20.10 10:15');
+  assert.notEqual(p26(IL(2026, 10, 20, 10, 1)).status, 'overdue');
+  assert.notEqual(p26(IL(2026, 10, 20, 10, 15)).status, 'overdue');
+  assert.equal(p26(IL(2026, 10, 20, 10, 16)).status, 'overdue');
+  // Irit's "עכשיו" clock: 14 minutes left a minute after the approval, not "נגמר לפני 1 דק׳".
+  const clock = clocksFor('irit', [c], w.checks, { now: IL(2026, 10, 20, 10, 1) }).find((k) => k.proc.id === 'p26');
+  assert.deepEqual([clock.state, Math.round(clock.remaining / 6e4), clock.office], ['running', 14, true]);
+  // The quiet note to Ofir and Lior: not when the handoff lands, not when the allowance ends, only 15 office minutes later.
+  const lateOf = (now) => due(w, now).filter((r) => r.rule === 'late' && r.key.includes(':p26@'));
+  for (const m of [0, 1, 14, 16, 29]) assert.deepEqual(lateOf(IL(2026, 10, 20, 10, m)), [], `10:${m}`);
+  assert.deepEqual(lateOf(IL(2026, 10, 20, 10, 30)).map((r) => [r.person, r.level]).sort(), [['lior', 'quiet'], ['ofir', 'quiet']]);
+  // Sent in time: never a note.
+  mark(w, c, 'p26.sent', IL(2026, 10, 20, 10, 12));
+  assert.deepEqual(lateOf(IL(2026, 10, 20, 11)), []);
+  // After hours the allowance is office time: approved Thursday 17:55, late from Sunday 09:10.
+  const w2 = world();
+  const d = client(w2, { name: 'ערב', editor: 'nadia', shoot_at: IL(2026, 10, 15, 11).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
+  importTo(w2, d, 'post');
+  for (const id of ['p25', 'p26', 'p27']) for (const i of PROCESSES.find((p) => p.id === id).items) delete w2.checks[d.id][i.key];
+  marks(w2, d, itemsOf('p25'), IL(2026, 10, 22, 17, 55));
+  assert.equal(hhmm(clientState(d, w2.checks[d.id], IL(2026, 10, 22, 18)).states.find((x) => x.proc.id === 'p26').dueAt), '25.10 09:10');
+  // The protocol's own short clocks did not move: 5 minutes for a deal, 30 for the access
+  // check and the approved graphics, 10 / 10 / 5 for "the client did not answer".
+  const n = client(w2, { name: 'חדש', deal_at: IL(2026, 10, 20, 10).toISOString() });
+  const fresh = clientState(n, { 'p05.access': { state: 'done', at: IL(2026, 10, 20, 12).toISOString() }, 'p07.approved': { state: 'done', at: IL(2026, 10, 20, 13).toISOString() } }, IL(2026, 10, 20, 13));
+  const dueOf = (id) => hhmm(fresh.states.find((x) => x.proc.id === id).dueAt);
+  assert.deepEqual(['p01', 'p02', 'p03', 'p06', 'p07b'].map(dueOf), ['20.10 10:05', '20.10 10:05', '20.10 10:05', '20.10 12:30', '20.10 13:30']);
+  assert.deepEqual(Object.fromEntries(Object.entries(ANSWER_CLOCKS).map(([k, v]) => [k, v.minutes])), { p07: 10, p23: 10, p26: 5 });
+});
+
+test('the shoot day closed and the editor assigned by the server: 22א is whole, and never reported late', () => {
+  const w = world();
+  const c = shotClient(w);
+  closeDay(w, c, IL(2026, 10, 18, 16)); // Sunday 16:00
+  const lateOf = (now) => due(w, now).filter((r) => r.rule === 'late' && r.key.includes(':p22a@'));
+  // The minute the day closed, before the server's run: not late (it was, in the live run).
+  const now = IL(2026, 10, 18, 16, 1);
+  assert.deepEqual(lateOf(now), []);
+  const [a] = planOf(w, now);
+  Object.assign(c, a.patch);
+  for (const x of [...a.checks, a.reason]) mark(w, c, x.key, now, x.note);
+  assert.equal(w.checks[c.id]['p22a.drive'].note, AUTO_DRIVE_NOTE);
+  assert.equal(clientState(c, w.checks[c.id], now).states.find((x) => x.proc.id === 'p22a').complete, true);
+  for (const t of [now, IL(2026, 10, 18, 16, 31), IL(2026, 10, 18, 17, 30), IL(2026, 10, 19, 9, 30), IL(2026, 10, 19, 12)]) assert.deepEqual(lateOf(t), [], hhmm(t));
+  // A drive Lior never confirmed (the day closed from the card) is not closed for him.
+  const w2 = world();
+  const d = shotClient(w2);
+  marks(w2, d, itemsOf('p19').filter((k) => k !== 'p19.took'), IL(2026, 10, 18, 16));
+  mark(w2, d, 'p19.took', IL(2026, 10, 18, 16), 'לא רלוונטי');
+  w2.checks[d.id]['p19.took'].state = 'na';
+  assert.deepEqual(planOf(w2, now)[0].checks.map((x) => x.key), ['p22a.load', 'p22a.assigned', 'p22a.irit']);
+  // With the assignment not running at all, 22א is late after the allowance and the note 15 minutes after that.
+  const w3 = world();
+  const e = shotClient(w3);
+  closeDay(w3, e, IL(2026, 10, 18, 16));
+  const late3 = (t) => due(w3, t).filter((r) => r.rule === 'late' && r.key.includes(':p22a@')).map((r) => r.person).sort();
+  assert.deepEqual(late3(IL(2026, 10, 18, 16, 29)), []);
+  assert.deepEqual(late3(IL(2026, 10, 18, 16, 30)), ['lior', 'ofir']);
 });

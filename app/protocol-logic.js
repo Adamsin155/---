@@ -72,6 +72,16 @@ export function charEndedAt(checks) {
   return c && c.state === 'done' && c.at ? new Date(c.at) : null;
 }
 export const onOfficeTime = (spec) => !!spec && !spec.businessDays && onOfficeClock(spec.from) && spec.days === undefined && !spec.prevBusinessDay;
+// A deadline of "immediately" (מיד): due at the very office event that starts the work,
+// with no time of its own (22א right when the shoot day is closed, 26 right when Ofir
+// approves, 11ב, 5). Nobody can finish in zero minutes, so such a process gets a
+// working allowance of 15 office minutes before it is late anywhere: the lists, the
+// colour, the "now" clocks and the reminders (found live, 6.10.2026: "נגמר לפני 1 דק׳"
+// the moment the task appeared). Deadlines with their own time (5, 10, 30 minutes,
+// hours, days) and anything hanging on a meeting or a shoot are untouched.
+export const IMMEDIATE_MINUTES = 15;
+export const isImmediate = (spec) => onOfficeTime(spec) && !spec.hours && !spec.minutes && !spec.at && !spec.afterMark;
+const dueSpec = (spec) => (isImmediate(spec) ? { ...spec, minutes: IMMEDIATE_MINUTES } : spec);
 
 const sameDay = (a, b) => dayKeyIL(a) === dayKeyIL(b);
 
@@ -382,7 +392,7 @@ export function clientState(client, checks = {}, now = new Date()) {
     const complete = p.recurring ? false : resolved === required.length;
     const startAt = resolveTime(p.start, ctx, procs, checks, now);
     // A deadline a later protocol version shortened keeps the one the client started under.
-    const baseDueAt = p.recurring ? null : laterDue(resolveTime(p.due, ctx, procs, checks, now), p.dueBefore && resolveTime(p.dueBefore, ctx, procs, checks, now));
+    const baseDueAt = p.recurring ? null : laterDue(resolveTime(dueSpec(p.due), ctx, procs, checks, now), p.dueBefore && resolveTime(dueSpec(p.dueBefore), ctx, procs, checks, now));
     const doneAt = complete ? completedAt(p, checks, now) : null;
     // Waiting on the client (office minutes): `waited` in all, `extended` the part
     // that moved the deadline on.

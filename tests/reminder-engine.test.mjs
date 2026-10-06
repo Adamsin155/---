@@ -302,8 +302,8 @@ test('setting the shoot day (11, v6): right after the group opens; Irit in the a
   none(due(w, IL(2026, 10, 5, 15, 59)), 'shootDate', 'due16');
   const ring = one(due(w, IL(2026, 10, 5, 16)), 'shootDate', 'due16', 'irit');
   assert.equal(ring.level, 'ring');
-  // The next morning it is late: Ofir and Lior hear quietly (the `late` rule), no board step per item.
-  const tue = due(w, IL(2026, 10, 6, 8, 30));
+  // The next morning it is late: Ofir and Lior hear quietly (the `late` rule, 15 office minutes into the day), no board step per item.
+  const tue = due(w, IL(2026, 10, 6, 9, 16));
   for (const who of ['ofir', 'lior']) assert.equal(pick(tue, 'late', who).find((r) => r.key.includes(':p11@')).level, 'quiet', who);
   // Waiting on the client stops it; so does closing the day.
   mark(w, c, 'p11.wait', IL(2026, 10, 5, 12), JSON.stringify({ reason: 'הלקוח בחו״ל' }));
@@ -735,7 +735,8 @@ test('lateness (3.10.2026): every late item to Ofir and Lior, quietly, once per 
   const c = client(w, { char_at: IL(2026, 10, 6, 10).toISOString() });
   importTo(w, c, 'char');
   marks(w, c, itemsOf('p04'), IL(2026, 10, 6, 12));
-  const at = due(w, IL(2026, 10, 6, 14, 1));
+  none(due(w, IL(2026, 10, 6, 14, 14)).filter((r) => /:p0[78]@|:p10@/.test(r.key)), 'late'); // not in the minute the deadline passes
+  const at = due(w, IL(2026, 10, 6, 14, 16));
   for (const who of ['ofir', 'lior']) {
     for (const proc of ['p07', 'p08', 'p10']) { // Ilai's, Ofir's own and Lior's own
       const r = pick(at, 'late', who).find((x) => x.key.includes(`:${proc}@`));
@@ -755,7 +756,7 @@ test('lateness (3.10.2026): every late item to Ofir and Lior, quietly, once per 
   importTo(w2, e, 'post');
   for (const k of [...itemsOf('p22'), ...itemsOf('p22a')]) delete w2.checks[e.id][k];
   mark(w2, e, 'p22a.assigned', IL(2026, 10, 18, 10));
-  const late = due(w2, IL(2026, 10, 22, 8, 30));
+  const late = due(w2, IL(2026, 10, 22, 9, 16));
   assert.ok(pick(late, 'late', 'ofir').some((r) => r.key.includes(':p22@')));
   assert.match(pick(late, 'late', 'lior').find((r) => r.key.includes(':p22@')).title, /אנה/);
   // The same deadline again later: already known, so nothing new (the key is the deadline's).
@@ -912,7 +913,7 @@ test('ending (35): Lior\'s digest the day before, a ring on the last day; late c
   importTo(w, c, 'ongoing');
   one(due(w, IL(2026, 10, 14, 8, 30)), 'ending', 'lior', 'lior');
   one(due(w, IL(2026, 10, 15, 10)), 'ending', 'day', 'lior');
-  assert.ok(pick(due(w, IL(2026, 10, 16, 8, 30)), 'late', 'ofir').some((r) => r.key.includes(':p35@')));
+  assert.ok(pick(due(w, IL(2026, 10, 18, 9, 16)), 'late', 'ofir').some((r) => r.key.includes(':p35@'))); // Sunday: 15 office minutes after the end of Thursday
 });
 
 test('"אין מי שייצא לאפיון" rings for Lior; Ilai\'s late graphics go to Lior\'s list', () => {
@@ -925,5 +926,5 @@ test('"אין מי שייצא לאפיון" rings for Lior; Ilai\'s late graphic
   assert.equal(r.body, 'מחר 10:00, הרצל 1');
   none(due(w, IL(2026, 10, 5, 10)), 'exception', 'list');
   marks(w, c, itemsOf('p04'), IL(2026, 10, 6, 10));
-  assert.ok(pick(due(w, IL(2026, 10, 6, 12, 1)), 'late', 'lior').some((r2) => r2.key.includes(':p07@')));
+  assert.ok(pick(due(w, IL(2026, 10, 6, 12, 16)), 'late', 'lior').some((r2) => r2.key.includes(':p07@')));
 });

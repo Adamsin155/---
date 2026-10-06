@@ -23,6 +23,11 @@ import { isImported } from './protocol-logic.js';
 
 export const AUTO_REASON = 'שיוך אוטומטי בסיום יום הצילום, לפי העומס';
 export const AUTO_CHECK_NOTE = 'שויך אוטומטית בסיום יום הצילום';
+// 22א also holds Lior's "the drive came back". He confirmed exactly that when he closed
+// the shoot day (19: "הכונן חזר אליי", p19.took), so the assignment closes it with the
+// rest: otherwise 22א stays open on that one item and is reported late in the same
+// minute it was assigned (found live, 6.10.2026).
+export const AUTO_DRIVE_NOTE = 'נסגר לבד: ליאור אישר בסגירת יום הצילום שהכונן חזר';
 
 // The reason mark of an automatic assignment ({ editor, auto: true, … }), or null.
 export function autoReasonOf(checks, pre = '') {
@@ -55,6 +60,7 @@ export function planAutoAssign({ clients = [], stateOf, checks = {}, tasks = [],
       clientId: a.client.id, client: a.client, pre: a.pre, n: a.n, editor, kept: !!kept,
       patch: kept ? null : withEditor(a.client, a.n, editor),
       checks: [
+        ...(cs[`${a.pre}p19.took`]?.state === 'done' && !['done', 'na'].includes(cs[`${a.pre}p22a.drive`]?.state) ? [{ key: `${a.pre}p22a.drive`, note: AUTO_DRIVE_NOTE }] : []),
         { key: `${a.pre}p22a.load`, note: AUTO_CHECK_NOTE },
         { key: `${a.pre}p22a.assigned`, note: AUTO_CHECK_NOTE },
         { key: `${a.pre}p22a.irit`, note: 'נסגר לבד: השיוך נרשם במערכת' },

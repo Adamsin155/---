@@ -229,6 +229,9 @@ export const OWN_LATE = new Set(['p01', 'p02', 'p03', 'p06', 'p11b', 'p14', 'p15
 export const QUALITY = new Set(['p22', 'p23', 'p24', 'p25', 'p27']);
 // Who hears of every late item (the owner's decision of 3.10.2026), quietly.
 export const LATE_WATCHERS = ['ofir', 'lior'];
+// How far past its deadline an item is before Ofir and Lior are told (office minutes):
+// a handoff that just landed is not "late" in the minute it arrives (found live, 6.10.2026).
+export const LATE_GRACE_MINUTES = 15;
 // How late an item is before it joins the owner's daily summary (one message, 18:00).
 export const OWNER_LATE_HOURS = 24;
 
@@ -1198,7 +1201,7 @@ export const RULES = [
 
   // Every late item of every employee (the owner's decision of 3.10.2026): Ofir and
   // Lior hear of it in the app, quietly (the list and the badge, no sound), once per
-  // deadline. Whatever already rings for it (its own ladder above: urgent, the
+  // deadline, and only once it is LATE_GRACE_MINUTES office minutes past it. Whatever already rings for it (its own ladder above: urgent, the
   // protocol clocks, the shoot day) keeps ringing. From 24 hours late it is in the
   // owner's one summary at 18:00 (lateSummary in app/reminder-engine.js), never a
   // message per item.
@@ -1225,7 +1228,7 @@ export const RULES = [
     },
     // `list`: Lior's "החלטות" screen keeps listing what is late (decisions.html), as before.
     steps: LATE_WATCHERS.map((p) => ({
-      id: p, to: p, level: 'quiet', overdue: true, list: p === 'lior',
+      id: p, to: p, level: 'quiet', overdue: true, list: p === 'lior', officeMinutes: LATE_GRACE_MINUTES,
       title: (i) => `באיחור: ${i.name} · ${procName(i.proc)} · ${names(i.owners.filter((o) => o !== 'editor').map(personName)) || 'העורך המשויך'}`,
       body: (i, env) => `היעד היה ${whenText(i.anchors.event, env.now)}.`,
     })),
