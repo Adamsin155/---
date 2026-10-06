@@ -29,11 +29,13 @@ import { canSeeInsights } from './insights.js';
 import { canSendMessages } from './messages-logic.js';
 import { TZ, dayKeyIL, daysBetweenIL } from './tz.js';
 // The manager profile (app/manager-rules.js): the table and the archive.
-import { canArchive, canSeeTable, seesFinance, sameName } from './manager-rules.js';
+import { canArchive, canSeeTable, canSeeShootTable, seesFinance, sameName } from './manager-rules.js';
 import {
   tableRow, columnsFor, filterRows, sortRows, filterOptions, toCsv, csvName, DEFAULT_FILTERS, dayText as dmy, moneyText,
 } from './manager-table.js';
 import { fileCounts } from './contract-summary.js';
+// The shoot-day table (app/shoot-table.js): Lior, Ofir and the owner.
+import { shootRow, shootGroups, searchRows, countText, heldText, agoText, aheadText, SHOOT_COLUMNS, DEFAULT_SORT } from './shoot-table.js';
 // The week's chart on screen 1 (the counting: app/week-chart.js) and the page's motion (app/shell.js).
 import { weekClosings, weekSummary, weekLabel } from './week-chart.js';
 import { countUp, growOnce, glide } from './shell.js';
@@ -66,6 +68,10 @@ let filters = { ...DEFAULT_FILTERS };
 let sortKey = 'color';
 let sortDir = 'asc';
 let archived = null;   // archived_clients() (null: not loaded)
+let mayShoots = false; // Lior, Ofir and the owner: the shoot-day table
+let shootRows = [];    // one row per active client (app/shoot-table.js)
+let shootQ = '';
+let shootSort = { ...DEFAULT_SORT };
 let view = 'now';
 let colorFilter = '';
 let boardDays = 7;
@@ -150,6 +156,7 @@ function compute(now = new Date()) {
     tableRows = allClients.map((c) => tableRow(byId.get(c.id) || { client: c, state: stateOf(c), health: null, station: null },
       { checks, finance: showMoney ? finance || {} : null, files: filesBy, now }));
   }
+  if (mayShoots) shootRows = entries.map((e) => shootRow(e, { checks, now }));
 }
 
 // Re-rendering replaces elements; keyboard focus and the scroll stay where they were.
@@ -162,13 +169,14 @@ function renderKeepingFocus() {
 }
 
 // ── Tabs ────────────────────────────────────
-const TABS = ['now', 'all', 'table', 'archive'];
+const TABS = ['now', 'all', 'table', 'shoots', 'archive'];
 const tabsShown = () => TABS.filter((t) => !$(`tab-${t}`).hidden);
 // The page's heading follows the tab.
 const VIEW_TITLES = {
   now: ['מה דורש אותי', 'רק מה שחרג, עם שם אחד וסיבה אחת. הכול מחושב ממה שהצוות מסמן.'],
   all: ['כל הלקוחות במבט', 'איפה כל לקוח, מה הבא, מי ומתי. לחיצה על לקוח מציגה את השאר.'],
   table: ['כל הלקוחות בטבלה', 'שורה לכל לקוח: מה בחוזה, איפה הוא עומד, מה הבא ומה בוצע. מיון, סינון וייצוא.'],
+  shoots: ['טבלת ימי צילום', 'כל הלקוחות הפעילים לפי יום הצילום האחרון שהתקיים: מי שצולם הכי מזמן למעלה, ומתחתם מי שטרם צולם.'],
   archive: ['ארכיון', 'לקוחות שהועברו לארכיון: שחזור, או מחיקה לצמיתות.'],
 };
 function setView(v, focus = false) {
@@ -184,6 +192,8 @@ function setView(v, focus = false) {
   }
   if (focus) $(`tab-${view}`).focus();
   history.replaceState(null, '', `#${view}`);
+  // The app menu marks the shoot-day table as its own entry: it follows the hash (app/shell.js).
+  window.dispatchEvent(new Event('hashchange'));
   render();
 }
 for (const t of TABS) $(`tab-${t}`).addEventListener('click', () => setView(t));
@@ -199,6 +209,7 @@ $('ow-tabs').addEventListener('keydown', (e) => {
 function render() {
   if (view === 'now') renderNow();
   else if (view === 'table') renderTable();
+  else if (view === 'shoots') renderShoots();
   else if (view === 'archive') renderArchive();
   else renderAll();
 }
@@ -557,6 +568,56 @@ $('mt-csv').addEventListener('click', () => {
   toast(`יוצא קובץ CSV עם ${tableShown.length === 1 ? 'לקוח אחד' : `${tableShown.length} לקוחות`}${showMoney ? ', כולל המחירים' : ''}.`);
 });
 
+// ── The shoot-day table (Lior, Ofir and the owner) ──
+// One row per active client, by its last shoot day that took place, the oldest first;
+// "טרם צולמו" in a group of its own below. A click on a header sorts by it. Read-only.
+// On a phone each row is a card and the headers are the sort buttons (manager.css),
+// and each group shows its first 12 with "הצג עוד".
+const PHONE = '(max-width: 760px)';
+const SD_CAP = 12;
+const sdCell = (c, ...kids) => h('td', { class: c.num ? 'is-num num' : null, 'data-label': c.label }, ...kids);
+const SD_CELLS = {
+  name: (r, c) => sdCell(c, h('a', { class: 'mt-name', href: clientUrl(r.id) }, r.name), r.contact ? h('span', { class: 'sub' }, r.contact) : null),
+  type: (r, c) => sdCell(c, dash(r.shootType || r.package)),
+  last: (r, c) => sdCell(c,
+    r.last ? [h('span', { class: 'num' }, dmy(r.last)), h('span', { class: 'sub' }, agoText(r.lastDays))]
+      : h('span', { class: 'muted' }, r.group === 'never' ? 'טרם צולם' : 'צולם, התאריך לא הוזן'),
+    r.unclosed ? h('span', { class: 'sub sd-open' }, `${dmy(r.unclosed)} עבר ולא נסגר`) : null),
+  held: (r, c) => sdCell(c, dash(heldText(r))),
+  next: (r, c) => sdCell(c, r.next ? [h('span', { class: 'num' }, dmy(r.next)), h('span', { class: 'sub' }, aheadText(r.nextDays))] : h('span', { class: 'muted' }, 'לא נקבע')),
+  station: (r, c) => sdCell(c, r.station ? `${r.stationIndex + 1} · ${r.station}` : '—'),
+  editor: (r, c) => sdCell(c, dash(r.editorName)),
+};
+function setShootSort(key) {
+  shootSort = shootSort.key === key ? { key, dir: shootSort.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' };
+  renderShoots();
+  document.getElementById(`sd-sort-${key}`)?.focus();
+}
+function renderShoots() {
+  if ($('sd-q').value !== shootQ) $('sd-q').value = shootQ;
+  const shown = searchRows(shootRows, shootQ);
+  const groups = shootGroups(shown, shootSort.key, shootSort.dir);
+  fill($('sd-head'), SHOOT_COLUMNS.map((c) => h('th', {
+    scope: 'col', class: c.num ? 'is-num' : null, 'aria-sort': shootSort.key === c.key ? (shootSort.dir === 'asc' ? 'ascending' : 'descending') : null,
+  }, h('button', { type: 'button', id: `sd-sort-${c.key}`, onclick: () => setShootSort(c.key) }, c.label))));
+  for (const b of $('sd').querySelectorAll('tbody')) b.remove();
+  const phone = matchMedia(PHONE).matches;
+  for (const g of groups) {
+    const body = h('tbody', { id: `sd-body-${g.key}`, 'data-group': g.key },
+      g.rows.map((r) => h('tr', { 'data-id': r.id }, SHOOT_COLUMNS.map((c) => SD_CELLS[c.key](r, c)))));
+    if (phone) capList(body, SD_CAP, `sd:${g.key}`, { tag: 'tr' });
+    if (g.title) body.prepend(h('tr', { class: 'sd-group' }, h('th', { scope: 'colgroup', colspan: String(SHOOT_COLUMNS.length) }, `${g.title} (${g.rows.length})`)));
+    $('sd').append(body);
+  }
+  if (!groups.length) {
+    $('sd').append(h('tbody', { id: 'sd-body-none' }, h('tr', { class: 'sd-none' },
+      h('td', { class: 'mt-empty', colspan: String(SHOOT_COLUMNS.length) }, shootRows.length ? 'אין לקוחות בחיפוש הזה.' : 'אין לקוחות פעילים.'))));
+  }
+  $('sd-count').textContent = countText(shown);
+}
+$('sd-q').addEventListener('input', (e) => { shootQ = e.currentTarget.value; renderShoots(); });
+matchMedia(PHONE).addEventListener('change', () => { if (view === 'shoots' && !$('ow-page').hidden) renderShoots(); });
+
 // ── The archive (the owner and Ofir) ────────
 async function renderArchive() {
   if (archived === null) {
@@ -662,6 +723,7 @@ mountSession(async (staff) => {
   mayTable = canSeeTable(v);
   showMoney = seesFinance(v);
   mayArchive = canArchive(v);
+  mayShoots = canSeeShootTable(v);
   // Landed: from now on in this tab, "לקוחות" opens the clients list, not this screen.
   if (isOwner) markOwnerLanded();
   $('ow-page').hidden = false;
@@ -670,6 +732,7 @@ mountSession(async (staff) => {
   // Screen 1 is the managers'; Lior opens straight on screen 2 (and has the table, without prices).
   $('tab-now').hidden = !isOwner;
   $('tab-table').hidden = !mayTable;
+  $('tab-shoots').hidden = !mayShoots;
   $('tab-archive').hidden = !mayArchive;
   $('ow-tabs').hidden = tabsShown().length < 2;
   // Someone with a person of their own goes back to their own tasks; the owner to the team's work.

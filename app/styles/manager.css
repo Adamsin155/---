@@ -83,6 +83,45 @@
   .mt th:first-child, .mt td:first-child { min-inline-size: 132px; max-inline-size: 150px; }
 }
 
+/* ── The shoot-day table (owner.html#shoots): the manager table's look, seven columns ── */
+.sd-tools { grid-template-columns: minmax(180px, 360px); }
+.sd .sd-group th {
+  padding: 18px 10px 8px; font-family: var(--ds-font-h); font-size: 15px; font-weight: 400; color: var(--text);
+  background: var(--ds-surface); border-bottom: 1px solid var(--line-strong); position: static; box-shadow: none; min-inline-size: 0;
+}
+.sd .sd-open { color: var(--warn); font-weight: 600; }
+.sd td.is-num { text-align: start; }
+/* A phone: no sideways scroll. Each client is a card, and the headers are the sort buttons. */
+@media (max-width: 760px) {
+  .sd-tools { grid-template-columns: 1fr; }
+  .sd-tools .mt-search { grid-column: auto; }
+  .sd-wrap { overflow: visible; max-block-size: none; min-block-size: 0; background: none; }
+  .sd, .sd thead, .sd tbody { display: block; inline-size: 100%; min-inline-size: 0; }
+  .sd thead tr { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sd thead tr::before { content: 'מיון לפי'; flex: 0 0 100%; font-size: 12.5px; color: var(--muted); }
+  .sd thead th, .sd thead th:first-child {
+    position: static; min-inline-size: 0; max-inline-size: none; border: 0; box-shadow: none;
+    background: var(--ds-surface); border-radius: var(--ds-r-pill); overflow: hidden;
+  }
+  .sd thead th[aria-sort] { background: var(--ds-soft); }
+  .sd thead th > button { padding: 0 14px; }
+  .sd tbody { display: grid; gap: 8px; margin-block-start: 10px; }
+  .sd tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 6px 14px 12px; background: var(--ds-surface); border-radius: var(--ds-r-item); }
+  .sd tbody tr:hover td { background: none; }
+  .sd tbody td, .sd tbody td:first-child {
+    display: block; position: static; padding: 0; border: 0; box-shadow: none; background: none;
+    white-space: normal; min-inline-size: 0; max-inline-size: none; overflow-wrap: anywhere;
+  }
+  .sd tbody td::before { content: attr(data-label); display: block; font-size: 12px; color: var(--muted); }
+  .sd tbody td:first-child { grid-column: 1 / -1; }
+  .sd tbody td:first-child::before { content: none; }
+  .sd .mt-name { display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; }
+  .sd tbody td:first-child .sub { margin-block-start: -8px; }
+  .sd tbody tr.sd-group, .sd tbody tr.more-row, .sd tbody tr.sd-none { display: block; padding: 0; background: none; border-radius: 0; border: 0; }
+  .sd .sd-group th { display: block; padding: 10px 2px 4px; border: 0; background: none; }
+  .sd tbody tr.sd-none td::before { content: none; }
+}
+
 /* ── The archive ── */
 .ar-view { padding: 16px; display: grid; gap: 12px; }
 .ar-intro { margin: 0; color: var(--text-2); font-size: 14px; }

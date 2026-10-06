@@ -78,6 +78,7 @@
           <button type="button" role="tab" class="tab" id="tab-now" aria-controls="view-now">מה דורש אותי</button>
           <button type="button" role="tab" class="tab" id="tab-all" aria-controls="view-all">כל הלקוחות במבט</button>
           <button type="button" role="tab" class="tab" id="tab-table" aria-controls="view-table" hidden>טבלה</button>
+          <button type="button" role="tab" class="tab" id="tab-shoots" aria-controls="view-shoots" hidden>ימי צילום</button>
           <button type="button" role="tab" class="tab" id="tab-archive" aria-controls="view-archive" hidden>ארכיון</button>
         </div>
 
@@ -133,6 +134,22 @@
             </table>
           </div>
           <p class="mt-money-note" id="mt-money-note" hidden>המחירים מההסכם החתום, כולל מע״מ. רואים אותם רק הבעלים, עירית ואופיר.</p>
+        </section>
+
+        <!-- The shoot-day table (app/shoot-table.js): Lior, Ofir and the owner. Every active client by
+             its last shoot day that took place, the oldest first; "טרם צולמו" below. Read-only. -->
+        <section class="block ow-view mt-view sd-view" id="view-shoots" role="tabpanel" aria-labelledby="tab-shoots" hidden>
+          <h2 class="sr-only">טבלת ימי צילום</h2>
+          <div class="mt-tools sd-tools" role="search" aria-label="חיפוש בטבלה">
+            <div class="field mt-search"><label for="sd-q">חיפוש לקוח</label><input class="input" id="sd-q" type="search" placeholder="עסק או איש קשר" autocomplete="off"></div>
+          </div>
+          <p class="mt-count" id="sd-count" role="status" aria-live="polite"></p>
+          <div class="mt-wrap sd-wrap" id="sd-wrap" tabindex="0" role="region" aria-labelledby="tab-shoots">
+            <table class="mt sd" id="sd">
+              <thead><tr id="sd-head"></tr></thead>
+            </table>
+          </div>
+          <p class="mt-money-note">יום צילום נחשב שהתקיים כשהוא נסגר במערכת (תהליך 19, ״סיום יום צילום״), או כשהוא יובא עם הלקוח.</p>
         </section>
 
         <!-- The archive: the owner and Ofir. Restore, or delete for good with the name typed again. -->

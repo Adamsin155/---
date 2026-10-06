@@ -11,7 +11,7 @@
 // page's own gate. No DOM here, so node can test it.
 import { PEOPLE, isSales } from './protocol.js';
 import { isOwnerView, canManageTeam } from './team-rules.js';
-import { isManager, canSeeTable, MODES } from './manager-rules.js';
+import { isManager, canSeeTable, canSeeShootTable, MODES } from './manager-rules.js';
 
 const known = (v) => !!v && !v.error;
 const officeOf = (v) => known(v) && v.scope === 'office';
@@ -63,6 +63,8 @@ export function menuOf(viewer) {
   if (sendsMessages(viewer)) list.push({ id: 'messages', href: 'messages.html', label: 'הודעות ללקוחות' });
   if (PEOPLE[me]?.editor) list.push({ id: 'editor', href: 'editor.html', label: 'הלקוחות שלי בעריכה' });
   if (me === 'eli' || office) list.push({ id: 'shoot', href: 'shoot.html', label: 'ימי צילום' });
+  // Every client by its last shoot day, the oldest first (6.10.2026): Lior, Ofir and the owner.
+  if (canSeeShootTable(viewer)) list.push({ id: 'shoot-table', href: 'owner.html#shoots', label: 'טבלת ימי צילום' });
   list.push({ id: 'quote', href: 'index.html', label: 'הצעה חדשה' }, { id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
   return unique(list);
@@ -112,6 +114,12 @@ export function currentOf(items, pathname, hash = '', search = '') {
   // gantt.html is the index; with a client (?id=…) it is a page under it.
   if (same.length === 1 && same[0].id === 'gantt') return { id: 'gantt', exact: !/[?&]id=/.test(String(search)) };
   if (same.length === 1) return { id: same[0].id, exact: true };
+  if (same.length > 1 && page === 'owner.html') {
+    // The shoot-day table (#shoots) is its own entry; every other tab is the manager's view.
+    const table = (it) => split(it.href).hash === '#shoots';
+    const hit = same.find((it) => table(it) === (hash === '#shoots')) || same[0];
+    return { id: hit.id, exact: true };
+  }
   if (same.length > 1) {
     // clients.html holds "המשימות שלי" (no hash, or #mine) and the lists (#clients, #control …).
     const mine = !hash || hash === '#mine';
