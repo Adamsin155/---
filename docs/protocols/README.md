@@ -66,6 +66,7 @@
 | גאנט התוכן ללקוח: התבנית הקבועה, התאריכים, השמירה והקישור ללקוח | `app/gantt-template.js`, `app/gantt-logic.js`, `app/gantt-data.js`, `gantt.html` ו־`app/gantt.js`, `supabase/migrations/20261003130000_content_gantt.sql` ([ops.md, סעיף 21](../ops.md)) |
 | גאנט התוכן מאז 6.10.2026: מי עורך (עילאי והבעלים), תוזמן / עלה / ״חסר״, עמוד ״גאנט תוכן״ לכל הלקוחות, וסנכרון מ־Metricool | `app/gantt-index.js`, `app/gantt-brand.js`, `app/metricool-logic.js`, `app/metricool-team.js`, `supabase/functions/metricool/`, `supabase/migrations/20261007100000_gantt_roles_statuses.sql`–`20261007100200_metricool_cron.sql` ([ops.md, סעיף 27](../ops.md)) |
 | משימה מיידית: מי נותן, החלון 09:00–20:00, המשבצות של 10 דקות, הכרטיס ([ops.md, סעיף 31](../ops.md)) | `app/staff-tasks-logic.js`, `app/staff-tasks-ui.js`, `app/styles/staff-tasks.css`, `supabase/migrations/20261011100000_staff_tasks.sql` |
+| טבלת ימי צילום: כל הלקוחות הפעילים לפי יום הצילום האחרון שהתקיים, ו״טרם צולמו״ מתחתם; לליאור, לאופיר ולבעלים, לקריאה בלבד ([ops.md, סעיף 32](../ops.md)) | `app/shoot-table.js` (המסך: `owner.html#shoots`, `app/owner.js`), `canSeeShootTable` ב־`app/manager-rules.js` |
 | מחקר מערכות והחלטות | `docs/protocols/research.md` |
 
 ## כללים חשובים

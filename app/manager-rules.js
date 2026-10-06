@@ -12,6 +12,7 @@ import { isOwnerView } from './team-rules.js';
 export const MANAGERS = ['irit', 'ofir'];     // and the owner
 export const ARCHIVERS = ['ofir'];            // and the owner: archive and delete clients
 export const TABLE_VIEWERS = ['irit', 'ofir', 'lior'];
+export const SHOOT_TABLE_VIEWERS = ['ofir', 'lior']; // and the owner: "טבלת ימי צילום" (6.10.2026)
 
 const known = (v) => !!v && !v.error;
 export const isManager = (v) => isOwnerView(v) || (known(v) && MANAGERS.includes(v.me));
@@ -19,6 +20,8 @@ export const canArchive = (v) => isOwnerView(v) || (known(v) && ARCHIVERS.includ
 // The prices of the agreements: the managers. Never Lior.
 export const seesFinance = (v) => isManager(v);
 export const canSeeTable = (v) => isOwnerView(v) || (known(v) && TABLE_VIEWERS.includes(v.me));
+// The shoot-day table (owner.html#shoots, app/shoot-table.js): read-only, no prices in it.
+export const canSeeShootTable = (v) => isOwnerView(v) || (known(v) && SHOOT_TABLE_VIEWERS.includes(v.me));
 
 // The permanent deletion asks for the business name typed again. Compared as people
 // see it (no direction marks, spaces collapsed, any case), like private.same_name()

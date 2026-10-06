@@ -233,7 +233,7 @@ await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and 
   await page.click('#side-more');
   assert.equal(await page.evaluate(() => document.activeElement.closest('#side-sheet') !== null), true);
   assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(),
-    ['כל הלקוחות במבט', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'הודעות ללקוחות', 'ימי צילום', 'הצעה חדשה', 'הצעות שנשלחו', 'צוות']);
+    ['כל הלקוחות במבט', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'הודעות ללקוחות', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה', 'הצעות שנשלחו', 'צוות']);
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'side-more');
   // A screen behind "עוד" marks "עוד" as where you are.

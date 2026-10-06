@@ -23,10 +23,10 @@ const ROLES = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna'
 const ids = (viewer) => menuOf(viewer).map((it) => it.id);
 
 test('the menu of each role, in one order', () => {
-  assert.deepEqual(ids(OWNER), ['mine', 'manager', 'clients', 'gantt', 'qa', 'pass', 'decisions', 'insights', 'year', 'prep', 'messages', 'shoot', 'quote', 'quotes', 'team']);
+  assert.deepEqual(ids(OWNER), ['mine', 'manager', 'clients', 'gantt', 'qa', 'pass', 'decisions', 'insights', 'year', 'prep', 'messages', 'shoot', 'shoot-table', 'quote', 'quotes', 'team']);
   assert.deepEqual(ids(v('irit')), ['mine', 'manager', 'clients', 'gantt', 'year', 'prep', 'messages', 'shoot', 'quote', 'quotes', 'team']);
-  assert.deepEqual(ids(v('ofir')), ['mine', 'manager', 'clients', 'gantt', 'qa', 'pass', 'decisions', 'year', 'prep', 'shoot', 'quote', 'quotes']);
-  assert.deepEqual(ids(v('lior')), ['mine', 'overview', 'clients', 'gantt', 'qa', 'decisions', 'insights', 'year', 'prep', 'messages', 'shoot', 'quote', 'quotes', 'team']);
+  assert.deepEqual(ids(v('ofir')), ['mine', 'manager', 'clients', 'gantt', 'qa', 'pass', 'decisions', 'year', 'prep', 'shoot', 'shoot-table', 'quote', 'quotes']);
+  assert.deepEqual(ids(v('lior')), ['mine', 'overview', 'clients', 'gantt', 'qa', 'decisions', 'insights', 'year', 'prep', 'messages', 'shoot', 'shoot-table', 'quote', 'quotes', 'team']);
   assert.deepEqual(ids(v('ilai')), ['mine', 'clients', 'gantt', 'year', 'quote', 'quotes']);
   for (const editor of ['nirel', 'nadia', 'yariv', 'anna']) assert.deepEqual(ids(v(editor)), ['mine', 'clients', 'editor', 'quote', 'quotes'], editor);
   assert.deepEqual(ids(v('eli')), ['mine', 'clients', 'shoot', 'quote', 'quotes']);
@@ -84,10 +84,10 @@ test('the office screens: the same list the page heads had', () => {
 
 test('the phone\'s bar: the role\'s three screens and "עוד"; four or fewer all fit; one needs no bar', () => {
   const bar = (viewer) => { const b = barOf(menuOf(viewer), viewer); return [b.bar.map((it) => it.id), b.more.length]; };
-  assert.deepEqual(bar(OWNER), [['mine', 'manager', 'clients'], 12]);
+  assert.deepEqual(bar(OWNER), [['mine', 'manager', 'clients'], 13]);
   assert.deepEqual(bar(v('irit')), [['mine', 'manager', 'clients'], 8]);
-  assert.deepEqual(bar(v('ofir')), [['mine', 'manager', 'qa'], 9]);
-  assert.deepEqual(bar(v('lior')), [['mine', 'clients', 'decisions'], 11]);   // in the menu's order
+  assert.deepEqual(bar(v('ofir')), [['mine', 'manager', 'qa'], 10]);
+  assert.deepEqual(bar(v('lior')), [['mine', 'clients', 'decisions'], 12]);   // in the menu's order
   // Ilai: the Gantt is one of his three (6.10.2026); the package year moved behind "עוד".
   assert.deepEqual(bar(v('ilai')), [['mine', 'clients', 'gantt'], 3]);
   assert.deepEqual(bar(v('nadia')), [['mine', 'clients', 'editor'], 2]);
