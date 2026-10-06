@@ -50,6 +50,9 @@ import { partsIL, dayKeyIL, atTimeIL, addDaysIL, dayFromKeyIL, daysBetweenIL, we
 import {
   missingOf, missingText, briefingOf, pauseText, arrivalOf, driveName, noteOf,
 } from './production.js';
+// The client's logins form (6.10.2026): filled, or still waiting (rules accessForm, accessLink).
+import { linkState, summaryText, platformName } from './access-logic.js';
+import { nudgeTimes } from './access-nudge.js';
 // Stage 4: the client's fix requests and low scores (their own ladders).
 import { STATUS_RULES, STATUS_SOURCES } from './status-rules.js';
 // Stage 5: the monthly cycle (a draft) and the 90-day renewals list.
@@ -385,6 +388,64 @@ export const RULES = [
       { id: 'now', to: 'lior', level: 'ring', exception: true, when: (i) => !i.partial, title: (i) => `גישה לא עובדת: ${i.name}`, body: (i) => `${NETWORK_NAME[i.network] || i.network}. לתקן עם הלקוח ולעדכן בכספת.` },
       { id: 'again', officeMinutes: 120, to: 'lior', level: 'ring', exception: true, when: (i) => !i.partial, title: (i) => `גישה עדיין לא עובדת: ${i.name}`, body: (i) => `${NETWORK_NAME[i.network] || i.network}. עברו שעתיים עבודה.` },
       { id: 'board', businessDays: 1, to: OWNER, level: 'board', overdue: true, title: (i) => `גישה שבורה יותר מיום עסקים: ${i.name}`, body: (i) => NETWORK_NAME[i.network] || i.network },
+    ],
+  },
+
+  // 5: the client filled the logins form (the owner's request of 6.10.2026;
+  // app/access-logic.js, public.access_form_submit). Irit hears quietly. Ilai's
+  // "קיבלת גישות" and his 30 office minutes are the rule `access` above: the submission
+  // marks 5's "access received", so that ladder starts from it. Only when 5 was marked
+  // before the form came (the meeting was first, and `access` rang then) is Ilai rung
+  // here, for what the client sent now; Lior after 30 office minutes while a login
+  // from the client still waits for its check (status 'new').
+  {
+    id: 'accessForm', event: 'הלקוח מילא את פרטי הכניסה לרשתות (5)', procs: ['p05', 'p06'],
+    instances(env) {
+      const out = [];
+      for (const l of env.accessLinks || []) {
+        const c = env.clientById.get(l.client_id);
+        const at = parseDate(l.submitted_at);
+        if (!c || !at) continue;
+        const checks = env.checksOf(c);
+        const got = checks['p05.access'];
+        const gotAt = got?.state === 'done' ? new Date(got.at) : null;
+        const verified = ['done', 'na'].includes(checks['p06.verified']?.state);
+        // `access` rings Ilai for this very event when the form itself marked 5.
+        const covered = !!gotAt && Math.abs(gotAt - at) < MIN && !verified;
+        const have = (l.summary || []).filter((s) => s.choice === 'have').map((s) => platformName(s.network, s.label));
+        const pending = (env.access || []).filter((a) => a.client_id === c.id && a.status === 'new');
+        out.push({ id: l.id, cid: c.id, client: c, name: clientLabel(c), ref: 'p05', url: clientUrl(c.id, 'access'), link: l, covered, have, pending, anchors: { event: at } });
+      }
+      return out;
+    },
+    steps: [
+      { id: 'irit', to: 'irit', level: 'quiet', title: (i) => `הלקוח מילא את פרטי הכניסה לרשתות: ${i.name}`, body: (i) => summaryText(i.link.summary) || 'הפרטים בכספת.' },
+      { id: 'ilai', to: 'ilai', level: 'ring', exempt: 'clock', when: (i) => !i.covered && i.have.length > 0, title: (i) => `קיבלת גישות מהלקוח: ${i.name}`, body: (i, env) => `הלקוח מילא בטופס: ${i.have.join(', ')}. יש לך 30 דקות לבדוק אותן מהכספת. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
+      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', when: (i) => !i.covered && i.pending.length > 0, title: (i) => `גישות מהלקוח לא נבדקו: ${i.name}`, body: () => 'עברו 30 דקות עבודה מאז שהלקוח מילא את הטופס, והגישות עוד מסומנות ״עוד לא נבדק״.' },
+    ],
+  },
+
+  // 5: the link to the logins form was made and the client did not fill it by the end
+  // of the next business day: Irit, quietly, with a ready message to the client in
+  // her queue (messages.html, the template `access_nudge`); once more two business
+  // days later, and never again. Filled, revoked or expired: the ladder stops. The
+  // reminder never carries the link itself.
+  {
+    id: 'accessLink', event: 'הלקוח עוד לא מילא את פרטי הכניסה (5)', procs: ['p05'],
+    instances(env) {
+      const out = [];
+      for (const l of env.accessLinks || []) {
+        const c = env.clientById.get(l.client_id);
+        const made = parseDate(l.created_at);
+        if (!c || !made || linkState(l, env.now) !== 'waiting') continue;
+        const [first, second] = nudgeTimes(l);
+        out.push({ id: l.id, cid: c.id, client: c, name: clientLabel(c), ref: 'p05', url: 'messages.html', link: l, anchors: { event: made, first, second, expires: parseDate(l.expires_at) } });
+      }
+      return out;
+    },
+    steps: [
+      { id: 'nudge1', from: 'first', to: 'irit', level: 'quiet', expires: 'expires', title: (i) => `הלקוח עוד לא מילא את פרטי הכניסה: ${i.name}`, body: (i) => `הקישור נוצר ביום ${dayText(i.anchors.event)}. נוסח תזכורת מוכן מחכה ב״הודעות ללקוחות״.` },
+      { id: 'nudge2', from: 'second', to: 'irit', level: 'quiet', expires: 'expires', title: (i) => `פרטי הכניסה עדיין חסרים: ${i.name}`, body: (i) => `עברו עוד שני ימי עסקים. תזכורת אחרונה ללקוח מחכה ב״הודעות ללקוחות״; הקישור תקף עד יום ${dayText(i.anchors.expires)}.` },
     ],
   },
 

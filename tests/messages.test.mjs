@@ -465,7 +465,7 @@ test('templates: defaults, the table wins, filling, and what is left to fill', (
   assert.equal(map.get('welcome').kind, 'milestone');
   assert.equal(map.get('daily.join').isDefault, true);
   assert.equal(map.has('nope'), false);
-  assert.equal(map.size, 24); // 21 from stage 1, the 2 survey questions of stage 4, the station change (3.10.2026)
+  assert.equal(map.size, 25); // 21 from stage 1, the 2 survey questions of stage 4, the station change (3.10.2026), the logins-form nudge (6.10.2026)
   assert.equal(fillTemplate('היי {לקוח}, חסר {חסר}.', { 'לקוח': 'דנה', 'חסר': '' }), 'היי דנה, חסר {חסר}.');
   assert.deepEqual(unfilledIn('היי {לקוח}, עד [מועד חדש] ו[מועד חדש].'), ['{לקוח}', '[מועד חדש]']);
   assert.deepEqual(unfilledIn('היי דנה!'), []);
@@ -493,7 +493,13 @@ test('the migrations seed exactly the default templates', () => {
     .map((sql) => sql.split('-- seed:begin')[1].split('-- seed:end')[0]).join('\n');
   const rows = [...seed.matchAll(/\(\s*'([^']+)',\s*'((?:[^']|'')*)',\s*'(\w+)',\s*(\d+|null),\s*\$t\$([\s\S]*?)\$t\$\s*\)/g)]
     .map((m) => ({ key: m[1], title: m[2].replace(/''/g, "'"), kind: m[3], station: m[4] === 'null' ? null : Number(m[4]), body: m[5] }));
-  assert.deepEqual(rows, DEFAULT_TEMPLATES.map(({ key, title, kind, station, body }) => ({ key, title, kind, station, body })));
+  // A later migration that words a template anew seeds it again (for a database made
+  // from scratch its insert does nothing; it updates the row that was never edited):
+  // the later words are the default. Only the welcome, in 20261008100000_client_access_form.sql.
+  const byKey = new Map();
+  for (const r of rows) byKey.set(r.key, r);
+  assert.deepEqual(rows.filter((r) => byKey.get(r.key) !== r).map((r) => r.key), ['welcome']);
+  assert.deepEqual([...byKey.values()], DEFAULT_TEMPLATES.map(({ key, title, kind, station, body }) => ({ key, title, kind, station, body })));
 });
 
 test('WhatsApp links: the client\'s number in 972 form, or no number to pick the group', () => {

@@ -91,7 +91,11 @@ export async function loadAccessRows(clientIds = null) {
 // name or a password, and without the vault flag (access_status_for_work, migration
 // 20261006100000). Before that migration: the vault's rows, as before (empty for
 // whoever has no vault flag).
+// Since 20261008100000_client_access_form.sql each row also says `by_client`: the
+// client's form set it and nobody of the office saved it since (access_work_statuses).
 export async function loadAccessStatusForWork(clientIds = null) {
+  const now = await supabase.rpc('access_work_statuses', { p_clients: clientIds });
+  if (!now.error && Array.isArray(now.data)) return now.data;
   const { data, error } = await supabase.rpc('access_status_for_work', { p_clients: clientIds });
   if (!error && Array.isArray(data)) return data;
   // The fallback answers nothing to whoever has no vault flag: `viaVault` tells the

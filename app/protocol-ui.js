@@ -8,6 +8,7 @@ import { businessDaysBetween, readWaited } from './protocol-logic.js';
 import { TZ, partsIL, daysBetweenIL, dayFromKeyIL, needsYear } from './tz.js';
 import { shootDateConcerns, shootDateQuestion, shootDateNote } from './shoot-prep.js';
 import { landFromLink, LINK_EXPIRED, PASSWORD_SAVED } from './set-password.js';
+import { CLIENT_BY, CLIENT_BY_NAME } from './access-logic.js';
 
 export { h };
 export const $ = (id) => document.getElementById(id);
@@ -51,6 +52,8 @@ export const peopleChips = (keys) => h('span', { class: 'pchips' }, ...keys.map(
 export const directory = {};
 export const who = (email) => {
   if (!email) return '';
+  // A login the client filled in the logins form (app/access-logic.js): not a staff member.
+  if (email === CLIENT_BY) return CLIENT_BY_NAME;
   const p = directory[String(email).toLowerCase()];
   return p && PEOPLE[p] ? PEOPLE[p].name : String(email).split('@')[0];
 };

@@ -13,9 +13,11 @@ import { offerHandoff } from './handoff-ui.js';
 import { loadAccessStatusForWork } from './office-data.js';
 import { charDay, ilaiWork, PAGE_KEYS, PAGE_LABELS, GANTT_KEYS, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { fixList } from './office-ui.js';
+import { ACCESS_STATUS_LABEL, NEW_STATUS } from './access-logic.js';
 
 const NETWORK = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', google: 'Google Business', meta: 'Meta Business', other: 'אחר' };
-const STATUS = { ok: 'תקינה', broken: 'לא עובדת', missing: 'אין רשת' };
+// The vault's statuses in words, with 'new' (from the client's form, not checked yet).
+const STATUS = ACCESS_STATUS_LABEL;
 const ganttUrl = (id) => `gantt.html?id=${encodeURIComponent(id)}`;
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash ? `#${hash}` : ''}`;
 const isDone = (cs, k) => ['done', 'na'].includes(cs[k]?.state);
@@ -147,6 +149,9 @@ function dayCard(x, ctx) {
         acc.waiting ? h('p', { class: 'hint' }, 'מחכה לגישות מהאפיון.') : [
           rows.length ? h('ul', { class: 'il-net' }, ...rows.map((a) => h('li', { class: 'tag' }, `${NETWORK[a.network] || a.network}${a.label ? ` (${a.label})` : ''}: ${STATUS[a.status] || a.status}`)))
             : vault === false && viaVault ? null : h('p', { class: 'hint' }, 'אין עדיין רשתות בכספת.'),
+          rows.some((a) => a.status === NEW_STATUS)
+            ? h('p', { class: 'hint il-fromclient' }, 'יש גישות שהלקוח מילא בעצמו ועוד לא נבדקו: מנסים להיכנס, ומעדכנים בכספת ״תקינה״ או ״לא עובדת״.')
+            : null,
           h('p', { class: 'hint' }, 'הסטטוס של כל רשת בכספת מסמן את הבדיקה לבד. אין עמוד? פותחים אותו באותו חלון זמן.'),
           vault === false
             ? h('p', { class: 'hint il-novault' }, 'אין לך גישה לסיסמאות בכספת. בעל המשרד מפעיל אותה בעמוד הצוות.')
