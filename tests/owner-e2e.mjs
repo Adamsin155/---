@@ -409,6 +409,15 @@ await step('the client card: three lines (the colour and why, now, next) and the
   assert.equal(lines.length, 3);
   assert.match(lines[0], /^אדום\s*צילום בסיכון · אין אישור לקוח על התסריטים, הצילום מחר\s*ליאור$/);
   assert.match(lines[1], /^עכשיו: יום צילום · ליאור · /);
+  // One name for where the client is, on the whole screen (found live: "שלב נוכחי: הכנה ליום הצילום" next to "עכשיו: שוטף").
+  assert.equal(await owner.locator('#cc-head .kicker').innerText(), 'שלב נוכחי: יום צילום');
+  assert.equal(await owner.locator('.ph-now').count() ? await owner.locator('.ph-now').first().innerText() : 'פתוח עכשיו', 'פתוח עכשיו');
+  // The clients list names the same station.
+  const listPage = await owner.context().newPage();
+  await listPage.goto(`${BASE}clients.html#clients`);
+  await listPage.waitForSelector(`a.crow[href*="${A.id}"] .cphase`);
+  assert.match(await listPage.locator(`a.crow[href*="${A.id}"] .cphase`).innerText(), /^שלב\s*יום צילום$/);
+  await listPage.close();
   assert.match(lines[2], /^הבא: אישור התסריטים · ליאור · [^]* · מחכים מהלקוח: אישור התסריטים$/);
   // The timeline: what was done (who and when), what is open, what is planned.
   const tl = owner.locator('#timeline');

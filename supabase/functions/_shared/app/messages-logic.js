@@ -359,6 +359,12 @@ export function stationOf(client, state, now = new Date()) {
   return reachedStation(state.states.filter((s) => !isRoundState(s)), now, 0);
 }
 
+// The client's place in words: one of the 8 stations (STATIONS). Every screen that
+// names where a client is uses this (the list, the card's head, the Thursday summary,
+// the owner's screens through app/health.js), so one client never has two places on
+// one screen (found live, 6.10.2026: "שלב נוכחי: הכנה ליום הצילום" next to "עכשיו: שוטף").
+export const stationTitle = (client, state, now = new Date()) => STATIONS[stationOf(client, state, now)].title;
+
 // When the client came into its station: the first thing done in it (or the
 // meeting, the shoot, the editing starting by itself); otherwise when the station
 // before it was finished. The latest shoot round comes first. (Shared with the

@@ -9,7 +9,7 @@ import { STATIONS } from '../app/protocol.js';
 import { applicableProcesses, clientState, WAIT, waitNote, IMPORT_NOTE } from '../app/protocol-logic.js';
 import { importKeys } from '../app/client-open.js';
 import {
-  suggestFor, dayQueue, stationOf, sentToday, promisedClosing, templatesByKey, fillTemplate, unfilledIn,
+  suggestFor, dayQueue, stationOf, stationTitle, sentToday, promisedClosing, templatesByKey, fillTemplate, unfilledIn,
   unknownVars, messageText, waLink, groupLink, canSendMessages, DEFAULT_TEMPLATES, templateVars, listText,
   materialsOf, thursdayVars, protocolCheckOf,
 } from '../app/messages-logic.js';
@@ -512,4 +512,30 @@ test('who works in the queue: the owner, Irit and Lior', () => {
   assert.equal(canSendMessages({ me: null, scope: 'own', error: null }), false, 'an unknown role');
   assert.equal(canSendMessages({ me: null, scope: 'own', error: new Error('x') }), false);
   assert.equal(canSendMessages(null), false);
+});
+
+// Found live (6.10.2026): two wordings for where the client is on one screen. The 8
+// stations are the one source; the protocol's phases ("הכנה ליום הצילום", "עריכה
+// ומסירה") are section headings only.
+test('where the client is: the station\'s title, for a client brought in at each of the 8 stations', async () => {
+  const { station } = await import('../app/health.js');
+  const { PHASES } = await import('../app/protocol.js');
+  const now = at('2026-10-20T10:00:00+03:00');
+  for (const [i, st] of STATIONS.entries()) {
+    const c = { ...base, id: `s${i}`, status: st.key === 'renewal' ? 'ending' : 'active', shoot_at: '2026-09-20T11:00:00+03:00', char_at: '2026-09-01T10:00:00+03:00', deal_at: '2026-08-25T09:00:00+03:00' };
+    const checks = Object.fromEntries(importKeys(st.key).map((k) => [k, { state: 'done', note: IMPORT_NOTE, at: '2026-08-25T09:00:00+03:00', by_email: 'irit@x' }]));
+    const state = clientState(c, checks, now);
+    const title = stationTitle(c, state, now);
+    assert.equal(title, STATIONS[stationOf(c, state, now)].title);
+    assert.equal(title, station(c, state, { checks, now }).title, st.key); // the card's "עכשיו" line and the owner's screens
+    assert.ok(STATIONS.some((x) => x.title === title));
+  }
+  // The live case: the campaign is up and the weekly calls run. The station is "שוטף",
+  // whatever protocol phase still has an open process.
+  const c = { ...base, id: 'live', shoot_at: '2026-09-20T11:00:00+03:00', char_at: '2026-09-01T10:00:00+03:00', deal_at: '2026-08-25T09:00:00+03:00' };
+  const checks = Object.fromEntries(importKeys('ongoing').map((k) => [k, { state: 'done', note: IMPORT_NOTE, at: '2026-08-25T09:00:00+03:00', by_email: 'irit@x' }]));
+  delete checks['p14.followup'];
+  const state = clientState(c, checks, now);
+  assert.equal(stationTitle(c, state, now), 'שוטף');
+  assert.ok(!PHASES.some((p) => p.title === 'שוטף' && p.key !== 'ongoing'));
 });

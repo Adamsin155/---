@@ -33,6 +33,7 @@ import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
 import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { dayBeforeText } from './shoot-prep.js';
+import { stationTitle } from './messages-logic.js';
 
 // A note as a person reads it. What the system keeps as JSON (Irit's day-before check,
 // a list of videos) is never printed raw: the day-before result gets its line, anything
@@ -531,7 +532,6 @@ function renderHead(s) {
     h('a', { href: `tel:${c.phone.replace(/[^\d+]/g, '')}`, dir: 'ltr' }, c.phone), ' · ',
     h('a', { href: whatsappLink(c.phone, ''), target: '_blank', rel: 'noopener' }, 'WhatsApp')) : null;
   const charBy = c.characterizer ? PEOPLE[c.characterizer].name : null;
-  const cur = s.phases.find((p) => p.key === s.current);
   const next = nextFor(s);
   const nextLabel = next?.status === 'client'
     ? `ממתין ללקוח (${next.proc.num} · ${next.proc.title})`
@@ -549,7 +549,8 @@ function renderHead(s) {
     c.status === 'cancelled' ? h('div', { class: 'auto-note', role: 'note' }, h('p', {}, `ההסכם בוטל${c.closed_reason ? `: ${c.closed_reason}` : '.'}`)) : null,
     h('div', { class: 'cc-top' },
       h('div', {},
-        h('div', { class: 'kicker' }, c.status === 'active' ? `שלב נוכחי: ${cur?.title || ''}` : CLIENT_STATUS[c.status]),
+        // The station, as the "עכשיו" line below and the status page name it (not the protocol's phase).
+        h('div', { class: 'kicker' }, c.status === 'active' ? `שלב נוכחי: ${stationTitle(c, s, new Date())}` : CLIENT_STATUS[c.status]),
         h('h1', {}, c.name),
         h('p', { class: 'muted' }, [c.business, c.package_name].filter(Boolean).join(' · ') || ' ')),
       h('div', { class: 'head-actions' },
@@ -713,7 +714,7 @@ function renderPhases(s) {
     const det = h('details', { class: `phase${ph.key === s.current ? ' is-current' : ''}${ph.round ? ' is-round' : ''}`, open: printing || openPhases.has(ph.key) },
       h('summary', {},
         h('span', { class: 'ph-idx num' }, String(idx + 1)),
-        h('span', { class: 'ph-title' }, h('h2', {}, ph.title), ph.key === s.current ? h('span', { class: 'ph-now' }, 'השלב הנוכחי') : null),
+        h('span', { class: 'ph-title' }, h('h2', {}, ph.title), ph.key === s.current ? h('span', { class: 'ph-now' }, 'פתוח עכשיו') : null),
         h('span', { class: 'ph-meta' },
           late ? statusBadge('overdue', null) : null,
           meta.complete ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'הושלם') : null,

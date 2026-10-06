@@ -26,7 +26,7 @@ import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, 
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys } from './client-open.js';
 import { canManageTeam } from './team-rules.js';
-import { canSendMessages } from './messages-logic.js';
+import { canSendMessages, stationTitle } from './messages-logic.js';
 import { offerHandoff, dropHandoff } from './handoff-ui.js';
 import { canSeeAllClients, canSeeOwnerScreen, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
 import { loadDateChanges, loadLogFor } from './owner-data.js';
@@ -1493,8 +1493,9 @@ function thursdayCard() {
     progressBar(w.done, w.total, 'לקוחות שסוכמו השבוע'));
 }
 
-const phaseTitle = (c) => (c.status === 'active' ? PHASES.find((p) => p.key === stateOf(c).current)?.title
-  || (/^round-(\d+)/.test(stateOf(c).current) ? `סבב צילום ${stateOf(c).current.slice(6)}` : '') : CLIENT_STATUS[c.status]);
+// Where the client is: its station (the 8 stations, one source: messages-logic.js
+// stationTitle), the same word as the card's "עכשיו" line and the client's status page.
+const phaseTitle = (c) => (c.status === 'active' ? stationTitle(c, stateOf(c), new Date()) : CLIENT_STATUS[c.status]);
 
 // The task opened from a summary's next action, while it is open.
 const noteTask = (c, note) => tasks.find((t) => t.client_id === c.id && t.source === 'status' && t.title === noteTitle(note));

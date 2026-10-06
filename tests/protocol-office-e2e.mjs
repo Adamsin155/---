@@ -577,14 +577,14 @@ assert.equal(await status.locator('.status-row:has-text("מאפיית כהן")')
 await status.locator('button[aria-label="כתיבת סיכום המצב של סטודיו נטלי"]').click();
 await page.waitForSelector('#dlg-status[open]');
 assert.equal(await page.locator('#status-h').innerText(), 'סיכום מצב · סטודיו נטלי');
-assert.match(await page.locator('#status-ctx').innerText(), /מהמערכת: שלב: עריכה ומסירה/);
+assert.match(await page.locator('#status-ctx').innerText(), /מהמערכת: שלב: עריכה ובקרה/ /* the station (one source), not the protocol's phase "עריכה ומסירה" */);
 assert.deepEqual(await page.locator('#stf-owner option').allInnerTexts(), ['בחירה', 'עירית', 'ליאור', 'אופיר', 'עילאי', 'אלי', 'ניראל', 'נדיה', 'יריב', 'אנה']);
 await page.click('#status-save');
 assert.match(await page.locator('#status-err').innerText(), /^חסר: מצב נוכחי, פעולה הבאה, אחראי, מועד יעד\./);
 assert.equal(await page.getAttribute('#stf-owner', 'aria-invalid'), 'true');
 assert.equal(await page.evaluate(() => document.activeElement.id), 'stf-current');
 await page.click('#status-ctx .btn-text:text("מילוי מהמערכת")');
-assert.equal(await page.inputValue('#stf-current'), 'עריכה ומסירה');
+assert.equal(await page.inputValue('#stf-current'), 'עריכה ובקרה');
 await page.fill('#stf-current', 'הסרטונים בעריכה');
 await page.fill('#stf-missing', '12 סרטונים');
 await page.fill('#stf-next', 'בדיקת סטטוס מול ניראל');
