@@ -26,6 +26,7 @@
   <link rel="stylesheet" href="app/styles/year.css">
   <link rel="stylesheet" href="app/styles/calendar.css">
   <link rel="stylesheet" href="app/styles/deal.css">
+  <link rel="stylesheet" href="app/styles/staff-tasks.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -96,6 +97,8 @@
         <!-- One order for the cards of "המשימות שלי": now, then how I hear (notifications,
              WhatsApp, my calendar), then the questions, whose list, the month, the work. -->
         <section class="now-bar" id="now-bar" aria-labelledby="now-h" hidden></section>
+        <!-- Tasks given on the spot: the ones I got, with "בוצע"; for Irit and the owner, giving one (app/staff-tasks-ui.js). -->
+        <section id="staff-tasks-card" hidden></section>
         <!-- Stav's new deals, waiting for a contract (the office; app/deal-ui.js). -->
         <section class="deals-card" id="deals-card" aria-labelledby="deals-h" hidden></section>
         <!-- Exceptional contracts: to approve (the owner, Ofir, Lior) or to follow (app/approvals-ui.js). -->

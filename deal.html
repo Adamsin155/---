@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="app/styles/push.css">
   <link rel="stylesheet" href="app/styles/deal.css">
   <link rel="stylesheet" href="app/styles/approvals.css">
+  <link rel="stylesheet" href="app/styles/staff-tasks.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -67,6 +68,11 @@
         <p>כאן סוכני השטח שולחים עסקה חדשה לעירית ורואים את העסקאות שלהם.</p>
         <a class="btn" href="clients.html#mine">למשימות שלי</a>
       </section>
+
+      <!-- Tasks given on the spot (Irit, the owner): what a sales agent got, with "בוצע" (app/staff-tasks-ui.js). -->
+      <section id="staff-tasks-card" hidden></section>
+      <!-- The phone's notifications: a task given on the spot rings here every 10 minutes (app/push.js). -->
+      <section class="push-card" id="push-card" aria-labelledby="push-h" hidden></section>
 
       <form class="deal-form" id="deal-form" novalidate aria-labelledby="deal-h1" hidden>
         <fieldset class="deal-sec">

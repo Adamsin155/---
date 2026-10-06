@@ -3,6 +3,8 @@
 // always load from the network as before.
 //  1. Web Push from the reminder engine (supabase/functions/reminders): each push
 //     is JSON { title, body, url, tag } and is always shown (iOS requires it).
+//     `renotify` (the repeats of a task given on the spot): the same tag replaces
+//     the notification before it and still sounds.
 //  2. Notifications a page shows itself through this registration (the "now" bar
 //     on Chrome for Android, where only a service worker may show one).
 // A tap opens the page the notification is about, on this site only, or brings
@@ -27,6 +29,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, {
     body: String(data.body || '').slice(0, 1000),
     tag: data.tag ? String(data.tag).slice(0, 200) : undefined,
+    renotify: !!(data.tag && data.renotify),
     data: { href: inSite(data.url) },
     dir: 'rtl',
     lang: 'he',

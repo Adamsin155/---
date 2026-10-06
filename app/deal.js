@@ -14,6 +14,7 @@ import {
 import { loadDeals, addDeal } from './deal-data.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, formatStamp } from './protocol-ui.js';
 import { mountPush } from './push.js';
+import { mountStaffTasks } from './staff-tasks-ui.js';
 
 let me = null;
 let deals = [];
@@ -60,7 +61,7 @@ function choice(type, name, value, label, sub, checked) {
   const id = `d-${name}-${value}`;
   return h('label', { class: 'deal-choice', for: id },
     h('input', { type, class: type === 'radio' ? 'radio' : 'cbox', name, id, value, checked, onchange: () => { if (name === 'tier' || name === 'influencer') choiceChanged(name); } }),
-    h('span', { class: 'deal-choice-text' }, h('span', { class: 'deal-choice-label', dir: 'auto' }, label), sub ? h('span', { class: 'deal-choice-sub' }, sub) : null));
+    h('span', { class: 'deal-choice-text' }, h('span', { class: 'deal-choice-label', dir: 'auto' }, label), sub ? h('span', { class: 'deal-choice-sub', dir: 'auto' }, sub) : null));
 }
 
 // The add-ons this package allows (the builder's rules); the ones already ticked stay ticked.
@@ -200,8 +201,11 @@ mountSession(async (staff) => {
   document.title = `עסקה חדשה · ${PEOPLE[me].name} · astrateg`;
   renderChoices();
   showKind();
-  // Quiet notifications only ("<עסק> חתם 🎉"): the list, without a phone card.
-  mountPush({ who: me, card: document.createElement('section'), button: $('btn-inbox'), dialog: $('dlg-inbox') });
+  // The notifications list ("<עסק> חתם 🎉"), and since 6.10.2026 the phone card too: a
+  // task given on the spot rings its assignee, a sales agent included.
+  mountPush({ who: me, card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox') });
+  // The tasks Irit or the owner gave this agent, with "בוצע" (app/staff-tasks-ui.js).
+  mountStaffTasks($('staff-tasks-card'), viewer);
   await load();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   setInterval(() => { if (!document.hidden) load(); }, 60e3);

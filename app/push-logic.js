@@ -47,12 +47,16 @@ export function sameKey(buffer, base64url) {
 
 // The notifications list: today's rows of the log (Israel day), newest first.
 // Queued digest lines are not rows of their own (they arrive inside a digest), and
-// suppressed ones were never sent.
+// suppressed ones were never sent. A task given on the spot rings every 10 minutes
+// (rule `nag`, app/staff-tasks-logic.js): the list shows one row for it, the latest.
+const nagTask = (r) => (r.rule === 'nag' ? String(r.key).split(':').slice(0, 3).join(':') : null);
 export function inboxRows(rows = [], now = new Date()) {
   const today = dayKeyIL(now);
+  const seen = new Set();
   return rows
     .filter((r) => r.status !== 'suppressed' && !(r.level === 'digest' && r.channel === 'digest') && dayKeyIL(new Date(r.created_at)) === today)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || (b.id - a.id));
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || (b.id - a.id))
+    .filter((r) => { const t = nagTask(r); if (!t) return true; if (seen.has(t)) return false; seen.add(t); return true; });
 }
 export const unreadCount = (rows) => rows.filter((r) => !r.read_at).length;
 
