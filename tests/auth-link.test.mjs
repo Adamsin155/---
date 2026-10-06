@@ -77,8 +77,8 @@ test('signing out clears the drafts kept in the browser, and keeps the preferenc
   clearDeviceDrafts(null, null);
   clearDeviceDrafts({ get length() { throw new Error('denied'); } }, { removeItem() { throw new Error('denied'); } });
   // Both sign-out buttons go through it, and through the push device's removal.
-  assert.match(src('app/protocol-ui.js'), /\$\('btn-logout'\)\.addEventListener\('click', async \(\) => \{ await signOutHere\(\); location\.reload\(\); \}\);/);
-  assert.match(src('app/dashboard.js'), /\$\('btn-logout'\)\.addEventListener\('click', async \(\) => \{ await signOutHere\(\); await boot\(\); \}\);/);
+  assert.match(src('app/protocol-ui.js'), /\$\('btn-logout'\)\.addEventListener\('click', async \(\) => \{ resetMode\(\); await signOutHere\(\); location\.reload\(\); \}\);/);
+  assert.match(src('app/dashboard.js'), /\$\('btn-logout'\)\.addEventListener\('click', async \(\) => \{ resetMode\(\); await signOutHere\(\); await boot\(\); \}\);/);
   const supa = src('app/supa.js');
   assert.match(supa, /supabase\.rpc\('push_unsubscribe', \{ p_endpoint: sub\.endpoint \}\)/);
   assert.ok(supa.indexOf('forgetPushDevice().catch') < supa.indexOf('await supabase.auth.signOut();'), 'the device is removed while the session still exists');
