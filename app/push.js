@@ -178,9 +178,13 @@ async function disable() {
 const btn = (label, onclick, primary = false) => h('button', { type: 'button', class: `btn ${primary ? 'btn-primary' : ''}`.trim(), disabled: busy, onclick }, label);
 function cardBody() {
   const head = (text) => h('h2', { class: 'push-h', id: 'push-h', tabindex: '-1' }, text);
+  // A state with nothing to press here (blocked, an old phone, a browser without
+  // notifications) is one quiet line; the explanation opens with a tap, so the card
+  // does not stand between the person and the work (the simplicity pass of 6.10.2026).
+  const quiet = (title, text) => [h('details', { class: 'push-fold' }, h('summary', {}, head(title), h('span', { class: 'push-fold-k' }, 'מה עושים')), h('p', {}, text))];
   switch (state) {
     case 'ios-update':
-      return [head('התראות לטלפון'), h('p', {}, 'כדי לקבל התראות באייפון צריך iOS 16.4 ומעלה. עדכנו את האייפון (הגדרות ← כללי ← עדכון תוכנה), ואז חזרו לכאן.')];
+      return quiet('ההתראות לא פעילות באייפון הזה', 'כדי לקבל התראות באייפון צריך iOS 16.4 ומעלה. עדכנו את האייפון (הגדרות ← כללי ← עדכון תוכנה), ואז חזרו לכאן.');
     case 'ios-install':
       return [head('הפעלת התראות באייפון'),
         h('p', {}, 'באייפון ההתראות עובדות רק מהאפליקציה שבמסך הבית. פעם אחת:'),
@@ -189,9 +193,9 @@ function cardBody() {
           h('li', {}, 'בוחרים ״הוספה למסך הבית״, ואז ״הוספה״.'),
           h('li', {}, 'פותחים את ״אסטרטג לקוחות״ ממסך הבית, נכנסים, ולוחצים כאן ״הפעלת התראות״.'))];
     case 'unsupported':
-      return [head('התראות לטלפון'), h('p', {}, 'הדפדפן הזה לא מקבל התראות. בטלפון אנדרואיד או במחשב פתחו את המערכת ב־Chrome. באייפון: Safari, ואז הוספה למסך הבית.')];
+      return quiet('הדפדפן הזה לא מקבל התראות', 'בטלפון אנדרואיד או במחשב פתחו את המערכת ב־Chrome. באייפון: Safari, ואז הוספה למסך הבית.');
     case 'blocked':
-      return [head('ההתראות חסומות'), h('p', {}, 'ההתראות של האתר נחסמו בטלפון הזה. כדי לפתוח: בהגדרות הדפדפן ← הגדרות אתרים ← התראות ← לאפשר. באייפון: הגדרות ← התראות ← אסטרטג לקוחות.')];
+      return quiet('ההתראות חסומות', 'ההתראות של האתר נחסמו בטלפון הזה. כדי לפתוח: בהגדרות הדפדפן ← הגדרות אתרים ← התראות ← לאפשר. באייפון: הגדרות ← התראות ← אסטרטג לקוחות.');
     case 'confirm':
       return [head('הגיעה התראת ניסיון?'),
         h('p', {}, 'שלחנו התראת ניסיון לטלפון הזה. אם הגיעה, לחצו ״קיבלתי״.'),
@@ -212,7 +216,10 @@ function paint() {
   if (!live || !state) { cardEl.hidden = true; return; }
   cardEl.hidden = false;
   cardEl.dataset.state = state;
+  const wasOpen = !!cardEl.querySelector('details.push-fold[open]');
   fill(cardEl, cardBody(), hint ? h('p', { class: 'push-hint', role: 'status' }, hint) : null);
+  const fold = cardEl.querySelector('details.push-fold');
+  if (fold && wasOpen) fold.open = true;
 }
 
 // ── Today's reminders ─────────────────────

@@ -64,6 +64,7 @@ import { mountClientFiles } from './files-ui.js';
 import { contractSummary, fileCounts } from './contract-summary.js';
 import { loadDeliverableFiles, archiveClient } from './manager-data.js';
 import { canArchive } from './manager-rules.js';
+import { openedBySigning } from './client-open.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -349,7 +350,7 @@ function nothingNext(s) {
 
 function autoBanner() {
   const c = client;
-  if (own() || c.created_by_email !== 'system' || c.verified_at || c.status === 'cancelled') return null;
+  if (own() || !openedBySigning(c, checks) || c.verified_at || c.status === 'cancelled') return null;
   return h('div', { class: 'auto-note', role: 'note' },
     h('p', {}, 'הלקוח נפתח אוטומטית כשנחתם הסכם ', quote?.number ? h('bdi', { class: 'num', dir: 'ltr' }, quote.number) : 'חתום',
       `${quote?.signed_at ? ` ב־${formatStamp(quote.signed_at)}` : ''}. מההסכם מולאו: חבילה, משפיענים, כמויות, סוג יום צילום וסיום חוזה. כדאי לעבור עליהם.`),

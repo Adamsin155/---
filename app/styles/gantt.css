@@ -279,6 +279,7 @@ td.is-empty { color: var(--line-strong); }
 .gt-mc.is-warn .gt-mc-dot { background: var(--ds-amber); }
 .gt-mc-t { flex: 1 1 220px; min-inline-size: 0; }
 .gt-mc-act { min-height: 40px; }
+.gt-mc-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .gt-brands { display: grid; gap: 6px; max-block-size: 46vh; overflow-y: auto; margin-block: 8px; }
 .gt-brand { display: flex; align-items: center; gap: 10px; min-block-size: 48px; padding: 6px 12px; border-radius: var(--ds-r-ctl); background: var(--ds-surface); cursor: pointer; }
 .gt-brand input { inline-size: 20px; block-size: 20px; flex: none; }
@@ -324,6 +325,7 @@ a.gt-row-main { text-decoration: none; }
   .gx-tools .gt-view-btn { min-height: 44px; }
   .gx-list { grid-template-columns: minmax(0, 1fr); }
   .gt-mc-act { min-height: 44px; inline-size: 100%; }
+  .gt-mc-acts { inline-size: 100%; }
   .gx-row .gt-row-main { flex-wrap: wrap; }
   .gt-hero { padding: 18px 16px; }
   .gt-actions { inline-size: 100%; }

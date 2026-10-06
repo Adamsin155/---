@@ -7,7 +7,15 @@
   border-inline-start: 4px solid var(--accent);
 }
 .cal-card[hidden] { display: none; }
-.cal-card[data-state='on'] { border-inline-start-color: var(--ok); padding-block: 8px; }
+.cal-card { padding-block: 2px; }
+.cal-card[data-state='on'] { border-inline-start-color: var(--ok); }
+.cal-fold[open] { padding-bottom: 10px; }
+.cal-fold > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; cursor: pointer; list-style: none; }
+.cal-fold > summary::-webkit-details-marker { display: none; }
+.cal-fold .cal-h { font-size: 14.5px; font-weight: 500; }
+.cal-fold-k { color: var(--text-2); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.cal-fold[open] .cal-fold-k { display: none; }
+.cal-fold[open] > * + * { margin-top: 8px; }
 .cal-card p { margin: 0; color: var(--text-2); font-size: 14.5px; }
 .cal-h { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); }
 .cal-h:focus { outline: none; }

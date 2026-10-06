@@ -101,6 +101,25 @@ export function barOf(items, viewer) {
   return { bar: items.filter((it) => picked.has(it.id)), more: items.filter((it) => !picked.has(it.id)) };
 }
 
+// A long menu in two parts (the simplicity pass of 6.10.2026; the office's menus had
+// 11 to 16 entries in one run): the screens this role opens every day, in the menu's
+// order, and the rest under a quiet "עוד" heading. Nothing is hidden and no entry
+// changes: only where it stands. A menu of up to GROUP_FROM entries stays one list.
+// The phone's bar is always part of the daily ones (tests/shell.test.mjs).
+const DAILY = {
+  owner: ['mine', 'manager', 'clients', 'decisions', 'messages'],
+  irit: ['mine', 'manager', 'clients', 'messages', 'quote', 'quotes'],
+  lior: ['mine', 'overview', 'clients', 'decisions', 'messages'],
+  ofir: ['mine', 'manager', 'clients', 'qa', 'pass'],
+};
+export const GROUP_FROM = 7;
+export function groupsOf(items, viewer) {
+  const key = known(viewer) ? (viewer.me || (viewer.scope === 'office' ? 'owner' : null)) : null;
+  const daily = DAILY[key];
+  if (!daily || items.length <= GROUP_FROM) return { daily: items, rest: [] };
+  return { daily: items.filter((it) => daily.includes(it.id)), rest: items.filter((it) => !daily.includes(it.id)) };
+}
+
 const split = (href) => { const [page, hash = ''] = String(href).split('#'); return { page: page || 'index.html', hash: hash ? `#${hash}` : '' }; };
 export const pageOf = (pathname) => String(pathname || '').split('/').pop() || 'index.html';
 // Pages that belong to a client: the menu marks the clients list as where they are.
