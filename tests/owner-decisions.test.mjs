@@ -95,7 +95,8 @@ test('the deal form: cleaned, checked, the catalog\'s rules for add-ons; what Ir
   assert.equal(contractTitle(d), 'להכין חוזה ל־פיצה רון');
   assert.match(dealSummary(d), /^Social · נטלי דדון · תוספות: צלם חודשי, גרפיקות נוספות \(6\), צירוף סמיון ליום הצילום עם נטלי · הנחה 150 ₪ לחודש$/);
   assert.equal(dealUrl(d), 'index.html?deal=d1');
-  assert.deepEqual(Object.values(DEAL_STATUS), ['ממתין לחוזה', 'חוזה נשלח', 'נחתם', 'בוטל']);
+  // 6.10.2026: two more, between "waiting for a contract" and "sent" (an exceptional contract and its approval).
+  assert.deepEqual(Object.values(DEAL_STATUS), ['ממתין לחוזה', 'ממתין לאישור מנהל', 'לא אושר', 'חוזה נשלח', 'נחתם', 'בוטל']);
   assert.equal(statusText({ status: 'sent' }), 'חוזה נשלח');
   // The builder: an agreement with the deal's selection and the client's details.
   const pre = prefillFromDeal(d);
