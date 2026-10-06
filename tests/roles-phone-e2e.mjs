@@ -367,7 +367,9 @@ await step('Ilai stays on "המשימות שלי": his cards first, the draft mo
   assert.ok(await page.locator('#mine-list .g-ilai .il-list > li:visible').count() <= 6);
   // "לקוחות שלא מחוברים ל־Metricool" (section 33): none of this office's 21 clients has a brand
   // yet, so the card shows its first eight (about 650px, gone once they are connected).
-  assert.equal(await page.locator('#metricool-card .mcn-list > .mcn-row:visible').count(), 8);
+  // One line until opened: the rows are not on the page, and his work stays first.
+  assert.equal(await page.locator('#metricool-card .mcn-row').count(), 0);
+  assert.equal(await page.getAttribute('#mcn-toggle', 'aria-expanded'), 'false');
   const tall = await heightOf(page);
   assert.ok(tall < 4300, `Ilai's page is ${tall}px tall (3,500 before the Metricool card)`);
   await shot(page, 'ilai-01-mine-short');

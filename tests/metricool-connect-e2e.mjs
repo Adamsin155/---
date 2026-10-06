@@ -209,6 +209,16 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
 const smallTargets = (page, sel) => page.evaluate((s) => [...document.querySelectorAll(s)].filter((el) => el.offsetParent && el.getBoundingClientRect().height < 43.5)
   .map((el) => `${el.textContent.trim().slice(0, 20)}:${Math.round(el.getBoundingClientRect().height)}`), sel);
 const lastCall = (name) => calls.filter((c) => c[name]).at(-1);
+// The card is one line until asked for (the person's own work comes first): the title with its count and "הצגת הרשימה".
+const openCard = async (page) => {
+  const t = page.locator('#mcn-toggle');
+  await t.waitFor();
+  if ((await t.getAttribute('aria-expanded')) === 'false') {
+    assert.equal(await page.locator(`${CARD} .mcn-row`).count(), 0);
+    assert.equal((await t.innerText()).trim(), 'הצגת הרשימה');
+    await t.click();
+  }
+};
 const settled = async (page) => { await page.locator('#mine-list').waitFor(); await page.waitForLoadState('networkidle'); };
 let passed = 0;
 async function step(name, fn2) {
@@ -227,6 +237,7 @@ try {
 
   await step('Ilai: the card under the exceptional contracts, every active client with no brand, the oldest deal first, 8 and "הצג עוד"', async () => {
     await ilai.locator(`${CARD}:not([hidden])`).waitFor();
+    await openCard(ilai);
     assert.deepEqual(await ilai.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 6).map((e) => e.id)), ['now-bar', 'staff-tasks-card', 'deals-card', 'approvals-card', 'metricool-card', 'push-card']);
     assert.equal(await text(ilai, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (11)');
     assert.equal(await text(ilai, `${CARD} .hint`), 'בוחרים לכל לקוח את המותג שלו ב־Metricool. לקוח שחובר יורד מהרשימה.');
@@ -369,6 +380,7 @@ try {
     const page = await newPage();
     await signIn(page, 'clients.html#mine', 'ilai');
     await page.locator(`${CARD}:not([hidden])`).waitFor();
+    await openCard(page);
     const before2 = fn.calls.length;
     await rowOf(page, 'מוסך הצפון').locator('[data-act="open"]').click();
     await page.locator('#mcn-err').waitFor();
@@ -388,6 +400,7 @@ try {
     const owner = await newPage();
     await signIn(owner, 'clients.html#mine', 'owner');
     await owner.locator(`${CARD}:not([hidden])`).waitFor();
+    await openCard(owner);
     assert.equal(await text(owner, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (8)');
     await rowOf(owner, 'מוסך הצפון').locator('[data-act="open"]').click();
     await owner.locator('#mcn-brand').waitFor();
@@ -420,6 +433,7 @@ try {
   await step('a 360px phone: one column, no sideways scroll, every target at least 44px, also with a row open', async () => {
     await signIn(phone, 'clients.html#mine', 'ilai');
     await phone.locator(`${CARD}:not([hidden])`).waitFor();
+    await openCard(phone);
     assert.equal(await text(phone, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (7)');
     assert.equal(await noSideScroll(phone), true);
     assert.deepEqual(await smallTargets(phone, `${CARD} .btn, ${CARD} .btn-text, ${CARD} select`), []);
@@ -442,6 +456,7 @@ try {
     left.slice(1).forEach((c, i) => Object.assign(c, { metricool_blog_id: String(500 + i), metricool_brand: `מותג ${i}` }));
     await phone.reload();
     await phone.locator(`${CARD}:not([hidden])`).waitFor();
+    await openCard(phone);
     assert.equal(await text(phone, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (1)');
     assert.equal(await phone.locator(`${CARD} [data-more]`).count(), 0);
     await phone.click(`${CARD} [data-act="open"]`);
@@ -464,6 +479,7 @@ try {
     const early = await newPage();
     await signIn(early, 'clients.html#mine', 'ilai');
     await early.locator(`${CARD}:not([hidden])`).waitFor();
+    await openCard(early);
     // The client marked "אין מותג" is read without the mark, so it is listed again.
     assert.equal(await text(early, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (2)');
     await rowOf(early, 'ליה אופנה').locator('[data-act="open"]').click();
