@@ -40,7 +40,9 @@
 .gt-stat-v { font-family: var(--font-h); font-size: 34px; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
 .gt-stat-x { font-size: 13px; color: var(--text-2, var(--muted)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-up .gt-stat-v { color: var(--ok); }
-.st-late.is-late .gt-stat-v { color: var(--ds-hot); }
+.st-sched .gt-stat-v { color: var(--ds-navy-2); }
+.st-missing.is-missing .gt-stat-v { color: var(--ds-hot-text); }
+.st-missing.is-missing { box-shadow: inset 0 0 0 1.5px var(--ds-hot); }
 .st-next .gt-stat-v { font-size: 22px; line-height: 1.5; }
 .gt-meter { display: block; block-size: 5px; border-radius: 99px; background: var(--ds-surface); overflow: hidden; margin-top: 4px; }
 .gt-meter > span { display: block; block-size: 100%; background: var(--ds-navy); border-radius: inherit; }
@@ -78,6 +80,10 @@ td.is-now { background: color-mix(in srgb, var(--ds-soft) 60%, transparent); }
 .gg-cell { display: inline-flex; align-items: flex-end; gap: 5px; }
 .gg-bar { inline-size: 7px; block-size: 22px; border-radius: 4px; background: var(--ks); position: relative; overflow: hidden; display: inline-block; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 30%, transparent); }
 .gg-bar > span { position: absolute; inset-inline: 0; inset-block-end: 0; background: var(--k); border-radius: 4px; }
+/* Full for what is up, hatched above it for what is scheduled, a mark when something is missing. */
+.gg-bar > .gg-sched { background: repeating-linear-gradient(135deg, var(--k) 0 2px, transparent 2px 4px); opacity: 0.8; }
+.gg-cell { position: relative; } /* holds its screen-reader text inside the table's own scroll box */
+.gg-miss { display: inline-grid; place-items: center; inline-size: 13px; block-size: 13px; border-radius: 50%; background: var(--ds-hot); color: var(--ds-on-hot); font-size: 9px; font-weight: 700; }
 .gg-num { font-variant-numeric: tabular-nums; color: var(--text); font-size: 12.5px; }
 td.is-empty { color: var(--line-strong); }
 
@@ -154,7 +160,13 @@ td.is-empty { color: var(--line-strong); }
 .gt-chip.s-posted .gt-chip-t { color: var(--text-2, var(--muted)); }
 .gt-chip.s-skipped { opacity: 0.55; }
 .gt-chip.s-skipped .gt-chip-t { text-decoration: line-through; }
-.gt-chip.s-late { box-shadow: inset 0 0 0 1.5px var(--ds-hot); }
+.gt-chip.s-scheduled { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-navy-2) 45%, transparent); }
+.gt-chip.s-missing, .gt-chip.s-error { box-shadow: inset 0 0 0 1.5px var(--ds-hot); }
+/* A clock for "scheduled": drawn, so it prints and needs no font. */
+.gt-clock { position: relative; display: inline-block; inline-size: 14px; block-size: 14px; border-radius: 50%; border: 1.5px solid var(--ds-navy-2); flex: none; box-sizing: border-box; }
+.gt-clock::before, .gt-clock::after { content: ''; position: absolute; left: 50%; bottom: 50%; width: 1.5px; margin-left: -0.75px; background: var(--ds-navy-2); transform-origin: 50% 100%; }
+.gt-clock::before { height: 4px; }
+.gt-clock::after { height: 3.5px; transform: rotate(90deg); }
 .gt-warn { display: inline-grid; place-items: center; inline-size: 14px; block-size: 14px; border-radius: 50%; background: var(--ds-hot); color: var(--ds-on-hot); font-size: 10px; font-weight: 700; flex: none; }
 .gt-more { border: 0; background: none; color: var(--accent-deep); font: inherit; font-size: 12px; font-weight: 600; text-align: start; padding: 2px 4px; cursor: pointer; min-block-size: 24px; }
 .gt-more:hover { text-decoration: underline; }
@@ -178,7 +190,14 @@ td.is-empty { color: var(--line-strong); }
 .gt-moved { color: var(--accent-deep); }
 .gt-state { flex: none; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 8px; background: var(--panel-2); color: var(--muted); white-space: nowrap; }
 .gt-state.s-posted { background: var(--ok-soft); color: var(--ok); }
-.gt-state.s-late { background: var(--late-soft); color: var(--late); }
+.gt-state { display: inline-flex; align-items: center; gap: 5px; }
+.gt-state .gt-tick, .gt-state .gt-warn { inline-size: 14px; block-size: 14px; font-size: 9px; }
+.gt-state.s-scheduled { background: color-mix(in srgb, var(--ds-navy-mid) 22%, #fff); color: var(--ds-navy-text); }
+.gt-state.s-missing, .gt-state.s-error { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+/* For Ilai and the owner the state is a button: one tap moves it on. */
+.gt-state-btn { border: 0; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; min-block-size: 36px; padding-inline: 12px; border-radius: var(--ds-r-pill); }
+.gt-state-btn:hover { filter: brightness(0.96); box-shadow: 0 1px 4px rgba(3, 20, 50, 0.14); }
+.gt-from-mc { color: var(--ds-navy-text); }
 .gt-state.s-today { background: var(--ds-navy); color: #fff; }
 .gt-state.s-skipped { text-decoration: line-through; }
 .gt-thumb { inline-size: 44px; block-size: 44px; border-radius: 9px; object-fit: cover; flex: none; background: var(--ks); }
@@ -246,8 +265,66 @@ td.is-empty { color: var(--line-strong); }
 .gt-closed p { color: var(--muted); margin: 0; }
 .gt-print-head { display: none; }
 
+/* ── 6.10.2026: marking by hand, the Metricool line, the index ── */
+.gt-toolbar .gt-bulk { min-height: 40px; }
+.gt-bulk-opts { display: grid; gap: 8px; }
+.gt-bulk-opt { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 52px; text-align: start; inline-size: 100%; }
+.gt-bulk-opt strong { font-weight: 600; white-space: nowrap; }
+.gt-readonly { margin: 0; padding: 10px 14px; border-radius: var(--ds-r-ctl); background: var(--panel); color: var(--text-2, var(--muted)); font-size: 14px; }
+.gt-mc { margin: 0; padding: 8px 14px; border-radius: var(--ds-r-ctl); background: var(--panel); font-size: 14px; color: var(--text-2, var(--muted)); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.gt-mc[hidden] { display: none; }
+.gt-mc-dot { inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--ds-muted, var(--muted)); flex: none; }
+.gt-mc.is-ok .gt-mc-dot { background: var(--ok); }
+.gt-mc.is-warn { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.gt-mc.is-warn .gt-mc-dot { background: var(--ds-amber); }
+.gt-mc-t { flex: 1 1 220px; min-inline-size: 0; }
+.gt-mc-act { min-height: 40px; }
+.gt-brands { display: grid; gap: 6px; max-block-size: 46vh; overflow-y: auto; margin-block: 8px; }
+.gt-brand { display: flex; align-items: center; gap: 10px; min-block-size: 48px; padding: 6px 12px; border-radius: var(--ds-r-ctl); background: var(--ds-surface); cursor: pointer; }
+.gt-brand input { inline-size: 20px; block-size: 20px; flex: none; }
+.gt-brand-t { display: grid; min-inline-size: 0; }
+.gt-brand-t small { color: var(--muted); font-size: 12.5px; }
+.gt-brand.is-taken { opacity: 0.55; cursor: default; }
+.gt-brand:has(input:checked) { box-shadow: inset 0 0 0 2px var(--ds-navy-2); }
+
+.gx { display: grid; gap: var(--ds-gap); }
+.gx[hidden] { display: none; }
+.gx-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 12px; }
+.gx-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: 1 1 320px; justify-content: flex-end; }
+.gx-tools .input { flex: 1 1 180px; max-inline-size: 320px; min-height: 44px; }
+a.gt-row-main { text-decoration: none; }
+.gt-kind-chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: var(--ds-r-pill); background: var(--ks); color: var(--text); font-size: 12px; white-space: nowrap; }
+.gx-row .gt-row-meta { gap: 6px; }
+.gx-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.gx-client { background: var(--ds-surface); border-radius: var(--ds-r-item); display: grid; gap: 4px; padding: 6px; min-inline-size: 0; align-content: start; }
+.gx-client.has-missing { box-shadow: inset 0 0 0 1.5px var(--ds-hot); }
+.gx-main { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; color: var(--text); text-decoration: none; min-block-size: 48px; min-inline-size: 0; }
+.gx-main:hover { background: var(--row-hover); }
+.gx-name { font-weight: 600; font-size: 15.5px; overflow-wrap: anywhere; }
+.gx-sub, .gx-next { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.gx-counts { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--text-2, var(--muted)); }
+.gx-n { display: inline-flex; align-items: center; gap: 3px; }
+.gx-n.is-zero { opacity: 0.65; }
+.gx-n.n-up strong { color: var(--ok); }
+.gx-n.n-sched strong { color: var(--ds-navy-2); }
+.gx-n.n-miss { color: var(--ds-hot-text); font-weight: 600; }
+.gx-client.no-gantt .gx-name { color: var(--text-2, var(--muted)); }
+.gx-create { min-height: 44px; margin: 0 6px 6px; justify-self: start; }
+.gx-more { margin-top: 10px; min-height: 44px; }
+
 /* ── Phones ── */
 @media (max-width: 760px) {
+  .gt-state-btn { min-block-size: 44px; }
+  .gt-row > .gt-state { margin-inline-start: 56px; }
+  .gt-row > .gt-state + .gt-thumb { margin-inline-start: 0; }
+  .gt-row > .gt-state ~ .gt-open { margin-inline-start: auto; }
+  .gt-toolbar .gt-bulk { inline-size: 100%; min-height: 44px; }
+  .gx-tools { flex-basis: 100%; }
+  .gx-tools .input { max-inline-size: none; flex-basis: 100%; }
+  .gx-tools .gt-view-btn { min-height: 44px; }
+  .gx-list { grid-template-columns: minmax(0, 1fr); }
+  .gt-mc-act { min-height: 44px; inline-size: 100%; }
+  .gx-row .gt-row-main { flex-wrap: wrap; }
   .gt-hero { padding: 18px 16px; }
   .gt-actions { inline-size: 100%; }
   .gt-actions .btn { flex: 1 1 auto; }
@@ -286,7 +363,9 @@ td.is-empty { color: var(--line-strong); }
   @page { size: A4 landscape; margin: 10mm; }
   body { background: #fff !important; }
   .topbar, .gt-hero, .gt-stats, .gt-glance, .gt-share, .gt-rules, .gt-empty, .gt-preview,
-  .gt-monthbar, .gt-pills, .gt-view, .gt-day, .gt-list-wrap, .toast, #state, .gt-dlg { display: none !important; }
+  .gt-monthbar, .gt-pills, .gt-view, .gt-day, .gt-list-wrap, .toast, #state, .gt-dlg,
+  .gt-mc, .gt-readonly, .gt-bulk, .gx { display: none !important; }
+  .gt-clock, .gt-warn { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .gt-shell, .gt-app { padding: 0 !important; margin: 0 !important; max-inline-size: none; }
   .gt-cal { border: 0 !important; box-shadow: none !important; padding: 0 !important; gap: 6px; }
   .gt-grid-wrap { display: block !important; }

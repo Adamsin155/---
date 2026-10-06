@@ -428,11 +428,12 @@ export function syncLine({ enabled, blogId = null, brand = null, sync = null }, 
   return { tone: 'ok', text: `סונכרן מ־Metricool ${agoText(sync.at, now)}` };
 }
 // The line on the index and on the owner's card, from public.metricool_settings().
+export const mappedText = (n) => (n === 1 ? 'לקוח אחד מחובר' : `${n} לקוחות מחוברים`);
 export function accountLine(s, now = new Date()) {
   if (!s) return null;
-  if (!s.enabled) return { tone: 'off', text: `החיבור ל־Metricool כבוי: מסמנים ״תוזמן״ ו״עלה״ ביד.${s.mapped ? ` ${s.mapped} לקוחות כבר מחוברים למותג.` : ''}` };
+  if (!s.enabled) return { tone: 'off', text: `החיבור ל־Metricool כבוי: מסמנים ״תוזמן״ ו״עלה״ ביד.${s.mapped ? ` ${s.mapped === 1 ? 'לקוח אחד כבר מחובר' : `${s.mapped} לקוחות כבר מחוברים`} למותג.` : ''}` };
   if (!s.mapped) return { tone: 'off', text: 'Metricool פועל, ועוד אין לקוח שמחובר למותג.' };
   const last = s.lastAt ? ` הסנכרון האחרון ${agoText(s.lastAt, now)}.` : ' הסנכרון הראשון ירוץ ברבע השעה הקרובה.';
-  if (s.failed) return { tone: 'warn', text: `Metricool פועל: ${s.mapped} לקוחות מחוברים, ${s.failed} נכשלו בסנכרון האחרון.${last} ${errorText(s.lastError)}` };
-  return { tone: 'ok', text: `Metricool פועל: ${s.mapped} לקוחות מחוברים.${last}` };
+  if (s.failed) return { tone: 'warn', text: `Metricool פועל: ${mappedText(s.mapped)}, ${s.failed} נכשלו בסנכרון האחרון.${last} ${errorText(s.lastError)}` };
+  return { tone: 'ok', text: `Metricool פועל: ${mappedText(s.mapped)}.${last}` };
 }
