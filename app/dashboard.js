@@ -1,16 +1,19 @@
 import {
   supabase, currentStaff, quoteLink, explainError,
-  sendPasswordReset, consumeRecoveryLink, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT,
+  sendPasswordReset, consumeRecoveryLink, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT,
 } from './supa.js';
 import { h, formatDate, whatsappLink } from './quote-doc.js';
 import { formatILS } from './pricing.js';
-import { glide, countUp } from './shell.js';
+import { glide, countUp, viewerFor } from './shell.js';
+// Who opens this list (the owners and Irit) and who sees its amounts (the owners), 6.10.2026.
+import { canSeeQuoteList, seesFinance, resetMode } from './manager-rules.js';
 // Exceptional contracts (6.10.2026): their approval state, and what the office does next.
 import { APPROVAL_TEXT, reviseUrl } from './approvals-logic.js';
 
 const $ = (id) => document.getElementById(id);
 let quotes = [];
 let filter = 'all';
+let showMoney = false;      // the amounts and their sum: the owners only (seesFinance)
 
 const STATUS = {
   sent: 'ממתין לחתימה',
@@ -61,7 +64,7 @@ function renderStats() {
     stat('ממתינות לחתימה', String(count('sent') + count('viewed'))),
     stat('הצעות לצפייה', String(count('shared') + count('seen'))),
     stat('נחתמו', String(count('signed'))),
-    stat('חודשי בהצעות חתומות', formatILS(signedMonthly)),
+    ...(showMoney ? [stat('חודשי בהצעות חתומות', formatILS(signedMonthly))] : []),
   );
   $('stats').hidden = false;
   // The numbers count up the first time the page shows them.
@@ -138,7 +141,7 @@ function renderRows() {
       h('td', { 'data-label': 'מספר' }, h('span', { class: 'num', dir: 'ltr' }, q.number), h('small', { class: 'doc-type' }, q.doc || 'הצעת מחיר')),
       h('td', { class: 'client', 'data-label': 'לקוח' }, q.client_name, q.signer_name && s === 'signed' ? h('small', {}, `נחתם ע״י ${q.signer_name}`) : null),
       h('td', { class: 'client', 'data-label': 'חבילה' }, h('span', { dir: 'auto' }, q.tier || ''), h('small', {}, q.influencer || '')),
-      h('td', { class: 'amt', dir: 'ltr', 'data-label': 'לחודש' }, formatILS(q.monthly_gross_agorot)),
+      showMoney ? h('td', { class: 'amt', dir: 'ltr', 'data-label': 'לחודש' }, formatILS(q.monthly_gross_agorot)) : null,
       h('td', { 'data-label': 'נוצר' }, formatDate(q.created_at), h('small', { class: 'by' }, q.created_by_email || '')),
       h('td', { 'data-label': 'סטטוס' }, h('span', { class: `pill ${s}` }, STATUS[s], when ? h('small', {}, ` · ${when}`) : null),
         open && q.expires_at ? h('small', { class: 'until' }, `${agreement ? 'לחתימה' : 'בתוקף'} עד ${formatDate(q.expires_at, true)}`) : null),
@@ -185,11 +188,21 @@ async function boot() {
     $('login-block').hidden = true;
     // The app shell: the menu of this person's screens, with the managers' switch (app/shell.js).
     import('./shell.js').then((m) => m.mountShell(staff.email)).catch(() => {});
+    // The list is the owners' and Irit's; its amounts are the owners'. The database decides
+    // the same (public.quotes answers nobody else). Someone the app could not identify
+    // gets the list the database gives them, without amounts.
+    const viewer = await viewerFor(staff.email);
+    showMoney = seesFinance(viewer);
+    $('th-amt').hidden = !showMoney;
+    const denied = !viewer.error && !canSeeQuoteList(viewer);
+    $('no-access').hidden = !denied;
+    if (denied) { $('list-block').hidden = true; $('stats').hidden = true; $('btn-refresh').hidden = true; return; }
     await loadQuotes();
   } else {
     $('login-block').hidden = false;
     $('list-block').hidden = true;
     $('stats').hidden = true;
+    $('no-access').hidden = true;
     if (staff && !staff.isStaff) {
       $('lg-err').textContent = explainError(new Error('not staff'));
       $('lg-err').hidden = false;
@@ -212,6 +225,7 @@ $('login-form').addEventListener('submit', async (e) => {
     $('lg-err').hidden = false;
     return;
   }
+  resetMode(); // a fresh sign-in starts in the personal profile
   await boot();
 });
 $('lg-forgot').addEventListener('click', async (e) => {
@@ -237,7 +251,7 @@ $('lg-forgot').addEventListener('click', async (e) => {
     btn.disabled = false;
   }
 });
-$('btn-logout').addEventListener('click', async () => { await supabase.auth.signOut(); await boot(); });
+$('btn-logout').addEventListener('click', async () => { resetMode(); await signOutHere(); await boot(); });
 $('btn-refresh').addEventListener('click', loadQuotes);
 
 const pwDialog = $('dlg-password');
@@ -269,6 +283,7 @@ $('pw-form').addEventListener('submit', async (e) => {
   const link = await consumeRecoveryLink();
   await boot();
   if (link === 'recovery') openPasswordDialog(true);
+  if (link === 'kept') toast(LINK_KEPT);
   if (link === 'expired') {
     const msg = 'הקישור לאיפוס הסיסמה אינו תקף או שפג תוקפו. אפשר לבקש קישור חדש דרך ״שכחתי סיסמה״.';
     if ($('login-block').hidden) toast(msg);

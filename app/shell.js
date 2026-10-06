@@ -5,17 +5,20 @@
 // (name and avatar) and the way out. Mounted once after sign-in by the shared session
 // code (mountSession in app/protocol-ui.js) and by the quote pages; the rules are
 // app/shell-rules.js, the styles app/styles/shell.css.
-// The managers' switch, "המשימות שלי" / "מבט מנהל" (app/manager-rules.js), is the
-// first two entries of the menu (#mode-bar, #mode-mine, #mode-manager): one place on
-// every page, and on a phone the first two buttons of the bar.
+// The two profiles (app/manager-rules.js). The owners, Ofir and Lior see one profile at
+// a time: the menu holds only that profile's screens, and one button in the top bar of
+// every page (#profile-switch, the same place on a phone and on a wide screen) goes to
+// the other: "מבט מנהל" from the personal profile, "חזרה למשימות שלי" from the manager's.
+// Irit keeps her switch as the first two entries of her menu (#mode-bar, #mode-mine,
+// #mode-manager).
 // Also here: the small motion helpers (page entrance, numbers that count up once,
 // view transitions for a filter), all off under prefers-reduced-motion.
 import { supabase } from './supa.js';
 import { h } from './quote-doc.js';
 import { PEOPLE, scopeOf } from './protocol.js';
-import { setMode } from './manager-rules.js';
+import { setMode, modeOf } from './manager-rules.js';
 import {
-  menuOf, barOf, groupsOf, currentOf, inMenu, avatarFill, initialsOf, nameOf,
+  menuOf, profileMenu, profileOf, profileSwitch, barOf, groupsOf, currentOf, inMenu, avatarFill, initialsOf, nameOf,
 } from './shell-rules.js';
 
 const WIDE = '(min-width: 1024px)';
@@ -137,22 +140,23 @@ function linkOf(item) {
 }
 
 function build(viewer, email) {
-  const items = menuOf(viewer);
-  const { bar, more } = barOf(items, viewer);
-  // A long menu: the daily screens first, the rest under a quiet "עוד" heading (shell-rules.js groupsOf).
-  const groups = groupsOf(items, viewer);
-  const restHead = groups.rest.length ? h('small', { class: 'side-k side-k-rest', id: 'side-rest-h' }, 'עוד') : null;
-  const dailyFirst = (its) => [...its.filter((it) => groups.daily.includes(it)), ...its.filter((it) => !groups.daily.includes(it))];
-  const links = new Map(items.map((it) => [it.id, linkOf(it)]));
-  const modes = items.filter((it) => it.mode);
-  // The managers' switch keeps its own group and ids, as the first entries of the menu.
-  const modeBar = modes.length === 2 ? h('div', { class: 'mode-bar', id: 'mode-bar', role: 'group', 'aria-label': 'החלפת תצוגה' }) : null;
+  // Everything this person may open; a profile shows its part of it (shell-rules.js profileMenu).
+  const all = menuOf(viewer);
+  const here = () => profileOf(viewer, location.pathname, location.hash, location.search, modeOf(viewer));
+  let profile = here();
+  let items = [];
+  let bar = [];
+  let more = [];
+  let groups = { daily: [], rest: [] };
+  let links = new Map();
+  let modeBar = null;
+  let restHead = null;
   const rail = h('span', { class: 'side-rail', id: 'side-rail', 'aria-hidden': 'true' });
   const list = h('div', { class: 'side-list', id: 'side-list' });
   const sheet = h('div', { class: 'side-sheet', id: 'side-sheet', hidden: true });
   const moreBtn = h('button', { type: 'button', class: 'side-link side-more', id: 'side-more', 'aria-expanded': 'false', 'aria-controls': 'side-sheet' }, h('span', { class: 'side-t' }, 'עוד'));
   const standalone = (() => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
-  const home = items[0].href;
+  const home = all[0].href;
   const promo = standalone ? null : h('a', { class: 'side-promo', id: 'side-promo', href: home },
     h('strong', {}, 'אסטרטג בטלפון'), h('small', {}, 'התראות על כל משימה, גם כשהאתר סגור'));
   const nav = h('nav', { class: 'side-nav', id: 'side-nav', 'aria-label': 'תפריט ראשי' }, rail, h('small', { class: 'side-k' }, 'תפריט'), list, sheet);
@@ -161,6 +165,23 @@ function build(viewer, email) {
     h('a', { class: 'side-logo', href: home, 'aria-label': 'astrateg' }, h('img', { src: 'app/assets/logo.png', alt: '', width: '403', height: '280' })),
     nav, ...(promo ? [promo] : []));
 
+  // The screens of the profile shown now. A page that belongs to one profile is
+  // remembered as the choice, so the next page opens in the same profile.
+  const compose = () => {
+    if (profile) setMode(profile);
+    items = profileMenu(viewer, profile);
+    ({ bar, more } = barOf(items, viewer));
+    // A long menu: the daily screens first, the rest under a quiet "עוד" heading (shell-rules.js groupsOf).
+    groups = groupsOf(items, viewer);
+    restHead = groups.rest.length ? h('small', { class: 'side-k side-k-rest', id: 'side-rest-h' }, 'עוד') : null;
+    links = new Map(items.map((it) => [it.id, linkOf(it)]));
+    // Irit's switch keeps its own group and ids, as the first entries of the menu.
+    modeBar = items.filter((it) => it.mode).length === 2 ? h('div', { class: 'mode-bar', id: 'mode-bar', role: 'group', 'aria-label': 'החלפת תצוגה' }) : null;
+    document.body.classList.toggle('has-tabbar', items.length > 1);
+    document.documentElement.dataset.profile = profile || '';
+    mountSwitch(profileSwitch(viewer, profile));
+  };
+  const dailyFirst = (its) => [...its.filter((it) => groups.daily.includes(it)), ...its.filter((it) => !groups.daily.includes(it))];
   const place = (parent, its) => {
     for (const it of its) (modeBar && it.mode ? modeBar : parent).append(links.get(it.id));
   };
@@ -190,6 +211,14 @@ function build(viewer, email) {
     moreBtn.classList.toggle('is-on', more.some((it) => it.id === cur.id));
     moveRail(nav, rail);
   };
+  // A tab of the page that belongs to the other profile (clients.html) changes the menu with it.
+  const moved = () => {
+    const now = here();
+    if (now === profile) { mark(); return; }
+    profile = now;
+    compose();
+    arrange();
+  };
   moreBtn.addEventListener('click', () => {
     const open = moreBtn.getAttribute('aria-expanded') !== 'true';
     setOpen(open);
@@ -198,14 +227,32 @@ function build(viewer, email) {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sheet.hidden) { setOpen(false); moreBtn.focus(); } });
   document.addEventListener('click', (e) => { if (!sheet.hidden && !side.contains(e.target)) setOpen(false); });
   matchMedia(WIDE).addEventListener('change', arrange);
-  window.addEventListener('hashchange', mark);
+  window.addEventListener('hashchange', moved);
   window.addEventListener('resize', () => moveRail(nav, rail));
   document.fonts?.ready.then(() => moveRail(nav, rail)).catch(() => {});
+  compose();
   arrange();
 
-  document.body.classList.toggle('has-tabbar', items.length > 1);
   mountUser(viewer, email);
-  hideRepeats(items);
+  // A head link to a screen of either profile is not shown: the menu, or the button, leads there.
+  hideRepeats(all);
+}
+
+// The one button between the two profiles, in the top bar of every page, before the
+// person's name: the same place on a phone and on a wide screen. Choosing is remembered
+// (setMode), and the link itself opens the other profile's first screen.
+function mountSwitch(sw) {
+  const session = document.querySelector('.topbar .session');
+  let a = document.getElementById('profile-switch');
+  if (!sw || !session) { a?.remove(); return; }
+  if (!a) {
+    a = h('a', { class: 'profile-switch', id: 'profile-switch' });
+    a.addEventListener('click', () => setMode(a.dataset.to));
+    session.before(a);
+  }
+  a.href = sw.href;
+  a.dataset.to = sw.to;
+  a.textContent = sw.label;
 }
 
 // The rail slides to the current item; arriving from another page it starts where it was.

@@ -105,6 +105,8 @@ select.sinput { appearance: auto; }
 }
 .sshow[aria-pressed='true'] { background: var(--ds-soft); border-color: var(--ds-navy-2); }
 .shint { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+/* "אל תכתבו כאן סיסמאות": said plainly under the notes, in the page's amber. */
+.shint.snote-warn { padding: 8px 12px; border-radius: var(--ds-r-ctl); background: var(--ds-amber-soft); color: #5A4500; font-weight: 600; }
 .serr { color: var(--danger); font-size: 14px; font-weight: 600; margin: 6px 0 0; }
 .serr-box { margin: 0; padding: 10px 12px; background: var(--ds-danger-soft); border-radius: var(--ds-r-ctl); }
 .serr-box:focus { outline: 3px solid var(--danger); outline-offset: 2px; }

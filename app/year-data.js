@@ -4,6 +4,7 @@
 // stamped by the database. Until that migration is applied the marks read as null
 // ("not there yet") and the screens say so instead of failing.
 import { supabase } from './supa.js';
+import { quoteFacts } from './protocol-data.js';
 import { SURVEY_TABLE, SURVEY_REPORT_COLS } from './surveys.js';
 
 const PAGE = 1000;
@@ -53,6 +54,9 @@ export async function clearMonthMark(clientId, month, item) {
 export async function loadAgreements(ids) {
   const list = [...new Set((ids || []).filter(Boolean))];
   if (!list.length) return new Map();
+  // public.quote_facts(): the selection whole for the owners and Irit, without its money for the rest.
+  const facts = await quoteFacts(list);
+  if (facts) return new Map(facts.map((q) => [q.id, { id: q.id, number: q.number, signed_at: q.signed_at, selection: q.selection, client: q.client }]));
   const { data, error } = await supabase.from('quotes')
     .select('id, number, signed_at, selection:model->selection, client:model->client').in('id', list);
   if (error) return new Map();

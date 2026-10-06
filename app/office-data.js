@@ -5,6 +5,7 @@
 // Who and when are stamped by the database. Until that migration is applied, the
 // new tables are missing: each loader then returns null and its screen says so.
 import { supabase } from './supa.js';
+import { quoteFacts } from './protocol-data.js';
 
 const PAGE = 1000;
 async function all(build) {
@@ -71,6 +72,8 @@ export async function updateTask(id, fields) {
 export async function loadSelections(quoteIds) {
   const list = [...new Set(quoteIds.filter(Boolean))];
   if (!list.length) return new Map();
+  const facts = await quoteFacts(list); // the selection without its money
+  if (facts) return new Map(facts.map((q) => [q.id, q.selection]));
   const { data, error } = await supabase.from('quotes').select('id, selection:model->selection').in('id', list);
   if (error) return new Map();
   return new Map(data.map((q) => [q.id, q.selection]));

@@ -32,6 +32,7 @@ let openId = null;       // the client whose row is open
 let brands = null;       // the account's brands, once fetched
 let brandsError = null;  // the short code of a fetch that failed (asked again on the next open)
 let showNone = false;
+let expanded = false;    // the card is one quiet line until asked for: the person's own work comes first
 
 // ── Data ────────────────────────────────────
 // Every client this login reads, with its brand. null: the brand columns are not there
@@ -174,15 +175,21 @@ function render() {
   const ul = h('ul', { class: 'mcn-list' }, ...list.map(row));
   // The open row is never one of the hidden ones.
   if (list.findIndex((c) => c.id === openId) < CONNECT_CAP) capList(ul, CONNECT_CAP, 'metricool-connect');
+  box.classList.toggle('is-closed', !expanded);
+  const toggle = h('button', {
+    type: 'button', class: 'btn btn-sm mcn-toggle', id: 'mcn-toggle', 'aria-expanded': String(expanded), 'aria-controls': 'mcn-body',
+    onclick: () => { expanded = !expanded; if (!expanded) openId = null; render(); box.querySelector('#mcn-toggle')?.focus(); },
+  }, expanded ? 'סגירה' : 'הצגת הרשימה');
   fill(box,
-    h('h2', { id: 'metricool-h', tabindex: '-1' }, cardTitle(list.length)),
-    h('p', { class: 'hint' }, 'בוחרים לכל לקוח את המותג שלו ב־Metricool. לקוח שחובר יורד מהרשימה.'),
-    ul,
-    none.length ? h('button', {
-      type: 'button', class: 'btn-text mcn-more', id: 'mcn-none-toggle', 'aria-expanded': String(showNone),
-      onclick: () => { showNone = !showNone; render(); box.querySelector('#mcn-none-toggle')?.focus(); },
-    }, showNone ? 'הסתרה' : withoutTitle(none.length)) : null,
-    showNone && none.length ? h('ul', { class: 'mcn-list', id: 'mcn-none-list' }, ...none.map(noneRow)) : null);
+    h('div', { class: 'mcn-head' }, h('h2', { id: 'metricool-h', tabindex: '-1' }, cardTitle(list.length)), toggle),
+    expanded ? h('div', { id: 'mcn-body' },
+      h('p', { class: 'hint' }, 'בוחרים לכל לקוח את המותג שלו ב־Metricool. לקוח שחובר יורד מהרשימה.'),
+      ul,
+      none.length ? h('button', {
+        type: 'button', class: 'btn-text mcn-more', id: 'mcn-none-toggle', 'aria-expanded': String(showNone),
+        onclick: () => { showNone = !showNone; render(); box.querySelector('#mcn-none-toggle')?.focus(); },
+      }, showNone ? 'הסתרה' : withoutTitle(none.length)) : null,
+      showNone && none.length ? h('ul', { class: 'mcn-list', id: 'mcn-none-list' }, ...none.map(noneRow)) : null) : null);
 }
 
 // Mounts the card for Ilai and the owner; hidden for everyone else, and until the

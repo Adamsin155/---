@@ -12,6 +12,7 @@ import {
   contractTitle, dealSummary, dealDue, dealUrl, pendingDeals, DEAL_MINUTES,
 } from './deal-logic.js';
 import { loadDeals, setDealStatus } from './deal-data.js';
+import { canSeeDeals } from './manager-rules.js';
 
 let box = null;
 let deals = [];
@@ -86,11 +87,12 @@ function tick() {
   }
 }
 
-// Mounts the card for an office viewer (the database lets only the office read every
-// deal); hidden for anyone else, and when the table is not there yet.
+// Mounts the card for Irit and the owners (canSeeDeals: a deal carries the discount and
+// any price that was agreed, and since 6.10.2026 the database answers only them and the
+// seller); hidden for anyone else, and when the table is not there yet.
 export async function mountDeals(el, viewer) {
   box = el;
-  if (!el || !viewer || viewer.error || viewer.scope !== 'office') { if (el) el.hidden = true; return; }
+  if (!el || !canSeeDeals(viewer)) { if (el) el.hidden = true; return; }
   active = true;
   await refreshDeals();
   if (!timer) timer = setInterval(tick, 1000);

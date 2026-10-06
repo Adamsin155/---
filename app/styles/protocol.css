@@ -678,3 +678,8 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
   .tabs { padding: 3px; gap: 0; }
   .tab { padding: 8px 4px; font-size: 13.5px; }
 }
+
+/* The personal profile of an owner: the whole team's list, closed in one line (app/clients.js). */
+.team-fold { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0; padding: 14px 16px; border-radius: var(--ds-r-card); background: var(--ds-ground); color: var(--ds-muted); }
+.team-fold .btn { min-height: 44px; }
+#team-open.btn-text { min-height: 44px; }

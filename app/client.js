@@ -1,9 +1,10 @@
 // Client-facing quote page: loads a quote by token and lets the client sign it.
 import { renderQuoteDoc, formatDate } from './quote-doc.js';
 import { formatILS } from './pricing.js';
+import { pageToken } from './link-token.js';
 
 const $ = (id) => document.getElementById(id);
-const token = new URLSearchParams(location.search).get('t') || '';
+const token = pageToken(); // q.html#t=… (and ?t=… of a link sent before 6.10.2026)
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 let quote = null;
 let supa = null;

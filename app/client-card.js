@@ -19,6 +19,7 @@ import {
   statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
+import { safeLink } from './gantt-logic.js';
 import { googleCalendarUrl, downloadIcs } from './calendar.js';
 import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
 import { describeMark } from './handoffs.js';
@@ -364,7 +365,9 @@ function autoBanner() {
 const ganttChip = () => h('li', {}, h('a', { class: 'chip gantt-chip', href: `gantt.html?id=${encodeURIComponent(client.id)}`, id: 'cc-gantt' }, 'גאנט התוכן'));
 
 function linksRow() {
-  const links = client.links || {};
+  // Only an https:// address becomes a link (safeLink): a stored value of any other
+  // kind (an old import, a write that went around the form) is shown as missing.
+  const links = Object.fromEntries(LINKS.map((l) => [l.key, safeLink(client.links?.[l.key])]));
   const set = LINKS.filter((l) => links[l.key]);
   // 'own': the links to work with, nothing to edit.
   if (own()) {
@@ -460,13 +463,27 @@ async function refreshAccessLog() {
   } catch { /* the log is informational */ }
 }
 const revealTimers = {};
+// A copied password does not stay on the clipboard: 30 seconds later it is written
+// over (best effort: a browser lets a page write the clipboard only while it is in
+// front, and never read it, so this cannot tell whether something else was copied since).
+let clipTimer = null;
+async function copySecret(pw) {
+  try { await navigator.clipboard.writeText(pw); } catch { toast('ההעתקה לא הצליחה.'); return; }
+  toast('הסיסמה הועתקה. היא תימחק מהלוח בעוד 30 שניות.');
+  clearTimeout(clipTimer);
+  clipTimer = setTimeout(clearClipboard, 30e3);
+}
+async function clearClipboard() {
+  clipTimer = null;
+  try { await navigator.clipboard.writeText(''); } catch { /* the page is not in front: nothing more to do */ }
+}
 async function reveal(a) {
   const box = $(`sec-${a.id}`);
   try {
     const pw = await revealAccess(a.id);
     fill(box, h('span', { class: 'num', dir: 'ltr' }, pw || '—'),
-      h('button', { type: 'button', class: 'btn-text', onclick: async () => { try { await navigator.clipboard.writeText(pw || ''); toast('הסיסמה הועתקה.'); } catch { toast('ההעתקה לא הצליחה.'); } } }, 'העתקה'),
-      h('span', { class: 'hint' }, 'הצפייה נרשמה. הסיסמה תוסתר בעוד 30 שניות.'));
+      h('button', { type: 'button', class: 'btn-text', onclick: () => copySecret(pw || '') }, 'העתקה'),
+      h('span', { class: 'hint' }, 'הצפייה נרשמה. הסיסמה תוסתר בעוד 30 שניות, וגם תימחק מהלוח אם הועתקה.'));
     toast('הסיסמה מוצגת ליד הרשת. הצפייה נרשמה.');
     clearTimeout(revealTimers[a.id]);
     revealTimers[a.id] = setTimeout(() => { const b = document.getElementById(`sec-${a.id}`); if (b) fill(b); }, 30e3);
@@ -481,6 +498,9 @@ async function reveal(a) {
 // protocol-data.js. When the unlock ends, the passwords shown here are hidden.
 setPasswordGate(askVaultCode);
 const hideSecrets = () => { for (const b of document.querySelectorAll('#access-list .secret')) fill(b); };
+// Leaving the page takes a shown password off it, so that "back" (the browser's
+// page cache) cannot bring it up again; a copied one leaves the clipboard right away.
+window.addEventListener('pagehide', () => { hideSecrets(); if (clipTimer) { clearTimeout(clipTimer); clearClipboard(); } });
 async function removeAccess(a) {
   if (!confirm(`למחוק את הגישה ל־${networkName(a.network)}? הסיסמה תימחק מהכספת.`)) return;
   try { await deleteAccess(a.id); toast('הגישה נמחקה.'); refreshAccess(); } catch (err) { toast(errorText(err)); }
@@ -915,7 +935,7 @@ function procCard(x, now, s) {
   const missing = missingFields(p, ctx);
   const guidance = p.guidance ? (ctx.shoot_type ? [p.guidance[ctx.shoot_type]] : Object.values(p.guidance)) : [];
   const compact = x.complete && !printing && !shownProcs.has(p.id);
-  const link = PROC_LINK[pid] && client.links?.[PROC_LINK[pid]];
+  const link = PROC_LINK[pid] && safeLink(client.links?.[PROC_LINK[pid]]);
   const linkDef = LINKS.find((l) => l.key === PROC_LINK[pid]);
   const pkgQty = PKG_QTY[pid] ? client.deliverables?.[PKG_QTY[pid]] : null;
   const pkgUnit = DELIVERABLES.find((d) => d.key === PKG_QTY[pid])?.label;
@@ -1768,7 +1788,7 @@ function readLinks() {
     input.removeAttribute('aria-invalid');
     hint.textContent = '';
     if (!v) continue;
-    if (!/^https:\/\/\S+$/i.test(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'זה לא נראה כמו קישור. העתיקו את הכתובת המלאה, שמתחילה ב־https://', input }; }
+    if (!safeLink(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'זה לא נראה כמו קישור. העתיקו את הכתובת המלאה, שמתחילה ב־https://', input }; }
     if (SECRET.test(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'אפשר לשמור כאן רק קישור. סיסמאות וקודי גישה לא נשמרים במערכת.', input }; }
     const domain = l.hint.split('/')[0].split('.').slice(-2).join('.');
     if (!v.toLowerCase().includes(domain)) hint.textContent = `הקישור לא נראה כמו קישור של ${l.label}. נשמר בכל זאת.`;

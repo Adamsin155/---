@@ -42,18 +42,58 @@ export async function sendPasswordReset(email, redirectTo = new URL('../quotes.h
 //    Nothing is spent until the person chooses a password (verifyLink), so a
 //    WhatsApp link preview that opens the address cannot use it up.
 //  - Supabase's own redirect (the reset email): #access_token=…&refresh_token=…&type=…
-// Returns { type, tokenHash } | { type, accessToken, refreshToken } | { expired: true } | null.
+// Returns { type, tokenHash } | { type: 'recovery', accessToken, refreshToken } | { expired: true } | null.
+//
+// A pair of tokens in the address is a whole session: whoever opens such an address
+// is signed in as its account. So it is accepted only as what Supabase's reset mail
+// sends (type=recovery, and the page then asks for a new password), never as a silent
+// sign-in of any other type; and no link replaces an account that is already signed
+// in on the device without asking (mayUseLink). Security audit of 6.10.2026, ops.md 36.
 export const LINK_TYPES = ['invite', 'recovery'];
-export function readAuthLink() {
-  const params = new URLSearchParams(window.location.hash.slice(1));
+export function parseAuthLink(hash) {
+  const params = new URLSearchParams(String(hash || '').replace(/^#/, ''));
   if (!params.has('access_token') && !params.has('token_hash') && !params.has('error')) return null;
-  history.replaceState(null, '', window.location.pathname + window.location.search);
   const type = params.get('type');
   if (params.get('token_hash')) return LINK_TYPES.includes(type) ? { type, tokenHash: params.get('token_hash') } : { expired: true };
-  if (params.get('access_token') && params.get('refresh_token')) {
+  if (params.get('access_token') && params.get('refresh_token') && type === 'recovery') {
     return { type, accessToken: params.get('access_token'), refreshToken: params.get('refresh_token') };
   }
   return { expired: true };
+}
+export function readAuthLink() {
+  const link = parseAuthLink(window.location.hash);
+  if (link) history.replaceState(null, '', window.location.pathname + window.location.search);
+  return link;
+}
+
+// The email inside an access token, or null. Read without checking the signature: it
+// only tells the person whose link this is; the server decides who is signed in.
+export function tokenEmail(jwt) {
+  try {
+    const part = String(jwt || '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const bytes = Uint8Array.from(atob(part.padEnd(Math.ceil(part.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
+    const email = JSON.parse(new TextDecoder().decode(bytes)).email;
+    return typeof email === 'string' && email ? email.toLowerCase() : null;
+  } catch { return null; }
+}
+// What to ask before a link replaces the account that is signed in on this device
+// (null: nothing to ask). `current`: the signed-in email, or null.
+export function linkQuestion(link, current) {
+  const mine = String(current || '').toLowerCase();
+  if (!mine || !link || link.expired) return null;
+  const theirs = link.accessToken ? tokenEmail(link.accessToken) : null;
+  if (theirs && theirs === mine) return null;
+  const whose = theirs ? `הקישור שייך לחשבון אחר (${theirs}).` : 'זה קישור כניסה אישי, והוא עשוי להיות של חשבון אחר.';
+  return `${whose}\nבמכשיר הזה מחובר כרגע ${mine}.\n\nאישור: לעבור לחשבון של הקישור.\nביטול: להישאר בחשבון המחובר (הקישור לא ינוצל).`;
+}
+export const LINK_KEPT = 'נשארת בחשבון המחובר. הקישור לא נוצל.';
+// May this link be used here? Yes when nobody is signed in, or the link is for the
+// same account; otherwise the person chooses.
+export async function mayUseLink(link, ask = (text) => window.confirm(text)) {
+  let current = null;
+  try { current = (await supabase.auth.getSession()).data?.session?.user?.email || null; } catch { /* no session */ }
+  const question = linkQuestion(link, current);
+  return question ? !!ask(question) : true;
 }
 
 // Signs in with a link read by readAuthLink. Returns the error, or null when it worked.
@@ -67,16 +107,51 @@ export async function verifyLink(link) {
 export const isOffline = (err) => /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(String(err?.message || err || '')) || err?.name === 'AuthRetryableFetchError';
 
 // Signs in from a reset link (#access_token=…&type=recovery) and clears it from
-// the address bar. Returns 'recovery', 'expired' or null.
+// the address bar. Returns 'recovery', 'expired', 'kept' (another account is signed
+// in and the person chose to stay in it) or null.
 export async function consumeRecoveryLink() {
   const link = readAuthLink();
   if (!link) return null;
   if (link.expired || !LINK_TYPES.includes(link.type)) return 'expired';
+  if (!(await mayUseLink(link))) return 'kept';
   return (await verifyLink(link)) ? 'expired' : 'recovery';
 }
 
+// ── Signing out ──────────────────────────────
+// What stays on a shared device after "התנתקות" should not be the last person's:
+//  - this device's push subscription (the reminders of that person would keep
+//    arriving on it): removed from the database and from the browser;
+//  - drafts kept in the browser: unsaved text of the characterization form, the focus
+//    call and the scripts (localStorage, "astrateg.<form>.<client>…"), and the quote
+//    draft with its prices (sessionStorage "astrateg-draft").
+// Preferences (which view, which filter) stay. Each step is best effort and none
+// holds the sign-out for long.
+export const DRAFT_PREFIXES = ['astrateg.charform.', 'astrateg.brief.', 'astrateg.scripts.'];
+export const SESSION_DRAFTS = ['astrateg-draft'];
+export function clearDeviceDrafts(local = globalThis.localStorage, session = globalThis.sessionStorage) {
+  try {
+    const keys = [];
+    for (let i = 0; i < local.length; i += 1) keys.push(local.key(i));
+    for (const k of keys) if (DRAFT_PREFIXES.some((p) => String(k).startsWith(p))) local.removeItem(k);
+  } catch { /* no storage */ }
+  try { for (const k of SESSION_DRAFTS) session.removeItem(k); } catch { /* no storage */ }
+}
+async function forgetPushDevice() {
+  const reg = await navigator.serviceWorker?.getRegistration(new URL('../', import.meta.url).href);
+  const sub = await reg?.pushManager?.getSubscription();
+  if (!sub) return;
+  await supabase.rpc('push_unsubscribe', { p_endpoint: sub.endpoint }).then(() => {}, () => {});
+  await sub.unsubscribe().catch(() => {});
+}
+export async function signOutHere() {
+  await Promise.race([forgetPushDevice().catch(() => {}), new Promise((done) => { setTimeout(done, 3000); })]);
+  clearDeviceDrafts();
+  await supabase.auth.signOut();
+}
+
 export function quoteLink(token) {
-  return new URL(`q.html?t=${encodeURIComponent(token)}`, window.location.href).href;
+  // The token rides in the fragment (app/link-token.js): it reaches no log of the host.
+  return `${new URL('q.html', window.location.href).href}#t=${encodeURIComponent(token)}`;
 }
 
 // Human-readable Hebrew message for common failures.

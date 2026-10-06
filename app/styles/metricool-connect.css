@@ -36,3 +36,11 @@
   .mcn-acts .btn { flex: 1 1 40%; }
   .mcn-acts .mcn-save { flex-basis: 100%; }
 }
+
+/* The card is one line until opened: the title with its count, and the button. */
+.mcn-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mcn-head h2 { margin: 0; flex: 1; min-width: 0; }
+.mcn-card.is-closed .mcn-head h2 { font-size: 16px; font-family: inherit; font-weight: 600; }
+.mcn-toggle { min-height: 44px; flex: none; }
+#mcn-body { margin-top: 10px; }
+.mcn-card.is-closed { padding-block: 8px; margin-block: 8px; }

@@ -1,6 +1,6 @@
 // Shared view helpers for the client protocol pages: login, people, dates, statuses.
 import {
-  supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT,
+  supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT,
 } from './supa.js';
 import { h } from './quote-doc.js';
 import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';
@@ -8,6 +8,7 @@ import { businessDaysBetween, readWaited } from './protocol-logic.js';
 import { TZ, partsIL, daysBetweenIL, dayFromKeyIL, needsYear } from './tz.js';
 import { shootDateConcerns, shootDateQuestion, shootDateNote } from './shoot-prep.js';
 import { landFromLink, LINK_EXPIRED, PASSWORD_SAVED } from './set-password.js';
+import { resetMode } from './manager-rules.js';
 import { CLIENT_BY, CLIENT_BY_NAME } from './access-logic.js';
 
 export { h };
@@ -193,6 +194,7 @@ export function mountSession(onReady) {
     const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail($('lg-email').value), password: $('lg-pass').value });
     $('lg-submit').disabled = false;
     if (error) { $('lg-err').textContent = explainError(error); $('lg-err').hidden = false; return; }
+    resetMode(); // a fresh sign-in starts in the personal profile (app/manager-rules.js)
     await boot();
   });
   $('lg-forgot').addEventListener('click', async (e) => {
@@ -204,11 +206,12 @@ export function mountSession(onReady) {
     try { await sendPasswordReset(email); $('lg-msg').textContent = RESET_SENT; $('lg-msg').hidden = false; } catch (err) { $('lg-err').textContent = explainError(err); $('lg-err').hidden = false; }
     e.currentTarget.disabled = false;
   });
-  $('btn-logout').addEventListener('click', async () => { await supabase.auth.signOut(); location.reload(); });
+  $('btn-logout').addEventListener('click', async () => { resetMode(); await signOutHere(); location.reload(); });
   // Opened from a personal sign-in link (team.html): choose a password first.
   return (async () => {
     const landed = await landFromLink();
     if (landed === 'password') toast(PASSWORD_SAVED);
+    if (landed === 'kept') toast(LINK_KEPT);
     const result = await boot();
     if (landed === 'expired') {
       if ($('login-block').hidden) toast(LINK_EXPIRED);
@@ -240,6 +243,13 @@ export const store = {
 export async function loadQuoteNumbers(ids) {
   const list = [...new Set(ids.filter(Boolean))];
   if (!list.length) return new Map();
+  // Without money: public.quote_facts() (app/protocol-data.js quoteFacts); the table before its migration.
+  let facts = null;
+  try {
+    const got = await supabase.rpc('quote_facts', { p_ids: list });
+    if (!got.error && Array.isArray(got.data)) facts = got.data;
+  } catch { /* the table, below */ }
+  if (facts) return new Map(facts.map((q) => [q.id, { id: q.id, number: q.number, signed_at: q.signed_at }]));
   const { data, error } = await supabase.from('quotes').select('id, number, signed_at').in('id', list);
   if (error) throw error;
   return new Map(data.map((q) => [q.id, q]));
