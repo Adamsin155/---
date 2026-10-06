@@ -11,6 +11,7 @@ import { GANTT_RULES, GANTT_KINDS, KIND_ORDER, POSTS_FROM } from '../app/gantt-t
 import { CYCLE_FROM, monthItems, SPREAD_ITEMS, spreadMonth } from '../app/year-logic.js';
 import { HOLIDAYS, EREV } from '../app/holidays.js';
 import { dateIL } from '../app/tz.js';
+import { fileTitle } from '../app/gantt-logic.js';
 
 const IL = (y, m, d, h = 10, mi = 0) => dateIL(y, m, d, h, mi).toISOString();
 const FULL = { videos: 42, graphics: 42, shoot_days: 2, collabs: 3, stories: 3, ch14: 1, monthly: 96 };
@@ -270,4 +271,12 @@ test('status, totals and the year at a glance', () => {
 test('links: only https is shown or opened', () => {
   assert.equal(safeLink('https://instagram.com/reel/x'), 'https://instagram.com/reel/x');
   for (const v of ['http://x.y', 'javascript:alert(1)', 'https://a b', '', null]) assert.equal(safeLink(v), null, String(v));
+});
+
+// Found live (6.10.2026): the item editor listed an uploaded file as "קובץ".
+test('a client file in the item editor: its label, else its own file name, else its kind', () => {
+  assert.equal(fileTitle({ label: ' גרפיקה מבצע חורף ', storage_path: 'c/deliverable_graphic/x.png' }), 'גרפיקה מבצע חורף');
+  assert.equal(fileTitle({ label: null, kind: 'deliverable_video', storage_path: 'c1/deliverable_video/3f2b8c1e-7a41-4d2c-9b1f-0a1b2c3d4e5f-Reel-Final.mp4' }), 'Reel-Final.mp4');
+  assert.equal(fileTitle({ label: '', kind: 'deliverable_graphic' }), 'גרפיקה'); // the client's view has no path
+  assert.equal(fileTitle({}), 'קובץ');
 });

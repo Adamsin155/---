@@ -168,6 +168,12 @@ async function fakeSupabase(route) {
 }
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+// Ids used in a dialog or a form that appear more than once on the page.
+const duplicateIds = (pg) => pg.evaluate(() => {
+  const count = new Map();
+  for (const el of document.querySelectorAll('[id]')) count.set(el.id, (count.get(el.id) || 0) + 1);
+  return [...new Set([...document.querySelectorAll('dialog [id], form [id], dialog[id], form[id]')].map((el) => el.id))].filter((id) => count.get(id) > 1);
+});
 const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
 // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
 await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
@@ -498,7 +504,14 @@ await page.click('#p31 .recurring .btn');
 await page.waitForSelector('#dlg-call[open]');
 await page.click('#call-submit');
 assert.match(await page.locator('#call-err').innerText(), /לא נכתב דבר/);
-await page.fill('#call-campaigns', 'קמפיין לידים רץ טוב');
+// Found live (6.10.2026): the number "לידים מאז השיחה הקודמת" and the topic "לידים" were both #call-leads.
+assert.deepEqual(await duplicateIds(page), []);
+assert.equal(await page.locator('#call-leads').count(), 1);
+assert.equal(await page.locator('label[for="call-topic-leads"]').innerText(), 'לידים');
+await page.fill('#call-topic-campaigns', 'קמפיין לידים רץ טוב');
+await page.fill('#call-topic-leads', 'רוב הלידים מאינסטגרם');
+await page.fill('#call-leads', '12');
+await page.fill('#call-spend', '1500');
 await page.click('#call-add-task');
 await page.fill('#ct-1-t', 'לשלוח הצעה לסרטון נוסף');
 await page.click('#call-submit');
@@ -508,6 +521,8 @@ await page.click('#call-submit');
 await page.waitForFunction(() => !document.querySelector('#dlg-call[open]'));
 const call = db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p31.call');
 assert.equal(JSON.parse(call.note).topics.campaigns, 'קמפיין לידים רץ טוב');
+// Each value in its own field: the topic's words, and the number.
+assert.deepEqual([JSON.parse(call.note).topics.leads, JSON.parse(call.note).leads, JSON.parse(call.note).spend], ['רוב הלידים מאינסטגרם', 12, 1500]);
 assert.deepEqual(db.client_tasks.filter((t) => t.client_id === created.id && t.source === 'p31').map((t) => t.owner), ['lior']);
 // Irit checks every call is documented and every task has an owner.
 assert.match(db.client_tasks.find((t) => t.client_id === created.id && t.source === 'followup' && t.owner === 'irit').title, /מתועדת/);

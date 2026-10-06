@@ -287,6 +287,24 @@ export function dayBeforeResult(check, answers = {}) {
   return { ok, failed };
 }
 export const dayBeforeNote = (res) => JSON.stringify({ ok: res.ok, failed: res.failed });
+// The check's items by id, for reading a saved result back in words.
+export const DAY_BEFORE_LABELS = {
+  content: 'הלקוח אישר את התוכן', client: 'הלקוח קיבל תזכורת ליום הצילום', influencers: 'המשפיענים עודכנו',
+  crew: 'הצלם והצוות עודכנו', address: 'הכתובת נכונה אצל כולם', tasks: 'אין משימה פתוחה שחוסמת את יום הצילום',
+  natali: 'המאפרת וההסעה של נטלי אישרו', remembers: 'הלקוח זוכר את היום (שיחה קצרה)',
+};
+// The saved result as one line for the client card ("נבדקו 7 פריטים, הכול תקין", or
+// the failed ones by name); null when the note is not a saved result.
+export function dayBeforeText(note) {
+  let v = null;
+  try { v = JSON.parse(note); } catch { return null; }
+  if (!v || typeof v !== 'object' || !Array.isArray(v.failed)) return null;
+  const ok = Array.isArray(v.ok) ? v.ok : [];
+  const n = ok.length + v.failed.length;
+  const count = n === 1 ? 'נבדק פריט אחד' : `נבדקו ${n} פריטים`;
+  if (!v.failed.length) return n ? `${count}, הכול תקין` : '';
+  return `${count}. לא תקין: ${v.failed.map((id) => DAY_BEFORE_LABELS[id] || String(id)).join(', ')}`;
+}
 export function readDayBefore(note) {
   try {
     const v = JSON.parse(note);

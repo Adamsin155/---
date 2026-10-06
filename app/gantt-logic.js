@@ -11,6 +11,12 @@ import { monthStart, termOf, spreadMonth } from './year-logic.js';
 import { addBusinessDays, isBusinessDay, parseDate, roundsOf } from './protocol-logic.js';
 import { holidayOn, erevOn } from './holidays.js';
 import { dateIL, dayKeyIL, partsIL, dayFromKeyIL } from './tz.js';
+import { KINDS as FILE_KINDS, fileNameOf } from './files-logic.js';
+
+// What to call one of the client's files in the item editor: its label, else the name
+// it was uploaded under, else its kind (the client's view has no path); never just "קובץ"
+// when anything better is known.
+export const fileTitle = (f) => String(f?.label || '').trim() || fileNameOf(f?.storage_path) || FILE_KINDS[f?.kind]?.label || 'קובץ';
 
 const pad = (n) => String(n).padStart(2, '0');
 const KEY = /^(\d{4})-(\d{2})-(\d{2})$/;

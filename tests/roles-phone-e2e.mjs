@@ -50,8 +50,16 @@ const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollW
 const pageName = (page) => page.evaluate(() => `${location.pathname.split('/').pop()}${location.hash}`);
 
 // What every screen must keep on a phone. `mineTargets`: also the controls of the short list.
+// Ids used in a dialog or a form that appear more than once on the page (a label, a
+// focus() or a value read then lands on the wrong control; found live in the weekly call).
+const duplicateIds = (page) => page.evaluate(() => {
+  const count = new Map();
+  for (const el of document.querySelectorAll('[id]')) count.set(el.id, (count.get(el.id) || 0) + 1);
+  return [...new Set([...document.querySelectorAll('dialog [id], form [id], dialog[id], form[id]')].map((el) => el.id))].filter((id) => count.get(id) > 1);
+});
 async function tidy(page, label) {
   assert.ok(await noHScroll(page), `${label}: sideways scroll`);
+  assert.deepEqual(await duplicateIds(page), [], `${label}: duplicate ids in dialogs and forms`);
   const r = await page.evaluate(() => {
     const vis = (el) => { const b = el.getBoundingClientRect(); const s = getComputedStyle(el); return b.width > 0 && b.height > 0 && s.visibility !== 'hidden'; };
     const size = (sel) => [...document.querySelectorAll(sel)].filter(vis).map((el) => ({ t: (el.innerText || el.id).trim().slice(0, 30), h: Math.round(el.getBoundingClientRect().height) }));

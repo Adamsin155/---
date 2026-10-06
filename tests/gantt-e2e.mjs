@@ -63,6 +63,8 @@ for (const k of importKeys('publish')) done(A, k, IL(2026, 4, 10, 9));
 const files = [
   { id: randomUUID(), client_id: A.id, kind: 'deliverable_video', label: 'סרטון 29 · רילס תספורת', storage_path: `${A.id}/v29.mp4`, mime: 'video/mp4', size_bytes: 1000, posted_on: null, link: 'https://www.instagram.com/reel/ron29', uploaded_by: 'ilai@astrateg.test', created_at: '2026-11-01T10:00:00Z', deleted_at: null },
   { id: randomUUID(), client_id: A.id, kind: 'deliverable_graphic', label: 'גרפיקה מבצע חורף', storage_path: `${A.id}/g1.png`, mime: 'image/png', size_bytes: 1000, posted_on: null, link: null, uploaded_by: 'ilai@astrateg.test', created_at: '2026-11-01T10:00:00Z', deleted_at: null },
+  // Uploaded without a label: named by its file name, not just "קובץ" (found live, 6.10.2026).
+  { id: randomUUID(), client_id: A.id, kind: 'deliverable_video', label: null, storage_path: `${A.id}/deliverable_video/3f2b8c1e-7a41-4d2c-9b1f-0a1b2c3d4e5f-Reel-Final.mp4`, mime: 'video/mp4', size_bytes: 1000, posted_on: null, link: null, uploaded_by: 'ilai@astrateg.test', created_at: '2026-11-02T10:00:00Z', deleted_at: null },
   { id: randomUUID(), client_id: A.id, kind: 'logo', label: 'לוגו', storage_path: `${A.id}/logo.png`, mime: 'image/png', size_bytes: 1, posted_on: null, link: null, uploaded_by: 'irit@astrateg.test', created_at: '2026-03-20T10:00:00Z', deleted_at: null },
 ];
 
@@ -330,7 +332,8 @@ await step('he marks a video as posted, with its link and the client\'s file; it
   assert.equal(await ilai.innerText('#ed-h'), posted.title);
   // The files offered fit a video: not the logo, not the graphic.
   const options = await ilai.locator('#ed-file option').allInnerTexts();
-  assert.deepEqual(options, ['בלי קובץ', 'סרטון 29 · רילס תספורת']);
+  assert.deepEqual([options[0], ...options.slice(1).sort()], ['בלי קובץ', 'Reel-Final.mp4', 'סרטון 29 · רילס תספורת']);
+  assert.ok(!options.includes('קובץ'));
   await ilai.locator('label.gt-seg-opt:has(input[value="posted"])').click();
   await ilai.fill('#ed-posted', posted.day);
   await ilai.selectOption('#ed-file', files[0].id);

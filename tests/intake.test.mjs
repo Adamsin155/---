@@ -13,7 +13,7 @@ import {
 import { FOCUS_TOPICS, briefChecks, highlightsOf, emptyTopics, NOT_RAISED } from '../app/briefs.js';
 import {
   coordinatorOf, shootContexts, shootPrep, topicsToClose, seenToday, seenNote, reportedOf, blockerTask, eveOf, checkAt,
-  dayBefore, dayBeforeResult, dayBeforeNote, readDayBefore, dayBeforeTask, requestTask, requestDue, requestProblems,
+  dayBefore, dayBeforeResult, dayBeforeNote, readDayBefore, dayBeforeText, DAY_BEFORE_LABELS, dayBeforeTask, requestTask, requestDue, requestProblems,
   ackMessage, tellMessage, requestOf, TOPICS,
 } from '../app/shoot-prep.js';
 import { clientState, CHAR_ENDED, resolveTime, applicableProcesses } from '../app/protocol-logic.js';
@@ -375,6 +375,13 @@ test('the day-before check is prefilled: what the system knows is checked, Irit 
   const res = dayBeforeResult(d, { address: 'ok', remembers: 'fail' });
   assert.deepEqual(res.failed, ['crew', 'remembers']);
   assert.deepEqual(readDayBefore(dayBeforeNote(res)), res);
+  // In the client card the saved result is a line of words, never the JSON (found live, 6.10.2026).
+  assert.deepEqual(Object.fromEntries(d.items.map((i) => [i.id, i.label])), DAY_BEFORE_LABELS);
+  assert.equal(dayBeforeText(dayBeforeNote(res)), 'נבדקו 8 פריטים. לא תקין: הצלם והצוות עודכנו, הלקוח זוכר את היום (שיחה קצרה)');
+  assert.equal(dayBeforeText(dayBeforeNote({ ok: d.items.map((i) => i.id), failed: [] })), 'נבדקו 8 פריטים, הכול תקין');
+  assert.equal(dayBeforeText(dayBeforeNote({ ok: ['content'], failed: [] })), 'נבדק פריט אחד, הכול תקין');
+  assert.equal(dayBeforeText('הערה רגילה'), null);
+  assert.equal(dayBeforeText('{"videos":[1]}'), null);
   const task = dayBeforeTask(c, d, res.failed);
   assert.deepEqual([task.owner, task.source, task.urgent], ['lior', 'escalation', true]);
   assert.equal(task.title, 'בדיקת יום לפני הצילום (יום ה׳ 15.10) נכשלה: הצלם והצוות עודכנו והלקוח זוכר את היום (שיחה קצרה)');

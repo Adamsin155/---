@@ -567,6 +567,15 @@ await step('the day-before check (15): what the system knows is filled in, Irit 
   assert.deepEqual([t.source, t.urgent], ['escalation', true]);
   assert.match(t.title, /^בדיקת יום לפני הצילום \(יום ד׳ 14\.10\) נכשלה: הצלם והצוות עודכנו$/);
   await irit.waitForFunction((sel) => /נכשלו ועברו לליאור: הצלם והצוות עודכנו/.test(document.querySelector(sel)?.textContent || ''), `#shoot-${k}`);
+  // In the client card the result is a line of words under her item, never the JSON (found live, 6.10.2026).
+  const cardPage = await irit.context().newPage();
+  await cardPage.goto(`${BASE}client.html?id=${C.id}`);
+  await cardPage.waitForSelector('#p15', { state: 'attached' });
+  await cardPage.waitForFunction(() => /נבדקו \d+ פריטים/.test(document.querySelector('#p15')?.textContent || ''));
+  const p15 = await cardPage.locator('#p15').textContent();
+  assert.match(p15, /נבדקו 8 פריטים\. לא תקין: הצלם והצוות עודכנו/);
+  assert.doesNotMatch(await cardPage.locator('main').textContent(), /\{"ok"|"failed"/);
+  await cardPage.close();
   // Its exception is Lior's now; it is not offered to her again as a blocker.
   assert.doesNotMatch(await irit.locator(`#shoot-${k}`).innerText(), /משימה דחופה: בדיקת יום לפני/);
   await shot(irit, '09-day-before-360');

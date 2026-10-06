@@ -12,7 +12,7 @@
 import { GANTT_KINDS, KIND_ORDER, TEMPLATE_TEXT, TEMPLATE_VERSION, WEEKDAY_NAMES } from './gantt-template.js';
 import {
   generatePlan, planDiff, monthGrid, calendarMonths, packageMonthOf, entryStatus, entriesByDay, yearGlance, totals,
-  holidayName, contractEndKey, safeLink, isCustom, timeText, STATUS_TEXT, CLIENT_STATUS_TEXT, DAY_KEY, TIME_KEY, byWhen, monthRange,
+  holidayName, contractEndKey, safeLink, isCustom, timeText, STATUS_TEXT, CLIENT_STATUS_TEXT, DAY_KEY, TIME_KEY, byWhen, monthRange, fileTitle,
 } from './gantt-logic.js';
 import { termOf } from './year-logic.js';
 import { dayKeyIL } from './tz.js';
@@ -395,7 +395,7 @@ function readOnlyEntry(e) {
     h('dl', { class: 'gt-facts' },
       h('dt', {}, 'מתי'), h('dd', {}, `${dayLine(e.day)}${e.time_il ? ` · ${timeText(e.time_il)}` : ''}`),
       h('dt', {}, 'מצב'), h('dd', {}, h('span', { class: `gt-state s-${s}` }, s === 'posted' && postedOn(e) ? `עלה ב־${dmy(postedOn(e))}` : statusText(s))),
-      f ? [h('dt', {}, 'קובץ'), h('dd', {}, f.label || 'קובץ')] : null,
+      f ? [h('dt', {}, 'קובץ'), h('dd', {}, fileTitle(f))] : null,
       !SHARE && e.note ? [h('dt', {}, 'הערה'), h('dd', {}, e.note)] : null),
     f && /^image\//.test(f.mime || '') ? h('img', { class: 'gt-preview-img', alt: f.label || '', 'data-path': f.storage_path }) : null,
     link ? h('a', { class: 'btn btn-primary gt-open-big', href: link, target: '_blank', rel: 'noopener noreferrer' }, 'צפייה בתוכן', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')) : null,
@@ -431,7 +431,7 @@ function openEntry(e, day = null) {
   const fileKinds = GANTT_KINDS[kind].files;
   const fileList = files ? [...files.values()].filter((f) => !fileKinds.length || fileKinds.includes(f.kind) || f.id === e?.file_id) : [];
   const fileSel = files ? h('select', { class: 'input', id: 'ed-file' }, h('option', { value: '' }, 'בלי קובץ'),
-    ...fileList.map((f) => h('option', { value: f.id, selected: f.id === e?.file_id ? true : null }, `${f.label || 'קובץ'}${f.posted_on ? ` · ${dm(f.posted_on)}` : ''}`))) : null;
+    ...fileList.map((f) => h('option', { value: f.id, selected: f.id === e?.file_id ? true : null }, `${fileTitle(f)}${f.posted_on ? ` · ${dm(f.posted_on)}` : ''}`))) : null;
   const note = h('textarea', { class: 'input', id: 'ed-note', rows: '2', maxlength: '500' }, e?.note || '');
   const meta = [];
   if (e && !isCustom(e)) meta.push(e.edited ? 'התאריך שונה ידנית: עדכון מהתבנית לא יזיז אותו בלי אישור.' : 'התאריך נקבע לפי התבנית.');

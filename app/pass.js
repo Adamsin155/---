@@ -344,7 +344,8 @@ function summaryRow(e, note, now) {
         h('p', { class: 'err', id: `${id}-err`, role: 'alert', hidden: true }),
         h('div', { class: 'of-acts' },
           h('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: `${id}-save`, value: 'save' }, note ? 'שמירת השינויים' : 'שמירה'),
-          h('button', { type: 'submit', class: 'btn btn-sm', id: `${id}-next`, value: 'next' }, 'שמירה והבא')))));
+          // Not `${id}-next`: that is the id of the field "פעולה הבאה" above (a duplicate id, found by the e2e check).
+          h('button', { type: 'submit', class: 'btn btn-sm', id: `${id}-save-next`, value: 'next' }, 'שמירה והבא')))));
 }
 async function saveSummary(ev, c) {
   ev.preventDefault();
