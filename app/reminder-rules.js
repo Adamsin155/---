@@ -146,6 +146,23 @@ export function whenText(d, now) {
   const day = days === 0 ? 'היום' : days === 1 ? 'מחר' : days === -1 ? 'אתמול' : `${WEEKDAY[p.weekday]} ${p.day}.${p.month}`;
   return `${day} ${clock(d)}`;
 }
+// "בעוד שעה", "בעוד 12 דקות", "עכשיו": the time really left until `target` at `now`.
+export function inTimeWords(target, now) {
+  const m = Math.ceil((target - now) / MIN);
+  if (m <= 0) return 'עכשיו';
+  if (m === 1) return 'בעוד דקה';
+  if (m < 60) return `בעוד ${m} דקות`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  const hours = h === 1 ? 'שעה' : h === 2 ? 'שעתיים' : `${h} שעות`;
+  return r ? `בעוד ${hours} ו־${r === 1 ? 'דקה' : `${r} דקות`}` : `בעוד ${hours}`;
+}
+// A reminder "X minutes before" that goes out late (the event was created close to its
+// time, or the engine was held up) must not promise the full X (found live, 6.10.2026:
+// "בעוד שעה אפיון" a minute before it). Within LATE_SLACK minutes of its time it keeps
+// its usual words; later it is worded by the time really left.
+export const LATE_SLACK = 5;
+export const sentOnTime = (target, now, minutesBefore) => (target - now) / MIN >= minutesBefore - LATE_SLACK;
 export const personName = (key) => (key === OWNER ? 'הבעלים' : PEOPLE[key]?.name || key);
 const names = (list, max = 4) => (list.length > max ? `${list.slice(0, max).join(', ')} ועוד ${list.length - max}` : list.join(', '));
 const procName = (proc) => `${proc.num} · ${proc.title}`;
@@ -280,7 +297,7 @@ export const RULES = [
     },
     steps: [
       { id: 'eve', from: 'meeting', prevBusinessDays: 1, at: '18:30', to: (i) => i.who, level: 'ring', expires: 'meeting', title: (i, env) => `אפיון ${whenText(i.anchors.meeting, env.now)}: ${i.name}`, body: (i) => [i.client.address, i.client.business].filter(Boolean).join(' · ') || 'הכתובת והטלפון בכרטיס הלקוח.' },
-      { id: 'hour', from: 'meeting', minutes: -60, to: (i) => i.who, level: 'ring', expires: 'meeting', title: (i) => `בעוד שעה אפיון: ${i.name}`, body: (i) => [i.client.address, 'ניווט וטלפון בכרטיס.'].filter(Boolean).join(' · ') },
+      { id: 'hour', from: 'meeting', minutes: -60, to: (i) => i.who, level: 'ring', expires: 'meeting', title: (i, env) => (sentOnTime(i.anchors.meeting, env.now, 60) ? `בעוד שעה אפיון: ${i.name}` : `האפיון מתחיל ${inTimeWords(i.anchors.meeting, env.now)}: ${i.name}`), body: (i) => [i.client.address, 'ניווט וטלפון בכרטיס.'].filter(Boolean).join(' · ') },
       { id: 'end', from: 'end', minutes: 15, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved(CHAR_ENDED) && openOf(i, i.who).length > 0, title: (i) => `האפיון הסתיים? ${i.name}`, body: () => 'עברו 15 דקות מסוף הפגישה המתוכנן. ללחוץ "האפיון הסתיים" עם ארבעת השדות.' },
       { id: 'irit', from: 'end', minutes: 45, to: 'irit', level: 'quiet', when: (i) => !i.resolved(CHAR_ENDED) && openOf(i, i.who).length > 0, title: (i) => `האפיון לא סומן: ${i.name}`, body: (i) => `${personName(i.who)} עוד לא סימן/ה שהאפיון הסתיים.` },
     ],
@@ -508,9 +525,9 @@ export const RULES = [
       const dayOpen = (b) => { const x = i.same(b); return !!x && !x.complete; };
       const endMin = i.natali ? 180 : 330;
       return [
-        { ...s, id: 'eli2h', minutes: -120, to: 'eli', expires: 'shoot', title: () => `בעוד שעתיים המשפיענים מגיעים: ${i.name}`, body: () => `ההגעה שלך ב־${clock(new Date(i.anchors.shoot.getTime() - 36e5))}${i.client.address ? `, ${i.client.address}` : ''}.` },
-        { ...s, id: 'eli15', minutes: -15, to: 'eli', expires: 'shoot', when: () => !i.check('p17b.brollq'), title: () => `הבי־רול גמור? ${i.name}`, body: () => 'המשפיענים מגיעים בעוד 15 דקות. לענות כן או לא במסך יום הצילום.' },
-        { ...s, id: 'arrived', minutes: -45, to: 'lior', when: () => !i.resolved('p17b.arrived'), title: () => `אלי עוד לא סימן הגעה: ${i.name}`, body: () => 'עברו 15 דקות משעת ההגעה שלו.' },
+        { ...s, id: 'eli2h', minutes: -120, to: 'eli', expires: 'shoot', title: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 120) ? `בעוד שעתיים המשפיענים מגיעים: ${i.name}` : `המשפיענים מגיעים ${inTimeWords(i.anchors.shoot, env.now)}: ${i.name}`), body: () => `ההגעה שלך ב־${clock(new Date(i.anchors.shoot.getTime() - 36e5))}${i.client.address ? `, ${i.client.address}` : ''}.` },
+        { ...s, id: 'eli15', minutes: -15, to: 'eli', expires: 'shoot', when: () => !i.check('p17b.brollq'), title: () => `הבי־רול גמור? ${i.name}`, body: (_, env) => `המשפיענים מגיעים ${sentOnTime(i.anchors.shoot, env.now, 15) ? 'בעוד 15 דקות' : inTimeWords(i.anchors.shoot, env.now)}. לענות כן או לא במסך יום הצילום.` },
+        { ...s, id: 'arrived', minutes: -45, to: 'lior', when: () => !i.resolved('p17b.arrived'), title: () => `אלי עוד לא סימן הגעה: ${i.name}`, body: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 45) ? 'עברו 15 דקות משעת ההגעה שלו.' : `שעת ההגעה שלו הייתה ${clock(new Date(i.anchors.shoot.getTime() - 36e5))}.`) },
         ...(i.natali
           ? [{ ...s, id: 'hourLeft', minutes: 120, to: 'lior', when: () => dayOpen('p19'), title: () => `נותרה שעה: ${i.name}`, body: () => 'צילום עם נטלי: עד 3 שעות.' }]
           : [

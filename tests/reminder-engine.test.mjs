@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeReminders, candidates, buildEnv, planDelivery } from '../app/reminder-engine.js';
-import { RULES, SNOOZE, officeMinutesBefore, businessDayFrom, inSendHours } from '../app/reminder-rules.js';
+import { RULES, SNOOZE, officeMinutesBefore, businessDayFrom, inSendHours, inTimeWords, sentOnTime } from '../app/reminder-rules.js';
 import { PROCESSES } from '../app/protocol.js';
 import { IMPORT_NOTE } from '../app/protocol-logic.js';
 import { importKeys } from '../app/client-open.js';
@@ -927,4 +927,42 @@ test('"אין מי שייצא לאפיון" rings for Lior; Ilai\'s late graphic
   none(due(w, IL(2026, 10, 5, 10)), 'exception', 'list');
   marks(w, c, itemsOf('p04'), IL(2026, 10, 6, 10));
   assert.ok(pick(due(w, IL(2026, 10, 6, 12, 16)), 'late', 'lior').some((r2) => r2.key.includes(':p07@')));
+});
+
+// Found live (6.10.2026): "בעוד שעה אפיון" went out 1 minute before the meeting, and
+// "בעוד שעתיים המשפיענים מגיעים" 49 minutes before the shoot (both were created close
+// to their time).
+test('a reminder "X before" that goes out late is worded by the time really left; never once the event began', () => {
+  const at = IL(2026, 10, 6, 11);
+  assert.deepEqual([60, 59, 12, 2, 1, 0, -3].map((m) => inTimeWords(at, new Date(at.getTime() - m * 6e4))),
+    ['בעוד שעה', 'בעוד 59 דקות', 'בעוד 12 דקות', 'בעוד 2 דקות', 'בעוד דקה', 'עכשיו', 'עכשיו']);
+  assert.deepEqual([120, 109, 61, 180].map((m) => inTimeWords(at, new Date(at.getTime() - m * 6e4))), ['בעוד שעתיים', 'בעוד שעה ו־49 דקות', 'בעוד שעה ו־דקה', 'בעוד 3 שעות']);
+  assert.deepEqual([60, 56, 55, 54, 1].map((m) => sentOnTime(at, new Date(at.getTime() - m * 6e4), 60)), [true, true, true, false, false]);
+
+  const w = world();
+  const c = client(w, { name: 'קפה דנה', char_at: at.toISOString(), address: 'הרצל 1' });
+  importTo(w, c, 'char');
+  const title = (h, m) => one(due(w, IL(2026, 10, 6, h, m)), 'char', 'hour', 'ofir').title;
+  // On time (the cron runs every minute; a few minutes of delay keep the usual words).
+  assert.equal(title(10, 0), 'בעוד שעה אפיון: קפה דנה');
+  assert.equal(title(10, 4), 'בעוד שעה אפיון: קפה דנה');
+  // The meeting was put in the card at 10:48, or 10:59: the real time left.
+  assert.equal(title(10, 48), 'האפיון מתחיל בעוד 12 דקות: קפה דנה');
+  assert.equal(title(10, 59), 'האפיון מתחיל בעוד דקה: קפה דנה');
+  // From its start on it is not sent at all.
+  none(due(w, IL(2026, 10, 6, 11, 0)), 'char', 'hour');
+  none(due(w, IL(2026, 10, 6, 11, 20)), 'char', 'hour');
+
+  const w2 = world();
+  const s = client(w2, { name: 'מאפיית שי', shoot_at: IL(2026, 10, 15, 11).toISOString(), shoot_type: 'dms', address: 'הנביאים 5' });
+  importTo(w2, s, 'shoot');
+  const eli = (h, m, step = 'eli2h') => one(due(w2, IL(2026, 10, 15, h, m)), 'shoot', step, 'eli');
+  assert.equal(eli(9, 0).title, 'בעוד שעתיים המשפיענים מגיעים: מאפיית שי');
+  assert.equal(eli(10, 11).title, 'המשפיענים מגיעים בעוד 49 דקות: מאפיית שי');
+  assert.match(eli(10, 45, 'eli15').body, /^המשפיענים מגיעים בעוד 15 דקות\./);
+  assert.match(eli(10, 56, 'eli15').body, /^המשפיענים מגיעים בעוד 4 דקות\./);
+  assert.equal(one(due(w2, IL(2026, 10, 15, 10, 15)), 'shoot', 'arrived', 'lior').body, 'עברו 15 דקות משעת ההגעה שלו.');
+  assert.equal(one(due(w2, IL(2026, 10, 15, 10, 50)), 'shoot', 'arrived', 'lior').body, 'שעת ההגעה שלו הייתה 10:00.');
+  none(due(w2, IL(2026, 10, 15, 11, 0)), 'shoot', 'eli2h');
+  none(due(w2, IL(2026, 10, 15, 11, 0)), 'shoot', 'eli15');
 });
