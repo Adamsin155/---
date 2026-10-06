@@ -139,11 +139,13 @@ test('every other column of clients is readable, and a new column has to be clas
     'a column added to public.clients needs its own "grant select (col)" in its migration, or a place in the private list');
 });
 
-test('the signed agreements (the phone and the prices in them) are the office\'s', async () => {
+// Since 20261013100000_money_owners_only.sql (it was the whole office: the owner, Irit,
+// Lior, Ofir and Ilai): tests/sql/money.test.mjs holds the rule per role.
+test('the signed agreements (the phone and the prices in them) are the owners\' and Irit\'s', async () => {
   const n = (await db.query('select count(*)::int as n from public.quotes')).rows[0].n;
   assert.ok(n >= 1);
-  for (const who of ['owner', 'irit', 'lior', 'ofir', 'ilai']) assert.equal((await q(who, 'select 1 from public.quotes')).rows.length, n, who);
-  for (const who of ['nadia', 'nirel', 'eli']) assert.deepEqual((await q(who, 'select 1 from public.quotes')).rows, [], who);
+  for (const who of ['owner', 'irit']) assert.equal((await q(who, 'select 1 from public.quotes')).rows.length, n, who);
+  for (const who of ['lior', 'ofir', 'ilai', 'nadia', 'nirel', 'eli']) assert.deepEqual((await q(who, 'select 1 from public.quotes')).rows, [], who);
 });
 
 // ── 2. Who writes which item ─────────────────

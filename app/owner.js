@@ -719,6 +719,7 @@ mountSession(async (staff) => {
     return;
   }
   // The manager profile (the owner, Irit and Ofir): screen 1, screen 2, the table.
+  // The prices in the table and in its CSV: the owners only (seesFinance, 6.10.2026).
   isOwner = canSeeOwnerScreen(v);
   mayTable = canSeeTable(v);
   showMoney = seesFinance(v);

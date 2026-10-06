@@ -9,29 +9,31 @@ import {
   h, toast, errorText, formatStamp, formatWhen, who, TAB_FRESH, firstLanded, markFirstLanded,
 } from './protocol-ui.js';
 import { isOwnerView } from './team-rules.js';
-import { isManager, modeOf } from './manager-rules.js';
+import { isManager, hasProfiles, modeOf } from './manager-rules.js';
 import { officeScreens } from './shell-rules.js';
 import {
   QA_KINDS, qaState, fixedKey, fixedItemKey, qaDue,
 } from './office-marks.js';
 
 // ── The first screen ────────────────────────
-// One landing rule for everyone (sections 3 and 6): the owner lands on "מה דורש
-// אותי" (owner.html), Ofir on the quality-control queue, Lior on "החלטות", the
-// editors and Nirel on their editing page, Eli on his shoot days. Irit and Ilai
-// stay on "המשימות שלי". Only when the tab opens on clients.html without a view (#…),
+// One landing rule for everyone (sections 3 and 6): the editors and Nirel land on
+// their editing page, Eli on his shoot days; everyone else stays on "המשימות שלי".
+// Since 6.10.2026 that includes the owners, Ofir and Lior: they start in their
+// personal profile, and their old first screens (the manager view, the quality-control
+// queue, "החלטות") are one tap away in its menu or behind "מבט מנהל" (ops.md, section 35).
+// Only when the tab opens on clients.html without a view (#…),
 // and once per tab (the installed app, a sign-in, a new tab; this tab's session
 // storage); after that every link opens where it points, and "המשימות שלי" is always
 // clients.html#mine. Each role also has a shortcut to its screen on that page.
-export const FIRST_SCREEN = { ofir: 'qa.html', lior: 'decisions.html', eli: 'shoot.html' };
+export const FIRST_SCREEN = { eli: 'shoot.html' };
 export const EDITOR_SCREEN = 'editor.html';
 export const OWNER_SCREEN = 'owner.html';
-// A manager (the owner, Irit, Ofir; app/manager-rules.js) who chose a profile lands on
-// it: 'manager' on owner.html, 'mine' on their own first screen ("המשימות שלי" for the
-// owner). `mode` is modeOf(viewer); null for everyone else.
+// Whoever has two profiles (the owners, Ofir, Lior, and Irit; app/manager-rules.js) and
+// chose the manager's on this browser lands on it (owner.html); otherwise on
+// "המשימות שלי". `mode` is modeOf(viewer); null for everyone else.
 export function firstScreenOf(me, viewer = null, mode = null) {
-  if (mode === 'manager' && isManager(viewer)) return OWNER_SCREEN;
-  if (!me) return isOwnerView(viewer) && mode !== 'mine' ? OWNER_SCREEN : null;
+  if (mode === 'manager' && (isManager(viewer) || hasProfiles(viewer))) return OWNER_SCREEN;
+  if (!me || hasProfiles(viewer)) return null;
   if (PEOPLE[me]?.editor) return EDITOR_SCREEN;
   if (PEOPLE[me]?.sales) return 'deal.html'; // Stav (3.10.2026); clients.js sends him there every time
   return FIRST_SCREEN[me] || null;

@@ -175,15 +175,39 @@ export async function updateClient(id, fields) {
   return complete(data);
 }
 
+// What the office needs from agreements, without their money (the owner's decision,
+// 6.10.2026): public.quote_facts() answers the office with the number, the signing day,
+// the package and the selection minus the discount and any price typed by hand; the
+// table public.quotes itself is read only by the owners and Irit (and, for a contract
+// that waits for approval, by Ofir and Lior). `ids`: these agreements; null: every
+// signed one. Returns null when the function is not there (before the migration
+// 20261013100000_money_owners_only.sql) or did not answer: the caller then reads the
+// table as before.
+export async function quoteFacts(ids = null) {
+  try {
+    const { data, error } = await supabase.rpc('quote_facts', { p_ids: ids });
+    return error || !Array.isArray(data) ? null : data;
+  } catch { return null; }
+}
+
 // Signed agreements that no client was opened from yet.
 export async function signedQuotes() {
-  const [{ data: quotes, error }, { data: linked, error: e2 }] = await Promise.all([
-    supabase.from('quotes')
+  const signed = async () => {
+    const facts = await quoteFacts(null);
+    if (facts) {
+      return facts.filter((q) => q.status === 'signed').slice(0, 200)
+        .map((q) => ({ ...q, company: q.client?.company ?? null, phone: q.client?.phone ?? null }));
+    }
+    const { data, error } = await supabase.from('quotes')
       .select('id, number, client_name, signed_at, company:model->client->>company, phone:model->client->>phone, tier:model->package->>tierName, influencer:model->package->>influencer, package_id:model->package->>id, selection:model->selection, term_months:model->>termMonths')
-      .eq('status', 'signed').order('signed_at', { ascending: false }).limit(200),
+      .eq('status', 'signed').order('signed_at', { ascending: false }).limit(200);
+    if (error) throw error;
+    return data;
+  };
+  const [quotes, { data: linked, error: e2 }] = await Promise.all([
+    signed(),
     supabase.from('clients').select('quote_id').not('quote_id', 'is', null),
   ]);
-  if (error) throw error;
   if (e2) throw e2;
   const used = new Set(linked.map((r) => r.quote_id));
   return quotes.filter((q) => !used.has(q.id));
@@ -224,11 +248,12 @@ export async function markReview(day, kind, note) {
   return data;
 }
 
-// The signed agreement a client was opened from (for its number and package lines).
+// The signed agreement a client was opened from: its number and signing day (nothing
+// else of it is shown in the card; no price and no link to the document).
 export async function loadQuoteSummary(id) {
-  const { data, error } = await supabase.from('quotes')
-    .select('id, number, signed_at, token, package:model->package, paid:model->paid, free:model->free')
-    .eq('id', id).maybeSingle();
+  const facts = await quoteFacts([id]);
+  if (facts) return facts[0] ? { id: facts[0].id, number: facts[0].number, signed_at: facts[0].signed_at } : null;
+  const { data, error } = await supabase.from('quotes').select('id, number, signed_at').eq('id', id).maybeSingle();
   if (error) return null;
   return data;
 }

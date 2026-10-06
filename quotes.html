@@ -58,6 +58,13 @@
       </form>
     </section>
 
+    <!-- The list is the owners' and Irit's (app/manager-rules.js canSeeQuoteList). -->
+    <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
+      <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
+      <p>רשימת ההצעות שנשלחו פתוחה לבעלים ולעירית. העבודה שלך נמצאת ב״המשימות שלי״.</p>
+      <a class="btn" href="clients.html#mine">מעבר להמשימות שלי</a>
+    </section>
+
     <section class="block" id="list-block" hidden aria-label="רשימת הצעות">
       <div class="filters" role="group" aria-label="סינון לפי סטטוס" id="filters"></div>
       <div class="table-wrap">
@@ -67,7 +74,7 @@
               <th scope="col">מספר</th>
               <th scope="col">לקוח</th>
               <th scope="col">חבילה</th>
-              <th scope="col" class="amt">לחודש כולל מע״מ</th>
+              <th scope="col" class="amt" id="th-amt" hidden>לחודש כולל מע״מ</th>
               <th scope="col">נוצר</th>
               <th scope="col">סטטוס</th>
               <th scope="col">אישור מנהל</th>

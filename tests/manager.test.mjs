@@ -9,8 +9,9 @@ import { applicableProcesses, clientState, packageDeliverables } from '../app/pr
 import { importKeys } from '../app/client-open.js';
 import { clientHealth, station } from '../app/health.js';
 import {
-  isManager, canArchive, seesFinance, canSeeTable, modeOf, setMode, modeOfPage, defaultMode, MODES,
+  isManager, canArchive, seesFinance, canSeeTable, canSeeQuoteList, canSeeDeals, hasProfiles, managerHome, modeOf, setMode, resetMode, defaultMode, MODES,
 } from '../app/manager-rules.js';
+import { profileOf, profileMenu, profileSwitch, managerTabs, PERSONAL } from '../app/shell-rules.js';
 import { firstScreenOf } from '../app/office-ui.js';
 import { contractSummary, itemText, ITEMS, fileCounts, renewalWindow, ratio } from '../app/contract-summary.js';
 import {
@@ -20,12 +21,17 @@ import {
 const v = (me, scope = 'office', error = null) => ({ me, scope, error });
 const OWNER = v(null);
 const at = (s) => new Date(s);
-const memory = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, x) => m.set(k, String(x)) }; };
+const memory = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, x) => m.set(k, String(x)), removeItem: (k) => m.delete(k) }; };
 
-test('the managers: the owner, Irit and Ofir; the prices never for Lior; the owner and Ofir archive', () => {
+test('the managers: the owner, Irit and Ofir; the prices for the owners only (6.10.2026); the owner and Ofir archive', () => {
   const who = [OWNER, v('irit'), v('ofir'), v('lior'), v('ilai', 'own'), v('nadia', 'own'), v('eli', 'own')];
   assert.deepEqual(who.map(isManager), [true, true, true, false, false, false, false]);
-  assert.deepEqual(who.map(seesFinance), [true, true, true, false, false, false, false]);
+  assert.deepEqual(who.map(seesFinance), [true, false, false, false, false, false, false]);
+  // The list of sent quotes and the sellers' deals: the owners and Irit, who builds the contracts.
+  assert.deepEqual(who.map(canSeeQuoteList), [true, true, false, false, false, false, false]);
+  assert.deepEqual(who.map(canSeeDeals), [true, true, false, false, false, false, false]);
+  assert.equal(seesFinance(v(null, 'office', new Error('x'))), false);
+  assert.equal(canSeeQuoteList(v('irit', 'office', new Error('x'))), false);
   assert.deepEqual(who.map(canArchive), [true, false, true, false, false, false, false]);
   assert.deepEqual(who.map(canSeeTable), [true, true, true, true, false, false, false]);
   // Someone the app could not identify gets nothing.
@@ -34,41 +40,111 @@ test('the managers: the owner, Irit and Ofir; the prices never for Lior; the own
   assert.equal(isManager(null), false);
 });
 
-test('the two profiles: the owner starts as manager, Irit and Ofir in their own work; the choice is remembered', () => {
+test('the two profiles: everyone starts in their own work (the owners too, 6.10.2026); the choice is remembered until a sign-in', () => {
   const s = memory();
-  assert.equal(modeOf(OWNER, s), 'manager');
+  assert.equal(modeOf(OWNER, s), 'mine');
   assert.equal(modeOf(v('irit'), s), 'mine');
-  assert.equal(modeOf(v('lior'), s), null);
+  assert.equal(modeOf(v('lior'), s), 'mine');
   assert.equal(modeOf(v('nadia', 'own'), s), null);
+  // Who has the two profiles behind the button: the owners, Ofir and Lior. Irit keeps her switch in the menu.
+  assert.deepEqual([OWNER, v('ofir'), v('lior'), v('irit'), v('ilai', 'own'), v('nadia', 'own'), v(null, 'office', new Error('x')), null].map(hasProfiles), [true, true, true, false, false, false, false, false]);
+  assert.deepEqual([OWNER, v('ofir'), v('lior')].map(managerHome), ['owner.html#now', 'owner.html#now', 'owner.html#all']);
   setMode('manager', s);
   assert.equal(modeOf(v('ofir'), s), 'manager');
   setMode('nonsense', s);
   assert.equal(modeOf(v('ofir'), s), 'manager');
   setMode('mine', s);
   assert.equal(modeOf(OWNER, s), 'mine');
-  assert.equal(defaultMode(OWNER), 'manager');
+  assert.equal(defaultMode(OWNER), 'mine');
+  // A sign-in or a sign-out forgets the choice: whoever comes next starts in the personal profile.
+  setMode('manager', s);
+  assert.equal(modeOf(OWNER, s), 'manager');
+  resetMode(s);
+  assert.equal(modeOf(OWNER, s), 'mine');
+  // What a browser remembered under the old key is not read any more.
+  const old = memory();
+  old.setItem('astrateg.mode', 'manager');
+  assert.equal(modeOf(OWNER, old), 'mine');
   // Storage that throws (a locked-down browser): the default.
   const broken = { getItem: () => { throw new Error('no'); }, setItem: () => { throw new Error('no'); } };
   assert.equal(modeOf(v('irit'), broken), 'mine');
   setMode('manager', broken);
   assert.deepEqual([MODES.mine.label, MODES.mine.href, MODES.manager.label, MODES.manager.href], ['המשימות שלי', 'clients.html#mine', 'מבט מנהל', 'owner.html#now']);
-  assert.equal(modeOfPage('/---/owner.html', '#table', 'mine'), 'manager');
-  assert.equal(modeOfPage('/clients.html', '#mine', 'manager'), 'mine');
-  assert.equal(modeOfPage('/clients.html', '#clients', 'manager'), 'manager');
-  assert.equal(modeOfPage('/qa.html', '', 'mine'), 'mine');
+  resetMode(broken);
 });
 
-test('where each one lands: a manager on the profile chosen, everyone else as before', () => {
-  assert.equal(firstScreenOf(null, OWNER), 'owner.html');
+test('which profile a page is shown in: a manager screen by its address opens the manager profile', () => {
+  const p = (viewer, path, hash = '', saved = null, search = '') => profileOf(viewer, path, hash, search, saved);
+  for (const viewer of [OWNER, v('ofir'), v('lior')]) {
+    const who = viewer.me || 'owner';
+    // The manager view and the manager's tabs of clients.html, whatever was chosen before.
+    assert.equal(p(viewer, '/---/owner.html', '#table', 'mine'), 'manager', who);
+    assert.equal(p(viewer, '/owner.html', '#shoots', null), 'manager', who);
+    // The team's work and the performance are the manager's; the daily review too, except for
+    // Ofir, whose own work it is (process 33): there it keeps the profile he is in.
+    assert.equal(p(viewer, '/clients.html', '#team', 'mine'), 'manager', who);
+    assert.equal(p(viewer, '/clients.html', '#performance', 'mine'), 'manager', who);
+    assert.equal(p(viewer, '/clients.html', '#control', 'mine'), who === 'ofir' ? 'mine' : 'manager', who);
+    assert.equal(p(viewer, '/clients.html', '#control', 'manager'), 'manager', who);
+    assert.deepEqual(managerTabs(viewer), who === 'ofir' ? ['team', 'performance'] : ['team', 'control', 'performance'], who);
+    for (const page of ['/insights.html', '/year.html', '/gantt.html', '/prep.html', '/team.html']) {
+      if (profileMenu(viewer, 'manager').some((it) => it.href === page.slice(1))) assert.equal(p(viewer, page, '', 'mine'), 'manager', `${who}: ${page}`);
+    }
+    // "המשימות שלי" is always the personal profile.
+    assert.equal(p(viewer, '/clients.html', '#mine', 'manager'), 'mine', who);
+    assert.equal(p(viewer, '/clients.html', '', 'manager'), 'mine', who);
+    // A page of both keeps the last choice: the clients list, a client's card, its Gantt.
+    for (const saved of ['mine', 'manager']) {
+      assert.equal(p(viewer, '/clients.html', '#clients', saved), saved, who);
+      assert.equal(p(viewer, '/client.html', '', saved, '?id=1'), saved, who);
+      assert.equal(p(viewer, '/staff-privacy.html', '', saved), saved, who);
+    }
+    assert.equal(p(viewer, '/client.html', '', null), 'mine', who);
+    assert.equal(p(viewer, '/client.html', '', 'nonsense'), 'mine', who);
+  }
+  // A person's own daily screens are the personal profile, also from a notification while in the manager's.
+  assert.equal(p(v('ofir'), '/qa.html', '', 'manager'), 'mine');
+  assert.equal(p(v('ofir'), '/pass.html', '', 'manager'), 'mine');
+  assert.equal(p(v('lior'), '/decisions.html', '', 'manager'), 'mine');
+  assert.equal(p(v('lior'), '/messages.html', '', 'manager'), 'mine');
+  assert.equal(p(v('lior'), '/shoot.html', '', 'manager'), 'mine');
+  assert.equal(p(OWNER, '/quotes.html', '', 'manager'), 'mine');
+  assert.equal(p(OWNER, '/', '', 'manager'), 'mine');
+  // The same screens are the manager profile's for whoever does not hold them daily.
+  assert.equal(p(OWNER, '/qa.html', '', 'mine'), 'manager');
+  assert.equal(p(OWNER, '/decisions.html', '', 'mine'), 'manager');
+  assert.equal(p(v('ofir'), '/decisions.html', '', 'mine'), 'manager');
+  assert.equal(p(v('lior'), '/qa.html', '', 'mine'), 'manager');
+  // Nobody else has profiles: Irit keeps her switch, the rest have one menu.
+  for (const viewer of [v('irit'), v('ilai', 'own'), v('nadia', 'own'), v('stav', 'own'), v(null, 'office', new Error('x')), null]) {
+    assert.equal(p(viewer, '/owner.html', '#now', 'manager'), null);
+    assert.equal(profileSwitch(viewer, 'mine'), null);
+    assert.deepEqual(managerTabs(viewer), []);
+  }
+  // The one button: to the manager profile's first screen, and back.
+  assert.deepEqual(profileSwitch(OWNER, 'mine'), { to: 'manager', label: 'מבט מנהל', href: 'owner.html#now' });
+  assert.deepEqual(profileSwitch(v('ofir'), 'mine'), { to: 'manager', label: 'מבט מנהל', href: 'owner.html#now' });
+  assert.deepEqual(profileSwitch(v('lior'), 'mine'), { to: 'manager', label: 'מבט מנהל', href: 'owner.html#all' });
+  for (const viewer of [OWNER, v('ofir'), v('lior')]) assert.deepEqual(profileSwitch(viewer, 'manager'), { to: 'mine', label: 'חזרה למשימות שלי', href: 'clients.html#mine' });
+  assert.deepEqual(Object.keys(PERSONAL).sort(), ['lior', 'ofir', 'owner']);
+});
+
+test('where each one lands: on "המשימות שלי" (null), or on the manager view when that profile was chosen; the editors and Eli as before', () => {
+  // The owners, Ofir and Lior start in the personal profile (6.10.2026): no first screen of their own any more.
+  assert.equal(firstScreenOf(null, OWNER), null);
   assert.equal(firstScreenOf(null, OWNER, 'manager'), 'owner.html');
   assert.equal(firstScreenOf(null, OWNER, 'mine'), null);
   assert.equal(firstScreenOf('irit', v('irit'), 'mine'), null);
   assert.equal(firstScreenOf('irit', v('irit'), 'manager'), 'owner.html');
-  assert.equal(firstScreenOf('ofir', v('ofir'), 'mine'), 'qa.html');
+  assert.equal(firstScreenOf('ofir', v('ofir'), 'mine'), null);
+  assert.equal(firstScreenOf('ofir', v('ofir'), null), null);
   assert.equal(firstScreenOf('ofir', v('ofir'), 'manager'), 'owner.html');
-  // Lior and the editors are not managers: a stored 'manager' changes nothing.
-  assert.equal(firstScreenOf('lior', v('lior'), 'manager'), 'decisions.html');
+  assert.equal(firstScreenOf('lior', v('lior'), 'mine'), null);
+  assert.equal(firstScreenOf('lior', v('lior'), 'manager'), 'owner.html');
+  // The editors, Eli and Ilai have no profiles: a stored 'manager' changes nothing.
   assert.equal(firstScreenOf('nadia', v('nadia', 'own'), 'manager'), 'editor.html');
+  assert.equal(firstScreenOf('eli', v('eli', 'own'), 'manager'), 'shoot.html');
+  assert.equal(firstScreenOf('ilai', v('ilai', 'own'), 'manager'), null);
 });
 
 // ── The contract summary ─────────────────────

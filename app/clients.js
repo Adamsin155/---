@@ -38,6 +38,8 @@ import { mountCalendar } from './calendar-card.js';
 // Stage 3, part 2 (the office's flows): Ilai's day in "המשימות שלי", the first screens of Ofir and Lior.
 import { ilaiSection, coveredByCard } from './ilai-card.js';
 import { landingNow, officeLinks } from './office-ui.js';
+import { hasProfiles, modeOf } from './manager-rules.js';
+import { profileOf, managerTabs } from './shell-rules.js';
 import { folderItemOf } from './qa-logic.js';
 // 3.10.2026: Stav's deals waiting for a contract (the office), and Stav's own page.
 import { mountDeals, refreshDeals } from './deal-ui.js';
@@ -66,6 +68,26 @@ let scope = 'office';       // 'own': only my work and my clients; 'office': plu
 let viewerError = null;     // the signed-in person could not be looked up
 let minePerson = null;      // whose work the "my work" tab shows ('' = everyone; office only)
 let view = 'mine';
+// The owners, Ofir and Lior in their personal profile (app/manager-rules.js hasProfiles;
+// app/shell-rules.js profileOf): "המשימות שלי" shows their own work only, and the
+// office's daily review and the performance wait in the manager profile.
+// In the manager profile the same list is the team's work, with the choice of whose, at
+// its own address (#team), so that "המשימות שלי" (#mine) is always the personal profile.
+let personal = false;
+let managing = false;
+function syncProfile() {
+  const viewer = { me, scope, error: viewerError };
+  const was = personal;
+  const profile = profileOf(viewer, location.pathname, location.hash, location.search, modeOf(viewer));
+  personal = profile === 'mine';
+  managing = profile === 'manager';
+  return was !== personal;
+}
+// The view an address asks for, and the address of a view.
+const viewOfHash = () => { const v = location.hash.slice(1); return v === 'team' ? 'mine' : v; };
+const hashOfView = (v) => (v === 'mine' && managing ? 'team' : v);
+// A tab of the manager profile is not offered in the personal one.
+const managerTab = (t) => personal && managerTabs({ me, scope, error: viewerError }).includes(t);
 let clientFilter = 'active';
 let lastLoad = 0;
 const laterOpen = new Set();   // the folded "this week" and "later" groups a person opened
@@ -160,6 +182,8 @@ function renderMe() {
   const bar = $('me-bar');
   if (me) {
     fill(bar, h('span', { class: 'me-label' }, 'אני:'), personChip(me, 'is-me'), h('span', { class: 'muted' }, PEOPLE[me].role));
+  } else if (scope === 'office' && personal) {
+    fill(bar, h('span', { class: 'me-label' }, 'המשימות שלי:'), h('span', { class: 'muted' }, 'מה שמחכה לך. כל השאר נמצא ב״מבט מנהל״, בכפתור שבראש העמוד.'));
   } else if (scope === 'office') {
     fill(bar, h('span', { class: 'me-label' }, 'תצוגת משרד:'), h('span', { class: 'muted' }, 'העבודה של כל הצוות. אפשר להציג את הרשימה של כל עובד.'));
   } else {
@@ -171,13 +195,13 @@ function renderMe() {
 function applyScope() {
   const own = scope === 'own';
   document.documentElement.dataset.scope = scope;
-  $('tab-control').hidden = own;
+  $('tab-control').hidden = own || managerTab('control');
   // Everyone sees their own row of screen 4 (decision 22); 'own' roles only that.
-  $('tab-performance').hidden = own && !me;
+  $('tab-performance').hidden = (own && !me) || managerTab('performance');
   $('tab-performance').textContent = own ? 'הנתונים שלי' : 'ביצועים';
   $('btn-new').hidden = own;
   $('tab-clients').textContent = own ? 'הלקוחות שלי' : 'לקוחות';
-  $('tab-mine').textContent = me ? 'המשימות שלי' : 'עבודת הצוות';
+  $('tab-mine').textContent = managing || (!me && !personal) ? 'עבודת הצוות' : 'המשימות שלי';
   // One plain heading for everyone who is a person in the protocol: "שלום <name>" (it
   // was "לקוחות ופרוטוקול עבודה" for the office and "שלום …" for the rest; 6.10.2026).
   // The owner's login, which is not a person, keeps the page's own name.
@@ -202,7 +226,9 @@ function setView(v, focus = false) {
     $(`view-${t}`).hidden = t !== view;
   }
   if (focus) $(`tab-${view}`).focus();
-  history.replaceState(null, '', `#${view}`);
+  history.replaceState(null, '', `#${hashOfView(view)}`);
+  // The address changed without an event: the app menu marks the screen by it (app/shell.js).
+  window.dispatchEvent(new Event('hashchange'));
   render();
 }
 for (const t of TABS) $(`tab-${t}`).addEventListener('click', () => setView(t));
@@ -766,10 +792,26 @@ function renderMine() {
     fill(wrap, h('p', { class: 'empty' }, viewerError ? VIEWER_UNKNOWN : 'לא הוגדר לך תפקיד בפרוטוקול, ולכן אין כאן רשימה. פנו למנהל המערכת.'));
     return;
   }
-  // An 'own' view is always the signed-in person's; the office can show anyone's.
-  const person = own ? me : minePerson || null;
-  $('mine-people').hidden = own;
-  if (own) {
+  // The personal profile of an owner: the cards above are what waits for them; the whole
+  // team's list stays closed in one line until asked for (nothing is taken away).
+  if (personal && !me) {
+    $('mine-people').hidden = true;
+    fill($('mine-people'));
+    fill($('mine-tools'));
+    fill($('mine-foot'));
+    $('my-months').hidden = true;
+    const n = workFor(null).length;
+    fill(wrap, h('p', { class: 'team-fold', id: 'team-fold' },
+      h('span', {}, n ? `עבודת הצוות: ${n} פתוחים.` : 'עבודת הצוות: אין כרגע פריטים פתוחים.'),
+      h('a', { class: 'btn btn-sm', id: 'team-open', href: '#team' }, 'הצגת עבודת הצוות')));
+    return;
+  }
+  // An 'own' view is always the signed-in person's; the office can show anyone's. In the
+  // personal profile the list is the person's own, and the others' are one tap away (#team).
+  const mineOnly = own || personal;
+  const person = mineOnly ? me : minePerson || null;
+  $('mine-people').hidden = mineOnly;
+  if (mineOnly) {
     fill($('mine-people'));
   } else {
     const opts = [...STAFF_PEOPLE().map((p) => [p.key, p.key === me ? `${p.name} (אני)` : p.name]), ['', 'כל הצוות']];
@@ -789,7 +831,8 @@ function renderMine() {
   const tools = [!own && person ? summaryActions(person, 'mine') : null, person && person === me && !pushActive() ? notifyRow() : null].filter(Boolean);
   fill($('mine-tools'), full ? tools : null);
   // Under the list: the length of the list, and on a short one the tools.
-  fill($('mine-foot'), tools.length && !full ? h('details', { class: 'mine-more' }, h('summary', {}, 'סיכום בוקר והתראות'), ...tools) : null, viewToggle());
+  fill($('mine-foot'), tools.length && !full ? h('details', { class: 'mine-more' }, h('summary', {}, 'סיכום בוקר והתראות'), ...tools) : null, viewToggle(),
+    mineOnly && !own ? h('a', { class: 'btn-text', id: 'team-open', href: '#team' }, 'הרשימה של עובד אחר') : null);
   showMonths($('my-months'), { person, me, office: worksCycle({ me, scope, error: viewerError }), clients, stateOf, checks, short: !full });
 
   const nothing = person === me ? 'אין כרגע משהו פתוח אצלך.' : person ? `אין כרגע משהו פתוח אצל ${PEOPLE[person].name}.` : 'אין כרגע פריטים פתוחים.';
@@ -2237,8 +2280,12 @@ $('new-form').addEventListener('submit', async (e) => {
 
 $('btn-refresh').addEventListener('click', () => { perfLog.clear(); load(); });
 window.addEventListener('hashchange', () => {
-  const v = location.hash.slice(1);
-  if (tabsShown().includes(v) && v !== view && !$('app').hidden) setView(v);
+  if ($('app').hidden) return;
+  // The address may belong to the other profile (the button at the top, a link): the tabs follow it.
+  const moved = syncProfile();
+  if (moved) { applyScope(); renderMe(); }
+  const v = viewOfHash();
+  if (tabsShown().includes(v) && (v !== view || moved)) setView(v);
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('app').hidden && !busy()) load(); });
 // Statuses depend on the clock: every minute, even in a background tab, check
@@ -2260,8 +2307,9 @@ mountSession(async (staff) => {
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
   viewerError = viewer.error;
-  // Everyone's first screen (app/office-ui.js firstScreenOf): the owner's "מה דורש
-  // אותי", Ofir's queue, Lior's decisions, the editors' page, Eli's shoot days. Only
+  // Everyone's first screen (app/office-ui.js firstScreenOf): the editors' page, Eli's
+  // shoot days, and the manager view for whoever chose that profile on this browser;
+  // the owners, Ofir and Lior otherwise stay here, in their personal profile. Only
   // when the tab opens here without a view, once per tab; "המשימות שלי" stays #mine.
   // Sales (Stav) have no client work: always their own page.
   if (landingOf(me)) { location.replace(landingOf(me)); return; }
@@ -2286,6 +2334,7 @@ mountSession(async (staff) => {
   $('nav-prep').hidden = $('cta-prep').hidden = scope !== 'office' || !!viewerError;
   // Always land on the signed-in person's own list; the owner lands on the whole team.
   minePerson = scope === 'own' ? me : me || '';
+  syncProfile();
   applyScope();
   renderMe();
   // Notifications on the phone and today's list (app/push.js); the owner's list is 'owner'.
@@ -2304,7 +2353,7 @@ mountSession(async (staff) => {
   mountApprovals($('approvals-card'), { me, scope, error: viewerError }, { mail: staff.email, toast, changed: refreshDeals });
   // Ilai and the owner: the active clients that are not connected to a Metricool brand yet.
   mountMetricoolConnect($('metricool-card'), { me, scope, error: viewerError });
-  const fromHash = location.hash.slice(1);
+  const fromHash = viewOfHash();
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();
   setView(view);

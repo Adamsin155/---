@@ -436,10 +436,15 @@ await page.evaluate(() => { delete document.hidden; });
 assert.ok(soon);
 
 // ── Lior: the whole team (decision 22), his own row first ──
+// (Since 6.10.2026 the performance and the others' lists are Lior's manager profile: its
+// address opens it, and "עבודת הצוות" there is the list with the choice of whose.)
 db.staff[0].person = 'lior';
 await page.reload();
 await page.waitForSelector('#app:not([hidden])');
-await page.click('#tab-performance');
+await page.waitForSelector('#profile-switch');
+assert.equal(await page.isHidden('#tab-performance'), true);
+await page.evaluate(() => { location.hash = '#performance'; });
+await page.waitForSelector('#profile-switch[data-to="mine"]');
 await page.waitForSelector('.perf-table');
 assert.deepEqual(await page.locator('.perf-me tbody td:first-child').allInnerTexts(), ['ליאור']);
 assert.deepEqual(await page.locator('.perf-team tbody tr:not(.group-row) td:first-child').allInnerTexts(),
@@ -727,10 +732,17 @@ assert.ok(await noHScroll(mobIlai), 'Ilai\'s card scrolls sideways at 360px');
 await mobIlai.close();
 
 // The owner (no person): the office, the whole team first, anyone's list on request.
-// (He lands on "מה דורש אותי", owner.html; the team's work is its link back, #mine.)
+// (Since 6.10.2026 he lands on "המשימות שלי", where the team's work is closed in one line;
+// the team's work itself is the manager profile's, at #team.)
 db.staff[0].person = null;
 await page.goto(`${BASE}clients.html#mine`);
+await page.waitForSelector('#team-fold');
+assert.match(await page.locator('#me-bar').innerText(), /המשימות שלי/);
+assert.equal(await page.innerText('#tab-mine'), 'המשימות שלי');
+for (const sel of ['#tab-control', '#tab-performance', '#mine-people']) assert.equal(await page.isHidden(sel), true, sel);
+await page.click('#team-open');
 await page.waitForSelector('#view-mine:not([hidden]) .wproc');
+assert.equal(new URL(page.url()).hash, '#team');
 assert.match(await page.locator('#me-bar').innerText(), /תצוגת משרד/);
 assert.equal(await page.innerText('#tab-mine'), 'עבודת הצוות');
 assert.match(await page.locator('#mine-people .chip[aria-pressed="true"]').innerText(), /^כל הצוות/);

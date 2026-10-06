@@ -248,8 +248,22 @@ await step('"תצוגה מלאה" gives the whole list, is remembered, and "תצ
 });
 
 // ── The owner ─────────────────────────────
-await step('the owner lands on "מה דורש אותי": eight rows and "הצג עוד"; the team\'s work is short too', async () => {
+// Since 6.10.2026 the owner lands on "המשימות שלי" (it was "מה דורש אותי"): four screens in the
+// bar and no "עוד"; the manager view is the button at the top; the team's work is at #team.
+await step('the owner lands on "המשימות שלי", the team\'s work closed in one line; "מבט מנהל" opens "מה דורש אותי": eight rows and "הצג עוד"; the team\'s work is short too', async () => {
   const { page } = await open('owner');
+  await page.waitForSelector('#profile-switch[data-to="manager"]');
+  await page.waitForSelector('#team-fold');
+  await settle(page);
+  assert.match(page.url(), /clients\.html(#mine)?$/);
+  await tidy(page, 'owner personal');
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'הצעה חדשה', 'הצעות שנשלחו']);
+  assert.equal(await page.locator('#side-more').count(), 0, 'four screens need no "עוד"');
+  assert.equal(await page.locator('#mine-list .wproc').count(), 0, 'the team\'s list is closed');
+  const personal = await heightOf(page);
+  assert.ok(personal < 3000, `the owner's "המשימות שלי" is ${personal}px tall`);
+  await shot(page, 'owner-00-personal');
+  await page.click('#profile-switch');
   await page.waitForURL(/owner\.html#now$/);
   await page.waitForSelector('#ow-rows > li');
   await settle(page);
@@ -259,8 +273,8 @@ await step('the owner lands on "מה דורש אותי": eight rows and "הצג 
   assert.match(await page.innerText('#ow-rows .more-btn'), /^הצג עוד \(\d+\)$/);
   assert.ok(await heightOf(page) < 2900); // eight rows, the week's chart under them, and the room of the bottom bar
   await shot(page, 'owner-01-now');
-  await page.click('#mode-mine');
-  await page.waitForURL(/clients\.html#mine$/);
+  assert.equal(await page.innerText('#profile-switch'), 'חזרה למשימות שלי');
+  await page.goto(`${BASE}clients.html#team`);
   await page.waitForSelector('#mine-list .wproc.wc');
   await settle(page);
   assert.equal(await page.innerText('#tab-mine'), 'עבודת הצוות');
@@ -272,14 +286,21 @@ await step('the owner lands on "מה דורש אותי": eight rows and "הצג 
 });
 
 // ── Lior ──────────────────────────────────
-await step('Lior lands on "החלטות": his queues, each five long; his own work is short', async () => {
+// Since 6.10.2026 Lior lands on "המשימות שלי" (it was "החלטות"), with "החלטות" in his bar.
+await step('Lior lands on "המשימות שלי"; "החלטות" is in his bar: his queues, each five long; his own work is short', async () => {
   const { page } = await open('lior');
+  await page.waitForSelector('#profile-switch[data-to="manager"]');
+  await page.waitForSelector('#mine-list .wproc.wc');
+  assert.match(page.url(), /clients\.html(#mine)?$/);
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'החלטות', 'עוד']);
+  await page.click('#side-decisions');
   await page.waitForURL(/decisions\.html/);
   await page.waitForSelector('#ls-list > li');
   await settle(page);
   assert.equal(await page.innerText('h1'), 'החלטות');
   await tidy(page, 'lior');
-  assert.equal(await page.locator('#mode-bar').count(), 0); // no manager switch for Lior
+  assert.equal(await page.locator('#mode-bar').count(), 0); // his switch is the button at the top
+  assert.equal(await page.innerText('#profile-switch'), 'מבט מנהל');
   assert.equal(await page.locator('#ls-list > li:not(.more-row):visible').count(), 5);
   assert.match(await page.innerText('#ls-list .more-btn'), /^הצג עוד \(\d+\)$/);
   assert.ok(Number(await page.innerText('#ls-n')) > 6, 'the count stays whole');
@@ -299,10 +320,16 @@ await step('Lior lands on "החלטות": his queues, each five long; his own wo
 });
 
 // ── Ofir ──────────────────────────────────
-await step('Ofir lands on the quality-control queue; the switch is not repeated in the head; his pass is short', async () => {
+// Since 6.10.2026 Ofir lands on "המשימות שלי" (it was the queue), with the queue and the pass in his bar.
+await step('Ofir lands on "המשימות שלי"; the quality-control queue is in his bar; nothing is repeated in the head; his pass is short', async () => {
   const { page } = await open('ofir');
+  await page.waitForSelector('#profile-switch[data-to="manager"]');
+  await page.waitForSelector('#mine-list .wproc.wc');
+  assert.match(page.url(), /clients\.html(#mine)?$/);
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות']);
+  await page.click('#side-qa');
   await page.waitForURL(/qa\.html/);
-  await page.waitForSelector('#mode-bar');
+  await page.waitForSelector('#profile-switch');
   await settle(page);
   assert.equal(await page.innerText('h1'), 'בקרה ושיוך');
   await tidy(page, 'ofir');
@@ -362,9 +389,9 @@ for (const [role, title] of [['nadia', 'הלקוחות שלי בעריכה'], ['
     assert.deepEqual(await page.locator('.tabs [role=tab]:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הנתונים שלי']);
     // Her screens are the bar; the head does not repeat them.
     assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
-    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה', 'עוד']);
-    await page.click('#side-more');
-    assert.deepEqual(await page.locator('#side-sheet .side-link:visible').allInnerTexts(), ['הצעה חדשה', 'הצעות שנשלחו']);
+    // (Four screens all fit since 6.10.2026: "הצעות שנשלחו" is the owners' and Irit's, so there is no "עוד".)
+    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה', 'הצעה חדשה']);
+    assert.equal(await page.locator('#side-more, #side-quotes').count(), 0);
     assert.ok(await heightOf(page) < 1500);
   });
 }
@@ -383,7 +410,8 @@ await step('Eli lands on "ימי הצילום שלי", with tomorrow\'s shoots',
   await settle(page);
   await tidy(page, 'eli mine');
   assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'עוד']);
+  // (Four screens all fit since 6.10.2026: no "הצעות שנשלחו" for Eli, so no "עוד".)
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'הצעה חדשה']);
 });
 
 // ── Stav ──────────────────────────────────
@@ -478,7 +506,8 @@ await step('Lior, Ofir and the owner: the same heading rule, and a list of sever
   for (const [role, title] of [['lior', 'שלום ליאור'], ['ofir', 'שלום אופיר'], ['owner', 'לקוחות ומשימות']]) {
     const { page } = await open(role);
     await page.goto(`${BASE}clients.html#mine`);
-    await page.waitForSelector('#mine-list .wproc.wc');
+    // (The owner's "המשימות שלי" holds the team's work closed in one line since 6.10.2026.)
+    await page.waitForSelector(role === 'owner' ? '#team-fold' : '#mine-list .wproc.wc');
     await settle(page);
     assert.equal(await page.innerText('h1'), title, role);
     assert.doesNotMatch(await page.innerText('#view-mine'), /פתיחת הרשימה|עוד לא לסימון/, role);
