@@ -26,7 +26,10 @@ const money = (agorot) => `${ils.format(agorot / 100)} ₪`;
  * ctx: {
  *   termMonths, totals, packageName, influencer, tier ('podcast'|'social'|'social-tv'),
  *   shootDays, hasCh14, paid: [{id, name}], free: [{id, name, qty}],
- *   influencerPosts (bool: collabs/stories/reels on influencer accounts), simeonJoin (bool)
+ *   influencerPosts (bool: collabs/stories/reels on influencer accounts), simeonJoin (bool),
+ *   and, only in a contract changed by hand (selection.custom, app/pricing.js):
+ *   monthlyContents (the monthly photographer's contents a month), extraLines
+ *   [{label, qty}], specialTerms (free text, one clause per line)
  * }
  */
 export function agreementSections(ctx) {
@@ -40,6 +43,10 @@ export function agreementSections(ctx) {
   const freeText = ctx.free.length
     ? `; וכן ההטבות ללא עלות: ${ctx.free.map((f) => (f.qty ? `${f.name} (${f.qty})` : f.name)).join('; ')}`
     : '';
+  // A contract changed by hand (selection.custom): the lines added to the package.
+  const linesText = ctx.extraLines?.length
+    ? `; וכן הפריטים שנוספו לחבילה: ${ctx.extraLines.map((l) => (l.qty ? `${l.label} (${l.qty})` : l.label)).join('; ')}`
+    : '';
 
   // Sections are declared with ids; cross references resolve to final numbers.
   const S = [];
@@ -47,8 +54,8 @@ export function agreementSections(ctx) {
 
   add('parties', 'הצדדים, הגדרות ומסמכי ההסכם', [
     () => `הסכם זה נערך בין ${PROVIDER.name}, ח.פ ${PROVIDER.companyId} (להלן: "אסטרטג"), לבין הלקוח ששמו ופרטיו מופיעים בראש מסמך זה (להלן: "הלקוח").`,
-    () => `הלקוח רוכש את חבילת ${packageName}, בהשתתפות ${inf}${addonsText}${freeText}, כמפורט במסמך זה (להלן: "פרטי החבילה"). פרטי החבילה הם חלק בלתי נפרד מההסכם, ו"התוצרים" הם כל השירותים והתוצרים המפורטים בהם.`,
-    () => `הכמויות בפרטי החבילה הן לכל תקופת ההתקשרות ולא לחודש${photographer ? ', למעט שירות הצלם החודשי, המספק 8 תכנים בכל חודש' : ''}.`,
+    () => `הלקוח רוכש את חבילת ${packageName}, בהשתתפות ${inf}${addonsText}${freeText}${linesText}, כמפורט במסמך זה (להלן: "פרטי החבילה"). פרטי החבילה הם חלק בלתי נפרד מההסכם, ו"התוצרים" הם כל השירותים והתוצרים המפורטים בהם.`,
+    () => `הכמויות בפרטי החבילה הן לכל תקופת ההתקשרות ולא לחודש${photographer ? `, למעט שירות הצלם החודשי, המספק ${ctx.monthlyContents ?? 8} תכנים בכל חודש` : ''}.`,
     () => (podcast
       ? `הקלטת הפודקאסט עם המשפיענים תתקיים במשרדי אסטרטג, ברחוב ${PROVIDER.addresses[1]}. "יום צילום": יום צילום של וידאו וסטילס עם צלם בבית העסק של הלקוח. יום הצילום יכול להתקיים באותו יום עם הקלטת הפודקאסט או ביום נפרד, לפי קביעת אסטרטג.`
       : `"יום צילום": יום צילום בבית העסק של הלקוח עם המשפיענים.${ctx.shootDays > 1 ? ` בחבילה זו כלולים ${ctx.shootDays} ימי צילום.` : ''}`),
@@ -190,6 +197,17 @@ export function agreementSections(ctx) {
     () => 'נקבע כי הוראה מהוראות הסכם זה, כולה או חלקה, בטלה או אינה ניתנת לאכיפה, לא יהיה בכך כדי לפגוע בתוקף יתר ההוראות, וההוראה תחול במידה המרבית המותרת על פי דין.',
     () => `הדין החל על ההתקשרות הוא הדין הישראלי בלבד. סמכות השיפוט הייחודית נתונה לבתי המשפט המוסמכים ב${TERMS.venue}.`,
   ]);
+
+  // Special terms, typed by hand for this client (a custom contract, approved by a
+  // manager before signing). Always the last chapter, so the numbering of the standard
+  // chapters never moves. It prevails over them only as far as it says.
+  const special = String(ctx.specialTerms || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (special.length) {
+    add('special', 'תנאים מיוחדים', [
+      () => 'הצדדים הסכימו על התנאים המיוחדים שבפרק זה, בנוסף ליתר הוראות ההסכם. בסתירה בין תנאי מיוחד לבין הוראה אחרת בהסכם, יגבר התנאי המיוחד, אך ורק במידה שנקבעה בו במפורש ולעניין שהוא עוסק בו. יתר הוראות ההסכם יעמדו בתוקפן.',
+      ...special.map((line) => () => line),
+    ]);
+  }
 
   const index = Object.fromEntries(S.map((s, i) => [s.id, i + 1]));
   const r = (id, item) => (item ? `סעיף ${index[id]}.${item}` : `פרק ${index[id]}`);

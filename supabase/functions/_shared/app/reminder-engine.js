@@ -45,6 +45,7 @@ export function buildEnv({
   deals = [], // 3.10.2026: public.deal_requests rows (Stav's deals, app/deal-logic.js)
   accessLinks = [], // 6.10.2026: public.client_access_links rows (the client's logins form, app/access-logic.js)
   ganttFailures = [], // 6.10.2026: public.client_gantt rows whose post failed in Metricool (mc_status 'error')
+  approvals = [], // 6.10.2026: public.quotes rows that went for a manager's approval (app/approvals-logic.js)
 }) {
   const byClient = groupChecks(checks);
   const liveClients = clients.filter(live);
@@ -68,7 +69,7 @@ export function buildEnv({
     tasks: tasks.filter((t) => !t.done_at),
     // Tasks finished lately (the server loads the last two days): "the requester hears".
     doneTasks: tasks.filter((t) => t.done_at),
-    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures,
+    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals,
     personOf: (email) => people.get(String(email || '').toLowerCase()) || null,
     emailsOf: (person) => [...people].filter(([, p]) => p === person).map(([e]) => e),
     hasStaff: (person) => [...people.values()].includes(person),

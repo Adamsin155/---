@@ -41,6 +41,7 @@ import { landingNow, officeLinks } from './office-ui.js';
 import { folderItemOf } from './qa-logic.js';
 // 3.10.2026: Stav's deals waiting for a contract (the office), and Stav's own page.
 import { mountDeals, refreshDeals } from './deal-ui.js';
+import { mountApprovals } from './approvals-ui.js';
 import { landingOf } from './deal-logic.js';
 // A link to a part of this page (#mine, #control, a sign-in link) opens that part:
 // nobody is sent to their first screen then.
@@ -2290,6 +2291,8 @@ mountSession(async (staff) => {
   if (!viewerError) mountCalendar($('cal-card'));
   // Stav's deals waiting for a contract (the office): "להכין חוזה ל־…" with its clock.
   mountDeals($('deals-card'), { me, scope, error: viewerError });
+  // Exceptional contracts: the approvers decide here; Irit sees "ממתין לאישור", "אושר — אפשר לשלוח", "לא אושר".
+  mountApprovals($('approvals-card'), { me, scope, error: viewerError }, { mail: staff.email, toast, changed: refreshDeals });
   const fromHash = location.hash.slice(1);
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();

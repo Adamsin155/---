@@ -1,0 +1,103 @@
+/* Exceptional contracts (6.10.2026): the approvers' card and Irit's states
+   (app/approvals-ui.js), the builder's "חוזה מותאם אישית" (index.html) and the
+   approval column of quotes.html. Tokens only (tokens.css); phone first: one column
+   at 360px, every target at least 44px. No pink here: a page keeps it for its one
+   main action. */
+.approvals-card {
+  border-inline-start: 4px solid var(--ds-navy); border-radius: var(--ds-r-card); background: var(--ds-ground);
+  padding: 14px 16px; margin: 0 0 var(--ds-gap); display: grid; gap: 10px; min-width: 0;
+}
+.approvals-card h2 { margin: 0; font-size: 20px; }
+.approvals-card .hint { margin: 0; color: var(--ds-muted); font-size: 14px; }
+.apv-sub { margin: 6px 0 0; font-size: 16px; }
+.apv-item { border-radius: var(--ds-r-item); background: var(--ds-surface); padding: 14px; display: grid; gap: 8px; min-width: 0; }
+.apv-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 12px; flex-wrap: wrap; }
+.apv-title { font-weight: 700; font-size: 17px; overflow-wrap: anywhere; }
+.apv-state { display: inline-block; border-radius: var(--ds-r-sm); padding: 2px 10px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.apv-state.is-pending { color: var(--ds-amber); background: var(--ds-amber-soft); }
+.apv-state.is-approved { color: var(--ds-ok); background: var(--ds-ok-soft); }
+.apv-state.is-rejected { color: var(--ds-danger); background: var(--ds-danger-soft); }
+.apv-meta { margin: 0; color: var(--ds-ink-2); font-size: 14px; overflow-wrap: anywhere; }
+.apv-note { margin: 0; padding: 10px 12px; border-radius: var(--ds-r-sm); background: var(--ds-danger-soft); color: var(--ds-ink); font-size: 14.5px; overflow-wrap: anywhere; white-space: pre-line; }
+.apv-diff { border-radius: var(--ds-r-sm); background: var(--ds-amber-soft); padding: 10px 12px; }
+.apv-diff h4 { margin: 0 0 4px; font-size: 14px; color: var(--ds-amber); }
+.apv-diff ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 2px; font-size: 14.5px; color: var(--ds-ink); }
+.apv-diff li { overflow-wrap: anywhere; }
+.apv-facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px 14px; }
+.apv-facts div { min-width: 0; }
+.apv-facts dt { font-size: 12.5px; color: var(--ds-muted); }
+.apv-facts dd { margin: 0; font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+.apv-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.apv-acts .btn { min-height: 44px; }
+/* "מאשר": the card's own main action, navy and filled (pink stays the page's). */
+.apv-yes { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); }
+.apv-yes:hover { background: var(--ds-navy-2); border-color: var(--ds-navy-2); color: var(--ds-on-navy); }
+.apv-reject { display: grid; gap: 6px; }
+.apv-reject label { font-weight: 600; font-size: 14.5px; }
+.apv-reject textarea { min-height: 88px; }
+.apv-own { font-size: 13.5px; }
+.apv-hint { color: var(--ds-muted); font-size: 13px; }
+dialog.apv-share { max-width: min(560px, calc(100vw - 32px)); }
+@media (max-width: 480px) {
+  .apv-acts .btn { flex: 1 1 40%; }
+  .apv-acts .apv-yes { flex-basis: 100%; }
+  .apv-facts { grid-template-columns: 1fr 1fr; }
+}
+
+/* quotes.html: the approval column. */
+.apv-cell { display: grid; gap: 2px; font-size: 13px; max-width: 260px; }
+.apv-cell .apv-state { justify-self: start; }
+.apv-cell small { color: var(--ds-ink-2); overflow-wrap: anywhere; white-space: normal; }
+.pill.awaiting { color: var(--ds-amber); }
+.pill.rejected { color: var(--ds-danger); }
+
+/* The builder: "חוזה מותאם אישית". Clearly its own area, opened by a switch. */
+.custom-group { border-radius: var(--ds-r-card); background: var(--ds-ground); padding: 16px; }
+.custom-group.is-on { box-shadow: inset 0 0 0 2px var(--ds-navy); }
+.custom-head { display: flex; align-items: center; gap: 12px; }
+.custom-head label { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; cursor: pointer; }
+.custom-head .t { font-family: var(--ds-font-h); font-size: 18px; color: var(--ds-ink); }
+.custom-head .s { font-size: 13px; color: var(--ds-muted); }
+.custom-body { display: grid; gap: 16px; margin-top: 14px; }
+.custom-sec { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 8px; }
+.custom-sec legend { padding: 0; font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+.custom-sec .sub { margin: 0; color: var(--ds-muted); font-size: 13px; }
+.custom-qty { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.custom-q { background: var(--ds-surface); border-radius: var(--ds-r-ctl); padding: 10px 12px; display: grid; gap: 6px; min-width: 0; }
+.custom-q.is-changed { box-shadow: inset 0 0 0 2px var(--ds-amber-line); }
+.custom-q label { font-size: 14px; font-weight: 600; }
+.custom-q .was { font-size: 12.5px; color: var(--ds-muted); }
+/* 44px targets (the page's older steppers are 42px high with 40px buttons). */
+.custom-q .stepper { justify-self: start; grid-template-columns: 46px 60px 46px; height: 47px; }
+.custom-money { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.custom-money .field { min-width: 0; }
+.custom-money .discount-input { inline-size: 100%; }
+.custom-money small { color: var(--ds-muted); font-size: 12.5px; }
+.custom-lines { display: grid; gap: 8px; }
+.custom-line { display: grid; grid-template-columns: minmax(0, 1fr) 84px 120px 44px; gap: 6px; align-items: end; background: var(--ds-surface); border-radius: var(--ds-r-ctl); padding: 8px; }
+.custom-line label { font-size: 12.5px; color: var(--ds-muted); display: grid; gap: 2px; min-width: 0; }
+.custom-line .x { min-height: 44px; min-width: 44px; border: 0; border-radius: var(--ds-r-sm); background: var(--ds-soft); color: var(--ds-ink); font-size: 18px; cursor: pointer; }
+.custom-line .x:hover { background: var(--ds-soft-2); }
+.custom-add { justify-self: start; min-height: 44px; }
+.custom-diff { border-radius: var(--ds-r-item); background: var(--ds-amber-soft); padding: 12px 14px; }
+.custom-diff h4 { margin: 0 0 6px; font-size: 15px; color: var(--ds-amber); }
+.custom-diff ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 3px; font-size: 14.5px; }
+.custom-diff p { margin: 0; font-size: 14px; color: var(--ds-ink-2); }
+.custom-diff .needs { margin-top: 8px; font-weight: 600; color: var(--ds-ink); }
+.sum-diff { margin: 10px 0 0; padding: 10px 12px; border-radius: var(--ds-r-sm); background: var(--ds-amber-soft); font-size: 13.5px; color: var(--ds-ink); }
+.sum-diff strong { color: var(--ds-amber); }
+.revise-note { display: block; margin: 0 0 var(--ds-gap); padding: 12px 14px; border-radius: var(--ds-r-item); background: var(--ds-danger-soft); color: var(--ds-ink); font-size: 14.5px; overflow-wrap: anywhere; }
+.revise-note.is-plain { background: var(--ds-amber-soft); }
+.pending-list { margin: 0 0 14px; padding-inline-start: 18px; display: grid; gap: 3px; color: var(--ds-ink); }
+@media (max-width: 560px) {
+  .custom-line { grid-template-columns: 1fr 1fr 44px; }
+  .custom-line .l-label { grid-column: 1 / -1; }
+}
+
+/* deal.html: "חבילה מובנית" or "הצעה אחרת". */
+.deal-kind { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.deal-status.is-approval { color: var(--ds-amber); background: var(--ds-amber-soft); }
+.deal-status.is-rejected { color: var(--ds-danger); background: var(--ds-danger-soft); }
+.deal-custom-qty { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.deal-custom-qty .deal-num, .deal-custom-money .deal-num { max-width: none; }
+.deal-custom-money { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

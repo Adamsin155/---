@@ -163,3 +163,51 @@ export const SPECS = {
 export function packageId(tier, influencer) {
   return `${tier}-${influencer}`;
 }
+
+// ── Custom (exceptional) contracts, 6.10.2026 ──
+// The office may change a contract by hand on top of a base package: `selection.custom`
+// (docs/pricing-rules.md, "חוזה מותאם אישית"). Anything that differs from the built-in
+// rules needs a manager's approval before the client can sign (app/pricing.js
+// exceptionOf; the database holds the contract as pending).
+//
+// CUSTOM_QTY: the quantities of the package itself that can be changed (add-ons keep
+// adding on top, as always). `base(spec, pkg)`: what the package grants; `max`: the
+// most the server accepts; `label(n, sel)`: the line in the document; `name`: the words
+// in the list of deviations. `monthly` is the monthly photographer's contents each
+// month (only with that add-on).
+const INF_NAME = (inf) => INFLUENCERS[inf]?.name || '';
+export const MONTHLY_CONTENTS = 8;
+export const CUSTOM_QTY = [
+  { key: 'videos', max: 200, name: 'סרטונים', base: (s) => s.videos,
+    label: (n, sel) => (sel.tier === 'podcast' ? 'סרטוני פודקאסט' : 'סרטונים בבית העסק') },
+  { key: 'graphics', max: 300, name: 'גרפיקות', base: (s) => s.graphics, label: () => 'גרפיקות' },
+  { key: 'shootDays', max: 12, name: 'ימי צילום עם המשפיענים', base: (s) => s.shootDays,
+    label: (n, sel) => `${n === 1 ? 'יום צילום' : 'ימי צילום'} בבית העסק עם ${INF_NAME(sel.influencer)}` },
+  { key: 'photoDays', max: 12, name: 'ימי צילום עם צלם', base: (s, pkg) => (pkg.tier === 'podcast' ? 1 : 0),
+    label: (n) => `${n === 1 ? 'יום צילום' : 'ימי צילום'} עם צלם בבית העסק, וידאו וסטילס` },
+  { key: 'collabs', max: 24, name: 'קולאבים באינסטגרם', base: (s) => s.collabs,
+    label: (n, sel) => `${n === 1 ? 'קולאב' : 'קולאבים'} באינסטגרם אצל ${INF_NAME(sel.influencer)}` },
+  { key: 'stories', max: 60, name: 'סטורי אצל המשפיענים', base: (s) => s.stories,
+    label: (n, sel) => `סטורי אצל ${INF_NAME(sel.influencer)}` },
+  { key: 'ch14', max: 12, name: 'אייטמים בערוץ 14', base: (s) => s.ch14,
+    label: (n) => (n === 1 ? 'אייטם בערוץ 14' : 'אייטמים בערוץ 14') },
+  { key: 'monthly', min: 1, max: 60, name: 'תכנים בחודש מהצלם החודשי', addon: 'photographer', base: () => MONTHLY_CONTENTS },
+];
+// Which CUSTOM_QTY key each line of PACKAGES[id].includes counts (by position; null: a
+// service, or a line that is not changed by hand). tests/pricing.test.mjs holds it equal
+// to the lines.
+export const INCLUDES_KEYS = {
+  'podcast-natali': [null, null, null, 'videos', 'graphics', 'photoDays'],
+  'podcast-simeon': [null, null, null, 'videos', 'graphics', 'photoDays'],
+  'social-simeon': ['shootDays', null, null, 'videos', 'graphics', null, 'collabs'],
+  'social-tv-simeon': ['shootDays', null, null, 'videos', 'graphics', null, 'collabs', 'stories', 'ch14'],
+  'social-natali': ['shootDays', null, null, 'videos', 'graphics', null],
+  'social-tv-natali': ['shootDays', null, null, 'videos', 'graphics', null, 'ch14'],
+};
+// The limits of everything typed by hand (the server refuses anything outside them).
+export const CUSTOM_LIMITS = {
+  termMin: 1, termMax: 36,
+  priceMax: 10000000,        // the package's monthly price before VAT: up to 100,000 ₪ (agorot)
+  lines: 10, lineLabel: 120, lineQtyMax: 999, linePriceMax: 5000000,
+  terms: 2000,
+};

@@ -1440,6 +1440,79 @@ export const RULES = [
 ];
 RULES.push(...YEAR_RULES);
 
+// ── Exceptional contracts and their approval (the owner's decisions of 6.10.2026) ──
+// One self-contained block (its import included). `env.approvals`: the quotes that went
+// for approval (public.quotes with approval <> 'none'; app/approvals-logic.js), each
+// with `seller_email` when it was prepared from a deal of the field.
+//   contractApproval  Irit sent an exceptional contract for approval: the owner, Ofir
+//     and Lior ring at once ("חוזה חריג לאישור: <עסק>", a protocol clock: not counted in
+//     the daily cap). Nobody decided within 30 office minutes: they ring once more, and
+//     whoever prepared it is told quietly. Whoever prepared it does not ring for it.
+//     A decision, a corrected version (a new case, by its version) or a cancellation
+//     ends the case, so nothing more is sent.
+//   contractDecided   approved or not: whoever prepared it rings ("החוזה של <עסק> אושר
+//     — אפשר לשלוח" / "לא אושר: …"), and the seller of the deal hears quietly.
+import { APPROVERS, APPROVAL_NUDGE_MINUTES, businessOf as contractBusiness, preparedBy as contractPreparedBy } from './approvals-logic.js';
+const contractNote = (q) => { const t = String(q.approval_note || '').replace(/\s+/g, ' ').trim(); return t.length > 90 ? `${t.slice(0, 90)}…` : t; };
+const contractCase = (env, q) => {
+  const preparer = env.personOf(contractPreparedBy(q)) || 'irit';
+  return {
+    cid: null, quote: q, name: contractBusiness(q), preparer, url: MINE_URL,
+    seller: env.personOf(q.seller_email),
+    // Whoever prepared it knows about it (Ofir and Lior cannot approve their own anyway).
+    approvers: APPROVERS.filter((p) => p !== preparer),
+  };
+};
+RULES.push(
+  {
+    id: 'contractApproval', event: 'חוזה חריג: ממתין לאישור מנהל', procs: [],
+    instances(env) {
+      return (env.approvals || []).filter((q) => q.status === 'sent' && q.approval === 'pending' && parseDate(q.submitted_at || q.created_at)).map((q) => {
+        const at = parseDate(q.submitted_at || q.created_at);
+        return { ...contractCase(env, q), id: `${q.id}@v${q.version || 1}`, anchors: { event: at, nudge: addWorkingMinutes(at, APPROVAL_NUDGE_MINUTES) } };
+      });
+    },
+    steps: [
+      {
+        id: 'now', to: (i) => i.approvers, level: 'ring', exempt: 'clock',
+        title: (i) => `חוזה חריג לאישור: ${i.name}`,
+        body: (i) => [`הכין/ה: ${personName(i.preparer)}`, ...(Array.isArray(i.quote.exceptions) ? i.quote.exceptions : []).map((e) => e?.text).filter(Boolean).slice(0, 3)].join(' · '),
+      },
+      {
+        id: 'again', from: 'nudge', to: (i) => i.approvers, level: 'ring', exempt: 'clock',
+        title: (i) => `עדיין מחכה לאישור: החוזה החריג של ${i.name}`,
+        body: () => `עברו ${APPROVAL_NUDGE_MINUTES} דקות עבודה. מספיק שאחד מכם יאשר או יחזיר עם הערה.`,
+      },
+      {
+        id: 'wait', from: 'nudge', to: (i) => i.preparer, level: 'quiet', when: (i) => i.preparer !== OWNER,
+        title: (i) => `עוד לא הוחלט על החוזה החריג של ${i.name}`,
+        body: () => 'נשלחה תזכורת נוספת לאדם, לאופיר ולליאור.',
+      },
+    ],
+  },
+  {
+    id: 'contractDecided', event: 'חוזה חריג: התקבלה החלטה', procs: [],
+    instances(env) {
+      return (env.approvals || []).filter((q) => ['approved', 'rejected'].includes(q.approval) && q.status !== 'cancelled' && parseDate(q.approval_at)).map((q) => ({
+        ...contractCase(env, q), id: `${q.id}@v${q.version || 1}.${q.approval}`, ok: q.approval === 'approved', anchors: { event: parseDate(q.approval_at) },
+      }));
+    },
+    steps: [
+      {
+        // Not to the one who decided (the owner approving his own contract).
+        id: 'prep', to: (i) => i.preparer, level: 'ring', exempt: 'clock', when: (i) => i.preparer !== i.quote.approval_by,
+        title: (i) => (i.ok ? `החוזה של ${i.name} אושר — אפשר לשלוח` : `החוזה של ${i.name} לא אושר: ${contractNote(i.quote)}`),
+        body: (i) => (i.ok ? `אישר/ה ${personName(i.quote.approval_by)}. הקישור ללקוח ב״המשימות שלי״ וב״הצעות שנשלחו״.` : `${personName(i.quote.approval_by)} החזיר/ה לתיקון. ״תיקון ושליחה מחדש״ ב״המשימות שלי״.`),
+      },
+      {
+        id: 'seller', to: (i) => i.seller, level: 'quiet', when: (i) => !!i.seller && i.seller !== i.preparer && i.seller !== OWNER,
+        title: (i) => (i.ok ? `החוזה של ${i.name} אושר` : `החוזה של ${i.name} לא אושר — בתיקון`),
+        body: (i) => (i.ok ? 'עירית שולחת אותו ללקוח.' : 'עירית מתקנת ושולחת שוב לאישור המנהל.'),
+      },
+    ],
+  },
+);
+
 const NO_CHARACTERIZER = 'אין מי שייצא לאפיון';
 // Exceptions that ring Lior at once instead of waiting for his 12:00 and 16:00 lists.
 const RINGING = [NO_CHARACTERIZER, BLOCKING_TITLE];

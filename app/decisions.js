@@ -30,6 +30,7 @@ import { loadDecisions, saveDecision, loadChangeRequests, decideChangeRequest, l
 import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, startControl } from './office-ui.js';
 import { dayKeyIL, TZ } from './tz.js';
+import { mountApprovals } from './approvals-ui.js';
 
 let viewer = null;
 let me = null;
@@ -450,5 +451,7 @@ mountSession(async (staff) => {
   if (v.error || v.scope !== 'office') { $('no-access').hidden = false; return; }
   $('dc-page').hidden = false;
   $('head-actions').prepend(...officeLinks(v, 'decisions.html'));
+  // "חוזים חריגים לאישור": first on Lior's screen (the owner and Ofir decide here too).
+  mountApprovals($('approvals-card'), v, { mail: staff.email, toast });
   await load();
 });

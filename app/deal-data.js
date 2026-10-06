@@ -5,7 +5,9 @@
 // missing: the functions return null and the pages say so.
 import { supabase } from './supa.js';
 
-const COLS = 'id, created_at, created_by_email, seller, business_name, contact_name, phone, tier, influencer, paid, free, discount_agorot, notes, status, quote_id, sent_at, signed_at, status_by_email';
+const BASE_COLS = 'id, created_at, created_by_email, seller, business_name, contact_name, phone, tier, influencer, paid, free, discount_agorot, notes, status, quote_id, sent_at, signed_at, status_by_email';
+// `custom`: "הצעה אחרת" (supabase/migrations/20261010100000_custom_contracts.sql).
+const COLS = `${BASE_COLS}, custom`;
 const missingTable = (error) => error?.code === '42P01' || error?.code === 'PGRST205' || error?.code === 'PGRST202';
 
 // Every deal the signed-in person may read, newest first (`pendingOnly`: still waiting

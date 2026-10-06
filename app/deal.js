@@ -17,8 +17,23 @@ import { mountPush } from './push.js';
 
 let me = null;
 let deals = [];
-const FIELDS = ['business', 'contact', 'phone', 'tier', 'influencer', 'discount'];
-const FIELD_OF = { business_name: 'business', contact_name: 'contact', phone: 'phone', tier: 'tier', influencer: 'influencer', discount: 'discount' };
+// "הצעה אחרת" (6.10.2026): the seller's own words and numbers instead of a built-in package.
+const CUSTOM_FIELDS = ['description', 'videos', 'graphics', 'shoot_days', 'price', 'term_months'];
+const FIELDS = ['business', 'contact', 'phone', 'tier', 'influencer', 'discount', ...CUSTOM_FIELDS];
+const FIELD_OF = {
+  business_name: 'business', contact_name: 'contact', phone: 'phone', tier: 'tier', influencer: 'influencer', discount: 'discount',
+  ...Object.fromEntries(CUSTOM_FIELDS.map((f) => [f, f])),
+};
+const kind = () => (document.querySelector('input[name="kind"]:checked')?.value === 'custom' ? 'custom' : 'package');
+// The chosen kind shows its own fields; the other kind's are hidden (and not sent).
+function showKind() {
+  const custom = kind() === 'custom';
+  $('d-custom').hidden = !custom;
+  for (const el of document.querySelectorAll('.deal-builtin')) el.hidden = custom;
+  $('d-submit').textContent = SUBMIT_TEXT();
+}
+const SUBMIT_TEXT = () => (kind() === 'custom' ? 'לעירית להכנת חוזה מותאם' : 'לעירית להכנת חוזה');
+for (const el of document.querySelectorAll('input[name="kind"]')) el.addEventListener('change', () => { showErrors({}); showKind(); });
 
 // ── The form ────────────────────────────────
 const picked = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || null;
@@ -72,7 +87,11 @@ function readForm() {
     if (f.max) free[f.id] = Number($(`d-free-${f.id}`)?.value || 0);
     else free[f.id] = !!document.querySelector(`input[name="free"][value="${f.id}"]:checked`);
   }
+  const custom = kind() === 'custom'
+    ? { kind: 'custom', ...Object.fromEntries(CUSTOM_FIELDS.map((f) => [f, $(`d-${f}`).value])) }
+    : {};
   return {
+    ...custom,
     business_name: $('d-business').value,
     contact_name: $('d-contact').value,
     phone: $('d-phone').value,
@@ -122,8 +141,9 @@ $('deal-form').addEventListener('submit', async (e) => {
     deals = [d, ...deals];
     $('deal-form').reset();
     renderChoices();
+    showKind();
     renderList();
-    toast(`נשלח לעירית: ${d.business_name}. החוזה בדרך.`);
+    toast(d.custom ? `נשלח לעירית: ${d.business_name}. חוזה מותאם, ואחריו אישור מנהל.` : `נשלח לעירית: ${d.business_name}. החוזה בדרך.`);
     $('deal-h1').setAttribute('tabindex', '-1');
     $('deal-h1').focus();
   } catch (err) {
@@ -131,13 +151,13 @@ $('deal-form').addEventListener('submit', async (e) => {
     $('d-err').hidden = false;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'לעירית להכנת חוזה';
+    btn.textContent = SUBMIT_TEXT();
   }
 });
-for (const id of ['d-business', 'd-contact', 'd-phone', 'd-discount']) $(id).addEventListener('input', () => clearErr(id.slice(2)));
+for (const id of ['d-business', 'd-contact', 'd-phone', 'd-discount', ...CUSTOM_FIELDS.map((f) => `d-${f}`)]) $(id).addEventListener('input', () => clearErr(id.slice(2)));
 
 // ── His deals ───────────────────────────────
-const STATUS_CLASS = { pending: 'is-pending', sent: 'is-sent', signed: 'is-signed', cancelled: 'is-cancelled' };
+const STATUS_CLASS = { pending: 'is-pending', approval: 'is-approval', rejected: 'is-rejected', sent: 'is-sent', signed: 'is-signed', cancelled: 'is-cancelled' };
 function renderList() {
   $('deal-mine').hidden = false;
   const list = [...deals].sort(byNewest);
@@ -147,6 +167,8 @@ function renderList() {
       h('strong', { class: 'deal-item-name', dir: 'auto' }, d.business_name),
       h('span', { class: `deal-status ${STATUS_CLASS[d.status] || ''}` }, statusText(d))),
     h('p', { class: 'deal-item-meta' }, `${dealSummary(d)} · נשלח ${formatStamp(d.created_at)}`),
+    d.status === 'approval' ? h('p', { class: 'deal-item-meta' }, 'עירית הכינה את החוזה. מחכה לאישור של אדם, אופיר או ליאור.') : null,
+    d.status === 'rejected' ? h('p', { class: 'deal-item-meta' }, 'המנהל לא אישר את החוזה כמו שהוא. עירית מתקנת ושולחת שוב לאישור.') : null,
     d.status === 'signed' && d.signed_at ? h('p', { class: 'deal-item-meta' }, `נחתם ${formatStamp(d.signed_at)} 🎉`) : null)));
 }
 
@@ -177,6 +199,7 @@ mountSession(async (staff) => {
   $('deal-form').hidden = false;
   document.title = `עסקה חדשה · ${PEOPLE[me].name} · astrateg`;
   renderChoices();
+  showKind();
   // Quiet notifications only ("<עסק> חתם 🎉"): the list, without a phone card.
   mountPush({ who: me, card: document.createElement('section'), button: $('btn-inbox'), dialog: $('dlg-inbox') });
   await load();

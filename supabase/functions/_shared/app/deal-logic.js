@@ -9,7 +9,7 @@
 // Pure, no DOM and no network: deal.html, Irit's block in "המשימות שלי", the builder
 // and the reminder rules (app/reminder-rules.js, also on the server) share it. The
 // table is public.deal_requests (supabase/migrations/20261003100000_sales_deals.sql).
-import { TIERS, INFLUENCERS, PAID_ADDONS, FREE_ADDONS, MAX_DISCOUNT, DOC_TYPES } from './catalog.js';
+import { TIERS, INFLUENCERS, PAID_ADDONS, FREE_ADDONS, MAX_DISCOUNT, DOC_TYPES, CUSTOM_QTY, CUSTOM_LIMITS } from './catalog.js';
 import { emptySelection, reconcile, formatILS } from './pricing.js';
 import { addWorkingMinutes, parseDate } from './protocol-logic.js';
 import { isSales } from './protocol.js';
@@ -25,6 +25,10 @@ export const DEAL_MINUTES = 10;
 // The statuses as Stav reads them.
 export const DEAL_STATUS = {
   pending: 'ממתין לחוזה',
+  // An exceptional contract (another offer, or anything Irit changed by hand): Irit
+  // prepared it and a manager decides (6.10.2026).
+  approval: 'ממתין לאישור מנהל',
+  rejected: 'לא אושר',
   sent: 'חוזה נשלח',
   signed: 'נחתם',
   cancelled: 'בוטל',
@@ -65,6 +69,7 @@ export function validateDeal(form = {}) {
   const digits = row.phone.replace(/\D/g, '');
   if (!row.phone) errors.phone = 'חסר טלפון.';
   else if (digits.length < 9 || digits.length > 12 || !/^[\d\s()+-]+$/.test(row.phone)) errors.phone = 'מספר הטלפון לא תקין.';
+  if (form.kind === 'custom') return validateCustomDeal(form, row, errors);
   if (!TIERS.some((t) => t.id === form.tier)) errors.tier = 'בחרו חבילה.';
   if (!INFLUENCERS[form.influencer]) errors.influencer = 'בחרו משפיענים.';
   const discount = Number(form.discount ?? 0);
@@ -88,8 +93,45 @@ export function validateDeal(form = {}) {
   };
 }
 
+// "הצעה אחרת" (6.10.2026): not one of the built-in packages. The seller writes what it
+// includes, optional quantities (videos, graphics, shoot days), the monthly price he
+// agreed (whole shekels, before VAT) and the term. Stored in deal_requests.custom; the
+// table checks the same limits. Irit builds a custom contract from it, and a manager
+// approves it before the client can sign.
+export const DEAL_CUSTOM_QTY = [['videos', 'סרטונים'], ['graphics', 'גרפיקות'], ['shoot_days', 'ימי צילום']];
+const QTY_MAX = { videos: 'videos', graphics: 'graphics', shoot_days: 'shootDays' };
+const qtyMax = (k) => CUSTOM_QTY.find((q) => q.key === QTY_MAX[k]).max;
+export const isCustomDeal = (d) => !!d?.custom && typeof d.custom === 'object';
+function validateCustomDeal(form, row, errors) {
+  const custom = { description: String(form.description ?? '').trim() };
+  if (!custom.description) errors.description = 'כתבו מה ההצעה כוללת.';
+  else if (custom.description.length > CUSTOM_LIMITS.terms) errors.description = `עד ${CUSTOM_LIMITS.terms} תווים.`;
+  for (const [k, name] of DEAL_CUSTOM_QTY) {
+    const raw = form[k];
+    if (raw === '' || raw === null || raw === undefined) continue;
+    const v = Number(raw);
+    if (!Number.isInteger(v) || v < 0 || v > qtyMax(k)) errors[k] = `${name}: מספר שלם, עד ${qtyMax(k)}.`;
+    else custom[k] = v;
+  }
+  const price = Number(form.price);
+  if (form.price === '' || form.price === null || form.price === undefined || !Number.isInteger(price) || price < 1 || price * 100 > CUSTOM_LIMITS.priceMax) {
+    errors.price = 'המחיר החודשי שסוכם, בשקלים שלמים לפני מע״מ.';
+  } else custom.price_agorot = price * 100;
+  const term = form.term_months === '' || form.term_months === null || form.term_months === undefined ? 12 : Number(form.term_months);
+  if (!Number.isInteger(term) || term < CUSTOM_LIMITS.termMin || term > CUSTOM_LIMITS.termMax) errors.term_months = `תקופה בחודשים, ${CUSTOM_LIMITS.termMin} עד ${CUSTOM_LIMITS.termMax}.`;
+  else custom.term_months = term;
+  if (Object.keys(errors).length) return { ok: false, errors, row: null };
+  return { ok: true, errors: {}, row: { ...row, tier: null, influencer: null, paid: [], free: {}, discount_agorot: 0, custom } };
+}
+
 // One line of what was sold, for Irit's notification and her task.
 export function dealSummary(d) {
+  if (isCustomDeal(d)) {
+    const c = d.custom;
+    const qty = DEAL_CUSTOM_QTY.filter(([k]) => Number.isInteger(c[k])).map(([k, name]) => `${c[k]} ${name}`);
+    const text = String(c.description || '').replace(/\s+/g, ' ').trim();
+    return ['הצעה אחרת', `${formatILS(c.price_agorot)} לחודש`, c.term_months === 1 ? 'חודש אחד' : `${c.term_months} חודשים`, ...qty, text.length > 80 ? `${text.slice(0, 80)}…` : text].filter(Boolean).join(' · ');
+  }
   const tier = TIERS.find((t) => t.id === d?.tier);
   const parts = [[tier?.short, INFLUENCERS[d?.influencer]?.name].filter(Boolean).join(' · ')];
   const extras = addonNames(d);
@@ -114,6 +156,7 @@ export function addonNames(d) {
 // and discount, and the client's details. Anything the catalog no longer allows is
 // left out (reconcile), as in the builder itself.
 export function prefillFromDeal(d) {
+  if (isCustomDeal(d)) return prefillFromCustomDeal(d);
   const { selection } = reconcile({
     ...emptySelection(),
     docType: DOC_TYPES.agreement.id,
@@ -131,6 +174,23 @@ export function prefillFromDeal(d) {
       'c-phone': d?.phone || '',
       'c-notes': d?.notes || '',
     },
+  };
+}
+
+// Another offer: the builder opens in "חוזה מותאם אישית" on a base package Irit picks
+// (the default one to begin with), with the seller's numbers as the overrides and his
+// description as the draft of the special terms.
+function prefillFromCustomDeal(d) {
+  const c = d.custom;
+  const qty = {};
+  for (const [k] of DEAL_CUSTOM_QTY) if (Number.isInteger(c[k])) qty[QTY_MAX[k]] = Math.min(c[k], qtyMax(k));
+  const custom = { terms: String(c.description || '').slice(0, CUSTOM_LIMITS.terms) };
+  if (Object.keys(qty).length) custom.qty = qty;
+  if (Number.isInteger(c.price_agorot)) custom.price = Math.max(0, Math.min(CUSTOM_LIMITS.priceMax, c.price_agorot));
+  if (Number.isInteger(c.term_months)) custom.termMonths = Math.max(CUSTOM_LIMITS.termMin, Math.min(CUSTOM_LIMITS.termMax, c.term_months));
+  return {
+    selection: { ...emptySelection(), docType: DOC_TYPES.agreement.id, custom },
+    client: { 'c-name': d?.contact_name || '', 'c-company': d?.business_name || '', 'c-phone': d?.phone || '', 'c-notes': d?.notes || '' },
   };
 }
 

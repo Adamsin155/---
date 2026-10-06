@@ -5,6 +5,8 @@ import {
 import { h, formatDate, whatsappLink } from './quote-doc.js';
 import { formatILS } from './pricing.js';
 import { glide, countUp } from './shell.js';
+// Exceptional contracts (6.10.2026): their approval state, and what the office does next.
+import { APPROVAL_TEXT, reviseUrl } from './approvals-logic.js';
 
 const $ = (id) => document.getElementById(id);
 let quotes = [];
@@ -18,10 +20,16 @@ const STATUS = {
   signed: 'נחתם',
   expired: 'פג תוקף',
   cancelled: 'בוטל',
+  // An exceptional contract before a manager approved it: the client has no link yet.
+  awaiting: 'ממתין לאישור',
+  rejected: 'לא אושר',
 };
 const OPEN = ['sent', 'viewed', 'shared', 'seen'];
+const APPROVAL = ['awaiting', 'rejected'];
 // View-only quotes have no signing step: they are either shared or seen.
 const statusOf = (q) => {
+  if (q.status === 'sent' && q.approval === 'pending') return 'awaiting';
+  if (q.status === 'sent' && q.approval === 'rejected') return 'rejected';
   if (q.status === 'sent' && q.expires_at && new Date(q.expires_at) < new Date()) return 'expired';
   if (q.status === 'sent' && q.signable === 'false') return q.first_viewed_at ? 'seen' : 'shared';
   return q.status === 'sent' && q.first_viewed_at ? 'viewed' : q.status;
@@ -62,8 +70,10 @@ function renderStats() {
 }
 
 function renderFilters() {
+  const n = (k) => quotes.filter((q) => k === 'all' || (k === 'open' ? OPEN.includes(statusOf(q)) : k === 'approval' ? APPROVAL.includes(statusOf(q)) : statusOf(q) === k)).length;
   const opts = [['all', 'הכול'], ['open', 'ממתינות'], ['signed', 'נחתמו'], ['expired', 'פג תוקף'], ['cancelled', 'בוטלו']];
-  const n = (k) => quotes.filter((q) => k === 'all' || (k === 'open' ? OPEN.includes(statusOf(q)) : statusOf(q) === k)).length;
+  // Shown only when there is such a contract.
+  if (n('approval') || filter === 'approval') opts.splice(1, 0, ['approval', 'באישור מנהל']);
   $('filters').replaceChildren(...opts.map(([k, label]) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(filter === k),
     onclick: () => glide(() => { filter = k; renderFilters(); renderRows(); }),
@@ -87,11 +97,32 @@ async function cancel(q, btn) {
   await loadQuotes();
 }
 
+// The approval of an exceptional contract: its state, who decided, the note.
+const APPROVER = { owner: 'הבעלים', ofir: 'אופיר', lior: 'ליאור' };
+function approvalCell(q) {
+  if (!q.approval || q.approval === 'none') return h('span', { class: 'apv-cell', title: 'חוזה רגיל, בלי אישור' }, '—');
+  const by = APPROVER[q.approval_by] || '';
+  return h('span', { class: 'apv-cell' },
+    h('span', { class: `apv-state is-${q.approval}` }, APPROVAL_TEXT[q.approval]),
+    q.approval === 'rejected' && q.approval_note ? h('small', {}, `${by ? `${by}: ` : ''}${q.approval_note}`) : null,
+    q.approval === 'approved' && by ? h('small', {}, `אישר/ה ${by}`) : null,
+    q.approval === 'pending' ? h('small', {}, 'אדם, אופיר או ליאור') : null);
+}
+// An approved contract: the share dialog (the link, WhatsApp, mail), as after creating a regular one.
+async function share(q, btn) {
+  const { shareContract } = await import('./approvals-ui.js');
+  shareContract({
+    ...q,
+    model: { docTitle: q.doc, signable: q.signable !== 'false', termMonths: Number(q.term) || 12, validHours: Number(q.valid) || null, client: { name: q.client_name, company: q.company, phone: q.phone, email: q.email } },
+  }, btn, toast);
+}
+
 function renderRows() {
   const list = quotes.filter((q) => {
     const s = statusOf(q);
     if (filter === 'all') return true;
     if (filter === 'open') return OPEN.includes(s);
+    if (filter === 'approval') return APPROVAL.includes(s);
     return s === filter;
   });
   $('rows').replaceChildren(...list.map((q) => {
@@ -99,6 +130,8 @@ function renderRows() {
     const link = quoteLink(q.token);
     const when = s === 'signed' ? formatDate(q.signed_at, true) : (s === 'viewed' || s === 'seen') ? formatDate(q.first_viewed_at, true) : '';
     const open = OPEN.includes(s);
+    // Waiting for a manager, or sent back: there is no link to open or send.
+    const held = APPROVAL.includes(s);
     const agreement = q.signable !== 'false';
     const reminder = `שלום ${q.client_name}, רק מזכירים ש${agreement ? 'הסכם ההתקשרות' : 'הצעת המחיר'} מאסטרטג (${q.number}) ממתינ${agreement ? '' : 'ה'} לך כאן${q.expires_at ? `, ${agreement ? 'לחתימה' : 'בתוקף'} עד ${formatDate(q.expires_at, true)}` : ''}:\n${link}`;
     return h('tr', {},
@@ -109,11 +142,15 @@ function renderRows() {
       h('td', { 'data-label': 'נוצר' }, formatDate(q.created_at), h('small', { class: 'by' }, q.created_by_email || '')),
       h('td', { 'data-label': 'סטטוס' }, h('span', { class: `pill ${s}` }, STATUS[s], when ? h('small', {}, ` · ${when}`) : null),
         open && q.expires_at ? h('small', { class: 'until' }, `${agreement ? 'לחתימה' : 'בתוקף'} עד ${formatDate(q.expires_at, true)}`) : null),
+      h('td', { 'data-label': 'אישור מנהל' }, approvalCell(q)),
       h('td', { class: 'acts-cell' }, h('div', { class: 'acts' },
         open ? h('a', { class: 'btn btn-sm btn-ghost', href: whatsappLink(q.phone, reminder), target: '_blank', rel: 'noopener' }, 'תזכורת בוואטסאפ') : null,
-        s !== 'cancelled' ? h('a', { class: 'btn btn-sm btn-ghost', href: link, target: '_blank', rel: 'noopener' }, 'פתיחה') : null,
-        s !== 'cancelled' ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => copy(link) }, 'העתקת קישור') : null,
-        open
+        open && q.approval === 'approved' ? h('button', { type: 'button', class: 'btn btn-sm', 'data-act': 'share', onclick: (e) => share(q, e.currentTarget) }, 'שליחה ללקוח') : null,
+        s === 'rejected' ? h('a', { class: 'btn btn-sm', 'data-act': 'revise', href: reviseUrl(q) }, 'תיקון ושליחה מחדש') : null,
+        (open && q.approval === 'approved') || s === 'awaiting' ? h('a', { class: 'btn btn-sm btn-ghost', 'data-act': 'edit', href: reviseUrl(q) }, 'תיקון') : null,
+        s !== 'cancelled' && !held ? h('a', { class: 'btn btn-sm btn-ghost', href: link, target: '_blank', rel: 'noopener' }, 'פתיחה') : null,
+        s !== 'cancelled' && !held ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => copy(link) }, 'העתקת קישור') : null,
+        open || held
           ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: (e) => cancel(q, e.currentTarget) }, 'ביטול')
           : null,
       )),
@@ -125,11 +162,12 @@ function renderRows() {
 
 async function loadQuotes() {
   $('state').textContent = 'טוען…';
-  const { data, error } = await supabase
-    .from('quotes')
-    .select('id, token, number, client_name, monthly_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer, doc:model->>docTitle, signable:model->>signable, expires_at, phone:model->client->>phone')
-    .order('created_at', { ascending: false })
-    .limit(500);
+  const BASE = 'id, token, number, client_name, monthly_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer, doc:model->>docTitle, signable:model->>signable, expires_at, phone:model->client->>phone';
+  const APPROVAL_COLS = ', approval, approval_by, approval_note, approval_at, term:model->>termMonths, valid:model->>validHours, company:model->client->>company, email:model->client->>email';
+  const read = (cols) => supabase.from('quotes').select(cols).order('created_at', { ascending: false }).limit(500);
+  let { data, error } = await read(BASE + APPROVAL_COLS);
+  // Before the custom-contracts migration the approval columns are not there yet.
+  if (error && (error.code === '42703' || error.code === 'PGRST204')) ({ data, error } = await read(BASE));
   if (error) { $('state').textContent = explainError(error); return; }
   quotes = data;
   $('state').textContent = '';

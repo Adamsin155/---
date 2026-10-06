@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="app/styles/tokens.css">
   <link rel="stylesheet" href="app/styles/app.css">
   <link rel="stylesheet" href="app/styles/quote.css">
+  <link rel="stylesheet" href="app/styles/approvals.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body class="is-choosing">
@@ -49,6 +50,8 @@
       </div>
     </section>
 
+    <p class="revise-note" id="revise-note" role="status" hidden></p>
+
     <div class="page-head">
       <div class="page-title">
         <div class="eyebrow"><span class="pulse" aria-hidden="true"></span><span dir="ltr">QUOTE BUILDER</span></div>
@@ -59,7 +62,7 @@
         </div>
       </div>
       <dl class="facts">
-        <div><dt>תקופה</dt><dd>12 חודשים</dd></div>
+        <div><dt>תקופה</dt><dd id="fact-term">12 חודשים</dd></div>
         <div><dt>מע״מ</dt><dd dir="ltr">18%</dd></div>
         <div><dt>תמחור</dt><dd>חודשי</dd></div>
         <div><dt>כמויות</dt><dd>שנתיות</dd></div>
@@ -111,11 +114,54 @@
             <div class="tiles" id="free" role="group" aria-labelledby="free-h"></div>
           </div>
           <div class="group">
-            <div class="group-head"><h3 id="disc-h">הנחה</h3><span class="meta">עד 200 ₪ לחודש · לפני מע״מ</span></div>
+            <div class="group-head"><h3 id="disc-h">הנחה</h3><span class="meta" id="disc-meta">עד 200 ₪ לחודש · לפני מע״מ</span></div>
             <div class="discount">
               <label for="discount" class="sr-only">הנחה חודשית בשקלים</label>
               <div class="discount-input"><input class="input" id="discount" type="number" inputmode="numeric" min="0" max="200" step="1" dir="ltr" value="0" aria-describedby="disc-hint"><span aria-hidden="true">₪</span></div>
               <p class="discount-hint" id="disc-hint">ההנחה מופחתת מהמחיר החודשי לכל 12 החודשים, ומופיעה בהצעה ובהסכם.</p>
+            </div>
+          </div>
+          <!-- A contract changed by hand (6.10.2026), for the office: anything that differs
+               from the package goes to a manager's approval before the client gets it. -->
+          <div class="group custom-group" id="custom-group" hidden>
+            <div class="custom-head">
+              <label for="custom-on"><span class="t" id="custom-h">חוזה מותאם אישית</span><span class="s">שינוי ידני של הכמויות, המחיר, התקופה והתנאים. חוזה ששונה מהחבילה נשלח לאישור מנהל לפני שהלקוח מקבל אותו.</span></label>
+              <span class="switch"><input type="checkbox" role="switch" id="custom-on"><span aria-hidden="true"></span></span>
+            </div>
+            <div class="custom-body" id="custom-body" hidden>
+              <fieldset class="custom-sec">
+                <legend>כמויות בחבילה</legend>
+                <p class="sub">הכמויות של החבילה עצמה, לכל תקופת החוזה. תוספות שנבחרו למעלה מתווספות עליהן.</p>
+                <div class="custom-qty" id="custom-qty"></div>
+              </fieldset>
+              <fieldset class="custom-sec">
+                <legend>מחיר ותקופה</legend>
+                <div class="custom-money">
+                  <div class="field">
+                    <label for="custom-price">מחיר החבילה לחודש (₪, לפני מע״מ)</label>
+                    <div class="discount-input"><input class="input" id="custom-price" type="number" inputmode="numeric" min="0" max="100000" step="1" dir="ltr" aria-describedby="custom-price-was"><span aria-hidden="true">₪</span></div>
+                    <small id="custom-price-was"></small>
+                  </div>
+                  <div class="field">
+                    <label for="custom-term">תקופה (חודשים)</label>
+                    <input class="input" id="custom-term" type="number" inputmode="numeric" min="1" max="36" step="1" dir="ltr" aria-describedby="custom-term-was">
+                    <small id="custom-term-was">בחבילה: 12 חודשים · 1 עד 36</small>
+                  </div>
+                </div>
+                <p class="sub">ההנחה החודשית נקבעת בשדה ״הנחה״ שמעל: בחוזה מותאם אפשר גם יותר מ־200 ₪, באישור מנהל.</p>
+              </fieldset>
+              <fieldset class="custom-sec">
+                <legend>שורות נוספות</legend>
+                <p class="sub">פריט שאינו בחבילה, למשל ״אתר תדמית״. כמות ומחיר חודשי הם רשות. עד 10 שורות.</p>
+                <div class="custom-lines" id="custom-lines"></div>
+                <button type="button" class="btn btn-sm custom-add" id="custom-add-line">הוספת שורה</button>
+              </fieldset>
+              <div class="field">
+                <label for="custom-terms">תנאים מיוחדים</label>
+                <textarea class="input" id="custom-terms" maxlength="2000" rows="4" aria-describedby="custom-terms-hint" placeholder="כל שורה היא סעיף. למשל: הלקוח רשאי לסיים את ההסכם אחרי 6 חודשים, בהודעה של 30 ימים."></textarea>
+                <small id="custom-terms-hint" style="color:var(--muted)">מופיעים בהסכם כפרק אחרון, ״תנאים מיוחדים״, שגובר על שאר ההסכם רק במה שכתוב בו. עד 2000 תווים.</small>
+              </div>
+              <div class="custom-diff" id="custom-diff" role="status" aria-live="polite"></div>
             </div>
           </div>
         </div>
@@ -177,10 +223,11 @@
           <dt id="t-vat-label">מע״מ 18%</dt><dd id="t-mvat"></dd>
         </dl>
         <dl class="breakdown term">
-          <dt>12 חודשים, לפני מע״מ</dt><dd id="t-ynet"></dd>
-          <dt class="strong">12 חודשים, כולל מע״מ</dt><dd id="t-ygross" class="strong"></dd>
+          <dt id="t-ynet-label">12 חודשים, לפני מע״מ</dt><dd id="t-ynet"></dd>
+          <dt class="strong" id="t-ygross-label">12 חודשים, כולל מע״מ</dt><dd id="t-ygross" class="strong"></dd>
         </dl>
         <p class="term-note" id="term-note"></p>
+        <p class="sum-diff" id="sum-diff" hidden></p>
         <div class="sr-only" aria-live="polite" id="live-total"></div>
       </div>
       <div class="actions">
@@ -256,6 +303,23 @@
       <a class="btn btn-ghost" id="sh-open" target="_blank" rel="noopener">פתיחת הקישור</a>
       <a class="btn btn-ghost" id="sh-mail">שליחה במייל</a>
       <a class="btn btn-primary" id="sh-wa" target="_blank" rel="noopener">שליחה בוואטסאפ</a>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-pending" aria-labelledby="pd-h">
+    <div class="dlg-head">
+      <h2 id="pd-h">נשלח לאישור</h2>
+      <button type="button" class="close" data-close aria-label="סגירה">×</button>
+    </div>
+    <div class="dlg-body">
+      <p>החוזה <strong class="num" id="pd-number" dir="ltr"></strong> נשמר ונשלח לאישור של אדם, אופיר או ליאור. מספיק שאחד מהם יאשר.</p>
+      <p style="margin-bottom:6px"><strong>מה שונה מהחבילה</strong></p>
+      <ul class="pending-list" id="pd-list"></ul>
+      <p>עדיין אין קישור ללקוח. כשהחוזה יאושר תגיע התראה, והקישור יופיע ב״המשימות שלי״ וב״הצעות שנשלחו״. אם לא יאושר, הוא יחזור עם הערה לתיקון.</p>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-ghost" data-close>סגירה</button>
+      <a class="btn" id="pd-quotes" href="quotes.html">להצעות שנשלחו</a>
     </div>
   </dialog>
 

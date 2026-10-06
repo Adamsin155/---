@@ -220,9 +220,9 @@ await step('the card offers "הפעלת התראות"; permission is asked only 
   assert.equal(await page.locator('#push-card').getAttribute('data-state'), 'ready');
   assert.match(await page.locator('#push-card').innerText(), /הפעלת התראות[\s\S]*גם כשהמערכת סגורה[\s\S]*08:30/);
   assert.equal(await page.evaluate(() => window.__asked), 0);
-  // Right under the "now" bar in "my work".
+  // Right under the "now" bar in "my work" (after the two work cards: the field's deals and the contracts in approval).
   const ids = await page.locator('#view-mine > *').evaluateAll((els) => els.map((e) => e.id));
-  assert.deepEqual(ids.slice(0, 3), ['now-bar', 'deals-card', 'push-card']);
+  assert.deepEqual(ids.slice(0, 4), ['now-bar', 'deals-card', 'approvals-card', 'push-card']);
   await shot(page, '01-card');
 });
 

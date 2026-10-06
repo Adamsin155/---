@@ -27,6 +27,7 @@ import { loadSelections } from './office-data.js';
 import { offerHandoff } from './handoff-ui.js';
 import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, navLink } from './office-ui.js';
+import { mountApprovals } from './approvals-ui.js';
 import { inputValueIL, fromInputIL, dayFromKeyIL, endOfDayIL, TZ } from './tz.js';
 
 let viewer = null;
@@ -469,6 +470,8 @@ mountSession(async (staff) => {
   if (v.error || v.scope !== 'office') { $('no-access').hidden = false; return; }
   $('of-page').hidden = false;
   $('head-actions').prepend(...officeLinks(v, 'qa.html'));
+  // "חוזים חריגים לאישור": Ofir's first screen.
+  mountApprovals($('approvals-card'), v, { mail: staff.email, toast });
   await load();
   // A link from the pass over the clients: qa.html#assign-<client id>[-r<round>].
   const m = /^#assign-([\w-]+?)(?:-r(\d+))?$/.exec(location.hash);
