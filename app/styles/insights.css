@@ -54,7 +54,7 @@
 
 /* ── From the scripts to the scheduling ── */
 .pipe-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-.pipe { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-2); }
+.pipe { padding: 10px 12px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--bg-2); }
 .pipe-h { margin: 0 0 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .pipe-stages { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; }
 .pipe-st { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 6px; font-size: 13.5px; }

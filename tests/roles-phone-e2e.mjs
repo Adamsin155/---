@@ -8,9 +8,10 @@
 //  - "המשימות שלי" is short: grouped by urgency, a short card per client and process with
 //    ONE action, the checklist a tap away, five cards a group and "הצג עוד"; "תצוגה מלאה"
 //    gives the whole list and is remembered; nothing is lost (marking works in both);
-//  - the page head is tidy: no English eyebrow, the screen links behind one button when
-//    there are more than two, nothing repeated next to the managers' switch, 44px targets,
-//    no sideways scroll (375px and 360px);
+//  - the page head is tidy: no English eyebrow and only the page's own actions; the other
+//    screens are the floating bottom bar (the role's three, with the managers' switch as its
+//    first two) and "עוד" for the rest (the redesign of 5.10.2026, app/shell.js); 44px
+//    targets, no sideways scroll (375px and 360px);
 //  - nobody is offered a screen that is not theirs, and nothing says "מה עליי".
 // Run: npx http-server -p 8080 -s -c-1 . &  then  node tests/roles-phone-e2e.mjs [outDir]
 import { chromium } from 'playwright';
@@ -66,7 +67,7 @@ async function tidy(page, label) {
     const head = document.querySelector('.page-head .head-actions');
     return {
       // The controls a thumb must hit: the top bar, the switch, the head, the tabs, the short list.
-      small: size('header.topbar nav a, header.topbar nav button, #mode-bar a, .page-head .head-actions a, .page-head .head-actions button, .tabs [role=tab], #mine-list .wc-go, #mine-list .wc-more, #mine-list .wclient, .more-btn, .view-toggle button, .mine-more > summary, details.wgroup > summary')
+      small: size('header.topbar nav a, header.topbar nav button, #mode-bar a, #app-side .side-link, .page-head .head-actions a, .page-head .head-actions button, .tabs [role=tab], #mine-list .wc-go, #mine-list .wc-more, #mine-list .wclient, .more-btn, .view-toggle button, .mine-more > summary, details.wgroup > summary')
         .filter((x) => x.h < 44),
       kicker: size('.kicker.latin').length,
       headRows: head && vis(head) ? Math.round(head.getBoundingClientRect().height) : 0,
@@ -187,19 +188,28 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.equal(await page.locator('#mine-list .g-overdue .more-btn').count(), 0);
   assert.ok(await noHScroll(page));
 
-  // The screen links: one button, and the links one tap away.
-  const toggle = page.locator('.screens-toggle');
-  assert.match(await toggle.innerText(), /^מסכים נוספים \(\d\)$/);
-  assert.equal(await page.locator('#cta-messages').isVisible(), false);
+  // The other screens: the bottom bar (her two profiles first), and the rest one tap away.
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'עוד']);
+  assert.equal(await page.getAttribute('#mode-mine', 'aria-current'), 'page');
+  const bar = await page.locator('#app-side').boundingBox();
+  assert.ok(bar.y + bar.height <= 740 && bar.y > 600, `the bar floats at the bottom: ${JSON.stringify(bar)}`);
+  const toggle = page.locator('#side-more');
+  assert.equal(await page.locator('#side-messages').isVisible(), false);
   await toggle.click();
   assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
-  for (const id of ['cta-messages', 'cta-prep', 'cta-year', 'cta-shoot']) {
+  for (const id of ['side-messages', 'side-prep', 'side-year', 'side-shoot', 'side-quote', 'side-quotes', 'side-team']) {
     assert.ok(await page.locator(`#${id}`).isVisible(), id);
     assert.ok((await page.locator(`#${id}`).boundingBox()).height >= 44, id);
   }
-  // "מבט מנהל" is the switch at the top; the head does not offer it again.
+  assert.equal(await page.locator('#side-insights, #side-qa, #side-pass, #side-decisions').count(), 0, 'screens that are not Irit\'s');
+  // Nothing of it is repeated in the page head; Escape closes the sheet.
+  assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
   assert.equal(await page.locator('#cta-owner').isVisible(), false);
   assert.ok(await page.locator('#mode-manager').isVisible());
+  await page.keyboard.press('Escape');
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(await page.locator('#side-messages').isVisible(), false);
+  await toggle.click();
   assert.ok(await noHScroll(page));
   await shot(page, 'irit-03-screens-open');
 });
@@ -238,7 +248,7 @@ await step('the owner lands on "מה דורש אותי": eight rows and "הצג 
   await tidy(page, 'owner');
   assert.equal(await page.locator('#ow-rows > li:not(.more-row):visible').count(), 8);
   assert.match(await page.innerText('#ow-rows .more-btn'), /^הצג עוד \(\d+\)$/);
-  assert.ok(await heightOf(page) < 2400);
+  assert.ok(await heightOf(page) < 2900); // eight rows, the week's chart under them, and the room of the bottom bar
   await shot(page, 'owner-01-now');
   await page.click('#mode-mine');
   await page.waitForURL(/clients\.html#mine$/);
@@ -335,7 +345,11 @@ for (const [role, title] of [['nadia', 'הלקוחות שלי בעריכה'], ['
     await settle(page);
     await tidy(page, `${role} mine`);
     assert.deepEqual(await page.locator('.tabs [role=tab]:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הנתונים שלי']);
-    assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), ['הלקוחות שלי בעריכה']);
+    // Her screens are the bar; the head does not repeat them.
+    assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
+    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה', 'עוד']);
+    await page.click('#side-more');
+    assert.deepEqual(await page.locator('#side-sheet .side-link:visible').allInnerTexts(), ['הצעה חדשה', 'הצעות שנשלחו']);
     assert.ok(await heightOf(page) < 1500);
   });
 }
@@ -353,7 +367,8 @@ await step('Eli lands on "ימי הצילום שלי", with tomorrow\'s shoots',
   await page.waitForSelector('#view-mine:not([hidden])');
   await settle(page);
   await tidy(page, 'eli mine');
-  assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), ['ימי צילום']);
+  assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'עוד']);
 });
 
 // ── Stav ──────────────────────────────────
@@ -365,6 +380,9 @@ await step('Stav lands on "עסקה חדשה", sees his deals, and is offered no
   await tidy(page, 'stav');
   assert.match(await page.innerText('main'), /העסקאות שלי[^]*מאפיית השכונה[^]*ממתין לחוזה[^]*סלון יופי לילך[^]*חוזה נשלח/);
   assert.equal(await page.locator('.page-head .head-actions a:visible, header.topbar nav a:visible').count(), 0);
+  // One screen needs no bar.
+  assert.equal(await page.locator('#app-side').isVisible(), false);
+  assert.equal(await page.locator('#app-side .side-link').count(), 1);
   assert.ok((await page.locator('#deal-submit, .deal-submit').first().boundingBox()).height >= 44);
   await shot(page, 'stav-01-deal');
   await page.goto(`${BASE}clients.html#mine`);
@@ -378,16 +396,26 @@ await step('at 360px nothing scrolls sideways, on Irit\'s list and with a card o
   await settle(page);
   await tidy(page, 'irit 360');
   await page.locator('#mine-list .wc-open').first().click();
-  await page.click('.screens-toggle');
+  await page.click('#side-more');
   assert.ok(await noHScroll(page));
 });
 
-await step('on a wide screen the head keeps its row of links and the list is short as well', async () => {
+await step('on a wide screen the screens are the side menu, with a rail on the current one, and the list is short as well', async () => {
   const { page } = await open('irit', { viewport: { width: 1280, height: 900 } });
   await page.waitForSelector('#mine-list .wproc.wc');
   await settle(page);
-  assert.equal(await page.locator('.screens-toggle').isVisible(), false);
-  for (const id of ['cta-messages', 'cta-prep', 'cta-year']) assert.ok(await page.locator(`#${id}`).isVisible(), id);
+  assert.equal(await page.locator('#side-more').isVisible(), false);
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(),
+    ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'שנת החבילה', 'לפני יום צילום', 'הודעות ללקוחות', 'ימי צילום', 'הצעה חדשה', 'הצעות שנשלחו', 'צוות']);
+  for (const id of ['cta-messages', 'cta-prep', 'cta-year']) assert.equal(await page.locator(`#${id}`).isVisible(), false, `${id} is in the menu, not in the head`);
+  // The side menu floats beside the page (on the right, RTL), and the rail marks "המשימות שלי".
+  const side = await page.locator('#app-side').boundingBox();
+  const main = await page.locator('main').boundingBox();
+  assert.ok(side.x > main.x + main.width - 1 && side.width > 200, JSON.stringify([side, main]));
+  const rail = await page.locator('#side-rail').boundingBox();
+  const cur = await page.locator('#mode-mine').boundingBox();
+  assert.ok(rail.y >= cur.y && rail.y + rail.height <= cur.y + cur.height + 1, 'the rail is on the current item');
+  assert.equal(await page.locator('#who-name').innerText(), 'עירית');
   assert.ok(await page.locator('.kicker.latin').isVisible());
   await shortList(page, 'irit wide');
 });

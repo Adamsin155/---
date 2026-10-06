@@ -334,10 +334,11 @@ await step('an editor lands on "הלקוחות שלי בעריכה" and sees onl
   assert.equal(await page.locator('a[href="clients.html#mine"]:visible').count() > 0, true);
   await page.goto(`${BASE}clients.html`);
   await page.waitForTimeout(300);
-  await page.waitForSelector('#cta-editor:not([hidden])');
+  await page.waitForSelector('#side-editor');
   assert.equal(await page.locator('#cta-shoot').isHidden(), true);
+  assert.equal(await page.locator('#side-shoot').count(), 0);
   assert.equal(new URL(page.url()).pathname.endsWith('/clients.html'), true);
-  await page.click('#cta-editor');
+  await page.click('#side-editor');
   await page.waitForURL(/editor\.html$/);
   await page.waitForSelector(`#${A_ID}-go`);
 });

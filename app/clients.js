@@ -10,6 +10,7 @@ import {
   upcomingFor, involves, WAITED, waitOf, parseWaitNote, endWaitNote, IMPORT_NOTE, ANSWERED, clientLabel,
 } from './protocol-logic.js';
 import { clocksFor, clockTime } from './clocks.js';
+import { glide } from './shell.js'; // a filter chosen: the rows that stay glide to their place
 import { renderNowBar, updateNowBar, clockRows, ranOutText } from './now-bar.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, setTaskDone, createClient,
@@ -1158,7 +1159,7 @@ function renderClients() {
   fill($('client-filters'), own ? h('p', { class: 'muted mine-hint' }, 'לקוחות שיש לך בהם עבודה פתוחה או מתוכננת, או שהעריכה שלהם אצלך.')
     : FILTERS.map(([k, label]) => h('button', {
       type: 'button', class: 'chip', 'aria-pressed': String(clientFilter === k),
-      onclick: () => { clientFilter = k; renderClients(); },
+      onclick: () => glide(() => { clientFilter = k; renderClients(); }),
     }, label)));
 
   const q = $('client-search').value.trim();
@@ -1186,7 +1187,7 @@ function renderClients() {
     const s = stateOf(c);
     const next = live(c) && !own ? nextStep(c, s) : null;
     const signed = quoteInfo.get(c.quote_id)?.signed_at;
-    return h('li', {},
+    return h('li', { style: `view-transition-name:cl-${String(c.id).replace(/[^w-]/g, '')}` },
       h('a', { class: 'crow', href: clientUrl(c.id) },
         h('div', { class: 'cname' },
           h('strong', {}, clientLabel(c)),

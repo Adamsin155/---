@@ -259,7 +259,8 @@ await step('Ilai: his items of the monthly cycle in "המשימות שלי", lab
   assert.doesNotMatch(await box.innerText(), /קפה גליה|חנות ישנה|דוח חודשי|צלם/);
   // Right after the tools, before the list (and the list's foot: its length, the short list's tools).
   assert.deepEqual(await ilai.evaluate(() => [...document.querySelectorAll('#view-mine > *')].map((e) => e.id).slice(-3)), ['my-months', 'mine-list', 'mine-foot']);
-  assert.equal(await ilai.isVisible('#cta-year'), true);
+  await ilai.waitForSelector('#side-year');
+  assert.equal(await ilai.getAttribute('#side-year', 'href'), 'year.html');
   await shot(ilai, 'year-01-ilai-mine');
 });
 
@@ -309,6 +310,8 @@ await step('Ofir sees his late report (and no one else\'s items); an editor sees
   await nadia.waitForTimeout(300);
   assert.equal(await nadia.isHidden('#my-months'), true);
   assert.equal(await nadia.isHidden('#cta-year'), true);
+  await nadia.waitForSelector('#side-list .side-link');
+  assert.equal(await nadia.locator('#side-year').count(), 0);
   await nadia.goto(`${BASE}year.html`);
   await nadia.waitForSelector('#no-access:not([hidden])');
   assert.equal(await nadia.isHidden('#yr-page'), true);
@@ -456,8 +459,7 @@ await step('Irit sees the renewals (and reaches the page from clients.html); Ofi
   const ictx2 = await newContext();
   const irit = await newPage(ictx2);
   await signIn(irit, 'clients.html#mine', 'irit@astrateg.test');
-  await irit.waitForSelector('#cta-year:not([hidden])');
-  await irit.click('#cta-year');
+  await irit.click('#side-year');
   await irit.waitForSelector('#rn-list .yr-renew');
   assert.equal(await irit.locator('#rn-list .yr-renew').count(), 3);
   await ictx2.close();

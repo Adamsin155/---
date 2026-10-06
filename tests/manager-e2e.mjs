@@ -239,8 +239,8 @@ await step('the owner lands on the manager profile, with the switch at the top, 
   assert.deepEqual(await owner.locator('#mode-bar .mode-opt').allInnerTexts(), ['המשימות שלי', 'מבט מנהל']);
   assert.equal(await owner.getAttribute('#mode-manager', 'aria-current'), 'page');
   assert.equal(await owner.getAttribute('#mode-mine', 'aria-current'), null);
-  // The switch sits right under the top bar.
-  assert.equal(await owner.evaluate(() => document.querySelector('header.topbar').nextElementSibling.id), 'mode-bar');
+  // The switch is the first entry of the app menu, on every page.
+  assert.equal(await owner.evaluate(() => document.querySelector('#app-side #side-list').firstElementChild.id), 'mode-bar');
   for (const t of ['now', 'all', 'table', 'archive']) assert.equal(await owner.isHidden(`#tab-${t}`), false, t);
   await shot(owner, 'manager-01-owner-screen1-switch');
   await owner.click('#mode-mine');

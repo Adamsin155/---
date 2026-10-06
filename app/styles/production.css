@@ -13,7 +13,7 @@
 /* A card per editing job or shoot day. */
 .ed-card, .sh-card {
   display: grid; gap: 10px; min-width: 0; padding: 16px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+  background: var(--panel); border: 1px solid transparent; border-radius: var(--radius-md); box-shadow: var(--shadow-1);
   border-inline-start: 4px solid var(--line-strong);
   scroll-margin-top: calc(var(--topbar-h) + 12px);
 }
@@ -40,7 +40,7 @@
 .ed-links, .sh-nav { display: flex; flex-wrap: wrap; gap: 8px; }
 .ed-links .btn, .sh-nav .btn, .ed-sheet .btn { min-height: 44px; display: inline-flex; align-items: center; }
 .ed-k { display: block; font-size: 12.5px; color: var(--muted); }
-.ed-sheet { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-2); border: 1px solid var(--line); }
+.ed-sheet { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-2); border: 1px solid transparent; }
 .ed-sheet > * { margin: 0; }
 .ed-phone, .ed-closing { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .ed-phone .ed-k, .ed-closing .ed-k { flex-basis: 100%; }
@@ -89,7 +89,7 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
 
 /* Tasks and briefs. */
 .prod-tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.prod-task { display: grid; gap: 6px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.prod-task { display: grid; gap: 6px; padding: 14px 16px; background: var(--panel); border: 1px solid transparent; border-radius: var(--radius-md); }
 .prod-task > * { margin: 0; min-width: 0; }
 .prod-task.is-urgent { border-inline-start: 4px solid var(--late); }
 .prod-task-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
@@ -97,7 +97,7 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
 
 /* My numbers: two figures, no ranking. */
 .prod-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.prod-kpi { display: grid; gap: 2px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.prod-kpi { display: grid; gap: 2px; padding: 12px 14px; background: var(--panel); border: 1px solid transparent; border-radius: var(--radius-md); }
 .prod-kpi-v { font-size: 26px; font-weight: 700; }
 .prod-kpi-k { font-weight: 600; }
 
@@ -126,7 +126,7 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
 .sh-timeline li.is-prompt span:last-child::before { content: '⏱ '; }
 .sh-t { direction: ltr; text-align: end; }
 .sh-fixed { font-weight: 600; padding: 8px 12px; border-inline-start: 3px solid var(--accent); background: var(--bg-2); }
-.sh-counter { display: grid; gap: 8px; justify-items: start; padding: 12px; border-radius: var(--radius-md); background: var(--bg-2); border: 1px solid var(--line); }
+.sh-counter { display: grid; gap: 8px; justify-items: start; padding: 12px; border-radius: var(--radius-md); background: var(--bg-2); border: 1px solid transparent; }
 .sh-counter > * { margin: 0; }
 .sh-counter .pbar { width: 100%; }
 .sh-count { font-size: 26px; font-weight: 700; }

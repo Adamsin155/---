@@ -80,6 +80,7 @@ node tests/rls-e2e.mjs                            # עורך, ניראל ואל�
 node tests/scripts-e2e.mjs                        # כתיבת תסריטים: שמירה לבד, רשת שנופלת, הדפסה, קישור לשיתוף, גישה ודגשים
 node tests/gantt-e2e.mjs [outDir]                 # גאנט התוכן: יצירה מהתבנית, סימון שעלה, גרירה, עדכון מהתבנית, קישור ללקוח, הדפסה וטלפון
 node tests/payouts-e2e.mjs                       # מערכת התשלומים בדפדפן, בטלפון ובמחשב, מול שרת מדומה
+node tests/shell-e2e.mjs                          # המסגרת: תפריט צד, סרגל תחתון, הגרף השבועי במבט מנהל והתנועה (גם כשהיא כבויה)
 node tests/files-e2e.mjs                          # תיק לקוח: העלאות (גם סרטון גדול בחלקים), הגלריה ללקוח, הגרפיקות בדף המצב, עורך ואופיר בטופס האפיון
 ```
 
@@ -90,8 +91,8 @@ index.html, q.html, quotes.html
 payouts/    אפליקציית התשלומים: index.html, manifest, אייקונים
 app/        catalog.js, pricing.js, quote-doc.js, builder.js, client.js, dashboard.js, supa.js
 app/payouts/ engine.js (חישוב), data.js (Supabase), app.js (מסכים)
-app/styles/ app.css (ממשק), quote.css (מסמך ההצעה), client.css, quotes.css
-app/fonts/  Rubik + JetBrains Mono (OFL), מתארחים מקומית
+app/styles/ tokens.css (צבעים, פינות, גופנים ותנועה לכל המערכת), app.css (בסיס הממשק ומחולל ההצעות), shell.css (תפריט צד וסרגל תחתון), quote.css (מסמך ההצעה), client.css, quotes.css
+app/fonts/  Heebo + Varela Round (הממשק), Rubik (מסמך ההצעה), JetBrains Mono (OFL), מתארחים מקומית
 app/vendor/ supabase-js (MIT)
 supabase/   migrations, functions/create-quote, functions/staff-admin, functions/client-media, functions/_shared/app (עותק שנוצר מ־app/)
 scripts/    sync-functions (עותק app/ לפונקציות), build-pages (מה שמתפרסם ל־gh-pages), build-payment-site
