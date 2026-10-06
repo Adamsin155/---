@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="app/styles/protocol.css">
   <link rel="stylesheet" href="app/styles/push.css">
   <link rel="stylesheet" href="app/styles/deal.css">
+  <link rel="stylesheet" href="app/styles/approvals.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -87,26 +88,76 @@
           </div>
         </fieldset>
 
-        <fieldset class="deal-sec" aria-describedby="d-tier-err">
+        <!-- A built-in package (as always), or another offer in the seller's own words
+             (6.10.2026): Irit builds a custom contract from it, and a manager approves it. -->
+        <fieldset class="deal-sec">
+          <legend>מה נסגר</legend>
+          <div class="deal-choices deal-kind" id="d-kinds">
+            <label class="deal-choice" for="d-kind-package"><input type="radio" class="radio" name="kind" id="d-kind-package" value="package" checked><span class="deal-choice-text"><span class="deal-choice-label">חבילה מובנית</span><span class="deal-choice-sub">אחת מהחבילות, עם תוספות</span></span></label>
+            <label class="deal-choice" for="d-kind-custom"><input type="radio" class="radio" name="kind" id="d-kind-custom" value="custom"><span class="deal-choice-text"><span class="deal-choice-label">הצעה אחרת</span><span class="deal-choice-sub">תכנים ומחיר שסיכמת, באישור מנהל</span></span></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="deal-sec" id="d-custom" hidden>
+          <legend>הצעה אחרת</legend>
+          <p class="hint">כותבים מה סוכם עם הלקוח. עירית מכינה מזה חוזה מותאם, ואדם, אופיר או ליאור מאשרים אותו לפני שהוא נשלח ללקוח.</p>
+          <div class="field">
+            <label for="d-description">מה ההצעה כוללת<span class="req" aria-hidden="true">*</span></label>
+            <textarea class="input" id="d-description" name="description" rows="4" maxlength="2000" aria-describedby="d-description-err" placeholder="למשל: 15 סרטונים ו־10 גרפיקות, יום צילום אחד עם צלם, בלי משפיענים"></textarea>
+            <div class="err" id="d-description-err" hidden></div>
+          </div>
+          <div class="deal-custom-qty">
+            <div class="field">
+              <label for="d-videos">סרטונים</label>
+              <input class="input deal-num" id="d-videos" name="videos" type="number" inputmode="numeric" min="0" max="200" step="1" dir="ltr" aria-describedby="d-videos-err">
+            </div>
+            <div class="field">
+              <label for="d-graphics">גרפיקות</label>
+              <input class="input deal-num" id="d-graphics" name="graphics" type="number" inputmode="numeric" min="0" max="300" step="1" dir="ltr" aria-describedby="d-graphics-err">
+            </div>
+            <div class="field">
+              <label for="d-shoot_days">ימי צילום</label>
+              <input class="input deal-num" id="d-shoot_days" name="shoot_days" type="number" inputmode="numeric" min="0" max="12" step="1" dir="ltr" aria-describedby="d-shoot_days-err">
+            </div>
+          </div>
+          <p class="hint">הכמויות הן רשות: ממלאים רק מה שסוכם במספר.</p>
+          <div class="err" id="d-videos-err" hidden></div>
+          <div class="err" id="d-graphics-err" hidden></div>
+          <div class="err" id="d-shoot_days-err" hidden></div>
+          <div class="deal-custom-money">
+            <div class="field">
+              <label for="d-price">מחיר לחודש (₪, לפני מע״מ)<span class="req" aria-hidden="true">*</span></label>
+              <input class="input deal-num" id="d-price" name="price" type="number" inputmode="numeric" min="1" max="100000" step="1" dir="ltr" aria-describedby="d-price-err">
+            </div>
+            <div class="field">
+              <label for="d-term_months">תקופה (חודשים)</label>
+              <input class="input deal-num" id="d-term_months" name="term_months" type="number" inputmode="numeric" min="1" max="36" step="1" value="12" dir="ltr" aria-describedby="d-term_months-err">
+            </div>
+          </div>
+          <div class="err" id="d-price-err" hidden></div>
+          <div class="err" id="d-term_months-err" hidden></div>
+        </fieldset>
+
+        <fieldset class="deal-sec deal-builtin" aria-describedby="d-tier-err">
           <legend>חבילה<span class="req" aria-hidden="true">*</span></legend>
           <div class="deal-choices" id="d-tiers"></div>
           <div class="err" id="d-tier-err" hidden></div>
         </fieldset>
 
-        <fieldset class="deal-sec" aria-describedby="d-influencer-err">
+        <fieldset class="deal-sec deal-builtin" aria-describedby="d-influencer-err">
           <legend>משפיענים<span class="req" aria-hidden="true">*</span></legend>
           <div class="deal-choices" id="d-influencers"></div>
           <div class="err" id="d-influencer-err" hidden></div>
         </fieldset>
 
-        <fieldset class="deal-sec">
+        <fieldset class="deal-sec deal-builtin">
           <legend>תוספות</legend>
           <div class="deal-choices" id="d-addons"></div>
         </fieldset>
 
         <fieldset class="deal-sec">
           <legend>הנחה והערות</legend>
-          <div class="field">
+          <div class="field deal-builtin">
             <label for="d-discount">הנחה לחודש (₪, עד 200)</label>
             <input class="input deal-num" id="d-discount" name="discount" type="number" inputmode="numeric" min="0" max="200" step="1" value="0" dir="ltr" aria-describedby="d-discount-err">
             <div class="err" id="d-discount-err" hidden></div>

@@ -174,11 +174,14 @@ export function shootPrep(client, checks, state, { tasks = [], access = [], now 
     // Access (6): broken logins, and the check itself late. Once per client.
     const p06 = st('p06');
     const broken = (access || []).filter((a) => a.client_id === client.id && a.status === 'broken');
+    // A login the client filled in the form and nobody checked yet ('new').
+    const unchecked = (access || []).filter((a) => a.client_id === client.id && a.status === 'new');
     if (wide) {
       for (const a of broken) topics.access.blockers.push(block('access', a.id, `גישה לא עובדת: ${networkName(a.network)}`, 'lior'));
+      for (const a of unchecked) topics.access.blockers.push(block('access', a.id || `new-${a.network}`, `גישה מהלקוח שעוד לא נבדקה: ${networkName(a.network)}`, 'ilai'));
       if (stuck(p06)) topics.access.blockers.push(block('access', 'p06', `בדיקת הגישות וסידור העמודים באיחור${dueWords(p06)}`, ownerOf(p06)));
     }
-    topics.access.clear = x.n > 1 || (!!p06?.complete && !broken.length);
+    topics.access.clear = x.n > 1 || (!!p06?.complete && !broken.length && !unchecked.length);
 
     // The shoot day itself (11, and Natali's 11ב).
     const p11 = st('p11');

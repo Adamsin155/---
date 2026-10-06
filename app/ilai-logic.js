@@ -9,6 +9,7 @@
 import { PROCESSES } from './protocol.js';
 import { IMPORT_NOTE } from './protocol-logic.js';
 import { qaState } from './office-marks.js';
+import { NEW_STATUS, byClient } from './access-logic.js';
 
 export const PAGE_KEYS = ['p06.name', 'p06.bio', 'p06.details', 'p06.phone', 'p06.address', 'p06.look'];
 export const PAGE_LABELS = { 'p06.name': 'שם העמוד', 'p06.bio': 'Bio', 'p06.details': 'פרטי עסק', 'p06.phone': 'טלפון', 'p06.address': 'כתובת', 'p06.look': 'מראה העמוד' };
@@ -18,11 +19,15 @@ const done = (cs, k) => ['done', 'na'].includes(cs[k]?.state);
 const inWork = (c) => c.status === 'active' || c.status === 'ending';
 
 // Whether every login in the vault has a status set after the access came in
-// (תקינה, לא עובדת, אין רשת): that is the check of process 6.
+// (תקינה, לא עובדת, אין רשת): that is the check of process 6. A login the client's
+// own form put there ('new': received, not checked yet), or any status the form set
+// that nobody of the office saved since, is not a check: someone still has to try it.
 export function accessChecked(rows, accessAt) {
   if (!accessAt || !rows?.length) return false;
-  return rows.every((a) => a.status && new Date(a.updated_at) >= new Date(accessAt));
+  return rows.every((a) => a.status && a.status !== NEW_STATUS && !byClient(a) && new Date(a.updated_at) >= new Date(accessAt));
 }
+// The logins that came from the client and wait for the check.
+export const toCheck = (rows) => (rows || []).filter((a) => a.status === NEW_STATUS);
 
 // The day's lines of one client, each with its due (null when it has none) and done.
 function lines(c, st, cs, access) {

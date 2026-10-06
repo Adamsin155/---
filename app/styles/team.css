@@ -88,6 +88,15 @@
 .tm-mc-ok { color: var(--ok); font-weight: 600; }
 .tm-mc p { overflow-wrap: anywhere; }
 
+/* "קוד הכספת" (app/vault-code-team.js): the owner's card. */
+.tm-vc-on { color: var(--ok); font-weight: 600; }
+.tm-vc-form { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 8px 0; }
+.tm-vc-form .field { flex: 1 1 140px; max-inline-size: 200px; margin: 0; }
+.tm-vc-form .input { letter-spacing: .3em; }
+.tm-vc-form .btn { min-height: 44px; }
+.tm-vc-log summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent-deep); font-size: 14px; }
+.tm-vc-log .hlist { max-height: 220px; }
+
 /* The employee privacy notice (staff-privacy.html). */
 .staff-privacy { max-inline-size: 760px; inline-size: 100%; justify-self: center; margin-top: 16px; }
 .staff-privacy h1 { margin: 6px 0 12px; font-size: 22px; line-height: 1.35; }

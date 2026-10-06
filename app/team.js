@@ -13,8 +13,10 @@ import {
 import { loadWaTeam, paintWaPanel, waStatusView } from './wa-team.js';
 import { avatar } from './shell.js';
 import { loadMetricoolCard, paintMetricoolCard } from './metricool-team.js';
+import { loadVaultCodeCard, paintVaultCodeCard } from './vault-code-team.js';
 
 let metricool = null;        // "חיבור Metricool" (app/metricool-team.js): the owner's card; null when not for this person or not built
+let vaultCode = null;        // "קוד הכספת" (app/vault-code-team.js): the owner's card; null when not for this person or not built
 let rows = [];               // staff rows with their login state (from the function)
 let caller = null;           // { email, person, owner }
 const links = new Map();     // email -> { link, type, name } made on this page
@@ -109,7 +111,8 @@ async function load() {
   $('state').textContent = rows.length ? '' : 'טוען…';
   try {
     const [data] = await Promise.all([call('list'), loadPush().catch(() => { pushByEmail = null; }), loadWaTeam().then((x) => { wa = x; }, () => { wa = null; }), loadCalendars().catch(() => { calByEmail = null; }),
-      loadMetricoolCard().then((x) => { metricool = x; }, () => { metricool = null; })]);
+      loadMetricoolCard().then((x) => { metricool = x; }, () => { metricool = null; }),
+      loadVaultCodeCard().then((x) => { vaultCode = x; }, () => { vaultCode = null; })]);
     rows = data.rows || [];
     caller = data.caller;
   } catch (err) {
@@ -129,6 +132,8 @@ function render() {
   paintWaPanel(wa, document.querySelector('.tm-block'), load);
   // "חיבור Metricool" (the owner only), under the WhatsApp switch.
   paintMetricoolCard(metricool, document.querySelector('.tm-block'), load);
+  // "קוד הכספת" (the owner only): the shared code that opens the vault's passwords.
+  paintVaultCodeCard(vaultCode, document.querySelector('.tm-block'), load, nameOfEmail);
   for (const [id, value] of typed) { const el = document.getElementById(id); if (el) el.value = value; }
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
 }

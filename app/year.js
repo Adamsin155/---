@@ -223,7 +223,7 @@ function renderVersions() {
     h('ol', { class: 'yr-versions', reversed: true },
       ...[...PROTOCOL_HISTORY].reverse().map((v) => h('li', { value: String(v.version) },
         h('p', { class: 'yr-vh' }, h('strong', {}, `גרסה ${v.version} · ${v.title}`), h('span', { class: 'muted' }, ` · ${formatDay(v.date)}`),
-          v.items?.length ? h('span', { class: 'tag' }, `${v.items.length} פריטים חדשים`) : null),
+          v.items?.length ? h('span', { class: 'tag' }, v.items.length === 1 ? 'פריט חדש אחד' : `${v.items.length} פריטים חדשים`) : null),
         h('ul', {}, ...v.changes.map((t) => h('li', {}, t)))))));
 }
 

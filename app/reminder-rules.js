@@ -49,6 +49,9 @@ import { partsIL, dayKeyIL, atTimeIL, addDaysIL, dayFromKeyIL, daysBetweenIL, we
 import {
   missingOf, missingText, briefingOf, pauseText, arrivalOf, driveName, noteOf,
 } from './production.js';
+// The client's logins form (6.10.2026): filled, or still waiting (rules accessForm, accessLink).
+import { linkState, summaryText, platformName } from './access-logic.js';
+import { nudgeTimes } from './access-nudge.js';
 // Stage 4: the client's fix requests and low scores (their own ladders).
 import { STATUS_RULES, STATUS_SOURCES } from './status-rules.js';
 // Stage 5: the monthly cycle (a draft) and the 90-day renewals list.
@@ -249,6 +252,9 @@ export const LATE_WATCHERS = ['ofir', 'lior'];
 // How far past its deadline an item is before Ofir and Lior are told (office minutes):
 // a handoff that just landed is not "late" in the minute it arrives (found live, 6.10.2026).
 export const LATE_GRACE_MINUTES = 15;
+// A late process whose own ladder already rings one of the watchers at the deadline
+// (8ב: Ofir, `highlightsUpload`): `late` does not tell that watcher again; the other still hears.
+export const LATE_RUNG = { p08b: 'ofir' };
 // How late an item is before it joins the owner's daily summary (one message, 18:00).
 export const OWNER_LATE_HOURS = 24;
 
@@ -384,6 +390,64 @@ export const RULES = [
       { id: 'now', to: 'lior', level: 'ring', exception: true, when: (i) => !i.partial, title: (i) => `גישה לא עובדת: ${i.name}`, body: (i) => `${NETWORK_NAME[i.network] || i.network}. לתקן עם הלקוח ולעדכן בכספת.` },
       { id: 'again', officeMinutes: 120, to: 'lior', level: 'ring', exception: true, when: (i) => !i.partial, title: (i) => `גישה עדיין לא עובדת: ${i.name}`, body: (i) => `${NETWORK_NAME[i.network] || i.network}. עברו שעתיים עבודה.` },
       { id: 'board', businessDays: 1, to: OWNER, level: 'board', overdue: true, title: (i) => `גישה שבורה יותר מיום עסקים: ${i.name}`, body: (i) => NETWORK_NAME[i.network] || i.network },
+    ],
+  },
+
+  // 5: the client filled the logins form (the owner's request of 6.10.2026;
+  // app/access-logic.js, public.access_form_submit). Irit hears quietly. Ilai's
+  // "קיבלת גישות" and his 30 office minutes are the rule `access` above: the submission
+  // marks 5's "access received", so that ladder starts from it. Only when 5 was marked
+  // before the form came (the meeting was first, and `access` rang then) is Ilai rung
+  // here, for what the client sent now; Lior after 30 office minutes while a login
+  // from the client still waits for its check (status 'new').
+  {
+    id: 'accessForm', event: 'הלקוח מילא את פרטי הכניסה לרשתות (5)', procs: ['p05', 'p06'],
+    instances(env) {
+      const out = [];
+      for (const l of env.accessLinks || []) {
+        const c = env.clientById.get(l.client_id);
+        const at = parseDate(l.submitted_at);
+        if (!c || !at) continue;
+        const checks = env.checksOf(c);
+        const got = checks['p05.access'];
+        const gotAt = got?.state === 'done' ? new Date(got.at) : null;
+        const verified = ['done', 'na'].includes(checks['p06.verified']?.state);
+        // `access` rings Ilai for this very event when the form itself marked 5.
+        const covered = !!gotAt && Math.abs(gotAt - at) < MIN && !verified;
+        const have = (l.summary || []).filter((s) => s.choice === 'have').map((s) => platformName(s.network, s.label));
+        const pending = (env.access || []).filter((a) => a.client_id === c.id && a.status === 'new');
+        out.push({ id: l.id, cid: c.id, client: c, name: clientLabel(c), ref: 'p05', url: clientUrl(c.id, 'access'), link: l, covered, have, pending, anchors: { event: at } });
+      }
+      return out;
+    },
+    steps: [
+      { id: 'irit', to: 'irit', level: 'quiet', title: (i) => `הלקוח מילא את פרטי הכניסה לרשתות: ${i.name}`, body: (i) => summaryText(i.link.summary) || 'הפרטים בכספת.' },
+      { id: 'ilai', to: 'ilai', level: 'ring', exempt: 'clock', when: (i) => !i.covered && i.have.length > 0, title: (i) => `קיבלת גישות מהלקוח: ${i.name}`, body: (i, env) => `הלקוח מילא בטופס: ${i.have.join(', ')}. יש לך 30 דקות לבדוק אותן מהכספת. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
+      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', when: (i) => !i.covered && i.pending.length > 0, title: (i) => `גישות מהלקוח לא נבדקו: ${i.name}`, body: () => 'עברו 30 דקות עבודה מאז שהלקוח מילא את הטופס, והגישות עוד מסומנות ״עוד לא נבדק״.' },
+    ],
+  },
+
+  // 5: the link to the logins form was made and the client did not fill it by the end
+  // of the next business day: Irit, quietly, with a ready message to the client in
+  // her queue (messages.html, the template `access_nudge`); once more two business
+  // days later, and never again. Filled, revoked or expired: the ladder stops. The
+  // reminder never carries the link itself.
+  {
+    id: 'accessLink', event: 'הלקוח עוד לא מילא את פרטי הכניסה (5)', procs: ['p05'],
+    instances(env) {
+      const out = [];
+      for (const l of env.accessLinks || []) {
+        const c = env.clientById.get(l.client_id);
+        const made = parseDate(l.created_at);
+        if (!c || !made || linkState(l, env.now) !== 'waiting') continue;
+        const [first, second] = nudgeTimes(l);
+        out.push({ id: l.id, cid: c.id, client: c, name: clientLabel(c), ref: 'p05', url: 'messages.html', link: l, anchors: { event: made, first, second, expires: parseDate(l.expires_at) } });
+      }
+      return out;
+    },
+    steps: [
+      { id: 'nudge1', from: 'first', to: 'irit', level: 'quiet', expires: 'expires', title: (i) => `הלקוח עוד לא מילא את פרטי הכניסה: ${i.name}`, body: (i) => `הקישור נוצר ביום ${dayText(i.anchors.event)}. נוסח תזכורת מוכן מחכה ב״הודעות ללקוחות״.` },
+      { id: 'nudge2', from: 'second', to: 'irit', level: 'quiet', expires: 'expires', title: (i) => `פרטי הכניסה עדיין חסרים: ${i.name}`, body: (i) => `עברו עוד שני ימי עסקים. תזכורת אחרונה ללקוח מחכה ב״הודעות ללקוחות״; הקישור תקף עד יום ${dayText(i.anchors.expires)}.` },
     ],
   },
 
@@ -1246,6 +1310,8 @@ export const RULES = [
     // `list`: Lior's "החלטות" screen keeps listing what is late (decisions.html), as before.
     steps: LATE_WATCHERS.map((p) => ({
       id: p, to: p, level: 'quiet', overdue: true, list: p === 'lior', officeMinutes: LATE_GRACE_MINUTES,
+      // Not a second message to the watcher its own ladder already rang for this deadline.
+      when: (i) => LATE_RUNG[baseId(i.proc.id)] !== p,
       title: (i) => `באיחור: ${i.name} · ${procName(i.proc)} · ${names(i.owners.filter((o) => o !== 'editor').map(personName)) || 'העורך המשויך'}`,
       body: (i, env) => `היעד היה ${whenText(i.anchors.event, env.now)}.`,
     })),
@@ -1321,6 +1387,23 @@ export const RULES = [
     ],
   },
 
+  // 8ב (v7, the owner's decision of 6.10.2026): the Highlights are ready (process 8
+  // complete, not by importing history). Ofir, who just finished them, is told quietly
+  // and has 30 office minutes to upload them and mark it; when they pass without the
+  // mark he rings (a client that started before v7: the item is new for it, so no
+  // lateness ring; see freshCase). Late: `late` tells Lior (Ofir rang: LATE_RUNG).
+  {
+    id: 'highlightsUpload', event: 'Highlights מוכנים: להעלות לרשתות (8ב)', procs: ['p08b'],
+    instances(env) {
+      return casesOf(env, 'p08b', (i) => !!i.finishedAt('p08') && !!i.s.startAt && !!i.s.dueAt && !halted(i))
+        .map((i) => ({ ...i, id: `${i.proc.id}@${i.s.startAt.toISOString()}`, anchors: { event: i.s.startAt, due: i.s.dueAt } }));
+    },
+    steps: [
+      { id: 'now', to: 'ofir', level: 'quiet', title: (i) => `ה־Highlights מוכנים: להעלות לרשתות תוך 30 דקות · ${i.name}`, body: (i, env) => `${i.proc.title}. יעד ${whenText(i.anchors.due, env.now)} (30 דקות עבודה).` },
+      { id: 'due', from: 'due', to: 'ofir', level: 'ring', exempt: 'clock', overdue: true, title: (i) => `ה־Highlights של ${i.name} עוד לא הועלו לרשתות`, body: (i, env) => `עברו 30 דקות עבודה מאז שהוכנו (היעד היה ${whenText(i.anchors.due, env.now)}). להעלות לעמודי הלקוח ולסמן.` },
+    ],
+  },
+
   // The client moved on to the next station: Irit, quietly, with the ready text for
   // the client's group (she sends it herself; the same message is a milestone in
   // the messages queue that day).
@@ -1356,6 +1439,79 @@ export const RULES = [
   ...STATUS_RULES,
 ];
 RULES.push(...YEAR_RULES);
+
+// ── Exceptional contracts and their approval (the owner's decisions of 6.10.2026) ──
+// One self-contained block (its import included). `env.approvals`: the quotes that went
+// for approval (public.quotes with approval <> 'none'; app/approvals-logic.js), each
+// with `seller_email` when it was prepared from a deal of the field.
+//   contractApproval  Irit sent an exceptional contract for approval: the owner, Ofir
+//     and Lior ring at once ("חוזה חריג לאישור: <עסק>", a protocol clock: not counted in
+//     the daily cap). Nobody decided within 30 office minutes: they ring once more, and
+//     whoever prepared it is told quietly. Whoever prepared it does not ring for it.
+//     A decision, a corrected version (a new case, by its version) or a cancellation
+//     ends the case, so nothing more is sent.
+//   contractDecided   approved or not: whoever prepared it rings ("החוזה של <עסק> אושר
+//     — אפשר לשלוח" / "לא אושר: …"), and the seller of the deal hears quietly.
+import { APPROVERS, APPROVAL_NUDGE_MINUTES, businessOf as contractBusiness, preparedBy as contractPreparedBy } from './approvals-logic.js';
+const contractNote = (q) => { const t = String(q.approval_note || '').replace(/\s+/g, ' ').trim(); return t.length > 90 ? `${t.slice(0, 90)}…` : t; };
+const contractCase = (env, q) => {
+  const preparer = env.personOf(contractPreparedBy(q)) || 'irit';
+  return {
+    cid: null, quote: q, name: contractBusiness(q), preparer, url: MINE_URL,
+    seller: env.personOf(q.seller_email),
+    // Whoever prepared it knows about it (Ofir and Lior cannot approve their own anyway).
+    approvers: APPROVERS.filter((p) => p !== preparer),
+  };
+};
+RULES.push(
+  {
+    id: 'contractApproval', event: 'חוזה חריג: ממתין לאישור מנהל', procs: [],
+    instances(env) {
+      return (env.approvals || []).filter((q) => q.status === 'sent' && q.approval === 'pending' && parseDate(q.submitted_at || q.created_at)).map((q) => {
+        const at = parseDate(q.submitted_at || q.created_at);
+        return { ...contractCase(env, q), id: `${q.id}@v${q.version || 1}`, anchors: { event: at, nudge: addWorkingMinutes(at, APPROVAL_NUDGE_MINUTES) } };
+      });
+    },
+    steps: [
+      {
+        id: 'now', to: (i) => i.approvers, level: 'ring', exempt: 'clock',
+        title: (i) => `חוזה חריג לאישור: ${i.name}`,
+        body: (i) => [`הכין/ה: ${personName(i.preparer)}`, ...(Array.isArray(i.quote.exceptions) ? i.quote.exceptions : []).map((e) => e?.text).filter(Boolean).slice(0, 3)].join(' · '),
+      },
+      {
+        id: 'again', from: 'nudge', to: (i) => i.approvers, level: 'ring', exempt: 'clock',
+        title: (i) => `עדיין מחכה לאישור: החוזה החריג של ${i.name}`,
+        body: () => `עברו ${APPROVAL_NUDGE_MINUTES} דקות עבודה. מספיק שאחד מכם יאשר או יחזיר עם הערה.`,
+      },
+      {
+        id: 'wait', from: 'nudge', to: (i) => i.preparer, level: 'quiet', when: (i) => i.preparer !== OWNER,
+        title: (i) => `עוד לא הוחלט על החוזה החריג של ${i.name}`,
+        body: () => 'נשלחה תזכורת נוספת לאדם, לאופיר ולליאור.',
+      },
+    ],
+  },
+  {
+    id: 'contractDecided', event: 'חוזה חריג: התקבלה החלטה', procs: [],
+    instances(env) {
+      return (env.approvals || []).filter((q) => ['approved', 'rejected'].includes(q.approval) && q.status !== 'cancelled' && parseDate(q.approval_at)).map((q) => ({
+        ...contractCase(env, q), id: `${q.id}@v${q.version || 1}.${q.approval}`, ok: q.approval === 'approved', anchors: { event: parseDate(q.approval_at) },
+      }));
+    },
+    steps: [
+      {
+        // Not to the one who decided (the owner approving his own contract).
+        id: 'prep', to: (i) => i.preparer, level: 'ring', exempt: 'clock', when: (i) => i.preparer !== i.quote.approval_by,
+        title: (i) => (i.ok ? `החוזה של ${i.name} אושר — אפשר לשלוח` : `החוזה של ${i.name} לא אושר: ${contractNote(i.quote)}`),
+        body: (i) => (i.ok ? `אישר/ה ${personName(i.quote.approval_by)}. הקישור ללקוח ב״המשימות שלי״ וב״הצעות שנשלחו״.` : `${personName(i.quote.approval_by)} החזיר/ה לתיקון. ״תיקון ושליחה מחדש״ ב״המשימות שלי״.`),
+      },
+      {
+        id: 'seller', to: (i) => i.seller, level: 'quiet', when: (i) => !!i.seller && i.seller !== i.preparer && i.seller !== OWNER,
+        title: (i) => (i.ok ? `החוזה של ${i.name} אושר` : `החוזה של ${i.name} לא אושר — בתיקון`),
+        body: (i) => (i.ok ? 'עירית שולחת אותו ללקוח.' : 'עירית מתקנת ושולחת שוב לאישור המנהל.'),
+      },
+    ],
+  },
+);
 
 const NO_CHARACTERIZER = 'אין מי שייצא לאפיון';
 // Exceptions that ring Lior at once instead of waiting for his 12:00 and 16:00 lists.
