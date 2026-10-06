@@ -115,7 +115,7 @@ begin
   values (true, extensions.crypt(p_code, extensions.gen_salt('bf', 10)), now(), me)
   on conflict (id) do update set code_hash = excluded.code_hash, set_at = excluded.set_at, set_by = excluded.set_by;
   -- Everyone's unlocks end, and so do the counts and lockouts of the code before it.
-  delete from private.vault_unlocks;
+  delete from private.vault_unlocks where true;
   insert into public.vault_code_log (email, event) values (me, case when had then 'changed' else 'set' end);
   return jsonb_build_object('set', true, 'changedAt', now());
 end $$;
