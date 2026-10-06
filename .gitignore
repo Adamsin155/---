@@ -4,3 +4,6 @@ private/
 
 # Temporary agent worktrees
 .claude/worktrees/
+
+# Local live-test scripts, screenshots and import data (may hold passwords and client data). Never commit.
+.playwright-mcp/
