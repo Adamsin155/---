@@ -8,6 +8,14 @@ import { packageDeliverables, IMPORT_NOTE } from './protocol-logic.js';
 // Every check an import makes carries exactly this note, so reports can leave it out.
 export { IMPORT_NOTE };
 
+// "New, opened by itself": only a client the signing trigger opened from a signed
+// agreement. A batch import also writes without a session (created_by_email is
+// 'system'), but it has no agreement and its history is marked "ייבוא": such a client
+// is not news, so it gets no "לקוח חדש נפתח אוטומטית" note, no "חדש" tag and no alert
+// (found 6.10.2026, after 39 clients were imported). `checks`: the client's own, by item key.
+export const isImportedClient = (checks) => Object.values(checks || {}).some((c) => c?.note === IMPORT_NOTE);
+export const openedBySigning = (client, checks) => !!client && client.created_by_email === 'system' && !!client.quote_id && !isImportedClient(checks);
+
 // A package by its name, as the signing trigger writes it ("Social all in one · נטלי דדון").
 export function packageName(id) {
   const p = PACKAGES[id];

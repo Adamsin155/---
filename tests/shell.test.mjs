@@ -14,7 +14,7 @@ import { isManager } from '../app/manager-rules.js';
 import { firstScreenOf } from '../app/office-ui.js';
 import { worksCycle } from '../app/month-ui.js';
 import {
-  menuOf, barOf, currentOf, inMenu, officeScreens, pageOf, initialsOf, nameOf, avatarFill, AVATAR_FILL, seesGantt, editsGantt,
+  menuOf, barOf, groupsOf, GROUP_FROM, currentOf, inMenu, officeScreens, pageOf, initialsOf, nameOf, avatarFill, AVATAR_FILL, seesGantt, editsGantt,
 } from '../app/shell-rules.js';
 
 const v = (me) => ({ me, scope: scopeOf(me), error: null });
@@ -168,4 +168,30 @@ test('no menu has a duplicate entry, for any role: not by id, not by address, no
   }
   assert.equal(menuOf(v('ilai')).filter((it) => it.label === 'המשימות שלי').length, 1);
   assert.deepEqual(menuOf(v('ilai')).find((it) => it.id === 'gantt'), { id: 'gantt', href: 'gantt.html', label: 'גאנט תוכן' });
+});
+
+// The simplicity pass of 6.10.2026: the office's menus ran 11 to 16 entries in one list.
+test('a long menu is two parts: the daily screens, then the rest under "עוד"; nothing is lost and a short menu stays one list', () => {
+  const parts = (viewer) => { const g = groupsOf(menuOf(viewer), viewer); return [g.daily.map((it) => it.id), g.rest.map((it) => it.id)]; };
+  assert.deepEqual(parts(OWNER), [['mine', 'manager', 'clients', 'decisions', 'messages'], ['gantt', 'qa', 'pass', 'insights', 'year', 'prep', 'shoot', 'shoot-table', 'quote', 'quotes', 'team']]);
+  assert.deepEqual(parts(v('irit')), [['mine', 'manager', 'clients', 'messages', 'quote', 'quotes'], ['gantt', 'year', 'prep', 'shoot', 'team']]);
+  assert.deepEqual(parts(v('lior')), [['mine', 'overview', 'clients', 'decisions', 'messages'], ['gantt', 'qa', 'insights', 'year', 'prep', 'shoot', 'shoot-table', 'quote', 'quotes', 'team']]);
+  assert.deepEqual(parts(v('ofir')), [['mine', 'manager', 'clients', 'qa', 'pass'], ['gantt', 'decisions', 'year', 'prep', 'shoot', 'shoot-table', 'quote', 'quotes']]);
+  for (const viewer of [OWNER, ...ROLES.map(v), { me: null, scope: 'own', error: new Error('x') }, null]) {
+    const items = menuOf(viewer);
+    const g = groupsOf(items, viewer);
+    const who = viewer?.me || 'owner';
+    // Every entry once, each part in the menu's own order.
+    assert.deepEqual([...g.daily, ...g.rest].map((it) => it.id).sort(), items.map((it) => it.id).sort(), who);
+    for (const part of [g.daily, g.rest]) assert.deepEqual(part, items.filter((it) => part.includes(it)), who);
+    // A short menu is not split; a split one keeps at most six on top.
+    if (items.length <= GROUP_FROM) assert.deepEqual(g, { daily: items, rest: [] }, who);
+    else assert.ok(g.daily.length >= 3 && g.daily.length <= 6 && g.rest.length > 0, who);
+    // What the phone's bar holds is always among the daily screens, and so is the role's first screen.
+    const bar = barOf(items, viewer).bar;
+    for (const it of bar) assert.ok(g.daily.includes(it), `${who}: ${it.id} is in the bar but not daily`);
+    const first = firstScreenOf(viewer?.me, viewer, null);
+    if (first && g.rest.length) assert.ok(g.daily.some((it) => it.href.split('#')[0] === first.split('#')[0]), `${who}: the first screen is daily`);
+  }
+  for (const who of ['ilai', 'nadia', 'eli', 'stav']) assert.deepEqual(groupsOf(menuOf(v(who)), v(who)).rest, [], who);
 });

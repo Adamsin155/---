@@ -38,6 +38,16 @@
 .st-under .err { margin-top: 6px; }
 .st-count { margin-inline-start: auto; color: var(--ds-muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .st-more { justify-self: start; min-height: 44px; }
+/* The giver's row: the title (and "nothing open") beside "משימה חדשה"; the lists fold under it. */
+.st-top { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; min-width: 0; }
+.st-top-t { display: grid; gap: 2px; min-width: 0; }
+.st-top .btn { min-height: 44px; }
+.st-card.is-quiet { padding-block: 10px; gap: 4px; }
+.st-card.is-quiet h2 { font-size: 16px; font-family: inherit; font-weight: 600; }
+.st-folds { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
+.st-fold-h { margin: 0; font: inherit; }
+.st-more[aria-expanded]::after { content: ''; display: inline-block; inline-size: 7px; block-size: 7px; margin-inline-start: 8px; border: solid currentColor; border-width: 0 2px 2px 0; transform: translateY(-3px) rotate(45deg); }
+.st-more[aria-expanded='true']::after { transform: translateY(1px) rotate(-135deg); }
 @media (max-width: 480px) {
   .st-acts .btn { flex: 1 1 40%; }
   .st-acts .st-done, .st-acts .st-send { flex-basis: 100%; }

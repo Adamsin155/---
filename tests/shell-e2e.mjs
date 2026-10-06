@@ -89,6 +89,10 @@ await step('a wide screen: the side menu, the rail on the current screen, the na
     assert.ok(rail.y >= cur.y - 1 && rail.y + rail.height <= cur.y + cur.height + 1, `the rail is not on ${sel}: ${JSON.stringify([rail, cur])}`);
   };
   await railOn('#mode-mine');
+  // A long menu is two parts: the daily screens, then the rest under a quiet "עוד" heading; every entry stays visible.
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#side-list .side-link, #side-list .side-k')].map((e) => e.textContent.trim())),
+    ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'הודעות ללקוחות', 'הצעה חדשה', 'הצעות שנשלחו', 'עוד', 'גאנט תוכן', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'צוות']);
+  assert.equal(await page.locator('#side-list .side-link:visible').count(), 11);
   // The lists of clients.html are the "לקוחות" entry: the rail slides there without a page load.
   await page.click('#side-clients');
   await page.waitForSelector('#view-clients:not([hidden])');
@@ -233,7 +237,8 @@ await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and 
   await page.click('#side-more');
   assert.equal(await page.evaluate(() => document.activeElement.closest('#side-sheet') !== null), true);
   assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(),
-    ['כל הלקוחות במבט', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'הודעות ללקוחות', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה', 'הצעות שנשלחו', 'צוות']);
+    // His daily screens first, then the rest (groupsOf in app/shell-rules.js, 6.10.2026).
+    ['כל הלקוחות במבט', 'הודעות ללקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה', 'הצעות שנשלחו', 'צוות']);
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'side-more');
   // A screen behind "עוד" marks "עוד" as where you are.

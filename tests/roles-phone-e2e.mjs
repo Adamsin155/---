@@ -27,12 +27,15 @@ const PHONE = { width: 375, height: 740 };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const errors = [];
 const worlds = [];
-async function open(role, { viewport = PHONE, full = false } = {}) {
+async function open(role, { viewport = PHONE, full = false, prepare = null, calendar = false } = {}) {
   const db = buildWorld();
+  if (prepare) prepare(db);
   const fake = makeFake(db);
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, isMobile: viewport.width < 700, hasTouch: viewport.width < 700 });
   await ctx.clock.install({ time: NOW });
   await ctx.route(`${SUPA}/**`, fake.route);
+  // "היומן שלי" is offered, not connected yet (the fake has no such function otherwise).
+  if (calendar) await ctx.route(`${SUPA}/rest/v1/rpc/calendar_feed_status`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]', headers: { 'access-control-allow-origin': '*' } }));
   if (full) await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${role}: ${e}`));
@@ -328,6 +331,7 @@ await step('Ilai stays on "המשימות שלי": his cards first, the draft mo
   await settle(page);
   assert.equal(await pageName(page), 'clients.html#mine');
   assert.equal(await page.innerText('h1'), 'שלום עילאי');
+  assert.equal(await page.innerText('#mine-list .g-soon .wgroup-h'), 'בקרוב · עוד אין מה לסמן\n' + await page.innerText('#mine-list .g-soon .wgroup-h .n'));
   await tidy(page, 'ilai');
   assert.deepEqual(await page.locator('.tabs [role=tab]:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הנתונים שלי']);
   for (const id of ['btn-new', 'cta-owner', 'cta-messages', 'cta-prep', 'tab-control']) assert.equal(await page.locator(`#${id}`).isVisible(), false, id);
@@ -400,6 +404,88 @@ await step('Stav lands on "עסקה חדשה", sees his deals, and is offered no
   await page.waitForURL(/deal\.html/);
 });
 
+// ── The first screen is the work (the simplicity pass of 6.10.2026) ──
+// Found on the live site with 39 imported clients: on a phone the person's work began
+// a full screen down, under the giver's card, "ההתראות חסומות", "היומן שלי" and a box
+// of 41 notes about clients the system itself had imported.
+const firstTop = (page, sel) => page.evaluate((s) => { const el = [...document.querySelectorAll(s)].find((e) => e.getBoundingClientRect().height > 0); return el ? Math.round(el.getBoundingClientRect().top + scrollY) : null; }, sel);
+const boxOf = async (page, sel) => { const b = await page.locator(sel).boundingBox(); return b ? Math.round(b.height) : 0; };
+// A batch import: written by the system itself, no agreement, the history marked "ייבוא".
+const imported = (db) => { for (const c of db.clients) { c.created_by_email = 'system'; c.quote_id = null; } };
+
+await step('Irit: imported clients are not news, the setup cards are one line each, and one plain heading', async () => {
+  const { page } = await open('irit', { viewport: { width: 390, height: 844 }, prepare: imported, calendar: true });
+  await page.waitForSelector('#mine-list .wproc.wc');
+  await page.waitForSelector('#cal-card:not([hidden])');
+  await settle(page);
+  assert.equal(await page.innerText('h1'), 'שלום עירית');
+  // No "לקוח חדש נפתח אוטומטית … ועוד 38", and no "חדש" tag on an imported client, here or in the list.
+  assert.equal(await page.locator('.auto-banner').count(), 0);
+  assert.equal(await page.locator('#mine-list .auto-tag').count(), 0);
+  assert.doesNotMatch(await page.innerText('#view-mine'), /נפתח אוטומטית/);
+  // The giver's card: one row with "משימה חדשה"; the form opens on demand.
+  assert.ok(await boxOf(page, '#staff-tasks-card') <= 84, `the giver's card is ${await boxOf(page, '#staff-tasks-card')}px`);
+  assert.equal(await page.innerText('#st-new'), 'משימה חדשה');
+  assert.equal(await page.locator('#st-form').count(), 0);
+  // Blocked notifications (the test browser blocks them) and the calendar: a line each, the text a tap away.
+  assert.equal(await page.getAttribute('#push-card', 'data-state'), 'blocked');
+  assert.ok(await boxOf(page, '#push-card') <= 56, `the notifications card is ${await boxOf(page, '#push-card')}px`);
+  assert.ok(await boxOf(page, '#cal-card') <= 56, `the calendar card is ${await boxOf(page, '#cal-card')}px`);
+  assert.equal(await page.locator('#push-card p:visible, #cal-card p:visible, #cal-make:visible').count(), 0);
+  for (const sel of ['#push-card summary', '#cal-card summary']) assert.ok(await boxOf(page, sel) >= 44, sel);
+  await page.click('#push-card summary');
+  assert.match(await page.innerText('#push-card'), /ההתראות חסומות[^]*לאפשר/);
+  await page.click('#cal-card summary');
+  assert.ok(await page.locator('#cal-make').isVisible());
+  assert.ok((await page.locator('#cal-make').boundingBox()).height >= 44);
+  await page.click('#push-card summary');
+  await page.click('#cal-card summary');
+  // The three cards together take less room than one of them did.
+  const used = await boxOf(page, '#staff-tasks-card') + await boxOf(page, '#push-card') + await boxOf(page, '#cal-card');
+  assert.ok(used <= 190, `the giver's row and the two setup lines take ${used}px`);
+  await tidy(page, 'irit first screen');
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#view-mine a, #view-mine button, #view-mine summary, #view-mine select')]
+    .filter((el) => { const b = el.getBoundingClientRect(); return b.height > 0 && b.height < 43.5; }).map((el) => `${el.innerText.trim().slice(0, 20)}:${Math.round(el.getBoundingClientRect().height)}`)), [], 'targets under 44px in "המשימות שלי"');
+  await shot(page, 'irit-03-first-screen');
+  // The clients list: no "חדש · נפתח אוטומטית מהסכם" on an imported client, and a 44px search box.
+  await page.click('#tab-clients');
+  await page.waitForSelector('#client-list .crow');
+  assert.equal(await page.locator('#client-list .auto-tag').count(), 0);
+  assert.ok(await boxOf(page, '#client-search') >= 44);
+});
+
+await step('Ilai and an editor: the first card of work is on the first screen of a phone', async () => {
+  const ilai = await open('ilai', { viewport: { width: 390, height: 844 }, calendar: true });
+  await ilai.page.waitForSelector('#mine-list .g-ilai');
+  await ilai.page.waitForSelector('#cal-card:not([hidden])');
+  await settle(ilai.page);
+  const top = await firstTop(ilai.page, '#mine-list .il-list > li');
+  assert.ok(top !== null && top < 560, `Ilai's first card starts at ${top}px (it was about 690)`);
+  assert.match(await ilai.page.innerText('#mine-list .il-list > li >> nth=0'), /מוכן לבדיקה/);
+  const nadia = await open('nadia', { viewport: { width: 390, height: 844 }, calendar: true });
+  await nadia.page.goto(`${BASE}clients.html#mine`);
+  await nadia.page.waitForSelector('#mine-list .wproc');
+  await nadia.page.waitForSelector('#cal-card:not([hidden])');
+  await settle(nadia.page);
+  assert.equal(await nadia.page.innerText('h1'), 'שלום נדיה');
+  const ntop = await firstTop(nadia.page, '#mine-list .wproc');
+  assert.ok(ntop !== null && ntop < 560, `Nadia's first card starts at ${ntop}px (it was about 660)`);
+  // She gives no tasks and has none: no card at all.
+  assert.equal(await nadia.page.locator('#staff-tasks-card').isVisible(), false);
+});
+
+await step('Lior, Ofir and the owner: the same heading rule, and a list of several items opens with "הצגת הפריטים"', async () => {
+  for (const [role, title] of [['lior', 'שלום ליאור'], ['ofir', 'שלום אופיר'], ['owner', 'לקוחות ומשימות']]) {
+    const { page } = await open(role);
+    await page.goto(`${BASE}clients.html#mine`);
+    await page.waitForSelector('#mine-list .wproc.wc');
+    await settle(page);
+    assert.equal(await page.innerText('h1'), title, role);
+    assert.doesNotMatch(await page.innerText('#view-mine'), /פתיחת הרשימה|עוד לא לסימון/, role);
+    if (role === 'lior') assert.match(await page.locator('#mine-list .wc-open').first().innerText(), /^הצגת הפריטים \(\d+\)$/);
+  }
+});
+
 // ── 360px and a wide screen ───────────────
 await step('at 360px nothing scrolls sideways, on Irit\'s list and with a card open', async () => {
   const { page } = await open('irit', { viewport: { width: 360, height: 720 } });
@@ -417,7 +503,8 @@ await step('on a wide screen the screens are the side menu, with a rail on the c
   await settle(page);
   assert.equal(await page.locator('#side-more').isVisible(), false);
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(),
-    ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'לפני יום צילום', 'הודעות ללקוחות', 'ימי צילום', 'הצעה חדשה', 'הצעות שנשלחו', 'צוות']);
+    // Her daily screens first, then the rest under "עוד" (groupsOf in app/shell-rules.js, 6.10.2026).
+    ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'הודעות ללקוחות', 'הצעה חדשה', 'הצעות שנשלחו', 'גאנט תוכן', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'צוות']);
   for (const id of ['cta-messages', 'cta-prep', 'cta-year']) assert.equal(await page.locator(`#${id}`).isVisible(), false, `${id} is in the menu, not in the head`);
   // The side menu floats beside the page (on the right, RTL), and the rail marks "המשימות שלי".
   const side = await page.locator('#app-side').boundingBox();

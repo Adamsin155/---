@@ -15,7 +15,7 @@ import { h } from './quote-doc.js';
 import { PEOPLE, scopeOf } from './protocol.js';
 import { setMode } from './manager-rules.js';
 import {
-  menuOf, barOf, currentOf, inMenu, avatarFill, initialsOf, nameOf,
+  menuOf, barOf, groupsOf, currentOf, inMenu, avatarFill, initialsOf, nameOf,
 } from './shell-rules.js';
 
 const WIDE = '(min-width: 1024px)';
@@ -139,6 +139,10 @@ function linkOf(item) {
 function build(viewer, email) {
   const items = menuOf(viewer);
   const { bar, more } = barOf(items, viewer);
+  // A long menu: the daily screens first, the rest under a quiet "עוד" heading (shell-rules.js groupsOf).
+  const groups = groupsOf(items, viewer);
+  const restHead = groups.rest.length ? h('small', { class: 'side-k side-k-rest', id: 'side-rest-h' }, 'עוד') : null;
+  const dailyFirst = (its) => [...its.filter((it) => groups.daily.includes(it)), ...its.filter((it) => !groups.daily.includes(it))];
   const links = new Map(items.map((it) => [it.id, linkOf(it)]));
   const modes = items.filter((it) => it.mode);
   // The managers' switch keeps its own group and ids, as the first entries of the menu.
@@ -172,7 +176,8 @@ function build(viewer, email) {
     list.replaceChildren(...(modeBar ? [modeBar] : []));
     sheet.replaceChildren();
     modeBar?.replaceChildren();
-    if (wide || !more.length) { place(list, items); moreBtn.remove(); } else { place(list, bar); list.append(moreBtn); place(sheet, more); }
+    if (wide && restHead) { place(list, groups.daily); list.append(restHead); place(list, groups.rest); moreBtn.remove(); }
+    else if (wide || !more.length) { place(list, items); moreBtn.remove(); } else { place(list, bar); list.append(moreBtn); place(sheet, dailyFirst(more)); }
     side.style.setProperty('--bar-n', String(wide ? 1 : Math.max(1, (more.length ? bar.length + 1 : items.length))));
     mark();
   };

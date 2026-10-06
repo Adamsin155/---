@@ -272,6 +272,11 @@ let firstUrl = null;
 
 await step('"היומן שלי" in "המשימות שלי": not connected, one button', async () => {
   await signIn(lior, 'clients.html#mine', 'lior@astrateg.test');
+  // One quiet line until it is opened (6.10.2026): the text and the button are a tap away.
+  await lior.waitForSelector('#cal-card:not([hidden]) summary');
+  assert.equal(await lior.locator('#cal-make').isVisible(), false);
+  assert.match(await text(lior, '#cal-card summary'), /היומן שלי\s*חיבור ליומן של הטלפון/);
+  await lior.click('#cal-card summary');
   await lior.waitForSelector('#cal-card:not([hidden]) #cal-make');
   assert.equal(await text(lior, '#cal-h'), 'היומן שלי');
   assert.match(await text(lior, '#cal-card'), /ימי הצילום, הפגישות והיעדים שלך/);
@@ -319,6 +324,9 @@ await step('connect: the link once, copy puts it on the clipboard, Apple and Goo
 
 await step('"קישור חדש" replaces the link (the old one answers 404); the calendar\'s last read shows', async () => {
   await lior.reload();
+  await lior.waitForSelector('#cal-card:not([hidden]) summary');
+  assert.match(await text(lior, '#cal-card summary'), /היומן שלי\s*מחובר/);
+  await lior.click('#cal-card summary');
   await lior.waitForSelector('#cal-card:not([hidden]) #cal-rotate');
   // After a reload the link is not shown again (only its hash exists); the card says when it was read.
   assert.equal(await lior.locator('#cal-url').count(), 0);

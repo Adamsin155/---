@@ -12,6 +12,8 @@
 .side-logo img { display: block; block-size: 58px; inline-size: auto; }
 .side-nav { position: relative; display: grid; gap: 2px; }
 .side-k { color: var(--ds-muted); font-size: 12.5px; padding: 4px 12px; }
+/* The second part of a long menu: a hairline and a quiet heading. */
+.side-k-rest { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--ds-line); }
 .side-list, .mode-bar { display: grid; gap: 2px; }
 .side-link {
   display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 12px;

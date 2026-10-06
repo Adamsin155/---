@@ -260,6 +260,26 @@ try {
     await shot(irit, '03-irit-open');
   });
 
+  // The simplicity pass of 6.10.2026: the giver's card stood, a screen tall, before her own work.
+  await step('on entering, the giver\'s part is one row: "משימה חדשה" and "פתוחות (1)", and the list opens on demand', async () => {
+    await irit.reload();
+    await irit.locator('#st-open-toggle').waitFor();
+    assert.equal(await text(irit, `${CARD} h2`), 'משימות מיידיות');
+    assert.equal(await text(irit, '#st-open-h'), 'פתוחות (1)');
+    assert.equal(await irit.getAttribute('#st-open-toggle', 'aria-expanded'), 'false');
+    assert.equal(await irit.locator(`${CARD} .st-item`).count(), 0);
+    assert.equal(await irit.locator('#st-form').count(), 0);
+    const box = await irit.locator(CARD).boundingBox();
+    assert.ok(box.height <= 130, `the folded card is ${Math.round(box.height)}px tall`);
+    assert.deepEqual(await smallTargets(irit, `${CARD} .btn, ${CARD} .btn-text`), []);
+    await shot(irit, '03b-irit-folded');
+    await irit.click('#st-open-toggle');
+    assert.equal(await irit.getAttribute('#st-open-toggle', 'aria-expanded'), 'true');
+    assert.equal(await irit.evaluate(() => document.activeElement.id), 'st-open-toggle');
+    assert.match(await irit.locator(`${CARD} .st-item`).innerText(), /נדיה\s*פתוחה\s*להעלות את הסרטון/);
+    assert.equal(await text(irit, `${CARD} [data-act="cancel"]`), 'ביטול המשימה');
+  });
+
   const nadia = await newPage({ width: 360, height: 760 });
   await step('Nadia on a 360px phone: "משימות שקיבלת (1)", who gave it and when, the next reminder, and "בוצע"', async () => {
     await signIn(nadia, 'clients.html#mine', 'nadia');
