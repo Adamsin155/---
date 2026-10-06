@@ -1,4 +1,4 @@
--- The owner's decision of 6.10.2026 (docs/ops.md, section 27): protocol version 7.
+-- The owner's decision of 6.10.2026 (docs/ops.md, section 28): protocol version 7.
 --   A new process 8ב "העלאת ה־Highlights לרשתות" (app/protocol.js): once the
 --   Highlights are prepared (process 8 complete), Ofir has 30 office minutes to
 --   upload them to the client's pages and mark it (item p08b.posted). The clock, the
