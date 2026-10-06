@@ -546,8 +546,8 @@ async function refreshSession() {
     const staff = await s.currentStaff();
     $('session-dot').classList.toggle('on', !!staff?.isStaff);
     $('session-who').textContent = staff ? staff.email : 'לא מחובר';
-    // The managers' switch, "המשימות שלי" / "מבט מנהל" (app/manager-ui.js).
-    if (staff?.isStaff) import('./manager-ui.js').then((m) => m.mountModeSwitch(staff.email)).catch(() => {});
+    // The app shell: the menu of this person's screens, with the managers' switch (app/shell.js).
+    if (staff?.isStaff) import('./shell.js').then((m) => m.mountShell(staff.email)).catch(() => {});
     return staff;
   } catch {
     return null;

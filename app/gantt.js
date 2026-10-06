@@ -16,6 +16,7 @@ import {
 } from './gantt-logic.js';
 import { termOf } from './year-logic.js';
 import { dayKeyIL } from './tz.js';
+import { glide } from './shell.js'; // a day or a month chosen: the calendar changes softly
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -254,7 +255,7 @@ function renderMonth() {
   $('gm-pills').replaceChildren(h('ul', {}, ...months.map((m) => h('li', {},
     h('button', {
       type: 'button', class: `gt-pill${m.key === now ? ' is-today' : ''}`, 'aria-current': m.year === year && m.month === month ? 'true' : null,
-      'aria-label': monthName(m.year, m.month), onclick: () => { shown = { year: m.year, month: m.month }; selectedDay = null; renderMonth(); },
+      'aria-label': monthName(m.year, m.month), onclick: () => glide(() => { shown = { year: m.year, month: m.month }; selectedDay = null; renderMonth(); }),
     }, h('span', {}, shortMonth(m.year, m.month)), h('span', { class: 'gt-pill-y' }, String(m.year).slice(2)))))));
   $('gm-pills').querySelector('[aria-current="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
   const visible = rows.filter((e) => e.day.slice(0, 7) === `${year}-${String(month).padStart(2, '0')}`);
@@ -325,9 +326,11 @@ function renderGrid(year, month, visible) {
   $('gm-grid').replaceChildren(h('table', { class: 'gt-grid', 'aria-label': `לוח ${monthName(year, month)}` }, h('thead', {}, head), h('tbody', {}, ...body)));
 }
 function selectDay(key) {
-  selectedDay = selectedDay === key ? null : key;
-  renderMonth();
-  if (selectedDay) $('gm-day').scrollIntoView({ block: 'nearest' });
+  glide(() => {
+    selectedDay = selectedDay === key ? null : key;
+    renderMonth();
+    if (selectedDay) $('gm-day').scrollIntoView({ block: 'nearest' });
+  });
 }
 
 // ── The list (phones, and the selected day) ─
@@ -613,7 +616,7 @@ function step(d) {
   const months = calendarMonths(client);
   const i = months.findIndex((m) => m.year === shown.year && m.month === shown.month);
   const next = months[i + d];
-  if (next) { shown = { year: next.year, month: next.month }; selectedDay = null; renderMonth(); }
+  if (next) glide(() => { shown = { year: next.year, month: next.month }; selectedDay = null; renderMonth(); });
 }
 $('gm-prev').addEventListener('click', () => step(-1));
 $('gm-next').addEventListener('click', () => step(1));

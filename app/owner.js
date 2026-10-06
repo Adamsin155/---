@@ -9,7 +9,7 @@
 import { PEOPLE } from './protocol.js';
 import { clientState, weekKey } from './protocol-logic.js';
 import {
-  loadClients, loadChecks, loadTasks, loadAllLog, loadStatusNotes, loadReviews, loadDirectory,
+  loadClients, loadChecks, loadTasks, loadTasksDoneSince, loadAllLog, loadStatusNotes, loadReviews, loadDirectory,
 } from './protocol-data.js';
 import {
   loadMessagesSince, loadAccessStatus, loadDateChanges, loadQuestions, askQuestion, withdrawQuestion, loadLogFor,
@@ -33,6 +33,9 @@ import {
   tableRow, columnsFor, filterRows, sortRows, filterOptions, toCsv, csvName, DEFAULT_FILTERS, dayText as dmy, moneyText,
 } from './manager-table.js';
 import { fileCounts } from './contract-summary.js';
+// The week's chart on screen 1 (the counting: app/week-chart.js) and the page's motion (app/shell.js).
+import { weekClosings, weekSummary, weekLabel } from './week-chart.js';
+import { countUp, growOnce, glide } from './shell.js';
 import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeClient } from './manager-data.js';
 
 let viewer = null;
@@ -41,6 +44,7 @@ let allClients = [];   // every client, for the on-time trend
 let clients = [];      // active and ending: the ones with a colour
 let checks = {};
 let tasks = [];
+let doneTasks = null;  // tasks marked done since Sunday, for the week's chart (null: not loaded)
 let log = null;        // protocol_log of the last 8 weeks (null: not loaded)
 let messages = null;   // client_messages of the last 30 days
 let access = null;     // login statuses
@@ -108,6 +112,7 @@ async function doLoad() {
     loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }), loadReviews(dayKeyIL(new Date(now.getTime() - 14 * 864e5))),
     loadDateChanges({ sinceIso: since30.toISOString() }), loadQuestions({ sinceIso: since30.toISOString() }), loadLogFor(hist),
     showMoney ? loadFinance() : null, mayTable ? loadDeliverableFiles() : null,
+    loadTasksDoneSince(officeWeekStart(now)),
   ]);
   const ok = (i) => (got[i].status === 'fulfilled' ? got[i].value : null);
   [log, messages, access, notes, reviews, changes] = [0, 1, 2, 3, 4, 5].map(ok);
@@ -115,6 +120,7 @@ async function doLoad() {
   questions = ok(6) || [];
   finance = ok(8);
   files = ok(9);
+  doneTasks = ok(10);
   lastLoad = Date.now();
   $('state').textContent = '';
   compute();
@@ -236,16 +242,43 @@ function statTiles(now) {
   const shoots = shootsAhead(clients, now);
   return [
     h('li', { class: 'ow-stat ow-colors' }, h('span', { class: 'k' }, 'לקוחות'),
+      h('strong', { class: 'v ds-num' }, String(counts.red + counts.yellow + counts.green)),
       h('span', { class: 'ow-cc' }, ...['red', 'yellow', 'green'].map((k) => h('span', { class: `ow-c h-${k}` },
         h('span', { class: 'hicon', 'aria-hidden': 'true' }), h('strong', { class: 'v-sm' }, String(counts[k])), ` ${COLORS[k]}`)))),
-    h('li', { class: 'ow-stat' }, h('span', { class: 'k' }, 'באיחור עכשיו'),
-      h('strong', { class: 'v' }, String(late)), h('span', { class: 'sub' }, late === 1 ? 'פריט אחד, בלי ממתין ללקוח' : 'פריטים, בלי ממתין ללקוח')),
+    h('li', { class: `ow-stat${late ? ' is-late' : ''}` }, h('span', { class: 'k' }, 'באיחור עכשיו'),
+      h('strong', { class: 'v ds-num' }, String(late)), h('span', { class: 'sub' }, late === 1 ? 'פריט אחד, בלי ממתין ללקוח' : 'פריטים, בלי ממתין ללקוח')),
     h('li', { class: 'ow-stat' }, h('span', { class: 'k' }, 'בזמן · 8 שבועות'),
-      h('span', { class: 'ow-trend' }, h('strong', { class: 'v' }, pct(trend.rate)), trend.done ? sparkline(trend) : null),
+      h('span', { class: 'ow-trend' }, h('strong', { class: 'v ds-num' }, pct(trend.rate)), trend.done ? sparkline(trend) : null),
       h('span', { class: 'sub' }, trend.done ? `${trend.onTime} מתוך ${trend.done} תהליכים` : 'עוד לא נסגרו תהליכים')),
     h('li', { class: 'ow-stat' }, h('span', { class: 'k' }, 'ימי צילום · 7 ימים'),
-      h('strong', { class: 'v' }, String(shoots.length)),
+      h('strong', { class: 'v ds-num' }, String(shoots.length)),
       h('span', { class: 'sub' }, shoots.length ? shoots.slice(0, 2).map((x) => `${x.client.name} ${dayText(x.at)}`).join(' · ') + (shoots.length > 2 ? ` ועוד ${shoots.length - 2}` : '') : 'אין בשבוע הקרוב')),
+  ];
+}
+
+// "משימות שנסגרו השבוע": a bar per office day, what was closed (solid) and what is
+// still open with that day as its deadline (hatched). The numbers stand above the
+// bars, today is marked, and the whole chart is read out as one sentence.
+const officeWeekStart = (now) => new Date(now.getTime() - 8 * 864e5).toISOString(); // generous: the counting keeps this week's days
+function weekCard(now) {
+  if (!doneTasks) return null; // the tasks closed this week did not load: no half chart
+  const w = weekClosings({ clients: allClients, stateOf, checksByClient: checks, doneTasks, openTasks: tasks, now });
+  const sum = weekSummary(w);
+  const pctOf = (n) => (w.max ? `${(n / w.max) * 100}%` : '0%');
+  return [
+    h('h2', { id: 'wk-h' }, 'משימות שנסגרו השבוע'),
+    h('p', { class: 'wk-sum', id: 'wk-sum' }, h('strong', {}, sum.lead), sum.rest),
+    h('div', { class: 'wk-bars', id: 'wk-bars', role: 'img', 'aria-label': weekLabel(w) }, ...w.days.map((d) => h('div', {
+      class: `wk-col${d.today ? ' is-today' : ''}`, title: `${d.name}: ${d.closed} נסגרו, ${d.open} פתוחות`, 'data-day': d.key,
+    },
+    h('b', { class: 'wk-n' }, String(d.closed || d.open), d.closed && d.open ? h('small', {}, ` +${d.open}`) : null),
+    h('div', { class: 'wk-stack' },
+      d.open ? h('div', { class: 'wk-seg is-open', style: `height:${pctOf(d.open)}` }) : null,
+      d.closed ? h('div', { class: 'wk-seg is-done', style: `height:${pctOf(d.closed)}` }) : null)))),
+    h('div', { class: 'wk-days', 'aria-hidden': 'true' }, ...w.days.map((d) => h('span', { class: d.today ? 'is-now' : null }, d.today ? `${d.short} · היום` : d.short))),
+    h('div', { class: 'wk-key', 'aria-hidden': 'true' },
+      h('span', {}, h('i', { class: 'wk-k-done' }), 'נסגרו'),
+      h('span', {}, h('i', { class: 'wk-k-open' }), 'פתוחות, היעד שלהן באותו יום')),
   ];
 }
 
@@ -287,9 +320,21 @@ function rowItem(r, i) {
       noLogin ? h('span', { class: 'muted ow-nologin' }, `אין ל${personName(r.who)} כניסה למערכת`) : null));
 }
 
+let shownOnce = false;
+let countStart = null;
 function renderNow() {
   const now = new Date();
   fill($('ow-stats'), statTiles(now));
+  const week = weekCard(now);
+  $('wk-card').hidden = !week;
+  fill($('wk-card'), week);
+  // The numbers count up and the bars grow the first time the screen shows them, never on a rebuild.
+  // (A second build within that moment, when the rest of the data lands, carries on from where it was.)
+  if (entries.length) {
+    countStart ??= performance.now();
+    countUp($('ow-stats'), countStart);
+    if (week && !shownOnce) { shownOnce = true; growOnce($('wk-card')); }
+  }
   const { rows, more } = ownerRows(entries, { office: officeReasons(reviews, now) });
   fill($('ow-rows'), rows.map(rowItem));
   capList($('ow-rows'), 8, 'ow:rows');
@@ -386,7 +431,8 @@ function clientItem(e, now) {
   const top = e.health.reasons[0];
   const open = expanded.has(c.id);
   const more = `ga-${c.id}`;
-  return h('li', { class: `ga-item h-${e.health.color}`, 'data-id': c.id },
+  // Its own name for the browser's view transition: a filter lets the clients that stay glide to their place.
+  return h('li', { class: `ga-item h-${e.health.color}`, 'data-id': c.id, style: `view-transition-name:ga-${String(c.id).replace(/[^\w-]/g, '')}` },
     h('button', { type: 'button', class: 'ga-row', id: `gab-${c.id}`, 'aria-expanded': String(open), 'aria-controls': more, onclick: () => toggle(c.id) },
       h('span', { class: 'ga-l1' }, healthBadge(e.health.color), h('strong', { class: 'ga-name' }, c.name),
         h('span', { class: 'ga-why' }, top ? `${reasonText(top)} · ${personName(top.who)}` : 'לפי התוכנית')),
@@ -408,7 +454,7 @@ function renderAll() {
   const count = (k) => entries.filter((e) => (k === '' ? true : k === 'waiting' ? e.station.waiting : e.health.color === k)).length;
   fill($('ga-filters'), FILTERS.map(([k, label]) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(colorFilter === k), id: `gaf-${k || 'all'}`,
-    onclick: () => { colorFilter = k; renderAll(); },
+    onclick: () => glide(() => { colorFilter = k; renderAll(); document.getElementById(`gaf-${k || 'all'}`)?.focus(); }),
   }, k && k !== 'waiting' ? h('span', { class: `hicon h-${k}`, 'aria-hidden': 'true' }) : null, label, h('span', { class: 'n' }, String(count(k))))));
   const top = (e) => e.health.reasons[0] || { color: 'green', code: '', days: 0 };
   const list = entries.filter(matches).sort((a, b) => bySeverity(top(a), top(b)) || String(a.client.name).localeCompare(String(b.client.name), 'he'));
@@ -425,7 +471,7 @@ function dayHead(d, now) {
 }
 function renderBoard(now) {
   fill($('board-range'), [[7, 'השבוע'], [30, '30 יום']].map(([d, label]) => h('button', {
-    type: 'button', class: 'chip', 'aria-pressed': String(boardDays === d), id: `range-${d}`, onclick: () => { boardDays = d; renderBoard(new Date()); },
+    type: 'button', class: 'chip', 'aria-pressed': String(boardDays === d), id: `range-${d}`, onclick: () => glide(() => { boardDays = d; renderBoard(new Date()); document.getElementById(`range-${d}`)?.focus(); }),
   }, label)));
   const events = upcomingEvents(clients, stateOf, now, boardDays, checks);
   fill($('board-sum'), Object.entries(KIND).map(([k, label]) => `${label}: ${events.filter((e) => e.kind === k).length}`).join(' · '));
