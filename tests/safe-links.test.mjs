@@ -8,6 +8,9 @@ import { readFileSync } from 'node:fs';
 import { safeUrlAttr } from '../app/quote-doc.js';
 import { safeLink } from '../app/gantt-logic.js';
 import { sitePage } from '../app/push-logic.js';
+import { MINE_URL, clientUrl, EDITOR_URL, SHOOT_URL } from '../app/reminder-rules.js';
+import { dealUrl } from '../app/deal-logic.js';
+import { homeUrl } from '../app/staff-tasks-logic.js';
 
 const src = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 
@@ -54,6 +57,12 @@ test('a notification opens a page of this site only', () => {
     assert.equal(sitePage(bad, base), null, String(bad));
   }
   assert.equal(sitePage('clients.html', 'not a url'), null);
+  // Every address the reminders write passes (the database refuses a new row that does not).
+  const id = '3f0c1d2e-0000-4000-8000-00000000000a';
+  for (const url of [MINE_URL, clientUrl(id), clientUrl(id, 'tasks'), clientUrl(id, 'access'), EDITOR_URL(id), SHOOT_URL(id), dealUrl({ id }), homeUrl('stav'), homeUrl('nadia'),
+    'messages.html', 'clients.html#control', 'team.html', 'qa.html', `prep.html?id=${id}#requests`, `intake.html?id=${id}`, `gantt.html?id=${id}&m=2026-10&d=2026-10-06`]) {
+    assert.equal(sitePage(url, base), `${base}${url}`, url);
+  }
   // The inbox uses it, and no longer resolves whatever is stored.
   const push = src('app/push.js');
   assert.match(push, /const open = sitePage\(r\.url, new URL\('\.\.\/', import\.meta\.url\)\.href\);/);

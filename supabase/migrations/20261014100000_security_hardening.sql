@@ -561,7 +561,8 @@ grant select (email, person, phone) on public.staff to authenticated;
 -- Any content type was accepted. The list below is what the card uploads
 -- (UPLOAD_TYPES in app/files-logic.js; tests/sql/security-hardening.test.mjs keeps the
 -- two the same): pictures, videos and sound, PDF and the logo formats, office
--- documents, fonts, archives, plain text, and "unknown binary" (how a browser reports
+-- documents, fonts, archives, plain text, the small text/uri-list object the card keeps
+-- for a link in place of a file, and "unknown binary" (how a browser reports
 -- .ai, .eps or .psd). Not on it, and so refused by Storage: a web page, a script, XML.
 update storage.buckets
 set allowed_mime_types = array[
@@ -572,7 +573,7 @@ set allowed_mime_types = array[
   'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'application/vnd.ms-fontobject', 'application/x-font-ttf', 'application/x-font-otf', 'application/font-woff',
-  'text/plain', 'text/csv']
+  'text/plain', 'text/csv', 'text/uri-list']
 where id = 'client-files';
 
 -- ── 8. Functions the signed-out role could call ──

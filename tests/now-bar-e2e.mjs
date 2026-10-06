@@ -8,6 +8,7 @@
 // then driven by the test.
 // Run: npx http-server -p 8080 -s . &  then  node tests/now-bar-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { clockDigits } from '../app/clocks.js';
@@ -161,6 +162,7 @@ const page = await ctx.newPage();
 const errors = [];
 const watch = (pg) => {
   pg.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(pg); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   pg.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
 };
 watch(page);
@@ -451,4 +453,5 @@ await droidCtx.close();
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log('now bar e2e: all checks passed');

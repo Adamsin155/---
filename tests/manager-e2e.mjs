@@ -16,6 +16,7 @@
 //  - 360px phones: no sideways page scroll, 44px targets.
 // Run: npx http-server -p 8080 -s . &  then  node tests/manager-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -207,6 +208,7 @@ async function newContext(viewport = { width: 1280, height: 900 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   return page;
 }
@@ -494,4 +496,5 @@ await step('360px phones: the switch, the table scrolls sideways inside itself o
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log(`manager-e2e: ${passed} passed`);

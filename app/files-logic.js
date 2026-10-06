@@ -60,6 +60,8 @@ export const UPLOAD_TYPES = [
   'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'application/vnd.ms-fontobject', 'application/x-font-ttf', 'application/x-font-otf', 'application/font-woff',
   'text/plain', 'text/csv',
+  // A link kept in place of a file ("אתר / דף נחיתה": app/files-ui.js stores a small text/uri-list object).
+  'text/uri-list',
 ];
 // The type a file is uploaded with (app/upload.js): what the browser reports, or "unknown binary".
 export const uploadTypeOf = (file) => String(file?.type || '').toLowerCase().split(';')[0].trim() || 'application/octet-stream';
@@ -218,7 +220,8 @@ export function counts(files) {
 export const LINK_MANAGERS = ['irit', 'lior'];
 export const canManageGallery = (me) => me === null || LINK_MANAGERS.includes(me);
 export const TOKEN = /^[A-Za-z0-9_-]{43}$/;
-export const galleryUrl = (base, token) => new URL(`gallery.html?t=${encodeURIComponent(token)}`, base).href;
+// The token rides in the fragment (app/link-token.js): it reaches no log of the host.
+export const galleryUrl = (base, token) => `${new URL('gallery.html', base).href}#t=${encodeURIComponent(token)}`;
 export const GALLERY_TEMPLATE = `היי {לקוח}, כאן אפשר לראות את כל התוצרים שהכנו לכם:
 {קישור}
 גרפיקות, סרטונים, Highlights והאתר, במקום אחד. אפשר לצפות ולהוריד.`;

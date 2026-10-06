@@ -146,7 +146,8 @@ export async function revokeShare(id) {
   const { error } = await supabase.rpc('gantt_link_revoke', { p_id: id });
   if (error) throw error;
 }
-export const shareUrl = (token) => new URL(`../gantt.html?t=${encodeURIComponent(token)}`, import.meta.url).href;
+// The token rides in the fragment (app/link-token.js): it reaches no log of the host.
+export const shareUrl = (token) => `${new URL('../gantt.html', import.meta.url).href}#t=${encodeURIComponent(token)}`;
 
 // The client's view, by its token (anonymous): { state, client, entries }.
 export async function loadShared(token) {

@@ -169,7 +169,7 @@ test('autosave: a conflict or a refusal stops the queue until the page decides',
 
 test('the share link and its message', () => {
   const url = shareUrl('https://app.astrateg.tech/scripts.html?id=1', 'A'.repeat(43));
-  assert.equal(url, `https://app.astrateg.tech/scripts-view.html?t=${'A'.repeat(43)}`);
+  assert.equal(url, `https://app.astrateg.tech/scripts-view.html#t=${'A'.repeat(43)}`);
   const msg = shareMessage({ name: 'דנה', business: 'קפה דנה' }, url);
   assert.ok(msg.includes('קפה דנה') && msg.includes(url));
 });

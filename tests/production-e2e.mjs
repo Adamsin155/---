@@ -19,6 +19,7 @@
 //     the closing lock, and the day closed.
 // Run: npx http-server -p 8121 -s . &  then  BASE_URL=http://localhost:8121/ node tests/production-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
@@ -101,16 +102,19 @@ const db = {
   ],
 };
 const signRequests = []; // [person, path] of every signed link asked from Storage
+const taskRefusals = []; // task changes the database refused (outside the office)
 
 // Who sees which client (the database's rule, 20260930130000_assignment_rls.sql).
 const inShootWindow = (c) => [c.shoot_at, ...(c.rounds || []).map((r) => r.shoot_at)].filter(Boolean)
   .some((at) => { const d = (new Date(at) - clockNow) / 864e5; return d >= -8 && d <= 31; });
+const taskGivesAccess = (t) => { const by = staff.find((s) => s.email === t.created_by_email); return !by || isOffice(by); };
 function sees(me, c) {
   if (!me || !c) return false;
   if (isOffice(me)) return true;
   const p = me.person;
   if (c.editor === p || (c.rounds || []).some((r) => r.editor === p)) return true;
-  if (db.client_tasks.some((t) => t.client_id === c.id && t.owner === p && (!t.done_at || clockNow - new Date(t.done_at) < 30 * 864e5))) return true;
+  // A task counts only when the office or the system opened it (private.task_gives_access).
+  if (db.client_tasks.some((t) => t.client_id === c.id && t.owner === p && taskGivesAccess(t) && (!t.done_at || clockNow - new Date(t.done_at) < 30 * 864e5))) return true;
   if (p === 'nirel' && c.shoot_type === 'natali') return true;
   return p === 'eli' && inShootWindow(c);
 }
@@ -221,6 +225,16 @@ async function fakeSupabase(route) {
   }
   if (req.method() === 'PATCH' && table === 'client_tasks') {
     const rows = applyFilters(visibleRows(me, table), url.searchParams);
+    // Outside the office: only one's own task or one that one opened, and only "done",
+    // "started" and how it ended (client_tasks_scope_guard, 20261014100000_security_hardening.sql).
+    if (!isOffice(me)) {
+      for (const r of rows) {
+        taskRefusals.push({ by: me.person, task: r.title, keys: Object.keys(body) });
+        if (r.owner !== me.person && r.created_by_email !== me.email) return json(403, { code: '42501', message: "not allowed: this task is someone else's" });
+        if (Object.keys(body).some((k) => !['done_at', 'started_at', 'result'].includes(k))) return json(403, { code: '42501', message: 'not allowed: only the office changes what a task says' });
+        taskRefusals.pop();
+      }
+    }
     for (const r of rows) {
       // Only its owner (or the office) records how a task ended (20260930140000_production.sql).
       if ('result' in body && r.owner !== me.person && !isOffice(me)) return json(400, { code: 'P0001', message: "not allowed: only the task's owner records how it ended" });
@@ -248,6 +262,7 @@ async function scene(at, viewport = { width: 360, height: 780 }) {
   }
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   return { ctx, page };
 }
@@ -539,12 +554,46 @@ await step('Nirel finishes the brief: done, left and the Drive link; the request
 });
 
 await step('resuming the editing closes the pause notices by themselves', async () => {
-  const { page, ctx, nc } = nirelPage;
+  const { page, nc } = nirelPage;
   await page.click(`#${nc}-resume`);
   await toastHas(page, 'חזרת לעריכה');
   assert.equal(checkOf(N, 'p22.pause'), null);
-  assert.ok(db.client_tasks.filter((x) => x.source === 'pause').every((x) => x.done_at));
+  // Lior's and Ofir's notices: theirs, and closed by the editor who opened them.
+  const notices = db.client_tasks.filter((x) => x.source === 'pause');
+  assert.ok(notices.length === 2 && notices.every((x) => x.done_at && x.done_by_email === 'nirel@astrateg.test' && x.created_by_email === 'nirel@astrateg.test'));
   assert.equal(await text(page, `#${nc} .ed-state`), 'בעריכה');
+});
+
+// Security audit, 6.10.2026 (ops.md 36): outside the office a task is changed only by its
+// owner or by whoever opened it. Everything the editor's screen did above went through
+// the stricter database untouched (the brief started and finished with its result, the
+// pause notices to Lior and Ofir opened and closed again, the follow-ups opened).
+await step('an editor\'s tasks: everything her screens do is allowed; a colleague\'s task is not hers to close or rewrite', async () => {
+  const { page, ctx } = nirelPage;
+  assert.deepEqual(taskRefusals, [], 'no change of the screens above was refused');
+  // Lior's follow-up is on her client and she sees it; the database refuses her hand on it.
+  const follow = db.client_tasks.find((x) => x.owner === 'lior' && x.title.startsWith('המשך אחרי ניראל'));
+  const mine = db.client_tasks.find((x) => x.owner === 'nirel');
+  const tryIt = (id, fields) => page.evaluate(async ([taskId, f]) => {
+    const { supabase } = await import('./app/supa.js');
+    const { data, error } = await supabase.from('client_tasks').update(f).eq('id', taskId).select('id');
+    return { rows: data?.length ?? 0, error: error?.message ?? null };
+  }, [id, fields]);
+  // She opened the follow-up herself (briefFollowups), so "done" is hers; its words are the office's.
+  assert.equal(follow.created_by_email, 'nirel@astrateg.test');
+  assert.deepEqual(await tryIt(follow.id, { title: 'נמחק' }), { rows: 0, error: 'not allowed: only the office changes what a task says' });
+  assert.deepEqual(await tryIt(mine.id, { title: 'נמחק', due_on: '2027-01-01' }), { rows: 0, error: 'not allowed: only the office changes what a task says' });
+  // A task the office opened for someone else on her client.
+  const theirs = { id: randomUUID(), client_id: N.id, title: 'לאשר את הסרטונים עם הלקוח', owner: 'irit', due_on: null, done_at: null, done_by_email: null, created_by_email: 'lior@astrateg.test', created_at: new Date(clockNow).toISOString(), source: null, urgent: false, started_at: null, result: null, brief: null };
+  db.client_tasks.push(theirs);
+  assert.deepEqual(await tryIt(theirs.id, { done_at: new Date().toISOString() }), { rows: 0, error: "not allowed: this task is someone else's" });
+  assert.equal(theirs.done_at, null);
+  assert.equal(follow.title.startsWith('המשך אחרי ניראל'), true);
+  // Her page lists only her own briefs: no button on a colleague's task.
+  await page.reload();
+  await page.waitForSelector('#ed-briefs');
+  assert.equal(await page.locator(`#t-${theirs.id}-done, #t-${theirs.id}-start`).count(), 0);
+  assert.doesNotMatch(await text(page, '#ed-briefs'), /לאשר את הסרטונים עם הלקוח/);
   await ctx.close();
 });
 
@@ -772,5 +821,6 @@ await step('who sees what: the office watches the shoot without buttons; an edit
 });
 
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, []);
 console.log(`\n${passed} production checks passed.`);

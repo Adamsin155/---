@@ -12,6 +12,7 @@
 //     through to "לעדכן את הלקוח".
 // Run: npx http-server -p 8123 -s . &  then  BASE_URL=http://localhost:8123/ node tests/intake-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
@@ -241,6 +242,7 @@ async function newContext(viewport = { width: 1280, height: 900 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -652,5 +654,6 @@ await step('Irit\'s card for a client: the request and the shoot-day screens are
 await iritCtx.close();
 
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, [], errors.join('\n'));
 console.log(`intake e2e: ${passed} steps passed`);

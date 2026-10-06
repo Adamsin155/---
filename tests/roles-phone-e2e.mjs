@@ -15,6 +15,7 @@
 //  - nobody is offered a screen that is not theirs, and nothing says "מה עליי".
 // Run: npx http-server -p 8080 -s -c-1 . &  then  node tests/roles-phone-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { NOW, SUPA, emailOf, buildWorld, makeFake } from './roles-world.mjs';
@@ -39,6 +40,7 @@ async function open(role, { viewport = PHONE, full = false, prepare = null, cale
   if (full) await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${role}: ${e}`));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(`${role}: ${msg.text()}`); });
   await page.goto(`${BASE}clients.html`);
   await page.fill('#lg-email', emailOf(role));
@@ -520,4 +522,5 @@ await step('on a wide screen the screens are the side menu, with a rail on the c
 
 assert.deepEqual(errors, [], 'page errors');
 await browser.close();
+noCspViolations();
 console.log(`roles on a phone e2e: ${passed} steps passed`);

@@ -150,7 +150,8 @@ export async function signOutHere() {
 }
 
 export function quoteLink(token) {
-  return new URL(`q.html?t=${encodeURIComponent(token)}`, window.location.href).href;
+  // The token rides in the fragment (app/link-token.js): it reaches no log of the host.
+  return `${new URL('q.html', window.location.href).href}#t=${encodeURIComponent(token)}`;
 }
 
 // Human-readable Hebrew message for common failures.

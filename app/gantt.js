@@ -27,10 +27,13 @@ import { clientLabel } from './protocol-logic.js';
 import { termOf } from './year-logic.js';
 import { dayKeyIL } from './tz.js';
 import { glide } from './shell.js'; // a day or a month chosen: the calendar changes softly
+import { tokenFrom } from './link-token.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-const TOKEN = params.get('t');
+// The client's link: gantt.html#t=… (and ?t=… of a link sent before 6.10.2026). The
+// office's own page (gantt.html, gantt.html?id=…) has neither.
+const TOKEN = tokenFrom(location) || (params.has('t') ? '' : null);
 const SHARE = TOKEN !== null;
 const enc = encodeURIComponent;
 

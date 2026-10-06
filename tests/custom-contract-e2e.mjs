@@ -13,6 +13,7 @@
 // Run: npx http-server -p 8111 -s -c-1 . &  then
 //      BASE_URL=http://localhost:8111/ node tests/custom-contract-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -257,6 +258,7 @@ async function newPage(viewport = { width: 1440, height: 900 }) {
   const page = await ctx.newPage();
   page.setDefaultTimeout(8000);
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -329,7 +331,7 @@ try {
     assert.equal(regular.approval, 'none');
     assert.equal(JSON.stringify({ ...regular.model, number: null, createdAt: null, validUntil: undefined }),
       JSON.stringify(buildQuoteModel({ ...emptySelection(), docType: 'agreement', discount: 20000 }, sent.client)));
-    assert.match(await irit.locator('#sh-link').inputValue(), new RegExp(`q\\.html\\?t=${regular.token}$`));
+    assert.match(await irit.locator('#sh-link').inputValue(), new RegExp(`q\\.html#t=${regular.token}$`));
     assert.match(await irit.locator('#sh-wa').getAttribute('href'), /12%20%D7%97%D7%95%D7%93%D7%A9%D7%99%D7%9D/); // "12 חודשים"
     await irit.locator('#dlg-share .close').click();
     const anon = await newPage({ width: 390, height: 844 });
@@ -566,7 +568,7 @@ try {
     await item.locator('[data-act="share"]').click();
     await irit.locator('#dlg-approval-share[open]').waitFor();
     const link = await irit.locator('#aps-link').inputValue();
-    assert.match(link, new RegExp(`q\\.html\\?t=${custom.token}$`));
+    assert.match(link, new RegExp(`q\\.html#t=${custom.token}$`));
     assert.match(decodeURIComponent(await irit.locator('#aps-wa').getAttribute('href')), /wa\.me\/972501234567\?text=שלום דנה לוי, מצורף הסכם ההתקשרות מאסטרטג \(AST-2026-\d+\) ל־6 חודשים\. אפשר לעיין ולחתום כאן בתוך 72 שעות/);
     await shot(irit, '09-irit-approved-share-dialog', false);
     await irit.locator('#dlg-approval-share .close').click();
@@ -723,7 +725,7 @@ try {
     assert.equal(await status(), 'חוזה נשלח');
     // The client signs.
     const client = await newPage({ width: 390, height: 844 });
-    await client.goto(`${BASE}q.html?t=${q.token}`);
+    await client.goto(`${BASE}q.html#t=${q.token}`); // the link as it is made now (the others here: as sent before 6.10.2026)
     await client.locator('#signbox').waitFor();
     await drawAndSign(client, 'אבי מוסך');
     await client.context().close();
@@ -793,5 +795,6 @@ try {
   exitCode = 1;
 } finally {
   await browser.close();
+  noCspViolations();
 }
 process.exit(exitCode);

@@ -18,6 +18,7 @@
 //  - A 360px phone: no sideways scrolling, 44px targets.
 // Run: npx http-server -p 8080 -s . &  then  node tests/office-flows-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
@@ -283,6 +284,7 @@ async function newContext(time = TUE, viewport = { width: 1280, height: 900 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
   return page;
 }
@@ -651,4 +653,5 @@ await step('a 360px phone: no sideways scrolling and 44px targets on the three s
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log(`\n${passed} steps passed`);

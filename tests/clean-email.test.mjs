@@ -7,11 +7,11 @@ import { cleanEmail as cleanPayouts } from '../app/payouts/client.js';
 
 for (const [name, clean] of [['site', cleanEmail], ['payouts', cleanPayouts]]) {
   test(`${name}: strips direction marks, spaces and case`, () => {
-    assert.equal(clean('‏adam@astrateg.com‎'), 'adam@astrateg.com');
-    assert.equal(clean(' Adam@Astrateg.COM '), 'adam@astrateg.com');
-    assert.equal(clean('‫adam@astrateg.com‬﻿'), 'adam@astrateg.com');
-    assert.equal(clean('ａｄａｍ@astrateg.com'), 'adam@astrateg.com'); // full-width letters
+    assert.equal(clean('‏name@astrateg.com‎'), 'name@astrateg.com');
+    assert.equal(clean(' Name@Astrateg.COM '), 'name@astrateg.com');
+    assert.equal(clean('‫name@astrateg.com‬﻿'), 'name@astrateg.com');
+    assert.equal(clean('ｎａｍｅ@astrateg.com'), 'name@astrateg.com'); // full-width letters
     assert.equal(clean(null), '');
-    assert.ok(looksLikeEmail(clean('‏adam@astrateg.com')));
+    assert.ok(looksLikeEmail(clean('‏name@astrateg.com')));
   });
 }

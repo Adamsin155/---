@@ -9,6 +9,7 @@
 // tests/sql/rls.test.mjs.) The page clock is Tuesday 20.10.2026 10:00 in Jerusalem.
 // Run: npx http-server -p 8080 -s . &  then  node tests/rls-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
@@ -215,6 +216,7 @@ async function newPage({ viewport = { width: 1280, height: 900 } } = {}) {
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   return page;
 }
@@ -401,4 +403,5 @@ await step('the office sees every client and its vault; a wrong link says "הל�
 });
 
 await browser.close();
+noCspViolations();
 console.log(`\n${passed} steps passed`);

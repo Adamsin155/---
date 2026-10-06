@@ -1,6 +1,7 @@
 // End-to-end check of the client protocol pages against an in-memory fake of Supabase.
 // Run: npx http-server -p 8080 . &  then  node tests/protocol-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { STATIONS } from '../app/protocol.js';
@@ -184,6 +185,7 @@ await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
+watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
 const shot = async (name, pg = page) => { if (OUT) await pg.screenshot({ path: `${OUT}/${name}.png`, fullPage: true }); };
 const noHScroll = async (pg) => pg.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
@@ -860,4 +862,5 @@ await shot('08-mobile-mine', mob);
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log('protocol e2e: all checks passed');

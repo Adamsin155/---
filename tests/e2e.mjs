@@ -1,6 +1,7 @@
 // End-to-end browser check with an in-memory fake of the Supabase API.
 // Run: npx http-server -p 8080 . &  then  node tests/e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { validateSelection, buildQuoteModel } from '../app/pricing.js';
@@ -109,6 +110,7 @@ async function newPage(viewport = { width: 1440, height: 900 }) {
   page.setDefaultNavigationTimeout(15000);
   page.errors = [];
   page.on('pageerror', (e) => page.errors.push(e.message));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (m) => { if (m.type() === 'error' && !/favicon|status of (400|401|409)/.test(m.text())) page.errors.push(m.text()); });
   return page;
 }
@@ -270,7 +272,8 @@ await step('create link: wrong password shows error, then login + share dialog',
   assert.equal(db.size, 2, 'double click creates one more quote, not two');
   assert.match(await text(page, '#sh-prev'), /קיימת הצעה פתוחה/);
   assert.match(await text(page, '#sh-number'), /AST-2026-000[12]/);
-  assert.match(await page.locator('#sh-link').inputValue(), /q\.html\?t=[0-9a-f-]{36}$/);
+  // The token rides after # (it reaches no log of the host; ops.md 36). ?t= links sent before still open (below).
+  assert.match(await page.locator('#sh-link').inputValue(), /q\.html#t=[0-9a-f-]{36}$/);
   assert.match(await page.locator('#sh-wa').getAttribute('href'), /^https:\/\/wa\.me\/972501234567\?text=/);
   assert.match(await text(page, '#session-who'), /seller@astrateg\.test/);
   await shot(page, '04-share', false);
@@ -475,7 +478,13 @@ await step('draft survives a refresh', async () => {
 await step('quote link: disclaimer and validity; expired link cannot be signed', async () => {
   const [q] = [...db.values()].filter((x) => x.model.docType === 'quote');
   const c = await newPage();
-  await c.goto(`${BASE}q.html?t=${q.token}`, { waitUntil: 'networkidle' });
+  await c.goto(`${BASE}q.html#t=${q.token}`, { waitUntil: 'networkidle' }); // the link as it is made now
+  assert.match(await text(c, '.qd'), /אינו הצעה לכריתת חוזה/);
+  // A reload, and a jump inside the page (which replaces the fragment) followed by a reload, still open it.
+  await c.reload({ waitUntil: 'networkidle' });
+  assert.match(await text(c, '.qd'), /אינו הצעה לכריתת חוזה/);
+  await c.evaluate(() => { location.hash = '#top'; });
+  await c.reload({ waitUntil: 'networkidle' });
   assert.match(await text(c, '.qd'), /אינו הצעה לכריתת חוזה/);
   assert.match(await text(c, '.qd'), /בתוקף עד/);
   const a = [...db.values()].find((x) => x.model.docType === 'agreement' && x.status === 'sent');
@@ -520,6 +529,7 @@ await step('mobile builder: price bar visible, no horizontal scroll', async () =
 });
 
 await browser.close();
+noCspViolations();
 const failed = results.filter((r) => r[0] === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
 process.exit(failed ? 1 : 0);

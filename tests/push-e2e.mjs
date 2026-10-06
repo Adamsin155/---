@@ -7,6 +7,7 @@
 // clock is Monday 5.10.2026 10:00 in Jerusalem.
 // Run: npx http-server -p 8080 -s . &  then  node tests/push-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { VAPID_PUBLIC_KEY } from '../app/push-config.js';
@@ -194,6 +195,7 @@ async function open(who, { viewport = { width: 1280, height: 900 }, push = {}, m
   await ctx.addInitScript(fakePush, { key: VAPID_PUBLIC_KEY, ...push });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
   page.on('dialog', (d) => d.accept());
   await page.goto(`${BASE}clients.html`);
@@ -410,4 +412,5 @@ await step('before the migrations: no card, no button, and tasks still load (wit
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log(`push-e2e: ${passed} passed`);

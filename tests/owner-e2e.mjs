@@ -15,6 +15,7 @@
 //  - Everything green: "הכול לפי התוכנית". A 360px phone: no sideways scrolling, 44px targets.
 // Run: npx http-server -p 8080 -s . &  then  node tests/owner-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
@@ -200,6 +201,7 @@ async function newContext(viewport = { width: 1280, height: 900 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msgx) => { if (msgx.type() === 'error' && !/Failed to load resource/.test(msgx.text())) errors.push(msgx.text()); });
   return page;
 }
@@ -637,4 +639,5 @@ await step('a 360px phone: no sideways scrolling, 44px targets, on both screens'
 
 assert.deepEqual(errors, []);
 await browser.close();
+noCspViolations();
 console.log(`owner-e2e: ${passed} passed`);

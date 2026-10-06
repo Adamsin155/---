@@ -8,10 +8,11 @@
 import { h } from './quote-doc.js';
 import { TOKEN, STATUS, scriptLabel, linkName } from './scripts-logic.js';
 import { CLOSED_TEXT } from './status-logic.js';
+import { pageToken } from './link-token.js';
 
 const $ = (id) => document.getElementById(id);
 const fill = (el, ...kids) => el.replaceChildren(...kids.flat().filter((k) => k !== null && k !== undefined && k !== false));
-const token = new URLSearchParams(location.search).get('t') || '';
+const token = pageToken(); // scripts-view.html#t=… (and ?t=… of a link sent before 6.10.2026)
 
 function showState(kind) {
   const [title, text] = CLOSED_TEXT[kind] || CLOSED_TEXT.error;

@@ -9,6 +9,7 @@
 // (the card is also opened on a phone set to New York time).
 // Run: npx http-server -p 8080 -s . &  then  node tests/handoffs-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { withClientColumns } from './fake-clients.mjs';
@@ -168,6 +169,7 @@ async function newPage({ timezoneId = 'Asia/Jerusalem', viewport = { width: 1280
   await ctx.route('https://wa.me/**', (route) => { opened.push(route.request().url()); return route.fulfill({ status: 200, contentType: 'text/html', body: '<p>wa</p>' }); });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   return page;
 }
@@ -395,5 +397,6 @@ await step('Irit approves in the card: the prompt skips her, and links the team 
 });
 
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, []);
 console.log(`handoffs-e2e: ${passed} passed`);

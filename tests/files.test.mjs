@@ -79,7 +79,7 @@ test('counts, the gallery, and its words', () => {
   assert.equal(c.image, 2);
   assert.equal(c.deliverable_video, 1);
   assert.equal(c.logo, 0);
-  assert.equal(galleryUrl('https://x.test/a/client.html?id=1', 'T'.repeat(43)), `https://x.test/a/gallery.html?t=${'T'.repeat(43)}`);
+  assert.equal(galleryUrl('https://x.test/a/client.html?id=1', 'T'.repeat(43)), `https://x.test/a/gallery.html#t=${'T'.repeat(43)}`);
   assert.equal(galleryMessage({ name: 'דנה' }, 'https://g'), 'היי דנה, כאן אפשר לראות את כל התוצרים שהכנו לכם:\nhttps://g\nגרפיקות, סרטונים, Highlights והאתר, במקום אחד. אפשר לצפות ולהוריד.');
   assert.equal(downloadName({ kind: 'deliverable_video', path: 'c/deliverable_video/0b0e8a5c-1d2e-4f3a-8b9c-0d1e2f3a4b5c-nadia-final-v3.mp4', at: '2026-10-01T10:00:00Z' }), 'astrateg-video-2026-10-01.mp4');
   assert.deepEqual(gallerySections([{ kind: 'deliverable_video' }, { kind: 'deliverable_graphic' }]).map((s) => s.title), ['גרפיקות', 'סרטונים']);

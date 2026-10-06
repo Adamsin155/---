@@ -22,6 +22,7 @@
 //   - two days later, with a link still waiting: the nudge is in Irit's queue.
 // Run: npx http-server -p 8107 -s -c-1 . &  then  BASE_URL=http://localhost:8107/ node tests/access-form-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
@@ -345,6 +346,7 @@ async function newContext(viewport = { width: 1280, height: 900 }, b = browser) 
 async function newPage(ctx, { track = false } = {}) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   if (track) page.on('request', (r) => requested.push(r.url()));
@@ -612,8 +614,9 @@ await step('nothing typed is kept in the browser, and nothing is loaded from a t
   assert.deepEqual(origins, [new URL(BASE).origin, 'https://czncjzziqrqtezpwxxpz.supabase.co'].sort());
   for (const u of requested) assert.ok(!u.includes(token), `the token is never in a request's address: ${u.slice(0, 80)}`);
   // The same files as the status page loads, and the page's own: no protocol, no pricing.
+  // (frame-guard.js: every page's first script since 6.10.2026, ops.md 36.)
   const scripts = requested.filter((u) => u.endsWith('.js')).map((u) => u.slice(BASE.length)).sort();
-  assert.deepEqual(scripts, ['app/access-form.js', 'app/access-logic.js', 'app/supa.js', 'app/tz.js', 'app/vendor/supabase.js']);
+  assert.deepEqual(scripts, ['app/access-form.js', 'app/access-logic.js', 'app/frame-guard.js', 'app/supa.js', 'app/tz.js', 'app/vendor/supabase.js']);
 });
 
 await step('sending: thanks; the vault got the logins as the office saves them; process 5 and Ilai\'s task', async () => {
@@ -1016,5 +1019,6 @@ await step('the client\'s page on a 375px phone and on a desktop', async () => {
 await clientCtx.close();
 await iritCtx.close();
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, [], errors.join('\n'));
 console.log(`access form e2e: ${passed} steps passed`);

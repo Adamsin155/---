@@ -14,6 +14,7 @@
 //     the client gets a friendly message; so do an expired and a malformed link.
 // Run: npx http-server -p 8131 -s . &  then  BASE_URL=http://localhost:8131/ node tests/status-e2e.mjs [outDir]
 import { chromium } from 'playwright';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
@@ -300,6 +301,7 @@ async function newContext(viewport = { width: 1280, height: 900 }) {
 async function newPage(ctx) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(msg.text()); });
   page.on('dialog', (d) => d.accept());
   return page;
@@ -348,7 +350,7 @@ await step('Irit creates the link and copies a ready WhatsApp message with it', 
   // (Windows' clipboard gives the lines back with \r\n.)
   const msg = (await irit.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n');
   assert.match(msg, /^היי דנה לוי, זה דף המצב האישי שלכם אצלנו:\n/);
-  assert.ok(msg.includes(`${BASE}status.html?t=${token}`), msg);
+  assert.ok(msg.includes(`${BASE}status.html#t=${token}`), msg); // after #: it reaches no log of the host (ops.md 36)
   assert.match(msg, /הקישור אישי: לא להעביר אותו/);
   // To the client's number (the card has one), with the same text.
   const wa = await irit.getAttribute('#st-wa', 'href');
@@ -361,8 +363,30 @@ await step('Irit creates the link and copies a ready WhatsApp message with it', 
 const clientCtx = await newContext(PHONE);
 const cl = await newPage(clientCtx);
 
+await step('a link sent before 6.10.2026 (?t=) still opens; the new one (#t=) survives a jump inside the page and a reload', async () => {
+  const old = await newPage(clientCtx);
+  await old.goto(`${BASE}status.html?t=${token}`);
+  await old.waitForSelector('#page:not([hidden])');
+  assert.equal(await text(old, '#hello-h'), 'שלום דנה לוי, ככה אנחנו עומדים');
+  await old.close();
+  const fresh = await newPage(clientCtx);
+  await fresh.goto(`${BASE}status.html#t=${token}`);
+  await fresh.waitForSelector('#page:not([hidden])');
+  await fresh.evaluate(() => { location.hash = '#approvals'; });
+  await fresh.reload();
+  await fresh.waitForSelector('#page:not([hidden])');
+  assert.equal(await text(fresh, '#hello-h'), 'שלום דנה לוי, ככה אנחנו עומדים');
+  // Another tab that never had the link gets nothing from it.
+  const other = await newPage(await newContext(PHONE));
+  await other.goto(`${BASE}status.html`);
+  await other.waitForSelector('#state h1');
+  assert.equal(await text(other, '#state h1'), 'הקישור אינו תקין');
+  await other.context().close();
+  await fresh.close();
+});
+
 await step('the link opens on a 360px phone: where we are, the promised dates, what we need, the team, in 10 seconds', async () => {
-  await cl.goto(`${BASE}status.html?t=${token}`);
+  await cl.goto(`${BASE}status.html#t=${token}`);
   await cl.waitForSelector('#page:not([hidden])');
   assert.equal(await text(cl, '#hello-h'), 'שלום דנה לוי, ככה אנחנו עומדים');
   assert.match(await text(cl, '#where'), /שלב 5 מתוך 8\s+עריכה ובקרה: עורכים, בודקים ושולחים לאישורכם/);
@@ -529,5 +553,6 @@ await step('Ofir sees the block but cannot make links; an editor sees none of it
 await clientCtx.close();
 await iritCtx.close();
 await browser.close();
+noCspViolations();
 assert.deepEqual(errors, [], errors.join('\n'));
 console.log(`status e2e: ${passed} steps passed`);
