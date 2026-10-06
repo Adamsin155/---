@@ -72,10 +72,12 @@ function block(client, { manage, toast, reload }) {
   const c = cache;
   if (c.off) return null; // the form is not set up in the database yet
   const head = h('h3', { id: 'al-h' }, 'קישור ללקוח למילוי פרטי הכניסה');
-  if (c.error) return h('div', { class: 'al-block', id: 'access-link', role: 'group', 'aria-labelledby': 'al-h' }, head, h('p', { class: 'muted', role: 'status' }, c.error));
+  if (c.error) return manage ? h('div', { class: 'al-block', id: 'access-link', role: 'group', 'aria-labelledby': 'al-h' }, head, h('p', { class: 'muted', role: 'status' }, c.error)) : null;
   const now = new Date();
   const l = c.link;
   const state = c.state;
+  // Whoever cannot make a link has nothing to see here until one exists.
+  if (!manage && state === 'none') return null;
 
   const create = async (again) => {
     const ask = state === 'waiting' ? 'ליצור קישור חדש? הקישור הקודם יפסיק לעבוד, וצריך לשלוח ללקוח את החדש.'
