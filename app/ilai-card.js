@@ -6,10 +6,10 @@
 // and a new logo); and after that day: the rest of the graphics ("מוכן לבדיקה" to
 // Ofir, and his returned fixes), "קיבלתי" on the editor's final versions (it closes
 // the editing), and "הגאנט מלא" (Irit is told by itself). The logic: app/ilai-logic.js.
-import { setCheck, clearCheck, setChecksBulk, updateClient } from './protocol-data.js';
+import { setCheck, clearCheck, setChecksBulk, updateClient, canUseVault } from './protocol-data.js';
 import { h, toast, errorText, formatWhen } from './protocol-ui.js';
 import { offerHandoff } from './handoff-ui.js';
-import { loadAccessRows } from './office-data.js';
+import { loadAccessStatusForWork } from './office-data.js';
 import { charDay, ilaiWork, PAGE_KEYS, PAGE_LABELS, GANTT_KEYS, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { fixList } from './office-ui.js';
 
@@ -19,8 +19,13 @@ const ganttUrl = (id) => `gantt.html?id=${encodeURIComponent(id)}`;
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash ? `#${hash}` : ''}`;
 const isDone = (cs, k) => ['done', 'na'].includes(cs[k]?.state);
 
-// The logins of the day's clients, read from the vault (statuses only), kept a minute.
+// The logins of the day's clients: statuses only (network, label, status), which the
+// office reads without the vault flag; kept a minute. Whether this person may open
+// the passwords themselves (staff.vault, the owner's switch on the team page) is
+// asked once: without it the card says so instead of sending them to the vault.
 let access = {};
+let vault = null; // null until known
+let viaVault = false; // the statuses came from the vault's own rows (before the migration)
 let accessAt = 0;
 let accessFor = '';
 let loading = null;
@@ -62,8 +67,10 @@ export function ilaiSection(ctx) {
 function ensureAccess(ids, ctx) {
   const key = ids.slice().sort().join(',');
   if (!ids.length || loading || (key === accessFor && Date.now() - accessAt < 60e3)) return;
-  loading = loadAccessRows(ids).then((rows) => {
+  if (vault === null) canUseVault().then((v) => { vault = v; if (!v) ctx.refresh?.(); }).catch(() => {});
+  loading = loadAccessStatusForWork(ids).then((rows) => {
     access = {};
+    viaVault = !!rows.viaVault;
     for (const r of rows) (access[r.client_id] ||= []).push(r);
     accessAt = Date.now();
     accessFor = key;
@@ -137,10 +144,12 @@ function dayCard(x, ctx) {
       h('div', { class: 'il-part' },
         h('h4', {}, 'בדיקת גישות (30 דק׳)', acc.done ? null : until(acc.due, now), acc.done ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'נבדק') : null),
         acc.waiting ? h('p', { class: 'hint' }, 'מחכה לגישות מהאפיון.') : [
-          rows.length ? h('ul', { class: 'il-net' }, ...rows.map((a) => h('li', { class: 'tag' }, `${NETWORK[a.network] || a.network}: ${STATUS[a.status] || a.status}`)))
-            : h('p', { class: 'hint' }, 'אין עדיין רשתות בכספת.'),
+          rows.length ? h('ul', { class: 'il-net' }, ...rows.map((a) => h('li', { class: 'tag' }, `${NETWORK[a.network] || a.network}${a.label ? ` (${a.label})` : ''}: ${STATUS[a.status] || a.status}`)))
+            : vault === false && viaVault ? null : h('p', { class: 'hint' }, 'אין עדיין רשתות בכספת.'),
           h('p', { class: 'hint' }, 'הסטטוס של כל רשת בכספת מסמן את הבדיקה לבד. אין עמוד? פותחים אותו באותו חלון זמן.'),
-          h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm', href: clientUrl(c.id, 'access') }, 'לכספת', h('span', { class: 'sr-only' }, ` של ${c.name}`))),
+          vault === false
+            ? h('p', { class: 'hint il-novault' }, 'אין לך גישה לסיסמאות בכספת. בעל המשרד מפעיל אותה בעמוד הצוות.')
+            : h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm', href: clientUrl(c.id, 'access') }, 'לכספת', h('span', { class: 'sr-only' }, ` של ${c.name}`))),
           acc.done ? null : check(ctx, c, 'p06.verified', 'כל הגישות נבדקו ועובדות', idp),
         ]),
       h('div', { class: 'il-part' },

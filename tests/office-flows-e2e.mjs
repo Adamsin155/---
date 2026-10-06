@@ -38,7 +38,9 @@ const IL = (s) => new Date(`${s}+03:00`).toISOString();
 // ── People ────────────────────────────────
 const people = { owner: null, irit: 'irit', lior: 'lior', ofir: 'ofir', ilai: 'ilai', nadia: 'nadia', yariv: 'yariv', nirel: 'nirel' };
 const users = new Map(Object.keys(people).map((k) => [`${k}@astrateg.test`, { id: randomUUID(), email: `${k}@astrateg.test`, aud: 'authenticated', role: 'authenticated' }]));
-const staff = Object.entries(people).map(([k, person]) => ({ email: `${k}@astrateg.test`, person, vault: !['nadia', 'yariv'].includes(person), phone: null }));
+const staff = Object.entries(people).map(([k, person]) => ({ email: `${k}@astrateg.test`, person, vault: !['nadia', 'yariv', 'ilai'].includes(person), phone: null }));
+// Ilai has no vault flag, as on the live site (6.10.2026): his card reads the statuses
+// through access_status_for_work() and says plainly that the passwords are not his.
 const jwtFor = (u) => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: u.id, email: u.email, role: 'authenticated', exp: EXP })}.sig`;
 const userOf = (headers) => {
   const token = /^Bearer (.+)$/.exec(headers.authorization || '')?.[1];
@@ -189,6 +191,13 @@ async function fakeSupabase(route) {
   if (p === '/rest/v1/rpc/is_staff') return json(200, !!me && staff.some((r) => r.email === me.email));
   const vault = !!me && !!staff.find((r) => r.email === me.email)?.vault;
   if (p === '/rest/v1/rpc/can_use_vault' || p === '/rest/v1/rpc/can_use_client_vault') return json(200, vault);
+  if (p === '/rest/v1/rpc/access_status_for_work') {
+    const person = staff.find((r) => r.email === me?.email)?.person;
+    const office = !!me && (person === null || ['irit', 'lior', 'ofir', 'ilai'].includes(person));
+    const ids = body?.p_clients ? new Set(body.p_clients) : null;
+    return json(200, !office ? [] : db.client_access.filter((a) => !ids || ids.has(a.client_id))
+      .map((a) => ({ client_id: a.client_id, network: a.network, label: a.label, status: a.status, updated_at: a.updated_at })));
+  }
   if (p === '/rest/v1/rpc/access_save') {
     const a = db.client_access.find((x) => x.id === body.p_id);
     Object.assign(a, { status: body.p_status, note: body.p_note, updated_by: me.email, updated_at: now });
@@ -516,6 +525,11 @@ await step('Ilai: the characterization day card; the vault statuses check the ac
   assert.equal(checkOf(I, 'p06.verified').note, 'נסגר לבד: כל הרשתות בכספת קיבלו סטטוס');
   await card.locator('summary').click();
   assert.match(await card.innerText(), /Instagram: תקינה[^]*TikTok: אין רשת/);
+  // No vault flag: the statuses are there, the passwords are not his, and the card says so.
+  assert.equal(staff.find((r) => r.person === 'ilai').vault, false);
+  assert.match(await card.innerText(), /אין לך גישה לסיסמאות בכספת. בעל המשרד מפעיל אותה בעמוד הצוות./);
+  assert.doesNotMatch(await card.innerText(), /אין עדיין רשתות בכספת/);
+  assert.equal(await card.locator('a', { hasText: 'לכספת' }).count(), 0);
   await card.locator('label', { hasText: 'שם העמוד' }).locator('input').check();
   await ilai.waitForFunction(() => true);
   await card.locator('input[type=url]').fill('https://app.metricool.com/shahar');

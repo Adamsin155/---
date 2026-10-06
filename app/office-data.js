@@ -86,6 +86,19 @@ export async function loadAccessRows(clientIds = null) {
   });
 }
 
+// The status of each login for the office's own work (Ilai's access check, process 6):
+// the client, the network, the label, the status and when it was set, never a user
+// name or a password, and without the vault flag (access_status_for_work, migration
+// 20261006100000). Before that migration: the vault's rows, as before (empty for
+// whoever has no vault flag).
+export async function loadAccessStatusForWork(clientIds = null) {
+  const { data, error } = await supabase.rpc('access_status_for_work', { p_clients: clientIds });
+  if (!error && Array.isArray(data)) return data;
+  // The fallback answers nothing to whoever has no vault flag: `viaVault` tells the
+  // card that an empty list may only mean "not allowed", not "no logins".
+  return Object.assign(await loadAccessRows(clientIds), { viaVault: true });
+}
+
 // Ofir's characterization meetings (times only, never a client), for those waiting
 // for his check who do not see his other clients: [[start, end], …] in ms. Null
 // until the migration is applied.
