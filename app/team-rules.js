@@ -4,6 +4,14 @@
 
 // Who opens the team screen besides the owner (staff.person is null).
 export const TEAM_MANAGERS = ['irit', 'lior'];
+// The office accounts (public.is_office() in the database). A copy of OFFICE_PERSONS
+// in supabase/functions/staff-admin/rules.js, which decides (the unit tests compare them).
+export const OFFICE_PERSONS = ['irit', 'lior', 'ofir', 'ilai'];
+// Whose sign-in link only the owner makes (linkByOwnerOnly in the function's rules):
+// the owner's, an office account's and any account with the vault. A manager still
+// makes a link for their own account.
+export const linkOnlyByOwner = (caller, row) => !!row && !caller?.owner && row.email !== caller?.email
+  && (row.person === null || row.person === undefined || OFFICE_PERSONS.includes(row.person) || !!row.vault);
 
 // From viewerOf() in protocol-ui.js: { me, scope, error }. The owner has no person
 // and the office scope; someone the app could not identify gets nothing.

@@ -96,6 +96,7 @@ function render(d) {
   $('why').textContent = PAGE_TEXT.why;
   fill($('points'), PAGE_TEXT.points.map((p) => h('li', {}, p)));
   $('notes-hint').textContent = PAGE_TEXT.notesHint;
+  $('notes-warn').textContent = PAGE_TEXT.notesWarn;
   $('preview').hidden = !preview;
   fill($('cards'), REQUIRED.map(mainCard));
   renderExtras();

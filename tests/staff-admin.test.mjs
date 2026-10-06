@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import {
-  PERSONS, TEAM_MANAGERS, LINK_PAGES, ERR, normEmail, roleOf, bearer, allowedRedirect, allowedOrigin, corsHeaders,
+  PERSONS, TEAM_MANAGERS, OFFICE_PERSONS, linkByOwnerOnly, LINK_PAGES, ERR, normEmail, roleOf, bearer, allowedRedirect, allowedOrigin, corsHeaders,
   planUpsert, planRemove, planLink, planPhone, linkTypeFor, buildLoginLink, summarize, linkErrorCode, normPhone,
 } from '../supabase/functions/staff-admin/rules.js';
 import * as teamRules from '../app/team-rules.js';
@@ -17,6 +17,10 @@ test('the function knows the same people and managers as the app', () => {
   // The whole team, sales too (Stav, 3.10.2026: the team screen adds his row).
   assert.deepEqual(PERSONS, TEAM_PEOPLE().map((p) => p.key));
   assert.deepEqual(TEAM_MANAGERS, teamRules.TEAM_MANAGERS);
+  // The office accounts: the function's list, the screen's copy, and public.is_office() in the database.
+  assert.deepEqual(OFFICE_PERSONS, teamRules.OFFICE_PERSONS);
+  const office = readFileSync(new URL('../supabase/migrations/20260930130000_assignment_rls.sql', import.meta.url), 'utf8');
+  assert.ok(office.includes(`s.person in (${OFFICE_PERSONS.map((p) => `'${p}'`).join(', ')})`), 'is_office() names the same people');
   // The latest migration that sets staff_person_check allows every one of them.
   const dir = new URL('../supabase/migrations/', import.meta.url);
   const last = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
@@ -146,7 +150,7 @@ test('link: only for staff, the owner\'s only by the owner, only to an allowed p
   const page = LINK_PAGES[1];
   const irit = row('i@a.test', 'irit', true);
   assert.deepEqual(planLink({ role: 'manager', me: irit, target: row('n@a.test', 'nadia'), redirectTo: page }), { ok: true, page });
-  assert.equal(planLink({ role: 'manager', me: irit, target: row('l@a.test', 'lior', true), redirectTo: page }).ok, true);
+  assert.equal(planLink({ role: 'manager', me: irit, target: row('l@a.test', 'lior', true), redirectTo: page }).error, ERR.ownerOnly);
   assert.equal(planLink({ role: 'owner', target: row(OWNER, null), redirectTo: page }).ok, true);
   assert.equal(planLink({ role: 'manager', me: irit, target: row(OWNER, null), redirectTo: page }).error, ERR.ownerOnly);
   assert.equal(planLink({ role: 'owner', target: null, redirectTo: page }).error, ERR.notStaff);
@@ -154,17 +158,54 @@ test('link: only for staff, the owner\'s only by the owner, only to an allowed p
   assert.equal(planLink({ role: null, target: row('n@a.test', 'nadia'), redirectTo: page }).error, ERR.notAllowed);
 });
 
-test('link: a manager gets no link into more than the manager has (the vault, a payouts owner)', () => {
+// Security audit, 6.10.2026 (docs/ops.md, section 36): whoever opens a sign-in link
+// first chooses that account's password. Irit and Lior both have the vault, so the old
+// rule ("not a vault account unless the manager has the vault too") let each of them
+// take over Ofir's, Ilai's and each other's account.
+test('link: a manager gets no link into an office account, a vault account or a payouts owner, vault or not', () => {
   const page = LINK_PAGES[0];
   const ofir = row('o@a.test', 'ofir', true);
   const nadia = row('n@a.test', 'nadia', false);
   const iritNoVault = row('i@a.test', 'irit', false);
-  // The owner took Irit's vault away: she cannot get into Ofir's (or Lior's) account to read it.
+  const irit = row('i@a.test', 'irit', true);
+  const lior = row('l@a.test', 'lior', true);
   assert.deepEqual(planLink({ role: 'manager', me: iritNoVault, target: ofir, redirectTo: page }), { ok: false, status: 403, error: ERR.ownerOnly });
-  assert.equal(planLink({ role: 'manager', me: iritNoVault, target: row('l@a.test', 'lior', true), redirectTo: page }).error, ERR.ownerOnly);
-  assert.equal(planLink({ role: 'manager', target: ofir, redirectTo: page }).error, ERR.ownerOnly, 'no caller row: no vault');
+  assert.equal(planLink({ role: 'manager', me: iritNoVault, target: lior, redirectTo: page }).error, ERR.ownerOnly);
+  assert.equal(planLink({ role: 'manager', target: ofir, redirectTo: page }).error, ERR.ownerOnly, 'no caller row');
   assert.equal(planLink({ role: 'manager', me: iritNoVault, target: nadia, redirectTo: page }).ok, true);
-  assert.equal(planLink({ role: 'manager', me: row('i@a.test', 'irit', true), target: ofir, redirectTo: page }).ok, true);
+  // The takeover the audit found: a manager with the vault, into every office account.
+  for (const me of [irit, lior]) {
+    for (const p of OFFICE_PERSONS) {
+      for (const vault of [true, false]) {
+        const target = row(`${p}@a.test`, p, vault);
+        if (target.person === me.person) continue;
+        assert.equal(planLink({ role: 'manager', me, target, redirectTo: page }).error, ERR.ownerOnly, `${me.person} → ${p}, vault ${vault}`);
+      }
+    }
+    // Outside the office, an account with the vault (Nirel had it once) is the owner's too.
+    assert.equal(planLink({ role: 'manager', me, target: row('ni@a.test', 'nirel', true), redirectTo: page }).error, ERR.ownerOnly);
+    // The people a manager still helps in: editors, Eli and the sales agents, without the vault.
+    for (const p of PERSONS.filter((x) => !OFFICE_PERSONS.includes(x))) {
+      assert.equal(planLink({ role: 'manager', me, target: row(`${p}@a.test`, p), redirectTo: page }).ok, true, `${me.person} → ${p}`);
+    }
+    // Their own account: nothing they do not already have.
+    assert.equal(planLink({ role: 'manager', me, target: me, redirectTo: page }).ok, true, `${me.person} → self`);
+  }
+  // The rule does not look at whether the account has a login: an invite for a row with
+  // no login yet is refused the same way (planLink is called before linkTypeFor).
+  assert.equal(linkByOwnerOnly(ofir), true);
+  assert.equal(linkByOwnerOnly(row(OWNER, null)), true);
+  assert.equal(linkByOwnerOnly(row('il@a.test', 'ilai')), true);
+  assert.equal(linkByOwnerOnly(row('ni@a.test', 'nirel', true)), true);
+  assert.equal(linkByOwnerOnly(nadia), false);
+  // The team screen hides the button on the same rows (and keeps the manager's own).
+  for (const target of [ofir, lior, irit, nadia, row(OWNER, null), row('ni@a.test', 'nirel', true), row('s@a.test', 'stav')]) {
+    for (const me of [irit, lior]) {
+      const fn = planLink({ role: 'manager', me, target, redirectTo: page }).ok;
+      assert.equal(!teamRules.linkOnlyByOwner({ ...me, owner: false }, target), fn, `screen and function agree: ${me.person} → ${target.person}`);
+    }
+    assert.equal(teamRules.linkOnlyByOwner({ email: OWNER, person: null, owner: true }, target), false);
+  }
   assert.equal(planLink({ role: 'owner', me: row(OWNER, null, false), target: ofir, redirectTo: page }).ok, true);
   // A payouts owner's login, whatever its staff row says.
   assert.equal(planLink({ role: 'manager', me: row('i@a.test', 'irit', true), target: nadia, redirectTo: page, targetIsPayoutOwner: true }).error, ERR.ownerOnly);

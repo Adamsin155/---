@@ -376,9 +376,20 @@ await step('Irit manages the team without the owner\'s powers', async () => {
   assert.equal(await irit.locator('#mklink-owner').count(), 0, 'no link for the owner');
   assert.equal(await text(irit, '#ownerlink-owner'), 'רק הבעלים יוצר קישור כניסה לחשבון הזה.');
   assert.match(await text(irit, '#row-irit'), /זה אני/);
-  await irit.click('#mklink-ofir');
-  await irit.waitForSelector('#link-ofir');
-  assert.match(await irit.inputValue('#link-ofir'), /#type=recovery&token_hash=/);
+  // Security audit, 6.10.2026 (ops.md, section 36): Irit has the vault, and still makes
+  // no sign-in link into an office account or a vault account (Ofir, Lior), on the
+  // screen or straight at the function. Her own, and an editor's, as before.
+  for (const who of ['ofir', 'lior']) {
+    assert.equal(await irit.locator(`#mklink-${who}`).count(), 0, who);
+    assert.equal(await text(irit, `#ownerlink-${who}`), 'רק הבעלים יוצר קישור כניסה לחשבון הזה.');
+    assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: `${who}@astrateg.test`, redirectTo: `${BASE}clients.html` }),
+      [403, { error: 'owner_only' }], who);
+  }
+  assert.equal(await irit.locator('#mklink-irit').count(), 1, 'her own');
+  assert.equal(await irit.locator('#ownerlink-irit').count(), 0);
+  await irit.click('#mklink-yariv');
+  await irit.waitForSelector('#link-yariv');
+  assert.match(await irit.inputValue('#link-yariv'), /#type=recovery&token_hash=/);
   assert.equal(fnCalls.at(-1).by, 'irit@astrateg.test');
   await irit.fill('#email-nadia', 'nadia2@astrateg.test');
   await irit.click('#save-nadia');
@@ -451,7 +462,7 @@ await step('a payouts owner\'s login gets a link from the owner only', async () 
   assert.match(await owner.inputValue('#link-anna'), /#type=recovery&token_hash=/);
 });
 
-await step('without the vault, Lior gets no link into an account that has it', async () => {
+await step('Lior, with or without the vault, gets no link into an office or vault account', async () => {
   await owner.click('#vault-lior');
   await owner.waitForSelector('#vault-lior[aria-pressed="false"]');
   const lior = await newPage();
@@ -465,7 +476,16 @@ await step('without the vault, Lior gets no link into an account that has it', a
   assert.equal(await lior.locator('#mklink-lior').count(), 1, 'their own');
   const redirectTo = `${BASE}clients.html`;
   assert.deepEqual(staffAdmin(users.get('lior@astrateg.test'), { action: 'link', email: 'ofir@astrateg.test', redirectTo }), [403, { error: 'owner_only' }]);
-  assert.equal(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: 'ofir@astrateg.test', redirectTo })[0], 200, 'Irit still has the vault');
+  assert.equal(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: 'ofir@astrateg.test', redirectTo })[0], 403, 'Irit has the vault, and still none');
+  // A row with no login yet (an invite): the same rule. Ilai's row is added by the owner.
+  assert.equal(staffAdmin(users.get('owner@astrateg.test'), { action: 'upsert', mode: 'add', email: 'ilai-new@astrateg.test', person: 'ilai' })[0], 200);
+  assert.equal(users.has('ilai-new@astrateg.test'), false, 'no login yet');
+  assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: 'ilai-new@astrateg.test', redirectTo }), [403, { error: 'owner_only' }]);
+  await lior.click('#btn-refresh');
+  await lior.waitForSelector('#ownerlink-ilai');
+  assert.equal(await lior.locator('#mklink-ilai').count(), 0, 'no invite button for an office row');
+  const made = staffAdmin(users.get('owner@astrateg.test'), { action: 'link', email: 'ilai-new@astrateg.test', redirectTo });
+  assert.deepEqual([made[0], made[1].type], [200, 'invite']);
 });
 
 // ── An editor ─────────────────────────────

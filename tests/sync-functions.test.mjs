@@ -49,7 +49,8 @@ function localImports(fn, file, seen = new Set()) {
 
 test('create-quote imports only the shared copy, never the repository', () => {
   assert.ok(importsOf(readFileSync(join(FUNCTIONS, 'create-quote/index.ts'), 'utf8')).includes('../_shared/app/pricing.js'));
-  localImports('create-quote', 'index.ts');
+  assert.deepEqual([...localImports('create-quote', 'index.ts')].filter((f) => !f.startsWith('_shared/app/')), ['create-quote/http.js']);
+  assert.deepEqual([...localImports('create-quote', 'http.js')], []);
 });
 
 test('the reminders function imports only its own files and the shared copy', () => {
@@ -88,6 +89,7 @@ const DEPLOY = {
   ],
   'create-quote': [
     ...APP('catalog.js', 'legal.js', 'pricing.js'),
+    'create-quote/http.js',
     'create-quote/index.ts',
   ],
   metricool: [

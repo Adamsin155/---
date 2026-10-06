@@ -49,7 +49,8 @@
 
         <section class="scard" aria-labelledby="notes-h">
           <h2 id="notes-h"><label for="notes">הערות</label> <span class="sopt">לא חובה</span></h2>
-          <textarea class="sinput sarea" id="notes" rows="3" maxlength="1000" dir="auto" autocomplete="off" aria-describedby="notes-hint notes-err"></textarea>
+          <textarea class="sinput sarea" id="notes" rows="3" maxlength="300" dir="auto" autocomplete="off" aria-describedby="notes-warn notes-hint notes-err"></textarea>
+          <p class="shint snote-warn" id="notes-warn"></p>
           <p class="shint" id="notes-hint"></p>
           <p class="serr" id="notes-err" hidden></p>
         </section>

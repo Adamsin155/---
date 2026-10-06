@@ -8,7 +8,7 @@ import { TEAM_PEOPLE } from './protocol.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, formatWhen } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import {
-  canManageTeam, loginState, linkMessage, LINK_VALID_FOR, TEAM_MANAGERS, normPhone, formatPhone, canEditPhone, hasPhone,
+  canManageTeam, loginState, linkMessage, LINK_VALID_FOR, TEAM_MANAGERS, normPhone, formatPhone, canEditPhone, hasPhone, linkOnlyByOwner,
 } from './team-rules.js';
 import { loadWaTeam, paintWaPanel, waStatusView } from './wa-team.js';
 import { avatar } from './shell.js';
@@ -239,14 +239,13 @@ function linkPanel(e) {
       + `הוא תקף ל${LINK_VALID_FOR} ולכניסה אחת. אם פג או הלך לאיבוד, יוצרים כאן קישור חדש בכל רגע.`));
 }
 
-// A link opens that account, so Irit and Lior make none for the owner, nor for
-// someone with the vault when they have no vault themselves (the function checks
-// the same, and also refuses a payouts owner's login).
-const linkOnlyByOwner = (row) => !caller?.owner && (row.person === null || (row.vault && !caller?.vault));
+// A link opens that account, so Irit and Lior make none for the owner, an office
+// account or an account with the vault (linkOnlyByOwner in team-rules.js; the
+// function checks the same, and also refuses a payouts owner's login).
 
 function rowView(e) {
   const me = e.row && caller && e.row.email === caller.email;
-  const canLink = !!e.row && !linkOnlyByOwner(e.row);
+  const canLink = !!e.row && !linkOnlyByOwner(caller, e.row);
   const canRemove = !!e.row && caller?.owner && !me;
   const pending = e.row && busy.has(e.row.email);
   return h('li', { class: 'tm-row', id: `row-${e.id}`, 'data-person': e.person ?? 'owner' },

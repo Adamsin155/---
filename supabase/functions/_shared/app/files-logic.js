@@ -46,6 +46,29 @@ export function formatSize(bytes) {
   return `${n} בתים`;
 }
 
+// The content types the bucket takes (its allowed_mime_types, set in
+// supabase/migrations/20261014100000_security_hardening.sql; a database test keeps
+// the two lists the same). Everything the kinds above ask for, and for the free
+// kinds ("תוספת", "אחר") documents, fonts, archives and plain text. A file the
+// browser cannot name goes up as application/octet-stream (.ai, .eps, .psd). Not on
+// the list, and refused by Storage: a web page, a script, XML.
+export const UPLOAD_TYPES = [
+  'image/*', 'video/*', 'audio/*', 'font/*',
+  'application/pdf', 'application/postscript', 'application/illustrator', 'application/eps', 'application/x-eps',
+  'application/octet-stream', 'application/zip', 'application/x-zip-compressed',
+  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-fontobject', 'application/x-font-ttf', 'application/x-font-otf', 'application/font-woff',
+  'text/plain', 'text/csv',
+];
+// The type a file is uploaded with (app/upload.js): what the browser reports, or "unknown binary".
+export const uploadTypeOf = (file) => String(file?.type || '').toLowerCase().split(';')[0].trim() || 'application/octet-stream';
+export const uploadTypeAllowed = (mime) => {
+  const m = String(mime || '').toLowerCase().split(';')[0].trim() || 'application/octet-stream';
+  return UPLOAD_TYPES.some((t) => (t.endsWith('/*') ? m.startsWith(t.slice(0, -1)) && m.length > t.length - 1 : m === t));
+};
+
 export const isImage = (mime) => /^image\//.test(String(mime || ''));
 export const isVideo = (mime) => /^video\//.test(String(mime || ''));
 const LOGO_TYPES = /^(application\/(pdf|postscript|illustrator|eps)|image\/)/;
@@ -65,6 +88,7 @@ export function fileProblem(kind, file) {
       : `"${name}" גדול מדי (${formatSize(size)}). אפשר להעלות קובץ עד 2GB.`;
   }
   const types = k.types;
+  if (!uploadTypeAllowed(mime)) return `אי אפשר להעלות את "${name}": סוג הקובץ הזה (${mime}) לא נשמר בתיק הלקוח. אפשר תמונה, סרטון, PDF, מסמך, גופן או קובץ ZIP.`;
   if (types) {
     const ok = (types.includes('image') && isImage(mime)) || (types.includes('video') && isVideo(mime))
       || (types.includes('logo') && (LOGO_TYPES.test(mime) || LOGO_EXT.test(name)));
