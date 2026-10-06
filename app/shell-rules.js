@@ -11,7 +11,9 @@
 // page's own gate. No DOM here, so node can test it.
 import { PEOPLE, isSales } from './protocol.js';
 import { isOwnerView, canManageTeam } from './team-rules.js';
-import { isManager, canSeeTable, canSeeShootTable, MODES } from './manager-rules.js';
+import {
+  isManager, hasProfiles, canSeeTable, canSeeShootTable, canSeeQuoteList, managerHome, MODES, BACK_LABEL,
+} from './manager-rules.js';
 
 const known = (v) => !!v && !v.error;
 const officeOf = (v) => known(v) && v.scope === 'office';
@@ -40,15 +42,18 @@ export function officeScreens(viewer) {
   ].filter(([, , , show]) => show).map(([id, href, label]) => ({ id, href, label }));
 }
 
-// Every screen this person is offered, in the menu's order. `mode: true` marks the
-// managers' two profiles (the "המשימות שלי" / "מבט מנהל" switch).
+// Every screen this person may open, in the menu's order. `mode` marks Irit's two
+// profiles (the "המשימות שלי" / "מבט מנהל" switch as her first two entries). The owners,
+// Ofir and Lior see this list in two parts, one profile at a time: profileMenu below.
 export function menuOf(viewer) {
   const me = viewer?.me || null;
   if (known(viewer) && isSales(me)) return [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }];
   const list = [{ id: 'mine', href: MODES.mine.href, label: MODES.mine.label }];
   if (!known(viewer)) return list; // not identified: nothing is assumed
   const office = officeOf(viewer);
-  if (isManager(viewer)) {
+  if (isManager(viewer) && hasProfiles(viewer)) {
+    list.push({ id: 'manager', href: MODES.manager.href, label: MODES.manager.label }); // the owner, Ofir: behind the button
+  } else if (isManager(viewer)) {
     list[0].mode = 'mine';
     list.push({ id: 'manager', href: MODES.manager.href, label: MODES.manager.label, mode: 'manager' });
   } else if (seesAllClients(viewer)) {
@@ -65,8 +70,12 @@ export function menuOf(viewer) {
   if (me === 'eli' || office) list.push({ id: 'shoot', href: 'shoot.html', label: 'ימי צילום' });
   // Every client by its last shoot day, the oldest first (6.10.2026): Lior, Ofir and the owner.
   if (canSeeShootTable(viewer)) list.push({ id: 'shoot-table', href: 'owner.html#shoots', label: 'טבלת ימי צילום' });
-  list.push({ id: 'quote', href: 'index.html', label: 'הצעה חדשה' }, { id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
+  list.push({ id: 'quote', href: 'index.html', label: 'הצעה חדשה' });
+  // The list of sent quotes: the owners and Irit (6.10.2026; the database answers nobody else).
+  if (canSeeQuoteList(viewer)) list.push({ id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
+  // The payments app (payouts/, another app with its own gate, public.payout_owners): the owners.
+  if (isOwnerView(viewer)) list.push({ id: 'payouts', href: 'payouts/', label: 'אסטרטג פיימנט' });
   return unique(list);
 }
 // No screen twice: one entry per id, per address and per name (the first one stays).
@@ -78,6 +87,59 @@ function unique(list) {
     for (const k of keys) seen.add(k);
     return true;
   });
+}
+
+// ── The two profiles of the owners, Ofir and Lior (6.10.2026) ──
+// The personal profile: only what this person acts on every day, "המשימות שלי" first.
+// Everything else they may open is the manager profile's, behind the one button at the
+// top of every screen. The clients list is in both (a client is looked up from either).
+export const PERSONAL = {
+  owner: ['mine', 'clients', 'quote', 'quotes'],                 // their tasks and approvals, a client, a contract
+  lior: ['mine', 'clients', 'decisions', 'messages', 'shoot'],   // his decisions, the clients' messages, the shoot day
+  ofir: ['mine', 'clients', 'qa', 'pass'],                       // his queue and his pass over the clients
+};
+const IN_BOTH = ['clients'];
+const profileKey = (viewer) => (hasProfiles(viewer) ? viewer.me || 'owner' : null);
+// The tabs of clients.html that are the manager profile's, for whoever has profiles: the
+// whole team's work (#team: the list of "המשימות שלי" with the choice of whose), the
+// office's daily review and the performance. The daily review stays in Ofir's personal
+// profile too: process 33 and Thursday's summary are his own work, done on that tab.
+export const MANAGER_TABS = ['team', 'control', 'performance'];
+const OWN_TABS = { ofir: ['control'] };
+export const managerTabs = (viewer) => (hasProfiles(viewer) ? MANAGER_TABS.filter((t) => !(OWN_TABS[profileKey(viewer)] || []).includes(t)) : []);
+// The menu of one profile ('mine' or 'manager'); for anyone without profiles, the whole menu.
+export function profileMenu(viewer, profile) {
+  const items = menuOf(viewer);
+  const mine = PERSONAL[profileKey(viewer)];
+  if (!mine) return items;
+  if (profile !== 'manager') return items.filter((it) => mine.includes(it.id));
+  return items.filter((it) => !mine.includes(it.id) || IN_BOTH.includes(it.id));
+}
+// The button at the top of every screen: { to, label, href }, or null without profiles.
+export function profileSwitch(viewer, profile) {
+  if (!hasProfiles(viewer)) return null;
+  return profile === 'manager'
+    ? { to: 'mine', label: BACK_LABEL, href: MODES.mine.href }
+    : { to: 'manager', label: MODES.manager.label, href: managerHome(viewer) };
+}
+// Which profile this page is shown in. A page of one profile only decides by itself, so
+// a manager screen opened by its address or from a notification opens in the manager
+// profile; a page of both (a client's card, the clients list) keeps the last choice.
+// On clients.html: "המשימות שלי" (#mine) is personal; the team's work (#team), the
+// office's daily review and the performance are the manager's (managerTabs).
+export function profileOf(viewer, pathname, hash = '', search = '', saved = null) {
+  const mine = PERSONAL[profileKey(viewer)];
+  if (!mine) return null;
+  const last = saved === 'manager' ? 'manager' : 'mine';
+  const page = pageOf(pathname);
+  if (page === 'owner.html') return 'manager';
+  if (page === 'clients.html') {
+    if (!hash || hash === '#mine') return 'mine';
+    return managerTabs(viewer).includes(hash.slice(1)) ? 'manager' : last;
+  }
+  const { id } = currentOf(menuOf(viewer), pathname, hash, search);
+  if (!id || IN_BOTH.includes(id)) return last;
+  return mine.includes(id) ? 'mine' : 'manager';
 }
 
 // The role's own first screen (app/office-ui.js firstScreenOf), as a menu id; for Ilai,
@@ -95,7 +157,7 @@ const homeOf = (viewer) => {
 export function barOf(items, viewer) {
   if (items.length < 2) return { bar: [], more: [] };
   if (items.length <= 4) return { bar: items, more: [] };
-  const first = ['mine', 'manager', homeOf(viewer), 'clients', 'overview'].filter(Boolean);
+  const first = ['mine', 'manager', 'overview', homeOf(viewer), 'clients'].filter(Boolean);
   const rank = (it) => { const i = first.indexOf(it.id); return i < 0 ? first.length : i; };
   const picked = new Set([...items].sort((a, b) => rank(a) - rank(b)).slice(0, 3).map((it) => it.id));
   return { bar: items.filter((it) => picked.has(it.id)), more: items.filter((it) => !picked.has(it.id)) };

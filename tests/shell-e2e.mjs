@@ -128,7 +128,10 @@ await step('a wide screen: the side menu, the rail on the current screen, the na
 });
 
 await step('the manager view: the week\'s chart, five office days, today marked, read out as one sentence', async () => {
+  // (Since 6.10.2026 the owner lands on "המשימות שלי"; the manager view is the button at the top.)
   const { page, ctx } = await open('owner');
+  await page.waitForSelector('#profile-switch[data-to="manager"]');
+  await page.click('#profile-switch');
   await page.waitForURL(/owner\.html#now$/);
   await page.waitForSelector('#wk-card:not([hidden]) .wk-col');
   assert.equal(await page.innerText('#wk-h'), 'משימות שנסגרו השבוע');
@@ -162,7 +165,8 @@ await step('the manager view: the week\'s chart, five office days, today marked,
 });
 
 await step('the motion: the entrance ends with everything visible; a counting number keeps the page\'s text', async () => {
-  const { page, ctx } = await open('owner', { motion: true });
+  // (The manager view by its address: since 6.10.2026 the owner lands on "המשימות שלי".)
+  const { page, ctx } = await open('owner', { motion: true, path: 'owner.html' });
   await page.waitForURL(/owner\.html#now$/);
   await page.waitForSelector('#ow-stats .v');
   assert.equal(await page.evaluate(() => document.documentElement.classList.contains('ds-motion')), true);
@@ -205,7 +209,7 @@ await step('the motion: the entrance ends with everything visible; a counting nu
 });
 
 await step('prefers-reduced-motion: nothing rises, counts or glides', async () => {
-  const { page, ctx } = await open('owner', { motion: true, reduced: true });
+  const { page, ctx } = await open('owner', { motion: true, reduced: true, path: 'owner.html' });
   await page.waitForURL(/owner\.html#now$/);
   await page.waitForSelector('#ow-stats .v');
   assert.equal(await page.evaluate(() => document.documentElement.classList.contains('ds-motion')), false);
@@ -226,26 +230,34 @@ await step('prefers-reduced-motion: nothing rises, counts or glides', async () =
 });
 
 await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and gives it back', async () => {
+  // (Since 6.10.2026 Lior lands on "המשימות שלי" with his personal menu: five screens, two behind "עוד".)
   const { page, ctx } = await open('lior', { viewport: { width: 375, height: 740 } });
-  await page.waitForURL(/decisions\.html/);
+  await page.waitForSelector('#profile-switch[data-to="manager"]');
   await page.waitForSelector('#side-list .side-link');
   await settle(page);
+  assert.match(page.url(), /clients\.html(#mine)?$/);
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'החלטות', 'עוד']);
-  assert.equal(await page.getAttribute('#side-decisions', 'aria-current'), 'page');
+  assert.equal(await page.getAttribute('#side-mine', 'aria-current'), 'page');
   assert.equal(await page.locator('#side-rail').isVisible(), false);
   assert.equal(await page.locator('#side-promo, .side-logo').first().isVisible(), false);
   await page.click('#side-more');
   assert.equal(await page.evaluate(() => document.activeElement.closest('#side-sheet') !== null), true);
-  assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(),
-    // His daily screens first, then the rest (groupsOf in app/shell-rules.js, 6.10.2026).
-    ['כל הלקוחות במבט', 'הודעות ללקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה', 'הצעות שנשלחו', 'צוות']);
+  assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(), ['הודעות ללקוחות', 'ימי צילום']);
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'side-more');
-  // A screen behind "עוד" marks "עוד" as where you are.
+  // The manager profile's bar: the manager view first, and the rest behind "עוד".
+  await page.click('#profile-switch');
+  await page.waitForSelector('#profile-switch[data-to="mine"]');
+  await page.waitForSelector('#view-all:not([hidden])');
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'עוד']);
   await page.click('#side-more');
+  assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(),
+    ['בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה', 'צוות']);
+  // A screen behind "עוד" marks "עוד" as where you are.
   await page.click('#side-year');
   await page.waitForURL(/year\.html$/);
   await page.waitForSelector('#side-more.is-on');
+  assert.equal(await page.innerText('#profile-switch'), 'חזרה למשימות שלי');
   // The page's last content clears the bar.
   const room = await page.evaluate(() => parseFloat(getComputedStyle(document.body).paddingBottom));
   assert.ok(room >= 90, `room under the page: ${room}px`);

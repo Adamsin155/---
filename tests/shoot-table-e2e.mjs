@@ -318,10 +318,14 @@ await step('the search by client name; the order survives the minute\'s refresh'
   await lctx.close();
 });
 
-await step('Ofir: the entry in the menu from his own work, the same table and order', async () => {
+// Since 6.10.2026 the table is in Ofir's manager profile: the button at the top of his own work, then the entry.
+await step('Ofir: from his own work, "מבט מנהל" and the entry in its menu; the same table and order', async () => {
   const ctx = await newContext();
   const ofir = await newPage(ctx);
   await signIn(ofir, 'clients.html#mine', 'ofir@astrateg.test');
+  await ofir.waitForSelector('#profile-switch[data-to="manager"]');
+  assert.equal(await ofir.locator('#side-shoot-table').count(), 0);
+  await ofir.click('#profile-switch');
   await ofir.waitForSelector('#side-shoot-table');
   await ofir.click('#side-shoot-table');
   await ofir.waitForURL(/owner\.html#shoots$/);
@@ -329,10 +333,10 @@ await step('Ofir: the entry in the menu from his own work, the same table and or
   assert.deepEqual(await names(ofir, 'shot'), SHOT_ORDER);
   assert.deepEqual(await names(ofir, 'never'), NEVER_ORDER);
   await ofir.waitForSelector('#side-shoot-table[aria-current="page"]');
-  assert.equal(await ofir.getAttribute('#mode-manager', 'aria-current'), null);
+  assert.equal(await ofir.getAttribute('#side-manager', 'aria-current'), null);
   // From another tab of the page, the menu entry opens the table without a reload.
   await ofir.click('#tab-table');
-  await ofir.waitForSelector('#mode-manager[aria-current="page"]');
+  await ofir.waitForSelector('#side-manager[aria-current="page"]');
   await ofir.click('#side-shoot-table');
   await ready(ofir);
   assert.equal(await ofir.getAttribute('#tab-shoots', 'aria-selected'), 'true');

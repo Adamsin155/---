@@ -783,6 +783,8 @@ function askLogin() {
         if (error) throw error;
         const staff = await refreshSession();
         if (!staff?.isStaff) throw new Error('not staff');
+        // A fresh sign-in starts in the personal profile (app/manager-rules.js).
+        import('./manager-rules.js').then((m) => m.resetMode()).catch(() => {});
         form.removeEventListener('submit', onSubmit);
         dlg.close();
         resolve(true);

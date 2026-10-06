@@ -66,3 +66,8 @@
   .qtable .acts-cell { grid-column: 1 / -1; }
   .qtable .acts { justify-content: flex-start; flex-wrap: wrap; }
 }
+
+/* "אין לך גישה לעמוד הזה" on the list of sent quotes (the owners and Irit open it). */
+.ow-noaccess { padding: 20px; }
+.ow-noaccess p { color: var(--text-2); }
+.ow-noaccess .btn { min-height: 44px; }

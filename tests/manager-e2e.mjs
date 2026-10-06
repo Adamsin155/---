@@ -232,28 +232,36 @@ async function step(name, fn) {
 const octx = await newContext();
 const owner = await newPage(octx);
 
-await step('the owner lands on the manager profile, with the switch at the top, and can switch to "המשימות שלי" and back', async () => {
+// Since 6.10.2026 the owner starts in the personal profile (it was the manager view), and
+// the switch is one button in the top bar (it was the first two entries of the menu).
+await step('the owner lands on "המשימות שלי"; the button at the top opens the manager profile and leads back', async () => {
   await signIn(owner, 'clients.html', 'owner@astrateg.test');
+  await owner.waitForSelector('#profile-switch[data-to="manager"]');
+  await owner.waitForSelector('#view-mine:not([hidden])');
+  await owner.waitForTimeout(300);
+  assert.match(owner.url(), /clients\.html(#mine)?$/);
+  assert.equal(await owner.locator('#mode-bar').count(), 0);
+  assert.equal(await owner.innerText('#profile-switch'), 'מבט מנהל');
+  await owner.click('#profile-switch');
   await owner.waitForURL(/owner\.html#now$/);
-  await owner.waitForSelector('#mode-bar');
-  assert.deepEqual(await owner.locator('#mode-bar .mode-opt').allInnerTexts(), ['המשימות שלי', 'מבט מנהל']);
-  assert.equal(await owner.getAttribute('#mode-manager', 'aria-current'), 'page');
-  assert.equal(await owner.getAttribute('#mode-mine', 'aria-current'), null);
-  // The switch is the first entry of the app menu, on every page.
-  assert.equal(await owner.evaluate(() => document.querySelector('#app-side #side-list').firstElementChild.id), 'mode-bar');
+  await owner.waitForSelector('#profile-switch[data-to="mine"]');
+  assert.equal(await owner.innerText('#profile-switch'), 'חזרה למשימות שלי');
+  assert.equal(await owner.getAttribute('#side-manager', 'aria-current'), 'page');
+  // The manager view is the first entry of the manager profile's menu.
+  assert.equal(await owner.evaluate(() => document.querySelector('#app-side #side-list').firstElementChild.id), 'side-manager');
   for (const t of ['now', 'all', 'table', 'archive']) assert.equal(await owner.isHidden(`#tab-${t}`), false, t);
   await shot(owner, 'manager-01-owner-screen1-switch');
-  await owner.click('#mode-mine');
+  await owner.click('#profile-switch');
   await owner.waitForURL(/clients\.html#mine$/);
-  await owner.waitForSelector('#mode-bar');
-  assert.equal(await owner.getAttribute('#mode-mine', 'aria-current'), 'page');
-  // The next sign-in (a new tab) lands on "המשימות שלי", as chosen.
+  await owner.waitForSelector('#profile-switch[data-to="manager"]');
+  assert.equal(await owner.getAttribute('#side-mine', 'aria-current'), 'page');
+  // A new tab lands on "המשימות שלי", as chosen.
   const again = await newPage(octx);
   await again.goto(`${BASE}clients.html`);
   await again.waitForSelector('#view-mine:not([hidden])');
   await again.waitForTimeout(300);
   assert.match(again.url(), /clients\.html/);
-  await again.click('#mode-manager');
+  await again.click('#profile-switch');
   await again.waitForURL(/owner\.html#now$/);
   await again.close();
 });
@@ -376,7 +384,8 @@ await step('Lior: the table without any price, the summary in the card, no switc
   await lctx.close();
 });
 
-await step('Irit: the switch, screen 1, the table with prices, no archive; her own work until she switches', async () => {
+// Since 6.10.2026 the prices are the owners' only (Irit had them).
+await step('Irit: the switch, screen 1, the table without prices, no archive; her own work until she switches', async () => {
   const ictx = await newContext();
   const irit = await newPage(ictx);
   await signIn(irit, 'clients.html', 'irit@astrateg.test');
@@ -388,7 +397,8 @@ await step('Irit: the switch, screen 1, the table with prices, no archive; her o
   assert.equal(await irit.isHidden('#tab-archive'), true);
   await irit.click('#tab-table');
   await irit.waitForSelector('#mt-body tr');
-  assert.ok((await heads(irit)).includes('חודשי כולל מע״מ'));
+  assert.ok(!(await heads(irit)).some((x) => /חודשי|סה״כ|מחיר/.test(x)), (await heads(irit)).join());
+  assert.doesNotMatch(await text(irit, '#mt'), /₪/);
   await irit.goto(`${BASE}client.html?id=${A.id}`);
   await irit.waitForSelector('#contract-summary');
   assert.equal(await irit.locator('#btn-archive').count(), 0);
@@ -475,8 +485,8 @@ await step('360px phones: the switch, the table scrolls sideways inside itself o
   await phone.locator('#mt-wrap').evaluate((e) => { e.scrollLeft = -600; });
   const first = await phone.locator('#mt-body tr:first-child td:first-child').boundingBox();
   assert.ok(first.x >= 0 && first.x + first.width <= 361, JSON.stringify(first));
-  const sizes = await phone.locator('#mode-bar .mode-opt, #mt-tools .input, #mt-csv, #mt-head th button, #tab-table').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
-  assert.ok(sizes.length >= 10 && sizes.every((x) => x >= 44), JSON.stringify(sizes));
+  const sizes = await phone.locator('#profile-switch, #mt-tools .input, #mt-csv, #mt-head th button, #tab-table').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  assert.ok(sizes.length >= 9 && sizes.every((x) => x >= 44), JSON.stringify(sizes));
   await shot(phone, 'manager-06-phone-table');
   await phone.goto(`${BASE}client.html?id=${A.id}`);
   await phone.waitForSelector('#contract-summary');
@@ -486,7 +496,7 @@ await step('360px phones: the switch, the table scrolls sideways inside itself o
   await phone.waitForSelector('#ar-list li');
   assert.ok(await noHScroll(phone), 'the archive scrolls sideways at 360px');
   await phone.goto(`${BASE}clients.html#mine`);
-  await phone.waitForSelector('#mode-bar');
+  await phone.waitForSelector('#profile-switch');
   assert.ok(await noHScroll(phone), 'clients.html scrolls sideways at 360px with the switch');
   await shot(phone, 'manager-08-phone-switch');
   await pctx.close();

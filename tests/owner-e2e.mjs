@@ -230,8 +230,13 @@ assert.deepEqual([A, B, C, D, E].map(colourOf), ['red', 'red', 'yellow', 'green'
 const octx = await newContext();
 const owner = await newPage(octx);
 
-await step('the owner lands on screen 1 from clients.html, with a link back to the team\'s work', async () => {
+// Since 6.10.2026 the owner lands on "המשימות שלי" (it was screen 1), and "מבט מנהל" is one button away.
+await step('the owner opens screen 1 with the button at the top of "המשימות שלי", with a link back to the team\'s work', async () => {
   await signIn(owner, 'clients.html', 'owner@astrateg.test');
+  await owner.waitForSelector('#profile-switch[data-to="manager"]');
+  await owner.waitForSelector('#view-mine:not([hidden])');
+  assert.match(owner.url(), /clients\.html(#mine)?$/);
+  await owner.click('#profile-switch');
   await owner.waitForURL(/owner\.html#now$/);
   await owner.waitForSelector('#view-now:not([hidden]) .ow-row');
   assert.equal(await text(owner, '#ow-title'), 'מה דורש אותי');
@@ -239,7 +244,7 @@ await step('the owner lands on screen 1 from clients.html, with a link back to t
   assert.equal(await owner.getAttribute('#link-work', 'href'), 'clients.html#mine');
   // The app menu: the manager profile is the current page, and the owner has the team screen.
   await owner.waitForSelector('#side-team');
-  assert.equal(await owner.getAttribute('#mode-manager', 'aria-current'), 'page');
+  assert.equal(await owner.getAttribute('#side-manager', 'aria-current'), 'page');
   assert.equal(await owner.getAttribute('#side-team', 'href'), 'team.html');
 });
 
@@ -471,13 +476,13 @@ await step('after landing, the owner\'s "לקוחות" links open the clients li
   await owner.waitForSelector('#view-mine:not([hidden]), #view-clients:not([hidden])');
   await owner.waitForTimeout(300);
   assert.match(new URL(owner.url()).pathname, /\/clients\.html$/);
-  // Screen 1 is one tap away: the managers' switch at the top ("מבט מנהל"), on phones too.
+  // Screen 1 is in the menu of the manager profile ("מבט מנהל"), on phones too.
   // The page head does not repeat it (the phone review of 4.10.2026).
-  await owner.waitForSelector('#mode-bar');
+  await owner.waitForSelector('#profile-switch');
   assert.equal(await owner.isHidden('#cta-owner'), true);
   assert.equal(await owner.getAttribute('#cta-owner', 'href'), 'owner.html');
-  assert.equal(await owner.getAttribute('#mode-manager', 'href'), 'owner.html#now');
-  assert.equal(await owner.isVisible('#mode-manager'), true);
+  assert.equal(await owner.getAttribute('#side-manager', 'href'), 'owner.html#now');
+  assert.equal(await owner.isVisible('#side-manager'), true);
   // And screen 1's own "לקוחות" opens the list.
   await owner.goto(`${BASE}owner.html`);
   await owner.waitForSelector('#view-now:not([hidden]) .ow-row');
@@ -616,22 +621,24 @@ await step('a 360px phone: no sideways scrolling, 44px targets, on both screens'
   assert.ok(await noHScroll(phone), 'the team screen scrolls sideways at 360px');
   await shot(phone, 'owner-09-phone-team');
   await pctx.close();
-  // Lior on a phone: the bottom bar holds his three screens, and "עוד" keeps the way into screen 2.
+  // Lior on a phone: the bottom bar holds his three screens, and the way into screen 2 is
+  // the button at the top, "מבט מנהל" (since 6.10.2026; it was "כל הלקוחות במבט" behind "עוד").
   const ictx = await newContext({ width: 360, height: 780 });
   const lior = await newPage(ictx);
   await signIn(lior, 'clients.html#mine', 'lior@astrateg.test');
   await lior.waitForSelector('#view-mine:not([hidden])');
   assert.equal(await lior.locator('#nav-owner').isVisible(), false);
   assert.deepEqual(await lior.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'החלטות', 'עוד']);
-  await lior.click('#side-more');
-  const cta = lior.locator('#side-overview');
+  const cta = lior.locator('#profile-switch');
   assert.equal(await cta.isVisible(), true);
   assert.equal(await cta.getAttribute('href'), 'owner.html#all');
-  assert.equal(await cta.innerText(), 'כל הלקוחות במבט');
+  assert.equal(await cta.innerText(), 'מבט מנהל');
   assert.ok((await cta.boundingBox()).height >= 44);
   assert.ok(await noHScroll(lior), 'clients.html scrolls sideways at 360px');
   await cta.click();
   await lior.waitForSelector('#view-all:not([hidden]) .ga-item');
+  // There, "כל הלקוחות במבט" is the first screen of the bar.
+  assert.equal(await lior.getAttribute('#side-overview', 'aria-current'), 'page');
   await ictx.close();
 });
 

@@ -214,8 +214,16 @@ export function makeFake(db, { now = () => NOW.toISOString() } = {}) {
         else if (!isOffice(me)) rows = rows.filter((r) => r.editor === person);
       }
       if (person === 'stav' && table !== 'deal_requests' && table !== 'staff' && table !== 'reminder_log') rows = [];
-      if (table === 'deal_requests' && !isOffice(me)) rows = rows.filter((r) => r.seller === person);
-      if (['client_messages', 'quotes', 'client_access'].includes(table) && !isOffice(me)) rows = [];
+      // Money (20261013100000_money_owners_only.sql): the owners and Irit read the deals and the
+      // quotes; a seller their own deals; Ofir and Lior a contract that waits for approval;
+      // anyone a quote they made.
+      const readsAll = person === null || person === 'irit';
+      if (table === 'deal_requests' && !readsAll) rows = rows.filter((r) => r.seller === person);
+      if (table === 'quotes' && !readsAll) {
+        const approver = person === 'ofir' || person === 'lior';
+        rows = rows.filter((r) => r.created_by_email === me.email || (approver && r.approval && r.approval !== 'none' && r.status === 'sent'));
+      }
+      if (['client_messages', 'client_access'].includes(table) && !isOffice(me)) rows = [];
       const off = Number(url.searchParams.get('offset') || 0);
       const lim = Number(url.searchParams.get('limit') || 1e9);
       return reply(rows.slice(off, off + lim));

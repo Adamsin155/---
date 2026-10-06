@@ -17,8 +17,19 @@ export const SHOOT_TABLE_VIEWERS = ['ofir', 'lior']; // and the owner: "טבלת
 const known = (v) => !!v && !v.error;
 export const isManager = (v) => isOwnerView(v) || (known(v) && MANAGERS.includes(v.me));
 export const canArchive = (v) => isOwnerView(v) || (known(v) && ARCHIVERS.includes(v.me));
-// The prices of the agreements: the managers. Never Lior.
-export const seesFinance = (v) => isManager(v);
+// Money (the owner's decision, 6.10.2026): the prices of the agreements in the table and
+// in its CSV, the amounts in the list of sent quotes, and every sum of income, are the
+// two owners' only. In the database: public.sees_money()
+// (supabase/migrations/20261013100000_money_owners_only.sql).
+export const seesFinance = (v) => isOwnerView(v);
+// The list of sent quotes (quotes.html): the owners, and Irit, who builds the contracts
+// (she sees it without the amounts). public.quotes answers nobody else, except with the
+// quotes a person made, and the approvers with the contracts that wait for them.
+export const QUOTE_LIST_VIEWERS = ['irit'];
+export const canSeeQuoteList = (v) => isOwnerView(v) || (known(v) && QUOTE_LIST_VIEWERS.includes(v.me));
+// Stav's and Amos's deals with what was agreed (the discount, a price typed by hand):
+// Irit, who prepares the contract from them, and the owners.
+export const canSeeDeals = (v) => canSeeQuoteList(v);
 export const canSeeTable = (v) => isOwnerView(v) || (known(v) && TABLE_VIEWERS.includes(v.me));
 // The shoot-day table (owner.html#shoots, app/shoot-table.js): read-only, no prices in it.
 export const canSeeShootTable = (v) => isOwnerView(v) || (known(v) && SHOOT_TABLE_VIEWERS.includes(v.me));
@@ -30,16 +41,30 @@ const plain = (s) => String(s ?? '').replace(/[‎‏‪-‮⁦-⁩]/g, '').repl
 export const sameName = (typed, name) => plain(name) !== '' && plain(typed) === plain(name);
 
 // ── The two profiles ────────────────────────
+// Two kinds of people have them:
+//  - the owners, Ofir and Lior (hasProfiles; the owner's request of 6.10.2026): they
+//    start in the personal profile, a short menu of their own daily work, and one
+//    button at the top of every screen opens the manager profile ("מבט מנהל"), which
+//    alone holds the management screens, with "חזרה למשימות שלי" in the same spot
+//    (app/shell.js draws it; profileMenu and profileOf in app/shell-rules.js decide);
+//  - Irit, as before: the two profiles are the first two entries of her one menu.
+export const PROFILED = ['ofir', 'lior'];     // and the owner
+export const hasProfiles = (v) => isOwnerView(v) || (known(v) && PROFILED.includes(v.me));
 export const MODES = {
   mine: { key: 'mine', label: 'המשימות שלי', href: 'clients.html#mine' },
   manager: { key: 'manager', label: 'מבט מנהל', href: 'owner.html#now' },
 };
-const MODE_KEY = 'astrateg.mode';
-// The owner starts in the manager profile (as before); Irit and Ofir in their own work.
-export const defaultMode = (v) => (isOwnerView(v) ? 'manager' : 'mine');
-// The profile this browser last chose, for a manager; null for anyone else.
+export const BACK_LABEL = 'חזרה למשימות שלי';
+// Where the manager profile opens: screen 1 for the managers, screen 2 for Lior (who has no screen 1).
+export const managerHome = (v) => (isManager(v) ? MODES.manager.href : 'owner.html#all');
+// A new key (it was 'astrateg.mode'): what a browser remembered before 6.10.2026 is
+// left behind, so everyone starts in the personal profile.
+const MODE_KEY = 'astrateg.profile';
+// Everyone starts in their own work; the manager profile is a choice.
+export const defaultMode = () => 'mine';
+// The profile this browser last chose, for whoever has two; null for anyone else.
 export function modeOf(v, storage = globalThis.localStorage) {
-  if (!isManager(v)) return null;
+  if (!isManager(v) && !hasProfiles(v)) return null;
   let saved = null;
   try { saved = storage?.getItem(MODE_KEY) || null; } catch { /* no storage */ }
   return MODES[saved] ? saved : defaultMode(v);
@@ -48,11 +73,7 @@ export function setMode(mode, storage = globalThis.localStorage) {
   if (!MODES[mode]) return;
   try { storage?.setItem(MODE_KEY, mode); } catch { /* no storage */ }
 }
-// Which profile a page belongs to: owner.html is the manager's, "המשימות שלי" is mine;
-// any other page shows the profile last chosen.
-export function modeOfPage(path, hash, saved) {
-  const page = String(path || '').split('/').pop() || 'index.html';
-  if (page === 'owner.html') return 'manager';
-  if (page === 'clients.html' && (!hash || hash === '#mine')) return 'mine';
-  return saved;
+// A sign-in or a sign-out: whoever comes next on this browser starts in the personal profile.
+export function resetMode(storage = globalThis.localStorage) {
+  try { storage?.removeItem(MODE_KEY); } catch { /* no storage */ }
 }

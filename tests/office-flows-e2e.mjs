@@ -311,8 +311,13 @@ async function step(name, fn) {
 const octx = await newContext();
 const ofir = await newPage(octx);
 
-await step('Ofir lands on his queue: what waits for his check against the one-hour target, first due first', async () => {
+// Since 6.10.2026 Ofir lands on "המשימות שלי" (it was his queue), and the queue is one tap away in his personal menu.
+await step('Ofir\'s queue, one tap from "המשימות שלי": what waits for his check against the one-hour target, first due first', async () => {
   await signIn(ofir, 'clients.html', 'ofir');
+  await ofir.waitForSelector('#profile-switch[data-to="manager"]');
+  await ofir.waitForSelector('#view-mine:not([hidden])');
+  assert.match(ofir.url(), /clients\.html(#mine)?$/);
+  await ofir.click('#side-qa');
   await ofir.waitForURL(/qa\.html$/);
   await ofir.waitForSelector('#qa-list .of-card');
   const cards = await ofir.locator('#qa-list > li.of-card').evaluateAll((els) => els.map((e) => [e.querySelector('.wclient').textContent, e.querySelector('.wtitle').textContent, e.querySelector('.of-line').textContent]));
@@ -434,10 +439,15 @@ await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the 
   await ofir.waitForSelector('#qa-list .of-card');
 });
 
-await step('Lior lands on "החלטות": an exception through reason → decision → next action → close, and "התחלתי"', async () => {
+// Since 6.10.2026 Lior lands on "המשימות שלי" (it was "החלטות"), and "החלטות" is one tap away in his personal menu.
+await step('Lior\'s "החלטות", one tap from "המשימות שלי": an exception through reason → decision → next action → close, and "התחלתי"', async () => {
   const lctx = await newContext();
   const lior = await newPage(lctx);
   await signIn(lior, 'clients.html', 'lior');
+  await lior.waitForSelector('#profile-switch[data-to="manager"]');
+  await lior.waitForSelector('#view-mine:not([hidden])');
+  assert.match(lior.url(), /clients\.html(#mine)?$/);
+  await lior.click('#side-decisions');
   await lior.waitForURL(/decisions\.html$/);
   await lior.waitForSelector('#ex-list .dc-card');
   const card = lior.locator('#ex-list .dc-card');
