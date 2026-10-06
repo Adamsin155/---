@@ -84,7 +84,8 @@ test('regular quotes are untouched: no approval, the same deadline and hash, the
   const r = await create(sel(null, { discount: 20000 }), 'irit', { approval: 'pending', approval_note: 'x', version: 7 });
   assert.deepEqual([r.approval, r.approval_note, r.version, r.exceptions, r.submitted_at], ['none', null, 1, null, null]);
   assert.ok(Math.abs(new Date(r.expires_at) - new Date(r.created_at) - 72 * 3600e3) < 1000);
-  assert.equal(r.model.validUntil, r.expires_at.toISOString().replace('Z', '+00:00'));
+  // The same instant: Postgres drops trailing zeros of the fraction ("…18.52+00:00"), JS always writes three digits.
+  assert.equal(new Date(r.model.validUntil).getTime(), r.expires_at.getTime());
   assert.deepEqual(await history(r.id), []);
   const seen = (await q('anon', 'select public.get_quote($1) as g', [r.token])).rows[0].g;
   assert.equal(seen.number, r.number);
