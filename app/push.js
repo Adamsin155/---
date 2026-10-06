@@ -10,7 +10,7 @@
 // the push tables (the migration 20260930110000): until then it stays hidden.
 import { supabase } from './supa.js';
 import { VAPID_PUBLIC_KEY } from './push-config.js';
-import { platformOf, pushState, keyBytes, sameKey, inboxRows, unreadCount, deliveryText, SNOOZE_CHOICES } from './push-logic.js';
+import { platformOf, pushState, keyBytes, sameKey, inboxRows, unreadCount, deliveryText, SNOOZE_CHOICES, sitePage } from './push-logic.js';
 import { businessDayFrom, atIL, SNOOZE } from './reminder-rules.js';
 import { atTimeIL } from './tz.js';
 import { $, fill, h, toast, errorText, formatStamp } from './protocol-ui.js';
@@ -264,7 +264,7 @@ async function snooze(r, choice) {
 
 function rowView(r) {
   const id = `inbox-${r.id}`;
-  const open = r.url ? new URL(r.url, new URL('../', import.meta.url)).href : null;
+  const open = sitePage(r.url, new URL('../', import.meta.url).href); // a page of this site only
   return h('li', { class: `inbox-row${r.read_at ? '' : ' is-new'}`, id },
     h('div', { class: 'inbox-top' },
       h('span', { class: 'num muted' }, formatStamp(r.created_at).split(' ').at(-1)),

@@ -1,6 +1,6 @@
 import {
   supabase, currentStaff, quoteLink, explainError,
-  sendPasswordReset, consumeRecoveryLink, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT,
+  sendPasswordReset, consumeRecoveryLink, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT,
 } from './supa.js';
 import { h, formatDate, whatsappLink } from './quote-doc.js';
 import { formatILS } from './pricing.js';
@@ -237,7 +237,7 @@ $('lg-forgot').addEventListener('click', async (e) => {
     btn.disabled = false;
   }
 });
-$('btn-logout').addEventListener('click', async () => { await supabase.auth.signOut(); await boot(); });
+$('btn-logout').addEventListener('click', async () => { await signOutHere(); await boot(); });
 $('btn-refresh').addEventListener('click', loadQuotes);
 
 const pwDialog = $('dlg-password');
@@ -269,6 +269,7 @@ $('pw-form').addEventListener('submit', async (e) => {
   const link = await consumeRecoveryLink();
   await boot();
   if (link === 'recovery') openPasswordDialog(true);
+  if (link === 'kept') toast(LINK_KEPT);
   if (link === 'expired') {
     const msg = 'הקישור לאיפוס הסיסמה אינו תקף או שפג תוקפו. אפשר לבקש קישור חדש דרך ״שכחתי סיסמה״.';
     if ($('login-block').hidden) toast(msg);

@@ -4,10 +4,27 @@
 
 import { formatILS, termsText } from './pricing.js';
 
+// An address that may go into an attribute the browser follows or loads. A stored
+// value (a client's link, a notification's page) must never run as script: anything
+// with a scheme outside this list (javascript:, vbscript:, data: in a link…) is left
+// out, and the element is built without the attribute. A relative address has no
+// scheme and passes. Browsers ignore control characters and spaces inside a scheme
+// ("java\tscript:"), so they are taken out before looking.
+const URL_ATTRS = new Set(['href', 'src', 'action', 'formaction', 'poster', 'xlink:href']);
+const URL_SCHEMES = new Set(['http', 'https', 'mailto', 'tel', 'sms', 'blob', 'webcal', 'whatsapp']);
+export function safeUrlAttr(name, value) {
+  const s = String(value ?? '').replace(/[\u0000-\u0020\u007f-\u009f\u200b-\u200f\u2028\u2029\ufeff]+/g, '');
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(s)?.[1].toLowerCase();
+  if (!scheme || URL_SCHEMES.has(scheme)) return true;
+  // A picture or a video made in the page itself (the signature, a preview).
+  return scheme === 'data' && (name === 'src' || name === 'poster') && /^data:(image\/(png|jpeg|gif|webp)|video\/(mp4|webm))[;,]/i.test(s);
+}
+
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === false || v === null || v === undefined) continue;
+    if (URL_ATTRS.has(k) && !safeUrlAttr(k, v)) continue;
     if (k === 'class') el.className = v;
     else if (k === 'text') el.textContent = v;
     else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);

@@ -4,8 +4,9 @@
 // the owner, Irit, Lior and Ofir: making the link, copying a ready WhatsApp message
 // with it, making a new one (the one before stops working) and revoking it. Once the
 // client filled it: which platforms and what was chosen for each (never a user name
-// or a password: those are the vault's rows below, behind the vault flag), and the
-// client's notes with their date. The office sees it (the database: is_office()).
+// or a password: those are the vault's rows below, behind the vault flag). The office
+// sees it (the database: is_office()). The client's notes, with their date, show only
+// to whoever has the vault (access_link_notes(); app/access-data.js).
 import { h } from './quote-doc.js';
 import { waLink, groupLink } from './messages-logic.js';
 import { accessUrl, accessLinkMessage, linkState, linkStateText, currentLink, summaryText, dateWords } from './access-logic.js';
@@ -81,7 +82,7 @@ function block(client, { manage, toast, reload }) {
 
   const create = async (again) => {
     const ask = state === 'waiting' ? 'ליצור קישור חדש? הקישור הקודם יפסיק לעבוד, וצריך לשלוח ללקוח את החדש.'
-      : state === 'filled' ? 'הלקוח כבר מילא את הטופס. ליצור קישור נוסף? מה שימלא יעדכן את אותן רשתות בכספת.' : null;
+      : state === 'filled' ? 'הלקוח כבר מילא את הטופס. ליצור קישור נוסף? גישה שהמשרד כבר שמר או בדק לא תוחלף: מה שהלקוח ימלא יופיע בשורה נפרדת לידה.' : null;
     if (again && ask && !window.confirm(ask)) return;
     try { await createAccessLink(client.id); } catch (err) { toast?.(createError(err)); return; }
     toast?.('נוצר קישור. אפשר להעתיק את ההודעה ולשלוח ללקוח.');
@@ -120,7 +121,7 @@ function block(client, { manage, toast, reload }) {
   }
   return h('div', { class: 'al-block', id: 'access-link', role: 'group', 'aria-labelledby': 'al-h' },
     head,
-    h('p', { class: 'muted al-what' }, 'הלקוח ממלא בעצמו את שמות המשתמש והסיסמאות, והם נכנסים לכאן מוצפנים. הקישור תקף ל־14 יום ולשליחה אחת.'),
+    h('p', { class: 'muted al-what' }, 'הלקוח ממלא בעצמו את שמות המשתמש והסיסמאות, והם נכנסים לכאן מוצפנים. הקישור תקף ל־14 יום ולשליחה אחת. גישה שכבר שמרתם בכספת לא מוחלפת: מה שהלקוח שולח לרשת כזו מופיע בשורה נפרדת, ״מהלקוח״, ואתם מחליטים מה נשאר.'),
     stateLine, ...filled, acts,
     state === 'waiting' && manage && msg ? h('details', { class: 'st-msg' }, h('summary', {}, 'ההודעה שתישלח'), h('p', { class: 'pp-msg' }, msg)) : null);
 }

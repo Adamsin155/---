@@ -105,6 +105,8 @@ function setCheckAs(c, key, note) {
   db.protocol_checks = db.protocol_checks.filter((x) => x !== old);
   db.protocol_checks.push({ client_id: c.id, item_key: key, state: 'done', note, by_email: 'system', at: iso() });
 }
+// Today in Israel as the database writes it in a row's label (FMDD.FMMM.YYYY).
+const ilDate = () => { const [y, m, d] = serverNow().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }).split('-').map(Number); return `${d}.${m}.${y}`; };
 function formSubmit(token, payload) {
   const l = linkByToken(token);
   const reason = linkReason(l);
@@ -116,31 +118,43 @@ function formSubmit(token, payload) {
   const c = clientOf(l.client_id);
   const names = [];
   const open = [];
+  const besideNets = new Set();
   for (const e of payload.entries) {
     const label = String(e.label ?? '').trim() || null;
     const user = String(e.username ?? '').trim() || null;
     const status = STATUS_OF[e.choice];
-    let a = db.client_access.find((x) => x.client_id === c.id && x.network === e.network && (e.network !== 'other' || String(x.label || '').trim().toLowerCase() === label.toLowerCase()));
+    const same = (x) => x.client_id === c.id && x.network === e.network && (e.network !== 'other' || String(x.label || '').trim().toLowerCase() === label.toLowerCase());
+    let a = db.client_access.find(same);
+    // A login the office saved or checked is never touched (20261014100000_security_hardening.sql):
+    // the client's goes into a row of its own beside it, "מהלקוח, <date>".
+    const beside = !!a && !!a.has_secret && (a.status === 'ok' || a.updated_by !== CLIENT_BY);
+    if (beside) { const office = a; a = db.client_access.find((x) => same(x) && x !== office && x.updated_by === CLIENT_BY && x.status !== 'ok'); }
     const fresh = !a;
     const was = a?.status;
-    const note = e.choice === 'have' ? 'מהלקוח, בטופס פרטי הכניסה. עוד לא נבדק.' : e.choice === 'none' ? 'מהלקוח, בטופס פרטי הכניסה: אין כיום, צריך לפתוח.' : 'מהלקוח, בטופס פרטי הכניסה: יש, וצריך לחדש סיסמה.';
+    const note = (e.choice === 'have' ? 'מהלקוח, בטופס פרטי הכניסה. עוד לא נבדק.' : e.choice === 'none' ? 'מהלקוח, בטופס פרטי הכניסה: אין כיום, צריך לפתוח.' : 'מהלקוח, בטופס פרטי הכניסה: יש, וצריך לחדש סיסמה.')
+      + (beside ? ' הפרטים שכבר היו בכספת נשארו בשורה נפרדת: לבדוק איזו נכונה.' : '');
+    const rowLabel = beside && e.network !== 'other' ? `מהלקוח, ${ilDate()}` : label;
     if (fresh) {
-      a = { id: randomUUID(), client_id: c.id, network: e.network, label, username: user, has_secret: null, status, note, updated_by: CLIENT_BY, updated_at: iso(), created_at: iso(), broken_since: null };
+      a = { id: randomUUID(), client_id: c.id, network: e.network, label: rowLabel, username: user, has_secret: null, status, note, updated_by: CLIENT_BY, updated_at: iso(), created_at: iso(), broken_since: null };
       db.client_access.push(a);
     } else {
-      Object.assign(a, { username: e.choice === 'have' || (e.choice === 'reset' && user) ? user : a.username, status, note, updated_by: CLIENT_BY, updated_at: iso() });
+      Object.assign(a, { username: e.choice === 'have' || (e.choice === 'reset' && user) ? user : a.username, label: beside ? rowLabel : a.label, status, note, updated_by: CLIENT_BY, updated_at: iso() });
     }
     a.broken_since = status === 'broken' ? (a.broken_since || iso()) : null;
     if (e.choice === 'have') {
-      if (a.has_secret) secrets.delete(a.has_secret);
-      a.has_secret = randomUUID();
+      a.has_secret ||= randomUUID();
       secrets.set(a.has_secret, e.password);
     }
+    if (beside) besideNets.add(e.network);
     db.client_access_log.push({ id: db.client_access_log.length + 1, access_id: a.id, client_id: c.id, network: e.network, action: fresh ? 'create' : 'update', by_email: CLIENT_BY, at: iso() });
     names.push(platformName(e.network, label));
     if (e.choice === 'none' && (fresh || was !== 'missing')) open.push(platformName(e.network, label));
   }
-  Object.assign(l, { submitted_at: iso(), summary: summaryOf(payload), client_note: String(payload.notes ?? '').trim() || null });
+  // The note goes to the column the API does not grant (access_link_notes() reads it for the vault's users).
+  Object.assign(l, {
+    submitted_at: iso(), summary: summaryOf(payload).map((s) => (besideNets.has(s.network) ? { ...s, beside: true } : s)),
+    client_note: null, client_note_private: String(payload.notes ?? '').trim() || null,
+  });
   linkTokens.delete(l.id);
   setCheckAs(c, 'p05.access', `מהלקוח, בטופס פרטי הכניסה: ${names.join(', ')}`);
   setCheckAs(c, 'p05.vault', 'נכנס לכספת מטופס פרטי הכניסה של הלקוח');
@@ -238,6 +252,10 @@ async function fakeSupabase(route) {
       return json(200, null);
     }
     if (rpc === 'access_work_statuses') return json(200, isOffice(me) ? workStatuses(body?.p_clients || null) : []);
+    if (rpc === 'access_link_notes') {
+      return json(200, hasVault(me) ? db.client_access_links.filter((l) => l.client_note_private && (!body?.p_clients || body.p_clients.includes(l.client_id)))
+        .map((l) => ({ link_id: l.id, note: l.client_note_private })) : []);
+    }
     if (rpc === 'can_use_vault' || rpc === 'can_use_client_vault') return json(200, hasVault(me));
     if (rpc === 'access_save') {
       if (!hasVault(me)) return json(400, { message: 'not allowed' });
@@ -267,7 +285,7 @@ async function fakeSupabase(route) {
     let rows = applyFilters(db[table], url.searchParams);
     if (OFFICE_TABLES.has(table) && !isOffice(me)) rows = [];
     if ((table === 'client_access' || table === 'client_access_log') && !hasVault(me)) rows = [];
-    if (table === 'client_access_links') rows = rows.map(({ token_hash, ...r }) => r);
+    if (table === 'client_access_links') rows = rows.map(({ token_hash, client_note_private, ...r }) => r);
     return reply(rows);
   }
   if (['client_access', 'client_access_log', 'client_access_links'].includes(table)) return json(403, { code: '42501', message: `permission denied for table ${table}` });
@@ -468,6 +486,10 @@ await step('the link opens on a 360px phone: the business, why, how it is kept; 
   assert.equal(await cl.getAttribute('html', 'lang'), 'he');
   assert.equal(await cl.getAttribute('html', 'dir'), 'rtl');
   assert.equal(await cl.getAttribute('meta[name="referrer"]', 'content'), 'no-referrer');
+  // The notes are not a place for a password: said plainly, and kept short (ops.md 36).
+  assert.equal(await text(cl, '#notes-warn'), 'אל תכתבו כאן סיסמאות. סיסמה נכתבת רק בשדה הסיסמה של הפלטפורמה, ורק שם היא נשמרת מוצפנת.');
+  assert.ok(await cl.locator('#notes-warn').isVisible());
+  assert.equal(await cl.getAttribute('#notes', 'maxlength'), '300');
   // Only what the page needs was asked from the database: the state and the business name.
   const info = rpcCalls.filter((c) => c.name === 'access_form_info').at(-1);
   assert.deepEqual([info.anon, Object.keys(info.body)], [true, ['p_token']]);
@@ -615,7 +637,7 @@ await step('sending: thanks; the vault got the logins as the office saves them; 
   assert.deepEqual([by.Pinterest.status, by.Pinterest.network, secrets.get(by.Pinterest.has_secret)], ['new', 'other', 'Pin-123']);
   assert.ok(link.submitted_at && !linkTokens.has(link.id));
   assert.deepEqual(link.summary.map((s) => `${s.network}:${s.choice}`), ['instagram:have', 'facebook:none', 'tiktok:reset', 'other:have']);
-  assert.equal(link.client_note, 'קוד האימות מגיע לטלפון של דנה');
+  assert.deepEqual([link.client_note, link.client_note_private], [null, 'קוד האימות מגיע לטלפון של דנה']);
   assert.ok(!JSON.stringify(link).includes(SECRET) && !JSON.stringify(link).includes('dana_cafe'));
   assert.deepEqual([checkOf(D, 'p05.access').by_email, checkOf(D, 'p05.vault').state], ['system', 'done']);
   assert.equal(checkOf(D, 'p05.access').note, 'מהלקוח, בטופס פרטי הכניסה: Instagram, Facebook, TikTok, Pinterest');
@@ -719,14 +741,16 @@ await step('over http:// the page refuses to work: "פתחו את הקישור �
 });
 
 // ── Back in the office ────────────────────
-await step('Irit\'s card: "מולא", the platforms and the choices, the client\'s notes with their date; never a login', async () => {
+await step('Irit\'s card: "מולא", the platforms and the choices; never a login, and (no vault flag) not the client\'s notes', async () => {
   await irit.goto(`${BASE}client.html?id=${D.id}`);
   await irit.waitForSelector('#access-link #al-summary');
   assert.equal(await text(irit, '#al-state'), 'מולא · מולא ב־11.10.2026 בשעה 10:00.');
   assert.equal(await text(irit, '#al-summary'), 'Instagram, Pinterest: התקבלו פרטי כניסה · Facebook: אין כיום, צריך לפתוח · TikTok: צריך לחדש סיסמה');
-  assert.equal(await text(irit, '#al-note'), 'הערת הלקוח (11.10.2026): קוד האימות מגיע לטלפון של דנה');
+  // Security audit, 6.10.2026 (ops.md 36): the free-text note is for whoever has the vault.
+  assert.equal(await irit.locator('#al-note').count(), 0);
+  assert.ok(rpcCalls.some((c) => c.name === 'access_link_notes' && !c.anon));
   const all = await irit.evaluate(() => document.getElementById('access').innerText);
-  for (const hidden of [SECRET, 'dana_cafe', 'dana.tt']) assert.ok(!all.includes(hidden), hidden);
+  for (const hidden of [SECRET, 'dana_cafe', 'dana.tt', 'קוד האימות']) assert.ok(!all.includes(hidden), hidden);
   assert.ok(await irit.locator('#access-list').isHidden());
   await shotOf(irit, '#access', '10-card-filled-desktop');
 });
@@ -773,6 +797,9 @@ await step('Lior (vault) sees "התקבל מהלקוח, עוד לא נבדק", w
   const page = await newPage(ctx);
   await signIn(page, `client.html?id=${D.id}`, 'lior@astrateg.test');
   await page.waitForSelector('#access-list .access-row');
+  // Lior has the vault: the client's note shows to him.
+  await page.waitForSelector('#al-note');
+  assert.equal(await text(page, '#al-note'), 'הערת הלקוח (11.10.2026): קוד האימות מגיע לטלפון של דנה');
   const rows = (await page.locator('#access-list .access-row').allInnerTexts()).map((t) => t.replace(/\s+/g, ' '));
   assert.equal(rows.length, 4);
   assert.match(rows[0], /^Instagram dana_cafe התקבל מהלקוח, עוד לא נבדק עודכן · הלקוח \(בטופס\) · .*מהלקוח, בטופס פרטי הכניסה\. עוד לא נבדק\./);
@@ -832,7 +859,7 @@ await step('Ofir\'s "האפיון הסתיים" form: what the client already se
   await ctx.close();
 });
 
-await step('"לשנות" lets Ofir set a network the client filled; a later form of the client touches only what it fills', async () => {
+await step('"לשנות" lets Ofir set a network the client filled; a later form of the client never replaces what Ofir saved', async () => {
   // A client whose form came first, then the meeting.
   const ctx = await newContext(PHONE);
   const page = await newPage(ctx);
@@ -857,21 +884,51 @@ await step('"לשנות" lets Ofir set a network the client filled; a later form
   assert.deepEqual([row('youtube').status, row('youtube').updated_by], ['ok', 'ofir@astrateg.test']);
   assert.deepEqual([row('instagram').status, row('instagram').updated_by], ['missing', CLIENT_BY], 'what he did not touch stays the client\'s');
   await ctx.close();
-  // Later the client fills a new link: the three it fills are the client's again; YouTube is not touched.
+  // Later the client fills a new link. YouTube is not touched; TikTok, which Ofir saved with a
+  // password, stays exactly as it is, and the client's login goes into a row beside it.
   const again = makeLink(F.id, 'ofir@astrateg.test');
+  // The clock of the test stands still: this link is the newer one.
+  db.client_access_links.find((l) => l.id === again.id).created_at = new Date(serverNow().getTime() + 60e3).toISOString();
   const ytBefore = JSON.stringify(row('youtube'));
   const ttId = row('tiktok').id;
+  const ttBefore = JSON.stringify(row('tiktok'));
   assert.deepEqual(formSubmit(again.token, { entries: [
     { network: 'instagram', label: null, choice: 'none', username: null, password: null },
     { network: 'facebook', label: null, choice: 'none', username: null, password: null },
     { network: 'tiktok', label: null, choice: 'have', username: 'mia.new', password: 'tt-by-client' },
   ], notes: null }), { state: 'done' });
   assert.equal(JSON.stringify(row('youtube')), ytBefore);
-  assert.deepEqual([row('tiktok').id, row('tiktok').status, row('tiktok').username, secrets.get(row('tiktok').has_secret)], [ttId, 'new', 'mia.new', 'tt-by-client']);
-  assert.ok(![...secrets.values()].includes('tt-by-ofir'), 'the password before it left the vault');
-  assert.equal(db.client_access.filter((a) => a.client_id === F.id).length, 4, 'no row is duplicated');
+  assert.equal(JSON.stringify(row('tiktok')), ttBefore, 'Ofir\'s row is exactly as he left it');
+  assert.equal(secrets.get(row('tiktok').has_secret), 'tt-by-ofir', 'and its password is still in the vault');
+  const mine = db.client_access.filter((a) => a.client_id === F.id && a.network === 'tiktok' && a.id !== ttId);
+  assert.deepEqual(mine.map((a) => [a.status, a.username, a.updated_by, a.label, secrets.get(a.has_secret)]), [['new', 'mia.new', CLIENT_BY, `מהלקוח, ${ilDate()}`, 'tt-by-client']]);
+  assert.equal(db.client_access.filter((a) => a.client_id === F.id).length, 5, 'one row more: the client\'s, beside Ofir\'s');
   assert.deepEqual(db.client_access_log.filter((x) => x.client_id === F.id && x.network === 'tiktok').map((x) => `${x.action}:${x.by_email}`),
-    [`create:${CLIENT_BY}`, 'update:ofir@astrateg.test', `update:${CLIENT_BY}`], 'the history says who set what, in order');
+    [`create:${CLIENT_BY}`, 'update:ofir@astrateg.test', `create:${CLIENT_BY}`], 'the history says who set what, in order');
+});
+
+// Security audit, 6.10.2026 (ops.md 36): the form used to rewrite the row of the network
+// and take the password the office had saved out of the vault.
+await step('the card after it: both logins of TikTok, which is the client\'s and unchecked, each with its password; Lior decides', async () => {
+  const ctx = await newContext();
+  const page = await newPage(ctx);
+  await signIn(page, `client.html?id=${F.id}`, 'lior@astrateg.test');
+  await page.waitForSelector('#access-list .access-row');
+  await page.waitForSelector('#al-summary');
+  assert.match(await text(page, '#al-summary'), /TikTok \(בשורה נפרדת, הקיים נשמר\): התקבלו פרטי כניסה/);
+  assert.match(await text(page, '#access-link .al-what'), /גישה שכבר שמרתם בכספת לא מוחלפת/);
+  const rows = (await page.locator('#access-list .access-row').allInnerTexts()).map((t) => t.replace(/\s+/g, ' '));
+  const tt = rows.filter((r) => r.startsWith('TikTok'));
+  assert.equal(tt.length, 2);
+  assert.match(tt[0], /^TikTok mia\.tt תקינה עודכן · אופיר/);
+  assert.match(tt[1], new RegExp(`^TikTok · מהלקוח, ${ilDate().replace(/\./g, '\\.')} mia\\.new התקבל מהלקוח, עוד לא נבדק עודכן · הלקוח \\(בטופס\\) .*הפרטים שכבר היו בכספת נשארו בשורה נפרדת`));
+  const ttRows = page.locator('#access-list .access-row', { hasText: 'TikTok' });
+  await ttRows.nth(0).getByRole('button', { name: 'הצגת סיסמה' }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll('#access-list .secret')].some((b) => b.textContent.includes('tt-by-ofir')));
+  await ttRows.nth(1).getByRole('button', { name: 'הצגת סיסמה' }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll('#access-list .secret')].some((b) => b.textContent.includes('tt-by-client')));
+  await shotOf(page, '#access', '14-card-beside-desktop');
+  await ctx.close();
 });
 
 await step('a link still waiting two days later: Irit is reminded quietly, and the nudge with the link is in her queue', async () => {

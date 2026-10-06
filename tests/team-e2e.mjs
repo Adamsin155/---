@@ -574,6 +574,68 @@ await step('a used or expired link explains what to do', async () => {
   assert.equal(await x.evaluate(() => location.hash), '');
 });
 
+// Security audit, 6.10.2026 (ops.md 36): an address that carries a pair of tokens signs
+// its opener in as that account. It used to work for any `type`, and to replace
+// whoever was signed in on the device without a word.
+await step('a pair of tokens that is not a reset link signs nobody in', async () => {
+  const ofir = users.get('ofir@astrateg.test');
+  for (const type of ['magiclink', 'signup', 'invite', '']) {
+    const p = await newPage();
+    await p.goto(`${BASE}clients.html#access_token=${jwtFor(ofir)}&refresh_token=r&expires_in=3600&token_type=bearer${type ? `&type=${type}` : ''}`);
+    await p.waitForSelector('#lg-err:not([hidden])');
+    assert.match(await text(p, '#lg-err'), /הקישור כבר לא תקף/, type);
+    assert.equal(await p.locator('#app').isHidden(), true, type);
+    assert.equal(await p.locator('#sp-form').count(), 0, type);
+    assert.equal(await p.evaluate(() => location.hash), '', 'the tokens are removed from the address bar');
+    assert.equal(await p.evaluate(() => Object.keys(localStorage).filter((k) => /auth-token/.test(k)).length), 0, `${type}: no session was stored`);
+    await p.close();
+  }
+});
+
+await step('a link of another account does not replace the one signed in here without asking', async () => {
+  const ofir = users.get('ofir@astrateg.test');
+  const y = await newPage();
+  await signIn(y, 'clients.html', 'yariv@astrateg.test');
+  assert.equal(await text(y, '#session-who'), 'yariv@astrateg.test');
+  const asked = [];
+  let answer = false;
+  y.removeAllListeners('dialog'); // newPage() accepts every dialog
+  y.on('dialog', (d) => { asked.push(d.message()); return answer ? d.accept() : d.dismiss(); });
+  const other = `${BASE}clients.html#access_token=${jwtFor(ofir)}&refresh_token=r&expires_in=3600&token_type=bearer&type=recovery`;
+  // "ביטול": he stays signed in as himself, and the link is not spent.
+  await y.goto(`${BASE}team.html`);
+  await y.goto(other);
+  await y.waitForSelector('#app:not([hidden])');
+  await toastHas(y, 'נשארת בחשבון המחובר. הקישור לא נוצל.');
+  assert.equal(asked.length, 1);
+  assert.match(asked[0], /הקישור שייך לחשבון אחר \(ofir@astrateg\.test\)\.\nבמכשיר הזה מחובר כרגע yariv@astrateg\.test\./);
+  assert.match(asked[0], /אישור: לעבור לחשבון של הקישור\.\nביטול: להישאר בחשבון המחובר/);
+  assert.equal(await text(y, '#session-who'), 'yariv@astrateg.test');
+  assert.equal(await y.locator('#sp-form').count(), 0);
+  assert.doesNotMatch(await y.evaluate(() => location.hash), /access_token|token_hash/, 'the tokens left the address bar');
+  // His own reset link: nothing to ask.
+  await y.goto(`${BASE}team.html`);
+  await y.goto(`${BASE}clients.html#access_token=${jwtFor(users.get('yariv@astrateg.test'))}&refresh_token=r&expires_in=3600&token_type=bearer&type=recovery`);
+  await y.waitForSelector('#sp-form');
+  assert.equal(asked.length, 1, 'the same account: no question');
+  // A personal link from the team screen (its account is not known before it is spent): asked too.
+  const made = staffAdmin(users.get('owner@astrateg.test'), { action: 'link', email: 'yariv@astrateg.test', redirectTo: `${BASE}clients.html` })[1].link;
+  await y.goto(`${BASE}team.html`);
+  await y.goto(made);
+  await y.waitForSelector('#app:not([hidden])');
+  await toastHas(y, 'נשארת בחשבון המחובר');
+  assert.equal(asked.length, 2);
+  assert.match(asked[1], /זה קישור כניסה אישי, והוא עשוי להיות של חשבון אחר\.\nבמכשיר הזה מחובר כרגע yariv@astrateg\.test\./);
+  assert.equal([...tokens.values()].at(-1).used, false, 'not spent');
+  // "אישור": the explicit choice moves to the link's account, which then chooses a password.
+  answer = true;
+  await y.goto(`${BASE}team.html`);
+  await y.goto(other);
+  await y.waitForSelector('#sp-form');
+  assert.equal(asked.length, 3);
+  assert.equal(await text(y, '#sp-h'), 'בחירת סיסמה חדשה');
+});
+
 await browser.close();
 assert.deepEqual(errors, []);
 console.log(`team-e2e: ${passed} passed`);

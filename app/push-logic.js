@@ -58,6 +58,20 @@ export function inboxRows(rows = [], now = new Date()) {
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || (b.id - a.id))
     .filter((r) => { const t = nagTask(r); if (!t) return true; if (seen.has(t)) return false; seen.add(t); return true; });
 }
+// The page a notification opens, as a full address, or null. reminder_log.url is a page
+// of this site ("clients.html#mine"); anything that resolves to another site
+// ("//host/…", "https://…", a backslash form) or is not a page is not opened.
+// `base` is the site's root (the folder that holds the pages).
+export function sitePage(url, base) {
+  const raw = String(url ?? '');
+  if (!/^[a-z0-9-]+\.html([?#][^\s\\]*)?$/.test(raw)) return null;
+  try {
+    const root = new URL(base);
+    const to = new URL(raw, root);
+    return to.origin === root.origin && to.pathname === root.pathname.replace(/[^/]*$/, '') + raw.split(/[?#]/)[0] ? to.href : null;
+  } catch { return null; }
+}
+
 export const unreadCount = (rows) => rows.filter((r) => !r.read_at).length;
 
 // How a row reached the person, in words (never by colour alone).
