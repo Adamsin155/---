@@ -60,7 +60,8 @@
 | האפיון והטופס המלא, שיחת הדגשים | `app/characterization.js`, `app/briefs.js` (המסך: `intake.html`, `app/intake.js`; בכרטיס: `app/intake-ui.js`), `supabase/migrations/20260930160000_intake.sql` |
 | מתאם יום צילום, חוסמים, בדיקת יום לפני, בקשות לקוחות | `app/shoot-prep.js` (המסך: `prep.html`, `app/prep.js`) |
 | שאלות לאחראי ושינויי מועד | `app/owner-data.js`, `app/questions-ui.js` (בלוק ״שאלות אליך״ ב״מה עליי״), `supabase/migrations/20260930120000_owner_screens.sql` |
-| גאנט התוכן ללקוח: התבנית הקבועה, התאריכים, השמירה והקישור ללקוח | `app/gantt-template.js`, `app/gantt-logic.js`, `app/gantt-data.js`, `gantt.html` ו־`app/gantt.js`, `supabase/migrations/20261003130000_content_gantt.sql` ([ops.md, סעיף 19](../ops.md)) |
+| גאנט התוכן ללקוח: התבנית הקבועה, התאריכים, השמירה והקישור ללקוח | `app/gantt-template.js`, `app/gantt-logic.js`, `app/gantt-data.js`, `gantt.html` ו־`app/gantt.js`, `supabase/migrations/20261003130000_content_gantt.sql` ([ops.md, סעיף 21](../ops.md)) |
+| גאנט התוכן מאז 6.10.2026: מי עורך (עילאי והבעלים), תוזמן / עלה / ״חסר״, עמוד ״גאנט תוכן״ לכל הלקוחות, וסנכרון מ־Metricool | `app/gantt-index.js`, `app/gantt-brand.js`, `app/metricool-logic.js`, `app/metricool-team.js`, `supabase/functions/metricool/`, `supabase/migrations/20261007100000_gantt_roles_statuses.sql`–`20261007100200_metricool_cron.sql` ([ops.md, סעיף 27](../ops.md)) |
 | מחקר מערכות והחלטות | `docs/protocols/research.md` |
 
 ## כללים חשובים
