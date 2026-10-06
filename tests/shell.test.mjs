@@ -14,7 +14,7 @@ import { isManager } from '../app/manager-rules.js';
 import { firstScreenOf } from '../app/office-ui.js';
 import { worksCycle } from '../app/month-ui.js';
 import {
-  menuOf, barOf, currentOf, inMenu, officeScreens, pageOf, initialsOf, nameOf, avatarFill, AVATAR_FILL,
+  menuOf, barOf, currentOf, inMenu, officeScreens, pageOf, initialsOf, nameOf, avatarFill, AVATAR_FILL, seesGantt, editsGantt,
 } from '../app/shell-rules.js';
 
 const v = (me) => ({ me, scope: scopeOf(me), error: null });
@@ -23,11 +23,11 @@ const ROLES = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna'
 const ids = (viewer) => menuOf(viewer).map((it) => it.id);
 
 test('the menu of each role, in one order', () => {
-  assert.deepEqual(ids(OWNER), ['mine', 'manager', 'clients', 'qa', 'pass', 'decisions', 'insights', 'year', 'prep', 'messages', 'shoot', 'quote', 'quotes', 'team']);
-  assert.deepEqual(ids(v('irit')), ['mine', 'manager', 'clients', 'year', 'prep', 'messages', 'shoot', 'quote', 'quotes', 'team']);
-  assert.deepEqual(ids(v('ofir')), ['mine', 'manager', 'clients', 'qa', 'pass', 'decisions', 'year', 'prep', 'shoot', 'quote', 'quotes']);
-  assert.deepEqual(ids(v('lior')), ['mine', 'overview', 'clients', 'qa', 'decisions', 'insights', 'year', 'prep', 'messages', 'shoot', 'quote', 'quotes', 'team']);
-  assert.deepEqual(ids(v('ilai')), ['mine', 'clients', 'year', 'quote', 'quotes']);
+  assert.deepEqual(ids(OWNER), ['mine', 'manager', 'clients', 'gantt', 'qa', 'pass', 'decisions', 'insights', 'year', 'prep', 'messages', 'shoot', 'quote', 'quotes', 'team']);
+  assert.deepEqual(ids(v('irit')), ['mine', 'manager', 'clients', 'gantt', 'year', 'prep', 'messages', 'shoot', 'quote', 'quotes', 'team']);
+  assert.deepEqual(ids(v('ofir')), ['mine', 'manager', 'clients', 'gantt', 'qa', 'pass', 'decisions', 'year', 'prep', 'shoot', 'quote', 'quotes']);
+  assert.deepEqual(ids(v('lior')), ['mine', 'overview', 'clients', 'gantt', 'qa', 'decisions', 'insights', 'year', 'prep', 'messages', 'shoot', 'quote', 'quotes', 'team']);
+  assert.deepEqual(ids(v('ilai')), ['mine', 'clients', 'gantt', 'year', 'quote', 'quotes']);
   for (const editor of ['nirel', 'nadia', 'yariv', 'anna']) assert.deepEqual(ids(v(editor)), ['mine', 'clients', 'editor', 'quote', 'quotes'], editor);
   assert.deepEqual(ids(v('eli')), ['mine', 'clients', 'shoot', 'quote', 'quotes']);
   // The field agents: their own page and nothing else.
@@ -49,6 +49,11 @@ test('the menu offers a screen exactly when the page\'s own rule opens it', () =
     assert.equal(has('insights'), canSeeInsights(viewer), `${who}: insights`);
     assert.equal(has('team'), canManageTeam(viewer), `${who}: team`);
     assert.equal(has('year'), worksCycle(viewer), `${who}: year`);
+    // The content Gantt's index: Ilai, the owner, Irit, Lior and Ofir (gantt.html's own gate is worksCycle too).
+    assert.equal(has('gantt'), worksCycle(viewer), `${who}: gantt`);
+    assert.equal(has('gantt'), seesGantt(viewer), `${who}: gantt`);
+    assert.equal(has('gantt'), [null, 'irit', 'lior', 'ofir', 'ilai'].includes(viewer.me), `${who}: gantt, by name`);
+    assert.equal(editsGantt(viewer), [null, 'ilai'].includes(viewer.me), `${who}: edits the gantt`);
     assert.equal(has('prep'), viewer.scope === 'office', `${who}: prep`);
     // qa, pass and decisions open for the office only (their pages' gate).
     for (const id of ['qa', 'pass', 'decisions']) if (has(id)) assert.equal(viewer.scope, 'office', `${who}: ${id}`);
@@ -79,11 +84,12 @@ test('the office screens: the same list the page heads had', () => {
 
 test('the phone\'s bar: the role\'s three screens and "עוד"; four or fewer all fit; one needs no bar', () => {
   const bar = (viewer) => { const b = barOf(menuOf(viewer), viewer); return [b.bar.map((it) => it.id), b.more.length]; };
-  assert.deepEqual(bar(OWNER), [['mine', 'manager', 'clients'], 11]);
-  assert.deepEqual(bar(v('irit')), [['mine', 'manager', 'clients'], 7]);
-  assert.deepEqual(bar(v('ofir')), [['mine', 'manager', 'qa'], 8]);
-  assert.deepEqual(bar(v('lior')), [['mine', 'clients', 'decisions'], 10]);   // in the menu's order
-  assert.deepEqual(bar(v('ilai')), [['mine', 'clients', 'year'], 2]);
+  assert.deepEqual(bar(OWNER), [['mine', 'manager', 'clients'], 12]);
+  assert.deepEqual(bar(v('irit')), [['mine', 'manager', 'clients'], 8]);
+  assert.deepEqual(bar(v('ofir')), [['mine', 'manager', 'qa'], 9]);
+  assert.deepEqual(bar(v('lior')), [['mine', 'clients', 'decisions'], 11]);   // in the menu's order
+  // Ilai: the Gantt is one of his three (6.10.2026); the package year moved behind "עוד".
+  assert.deepEqual(bar(v('ilai')), [['mine', 'clients', 'gantt'], 3]);
   assert.deepEqual(bar(v('nadia')), [['mine', 'clients', 'editor'], 2]);
   assert.deepEqual(bar(v('eli')), [['mine', 'clients', 'shoot'], 2]);
   assert.deepEqual(bar(v('stav')), [[], 0]);
@@ -111,7 +117,10 @@ test('the current page: the screen itself, the two halves of clients.html, and a
   assert.deepEqual(cur('/'), { id: 'quote', exact: true });
   assert.deepEqual(cur('/index.html'), { id: 'quote', exact: true });
   assert.deepEqual(cur('/client.html'), { id: 'clients', exact: false });
-  assert.deepEqual(cur('/gantt.html'), { id: 'clients', exact: false });
+  // The Gantt's index is its own screen; a client's Gantt is a page under it. Whoever has no index (an editor) stays under the clients list.
+  assert.deepEqual(cur('/gantt.html'), { id: 'gantt', exact: true });
+  assert.deepEqual(currentOf(items, '/gantt.html', '', '?id=abc&m=2026-11'), { id: 'gantt', exact: false });
+  assert.deepEqual(currentOf(menuOf(v('nadia')), '/gantt.html', '', '?id=abc'), { id: 'clients', exact: false });
   assert.deepEqual(cur('/scripts.html'), { id: 'clients', exact: false });
   assert.deepEqual(cur('/staff-privacy.html'), { id: null, exact: false });
   assert.deepEqual(currentOf(menuOf(v('lior')), '/owner.html', '#all'), { id: 'overview', exact: true });
@@ -141,4 +150,22 @@ test('names and avatars: two letters on the person\'s pastel; the owner by the a
   assert.equal(initialsOf(''), '');
   for (const key of ROLES) assert.match(AVATAR_FILL[key], /^#[0-9A-F]{6}$/, key);
   assert.equal(avatarFill('nobody'), '#E4E8F3');
+});
+
+// Found live (6.10.2026): Ilai's side menu read "המשימות שלי" twice. Whatever the cause,
+// no role is ever offered the same screen, address or name twice.
+test('no menu has a duplicate entry, for any role: not by id, not by address, not by name', () => {
+  for (const viewer of [OWNER, ...ROLES.map(v), { me: null, scope: 'own', error: new Error('x') }, null]) {
+    const items = menuOf(viewer);
+    for (const f of ['id', 'href', 'label']) {
+      const values = items.map((it) => it[f]);
+      assert.deepEqual(values, [...new Set(values)], `${viewer?.me || 'owner'}: ${f}`);
+    }
+    // The bar and "עוד" together hold each entry once.
+    const b = barOf(items, viewer);
+    const shown = [...b.bar, ...b.more].map((it) => it.id);
+    if (items.length > 1) assert.equal(shown.length, new Set(shown).size);
+  }
+  assert.equal(menuOf(v('ilai')).filter((it) => it.label === 'המשימות שלי').length, 1);
+  assert.deepEqual(menuOf(v('ilai')).find((it) => it.id === 'gantt'), { id: 'gantt', href: 'gantt.html', label: 'גאנט תוכן' });
 });

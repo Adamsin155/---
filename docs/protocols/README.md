@@ -57,11 +57,12 @@
 | צבע הלקוח, התחנה, אבן הדרך הבאה, ציר הזמן, השורות והמספרים של מסכי הבעלים ומסך הצוות | `app/health.js` (התצוגה: `app/owner.js`, `app/health-ui.js`, `owner.html`) |
 | עמודי ההפקה: העורכים, ניראל, אלי ומצב יום צילום (מצבים, מועדים במילים, נעילת סיום, מצב שקט) | `app/production.js` (הלוגיקה, גם בשרת), `editor.html` ו־`app/editor.js`, `shoot.html` ו־`app/shoot.js`, `app/production-data.js`, `supabase/migrations/20260930140000_production.sql` |
 | זרימות המשרד: בקרת איכות וסבבי תיקון, שיוך עורכים, המעבר על הלקוחות, החלטות, היום של עילאי | `app/office-marks.js` (הסימונים), `app/qa-logic.js`, `app/pass-logic.js`, `app/decisions-logic.js`, `app/ilai-logic.js`; המסכים `qa.html`, `pass.html`, `decisions.html`, `app/ilai-card.js`; `supabase/migrations/20260930150000_office_flows.sql` |
-| טופס פרטי הכניסה לרשתות ללקוח: הקישור, מה הלקוח ממלא, הסטטוס "התקבל מהלקוח, עוד לא נבדק", התזכורות ([ops.md, סעיף 27](../ops.md)) | `app/access-logic.js`, `app/access-nudge.js`, `access.html` ו־`app/access-form.js`, `app/access-link-ui.js`, `app/access-data.js`, `supabase/migrations/20261008100000_client_access_form.sql` |
+| טופס פרטי הכניסה לרשתות ללקוח: הקישור, מה הלקוח ממלא, הסטטוס "התקבל מהלקוח, עוד לא נבדק", התזכורות ([ops.md, סעיף 28](../ops.md)) | `app/access-logic.js`, `app/access-nudge.js`, `access.html` ו־`app/access-form.js`, `app/access-link-ui.js`, `app/access-data.js`, `supabase/migrations/20261008100000_client_access_form.sql` |
 | האפיון והטופס המלא, שיחת הדגשים | `app/characterization.js`, `app/briefs.js` (המסך: `intake.html`, `app/intake.js`; בכרטיס: `app/intake-ui.js`), `supabase/migrations/20260930160000_intake.sql` |
 | מתאם יום צילום, חוסמים, בדיקת יום לפני, בקשות לקוחות | `app/shoot-prep.js` (המסך: `prep.html`, `app/prep.js`) |
 | שאלות לאחראי ושינויי מועד | `app/owner-data.js`, `app/questions-ui.js` (בלוק ״שאלות אליך״ ב״מה עליי״), `supabase/migrations/20260930120000_owner_screens.sql` |
-| גאנט התוכן ללקוח: התבנית הקבועה, התאריכים, השמירה והקישור ללקוח | `app/gantt-template.js`, `app/gantt-logic.js`, `app/gantt-data.js`, `gantt.html` ו־`app/gantt.js`, `supabase/migrations/20261003130000_content_gantt.sql` ([ops.md, סעיף 19](../ops.md)) |
+| גאנט התוכן ללקוח: התבנית הקבועה, התאריכים, השמירה והקישור ללקוח | `app/gantt-template.js`, `app/gantt-logic.js`, `app/gantt-data.js`, `gantt.html` ו־`app/gantt.js`, `supabase/migrations/20261003130000_content_gantt.sql` ([ops.md, סעיף 21](../ops.md)) |
+| גאנט התוכן מאז 6.10.2026: מי עורך (עילאי והבעלים), תוזמן / עלה / ״חסר״, עמוד ״גאנט תוכן״ לכל הלקוחות, וסנכרון מ־Metricool | `app/gantt-index.js`, `app/gantt-brand.js`, `app/metricool-logic.js`, `app/metricool-team.js`, `supabase/functions/metricool/`, `supabase/migrations/20261007100000_gantt_roles_statuses.sql`–`20261007100200_metricool_cron.sql` ([ops.md, סעיף 27](../ops.md)) |
 | מחקר מערכות והחלטות | `docs/protocols/research.md` |
 
 ## כללים חשובים

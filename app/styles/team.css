@@ -78,6 +78,15 @@
 .tm-wa p + p, .tm-wa .tm-wa-acts + p { margin-top: 6px; }
 .tm-wa-acts { margin-top: 8px; }
 .tm-wa-acts .btn { min-height: 44px; }
+/* "חיבור Metricool" (app/metricool-team.js): the owner's card. */
+.tm-mc-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.tm-mc-secrets { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.tm-mc-secrets li { overflow-wrap: anywhere; }
+.tm-mc-secrets li::before { content: ''; display: inline-block; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--ds-hot); margin-inline-end: 4px; }
+.tm-mc-secrets li.is-ok::before { background: var(--ok); }
+.tm-mc-secrets code { font-family: var(--mono); font-size: 13px; }
+.tm-mc-ok { color: var(--ok); font-weight: 600; }
+.tm-mc p { overflow-wrap: anywhere; }
 
 /* The employee privacy notice (staff-privacy.html). */
 .staff-privacy { max-inline-size: 760px; inline-size: 100%; justify-self: center; margin-top: 16px; }

@@ -413,7 +413,7 @@ await step('on a wide screen the screens are the side menu, with a rail on the c
   await settle(page);
   assert.equal(await page.locator('#side-more').isVisible(), false);
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(),
-    ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'שנת החבילה', 'לפני יום צילום', 'הודעות ללקוחות', 'ימי צילום', 'הצעה חדשה', 'הצעות שנשלחו', 'צוות']);
+    ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'לפני יום צילום', 'הודעות ללקוחות', 'ימי צילום', 'הצעה חדשה', 'הצעות שנשלחו', 'צוות']);
   for (const id of ['cta-messages', 'cta-prep', 'cta-year']) assert.equal(await page.locator(`#${id}`).isVisible(), false, `${id} is in the menu, not in the head`);
   // The side menu floats beside the page (on the right, RTL), and the rail marks "המשימות שלי".
   const side = await page.locator('#app-side').boundingBox();

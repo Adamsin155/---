@@ -232,7 +232,9 @@ const norm = (f, v) => {
   return f === 'time_il' ? String(v).slice(0, 5) : v;
 };
 const same = (f, a, b) => norm(f, a) === norm(f, b);
-export const isCustom = (row) => row?.kind === 'custom' || /^custom\./.test(String(row?.key || ''));
+// A row the template did not make: added by hand ('custom.<n>'), or a post found in
+// Metricool that matches no item ('mc.<post id>', app/metricool-logic.js).
+export const isCustom = (row) => row?.kind === 'custom' || /^(custom|mc)\./.test(String(row?.key || ''));
 // What "עדכון מהתבנית" does to the stored rows. A row moved by hand (edited) keeps its
 // day and time unless `overwrite`; posted state, links, files and notes are never
 // touched. A row the template no longer makes is removed only when nothing was done
@@ -266,46 +268,127 @@ export function planDiff(rows, generated, { overwrite = false } = {}) {
 }
 
 // ── Showing it ────────────────────────────
-// planned | today | late (a post not marked up after its time) | posted | skipped | past
+// What is stored (public.client_gantt.state): planned → scheduled (it sits in
+// Metricool's planner and goes up by itself) → posted; error (the publishing failed)
+// and skipped. Who set it is `source`: 'manual' (a person here) or 'metricool' (the sync).
+export const STATES = ['planned', 'scheduled', 'posted', 'error', 'skipped'];
+// What is shown, never stored:
+//   scheduled  in the planner, its time still ahead;
+//   posted     marked up, or scheduled and its time has passed (the content went up by
+//              itself; the row keeps the fact that it was scheduled);
+//   missing    "חסר", the only problem state: a post whose time has passed and that is
+//              neither scheduled nor posted;
+//   error      the publishing failed; today | planned | past | skipped as before.
 export function entryStatus(e, now = new Date()) {
   if (e.state === 'posted') return 'posted';
   if (e.state === 'skipped') return 'skipped';
+  if (e.state === 'error') return 'error';
   const at = entryMoment(e);
+  if (e.state === 'scheduled') return at && at <= now ? 'posted' : 'scheduled';
   if (!at) return 'planned';
   const today = dayKeyIL(now);
   const post = GANTT_KINDS[e.kind]?.post;
-  if (e.day === today) return post && at < now ? 'late' : 'today';
-  if (e.day < today) return post ? 'late' : 'past';
+  if (e.day === today) return post && at < now ? 'missing' : 'today';
+  if (e.day < today) return post ? 'missing' : 'past';
   return 'planned';
 }
-export const STATUS_TEXT = { planned: 'מתוכנן', today: 'היום', late: 'עוד לא סומן שעלה', posted: 'עלה', skipped: 'בוטל', past: 'עבר' };
-export const CLIENT_STATUS_TEXT = { planned: 'מתוכנן', today: 'היום', late: 'מתוכנן', posted: 'עלה', skipped: 'בוטל', past: 'עבר' };
+export const STATUS_TEXT = { planned: 'מתוכנן', today: 'היום', scheduled: 'תוזמן', missing: 'חסר', posted: 'עלה', error: 'שגיאה', skipped: 'בוטל', past: 'עבר' };
+// The client's link shows מתוכנן / תוזמן / עלה only: never "חסר" and never "שגיאה".
+export const clientStatus = (s) => (s === 'missing' || s === 'error' ? 'planned' : s);
+export const CLIENT_STATUS_TEXT = { ...STATUS_TEXT, missing: STATUS_TEXT.planned, error: STATUS_TEXT.planned };
+// One tap on an item: planned (or missing, or failed) → scheduled → posted → planned.
+export const nextState = (state) => ({ planned: 'scheduled', error: 'scheduled', scheduled: 'posted', posted: 'planned', skipped: 'planned' }[state] || 'scheduled');
+// "סימון כתוזמנו" for a day, a week or a month: the posts in [from, to] (day keys) that
+// are still only planned. What is up, cancelled, failed or already scheduled stays.
+export const toSchedule = (entries, from, to) => entries.filter((e) => GANTT_KINDS[e.kind]?.post && e.state === 'planned' && e.day >= from && e.day <= to);
+// The Israel week (Sunday to Saturday) a day is in: { from, to, days }.
+export function weekOf(key) {
+  const from = addDays(key, -weekdayOf(key));
+  const days = Array.from({ length: 7 }, (_, i) => addDays(from, i));
+  return { from, to: days[6], days };
+}
 
-// Per kind and package month: { kind, months: [{ n, planned, posted }] }, kinds in order.
-export function yearGlance(client, entries) {
+// Per kind and package month: { kind, months: [{ n, planned, posted, scheduled, missing }] },
+// kinds in order. `planned` is everything not cancelled; the rest by entryStatus
+// (a failed post counts with the missing ones: both need someone).
+export function yearGlance(client, entries, now = new Date()) {
   const of = termOf(client);
   const kinds = [...new Set(entries.map((e) => e.kind))].sort((a, b) => kindRank(a) - kindRank(b));
   return kinds.map((kind) => {
     const months = [];
-    for (let n = 1; n <= of; n += 1) months.push({ n, planned: 0, posted: 0 });
+    for (let n = 1; n <= of; n += 1) months.push({ n, planned: 0, posted: 0, scheduled: 0, missing: 0 });
     for (const e of entries) {
       if (e.kind !== kind || e.state === 'skipped') continue;
       const n = packageMonthOf(client, e.day);
       const cell = months[Math.min(of, Math.max(1, n)) - 1];
+      const s = entryStatus(e, now);
       cell.planned += 1;
-      if (e.state === 'posted') cell.posted += 1;
+      if (s === 'posted') cell.posted += 1;
+      else if (s === 'scheduled') cell.scheduled += 1;
+      else if (GANTT_KINDS[kind]?.post && (s === 'missing' || s === 'error')) cell.missing += 1;
     }
     return { kind, months };
   });
 }
-// Counts for the head: posts planned / up, and the ones not marked after their time.
+// Counts of the posts in a list: all, up, scheduled ahead, missing ("חסרים": past their
+// time and neither scheduled nor up) and failed.
 export function totals(entries, now = new Date()) {
-  const posts = entries.filter((e) => GANTT_KINDS[e.kind]?.post && e.state !== 'skipped');
-  return {
-    posts: posts.length,
-    posted: posts.filter((e) => e.state === 'posted').length,
-    late: posts.filter((e) => entryStatus(e, now) === 'late').length,
-  };
+  const out = { posts: 0, posted: 0, scheduled: 0, missing: 0, errors: 0 };
+  for (const e of entries) {
+    if (!GANTT_KINDS[e.kind]?.post || e.state === 'skipped') continue;
+    const s = entryStatus(e, now);
+    out.posts += 1;
+    if (s === 'posted') out.posted += 1;
+    else if (s === 'scheduled') out.scheduled += 1;
+    else if (s === 'missing') out.missing += 1;
+    else if (s === 'error') out.errors += 1;
+  }
+  return out;
+}
+// The next post still ahead (planned or scheduled), from now on.
+export function nextPost(entries, now = new Date()) {
+  return entries.filter((e) => GANTT_KINDS[e.kind]?.post && ['planned', 'today', 'scheduled'].includes(entryStatus(e, now)) && entryMoment(e) >= now).sort(byWhen)[0] || null;
+}
+
+// ── The index (gantt.html without a client) ─
+// One line per client: its package month, the posts of that package month (up,
+// scheduled, missing, failed) and the next post. `entries` are the client's rows of
+// about a month around today (null: the client has no Gantt yet).
+export function clientSummary(client, entries, now = new Date()) {
+  const today = dayKeyIL(now);
+  const of = termOf(client);
+  const n = parseDate(client?.deal_at) ? packageMonthOf(client, today) : 0;
+  const range = n >= 1 && n <= of ? monthRange(client, n) : null;
+  const rows = entries || [];
+  const inMonth = range ? rows.filter((e) => e.day >= range.from && e.day < range.to) : [];
+  return { client, has: entries !== null, month: n, of, range, ...totals(inMonth, now), next: nextPost(rows, now) };
+}
+// "Missing first": the missing and the failed, then clients with a Gantt, then by the
+// next post, then by name. 'name': by the business name only.
+export function bySummary(a, b, sort = 'missing') {
+  const label = (s) => String(s.client.business || s.client.name || '');
+  const name = label(a).localeCompare(label(b), 'he');
+  if (sort === 'name') return name;
+  const when = (s) => (s.next ? `${s.next.day} ${s.next.time_il || '99'}` : '9999');
+  return (b.missing + b.errors) - (a.missing + a.errors) || Number(b.has) - Number(a.has) || when(a).localeCompare(when(b)) || name;
+}
+// "השבוע": the posts of the Israel week of `now` across clients, by day:
+// [{ day, items: [{ entry, client, status }] }] for the days that have any.
+// entriesByClient: Map client id -> rows.
+export function weekAgenda(clients, entriesByClient, now = new Date()) {
+  const week = weekOf(dayKeyIL(now));
+  const byId = new Map(clients.map((c) => [c.id, c]));
+  const items = [];
+  for (const [id, entries] of entriesByClient) {
+    const client = byId.get(id);
+    if (!client) continue;
+    for (const e of entries) {
+      if (!GANTT_KINDS[e.kind]?.post || e.state === 'skipped' || e.day < week.from || e.day > week.to) continue;
+      items.push({ entry: e, client, status: entryStatus(e, now) });
+    }
+  }
+  items.sort((a, b) => byWhen(a.entry, b.entry) || String(a.client.id).localeCompare(String(b.client.id)));
+  return week.days.map((day) => ({ day, items: items.filter((x) => x.entry.day === day) })).filter((d) => d.items.length);
 }
 // Entries of one day key, in order.
 export function entriesByDay(entries) {

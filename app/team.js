@@ -12,7 +12,9 @@ import {
 } from './team-rules.js';
 import { loadWaTeam, paintWaPanel, waStatusView } from './wa-team.js';
 import { avatar } from './shell.js';
+import { loadMetricoolCard, paintMetricoolCard } from './metricool-team.js';
 
+let metricool = null;        // "חיבור Metricool" (app/metricool-team.js): the owner's card; null when not for this person or not built
 let rows = [];               // staff rows with their login state (from the function)
 let caller = null;           // { email, person, owner }
 const links = new Map();     // email -> { link, type, name } made on this page
@@ -106,7 +108,8 @@ async function loadCalendars() {
 async function load() {
   $('state').textContent = rows.length ? '' : 'טוען…';
   try {
-    const [data] = await Promise.all([call('list'), loadPush().catch(() => { pushByEmail = null; }), loadWaTeam().then((x) => { wa = x; }, () => { wa = null; }), loadCalendars().catch(() => { calByEmail = null; })]);
+    const [data] = await Promise.all([call('list'), loadPush().catch(() => { pushByEmail = null; }), loadWaTeam().then((x) => { wa = x; }, () => { wa = null; }), loadCalendars().catch(() => { calByEmail = null; }),
+      loadMetricoolCard().then((x) => { metricool = x; }, () => { metricool = null; })]);
     rows = data.rows || [];
     caller = data.caller;
   } catch (err) {
@@ -124,6 +127,8 @@ function render() {
   const typed = [...document.querySelectorAll('.tm-add .input, .tm-phone-form .input')].map((i) => [i.id, i.value]);
   fill($('team-list'), entries().map(rowView));
   paintWaPanel(wa, document.querySelector('.tm-block'), load);
+  // "חיבור Metricool" (the owner only), under the WhatsApp switch.
+  paintMetricoolCard(metricool, document.querySelector('.tm-block'), load);
   for (const [id, value] of typed) { const el = document.getElementById(id); if (el) el.value = value; }
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
 }

@@ -108,6 +108,21 @@ async function loadAccessLinks(now: Date): Promise<Row[]> {
   }
 }
 
+// Posts that failed to publish in Metricool (6.10.2026, rule `metricoolFailed`): the Gantt
+// rows the sync marked in the last two days. Until migration
+// 20261007100000_gantt_roles_statuses.sql adds the columns, none.
+async function loadGanttFailures(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  try {
+    return await all(() => admin.from('client_gantt').select('id, client_id, key, title, day, mc_post_id, mc_status, at')
+      .eq('mc_status', 'error').gte('at', since).order('id'));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205' || code === '42703') return [];
+    throw err;
+  }
+}
+
 // The database as tick.js sees it (service role: row level security does not apply).
 const db = {
   // The automatic editor assignment (app/auto-assign.js), as qa.html writes it: the
@@ -133,7 +148,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -149,10 +164,11 @@ const db = {
       loadMonthMarks(),
       loadDeals(now),
       loadAccessLinks(now),
+      loadGanttFailures(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();

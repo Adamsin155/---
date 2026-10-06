@@ -1348,6 +1348,27 @@ export const RULES = [
     ],
   },
 
+  // 6.10.2026, Metricool (docs/ops.md, section 27): a post of a client failed to publish
+  // (the sync wrote mc_status 'error' on its Gantt row). Ilai rings, once per failure;
+  // the ring opens the client's Gantt on that month.
+  {
+    id: 'metricoolFailed', event: 'פרסום נכשל ב-Metricool', procs: [],
+    instances(env) {
+      return (env.ganttFailures || []).map((g) => {
+        const c = env.clientById.get(g.client_id);
+        const at = parseDate(g.at);
+        if (!c || !at || g.mc_status !== 'error') return null;
+        return {
+          id: `${g.id}@${g.mc_post_id || ''}`, cid: c.id, client: c, name: clientLabel(c), entry: g,
+          url: `gantt.html?id=${encodeURIComponent(c.id)}&m=${String(g.day).slice(0, 7)}&d=${g.day}`, anchors: { event: at },
+        };
+      }).filter(Boolean);
+    },
+    steps: [
+      { id: 'now', to: 'ilai', level: 'ring', title: (i) => `הפרסום של ${i.name} נכשל ב-Metricool`, body: (i) => `${i.entry.title} · ${i.entry.day.split('-').reverse().map(Number).join('.')}. כדאי לבדוק ב־Metricool ולתזמן מחדש.` },
+    ],
+  },
+
   // 7ב, 23ב: the client approved graphics (the status page, or Irit marked "אושר"):
   // Ilai rings at once, 30 office minutes to post them. Late: `late` (Ofir and Lior).
   {
