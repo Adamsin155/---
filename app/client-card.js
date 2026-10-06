@@ -12,7 +12,7 @@ import {
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
   addTask, setTaskDone, updateClient, loadDirectory, loadQuoteSummary, loadCalls,
-  loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes,
+  loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes, setPasswordGate, GATE_CANCELLED,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who, confirmShootDate,
@@ -53,6 +53,7 @@ import { mountClientStatus } from './status-link-ui.js';
 // The client's logins form (6.10.2026): its link, inside the vault's block.
 import { mountAccessLink } from './access-link-ui.js';
 import { seesAccessLinks } from './access-data.js';
+import { askVaultCode, mountVaultHint } from './vault-gate.js';
 import { ACCESS_STATUS_LABEL, NEW_STATUS } from './access-logic.js';
 // Stage 5: the monthly cycle (a draft), and items newer than the client's protocol version.
 import { mountClientMonth, worksCycle } from './month-ui.js';
@@ -470,9 +471,15 @@ async function reveal(a) {
     revealTimers[a.id] = setTimeout(() => { const b = document.getElementById(`sec-${a.id}`); if (b) fill(b); }, 30e3);
     refreshAccessLog();
   } catch (err) {
-    toast(`לא ניתן להציג את הסיסמה. ${errorText(err)}`);
+    if (err?.message === GATE_CANCELLED) return; // the code's dialog was closed
+    // The unlock ended between the check and the reveal: the next press asks for the code.
+    toast(/vault locked/.test(String(err?.message || '')) ? 'הכספת ננעלה. לחצו שוב על ״הצגת סיסמה״ והקלידו את הקוד.' : `לא ניתן להציג את הסיסמה. ${errorText(err)}`);
   }
 }
+// "קוד הכספת" (app/vault-gate.js): every reveal asks for it through the one gate of
+// protocol-data.js. When the unlock ends, the passwords shown here are hidden.
+setPasswordGate(askVaultCode);
+const hideSecrets = () => { for (const b of document.querySelectorAll('#access-list .secret')) fill(b); };
 async function removeAccess(a) {
   if (!confirm(`למחוק את הגישה ל־${networkName(a.network)}? הסיסמה תימחק מהכספת.`)) return;
   try { await deleteAccess(a.id); toast('הגישה נמחקה.'); refreshAccess(); } catch (err) { toast(errorText(err)); }
@@ -1858,6 +1865,7 @@ mountSession(async (staff) => {
   applyScope();
   await load();
   refreshAccess();
+  if (vaultOk) mountVaultHint($('vault-open'), { locked: hideSecrets });
   // The team's WhatsApp numbers, for the handoff buttons in the card.
   ensurePhones().then(() => { if (client && !busy()) renderKeepingFocus(); });
   const target = location.hash && document.getElementById(location.hash.slice(1));

@@ -514,6 +514,13 @@ dialog.dlg-wide .dlg-foot { border-top: 1px solid var(--line); padding-top: 14px
 .secret:not(:empty) { margin-top: 8px; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
 .secret .num { font-size: 15px; letter-spacing: .02em; overflow-wrap: anywhere; user-select: all; }
 .secret .hint { margin: 0; flex-basis: 100%; }
+/* "קוד הכספת" (app/vault-gate.js): the open line with "נעילה עכשיו", and the code's dialog. */
+.vault-open { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0 0 10px; padding: 6px 12px; border-radius: var(--ds-r-ctl); background: var(--ds-ok-soft); color: var(--ok); font-weight: 600; font-size: 14px; }
+.vault-open [role="timer"] { font-variant-numeric: tabular-nums; }
+.vault-open .btn-text { min-height: 44px; }
+.vg-dlg { inline-size: min(380px, calc(100vw - 32px)); }
+.vg-code { font-size: 22px; letter-spacing: .4em; text-align: center; min-height: 52px; }
+.vg-dlg .dlg-foot .btn { min-height: 44px; }
 .access-log { margin-top: 12px; }
 .access-log > summary { cursor: pointer; color: var(--accent-deep); font-size: 13px; min-height: 32px; display: flex; align-items: center; }
 .access-log .hlist { margin-top: 6px; max-height: 260px; }
