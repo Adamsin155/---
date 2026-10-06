@@ -211,7 +211,7 @@ await step('Irit: "להכין חוזה ל־פיצה רון" in המשימות ש
   assert.match(t, /נשארו \d+:\d\d/);
   assert.match(t, /Social · נטלי דדון · תוספות: צלם חודשי, צירוף סמיון ליום הצילום עם נטלי · הנחה 150 ₪ לחודש/);
   assert.match(t, /רון כהן · 050-7654321 · מסתיו/);
-  assert.equal(await card.locator('a.btn-primary').getAttribute('href'), `index.html?deal=${dealId()}`);
+  assert.equal(await card.locator('a.btn', { hasText: 'להכנת החוזה' }).getAttribute('href'), `index.html?deal=${dealId()}`);
   // The other seller's deal is there too (the office reads all); Stav's signed one is not (done).
   assert.equal(await irit.locator('.deal-task').count(), 2);
   await shot(irit, 'deal-03-irit');

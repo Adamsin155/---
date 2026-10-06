@@ -141,6 +141,12 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   const tops = await page.evaluate(() => ['now-bar', 'deals-card', 'mine-list'].map((id) => Math.round(document.getElementById(id).getBoundingClientRect().top + scrollY)));
   assert.ok(tops[0] < tops[1] && tops[1] < tops[2], `order: ${tops}`);
   assert.ok(tops[0] < 740, `the now-bar starts at ${tops[0]}px`);
+  // The design keeps pink for the screen's one main action: "לקוח חדש". The rows' own actions
+  // ("להכנת החוזה", "חיבור ליומן") are the outlined style.
+  const pink = await page.evaluate(() => [...document.querySelectorAll('#app .btn-primary')]
+    .filter((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && !el.closest('dialog'); }).map((el) => el.id || el.textContent.trim()));
+  assert.deepEqual(pink.filter((x) => x !== 'btn-new'), [], `pink actions on Irit's work screen: ${pink}`);
+  assert.equal(await page.locator('#deals-card a.btn', { hasText: 'להכנת החוזה' }).first().evaluate((el) => el.classList.contains('btn-primary')), false);
   assert.match(await page.innerText('#deals-card'), /עסקאות חדשות מהשטח \(2\)[^]*להכין חוזה ל־קפה הפינה[^]*להכין חוזה ל־מאפיית השכונה/);
   const list = await shortList(page, 'irit');
   assert.deepEqual(list.groups.filter((g) => /g-(overdue|today|tomorrow)/.test(g.cls)).map((g) => g.title), ['באיחור', 'היום', 'מחר']);
@@ -304,7 +310,8 @@ await step('Ofir lands on the quality-control queue; the switch is not repeated 
   await tidy(page, 'ofir pass');
   assert.equal(await page.locator('#ps-list > li:not(.more-row):visible').count(), 6);
   const ph = await heightOf(page);
-  assert.ok(ph < 7500, `the pass is ${ph}px tall (it was about 10,300)`);
+  // (A client is named "business · contact" since 6.10.2026: long names wrap to a second line.)
+  assert.ok(ph < 8200, `the pass is ${ph}px tall (it was about 10,300)`);
   await page.goto(`${BASE}clients.html#mine`);
   await page.waitForSelector('#mine-list .wproc.wc');
   await settle(page);
