@@ -178,7 +178,7 @@ export function packageId(tier, influencer) {
 const INF_NAME = (inf) => INFLUENCERS[inf]?.name || '';
 export const MONTHLY_CONTENTS = 8;
 export const CUSTOM_QTY = [
-  { key: 'videos', max: 300, name: 'סרטונים', base: (s) => s.videos,
+  { key: 'videos', max: 200, name: 'סרטונים', base: (s) => s.videos,
     label: (n, sel) => (sel.tier === 'podcast' ? 'סרטוני פודקאסט' : 'סרטונים בבית העסק') },
   { key: 'graphics', max: 300, name: 'גרפיקות', base: (s) => s.graphics, label: () => 'גרפיקות' },
   { key: 'shootDays', max: 12, name: 'ימי צילום עם המשפיענים', base: (s) => s.shootDays,

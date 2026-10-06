@@ -309,7 +309,7 @@ test('Stav writes another offer: validated by the table, and its status follows 
   const bad = [
     { description: '' }, { description: 'x', price_agorot: 250000 }, { description: 'x', price_agorot: 250000, term_months: 37 },
     { description: 'x', price_agorot: -100, term_months: 12 }, { description: 'x', price_agorot: 250000.5, term_months: 12 },
-    { description: 'x', price_agorot: 250000, term_months: 12, videos: 301 }, { description: 'x', price_agorot: 250000, term_months: 12, videos: 1.5 },
+    { description: 'x', price_agorot: 250000, term_months: 12, videos: 201 }, { description: 'x', price_agorot: 250000, term_months: 12, videos: 1.5 },
     { description: 'x', price_agorot: 250000, term_months: 12, payout: 1 }, { description: 'א'.repeat(2001), price_agorot: 250000, term_months: 12 },
     'text', [],
   ];

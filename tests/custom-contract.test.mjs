@@ -12,6 +12,10 @@ import {
 } from '../app/pricing.js';
 import { packageDeliverables } from '../app/protocol-logic.js';
 import { regularFingerprint, regularSelections } from './regular-models.mjs';
+import { contractSummary } from '../app/contract-summary.js';
+import { generatePlan } from '../app/gantt-logic.js';
+import { clientState } from '../app/protocol-logic.js';
+import { slotCount, videosOf, MAX_SLOTS } from '../app/scripts-logic.js';
 
 const sel = (tier, influencer, paid = [], custom = undefined, extra = {}) => ({
   ...emptySelection(), docType: 'agreement', tier, influencer, paid, ...extra, ...(custom === undefined ? {} : { custom }),
@@ -117,7 +121,7 @@ test('validation stays strict: types, ranges, integers, agorot, the add-on a qua
   bad([], /custom must be an object/);
   bad({ totals: {} }, /unknown custom field/);
   bad({ qty: { reels: 3 } }, /unknown custom quantity/);
-  for (const v of [-1, 301, 1.5, '20', NaN]) bad({ qty: { videos: v } }, /custom quantity out of range: videos/);
+  for (const v of [-1, 201, 1.5, '20', NaN]) bad({ qty: { videos: v } }, /custom quantity out of range: videos/);
   bad({ qty: { shootDays: 13 } }, /out of range: shootDays/);
   bad({ qty: { monthly: 10 } }, /needs its add-on/);
   bad({ qty: { monthly: 0 } }, /out of range: monthly/, ['photographer']);
@@ -238,6 +242,23 @@ test('what the signed contract grants follows the customised quantities (the cli
     extra: [{ label: 'אתר תדמית', qty: 1 }, { label: 'ניהול קהילה', qty: null }],
   });
   assert.deepEqual(effectiveQuantities(s), { videos: 50, graphics: 10, shootDays: 1, photoDays: 2, collabs: 0, stories: 5, ch14: 2, monthly: 10 });
+  // The client opened from it: the summary counts against the custom quantities, the
+  // added lines are listed without a counter, and the scripts page has that many slots.
+  const client = { id: 'c1', name: 'x', status: 'active', shoot_type: 'dms', rounds: [], deal_at: '2026-10-01T08:00:00Z', contract_end: '2027-04-01', deliverables: packageDeliverables(m) };
+  const sum = contractSummary(client, clientState(client, {}, new Date('2026-10-06T08:00:00Z')), {}, { now: new Date('2026-10-06T08:00:00Z') });
+  assert.deepEqual(sum.items.map((i) => [i.key, i.total]), [['videos', 50], ['graphics', 14], ['shoot_days', 4], ['stories', 6], ['ch14', 3], ['monthly', 60]]);
+  assert.deepEqual(sum.extras, ['אתר תדמית × 1', 'ניהול קהילה']);
+  assert.deepEqual(sum.flags, ['אתר תדמית × 1', 'ניהול קהילה']);
+  assert.match(sum.items[0].text, /50 בחוזה/);
+  assert.equal(slotCount(videosOf(client)), 50);
+  // The Gantt template plans the same numbers over the six months of this contract.
+  const { entries: plan, of: planMonths } = generatePlan(client);
+  assert.equal(planMonths, 6);
+  const planned = (kind) => plan.filter((e) => e.kind === kind).length;
+  assert.deepEqual([planned("video"), planned("graphic"), planned("story"), planned("ch14"), planned("collab")], [50, 14, 6, 3, 0]);
+  assert.ok(plan.every((e) => e.day <= "2027-04-01"), "nothing after the contract ends");
+  // The most videos a contract may carry is what the scripts page can open.
+  assert.equal(CUSTOM_QTY.find((q) => q.key === "videos").max, MAX_SLOTS);
   // A podcast whose photographer day was removed by hand has none.
   const p = buildQuoteModel(sel('podcast', 'natali', [], { qty: { photoDays: 0 } }), { name: 'x' });
   assert.ok(!('photo_days' in packageDeliverables(p)));

@@ -499,7 +499,7 @@ language sql immutable set search_path = '' as $$
     and (c - array['description', 'videos', 'graphics', 'shoot_days', 'price_agorot', 'term_months']) = '{}'::jsonb
     and jsonb_typeof(c -> 'description') = 'string'
     and length(btrim(c ->> 'description')) between 1 and 2000
-    and private.json_int_between(c -> 'videos', 0, 300)
+    and private.json_int_between(c -> 'videos', 0, 200)
     and private.json_int_between(c -> 'graphics', 0, 300)
     and private.json_int_between(c -> 'shoot_days', 0, 12)
     and jsonb_typeof(c -> 'price_agorot') = 'number' and private.json_int_between(c -> 'price_agorot', 100, 10000000)

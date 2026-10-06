@@ -106,6 +106,27 @@ async function loadGanttFailures(now: Date): Promise<Row[]> {
   }
 }
 
+// Exceptional contracts (6.10.2026, app/approvals-logic.js): those waiting for a manager,
+// and the ones decided in the last two days (whoever prepared them hears), each with the
+// email of the seller whose deal it came from. Until migration
+// 20261010100000_custom_contracts.sql adds the columns, none.
+async function loadApprovals(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  try {
+    const rows = await all(() => admin.from('quotes')
+      .select('id, number, client_name, business:model->client->>company, status, approval, approval_by, approval_by_email, approval_at, approval_note, exceptions, version, submitted_at, submitted_by_email, created_at, created_by_email')
+      .neq('approval', 'none').neq('status', 'cancelled').or(`approval.eq.pending,approval_at.gte."${since}"`).order('id'));
+    if (!rows.length) return rows;
+    const { data: deals } = await admin.from('deal_requests').select('quote_id, created_by_email').in('quote_id', rows.map((r: Row) => r.id));
+    const seller = new Map((deals ?? []).map((d: Row) => [d.quote_id, d.created_by_email]));
+    return rows.map((r: Row) => ({ ...r, seller_email: seller.get(r.id) ?? null }));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42703' || code === '42P01' || code === 'PGRST204' || code === 'PGRST205') return [];
+    throw err;
+  }
+}
+
 // The database as tick.js sees it (service role: row level security does not apply).
 const db = {
   // The automatic editor assignment (app/auto-assign.js), as qa.html writes it: the
@@ -131,7 +152,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, ganttFailures] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, ganttFailures, approvals] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -146,10 +167,11 @@ const db = {
       loadMonthMarks(),
       loadDeals(now),
       loadGanttFailures(now),
+      loadApprovals(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, ganttFailures, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, ganttFailures, approvals, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();

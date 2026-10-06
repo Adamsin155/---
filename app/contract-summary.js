@@ -99,9 +99,13 @@ export function contractSummary(client, state, checks = {}, { files = null, now 
       text: itemText(it, done, total), sources,
     });
   }
-  const flags = FLAGS.filter((f) => n(d[f.key]) > 0).map((f) => f.text);
+  // Lines added by hand to a custom contract (deliverables.extra, set at signing): shown
+  // with what is included, never counted (6.10.2026).
+  const extras = (Array.isArray(d.extra) ? d.extra : []).filter((x) => x && String(x.label || "").trim())
+    .map((x) => (n(x.qty) > 0 ? `${String(x.label).trim()} × ${n(x.qty)}` : String(x.label).trim()));
+  const flags = [...FLAGS.filter((f) => n(d[f.key]) > 0).map((f) => f.text), ...extras];
   return {
-    items, flags, empty: !items.length && !flags.length,
+    items, flags, extras, empty: !items.length && !flags.length,
     month: client?.deal_at ? contractMonth(client, now) : null,
     renewal: renewalWindow(client, now),
   };
