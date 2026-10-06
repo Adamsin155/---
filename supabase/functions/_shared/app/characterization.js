@@ -19,6 +19,7 @@ import { NETWORKS, PEOPLE } from './protocol.js';
 import { CHAR_ENDED, addBusinessDays } from './protocol-logic.js';
 import { dayKeyIL } from './tz.js';
 import { fillTemplate, listText, DEFAULT_TEMPLATES } from './messages-logic.js';
+import { accessStatusLabel } from './access-logic.js';
 
 export { CHAR_ENDED };
 
@@ -97,15 +98,24 @@ export function endedProblems(v) {
   else if (!validPhone(v.phone)) out.phone = 'הטלפון לא נראה תקין. למשל \u206603-1234567\u2069 או \u2066050-1234567\u2069.';
   if (v.has_logo !== true && v.has_logo !== false) out.has_logo = 'לבחור אם יש ללקוח לוגו.';
   const given = (v.networks || []).filter((n) => n && n.status);
-  if (!given.length) out.networks = 'לבחור לפחות רשת אחת ומה מצב הגישה אליה (גם ״אין רשת״).';
+  // A network the client already filled in the logins form (app/access-logic.js)
+  // needs nothing from the meeting: `fromClient` is its status in the vault.
+  const fromClient = (v.networks || []).filter((n) => n && n.fromClient);
+  if (!given.length && !fromClient.length) out.networks = 'לבחור לפחות רשת אחת ומה מצב הגישה אליה (גם ״אין רשת״).';
   return out;
 }
 
-// The note of the p04.ended mark: what was given, in words (the history shows it).
+// The note of the p04.ended mark: what was given, in words (the history shows it),
+// and what had already come from the client's form (its status then, never a login).
 export function endedNote(v) {
   const nets = (v.networks || []).filter((n) => n.status)
     .map((n) => `${networkName(n.network)}: ${ACCESS_STATUS.find(([k]) => k === n.status)?.[1] || n.status}`);
-  return `${ENDED_NOTE_PREFIX} · לוגו: ${v.has_logo ? 'יש' : 'אין'} · ${nets.join(', ')}`.slice(0, 2000);
+  const client = (v.networks || []).filter((n) => !n.status && n.fromClient)
+    .map((n) => `${networkName(n.network)}: ${accessStatusLabel(n.fromClient)}`);
+  const parts = [`${ENDED_NOTE_PREFIX} · לוגו: ${v.has_logo ? 'יש' : 'אין'}`];
+  if (nets.length || !client.length) parts.push(nets.join(', '));
+  if (client.length) parts.push(`מהטופס של הלקוח: ${client.join(', ')}`);
+  return parts.join(' · ').slice(0, 2000);
 }
 
 // What the tap checks besides the mark itself (process 5): the access was received

@@ -44,6 +44,9 @@
 .msg-pick .input { min-height: 44px; padding-block: 8px; }
 .msg-text { min-height: 112px; font-size: 15px; line-height: 1.55; }
 .msg-fill { font-size: 13px; color: var(--warn); }
+/* The logins form's link under the welcome message (app/messages.js, accessRow). */
+.msg-access { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; font-size: 13.5px; color: var(--text-2); }
+.msg-access .btn { min-height: 44px; }
 .msg-risk { font-size: 13.5px; color: var(--text); padding: 8px 10px; border-radius: var(--radius-sm); background: var(--warn-soft); border: 1px solid var(--warn-line); }
 .msg-undo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13.5px; color: var(--text-2); }
 .msg-undo .btn-text { min-height: 44px; padding-inline: 8px; }

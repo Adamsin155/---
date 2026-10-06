@@ -57,6 +57,10 @@
 .ik-seg.is-invalid .ik-opt span, .ik-nets.is-invalid .ik-net .ik-opt span { border-color: var(--danger); }
 .ik-seg .err:empty, .ik-nets .err:empty { display: none; }
 .ik-net { display: grid; gap: 8px; padding: 12px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--bg-2); }
+/* A network the client already filled in the logins form: its status, and "לשנות". */
+.ik-net-got { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.ik-got { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.ik-net-got .btn-text { min-height: 44px; }
 .ik-login { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
 .ik-more { display: flex; align-items: center; gap: 8px; max-inline-size: 320px; }
 .ik-more .input { min-height: 44px; }
