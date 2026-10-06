@@ -431,8 +431,9 @@ await step('the month grid: which month each client is in, this month\'s items, 
 
 await step('the protocol\'s versions: what changed in each, and how many clients started under which', async () => {
   const v = lior.locator('#versions');
-  assert.equal(await v.locator('.yr-versions > li').count(), 6); // versions 1 to 6
-  assert.match(await v.locator('.yr-versions > li').first().innerText(), /גרסה 6 · יום הצילום מיד אחרי פתיחת הקבוצה[^]*3 פריטים חדשים/);
+  assert.equal(await v.locator('.yr-versions > li').count(), 7); // versions 1 to 7
+  assert.match(await v.locator('.yr-versions > li').first().innerText(), /גרסה 7 · העלאת ה־Highlights לרשתות[^]*פריט חדש אחד[^]*נוסף 8ב/);
+  assert.match(await v.innerText(), /גרסה 6 · יום הצילום מיד אחרי פתיחת הקבוצה[^]*3 פריטים חדשים/);
   assert.match(await v.innerText(), /גרסה 5 · זרימות המשרד והאפיון[^]*התסריטים עד סוף יום העסקים השני/);
   assert.match(await v.innerText(), /גרסה 4 · הפרוטוקול של הצלם[^]*15 פריטים חדשים/);
   assert.match(await v.innerText(), /גרסה 5: לקוח אחד · גרסה 4: 4 לקוחות · גרסה 1: לקוח אחד/);
