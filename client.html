@@ -68,8 +68,11 @@
           <div><h2 id="access-h">גישות לרשתות</h2><p class="muted">כל גישה תקינה נכנסת לכאן מיד. הסיסמאות מוצפנות, וכל צפייה נרשמת.</p></div>
           <button type="button" class="btn btn-sm" id="access-add">הוספת גישה</button>
         </div>
+        <div id="al-slot"></div>
+        <p class="hint" id="access-novault" hidden>אין לך גישה לסיסמאות בכספת. בעל המשרד מפעיל אותה בעמוד הצוות.</p>
+        <p class="vault-open" id="vault-open" hidden></p>
         <ul class="access-list" id="access-list"></ul>
-        <details class="access-log"><summary>מי צפה ושינה ומתי</summary><ol class="hlist" id="access-log"></ol></details>
+        <details class="access-log" id="access-log-box"><summary>מי צפה ושינה ומתי</summary><ol class="hlist" id="access-log"></ol></details>
       </section>
       <section class="block qa-block" id="qa-block" aria-labelledby="qa-block-h" hidden></section>
       <div class="viewbar" id="viewbar"></div>
@@ -275,7 +278,7 @@
       <div class="dlg-body form-grid">
         <div class="field"><label for="acc-network">רשת</label><select class="input" id="acc-network"></select></div>
         <div class="field"><label for="acc-status">מצב הגישה</label>
-          <select class="input" id="acc-status"><option value="ok">תקינה</option><option value="broken">לא עובדת: ליאור משחזר עם הלקוח</option><option value="missing">אין רשת: עילאי פותח</option></select></div>
+          <select class="input" id="acc-status"><option value="ok">תקינה</option><option value="broken">לא עובדת: ליאור משחזר עם הלקוח</option><option value="missing">אין רשת: עילאי פותח</option><option value="new" id="acc-status-new" hidden disabled>התקבל מהלקוח, עוד לא נבדק</option></select></div>
         <div class="field"><label for="acc-label">שם החשבון או העמוד (לא חובה)</label><input class="input" id="acc-label"></div>
         <div class="field"><label for="acc-username">שם משתמש / מייל / טלפון</label><input class="input" id="acc-username" dir="ltr" autocomplete="off"></div>
         <div class="field span-2"><label for="acc-password">סיסמה</label><input class="input" id="acc-password" type="password" dir="ltr" autocomplete="new-password" aria-describedby="acc-password-h">

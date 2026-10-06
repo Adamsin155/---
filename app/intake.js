@@ -26,6 +26,9 @@ import {
 } from './characterization.js';
 import { FOCUS_TOPICS, MUST, MUST_NOT, briefChecks, emptyTopics, roundKey, NOT_RAISED, SUMMARY, BRIEF_KEYS } from './briefs.js';
 import { loadCharacterization, saveCharacterization, loadBriefs, saveBrief, missingTable } from './intake-data.js';
+// The client's logins form (6.10.2026): what the client already sent is not asked again.
+import { loadAccessStatusForWork } from './office-data.js';
+import { byClient, accessStatusLabel } from './access-logic.js';
 import { googleCalendarUrl } from './calendar.js';
 import { inputValueIL, fromInputIL } from './tz.js';
 // The materials themselves (logo, photos, videos) go into the client's files from the phone.
@@ -40,6 +43,7 @@ let client = null;
 let checks = {};
 let tasks = [];
 let access = [];
+let accessStatus = [];       // the status of each login (access_work_statuses): never a user name
 let vaultOk = false;
 let charRow = null;          // public.characterizations (null: not saved yet)
 let charError = null;        // the table is missing, or could not be read
@@ -90,10 +94,13 @@ async function load() {
     return;
   }
   vaultOk = await canUseVault(id).catch(() => false);
-  [access, charRow, briefs] = await Promise.all([
+  [access, charRow, briefs, accessStatus] = await Promise.all([
     vaultOk ? loadAccess(id).catch(() => []) : [],
     loadCharacterization(id).then((r) => { charError = null; return r; }).catch((err) => { charError = err; return null; }),
     loadBriefs(id).catch(() => []),
+    // What the vault already holds for each network, statuses only (no vault flag
+    // needed): what the client filled in the logins form is not asked again.
+    scope === 'office' ? loadAccessStatusForWork([id]).then((rows) => (Array.isArray(rows) ? rows : [])).catch(() => []) : [],
   ]);
   $('state').textContent = '';
   document.title = `${client.name} · אפיון ותוכן · astrateg`;
@@ -200,17 +207,24 @@ function showProblems(problems, order, prefix) {
 // ── #end: "האפיון הסתיים" ────────────────────
 function initEnd() {
   const inVault = new Map(access.map((a) => [a.network, a]));
-  const nets = [...new Set([...MAIN_NETWORKS, ...access.map((a) => a.network)])];
+  // The status each network has now ('other' rows are platforms by name: not here).
+  const known = new Map(accessStatus.filter((a) => a.network !== 'other').map((a) => [a.network, a]));
+  const nets = [...new Set([...MAIN_NETWORKS, ...access.map((a) => a.network), ...known.keys()])].filter((n) => n !== 'other' || inVault.has(n));
   endV = {
     address: client.address || charRow?.fields?.address || '',
     phone: charRow?.fields?.phone || '',
     has_logo: client.has_logo === true || client.has_logo === false ? client.has_logo : null,
-    nets: Object.fromEntries(nets.map((n) => [n, { status: '', username: '', password: '', existing: inVault.get(n) || null }])),
+    // `fromClient`: the status the client's own form gave this network, still as the
+    // client left it. Such a network is shown as received and asked only on "לשנות".
+    nets: Object.fromEntries(nets.map((n) => [n, {
+      status: '', username: '', password: '', existing: inVault.get(n) || null,
+      known: known.get(n)?.status || null, fromClient: byClient(known.get(n)) ? known.get(n).status : null, open: false,
+    }])),
   };
 }
 const endValue = () => ({
   address: endV.address, phone: endV.phone, has_logo: endV.has_logo,
-  networks: Object.entries(endV.nets).map(([network, n]) => ({ network, status: n.status || null, username: n.username, password: n.password, existing: n.existing })),
+  networks: Object.entries(endV.nets).map(([network, n]) => ({ network, status: n.status || null, username: n.username, password: n.password, existing: n.existing, fromClient: n.fromClient })),
 });
 
 function renderEnd() {
@@ -233,9 +247,18 @@ function renderEnd() {
     const v = endV.nets[n];
     const name = `end-net-${n}`;
     const showLogin = vaultOk && (v.status === 'ok' || v.status === 'broken');
+    // The client already filled this network in the logins form: its status only
+    // (never the login), and nothing to ask unless Ofir chooses to change it.
+    if (v.fromClient && !v.open) {
+      return h('div', { class: 'ik-net ik-net-got', id: `${name}-got` },
+        h('p', { class: 'ik-got' }, h('strong', {}, networkName(n)), h('span', { class: 'tag' }, `הלקוח כבר מילא: ${accessStatusLabel(v.fromClient)}`)),
+        h('button', { type: 'button', class: 'btn-text', id: `${name}-change`, onclick: () => { v.open = true; renderEndKeep(`${name}-none`); } },
+          'לשנות', h('span', { class: 'sr-only' }, ` את ${networkName(n)}`)));
+    }
     return h('div', { class: 'ik-net' },
-      radios(name, [['', 'לא נבדק'], ...ACCESS_STATUS], v.status || '', (s) => { v.status = s; renderEndKeep(`${name}-${s || 'none'}`); },
-        [networkName(n), v.existing ? h('span', { class: 'tag' }, 'כבר בכספת') : null]),
+      radios(name, [['', v.fromClient ? 'בלי שינוי' : 'לא נבדק'], ...ACCESS_STATUS], v.status || '', (s) => { v.status = s; renderEndKeep(`${name}-${s || 'none'}`); },
+        [networkName(n), v.fromClient ? h('span', { class: 'tag' }, `מהלקוח: ${accessStatusLabel(v.fromClient)}`)
+          : v.existing || v.known ? h('span', { class: 'tag' }, v.known ? `כבר בכספת: ${accessStatusLabel(v.known)}` : 'כבר בכספת') : null]),
       showLogin ? h('div', { class: 'ik-login' },
         field({ fid: `${name}-user`, label: 'שם משתמש', control: textInput(v.username || v.existing?.username || '', (x) => { v.username = x; }, { dir: 'ltr', autocapitalize: 'off', spellcheck: 'false' }) }),
         field({ fid: `${name}-pass`, label: v.existing?.has_secret ? 'סיסמה חדשה (לא חובה)' : 'סיסמה', control: textInput(v.password, (x) => { v.password = x; }, { type: 'password', dir: 'ltr', autocomplete: 'new-password' }) })) : null);
@@ -254,6 +277,8 @@ function renderEnd() {
       h('p', { class: 'hint', id: 'end-networks-hint' }, vaultOk
         ? 'כל רשת עם הסטטוס שלה. הגישות נכנסות ישר לכספת, מוצפנות.'
         : 'אין לך הרשאה לכספת: הסטטוסים נשמרים, ועירית מכניסה את הגישות עצמן.'),
+      Object.values(endV.nets).some((v) => v.fromClient) ? h('p', { class: 'hint', id: 'end-networks-client' },
+        'מה שהלקוח כבר מילא בטופס פרטי הכניסה מסומן כאן, ואין צורך לבקש אותו שוב. משלימים רק את מה שחסר.') : null,
       ...Object.keys(endV.nets).map(netRow),
       others.length ? h('label', { class: 'ik-more' }, h('span', {}, 'עוד רשת:'),
         h('select', { class: 'input', id: 'end-more', onchange: (e) => { const k = e.currentTarget.value; if (!k) return; endV.nets[k] = { status: '', username: '', password: '', existing: null }; renderEndKeep(`end-net-${k}-none`); } },

@@ -12,7 +12,7 @@ import {
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
   addTask, setTaskDone, updateClient, loadDirectory, loadQuoteSummary, loadCalls,
-  loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes,
+  loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes, setPasswordGate, GATE_CANCELLED,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who, confirmShootDate,
@@ -50,6 +50,11 @@ import { intakeShortcut, mountClientIntake, describeIntakeMark, writesScripts } 
 import { canWriteScripts } from './scripts-data.js';
 // Stage 4: the client's status page, approvals, surveys and WhatsApp consent.
 import { mountClientStatus } from './status-link-ui.js';
+// The client's logins form (6.10.2026): its link, inside the vault's block.
+import { mountAccessLink } from './access-link-ui.js';
+import { seesAccessLinks } from './access-data.js';
+import { askVaultCode, mountVaultHint } from './vault-gate.js';
+import { ACCESS_STATUS_LABEL, NEW_STATUS } from './access-logic.js';
 // Stage 5: the monthly cycle (a draft), and items newer than the client's protocol version.
 import { mountClientMonth, worksCycle } from './month-ui.js';
 import { freshText } from './protocol-versions.js';
@@ -391,15 +396,33 @@ function statusNoteBlock() {
 }
 
 // ── Access vault ────────────────────────────
-const STATUS_LABEL = { ok: 'תקינה', broken: 'לא עובדת', missing: 'אין רשת' };
+// The vault's statuses in words, with 'new': a login the client filled in the form
+// (app/access-logic.js) that nobody checked yet.
+const STATUS_LABEL = ACCESS_STATUS_LABEL;
 const networkName = (k) => NETWORKS.find(([n]) => n === k)?.[1] || k;
-// Shown only to whoever may use this client's vault (can_use_client_vault in the database).
+// The logins themselves: only for whoever may use this client's vault
+// (can_use_client_vault in the database). The link to the client's logins form, at
+// the top of the block: for the office (the owner, Irit, Lior and Ofir manage it),
+// also without the vault flag.
 function renderAccess() {
-  $('access').hidden = !vaultOk;
+  // Without the vault flag the block is there only for the link (and only once the
+  // form exists in the database and there is something to show).
+  const show = () => {
+    const linked = !!$('al-slot').firstChild;
+    $('access').hidden = !vaultOk && !linked;
+    $('access-novault').hidden = vaultOk || !linked;
+  };
+  mountAccessLink($('al-slot'), {
+    client, viewer: { me, scope, error: viewerError }, toast, onDraw: show,
+    onFilled: () => { load().then(refreshAccess); },
+  });
+  for (const k of ['access-add', 'access-list', 'access-log-box']) $(k).hidden = !vaultOk;
+  show();
   if (!vaultOk) return;
   fill($('access-list'), ...(access.length ? access.map((a) => h('li', { class: `access-row a-${a.status}` },
     h('div', { class: 'access-main' },
-      h('strong', {}, networkName(a.network)), a.label ? h('span', { class: 'muted' }, ` · ${a.label}`) : null,
+      // 'other' is shown by its own name (LinkedIn, the site…), as the client or the office wrote it.
+      h('strong', {}, a.network === 'other' && a.label ? a.label : networkName(a.network)), a.label && a.network !== 'other' ? h('span', { class: 'muted' }, ` · ${a.label}`) : null,
       h('div', { class: 'imeta' },
         a.username ? h('span', { dir: 'ltr', class: 'num' }, a.username) : h('span', { class: 'muted' }, 'אין שם משתמש'),
         h('span', { class: `tag${a.status === 'ok' ? '' : ' tag-warn'}` }, STATUS_LABEL[a.status]),
@@ -448,9 +471,15 @@ async function reveal(a) {
     revealTimers[a.id] = setTimeout(() => { const b = document.getElementById(`sec-${a.id}`); if (b) fill(b); }, 30e3);
     refreshAccessLog();
   } catch (err) {
-    toast(`לא ניתן להציג את הסיסמה. ${errorText(err)}`);
+    if (err?.message === GATE_CANCELLED) return; // the code's dialog was closed
+    // The unlock ended between the check and the reveal: the next press asks for the code.
+    toast(/vault locked/.test(String(err?.message || '')) ? 'הכספת ננעלה. לחצו שוב על ״הצגת סיסמה״ והקלידו את הקוד.' : `לא ניתן להציג את הסיסמה. ${errorText(err)}`);
   }
 }
+// "קוד הכספת" (app/vault-gate.js): every reveal asks for it through the one gate of
+// protocol-data.js. When the unlock ends, the passwords shown here are hidden.
+setPasswordGate(askVaultCode);
+const hideSecrets = () => { for (const b of document.querySelectorAll('#access-list .secret')) fill(b); };
 async function removeAccess(a) {
   if (!confirm(`למחוק את הגישה ל־${networkName(a.network)}? הסיסמה תימחק מהכספת.`)) return;
   try { await deleteAccess(a.id); toast('הגישה נמחקה.'); refreshAccess(); } catch (err) { toast(errorText(err)); }
@@ -1317,7 +1346,7 @@ let accEditing = null;
 fill($('acc-network'), ...NETWORKS.map(([k, l]) => h('option', { value: k }, l)));
 function syncAccTask() {
   const st = $('acc-status').value;
-  $('acc-task-wrap').hidden = st === 'ok' || accEditing?.status === st;
+  $('acc-task-wrap').hidden = st === 'ok' || st === NEW_STATUS || accEditing?.status === st;
   $('acc-task-text').textContent = st === 'broken' ? 'לפתוח משימה לליאור: לשחזר את הגישה עם הלקוח' : 'לפתוח משימה לעילאי: לפתוח את הרשת ללקוח';
 }
 $('acc-status').addEventListener('change', syncAccTask);
@@ -1326,6 +1355,11 @@ function openAccess(a = null) {
   $('acc-form').reset();
   $('acc-err').hidden = true;
   $('acc-h').textContent = a ? `גישה: ${networkName(a.network)}` : 'גישה חדשה לרשת';
+  // "התקבל מהלקוח, עוד לא נבדק" is never chosen by hand: it stays only while a login
+  // that came from the client's form is being edited without checking it.
+  const fromClient = a?.status === NEW_STATUS;
+  $('acc-status-new').hidden = !fromClient;
+  $('acc-status-new').disabled = !fromClient;
   if (a) {
     $('acc-network').value = a.network; $('acc-status').value = a.status; $('acc-label').value = a.label || '';
     $('acc-username').value = a.username || ''; $('acc-note').value = a.note || '';
@@ -1831,6 +1865,7 @@ mountSession(async (staff) => {
   applyScope();
   await load();
   refreshAccess();
+  if (vaultOk) mountVaultHint($('vault-open'), { locked: hideSecrets });
   // The team's WhatsApp numbers, for the handoff buttons in the card.
   ensurePhones().then(() => { if (client && !busy()) renderKeepingFocus(); });
   const target = location.hash && document.getElementById(location.hash.slice(1));

@@ -16,3 +16,13 @@
 .st-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
 .st-form { display: grid; gap: 8px; margin-top: 6px; max-width: 420px; }
 .st-form .btn { justify-self: start; min-height: 44px; }
+
+/* The link to the client's logins form, inside the vault's block (app/access-link-ui.js). */
+.al-block { display: grid; gap: 8px; margin: 0 0 14px; padding: 12px 14px; border-radius: var(--ds-r-item); background: var(--ds-ground); }
+.al-block h3 { margin: 0; font-size: 15px; }
+.al-block .muted { margin: 0; }
+.al-state.is-filled strong { color: var(--ok); }
+.al-state.is-expired strong, .al-state.is-locked strong, .al-state.is-revoked strong { color: var(--warn); }
+.al-summary, .al-note { margin: 0; overflow-wrap: anywhere; }
+.al-note { white-space: pre-wrap; padding: 8px 10px; border-radius: var(--ds-r-sm); background: var(--ds-surface); }
+.al-block .st-acts { margin-top: 0; }

@@ -91,6 +91,23 @@ async function loadDeals(now: Date): Promise<Row[]> {
   }
 }
 
+// The links to the client's logins form (6.10.2026, app/access-logic.js): those made
+// or filled in the last 16 days (a link lives 14). Only when it was made, filled,
+// revoked and expires, and the platforms and choices of a submission: never the hash,
+// the Vault id or the client's notes. Until migration
+// 20261008100000_client_access_form.sql adds the table, none.
+async function loadAccessLinks(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 16 * 864e5).toISOString();
+  try {
+    return await all(() => admin.from('client_access_links').select('id, client_id, created_at, expires_at, revoked_at, submitted_at, attempts, summary')
+      .gte('created_at', since).order('id'));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205') return [];
+    throw err;
+  }
+}
+
 // Posts that failed to publish in Metricool (6.10.2026, rule `metricoolFailed`): the Gantt
 // rows the sync marked in the last two days. Until migration
 // 20261007100000_gantt_roles_statuses.sql adds the columns, none.
@@ -131,12 +148,13 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, ganttFailures] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
       all(() => admin.from('staff').select('email, person').order('email')),
-      all(() => admin.from('client_access').select('id, client_id, network, status, broken_since, updated_at').eq('status', 'broken').order('id')),
+      // Broken logins (Lior's ladder) and those the client filled that nobody checked yet ('new').
+      all(() => admin.from('client_access').select('id, client_id, network, status, broken_since, updated_at').in('status', ['broken', 'new']).order('id')),
       all(() => admin.from('office_reviews').select('day, kind').gte('day', dayKeyIL(addDaysIL(now, -14))).order('day')),
       all(() => admin.from('client_status_notes').select('client_id, week').gte('week', weekKey(now)).order('week')),
       all(() => admin.from('client_messages').select('client_id, sent_at').gte('sent_at', today.toISOString()).order('sent_at')),
@@ -145,11 +163,12 @@ const db = {
       all(() => admin.from('reminder_log').select(LOG_COLS).gte('created_at', since.toISOString()).order('id')),
       loadMonthMarks(),
       loadDeals(now),
+      loadAccessLinks(now),
       loadGanttFailures(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, ganttFailures, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();

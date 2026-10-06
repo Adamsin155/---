@@ -22,6 +22,9 @@ import {
   dayQueue, templatesByKey, messageText, unfilledIn, unknownVars, templateVars, waLink, groupLink, canSendMessages,
   protocolCheckOf, SENT_CHECK_NOTE, DEFAULT_TEMPLATES, MESSAGE_KINDS, dayText, timeText,
 } from './messages-logic.js';
+// The client's logins form (6.10.2026): the welcome carries its link, and a nudge follows.
+import { accessUrl, accessLine, waitingLink, redactAccessLinks, hasRedactedLink } from './access-logic.js';
+import { loadAccessLinks, accessLinkToken, createAccessLink, createError } from './access-data.js';
 
 const MSG_COLS = 'id, client_id, kind, template_key, ref, body, sent_by_email, sent_at';
 const TPL_COLS = 'key, title, body, kind, station, updated_by, updated_at';
@@ -47,6 +50,12 @@ const failed = new Map();     // client id -> { option, text, error }: opened in
 const errors = new Map();     // client id -> what to fix before sending
 const undoing = new Set();    // message ids whose undo is on its way
 const openHistory = new Set();
+// The links to the clients' logins forms (null: the form is not set up in the
+// database yet), and the tokens of those that wait, by link id. A token is kept in
+// memory only, and never in the record of a sent message (redactAccessLinks).
+let accessLinks = null;
+const accessTokens = new Map();
+const creating = new Set();   // client ids whose link is being made
 
 const optId = (o) => `${o.kind}:${o.ref || o.key}`;
 const hasPhone = (c) => !waLink(c.phone, '').startsWith('https://wa.me/?');
@@ -89,18 +98,88 @@ async function load() {
   // Without the saved templates the queue still works, with the original wording.
   try { templateRows = await loadTemplates(); templatesError = null; } catch (err) { templateRows = []; templatesError = err; }
   templates = templatesByKey(templateRows);
+  // The logins form's links: without them the queue works as before.
+  try { accessLinks = await loadAccessLinks(); } catch { accessLinks = null; }
   lastLoad = Date.now();
   $('state').textContent = templatesError ? `הנוסחים השמורים לא נטענו (${explain(templatesError)}), ולכן מוצגים הנוסחים המקוריים.` : '';
   if (day && day !== dayKeyIL(now)) { drafts.clear(); failed.clear(); errors.clear(); }
   build(now);
   renderKeepingFocus();
+  fillAccessTokens();
 }
 
 function build(now = new Date()) {
   day = dayKeyIL(now);
   const byClient = {};
   for (const m of messages) (byClient[m.client_id] ||= []).push(m);
-  entries = dayQueue(clients, checks, byClient, now);
+  // Each client's links, and the address of the one that waits once its token is known.
+  const extras = {};
+  for (const l of accessLinks || []) (extras[l.client_id] ||= { accessLinks: [], accessUrl: null }).accessLinks.push(l);
+  for (const x of Object.values(extras)) {
+    const token = accessTokens.get(waitingLink(x.accessLinks, now)?.id);
+    x.accessUrl = token ? accessUrl(location.href, token) : null;
+  }
+  entries = dayQueue(clients, checks, byClient, now, extras);
+}
+
+// The tokens of the waiting links that today's messages carry (the welcome, the
+// nudge): asked once each, then the queue is built again with the addresses.
+async function fillAccessTokens() {
+  const now = new Date();
+  const want = [];
+  for (const e of entries) {
+    if (e.sent || !e.options.some((o) => o.key === 'welcome' || o.key === 'access_nudge')) continue;
+    const l = waitingLink((accessLinks || []).filter((x) => x.client_id === e.client.id), now);
+    if (l && !accessTokens.has(l.id)) want.push(l.id);
+  }
+  if (!want.length) return;
+  const got = await Promise.all(want.map((id) => accessLinkToken(id).catch(() => null)));
+  want.forEach((id, i) => accessTokens.set(id, got[i])); // null: not for this user; not asked again
+  if (!got.some(Boolean)) return;
+  build();
+  renderKeepingFocus();
+}
+
+// "יצירת קישור" on the welcome: the link is made and the message gets its line. A
+// text already edited by hand keeps its words, and the line is added at its end.
+async function createLink(e) {
+  const id = e.client.id;
+  if (creating.has(id)) return;
+  creating.add(id);
+  renderKeepingFocus();
+  let made = null;
+  try { made = await createAccessLink(id); } catch (err) { toast(createError(err)); }
+  if (made) {
+    accessTokens.set(made.id, made.token);
+    try { accessLinks = await loadAccessLinks(); } catch { /* the new link is added below */ }
+    if (!(accessLinks || []).some((l) => l.id === made.id)) {
+      accessLinks = [{ id: made.id, client_id: id, created_at: new Date().toISOString(), expires_at: made.expiresAt, revoked_at: null, submitted_at: null, attempts: 0 }, ...(accessLinks || [])];
+    }
+    const d = drafts.get(id);
+    const url = accessUrl(location.href, made.token);
+    if (d && d.text !== null && !d.text.includes('access.html')) drafts.set(id, { ...d, text: `${d.text.replace(/\s+$/, '')}\n\n${accessLine(url)}` });
+    build();
+    toast(`נוצר קישור לטופס פרטי הכניסה של ${e.client.name}, והוא בתוך ההודעה.`);
+  }
+  creating.delete(id);
+  renderKeepingFocus();
+  $(`msg-text-${id}`)?.focus({ preventScroll: true });
+}
+
+// What the card says about the logins form under the welcome message.
+function accessRow(e, o) {
+  if (accessLinks === null || o.key !== 'welcome') return null;
+  const id = e.client.id;
+  if (o.access === 'none') {
+    return h('p', { class: 'msg-access', id: `msg-access-${id}` },
+      h('span', {}, 'אין עדיין קישור ללקוח למילוי פרטי הכניסה לרשתות.'),
+      h('button', { type: 'button', class: 'btn btn-sm', id: `msg-link-${id}`, disabled: creating.has(id), 'aria-describedby': `msg-h-${id}`, onclick: () => createLink(e) },
+        creating.has(id) ? 'יוצר…' : 'יצירת קישור והוספה להודעה'));
+  }
+  const text = o.access === 'filled' ? 'הלקוח כבר מילא את פרטי הכניסה לרשתות.'
+    : o.accessUrl ? 'ההודעה כוללת את הקישור לטופס פרטי הכניסה (תקף ל־14 יום, לשליחה אחת).'
+      : 'יש ללקוח קישור לטופס פרטי הכניסה, אבל רק הבעלים, עירית, ליאור ואופיר מעתיקים אותו.';
+  return h('p', { class: 'msg-access', id: `msg-access-${id}` }, h('span', {}, text));
 }
 
 // ── The queue ─────────────────────────────
@@ -270,6 +349,7 @@ function card(e) {
       oninput: (ev) => onEdit(e, ev.target),
     }, text),
     h('p', { class: 'msg-fill', id: `msg-fill-${id}`, hidden: !fillIn.length }, fillIn.length ? `לפני השליחה ממלאים: ${fillIn.join(' ')}` : ''),
+    accessRow(e, o),
     h('p', { class: 'err msg-err', id: `msg-err-${id}`, role: 'alert', hidden: !problem }, problem),
     h('div', { class: 'msg-acts' },
       sendLink(false),
@@ -364,7 +444,8 @@ async function record(e, { option, text }) {
   errors.delete(c.id);
   renderKeepingFocus();
   const { data, error } = await supabase.from('client_messages')
-    .insert({ client_id: c.id, kind: option.kind, template_key: option.key, ref: option.ref || null, body: text })
+    // The record keeps the words, never the token of the logins form's link.
+    .insert({ client_id: c.id, kind: option.kind, template_key: option.key, ref: option.ref || null, body: redactAccessLinks(text) })
     .select(MSG_COLS).single();
   recording.delete(c.id);
   if (error) {
@@ -428,7 +509,8 @@ async function undo(m) {
   // Back in the queue with the text as it was sent.
   const e = entries.find((x) => x.client.id === m.client_id);
   const o = e?.options.find((x) => x.key === m.template_key && (x.ref || null) === (m.ref || null));
-  if (o) drafts.set(m.client_id, { opt: optId(o), text: m.body });
+  // (A message that carried the logins form's link is worded again, with the link.)
+  if (o) drafts.set(m.client_id, { opt: optId(o), text: hasRedactedLink(m.body) ? null : m.body });
   render();
   toast(`הרישום בוטל: ההודעה ל${c?.name || 'לקוח'} חזרה לתור.`);
   focusCard(m.client_id);

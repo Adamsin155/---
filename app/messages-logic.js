@@ -29,6 +29,8 @@ import {
 } from './protocol-logic.js';
 import { partsIL, dayKeyIL, weekdayIL, addDaysIL, startOfDayIL, daysBetweenIL, needsYear } from './tz.js';
 import { whatsappLink } from './quote-doc.js';
+import { ACCESS_VAR, accessVars, withAccessVar, waitingLink } from './access-logic.js';
+import { NUDGE_KEY, nudgeDue, nudgeRef, nudgeTimes } from './access-nudge.js';
 
 // Who works in the queue: the owner (no person), Irit and Lior. The database lets
 // the office read and write (can_message_clients(): Ofir too); the page is theirs.
@@ -68,7 +70,8 @@ export const DEFAULT_TEMPLATES = [
 התאריכים הקרובים:
 {תאריכים}
 
-מה נצטרך מכם: לוגו, צבעי המותג, ותמונות וסרטונים שכבר יש לכם. את הגישות לרשתות לא שולחים בהודעה: נקבל אותן מכם בשיחה.
+מה נצטרך מכם: לוגו, צבעי המותג, ותמונות וסרטונים שכבר יש לכם. את הגישות לרשתות לא שולחים בהודעה.
+{פרטי כניסה}
 
 בכל יום חמישי תקבלו מאיתנו עדכון קצר: מה עשינו, מה הלאה ומה צריך מכם. בכל שאלה אפשר לכתוב לנו.`,
   },
@@ -173,11 +176,21 @@ export const DEFAULT_TEMPLATES = [
     key: 'station_change', title: 'מעבר לשלב הבא', kind: 'milestone', station: null,
     body: 'היי, אנחנו כרגע לאחר שלב {השלב שהסתיים}, ומתקדמים לשלב {השלב הבא}',
   },
+  // The client's logins form (the owner's request of 6.10.2026), seeded by
+  // 20261008100000_client_access_form.sql: the link was sent and not filled by the
+  // end of the next business day. At most twice (app/access-logic.js, nudgeDue).
+  {
+    key: 'access_nudge', title: 'תזכורת: פרטי הכניסה לרשתות', kind: 'milestone', station: null,
+    body: `היי {לקוח}, תזכורת קטנה: כדי שנוכל להתחיל לעבוד על הרשתות שלכם חסרים לנו פרטי הכניסה. ממלאים אותם בקישור המאובטח, זה לוקח שתי דקות:
+{קישור}
+אם משהו לא ברור, כתבו לנו ונעזור.`,
+  },
 ];
 
 // What the system fills in each template ({לקוח} and {עסק} everywhere).
 const EXTRA_VARS = {
-  welcome: ['צוות', 'תאריכים'],
+  welcome: ['צוות', 'תאריכים', ACCESS_VAR],
+  [NUDGE_KEY]: ['קישור'],
   access: ['התקבלו', 'מתוך', 'חסר'],
   eve: ['תאריך', 'שעה', 'שעת הצוות', 'כתובת', 'מגיעים'],
   thanks: ['תאריך'],
@@ -221,8 +234,13 @@ export function unknownVars(key, body) {
   return [...new Set([...String(body || '').matchAll(VAR)].map((m) => m[1].trim()).filter((v) => !known.has(v)))];
 }
 
-// The text of one of the day's options.
-export const messageText = (option, templates) => fillTemplate(templates.get(option.key)?.body || '', option.vars);
+// The text of one of the day's options. The welcome carries the link to the client's
+// logins form while one waits to be filled: where the template says {פרטי כניסה},
+// or at its end when the office's own wording has no such place.
+export function messageText(option, templates) {
+  const body = templates.get(option.key)?.body || '';
+  return fillTemplate(option.key === 'welcome' ? withAccessVar(body, option.accessUrl) : body, option.vars);
+}
 
 // WhatsApp links only (never automation): to the client's number, in its 972…
 // form, when the card has one; otherwise with no number, and the sender picks the group.
@@ -757,7 +775,9 @@ export function thursdayVars(client, checks, state, now = new Date()) {
 // { client, station, sent, dayOff, options }: `sent` is the message that already
 // went out today; `options` are what may go out today, the suggestion first,
 // each { kind, key, ref, at, reason, vars }.
-export function suggestFor(client, checks = {}, messages = [], now = new Date(), state = null) {
+// `extras`: { accessLinks: the client's rows of client_access_links (the logins form),
+// accessUrl: the address of the one that waits, when the sender may copy it }.
+export function suggestFor(client, checks = {}, messages = [], now = new Date(), state = null, extras = {}) {
   if (isClosedClient(client)) return null;
   const st = state || clientState(client, checks, now);
   const station = stationOf(client, st, now);
@@ -785,6 +805,20 @@ export function suggestFor(client, checks = {}, messages = [], now = new Date(),
       },
     });
   }
+  // The logins form: sent and not filled by the end of the next business day (and
+  // once more two business days later). After any other milestone of the day.
+  const accessLink = waitingLink(extras.accessLinks || [], now);
+  const nudge = accessLink ? nudgeDue(accessLink, messages, now) : 0;
+  if (nudge) {
+    milestones.push({
+      urgent: false,
+      option: {
+        kind: 'milestone', key: NUDGE_KEY, ref: nudgeRef(accessLink, nudge), at: nudgeTimes(accessLink)[nudge - 1],
+        reason: `הלקוח עוד לא מילא את פרטי הכניסה לרשתות (הקישור נוצר ${relDay(parseDate(accessLink.created_at), now)})${nudge === 2 ? '. תזכורת שנייה ואחרונה' : ''}`,
+        vars: { 'קישור': extras.accessUrl || null },
+      },
+    });
+  }
   const pick = (list, urgent) => list.filter((p) => p.urgent === urgent).map((p) => p.option);
   // The day before a shoot, then a delay that cannot wait, then the milestones.
   const options = [...pick(milestones, true), ...pick(delays, true), ...pick(milestones, false)];
@@ -796,6 +830,13 @@ export function suggestFor(client, checks = {}, messages = [], now = new Date(),
   options.push(...pick(delays, false));
   const who = { 'לקוח': client.name || '', 'עסק': client.business || client.name || '' };
   for (const o of options) o.vars = { ...who, ...o.vars };
+  // The welcome: the link when one waits; `access` tells the page whether to offer making one.
+  for (const o of options) {
+    if (o.key !== 'welcome') continue;
+    o.accessUrl = accessLink ? (extras.accessUrl || null) : null;
+    Object.assign(o.vars, accessVars(o.accessUrl));
+    o.access = accessLink ? 'waiting' : (extras.accessLinks || []).some((l) => l.submitted_at) ? 'filled' : 'none';
+  }
   return { ...base, options };
 }
 
@@ -826,9 +867,9 @@ function dailyOption(station, ctx, now) {
 // The day's queue: every open client; those still to message first (the most
 // important kind first, then by station and name), and those done today last.
 const KIND_RANK = { delay: 0, milestone: 1, thursday: 2, daily: 3 };
-export function dayQueue(clients, checksByClient = {}, messagesByClient = {}, now = new Date()) {
+export function dayQueue(clients, checksByClient = {}, messagesByClient = {}, now = new Date(), extrasByClient = {}) {
   const rank = (e) => (e.sent ? 9 : KIND_RANK[e.options[0]?.kind] ?? 8);
-  return clients.map((c) => suggestFor(c, checksByClient[c.id] || {}, messagesByClient[c.id] || [], now))
+  return clients.map((c) => suggestFor(c, checksByClient[c.id] || {}, messagesByClient[c.id] || [], now, null, extrasByClient[c.id] || {}))
     .filter(Boolean)
     .sort((a, b) => rank(a) - rank(b) || a.station - b.station || String(a.client.name).localeCompare(String(b.client.name), 'he'));
 }

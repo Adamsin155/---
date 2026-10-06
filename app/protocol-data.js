@@ -264,10 +264,50 @@ export async function saveAccess(clientId, a) {
   return data;
 }
 
+// THE ONE PLACE a stored password is asked for (the only call of access_reveal in
+// the app; the card's "הצגת סיסמה" comes through here). Who may open a password is
+// decided by the database, unchanged: the vault flag and can_use_client_vault().
+//
+// The step before a password is shown plugs in here and nowhere else: "קוד הכספת"
+// (app/vault-gate.js, set by the card with setPasswordGate). `passwordGate` is awaited
+// before every reveal and gets { accessId }; returning false stops the reveal. The
+// gate only asks for the code: it is the database that checks it and remembers the
+// unlock (vault_unlock; access_reveal refuses without one once a code was set).
+export const GATE_CANCELLED = 'הפתיחה בוטלה.';
+let passwordGate = async () => true;
+export const setPasswordGate = (fn) => { passwordGate = typeof fn === 'function' ? fn : async () => true; };
 export async function revealAccess(id) {
+  if (!(await passwordGate({ accessId: id }))) throw new Error(GATE_CANCELLED);
   const { data, error } = await supabase.rpc('access_reveal', { p_id: id });
   if (error) throw error;
   return data;
+}
+
+// "קוד הכספת" (20261008100100_vault_code.sql). The status: { set, changedAt, owner,
+// openUntil, lockedUntil, left }, or null before the migration (the vault then works
+// as it always did).
+export async function vaultCodeStatus() {
+  const { data, error } = await supabase.rpc('vault_code_status');
+  return !error && data && typeof data === 'object' ? data : null;
+}
+// { state: 'open', until } | { state: 'wrong', left } | { state: 'locked', until } | { state: 'none' }
+export async function vaultUnlock(code) {
+  const { data, error } = await supabase.rpc('vault_unlock', { p_code: code });
+  if (error) throw error;
+  return data;
+}
+export async function vaultLock() {
+  const { error } = await supabase.rpc('vault_lock');
+  if (error) throw error;
+}
+export async function setVaultCode(code) {
+  const { data, error } = await supabase.rpc('vault_code_set', { p_code: code });
+  if (error) throw error;
+  return data;
+}
+export async function loadVaultCodeLog(limit = 12) {
+  const { data, error } = await supabase.from('vault_code_log').select('id, email, event, at').in('event', ['wrong', 'lockout', 'set', 'changed']).order('at', { ascending: false }).limit(limit);
+  return error ? [] : data || [];
 }
 
 export async function deleteAccess(id) {
