@@ -32,7 +32,7 @@
 import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf,
-  businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED,
+  businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel,
 } from './protocol-logic.js';
 // The owner's decisions of 3.10.2026: Stav's deals, the station-change message, the
 // automatic editor assignment.
@@ -146,6 +146,23 @@ export function whenText(d, now) {
   const day = days === 0 ? 'היום' : days === 1 ? 'מחר' : days === -1 ? 'אתמול' : `${WEEKDAY[p.weekday]} ${p.day}.${p.month}`;
   return `${day} ${clock(d)}`;
 }
+// "בעוד שעה", "בעוד 12 דקות", "עכשיו": the time really left until `target` at `now`.
+export function inTimeWords(target, now) {
+  const m = Math.ceil((target - now) / MIN);
+  if (m <= 0) return 'עכשיו';
+  if (m === 1) return 'בעוד דקה';
+  if (m < 60) return `בעוד ${m} דקות`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  const hours = h === 1 ? 'שעה' : h === 2 ? 'שעתיים' : `${h} שעות`;
+  return r ? `בעוד ${hours} ו־${r === 1 ? 'דקה' : `${r} דקות`}` : `בעוד ${hours}`;
+}
+// A reminder "X minutes before" that goes out late (the event was created close to its
+// time, or the engine was held up) must not promise the full X (found live, 6.10.2026:
+// "בעוד שעה אפיון" a minute before it). Within LATE_SLACK minutes of its time it keeps
+// its usual words; later it is worded by the time really left.
+export const LATE_SLACK = 5;
+export const sentOnTime = (target, now, minutesBefore) => (target - now) / MIN >= minutesBefore - LATE_SLACK;
 export const personName = (key) => (key === OWNER ? 'הבעלים' : PEOPLE[key]?.name || key);
 const names = (list, max = 4) => (list.length > max ? `${list.slice(0, max).join(', ')} ועוד ${list.length - max}` : list.join(', '));
 const procName = (proc) => `${proc.num} · ${proc.title}`;
@@ -171,7 +188,7 @@ export function procCase(env, c, s) {
   const snooze = snoozeMark?.state === 'done' ? parseDate(snoozeMark.note) : null;
   return {
     cid: c.id, client: c, s, proc: s.proc, pre, ctx: s.proc.ctx || c, checks, ref: kb, url: clientUrl(c.id, s.proc.id), snooze,
-    name: c.name,
+    name: clientLabel(c),
     check,
     resolved: (k) => { const x = check(k); return !!x && (x.state === 'done' || x.state === 'na'); },
     // An item added to the protocol after this client started (app/protocol-versions.js):
@@ -229,6 +246,9 @@ export const OWN_LATE = new Set(['p01', 'p02', 'p03', 'p06', 'p11b', 'p14', 'p15
 export const QUALITY = new Set(['p22', 'p23', 'p24', 'p25', 'p27']);
 // Who hears of every late item (the owner's decision of 3.10.2026), quietly.
 export const LATE_WATCHERS = ['ofir', 'lior'];
+// How far past its deadline an item is before Ofir and Lior are told (office minutes):
+// a handoff that just landed is not "late" in the minute it arrives (found live, 6.10.2026).
+export const LATE_GRACE_MINUTES = 15;
 // How late an item is before it joins the owner's daily summary (one message, 18:00).
 export const OWNER_LATE_HOURS = 24;
 
@@ -277,7 +297,7 @@ export const RULES = [
     },
     steps: [
       { id: 'eve', from: 'meeting', prevBusinessDays: 1, at: '18:30', to: (i) => i.who, level: 'ring', expires: 'meeting', title: (i, env) => `אפיון ${whenText(i.anchors.meeting, env.now)}: ${i.name}`, body: (i) => [i.client.address, i.client.business].filter(Boolean).join(' · ') || 'הכתובת והטלפון בכרטיס הלקוח.' },
-      { id: 'hour', from: 'meeting', minutes: -60, to: (i) => i.who, level: 'ring', expires: 'meeting', title: (i) => `בעוד שעה אפיון: ${i.name}`, body: (i) => [i.client.address, 'ניווט וטלפון בכרטיס.'].filter(Boolean).join(' · ') },
+      { id: 'hour', from: 'meeting', minutes: -60, to: (i) => i.who, level: 'ring', expires: 'meeting', title: (i, env) => (sentOnTime(i.anchors.meeting, env.now, 60) ? `בעוד שעה אפיון: ${i.name}` : `האפיון מתחיל ${inTimeWords(i.anchors.meeting, env.now)}: ${i.name}`), body: (i) => [i.client.address, 'ניווט וטלפון בכרטיס.'].filter(Boolean).join(' · ') },
       { id: 'end', from: 'end', minutes: 15, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved(CHAR_ENDED) && openOf(i, i.who).length > 0, title: (i) => `האפיון הסתיים? ${i.name}`, body: () => 'עברו 15 דקות מסוף הפגישה המתוכנן. ללחוץ "האפיון הסתיים" עם ארבעת השדות.' },
       { id: 'irit', from: 'end', minutes: 45, to: 'irit', level: 'quiet', when: (i) => !i.resolved(CHAR_ENDED) && openOf(i, i.who).length > 0, title: (i) => `האפיון לא סומן: ${i.name}`, body: (i) => `${personName(i.who)} עוד לא סימן/ה שהאפיון הסתיים.` },
     ],
@@ -356,7 +376,7 @@ export const RULES = [
         // Lior closed it as partly fixed ("עדיין חסר"): it stays red, and only the owner's screen follows it.
         const fix = readAccessFix(env.checksOf(c)[`p06.fixed.${a.network}`]);
         const partial = !!fix?.partial && fix.at >= new Date(at.getTime() - 5 * MIN);
-        out.push({ id: `${a.id}@${at.toISOString()}`, cid: c.id, client: c, name: c.name, ref: 'p06', url: clientUrl(c.id, 'access'), network: a.network, partial, anchors: { event: at } });
+        out.push({ id: `${a.id}@${at.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), ref: 'p06', url: clientUrl(c.id, 'access'), network: a.network, partial, anchors: { event: at } });
       }
       return out;
     },
@@ -505,9 +525,9 @@ export const RULES = [
       const dayOpen = (b) => { const x = i.same(b); return !!x && !x.complete; };
       const endMin = i.natali ? 180 : 330;
       return [
-        { ...s, id: 'eli2h', minutes: -120, to: 'eli', expires: 'shoot', title: () => `בעוד שעתיים המשפיענים מגיעים: ${i.name}`, body: () => `ההגעה שלך ב־${clock(new Date(i.anchors.shoot.getTime() - 36e5))}${i.client.address ? `, ${i.client.address}` : ''}.` },
-        { ...s, id: 'eli15', minutes: -15, to: 'eli', expires: 'shoot', when: () => !i.check('p17b.brollq'), title: () => `הבי־רול גמור? ${i.name}`, body: () => 'המשפיענים מגיעים בעוד 15 דקות. לענות כן או לא במסך יום הצילום.' },
-        { ...s, id: 'arrived', minutes: -45, to: 'lior', when: () => !i.resolved('p17b.arrived'), title: () => `אלי עוד לא סימן הגעה: ${i.name}`, body: () => 'עברו 15 דקות משעת ההגעה שלו.' },
+        { ...s, id: 'eli2h', minutes: -120, to: 'eli', expires: 'shoot', title: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 120) ? `בעוד שעתיים המשפיענים מגיעים: ${i.name}` : `המשפיענים מגיעים ${inTimeWords(i.anchors.shoot, env.now)}: ${i.name}`), body: () => `ההגעה שלך ב־${clock(new Date(i.anchors.shoot.getTime() - 36e5))}${i.client.address ? `, ${i.client.address}` : ''}.` },
+        { ...s, id: 'eli15', minutes: -15, to: 'eli', expires: 'shoot', when: () => !i.check('p17b.brollq'), title: () => `הבי־רול גמור? ${i.name}`, body: (_, env) => `המשפיענים מגיעים ${sentOnTime(i.anchors.shoot, env.now, 15) ? 'בעוד 15 דקות' : inTimeWords(i.anchors.shoot, env.now)}. לענות כן או לא במסך יום הצילום.` },
+        { ...s, id: 'arrived', minutes: -45, to: 'lior', when: () => !i.resolved('p17b.arrived'), title: () => `אלי עוד לא סימן הגעה: ${i.name}`, body: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 45) ? 'עברו 15 דקות משעת ההגעה שלו.' : `שעת ההגעה שלו הייתה ${clock(new Date(i.anchors.shoot.getTime() - 36e5))}.`) },
         ...(i.natali
           ? [{ ...s, id: 'hourLeft', minutes: 120, to: 'lior', when: () => dayOpen('p19'), title: () => `נותרה שעה: ${i.name}`, body: () => 'צילום עם נטלי: עד 3 שעות.' }]
           : [
@@ -747,7 +767,7 @@ export const RULES = [
     instances(env) {
       return env.tasks.filter((t) => t.urgent && !t.done_at && env.clientById.has(t.client_id) && parseDate(t.created_at)).map((t) => {
         const c = env.clientById.get(t.client_id);
-        return { id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, started: !!t.started_at, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at) } };
+        return { id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who: t.owner, started: !!t.started_at, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at) } };
       });
     },
     steps: [
@@ -764,7 +784,7 @@ export const RULES = [
     instances(env) {
       return env.tasks.filter((t) => t.source === 'escalation' && !t.urgent && !t.done_at && env.clientById.has(t.client_id) && parseDate(t.created_at)).map((t) => {
         const c = env.clientById.get(t.client_id);
-        return { id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at) } };
+        return { id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who: t.owner, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at) } };
       });
     },
     steps: [
@@ -788,7 +808,7 @@ export const RULES = [
       return env.tasks.filter((t) => !t.urgent && t.source !== 'escalation' && t.source !== TELL && !STATUS_SOURCES.has(t.source) && !t.done_at && env.clientById.has(t.client_id)).map((t) => {
         const c = env.clientById.get(t.client_id);
         const creator = env.personOf(t.created_by_email);
-        return { id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, creator: creator && creator !== t.owner ? creator : null, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at), due: t.due_on ? dayFromKeyIL(t.due_on) : null } };
+        return { id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who: t.owner, creator: creator && creator !== t.owner ? creator : null, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at), due: t.due_on ? dayFromKeyIL(t.due_on) : null } };
       });
     },
     steps: [
@@ -806,7 +826,7 @@ export const RULES = [
     instances(env) {
       return env.tasks.filter((t) => t.source === TELL && !t.done_at && env.clientById.has(t.client_id) && parseDate(t.created_at)).map((t) => {
         const c = env.clientById.get(t.client_id);
-        return { id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, url: `prep.html?id=${encodeURIComponent(c.id)}#requests`, anchors: { event: parseDate(t.created_at) } };
+        return { id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who: t.owner, url: `prep.html?id=${encodeURIComponent(c.id)}#requests`, anchors: { event: parseDate(t.created_at) } };
       });
     },
     steps: [
@@ -928,7 +948,7 @@ export const RULES = [
           if (!p.shootAt || !p.blockers.length) continue;
           const open = p.blockers.filter((b) => !reported.has(b.id) && !b.known);
           out.push({
-            id: `${p.pid}p14@${p.shootAt.toISOString()}`, cid: c.id, client: c, name: c.name, ref: `${p.pre}p14`,
+            id: `${p.pid}p14@${p.shootAt.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), ref: `${p.pre}p14`,
             url: `prep.html?id=${encodeURIComponent(c.id)}`, all: p.blockers.length, open: open.length, first: open[0]?.text || p.blockers[0].text,
             anchors: { event: p.shootAt, shoot: p.shootAt },
           });
@@ -1116,7 +1136,7 @@ export const RULES = [
         const who = env.personOf(t.created_by_email);
         const at = parseDate(t.done_at);
         if (!c || !t.result || !at || !who || who === OWNER || who === t.owner) continue;
-        out.push({ id: t.id, cid: c.id, client: c, name: c.name, task: t, who, urgent: !!t.urgent, url: TASK_URL(c.id), anchors: { event: at } });
+        out.push({ id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who, urgent: !!t.urgent, url: TASK_URL(c.id), anchors: { event: at } });
       }
       return out;
     },
@@ -1164,7 +1184,7 @@ export const RULES = [
           const m = ACCESS_FIXED.exec(key);
           const v = m && readAccessFix(check);
           if (!v) continue;
-          out.push({ id: `${m[1]}@${v.at.toISOString()}`, cid: c.id, client: c, name: c.name, ref: 'p06', url: clientUrl(c.id, 'access'), network: m[1], fix: v, anchors: { event: v.at } });
+          out.push({ id: `${m[1]}@${v.at.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), ref: 'p06', url: clientUrl(c.id, 'access'), network: m[1], fix: v, anchors: { event: v.at } });
         }
       }
       return out;
@@ -1198,7 +1218,7 @@ export const RULES = [
 
   // Every late item of every employee (the owner's decision of 3.10.2026): Ofir and
   // Lior hear of it in the app, quietly (the list and the badge, no sound), once per
-  // deadline. Whatever already rings for it (its own ladder above: urgent, the
+  // deadline, and only once it is LATE_GRACE_MINUTES office minutes past it. Whatever already rings for it (its own ladder above: urgent, the
   // protocol clocks, the shoot day) keeps ringing. From 24 hours late it is in the
   // owner's one summary at 18:00 (lateSummary in app/reminder-engine.js), never a
   // message per item.
@@ -1225,7 +1245,7 @@ export const RULES = [
     },
     // `list`: Lior's "החלטות" screen keeps listing what is late (decisions.html), as before.
     steps: LATE_WATCHERS.map((p) => ({
-      id: p, to: p, level: 'quiet', overdue: true, list: p === 'lior',
+      id: p, to: p, level: 'quiet', overdue: true, list: p === 'lior', officeMinutes: LATE_GRACE_MINUTES,
       title: (i) => `באיחור: ${i.name} · ${procName(i.proc)} · ${names(i.owners.filter((o) => o !== 'editor').map(personName)) || 'העורך המשויך'}`,
       body: (i, env) => `היעד היה ${whenText(i.anchors.event, env.now)}.`,
     })),
@@ -1289,7 +1309,7 @@ export const RULES = [
       const out = [];
       for (const c of env.clients) {
         const m = stationChange(c, env.checksOf(c), env.stateOf(c), env.now);
-        if (m) out.push({ id: m.ref, cid: c.id, client: c, name: c.name, move: m, url: 'messages.html', anchors: { event: m.at } });
+        if (m) out.push({ id: m.ref, cid: c.id, client: c, name: clientLabel(c), move: m, url: 'messages.html', anchors: { event: m.at } });
       }
       return out;
     },

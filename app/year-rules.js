@@ -9,7 +9,7 @@
 //    started by its day, 60 days before the end.
 // Rows of this module have no process ref (reminder_log.ref takes only pNN keys),
 // except the renewal's, which is process 34.
-import { parseDate } from './protocol-logic.js';
+import { parseDate, clientLabel } from './protocol-logic.js';
 import { openMonthItems, groupMarks, monthOf, cycleFrom, monthItems } from './year-logic.js';
 import { partsIL, dayKeyIL, atTimeIL } from './tz.js';
 
@@ -48,7 +48,7 @@ export const YEAR_RULES = [
         for (const person of WHO) {
           const mine = items.filter((i) => i.owner === person);
           if (!mine.length) continue;
-          out.push({ id: `m${m.n}.${person}`, cid: c.id, client: c, name: c.name, person, n: m.n, count: mine.length, url: cardUrl(c.id), anchors: { event: m.start } });
+          out.push({ id: `m${m.n}.${person}`, cid: c.id, client: c, name: clientLabel(c), person, n: m.n, count: mine.length, url: cardUrl(c.id), anchors: { event: m.start } });
         }
       }
       return out;
@@ -74,8 +74,8 @@ export const YEAR_RULES = [
     steps: [
       {
         id: 'ring', at: '10:00', to: (i) => i.person, level: 'ring',
-        title: (i) => (i.list.length === 1 ? `היום במחזור החודשי: ${i.list[0].client.name}` : `היום במחזור החודשי: ${i.list.length} פריטים`),
-        body: (i) => `${i.list.length === 1 ? i.list[0].label : short([...new Set(i.list.map((x) => x.client.name))])}. טיוטה, עד שיהיה פרוטוקול כתוב.`,
+        title: (i) => (i.list.length === 1 ? `היום במחזור החודשי: ${clientLabel(i.list[0].client)}` : `היום במחזור החודשי: ${i.list.length} פריטים`),
+        body: (i) => `${i.list.length === 1 ? i.list[0].label : short([...new Set(i.list.map((x) => clientLabel(x.client)))])}. טיוטה, עד שיהיה פרוטוקול כתוב.`,
       },
     ],
   },
@@ -85,7 +85,7 @@ export const YEAR_RULES = [
     id: 'monthLate', event: 'מחזור חודשי (טיוטה): באיחור', procs: [],
     instances(env) {
       return openItems(env).filter((i) => i.status === 'overdue').map((i) => ({
-        id: `m${i.month}.${i.key}`, cid: i.client.id, client: i.client, name: i.client.name, item: i, url: cardUrl(i.client.id), anchors: { event: i.dueAt },
+        id: `m${i.month}.${i.key}`, cid: i.client.id, client: i.client, name: clientLabel(i.client), item: i, url: cardUrl(i.client.id), anchors: { event: i.dueAt },
       }));
     },
     steps: [
@@ -105,7 +105,7 @@ export const YEAR_RULES = [
         const checks = env.checksOf(c);
         const resolved = (k) => ['done', 'na'].includes(checks[k]?.state);
         out.push({
-          id: `p34@${c.contract_end}`, cid: c.id, client: c, name: c.name, ref: 'p34', url: `${YEAR_URL}#renewals`,
+          id: `p34@${c.contract_end}`, cid: c.id, client: c, name: clientLabel(c), ref: 'p34', url: `${YEAR_URL}#renewals`,
           started: s.proc.items.some((it) => resolved(it.key)), talked: resolved('p34.talk'), waiting: !!s.wait,
           anchors: { event: end, start: s.dueAt ? atTimeIL(s.dueAt, 0) : null },
         });

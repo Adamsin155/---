@@ -9,7 +9,7 @@
 // unit tests (tests/handoffs.test.mjs). Item keys are the protocol's own
 // (app/protocol.js); they are never renamed.
 import { PEOPLE, PROCESSES } from './protocol.js';
-import { clientState, addWorkingMinutes, isBusinessDay } from './protocol-logic.js';
+import { clientState, addWorkingMinutes, isBusinessDay, isImmediate } from './protocol-logic.js';
 import { partsIL, daysBetweenIL, atTimeIL, addDaysIL } from './tz.js';
 
 // The next person, from the client and its marks. `ctx` is the client, or the
@@ -197,8 +197,10 @@ function resolveDue(spec, { stateOf, triggerAt, now }) {
   if (!at && spec.minutes && triggerAt) at = addWorkingMinutes(triggerAt, spec.minutes);
   if (!at && spec.nextBusinessDayAt && triggerAt) at = nextBusinessDayAt(triggerAt, spec.nextBusinessDayAt);
   if (!at) return { label: spec.label, at: null, now: false, late: false, sla: PROC_OF.get(spec.proc)?.sla || null };
-  // Due at the handoff itself (process 26 starts when 25 is done): right away.
-  const immediate = !!triggerAt && Math.abs(at - triggerAt) <= 6e4;
+  // Due at the handoff itself (process 26 starts when 25 is done): right away. Such a
+  // process has a short working allowance before it is late (IMMEDIATE_MINUTES); the
+  // message to the next person still says "מיד".
+  const immediate = !!triggerAt && (Math.abs(at - triggerAt) <= 6e4 || (isImmediate(PROC_OF.get(spec.proc)) && at >= now));
   return { label: spec.label, at, now: immediate, late: !immediate && at < now, sla: null };
 }
 

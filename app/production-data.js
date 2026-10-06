@@ -6,6 +6,7 @@
 // details from the characterization (plan §3, "ולא את הטלפון האישי של הלקוח";
 // loaded with app/intake-data.js loadCharacterizations).
 import { supabase } from './supa.js';
+import { BUCKET, fileNameOf } from './files-logic.js';
 
 const WORK_COLS = 'id, name, business, address, package_name, shoot_type, has_logo, editor, char_at, shoot_at, contract_end, status, links, deliverables, rounds, created_at, protocol_version';
 const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at, source, brief, urgent, started_at';
@@ -49,4 +50,25 @@ export async function finishTask(id, result) {
     .update({ result, done_at: new Date().toISOString() }).eq('id', id).select(TASK_COLS).single();
   if (error) throw error;
   return data;
+}
+
+// The logo files the office uploaded to the client's files (public.client_files, kind
+// 'logo'; the newest live one per client). Whoever sees the client reads them, the
+// assigned editor too (20261003110000_client_files.sql; tests/sql/live-run-fixes.test.mjs).
+// {} when the table is not there yet or cannot be read: the logo link stays the fallback.
+export async function loadLogoFiles(clientIds) {
+  if (!clientIds.length) return {};
+  const { data, error } = await supabase.from('client_files').select('id, client_id, label, storage_path, mime, created_at')
+    .in('client_id', clientIds).eq('kind', 'logo').is('deleted_at', null).order('created_at', { ascending: false }).limit(500);
+  if (error) return {};
+  const out = {};
+  for (const r of data || []) out[r.client_id] ||= r;
+  return out;
+}
+// A link to download one file, signed for an hour (the bucket is private).
+export async function signedDownload(path) {
+  const name = fileNameOf(path);
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600, { download: name });
+  if (error || !data?.signedUrl) throw error || new Error('no url');
+  return { url: data.signedUrl, name };
 }

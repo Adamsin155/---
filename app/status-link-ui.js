@@ -121,7 +121,7 @@ function linkPart(client, { manage, toast, reload }) {
   const url = c.token ? statusUrl(location.href, c.token) : null;
   const msg = url ? statusLinkMessage(client, url) : null;
   return h('div', { class: 'st-link' },
-    h('p', { class: 'st-state' }, h('strong', {}, 'קישור פעיל'), ` עד ${dayText(new Date(c.active.expires_at))}`,
+    h('p', { class: 'st-state' }, h('strong', {}, 'קישור פעיל'), ` עד ${dayText(new Date(c.active.expires_at), new Date())}`,
       ' · ', views.length ? `נפתח ${views.length === 1 ? 'פעם אחת' : `${views.length} פעמים`}, לאחרונה ${when(views[0].at)}` : 'עוד לא נפתח'),
     manage && url ? h('div', { class: 'st-acts' },
       h('button', { type: 'button', class: 'btn btn-sm', id: 'st-copy-msg', onclick: () => copy(msg, toast) }, 'העתקת הודעה עם הקישור'),

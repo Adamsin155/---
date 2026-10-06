@@ -15,7 +15,7 @@ import {
   loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
+  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who, confirmShootDate,
   statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
@@ -27,11 +27,23 @@ import { canManageTeam } from './team-rules.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 import { clientHealth, station, timeline } from './health.js';
 import { healthHead, timelineBlock, questionsBlock } from './health-ui.js';
-import { loadHealthExtras, loadQuestions } from './owner-data.js';
+import { loadHealthExtras, loadQuestions, noteDateChange } from './owner-data.js';
 // Stage 3, part 2: Ofir's returns for fixes, the office's marks in the history, "התחלתי".
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
 import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
+import { dayBeforeText } from './shoot-prep.js';
+import { stationTitle } from './messages-logic.js';
+
+// A note as a person reads it. What the system keeps as JSON (Irit's day-before check,
+// a list of videos) is never printed raw: the day-before result gets its line, anything
+// else machine-made is left out (its own block in the card shows it).
+function noteWords(key, note) {
+  const text = String(note || '');
+  if (!/^\s*[[{]/.test(text)) return text;
+  if (String(key || '').replace(/^r\d+\./, '') === 'p15.irit') { const t = dayBeforeText(text); if (t !== null) return t; }
+  try { JSON.parse(text); return ''; } catch { return text; }
+}
 import { folderItemOf } from './qa-logic.js';
 import { loadOfirMeetings } from './office-data.js';
 import { intakeShortcut, mountClientIntake, describeIntakeMark, writesScripts } from './intake-ui.js';
@@ -520,7 +532,6 @@ function renderHead(s) {
     h('a', { href: `tel:${c.phone.replace(/[^\d+]/g, '')}`, dir: 'ltr' }, c.phone), ' · ',
     h('a', { href: whatsappLink(c.phone, ''), target: '_blank', rel: 'noopener' }, 'WhatsApp')) : null;
   const charBy = c.characterizer ? PEOPLE[c.characterizer].name : null;
-  const cur = s.phases.find((p) => p.key === s.current);
   const next = nextFor(s);
   const nextLabel = next?.status === 'client'
     ? `ממתין ללקוח (${next.proc.num} · ${next.proc.title})`
@@ -538,7 +549,8 @@ function renderHead(s) {
     c.status === 'cancelled' ? h('div', { class: 'auto-note', role: 'note' }, h('p', {}, `ההסכם בוטל${c.closed_reason ? `: ${c.closed_reason}` : '.'}`)) : null,
     h('div', { class: 'cc-top' },
       h('div', {},
-        h('div', { class: 'kicker' }, c.status === 'active' ? `שלב נוכחי: ${cur?.title || ''}` : CLIENT_STATUS[c.status]),
+        // The station, as the "עכשיו" line below and the status page name it (not the protocol's phase).
+        h('div', { class: 'kicker' }, c.status === 'active' ? `שלב נוכחי: ${stationTitle(c, s, new Date())}` : CLIENT_STATUS[c.status]),
         h('h1', {}, c.name),
         h('p', { class: 'muted' }, [c.business, c.package_name].filter(Boolean).join(' · ') || ' ')),
       h('div', { class: 'head-actions' },
@@ -702,7 +714,7 @@ function renderPhases(s) {
     const det = h('details', { class: `phase${ph.key === s.current ? ' is-current' : ''}${ph.round ? ' is-round' : ''}`, open: printing || openPhases.has(ph.key) },
       h('summary', {},
         h('span', { class: 'ph-idx num' }, String(idx + 1)),
-        h('span', { class: 'ph-title' }, h('h2', {}, ph.title), ph.key === s.current ? h('span', { class: 'ph-now' }, 'השלב הנוכחי') : null),
+        h('span', { class: 'ph-title' }, h('h2', {}, ph.title), ph.key === s.current ? h('span', { class: 'ph-now' }, 'פתוח עכשיו') : null),
         h('span', { class: 'ph-meta' },
           late ? statusBadge('overdue', null) : null,
           meta.complete ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'הושלם') : null,
@@ -934,7 +946,8 @@ function itemRow(p, i) {
   if (c && (!i.recurring)) {
     const verb = c.state === 'na' ? (i.optional ? 'לא נדרש' : 'סומן לא רלוונטי') : 'בוצע';
     meta.push(h('span', { class: 'by' }, `${verb} · ${who(c.by_email)} · ${formatStamp(c.at)}`));
-    if (c.note) meta.push(h('span', { class: 'inote' }, c.state === 'na' ? `סיבה: ${c.note}` : c.note));
+    const note = noteWords(i.key, c.note);
+    if (note) meta.push(h('span', { class: 'inote' }, c.state === 'na' ? `סיבה: ${note}` : note));
   }
   if (block) {
     // "Waiting for": items above in this process, others' items, items of other processes.
@@ -1194,6 +1207,9 @@ function addCallTask(focus = true) {
   updateCallSubmit();
   if (focus) $(`ct-${n}-t`).focus();
 }
+// The topic fields have their own ids: the topic "לידים" and the number "לידים מאז השיחה
+// הקודמת" (call-leads) were one id, so the topic's text was read from the number field.
+const callTopicId = (k) => `call-topic-${k}`;
 function callTaskRows() {
   return [...$('call-tasks').querySelectorAll('.call-task')].map((r) => {
     const [t, o, d] = r.querySelectorAll('input, select');
@@ -1221,7 +1237,7 @@ function openCall(key) {
   $('call-h').textContent = `תיעוד שיחה שבועית · ${client.name}`;
   $('call-at').value = inputValueIL(new Date());
   fill($('call-topics'), ...CALL_TOPICS.map(([k, l]) => h('div', { class: 'field' },
-    h('label', { for: `call-${k}` }, l), h('textarea', { class: 'input', id: `call-${k}`, rows: '1', maxlength: '500' }))));
+    h('label', { for: callTopicId(k) }, l), h('textarea', { class: 'input', id: callTopicId(k), rows: '1', maxlength: '500' }))));
   for (const el of $('call-topics').querySelectorAll('input, textarea')) el.disabled = false;
   fill($('call-tasks'));
   callRows = 0;
@@ -1237,16 +1253,16 @@ function openCall(key) {
         t.done_at ? 'בוצע' : `פתוח · ${PEOPLE[t.owner]?.name || t.owner}${t.due_on ? ` · עד ${formatDay(t.due_on)}` : ''}`))) : null;
     })()) : null);
   callDlg.showModal();
-  $('call-campaigns').focus();
+  $(callTopicId('campaigns')).focus();
 }
 $('call-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('call-err').hidden = true;
-  const topics = Object.fromEntries(CALL_TOPICS.map(([k]) => [k, $(`call-${k}`).value.trim()]).filter(([, v]) => v));
+  const topics = Object.fromEntries(CALL_TOPICS.map(([k]) => [k, $(callTopicId(k)).value.trim()]).filter(([, v]) => v));
   const leads = readCallNumber('call-leads');
   const spend = readCallNumber('call-spend');
   if (!leads.ok || !spend.ok) { showErr('call-err', 'לידים והוצאה על פרסום: מספר שלם, בלי מינוס. אפשר להשאיר ריק.'); $(leads.ok ? 'call-spend' : 'call-leads').focus(); return; }
-  if (!callSavedFor && !Object.keys(topics).length) { showErr('call-err', 'לא נכתב דבר בסיכום. כתבו לפחות נושא אחד שעלה בשיחה.'); $('call-campaigns').focus(); return; }
+  if (!callSavedFor && !Object.keys(topics).length) { showErr('call-err', 'לא נכתב דבר בסיכום. כתבו לפחות נושא אחד שעלה בשיחה.'); $(callTopicId('campaigns')).focus(); return; }
   const rows = callTaskRows();
   for (const r of rows) {
     r.t.removeAttribute('aria-invalid'); r.o.removeAttribute('aria-invalid');
@@ -1474,11 +1490,15 @@ $('round-form').addEventListener('submit', async (e) => {
   const next = roundEditing
     ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null } : r))
     : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null, start_at: new Date().toISOString() }];
+  const before = roundEditing ? rounds.find((r) => r.n === roundEditing)?.shoot_at : null;
+  const asked = at && +new Date(at) !== +new Date(before || 0) ? confirmShootDate({ shootAt: at }) : { ok: true, note: null };
+  if (!asked.ok) { $('round-at').focus(); return; }
   $('round-submit').disabled = true;
   try {
     client = await updateClient(id, { rounds: next });
     roundDlg.close();
     const n = roundEditing || next.at(-1).n;
+    if (asked.note) await noteDateChange(id, 'round_shoot_at', n, at, asked.note);
     openPhases.add(`round-${n}`);
     render();
     if (!roundEditing) {
@@ -1644,7 +1664,7 @@ async function loadHistory() {
       h('strong', {}, who(r.by_email)), ` ${special || `${ACTION[r.action]}: `}`,
       !special && ref ? h('a', { href: `#${procId}`, onclick: (e) => { e.preventDefault(); goTo(procId); } }, `${round > 1 ? `סבב ${round} · ` : ''}${ref.proc.num} · ${ref.item.label}`) : null,
       !special && !ref ? r.item_key : null,
-      r.note && !special && r.note !== 'בסימון כל התהליך' ? h('div', { class: 'inote' }, r.note) : null);
+      r.note && !special && r.note !== 'בסימון כל התהליך' && noteWords(r.item_key, r.note) ? h('div', { class: 'inote' }, noteWords(r.item_key, r.note)) : null);
   }) : [h('li', { class: 'empty' }, 'עוד לא סומן דבר.')]));
   // The last call summary may have changed.
   if (!pending.size) renderKeepingFocus();
@@ -1744,6 +1764,11 @@ $('ed-form').addEventListener('submit', async (e) => {
     if (v === '') delete deliverables[k]; else deliverables[k] = Math.max(0, Math.round(Number(v)));
   }
   const val = (i) => $(i).value.trim() || null;
+  // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
+  const newShoot = fromLocal($('ed-shoot-at').value);
+  const shootMoved = !!newShoot && +new Date(newShoot) !== +new Date(client.shoot_at || 0);
+  const asked = shootMoved ? confirmShootDate({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value) }) : { ok: true, note: null };
+  if (!asked.ok) { $('ed-shoot-at').focus(); return; }
   $('ed-submit').disabled = true;
   try {
     client = await updateClient(id, {
@@ -1754,6 +1779,7 @@ $('ed-form').addEventListener('submit', async (e) => {
       shoot_type: val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor: val('ed-editor'),
       contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables,
     });
+    if (asked.note) await noteDateChange(id, 'shoot_at', null, newShoot, asked.note);
     edDlg.close();
     render();
     toast('הפרטים נשמרו.');

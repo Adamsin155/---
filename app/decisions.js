@@ -12,7 +12,7 @@
 //  - Ofir's change requests.
 // The logic: app/decisions-logic.js.
 import { PEOPLE, STAFF_PEOPLE, BRIEF_REQUIRED, NETWORKS } from './protocol.js';
-import { clientState, addBusinessDays, businessDaysBetween, PAUSE, weekKey } from './protocol-logic.js';
+import { clientState, addBusinessDays, businessDaysBetween, PAUSE, weekKey, clientLabel } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, addTask, setTaskDone, updateClient, loadDirectory, loadReviews, markReview,
   loadStatusNotes, saveAccess,
@@ -176,7 +176,7 @@ function exceptionCard(t, now) {
   const id = `ex-${t.id}`;
   return h('li', { class: `of-card dc-card${t.urgent ? ' is-late' : ''}`, id: `${id}-card` },
     h('div', { class: 'of-head' },
-      h('a', { class: 'wclient', href: clientUrl(c.id, 'tasks') }, c.name), taskBadge(t),
+      h('a', { class: 'wclient', href: clientUrl(c.id, 'tasks') }, clientLabel(c)), taskBadge(t),
       rep.reason ? h('span', { class: 'wtitle' }, rep.reason) : null),
     h('p', { class: 'dc-report' }, rep.details || t.title),
     h('p', { class: 'of-line muted' }, `${rep.proc ? `${rep.proc} · ` : ''}דווח ע״י ${who(t.created_by_email) || '—'} · ${formatStamp(t.created_at)}`),
@@ -263,7 +263,7 @@ function urgentCard({ t, u }, now) {
   const c = clientOf(t.client_id);
   const id = `ur-${t.id}`;
   return h('li', { class: `of-card${u.returned ? ' is-late' : ''}` },
-    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'tasks') }, c.name), personChip(t.owner), taskBadge(t),
+    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'tasks') }, clientLabel(c)), personChip(t.owner), taskBadge(t),
       u.returned ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'חזרה אליך') : null),
     h('p', { class: 'of-line' }, t.title),
     h('p', { class: 'of-line muted' }, u.started ? `התחיל/ה ${formatStamp(u.startedAt)}` : u.returned ? `לא נלחץ ״התחלתי״ עד ${hm(u.deadline)}` : `״התחלתי״ עד ${hm(u.deadline)}`),
@@ -293,7 +293,7 @@ function accessCard(a, now) {
   const fix = readAccessFix(checks[c.id]?.[accessFixedKey(a.network)]);
   const partial = fix?.partial && fix.at >= new Date(new Date(a.updated_at).getTime() - 5 * 6e4) ? fix : null;
   return h('li', { class: 'of-card is-late' },
-    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'access') }, c.name), h('span', { class: 'wtitle' }, NETWORK[a.network] || a.network)),
+    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'access') }, clientLabel(c)), h('span', { class: 'wtitle' }, NETWORK[a.network] || a.network)),
     h('p', { class: 'of-line' }, partial ? [h('span', { class: 'tag tag-warn' }, 'תוקן חלקית'), ` עדיין חסר: ${partial.missing} · ${formatStamp(partial.at)}`] : `לא עובדת מאז ${formatStamp(a.updated_at)}${a.note ? ` · ${a.note}` : ''}`),
     h('div', { class: 'of-acts' },
       h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-ok`, onclick: (e) => closeAccess(a, false, '', e.currentTarget) }, 'תוקן')),
@@ -338,7 +338,7 @@ function pausedCard(p, load, now) {
   // The suggestion: the business days paused so far, less what was already moved.
   const days = Math.max(1, businessDaysBetween(new Date(p.pause.at), now) - shift);
   return h('li', { class: 'of-card' },
-    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, p.state.proc.id) }, c.name), p.n ? h('span', { class: 'wtitle' }, `סבב ${p.n}`) : null,
+    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, p.state.proc.id) }, clientLabel(c)), p.n ? h('span', { class: 'wtitle' }, `סבב ${p.n}`) : null,
       p.editor ? personChip(p.editor) : null, h('span', { class: 'tag tag-warn' }, 'עצורה')),
     h('p', { class: 'of-line' }, `עצורה מאז ${formatStamp(p.pause.at)}${p.pause.stage ? ` · שלב: ${p.pause.stage}` : ''}${p.pause.left ? ` · נשאר: ${p.pause.left}` : ''}${p.pause.why ? ` · ${p.pause.why}` : ''}`),
     proposal ? h('p', { class: 'of-line' }, h('strong', {}, 'הצעת אופיר לפי העומס: '), `${PEOPLE[proposal].name} (${loadText(load[proposal])})`) : null,
@@ -380,7 +380,7 @@ async function decidePaused(p, id, proposal) {
       for (const t of tasks.filter((x) => x.client_id === c.id && x.source === 'pause' && !x.done_at)) {
         try { const done = await setTaskDone(t.id, true); tasks = tasks.map((x) => (x.id === t.id ? done : x)); } catch { /* the owners close them */ }
       }
-      toast(`העריכה של ${c.name} הועברה ל${PEOPLE[editor].name}. ${PEOPLE[editor].name} מקבל/ת הודעה על לקוח חדש בעריכה.`);
+      toast(`העריכה של ${c.name} הועברה ל${PEOPLE[editor].name}. ההודעה על לקוח חדש בעריכה עוברת ל${PEOPLE[editor].name}.`);
     }
   } catch (e) {
     err.textContent = `לא נשמר. ${errorText(e)}`;
@@ -416,7 +416,7 @@ function requestCard(r) {
   const c = r.client_id ? clientOf(r.client_id) : null;
   const id = `cq-${r.id}`;
   return h('li', { class: 'of-card' },
-    h('div', { class: 'of-head' }, h('strong', {}, `מ${who(r.created_by_email) || 'אופיר'}`), h('span', { class: 'muted' }, formatStamp(r.created_at)), c ? h('a', { class: 'wclient', href: clientUrl(c.id) }, c.name) : null),
+    h('div', { class: 'of-head' }, h('strong', {}, `מ${who(r.created_by_email) || 'אופיר'}`), h('span', { class: 'muted' }, formatStamp(r.created_at)), c ? h('a', { class: 'wclient', href: clientUrl(c.id) }, clientLabel(c)) : null),
     h('dl', { class: 'call-sum' }, h('dt', {}, 'הבעיה'), h('dd', {}, r.problem), h('dt', {}, 'למה מפריע'), h('dd', {}, r.why), h('dt', {}, 'ההצעה'), h('dd', {}, r.proposal)),
     h('form', { class: 'dc-inline', novalidate: true, onsubmit: async (e) => {
       e.preventDefault();

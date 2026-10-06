@@ -16,7 +16,7 @@ import { dayFromKeyIL, endOfDayIL } from './tz.js';
 import {
   loadChecks, setCheck, clearCheck, setChecksBulk, addTask, setTaskDone, setTaskStarted, loadAllLog, loadDirectory,
 } from './protocol-data.js';
-import { loadWorkClients, loadMyTasks, loadOpenTasksOf, finishTask } from './production-data.js';
+import { loadWorkClients, loadMyTasks, loadOpenTasksOf, finishTask, loadLogoFiles, signedDownload } from './production-data.js';
 import { loadCharacterizations, loadBriefsOf } from './intake-data.js';
 import { highlightsOf, briefBlock, SUMMARY } from './briefs.js';
 import { fixList } from './office-ui.js';
@@ -36,6 +36,7 @@ let checks = {};
 let tasks = [];
 let chars = {};
 let briefs = {};
+let logos = {}; // the uploaded logo file of each client (client_files, kind 'logo')
 let viewer = null;
 let statsLog = null;
 let lastLoad = 0;
@@ -61,7 +62,7 @@ async function load() {
   }
   states.clear();
   const ids = [...new Set(allJobs().map((j) => j.client.id))];
-  [chars, briefs] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids)]);
+  [chars, briefs, logos] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids)]);
   lastLoad = Date.now();
   $('state').textContent = '';
   await tidyBlocks();
@@ -142,11 +143,14 @@ function datesLine(job, st) {
 }
 
 function sheetBlock(job) {
-  const s = P.sheetOf(job.client, chars[job.client.id]);
+  const s = P.sheetOf(job.client, chars[job.client.id], logos[job.client.id]);
   const id = cardId(job);
   return h('div', { class: 'ed-sheet' },
-    s.logo ? h('a', { class: 'btn btn-sm', href: s.logo, target: '_blank', rel: 'noopener noreferrer', download: '' }, 'לוגו להורדה')
-      : h('p', { class: 'ed-miss' }, 'אין לוגו בכרטיס.'),
+    // The uploaded logo file first (a signed link, made on the tap); the link from the
+    // characterization form or the card is the fallback.
+    s.logoFile ? h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-logo`, onclick: (e) => downloadLogo(s.logoFile, e.currentTarget) }, 'לוגו להורדה')
+      : s.logo ? h('a', { class: 'btn btn-sm', href: s.logo, target: '_blank', rel: 'noopener noreferrer', download: '' }, 'לוגו להורדה')
+        : h('p', { class: 'ed-miss' }, 'אין לוגו בתיק הלקוח.'),
     s.phone ? h('div', { class: 'ed-phone' },
       h('span', { class: 'ed-k' }, 'טלפון העסק'), h('bdi', { class: 'num', dir: 'ltr' }, s.phone),
       h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: `${id}-cp-phone`, 'aria-label': `העתקת טלפון העסק ${s.phone}`, onclick: () => copy(s.phone, 'הטלפון') }, 'העתקה'))
@@ -154,6 +158,17 @@ function sheetBlock(job) {
     s.closing ? h('div', { class: 'ed-closing' },
       h('span', { class: 'ed-k' }, 'נוסח הסגיר'), h('span', { class: 'ed-line' }, s.closing),
       h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: `${id}-cp-closing`, onclick: () => copy(s.closing, 'נוסח הסגיר') }, 'העתקת הסגיר')) : null);
+}
+
+async function downloadLogo(file, btn) {
+  btn.disabled = true;
+  try {
+    const { url, name } = await signedDownload(file.storage_path);
+    const a = h('a', { href: url, download: name, rel: 'noopener' });
+    document.body.append(a); a.click(); a.remove();
+  } catch {
+    toast('ההורדה של הלוגו לא התחילה. נסו שוב.');
+  } finally { btn.disabled = false; }
 }
 
 // "מה חייבים להגיד ומה אסור" from Lior's focus call (12א, public.content_briefs of
@@ -305,6 +320,10 @@ function openStart(job) {
   $('start-ctx').textContent = jobName(job);
   const c = cs(job.client);
   fill($('start-list'), ...P.START_CHECKS.map(([k, l], i) => checkRow(`start-${i}`, l, c[job.pre + k]?.state === 'done')));
+  // The logo check stands on what the card shows: say so when there is none to tick against.
+  if (!P.sheetOf(job.client, chars[job.client.id], logos[job.client.id]).hasLogo) {
+    $('start-list').append(h('p', { class: 'hint', id: 'start-nologo' }, 'אין לוגו בתיק הלקוח. אם הוא לא אצלך: ״חסר לוגו / טלפון / חומר״.'));
+  }
   showErr('start-err', '');
   startDlg.showModal();
   $('start-0').focus();
@@ -703,7 +722,7 @@ $('done-form').addEventListener('submit', async (e) => {
   render();
   const who = asker && PEOPLE[asker] ? PEOPLE[asker].name : 'מי שביקש';
   toast(failed.length ? `המשימה נסגרה, אבל ${failed.join(', ')} לא עודכנ/ו. עדכנו ישירות.`
-    : `המשימה נסגרה. ${who} מקבל/ת הודעה${result.left ? ' ומשימת המשך' : ''}${result.client ? '; אופיר בודק ועירית שולחת' : ''}.`);
+    : `המשימה נסגרה. ${result.left ? 'ההודעה ומשימת ההמשך עוברות' : 'ההודעה עוברת'} ל${who}${result.client ? '; אופיר בודק ועירית שולחת' : ''}.`);
   $('ed-briefs').querySelector('button')?.focus();
 });
 

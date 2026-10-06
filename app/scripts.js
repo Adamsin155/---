@@ -446,7 +446,7 @@ function sharePart() {
     body.push(h('p', {}, sh.last ? (sh.last.revoked_at ? `הקישור האחרון בוטל ב${dayText(new Date(sh.last.revoked_at))}.` : 'תוקף הקישור האחרון הסתיים.') : 'עוד לא נוצר קישור.'),
       h('button', { type: 'button', class: 'btn btn-primary', id: 'sh-create', onclick: () => makeShare(false) }, 'יצירת קישור לשיתוף'));
   } else {
-    body.push(h('p', {}, h('strong', {}, 'קישור פעיל'), ` עד ${dayText(new Date(sh.active.expires_at))}.`),
+    body.push(h('p', {}, h('strong', {}, 'קישור פעיל'), ` עד ${dayText(new Date(sh.active.expires_at), new Date())}.`),
       url ? h('p', { class: 'sc-url', dir: 'ltr' }, h('a', { href: url, target: '_blank', rel: 'noopener', id: 'sh-open' }, url)) : null,
       url ? h('div', { class: 'ik-row' },
         h('button', { type: 'button', class: 'btn btn-sm', id: 'sh-copy', onclick: () => copy(url) }, 'העתקת הקישור'),

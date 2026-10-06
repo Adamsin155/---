@@ -17,7 +17,7 @@
 //     the same as private.status_wording() in the database, which refuses any other.
 // The legal texts here are drafts awaiting a lawyer's review (docs/ops.md, section 13).
 import { PEOPLE, WORK_HOURS } from './protocol.js';
-import { addBusinessDays, isBusinessDay, parseDate } from './protocol-logic.js';
+import { addBusinessDays, isBusinessDay, parseDate, renewalDay } from './protocol-logic.js';
 import { startOfDayIL, endOfDayIL, addDaysIL } from './tz.js';
 import { CLIENT_ROLES, dayText, timeText, promisedClosing, fillTemplate } from './messages-logic.js';
 
@@ -147,7 +147,8 @@ function reached(x, shootAt, charAt, now, floor = 0) {
   if (x.done('p30.live') && x.done('p28.scheduled') && x.done('p29.sent')) i = Math.max(i, 6);
   return i;
 }
-const renewalFrom = (data) => { const end = parseDate(data?.client?.contractEnd); return end ? addDaysIL(end, -60) : null; };
+// The same day the client card shows for process 34 (protocol-logic.js renewalDay).
+const renewalFrom = (data) => renewalDay(data?.client?.contractEnd);
 
 // Where the work is (index into STATIONS_CLIENT): the furthest station reached. An
 // extra shoot round under way is shown by itself, from "תוכן ואישור".
@@ -171,7 +172,7 @@ export function nextMilestones(data, now = new Date(), max = 3) {
   const today = startOfDayIL(now);
   const add = (key, label, promise, at, exact = false) => {
     if (!at || at < (exact ? now : today)) return;
-    out.push({ key, label, promise, at, when: exact ? `${dayText(at)} בשעה ${timeText(at)}` : `עד ${dayText(at)}` });
+    out.push({ key, label, promise, at, when: exact ? `${dayText(at, now)} בשעה ${timeText(at)}` : `עד ${dayText(at, now)}` });
   };
   const shootAt = parseDate(r ? r.shootAt : c.shootAt);
   if (!r) {

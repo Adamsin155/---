@@ -14,7 +14,7 @@
 //    drive label, for the next shoot day (for a Sunday shoot, on Thursday).
 // Every mark is a protocol check; the keys are in app/production.js.
 import { SHOOT_TYPES } from './protocol.js';
-import { clientState } from './protocol-logic.js';
+import { clientState, clientLabel } from './protocol-logic.js';
 import { loadChecks, setCheck, clearCheck, setChecksBulk, loadDirectory, loadStaffPhones } from './protocol-data.js';
 import { loadWorkClients } from './production-data.js';
 import {
@@ -38,7 +38,7 @@ const busy = () => !!document.querySelector('dialog[open]');
 const isDone = (sc, k) => cs(sc.client)[sc.pre + k]?.state === 'done';
 const atOf = (sc, k) => (isDone(sc, k) ? new Date(cs(sc.client)[sc.pre + k].at) : null);
 const cardId = (sc) => `s-${sc.client.id}${sc.n > 1 ? `-r${sc.n}` : ''}`;
-const scName = (sc) => `${sc.client.name}${sc.n > 1 ? ` · סבב ${sc.n}` : ''}`;
+const scName = (sc) => `${clientLabel(sc.client)}${sc.n > 1 ? ` · סבב ${sc.n}` : ''}`;
 
 async function load() {
   $('state').textContent = clients.length ? '' : 'טוען…';
@@ -137,9 +137,10 @@ function eliCard(sc, now) {
     h('dl', { class: 'sh-facts' },
       h('dt', {}, 'ההגעה שלך'), h('dd', { class: 'num' }, `${P.clockText(P.arrivalOf(sc.shootAt))} · שעה לפני המשפיענים (${P.clockText(sc.shootAt)})`),
       h('dt', {}, 'תסריטים'), h('dd', {}, n ? `${n} סרטונים` : 'לפי מה שליאור יביא'),
-      h('dt', {}, 'תווית הכונן'), h('dd', {}, label || 'ליאור ימלא בתדריך')),
+      // From the briefing's hour on (and on the day itself) "will fill it in" is no longer true.
+      h('dt', {}, 'תווית הכונן'), h('dd', {}, label || (eveOrDay ? 'ליאור עוד לא מילא' : 'ליאור ימלא בתדריך'))),
     placeBlock(sc),
-    b ? briefingForEli(sc, b) : eveOrDay ? h('p', { class: 'muted' }, 'התדריך של ליאור יגיע בערב שלפני, ב־17:00.') : null,
+    b ? briefingForEli(sc, b) : h('p', { class: 'muted' }, eveOrDay ? 'התדריך: ליאור עוד לא מילא.' : 'התדריך של ליאור יגיע בערב שלפני, ב־17:00.'),
     eveOrDay && !isDone(sc, 'p17b.arrived') ? gearBlock(sc) : null,
     today || isDone(sc, 'p17b.arrived') ? eliDay(sc, now) : null);
 }
@@ -275,7 +276,8 @@ function shootMode(sc, now) {
   const closed = !!st?.complete;
   const q = P.quietWindow(sc, c, closed ? st.completedAt : null);
   const quietOn = q && now >= q.from && now < q.to;
-  const lock = P.closeLock(c, sc.pre, target);
+  const started = P.shootStarted(sc, now);
+  const lock = P.closeLock(c, sc.pre, target, { startAt: sc.shootAt, now });
   const h2 = P.handoffOf(c, sc.pre);
   const arrived = atOf(sc, 'p17b.arrived');
   const brollq = c[`${sc.pre}p17b.brollq`];
@@ -284,7 +286,7 @@ function shootMode(sc, now) {
   return h('article', { class: 'sh-card sh-mode is-today', id, 'aria-labelledby': `${id}-h` },
     h('header', { class: 'ed-head' },
       h('h2', { id: `${id}-h`, tabindex: '-1' }, `מצב יום צילום · ${scName(sc)}`),
-      h('span', { class: `ed-state ${closed ? 's-done' : 's-editing'}` }, closed ? 'היום נסגר' : SHOOT_TYPES[sc.ctx.shoot_type]?.name || '')),
+      h('span', { class: `ed-state ${closed ? 's-done' : 's-editing'}` }, closed ? 'היום נסגר' : !started ? P.startsText(sc.shootAt) : SHOOT_TYPES[sc.ctx.shoot_type]?.name || '')),
     // Quiet mode (decision 8): from Eli's "הגעתי" until the drive is back.
     closed ? null : quietOn
       ? h('p', { class: 'sh-quiet', role: 'note' }, h('strong', {}, 'מצב שקט'), ` מאז ${P.clockText(q.from)}${q.by === 'eli' ? ' (אלי הגיע)' : ''}: חריגות עוברות לאופיר, ושאר ההודעות יגיעו בסיכום אחד אחרי המסירה.`)
@@ -294,43 +296,47 @@ function shootMode(sc, now) {
     h('section', { class: 'sh-counter', 'aria-labelledby': `${id}-count` },
       h('p', { class: 'sh-count num', id: `${id}-count`, 'aria-live': 'polite' }, P.counterText(shot.length, target)),
       target ? progressBar(Math.min(shot.length, target), target, 'סרטונים שצולמו') : null,
-      h('div', { class: 'ed-act' },
-        btn(`${id}-plus`, `+1 · סרטון ${next}`, () => count(sc, [...shot, next], `${id}-plus`), 'btn btn-primary btn-big', { disabled: !canAct || closed }),
-        shot.length ? btn(`${id}-minus`, `ביטול סרטון ${Math.max(...shot)}`, () => count(sc, shot.filter((x) => x !== Math.max(...shot)), `${id}-minus`), 'btn btn-sm btn-ghost', { disabled: !canAct || closed }) : null)),
+      // Once the day is closed the counter is final: no controls. Before the start it waits.
+      closed ? null : h('div', { class: 'ed-act' },
+        btn(`${id}-plus`, `+1 · סרטון ${next}`, () => count(sc, [...shot, next], `${id}-plus`), 'btn btn-primary btn-big', { disabled: !canAct || !started, ...(started ? {} : { 'aria-describedby': `${id}-early` }) }),
+        shot.length ? btn(`${id}-minus`, `ביטול סרטון ${Math.max(...shot)}`, () => count(sc, shot.filter((x) => x !== Math.max(...shot)), `${id}-minus`), 'btn btn-sm btn-ghost', { disabled: !canAct || !started }) : null),
+      closed || started ? null : h('p', { class: 'hint', id: `${id}-early` }, `יום הצילום ${P.startsText(sc.shootAt)}. המונה והסגירה נפתחים אז.`)),
     h('ol', { class: 'sh-timeline' }, ...tl.map((x) => h('li', { class: `${x.at <= now ? 'is-past' : ''}${x === nextPoint ? ' is-next' : ''}${x.prompt ? ' is-prompt' : ''}` },
       h('span', { class: 'num sh-t' }, P.clockText(x.at)), h('span', {}, x.label), x === nextPoint ? h('span', { class: 'sr-only' }, ' (הבא)') : null))),
     h('p', { class: 'sh-fixed' }, 'להחזיק את הראיונות על המסר.'),
     // Eli, at a glance.
     h('dl', { class: 'sh-facts' },
-      h('dt', {}, 'אלי'), h('dd', {}, arrived ? `הגיע ${P.clockText(arrived)}${isDone(sc, 'p17b.drive') ? ' · הכונן אצלו' : ''}` : `עוד לא סימן הגעה (הגעה ${P.clockText(P.arrivalOf(sc.shootAt))})`),
+      h('dt', {}, 'אלי'), h('dd', {}, arrived ? `הגיע ${P.clockText(arrived)}${h2.lior || closed ? ' · הכונן אצל ליאור' : isDone(sc, 'p17b.drive') ? ' · הכונן אצלו' : ''}` : h2.lior || closed ? 'הכונן אצל ליאור' : `עוד לא סימן הגעה (הגעה ${P.clockText(P.arrivalOf(sc.shootAt))})`),
       h('dt', {}, 'בי־רול'), h('dd', {}, !brollq ? '—' : brollq.note === 'no' ? (isDone(sc, 'p17b.broll') ? 'הושלם באיחור' : 'לא גמור') : 'גמור'),
       h('dt', {}, 'סיום'), h('dd', {}, h2.eli ? `מסר את הכונן ${P.clockText(h2.eli)}` : `${P.FINISH.length - P.finishOpen(c, sc.pre).length} מתוך ${P.FINISH.length} ברשימה`)),
     // Closing: the lock (testimonial, the full quantity, the drive back and confirmed by both).
-    closed ? h('p', { class: 'note-ok' }, `יום הצילום נסגר ${formatWhen(st.completedAt, now)}. אופיר קיבל ״לשייך עורך״.`)
+    closed ? h('p', { class: 'note-ok' }, `יום הצילום נסגר ${formatWhen(st.completedAt, now)}. ${P.afterCloseText(c, sc.pre, sc.ctx)}`)
       : h('section', { class: 'sh-close', 'aria-labelledby': `${id}-close-h` },
         h('h3', { id: `${id}-close-h` }, 'סגירת היום'),
         h('label', { class: 'prod-check', for: `${id}-testimonial` },
-          h('input', { type: 'checkbox', id: `${id}-testimonial`, class: 'cbx', checked: isDone(sc, 'p19.testimonial'), disabled: !canAct, onchange: (e) => (e.currentTarget.checked ? mark(sc, 'p19.testimonial', null, `${id}-testimonial`) : unmark(sc, 'p19.testimonial', `${id}-testimonial`)) }),
+          h('input', { type: 'checkbox', id: `${id}-testimonial`, class: 'cbx', checked: isDone(sc, 'p19.testimonial'), disabled: !canAct || !started, onchange: (e) => (e.currentTarget.checked ? mark(sc, 'p19.testimonial', null, `${id}-testimonial`) : unmark(sc, 'p19.testimonial', `${id}-testimonial`)) }),
           h('span', {}, 'צולם סרטון המלצה של הלקוח עם המשפיענים')),
         target ? null : h('label', { class: 'prod-check', for: `${id}-all` },
-          h('input', { type: 'checkbox', id: `${id}-all`, class: 'cbx', checked: isDone(sc, 'p18.all'), disabled: !canAct, onchange: (e) => (e.currentTarget.checked ? mark(sc, 'p18.all', null, `${id}-all`) : unmark(sc, 'p18.all', `${id}-all`)) }),
+          h('input', { type: 'checkbox', id: `${id}-all`, class: 'cbx', checked: isDone(sc, 'p18.all'), disabled: !canAct || !started, onchange: (e) => (e.currentTarget.checked ? mark(sc, 'p18.all', null, `${id}-all`) : unmark(sc, 'p18.all', `${id}-all`)) }),
           h('span', {}, 'צולמה כל הכמות (אין כמות בחבילה בכרטיס)')),
         h2.lior ? h('p', { class: 'note-ok' }, `אישרת שהכונן חזר ${P.clockText(h2.lior)}.${h2.eli ? '' : ' אלי עוד לא סימן מסירה.'}`)
-          : btn(`${id}-took`, h2.eli ? `אלי מסר את הכונן · קיבלתי` : 'הכונן חזר אליי', () => mark(sc, 'p19.took', h2.eli ? null : 'ליאור אישר לפני אלי', `${id}-close`), 'btn'),
+          : btn(`${id}-took`, h2.eli ? `אלי מסר את הכונן · קיבלתי` : 'הכונן חזר אליי', () => mark(sc, 'p19.took', h2.eli ? null : 'ליאור אישר לפני אלי', `${id}-close`), 'btn', { disabled: !canAct || !started }),
         h('div', { class: 'ed-act' },
           btn(`${id}-close`, 'סגירת יום הצילום', () => closeDay(sc), 'btn btn-primary', { disabled: !canAct || !lock.ok, 'aria-describedby': `${id}-lock` }),
           h('p', { class: lock.ok ? 'hint' : 'ed-miss', id: `${id}-lock` }, lock.ok ? 'אפשר לסגור.' : `עוד חסר: ${lock.missing.join(' · ')}`))));
 }
 async function count(sc, videos, focusId) {
+  if (!P.shootStarted(sc, new Date())) { toast(`יום הצילום ${P.startsText(sc.shootAt)}. המונה נפתח אז.`); return; }
   const target = scriptsCount(sc);
   if (await mark(sc, 'p18.shot', P.shotNote(videos), focusId) && target && videos.length === target) toast(`צולמו כל ${target} הסרטונים.`);
 }
 async function closeDay(sc) {
-  const lock = P.closeLock(cs(sc.client), sc.pre, scriptsCount(sc));
+  const lock = P.closeLock(cs(sc.client), sc.pre, scriptsCount(sc), { startAt: sc.shootAt, now: new Date() });
   if (!lock.ok) { toast(`עוד חסר: ${lock.missing.join(' · ')}`); return; }
   const keys = notYet(sc, P.CLOSE_KEYS);
   if (keys.length && !await mark(sc, keys, 'בסגירת יום הצילום', `${cardId(sc)}-h`)) return;
-  toast('יום הצילום נסגר. אופיר קיבל ״לשייך עורך״, ואלי ״אפשר לפרמט את הכרטיסים״.');
+  // What really happens next: the server assigns the editor by itself (app/auto-assign.js).
+  toast(`יום הצילום נסגר. ${P.afterCloseText(cs(sc.client), sc.pre, sc.ctx)} אלי קיבל ״אפשר לפרמט את הכרטיסים״.`);
   offerHandoff({ client: sc.client, keys: keys.map((k) => sc.pre + k), checks: () => cs(sc.client), me });
 }
 

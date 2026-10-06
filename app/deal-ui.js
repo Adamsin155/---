@@ -53,8 +53,9 @@ function card(d) {
       ` · מ${sellerName(d)}, ${formatStamp(d.created_at)}`),
     d.notes ? h('p', { class: 'deal-task-meta' }, `הערות: ${d.notes}`) : null,
     h('div', { class: 'deal-task-acts' },
-      h('a', { class: 'btn btn-primary', href: dealUrl(d) }, 'להכנת החוזה'),
-      h('button', { type: 'button', class: 'btn', onclick: (e) => move(d, 'sent', e.currentTarget, `סומן שהחוזה נשלח: ${d.business_name}`) }, 'החוזה נשלח'),
+      // The design keeps pink for the screen's one main action ("לקוח חדש"): a row's own action is the navy outline.
+      h('a', { class: 'btn', href: dealUrl(d) }, 'להכנת החוזה'),
+      h('button', { type: 'button', class: 'btn btn-ghost', onclick: (e) => move(d, 'sent', e.currentTarget, `סומן שהחוזה נשלח: ${d.business_name}`) }, 'החוזה נשלח'),
       h('button', {
         type: 'button', class: 'btn btn-ghost',
         onclick: (e) => { if (window.confirm(`לסמן שהעסקה של ${d.business_name} בוטלה?`)) move(d, 'cancelled', e.currentTarget, `העסקה סומנה כמבוטלת: ${d.business_name}`); },

@@ -7,6 +7,7 @@
 // Charts are plain HTML bars: the number is always written next to the bar, so
 // nothing is said by colour or length alone.
 import { supabase } from './supa.js';
+import { clientLabel } from './protocol-logic.js';
 import { loadClients, loadChecks, loadAllLog, loadDirectory } from './protocol-data.js';
 import { loadLogFor } from './owner-data.js';
 import { withHistory, dayText } from './health.js';
@@ -128,7 +129,7 @@ function renderOnTime() {
       h('tr', { class: 'is-total' }, h('th', { scope: 'row' }, 'כולם'), ...d.trend.map((t) => h('td', { class: 'num' }, t.done ? `${pct(t.rate)} (${t.done})` : '—')))));
   $('in-late-wrap').hidden = !d.late.length;
   fill($('in-late'), d.late.map((r) => h('li', {},
-    h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(r.client.id)}#${r.proc.id}` }, r.client.name),
+    h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(r.client.id)}#${r.proc.id}` }, clientLabel(r.client)),
     ` · ${r.proc.num} ${r.proc.title} · `, ...r.people.map((p) => personChip(p)), h('span', { class: 'muted' }, ` · נסגר ${dayText(r.completedAt)}, היעד ${dayText(r.dueAt)}`))));
 }
 
@@ -206,7 +207,7 @@ function renderPipeline() {
   const list = data.pipeline;
   fill($('in-pipe'), list.length ? list.map((p) => h('li', { class: 'pipe', id: `pipe-${p.client.id}-${p.n}` },
     h('p', { class: 'pipe-h' },
-      h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(p.client.id)}` }, p.client.name),
+      h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(p.client.id)}` }, clientLabel(p.client)),
       h('span', { class: 'muted' }, [p.n > 1 ? `סבב ${p.n}` : null, `צילום ${dayText(p.shootAt)}`, p.shootType || null].filter(Boolean).join(' · ')),
       p.editor ? personChip(p.editor) : null),
     h('ol', { class: 'pipe-stages' }, ...p.stages.map((s) => {

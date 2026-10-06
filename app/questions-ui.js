@@ -4,6 +4,7 @@
 // only; an answered one leaves the list. Nothing shows when there are none, or
 // when the table is not there yet.
 import { PEOPLE } from './protocol.js';
+import { clientLabel } from './protocol-logic.js';
 import { loadQuestions, answerQuestion } from './owner-data.js';
 import { h, fill, toast, errorText, who, formatStamp, directory } from './protocol-ui.js';
 
@@ -44,7 +45,7 @@ function item(q) {
   const id = `myq-${q.id}`;
   return h('li', { class: 'myq-item', 'data-id': q.id },
     h('p', { class: 'myq-meta' },
-      c ? h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(c.id)}` }, c.name) : h('span', { class: 'wclient' }, q.client_id ? 'לקוח' : 'המשרד'),
+      c ? h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(c.id)}` }, clientLabel(c)) : h('span', { class: 'wclient' }, q.client_id ? 'לקוח' : 'המשרד'),
       ` · ${askerName(q.asked_by)} · ${formatStamp(q.asked_at)}`, q.context ? ` · על: ${q.context}` : ''),
     h('p', { class: 'myq-text' }, `״${q.question}״`),
     h('form', { class: 'myq-form', novalidate: true, onsubmit: (e) => { e.preventDefault(); answer(q, e.currentTarget); } },

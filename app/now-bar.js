@@ -7,6 +7,7 @@
 // next to "call" (a tel: link).
 import { h, fill, formatWhen, lateBy, peopleChips } from './protocol-ui.js';
 import { clockTime, clockDigits } from './clocks.js';
+import { clientLabel } from './protocol-logic.js';
 
 export const clockDomId = (id) => String(id).replace(/[^\w-]/g, '_');
 const round = (proc) => /^r(\d+)-/.exec(proc.id)?.[1] || null;
@@ -48,9 +49,9 @@ function rowMeta(row, t, now) {
 // What is said (and notified) when a row's time runs out.
 export function ranOutText(row) {
   if (row.kind === 'answer') {
-    return { title: `הלקוח לא ענה: ${row.client.name}`, body: `${listHe(row.clocks.map((c) => c.what))} (${rowRef(row)}). עברו ${row.minutes} דקות בלי תשובה: להתקשר.` };
+    return { title: `הלקוח לא ענה: ${clientLabel(row.client)}`, body: `${listHe(row.clocks.map((c) => c.what))} (${rowRef(row)}). עברו ${row.minutes} דקות בלי תשובה: להתקשר.` };
   }
-  return { title: `נגמר הזמן: ${row.client.name}`, body: `${rowWhat(row, { state: 'expired' })} (${rowRef(row)}).` };
+  return { title: `נגמר הזמן: ${clientLabel(row.client)}`, body: `${rowWhat(row, { state: 'expired' })} (${rowRef(row)}).` };
 }
 const stateLabel = (t, now) => (t.state === 'expired' ? 'נגמר לפני' : t.paused ? `עצור עד ${formatWhen(t.resumeAt, now)}` : 'נשארו');
 const leftText = (row, t, now) => (t.state === 'expired' ? lateBy(row.deadline, now) : clockDigits(t.remaining));
@@ -85,7 +86,7 @@ function rowItem(row, now, everyone, onAnswered) {
       h('span', { class: 'now-state' }, stateLabel(t, now)), ' ',
       h('span', { class: 'now-left num' }, leftText(row, t, now))),
     h('div', { class: 'now-body' },
-      h('a', { class: 'now-client', id: `now-a-${sid}`, href: cardUrl(row) }, row.client.name),
+      h('a', { class: 'now-client', id: `now-a-${sid}`, href: cardUrl(row) }, clientLabel(row.client)),
       h('span', { class: 'now-what', id: `now-w-${sid}` }, rowWhat(row, t)),
       h('span', { class: 'now-meta' }, rowMeta(row, t, now)),
       everyone ? peopleChips(row.people) : null),

@@ -7,7 +7,7 @@
 // 13:00); "משימות שפתחתי"; "אין מי שייצא לאפיון" to Lior; and "בקשת שינוי".
 // The logic: app/pass-logic.js.
 import { PEOPLE, STAFF_PEOPLE, STATUS_FIELDS, BRIEF_REQUIRED } from './protocol.js';
-import { clientState, weekKey, parseDate, CLAIM, addBusinessDays } from './protocol-logic.js';
+import { clientState, weekKey, parseDate, CLAIM, addBusinessDays, clientLabel } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, addTask, loadDirectory, loadAllLog, loadStatusNotes, saveStatusNote, loadReviews, markReview,
 } from './protocol-data.js';
@@ -170,7 +170,7 @@ function passRow(r, seen, now) {
   return h('li', { class: `of-card ps-row${seen ? ' is-seen' : ''}`, id },
     h('div', { class: 'of-head' },
       healthBadge(r.color),
-      h('a', { class: 'wclient', href: clientUrl(c.id) }, c.name),
+      h('a', { class: 'wclient', href: clientUrl(c.id) }, clientLabel(c)),
       r.entry.station ? h('span', { class: 'wtitle' }, r.entry.station.title) : null,
       r.stuck.length ? h('span', { class: 'tag tag-warn' }, 'לקוח תקוע') : null),
     top.length ? h('ul', { class: 'ps-reasons' }, ...top.map((x) => h('li', {}, [x.text, x.what].filter(Boolean).join(' · '), x.who && PEOPLE[x.who] ? [' · ', personChip(x.who)] : null))) : null,
@@ -272,19 +272,19 @@ function renderHealth(hl, now) {
   const dueWords = formatWhen(endOfDayIL(dayFromKeyIL(hl.dueFix)), now);
   fill($('hl-body'), hl.total ? [
     group('תהליך משותף שאף אחד לא לקח', hl.unowned, (x) => h('li', { class: 'of-card' },
-      h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(x.client.id, x.state.proc.id) }, x.client.name), h('span', { class: 'wtitle' }, procName(x.state.proc))),
+      h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(x.client.id, x.state.proc.id) }, clientLabel(x.client)), h('span', { class: 'wtitle' }, procName(x.state.proc))),
       h('div', { class: 'of-acts' }, h('button', {
         type: 'button', class: 'btn btn-sm', id: `hl-claim-${x.client.id}-${x.state.proc.id}`,
         onclick: (e) => fixClaim(x, e.currentTarget),
       }, `לשייך ל${PEOPLE[x.owner]?.name || x.owner}`)))),
     group('משימה בלי מועד יעד', hl.noDue, (x) => h('li', { class: 'of-card' },
-      h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(x.client.id, 'tasks') }, x.client.name), personChip(x.task.owner), taskBadge(x.task)),
+      h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(x.client.id, 'tasks') }, clientLabel(x.client)), personChip(x.task.owner), taskBadge(x.task)),
       h('p', { class: 'of-line' }, x.task.title),
       h('div', { class: 'of-acts' }, h('button', {
         type: 'button', class: 'btn btn-sm', id: `hl-due-${x.task.id}`, onclick: (e) => fixDue(x, hl.dueFix, e.currentTarget),
       }, `לקבוע יעד: ${dueWords}`)))),
     group('לקוח בלי עורך', hl.noEditor, (x) => h('li', { class: 'of-card' },
-      h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(x.client.id, x.state.proc.id) }, x.client.name), x.n ? h('span', { class: 'wtitle' }, `סבב צילום ${x.n}`) : null),
+      h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(x.client.id, x.state.proc.id) }, clientLabel(x.client)), x.n ? h('span', { class: 'wtitle' }, `סבב צילום ${x.n}`) : null),
       h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-primary', href: `qa.html#assign-${x.client.id}${x.n ? `-r${x.n}` : ''}` }, 'שיוך עורך')))),
   ] : h('p', { class: 'muted' }, 'לא נמצאו חוסרים: לכל תהליך אחראי, לכל משימה מועד, לכל צילום עורך.'));
 }
@@ -331,7 +331,7 @@ function summaryRow(e, note, now) {
   return h('li', { class: 'of-card', id },
     h('details', { class: 'ps-sum', open: false },
       h('summary', {},
-        h('strong', {}, c.name),
+        h('strong', {}, clientLabel(c)),
         note ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), `סוכם · ${who(note.by_email)} · ${formatStamp(note.at)}`)
           : h('span', { class: 'sbadge s-waiting' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'טרם סוכם · ממולא מהמערכת'),
         v.current ? h('span', { class: 'muted small ps-preview' }, v.current) : null),
@@ -344,7 +344,8 @@ function summaryRow(e, note, now) {
         h('p', { class: 'err', id: `${id}-err`, role: 'alert', hidden: true }),
         h('div', { class: 'of-acts' },
           h('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: `${id}-save`, value: 'save' }, note ? 'שמירת השינויים' : 'שמירה'),
-          h('button', { type: 'submit', class: 'btn btn-sm', id: `${id}-next`, value: 'next' }, 'שמירה והבא')))));
+          // Not `${id}-next`: that is the id of the field "פעולה הבאה" above (a duplicate id, found by the e2e check).
+          h('button', { type: 'submit', class: 'btn btn-sm', id: `${id}-save-next`, value: 'next' }, 'שמירה והבא')))));
 }
 async function saveSummary(ev, c) {
   ev.preventDefault();
@@ -384,7 +385,7 @@ function renderMine(now) {
     const c = byId.get(t.client_id);
     const late = !t.done_at && t.due_on && t.due_on < today;
     return h('li', { class: `of-card${late ? ' is-late' : ''}${t.done_at ? ' is-done' : ''}` },
-      h('div', { class: 'of-head' }, c ? h('a', { class: 'wclient', href: clientUrl(c.id, 'tasks') }, c.name) : null, personChip(t.owner), taskBadge(t)),
+      h('div', { class: 'of-head' }, c ? h('a', { class: 'wclient', href: clientUrl(c.id, 'tasks') }, clientLabel(c)) : null, personChip(t.owner), taskBadge(t)),
       h('p', { class: 'of-line' }, t.title),
       h('p', { class: 'of-line' }, t.done_at ? `בוצע · ${who(t.done_by_email)} · ${formatStamp(t.done_at)}` : [t.due_on ? `${late ? 'באיחור · ' : ''}עד ${formatDay(t.due_on)}` : 'בלי מועד', ` · נפתחה ${formatStamp(t.created_at)}`]),
       t.urgent && !t.done_at ? startControl(t, me, () => renderKeepingFocus()) : null);

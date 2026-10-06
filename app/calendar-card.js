@@ -72,7 +72,7 @@ function render() {
       connected
         ? [h('button', { type: 'button', class: 'btn-text', id: 'cal-rotate', disabled: busy, onclick: rotate }, 'קישור חדש'),
           h('button', { type: 'button', class: 'btn-text', id: 'cal-revoke', disabled: busy, onclick: revoke }, 'ניתוק')]
-        : h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: 'cal-make', disabled: busy, onclick: rotate }, 'חיבור ליומן')));
+        : h('button', { type: 'button', class: 'btn btn-sm', id: 'cal-make', disabled: busy, onclick: rotate }, 'חיבור ליומן')));
 }
 
 async function rotate() {

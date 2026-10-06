@@ -287,6 +287,24 @@ export function dayBeforeResult(check, answers = {}) {
   return { ok, failed };
 }
 export const dayBeforeNote = (res) => JSON.stringify({ ok: res.ok, failed: res.failed });
+// The check's items by id, for reading a saved result back in words.
+export const DAY_BEFORE_LABELS = {
+  content: 'הלקוח אישר את התוכן', client: 'הלקוח קיבל תזכורת ליום הצילום', influencers: 'המשפיענים עודכנו',
+  crew: 'הצלם והצוות עודכנו', address: 'הכתובת נכונה אצל כולם', tasks: 'אין משימה פתוחה שחוסמת את יום הצילום',
+  natali: 'המאפרת וההסעה של נטלי אישרו', remembers: 'הלקוח זוכר את היום (שיחה קצרה)',
+};
+// The saved result as one line for the client card ("נבדקו 7 פריטים, הכול תקין", or
+// the failed ones by name); null when the note is not a saved result.
+export function dayBeforeText(note) {
+  let v = null;
+  try { v = JSON.parse(note); } catch { return null; }
+  if (!v || typeof v !== 'object' || !Array.isArray(v.failed)) return null;
+  const ok = Array.isArray(v.ok) ? v.ok : [];
+  const n = ok.length + v.failed.length;
+  const count = n === 1 ? 'נבדק פריט אחד' : `נבדקו ${n} פריטים`;
+  if (!v.failed.length) return n ? `${count}, הכול תקין` : '';
+  return `${count}. לא תקין: ${v.failed.map((id) => DAY_BEFORE_LABELS[id] || String(id)).join(', ')}`;
+}
 export function readDayBefore(note) {
   try {
     const v = JSON.parse(note);
@@ -329,3 +347,25 @@ export const requestOf = (tell) => clean(tell?.brief?.request) || clean(String(t
 export function tellMessage(client, requestText) {
   return `היי ${firstName(client)}, עדכון על הבקשה שלכם: "${clean(requestText)}". טיפלנו בזה. אם צריך עוד משהו, כתבו לנו.`;
 }
+
+// ── A shoot date against the usual order ──
+// The shoot day comes after the characterization, with time for the scripts to be
+// written and approved (12, 13: three business days). The office is not stopped
+// from setting it otherwise, but is asked to confirm, and the reasons are kept in
+// the history of date changes. Returns the reasons, in Hebrew ([] when all is in order).
+export const SHOOT_MIN_BUSINESS_DAYS = 3;
+export function shootDateConcerns({ shootAt, charAt = null, now = new Date() }) {
+  const shoot = parseDate(shootAt);
+  if (!shoot) return [];
+  const char = parseDate(charAt);
+  const out = [];
+  if (shoot < now) out.push('המועד כבר עבר.');
+  if (char && shoot < char) out.push(`יום הצילום לפני פגישת האפיון (${dayText(char)}).`);
+  else if (char && businessDaysBetween(char, shoot) < SHOOT_MIN_BUSINESS_DAYS) {
+    out.push(`פחות מ־${SHOOT_MIN_BUSINESS_DAYS} ימי עסקים אחרי פגישת האפיון (${dayText(char)}): התסריטים עוד לא יהיו כתובים ומאושרים.`);
+  }
+  return out;
+}
+// The question put to whoever sets it, and the note kept when they confirm.
+export const shootDateQuestion = (shootAt, concerns) => `יום הצילום: ${dayText(parseDate(shootAt))} בשעה ${timeText(parseDate(shootAt))}.\n${concerns.map((c) => `• ${c}`).join('\n')}\n\nלקבוע את המועד בכל זאת?`;
+export const shootDateNote = (concerns) => `אושר למרות: ${concerns.join(' ')}`.slice(0, 500);

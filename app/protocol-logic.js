@@ -72,6 +72,18 @@ export function charEndedAt(checks) {
   return c && c.state === 'done' && c.at ? new Date(c.at) : null;
 }
 export const onOfficeTime = (spec) => !!spec && !spec.businessDays && onOfficeClock(spec.from) && spec.days === undefined && !spec.prevBusinessDay;
+// A deadline of "immediately" (מיד): due at the very office event that starts the work,
+// with no time of its own (22א right when the shoot day is closed, 26 right when Ofir
+// approves, 11ב once the shoot date is set). Process 5 is not one: it starts with the
+// meeting and is due at its end. Nobody can finish in zero minutes, so such a process gets a
+// working allowance of 15 office minutes before it is late anywhere: the lists, the
+// colour, the "now" clocks and the reminders (found live, 6.10.2026: "נגמר לפני 1 דק׳"
+// the moment the task appeared). Deadlines with their own time (5, 10, 30 minutes,
+// hours, days) and anything hanging on a meeting or a shoot are untouched.
+export const IMMEDIATE_MINUTES = 15;
+const bare = (spec) => !!spec && !spec.hours && !spec.minutes && !spec.at && !spec.afterMark && !spec.businessDays && spec.days === undefined && !spec.prevBusinessDay;
+export const isImmediate = (proc) => !!proc?.due && !!proc.start && proc.start.from === proc.due.from && onOfficeTime(proc.due) && bare(proc.due) && bare(proc.start);
+const dueSpec = (proc) => (isImmediate(proc) ? { ...proc.due, minutes: IMMEDIATE_MINUTES } : proc.due);
 
 const sameDay = (a, b) => dayKeyIL(a) === dayKeyIL(b);
 
@@ -256,6 +268,31 @@ export function resolveTime(spec, client, procs, checks, now = new Date()) {
   return d;
 }
 
+// The renewal talk (process 34, the promise ה12): 60 days before the contract ends, and
+// when that falls on a day off, the business day before it. One source for the client
+// card (34's deadline, resolveTime above) and the client's status page, which showed
+// the bare 60th day (a Friday) while the card showed the Thursday before it.
+export const RENEWAL_LEAD_DAYS = 60;
+export function renewalDay(contractEnd) {
+  const end = parseDate(contractEnd);
+  if (!end) return null;
+  let d = addDaysIL(end, -RENEWAL_LEAD_DAYS);
+  while (!isBusinessDay(d)) d = addDaysIL(d, -1);
+  return d;
+}
+
+// How a client is named wherever the office picks one out of many (lists, the "עכשיו"
+// clocks, the Thursday summary, reminder titles built on the server, and through them
+// the WhatsApp template variables): the business first, then the contact,
+// "קפה דנה · דנה". Two clients with the same contact stay apart (found live,
+// 6.10.2026). A greeting to the client itself still uses the contact's name alone.
+export function clientLabel(client) {
+  const name = String(client?.name || '').trim();
+  const business = String(client?.business || '').trim();
+  if (!business || business === name) return name;
+  return name ? `${business} · ${name}` : business;
+}
+
 // Missing client details a process (or phase) depends on.
 const blank = (v) => v === null || v === undefined || v === '';
 export function missingFields(entry, client) {
@@ -382,7 +419,7 @@ export function clientState(client, checks = {}, now = new Date()) {
     const complete = p.recurring ? false : resolved === required.length;
     const startAt = resolveTime(p.start, ctx, procs, checks, now);
     // A deadline a later protocol version shortened keeps the one the client started under.
-    const baseDueAt = p.recurring ? null : laterDue(resolveTime(p.due, ctx, procs, checks, now), p.dueBefore && resolveTime(p.dueBefore, ctx, procs, checks, now));
+    const baseDueAt = p.recurring ? null : laterDue(resolveTime(dueSpec(p), ctx, procs, checks, now), p.dueBefore && resolveTime(p.dueBefore, ctx, procs, checks, now));
     const doneAt = complete ? completedAt(p, checks, now) : null;
     // Waiting on the client (office minutes): `waited` in all, `extended` the part
     // that moved the deadline on.

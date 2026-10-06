@@ -4,6 +4,7 @@
 // year.html uses too. Every item is labelled as a draft (decision 31). The logic:
 // app/year-logic.js; the data: app/year-data.js.
 import { PEOPLE } from './protocol.js';
+import { clientLabel } from './protocol-logic.js';
 import { h, toast, errorText, formatWhen, formatStamp, who, personChip, capList } from './protocol-ui.js';
 import {
   DRAFT_LABEL, openMonthItems, monthOf, cycleFrom, monthState, marksByKey, groupMarks, markKey,
@@ -127,7 +128,7 @@ export function showMonths(el, ctx) {
   el.replaceChildren(...wrap(
     draftHint(),
     capList(h('ul', { class: 'wprocs mc-list', 'aria-labelledby': 'mc-h' }, ...byClient.map(({ c, items, m }) => h('li', { class: 'wproc mc-client' },
-      h('p', { class: 'mc-head' }, h('a', { class: 'wclient', href: cardUrl(c.id) }, c.name), m ? h('span', { class: 'muted' }, ` · חודש ${m.n} מתוך ${m.of}`) : null),
+      h('p', { class: 'mc-head' }, h('a', { class: 'wclient', href: cardUrl(c.id) }, clientLabel(c)), m ? h('span', { class: 'muted' }, ` · חודש ${m.n} מתוך ${m.of}`) : null),
       h('ul', { class: 'items' }, ...items.map((i) => itemRow(i, { client: c, me: ctx.me, office: ctx.office, pending, onMark: onMark(c) })))))),
     ctx.short ? 2 : Infinity, 'months'),
   ));

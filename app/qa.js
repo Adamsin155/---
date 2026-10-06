@@ -7,7 +7,7 @@
 // for anyone else; a joint day always with a reason), and each editor's load.
 // The logic: app/qa-logic.js and app/office-marks.js.
 import { PEOPLE, SHOOT_TYPES, EDITORS } from './protocol.js';
-import { clientState } from './protocol-logic.js';
+import { clientState, clientLabel } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory,
 } from './protocol-data.js';
@@ -104,7 +104,7 @@ function render() {
     h('summary', {}, `הוחזרו לתיקון ועוד לא חזרו (${fixing.length})`),
     h('ul', { class: 'of-list' }, ...fixing.map((x) => h('li', { class: 'of-card' },
       h('div', { class: 'of-head' },
-        h('a', { class: 'wclient', href: clientUrl(x.client.id, x.proc.id) }, x.client.name),
+        h('a', { class: 'wclient', href: clientUrl(x.client.id, x.proc.id) }, clientLabel(x.client)),
         h('span', { class: 'wtitle' }, `${QA_KINDS[x.kind].title}${roundText(x.ctx)} · סבב ${x.open.n}`),
         personChip(x.who === 'editor' ? 'editor' : x.who)),
       h('p', { class: 'of-line' }, `${x.open.issues.length === 1 ? 'בעיה אחת' : `${x.open.issues.length} בעיות`} · תוקנו ${x.open.fixed.size}`,
@@ -133,7 +133,7 @@ function qaCard(x, ms, now) {
   const inMeeting = !!meetingNow(ms, now);
   return h('li', { class: `of-card${x.late ? ' is-late' : ''}`, 'data-key': x.key },
     h('div', { class: 'of-head' },
-      h('a', { class: 'wclient', href: clientUrl(x.client.id, x.proc.id) }, x.client.name),
+      h('a', { class: 'wclient', href: clientUrl(x.client.id, x.proc.id) }, clientLabel(x.client)),
       h('span', { class: 'wtitle' }, `${k.title}${roundText(x.ctx)}`),
       x.round > 1 ? h('span', { class: 'tag' }, `בדיקה ${x.round} · אחרי תיקון`) : null,
       x.late ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'עבר היעד') : null),
@@ -155,7 +155,7 @@ function charCard(x, now) {
   return h('li', { class: `of-card${x.done ? ' is-done' : ''}` },
     h('div', { class: 'of-head' },
       h('span', { class: 'of-time num' }, hm(x.at)),
-      h('a', { class: 'wclient', href: clientUrl(c.id, 'p04') }, c.name),
+      h('a', { class: 'wclient', href: clientUrl(c.id, 'p04') }, clientLabel(c)),
       x.done ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'הסתיים') : x.at <= now ? h('span', { class: 'tag' }, 'עכשיו') : null),
     h('p', { class: 'of-line' }, c.address ? `כתובת: ${c.address}` : 'אין כתובת בכרטיס', c.business ? ` · ${c.business}` : ''),
     h('div', { class: 'of-acts' },
@@ -170,7 +170,7 @@ function assignCard(a, load, now) {
   const pre = preselected(type, joint);
   return h('li', { class: 'of-card', 'data-key': a.key },
     h('div', { class: 'of-head' },
-      h('a', { class: 'wclient', href: clientUrl(a.client.id, a.proc.id) }, a.client.name),
+      h('a', { class: 'wclient', href: clientUrl(a.client.id, a.proc.id) }, clientLabel(a.client)),
       h('span', { class: 'wtitle' }, `${SHOOT_TYPES[type]?.name || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
       a.state.status === 'overdue' ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
     h('p', { class: 'of-line' }, a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : '',
@@ -263,7 +263,7 @@ function setMode(mode) {
   if (ret) {
     const n = qaState(checksOf(qaItem.client), qaItem.pre, qaItem.kind).returns + 1;
     $('qa-return-h').textContent = `החזרה לתיקון · סבב ${n}`;
-    $('qa-return-hint').textContent = `לכל שורה: מספר ה${QA_KINDS[qaItem.kind].unit} ומה לתקן. ${qaItem.kind === 'videos' ? 'העורך' : 'עילאי'} מקבל/ת את הרשימה מיד.`;
+    $('qa-return-hint').textContent = `לכל שורה: מספר ה${QA_KINDS[qaItem.kind].unit} ומה לתקן. הרשימה עוברת ${qaItem.kind === 'videos' ? 'לעורך' : 'לעילאי'} מיד.`;
     fill($('qa-issues'));
     addIssue();
     $('qa-due').value = inputValueIL(fixDue(new Date()));
@@ -349,8 +349,8 @@ $('qa-send-return').addEventListener('click', async () => {
   $('qa-send-return').disabled = false;
   qaDlg.close();
   const fixer = QA_KINDS[x.kind].fixer(x.ctx);
-  const whom = fixer === 'editor' ? 'העורך' : PEOPLE[fixer]?.name || '';
-  toast(`הוחזר לתיקון (סבב ${n}). ${whom} מקבל/ת את הרשימה, עד ${formatWhen(due)}.`, {
+  const whom = fixer === 'editor' ? 'לעורך' : `ל${PEOPLE[fixer]?.name || 'עורך'}`;
+  toast(`הוחזר לתיקון (סבב ${n}). הרשימה עוברת ${whom}, עד ${formatWhen(due)}.`, {
     label: 'ביטול',
     run: async () => {
       try { await clearCheck(c.id, key); delete checks[c.id][key]; toast('ההחזרה בוטלה. הבדיקות נפתחו מחדש.'); renderKeepingFocus(); } catch (err) { toast(`הביטול לא נשמר. ${errorText(err)}`); }

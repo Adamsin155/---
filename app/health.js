@@ -35,7 +35,7 @@ import { isManager } from './manager-rules.js';
 import { AUTO_NOTE } from './characterization.js';
 import { TOPIC_NOTE } from './shoot-prep.js';
 import {
-  partsIL, dayKeyIL, weekdayIL, atTimeIL, addDaysIL, startOfDayIL, endOfDayIL, daysBetweenIL, dayFromKeyIL,
+  partsIL, dayKeyIL, weekdayIL, atTimeIL, addDaysIL, startOfDayIL, endOfDayIL, daysBetweenIL, dayFromKeyIL, needsYear,
 } from './tz.js';
 
 const DAY = 864e5;
@@ -321,7 +321,7 @@ const whenWords = (d, now) => {
   const n = daysBetweenIL(now, d);
   if (n === 0) return 'היום';
   if (n === 1) return 'מחר';
-  return `ב־${dayText(d)}`;
+  return `ב־${dayText(d)}${needsYear(d, now) ? `.${partsIL(d).year}` : ''}`;
 };
 
 // ── The colour of one client ────────────────
@@ -917,6 +917,7 @@ export function naCounts(log, directory = {}, since = null) {
 export function moveCounts(changes, directory = {}, since = null) {
   const out = new Map();
   for (const r of changes || []) {
+    if (r.old_value === null && ['shoot_at', 'round_shoot_at'].includes(r.field)) continue; // a first setting, kept for its note (date_change_note): not a change
     if (since && new Date(r.at) < since) continue;
     const who = directory[String(r.by_email || '').toLowerCase()];
     if (who) out.set(who, (out.get(who) || 0) + 1);
