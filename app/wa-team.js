@@ -65,7 +65,7 @@ export function paintWaPanel(wa, before, reload) {
   fill(el,
     h('h2', { id: 'wa-panel-h' }, 'הודעות עבודה ב־WhatsApp'),
     h('p', { id: 'wa-state' }, settings.enabled
-      ? `פועל. מי שהסכים/ה מקבל/ת את הצלצולים והתקצירים גם ב־WhatsApp (${agreed} מתוך ${rows.length}).`
+      ? `פועל. הצלצולים והתקצירים מגיעים גם ב־WhatsApp למי שנתנו הסכמה (${agreed} מתוך ${rows.length}).`
       : 'כבוי. ההתראות יוצאות באפליקציה בלבד (Push).'),
     missing.length ? h('p', { class: 'muted', id: 'wa-missing' }, `חסר ב־Vault: ${missing.join(', ')}. ההוראות במסמך התפעול.`) : null,
     settings.owner ? h('div', { class: 'tm-wa-acts' }, h('button', {

@@ -266,6 +266,19 @@ export function resolveTime(spec, client, procs, checks, now = new Date()) {
   return d;
 }
 
+// The renewal talk (process 34, the promise ה12): 60 days before the contract ends, and
+// when that falls on a day off, the business day before it. One source for the client
+// card (34's deadline, resolveTime above) and the client's status page, which showed
+// the bare 60th day (a Friday) while the card showed the Thursday before it.
+export const RENEWAL_LEAD_DAYS = 60;
+export function renewalDay(contractEnd) {
+  const end = parseDate(contractEnd);
+  if (!end) return null;
+  let d = addDaysIL(end, -RENEWAL_LEAD_DAYS);
+  while (!isBusinessDay(d)) d = addDaysIL(d, -1);
+  return d;
+}
+
 // Missing client details a process (or phase) depends on.
 const blank = (v) => v === null || v === undefined || v === '';
 export function missingFields(entry, client) {

@@ -722,7 +722,7 @@ $('done-form').addEventListener('submit', async (e) => {
   render();
   const who = asker && PEOPLE[asker] ? PEOPLE[asker].name : 'מי שביקש';
   toast(failed.length ? `המשימה נסגרה, אבל ${failed.join(', ')} לא עודכנ/ו. עדכנו ישירות.`
-    : `המשימה נסגרה. ${who} מקבל/ת הודעה${result.left ? ' ומשימת המשך' : ''}${result.client ? '; אופיר בודק ועירית שולחת' : ''}.`);
+    : `המשימה נסגרה. ${result.left ? 'ההודעה ומשימת ההמשך עוברות' : 'ההודעה עוברת'} ל${who}${result.client ? '; אופיר בודק ועירית שולחת' : ''}.`);
   $('ed-briefs').querySelector('button')?.focus();
 });
 

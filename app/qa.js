@@ -263,7 +263,7 @@ function setMode(mode) {
   if (ret) {
     const n = qaState(checksOf(qaItem.client), qaItem.pre, qaItem.kind).returns + 1;
     $('qa-return-h').textContent = `החזרה לתיקון · סבב ${n}`;
-    $('qa-return-hint').textContent = `לכל שורה: מספר ה${QA_KINDS[qaItem.kind].unit} ומה לתקן. ${qaItem.kind === 'videos' ? 'העורך' : 'עילאי'} מקבל/ת את הרשימה מיד.`;
+    $('qa-return-hint').textContent = `לכל שורה: מספר ה${QA_KINDS[qaItem.kind].unit} ומה לתקן. הרשימה עוברת ${qaItem.kind === 'videos' ? 'לעורך' : 'לעילאי'} מיד.`;
     fill($('qa-issues'));
     addIssue();
     $('qa-due').value = inputValueIL(fixDue(new Date()));
@@ -349,8 +349,8 @@ $('qa-send-return').addEventListener('click', async () => {
   $('qa-send-return').disabled = false;
   qaDlg.close();
   const fixer = QA_KINDS[x.kind].fixer(x.ctx);
-  const whom = fixer === 'editor' ? 'העורך' : PEOPLE[fixer]?.name || '';
-  toast(`הוחזר לתיקון (סבב ${n}). ${whom} מקבל/ת את הרשימה, עד ${formatWhen(due)}.`, {
+  const whom = fixer === 'editor' ? 'לעורך' : `ל${PEOPLE[fixer]?.name || 'עורך'}`;
+  toast(`הוחזר לתיקון (סבב ${n}). הרשימה עוברת ${whom}, עד ${formatWhen(due)}.`, {
     label: 'ביטול',
     run: async () => {
       try { await clearCheck(c.id, key); delete checks[c.id][key]; toast('ההחזרה בוטלה. הבדיקות נפתחו מחדש.'); renderKeepingFocus(); } catch (err) { toast(`הביטול לא נשמר. ${errorText(err)}`); }

@@ -110,3 +110,8 @@ export function fromInputIL(value) {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(value || ''));
   return m ? dateIL(+m[1], +m[2], +m[3], +m[4], +m[5]) : null;
 }
+
+// Whether a date needs its year to be understood at `now`: not in the current year,
+// or more than about nine months away ("5.10" a year ahead reads as this October).
+export const FAR_DAYS = 270;
+export const needsYear = (d, now) => !!d && !!now && (partsIL(d).year !== partsIL(now).year || Math.abs(daysBetweenIL(now, d)) > FAR_DAYS);

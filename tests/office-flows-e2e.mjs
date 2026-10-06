@@ -347,7 +347,8 @@ await step('return for fixes: approving needs all six checks; two issues, due to
   await ofir.fill('#qa-ref-2', '7');
   await ofir.fill('#qa-text-2', 'כתוביות חתוכות');
   await ofir.click('#qa-send-return');
-  await toastHas(ofir, 'הוחזר לתיקון (סבב 1)');
+  await toastHas(ofir, 'הוחזר לתיקון (סבב 1). הרשימה עוברת ל'); // not "<שם> מקבל/ת את הרשימה"
+  assert.doesNotMatch(await ofir.locator('#toast').innerText(), /מקבל\/ת/);
   const r = checkOf(V, 'p25.return.1');
   assert.deepEqual(JSON.parse(r.note).issues, [{ ref: '3', text: 'הטלפון בסגיר שגוי' }, { ref: '7', text: 'כתוביות חתוכות' }]);
   assert.equal(JSON.parse(r.note).due, '2026-10-20T15:00:00.000Z');

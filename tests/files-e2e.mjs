@@ -492,7 +492,8 @@ await step('the client\'s gallery link: Irit creates it and copies a ready Whats
   await irit.waitForSelector('#fl-gal-copy-msg');
   const l = db.client_gallery_links[0];
   galleryToken = vault.get(l.id);
-  assert.match(await text(irit, '#fl-gal-state'), /קישור פעיל עד .* · עוד לא נפתח/);
+  // A year ahead: the date carries its year (found live: "עד יום ג׳ 5.10" meant 2027).
+  assert.match(await text(irit, '#fl-gal-state'), /קישור פעיל עד יום [א-ש]׳ \d{1,2}\.\d{1,2}\.2027 · עוד לא נפתח/);
   await irit.click('#fl-gal-copy-msg');
   await toastHas(irit, 'הועתק');
   // (Windows' clipboard gives the lines back with \r\n.)

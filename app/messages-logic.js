@@ -27,7 +27,7 @@ import {
   clientState, isBusinessDay, addBusinessDays, businessDaysBetween, parseDate, roundsOf, roundContext,
   isImported, IMPORT_NOTE,
 } from './protocol-logic.js';
-import { partsIL, dayKeyIL, weekdayIL, addDaysIL, startOfDayIL, daysBetweenIL } from './tz.js';
+import { partsIL, dayKeyIL, weekdayIL, addDaysIL, startOfDayIL, daysBetweenIL, needsYear } from './tz.js';
 import { whatsappLink } from './quote-doc.js';
 
 // Who works in the queue: the owner (no person), Irit and Lior. The database lets
@@ -233,8 +233,10 @@ export const groupLink = (text) => whatsappLink('', text);
 // ── Words and dates for clients ─────────────
 const WEEKDAYS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 const pad = (n) => String(n).padStart(2, '0');
-// "יום ג׳ 13.10" and "10:00", in Israel time.
-export const dayText = (d) => { const p = partsIL(d); return `יום ${WEEKDAYS[p.weekday]} ${p.day}.${p.month}`; };
+// "יום ג׳ 13.10" and "10:00", in Israel time. With `now`, a date that is not in the
+// current year or is far ahead carries its year ("יום ג׳ 5.10.2027"): a link's expiry, a
+// renewal date (tz.js needsYear).
+export const dayText = (d, now = null) => { const p = partsIL(d); return `יום ${WEEKDAYS[p.weekday]} ${p.day}.${p.month}${now && needsYear(d, now) ? `.${p.year}` : ''}`; };
 export const timeText = (d) => { const p = partsIL(d); return `${pad(p.hour)}:${pad(p.minute)}`; };
 // "היום", "אתמול", "מחר", or "ביום ג׳ 13.10".
 export function relDay(d, now) {

@@ -380,7 +380,7 @@ async function decidePaused(p, id, proposal) {
       for (const t of tasks.filter((x) => x.client_id === c.id && x.source === 'pause' && !x.done_at)) {
         try { const done = await setTaskDone(t.id, true); tasks = tasks.map((x) => (x.id === t.id ? done : x)); } catch { /* the owners close them */ }
       }
-      toast(`העריכה של ${c.name} הועברה ל${PEOPLE[editor].name}. ${PEOPLE[editor].name} מקבל/ת הודעה על לקוח חדש בעריכה.`);
+      toast(`העריכה של ${c.name} הועברה ל${PEOPLE[editor].name}. ההודעה על לקוח חדש בעריכה עוברת ל${PEOPLE[editor].name}.`);
     }
   } catch (e) {
     err.textContent = `לא נשמר. ${errorText(e)}`;

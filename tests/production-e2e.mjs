@@ -527,7 +527,7 @@ await step('Nirel finishes the brief: done, left and the Drive link; the request
   assert.match(await text(page, '#done-drive-err'), /https/);
   await page.fill('#done-drive', 'https://drive.google.com/drive/banner');
   await page.click('#done-submit');
-  await toastHas(page, 'ליאור מקבל/ת הודעה ומשימת המשך; אופיר בודק ועירית שולחת');
+  await toastHas(page, 'ההודעה ומשימת ההמשך עוברות לליאור; אופיר בודק ועירית שולחת');
   assert.ok(t.done_at);
   assert.deepEqual([t.result.done, t.result.left, t.result.drive, t.result.client], ['הכותרת הוגדלה', 'גרסה לסטורי', 'https://drive.google.com/drive/banner', true]);
   const follow = db.client_tasks.find((x) => x.owner === 'lior' && x.title.startsWith('המשך אחרי ניראל'));

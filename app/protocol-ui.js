@@ -5,7 +5,7 @@ import {
 import { h } from './quote-doc.js';
 import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';
 import { businessDaysBetween, readWaited } from './protocol-logic.js';
-import { TZ, partsIL, daysBetweenIL, dayFromKeyIL } from './tz.js';
+import { TZ, partsIL, daysBetweenIL, dayFromKeyIL, needsYear } from './tz.js';
 import { landFromLink, LINK_EXPIRED, PASSWORD_SAVED } from './set-password.js';
 
 export { h };
@@ -67,11 +67,12 @@ export function formatWhen(d, now = new Date()) {
   if (days === 0) return `היום${t}`;
   if (days === 1) return `מחר${t}`;
   if (days === -1) return `אתמול${t}`;
-  return `${dayFmt.format(d)}${t}`;
+  return `${dayFmt.format(d)}${needsYear(d, now) ? `.${partsIL(d).year}` : ''}${t}`;
 }
 // A bare day ('2026-10-01': a recheck date, a contract end) is that Israel day.
 export const formatDay = (d) => (d ? fullFmt.format(dayFromKeyIL(d) || new Date(d)) : '');
-export const formatStamp = (v) => (v ? `${dayFmt.format(new Date(v))} ${timeFmt.format(new Date(v))}` : '');
+// A stamp from another year carries the year ("יום ב׳, 5.10.2025 14:00").
+export const formatStamp = (v, now = new Date()) => (v ? `${dayFmt.format(new Date(v))}${needsYear(new Date(v), now) ? `.${partsIL(new Date(v)).year}` : ''} ${timeFmt.format(new Date(v))}` : '');
 
 // A length of office time: "40 דק׳", "2 ש׳", "3 ש׳ ו־15 דק׳".
 export const officeMinutes = (min) => (min < 60 ? `${min} דק׳` : `${Math.floor(min / 60)} ש׳${min % 60 ? ` ו־${min % 60} דק׳` : ''}`);

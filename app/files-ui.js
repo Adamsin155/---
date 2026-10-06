@@ -438,7 +438,7 @@ function galleryBlock(o) {
   const msg = url ? galleryMessage(o.client, url) : null;
   const a = g.active;
   return [...head,
-    h('p', { class: 'st-state', id: 'fl-gal-state' }, h('strong', {}, 'קישור פעיל'), ` עד ${dayText(new Date(a.expires_at))} · `,
+    h('p', { class: 'st-state', id: 'fl-gal-state' }, h('strong', {}, 'קישור פעיל'), ` עד ${dayText(new Date(a.expires_at), new Date())} · `,
       a.open_count ? `נפתח ${a.open_count === 1 ? 'פעם אחת' : `${a.open_count} פעמים`}, לאחרונה ${when(a.last_opened_at)}` : 'עוד לא נפתח'),
     manage && url ? h('div', { class: 'st-acts' },
       h('button', { type: 'button', class: 'btn btn-sm', id: 'fl-gal-copy-msg', onclick: () => copy(msg) }, 'העתקת הודעה עם הקישור'),

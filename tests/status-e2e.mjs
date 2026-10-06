@@ -342,7 +342,7 @@ await step('Irit creates the link and copies a ready WhatsApp message with it', 
   assert.equal(l.created_by, 'irit@astrateg.test');
   token = vault.get(l.id);
   assert.match(token, /^[A-Za-z0-9_-]{43}$/);
-  assert.match(await text(irit, '#status-block .st-state'), /קישור פעיל עד יום א׳ 11\.4 · עוד לא נפתח/);
+  assert.match(await text(irit, '#status-block .st-state'), /קישור פעיל עד יום א׳ 11\.4\.2027 · עוד לא נפתח/);
   await irit.click('#st-copy-msg');
   await toastHas(irit, 'הועתק');
   // (Windows' clipboard gives the lines back with \r\n.)
@@ -368,7 +368,7 @@ await step('the link opens on a 360px phone: where we are, the promised dates, w
   assert.match(await text(cl, '#where'), /שלב 5 מתוך 8\s+עריכה ובקרה: עורכים, בודקים ושולחים לאישורכם/);
   assert.equal(await cl.locator('#stations li[aria-current="step"]').textContent().then((t) => t.includes('עריכה ובקרה')), true);
   const next = await cl.locator('#next li').allInnerTexts();
-  assert.deepEqual(next.map((t) => t.replace(/\s+/g, ' ')), ['עד יום ב׳ 19.10 הסרטונים סגורים, כולל סבב תיקונים', 'עד יום ב׳ 2.8 שיחה על התוצאות ועל ההמשך']);
+  assert.deepEqual(next.map((t) => t.replace(/\s+/g, ' ')), ['עד יום ב׳ 19.10 הסרטונים סגורים, כולל סבב תיקונים', 'עד יום ב׳ 2.8.2027 שיחה על התוצאות ועל ההמשך']);
   const needs = await cl.locator('#needs li').allInnerTexts();
   assert.deepEqual(needs, ['לאשר או לבקש תיקון: 9 הגרפיקות הראשונות', 'לאשר או לבקש תיקון: הסרטונים', 'שאלה קצרה אחת, לא חובה']);
   assert.deepEqual(await cl.locator('#team li strong').allInnerTexts(), ['ליאור', 'עירית', 'אופיר', 'עילאי']);

@@ -13,7 +13,9 @@ import {
 import { STATIONS, PROCESSES } from '../app/protocol.js';
 import { computeReminders } from '../app/reminder-engine.js';
 import { RULES } from '../app/reminder-rules.js';
-import { dateIL, partsIL } from '../app/tz.js';
+import { dateIL, partsIL, needsYear } from '../app/tz.js';
+import { dayText } from '../app/messages-logic.js';
+import { renewalDay } from '../app/protocol-logic.js';
 import { importKeys } from '../app/client-open.js';
 import { IMPORT_NOTE, clientState } from '../app/protocol-logic.js';
 
@@ -248,4 +250,42 @@ test('the scripts approved on the page while the Zoom was open: the Zoom is \'na
   assert.deepEqual(got.filter((r) => r.ref === 'p13'), []);
   const sql = readFileSync(new URL('../supabase/migrations/20260930210000_hardening.sql', import.meta.url), 'utf8');
   assert.match(sql, /regexp_replace\(p_key, 'approved\$', 'zoom'\), 'na', 'אושר בדף המצב'\)/);
+});
+
+// Found live (6.10.2026): "קישור פעיל עד יום ג׳ 5.10" meant 2027; and the status page
+// said the renewal talk is on 6.8 while the client card said 5.8.
+test('a date in another year, or about nine months away, carries its year; near dates do not', () => {
+  const now = IL(2026, 10, 6, 10);
+  assert.equal(dayText(IL(2026, 10, 13, 10)), 'יום ג׳ 13.10');
+  assert.equal(dayText(IL(2026, 10, 13, 10), now), 'יום ג׳ 13.10');
+  assert.equal(dayText(IL(2026, 12, 31, 10), now), 'יום ה׳ 31.12');
+  assert.equal(dayText(IL(2027, 1, 3, 10), now), 'יום א׳ 3.1.2027');
+  assert.equal(dayText(IL(2027, 10, 5, 10), now), 'יום ג׳ 5.10.2027');
+  assert.equal(dayText(IL(2025, 12, 30, 10), now), 'יום ג׳ 30.12.2025');
+  // The same year but far: January looking at November.
+  assert.equal(needsYear(IL(2026, 11, 20, 10), IL(2026, 1, 5, 10)), true);
+  assert.equal(needsYear(IL(2026, 9, 20, 10), IL(2026, 1, 5, 10)), false);
+  assert.equal(needsYear(IL(2026, 9, 20, 10), null), false);
+});
+
+test('the renewal talk: one date for the client card (34) and the status page, 60 days before the end, on a business day', () => {
+  const now = IL(2026, 10, 6, 10);
+  const p34 = (end) => clientState({ id: 'c', name: 'x', status: 'active', shoot_type: 'dms', characterizer: 'ofir', has_logo: true, rounds: [], contract_end: end, deal_at: IL(2026, 10, 5, 10).toISOString() }, {}, now).states.find((s) => s.proc.id === 'p34').dueAt;
+  const key = (d) => { const p = partsIL(d); return `${p.day}.${p.month}.${p.year}`; };
+  // The live case: the contract ends Tuesday 5.10.2027; 60 days before is Friday 6.8, so the talk is by Thursday 5.8.
+  assert.equal(key(renewalDay('2027-10-05')), '5.8.2027');
+  assert.equal(key(p34('2027-10-05')), '5.8.2027');
+  const page = nextMilestones(data({ contractEnd: '2027-10-05' }), now).find((m) => m.key === 'renewal');
+  assert.equal(key(page.at), '5.8.2027');
+  assert.equal(page.when, 'עד יום ה׳ 5.8.2027'); // with the year: ten months ahead
+  // Every end date of a year: the page and the card agree, always a business day, never more than 60 days before... or after it.
+  for (let i = 0; i < 366; i += 1) {
+    const end = new Date(Date.UTC(2027, 0, 1 + i)).toISOString().slice(0, 10);
+    const a = renewalDay(end);
+    assert.equal(key(a), key(p34(end)), end);
+    const m = nextMilestones(data({ contractEnd: end }), now).find((x) => x.key === 'renewal');
+    if (m) assert.equal(key(m.at), key(a), end);
+    assert.ok(![5, 6].includes(partsIL(a).weekday), end);
+  }
+  assert.equal(renewalDay(null), null);
 });
