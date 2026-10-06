@@ -7,7 +7,7 @@
 // Everything is computed from what the team checks (app/health.js); nothing here
 // is marked by hand except the question.
 import { PEOPLE } from './protocol.js';
-import { clientState, weekKey } from './protocol-logic.js';
+import { clientState, weekKey, clientLabel } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, loadAllLog, loadStatusNotes, loadReviews, loadDirectory,
 } from './protocol-data.js';
@@ -264,7 +264,7 @@ function questionLine(q) {
 const rowHref = (r) => (r.client ? clientUrl(r.client.id, r.procId && !r.taskId ? `#${r.procId}` : r.taskId ? '#tasks' : '') : 'clients.html#control');
 function rowItem(r, i) {
   const q = questionFor(r);
-  const name = r.client ? r.client.name : r.code === 'thursday' ? 'סיכום חמישי' : 'המשרד';
+  const name = r.client ? clientLabel(r.client) : r.code === 'thursday' ? 'סיכום חמישי' : 'המשרד';
   // Only someone who can sign in can read and answer a question.
   const canAsk = isOwner && !!PEOPLE[r.who] && r.who !== 'editor' && Object.values(directory).includes(r.who);
   const noLogin = isOwner && !canAsk && !!PEOPLE[r.who] && r.who !== 'editor';
@@ -304,7 +304,7 @@ function renderNow() {
   fill($('ow-alist'), recent.map((q) => {
     const c = q.client_id ? allClients.find((x) => x.id === q.client_id) : null;
     return h('li', {},
-      c ? h('a', { class: 'wclient', href: clientUrl(c.id) }, c.name) : h('span', { class: 'wclient' }, q.client_id ? 'לקוח' : 'המשרד'),
+      c ? h('a', { class: 'wclient', href: clientUrl(c.id) }, clientLabel(c)) : h('span', { class: 'wclient' }, q.client_id ? 'לקוח' : 'המשרד'),
       q.context ? h('span', { class: 'muted' }, ` · ${q.context}`) : null,
       questionLine(q));
   }));
@@ -388,7 +388,7 @@ function clientItem(e, now) {
   const more = `ga-${c.id}`;
   return h('li', { class: `ga-item h-${e.health.color}`, 'data-id': c.id },
     h('button', { type: 'button', class: 'ga-row', id: `gab-${c.id}`, 'aria-expanded': String(open), 'aria-controls': more, onclick: () => toggle(c.id) },
-      h('span', { class: 'ga-l1' }, healthBadge(e.health.color), h('strong', { class: 'ga-name' }, c.name),
+      h('span', { class: 'ga-l1' }, healthBadge(e.health.color), h('strong', { class: 'ga-name' }, clientLabel(c)),
         h('span', { class: 'ga-why' }, top ? `${reasonText(top)} · ${personName(top.who)}` : 'לפי התוכנית')),
       h('span', { class: 'ga-l2' }, nextText(st.next, now))),
     h('div', { class: 'ga-more', id: more, hidden: !open },
@@ -436,7 +436,7 @@ function renderBoard(now) {
     h('ul', { class: 'board-list' }, ...list.map((e) => h('li', { class: `board-ev k-${e.kind}${e.done ? ' is-done' : ''}` },
       h('span', { class: 'board-t num' }, /23:59/.test(hmFmt.format(e.at)) ? 'עד סוף היום' : hmFmt.format(e.at)),
       h('span', { class: 'board-what' }, e.label),
-      h('a', { class: 'wclient', href: clientUrl(e.client.id, e.procId ? `#${e.procId}` : '') }, e.client.name),
+      h('a', { class: 'wclient', href: clientUrl(e.client.id, e.procId ? `#${e.procId}` : '') }, clientLabel(e.client)),
       personChip(e.who),
       e.done ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'בוצע') : null))))));
 }

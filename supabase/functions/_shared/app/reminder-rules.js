@@ -33,7 +33,7 @@
 import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf,
-  businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED,
+  businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel,
 } from './protocol-logic.js';
 // The owner's decisions of 3.10.2026: Stav's deals, the station-change message, the
 // automatic editor assignment.
@@ -189,7 +189,7 @@ export function procCase(env, c, s) {
   const snooze = snoozeMark?.state === 'done' ? parseDate(snoozeMark.note) : null;
   return {
     cid: c.id, client: c, s, proc: s.proc, pre, ctx: s.proc.ctx || c, checks, ref: kb, url: clientUrl(c.id, s.proc.id), snooze,
-    name: c.name,
+    name: clientLabel(c),
     check,
     resolved: (k) => { const x = check(k); return !!x && (x.state === 'done' || x.state === 'na'); },
     // An item added to the protocol after this client started (app/protocol-versions.js):
@@ -377,7 +377,7 @@ export const RULES = [
         // Lior closed it as partly fixed ("עדיין חסר"): it stays red, and only the owner's screen follows it.
         const fix = readAccessFix(env.checksOf(c)[`p06.fixed.${a.network}`]);
         const partial = !!fix?.partial && fix.at >= new Date(at.getTime() - 5 * MIN);
-        out.push({ id: `${a.id}@${at.toISOString()}`, cid: c.id, client: c, name: c.name, ref: 'p06', url: clientUrl(c.id, 'access'), network: a.network, partial, anchors: { event: at } });
+        out.push({ id: `${a.id}@${at.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), ref: 'p06', url: clientUrl(c.id, 'access'), network: a.network, partial, anchors: { event: at } });
       }
       return out;
     },
@@ -768,7 +768,7 @@ export const RULES = [
     instances(env) {
       return env.tasks.filter((t) => t.urgent && !t.done_at && env.clientById.has(t.client_id) && parseDate(t.created_at)).map((t) => {
         const c = env.clientById.get(t.client_id);
-        return { id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, started: !!t.started_at, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at) } };
+        return { id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who: t.owner, started: !!t.started_at, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at) } };
       });
     },
     steps: [
@@ -785,7 +785,7 @@ export const RULES = [
     instances(env) {
       return env.tasks.filter((t) => t.source === 'escalation' && !t.urgent && !t.done_at && env.clientById.has(t.client_id) && parseDate(t.created_at)).map((t) => {
         const c = env.clientById.get(t.client_id);
-        return { id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at) } };
+        return { id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who: t.owner, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at) } };
       });
     },
     steps: [
@@ -809,7 +809,7 @@ export const RULES = [
       return env.tasks.filter((t) => !t.urgent && t.source !== 'escalation' && t.source !== TELL && !STATUS_SOURCES.has(t.source) && !t.done_at && env.clientById.has(t.client_id)).map((t) => {
         const c = env.clientById.get(t.client_id);
         const creator = env.personOf(t.created_by_email);
-        return { id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, creator: creator && creator !== t.owner ? creator : null, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at), due: t.due_on ? dayFromKeyIL(t.due_on) : null } };
+        return { id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who: t.owner, creator: creator && creator !== t.owner ? creator : null, url: TASK_URL(c.id), anchors: { event: parseDate(t.created_at), due: t.due_on ? dayFromKeyIL(t.due_on) : null } };
       });
     },
     steps: [
@@ -827,7 +827,7 @@ export const RULES = [
     instances(env) {
       return env.tasks.filter((t) => t.source === TELL && !t.done_at && env.clientById.has(t.client_id) && parseDate(t.created_at)).map((t) => {
         const c = env.clientById.get(t.client_id);
-        return { id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, url: `prep.html?id=${encodeURIComponent(c.id)}#requests`, anchors: { event: parseDate(t.created_at) } };
+        return { id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who: t.owner, url: `prep.html?id=${encodeURIComponent(c.id)}#requests`, anchors: { event: parseDate(t.created_at) } };
       });
     },
     steps: [
@@ -949,7 +949,7 @@ export const RULES = [
           if (!p.shootAt || !p.blockers.length) continue;
           const open = p.blockers.filter((b) => !reported.has(b.id) && !b.known);
           out.push({
-            id: `${p.pid}p14@${p.shootAt.toISOString()}`, cid: c.id, client: c, name: c.name, ref: `${p.pre}p14`,
+            id: `${p.pid}p14@${p.shootAt.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), ref: `${p.pre}p14`,
             url: `prep.html?id=${encodeURIComponent(c.id)}`, all: p.blockers.length, open: open.length, first: open[0]?.text || p.blockers[0].text,
             anchors: { event: p.shootAt, shoot: p.shootAt },
           });
@@ -1137,7 +1137,7 @@ export const RULES = [
         const who = env.personOf(t.created_by_email);
         const at = parseDate(t.done_at);
         if (!c || !t.result || !at || !who || who === OWNER || who === t.owner) continue;
-        out.push({ id: t.id, cid: c.id, client: c, name: c.name, task: t, who, urgent: !!t.urgent, url: TASK_URL(c.id), anchors: { event: at } });
+        out.push({ id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who, urgent: !!t.urgent, url: TASK_URL(c.id), anchors: { event: at } });
       }
       return out;
     },
@@ -1185,7 +1185,7 @@ export const RULES = [
           const m = ACCESS_FIXED.exec(key);
           const v = m && readAccessFix(check);
           if (!v) continue;
-          out.push({ id: `${m[1]}@${v.at.toISOString()}`, cid: c.id, client: c, name: c.name, ref: 'p06', url: clientUrl(c.id, 'access'), network: m[1], fix: v, anchors: { event: v.at } });
+          out.push({ id: `${m[1]}@${v.at.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), ref: 'p06', url: clientUrl(c.id, 'access'), network: m[1], fix: v, anchors: { event: v.at } });
         }
       }
       return out;
@@ -1310,7 +1310,7 @@ export const RULES = [
       const out = [];
       for (const c of env.clients) {
         const m = stationChange(c, env.checksOf(c), env.stateOf(c), env.now);
-        if (m) out.push({ id: m.ref, cid: c.id, client: c, name: c.name, move: m, url: 'messages.html', anchors: { event: m.at } });
+        if (m) out.push({ id: m.ref, cid: c.id, client: c, name: clientLabel(c), move: m, url: 'messages.html', anchors: { event: m.at } });
       }
       return out;
     },

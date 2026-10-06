@@ -20,7 +20,7 @@ import {
   RULES, OWNER, timeOf, inSendHours, atIL, DAILY_CAP, STALE_MINUTES, FOLD, DIGESTS, RING_TARGETS, personName, MINE_URL,
   baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, OWNER_LATE_HOURS,
 } from './reminder-rules.js';
-import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf, pauseOf } from './protocol-logic.js';
+import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf, pauseOf, clientLabel } from './protocol-logic.js';
 import { STAFF_PEOPLE } from './protocol.js';
 import { ofirMeetings as meetingsOf } from './office-marks.js';
 import { dayKeyIL, atTimeIL, dayFromKeyIL, weekdayIL, addDaysIL, endOfDayIL } from './tz.js';
@@ -231,14 +231,14 @@ export function personWork(env, person) {
     for (const e of openItemsFor(person, c, env.checksOf(c), env.stateOf(c), env.now)) {
       if (seen.has(e.proc.id) || (e.status !== 'overdue' && e.status !== 'today')) continue;
       seen.add(e.proc.id);
-      (e.status === 'overdue' ? overdue : today).push({ client: c.name, what: e.proc.title, at: e.dueAt });
+      (e.status === 'overdue' ? overdue : today).push({ client: clientLabel(c), what: e.proc.title, at: e.dueAt });
     }
   }
   for (const t of env.tasks) {
     const c = env.clientById.get(t.client_id);
     if (!c || t.owner !== person || !t.due_on) continue;
-    if (t.due_on < todayKey) overdue.push({ client: c.name, what: t.title, at: dayFromKeyIL(t.due_on) });
-    else if (t.due_on === todayKey) today.push({ client: c.name, what: t.title, at: dayFromKeyIL(t.due_on) });
+    if (t.due_on < todayKey) overdue.push({ client: clientLabel(c), what: t.title, at: dayFromKeyIL(t.due_on) });
+    else if (t.due_on === todayKey) today.push({ client: clientLabel(c), what: t.title, at: dayFromKeyIL(t.due_on) });
   }
   const by = (a, b) => (a.at || 0) - (b.at || 0);
   return { overdue: overdue.sort(by), today: today.sort(by) };
@@ -387,7 +387,7 @@ export function lateSummary(env, now = env.now, hours = OWNER_LATE_HOURS) {
     for (const s of env.stateOf(c).states) {
       if (s.status !== 'overdue' || s.proc.recurring || !s.dueAt || +s.dueAt > cut || pauseOf(s.proc, checks)) continue;
       n += 1;
-      for (const p of (s.claim ? [s.claim.person] : s.proc.owners)) add(p, `${c.name} (${s.proc.num})`, s.dueAt);
+      for (const p of (s.claim ? [s.claim.person] : s.proc.owners)) add(p, `${clientLabel(c)} (${s.proc.num})`, s.dueAt);
     }
   }
   for (const t of env.tasks) {
@@ -396,7 +396,7 @@ export function lateSummary(env, now = env.now, hours = OWNER_LATE_HOURS) {
     const end = endOfDayIL(dayFromKeyIL(t.due_on));
     if (!end || +end > cut) continue;
     n += 1;
-    add(t.owner, `${c.name}: ${t.title}`, end);
+    add(t.owner, `${clientLabel(c)}: ${t.title}`, end);
   }
   if (!n) return [];
   const rows = [...byPerson].map(([p, list]) => ({ p, list: list.sort((a, b) => a.at - b.at) }))
@@ -446,14 +446,14 @@ export function weekAhead(env, now) {
   const inWeek = (d) => d && d >= atTimeIL(now, 0) && d <= end;
   const lists = { char: [], shoot: [], deliver: [], campaign: [], renew: [] };
   for (const c of env.clients) {
-    if (inWeek(parseDate(c.char_at))) lists.char.push(c.name);
+    if (inWeek(parseDate(c.char_at))) lists.char.push(clientLabel(c));
     const shoots = [c.shoot_at, ...roundsOf(c).map((r) => r.shoot_at)].map(parseDate);
-    if (shoots.some(inWeek)) lists.shoot.push(c.name);
+    if (shoots.some(inWeek)) lists.shoot.push(clientLabel(c));
     const st = env.stateOf(c).states;
-    if (st.some((s) => baseId(s.proc.id) === 'p27' && !s.complete && inWeek(s.dueAt))) lists.deliver.push(c.name);
-    if (st.some((s) => baseId(s.proc.id) === 'p30' && !s.complete && inWeek(s.dueAt))) lists.campaign.push(c.name);
+    if (st.some((s) => baseId(s.proc.id) === 'p27' && !s.complete && inWeek(s.dueAt))) lists.deliver.push(clientLabel(c));
+    if (st.some((s) => baseId(s.proc.id) === 'p30' && !s.complete && inWeek(s.dueAt))) lists.campaign.push(clientLabel(c));
     const endAt = parseDate(c.contract_end);
-    if (endAt && c.status === 'active' && (inWeek(addDaysIL(endAt, -60)) || inWeek(endAt))) lists.renew.push(c.name);
+    if (endAt && c.status === 'active' && (inWeek(addDaysIL(endAt, -60)) || inWeek(endAt))) lists.renew.push(clientLabel(c));
   }
   const line = (label, list) => (list.length ? `${label} (${list.length}): ${short(list, 4)}` : null);
   const lines = [

@@ -9,7 +9,7 @@
 //    under which.
 // The logic: app/year-logic.js, app/renewals.js, app/protocol-versions.js.
 import { PROTOCOL_VERSION } from './protocol.js';
-import { clientState } from './protocol-logic.js';
+import { clientState, clientLabel } from './protocol-logic.js';
 import { loadClients, loadChecks, loadDirectory } from './protocol-data.js';
 import { $, fill, h, toast, errorText, mountSession, directory, viewerOf, formatDay } from './protocol-ui.js';
 import { DRAFT_LABEL, yearOf, renewalsDue, marksByKey, groupMarks, RENEWAL_DAYS } from './year-logic.js';
@@ -114,7 +114,7 @@ function renewalCard({ client: c, endAt, daysLeft }, cmarks, now) {
   const hid = `rn-${c.id}`;
   return h('li', { class: `of-card yr-renew${daysLeft <= 30 ? ' is-soon' : ''}`, 'data-id': c.id, 'aria-labelledby': `${hid}-h` },
     h('div', { class: 'of-head' },
-      h('a', { class: 'wclient', href: cardUrl(c.id), id: `${hid}-h` }, c.name),
+      h('a', { class: 'wclient', href: cardUrl(c.id), id: `${hid}-h` }, clientLabel(c)),
       pkg ? h('span', { class: 'wtitle' }, pkg) : null),
     h('p', { class: 'of-line yr-end' }, h('strong', {}, `מסתיים ${formatDay(dayKeyIL(endAt))}`), ` · ${daysText(daysLeft)}`,
       h('span', { class: `tag yr-stage st-${stage.key}${stage.late ? ' is-late' : ''}` }, stage.text)),
@@ -172,7 +172,7 @@ function monthRow(c, now) {
   const open = openRows.has(c.id) || !!cur?.late;
   return h('li', { class: `of-card yr-row${cur?.late ? ' is-late' : ''}`, 'data-id': c.id },
     h('div', { class: 'of-head' },
-      h('a', { class: 'wclient', href: cardUrl(c.id, 'month') }, c.name),
+      h('a', { class: 'wclient', href: cardUrl(c.id, 'month') }, clientLabel(c)),
       h('span', { class: 'wtitle' }, `חודש ${y.n} מתוך ${y.of}`),
       v < PROTOCOL_VERSION ? h('span', { class: 'tag yr-ver', title: 'פריטים שנוספו אחר כך לא נספרים לו באיחור' }, `התחיל בגרסה ${v} של הפרוטוקול`) : null),
     h('ol', { class: 'yr-strip', 'aria-label': `החודשים של ${c.name}` }, ...y.months.map((m) => cell(m, y.of))),

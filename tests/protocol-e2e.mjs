@@ -617,7 +617,7 @@ assert.equal(await page.isHidden('#view-control'), true);
 await page.click('#tab-clients');
 await page.waitForSelector('.crow');
 assert.equal(await page.innerText('#tab-clients'), 'הלקוחות שלי');
-assert.deepEqual(await page.locator('.crow strong').allInnerTexts(), ['מספרת רון']); // the client she edits
+assert.deepEqual(await page.locator('.crow strong').allInnerTexts(), ['רון עיצוב שיער · מספרת רון']); // the client she edits: the business first
 assert.match(await page.locator('.crow .cnext').innerText(), /הצעד הבא שלך[^]*לקצר את סרטון 4/);
 assert.equal(await page.locator('#client-filters .chip').count(), 0);
 await shot('10-editor-clients');

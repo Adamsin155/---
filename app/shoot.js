@@ -14,7 +14,7 @@
 //    drive label, for the next shoot day (for a Sunday shoot, on Thursday).
 // Every mark is a protocol check; the keys are in app/production.js.
 import { SHOOT_TYPES } from './protocol.js';
-import { clientState } from './protocol-logic.js';
+import { clientState, clientLabel } from './protocol-logic.js';
 import { loadChecks, setCheck, clearCheck, setChecksBulk, loadDirectory, loadStaffPhones } from './protocol-data.js';
 import { loadWorkClients } from './production-data.js';
 import {
@@ -38,7 +38,7 @@ const busy = () => !!document.querySelector('dialog[open]');
 const isDone = (sc, k) => cs(sc.client)[sc.pre + k]?.state === 'done';
 const atOf = (sc, k) => (isDone(sc, k) ? new Date(cs(sc.client)[sc.pre + k].at) : null);
 const cardId = (sc) => `s-${sc.client.id}${sc.n > 1 ? `-r${sc.n}` : ''}`;
-const scName = (sc) => `${sc.client.name}${sc.n > 1 ? ` · סבב ${sc.n}` : ''}`;
+const scName = (sc) => `${clientLabel(sc.client)}${sc.n > 1 ? ` · סבב ${sc.n}` : ''}`;
 
 async function load() {
   $('state').textContent = clients.length ? '' : 'טוען…';

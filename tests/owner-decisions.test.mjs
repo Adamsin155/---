@@ -14,7 +14,8 @@ import { computeReminders, buildEnv, lateSummary, planDigests, planDelivery } fr
 import { REMINDER_PEOPLE, LATE_GRACE_MINUTES } from '../app/reminder-rules.js';
 import { clocksFor, ANSWER_CLOCKS } from '../app/clocks.js';
 import { PROCESSES, PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, scopeOf, isSales, STATIONS } from '../app/protocol.js';
-import { clientState, IMPORT_NOTE, isImmediate, IMMEDIATE_MINUTES } from '../app/protocol-logic.js';
+import { clientState, IMPORT_NOTE, isImmediate, IMMEDIATE_MINUTES, clientLabel } from '../app/protocol-logic.js';
+import { paramsOf } from '../app/wa-templates.js';
 import { importKeys } from '../app/client-open.js';
 import { dateIL, partsIL } from '../app/tz.js';
 import {
@@ -162,8 +163,7 @@ test('the owner\'s summary: everything 24 hours late or more, one section, by pe
   assert.deepEqual(at(IL(2026, 10, 5, 18)), ['באיחור 24 שעות ומעלה (1):', 'עירית (1): אלפא: לשלוח חשבונית']);
   const tue = at(IL(2026, 10, 6, 18));
   // 5, 7, 8, 9 and 10 (the characterization's clocks of Monday) and the task: the most late person first, each oldest first.
-  // (5 is "מיד" after the meeting: late 15 office minutes after it, so 9, due 5 minutes after it, is the oldest.)
-  assert.deepEqual(tue, ['באיחור 24 שעות ומעלה (6):', 'עילאי (2): אלפא (9), אלפא (7)', 'אופיר (2): אלפא (5), אלפא (8)', 'עירית (1): אלפא: לשלוח חשבונית', 'ליאור (1): אלפא (10)']);
+  assert.deepEqual(tue, ['באיחור 24 שעות ומעלה (6):', 'אופיר (2): אלפא (5), אלפא (8)', 'עילאי (2): אלפא (9), אלפא (7)', 'עירית (1): אלפא: לשלוח חשבונית', 'ליאור (1): אלפא (10)']);
   // In the 18:00 digest, as one section; one digest, not a message per item.
   const env = buildEnv({ ...w, now: IL(2026, 10, 6, 18) });
   const d = planDigests({ env, now: IL(2026, 10, 6, 18), log: [], active: new Set() }).filter((x) => x.person === 'owner');
@@ -331,7 +331,8 @@ test('the client moved to the next station: the ready text for Irit (quiet) and 
 test('"מיד" gets 15 office minutes before it is late anywhere; Ofir and Lior hear 15 more after; the minute clocks are as they were', () => {
   assert.deepEqual([IMMEDIATE_MINUTES, LATE_GRACE_MINUTES], [15, 15]);
   // Exactly the processes whose deadline is the event that starts them.
-  assert.deepEqual(PROCESSES.filter((p) => isImmediate(p.due)).map((p) => p.id).sort(), ['p05', 'p11b', 'p22a', 'p26']);
+  // (5 starts with the meeting and is due at its end: it has the meeting's two hours, not zero.)
+  assert.deepEqual(PROCESSES.filter((p) => isImmediate(p)).map((p) => p.id).sort(), ['p11b', 'p22a', 'p26']);
   const w = world();
   const c = client(w, { name: 'מיידי', editor: 'nadia', shoot_at: IL(2026, 10, 15, 11).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
   importTo(w, c, 'post');
@@ -396,4 +397,31 @@ test('the shoot day closed and the editor assigned by the server: 22א is whole,
   const late3 = (t) => due(w3, t).filter((r) => r.rule === 'late' && r.key.includes(':p22a@')).map((r) => r.person).sort();
   assert.deepEqual(late3(IL(2026, 10, 18, 16, 29)), []);
   assert.deepEqual(late3(IL(2026, 10, 18, 16, 30)), ['lior', 'ofir']);
+});
+
+// Found live (6.10.2026): lists, clocks, the Thursday summary and reminder titles named
+// a client by the contact only; two clients with the same contact could not be told apart.
+test('a client is named by the business first, then the contact: in reminder titles, the summaries and the WhatsApp variables', () => {
+  assert.equal(clientLabel({ name: 'דנה', business: 'קפה דנה' }), 'קפה דנה · דנה');
+  assert.equal(clientLabel({ name: 'דנה', business: null }), 'דנה');
+  assert.equal(clientLabel({ name: 'קפה דנה', business: ' קפה דנה ' }), 'קפה דנה');
+  assert.equal(clientLabel({ name: '', business: 'קפה דנה' }), 'קפה דנה');
+  assert.equal(clientLabel(null), '');
+  const w = world();
+  const a = client(w, { name: 'דנה', business: 'קפה דנה', deal_at: IL(2026, 10, 20, 10).toISOString() });
+  const b = client(w, { name: 'דנה', business: 'סטודיו דנה', deal_at: IL(2026, 10, 20, 10).toISOString() });
+  const now = IL(2026, 10, 20, 10);
+  const titles = due(w, now).filter((r) => r.rule === 'deal' && r.step === 'now').map((r) => r.title).sort();
+  assert.deepEqual(titles, ['עסקה חדשה: סטודיו דנה · דנה', 'עסקה חדשה: קפה דנה · דנה']);
+  // The WhatsApp template's first variable is the reminder's title: the same name.
+  const row = due(w, now).find((r) => r.rule === 'deal' && r.step === 'now' && r.clientId === a.id);
+  assert.equal(paramsOf(row)[0], 'עסקה חדשה: קפה דנה · דנה');
+  // Every reminder of these clients that names them names the business (no title with the bare contact).
+  const later = due(w, IL(2026, 10, 21, 12)).filter((r) => [a.id, b.id].includes(r.clientId));
+  assert.ok(later.length > 2);
+  for (const r of later) assert.ok(!/(^|[^·] )דנה($|[ :])/.test(r.title.replace(/(קפה|סטודיו) דנה · דנה/g, '')), r.title);
+  // The owner's summary of what is 24 hours late, and the clocks, name them the same way.
+  const late = lateSummary(buildEnv({ ...w, now: IL(2026, 10, 22, 18) }), IL(2026, 10, 22, 18)).join(' | ');
+  assert.match(late, /קפה דנה · דנה \(1\)/); // the line lists the first three, then "ועוד"
+  assert.doesNotMatch(late, /[(,:] דנה \(/);
 });

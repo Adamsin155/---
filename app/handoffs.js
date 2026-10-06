@@ -200,7 +200,7 @@ function resolveDue(spec, { stateOf, triggerAt, now }) {
   // Due at the handoff itself (process 26 starts when 25 is done): right away. Such a
   // process has a short working allowance before it is late (IMMEDIATE_MINUTES); the
   // message to the next person still says "מיד".
-  const immediate = !!triggerAt && (Math.abs(at - triggerAt) <= 6e4 || (isImmediate(PROC_OF.get(spec.proc)?.due) && at >= now));
+  const immediate = !!triggerAt && (Math.abs(at - triggerAt) <= 6e4 || (isImmediate(PROC_OF.get(spec.proc)) && at >= now));
   return { label: spec.label, at, now: immediate, late: !immediate && at < now, sla: null };
 }
 

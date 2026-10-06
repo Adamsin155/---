@@ -7,6 +7,7 @@
 // Ofir, and his returned fixes), "קיבלתי" on the editor's final versions (it closes
 // the editing), and "הגאנט מלא" (Irit is told by itself). The logic: app/ilai-logic.js.
 import { setCheck, clearCheck, setChecksBulk, updateClient, canUseVault } from './protocol-data.js';
+import { clientLabel } from './protocol-logic.js';
 import { h, toast, errorText, formatWhen } from './protocol-ui.js';
 import { offerHandoff } from './handoff-ui.js';
 import { loadAccessStatusForWork } from './office-data.js';
@@ -138,7 +139,7 @@ function dayCard(x, ctx) {
       ontoggle: (e) => { if (e.currentTarget.open) openCards.add(c.id); else openCards.delete(c.id); },
     },
       h('summary', { id: `${idp}-s` },
-        h('strong', {}, c.name),
+        h('strong', {}, clientLabel(c)),
         h('span', {}, `הבא: ${x.next.title}`), until(x.next.due, now),
         h('span', { class: 'muted small' }, `${x.lines.filter((l) => l.done).length} מתוך ${x.lines.length}`)),
       h('div', { class: 'il-part' },
@@ -204,7 +205,7 @@ function restCard(x, ctx) {
   const c = x.client;
   const idp = `il-r-${c.id}`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-rest:${c.id}` },
-    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'p23') }, c.name), h('span', { class: 'il-title' }, 'יתרת הגרפיקות'), until(x.state.dueAt)),
+    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'p23') }, clientLabel(c)), h('span', { class: 'il-title' }, 'יתרת הגרפיקות'), until(x.state.dueAt)),
     x.qa.stage === 'fixing'
       ? fixList({ client: c, checks: ctx.checks[c.id] || {}, kind: 'graphics', pre: '', fixer: 'ilai', me: ctx.me, viewer: ctx.viewer, onChange: ctx.refresh })
       : h('div', { class: 'of-acts' }, h('button', {
@@ -217,7 +218,7 @@ function finalCard(x, ctx) {
   const c = x.client;
   const key = `${x.pre}p27.toilai`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-final:${c.id}:${x.pre}` },
-    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, c.name),
+    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, clientLabel(c)),
       h('span', { class: 'il-title' }, `גרסאות סופיות בדרייב${x.n ? ` · סבב ${x.n}` : ''}`), h('span', { class: 'muted' }, ` · מ־${formatWhen(x.at)}`)),
     h('p', { class: 'task-meta' }, '״קיבלתי״ סוגר את משימת העריכה, ומתחילות השעתיים לתזמון ולגאנט.'),
     h('div', { class: 'of-acts' }, h('button', {
@@ -230,7 +231,7 @@ function ganttCard(x, ctx) {
   const c = x.client;
   const key = `${x.pre}p29.filled`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-gantt:${c.id}:${x.pre}` },
-    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, c.name),
+    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, clientLabel(c)),
       h('span', { class: 'il-title' }, `גאנט${x.n ? ` · סבב ${x.n}` : ''}`), until(x.state.dueAt)),
     h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-ghost gantt-go', href: ganttUrl(c.id) }, 'פתיחת גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`)), h('button', {
       type: 'button', class: 'btn btn-sm', id: `il-g-${c.id}-${x.pre.replace(/\W/g, '')}`,

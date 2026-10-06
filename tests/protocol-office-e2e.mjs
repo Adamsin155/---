@@ -683,7 +683,7 @@ await shot('16-ilai-mine');
 // Only the clients he works on: not the fresh ones yet, never the cancelled or ended.
 await page.click('#tab-clients');
 await page.waitForSelector('.crow');
-assert.deepEqual((await page.locator('.crow strong').allInnerTexts()).sort(), ['חנות ישנה', 'מסעדת הים', 'מספרת רון', 'סטודיו נטלי', 'קפה גליה'].sort());
+assert.deepEqual((await page.locator('.crow strong').allInnerTexts()).sort(), ['חנות ישנה', 'מסעדת הים', 'רון עיצוב שיער · מספרת רון', 'סטודיו נטלי', 'קפה גליה'].sort()); // the business first, when there is one
 assert.equal(await page.locator('.crow .cprog, #client-filters .chip').count(), 0);
 // The arrow keys move between his three tabs only: his work, his clients, his own numbers.
 await page.focus('#tab-clients');

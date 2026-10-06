@@ -15,7 +15,7 @@
 // The generic "משימה רגילה" rule leaves these sources to them (STATUS_SOURCES).
 // Pure: no DOM, no network, Israel time (tz.js), shared with the edge function.
 import { PEOPLE } from './protocol.js';
-import { parseDate, roundsOf } from './protocol-logic.js';
+import { parseDate, roundsOf, clientLabel } from './protocol-logic.js';
 import { dayFromKeyIL, partsIL } from './tz.js';
 
 export const CLIENT_FIX = 'client_fix';
@@ -40,7 +40,7 @@ function casesOf(env, source) {
   return env.tasks.filter((t) => t.source === source && !t.done_at && env.clientById.has(t.client_id) && parseDate(t.created_at)).map((t) => {
     const c = env.clientById.get(t.client_id);
     return {
-      id: t.id, cid: c.id, client: c, name: c.name, task: t, who: t.owner, brief: t.brief || {}, url: taskUrl(c.id),
+      id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, who: t.owner, brief: t.brief || {}, url: taskUrl(c.id),
       anchors: { event: parseDate(t.created_at), due: t.due_on ? dayFromKeyIL(t.due_on) : null },
     };
   });

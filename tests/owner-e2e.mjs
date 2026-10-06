@@ -413,10 +413,24 @@ await step('the client card: three lines (the colour and why, now, next) and the
   assert.equal(await owner.locator('#cc-head .kicker').innerText(), 'שלב נוכחי: יום צילום');
   assert.equal(await owner.locator('.ph-now').count() ? await owner.locator('.ph-now').first().innerText() : 'פתוח עכשיו', 'פתוח עכשיו');
   // The clients list names the same station.
+  // Two clients with the same contact are told apart by the business, which comes first (found live, 6.10.2026).
+  Object.assign(A, { business: 'רון עיצוב שיער' });
+  const [bName, bBusiness] = [B.name, B.business];
+  Object.assign(B, { name: A.name, business: 'מספרת רון חיפה' });
   const listPage = await owner.context().newPage();
   await listPage.goto(`${BASE}clients.html#clients`);
   await listPage.waitForSelector(`a.crow[href*="${A.id}"] .cphase`);
   assert.match(await listPage.locator(`a.crow[href*="${A.id}"] .cphase`).innerText(), /^שלב\s*יום צילום$/);
+  assert.equal(await listPage.locator(`a.crow[href*="${A.id}"] .cname strong`).innerText(), 'רון עיצוב שיער · מספרת רון');
+  assert.equal(await listPage.locator(`a.crow[href*="${B.id}"] .cname strong`).innerText(), 'מספרת רון חיפה · מספרת רון');
+  // The search finds a client by the business and by the contact.
+  const found = async (q) => { await listPage.fill('#client-search', q); return listPage.locator('#client-list a.crow .cname strong').allInnerTexts(); };
+  assert.deepEqual(await found('חיפה'), ['מספרת רון חיפה · מספרת רון']);
+  assert.deepEqual((await found('עיצוב שיער')), ['רון עיצוב שיער · מספרת רון']);
+  assert.deepEqual((await found('מספרת רון')).sort(), ['מספרת רון חיפה · מספרת רון', 'רון עיצוב שיער · מספרת רון']);
+  assert.ok(await listPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
+  Object.assign(A, { business: null });
+  Object.assign(B, { name: bName, business: bBusiness });
   await listPage.close();
   assert.match(lines[2], /^הבא: אישור התסריטים · ליאור · [^]* · מחכים מהלקוח: אישור התסריטים$/);
   // The timeline: what was done (who and when), what is open, what is planned.
