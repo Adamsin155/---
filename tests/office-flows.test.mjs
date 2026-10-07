@@ -290,7 +290,10 @@ test('pass list: risk first, what changed since the last pass, attention only wh
   assert.deepEqual(rows.map((r) => [r.client.id, r.attention]), [['a', true], ['c', true], ['n', true], ['b', true], ['d', false]]);
   const p = passProgress(rows, { a: { how: 'seen' } });
   assert.deepEqual([p.total, p.attention, p.handled, p.restOpen.length, p.complete], [5, 4, 1, 1, false]);
-  const all = passProgress(rows, Object.fromEntries(rows.map((r) => [r.client.id, { how: 'rest' }])));
+  // The stuck one ('c') is not closed by a bare "עברתי" (Ofir's stage 11; tests/pass-stuck-swap.test.mjs): it needs its action.
+  const bare = passProgress(rows, Object.fromEntries(rows.map((r) => [r.client.id, { how: 'rest' }])));
+  assert.deepEqual([bare.complete, bare.open.map((r) => r.client.id)], [false, ['c']]);
+  const all = passProgress(rows, { ...Object.fromEntries(rows.map((r) => [r.client.id, { how: 'rest' }])), c: { how: 'task', task: 't' } });
   assert.equal(all.complete, true);
   // Without a previous pass, only red, yellow and stuck need action.
   assert.deepEqual(passRows(now, {}).filter((r) => r.attention).map((r) => r.client.id), ['a', 'c']);

@@ -346,10 +346,75 @@ assert.match(week.find((d) => /20\.9/.test(d)), /בוצעה 09:12 · עירית/
 assert.match(week.find((d) => /16\.9/.test(d)), /לא בוצעה/);
 assert.match(week.at(-1), /היום[^]*טרם בוצעה/);
 assert.match(await p32.locator('.rv-sum').innerText(), /בוצעה ב־2 מתוך 7 ימי העבודה האחרונים/);
+// ── Irit's eleven topics (her protocol, step 19): one row each, in the protocol's order ──
+const TOPICS = ['חוזים', 'חתימות', 'קבוצות WhatsApp', 'הודעות פתיחה', 'פגישות אפיון', 'ימי צילום', 'משימות פתוחות', 'אישורי לקוחות', 'תיקונים', 'עובדים שטרם סיימו משימות', 'לקוחות שצריך לחזור אליהם'];
+assert.deepEqual(await p32.locator('.tp-list > li .tp-name').allInnerTexts(), TOPICS);
+assert.equal(await p32.locator('.rv-topics').count(), 0); // the static list "על מה עוברים" is gone from her process
+assert.equal(await page.locator('.rv-row').nth(1).locator('.rv-topics').count(), 1); // Ofir's keeps its own
+const tp = (key) => page.locator(`#tp-${key}`);
+const counts = await p32.locator('.tp-list > li').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.id.slice(3), e.classList.contains('is-empty') ? 0 : Number(e.querySelector('.n').textContent)])));
+// The work comes before the tick: the topics sit above "הבקרה היומית בוצעה".
+assert.ok(await page.evaluate(() => document.querySelector('.tp-list').compareDocumentPosition(document.getElementById('rv-p32')) & Node.DOCUMENT_POSITION_FOLLOWING));
+// A topic with nothing open: one quiet word, one line, nothing to open.
+assert.equal(await tp('fixes').innerText().then((t) => t.replace(/\s+/g, ' ')), 'תיקונים אין');
+assert.equal(await tp('fixes').locator('summary').count(), 0);
+assert.ok((await tp('fixes').boundingBox()).height <= 46);
+// The tick first says what was not opened; "לעבור עליהם" opens the first of them and marks nothing.
+const openKeys = Object.keys(counts).filter((k) => counts[k] > 0);
+assert.match(await page.innerText('#tp-left'), new RegExp(`^${openKeys.length} נושאים שיש בהם פריטים פתוחים עוד לא נפתחו היום: `));
+await page.click('#rv-p32');
+await page.waitForSelector('#dlg-unseen[open]');
+assert.deepEqual(await page.locator('#dlg-unseen .tp-unseen li').allInnerTexts(), openKeys.map((k) => `${TOPICS[Object.keys(counts).indexOf(k)]} (${counts[k]})`));
+assert.equal(await page.evaluate(() => document.activeElement.id), 'unseen-go');
+await page.click('#unseen-go');
+await page.waitForSelector(`#tp-${openKeys[0]} details[open]`);
+assert.equal(await page.isChecked('#rv-p32'), false);
+assert.ok(!db.office_reviews.some((r) => r.day === '2026-09-22' && r.kind === 'p32'));
+assert.equal(await page.evaluate(() => document.activeElement.closest('.tp-row')?.id), `tp-${openKeys[0]}`);
+// Each item leads to the client card at the right process, with how long it has been open.
+assert.deepEqual(counts, { contracts: 1, signatures: 0, groups: 1, intro: 1, chars: 2, shoots: 4, tasks: 0, approvals: 0, fixes: 0, staff: 4, back: 1 });
+// The client the trigger opened three minutes ago has no group yet; the pizzeria's group is open and its intro message is not sent.
+await tp('groups').locator('summary').click();
+assert.match(await tp('groups').locator('.tp-item').innerText(), /סלון יופי אור[^]*הקבוצה לא נפתחה · מהיום/);
+assert.match(await tp('groups').locator('.tp-item a.wclient').getAttribute('href'), new RegExp(`client\\.html\\?id=${auto.id}#p02$`));
+await tp('intro').locator('summary').click();
+assert.match(await tp('intro').locator('.tp-item').innerText(), /פיצה נאפולי[^]*לא נשלחה הודעת היכרות · מהיום[^]*באיחור/);
+// Shoot days: Thursday's (not closed with everyone yet), and the clients with no day set; the late one first of those.
+await tp('shoots').locator('summary').click();
+assert.deepEqual(await tp('shoots').locator('.tp-item .tp-text').allInnerTexts(), [
+  'יום צילום · עוד לא סגור מול כולם · יום ה׳, 24.9 10:00', 'לא נקבע יום צילום · 4 ימי עסקים', 'לא נקבע יום צילום · סבב 2 · מהיום', 'לא נקבע יום צילום · מהיום',
+]);
+assert.match(await tp('shoots').locator('.tp-item').nth(2).locator('a.wclient').getAttribute('href'), /#r2-p11$/);
+// Employees who have not finished: the same numbers as the table below, and the same way to each one's list.
+await tp('staff').locator('summary').click();
+assert.match(await tp('staff').locator('.tp-item').first().innerText(), /באיחור \d+ · פתוחים \d+[^]*הרשימה של /);
+await tp('back').locator('summary').click();
+const backRow = tp('back').locator('.tp-item', { hasText: 'קפה גליה' });
+assert.match(await backRow.innerText(), /הגיע מועד הבדיקה · ממתין ללקוח: לקיחת גישות לרשתות · ״הלקוח עוד לא שלח גישה לאינסטגרם״[^]*ימי עסקים/);
+assert.match(await backRow.locator('a.wclient').getAttribute('href'), new RegExp(`client\\.html\\?id=${waiting.id}#p05$`));
+// Her step 20: a late item keeps the card's own "דיווח חריגה לליאור" one tap away.
+assert.match(await backRow.locator('a.tp-esc').getAttribute('href'), new RegExp(`client\\.html\\?id=${waiting.id}#btn-escalate$`));
+// The lists the control already had stay one tap away from their topic.
+await tp('back').locator('.tp-more button').click();
+assert.equal(await page.evaluate(() => document.activeElement.id), 'ctl-wait');
+// Opening the rest: nothing is left, and one tick closes the day.
+for (const k of openKeys) if ((await tp(k).locator('details').getAttribute('open')) === null) await tp(k).locator('summary').click();
+await page.waitForFunction(() => document.getElementById('tp-left')?.textContent === 'עברת על כל הנושאים שיש בהם פריטים פתוחים.');
+await shot('03a-control-topics');
+if (OUT) {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.locator('.rv-walk').screenshot({ path: `${OUT}/03b-1366-topics-only.png` });
+  await page.setViewportSize({ width: 1280, height: 900 });
+}
 // Irit marks her review; Ofir's she marks on his behalf.
 await page.check('#rv-p32');
 await toastHas('הבקרה של היום סומנה.');
 assert.ok(db.office_reviews.some((r) => r.day === '2026-09-22' && r.kind === 'p32' && r.by_email === USER.email));
+// The record keeps what was open at the tick, and that every one of them was opened.
+const tick = JSON.parse(db.office_reviews.find((r) => r.day === '2026-09-22' && r.kind === 'p32').note);
+assert.deepEqual(tick, { general: '', clients: {}, open: Object.fromEntries(openKeys.map((k) => [k, counts[k]])), unseen: [] });
+assert.match(await p32.locator('.rv-record').innerText(), /^בזמן הסימון היו פתוחים: /);
+assert.equal(await page.locator('#tp-left').count(), 0);
 assert.match(await p32.innerText(), /בוצעה · עירית · 10:0\d/);
 assert.match(await p32.locator('.rv-sum').innerText(), /בוצעה ב־3 מתוך 7/);
 await page.locator('.rv-row').nth(1).locator('button:text("סימון בשם אופיר")').click();
@@ -366,6 +431,7 @@ await page.click('#notes-submit');
 await toastHas('ההערות נשמרו.');
 const saved = JSON.parse(db.office_reviews.find((r) => r.day === '2026-09-22' && r.kind === 'p32').note);
 assert.equal(saved.clients[waiting.id], 'מחכים לגישה, אתקשר אחה״צ');
+assert.deepEqual([saved.open, saved.unseen], [tick.open, []]); // the notes do not wipe what the tick saw
 assert.match(await wl.innerText(), /עירית, הבוקר: ״מחכים לגישה, אתקשר אחה״צ״/);
 // Team summary
 const team = await waText('.team-summary .wa-link');
@@ -675,6 +741,41 @@ assert.ok((await mob.locator('.ctl-nav .chip').first().boundingBox()).height >= 
 await shot('15-mobile-status-dialog', mob);
 await mob.locator('#dlg-status .dlg-foot [data-close]').click();
 
+// ── Irit's control on a 390px phone: the eleven topics in about two screens, and "לסמן בכל זאת" is recorded as such ──
+db.office_reviews = db.office_reviews.filter((r) => !(r.kind === 'p32' && r.day === '2026-09-22')); // today's control is open again
+await mob.setViewportSize({ width: 390, height: 844 });
+await mob.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('astrateg.control.seen.')) localStorage.removeItem(k); });
+await mob.goto('about:blank');
+await mob.goto(`${BASE}clients.html#control`);
+await mob.waitForSelector('.tp-list');
+assert.ok(await noHScroll(mob), 'the control scrolls sideways at 390px');
+const walk = await mob.locator('.rv-walk').boundingBox();
+assert.ok(walk.height <= 2 * 844, `Irit's control is ${Math.round(walk.height)}px high at 390px: more than two screens`);
+const rowHeights = await mob.locator('.tp-list > li').evaluateAll((els) => els.map((e) => Math.round((e.querySelector('summary') || e).getBoundingClientRect().height)));
+assert.equal(rowHeights.length, 11);
+assert.ok(rowHeights.every((x) => x >= 44 && x <= 60), `topic rows: ${rowHeights.join(', ')}`); // one line each, a full touch target
+await shot('16-mobile-390-control-topics', mob);
+if (OUT) await mob.locator('.rv-walk').screenshot({ path: `${OUT}/16b-mobile-390-topics-only.png` });
+const mobOpen = await mob.locator('.tp-list > li:not(.is-empty)').evaluateAll((els) => els.map((e) => e.id.slice(3)));
+await mob.locator(`#tp-${mobOpen[0]} summary`).click();
+await mob.waitForSelector(`#tp-${mobOpen[0]} .tp-item`);
+for (const el of await mob.locator(`#tp-${mobOpen[0]} .tp-item a, #tp-${mobOpen[0]} .tp-item button`).all()) assert.ok((await el.boundingBox()).height >= 44, 'a link inside a topic is a 44px target');
+assert.ok(await noHScroll(mob), 'an open topic scrolls sideways at 390px');
+await shot('17-mobile-390-topic-open', mob);
+if (OUT) await mob.locator('.rv-walk').screenshot({ path: `${OUT}/17b-mobile-390-topic-open-only.png` });
+await mob.click('#rv-p32');
+await mob.waitForSelector('#dlg-unseen[open]');
+assert.equal(await mob.locator('#dlg-unseen .tp-unseen li').count(), mobOpen.length - 1);
+assert.ok(await noHScroll(mob), 'the confirmation scrolls sideways at 390px');
+for (const id of ['#unseen-mark', '#unseen-go']) assert.ok((await mob.locator(id).boundingBox()).height >= 44, id);
+await shot('18-mobile-390-unseen', mob);
+await mob.click('#unseen-mark');
+await mob.waitForFunction(() => document.querySelector('.rv-walk .rv-record'));
+const anyway = JSON.parse(db.office_reviews.find((r) => r.day === '2026-09-22' && r.kind === 'p32').note);
+assert.deepEqual(Object.keys(anyway.open), mobOpen);
+assert.deepEqual(anyway.unseen, mobOpen.slice(1)); // marked anyway: the record says which were not opened
+assert.match(await mob.locator('.rv-walk .rv-record').innerText(), /בזמן הסימון היו פתוחים: [^]* לא נפתחו: /);
+
 // ── Role views: everyone lands on their own work ──
 // Ilai ('own'): his list only. No picker, no one else's list, no office screens, not even by link.
 db.staff[0].person = 'ilai';
@@ -817,6 +918,9 @@ assert.equal(await thu.evaluate(() => document.activeElement.id), 'ctl-status');
 const p33row = thu.locator('.rv-row').nth(1);
 assert.match(await p33row.innerText(), /עבר יותר מיומיים מהבקרה האחרונה[^]*הבקרה האחרונה: א׳ 20\.9/);
 assert.equal(await thu.locator('.rv-row').first().locator('.rv-stale').count(), 0); // process 32 is daily, flagged elsewhere
+// Irit's eleven topics are hers: in Ofir's personal profile her process keeps its one short line.
+assert.equal(await thu.locator('.tp-list, .tp-row').count(), 0);
+assert.equal(await thu.locator('.rv-row').first().locator('.rv-topics').count(), 1);
 await shot('14-thursday-control', thu);
 
 // The office day is Israel's on any device: at 01:30 on Thursday in Jerusalem a

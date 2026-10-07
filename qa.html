@@ -156,6 +156,18 @@
           <legend>העורך</legend>
           <div id="as-editors"></div>
         </fieldset>
+        <fieldset class="as-clock" id="as-clock-wrap" hidden>
+          <legend>מועדי העריכה</legend>
+          <p class="as-clock-late" id="as-clock-late" hidden></p>
+          <label class="wrow" for="as-clock-restart">
+            <input type="radio" class="radio" name="as-clock" id="as-clock-restart" value="restart">
+            <span class="wlabel" id="as-clock-restart-label"></span>
+          </label>
+          <label class="wrow" for="as-clock-keep">
+            <input type="radio" class="radio" name="as-clock" id="as-clock-keep" value="keep">
+            <span class="wlabel" id="as-clock-keep-label"></span>
+          </label>
+        </fieldset>
         <div class="field" id="as-reason-wrap">
           <label for="as-reason" id="as-reason-label">סיבה</label>
           <textarea class="input" id="as-reason" rows="2" maxlength="500" aria-describedby="as-reason-hint"></textarea>
