@@ -477,7 +477,7 @@ await step('"החלפת עורך" from the load list: the same dialog and rules;
   await ofir.waitForSelector('#handoff:not([hidden])');
   assert.match(await ofir.locator('#handoff').innerText(), /עורך שויך · ניראל[^]*לשלוח לניראל בוואטסאפ/);
   await ofir.click('#handoff-close');
-  assert.equal(db.client_tasks.filter((t) => t.client_id === N.id && t.title.startsWith('פתיחת תיקייה')).length, 1);
+  assert.equal(db.client_tasks.filter((t) => t.client_id === N.id && t.title.startsWith('פתיחת תיקייה')).length, 0);
   assert.match(await ofir.locator('#load-list .of-editor', { hasText: 'ניראל' }).innerText(), /סטודיו נטלי · שויך היום/);
   // The reminder engine: the notice "לקוח חדש בעריכה אצלך" is now Nirel's, not Nadia's.
   const byClient = {};
