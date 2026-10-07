@@ -52,6 +52,7 @@ jobs:
           node tests/year-e2e.mjs
           node tests/gantt-e2e.mjs
           node tests/insights-e2e.mjs
+          node tests/smooth-e2e.mjs
           node scripts/build-payment-site.mjs /tmp/site/payouts /payouts/
           (cd /tmp/site && npx --yes http-server -p 8082 -s . > /dev/null 2>&1 &)
           npx --yes wait-on -t 30000 http://localhost:8082/payouts/

@@ -1,7 +1,9 @@
 // Shared view helpers for the client protocol pages: login, people, dates, statuses.
 import {
   supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT,
+  sessionEmail, staffPerson, requestsIdle,
 } from './supa.js';
+import { warmDirectory } from './protocol-data.js';
 import { h } from './quote-doc.js';
 import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';
 import { businessDaysBetween, readWaited } from './protocol-logic.js';
@@ -156,6 +158,17 @@ const LANDED = 'astrateg.firstLanded';
 export function markFirstLanded() { try { sessionStorage.setItem(LANDED, '1'); } catch { /* no storage */ } }
 export function firstLanded() { try { return sessionStorage.getItem(LANDED) === '1'; } catch { return true; } }
 
+// The first screen of a page arrives in pieces (who is signed in, the menu, the lists,
+// the cards above them), and a piece that lands above another pushes it down under the
+// finger. So while a page opens, <html data-boot> keeps #app out of sight (it is laid
+// out as usual) and shell.css draws a quiet placeholder; the page is shown once, whole.
+// The staff pages carry data-boot in their markup, so the placeholder is there from the
+// first paint (docs/ops.md, section 42).
+// KEEP_BOOT: what a page returns when it is leaving for another one, so nothing of it is shown.
+export const KEEP_BOOT = new Promise(() => {});
+const bootStart = () => { if (!('boot' in document.documentElement.dataset)) document.documentElement.dataset.boot = ''; };
+export const bootEnd = () => { delete document.documentElement.dataset.boot; };
+
 // Session bar + login form. Calls onReady(staff) once a staff member is signed in.
 // A personal sign-in link in the address bar first asks for a password (set-password.js).
 export function mountSession(onReady) {
@@ -166,9 +179,15 @@ export function mountSession(onReady) {
   };
   async function boot() {
     let staff = null;
+    // Someone is signed in on this device: who they are and the team's names are asked
+    // for now, while the server confirms the session, and not one after the other.
+    sessionEmail().then((email) => { if (email) { staffPerson(email); warmDirectory(); } });
     try { staff = await currentStaff(); } catch { /* offline */ }
     setSession(staff);
     const ok = !!staff?.isStaff;
+    // The page is built out of sight and shown whole (bootStart): from here until the
+    // first screen is ready, the placeholder of shell.css stands in its place.
+    if (ok) bootStart(); else bootEnd();
     $('login-block').hidden = ok;
     $('app').hidden = !ok;
     if (ok) {
@@ -177,8 +196,15 @@ export function mountSession(onReady) {
       import('./whatsapp.js').then((m) => m.promptWhatsapp()).catch(() => {});
       // The app shell: the menu of this person's screens (the side menu, or the bottom bar on a
       // phone) with the managers' switch, "המשימות שלי" / "מבט מנהל", as its first entries (app/shell.js).
-      import('./shell.js').then((m) => m.mountShell(staff.email)).catch(() => {});
-      return onReady(staff);
+      const shell = import('./shell.js').then((m) => m.mountShell(staff.email)).catch(() => {});
+      try {
+        return await onReady(staff);
+      } finally {
+        // Shown together with the page: the menu (it hides the head's links to screens it
+        // already offers) and what the page's cards asked for on their own. Never held for long.
+        await Promise.race([Promise.all([shell, requestsIdle()]), new Promise((done) => { setTimeout(done, 1500); })]);
+        bootEnd();
+      }
     }
     if (staff && !staff.isStaff) {
       $('lg-err').textContent = 'המשתמש מחובר אך אינו מורשה. יש לבקש הרשאה ממנהל המערכת.';
@@ -226,9 +252,8 @@ export function mountSession(onReady) {
 // screens only: what anyone may read or change is decided by the database.
 // If the lookup fails, nothing is assumed: the screens show only a notice.
 export async function viewerOf(email) {
-  const { data, error } = await supabase.from('staff').select('person').eq('email', String(email || '').toLowerCase()).maybeSingle();
+  const { person, error } = await staffPerson(email);
   if (error) return { me: null, scope: 'own', error };
-  const person = data?.person || null;
   return { me: person && person !== 'editor' && PEOPLE[person] ? person : null, scope: scopeOf(person), error: null };
 }
 export const VIEWER_UNKNOWN = 'לא הצלחנו לזהות את המשתמש שלך בפרוטוקול. רעננו את הדף; אם זה חוזר, פנו למנהל המערכת.';

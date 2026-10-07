@@ -69,6 +69,7 @@ import { contractSummary, fileCounts } from './contract-summary.js';
 import { loadDeliverableFiles, archiveClient } from './manager-data.js';
 import { canArchive } from './manager-rules.js';
 import { openedBySigning } from './client-open.js';
+import { warm, taken } from './supa.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -127,18 +128,23 @@ const hasPart = (proc, person) => proc.items.some((i) => i.owners.includes(perso
 const canAddTask = () => scope === 'office'; // 'own' roles report through the exception and pause forms
 const names = (keys) => keys.map((k) => PEOPLE[k]?.name || k).join(', ');
 
+// The client's first rows, asked for while the session is being confirmed (app/supa.js warm).
+const firstRows = () => Promise.all([loadClient(id), loadChecks(id), loadTasks({ clientId: id })]);
+if (id) { warm('card', firstRows); warm('card-vault', () => canUseVault(id)); }
 async function load() {
   if (!id) { $('state').textContent = 'לא נבחר לקוח.'; return; }
   if (!client) $('state').textContent = 'טוען…';
   try {
-    const [c, ch, t] = await Promise.all([loadClient(id), loadChecks(id), loadTasks({ clientId: id })]);
+    const [c, ch, t] = await taken('card', firstRows);
     if (!c) { showMissing(); return; }
     $('state').classList.remove('no-access');
     client = c;
     checks = ch[id] || {};
     tasks = t;
-    if (c.quote_id && (!quote || quote.id !== c.quote_id)) quote = await loadQuoteSummary(c.quote_id);
-    [access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles] = await Promise.all([
+    primeBlocks();
+    // The agreement and the rest are asked for side by side (they do not depend on each other).
+    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles] = await Promise.all([
+      c.quote_id && (!quote || quote.id !== c.quote_id) ? loadQuoteSummary(c.quote_id) : quote,
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
       own() ? null : loadHealthExtras(id, new Date(Date.now() - 30 * 864e5).toISOString()),
@@ -154,7 +160,25 @@ async function load() {
   $('state').textContent = '';
   document.title = `${client.name} · כרטיס לקוח · astrateg`;
   renderKeepingFocus();
+  drawn = true;
   loadHistory();
+}
+
+// The blocks that read their own rows (the characterization, the status page, the
+// client's files, the monthly cycle) start reading as soon as the client is known, at
+// the same time as the rest of the card and not after its first drawing. Each draws
+// itself when the card does; one that answers later asks the card to draw again.
+let primed = false;
+let drawn = false;
+function primeBlocks() {
+  if (primed) return;
+  primed = true;
+  const later = () => { if (drawn) renderKeepingFocus(); };
+  const who = viewerError ? undefined : me;
+  mountClientIntake($('ik-slot'), { client, scope, toast, rerender: later, scripts: false, me: who });
+  mountClientStatus($('st-slot'), { client, scope, me, toast });
+  mountClientFiles($('fl-slot'), { client, me: who, myEmail, toast });
+  mountClientMonth($('mc-slot'), { client, state: clientState(client, checks, new Date()), me, scope, office: worksCycle({ me, scope, error: viewerError }), rerender: later });
 }
 
 // No client came back. The database shows each person only the clients they work
@@ -800,7 +824,7 @@ function renderPhases(s) {
         own() ? null : h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEdit(FIELD_INPUT[missing[0]]) }, 'השלמת פרטים')) : null,
       h('div', { class: 'procs' },
         !showDone && done.length ? h('button', {
-          type: 'button', class: 'done-row', 'aria-expanded': 'false', onclick: () => { shownDone.add(ph.key); render(); },
+          type: 'button', class: 'done-row', 'aria-expanded': 'false', onclick: () => { shownDone.add(ph.key); redrawPhases(); },
         }, h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' })),
         `${done.length} תהליכים הושלמו (${done.map((x) => x.proc.num).join(', ')})`, h('span', { class: 'btn-text' }, 'הצגה')) : null,
         ...list.filter((x) => showDone || !x.complete).map((x) => procCard(x, now, s)),
@@ -942,6 +966,15 @@ const afterHandoff = () => { renderKeepingFocus(); loadHistory(); };
 // A missing WhatsApp number: the team page (where it is added) is linked only for those who can open it.
 const canTeam = () => canManageTeam({ me, scope, error: viewerError });
 
+// A block opened or folded inside the protocol: only the protocol is drawn again, not
+// the whole card (the head, the files, the vault and the rest did not change).
+function redrawPhases(focusId = null) {
+  const y = window.scrollY;
+  renderPhases(clientState(client, checks, new Date()));
+  window.scrollTo({ top: y });
+  if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+}
+
 function procCard(x, now, s) {
   const p = x.proc;
   const pid = p.id.replace(/^r\d+-/, '');
@@ -982,7 +1015,7 @@ function procCard(x, now, s) {
         p.recurring || compact ? null : h('span', { class: 'num muted', dir: 'ltr' }, `${count.resolved}/${count.required}`),
         x.complete && !printing ? h('button', {
           type: 'button', class: 'btn-text', 'aria-expanded': String(!compact), id: `${p.id}-items`,
-          onclick: () => { if (compact) shownProcs.add(p.id); else shownProcs.delete(p.id); renderKeepingFocus(`${p.id}-items`); },
+          onclick: () => { if (compact) shownProcs.add(p.id); else shownProcs.delete(p.id); redrawPhases(`${p.id}-items`); },
         }, compact ? 'הצגת הפריטים' : 'הסתרת הפריטים') : null,
         canWait && !x.wait ? h('button', { type: 'button', class: 'btn-text wait-btn', onclick: () => openWait(x) }, 'ממתין ללקוח') : null)),
     compact ? handoffs : null,
@@ -1906,7 +1939,7 @@ function applyScope() {
 mountSession(async (staff) => {
   myEmail = staff.email;
   // The vault of this client: the vault flag and, outside the office, a client assigned to me.
-  const [dir, viewer, vault] = await Promise.all([loadDirectory(), viewerOf(staff.email), canUseVault(id)]);
+  const [dir, viewer, vault] = await Promise.all([loadDirectory(), viewerOf(staff.email), taken('card-vault', () => canUseVault(id))]);
   Object.assign(directory, dir);
   ({ me, scope } = viewer);
   viewerInfo = viewer;

@@ -112,7 +112,8 @@ function worker({ windows = [] } = {}) {
 
 test('sw.js: a push is always shown, with the page it is about (this site only)', async () => {
   const w = worker();
-  assert.deepEqual(Object.keys(w.listeners).sort(), ['install', 'notificationclick', 'push']); // no fetch handler, no cache
+  // In the repository: no fetch handler and nothing kept ('activate' only clears what a published worker kept; docs/ops.md, section 42).
+  assert.deepEqual(Object.keys(w.listeners).sort(), ['activate', 'install', 'notificationclick', 'push']);
   const data = (o) => ({ data: { json: () => o, text: () => JSON.stringify(o) } });
   await w.fire('push', data({ title: 'הלקוח לא ענה: קפה', body: 'להתקשר', url: 'client.html?id=1#p07', tag: 'answer:1' }));
   assert.equal(w.shown[0].title, 'הלקוח לא ענה: קפה');
