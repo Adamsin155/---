@@ -4,7 +4,7 @@
 // tests/whatsapp.test.mjs passes fakes of both.
 //
 // It adds nothing to what push sends: the rows are the ones the tick already chose
-// (sending hours, the daily cap, Lior's shoot day, the log's dedupe). Each row goes
+// (sending hours, Lior's shoot day, the log's dedupe). Each row goes
 // out on WhatsApp at most once: public.whatsapp_messages has one row per
 // reminder_log row, claimed before sending (a row a later tick takes again finds
 // its claim). A claim whose send never finished (the tick died) is marked failed

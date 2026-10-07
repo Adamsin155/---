@@ -4,7 +4,8 @@
 //
 // A tick: load everything (service role) → the ladder steps due now
 // (app/reminder-engine.js) → the ones the log does not have → where each one goes
-// (push now, in the app, the next digest, or stale) → claim them in
+// (push now, the next digest or batch of lateness notes, or stale; since 7.10.2026
+// nothing stays in the app only, and there is no daily cap) → claim them in
 // public.reminder_log (the key is unique, so two overlapping ticks never send the
 // same step twice) → the digests due now → the pushes. A dead subscription (404 or
 // 410) is removed; every other failure is recorded on the log row and on the
@@ -21,7 +22,7 @@
 import {
   buildEnv, candidates, computeReminders, planDelivery, planDigests, pushPayload, notKnown,
 } from '../_shared/app/reminder-engine.js';
-import { atIL, DIGESTS, FOLD, REMINDER_PEOPLE } from '../_shared/app/reminder-rules.js';
+import { atIL, DIGESTS, FOLD, REMINDER_PEOPLE, BATCH } from '../_shared/app/reminder-rules.js';
 import { isBusinessDay } from '../_shared/app/protocol-logic.js';
 import { planAutoAssign } from '../_shared/app/auto-assign.js';
 
@@ -159,7 +160,7 @@ export async function runTick({ db, push, wa = null, now = new Date() }) {
   const active = new Set(all.map((r) => r.key));
   const known = await db.known([...active]);
   const fresh = all.filter(notKnown(known));
-  const planned = planDelivery({ reminders: fresh, now, log: input.log, liorShoot: env.liorShoot });
+  const planned = planDelivery({ reminders: fresh, now, liorShoot: env.liorShoot });
   const inserted = await claim(db, planned.map((r) => rowOf(r, now)), stats);
   stats.steps = inserted.length;
   for (const r of inserted) {
@@ -186,7 +187,8 @@ export async function runTick({ db, push, wa = null, now = new Date() }) {
       client_id: null, ref: null, title: clip(d.title, 300), body: clip(d.body, 2000), url: d.url, due_at: now.toISOString(), sent_at: null,
     }]);
     if (!row) continue; // another tick already sent this digest
-    if (d.include.length) await db.updateLog(d.include.map((r) => r.id), { status: 'sent', channel: 'digest', reason: 'digest', digest_key: d.key, sent_at: now.toISOString() });
+    // A batch of lateness notes (kind 'late') keeps its own reason on the notes it carried.
+    if (d.include.length) await db.updateLog(d.include.map((r) => r.id), { status: 'sent', channel: 'digest', reason: d.kind === 'late' ? BATCH : 'digest', digest_key: d.key, sent_at: now.toISOString() });
     if (d.fold?.length) {
       await claim(db, d.fold.map((r) => ({ ...rowOf({ ...r, channel: 'digest', status: 'sent', reason: 'fold' }, now), digest_key: d.key })), stats);
     }
@@ -210,7 +212,7 @@ export async function runTick({ db, push, wa = null, now = new Date() }) {
       await db.updateLog([row.id], { status: 'suppressed', reason: 'resolved' });
       stats.dropped += 1;
     } else {
-      const [again] = planDelivery({ reminders: [step], now, log: input.log.filter((x) => x.id !== row.id), liorShoot: env.liorShoot });
+      const [again] = planDelivery({ reminders: [step], now, liorShoot: env.liorShoot });
       if (again.channel === 'push') {
         sends.push({ row, kind: 'ring' });
         stats.recovered += 1;
