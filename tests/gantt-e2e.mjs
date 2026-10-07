@@ -875,6 +875,7 @@ await step('Metricool, while the switch is off: a line says so; Ilai connects th
   await page.click('#bd-save');
   await toastHas(page, 'הלקוח חובר למותג ״מספרת רון״');
   assert.deepEqual([A.metricool_blog_id, A.metricool_brand], ['101', 'מספרת רון']);
+  // The line changes together with the message (not a request later, as it did).
   assert.match(await page.innerText('#gt-mc'), /מחובר ל״מספרת רון״ ב־Metricool\. הסנכרון כבוי, והסימון ידני\./);
   assert.equal(await page.innerText('#btn-brand'), 'החלפת מותג');
   // The same brand cannot be given to another client.
@@ -924,7 +925,11 @@ await step('with the switch on, a sync marks the Gantt: scheduled with a clock, 
     mcPost(3, bad.day, '19:00', 'ERROR', { detailedStatus: 'Token expired' }),
     mcPost(4, '2026-11-27', '09:30', 'PENDING'), // a Friday: the template never posts then, so no entry fits
   ] };
-  const planned = syncClient(A, listing, new Date(Date.parse(serverNow()) - 4 * 60e3).toISOString());
+  // Four minutes before the clock of the page that opens below. A page's clock starts at
+  // NOW when its context opens, while serverNow() has been running since the suite began:
+  // measured from serverNow(), the line read "3 דקות" whenever the suite had been running
+  // for a minute or more (every time the browser suites ran side by side).
+  const planned = syncClient(A, listing, new Date(NOW.getTime() - 4 * 60e3).toISOString());
   assert.deepEqual([planned.stats.matched, planned.stats.extras, planned.failed.length], [3, 1, 1]);
   const ctx = await newContext({ width: 1440, height: 900 });
   const page = await newPage(ctx);

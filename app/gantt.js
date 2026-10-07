@@ -208,7 +208,8 @@ function renderMetricool() {
     type: 'button', class: 'btn btn-sm btn-ghost gt-mc-act', id: 'btn-brand',
     onclick: () => brandUi.openBrandDialog({
       client, current: mc.brand, toast,
-      onSaved: async (saved) => { mc.brand = saved; mc.sync = null; if (saved.blogId) mc.none = false; rows = (await data.loadGantt(client.id).catch(() => rows)) || rows; render(); },
+      // The line says it at once, with the message; the entries are read again after it.
+      onSaved: async (saved) => { mc.brand = saved; mc.sync = null; if (saved.blogId) mc.none = false; render(); rows = (await data.loadGantt(client.id).catch(() => rows)) || rows; render(); },
     }),
   }, mc.brand.blogId ? 'החלפת מותג' : 'חיבור למותג ב־Metricool') : null;
   const back = canEdit && none ? h('button', {
