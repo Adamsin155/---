@@ -100,6 +100,18 @@
     </div>
   </dialog>
 
+  <!-- Eli: the scripts of one of his shoot days, read-only (public.shoot_scripts). -->
+  <dialog id="dlg-scripts" class="dlg-wide" aria-labelledby="scr-h">
+    <div class="dlg-head">
+      <h2 id="scr-h" tabindex="-1">התסריטים</h2>
+      <button type="button" class="close" data-close aria-label="סגירה">×</button>
+    </div>
+    <div class="dlg-body">
+      <p class="muted" id="scr-sum" role="status"></p>
+      <ol class="sh-scripts" id="scr-list"></ol>
+    </div>
+  </dialog>
+
   <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="app/shoot.js"></script>
 </body>

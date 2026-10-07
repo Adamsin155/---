@@ -6,7 +6,7 @@
 //    the client card ("תוקן"), they come back as a second check, he approves, and
 //    the handoff to Irit is offered.
 //  - The assignment: Nirel preselected for Natali; Nadia only with a reason; the
-//    folder task (24) and the WhatsApp to the editor.
+//    WhatsApp to the editor (no Drive folder task since package 1).
 //  - Thursday: the pass over the clients ("עברתי", "עברתי על כל השאר", recorded as
 //    the day's control), a data-health fix in one tap, the summary prefilled.
 //  - Lior lands on "החלטות": an exception through reason → decision → next action
@@ -130,6 +130,10 @@ const db = {
   client_date_changes: [],
   client_questions: [],
   quotes: [{ id: quoteN.id, number: 'AST-1', model: { selection: quoteN.selection } }],
+  // Package 1: "מוכן לבדיקה" opens only once a graphic of the batch is in the client's
+  // files. Ilai's first graphic for מאפיית שחר is already up (the upload itself and
+  // the lock: tests/package1-e2e.mjs).
+  client_files: [{ id: 'f0000000-0000-4000-8000-000000000001', client_id: I.id, kind: 'deliverable_graphic', label: null, storage_path: `${I.id}/deliverable_graphic/f0000000-0000-4000-8000-000000000001-post-1.png`, mime: 'image/png', size_bytes: 2048, posted_on: null, link: null, uploaded_by: 'ilai@astrateg.test', created_at: IL('2026-10-20T09:40:00'), deleted_at: null }],
   office_passes: [],
   task_decisions: [],
   change_requests: [],
@@ -401,7 +405,7 @@ await step('the re-check: back in the queue as check 2 with what was returned; a
   await ofir.click('#handoff-close');
 });
 
-await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the folder task and the WhatsApp to the editor', async () => {
+await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the WhatsApp to the editor, and no Drive folder task', async () => {
   await ofir.click('#assign-list button');
   await ofir.waitForSelector('#dlg-assign[open]');
   assert.equal(await ofir.isChecked('#as-e-nirel'), true);
@@ -419,24 +423,16 @@ await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the 
   assert.ok(checkOf(N, 'p22a.assigned') && checkOf(N, 'p22a.load'));
   assert.equal(checkOf(N, 'p22a.irit').note, 'נסגר לבד: השיוך נרשם במערכת');
   assert.deepEqual(JSON.parse(checkOf(N, 'p22a.reason').note), { editor: 'nadia', reason: 'ניראל עמוסה השבוע בבריפים', preselected: 'nirel', joint: false });
-  const folder = db.client_tasks.find((t) => t.client_id === N.id && t.owner === 'ofir');
-  assert.equal(folder.title, 'פתיחת תיקייה מסודרת בדרייב לעריכה (24)');
-  assert.equal(folder.due_on, '2026-10-21');
+  // Package 1: the videos go up into the client's files, so nobody is asked for a Drive folder.
+  assert.equal(db.client_tasks.find((t) => t.client_id === N.id && t.owner === 'ofir'), undefined);
+  assert.equal(await ofir.locator('#as-after').innerText(), 'השיוך מסמן את 22א ומכין וואטסאפ לעורך עם שני המועדים.');
   await ofir.waitForSelector('#handoff:not([hidden])');
   assert.match(await ofir.locator('#handoff').innerText(), /עורך שויך · נדיה[^]*לשלוח לנדיה בוואטסאפ/);
   const text = new URL(await ofir.getAttribute('.handoff-wa', 'href')).searchParams.get('text');
-  assert.match(text, /סטודיו נטלי עובר לעריכה אצלך[^]*בדרייב ואצל אופיר לבקרה: [^]*סגירה, כולל תיקוני הלקוח: /);
+  assert.match(text, /סטודיו נטלי עובר לעריכה אצלך[^]*בתיק הלקוח במערכת ואצל אופיר לבקרה: [^]*סגירה, כולל תיקוני הלקוח: /);
   await ofir.click('#handoff-close');
   assert.match(await ofir.locator('#assign-list').innerText(), /אין לקוחות שמחכים לשיוך עורך/);
   await shot(ofir, 'office-03-assigned');
-  // The folder task, done from "המשימות שלי", is item 24 "יש תיקייה מסודרת" too.
-  await ofir.goto(`${BASE}clients.html#mine`);
-  const box = `#w-${N.id}-${folder.id}`.replace(/[^\w#-]/g, '_');
-  await ofir.waitForSelector(box);
-  await ofir.check(box);
-  await toastHas(ofir, 'סומן כבוצע');
-  assert.ok(db.client_tasks.find((t) => t.id === folder.id).done_at);
-  assert.ok(checkOf(N, 'p24.folder'));
   await ofir.goto(`${BASE}qa.html`);
   await ofir.waitForSelector('#qa-list .of-card');
 });
@@ -556,7 +552,7 @@ await step('Ilai: the characterization day card; the vault statuses check the ac
   await ilai.waitForSelector('#handoff:not([hidden])');
   assert.match(await ilai.locator('#handoff').innerText(), /לשלוח לעירית בוואטסאפ/);
   await ilai.click('#handoff-close');
-  await ilai.locator('.il-card', { hasText: 'מאפיית שחר' }).locator('label', { hasText: 'הקובץ השנתי' }).locator('input').check();
+  await ilai.locator('.il-card', { hasText: 'מאפיית שחר' }).locator('label', { hasText: 'גאנט התוכן נפתח במערכת' }).locator('input').check();
   await toastHas(ilai, 'שלד הגאנט סומן.');
   assert.ok(checkOf(I, 'p09.file') && checkOf(I, 'p09.c.time'));
   // The card covers these processes: they are not listed again below it.

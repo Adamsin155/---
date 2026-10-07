@@ -72,10 +72,13 @@ export function charDay({ clients, stateOf, checks, access = {}, now = new Date(
   return out.sort((a, b) => (a.next.due || Infinity) - (b.next.due || Infinity));
 }
 
-// After the characterization day: the rest of the graphics (ready for Ofir, or
-// returned with fixes), the final versions to receive ("קיבלתי"), and the Gantt
-// to fill ("הגאנט מלא", which tells Irit by itself).
-export function ilaiWork({ clients, stateOf, checks }) {
+// After the characterization day: the first 9 graphics when they are still open
+// (`first`: the day's card is gone after 24 hours, the upload and its lock stay), the
+// rest of the graphics (ready for Ofir, or returned with fixes), the final versions
+// to receive ("קיבלתי"), and the Gantt to fill ("הגאנט מלא", which tells Irit by itself).
+export function ilaiWork({ clients, stateOf, checks, now = new Date() }) {
+  const day = new Set(charDay({ clients, stateOf, checks, now }).map((x) => x.client.id));
+  const first = [];
   const rest = [];
   const finals = [];
   const gantt = [];
@@ -83,6 +86,8 @@ export function ilaiWork({ clients, stateOf, checks }) {
     if (!inWork(c)) continue;
     const st = stateOf(c);
     const cs = checks[c.id] || {};
+    const p07 = st.states.find((s) => s.proc.id === 'p07');
+    if (p07 && p07.ready && !done(cs, 'p07.made') && !day.has(c.id)) first.push({ client: c, state: p07 });
     const p23 = st.states.find((s) => s.proc.id === 'p23');
     if (p23 && p23.ready && !p23.complete) {
       const q = qaState(cs, '', 'graphics');
@@ -95,5 +100,5 @@ export function ilaiWork({ clients, stateOf, checks }) {
       if (base === 'p29' && s.ready && !done(cs, `${pre}p29.filled`)) gantt.push({ client: c, state: s, pre, n: s.proc.ctx?.round || null });
     }
   }
-  return { rest, finals, gantt };
+  return { first, rest, finals, gantt };
 }

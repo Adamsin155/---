@@ -390,9 +390,9 @@ await page.waitForSelector('.perf-table');
 assert.equal(new URL(page.url()).hash, '#performance');
 const perf = await page.locator('#performance').innerText();
 assert.match(await page.locator('.perf-table tr:has-text("1 · הכנת חוזה")').innerText(), /\d+ מתוך \d+ \(\d+%\)/);
-// Actual time and target are both office time: process 1's target is 5 office minutes, whenever the deal came in.
+// Actual time and target are both office time: process 1's target is 10 office minutes (the contract), whenever the deal came in.
 const p1perf = page.locator('.perf-table tr:has-text("1 · הכנת חוזה")');
-assert.equal(await p1perf.locator('td[data-label="יעד"]').innerText(), '5 דק׳');
+assert.equal(await p1perf.locator('td[data-label="יעד"]').innerText(), '10 דק׳');
 assert.match(await p1perf.locator('td[data-label="זמן בפועל (חציון)"]').innerText(), /^\d+ (דק׳|ש׳)/);
 assert.match(await p1perf.locator('.perf-proc li:has-text("לקוח ותיק 1")').textContent(), / · 3 דק׳ בשעות העבודה$/);
 // The imported weekly call is not counted: three client-weeks due since the imported campaigns, none logged.
@@ -437,11 +437,14 @@ for (let i = 0; i < 12; i += 1) { await page.clock.runFor(61_000); skew += 61_00
 const notes = await page.evaluate(() => window.__notes);
 // One notification per process, however many checks ran (12 here).
 assert.equal(new Set(notes.map((n) => `${n.title}|${n.body}`)).size, notes.length, JSON.stringify(notes));
-// Its three 5-minute clocks (processes 1-3) run out together in the "now" bar:
-// one notification for the three, and none again when they turn overdue.
+// Its clocks run out in the "now" bar: the group and the meeting date together at 5
+// minutes, the contract at 10 (the owner's decision of 3.10.2026). One notification
+// for each row, and none again when the processes turn overdue.
 const late = notes.filter((n) => /גלידה בנמל/.test(n.title));
-assert.equal(late.length, 1, JSON.stringify(notes));
-assert.deepEqual([late[0].title, late[0].body], ['נגמר הזמן: גלידה בנמל', 'עסקה חדשה: חוזה, קבוצה ומועד אפיון (תהליכים 1, 2, 3).']);
+assert.deepEqual(late.map((n) => [n.title, n.body]), [
+  ['נגמר הזמן: גלידה בנמל', 'עסקה חדשה: קבוצה ומועד אפיון (תהליכים 2, 3).'],
+  ['נגמר הזמן: גלידה בנמל', 'עסקה חדשה: חוזה (תהליך 1).'],
+], JSON.stringify(notes));
 assert.ok(!notes.some((n) => /קפה גליה/.test(n.title)), 'no notification for waiting on the client');
 await page.evaluate(() => { delete document.hidden; });
 assert.ok(soon);
@@ -570,7 +573,7 @@ const nirelCard = page.locator('.editor-card:has(.pchip:text("ניראל"))');
 const nirelText = await nirelCard.innerText();
 assert.match(nirelText, /נטלי בלבד/);
 assert.match(nirelText, /1 לקוח בעריכה · 1 משימה פתוחה/);
-assert.match(nirelText, /סטודיו נטלי[^]*22 · עריכה[^]*יעד[^]*24 · העלאה לדרייב והעברה לאופיר[^]*27 · תיקונים וסגירה/);
+assert.match(nirelText, /סטודיו נטלי[^]*22 · עריכה[^]*יעד[^]*24 · העלאה לתיק הלקוח והעברה לאופיר[^]*27 · תיקונים וסגירה/);
 assert.match(await page.locator('.editor-card:has(.pchip:text("נדיה"))').innerText(), /0 לקוחות בעריכה · 0 משימות פתוחות[^]*אין כרגע לקוחות בעריכה/);
 assert.match(await page.locator('.await-editor').innerText(), /ממתינים לשיוך עורך[^]*מסעדת הים[^]*22א · העברה לעריכה ושיוך לעורך/);
 // System integrity, each row linking to the client (and process).
@@ -688,7 +691,10 @@ assert.equal(await page.innerText('#tab-performance'), 'הנתונים שלי');
 assert.equal(await page.locator('.who-panel, .auto-banner, .rv-card, .thu-card, #mine-tools .wa-link').count(), 0);
 // Every card is a process with an item of his.
 const ilaiTitles = await page.locator('#mine-list .wproc:not(.soon-card) .wtitle').allInnerTexts();
-assert.ok(ilaiTitles.length >= 5, ilaiTitles.join('|'));
+// Since package 1 the first 9 graphics are a card of his (with the upload), not a row of this list.
+assert.ok(ilaiTitles.length >= 4, ilaiTitles.join('|'));
+assert.ok(!ilaiTitles.some((t) => /^7 · /.test(t)), ilaiTitles.join('|'));
+assert.ok(await page.locator('.g-ilai .il-card[data-key^="il-first:"]').count() >= 1);
 for (const t of ilaiTitles) {
   const proc = PROCESSES.find((p) => p.num === /^(?:סבב \d+ · )?([^ ]+) · /.exec(t)?.[1]);
   assert.ok(proc?.items.some((i) => [].concat(i.owners || proc.owners).includes('ilai')), t);

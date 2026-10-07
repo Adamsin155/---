@@ -134,7 +134,8 @@ test('due dates follow the protocol anchors', () => {
   const c = { ...base, char_at: '2026-10-01T10:00:00+03:00', shoot_at: '2026-10-07T10:00:00+03:00', contract_end: '2027-10-01', shoot_type: 'natali' };
   const procs = applicableProcesses(c);
   const due = (id) => resolveTime(procs.find((p) => p.id === id).due, c, procs, {}, at('2026-10-01T09:00:00+03:00'));
-  assert.equal(iso(due('p01')), iso(at('2026-10-01T09:05:00+03:00')));
+  assert.equal(iso(due('p01')), iso(at('2026-10-01T09:10:00+03:00'))); // the contract: 10 office minutes
+  assert.equal(iso(due('p02')), iso(at('2026-10-01T09:05:00+03:00')));
   assert.equal(iso(due('p04')), iso(at('2026-10-01T12:00:00+03:00')));
   assert.equal(iso(due('p07')), iso(at('2026-10-01T14:00:00+03:00'))); // 2h after the meeting's window
   assert.equal(day(due('p12')), '2026-10-05'); // end of business day 2 (decision 14)
@@ -164,7 +165,7 @@ test('short deadlines run on office hours', () => {
   const c = { ...base, deal_at: '2026-10-08T18:30:00+03:00' }; // Thursday evening
   const procs = applicableProcesses(c);
   const due = resolveTime(procs.find((p) => p.id === 'p01').due, c, procs, {});
-  assert.equal(iso(due), iso(at('2026-10-11T09:05:00+03:00'))); // Sunday 09:05
+  assert.equal(iso(due), iso(at('2026-10-11T09:10:00+03:00'))); // Sunday 09:10 (the contract: 10 office minutes)
   // Not late on Sunday morning before the office opens.
   const s = clientState(c, {}, at('2026-10-11T08:30:00+03:00'));
   assert.notEqual(s.states.find((x) => x.proc.id === 'p01').status, 'overdue');

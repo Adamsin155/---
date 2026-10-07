@@ -17,35 +17,38 @@ const clocks = (person, client, checks, now, kind = null) => clocksFor(person, [
   .filter((c) => !kind || c.kind === kind);
 const brief = (list) => list.map((c) => [c.kind, c.proc.id, iso(c.deadline), c.state]);
 
-test('new deal at 17:58 on Thursday: three 5-minute office clocks, due Sunday 09:03 (winter time)', () => {
+// The contract has 10 office minutes (the owner's decision of 3.10.2026), the group and the meeting date 5.
+test('new deal at 17:58 on Thursday: office clocks of 5, 5 and 10 minutes, due Sunday 09:03 and 09:08 (winter time)', () => {
   const c = { id: 'a', name: 'פיצה נאפולי', deal_at: '2026-10-22T17:58:00+03:00', status: 'active', phone: '050-0000000' };
   const due = iso(at('2026-10-25T09:03:00+02:00'));
   const now1 = clocks('irit', c, {}, '2026-10-22T17:59:00+03:00');
-  assert.deepEqual(brief(now1), [['deal', 'p01', due, 'running'], ['deal', 'p02', due, 'running'], ['deal', 'p03', due, 'running']]);
-  assert.deepEqual(now1.map((x) => x.what), ['חוזה', 'קבוצה', 'מועד אפיון']);
+  assert.deepEqual(brief(now1), [['deal', 'p02', due, 'running'], ['deal', 'p03', due, 'running'], ['deal', 'p01', iso(at('2026-10-25T09:08:00+02:00')), 'running']]);
+  assert.deepEqual(now1.map((x) => [x.what, x.minutes]), [['קבוצה', 5], ['מועד אפיון', 5], ['חוזה', 10]]);
   // One minute left on Thursday and three on Sunday; the clock runs.
-  assert.deepEqual([now1[0].remaining, now1[0].paused, now1[0].office, now1[0].people, now1[0].phone], [4 * 6e4, false, true, ['irit'], '050-0000000']);
+  assert.deepEqual([now1[0].remaining, now1[0].paused, now1[0].office, now1[0].phone], [4 * 6e4, false, true, '050-0000000']);
+  assert.deepEqual([now1[2].remaining, now1[2].people], [9 * 6e4, ['irit']]); // the contract: one minute on Thursday and eight on Sunday
   // After 18:00 the clock stops with three minutes left, until Sunday 09:00.
   const night = clockTime(now1[0], at('2026-10-22T20:00:00+03:00'));
   assert.deepEqual([night.state, night.remaining, night.paused, iso(night.resumeAt)], ['running', 3 * 6e4, true, iso(at('2026-10-25T09:00:00+02:00'))]);
   assert.deepEqual(brief(clocks('irit', c, {}, '2026-10-24T12:00:00+03:00')).map((x) => x[3]), ['running', 'running', 'running']); // Saturday
   const sunday = clockTime(now1[0], at('2026-10-25T09:02:00+02:00'));
   assert.deepEqual([sunday.remaining, sunday.paused], [6e4, false]);
-  // Ran out at 09:03: red in the bar until the end of Sunday, gone on Monday (it is in "overdue").
-  assert.deepEqual(brief(clocks('irit', c, {}, '2026-10-25T09:03:00+02:00')).map((x) => x[3]), ['expired', 'expired', 'expired']);
+  // Ran out at 09:03 (the contract at 09:08): red in the bar until the end of Sunday, gone on Monday (it is in "overdue").
+  assert.deepEqual(brief(clocks('irit', c, {}, '2026-10-25T09:03:00+02:00')).map((x) => x[3]), ['expired', 'expired', 'running']);
+  assert.deepEqual(brief(clocks('irit', c, {}, '2026-10-25T09:08:00+02:00')).map((x) => x[3]), ['expired', 'expired', 'expired']);
   assert.equal(clocks('irit', c, {}, '2026-10-25T23:30:00+02:00').length, 3);
   assert.equal(clocks('irit', c, {}, '2026-10-26T08:00:00+02:00').length, 0);
   // Whose: Irit's; Lior has items in process 2 only; Ilai none. The owner sees each with its people.
   assert.deepEqual(brief(clocks('lior', c, {}, '2026-10-22T17:59:00+03:00')).map((x) => x[1]), ['p02']);
   assert.equal(clocks('ilai', c, {}, '2026-10-22T17:59:00+03:00').length, 0);
   const all = clocks(null, c, {}, '2026-10-22T17:59:00+03:00');
-  assert.deepEqual(all.map((x) => [x.proc.id, x.people]), [['p01', ['irit']], ['p02', ['irit', 'lior']], ['p03', ['irit']]]);
+  assert.deepEqual(all.map((x) => [x.proc.id, x.people]), [['p02', ['irit', 'lior']], ['p03', ['irit']], ['p01', ['irit']]]);
 });
 
 test('the contract clock stops when the contract was sent; a finished or waiting process has no clock', () => {
   const c = { id: 'a', name: 'פיצה נאפולי', deal_at: '2026-10-05T10:00:00+03:00', status: 'active' };
   const now = '2026-10-05T10:04:00+03:00';
-  // Sent within the 5 minutes: the signature is the client's, with a clock of its own.
+  // Sent within its 10 minutes: the signature is the client's, with a clock of its own.
   const sent = done(['p01.prepared', 'p01.sent'], '2026-10-05T10:03:00+03:00');
   assert.deepEqual(clocks('irit', c, sent, now).map((x) => x.proc.id), ['p02', 'p03']);
   assert.deepEqual(DEAL_CLOCKS.p01.until, ['p01.prepared', 'p01.sent']);
@@ -61,7 +64,7 @@ test('the contract clock stops when the contract was sent; a finished or waiting
 test('erev chag: a deal at 12:58 on erev Yom Kippur is due Tuesday 09:03', () => {
   const c = { id: 'e', name: 'מאפה שקד', deal_at: '2026-09-20T12:58:00+03:00', status: 'active' };
   const list = clocks('irit', c, {}, '2026-09-20T12:59:00+03:00');
-  assert.deepEqual(brief(list), ['p01', 'p02', 'p03'].map((p) => ['deal', p, iso(at('2026-09-22T09:03:00+03:00')), 'running']));
+  assert.deepEqual(brief(list), [['p02', '09:03'], ['p03', '09:03'], ['p01', '09:08']].map(([p, t]) => ['deal', p, iso(at(`2026-09-22T${t}:00+03:00`)), 'running']));
   assert.equal(list[0].remaining, 4 * 6e4); // one minute before 13:00, three on Tuesday
   // The office closed at 13:00 and Monday is Yom Kippur: stopped until Tuesday 09:00.
   for (const when of ['2026-09-20T13:30:00+03:00', '2026-09-21T11:00:00+03:00']) {
@@ -184,8 +187,9 @@ test('most urgent first across clients: ran out, then least time left', () => {
   const list = clocksFor('irit', [deal, mid], { b: sent }, { now: at('2026-10-05T12:01:00+03:00') });
   assert.deepEqual(list.map((x) => [x.kind, x.proc.id, x.state]), [
     ['answer', 'p07', 'expired'], ['answer', 'p23', 'expired'],
-    ['deal', 'p01', 'running'], ['deal', 'p02', 'running'], ['deal', 'p03', 'running'], // 3 minutes left
+    ['deal', 'p02', 'running'], ['deal', 'p03', 'running'], // 3 minutes left
     ['answer', 'p26', 'running'], // 4 minutes left
+    ['deal', 'p01', 'running'], // the contract: 8 minutes left
   ]);
 });
 

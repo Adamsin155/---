@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
   <link rel="stylesheet" href="app/styles/owner.css">
   <link rel="stylesheet" href="app/styles/office-flows.css">
+  <link rel="stylesheet" href="app/styles/files.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -113,6 +114,8 @@
       <div class="dlg-body">
         <p class="of-meta" id="qa-meta"></p>
         <div id="qa-prev"></div>
+        <!-- What is being checked: the files themselves, from the client's files (read-only here). -->
+        <div id="qa-files"></div>
         <fieldset class="of-checks" id="qa-checks-box">
           <legend id="qa-checks-legend">הבדיקות</legend>
           <div id="qa-checks"></div>
@@ -161,7 +164,7 @@
           <textarea class="input" id="as-reason" rows="2" maxlength="500" aria-describedby="as-reason-hint"></textarea>
           <p class="hint" id="as-reason-hint"></p>
         </div>
-        <p class="hint" id="as-after">השיוך מסמן את 22א, פותח לך את משימת התיקייה (24) עד סוף יום העריכה הראשון, ומכין וואטסאפ לעורך עם שני המועדים.</p>
+        <p class="hint" id="as-after">השיוך מסמן את 22א ומכין וואטסאפ לעורך עם שני המועדים.</p>
         <div class="err" id="as-err" role="alert" hidden></div>
       </div>
       <div class="dlg-foot">

@@ -43,6 +43,10 @@ const onboarded = (o) => { const c = client({ deal_at: hoursAgo(72), char_at: ho
 
 // A new deal two minutes ago: contract, group and characterization date, due 10:03.
 const deal = client({ name: 'פיצה נאפולי', deal_at: minsAgo(2), shoot_type: null, characterizer: null, has_logo: null });
+// The contract was sent and signed a minute ago: process 1 (10 office minutes since
+// package 1, a row of its own in the bar; tests/package1.test.mjs) is done, and the
+// group and the meeting date, 5 minutes each, end together in one row.
+for (const k of ['p01.prepared', 'p01.sent', 'p01.signed']) check(deal, k, minsAgo(1));
 // The 9 graphics went out at 09:48: ten minutes passed, the client did not answer.
 const gallia = onboarded({ name: 'קפה גליה', phone: '054-1112233' });
 check(gallia, 'p07.sent', minsAgo(12));
@@ -192,13 +196,13 @@ const T1 = new Date(T0.getTime() + 1000);
 assert.equal(await page.locator('#view-mine > *').first().getAttribute('id'), 'now-bar');
 assert.match(await page.locator('#now-h').innerText(), /^עכשיו\s*5$/);
 const order = await page.locator('#now-bar .now-clock').evaluateAll((els) => els.map((e) => `${e.dataset.clock.split(':')[0]}:${e.querySelector('.now-client').textContent}:${e.dataset.state}`));
-// The new deal's three clocks end together: one row. So do the two processes due at 10:40.
+// The new deal's two clocks (group, meeting date) end together: one row. So do the two processes due at 10:40.
 assert.deepEqual(order, ['answer:קפה גליה:expired', 'answer:מספרת רון:running', 'deal:פיצה נאפולי:running', 'answer:מאפיית אור:running', 'soon:חנות הים:running']);
 assert.equal(await page.locator(`#now-bar .now-clock[data-clock*="${quiet.id}"]`).count(), 0, 'an answered sending has no clock');
 const dealDue = new Date(new Date(deal.deal_at).getTime() + 5 * 6e4); // 10:03:00
 const ronDue = new Date(NOW.getTime() + 2.5 * 6e4);                   // 10:02:30
-assert.equal(await left(clockSel('deal', deal, 'p01')), clockDigits(dealDue - T1)); // 2:39
-assert.match(await page.locator(clockSel('deal', deal, 'p01')).innerText(), /נשארו[^]*פיצה נאפולי[^]*עסקה חדשה: חוזה, קבוצה ומועד אפיון[^]*תהליכים 1, 2, 3 · יעד היום 10:03/);
+assert.equal(await left(clockSel('deal', deal, 'p02')), clockDigits(dealDue - T1)); // 2:39
+assert.match(await page.locator(clockSel('deal', deal, 'p02')).innerText(), /נשארו[^]*פיצה נאפולי[^]*עסקה חדשה: קבוצה ומועד אפיון[^]*תהליכים 2, 3 · יעד היום 10:03/);
 assert.equal(await left(clockSel('answer', ron, 'p26')), clockDigits(ronDue - T1)); // 2:09
 assert.match(await page.locator(clockSel('answer', ron, 'p26')).innerText(), /נשלח ללקוח: הסרטונים[^]*תהליך 26 · נשלח היום 09:57 · אם אין תשובה עד היום 10:02, מתקשרים/);
 assert.equal(await left(clockSel('soon', sea, 'p04')), clockDigits(40 * 6e4 - 21_000)); // 39:39
@@ -209,14 +213,14 @@ assert.equal(await page.getAttribute('#now-live', 'aria-live'), 'assertive');
 await shot('01-now-bar');
 
 // ── Live: every second, only the countdown changes; focus stays where it is ──
-await page.locator(clockSel('deal', deal, 'p01')).evaluate((el) => { el.__same = true; });
+await page.locator(clockSel('deal', deal, 'p02')).evaluate((el) => { el.__same = true; });
 const listCard = await page.locator('#mine-list .wproc').first().elementHandle();
 await page.locator('#mine-list .cbx').first().focus();
 const focused = await page.evaluate(() => document.activeElement.id);
 assert.ok(focused);
 await page.clock.runFor(3000);
-assert.equal(await left(clockSel('deal', deal, 'p01')), clockDigits(dealDue - T1 - 3000));
-assert.equal(await page.locator(clockSel('deal', deal, 'p01')).evaluate((el) => el.__same === true), true, 'the clock was not rebuilt');
+assert.equal(await left(clockSel('deal', deal, 'p02')), clockDigits(dealDue - T1 - 3000));
+assert.equal(await page.locator(clockSel('deal', deal, 'p02')).evaluate((el) => el.__same === true), true, 'the clock was not rebuilt');
 assert.equal(await listCard.evaluate((el) => el.isConnected), true, 'the list was not rebuilt');
 assert.equal(await page.evaluate(() => document.activeElement.id), focused, 'focus stays');
 
@@ -285,11 +289,11 @@ await shot('02-ran-out');
 
 // Notifications on (asked earlier, on a click). On another tab of the page, in
 // front: the new deal's clocks run out at 10:03 with one toast for the row, not
-// three, and not again when the three processes turn overdue a minute later.
+// two, and not again when the two processes turn overdue a minute later.
 await page.evaluate(() => { localStorage.setItem('fake.perm', 'granted'); localStorage.setItem('astrateg.notify', 'on'); document.hasFocus = () => true; });
 await page.click('#tab-clients');
 await page.clock.runFor(dealDue - (ronDue.getTime() + 1000) + 1000);
-await toastHas('נגמר הזמן: פיצה נאפולי · עסקה חדשה: חוזה, קבוצה ומועד אפיון (תהליכים 1, 2, 3).');
+await toastHas('נגמר הזמן: פיצה נאפולי · עסקה חדשה: קבוצה ומועד אפיון (תהליכים 2, 3).');
 assert.equal(await page.locator('#toast .toast-act').innerText(), 'מעבר');
 assert.deepEqual(await page.evaluate(() => window.__notes), []);
 await page.clock.runFor(3 * 60e3);
@@ -315,8 +319,8 @@ assert.ok(!notes.some((n) => /פיצה נאפולי|מאפיית אור|קפה �
 assert.ok(!(await page.evaluate(() => [...window.__said, ...window.__toasts])).some((t) => t.includes('מאפיית אור') && !t.startsWith('סומן')));
 await page.evaluate(() => { delete document.hidden; });
 await page.clock.runFor(1000);
-assert.equal(await page.locator(clockSel('deal', deal, 'p01')).getAttribute('data-state'), 'expired');
-assert.match(await page.locator(clockSel('deal', deal, 'p01')).innerText(), /נגמר לפני[^]*עסקה חדשה: חוזה, קבוצה ומועד אפיון/);
+assert.equal(await page.locator(clockSel('deal', deal, 'p02')).getAttribute('data-state'), 'expired');
+assert.match(await page.locator(clockSel('deal', deal, 'p02')).innerText(), /נגמר לפני[^]*עסקה חדשה: קבוצה ומועד אפיון/);
 assert.equal(await page.locator(clockSel('soon', sea, 'p04')).getAttribute('data-state'), 'expired');
 // Read out once, for the row.
 assert.match(await page.locator('#now-live').innerText(), /^נגמר הזמן: חנות הים\. .*\(תהליכים 4, 5\)\.$/);
@@ -356,7 +360,7 @@ await page.goto(`${BASE}clients.html#mine`); // the owner's own landing is owner
 await page.waitForSelector('#now-bar .now-clock');
 assert.match(await page.locator('.now-hint').innerText(), /אצל הצוות/);
 assert.match(await page.locator(clockSel('answer', ron, 'p26')).locator('.pchips').innerText(), /עירית/);
-assert.match(await page.locator(clockSel('deal', deal, 'p01')).locator('.pchips').innerText(), /עירית[^]*ליאור/); // Lior has items in process 2
+assert.match(await page.locator(clockSel('deal', deal, 'p02')).locator('.pchips').innerText(), /עירית[^]*ליאור/); // Lior has items in process 2
 assert.ok(await page.locator('#now-bar .now-clock').count() >= 3);
 db.staff[0].person = 'ilai';
 await page.goto('about:blank');

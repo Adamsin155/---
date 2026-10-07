@@ -65,7 +65,7 @@ export const TEMPLATES = {
   editor_assigned: {
     name: 'astrateg_editor_assigned', label: 'עורך שויך',
     body: `עבודה חדשה בעריכה: {{1}}\n{{2}}\n\n${ANSWER}`,
-    example: ['לקוח חדש בעריכה אצלך: פיצה', 'בדרייב ואצל אופיר עד ה׳ 8.10 18:00'],
+    example: ['לקוח חדש בעריכה אצלך: פיצה', 'בתיק הלקוח ואצל אופיר עד ה׳ 8.10 18:00'],
     replies: ['onit', 'help'],
   },
   owner_digest: {
@@ -78,7 +78,7 @@ export const TEMPLATES = {
   review: {
     name: 'astrateg_review', label: 'לבדיקה ולאישור',
     body: 'לבדיקה או לאישור: {{1}}\n{{2}}\n\nאישורים ובקרת איכות נעשים רק במערכת.',
-    example: ['מוכן לבדיקה: פיצה', 'הסרטונים בדרייב. בקרה עד היום 15:00.'],
+    example: ['מוכן לבדיקה: פיצה', 'הסרטונים בתיק הלקוח. בקרה עד היום 15:00.'],
     replies: [],
   },
 };

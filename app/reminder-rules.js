@@ -261,9 +261,10 @@ export const LATE_RUNG = { p08b: 'ofir' };
 export const OWNER_LATE_HOURS = 24;
 
 export const RULES = [
-  // 1–3: a new deal. Irit at once and again at 5 minutes if the contract, the group
-  // (with its members) or the meeting date is missing; Lior after 30 office
-  // minutes; the owner's screen after an office hour.
+  // 1–3: a new deal. Irit at once; again at 5 office minutes if the group (with its
+  // members) or the meeting date is missing, and at 10 if the contract is (the
+  // owner's decision of 3.10.2026: the contract has DEAL_MINUTES, as a deal from the
+  // field has); Lior after 30 office minutes; the owner's screen after an office hour.
   {
     id: 'deal', event: 'פרטי עסקה התקבלו (1, 2, 3)', procs: ['p01', 'p02', 'p03'],
     instances(env) {
@@ -279,13 +280,14 @@ export const RULES = [
         if (p2 && !p2.complete && !p2.wait) missing.push('קבוצה');
         if (p3 && !p3.complete && !p3.wait) missing.push('מועד אפיון');
         if (!missing.length) continue;
-        out.push({ ...i, id: 'deal', ref: 'p01', url: clientUrl(c.id, 'p01'), missing, anchors: { event: dealAt, due: addWorkingMinutes(dealAt, 5) } });
+        out.push({ ...i, id: 'deal', ref: 'p01', url: clientUrl(c.id, 'p01'), missing, anchors: { event: dealAt, due: addWorkingMinutes(dealAt, 5), contractDue: addWorkingMinutes(dealAt, DEAL_MINUTES) } });
       }
       return out;
     },
     steps: [
-      { id: 'now', to: 'irit', level: 'ring', exempt: 'clock', title: (i) => `עסקה חדשה: ${i.name}`, body: (i, env) => `חוזה, קבוצה ומועד אפיון עד ${whenText(i.anchors.due, env.now)}.` },
-      { id: 'due', from: 'due', to: 'irit', level: 'ring', exempt: 'clock', title: (i) => `עברו 5 דקות: ${i.name}`, body: (i) => `עוד חסר: ${i.missing.join(', ')}.` },
+      { id: 'now', to: 'irit', level: 'ring', exempt: 'clock', title: (i) => `עסקה חדשה: ${i.name}`, body: (i, env) => `קבוצה ומועד אפיון עד ${whenText(i.anchors.due, env.now)}, חוזה עד ${whenText(i.anchors.contractDue, env.now)}.` },
+      { id: 'due', from: 'due', to: 'irit', level: 'ring', exempt: 'clock', when: (i) => i.missing.some((m) => m !== 'חוזה'), title: (i) => `עברו 5 דקות: ${i.name}`, body: (i) => `עוד חסר: ${i.missing.filter((m) => m !== 'חוזה').join(', ')}.` },
+      { id: 'contract', from: 'contractDue', to: 'irit', level: 'ring', exempt: 'clock', when: (i) => i.missing.includes('חוזה'), title: (i) => `עברו ${DEAL_MINUTES} דקות בלי חוזה: ${i.name}`, body: () => 'החוזה עוד לא נשלח ללקוח.' },
       { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', title: (i) => `עסקה חדשה בלי טיפול: ${i.name}`, body: (i) => `עברו 30 דקות עבודה ועוד חסר: ${i.missing.join(', ')}.` },
       { id: 'board', officeMinutes: 60, to: OWNER, level: 'board', overdue: true, title: (i) => `עסקה חדשה בלי טיפול שעה: ${i.name}`, body: (i) => `חסר: ${i.missing.join(', ')}.` },
     ],
@@ -642,13 +644,13 @@ export const RULES = [
         .filter((i) => !i.ready);
     },
     steps: [
-      { id: 'assigned', to: (i) => i.who, level: 'ring', title: (i) => `לקוח חדש בעריכה אצלך: ${i.name}`, body: (i, env) => [i.p24due && `בדרייב ואצל אופיר עד ${whenText(i.p24due, env.now)}`, i.p27due && `סגירה עד ${whenText(i.p27due, env.now)}`].filter(Boolean).join(' · ') },
+      { id: 'assigned', to: (i) => i.who, level: 'ring', title: (i) => `לקוח חדש בעריכה אצלך: ${i.name}`, body: (i, env) => [i.p24due && `בתיק הלקוח ואצל אופיר עד ${whenText(i.p24due, env.now)}`, i.p27due && `סגירה עד ${whenText(i.p27due, env.now)}`].filter(Boolean).join(' · ') },
       { id: 'nostart', officeMinutes: 120, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved('p22.received'), title: (i) => `עוד לא התחלת: ${i.name}`, body: () => 'עברו שעתיים עבודה מאז שהכונן נמסר. ללחוץ "קיבלתי את הכונן והתחלתי".' },
       { id: 'nostartLior', officeMinutes: 240, to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עברו 4 שעות עבודה מהשיוך.' },
       { id: 'ofir', officeMinutes: 240, to: 'ofir', level: 'quiet', when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עותק לידיעה: עברו 4 שעות עבודה מהשיוך.' },
       { id: 'day2', from: 'days', businessDays: 2, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 2 מתוך 3: ${i.name}`, body: () => '' },
-      { id: 'day3', from: 'days', businessDays: 3, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 3 מתוך 3: ${i.name}`, body: () => 'עד סוף היום: הכול בדרייב ואצל אופיר.' },
-      { id: 'day3pm', from: 'days', businessDays: 3, at: '15:00', to: (i) => i.who, level: 'ring', title: (i) => `היום יום 3: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
+      { id: 'day3', from: 'days', businessDays: 3, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 3 מתוך 3: ${i.name}`, body: () => 'עד סוף היום: הכול בתיק הלקוח במערכת ואצל אופיר.' },
+      { id: 'day3pm', from: 'days', businessDays: 3, at: '15:00', to: (i) => i.who, level: 'ring', title: (i) => `היום יום 3: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בתיק הלקוח במערכת, ולחיצה על "מוכן לבדיקה".' },
     ],
   },
 
@@ -687,7 +689,7 @@ export const RULES = [
       });
     },
     steps: [
-      { id: 'now', to: 'ofir', level: 'ring', title: (i) => `${i.round > 1 ? `התיקונים מוכנים לבדיקה (סבב ${i.round - 1})` : 'מוכן לבדיקה'}: ${i.name}`, body: (i, env) => `הסרטונים בדרייב. בקרה עד ${whenText(i.anchors.due60, env.now)}.` },
+      { id: 'now', to: 'ofir', level: 'ring', title: (i) => `${i.round > 1 ? `התיקונים מוכנים לבדיקה (סבב ${i.round - 1})` : 'מוכן לבדיקה'}: ${i.name}`, body: (i, env) => `הסרטונים בתיק הלקוח. בקרה עד ${whenText(i.anchors.due60, env.now)}.` },
       { id: 'again', from: 'due40', to: 'ofir', level: 'ring', title: (i) => `מחכה לבקרה 40 דקות: ${i.name}`, body: () => 'העורך מחכה לבקרת האיכות.' },
       { id: 'lior', from: 'due60', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `בקרת איכות לא בוצעה תוך שעה: ${i.name}`, body: () => 'אופיר עוד לא אישר או החזיר לתיקון.' },
     ],
@@ -1186,7 +1188,7 @@ export const RULES = [
         .map((i) => ({ ...i, id: `${i.proc.id}@${i.doneAt('p27.notes').toISOString()}`, who: i.ctx.editor, url: EDITOR_URL(i.cid), anchors: { event: i.doneAt('p27.notes') } }));
     },
     steps: [
-      { id: 'editor', to: (i) => i.who, level: 'ring', title: (i) => `הערות הלקוח הגיעו: ${i.name}`, body: () => 'לתקן, להחליף בדרייב ולסמן. התיקונים עוברים ישר לעילאי.' },
+      { id: 'editor', to: (i) => i.who, level: 'ring', title: (i) => `הערות הלקוח הגיעו: ${i.name}`, body: () => 'לתקן, להעלות את הגרסה המתוקנת לתיק הלקוח ולסמן. התיקונים עוברים ישר לעילאי.' },
     ],
   },
 
@@ -1262,12 +1264,12 @@ export const RULES = [
     })),
   },
 
-  // 27: the final versions are in the Drive. Ilai at once (quiet) to press "קיבלתי",
+  // 27: the final versions are in the client's files. Ilai at once (quiet) to press "קיבלתי",
   // which closes the editing; Lior's list if not by the end of that business day.
   {
     id: 'finalReady', event: 'גרסאות סופיות עברו לעילאי (27)', procs: ['p27'],
     // A client who started before "קיבלתי" was in the protocol (p27.toilai, version 2):
-    // Ilai still hears the finals are in the Drive, but Lior's list never calls it late.
+    // Ilai still hears the finals are in the client's files, but Lior's list never calls it late.
     fresh: (i) => i.fresh('p27.toilai'),
     instances(env) {
       return casesOf(env, 'p27', (i) => !!i.doneAt('p27.final') && !i.resolved('p27.toilai') && !i.s.wait).map((i) => {
@@ -1277,7 +1279,7 @@ export const RULES = [
       });
     },
     steps: [
-      { id: 'ilai', to: 'ilai', level: 'quiet', title: (i) => `גרסאות סופיות בדרייב: ${i.name}`, body: () => 'לבדוק ולסמן ״קיבלתי״. זה סוגר את העריכה.' },
+      { id: 'ilai', to: 'ilai', level: 'quiet', title: (i) => `גרסאות סופיות בתיק הלקוח: ${i.name}`, body: () => 'לבדוק ולסמן ״קיבלתי״. זה סוגר את העריכה.' },
       { id: 'lior', from: 'close', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `עילאי לא סימן ״קיבלתי״ על הגרסאות הסופיות: ${i.name}`, body: () => 'באותו יום עסקים.' },
     ],
   },
@@ -1300,7 +1302,7 @@ export const RULES = [
           if (pauseOf(i.proc, i.checks)) continue;
           // After "the characterization ended", the form has its own ladder (charForm).
           if (baseId(s.proc.id) === 'p04' && i.resolved(CHAR_ENDED)) continue;
-          // The final versions are in the Drive: only Ilai's "קיבלתי" (p27.toilai) keeps
+          // The final versions are in the client's files: only Ilai's "קיבלתי" (p27.toilai) keeps
           // 27 open, and finalReady follows it; not a second line, nor the editor's lateness.
           if (baseId(s.proc.id) === 'p27' && i.resolved('p27.final')) continue;
           const owners = s.claim ? [s.claim.person] : s.proc.owners;

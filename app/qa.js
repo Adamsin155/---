@@ -5,18 +5,20 @@
 // time and a round counter. Below it today's characterizations, the shoots waiting
 // for an editor with the assignment (22א: Nirel preselected for Natali, a reason
 // for anyone else; a joint day always with a reason), and each editor's load.
+// The quality-control dialog shows the files being checked (the round's videos, or
+// the rest of the graphics) from the client's files, playable in place.
 // The logic: app/qa-logic.js and app/office-marks.js.
 import { PEOPLE, SHOOT_TYPES, EDITORS } from './protocol.js';
 import { clientState, clientLabel } from './protocol-logic.js';
 import {
-  loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory,
+  loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, updateClient, loadDirectory,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, viewerOf, officeMinutes,
 } from './protocol-ui.js';
 import {
   qaQueue, qaFixing, charsToday, awaitingEditor, editorLoad, loadText, dayText, preselected, reasonNeeded, reasonHint,
-  eligibleEditors, jointFromSelection, reasonNote, folderTitle, folderDueOn, QA_TARGET_MINUTES,
+  eligibleEditors, jointFromSelection, reasonNote, QA_TARGET_MINUTES,
 } from './qa-logic.js';
 import {
   QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, REASON_KEY, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
@@ -28,7 +30,9 @@ import { offerHandoff } from './handoff-ui.js';
 import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, navLink } from './office-ui.js';
 import { mountApprovals } from './approvals-ui.js';
-import { inputValueIL, fromInputIL, dayFromKeyIL, endOfDayIL, TZ } from './tz.js';
+import { inputValueIL, fromInputIL, TZ } from './tz.js';
+import { mountWorkFiles, forgetFiles } from './files-ui.js';
+import { videoWindow, graphicsWindow } from './files-logic.js';
 
 let viewer = null;
 let me = null;
@@ -217,6 +221,16 @@ function openQa(x) {
   fill($('qa-prev'), last ? h('details', { class: 'of-prev', open: true },
     h('summary', {}, `מה הוחזר בסבב ${last.n} (לבדוק שתוקן)`),
     h('ul', {}, ...last.issues.map((i) => h('li', {}, i.ref ? `${k.unit} ${i.ref}: ${i.text}` : i.text)))) : null);
+  // The files being checked, as the editor or Ilai uploaded them: played or opened here.
+  const videos = x.kind === 'videos';
+  const cs = checksOf(x.client);
+  forgetFiles(x.client.id);
+  fill($('qa-files'), mountWorkFiles({
+    client: x.client, kind: videos ? 'deliverable_video' : 'deliverable_graphic', me, readOnly: true, idp: 'qa-f', toast,
+    window: videos ? videoWindow(x.client, cs, Number(/^r(\d+)\./.exec(x.pre)?.[1] || 1)) : graphicsWindow(cs, 'rest'),
+    title: videos ? 'הסרטונים לבדיקה' : 'הגרפיקות לבדיקה',
+    total: videos ? Number(x.ctx?.deliverables?.videos) || null : Math.max(0, (Number(x.client.deliverables?.graphics) || 0) - 9) || null,
+  }));
   $('qa-checks-legend').textContent = `${k.checks.length} הבדיקות (${k.title})`;
   renderChecks();
   setMode('check');
@@ -416,7 +430,6 @@ $('as-form').addEventListener('submit', async (e) => {
   $('as-reason').removeAttribute('aria-invalid');
   $('as-submit').disabled = true;
   const c = a.client;
-  const now = new Date();
   let client = c;
   try {
     client = await updateClient(c.id, withEditor(c, a.n, editor));
@@ -434,20 +447,11 @@ $('as-form').addEventListener('submit', async (e) => {
     $('as-submit').disabled = false;
     return;
   }
-  // Ofir's folder task (24), due at the end of editing day 1.
-  let folder = '';
-  const title = folderTitle(a.n);
-  if (checks[c.id][`${a.pre}p24.folder`]?.state !== 'done' && !tasks.some((t) => t.client_id === c.id && t.title === title && !t.done_at)) {
-    try {
-      const t = await addTask({ client_id: c.id, title, owner: 'ofir', due_on: folderDueOn(now) });
-      tasks = [t, ...tasks];
-      folder = ` נפתחה לאופיר משימת תיקייה (24) עד ${formatWhen(endOfDayIL(dayFromKeyIL(t.due_on)))}.`;
-    } catch { folder = ' משימת התיקייה (24) לא נפתחה: לפתוח אותה בכרטיס.'; }
-  }
+  // (No folder task any more: the editor uploads the videos into the client's files.)
   $('as-submit').disabled = false;
   states.clear();
   asDlg.close();
-  toast(`${c.name} שויך ל${PEOPLE[editor].name}.${folder}`);
+  toast(`${c.name} שויך ל${PEOPLE[editor].name}.`);
   // Until stage 4, a ready WhatsApp to the editor with both dates and the link.
   offerHandoff({ client, key: `${a.pre}p22a.assigned`, checks: () => checks[c.id], me });
 });

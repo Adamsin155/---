@@ -119,8 +119,9 @@ export const jointFromSelection = (selection) => selection?.free?.simeonJoin ===
 export const reasonNote = ({ editor, reason, preselected: pre = null, joint = false }) => JSON.stringify({ editor, reason: String(reason || '').trim().slice(0, 500), preselected: pre, joint: !!joint });
 export const reasonOf = (checks, pre = '') => readJson(checks[REASON_KEY(pre)]);
 
-// Ofir's folder task (24): opened at the assignment, due the end of editing day 1
-// (the assignment day is not counted).
+// Ofir's folder task (24), as it was opened at the assignment until package 1
+// (7.10.2026). No screen opens it any more (the videos are uploaded into the client's
+// files); the title is kept so a task opened before is still recognized.
 export const folderTitle = (n = null) => `פתיחת תיקייה מסודרת בדרייב לעריכה (24)${n ? ` · סבב ${n}` : ''}`;
 export const folderDueOn = (assignedAt) => dayKeyIL(addBusinessDays(assignedAt, 1));
 // The item the folder task stands for (`p24.folder`, `r2.p24.folder`), or null.

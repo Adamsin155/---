@@ -11,6 +11,9 @@
 // too, for Irit, Lior and the owner.
 // Who may do what: app/files-logic.js (the database decides:
 // supabase/migrations/20261003110000_client_files.sql). Uploads: app/upload.js.
+// mountWorkFiles (below) is the same upload and the same tiles for one batch of work
+// on the page where it is done: the round's videos in the editor's card, the graphics
+// in Ilai's cards, and read-only in Ofir's quality-control dialog.
 import { h } from './quote-doc.js';
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from './supa.js';
 import { who, formatStamp, formatDay } from './protocol-ui.js';
@@ -18,6 +21,7 @@ import { dayText, timeText, waLink, groupLink } from './messages-logic.js';
 import {
   BUCKET, KINDS, GROUPS, kindsOf, fileProblem, objectPath, fileNameOf, formatSize, isImage, isVideo, validLink,
   uploadKinds, canDelete, canEdit, counts, isManager, canManageGallery, galleryUrl, galleryMessage, uploadError, contentProblem,
+  workFiles, uploadedText,
 } from './files-logic.js';
 import { uploadFile } from './upload.js';
 
@@ -293,7 +297,8 @@ async function uploadOne(o, st, kind, file, { progress, err, label, link }) {
     return true;
   } catch (e) {
     row.remove();
-    err.append(h('p', { class: 'err' }, `${file.name}: ${uploadError(e)}`));
+    // Where the work stops on a failed upload, the page says what to do next (failHelp).
+    err.append(h('p', { class: 'err' }, `${file.name}: ${uploadError(e)}${o.failHelp && e?.name !== 'AbortError' ? ` ${o.failHelp}` : ''}`));
     return false;
   }
 }
@@ -342,7 +347,7 @@ function tile(f, o) {
     h('span', { class: 'fl-sub' }, `${formatStamp(f.created_at)} · ${who(f.uploaded_by) || 'לא ידוע'}${f.size_bytes && !isLinkOnly ? ` · ${formatSize(f.size_bytes)}` : ''}`));
   if (f.link) meta.append(h('a', { class: 'fl-link', href: f.link, target: '_blank', rel: 'noopener noreferrer', dir: 'ltr' }, f.kind === 'deliverable_site' ? 'פתיחת האתר' : 'הפוסט ברשת', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')));
   // postedPart is null for a reader with nothing to show: append(null) would print the word "null".
-  const posted = group === 'deliverables' ? postedPart(f, o, editable) : null;
+  const posted = group === 'deliverables' && !o.plain ? postedPart(f, o, editable) : null;
   if (posted) meta.append(posted);
   const acts = h('div', { class: 'fl-acts' },
     isLinkOnly ? null : h('button', {
@@ -354,7 +359,7 @@ function tile(f, o) {
         } catch { o.toast?.('ההורדה לא התחילה. נסו שוב.'); }
       },
     }, 'הורדה'),
-    canDelete(o.me, f, o.myEmail) ? h('button', { type: 'button', class: 'btn-text fl-del', 'aria-label': `מחיקה: ${name}`, onclick: () => remove(f, o) }, 'מחיקה') : null);
+    !o.readOnly && canDelete(o.me, f, o.myEmail) ? h('button', { type: 'button', class: 'btn-text fl-del', 'aria-label': `מחיקה: ${name}`, onclick: () => remove(f, o) }, 'מחיקה') : null);
   return h('li', { class: 'fl-item', 'data-id': f.id }, media, meta, acts);
 }
 
@@ -397,6 +402,80 @@ async function remove(f, o) {
   st.files = st.files.filter((x) => x.id !== f.id);
   o.toast?.(`נמחק: ${name}.`);
   refreshAll(o.client.id);
+  o.onChange?.();
+}
+
+// ── One batch of work, on the page where it is done ──
+// The files of one kind inside a window (app/files-logic.js workFiles): how many are
+// up against the package, the tiles (a video plays in place), and, for whoever may
+// upload that kind for this client, one upload button. Returns the block's element;
+// it is kept per client and `idp`, so a page that rebuilds its cards gets the same
+// element back and an upload in progress survives.
+// opts: { client, kind, window, me, myEmail, idp, title, total, readOnly, failHelp,
+//         toast, onChange() (the list changed, or finished loading) }
+export function workFilesState(clientId) {
+  const st = data.get(clientId);
+  return { loaded: !!st?.loaded, error: st?.error || null, files: st?.files || [] };
+}
+// Reads a client's files before anything is drawn, so a page's lock is right on its
+// first paint (the editor's page). Never throws: a failed read is the state's error.
+export function readFiles(clientId) {
+  if (!data.has(clientId)) data.set(clientId, { files: [], loaded: false, error: null, gallery: null, loading: null });
+  const st = data.get(clientId);
+  if (st.loaded) return Promise.resolve();
+  st.loading ||= loadFiles(clientId).then(() => { st.loading = null; refreshAll(clientId); });
+  return st.loading;
+}
+// The next mount of this client reads its files again (a page's "רענון").
+export function forgetFiles(clientId) {
+  const st = data.get(clientId);
+  if (st && !st.loading) st.loaded = false;
+}
+export function mountWorkFiles(opts) {
+  const { client, idp } = opts;
+  if (!data.has(client.id)) data.set(client.id, { files: [], loaded: false, error: null, gallery: null, loading: null });
+  const st = data.get(client.id);
+  const key = `${client.id}:work:${idp}`;
+  let root = roots.get(key);
+  if (!root) {
+    root = buildWork(opts);
+    roots.set(key, root);
+  }
+  // uploadOne and tile read these: no "עלה לרשתות" fields here, and the page hears a change.
+  root.__opts = { ...opts, plain: true, onUploaded: () => root.__opts.onChange?.() };
+  if (!st.loaded && !st.loading) {
+    st.loading = loadFiles(client.id).then(() => { st.loading = null; refreshAll(client.id); root.__opts.onChange?.(); });
+  }
+  root.__draw();
+  return root;
+}
+function buildWork(opts) {
+  const { kind, idp } = opts;
+  const k = KINDS[kind];
+  const head = h('p', { class: 'fl-work-h' });
+  const status = h('p', { class: 'muted fl-status', role: 'status' });
+  const err = h('div', { class: 'fl-errs', role: 'alert' });
+  const progress = h('ul', { class: 'fl-progress', 'aria-live': 'polite' });
+  const list = h('ul', { class: 'fl-grid' });
+  const input = h('input', { type: 'file', class: 'sr-only', id: `${idp}-in`, accept: k.accept || null, multiple: true, tabindex: '-1', 'aria-hidden': 'true' });
+  const add = h('button', { type: 'button', class: 'btn btn-sm fl-add', id: `${idp}-add`, onclick: () => input.click() }, `+ העלאת ${k.plural}`);
+  const bar = h('div', { class: 'fl-bar' }, add, input);
+  input.addEventListener('change', () => { const files = [...input.files]; input.value = ''; startUploads(bar, kind, files, { progress, err }); });
+  const root = h('div', { class: 'fl-block fl-work', id: `${idp}-files`, 'data-kind': kind }, head, status, err, progress, bar, list);
+  root.__draw = () => {
+    const o = root.__opts;
+    const st = data.get(o.client.id);
+    const files = workFiles(st.files, kind, o.window);
+    head.replaceChildren(h('strong', {}, o.title || k.plural), ` · ${uploadedText(files.length, o.total)}`);
+    status.textContent = !st.loaded ? 'טוען את הקבצים…' : st.error || '';
+    status.hidden = st.loaded && !st.error;
+    bar.hidden = !!o.readOnly || !!st.error || !uploadKinds(o.me, o.client).includes(kind);
+    // The same tiles while nothing changed: a video that is playing keeps playing.
+    const sig = `${o.myEmail || ''}|${files.map((f) => f.id).join()}`;
+    if (list.dataset.sig !== sig) { list.dataset.sig = sig; list.replaceChildren(...files.map((f) => tile(f, o))); }
+    list.hidden = !files.length;
+  };
+  return root;
 }
 
 // ── The client's gallery link ─────────────
