@@ -799,7 +799,7 @@ export const RULES = [
       const last = days.at(-1);
       const gap = last ? businessDaysBetween(dayFromKeyIL(last), env.now) : 99;
       if (gap < 2) return [];
-      return [{ id: dayKeyIL(env.now), cid: null, name: '', gap, url: 'clients.html#control', anchors: { event: atTimeIL(env.now, 0) } }];
+      return [{ id: dayKeyIL(env.now), cid: null, name: '', gap, url: 'pass.html', anchors: { event: atTimeIL(env.now, 0) } }];
     },
     steps: [
       { id: 'ofir', at: '08:30', to: 'ofir', level: 'digest', title: () => 'בקרת לקוחות (33) היום', body: () => '' },
@@ -818,7 +818,7 @@ export const RULES = [
       const have = new Set(env.statusNotes.filter((n) => n.week === week).map((n) => n.client_id));
       const missing = env.clients.filter((c) => !have.has(c.id));
       if (!missing.length) return [];
-      return [{ id: week, cid: null, name: '', missing, url: 'clients.html#control', anchors: { event: atTimeIL(env.now, 0) } }];
+      return [{ id: week, cid: null, name: '', missing, url: 'pass.html#th-h', anchors: { event: atTimeIL(env.now, 0) } }];
     },
     steps: [
       { id: '0900', at: '09:00', to: 'ofir', level: 'ring', title: (i) => `סיכומי מצב לחמישי: ${i.missing.length} לקוחות`, body: () => 'היעד: 13:00, כדי שעירית תשלח עדכונים היום.' },

@@ -54,12 +54,17 @@ const ARRIVED_WITH = location.hash;
 import { intakeShortcut } from './intake-ui.js';
 // Stage 5: the monthly cycle (a draft) in "המשימות שלי", and the way to the package year.
 import { showMonths, worksCycle } from './month-ui.js';
+// Irit's daily control (process 32): her eleven topics, each with what is open now.
+import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageText } from './control-topics.js';
+import { loadDeals } from './deal-data.js';
+import { canSeeDeals } from './manager-rules.js';
 
 let clients = [];
 let checks = {};
 let tasks = [];
 let reviews = null;         // office_reviews rows of the last 7 business days (null = not loaded)
 let reviewsError = null;
+let deals = null;           // Stav's deals, for the control's "חוזים" and "חתימות" (null: not this viewer's, or not loaded)
 let statusNotes = null;     // client_status_notes of this week and the last (null = not loaded)
 let statusError = null;
 let lastLog = new Map();    // client id -> time of the latest history entry (last 3 weeks)
@@ -142,12 +147,15 @@ async function load() {
   // Reviews and agreement numbers are extras: the page works without them.
   // They serve the office screens only, so an 'own' view does not load them.
   const none = { status: 'rejected', reason: null };
-  const [rv, qi, sn, lg] = scope === 'office' ? await Promise.allSettled([
+  const [rv, qi, sn, lg, dl] = scope === 'office' ? await Promise.allSettled([
     loadReviews(dayIso(lastBusinessDays(7, now).at(-1))),
     loadQuoteNumbers(clients.filter(isAuto).map((c) => c.quote_id)),
     loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }),
     loadAllLog(new Date(now.getTime() - 21 * 864e5).toISOString()),
-  ]) : [none, none, none, none];
+    // The deals answer only Irit and the owners (the database decides; canSeeDeals mirrors it).
+    canSeeDeals({ me, scope, error: viewerError }) ? loadDeals() : Promise.resolve(null),
+  ]) : [none, none, none, none, none];
+  deals = dl.status === 'fulfilled' ? dl.value : null;
   reviews = rv.status === 'fulfilled' ? rv.value : null;
   reviewsError = rv.status === 'rejected' ? rv.reason : null;
   if (qi.status === 'fulfilled') quoteInfo = qi.value;
@@ -1292,13 +1300,18 @@ function lastBusinessDays(n, now = new Date()) {
 const reviewKind = (r) => `p${r.num}`;
 const reviewOn = (day, kind) => reviews?.find((x) => x.day === day && x.kind === kind) || null;
 // The note is JSON { general, clients: { clientId: text } }; plain text is read as general.
+// Process 32 also keeps what the tick saw: { open: { topic: count }, unseen: [topic] }
+// (app/control-topics.js topicsRecord), carried along when the notes are edited.
 function parseReviewNote(note) {
-  if (!note) return { general: '', clients: {} };
+  if (!note) return { general: '', clients: {}, topics: null };
   try {
     const v = JSON.parse(note);
-    if (v && typeof v === 'object') return { general: v.general || '', clients: v.clients || {} };
+    if (v && typeof v === 'object') {
+      const topics = v.open && typeof v.open === 'object' ? { open: v.open, unseen: Array.isArray(v.unseen) ? v.unseen : [] } : null;
+      return { general: v.general || '', clients: v.clients || {}, topics };
+    }
   } catch { /* plain text */ }
-  return { general: note, clients: {} };
+  return { general: note, clients: {}, topics: null };
 }
 function reviewPending(r) {
   const now = new Date();
@@ -1306,10 +1319,23 @@ function reviewPending(r) {
 }
 
 async function doMarkReview(r, input) {
+  // Process 32: one tick closes the day, and it says first which topics with open
+  // items were not opened today. What the tick saw is kept in the record.
+  let note;
+  if (reviewKind(r) === 'p32') {
+    const topics = topicsNow();
+    const left = showsTopics() ? unseenTopics(topics, seenTopics()) : [];
+    if (left.length && !(await confirmUnseen(left))) {
+      if (input?.type === 'checkbox') input.checked = false;
+      return;
+    }
+    // Marked from a screen that does not show the topics (on Irit's behalf): none of them was opened there.
+    note = JSON.stringify({ general: '', clients: {}, ...topicsRecord(topics, showsTopics() ? seenTopics() : []) });
+  }
   if (input) input.disabled = true;
   const day = dayIso(new Date());
   try {
-    const row = await markReview(day, reviewKind(r));
+    const row = await markReview(day, reviewKind(r), note);
     reviews = [row, ...(reviews || []).filter((x) => !(x.day === row.day && x.kind === row.kind))];
   } catch (err) {
     if (input) { input.checked = false; input.disabled = false; }
@@ -1372,11 +1398,146 @@ function reviewWeek(r, now) {
     h('details', { class: 'rv-narrow' }, h('summary', {}, summary), list('rv-week')));
 }
 
-function reviewRow(r, now) {
+// ── Irit's eleven topics (process 32; her protocol, step 19) ──
+// One row per topic in the protocol's order, with how many items are open and the
+// items one tap away (app/control-topics.js). Irit sees them, and so does whoever
+// looks at the office from the manager profile; in Ofir's personal profile process
+// 32 keeps its one short line (his own control is 33).
+const showsTopics = () => me === 'irit' || !personal;
+const topicsOpen = new Set();      // rows left open, across the re-renders
+const seenToday = new Set();       // opened today on this screen (the store may be closed: private mode)
+const seenKey = () => `control.seen.${dayIso(new Date())}`;
+function seenTopics() {
+  let saved = [];
+  try { saved = JSON.parse(store.get(seenKey()) || '[]'); } catch { /* not ours */ }
+  return [...new Set([...(Array.isArray(saved) ? saved : []), ...seenToday])];
+}
+function markTopicSeen(key) {
+  if (seenTopics().includes(key)) return;
+  seenToday.add(key);
+  store.set(seenKey(), JSON.stringify(seenTopics()));
+}
+const workRows = (rows) => rows.map((x) => ({ key: x.p.key, late: x.late, urgent: x.urgent, today: x.today, open: x.open }));
+const topicsNow = (now = new Date(), rows = personRows()) => controlTopics({ clients, checks, stateOf, tasks, deals, work: workRows(rows), now });
+
+// The rest of a topic that the control already lists in full, lower on the page.
+const TOPIC_MORE = { tasks: ['ctl-late', 'לכל האיחורים'], staff: ['ctl-people', 'לטבלה של כל הצוות'], back: ['ctl-wait', 'לרשימה המלאה, עם התקשרות'] };
+const lateWord = (t, x) => (t.key === 'staff' || x.recheck ? null : ['approvals', 'signatures', 'back'].includes(t.key) ? 'יותר מיומיים' : 'באיחור');
+function jumpTo(id) {
+  const el = $(id);
+  el?.scrollIntoView({ block: 'start' });
+  el?.focus({ preventScroll: true });
+}
+function topicItem(t, x, now) {
+  const name = x.client ? clientLabel(x.client) : x.title;
+  const word = x.late ? lateWord(t, x) : null;
+  return h('li', { class: `tp-item${x.late ? ' is-late' : ''}` },
+    x.client ? h('a', { class: 'wclient', href: clientUrl(x.client.id, x.hash ? `#${x.hash}` : '') }, name)
+      : x.href ? h('a', { class: 'wclient', href: x.href }, name)
+        : h('strong', { class: 'tp-who' }, name),
+    h('span', { class: 'tp-text' }, x.text,
+      x.when ? h('span', { class: 'num' }, ` · ${formatWhen(x.when, now)}`) : null,
+      x.since ? h('span', { class: 'muted num' }, ` · ${ageText(x.since, now)}`) : null),
+    word ? h('span', { class: 'tag tag-warn' }, word) : null,
+    // "עובדים שטרם סיימו": the person's own list, as in the table below.
+    t.key === 'staff' ? h('button', {
+      type: 'button', class: 'btn-text', onclick: () => { minePerson = x.person; if (personal) location.hash = '#team'; else setView('mine'); },
+    }, `הרשימה של ${name}`) : null,
+    // Her step 20: a real exception goes to Lior, through the card's own report.
+    x.late && x.client ? h('a', { class: 'btn-text tp-esc', href: clientUrl(x.client.id, '#btn-escalate'), 'aria-label': `דיווח חריגה לליאור: ${name}` }, 'חריגה לליאור') : null);
+}
+function topicRow(t, now) {
+  if (!t.count) {
+    return h('li', { class: 'tp-row is-empty', id: `tp-${t.key}` }, h('span', { class: 'tp-name' }, t.label), h('span', { class: 'tp-none' }, 'אין'));
+  }
+  const more = TOPIC_MORE[t.key];
+  return h('li', { class: 'tp-row', id: `tp-${t.key}` },
+    h('details', {
+      open: topicsOpen.has(t.key),
+      ontoggle: (ev) => {
+        if (ev.currentTarget.open) { topicsOpen.add(t.key); markTopicSeen(t.key); } else topicsOpen.delete(t.key);
+        syncTopicsLeft();
+      },
+    },
+    h('summary', {},
+      h('span', { class: 'tp-name' }, t.label),
+      t.late ? h('span', { class: 'tp-late' }, `${t.late} באיחור`) : null,
+      h('span', { class: 'n', 'aria-label': `${t.count} פתוחים` }, String(t.count))),
+    capList(h('ul', { class: 'tp-items' }, ...t.items.map((x) => topicItem(t, x, now))), 6, `tp:${t.key}`),
+    more ? h('p', { class: 'tp-more' }, h('button', { type: 'button', class: 'btn-text', onclick: () => jumpTo(more[0]) }, more[1])) : null));
+}
+// Under the rows: how many topics with something in them were not opened yet today.
+function topicsLeftText(topics) {
+  if (!topics.some((t) => t.count)) return 'אין היום פריטים פתוחים באף נושא.';
+  const left = unseenTopics(topics, seenTopics());
+  if (!left.length) return 'עברת על כל הנושאים שיש בהם פריטים פתוחים.';
+  return `${left.length === 1 ? 'נושא אחד שיש בו פריטים פתוחים עוד לא נפתח' : `${left.length} נושאים שיש בהם פריטים פתוחים עוד לא נפתחו`} היום: ${left.map((t) => t.label).join(', ')}.`;
+}
+let shownTopics = [];
+function syncTopicsLeft() {
+  const el = $('tp-left');
+  if (el) el.textContent = topicsLeftText(shownTopics);
+}
+function topicsBlock(now, rows, pending) {
+  shownTopics = topicsNow(now, rows);
+  return h('div', { class: 'tp-block' },
+    h('ol', { class: 'tp-list', 'aria-label': 'על מה עוברים בבקרה היומית' }, ...shownTopics.map((t) => topicRow(t, now))),
+    // The daily messages to the clients are part of 32 too; they have their own page.
+    canSendMessages({ me, scope, error: viewerError }) ? h('p', { class: 'tp-msgs' }, h('a', { class: 'btn-text', href: 'messages.html' }, 'הודעות יומיות ללקוחות')) : null,
+    pending ? h('p', { class: 'tp-left', id: 'tp-left', role: 'status' }, topicsLeftText(shownTopics)) : null);
+}
+function goToTopic(key) {
+  if (view !== 'control') setView('control');
+  topicsOpen.add(key);
+  markTopicSeen(key);
+  renderKeepingFocus();
+  const row = $(`tp-${key}`);
+  row?.scrollIntoView({ block: 'center' });
+  row?.querySelector('summary')?.focus({ preventScroll: true });
+}
+// "הבקרה היומית בוצעה" with topics not opened: say so, and let her decide. Resolves
+// true to mark anyway; "לעבור עליהם" opens the first of them instead.
+function confirmUnseen(left) {
+  return new Promise((resolve) => {
+    let answer = false;
+    const dlg = h('dialog', { id: 'dlg-unseen', 'aria-labelledby': 'unseen-h' },
+      h('div', { class: 'dlg-head' }, h('h2', { id: 'unseen-h' }, 'לסמן שהבקרה בוצעה?'),
+        h('button', { type: 'button', class: 'close', 'aria-label': 'סגירה', onclick: () => dlg.close() }, '×')),
+      h('div', { class: 'dlg-body' },
+        h('p', {}, left.length === 1 ? 'בנושא אחד יש פריטים פתוחים, והוא עוד לא נפתח היום:' : `ב־${left.length} נושאים יש פריטים פתוחים, והם עוד לא נפתחו היום:`),
+        h('ul', { class: 'tp-unseen' }, ...left.map((t) => h('li', {}, `${t.label} (${t.count})`)))),
+      h('div', { class: 'dlg-foot' },
+        h('button', { type: 'button', class: 'btn btn-ghost', id: 'unseen-mark', onclick: () => { answer = true; dlg.close(); } }, 'לסמן בכל זאת'),
+        h('button', { type: 'button', class: 'btn btn-primary', id: 'unseen-go', onclick: () => { answer = 'go'; dlg.close(); } }, 'לעבור עליהם')));
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener('close', () => {
+      dlg.remove();
+      if (answer === 'go') goToTopic(left[0].key);
+      resolve(answer === true);
+    });
+    document.body.append(dlg);
+    dlg.showModal();
+    $('unseen-go').focus();
+  });
+}
+// What the tick saw, under a marked review.
+function reviewRecord(notes) {
+  if (!notes.topics) return null;
+  const text = recordText(notes.topics);
+  const unseen = notes.topics.unseen.map(topicLabel);
+  return h('p', { class: 'rv-record muted' }, text ? `בזמן הסימון היו פתוחים: ${text}.` : 'בזמן הסימון לא היו פריטים פתוחים.',
+    unseen.length ? ` לא נפתחו: ${unseen.join(', ')}.` : null);
+}
+
+function reviewRow(r, now, rows) {
   const kind = reviewKind(r);
   const rec = reviewOn(dayIso(now), kind);
   const notes = parseReviewNote(rec?.note);
-  return h('div', { class: 'rv-row' },
+  const walk = kind === 'p32' && showsTopics();
+  const meta = h('p', { class: 'rv-meta' }, `תהליך ${r.num} · ${r.title} · `, personChip(r.owner), ` · ${r.sla}`);
+  // With the topics the work comes first and the tick after it.
+  return h('div', { class: `rv-row${walk ? ' rv-walk' : ''}` },
+    walk ? [meta, topicsBlock(now, rows || personRows(), !rec && isBusinessDay(now))] : null,
     h('div', { class: 'rv-main' },
       !isBusinessDay(now) ? h('p', { class: 'muted rv-off' }, 'היום אינו יום עבודה.')
         : rec ? h('div', { class: 'rv-state' },
@@ -1386,10 +1547,11 @@ function reviewRow(r, now) {
           h('span', { class: 'rv-by' }, reviewDone(rec, r)),
           h('button', { type: 'button', class: 'btn-text', onclick: () => openNotes(r) }, notes.general || Object.keys(notes.clients).length ? 'עריכת הערות' : 'הוספת הערות'))
           : reviewMarkControl(r, 'rv'),
-      h('p', { class: 'rv-meta' }, `תהליך ${r.num} · ${r.title} · `, personChip(r.owner), ` · ${r.sla}`)),
+      walk ? null : meta),
     reviewStale(r, now),
+    reviewRecord(notes),
     notes.general ? h('p', { class: 'rv-general' }, `הערות: ״${notes.general}״`) : null,
-    h('details', { class: 'rv-topics' }, h('summary', {}, 'על מה עוברים'),
+    walk ? null : h('details', { class: 'rv-topics' }, h('summary', {}, 'על מה עוברים'),
       h('ul', {}, ...(REVIEW_TOPICS[kind] || []).map((t) => h('li', {}, t)))),
     reviewWeek(r, now));
 }
@@ -1404,12 +1566,12 @@ function reviewStale(r, now) {
     h('span', {}, last ? `הבקרה האחרונה: ${dayShort(last)}` : 'אין בקרה ב־7 ימי העבודה האחרונים'));
 }
 
-function reviewPanel(now) {
+function reviewPanel(now, rows = null) {
   return h('section', { class: 'rv-panel', 'aria-labelledby': 'rv-h' },
     h('h2', { class: 'wgroup-h', id: 'rv-h', tabindex: '-1' }, 'הבקרה של היום'),
     reviews === null
       ? h('p', { class: 'muted' }, `הבקרות לא נטענו. ${reviewsError ? errorText(reviewsError) : ''}`)
-      : OFFICE_REVIEWS.map((r) => reviewRow(r, now)));
+      : OFFICE_REVIEWS.map((r) => reviewRow(r, now, rows)));
 }
 
 // Notes written today next to a client in the control lists.
@@ -1463,7 +1625,9 @@ $('notes-form').addEventListener('submit', async (e) => {
   const clientsNotes = {};
   for (const el of notesDlg.querySelectorAll('[data-client]')) if (el.value.trim()) clientsNotes[el.dataset.client] = el.value.trim();
   const general = $('notes-general').value.trim();
-  const note = general || Object.keys(clientsNotes).length ? JSON.stringify({ general, clients: clientsNotes }) : null;
+  // What the tick saw (process 32) stays in the record when the notes change.
+  const kept = parseReviewNote(reviewOn(dayIso(new Date()), reviewKind(r))?.note).topics;
+  const note = general || Object.keys(clientsNotes).length || kept ? JSON.stringify({ general, clients: clientsNotes, ...(kept || {}) }) : null;
   if (note && note.length > 2000) {
     $('notes-err').textContent = 'ההערות ארוכות מדי לשמירה. קצרו אותן, או פתחו משימה בכרטיס הלקוח.';
     $('notes-err').hidden = false;
@@ -1928,7 +2092,7 @@ function renderControl() {
     ]),
     urgentSection(now),
     escalationSection(now),
-    reviewPanel(now),
+    reviewPanel(now, rows),
     h('div', { class: 'team-summary' }, summaryActions('team', 'control'),
       teamOpened ? h('span', { class: 'muted small' }, `נפתח היום ${hm(teamOpened)}`) : null),
     h('h2', { class: 'wgroup-h', id: 'ctl-people', tabindex: '-1' }, 'לפי עובד', h('span', { class: 'muted small' }, 'נספר בתהליכים')),

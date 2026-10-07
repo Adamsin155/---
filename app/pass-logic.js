@@ -13,6 +13,7 @@ import { dayKeyIL, dayFromKeyIL, weekdayIL, atTimeIL } from './tz.js';
 import {
   COLORS, lastActivity, currentStep, awaitedFromClient, personName, procName, THURSDAY_AT,
 } from './health.js';
+// (personName also names who holds a stuck client's late process, in stuckOf.)
 
 export const PASS_EVERY = 2;       // business days between passes, at most (process 33)
 export const STUCK_LATE_DAYS = 2;  // a process late by more than this: stuck
@@ -52,17 +53,67 @@ export function changesOf(prev, e, hadPass = true) {
 // ── "לקוח תקוע" (Ofir's protocol, stage 11) ──
 // Flagged by itself in three cases: a process late by more than 2 business days, no
 // activity for 5 business days, or past the recheck date of a wait on the client.
+// `age`: how long what blocks the client has been open ("כמה זמן המשימה פתוחה"), in
+// business days: the late process open the longest (since it could start, and how
+// much of that is past its deadline, and with whom), or the wait on the client.
+const daysWord = (n) => (n === 1 ? 'יום עסקים אחד' : `${n} ימי עסקים`);
+const holders = (s) => (s.claim ? [s.claim.person] : s.proc.owners || []).map((k) => (k === 'editor' ? 'עורך' : personName(k))).filter(Boolean).join(', ');
 export function stuckOf(client, state, extras = {}, now = new Date()) {
   const out = [];
   const late = state.states.filter((s) => s.status === 'overdue' && s.dueAt && businessDaysBetween(s.dueAt, now) > STUCK_LATE_DAYS);
-  if (late.length) out.push({ code: 'late', text: `באיחור של יותר מיומיים: ${late.slice(0, 2).map((s) => procName(s.proc)).join(', ')}${late.length > 2 ? ` ועוד ${late.length - 2}` : ''}` });
+  if (late.length) {
+    const openSince = (s) => (s.startAt && s.startAt < s.dueAt ? s.startAt : s.dueAt);
+    const oldest = late.slice().sort((a, b) => openSince(a) - openSince(b))[0];
+    const open = businessDaysBetween(openSince(oldest), now);
+    const over = businessDaysBetween(oldest.dueAt, now);
+    const who = holders(oldest);
+    out.push({
+      code: 'late', text: `באיחור של יותר מיומיים: ${late.slice(0, 2).map((s) => procName(s.proc)).join(', ')}${late.length > 2 ? ` ועוד ${late.length - 2}` : ''}`,
+      age: `${procName(oldest.proc)}: ${open > over ? `פתוח ${daysWord(open)}, מהם ${over} באיחור` : `באיחור ${daysWord(over)}`}${who ? ` · אצל ${who}` : ''}`,
+      days: open, lateDays: over,
+    });
+  }
   const last = lastActivity(client, extras);
   const idle = last ? businessDaysBetween(last, now) - (isBusinessDay(now) ? 1 : 0) : 0;
-  if (idle >= STUCK_IDLE_DAYS) out.push({ code: 'idle', text: `אין פעילות ${idle} ימי עסקים` });
+  if (idle >= STUCK_IDLE_DAYS) out.push({ code: 'idle', text: `אין פעילות ${idle} ימי עסקים`, age: null, days: idle });
   const today = dayKeyIL(now);
   const past = state.states.filter((s) => s.status === 'client' && s.wait?.recheck && s.wait.recheck < today);
-  if (past.length) out.push({ code: 'recheck', text: `עבר מועד הבדיקה החוזרת: ${past.map((s) => procName(s.proc)).join(', ')}` });
+  if (past.length) {
+    const since = past.map((s) => new Date(s.wait.at)).sort((a, b) => a - b)[0];
+    const days = businessDaysBetween(since, now);
+    out.push({ code: 'recheck', text: `עבר מועד הבדיקה החוזרת: ${past.map((s) => procName(s.proc)).join(', ')}`, age: `ממתין ללקוח ${daysWord(days)}`, days });
+  }
   return out;
+}
+
+// ── A stuck client leaves the check with a clear action (stage 11) ──
+// "עברתי" alone does not close a row flagged "תקוע". One of three does: a task was
+// opened ('task'), Lior was updated ('lior', an exception task for him), or a short
+// written reason why nothing is needed ('reason'). The pass keeps it with the
+// client in its record (office_passes.seen: { how, at, task | reason }).
+export const STUCK_HOWS = ['task', 'lior', 'reason'];
+export const REASON_MIN = 5;      // characters: a word or two, not a dot
+export const REASON_MAX = 200;
+export const cleanReason = (text) => String(text || '').replace(/\s+/g, ' ').trim().slice(0, REASON_MAX);
+export const reasonOk = (text) => cleanReason(text).length >= REASON_MIN;
+// Whether this record closes this row: any record for a row that is not stuck.
+export function closesRow(row, seen) {
+  if (!seen) return false;
+  if (!row?.stuck?.length) return true;
+  if (seen.how === 'reason') return reasonOk(seen.reason);
+  return STUCK_HOWS.includes(seen.how);
+}
+// The ways a row may be closed now.
+export const closeHows = (row) => (row?.stuck?.length ? STUCK_HOWS : ['seen', 'task']);
+// "לקוח תקוע: …", the title of the update to Lior.
+export const stuckTitle = (row) => `לקוח תקוע: ${(row?.stuck || []).map((x) => [x.text, x.age].filter(Boolean).join(' · ')).join(' · ')}`.slice(0, 500);
+// The line of a client that was gone over.
+export function seenText(seen) {
+  if (!seen) return '';
+  if (seen.how === 'task') return 'נפתחה משימה';
+  if (seen.how === 'lior') return 'עודכן ליאור';
+  if (seen.how === 'reason') return `עברת · אין צורך בפעולה: ״${cleanReason(seen.reason)}״`;
+  return 'עברת';
 }
 
 // ── The list ────────────────────────────────
@@ -89,7 +140,8 @@ export function passRows(entries, { prev = null, stuck = () => [] } = {}) {
 export function passProgress(rows, seen = {}) {
   const attention = rows.filter((r) => r.attention);
   const rest = rows.filter((r) => !r.attention);
-  const open = attention.filter((r) => !seen[r.client.id]);
+  // A stuck client counts only once it has an action (closesRow above).
+  const open = attention.filter((r) => !closesRow(r, seen[r.client.id]));
   const restOpen = rest.filter((r) => !seen[r.client.id]);
   return {
     total: rows.length, attention: attention.length, handled: rows.length - open.length - restOpen.length,

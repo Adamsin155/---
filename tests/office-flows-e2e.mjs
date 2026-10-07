@@ -437,6 +437,92 @@ await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the 
   await ofir.waitForSelector('#qa-list .of-card');
 });
 
+await step('"החלפת עורך" from the load list: the same dialog and rules; on time the editing days start over, and the new editor is told', async () => {
+  // Natali's shoot, assigned to Nadia a moment ago: back to Nirel.
+  const before = checkOf(N, 'p22a.assigned').at;
+  const nadiaCard = ofir.locator('#load-list .of-editor', { hasText: 'נדיה' });
+  assert.match(await nadiaCard.innerText(), /סטודיו נטלי · שויך היום[^]*החלפת עורך/);
+  await ofir.click(`#sw-${N.id}`);
+  await ofir.waitForSelector('#dlg-assign[open]');
+  assert.equal(await ofir.innerText('#as-h'), 'החלפת עורך · סטודיו נטלי');
+  assert.match(await ofir.innerText('#as-meta'), /עכשיו אצל נדיה · שויך היום/);
+  assert.equal(await ofir.innerText('#as-submit'), 'החלפה');
+  // The one who has it now cannot be chosen; Nirel is preselected for Natali, with each editor's load.
+  assert.equal(await ofir.isDisabled('#as-e-nadia'), true);
+  assert.match(await ofir.locator('label[for="as-e-nadia"]').innerText(), /העורך הנוכחי/);
+  assert.equal(await ofir.isChecked('#as-e-nirel'), true);
+  assert.match(await ofir.locator('label[for="as-e-yariv"]').innerText(), /לקוח אחד בעריכה/);
+  // The clocks: not late, so the days are counted again from today (as the first assignment does), and it says until when.
+  assert.equal(await ofir.isVisible('#as-clock-wrap'), true);
+  assert.equal(await ofir.isChecked('#as-clock-restart'), true);
+  assert.equal(await ofir.isHidden('#as-clock-late'), true);
+  assert.match(await ofir.innerText('#as-clock-restart-label'), /^לספור מחדש מהיום: יעד /);
+  assert.match(await ofir.innerText('#as-clock-keep-label'), /^להשאיר את המועד: יעד /);
+  // Another editor for Natali still needs the written reason.
+  await ofir.check('#as-e-yariv');
+  assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (חובה)');
+  await ofir.click('#as-submit');
+  assert.match(await ofir.innerText('#as-err'), /ניראל מסומנת מראש בצילום של נטלי\. כתבו למה יריב/);
+  await ofir.check('#as-e-nirel');
+  assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (לא חובה)');
+  await ofir.waitForTimeout(1100); // a later second, so the new stamp differs
+  await ofir.click('#as-submit');
+  await toastHas(ofir, 'סטודיו נטלי עבר מנדיה לניראל. מועדי העריכה נספרים מהיום');
+  assert.equal(db.clients.find((c) => c.id === N.id).editor, 'nirel');
+  assert.ok(checkOf(N, 'p22a.assigned').at > before, 'the assignment is stamped again');
+  const why = JSON.parse(checkOf(N, 'p22a.reason').note);
+  assert.deepEqual([why.editor, why.from, why.swap, why.restart, why.late, why.prev], ['nirel', 'nadia', true, true, false, before]);
+  assert.equal(why.reason, 'החלפת עורך: מנדיה לניראל · מועדי העריכה נספרים מחדש מהיום');
+  // As after the first assignment: the WhatsApp to the (new) editor; no second folder task.
+  await ofir.waitForSelector('#handoff:not([hidden])');
+  assert.match(await ofir.locator('#handoff').innerText(), /עורך שויך · ניראל[^]*לשלוח לניראל בוואטסאפ/);
+  await ofir.click('#handoff-close');
+  assert.equal(db.client_tasks.filter((t) => t.client_id === N.id && t.title.startsWith('פתיחת תיקייה')).length, 1);
+  assert.match(await ofir.locator('#load-list .of-editor', { hasText: 'ניראל' }).innerText(), /סטודיו נטלי · שויך היום/);
+  // The reminder engine: the notice "לקוח חדש בעריכה אצלך" is now Nirel's, not Nadia's.
+  const byClient = {};
+  for (const r of db.protocol_checks) (byClient[r.client_id] ||= {})[r.item_key] = r;
+  const env = buildEnv({ clients: db.clients, checks: byClient, tasks: db.client_tasks.filter((t) => !t.done_at), staff: db.staff, access: [], reviews: db.office_reviews, statusNotes: [], now: new Date(new Date(serverNow()).getTime() + 60e3) });
+  const told = candidates(env).filter((r) => r.rule === 'editing' && r.step === 'assigned' && r.clientId === N.id).map((r) => r.person);
+  if (process.env.DEBUG_SWAP) console.log(candidates(env).filter((r) => r.rule === 'editing').map((r) => r.key));
+  assert.deepEqual(told, ['nirel']);
+});
+
+await step('a swap never resets a late job silently: the deadlines stay unless Ofir chooses to count again and writes why', async () => {
+  // Shemesh is with Nadia on day 6 of 4.
+  const stamp = checkOf(F, 'p22a.assigned').at;
+  await ofir.click(`#sw-${F.id}`);
+  await ofir.waitForSelector('#dlg-assign[open]');
+  assert.equal(await ofir.isChecked('#as-clock-keep'), true);
+  assert.match(await ofir.innerText('#as-clock-late'), /העריכה כבר באיחור\. ההחלפה לא מאפסת את האיחור/);
+  assert.match(await ofir.innerText('#as-clock-keep-label'), /\(באיחור\)$/);
+  assert.equal(await ofir.isHidden('#as-joint-wrap'), true);
+  assert.deepEqual(await ofir.locator('#as-editors input').evaluateAll((els) => els.map((e) => e.value)), ['nadia', 'yariv', 'anna']); // Nirel edits Natali only
+  await ofir.check('#as-e-anna');
+  assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (לא חובה)');
+  // Counting again is his explicit choice, with a reason.
+  await ofir.check('#as-clock-restart');
+  assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (חובה)');
+  await ofir.click('#as-submit');
+  assert.match(await ofir.innerText('#as-err'), /העריכה כבר באיחור\. כדי לספור את המועדים מחדש כתבו למה\./);
+  assert.equal(db.clients.find((c) => c.id === F.id).editor, 'nadia');
+  await shot(ofir, 'office-03b-swap-late');
+  // Left as it is: the job moves and stays late.
+  await ofir.check('#as-clock-keep');
+  await ofir.click('#as-submit');
+  await toastHas(ofir, 'גלידה שמש עבר מנדיה לאנה. המועדים לא השתנו: העריכה נשארת באיחור.');
+  assert.equal(db.clients.find((c) => c.id === F.id).editor, 'anna');
+  assert.equal(checkOf(F, 'p22a.assigned').at, stamp, 'the assignment mark is untouched: the clocks did not move');
+  const why = JSON.parse(checkOf(F, 'p22a.reason').note);
+  assert.deepEqual([why.editor, why.from, why.restart, why.late, why.reason], ['anna', 'nadia', false, true, 'החלפת עורך: מנדיה לאנה · המועדים לא השתנו, העריכה נשארת באיחור']);
+  // No WhatsApp is offered here: the handoff of an assignment (app/handoffs.js) is for an editing that has not reached Ofir yet.
+  await ofir.waitForFunction(() => !document.querySelector('dialog[open]'));
+  assert.equal(await ofir.isHidden('#handoff'), true);
+  assert.match(await ofir.locator('#load-list .of-editor', { hasText: 'אנה' }).innerText(), /גלידה שמש · יום 6 מתוך 4/);
+  assert.equal(await ofir.locator('#load-list .of-editor', { hasText: 'אנה' }).locator('.late').count(), 1);
+  await shot(ofir, 'office-03c-swapped');
+});
+
 // Since 6.10.2026 Lior lands on "המשימות שלי" (it was "החלטות"), and "החלטות" is one tap away in his personal menu.
 await step('Lior\'s "החלטות", one tap from "המשימות שלי": an exception through reason → decision → next action → close, and "התחלתי"', async () => {
   const lctx = await newContext();
@@ -493,7 +579,8 @@ await step('an urgent task not started in 30 office minutes is back with Lior; a
   assert.deepEqual(JSON.parse(checkOf(G, 'p06.fixed.instagram').note), { partial: true, missing: 'קוד אימות מהלקוח', access: a.id });
   // Editing paused since yesterday: Ofir's proposal by load, and the deadlines moved by a day.
   const pz = lior.locator('#pz-list .of-card');
-  assert.match(await pz.innerText(), /סטודיו פז[^]*יריב[^]*עצורה מאז[^]*הצעת אופיר לפי העומס: אנה/);
+  // Nadia, not Anna: the two swaps above left Nadia with one job and gave Anna the late one, and the fewest open tasks decide.
+  assert.match(await pz.innerText(), /סטודיו פז[^]*יריב[^]*עצורה מאז[^]*הצעת אופיר לפי העומס: נדיה/);
   await pz.locator('input[type=number]').fill('1');
   await pz.locator('button[type=submit]').click();
   await toastHas(lior, 'המועדים של סטודיו פז הוזזו ב־1 ימי עסקים');
@@ -584,6 +671,55 @@ await step('Thursday: the pass (עברתי, one tap for the rest, the day\'s con
   assert.ok(db.client_tasks.some((t) => t.source === 'p33' && t.title === 'לבדוק מול העורך מה חסר' && t.due_on === '2026-10-25'));
   // The list shows its first six clients; the rest are behind "הצג עוד".
   if (await o.locator('#ps-list .more-btn').count()) await o.click('#ps-list .more-btn');
+  // A stuck client (Ofir's stage 11) is not closed by "עברתי" alone: it says how long it
+  // has been open, and offers a task, an update to Lior, or a written reason.
+  const stuckIds = await o.locator('#ps-list .ps-row:not(.is-seen):has(.ps-stuck-acts)').evaluateAll((els) => els.map((e) => e.id));
+  assert.ok(stuckIds.length >= 2, `stuck rows: ${stuckIds.length}`);
+  for (const id of stuckIds) {
+    const row = o.locator(`#${id}`);
+    assert.equal(await row.locator('button', { hasText: /^עברתי$/ }).count(), 0, 'no bare "עברתי" on a stuck client');
+    assert.deepEqual(await row.locator('.of-acts button').allInnerTexts(), ['פתח משימה', 'עדכון לליאור', 'אין צורך בפעולה']);
+    assert.match(await row.innerText(), /לקוח תקוע[^]*תקוע: /);
+  }
+  assert.ok(await o.locator('#ps-list .ps-age').count() >= 1);
+  assert.match(await o.locator('#ps-list .ps-age').first().innerText(), /(פתוח|באיחור|ממתין ללקוח) .*ימי עסקים|יום עסקים אחד/);
+  await shot(o, 'office-06a-pass-stuck');
+  // (1) A written reason: a dot is not one.
+  const [s1, s2, ...sRest] = stuckIds;
+  await o.click(`#${s1}-why-open`);
+  await o.waitForSelector(`#${s1}-why-text`);
+  assert.equal(await o.evaluate(() => document.activeElement.id), `${s1}-why-text`);
+  await o.fill(`#${s1}-why-text`, ' . ');
+  await o.click(`#${s1}-why-save`);
+  assert.match(await o.innerText(`#${s1}-why-err`), /כתבו בכמה מילים למה לא נדרשת פעולה, או פתחו משימה\./);
+  assert.ok(!db.office_passes.find((x) => x.day === '2026-10-22')?.seen?.[s1.slice(3)]);
+  await o.fill(`#${s1}-why-text`, 'הלקוח בחו״ל עד יום ראשון, סוכם איתו');
+  await o.click(`#${s1}-why-save`);
+  await o.waitForSelector(`#${s1}.is-seen`);
+  assert.match(await o.locator(`#${s1} .ps-seen`).innerText(), /^עברת · אין צורך בפעולה: ״הלקוח בחו״ל עד יום ראשון, סוכם איתו״ · \d\d:\d\d$/);
+  const kept = db.office_passes.find((x) => x.day === '2026-10-22').seen[s1.slice(3)];
+  assert.deepEqual([kept.how, kept.reason], ['reason', 'הלקוח בחו״ל עד יום ראשון, סוכם איתו']);
+  // (2) An update to Lior: the existing exception path (a task for him, source 'escalation').
+  await o.click(`#${s2}-lior`);
+  await o.waitForSelector('#dlg-task[open]');
+  assert.match(await o.innerText('#tk-h'), /^עדכון לליאור · /);
+  assert.match(await o.inputValue('#tk-title'), /^לקוח תקוע: /);
+  assert.equal(await o.inputValue('#tk-owner'), 'lior');
+  assert.equal(await o.isDisabled('#tk-owner'), true);
+  assert.equal(await o.innerText('#tk-submit'), 'שליחה לליאור');
+  await o.click('#tk-submit');
+  await toastHas(o, 'נשלח לליאור: לקוח תקוע: ');
+  const esc = db.client_tasks.find((t) => t.client_id === s2.slice(3) && t.source === 'escalation' && t.title.startsWith('לקוח תקוע: '));
+  assert.deepEqual([esc.owner, esc.due_on], ['lior', '2026-10-25']);
+  assert.match(await o.locator(`#${s2} .ps-seen`).innerText(), /^עודכן ליאור · /);
+  assert.deepEqual(db.office_passes.find((x) => x.day === '2026-10-22').seen[s2.slice(3)].task, esc.id);
+  // The task dialog is back to itself for the next ordinary task.
+  for (const id of sRest) {
+    await o.click(`#${id}-why-open`);
+    await o.fill(`#${id}-why-text`, 'נבדק מול העורך, מסתדר היום');
+    await o.click(`#${id}-why-save`);
+    await o.waitForSelector(`#${id}.is-seen`);
+  }
   while (await o.locator('#ps-list .ps-row:not(.is-seen) button', { hasText: 'עברתי' }).count()) {
     const n = await o.locator('#ps-list .ps-row:not(.is-seen)').count();
     await o.locator('#ps-list .ps-row:not(.is-seen) button', { hasText: 'עברתי' }).first().click();
@@ -655,6 +791,32 @@ await step('a 360px phone: no sideways scrolling and 44px targets on the three s
     }
     await pctx.close();
   }
+});
+
+await step('a 390px phone: the stuck row (three ways out, the reason field) and "החלפת עורך" fit, with 44px targets', async () => {
+  db.office_passes = db.office_passes.filter((x) => x.day !== '2026-10-22'); // Thursday's pass is open again
+  const pctx = await newContext(THU, { width: 390, height: 844 });
+  const page = await newPage(pctx);
+  await signIn(page, 'pass.html', 'ofir');
+  await page.waitForSelector('#ps-list .ps-row');
+  if (await page.locator('#ps-list .more-btn').count()) await page.click('#ps-list .more-btn');
+  const row = page.locator('#ps-list .ps-row:has(.ps-stuck-acts)').first();
+  const id = await row.getAttribute('id');
+  await page.click(`#${id}-why-open`);
+  await page.waitForSelector(`#${id}-why-text`);
+  assert.ok(await noHScroll(page), 'the stuck row scrolls sideways at 390px');
+  for (const el of await row.locator('button, input').all()) assert.ok((await el.boundingBox()).height >= 44, 'a 44px target in the stuck row');
+  assert.deepEqual(await unlabeled(page, `#${id}`), []);
+  if (OUT) await row.screenshot({ path: `${OUT}/office-08-phone-390-stuck-row.png` });
+  await page.goto(`${BASE}qa.html`);
+  await page.waitForSelector('#load-list .sw-btn');
+  await page.locator('#load-list .sw-btn').first().click();
+  await page.waitForSelector('#dlg-assign[open]');
+  assert.ok(await noHScroll(page), 'the swap dialog scrolls sideways at 390px');
+  for (const el of await page.locator('#dlg-assign .wrow, #dlg-assign .dlg-foot .btn').all()) if (await el.isVisible()) assert.ok((await el.boundingBox()).height >= 44, 'a 44px target in the swap dialog');
+  assert.deepEqual(await unlabeled(page, '#dlg-assign'), []);
+  if (OUT) await page.screenshot({ path: `${OUT}/office-09-phone-390-swap.png` });
+  await pctx.close();
 });
 
 assert.deepEqual(errors, []);

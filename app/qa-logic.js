@@ -118,6 +118,39 @@ export const jointFromSelection = (selection) => selection?.free?.simeonJoin ===
 export const reasonNote = ({ editor, reason, preselected: pre = null, joint = false }) => JSON.stringify({ editor, reason: String(reason || '').trim().slice(0, 500), preselected: pre, joint: !!joint });
 export const reasonOf = (checks, pre = '') => readJson(checks[REASON_KEY(pre)]);
 
+// ── Changing an assigned editor ("החלפת עורך") ──
+// The automatic assignment tells Ofir he can change it; he does it from the load
+// list of his own screen, with the same rules as the first assignment (Nirel only
+// for Natali, another editor for Natali with a written reason).
+//
+// The editing clocks: the deadlines of 22, 24 and 27 count from the moment 22א
+// "שויך" was marked (3 and 4 business days). Marking it again, as the first
+// assignment does, starts them over from now; leaving the mark keeps them.
+// A job that is already late is never restarted silently: there the default keeps
+// the deadlines (the job stays late with the new editor), and starting over is
+// Ofir's explicit choice with a written reason, kept in the reason mark.
+//   job: one of editorLoad()'s jobs ({ dueAt, of, assignedAt, … }).
+export function swapClock(job, now = new Date()) {
+  const late = !!job?.dueAt && job.dueAt < now;
+  return { late, keepDue: job?.dueAt || null, restartDue: addBusinessDays(now, job?.of || 3), choice: late ? 'keep' : 'restart' };
+}
+export function swapReasonNeeded({ shootType, joint = false, editor, late = false, restart = false }) {
+  return reasonNeeded({ shootType, joint, editor }) || (!!editor && late && restart);
+}
+// The reason mark of a swap: the usual { editor, reason, preselected, joint } and
+// { swap: true, from, restart, prev (the earlier assignment time), late }. It
+// replaces an automatic assignment's mark, so Ofir is not told again "שויך אוטומטית".
+// The words say what happened, so the client's history reads by itself.
+export function swapNote({ editor, from, reason = '', preselected: pre = null, joint = false, restart = false, late = false, prev = null }) {
+  const why = String(reason || '').trim();
+  const text = [`החלפת עורך: מ${editorName(from)} ל${editorName(editor)}`, why || null,
+    restart ? 'מועדי העריכה נספרים מחדש מהיום' : late ? 'המועדים לא השתנו, העריכה נשארת באיחור' : 'המועדים לא השתנו'].filter(Boolean).join(' · ');
+  return JSON.stringify({
+    ...JSON.parse(reasonNote({ editor, reason: text, preselected: pre, joint })),
+    swap: true, from: from || null, restart: !!restart, late: !!late, prev: prev ? new Date(prev).toISOString() : null,
+  });
+}
+
 // Ofir's folder task (24), as it was opened at the assignment until package 1
 // (7.10.2026). No screen opens it any more (the videos are uploaded into the client's
 // files); the title is kept so a task opened before is still recognized.
