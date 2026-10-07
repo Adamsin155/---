@@ -142,7 +142,7 @@ test('first run on old data: nothing late is sent, it is recorded as stale', asy
   assert.ok(db.log.filter((r) => r.client_id === 'c1').every((r) => r.status === 'suppressed' && r.reason === 'stale'));
 });
 
-test('overnight: a deal at 22:00 waits; the 08:30 digest carries it and the 09:05 step, then marks them sent', async () => {
+test('overnight: a deal at 22:00 waits; the 08:30 digest carries it and the 09:05 and 09:10 steps, then marks them sent', async () => {
   const db = fakeDb({ clients: [deal(IL(2026, 10, 4, 22), 'לילה')], subs: [{ email: 'irit@x', endpoint: 'https://push.test/phone' }] });
   const { push, sent } = fakePush();
   const night = IL(2026, 10, 4, 22);
@@ -158,7 +158,7 @@ test('overnight: a deal at 22:00 waits; the 08:30 digest carries it and the 09:0
   assert.ok(digest, JSON.stringify(sent.map((s) => s.payload.tag)));
   assert.equal(digest.payload.title, 'תקציר בוקר');
   // Both steps of the deal are in it, as one line (the latest says it).
-  assert.match(digest.payload.body, /^עברו 5 דקות: לילה$/m);
+  assert.match(digest.payload.body, /^עברו 10 דקות בלי חוזה: לילה$/m);
   assert.match(digest.payload.body, /^היום: לילה \(3\)$/m);
   assert.equal(digest.opts.urgency, 'normal');
   const queued = db.log.find((r) => r.key === 'deal:c1:deal:now@irit');

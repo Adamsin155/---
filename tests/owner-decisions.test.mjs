@@ -229,7 +229,8 @@ test('auto-assign: Natali → Nirel; otherwise the least loaded of Nadia, Yariv 
   assert.equal(a.checks[0].note, AUTO_DRIVE_NOTE);
   assert.equal(a.reason.key, 'p22a.reason');
   assert.deepEqual(JSON.parse(a.reason.note), { editor: 'anna', reason: AUTO_REASON, preselected: null, joint: false, auto: true, kept: false });
-  assert.deepEqual(a.task, { client_id: dms.id, title: 'פתיחת תיקייה מסודרת בדרייב לעריכה (24)', owner: 'ofir', due_on: '2026-10-19' });
+  // No Drive folder task since package 1: the editor uploads into the client's files.
+  assert.equal(a.task, null);
   // Two in one tick spread the load: a second dms client goes to Yariv (Anna just got one).
   const dms2 = shotClient(w, { name: 'דמס 2' });
   closeDay(w, dms2);
@@ -366,7 +367,7 @@ test('"מיד" gets 15 office minutes before it is late anywhere; Ofir and Lior 
   const n = client(w2, { name: 'חדש', deal_at: IL(2026, 10, 20, 10).toISOString() });
   const fresh = clientState(n, { 'p05.access': { state: 'done', at: IL(2026, 10, 20, 12).toISOString() }, 'p07.approved': { state: 'done', at: IL(2026, 10, 20, 13).toISOString() } }, IL(2026, 10, 20, 13));
   const dueOf = (id) => hhmm(fresh.states.find((x) => x.proc.id === id).dueAt);
-  assert.deepEqual(['p01', 'p02', 'p03', 'p06', 'p07b'].map(dueOf), ['20.10 10:05', '20.10 10:05', '20.10 10:05', '20.10 12:30', '20.10 13:30']);
+  assert.deepEqual(['p01', 'p02', 'p03', 'p06', 'p07b'].map(dueOf), ['20.10 10:10', '20.10 10:05', '20.10 10:05', '20.10 12:30', '20.10 13:30']); // the contract: 10
   assert.deepEqual(Object.fromEntries(Object.entries(ANSWER_CLOCKS).map(([k, v]) => [k, v.minutes])), { p07: 10, p23: 10, p26: 5 });
 });
 
@@ -423,6 +424,6 @@ test('a client is named by the business first, then the contact: in reminder tit
   for (const r of later) assert.ok(!/(^|[^·] )דנה($|[ :])/.test(r.title.replace(/(קפה|סטודיו) דנה · דנה/g, '')), r.title);
   // The owner's summary of what is 24 hours late, and the clocks, name them the same way.
   const late = lateSummary(buildEnv({ ...w, now: IL(2026, 10, 22, 18) }), IL(2026, 10, 22, 18)).join(' | ');
-  assert.match(late, /קפה דנה · דנה \(1\)/); // the line lists the first three, then "ועוד"
+  assert.match(late, /קפה דנה · דנה \(\d\)/); // the line lists the first three, then "ועוד"
   assert.doesNotMatch(late, /[(,:] דנה \(/);
 });

@@ -209,7 +209,8 @@ test('the whole morning: a tick at 08:30 queues what came overnight and the dige
   const look = computeReminders({ env, log, until: IL(2026, 10, 5, 9, 30) });
   const d = planDigests({ env, now: morning, log, active: new Set(all.map((r) => r.key)), lookahead: look }).find((x) => x.person === 'irit');
   assert.deepEqual(d.include.map((r) => r.key), ['deal:c3:deal:now@irit']);
-  assert.deepEqual(d.fold.map((r) => r.key).sort(), ['deal:c3:deal:due@irit']);
+  // The 09:05 step (group, meeting date) and the 09:10 one (the contract).
+  assert.deepEqual(d.fold.map((r) => r.key).sort(), ['deal:c3:deal:contract@irit', 'deal:c3:deal:due@irit']);
   assert.ok(d.lines.some((l) => l.includes('גמא')), d.lines.join('\n'));
 });
 

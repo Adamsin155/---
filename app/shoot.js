@@ -2,7 +2,8 @@
 // יום צילום", §4 station 4). Two views of the same days:
 //  - Eli, "ימי הצילום שלי": per day the date, the client, the address with Waze and
 //    Google Maps, his arrival (an hour before the influencers), the number of
-//    scripts and the drive label from Lior's briefing. The evening before: the
+//    scripts (and the scripts themselves, read-only, behind one button: his own
+//    shoot days only, public.shoot_scripts) and the drive label from Lior's briefing. The evening before: the
 //    briefing with "קיבלתי" and the gear list (the only place it appears). On the
 //    day: "הגעתי" and "קיבלתי כונן", "הבי־רול גמור?" (a "לא" reaches Lior), the
 //    shooting guidance as fixed text, the finish list and "מסרתי לליאור" (locked
@@ -16,7 +17,8 @@
 import { SHOOT_TYPES } from './protocol.js';
 import { clientState, clientLabel } from './protocol-logic.js';
 import { loadChecks, setCheck, clearCheck, setChecksBulk, loadDirectory, loadStaffPhones } from './protocol-data.js';
-import { loadWorkClients } from './production-data.js';
+import { loadWorkClients, loadShootScripts } from './production-data.js';
+import { STATUS, scriptLabel, linkName } from './scripts-logic.js';
 import {
   $, fill, h, toast, errorText, mountSession, viewerOf, directory, formatWhen, progressBar, store, VIEWER_UNKNOWN,
 } from './protocol-ui.js';
@@ -136,7 +138,8 @@ function eliCard(sc, now) {
       today ? h('span', { class: 'ed-state s-editing' }, 'יום צילום היום') : null),
     h('dl', { class: 'sh-facts' },
       h('dt', {}, 'ההגעה שלך'), h('dd', { class: 'num' }, `${P.clockText(P.arrivalOf(sc.shootAt))} · שעה לפני המשפיענים (${P.clockText(sc.shootAt)})`),
-      h('dt', {}, 'תסריטים'), h('dd', {}, n ? `${n} סרטונים` : 'לפי מה שליאור יביא'),
+      h('dt', {}, 'תסריטים'), h('dd', {}, n ? `${n} סרטונים` : 'לפי מה שליאור יביא',
+        h('button', { type: 'button', class: 'btn btn-sm sh-scripts-btn', id: `${id}-scripts`, 'aria-haspopup': 'dialog', onclick: () => openScripts(sc) }, 'לקרוא את התסריטים')),
       // From the briefing's hour on (and on the day itself) "will fill it in" is no longer true.
       h('dt', {}, 'תווית הכונן'), h('dd', {}, label || (eveOrDay ? 'ליאור עוד לא מילא' : 'ליאור ימלא בתדריך'))),
     placeBlock(sc),
@@ -245,6 +248,38 @@ async function saveNotes(sc) {
   const text = $(`${cardId(sc)}-notes`).value.trim();
   if (!text) { if (await unmark(sc, 'p19b.notes', `${cardId(sc)}-notes`)) toast('ההערות נמחקו.'); return; }
   if (await mark(sc, 'p19b.notes', text.slice(0, 2000), `${cardId(sc)}-notes`)) toast('ההערות נשמרו לעורך.');
+}
+
+// The scripts of this shoot day, to read (title, text, order, inspiration links).
+// The database gives them only for Eli's own shoot days, from the day the shoot is
+// in his list until the day after it; nothing here can be changed.
+const scriptsDlg = $('dlg-scripts');
+scriptsDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === scriptsDlg) scriptsDlg.close(); });
+let scriptsBack = null;
+scriptsDlg.addEventListener('close', () => { document.getElementById(scriptsBack)?.focus(); });
+async function openScripts(sc) {
+  scriptsBack = `${cardId(sc)}-scripts`;
+  $('scr-h').textContent = `התסריטים · ${scName(sc)}`;
+  $('scr-sum').textContent = 'טוען…';
+  fill($('scr-list'));
+  scriptsDlg.showModal();
+  $('scr-h').focus();
+  let data;
+  try {
+    data = await loadShootScripts(sc.client.id);
+  } catch {
+    $('scr-sum').textContent = 'התסריטים לא נטענו. נסו שוב; אם זה חוזר, לבקש מליאור.';
+    return;
+  }
+  const list = (data?.scripts || []).filter((s) => s.round === sc.n);
+  $('scr-sum').textContent = list.length
+    ? `${list.length === 1 ? 'תסריט אחד' : `${list.length} תסריטים`}, לפי סדר הצילום. לקריאה בלבד.`
+    : 'ליאור עוד לא כתב כאן תסריטים ליום הזה. כשייכתבו, הם יופיעו כאן.';
+  fill($('scr-list'), list.map((s) => h('li', { class: 'sh-script' },
+    h('h3', {}, scriptLabel(s.n), s.title ? ` · ${s.title}` : '', s.status === 'draft' ? h('span', { class: 'tag tag-warn' }, `${STATUS.draft}: עוד יכול להשתנות`) : null),
+    s.body ? h('p', { class: 'sh-script-body' }, s.body) : null,
+    s.links?.length ? h('ul', { class: 'sh-script-links', 'aria-label': 'קישורים להשראה' }, s.links.map((l) => h('li', {},
+      h('a', { href: l, target: '_blank', rel: 'noopener noreferrer', dir: 'ltr' }, linkName(l), h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)'))))) : null)));
 }
 
 // ── Lior ────────────────────────────────────

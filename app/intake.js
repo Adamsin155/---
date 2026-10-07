@@ -10,6 +10,9 @@
 //             approval (13), which is never "not relevant"
 // The logic is in characterization.js and briefs.js; the office writes, the database
 // stamps who and when (supabase/migrations/20260930160000_intake.sql).
+// Whoever makes graphics from the characterization and does not fill these forms
+// (Ilai; Nirel on a client she works on: app/intake-ui.js readsChar) gets it here
+// read-only, on one screen: what the meeting gave and the client's materials.
 import { PEOPLE, NETWORKS, SHOOT_TYPES } from './protocol.js';
 import { clientState, blockers, roundsOf, CHAR_ENDED } from './protocol-logic.js';
 import {
@@ -33,6 +36,7 @@ import { googleCalendarUrl } from './calendar.js';
 import { inputValueIL, fromInputIL } from './tz.js';
 // The materials themselves (logo, photos, videos) go into the client's files from the phone.
 import { mountClientFiles, fileCount } from './files-ui.js';
+import { readsChar } from './intake-ui.js';
 
 const params = new URLSearchParams(location.search);
 const id = params.get('id');
@@ -63,6 +67,7 @@ let briefDraftAt = null;
 let formErrors = {};         // what the last save found wrong in the form
 let scV = null;              // the scripts link, the Zoom time and its recording, as typed
 let saveTimer = null;
+let readMode = false;        // the read-only view (no tabs, nothing to save)
 
 const clean = (v) => String(v ?? '').trim();
 // The scripts page (scripts.html) is Lior's and the owner's (others by a grant there).
@@ -148,7 +153,7 @@ function setSection(k, focusId = null) {
   render(focusId);
   if (!focusId) window.scrollTo({ top: 0 });
 }
-window.addEventListener('hashchange', () => setSection(location.hash.slice(1) || 'end', `tab-${location.hash.slice(1) || 'end'}`));
+window.addEventListener('hashchange', () => { if (!readMode) setSection(location.hash.slice(1) || 'end', `tab-${location.hash.slice(1) || 'end'}`); });
 
 // ── Small builders ────────────────────────
 function field({ fid, label, hint = null, error = null, control, cls = '' }) {
@@ -599,7 +604,7 @@ function renderScripts() {
       h('h2', { id: 'sc-h' }, `תסריטים (12)${round > 1 ? ` · סבב ${round}` : ''}`),
       h('p', { class: 'muted' }, p12?.complete ? 'התסריטים מוכנים.' : `${dueWords(p12) || 'עד סוף יום העסקים השני מהאפיון'}. היעד: סוף יום העסקים השני, כדי שהזום ייכנס ביום השלישי.`),
       writesScripts() ? h('a', { class: 'btn btn-sm ik-go', id: 'sc-write', href: scriptsHref() }, 'כתיבת התסריטים') : null,
-      field({ fid: 'sc-link', label: 'קישור לתסריטים (Google Docs)', hint: 'הקישור נשמר בקישורים של הלקוח.',
+      field({ fid: 'sc-link', label: 'קישור לתסריטים (הקישור לשיתוף מעמוד התסריטים)', hint: 'הקישור נשמר בקישורים של הלקוח.',
         control: textInput(scV.link, (x) => { scV.link = x; }, { type: 'url', inputmode: 'url', dir: 'ltr' }) }),
       h('button', { type: 'button', class: 'btn', id: 'sc-save', disabled: busy, onclick: saveScriptsLink }, link ? 'עדכון הקישור' : 'שמירת הקישור'),
       itemCheck('p12.scripts', `התסריטים הוכנו לפי החבילה${videos ? ` (${videos} סרטונים)` : ''}, תסריט לכל סרטון`),
@@ -620,7 +625,7 @@ function renderScripts() {
         approved ? h('p', { class: 'ok-line' }, `הלקוח אישר · ${who(checks[key('p13.approved')].by_email)} · ${formatStamp(checks[key('p13.approved')].at)}`)
           : h('button', { type: 'button', class: 'btn btn-primary ik-big', id: 'zm-approved', disabled: busy || !isDone(key('p13.zoom')), 'aria-describedby': 'zm-approved-d', onclick: () => toggle(key('p13.approved'), true, 'zm-approved') }, 'הלקוח אישר את התסריטים'),
         h('p', { class: 'hint', id: 'zm-approved-d' }, isDone(key('p13.zoom')) ? 'אישור לקוח הוא אישור אמיתי: אי אפשר לסמן אותו "לא רלוונטי". לא מצלמים תוכן שלא אושר.' : 'אחרי שהזום התקיים ונשמרה ההקלטה.')),
-      itemCheck('p13.fixes', 'תיקונים שנשארו אחרי הזום עודכנו ב־Google Docs', { hint: 'אם היו. עד יום עסקים אחד אחרי הזום.' })));
+      itemCheck('p13.fixes', 'תיקונים שנשארו אחרי הזום עודכנו בעמוד התסריטים', { hint: 'אם היו. עד יום עסקים אחד אחרי הזום.' })));
 }
 async function saveScriptsLink() {
   const v = clean($('sc-link').value);
@@ -657,6 +662,54 @@ async function saveRecording() {
   render('zm-approved');
 }
 
+// ── The characterization, read-only ────────
+// Everything the meeting gave, as text: the 11 fields, the brand's colours and logo
+// link, what was received, and the client's materials from the client's files (no
+// upload here: the viewer may not add materials, so no button is drawn). Which
+// clients they may read is the database's (characterizations: can_see_client).
+async function showRead() {
+  readMode = true;
+  $('ik-tabs').hidden = true;
+  if (!id) { $('state').textContent = 'לא נבחר לקוח.'; return; }
+  $('state').textContent = 'טוען…';
+  try {
+    client = await loadClient(id);
+  } catch (err) { $('state').textContent = errorText(err); return; }
+  if (!client) { $('state').textContent = 'הלקוח לא נמצא, או שאין לך גישה אליו.'; $('app').hidden = true; return; }
+  charRow = await loadCharacterization(id).then((r) => { charError = null; return r; }).catch((err) => { charError = err; return null; });
+  $('state').textContent = '';
+  document.title = `${client.name} · האפיון · astrateg`;
+  $('back').href = me === 'nirel' ? 'editor.html' : 'clients.html#mine';
+  $('back').textContent = me === 'nirel' ? '→ העריכה והבריפים שלי' : '→ המשימות שלי';
+  const f = charRow?.fields || {};
+  const charBy = PEOPLE[client.characterizer || 'ofir']?.name;
+  fill($('ik-head'),
+    h('div', { class: 'kicker' }, 'האפיון של הלקוח · לקריאה'),
+    h('h1', { id: 'rd-h', tabindex: '-1' }, client.name),
+    h('p', { class: 'muted' }, [client.business, client.char_at ? `אפיון ${formatStamp(client.char_at)}${charBy ? ` · ${charBy}` : ''}` : null].filter(Boolean).join(' · ')),
+    h('a', { class: 'btn btn-sm btn-ghost', id: 'rd-card', href: `client.html?id=${encodeURIComponent(id)}` }, 'לכרטיס הלקוח'));
+  const row = (label, value, { ltr = false } = {}) => [h('dt', {}, label),
+    h('dd', { class: clean(value) ? '' : 'muted' }, clean(value) ? (ltr ? h('bdi', { dir: 'ltr', class: 'num' }, clean(value)) : clean(value)) : 'לא מולא')];
+  const filled = FORM_FIELDS.filter((x) => clean(f[x.key])).length;
+  const slot = h('div', { id: 'rd-files' });
+  fill($('ik-body'), h('div', { class: 'ik-stack' },
+    h('section', { class: 'ik-card', 'aria-labelledby': 'rd-char-h' },
+      h('h2', { id: 'rd-char-h' }, 'מה הלקוח סיפר באפיון'),
+      !charRow ? h('p', { class: 'ik-note', id: 'rd-none' }, charError && !missingTable(charError) ? 'לא הצלחנו לטעון את האפיון. רעננו את הדף.' : 'האפיון עוד לא נשמר במערכת. כשהוא יישמר, הוא יופיע כאן.')
+        : [filled < FORM_FIELDS.length ? h('p', { class: 'muted' }, `מולאו ${filled} מתוך ${FORM_FIELDS.length} השדות. מה שחסר: לשאול את ${charBy || 'אופיר'}.`) : null,
+          h('dl', { class: 'ik-read', id: 'rd-fields' }, ...FORM_FIELDS.flatMap((x) => row(x.label, f[x.key], { ltr: !!x.tel })))]),
+    charRow ? h('section', { class: 'ik-card', 'aria-labelledby': 'rd-brand-h' },
+      h('h2', { id: 'rd-brand-h' }, 'מותג וחומרים'),
+      h('dl', { class: 'ik-read', id: 'rd-brand' },
+        ...row('צבעי המותג', f.colors),
+        h('dt', {}, 'לוגו'), h('dd', {}, validUrl(f.logo_url) ? h('a', { href: clean(f.logo_url), target: '_blank', rel: 'noopener noreferrer' }, 'פתיחת הלוגו', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)'))
+          : client.has_logo === false ? 'אין ללקוח לוגו (מכינים לוגו חדש)' : 'אין קישור. אם הועלה קובץ, הוא למטה.'),
+        ...MATERIALS.flatMap((m) => [h('dt', {}, m.label), h('dd', {}, MATERIAL_STATES.find(([k]) => k === f.materials?.[m.key])?.[1] || 'לא סומן')]))) : null,
+    slot));
+  mountClientFiles(slot, { client, me, myEmail, toast, only: 'materials' });
+  $('rd-h').focus({ preventScroll: true });
+}
+
 // ── Start ─────────────────────────────────
 mountSession(async (staff) => {
   const v = await viewerOf(staff.email);
@@ -665,6 +718,7 @@ mountSession(async (staff) => {
   scope = v.scope;
   Object.assign(directory, await loadDirectory());
   if (v.error) { $('state').textContent = VIEWER_UNKNOWN; $('app').hidden = true; return; }
+  if (scope !== 'office' && readsChar(me)) { await showRead(); return; }
   if (scope !== 'office') {
     $('app').hidden = true;
     $('state').textContent = 'האפיון ושיחת הדגשים פתוחים לצוות המשרד. הדגשים עצמם מופיעים בכרטיס הלקוח.';

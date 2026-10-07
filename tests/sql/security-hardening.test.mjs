@@ -176,7 +176,8 @@ test('the migration file: nothing in it removes an object or a row, and there is
   const sql = readFileSync(new URL(`../../supabase/migrations/${MIGRATION}`, import.meta.url), 'utf8');
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null, 'the production tool refuses these three words, also in a comment or a name');
   assert.equal(existsSync(new URL(`../../supabase/migrations/${MANUAL}`, import.meta.url)), false);
-  assert.equal(migrationFiles().at(-1), MIGRATION);
+  // It was the last file until 7.10.2026; the migrations after it (package 1 and on) change none of what it set.
+  assert.ok(migrationFiles().includes(MIGRATION));
 });
 
 // ── 1. Quotes ──

@@ -564,7 +564,7 @@ function openEntry(e, day = null) {
       h('fieldset', { class: 'gt-fs' }, h('legend', {}, 'מצב'), states,
         h('div', { id: 'ed-posted-wrap', hidden: st !== 'posted' }, field('עלה בתאריך', posted))),
       field('קישור לתוכן', link, 'למשל הקישור לפוסט או לסרטון. רק https.'),
-      fileSel ? field('קובץ מהלקוח', fileSel, fileList.length ? null : 'אין עדיין קבצים מתאימים בתיקיית הלקוח.') : h('p', { class: 'hint' }, 'בחירת קובץ תתאפשר כשתיקיית הקבצים של הלקוח תהיה במערכת.'),
+      fileSel ? field('קובץ מהלקוח', fileSel, fileList.length ? null : 'אין עדיין קבצים מתאימים בתיק הלקוח.') : h('p', { class: 'hint' }, 'בחירת קובץ תתאפשר כשתיקיית הקבצים של הלקוח תהיה במערכת.'),
       field('הערה פנימית', note, 'לא מוצגת ללקוח.'),
       meta.length ? h('p', { class: 'gt-meta' }, meta.join(' ')) : null,
       h('p', { class: 'err', id: 'ed-err', role: 'alert', hidden: true })),

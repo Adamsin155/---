@@ -126,6 +126,12 @@
 /* ── The client card: what the characterization and the focus call gave ── */
 .ik-summary { display: grid; gap: 10px; }
 .ik-summary h2 { margin: 0; font-size: 18px; }
+/* The characterization, read-only (Ilai, Nirel): label above its text, one column. */
+.ik-head h1:focus { outline: none; }
+.ik-read { display: grid; gap: 2px; margin: 0; }
+.ik-read dt { margin-top: 10px; color: var(--text-2); font-size: 14px; font-weight: 600; }
+.ik-read dt:first-child { margin-top: 0; }
+.ik-read dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.5; }
 .ik-facts { display: grid; gap: 6px 16px; grid-template-columns: max-content 1fr; margin: 0; }
 .ik-facts dt { color: var(--text-2); font-size: 14px; }
 .ik-facts dd { margin: 0; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }

@@ -5,8 +5,9 @@
 // office hours come from protocol-logic.js.
 //
 // Three kinds of clock:
-//   deal    a new deal: the three 5-minute office-time clocks of processes 1, 2
-//           and 3, from the deal, while the person still has open items there.
+//   deal    a new deal: the office-time clocks of processes 1 (the contract, 10
+//           minutes: the owner's decision of 3.10.2026), 2 and 3 (5 minutes each),
+//           from the deal, while the person still has open items there.
 //   answer  "the client did not answer": 10, 10 and 5 office minutes from the
 //           moment the 9 graphics (7), the rest of the graphics (23) or the
 //           videos (26) were marked sent, until the client answered. Then Irit calls.
@@ -30,9 +31,12 @@ export const DEAL_CLOCKS = {
 // The clock stops when the client answered (the ANSWERED mark), approved, Irit
 // called (the process's `call` item) or the process waits on the client; only
 // what happened after this sending counts (sent again after a fix: a new clock).
+// `approval` is the client's own approval, also when it comes from the status page
+// (approve_item writes the same key). Every clock needs one: without it Irit is
+// rung "call the client" about something the client already approved.
 export const ANSWER_CLOCKS = {
   p07: { minutes: 10, what: '9 הגרפיקות הראשונות', approval: 'p07.approved' },
-  p23: { minutes: 10, what: 'יתרת הגרפיקות' },
+  p23: { minutes: 10, what: 'יתרת הגרפיקות', approval: 'p23.approved' },
   p26: { minutes: 5, what: 'הסרטונים', approval: 'p27.approved' },
 };
 
@@ -105,7 +109,7 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
         const entries = deal.until ? g.entries.filter((e) => deal.until.includes(e.item.key)) : g.entries;
         if (!entries.length) continue;
         add({
-          id: `deal:${client.id}:${g.proc.id}`, kind: 'deal', client, proc: g.proc, what: deal.what, minutes: 5,
+          id: `deal:${client.id}:${g.proc.id}`, kind: 'deal', client, proc: g.proc, what: deal.what, minutes: g.proc.due?.minutes || 5,
           deadline: g.dueAt, office: true, people: peopleOf(entries), phone,
         });
       } else if (!endOfDay(g.dueAt)) {

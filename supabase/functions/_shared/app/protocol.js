@@ -23,6 +23,13 @@
 // v7 (the owner's decision of 6.10.2026):
 //   - New: 8ב, Ofir uploads the Highlights to the client's pages within 30 office
 //     minutes of preparing them (process 8 complete), and marks it (p08b.posted).
+// 7.10.2026, package 1 of the protocol audit (docs/ops.md, section 37), still v7: the
+// words follow the owner's decisions (the files, the Gantt and the scripts are in the
+// system, not in Drive, Excel or Google Docs; the contract has 10 office minutes).
+// Keys are unchanged. One item no longer applies to anyone, p24.folder (Ofir's Drive
+// folder): it stays in the data with `when: RETIRED`, so no client has it open and
+// its old checks keep their place in the history. No item was added, so no client
+// can become late from this and the version stays.
 
 export const PROTOCOL_VERSION = 7;
 
@@ -118,12 +125,15 @@ export const CLIENT_STATUS = {
 export const NO_BULK = new Set(['p18', 'p19', 'p21', 'p25', 'p31']);
 
 // Links kept in the client card (never passwords), in display order, with the
-// item after which each one is expected.
+// item after which each one is expected (`after: null`: never asked for) and the
+// address it should look like (`hint`; null: any https address, with `placeholder`).
 export const LINKS = [
   { key: 'whatsapp', label: 'קבוצת WhatsApp', after: 'p02.opened', hint: 'chat.whatsapp.com' },
-  { key: 'drive', label: 'תיקיית Drive', after: 'p24.folder', hint: 'drive.google.com' },
-  { key: 'scripts', label: 'תסריטים (Google Docs)', after: 'p12.docs', hint: 'docs.google.com' },
-  { key: 'gantt', label: 'גאנט שנתי', after: 'p09.file', hint: 'docs.google.com/spreadsheets' },
+  // Drive is only the client's archive outside the system (process 35): never asked for.
+  { key: 'drive', label: 'ארכיון ב־Drive (לא חובה)', after: null, hint: 'drive.google.com' },
+  { key: 'scripts', label: 'תסריטים (קישור לשיתוף)', after: 'p12.docs', hint: null, placeholder: 'הקישור לשיתוף מעמוד התסריטים' },
+  // The Gantt is gantt.html; a sheet's link from before is still shown, never asked for.
+  { key: 'gantt', label: 'גאנט ישן בגיליון (לא חובה)', after: null, hint: 'docs.google.com' },
   { key: 'dropbox', label: 'Dropbox', after: 'p24.dropbox', hint: 'dropbox.com' },
   { key: 'metricool', label: 'Metricool', after: 'p06.metricool', hint: 'metricool.com' },
   { key: 'meta', label: 'Meta Business', after: 'p10.ready', hint: 'business.facebook.com' },
@@ -162,6 +172,8 @@ const accessOwners = (c) => (c.characterizer === 'ofir' || c.characterizer === '
 const editorOf = (c) => (c.editor ? [c.editor] : ['editor']);
 const isNatali = (c) => c.shoot_type === 'natali';
 const isDms = (c) => c.shoot_type === 'dms';
+// An item that applies to no client any more (its key and its old checks stay).
+const RETIRED = () => false;
 
 // Anchors for due dates. `start` is when a process can begin; `due` is its deadline.
 //   { from: 'deal' | 'group' | 'char' | 'charEnd' | 'shoot' | 'contractEnd' | 'p05' … , minutes|hours|days|businessDays|at }
@@ -214,8 +226,9 @@ export const STATIONS = [
 export const PROCESSES = [
   {
     id: 'p01', num: '1', phase: 'onboarding', title: 'הכנת חוזה', owners: ['irit'],
-    sla: 'עד 5 דקות מרגע קבלת פרטי העסקה מאיש המכירות',
-    due: { from: 'deal', minutes: 5 },
+    // 10 office minutes (the owner's decision of 3.10.2026; DEAL_MINUTES in deal-logic.js).
+    sla: 'עד 10 דקות עבודה מרגע קבלת פרטי העסקה מאיש המכירות',
+    due: { from: 'deal', minutes: 10 },
     what: 'מכינים את החוזה בהתאם לחבילה ולתנאים שסגר איש המכירות, שולחים ללקוח ומוודאים שחתם בפועל במערכת.',
     items: [
       { key: 'p01.prepared', label: 'החוזה הוכן לפי החבילה והתנאים שסגר איש המכירות' },
@@ -348,7 +361,9 @@ export const PROCESSES = [
     start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2 },
     what: 'עילאי מכין 9 גרפיקות לפי האפיון והשפה של העסק. עירית או ליאור בודקים, ואז הן נשלחות ללקוח לאישור. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת אליו.',
     items: [
-      { key: 'p07.made', label: '9 גרפיקות הוכנו לפי האפיון ושפת העסק' },
+      // noBulk on the marks that hand finished files on (7, 23, 24, 27): each is pressed
+      // where the files are uploaded, never with "mark the whole process".
+      { key: 'p07.made', label: '9 גרפיקות הוכנו לפי האפיון ושפת העסק', noBulk: true },
       ...[['spelling', 'כתיב'], ['phone', 'טלפון'], ['address', 'כתובת'], ['logo', 'לוגו'], ['details', 'פרטי העסק'], ['wording', 'ניסוחים'], ['design', 'עיצוב']]
         .map(([k, l]) => ({ key: `p07.r.${k}`, label: `נבדק: ${l}`, owners: ['irit', 'lior'] })),
       { key: 'p07.sent', label: 'נשלחו ללקוח לאישור', owners: ['irit', 'lior'], requires: ['p07.r.spelling', 'p07.r.phone', 'p07.r.address', 'p07.r.logo', 'p07.r.details', 'p07.r.wording', 'p07.r.design'] },
@@ -390,9 +405,9 @@ export const PROCESSES = [
     id: 'p09', num: '9', phase: 'parallel', title: 'פתיחת גאנט שנתי', owners: ['ilai'],
     sla: '5 דקות',
     start: { from: 'charEnd' }, due: { from: 'charEnd', minutes: 5 },
-    what: 'עילאי פותח קובץ Excel שנתי ללקוח. בשלב זה מכינים רק את המבנה; הסרטונים נוספים אחרי העריכה.',
+    what: 'עילאי פותח את גאנט התוכן של הלקוח במערכת. בשלב זה מכינים רק את המבנה; הסרטונים נוספים אחרי העריכה.',
     items: [
-      { key: 'p09.file', label: 'נפתח קובץ Excel שנתי ללקוח' },
+      { key: 'p09.file', label: 'נפתח גאנט התוכן של הלקוח במערכת' },
       ...[['name', 'שם הלקוח'], ['months', 'כל חודשי השנה'], ['num', 'מספר סרטון'], ['link', 'קישור לסרטון'], ['day', 'יום'], ['date', 'תאריך'], ['time', 'שעה']]
         .map(([k, l]) => ({ key: `p09.c.${k}`, label: `בגאנט: ${l}` })),
     ],
@@ -435,19 +450,19 @@ export const PROCESSES = [
     items: [
       { key: 'p12.scripts', label: 'התסריטים הוכנו לפי החבילה (תסריט לכל סרטון), הדגשים והמשפיענים', requires: ['p12a.call'] },
       { key: 'p12.numbered', label: 'לכל סרטון מספר ברור, כדי לסמן אותו ביום הצילום' },
-      { key: 'p12.docs', label: 'התסריטים מסודרים ב־Google Docs לפי סדר הצילום' },
+      { key: 'p12.docs', label: 'התסריטים מסודרים בעמוד התסריטים במערכת, לפי סדר הצילום' },
     ],
   },
   {
     id: 'p13', round: true, num: '13', phase: 'prep', title: 'שיחת Zoom לאישור התוכן', owners: ['lior'],
     sla: 'ביום העסקים השלישי לאחר פגישת האפיון, ללא הגבלת משך עד שהלקוח מאשר',
     start: { from: 'p12' }, due: { from: 'char', businessDays: 3 },
-    what: 'שיחת Zoom מוקלטת: עוברים על התסריטים, מסבירים את הרעיונות, מקבלים הערות ומשנים ניסוחים, עד שיש אישור ברור. תיקונים שנשארו: ליאור, עד יום עסקים אחד, והגרסה הסופית היא זו שב־Google Docs.',
+    what: 'שיחת Zoom מוקלטת: עוברים על התסריטים, מסבירים את הרעיונות, מקבלים הערות ומשנים ניסוחים, עד שיש אישור ברור. תיקונים שנשארו: ליאור, עד יום עסקים אחד, והגרסה הסופית היא זו שבעמוד התסריטים במערכת.',
     rule: 'לא מגיעים ליום צילום עם תוכן שלא עבר אישור לקוח.',
     items: [
       { key: 'p13.zoom', label: 'התקיימה שיחת Zoom מוקלטת' },
       { key: 'p13.approved', label: 'הלקוח אישר את התסריטים', requires: ['p13.zoom'], noBulk: true },
-      { key: 'p13.fixes', label: 'תיקונים שנשארו אחרי הזום בוצעו ועודכנו ב־Google Docs (עד יום עסקים אחד)', optional: true },
+      { key: 'p13.fixes', label: 'תיקונים שנשארו אחרי הזום בוצעו ועודכנו בעמוד התסריטים (עד יום עסקים אחד)', optional: true },
     ],
   },
   {
@@ -493,7 +508,7 @@ export const PROCESSES = [
       { key: 'p16.plan', label: 'עברנו עם הצלם על תוכנית היום' },
       { key: 'p16.early', label: 'הצלם יודע להגיע שעה לפני המשפיענים' },
       { key: 'p16.drive', label: 'הכונן מוכן' },
-      { key: 'p16.content', label: 'קובץ התסריטים הסופי מוכן ומאושר' },
+      { key: 'p16.content', label: 'התסריטים הסופיים מוכנים ומאושרים' },
       { key: 'p16.open', label: 'אין משימה פתוחה שעלולה לעצור את יום הצילום' },
     ],
   },
@@ -532,10 +547,10 @@ export const PROCESSES = [
     id: 'p18', round: true, num: '18', phase: 'shoot', title: 'ניהול יום הצילום והתסריטים', owners: ['lior'],
     sla: 'לאורך כל יום הצילום',
     start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
-    what: 'ליאור מנהל את סדר היום ומחזיק את קובץ התסריטים: מסביר מה מצלמים, שומר על המסר, מקדם את הצוות בזמן ופותר בעיות. כל סרטון שהסתיים מסומן בירוק ב־Google Docs.',
+    what: 'ליאור מנהל את סדר היום ומחזיק את התסריטים: מסביר מה מצלמים, שומר על המסר, מקדם את הצוות בזמן ופותר בעיות. כל סרטון שצולם מסומן במונה של יום הצילום במערכת.',
     rule: 'אסור לסיים יום צילום לפני שצולמה כל כמות הסרטונים שהלקוח צריך לקבל.',
     items: [
-      { key: 'p18.order', label: 'עבדנו לפי סדר התסריטים וסימנו כל סרטון בירוק' },
+      { key: 'p18.order', label: 'עבדנו לפי סדר התסריטים וסימנו כל סרטון שצולם במונה של יום הצילום' },
       { key: 'p18.all', label: 'צולמה כל כמות הסרטונים שהלקוח צריך לקבל' },
     ],
   },
@@ -640,7 +655,7 @@ export const PROCESSES = [
     start: { from: 'shoot' }, due: { from: 'shoot', businessDays: 1 },
     what: 'משלימים את כל הגרפיקות לפי החבילה (היתרה אחרי 9 הגרפיקות הראשונות). אופיר בודק; אחרי אישורו נשלחות ללקוח. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת.',
     items: [
-      { key: 'p23.made', label: 'כל הגרפיקות לפי החבילה הושלמו (היתרה אחרי 9 הראשונות)' },
+      { key: 'p23.made', label: 'כל הגרפיקות לפי החבילה הושלמו (היתרה אחרי 9 הראשונות)', noBulk: true },
       ...[['design', 'העיצוב מתאים לעסק'], ['errors', 'אין טעויות'], ['logo', 'הלוגו נכון'], ['contact', 'הטלפון והכתובת נכונים'],
         ['match', 'המידע תואם לאפיון'], ['pro', 'הגרפיקות ברמה מקצועית'], ['variety', 'אין חזרתיות מוגזמת בין הגרפיקות']]
         .map(([k, l]) => ({ key: `p23.q.${k}`, label: `אופיר בדק: ${l}`, owners: ['ofir'] })),
@@ -661,14 +676,16 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p24', round: true, num: '24', phase: 'post', title: 'העלאה לדרייב והעברה לאופיר', owners: editorOf,
+    id: 'p24', round: true, num: '24', phase: 'post', title: 'העלאה לתיק הלקוח והעברה לאופיר', owners: editorOf,
     sla: 'עד סוף יום העסקים השלישי',
     start: { from: 'p22' }, due: { from: 'item:p22a.assigned', businessDays: 3 },
     items: [
-      { key: 'p24.folder', label: 'יש תיקייה מסודרת עם שם הלקוח', owners: ['ofir'] },
-      { key: 'p24.drive', label: 'כל הסרטונים הועלו ל־Google Drive וכל הקבצים עלו תקין' },
+      // Retired (package 1): the videos go into the client's files in the system, so
+      // there is no Drive folder to open. Applies to no client; the key stays.
+      { key: 'p24.folder', label: 'יש תיקייה מסודרת עם שם הלקוח', owners: ['ofir'], when: RETIRED },
+      { key: 'p24.drive', label: 'כל הסרטונים הועלו לתיק הלקוח במערכת, וכל הקבצים נפתחים' },
       { key: 'p24.dropbox', label: 'התוכן הועלה ל־Dropbox (לפי הצורך)', optional: true },
-      { key: 'p24.notify', label: 'העורך עדכן את אופיר שהלקוח מוכן לבקרה' },
+      { key: 'p24.notify', label: 'העורך עדכן את אופיר שהלקוח מוכן לבקרה', noBulk: true },
     ],
   },
   {
@@ -694,13 +711,13 @@ export const PROCESSES = [
   },
   {
     id: 'p27', round: true, num: '27', phase: 'post', title: 'תיקוני הלקוח וסגירת העריכה', owners: editorOf,
-    sla: 'ביום העסקים הרביעי: כל תיקוני הלקוח סגורים והגרסאות הסופיות בדרייב',
+    sla: 'ביום העסקים הרביעי: כל תיקוני הלקוח סגורים והגרסאות הסופיות בתיק הלקוח במערכת',
     start: { from: 'p26' }, due: { from: 'item:p22a.assigned', businessDays: 4 },
     what: 'ללקוח סבב תיקונים אחד. עירית מקבלת את ההערות, מוודאת שהן ברורות ומתעדת; העורך מתקן, בודק מחדש ומחליף את הקבצים. בסוף הלקוח עובר לעילאי לתזמון ולגאנט.',
     items: [
       { key: 'p27.notes', label: 'הערות הלקוח התקבלו, ברורות ומתועדות', owners: ['irit'], optional: true },
       { key: 'p27.fixes', label: 'כל התיקונים בוצעו ונבדקו מחדש', optional: true },
-      { key: 'p27.final', label: 'הגרסאות הסופיות בדרייב, בלי גרסאות ישנות שמבלבלות' },
+      { key: 'p27.final', label: 'הגרסאות הסופיות בתיק הלקוח במערכת, בלי גרסאות ישנות שמבלבלות', noBulk: true },
       { key: 'p27.approved', label: 'הלקוח אישר את הסרטונים', owners: ['irit'], requires: ['p26.sent'], noBulk: true },
       { key: 'p27.toilai', label: 'עילאי קיבל את הגרסאות הסופיות לתזמון ולגאנט (״קיבלתי״)', owners: ['ilai'], requires: ['p27.final'] },
     ],
@@ -762,6 +779,7 @@ export const PROCESSES = [
       { key: 'p35.campaigns', label: 'הקמפיינים נעצרו' },
       { key: 'p35.access', label: 'הוסרו גישות לפי הצורך (ונמחקו מכספת הגישות)' },
       { key: 'p35.connections', label: 'נסגרו חיבורים רלוונטיים' },
+      // The one place Drive still means Drive: the client's archive outside the system.
       { key: 'p35.drive', label: 'החומרים של הלקוח נשארים שמורים בדרייב' },
       { key: 'p35.system', label: 'המערכת עודכנה' },
     ],

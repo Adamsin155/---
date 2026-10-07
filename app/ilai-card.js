@@ -6,6 +6,10 @@
 // and a new logo); and after that day: the rest of the graphics ("מוכן לבדיקה" to
 // Ofir, and his returned fixes), "קיבלתי" on the editor's final versions (it closes
 // the editing), and "הגאנט מלא" (Irit is told by itself). The logic: app/ilai-logic.js.
+// Package 1 (docs/ops.md, section 37): the graphics are uploaded in these cards, into
+// the client's files, and "מוכן לבדיקה" opens only once a graphic of that batch is up
+// (the first 9 keep a card of their own after the day's card is gone); each graphics
+// card opens the client's characterization, read-only; the final versions are shown.
 import { setCheck, clearCheck, setChecksBulk, updateClient, canUseVault } from './protocol-data.js';
 import { clientLabel } from './protocol-logic.js';
 import { h, toast, errorText, formatWhen } from './protocol-ui.js';
@@ -14,6 +18,10 @@ import { loadAccessStatusForWork } from './office-data.js';
 import { charDay, ilaiWork, PAGE_KEYS, PAGE_LABELS, GANTT_KEYS, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { fixList } from './office-ui.js';
 import { ACCESS_STATUS_LABEL, NEW_STATUS } from './access-logic.js';
+import { supabase } from './supa.js';
+import { mountWorkFiles, workFilesState } from './files-ui.js';
+import { graphicsWindow, videoWindow, uploadGate } from './files-logic.js';
+import { charViewHref } from './intake-ui.js';
 
 const NETWORK = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', google: 'Google Business', meta: 'Meta Business', other: 'אחר' };
 // The vault's statuses in words, with 'new' (from the client's form, not checked yet).
@@ -36,6 +44,35 @@ const autoTried = new Set();
 // Cards stay open across the page's re-renders.
 const openCards = new Set();
 
+// ── The graphics, uploaded here ─────────────
+const GFX = 'deliverable_graphic';
+const GFX_HELP = 'אם זה חוזר, לדווח לעירית ולליאור. לא מסמנים ״מוכן לבדיקה״ בלי הקבצים במערכת.';
+// Who is signed in (to offer "מחיקה" on their own uploads); asked once.
+let myEmail = '';
+let asked = false;
+function whoAmI(ctx) {
+  if (asked) return;
+  asked = true;
+  supabase.auth.getSession().then(({ data }) => { myEmail = String(data?.session?.user?.email || '').toLowerCase(); if (myEmail) ctx.refresh?.(); }).catch(() => {});
+}
+const restTotal = (c) => Math.max(0, (Number(c.deliverables?.graphics) || 0) - 9) || null;
+function gfxGate(c, cs, batch) {
+  const state = workFilesState(c.id);
+  return uploadGate({ files: state.files, kind: GFX, window: graphicsWindow(cs, batch), state, none: 'נפתח אחרי שמעלים כאן לפחות גרפיקה אחת.' });
+}
+const gfxFiles = (ctx, c, cs, batch, idp) => mountWorkFiles({
+  client: c, kind: GFX, window: graphicsWindow(cs, batch), me: ctx.viewer?.error ? undefined : ctx.me, myEmail, idp, toast,
+  title: batch === 'first' ? '9 הגרפיקות הראשונות' : 'יתרת הגרפיקות', total: batch === 'first' ? 9 : restTotal(c),
+  failHelp: GFX_HELP, onChange: ctx.refresh,
+});
+// "מוכן לבדיקה", locked (with why) until a graphic of the batch is up.
+function readyButton(id, label, gate, onclick) {
+  return [h('div', { class: 'of-acts' }, h('button', { type: 'button', class: 'btn btn-sm', id, disabled: !gate.ok, 'aria-describedby': gate.ok ? null : `${id}-lock`, onclick }, label)),
+    gate.ok ? null : h('p', { class: 'hint fl-lock', id: `${id}-lock` }, gate.reason)];
+}
+// What the graphics are made from: the characterization, read-only (intake.html).
+const charLink = (c) => h('a', { class: 'btn btn-sm btn-ghost il-char', href: charViewHref(c.id) }, 'האפיון של הלקוח', h('span', { class: 'sr-only' }, `: ${c.name}`));
+
 // Groups of "המשימות שלי" that the cards already cover (client and process), so
 // nothing is listed twice: the day's processes (his new logo in 5, 6, 7, 9), the
 // rest of the graphics (23), the final versions (27) and the Gantt (29).
@@ -43,7 +80,7 @@ export function coveredByCard(ctx) {
   const set = new Set();
   for (const x of charDay({ ...ctx, now: new Date() })) for (const p of ['p05', 'p06', 'p07', 'p09']) set.add(`${x.client.id}:${p}`);
   const work = ilaiWork(ctx);
-  for (const x of work.rest) set.add(`${x.client.id}:${x.state.proc.id}`);
+  for (const x of [...work.first, ...work.rest]) set.add(`${x.client.id}:${x.state.proc.id}`);
   for (const x of [...work.finals, ...work.gantt]) set.add(`${x.client.id}:${x.state.proc.id}`);
   return (g) => !g.task && set.has(`${g.client.id}:${g.proc.id}`);
 }
@@ -52,10 +89,12 @@ export function coveredByCard(ctx) {
 export function ilaiSection(ctx) {
   const day = charDay({ ...ctx, access, now: new Date() });
   const work = ilaiWork(ctx);
+  whoAmI(ctx);
   ensureAccess(day.map((x) => x.client.id), ctx);
   for (const x of day) autoAccess(x, ctx);
   const cards = [
     ...day.map((x) => dayCard(x, ctx)),
+    ...work.first.map((x) => firstCard(x, ctx)),
     ...work.rest.map((x) => restCard(x, ctx)),
     ...work.finals.map((x) => finalCard(x, ctx)),
     ...work.gantt.map((x) => ganttCard(x, ctx)),
@@ -169,16 +208,16 @@ function dayCard(x, ctx) {
         h('button', { type: 'submit', class: 'btn btn-sm' }, 'שמירה'))),
       h('div', { class: 'il-part' },
         h('h4', {}, '9 גרפיקות', gfx.done ? null : until(gfx.due, now)),
+        h('div', { class: 'of-acts' }, charLink(c)),
+        gfxFiles(ctx, c, cs, 'first', `${idp}-g9`),
         gfx.done ? h('p', { class: 'ps-seen' }, 'נשלחו לבדיקה של עירית')
-          : h('div', { class: 'of-acts' }, h('button', {
-            type: 'button', class: 'btn btn-sm', id: `${idp}-gfx`,
-            onclick: (e) => { e.currentTarget.disabled = true; mark(ctx, c, ['p07.made'], true, '9 הגרפיקות עברו לבדיקה של עירית.', { handoff: 'p07.made' }); },
-          }, 'מוכן לבדיקה (לעירית)'))),
+          : readyButton(`${idp}-gfx`, 'מוכן לבדיקה (לעירית)', gfxGate(c, cs, 'first'),
+            (e) => { e.currentTarget.disabled = true; mark(ctx, c, ['p07.made'], true, '9 הגרפיקות עברו לבדיקה של עירית.', { handoff: 'p07.made' }); })),
       h('div', { class: 'il-part' },
         h('h4', {}, 'שלד גאנט', gantt.done ? null : until(gantt.due, now)),
         h('label', { class: 'wrow', for: `${idp}-gantt` },
           h('input', { type: 'checkbox', class: 'cbx', id: `${idp}-gantt`, checked: gantt.done, onchange: (e) => mark(ctx, c, GANTT_KEYS, e.currentTarget.checked, e.currentTarget.checked ? 'שלד הגאנט סומן.' : null) }),
-          h('span', { class: 'wlabel' }, 'הקובץ השנתי נפתח עם כל העמודות')),
+          h('span', { class: 'wlabel' }, 'גאנט התוכן נפתח במערכת, עם כל העמודות')),
         h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-ghost gantt-go', href: ganttUrl(c.id) }, 'גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`)))),
       logo ? h('div', { class: 'il-part' }, h('h4', {}, 'לוגו חדש', logo.done ? null : until(logo.due, now)), check(ctx, c, 'p05.newlogo', 'הכנתי לוגו חדש (אין ללקוח לוגו)', idp)) : null));
 }
@@ -206,17 +245,32 @@ async function saveMetricool(e, ctx, c, inputId) {
   await mark(ctx, c, ['p06.metricool'], true, 'הקישור נשמר, ו־Metricool סומן כמחובר.');
 }
 
+// The first 9 graphics after the characterization day (its card is gone): the same
+// upload and the same lock.
+function firstCard(x, ctx) {
+  const c = x.client;
+  const cs = ctx.checks[c.id] || {};
+  const idp = `il-9-${c.id}`;
+  return h('li', { class: 'wproc il-card', 'data-key': `il-first:${c.id}` },
+    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'p07') }, clientLabel(c)), h('span', { class: 'il-title' }, '9 גרפיקות ראשונות'), until(x.state.dueAt)),
+    h('div', { class: 'of-acts' }, charLink(c)),
+    gfxFiles(ctx, c, cs, 'first', `${idp}-g`),
+    readyButton(`${idp}-ready`, 'מוכן לבדיקה (לעירית)', gfxGate(c, cs, 'first'),
+      (e) => { e.currentTarget.disabled = true; mark(ctx, c, ['p07.made'], true, '9 הגרפיקות עברו לבדיקה של עירית.', { handoff: 'p07.made' }); }));
+}
+
 function restCard(x, ctx) {
   const c = x.client;
+  const cs = ctx.checks[c.id] || {};
   const idp = `il-r-${c.id}`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-rest:${c.id}` },
     h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'p23') }, clientLabel(c)), h('span', { class: 'il-title' }, 'יתרת הגרפיקות'), until(x.state.dueAt)),
+    h('div', { class: 'of-acts' }, charLink(c)),
+    gfxFiles(ctx, c, cs, 'rest', `${idp}-g`),
     x.qa.stage === 'fixing'
-      ? fixList({ client: c, checks: ctx.checks[c.id] || {}, kind: 'graphics', pre: '', fixer: 'ilai', me: ctx.me, viewer: ctx.viewer, onChange: ctx.refresh })
-      : h('div', { class: 'of-acts' }, h('button', {
-        type: 'button', class: 'btn btn-sm', id: `${idp}-ready`,
-        onclick: (e) => { e.currentTarget.disabled = true; mark(ctx, c, ['p23.made'], true, 'יתרת הגרפיקות עברה לבדיקה של אופיר (יעד: שעה).', { handoff: 'p23.made' }); },
-      }, 'מוכן לבדיקה (לאופיר)')));
+      ? fixList({ client: c, checks: cs, kind: 'graphics', pre: '', fixer: 'ilai', me: ctx.me, viewer: ctx.viewer, onChange: ctx.refresh })
+      : readyButton(`${idp}-ready`, 'מוכן לבדיקה (לאופיר)', gfxGate(c, cs, 'rest'),
+        (e) => { e.currentTarget.disabled = true; mark(ctx, c, ['p23.made'], true, 'יתרת הגרפיקות עברה לבדיקה של אופיר (יעד: שעה).', { handoff: 'p23.made' }); }));
 }
 
 function finalCard(x, ctx) {
@@ -224,7 +278,12 @@ function finalCard(x, ctx) {
   const key = `${x.pre}p27.toilai`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-final:${c.id}:${x.pre}` },
     h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, clientLabel(c)),
-      h('span', { class: 'il-title' }, `גרסאות סופיות בדרייב${x.n ? ` · סבב ${x.n}` : ''}`), h('span', { class: 'muted' }, ` · מ־${formatWhen(x.at)}`)),
+      h('span', { class: 'il-title' }, `גרסאות סופיות${x.n ? ` · סבב ${x.n}` : ''}`), h('span', { class: 'muted' }, ` · מ־${formatWhen(x.at)}`)),
+    // The videos themselves, as the editor uploaded them (read-only here).
+    mountWorkFiles({
+      client: c, kind: 'deliverable_video', window: videoWindow(c, ctx.checks[c.id] || {}, x.n || 1), me: ctx.viewer?.error ? undefined : ctx.me, readOnly: true,
+      idp: `il-f-${c.id}-${x.pre.replace(/\W/g, '')}-v`, title: 'הסרטונים הסופיים', total: Number((x.state.proc.ctx || c).deliverables?.videos) || null, toast, onChange: ctx.refresh,
+    }),
     h('p', { class: 'task-meta' }, '״קיבלתי״ סוגר את משימת העריכה, ומתחילות השעתיים לתזמון ולגאנט.'),
     h('div', { class: 'of-acts' }, h('button', {
       type: 'button', class: 'btn btn-sm', id: `il-f-${c.id}-${x.pre.replace(/\W/g, '')}`,

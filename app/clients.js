@@ -41,6 +41,7 @@ import { landingNow, officeLinks } from './office-ui.js';
 import { hasProfiles, modeOf } from './manager-rules.js';
 import { profileOf, managerTabs } from './shell-rules.js';
 import { folderItemOf } from './qa-logic.js';
+import { uploadStepOf } from './files-logic.js';
 // 3.10.2026: Stav's deals waiting for a contract (the office), and Stav's own page.
 import { mountDeals, refreshDeals } from './deal-ui.js';
 import { mountApprovals } from './approvals-ui.js';
@@ -277,6 +278,15 @@ function workFor(person) {
 // Exceptions reported to Lior come right after it, urgent or not.
 const bucketFor = (g, now = new Date()) => (g.urgent ? 'urgent' : g.escalation ? 'escalation' : bucketOf(g.status, g.dueAt, now));
 const byReported = (a, b) => (isEscalation(b.task) - isEscalation(a.task)) || (new Date(a.task.created_at) - new Date(b.task.created_at));
+
+// Outside the office, a mark that hands finished files on ("מוכן לבדיקה", the final
+// versions) is pressed on the page where the files go up, where its lock is seen
+// (app/files-logic.js uploadStepOf): here the row only points there.
+const viaPage = (e) => (e.task || scope === 'office' ? null : uploadStepOf(e.item.key, me, e.client.id));
+function viaLine(e) {
+  const via = viaPage(e);
+  return via ? h('p', { class: 'hint via-page' }, via.text, ' ', h('a', { href: via.href }, 'לעמוד')) : null;
+}
 
 function nextFocusAfter(input) {
   const all = [...document.querySelectorAll('#mine-list .cbx:not(:disabled)')];
@@ -595,8 +605,9 @@ function compactCard(g, person) {
     const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
     return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
       h('label', { class: 'wrow', for: id },
-        h('input', { type: 'checkbox', id, class: 'cbx', onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
+        h('input', { type: 'checkbox', id, class: 'cbx', disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
         h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
+      viaLine(e),
       e.task ? briefDetails(e.task) : null);
   }));
   // The one action: "התחלתי" on an urgent task; the form the process is worked in; the
@@ -687,8 +698,9 @@ function groupCard(g, person) {
       const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
       return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
         h('label', { class: 'wrow', for: id },
-          h('input', { type: 'checkbox', id, class: 'cbx', onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
+          h('input', { type: 'checkbox', id, class: 'cbx', disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
           h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
+        viaLine(e),
         e.task ? briefDetails(e.task) : null);
     })));
 }
@@ -1728,7 +1740,7 @@ $('status-form').addEventListener('submit', async (e) => {
 });
 
 // ── Editor load (Ofir, stage 5: before assigning a client to an editor) ──
-const EDIT_STEPS = [['p22', 'עריכה'], ['p24', 'העלאה לדרייב והעברה לאופיר'], ['p27', 'תיקונים וסגירה']];
+const EDIT_STEPS = [['p22', 'עריכה'], ['p24', 'העלאה לתיק הלקוח והעברה לאופיר'], ['p27', 'תיקונים וסגירה']];
 // Every editing job not finished in post: the client's own, and each extra shoot round's.
 function editingJobs() {
   const out = [];

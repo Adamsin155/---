@@ -65,6 +65,15 @@ export async function loadLogoFiles(clientIds) {
   for (const r of data || []) out[r.client_id] ||= r;
   return out;
 }
+// The scripts of a shoot day, for its photographer, read-only (package 1; docs/ops.md,
+// section 37): one database function decides (public.shoot_scripts: Eli, and only a
+// client whose shoot day is from yesterday to 30 days ahead; only those rounds).
+// null: nothing to read for this client. Throws when the function is not there yet.
+export async function loadShootScripts(clientId) {
+  const { data, error } = await supabase.rpc('shoot_scripts', { p_client: clientId });
+  if (error) throw error;
+  return data || null;
+}
 // A link to download one file, signed for an hour (the bucket is private).
 export async function signedDownload(path) {
   const name = fileNameOf(path);

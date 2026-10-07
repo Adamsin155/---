@@ -3,6 +3,16 @@
    (the light brand shell, buttons, fields, badges, dialogs). */
 .prod-page .page-head h1 { overflow-wrap: anywhere; }
 .prod-summary { margin: 0; font-size: 15px; color: var(--text-2); }
+/* Eli's scripts dialog (shoot.html): the scripts of his shoot day, to read. */
+.sh-scripts-btn { margin-inline-start: 8px; min-height: 44px; }
+#dlg-scripts .dlg-body { align-content: start; }
+.sh-scripts { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; align-content: start; }
+.sh-script { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--panel-2); min-width: 0; }
+.sh-script h3 { margin: 0 0 6px; font-size: 17px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; overflow-wrap: anywhere; }
+.sh-script-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 17px; line-height: 1.7; color: var(--text); }
+.dlg-body .sh-script-body { color: var(--text); margin: 0; }
+.sh-script-links { list-style: none; margin: 8px 0 0; padding: 0; }
+.sh-script-links a { display: inline-flex; align-items: center; min-height: 44px; overflow-wrap: anywhere; }
 .prod-summary:empty { display: none; }
 .prod-list { display: grid; gap: 14px; min-width: 0; }
 .prod-list > .empty { margin: 0; padding: 18px; background: var(--panel); border: 1px dashed var(--line-strong); border-radius: var(--radius-md); color: var(--muted); }

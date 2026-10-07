@@ -61,6 +61,7 @@ import { mountClientMonth, worksCycle } from './month-ui.js';
 import { freshText } from './protocol-versions.js';
 // The client's files ("תיק לקוח"): materials, deliverables and the client's gallery link.
 import { mountClientFiles } from './files-ui.js';
+import { uploadStepOf } from './files-logic.js';
 // The manager's features: the contract summary, and archiving (the owner and Ofir).
 import { contractSummary, fileCounts } from './contract-summary.js';
 import { loadDeliverableFiles, archiveClient } from './manager-data.js';
@@ -108,7 +109,8 @@ const FIELD_NAMES = {
 };
 const FIELD_INPUT = { characterizer: 'ed-characterizer', char_at: 'ed-char-at', shoot_type: 'ed-shoot-type', shoot_at: 'ed-shoot-at', has_logo: 'ed-logo', editor: 'ed-editor' };
 // The link each process works with, shown inside the process.
-const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p09: 'gantt', p10: 'meta', p12: 'scripts', p24: 'drive' };
+// (The Gantt and the finished files are in the system: 9 and 24 link to no outside address.)
+const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p10: 'meta', p12: 'scripts' };
 // The package quantity each process works to (the protocol's wording says "by the package").
 const PKG_QTY = { p12: 'videos', p18: 'videos', p22: 'videos', p23: 'graphics' };
 // What this user sees. 'own' roles see only their processes and items, and none of
@@ -202,7 +204,7 @@ function render() {
     if (tp) openPhases.add(tp.proc.phase);
   }
   renderHead(s);
-  mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus(), scripts: scriptsOk() });
+  mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus(), scripts: scriptsOk(), me: viewerError ? undefined : me });
   mountClientStatus($('st-slot'), { client, scope, me, toast });
   mountClientFiles($('fl-slot'), { client, me: viewerError ? undefined : me, myEmail, toast });
   renderAccess();
@@ -990,6 +992,9 @@ function itemRow(p, i) {
   const cid = `i-${i.key.replace(/\./g, '-')}`;
   const busy = pending.has(i.key);
   const block = state ? null : blockers(i, p.ctx || client, checks);
+  // Outside the office, a mark that hands finished files on is pressed on the page
+  // where the files go up (the editor's page, Ilai's cards): its lock is seen there.
+  const via = state || !own() ? null : uploadStepOf(i.key, me, client.id);
   const ownOwners = i.owners.join() !== p.owners.join();
   const mine = !mineOnly() && focusPerson && i.owners.includes(focusPerson);
   const meta = [];
@@ -1023,6 +1028,7 @@ function itemRow(p, i) {
     ].filter(Boolean).join(' · ');
     meta.push(h('span', { class: 'blocked', id: `${cid}-b` }, text));
   }
+  if (via) meta.push(h('span', { class: 'blocked', id: `${cid}-u` }, via.text, ' ', h('a', { href: via.href }, 'לעמוד')));
   if (i.optional && !c) meta.push(h('span', { class: 'tag' }, 'אם רלוונטי'));
   if (i.fresh && !state) meta.push(h('span', { class: 'tag tag-fresh' }, freshText(i.fresh)));
   if (ownOwners) meta.push(peopleChips(i.owners));
@@ -1034,7 +1040,7 @@ function itemRow(p, i) {
   return h('li', { class: `item${state === 'done' ? ' is-done' : ''}${state === 'na' ? ' is-na' : ''}${mine ? ' is-mine' : ''}${busy ? ' is-busy' : ''}${block ? ' is-blocked' : ''}` },
     h('label', { class: 'irow', for: cid },
       h('input', {
-        type: 'checkbox', id: cid, class: 'cbx', checked: state === 'done', disabled: busy || state === 'na' || !!block,
+        type: 'checkbox', id: cid, class: 'cbx', checked: state === 'done', disabled: busy || state === 'na' || !!block || !!via,
         'aria-describedby': meta.length ? `${cid}-m` : null,
         onchange: (e) => mark(i.key, e.currentTarget.checked ? 'done' : null, cid),
       }),
@@ -1042,7 +1048,7 @@ function itemRow(p, i) {
         h('span', { class: 'ilabel' }, i.label, state === 'na' ? h('span', { class: 'tag' }, i.optional ? 'לא נדרש' : 'לא רלוונטי') : null),
         meta.length ? h('span', { class: 'imeta', id: `${cid}-m` }, ...meta) : null)),
     calendar,
-    state === 'done' || (baseKey(i.key) === 'p13.approved' && state !== 'na') ? null : h('button', {
+    state === 'done' || via || (baseKey(i.key) === 'p13.approved' && state !== 'na') ? null : h('button', {
       type: 'button', class: `btn-text na-btn${i.optional ? ' is-opt' : ''}`, disabled: busy, id: `${cid}-na`,
       'aria-label': `${naLabel}: ${i.label}`,
       onclick: () => {
@@ -1735,7 +1741,7 @@ fill($('ed-deliv'), ...DELIV_FIELDS.map(([k, l]) => h('div', { class: 'field' },
   h('label', { for: `ed-deliv-${k}` }, l), h('input', { class: 'input', id: `ed-deliv-${k}`, type: 'number', min: '0', max: '999', inputmode: 'numeric', dir: 'ltr' }))));
 fill($('ed-links'), ...LINKS.map((l) => h('div', { class: 'field' },
   h('label', { for: `ed-link-${l.key}` }, l.label),
-  h('input', { class: 'input', id: `ed-link-${l.key}`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: `https://${l.hint}/…`, 'aria-describedby': `ed-link-${l.key}-h` }),
+  h('input', { class: 'input', id: `ed-link-${l.key}`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: l.hint ? `https://${l.hint}/…` : l.placeholder || 'https://', 'aria-describedby': `ed-link-${l.key}-h` }),
   h('div', { class: 'hint', id: `ed-link-${l.key}-h` }))));
 
 function openEdit(focusId = 'ed-name') {
@@ -1790,8 +1796,8 @@ function readLinks() {
     if (!v) continue;
     if (!safeLink(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'זה לא נראה כמו קישור. העתיקו את הכתובת המלאה, שמתחילה ב־https://', input }; }
     if (SECRET.test(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'אפשר לשמור כאן רק קישור. סיסמאות וקודי גישה לא נשמרים במערכת.', input }; }
-    const domain = l.hint.split('/')[0].split('.').slice(-2).join('.');
-    if (!v.toLowerCase().includes(domain)) hint.textContent = `הקישור לא נראה כמו קישור של ${l.label}. נשמר בכל זאת.`;
+    const domain = l.hint ? l.hint.split('/')[0].split('.').slice(-2).join('.') : '';
+    if (domain && !v.toLowerCase().includes(domain)) hint.textContent = `הקישור לא נראה כמו קישור של ${l.label}. נשמר בכל זאת.`;
     out[l.key] = v;
   }
   return { links: out };

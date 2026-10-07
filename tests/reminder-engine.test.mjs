@@ -114,7 +114,7 @@ test('office time helpers: 30 office minutes before a morning deadline start the
   assert.equal(hhmm(officeMinutesBefore(IL(2026, 9, 22, 9, 15), 30)), '20.9 12:45');
 });
 
-test('new deal (1–3): Irit at once and at 5 minutes, Lior after 30 office minutes, the owner after an hour', () => {
+test('new deal (1–3): Irit at once, at 5 minutes (group, meeting date) and at 10 (the contract), Lior after 30 office minutes, the owner after an hour', () => {
   const w = world();
   const c = client(w, { name: 'פיצה', deal_at: IL(2026, 10, 5, 10).toISOString() });
   const now = one(due(w, IL(2026, 10, 5, 10)), 'deal', 'now', 'irit');
@@ -122,10 +122,14 @@ test('new deal (1–3): Irit at once and at 5 minutes, Lior after 30 office minu
   assert.equal(now.exempt, 'clock');
   assert.equal(now.escalation, 'lior');
   assert.match(now.title, /עסקה חדשה: פיצה/);
-  assert.match(now.body, /עד היום 10:05/);
+  assert.equal(now.body, 'קבוצה ומועד אפיון עד היום 10:05, חוזה עד היום 10:10.');
   none(due(w, IL(2026, 10, 5, 10, 4)), 'deal', 'due');
   const d = one(due(w, IL(2026, 10, 5, 10, 5)), 'deal', 'due', 'irit');
-  assert.equal(d.body, 'עוד חסר: חוזה, קבוצה, מועד אפיון.');
+  assert.equal(d.body, 'עוד חסר: קבוצה, מועד אפיון.');
+  // The contract has 10 office minutes (the owner's decision of 3.10.2026): its own ring, then.
+  none(due(w, IL(2026, 10, 5, 10, 9)), 'deal', 'contract');
+  const k = one(due(w, IL(2026, 10, 5, 10, 10)), 'deal', 'contract', 'irit');
+  assert.deepEqual([k.title, k.body, k.level, k.exempt], ['עברו 10 דקות בלי חוזה: פיצה', 'החוזה עוד לא נשלח ללקוח.', 'ring', 'clock']);
   none(due(w, IL(2026, 10, 5, 10, 29)), 'deal', 'lior');
   const l = one(due(w, IL(2026, 10, 5, 10, 30)), 'deal', 'lior', 'lior');
   assert.equal(l.exempt, null);
@@ -133,6 +137,7 @@ test('new deal (1–3): Irit at once and at 5 minutes, Lior after 30 office minu
   // What is still missing is named; once all three are done the ladder stops.
   marks(w, c, ['p01.prepared', 'p01.sent'], IL(2026, 10, 5, 10, 2));
   assert.equal(one(due(w, IL(2026, 10, 5, 10, 5)), 'deal', 'due').body, 'עוד חסר: קבוצה, מועד אפיון.');
+  none(due(w, IL(2026, 10, 5, 10, 10)), 'deal', 'contract'); // the contract was sent: no ring about it
   marks(w, c, [...itemsOf('p02'), ...itemsOf('p03')], IL(2026, 10, 5, 10, 3));
   none(due(w, IL(2026, 10, 5, 11)), 'deal');
   // Each step once: a step in the log is not due again.
@@ -472,7 +477,7 @@ test('editing (22, 24): assigned, not started after 2 office hours (Lior after 4
   for (const k of [...itemsOf('p22'), ...itemsOf('p24'), ...itemsOf('p22a')]) delete w.checks[c.id][k];
   mark(w, c, 'p22a.assigned', IL(2026, 10, 18, 10));
   const now = one(due(w, IL(2026, 10, 18, 10)), 'editing', 'assigned', 'nadia');
-  assert.match(now.body, /בדרייב ואצל אופיר עד ד׳ 21\.10 23:59 · סגירה עד ה׳ 22\.10 23:59/);
+  assert.match(now.body, /בתיק הלקוח ואצל אופיר עד ד׳ 21\.10 23:59 · סגירה עד ה׳ 22\.10 23:59/);
   none(due(w, IL(2026, 10, 18, 11, 59)), 'editing', 'nostart');
   one(due(w, IL(2026, 10, 18, 12)), 'editing', 'nostart', 'nadia');
   const at14 = due(w, IL(2026, 10, 18, 14));

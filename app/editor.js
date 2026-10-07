@@ -5,7 +5,9 @@
 // and one button for the next step (app/production.js editorState):
 //   ממתין לכונן → (1) קיבלתי את הכונן והתחלתי → (2) מוכן לבדיקה → (3) תיקונים מאופיר
 //   (the office's returns, app/office-ui.js fixList) → (4) תיקונים הושלמו, הגרסאות
-//   הסופיות בדרייב → אצל עילאי until he marks "קיבלתי" (p27.toilai).
+//   הסופיות בתיק הלקוח → אצל עילאי until he marks "קיבלתי" (p27.toilai).
+// The finished videos are uploaded here, into the client's files (app/files-ui.js
+// mountWorkFiles): (2) and (4) open only once a video of this round is there.
 // The business phone and the logo come from the characterization form, the
 // highlights from the focus call (app/intake-data.js, app/briefs.js).
 // Nirel also gets her "בריפים" inbox here. Each editor sees their own on-time and
@@ -29,8 +31,12 @@ import { mountPush } from './push.js';
 import { offerHandoff } from './handoff-ui.js';
 import { closedProcesses } from './health.js';
 import * as P from './production.js';
+import { mountWorkFiles, workFilesState, forgetFiles, readFiles } from './files-ui.js';
+import { charViewHref } from './intake-ui.js';
+import { videoWindow, uploadGate, uploadedText } from './files-logic.js';
 
 let me = null;
+let myEmail = '';
 let clients = [];
 let checks = {};
 let tasks = [];
@@ -62,7 +68,9 @@ async function load() {
   }
   states.clear();
   const ids = [...new Set(allJobs().map((j) => j.client.id))];
-  [chars, briefs, logos] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids)]);
+  for (const cid of ids) forgetFiles(cid);
+  // The files too, before the cards are drawn: "מוכן לבדיקה" is locked or open at once.
+  [chars, briefs, logos] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), ...ids.map(readFiles)]);
   lastLoad = Date.now();
   $('state').textContent = '';
   await tidyBlocks();
@@ -105,7 +113,9 @@ function renderKeepingFocus(focusId = document.activeElement?.id) {
   const y = window.scrollY;
   render();
   window.scrollTo({ top: y });
-  if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+  // The next step's button may be locked until a video is up: the upload button then.
+  const el = focusId ? document.getElementById(focusId) : null;
+  (el?.disabled ? document.getElementById(focusId.replace(/-go$/, '-v-add')) || el : el)?.focus({ preventScroll: true });
 }
 function goToHash() {
   const id = decodeURIComponent(location.hash.slice(1));
@@ -190,10 +200,37 @@ function eliNotes(job) {
   return text ? h('details', { class: 'ed-more', open: true }, h('summary', {}, 'הערות של אלי מיום הצילום'), h('p', { class: 'ed-note' }, text)) : null;
 }
 
+// ── The round's finished videos ─────────────
+// Uploaded here, into the client's files (package 1; docs/ops.md, section 37). "מוכן
+// לבדיקה" and the final hand-off open only once a video of this round is up; after
+// the client's notes, one that went up since. A failed upload says what to do: try
+// again, then "חסר…" (Irit at once, Lior after her), never a way around.
+const VIDEO = 'deliverable_video';
+const FAIL_HELP = 'אם זה חוזר: ״חסר לוגו / טלפון / חומר״, לסמן ״העלאה למערכת״. עירית מקבלת מיד, וליאור אחריה.';
+const windowOf = (job) => videoWindow(job.client, cs(job.client), job.round);
+function videosGate(job, st) {
+  const state = workFilesState(job.client.id);
+  return uploadGate({
+    files: state.files, kind: VIDEO, window: windowOf(job), state,
+    after: st.key === 'final' && st.notes ? st.notes.at : null,
+    none: 'נפתח אחרי שמעלים כאן לפחות סרטון סופי אחד.',
+  });
+}
+function videosBlock(job, st) {
+  if (st.key === 'waiting') return null;
+  return mountWorkFiles({
+    client: job.client, kind: VIDEO, window: windowOf(job), me, myEmail, idp: `${cardId(job)}-v`, toast,
+    title: 'הסרטונים הסופיים', total: P.videosPerDay(job.ctx) || null, failHelp: FAIL_HELP,
+    onChange: () => { if (!busy()) renderKeepingFocus(); },
+  });
+}
+const lockHint = (id, gate) => (gate.ok ? null : h('p', { class: 'hint fl-lock', id: `${id}-lock` }, gate.reason));
+
 function stateBlock(job, st) {
   const id = cardId(job);
   const now = new Date();
   const missingBtn = h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: `${id}-missing`, onclick: () => openMissing(job) }, 'חסר לוגו / טלפון / חומר');
+  const gate = ['editing', 'final'].includes(st.key) ? videosGate(job, st) : null;
   switch (st.key) {
     case 'waiting':
       return h('div', { class: 'ed-act' },
@@ -201,8 +238,9 @@ function stateBlock(job, st) {
         st.blocked ? null : missingBtn);
     case 'editing':
       return h('div', { class: 'ed-act' },
-        h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, onclick: () => openReady(job) }, 'מוכן לבדיקה'),
-        st.blocked ? null : missingBtn);
+        h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, disabled: !gate.ok, 'aria-describedby': gate.ok ? null : `${id}-lock`, onclick: () => openReady(job) }, 'מוכן לבדיקה'),
+        st.blocked ? null : missingBtn,
+        lockHint(id, gate));
     case 'qa':
       return h('p', { class: 'ed-wait' }, `${st.round > 1 ? 'התיקונים אצל אופיר לבדיקה חוזרת' : 'אצל אופיר'} מאז ${formatWhen(st.since, now)}. יעד הבקרה: שעת עבודה. תיקונים, אם יהיו, יופיעו כאן.`);
     case 'fixes': return qaFixes(job);
@@ -210,8 +248,9 @@ function stateBlock(job, st) {
     case 'clientFixes': return clientFixesBlock(job, st);
     case 'final':
       return h('div', { class: 'ed-act' },
-        h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, onclick: (e) => finish(job, st, e.currentTarget) }, 'תיקונים הושלמו, הגרסאות הסופיות בדרייב'),
-        h('p', { class: 'hint' }, st.notes ? 'התיקונים של הלקוח עוברים ישר לעילאי.' : 'הלקוח אישר. הגרסאות עוברות לעילאי.'));
+        h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, disabled: !gate.ok, 'aria-describedby': gate.ok ? null : `${id}-lock`, onclick: (e) => finish(job, st, e.currentTarget) }, 'תיקונים הושלמו, הגרסאות הסופיות בתיק הלקוח'),
+        st.blocked ? null : missingBtn,
+        lockHint(id, gate) || h('p', { class: 'hint' }, st.notes ? 'התיקונים של הלקוח עוברים ישר לעילאי.' : 'הלקוח אישר. הגרסאות עוברות לעילאי.'));
     case 'ilai': return h('p', { class: 'ed-wait' }, 'הגרסאות הסופיות אצל עילאי. המשימה נסגרת כשהוא מסמן ״קיבלתי״.');
     default: return null;
   }
@@ -289,13 +328,15 @@ function jobCard(job) {
       h('p', {}, `עירית קיבלה הודעה ${formatWhen(st.blocked.at, now)}.${st.blocked.note ? ` ״${st.blocked.note}״` : ''}`),
       h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-unblock`, onclick: (e) => endBlock(job, { btn: e.currentTarget }) }, 'הגיע, ממשיכים')) : null,
     st.paused ? null : stateBlock(job, st),
+    videosBlock(job, st),
     pauseBlock(job, st),
     h('p', { class: 'ed-facts' },
       videos ? h('span', {}, `${videos} סרטונים לפי החבילה`) : h('span', { class: 'muted' }, 'כמות הסרטונים לא הוזנה'),
       dropbox ? h('span', { class: 'tag tag-warn' }, 'צריך גם Dropbox') : null),
+    // The finished videos go up above; an old Drive link in the card is only the archive.
     h('div', { class: 'ed-links' },
-      link(links.drive, 'דרייב'), link(links.scripts, 'תסריטים'), dropbox ? link(links.dropbox, 'Dropbox') : null,
-      !links.drive && !links.scripts ? h('span', { class: 'muted' }, 'אין עדיין קישור לדרייב ולתסריטים בכרטיס.') : null),
+      link(links.scripts, 'תסריטים'), dropbox ? link(links.dropbox, 'Dropbox') : null, link(links.drive, 'ארכיון ב־Drive'),
+      !links.scripts ? h('span', { class: 'muted' }, 'אין עדיין קישור לתסריטים בכרטיס.') : null),
     sheetBlock(job),
     eliNotes(job),
     highlightsBlock(job));
@@ -456,9 +497,11 @@ async function endBlock(job, { btn = null, quiet = false } = {}) {
 const readyDlg = dialog('dlg-ready');
 let readyList = [];
 function openReady(job) {
+  const gate = videosGate(job, job.st || P.editorState(job, cs(job.client)));
+  if (!gate.ok) { toast(gate.reason); return; }
   target = job;
   readyList = P.selfCheck(P.needsDropbox(job.client));
-  $('ready-ctx').textContent = `${jobName(job)}${P.videosPerDay(job.ctx) ? ` · ${P.videosPerDay(job.ctx)} סרטונים` : ''}`;
+  $('ready-ctx').textContent = `${jobName(job)} · ${uploadedText(gate.count, P.videosPerDay(job.ctx) || null)} סרטונים`;
   fill($('ready-list'), ...readyList.map(([, l], i) => checkRow(`ready-${i}`, l)));
   showErr('ready-err', '');
   readyDlg.showModal();
@@ -499,7 +542,7 @@ async function markFixed(job, st, videos, btn) {
     await markOne(job, 'p27.fixed', P.clientFixedNote([...fixed]));
     if (!list.length || list.every((v) => fixed.has(v.n))) {
       await markOne(job, 'p27.fixes', 'בעמוד העריכה');
-      toast('כל תיקוני הלקוח סומנו. עכשיו: ״תיקונים הושלמו, הגרסאות הסופיות בדרייב״.');
+      toast('כל תיקוני הלקוח סומנו. עכשיו: ״תיקונים הושלמו, הגרסאות הסופיות בתיק הלקוח״.');
       renderKeepingFocus(`${cardId(job)}-go`);
       return;
     }
@@ -512,10 +555,12 @@ async function markFixed(job, st, videos, btn) {
 }
 
 // ── (4) Final versions to Ilai ──────────────
-// The editor marks the final versions in the Drive (p27.final); Ilai gets them
+// The editor marks the final versions as uploaded (p27.final); Ilai gets them
 // (app/reminder-rules.js finalReady) and his "קיבלתי" (p27.toilai) closes the job.
 async function finish(job, st, btn) {
   if (!P.canFinish(st)) return;
+  const gate = videosGate(job, st);
+  if (!gate.ok) { toast(gate.reason); return; }
   btn.disabled = true;
   try {
     await markMany(job, [...(st.notes ? ['p27.fixes'] : []), 'p27.final'], 'בעמוד העריכה');
@@ -607,6 +652,8 @@ function renderBriefs() {
         from ? h('p', { class: 'muted' }, `ביקש/ה: ${PEOPLE[from]?.name || from}`) : null,
         briefDetails(t, isNirel()),
         h('div', { class: 'ed-act' },
+          // What the work is made from: the client's characterization, read-only.
+          isNirel() && c ? h('a', { class: 'btn btn-sm btn-ghost', id: `t-${t.id}-char`, href: charViewHref(c.id) }, 'האפיון של הלקוח') : null,
           isUrgentTask(t) && 'started_at' in t && !t.started_at
             ? h('button', { type: 'button', class: 'btn btn-primary', id: `t-${t.id}-start`, onclick: (e) => startUrgent(t, e.currentTarget) }, 'התחלתי') : null,
           isUrgentTask(t) && t.started_at ? h('span', { class: 'hint' }, `התחלת ${formatStamp(t.started_at)}`) : null,
@@ -672,7 +719,7 @@ $('urg-form').addEventListener('submit', async (e) => {
   }
 });
 
-// Finishing a task: with a brief (always for Nirel), what was done, what is left and the Drive link.
+// Finishing a task: with a brief (always for Nirel), what was done, what is left and a link to the result.
 const doneDlg = dialog('dlg-done');
 function openDone(t) {
   if (!hasBrief(t) && !isNirel()) { plainDone(t); return; }
@@ -773,6 +820,7 @@ mountSession(async (staff) => {
   [dir, viewer] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
   Object.assign(directory, dir);
   me = viewer.me;
+  myEmail = String(staff.email || '').toLowerCase();
   if (!me || !PEOPLE[me]?.editor) {
     fill($('ed-list'));
     $('no-access').hidden = false;
