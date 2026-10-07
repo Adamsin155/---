@@ -230,8 +230,9 @@ function videosBlock(job, st) {
   });
   return h('div', { class: 'ed-videos', id: `${id}-videos` },
     h('p', { class: 'ed-videos-h' }, h('strong', {}, 'הסרטונים הסופיים: בדרייב של הלקוח'),
-      link ? [' · ', h('a', { href: link, target: '_blank', rel: 'noopener noreferrer', id: `${id}-drive` }, 'פתיחת התיקייה בדרייב', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)'))]
-        : st.key === 'editing' ? ' · את הקישור לתיקייה מדביקים ב״מוכן לבדיקה״.' : null),
+      // The link pasted at the hand-off; the card's own Drive link is the button below, as always.
+      link && link !== String(job.client.links?.drive || '').trim() ? [' · ', h('a', { href: link, target: '_blank', rel: 'noopener noreferrer', id: `${id}-drive` }, 'פתיחת התיקייה בדרייב', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)'))]
+        : !link && st.key === 'editing' ? ' · את הקישור לתיקייה מדביקים ב״מוכן לבדיקה״.' : null),
     h('details', {
       class: 'ed-more ed-upload', id: `${id}-up`, open: gate.count > 0 || openUploads.has(id),
       ontoggle: (e) => { if (e.currentTarget.open) openUploads.add(id); else openUploads.delete(id); },
@@ -346,10 +347,9 @@ function jobCard(job) {
     h('p', { class: 'ed-facts' },
       videos ? h('span', {}, `${videos} סרטונים לפי החבילה`) : h('span', { class: 'muted' }, 'כמות הסרטונים לא הוזנה'),
       dropbox ? h('span', { class: 'tag tag-warn' }, 'צריך גם Dropbox') : null),
-    // (The videos' Drive folder is the line above.)
     h('div', { class: 'ed-links' },
-      link(links.scripts, 'תסריטים'), dropbox ? link(links.dropbox, 'Dropbox') : null,
-      !links.scripts ? h('span', { class: 'muted' }, 'אין עדיין קישור לתסריטים בכרטיס.') : null),
+      link(links.drive, 'דרייב'), link(links.scripts, 'תסריטים'), dropbox ? link(links.dropbox, 'Dropbox') : null,
+      !links.drive && !links.scripts ? h('span', { class: 'muted' }, 'אין עדיין קישור לדרייב ולתסריטים בכרטיס.') : null),
     sheetBlock(job),
     eliNotes(job),
     highlightsBlock(job));
