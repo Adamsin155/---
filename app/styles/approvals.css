@@ -51,14 +51,20 @@ dialog.apv-share { max-width: min(560px, calc(100vw - 32px)); }
 .pill.awaiting { color: var(--ds-amber); }
 .pill.rejected { color: var(--ds-danger); }
 
-/* The builder: "חוזה מותאם אישית". Clearly its own area, opened by a switch. */
-.custom-group { border-radius: var(--ds-r-card); background: var(--ds-ground); padding: 16px; }
-.custom-group.is-on { box-shadow: inset 0 0 0 2px var(--ds-navy); }
-.custom-head { display: flex; align-items: center; gap: 12px; }
-.custom-head label { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; cursor: pointer; }
-.custom-head .t { font-family: var(--ds-font-h); font-size: 18px; color: var(--ds-ink); }
-.custom-head .s { font-size: 13px; color: var(--ds-muted); }
-.custom-body { display: grid; gap: 16px; margin-top: 14px; }
+/* The builder: "חוזה מותאם אישית". A tile like the packages and the add-ons (the same
+   surface, the same navy frame when chosen), with its fields opening under it. */
+.custom-group { display: grid; gap: 0; }
+.custom-head {
+  display: flex; align-items: center; gap: 14px; min-height: 96px;
+  padding: 16px; border-radius: var(--radius-md); border: 2px solid transparent; background: var(--bg-2);
+  transition: border-color .2s, box-shadow .2s;
+}
+.custom-head:hover { border-color: var(--line); }
+.custom-group.is-on .custom-head, .custom-group.is-on .custom-head:hover { border-color: var(--ds-navy); }
+.custom-head label { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; cursor: pointer; }
+.custom-head .t { font-weight: 600; font-size: 16px; line-height: 1.35; color: var(--ds-ink); }
+.custom-head .s { font-size: 13px; line-height: 1.5; color: var(--muted); }
+.custom-body { display: grid; gap: 16px; margin-top: 12px; padding: 16px; border-radius: var(--radius-md); background: var(--ds-ground); }
 .custom-sec { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 8px; }
 .custom-sec legend { padding: 0; font-weight: 700; font-size: 15px; margin-bottom: 6px; }
 .custom-sec .sub { margin: 0; color: var(--ds-muted); font-size: 13px; }
