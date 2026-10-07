@@ -6,7 +6,7 @@
 // the clients with their marks and states, the open tasks, each person's work, and
 // (for Irit and the owners, who may read them) Stav's deals.
 import { REVIEW_TOPICS, PEOPLE } from './protocol.js';
-import { businessDaysBetween, addBusinessDays, parseDate, IMPORT_NOTE } from './protocol-logic.js';
+import { businessDaysBetween, addBusinessDays, parseDate, IMPORT_NOTE, inLanding, workFloor } from './protocol-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import { dealUrl, dealDue } from './deal-logic.js';
 
@@ -20,7 +20,10 @@ export const SHOOT_DAYS_AHEAD = 7;  // "ימי צילום": the shoot days of th
 export const WAIT_LATE_DAYS = 2;    // with the client for more than this many business days: flagged
 const CLIENT_FIX = 'client_fix';    // app/status-rules.js: the client asked for a fix on the status page
 
-const inWork = (c) => c.status === 'active' || c.status === 'ending';
+// A client in landing is in no topic: nothing of it is asked for until it is activated.
+const inWork = (c) => (c.status === 'active' || c.status === 'ending') && !inLanding(c);
+// Topics whose lateness is counted in days from a raw mark (not from a process's deadline).
+const FROM_MARK = new Set(['signatures', 'approvals', 'back']);
 const isDone = (cs, k) => cs[k]?.state === 'done';
 const isResolved = (cs, k) => cs[k]?.state === 'done' || cs[k]?.state === 'na';
 const atOf = (cs, k) => (cs[k]?.at ? new Date(cs[k].at) : null);
@@ -125,7 +128,9 @@ function chars({ live, cs, st, now }) {
       if (p3 && !p3.ready) continue;
       out.push(item({ id: `${c.id}:p03`, client: c, text: 'לא נקבעה פגישת אפיון', hash: 'p03', since: parseDate(c.deal_at), late: p3?.status === 'overdue' }));
     } else if (dayKeyIL(at) < today) {
-      out.push(item({ id: `${c.id}:p04`, client: c, text: `הפגישה עברה והאפיון לא נשמר${who ? ` · ${who}` : ''}`, hash: 'p04', since: at, late: true }));
+      // A meeting from before the client was activated: late only once its fresh deadline passed.
+      const before = workFloor(c) && at < workFloor(c);
+      out.push(item({ id: `${c.id}:p04`, client: c, text: `הפגישה עברה והאפיון לא נשמר${who ? ` · ${who}` : ''}`, hash: 'p04', since: at, late: before ? p4.status === 'overdue' : true }));
     } else if (dayKeyIL(at) <= horizon) {
       out.push(item({ id: `${c.id}:p04`, client: c, text: `פגישת אפיון${who ? ` · ${who}` : ''}`, hash: 'p04', when: at, info: true }));
     }
@@ -272,7 +277,12 @@ export function controlTopics({ clients = [], checks = {}, stateOf, tasks = [], 
   const live = clients.filter(inWork);
   const env = { live, cs: (c) => checks[c.id] || {}, st: (c) => stateOf(c).states, tasks, deals, work, now };
   return TOPIC_KEYS.map((key) => {
-    const items = BUILD[key](env);
+    // An activated client's work is counted from its activation, never from months before it.
+    const items = BUILD[key](env).map((x) => {
+      const floor = x.client && workFloor(x.client);
+      if (!floor || !x.since || x.since >= floor) return x;
+      return { ...x, since: floor, late: FROM_MARK.has(key) ? !!x.recheck || businessDaysBetween(floor, now) > WAIT_LATE_DAYS : x.late };
+    });
     return { key, label: topicLabel(key), items, count: items.length, late: items.filter((x) => x.late).length };
   });
 }

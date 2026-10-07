@@ -187,7 +187,42 @@ function completedAt(proc, checks, now) {
   return new Date(last);
 }
 
+// ── Landing (docs/ops.md, section 41) ──
+// A client brought in from the old system is "in landing" (clients.landing) until it
+// is taken in: it is a client everywhere, but nothing of it has a deadline, is late or
+// counts for or against anybody. When it is activated the database stamps landed_at,
+// and that moment is where its working clock starts: every anchor of a deadline that
+// lies before it (the deal months ago, a shoot day long past, a process the import
+// marked) counts as having happened then. Nothing is rewritten: deal_at, char_at,
+// shoot_at and contract_end stay the real dates, and the package year, the Gantt and
+// the renewal read them as before.
+export const inLanding = (client) => client?.landing === true;
+export const workFloor = (client) => (client && !inLanding(client) && client.landed_at ? parseDate(client.landed_at) : null);
+// The least time anything that was already late on the day of the activation gets:
+// until the end of the next business day (a "5 minutes" of months ago is not due
+// five minutes after the owner pressed "מפעילים").
+export const freshDeadline = (floor) => addBusinessDays(floor, 1);
+// Recurring work of an activated client does not all come up on one morning: the
+// database gives each client a turn (landing_slot, 0..9) and its weekly call first
+// comes up on business day slot + 1 after the activation, at the opening of the office.
+// From the first call on, each client keeps its own weekly rhythm.
+export const SPREAD_DAYS = 10;
+export function spreadStart(client) {
+  const floor = workFloor(client);
+  if (!floor) return null;
+  const slot = Number.isInteger(client.landing_slot) ? ((client.landing_slot % SPREAD_DAYS) + SPREAD_DAYS) % SPREAD_DAYS : 0;
+  let d = floor;
+  for (let left = slot + 1; left > 0;) { d = nextDay(d); if (isBusinessDay(d)) left -= 1; }
+  return openAt(d);
+}
+
 function anchor(from, client, procs, checks, now) {
+  const at = realAnchor(from, client, procs, checks, now);
+  // The contract's end is never moved: the renewal is counted from the real date.
+  const floor = from === 'contractEnd' ? null : workFloor(client);
+  return at && floor && at < floor ? floor : at;
+}
+function realAnchor(from, client, procs, checks, now) {
   switch (from) {
     case 'deal': return parseDate(client.deal_at);
     case 'group': {
@@ -412,15 +447,28 @@ export function clientState(client, checks = {}, now = new Date()) {
   const procs = applicableProcesses(client);
   const phaseList = phasesFor(client);
   const phaseIndex = (key) => phaseList.findIndex((p) => p.key === key);
+  // In landing nothing has a deadline; after it, deadlines are counted from landed_at.
+  const quiet = inLanding(client);
+  const floor = workFloor(client);
   const states = procs.map((p) => {
     const ctx = p.ctx || client;
+    // A deadline whose clock was already running when the client was activated (its
+    // anchor lies at or before landed_at: the old deal, a past shoot day, a process the
+    // taking-in marked) is counted again from the activation, and is never earlier than
+    // the end of the next business day. What starts after the activation is untouched.
+    const due = (spec) => {
+      const d = resolveTime(spec, ctx, procs, checks, now);
+      if (!d || !floor || spec.from === 'contractEnd') return d;
+      const began = realAnchor(spec.from, ctx, procs, checks, now);
+      return began && began <= floor ? laterDue(d, freshDeadline(floor)) : d;
+    };
     const required = p.items.filter((i) => !i.optional);
     const resolved = required.filter((i) => isResolved(i, checks[i.key], now)).length;
     const touched = p.items.some((i) => checks[i.key]);
     const complete = p.recurring ? false : resolved === required.length;
     const startAt = resolveTime(p.start, ctx, procs, checks, now);
     // A deadline a later protocol version shortened keeps the one the client started under.
-    const baseDueAt = p.recurring ? null : laterDue(resolveTime(dueSpec(p), ctx, procs, checks, now), p.dueBefore && resolveTime(p.dueBefore, ctx, procs, checks, now));
+    const baseDueAt = p.recurring || quiet ? null : laterDue(due(dueSpec(p)), p.dueBefore && due(p.dueBefore));
     const doneAt = complete ? completedAt(p, checks, now) : null;
     // Waiting on the client (office minutes): `waited` in all, `extended` the part
     // that moved the deadline on.
@@ -447,6 +495,15 @@ export function clientState(client, checks = {}, now = new Date()) {
     if (s.proc.recurring) {
       const item = s.proc.items[0];
       const done = isResolved(item, checks[item.key], now);
+      // In landing the weekly call is not asked for; after the activation it first comes
+      // up on the client's own day (spreadStart), unless a call was recorded since.
+      const first = spreadStart(client);
+      const since = checks[item.key];
+      if (quiet) s.ready = false;
+      else if (s.ready && first && now < first && !(since && since.note !== IMPORT_NOTE && new Date(since.at) >= floor)) {
+        s.ready = false;
+        s.startAt = first;
+      }
       s.status = !s.ready ? 'waiting' : done ? 'done' : 'due';
       s.lastAt = checks[item.key]?.at || null;
       continue;
@@ -470,7 +527,7 @@ export function clientState(client, checks = {}, now = new Date()) {
   // Progress is counted in processes everywhere; renewal is not part of delivery.
   const counted = states.filter((x) => !x.proc.recurring && x.proc.phase !== 'renewal');
   return {
-    phases, states, current,
+    phases, states, current, landing: quiet,
     procsTotal: counted.length,
     procsDone: counted.filter((x) => x.complete).length,
     overdue: states.filter((s) => s.status === 'overdue').length,
@@ -483,7 +540,9 @@ export function clientState(client, checks = {}, now = new Date()) {
 // An ended client keeps only its closing process.
 export function openItemsFor(person, client, checks, state, now = new Date()) {
   const out = [];
-  if (client.status === 'cancelled') return out;
+  // A client in landing is taken in on its own screen (app/landing-logic.js): its items
+  // are in nobody's list, count or clock until it is activated.
+  if (client.status === 'cancelled' || inLanding(client)) return out;
   for (const s of state.states) {
     if (!s.ready || s.status === 'done') continue;
     if (client.status === 'ended' && s.proc.id !== 'p35') continue;
@@ -583,11 +642,16 @@ export function performanceReport(clients, checksByClient, { days = 30, now = ne
     if (row.minutes !== null) m.durations.push(row.minutes);
   };
   for (const c of clients) {
+    // A client in landing is not measured, and after it only what was finished since
+    // the activation (the months before it were not worked in this system).
+    if (inLanding(c)) continue;
+    const floor = workFloor(c);
     const checks = checksByClient[c.id] || {};
     const s = clientState(c, checks, now);
     const procs = s.states.map((x) => x.proc);
     for (const x of s.states) {
       if (!x.complete || !x.completedAt || x.completedAt < since || !x.dueAt || isImported(x.proc, checks)) continue;
+      if (floor && x.completedAt < floor) continue;
       const row = {
         onTime: x.completedAt <= x.dueAt,
         minutes: workedMinutes(x, durationStart(x, c, procs, checks, now)),

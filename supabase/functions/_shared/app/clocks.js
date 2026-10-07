@@ -15,7 +15,7 @@
 //   soon    any other process of the person due within the next hour.
 // A clock that ran out stays in the bar, red, until the end of that day (a
 // "soon" one for an hour; after that it is in the "overdue" list).
-import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, ANSWERED, waitOf, IMPORT_NOTE } from './protocol-logic.js';
+import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, ANSWERED, waitOf, IMPORT_NOTE, inLanding, workFloor, parseDate } from './protocol-logic.js';
 import { endOfDayIL, partsIL } from './tz.js';
 
 const MIN = 6e4;
@@ -92,7 +92,8 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
   const out = [];
   const add = (c) => { if (inBar(c.kind, c.deadline, now)) out.push({ ...c, ...clockTime(c, now) }); };
   for (const client of clients) {
-    if (client.status === 'cancelled' || client.status === 'ended') continue;
+    // No clock runs on a client in landing (docs/ops.md, section 41).
+    if (client.status === 'cancelled' || client.status === 'ended' || inLanding(client)) continue;
     const checks = checksByClient[client.id] || {};
     const state = stateOf ? stateOf(client) : clientState(client, checks, now);
     const phone = client.phone || null;
@@ -105,7 +106,10 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
       groups.get(e.proc.id).entries.push(e);
     }
     for (const g of groups.values()) {
-      const deal = DEAL_CLOCKS[g.proc.id];
+      // A client activated out of landing is not a new deal: its contract, group and
+      // meeting have no "5 minutes" countdown (they are ordinary deadlines now).
+      const floor = workFloor(client);
+      const deal = floor && parseDate(client.deal_at) < floor ? null : DEAL_CLOCKS[g.proc.id];
       if (deal) {
         const entries = deal.until ? g.entries.filter((e) => deal.until.includes(e.item.key)) : g.entries;
         if (!entries.length) continue;
