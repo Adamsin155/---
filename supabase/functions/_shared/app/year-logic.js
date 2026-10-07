@@ -13,7 +13,7 @@
 // shoot day). The podcast package has no cycle of its own (no protocol yet).
 // Marks are kept per client and month (public.client_month_marks: month, item).
 import { TERM_MONTHS } from './catalog.js';
-import { addBusinessDays, isBusinessDay, parseDate, roundsOf } from './protocol-logic.js';
+import { addBusinessDays, isBusinessDay, parseDate, roundsOf, inLanding, workFloor } from './protocol-logic.js';
 import { partsIL, dateIL, endOfDayIL, addDaysIL, atTimeIL, dayKeyIL, daysBetweenIL } from './tz.js';
 
 export const DRAFT_LABEL = 'טיוטה — עד שיהיה פרוטוקול כתוב';
@@ -68,9 +68,14 @@ const monthEnd = (client, m) => businessDayBefore(monthStart(client, m + 1), 1);
 // done (for a client brought in mid-way, the month after it was imported), never
 // before month 2, so nothing of it is late on the day it appears. Null until 28 is done.
 export function cycleFrom(client, state) {
+  // A client in landing has no cycle yet; once it is activated the cycle starts the
+  // month after the activation (docs/ops.md, section 41), so no item of it is born
+  // late. The months themselves are still counted from the real deal_at.
+  if (inLanding(client)) return null;
   const p28 = state?.states?.find((s) => s.proc.id === 'p28');
   if (!p28?.complete || !p28.completedAt) return null;
-  const at = p28.completedAt;
+  const floor = workFloor(client);
+  const at = floor && p28.completedAt < floor ? floor : p28.completedAt;
   let k = 1;
   while (k < 240 && monthStart(client, k + 1) && monthStart(client, k + 1) <= at) k += 1;
   return Math.max(CYCLE_FROM, k + 1); // k: the month that holds the completion

@@ -465,6 +465,19 @@ dialog.dlg-wide .dlg-body { max-height: calc(100vh - 200px); overflow: auto; dis
 .btn-danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
 .btn-danger:hover { background: var(--late-soft); border-color: var(--danger); }
 .tag.tag-warn { color: var(--warn); background: var(--warn-soft); border: 1px solid var(--warn-line); }
+/* A client from the old system that was not activated yet (docs/ops.md, section 41): quiet on purpose. */
+.tag.tag-landing { color: var(--ds-muted); background: transparent; border: 1px dashed var(--ds-line-strong); }
+.land-line {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px;
+  min-height: 48px; padding: 8px 16px; margin-bottom: 12px; border-radius: var(--ds-r-item);
+  background: var(--ds-soft); color: var(--ds-ink); text-decoration: none;
+}
+.land-line span { color: var(--ds-navy-text); font-weight: 600; }
+.land-line:hover { background: var(--ds-soft-2); }
+.land-quiet-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.land-quiet-list .wclient { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+.land-quiet-list ul { margin: 0; padding-inline-start: 18px; color: var(--ds-ink-2); }
+.land-note .tag { margin-inline-start: 0; margin-inline-end: 6px; }
 .link-chip, .chip-missing, .step, .bulk-btn { border-color: var(--control-edge); }
 .pr-app bdi.num { white-space: nowrap; }
 .s-client .sicon::before { content: ''; width: 6px; height: 2px; background: currentColor; box-shadow: 0 -3px 0 currentColor, 0 3px 0 currentColor; }

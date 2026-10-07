@@ -412,7 +412,7 @@ test('photographer briefing (16): 17:00 Lior and Eli; 20:00 Lior if Eli did not 
   mark(w, c, 'p16.brief', IL(2026, 10, 14, 17, 20), JSON.stringify({ label: 'כונן 3', notes: '' }));
   none(due(w, IL(2026, 10, 14, 17, 20)), 'briefing', 'lior');
   const eli = one(due(w, IL(2026, 10, 14, 17, 20)), 'briefing', 'eli', 'eli');
-  assert.match(eli.body, /הגעה ב־10:00, רחוב הים 3 · כונן 3/);
+  assert.equal(eli.body, 'ההגעה שלך ב־10:00, שעה לפני הצילום (11:00) · רחוב הים 3 · כונן 3. ללחוץ "קיבלתי".');
   assert.doesNotMatch(eli.body, /סוללות/); // the gear list is on Eli's page only
   assert.equal(eli.url, `shoot.html?id=${c.id}`);
   // Sent earlier in the day: it reaches Eli at 17:00.
@@ -752,9 +752,10 @@ test('lateness (3.10.2026): every late item to Ofir and Lior, quietly, once per 
   }
   none(at, 'late', 'board');
   assert.match(pick(at, 'late', 'lior').find((r) => r.key.includes(':p08@')).title, /באיחור: .* · 8 · הכנת Highlights · אופיר/);
-  // Quiet steps are not rings: never in the daily cap.
-  const plan = planDelivery({ reminders: pick(at, 'late', 'ofir'), now: IL(2026, 10, 6, 14, 1), log: [] });
-  assert.ok(plan.every((r) => r.channel === 'app' && r.status === 'sent'));
+  // Since 7.10.2026 they reach the phone, together: each waits for its person's batch
+  // (tests/reminder-delivery.test.mjs), never a push per item and never the app only.
+  const plan = planDelivery({ reminders: pick(at, 'late', 'ofir'), now: IL(2026, 10, 6, 14, 16) });
+  assert.ok(plan.length >= 3 && plan.every((r) => r.batch && r.channel === 'digest' && r.status === 'queued' && r.reason === 'batch'));
   // Editing late: Ofir and Lior.
   const w2 = world();
   const e = client(w2, { shoot_at: IL(2026, 10, 15, 11).toISOString(), editor: 'anna' });
@@ -962,8 +963,13 @@ test('a reminder "X before" that goes out late is worded by the time really left
   const s = client(w2, { name: 'מאפיית שי', shoot_at: IL(2026, 10, 15, 11).toISOString(), shoot_type: 'dms', address: 'הנביאים 5' });
   importTo(w2, s, 'shoot');
   const eli = (h, m, step = 'eli2h') => one(due(w2, IL(2026, 10, 15, h, m)), 'shoot', step, 'eli');
-  assert.equal(eli(9, 0).title, 'בעוד שעתיים המשפיענים מגיעים: מאפיית שי');
-  assert.equal(eli(10, 11).title, 'המשפיענים מגיעים בעוד 49 דקות: מאפיית שי');
+  // Eli's reminder speaks of his own time (the owner's rule of 7.10.2026): he arrives an
+  // hour before the shoot time, so two hours before the influencers is an hour before him.
+  assert.equal(eli(9, 0).title, 'בעוד שעה ההגעה שלך לצילום: מאפיית שי');
+  assert.equal(eli(9, 0).body, 'ההגעה שלך ב־10:00, שעה לפני הצילום (11:00) · הנביאים 5.');
+  assert.equal(eli(9, 30).title, 'ההגעה שלך לצילום בעוד 30 דקות: מאפיית שי');
+  assert.equal(eli(10, 11).title, 'שעת ההגעה שלך לצילום עברה: מאפיית שי');
+  assert.equal(eli(10, 11).body, 'ההגעה שלך ב־10:00, שעה לפני הצילום (11:00) · הנביאים 5.');
   assert.match(eli(10, 45, 'eli15').body, /^המשפיענים מגיעים בעוד 15 דקות\./);
   assert.match(eli(10, 56, 'eli15').body, /^המשפיענים מגיעים בעוד 4 דקות\./);
   assert.equal(one(due(w2, IL(2026, 10, 15, 10, 15)), 'shoot', 'arrived', 'lior').body, 'עברו 15 דקות משעת ההגעה שלו.');

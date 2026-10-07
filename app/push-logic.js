@@ -49,12 +49,15 @@ export function sameKey(buffer, base64url) {
 // Queued digest lines are not rows of their own (they arrive inside a digest), and
 // suppressed ones were never sent. A task given on the spot rings every 10 minutes
 // (rule `nag`, app/staff-tasks-logic.js): the list shows one row for it, the latest.
+// The lateness notes go to the phone in batches (one push for several, since
+// 7.10.2026): the list shows each note as its own row, not the batch's row too.
 const nagTask = (r) => (r.rule === 'nag' ? String(r.key).split(':').slice(0, 3).join(':') : null);
+const lateBatch = (r) => r.rule === 'digest' && /^digest:(late|burst):/.test(String(r.key));
 export function inboxRows(rows = [], now = new Date()) {
   const today = dayKeyIL(now);
   const seen = new Set();
   return rows
-    .filter((r) => r.status !== 'suppressed' && !(r.level === 'digest' && r.channel === 'digest') && dayKeyIL(new Date(r.created_at)) === today)
+    .filter((r) => r.status !== 'suppressed' && !(r.level === 'digest' && r.channel === 'digest') && !lateBatch(r) && dayKeyIL(new Date(r.created_at)) === today)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || (b.id - a.id))
     .filter((r) => { const t = nagTask(r); if (!t) return true; if (seen.has(t)) return false; seen.add(t); return true; });
 }
@@ -78,11 +81,18 @@ export const unreadCount = (rows) => rows.filter((r) => !r.read_at).length;
 export function deliveryText(r) {
   if (r.status === 'failed') return 'לא נשלח לטלפון: תקלה. מופיע כאן.';
   if (r.status === 'pending') return 'נשלח עכשיו לטלפון';
-  if (r.status === 'queued') return r.reason === 'shoot_mode' ? 'יגיע בסיכום אחרי יום הצילום' : 'יגיע בתקציר הבא';
-  if (r.channel === 'digest') return 'נכלל בתקציר';
+  if (r.status === 'queued') {
+    if (r.reason === 'shoot_mode') return 'יגיע בסיכום אחרי יום הצילום';
+    if (r.reason === 'batch') return 'יישלח לטלפון בתוך חצי שעה, יחד עם שאר האיחורים';
+    return 'יגיע לטלפון בתקציר הבא';
+  }
+  if (r.channel === 'digest') return r.reason === 'batch' ? 'נשלח לטלפון, בהודעה אחת עם שאר האיחורים' : 'נשלח לטלפון בתוך תקציר';
   if (r.channel === 'push') return r.level === 'digest' ? 'תקציר, נשלח לטלפון' : 'נשלח לטלפון';
   if (r.reason === 'no_device') return 'בתוך המערכת (אין טלפון מחובר)';
-  return 'בתוך המערכת, בלי צליל';
+  // The owner's board: on his screen now, on his phone in the 18:00 digest.
+  if (r.level === 'board') return 'בלוח הבעלים, ובטלפון בתקציר של 18:00';
+  // A row from before 7.10.2026, when an update stayed in the app.
+  return 'בתוך המערכת';
 }
 
 // "לדחות עד…": in an hour, or 09:00 on the next business day (Israel time).

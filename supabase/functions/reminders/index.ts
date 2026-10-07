@@ -2,8 +2,10 @@
 // (public.reminders_tick(), migration 20260930110002) and it runs one tick of
 // ./tick.js: the ladders of app/reminder-rules.js through app/reminder-engine.js
 // (copies in ../_shared/app, made by scripts/sync-functions.mjs), with the
-// sending hours, the daily cap and the digests, into public.reminder_log, and Web
-// Push (./webpush.js) to the devices in public.push_subscriptions.
+// sending hours, the digests and the batches of lateness notes, into
+// public.reminder_log, and Web Push (./webpush.js) to the devices in
+// public.push_subscriptions. Every step reaches the phone and there is no daily cap
+// (the owner's rule of 7.10.2026; docs/ops.md, section 40).
 //
 // Deployed with verify_jwt=false (supabase/config.toml); each action checks its
 // caller here:
@@ -179,6 +181,15 @@ async function loadAvailability(now: Date): Promise<Row> {
   }
 }
 
+// What the photographer was told of each shoot day (7.10.2026, rule `shootSet`;
+// docs/ops.md, section 40): that rule's own rows of the log, of the last 120 days.
+// The rule compares them with the shoot days as they are now, and tells him of a day
+// that was set, moved or taken off. Only the key, the title and the id are read.
+async function loadShootTold(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 120 * 864e5).toISOString();
+  return all(() => admin.from('reminder_log').select('id, key, title, created_at').eq('rule', 'shootSet').gte('created_at', since).order('id'));
+}
+
 // The database as tick.js sees it (service role: row level security does not apply).
 const db = {
   // The automatic editor assignment (app/auto-assign.js), as qa.html writes it: the
@@ -204,7 +215,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).eq('landing', false).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -217,7 +228,7 @@ const db = {
       all(() => admin.from('push_subscriptions').select('id, email, endpoint, p256dh, auth, fail_count').order('id')),
       all(() => admin.from('reminder_log').select(LOG_COLS).eq('status', 'queued').order('id')),
       // Not the repeats of the tasks given on the spot (a row every 10 minutes for each
-      // open task): nothing reads them here (the cap and the reports skip them; their
+      // open task): nothing reads them here (the reports skip them; their
       // dedupe is `known`), and a week of them would be loaded every minute.
       all(() => admin.from('reminder_log').select(LOG_COLS).gte('created_at', since.toISOString()).neq('rule', 'nag').order('id')),
       loadMonthMarks(),
@@ -227,10 +238,11 @@ const db = {
       loadApprovals(now),
       loadStaffTasks(now),
       loadAvailability(now),
+      loadShootTold(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();

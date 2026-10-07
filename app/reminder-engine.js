@@ -1,7 +1,7 @@
 // The reminder engine (stage 3; docs/plan/system-plan.md, principle 4 and
 // section 5): the ladders of app/reminder-rules.js evaluated against the
 // clients, their checks and tasks at one moment, and what to do with each step
-// at that moment (push, in the app only, a digest line, or held back). Pure, no
+// at that moment (push, a digest line, a batch of lateness notes, or held back). Pure, no
 // DOM and no network, Israel time only: the server tick
 // (supabase/functions/reminders) runs it every minute, and the unit tests run it
 // at fixed moments.
@@ -11,16 +11,21 @@
 //        at, clientId, ref, shoot, exception, list, overdue }]
 //     The key is stable (`rule:client:case:step@person`), so each ladder step goes
 //     out once: the log's unique key is the dedupe.
-//   planDelivery({ reminders, now, log, liorShoot }) → the same with
+//   planDelivery({ reminders, now, liorShoot }) → the same with
 //     { channel: push | app | digest, status: sent | queued | suppressed, reason }
-//     after the sending hours, the daily cap and Lior's shoot day.
-//   planDigests({ env, now, log, active, lookahead }) → the digests due now.
+//     after the sending hours and Lior's shoot day. Since the owner's rule of
+//     7.10.2026 ("אין הודעות שקטות, הכל מקבל התראה לפלאפון") every step reaches the
+//     phone: a ring and an update ('quiet') as a push of their own, a lateness note
+//     in a batch, a digest line and the owner's board in a digest; and there is no
+//     daily cap.
+//   planDigests({ env, now, log, active, lookahead }) → the digests due now, and the
+//     batches of lateness notes.
 import {
-  RULES, OWNER, timeOf, inSendHours, atIL, DAILY_CAP, STALE_MINUTES, FOLD, DIGESTS, RING_TARGETS, personName, MINE_URL,
-  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, OWNER_LATE_HOURS, NAG,
+  RULES, OWNER, timeOf, inSendHours, atIL, STALE_MINUTES, FOLD, DIGESTS, RING_TARGETS, personName, MINE_URL,
+  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, OWNER_LATE_HOURS, NAG, BATCH, LATE_BATCH_MINUTES, BURST, BURST_MAX,
 } from './reminder-rules.js';
 import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf, pauseOf, clientLabel } from './protocol-logic.js';
-import { STAFF_PEOPLE } from './protocol.js';
+import { STAFF_PEOPLE, TEAM_PEOPLE } from './protocol.js';
 import { ofirMeetings as meetingsOf } from './office-marks.js';
 import { dayKeyIL, atTimeIL, dayFromKeyIL, weekdayIL, addDaysIL, endOfDayIL } from './tz.js';
 import { shootCases, quietWindow } from './production.js';
@@ -47,6 +52,7 @@ export function buildEnv({
   approvals = [], // 6.10.2026: public.quotes rows that went for a manager's approval (app/approvals-logic.js)
   staffTasks = [], // 6.10.2026: public.staff_tasks rows, the tasks given on the spot (app/staff-tasks-logic.js)
   availability = { months: [], changes: [] }, // 7.10.2026: the photographer's free dates and unexpected changes (app/availability-logic.js)
+  shootTold = [], // 7.10.2026: public.reminder_log rows of the rule `shootSet` (what the photographer was told of each shoot day)
 }) {
   const byClient = groupChecks(checks);
   const liveClients = clients.filter(live);
@@ -70,7 +76,7 @@ export function buildEnv({
     tasks: tasks.filter((t) => !t.done_at),
     // Tasks finished lately (the server loads the last two days): "the requester hears".
     doneTasks: tasks.filter((t) => t.done_at),
-    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability,
+    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold,
     personOf: (email) => people.get(String(email || '').toLowerCase()) || null,
     emailsOf: (person) => [...people].filter(([, p]) => p === person).map(([e]) => e),
     hasStaff: (person) => [...people.values()].includes(person),
@@ -151,7 +157,7 @@ export function candidates(env, { until = env.now } = {}) {
             key: `${rule.id}:${inst.cid || '-'}:${inst.id}:${d.step.id}@${person}`,
             rule: rule.id, step: d.step.id, person, level: d.step.level,
             exempt: d.step.exempt || null, shoot: !!d.step.shoot, ownHours: !!d.step.ownHours, exception: !!d.step.exception,
-            list: !!d.step.list, overdue: !!d.step.overdue, escalation: d.escalation,
+            list: !!d.step.list, overdue: !!d.step.overdue, batch: !!d.step.batch, escalation: d.escalation,
             at: d.at, clientId: inst.cid || null, ref: inst.ref || null, url: inst.url || MINE_URL,
             title: d.step.title(inst, env), body: d.step.body ? d.step.body(inst, env) : '',
           });
@@ -191,37 +197,41 @@ export function computeReminders({ log = [], until, env = null, ...input }) {
 // ── Delivery ──────────────────────────────
 // A ring that went (or is going, 'pending') to the phone.
 const isPushRing = (row) => row.level === 'ring' && row.channel === 'push' && (row.status === 'sent' || row.status === 'pending');
-// Rings a person got today that count against the cap (not protocol clocks, shoot days, urgent or tests).
-export function ringsToday(log, now) {
-  const day = dayKeyIL(now);
-  const out = {};
-  for (const r of log || []) {
-    if (!isPushRing(r) || r.exempt || dayKeyIL(asDate(r.sent_at || r.created_at)) !== day) continue;
-    out[r.person] = (out[r.person] || 0) + 1;
-  }
-  return out;
-}
+// Whether the owner's digest of the day is behind us (or there is none today): a
+// line for his board from then on waits for his next digest instead of missing it.
+const afterOwnerDigest = (now) => !isBusinessDay(now) || now >= atIL(now, DIGESTS.owner);
 
-// What happens to each new step now. Rings: outside the sending hours they wait for
-// the next digest (a shoot-day event does not, nor a rule that keeps its own hours); on Lior's shoot day his other rings
-// wait for the summary after it; past 6 a day (exempt ones aside) they go to the
-// next digest. Nothing is sent late: a step that should have gone out hours ago is
-// recorded as stale.
-export function planDelivery({ reminders, now, log = [], liorShoot = { active: false, cids: new Set() } }) {
-  const count = ringsToday(log, now);
+// What happens to each new step now (the owner's rule of 7.10.2026: everything
+// reaches the phone, and there is no daily cap).
+//   a digest line          waits for the next digest, which is one push;
+//   the owner's board      is on his screen at once and in his 18:00 digest; after
+//                          it (or on a closed day) it waits for his next digest;
+//   a ring and an update   ('quiet') are pushed now. Outside the sending hours they
+//                          wait for the next digest (a shoot-day event does not, nor a
+//                          rule that keeps its own hours); on Lior's shoot day his wait
+//                          for the summary after it;
+//   a lateness note        (`batch`) waits for its batch: one push per person at most
+//                          every LATE_BATCH_MINUTES (planDigests).
+// Nothing is sent late: a step that should have gone out hours ago is recorded as stale.
+export function planDelivery({ reminders, now, liorShoot = { active: false, cids: new Set() } }) {
   const sorted = [...reminders].sort((a, b) => (a.at - b.at) || (!!b.exempt - !!a.exempt));
-  return sorted.map((r) => {
+  const out = sorted.map((r) => {
     const age = (now - r.at) / MIN;
     if (age > STALE_MINUTES[r.level]) return { ...r, channel: r.level === 'digest' ? 'digest' : 'app', status: 'suppressed', reason: 'stale' };
     if (r.copy) return { ...r, channel: 'digest', status: 'queued', reason: 'shoot_mode' }; // decision 8: for Lior's summary only
-    if (r.level === 'board' || r.level === 'quiet') return { ...r, channel: 'app', status: 'sent', reason: null };
+    if (r.level === 'board') return afterOwnerDigest(now) ? { ...r, channel: 'digest', status: 'queued', reason: 'owner_digest' } : { ...r, channel: 'app', status: 'sent', reason: null };
     if (r.level === 'digest') return { ...r, channel: 'digest', status: 'queued', reason: null };
     if (!r.shoot && !r.ownHours && !inSendHours(now)) return { ...r, channel: 'digest', status: 'queued', reason: 'quiet_hours' };
     if (r.person === 'lior' && liorShoot.active && !r.shoot && !liorShoot.cids.has(r.clientId)) return { ...r, channel: 'digest', status: 'queued', reason: 'shoot_mode' };
-    if (!r.exempt && (count[r.person] || 0) >= DAILY_CAP) return { ...r, channel: 'digest', status: 'queued', reason: 'cap' };
-    if (!r.exempt) count[r.person] = (count[r.person] || 0) + 1;
+    if (r.batch) return { ...r, channel: 'digest', status: 'queued', reason: BATCH };
     return { ...r, channel: 'push', status: 'sent', reason: null };
   });
+  // A burst: more than BURST_MAX pushes for one person in this one minute go out as one
+  // push that lists them (planDigests, this same minute), not as a pile of banners.
+  const held = (r) => r.channel === 'push' && !r.shoot && !r.ownHours;
+  const count = new Map();
+  for (const r of out) if (held(r)) count.set(r.person, (count.get(r.person) || 0) + 1);
+  return out.map((r) => (held(r) && count.get(r.person) > BURST_MAX ? { ...r, channel: 'digest', status: 'queued', reason: BURST } : r));
 }
 
 // ── Digests ───────────────────────────────
@@ -310,7 +320,9 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
   // an exception Ofir took on Lior's shoot day).
   const holds = (r) => active.has(r.key) || FACTS.has(stepOfKey(r.key)) || String(r.key).endsWith(SHOOT_COPY);
   const split = (rows) => ({ keep: rows.filter(holds), drop: rows.filter((r) => !holds(r)) });
-  const staffPeople = STAFF_PEOPLE().map((p) => p.key).filter((k) => env.hasStaff(k));
+  // The morning digest: the protocol's people, and anyone else on the team (sales)
+  // with a line that waited for the morning, so that nothing stays in the app only.
+  const staffPeople = TEAM_PEOPLE().map((p) => p.key).filter((k) => env.hasStaff(k));
   const business = isBusinessDay(now);
 
   if (business && within(DIGESTS.morning)) {
@@ -370,7 +382,65 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
     const lines = [...digestLines({ rows: keep, max: 5, clientName }), ...weekAhead(env, now)];
     out.push({ key: `digest:week:owner:${day}`, kind: 'week', person: OWNER, title: 'השבוע הקרוב', lines, url: 'clients.html', include: keep, drop });
   }
+  // A digest that goes out this minute carries the waiting lateness notes of its
+  // person (one that already went out earlier in its hour does not).
+  const sentKeys = new Set(log.map((r) => r.key));
+  const taken = new Set(out.filter((d) => d.key && !sentKeys.has(d.key)).map((d) => d.person));
+  out.push(...lateBatches({ env, now, log, holds, taken }));
+  // A burst (planDelivery): what was held this minute for one push goes out now, as one.
+  // Each line is a topic with its clients, as in a digest; each step stays its own row
+  // in "התראות". (One that could not go now waits like any queued line, for the next digest.)
+  const bursts = log.filter((r) => r.status === 'queued' && r.reason === BURST);
+  for (const person of new Set(bursts.map((r) => r.person))) {
+    if (taken.has(person) || !inSendHours(now) || (person === 'lior' && env.liorShoot.active)) continue;
+    const mine = bursts.filter((r) => r.person === person);
+    const keep = mine.filter(holds).sort((a, b) => (!!b.exempt - !!a.exempt) || (Number(a.id) || 0) - (Number(b.id) || 0));
+    const drop = mine.filter((r) => !holds(r));
+    if (!keep.length) { if (drop.length) out.push({ key: null, person, drop }); continue; }
+    const last = Math.max(...keep.map((r) => Number(r.id) || 0));
+    out.push({ key: `digest:burst:${person}:${day}:${last}`, kind: 'burst', person, title: `${keep.length} הודעות חדשות`, lines: digestLines({ rows: keep, max: 8, clientName }), url: MINE_URL, include: keep, drop });
+  }
   return out.map((d) => (d.key ? { ...d, body: d.lines.join('\n') } : d));
+}
+
+// The lateness notes (`batch` steps: every late item to Ofir and Lior, a late task to
+// its owner and whoever opened it, a client's fix that is late) go to the phone
+// together, never one push per item (the owner's rule of 7.10.2026). For each person
+// with notes waiting: the first one goes out at once; from then on at most one push
+// every LATE_BATCH_MINUTES, with everything that became late meanwhile ("3 איחורים
+// חדשים", the first few, and how many today). So a note waits half an hour at most,
+// and a morning with twenty late items is one or two pushes. Each note stays its own
+// row in "התראות" (the tick marks it sent with its batch). Not outside the sending
+// hours and not on Lior's shoot day (then the next digest or his summary carries
+// them, as it carries every waiting line), and not when a digest of that person goes
+// out this very minute (`taken`): it carries them. A note that is no longer true (the
+// item was done meanwhile) is dropped, as in every digest.
+export function lateBatches({ env, now = env.now, log = [], holds = () => true, taken = new Set() }) {
+  const out = [];
+  if (!inSendHours(now)) return out;
+  const day = dayKeyIL(now);
+  const waiting = log.filter((r) => r.status === 'queued' && r.reason === BATCH);
+  for (const person of new Set(waiting.map((r) => r.person))) {
+    if (taken.has(person) || (person === 'lior' && env.liorShoot.active)) continue;
+    const mine = waiting.filter((r) => r.person === person);
+    const keep = mine.filter(holds);
+    const drop = mine.filter((r) => !holds(r));
+    const prefix = `digest:late:${person}:`;
+    const before = log.filter((r) => String(r.key).startsWith(prefix));
+    const lastAt = Math.max(0, ...before.map((r) => +asDate(r.created_at || r.sent_at) || 0));
+    if (!keep.length || now - lastAt < LATE_BATCH_MINUTES * MIN) { if (drop.length) out.push({ key: null, person, drop }); continue; }
+    const last = Math.max(...keep.map((r) => Number(r.id) || 0));
+    // How many he heard of today, these included: the banner on the phone replaces the one before.
+    const today = keep.length + log.filter((r) => r.person === person && r.reason === BATCH && r.status === 'sent' && dayKeyIL(asDate(r.sent_at || r.created_at)) === day).length;
+    const sum = today > keep.length ? [`היום עד עכשיו: ${today} איחורים. הכול ב״התראות״.`] : [];
+    const d = { key: `${prefix}${day}:${last}`, kind: 'late', person, include: keep, drop };
+    if (keep.length === 1) out.push({ ...d, title: keep[0].title, lines: [keep[0].body, ...sum].filter(Boolean), url: keep[0].url || MINE_URL });
+    else {
+      const names = keep.map((r) => String(r.title).replace(/^באיחור: /, ''));
+      out.push({ ...d, title: `${keep.length} איחורים חדשים`, lines: [...names.slice(0, 4), ...(names.length > 4 ? [`ועוד ${names.length - 4}`] : []), ...sum], url: MINE_URL });
+    }
+  }
+  return out;
 }
 
 // The owner's daily summary of lateness (the owner's decision of 3.10.2026): every
@@ -430,8 +500,14 @@ function lastBusinessDayOfWeek(now) {
 function weeklyReport(env, log, now) {
   const sunday = atTimeIL(addDaysIL(now, -weekdayIL(now)), 0);
   const rings = {};
+  // Since 7.10.2026 updates, digests and batches of lateness notes are pushed too.
+  // "Rings" stays what it was (level 'ring': something to do now), so the figure and
+  // its targets mean the same; everything that reached each phone is a line of its own.
+  const pushes = {};
   for (const r of log) {
-    if (!isPushRing(r) || r.person === OWNER || r.rule === NAG || asDate(r.sent_at || r.created_at) < sunday) continue;
+    if (r.person === OWNER || r.rule === NAG || asDate(r.sent_at || r.created_at) < sunday) continue;
+    if (r.channel === 'push' && (r.status === 'sent' || r.status === 'pending')) pushes[r.person] = (pushes[r.person] || 0) + 1;
+    if (!isPushRing(r)) continue;
     rings[r.person] = (rings[r.person] || 0) + 1;
   }
   const days = Math.max(1, [...Array(5).keys()].filter((i) => isBusinessDay(addDaysIL(sunday, i))).length);
@@ -441,7 +517,10 @@ function weeklyReport(env, log, now) {
   const unconnected = STAFF_PEOPLE().filter((p) => env.hasStaff(p.key) && !env.connected(p.key)).length;
   let late = 0;
   for (const c of env.clients) late += env.stateOf(c).overdue;
-  return ['דוח שבועי:', ringLine, `לא מחוברים להתראות: ${unconnected}`, `תהליכים באיחור עכשיו: ${late}`];
+  const pushLine = Object.keys(pushes).length
+    ? [`כל ההודעות לטלפון השבוע (עם עדכונים ותקצירים): ${Object.entries(pushes).map(([p, n]) => `${personName(p)} ${n}`).join(', ')}`]
+    : [];
+  return ['דוח שבועי:', ringLine, ...pushLine, `לא מחוברים להתראות: ${unconnected}`, `תהליכים באיחור עכשיו: ${late}`];
 }
 
 // The owner's Sunday 08:30 digest: characterizations, shoot days, deliveries,
@@ -474,11 +553,23 @@ export function weekAhead(env, now) {
 // digest of long task titles is cut to fit, with the whole text in "התראות".
 export const PUSH_MAX_BYTES = 3000;
 const utf8 = (s) => new TextEncoder().encode(s).length;
-// The repeats of one task given on the spot (rule `nag`) share a tag, the task's, and
-// ask to ring again: on the phone each one replaces the one before instead of piling up.
+// How the phone groups pushes (the owner's rule of 7.10.2026 sends many more of
+// them): a notification with the tag of one already shown replaces it, and
+// `renotify` makes it sound again. The tag is the case, not the step
+// (`rule:client:case`), so the steps of one ladder for one person ("עסקה חדשה",
+// "עברו 5 דקות", "עברו 10 דקות"; every repeat of a task given on the spot, rule
+// `nag`) are one banner that updates, never a pile. The batches of lateness notes
+// share one tag per person. A digest and a test keep their own key.
+export function pushTag(key) {
+  const k = String(key);
+  if (k.startsWith('digest:late:')) return k.split(':').slice(0, 3).join(':');
+  if (k.startsWith('digest:') || k.startsWith('test:') || !k.includes(':')) return k;
+  return k.split(':').slice(0, -1).join(':');
+}
 export function pushPayload({ id = null, key, title, body, url, level }) {
-  const again = ruleOfKey(key) === NAG;
-  const msg = { title: String(title || '').slice(0, 150), url: url || MINE_URL, tag: again ? String(key).split(':').slice(0, 3).join(':') : key, id, level };
+  const tag = pushTag(key);
+  const again = tag !== String(key);
+  const msg = { title: String(title || '').slice(0, 150), url: url || MINE_URL, tag, id, level };
   const fit = (text) => JSON.stringify({ title: msg.title, body: text, url: msg.url, tag: msg.tag, id: msg.id, level: msg.level, ...(again ? { renotify: true } : {}) });
   // Without its body a payload is well under the limit (a short title, a url and a key).
   let text = String(body || '');

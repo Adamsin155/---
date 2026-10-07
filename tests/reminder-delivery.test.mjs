@@ -1,14 +1,19 @@
 // What happens to each reminder step at the moment it is due (app/reminder-engine.js):
 // the sending hours (Sunday–Thursday 08:30–19:00, not on holidays; shoot-day
-// events go out anyway), the cap of 6 rings a day (protocol clocks, shoot days and
-// urgent work not counted), Lior's shoot day, stale steps, and the digests: 08:30
+// events go out anyway), Lior's shoot day, stale steps, and the digests: 08:30
 // for everyone (up to 5 lines, late first, with what is due 09:00–09:30), Lior's
 // lists at 12:00 and 16:00, the owner's 18:00 (with the weekly report on Thursday)
 // and the first business day's 08:30 week ahead. Israel times; run under 3 zones.
+// Since the owner's rule of 7.10.2026 ("אין הודעות שקטות, הכל מקבל התראה לפלאפון";
+// docs/ops.md, section 40): every step of every rule reaches the phone, there is no
+// daily cap, and the lateness notes go out in batches.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planDelivery, planDigests, buildEnv, digestLines, candidates, computeReminders, ringsToday, weekAhead } from '../app/reminder-engine.js';
-import { DAILY_CAP } from '../app/reminder-rules.js';
+import { readFileSync } from 'node:fs';
+import { planDelivery, planDigests, lateBatches, buildEnv, digestLines, candidates, computeReminders, weekAhead, pushPayload, pushTag } from '../app/reminder-engine.js';
+import * as rulesModule from '../app/reminder-rules.js';
+import * as engineModule from '../app/reminder-engine.js';
+import { RULES, LATE_BATCH_MINUTES, SEND_HOURS, BURST_MAX } from '../app/reminder-rules.js';
 import { importKeys } from '../app/client-open.js';
 import { IMPORT_NOTE } from '../app/protocol-logic.js';
 import { dateIL } from '../app/tz.js';
@@ -42,34 +47,297 @@ test('sending hours: a ring outside Sunday–Thursday 08:30–19:00 or on a holi
   }
 });
 
-test('the cap: at most 6 rings a day each; protocol clocks, shoot days and urgent work do not count', () => {
+test('the daily cap is gone (7.10.2026): the seventh ring of a day, and the twentieth, still go to the phone', () => {
   const now = IL(2026, 10, 5, 15);
-  const log = Array.from({ length: DAILY_CAP }, () => row({ person: 'irit' }));
-  // Rings of yesterday, exempt rings and other people's rings do not count.
-  log.push(row({ person: 'irit', sent_at: IL(2026, 10, 4, 12).toISOString(), created_at: IL(2026, 10, 4, 12).toISOString() }));
-  log.push(row({ person: 'lior' }));
-  assert.equal(ringsToday(log, now).irit, DAILY_CAP);
+  // Six ordinary rings already went to Irit today (what used to fill the cap), and more.
+  const log = Array.from({ length: 12 }, () => row({ person: 'irit' }));
   const out = plan([ring('irit', now), ring('irit', now, { exempt: 'clock' }), ring('irit', now, { exempt: 'urgent' }), ring('lior', now)], now, log);
-  const by = Object.fromEntries(out.map((r) => [r.exempt || r.person, r]));
-  assert.deepEqual([by.irit.status, by.irit.reason], ['queued', 'cap']);
-  assert.equal(by.clock.status, 'sent');
-  assert.equal(by.urgent.status, 'sent');
-  assert.equal(by.lior.status, 'sent');
-  // Within one tick the count goes up as rings go out.
-  const fresh = plan(Array.from({ length: 8 }, () => ring('ofir', now)), now);
-  assert.equal(fresh.filter((r) => r.status === 'sent').length, DAILY_CAP);
-  assert.equal(fresh.filter((r) => r.reason === 'cap').length, 2);
+  assert.deepEqual(out.map((r) => [r.channel, r.status, r.reason]), Array(4).fill(['push', 'sent', null]));
+  // Minute after minute through the day, twenty more: every one goes to the phone.
+  const fresh = Array.from({ length: 20 }, (_, i) => plan([ring('ofir', new Date(now.getTime() + i * 6e4))], new Date(now.getTime() + i * 6e4), log)[0]);
+  assert.equal(fresh.filter((r) => r.channel === 'push' && r.status === 'sent').length, 20);
+  assert.equal([...out, ...fresh].filter((r) => r.reason === 'cap').length, 0);
+  // Nothing is left of it in the code: no constant, no counter.
+  assert.equal('DAILY_CAP' in rulesModule, false);
+  assert.equal('ringsToday' in engineModule, false);
+  for (const f of ['../app/reminder-engine.js', '../supabase/functions/reminders/tick.js']) {
+    assert.doesNotMatch(readFileSync(new URL(f, import.meta.url), 'utf8'), /'cap'|DAILY_CAP/, f);
+  }
 });
 
-test('levels: quiet and board go to the app, digest lines are queued, stale steps are never sent late', () => {
+test('levels (7.10.2026): a ring and an update are pushed, a digest line and a lateness note wait for their one push, stale steps are never sent late', () => {
   const now = IL(2026, 10, 5, 12);
   const out = plan([
     ring('irit', now, { level: 'quiet' }), ring('owner', now, { level: 'board' }), ring('lior', now, { level: 'digest' }),
-    ring('irit', new Date(now - 6 * 36e5 - 6e4)), ring('irit', new Date(now - 5 * 36e5)),
+    ring('irit', new Date(now - 6 * 36e5 - 6e4)), ring('irit', new Date(now - 5 * 36e5)), ring('ofir', now, { level: 'quiet', batch: true }),
+    ring('irit', new Date(now - 6 * 36e5 - 6e4), { level: 'quiet' }),
   ], now);
-  assert.deepEqual(out.map((r) => `${r.level}:${r.channel}:${r.status}:${r.reason}`), [
-    'ring:app:suppressed:stale', 'ring:push:sent:null', 'quiet:app:sent:null', 'board:app:sent:null', 'digest:digest:queued:null',
+  assert.deepEqual(out.map((r) => `${r.level}:${r.channel}:${r.status}:${r.reason}`).sort(), [
+    'ring:app:suppressed:stale', 'quiet:app:suppressed:stale', 'ring:push:sent:null', 'quiet:push:sent:null', 'board:app:sent:null', 'digest:digest:queued:null', 'quiet:digest:queued:batch',
+  ].sort());
+});
+
+test('sending hours hold for updates too: nobody is pushed at night or on a closed day; what waited is in the morning digest', () => {
+  assert.deepEqual(SEND_HOURS, { from: 8 * 60 + 30, to: 19 * 60, erevTo: 13 * 60 });
+  const cases = [
+    [IL(2026, 10, 5, 8, 29), 'queued'], [IL(2026, 10, 5, 8, 30), 'sent'], [IL(2026, 10, 5, 18, 59), 'sent'], [IL(2026, 10, 5, 19, 0), 'queued'],
+    [IL(2026, 10, 5, 23, 30), 'queued'], [IL(2026, 10, 6, 3, 0), 'queued'], [IL(2026, 10, 9, 11), 'queued'], [IL(2026, 10, 10, 11), 'queued'],
+    [IL(2026, 9, 21, 11), 'queued'], [IL(2027, 4, 21, 12, 59), 'sent'], [IL(2027, 4, 21, 13, 0), 'queued'],
+  ];
+  for (const [now, status] of cases) {
+    for (const o of [{ level: 'quiet' }, { level: 'quiet', batch: true }, { level: 'ring' }]) {
+      const [r] = plan([ring('irit', now, o)], now);
+      const want = status === 'sent' ? (o.batch ? 'digest:queued:batch' : 'push:sent:null') : 'digest:queued:quiet_hours';
+      assert.equal(`${r.channel}:${r.status}:${r.reason}`, want, `${now.toISOString()} ${JSON.stringify(o)}`);
+    }
+  }
+  // The exemptions that existed stay: a shoot-day event, and a rule with its own hours.
+  for (const o of [{ shoot: true, exempt: 'shoot' }, { ownHours: true }, { level: 'quiet', ownHours: true }]) {
+    assert.equal(plan([ring('irit', IL(2026, 10, 5, 23), o)], IL(2026, 10, 5, 23))[0].channel, 'push', JSON.stringify(o));
+  }
+  // An update that came at 21:00 (to Stav of sales too): one line of the 08:30 digest, once.
+  const night = IL(2026, 10, 5, 21);
+  const staff = [...STAFF, { email: 'stav@x', person: 'stav' }];
+  const waited = ['irit', 'stav'].map((p, i) => ({ ...plan([ring(p, night, { level: 'quiet', title: `עדכון ל${p}` })], night)[0], id: 500 + i, created_at: night.toISOString() }));
+  const morning = IL(2026, 10, 6, 8, 30);
+  const digests = planDigests({ env: buildEnv({ clients: [], checks: {}, tasks: [], staff, now: morning }), log: waited, active: new Set(waited.map((r) => r.key)) });
+  assert.deepEqual(digests.filter((d) => d.key).map((d) => [d.person, d.kind, d.lines, d.include.length]).sort(), [
+    ['irit', 'morning', ['עדכון לirit'], 1], ['stav', 'morning', ['עדכון לstav'], 1],
   ]);
+  // Before the window opens there is no digest: nothing at 07:00.
+  assert.deepEqual(planDigests({ env: buildEnv({ clients: [], checks: {}, tasks: [], staff, now: IL(2026, 10, 6, 7) }), log: waited, active: new Set(waited.map((r) => r.key)) }), []);
+});
+
+test('the owner\'s board reaches his phone in his digest: at once on his screen until 18:00, and from then on it waits for the next digest', () => {
+  const board = (now) => plan([ring('owner', now, { level: 'board', title: 'חריגה' })], now)[0];
+  assert.deepEqual([board(IL(2026, 10, 5, 17, 59)).channel, board(IL(2026, 10, 5, 17, 59)).status], ['app', 'sent']);
+  for (const now of [IL(2026, 10, 5, 18, 0), IL(2026, 10, 5, 18, 20), IL(2026, 10, 5, 22), IL(2026, 10, 9, 11), IL(2026, 10, 10, 11)]) {
+    const r = board(now);
+    assert.deepEqual([r.channel, r.status, r.reason], ['digest', 'queued', 'owner_digest'], now.toISOString());
+  }
+  // 17:30: the 18:00 digest carries it. 18:20, after the digest went out: tomorrow's does.
+  const early = { ...board(IL(2026, 10, 5, 17, 30)), id: 601, created_at: IL(2026, 10, 5, 17, 30).toISOString() };
+  const at18 = planDigests({ env: envAt(IL(2026, 10, 5, 18), office()), log: [early], active: new Set([early.key]) }).find((d) => d.person === 'owner');
+  assert.deepEqual(at18.lines, ['חריגה']);
+  const late = { ...board(IL(2026, 10, 5, 18, 20)), id: 602, created_at: IL(2026, 10, 5, 18, 20).toISOString() };
+  const next = planDigests({ env: envAt(IL(2026, 10, 6, 18), office()), log: [late], active: new Set([late.key]) }).find((d) => d.person === 'owner');
+  assert.deepEqual([next.lines, next.include.map((r) => r.id)], [['חריגה'], [602]]);
+  // One that came on Friday: the first business day's 08:30 "week ahead".
+  const fri = { ...board(IL(2026, 10, 9, 11)), id: 603, created_at: IL(2026, 10, 9, 11).toISOString() };
+  const sun = planDigests({ env: envAt(IL(2026, 10, 11, 8, 30), office()), log: [fri], active: new Set([fri.key]) }).find((d) => d.kind === 'week');
+  assert.equal(sun.lines[0], 'חריגה');
+});
+
+// ── The owner's rule of 7.10.2026: everything reaches the phone ─────────────
+// The steps that stay in the app only, each with its reason, for the owner's decision.
+// It is empty: the rule is literal ("אין הודעות שקטות"). A step added here must say why.
+const IN_APP_ONLY = new Map([
+  // ['rule.step', 'the reason'],
+]);
+const LEVELS = ['ring', 'quiet', 'digest', 'board'];
+// Where a step of a level goes on an ordinary working noon: 'push' (its own
+// notification), 'batch' (one push with the other lateness notes), 'digest' (a line
+// of the person's next digest, which is one push), or 'app' (the app only).
+function phoneRoute(step) {
+  const now = IL(2026, 10, 5, 12);
+  const [r] = plan([ring(step.to === 'owner' || step.level === 'board' ? 'owner' : 'irit', now, { level: step.level, batch: !!step.batch, shoot: !!step.shoot, ownHours: !!step.ownHours, exempt: step.exempt || null })], now);
+  if (r.channel === 'push' && r.status === 'sent') return 'push';
+  if (r.channel === 'digest' && r.status === 'queued') return r.reason === 'batch' ? 'batch' : 'digest';
+  if (r.level === 'board' && r.channel === 'app') {
+    // On the owner's screen now; his 18:00 digest of the same day carries it to the phone.
+    const sent = { ...r, id: 700, created_at: now.toISOString() };
+    const d = planDigests({ env: envAt(IL(2026, 10, 5, 18), office()), log: [sent], active: new Set([sent.key]) }).find((x) => x.person === 'owner');
+    return d?.lines.includes(sent.title) ? 'digest' : 'app';
+  }
+  return 'app';
+}
+test('every step of every rule reaches the phone: no step is in the app only (the allow-list is empty)', () => {
+  const seen = { push: 0, batch: 0, digest: 0 };
+  const check = (id, step) => {
+    assert.ok(LEVELS.includes(step.level), `${id}: level ${step.level}`);
+    const route = phoneRoute(step);
+    if (IN_APP_ONLY.has(id)) { assert.equal(route, 'app', `${id} is listed as in the app only but is sent`); return; }
+    assert.notEqual(route, 'app', `${id} would stay in the app only: push it, or list it in IN_APP_ONLY with a reason`);
+    seen[route] += 1;
+  };
+  const ids = new Set();
+  for (const rule of RULES) {
+    if (Array.isArray(rule.steps)) {
+      for (const s of rule.steps) { ids.add(`${rule.id}.${s.id}`); check(`${rule.id}.${s.id}`, s); }
+      continue;
+    }
+    // Steps computed per case: every level its code can give (the helper of the daily
+    // digest lines is read with it), with and without the flags it sets.
+    const src = `${rule.steps}${/dailyDigest\(/.test(String(rule.steps)) ? " level: 'digest'" : ''}`;
+    const levels = [...src.matchAll(/level: '([a-z]+)'/g)].map((m) => m[1]);
+    assert.ok(levels.length > 0, `${rule.id}: no level found in its computed steps`);
+    for (const level of new Set(levels)) {
+      ids.add(`${rule.id}.*`);
+      for (const flags of [{}, { shoot: true }, { ownHours: true }, { batch: /batch: true/.test(src) }]) check(`${rule.id}.(computed, ${level})`, { level, ...flags });
+    }
+  }
+  for (const id of IN_APP_ONLY.keys()) assert.ok(ids.has(id), `IN_APP_ONLY names ${id}, which is not a step`);
+  assert.equal(IN_APP_ONLY.size, 0);
+  assert.ok(seen.push > 60 && seen.batch >= 4 && seen.digest > 30, JSON.stringify(seen));
+  // And every `level:` written in the rule files is one of the four (none slipped past the walk).
+  for (const f of ['reminder-rules.js', 'status-rules.js', 'year-rules.js']) {
+    const text = readFileSync(new URL(`../app/${f}`, import.meta.url), 'utf8').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+    for (const m of text.matchAll(/\blevel: '([a-z]+)'/g)) assert.ok(LEVELS.includes(m[1]), `${f}: level '${m[1]}'`);
+  }
+  // No path of the engine itself ends in the app, whatever the hour, but the owner's
+  // board before 18:00 (above) and a step too old to send.
+  for (const now of [IL(2026, 10, 5, 12), IL(2026, 10, 5, 22), IL(2026, 10, 9, 11), IL(2026, 10, 5, 18, 30)]) {
+    for (const level of LEVELS) {
+      for (const o of [{}, { batch: true }, { shoot: true }, { ownHours: true }, { copy: true }]) {
+        for (const person of ['irit', 'lior', 'owner']) {
+          const [r] = plan([ring(person, now, { level, ...o })], now, [], { active: true, cids: new Set(['c1']) });
+          if (level === 'board' && !o.copy && now.getTime() === IL(2026, 10, 5, 12).getTime()) continue;
+          assert.notEqual(r.channel, 'app', `${level} ${JSON.stringify(o)} ${person} ${now.toISOString()}`);
+        }
+      }
+    }
+  }
+});
+
+// ── The lateness notes go out in batches ───────────────────────────────────
+const lateNote = (person, at, o = {}) => {
+  const [r] = plan([ring(person, at, { level: 'quiet', batch: true, rule: 'late', overdue: true, title: `באיחור: לקוח ${(n += 1)} · 12 · תסריטים · ליאור`, body: 'היעד היה היום 10:00.', url: `client.html?id=c${n}#p12`, ...o })], at);
+  return { ...r, id: n, client_id: null, created_at: at.toISOString() };
+};
+// What the tick does with a batch: its row in the log, and its notes marked as sent in it.
+function sendBatch(log, d, now) {
+  for (const r of log) if (d.include.some((x) => x.id === r.id)) Object.assign(r, { status: 'sent', channel: 'digest', reason: 'batch', digest_key: d.key, sent_at: now.toISOString() });
+  log.push({ id: (n += 1), key: d.key, rule: 'digest', person: d.person, level: 'digest', channel: 'push', status: 'sent', created_at: now.toISOString(), sent_at: now.toISOString(), title: d.title, body: d.body });
+}
+const batchesAt = (now, log, extra = {}) => planDigests({ env: envAt(now, extra), now, log, active: new Set(log.map((r) => r.key)) }).filter((d) => d.kind === 'late');
+
+test('lateness notes: the first goes to the phone at once, the next ones together half an hour later; one push per person, each note its own row', () => {
+  assert.equal(LATE_BATCH_MINUTES, 30);
+  const log = [];
+  const t0 = IL(2026, 10, 5, 10, 15);
+  // One late item, to Ofir and to Lior: a note each, queued for its batch, never pushed by itself.
+  log.push(lateNote('ofir', t0), lateNote('lior', t0));
+  assert.ok(log.every((r) => r.status === 'queued' && r.reason === 'batch' && r.channel === 'digest'));
+  const first = batchesAt(t0, log);
+  assert.deepEqual(first.map((d) => d.person).sort(), ['lior', 'ofir']);
+  const ofir = first.find((d) => d.person === 'ofir');
+  // A single note is sent as itself: its own title, its own link.
+  assert.deepEqual([ofir.title, ofir.lines, ofir.url, ofir.include.length], [log[0].title, ['היעד היה היום 10:00.'], log[0].url, 1]);
+  assert.match(ofir.key, /^digest:late:ofir:2026-10-05:\d+$/);
+  for (const d of first) sendBatch(log, d, t0);
+  // The same minute again (an overlapping tick): nothing more, the notes are sent and the key is taken.
+  assert.deepEqual(batchesAt(t0, log), []);
+  // 10:20, 10:31, 10:40: three more for Ofir. Not yet: half an hour has not passed.
+  for (const m of [20, 31, 40]) log.push(lateNote('ofir', IL(2026, 10, 5, 10, m)));
+  for (const m of [20, 31, 40, 44]) assert.deepEqual(batchesAt(IL(2026, 10, 5, 10, m), log.filter((r) => new Date(r.created_at) <= IL(2026, 10, 5, 10, m))), [], `10:${m}`);
+  // 10:45: one push for the three.
+  const t1 = IL(2026, 10, 5, 10, 45);
+  const second = batchesAt(t1, log);
+  assert.equal(second.length, 1);
+  const b = second[0];
+  assert.equal(b.title, '3 איחורים חדשים');
+  assert.equal(b.lines.length, 4);
+  assert.match(b.lines[0], /^לקוח \d+ · 12 · תסריטים · ליאור$/);
+  assert.equal(b.lines[3], 'היום עד עכשיו: 4 איחורים. הכול ב״התראות״.');
+  assert.equal(b.url, 'clients.html#mine');
+  assert.equal(b.include.length, 3);
+  assert.equal(b.body, b.lines.join('\n'));
+  sendBatch(log, b, t1);
+  // No note was lost: every one of the five is marked sent in exactly one batch.
+  const notes = log.filter((r) => r.rule === 'late');
+  assert.equal(notes.length, 5);
+  assert.ok(notes.every((r) => r.status === 'sent' && r.reason === 'batch' && /^digest:late:/.test(r.digest_key)));
+  assert.equal(log.filter((r) => r.rule === 'digest' && r.person === 'ofir').length, 2, 'two pushes for four notes');
+  // More than four in one batch: the first four and how many more.
+  const many = Array.from({ length: 7 }, () => lateNote('ofir', IL(2026, 10, 5, 12)));
+  const [big] = batchesAt(IL(2026, 10, 5, 12), many);
+  assert.equal(big.title, '7 איחורים חדשים');
+  assert.deepEqual([big.lines.length, big.lines[4]], [5, 'ועוד 3']);
+  // On the phone the batches of one person share a tag: each replaces the one before and sounds again.
+  assert.equal(pushTag(b.key), 'digest:late:ofir');
+  assert.equal(JSON.parse(pushPayload({ key: b.key, title: b.title, body: b.body, url: b.url, level: 'digest' })).renotify, true);
+});
+
+test('lateness notes: not at night and not on Lior\'s shoot day; a digest of that minute carries them; one that was done meanwhile is dropped', () => {
+  // Queued at 18:50; at 19:20 the sending hours are over: no push. The 08:30 digest carries it.
+  const a = lateNote('ofir', IL(2026, 10, 5, 18, 50));
+  const sent = { id: 801, key: 'digest:late:ofir:2026-10-05:1', rule: 'digest', person: 'ofir', status: 'sent', channel: 'push', level: 'digest', created_at: IL(2026, 10, 5, 18, 45).toISOString() };
+  assert.deepEqual(batchesAt(IL(2026, 10, 5, 19, 20), [a, sent]), []);
+  const morning = planDigests({ env: envAt(IL(2026, 10, 6, 8, 30)), log: [a, sent], active: new Set([a.key]) }).filter((d) => d.key);
+  assert.deepEqual(morning.map((d) => [d.person, d.kind, d.include.map((r) => r.id)]), [['ofir', 'morning', [a.id]]]);
+  // Later in the digest's hour (the digest already went out) a new note is not held by it.
+  const digestRow = { id: 802, key: 'digest:morning:ofir:2026-10-06', rule: 'digest', person: 'ofir', status: 'sent', channel: 'push', level: 'digest', created_at: IL(2026, 10, 6, 8, 30).toISOString() };
+  const b = lateNote('ofir', IL(2026, 10, 6, 9, 15));
+  assert.deepEqual(batchesAt(IL(2026, 10, 6, 9, 15), [digestRow, b]).map((d) => d.include.map((r) => r.id)), [[b.id]]);
+  // Lior's 12:00 list of this minute carries his note: one push, not two.
+  const l = lateNote('lior', IL(2026, 10, 5, 12));
+  const noon = planDigests({ env: envAt(IL(2026, 10, 5, 12)), log: [l], active: new Set([l.key]) }).filter((d) => d.key);
+  assert.deepEqual(noon.map((d) => [d.kind, d.include.length]), [['list', 1]]);
+  // The item was done before its batch: dropped, never pushed.
+  const gone = lateNote('ofir', IL(2026, 10, 5, 10, 31));
+  const dropped = planDigests({ env: envAt(IL(2026, 10, 5, 10, 32)), log: [gone], active: new Set() });
+  assert.deepEqual(dropped.map((d) => [d.key, d.drop.map((r) => r.id)]), [[null, [gone.id]]]);
+  // Lior on a shoot: his notes wait (planDelivery holds new ones for his summary; one
+  // queued before it started is not pushed during it either).
+  const w = office();
+  w.clients[0].shoot_at = IL(2026, 10, 15, 11).toISOString();
+  for (const k of Object.keys(w.checks.c1)) if (/^p1[79]b?\./.test(k)) delete w.checks.c1[k];
+  w.checks.c1['p17b.arrived'] = { state: 'done', at: IL(2026, 10, 15, 10, 5).toISOString(), note: null };
+  const before = lateNote('lior', IL(2026, 10, 15, 10));
+  const env = envAt(IL(2026, 10, 15, 10, 30), w);
+  assert.equal(env.liorShoot.active, true);
+  assert.deepEqual(lateBatches({ env, log: [before] }), []);
+  const [held] = plan([ring('lior', IL(2026, 10, 15, 10, 30), { level: 'quiet', batch: true, clientId: 'c2' })], IL(2026, 10, 15, 10, 30), [], env.liorShoot);
+  assert.deepEqual([held.status, held.reason], ['queued', 'shoot_mode']);
+});
+
+test('a burst: more than 4 pushes for one person in one minute are one push that lists them, the same minute; none is lost; shoot-day events are not held', () => {
+  assert.equal(BURST_MAX, 4);
+  const now = IL(2026, 10, 8, 12); // Thursday 12:00: "שיחה שבועית" for every client without a call
+  const names = ['אלפא', 'בטא', 'גמא', 'דלתא', 'הא', 'וו', 'זין'];
+  const calls = names.map((x, i) => ring('lior', now, { rule: 'weekly', step: 'thu', key: `weekly:c${i}:p31@2026-10-04:thu@lior`, clientId: `c${i}`, title: `שיחה שבועית: ${x}` }));
+  // Four are four pushes; one for another person is not counted with them.
+  assert.deepEqual(plan([...calls.slice(0, 4), ring('irit', now)], now).map((r) => r.channel), Array(5).fill('push'));
+  // Seven, with a protocol clock and a shoot-day event of the same minute.
+  const clock = ring('lior', now, { exempt: 'clock', title: 'שעון' });
+  const shoot = ring('lior', now, { shoot: true, exempt: 'shoot', title: 'צילום' });
+  const nag = ring('lior', now, { ownHours: true, title: 'נודניק' });
+  const planned = plan([...calls, clock, shoot, nag, ring('irit', now)], now);
+  const by = (t) => planned.find((r) => r.title === t);
+  assert.deepEqual([by('צילום').channel, by('נודניק').channel, planned.find((r) => r.person === 'irit').channel], ['push', 'push', 'push']);
+  const held = planned.filter((r) => r.reason === 'burst');
+  assert.equal(held.length, 8);
+  assert.ok(held.every((r) => r.person === 'lior' && r.channel === 'digest' && r.status === 'queued'));
+  // The same minute: one push with all of them, the clock first, the calls as one line with a count.
+  const log = held.map((r, i) => ({ ...r, id: 900 + i, client_id: r.clientId, created_at: now.toISOString() }));
+  const clients = names.map((x, i) => ({ id: `c${i}`, name: x, status: 'active', rounds: [], deal_at: IL(2026, 9, 1).toISOString() }));
+  // (At 12:00 Lior's list goes out too, and carries them; at 12:01, after it, the burst is its own push.)
+  const at1200 = planDigests({ env: envAt(now, { clients }), now, log, active: new Set(log.map((r) => r.key)) }).filter((d) => d.key);
+  assert.deepEqual(at1200.map((d) => [d.kind, d.include.length]), [['list', 8]]);
+  const listRow = { id: 950, key: 'digest:list12:lior:2026-10-08', rule: 'digest', person: 'lior', status: 'sent', channel: 'push', level: 'digest', created_at: now.toISOString() };
+  const at1201 = planDigests({ env: envAt(new Date(now.getTime() + 6e4), { clients }), log: [...log, listRow], active: new Set(log.map((r) => r.key)) }).filter((d) => d.kind === 'burst');
+  assert.equal(at1201.length, 1);
+  const b = at1201[0];
+  assert.match(b.key, /^digest:burst:lior:2026-10-08:\d+$/);
+  assert.deepEqual([b.title, b.url, b.include.length], ['8 הודעות חדשות', 'clients.html#mine', 8]);
+  assert.deepEqual(b.lines, ['שעון', 'שיחה שבועית (31) (7): אלפא, בטא, גמא ועוד 4']);
+  // Nothing of it is left waiting once the tick marks them sent; nothing more is planned.
+  for (const r of log) Object.assign(r, { status: 'sent', channel: 'digest', reason: 'digest', digest_key: b.key });
+  assert.deepEqual(planDigests({ env: envAt(new Date(now.getTime() + 12e4), { clients }), log: [...log, listRow], active: new Set(log.map((r) => r.key)) }).filter((d) => d.kind === 'burst'), []);
+});
+
+test('one banner per case on the phone: the steps of a ladder share a tag and sound again; a digest and a test keep their own', () => {
+  assert.equal(pushTag('deal:c1:deal:now@irit'), 'deal:c1:deal');
+  assert.equal(pushTag('deal:c1:deal:due@irit'), 'deal:c1:deal');
+  assert.equal(pushTag('char:c1:p04@2026-10-06T08:00:00.000Z:hour@ofir'), 'char:c1:p04@2026-10-06T08:00:00.000Z');
+  assert.equal(pushTag('nag:-:t1:2026-10-06.3@nadia'), 'nag:-:t1');
+  assert.equal(pushTag('digest:morning:irit:2026-10-05'), 'digest:morning:irit:2026-10-05');
+  assert.equal(pushTag('digest:late:lior:2026-10-05:77'), 'digest:late:lior');
+  assert.equal(pushTag('test:irit@x:2026-10-05T07:00:00.000Z'), 'test:irit@x:2026-10-05T07:00:00.000Z');
+  const ring1 = JSON.parse(pushPayload({ key: 'deal:c1:deal:now@irit', title: 'א', body: '', url: 'x.html', level: 'ring' }));
+  assert.deepEqual([ring1.tag, ring1.renotify], ['deal:c1:deal', true]);
+  const digest = JSON.parse(pushPayload({ key: 'digest:morning:irit:2026-10-05', title: 'א', body: '', url: 'x.html', level: 'digest' }));
+  assert.deepEqual([digest.tag, 'renotify' in digest], ['digest:morning:irit:2026-10-05', false]);
 });
 
 test('Lior\'s shoot day: his other rings wait for the summary after it; the shoot\'s own do not', () => {
@@ -191,6 +459,20 @@ test('the owner: 18:00 exceptions (or "all to plan"), the weekly report on Thurs
   assert.equal(rh(IL(2027, 10, 3, 8, 30)), 0);
   assert.equal(rh(IL(2027, 10, 4, 8, 30)), 1);
   assert.equal(rh(IL(2027, 10, 5, 8, 30)), 0);
+});
+
+test('the weekly report still counts rings only; the updates, digests and batches pushed since 7.10.2026 are a line of their own', () => {
+  const log = [
+    row({ person: 'irit' }), row({ person: 'irit' }), // two rings
+    row({ person: 'irit', level: 'quiet' }), // an update, pushed
+    row({ person: 'irit', level: 'quiet', channel: 'digest', reason: 'batch' }), // a lateness note: in a batch, not a push of its own
+    row({ person: 'irit', rule: 'digest', level: 'digest', key: 'digest:late:irit:2026-10-05:9' }), // the batch
+    row({ person: 'irit', rule: 'digest', level: 'digest', key: 'digest:morning:irit:2026-10-05' }),
+    row({ person: 'ofir', level: 'quiet' }),
+  ];
+  const d = planDigests({ env: envAt(IL(2026, 10, 8, 18), office()), log, active: new Set() }).find((x) => x.person === 'owner');
+  assert.ok(d.lines.includes('צלצולים השבוע: עירית 2'), d.lines.join('\n'));
+  assert.ok(d.lines.includes('כל ההודעות לטלפון השבוע (עם עדכונים ותקצירים): עירית 5, אופיר 1'), d.lines.join('\n'));
 });
 
 test('the whole morning: a tick at 08:30 queues what came overnight and the digest carries it', () => {

@@ -200,7 +200,7 @@ function loadCard(l, now) {
       h('span', { class: 'of-line' }, loadText(l))),
     l.jobs.length ? h('ul', { class: 'of-jobs' }, ...l.jobs.map((j) => h('li', {},
       h('a', { href: clientUrl(j.client.id, `${j.pre ? j.pre.replace('.', '-') : ''}p22`) }, j.client.name, j.n ? ` · סבב ${j.n}` : ''),
-      ` · ${j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
+      ` · ${j.landing ? 'בקליטה' : j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
       j.stage === 'closing' ? ' · תיקונים וסגירה' : '',
       j.paused ? [' ', h('span', { class: 'tag tag-warn' }, 'עצורה')] : null,
       autoReasonOf(checksOf(j.client), j.pre) ? [' ', h('span', { class: 'tag' }, 'שויך אוטומטית')] : null,

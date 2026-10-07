@@ -101,6 +101,9 @@
         <button type="button" role="tab" class="tab" id="tab-performance" aria-controls="view-performance">ביצועים</button>
       </div>
 
+      <!-- "המשימות שלי" only, and only while this person has old clients to take in (docs/ops.md,
+           section 41): one line, to landing.html. Above the panel, so the order of its cards stays. -->
+      <div id="land-line" hidden></div>
       <section class="block" id="view-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
         <!-- One order for the cards of "המשימות שלי": now, the work cards, then how I hear (notifications,
              WhatsApp, my calendar), then the questions, whose list, the month, the work. -->
@@ -123,6 +126,8 @@
         <div id="mine-list" class="mine-list"></div>
         <div class="mine-foot" id="mine-foot"></div>
       </section>
+      <!-- "המשימות שלי": what I left open on clients still in landing, listed with no clock. -->
+      <div class="block" id="land-quiet" hidden></div>
 
       <section class="block" id="view-clients" role="tabpanel" aria-labelledby="tab-clients" hidden>
         <div class="filters list-tools">

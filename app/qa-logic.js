@@ -5,7 +5,7 @@
 // app/office-marks.js.
 import { EDITORS, editorsFor, PEOPLE } from './protocol.js';
 import {
-  businessDaysBetween, addBusinessDays, pauseOf, roundsOf, parseDate,
+  businessDaysBetween, addBusinessDays, pauseOf, roundsOf, parseDate, inLanding, workFloor,
 } from './protocol-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import {
@@ -33,10 +33,15 @@ export function qaQueue({ clients, stateOf, checks, meetings = [], now = new Dat
       const pre = preOf(s.proc);
       const q = qaState(cs, pre, kind);
       if (q.stage !== 'ofir') continue;
+      // Work that was waiting when the client was activated: its hour starts then.
+      const floor = workFloor(c);
+      if (floor && q.readyAt < floor) q.readyAt = floor;
       const dueAt = qaDue(meetings, q.readyAt, QA_TARGET_MINUTES);
       out.push({
         key: `${c.id}:${s.proc.id}`, client: c, kind, pre, proc: s.proc, ctx: s.proc.ctx || c, round: q.round, rounds: q.rounds,
-        readyAt: q.readyAt, dueAt, waited: qaWaited(meetings, q.readyAt, now), late: now >= dueAt,
+        readyAt: q.readyAt, dueAt, waited: inLanding(c) ? 0 : qaWaited(meetings, q.readyAt, now),
+        // The work is in the queue as usual; the hour is not counted while the client is in landing.
+        late: !inLanding(c) && now >= dueAt, landing: inLanding(c),
       });
     }
   }
@@ -186,12 +191,15 @@ export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Dat
       const p22 = st.find((s) => s.proc.id === `${u.pid}p22`);
       const p24 = st.find((s) => s.proc.id === `${u.pid}p24`);
       const as = cs[`${u.pre}p22a.assigned`];
-      const assignedAt = as?.state === 'done' ? new Date(as.at) : null;
+      // "יום X מתוך 3" of a client that came from the old system is counted from its activation.
+      const floor = workFloor(c);
+      const marked = as?.state === 'done' ? new Date(as.at) : null;
+      const assignedAt = marked && floor && marked < floor ? floor : marked;
       const withOfir = !!p24?.complete || cs[`${u.pre}p24.notify`]?.state === 'done';
       const pause = p22 ? pauseOf(p22.proc, cs) : null;
       const job = {
         client: c, n: u.n, pre: u.pre, assignedAt, of: withOfir ? 4 : 3,
-        day: editingDay(assignedAt, now), paused: pause, stage: withOfir ? 'closing' : 'editing',
+        day: editingDay(assignedAt, now), paused: pause, stage: withOfir ? 'closing' : 'editing', landing: inLanding(c),
         dueAt: (withOfir ? p27 : p24)?.dueAt || null,
       };
       load[u.editor].jobs.push(job);

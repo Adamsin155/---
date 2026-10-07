@@ -9,7 +9,7 @@
 // unit tests (tests/handoffs.test.mjs). Item keys are the protocol's own
 // (app/protocol.js); they are never renamed.
 import { PEOPLE, PROCESSES } from './protocol.js';
-import { clientState, addWorkingMinutes, isBusinessDay, isImmediate } from './protocol-logic.js';
+import { clientState, addWorkingMinutes, isBusinessDay, isImmediate, inLanding } from './protocol-logic.js';
 import { partsIL, daysBetweenIL, atTimeIL, addDaysIL } from './tz.js';
 
 // The next person, from the client and its marks. `ctx` is the client, or the
@@ -164,7 +164,8 @@ export function describeMark(key, note = null) {
 }
 
 // A client that was cancelled or has ended has nothing more to hand over.
-export const isClosed = (client) => client?.status === 'cancelled' || client?.status === 'ended';
+// Nothing is handed over, and no hand-over clock runs, on a client in landing.
+export const isClosed = (client) => client?.status === 'cancelled' || client?.status === 'ended' || inLanding(client);
 
 // ── Israel time in words ──────────────────
 const WEEKDAYS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];

@@ -151,7 +151,10 @@ test('feed: shoot days for Lior, Eli (his window only), Irit and the owner; the 
   assert.equal(ron.minutes, 390);
   assert.equal(ron.title, 'יום צילום · מספרת רון · דניס, מישל וסמיון');
   assert.equal(ron.location, 'הרצל 10, תל אביב');
-  assert.match(ron.description, /הגעת המשפיענים: 11:00/);
+  // Eli's entry names his own time, an hour before the shoot time (the owner's rule of 7.10.2026).
+  assert.match(ron.description, /^ההגעה שלך: 10:00, שעה לפני הצילום\. המשפיענים מגיעים ב־11:00\.$/m);
+  assert.match(shoot('lior')[1].description, /הגעת המשפיענים: 11:00\. הצוות מגיע שעה לפני\./);
+  assert.equal(shoot('lior')[1].start.toISOString(), ron.start.toISOString());
   assert.equal(shoot('irit')[1].location, 'הרצל 10, תל אביב');
   assert.equal(shoot('owner')[1].location, '');
   assert.equal(shoot('lior')[2].title, 'יום צילום 2 · מספרת רון · נטלי דדון');

@@ -148,7 +148,8 @@ test('the deal signed: Stav hears quietly, "<עסק> חתם 🎉", once', () => 
   const r = one(due(w, IL(2026, 10, 5, 15)), 'dealSigned', 'seller', 'stav');
   assert.equal(r.level, 'quiet');
   assert.equal(r.title, 'פיצה רון חתם 🎉');
-  assert.equal(planDelivery({ reminders: [r], now: IL(2026, 10, 5, 15) })[0].channel, 'app', 'no sound');
+  // Since 7.10.2026 ("אין הודעות שקטות") an update goes to the phone too.
+  assert.equal(planDelivery({ reminders: [r], now: IL(2026, 10, 5, 15) })[0].channel, 'push', 'on the phone');
   none(due(w, IL(2026, 10, 5, 15), [r.key]), 'dealSigned');
 });
 

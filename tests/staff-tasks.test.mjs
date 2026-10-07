@@ -15,7 +15,7 @@ import {
   NAG_HOURS, NAG_EVERY, nagOpen, nextNagMoment, nagSlot, nextNagAt, taskLists, KEEP_DAYS,
 } from '../app/staff-tasks-logic.js';
 import { buildEnv, computeReminders, planDelivery, planDigests, pushPayload, lateSummary, personWork } from '../app/reminder-engine.js';
-import { RULES, RULE_BY_ID, NAG, SEND_HOURS, DAILY_CAP, inSendHours, REMINDER_PEOPLE } from '../app/reminder-rules.js';
+import { RULES, RULE_BY_ID, NAG, SEND_HOURS, inSendHours, REMINDER_PEOPLE } from '../app/reminder-rules.js';
 import { PEOPLE, TEAM_PEOPLE, WORK_HOURS } from '../app/protocol.js';
 import { inboxRows, unreadCount } from '../app/push-logic.js';
 import { templateFor, TEMPLATES, taskIdOf } from '../app/wa-templates.js';
@@ -96,7 +96,6 @@ test('the window is 09:00–20:00 on working days, and it is the tasks\' own: no
   // The office's hours and the other reminders' sending hours are as they were.
   assert.deepEqual(WORK_HOURS, { start: 9, end: 18, erevEnd: 13 });
   assert.deepEqual(SEND_HOURS, { from: 8 * 60 + 30, to: 19 * 60, erevTo: 13 * 60 });
-  assert.equal(DAILY_CAP, 6);
   // Tuesday 6.10.2026.
   assert.equal(nagOpen(IL(2026, 10, 6, 8, 59, 59)), false);
   assert.equal(nagOpen(IL(2026, 10, 6, 9, 0)), true);
@@ -237,7 +236,8 @@ test('"בוצע" stops it and tells the giver quietly, once; a cancellation stop
   assert.deepEqual(after.map((r) => [r.rule, r.person, r.level, r.title, hhmm(r.now)]), [['nagDone', 'irit', 'quiet', 'נדיה סימן/ה ״בוצע״: להעלות את הסרטון של פיצה רון לדרייב', '6.10 14:31']]);
   assert.equal(after[0].key, 'nagDone:-:11111111-1111-4111-8111-111111111111:done@irit');
   const [plan] = planDelivery({ reminders: after, now: IL(2026, 10, 6, 14, 31) });
-  assert.deepEqual([plan.channel, plan.status], ['app', 'sent']);
+  // Since 7.10.2026 an update goes to the phone like a ring (and is not counted as one).
+  assert.deepEqual([plan.channel, plan.status], ['push', 'sent']);
   // Cancelled: silence.
   const c = world([task({ status: 'cancelled', cancelled_at: IL(2026, 10, 6, 14, 20).toISOString() })]);
   assert.deepEqual(run(c, IL(2026, 10, 6, 14, 20), IL(2026, 10, 7, 10, 0)), []);
@@ -248,7 +248,7 @@ test('"בוצע" stops it and tells the giver quietly, once; a cancellation stop
   assert.deepEqual(run(self, IL(2026, 10, 6, 15), IL(2026, 10, 6, 15, 5)), []);
 });
 
-test('it goes to the phone at 19:30 and past the daily cap, and never to a digest or to the lateness notes', () => {
+test('it goes to the phone at 19:30 whatever went out before (there is no daily cap), and never to a digest or to the lateness notes', () => {
   const w = world([task({ created_at: IL(2026, 10, 6, 9, 0).toISOString() })]);
   const now = IL(2026, 10, 6, 19, 30);
   const due = ours(computeReminders({ ...w, now }));
@@ -263,9 +263,9 @@ test('it goes to the phone at 19:30 and past the daily cap, and never to a diges
   // An ordinary ring at that hour still waits for the digest, as before.
   const [other] = planDelivery({ reminders: [{ ...due[0], key: 'k', rule: 'task', ownHours: false, exempt: null }], now, log: [] });
   assert.deepEqual([other.channel, other.status, other.reason], ['digest', 'queued', 'quiet_hours']);
-  // Its repeats do not use up the cap of the other rings: with 5 ordinary ones, the sixth still rings at noon.
+  // No cap (7.10.2026): with all of those in the log, another ordinary ring still goes out at noon.
   const noon = IL(2026, 10, 6, 12, 0);
-  const [sixth] = planDelivery({ reminders: [{ ...due[0], key: 'k2', rule: 'task', ownHours: false, exempt: null, at: noon }], now: noon, log: log.slice(1) });
+  const [sixth] = planDelivery({ reminders: [{ ...due[0], key: 'k2', rule: 'task', ownHours: false, exempt: null, at: noon }], now: noon, log });
   assert.deepEqual([sixth.channel, sixth.status], ['push', 'sent']);
   // The lateness notes to Ofir and Lior, the owner's 24-hour summary and the morning digest do not know it.
   const old = world([task({ created_at: IL(2026, 10, 1, 9, 0).toISOString() })]); // five days open
@@ -370,11 +370,12 @@ test('a tick every minute: one push per 10 minutes to every device, two overlapp
   // On the phone the repeats replace each other and sound again.
   assert.deepEqual([...new Set(sent.map((s) => s.payload.tag))], ['nag:-:11111111-1111-4111-8111-111111111111']);
   assert.ok(sent.every((s) => s.payload.renotify === true && s.payload.url === 'clients.html#mine'));
-  // Done at 14:40: Irit hears in the app (her phone does not ring), and nothing more goes to Nadia.
+  // Done at 14:40: Irit hears on her phone too (7.10.2026: no quiet messages), once, and nothing more goes to Nadia.
   db.staffTasks[0] = { ...db.staffTasks[0], status: 'done', done_at: IL(2026, 10, 6, 14, 40).toISOString() };
   for (let t = IL(2026, 10, 6, 14, 40).getTime(); t <= IL(2026, 10, 6, 15, 10).getTime(); t += MIN) await runTick({ db: db.at(new Date(t)), push, now: new Date(t) });
-  assert.equal(sent.length, 8);
-  assert.deepEqual(db.log.filter((r) => r.rule === 'nagDone').map((r) => [r.person, r.level, r.channel, r.status]), [['irit', 'quiet', 'app', 'sent']]);
+  assert.equal(sent.length, 9);
+  assert.deepEqual([sent[8].endpoint, sent[8].payload.title], ['https://push.test/irit', 'נדיה סימן/ה ״בוצע״: להעלות את הסרטון של פיצה רון לדרייב']);
+  assert.deepEqual(db.log.filter((r) => r.rule === 'nagDone').map((r) => [r.person, r.level, r.channel, r.status]), [['irit', 'quiet', 'push', 'sent']]);
   assert.equal(db.log.filter((r) => OURS.has(r.rule)).length, 5);
 });
 
@@ -394,9 +395,9 @@ test('a ring at 19:40 goes out by push; someone with no phone connected still ge
   assert.equal(sent.length, 1);
 });
 
-test('the phone: an ordinary reminder keeps its own tag and does not ask to ring again', () => {
+test('the phone: every reminder is tagged by its case (since 7.10.2026), as the repeats of a task always were: one banner that updates and sounds again', () => {
   const p = JSON.parse(pushPayload({ id: 7, key: 'urgent:c1:t1:now@ilai', title: 'x', body: 'y', url: 'clients.html#mine', level: 'ring' }));
-  assert.deepEqual(p, { title: 'x', body: 'y', url: 'clients.html#mine', tag: 'urgent:c1:t1:now@ilai', id: 7, level: 'ring' });
+  assert.deepEqual(p, { title: 'x', body: 'y', url: 'clients.html#mine', tag: 'urgent:c1:t1', id: 7, level: 'ring', renotify: true });
   const n = JSON.parse(pushPayload({ id: 8, key: 'nag:-:t9:2026-10-06.4@ilai', title: 'x', body: 'y', url: 'clients.html#mine', level: 'ring' }));
   assert.deepEqual(n, { title: 'x', body: 'y', url: 'clients.html#mine', tag: 'nag:-:t9', id: 8, level: 'ring', renotify: true });
 });

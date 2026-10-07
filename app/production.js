@@ -35,6 +35,7 @@
 import { PEOPLE, WORK_HOURS } from './protocol.js';
 import {
   roundsOf, roundContext, businessDaysBetween, parseDate, erevOn, IMPORT_NOTE, addBusinessDays, isBusinessDay, nextWorkMoment,
+  inLanding, workFloor,
 } from './protocol-logic.js';
 import { partsIL, dayKeyIL, daysBetweenIL, atTimeIL, endOfDayIL, addDaysIL } from './tz.js';
 import { qaState, qaRounds } from './office-marks.js';
@@ -111,6 +112,7 @@ export function noteOf(check) {
 const done = (checks, key) => checks?.[key]?.state === 'done';
 const resolved = (checks, key) => ['done', 'na'].includes(checks?.[key]?.state);
 const atOf = (checks, key) => (done(checks, key) ? new Date(checks[key].at) : null);
+const laterOf = (at, floor) => (at && floor && at < floor ? floor : at);
 const json = (note) => { try { const v = JSON.parse(note); return v && typeof v === 'object' ? v : null; } catch { return null; } };
 const nums = (list) => [...new Set((Array.isArray(list) ? list : []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].sort((a, b) => a - b);
 // Per-video notes, as [{ n, text }], from { videos: [...] } (a video may be a number,
@@ -180,7 +182,9 @@ export function editingCases(client, checks, person, state) {
     const st = (b) => state?.states.find((s) => s.proc.id === pid(b)) || null;
     out.push({
       key: `${client.id}:${j.n}`, client, round: j.n, pre: j.pre, ctx: j.ctx,
-      assignedAt: atOf(checks, `${j.pre}p22a.assigned`),
+      // "יום X מתוך 3" of a client that came from the old system: from its activation,
+      // and not counted at all while it is in landing.
+      assignedAt: inLanding(client) ? null : laterOf(atOf(checks, `${j.pre}p22a.assigned`), workFloor(client)),
       p22: st('p22'), p24: st('p24'), p25: st('p25'), p27: st('p27'),
     });
   }

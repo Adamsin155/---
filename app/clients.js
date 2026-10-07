@@ -8,8 +8,11 @@ import {
   clientState, openItemsFor, byUrgency, bucketOf, CLAIM, WAIT, waitNote, bulkEligible, isResolved,
   isBusinessDay, businessDaysBetween, addBusinessDays, weekKey, roundsOf, parseDate,
   upcomingFor, involves, WAITED, waitOf, parseWaitNote, endWaitNote, IMPORT_NOTE, ANSWERED, clientLabel,
+  inLanding, workFloor,
 } from './protocol-logic.js';
 import { clocksFor, clockTime } from './clocks.js';
+import { loadIntake } from './landing-data.js';
+import { intakeFor, intakeLeft, quietWork, landingBoard } from './landing-logic.js';
 import { glide } from './shell.js'; // a filter chosen: the rows that stay glide to their place
 import { renderNowBar, updateNowBar, clockRows, ranOutText } from './now-bar.js';
 import {
@@ -118,6 +121,10 @@ const weekdayLong = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, weekday: 'l
 const hmFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
 const hm = (d) => hmFmt.format(new Date(d));
 const live = (c) => c.status !== 'cancelled';
+// The clients from the old system that are in landing (docs/ops.md, section 41): what
+// was said about them so far. Loaded only while some client is in landing.
+let intake = { marks: {}, done: {}, ready: false };
+const landingTag = (c) => (c.landing === true ? h('span', { class: 'tag tag-landing', title: 'לקוח מהמערכת הישנה: בלי שעונים והתראות עד שיופעל' }, 'בקליטה') : null);
 // A client opened by the signing trigger stays "new" until someone confirms its details.
 // An imported client is never "new" (openedBySigning in app/client-open.js).
 const isAuto = (c) => openedBySigning(c, checks[c.id]) && !c.verified_at && live(c);
@@ -129,7 +136,9 @@ const recheckDue = (wait, today = dayIso(new Date())) => !!(wait?.recheck && wai
 const peopleOf = (x) => (x.claim ? [x.claim.person] : x.proc.owners);
 const clientOf = (id) => clients.find((c) => c.id === id) || null;
 // Clients the office still works with (the weekly summary and the integrity checks).
-const inWork = (c) => c.status === 'active' || c.status === 'ending';
+// A client in landing (docs/ops.md, section 41) is asked for nothing yet: no weekly
+// summary, and it is not "quiet" or missing details in the integrity checks.
+const inWork = (c) => (c.status === 'active' || c.status === 'ending') && !inLanding(c);
 const isStaff = (key) => STAFF_PEOPLE().some((p) => p.key === key);
 // Everyone but the editors, then the editors (grouped under their own heading where lists are long).
 const officePeople = () => STAFF_PEOPLE().filter((p) => !p.editor);
@@ -165,6 +174,7 @@ async function load() {
     lastLog = new Map();
     for (const r of lg.value) if (!lastLog.has(r.client_id) || r.at > lastLog.get(r.client_id)) lastLog.set(r.client_id, r.at);
   }
+  if (clients.some((c) => c.landing === true)) intake = await loadIntake();
   states.clear();
   lastLoad = Date.now();
   $('state').textContent = '';
@@ -252,6 +262,8 @@ document.querySelector('.tabs').addEventListener('keydown', (e) => {
 });
 
 function render() {
+  // The landing line and list belong to "המשימות שלי" alone.
+  if (view !== 'mine') { $('land-line').hidden = true; $('land-quiet').hidden = true; }
   if (view === 'mine') renderMine();
   if (view === 'clients') renderClients();
   if (view === 'control') renderControl();
@@ -800,11 +812,39 @@ function upcomingSection(list, open) {
   return h('details', { class: 'wgroup g-soon' }, h('summary', { class: 'wgroup-h' }, title, n), body);
 }
 
+// The one line at the top of "המשימות שלי" while I have old clients to take in, and
+// under the list what I left open on clients still in landing (no clock, no colour).
+function renderLanding() {
+  const now = new Date();
+  const line = $('land-line');
+  const quiet = $('land-quiet');
+  const mine = !!me;
+  const list = mine && intake.ready ? intakeFor(me, clients, checks, intake.marks, intake.done, now) : [];
+  const left = intakeLeft(list);
+  // The owners: how many are still in landing, and where they activate.
+  const total = !me && scope === 'office' && !viewerError ? landingBoard(clients, checks, intake.marks, intake.done, now).total : 0;
+  line.hidden = !left && !total;
+  fill(line, left ? h('a', { class: 'land-line', href: 'landing.html' },
+    h('strong', {}, left === 1 ? 'יש לקוח קיים אחד לקלוט' : `יש ${left} לקוחות קיימים לקלוט`), h('span', {}, 'לקליטה'))
+    : total ? h('a', { class: 'land-line', href: 'owner.html#landing' },
+      h('strong', {}, total === 1 ? 'לקוח קיים אחד עדיין בקליטה' : `${total} לקוחות קיימים עדיין בקליטה`), h('span', {}, 'להפעלה')) : null);
+  const rest = mine ? quietWork(me, clients, checks, intake.marks, intake.done, now) : [];
+  const n = rest.reduce((sum, x) => sum + x.items.length, 0);
+  quiet.hidden = !n;
+  fill(quiet, n ? h('details', { class: 'wgroup g-landing' },
+    h('summary', { class: 'wgroup-h' }, 'בקליטה · בלי שעון', h('span', { class: 'n' }, String(n))),
+    h('p', { class: 'hint' }, 'פריטים שאמרת שעדיין פתוחים, בלקוחות שעוד לא הופעלו. אפשר לעבוד עליהם ולסמן בכרטיס הלקוח; המועד יתחיל ביום ההפעלה.'),
+    h('ul', { class: 'land-quiet-list' }, ...rest.map((x) => h('li', {},
+      h('a', { class: 'wclient', href: clientUrl(x.client.id) }, clientLabel(x.client)),
+      h('ul', {}, ...x.items.map((i) => h('li', {}, i.label))))))) : null);
+}
+
 function renderMine() {
   const wrap = $('mine-list');
   const own = scope === 'own';
   rebuildClocks();
   paintNowBar();
+  renderLanding();
   if (own && !me) {
     $('mine-people').hidden = true;
     fill($('mine-people'));
@@ -1263,6 +1303,7 @@ function renderClients() {
       h('a', { class: 'crow', href: clientUrl(c.id) },
         h('div', { class: 'cname' },
           h('strong', {}, clientLabel(c)),
+          landingTag(c),
           isAuto(c) && !own ? autoTag(c) : null,
           isAuto(c) && signed ? h('small', { class: 'auto-when' }, `נחתם ${formatWhen(new Date(signed), now)}`) : null,
           h('small', {}, c.package_name || ' ')),
@@ -1954,7 +1995,7 @@ function editorSection(now) {
 
 // ── System integrity (Ofir, stages 12–14) ────
 function lastActivity(c) {
-  const times = [c.created_at, c.deal_at, lastLog.get(c.id),
+  const times = [c.created_at, c.deal_at, workFloor(c), lastLog.get(c.id),
     ...Object.values(checks[c.id] || {}).map((x) => x.at),
     ...tasks.filter((t) => t.client_id === c.id).map((t) => t.created_at),
     ...(statusNotes || []).filter((n) => n.client_id === c.id).map((n) => n.at),
@@ -2167,6 +2208,7 @@ function weeklyCalls(log, days, now) {
   const since = new Date(now.getTime() - days * 864e5);
   let due = 0; let done = 0;
   for (const c of clients.filter(live)) {
+    if (inLanding(c)) continue;
     const s = stateOf(c).states.find((x) => x.proc.id === 'p31');
     if (!s?.startAt) continue;
     const from = new Date(Math.max(since, s.startAt));

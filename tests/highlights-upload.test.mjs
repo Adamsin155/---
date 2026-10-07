@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeReminders, planDelivery } from '../app/reminder-engine.js';
-import { LATE_RUNG, LATE_WATCHERS, DAILY_CAP } from '../app/reminder-rules.js';
+import { LATE_RUNG, LATE_WATCHERS } from '../app/reminder-rules.js';
 import { clocksFor } from '../app/clocks.js';
 import { PROCESSES, STATIONS, PROTOCOL_VERSION, WORK_HOURS } from '../app/protocol.js';
 import { clientState, openItemsFor, onOfficeTime, IMPORT_NOTE, clientLabel } from '../app/protocol-logic.js';
@@ -130,13 +130,14 @@ test('the reminders: a quiet note to Ofir when it starts, a ring when 30 office 
   assert.match(note[0].title, /פיצה רון/, 'the business first (clientLabel)');
   assert.match(note[0].body, /יעד היום 13:30/);
   assert.equal(note[0].ref, 'p08b');
-  assert.equal(planDelivery({ reminders: note, now: IL(2026, 10, 5, 13) })[0].channel, 'app', 'no ring: he just finished them himself');
-  // 13:29: not yet. 13:30: the ring, exempt from the daily cap like the other protocol clocks.
+  // Since 7.10.2026 ("אין הודעות שקטות") the update goes to his phone too; it is still not counted as a ring.
+  assert.equal(planDelivery({ reminders: note, now: IL(2026, 10, 5, 13) })[0].channel, 'push');
+  // 13:29: not yet. 13:30: the ring, a protocol clock (the daily cap it was exempt from is gone: it rings whatever went out before).
   assert.equal(of(due(w, IL(2026, 10, 5, 13, 29)), 'highlightsUpload').filter((r) => r.step === 'due').length, 0);
   const ring = of(due(w, IL(2026, 10, 5, 13, 30)), 'highlightsUpload').filter((r) => r.step === 'due');
   assert.deepEqual(ring.map((r) => [r.person, r.level, r.exempt]), [['ofir', 'ring', 'clock']]);
   assert.equal(ring[0].title, `ה־Highlights של ${clientLabel(c)} עוד לא הועלו לרשתות`);
-  const full = Array.from({ length: DAILY_CAP }, (_, n) => ({ key: `x${n}`, person: 'ofir', level: 'ring', channel: 'push', status: 'sent', exempt: null, sent_at: IL(2026, 10, 5, 10).toISOString() }));
+  const full = Array.from({ length: 12 }, (_, n) => ({ key: `x${n}`, person: 'ofir', level: 'ring', channel: 'push', status: 'sent', exempt: null, sent_at: IL(2026, 10, 5, 10).toISOString() }));
   assert.deepEqual(planDelivery({ reminders: ring, now: IL(2026, 10, 5, 13, 30), log: full }).map((r) => [r.channel, r.status]), [['push', 'sent']]);
   assert.equal(templateFor({ rule: 'highlightsUpload', key: ring[0].key, person: 'ofir' }), 'late');
   // The general lateness rule, after its 15-minute grace: Lior, quietly. Ofir already rang for this deadline.

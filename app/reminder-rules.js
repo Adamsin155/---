@@ -19,11 +19,21 @@
 //       days (calendar days), at ('HH:MM' on the resulting day, Israel time),
 //     and
 //       to        a person key, 'owner', or (inst, env) → person key(s)
-//       level     'ring' (push, sound), 'quiet' (in the app only), 'digest' (a line in
-//                 the next digest; Lior's non-urgent escalations land in his 12:00 and
-//                 16:00 lists), 'board' (the owner's screen and the 18:00 digest)
+//       level     'ring' (push: something to do now), 'quiet' (an update; the owner's rule
+//                 of 7.10.2026, "אין הודעות שקטות": it is pushed to the phone exactly as
+//                 a ring is, and keeps its own level only so that the weekly count of
+//                 rings still counts what asks for an action; the name is the value
+//                 public.reminder_log.level already allows), 'digest' (a line in the
+//                 next digest, which is one push; Lior's non-urgent escalations land in
+//                 his 12:00 and 16:00 lists), 'board' (the owner's screen and his 18:00
+//                 digest). Every level reaches the phone: docs/ops.md, section 40.
+//       batch     true: a lateness note. It is not pushed by itself: the notes of one
+//                 person go out together, one push at most every LATE_BATCH_MINUTES
+//                 (planDigests in app/reminder-engine.js); each stays a row of its own
+//                 in "התראות"
 //       exempt    'clock' (a protocol clock), 'shoot' (a shoot-day event, also sent
-//                 outside the sending hours) or 'urgent': not counted in the daily cap
+//                 outside the sending hours) or 'urgent': kept on the log row (the daily
+//                 cap they were exempt from is gone since 7.10.2026)
 //       ownHours  true: the rule keeps its own hours (the tasks given on the spot, `nag`:
 //                 09:00–20:00), so the sending hours above do not hold it for a digest
 //       exception true: an exception for Lior (decision 8: on his shoot day it goes to Ofir)
@@ -33,7 +43,7 @@
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
 import {
-  isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf,
+  isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
   businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel,
 } from './protocol-logic.js';
 // The owner's decisions of 3.10.2026: Stav's deals, the station-change message, the
@@ -66,8 +76,21 @@ export const REMINDER_PEOPLE = new Set([OWNER, ...TEAM_PEOPLE().map((p) => p.key
 // chag the office works until 13:00 (decision 2), and so do the rings. Shoot-day
 // events are the exception. The digests run inside them.
 export const SEND_HOURS = { from: 8 * 60 + 30, to: 19 * 60, erevTo: WORK_HOURS.erevEnd * 60 };
-// At most 6 rings a day for each person, not counting protocol clocks, shoot days and urgent work.
-export const DAILY_CAP = 6;
+// No daily cap (the owner's rule of 7.10.2026: everything reaches the phone, and a
+// cap would swallow messages). What keeps the phone bearable instead: the sending
+// hours, the digests, one banner per case (pushPayload's tag in
+// app/reminder-engine.js) and the lateness notes going out in batches.
+// The lateness notes (`batch` steps) of one person: at most one push in this many minutes.
+export const LATE_BATCH_MINUTES = 30;
+// The reason on a lateness note while it waits for its batch, and once it went out in one.
+export const BATCH = 'batch';
+// More than this many pushes for one person in one minute (Thursday 12:00: a ring to
+// Lior for every client with no weekly call yet, which the cap used to cut at 6; or
+// the first minute after the engine was down) go out as ONE push that lists them
+// (`BURST`), in that same minute. Shoot-day events and the rules with their own hours
+// are never held for it.
+export const BURST_MAX = 4;
+export const BURST = 'burst';
 // Digest times (principle 4, section 3, decision 24).
 export const DIGESTS = { morning: '08:30', lists: ['12:00', '16:00'], owner: '18:00', ownerWeek: '08:30' };
 // What is scheduled for 09:00–09:30 goes into the 08:30 digest instead.
@@ -242,6 +265,9 @@ const TASK_URL = (cid) => clientUrl(cid, 'tasks');
 const dayOfThree = (from, now) => Math.max(1, businessDaysBetween(from, now));
 
 // ── The rules ─────────────────────────────
+// In the comments below, "quiet" and "quietly" name the level 'quiet' (an update, as
+// against a ring that asks for an action). Since the owner's rule of 7.10.2026 an
+// update is pushed to the phone like a ring; the word no longer means "in the app only".
 // Processes whose lateness also has its own ladder below (they keep ringing as
 // before). Since 3.10.2026 every late process, these too, also tells Ofir and Lior
 // quietly (`late`), and 24 hours late it is in the owner's 18:00 summary
@@ -270,6 +296,7 @@ export const RULES = [
     instances(env) {
       const out = [];
       for (const c of env.clients) {
+        if (workFloor(c)) continue; // taken in from the old system: it never was a "new deal" here (docs/ops.md, section 41)
         const dealAt = parseDate(c.deal_at);
         const st = env.stateOf(c).states;
         const [p1, p2, p3] = ['p01', 'p02', 'p03'].map((id) => st.find((s) => s.proc.id === id));
@@ -571,12 +598,14 @@ export const RULES = [
     },
     steps: [
       { id: 'lior', prevBusinessDays: 1, at: '17:00', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.brief, title: (i) => `תדריך לאלי: ${i.name}`, body: () => 'לשלוח לאלי את התדריך ואת תווית הכונן, במסך יום הצילום.' },
-      { id: 'eli', from: 'brief', to: 'eli', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', title: (i, env) => `תדריך לצילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: (i) => `הגעה ב־${clock(arrivalOf(i.anchors.shoot))}${i.client.address ? `, ${i.client.address}` : ''}${i.brief?.label ? ` · ${driveName(i.brief.label)}` : ''}. ללחוץ "קיבלתי".` },
+      { id: 'eli', from: 'brief', to: 'eli', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', title: (i, env) => `תדריך לצילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: (i) => `${arrivalText(i.anchors.shoot)}${i.client.address ? ` · ${i.client.address}` : ''}${i.brief?.label ? ` · ${driveName(i.brief.label)}` : ''}. ללחוץ "קיבלתי".` },
       { id: '2000', prevBusinessDays: 1, at: '20:00', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.resolved('p16.photographer'), title: (i) => `אלי עוד לא אישר את התדריך: ${i.name}`, body: (i) => (i.brief ? 'אלי עוד לא לחץ "קיבלתי".' : 'התדריך עוד לא נשלח.') },
     ],
   },
 
-  // 17–21: the shoot day. Eli two hours and 15 minutes before the influencers;
+  // 17–21: the shoot day. Eli an hour before his own arrival (two hours before the
+  // influencers: he arrives an hour before them, and every text that tells him a time
+  // names his own, the owner's rule of 7.10.2026) and 15 minutes before the influencers;
   // Lior if Eli did not mark arriving 15 minutes after his time; time management by
   // shoot type; the expected end if the day is not closed.
   {
@@ -593,7 +622,7 @@ export const RULES = [
       const dayOpen = (b) => { const x = i.same(b); return !!x && !x.complete; };
       const endMin = i.natali ? 180 : 330;
       return [
-        { ...s, id: 'eli2h', minutes: -120, to: 'eli', expires: 'shoot', title: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 120) ? `בעוד שעתיים המשפיענים מגיעים: ${i.name}` : `המשפיענים מגיעים ${inTimeWords(i.anchors.shoot, env.now)}: ${i.name}`), body: () => `ההגעה שלך ב־${clock(new Date(i.anchors.shoot.getTime() - 36e5))}${i.client.address ? `, ${i.client.address}` : ''}.` },
+        { ...s, id: 'eli2h', minutes: -120, to: 'eli', expires: 'shoot', title: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 120) ? `בעוד שעה ההגעה שלך לצילום: ${i.name}` : env.now < arrivalOf(i.anchors.shoot) ? `ההגעה שלך לצילום ${inTimeWords(arrivalOf(i.anchors.shoot), env.now)}: ${i.name}` : `שעת ההגעה שלך לצילום עברה: ${i.name}`), body: () => `${arrivalText(i.anchors.shoot)}${i.client.address ? ` · ${i.client.address}` : ''}.` },
         { ...s, id: 'eli15', minutes: -15, to: 'eli', expires: 'shoot', when: () => !i.check('p17b.brollq'), title: () => `הבי־רול גמור? ${i.name}`, body: (_, env) => `המשפיענים מגיעים ${sentOnTime(i.anchors.shoot, env.now, 15) ? 'בעוד 15 דקות' : inTimeWords(i.anchors.shoot, env.now)}. לענות כן או לא במסך יום הצילום.` },
         { ...s, id: 'arrived', minutes: -45, to: 'lior', when: () => !i.resolved('p17b.arrived'), title: () => `אלי עוד לא סימן הגעה: ${i.name}`, body: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 45) ? 'עברו 15 דקות משעת ההגעה שלו.' : `שעת ההגעה שלו הייתה ${clock(new Date(i.anchors.shoot.getTime() - 36e5))}.`) },
         ...(i.natali
@@ -882,7 +911,7 @@ export const RULES = [
     steps: [
       { id: 'created', to: (i) => i.who, level: 'quiet', when: (i) => i.creator !== null || !i.task.created_by_email, title: (i) => `משימה חדשה: ${i.name}`, body: (i) => i.task.title },
       { id: 'due', from: 'due', at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `משימה להיום: ${i.name} · ${i.task.title}`, body: () => '' },
-      { id: 'late', from: 'due', businessDays: 1, at: '08:30', to: (i) => [...new Set([i.who, i.creator, ...LATE_WATCHERS].filter(Boolean))], level: 'quiet', overdue: true, title: (i) => `משימה באיחור: ${i.name}`, body: (i) => `${personName(i.who)}: ${i.task.title}` },
+      { id: 'late', from: 'due', businessDays: 1, at: '08:30', to: (i) => [...new Set([i.who, i.creator, ...LATE_WATCHERS].filter(Boolean))], level: 'quiet', batch: true, overdue: true, title: (i) => `משימה באיחור: ${i.name}`, body: (i) => `${personName(i.who)}: ${i.task.title}` },
     ],
   },
 
@@ -1285,8 +1314,10 @@ export const RULES = [
   },
 
   // Every late item of every employee (the owner's decision of 3.10.2026): Ofir and
-  // Lior hear of it in the app, quietly (the list and the badge, no sound), once per
-  // deadline, and only once it is LATE_GRACE_MINUTES office minutes past it. Whatever already rings for it (its own ladder above: urgent, the
+  // Lior hear of it once per deadline, and only once it is LATE_GRACE_MINUTES office
+  // minutes past it. Since 7.10.2026 on the phone too, in batches (`batch`): the first
+  // one at once, then at most one push per person every LATE_BATCH_MINUTES with all
+  // that became late meanwhile; each item is its own row in "התראות". Whatever already rings for it (its own ladder above: urgent, the
   // protocol clocks, the shoot day) keeps ringing. From 24 hours late it is in the
   // owner's one summary at 18:00 (lateSummary in app/reminder-engine.js), never a
   // message per item.
@@ -1313,7 +1344,7 @@ export const RULES = [
     },
     // `list`: Lior's "החלטות" screen keeps listing what is late (decisions.html), as before.
     steps: LATE_WATCHERS.map((p) => ({
-      id: p, to: p, level: 'quiet', overdue: true, list: p === 'lior', officeMinutes: LATE_GRACE_MINUTES,
+      id: p, to: p, level: 'quiet', batch: true, overdue: true, list: p === 'lior', officeMinutes: LATE_GRACE_MINUTES,
       // Not a second message to the watcher its own ladder already rang for this deadline.
       when: (i) => LATE_RUNG[baseId(i.proc.id)] !== p,
       title: (i) => `באיחור: ${i.name} · ${procName(i.proc)} · ${names(i.owners.filter((o) => o !== 'editor').map(personName)) || 'העורך המשויך'}`,
@@ -1450,7 +1481,7 @@ RULES.push(...YEAR_RULES);
 // with `seller_email` when it was prepared from a deal of the field.
 //   contractApproval  Irit sent an exceptional contract for approval: the owner, Ofir
 //     and Lior ring at once ("חוזה חריג לאישור: <עסק>", a protocol clock: not counted in
-//     the daily cap). Nobody decided within 30 office minutes: they ring once more, and
+//     the daily cap there was until 7.10.2026). Nobody decided within 30 office minutes: they ring once more, and
 //     whoever prepared it is told quietly. Whoever prepared it does not ring for it.
 //     A decision, a corrected version (a new case, by its version) or a cancellation
 //     ends the case, so nothing more is sent.
@@ -1565,6 +1596,9 @@ RULES.push(
   },
 );
 
+// The photographer's time in words: he arrives an hour before the shoot time, always
+// (the owner's rule of 7.10.2026), and every message that tells him a time says so.
+export const arrivalText = (shootAt) => `ההגעה שלך ב־${clock(arrivalOf(shootAt))}, שעה לפני הצילום (${clock(shootAt)})`;
 const NO_CHARACTERIZER = 'אין מי שייצא לאפיון';
 // Exceptions that ring Lior at once instead of waiting for his 12:00 and 16:00 lists.
 const RINGING = [NO_CHARACTERIZER, BLOCKING_TITLE];
@@ -1598,13 +1632,13 @@ export const RULE_BY_ID = new Map(RULES.map((r) => [r.id, r]));
 //   availability           next month is not handed over: he is told quietly on the
 //     10th, and rings on the 15th and on the business day before it, at 10:00 (a 15th
 //     the office is closed on moves both back to the business days before). A protocol
-//     clock: not counted in the daily cap. Handing the month over ends the case.
+//     clock. Handing the month over ends the case.
 //   availabilityMissing    from the 16th, while it is still missing: one line a business
 //     day in the morning digest of the work manager and of whoever sets the shoot days
 //     (the step's id names the day, so never twice a day), until it is handed over.
 //   availabilitySubmitted  he handed it over: the same two hear, quietly.
 //   availabilityChange     an unexpected change (בלת״ם): the two ring at once with the
-//     dates and the shoot days that sit on them (urgent: not counted in the cap; on
+//     dates and the shoot days that sit on them (urgent; on
 //     Lior's shoot day it goes to Ofir, decision 8). Up to two days ahead it rings
 //     outside the sending hours too; further ahead it waits for them.
 import {
@@ -1678,3 +1712,97 @@ const AVAILABILITY_RULES = [
 ];
 RULES.push(...AVAILABILITY_RULES);
 for (const r of AVAILABILITY_RULES) RULE_BY_ID.set(r.id, r);
+
+// ── The photographer hears of his shoot days (the owner's rule of 7.10.2026; docs/ops.md, section 40) ──
+// One self-contained block (its import included). The moment a shoot day is set, moved
+// or taken off (the main one or an extra round's), the photographer is told: the
+// client, the day, the address, and HIS time, an hour before the shoot time.
+// The engine keeps no state of its own, so the rule compares what is true now with
+// what he was last told: `env.shootTold`, this rule's own rows of public.reminder_log
+// (the reminders function loads them). For each shoot day of each client:
+//   never told, and it is ahead         → 'set'
+//   told another time that is ahead     → 'changed' (with what it was)
+//   told, and the date is gone (or the client is no longer active) → 'cancelled'
+//   told exactly this                   → the same case again: its key is in the log,
+//     so nothing is sent, and a line of it that waits for the morning stays alive.
+// A new case carries the id of the row it follows, so a day that moves back and forth,
+// or is cancelled and set again for the same time, is told each time. The event's
+// moment is the minute the engine saw it (a date has no "set at" of its own). Within
+// the sending hours; a shoot day up to two days ahead is told at any hour (`ownHours`),
+// like a בלת״ם: he must not drive to a shoot that moved the evening before.
+import { shootCases } from './production.js';
+export const SHOOT_SET = 'shootSet';
+const TOLD_KEY = /^shootSet:([^:]+):(((?:r\d+-)?p17b)@(.+?)(?:#\d+)?):(set|changed|cancelled)@([a-z]+)$/;
+// What one of this rule's log rows told, read from its key.
+export function toldOf(row) {
+  const m = TOLD_KEY.exec(String(row?.key || ''));
+  const at = m && new Date(m[4]);
+  if (!m || Number.isNaN(+at)) return null;
+  return { id: Number(row.id) || 0, cid: m[1], case: m[2], proc: m[3], at, step: m[5], person: m[6], title: row.title || '' };
+}
+const roundWords = (n) => (n > 1 ? ` (סבב ${n})` : '');
+const SHOOT_SET_RULE = {
+  id: SHOOT_SET, event: 'יום צילום נקבע, זז או בוטל: לצלם', procs: ['p11', 'p17b'],
+  instances(env) {
+    const out = [];
+    const soon = (d) => daysBetweenIL(env.now, d) <= 2;
+    for (const who of PHOTOGRAPHERS.filter((p) => env.hasStaff(p))) {
+      const told = (env.shootTold || []).map(toldOf).filter((t) => t && t.person === who).sort((a, b) => a.id - b.id);
+      const last = new Map(told.map((t) => [`${t.cid}:${t.proc}`, t])); // client and process → the latest row
+      // What he had been told before a row (for "במקום…").
+      const before = (t) => told.filter((x) => x.cid === t.cid && x.proc === t.proc && x.id < t.id && x.step !== 'cancelled').at(-1) || null;
+      const seen = new Set();
+      for (const c of env.clients) {
+        for (const sc of shootCases(c)) {
+          const proc = sc.pre ? `r${sc.n}-p17b` : 'p17b';
+          // A shoot day that passed is not news (and a day moved back into the past
+          // leaves the one he was told of to the loop below: it is off).
+          if (sc.shootAt <= env.now) continue;
+          seen.add(`${c.id}:${proc}`);
+          const L = last.get(`${c.id}:${proc}`);
+          const inst = { cid: c.id, client: c, name: clientLabel(c), who, n: sc.n, at: sc.shootAt, url: SHOOT_URL(c.id), anchors: { event: env.now } };
+          if (L && L.step !== 'cancelled' && +L.at === +sc.shootAt) {
+            out.push({ ...inst, id: L.case, step: L.step, from: L.step === 'changed' ? before(L)?.at || null : null, soon: soon(sc.shootAt) });
+            continue;
+          }
+          const moved = !!L && L.step !== 'cancelled' && L.at > env.now;
+          out.push({
+            ...inst, id: `${proc}@${sc.shootAt.toISOString()}${L ? `#${L.id}` : ''}`, step: moved ? 'changed' : 'set',
+            from: moved ? L.at : null, soon: soon(sc.shootAt) || (moved && soon(L.at)),
+          });
+        }
+      }
+      for (const [k, L] of last) {
+        if (seen.has(k) || L.at <= env.now) continue;
+        const c = env.clientById.get(L.cid) || null;
+        out.push({
+          cid: L.cid, client: c, name: c ? clientLabel(c) : '', who, n: Number(/^r(\d+)-/.exec(L.proc)?.[1] || 1), at: L.at, url: 'shoot.html',
+          id: L.step === 'cancelled' ? L.case : `${L.proc}@${L.at.toISOString()}#${L.id}`, step: 'cancelled', soon: soon(L.at),
+          wasTitle: (L.step === 'cancelled' ? before(L) : L)?.title || '', anchors: { event: env.now },
+        });
+      }
+    }
+    return out;
+  },
+  steps: (i) => [{
+    id: i.step, to: i.who, level: 'ring', exempt: 'shoot', ownHours: i.soon,
+    title: () => {
+      if (i.step === 'cancelled') return i.name ? `יום הצילום בוטל: ${i.name}${roundWords(i.n)} · ${dayText(i.at)}` : `יום צילום בוטל · ${dayText(i.at)}`;
+      return `${i.step === 'changed' ? 'יום הצילום זז' : 'נקבע יום צילום'}: ${i.name}${roundWords(i.n)} · ${dayText(i.at)}`;
+    },
+    body: () => {
+      if (i.step === 'cancelled') {
+        return [
+          `ההגעה שלך הייתה ב־${clock(arrivalOf(i.at))}.`,
+          i.name ? 'המועד ירד מהמערכת. כשייקבע מועד חדש תגיע הודעה.' : `הלקוח כבר לא פעיל במערכת.${i.wasTitle ? ` ההודעה הקודמת: ${i.wasTitle}` : ''}`,
+        ].join(' ');
+      }
+      return [
+        `${arrivalText(i.at)}${i.client.address ? ` · ${i.client.address}` : ''}.`,
+        i.step === 'changed' && i.from ? `במקום ${dayText(i.from)}, הגעה ב־${clock(arrivalOf(i.from))}.` : null,
+      ].filter(Boolean).join(' ');
+    },
+  }],
+};
+RULES.push(SHOOT_SET_RULE);
+RULE_BY_ID.set(SHOOT_SET, SHOOT_SET_RULE);

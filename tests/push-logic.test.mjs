@@ -58,11 +58,31 @@ test('the list: today (Israel day), newest first, without suppressed steps or qu
   const list = inboxRows(rows, now);
   assert.deepEqual(list.map((r) => r.id), [2, 6, 1]);
   assert.equal(unreadCount(list), 2);
-  assert.equal(deliveryText({ status: 'queued', reason: 'cap' }), 'יגיע בתקציר הבא');
+  assert.equal(deliveryText({ status: 'queued', reason: 'quiet_hours' }), 'יגיע לטלפון בתקציר הבא');
   assert.equal(deliveryText({ status: 'pending', channel: 'push', level: 'ring' }), 'נשלח עכשיו לטלפון');
   assert.equal(deliveryText({ status: 'queued', reason: 'shoot_mode' }), 'יגיע בסיכום אחרי יום הצילום');
   assert.equal(deliveryText({ status: 'sent', channel: 'app', reason: 'no_device' }), 'בתוך המערכת (אין טלפון מחובר)');
   assert.equal(deliveryText({ status: 'failed' }), 'לא נשלח לטלפון: תקלה. מופיע כאן.');
+  // 7.10.2026, "אין הודעות שקטות": an update is pushed like a ring, a lateness note in a
+  // batch, a digest line in its digest; nothing new says "בלי צליל".
+  assert.equal(deliveryText({ status: 'sent', channel: 'push', level: 'quiet' }), 'נשלח לטלפון');
+  assert.equal(deliveryText({ status: 'queued', channel: 'digest', level: 'quiet', reason: 'batch' }), 'יישלח לטלפון בתוך חצי שעה, יחד עם שאר האיחורים');
+  assert.equal(deliveryText({ status: 'sent', channel: 'digest', level: 'quiet', reason: 'batch' }), 'נשלח לטלפון, בהודעה אחת עם שאר האיחורים');
+  assert.equal(deliveryText({ status: 'sent', channel: 'digest', level: 'ring', reason: 'digest' }), 'נשלח לטלפון בתוך תקציר');
+  assert.equal(deliveryText({ status: 'sent', channel: 'app', level: 'board' }), 'בלוח הבעלים, ובטלפון בתקציר של 18:00');
+  assert.equal(deliveryText({ status: 'queued', channel: 'digest', level: 'board', reason: 'owner_digest' }), 'יגיע לטלפון בתקציר הבא');
+  assert.equal(deliveryText({ status: 'sent', channel: 'app', level: 'quiet' }), 'בתוך המערכת'); // a row from before the rule
+  // A batch of lateness notes: each note is a row, the batch's own row is not shown or counted.
+  const batch = [
+    { id: 20, created_at: at(10), rule: 'late', key: 'late:c1:p12@x:ofir@ofir', level: 'quiet', channel: 'digest', status: 'sent', reason: 'batch', read_at: null },
+    { id: 21, created_at: at(10, 1), rule: 'late', key: 'late:c2:p12@x:ofir@ofir', level: 'quiet', channel: 'digest', status: 'sent', reason: 'batch', read_at: null },
+    { id: 22, created_at: at(10, 1), rule: 'digest', key: 'digest:late:ofir:2026-10-05:21', level: 'digest', channel: 'push', status: 'sent', reason: 'late', read_at: null },
+    { id: 23, created_at: at(11), rule: 'late', key: 'late:c3:p12@x:ofir@ofir', level: 'quiet', channel: 'digest', status: 'queued', reason: 'batch', read_at: null },
+  ];
+  // The same for a burst (many pushes of one minute sent as one).
+  batch.push({ id: 24, created_at: at(11, 30), rule: 'digest', key: 'digest:burst:ofir:2026-10-05:30', level: 'digest', channel: 'push', status: 'sent', reason: 'burst', read_at: null });
+  assert.deepEqual(inboxRows(batch, now).map((r) => r.id), [23, 21, 20]);
+  assert.equal(unreadCount(inboxRows(batch, now)), 3);
 });
 
 // The service worker in a sandbox: `self`, the registration and the clients are fakes.
