@@ -19,7 +19,7 @@ import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, setTaskDone, updateClient, loadDirectory,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, formatDay, confirmShootDate,
+  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, formatDay,
 } from './protocol-ui.js';
 import { noteDateChange } from './owner-data.js';
 import {
@@ -32,6 +32,8 @@ import { materialsOf, waLink, dayText } from './messages-logic.js';
 import { loadRequestTasks, insertTask, loadAccessStatuses } from './intake-data.js';
 import { googleCalendarUrl } from './calendar.js';
 import { inputValueIL, fromInputIL, dayKeyIL, dayFromKeyIL } from './tz.js';
+// The photographer's monthly availability (docs/ops.md, section 39): the line next to the date, and the reason for a day he did not mark free.
+import { mountAvailability, shootDayHint, confirmShootDay, photographerNote } from './availability-ui.js';
 
 const only = new URLSearchParams(location.search).get('id');
 let clients = [];
@@ -43,6 +45,7 @@ let me = null;
 let busy = false;
 const answers = new Map();   // day-before answers being given, by `${client}:${pre}`
 const shootDraft = new Map(); // a shoot date being typed, by client
+const eliNotes = new Map();   // what the photographer handed over for a shoot's day, by its moment (never his approval itself)
 let lastAck = null;           // the request just opened: its ready "we got it" message
 let reqDraft = { client: only || '', text: '', owner: '', due: '', urgent: false };
 let reqErrors = {};
@@ -63,6 +66,19 @@ async function load() {
   $('state').textContent = '';
   render();
   closeClearTopics();
+  primeEliNotes();
+}
+
+// Under "אלי הצלם" in the coordinator: whether he marked that shoot's day free. Read once per date, then drawn.
+async function primeEliNotes() {
+  let fresh = false;
+  for (const e of entries()) {
+    const key = e.coord.shootAt?.toISOString();
+    if (!key || eliNotes.has(key)) continue;
+    eliNotes.set(key, await photographerNote(e.coord.shootAt, { me }));
+    fresh = fresh || !!eliNotes.get(key);
+  }
+  if (fresh && !busy && !document.activeElement?.closest('form, .pp-form')) render();
 }
 
 // Shoots to prepare: live clients whose shoot-date process (11) started and is
@@ -165,9 +181,10 @@ function coordinatorBlock(e, k) {
             h('option', { value: '' }, 'טרם נקבע'),
             ...Object.values(SHOOT_TYPES).map((t) => h('option', { value: t.key, selected: coord.shootType === t.key }, t.name)))),
         h('div', { class: 'field' }, h('label', { for: `sh-at-${k}` }, 'הגעת המשפיענים'),
-          h('input', { class: 'input', id: `sh-at-${k}`, type: 'datetime-local', dir: 'ltr', value: dt, oninput: (ev) => shootDraft.set(c.id, ev.currentTarget.value) }))),
+          shootAtField(c, k, dt))),
       h('button', { type: 'button', class: 'btn', id: `sh-save-${k}`, disabled: busy, onclick: () => saveShoot(c, k) }, 'שמירת המועד')) : null,
-    h('ul', { class: 'pp-parties', 'aria-label': 'אישורים' }, ...coord.approvals.map((a) => party(a)), party(coord.contract)),
+    h('ul', { class: 'pp-parties', 'aria-label': 'אישורים' },
+      ...coord.approvals.map((a) => party(a, a.key === `${x.pre}p11.ok.photographer` ? eliNotes.get(coord.shootAt?.toISOString()) || null : null)), party(coord.contract)),
     h('div', { class: 'ik-row' },
       cal ? h('a', { class: 'btn btn-ghost', href: cal, target: '_blank', rel: 'noopener' }, 'Google Calendar', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')) : null,
       h('button', {
@@ -178,6 +195,14 @@ function coordinatorBlock(e, k) {
       h('h3', {}, 'נטלי: מאפרת והסעה (11ב, באחריות ליאור)'),
       h('ul', { class: 'pp-parties' }, ...coord.natali.map((a) => party(a, me === 'lior' ? null : 'סימון בשם ליאור נרשם בשמך')))) : null);
 }
+// The date with, under it, what the photographer handed over for the day being picked.
+function shootAtField(c, k, dt) {
+  const input = h('input', { class: 'input', id: `sh-at-${k}`, type: 'datetime-local', dir: 'ltr', value: dt, 'aria-describedby': `sh-at-${k}-avail`, oninput: (ev) => shootDraft.set(c.id, ev.currentTarget.value) });
+  const hint = shootDayHint(input, { me, own: c.shoot_at });
+  hint.id = `sh-at-${k}-avail`;
+  if (dt) hint.refresh();
+  return [input, hint];
+}
 async function saveShoot(c, k) {
   const type = $(`sh-type-${k}`).value || null;
   const at = fromInputIL($(`sh-at-${k}`).value);
@@ -186,7 +211,7 @@ async function saveShoot(c, k) {
   if (at) fields.shoot_at = at.toISOString();
   if (!Object.keys(fields).length) { toast('לבחור עם מי מצלמים ומועד.'); return; }
   // Against the usual order (in the past, before the characterization, too soon after it): ask, with the reason.
-  const asked = at ? confirmShootDate({ shootAt: at, charAt: c.char_at }) : { ok: true, note: null };
+  const asked = at ? await confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me }) : { ok: true, note: null };
   if (!asked.ok) { $(`sh-at-${k}`).focus(); return; }
   busy = true;
   try {
@@ -198,6 +223,7 @@ async function saveShoot(c, k) {
   } catch (err) { toast(`לא נשמר. ${errorText(err)}`); }
   busy = false;
   render(`sh-save-${k}`);
+  primeEliNotes();
 }
 async function toggleCheck(cid, key, on, focusId, note = null) {
   if (busy) return;
@@ -426,6 +452,7 @@ mountSession(async (staff) => {
     return;
   }
   await load();
+  mountAvailability($('availability'), { me });
   if (location.hash === '#requests') { $('requests').scrollIntoView(); $('rq-text')?.focus({ preventScroll: true }); }
   setInterval(() => { if (!document.hidden && !busy && !document.activeElement?.closest('form')) load(); }, 120e3);
 });

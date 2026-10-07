@@ -215,6 +215,94 @@ export function counts(files) {
   return out;
 }
 
+// ── The files a hand-off stands on ─────────
+// Package 1 (docs/ops.md, section 37). Ilai uploads the graphics on his own page, and
+// "מוכן לבדיקה" opens only once a graphic of that batch is there. The finished VIDEOS
+// stay in the client's Google Drive (the owner's decision of 7.10.2026, the storage
+// quota): the editor hands them over with the folder's link (videosLinkOf below);
+// uploading them here as well is possible and optional, and an uploaded video stands
+// in for the link. client_files has no round or batch column: a file
+// belongs to the batch whose window its upload time falls in ({ since, until }: after
+// `since`, up to and including `until`; null: open on that side).
+const doneAt = (checks, key) => (checks?.[key]?.state === 'done' && checks[key].at ? new Date(checks[key].at) : null);
+// One shoot round's videos (n: 1 for the main shoot): from its assignment (22א) to the
+// next assignment of the same client.
+export function videoWindow(client, checks, n = 1) {
+  const at = (k) => doneAt(checks, `${k > 1 ? `r${k}.` : ''}p22a.assigned`);
+  const since = at(n);
+  const later = [1, ...(client?.rounds || []).map((r) => Number(r?.n))].filter((k) => Number.isInteger(k) && k !== n)
+    .map(at).filter((d) => d && since && d > since).sort((a, b) => a - b);
+  return { since, until: later[0] || null };
+}
+// The graphics: the first 9 are what went up until the client approved them, the rest
+// what went up after (the same cut the client's status page uses, media_for_token).
+// While there is no approval yet, the rest starts when the first 9 went to review.
+export function graphicsWindow(checks, batch) {
+  const res = checks?.['p07.approved'];
+  const approved = res && ['done', 'na'].includes(res.state) && res.at ? new Date(res.at) : null;
+  if (batch === 'first') return { since: null, until: approved };
+  return { since: approved || doneAt(checks, 'p07.made'), until: null };
+}
+const within = (f, w) => { const t = new Date(f.created_at); return (!w?.since || t > w.since) && (!w?.until || t <= w.until); };
+// The live files of one kind inside a window, oldest first.
+export const workFiles = (files, kind, w = null) => (files || []).filter((f) => !f.deleted_at && f.kind === kind && within(f, w))
+  .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+// May the hand-off be pressed? { ok, count, reason (Hebrew, when not) }.
+//   state  { loaded, error } of the client's files on this page
+//   after  a file must have gone up after this moment (the client's notes: the fixed
+//          version), not only at some time in the window
+//   none   the words when nothing of the batch is there yet
+export function uploadGate({ files, kind, window: w = null, state = { loaded: true, error: null }, after = null, none = 'נפתח אחרי שמעלים כאן לפחות קובץ אחד.' }) {
+  if (!state.loaded) return { ok: false, count: 0, reason: 'בודק מה כבר הועלה…' };
+  if (state.error) return { ok: false, count: 0, reason: 'לא הצלחנו לבדוק מה הועלה. לחצו ״רענון״ ונסו שוב.' };
+  const list = workFiles(files, kind, w);
+  if (!list.length) return { ok: false, count: 0, reason: none };
+  if (after && !list.some((f) => new Date(f.created_at) > after)) return { ok: false, count: list.length, reason: 'נפתח אחרי שמעלים את הגרסה המתוקנת: קובץ שעלה אחרי הערות הלקוח.' };
+  return { ok: true, count: list.length, reason: '' };
+}
+// The Drive link of a round's videos: what the editor pasted at the hand-off (the
+// note of p24.drive; an editor may not write the card's links, so it is kept with
+// the mark), else the Drive link the office put in the card. null: none.
+const SECRET = /password|passwd|pwd=|token=|key=/i;
+export const driveLinkProblem = (v) => {
+  const s = String(v || '').trim();
+  if (!s) return 'הדביקו את הקישור לתיקיית הסרטונים בדרייב.';
+  if (!validLink(s)) return 'קישור מלא, שמתחיל ב־https://.';
+  return SECRET.test(s) ? 'קישור בלי סיסמה או קוד.' : null;
+};
+export function videosLinkOf(client, checks, pre = '') {
+  const note = String(checks?.[`${pre}p24.drive`]?.note || '').trim();
+  if (checks?.[`${pre}p24.drive`]?.state === 'done' && !driveLinkProblem(note)) return note;
+  const card = String(client?.links?.drive || '').trim();
+  return driveLinkProblem(card) ? null : card;
+}
+// May the videos be handed on? With the Drive link, or with a video uploaded here.
+// { ok, link, count, reason }. `state`: of the client's files on this page.
+export function videosGate({ link, files, window: w = null, state = { loaded: true, error: null } }) {
+  const count = workFiles(files, 'deliverable_video', w).length;
+  if (link) return { ok: true, link, count, reason: '' };
+  if (count) return { ok: true, link: null, count, reason: '' };
+  if (!state.loaded) return { ok: false, link: null, count: 0, reason: 'בודק מה כבר הועלה…' };
+  return { ok: false, link: null, count: 0, reason: 'נפתח עם קישור לסרטונים בדרייב של הלקוח (או סרטון שהועלה לכאן).' };
+}
+// "הועלו 3 מתוך 12", "הועלו 3", "עוד לא הועלה כלום".
+export const uploadedText = (count, total = null) => (!count ? 'עוד לא הועלה כלום' : Number(total) > 0 ? `הועלו ${count} מתוך ${total}` : `הועלו ${count}`);
+
+// The marks that hand finished files on. Outside the office each is pressed where the
+// files go up (so the lock above is seen), not from a general list of items.
+const UPLOAD_STEPS = {
+  'p24.notify': { who: EDITORS, page: (id) => `editor.html#c-${id}`, text: 'מסמנים ב״הלקוחות שלי בעריכה״, עם הקישור לסרטונים בדרייב.' },
+  'p27.final': { who: EDITORS, page: (id) => `editor.html#c-${id}`, text: 'מסמנים ב״הלקוחות שלי בעריכה״, כשהגרסאות הסופיות בדרייב.' },
+  'p07.made': { who: ['ilai'], page: () => 'clients.html#mine', text: 'מסמנים ב״המשימות שלי״, אחרי שמעלים שם את הגרפיקות.' },
+  'p23.made': { who: ['ilai'], page: () => 'clients.html#mine', text: 'מסמנים ב״המשימות שלי״, אחרי שמעלים שם את הגרפיקות.' },
+};
+// { href, text } when `person` marks this item only from their own page; else null.
+export function uploadStepOf(key, person, clientId = '') {
+  const s = UPLOAD_STEPS[String(key || '').replace(/^r\d+\./, '')];
+  return s && s.who.includes(person) ? { href: s.page(encodeURIComponent(clientId)), text: s.text } : null;
+}
+
 // ── The client's gallery link ─────────────
 // Irit, Lior and the owner make it (public.can_manage_status_links()).
 export const LINK_MANAGERS = ['irit', 'lior'];

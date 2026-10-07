@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
   <link rel="stylesheet" href="app/styles/owner.css">
   <link rel="stylesheet" href="app/styles/office-flows.css">
+  <link rel="stylesheet" href="app/styles/files.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -113,6 +114,8 @@
       <div class="dlg-body">
         <p class="of-meta" id="qa-meta"></p>
         <div id="qa-prev"></div>
+        <!-- What is being checked: the files themselves, from the client's files (read-only here). -->
+        <div id="qa-files"></div>
         <fieldset class="of-checks" id="qa-checks-box">
           <legend id="qa-checks-legend">הבדיקות</legend>
           <div id="qa-checks"></div>
@@ -155,6 +158,18 @@
         <fieldset class="as-editors">
           <legend>העורך</legend>
           <div id="as-editors"></div>
+        </fieldset>
+        <fieldset class="as-clock" id="as-clock-wrap" hidden>
+          <legend>מועדי העריכה</legend>
+          <p class="as-clock-late" id="as-clock-late" hidden></p>
+          <label class="wrow" for="as-clock-restart">
+            <input type="radio" class="radio" name="as-clock" id="as-clock-restart" value="restart">
+            <span class="wlabel" id="as-clock-restart-label"></span>
+          </label>
+          <label class="wrow" for="as-clock-keep">
+            <input type="radio" class="radio" name="as-clock" id="as-clock-keep" value="keep">
+            <span class="wlabel" id="as-clock-keep-label"></span>
+          </label>
         </fieldset>
         <div class="field" id="as-reason-wrap">
           <label for="as-reason" id="as-reason-label">סיבה</label>

@@ -1,0 +1,68 @@
+/* "קליטת לקוחות קיימים" (landing.html) and the owners' control on owner.html
+   (docs/ops.md, section 41). Quiet on purpose: no colour of lateness anywhere here.
+   Phone first: one column, every target at least 44px, nothing scrolls sideways. */
+.land-app { min-width: 0; }
+.land-progress { margin: 4px 0 14px; }
+.land-progress p { margin: 0 0 6px; }
+.land-count { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-weight: 600; }
+.land-count .pbar { flex: 1 1 160px; max-inline-size: 320px; }
+.land-empty a, .land-progress a { display: inline-flex; align-items: center; min-height: 44px; }
+
+.land-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.land-card {
+  display: grid; gap: 10px; padding: 14px; border-radius: var(--ds-r-item);
+  background: var(--ds-surface); border: 1px solid var(--ds-line); min-width: 0;
+}
+.land-card.is-finished { padding: 6px 14px; background: var(--ds-ground); }
+.land-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.land-head h2 { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
+.land-head h2 a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ds-ink); }
+.land-head .tag { margin: 0; }
+
+.land-station { display: grid; gap: 4px; padding: 8px 10px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+.land-station label { font-size: 14px; color: var(--ds-ink-2); }
+.land-station-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.land-station-row .input { flex: 1 1 160px; min-height: 44px; min-width: 0; }
+.land-station-row .btn { min-height: 44px; }
+
+.land-proposal { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--ds-r-sm); background: var(--ds-soft); }
+.land-proposal p { margin: 0; }
+.land-proposal .btn { justify-self: start; min-height: 44px; }
+
+.land-more > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; color: var(--ds-navy-text); font-weight: 500; }
+.land-more[open] > summary { margin-bottom: 6px; }
+.land-items { list-style: none; margin: 0; padding: 0; display: grid; }
+.land-item { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--ds-line); min-width: 0; }
+.land-item-text { display: grid; gap: 2px; min-width: 0; }
+.land-label { overflow-wrap: anywhere; }
+.land-item small { font-size: 12.5px; }
+.land-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; }
+.land-choice {
+  min-height: 44px; padding: 6px 4px; border-radius: var(--ds-r-ctl); border: 1px solid var(--ds-edge);
+  background: var(--ds-surface); color: var(--ds-ink-2); font: inherit; font-size: 14px; cursor: pointer;
+}
+.land-choice.is-on { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); font-weight: 600; }
+.land-choice:disabled { opacity: .6; cursor: default; }
+.land-item.is-proposed .land-choice.c-done { border-style: dashed; border-color: var(--ds-navy-text); color: var(--ds-navy-text); }
+
+.land-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.land-actions .btn { flex: 1 1 200px; min-height: 44px; }
+.land-fin { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; min-width: 0; }
+.land-fin-name { font-weight: 600; overflow-wrap: anywhere; }
+.land-tick { margin-inline-end: 6px; color: var(--ds-ok); }
+.land-undo { min-height: 44px; margin-inline-start: auto; padding-inline: 8px; }
+
+@media (min-width: 761px) {
+  .land-item { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); align-items: center; gap: 14px; }
+}
+
+/* The owners' control (owner.html). */
+.land-ctl { display: grid; gap: 10px; padding: 16px; margin-bottom: 14px; border-radius: var(--ds-r-card); background: var(--ds-surface); border: 1px solid var(--ds-line); min-width: 0; }
+.land-ctl h2 { margin: 0; font-size: 18px; }
+.land-ctl p { margin: 0; }
+.land-ctl-rows { list-style: none; margin: 0; padding: 0; display: grid; }
+.land-ctl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 6px 0; border-top: 1px solid var(--ds-line); min-width: 0; }
+.land-ctl-row .land-ctl-text { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.land-ctl-row .btn { min-height: 44px; }
+.land-ctl-row .pbar { flex: 0 1 120px; }
+.land-ctl-note { font-size: 13.5px; color: var(--ds-muted); }

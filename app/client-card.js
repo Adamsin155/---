@@ -15,7 +15,7 @@ import {
   loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes, setPasswordGate, GATE_CANCELLED,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who, confirmShootDate,
+  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
   statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
@@ -24,11 +24,13 @@ import { googleCalendarUrl, downloadIcs } from './calendar.js';
 import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
 import { describeMark } from './handoffs.js';
 import { markHistory } from './production.js';
-import { canManageTeam } from './team-rules.js';
+import { canManageTeam, isOwnerView } from './team-rules.js';
+import { activate as activateLanding } from './landing-data.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 import { clientHealth, station, timeline } from './health.js';
 import { healthHead, timelineBlock, questionsBlock } from './health-ui.js';
 import { loadHealthExtras, loadQuestions, noteDateChange } from './owner-data.js';
+import { shootDayHint, confirmShootDay } from './availability-ui.js';
 // Stage 3, part 2: Ofir's returns for fixes, the office's marks in the history, "התחלתי".
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
@@ -61,6 +63,7 @@ import { mountClientMonth, worksCycle } from './month-ui.js';
 import { freshText } from './protocol-versions.js';
 // The client's files ("תיק לקוח"): materials, deliverables and the client's gallery link.
 import { mountClientFiles } from './files-ui.js';
+import { uploadStepOf } from './files-logic.js';
 // The manager's features: the contract summary, and archiving (the owner and Ofir).
 import { contractSummary, fileCounts } from './contract-summary.js';
 import { loadDeliverableFiles, archiveClient } from './manager-data.js';
@@ -108,7 +111,8 @@ const FIELD_NAMES = {
 };
 const FIELD_INPUT = { characterizer: 'ed-characterizer', char_at: 'ed-char-at', shoot_type: 'ed-shoot-type', shoot_at: 'ed-shoot-at', has_logo: 'ed-logo', editor: 'ed-editor' };
 // The link each process works with, shown inside the process.
-const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p09: 'gantt', p10: 'meta', p12: 'scripts', p24: 'drive' };
+// (The Gantt is in the system: 9 links to no outside address. 24: the videos' Drive folder.)
+const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p10: 'meta', p12: 'scripts', p24: 'drive' };
 // The package quantity each process works to (the protocol's wording says "by the package").
 const PKG_QTY = { p12: 'videos', p18: 'videos', p22: 'videos', p23: 'graphics' };
 // What this user sees. 'own' roles see only their processes and items, and none of
@@ -202,7 +206,7 @@ function render() {
     if (tp) openPhases.add(tp.proc.phase);
   }
   renderHead(s);
-  mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus(), scripts: scriptsOk() });
+  mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus(), scripts: scriptsOk(), me: viewerError ? undefined : me });
   mountClientStatus($('st-slot'), { client, scope, me, toast });
   mountClientFiles($('fl-slot'), { client, me: viewerError ? undefined : me, myEmail, toast });
   renderAccess();
@@ -347,6 +351,24 @@ function nothingNext(s) {
   const why = dueText(x, new Date()) || 'ממתין לפריטים קודמים בפרוטוקול';
   return h('a', { class: 'cc-next s-waiting', href: `#${x.proc.id}`, onclick: (e) => { e.preventDefault(); goTo(x.proc.id); } },
     h('span', { class: 'k' }, 'התהליך הבא שלך'), h('span', {}, `${x.proc.num} · ${x.proc.title}`), h('span', { class: 'muted' }, why));
+}
+
+// A client from the old system that was not taken in yet: said once, at the top.
+function landingNote() {
+  const c = client;
+  if (c.landing !== true || c.status === 'cancelled' || c.status === 'ended') return null;
+  return h('div', { class: 'auto-note land-note', role: 'note', id: 'land-note' },
+    h('p', {}, h('span', { class: 'tag tag-landing' }, 'בקליטה'), ' הלקוח הגיע מהמערכת הישנה ועוד לא הופעל: אין עליו שעונים, איחורים או התראות. מה שיישאר פתוח יקבל מועד חדש ביום ההפעלה.'),
+    h('div', { class: 'auto-acts' },
+      me ? h('a', { class: 'btn btn-sm', href: 'landing.html' }, 'לקליטת הלקוחות הקיימים') : null,
+      isOwnerView(viewerInfo) ? h('button', {
+        type: 'button', class: 'btn btn-sm btn-primary', id: 'land-activate',
+        onclick: async (e) => {
+          if (!confirm(`להפעיל את ${c.name}? מה שפתוח יקבל מועד חדש מעכשיו, וההתראות יחזרו.`)) return;
+          e.currentTarget.disabled = true;
+          try { await activateLanding([c.id]); toast('הלקוח הופעל. המועדים נספרים מעכשיו.'); await load(); } catch (err) { toast(errorText(err)); e.currentTarget.disabled = false; }
+        },
+      }, 'מפעילים את הלקוח') : null));
 }
 
 function autoBanner() {
@@ -595,6 +617,7 @@ function renderHead(s) {
   const shootFact = fact('יום צילום', [c.shoot_type ? SHOOT_TYPES[c.shoot_type].name : null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot'));
   const editorFact = fact('עורך', c.editor ? PEOPLE[c.editor]?.name : c.editor_name);
   fill($('cc-head'),
+    landingNote(),
     autoBanner(),
     c.status === 'cancelled' ? h('div', { class: 'auto-note', role: 'note' }, h('p', {}, `ההסכם בוטל${c.closed_reason ? `: ${c.closed_reason}` : '.'}`)) : null,
     h('div', { class: 'cc-top' },
@@ -990,6 +1013,9 @@ function itemRow(p, i) {
   const cid = `i-${i.key.replace(/\./g, '-')}`;
   const busy = pending.has(i.key);
   const block = state ? null : blockers(i, p.ctx || client, checks);
+  // Outside the office, a mark that hands finished files on is pressed on the page
+  // where the files go up (the editor's page, Ilai's cards): its lock is seen there.
+  const via = state || !own() ? null : uploadStepOf(i.key, me, client.id);
   const ownOwners = i.owners.join() !== p.owners.join();
   const mine = !mineOnly() && focusPerson && i.owners.includes(focusPerson);
   const meta = [];
@@ -1023,6 +1049,7 @@ function itemRow(p, i) {
     ].filter(Boolean).join(' · ');
     meta.push(h('span', { class: 'blocked', id: `${cid}-b` }, text));
   }
+  if (via) meta.push(h('span', { class: 'blocked', id: `${cid}-u` }, via.text, ' ', h('a', { href: via.href }, 'לעמוד')));
   if (i.optional && !c) meta.push(h('span', { class: 'tag' }, 'אם רלוונטי'));
   if (i.fresh && !state) meta.push(h('span', { class: 'tag tag-fresh' }, freshText(i.fresh)));
   if (ownOwners) meta.push(peopleChips(i.owners));
@@ -1034,7 +1061,7 @@ function itemRow(p, i) {
   return h('li', { class: `item${state === 'done' ? ' is-done' : ''}${state === 'na' ? ' is-na' : ''}${mine ? ' is-mine' : ''}${busy ? ' is-busy' : ''}${block ? ' is-blocked' : ''}` },
     h('label', { class: 'irow', for: cid },
       h('input', {
-        type: 'checkbox', id: cid, class: 'cbx', checked: state === 'done', disabled: busy || state === 'na' || !!block,
+        type: 'checkbox', id: cid, class: 'cbx', checked: state === 'done', disabled: busy || state === 'na' || !!block || !!via,
         'aria-describedby': meta.length ? `${cid}-m` : null,
         onchange: (e) => mark(i.key, e.currentTarget.checked ? 'done' : null, cid),
       }),
@@ -1042,7 +1069,7 @@ function itemRow(p, i) {
         h('span', { class: 'ilabel' }, i.label, state === 'na' ? h('span', { class: 'tag' }, i.optional ? 'לא נדרש' : 'לא רלוונטי') : null),
         meta.length ? h('span', { class: 'imeta', id: `${cid}-m` }, ...meta) : null)),
     calendar,
-    state === 'done' || (baseKey(i.key) === 'p13.approved' && state !== 'na') ? null : h('button', {
+    state === 'done' || via || (baseKey(i.key) === 'p13.approved' && state !== 'na') ? null : h('button', {
       type: 'button', class: `btn-text na-btn${i.optional ? ' is-opt' : ''}`, disabled: busy, id: `${cid}-na`,
       'aria-label': `${naLabel}: ${i.label}`,
       onclick: () => {
@@ -1508,6 +1535,11 @@ $('cancel-form').addEventListener('submit', async (e) => {
 const nextRoundNumber = () => Math.max(1, ...roundsOf(client).map((r) => r.n)) + 1;
 const roundDlg = dialog('dlg-round');
 let roundEditing = null;
+// The photographer's monthly availability (docs/ops.md, section 39): under each shoot date being picked, whether he marked that day free.
+const shootAtHint = shootDayHint($('ed-shoot-at'), { me: () => me, own: () => client?.shoot_at });
+$('ed-shoot-at').after(shootAtHint);
+const roundAtHint = shootDayHint($('round-at'), { me: () => me, own: () => (roundEditing ? roundsOf(client).find((r) => r.n === roundEditing)?.shoot_at : null) });
+$('round-at').after(roundAtHint);
 function openRound(n = null) {
   roundEditing = n;
   const rounds = roundsOf(client);
@@ -1520,6 +1552,7 @@ function openRound(n = null) {
   $('round-type').value = r?.shoot_type || client.shoot_type || 'natali';
   fillEditors('round-editor', $('round-type').value, r?.editor);
   $('round-at').value = inputValueIL(r?.shoot_at);
+  roundAtHint.refresh();
   $('round-note').hidden = !!n;
   const over = !n && total !== undefined && nextN > total;
   $('round-extra-wrap').hidden = !over;
@@ -1546,7 +1579,7 @@ $('round-form').addEventListener('submit', async (e) => {
     ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null } : r))
     : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null, start_at: new Date().toISOString() }];
   const before = roundEditing ? rounds.find((r) => r.n === roundEditing)?.shoot_at : null;
-  const asked = at && +new Date(at) !== +new Date(before || 0) ? confirmShootDate({ shootAt: at }) : { ok: true, note: null };
+  const asked = at && +new Date(at) !== +new Date(before || 0) ? await confirmShootDay({ shootAt: at, own: before, me }) : { ok: true, note: null };
   if (!asked.ok) { $('round-at').focus(); return; }
   $('round-submit').disabled = true;
   try {
@@ -1735,7 +1768,7 @@ fill($('ed-deliv'), ...DELIV_FIELDS.map(([k, l]) => h('div', { class: 'field' },
   h('label', { for: `ed-deliv-${k}` }, l), h('input', { class: 'input', id: `ed-deliv-${k}`, type: 'number', min: '0', max: '999', inputmode: 'numeric', dir: 'ltr' }))));
 fill($('ed-links'), ...LINKS.map((l) => h('div', { class: 'field' },
   h('label', { for: `ed-link-${l.key}` }, l.label),
-  h('input', { class: 'input', id: `ed-link-${l.key}`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: `https://${l.hint}/…`, 'aria-describedby': `ed-link-${l.key}-h` }),
+  h('input', { class: 'input', id: `ed-link-${l.key}`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: l.hint ? `https://${l.hint}/…` : l.placeholder || 'https://', 'aria-describedby': `ed-link-${l.key}-h` }),
   h('div', { class: 'hint', id: `ed-link-${l.key}-h` }))));
 
 function openEdit(focusId = 'ed-name') {
@@ -1753,6 +1786,7 @@ function openEdit(focusId = 'ed-name') {
   $('ed-logo').value = c.has_logo === null || c.has_logo === undefined ? '' : String(c.has_logo);
   $('ed-shoot-type').value = c.shoot_type || '';
   $('ed-shoot-at').value = toLocal(c.shoot_at);
+  shootAtHint.refresh();
   fillEditors('ed-editor', c.shoot_type, c.editor);
   $('ed-contract-end').value = c.contract_end || '';
   $('ed-notes').value = c.notes || '';
@@ -1790,8 +1824,8 @@ function readLinks() {
     if (!v) continue;
     if (!safeLink(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'זה לא נראה כמו קישור. העתיקו את הכתובת המלאה, שמתחילה ב־https://', input }; }
     if (SECRET.test(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'אפשר לשמור כאן רק קישור. סיסמאות וקודי גישה לא נשמרים במערכת.', input }; }
-    const domain = l.hint.split('/')[0].split('.').slice(-2).join('.');
-    if (!v.toLowerCase().includes(domain)) hint.textContent = `הקישור לא נראה כמו קישור של ${l.label}. נשמר בכל זאת.`;
+    const domain = l.hint ? l.hint.split('/')[0].split('.').slice(-2).join('.') : '';
+    if (domain && !v.toLowerCase().includes(domain)) hint.textContent = `הקישור לא נראה כמו קישור של ${l.label}. נשמר בכל זאת.`;
     out[l.key] = v;
   }
   return { links: out };
@@ -1822,7 +1856,7 @@ $('ed-form').addEventListener('submit', async (e) => {
   // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
   const newShoot = fromLocal($('ed-shoot-at').value);
   const shootMoved = !!newShoot && +new Date(newShoot) !== +new Date(client.shoot_at || 0);
-  const asked = shootMoved ? confirmShootDate({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value) }) : { ok: true, note: null };
+  const asked = shootMoved ? await confirmShootDay({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value), own: client.shoot_at, me }) : { ok: true, note: null };
   if (!asked.ok) { $('ed-shoot-at').focus(); return; }
   $('ed-submit').disabled = true;
   try {

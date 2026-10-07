@@ -20,12 +20,22 @@ const baseOf = (procId) => String(procId).replace(/^r\d+-/, '');
 export const writesScripts = (me, scope = 'office') => (me === null && scope === 'office') || me === 'lior';
 export const scriptsHref = (clientId, round = 1) => `scripts.html?id=${enc(clientId)}${round > 1 ? `&round=${round}` : ''}`;
 
+// The characterization, read-only (intake.html shows it so to whoever makes graphics
+// from it and is not the office: Ilai, and Nirel on a client she works on). What they
+// may read is the database's (characterizations: whoever sees the client).
+export const CHAR_READERS = ['ilai', 'nirel'];
+export const readsChar = (me) => CHAR_READERS.includes(me);
+export const charViewHref = (clientId) => `intake.html?id=${enc(clientId)}`;
+// The graphics processes (7 and 23) and Ilai's new logo (5) are made from it.
+const CHAR_PROCS = ['p05', 'p07', 'p23'];
+
 // The form a process is worked in, for the office (null: none, or not the office).
 // Process 12 (the scripts) goes to the scripts page for Lior and the owner.
 export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office', complete = false, me = undefined } = {}) {
   const b = baseOf(procId);
   // The content Gantt (gantt.html): Ilai's processes 9, 28 and 29, for whoever sees the process.
   if (clientId && ['p09', 'p28', 'p29'].includes(b)) return h('a', { class: 'btn btn-sm ik-go gantt-go', href: `gantt.html?id=${enc(clientId)}` }, 'גאנט התוכן');
+  if (clientId && readsChar(me) && CHAR_PROCS.includes(b)) return h('a', { class: 'btn btn-sm ik-go char-go', href: charViewHref(clientId) }, 'האפיון של הלקוח');
   if (scope !== 'office' || !clientId) return null;
   const round = Number(/^r(\d+)-/.exec(String(procId))?.[1] || 1);
   const r = round > 1 ? `&round=${round}` : '';
@@ -58,10 +68,12 @@ async function copy(text, toast) {
 // once per client (re-rendering the card calls it again without a new load).
 // `scripts`: this person writes the client's scripts (Lior, the owner, or a grant):
 // the card links to the scripts page, even outside the office.
-export function mountClientIntake(slot, { client, scope = 'office', toast = null, rerender = null, scripts = false }) {
+// `me`: staff.person; whoever reads the characterization outside the office (readsChar)
+// gets a link to its read-only view.
+export function mountClientIntake(slot, { client, scope = 'office', toast = null, rerender = null, scripts = false, me = undefined }) {
   if (!slot) return;
   if (!client) { slot.replaceChildren(); return; }
-  if (cache.id !== client.id) { slot.replaceChildren(); loadFor(client.id, () => (rerender || (() => mountClientIntake(slot, { client, scope, toast, scripts })))()); return; }
+  if (cache.id !== client.id) { slot.replaceChildren(); loadFor(client.id, () => (rerender || (() => mountClientIntake(slot, { client, scope, toast, scripts, me })))()); return; }
   if (!cache.loaded) return;
   const phone = businessPhoneOf(cache.char);
   const logo = logoUrlOf(cache.char);
@@ -76,8 +88,10 @@ export function mountClientIntake(slot, { client, scope = 'office', toast = null
     logo ? [h('dt', {}, 'לוגו'), h('dd', {}, h('a', { href: logo, target: '_blank', rel: 'noopener' }, 'הורדת הלוגו', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')))] : null,
     colors ? [h('dt', {}, 'צבעי המותג'), h('dd', {}, colors)] : null,
   ].filter(Boolean);
-  const links = office || scripts ? h('div', { class: 'ik-links' },
+  const reads = !office && readsChar(me);
+  const links = office || scripts || reads ? h('div', { class: 'ik-links' },
     office ? h('a', { class: 'btn btn-sm', href: `intake.html?id=${enc(client.id)}` }, 'אפיון ותוכן') : null,
+    reads ? h('a', { class: 'btn btn-sm', href: charViewHref(client.id), id: 'ik-char' }, 'האפיון המלא') : null,
     scripts ? h('a', { class: 'btn btn-sm', href: scriptsHref(client.id), id: 'ik-scripts' }, 'כתיבת תסריטים') : null,
     office ? h('a', { class: 'btn btn-sm', href: `prep.html?id=${enc(client.id)}#requests`, id: 'ik-request' }, 'בקשת לקוח') : null,
     office ? h('a', { class: 'btn btn-sm btn-ghost', href: `prep.html?id=${enc(client.id)}` }, 'לפני יום צילום') : null) : null;

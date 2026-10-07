@@ -5,11 +5,14 @@
 // time and a round counter. Below it today's characterizations, the shoots waiting
 // for an editor with the assignment (22א: Nirel preselected for Natali, a reason
 // for anyone else; a joint day always with a reason), and each editor's load.
+// The quality-control dialog shows what is being checked: the round's videos by their
+// Drive link (and any uploaded into the system, played in place), or the rest of the
+// graphics from the client's files.
 // The logic: app/qa-logic.js and app/office-marks.js.
 import { PEOPLE, SHOOT_TYPES, EDITORS } from './protocol.js';
 import { clientState, clientLabel } from './protocol-logic.js';
 import {
-  loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory,
+  loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory, setTaskDone,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, viewerOf, officeMinutes,
@@ -17,7 +20,9 @@ import {
 import {
   qaQueue, qaFixing, charsToday, awaitingEditor, editorLoad, loadText, dayText, preselected, reasonNeeded, reasonHint,
   eligibleEditors, jointFromSelection, reasonNote, folderTitle, folderDueOn, QA_TARGET_MINUTES,
+  swapClock, swapReasonNeeded, swapNote,
 } from './qa-logic.js';
+import { autoReasonOf } from './auto-assign.js';
 import {
   QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, REASON_KEY, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
 } from './office-marks.js';
@@ -29,6 +34,8 @@ import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, navLink } from './office-ui.js';
 import { mountApprovals } from './approvals-ui.js';
 import { inputValueIL, fromInputIL, dayFromKeyIL, endOfDayIL, TZ } from './tz.js';
+import { mountWorkFiles, forgetFiles } from './files-ui.js';
+import { videoWindow, graphicsWindow, videosLinkOf } from './files-logic.js';
 
 let viewer = null;
 let me = null;
@@ -67,8 +74,12 @@ async function doLoad() {
     return;
   }
   states.clear();
-  const natali = awaitingEditor({ clients, stateOf, checks }).filter((a) => a.ctx.shoot_type === 'natali').map((a) => a.client.quote_id);
-  selections = await loadSelections(natali).catch(() => new Map());
+  // Natali's shoots waiting for an editor, and the ones in editing (an editor can be changed): was it a joint day.
+  const natali = [
+    ...awaitingEditor({ clients, stateOf, checks }).filter((a) => a.ctx.shoot_type === 'natali').map((a) => a.client.quote_id),
+    ...Object.values(editorLoad({ clients, stateOf, checks, tasks })).flatMap((l) => l.jobs).filter((j) => j.client.shoot_type === 'natali').map((j) => j.client.quote_id),
+  ];
+  selections = await loadSelections([...new Set(natali.filter(Boolean))]).catch(() => new Map());
   lastLoad = Date.now();
   $('state').textContent = '';
   if (!busy()) renderKeepingFocus();
@@ -180,16 +191,24 @@ function assignCard(a, load, now) {
       h('button', { type: 'button', class: 'btn btn-primary btn-sm', id: `as-open-${a.key.replace(/\W/g, '_')}`, 'aria-label': `שיוך עורך: ${a.client.name}${roundText(a.ctx)}`, onclick: () => openAssign(a) }, 'שיוך עורך')));
 }
 
+// Each job can change hands from here ("החלפת עורך"): the notice of an automatic
+// assignment says so, and this is where Ofir looks for it.
+const swapId = (j) => `sw-${j.client.id}${j.n ? `-r${j.n}` : ''}`;
 function loadCard(l, now) {
   return h('li', { class: 'of-card of-editor' },
     h('div', { class: 'of-head' }, personChip(l.editor), l.editor === 'nirel' ? h('span', { class: 'tag' }, 'נטלי בלבד') : null,
       h('span', { class: 'of-line' }, loadText(l))),
     l.jobs.length ? h('ul', { class: 'of-jobs' }, ...l.jobs.map((j) => h('li', {},
       h('a', { href: clientUrl(j.client.id, `${j.pre ? j.pre.replace('.', '-') : ''}p22`) }, j.client.name, j.n ? ` · סבב ${j.n}` : ''),
-      ` · ${j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
+      ` · ${j.landing ? 'בקליטה' : j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
       j.stage === 'closing' ? ' · תיקונים וסגירה' : '',
       j.paused ? [' ', h('span', { class: 'tag tag-warn' }, 'עצורה')] : null,
-      j.dueAt ? h('span', { class: `muted${j.dueAt < now ? ' late' : ''}` }, ` · יעד ${formatWhen(j.dueAt, now)}`) : null))) : null);
+      autoReasonOf(checksOf(j.client), j.pre) ? [' ', h('span', { class: 'tag' }, 'שויך אוטומטית')] : null,
+      j.dueAt ? h('span', { class: `muted${j.dueAt < now ? ' late' : ''}` }, ` · יעד ${formatWhen(j.dueAt, now)}`) : null,
+      h('button', {
+        type: 'button', class: 'btn-text sw-btn', id: swapId(j),
+        'aria-label': `החלפת עורך: ${j.client.name}${j.n ? `, סבב ${j.n}` : ''} (עכשיו ${PEOPLE[l.editor].name})`, onclick: () => openSwap(l.editor, j),
+      }, 'החלפת עורך')))) : null);
 }
 
 // ── Dialogs ─────────────────────────────────
@@ -217,6 +236,22 @@ function openQa(x) {
   fill($('qa-prev'), last ? h('details', { class: 'of-prev', open: true },
     h('summary', {}, `מה הוחזר בסבב ${last.n} (לבדוק שתוקן)`),
     h('ul', {}, ...last.issues.map((i) => h('li', {}, i.ref ? `${k.unit} ${i.ref}: ${i.text}` : i.text)))) : null);
+  // What is being checked. The videos are in the client's Drive (the editor's link, or
+  // the card's); the ones uploaded into the system, if any, are played here. The
+  // graphics are in the client's files.
+  const videos = x.kind === 'videos';
+  const cs = checksOf(x.client);
+  const drive = videos ? videosLinkOf(x.client, cs, x.pre) : null;
+  forgetFiles(x.client.id);
+  fill($('qa-files'),
+    drive ? h('a', { class: 'btn', id: 'qa-drive', href: drive, target: '_blank', rel: 'noopener noreferrer' }, 'פתיחת הסרטונים בדרייב', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')) : null,
+    videos && !drive ? h('p', { class: 'hint', id: 'qa-nodrive' }, 'אין קישור לסרטונים בדרייב. אם גם לא הועלו לכאן סרטונים: לבקש מהעורך.') : null,
+    mountWorkFiles({
+      client: x.client, kind: videos ? 'deliverable_video' : 'deliverable_graphic', me, readOnly: true, hideEmpty: videos, idp: 'qa-f', toast,
+      window: videos ? videoWindow(x.client, cs, Number(/^r(\d+)\./.exec(x.pre)?.[1] || 1)) : graphicsWindow(cs, 'rest'),
+      title: videos ? 'סרטונים שהועלו למערכת' : 'הגרפיקות לבדיקה',
+      total: videos ? null : Math.max(0, (Number(x.client.deliverables?.graphics) || 0) - 9) || null,
+    }));
   $('qa-checks-legend').textContent = `${k.checks.length} הבדיקות (${k.title})`;
   renderChecks();
   setMode('check');
@@ -362,62 +397,148 @@ $('qa-send-return').addEventListener('click', async () => {
 // The assignment (22א).
 const asDlg = dialog('dlg-assign');
 let asItem = null;
+const AS_AFTER = $('as-after').textContent;
 function openAssign(a) {
   asItem = a;
   returnTo = document.activeElement?.id || null;
   const type = a.ctx.shoot_type;
   const joint = jointFromSelection(selections.get(a.client.quote_id));
-  $('as-h').textContent = `שיוך עורך · ${a.client.name}${roundText(a.ctx)}`;
-  $('as-meta').textContent = [SHOOT_TYPES[type]?.name, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.dueAt ? `לשייך עד ${formatWhen(a.dueAt)}` : 'לשייך עד 12:00 ביום העסקים שאחרי הצילום'].filter(Boolean).join(' · ');
+  const sw = a.swap || null;
+  $('as-h').textContent = `${sw ? 'החלפת עורך' : 'שיוך עורך'} · ${a.client.name}${roundText(a.ctx)}`;
+  $('as-meta').textContent = sw
+    ? [SHOOT_TYPES[type]?.name, `עכשיו אצל ${PEOPLE[sw.from].name}`, sw.job.day === null ? null : dayText(sw.job.day, sw.job.of), sw.job.paused ? 'העריכה עצורה' : null].filter(Boolean).join(' · ')
+    : [SHOOT_TYPES[type]?.name, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.dueAt ? `לשייך עד ${formatWhen(a.dueAt)}` : 'לשייך עד 12:00 ביום העסקים שאחרי הצילום'].filter(Boolean).join(' · ');
   $('as-joint-wrap').hidden = type !== 'natali';
   $('as-joint').checked = joint;
   $('as-reason').value = '';
   $('as-err').hidden = true;
+  $('as-submit').textContent = sw ? 'החלפה' : 'שיוך';
+  $('as-after').textContent = sw ? 'ההחלפה נרשמת בהיסטוריה של הלקוח, העורך החדש מקבל את ההודעה על לקוח חדש בעריכה, ומוכן לו וואטסאפ עם שני המועדים.' : AS_AFTER;
+  // The editing clocks of a swap (app/qa-logic.js swapClock): a late job keeps its deadlines unless Ofir says otherwise.
+  $('as-clock-wrap').hidden = !sw;
+  if (sw) {
+    const now = new Date();
+    const k = swapClock(sw.job, now);
+    $('as-clock-restart').checked = k.choice === 'restart';
+    $('as-clock-keep').checked = k.choice === 'keep';
+    $('as-clock-restart-label').textContent = `לספור מחדש מהיום: יעד ${formatWhen(k.restartDue, now)}`;
+    $('as-clock-keep-label').textContent = k.keepDue ? `להשאיר את המועד: יעד ${formatWhen(k.keepDue, now)}${k.late ? ' (באיחור)' : ''}` : 'להשאיר את המועדים כמו שהם';
+    $('as-clock-late').hidden = !k.late;
+    $('as-clock-late').textContent = k.late ? 'העריכה כבר באיחור. ההחלפה לא מאפסת את האיחור, אלא אם בוחרים לספור מחדש וכותבים למה.' : '';
+  }
   renderEditors(true);
   asDlg.showModal();
-  ($('as-editors').querySelector('input:checked') || $('as-editors').querySelector('input'))?.focus();
+  ($('as-editors').querySelector('input:checked') || $('as-editors').querySelector('input:not(:disabled)'))?.focus();
 }
 function renderEditors(preselect = false) {
   const a = asItem;
   const type = a.ctx.shoot_type;
   const joint = $('as-joint').checked;
   const load = editorLoad({ clients, stateOf, checks, tasks, now: new Date() });
-  const chosen = preselect ? preselected(type, joint) : $('as-editors').querySelector('input:checked')?.value || null;
   const pre = preselected(type, joint);
+  const from = a.swap?.from || null;
+  // A swap preselects nobody but the rule's own (Nirel for Natali), never the one who has it now.
+  const first = pre && pre !== from ? pre : null;
+  const chosen = preselect ? first : $('as-editors').querySelector('input:checked')?.value || null;
   fill($('as-editors'), ...eligibleEditors(type).map((k) => h('label', { class: 'wrow as-editor', for: `as-e-${k}` },
-    h('input', { type: 'radio', class: 'radio', name: 'as-editor', id: `as-e-${k}`, value: k, checked: chosen === k, onchange: syncReason }),
+    h('input', { type: 'radio', class: 'radio', name: 'as-editor', id: `as-e-${k}`, value: k, checked: chosen === k, disabled: k === from, onchange: syncReason }),
     h('span', { class: 'wlabel' }, h('strong', {}, PEOPLE[k].name), pre === k ? h('span', { class: 'tag' }, 'מסומנת מראש') : null,
+      k === from ? h('span', { class: 'tag' }, 'העורך הנוכחי') : null,
       h('span', { class: 'muted small as-load' }, loadText(load[k]))))));
   syncReason();
+}
+// A swap that restarts the clocks of a late job needs its reason too.
+function swapChoice() {
+  const sw = asItem?.swap;
+  if (!sw) return { late: false, restart: false };
+  return { late: swapClock(sw.job, new Date()).late, restart: $('as-clock-restart').checked };
+}
+function needsReason(editor, joint) {
+  return swapReasonNeeded({ shootType: asItem.ctx.shoot_type, joint, editor, ...swapChoice() });
 }
 function syncReason() {
   const a = asItem;
   const editor = $('as-editors').querySelector('input:checked')?.value || null;
   const joint = $('as-joint').checked;
-  const need = reasonNeeded({ shootType: a.ctx.shoot_type, joint, editor });
+  const need = needsReason(editor, joint);
   $('as-reason-label').textContent = need ? 'סיבה (חובה)' : 'סיבה (לא חובה)';
   $('as-reason').required = need;
   $('as-reason-hint').textContent = reasonHint({ shootType: a.ctx.shoot_type, joint }) || 'הסיבה נשמרת בהיסטוריה של הלקוח.';
 }
 $('as-joint').addEventListener('change', () => renderEditors(true));
+for (const id of ['as-clock-restart', 'as-clock-keep']) $(id).addEventListener('change', syncReason);
+
+// "החלפת עורך": the same dialog, for a job that already has an editor.
+function openSwap(from, job) {
+  const c = job.client;
+  const s = stateOf(c).states.find((x) => x.proc.id === `${job.n ? `r${job.n}-` : ''}p22a`);
+  if (!s) { toast('לא נמצא שיוך להחלפה. רעננו את העמוד.'); return; }
+  openAssign({ key: `${c.id}:${s.proc.id}`, client: c, pre: job.pre, n: job.n, proc: s.proc, ctx: s.proc.ctx || c, state: s, dueAt: s.dueAt, swap: { from, job } });
+}
+async function saveSwap(a, editor, joint, reason) {
+  const c = a.client;
+  const { from, job } = a.swap;
+  const now = new Date();
+  const k = swapClock(job, now);
+  const restart = $('as-clock-restart').checked;
+  const assigned = `${a.pre}p22a.assigned`;
+  const prev = checks[c.id]?.[assigned]?.at || null;
+  const client = await updateClient(c.id, withEditor(c, a.n, editor));
+  clients = clients.map((x) => (x.id === c.id ? client : x));
+  // Marking 22א again, as the first assignment does, starts the editing days over.
+  if (restart) for (const row of await setChecksBulk(c.id, ['p22a.load', 'p22a.assigned'].map((x) => `${a.pre}${x}`), 'done')) (checks[c.id] ||= {})[row.item_key] = row;
+  (checks[c.id] ||= {})[REASON_KEY(a.pre)] = await setCheck(c.id, REASON_KEY(a.pre), 'done',
+    swapNote({ editor, from, reason, preselected: preselected(a.ctx.shoot_type, joint), joint, restart, late: k.late, prev }));
+  // The new editor starts: a pause of the one before ends, and its tasks close (as Lior's reassignment does).
+  if (job.paused) {
+    const pause = `${a.pre}p22.pause`;
+    try {
+      await clearCheck(c.id, pause);
+      delete checks[c.id][pause];
+      for (const t of tasks.filter((x) => x.client_id === c.id && x.source === 'pause' && !x.done_at)) {
+        const done = await setTaskDone(t.id, true);
+        tasks = tasks.map((x) => (x.id === t.id ? done : x));
+      }
+    } catch { /* the swap is saved; the pause is closed in the card */ }
+  }
+  states.clear();
+  const due = restart ? `מועדי העריכה נספרים מהיום: יעד ${formatWhen(k.restartDue, now)}.` : k.late ? 'המועדים לא השתנו: העריכה נשארת באיחור.' : 'המועדים לא השתנו.';
+  return { client, text: `${c.name} עבר מ${PEOPLE[from].name} ל${PEOPLE[editor].name}. ${due}` };
+}
 $('as-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const a = asItem;
   const editor = $('as-editors').querySelector('input:checked')?.value || null;
   const joint = $('as-joint').checked && a.ctx.shoot_type === 'natali';
   const reason = $('as-reason').value.trim();
-  if (!editor) { showErr('as-err', 'בחרו עורך.'); $('as-editors').querySelector('input')?.focus(); return; }
-  if (reasonNeeded({ shootType: a.ctx.shoot_type, joint, editor }) && !reason) {
+  if (!editor) { showErr('as-err', a.swap ? 'בחרו את העורך החדש.' : 'בחרו עורך.'); $('as-editors').querySelector('input:not(:disabled)')?.focus(); return; }
+  if (needsReason(editor, joint) && !reason) {
     $('as-reason').setAttribute('aria-invalid', 'true');
-    showErr('as-err', joint ? 'ביום צילום משותף רושמים למה נבחר העורך.' : `ניראל מסומנת מראש בצילום של נטלי. כתבו למה ${PEOPLE[editor].name}.`);
+    showErr('as-err', !reasonNeeded({ shootType: a.ctx.shoot_type, joint, editor }) ? 'העריכה כבר באיחור. כדי לספור את המועדים מחדש כתבו למה.'
+      : joint ? 'ביום צילום משותף רושמים למה נבחר העורך.' : `ניראל מסומנת מראש בצילום של נטלי. כתבו למה ${PEOPLE[editor].name}.`);
     $('as-reason').focus();
     return;
   }
   $('as-reason').removeAttribute('aria-invalid');
   $('as-submit').disabled = true;
   const c = a.client;
-  const now = new Date();
   let client = c;
+  if (a.swap) {
+    let saved;
+    try {
+      saved = await saveSwap(a, editor, joint, reason);
+    } catch (err) {
+      showErr('as-err', `ההחלפה לא נשמרה. ${errorText(err)}`);
+      $('as-submit').disabled = false;
+      return;
+    }
+    $('as-submit').disabled = false;
+    asDlg.close();
+    toast(saved.text);
+    // As after the first assignment: a ready WhatsApp to the editor with both dates and the link.
+    offerHandoff({ client: saved.client, key: `${a.pre}p22a.assigned`, checks: () => checks[c.id], me });
+    return;
+  }
   try {
     client = await updateClient(c.id, withEditor(c, a.n, editor));
     clients = clients.map((x) => (x.id === c.id ? client : x));
@@ -434,12 +555,12 @@ $('as-form').addEventListener('submit', async (e) => {
     $('as-submit').disabled = false;
     return;
   }
-  // Ofir's folder task (24), due at the end of editing day 1.
+  // Ofir's folder task (24), due at the end of editing day 1 (once: a swap opens none).
   let folder = '';
   const title = folderTitle(a.n);
   if (checks[c.id][`${a.pre}p24.folder`]?.state !== 'done' && !tasks.some((t) => t.client_id === c.id && t.title === title && !t.done_at)) {
     try {
-      const t = await addTask({ client_id: c.id, title, owner: 'ofir', due_on: folderDueOn(now) });
+      const t = await addTask({ client_id: c.id, title, owner: 'ofir', due_on: folderDueOn(new Date()) });
       tasks = [t, ...tasks];
       folder = ` נפתחה לאופיר משימת תיקייה (24) עד ${formatWhen(endOfDayIL(dayFromKeyIL(t.due_on)))}.`;
     } catch { folder = ' משימת התיקייה (24) לא נפתחה: לפתוח אותה בכרטיס.'; }

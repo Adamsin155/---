@@ -5,15 +5,16 @@
 // office hours come from protocol-logic.js.
 //
 // Three kinds of clock:
-//   deal    a new deal: the three 5-minute office-time clocks of processes 1, 2
-//           and 3, from the deal, while the person still has open items there.
+//   deal    a new deal: the office-time clocks of processes 1 (the contract, 10
+//           minutes: the owner's decision of 3.10.2026), 2 and 3 (5 minutes each),
+//           from the deal, while the person still has open items there.
 //   answer  "the client did not answer": 10, 10 and 5 office minutes from the
 //           moment the 9 graphics (7), the rest of the graphics (23) or the
 //           videos (26) were marked sent, until the client answered. Then Irit calls.
 //   soon    any other process of the person due within the next hour.
 // A clock that ran out stays in the bar, red, until the end of that day (a
 // "soon" one for an hour; after that it is in the "overdue" list).
-import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, ANSWERED, waitOf, IMPORT_NOTE } from './protocol-logic.js';
+import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, ANSWERED, waitOf, IMPORT_NOTE, inLanding, workFloor, parseDate } from './protocol-logic.js';
 import { endOfDayIL, partsIL } from './tz.js';
 
 const MIN = 6e4;
@@ -30,9 +31,12 @@ export const DEAL_CLOCKS = {
 // The clock stops when the client answered (the ANSWERED mark), approved, Irit
 // called (the process's `call` item) or the process waits on the client; only
 // what happened after this sending counts (sent again after a fix: a new clock).
+// `approval` is the client's own approval, also when it comes from the status page
+// (approve_item writes the same key). Every clock needs one: without it Irit is
+// rung "call the client" about something the client already approved.
 export const ANSWER_CLOCKS = {
   p07: { minutes: 10, what: '9 הגרפיקות הראשונות', approval: 'p07.approved' },
-  p23: { minutes: 10, what: 'יתרת הגרפיקות' },
+  p23: { minutes: 10, what: 'יתרת הגרפיקות', approval: 'p23.approved' },
   p26: { minutes: 5, what: 'הסרטונים', approval: 'p27.approved' },
 };
 
@@ -87,7 +91,8 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
   const out = [];
   const add = (c) => { if (inBar(c.kind, c.deadline, now)) out.push({ ...c, ...clockTime(c, now) }); };
   for (const client of clients) {
-    if (client.status === 'cancelled' || client.status === 'ended') continue;
+    // No clock runs on a client in landing (docs/ops.md, section 41).
+    if (client.status === 'cancelled' || client.status === 'ended' || inLanding(client)) continue;
     const checks = checksByClient[client.id] || {};
     const state = stateOf ? stateOf(client) : clientState(client, checks, now);
     const phone = client.phone || null;
@@ -100,12 +105,15 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
       groups.get(e.proc.id).entries.push(e);
     }
     for (const g of groups.values()) {
-      const deal = DEAL_CLOCKS[g.proc.id];
+      // A client activated out of landing is not a new deal: its contract, group and
+      // meeting have no "5 minutes" countdown (they are ordinary deadlines now).
+      const floor = workFloor(client);
+      const deal = floor && parseDate(client.deal_at) < floor ? null : DEAL_CLOCKS[g.proc.id];
       if (deal) {
         const entries = deal.until ? g.entries.filter((e) => deal.until.includes(e.item.key)) : g.entries;
         if (!entries.length) continue;
         add({
-          id: `deal:${client.id}:${g.proc.id}`, kind: 'deal', client, proc: g.proc, what: deal.what, minutes: 5,
+          id: `deal:${client.id}:${g.proc.id}`, kind: 'deal', client, proc: g.proc, what: deal.what, minutes: g.proc.due?.minutes || 5,
           deadline: g.dueAt, office: true, people: peopleOf(entries), phone,
         });
       } else if (!endOfDay(g.dueAt)) {

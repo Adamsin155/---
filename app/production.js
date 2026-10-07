@@ -35,6 +35,7 @@
 import { PEOPLE, WORK_HOURS } from './protocol.js';
 import {
   roundsOf, roundContext, businessDaysBetween, parseDate, erevOn, IMPORT_NOTE, addBusinessDays, isBusinessDay, nextWorkMoment,
+  inLanding, workFloor,
 } from './protocol-logic.js';
 import { partsIL, dayKeyIL, daysBetweenIL, atTimeIL, endOfDayIL, addDaysIL } from './tz.js';
 import { qaState, qaRounds } from './office-marks.js';
@@ -111,6 +112,7 @@ export function noteOf(check) {
 const done = (checks, key) => checks?.[key]?.state === 'done';
 const resolved = (checks, key) => ['done', 'na'].includes(checks?.[key]?.state);
 const atOf = (checks, key) => (done(checks, key) ? new Date(checks[key].at) : null);
+const laterOf = (at, floor) => (at && floor && at < floor ? floor : at);
 const json = (note) => { try { const v = JSON.parse(note); return v && typeof v === 'object' ? v : null; } catch { return null; } };
 const nums = (list) => [...new Set((Array.isArray(list) ? list : []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].sort((a, b) => a - b);
 // Per-video notes, as [{ n, text }], from { videos: [...] } (a video may be a number,
@@ -139,7 +141,9 @@ export function clientFixedOf(checks, pre = '') {
 export const clientFixedNote = (videos) => JSON.stringify({ videos: nums(videos) });
 
 // "חסר לוגו / טלפון / חומר": reported, and still holding the process (its wait).
-export const MISSING_WHAT = [['logo', 'לוגו'], ['phone', 'טלפון העסק'], ['footage', 'חומר צילום']];
+// 'upload': a video does not go up into the system (uploading there is optional: the
+// videos are handed over in the client's Drive; a failed upload can still be reported).
+export const MISSING_WHAT = [['logo', 'לוגו'], ['phone', 'טלפון העסק'], ['footage', 'חומר צילום'], ['upload', 'העלאה למערכת (לא עובדת)']];
 export const missingText = (what) => MISSING_WHAT.filter(([k]) => (what || []).includes(k)).map(([, l]) => l).join(', ');
 export function missingOf(checks, pre = '') {
   const m = checks?.[`${pre}p22.missing`];
@@ -178,7 +182,9 @@ export function editingCases(client, checks, person, state) {
     const st = (b) => state?.states.find((s) => s.proc.id === pid(b)) || null;
     out.push({
       key: `${client.id}:${j.n}`, client, round: j.n, pre: j.pre, ctx: j.ctx,
-      assignedAt: atOf(checks, `${j.pre}p22a.assigned`),
+      // "יום X מתוך 3" of a client that came from the old system: from its activation,
+      // and not counted at all while it is in landing.
+      assignedAt: inLanding(client) ? null : laterOf(atOf(checks, `${j.pre}p22a.assigned`), workFloor(client)),
       p22: st('p22'), p24: st('p24'), p25: st('p25'), p27: st('p27'),
     });
   }
@@ -239,7 +245,7 @@ export function selfCheck(needsDropbox) {
     ['p22.self.closing', 'סגיר עם הלוגו והטלפון הנכונים של העסק, בלי תוספות'],
     ['p22.self.broll', 'אותה תבנית בי־רול בלא יותר מ־3 סרטונים'],
     ['p22.self.complete', 'כל כמות הסרטונים הושלמה ותואמת לתסריטים'],
-    ['p24.drive', 'כל הקבצים בדרייב ונפתחים, בלי גרסאות ישנות'],
+    ['p24.drive', 'כל הסרטונים בדרייב של הלקוח ונפתחים, בלי גרסאות ישנות'],
     ...(needsDropbox ? [['p24.dropbox', 'הסרטונים הועלו גם ל־Dropbox']] : []),
   ];
 }
@@ -300,12 +306,13 @@ export function firstReturnOf(checks, pre = '') {
 export const percent = (rate) => (rate === null || rate === undefined ? '—' : `${Math.round(rate * 100)}%`);
 
 // ── Nirel's briefs ─────────────────────────
-// Finishing a brief task: what was done (required), what is left, and the Drive link.
+// Finishing a brief task: what was done (required), what is left, and a link to the
+// result (the field is still named `drive` in the saved result).
 export function briefResultErrors(v) {
   const out = {};
   if (!String(v.done || '').trim()) out.done = 'כתבו בקצרה מה בוצע.';
   const link = String(v.drive || '').trim();
-  if (!link) out.drive = 'הדביקו את הקישור לדרייב.';
+  if (!link) out.drive = 'הדביקו קישור לתוצר.';
   else if (!/^https:\/\/\S+$/i.test(link)) out.drive = 'קישור מלא, שמתחיל ב־https://.';
   else if (/password|passwd|pwd=|token=|key=/i.test(link)) out.drive = 'קישור בלי סיסמה או קוד.';
   return out;

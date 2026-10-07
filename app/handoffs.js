@@ -9,7 +9,7 @@
 // unit tests (tests/handoffs.test.mjs). Item keys are the protocol's own
 // (app/protocol.js); they are never renamed.
 import { PEOPLE, PROCESSES } from './protocol.js';
-import { clientState, addWorkingMinutes, isBusinessDay, isImmediate } from './protocol-logic.js';
+import { clientState, addWorkingMinutes, isBusinessDay, isImmediate, inLanding } from './protocol-logic.js';
 import { partsIL, daysBetweenIL, atTimeIL, addDaysIL } from './tz.js';
 
 // The next person, from the client and its marks. `ctx` is the client, or the
@@ -73,7 +73,7 @@ export const HANDOFFS = [
     to: [{
       id: 'editor', person: editorOf, who: 'העורך המשויך', proc: 'p22', until: 'p22.received',
       text: 'הלקוח {client} עובר לעריכה אצלך. הכונן, התסריטים והלוגו בכרטיס הלקוח.',
-      due: [{ label: 'בדרייב ואצל אופיר לבקרה', proc: 'p24' }, { label: 'סגירה, כולל תיקוני הלקוח', proc: 'p27' }],
+      due: [{ label: 'בדרייב של הלקוח ואצל אופיר לבקרה', proc: 'p24' }, { label: 'סגירה, כולל תיקוני הלקוח', proc: 'p27' }],
     }],
   },
   {
@@ -97,7 +97,7 @@ export const HANDOFFS = [
     id: 'qa', on: 'p24.notify', label: 'הסרטונים מוכנים לבקרה',
     to: [{
       id: 'ofir', person: 'ofir', proc: 'p25',
-      text: 'הסרטונים של {client} בדרייב ומוכנים לבקרת האיכות שלך.',
+      text: 'הסרטונים של {client} בדרייב של הלקוח ומוכנים לבקרת האיכות שלך.',
       due: [{ label: 'יעד', proc: 'p25', minutes: 60 }],
     }],
   },
@@ -117,12 +117,12 @@ export const HANDOFFS = [
     ],
   },
   {
-    // The editor's final versions in the Drive (p27.final); Ilai's "קיבלתי" is
+    // The editor's final versions in the client's Drive (p27.final); Ilai's "קיבלתי" is
     // p27.toilai (protocol v5), so once he marked it there is nothing to send.
     id: 'final', on: 'p27.final', label: 'הגרסאות הסופיות עברו לעילאי',
     to: [{
       id: 'ilai', person: 'ilai', proc: 'p28', until: 'p27.toilai',
-      text: 'הגרסאות הסופיות של {client} בדרייב. אפשר לתזמן את התכנים ולמלא את הגאנט.',
+      text: 'הגרסאות הסופיות של {client} בדרייב של הלקוח. אפשר לתזמן את התכנים ולמלא את הגאנט.',
       due: [{ label: 'יעד', proc: 'p28' }],
     }],
   },
@@ -164,7 +164,8 @@ export function describeMark(key, note = null) {
 }
 
 // A client that was cancelled or has ended has nothing more to hand over.
-export const isClosed = (client) => client?.status === 'cancelled' || client?.status === 'ended';
+// Nothing is handed over, and no hand-over clock runs, on a client in landing.
+export const isClosed = (client) => client?.status === 'cancelled' || client?.status === 'ended' || inLanding(client);
 
 // ── Israel time in words ──────────────────
 const WEEKDAYS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];

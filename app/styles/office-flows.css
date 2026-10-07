@@ -86,6 +86,19 @@
 .ps-row .ps-changes { color: var(--accent-deep); }
 .ps-row.is-seen { opacity: .8; }
 .ps-seen { font-size: 13.5px; color: var(--ok); font-weight: 500; }
+/* A stuck client: how long it has been open, and the three ways out of the check. */
+.ps-age { color: var(--text-2); }
+.ps-stuck-acts { display: grid; gap: 6px; }
+.ps-why { display: grid; gap: 4px; font-size: 13.5px; }
+.ps-why-row { display: flex; gap: 8px; align-items: center; }
+.ps-why-row .input { flex: 1 1 auto; min-inline-size: 0; min-height: 44px; }
+.ps-why .err { margin: 0; }
+/* The editor's jobs on Ofir's screen: "החלפת עורך" at the end of each line. */
+.of-jobs .sw-btn { margin-inline-start: 8px; font-size: 13.5px; }
+.as-clock { border: 0; margin: 0; padding: 0; display: grid; gap: 4px; }
+.as-clock legend { font-weight: 600; margin-bottom: 6px; padding: 0; }
+.as-clock .wrow { min-height: 44px; display: flex; align-items: center; gap: 10px; }
+.as-clock-late { margin: 0; font-size: 13.5px; color: var(--late); font-weight: 500; }
 .ps-rest { margin-top: 12px; display: grid; gap: 8px; }
 .ps-rest .btn { justify-self: start; }
 .ps-health-group { margin-top: 10px; }
@@ -128,6 +141,8 @@
   .ps-form .row2, .dc-form .row3 { grid-template-columns: 1fr; }
   .of-issue .of-ref { flex: 1 1 100%; }
   .of-head a, .of-jobs a, .ps-row a, .dc-card a { display: inline-flex; align-items: center; min-height: 44px; }
+  .of-jobs .sw-btn { min-height: 44px; min-inline-size: 44px; display: inline-flex; align-items: center; }
+  .ps-why-row .btn { min-height: 44px; }
 }
 
 /* Choices: native radios, large enough to hit, in the brand violet. */

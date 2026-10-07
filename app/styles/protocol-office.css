@@ -81,6 +81,35 @@ a.btn-text:hover { text-decoration: underline; text-underline-offset: 3px; }
 .rv-day .rv-s { color: inherit; }
 .rv-narrow { display: none; }
 
+/* Irit's eleven topics (process 32): one line each, the items one tap away. */
+.tp-block { display: grid; gap: 6px; }
+.tp-list { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.tp-row + .tp-row { border-top: 1px solid var(--line); }
+.tp-row summary, .tp-row.is-empty { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 12px; }
+.tp-row summary { cursor: pointer; list-style: none; }
+.tp-row summary::-webkit-details-marker { display: none; }
+.tp-row summary::after { content: ''; inline-size: 7px; block-size: 7px; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg); margin-inline-start: 4px; flex: none; }
+.tp-row details[open] > summary::after { transform: rotate(-135deg); }
+.tp-row details[open] > summary { background: var(--bg-2); }
+.tp-name { flex: 1 1 auto; min-inline-size: 0; font-weight: 600; color: var(--text); }
+.tp-row.is-empty .tp-name { font-weight: 400; color: var(--muted); }
+.tp-none { font-size: 13px; color: var(--muted); padding-inline-end: 15px; }
+.tp-row .n { font-family: var(--mono); font-size: 13.5px; font-weight: 600; color: var(--text); min-inline-size: 22px; text-align: center; padding: 1px 7px; border-radius: 999px; background: var(--ds-soft); }
+.tp-late { font-size: 12.5px; font-weight: 600; color: var(--ds-hot-text); white-space: nowrap; }
+.tp-items { list-style: none; margin: 0; padding: 2px 12px 6px; display: grid; }
+.tp-item { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 6px 0; font-size: 14px; }
+.tp-item + .tp-item, .tp-items > .more-row { border-top: 1px dashed var(--line); }
+.tp-item .wclient, .tp-who { font-weight: 600; }
+.tp-text { color: var(--text-2); flex: 1 1 200px; min-inline-size: 0; overflow-wrap: anywhere; }
+.tp-item .btn-text, .tp-more .btn-text, .tp-msgs .btn-text { font-size: 13.5px; }
+.tp-esc { color: var(--text-2); }
+.tp-more { margin: 0; padding: 0 12px 8px; }
+.tp-msgs { margin: 0; }
+.tp-left { margin: 0; font-size: 13.5px; color: var(--text-2); }
+.rv-record { margin: 0; font-size: 13px; }
+.tp-unseen { margin: 6px 0 0; padding-inline-start: 18px; }
+#dlg-unseen { max-width: min(460px, calc(100vw - 32px)); }
+
 .team-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; }
 .row-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0 14px; }
 .waiting-list .wait-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
@@ -220,6 +249,10 @@ details.brief > summary { cursor: pointer; color: var(--accent); min-height: 32p
   .rv-narrow .rv-week { grid-template-columns: 1fr; }
   .rv-day { grid-auto-flow: column; justify-content: start; align-items: center; gap: 8px; }
   .rv-check, .rv-main .btn { min-height: 44px; }
+  .tp-item .wclient, .tp-item .btn-text, .tp-more .btn-text, .tp-msgs .btn-text { min-height: 44px; display: inline-flex; align-items: center; }
+  .tp-item { padding: 0; }
+  .tp-text { flex-basis: 100%; padding-bottom: 6px; }
+  #dlg-unseen .dlg-foot .btn { min-height: 44px; flex: 1 1 auto; }
   .contact a, .row-acts > *, .waiting-list a.btn-text, .note-field .btn-text { min-height: 44px; display: inline-flex; align-items: center; }
   .row-acts { justify-content: flex-start; }
   .perf { padding-inline: 12px; }

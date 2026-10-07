@@ -71,6 +71,8 @@
       </div>
 
       <section class="push-card" id="push-card" aria-labelledby="push-h" hidden></section>
+      <!-- The photographer's monthly availability (app/availability-ui.js): his card, or the office's folded line. -->
+      <div id="availability" hidden></div>
       <p class="prod-summary" id="sh-summary" role="status"></p>
       <div class="prod-list" id="sh-list"></div>
 
@@ -95,6 +97,18 @@
         <button type="button" class="btn-text" id="inbox-read">סימון הכול כנקרא</button>
       </div>
       <ul class="inbox-list" id="inbox-list"></ul>
+    </div>
+  </dialog>
+
+  <!-- Eli: the scripts of one of his shoot days, read-only (public.shoot_scripts). -->
+  <dialog id="dlg-scripts" class="dlg-wide" aria-labelledby="scr-h">
+    <div class="dlg-head">
+      <h2 id="scr-h" tabindex="-1">התסריטים</h2>
+      <button type="button" class="close" data-close aria-label="סגירה">×</button>
+    </div>
+    <div class="dlg-body">
+      <p class="muted" id="scr-sum" role="status"></p>
+      <ol class="sh-scripts" id="scr-list"></ol>
     </div>
   </dialog>
 

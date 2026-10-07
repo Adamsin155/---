@@ -6,6 +6,9 @@
 //   ממתין לכונן → (1) קיבלתי את הכונן והתחלתי → (2) מוכן לבדיקה → (3) תיקונים מאופיר
 //   (the office's returns, app/office-ui.js fixList) → (4) תיקונים הושלמו, הגרסאות
 //   הסופיות בדרייב → אצל עילאי until he marks "קיבלתי" (p27.toilai).
+// The finished videos stay in the client's Google Drive (the owner's decision of
+// 7.10.2026): (2) asks for the folder's link and (4) stands on it. Uploading them
+// here too (app/files-ui.js mountWorkFiles) is optional, and stands in for the link.
 // The business phone and the logo come from the characterization form, the
 // highlights from the focus call (app/intake-data.js, app/briefs.js).
 // Nirel also gets her "בריפים" inbox here. Each editor sees their own on-time and
@@ -29,8 +32,12 @@ import { mountPush } from './push.js';
 import { offerHandoff } from './handoff-ui.js';
 import { closedProcesses } from './health.js';
 import * as P from './production.js';
+import { mountWorkFiles, workFilesState, forgetFiles, readFiles } from './files-ui.js';
+import { charViewHref } from './intake-ui.js';
+import { videoWindow, videosGate as gateOf, videosLinkOf, driveLinkProblem } from './files-logic.js';
 
 let me = null;
+let myEmail = '';
 let clients = [];
 let checks = {};
 let tasks = [];
@@ -62,7 +69,9 @@ async function load() {
   }
   states.clear();
   const ids = [...new Set(allJobs().map((j) => j.client.id))];
-  [chars, briefs, logos] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids)]);
+  for (const cid of ids) forgetFiles(cid);
+  // The files too, before the cards are drawn: "מוכן לבדיקה" is locked or open at once.
+  [chars, briefs, logos] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), ...ids.map(readFiles)]);
   lastLoad = Date.now();
   $('state').textContent = '';
   await tidyBlocks();
@@ -105,7 +114,9 @@ function renderKeepingFocus(focusId = document.activeElement?.id) {
   const y = window.scrollY;
   render();
   window.scrollTo({ top: y });
-  if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+  // The next step's button may be locked until a video is up: the upload button then.
+  const el = focusId ? document.getElementById(focusId) : null;
+  (el?.disabled ? document.getElementById(focusId.replace(/-go$/, '-v-add')) || el : el)?.focus({ preventScroll: true });
 }
 function goToHash() {
   const id = decodeURIComponent(location.hash.slice(1));
@@ -190,10 +201,51 @@ function eliNotes(job) {
   return text ? h('details', { class: 'ed-more', open: true }, h('summary', {}, 'הערות של אלי מיום הצילום'), h('p', { class: 'ed-note' }, text)) : null;
 }
 
+// ── The round's finished videos ─────────────
+// In the client's Google Drive (docs/ops.md, section 37). The editor pastes the
+// folder's link in "מוכן לבדיקה" (kept as the note of p24.drive: an editor may not
+// write the card's links; a link the office put in the card is used as it is), and
+// the final hand-off stands on the same link: after the client's notes the fixed
+// versions replace the files in that folder. Uploading the videos here as well is
+// optional; an uploaded video of this round stands in for the link.
+const VIDEO = 'deliverable_video';
+const FAIL_HELP = 'אם זה חוזר: ״חסר לוגו / טלפון / חומר״, לסמן ״העלאה למערכת״. עירית מקבלת מיד, וליאור אחריה.';
+const windowOf = (job) => videoWindow(job.client, cs(job.client), job.round);
+const linkOf = (job) => videosLinkOf(job.client, cs(job.client), job.pre);
+function videosGate(job) {
+  const state = workFilesState(job.client.id);
+  return gateOf({ link: linkOf(job), files: state.files, window: windowOf(job), state });
+}
+// Where the videos are (the Drive link, once known), and under it, closed, the
+// optional upload into the system.
+function videosBlock(job, st) {
+  if (st.key === 'waiting') return null;
+  const id = cardId(job);
+  const link = linkOf(job);
+  const gate = videosGate(job);
+  const upload = mountWorkFiles({
+    client: job.client, kind: VIDEO, window: windowOf(job), me, myEmail, idp: `${id}-v`, toast,
+    title: 'סרטונים שהועלו למערכת', total: null, failHelp: FAIL_HELP,
+    onChange: () => { if (!busy()) renderKeepingFocus(); },
+  });
+  return h('div', { class: 'ed-videos', id: `${id}-videos` },
+    h('p', { class: 'ed-videos-h' }, h('strong', {}, 'הסרטונים הסופיים: בדרייב של הלקוח'),
+      // The link pasted at the hand-off; the card's own Drive link is the button below, as always.
+      link && link !== String(job.client.links?.drive || '').trim() ? [' · ', h('a', { href: link, target: '_blank', rel: 'noopener noreferrer', id: `${id}-drive` }, 'פתיחת התיקייה בדרייב', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)'))]
+        : !link && st.key === 'editing' ? ' · את הקישור לתיקייה מדביקים ב״מוכן לבדיקה״.' : null),
+    h('details', {
+      class: 'ed-more ed-upload', id: `${id}-up`, open: gate.count > 0 || openUploads.has(id),
+      ontoggle: (e) => { if (e.currentTarget.open) openUploads.add(id); else openUploads.delete(id); },
+    }, h('summary', {}, 'אפשר גם להעלות לכאן (לא חובה)'), upload));
+}
+const openUploads = new Set(); // the optional upload stays open across the page's re-renders
+const lockHint = (id, gate) => (gate.ok ? null : h('p', { class: 'hint fl-lock', id: `${id}-lock` }, gate.reason));
+
 function stateBlock(job, st) {
   const id = cardId(job);
   const now = new Date();
   const missingBtn = h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: `${id}-missing`, onclick: () => openMissing(job) }, 'חסר לוגו / טלפון / חומר');
+  const gate = st.key === 'final' ? videosGate(job) : null;
   switch (st.key) {
     case 'waiting':
       return h('div', { class: 'ed-act' },
@@ -210,8 +262,9 @@ function stateBlock(job, st) {
     case 'clientFixes': return clientFixesBlock(job, st);
     case 'final':
       return h('div', { class: 'ed-act' },
-        h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, onclick: (e) => finish(job, st, e.currentTarget) }, 'תיקונים הושלמו, הגרסאות הסופיות בדרייב'),
-        h('p', { class: 'hint' }, st.notes ? 'התיקונים של הלקוח עוברים ישר לעילאי.' : 'הלקוח אישר. הגרסאות עוברות לעילאי.'));
+        h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, disabled: !gate.ok, 'aria-describedby': gate.ok ? null : `${id}-lock`, onclick: (e) => finish(job, st, e.currentTarget) }, 'תיקונים הושלמו, הגרסאות הסופיות בדרייב'),
+        st.blocked ? null : missingBtn,
+        lockHint(id, gate) || h('p', { class: 'hint' }, st.notes ? 'התיקונים של הלקוח עוברים ישר לעילאי.' : 'הלקוח אישר. הגרסאות עוברות לעילאי.'));
     case 'ilai': return h('p', { class: 'ed-wait' }, 'הגרסאות הסופיות אצל עילאי. המשימה נסגרת כשהוא מסמן ״קיבלתי״.');
     default: return null;
   }
@@ -282,13 +335,14 @@ function jobCard(job) {
     h('header', { class: 'ed-head' },
       h('h2', { id: `${id}-h`, tabindex: '-1' }, jobName(job), c.business && c.business !== c.name ? h('small', {}, c.business) : null),
       h('span', { class: `ed-state s-${st.key}` }, st.blocked ? 'חסום' : st.paused ? P.pauseText(st.paused) : P.STATE_TEXT[st.key])),
-    h('p', { class: 'ed-day' }, P.editingDayText(day, now, job.assignedAt)),
+    h('p', { class: 'ed-day' }, c.landing === true ? 'בקליטה · הימים עוד לא נספרים' : P.editingDayText(day, now, job.assignedAt)),
     datesLine(job, st),
     // The one next step comes first; what the work needs follows.
     st.blocked ? h('div', { class: 'ed-blocked', role: 'note' },
       h('p', {}, `עירית קיבלה הודעה ${formatWhen(st.blocked.at, now)}.${st.blocked.note ? ` ״${st.blocked.note}״` : ''}`),
       h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-unblock`, onclick: (e) => endBlock(job, { btn: e.currentTarget }) }, 'הגיע, ממשיכים')) : null,
     st.paused ? null : stateBlock(job, st),
+    videosBlock(job, st),
     pauseBlock(job, st),
     h('p', { class: 'ed-facts' },
       videos ? h('span', {}, `${videos} סרטונים לפי החבילה`) : h('span', { class: 'muted' }, 'כמות הסרטונים לא הוזנה'),
@@ -458,7 +512,13 @@ let readyList = [];
 function openReady(job) {
   target = job;
   readyList = P.selfCheck(P.needsDropbox(job.client));
+  const gate = videosGate(job);
   $('ready-ctx').textContent = `${jobName(job)}${P.videosPerDay(job.ctx) ? ` · ${P.videosPerDay(job.ctx)} סרטונים` : ''}`;
+  // The Drive folder of the videos: what is known already, to confirm or replace.
+  $('ready-link').value = gate.link || '';
+  $('ready-link').removeAttribute('aria-invalid');
+  $('ready-link-hint').textContent = gate.count ? `${gate.count === 1 ? 'סרטון אחד הועלה למערכת' : `${gate.count} סרטונים הועלו למערכת`}: אפשר גם בלי קישור.` : 'התיקייה של הלקוח בדרייב, עם כל הסרטונים הסופיים.';
+  showErr('ready-link-err', '');
   fill($('ready-list'), ...readyList.map(([, l], i) => checkRow(`ready-${i}`, l)));
   showErr('ready-err', '');
   readyDlg.showModal();
@@ -473,10 +533,18 @@ $('ready-form').addEventListener('submit', async (e) => {
     $(`ready-${readyList.indexOf(open[0])}`).focus();
     return;
   }
+  // The hand-off stands on the Drive link, or on a video uploaded here.
+  const link = $('ready-link').value.trim();
+  const problem = link || !videosGate(job).count ? driveLinkProblem(link) : null;
+  showErr('ready-link-err', problem || '');
+  $('ready-link').setAttribute('aria-invalid', String(!!problem));
+  if (problem) { $('ready-link').focus(); return; }
   $('ready-submit').disabled = true;
   try {
     // The four checks of the start are true by now; the notice to Ofir goes last.
-    await markMany(job, [...P.START_CHECKS.map(([k]) => k), ...P.readyKeys(P.needsDropbox(job.client)).filter((k) => k !== 'p24.notify')]);
+    await markMany(job, [...P.START_CHECKS.map(([k]) => k), ...P.readyKeys(P.needsDropbox(job.client)).filter((k) => !['p24.notify', 'p24.drive'].includes(k))]);
+    // "הכול בדרייב" carries the folder's link (written again when it changed).
+    await markOne(job, 'p24.drive', link || null);
     await markOne(job, 'p24.notify', 'מוכן לבדיקה');
     readyDlg.close();
     toast(`נשלח לאופיר: ${jobName(job)}. הבקרה שלו עד שעת עבודה.`);
@@ -516,6 +584,8 @@ async function markFixed(job, st, videos, btn) {
 // (app/reminder-rules.js finalReady) and his "קיבלתי" (p27.toilai) closes the job.
 async function finish(job, st, btn) {
   if (!P.canFinish(st)) return;
+  const gate = videosGate(job);
+  if (!gate.ok) { toast(gate.reason); return; }
   btn.disabled = true;
   try {
     await markMany(job, [...(st.notes ? ['p27.fixes'] : []), 'p27.final'], 'בעמוד העריכה');
@@ -607,6 +677,8 @@ function renderBriefs() {
         from ? h('p', { class: 'muted' }, `ביקש/ה: ${PEOPLE[from]?.name || from}`) : null,
         briefDetails(t, isNirel()),
         h('div', { class: 'ed-act' },
+          // What the work is made from: the client's characterization, read-only.
+          isNirel() && c ? h('a', { class: 'btn btn-sm btn-ghost', id: `t-${t.id}-char`, href: charViewHref(c.id) }, 'האפיון של הלקוח') : null,
           isUrgentTask(t) && 'started_at' in t && !t.started_at
             ? h('button', { type: 'button', class: 'btn btn-primary', id: `t-${t.id}-start`, onclick: (e) => startUrgent(t, e.currentTarget) }, 'התחלתי') : null,
           isUrgentTask(t) && t.started_at ? h('span', { class: 'hint' }, `התחלת ${formatStamp(t.started_at)}`) : null,
@@ -672,7 +744,7 @@ $('urg-form').addEventListener('submit', async (e) => {
   }
 });
 
-// Finishing a task: with a brief (always for Nirel), what was done, what is left and the Drive link.
+// Finishing a task: with a brief (always for Nirel), what was done, what is left and a link to the result.
 const doneDlg = dialog('dlg-done');
 function openDone(t) {
   if (!hasBrief(t) && !isNirel()) { plainDone(t); return; }
@@ -773,6 +845,7 @@ mountSession(async (staff) => {
   [dir, viewer] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
   Object.assign(directory, dir);
   me = viewer.me;
+  myEmail = String(staff.email || '').toLowerCase();
   if (!me || !PEOPLE[me]?.editor) {
     fill($('ed-list'));
     $('no-access').hidden = false;

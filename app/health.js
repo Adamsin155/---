@@ -27,7 +27,7 @@ import { STATIONS, PEOPLE, PROCESSES, WORK_HOURS, DELIVERABLES, NETWORKS } from 
 import {
   isResolved, blockers, businessDaysBetween, isBusinessDay, parseDate, roundsOf, roundContext, IMPORT_NOTE,
   isImported, workingMinutesBetween, addWorkingMinutes, workedMinutes, targetMinutes, durationStart, weekKey,
-  openItemsFor, byUrgency, bucketOf, PAUSE, erevOn, applicableProcesses,
+  openItemsFor, byUrgency, bucketOf, PAUSE, erevOn, applicableProcesses, inLanding, workFloor,
 } from './protocol-logic.js';
 import { stationOf, stationSince, promisedClosing, materialsOf, SENT_CHECK_NOTE } from './messages-logic.js';
 import { isOwnerView } from './team-rules.js';
@@ -177,7 +177,8 @@ export function lastContact(client, checks = {}, messages = null) {
 
 // The last time anything happened with the client in the system.
 export function lastActivity(client, { checks = {}, tasks = [], statusNotes = null, log = null, messages = null } = {}) {
-  const times = [client.created_at, client.deal_at,
+  // The activation of a client that came from the old system counts as activity.
+  const times = [client.created_at, client.deal_at, workFloor(client),
     ...Object.values(checks).map((c) => c.at),
     ...(tasks || []).filter((t) => t.client_id === client.id).flatMap((t) => [t.created_at, t.done_at]),
     ...(statusNotes || []).filter((n) => !n.client_id || n.client_id === client.id).map((n) => n.at),
@@ -335,6 +336,11 @@ export function clientHealth(client, state, extras = {}) {
   const now = extras.now || new Date();
   const checks = extras.checks || {};
   if (!client || client.status === 'ended' || client.status === 'cancelled') return { color: null, reasons: [], closed: true };
+  // In landing a client has no alerts and counts against nobody (docs/ops.md, section 41).
+  if (inLanding(client)) return { color: 'green', reasons: [], landing: true };
+  // After it, "how long" is counted from the activation at the earliest.
+  const floor = workFloor(client);
+  const fromFloor = (d) => (d && floor && d < floor ? floor : d);
   const reasons = [];
   const add = (color, code, r) => reasons.push({ color, code, rank: RANK[code], ...r });
   const byId = new Map(state.states.map((s) => [s.proc.id, s]));
@@ -447,7 +453,7 @@ export function clientHealth(client, state, extras = {}) {
   // Waiting on the client for more than 2 business days: Irit follows it up.
   for (const s of state.states) {
     if (s.status !== 'client' || !s.wait) continue;
-    const since = new Date(s.wait.at);
+    const since = fromFloor(new Date(s.wait.at));
     const days = businessDaysBetween(since, now);
     if (days <= 2) continue;
     add('yellow', 'waiting', {
@@ -467,7 +473,7 @@ export function clientHealth(client, state, extras = {}) {
   if (Array.isArray(extras.messages)) {
     const last = lastContact(client, checks, extras.messages);
     const deal = parseDate(client.deal_at);
-    const base = last && deal ? (last > deal ? last : deal) : last || deal;
+    const base = fromFloor(last && deal ? (last > deal ? last : deal) : last || deal);
     if (base) {
       const days = businessDaysBetween(base, now) - (isBusinessDay(now) ? 1 : 0);
       if (days >= 2) add('yellow', 'no-contact', { who: 'irit', text: `אין מגע עם הלקוח ${bdaysWords(days)}`, what: last ? `מגע אחרון: ${dayText(last)}` : 'עוד לא היה מגע', procId: null, days, since: base });
@@ -491,7 +497,7 @@ export function clientHealth(client, state, extras = {}) {
     const index = stationOf(client, state, now);
     const key = STATIONS[index].key;
     const norm = STATION_NORM[key];
-    const since = norm ? stationSince(client, state, checks, index, now) : null;
+    const since = fromFloor(norm ? stationSince(client, state, checks, index, now) : null);
     const dateAhead = (key === 'join' && parseDate(client.char_at) > now)
       || (key === 'content' && shootContexts(client).some((x) => parseDate(x.ctx.shoot_at) > now));
     if (since && !dateAhead) {
@@ -751,7 +757,7 @@ export function colorCounts(entries) {
 
 // Items late right now: overdue processes (never ones waiting on the client) and overdue tasks.
 export function lateNow(clients, stateOf, tasks = [], now = new Date()) {
-  const live = new Map(clients.filter((c) => c.status === 'active' || c.status === 'ending').map((c) => [c.id, c]));
+  const live = new Map(clients.filter((c) => (c.status === 'active' || c.status === 'ending') && !inLanding(c)).map((c) => [c.id, c]));
   let n = 0;
   for (const c of live.values()) n += stateOf(c).states.filter((s) => s.status === 'overdue').length;
   const today = dayKeyIL(now);
@@ -856,6 +862,7 @@ const RETURNS_MAX = 6; // rounds whose whole history is loaded (historyKeys)
 export function reworkCounts(clients, log, since = null) {
   const out = new Map();
   for (const c of clients) {
+    if (inLanding(c)) continue;
     const rows = rowsOf(log, c.id);
     if (!rows.length) continue;
     for (const p of applicableProcesses(c)) {
@@ -907,7 +914,8 @@ const REQUIRED = new Set(PROCESSES.flatMap((p) => p.items.filter((i) => !i.optio
 export function naCounts(log, directory = {}, since = null) {
   const out = new Map();
   for (const r of log || []) {
-    if (r.action !== 'na' || (since && new Date(r.at) < since)) continue;
+    // "לא רלוונטי" said while taking in an old client is history, not a way around the work.
+    if (r.action !== 'na' || r.note === IMPORT_NOTE || (since && new Date(r.at) < since)) continue;
     if (!REQUIRED.has(String(r.item_key).replace(/^r\d+\./, ''))) continue;
     const who = directory[String(r.by_email || '').toLowerCase()];
     if (who) out.set(who, (out.get(who) || 0) + 1);

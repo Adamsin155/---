@@ -57,6 +57,15 @@
 .fl-gallery .st-acts { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .fl-gallery .st-acts .btn, .fl-gallery .st-acts .btn-text, #fl-gal-create { min-height: 44px; }
 .fl-gallery .st-danger { color: var(--danger); }
+/* One batch of work on its own page (mountWorkFiles): the editor's card, Ilai's cards, Ofir's dialog. */
+.fl-work { gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--panel); }
+.fl-work-h { margin: 0; font-size: 14px; color: var(--text-2); overflow-wrap: anywhere; }
+.fl-work-h strong { color: var(--text); }
+.fl-work .fl-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+.fl-work [hidden] { display: none; }
+/* Navy here: the page's one pink action is its next step ("מוכן לבדיקה", "אישור"). */
+.fl-work .fl-play { background: var(--ds-navy); color: #fff; }
+.fl-lock { margin: 0; }
 .fl-compact { display: grid; gap: 10px; margin-top: 6px; }
 .fl-compact .side-head h3 { font-size: 15px; }
 @media (max-width: 400px) {

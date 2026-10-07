@@ -5,7 +5,7 @@
 // app/office-marks.js.
 import { EDITORS, editorsFor, PEOPLE } from './protocol.js';
 import {
-  businessDaysBetween, addBusinessDays, pauseOf, roundsOf, parseDate,
+  businessDaysBetween, addBusinessDays, pauseOf, roundsOf, parseDate, inLanding, workFloor,
 } from './protocol-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import {
@@ -33,10 +33,15 @@ export function qaQueue({ clients, stateOf, checks, meetings = [], now = new Dat
       const pre = preOf(s.proc);
       const q = qaState(cs, pre, kind);
       if (q.stage !== 'ofir') continue;
+      // Work that was waiting when the client was activated: its hour starts then.
+      const floor = workFloor(c);
+      if (floor && q.readyAt < floor) q.readyAt = floor;
       const dueAt = qaDue(meetings, q.readyAt, QA_TARGET_MINUTES);
       out.push({
         key: `${c.id}:${s.proc.id}`, client: c, kind, pre, proc: s.proc, ctx: s.proc.ctx || c, round: q.round, rounds: q.rounds,
-        readyAt: q.readyAt, dueAt, waited: qaWaited(meetings, q.readyAt, now), late: now >= dueAt,
+        readyAt: q.readyAt, dueAt, waited: inLanding(c) ? 0 : qaWaited(meetings, q.readyAt, now),
+        // The work is in the queue as usual; the hour is not counted while the client is in landing.
+        late: !inLanding(c) && now >= dueAt, landing: inLanding(c),
       });
     }
   }
@@ -118,8 +123,42 @@ export const jointFromSelection = (selection) => selection?.free?.simeonJoin ===
 export const reasonNote = ({ editor, reason, preselected: pre = null, joint = false }) => JSON.stringify({ editor, reason: String(reason || '').trim().slice(0, 500), preselected: pre, joint: !!joint });
 export const reasonOf = (checks, pre = '') => readJson(checks[REASON_KEY(pre)]);
 
+// ── Changing an assigned editor ("החלפת עורך") ──
+// The automatic assignment tells Ofir he can change it; he does it from the load
+// list of his own screen, with the same rules as the first assignment (Nirel only
+// for Natali, another editor for Natali with a written reason).
+//
+// The editing clocks: the deadlines of 22, 24 and 27 count from the moment 22א
+// "שויך" was marked (3 and 4 business days). Marking it again, as the first
+// assignment does, starts them over from now; leaving the mark keeps them.
+// A job that is already late is never restarted silently: there the default keeps
+// the deadlines (the job stays late with the new editor), and starting over is
+// Ofir's explicit choice with a written reason, kept in the reason mark.
+//   job: one of editorLoad()'s jobs ({ dueAt, of, assignedAt, … }).
+export function swapClock(job, now = new Date()) {
+  const late = !!job?.dueAt && job.dueAt < now;
+  return { late, keepDue: job?.dueAt || null, restartDue: addBusinessDays(now, job?.of || 3), choice: late ? 'keep' : 'restart' };
+}
+export function swapReasonNeeded({ shootType, joint = false, editor, late = false, restart = false }) {
+  return reasonNeeded({ shootType, joint, editor }) || (!!editor && late && restart);
+}
+// The reason mark of a swap: the usual { editor, reason, preselected, joint } and
+// { swap: true, from, restart, prev (the earlier assignment time), late }. It
+// replaces an automatic assignment's mark, so Ofir is not told again "שויך אוטומטית".
+// The words say what happened, so the client's history reads by itself.
+export function swapNote({ editor, from, reason = '', preselected: pre = null, joint = false, restart = false, late = false, prev = null }) {
+  const why = String(reason || '').trim();
+  const text = [`החלפת עורך: מ${editorName(from)} ל${editorName(editor)}`, why || null,
+    restart ? 'מועדי העריכה נספרים מחדש מהיום' : late ? 'המועדים לא השתנו, העריכה נשארת באיחור' : 'המועדים לא השתנו'].filter(Boolean).join(' · ');
+  return JSON.stringify({
+    ...JSON.parse(reasonNote({ editor, reason: text, preselected: pre, joint })),
+    swap: true, from: from || null, restart: !!restart, late: !!late, prev: prev ? new Date(prev).toISOString() : null,
+  });
+}
+
 // Ofir's folder task (24): opened at the assignment, due the end of editing day 1
-// (the assignment day is not counted).
+// (the assignment day is not counted). Not opened again on an editor swap: the
+// client's folder is the same one.
 export const folderTitle = (n = null) => `פתיחת תיקייה מסודרת בדרייב לעריכה (24)${n ? ` · סבב ${n}` : ''}`;
 export const folderDueOn = (assignedAt) => dayKeyIL(addBusinessDays(assignedAt, 1));
 // The item the folder task stands for (`p24.folder`, `r2.p24.folder`), or null.
@@ -152,12 +191,15 @@ export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Dat
       const p22 = st.find((s) => s.proc.id === `${u.pid}p22`);
       const p24 = st.find((s) => s.proc.id === `${u.pid}p24`);
       const as = cs[`${u.pre}p22a.assigned`];
-      const assignedAt = as?.state === 'done' ? new Date(as.at) : null;
+      // "יום X מתוך 3" of a client that came from the old system is counted from its activation.
+      const floor = workFloor(c);
+      const marked = as?.state === 'done' ? new Date(as.at) : null;
+      const assignedAt = marked && floor && marked < floor ? floor : marked;
       const withOfir = !!p24?.complete || cs[`${u.pre}p24.notify`]?.state === 'done';
       const pause = p22 ? pauseOf(p22.proc, cs) : null;
       const job = {
         client: c, n: u.n, pre: u.pre, assignedAt, of: withOfir ? 4 : 3,
-        day: editingDay(assignedAt, now), paused: pause, stage: withOfir ? 'closing' : 'editing',
+        day: editingDay(assignedAt, now), paused: pause, stage: withOfir ? 'closing' : 'editing', landing: inLanding(c),
         dueAt: (withOfir ? p27 : p24)?.dueAt || null,
       };
       load[u.editor].jobs.push(job);

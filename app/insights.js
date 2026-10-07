@@ -31,6 +31,7 @@
 import { PEOPLE, PROCESSES, APPROVALS, SHOOT_TYPES } from './protocol.js';
 import {
   clientState, parseDate, businessDaysBetween, workingMinutesBetween, IMPORT_NOTE, roundsOf, roundContext,
+  inLanding, workFloor,
 } from './protocol-logic.js';
 import { closedProcesses, doneEvents } from './health.js';
 import { requestDue, REQUEST } from './shoot-prep.js';
@@ -160,6 +161,7 @@ export function deliveryReport(clients, checksByClient, logBy, month) {
     const rows = logBy ? logBy.get(c.id) || [] : null;
     for (const x of contextsOf(c)) {
       const shootAt = parseDate(x.ctx.shoot_at);
+      if (shootAt && workFloor(c) && shootAt < workFloor(c)) continue; // before the activation: not worked here
       if (!shootAt) continue;
       const sent = `${x.pre}p26.sent`;
       const ok = `${x.pre}p27.approved`;
@@ -268,6 +270,7 @@ export function pipelineReport(clients, checksByClient, logBy, month, now = new 
     const rows = logBy ? logBy.get(c.id) || [] : null;
     for (const x of contextsOf(c)) {
       const shootAt = parseDate(x.ctx.shoot_at);
+      if (shootAt && workFloor(c) && shootAt < workFloor(c)) continue; // before the activation: not worked here
       if (!shootAt) continue;
       const stages = STAGES.map((s) => {
         const key = `${x.pre}${s.item}`;
@@ -307,7 +310,8 @@ export function pipelineReport(clients, checksByClient, logBy, month, now = new 
 export function computeInsights({ clients = [], checks = {}, log = null, tasks = [], surveys = null, now = new Date(), month = monthKeyIL(now), span = 6 }) {
   const months = monthsUpTo(month, span).map(monthRange);
   const cur = months.at(-1);
-  const counted = clients.filter((c) => c.status !== 'cancelled');
+  // A client in landing is not measured (docs/ops.md, section 41).
+  const counted = clients.filter((c) => c.status !== 'cancelled' && !inLanding(c));
   const states = new Map();
   const stateOf = (c) => states.get(c.id) || states.set(c.id, clientState(c, checks[c.id] || {}, now)).get(c.id);
   const rows = closedProcesses(counted, { stateOf, checksByClient: checks, since: months[0].start, now, log }).filter((r) => r.completedAt < cur.end);

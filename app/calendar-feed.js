@@ -139,7 +139,14 @@ export function feedEvents({ person, clients = [], checks = {}, tasks = [], now 
           title: `יום צילום${round} · ${c.name}${SHOOT_TYPES[type] ? ` · ${SHOOT_TYPES[type].name}` : ''}`,
           start: new Date(shootAt.getTime() - 36e5), minutes: shootMinutes(type),
           location: ADDRESS_ON_SHOOT.has(person) ? c.address || '' : '',
-          description: [`הגעת המשפיענים: ${hm.format(shootAt)}. הצוות מגיע שעה לפני.`, `כרטיס הלקוח: ${cardUrl(site, c.id)}`].join('\n'),
+          // The entry starts at the team's arrival, an hour before the shoot time; the
+          // photographer's says so in his own words (the owner's rule of 7.10.2026).
+          description: [
+            person === 'eli'
+              ? `ההגעה שלך: ${hm.format(new Date(shootAt.getTime() - 36e5))}, שעה לפני הצילום. המשפיענים מגיעים ב־${hm.format(shootAt)}.`
+              : `הגעת המשפיענים: ${hm.format(shootAt)}. הצוות מגיע שעה לפני.`,
+            `כרטיס הלקוח: ${cardUrl(site, c.id)}`,
+          ].join('\n'),
           changedAt: c.updated_at || c.created_at,
         });
       }

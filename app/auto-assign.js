@@ -19,7 +19,7 @@ import {
 } from './qa-logic.js';
 import { REASON_KEY, readJson } from './office-marks.js';
 import { withEditor } from './decisions-logic.js';
-import { isImported } from './protocol-logic.js';
+import { isImported, inLanding } from './protocol-logic.js';
 
 export const AUTO_REASON = 'שיוך אוטומטי בסיום יום הצילום, לפי העומס';
 export const AUTO_CHECK_NOTE = 'שויך אוטומטית בסיום יום הצילום';
@@ -45,7 +45,8 @@ export function planAutoAssign({ clients = [], stateOf, checks = {}, tasks = [],
     const cs = checks[a.client.id] || {};
     const p19 = stateOf(a.client).states.find((s) => s.proc.id === `${a.n ? `r${a.n}-` : ''}p19`);
     // Only a shoot day closed for real: imported history is not an event.
-    if (!p19?.complete || isImported(p19.proc, cs)) continue;
+    // Nothing is assigned by itself on a client that was not taken in yet.
+    if (!p19?.complete || isImported(p19.proc, cs) || inLanding(a.client)) continue;
     const type = a.ctx.shoot_type;
     const kept = a.ctx.editor || null;
     const editor = kept || preselected(type) || proposeEditor(load, type === 'natali' ? 'natali' : 'dms');

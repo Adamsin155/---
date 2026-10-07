@@ -7,7 +7,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
   <script src="app/frame-guard.js"></script>
-  <title>לפני יום צילום · astrateg</title>
+  <title>קליטת לקוחות קיימים · astrateg</title>
   <meta name="robots" content="noindex">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="app/assets/logo-mark.png">
@@ -21,8 +21,11 @@
   <link rel="stylesheet" href="app/styles/app.css">
   <link rel="stylesheet" href="app/styles/quotes.css">
   <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-office.css">
   <link rel="stylesheet" href="app/styles/protocol-roles.css">
-  <link rel="stylesheet" href="app/styles/intake.css">
+  <link rel="stylesheet" href="app/styles/owner.css">
+  <link rel="stylesheet" href="app/styles/office-flows.css">
+  <link rel="stylesheet" href="app/styles/landing.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -30,12 +33,10 @@
     <a class="brand" href="clients.html" aria-label="astrateg · לקוחות ופרוטוקול">
       <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
       <span class="brand-sep" aria-hidden="true"></span>
-      <span class="brand-product">לפני יום צילום</span>
+      <span class="brand-product">קליטת לקוחות</span>
     </a>
     <nav aria-label="ניווט ראשי">
-      <a class="navlink" href="clients.html">לקוחות</a>
-      <a class="navlink" href="prep.html" aria-current="page">לפני יום צילום</a>
-      <a class="navlink" href="messages.html">הודעות ללקוחות</a>
+      <a class="navlink" href="clients.html#mine">המשימות שלי</a>
       <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
       <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
     </nav>
@@ -45,7 +46,7 @@
     <section class="block" id="login-block" hidden aria-labelledby="lg-h">
       <form class="login" id="login-form" novalidate>
         <h2 id="lg-h">כניסה לצוות</h2>
-        <p>ימי הצילום ובקשות הלקוחות זמינים לצוות המשרד.</p>
+        <p>קליטת הלקוחות הקיימים זמינה לצוות.</p>
         <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
         <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
         <div class="err" id="lg-err" role="alert" hidden></div>
@@ -55,35 +56,25 @@
       </form>
     </section>
 
-    <div id="app" class="pr-app pp-app" hidden>
+    <div id="app" class="pr-app of-app land-app" hidden>
       <div class="page-head">
         <div>
-          <div class="kicker latin">BEFORE THE SHOOT</div>
-          <h1>לפני יום צילום ובקשות לקוחות</h1>
-          <p>סגירת יום הצילום מול כולם, חוסמים, בדיקת יום לפני, ובקשות שהלקוחות שלחו.</p>
+          <h1 id="land-h">קליטת לקוחות קיימים</h1>
+          <p>אלה לקוחות שעבדנו איתם עוד לפני המערכת. ליד כל פריט אומרים: כבר בוצע, עדיין פתוח או לא רלוונטי. כל עוד לקוח בקליטה אין עליו שעון ואין התראות.</p>
         </div>
         <div class="head-actions">
-          <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+          <a class="btn btn-sm" href="clients.html#mine">חזרה להמשימות שלי</a>
         </div>
       </div>
-      <p class="pp-summary" id="pp-summary" role="status"></p>
-      <div class="pp-filter" id="pp-filter"></div>
-      <!-- The photographer's free dates, folded to one line (app/availability-ui.js). -->
-      <div id="availability" hidden></div>
-      <section aria-labelledby="shoots-h" id="shoots">
-        <h2 id="shoots-h" class="sr-only">ימי צילום</h2>
-        <ul class="pp-list" id="pp-shoots"></ul>
-      </section>
-      <section class="pp-card" aria-labelledby="req-h" id="requests">
-        <h2 id="req-h">בקשות לקוחות</h2>
-        <div id="pp-requests"></div>
-      </section>
+      <div class="land-progress" id="land-progress" role="status" aria-live="polite"></div>
+      <ul class="land-list" id="land-list" aria-labelledby="land-h"></ul>
+      <div id="land-done"></div>
     </div>
 
     <p class="state" id="state" role="status"></p>
   </main>
 
   <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app/prep.js"></script>
+  <script type="module" src="app/landing-ui.js"></script>
 </body>
 </html>

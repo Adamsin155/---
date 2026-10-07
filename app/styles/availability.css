@@ -1,0 +1,129 @@
+/* The photographer's monthly availability (app/availability-ui.js; docs/ops.md, section 39):
+   his card on shoot.html, the office's folded line, the line next to a shoot date and
+   the reason dialog. Tokens only (tokens.css). Navy leads; no pink here: the page keeps
+   its one pink action. Every day and button is at least 44px; the month fits 360px. */
+.av-card {
+  display: grid; gap: 10px; min-width: 0; padding: 16px;
+  background: var(--ds-surface); border-radius: var(--ds-r-card);
+  border-inline-start: 4px solid var(--ds-navy-2);
+  scroll-margin-top: calc(var(--topbar-h, 64px) + 12px);
+}
+.av-card > * { margin: 0; min-width: 0; }
+.av-card.is-soon { border-inline-start-color: var(--ds-amber-line); }
+.av-card.is-late { border-inline-start-color: var(--ds-hot); }
+.av-card.is-done { border-inline-start-color: var(--ds-ok); padding-block: 10px; }
+.av-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.av-card h2 { margin: 0; font-size: 19px; line-height: 1.3; }
+.av-card h2:focus { outline: none; }
+.av-card h2:focus-visible { outline: 2px solid var(--ds-navy-2); outline-offset: 2px; }
+.av-pill { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); white-space: nowrap; }
+.is-soon .av-pill { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.is-late .av-pill { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+.av-lead { color: var(--ds-ink-2); font-size: 14.5px; }
+
+/* The month: seven columns, Sunday first (right to left). */
+.av-month { display: grid; gap: 4px; max-width: 420px; }
+.av-week, .av-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; }
+.av-week span { text-align: center; font-size: 12.5px; color: var(--ds-muted); }
+/* A day is a 44px target edge to edge; its face is drawn 1px inside, so the days read as separate. */
+.av-cell {
+  position: relative; display: grid; place-items: center; align-content: center; min-width: 0; min-height: 44px; padding: 0;
+  border: 0; background: transparent; color: var(--ds-ink);
+  font: inherit; font-size: 15.5px; font-weight: 500; line-height: 1.1;
+}
+.av-cell::before {
+  content: ''; position: absolute; inset: 1px; border: 1.5px solid var(--ds-line-strong); border-radius: var(--ds-r-sm); background: var(--ds-surface);
+  transition: background-color var(--ds-t-fast), border-color var(--ds-t-fast);
+}
+.av-cell > * { position: relative; }
+button.av-cell { cursor: pointer; }
+button.av-cell:hover::before { border-color: var(--ds-navy-2); }
+button.av-cell:focus-visible, .av-pick:focus-visible { outline: 2px solid var(--ds-navy-2); outline-offset: -1px; border-radius: var(--ds-r-sm); }
+.av-cell.is-blank { min-height: 0; }
+.av-cell.is-blank::before { content: none; }
+.av-cell.is-free { color: var(--ds-on-navy); font-weight: 700; }
+.av-cell.is-free::before { background: var(--ds-navy); border-color: var(--ds-navy); }
+.av-cell.is-off { color: var(--ds-muted); text-decoration: line-through; }
+.av-cell.is-off::before { border-style: dashed; }
+.av-cell.is-past { color: var(--ds-muted); }
+.av-cell.is-past::before { border-color: var(--ds-line); background: var(--ds-ground); }
+.av-cell.is-past.is-free { color: var(--ds-ink-2); }
+.av-cell.is-past.is-free::before { background: var(--ds-soft-2); border-color: var(--ds-soft-2); }
+.av-cell.is-taken { color: var(--ds-amber); font-weight: 600; }
+.av-cell.is-taken::before { background: var(--ds-amber-soft); border-color: var(--ds-amber-line); }
+.av-tag { font-size: 10.5px; font-weight: 600; line-height: 1; }
+.av-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ds-muted); }
+.av-key::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-inline-end: 5px; vertical-align: -1px; border-radius: 4px; border: 1.5px solid var(--ds-line-strong); }
+.av-key.is-free::before { background: var(--ds-navy); border-color: var(--ds-navy); }
+.av-key.is-taken::before { background: var(--ds-amber-soft); border-color: var(--ds-amber-line); }
+.av-key.is-off::before { border-style: dashed; }
+
+.av-none { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 15px; cursor: pointer; }
+.av-none .cbx { flex: none; }
+.av-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.av-act .btn, .av-btns .btn { min-height: 44px; }
+/* The card's own action: solid navy (the pink stays with the page's one primary action). */
+.btn.av-go { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); }
+.btn.av-go:hover { background: var(--ds-navy-2); border-color: var(--ds-navy-2); color: var(--ds-on-navy); }
+.av-card .err { font-size: 14px; margin: 0; }
+.av-card .err:focus { outline: none; }
+.av-card .hint { margin: 0; }
+.av-more { justify-self: start; min-height: 44px; }
+.av-limit { color: var(--ds-ink); background: var(--ds-amber-soft); border-radius: var(--ds-r-sm); padding: 10px 12px; font-size: 15px; }
+
+/* After the hand-over: one line. */
+.av-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.av-line h2 { font-size: 16.5px; }
+.av-sum { color: var(--ds-ink-2); font-size: 14.5px; }
+.av-sum.is-late { color: var(--ds-hot-text); font-weight: 600; }
+.av-btns { display: flex; gap: 8px; margin-inline-start: auto; }
+
+/* An unexpected change: the days it can name. */
+.av-picks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.av-picks-h { flex-basis: 100%; font-size: 13px; color: var(--ds-muted); }
+.av-pick {
+  display: inline-grid; place-items: center; min-height: 44px; min-width: 64px; padding: 4px 10px; cursor: pointer;
+  border: 1.5px solid var(--ds-line-strong); border-radius: var(--ds-r-sm); background: var(--ds-surface); color: var(--ds-ink); font: inherit; font-size: 14.5px;
+}
+.av-pick.is-taken { background: var(--ds-amber-soft); border-color: var(--ds-amber-line); color: var(--ds-amber); }
+.av-pick.is-on { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); font-weight: 700; }
+.av-pick:disabled { opacity: .6; cursor: default; }
+.av-warn { margin: 0; padding: 10px 12px; list-style: none; display: grid; gap: 4px; background: var(--ds-amber-soft); border-radius: var(--ds-r-sm); color: var(--ds-ink); font-size: 14.5px; }
+
+/* The office: one folded line. */
+.av-office { border-inline-start-color: var(--ds-line-strong); padding-block: 6px; }
+.av-office[open] { padding-block: 10px 16px; }
+.av-office > summary { min-height: 44px; cursor: pointer; font-size: 15px; }
+.av-office > summary:focus-visible { outline: 2px solid var(--ds-navy-2); outline-offset: 2px; border-radius: var(--ds-r-sm); }
+.av-office-month { display: grid; gap: 8px; justify-items: start; }
+.av-office-month > * { margin: 0; }
+.av-office-month .av-month { width: 100%; }
+.av-office-month h3 { font-size: 16px; }
+.av-office-month h3 small { font-weight: 400; font-size: 13.5px; color: var(--ds-muted); }
+.av-changes { margin: 0; padding-inline-start: 18px; font-size: 14px; color: var(--ds-ink-2); }
+
+/* Next to a shoot date being picked. */
+.av-hint { margin: 6px 0 0; font-size: 13.5px; }
+.av-hint.is-free { color: var(--ds-ok); font-weight: 600; }
+.av-hint.is-busy, .av-hint.is-taken { color: var(--ds-hot-text); font-weight: 600; }
+.av-hint.is-unknown { color: var(--ds-amber); }
+
+/* The reason for a day he did not mark free. */
+dialog.av-dlg { max-width: min(480px, calc(100vw - 32px)); }
+.av-dlg form { display: grid; gap: 12px; padding: 20px 22px 22px; }
+.av-dlg form > * { margin: 0; min-width: 0; }
+.av-dlg h2 { font-size: 20px; }
+.av-dlg-when { font-weight: 600; }
+
+@media (max-width: 560px) {
+  .av-card { padding: 14px 10px; }
+  .av-act .av-go { flex: 1 1 100%; }
+  .av-btns { margin-inline-start: 0; }
+}
+/* The narrowest phones: the month runs almost edge to edge, so seven days of 44px fit. */
+@media (max-width: 400px) {
+  .av-card { padding-inline: 4px; }
+  .av-card > :not(.av-month), .av-office-month > :not(.av-month) { padding-inline: 6px; }
+  .av-office-month { padding-inline: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .av-cell::before { transition: none; } }

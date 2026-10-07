@@ -58,7 +58,7 @@ export const STATUS_RULES = [
         title: (i) => (i.brief.extra ? `הלקוח ביקש סבב תיקונים נוסף: ${i.name}` : `הלקוח ביקש תיקון: ${i.name}`),
         body: (i) => `${i.task.title}. ${i.brief.problem ? `הערות: ${short(i.brief.problem)}` : ''}${i.task.due_on ? ` עד ${dayWord(dayFromKeyIL(i.task.due_on))}.` : ''}`.trim(),
       },
-      { id: 'late', from: 'due', businessDays: 1, at: '08:30', to: (i) => i.who, level: 'quiet', overdue: true, title: (i) => `תיקון ללקוח באיחור: ${i.name}`, body: (i) => i.task.title },
+      { id: 'late', from: 'due', businessDays: 1, at: '08:30', to: (i) => i.who, level: 'quiet', batch: true, overdue: true, title: (i) => `תיקון ללקוח באיחור: ${i.name}`, body: (i) => i.task.title },
       { id: 'lior', from: 'due', businessDays: 1, at: '08:30', to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => i.who !== 'lior', title: (i) => `תיקון ללקוח באיחור: ${i.name} · ${nameOf(i.who)}`, body: (i) => i.task.title },
     ],
   },

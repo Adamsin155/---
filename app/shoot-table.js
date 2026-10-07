@@ -14,7 +14,7 @@
 // rounds[].shoot_at, and those p19 items checked with the note "ייבוא" (the import by
 // station does it for every station after "יום צילום").
 import { PEOPLE, SHOOT_TYPES } from './protocol.js';
-import { clientState, parseDate, isImported } from './protocol-logic.js';
+import { clientState, parseDate, isImported, inLanding } from './protocol-logic.js';
 import { shootContexts } from './health.js';
 import { sortRows, filterRows, dayText } from './manager-table.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
@@ -49,7 +49,7 @@ export function shootHistory(client, checks = {}, now = new Date(), state = null
       if (when) done.push(when); else undated += 1;
     } else if (at && dayKeyIL(at) >= today) {
       if (!next || at < next) next = at;
-    } else if (at) unclosed.push(at);
+    } else if (at && !inLanding(client)) unclosed.push(at); // in landing a past shoot day is not "not closed"
   }
   done.sort((a, b) => a - b);
   unclosed.sort((a, b) => a - b);

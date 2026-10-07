@@ -7,6 +7,7 @@
 // loaded with app/intake-data.js loadCharacterizations).
 import { supabase } from './supa.js';
 import { BUCKET, fileNameOf } from './files-logic.js';
+import { withLanding } from './landing-data.js';
 
 const WORK_COLS = 'id, name, business, address, package_name, shoot_type, has_logo, editor, char_at, shoot_at, contract_end, status, links, deliverables, rounds, created_at, protocol_version';
 const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at, source, brief, urgent, started_at';
@@ -23,8 +24,8 @@ async function all(build) {
 }
 
 export async function loadWorkClients() {
-  return all(() => supabase.from('clients').select(WORK_COLS)
-    .in('status', ['active', 'ending']).order('shoot_at', { ascending: true, nullsFirst: false }));
+  return withLanding(await all(() => supabase.from('clients').select(WORK_COLS)
+    .in('status', ['active', 'ending']).order('shoot_at', { ascending: true, nullsFirst: false })));
 }
 
 // Tasks with how they ended (client_tasks.result, migration 20260930140000). Before
@@ -64,6 +65,15 @@ export async function loadLogoFiles(clientIds) {
   const out = {};
   for (const r of data || []) out[r.client_id] ||= r;
   return out;
+}
+// The scripts of a shoot day, for its photographer, read-only (package 1; docs/ops.md,
+// section 37): one database function decides (public.shoot_scripts: Eli, and only a
+// client whose shoot day is from yesterday to 30 days ahead; only those rounds).
+// null: nothing to read for this client. Throws when the function is not there yet.
+export async function loadShootScripts(clientId) {
+  const { data, error } = await supabase.rpc('shoot_scripts', { p_client: clientId });
+  if (error) throw error;
+  return data || null;
 }
 // A link to download one file, signed for an hour (the bucket is private).
 export async function signedDownload(path) {

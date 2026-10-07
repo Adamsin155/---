@@ -27,6 +27,7 @@
   <link rel="stylesheet" href="app/styles/office-flows.css">
   <link rel="stylesheet" href="app/styles/intake.css">
   <link rel="stylesheet" href="app/styles/production.css">
+  <link rel="stylesheet" href="app/styles/files.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -151,6 +152,13 @@
           <legend>בדיקה עצמית לפני שאופיר רואה</legend>
           <div id="ready-list"></div>
         </fieldset>
+        <!-- The finished videos stay in the client's Google Drive: the folder's link goes with the hand-off. -->
+        <div class="field">
+          <label for="ready-link">קישור לתיקיית הסרטונים בדרייב</label>
+          <input class="input" id="ready-link" type="url" dir="ltr" inputmode="url" maxlength="500" placeholder="https://drive.google.com/…" aria-describedby="ready-link-hint ready-link-err">
+          <p class="hint" id="ready-link-hint"></p>
+          <p class="err" id="ready-link-err" hidden></p>
+        </div>
         <p class="hint">הלחיצה מודיעה לאופיר ומפעילה לו שעון של שעה לבקרה.</p>
         <div class="err" id="ready-err" role="alert" hidden></div>
       </div>
@@ -214,7 +222,7 @@
         <p class="muted" id="done-ctx"></p>
         <div class="field"><label for="done-done">מה בוצע</label><textarea class="input" id="done-done" rows="3" maxlength="1000" required aria-describedby="done-done-err"></textarea><p class="err" id="done-done-err" hidden></p></div>
         <div class="field"><label for="done-left">מה נשאר (ריק אם כלום)</label><textarea class="input" id="done-left" rows="2" maxlength="1000"></textarea></div>
-        <div class="field"><label for="done-drive">קישור לדרייב</label><input class="input" id="done-drive" type="url" dir="ltr" inputmode="url" maxlength="500" required placeholder="https://drive.google.com/…" aria-describedby="done-drive-err"><p class="err" id="done-drive-err" hidden></p></div>
+        <div class="field"><label for="done-drive">קישור לתוצר</label><input class="input" id="done-drive" type="url" dir="ltr" inputmode="url" maxlength="500" required placeholder="https://" aria-describedby="done-drive-err"><p class="err" id="done-drive-err" hidden></p></div>
         <label class="prod-check"><input type="checkbox" id="done-client" class="cbx"> <span>העבודה יוצאת ללקוח (גרפיקה, לקוח בעייתי): אופיר בודק ועירית שולחת</span></label>
         <p class="hint">מי שביקש מקבל הודעה. אם נשאר משהו, נפתחת לו משימת המשך.</p>
         <div class="err" id="done-err" role="alert" hidden></div>

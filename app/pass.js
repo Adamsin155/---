@@ -1,7 +1,8 @@
 // Ofir's pass over the clients (pass.html; process 33, system-plan section 3):
 // the clients sorted by risk (app/health.js) with what changed since the previous
 // pass; "עברתי" or "פתח משימה" (owner and due) on the red, yellow, changed and
-// stuck ones, one button for all the rest; completing the pass records it as the
+// stuck ones (a stuck one: a task, an update to Lior or a written reason, never
+// "עברתי" alone), one button for all the rest; completing the pass records it as the
 // day's control (office_reviews p33). Under it: the data health checks, each fixed
 // in one tap; the Thursday summary prefilled from the system (decision 20: by
 // 13:00); "משימות שפתחתי"; "אין מי שייצא לאפיון" to Lior; and "בקשת שינוי".
@@ -19,6 +20,7 @@ import { clientHealth, station, procName } from './health.js';
 import { healthBadge } from './health-ui.js';
 import {
   passRows, passProgress, passDue, previousPass, snapshotOf, stuckOf, dataHealth, summaryDraft, thursdayTarget,
+  closesRow, seenText, stuckTitle, cleanReason, reasonOk, REASON_MAX,
 } from './pass-logic.js';
 import { loadPasses, savePass, loadTasksBy, updateTask, addChangeRequest, loadChangeRequests } from './office-data.js';
 import { officeLinks, markFirstLanded, startControl } from './office-ui.js';
@@ -109,14 +111,14 @@ function renderKeepingFocus() {
   const focusId = document.activeElement?.id;
   const y = window.scrollY;
   const open = [...document.querySelectorAll('#th-body details[open]')].map((d) => d.closest('li')?.id).filter(Boolean);
-  const typed = [...document.querySelectorAll('#th-body [id]')].filter((el) => 'value' in el && el.dataset.dirty).map((el) => [el.id, el.value]);
+  const typed = [...document.querySelectorAll('#th-body [id], #ps-list .ps-why [id]')].filter((el) => 'value' in el && el.dataset.dirty).map((el) => [el.id, el.value]);
   render();
   for (const id of open) { const d = document.getElementById(id)?.querySelector('details'); if (d) d.open = true; }
   for (const [id, v] of typed) { const el = document.getElementById(id); if (el) { el.value = v; el.dataset.dirty = '1'; } }
   window.scrollTo({ top: y });
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
 }
-document.addEventListener('input', (e) => { if (e.target.closest?.('#th-body')) e.target.dataset.dirty = '1'; });
+document.addEventListener('input', (e) => { if (e.target.closest?.('#th-body, #ps-list .ps-why')) e.target.dataset.dirty = '1'; });
 
 // ── The pass ────────────────────────────────
 const todayPass = () => (passes === null ? (localPass?.day === dayKeyIL(new Date()) ? localPass : null) : passes.find((p) => p.day === dayKeyIL(new Date())) || null);
@@ -147,7 +149,7 @@ function render() {
       progressBar(prog.handled, prog.total, 'לקוחות שעברת עליהם היום'),
       h('span', { class: 'muted' }, prev ? `המעבר הקודם: ${formatDay(prev.day)}${prev.by_email ? ` · ${who(prev.by_email)}` : ''}` : 'אין מעבר קודם להשוואה')));
   const attention = rows.filter((r) => r.attention);
-  fill($('ps-list'), ...(attention.length ? attention.map((r) => passRow(r, seen[r.client.id], now)) : [h('li', { class: 'empty' }, 'אין לקוחות באדום, בצהוב, שהשתנו או תקועים.')]));
+  fill($('ps-list'), ...(attention.length ? attention.map((r) => passRow(r, closesRow(r, seen[r.client.id]) ? seen[r.client.id] : null, now)) : [h('li', { class: 'empty' }, 'אין לקוחות באדום, בצהוב, שהשתנו או תקועים.')]));
   capList($('ps-list'), 6, 'ps:list');
   const rest = rows.filter((r) => !r.attention);
   const restOpen = rest.filter((r) => !seen[r.client.id]);
@@ -171,24 +173,64 @@ function passRow(r, seen, now) {
     h('div', { class: 'of-head' },
       healthBadge(r.color),
       h('a', { class: 'wclient', href: clientUrl(c.id) }, clientLabel(c)),
+      c.landing === true ? h('span', { class: 'tag tag-landing' }, 'בקליטה') : null,
       r.entry.station ? h('span', { class: 'wtitle' }, r.entry.station.title) : null,
       r.stuck.length ? h('span', { class: 'tag tag-warn' }, 'לקוח תקוע') : null),
     top.length ? h('ul', { class: 'ps-reasons' }, ...top.map((x) => h('li', {}, [x.text, x.what].filter(Boolean).join(' · '), x.who && PEOPLE[x.who] ? [' · ', personChip(x.who)] : null))) : null,
-    r.stuck.length ? h('ul', { class: 'ps-reasons' }, ...r.stuck.map((x) => h('li', {}, `תקוע: ${x.text}`))) : null,
+    // How long what blocks the client has been open (stage 11: "כמה זמן המשימה פתוחה").
+    r.stuck.length ? h('ul', { class: 'ps-reasons' }, ...r.stuck.map((x) => h('li', {}, `תקוע: ${x.text}`, x.age ? h('span', { class: 'ps-age' }, ` · ${x.age}`) : null))) : null,
     r.changes.texts.length ? h('ul', { class: 'ps-changes', 'aria-label': 'מה השתנה מאז המעבר הקודם' }, ...r.changes.texts.map((t) => h('li', {}, t))) : null,
-    seen ? h('p', { class: 'ps-seen' }, seen.how === 'task' ? `נפתחה משימה · ${hm(seen.at)}` : `עברת · ${hm(seen.at)}`)
-      : h('div', { class: 'of-acts' },
-        h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-seen`, 'aria-label': `עברתי: ${c.name}`, onclick: (e) => markSeen([c], 'seen', e.currentTarget) }, 'עברתי'),
-        h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה')));
+    seen ? h('p', { class: 'ps-seen' }, `${seenText(seen)} · ${hm(seen.at)}`)
+      : r.stuck.length ? stuckActs(r, id)
+        : h('div', { class: 'of-acts' },
+          h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-seen`, 'aria-label': `עברתי: ${c.name}`, onclick: (e) => markSeen([c], 'seen', e.currentTarget) }, 'עברתי'),
+          h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה')));
+}
+
+// A stuck client leaves the check with a clear action (Ofir's protocol, stage 11):
+// a task, an update to Lior, or a short written reason why nothing is needed.
+// "עברתי" alone is not offered (app/pass-logic.js closesRow).
+const whyOpen = new Set();
+function stuckActs(r, id) {
+  const c = r.client;
+  const open = whyOpen.has(c.id);
+  return h('div', { class: 'ps-stuck-acts' },
+    h('div', { class: 'of-acts', role: 'group', 'aria-label': `לקוח תקוע יוצא מהבדיקה עם פעולה ברורה: ${c.name}` },
+      h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה'),
+      h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-lior`, 'aria-label': `עדכון לליאור: ${c.name}`, onclick: () => openTask(r, 'lior') }, 'עדכון לליאור'),
+      h('button', {
+        type: 'button', class: 'btn btn-sm btn-ghost', id: `${id}-why-open`, 'aria-expanded': String(open), 'aria-controls': `${id}-why`,
+        onclick: () => { if (whyOpen.has(c.id)) whyOpen.delete(c.id); else whyOpen.add(c.id); renderKeepingFocus(); if (whyOpen.has(c.id)) $(`${id}-why-text`)?.focus(); },
+      }, 'אין צורך בפעולה')),
+    open ? h('form', { class: 'ps-why', id: `${id}-why`, novalidate: true, onsubmit: (e) => saveWhy(e, r, id) },
+      h('label', { for: `${id}-why-text` }, 'למה לא נדרשת פעולה (נשמר במעבר של היום)'),
+      h('div', { class: 'ps-why-row' },
+        h('input', { class: 'input', id: `${id}-why-text`, maxlength: String(REASON_MAX), autocomplete: 'off', 'aria-describedby': `${id}-why-err` }),
+        h('button', { type: 'submit', class: 'btn btn-sm', id: `${id}-why-save` }, 'שמירה')),
+      h('p', { class: 'err', id: `${id}-why-err`, role: 'alert', hidden: true })) : null);
+}
+async function saveWhy(e, r, id) {
+  e.preventDefault();
+  const input = $(`${id}-why-text`);
+  const reason = cleanReason(input.value);
+  if (!reasonOk(reason)) {
+    const err = $(`${id}-why-err`);
+    err.textContent = 'כתבו בכמה מילים למה לא נדרשת פעולה, או פתחו משימה.';
+    err.hidden = false;
+    input.setAttribute('aria-invalid', 'true');
+    input.focus();
+    return;
+  }
+  if (await markSeen([r.client], 'reason', $(`${id}-why-save`), null, reason)) whyOpen.delete(r.client.id);
 }
 
 // Records what was gone over; the pass completes when nothing is left, and that is the day's control (33).
-async function markSeen(list, how, btn = null, task = null) {
+async function markSeen(list, how, btn = null, task = null, reason = null) {
   const now = new Date();
   const day = dayKeyIL(now);
   const pass = todayPass();
   const seen = { ...(pass?.seen || {}) };
-  for (const c of list) seen[c.id] = { how, at: now.toISOString(), ...(task ? { task } : {}) };
+  for (const c of list) seen[c.id] = { how, at: now.toISOString(), ...(task ? { task } : {}), ...(reason ? { reason } : {}) };
   if (btn) btn.disabled = true;
   const { rows } = rowsNow(now);
   const done = passProgress(rows, seen).complete;
@@ -224,16 +266,25 @@ tkDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') ||
 let tkFor = null;
 let tkReturn = null;
 tkDlg.addEventListener('close', () => { if (tkReturn && document.getElementById(tkReturn)) document.getElementById(tkReturn).focus(); tkReturn = null; });
-function openTask(r) {
+// `mode` 'lior': the same dialog as an update to Lior about a stuck client. It is an
+// exception task for him (source 'escalation', as "אין מי שייצא לאפיון" below and the
+// card's "דיווח חריגה לליאור"), so it lands in his "החלטות".
+let tkMode = null;
+function openTask(r, mode = null) {
   tkFor = r;
+  tkMode = mode;
   tkReturn = document.activeElement?.id || null;
   const top = r.reasons[0];
   const step = r.entry.station?.current;
-  $('tk-h').textContent = `פתיחת משימה · ${r.client.name}`;
-  $('tk-meta').textContent = top ? `${top.text}${top.what ? ` · ${top.what}` : ''}` : r.stuck[0]?.text || '';
-  $('tk-title').value = step && !step.waiting ? step.what : '';
-  const owner = top?.who && PEOPLE[top.who] && top.who !== 'editor' ? top.who : null;
+  const lior = mode === 'lior';
+  $('tk-h').textContent = `${lior ? 'עדכון לליאור' : 'פתיחת משימה'} · ${r.client.name}`;
+  $('tk-meta').textContent = lior ? 'ליאור מקבל את זה כחריגה ב״החלטות״. כתבו מה תקוע ומה צריך ממנו.'
+    : top ? `${top.text}${top.what ? ` · ${top.what}` : ''}` : r.stuck[0]?.text || '';
+  $('tk-title').value = lior ? stuckTitle(r) : step && !step.waiting ? step.what : '';
+  const owner = lior ? 'lior' : top?.who && PEOPLE[top.who] && top.who !== 'editor' ? top.who : null;
   fill($('tk-owner'), ...staffOptions(owner));
+  $('tk-owner').disabled = lior;
+  $('tk-submit').textContent = lior ? 'שליחה לליאור' : 'פתיחת המשימה';
   $('tk-due').value = dayKeyIL(addBusinessDays(new Date(), 1));
   $('tk-err').hidden = true;
   tkDlg.showModal();
@@ -251,12 +302,13 @@ $('tk-form').addEventListener('submit', async (e) => {
   if (BRIEF_REQUIRED.has(owner)) { $('tk-err').textContent = `משימה ל${PEOPLE[owner].name} צריכה בריף מלא: פותחים אותה בכרטיס הלקוח.`; $('tk-err').hidden = false; return; }
   $('tk-submit').disabled = true;
   try {
-    const t = await addTask({ client_id: r.client.id, title, owner, due_on: due, source: 'p33' });
+    const lior = tkMode === 'lior';
+    const t = await addTask({ client_id: r.client.id, title, owner, due_on: due, source: lior ? 'escalation' : 'p33' });
     tasks = [t, ...tasks];
     mine = [t, ...mine];
     tkDlg.close();
-    await markSeen([r.client], 'task', null, t.id);
-    toast(`נפתחה משימה ל${PEOPLE[owner].name}: ${title}`);
+    await markSeen([r.client], lior ? 'lior' : 'task', null, t.id);
+    toast(lior ? `נשלח לליאור: ${title}` : `נפתחה משימה ל${PEOPLE[owner].name}: ${title}`);
   } catch (err) {
     $('tk-err').textContent = `המשימה לא נפתחה. ${errorText(err)}`;
     $('tk-err').hidden = false;
@@ -315,7 +367,8 @@ function renderThursday(now) {
   const target = thursdayTarget(now);
   const wk = weekKey(now);
   const notes = new Map((extras.statusNotes || []).filter((n) => n.week === wk).map((n) => [n.client_id, n]));
-  const list = entries.slice().sort((a, b) => notes.has(a.client.id) - notes.has(b.client.id));
+  // No weekly summary is asked for a client that was not taken in yet.
+  const list = entries.filter((e) => e.client.landing !== true).sort((a, b) => notes.has(a.client.id) - notes.has(b.client.id));
   const done = list.filter((e) => notes.has(e.client.id)).length;
   fill($('th-body'),
     h('p', { class: 'ps-progress' },
