@@ -3,8 +3,10 @@
 // always load from the network as before.
 //  1. Web Push from the reminder engine (supabase/functions/reminders): each push
 //     is JSON { title, body, url, tag } and is always shown (iOS requires it).
-//     `renotify` (the repeats of a task given on the spot): the same tag replaces
-//     the notification before it and still sounds.
+//     The tag is the case (pushTag in app/reminder-engine.js), and `renotify` comes
+//     with it: the next step of the same case, a repeat of a task given on the spot
+//     or the next batch of lateness notes replaces the notification before it and
+//     still sounds, so many pushes are few banners.
 //  2. Notifications a page shows itself through this registration (the "now" bar
 //     on Chrome for Android, where only a service worker may show one).
 // A tap opens the page the notification is about, on this site only, or brings

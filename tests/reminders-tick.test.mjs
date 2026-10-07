@@ -91,7 +91,9 @@ test('a tick pushes each due step once to every device, removes a dead one and r
   assert.deepEqual(sent.map((s) => s.endpoint).sort(), ['https://push.test/old', 'https://push.test/phone']);
   assert.equal(sent[0].payload.title, 'עסקה חדשה: פיצה');
   assert.equal(sent[0].payload.url, 'client.html?id=c1#p01');
-  assert.equal(sent[0].payload.tag, 'deal:c1:deal:now@irit');
+  // The tag is the case, not the step: the next step of this deal replaces this banner and sounds again.
+  assert.equal(sent[0].payload.tag, 'deal:c1:deal');
+  assert.equal(sent[0].payload.renotify, true);
   assert.equal(sent[0].opts.urgency, 'high');
   const row = db.log.find((r) => r.key === 'deal:c1:deal:now@irit');
   assert.deepEqual([row.channel, row.status, row.reason], ['push', 'sent', '1 of 2 devices failed']);
@@ -219,7 +221,7 @@ test('a tick that stops after claiming a push: a later tick sends it once, never
   const row = () => db.log.find((r) => r.key === 'deal:c1:deal:now@irit');
   assert.equal(row().status, 'pending'); // claimed, not "sent": nothing reached a phone yet
   const { push, sent } = fakePush();
-  const mine = () => sent.filter((s) => s.payload.tag === 'deal:c1:deal:now@irit');
+  const mine = () => sent.filter((s) => s.payload.tag === 'deal:c1:deal' && s.payload.title === 'עסקה חדשה: פיצה');
   // 5 minutes on, the first tick may still be alive: not taken.
   const t5 = IL(2026, 10, 5, 10, 5);
   await runTick({ db: db.at(t5), push, now: t5 });
@@ -247,7 +249,7 @@ test('a pending push that is no longer true is dropped, and one hours old is rec
   const { push, sent } = fakePush();
   const t11 = IL(2026, 10, 5, 10, 11);
   await runTick({ db: db.at(t11), push, now: t11 });
-  assert.deepEqual(sent.map((s) => s.payload.tag).filter((t) => t.endsWith(':now@irit')), ['deal:c2:deal:now@irit']);
+  assert.deepEqual(sent.filter((s) => s.payload.title.startsWith('עסקה חדשה:')).map((s) => s.payload.tag), ['deal:c2:deal']);
   const c1 = db.log.find((r) => r.key === 'deal:c1:deal:now@irit');
   assert.deepEqual([c1.status, c1.reason], ['suppressed', 'resolved']);
   // Another one claimed at 13:00 and stopped; the engine is down until 15:30.
@@ -259,7 +261,7 @@ test('a pending push that is no longer true is dropped, and one hours old is rec
   const p2 = fakePush();
   const stats = await runTick({ db: db2.at(late), push: p2.push, now: late });
   assert.equal(stats.lost, 1);
-  assert.equal(p2.sent.filter((s) => s.payload.tag === 'deal:c1:deal:now@irit').length, 0);
+  assert.equal(p2.sent.filter((s) => s.payload.title.startsWith('עסקה חדשה:')).length, 0);
   assert.equal(db2.log.find((r) => r.key === 'deal:c1:deal:now@irit').status, 'failed');
 });
 
@@ -281,7 +283,7 @@ test('one row the database refuses does not stop the tick: long text is cut to t
   db.refuse = () => false;
   const t1 = IL(2026, 10, 5, 10, 1);
   await runTick({ db: db.at(t1), push, now: t1 });
-  assert.equal(sent.filter((s) => s.payload.tag === 'deal:c1:deal:now@irit').length, 1);
+  assert.equal(sent.filter((s) => s.payload.tag === 'deal:c1:deal' && s.payload.title.startsWith('עסקה חדשה:')).length, 1);
 });
 
 test('a push always fits the 4 KB of a Web Push message, even a long Hebrew digest', async () => {
@@ -314,7 +316,7 @@ test('a pending ring taken again after 19:00 waits for the morning digest instea
   const { push, sent } = fakePush();
   const t = IL(2026, 10, 5, 19, 6);
   await runTick({ db: db.at(t), push, now: t });
-  assert.equal(sent.filter((s) => s.payload.tag === 'deal:c1:deal:now@irit').length, 0);
+  assert.equal(sent.filter((s) => s.payload.tag === 'deal:c1:deal').length, 0);
   const row = db.log.find((r) => r.key === 'deal:c1:deal:now@irit');
   assert.deepEqual([row.status, row.channel, row.reason], ['queued', 'digest', 'quiet_hours']);
 });
@@ -354,4 +356,92 @@ test('a tick assigns an editor when the shoot day was closed: written once, Ofir
   const plain = fakeDb({ clients: [{ ...c, id: 'c10', editor: null }], checks: checks.filter((r) => !/^p22a\./.test(r.item_key)).map((r) => ({ ...r, client_id: 'c10' })) });
   assert.equal((await runTick({ db: plain.at(t), push, now: t })).assigned, 0);
   assert.ok(plain.log.some((r) => r.rule === 'assign' && r.person === 'ofir'));
+});
+
+// ── The owner's rule of 7.10.2026: "אין הודעות שקטות, הכל מקבל התראה לפלאפון" ──
+test('an update (level "quiet") is pushed like a ring, in the sending hours only; one that came at night is a line of the morning digest', async () => {
+  const c = deal(IL(2026, 9, 1, 10), 'הסכם');
+  const checks = importKeys('ongoing').map((k) => ({ client_id: 'c1', item_key: k, state: 'done', note: IMPORT_NOTE, at: IL(2026, 9, 1, 9).toISOString() }));
+  // A task Lior opened for Irit, at 10:00 and another at 21:00: "משימה חדשה" is an update.
+  const task = (id, at) => ({ id, client_id: 'c1', title: `משימה ${id}`, owner: 'irit', due_on: '2026-10-20', done_at: null, created_by_email: 'lior@x', created_at: at.toISOString(), source: null, urgent: false, started_at: null });
+  const tasks = [task('t1', IL(2026, 10, 5, 10))];
+  const db = fakeDb({ clients: [c], checks, tasks, subs: [{ email: 'irit@x', endpoint: 'https://push.test/irit' }] });
+  const { push, sent } = fakePush();
+  const t0 = IL(2026, 10, 5, 10);
+  await Promise.all([runTick({ db: db.at(t0), push, now: t0 }), runTick({ db, push, now: t0 })]);
+  const mine = () => sent.filter((s) => s.payload.title === 'משימה חדשה: הסכם');
+  assert.deepEqual(mine().map((s) => [s.payload.body, s.payload.level, s.payload.tag, s.opts.urgency]), [['משימה t1', 'quiet', 'task:c1:t1', 'high']]);
+  const row = db.log.find((r) => r.key === 'task:c1:t1:created@irit');
+  assert.deepEqual([row.level, row.channel, row.status], ['quiet', 'push', 'sent']);
+  // At 21:00: nobody is pushed at night. It waits, and is a line of her 08:30 digest.
+  tasks.push(task('t2', IL(2026, 10, 5, 21)));
+  const night = IL(2026, 10, 5, 21);
+  await runTick({ db: db.at(night), push, now: night });
+  assert.equal(mine().length, 1);
+  const waiting = () => db.log.find((r) => r.key === 'task:c1:t2:created@irit');
+  assert.deepEqual([waiting().channel, waiting().status, waiting().reason], ['digest', 'queued', 'quiet_hours']);
+  const morning = IL(2026, 10, 6, 8, 30);
+  await runTick({ db: db.at(morning), push, now: morning });
+  const digest = sent.find((s) => s.payload.tag === 'digest:morning:irit:2026-10-06');
+  assert.match(digest.payload.body, /^משימה חדשה: הסכם$/m);
+  assert.deepEqual([waiting().status, waiting().channel, waiting().digest_key], ['sent', 'digest', 'digest:morning:irit:2026-10-06']);
+  assert.equal(mine().length, 1, 'never pushed late by itself');
+});
+
+test('a burst in a tick: six rings for Irit in one minute are one push that lists them, sent that minute and once; each is its own row', async () => {
+  const names = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
+  const clients = names.map((x, i) => ({ ...deal(IL(2026, 10, 5, 10), `לקוח ${x}`), id: `c${i + 1}` }));
+  const db = fakeDb({ clients, subs: [{ email: 'irit@x', endpoint: 'https://push.test/irit' }] });
+  const { push, sent } = fakePush();
+  const t0 = IL(2026, 10, 5, 10);
+  await Promise.all([runTick({ db: db.at(t0), push, now: t0 }), runTick({ db: db.at(t0), push, now: t0 })]);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].payload.title, '6 הודעות חדשות');
+  assert.equal(sent[0].payload.body, 'פרטי עסקה התקבלו (1, 2, 3) (6): לקוח א, לקוח ב, לקוח ג ועוד 3');
+  assert.match(sent[0].payload.tag, /^digest:burst:irit:2026-10-05:\d+$/);
+  const rows = db.log.filter((r) => r.rule === 'deal' && r.person === 'irit');
+  assert.equal(rows.length, 6);
+  assert.ok(rows.every((r) => r.level === 'ring' && r.status === 'sent' && r.channel === 'digest' && r.digest_key === sent[0].payload.tag));
+  // The next minute: nothing again. At 10:05 the six "עברו 5 דקות" are one push as well.
+  const t1 = IL(2026, 10, 5, 10, 1);
+  await runTick({ db: db.at(t1), push, now: t1 });
+  assert.equal(sent.length, 1);
+  const t5 = IL(2026, 10, 5, 10, 5);
+  await runTick({ db: db.at(t5), push, now: t5 });
+  assert.deepEqual(sent.map((s) => s.payload.title), ['6 הודעות חדשות', '6 הודעות חדשות']);
+});
+
+test('lateness notes in a tick: three late items are one push to Ofir and one to Lior, each item its own row; overlapping ticks send a batch once', async () => {
+  // The characterization ended at 12:00: Ilai's graphics (7), Ofir's Highlights (8) and
+  // Lior's part (10) are due two office hours later, and nobody did them.
+  const c = { ...deal(IL(2026, 9, 1, 10), 'מאחר'), char_at: IL(2026, 10, 6, 10).toISOString() };
+  const checks = importKeys('char').map((k) => ({ client_id: 'c1', item_key: k, state: 'done', note: IMPORT_NOTE, at: IL(2026, 9, 1, 9).toISOString() }));
+  for (const i of PROCESSES.find((p) => p.id === 'p04').items.filter((x) => !x.optional)) checks.push({ client_id: 'c1', item_key: i.key, state: 'done', note: null, at: IL(2026, 10, 6, 12).toISOString() });
+  const db = fakeDb({ clients: [c], checks, subs: [{ email: 'ofir@x', endpoint: 'https://push.test/ofir' }, { email: 'lior@x', endpoint: 'https://push.test/lior' }] });
+  const { push, sent } = fakePush();
+  // 14:00 the deadlines pass; 14:15 the grace is over. A tick every minute, twice (overlapping).
+  for (let t = IL(2026, 10, 6, 14, 10).getTime(); t <= IL(2026, 10, 6, 14, 50).getTime(); t += 6e4) {
+    const now = new Date(t);
+    await Promise.all([runTick({ db: db.at(now), push, now }), runTick({ db: db.at(now), push, now })]);
+  }
+  const lateRows = (who) => db.log.filter((r) => r.rule === 'late' && r.person === who);
+  const batches = (who) => db.log.filter((r) => r.key.startsWith(`digest:late:${who}:`));
+  for (const who of ['ofir', 'lior']) {
+    // Each late item is its own row of the log (and of "התראות"), sent in a batch.
+    assert.ok(lateRows(who).length >= 3, `${who}: ${lateRows(who).length}`);
+    assert.ok(lateRows(who).every((r) => r.level === 'quiet' && r.status === 'sent' && r.channel === 'digest' && r.reason === 'batch' && batches(who).some((b) => b.key === r.digest_key)), who);
+    // One push for all of them, not one each; no note was pushed by itself.
+    const pushes = sent.filter((s) => s.endpoint === `https://push.test/${who}` && s.payload.tag === `digest:late:${who}`);
+    assert.equal(pushes.length, batches(who).length);
+    assert.ok(pushes.length <= 2 && pushes.length < lateRows(who).length, `${who}: ${pushes.length} pushes for ${lateRows(who).length} notes`);
+    assert.ok(pushes.every((p) => /^\d+ איחורים חדשים$/.test(p.payload.title) && p.payload.renotify === true), JSON.stringify(pushes.map((p) => p.payload.title)));
+    assert.ok(pushes.some((p) => /מאחר · 7 · /.test(p.payload.body)), JSON.stringify(pushes.map((p) => p.payload.body)));
+    // The batches are at least half an hour apart.
+    const times = batches(who).map((b) => +new Date(b.created_at));
+    assert.ok(times.every((t, i) => i === 0 || t - times[i - 1] >= 30 * 6e4), who);
+    assert.equal(sent.filter((s) => s.endpoint === `https://push.test/${who}` && s.payload.title.startsWith('באיחור:')).length, 0);
+    // None was lost: every note belongs to exactly one batch that went out.
+    assert.ok(batches(who).every((b) => b.status === 'sent' && b.channel === 'push'));
+    assert.equal(batches(who).reduce((sum, b) => sum + lateRows(who).filter((r) => r.digest_key === b.key).length, 0), lateRows(who).length);
+  }
 });

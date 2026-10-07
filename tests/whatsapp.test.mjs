@@ -122,8 +122,12 @@ test('the channel choice: agreed, and the number is still the one agreed to (the
   const mon10 = IL(2026, 10, 5, 10);
   assert.deepEqual(waPlan({ row: log(), kind: 'ring', now: mon10, recipient: irit }), { template: 'due', to: '972501111111' });
   assert.deepEqual(waPlan({ row: log(), kind: 'ring', now: mon10, recipient: null }), { skip: 'no_consent' });
-  // Only rings and digests; never a quiet line or a test.
-  assert.equal(waPlan({ row: log({ level: 'quiet' }), kind: 'ring', now: mon10, recipient: irit }).skip, 'kind');
+  // Rings, updates (level 'quiet': pushed like a ring since 7.10.2026, so copied like
+  // one, with the template a ring of that rule gets) and digests; never a test, nor a
+  // line that is not pushed by itself (a digest line, the owner's board).
+  assert.deepEqual(waPlan({ row: log({ level: 'quiet' }), kind: 'ring', now: mon10, recipient: irit }), { template: 'due', to: '972501111111' });
+  assert.equal(waPlan({ row: log({ level: 'digest' }), kind: 'ring', now: mon10, recipient: irit }).skip, 'kind');
+  assert.equal(waPlan({ row: log({ level: 'board' }), kind: 'ring', now: mon10, recipient: irit }).skip, 'kind');
   assert.equal(waPlan({ row: log(), kind: 'test', now: mon10, recipient: irit }).skip, 'kind');
   assert.equal(waPlan({ row: log({ rule: 'digest', level: 'digest' }), kind: 'digest', now: mon10, recipient: irit }).template, 'digest');
   // The consent's hours: not at 20:00 (a shoot-day ring goes by push alone), not on
@@ -244,6 +248,32 @@ test('outside the hours nothing goes on WhatsApp; the 08:30 digest does; a faile
   assert.equal(s2.waFailed, 1);
   assert.deepEqual([rows[0].status, rows[0].error], ['failed', 'graph 400 #132000']);
   fail = false;
+});
+
+// The owner's rule of 7.10.2026: an update is pushed like a ring, so it is copied like
+// one; a batch of lateness notes is a digest. No new template: the nine there were.
+test('an update and a batch of lateness notes go on WhatsApp with the templates there already were, once each', async () => {
+  const { wa, rows, sent } = fakeWa({ recipients: IRIT_OK });
+  const now = IL(2026, 10, 5, 10);
+  const update = log({ id: 51, key: 'stationChange:c1:p11:irit@irit', rule: 'stationChange', level: 'quiet', ref: null, title: 'פיצה עבר/ה לשלב צילום', body: 'לשלוח בקבוצה: היי' });
+  const done = log({ id: 52, key: 'task:c1:t7:created@irit', rule: 'task', level: 'quiet', ref: null, title: 'משימה חדשה: פיצה', body: 'לשלוח חשבונית' });
+  const batch = log({ id: 53, key: 'digest:late:irit:2026-10-05:50', rule: 'digest', level: 'digest', ref: null, client_id: null, title: '3 איחורים חדשים', body: 'א · 12 · תסריטים · ליאור\nב · 7 · גרפיקות · עילאי\nג · 8 · Highlights · אופיר', url: 'clients.html#mine' });
+  const stats = {};
+  await wa.deliver({ sends: [{ row: update, kind: 'ring' }, { row: done, kind: 'ring' }, { row: batch, kind: 'digest' }], env: { tasks: [] }, now, stats });
+  assert.equal(stats.waSent, 3);
+  assert.deepEqual(rows.map((r) => [r.log_id, r.template]).sort(), [[51, 'due'], [52, 'due'], [53, 'digest']]);
+  const b = sent.find((m) => m.template.name === 'astrateg_digest');
+  assert.equal(b.template.components[0].parameters[0].text, '3 איחורים חדשים');
+  assert.doesNotMatch(b.template.components[0].parameters[1].text, /\n/);
+  assert.deepEqual(new Set(sent.map((m) => m.template.name)), new Set(['astrateg_due', 'astrateg_digest']));
+  assert.equal(Object.keys(TEMPLATES).length, 9);
+  // Again (a tick taken again): each finds its claim.
+  await wa.deliver({ sends: [{ row: update, kind: 'ring' }, { row: batch, kind: 'digest' }], env: { tasks: [] }, now, stats: {} });
+  assert.equal(sent.length, 3);
+  // Outside the consent's hours an update is not copied, like a ring.
+  const night = fakeWa({ recipients: IRIT_OK });
+  await night.wa.deliver({ sends: [{ row: { ...update, id: 61 }, kind: 'ring' }], env: { tasks: [] }, now: IL(2026, 10, 5, 20), stats: {} });
+  assert.equal(night.sent.length, 0);
 });
 
 // ── Replies ─────────────────────────────────

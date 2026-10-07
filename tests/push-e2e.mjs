@@ -43,11 +43,17 @@ const db = {
   push_subscriptions: [],
   reminder_log: [
     { id: 11, person: 'irit', key: 'answer:x@irit', rule: 'answer', level: 'ring', channel: 'push', status: 'sent', reason: null, title: 'הלקוח לא ענה: קפה גליה', body: '9 הגרפיקות הראשונות. עברו 10 דקות בלי תשובה: להתקשר.', url: `client.html?id=${cafe.id}#p07`, ref: 'p07', client_id: cafe.id, created_at: minsAgo(5), sent_at: minsAgo(5), read_at: null },
-    { id: 12, person: 'irit', key: 'dailyMessages:-:x:1400@irit', rule: 'dailyMessages', level: 'quiet', channel: 'app', status: 'sent', reason: null, title: 'עוד לא קיבלו הודעה היום: 3 לקוחות', body: 'א, ב, ג', url: 'messages.html', ref: null, client_id: null, created_at: minsAgo(30), sent_at: minsAgo(30), read_at: null },
+    { id: 12, person: 'irit', key: 'dailyMessages:-:x:1400@irit', rule: 'dailyMessages', level: 'quiet', channel: 'push', status: 'sent', reason: null, title: 'עוד לא קיבלו הודעה היום: 3 לקוחות', body: 'א, ב, ג', url: 'messages.html', ref: null, client_id: null, created_at: minsAgo(30), sent_at: minsAgo(30), read_at: null },
     { id: 13, person: 'irit', key: 'digest:morning:irit:2026-10-05', rule: 'digest', level: 'digest', channel: 'push', status: 'sent', reason: 'morning', title: 'תקציר בוקר', body: 'באיחור: קפה גליה · 7\nהיום: 2', url: 'clients.html#mine', ref: null, client_id: null, created_at: minsAgo(90), sent_at: minsAgo(90), read_at: minsAgo(80) },
     { id: 14, person: 'irit', key: 'late:y@irit', rule: 'late', level: 'ring', channel: 'push', status: 'suppressed', reason: 'stale', title: 'לא אמור להופיע', body: '', url: null, ref: null, client_id: null, created_at: minsAgo(20), sent_at: null, read_at: null },
     { id: 15, person: 'irit', key: 'task:z@irit', rule: 'task', level: 'quiet', channel: 'app', status: 'sent', reason: null, title: 'מאתמול', body: '', url: null, ref: null, client_id: null, created_at: '2026-10-04T15:00:00Z', sent_at: null, read_at: null },
     { id: 16, person: 'ilai', key: 'urgent:t@ilai', rule: 'urgent', level: 'ring', channel: 'push', status: 'sent', reason: null, title: 'משימה דחופה: קפה גליה', body: 'לתקן את הלוגו בעמוד. ללחוץ "התחלתי".', url: `client.html?id=${cafe.id}#tasks`, ref: null, client_id: cafe.id, created_at: minsAgo(12), sent_at: minsAgo(12), read_at: null },
+    // A lateness note that went to the phone in a batch (7.10.2026): the note is a row of
+    // the list; the batch's own row (id 18, unread) is not, and is not counted either.
+    { id: 17, person: 'irit', key: 'task:c:t9:late@irit', rule: 'task', level: 'quiet', channel: 'digest', status: 'sent', reason: 'batch', title: 'משימה באיחור: קפה גליה', body: 'עירית: לשלוח חשבונית', url: `client.html?id=${cafe.id}#tasks`, ref: null, client_id: cafe.id, created_at: minsAgo(45), sent_at: minsAgo(45), read_at: minsAgo(40) },
+    { id: 18, person: 'irit', key: 'digest:late:irit:2026-10-05:17', rule: 'digest', level: 'digest', channel: 'push', status: 'sent', reason: 'late', title: 'משימה באיחור: קפה גליה', body: 'עירית: לשלוח חשבונית', url: `client.html?id=${cafe.id}#tasks`, ref: null, client_id: null, created_at: minsAgo(45), sent_at: minsAgo(45), read_at: null },
+    // An old row from before 7.10.2026 (an update that stayed in the app) still reads well.
+    { id: 19, person: 'irit', key: 'stationChange:c:x:irit@irit', rule: 'stationChange', level: 'quiet', channel: 'app', status: 'sent', reason: null, title: 'קפה גליה עבר/ה לשלב צילום', body: '', url: 'messages.html', ref: null, client_id: cafe.id, created_at: minsAgo(100), sent_at: minsAgo(100), read_at: minsAgo(95) },
   ],
 };
 const calls = [];
@@ -270,10 +276,15 @@ await step('"התראות": today\'s reminders, newest first, with how each arri
   await page.waitForSelector('#dlg-inbox[open] .inbox-row');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'inbox-h');
   const titles = await page.locator('#inbox-list .inbox-title').allInnerTexts();
-  assert.deepEqual(titles, ['הלקוח לא ענה: קפה גליה', 'עוד לא קיבלו הודעה היום: 3 לקוחות', 'תקציר בוקר']); // no stale step, nothing from yesterday
+  // No stale step, nothing from yesterday, and not the batch's own row.
+  assert.deepEqual(titles, ['הלקוח לא ענה: קפה גליה', 'עוד לא קיבלו הודעה היום: 3 לקוחות', 'משימה באיחור: קפה גליה', 'תקציר בוקר', 'קפה גליה עבר/ה לשלב צילום']);
   assert.match(await page.locator('#inbox-list .inbox-row').nth(0).innerText(), /חדש[\s\S]*נשלח לטלפון[\s\S]*פתיחה/);
-  assert.match(await page.locator('#inbox-list .inbox-row').nth(1).innerText(), /בתוך המערכת, בלי צליל/);
-  assert.match(await page.locator('#inbox-list .inbox-row').nth(2).innerText(), /תקציר, נשלח לטלפון/);
+  // Since 7.10.2026 an update went to the phone too: nothing in the list says "בלי צליל".
+  assert.match(await page.locator('#inbox-list .inbox-row').nth(1).innerText(), /חדש[\s\S]*נשלח לטלפון/);
+  assert.match(await page.locator('#inbox-list .inbox-row').nth(2).innerText(), /נשלח לטלפון, בהודעה אחת עם שאר האיחורים/);
+  assert.match(await page.locator('#inbox-list .inbox-row').nth(3).innerText(), /תקציר, נשלח לטלפון/);
+  assert.match(await page.locator('#inbox-list .inbox-row').nth(4).innerText(), /בתוך המערכת/);
+  assert.doesNotMatch(await page.locator('#inbox-list').innerText(), /בלי צליל/);
   assert.equal(await page.locator('#inbox-list .inbox-row').nth(0).locator('a').getAttribute('href'), `${BASE}client.html?id=${cafe.id}#p07`);
   await shot(page, '03-inbox');
   await page.locator('#inbox-list .inbox-row').nth(1).locator('button:has-text("סימון כנקרא")').click();
