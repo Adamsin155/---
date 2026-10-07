@@ -177,7 +177,13 @@ test('the migration file: nothing in it removes an object or a row, and there is
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null, 'the production tool refuses these three words, also in a comment or a name');
   assert.equal(existsSync(new URL(`../../supabase/migrations/${MANUAL}`, import.meta.url)), false);
   // What came after it only adds objects of its own (an older migration run again would bring the old definitions back: docs/ops.md, section 36).
-  assert.deepEqual(migrationFiles().filter((f) => f > MIGRATION), ['20261016100000_photographer_availability.sql']);
+  // So no later file may define again a function this one defines.
+  const defined = (text) => [...text.matchAll(/create\s+or\s+replace\s+function\s+([a-z_.]+)/gi)].map((m) => m[1].toLowerCase());
+  const hardened = new Set(defined(sql));
+  for (const f of migrationFiles().filter((x) => x > MIGRATION)) {
+    const again = defined(readFileSync(new URL(`../../supabase/migrations/${f}`, import.meta.url), 'utf8')).filter((n) => hardened.has(n));
+    assert.deepEqual(again, [], `${f} defines again what the hardening defined`);
+  }
 });
 
 // ── 1. Quotes ──
