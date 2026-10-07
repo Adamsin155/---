@@ -78,7 +78,7 @@ await step('a wide screen: the side menu, the rail on the current screen, the na
   await page.waitForSelector('#side-list .side-link');
   await settle(page);
   assert.equal(await page.getAttribute('#side-nav', 'aria-label'), 'תפריט ראשי');
-  assert.equal(await page.getAttribute('#mode-mine', 'aria-current'), 'page');
+  assert.equal(await page.getAttribute('#side-mine', 'aria-current'), 'page');
   assert.equal(await page.locator('#side-list [aria-current]').count(), 1);
   assert.equal(await page.innerText('#who-name'), 'עירית');
   assert.equal(await page.innerText('.topbar .ds-av'), 'עי');
@@ -90,16 +90,18 @@ await step('a wide screen: the side menu, the rail on the current screen, the na
     const cur = await page.locator(sel).boundingBox();
     assert.ok(rail.y >= cur.y - 1 && rail.y + rail.height <= cur.y + cur.height + 1, `the rail is not on ${sel}: ${JSON.stringify([rail, cur])}`);
   };
-  await railOn('#mode-mine');
-  // A long menu is two parts: the daily screens, then the rest under a quiet "עוד" heading; every entry stays visible.
+  await railOn('#side-mine');
+  // Irit's personal profile (7.10.2026): her six daily screens in one list, no switch inside the menu.
   assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#side-list .side-link, #side-list .side-k')].map((e) => e.textContent.trim())),
-    ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'הודעות ללקוחות', 'הצעה חדשה', 'הצעות שנשלחו', 'עוד', 'גאנט תוכן', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'צוות']);
-  assert.equal(await page.locator('#side-list .side-link:visible').count(), 11);
+    ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+  assert.equal(await page.locator('#side-list .side-link:visible').count(), 6);
+  assert.equal(await page.locator('#mode-bar, .mode-opt').count(), 0);
+  assert.equal(await page.innerText('#profile-switch'), 'מבט מנהל');
   // The lists of clients.html are the "לקוחות" entry: the rail slides there without a page load.
   await page.click('#side-clients');
   await page.waitForSelector('#view-clients:not([hidden])');
   assert.equal(await page.getAttribute('#side-clients', 'aria-current'), 'page');
-  assert.equal(await page.getAttribute('#mode-mine', 'aria-current'), null);
+  assert.equal(await page.getAttribute('#side-mine', 'aria-current'), null);
   await railOn('#side-clients');
   // A client's card is under "לקוחות" (marked, but not "the page").
   await page.locator('#client-list a.crow').first().click();
@@ -113,9 +115,9 @@ await step('a wide screen: the side menu, the rail on the current screen, the na
   await railOn('#side-messages');
   assert.equal(await page.locator('.head-actions a.in-menu:visible').count(), 0);
   // The keyboard: every entry is a link in the menu's order, and focus is visible.
-  await page.focus('#mode-mine');
+  await page.focus('#side-mine');
   await page.keyboard.press('Tab');
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'mode-manager');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'side-clients');
   const ring = await page.evaluate(() => { const s = getComputedStyle(document.activeElement); return [s.outlineStyle, parseFloat(s.outlineWidth)]; });
   assert.ok(ring[0] !== 'none' && ring[1] >= 2, `focus ring: ${ring}`);
   // The quote pages have the same shell.
@@ -254,7 +256,7 @@ await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and 
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'עוד']);
   await page.click('#side-more');
   assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(),
-    ['בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה', 'צוות']);
+    ['בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'צוות']);
   // A screen behind "עוד" marks "עוד" as where you are.
   await page.click('#side-year');
   await page.waitForURL(/year\.html$/);

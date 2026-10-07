@@ -462,6 +462,9 @@ await step('Irit sees the renewals (and reaches the page from clients.html); Ofi
   const ictx2 = await newContext();
   const irit = await newPage(ictx2);
   await signIn(irit, 'clients.html#mine', 'irit@astrateg.test');
+  // (Since 7.10.2026 the package year is in Irit's manager profile: the button at the top, then the menu.)
+  await irit.click('#profile-switch');
+  await irit.waitForSelector('#profile-switch[data-to="mine"]');
   await irit.click('#side-year');
   await irit.waitForSelector('#rn-list .yr-renew');
   assert.equal(await irit.locator('#rn-list .yr-renew').count(), 3);

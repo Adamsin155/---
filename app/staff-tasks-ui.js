@@ -1,11 +1,12 @@
-// "משימות מיידיות": the card of the tasks given on the spot (the owner's request of
-// 6.10.2026), right under the "now" bar of "המשימות שלי" and on deal.html (the sales
-// agents have no other screen).
-//   - Whoever got a task: "משימות שקיבלת (N)", each with what to do, who gave it and
+// "נודניק תזכורת לעובד" (it was "משימות מיידיות" until 7.10.2026; the owner did not
+// recognise it under that name): the card of the tasks given on the spot (the owner's
+// request of 6.10.2026), right under the "now" bar of "המשימות שלי" and on deal.html
+// (the sales agents have no other screen). The ids and the code names kept "task".
+//   - Whoever got one: "תזכורות שקיבלת (N)", each with what to do, who sent it and
 //     when, when the next reminder comes, and "בוצע". Only that stops the reminders
 //     (every 10 minutes, 09:00–20:00 on working days).
-//   - Whoever gives them (Irit, the owner): "משימה חדשה" (to whom, what, an optional
-//     client), and "משימות שנתת": the open ones with "ביטול המשימה", and the ones
+//   - Whoever sends them (Irit, the owner): "שליחת נודניק" (to whom, what, an optional
+//     client), and "נודניקים ששלחת": the open ones with "ביטול הנודניק", and the ones
 //     done or cancelled in the last week, by whom and when.
 // The database decides who may do what (public.staff_task_create / _done / _cancel
 // and row level security on public.staff_tasks); the rules are
@@ -14,8 +15,11 @@
 import { supabase } from './supa.js';
 import { fill, h, toast, errorText, formatWhen } from './protocol-ui.js';
 import {
-  canGive, personOfViewer, ASSIGNEES, personName, validateTask, BODY_MAX, taskLists, nextNagAt, nagOpen, NAG_EVERY, STATUS_TEXT,
+  canGive, personOfViewer, ASSIGNEES, personName, validateTask, BODY_MAX, taskLists, nextNagAt, nagOpen, NAG_EVERY,
 } from './staff-tasks-logic.js';
+
+// The state of a "נודניק" as the sender reads it (STATUS_TEXT in the logic speaks of a task).
+const STATE_TEXT = { open: 'פתוח', done: 'בוצע', cancelled: 'בוטל' };
 
 const COLS = 'id, created_at, created_by, assignee, body, client_id, client_name, status, done_at, cancelled_at';
 const missing = (error) => ['42P01', 'PGRST205', 'PGRST204', '42703'].includes(error?.code);
@@ -92,7 +96,7 @@ async function send(form) {
   formOpen = false;
   showOpen = true; // what was just sent is shown
   const who = personName(v.args.p_assignee);
-  toast(nagOpen(new Date()) ? `המשימה נשלחה ל${who}. תזכורת כל ${NAG_EVERY} דקות עד ״בוצע״.` : `המשימה נשמרה. התזכורות ל${who} יתחילו ${formatWhen(nextNagAt(new Date(), new Date()))}.`);
+  toast(nagOpen(new Date()) ? `הנודניק נשלח ל${who}. תזכורת כל ${NAG_EVERY} דקות עד ״בוצע״.` : `הנודניק נשמר. התזכורות ל${who} יתחילו ${formatWhen(nextNagAt(new Date(), new Date()))}.`);
   await refreshStaffTasks();
   onChange();
   box?.querySelector('#st-new')?.focus();
@@ -113,7 +117,7 @@ function mineItem(t, now) {
   const next = nextNagAt(t.created_at, now);
   return h('article', { class: 'st-item is-mine', 'data-task': t.id, 'aria-labelledby': `st-${t.id}` },
     h('p', { class: 'st-body', id: `st-${t.id}`, dir: 'auto' }, t.body),
-    h('p', { class: 'st-meta' }, `מ${personName(t.created_by)} · ${stamp(t.created_at)}`, clientOf(t)),
+    h('p', { class: 'st-meta' }, `נשלח מ${personName(t.created_by)} · ${stamp(t.created_at)}`, clientOf(t)),
     h('p', { class: 'st-next' }, nagOpen(now) ? `תזכורת כל ${NAG_EVERY} דקות עד שמסמנים ״בוצע״. הבאה: ${formatWhen(next, now)}.` : `התזכורות יתחדשו ${formatWhen(next, now)}.`),
     h('div', { class: 'st-acts' },
       h('button', { type: 'button', class: 'btn st-done', 'data-act': 'done', onclick: (e) => act('staff_task_done', t, e.currentTarget, 'סומן ״בוצע״. התזכורות נעצרו.') }, 'בוצע')));
@@ -124,22 +128,22 @@ function givenItem(t) {
   return h('article', { class: 'st-item', 'data-task': t.id, 'aria-labelledby': `sg-${t.id}` },
     h('div', { class: 'st-head' },
       h('strong', { class: 'st-who' }, personName(t.assignee)),
-      h('span', { class: `st-state is-${t.status}` }, STATUS_TEXT[t.status])),
+      h('span', { class: `st-state is-${t.status}` }, STATE_TEXT[t.status])),
     h('p', { class: 'st-body', id: `sg-${t.id}`, dir: 'auto' }, t.body),
     h('p', { class: 'st-meta' },
-      personOfViewer(viewer) !== t.created_by ? `נתן/ה ${personName(t.created_by)} · ` : '', `נשלחה ${stamp(t.created_at)}`,
-      t.status === 'done' ? ` · בוצעה ${stamp(t.done_at)}` : '', t.status === 'cancelled' ? ` · בוטלה ${stamp(t.cancelled_at)}` : '', clientOf(t)),
+      personOfViewer(viewer) !== t.created_by ? `שלח/ה ${personName(t.created_by)} · ` : '', `נשלח ${stamp(t.created_at)}`,
+      t.status === 'done' ? ` · בוצע ${stamp(t.done_at)}` : '', t.status === 'cancelled' ? ` · בוטל ${stamp(t.cancelled_at)}` : '', clientOf(t)),
     open ? h('div', { class: 'st-acts' },
       h('button', {
         type: 'button', class: 'btn btn-ghost', 'data-act': 'cancel',
-        onclick: (e) => { if (window.confirm(`לבטל את המשימה של ${personName(t.assignee)}? התזכורות ייעצרו והיא תסומן כמבוטלת.`)) act('staff_task_cancel', t, e.currentTarget, 'המשימה בוטלה. התזכורות נעצרו.'); },
-      }, 'ביטול המשימה')) : null);
+        onclick: (e) => { if (window.confirm(`לבטל את הנודניק ל${personName(t.assignee)}? התזכורות ייעצרו והוא יסומן כמבוטל.`)) act('staff_task_cancel', t, e.currentTarget, 'הנודניק בוטל. התזכורות נעצרו.'); },
+      }, 'ביטול הנודניק')) : null);
 }
 
 function newForm() {
   const counter = h('span', { class: 'st-count', id: 'st-count', 'aria-live': 'off' }, `0/${BODY_MAX}`);
   return h('form', { class: 'st-form', id: 'st-form', novalidate: true, 'aria-labelledby': 'st-form-h', onsubmit: (e) => { e.preventDefault(); send(e.currentTarget); } },
-    h('h3', { id: 'st-form-h' }, 'משימה חדשה'),
+    h('h3', { id: 'st-form-h' }, 'נודניק חדש'),
     h('div', { class: 'field' },
       h('label', { for: 'st-assignee' }, 'למי'),
       h('select', { class: 'input', id: 'st-assignee', name: 'assignee', required: true, 'aria-describedby': 'st-assignee-err', onchange: (e) => clearError(e.currentTarget) },
@@ -157,7 +161,7 @@ function newForm() {
       h('select', { class: 'input', id: 'st-client', name: 'client' }, h('option', { value: '' }, 'בלי לקוח'), ...clients.map((c) => h('option', { value: c.id }, c.label)))) : null,
     h('p', { class: 'hint' }, `העובד/ת יקבל/ו התראה מיד, ואז כל ${NAG_EVERY} דקות עד ״בוצע״, בימי עבודה 09:00–20:00.`),
     h('div', { class: 'st-acts' },
-      h('button', { type: 'submit', class: 'btn st-send', id: 'st-send' }, 'שליחת המשימה'),
+      h('button', { type: 'submit', class: 'btn st-send', id: 'st-send' }, 'שליחת הנודניק'),
       h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { formOpen = false; render(); box.querySelector('#st-new')?.focus(); } }, 'ביטול')));
 }
 
@@ -169,25 +173,25 @@ function render() {
   box.hidden = !gives && !mine.length;
   if (box.hidden) { fill(box); return; }
   box.classList.toggle('has-mine', mine.length > 0);
-  // The giver's part is one quiet row ("משימה חדשה" and how many are open): the lists
+  // The giver's part is one quiet row ("שליחת נודניק" and how many are open): the lists
   // open on demand, so the card never pushes the person's own work down the screen
   // (the simplicity pass of 6.10.2026). A task one got stays big: it is work to do now.
-  const heading = h('h2', { id: 'staff-tasks-h', tabindex: '-1' }, mine.length ? `משימות שקיבלת (${mine.length})` : 'משימות מיידיות');
+  const heading = h('h2', { id: 'staff-tasks-h', tabindex: '-1' }, mine.length ? `תזכורות שקיבלת (${mine.length})` : 'נודניק תזכורת לעובד');
   box.classList.toggle('is-quiet', gives && !mine.length && !formOpen);
-  const newBtn = h('button', { type: 'button', class: 'btn', id: 'st-new', onclick: async (e) => { e.currentTarget.disabled = true; await loadClients(); formOpen = true; render(); box.querySelector('#st-assignee')?.focus(); } }, 'משימה חדשה');
-  const none = given.open.length ? null : h('p', { class: 'hint st-empty' }, 'אין משימות פתוחות שנתת.');
+  const newBtn = h('button', { type: 'button', class: 'btn', id: 'st-new', onclick: async (e) => { e.currentTarget.disabled = true; await loadClients(); formOpen = true; render(); box.querySelector('#st-assignee')?.focus(); } }, 'שליחת נודניק');
+  const none = given.open.length ? null : h('p', { class: 'hint st-empty' }, 'אין נודניקים פתוחים ששלחת.');
   fill(box,
     mine.length ? heading : null,
     ...mine.map((t) => mineItem(t, now)),
     gives ? [
-      mine.length ? h('h3', { class: 'st-sub' }, 'משימות שנתת') : null,
+      mine.length ? h('h3', { class: 'st-sub' }, 'נודניקים ששלחת') : null,
       ...(formOpen ? [mine.length ? null : heading, newForm(), none]
         : [h('div', { class: 'st-top' }, h('div', { class: 'st-top-t' }, mine.length ? null : heading, none), newBtn)]),
       given.open.length || given.closed.length ? h('div', { class: 'st-folds' },
         given.open.length ? h('h3', { class: 'st-fold-h', id: 'st-open-h' }, h('button', {
           type: 'button', class: 'btn-text st-more', id: 'st-open-toggle', 'aria-expanded': String(showOpen),
           onclick: () => { showOpen = !showOpen; render(); box.querySelector('#st-open-toggle')?.focus(); },
-        }, `פתוחות (${given.open.length})`)) : null,
+        }, `פתוחים (${given.open.length})`)) : null,
         given.closed.length ? h('button', {
           type: 'button', class: 'btn-text st-more', id: 'st-closed-toggle', 'aria-expanded': String(showClosed),
           onclick: () => { showClosed = !showClosed; render(); box.querySelector('#st-closed-toggle')?.focus(); },

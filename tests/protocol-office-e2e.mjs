@@ -380,7 +380,12 @@ await page.waitForSelector('.witem');
 assert.doesNotMatch(await page.locator('#mine-list').innerText(), /בקרה יומית · תהליך 32/);
 
 // ── §8 performance: Irit sees the team table ──
-await page.click('#tab-performance');
+// (Since 7.10.2026 the performance is Irit's manager profile, as for the owner, Ofir and Lior:
+// the tab is not offered in her personal profile, and its address opens the manager's.)
+assert.equal(await page.isHidden('#tab-performance'), true);
+assert.equal(await page.isHidden('#mine-people'), true);
+await page.evaluate(() => { location.hash = '#performance'; });
+await page.waitForSelector('#profile-switch[data-to="mine"]');
 await page.waitForSelector('.perf-table');
 assert.equal(new URL(page.url()).hash, '#performance');
 const perf = await page.locator('#performance').innerText();
@@ -410,6 +415,10 @@ await page.keyboard.press('Home');
 assert.equal(await page.getAttribute('#tab-mine', 'aria-selected'), 'true');
 await page.keyboard.press('End');
 assert.equal(await page.getAttribute('#tab-performance', 'aria-selected'), 'true');
+// Back to her personal profile with the button at the top.
+await page.click('#profile-switch');
+await page.waitForSelector('#profile-switch[data-to="manager"]');
+await page.waitForSelector('#view-mine:not([hidden])');
 
 // ── §6b notifications: asked only on click; once per process (a new deal's three: once); none on first load ──
 await page.click('#tab-mine');
@@ -498,6 +507,9 @@ assert.match(await page.locator('.g-urgent .wgroup-h').innerText(), /^דחוף/)
 assert.match(await urgentCard.innerText(), /מספרת רון[^]*דחוף[^]*נפתח ע״י ליאור[^]*להחליף את הלוגו בגרפיקה 4/);
 assert.equal(await urgentCard.locator('.sbadge.s-urgent .sicon').count(), 1);
 // People: the new ones appear, the "assigned editor" placeholder does not.
+// (The choice of whose list is the manager profile's, at #team; it opens on her own list.)
+await page.evaluate(() => { location.hash = '#team'; });
+await page.waitForSelector('#mine-people .chip');
 const chips = await page.locator('#mine-people .chip').allInnerTexts();
 for (const n of ['ניראל', 'נדיה', 'יריב', 'אנה']) assert.ok(chips.some((c) => c.startsWith(n)), chips.join('|'));
 assert.ok(!chips.some((c) => /העורך המשויך/.test(c)), chips.join('|'));

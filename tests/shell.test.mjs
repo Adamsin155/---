@@ -70,13 +70,21 @@ test('the menu offers a screen exactly when the page\'s own rule opens it', () =
   }
 });
 
-test('Irit\'s two profiles are the first two entries of her menu; nobody else has the switch in the menu', () => {
-  assert.deepEqual(menuOf(v('irit')).slice(0, 2).map((it) => [it.mode, it.href, it.label]), [['mine', 'clients.html#mine', 'המשימות שלי'], ['manager', 'owner.html#now', 'מבט מנהל']]);
-  // The owners, Ofir and Lior switch with the button at the top of the page instead (6.10.2026).
-  for (const viewer of [OWNER, ...['ofir', 'lior', 'ilai', 'nadia', 'eli', 'stav'].map(v)]) assert.equal(menuOf(viewer).some((it) => it.mode), false, viewer.me || 'owner');
+test('nobody has a switch inside the menu (Irit\'s two entries went on 7.10.2026): the one switch is the button at the top', () => {
+  assert.deepEqual(menuOf(v('irit')).slice(0, 2).map((it) => [it.href, it.label]), [['clients.html#mine', 'המשימות שלי'], ['owner.html#now', 'מבט מנהל']]);
+  for (const viewer of [OWNER, ...ROLES.map(v)]) assert.equal(menuOf(viewer).some((it) => 'mode' in it), false, viewer.me || 'owner');
   assert.deepEqual(menuOf(v('lior'))[1], { id: 'overview', href: 'owner.html#all', label: 'כל הלקוחות במבט' });
   // Without profiles the menu of either profile is the whole menu, unchanged.
-  for (const viewer of ['irit', 'ilai', 'nadia', 'eli', 'stav'].map(v)) for (const p of ['mine', 'manager', null]) assert.deepEqual(profileMenu(viewer, p), menuOf(viewer), viewer.me);
+  for (const viewer of ['ilai', 'nadia', 'eli', 'stav'].map(v)) for (const p of ['mine', 'manager', null]) assert.deepEqual(profileMenu(viewer, p), menuOf(viewer), viewer.me);
+});
+
+// The owner's wording of 7.10.2026: the builder is "הצעה חדשה והכנת חוזה" for everyone who
+// has it; the phone's bottom bar shows the short name (app/shell.js).
+test('the builder\'s entry: "הצעה חדשה והכנת חוזה", with a short name for the phone\'s bar', () => {
+  for (const viewer of [OWNER, ...ROLES.filter((r) => !['stav', 'amos'].includes(r)).map(v)]) {
+    assert.deepEqual(menuOf(viewer).find((it) => it.id === 'quote'), { id: 'quote', href: 'index.html', label: 'הצעה חדשה והכנת חוזה', short: 'הצעה וחוזה' }, viewer.me || 'owner');
+  }
+  for (const viewer of [OWNER, ...ROLES.map(v)]) for (const it of menuOf(viewer)) assert.equal('short' in it, it.id === 'quote', `${viewer.me || 'owner'}: ${it.id}`);
 });
 
 // The owner's request of 6.10.2026: the owners, Ofir and Lior start with a short menu of
@@ -89,7 +97,10 @@ test('the two profiles of the owners, Ofir and Lior: a short personal menu, the 
   assert.deepEqual(of(v('lior'), 'manager'), ['overview', 'clients', 'gantt', 'qa', 'insights', 'year', 'prep', 'shoot-table', 'quote', 'team']);
   assert.deepEqual(of(v('ofir'), 'mine'), ['mine', 'clients', 'qa', 'pass']);
   assert.deepEqual(of(v('ofir'), 'manager'), ['manager', 'clients', 'gantt', 'decisions', 'year', 'prep', 'shoot', 'shoot-table', 'quote']);
-  for (const viewer of [OWNER, v('ofir'), v('lior')]) {
+  // Irit (7.10.2026): her daily screens; the manager view, the Gantt, the year, the shoot days and the team behind the button.
+  assert.deepEqual(of(v('irit'), 'mine'), ['mine', 'clients', 'prep', 'messages', 'quote', 'quotes']);
+  assert.deepEqual(of(v('irit'), 'manager'), ['manager', 'clients', 'gantt', 'year', 'shoot', 'team']);
+  for (const viewer of [OWNER, v('ofir'), v('lior'), v('irit')]) {
     const who = viewer.me || 'owner';
     assert.equal(hasProfiles(viewer), true, who);
     const all = ids(viewer);
@@ -100,9 +111,10 @@ test('the two profiles of the owners, Ofir and Lior: a short personal menu, the 
     // Only the clients list is in both.
     assert.deepEqual(mine.filter((id) => manager.includes(id)), ['clients'], who);
     // The personal menu is short, starts with "המשימות שלי" and holds no management screen.
-    assert.ok(mine.length <= 5 && mine[0] === 'mine', who);
+    // (Irit's has six: "לפני יום צילום" is her own daily page, prep.html.)
+    assert.ok(mine.length <= (who === 'irit' ? 6 : 5) && mine[0] === 'mine', who);
     assert.deepEqual(mine, PERSONAL[who], who);
-    for (const id of ['manager', 'overview', 'gantt', 'insights', 'year', 'prep', 'shoot-table', 'team', 'payouts']) assert.equal(mine.includes(id), false, `${who}: ${id}`);
+    for (const id of ['manager', 'overview', 'gantt', 'insights', 'year', 'prep', 'shoot-table', 'team', 'payouts']) assert.equal(mine.includes(id), id === 'prep' && who === 'irit', `${who}: ${id}`);
     // The manager menu opens with the manager view and has no "המשימות שלי" (the button leads back).
     assert.ok(['manager', 'overview'].includes(manager[0]), who);
     assert.equal(manager.includes('mine'), false, who);
@@ -114,12 +126,15 @@ test('the two profiles of the owners, Ofir and Lior: a short personal menu, the 
   assert.deepEqual(bar(OWNER, 'mine'), [['mine', 'clients', 'quote', 'quotes'], []]);
   assert.deepEqual(bar(v('ofir'), 'mine'), [['mine', 'clients', 'qa', 'pass'], []]);
   assert.deepEqual(bar(v('lior'), 'mine'), [['mine', 'clients', 'decisions'], ['messages', 'shoot']]);
+  assert.deepEqual(bar(v('irit'), 'mine'), [['mine', 'clients', 'prep'], ['messages', 'quote', 'quotes']]);
+  assert.deepEqual(bar(v('irit'), 'manager'), [['manager', 'clients', 'gantt'], ['year', 'shoot', 'team']]);
   assert.deepEqual(bar(OWNER, 'manager')[0], ['manager', 'clients', 'gantt']);
   assert.deepEqual(bar(v('ofir'), 'manager')[0], ['manager', 'clients', 'gantt']);
   assert.deepEqual(bar(v('lior'), 'manager')[0], ['overview', 'clients', 'gantt']);
   // Only the manager profile is long enough for two parts.
   const parts = (viewer, p) => { const g = groupsOf(profileMenu(viewer, p), viewer); return [g.daily.map((it) => it.id), g.rest.length]; };
-  for (const viewer of [OWNER, v('ofir'), v('lior')]) assert.equal(parts(viewer, 'mine')[1], 0);
+  for (const viewer of [OWNER, v('ofir'), v('lior'), v('irit')]) assert.equal(parts(viewer, 'mine')[1], 0);
+  assert.equal(parts(v('irit'), 'manager')[1], 0); // six screens: one list
   assert.deepEqual(parts(OWNER, 'manager'), [['manager', 'clients', 'decisions', 'messages'], 10]);
   assert.deepEqual(parts(v('lior'), 'manager'), [['overview', 'clients'], 8]);
   assert.deepEqual(parts(v('ofir'), 'manager'), [['manager', 'clients'], 7]);

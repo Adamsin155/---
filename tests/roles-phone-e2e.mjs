@@ -72,14 +72,14 @@ async function tidy(page, label) {
     const head = document.querySelector('.page-head .head-actions');
     return {
       // The controls a thumb must hit: the top bar, the switch, the head, the tabs, the short list.
-      small: size('header.topbar nav a, header.topbar nav button, #mode-bar a, #app-side .side-link, .page-head .head-actions a, .page-head .head-actions button, .tabs [role=tab], #mine-list .wc-go, #mine-list .wc-more, #mine-list .wclient, .more-btn, .view-toggle button, .mine-more > summary, details.wgroup > summary')
+      small: size('header.topbar nav a, header.topbar nav button, #profile-switch, #app-side .side-link, .page-head .head-actions a, .page-head .head-actions button, .tabs [role=tab], #mine-list .wc-go, #mine-list .wc-more, #mine-list .wclient, .more-btn, .view-toggle button, .mine-more > summary, details.wgroup > summary')
         .filter((x) => x.h < 44),
       kicker: size('.kicker.latin').length,
       headRows: head && vis(head) ? Math.round(head.getBoundingClientRect().height) : 0,
       topLinks: size('header.topbar nav .navlink').map((x) => x.t),
       old: /מה עליי/.test(document.body.innerText),
       // The same destination is not offered twice in the head and the switch.
-      modeBar: !!document.getElementById('mode-bar'),
+      modeBar: !!document.getElementById('profile-switch'),
       headMine: [...document.querySelectorAll('.page-head .head-actions a')].filter(vis).filter((a) => /clients\.html#mine$/.test(a.href)).length,
     };
   });
@@ -199,24 +199,31 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.equal(await page.locator('#mine-list .g-overdue .more-btn').count(), 0);
   assert.ok(await noHScroll(page));
 
-  // The other screens: the bottom bar (her two profiles first), and the rest one tap away.
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'עוד']);
-  assert.equal(await page.getAttribute('#mode-mine', 'aria-current'), 'page');
+  // Her personal profile (7.10.2026): no chooser of whose list, the daily control (process 32) one tap away, no "ביצועים".
+  assert.equal(await page.locator('#mine-people').isVisible(), false);
+  assert.equal(await page.locator('#mine-select, #mine-people .chip').count(), 0);
+  assert.deepEqual(await page.locator('.tabs [role=tab]:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
+  // The other screens: the bottom bar with her daily ones, and the rest of them one tap away.
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'עוד']);
+  assert.equal(await page.getAttribute('#side-mine', 'aria-current'), 'page');
   const bar = await page.locator('#app-side').boundingBox();
   assert.ok(bar.y + bar.height <= 740 && bar.y > 600, `the bar floats at the bottom: ${JSON.stringify(bar)}`);
   const toggle = page.locator('#side-more');
   assert.equal(await page.locator('#side-messages').isVisible(), false);
   await toggle.click();
   assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
-  for (const id of ['side-messages', 'side-prep', 'side-year', 'side-shoot', 'side-quote', 'side-quotes', 'side-team']) {
+  assert.deepEqual(await page.locator('#side-sheet .side-link:visible').allInnerTexts(), ['הודעות ללקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+  for (const id of ['side-prep', 'side-messages', 'side-quote', 'side-quotes']) {
     assert.ok(await page.locator(`#${id}`).isVisible(), id);
     assert.ok((await page.locator(`#${id}`).boundingBox()).height >= 44, id);
   }
   assert.equal(await page.locator('#side-insights, #side-qa, #side-pass, #side-decisions').count(), 0, 'screens that are not Irit\'s');
+  assert.equal(await page.locator('#side-manager, #side-year, #side-shoot, #side-team, #side-gantt').count(), 0, 'the manager profile\'s screens wait behind the button');
   // Nothing of it is repeated in the page head; Escape closes the sheet.
   assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
   assert.equal(await page.locator('#cta-owner').isVisible(), false);
-  assert.ok(await page.locator('#mode-manager').isVisible());
+  assert.equal(await page.innerText('#profile-switch'), 'מבט מנהל');
+  assert.equal(await page.locator('#mode-bar, #mode-manager').count(), 0, 'one switch only');
   await page.keyboard.press('Escape');
   assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
   assert.equal(await page.locator('#side-messages').isVisible(), false);
@@ -259,7 +266,7 @@ await step('the owner lands on "המשימות שלי", the team\'s work closed 
   await settle(page);
   assert.match(page.url(), /clients\.html(#mine)?$/);
   await tidy(page, 'owner personal');
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'הצעה חדשה', 'הצעות שנשלחו']);
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'הצעה וחוזה', 'הצעות שנשלחו']); // the builder's short name in the bar
   assert.equal(await page.locator('#side-more').count(), 0, 'four screens need no "עוד"');
   assert.equal(await page.locator('#mine-list .wproc').count(), 0, 'the team\'s list is closed');
   const personal = await heightOf(page);
@@ -394,7 +401,7 @@ for (const [role, title] of [['nadia', 'הלקוחות שלי בעריכה'], ['
     // Her screens are the bar; the head does not repeat them.
     assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
     // (Four screens all fit since 6.10.2026: "הצעות שנשלחו" is the owners' and Irit's, so there is no "עוד".)
-    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה', 'הצעה חדשה']);
+    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה', 'הצעה וחוזה']);
     assert.equal(await page.locator('#side-more, #side-quotes').count(), 0);
     assert.ok(await heightOf(page) < 1500);
   });
@@ -415,7 +422,7 @@ await step('Eli lands on "ימי הצילום שלי", with tomorrow\'s shoots',
   await tidy(page, 'eli mine');
   assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
   // (Four screens all fit since 6.10.2026: no "הצעות שנשלחו" for Eli, so no "עוד".)
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'הצעה חדשה']);
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'הצעה וחוזה']);
 });
 
 // ── Stav ──────────────────────────────────
@@ -455,9 +462,9 @@ await step('Irit: imported clients are not news, the setup cards are one line ea
   assert.equal(await page.locator('.auto-banner').count(), 0);
   assert.equal(await page.locator('#mine-list .auto-tag').count(), 0);
   assert.doesNotMatch(await page.innerText('#view-mine'), /נפתח אוטומטית/);
-  // The giver's card: one row with "משימה חדשה"; the form opens on demand.
+  // The giver's card: one row with "שליחת נודניק"; the form opens on demand.
   assert.ok(await boxOf(page, '#staff-tasks-card') <= 84, `the giver's card is ${await boxOf(page, '#staff-tasks-card')}px`);
-  assert.equal(await page.innerText('#st-new'), 'משימה חדשה');
+  assert.equal(await page.innerText('#st-new'), 'שליחת נודניק');
   assert.equal(await page.locator('#st-form').count(), 0);
   // Blocked notifications (the test browser blocks them) and the calendar: a line each, the text a tap away.
   assert.equal(await page.getAttribute('#push-card', 'data-state'), 'blocked');
@@ -536,15 +543,16 @@ await step('on a wide screen the screens are the side menu, with a rail on the c
   await settle(page);
   assert.equal(await page.locator('#side-more').isVisible(), false);
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(),
-    // Her daily screens first, then the rest under "עוד" (groupsOf in app/shell-rules.js, 6.10.2026).
-    ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'הודעות ללקוחות', 'הצעה חדשה', 'הצעות שנשלחו', 'גאנט תוכן', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'צוות']);
+    // Her personal profile: her six daily screens (PERSONAL in app/shell-rules.js, 7.10.2026).
+    ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+  assert.equal(await page.locator('#mine-people').isVisible(), false);
   for (const id of ['cta-messages', 'cta-prep', 'cta-year']) assert.equal(await page.locator(`#${id}`).isVisible(), false, `${id} is in the menu, not in the head`);
   // The side menu floats beside the page (on the right, RTL), and the rail marks "המשימות שלי".
   const side = await page.locator('#app-side').boundingBox();
   const main = await page.locator('main').boundingBox();
   assert.ok(side.x > main.x + main.width - 1 && side.width > 200, JSON.stringify([side, main]));
   const rail = await page.locator('#side-rail').boundingBox();
-  const cur = await page.locator('#mode-mine').boundingBox();
+  const cur = await page.locator('#side-mine').boundingBox();
   assert.ok(rail.y >= cur.y && rail.y + rail.height <= cur.y + cur.height + 1, 'the rail is on the current item');
   assert.equal(await page.locator('#who-name').innerText(), 'עירית');
   assert.ok(await page.locator('.kicker.latin').isVisible());

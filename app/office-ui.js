@@ -9,7 +9,7 @@ import {
   h, toast, errorText, formatStamp, formatWhen, who, TAB_FRESH, firstLanded, markFirstLanded,
 } from './protocol-ui.js';
 import { isOwnerView } from './team-rules.js';
-import { isManager, hasProfiles, modeOf } from './manager-rules.js';
+import { hasProfiles, modeOf } from './manager-rules.js';
 import { officeScreens } from './shell-rules.js';
 import {
   QA_KINDS, qaState, fixedKey, fixedItemKey, qaDue,
@@ -32,7 +32,7 @@ export const OWNER_SCREEN = 'owner.html';
 // chose the manager's on this browser lands on it (owner.html); otherwise on
 // "המשימות שלי". `mode` is modeOf(viewer); null for everyone else.
 export function firstScreenOf(me, viewer = null, mode = null) {
-  if (mode === 'manager' && (isManager(viewer) || hasProfiles(viewer))) return OWNER_SCREEN;
+  if (mode === 'manager' && hasProfiles(viewer)) return OWNER_SCREEN;
   if (!me || hasProfiles(viewer)) return null;
   if (PEOPLE[me]?.editor) return EDITOR_SCREEN;
   if (PEOPLE[me]?.sales) return 'deal.html'; // Stav (3.10.2026); clients.js sends him there every time

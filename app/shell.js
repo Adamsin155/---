@@ -5,12 +5,11 @@
 // (name and avatar) and the way out. Mounted once after sign-in by the shared session
 // code (mountSession in app/protocol-ui.js) and by the quote pages; the rules are
 // app/shell-rules.js, the styles app/styles/shell.css.
-// The two profiles (app/manager-rules.js). The owners, Ofir and Lior see one profile at
-// a time: the menu holds only that profile's screens, and one button in the top bar of
-// every page (#profile-switch, the same place on a phone and on a wide screen) goes to
-// the other: "מבט מנהל" from the personal profile, "חזרה למשימות שלי" from the manager's.
-// Irit keeps her switch as the first two entries of her menu (#mode-bar, #mode-mine,
-// #mode-manager).
+// The two profiles (app/manager-rules.js). The owners, Irit, Ofir and Lior see one
+// profile at a time: the menu holds only that profile's screens, and one button in the
+// top bar of every page (#profile-switch, the same place on a phone and on a wide
+// screen) goes to the other: "מבט מנהל" from the personal profile, "חזרה למשימות שלי"
+// from the manager's. It is the only switch (Irit's two menu entries are gone, 7.10.2026).
 // Also here: the small motion helpers (page entrance, numbers that count up once,
 // view transitions for a filter), all off under prefers-reduced-motion.
 import { supabase } from './supa.js';
@@ -131,12 +130,7 @@ export function growOnce(root) {
 
 // ── The menu ────────────────────────────────
 function linkOf(item) {
-  const a = h('a', {
-    class: `side-link${item.mode ? ' mode-opt' : ''}`, id: item.mode ? `mode-${item.mode}` : `side-${item.id}`,
-    href: item.href, 'data-menu': item.id,
-  }, h('span', { class: 'side-t' }, item.label));
-  if (item.mode) a.addEventListener('click', () => setMode(item.mode));
-  return a;
+  return h('a', { class: 'side-link', id: `side-${item.id}`, href: item.href, 'data-menu': item.id }, h('span', { class: 'side-t' }, item.label));
 }
 
 function build(viewer, email) {
@@ -149,7 +143,6 @@ function build(viewer, email) {
   let more = [];
   let groups = { daily: [], rest: [] };
   let links = new Map();
-  let modeBar = null;
   let restHead = null;
   const rail = h('span', { class: 'side-rail', id: 'side-rail', 'aria-hidden': 'true' });
   const list = h('div', { class: 'side-list', id: 'side-list' });
@@ -175,15 +168,23 @@ function build(viewer, email) {
     groups = groupsOf(items, viewer);
     restHead = groups.rest.length ? h('small', { class: 'side-k side-k-rest', id: 'side-rest-h' }, 'עוד') : null;
     links = new Map(items.map((it) => [it.id, linkOf(it)]));
-    // Irit's switch keeps its own group and ids, as the first entries of the menu.
-    modeBar = items.filter((it) => it.mode).length === 2 ? h('div', { class: 'mode-bar', id: 'mode-bar', role: 'group', 'aria-label': 'החלפת תצוגה' }) : null;
     document.body.classList.toggle('has-tabbar', items.length > 1);
     document.documentElement.dataset.profile = profile || '';
     mountSwitch(profileSwitch(viewer, profile));
   };
   const dailyFirst = (its) => [...its.filter((it) => groups.daily.includes(it)), ...its.filter((it) => !groups.daily.includes(it))];
   const place = (parent, its) => {
-    for (const it of its) (modeBar && it.mode ? modeBar : parent).append(links.get(it.id));
+    for (const it of its) parent.append(links.get(it.id));
+  };
+  // In the phone's bottom bar a long name is shown short (item.short); the full name
+  // stays the link's accessible name. The side menu and the "עוד" sheet show it whole.
+  const name = (its, short) => {
+    for (const it of its) {
+      const a = links.get(it.id);
+      const cut = short && !!it.short;
+      a.querySelector('.side-t').textContent = cut ? it.short : it.label;
+      if (cut) a.setAttribute('aria-label', it.label); else a.removeAttribute('aria-label');
+    }
   };
   const setOpen = (open) => {
     sheet.hidden = !open;
@@ -194,11 +195,12 @@ function build(viewer, email) {
   const arrange = () => {
     const wide = matchMedia(WIDE).matches;
     setOpen(false);
-    list.replaceChildren(...(modeBar ? [modeBar] : []));
+    list.replaceChildren();
     sheet.replaceChildren();
-    modeBar?.replaceChildren();
     if (wide && restHead) { place(list, groups.daily); list.append(restHead); place(list, groups.rest); moreBtn.remove(); }
     else if (wide || !more.length) { place(list, items); moreBtn.remove(); } else { place(list, bar); list.append(moreBtn); place(sheet, dailyFirst(more)); }
+    name(items, false);
+    if (!wide) name(more.length ? bar : items, true);
     side.style.setProperty('--bar-n', String(wide ? 1 : Math.max(1, (more.length ? bar.length + 1 : items.length))));
     mark();
   };

@@ -387,14 +387,17 @@ await step('Lior: the table without any price, the summary in the card, no switc
 });
 
 // Since 6.10.2026 the prices are the owners' only (Irit had them).
-await step('Irit: the switch, screen 1, the table without prices, no archive; her own work until she switches', async () => {
+// Since 7.10.2026 her switch is the button at the top, as for the owner, Ofir and Lior.
+await step('Irit: the button, screen 1, the table without prices, no archive; her own work until she switches', async () => {
   const ictx = await newContext();
   const irit = await newPage(ictx);
   await signIn(irit, 'clients.html', 'irit@astrateg.test');
   await irit.waitForSelector('#view-mine:not([hidden])');
-  await irit.waitForSelector('#mode-bar');
-  assert.equal(await irit.getAttribute('#mode-mine', 'aria-current'), 'page');
-  await irit.click('#mode-manager');
+  await irit.waitForSelector('#profile-switch[data-to="manager"]');
+  assert.equal(await irit.locator('#mode-bar').count(), 0);
+  assert.equal(await irit.getAttribute('#side-mine', 'aria-current'), 'page');
+  assert.equal(await irit.locator('#mine-people').isVisible(), false);
+  await irit.click('#profile-switch');
   await irit.waitForSelector('#view-now:not([hidden])');
   assert.equal(await irit.isHidden('#tab-archive'), true);
   await irit.click('#tab-table');

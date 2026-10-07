@@ -9,7 +9,9 @@
 //  - the choice is remembered in the browser, and a sign-in starts in the personal profile;
 //  - nothing that needs action is lost in the personal profile: the urgent cards, the
 //    clocks and the person's own list are there; the whole team's list is one tap away;
-//  - Irit keeps her switch in the menu, and everyone else has neither;
+//  - Irit has the same two profiles (7.10.2026; her switch in the menu is gone): her own
+//    list without the "whose" chips, the daily control (process 32) one tap away, the
+//    team's lists and the performance only behind the button; everyone else has neither;
 //  - money: the amounts and their sum in "הצעות שנשלחו" are the owners'; Irit has the list
 //    without them; everyone else gets "אין לך גישה לעמוד הזה"; the sellers' deals with what
 //    was agreed are Irit's and the owners'; the price columns of the manager table are
@@ -23,6 +25,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { NOW, SUPA, emailOf, buildWorld, makeFake } from './roles-world.mjs';
+import { watchCsp, noCspViolations } from './csp-watch.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -61,6 +64,7 @@ async function open(role, { viewport = WIDE, path = 'clients.html', ctx = null }
     await ctx.route(`${SUPA}/**`, fake.route);
   }
   const page = await ctx.newPage();
+  watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
   page.on('pageerror', (e) => errors.push(`${role}: ${e}`));
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(`${role}: ${msg.text()}`); });
   await page.goto(`${BASE}${path}`);
@@ -90,19 +94,22 @@ async function step(name, fn) {
 }
 
 const PERSONAL = {
-  owner: ['המשימות שלי', 'לקוחות', 'הצעה חדשה', 'הצעות שנשלחו'],
+  owner: ['המשימות שלי', 'לקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
   lior: ['המשימות שלי', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'ימי צילום'],
   ofir: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות'],
+  irit: ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
 };
 const MANAGER = {
   owner: ['מבט מנהל', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'טבלת ימי צילום', 'צוות', 'אסטרטג פיימנט'],
-  lior: ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה', 'צוות'],
-  ofir: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'החלטות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה'],
+  lior: ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'צוות'],
+  ofir: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'החלטות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה'],
+  irit: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'ימי צילום', 'צוות'],
 };
-const HOME = { owner: 'owner.html#now', lior: 'owner.html#all', ofir: 'owner.html#now' };
-const MY_TABS = { owner: ['המשימות שלי', 'לקוחות'], lior: ['המשימות שלי', 'לקוחות'], ofir: ['המשימות שלי', 'לקוחות', 'בקרה יומית'] };
+const HOME = { owner: 'owner.html#now', lior: 'owner.html#all', ofir: 'owner.html#now', irit: 'owner.html#now' };
+// The daily review stays with Ofir (process 33) and with Irit (process 32): their own work.
+const MY_TABS = { owner: ['המשימות שלי', 'לקוחות'], lior: ['המשימות שלי', 'לקוחות'], ofir: ['המשימות שלי', 'לקוחות', 'בקרה יומית'], irit: ['המשימות שלי', 'לקוחות', 'בקרה יומית'] };
 
-for (const role of ['owner', 'lior', 'ofir']) {
+for (const role of ['owner', 'lior', 'ofir', 'irit']) {
   await step(`${role}: lands on "המשימות שלי" with the short menu; the button opens the manager profile and leads back`, async () => {
     const { page, ctx } = await open(role);
     await page.waitForSelector('#profile-switch');
@@ -113,7 +120,8 @@ for (const role of ['owner', 'lior', 'ofir']) {
     assert.deepEqual(await sw(page), ['מבט מנהל', HOME[role], 'manager'], role);
     assert.deepEqual(await menu(page), PERSONAL[role], role);
     assert.equal(await page.getAttribute('#side-mine', 'aria-current'), 'page');
-    assert.equal(await page.locator('#mode-bar').count(), 0);
+    assert.equal(await page.locator('#mode-bar, .mode-opt, #mode-mine, #mode-manager').count(), 0, 'one switch only: the button');
+    assert.equal(await page.locator('#profile-switch').count(), 1);
     assert.equal(await page.locator('#side-rest-h').count(), 0, 'a short menu has no second part');
     // No link in the page head to a screen of either profile (the menu and the button lead there).
     assert.deepEqual(await headLinks(page), [], role);
@@ -291,30 +299,99 @@ await step('nothing that needs action is lost in the personal profile: the cards
   await l.ctx.close();
 });
 
-await step('Irit is as she was: the switch as the first two entries of her menu, no button; nobody else has either', async () => {
+// The owner's complaint of 7.10.2026: on "המשימות שלי" Irit had a chip per member of staff
+// (and "כל הצוות"), "ביצועים" and a menu of 11 entries, also outside the manager view.
+await step('Irit, personal profile: only her own work, no chip or list of anyone else; the daily control one tap away; the team only behind the button', async () => {
   const { page, ctx } = await open('irit');
-  await page.waitForSelector('#mode-bar');
+  await page.waitForSelector('#profile-switch');
   await page.waitForSelector('#mine-list .wproc');
   await settle(page);
-  assert.equal(await page.locator('#profile-switch').count(), 0);
-  assert.deepEqual(await page.locator('#mode-bar .mode-opt').allInnerTexts(), ['המשימות שלי', 'מבט מנהל']);
-  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#side-list .side-link, #side-list .side-k')].map((e) => e.textContent.trim())),
-    ['המשימות שלי', 'מבט מנהל', 'לקוחות', 'הודעות ללקוחות', 'הצעה חדשה', 'הצעות שנשלחו', 'עוד', 'גאנט תוכן', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'צוות']);
-  assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות', 'בקרה יומית', 'ביצועים']);
-  assert.equal(await page.locator('#mine-people').isVisible(), true);
-  // The sellers' deals are hers: she prepares the contracts.
-  assert.equal(await page.locator('#deals-card').isVisible(), true);
-  await shot(page, 'irit-unchanged-1366');
-  await page.click('#mode-manager');
-  await page.waitForURL(/owner\.html#now$/);
-  await page.waitForSelector('#mode-manager[aria-current="page"]');
-  assert.equal(await page.locator('#profile-switch').count(), 0);
+  assert.match(page.url(), /clients\.html(#mine)?$/);
+  assert.equal(await page.innerText('h1'), 'שלום עירית');
+  assert.deepEqual(await sw(page), ['מבט מנהל', 'owner.html#now', 'manager']);
+  assert.deepEqual(await menu(page), PERSONAL.irit);
+  assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
+  // No chooser of whose list, as chips or as the phone's select.
+  assert.equal(await page.locator('#mine-people').isVisible(), false);
+  assert.equal(await page.locator('#mine-people .chip, #mine-people select, #mine-select').count(), 0);
+  assert.equal(await page.locator('#team-fold').count(), 0);
+  assert.match(await page.innerText('#me-bar'), /^אני:\s*עירית/);
+  const mine = await page.locator('#mine-list .wproc').count();
+  assert.ok(mine > 0);
+  // What needs her stays: the clocks, the sellers' deals (she prepares the contract), giving a task on the spot, the inbox, a new client.
+  assert.equal(await page.locator('#now-bar').isVisible(), true, 'the clocks');
+  assert.equal(await page.locator('#deals-card').isVisible(), true, 'the sellers\' deals');
+  assert.equal(await page.locator('#staff-tasks-card').isVisible(), true, 'giving a task on the spot');
+  assert.equal(await page.locator('#btn-inbox').count(), 1);
+  assert.equal(await page.locator('#btn-new').isVisible(), true);
+  assert.ok(await page.locator('#mine-tools .wa-link, #mine-foot .wa-link').count() >= 1, 'her morning summary');
+  await shot(page, 'irit-personal-1366');
+  // The daily control (process 32, her own): one tap, still the personal profile.
+  await page.click('#tab-control');
+  await page.waitForSelector('#view-control:not([hidden])');
+  await page.waitForSelector('#ctl-people');
+  await settle(page);
+  assert.equal(new URL(page.url()).hash, '#control');
+  assert.deepEqual(await sw(page), ['מבט מנהל', 'owner.html#now', 'manager']);
+  assert.deepEqual(await menu(page), PERSONAL.irit);
+  assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
+  assert.ok(await page.locator('#view-control .ctable tbody tr').count() > 3, 'the control itself shows every member of staff');
+  await shot(page, 'irit-control-1366');
+  // A person's list from the control opens in the manager profile (#team), on that person, and the button leads back.
+  await page.locator('#view-control .ctable .row-acts button', { hasText: 'הרשימה של ליאור' }).click();
+  await page.waitForSelector('#mine-people:visible');
+  assert.equal(new URL(page.url()).hash, '#team');
+  assert.match(await page.locator('#mine-people .chip[aria-pressed="true"]').innerText(), /^ליאור/);
+  assert.equal(await page.innerText('#profile-switch'), 'חזרה למשימות שלי');
+  await page.click('#profile-switch');
+  await page.waitForSelector('#profile-switch[data-to="manager"]');
+  assert.equal(await page.locator('#mine-people').isVisible(), false);
+  // The performance and the team's lists open the manager profile.
+  await page.goto(`${BASE}clients.html#performance`);
+  await page.waitForSelector('#view-performance:not([hidden])');
+  await page.waitForSelector('#profile-switch[data-to="mine"]');
+  assert.deepEqual(await tabs(page), ['עבודת הצוות', 'לקוחות', 'בקרה יומית', 'ביצועים']);
+  assert.deepEqual(await menu(page), MANAGER.irit);
+  await page.click('#tab-mine');
+  await page.waitForSelector('#mine-people:visible');
+  assert.equal(new URL(page.url()).hash, '#team');
+  assert.ok(await page.locator('#mine-people .chip').count() > 3, 'the team chooser is the manager profile\'s');
+  assert.equal(await page.innerText('#profile-switch'), 'חזרה למשימות שלי');
+  await settle(page);
+  await shot(page, 'irit-team-1366');
+  // Back with the same button: her own list again, the chooser gone.
+  await page.click('#profile-switch');
+  await page.waitForSelector('#profile-switch[data-to="manager"]');
+  await page.waitForSelector('#view-mine:not([hidden])');
+  assert.equal(new URL(page.url()).hash, '#mine');
+  assert.equal(await page.locator('#mine-people').isVisible(), false);
+  assert.equal(await page.locator('#mine-list .wproc').count(), mine);
+  // A manager page by its address opens the manager profile; her own daily pages the personal one.
+  await page.goto(`${BASE}owner.html#all`);
+  await page.waitForSelector('#view-all:not([hidden])');
+  await page.waitForSelector('#profile-switch[data-to="mine"]');
+  assert.deepEqual(await menu(page), MANAGER.irit);
+  await settle(page);
+  await shot(page, 'irit-manager-1366');
+  for (const [path, id] of [['prep.html', 'prep'], ['messages.html', 'messages'], ['quotes.html', 'quotes']]) {
+    await page.goto(`${BASE}${path}`);
+    await page.waitForSelector(`#side-${id}[aria-current="page"]`);
+    assert.deepEqual(await sw(page), ['מבט מנהל', 'owner.html#now', 'manager'], path);
+  }
+  for (const [path, id] of [['team.html', 'team'], ['year.html', 'year'], ['shoot.html', 'shoot']]) {
+    await page.goto(`${BASE}${path}`);
+    await page.waitForSelector(`#side-${id}[aria-current="page"]`);
+    assert.equal((await sw(page))[2], 'mine', path);
+  }
   await ctx.close();
+});
+
+await step('nobody without profiles has a button or a switch', async () => {
   for (const role of ['ilai', 'nadia', 'eli']) {
     const x = await open(role);
     await x.page.waitForSelector('#side-list .side-link');
     await settle(x.page);
-    assert.equal(await x.page.locator('#profile-switch, #mode-bar').count(), 0, role);
+    assert.equal(await x.page.locator('#profile-switch, #mode-bar, .mode-opt').count(), 0, role);
     assert.equal(await x.page.locator('#side-quotes').count(), 0, `${role}: no list of sent quotes`);
     await x.ctx.close();
   }
@@ -405,7 +482,7 @@ await step('the payments app refuses whoever is not a payout owner', async () =>
 });
 
 await step('a phone: the button is 44px high and in the same place on every page; nothing scrolls sideways at 360px', async () => {
-  for (const role of ['owner', 'lior', 'ofir']) {
+  for (const role of ['owner', 'lior', 'ofir', 'irit']) {
     const { page, ctx } = await open(role, { viewport: NARROW });
     await page.waitForSelector('#profile-switch');
     await page.waitForSelector('#view-mine:not([hidden])');
@@ -418,12 +495,37 @@ await step('a phone: the button is 44px high and in the same place on every page
     await noSideScroll(page, `${role} personal`);
     // The bar: the personal screens; the owners and Ofir need no "עוד".
     const bar = await page.locator('#side-list > .side-link:visible').allInnerTexts();
-    assert.deepEqual(bar.map((t) => t.trim()), role === 'lior' ? ['המשימות שלי', 'לקוחות', 'החלטות', 'עוד'] : PERSONAL[role], role);
+    // The builder's long name is short in the bar ("הצעה וחוזה"); the link keeps the full name for a screen reader.
+    const BAR = { owner: ['המשימות שלי', 'לקוחות', 'הצעה וחוזה', 'הצעות שנשלחו'], lior: ['המשימות שלי', 'לקוחות', 'החלטות', 'עוד'], ofir: PERSONAL.ofir, irit: ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'עוד'] };
+    assert.deepEqual(bar.map((t) => t.trim()), BAR[role], role);
+    if (role === 'owner') assert.equal(await page.getAttribute('#side-quote', 'aria-label'), 'הצעה חדשה והכנת חוזה');
+    for (const lines of await page.locator('#side-list > .side-link:visible .side-t').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight))))) assert.ok(lines <= 2, `${role}: a bar entry runs ${lines} lines`);
     for (const h of await page.locator('#side-list > .side-link:visible').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) assert.ok(h >= 44, `${role}: a bar entry is ${h}px`);
     if (role === 'lior') {
       await page.click('#side-more');
       assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['הודעות ללקוחות', 'ימי צילום']);
       await page.keyboard.press('Escape');
+    }
+    if (role === 'irit') {
+      // Her personal profile on a phone: no chooser, the daily control one tap away, the builder's full name in the sheet.
+      assert.equal(await page.locator('#mine-people').isVisible(), false);
+      assert.equal(await page.locator('#mine-select').count(), 0);
+      assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
+      for (const h of await page.locator('.tabs [role=tab]:visible').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) assert.ok(h >= 44, `a tab is ${h}px`);
+      await page.click('#side-more');
+      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['הודעות ללקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+      await page.keyboard.press('Escape');
+      await page.click('#tab-control');
+      await page.waitForSelector('#view-control:not([hidden])');
+      await page.waitForSelector('#ctl-people');
+      assert.equal((await sw(page))[2], 'manager', 'the daily control is her personal profile');
+      await noSideScroll(page, 'irit control');
+      await page.setViewportSize(PHONE);
+      await page.waitForTimeout(200);
+      await shot(page, 'irit-control-390');
+      await page.setViewportSize(NARROW);
+      await page.click('#tab-mine');
+      await page.waitForSelector('#view-mine:not([hidden])');
     }
     await page.setViewportSize(PHONE);
     await page.waitForTimeout(200);
@@ -441,6 +543,16 @@ await step('a phone: the button is 44px high and in the same place on every page
     assert.equal(await page.innerText('#profile-switch'), 'חזרה למשימות שלי');
     await noSideScroll(page, `${role} manager`);
     assert.equal((await page.locator('#side-list > .side-link:visible').allInnerTexts()).at(-1).trim(), 'עוד');
+    if (role === 'irit') {
+      // The team's lists on a phone: the select of whose, in the manager profile only.
+      await page.goto(`${BASE}clients.html#team`);
+      await page.waitForSelector('#mine-select:visible');
+      assert.equal(await page.innerText('#profile-switch'), 'חזרה למשימות שלי');
+      await noSideScroll(page, 'irit team');
+      await page.goto(`${BASE}owner.html#now`);
+      await page.waitForSelector('#ow-page:not([hidden])');
+      await settle(page);
+    }
     await page.setViewportSize(PHONE);
     await page.waitForTimeout(200);
     await shot(page, `${role}-manager-390`);
@@ -458,14 +570,9 @@ await step('a phone: the button is 44px high and in the same place on every page
     assert.ok(ring[0] !== 'none' && ring[1] >= 2, `${role}: focus ring ${ring}`);
     await ctx.close();
   }
-  const { page, ctx } = await open('irit', { viewport: PHONE });
-  await page.waitForSelector('#mode-bar');
-  await page.waitForSelector('#mine-list .wproc');
-  await settle(page);
-  await shot(page, 'irit-unchanged-390');
-  await ctx.close();
 });
 
 await browser.close();
 assert.deepEqual(errors, [], `page errors:\n${errors.join('\n')}`);
+noCspViolations();
 console.log(`\n${passed} steps passed`);
