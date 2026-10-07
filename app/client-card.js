@@ -15,7 +15,7 @@ import {
   loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes, setPasswordGate, GATE_CANCELLED,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who, confirmShootDate,
+  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
   statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
@@ -29,6 +29,7 @@ import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 import { clientHealth, station, timeline } from './health.js';
 import { healthHead, timelineBlock, questionsBlock } from './health-ui.js';
 import { loadHealthExtras, loadQuestions, noteDateChange } from './owner-data.js';
+import { shootDayHint, confirmShootDay } from './availability-ui.js';
 // Stage 3, part 2: Ofir's returns for fixes, the office's marks in the history, "התחלתי".
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
@@ -1508,6 +1509,11 @@ $('cancel-form').addEventListener('submit', async (e) => {
 const nextRoundNumber = () => Math.max(1, ...roundsOf(client).map((r) => r.n)) + 1;
 const roundDlg = dialog('dlg-round');
 let roundEditing = null;
+// The photographer's monthly availability (docs/ops.md, section 39): under each shoot date being picked, whether he marked that day free.
+const shootAtHint = shootDayHint($('ed-shoot-at'), { me: () => me, own: () => client?.shoot_at });
+$('ed-shoot-at').after(shootAtHint);
+const roundAtHint = shootDayHint($('round-at'), { me: () => me, own: () => (roundEditing ? roundsOf(client).find((r) => r.n === roundEditing)?.shoot_at : null) });
+$('round-at').after(roundAtHint);
 function openRound(n = null) {
   roundEditing = n;
   const rounds = roundsOf(client);
@@ -1520,6 +1526,7 @@ function openRound(n = null) {
   $('round-type').value = r?.shoot_type || client.shoot_type || 'natali';
   fillEditors('round-editor', $('round-type').value, r?.editor);
   $('round-at').value = inputValueIL(r?.shoot_at);
+  roundAtHint.refresh();
   $('round-note').hidden = !!n;
   const over = !n && total !== undefined && nextN > total;
   $('round-extra-wrap').hidden = !over;
@@ -1546,7 +1553,7 @@ $('round-form').addEventListener('submit', async (e) => {
     ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null } : r))
     : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null, start_at: new Date().toISOString() }];
   const before = roundEditing ? rounds.find((r) => r.n === roundEditing)?.shoot_at : null;
-  const asked = at && +new Date(at) !== +new Date(before || 0) ? confirmShootDate({ shootAt: at }) : { ok: true, note: null };
+  const asked = at && +new Date(at) !== +new Date(before || 0) ? await confirmShootDay({ shootAt: at, own: before, me }) : { ok: true, note: null };
   if (!asked.ok) { $('round-at').focus(); return; }
   $('round-submit').disabled = true;
   try {
@@ -1753,6 +1760,7 @@ function openEdit(focusId = 'ed-name') {
   $('ed-logo').value = c.has_logo === null || c.has_logo === undefined ? '' : String(c.has_logo);
   $('ed-shoot-type').value = c.shoot_type || '';
   $('ed-shoot-at').value = toLocal(c.shoot_at);
+  shootAtHint.refresh();
   fillEditors('ed-editor', c.shoot_type, c.editor);
   $('ed-contract-end').value = c.contract_end || '';
   $('ed-notes').value = c.notes || '';
@@ -1822,7 +1830,7 @@ $('ed-form').addEventListener('submit', async (e) => {
   // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
   const newShoot = fromLocal($('ed-shoot-at').value);
   const shootMoved = !!newShoot && +new Date(newShoot) !== +new Date(client.shoot_at || 0);
-  const asked = shootMoved ? confirmShootDate({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value) }) : { ok: true, note: null };
+  const asked = shootMoved ? await confirmShootDay({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value), own: client.shoot_at, me }) : { ok: true, note: null };
   if (!asked.ok) { $('ed-shoot-at').focus(); return; }
   $('ed-submit').disabled = true;
   try {

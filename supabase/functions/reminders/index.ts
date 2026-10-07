@@ -160,6 +160,25 @@ async function loadStaffTasks(now: Date): Promise<Row[]> {
   }
 }
 
+// The photographer's availability (7.10.2026, app/availability-logic.js; docs/ops.md,
+// section 39): the months handed over from the current one on, and the unexpected
+// changes reported in the last two days. Until migration
+// 20261016100000_photographer_availability.sql adds the tables, none.
+async function loadAvailability(now: Date): Promise<Row> {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  try {
+    const [months, changes] = await Promise.all([
+      all(() => admin.from('photographer_months').select('person, month, days, none, submitted_at, updated_at, by_person').gte('month', `${dayKeyIL(now).slice(0, 7)}-01`).order('person').order('month')),
+      all(() => admin.from('photographer_changes').select('id, person, reported_at, reported_month, days, shoot_days, note').gte('reported_at', since).order('reported_at').order('id')),
+    ]);
+    return { months, changes };
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205') return { months: [], changes: [] };
+    throw err;
+  }
+}
+
 // The database as tick.js sees it (service role: row level security does not apply).
 const db = {
   // The automatic editor assignment (app/auto-assign.js), as qa.html writes it: the
@@ -185,7 +204,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -207,10 +226,11 @@ const db = {
       loadGanttFailures(now),
       loadApprovals(now),
       loadStaffTasks(now),
+      loadAvailability(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();

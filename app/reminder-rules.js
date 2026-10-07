@@ -1587,3 +1587,92 @@ export const qaClock = (env, from, minutes) => qaDue(env.ofirMeetings, from, min
 // The rule a reminder key belongs to (keys are `rule:client:case:step@person`).
 export const ruleOfKey = (key) => String(key).split(':')[0];
 export const RULE_BY_ID = new Map(RULES.map((r) => [r.id, r]));
+
+// ── The photographer's monthly availability (his protocol, step 1; docs/ops.md, section 39) ──
+// One self-contained block (its import included). `env.availability`: { months, changes },
+// the rows of public.photographer_months from the current month on and the unexpected
+// changes of the last two days (app/availability-logic.js). By the 15th of each month
+// the photographer hands over his free dates for the next month.
+//   availability           next month is not handed over: he is told quietly on the
+//     10th, and rings on the 15th and on the business day before it, at 10:00 (a 15th
+//     the office is closed on moves both back to the business days before). A protocol
+//     clock: not counted in the daily cap. Handing the month over ends the case.
+//   availabilityMissing    from the 16th, while it is still missing: one line a business
+//     day in the morning digest of the work manager and of whoever sets the shoot days
+//     (the step's id names the day, so never twice a day), until it is handed over.
+//   availabilitySubmitted  he handed it over: the same two hear, quietly.
+//   availabilityChange     an unexpected change (בלת״ם): the two ring at once with the
+//     dates and the shoot days that sit on them (urgent: not counted in the cap; on
+//     Lior's shoot day it goes to Ofir, decision 8). Up to two days ahead it rings
+//     outside the sending hours too; further ahead it waits for them.
+import {
+  PHOTOGRAPHERS, MANAGERS as AVAIL_MANAGERS, DEADLINE_DAY as AVAIL_DAY, AVAILABILITY_URL, OFFICE_URL as AVAIL_OFFICE_URL,
+  askOf as availAsk, remindTimes as availTimes, missingForManagers, monthRow as availRow, monthName as availMonth, monthOfDay as availMonthOf,
+  freeSummary, daysWords as availDays, dayShort as availDay, shootsByDay,
+} from './availability-logic.js';
+const availMissing = (env) => {
+  const ask = availAsk(env.now);
+  return PHOTOGRAPHERS.filter((p) => env.hasStaff(p) && !availRow(env.availability?.months, p, ask.month))
+    .map((p) => ({ id: `${p}:${ask.month}`, cid: null, who: p, month: ask.month, monthText: availMonth(ask.month, env.now) }));
+};
+const AVAILABILITY_RULES = [
+  {
+    id: 'availability', event: 'זמינות הצלם לחודש הבא: עד ה־15', procs: [],
+    instances(env) {
+      const t = availTimes(env.now);
+      return availMissing(env).map((i) => ({ ...i, url: AVAILABILITY_URL, onTheDay: partsIL(t.last).day === AVAIL_DAY, anchors: { quiet: t.quiet, first: t.first, last: t.last } }));
+    },
+    steps: [
+      { id: 'd10', from: 'quiet', to: (i) => i.who, level: 'quiet', title: (i) => `עוד לא מסרת זמינות ל${i.monthText}`, body: () => `עד ה־${AVAIL_DAY} בחודש: לסמן את הימים הפנויים בעמוד ״ימי הצילום שלי״ ולמסור.` },
+      { id: 'd14', from: 'first', to: (i) => i.who, level: 'ring', exempt: 'clock', title: (i) => `זמינות ל${i.monthText}: למסור עד ה־${AVAIL_DAY} בחודש`, body: () => 'לסמן את הימים הפנויים בעמוד ״ימי הצילום שלי״ ולמסור. לוקח דקה.' },
+      {
+        id: 'd15', from: 'last', to: (i) => i.who, level: 'ring', exempt: 'clock',
+        title: (i) => (i.onTheDay ? `היום המועד האחרון: זמינות ל${i.monthText}` : `המועד האחרון ב־${AVAIL_DAY} בחודש: למסור היום זמינות ל${i.monthText}`),
+        body: () => 'בלי הזמינות אי אפשר לסגור ימי צילום מול לקוחות ומשפיענים. לסמן את הימים הפנויים ולמסור.',
+      },
+    ],
+  },
+  {
+    id: 'availabilityMissing', event: 'זמינות הצלם לחודש הבא חסרה', procs: [],
+    instances: (env) => (missingForManagers(env.now) ? availMissing(env).map((i) => ({ ...i, url: AVAIL_OFFICE_URL, anchors: {} })) : []),
+    steps: (i, env) => (isBusinessDay(env.now) ? [{
+      id: `d${dayKeyIL(env.now)}`, from: 'today', at: DIGESTS.morning, to: AVAIL_MANAGERS, level: 'digest', overdue: true,
+      title: () => `${personName(i.who)} עוד לא מסר זמינות ל${i.monthText} (המועד היה ה־${AVAIL_DAY} בחודש)`, body: () => '',
+    }] : []),
+  },
+  {
+    id: 'availabilitySubmitted', event: 'הצלם מסר זמינות', procs: [],
+    instances(env) {
+      return (env.availability?.months || []).filter((m) => PHOTOGRAPHERS.includes(m.person) && m.by_person === m.person && parseDate(m.submitted_at) && env.now - parseDate(m.submitted_at) < 2 * 864e5)
+        .map((m) => ({ id: `${m.person}:${availMonthOf(m.month)}`, cid: null, who: m.person, row: m, monthText: availMonth(availMonthOf(m.month), env.now), url: AVAIL_OFFICE_URL, anchors: { event: parseDate(m.submitted_at) } }));
+    },
+    steps: [
+      { id: 'done', to: AVAIL_MANAGERS, level: 'quiet', title: (i) => `${personName(i.who)} מסר זמינות ל${i.monthText}: ${freeSummary(i.row)}`, body: () => 'כשקובעים יום צילום, ליד התאריך מופיע אם הוא סימן את היום כפנוי.' },
+    ],
+  },
+  {
+    id: 'availabilityChange', event: 'בלת״ם של הצלם', procs: [],
+    instances(env) {
+      const shoots = shootsByDay(env.clients);
+      return (env.availability?.changes || []).filter((c) => PHOTOGRAPHERS.includes(c.person) && parseDate(c.reported_at) && (c.days || []).length).map((c) => {
+        const days = c.days.map((d) => String(d).slice(0, 10)).sort();
+        // What sits on them now, by client (a shoot day the office moved since is not named).
+        const held = days.filter((d) => shoots.has(d)).map((d) => `${availDay(d)}: ${names(shoots.get(d))}`);
+        return {
+          id: c.id, cid: null, who: c.person, change: c, days, held, url: AVAIL_OFFICE_URL,
+          soon: daysBetweenIL(env.now, dayFromKeyIL(days[0])) <= 2, anchors: { event: parseDate(c.reported_at) },
+        };
+      });
+    },
+    steps: (i) => [{
+      id: 'now', to: AVAIL_MANAGERS, level: 'ring', exempt: 'urgent', exception: true, ownHours: i.soon,
+      title: () => `בלת״ם של ${personName(i.who)}: ${availDays(i.days)}${i.held.length ? ' · קבוע יום צילום' : ''}`,
+      body: () => [
+        i.held.length ? `קבוע יום צילום ב־${i.held.join(' · ')}. לתאם מחדש מול הלקוח והמשפיענים.` : 'אין יום צילום קבוע בתאריכים האלה. הם ירדו מהימים הפנויים שלו.',
+        i.change.note ? `הסיבה: ${String(i.change.note).slice(0, 200)}` : null,
+      ].filter(Boolean).join(' '),
+    }],
+  },
+];
+RULES.push(...AVAILABILITY_RULES);
+for (const r of AVAILABILITY_RULES) RULE_BY_ID.set(r.id, r);

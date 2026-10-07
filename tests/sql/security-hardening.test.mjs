@@ -176,7 +176,8 @@ test('the migration file: nothing in it removes an object or a row, and there is
   const sql = readFileSync(new URL(`../../supabase/migrations/${MIGRATION}`, import.meta.url), 'utf8');
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null, 'the production tool refuses these three words, also in a comment or a name');
   assert.equal(existsSync(new URL(`../../supabase/migrations/${MANUAL}`, import.meta.url)), false);
-  assert.equal(migrationFiles().at(-1), MIGRATION);
+  // What came after it only adds objects of its own (an older migration run again would bring the old definitions back: docs/ops.md, section 36).
+  assert.deepEqual(migrationFiles().filter((f) => f > MIGRATION), ['20261016100000_photographer_availability.sql']);
 });
 
 // ── 1. Quotes ──

@@ -25,6 +25,7 @@ import { mountPush } from './push.js';
 import { offerHandoff } from './handoff-ui.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import * as P from './production.js';
+import { mountAvailability } from './availability-ui.js';
 
 let me = null;
 let mode = null; // 'eli' | 'lior'
@@ -410,5 +411,7 @@ mountSession(async (staff) => {
     : `ציר הזמן, מונה הסרטונים ונעילת הסיום${canAct ? '' : ' (לצפייה: ליאור מנהל את היום)'}, והתדריך לאלי לפני כל יום צילום.`;
   if (mode === 'lior') phones = await loadStaffPhones().catch(() => ({}));
   mountPush({ who: me || 'owner', card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'), changed: () => {} });
+  // The photographer's monthly availability (docs/ops.md, section 39): its own mount point, above the shoot days.
+  mountAvailability($('availability'), { me });
   await load();
 });
