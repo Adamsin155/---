@@ -9,7 +9,8 @@
 // Package 1 (docs/ops.md, section 37): the graphics are uploaded in these cards, into
 // the client's files, and "מוכן לבדיקה" opens only once a graphic of that batch is up
 // (the first 9 keep a card of their own after the day's card is gone); each graphics
-// card opens the client's characterization, read-only; the final versions are shown.
+// card opens the client's characterization, read-only; the final versions card opens
+// the videos' Drive folder (the videos stay in Drive: the owner's decision of 7.10.2026).
 import { setCheck, clearCheck, setChecksBulk, updateClient, canUseVault } from './protocol-data.js';
 import { clientLabel } from './protocol-logic.js';
 import { h, toast, errorText, formatWhen } from './protocol-ui.js';
@@ -20,7 +21,7 @@ import { fixList } from './office-ui.js';
 import { ACCESS_STATUS_LABEL, NEW_STATUS } from './access-logic.js';
 import { supabase } from './supa.js';
 import { mountWorkFiles, workFilesState } from './files-ui.js';
-import { graphicsWindow, videoWindow, uploadGate } from './files-logic.js';
+import { graphicsWindow, videoWindow, uploadGate, videosLinkOf } from './files-logic.js';
 import { charViewHref } from './intake-ui.js';
 
 const NETWORK = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', google: 'Google Business', meta: 'Meta Business', other: 'אחר' };
@@ -273,16 +274,24 @@ function restCard(x, ctx) {
         (e) => { e.currentTarget.disabled = true; mark(ctx, c, ['p23.made'], true, 'יתרת הגרפיקות עברה לבדיקה של אופיר (יעד: שעה).', { handoff: 'p23.made' }); }));
 }
 
+function finalDrive(c, cs, x) {
+  const link = videosLinkOf(c, cs, x.pre);
+  return link
+    ? h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm il-drive', href: link, target: '_blank', rel: 'noopener noreferrer' }, 'פתיחת הסרטונים בדרייב', h('span', { class: 'sr-only' }, ` של ${c.name} (נפתח בחלון חדש)`)))
+    : h('p', { class: 'hint il-nodrive' }, 'אין קישור לסרטונים בדרייב. לבקש מהעורך.');
+}
+
 function finalCard(x, ctx) {
   const c = x.client;
   const key = `${x.pre}p27.toilai`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-final:${c.id}:${x.pre}` },
     h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, clientLabel(c)),
-      h('span', { class: 'il-title' }, `גרסאות סופיות${x.n ? ` · סבב ${x.n}` : ''}`), h('span', { class: 'muted' }, ` · מ־${formatWhen(x.at)}`)),
-    // The videos themselves, as the editor uploaded them (read-only here).
+      h('span', { class: 'il-title' }, `גרסאות סופיות בדרייב${x.n ? ` · סבב ${x.n}` : ''}`), h('span', { class: 'muted' }, ` · מ־${formatWhen(x.at)}`)),
+    // Where they are: the client's Drive (the editor's link); any uploaded into the system are listed.
+    finalDrive(c, ctx.checks[c.id] || {}, x),
     mountWorkFiles({
-      client: c, kind: 'deliverable_video', window: videoWindow(c, ctx.checks[c.id] || {}, x.n || 1), me: ctx.viewer?.error ? undefined : ctx.me, readOnly: true,
-      idp: `il-f-${c.id}-${x.pre.replace(/\W/g, '')}-v`, title: 'הסרטונים הסופיים', total: Number((x.state.proc.ctx || c).deliverables?.videos) || null, toast, onChange: ctx.refresh,
+      client: c, kind: 'deliverable_video', window: videoWindow(c, ctx.checks[c.id] || {}, x.n || 1), me: ctx.viewer?.error ? undefined : ctx.me, readOnly: true, hideEmpty: true,
+      idp: `il-f-${c.id}-${x.pre.replace(/\W/g, '')}-v`, title: 'סרטונים שהועלו למערכת', total: null, toast, onChange: ctx.refresh,
     }),
     h('p', { class: 'task-meta' }, '״קיבלתי״ סוגר את משימת העריכה, ומתחילות השעתיים לתזמון ולגאנט.'),
     h('div', { class: 'of-acts' }, h('button', {

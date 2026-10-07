@@ -11,7 +11,7 @@
 //     for a client whose editing is theirs, and reads the files of the clients they
 //     see; the files and the characterization stay closed to a field agent and to
 //     anyone not signed in;
-//   - the folder tasks still open are closed, and a second run changes nothing;
+//   - the migration changes no row (Ofir's Drive-folder tasks stay: the videos are in Drive);
 //   - the migration holds no statement the deploy tool refuses.
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -170,33 +170,21 @@ test('finished videos: an editor uploads only for a client whose editing is thei
   await db.query('delete from public.client_files where true');
 });
 
-test('the folder tasks still open are closed, others are not touched, and a second run changes nothing', async () => {
-  const add = (title, done = false) => db.query('insert into public.client_tasks (client_id, title, owner, done_at) values ($1, $2, $3, $4) returning id', [ids.soon, title, 'ofir', done ? '2026-10-01T10:00:00Z' : null]);
-  const open1 = (await add('פתיחת תיקייה מסודרת בדרייב לעריכה (24)')).rows[0].id;
-  const open2 = (await add('פתיחת תיקייה מסודרת בדרייב לעריכה (24) · סבב 2')).rows[0].id;
-  const was = (await add('פתיחת תיקייה מסודרת בדרייב לעריכה (24)', true)).rows[0].id;
-  const other = (await add('פתיחת תיקייה מסודרת בדרייב לעריכה (24) ועוד משהו')).rows[0].id;
-  const plain = (await add('להתקשר ללקוח')).rows[0].id;
-  const before = (await db.query('select done_at from public.client_tasks where id = $1', [was])).rows[0].done_at;
+test('the migration touches no row: an open Drive-folder task of Ofir stays open, also on a second run', async () => {
+  const { rows } = await db.query('insert into public.client_tasks (client_id, title, owner) values ($1, $2, $3) returning id', [ids.soon, 'פתיחת תיקייה מסודרת בדרייב לעריכה (24)', 'ofir']);
   await db.exec(migrationSql(FILE));
-  const state = async () => Object.fromEntries((await db.query('select id, done_at from public.client_tasks where id = any($1)', [[open1, open2, was, other, plain]])).rows.map((r) => [r.id, r.done_at]));
-  const a = await state();
-  assert.ok(a[open1] && a[open2], 'the folder tasks are closed');
-  assert.equal(new Date(a[was]).toISOString(), new Date(before).toISOString(), 'a task closed before keeps its time');
-  assert.equal(a[other], null);
-  assert.equal(a[plain], null);
   await db.exec(migrationSql(FILE));
-  assert.deepEqual(await state(), a, 'safe to run again');
-  await db.query('delete from public.client_tasks where id = any($1)', [[open1, open2, was, other, plain]]);
+  assert.equal((await db.query('select done_at from public.client_tasks where id = $1', [rows[0].id])).rows[0].done_at, null);
+  await db.query('delete from public.client_tasks where id = $1', [rows[0].id]);
 });
 
-test('the migration holds nothing the deploy tool refuses, and no UPDATE without WHERE', () => {
+test('the migration holds nothing the deploy tool refuses, and no UPDATE at all', () => {
   const sql = migrationSql(FILE);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null, 'the production tool refuses these three words, also in a comment or a name');
   // Nothing the security hardening (20261014100000) set is defined again here.
   assert.deepEqual([...sql.matchAll(/create or replace function ([a-z_.]+)/g)].map((m) => m[1]), ['public.shoot_scripts']);
   assert.doesNotMatch(sql, /create policy|alter policy|alter table/i);
-  for (const m of sql.matchAll(/\bupdate\s+[a-z_.]+\s[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 60));
+  assert.doesNotMatch(sql, /^\s*(update|insert)\s/im);
 });
 
 test('who is not signed in still runs exactly the ten public functions', async () => {

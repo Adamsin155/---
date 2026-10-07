@@ -10,12 +10,12 @@
 // Pure, no DOM and no network: the reminders tick (supabase/functions/reminders/
 // tick.js) plans with it and writes the plan with the service role: the editor on
 // the client (or the round), the marks 22א load/assigned and Irit's check, the
-// reason (with `auto: true`, which the reminder `autoAssigned` reads to tell Ofir).
-// (Until package 1 it also opened Ofir's Drive folder task, 24.)
+// reason (with `auto: true`, which the reminder `autoAssigned` reads to tell Ofir),
+// and Ofir's folder task (24) as qa.html opens it.
 // Characterizations need no code here: clients.characterizer defaults to 'ofir' in
 // the database (migration 20261003100000_sales_deals.sql).
 import {
-  awaitingEditor, editorLoad, proposeEditor, preselected, reasonNote,
+  awaitingEditor, editorLoad, proposeEditor, preselected, reasonNote, folderTitle, folderDueOn,
 } from './qa-logic.js';
 import { REASON_KEY, readJson } from './office-marks.js';
 import { withEditor } from './decisions-logic.js';
@@ -37,7 +37,7 @@ export function autoReasonOf(checks, pre = '') {
 
 // What to write now: [{ clientId, client, pre, n, editor, kept, patch, checks: [{ key, note }],
 // reason: { key, note }, task }]. `patch` is the clients update (null when the card
-// already had that editor); `task` is always null (it was Ofir's folder task).
+// already had that editor); `task` Ofir's folder task, or null.
 export function planAutoAssign({ clients = [], stateOf, checks = {}, tasks = [], now = new Date() }) {
   const load = editorLoad({ clients, stateOf, checks, tasks, now });
   const out = [];
@@ -52,6 +52,9 @@ export function planAutoAssign({ clients = [], stateOf, checks = {}, tasks = [],
     if (!editor) continue;
     // The next assignment in this same plan sees this one.
     load[editor]?.jobs.push({ client: a.client, n: a.n, paused: null });
+    const title = folderTitle(a.n);
+    const folderOpen = cs[`${a.pre}p24.folder`]?.state === 'done'
+      || tasks.some((t) => t.client_id === a.client.id && t.title === title && !t.done_at);
     const note = JSON.stringify({ ...JSON.parse(reasonNote({ editor, reason: AUTO_REASON, preselected: preselected(type) })), auto: true, kept: !!kept });
     out.push({
       clientId: a.client.id, client: a.client, pre: a.pre, n: a.n, editor, kept: !!kept,
@@ -63,9 +66,7 @@ export function planAutoAssign({ clients = [], stateOf, checks = {}, tasks = [],
         { key: `${a.pre}p22a.irit`, note: 'נסגר לבד: השיוך נרשם במערכת' },
       ],
       reason: { key: REASON_KEY(a.pre), note },
-      // Until package 1 (7.10.2026): Ofir's Drive folder task. The videos are uploaded
-      // into the client's files now, so nothing is opened.
-      task: null,
+      task: folderOpen ? null : { client_id: a.client.id, title, owner: 'ofir', due_on: folderDueOn(now) },
     });
   }
   return out;

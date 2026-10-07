@@ -110,8 +110,8 @@ const FIELD_NAMES = {
 };
 const FIELD_INPUT = { characterizer: 'ed-characterizer', char_at: 'ed-char-at', shoot_type: 'ed-shoot-type', shoot_at: 'ed-shoot-at', has_logo: 'ed-logo', editor: 'ed-editor' };
 // The link each process works with, shown inside the process.
-// (The Gantt and the finished files are in the system: 9 and 24 link to no outside address.)
-const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p10: 'meta', p12: 'scripts' };
+// (The Gantt is in the system: 9 links to no outside address. 24: the videos' Drive folder.)
+const PROC_LINK = { p02: 'whatsapp', p06: 'metricool', p10: 'meta', p12: 'scripts', p24: 'drive' };
 // The package quantity each process works to (the protocol's wording says "by the package").
 const PKG_QTY = { p12: 'videos', p18: 'videos', p22: 'videos', p23: 'graphics' };
 // What this user sees. 'own' roles see only their processes and items, and none of

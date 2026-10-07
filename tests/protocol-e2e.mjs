@@ -614,7 +614,7 @@ for (const sel of ['#btn-edit', '.deliv', '.round-add', '.auto-note .btn', '.cc-
 assert.equal(await page.isVisible('#btn-escalate'), true); // exceptions still go to Lior
 assert.equal(await page.isHidden('#history'), true);
 assert.equal(await page.isHidden('#tasks'), true); // no task of hers here, and no task form
-assert.match(await page.locator('.cc-links').innerText(), /ארכיון ב־Drive \(לא חובה\)/); // the links to work with stay (Drive is only the archive since package 1)
+assert.match(await page.locator('.cc-links').innerText(), /תיקיית הסרטונים ב־Drive/); // the links to work with stay
 assert.doesNotMatch(await page.locator('.cc-facts').innerText(), /טלפון|סיום החוזה/);
 assert.match(await page.locator('.cc-progress').innerText(), /התהליכים שלי שהושלמו/);
 assert.equal(await page.locator('#app > a.back').innerText(), '→ המשימות שלי');

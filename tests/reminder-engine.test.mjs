@@ -477,7 +477,7 @@ test('editing (22, 24): assigned, not started after 2 office hours (Lior after 4
   for (const k of [...itemsOf('p22'), ...itemsOf('p24'), ...itemsOf('p22a')]) delete w.checks[c.id][k];
   mark(w, c, 'p22a.assigned', IL(2026, 10, 18, 10));
   const now = one(due(w, IL(2026, 10, 18, 10)), 'editing', 'assigned', 'nadia');
-  assert.match(now.body, /בתיק הלקוח ואצל אופיר עד ד׳ 21\.10 23:59 · סגירה עד ה׳ 22\.10 23:59/);
+  assert.match(now.body, /בדרייב ואצל אופיר עד ד׳ 21\.10 23:59 · סגירה עד ה׳ 22\.10 23:59/);
   none(due(w, IL(2026, 10, 18, 11, 59)), 'editing', 'nostart');
   one(due(w, IL(2026, 10, 18, 12)), 'editing', 'nostart', 'nadia');
   const at14 = due(w, IL(2026, 10, 18, 14));

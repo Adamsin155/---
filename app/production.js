@@ -139,8 +139,8 @@ export function clientFixedOf(checks, pre = '') {
 export const clientFixedNote = (videos) => JSON.stringify({ videos: nums(videos) });
 
 // "חסר לוגו / טלפון / חומר": reported, and still holding the process (its wait).
-// 'upload': the finished videos do not go up into the system (package 1: a failed
-// upload is reported here, never worked around).
+// 'upload': a video does not go up into the system (uploading there is optional: the
+// videos are handed over in the client's Drive; a failed upload can still be reported).
 export const MISSING_WHAT = [['logo', 'לוגו'], ['phone', 'טלפון העסק'], ['footage', 'חומר צילום'], ['upload', 'העלאה למערכת (לא עובדת)']];
 export const missingText = (what) => MISSING_WHAT.filter(([k]) => (what || []).includes(k)).map(([, l]) => l).join(', ');
 export function missingOf(checks, pre = '') {
@@ -199,7 +199,7 @@ export const ilaiGot = (checks, pre = '') => ['p27.toilai', 'p28.scheduled', 'p2
 //                (app/office-ui.js fixList) → back to Ofir
 //   client       Ofir approved; with the client
 //   clientFixes  the client's notes: per video → p27.fixes
-//   final        → (4) "תיקונים הושלמו, הגרסאות הסופיות בתיק הלקוח"
+//   final        → (4) "תיקונים הושלמו, הגרסאות הסופיות בדרייב"
 //   ilai         with Ilai until he marks "קיבלתי"
 //   done         closed
 // `blocked` (a missing logo / phone / footage) and `paused` can sit on any open state.
@@ -241,7 +241,7 @@ export function selfCheck(needsDropbox) {
     ['p22.self.closing', 'סגיר עם הלוגו והטלפון הנכונים של העסק, בלי תוספות'],
     ['p22.self.broll', 'אותה תבנית בי־רול בלא יותר מ־3 סרטונים'],
     ['p22.self.complete', 'כל כמות הסרטונים הושלמה ותואמת לתסריטים'],
-    ['p24.drive', 'כל הסרטונים הועלו לתיק הלקוח ונפתחים, בלי גרסאות ישנות'],
+    ['p24.drive', 'כל הסרטונים בדרייב של הלקוח ונפתחים, בלי גרסאות ישנות'],
     ...(needsDropbox ? [['p24.dropbox', 'הסרטונים הועלו גם ל־Dropbox']] : []),
   ];
 }

@@ -411,7 +411,7 @@ async function remove(f, o) {
 // upload that kind for this client, one upload button. Returns the block's element;
 // it is kept per client and `idp`, so a page that rebuilds its cards gets the same
 // element back and an upload in progress survives.
-// opts: { client, kind, window, me, myEmail, idp, title, total, readOnly, failHelp,
+// opts: { client, kind, window, me, myEmail, idp, title, total, readOnly, hideEmpty, failHelp,
 //         toast, onChange() (the list changed, or finished loading) }
 export function workFilesState(clientId) {
   const st = data.get(clientId);
@@ -474,6 +474,8 @@ function buildWork(opts) {
     const sig = `${o.myEmail || ''}|${files.map((f) => f.id).join()}`;
     if (list.dataset.sig !== sig) { list.dataset.sig = sig; list.replaceChildren(...files.map((f) => tile(f, o))); }
     list.hidden = !files.length;
+    // hideEmpty: a read-only list with nothing in it is not drawn at all.
+    root.hidden = !!o.hideEmpty && st.loaded && !st.error && !files.length;
   };
   return root;
 }

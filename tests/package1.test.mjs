@@ -5,10 +5,13 @@
 //     client" after the client approved on the status page), in the bar and in the
 //     server's reminder;
 //   - the files a hand-off stands on: which batch a file belongs to, the lock on
-//     "מוכן לבדיקה" and on the final hand-off, who presses it from their own page;
-//   - the words follow the owner's decisions: no Drive, Excel or Google Docs where
-//     the system holds the thing; the contract has 10 office minutes; p24.folder
-//     applies to nobody, its key stays, and the protocol version did not move.
+//     Ilai's "מוכן לבדיקה", who presses a hand-off from their own page;
+//   - the finished videos stay in the client's Google Drive (the owner's decision of
+//     7.10.2026, the storage quota): the hand-off stands on the folder's link, or on
+//     a video uploaded into the system (optional);
+//   - the words follow the owner's decisions: the system for graphics, scripts and
+//     the Gantt (no Excel, no Google Docs), Drive for the videos; the contract has 10
+//     office minutes; p24.folder and Ofir's folder task are as they were; version 7.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -20,9 +23,10 @@ import { clockRows, rowWhat, rowRef } from '../app/now-bar.js';
 import { RULES } from '../app/reminder-rules.js';
 import { HANDOFFS } from '../app/handoffs.js';
 import { DEAL_MINUTES } from '../app/deal-logic.js';
-import { videoWindow, graphicsWindow, workFiles, uploadGate, uploadedText, uploadStepOf } from '../app/files-logic.js';
+import { videoWindow, graphicsWindow, workFiles, uploadGate, uploadedText, uploadStepOf, videosLinkOf, videosGate, driveLinkProblem } from '../app/files-logic.js';
 import { ilaiWork } from '../app/ilai-logic.js';
 import { planAutoAssign } from '../app/auto-assign.js';
+import { folderTitle } from '../app/qa-logic.js';
 import { MISSING_WHAT, selfCheck } from '../app/production.js';
 import { CHAR_READERS, readsChar } from '../app/intake-ui.js';
 
@@ -87,25 +91,41 @@ test('the graphics: the first 9 until the client approved them, the rest after (
   assert.deepEqual(workFiles(files, 'deliverable_graphic', graphicsWindow(made, 'rest')).map((f) => f.id), ['g2', 'g3']);
 });
 
-test('the lock: nothing loaded, an error, nothing uploaded, a fixed version after the client\'s notes', () => {
+test('the videos are handed on with the Drive link, or with a video uploaded here; no "newer file" rule after the client\'s notes', () => {
   const w = { since: at('2026-10-05T12:00:00+03:00'), until: null };
   const one = [file('a', 'deliverable_video', '2026-10-07T10:00:00+03:00')];
-  const gate = (o) => uploadGate({ files: one, kind: 'deliverable_video', window: w, none: 'נפתח אחרי שמעלים כאן לפחות סרטון סופי אחד.', ...o });
+  const link = 'https://drive.google.com/drive/folders/abc';
+  assert.deepEqual(videosGate({ link, files: [], window: w }), { ok: true, link, count: 0, reason: '' });
+  assert.deepEqual(videosGate({ link: null, files: one, window: w }), { ok: true, link: null, count: 1, reason: '' });
+  assert.deepEqual(videosGate({ link: null, files: [], window: w }), { ok: false, link: null, count: 0, reason: 'נפתח עם קישור לסרטונים בדרייב של הלקוח (או סרטון שהועלה לכאן).' });
+  assert.equal(videosGate({ link: null, files: [], window: w, state: { loaded: false, error: null } }).reason, 'בודק מה כבר הועלה…');
+  // The link does not wait for the files to load, and a file taken out does not count.
+  assert.equal(videosGate({ link, files: [], window: w, state: { loaded: false, error: null } }).ok, true);
+  assert.equal(videosGate({ link: null, files: [file('a', 'deliverable_video', '2026-10-07T10:00:00+03:00', { deleted_at: '2026-10-07T11:00:00+03:00' })], window: w }).ok, false);
+  // Where the link comes from: the editor's hand-off (the note of p24.drive), else the card's.
+  const card = { links: { drive: 'https://drive.google.com/drive/folders/card' } };
+  assert.equal(videosLinkOf(card, {}), 'https://drive.google.com/drive/folders/card');
+  assert.equal(videosLinkOf(card, { 'p24.drive': { state: 'done', note: link } }), link);
+  assert.equal(videosLinkOf({ links: {} }, { 'r2.p24.drive': { state: 'done', note: link } }, 'r2.'), link);
+  assert.equal(videosLinkOf({ links: {} }, { 'p24.drive': { state: 'done', note: 'בסימון כל התהליך' } }), null);
+  assert.equal(videosLinkOf({ links: { drive: 'http://drive.google.com/x' } }, {}), null, 'https only');
+  assert.equal(videosLinkOf(null, null), null);
+  assert.deepEqual([driveLinkProblem(''), driveLinkProblem('drive.google.com/x'), driveLinkProblem('https://drive.google.com/x?token=1'), driveLinkProblem(link)],
+    ['הדביקו את הקישור לתיקיית הסרטונים בדרייב.', 'קישור מלא, שמתחיל ב־https://.', 'קישור בלי סיסמה או קוד.', null]);
+});
+
+test('Ilai\'s lock on the graphics: nothing loaded, an error, nothing uploaded', () => {
+  const g = [file('g', 'deliverable_graphic', '2026-10-07T10:00:00+03:00')];
+  const gate = (o) => uploadGate({ files: g, kind: 'deliverable_graphic', window: null, none: 'נפתח אחרי שמעלים כאן לפחות גרפיקה אחת.', ...o });
   assert.deepEqual(gate({ state: { loaded: false, error: null } }), { ok: false, count: 0, reason: 'בודק מה כבר הועלה…' });
   assert.equal(gate({ state: { loaded: true, error: 'x' } }).ok, false);
-  assert.deepEqual(gate({ files: [] }), { ok: false, count: 0, reason: 'נפתח אחרי שמעלים כאן לפחות סרטון סופי אחד.' });
+  assert.deepEqual(gate({ files: [] }), { ok: false, count: 0, reason: 'נפתח אחרי שמעלים כאן לפחות גרפיקה אחת.' });
   assert.deepEqual(gate({}), { ok: true, count: 1, reason: '' });
-  // The client's notes came on the 8th: the final hand-off waits for a file uploaded since.
-  const notes = at('2026-10-08T09:00:00+03:00');
-  assert.deepEqual(gate({ after: notes }), { ok: false, count: 1, reason: 'נפתח אחרי שמעלים את הגרסה המתוקנת: קובץ שעלה אחרי הערות הלקוח.' });
-  assert.equal(gate({ after: notes, files: [...one, file('b', 'deliverable_video', '2026-10-08T15:00:00+03:00')] }).ok, true);
-  // A file that was taken out does not open the lock.
-  assert.equal(gate({ files: [file('a', 'deliverable_video', '2026-10-07T10:00:00+03:00', { deleted_at: '2026-10-07T11:00:00+03:00' })] }).ok, false);
   assert.deepEqual([uploadedText(0, 12), uploadedText(3, 12), uploadedText(3)], ['עוד לא הועלה כלום', 'הועלו 3 מתוך 12', 'הועלו 3']);
 });
 
 test('outside the office the hand-off marks are pressed where the files go up, never in bulk', () => {
-  assert.deepEqual(uploadStepOf('p24.notify', 'nadia', 'c1'), { href: 'editor.html#c-c1', text: 'מסמנים ב״הלקוחות שלי בעריכה״, אחרי שמעלים שם את הסרטונים.' });
+  assert.deepEqual(uploadStepOf('p24.notify', 'nadia', 'c1'), { href: 'editor.html#c-c1', text: 'מסמנים ב״הלקוחות שלי בעריכה״, עם הקישור לסרטונים בדרייב.' });
   assert.equal(uploadStepOf('r2.p27.final', 'nirel', 'c1').href, 'editor.html#c-c1');
   assert.equal(uploadStepOf('p07.made', 'ilai', 'c1').href, 'clients.html#mine');
   assert.equal(uploadStepOf('p23.made', 'ilai', 'c1').href, 'clients.html#mine');
@@ -145,31 +165,32 @@ function protocolTexts() {
   return out;
 }
 const OUTSIDE = /דרייב|Drive|Google Docs|Excel|גיליון|בירוק/i;
-test('the protocol names the system, not Drive, Excel or Google Docs; what stays is the archive and Dropbox', () => {
+test('the protocol: the system for the Gantt and the scripts (no Excel, no Google Docs); Drive only for the videos and the archive', () => {
   const hits = protocolTexts().filter(([, text]) => OUTSIDE.test(text)).map(([k]) => k);
-  // Process 35: the client's materials stay in Drive when the work ends (the archive outside the system).
-  assert.deepEqual(hits, ['p35.drive']);
+  // 24 and 27: the finished videos are in the client's Drive (the owner's decision of 7.10.2026). 35: the archive.
+  assert.deepEqual(hits, ['p24.title', 'p24.folder', 'p24.drive', 'p27.sla', 'p27.final', 'p35.drive']);
+  assert.ok(!protocolTexts().some(([, text]) => /Google Docs|Excel|גיליון|בירוק/i.test(text)));
   const text = (key) => protocolTexts().find(([k]) => k === key)[1];
   assert.match(text('p09.file'), /גאנט התוכן של הלקוח במערכת/);
   assert.match(text('p12.docs'), /בעמוד התסריטים במערכת/);
   assert.match(text('p18.order'), /במונה של יום הצילום/);
-  assert.match(text('p24.drive'), /תיק הלקוח במערכת/);
-  assert.match(text('p27.final'), /תיק הלקוח במערכת/);
-  assert.equal(text('p24.title'), 'העלאה לתיק הלקוח והעברה לאופיר');
-  // The card's links: Drive and the old sheet are never asked for; the scripts link is the system's.
+  assert.match(text('p24.drive'), /הועלו לדרייב של הלקוח/);
+  assert.match(text('p27.final'), /בדרייב של הלקוח/);
+  assert.equal(text('p24.title'), 'העלאה לדרייב והעברה לאופיר');
+  // The card's links: the videos' Drive folder is asked for once Ofir opened it; the old sheet never; the scripts link is the system's.
   const link = (k) => LINKS.find((l) => l.key === k);
-  assert.deepEqual([link('drive').after, link('gantt').after, link('scripts').hint], [null, null, null]);
-  assert.match(link('drive').label, /ארכיון/);
+  assert.deepEqual([link('drive').after, link('gantt').after, link('scripts').hint], ['p24.folder', null, null]);
+  assert.equal(link('drive').label, 'תיקיית הסרטונים ב־Drive');
 });
 
-test('the reminders and the hand-offs say "תיק הלקוח", never Drive', () => {
-  for (const f of ['reminder-rules.js', 'handoffs.js', 'ilai-card.js', 'editor.js', 'wa-templates.js']) {
+test('the reminders and the hand-offs: the videos are "בדרייב", never "תיק הלקוח במערכת"; no Google Docs or Excel', () => {
+  for (const f of ['reminder-rules.js', 'handoffs.js', 'ilai-card.js', 'editor.js', 'wa-templates.js', 'production.js']) {
     const code = readFileSync(new URL(`../app/${f}`, import.meta.url), 'utf8').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
-    // Dropbox stays where the office put a Dropbox link in the card; the archive link is named so.
-    assert.doesNotMatch(code.replace(/ארכיון ב־Drive/g, ''), /דרייב|Google Docs|Excel|['"`][^'"`\n]*Drive[^'"`\n]*['"`]/, f);
+    assert.doesNotMatch(code, /Google Docs|Excel|תיק הלקוח במערכת|בתיק הלקוח ואצל|הסרטונים בתיק הלקוח/, f);
   }
-  assert.ok(HANDOFFS.some((x) => x.to.some((t) => /בתיק הלקוח במערכת/.test(t.text || ''))));
-  assert.match(selfCheck(false).find(([k]) => k === 'p24.drive')[1], /לתיק הלקוח/);
+  assert.ok(HANDOFFS.some((x) => x.to.some((t) => /בדרייב של הלקוח ומוכנים לבקרת האיכות/.test(t.text || ''))));
+  assert.ok(HANDOFFS.some((x) => x.to.some((t) => /הגרסאות הסופיות של \{client\} בדרייב של הלקוח/.test(t.text || ''))));
+  assert.match(selfCheck(false).find(([k]) => k === 'p24.drive')[1], /בדרייב של הלקוח/);
 });
 
 test('the contract has 10 office minutes, in the words, the clock and the reminder', () => {
@@ -197,30 +218,31 @@ test('the bar: a new deal is two rows, the group and the meeting date at 5 minut
   ]);
 });
 
-test('p24.folder applies to no client; its key stays and the version did not move', () => {
+test('p24.folder is Ofir\'s item as before (the videos are in Drive), and the version did not move', () => {
   assert.equal(PROTOCOL_VERSION, 7);
   assert.equal(LATEST, 7);
-  assert.ok(PROCESSES.find((p) => p.id === 'p24').items.some((i) => i.key === 'p24.folder'), 'the key is still in the data');
   const c = { id: 'c', status: 'active', editor: 'nadia', shoot_type: 'dms', rounds: [{ n: 2, editor: 'yariv', shoot_at: '2026-11-01T10:00:00+02:00', start_at: '2026-10-20T10:00:00+03:00' }], deal_at: '2026-09-01T09:00:00+03:00', char_at: '2026-09-02T10:00:00+03:00', shoot_at: '2026-10-01T10:00:00+03:00' };
-  const keys = applicableProcesses(c).flatMap((p) => p.items.map((i) => i.key));
-  assert.deepEqual(keys.filter((k) => /p24\./.test(k)), ['p24.drive', 'p24.dropbox', 'p24.notify', 'r2.p24.drive', 'r2.p24.dropbox', 'r2.p24.notify']);
-  // 24 closes on the editor's own items, with no folder mark; an old folder mark changes nothing.
+  const items = applicableProcesses(c).flatMap((p) => p.items);
+  assert.deepEqual(items.filter((i) => /p24\./.test(i.key)).map((i) => i.key), ['p24.folder', 'p24.drive', 'p24.dropbox', 'p24.notify', 'r2.p24.folder', 'r2.p24.drive', 'r2.p24.dropbox', 'r2.p24.notify']);
+  assert.deepEqual(items.find((i) => i.key === 'p24.folder').owners, ['ofir']);
+  // 24 is complete only with the folder too.
   const checks = { ...done(['p22a.assigned'], '2026-10-05T12:00:00+03:00'), ...done(keysOf('p22'), '2026-10-06T12:00:00+03:00'), ...done(['p24.drive', 'p24.notify'], '2026-10-06T13:00:00+03:00') };
   const p24 = (cs) => clientState(c, cs, at('2026-10-06T14:00:00+03:00')).states.find((s) => s.proc.id === 'p24');
-  assert.equal(p24(checks).complete, true);
+  assert.equal(p24(checks).complete, false);
   assert.equal(p24({ ...checks, ...done(['p24.folder'], '2026-10-05T13:00:00+03:00') }).complete, true);
 });
 
-test('nobody is asked for a Drive folder: the automatic assignment opens no task', () => {
+test('the automatic assignment opens Ofir\'s Drive folder task, as before', () => {
   const c = { id: 'c', name: 'קפה', status: 'active', shoot_type: 'dms', rounds: [], deal_at: '2026-09-01T09:00:00+03:00', char_at: '2026-09-02T10:00:00+03:00', shoot_at: '2026-10-01T10:00:00+03:00', created_at: '2026-09-01T09:00:00+03:00' };
   const checks = { c: done(PROCESSES.filter((p) => ['p17', 'p18', 'p19', 'p21'].includes(p.id)).flatMap((p) => p.items.map((i) => i.key)), '2026-10-01T16:00:00+03:00') };
   const now = at('2026-10-01T16:05:00+03:00');
   const plan = planAutoAssign({ clients: [c], stateOf: (x) => clientState(x, checks[x.id], now), checks, tasks: [], now });
   assert.equal(plan.length, 1);
-  assert.equal(plan[0].task, null);
+  assert.deepEqual([plan[0].task.title, plan[0].task.owner], [folderTitle(), 'ofir']);
+  assert.equal(folderTitle(), 'פתיחת תיקייה מסודרת בדרייב לעריכה (24)');
 });
 
-test('a failed upload is reported with "חסר…": it is on the list', () => {
+test('a failed upload (optional now) can still be reported with "חסר…"', () => {
   assert.deepEqual(MISSING_WHAT.map(([k]) => k), ['logo', 'phone', 'footage', 'upload']);
 });
 

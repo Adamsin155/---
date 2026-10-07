@@ -1904,7 +1904,7 @@ $('status-form').addEventListener('submit', async (e) => {
 });
 
 // ── Editor load (Ofir, stage 5: before assigning a client to an editor) ──
-const EDIT_STEPS = [['p22', 'עריכה'], ['p24', 'העלאה לתיק הלקוח והעברה לאופיר'], ['p27', 'תיקונים וסגירה']];
+const EDIT_STEPS = [['p22', 'עריכה'], ['p24', 'העלאה לדרייב והעברה לאופיר'], ['p27', 'תיקונים וסגירה']];
 // Every editing job not finished in post: the client's own, and each extra shoot round's.
 function editingJobs() {
   const out = [];

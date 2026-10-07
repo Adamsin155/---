@@ -152,9 +152,9 @@ export function swapNote({ editor, from, reason = '', preselected: pre = null, j
   });
 }
 
-// Ofir's folder task (24), as it was opened at the assignment until package 1
-// (7.10.2026). No screen opens it any more (the videos are uploaded into the client's
-// files); the title is kept so a task opened before is still recognized.
+// Ofir's folder task (24): opened at the assignment, due the end of editing day 1
+// (the assignment day is not counted). Not opened again on an editor swap: the
+// client's folder is the same one.
 export const folderTitle = (n = null) => `פתיחת תיקייה מסודרת בדרייב לעריכה (24)${n ? ` · סבב ${n}` : ''}`;
 export const folderDueOn = (assignedAt) => dayKeyIL(addBusinessDays(assignedAt, 1));
 // The item the folder task stands for (`p24.folder`, `r2.p24.folder`), or null.

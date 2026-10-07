@@ -99,10 +99,9 @@ const db = {
   client_files: [
     { id: randomUUID(), client_id: B.id, kind: 'logo', label: null, storage_path: `${B.id}/logo/11111111-1111-4111-8111-111111111111-Golan-Logo.png`, mime: 'image/png', size_bytes: 2008, created_at: '2026-10-05T12:00:00+03:00', deleted_at: null },
     { id: randomUUID(), client_id: B.id, kind: 'logo', label: null, storage_path: `${B.id}/logo/22222222-2222-4222-8222-222222222222-old.png`, mime: 'image/png', size_bytes: 10, created_at: '2026-10-04T12:00:00+03:00', deleted_at: '2026-10-05T11:00:00+03:00' },
-    // Package 1: "מוכן לבדיקה" and the final hand-off open only once a finished video of
-    // the round is in the client's files (after the client's notes: one uploaded since).
-    // This suite is about the four buttons, so each client has one already up, dated
-    // after everything the steps mark; the upload itself and the lock: tests/package1-e2e.mjs.
+    // Package 1: the hand-offs stand on the videos' Drive link (A has one in its card) or on
+    // a video uploaded into the system. This suite is about the four buttons, so each
+    // client also has one video up; the link and the upload themselves: tests/package1-e2e.mjs.
     ...[A, B, N].map((c, i) => ({ id: randomUUID(), client_id: c.id, kind: 'deliverable_video', label: null, storage_path: `${c.id}/deliverable_video/3333333${i}-3333-4333-8333-333333333333-final.mp4`, mime: 'video/mp4', size_bytes: 4096, posted_on: null, link: null, uploaded_by: `${c.editor}@astrateg.test`, created_at: '2026-12-01T12:00:00+02:00', deleted_at: null })),
   ],
 };
@@ -465,7 +464,7 @@ await step('the client\'s fixes, then (4) the final versions go to Ilai; the car
   await page.click(`#${A_ID}-go`);
   await toastHas(page, 'כל תיקוני הלקוח סומנו');
   assert.ok(checkOf(A, 'p27.fixes'));
-  assert.equal(await text(page, `#${A_ID}-go`), 'תיקונים הושלמו, הגרסאות הסופיות בתיק הלקוח');
+  assert.equal(await text(page, `#${A_ID}-go`), 'תיקונים הושלמו, הגרסאות הסופיות בדרייב');
   await page.click(`#${A_ID}-go`);
   await toastHas(page, 'עברו לעילאי');
   assert.ok(checkOf(A, 'p27.final'));

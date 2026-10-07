@@ -229,8 +229,7 @@ test('auto-assign: Natali → Nirel; otherwise the least loaded of Nadia, Yariv 
   assert.equal(a.checks[0].note, AUTO_DRIVE_NOTE);
   assert.equal(a.reason.key, 'p22a.reason');
   assert.deepEqual(JSON.parse(a.reason.note), { editor: 'anna', reason: AUTO_REASON, preselected: null, joint: false, auto: true, kept: false });
-  // No Drive folder task since package 1: the editor uploads into the client's files.
-  assert.equal(a.task, null);
+  assert.deepEqual(a.task, { client_id: dms.id, title: 'פתיחת תיקייה מסודרת בדרייב לעריכה (24)', owner: 'ofir', due_on: '2026-10-19' });
   // Two in one tick spread the load: a second dms client goes to Yariv (Anna just got one).
   const dms2 = shotClient(w, { name: 'דמס 2' });
   closeDay(w, dms2);

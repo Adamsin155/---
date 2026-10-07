@@ -1,14 +1,17 @@
 // End-to-end check of package 1 of the protocol audit (docs/ops.md, section 37)
 // against an in-memory fake of Supabase (the database and Storage), with the
 // browser's clock fixed on Tuesday 13.10.2026 at 11:40 in Israel:
-//   - Nadia, on her own page: the upload area of the round's finished videos; "מוכן
-//     לבדיקה" is locked, with why, until one is up; a failed upload says what to do
-//     and opens nothing; two videos go up, the count against the package, the button
-//     opens; the general lists point to her page instead of offering the mark;
-//   - Ofir's quality-control dialog shows those videos, played in place, read-only;
-//   - after the client's notes the final hand-off waits for a file uploaded since;
+//   - Nadia, on her own page: the finished videos stay in the client's Google Drive
+//     (the owner's decision of 7.10.2026), so "מוכן לבדיקה" asks for the folder's
+//     link and refuses without it; uploading the videos into the system is offered
+//     below, closed, as optional, and a failed upload says what to do; with the link
+//     Ofir is told; the general lists point to her page instead of offering the mark;
+//   - Ofir's quality-control dialog opens the videos in Drive, and plays in place the
+//     ones uploaded into the system;
+//   - after the client's notes the final hand-off stands on the same link (no "newer
+//     file" rule), also when the uploaded video was taken out;
 //   - Ilai: the graphics upload in his card with "מוכן לבדיקה (לעירית)" locked until
-//     a graphic is up, the editor's final versions in his card, and the client's
+//     a graphic is up, the Drive link of the final versions in his card, and the client's
 //     characterization, read-only, one tap away; an editor still gets no such page;
 //   - Eli: the scripts of his shoot day behind one button, read-only; and a plain
 //     message while the database function is not there yet.
@@ -295,109 +298,120 @@ const liveVideos = () => db.client_files.filter((f) => f.client_id === D.id && f
 let passed = 0;
 async function step(name, fn) { await fn(); passed += 1; console.log(`ok ${passed} - ${name}`); }
 
-// ── Nadia: the finished videos, uploaded on her own page ──
+// ── Nadia: the finished videos, in the client's Drive ──
 const card = `#c-${D.id}`;
+const DRIVE = 'https://drive.google.com/drive/folders/dana-final';
 const nadia = (await newContext()).page;
-await step('the editor\'s card has the upload area; "מוכן לבדיקה" is locked, with why, until a video is up', async () => {
+await step('the editor\'s card says where the videos go (the client\'s Drive); the upload into the system is below, closed, optional', async () => {
   await signIn(nadia, 'editor.html', 'nadia');
-  await nadia.waitForSelector(`${card}-v-files .fl-work-h`);
-  await nadia.waitForFunction((s) => /עוד לא הועלה כלום/.test(document.querySelector(s)?.textContent || ''), `${card}-v-files .fl-work-h`);
-  assert.equal(await text(nadia, `${card}-v-files .fl-work-h`), 'הסרטונים הסופיים · עוד לא הועלה כלום');
-  assert.equal(await text(nadia, `${card}-v-add`), '+ העלאת סרטונים');
-  assert.equal(await nadia.locator(`${card}-go`).isDisabled(), true);
+  await nadia.waitForSelector(`${card}-videos`);
+  assert.equal(await text(nadia, `${card}-videos .ed-videos-h`), 'הסרטונים הסופיים: בדרייב של הלקוח · את הקישור לתיקייה מדביקים ב״מוכן לבדיקה״.');
+  assert.equal(await text(nadia, `${card}-up > summary`), 'אפשר גם להעלות לכאן (לא חובה)');
+  assert.equal(await nadia.locator(`${card}-up`).getAttribute('open'), null, 'the optional upload is closed');
+  assert.equal(await nadia.locator(`${card}-v-add`).isVisible(), false);
   assert.equal(await text(nadia, `${card}-go`), 'מוכן לבדיקה');
-  assert.equal(await text(nadia, `${card}-lock`), 'נפתח אחרי שמעלים כאן לפחות סרטון סופי אחד.');
-  assert.equal(await nadia.getAttribute(`${card}-go`, 'aria-describedby'), `c-${D.id}-lock`);
-  // Only her client; nothing says Drive.
+  assert.equal(await nadia.locator(`${card}-go`).isDisabled(), false);
+  // Only her client; nothing says the videos are "in the system".
   assert.equal(await nadia.locator('.ed-card').count(), 1);
-  assert.doesNotMatch(await text(nadia, '#ed-list'), /דרייב|Drive/);
-  const box = await nadia.locator(`${card}-v-add`).boundingBox();
-  assert.ok(box.height >= 44, JSON.stringify(box));
+  assert.doesNotMatch(await text(nadia, '#ed-list'), /תיק הלקוח במערכת/);
   assert.ok(await noHScroll(nadia));
-  await shots(nadia, 'editor-locked', { scrollTo: `${card}-go` });
 });
 
-await step('a failed upload says what to do (again, then "חסר…" to Irit and Lior) and opens nothing', async () => {
+await step('"מוכן לבדיקה" refuses without the Drive link (and with a bad one), and marks nothing', async () => {
+  await nadia.click(`${card}-go`);
+  await nadia.waitForSelector('#dlg-ready[open]');
+  assert.equal(await text(nadia, '#ready-ctx'), 'קפה דנה · 3 סרטונים');
+  assert.equal(await text(nadia, 'label[for="ready-link"]'), 'קישור לתיקיית הסרטונים בדרייב');
+  assert.equal(await text(nadia, '#ready-link-hint'), 'התיקייה של הלקוח בדרייב, עם כל הסרטונים הסופיים.');
+  assert.match(await text(nadia, '#ready-list'), /כל הסרטונים בדרייב של הלקוח ונפתחים/);
+  for (const i of [0, 1, 2, 3, 4]) await nadia.check(`#ready-${i}`);
+  await nadia.click('#ready-submit');
+  await nadia.waitForSelector('#ready-link-err:not([hidden])');
+  assert.equal(await text(nadia, '#ready-link-err'), 'הדביקו את הקישור לתיקיית הסרטונים בדרייב.');
+  assert.equal(await nadia.evaluate(() => document.activeElement.id), 'ready-link');
+  await nadia.fill('#ready-link', 'drive.google.com/dana');
+  await nadia.click('#ready-submit');
+  assert.equal(await text(nadia, '#ready-link-err'), 'קישור מלא, שמתחיל ב־https://.');
+  assert.equal(checkOf(D, 'p24.notify'), undefined);
+  assert.equal(checkOf(D, 'p24.drive'), undefined);
+  assert.ok(await noHScroll(nadia));
+  await shots(nadia, 'editor-locked');
+  await nadia.click('#dlg-ready [data-close]');
+});
+
+await step('uploading into the system is optional: a failed upload says what to do; one video goes up and counts', async () => {
+  await nadia.click(`${card}-up > summary`);
+  await nadia.waitForSelector(`${card}-v-add`);
+  assert.equal(await text(nadia, `${card}-v-add`), '+ העלאת סרטונים');
+  assert.ok((await nadia.locator(`${card}-v-add`).boundingBox()).height >= 44);
   flags.failUploads = 1;
   await nadia.locator(`${card}-v-in`).setInputFiles({ name: 'video-1.mp4', mimeType: 'video/mp4', buffer: mp4() });
   await nadia.waitForSelector(`${card}-v-files .fl-errs .err`);
   assert.equal(await text(nadia, `${card}-v-files .fl-errs .err`), 'video-1.mp4: ההעלאה לא הצליחה. נסו שוב. אם זה חוזר: ״חסר לוגו / טלפון / חומר״, לסמן ״העלאה למערכת״. עירית מקבלת מיד, וליאור אחריה.');
   assert.equal(liveVideos().length, 0);
-  assert.equal(await nadia.locator(`${card}-go`).isDisabled(), true);
-  // The report path is there, with the new option.
   await nadia.click(`${card}-missing`);
   await nadia.waitForSelector('#dlg-missing[open]');
   assert.match(await text(nadia, '#miss-list'), /העלאה למערכת \(לא עובדת\)/);
   await nadia.click('#dlg-missing [data-close]');
   // A file that is not a video is refused before anything is sent.
   await nadia.locator(`${card}-v-in`).setInputFiles({ name: 'notes.mp4', mimeType: 'video/mp4', buffer: Buffer.from('just text, renamed') });
-  await nadia.waitForFunction((s) => /אינו סרטון/.test(document.querySelector(s)?.textContent || ''), `${card}-v-files .fl-errs`);
-  assert.equal(liveVideos().length, 0);
-});
-
-await step('two videos go up: the count against the package, and "מוכן לבדיקה" opens', async () => {
-  await nadia.locator(`${card}-v-in`).setInputFiles([
-    { name: 'video-1.mp4', mimeType: 'video/mp4', buffer: mp4() },
-    { name: 'סרטון 2 סופי.mp4', mimeType: 'video/mp4', buffer: mp4(5000) },
-  ]);
-  await nadia.waitForFunction((s) => /הועלו 2 מתוך 3/.test(document.querySelector(s)?.textContent || ''), `${card}-v-files .fl-work-h`);
-  assert.equal(liveVideos().length, 2);
-  assert.ok(liveVideos().every((f) => f.uploaded_by === 'nadia@astrateg.test' && f.storage_path.startsWith(`${D.id}/deliverable_video/`)));
-  assert.equal(await nadia.locator(`${card}-v-files .fl-item`).count(), 2);
-  await nadia.waitForFunction((s) => !document.querySelector(s).disabled, `${card}-go`);
-  assert.equal(await nadia.locator(`${card}-lock`).count(), 0);
-  // Her own uploads can be taken out (to replace a version); no "עלה לרשתות" fields here.
-  assert.equal(await nadia.locator(`${card}-v-files .fl-del`).count(), 2);
+  await nadia.waitForFunction((x) => /אינו סרטון/.test(document.querySelector(x)?.textContent || ''), `${card}-v-files .fl-errs`);
+  await nadia.locator(`${card}-v-in`).setInputFiles({ name: 'video-1.mp4', mimeType: 'video/mp4', buffer: mp4() });
+  await nadia.waitForFunction((x) => /הועלו 1/.test(document.querySelector(x)?.textContent || ''), `${card}-v-files .fl-work-h`);
+  assert.equal(await text(nadia, `${card}-v-files .fl-work-h`), 'סרטונים שהועלו למערכת · הועלו 1');
+  assert.equal(liveVideos().length, 1);
+  assert.equal(await nadia.locator(`${card}-up`).getAttribute('open'), '', 'the upload stays open across the re-render');
   assert.equal(await nadia.locator(`${card}-v-files .fl-post`).count(), 0);
   assert.ok(await noHScroll(nadia));
-  await shots(nadia, 'editor-unlocked', { scrollTo: `${card}-go` });
 });
 
-await step('"מוכן לבדיקה": the self-check names the client\'s files, and Ofir is told', async () => {
+await step('with the Drive link "מוכן לבדיקה" goes to Ofir, and the link is kept with the mark', async () => {
   await nadia.click(`${card}-go`);
   await nadia.waitForSelector('#dlg-ready[open]');
-  assert.equal(await text(nadia, '#ready-ctx'), 'קפה דנה · הועלו 2 מתוך 3 סרטונים');
-  assert.match(await text(nadia, '#ready-list'), /כל הסרטונים הועלו לתיק הלקוח ונפתחים/);
-  assert.doesNotMatch(await text(nadia, '#ready-list'), /דרייב/);
+  assert.equal(await text(nadia, '#ready-link-hint'), 'סרטון אחד הועלה למערכת: אפשר גם בלי קישור.');
+  await nadia.fill('#ready-link', DRIVE);
   for (const i of [0, 1, 2, 3, 4]) await nadia.check(`#ready-${i}`);
+  await shots(nadia, 'editor-unlocked');
   await nadia.click('#ready-submit');
   await toastHas(nadia, 'נשלח לאופיר');
-  assert.ok(checkOf(D, 'p24.notify') && checkOf(D, 'p24.drive') && checkOf(D, 'p22.edited'));
-  assert.equal(checkOf(D, 'p24.folder'), undefined, 'nobody marks a Drive folder');
+  assert.ok(checkOf(D, 'p24.notify') && checkOf(D, 'p22.edited'));
+  assert.equal(checkOf(D, 'p24.drive').note, DRIVE);
   await nadia.click('#handoff-close').catch(() => {});
+  await nadia.waitForSelector(`${card}-drive`);
+  assert.equal(await nadia.getAttribute(`${card}-drive`, 'href'), DRIVE);
 });
 
 await step('the client card points to her page for the final hand-off instead of offering the mark', async () => {
   await nadia.goto(`${BASE}client.html?id=${D.id}#p27`);
   await nadia.waitForSelector('#i-p27-final');
   assert.equal(await nadia.locator('#i-p27-final').isDisabled(), true);
-  assert.match(await text(nadia, '#i-p27-final-u'), /מסמנים ב״הלקוחות שלי בעריכה״, אחרי שמעלים שם את הגרסאות הסופיות\./);
+  assert.match(await text(nadia, '#i-p27-final-u'), /מסמנים ב״הלקוחות שלי בעריכה״, כשהגרסאות הסופיות בדרייב\./);
   assert.equal(await nadia.getAttribute('#i-p27-final-u a', 'href'), `editor.html#c-${D.id}`);
-  // No Drive folder item anywhere in the card, and nothing in it says Drive.
-  assert.equal(await nadia.locator('#i-p24-folder').count(), 0);
-  assert.doesNotMatch(await text(nadia, '#app'), /דרייב|Google Docs|Excel/);
+  assert.doesNotMatch(await text(nadia, '#app'), /Google Docs|Excel|תיק הלקוח במערכת/);
   // An editor still has no characterization page.
   await nadia.goto(`${BASE}intake.html?id=${D.id}`);
   await nadia.waitForFunction(() => /פתוחים לצוות המשרד/.test(document.querySelector('#state')?.textContent || ''));
   assert.equal(await nadia.locator('#rd-fields').count(), 0);
 });
 
-// ── Ofir: the videos, in the quality-control dialog ──
+// ── Ofir: the videos, from the quality-control dialog ──
 const ofir = (await newContext(DESK)).page;
-await step('Ofir\'s quality-control dialog shows the uploaded videos, played in place, with nothing to change', async () => {
+await step('Ofir\'s quality-control dialog opens the videos in Drive, and plays the one uploaded into the system', async () => {
   await signIn(ofir, 'qa.html', 'ofir');
   await ofir.waitForSelector('#qa-list .of-card');
   await ofir.locator('#qa-list .of-card', { hasText: 'קפה דנה' }).locator('button', { hasText: 'לבדיקה' }).click();
-  await ofir.waitForSelector('#dlg-qa[open] #qa-f-files .fl-item');
-  assert.equal(await text(ofir, '#qa-f-files .fl-work-h'), 'הסרטונים לבדיקה · הועלו 2 מתוך 3');
-  assert.equal(await ofir.locator('#qa-f-files .fl-item').count(), 2);
+  await ofir.waitForSelector('#dlg-qa[open] #qa-drive');
+  assert.equal((await ofir.locator('#qa-drive').textContent()).replace(/\s*\(.*\)$/, ''), 'פתיחת הסרטונים בדרייב');
+  assert.equal(await ofir.getAttribute('#qa-drive', 'href'), DRIVE);
+  assert.ok((await ofir.locator('#qa-drive').boundingBox()).height >= 44);
+  await ofir.waitForSelector('#qa-f-files .fl-item');
+  assert.equal(await text(ofir, '#qa-f-files .fl-work-h'), 'סרטונים שהועלו למערכת · הועלו 1');
   assert.equal(await ofir.locator('#qa-f-files .fl-add:visible').count(), 0, 'no upload from the dialog');
   assert.equal(await ofir.locator('#qa-f-files .fl-del').count(), 0, 'nothing is taken out from the dialog');
-  // The files come before the checks.
+  // What is checked comes before the checks.
   assert.ok(await ofir.evaluate(() => !!(document.querySelector('#qa-files').compareDocumentPosition(document.querySelector('#qa-checks-box')) & Node.DOCUMENT_POSITION_FOLLOWING)));
   await ofir.locator('#qa-f-files .fl-play').first().click();
   await ofir.waitForSelector('#qa-f-files video[src*="/storage/v1/object/sign/client-files/"]');
-  assert.equal(await ofir.locator('#qa-f-files video').count(), 1);
   await shots(ofir, 'qa-dialog-videos');
   await ofir.setViewportSize(PHONE);
   assert.ok(await noHScroll(ofir));
@@ -405,8 +419,8 @@ await step('Ofir\'s quality-control dialog shows the uploaded videos, played in 
   await ofir.click('#dlg-qa .dlg-head [data-close]');
 });
 
-// ── After the client's notes: a fixed version, uploaded since ──
-await step('the final hand-off after the client\'s notes waits for a file uploaded since; then it goes to Ilai', async () => {
+// ── After the client's notes: the same link ──
+await step('the final hand-off after the client\'s notes stands on the Drive link, also with the uploaded video taken out', async () => {
   serverTime += 3600e3; // an hour later: Ofir approved, Irit sent, the client's notes came
   for (const k of PROCESSES.find((p) => p.id === 'p25').items.map((i) => i.key)) set(D, k, 'ofir');
   set(D, 'p26.sent', 'irit');
@@ -414,16 +428,17 @@ await step('the final hand-off after the client\'s notes waits for a file upload
   await nadia.goto(`${BASE}editor.html`);
   await nadia.waitForSelector(`${card} .ed-fix-list`);
   assert.equal(await text(nadia, `${card} .ed-state`), 'תיקוני הלקוח');
+  // Her own upload can be taken out (the fixed version replaces the file in Drive).
+  await nadia.waitForSelector(`${card}-v-files .fl-del`);
+  await nadia.click(`${card}-v-files .fl-del`);
+  await toastHas(nadia, 'נמחק');
+  assert.equal(liveVideos().length, 0);
   await nadia.click(`${card}-go`); // "סמן הכול תוקן"
-  await toastHas(nadia, 'הגרסאות הסופיות בתיק הלקוח');
-  await nadia.waitForFunction((s) => /תיקונים הושלמו/.test(document.querySelector(s)?.textContent || ''), `${card}-go`);
-  assert.equal(await text(nadia, `${card}-go`), 'תיקונים הושלמו, הגרסאות הסופיות בתיק הלקוח');
-  assert.equal(await nadia.locator(`${card}-go`).isDisabled(), true);
-  assert.equal(await text(nadia, `${card}-lock`), 'נפתח אחרי שמעלים את הגרסה המתוקנת: קובץ שעלה אחרי הערות הלקוח.');
-  serverTime += 600e3;
-  await nadia.locator(`${card}-v-in`).setInputFiles({ name: 'video-1-fixed.mp4', mimeType: 'video/mp4', buffer: mp4(4500) });
-  await nadia.waitForFunction((s) => /הועלו 3 מתוך 3/.test(document.querySelector(s)?.textContent || ''), `${card}-v-files .fl-work-h`);
-  await nadia.waitForFunction((s) => !document.querySelector(s).disabled, `${card}-go`);
+  await toastHas(nadia, 'הגרסאות הסופיות בדרייב');
+  await nadia.waitForFunction((x) => /תיקונים הושלמו/.test(document.querySelector(x)?.textContent || ''), `${card}-go`);
+  assert.equal(await text(nadia, `${card}-go`), 'תיקונים הושלמו, הגרסאות הסופיות בדרייב');
+  assert.equal(await nadia.locator(`${card}-go`).isDisabled(), false, 'the link is there: no newer file is asked for');
+  assert.equal(await nadia.locator(`${card}-lock`).count(), 0);
   await nadia.click(`${card}-go`);
   await toastHas(nadia, 'עברו לעילאי');
   assert.ok(checkOf(D, 'p27.final'));
@@ -444,7 +459,7 @@ await step('Ilai\'s card: the graphics upload, "מוכן לבדיקה (לעיר�
   assert.equal(await text(ilai, `${day}-g9-add`), '+ העלאת גרפיקות');
   // The Gantt is the system's, not a yearly file.
   assert.match(await text(ilai, `${day}-d`), /גאנט התוכן נפתח במערכת, עם כל העמודות/);
-  assert.doesNotMatch(await text(ilai, '.g-ilai'), /הקובץ השנתי|דרייב/);
+  assert.doesNotMatch(await text(ilai, `${day}-d`), /הקובץ השנתי|דרייב/);
   await ilai.locator(`${day}-g9-in`).setInputFiles([{ name: 'post-1.png', mimeType: 'image/png', buffer: png() }, { name: 'post-2.png', mimeType: 'image/png', buffer: png(2500) }]);
   await ilai.waitForFunction((s) => /הועלו 2 מתוך 9/.test(document.querySelector(s)?.textContent || ''), `${day}-g9-files .fl-work-h`);
   await ilai.waitForFunction((s) => !document.querySelector(s).disabled, `${day}-gfx`);
@@ -460,17 +475,18 @@ await step('Ilai\'s card: the graphics upload, "מוכן לבדיקה (לעיר�
   await ilai.click('#handoff-close').catch(() => {});
 });
 
-await step('the rest of the graphics is locked the same way; the editor\'s final versions are in his card', async () => {
+await step('the rest of the graphics is locked the same way; the final versions card opens the videos in Drive', async () => {
   const rest = `#il-r-${D.id}`;
   await ilai.waitForSelector(`${rest}-ready`);
   assert.equal(await ilai.locator(`${rest}-ready`).isDisabled(), true);
   assert.equal(await text(ilai, `${rest}-g-files .fl-work-h`), 'יתרת הגרפיקות · עוד לא הועלה כלום');
-  const fin = `#il-f-${D.id}--v-files`;
-  await ilai.waitForSelector(`${fin} .fl-item`);
-  assert.equal(await text(ilai, `${fin} .fl-work-h`), 'הסרטונים הסופיים · הועלו 3 מתוך 3');
-  assert.equal(await ilai.locator(`${fin} .fl-add:visible`).count(), 0);
-  assert.match(await text(ilai, `.il-card[data-key="il-final:${D.id}:"]`), /גרסאות סופיות/);
-  assert.doesNotMatch(await text(ilai, `.il-card[data-key="il-final:${D.id}:"]`), /דרייב/);
+  // The final versions: the Drive link, prominent; no list, since nothing is uploaded now.
+  const fin = ilai.locator(`.il-card[data-key="il-final:${D.id}:"]`);
+  assert.match(await fin.innerText(), /גרסאות סופיות בדרייב/);
+  assert.equal(await fin.locator('a.il-drive').getAttribute('href'), DRIVE);
+  assert.match(await fin.locator('a.il-drive').textContent(), /^פתיחת הסרטונים בדרייב/);
+  await ilai.waitForFunction((x) => document.querySelector(x)?.hidden === true, `#il-f-${D.id}--v-files`);
+  assert.doesNotMatch(await fin.innerText(), /תיק הלקוח במערכת/);
 });
 
 await step('one tap from the graphics card: the client\'s characterization, read-only', async () => {

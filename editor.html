@@ -152,6 +152,13 @@
           <legend>בדיקה עצמית לפני שאופיר רואה</legend>
           <div id="ready-list"></div>
         </fieldset>
+        <!-- The finished videos stay in the client's Google Drive: the folder's link goes with the hand-off. -->
+        <div class="field">
+          <label for="ready-link">קישור לתיקיית הסרטונים בדרייב</label>
+          <input class="input" id="ready-link" type="url" dir="ltr" inputmode="url" maxlength="500" placeholder="https://drive.google.com/…" aria-describedby="ready-link-hint ready-link-err">
+          <p class="hint" id="ready-link-hint"></p>
+          <p class="err" id="ready-link-err" hidden></p>
+        </div>
         <p class="hint">הלחיצה מודיעה לאופיר ומפעילה לו שעון של שעה לבקרה.</p>
         <div class="err" id="ready-err" role="alert" hidden></div>
       </div>

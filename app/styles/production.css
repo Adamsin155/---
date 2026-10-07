@@ -3,6 +3,11 @@
    (the light brand shell, buttons, fields, badges, dialogs). */
 .prod-page .page-head h1 { overflow-wrap: anywhere; }
 .prod-summary { margin: 0; font-size: 15px; color: var(--text-2); }
+/* Where the finished videos are (the Drive link), and the optional upload under it. */
+.ed-videos { display: grid; gap: 6px; min-width: 0; }
+.ed-videos-h { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.ed-videos-h a { display: inline-flex; align-items: center; min-height: 44px; }
+.ed-upload > summary { color: var(--text-2); font-size: 14px; }
 /* Eli's scripts dialog (shoot.html): the scripts of his shoot day, to read. */
 .sh-scripts-btn { margin-inline-start: 8px; min-height: 44px; }
 #dlg-scripts .dlg-body { align-content: start; }

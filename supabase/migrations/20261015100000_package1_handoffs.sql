@@ -2,33 +2,32 @@
 -- where the chain of hand-offs broke because a person could not get what they need
 -- from the system. Most of it is the site (uploads on the editors' and Ilai's own
 -- pages, Ilai's read-only view of the characterization, the wording). The database
--- gets two things:
+-- gets one thing:
 --
---   1. Eli reads the scripts of his own shoot days, and nothing else of the scripts.
---      Until now public.client_scripts was closed to him (20261003120000_scripts.sql:
---      Lior and the owner, or a grant per client that also lets the person WRITE),
---      so on a shoot day he worked from a link Lior chose to send. One function,
---      public.shoot_scripts(client), answers for him alone: the scripts (title, text,
---      order, inspiration links) of the shoot rounds whose day is from yesterday to 30
---      days ahead, in Israel days (the same forward edge as the shoot days he sees,
---      private.shoot_in_window; a day back, for his closing checks: "the numbering
---      matches the order of the scripts"). No policy on the table changes: he still
---      cannot select from it, and nothing lets him write.
+--   Eli reads the scripts of his own shoot days, and nothing else of the scripts.
+--   Until now public.client_scripts was closed to him (20261003120000_scripts.sql:
+--   Lior and the owner, or a grant per client that also lets the person WRITE), so
+--   on a shoot day he worked from a link Lior chose to send. One function,
+--   public.shoot_scripts(client), answers for him alone: the scripts (title, text,
+--   order, inspiration links) of the shoot rounds whose day is from yesterday to 30
+--   days ahead, in Israel days (the same forward edge as the shoot days he sees,
+--   private.shoot_in_window; a day back, for his closing checks: "the numbering
+--   matches the order of the scripts"). No policy on the table changes: he still
+--   cannot select from it, and nothing lets him write.
 --
---   2. Ofir's task "פתיחת תיקייה מסודרת בדרייב לעריכה (24)" is no longer opened (the
---      finished videos go up into the client's files, so there is no Drive folder to
---      open; the item p24.folder applies to no client: app/protocol.js). The tasks of
---      that name still open are closed here, so nobody is asked for a folder.
+-- (A first draft of this file also closed Ofir's open Drive-folder tasks. The owner
+-- decided on 7.10.2026 that the finished videos stay in the client's Google Drive, so
+-- the folder task stays as it was and this file touches no row.)
 --
 -- What did NOT need the database (checked, tests/sql/package1.test.mjs): Ilai already
 -- reads every client's characterization and files (he is in is_office()); an editor
--- already uploads videos only for a client whose editing is theirs, and reads the
--- files of the clients they see; Ofir reads every file. The protocol version stays 7
+-- may upload videos only for a client whose editing is theirs (optional now: the
+-- videos are handed over in Drive), and reads the files of the clients they see. The protocol version stays 7
 -- and private.protocol_writers is unchanged (no item was added or taken out).
 --
--- Safe to run again. Nothing here takes away an object or a row.
+-- Safe to run again. Nothing here takes away or changes an object or a row.
 
--- ── 1. The scripts of a shoot day, for its photographer ──
+-- ── The scripts of a shoot day, for its photographer ──
 -- { client: { name, business }, rounds: [1, …], scripts: [{ round, n, title, body,
 --   links, status }] }, or null: not Eli, not a client he shoots in that window, a
 -- client that ended, was cancelled or is in the archive.
@@ -70,11 +69,3 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.shoot_scripts(uuid) from public, anon;
 grant execute on function public.shoot_scripts(uuid) to authenticated;
-
--- ── 2. The folder tasks still open ───────────
--- Closed as they are (the title, the client and the owner stay; the history keeps
--- who opened them). A second run finds none.
-update public.client_tasks
-set done_at = now()
-where done_at is null
-  and title ~ '^פתיחת תיקייה מסודרת בדרייב לעריכה \(24\)( · סבב [0-9]+)?$';

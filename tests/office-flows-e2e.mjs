@@ -6,7 +6,7 @@
 //    the client card ("תוקן"), they come back as a second check, he approves, and
 //    the handoff to Irit is offered.
 //  - The assignment: Nirel preselected for Natali; Nadia only with a reason; the
-//    WhatsApp to the editor (no Drive folder task since package 1).
+//    folder task (24) and the WhatsApp to the editor.
 //  - Thursday: the pass over the clients ("עברתי", "עברתי על כל השאר", recorded as
 //    the day's control), a data-health fix in one tap, the summary prefilled.
 //  - Lior lands on "החלטות": an exception through reason → decision → next action
@@ -405,7 +405,7 @@ await step('the re-check: back in the queue as check 2 with what was returned; a
   await ofir.click('#handoff-close');
 });
 
-await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the WhatsApp to the editor, and no Drive folder task', async () => {
+await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the folder task and the WhatsApp to the editor', async () => {
   await ofir.click('#assign-list button');
   await ofir.waitForSelector('#dlg-assign[open]');
   assert.equal(await ofir.isChecked('#as-e-nirel'), true);
@@ -423,16 +423,25 @@ await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the 
   assert.ok(checkOf(N, 'p22a.assigned') && checkOf(N, 'p22a.load'));
   assert.equal(checkOf(N, 'p22a.irit').note, 'נסגר לבד: השיוך נרשם במערכת');
   assert.deepEqual(JSON.parse(checkOf(N, 'p22a.reason').note), { editor: 'nadia', reason: 'ניראל עמוסה השבוע בבריפים', preselected: 'nirel', joint: false });
-  // Package 1: the videos go up into the client's files, so nobody is asked for a Drive folder.
-  assert.equal(db.client_tasks.find((t) => t.client_id === N.id && t.owner === 'ofir'), undefined);
-  assert.equal(await ofir.locator('#as-after').innerText(), 'השיוך מסמן את 22א ומכין וואטסאפ לעורך עם שני המועדים.');
+  // The videos stay in the client's Drive (the owner's decision of 7.10.2026): Ofir's folder task is opened, as before.
+  const folder = db.client_tasks.find((t) => t.client_id === N.id && t.owner === 'ofir');
+  assert.equal(folder.title, 'פתיחת תיקייה מסודרת בדרייב לעריכה (24)');
+  assert.equal(folder.due_on, '2026-10-21');
   await ofir.waitForSelector('#handoff:not([hidden])');
   assert.match(await ofir.locator('#handoff').innerText(), /עורך שויך · נדיה[^]*לשלוח לנדיה בוואטסאפ/);
   const text = new URL(await ofir.getAttribute('.handoff-wa', 'href')).searchParams.get('text');
-  assert.match(text, /סטודיו נטלי עובר לעריכה אצלך[^]*בתיק הלקוח במערכת ואצל אופיר לבקרה: [^]*סגירה, כולל תיקוני הלקוח: /);
+  assert.match(text, /סטודיו נטלי עובר לעריכה אצלך[^]*בדרייב של הלקוח ואצל אופיר לבקרה: [^]*סגירה, כולל תיקוני הלקוח: /);
   await ofir.click('#handoff-close');
   assert.match(await ofir.locator('#assign-list').innerText(), /אין לקוחות שמחכים לשיוך עורך/);
   await shot(ofir, 'office-03-assigned');
+  // The folder task, done from "המשימות שלי", is item 24 "יש תיקייה מסודרת" too.
+  await ofir.goto(`${BASE}clients.html#mine`);
+  const box = `#w-${N.id}-${folder.id}`.replace(/[^\w#-]/g, '_');
+  await ofir.waitForSelector(box);
+  await ofir.check(box);
+  await toastHas(ofir, 'סומן כבוצע');
+  assert.ok(db.client_tasks.find((t) => t.id === folder.id).done_at);
+  assert.ok(checkOf(N, 'p24.folder'));
   await ofir.goto(`${BASE}qa.html`);
   await ofir.waitForSelector('#qa-list .of-card');
 });
@@ -473,11 +482,11 @@ await step('"החלפת עורך" from the load list: the same dialog and rules;
   const why = JSON.parse(checkOf(N, 'p22a.reason').note);
   assert.deepEqual([why.editor, why.from, why.swap, why.restart, why.late, why.prev], ['nirel', 'nadia', true, true, false, before]);
   assert.equal(why.reason, 'החלפת עורך: מנדיה לניראל · מועדי העריכה נספרים מחדש מהיום');
-  // As after the first assignment: the WhatsApp to the (new) editor; no second folder task.
+  // As after the first assignment: the WhatsApp to the (new) editor. No second folder task: the one of the first assignment (done above) is the client's folder.
   await ofir.waitForSelector('#handoff:not([hidden])');
   assert.match(await ofir.locator('#handoff').innerText(), /עורך שויך · ניראל[^]*לשלוח לניראל בוואטסאפ/);
   await ofir.click('#handoff-close');
-  assert.equal(db.client_tasks.filter((t) => t.client_id === N.id && t.title.startsWith('פתיחת תיקייה')).length, 0);
+  assert.equal(db.client_tasks.filter((t) => t.client_id === N.id && t.title.startsWith('פתיחת תיקייה')).length, 1);
   assert.match(await ofir.locator('#load-list .of-editor', { hasText: 'ניראל' }).innerText(), /סטודיו נטלי · שויך היום/);
   // The reminder engine: the notice "לקוח חדש בעריכה אצלך" is now Nirel's, not Nadia's.
   const byClient = {};

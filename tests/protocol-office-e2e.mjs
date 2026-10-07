@@ -639,7 +639,7 @@ const nirelCard = page.locator('.editor-card:has(.pchip:text("ניראל"))');
 const nirelText = await nirelCard.innerText();
 assert.match(nirelText, /נטלי בלבד/);
 assert.match(nirelText, /1 לקוח בעריכה · 1 משימה פתוחה/);
-assert.match(nirelText, /סטודיו נטלי[^]*22 · עריכה[^]*יעד[^]*24 · העלאה לתיק הלקוח והעברה לאופיר[^]*27 · תיקונים וסגירה/);
+assert.match(nirelText, /סטודיו נטלי[^]*22 · עריכה[^]*יעד[^]*24 · העלאה לדרייב והעברה לאופיר[^]*27 · תיקונים וסגירה/);
 assert.match(await page.locator('.editor-card:has(.pchip:text("נדיה"))').innerText(), /0 לקוחות בעריכה · 0 משימות פתוחות[^]*אין כרגע לקוחות בעריכה/);
 assert.match(await page.locator('.await-editor').innerText(), /ממתינים לשיוך עורך[^]*מסעדת הים[^]*22א · העברה לעריכה ושיוך לעורך/);
 // System integrity, each row linking to the client (and process).
