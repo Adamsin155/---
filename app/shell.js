@@ -12,7 +12,8 @@
 // from the manager's. It is the only switch (Irit's two menu entries are gone, 7.10.2026).
 // Also here: the small motion helpers (page entrance, numbers that count up once,
 // view transitions for a filter), all off under prefers-reduced-motion.
-import { supabase } from './supa.js';
+import { staffPerson } from './supa.js';
+import { startFeel } from './feel.js';
 import { h } from './quote-doc.js';
 import { PEOPLE, scopeOf } from './protocol.js';
 import { setMode, modeOf } from './manager-rules.js';
@@ -30,9 +31,8 @@ export function viewerFor(email) {
   if (!viewers.has(key)) {
     viewers.set(key, (async () => {
       try {
-        const { data, error } = await supabase.from('staff').select('person').eq('email', key).maybeSingle();
+        const { person, error } = await staffPerson(key);
         if (error) return { me: null, scope: 'own', error };
-        const person = data?.person || null;
         return { me: person && person !== 'editor' && PEOPLE[person] ? person : null, scope: scopeOf(person), error: null };
       } catch (error) { return { me: null, scope: 'own', error }; }
     })());
@@ -47,6 +47,15 @@ export function avatar(person, { name = PEOPLE[person]?.name || '', size = '' } 
   return h('span', { class: `ds-av${size ? ` ds-av-${size}` : ''}`, style: `--av:${avatarFill(person)}`, title: name, 'aria-hidden': 'true' }, initialsOf(name));
 }
 
+// Runs now, or when the page that is being built out of sight is shown (<html data-boot>,
+// mountSession in app/protocol-ui.js); never, when that page leaves for another one.
+function whenShown(run) {
+  const root = document.documentElement;
+  if (!('boot' in root.dataset)) { run(); return; }
+  const shown = new MutationObserver(() => { if (!('boot' in root.dataset)) { shown.disconnect(); run(); } });
+  shown.observe(root, { attributes: true, attributeFilter: ['data-boot'] });
+}
+
 // ── Motion ──────────────────────────────────
 const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return true; } };
 // Under automation (the browser suites) nothing moves: a test reads a list right after
@@ -59,15 +68,22 @@ document.documentElement.classList.toggle('ds-motion', motionOn());
 
 // A change inside a page (a filter, a day of the calendar): what stays glides to its
 // new place when the browser can (document.startViewTransition); otherwise it just changes.
+// The rows carry their name as --vt, and are named for the browser only while a glide
+// runs (.ds-gliding, shell.css): a row is not a layer of its own the rest of the time,
+// and a move to another page (which also is a view transition) fades the page as one.
 export function glide(change) {
   if (!motionOn() || typeof document.startViewTransition !== 'function') { change(); return; }
   let ran = false;
   const run = () => { if (!ran) { ran = true; change(); } };
+  const root = document.documentElement;
+  const done = () => root.classList.remove('ds-gliding');
+  root.classList.add('ds-gliding');
   try {
     // A transition the browser gives up on (two things with one name, a hidden tab) still applies the change.
     const t = document.startViewTransition(run);
     for (const p of [t.ready, t.finished, t.updateCallbackDone]) p?.catch?.(() => {});
-  } catch { run(); }
+    if (t.finished) t.finished.then(done, done); else done();
+  } catch { run(); done(); }
 }
 
 // The entrance of a page, once: the blocks rise in order. Only what is on the screen
@@ -161,7 +177,9 @@ function build(viewer, email) {
   // The screens of the profile shown now. A page that belongs to one profile is
   // remembered as the choice, so the next page opens in the same profile.
   const compose = () => {
-    if (profile) setMode(profile);
+    // Remembered once the page is shown: a page that is leaving for the person's first
+    // screen (clients.html, by the profile last chosen) must still read that choice.
+    if (profile) { const chosen = profile; whenShown(() => setMode(chosen)); }
     items = profileMenu(viewer, profile);
     ({ bar, more } = barOf(items, viewer));
     // A long menu: the daily screens first, the rest under a quiet "עוד" heading (shell-rules.js groupsOf).
@@ -314,7 +332,9 @@ export async function mountShell(email) {
   const side = h('aside', { class: 'side', id: 'app-side' });
   (document.querySelector('header.topbar') || document.body.firstElementChild).before(side);
   document.body.classList.add('has-shell');
-  enterPage();
+  startFeel(); // the worker that keeps the site's files, the next page fetched early (app/feel.js)
+  // The entrance starts when the page is shown (it is built out of sight: data-boot, protocol-ui.js).
+  whenShown(() => enterPage());
   const viewer = await viewerFor(email);
   build(viewer, email);
 }

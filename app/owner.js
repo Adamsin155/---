@@ -447,7 +447,7 @@ function clientItem(e, now) {
   const open = expanded.has(c.id);
   const more = `ga-${c.id}`;
   // Its own name for the browser's view transition: a filter lets the clients that stay glide to their place.
-  return h('li', { class: `ga-item h-${e.health.color}`, 'data-id': c.id, style: `view-transition-name:ga-${String(c.id).replace(/[^\w-]/g, '')}` },
+  return h('li', { class: `ga-item h-${e.health.color}`, 'data-id': c.id, style: `--vt:ga-${String(c.id).replace(/[^\w-]/g, '')}` },
     h('button', { type: 'button', class: 'ga-row', id: `gab-${c.id}`, 'aria-expanded': String(open), 'aria-controls': more, onclick: () => toggle(c.id) },
       h('span', { class: 'ga-l1' }, healthBadge(e.health.color), h('strong', { class: 'ga-name' }, clientLabel(c)),
         c.landing === true ? h('span', { class: 'tag tag-landing' }, 'בקליטה') : null,

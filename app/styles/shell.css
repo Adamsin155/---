@@ -128,6 +128,7 @@
 .ds-motion dialog[open] { animation: ds-pop .35s var(--ds-ease); }
 .ds-motion dialog[open]::backdrop { animation: ds-fade .25s ease; }
 @keyframes ds-fade { from { opacity: 0; } }
+.ds-gliding [style*='--vt:'] { view-transition-name: var(--vt); }
 ::view-transition-group(*) { animation-duration: .45s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
 
@@ -166,3 +167,58 @@
   background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); box-shadow: none;
 }
 #msg-queue > li:not(:first-child) .btn-primary:hover, .gt-share .btn-primary:hover { background: var(--ds-navy-2); border-color: var(--ds-navy-2); color: var(--ds-on-navy); }
+
+/* ── The feel of an app on a phone (docs/ops.md, section 42) ─────────────── */
+/* Every control answers the finger at once with its own pressed state (not the grey
+   flash of the browser); no double-tap zoom, and a long press selects no text and
+   opens no menu on a control. */
+:root { -webkit-tap-highlight-color: transparent; }
+:where(a, button, summary, select, label, input, textarea, [role='tab'], [role='button']) { touch-action: manipulation; }
+:where(button, summary, [role='tab'], a.btn, .side-link, .profile-switch, .navlink) { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+:where(a, button, summary, [role='tab']):active:not(:disabled, [aria-disabled='true']) { opacity: .62; }
+:where(.tab, .chip, .side-link, .profile-switch):active:not(:disabled) { transform: scale(.97); }
+/* The end of a list inside a dialog or the "עוד" sheet does not drag the page behind it. */
+dialog, .dlg-body, .side-sheet { overscroll-behavior: contain; }
+/* A phone with a notch held sideways: the page keeps clear of it (viewport-fit=cover). */
+html { padding-inline: env(safe-area-inset-right, 0px) env(safe-area-inset-left, 0px); }
+
+/* A page opens whole. While it is built (<html data-boot>, mountSession in
+   app/protocol-ui.js) its blocks are laid out but not shown, so a card that arrives
+   late pushes nothing under the finger, and a quiet placeholder stands in the panel. */
+html[data-boot] #app { opacity: 0; pointer-events: none; }
+html[data-boot] #state:not(.no-access) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; padding: 0; }
+html[data-boot] main:has(> #login-block[hidden]) { position: relative; min-height: min(80vh, 660px); }
+html[data-boot] main:has(> #login-block[hidden])::before, html[data-boot] main:has(> #login-block[hidden])::after {
+  content: ''; position: absolute; inset-inline-start: 22px; background: var(--ds-ground); color: var(--ds-ground);
+  animation: ds-wait 1.4s ease-in-out infinite alternate;
+}
+html[data-boot] main:has(> #login-block[hidden])::before { top: 30px; inline-size: min(46%, 300px); block-size: 30px; border-radius: 10px; box-shadow: 0 48px 0 -6px currentColor; }
+html[data-boot] main:has(> #login-block[hidden])::after {
+  top: 132px; inset-inline-end: 22px; block-size: 96px; border-radius: var(--ds-r-card);
+  box-shadow: 0 112px 0 currentColor, 0 224px 0 currentColor, 0 336px 0 currentColor;
+}
+@keyframes ds-wait { from { opacity: 1; } to { opacity: .55; } }
+/* The bottom bar's place is taken from the first paint, so the bar does not blink
+   between two screens (not on a page whose people have no bar: data-boot="plain"). */
+@media (max-width: 1023.98px) {
+  html[data-boot=''] body::after {
+    content: ''; position: fixed; z-index: 49; inset-inline: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    max-inline-size: 560px; margin-inline: auto; block-size: 62px; border-radius: 22px; background: var(--ds-surface); box-shadow: var(--ds-shadow-float);
+  }
+}
+@media (max-width: 760px) {
+  html[data-boot] main:has(> #login-block[hidden])::before, html[data-boot] main:has(> #login-block[hidden])::after { inset-inline-start: 12px; }
+  html[data-boot] main:has(> #login-block[hidden])::after { inset-inline-end: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-boot] main::before, html[data-boot] main::after { animation: none !important; }
+}
+@media print {
+  html[data-boot] #app { visibility: visible; }
+  html[data-boot] main::before, html[data-boot] main::after, html[data-boot] body::after { content: none !important; }
+}
+
+/* From screen to screen: the old page fades into the new one instead of a white flash
+   (a browser without cross-document view transitions simply loads the page). */
+@view-transition { navigation: auto; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }

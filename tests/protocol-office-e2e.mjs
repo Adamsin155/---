@@ -407,7 +407,9 @@ if (OUT) {
   await page.setViewportSize({ width: 1280, height: 900 });
 }
 // Irit marks her review; Ofir's she marks on his behalf.
-await page.check('#rv-p32');
+// A click, not check(): once the mark is saved the tick is replaced by "בוצעה · …", and check() then
+// looks for the tick again to read its state (it timed out whenever the save won that race).
+await page.click('#rv-p32');
 await toastHas('הבקרה של היום סומנה.');
 assert.ok(db.office_reviews.some((r) => r.day === '2026-09-22' && r.kind === 'p32' && r.by_email === USER.email));
 // The record keeps what was open at the tick, and that every one of them was opened.
@@ -980,7 +982,8 @@ const waitedOf2 = (c) => JSON.parse(db.protocol_checks.find((x) => x.client_id =
 await page.goto('about:blank');
 await page.goto(`${BASE}clients.html#mine`);
 const singleCard = page.locator('.g-client .wproc:has(.wclient:text("מאפה שקד"))');
-await singleCard.locator('.cbx').first().check();
+// A click, not check(): the item leaves the list once it is saved (check() would then act on the next one).
+await singleCard.locator('.cbx').first().click();
 await toastHas('סומן כבוצע: הלקוח בקבוצה');
 assert.ok(!db.protocol_checks.some((x) => x.client_id === single.id && x.item_key === 'p02.wait'));
 const w1 = waitedOf2(single);

@@ -217,10 +217,19 @@ export async function signedQuotes() {
 }
 
 // Who is who: staff email -> person key, for showing names instead of emails.
-export async function loadDirectory() {
+// warmDirectory(): asked for while the session is still being confirmed (mountSession);
+// the page's first loadDirectory() takes that answer, and every later one asks again.
+let warmDir = null;
+async function readDirectory() {
   const { data, error } = await supabase.from('staff').select('email, person');
   if (error) return {};
   return Object.fromEntries(data.filter((r) => r.person).map((r) => [r.email, r.person]));
+}
+export function warmDirectory() { warmDir ||= readDirectory().catch(() => ({})); }
+export async function loadDirectory() {
+  const warm = warmDir;
+  warmDir = null;
+  return warm || readDirectory();
 }
 
 // WhatsApp numbers of the team by person (staff.phone, set on the team screen), for
