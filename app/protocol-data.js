@@ -4,6 +4,7 @@
 // a list can come back shorter or empty, and a client not theirs as null. Who
 // checked an item and when are stamped by the database.
 import { supabase } from './supa.js';
+import { withLanding } from './landing-data.js';
 
 const PAGE = 1000;
 async function all(build) {
@@ -58,7 +59,9 @@ export async function loadClients({ includeEnded = false } = {}) {
     return q;
   });
   const [rows, priv] = await Promise.all([read(CLIENT_COLS), privateFields()]);
-  return priv ? rows.map((r) => withPrivate(r, priv)) : read(LEGACY_COLS);
+  // Every row carries its landing columns (docs/ops.md, section 41): the deadlines,
+  // the lists and the clocks of every page read them through clientState.
+  return withLanding(priv ? rows.map((r) => withPrivate(r, priv)) : await read(LEGACY_COLS));
 }
 
 export async function loadClient(id) {
@@ -67,8 +70,8 @@ export async function loadClient(id) {
     privateFields([id]),
   ]);
   if (error) throw error;
-  if (!data || priv) return data && withPrivate(data, priv);
-  return complete(data);
+  if (!data || priv) return data && withLanding(withPrivate(data, priv));
+  return withLanding(await complete(data));
 }
 
 // Checks grouped by client: { clientId: { itemKey: check } }.
@@ -172,7 +175,7 @@ export async function createClient(fields) {
 export async function updateClient(id, fields) {
   const { data, error } = await supabase.from('clients').update(fields).eq('id', id).select(CLIENT_COLS).single();
   if (error) throw error;
-  return complete(data);
+  return withLanding(await complete(data));
 }
 
 // What the office needs from agreements, without their money (the owner's decision,

@@ -7,7 +7,7 @@
 // system (decision 20: by 13:00). Pure, no DOM, Israel time.
 import { STATIONS, PEOPLE, STAFF_PEOPLE } from './protocol.js';
 import {
-  businessDaysBetween, isBusinessDay, addBusinessDays, weekKey,
+  businessDaysBetween, isBusinessDay, addBusinessDays, weekKey, inLanding,
 } from './protocol-logic.js';
 import { dayKeyIL, dayFromKeyIL, weekdayIL, atTimeIL } from './tz.js';
 import {
@@ -60,6 +60,7 @@ const daysWord = (n) => (n === 1 ? 'יום עסקים אחד' : `${n} ימי ע�
 const holders = (s) => (s.claim ? [s.claim.person] : s.proc.owners || []).map((k) => (k === 'editor' ? 'עורך' : personName(k))).filter(Boolean).join(', ');
 export function stuckOf(client, state, extras = {}, now = new Date()) {
   const out = [];
+  if (inLanding(client)) return out; // never "stuck" before it was taken in
   const late = state.states.filter((s) => s.status === 'overdue' && s.dueAt && businessDaysBetween(s.dueAt, now) > STUCK_LATE_DAYS);
   if (late.length) {
     const openSince = (s) => (s.startAt && s.startAt < s.dueAt ? s.startAt : s.dueAt);
@@ -172,7 +173,7 @@ export function previousPass(passes, now = new Date()) {
 // default owner, decision 7), an open task with no due date (the next business
 // day), a shoot waiting for an editor (the assignment).
 export function dataHealth({ clients, stateOf, checks, tasks = [], now = new Date() }) {
-  const live = clients.filter((c) => c.status === 'active' || c.status === 'ending');
+  const live = clients.filter((c) => (c.status === 'active' || c.status === 'ending') && !inLanding(c));
   const byId = new Map(live.map((c) => [c.id, c]));
   const unowned = [];
   const noEditor = [];

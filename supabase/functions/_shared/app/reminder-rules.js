@@ -44,7 +44,7 @@
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
 import {
-  isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf,
+  isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
   businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel,
 } from './protocol-logic.js';
 // The owner's decisions of 3.10.2026: Stav's deals, the station-change message, the
@@ -297,6 +297,7 @@ export const RULES = [
     instances(env) {
       const out = [];
       for (const c of env.clients) {
+        if (workFloor(c)) continue; // taken in from the old system: it never was a "new deal" here (docs/ops.md, section 41)
         const dealAt = parseDate(c.deal_at);
         const st = env.stateOf(c).states;
         const [p1, p2, p3] = ['p01', 'p02', 'p03'].map((id) => st.find((s) => s.proc.id === id));

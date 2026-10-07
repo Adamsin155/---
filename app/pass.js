@@ -173,6 +173,7 @@ function passRow(r, seen, now) {
     h('div', { class: 'of-head' },
       healthBadge(r.color),
       h('a', { class: 'wclient', href: clientUrl(c.id) }, clientLabel(c)),
+      c.landing === true ? h('span', { class: 'tag tag-landing' }, 'בקליטה') : null,
       r.entry.station ? h('span', { class: 'wtitle' }, r.entry.station.title) : null,
       r.stuck.length ? h('span', { class: 'tag tag-warn' }, 'לקוח תקוע') : null),
     top.length ? h('ul', { class: 'ps-reasons' }, ...top.map((x) => h('li', {}, [x.text, x.what].filter(Boolean).join(' · '), x.who && PEOPLE[x.who] ? [' · ', personChip(x.who)] : null))) : null,
@@ -366,7 +367,8 @@ function renderThursday(now) {
   const target = thursdayTarget(now);
   const wk = weekKey(now);
   const notes = new Map((extras.statusNotes || []).filter((n) => n.week === wk).map((n) => [n.client_id, n]));
-  const list = entries.slice().sort((a, b) => notes.has(a.client.id) - notes.has(b.client.id));
+  // No weekly summary is asked for a client that was not taken in yet.
+  const list = entries.filter((e) => e.client.landing !== true).sort((a, b) => notes.has(a.client.id) - notes.has(b.client.id));
   const done = list.filter((e) => notes.has(e.client.id)).length;
   fill($('th-body'),
     h('p', { class: 'ps-progress' },

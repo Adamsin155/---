@@ -24,7 +24,8 @@ import { healthBadge, reasonText, nextText, stationBar, markOwnerLanded } from '
 import {
   $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN, progressBar, capList
 } from './protocol-ui.js';
-import { canManageTeam } from './team-rules.js';
+import { canManageTeam, isOwnerView } from './team-rules.js';
+import { mountLandingControl } from './landing-control.js';
 import { canSeeInsights } from './insights.js';
 import { canSendMessages } from './messages-logic.js';
 import { TZ, dayKeyIL, daysBetweenIL } from './tz.js';
@@ -42,6 +43,7 @@ import { countUp, growOnce, glide } from './shell.js';
 import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeClient } from './manager-data.js';
 
 let viewer = null;
+let landingCtl = null;  // the owners' control of the clients in landing
 let isOwner = false;
 let allClients = [];   // every client, for the on-time trend
 let clients = [];      // active and ending: the ones with a colour
@@ -132,6 +134,7 @@ async function doLoad() {
   $('state').textContent = '';
   compute();
   if (!busy()) renderKeepingFocus();
+  landingCtl?.refresh();
 }
 
 function compute(now = new Date()) {
@@ -447,7 +450,8 @@ function clientItem(e, now) {
   return h('li', { class: `ga-item h-${e.health.color}`, 'data-id': c.id, style: `view-transition-name:ga-${String(c.id).replace(/[^\w-]/g, '')}` },
     h('button', { type: 'button', class: 'ga-row', id: `gab-${c.id}`, 'aria-expanded': String(open), 'aria-controls': more, onclick: () => toggle(c.id) },
       h('span', { class: 'ga-l1' }, healthBadge(e.health.color), h('strong', { class: 'ga-name' }, clientLabel(c)),
-        h('span', { class: 'ga-why' }, top ? `${reasonText(top)} · ${personName(top.who)}` : 'לפי התוכנית')),
+        c.landing === true ? h('span', { class: 'tag tag-landing' }, 'בקליטה') : null,
+        h('span', { class: 'ga-why' }, c.landing === true ? 'בלי שעונים עד ההפעלה' : top ? `${reasonText(top)} · ${personName(top.who)}` : 'לפי התוכנית')),
       h('span', { class: 'ga-l2' }, nextText(st.next, now))),
     h('div', { class: 'ga-more', id: more, hidden: !open },
       h('p', { class: 'ga-pkg' }, [c.package_name || 'חבילה לא הוזנה', st.month?.text, c.status === 'ending' ? 'מסיים התקשרות' : null].filter(Boolean).join(' · ')),
@@ -746,4 +750,6 @@ mountSession(async (staff) => {
   view = tabsShown().includes(fromHash) ? fromHash : isOwner ? 'now' : 'all';
   await load();
   setView(view);
+  // Only the owners activate (the database checks it as well).
+  if (isOwnerView(v)) landingCtl = mountLandingControl($('landing'), { clients: () => allClients, checks: () => checks, reload: load, toast });
 });

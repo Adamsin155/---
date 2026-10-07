@@ -24,7 +24,8 @@ import { googleCalendarUrl, downloadIcs } from './calendar.js';
 import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
 import { describeMark } from './handoffs.js';
 import { markHistory } from './production.js';
-import { canManageTeam } from './team-rules.js';
+import { canManageTeam, isOwnerView } from './team-rules.js';
+import { activate as activateLanding } from './landing-data.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 import { clientHealth, station, timeline } from './health.js';
 import { healthHead, timelineBlock, questionsBlock } from './health-ui.js';
@@ -352,6 +353,24 @@ function nothingNext(s) {
     h('span', { class: 'k' }, 'התהליך הבא שלך'), h('span', {}, `${x.proc.num} · ${x.proc.title}`), h('span', { class: 'muted' }, why));
 }
 
+// A client from the old system that was not taken in yet: said once, at the top.
+function landingNote() {
+  const c = client;
+  if (c.landing !== true || c.status === 'cancelled' || c.status === 'ended') return null;
+  return h('div', { class: 'auto-note land-note', role: 'note', id: 'land-note' },
+    h('p', {}, h('span', { class: 'tag tag-landing' }, 'בקליטה'), ' הלקוח הגיע מהמערכת הישנה ועוד לא הופעל: אין עליו שעונים, איחורים או התראות. מה שיישאר פתוח יקבל מועד חדש ביום ההפעלה.'),
+    h('div', { class: 'auto-acts' },
+      me ? h('a', { class: 'btn btn-sm', href: 'landing.html' }, 'לקליטת הלקוחות הקיימים') : null,
+      isOwnerView(viewerInfo) ? h('button', {
+        type: 'button', class: 'btn btn-sm btn-primary', id: 'land-activate',
+        onclick: async (e) => {
+          if (!confirm(`להפעיל את ${c.name}? מה שפתוח יקבל מועד חדש מעכשיו, וההתראות יחזרו.`)) return;
+          e.currentTarget.disabled = true;
+          try { await activateLanding([c.id]); toast('הלקוח הופעל. המועדים נספרים מעכשיו.'); await load(); } catch (err) { toast(errorText(err)); e.currentTarget.disabled = false; }
+        },
+      }, 'מפעילים את הלקוח') : null));
+}
+
 function autoBanner() {
   const c = client;
   if (own() || !openedBySigning(c, checks) || c.verified_at || c.status === 'cancelled') return null;
@@ -598,6 +617,7 @@ function renderHead(s) {
   const shootFact = fact('יום צילום', [c.shoot_type ? SHOOT_TYPES[c.shoot_type].name : null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot'));
   const editorFact = fact('עורך', c.editor ? PEOPLE[c.editor]?.name : c.editor_name);
   fill($('cc-head'),
+    landingNote(),
     autoBanner(),
     c.status === 'cancelled' ? h('div', { class: 'auto-note', role: 'note' }, h('p', {}, `ההסכם בוטל${c.closed_reason ? `: ${c.closed_reason}` : '.'}`)) : null,
     h('div', { class: 'cc-top' },
