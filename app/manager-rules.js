@@ -41,14 +41,14 @@ const plain = (s) => String(s ?? '').replace(/[‎‏‪-‮⁦-⁩]/g, '').repl
 export const sameName = (typed, name) => plain(name) !== '' && plain(typed) === plain(name);
 
 // ── The two profiles ────────────────────────
-// Two kinds of people have them:
-//  - the owners, Ofir and Lior (hasProfiles; the owner's request of 6.10.2026): they
-//    start in the personal profile, a short menu of their own daily work, and one
-//    button at the top of every screen opens the manager profile ("מבט מנהל"), which
-//    alone holds the management screens, with "חזרה למשימות שלי" in the same spot
-//    (app/shell.js draws it; profileMenu and profileOf in app/shell-rules.js decide);
-//  - Irit, as before: the two profiles are the first two entries of her one menu.
-export const PROFILED = ['ofir', 'lior'];     // and the owner
+// The owners, Ofir, Lior (the owner's request of 6.10.2026) and Irit (7.10.2026; until
+// then her switch was the first two entries of her one menu) have them (hasProfiles):
+// they start in the personal profile, a short menu of their own daily work, and one
+// button at the top of every screen opens the manager profile ("מבט מנהל"), which
+// alone holds the management screens, with "חזרה למשימות שלי" in the same spot
+// (app/shell.js draws it; profileMenu and profileOf in app/shell-rules.js decide).
+// A matter of screens only: what each of them reads and writes is the database's.
+export const PROFILED = ['ofir', 'lior', 'irit'];     // and the owner
 export const hasProfiles = (v) => isOwnerView(v) || (known(v) && PROFILED.includes(v.me));
 export const MODES = {
   mine: { key: 'mine', label: 'המשימות שלי', href: 'clients.html#mine' },
@@ -64,7 +64,7 @@ const MODE_KEY = 'astrateg.profile';
 export const defaultMode = () => 'mine';
 // The profile this browser last chose, for whoever has two; null for anyone else.
 export function modeOf(v, storage = globalThis.localStorage) {
-  if (!isManager(v) && !hasProfiles(v)) return null;
+  if (!hasProfiles(v)) return null;
   let saved = null;
   try { saved = storage?.getItem(MODE_KEY) || null; } catch { /* no storage */ }
   return MODES[saved] ? saved : defaultMode(v);

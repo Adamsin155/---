@@ -68,9 +68,10 @@ let scope = 'office';       // 'own': only my work and my clients; 'office': plu
 let viewerError = null;     // the signed-in person could not be looked up
 let minePerson = null;      // whose work the "my work" tab shows ('' = everyone; office only)
 let view = 'mine';
-// The owners, Ofir and Lior in their personal profile (app/manager-rules.js hasProfiles;
-// app/shell-rules.js profileOf): "המשימות שלי" shows their own work only, and the
-// office's daily review and the performance wait in the manager profile.
+// The owners, Irit, Ofir and Lior in their personal profile (app/manager-rules.js
+// hasProfiles; app/shell-rules.js profileOf): "המשימות שלי" shows their own work only,
+// and the performance waits in the manager profile; so does the office's daily review,
+// except for Ofir and Irit, whose own process it is (managerTabs).
 // In the manager profile the same list is the team's work, with the choice of whose, at
 // its own address (#team), so that "המשימות שלי" (#mine) is always the personal profile.
 let personal = false;
@@ -1873,7 +1874,10 @@ function personRow(r) {
     h('td', { 'data-label': 'לקוחות עם איחור', class: 'client' }, r.clients.join(', ') || '—'),
     h('td', { class: 'acts-cell' }, h('div', { class: 'row-acts' },
       h('button', {
-        type: 'button', class: 'btn-text', onclick: () => { minePerson = r.p.key; setView('mine'); },
+        // Someone else's list is the manager profile's (#team). From the daily control of
+        // Ofir or Irit in their personal profile the address opens it there (it showed
+        // their own list instead), and the button at the top leads back.
+        type: 'button', class: 'btn-text', onclick: () => { minePerson = r.p.key; if (personal) location.hash = '#team'; else setView('mine'); },
       }, `הרשימה של ${r.p.name}`),
       summaryActions(r.p.key, 'row'),
       r.opened ? h('span', { class: 'muted small' }, `נפתח היום ${hm(r.opened)}`) : null)));

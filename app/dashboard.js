@@ -160,7 +160,7 @@ function renderRows() {
     );
   }));
   $('empty').hidden = list.length > 0;
-  $('empty').textContent = quotes.length ? 'אין הצעות בסינון הזה.' : 'עדיין לא נוצרו קישורים. הצעה חדשה נוצרת במסך ״הצעה חדשה״.';
+  $('empty').textContent = quotes.length ? 'אין הצעות בסינון הזה.' : 'עדיין לא נוצרו קישורים. הצעה חדשה נוצרת במסך ״הצעה חדשה והכנת חוזה״.';
 }
 
 async function loadQuotes() {

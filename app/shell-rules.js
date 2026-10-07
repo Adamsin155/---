@@ -42,20 +42,17 @@ export function officeScreens(viewer) {
   ].filter(([, , , show]) => show).map(([id, href, label]) => ({ id, href, label }));
 }
 
-// Every screen this person may open, in the menu's order. `mode` marks Irit's two
-// profiles (the "המשימות שלי" / "מבט מנהל" switch as her first two entries). The owners,
-// Ofir and Lior see this list in two parts, one profile at a time: profileMenu below.
+export const QUOTE_LABEL = 'הצעה חדשה והכנת חוזה';
+// Every screen this person may open, in the menu's order. The owners, Irit, Ofir and
+// Lior see this list in two parts, one profile at a time: profileMenu below.
 export function menuOf(viewer) {
   const me = viewer?.me || null;
   if (known(viewer) && isSales(me)) return [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }];
   const list = [{ id: 'mine', href: MODES.mine.href, label: MODES.mine.label }];
   if (!known(viewer)) return list; // not identified: nothing is assumed
   const office = officeOf(viewer);
-  if (isManager(viewer) && hasProfiles(viewer)) {
-    list.push({ id: 'manager', href: MODES.manager.href, label: MODES.manager.label }); // the owner, Ofir: behind the button
-  } else if (isManager(viewer)) {
-    list[0].mode = 'mine';
-    list.push({ id: 'manager', href: MODES.manager.href, label: MODES.manager.label, mode: 'manager' });
+  if (isManager(viewer)) {
+    list.push({ id: 'manager', href: MODES.manager.href, label: MODES.manager.label }); // the owner, Irit, Ofir: behind the button
   } else if (seesAllClients(viewer)) {
     list.push({ id: 'overview', href: 'owner.html#all', label: 'כל הלקוחות במבט' }); // Lior: screen 2 and the table
   }
@@ -70,7 +67,9 @@ export function menuOf(viewer) {
   if (me === 'eli' || office) list.push({ id: 'shoot', href: 'shoot.html', label: 'ימי צילום' });
   // Every client by its last shoot day, the oldest first (6.10.2026): Lior, Ofir and the owner.
   if (canSeeShootTable(viewer)) list.push({ id: 'shoot-table', href: 'owner.html#shoots', label: 'טבלת ימי צילום' });
-  list.push({ id: 'quote', href: 'index.html', label: 'הצעה חדשה' });
+  // The builder of a quote and of the contract (the owner's wording, 7.10.2026). `short` is
+  // the name in the phone's bottom bar, where the full one does not fit a quarter of 360px.
+  list.push({ id: 'quote', href: 'index.html', label: QUOTE_LABEL, short: 'הצעה וחוזה' });
   // The list of sent quotes: the owners and Irit (6.10.2026; the database answers nobody else).
   if (canSeeQuoteList(viewer)) list.push({ id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
@@ -89,7 +88,7 @@ function unique(list) {
   });
 }
 
-// ── The two profiles of the owners, Ofir and Lior (6.10.2026) ──
+// ── The two profiles of the owners, Ofir, Lior (6.10.2026) and Irit (7.10.2026) ──
 // The personal profile: only what this person acts on every day, "המשימות שלי" first.
 // Everything else they may open is the manager profile's, behind the one button at the
 // top of every screen. The clients list is in both (a client is looked up from either).
@@ -97,6 +96,9 @@ export const PERSONAL = {
   owner: ['mine', 'clients', 'quote', 'quotes'],                 // their tasks and approvals, a client, a contract
   lior: ['mine', 'clients', 'decisions', 'messages', 'shoot'],   // his decisions, the clients' messages, the shoot day
   ofir: ['mine', 'clients', 'qa', 'pass'],                       // his queue and his pass over the clients
+  // Irit: her tasks, a client, her part before a shoot day and the clients' requests,
+  // the daily messages to clients, and building and following a contract.
+  irit: ['mine', 'clients', 'prep', 'messages', 'quote', 'quotes'],
 };
 const IN_BOTH = ['clients'];
 const profileKey = (viewer) => (hasProfiles(viewer) ? viewer.me || 'owner' : null);
@@ -104,8 +106,9 @@ const profileKey = (viewer) => (hasProfiles(viewer) ? viewer.me || 'owner' : nul
 // whole team's work (#team: the list of "המשימות שלי" with the choice of whose), the
 // office's daily review and the performance. The daily review stays in Ofir's personal
 // profile too: process 33 and Thursday's summary are his own work, done on that tab.
+// And in Irit's: the daily control over every task (process 32) is her own process.
 export const MANAGER_TABS = ['team', 'control', 'performance'];
-const OWN_TABS = { ofir: ['control'] };
+const OWN_TABS = { ofir: ['control'], irit: ['control'] };
 export const managerTabs = (viewer) => (hasProfiles(viewer) ? MANAGER_TABS.filter((t) => !(OWN_TABS[profileKey(viewer)] || []).includes(t)) : []);
 // The menu of one profile ('mine' or 'manager'); for anyone without profiles, the whole menu.
 export function profileMenu(viewer, profile) {

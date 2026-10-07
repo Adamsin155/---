@@ -14,7 +14,7 @@
 .side-k { color: var(--ds-muted); font-size: 12.5px; padding: 4px 12px; }
 /* The second part of a long menu: a hairline and a quiet heading. */
 .side-k-rest { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--ds-line); }
-.side-list, .mode-bar { display: grid; gap: 2px; }
+.side-list { display: grid; gap: 2px; }
 .side-link {
   display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 12px;
   background: transparent; color: var(--ds-muted); font: inherit; font-size: 15px; text-align: start; text-decoration: none; cursor: pointer;
@@ -83,7 +83,6 @@
   }
   .side-logo, .side-promo, .side-k, .side-rail { display: none; }
   .side-list { grid-template-columns: repeat(var(--bar-n, 4), minmax(0, 1fr)); gap: 4px; }
-  .side-list > .mode-bar { grid-column: span 2; grid-template-columns: 1fr 1fr; gap: 4px; }
   .side-link {
     justify-content: center; text-align: center; font-size: 13px; line-height: 1.2; padding: 6px 4px; min-height: 50px; border-radius: 16px;
     overflow-wrap: anywhere;
