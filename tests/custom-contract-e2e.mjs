@@ -347,7 +347,8 @@ try {
     assert.equal((await row.locator('.apv-cell').innerText()).trim(), '—');
     assert.match(await row.locator('.pill').innerText(), /^נצפה/); // the client opened it a moment ago
     assert.deepEqual(await row.locator('.acts .btn').allInnerTexts(), ['תזכורת בוואטסאפ', 'פתיחה', 'העתקת קישור', 'ביטול']);
-    assert.equal(await irit.locator('#filters .chip').count(), 5);
+    // No "באישור מנהל" chip; this contract waits for its signature, so that chip is there (docs/ops.md, section 47).
+    assert.deepEqual((await irit.locator('#filters .chip').allInnerTexts()).map((t) => t.replace(/[\s\d]+$/, '')), ['הכול', 'ממתינות לחתימה', 'ממתינות', 'נחתמו', 'פג תוקף', 'בוטלו']);
   });
 
   // ── Irit builds a custom contract ──────────

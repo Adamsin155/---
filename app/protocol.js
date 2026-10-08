@@ -181,9 +181,10 @@ const isDms = (c) => c.shoot_type === 'dms';
 // Item `noBulk`: a confirmation by the client or someone outside the office; never marked in bulk.
 // Item `requires`: keys that must be done first ("only after Ofir approves").
 // Item `requiresFields`: client details that must be filled before it can be marked.
-// Item `setHere: { unless }`: its missing details keep the process open and on its owner's
+// Item `setHere: { unless, keep }`: its missing details keep the process open and on its owner's
 //   list, where they are filled in (docs/ops.md, section 47; fieldGap in protocol-logic.js),
-//   unless the process `unless` is already behind the client.
+//   unless the process `unless` is already behind the client. Once the item is ticked only
+//   the details in `keep` still hold the process open.
 // A process with several owners can be claimed by one of them (key `pNN.claim`).
 
 export const PHASES = [
@@ -262,7 +263,7 @@ export const PROCESSES = [
     items: [
       { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (אופיר, או ליאור כשאופיר לא יכול)' },
       { key: 'p03.available', label: 'נבדקה זמינות מבצע האפיון' },
-      { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים', requiresFields: ['characterizer', 'char_at'], setHere: { unless: 'p04' } },
+      { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים', requiresFields: ['characterizer', 'char_at'], setHere: { unless: 'p04', keep: ['char_at'] } },
       { key: 'p03.calendar', label: 'הפגישה הוכנסה ליומן' },
     ],
   },

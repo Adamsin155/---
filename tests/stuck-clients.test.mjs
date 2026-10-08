@@ -86,6 +86,10 @@ test('A: a tick is not a date: "the meeting was set" marked with no date keeps t
   assert.equal(p03(w, c, now).complete, true);
   assert.equal(p03(w, c, now).gap, null);
   assert.deepEqual(mine(w, c, 'irit', now), []);
+  // A row from before "who" had a default (blank means Ofir): ticked and dated, it stays closed.
+  c.characterizer = null;
+  assert.equal(p03(w, c, now).complete, true);
+  c.characterizer = 'ofir';
   // With the date and without the tick it is an ordinary open item again.
   delete w.checks[c.id]['p03.scheduled'];
   assert.deepEqual(mine(w, c, 'irit', now).map((e) => [e.item.key, e.fields]), [['p03.scheduled', undefined]]);

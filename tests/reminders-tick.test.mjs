@@ -139,9 +139,13 @@ test('first run on old data: nothing late is sent, it is recorded as stale', asy
   const { push, sent } = fakePush();
   const now = IL(2026, 10, 5, 10);
   const stats = await runTick({ db: db.at(now), push, now });
-  assert.equal(sent.filter((s) => /פיצה/.test(s.payload.title)).length, 0);
+  // The one thing said is today's: this client still has no meeting date, which rings Irit
+  // every business morning (docs/ops.md, section 47). Nothing of the month before goes out.
+  assert.deepEqual(sent.filter((s) => /פיצה/.test(s.payload.title)).map((s) => s.payload.title), ['עוד אין מועד לפגישת האפיון: פיצה']);
   assert.ok(stats.stale >= 4);
-  assert.ok(db.log.filter((r) => r.client_id === 'c1').every((r) => r.status === 'suppressed' && r.reason === 'stale'));
+  const today = (r) => r.key === 'meetingDate:c1:p03:d2026-10-05@irit';
+  assert.ok(db.log.filter((r) => r.client_id === 'c1' && !today(r)).every((r) => r.status === 'suppressed' && r.reason === 'stale'));
+  assert.equal(db.log.filter(today).length, 1);
 });
 
 test('overnight: a deal at 22:00 waits; the 08:30 digest carries it and the 09:05 and 09:10 steps, then marks them sent', async () => {
@@ -239,12 +243,14 @@ test('a tick that stops after claiming a push: a later tick sends it once, never
 
 test('a pending push that is no longer true is dropped, and one hours old is recorded as lost, never sent late', async () => {
   const checks = [];
-  const db = fakeDb({ clients: [deal(IL(2026, 10, 5, 10), 'א'), { ...deal(IL(2026, 10, 5, 10), 'ב'), id: 'c2' }], checks, subs: [{ email: 'irit@x', endpoint: 'https://push.test/phone' }] });
+  const first = deal(IL(2026, 10, 5, 10), 'א');
+  const db = fakeDb({ clients: [first, { ...deal(IL(2026, 10, 5, 10), 'ב'), id: 'c2' }], checks, subs: [{ email: 'irit@x', endpoint: 'https://push.test/phone' }] });
   const t0 = IL(2026, 10, 5, 10);
   let reached = 0;
   runTick({ db: db.at(t0), push: () => { reached += 1; return new Promise(() => {}); }, now: t0 });
   await until(() => reached === 2);
-  // Irit handled client c1 meanwhile; the tick of c2's step is long gone.
+  // Irit handled client c1 meanwhile (the meeting has its date too); the tick of c2's step is long gone.
+  first.char_at = IL(2026, 10, 6, 10).toISOString();
   for (const k of importKeys('char').filter((x) => /^p0[123]\./.test(x))) checks.push({ client_id: 'c1', item_key: k, state: 'done', note: null, at: IL(2026, 10, 5, 10, 2).toISOString() });
   const { push, sent } = fakePush();
   const t11 = IL(2026, 10, 5, 10, 11);

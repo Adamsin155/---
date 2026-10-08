@@ -362,8 +362,14 @@ export function fieldGap(proc, client, checks = {}, procs = [], now = new Date()
   if (!client || inLanding(client)) return null;
   for (const item of proc.items) {
     if (!item.setHere) continue;
-    const fields = (item.requiresFields || []).filter((f) => blank(client[f]));
-    if (!fields.length || checks[item.key]?.note === IMPORT_NOTE) continue;
+    const check = checks[item.key];
+    if (check?.note === IMPORT_NOTE) continue;
+    // Not ticked yet: every detail it needs. Ticked: only the detail the work after it
+    // cannot start without (`keep`: the date; a blank "who" is Ofir, the protocol's
+    // default, as on rows from before that default existed).
+    const need = isResolved(item, check, now) ? (item.setHere.keep || item.requiresFields) : item.requiresFields;
+    const fields = (need || []).filter((f) => blank(client[f]));
+    if (!fields.length) continue;
     const next = item.setHere.unless && procs.find((p) => p.id === item.setHere.unless);
     if (next && (isImported(next, checks) || completedAt(next, checks, now) || (next.id === 'p04' && charEndedAt(checks)))) continue;
     return { item, fields };
