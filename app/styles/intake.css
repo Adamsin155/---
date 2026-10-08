@@ -171,5 +171,6 @@ details.pp-sub[open] > summary.pp-sum { margin-bottom: 4px; }
 .pp-follow-found { font-size: 14px; }
 .pp-topics { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .pp-topics legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
-.pp-topics .chip { min-height: 44px; }
-.pp-topics .chip[aria-pressed="true"] { background: var(--warn-soft); border-color: var(--warn); }
+.pp-topics .chip { min-height: 44px; border: 1px solid var(--ds-edge); background: var(--ds-surface); color: var(--text); }
+.pp-topics .chip[aria-pressed="true"] { background: var(--warn-soft); border-color: var(--warn); color: var(--text); font-weight: 600; }
+.pp-topics .chip[aria-pressed="true"]::before { content: '✓ '; content: '✓ ' / ''; }

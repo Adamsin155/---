@@ -643,8 +643,7 @@ function linkLine(g) {
   const may = kind === 'access' ? canManageAccessLinks({ me, scope, error: viewerError }) : scope === 'office' && !viewerError && (me === null || ['irit', 'lior'].includes(me));
   if (!may) return null;
   const shown = linkShown.get(g.key);
-  return h('div', { class: 'need wneed wlink', role: 'group', 'aria-label': 'הקישור ללקוח' },
-    h('span', {}, kind === 'access' ? 'הלקוח ממלא בעצמו את פרטי הכניסה.' : 'בדף הזה הלקוח רואה ומאשר.'),
+  return h('div', { class: 'wlink', role: 'group', 'aria-label': 'הקישור ללקוח' },
     h('button', { type: 'button', class: 'btn btn-sm btn-primary', id, onclick: (ev) => copyLink(g, kind, ev.currentTarget) }, 'העתקת הקישור'),
     shown ? h('p', { class: 'wlink-text' }, h('label', { class: 'sr-only', for: `${id}-t` }, 'ההודעה עם הקישור, להעתקה'),
       h('input', { class: 'input', id: `${id}-t`, readonly: true, dir: 'auto', value: shown, onfocus: (ev) => ev.currentTarget.select() })) : null);
