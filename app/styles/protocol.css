@@ -696,3 +696,103 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
 .team-fold { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0; padding: 14px 16px; border-radius: var(--ds-r-card); background: var(--ds-ground); color: var(--ds-muted); }
 .team-fold .btn { min-height: 44px; }
 #team-open.btn-text { min-height: 44px; }
+
+/* ── "סיימתי": the done tick as a pill at the end of the row (ops.md section 44) ─────────
+   The control is still the checkbox itself (`input.cbx.fin`): it takes the focus, the
+   space bar and the label, and a screen reader hears a checkbox with the task's name.
+   Only its picture changed: a ring and the word "סיימתי" in a quiet outline, which turns
+   into a filled green "בוצע". Both words sit in one fixed box (104 × 44), so a row does
+   not move when it flips. The words are drawn by CSS and are not part of the name. */
+.cbx.fin {
+  --fin-ink: var(--ds-ink-2); --fin-ring: var(--ds-edge); --fin-tick: 0;
+  order: 2; align-self: center; box-sizing: border-box; inline-size: 104px; block-size: 44px; margin: 0;
+  display: inline-flex; align-items: center; justify-content: flex-start; gap: 8px; padding-inline: 11px 0;
+  border: 1.5px solid var(--ds-line-strong); border-radius: var(--ds-r-pill);
+  background: radial-gradient(circle, transparent 8.4px, var(--fin-ring) 9px, var(--fin-ring) 10.4px, transparent 11px) right 11px center / 22px 22px no-repeat var(--ds-surface);
+  color: var(--fin-ink); font: 700 14.5px/1 var(--ds-font-b); white-space: nowrap; opacity: 1;
+  transition: background-color .15s, border-color .15s, color .15s, transform .15s;
+}
+.cbx.fin::before {
+  box-sizing: content-box; width: 9px; height: 4.5px; margin-inline: 5.25px; flex: none;
+  border: solid currentColor; border-width: 0 0 2.5px 2.5px;
+  transform: translateY(-1.5px) rotate(-45deg); opacity: var(--fin-tick); transition: opacity .15s;
+}
+.cbx.fin::after { content: 'סיימתי'; content: 'סיימתי' / ''; }
+.cbx.fin:checked::after { content: 'בוצע'; content: 'בוצע' / ''; }
+/* Pressed, and a mouse over it: the outline, the ring and the word turn green, the tick shows. */
+.cbx.fin:active:not(:disabled, :checked) { --fin-ink: var(--ds-ok); --fin-ring: var(--ds-ok); --fin-tick: 1; border-color: var(--ds-ok); }
+.cbx.fin:active:not(:disabled) { transform: scale(.96); }
+@media (hover: hover) and (pointer: fine) {
+  .cbx.fin:hover:not(:disabled, :checked) { --fin-ink: var(--ds-ok); --fin-ring: var(--ds-ok); --fin-tick: 1; border-color: var(--ds-ok); }
+}
+.cbx.fin:checked { --fin-ink: var(--on-fill); --fin-ring: var(--on-fill); --fin-tick: 1; background-color: var(--ds-ok); border-color: var(--ds-ok); }
+/* Not to be marked here (another page marks it, it waits for something, or it is
+   "לא רלוונטי"): no pill and no word, only a faint ring where the pill would be. */
+.cbx.fin:disabled:not(:checked) {
+  --fin-ring: var(--ds-line-strong); justify-content: center; padding: 0;
+  border-color: transparent; background-color: transparent; background-position: center; cursor: default;
+}
+.cbx.fin:disabled:not(:checked)::after { content: none; }
+.cbx.fin:disabled:not(:checked)::before { display: none; }
+/* "לא רלוונטי": the ring with a dash, as the box had. */
+.is-na .cbx.fin:disabled { --fin-ring: var(--ds-edge); --fin-ink: var(--muted); }
+.is-na .cbx.fin:disabled::before { display: block; width: 8px; height: 0; margin: 0; border-width: 0 0 2px; transform: none; opacity: 1; }
+/* While a mark is being saved the box is disabled for a moment: it keeps its look. */
+.is-busy:not(.is-na, .is-blocked) .cbx.fin:disabled:not(:checked) {
+  --fin-ring: var(--ds-edge); justify-content: flex-start; padding-inline: 11px 0;
+  border-color: var(--ds-line-strong); background-color: var(--ds-surface); background-position: right 11px center;
+}
+.is-busy:not(.is-na, .is-blocked) .cbx.fin:disabled:not(:checked)::before { display: block; }
+.is-busy:not(.is-na, .is-blocked) .cbx.fin:disabled:not(:checked)::after { content: 'סיימתי'; content: 'סיימתי' / ''; }
+/* Done and final (today's daily review cannot be un-marked): the soft green, not a button. */
+.rv-state .cbx.fin:checked:disabled { --fin-ink: var(--ds-ok); --fin-ring: var(--ds-ok); background-color: var(--ds-ok-soft); border-color: transparent; }
+
+/* The row: the text wraps next to the pill, the pill stays at the end. */
+.wrow > .fin ~ .wlabel { flex: 1; min-width: 0; align-self: center; overflow-wrap: anywhere; }
+.witem { flex-wrap: wrap; }
+.witem > .wrow { flex: 1 1 100%; min-width: 0; }
+.witem > .via-page { margin-top: 0; }
+.fin:checked ~ .wlabel, .item.is-done > .irow > .fin ~ .ibody > .ilabel {
+  color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+.rv-check > .fin:checked ~ .wlabel { color: inherit; text-decoration: none; }
+.rv-main > .rv-check, .rv-row > .rv-check { flex: 1 1 280px; }
+/* The client card: text | "לא רלוונטי" | pill, in columns the label shares (subgrid), so the
+   whole row still ticks the box and the pill keeps its place when "לא רלוונטי" leaves. */
+.item.fin-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0; }
+.fin-row > .irow { grid-column: 1 / -1; grid-row: 1; display: grid; grid-template-columns: subgrid; align-items: center; gap: 0; }
+.fin-row > .irow > .ibody { grid-column: 1; grid-row: 1; padding-inline-end: 12px; }
+.fin-row > .irow > .fin { grid-column: 3; grid-row: 1; }
+.fin-row > .na-btn { grid-column: 2; grid-row: 1; margin-inline-end: 4px; }
+.fin-row > :not(.irow, .na-btn) { grid-column: 1 / -1; }
+@media (max-width: 760px) {
+  /* On a phone "לא רלוונטי" goes under the text, so the text keeps its width. */
+  .fin-row > .na-btn { grid-column: 1 / -1; grid-row: 2; justify-self: start; margin: -10px 0 0; padding-inline: 0 8px; }
+}
+
+/* The short card of "המשימות שלי": the client and the deadline in a small line, the action in bold. */
+.wc-head .wclient { font-size: 13.5px; font-weight: 500; color: var(--text-2); }
+.wc-when { padding: 3px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); font-size: 12.5px; font-weight: 700; }
+.wc-when.s-overdue { background: var(--ds-hot-soft); color: var(--ds-hot-text); font-weight: 700; }
+.wc-when.s-today { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.wc-when.s-client { color: var(--text-2); }
+.wc-title { font-size: 15.5px; font-weight: 700; }
+.wc-title .wc-sub { font-weight: 400; }
+.wc:has(> .wlist) .wc-title { font-size: 13.5px; font-weight: 400; color: var(--text-2); }
+.wc > .wlist .wrow > .fin ~ .wlabel { font-size: 15.5px; font-weight: 700; line-height: 1.35; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cbx.fin, .cbx.fin::before { transition: none; }
+  .cbx.fin:active:not(:disabled) { transform: none; }
+}
+@media (forced-colors: active) {
+  .cbx.fin { border-color: ButtonText; }
+  .cbx.fin:checked { background-color: Highlight; color: HighlightText; forced-color-adjust: none; }
+}
+@media print {
+  /* On paper an open item is an empty ring, a done one says "בוצע". */
+  .cbx.fin:not(:checked) { justify-content: center; padding: 0; border-color: transparent; background-position: center; }
+  .cbx.fin:not(:checked)::after { content: none; }
+  .cbx.fin:not(:checked)::before { display: none; }
+  .cbx.fin:checked { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

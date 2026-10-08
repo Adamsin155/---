@@ -36,10 +36,10 @@ export function itemRow(item, ctx) {
   else meta.push(h('span', { class: item.status === 'overdue' ? 'late' : '' }, `${STATUS_TEXT[item.status] ? `${STATUS_TEXT[item.status]} · ` : ''}עד ${formatWhen(item.dueAt, now)}`));
   if (mark?.note && item.status !== 'auto') meta.push(h('span', { class: 'inote' }, mark.note));
   const checked = item.status === 'done' || item.status === 'auto';
-  return h('li', { class: `item mitem s-${item.status}${checked ? ' is-done' : ''}${item.status === 'na' ? ' is-na' : ''}${busy ? ' is-busy' : ''}` },
+  return h('li', { class: `item fin-row mitem s-${item.status}${checked ? ' is-done' : ''}${item.status === 'na' ? ' is-na' : ''}${busy ? ' is-busy' : ''}` },
     h('label', { class: 'irow', for: id },
       h('input', {
-        type: 'checkbox', id, class: 'cbx', checked, disabled: !can || busy || item.status === 'na',
+        type: 'checkbox', id, class: 'cbx fin', checked, disabled: !can || busy || item.status === 'na',
         'aria-describedby': `${id}-m`,
         onchange: (e) => ctx.onMark(item, e.currentTarget.checked ? 'done' : null, id),
       }),

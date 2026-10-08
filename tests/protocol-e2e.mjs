@@ -277,6 +277,12 @@ assert.match(await page.locator('#p11').textContent(), /חסר בפרטי הלק
 assert.deepEqual(db.protocol_checks.filter((c) => c.client_id === created.id).map((c) => c.item_key).sort(), ['p01.prepared', 'p01.sent', 'p01.signed']);
 assert.equal(await page.locator('#p01').count(), 0);
 assert.match(await page.locator('.done-row').first().innerText(), /1 תהליכים הושלמו/);
+// The tick is the "סיימתי" pill (ops.md section 44): still the checkbox itself, 44px high,
+// named by the item alone, and the same box when it turns into "בוצע".
+const pill = (sel) => page.locator(sel).evaluate((el) => { const b = el.getBoundingClientRect(); return { type: el.type, w: Math.round(b.width), h: Math.round(b.height), word: getComputedStyle(el, '::after').content }; });
+const openPill = await pill('#i-p02-opened');
+assert.ok(openPill.type === 'checkbox' && openPill.h >= 44 && /סיימתי/.test(openPill.word), `the open pill: ${JSON.stringify(openPill)}`);
+assert.doesNotMatch(await page.locator('#i-p02-opened').evaluate((el) => el.closest('.item').textContent), /סיימתי/);
 await page.check('#i-p02-opened');
 await page.waitForFunction(() => document.querySelector('#i-p02-opened')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
 assert.ok(db.protocol_checks.some((c) => c.client_id === created.id && c.item_key === 'p02.opened'));
@@ -284,7 +290,10 @@ assert.match(await page.locator('#p02').textContent(), /בוצע · עירית/)
 // Focus stays on the checkbox after saving.
 assert.equal(await page.evaluate(() => document.activeElement?.id), 'i-p02-opened');
 // Sending the graphics waits for the review items.
+const donePill = await pill('#i-p02-opened');
+assert.ok(donePill.w === openPill.w && donePill.h === openPill.h && /בוצע/.test(donePill.word), `the done pill keeps its box: ${JSON.stringify(donePill)}`);
 assert.equal(await page.locator('#i-p07-sent').isDisabled(), true);
+assert.equal((await pill('#i-p07-sent')).word, 'none', 'an item that cannot be marked does not say "סיימתי"');
 assert.match(await page.locator('#p07').textContent(), /ממתין ל: 7 בדיקות למעלה/);
 
 // A required item needs a reason to be marked not relevant.

@@ -1091,10 +1091,10 @@ function itemRow(p, i) {
 
   const calendar = baseKey(i.key) === 'p11.calendar' && !state ? calendarMenu('shoot', roundOfKey(i.key)) : null;
   const naLabel = state === 'na' ? 'החזרה לפתוח' : i.optional ? 'לא נדרש' : 'לא רלוונטי';
-  return h('li', { class: `item${state === 'done' ? ' is-done' : ''}${state === 'na' ? ' is-na' : ''}${mine ? ' is-mine' : ''}${busy ? ' is-busy' : ''}${block ? ' is-blocked' : ''}` },
+  return h('li', { class: `item fin-row${state === 'done' ? ' is-done' : ''}${state === 'na' ? ' is-na' : ''}${mine ? ' is-mine' : ''}${busy ? ' is-busy' : ''}${block ? ' is-blocked' : ''}` },
     h('label', { class: 'irow', for: cid },
       h('input', {
-        type: 'checkbox', id: cid, class: 'cbx', checked: state === 'done', disabled: busy || state === 'na' || !!block || !!via,
+        type: 'checkbox', id: cid, class: 'cbx fin', checked: state === 'done', disabled: busy || state === 'na' || !!block || !!via,
         'aria-describedby': meta.length ? `${cid}-m` : null,
         onchange: (e) => mark(i.key, e.currentTarget.checked ? 'done' : null, cid),
       }),
@@ -1659,9 +1659,9 @@ function renderTasks() {
   const row = (t) => {
     const tid = `t-${t.id}`;
     const late = !t.done_at && t.due_on && t.due_on < today;
-    return h('li', { class: `item${t.done_at ? ' is-done' : ''}` },
+    return h('li', { class: `item fin-row${t.done_at ? ' is-done' : ''}` },
       h('label', { class: 'irow', for: tid },
-        h('input', { type: 'checkbox', id: tid, class: 'cbx', checked: !!t.done_at, onchange: (e) => toggleTask(t, e.currentTarget) }),
+        h('input', { type: 'checkbox', id: tid, class: 'cbx fin', checked: !!t.done_at, onchange: (e) => toggleTask(t, e.currentTarget) }),
         h('span', { class: 'ibody' },
           h('span', { class: 'ilabel' }, t.title),
           h('span', { class: 'imeta' },

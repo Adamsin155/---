@@ -158,7 +158,7 @@ const check = (ctx, c, key, label, idp) => {
   const cs = ctx.checks[c.id] || {};
   const id = `${idp}-${key.replace(/\W/g, '_')}`;
   return h('label', { class: 'wrow', for: id },
-    h('input', { type: 'checkbox', class: 'cbx', id, checked: isDone(cs, key), onchange: (e) => mark(ctx, c, [key], e.currentTarget.checked, null) }),
+    h('input', { type: 'checkbox', class: 'cbx fin', id, checked: isDone(cs, key), onchange: (e) => mark(ctx, c, [key], e.currentTarget.checked, null) }),
     h('span', { class: 'wlabel' }, label));
 };
 const until = (d, now = new Date()) => (d ? h('span', { class: `muted${d < now ? ' late' : ''}` }, ` · עד ${formatWhen(d, now)}`) : null);
@@ -217,7 +217,7 @@ function dayCard(x, ctx) {
       h('div', { class: 'il-part' },
         h('h4', {}, 'שלד גאנט', gantt.done ? null : until(gantt.due, now)),
         h('label', { class: 'wrow', for: `${idp}-gantt` },
-          h('input', { type: 'checkbox', class: 'cbx', id: `${idp}-gantt`, checked: gantt.done, onchange: (e) => mark(ctx, c, GANTT_KEYS, e.currentTarget.checked, e.currentTarget.checked ? 'שלד הגאנט סומן.' : null) }),
+          h('input', { type: 'checkbox', class: 'cbx fin', id: `${idp}-gantt`, checked: gantt.done, onchange: (e) => mark(ctx, c, GANTT_KEYS, e.currentTarget.checked, e.currentTarget.checked ? 'שלד הגאנט סומן.' : null) }),
           h('span', { class: 'wlabel' }, 'גאנט התוכן נפתח במערכת, עם כל העמודות')),
         h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-ghost gantt-go', href: ganttUrl(c.id) }, 'גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`)))),
       logo ? h('div', { class: 'il-part' }, h('h4', {}, 'לוגו חדש', logo.done ? null : until(logo.due, now)), check(ctx, c, 'p05.newlogo', 'הכנתי לוגו חדש (אין ללקוח לוגו)', idp)) : null));
