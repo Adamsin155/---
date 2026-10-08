@@ -168,7 +168,7 @@ export class Sim {
       q.model.validUntil = q.expires_at;
       q.client_name = q.model.client.name;
       q.monthly_gross_agorot = q.model.totals.monthlyGross;
-      Object.assign(q, { tier: q.model.package.tierName, influencer: q.model.package.influencer, doc: q.model.docTitle, signable: String(q.model.signable), phone: q.model.client.phone });
+      Object.assign(q, { tier: q.model.package.tierName, influencer: q.model.package.influencer, doc: q.model.docTitle, signable: String(q.model.signable), phone: q.model.client.phone, valid: String(q.model.validHours), company: q.model.client.company || null });
       db.quotes.push(q);
       return [200, { id: q.id, token: q.token, number: q.number, created_at: q.created_at }];
     }
@@ -288,6 +288,8 @@ export class Sim {
         accessLinks: db.client_access_links.map(({ token_hash, client_note_private, ...l }) => l),
         ganttFailures: db.client_gantt.filter((g) => g.mc_status === "error"),
         approvals: db.quotes.filter((q) => q.approval && q.approval !== "none" && q.status !== "cancelled"),
+        // The contracts still out for signature, each with the seller of its deal (loadUnsigned in supabase/functions/reminders/index.ts).
+        unsigned: db.quotes.filter((q) => q.status === "sent" && (!q.expires_at || q.expires_at >= since2)).map((q) => ({ ...q, business: q.model?.client?.company || null, valid: q.model?.validHours ?? null, seller_email: db.deal_requests.find((d) => d.quote_id === q.id)?.created_by_email ?? null })),
         staffTasks: db.staff_tasks.filter((t) => t.status === "open" || (t.done_at && t.done_at >= since2)),
         availability: { months: db.photographer_months, changes: db.photographer_changes },
         shootTold: db.reminder_log.filter((r) => r.rule === "shootSet"),
@@ -373,6 +375,7 @@ export function scrapeMine() {
     when: t(li.querySelector(".wc-when")) || t(li.querySelector(".sbadge")) || null,
     due: li.querySelector(".wc-due")?.textContent || null,
     title: t(li.querySelector(".wc-title")) || t(li.querySelector(".wtitle")) || null,
+    need: t(li.querySelector(".wneed span")) || null,
     go: [...li.querySelectorAll("a.ik-go, a.wc-go, a.btn")].map((a) => `${t(a) || a.textContent} -> ${a.getAttribute("href")}`),
     buttons: [...li.querySelectorAll("button")].map((b) => b.textContent.trim()).filter(Boolean),
     items: [...li.querySelectorAll(".witem")].map((it) => ({ label: it.querySelector(".wlabel")?.textContent || "", disabled: !!it.querySelector("input")?.disabled, via: [...it.children].filter((x) => !x.matches("label")).map((x) => x.textContent.replace(/\s+/g, " ").trim()).join(" | ") || null, id: it.querySelector("input")?.id || null })),

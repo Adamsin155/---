@@ -1,6 +1,6 @@
 {
- "now": "2026-10-12T13:00:00.000Z",
- "lastTick": "2026-10-12T13:00:00.000Z",
+ "now": "2026-10-14T07:00:00.000Z",
+ "lastTick": "2026-10-14T07:00:00.000Z",
  "db": {
   "staff": [
    {
@@ -90,12 +90,12 @@
      "extraCh14": false
     },
     "discount_agorot": 0,
-    "id": "5f861a84-63dd-4bd4-b279-bd1be016bcc8",
+    "id": "2900b650-bc00-40cc-85ed-f638983929b1",
     "created_at": "2026-10-11T06:05:00.000Z",
     "created_by_email": "stav@astrateg.test",
     "seller": "stav",
     "status": "sent",
-    "quote_id": "0fe31570-b001-4096-b5f6-4f214cf9e279",
+    "quote_id": "7a692fef-25f3-484d-aa32-ea3c5cdf22cd",
     "sent_at": "2026-10-11T06:11:00.000Z",
     "signed_at": null,
     "status_by_email": "irit@astrateg.test",
@@ -110,8 +110,8 @@
   "client_landing_done": [],
   "quotes": [
    {
-    "id": "0fe31570-b001-4096-b5f6-4f214cf9e279",
-    "token": "f8e073f3-e587-46c2-b5f0-52da4e99c4e8",
+    "id": "7a692fef-25f3-484d-aa32-ea3c5cdf22cd",
+    "token": "dde7da0f-b539-4c81-9868-17c07e1123ef",
     "number": "AST-2026-0001",
     "created_at": "2026-10-11T06:11:00.000Z",
     "created_by_email": "irit@astrateg.test",
@@ -381,7 +381,9 @@
     "influencer": "סמיון, מישל ודניס",
     "doc": "הסכם התקשרות",
     "signable": "true",
-    "phone": "050-5550142"
+    "phone": "050-5550142",
+    "valid": "72",
+    "company": "מאפיית הדקל"
    }
   ],
   "change_requests": [],
@@ -455,7 +457,7 @@
     "attempts": 0,
     "read_at": null,
     "digest_key": null,
-    "key": "dealNew:-:5f861a84-63dd-4bd4-b279-bd1be016bcc8:now@irit",
+    "key": "dealNew:-:2900b650-bc00-40cc-85ed-f638983929b1:now@irit",
     "rule": "dealNew",
     "person": "irit",
     "level": "ring",
@@ -467,7 +469,7 @@
     "ref": null,
     "title": "להכין חוזה ל־מאפיית הדקל",
     "body": "מסתיו: Social · סמיון, מישל ודניס. יעד היום 09:15.",
-    "url": "index.html?deal=5f861a84-63dd-4bd4-b279-bd1be016bcc8",
+    "url": "index.html?deal=2900b650-bc00-40cc-85ed-f638983929b1",
     "due_at": "2026-10-11T06:05:00.000Z",
     "sent_at": "2026-10-11T06:05:00.000Z"
    },
@@ -501,7 +503,7 @@
     "attempts": 0,
     "read_at": null,
     "digest_key": "digest:morning:irit:2026-10-11",
-    "key": "dealNew:-:5f861a84-63dd-4bd4-b279-bd1be016bcc8:due@irit",
+    "key": "dealNew:-:2900b650-bc00-40cc-85ed-f638983929b1:due@irit",
     "rule": "dealNew",
     "person": "irit",
     "level": "ring",
@@ -513,7 +515,7 @@
     "ref": null,
     "title": "עברו 10 דקות: להכין חוזה ל־מאפיית הדקל",
     "body": "החוזה עוד לא נשלח.",
-    "url": "index.html?deal=5f861a84-63dd-4bd4-b279-bd1be016bcc8",
+    "url": "index.html?deal=2900b650-bc00-40cc-85ed-f638983929b1",
     "due_at": "2026-10-11T06:15:00.000Z",
     "sent_at": "2026-10-11T06:05:00.000Z"
    },
@@ -547,7 +549,7 @@
     "attempts": 0,
     "read_at": null,
     "digest_key": "digest:morning:ofir:2026-10-11",
-    "key": "dealNew:-:5f861a84-63dd-4bd4-b279-bd1be016bcc8:ofir@ofir",
+    "key": "dealNew:-:2900b650-bc00-40cc-85ed-f638983929b1:ofir@ofir",
     "rule": "dealNew",
     "person": "ofir",
     "level": "ring",
@@ -559,7 +561,7 @@
     "ref": null,
     "title": "חוזה לא נשלח 10 דקות: מאפיית הדקל",
     "body": "עסקה של סתיו מחכה לחוזה מעירית.",
-    "url": "index.html?deal=5f861a84-63dd-4bd4-b279-bd1be016bcc8",
+    "url": "index.html?deal=2900b650-bc00-40cc-85ed-f638983929b1",
     "due_at": "2026-10-11T06:15:00.000Z",
     "sent_at": "2026-10-11T06:05:00.000Z"
    },
@@ -570,7 +572,7 @@
     "attempts": 0,
     "read_at": null,
     "digest_key": null,
-    "key": "dealSent:-:5f861a84-63dd-4bd4-b279-bd1be016bcc8:seller@stav",
+    "key": "dealSent:-:2900b650-bc00-40cc-85ed-f638983929b1:seller@stav",
     "rule": "dealSent",
     "person": "stav",
     "level": "quiet",
@@ -608,6 +610,282 @@
     "url": "clients.html",
     "due_at": "2026-10-11T15:00:00.000Z",
     "sent_at": "2026-10-11T15:00:00.000Z"
+   },
+   {
+    "id": 10,
+    "created_at": "2026-10-12T06:11:00.000Z",
+    "claimed_at": "2026-10-12T06:11:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "unsigned:-:7a692fef-25f3-484d-aa32-ea3c5cdf22cd@2026-10-11T06:11:00.000Z:seller@stav",
+    "rule": "unsigned",
+    "person": "stav",
+    "level": "quiet",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "הלקוח עוד לא חתם: מאפיית הדקל",
+    "body": "ההסכם נשלח אתמול ועוד לא נחתם. עירית בקשר עם הלקוח; אם אפשר לעזור, זה הזמן.",
+    "url": "deal.html",
+    "due_at": "2026-10-12T06:11:00.000Z",
+    "sent_at": "2026-10-12T06:11:00.000Z"
+   },
+   {
+    "id": 11,
+    "created_at": "2026-10-12T06:31:00.000Z",
+    "claimed_at": "2026-10-12T06:31:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "unsigned:-:7a692fef-25f3-484d-aa32-ea3c5cdf22cd@2026-10-11T06:11:00.000Z:irit@irit",
+    "rule": "unsigned",
+    "person": "irit",
+    "level": "ring",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "ההסכם עוד לא נחתם: מאפיית הדקל",
+    "body": "נשלח אתמול. להתקשר ללקוח; תזכורת בוואטסאפ והקישור לחתימה מחכים ב״הצעות שנשלחו״.",
+    "url": "quotes.html#sign",
+    "due_at": "2026-10-12T06:31:00.000Z",
+    "sent_at": "2026-10-12T06:31:00.000Z"
+   },
+   {
+    "id": 12,
+    "created_at": "2026-10-12T15:00:00.000Z",
+    "claimed_at": "2026-10-12T15:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:owner18:owner:2026-10-12",
+    "rule": "digest",
+    "person": "owner",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "חריגות היום",
+    "body": "הכול לפי התוכנית.",
+    "url": "clients.html",
+    "due_at": "2026-10-12T15:00:00.000Z",
+    "sent_at": "2026-10-12T15:00:00.000Z"
+   },
+   {
+    "id": 13,
+    "created_at": "2026-10-13T05:30:00.000Z",
+    "claimed_at": "2026-10-13T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:irit:2026-10-13",
+    "key": "unsigned:-:7a692fef-25f3-484d-aa32-ea3c5cdf22cd@2026-10-11T06:11:00.000Z:d2026-10-13@irit",
+    "rule": "unsigned",
+    "person": "irit",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "הסכם עוד לא נחתם (נשלח לפני יומיים): מאפיית הדקל",
+    "body": "",
+    "url": "quotes.html#sign",
+    "due_at": "2026-10-13T05:30:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 14,
+    "created_at": "2026-10-13T05:30:00.000Z",
+    "claimed_at": "2026-10-13T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:morning:irit:2026-10-13",
+    "rule": "digest",
+    "person": "irit",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "תקציר בוקר",
+    "body": "הסכם עוד לא נחתם (נשלח לפני יומיים): מאפיית הדקל",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-13T05:30:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 15,
+    "created_at": "2026-10-13T06:11:00.000Z",
+    "claimed_at": "2026-10-13T06:11:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:lior:2026-10-13",
+    "key": "unsigned:-:7a692fef-25f3-484d-aa32-ea3c5cdf22cd@2026-10-11T06:11:00.000Z:manager@lior",
+    "rule": "unsigned",
+    "person": "lior",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "הסכם לא נחתם 2 ימי עסקים: מאפיית הדקל",
+    "body": "",
+    "url": "quotes.html#sign",
+    "due_at": "2026-10-13T06:11:00.000Z",
+    "sent_at": "2026-10-13T06:11:00.000Z"
+   },
+   {
+    "id": 16,
+    "created_at": "2026-10-13T06:11:00.000Z",
+    "claimed_at": "2026-10-13T06:11:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:morning:lior:2026-10-13",
+    "rule": "digest",
+    "person": "lior",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "תקציר בוקר",
+    "body": "הסכם לא נחתם 2 ימי עסקים: מאפיית הדקל",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-13T06:11:00.000Z",
+    "sent_at": "2026-10-13T06:11:00.000Z"
+   },
+   {
+    "id": 17,
+    "created_at": "2026-10-13T15:00:00.000Z",
+    "claimed_at": "2026-10-13T15:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:owner18:owner:2026-10-13",
+    "rule": "digest",
+    "person": "owner",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "חריגות היום",
+    "body": "הכול לפי התוכנית.",
+    "url": "clients.html",
+    "due_at": "2026-10-13T15:00:00.000Z",
+    "sent_at": "2026-10-13T15:00:00.000Z"
+   },
+   {
+    "id": 18,
+    "created_at": "2026-10-14T05:30:00.000Z",
+    "claimed_at": "2026-10-14T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:irit:2026-10-14",
+    "key": "unsigned:-:7a692fef-25f3-484d-aa32-ea3c5cdf22cd@2026-10-11T06:11:00.000Z:d2026-10-14@irit",
+    "rule": "unsigned",
+    "person": "irit",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "הסכם עוד לא נחתם (נשלח לפני 3 ימים): מאפיית הדקל",
+    "body": "",
+    "url": "quotes.html#sign",
+    "due_at": "2026-10-14T05:30:00.000Z",
+    "sent_at": "2026-10-14T05:30:00.000Z"
+   },
+   {
+    "id": 19,
+    "created_at": "2026-10-14T05:30:00.000Z",
+    "claimed_at": "2026-10-14T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:morning:irit:2026-10-14",
+    "rule": "digest",
+    "person": "irit",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "תקציר בוקר",
+    "body": "הסכם עוד לא נחתם (נשלח לפני 3 ימים): מאפיית הדקל",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-14T05:30:00.000Z",
+    "sent_at": "2026-10-14T05:30:00.000Z"
+   },
+   {
+    "id": 20,
+    "created_at": "2026-10-14T06:11:00.000Z",
+    "claimed_at": "2026-10-14T06:11:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "unsigned:-:7a692fef-25f3-484d-aa32-ea3c5cdf22cd@2026-10-11T06:11:00.000Z:expired@irit",
+    "rule": "unsigned",
+    "person": "irit",
+    "level": "ring",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "פג תוקף ההסכם בלי חתימה: מאפיית הדקל",
+    "body": "הלקוח כבר לא יכול לחתום בקישור הזה. להכין לו הסכם חדש, או לבטל את הישן ב״הצעות שנשלחו״.",
+    "url": "quotes.html",
+    "due_at": "2026-10-14T06:11:00.000Z",
+    "sent_at": "2026-10-14T06:11:00.000Z"
+   },
+   {
+    "id": 21,
+    "created_at": "2026-10-14T07:00:00.000Z",
+    "claimed_at": "2026-10-14T07:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "availability:-:eli:2026-11:d14@eli",
+    "rule": "availability",
+    "person": "eli",
+    "level": "ring",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "זמינות לנובמבר: למסור עד ה־15 בחודש",
+    "body": "לסמן את הימים הפנויים בעמוד ״ימי הצילום שלי״ ולמסור. לוקח דקה.",
+    "url": "shoot.html#availability",
+    "due_at": "2026-10-14T07:00:00.000Z",
+    "sent_at": "2026-10-14T07:00:00.000Z"
    }
   ],
   "push_subscriptions": [],
@@ -622,7 +900,7 @@
   {
    "n": 1,
    "at": "2026-10-11T15:05:00.000Z",
-   "id": "unsigned-day",
+   "id": "unsigned-day-fixed",
    "step": "ניסוי א: החוזה נשלח ב־09:11 והלקוחה לא חותמת; סוף אותו יום",
    "proc": "p01",
    "role": "irit",
@@ -636,9 +914,13 @@
       "top": [
        "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
       ],
-      "lines": [],
-      "cards": [],
-      "empty": "עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״."
+      "lines": [
+       "[היום] ההסכם של מאפיית הדקל מחכה לחתימה (נשלח היום) למעקב -> quotes.html#sign"
+      ],
+      "cards": [
+       "[היום] - |  | בקרה יומית · תהליך 32 · בקרה על ביצוע המשימות"
+      ],
+      "empty": null
      },
      "lior": {
       "landed": "clients.html#mine",
@@ -673,7 +955,7 @@
   {
    "n": 2,
    "at": "2026-10-12T13:00:00.000Z",
-   "id": "unsigned-next",
+   "id": "unsigned-next-fixed",
    "step": "ניסוי א: למחרת 16:00, עדיין לא נחתם",
    "proc": "p01",
    "role": "irit",
@@ -687,9 +969,13 @@
       "top": [
        "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
       ],
-      "lines": [],
-      "cards": [],
-      "empty": "עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״."
+      "lines": [
+       "[היום] ההסכם של מאפיית הדקל מחכה לחתימה (נשלח אתמול) למעקב -> quotes.html#sign"
+      ],
+      "cards": [
+       "[היום] - |  | בקרה יומית · תהליך 32 · בקרה על ביצוע המשימות"
+      ],
+      "empty": null
      },
      "lior": {
       "landed": "clients.html#mine",
@@ -713,38 +999,148 @@
       "lines": [],
       "cards": [],
       "empty": null,
-      "other": "עסקה חדשה ממלאים את מה שסגרת עם הלקוח, ועירית מכינה את החוזה תוך 10 דקות עבודה. התראות ההתראות חסומות מה עושים הלקוח שם העסק* איש קשר* טלפון* מה נסגר חבילה מובנית אחת מהחבילות, עם תוספות הצעה אחרת תכנים ומחיר שסיכמת, באישור מנהל חבילה* Podcast פודקאסט עם משפיענים Social Social all in one Social + TV Social + TV all in one משפיענים* נטלי דדון סמיון, מישל ודניס תוספות בוחרים חבילה ומשפיענים, ואז מופ"
+      "other": "עסקה חדשה ממלאים את מה שסגרת עם הלקוח, ועירית מכינה את החוזה תוך 10 דקות עבודה. התראות 1 ההתראות חסומות מה עושים הלקוח שם העסק* איש קשר* טלפון* מה נסגר חבילה מובנית אחת מהחבילות, עם תוספות הצעה אחרת תכנים ומחיר שסיכמת, באישור מנהל חבילה* Podcast פודקאסט עם משפיענים Social Social all in one Social + TV Social + TV all in one משפיענים* נטלי דדון סמיון, מישל ודניס תוספות בוחרים חבילה ומשפיענים, ואז מ"
      }
     }
    },
-   "reminders": []
+   "reminders": [
+    "12.10 09:11 unsigned -> stav [quiet/push/sent] הלקוח עוד לא חתם: מאפיית הדקל",
+    "12.10 09:31 unsigned -> irit [ring/push/sent] ההסכם עוד לא נחתם: מאפיית הדקל"
+   ]
   },
   {
    "n": 3,
    "at": "2026-10-12T13:00:00.000Z",
    "id": "unsigned-where",
-   "step": "ניסוי א: איפה בכל זאת רואים את החוזה שלא נחתם",
+   "step": "ניסוי א: מהשורה ב״המשימות שלי״ אל ההסכם שמחכה",
+   "proc": "p01",
+   "role": "irit",
+   "before": {
+    "line": "ההסכם של מאפיית הדקל מחכה לחתימה (נשלח אתמול) למעקב",
+    "href": "quotes.html#sign"
+   },
+   "act": "לחיצה על השורה",
+   "taps": 1,
+   "after": {
+    "chip": "ממתינות לחתימה1",
+    "rows": 1,
+    "acts": "תזכורת בוואטסאפ פתיחה העתקת קישור ביטול",
+    "shot": "05-irit-unsigned-quotes-list-fixed.png",
+    "clients": 0,
+    "deal": "sent"
+   },
+   "reminders": []
+  },
+  {
+   "n": 4,
+   "at": "2026-10-13T09:00:00.000Z",
+   "id": "unsigned-day3-fixed",
+   "step": "ניסוי א: יום שלישי 12:00, עדיין לא נחתם",
    "proc": "p01",
    "role": "irit",
    "before": {},
-   "act": "צפייה בעמוד ההצעות וההסכמים (quotes.html)",
+   "act": "אף אחד לא עושה כלום; השעון מתקדם",
    "taps": 0,
    "after": {
-    "quotes": "QUOTES הצעות שנשלחו סטטוס חתימה של כל הקישורים שנוצרו. רענון שינוי סיסמה התנתקות הצעות 1 ממתינות לחתימה 1 הצעות לצפייה 0 נחתמו 0 הכול1 ממתינות1 נחתמו0 פג תוקף0 בוטלו0 AST-2026-0001 הסכם התקשרות רונית דקל Social all in one סמיון, מישל ודניס 11 באוקטובר 2026 irit@astrateg.test ממתין לחתימה לחתימה עד 14 באוקטובר 2026 בשעה 09:11 — תזכורת בוואטסאפ פתיחה העתקת קישור ביטול",
-    "clients": 0,
-    "deal": "sent",
-    "contractRule": 0
+    "mine": {
+     "irit": {
+      "landed": "clients.html#mine",
+      "top": [
+       "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
+      ],
+      "lines": [
+       "[היום] ההסכם של מאפיית הדקל מחכה לחתימה (נשלח לפני יומיים) למעקב -> quotes.html#sign"
+      ],
+      "cards": [
+       "[היום] - |  | בקרה יומית · תהליך 32 · בקרה על ביצוע המשימות"
+      ],
+      "empty": null
+     },
+     "lior": {
+      "landed": "clients.html#mine",
+      "top": [],
+      "lines": [
+       "[היום] בדיקת הקמפיינים השבועית עוד לא סומנה לבדיקה -> decisions.html#cp-h"
+      ],
+      "cards": [],
+      "empty": null
+     }
+    }
    },
    "reminders": [
-    "11.10 18:00 digest -> owner [digest/push/sent] חריגות היום"
+    "12.10 18:00 digest -> owner [digest/push/sent] חריגות היום",
+    "13.10 08:30 unsigned -> irit [digest/digest/sent:digest] הסכם עוד לא נחתם (נשלח לפני יומיים): מאפיית הדקל",
+    "13.10 08:30 digest -> irit [digest/push/sent] תקציר בוקר",
+    "13.10 09:11 unsigned -> lior [digest/digest/sent:digest] הסכם לא נחתם 2 ימי עסקים: מאפיית הדקל",
+    "13.10 09:11 digest -> lior [digest/push/sent] תקציר בוקר"
+   ]
+  },
+  {
+   "n": 5,
+   "at": "2026-10-14T07:00:00.000Z",
+   "id": "unsigned-expired-fixed",
+   "step": "ניסוי א: יום רביעי 10:00, תוקף ההסכם (72 שעות) עבר בלי חתימה",
+   "proc": "p01",
+   "role": "irit",
+   "before": {},
+   "act": "אף אחד לא עושה כלום; השעון מתקדם",
+   "taps": 0,
+   "after": {
+    "mine": {
+     "irit": {
+      "landed": "clients.html#mine",
+      "top": [
+       "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
+      ],
+      "lines": [],
+      "cards": [],
+      "empty": "עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״."
+     },
+     "lior": {
+      "landed": "clients.html#mine",
+      "top": [],
+      "lines": [
+       "[באיחור] בדיקת הקמפיינים השבועית עוד לא סומנה לבדיקה -> decisions.html#cp-h"
+      ],
+      "cards": [],
+      "empty": null
+     }
+    }
+   },
+   "reminders": [
+    "13.10 18:00 digest -> owner [digest/push/sent] חריגות היום",
+    "14.10 08:30 unsigned -> irit [digest/digest/sent:digest] הסכם עוד לא נחתם (נשלח לפני 3 ימים): מאפיית הדקל",
+    "14.10 08:30 digest -> irit [digest/push/sent] תקציר בוקר",
+    "14.10 09:11 unsigned -> irit [ring/push/sent] פג תוקף ההסכם בלי חתימה: מאפיית הדקל",
+    "14.10 10:00 availability -> eli [ring/push/sent] זמינות לנובמבר: למסור עד ה־15 בחודש"
+   ]
+  },
+  {
+   "n": 6,
+   "at": "2026-10-14T07:00:00.000Z",
+   "id": "unsigned-rows",
+   "step": "ניסוי א: כל שורות התזכורת של הכלל unsigned",
+   "proc": "p01",
+   "role": "irit",
+   "before": {},
+   "act": "-",
+   "taps": 0,
+   "after": {},
+   "reminders": [
+    "12.10 09:11 unsigned -> stav [quiet/push/sent] הלקוח עוד לא חתם: מאפיית הדקל",
+    "12.10 09:31 unsigned -> irit [ring/push/sent] ההסכם עוד לא נחתם: מאפיית הדקל",
+    "13.10 08:30 unsigned -> irit [digest/digest/sent:digest] הסכם עוד לא נחתם (נשלח לפני יומיים): מאפיית הדקל",
+    "13.10 09:11 unsigned -> lior [digest/digest/sent:digest] הסכם לא נחתם 2 ימי עסקים: מאפיית הדקל",
+    "14.10 08:30 unsigned -> irit [digest/digest/sent:digest] הסכם עוד לא נחתם (נשלח לפני 3 ימים): מאפיית הדקל",
+    "14.10 09:11 unsigned -> irit [ring/push/sent] פג תוקף ההסכם בלי חתימה: מאפיית הדקל"
    ]
   }
  ],
  "secrets": {
   "status": {},
   "access": {},
-  "signLink": "http://127.0.0.1:59171/q.html#t=f8e073f3-e587-46c2-b5f0-52da4e99c4e8"
+  "signLink": "http://127.0.0.1:53009/q.html#t=dde7da0f-b539-4c81-9868-17c07e1123ef"
  },
  "nudges": [],
- "shots": 5
+ "shots": 7
 }

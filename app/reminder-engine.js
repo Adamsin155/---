@@ -50,6 +50,7 @@ export function buildEnv({
   accessLinks = [], // 6.10.2026: public.client_access_links rows (the client's logins form, app/access-logic.js)
   ganttFailures = [], // 6.10.2026: public.client_gantt rows whose post failed in Metricool (mc_status 'error')
   approvals = [], // 6.10.2026: public.quotes rows that went for a manager's approval (app/approvals-logic.js)
+  unsigned = [], // 8.10.2026: public.quotes rows sent for signature and not signed (app/unsigned-logic.js)
   staffTasks = [], // 6.10.2026: public.staff_tasks rows, the tasks given on the spot (app/staff-tasks-logic.js)
   availability = { months: [], changes: [] }, // 7.10.2026: the photographer's free dates and unexpected changes (app/availability-logic.js)
   shootTold = [], // 7.10.2026: public.reminder_log rows of the rule `shootSet` (what the photographer was told of each shoot day)
@@ -80,7 +81,7 @@ export function buildEnv({
     tasks: tasks.filter((t) => !t.done_at),
     // Tasks finished lately (the server loads the last two days): "the requester hears".
     doneTasks: tasks.filter((t) => t.done_at),
-    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions,
+    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions,
     personOf: (email) => people.get(String(email || '').toLowerCase()) || null,
     emailsOf: (person) => [...people].filter(([, p]) => p === person).map(([e]) => e),
     hasStaff: (person) => [...people.values()].includes(person),

@@ -1562,6 +1562,94 @@ RULES.push(
   },
 );
 
+// ── Two places where a client was silently lost (docs/ops.md, section 47) ──
+// One self-contained block (its imports included).
+//   meetingDate  a signed client whose characterization meeting has no date (or nobody
+//     to run it): process 3 stays open (fieldGap in app/protocol-logic.js; not asked of
+//     a client in landing, of imported history, or once the characterization is behind
+//     the client). On the first day the new deal's own ladder speaks (`deal`: Irit at 5
+//     office minutes, Lior at 30, the owner's screen at 60) and `late` tells Ofir and
+//     Lior. A client that `deal` does not follow (activated out of landing) gets the same
+//     two steps from its own deadline here. What was missing is every day after: Irit
+//     rings each business morning until the date is set, and Lior's list gets it once,
+//     a business day after the deadline. "ממתין ללקוח" on process 3 stops it.
+//   unsigned     a contract that was sent for signature and is not signed
+//     (app/unsigned-logic.js: not one that waits for a manager, not cancelled, not past
+//     its validity). `env.unsigned`: public.quotes rows with the seller of their deal.
+//     Irit rings a business day after the sending and then has a line in her digest
+//     every business morning; Lior's list gets it after two business days; the field
+//     agent who sold it is told once ("הלקוח עוד לא חתם"), with no amounts. When the
+//     validity runs out unsigned, Irit rings once more: the client can no longer sign.
+//     The numbers are UNSIGNED and MEETING_DATE: each is a one-line change.
+import { isSales } from './protocol.js';
+import {
+  UNSIGNED, UNSIGNED_URL, waitsForSignature, expiredUnsigned, unsignedTimes, businessOf as unsignedBusiness, sentWords,
+} from './unsigned-logic.js';
+// A ring that would fall in the window the morning digest swallows (FOLD) rings right
+// after it instead: it asks for a phone call, and must not become one line among others.
+const pastFold = (d) => (d >= atIL(d, FOLD.from) && d <= atIL(d, FOLD.to) ? new Date(atIL(d, FOLD.to).getTime() + MIN) : d);
+export const MEETING_DATE = {
+  follows: 'irit',          // process 3 is hers
+  manager: 'lior',
+  managerAfterMinutes: 30,  // office minutes after the deadline: he rings (as the new deal's ladder does)
+  dailyAt: '10:00',         // every business morning after the deadline day: she rings again
+  listAfter: 1,             // business days after the deadline: a line in the manager's list
+};
+RULES.push(
+  {
+    id: 'meetingDate', event: 'לקוח חתום בלי מועד לפגישת אפיון (3)', procs: ['p03'],
+    instances(env) {
+      return casesOf(env, 'p03', (i) => !i.pre && !!i.s.gap && !!i.s.dueAt && !i.s.wait).map((i) => ({
+        ...i, id: 'p03',
+        // The new deal's ladder already rings Irit and Lior for this client's first day.
+        covered: !workFloor(i.client) && !!parseDate(i.client.deal_at),
+        what: i.s.gap.fields.includes('char_at') ? 'מועד לפגישת האפיון' : 'מי שיבצע את האפיון',
+        anchors: { event: i.s.dueAt, due: i.s.dueAt },
+      }));
+    },
+    steps: (i, env) => [
+      { id: 'due', from: 'due', to: MEETING_DATE.follows, level: 'ring', exempt: 'clock', when: () => !i.covered, title: () => `עוד אין ${i.what}: ${i.name}`, body: () => 'היעד עבר. לקבוע עם הלקוח ולהזין ב״המשימות שלי״.' },
+      { id: 'lior', from: 'due', officeMinutes: MEETING_DATE.managerAfterMinutes, to: MEETING_DATE.manager, level: 'ring', when: () => !i.covered, title: () => `לקוח בלי מועד אפיון: ${i.name}`, body: () => `עברו ${MEETING_DATE.managerAfterMinutes} דקות עבודה מהיעד, ועוד אין ${i.what}.` },
+      ...(isBusinessDay(env.now) && daysBetweenIL(i.anchors.due, env.now) >= 1 ? [{
+        id: `d${dayKeyIL(env.now)}`, from: 'today', at: MEETING_DATE.dailyAt, to: MEETING_DATE.follows, level: 'ring',
+        title: () => `עוד אין ${i.what}: ${i.name}`,
+        body: () => `הלקוח חתם ועדיין לא נקבעה פגישת אפיון (היעד היה ${whenText(i.anchors.due, env.now)}). לקבוע ולהזין ב״המשימות שלי״.`,
+      }] : []),
+      { id: 'list', from: 'due', businessDays: MEETING_DATE.listAfter, to: MEETING_DATE.manager, level: 'digest', list: true, overdue: true, title: () => `לקוח חתום בלי מועד אפיון יום עסקים: ${i.name}`, body: () => '' },
+    ],
+  },
+  {
+    id: 'unsigned', event: 'הסכם נשלח לחתימה ולא נחתם', procs: [],
+    instances(env) {
+      const out = [];
+      for (const q of env.unsigned || []) {
+        const waits = waitsForSignature(q, env.now);
+        const lapsed = !waits && expiredUnsigned(q, env.now);
+        const t = waits || lapsed ? unsignedTimes(q) : null;
+        if (!t) continue;
+        const seller = env.personOf(q.seller_email);
+        out.push({
+          id: `${q.id}@${t.since.toISOString()}`, cid: null, quote: q, name: unsignedBusiness(q), lapsed, url: UNSIGNED_URL,
+          seller: isSales(seller) ? seller : null,
+          anchors: { event: t.since, ring: pastFold(t.ring), manager: t.manager, sellerAt: t.seller, expires: t.expires, lapsedAt: t.expires ? nextSendMoment(t.expires) : null },
+        });
+      }
+      return out;
+    },
+    steps: (i, env) => (i.lapsed ? [
+      { id: 'expired', from: 'lapsedAt', to: UNSIGNED.follows, level: 'ring', url: () => 'quotes.html', title: () => `פג תוקף ההסכם בלי חתימה: ${i.name}`, body: () => 'הלקוח כבר לא יכול לחתום בקישור הזה. להכין לו הסכם חדש, או לבטל את הישן ב״הצעות שנשלחו״.' },
+    ] : [
+      { id: 'irit', from: 'ring', to: UNSIGNED.follows, level: 'ring', expires: 'expires', title: () => `ההסכם עוד לא נחתם: ${i.name}`, body: () => `${sentWords(i.anchors.event, env.now)}. להתקשר ללקוח; תזכורת בוואטסאפ והקישור לחתימה מחכים ב״הצעות שנשלחו״.` },
+      ...(isBusinessDay(env.now) && daysBetweenIL(i.anchors.ring, env.now) >= 1 ? [{
+        id: `d${dayKeyIL(env.now)}`, from: 'today', at: UNSIGNED.dailyAt, to: UNSIGNED.follows, level: 'digest', expires: 'expires',
+        title: () => `הסכם עוד לא נחתם (${sentWords(i.anchors.event, env.now)}): ${i.name}`, body: () => '',
+      }] : []),
+      { id: 'manager', from: 'manager', to: UNSIGNED.manager, level: 'digest', list: true, overdue: true, expires: 'expires', title: () => `הסכם לא נחתם ${UNSIGNED.managerAfter === 1 ? 'יום עסקים' : `${UNSIGNED.managerAfter} ימי עסקים`}: ${i.name}`, body: () => '' },
+      { id: 'seller', from: 'sellerAt', to: () => i.seller, level: 'quiet', expires: 'expires', when: () => !!i.seller, url: () => 'deal.html', title: () => `הלקוח עוד לא חתם: ${i.name}`, body: () => `ההסכם ${sentWords(i.anchors.event, env.now)} ועוד לא נחתם. עירית בקשר עם הלקוח; אם אפשר לעזור, זה הזמן.` },
+    ]),
+  },
+);
+
 // ── Tasks given on the spot (the owner's request of 6.10.2026) ──
 // One self-contained block (its import included). `env.staffTasks`: public.staff_tasks
 // rows, the open ones and those finished in the last two days (app/staff-tasks-logic.js).

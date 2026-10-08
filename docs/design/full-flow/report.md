@@ -136,4 +136,11 @@ A question for the owner rather than a defect: which of these should the system 
 4. Process 14: a daily follow-up until the shoot day, as written, or the one-time list (4.2)?
 5. The review of the graphics: one owner (Irit) with Lior as a fallback, or both (5.1)? And its own deadline, counted from the moment the graphics arrive (4.1)?
 6. The fix request of the client: should Irit hear it (2.1)?
+
+## After the report: findings 1.1, 1.2 and 3.1 were fixed (8.10.2026)
+
+The owner approved fixing the two places where a client is silently lost; the rest waits for his decisions. What changed and what is still assumed is docs/ops.md, section 47. The two experiments were rerun on the fixed code (`node tests/sim/stage1.mjs`, then `node tests/sim/exp.mjs`); their records are `tests/sim/state/exp-a.json` and `exp-b.json` (`node tests/sim/show.mjs exp-a 1 short`), and the screenshots after the fix sit next to the original ones with the suffix `-fixed`. The step table (`steps.md`) and the findings above describe the system as it was before the fix.
+
+- **1.1 (experiment B):** after Irit ticked the three items, the card of process 3 stays on her list, late, with "עוד לא נקבע מועד לפגישת האפיון." and the button "קביעת מועד" (`04-irit-exp-p03-no-date-fixed.png`, two days later `05-irit-late-p03-no-date-2days-fixed.png`). She rang again at 10:00 on each of the next two business mornings and Lior's list got it once. Setting the date from the card took 3 taps (`06-irit-exp-p03-set-date-dialog-fixed.png`, `07-irit-exp-p03-date-set-fixed.png`); the card left and Ofir's "בקרוב" got the meeting.
+- **1.2 and 3.1 (experiment A):** from the minute the contract was sent Irit has the line "ההסכם של מאפיית הדקל מחכה לחתימה" (`03-irit-contract-sent-waiting-fixed.png`, `04-irit-late-unsigned-day-fixed.png`, `05-irit-late-unsigned-next-fixed.png`), which opens the list of sent quotes on the contracts that wait (`05-irit-unsigned-quotes-list-fixed.png`). The rule `unsigned` produced 6 rows: Stav told once and Irit rung a business day later, a line in her digest on each following morning, Lior's list after two business days, and one ring to Irit when the 72 hours ran out unsigned (`07-irit-late-unsigned-expired-fixed.png`: the line is gone then, see the open question in section 47).
 <!-- ' -->

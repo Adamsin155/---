@@ -346,6 +346,37 @@ export function blockers(item, client, checks) {
   return items.length || fields.length ? { items, fields } : null;
 }
 
+// ── A detail that must not stay missing (docs/ops.md, section 47) ──
+// An item marked `setHere` (app/protocol.js: "the meeting was set", process 3) needs
+// details of the client: who characterizes and when. While one of them is blank the
+// process is open, whatever was ticked, and it stays on its owner's list with the
+// detail to fill in (openItemsFor), so a signed client never sits with no meeting date
+// and nothing on anybody's list. The lists, the deadlines and the reminders all read
+// this one answer. It is not asked of:
+//   - a client in landing (nothing of it is asked for until it is activated);
+//   - history brought in by an import (the mark's note is "ייבוא");
+//   - a client that the process `unless` is already behind (the characterization ended,
+//     process 4 is complete, or it was brought in as history).
+// Returns { item, fields } for the first such item of the process, or null.
+export function fieldGap(proc, client, checks = {}, procs = [], now = new Date()) {
+  if (!client || inLanding(client)) return null;
+  for (const item of proc.items) {
+    if (!item.setHere) continue;
+    const check = checks[item.key];
+    if (check?.note === IMPORT_NOTE) continue;
+    // Not ticked yet: every detail it needs. Ticked: only the detail the work after it
+    // cannot start without (`keep`: the date; a blank "who" is Ofir, the protocol's
+    // default, as on rows from before that default existed).
+    const need = isResolved(item, check, now) ? (item.setHere.keep || item.requiresFields) : item.requiresFields;
+    const fields = (need || []).filter((f) => blank(client[f]));
+    if (!fields.length) continue;
+    const next = item.setHere.unless && procs.find((p) => p.id === item.setHere.unless);
+    if (next && (isImported(next, checks) || completedAt(next, checks, now) || (next.id === 'p04' && charEndedAt(checks)))) continue;
+    return { item, fields };
+  }
+  return null;
+}
+
 // Process-level marks stored as checks: who took a shared process, and a
 // process waiting on the client (with the reason in the note).
 const markKey = (proc, kind) => `${proc.keyBase || proc.id}.${kind}`;
@@ -465,7 +496,9 @@ export function clientState(client, checks = {}, now = new Date()) {
     const required = p.items.filter((i) => !i.optional);
     const resolved = required.filter((i) => isResolved(i, checks[i.key], now)).length;
     const touched = p.items.some((i) => checks[i.key]);
-    const complete = p.recurring ? false : resolved === required.length;
+    // A detail the process is there to set (the meeting's date) keeps it open: fieldGap.
+    const gap = p.recurring ? null : fieldGap(p, ctx, checks, procs, now);
+    const complete = p.recurring ? false : resolved === required.length && !gap;
     const startAt = resolveTime(p.start, ctx, procs, checks, now);
     // A deadline a later protocol version shortened keeps the one the client started under.
     const baseDueAt = p.recurring || quiet ? null : laterDue(due(dueSpec(p)), p.dueBefore && due(p.dueBefore));
@@ -475,7 +508,7 @@ export function clientState(client, checks = {}, now = new Date()) {
     const w = waitedMinutes(p, checks, doneAt || now, baseDueAt);
     const dueAt = baseDueAt && w.ext ? addWorkingMinutes(baseDueAt, w.ext) : baseDueAt;
     return {
-      proc: p, required: required.length, resolved, complete, touched, startAt, dueAt, baseDueAt,
+      proc: p, required: required.length, resolved, complete, gap, touched, startAt, dueAt, baseDueAt,
       waited: w.min, extended: w.ext, completedAt: doneAt,
     };
   });
@@ -510,7 +543,7 @@ export function clientState(client, checks = {}, now = new Date()) {
     }
     // Items added to the protocol after the client started never make it late.
     s.late = !s.complete && !!(s.dueAt && s.dueAt < now)
-      && s.proc.items.some((i) => !i.optional && !i.fresh && !isResolved(i, checks[i.key], now));
+      && (!!s.gap || s.proc.items.some((i) => !i.optional && !i.fresh && !isResolved(i, checks[i.key], now)));
     if (s.complete) s.status = 'done';
     else if (s.wait) s.status = 'client'; // stuck on the client, not on us
     else if (s.late) s.status = 'overdue';
@@ -550,6 +583,12 @@ export function openItemsFor(person, client, checks, state, now = new Date()) {
       if (person && !i.owners.includes(person)) continue;
       const shared = i.owners === s.proc.owners || i.owners.join() === s.proc.owners.join();
       if (person && shared && s.claim && s.claim.person !== person) continue;
+      // The detail this item waits for is filled in right on the list (`fields`): the
+      // entry stays although it cannot be ticked yet (fieldGap).
+      if (s.gap && s.gap.item.key === i.key) {
+        out.push({ client, proc: s.proc, item: i, status: s.status, dueAt: s.dueAt, wait: s.wait, claim: shared ? s.claim : null, shared: shared && s.proc.owners.length > 1, fields: s.gap.fields });
+        continue;
+      }
       if (i.optional || isResolved(i, checks[i.key], now) || blockers(i, s.proc.ctx || client, checks)) continue;
       out.push({ client, proc: s.proc, item: i, status: s.status, dueAt: s.dueAt, wait: s.wait, claim: shared ? s.claim : null, shared: shared && s.proc.owners.length > 1 });
     }
