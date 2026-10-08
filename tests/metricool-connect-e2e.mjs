@@ -401,6 +401,11 @@ try {
   await step('the owner has the card and connects too; Irit, Lior and an editor have none; a sales agent lands on his own page', async () => {
     const owner = await newPage();
     await signIn(owner, 'clients.html#mine', 'owner');
+    // Not among the owners' own tasks (8.10.2026; docs/ops.md, section 43): the card is in the
+    // manager profile's "עבודת הצוות" (#team), where the owner connects as before.
+    await settled(owner);
+    assert.equal(await owner.locator(CARD).isVisible(), false, 'the card is on the personal tasks of the owners');
+    await owner.goto(`${BASE}clients.html#team`);
     await owner.locator(`${CARD}:not([hidden])`).waitFor();
     await openCard(owner);
     assert.equal(await text(owner, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (8)');

@@ -401,9 +401,9 @@ for (const [role, title] of [['nadia', 'הלקוחות שלי בעריכה'], ['
     assert.deepEqual(await page.locator('.tabs [role=tab]:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הנתונים שלי']);
     // Her screens are the bar; the head does not repeat them.
     assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
-    // (Four screens all fit since 6.10.2026: "הצעות שנשלחו" is the owners' and Irit's, so there is no "עוד".)
-    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה', 'הצעה וחוזה']);
-    assert.equal(await page.locator('#side-more, #side-quotes').count(), 0);
+    // (Her three screens: "הצעות שנשלחו" left on 6.10.2026 and the builder on 8.10.2026, so there is no "עוד".)
+    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה']);
+    assert.equal(await page.locator('#side-more, #side-quotes, #side-quote').count(), 0);
     assert.ok(await heightOf(page) < 1500);
   });
 }
@@ -422,8 +422,8 @@ await step('Eli lands on "ימי הצילום שלי", with tomorrow\'s shoots',
   await settle(page);
   await tidy(page, 'eli mine');
   assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
-  // (Four screens all fit since 6.10.2026: no "הצעות שנשלחו" for Eli, so no "עוד".)
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'הצעה וחוזה']);
+  // (His three screens: no "הצעות שנשלחו" since 6.10.2026 and no builder since 8.10.2026, so no "עוד".)
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום']);
 });
 
 // ── Stav ──────────────────────────────────
