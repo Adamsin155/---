@@ -70,25 +70,29 @@ await sim.until(IL(2026, 10, 29, 14, 0));
   const text = clip(await li.innerText().catch(() => "אין כרטיס 31"), 300);
   const html = await li.evaluate((el) => [...el.querySelectorAll("button, a, input")].map((e) => `${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ""} ${e.textContent.trim() || e.getAttribute("aria-label") || ""}`).join(" ; ")).catch(() => "");
   let did = "לא נמצא פקד";
-  const btn = li.locator("button", { hasText: /תיעוד שיחה/ }).first();
+  // Protocol v8: no pill on the weekly call; the row is "תיעוד שיחה", which opens the call's dialog in the client card.
+  await page.evaluate(() => { for (const d of document.querySelectorAll("#mine-list details")) d.open = true; });
+  const pills = await li.locator(".cbx").count();
+  const btn = li.locator("a.wcall, button", { hasText: /תיעוד שיחה/ }).first();
   if (await btn.count()) {
-    await btn.click(); await settle(page, 600);
-    const dlg = page.locator("dialog[open]").first();
+    if (!(await btn.isVisible())) await li.locator("[aria-controls]").first().click().catch(() => null);
+    await btn.click(); await page.waitForSelector("#dlg-call[open]", { timeout: 10000 }).catch(() => null); await settle(page, 600);
+    const dlg = page.locator("#dlg-call[open]");
     if (await dlg.count()) {
-      const fields = await dlg.locator("textarea:visible, input[type=text]:visible").count();
-      for (const t of await dlg.locator("textarea:visible").all()) await t.fill("עברנו על הקמפיינים, הלידים והתכנים שעלו. אין בעיות.");
-      const submit = dlg.locator("button[type=submit], button.btn-primary").first();
-      did = `תיעוד שיחה -> דיאלוג עם ${fields} שדות -> "${clip(await submit.innerText())}"`;
-      await submit.click(); await settle(page, 700);
-    } else did = "תיעוד שיחה (בלי דיאלוג)";
+      await page.click("#call-submit"); await settle(page, 300);
+      const refused = clip(await page.locator("#call-err").innerText().catch(() => ""), 120);
+      await page.fill("#call-topic-campaigns", "עברנו על הקמפיינים, הלידים והתכנים שעלו. אין בעיות.");
+      await page.click("#call-submit"); await settle(page, 800);
+      did = `״תיעוד שיחה״ (גלולות בכרטיס: ${pills}) -> חלון התיעוד בכרטיס הלקוח -> שמירה ריקה: ״${refused}״ -> שורה אחת של סיכום -> שמירה (${(await page.locator("#dlg-call[open]").count()) ? "החלון נשאר פתוח" : "נשמר"})`;
+    } else did = "תיעוד שיחה (החלון לא נפתח)";
   }
   await ctx.close();
-  if (did === "לא נמצא פקד") { const res = await markMine(sim, "lior", ["p31.call"]); did = `אין כפתור תיעוד שיחה בכרטיס; הגלולה סיימתי: ${JSON.stringify(res.out)} (${res.taps} לחיצות)`; }
+  if (did === "לא נמצא פקד") { const res = await markMine(sim, "lior", ["p31.call"]); did = `אין ״תיעוד שיחה״ בכרטיס; הגלולה סיימתי: ${JSON.stringify(res.out)} (${res.taps} לחיצות)`; }
   sim.advance(1);
   const rows = await sim.tick();
   const after = await sim.mine("lior");
   sim.rec({ id: "p31", step: "ליאור: שיחת לקוח שבועית ותיעוד שלה", proc: "p31", role: "lior", before: { ...brief(before), shot: before.shot, card: text, controls: html },
-    act: did, taps: 3, after: { checks: sim.db.protocol_checks.filter((x) => x.item_key.startsWith("p31")).map((x) => `${x.item_key}=${x.state} ${clip(x.note, 80)}`), tasks: sim.db.client_tasks.filter((t) => !t.done_at).map((t) => `${t.owner}: ${t.title}`), ...brief(after), next: { irit: brief(await sim.mine("irit")) } }, reminders: fmtLog(rows) });
+    act: did, taps: 4, after: { checks: sim.db.protocol_checks.filter((x) => x.item_key.startsWith("p31")).map((x) => `${x.item_key}=${x.state} ${clip(x.note, 80)}`), tasks: sim.db.client_tasks.filter((t) => !t.done_at).map((t) => `${t.owner}: ${t.title}`), ...brief(after), next: { irit: brief(await sim.mine("irit")) } }, reminders: fmtLog(rows) });
 }
 sim.save();
 await sim.stop();

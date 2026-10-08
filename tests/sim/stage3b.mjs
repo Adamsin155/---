@@ -3,7 +3,7 @@
 // Ilai checks the access and opens the Gantt (6, 9), Ofir prepares the Highlights (8, 8ב), Lior and Meta (10).
 // Ilai does NOT prepare the 9 graphics today (the deliberate delay of Ilai). Run: node tests/sim/stage3b.mjs
 import { Sim, IL, fmtLog, settle } from "./lib.mjs";
-import { brief, proto, cardsOf, shotOf, letPass, markMine } from "./steps.mjs";
+import { brief, proto, cardsOf, shotOf, letPass, markMine, linkCard } from "./steps.mjs";
 
 const sim = await Sim.start("s3b", "s3");
 const cid = sim.client().id;
@@ -12,19 +12,19 @@ const cid = sim.client().id;
 {
   await sim.until(IL(2026, 10, 12, 12, 15));
   const before = await sim.mine("irit", { shot: "p05-access-link" });
-  const { page, ctx } = await sim.open("irit", `client.html?id=${cid}#access-h`);
-  await page.waitForSelector("#al-create");
-  const linkBox = (await page.locator("#access-link").innerText()).replace(/\s+/g, " ");
-  await page.click("#al-create");
-  await page.waitForSelector("#al-copy-msg");
-  const after1 = (await page.locator("#access-link").innerText()).replace(/\s+/g, " ").slice(0, 300);
-  await ctx.close();
+  // Protocol v8: the step is a card of her list (5ב) with "העתקת הקישור"; process 5 stays open at Ofir with the question.
+  const ofir = await sim.mine("ofir");
+  const question = cardsOf(ofir, "p05").map((c) => `${c.group} · ${c.when || "-"} · ${c.items.map((i) => i.label).join("; ")}`).join(" | ") || "אין כרטיס 5 אצל אופיר";
+  const res = await linkCard(sim, "irit", "p05b", { shot: "p05b-link-card" });
   const link = sim.db.client_access_links.at(-1);
+  sim.advance(1);
   const rows = await sim.tick();
-  sim.rec({ id: "p05-link", step: "עירית יוצרת ללקוחה קישור לטופס פרטי הכניסה לרשתות", proc: "p05", role: "irit",
-    before: { ...brief(before), shot: before.shot, note: "אין ב״המשימות שלי״ של עירית שום כרטיס שאומר לשלוח את הקישור: תהליך 5 סומן כבוצע כשאופיר הכניס גישה אחת (אינסטגרם)", linkBox },
-    act: "כרטיס הלקוח -> ״גישות לרשתות״ -> ״יצירת קישור״ (ואז העתקת ההודעה ללקוח ושליחה ב־WhatsApp, מחוץ למערכת)", taps: 3,
-    after: { linkBox: after1, link: { created_by: link.created_by, expires_at: link.expires_at } }, reminders: fmtLog(rows) });
+  const after = await sim.mine("irit");
+  sim.rec({ id: "p05-link", step: "עירית שולחת ללקוחה את הקישור לטופס פרטי הכניסה, מהכרטיס 5ב ב״המשימות שלי״", proc: "p05b", role: "irit",
+    before: { ...brief(before), shot: res.shot || before.shot, where: { "p05b.sent": res.found ? `הכרטיס: ${res.card}` : "לא מופיע" }, note: `אצל אופיר, כרטיס 5: ${question}` },
+    act: `הכרטיס 5ב: ״העתקת הקישור״ (מה נאמר: ${res.said}; מה הועתק: ${res.copied}), ואז ״סיימתי״`, taps: res.taps,
+    after: { said: res.said, check: `p05b.sent=${sim.checkOf("p05b.sent")?.state || "-"}; קישורים: ${sim.db.client_access_links.length}${link ? ` (נוצר בידי ${link.created_by})` : ""}`, left: cardsOf(after, "p05b").flatMap((c) => c.items.map((i) => i.label)) },
+    reminders: fmtLog(rows), errors: res.errors.length ? res.errors : undefined });
 }
 // 5: the client fills the form on her phone, 40 minutes later.
 {
@@ -53,7 +53,7 @@ const cid = sim.client().id;
   for (const r of ["ilai", "irit", "lior"]) next[r] = brief(await sim.mine(r, { shot: r === "ilai" ? "access-arrived-ilai" : null }));
   sim.rec({ id: "p05-form", step: "הלקוחה ממלאת את טופס פרטי הכניסה בקישור הציבורי", proc: "p05→p06", role: "client",
     before: { head, shot }, act: "access.html: אינסטגרם ופייסבוק (יש: משתמש וסיסמה), טיקטוק (אין כיום, צריך לפתוח), הערה, ״המשך״, ״שליחה״", taps: 10,
-    after: { thanks, access: sim.db.client_access.map((a) => `${a.network}:${a.status}:${a.updated_by}`), tasks: sim.db.client_tasks.filter((t) => !t.done_at).map((t) => `${t.owner}: ${t.title}${t.urgent ? " (דחוף)" : ""}`), next }, reminders: fmtLog(rows) });
+    after: { thanks, check: ["p05.access", "p05.allnets", "p05b.sent"].map((k) => `${k}=${sim.checkOf(k)?.state || "-"}${sim.checkOf(k)?.note ? ` (${sim.checkOf(k).note})` : ""}`).join("; "), access: sim.db.client_access.map((a) => `${a.network}:${a.status}:${a.updated_by}`), tasks: sim.db.client_tasks.filter((t) => !t.done_at).map((t) => `${t.owner}: ${t.title}${t.urgent ? " (דחוף)" : ""}`), next }, reminders: fmtLog(rows) });
 }
 // 9: Ilai opens the Gantt skeleton (5 minutes from the end of the meeting: it is 12:58, an hour and a half late).
 await proto(sim, { id: "p09", step: "עילאי פותח את גאנט התוכן (המבנה)", proc: "p09", role: "ilai", shot: "p09-gantt", wait: 3,

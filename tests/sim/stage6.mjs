@@ -36,12 +36,15 @@ await proto(sim, { id: "p24-folder", step: "אופיר פותח תיקייה מ�
   const head = await page.locator(`[id="${base}-g-files"] .fl-work-h`).innerText().catch(() => "");
   await page.locator(`[id="${base}-ready"]`).click(); taps += 1;
   await settle(page, 900);
+  // Protocol v8: fewer graphics than the package: the browser asks (the harness accepts the question and keeps its words).
+  const asked = (page.dialogs || []).join(" | ");
+  if (asked) taps += 1;
   const said = await page.evaluate(() => (document.querySelector("#handoff, dialog[open], .toast")?.innerText || "").replace(/\s+/g, " ").slice(0, 300));
   await ctx.close();
   const rows = await sim.tick();
   const next = { ofir: brief(await sim.mine("ofir", { shot: "p23-ofir-check" })), irit: brief(await sim.mine("irit")) };
   sim.rec({ id: "p23-made", step: "עילאי מעלה את יתרת הגרפיקות ולוחץ מוכן לבדיקה (לאופיר)", proc: "p23", role: "ilai", before: { ...brief(before), shot: before.shot },
-    act: `הכרטיס שלו: + העלאת גרפיקות (${head}), מוכן לבדיקה (לאופיר). אחרי הלחיצה: ${said}`, taps,
+    act: `הכרטיס שלו: + העלאת גרפיקות (${head}), מוכן לבדיקה (לאופיר). ${asked ? `המערכת שאלה: ״${asked}״, אושר. ` : "המערכת לא שאלה דבר. "}אחרי הלחיצה: ${said}`, taps,
     after: { made: sim.checkOf("p23.made")?.state || "-", next }, reminders: fmtLog(rows) });
 }
 // 23: Ofir checks the 7 points and approves; Irit sends; the client approves; Ilai uploads.

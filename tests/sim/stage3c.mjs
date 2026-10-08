@@ -4,7 +4,7 @@
 // together with the shoot day Irit did not set (due Monday 18:00): the deliberate delay of Irit.
 // Run: node tests/sim/stage3c.mjs
 import { Sim, IL, fmtLog, settle } from "./lib.mjs";
-import { brief, proto, cardsOf, shotOf, letPass, markMine, ilaiCard } from "./steps.mjs";
+import { brief, proto, cardsOf, shotOf, letPass, markMine, ilaiCard, followUp } from "./steps.mjs";
 
 const sim = await Sim.start("s3c", "s3b");
 const cid = sim.client().id;
@@ -62,6 +62,8 @@ const cid = sim.client().id;
 await proto(sim, { id: "task-logo", step: "עירית סוגרת את המשימה ״להשלים מהלקוח: לוגו״", proc: "p05 (משימה)", role: "irit", shot: "task-logo", wait: 10,
   keys: [sim.db.client_tasks.find((t) => t.owner === "irit").id], peek: [], next: [] });
 
+// 14 (protocol v8): the daily follow-up before the shoot day, Monday (the meeting ended at 11:25).
+await followUp(sim, { id: "fu-mon", step: "עירית: המעקב היומי לפני צילום, יום ב׳ (היום הראשון אחרי האפיון)", shot: "p14-followup-line" });
 // The night: nobody prepares the 9 graphics, nobody sets the shoot day.
 await letPass(sim, IL(2026, 10, 12, 18, 5), { id: "late-mon-evening", step: "יום ב׳ עד 18:05: 9 הגרפיקות (יעד 13:25) לא הוכנו, יום הצילום (יעד 18:00) לא נקבע", proc: "p07, p11", role: "ilai", watch: ["ilai", "irit", "lior", "ofir", "owner"] });
 await letPass(sim, IL(2026, 10, 13, 9, 30), { id: "late-tue-morning", step: "עד יום ג׳ 09:30: עדיין לא הוכנו גרפיקות ולא נקבע יום צילום", proc: "p07, p11", role: "irit", watch: ["ilai", "irit", "lior", "ofir", "owner"] });
