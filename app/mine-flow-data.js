@@ -16,6 +16,16 @@ const LOADERS = {
   requests: () => loadChangeRequests(),
   // Irit: who already got a message today.
   messages: ({ now }) => loadMessagesSince(atTimeIL(now, 0).toISOString()),
+  // Irit (and the owners, for the control's "חתימות"): the contracts still out with a
+  // client. Row level security answers only whoever may read the list of sent quotes;
+  // no amounts are asked for.
+  unsigned: async () => {
+    const { data, error } = await supabase.from('quotes')
+      .select('id, number, client_name, created_at, created_by_email, status, expires_at, approval, approval_at, signable:model->>signable, valid:model->>validHours, company:model->client->>company')
+      .eq('status', 'sent').order('created_at').limit(500);
+    if (error) throw error;
+    return data || [];
+  },
   // The photographer's free dates of next month: was the month handed in.
   availability: async ({ now }) => {
     const ask = askOf(now);

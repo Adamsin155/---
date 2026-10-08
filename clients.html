@@ -109,6 +109,7 @@
   <link rel="modulepreload" href="app/intake-data.js">
   <link rel="modulepreload" href="app/year-logic.js">
   <link rel="modulepreload" href="app/year-data.js">
+  <link rel="modulepreload" href="app/unsigned-logic.js">
   <link rel="modulepreload" href="app/decisions-logic.js">
   <link rel="modulepreload" href="app/production.js">
   <link rel="modulepreload" href="app/availability-logic.js">
@@ -294,6 +295,27 @@
       <div class="dlg-foot">
         <button type="button" class="btn btn-ghost" data-close>ביטול</button>
         <button type="submit" class="btn btn-primary" id="wait-submit">סימון כממתין ללקוח</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-meet" aria-labelledby="meet-h">
+    <form id="meet-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="meet-h">מועד פגישת האפיון</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body form-grid">
+        <p class="span-2 wait-ctx" id="meet-ctx"></p>
+        <div class="field"><label for="meet-at">מתי הפגישה?</label><input class="input" id="meet-at" type="datetime-local" dir="ltr" required></div>
+        <div class="field"><label for="meet-who">מי מבצע את האפיון?</label>
+          <select class="input" id="meet-who"><option value="ofir">אופיר</option><option value="lior">ליאור (רק כשאין אחר)</option></select></div>
+        <p class="hint span-2">המועד נשמר בכרטיס הלקוח, ו״נקבעה פגישה״ מסומן.</p>
+        <div class="err span-2" id="meet-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="meet-submit">שמירת המועד</button>
       </div>
     </form>
   </dialog>

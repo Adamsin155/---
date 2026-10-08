@@ -29,6 +29,8 @@ import {
   askOf, monthRow, monthName, missingForManagers, PHOTOGRAPHERS, MANAGERS as AVAILABILITY_MANAGERS, DEADLINE_DAY, AVAILABILITY_URL, OFFICE_URL,
 } from './availability-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
+import { unsignedLine, UNSIGNED_URL } from './unsigned-logic.js';
+import { QUOTE_LIST_VIEWERS } from './manager-rules.js';
 
 // The words every line of a client in landing ends with.
 export const LANDING_WORDS = 'בקליטה, בלי שעון';
@@ -60,6 +62,7 @@ function bucketAt(due, now) {
 //   extra    what the home screen loads for these lines only, each null when it could not
 //            be read: { access (client_access rows), requests (change_requests rows),
 //            messages (client_messages rows of today), availability ({ months }),
+//            unsigned (quotes rows still out for signature, app/unsigned-logic.js),
 //            liorShoot (true while Lior is on a shoot day) }
 export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = [], reviews = null, extra = {}, now = new Date() }) {
   const me = viewer?.me || null;
@@ -153,6 +156,14 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
     }
   }
 
+  // ── Contracts sent for signature and not signed yet (quotes.html; section 47) ──
+  // Until the client signs there is no client and no card: this line is where the
+  // contract lives meanwhile, whoever built it (from a field deal or directly).
+  if (QUOTE_LIST_VIEWERS.includes(me) && Array.isArray(extra.unsigned)) {
+    const u = unsignedLine(extra.unsigned, now);
+    if (u) add({ id: 'unsigned', bucket: 'today', n: u.n, rule: 'unsigned', href: UNSIGNED_URL, cta: 'למעקב', text: u.text });
+  }
+
   // ── A shoot day close by, of a client in landing (prep.html, shoot.html) ──
   // The day itself is real; its items are not in the list until the client is activated.
   if (me === 'irit' || me === 'lior') {
@@ -188,6 +199,7 @@ export function flowNeeds(viewer, now = new Date()) {
   const needs = [];
   if (me === 'lior') needs.push('access', 'requests');
   if (me === 'irit') needs.push('messages');
+  if (QUOTE_LIST_VIEWERS.includes(me)) needs.push('unsigned');
   if (me === 'ofir') needs.push('liorShoot');
   if (PHOTOGRAPHERS.includes(me) || (AVAILABILITY_MANAGERS.includes(me) && missingForManagers(now))) needs.push('availability');
   return needs;
