@@ -18,7 +18,7 @@ import { renderNowBar, updateNowBar, clockRows, ranOutText } from './now-bar.js'
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, setTaskDone, createClient,
   signedQuotes, loadDirectory, loadReviews, markReview, loadAllLog, addTask,
-  loadStatusNotes, saveStatusNote, setTaskStarted,
+  loadStatusNotes, saveStatusNote, setTaskStarted, updateClient,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar, capList,
@@ -464,6 +464,79 @@ async function bulkUndo(c, keys, g) {
   toast(`הסימון של ${keys.length} הפריטים בוטל.`);
 }
 
+// ── A missing detail, set right here (docs/ops.md, section 47) ──
+// Process 3 stays on the list while the characterization meeting has no date (or
+// nobody to run it): the card says so in one sentence, and the button opens two
+// fields, the same two of the client card ("השלמת פרטים"), saved the same way
+// (updateClient). Saving also marks "the meeting was set", which is what was just done.
+const MEET_FIELDS = ['characterizer', 'char_at'];
+const gapOf = (g) => g.entries.find((e) => e.fields) || null;
+const checkable = (g) => g.entries.filter((e) => !e.fields);
+const gapText = (fields) => (fields.includes('char_at') ? 'עוד לא נקבע מועד לפגישת האפיון.' : 'עוד לא נקבע מי מבצע את האפיון.');
+function needLine(g) {
+  const e = gapOf(g);
+  if (!e) return null;
+  const meeting = e.fields.every((f) => MEET_FIELDS.includes(f));
+  const id = `need-${g.key}`.replace(/[^\w-]/g, '_');
+  return h('div', { class: 'need wneed', role: 'note', 'data-need': e.fields.join(',') },
+    h('span', {}, gapText(e.fields), scope === 'office' ? '' : ' המשרד משלים את זה בכרטיס הלקוח.'),
+    scope !== 'office' ? null : meeting
+      ? h('button', { type: 'button', class: 'btn btn-sm btn-primary', id, onclick: () => openMeet(g, id) }, e.fields.includes('char_at') ? 'קביעת מועד' : 'בחירת מבצע')
+      : h('a', { class: 'btn btn-sm', id, href: clientUrl(g.client.id, `#${g.proc.id}`) }, 'לכרטיס הלקוח'));
+}
+const meetDlg = $('dlg-meet');
+let meetTarget = null;
+meetDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === meetDlg) meetDlg.close(); });
+function openMeet(g, focusId) {
+  meetTarget = { g, focusId };
+  $('meet-form').reset();
+  $('meet-err').hidden = true;
+  $('meet-at').removeAttribute('aria-invalid');
+  $('meet-ctx').textContent = clientLabel(g.client);
+  $('meet-at').value = g.client.char_at ? inputValueIL(new Date(g.client.char_at)) : '';
+  $('meet-who').value = g.client.characterizer || 'ofir';
+  meetDlg.showModal();
+  $('meet-at').focus();
+}
+$('meet-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const { g, focusId } = meetTarget;
+  const at = $('meet-at').value ? fromInputIL($('meet-at').value) : null;
+  const person = $('meet-who').value;
+  $('meet-at').setAttribute('aria-invalid', String(!at));
+  if (!at || !['ofir', 'lior'].includes(person)) {
+    $('meet-err').textContent = 'בחרו יום ושעה לפגישה.';
+    $('meet-err').hidden = false;
+    $('meet-at').focus();
+    return;
+  }
+  $('meet-submit').disabled = true;
+  const cid = g.client.id;
+  try {
+    const row = await updateClient(cid, { char_at: at.toISOString(), characterizer: person });
+    clients = clients.map((c) => (c.id === cid ? { ...c, ...row } : c));
+    states.delete(cid);
+  } catch (err) {
+    $('meet-err').textContent = `המועד לא נשמר. ${errorText(err)}`;
+    $('meet-err').hidden = false;
+    $('meet-submit').disabled = false;
+    return;
+  }
+  // The date is saved. "The meeting was set" is marked with it; if that mark fails it
+  // simply stays on the card as an item to tick.
+  let marked = false;
+  const item = gapOf(g)?.item;
+  if (item && !isResolved(item, checks[cid]?.[item.key])) {
+    try { (checks[cid] ||= {})[item.key] = await setCheck(cid, item.key, 'done'); states.delete(cid); marked = true; } catch { /* stays open on the card */ }
+  }
+  $('meet-submit').disabled = false;
+  meetDlg.close();
+  renderKeepingFocus();
+  const card = `#mine-list .wproc[data-key="${CSS.escape(g.key)}"]`;
+  (document.getElementById(focusId) || document.querySelector(`${card} .cbx, ${card} button`))?.focus();
+  toast(`המועד נשמר: ${formatStamp(at)} · ${PEOPLE[person].name}.${marked ? ' סומן ״נקבעה פגישה״.' : ''}`);
+});
+
 // ── Waiting on the client (spec §4) ──────────
 const waitDlg = $('dlg-wait');
 let waitTarget = null;
@@ -626,15 +699,18 @@ function compactCard(g, person) {
   const waitId = `wl-${safe}`;
   const panelId = `wd-${safe}`;
   const canWait = !g.task && !g.proc.recurring && (scope === 'office' || CLIENT_PROCS.has(baseId(g.proc)));
-  const n = g.entries.length;
-  const one = n === 1;
+  // An entry that waits for a detail of the client is not a tick: it is the line above the items.
+  const ticks = checkable(g);
+  const need = needLine(g);
+  const n = ticks.length;
+  const one = n === 1 && !need;
   const shortcut = g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null;
   const start = g.task && g.urgent ? taskStart(g.task) : null;
   const needsStart = !!start?.querySelector('button');
   // The action in words: the task, or the process (a single item is named by its own check).
   const what = g.task ? g.task.title : procLabel(g.proc);
-  const sub = g.task ? [isEscalation(g.task) ? null : 'משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ') : one ? '' : `${n} פריטים לסימון`;
-  const rows = () => h('ul', { class: 'wlist' }, ...g.entries.map((e) => {
+  const sub = g.task ? [isEscalation(g.task) ? null : 'משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ') : one || !n ? '' : n === 1 ? 'פריט אחד לסימון' : `${n} פריטים לסימון`;
+  const rows = () => h('ul', { class: 'wlist' }, ...ticks.map((e) => {
     const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
     return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
       h('label', { class: 'wrow', for: id },
@@ -645,7 +721,7 @@ function compactCard(g, person) {
   }));
   // The one action: "התחלתי" on an urgent task; the form the process is worked in; the
   // single item's own check; or the list of items, which opens here.
-  const listIsAction = !needsStart && !shortcut && !one;
+  const listIsAction = !needsStart && !shortcut && !one && n > 0;
   const single = !needsStart && !shortcut && one;
   if (shortcut) shortcut.classList.add('wc-go');
   const extras = [
@@ -662,7 +738,7 @@ function compactCard(g, person) {
       }, bulk.whole ? `סימון כל התהליך כבוצע (${bulk.items.length})` : `סימון כל הפריטים שלי כבוצעו (${bulk.items.length})`) : null,
       canWait && g.status !== 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => openWait(g) }, 'ממתין ללקוח') : null,
       canWait && g.status === 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(g) }, 'סיום המתנה') : null) : null,
-    single ? null : rows(),
+    single || !n ? null : rows(),
   ].filter(Boolean);
   const open = openCards.has(g.key);
   const panel = extras.length ? h('div', { class: 'wc-panel', id: panelId, hidden: !open }, ...extras) : null;
@@ -688,6 +764,7 @@ function compactCard(g, person) {
       // A single task is named by its own check below; its kind is the line here.
       h('p', { class: 'wc-title' }, single && g.task ? h('span', { class: 'wc-sub' }, sub || 'משימה') : [what, sub ? h('span', { class: 'wc-sub' }, ` · ${sub}`) : null]),
       panel && !listIsAction ? toggle('פירוט', 'btn-text wc-more') : null),
+    need, // a detail of the client that is still missing, set from here
     start, // "התחלתי", or when it was pressed
     shortcut,
     single ? rows() : null,
@@ -717,6 +794,7 @@ function groupCard(g, person) {
       claimControl(g, person)),
     g.task ? taskMeta(g.task) : null,
     g.task && g.urgent ? taskStart(g.task) : null,
+    needLine(g),
     g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null,
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
@@ -727,7 +805,7 @@ function groupCard(g, person) {
       }, bulk.whole ? `סימון כל התהליך כבוצע (${bulk.items.length})` : `סימון כל הפריטים שלי כבוצעו (${bulk.items.length})`) : null,
       canWait && g.status !== 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => openWait(g) }, 'ממתין ללקוח') : null,
       canWait && g.status === 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(g) }, 'סיום המתנה') : null) : null,
-    h('ul', { class: 'wlist' }, ...g.entries.map((e) => {
+    h('ul', { class: 'wlist' }, ...checkable(g).map((e) => {
       const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
       return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
         h('label', { class: 'wrow', for: id },
