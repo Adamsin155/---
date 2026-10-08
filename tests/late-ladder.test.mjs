@@ -396,6 +396,8 @@ test('the client\'s turn: work that was sent and waits for the client is nobody\
   mark(w, c, 'p27.notes', IL(2026, 10, 20, 10), JSON.stringify({ text: 'סרטון 3: להחליף מוזיקה', via: 'status' }));
   w.tasks.push({ id: 'fix1', client_id: c.id, title: 'תיקון לבקשת הלקוח: הסרטונים · סבב 1', owner: 'nadia', due_on: '2026-10-20', urgent: false, source: 'client_fix', created_at: IL(2026, 10, 20, 10).toISOString(), created_by_email: '', brief: { problem: 'סרטון 3: להחליף מוזיקה', item: 'videos', item_key: 'p27.approved', round: 1, notes_marked: true } });
   const at10 = due(w, IL(2026, 10, 20, 10, 1));
+  // The old deadline of 27 is not announced to Ofir and Lior as Nadia's lateness in the minute the client asks.
+  assert.deepEqual(at10.filter((r) => r.rule === 'late' && / 27 · /.test(r.title)), []);
   // Nadia rings as before (the protocol's own ladder), and Irit rings at the same moment with the client's words.
   assert.deepEqual(at10.filter((r) => r.rule === 'clientFixes').map((r) => `${r.person}:${r.level}`), ['nadia:ring']);
   const irit = at10.find((r) => r.rule === 'clientFix' && r.person === 'irit');

@@ -1362,7 +1362,9 @@ export const RULES = [
           if (baseId(s.proc.id) === 'p27' && i.resolved('p27.final')) continue;
           // Sent to the client and waiting for the client's answer (8.10.2026; docs/ops.md, section
           // 48): nobody in the office is late, so nobody is named as late.
-          if (allLate(env).find((x) => x.cid === c.id && x.procId === s.proc.id)?.clientTurn) continue;
+          // Nor while the fix the client asked for is being made: that task has its own due day and carries the lateness.
+          const chain = allLate(env).find((x) => x.cid === c.id && x.procId === s.proc.id);
+          if (chain && (chain.clientTurn || (chain.fixing && !chain.holders.length))) continue;
           const owners = s.claim ? [s.claim.person] : s.proc.owners;
           out.push({ ...i, id: `${s.proc.id}@${s.dueAt.toISOString()}`, owners, anchors: { event: s.dueAt } });
         }
