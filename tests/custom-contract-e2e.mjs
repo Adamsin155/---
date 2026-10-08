@@ -737,28 +737,31 @@ try {
     assert.equal(await stav.locator('#rows tr').count(), 0);
   });
 
-  await step('nobody approves their own contract (Ofir), the owner may; an editor sees nothing new', async () => {
-    // Ofir prepares one himself.
-    await ofir.goto(`${BASE}index.html`);
-    await ofir.evaluate(() => sessionStorage.clear());
-    await ofir.reload();
-    await ofir.locator('#start-agreement').click();
-    await ofir.locator('#custom-group').waitFor();
-    await ofir.locator('#c-name').fill('גליה');
-    await ofir.locator('#c-company').fill('קפה גליה');
-    await ofir.locator('.custom-head .switch').click();
-    await ofir.locator('#custom-term').fill('3');
-    await ofir.locator('#btn-link').click();
-    await ofir.locator('#dlg-pending[open]').waitFor();
-    await ofir.goto(`${BASE}qa.html`);
-    const own = ofir.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' });
+  await step('nobody approves their own contract (Lior), another manager may; an editor sees nothing new', async () => {
+    // Lior prepares one himself. (Ofir builds no contracts since 8.10.2026: the builder refuses him.)
+    await lior.goto(`${BASE}index.html`);
+    await lior.evaluate(() => sessionStorage.clear());
+    await lior.reload();
+    await lior.locator('#start-agreement').click();
+    await lior.locator('#custom-group').waitFor();
+    await lior.locator('#c-name').fill('גליה');
+    await lior.locator('#c-company').fill('קפה גליה');
+    await lior.locator('.custom-head .switch').click();
+    await lior.locator('#custom-term').fill('3');
+    await lior.locator('#btn-link').click();
+    await lior.locator('#dlg-pending[open]').waitFor();
+    await lior.goto(`${BASE}decisions.html`);
+    const own = lior.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' });
     await own.waitFor();
     assert.equal(await own.locator('[data-act="approve"], [data-act="reject"]').count(), 0);
     assert.match(await own.innerText(), /את החוזה הזה הכנת בעצמך: מנהל אחר צריך לאשר אותו/);
-    // Lior may.
-    await lior.reload();
-    await lior.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' }).waitFor();
-    assert.equal(await lior.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' }).locator('[data-act="approve"]').count(), 1);
+    // Ofir may.
+    await ofir.goto(`${BASE}qa.html`);
+    await ofir.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' }).waitFor();
+    assert.equal(await ofir.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' }).locator('[data-act="approve"]').count(), 1);
+    // And the builder is not his screen.
+    await ofir.goto(`${BASE}index.html`);
+    await ofir.getByText('אין לך גישה לעמוד הזה').first().waitFor();
     // An editor: no card (and the database gives her no quote).
     const nadia = await newPage({ width: 390, height: 844 });
     await signIn(nadia, 'clients.html', 'nadia');

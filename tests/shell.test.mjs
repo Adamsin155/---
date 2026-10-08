@@ -28,7 +28,7 @@ const ids = (viewer) => menuOf(viewer).map((it) => it.id);
 test('everything each role may open, in one order', () => {
   assert.deepEqual(ids(OWNER), ['mine', 'manager', 'clients', 'gantt', 'qa', 'pass', 'decisions', 'insights', 'year', 'prep', 'messages', 'shoot', 'shoot-table', 'quote', 'quotes', 'team', 'payouts']);
   assert.deepEqual(ids(v('irit')), ['mine', 'manager', 'clients', 'gantt', 'year', 'prep', 'messages', 'shoot', 'quote', 'quotes', 'team']);
-  assert.deepEqual(ids(v('ofir')), ['mine', 'manager', 'clients', 'gantt', 'qa', 'pass', 'decisions', 'year', 'prep', 'shoot', 'shoot-table', 'quote']);
+  assert.deepEqual(ids(v('ofir')), ['mine', 'manager', 'clients', 'gantt', 'qa', 'pass', 'decisions', 'year', 'prep', 'shoot', 'shoot-table']);
   assert.deepEqual(ids(v('lior')), ['mine', 'overview', 'clients', 'gantt', 'qa', 'decisions', 'insights', 'year', 'prep', 'messages', 'shoot', 'shoot-table', 'quote', 'team']);
   // The builder left the menus of Ilai, Nirel, the editors and Eli (8.10.2026): not theirs to do.
   assert.deepEqual(ids(v('ilai')), ['mine', 'clients', 'gantt', 'year']);
@@ -84,7 +84,7 @@ test('nobody has a switch inside the menu (Irit\'s two entries went on 7.10.2026
 // The owner's wording of 7.10.2026: the builder is "הצעה חדשה והכנת חוזה" for everyone who
 // has it; the phone's bottom bar shows the short name (app/shell.js).
 test('the builder\'s entry: "הצעה חדשה והכנת חוזה", with a short name for the phone\'s bar', () => {
-  for (const viewer of [OWNER, ...['irit', 'lior', 'ofir'].map(v)]) {
+  for (const viewer of [OWNER, ...['irit', 'lior'].map(v)]) {
     assert.deepEqual(menuOf(viewer).find((it) => it.id === 'quote'), { id: 'quote', href: 'index.html', label: 'הצעה חדשה והכנת חוזה', short: 'הצעה וחוזה' }, viewer.me || 'owner');
   }
   for (const viewer of [OWNER, ...ROLES.map(v)]) for (const it of menuOf(viewer)) assert.equal('short' in it, it.id === 'quote', `${viewer.me || 'owner'}: ${it.id}`);
@@ -92,7 +92,7 @@ test('the builder\'s entry: "הצעה חדשה והכנת חוזה", with a shor
 
 // The owner's rule of 8.10.2026: nobody has, on any page, something that is not theirs to do.
 test('the builder is for whoever builds a contract: the owners, Irit, Lior and Ofir; nobody else has the entry or the page', () => {
-  const BUILDERS = [null, 'irit', 'lior', 'ofir'];
+  const BUILDERS = [null, 'irit', 'lior'];
   for (const viewer of [OWNER, ...ROLES.map(v)]) {
     const who = viewer.me || 'owner';
     assert.equal(canBuildQuote(viewer), BUILDERS.includes(viewer.me), who);
@@ -100,7 +100,7 @@ test('the builder is for whoever builds a contract: the owners, Irit, Lior and O
     for (const p of ['mine', 'manager']) if (!BUILDERS.includes(viewer.me)) assert.equal(profileMenu(viewer, p).some((it) => it.id === 'quote'), false, `${who}: ${p}`);
   }
   // Where it stands for those who have it did not change: personal for the owners and Irit, the manager profile for Lior and Ofir.
-  for (const [viewer, p] of [[OWNER, 'mine'], [v('irit'), 'mine'], [v('lior'), 'manager'], [v('ofir'), 'manager']]) assert.ok(profileMenu(viewer, p).some((it) => it.id === 'quote'), viewer.me || 'owner');
+  for (const [viewer, p] of [[OWNER, 'mine'], [v('irit'), 'mine'], [v('lior'), 'manager']]) assert.ok(profileMenu(viewer, p).some((it) => it.id === 'quote'), viewer.me || 'owner');
   // Never wider than the server: create-quote answers public.is_office() only (the owners, Irit, Lior, Ofir, Ilai).
   for (const viewer of [OWNER, ...ROLES.map(v)]) if (canBuildQuote(viewer)) assert.equal(viewer.scope, 'office', viewer.me || 'owner');
   // A generic editor login, and someone the app could not identify (a page says so itself, and does not refuse).
@@ -135,7 +135,7 @@ test('the two profiles of the owners, Ofir and Lior: a short personal menu, the 
   assert.deepEqual(of(v('lior'), 'mine'), ['mine', 'clients', 'decisions', 'messages', 'shoot']);
   assert.deepEqual(of(v('lior'), 'manager'), ['overview', 'clients', 'gantt', 'qa', 'insights', 'year', 'prep', 'shoot-table', 'quote', 'team']);
   assert.deepEqual(of(v('ofir'), 'mine'), ['mine', 'clients', 'qa', 'pass']);
-  assert.deepEqual(of(v('ofir'), 'manager'), ['manager', 'clients', 'gantt', 'decisions', 'year', 'prep', 'shoot', 'shoot-table', 'quote']);
+  assert.deepEqual(of(v('ofir'), 'manager'), ['manager', 'clients', 'gantt', 'decisions', 'year', 'prep', 'shoot', 'shoot-table']);
   // Irit (7.10.2026): her daily screens; the manager view, the Gantt, the year, the shoot days and the team behind the button.
   assert.deepEqual(of(v('irit'), 'mine'), ['mine', 'clients', 'prep', 'messages', 'quote', 'quotes']);
   assert.deepEqual(of(v('irit'), 'manager'), ['manager', 'clients', 'gantt', 'year', 'shoot', 'team']);
@@ -176,7 +176,7 @@ test('the two profiles of the owners, Ofir and Lior: a short personal menu, the 
   assert.equal(parts(v('irit'), 'manager')[1], 0); // six screens: one list
   assert.deepEqual(parts(OWNER, 'manager'), [['manager', 'clients', 'decisions', 'messages'], 10]);
   assert.deepEqual(parts(v('lior'), 'manager'), [['overview', 'clients'], 8]);
-  assert.deepEqual(parts(v('ofir'), 'manager'), [['manager', 'clients'], 7]);
+  assert.deepEqual(parts(v('ofir'), 'manager'), [['manager', 'clients'], 6]);
 });
 
 test('the office screens: the same list the page heads had', () => {
@@ -194,7 +194,7 @@ test('the phone\'s bar: the role\'s three screens and "עוד"; four or fewer al
   const bar = (viewer) => { const b = barOf(menuOf(viewer), viewer); return [b.bar.map((it) => it.id), b.more.length]; };
   assert.deepEqual(bar(OWNER), [['mine', 'manager', 'clients'], 14]);
   assert.deepEqual(bar(v('irit')), [['mine', 'manager', 'clients'], 8]);
-  assert.deepEqual(bar(v('ofir')), [['mine', 'manager', 'qa'], 9]);
+  assert.deepEqual(bar(v('ofir')), [['mine', 'manager', 'qa'], 8]);
   assert.deepEqual(bar(v('lior')), [['mine', 'overview', 'decisions'], 11]);   // in the menu's order
   // Ilai: the Gantt is one of his three (6.10.2026); the package year moved behind "עוד".
   // Since 8.10.2026 (no builder in his menu) his four screens all fit, the package year too.
@@ -288,7 +288,7 @@ test('a long menu is two parts: the daily screens, then the rest under "עוד";
   assert.deepEqual(parts(OWNER), [['mine', 'manager', 'clients', 'decisions', 'messages'], ['gantt', 'qa', 'pass', 'insights', 'year', 'prep', 'shoot', 'shoot-table', 'quote', 'quotes', 'team', 'payouts']]);
   assert.deepEqual(parts(v('irit')), [['mine', 'manager', 'clients', 'messages', 'quote', 'quotes'], ['gantt', 'year', 'prep', 'shoot', 'team']]);
   assert.deepEqual(parts(v('lior')), [['mine', 'overview', 'clients', 'decisions', 'messages'], ['gantt', 'qa', 'insights', 'year', 'prep', 'shoot', 'shoot-table', 'quote', 'team']]);
-  assert.deepEqual(parts(v('ofir')), [['mine', 'manager', 'clients', 'qa', 'pass'], ['gantt', 'decisions', 'year', 'prep', 'shoot', 'shoot-table', 'quote']]);
+  assert.deepEqual(parts(v('ofir')), [['mine', 'manager', 'clients', 'qa', 'pass'], ['gantt', 'decisions', 'year', 'prep', 'shoot', 'shoot-table']]);
   for (const viewer of [OWNER, ...ROLES.map(v), { me: null, scope: 'own', error: new Error('x') }, null]) {
     const items = menuOf(viewer);
     const g = groupsOf(items, viewer);

@@ -28,7 +28,7 @@ const QUOTE = 'הצעה חדשה והכנת חוזה';
 const NO_ACCESS = 'אין לך גישה לעמוד הזה';
 const EDITORS = ['nirel', 'nadia', 'yariv', 'anna'];
 const SALES = ['stav', 'amos'];
-const BUILDERS = ['owner', 'irit', 'lior', 'ofir'];
+const BUILDERS = ['owner', 'irit', 'lior'];
 const NOT_BUILDERS = ['ilai', ...EDITORS, 'eli', ...SALES];
 
 // The roles world, and the second field agent (the fake answers him as anyone outside the office).
