@@ -39,6 +39,18 @@ export const secureUrl = ({ host, pathname = '', search = '', hash = '' }) => `h
 export const redactAccessLinks = (text) => String(text ?? '').replace(/(access\.html[#?]t=)[A-Za-z0-9_-]{20,}/g, '$1…');
 export const hasRedactedLink = (text) => /access\.html[#?]t=…/.test(String(text ?? ''));
 
+// "נשמרה גישה ל־Instagram בלבד. יש עוד רשתות?" (protocol v8, the item p05.allnets). The
+// system does not hold the list of the client's networks; what it knows is what was
+// saved when "access received" was marked, which that mark's note names (the end of the
+// characterization, app/characterization.js endedChecks; or the client's own form).
+// Marked by hand, with no names: the plain question.
+export function accessGapQuestion(check) {
+  const m = /^(?:מסיום האפיון|מהלקוח, בטופס פרטי הכניסה): (.+)$/.exec(String(check?.note || '').trim());
+  const names = m ? m[1].split(',').map((x) => x.trim()).filter(Boolean) : [];
+  if (!names.length) return 'יש ללקוח עוד רשתות שחסרה להן גישה?';
+  return `נשמרה גישה ל־${names.join(', ')}${names.length === 1 ? ' בלבד' : ''}. יש עוד רשתות?`;
+}
+
 // Where a link stands: 'none' (no link yet), 'waiting' (sent, not filled), 'filled',
 // 'expired', 'revoked', 'locked' (too many refused attempts).
 export const MAX_ATTEMPTS = 5;

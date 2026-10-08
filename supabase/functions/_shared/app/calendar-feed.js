@@ -24,7 +24,7 @@
 // is ever written into a feed, and no internal note: a title, a time, a place for
 // those who need it, and a link to the card (which asks to sign in).
 import { SHOOT_TYPES, PEOPLE } from './protocol.js';
-import { clientState, itemsOf, isResolved, roundsOf, roundContext, parseDate, isImported, isBusinessDay, weekKey } from './protocol-logic.js';
+import { clientState, itemsOf, isResolved, roundsOf, roundContext, parseDate, isImported, isBusinessDay, weekKey, isDayEnd } from './protocol-logic.js';
 import { dayKeyIL, addDaysIL, atTimeIL, weekdayIL, partsIL, startOfDayIL, dayFromKeyIL, TZ } from './tz.js';
 
 const DAY = 864e5;
@@ -94,7 +94,7 @@ const latest = (...ds) => {
   const t = ds.map((d) => (d ? new Date(d).getTime() : NaN)).filter(Number.isFinite);
   return t.length ? new Date(Math.max(...t)) : null;
 };
-const isEndOfDay = (d) => { const p = partsIL(d); return p.hour === 23 && p.minute === 59; };
+const isEndOfDay = (d) => isDayEnd(d); // the end of a business day (18:00) or of a calendar day
 // Shoot-day length: the team an hour before the influencers, then 3 hours with
 // Natali (process 20) or 5.5 with Denis, Michel and Semion (21).
 export const shootMinutes = (type) => 60 + (type === 'dms' ? 330 : 180);

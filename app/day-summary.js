@@ -6,7 +6,7 @@
 // time. No money in it, and no client in landing (app/late-chain.js leaves them out).
 import { lateItems, chainOf, lateWords } from './late-chain.js';
 import { PEOPLE } from './protocol.js';
-import { clientLabel, inLanding, pauseOf } from './protocol-logic.js';
+import { clientLabel, inLanding, pauseOf, endOfBusinessDay } from './protocol-logic.js';
 import { dayKeyIL, dayFromKeyIL, endOfDayIL } from './tz.js';
 
 // The numbers: each is a one-line change.
@@ -35,6 +35,12 @@ export function daySummary({ clients = [], checksOf = () => ({}), stateOf, tasks
   for (const x of all) {
     if (x.clientTurn) { waiting.push({ cid: x.cid, name: x.name, what: x.what }); continue; }
     if (!x.holders.length) continue; // it waits for work that is itself late, and counted there
+    // Due at the close of this very day (18:00) and still open: "of today, not done", as
+    // it was while the end of a business day was midnight. It is late from tomorrow on.
+    if (x.kind === 'proc' && dayKeyIL(x.dueAt) === dayKeyIL(now) && x.dueAt.getTime() === endOfBusinessDay(x.dueAt).getTime()) {
+      items.push({ kind: 'today', cid: x.cid, name: x.name, what: x.what, who: x.holders, dueAt: x.dueAt, how: 'היעד היום', procId: x.procId, taskId: null });
+      continue;
+    }
     items.push({ kind: 'late', cid: x.cid, name: x.name, what: x.what, who: x.holders, dueAt: x.dueAt, how: lateWords(x.dueAt, now), procId: x.procId, taskId: x.task?.id || null });
   }
   const todayKey = dayKeyIL(now);

@@ -815,3 +815,17 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
   .cbx.fin:not(:checked)::before { display: none; }
   .cbx.fin:checked { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ── Protocol v8 (docs/ops.md, section 49) ── */
+/* A one-tap answer keeps the pill and says its own word ("אין עוד"). */
+.cbx.fin[data-word]:not(:checked)::after { content: attr(data-word); content: attr(data-word) / ''; }
+/* "העתקת הקישור" on a card whose step is sending the client a link. */
+.wlink { background: var(--ds-surface-2, var(--bg-soft)); }
+.wlink .wlink-text { flex: 1 1 100%; margin: 0; }
+.wlink .wlink-text input { width: 100%; min-height: 44px; }
+/* The shoot-date dialog: the photographer's free days, and who approved. */
+.shoot-free { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.shoot-free .chip, .shoot-oks .chip { min-height: 44px; }
+.shoot-oks { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.shoot-oks legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
+.shoot-oks .chip[aria-pressed="true"] { background: var(--ds-ok-soft); border-color: var(--ds-ok); color: var(--ds-ok); }

@@ -26,6 +26,7 @@ import {
   shootContexts, coordinatorOf, shootPrep, topicsToClose, TOPIC_NOTE, TOPICS, seenToday, seenNote, SEEN, reportedOf, blockerTask,
   dayBefore, dayBeforeResult, dayBeforeNote, dayBeforeTask, DAY_BEFORE_KEY, requestTask, requestDue, requestProblems, ackMessage,
   tellMessage, requestOf, REQUEST, TELL,
+  followupRows, followupNote, followupText, followupTask, FOLLOWUP_KEY, FOLLOWUP_NOTE_MAX,
 } from './shoot-prep.js';
 import { MISSING_TITLE, missingMessage } from './characterization.js';
 import { materialsOf, waLink, dayText } from './messages-logic.js';
@@ -49,6 +50,8 @@ const eliNotes = new Map();   // what the photographer handed over for a shoot's
 let lastAck = null;           // the request just opened: its ready "we got it" message
 let reqDraft = { client: only || '', text: '', owner: '', due: '', urgent: false };
 let reqErrors = {};
+let stuckOpen = null;         // the follow-up row whose "what is stuck" is open, by `${client}:${pre}`
+const stuckDraft = new Map(); // its topics and note while they are picked
 
 const clean = (v) => String(v ?? '').trim();
 const live = (c) => c.status === 'active' || c.status === 'ending';
@@ -65,9 +68,15 @@ async function load() {
   [requests, access] = await Promise.all([loadRequestTasks().catch(() => []), loadAccessStatuses()]);
   $('state').textContent = '';
   render();
+  if (!arrived && location.hash === '#followup' && !$('followup').hidden) {
+    arrived = true;
+    $('followup').scrollIntoView({ block: 'start' });
+    $('fu-h').focus({ preventScroll: true });
+  }
   closeClearTopics();
   primeEliNotes();
 }
+let arrived = false;
 
 // Under "אלי הצלם" in the coordinator: whether he marked that shoot's day free. Read once per date, then drawn.
 async function primeEliNotes() {
@@ -131,6 +140,7 @@ function render(focusId = document.activeElement?.id) {
   if ($('pp-summary').textContent !== summary) $('pp-summary').textContent = summary;
   fill($('pp-filter'), only ? h('a', { class: 'btn btn-sm btn-ghost', href: 'prep.html' }, 'כל הלקוחות') : null,
     only ? h('a', { class: 'btn btn-sm btn-ghost', href: cardUrl(only) }, 'לכרטיס הלקוח') : null);
+  renderFollowup(list);
   fill($('pp-shoots'), ...(list.length ? list.map(shootCard) : [h('li', { class: 'pp-card' }, h('p', { class: 'muted' }, 'אין כרגע יום צילום שצריך לסגור או להכין.'))]));
   fill($('pp-requests'), requestsBlock());
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
@@ -148,6 +158,82 @@ function shootCard(e) {
     coordinatorBlock(e, k),
     prep ? blockersBlock(e, k) : null,
     eve ? dayBeforeBlock(e, k) : null);
+}
+
+// ── 14 (protocol v8): the daily follow-up, one row per client ──
+// "הכול תקין" closes today's follow-up of that client in one tap. "משהו תקוע" opens the
+// eight topics: she picks what is stuck, writes a few words, and Lior is told (an
+// exception, as a blocker reported from this page). Nothing is ticked topic by topic.
+function renderFollowup(list, now = new Date()) {
+  const rows = followupRows({
+    clients: clients.filter((c) => !only || c.id === only), checksOf: (c) => checks[c.id] || {},
+    stateOf: (c) => clientState(c, checks[c.id] || {}, now), now,
+  });
+  $('followup').hidden = !rows.length;
+  if (!rows.length) return;
+  const left = rows.filter((r) => r.status === 'due').length;
+  $('fu-h').textContent = left ? `מעקב לפני צילום · ${left === 1 ? 'לקוח אחד' : `${left} לקוחות`} להיום` : 'מעקב לפני צילום · הכול נבדק היום';
+  fill($('pp-followup'), ...rows.map((r) => followRow(r, list, now)));
+}
+function followRow(r, list, now) {
+  const c = r.client;
+  const k = `${safeId(c.id)}-${r.n}`;
+  const key = `${c.id}:${r.pre}`;
+  const found = list.find((e) => e.c.id === c.id && e.x.n === r.n)?.prep?.blockers.length || 0;
+  const when = r.shootAt ? `צילום ${dayText(r.shootAt)}` : 'יום הצילום טרם נקבע';
+  const open = stuckOpen === key;
+  const draft = stuckDraft.get(key) || { stuck: [], note: '' };
+  const head = h('div', { class: 'pp-follow-h' },
+    h('strong', {}, h('a', { href: `#shoot-${k}` }, c.name), r.n > 1 ? ` · סבב ${r.n}` : ''),
+    h('span', { class: 'muted' }, when),
+    found ? h('a', { class: 'pp-follow-found', href: `#bl-${k}` }, `המערכת מצאה ${found === 1 ? 'חוסם אחד' : `${found} חוסמים`}`) : null);
+  if (open) {
+    return h('li', { class: 'pp-follow-row is-open', id: `fu-${k}` }, head,
+      h('fieldset', { class: 'pp-topics' }, h('legend', {}, 'מה תקוע?'),
+        ...TOPICS.map((t) => h('button', {
+          type: 'button', class: 'chip', id: `fu-${k}-t-${t.key}`, 'aria-pressed': String(draft.stuck.includes(t.key)), disabled: busy,
+          onclick: () => {
+            const on = draft.stuck.includes(t.key);
+            stuckDraft.set(key, { ...draft, stuck: on ? draft.stuck.filter((x) => x !== t.key) : [...draft.stuck, t.key] });
+            render(`fu-${k}-t-${t.key}`);
+          },
+        }, t.label))),
+      h('div', { class: 'field' }, h('label', { for: `fu-${k}-note` }, 'בכמה מילים (לא חובה)'),
+        h('input', { class: 'input', id: `fu-${k}-note`, maxlength: FOLLOWUP_NOTE_MAX, autocomplete: 'off', value: draft.note, oninput: (ev) => stuckDraft.set(key, { ...(stuckDraft.get(key) || draft), note: ev.currentTarget.value }) })),
+      h('div', { class: 'pp-acts' },
+        h('button', { type: 'button', class: 'btn btn-primary', id: `fu-${k}-save`, disabled: busy || !draft.stuck.length, onclick: () => answerFollowup(r, k, stuckDraft.get(key) || draft) }, 'שמירה והודעה לליאור'),
+        h('button', { type: 'button', class: 'btn btn-ghost', id: `fu-${k}-cancel`, disabled: busy, onclick: () => { stuckOpen = null; render(`fu-${k}-stuck`); } }, 'ביטול')));
+  }
+  if (r.answer) {
+    return h('li', { class: `pp-follow-row is-done${r.answer.ok ? '' : ' is-stuck'}`, id: `fu-${k}` }, head,
+      h('p', { class: `pp-status ${r.answer.ok ? 'is-ok' : 'is-open'}`, role: 'status' }, `${followupText(r.answer)}${r.answer.ok ? '' : ' · ליאור קיבל הודעה'} · ${formatStamp(r.answer.at)}`),
+      h('button', { type: 'button', class: 'btn-text', id: `fu-${k}-stuck`, disabled: busy, onclick: () => { stuckOpen = key; stuckDraft.set(key, { stuck: r.answer.stuck, note: r.answer.note }); render(`fu-${k}-t-${TOPICS[0].key}`); } }, r.answer.ok ? 'משהו נתקע מאז' : 'עדכון'));
+  }
+  const before = r.last && !r.last.ok ? h('p', { class: 'hint' }, `בפעם הקודמת (${dayText(r.last.at)}): ${followupText(r.last)}`) : null;
+  return h('li', { class: 'pp-follow-row', id: `fu-${k}` }, head, before,
+    h('div', { class: 'pp-acts' },
+      h('button', { type: 'button', class: 'btn btn-primary', id: `fu-${k}-ok`, disabled: busy, onclick: () => answerFollowup(r, k, { stuck: [], note: '' }) }, 'הכול תקין'),
+      h('button', { type: 'button', class: 'btn', id: `fu-${k}-stuck`, disabled: busy, onclick: () => { stuckOpen = key; render(`fu-${k}-t-${TOPICS[0].key}`); } }, 'משהו תקוע')));
+}
+async function answerFollowup(r, k, answer) {
+  if (busy) return;
+  const c = r.client;
+  busy = true;
+  let saved = false;
+  try {
+    (checks[c.id] ||= {})[FOLLOWUP_KEY(r.pre)] = await setCheck(c.id, FOLLOWUP_KEY(r.pre), 'done', followupNote(answer));
+    saved = true;
+  } catch (err) { toast(`לא נשמר. ${errorText(err)}`); }
+  if (saved && answer.stuck.length) {
+    // Lior is told: one exception per client per day (a second answer the same day does not open another).
+    const task = followupTask(c, r, answer);
+    if (!tasks.some((t) => t.client_id === c.id && !t.done_at && t.brief?.blocker === task.brief.blocker)) {
+      try { tasks.push(await insertTask(task)); toast('נשמר. ליאור קיבל הודעה.'); } catch (err) { toast(`נשמר, אבל ההודעה לליאור לא נשלחה. ${errorText(err)}`); }
+    } else toast('נשמר. ליאור כבר קיבל על זה הודעה היום.');
+  } else if (saved) toast(`${c.name}: הכול תקין להיום.`);
+  if (saved) { stuckOpen = null; stuckDraft.delete(`${c.id}:${r.pre}`); }
+  busy = false;
+  render(`fu-${k}-stuck`);
 }
 
 // ── 11: the coordinator ───────────────────

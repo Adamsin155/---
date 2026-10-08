@@ -8,7 +8,7 @@ import { SPECS, TERM_MONTHS, PACKAGES } from './catalog.js';
 import { holidayOn as closedOn, erevOn } from './holidays.js';
 import { adjustForVersion, laterDue } from './protocol-versions.js';
 import {
-  dateIL, dayKeyIL, weekdayIL, atTimeIL, endOfDayIL, addDaysIL, daysBetweenIL,
+  dateIL, dayKeyIL, weekdayIL, atTimeIL, endOfDayIL, addDaysIL, daysBetweenIL, partsIL,
 } from './tz.js';
 
 const DAY = 864e5;
@@ -94,6 +94,10 @@ const sameDay = (a, b) => dayKeyIL(a) === dayKeyIL(b);
 // are now the same moment everywhere. With no days to add it is the end of that
 // calendar day, as before (a bare date).
 export const endOfBusinessDay = (d) => closeAt(d);
+// A deadline that names a day, not an hour: the office's close of its day, or 23:59
+// (a shoot day, a bare date). The calendar feed makes it an all-day entry and the
+// "עכשיו" bar gives it no countdown, as before.
+export const isDayEnd = (d) => { const p = partsIL(d); return (p.hour === 23 && p.minute === 59) || new Date(d).getTime() === closeAt(d).getTime(); };
 export function addBusinessDays(date, n) {
   let d = new Date(date);
   let left = n;
@@ -493,7 +497,8 @@ export function bulkEligible(state, person, client, checks, now = new Date()) {
   const p = state.proc;
   if (!person || p.recurring || NO_BULK.has(p.id.replace(/^r\d+-/, '')) || state.complete) return [];
   if (state.claim && state.claim.person !== person) return [];
-  return p.items.filter((i) => !i.optional && !i.noBulk && i.owners.includes(person)
+  // An item the system looks into before taking it (`guard`) is pressed by itself.
+  return p.items.filter((i) => !i.optional && !i.noBulk && !i.guard && i.owners.includes(person)
     && !isResolved(i, checks[i.key], now) && !blockers(i, p.ctx || client, checks));
 }
 

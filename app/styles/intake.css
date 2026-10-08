@@ -160,3 +160,16 @@
 .ik-opt input[value='']:checked + span::before { content: none; }
 details.pp-sub > summary.pp-sum { cursor: pointer; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-weight: 600; }
 details.pp-sub[open] > summary.pp-sum { margin-bottom: 4px; }
+
+/* ── 14 (protocol v8; docs/ops.md, section 49): the daily follow-up before the shoot day ── */
+.pp-follow-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pp-follow-row { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); min-width: 0; }
+.pp-follow-row > * { margin: 0; min-width: 0; }
+.pp-follow-row.is-done { background: var(--ds-ok-soft); border-color: transparent; }
+.pp-follow-row.is-stuck { background: var(--warn-soft); }
+.pp-follow-h { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.pp-follow-found { font-size: 14px; }
+.pp-topics { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.pp-topics legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
+.pp-topics .chip { min-height: 44px; }
+.pp-topics .chip[aria-pressed="true"] { background: var(--warn-soft); border-color: var(--warn); }

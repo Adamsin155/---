@@ -22,6 +22,7 @@ import { ACCESS_STATUS_LABEL, NEW_STATUS } from './access-logic.js';
 import { supabase } from './supa.js';
 import { mountWorkFiles, workFilesState } from './files-ui.js';
 import { graphicsWindow, videoWindow, uploadGate, videosLinkOf } from './files-logic.js';
+import { checkMark, guardVerdict } from './mark-guards.js';
 import { charViewHref } from './intake-ui.js';
 
 const NETWORK = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', google: 'Google Business', meta: 'Meta Business', other: 'אחר' };
@@ -136,6 +137,11 @@ async function autoAccess(x, ctx) {
 
 async function mark(ctx, c, keys, state, doneText, { handoff = null } = {}) {
   const cs = (ctx.checks[c.id] ||= {});
+  // A mark the system looks into first ("הגאנט מלא" on an empty Gantt; app/mark-guards.js).
+  if (state && keys.length === 1) {
+    const verdict = await checkMark(c.id, keys[0]);
+    if (verdict?.refuse) { toast(verdict.refuse); ctx.refresh?.(); return false; }
+  }
   try {
     if (state) {
       const rows = keys.length === 1 ? [await setCheck(c.id, keys[0], 'done')] : await setChecksBulk(c.id, keys, 'done');
@@ -271,7 +277,13 @@ function restCard(x, ctx) {
     x.qa.stage === 'fixing'
       ? fixList({ client: c, checks: cs, kind: 'graphics', pre: '', fixer: 'ilai', me: ctx.me, viewer: ctx.viewer, onChange: ctx.refresh })
       : readyButton(`${idp}-ready`, 'מוכן לבדיקה (לאופיר)', gfxGate(c, cs, 'rest'),
-        (e) => { e.currentTarget.disabled = true; mark(ctx, c, ['p23.made'], true, 'יתרת הגרפיקות עברה לבדיקה של אופיר (יעד: שעה).', { handoff: 'p23.made' }); }));
+        (e) => {
+          // Fewer up than the package holds: asked, never refused (protocol v8).
+          const ask = guardVerdict('graphicsCount', { count: gfxGate(c, cs, 'rest').count, total: restTotal(c) })?.ask;
+          if (ask && !window.confirm(ask)) return;
+          e.currentTarget.disabled = true;
+          mark(ctx, c, ['p23.made'], true, 'יתרת הגרפיקות עברה לבדיקה של אופיר (יעד: שעה).', { handoff: 'p23.made' });
+        }));
 }
 
 function finalDrive(c, cs, x) {
