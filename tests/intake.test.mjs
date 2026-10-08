@@ -292,7 +292,7 @@ test('shoot blockers (14) are computed from what the system knows, by the 8 topi
   assert.deepEqual(p.topics.map((t) => t.item), TOPICS.map((t) => `p14.${t.key}`));
   const ids = p.blockers.map((b) => b.id);
   assert.deepEqual(ids, ['approvals:p13', 'scripts:p12', 'access:a1', 'team:t1']);
-  assert.match(p.blockers[1].text, /התסריטים לא מוכנים \(היעד: יום ג׳ 6\.10 23:59\)/);
+  assert.match(p.blockers[1].text, /התסריטים לא מוכנים \(היעד: יום ג׳ 6\.10 18:00\)/);
   assert.equal(p.blockers.find((b) => b.id === 'access:a1').who, 'lior');
   // An approval not late yet blocks from two business days before the shoot.
   const d = client({ char_at: IL(2026, 10, 11, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });

@@ -135,11 +135,11 @@ test('thanks after the shoot, from the next business day, with the date promised
   // 5 business days starting the business day after the shoot: Wed, Thu, Sun, Mon, Tue.
   assert.equal(s.options[0].vars['תאריך'], 'יום ג׳ 20.10');
   assert.match(messageText(s.options[0], T), /הסרטונים יהיו סגורים עד יום ג׳ 20\.10, כולל סבב תיקונים\.[\s\S]*מ־1 עד 5/);
-  assert.equal(iso(promisedClosing('2026-10-13T11:00:00+03:00')), iso(at('2026-10-20T23:59:59.999+03:00')));
+  assert.equal(iso(promisedClosing('2026-10-13T11:00:00+03:00')), iso(at('2026-10-20T18:00:00+03:00')));
   // Over a weekend and Yom Kippur (Monday 21.9): Sun 20, Tue 22, Wed 23, Thu 24, Sun 27.
-  assert.equal(iso(promisedClosing('2026-09-17T10:00:00+03:00')), iso(at('2026-09-27T23:59:59.999+03:00')));
+  assert.equal(iso(promisedClosing('2026-09-17T10:00:00+03:00')), iso(at('2026-09-27T18:00:00+03:00')));
   // Across the move to winter time: a shoot on Thursday 22.10 closes on Thursday 29.10 (+02:00).
-  assert.equal(iso(promisedClosing('2026-10-22T10:00:00+03:00')), iso(at('2026-10-29T23:59:59.999+02:00')));
+  assert.equal(iso(promisedClosing('2026-10-22T10:00:00+03:00')), iso(at('2026-10-29T18:00:00+02:00')));
 });
 
 test('videos sent: "סבב תיקונים 1 מתוך 1"; first post; campaign live', () => {

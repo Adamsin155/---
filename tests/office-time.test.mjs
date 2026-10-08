@@ -70,15 +70,15 @@ test('identical deadlines under UTC, New York and Jerusalem', () => {
   const due = (id) => iso(resolveTime(procs.find((p) => p.id === id).due, c, procs, checks, at(nows[0])));
   assert.equal(due('p01'), iso(at('2026-10-25T09:08:00+02:00'))); // Thursday 17:58 + 10 office minutes (the contract)
   assert.equal(due('p15'), iso(at('2026-10-29T11:00:00+02:00'))); // Sunday shoot: Thursday 11:00
-  assert.equal(due('p12'), iso(at('2026-10-27T23:59:59.999+02:00'))); // 2 business days from Sunday night (decision 14)
+  assert.equal(due('p12'), iso(at('2026-10-27T18:00:00+02:00'))); // 2 business days from Sunday night (decision 14)
   assert.deepEqual(runs[0].weeks, ['2026-10-18', '2026-10-25', '2026-10-25', '2026-11-01']);
   assert.equal(runs[0].late, 6); // Thursday night to the Sunday a week later: 6 business days
   assert.deepEqual(runs[0].days.map((b, i) => (b ? '1' : '0')).join('').match(/1+|0+/g).map((s) => s.length), [24, 48, 24]); // Thu, Fri–Sat off, Sun
 });
 
 test('winter time (Sunday 25.10.2026): business days, office minutes and "at 11:00"', () => {
-  // Two business days from Thursday 22.10: Sunday 25 and Monday 26, to the end of Monday in winter time.
-  assert.equal(iso(addBusinessDays(at('2026-10-22T10:00:00+03:00'), 2)), '2026-10-26T21:59:59.999Z');
+  // Two business days from Thursday 22.10: Sunday 25 and Monday 26, to the office's close on Monday (18:00) in winter time.
+  assert.equal(iso(addBusinessDays(at('2026-10-22T10:00:00+03:00'), 2)), '2026-10-26T16:00:00.000Z');
   // Office minutes over the weekend and the clock change: Thursday 17:58 + 5 min = Sunday 09:03 (+02:00).
   assert.equal(iso(addWorkingMinutes(at('2026-10-22T17:58:00+03:00'), 5)), '2026-10-25T07:03:00.000Z');
   // The day before a Tuesday 27.10 shoot is Monday 26.10: the reminder is due at 11:00 winter time.

@@ -161,6 +161,7 @@ test('the owners\' end of the day (19:00) replaced the 18:00 summary: everything
   const c = client(w, { name: 'אלפא', char_at: IL(2026, 10, 5, 10).toISOString() });
   importTo(w, c, 'char');
   marks(w, c, itemsOf('p04'), IL(2026, 10, 5, 12)); // 7, 8, 10 due 14:00 on Monday 5.10
+  marks(w, c, itemsOf('p05b'), IL(2026, 10, 5, 12, 10)); // Irit sent the logins link on time (5ב, protocol v8)
   w.tasks.push({ id: 't1', client_id: c.id, title: 'לשלוח חשבונית', owner: 'irit', due_on: '2026-10-01', created_at: IL(2026, 9, 30, 10).toISOString() });
   const at = (now) => summaryOf(buildEnv({ ...w, now }), now);
   // Monday 19:00: the task (due Thursday 1.10) is days late, and the clocks of the meeting a few hours
@@ -195,17 +196,17 @@ test('the shoot day (v6): starts when the group is opened, due the end of the ne
   const checks = { 'p02.opened': { state: 'done', at: IL(2026, 10, 4, 9, 5).toISOString() } };
   const s = clientState(c, checks, IL(2026, 10, 4, 10)).states.find((x) => x.proc.id === 'p11');
   assert.equal(hhmm(s.startAt), '4.10 09:05');
-  assert.equal(hhmm(s.dueAt), '5.10 23:59');
+  assert.equal(hhmm(s.dueAt), '5.10 18:00'); // the end of a business day is the office's close (protocol v8)
   assert.equal(s.proc.phase, 'onboarding');
   assert.ok(STATIONS[0].procs.includes('p11'));
   // Before the group: no start, no deadline.
   assert.equal(clientState(c, {}, IL(2026, 10, 4, 10)).states.find((x) => x.proc.id === 'p11').dueAt, null);
   // A client that started under version 5: as before.
   const old = clientState({ ...c, protocol_version: 5 }, checks, IL(2026, 10, 4, 10)).states.find((x) => x.proc.id === 'p11');
-  assert.equal(hhmm(old.dueAt), '13.10 23:59'); // Thursday 8.10 + 3 business days (Sunday, Monday, Tuesday)
+  assert.equal(hhmm(old.dueAt), '13.10 18:00'); // Thursday 8.10 + 3 business days (Sunday, Monday, Tuesday)
   // A shoot round starts its own 11 when it was added.
   const r = { ...c, rounds: [{ n: 2, start_at: IL(2026, 11, 1, 10).toISOString(), shoot_type: 'dms' }] };
-  assert.equal(hhmm(clientState(r, checks, IL(2026, 11, 1, 11)).states.find((x) => x.proc.id === 'r2-p11').dueAt), '2.11 23:59');
+  assert.equal(hhmm(clientState(r, checks, IL(2026, 11, 1, 11)).states.find((x) => x.proc.id === 'r2-p11').dueAt), '2.11 18:00');
 });
 
 // ── 6. The editor, assigned when the shoot day is closed ──

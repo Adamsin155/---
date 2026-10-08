@@ -62,7 +62,12 @@ test('sequence rules: send only after the review, calendar only with shoot detai
   const c = { ...base, id: 'c', char_at: '2026-10-01T08:00:00+03:00' };
   const now = at('2026-10-01T12:00:00+03:00');
   const irit = openItemsFor('irit', c, {}, clientState(c, {}, now), now).map((x) => x.item.key);
-  assert.ok(irit.includes('p07.r.logo') && !irit.includes('p07.sent'));
+  // The review needs the graphics first (protocol v8): nothing of it before Ilai hands them over.
+  assert.ok(!irit.includes('p07.r.logo') && !irit.includes('p07.sent'));
+  const made = { 'p07.made': { state: 'done', at: '2026-10-01T11:30:00+03:00' } };
+  const after = openItemsFor('irit', c, made, clientState(c, made, now), now).map((x) => x.item.key);
+  assert.ok(after.includes('p07.r.logo') && !after.includes('p07.sent'));
+  assert.ok(!openItemsFor('lior', c, made, clientState(c, made, now), now).some((x) => x.item.key.startsWith('p07.')), 'the review is Irit\'s alone');
 });
 
 test('a shared process taken by one owner leaves the other owner\'s list', () => {
@@ -342,9 +347,10 @@ test('bulk marking never marks a confirmation by the client or others', async ()
   const { bulkEligible } = await import('../app/protocol-logic.js');
   const c = { ...base, id: 'c', char_at: '2026-10-01T08:00:00+03:00' };
   const now = at('2026-10-01T12:00:00+03:00');
-  const s = clientState(c, {}, now);
+  const made = { 'p07.made': { state: 'done', at: '2026-10-01T11:30:00+03:00' } };
+  const s = clientState(c, made, now);
   const p7 = s.states.find((x) => x.proc.id === 'p07');
-  const keys = bulkEligible(p7, 'irit', c, {}, now).map((i) => i.key);
+  const keys = bulkEligible(p7, 'irit', c, made, now).map((i) => i.key);
   assert.ok(keys.includes('p07.r.logo'));
   assert.ok(!keys.includes('p07.approved') && !keys.includes('p07.sent'));
   const p13 = s.states.find((x) => x.proc.id === 'p13');

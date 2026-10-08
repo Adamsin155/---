@@ -160,7 +160,7 @@ test('A: a client activated out of landing with process 3 still open is rung fro
   const c = client(w, { deal_at: IL(2026, 3, 1, 10).toISOString(), landed_at: IL(2026, 10, 8, 10).toISOString() });
   marks(w, c, [...itemsOf('p01'), ...itemsOf('p02')], IL(2026, 10, 8, 10), IMPORT_NOTE);
   const dueAt = p03(w, c, IL(2026, 10, 8, 11)).dueAt;
-  assert.equal(hhmm(dueAt), '11.10 23:59');
+  assert.equal(hhmm(dueAt), '11.10 18:00');
   assert.deepEqual(of(due(w, IL(2026, 10, 11, 12)), 'meetingDate').map((r) => r.step), [], 'not before its deadline');
   const rows = due(w, IL(2026, 10, 12, 9, 30));
   assert.deepEqual(of(rows, 'deal'), [], 'the new deal\'s ladder is not for it');

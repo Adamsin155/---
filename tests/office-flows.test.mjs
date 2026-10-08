@@ -253,11 +253,11 @@ test('a shift mark moves the editing deadlines (22, 24, 27) by business days', (
   const c = editingClient(w);
   const now = IL(2026, 10, 20, 10);
   const due = (id) => hhmm(clientState(c, w.checks[c.id], now).states.find((s) => s.proc.id === id).dueAt);
-  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['21.10 23:59', '21.10 23:59', '22.10 23:59']);
+  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['21.10 18:00', '21.10 18:00', '22.10 18:00']);
   mark(w, c, SHIFT_KEY(''), IL(2026, 10, 20, 9), shiftNote(2, 'עצירה'));
-  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['25.10 23:59', '25.10 23:59', '26.10 23:59']);
+  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['25.10 18:00', '25.10 18:00', '26.10 18:00']);
   mark(w, c, SHIFT_KEY(''), IL(2026, 10, 20, 9), JSON.stringify({ days: 99 }));
-  assert.equal(due('p24'), '21.10 23:59');
+  assert.equal(due('p24'), '21.10 18:00');
 });
 
 // ── The pass over the clients (33) ──────────

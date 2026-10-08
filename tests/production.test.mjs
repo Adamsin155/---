@@ -157,7 +157,7 @@ test('editor states: the client approved without notes opens button 4; a text-on
   const jobs = P.editingCases(r, rc, 'nadia', clientState(r, rc, IL(2026, 11, 6, 12)));
   assert.deepEqual(jobs.map((j) => [j.round, j.pre]), [[2, 'r2.']]);
   assert.equal(P.editorState(jobs[0], rc).key, 'waiting');
-  assert.equal(hhmm(jobs[0].p24.dueAt), '10.11 23:59'); // assigned on a Friday: Sunday is day 1
+  assert.equal(hhmm(jobs[0].p24.dueAt), '10.11 18:00'); // assigned on a Friday: Sunday is day 1
 });
 
 test('the self-check and the start checks are existing items; "מוכן לבדיקה" marks the notice to Ofir last', () => {
