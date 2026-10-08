@@ -50,7 +50,7 @@ import { uploadStepOf } from './files-logic.js';
 import { mountDeals, refreshDeals } from './deal-ui.js';
 import { mountApprovals } from './approvals-ui.js';
 import { mountStaffTasks } from './staff-tasks-ui.js';
-import { mountMetricoolConnect } from './metricool-connect-ui.js';
+import { mountMetricoolConnect, syncMetricoolConnect } from './metricool-connect-ui.js';
 import { landingOf } from './deal-logic.js';
 // A link to a part of this page (#mine, #control, a sign-in link) opens that part:
 // nobody is sent to their first screen then.
@@ -2509,7 +2509,7 @@ window.addEventListener('hashchange', () => {
   if ($('app').hidden) return;
   // The address may belong to the other profile (the button at the top, a link): the tabs follow it.
   const moved = syncProfile();
-  if (moved) { applyScope(); renderMe(); }
+  if (moved) { applyScope(); renderMe(); syncMetricoolConnect(); }
   const v = viewOfHash();
   if (tabsShown().includes(v) && (v !== view || moved)) setView(v);
 });
@@ -2579,8 +2579,9 @@ mountSession(async (staff) => {
   mountDeals($('deals-card'), { me, scope, error: viewerError });
   // Exceptional contracts: the approvers decide here; Irit sees "ממתין לאישור", "אושר — אפשר לשלוח", "לא אושר".
   mountApprovals($('approvals-card'), { me, scope, error: viewerError }, { mail: staff.email, toast, changed: refreshDeals });
-  // Ilai and the owner: the active clients that are not connected to a Metricool brand yet.
-  mountMetricoolConnect($('metricool-card'), { me, scope, error: viewerError });
+  // Ilai: the active clients that are not connected to a Metricool brand yet. The owners
+  // have the card in the manager profile only ("עבודת הצוות"), not among their own tasks.
+  mountMetricoolConnect($('metricool-card'), { me, scope, error: viewerError }, { personal: () => personal });
   const fromHash = viewOfHash();
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();

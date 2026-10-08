@@ -18,7 +18,7 @@ import { fill, h, toast, capList } from './protocol-ui.js';
 import { errorText as metricoolError } from './metricool-logic.js';
 import { fetchBrands, setBrand } from './gantt-data.js';
 import {
-  canConnect, unconnected, withoutBrand, takenBy, brandChoices, optionText, clientLabel, sinceText, cardTitle, withoutTitle, ganttUrl, explainConnect, CONNECT_CAP,
+  canConnect, showsCard, unconnected, withoutBrand, takenBy, brandChoices, optionText, clientLabel, sinceText, cardTitle, withoutTitle, ganttUrl, explainConnect, CONNECT_CAP,
 } from './metricool-connect-logic.js';
 
 const BASE_COLS = 'id, name, business, status, deal_at, archived_at, metricool_blog_id, metricool_brand';
@@ -32,6 +32,8 @@ let openId = null;       // the client whose row is open
 let brands = null;       // the account's brands, once fetched
 let brandsError = null;  // the short code of a fetch that failed (asked again on the next open)
 let showNone = false;
+let mountedFor = null;         // the viewer the card was mounted for
+let inPersonal = () => false; // whether the page is in the personal profile now (the owners: no card there)
 let expanded = false;    // the card is one quiet line until asked for: the person's own work comes first
 
 // ── Data ────────────────────────────────────
@@ -168,7 +170,7 @@ const noneRow = (c) => h('li', { class: 'mcn-row is-none', 'data-client': c.id }
 function render() {
   if (!box) return;
   const list = unconnected(clients);
-  box.hidden = !list.length;
+  box.hidden = !list.length || !showsCard(mountedFor, inPersonal());
   if (box.hidden) { fill(box); return; }
   if (openId && !list.some((c) => c.id === openId)) openId = null;
   const none = marks ? withoutBrand(clients) : [];
@@ -194,8 +196,10 @@ function render() {
 
 // Mounts the card for Ilai and the owner; hidden for everyone else, and until the
 // brand columns are there.
-export async function mountMetricoolConnect(el, viewer) {
+export async function mountMetricoolConnect(el, viewer, { personal = () => false } = {}) {
   box = el;
+  mountedFor = viewer;
+  inPersonal = personal;
   if (!el || !canConnect(viewer)) { if (el) el.hidden = true; return; }
   el.classList.add('mcn-card');
   el.setAttribute('aria-labelledby', 'metricool-h');
@@ -203,6 +207,11 @@ export async function mountMetricoolConnect(el, viewer) {
   await refreshMetricoolConnect();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMetricoolConnect(); });
   setInterval(() => { if (!document.hidden) refreshMetricoolConnect(); }, 60e3);
+}
+
+// The page moved between the two profiles (the owners): the card follows, with no new read.
+export function syncMetricoolConnect() {
+  if (box && active) render();
 }
 
 export async function refreshMetricoolConnect({ force = false } = {}) {

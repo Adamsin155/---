@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  CONNECTORS, canConnect, CONNECT_CAP, clientLabel, unconnected, withoutBrand, takenBy, brandChoices, optionText, sinceText, cardTitle, withoutTitle, ganttUrl, explainConnect,
+  CONNECTORS, canConnect, showsCard, CONNECT_CAP, clientLabel, unconnected, withoutBrand, takenBy, brandChoices, optionText, sinceText, cardTitle, withoutTitle, ganttUrl, explainConnect,
 } from '../app/metricool-connect-logic.js';
 import { PROTOCOL_VERSION } from '../app/protocol.js';
 
@@ -27,6 +27,19 @@ test('who has the card: Ilai and the owner, nobody else', () => {
   assert.equal(canConnect(viewer(null, 'own')), false, 'a login with no role');
   assert.equal(canConnect({ me: 'ilai', scope: 'office', error: 'x' }), false, 'an unknown viewer');
   assert.equal(canConnect(null), false);
+});
+
+// 8.10.2026: connecting the clients is Ilai's task. The owners may connect too, but the
+// card is not among their own tasks: only in the manager profile's "עבודת הצוות".
+test('where the card is shown: always for Ilai; for the owners not in the personal profile', () => {
+  const viewer = (me, scope = 'office') => ({ me, scope, error: null });
+  for (const personal of [false, true]) assert.equal(showsCard(viewer('ilai'), personal), true, `Ilai, personal=${personal}`);
+  assert.equal(showsCard(viewer(null), true), false, 'the owner, in "המשימות שלי"');
+  assert.equal(showsCard(viewer(null), false), true, 'the owner, in the manager profile');
+  assert.equal(showsCard(viewer(null)), true);
+  for (const me of ['irit', 'lior', 'ofir']) for (const personal of [false, true]) assert.equal(showsCard(viewer(me), personal), false, me);
+  for (const me of ['nadia', 'nirel', 'eli', 'stav', 'amos']) assert.equal(showsCard(viewer(me, 'own'), false), false, me);
+  assert.equal(showsCard(null, false), false);
 });
 
 test('the list: active and ending clients with no brand, the oldest deal first', () => {
