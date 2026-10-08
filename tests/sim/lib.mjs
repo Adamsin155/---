@@ -202,6 +202,12 @@ export class Sim {
       if (body.p_whatsapp) db.client_consents.push({ quote_id: q.id, kind: "whatsapp", given: true, at: now, phone: c.phone, version: "whatsapp-v1", revoked_at: null, revoked_via: null });
       return [200, quoteView(q)];
     }
+    // client_messages_stamp: the row comes back with who sent it and when.
+    if (p === "/rest/v1/client_messages" && method === "POST" && me) {
+      const row = { id: randomUUID(), created_at: now, ...body, sent_at: now, sent_by_email: me.email };
+      db.client_messages.push(row);
+      return [201, single ? row : [row]];
+    }
     // Storage (tests/package1-e2e.mjs): an upload is accepted; the row of the file is written by the page itself.
     if (p.startsWith("/storage/v1/object/client-files/") && method === "POST") return me ? [200, { Key: p.replace("/storage/v1/object/", "") }] : [400, { message: "not allowed" }];
     if (p === "/storage/v1/object/client-files" && method === "DELETE") return [200, []];
@@ -215,6 +221,8 @@ export class Sim {
     const ctx = await this.browser.newContext({ locale: "he-IL", timezoneId: "Asia/Jerusalem", viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 900 }, isMobile: phone, hasTouch: phone });
     await ctx.clock.install({ time: this.now });
     await ctx.route(`${SUPA}/**`, this.fake.route);
+    // Nothing leaves the machine: WhatsApp, Drive, Metricool and every other outside address is refused.
+    await ctx.route((u) => !["127.0.0.1", new URL(SUPA).hostname].includes(u.hostname) && /^https?:$/.test(u.protocol), (r) => { this.blocked = (this.blocked || 0) + 1; return r.abort(); });
     const page = await ctx.newPage();
     page.setDefaultTimeout(10000);
     page.errors = [];
@@ -334,6 +342,8 @@ export class Sim {
     this.lastTick = new Date(until);
     return this.db.reminder_log.slice(before);
   }
+  // Jumps over months with no tick in between (the renewal window): said in the report, never silent.
+  jump(to, why) { this.setNow(to); this.lastTick = new Date(to.getTime() - MIN); this.nudges.push({ at: this.iso(), what: `השעון קפץ ל־${stamp(to)} בלי להריץ את התזכורות בדרך: ${why}` }); }
   // Moves the clock to `to`, ticking on the way (so nothing that was due in between is skipped).
   async until(to, opts) { this.setNow(to); return this.tick(this.now, opts); }
 }

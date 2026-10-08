@@ -163,7 +163,9 @@ export async function editorGo(sim, role, { link = null, shot = null } = {}) {
   const card = page.locator(`[id="c-${cid}"]`);
   const out = { card: (await card.innerText().catch(() => "(אין כרטיס)")).replace(/\s+/g, " ").slice(0, 600), taps: 0 };
   if (shot) out.shot = await shotOf(sim, page, role, shot);
-  const go = page.locator(`[id="c-${cid}-go"]`);
+  // The one button of the card; after a return for fixes it is "סמן הכול תוקן".
+  const main = page.locator(`[id="c-${cid}-go"]`);
+  const go = (await main.count()) ? main : page.locator("button.fix-all").first();
   if (!(await go.count())) { out.result = "אין כפתור בכרטיס"; await ctx.close(); return out; }
   out.button = (await go.innerText()).trim();
   if (await go.isDisabled()) { out.result = `הכפתור נעול: ${(await page.locator(`[id="c-${cid}-lock"]`).innerText().catch(() => "")).replace(/\s+/g, " ")}`; await ctx.close(); return out; }
@@ -209,7 +211,14 @@ export async function ofirQa(sim, { fixes = null, shot = null } = {}) {
     }
     await page.click("#qa-send-return"); out.taps += 1;
   } else {
-    for (const box of await page.locator("#dlg-qa input[type=checkbox]:not(:disabled)").all()) { if (!(await box.isChecked())) { await box.check(); out.taps += 1; } }
+    // Every check of the list, one by one (the list is drawn again after each mark).
+    for (let i = 0; i < 14; i += 1) {
+      const open = page.locator("#dlg-qa input[type=checkbox]:not(:checked):not(:disabled)").first();
+      if (!(await open.count())) break;
+      await open.check(); out.taps += 1;
+      await settle(page, 250);
+    }
+    out.checks = (await page.locator("#qa-checks-box").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 300);
     await page.click("#qa-approve"); out.taps += 1;
   }
   await settle(page, 800);

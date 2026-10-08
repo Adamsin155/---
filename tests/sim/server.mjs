@@ -17,6 +17,13 @@ export function triggers(sim) {
   const db = sim.db;
   const now = sim.iso();
   const done = (cid, key) => db.protocol_checks.some((x) => x.client_id === cid && x.item_key === key && ["done", "na"].includes(x.state));
+  // client_messages_stamp: who sent a message to the client, and when.
+  for (const m of db.client_messages) { if (!m.sent_at) { m.sent_at = m.created_at || now; m.sent_by_email ||= m.by_email || null; } }
+  // client_questions_stamp: who asked and when; who answered and when.
+  for (const q of db.client_questions || []) {
+    if (!q.asked_at) { q.asked_at = q.created_at || now; q.asked_by ||= q.created_by_email || q.by_email || null; }
+    if (q.answer && !q.answered_at) { q.answered_at = now; q.answered_by ||= db.staff.find((s) => s.person === q.to_person)?.email || null; }
+  }
   // client_fix_tasks_close (20260930170000_client_status.sql): the fix task closes with the approval, or with the fixes of the videos.
   for (const t of db.client_tasks) {
     if (t.source !== "client_fix" || t.done_at) continue;
