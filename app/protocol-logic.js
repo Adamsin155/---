@@ -588,7 +588,13 @@ export function clientState(client, checks = {}, now = new Date()) {
       const ctx = s.proc.ctx || client;
       const item = s.proc.items[0];
       const end = s.proc.until ? realAnchor(s.proc.until, ctx, procs, checks, now) : null;
-      const over = (!!end && dayKeyIL(now) >= dayKeyIL(end)) || isImported(s.proc, checks);
+      // Over: the day came; or the shoot day is behind the client although no date says
+      // so (its closing, 19, is done or was brought in as history: an old client with no
+      // shoot date on record is not asked about a shoot that took place long ago).
+      const round = /^(r\d+-)/.exec(s.proc.id)?.[1] || '';
+      const closing = ANCHOR_PROC[s.proc.until] ? states.find((x) => x.proc.id === `${round}${ANCHOR_PROC[s.proc.until]}`) : null;
+      const over = (!!end && dayKeyIL(now) >= dayKeyIL(end)) || isImported(s.proc, checks)
+        || !!(closing && (closing.complete || isImported(closing.proc, checks)));
       const started = !!(s.startAt && s.startAt <= now);
       s.ready = !quiet && started && !over && client.status !== 'cancelled' && client.status !== 'ended';
       s.over = over;
