@@ -757,8 +757,6 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
 }
 .rv-check > .fin:checked ~ .wlabel { color: inherit; text-decoration: none; }
 .rv-main > .rv-check, .rv-row > .rv-check { flex: 1 1 280px; }
-.il-checks { display: grid; }
-.il-checks .wrow, .il-part > .wrow { display: flex; }
 /* The client card: text | "לא רלוונטי" | pill, in columns the label shares (subgrid), so the
    whole row still ticks the box and the pill keeps its place when "לא רלוונטי" leaves. */
 .item.fin-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0; }
