@@ -274,7 +274,9 @@ const cardOf = (page, business) => page.locator('.land-card', { hasText: busines
 const showItems = async (page, business) => { const d = cardOf(page, business).locator('details.land-more'); if (!(await d.evaluate((e) => e.open))) await d.locator('summary').click(); };
 const cards = (page) => page.locator('.land-card').evaluateAll((els) => els.map((e) => e.dataset.id));
 const toastOf = (page) => page.locator('#toast.on > span').innerText();
-const lineOf = async (page) => ((await page.locator('#land-line').isHidden()) ? null : (await page.locator('#land-line').innerText()).replace(/\s+/g, ' ').trim());
+// The landing line itself; the counted lines of work on those clients sit under it (docs/ops.md, section 46).
+const LAND = '#land-line a.land-line:not(.flow-line)';
+const lineOf = async (page) => ((await page.locator(LAND).count()) && !(await page.locator(LAND).isHidden()) ? (await page.locator(LAND).innerText()).replace(/\s+/g, ' ').trim() : null);
 const lateMarks = (page, root) => page.evaluate((r) => [...document.querySelectorAll(`${r} .s-overdue, ${r} .is-late, ${r} .late, ${r} .tag-warn, ${r} .tag-urgent`)].filter((e) => e.offsetParent).length, root);
 const lastTake = () => calls.filter((c) => c.fn === 'landing_take').at(-1);
 const settle = async (page) => { await page.waitForLoadState('networkidle'); await page.waitForTimeout(80); };
@@ -297,6 +299,8 @@ try {
   await step('Irit, 390px: one line at the top of "המשימות שלי"; the old clients are in no list and no clock, the client signed today is', async () => {
     assert.ok(iritAtStart.length >= 3 && ['קפה דנה', 'מוסך הצפון', 'פיצה רון'].every((b) => iritAtStart.some((x) => x.client.business === b)), 'the scenario');
     assert.equal(await lineOf(irit), `יש ${iritAtStart.length} לקוחות קיימים לקלוט לקליטה`);
+    // Work that waits for her on those clients is said under it, with no clock (section 46).
+    for (const t of await irit.locator('#land-line a.flow-line strong').allInnerTexts()) assert.match(t, /· בקליטה, בלי שעון$/);
     // The line is the first thing under the tabs, above the panel and its cards.
     assert.equal(await irit.evaluate(() => document.getElementById('view-mine').previousElementSibling.id), 'land-line');
     assert.equal(await irit.locator('#view-mine > *').first().getAttribute('id'), 'now-bar');
@@ -312,7 +316,7 @@ try {
   });
 
   await step('the intake screen: her clients, her items only, three choices each, no clock and no colour of lateness', async () => {
-    await irit.click('#land-line a');
+    await irit.click(LAND);
     await irit.locator('.land-card').first().waitFor();
     assert.deepEqual((await cards(irit)).sort(), iritAtStart.map((x) => x.client.id).sort());
     assert.equal((await irit.locator('#land-progress .land-count').innerText()).trim(), `נשארו ${iritAtStart.length} מתוך ${iritAtStart.length} לקוחות`);
@@ -472,7 +476,7 @@ try {
     const hers = listOf('nadia');
     assert.deepEqual(hers.map((x) => x.client.business), ['סטודיו נועה']);
     assert.equal(await lineOf(nadia), 'יש לקוח קיים אחד לקלוט לקליטה');
-    await nadia.click('#land-line a');
+    await nadia.click(LAND);
     await nadia.locator('.land-card').first().waitFor();
     assert.deepEqual(await cards(nadia), [C('סטודיו נועה').id]);
     const keys = await nadia.locator('.land-choice[data-choice="done"]').evaluateAll((els) => els.map((e) => e.dataset.key));
@@ -546,7 +550,7 @@ try {
     await signIn(owner, 'clients.html#mine', 'owner');
     const b = board();
     assert.equal(await lineOf(owner), `${b.total} לקוחות קיימים עדיין בקליטה להפעלה`);
-    await owner.click('#land-line a');
+    await owner.click(LAND);
     await owner.locator('#landing:not([hidden]) h2').waitFor();
     assert.equal((await owner.locator('#landing h2').innerText()).trim(), 'קליטת הלקוחות הקיימים');
     assert.match(await owner.locator('#landing').innerText(), new RegExp(`${b.total} לקוחות בקליטה: בלי שעונים, בלי איחורים ובלי התראות, עד שמפעילים`));
