@@ -1633,7 +1633,7 @@ where created_by_email = 'system' and quote_id is null and archived_at is null
 
 ## 44. "סיימתי": סימון משימה ככפתור בקצה השורה (בחירת הבעלים, "עיצוב 1", 8.10.2026)
 
-*שינוי מראה בלבד: אין מיגרציה, אין פונקציה, אין סוד. פרסום האתר בלבד. העיצוב: סוף `app/styles/protocol.css`. המסכים: `app/clients.js`, `app/client-card.js`, `app/month-ui.js`, `app/ilai-card.js` (רק שם מחלקה). הבדיקה: `tests/protocol-e2e.mjs`. התמונות: `docs/design/done-pill/` (לפני ואחרי, 390 ו־1280 פיקסלים, מהמשרד המדומה של `tests/roles-world.mjs`; `shots.mjs` מצלם אותן מחדש).*
+*שינוי מראה בלבד: אין מיגרציה, אין פונקציה, אין סוד. פרסום האתר בלבד. העיצוב: סוף `app/styles/protocol.css`, ושתי שורות ב־`app/styles/office-flows.css` (הסימונים של עילאי, כל אחד בשורה משלו). המסכים: `app/clients.js`, `app/client-card.js`, `app/month-ui.js`, `app/ilai-card.js` (רק שם מחלקה). הבדיקה: `tests/protocol-e2e.mjs`. התמונות: `docs/design/done-pill/` (לפני ואחרי, 390 ו־1280 פיקסלים, מהמשרד המדומה של `tests/roles-world.mjs`; `shots.mjs` מצלם אותן מחדש).*
 
 **מה לא השתנה:** מה פירוש סימון, מי רשאי לסמן, המפתחות, המועדים, נוסח המשימות, מה שנשלח למסד, ואיך מבטלים סימון.
 
