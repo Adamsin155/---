@@ -18,7 +18,7 @@ import {
   loadStatusNotes, saveAccess,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, formatDay, formatStamp, mountSession, directory, viewerOf, who, taskBadge, briefDetails, capList
+  $, fill, h, toast, errorText, personChip, formatDay, formatStamp, mountSession, directory, viewerOf, who, taskBadge, briefDetails, capList, landingTag,
 } from './protocol-ui.js';
 import {
   urgentState, parseReport, exceptionPath, PATH, decisionRow, linkedTitle, pausedSinceYesterday, decisionNote, withEditor, campaignCheck,
@@ -148,7 +148,7 @@ function render() {
   if (cc.show) renderCampaigns(cc, now);
   $('ls-n').textContent = String(list.length);
   fill($('ls-list'), ...(list.length ? list.map((r) => h('li', { class: 'of-card' },
-    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: r.url }, r.title), r.overdue ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
+    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: r.url }, r.title), landingTag(clientOf(r.clientId)), r.overdue && clientOf(r.clientId)?.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
     r.body ? h('p', { class: 'of-line' }, r.body) : null)) : [h('li', { class: 'empty' }, 'אין כרגע הסלמות ברשימות.')]));
   // Long queues are short on the screen: the first five and "הצג עוד" (the count stays whole).
   for (const id of ['ex-list', 'ur-list', 'ac-list', 'pz-list', 'ls-list']) capList($(id), 5, `dc:${id}`);
@@ -178,7 +178,7 @@ function exceptionCard(t, now) {
   const id = `ex-${t.id}`;
   return h('li', { class: `of-card dc-card${t.urgent ? ' is-late' : ''}`, id: `${id}-card` },
     h('div', { class: 'of-head' },
-      h('a', { class: 'wclient', href: clientUrl(c.id, 'tasks') }, clientLabel(c)), taskBadge(t),
+      h('a', { class: 'wclient', href: clientUrl(c.id, 'tasks') }, clientLabel(c)), landingTag(c), taskBadge(t),
       rep.reason ? h('span', { class: 'wtitle' }, rep.reason) : null),
     h('p', { class: 'dc-report' }, rep.details || t.title),
     h('p', { class: 'of-line muted' }, `${rep.proc ? `${rep.proc} · ` : ''}דווח ע״י ${who(t.created_by_email) || '—'} · ${formatStamp(t.created_at)}`),
@@ -265,7 +265,7 @@ function urgentCard({ t, u }, now) {
   const c = clientOf(t.client_id);
   const id = `ur-${t.id}`;
   return h('li', { class: `of-card${u.returned ? ' is-late' : ''}` },
-    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'tasks') }, clientLabel(c)), personChip(t.owner), taskBadge(t),
+    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'tasks') }, clientLabel(c)), landingTag(c), personChip(t.owner), taskBadge(t),
       u.returned ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'חזרה אליך') : null),
     h('p', { class: 'of-line' }, t.title),
     h('p', { class: 'of-line muted' }, u.started ? `התחיל/ה ${formatStamp(u.startedAt)}` : u.returned ? `לא נלחץ ״התחלתי״ עד ${hm(u.deadline)}` : `״התחלתי״ עד ${hm(u.deadline)}`),
@@ -295,7 +295,7 @@ function accessCard(a, now) {
   const fix = readAccessFix(checks[c.id]?.[accessFixedKey(a.network)]);
   const partial = fix?.partial && fix.at >= new Date(new Date(a.updated_at).getTime() - 5 * 6e4) ? fix : null;
   return h('li', { class: 'of-card is-late' },
-    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'access') }, clientLabel(c)), h('span', { class: 'wtitle' }, NETWORK[a.network] || a.network)),
+    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'access') }, clientLabel(c)), landingTag(c), h('span', { class: 'wtitle' }, NETWORK[a.network] || a.network)),
     h('p', { class: 'of-line' }, partial ? [h('span', { class: 'tag tag-warn' }, 'תוקן חלקית'), ` עדיין חסר: ${partial.missing} · ${formatStamp(partial.at)}`] : `לא עובדת מאז ${formatStamp(a.updated_at)}${a.note ? ` · ${a.note}` : ''}`),
     h('div', { class: 'of-acts' },
       h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-ok`, onclick: (e) => closeAccess(a, false, '', e.currentTarget) }, 'תוקן')),
@@ -340,7 +340,7 @@ function pausedCard(p, load, now) {
   // The suggestion: the business days paused so far, less what was already moved.
   const days = Math.max(1, businessDaysBetween(new Date(p.pause.at), now) - shift);
   return h('li', { class: 'of-card' },
-    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, p.state.proc.id) }, clientLabel(c)), p.n ? h('span', { class: 'wtitle' }, `סבב ${p.n}`) : null,
+    h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, p.state.proc.id) }, clientLabel(c)), landingTag(c), p.n ? h('span', { class: 'wtitle' }, `סבב ${p.n}`) : null,
       p.editor ? personChip(p.editor) : null, h('span', { class: 'tag tag-warn' }, 'עצורה')),
     h('p', { class: 'of-line' }, `עצורה מאז ${formatStamp(p.pause.at)}${p.pause.stage ? ` · שלב: ${p.pause.stage}` : ''}${p.pause.left ? ` · נשאר: ${p.pause.left}` : ''}${p.pause.why ? ` · ${p.pause.why}` : ''}`),
     proposal ? h('p', { class: 'of-line' }, h('strong', {}, 'הצעת אופיר לפי העומס: '), `${PEOPLE[proposal].name} (${loadText(load[proposal])})`) : null,
@@ -400,7 +400,7 @@ function renderCampaigns(cc, now) {
   const liveCampaigns = clients.filter(live).filter((c) => stateOf(c).states.find((s) => s.proc.id === 'p30')?.complete);
   fill($('cp-body'),
     h('p', { class: 'of-line' }, cc.done ? `בוצעה השבוע · ${who(cc.done.by_email)} · ${formatStamp(cc.done.at)}` : cc.late ? 'היום המוצע היה שלישי. עוד לא בוצעה השבוע.' : 'היום: ביצועים, לידים, עלויות וקריאייטיבים, לפני השיחות השבועיות.'),
-    liveCampaigns.length ? h('ul', { class: 'of-jobs' }, ...liveCampaigns.map((c) => h('li', {}, h('a', { href: clientUrl(c.id, 'p30') }, c.name)))) : h('p', { class: 'muted' }, 'אין לקוחות עם קמפיין פעיל.'),
+    liveCampaigns.length ? h('ul', { class: 'of-jobs' }, ...liveCampaigns.map((c) => h('li', {}, h('a', { href: clientUrl(c.id, 'p30') }, c.name), c.landing === true ? [' ', landingTag(c)] : null))) : h('p', { class: 'muted' }, 'אין לקוחות עם קמפיין פעיל.'),
     cc.done ? null : h('div', { class: 'of-acts' }, h('button', {
       type: 'button', class: 'btn btn-sm btn-primary', id: 'cp-done',
       onclick: async (e) => {
@@ -418,7 +418,7 @@ function requestCard(r) {
   const c = r.client_id ? clientOf(r.client_id) : null;
   const id = `cq-${r.id}`;
   return h('li', { class: 'of-card' },
-    h('div', { class: 'of-head' }, h('strong', {}, `מ${who(r.created_by_email) || 'אופיר'}`), h('span', { class: 'muted' }, formatStamp(r.created_at)), c ? h('a', { class: 'wclient', href: clientUrl(c.id) }, clientLabel(c)) : null),
+    h('div', { class: 'of-head' }, h('strong', {}, `מ${who(r.created_by_email) || 'אופיר'}`), h('span', { class: 'muted' }, formatStamp(r.created_at)), c ? [h('a', { class: 'wclient', href: clientUrl(c.id) }, clientLabel(c)), landingTag(c)] : null),
     h('dl', { class: 'call-sum' }, h('dt', {}, 'הבעיה'), h('dd', {}, r.problem), h('dt', {}, 'למה מפריע'), h('dd', {}, r.why), h('dt', {}, 'ההצעה'), h('dd', {}, r.proposal)),
     h('form', { class: 'dc-inline', novalidate: true, onsubmit: async (e) => {
       e.preventDefault();
@@ -436,6 +436,13 @@ function requestCard(r) {
 }
 
 // ── Boot ────────────────────────────────────
+function goToSection(hash) {
+  const el = /^#[a-z]+-h$/.test(hash) ? document.getElementById(hash.slice(1)) : null;
+  if (!el || !$('dc-page').contains(el) || !el.getClientRects().length) return;
+  el.scrollIntoView({ block: 'start' });
+  el.focus({ preventScroll: true });
+}
+window.addEventListener('hashchange', () => { if (!$('dc-page').hidden) goToSection(location.hash); });
 $('btn-refresh').addEventListener('click', () => load());
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('app').hidden && !document.activeElement?.closest('form')) load(); });
 setInterval(() => {
@@ -456,4 +463,6 @@ mountSession(async (staff) => {
   // "חוזים חריגים לאישור": first on Lior's screen (the owner and Ofir decide here too).
   mountApprovals($('approvals-card'), v, { mail: staff.email, toast });
   await load();
+  // A link to one of the queues (from "המשימות שלי": decisions.html#pz-h, #cq-h …): the page opens on it.
+  goToSection(location.hash);
 });

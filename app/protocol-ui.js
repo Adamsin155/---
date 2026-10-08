@@ -48,6 +48,10 @@ export function errorText(err) {
 }
 
 // Person chip: always the name in text; the colour is only a secondary cue.
+// A client from the old system that was not activated yet (docs/ops.md, sections 41 and
+// 46): the same quiet "בקליטה" mark next to its name on every page that lists its work.
+export const LANDING_TITLE = 'לקוח מהמערכת הישנה: בלי שעונים והתראות עד שיופעל';
+export const landingTag = (client) => (client?.landing === true ? h('span', { class: 'tag tag-landing', title: LANDING_TITLE }, 'בקליטה') : null);
 export const personChip = (key, extra = '') => h('span', { class: `pchip p-${key} ${extra}`.trim() }, PEOPLE[key]?.name || key);
 export const peopleChips = (keys) => h('span', { class: 'pchips' }, ...keys.map((k) => personChip(k)));
 

@@ -40,6 +40,13 @@ export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office'
   const round = Number(/^r(\d+)-/.exec(String(procId))?.[1] || 1);
   const r = round > 1 ? `&round=${round}` : '';
   const go = (href, label) => h('a', { class: 'btn btn-sm ik-go', href }, label);
+  // Ofir's queue (qa.html): the assignment (22א) opens there on this client, and his
+  // quality control of the videos (25) is done there (docs/ops.md, section 46). For him
+  // and for the owners' view of the team; never for Irit, whom that page refuses.
+  if (me === 'ofir' || me === null) {
+    if (b === 'p22a' && !complete && checks[`${round > 1 ? `r${round}.` : ''}p22a.assigned`]?.state !== 'done') return go(`qa.html#assign-${enc(clientId)}${round > 1 ? `-r${round}` : ''}`, 'שיוך עורך');
+    if (b === 'p25' && !complete) return go('qa.html#qa-h', 'לבקרת האיכות');
+  }
   if (b === 'p04' && !complete) return go(`intake.html?id=${enc(clientId)}#${checks[CHAR_ENDED]?.state === 'done' ? 'form' : 'end'}`, checks[CHAR_ENDED]?.state === 'done' ? 'לטופס האפיון' : 'האפיון הסתיים');
   if (b === 'p12a') return go(`intake.html?id=${enc(clientId)}${r}#focus`, 'טופס שיחת הדגשים');
   if (b === 'p12' && writesScripts(me, scope)) return go(scriptsHref(clientId, round), 'כתיבת תסריטים');

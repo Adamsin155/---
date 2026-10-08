@@ -474,6 +474,25 @@ dialog.dlg-wide .dlg-body { max-height: calc(100vh - 200px); overflow: auto; dis
 }
 .land-line span { color: var(--ds-navy-text); font-weight: 600; }
 .land-line:hover { background: var(--ds-soft-2); }
+/* Work that waits on another page: one counted line, and the whole row is the link
+   (docs/ops.md, section 46). With a clock it sits in its group of the list. Of a client
+   in landing it sits under the landing line, quiet: no colour, the dashed edge of the
+   "בקליטה" tag. */
+.wproc.flow-card { border: 0; padding: 0; background: transparent; }
+.flow-card .flow-line {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px;
+  min-height: 48px; padding: 8px 14px; border-radius: var(--radius-md);
+  background: var(--ds-surface); color: var(--ds-ink); text-decoration: none;
+  border-inline-start: 3px solid var(--ds-navy-text);
+}
+.flow-card .flow-line strong { flex: 1 1 180px; min-width: 0; font-weight: 600; font-size: 14.5px; line-height: 1.4; }
+.flow-card .flow-go { color: var(--ds-navy-text); font-weight: 600; font-size: 14px; white-space: nowrap; }
+.flow-card .flow-line:hover { background: var(--ds-soft); }
+.wprocs:not(:has(> .wc)) > .flow-card { padding: 6px 0; }
+.land-line.is-landing { background: transparent; border: 1px dashed var(--ds-line-strong); }
+.land-line.is-landing strong { flex: 1 1 180px; min-width: 0; font-weight: 500; color: var(--ds-ink-2); }
+.land-line.is-landing:hover { background: var(--ds-soft); }
+#land-line .land-line + .land-line { margin-top: -4px; }
 .land-quiet-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .land-quiet-list .wclient { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
 .land-quiet-list ul { margin: 0; padding-inline-start: 18px; color: var(--ds-ink-2); }
