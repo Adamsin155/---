@@ -1006,7 +1006,9 @@ function renderMine() {
   showMonths($('my-months'), { person, me, office: worksCycle({ me, scope, error: viewerError }), clients, stateOf, checks, short: !full });
 
   const nothing = person === me ? 'אין כרגע משהו פתוח אצלך.' : person ? `אין כרגע משהו פתוח אצל ${PEOPLE[person].name}.` : 'אין כרגע פריטים פתוחים.';
-  if (!clients.length) {
+  // With no client at all the list is still not empty when something waits on another
+  // page (a contract out for signature is there before its client exists; section 47).
+  if (!clients.length && !flow.some((f) => f.bucket !== 'landing')) {
     fill(wrap, h('p', { class: 'empty' }, own ? nothing : 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.'));
     return;
   }

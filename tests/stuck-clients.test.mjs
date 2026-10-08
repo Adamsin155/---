@@ -235,7 +235,9 @@ test('B: Irit rings after a business day and then daily in her digest, Lior afte
   // The day it was sent: nothing yet.
   assert.deepEqual(of(due(w, IL(2026, 10, 11, 18, 5)), 'unsigned'), []);
   assert.deepEqual(of(due(w, IL(2026, 10, 12, 9, 10)), 'unsigned'), []);
-  const mon = due(w, IL(2026, 10, 12, 9, 11));
+  // Her ring is a ring: one that would fall in the window the morning digest swallows (09:00 to 09:30) rings right after it.
+  assert.deepEqual(of(due(w, IL(2026, 10, 12, 9, 11)), 'unsigned').map((r) => r.step), ['seller']);
+  const mon = due(w, IL(2026, 10, 12, 9, 31));
   assert.deepEqual(of(mon, 'unsigned').map((r) => `${r.step}@${r.person}:${r.level}`).sort(), ['irit@irit:ring', 'seller@stav:quiet']);
   const ring = of(mon, 'unsigned', 'irit')[0];
   assert.equal(ring.title, 'ההסכם עוד לא נחתם: מאפיית הדקל');
@@ -260,11 +262,11 @@ test('B: Irit rings after a business day and then daily in her digest, Lior afte
   // A contract Irit built directly has no seller: only she and Lior hear.
   const direct = world();
   direct.unsigned.push(quote({ created_by_email: 'owner@x' }));
-  assert.deepEqual(of(due(direct, IL(2026, 10, 12, 9, 11)), 'unsigned').map((r) => r.person), ['irit']);
+  assert.deepEqual(of(due(direct, IL(2026, 10, 12, 9, 31)), 'unsigned').map((r) => r.person), ['irit']);
   // A seller who is not a field agent (the owner sold it himself) is not written to.
   const own = world();
   own.unsigned.push(quote({ seller_email: 'owner@x' }));
-  assert.deepEqual(of(due(own, IL(2026, 10, 12, 9, 11)), 'unsigned').map((r) => r.person), ['irit']);
+  assert.deepEqual(of(due(own, IL(2026, 10, 12, 9, 31)), 'unsigned').map((r) => r.person), ['irit']);
 });
 
 test('B: when the validity runs out unsigned, Irit rings once more and the daily lines stop', () => {

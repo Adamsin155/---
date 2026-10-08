@@ -1585,6 +1585,9 @@ import { isSales } from './protocol.js';
 import {
   UNSIGNED, UNSIGNED_URL, waitsForSignature, expiredUnsigned, unsignedTimes, businessOf as unsignedBusiness, sentWords,
 } from './unsigned-logic.js';
+// A ring that would fall in the window the morning digest swallows (FOLD) rings right
+// after it instead: it asks for a phone call, and must not become one line among others.
+const pastFold = (d) => (d >= atIL(d, FOLD.from) && d <= atIL(d, FOLD.to) ? new Date(atIL(d, FOLD.to).getTime() + MIN) : d);
 export const MEETING_DATE = {
   follows: 'irit',          // process 3 is hers
   manager: 'lior',
@@ -1628,7 +1631,7 @@ RULES.push(
         out.push({
           id: `${q.id}@${t.since.toISOString()}`, cid: null, quote: q, name: unsignedBusiness(q), lapsed, url: UNSIGNED_URL,
           seller: isSales(seller) ? seller : null,
-          anchors: { event: t.since, ring: t.ring, manager: t.manager, sellerAt: t.seller, expires: t.expires, lapsedAt: t.expires ? nextSendMoment(t.expires) : null },
+          anchors: { event: t.since, ring: pastFold(t.ring), manager: t.manager, sellerAt: t.seller, expires: t.expires, lapsedAt: t.expires ? nextSendMoment(t.expires) : null },
         });
       }
       return out;

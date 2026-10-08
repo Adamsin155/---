@@ -375,6 +375,7 @@ export function scrapeMine() {
     when: t(li.querySelector(".wc-when")) || t(li.querySelector(".sbadge")) || null,
     due: li.querySelector(".wc-due")?.textContent || null,
     title: t(li.querySelector(".wc-title")) || t(li.querySelector(".wtitle")) || null,
+    need: t(li.querySelector(".wneed span")) || null,
     go: [...li.querySelectorAll("a.ik-go, a.wc-go, a.btn")].map((a) => `${t(a) || a.textContent} -> ${a.getAttribute("href")}`),
     buttons: [...li.querySelectorAll("button")].map((b) => b.textContent.trim()).filter(Boolean),
     items: [...li.querySelectorAll(".witem")].map((it) => ({ label: it.querySelector(".wlabel")?.textContent || "", disabled: !!it.querySelector("input")?.disabled, via: [...it.children].filter((x) => !x.matches("label")).map((x) => x.textContent.replace(/\s+/g, " ").trim()).join(" | ") || null, id: it.querySelector("input")?.id || null })),

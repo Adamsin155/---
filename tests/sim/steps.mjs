@@ -11,7 +11,7 @@ export function brief(snap) {
     landed: snap.landed,
     top: snap.top || [],
     lines: snap.lines || [],
-    cards: (snap.cards || []).filter((c) => !(c.key || "").startsWith("flow:")).map((c) => `[${c.group}] ${c.when || "-"} | ${c.client} | ${c.title || c.text || ""}${c.items?.length ? ` | ${c.items.map((i) => `${i.label}${i.disabled ? " (לא כאן)" : ""}`).join("; ")}` : ""}${c.go?.length ? ` | קישור: ${c.go.join(", ")}` : ""}`),
+    cards: (snap.cards || []).filter((c) => !(c.key || "").startsWith("flow:")).map((c) => `[${c.group}] ${c.when || "-"} | ${c.client} | ${c.title || c.text || ""}${c.need ? ` | חסר: ${c.need}` : ""}${c.items?.length ? ` | ${c.items.map((i) => `${i.label}${i.disabled ? " (לא כאן)" : ""}`).join("; ")}` : ""}${c.go?.length ? ` | קישור: ${c.go.join(", ")}` : ""}`),
     empty: snap.empty || null,
     other: snap.other || undefined,
   };

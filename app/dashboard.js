@@ -9,7 +9,7 @@ import { glide, countUp, viewerFor } from './shell.js';
 import { canSeeQuoteList, seesFinance, resetMode } from './manager-rules.js';
 // Exceptional contracts (6.10.2026): their approval state, and what the office does next.
 import { APPROVAL_TEXT, reviseUrl } from './approvals-logic.js';
-// The contracts still out for signature (docs/ops.md, section 47): the filter "מחכות
+// The contracts still out for signature (docs/ops.md, section 47): the filter "ממתינות
 // לחתימה" lists exactly what the line of "המשימות שלי" counts, the oldest first.
 import { waitsForSignature, sentForSignatureAt, UNSIGNED_FILTER } from './unsigned-logic.js';
 
@@ -80,7 +80,7 @@ function renderFilters() {
   const opts = [['all', 'הכול'], ['open', 'ממתינות'], ['signed', 'נחתמו'], ['expired', 'פג תוקף'], ['cancelled', 'בוטלו']];
   // Shown only when there is such a contract.
   if (n('approval') || filter === 'approval') opts.splice(1, 0, ['approval', 'באישור מנהל']);
-  if (n(UNSIGNED_FILTER) || filter === UNSIGNED_FILTER) opts.splice(1, 0, [UNSIGNED_FILTER, 'מחכות לחתימה']);
+  if (n(UNSIGNED_FILTER) || filter === UNSIGNED_FILTER) opts.splice(1, 0, [UNSIGNED_FILTER, 'ממתינות לחתימה']);
   $('filters').replaceChildren(...opts.map(([k, label]) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(filter === k),
     onclick: () => glide(() => { filter = k; renderFilters(); renderRows(); }),
