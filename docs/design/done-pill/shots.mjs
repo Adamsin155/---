@@ -56,16 +56,16 @@ for (const [w, viewport] of SIZES) {
   }
   // A client card: open, late, done, "לא רלוונטי", blocked.
   {
-    const { page, ctx } = await open('irit', viewport);
+    // One item of the card is "לא רלוונטי" from the start, and one is marked here.
+    const { page, ctx } = await open('irit', viewport, { mark: (db) => db.protocol_checks.push({ client_id: CARD, item_key: 'p05.vault', state: 'na', note: 'אין ללקוח רשתות', by_email: emailOf('irit'), at: '2026-10-19T10:00:00+03:00' }) });
     await page.waitForSelector('#view-mine:not([hidden])');
     await page.goto(`${BASE}client.html?id=${CARD}`);
     await page.waitForSelector('.item .cbx', { state: 'attached' });
     await settle(page);
-    // The first process that has both a done and an open item, a little above the middle.
-    const y = await page.evaluate(() => {
-      const p = [...document.querySelectorAll('.proc')].find((x) => x.querySelector('.cbx:checked') && x.querySelector('.cbx:not(:checked):not(:disabled)') && x.getBoundingClientRect().height > 0);
-      return (p || document.querySelector('.item')).getBoundingClientRect().top + scrollY - 90;
-    });
+    await page.locator('#p04 .item .cbx:visible:not(:disabled)').first().click();
+    await page.waitForFunction(() => document.querySelector('#p04 .item.is-done') && !document.querySelector('.is-busy'));
+    await page.mouse.move(0, 0);
+    const y = await page.evaluate(() => document.querySelector('#p04 .item.is-done').getBoundingClientRect().top + scrollY - 110);
     await page.evaluate((t) => scrollTo(0, t), y);
     await page.waitForTimeout(300);
     await shot(page, `card-${w}`);

@@ -629,7 +629,7 @@ function compactCard(g, person) {
     const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
     return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
       h('label', { class: 'wrow', for: id },
-        h('input', { type: 'checkbox', id, class: 'cbx', disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
+        h('input', { type: 'checkbox', id, class: 'cbx fin', disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
         h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
       viaLine(e),
       e.task ? briefDetails(e.task) : null);
@@ -722,7 +722,7 @@ function groupCard(g, person) {
       const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
       return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
         h('label', { class: 'wrow', for: id },
-          h('input', { type: 'checkbox', id, class: 'cbx', disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
+          h('input', { type: 'checkbox', id, class: 'cbx fin', disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
           h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
         viaLine(e),
         e.task ? briefDetails(e.task) : null);
@@ -1398,7 +1398,7 @@ function reviewMarkControl(r, idPrefix) {
     const id = `${idPrefix}-${reviewKind(r)}`;
     return h('label', { class: 'wrow rv-check', for: id },
       h('input', {
-        type: 'checkbox', id, class: 'cbx', 'aria-label': `הבקרה היומית בוצעה: תהליך ${r.num}, ${r.title}`,
+        type: 'checkbox', id, class: 'cbx fin', 'aria-label': `הבקרה היומית בוצעה: תהליך ${r.num}, ${r.title}`,
         onchange: (ev) => doMarkReview(r, ev.currentTarget),
       }),
       h('span', { class: 'wlabel' }, 'הבקרה היומית בוצעה'));
@@ -1587,7 +1587,7 @@ function reviewRow(r, now, rows) {
       !isBusinessDay(now) ? h('p', { class: 'muted rv-off' }, 'היום אינו יום עבודה.')
         : rec ? h('div', { class: 'rv-state' },
           h('label', { class: 'wrow rv-check' },
-            h('input', { type: 'checkbox', class: 'cbx', checked: true, disabled: true, 'aria-label': `הבקרה היומית בוצעה: תהליך ${r.num}, ${r.title}` }),
+            h('input', { type: 'checkbox', class: 'cbx fin', checked: true, disabled: true, 'aria-label': `הבקרה היומית בוצעה: תהליך ${r.num}, ${r.title}` }),
             h('span', { class: 'wlabel' }, 'הבקרה היומית בוצעה')),
           h('span', { class: 'rv-by' }, reviewDone(rec, r)),
           h('button', { type: 'button', class: 'btn-text', onclick: () => openNotes(r) }, notes.general || Object.keys(notes.clients).length ? 'עריכת הערות' : 'הוספת הערות'))
