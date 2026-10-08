@@ -31,6 +31,12 @@ for (const role of ['ofir', 'irit', 'lior', 'ilai']) {
     await page.goto(`${BASE}qa.html#assign-h`);
     await page.waitForSelector('#of-page:not([hidden]) #assign-list li');
     await settle(page);
+    // The assignment list at its first client of the old system ("קורן אדריכלות").
+    await page.evaluate(() => {
+      const li = document.querySelector('#assign-list li[data-key^="c0000000-0000-4000-8000-000000000031:"]');
+      if (li) scrollTo(0, li.getBoundingClientRect().top + scrollY - 190);
+    });
+    await page.waitForTimeout(300);
     await page.screenshot({ path: `${OUT}${TAG}-qa-ofir-390.png` });
   }
   await ctx.close();
