@@ -58,6 +58,26 @@ const cid = sim.client().id;
     after: { card: cardAfter, vaultRows: rowsText.map((s) => s.replace(/\s+/g, " ").slice(0, 140)), marks: ["p09.file", "p09.c.time", "p06.verified", "p06.name", "p06.look", "p06.metricool", "p07.made"].map((k) => `${k}=${sim.checkOf(k)?.state || "-"}`), access: sim.db.client_access.map((a) => `${a.network}:${a.status}`), task: { started_at: task.started_at, done_at: task.done_at }, ...brief(after) },
     reminders: fmtLog(rows) });
 }
+// 6: "בדיקת גישות". In the first run it had closed by itself at 12:15, when Irit opened the client card to make
+// the logins link (only Ofir's one login was in the vault then). Irit no longer goes there (the link is on her
+// card, 5ב), and TikTok ("אין רשת", from the client's form) is a status nobody of the office saved, so nothing
+// closes it by itself: Ilai ticks it on his card.
+{
+  const was = sim.checkOf("p06.verified")?.state || "-";
+  let did = "כבר מסומן";
+  let taps = 0;
+  if (!sim.done("p06.verified")) {
+    const { page, ctx } = await sim.open("ilai");
+    const sum = page.locator(`[id="il-${cid}-s"]`);
+    if (await sum.count()) { await sum.click(); taps += 1; }
+    const box = page.locator(`[id="il-${cid}-p06_verified"]`);
+    if (await box.count() && await box.isVisible()) { await box.check(); taps += 1; await settle(page, 500); did = "הכרטיס ״יום אפיון״ -> ״בדיקת גישות״"; }
+    else did = `אין תיבה לבדיקת הגישות בכרטיס שלו (${(await page.locator(`.il-card[data-key*="${cid}"]`).first().innerText().catch(() => "אין כרטיס")).replace(/\s+/g, " ").slice(0, 200)})`;
+    await ctx.close();
+  }
+  sim.rec({ id: "p06-verified", step: "עילאי מסמן ״בדיקת גישות״ בכרטיס שלו (לא נסגר לבד)", proc: "p06", role: "ilai", before: { note: `p06.verified לפני: ${was}` }, act: did, taps,
+    after: { check: `p06.verified=${sim.checkOf("p06.verified")?.state || "-"}; תהליך 6 ${sim.state().states.find((x) => x.proc.id === "p06").complete ? "נסגר" : "פתוח"}` }, reminders: fmtLog(await sim.tick()) });
+}
 // Irit closes the task of the logo (the client sent it on WhatsApp).
 await proto(sim, { id: "task-logo", step: "עירית סוגרת את המשימה ״להשלים מהלקוח: לוגו״", proc: "p05 (משימה)", role: "irit", shot: "task-logo", wait: 10,
   keys: [sim.db.client_tasks.find((t) => t.owner === "irit").id], peek: [], next: [] });
