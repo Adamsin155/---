@@ -56,7 +56,8 @@ export async function markMine(sim, role, keys, { gap = 0 } = {}) {
     taps += 1;
     await settle(page, 350);
     const err = await page.locator(".toast.is-error, #toast.is-error, [role=alert]").allInnerTexts().catch(() => []);
-    out[key] = sim.done(key) ? "done" : `not saved${err.length ? `: ${err.join(" ")}` : ""}`;
+    const saved = /^(r\d+\.)?p\d/.test(key) ? sim.done(key) : !!sim.db.client_tasks.find((t) => t.id === key)?.done_at;
+    out[key] = saved ? "done" : `not saved${err.length ? `: ${err.join(" ")}` : ""}`;
     if (gap) sim.advance(gap);
   }
   const errors = page.errors.slice();
@@ -64,6 +65,15 @@ export async function markMine(sim, role, keys, { gap = 0 } = {}) {
   return { out, taps, errors };
 }
 export { fmtLog };
+// The cards of Ilai on "המשימות שלי" (his own kind of card: the parts, what is next, the deadlines), as text.
+export async function ilaiCard(page, cid) {
+  return page.evaluate((id) => [...document.querySelectorAll(".il-card")].filter((c) => (c.dataset.key || "").includes(id)).map((c) => {
+    const head = (c.querySelector("summary")?.textContent || "").replace(/\s+/g, " ").trim();
+    const parts = [...c.querySelectorAll(".il-part h4")].map((h) => h.textContent.replace(/\s+/g, " ").trim());
+    const buttons = [...c.querySelectorAll("button")].map((b) => `${b.textContent.trim()}${b.disabled ? " (נעול)" : ""}`).filter((s) => s.length > 1);
+    return `${c.dataset.key.split(":")[0]} | ${head || c.textContent.replace(/\s+/g, " ").trim().slice(0, 200)} | חלקים: ${parts.join("; ")} | כפתורים: ${buttons.join("; ")}`;
+  }), cid);
+}
 // '
 // '
 // One step of the protocol done from "המשימות שלי" with the pill:
@@ -102,5 +112,110 @@ export async function letPass(sim, to, { id, step, proc, role, watch = [], note 
   const snaps = {};
   for (const r of watch) snaps[r] = brief(await sim.mine(r, { shot: r === role ? `late-${id}` : null }));
   return sim.rec({ id, step, proc, role, before: {}, act: "אף אחד לא עושה כלום; השעון מתקדם", taps: 0, after: { mine: snaps }, reminders: fmtLog(rows), note });
+}
+// '
+// '
+// The client on the public status page (a phone, nobody signed in): approves an item, or asks for a fix.
+// opts: { id, step, proc, key, wait, next: [roles], shot, fix: "the note" (a fix request instead of an approval) }
+export async function clientApproves(sim, o) {
+  if (o.wait) sim.advance(o.wait);
+  const waiting = await sim.tick();
+  const link = sim.db.client_status_links.find((l) => !l.revoked_at);
+  const token = sim.secrets.status[link.id];
+  const { page, ctx } = await sim.open(null, `status.html#t=${token}`);
+  await page.waitForSelector("#page:not([hidden])");
+  await settle(page, 500);
+  const dom = o.key.replace(/[^a-z0-9]/gi, "-");
+  const needs = (await page.locator("#needs").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 400);
+  const station = (await page.locator("#stations li[aria-current=step]").innerText().catch(() => "")).replace(/\s+/g, " ");
+  const shot = o.shot ? await shotOf(sim, page, "client", o.shot) : null;
+  let result;
+  const has = await page.locator(`[id="n-${dom}"]`).count();
+  if (!has) result = "הפריט לא מוצג בדף המצב";
+  else {
+    await page.fill(`[id="n-${dom}"]`, "רונית דקל");
+    if (o.fix) { await page.fill(`[id="f-${dom}"]`, o.fix); await page.click(`[id="fx-${dom}"]`); }
+    else await page.click(`[id="ok-${dom}"]`);
+    await page.waitForFunction(() => !document.getElementById("receipt")?.hidden, null, { timeout: 8000 }).catch(() => null);
+    result = (await page.locator("#receipt").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 300) || "אין קבלה";
+  }
+  await ctx.close();
+  sim.advance(1);
+  const rows = await sim.tick();
+  const next = {};
+  for (const r of o.next || []) next[r] = brief(await sim.mine(r, { shot: o.nextShot === r ? `after-${o.id}` : null }));
+  return sim.rec({ id: o.id, step: o.step, proc: o.proc, role: "client",
+    before: { station, needs, shot, remindersSinceLast: fmtLog(waiting) },
+    act: o.fix ? `דף המצב (קישור ציבורי): שם, הערת תיקון, הכפתור של בקשת תיקון` : "דף המצב (קישור ציבורי): שם, הכפתור של האישור", taps: o.fix ? 3 : 2,
+    after: { result, check: `${o.key}=${sim.checkOf(o.key)?.state || "-"}${sim.checkOf(o.key)?.note ? ` (${sim.checkOf(o.key).note})` : ""}`, tasks: sim.db.client_tasks.filter((t) => !t.done_at).map((t) => `${t.owner}: ${t.title} (עד ${t.due_on || "-"})`), next },
+    reminders: fmtLog(rows) });
+}
+// '
+// '
+// The editor on editor.html: the one button of the card of the client ("קיבלתי כונן", "מוכן לבדיקה",
+// "סמן הכול תוקן", the final hand-off). A dialog that opens is filled as an editor would: every box
+// checked, the Drive link pasted, its own button pressed. Returns what was on the screen.
+export async function editorGo(sim, role, { link = null, shot = null } = {}) {
+  const cid = sim.client().id;
+  const { page, ctx } = await sim.open(role, "editor.html");
+  await page.waitForSelector(`[id="c-${cid}"]`, { timeout: 8000 }).catch(() => null);
+  await settle(page, 400);
+  const card = page.locator(`[id="c-${cid}"]`);
+  const out = { card: (await card.innerText().catch(() => "(אין כרטיס)")).replace(/\s+/g, " ").slice(0, 600), taps: 0 };
+  if (shot) out.shot = await shotOf(sim, page, role, shot);
+  const go = page.locator(`[id="c-${cid}-go"]`);
+  if (!(await go.count())) { out.result = "אין כפתור בכרטיס"; await ctx.close(); return out; }
+  out.button = (await go.innerText()).trim();
+  if (await go.isDisabled()) { out.result = `הכפתור נעול: ${(await page.locator(`[id="c-${cid}-lock"]`).innerText().catch(() => "")).replace(/\s+/g, " ")}`; await ctx.close(); return out; }
+  await go.click(); out.taps += 1;
+  await settle(page, 500);
+  const dlg = page.locator("dialog[open]").first();
+  if (await dlg.count()) {
+    out.dialog = (await dlg.innerText()).replace(/\s+/g, " ").slice(0, 500);
+    if (link && await dlg.locator("#ready-link").count()) { await dlg.locator("#ready-link").fill(link); out.taps += 1; }
+    for (const box of await dlg.locator("input[type=checkbox]:not(:disabled)").all()) { if (!(await box.isChecked())) { await box.check(); out.taps += 1; } }
+    for (const t of await dlg.locator("textarea:visible").all()) { if (!(await t.inputValue())) { await t.fill("בוצע"); out.taps += 1; } }
+    const submit = dlg.locator("button[type=submit], button.btn-primary").first();
+    out.submit = (await submit.innerText().catch(() => "")).trim();
+    await submit.click(); out.taps += 1;
+    await settle(page, 800);
+  }
+  out.said = await page.evaluate(() => [...document.querySelectorAll("#handoff, .toast, dialog[open] .err, dialog[open] [role=alert]")].map((e) => e.innerText).join(" | ").replace(/\s+/g, " ").slice(0, 300));
+  out.cardAfter = (await card.innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 400);
+  out.errors = page.errors.slice();
+  await ctx.close();
+  return out;
+}
+// Ofir on qa.html: opens the quality control of the client, and approves or returns it with fixes.
+export async function ofirQa(sim, { fixes = null, shot = null } = {}) {
+  const { page, ctx } = await sim.open("ofir", "qa.html#qa-h");
+  await page.waitForSelector("#qa-list", { timeout: 8000 }).catch(() => null);
+  await settle(page, 500);
+  const out = { queue: (await page.locator("#qa-list").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 500), taps: 0 };
+  if (shot) out.shot = await shotOf(sim, page, "ofir", shot);
+  const open = page.locator("#qa-list .of-card button").first();
+  if (!(await open.count())) { out.result = "התור ריק"; await ctx.close(); return out; }
+  out.button = (await open.innerText()).trim();
+  await open.click(); out.taps += 1;
+  await page.waitForSelector("#dlg-qa[open]");
+  await settle(page, 400);
+  out.dialog = (await page.locator("#dlg-qa").innerText()).replace(/\s+/g, " ").slice(0, 600);
+  if (fixes) {
+    await page.click("#qa-to-return"); out.taps += 1;
+    for (let i = 0; i < fixes.length; i += 1) {
+      if (i > 0) { await page.click("#qa-add"); out.taps += 1; }
+      await page.fill(`#qa-ref-${i + 1}`, fixes[i][0]);
+      await page.fill(`#qa-text-${i + 1}`, fixes[i][1]); out.taps += 2;
+    }
+    await page.click("#qa-send-return"); out.taps += 1;
+  } else {
+    for (const box of await page.locator("#dlg-qa input[type=checkbox]:not(:disabled)").all()) { if (!(await box.isChecked())) { await box.check(); out.taps += 1; } }
+    await page.click("#qa-approve"); out.taps += 1;
+  }
+  await settle(page, 800);
+  out.said = await page.evaluate(() => [...document.querySelectorAll("#handoff, .toast, dialog[open] .err")].map((e) => e.innerText).join(" | ").replace(/\s+/g, " ").slice(0, 300));
+  out.errors = page.errors.slice();
+  await ctx.close();
+  return out;
 }
 // '

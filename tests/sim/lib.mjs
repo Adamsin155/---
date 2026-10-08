@@ -202,6 +202,9 @@ export class Sim {
       if (body.p_whatsapp) db.client_consents.push({ quote_id: q.id, kind: "whatsapp", given: true, at: now, phone: c.phone, version: "whatsapp-v1", revoked_at: null, revoked_via: null });
       return [200, quoteView(q)];
     }
+    // Storage (tests/package1-e2e.mjs): an upload is accepted; the row of the file is written by the page itself.
+    if (p.startsWith("/storage/v1/object/client-files/") && method === "POST") return me ? [200, { Key: p.replace("/storage/v1/object/", "") }] : [400, { message: "not allowed" }];
+    if (p === "/storage/v1/object/client-files" && method === "DELETE") return [200, []];
     return serveMore(this, { p, url, body, me, method, single, office, now });
   }
 // '
