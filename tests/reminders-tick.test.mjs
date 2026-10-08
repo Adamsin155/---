@@ -141,7 +141,9 @@ test('first run on old data: nothing late is sent, it is recorded as stale', asy
   const stats = await runTick({ db: db.at(now), push, now });
   // The one thing said is today's: this client still has no meeting date, which rings Irit
   // every business morning (docs/ops.md, section 47). Nothing of the month before goes out.
-  assert.deepEqual(sent.filter((s) => /פיצה/.test(s.payload.title)).map((s) => s.payload.title), ['עוד אין מועד לפגישת האפיון: פיצה']);
+  // Since 8.10.2026 (section 48) also ONE reminder of what she still holds late (today's 09:00
+  // slot): on the first run after a deploy a person gets one such message, never one per item.
+  assert.deepEqual(sent.filter((s) => /פיצה/.test(s.payload.title)).map((s) => s.payload.title).sort(), ['עדיין באיחור: פיצה · 2 · פתיחת קבוצת WhatsApp', 'עוד אין מועד לפגישת האפיון: פיצה'].sort());
   assert.ok(stats.stale >= 4);
   const today = (r) => r.key === 'meetingDate:c1:p03:d2026-10-05@irit';
   assert.ok(db.log.filter((r) => r.client_id === 'c1' && !today(r)).every((r) => r.status === 'suppressed' && r.reason === 'stale'));

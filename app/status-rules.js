@@ -6,15 +6,18 @@
 //                whoever fixes hears at once, ringing once. For the videos' first round
 //                the protocol's own ladder rings the editor (clientFixes, on p27.notes,
 //                which the same request marked), so this one stays quiet there (unless
-//                that shoot has no editor: then the task is Ofir's and this rings). A day
-//                after the due day: the owner of the task (in the app) and Lior's list.
+//                that shoot has no editor: then the task is Ofir's and this rings). At the
+//                same moment Irit rings too, with the client's words (8.10.2026; docs/ops.md,
+//                section 48): by the protocol (27) she receives the notes, makes sure they
+//                are clear and documents them. A day after the due day: Lior's list; the
+//                task itself follows the ladder of every late item (rule `lateOwn`).
 //   clientScore  a low satisfaction score (source 'survey'): Lior rings once to call
 //                within a business day; 2 or less of 5 (4 or less of 10) rings the owner
 //                too (decision 24, owner case 3); still open a business day after the
 //                due day, the owner's screen.
 // The generic "משימה רגילה" rule leaves these sources to them (STATUS_SOURCES).
 // Pure: no DOM, no network, Israel time (tz.js), shared with the edge function.
-import { PEOPLE } from './protocol.js';
+import { PEOPLE, PROCESSES } from './protocol.js';
 import { parseDate, roundsOf, clientLabel } from './protocol-logic.js';
 import { dayFromKeyIL, partsIL } from './tz.js';
 
@@ -34,6 +37,17 @@ const scoreText = (b) => `${b?.score} מתוך ${b?.kind === 'nps' ? 10 : 5}`;
 const shootEditor = (c, key) => {
   const n = /^r(\d+)\./.exec(key || '')?.[1];
   return n ? (roundsOf(c).find((r) => String(r.n) === n)?.editor || null) : (c.editor || null);
+};
+
+// Who hears a fix request besides whoever fixes: the client's contact, when the approval
+// the client was asked for is hers to follow (the graphics and the videos; the scripts'
+// approval is Lior's own, and he is the one who fixes them).
+export const FIX_CONTACT = 'irit';
+const ITEMS = new Map(PROCESSES.flatMap((p) => p.items.map((i) => [i.key, { item: i, proc: p }])));
+const contactOf = (i) => {
+  const x = ITEMS.get(String(i.brief.item_key || '').replace(/^r\d+\./, ''));
+  const owners = x ? (x.item.owners || (Array.isArray(x.proc.owners) ? x.proc.owners : [])) : [];
+  return owners.includes(FIX_CONTACT) && i.who !== FIX_CONTACT ? FIX_CONTACT : null;
 };
 
 function casesOf(env, source) {
@@ -58,7 +72,14 @@ export const STATUS_RULES = [
         title: (i) => (i.brief.extra ? `הלקוח ביקש סבב תיקונים נוסף: ${i.name}` : `הלקוח ביקש תיקון: ${i.name}`),
         body: (i) => `${i.task.title}. ${i.brief.problem ? `הערות: ${short(i.brief.problem)}` : ''}${i.task.due_on ? ` עד ${dayWord(dayFromKeyIL(i.task.due_on))}.` : ''}`.trim(),
       },
-      { id: 'late', from: 'due', businessDays: 1, at: '08:30', to: (i) => i.who, level: 'quiet', batch: true, overdue: true, title: (i) => `תיקון ללקוח באיחור: ${i.name}`, body: (i) => i.task.title },
+      {
+        id: 'irit', to: contactOf, level: 'ring',
+        title: (i) => (i.brief.extra ? `הלקוח ביקש סבב תיקונים נוסף: ${i.name}` : `הלקוח ביקש תיקון: ${i.name}`),
+        body: (i) => [
+          i.brief.problem ? `הלקוח כתב: ״${short(i.brief.problem, 300)}״.` : `${i.task.title}.`,
+          `לברר שההערות ברורות ולתעד. ${nameOf(i.who)} ${i.brief.extra ? 'מחליט/ה' : 'מתקן/ת'}${i.task.due_on ? ` עד ${dayWord(dayFromKeyIL(i.task.due_on))}` : ''}.`,
+        ].join(' '),
+      },
       { id: 'lior', from: 'due', businessDays: 1, at: '08:30', to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => i.who !== 'lior', title: (i) => `תיקון ללקוח באיחור: ${i.name} · ${nameOf(i.who)}`, body: (i) => i.task.title },
     ],
   },

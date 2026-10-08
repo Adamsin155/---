@@ -89,8 +89,8 @@ export function deliveryText(r) {
   if (r.channel === 'digest') return r.reason === 'batch' ? 'נשלח לטלפון, בהודעה אחת עם שאר האיחורים' : 'נשלח לטלפון בתוך תקציר';
   if (r.channel === 'push') return r.level === 'digest' ? 'תקציר, נשלח לטלפון' : 'נשלח לטלפון';
   if (r.reason === 'no_device') return 'בתוך המערכת (אין טלפון מחובר)';
-  // The owner's board: on his screen now, on his phone in the 18:00 digest.
-  if (r.level === 'board') return 'בלוח הבעלים, ובטלפון בתקציר של 18:00';
+  // The owner's board: on his screen now, on his phone in the end-of-day message (19:00).
+  if (r.level === 'board') return 'בלוח הבעלים, ובטלפון בסיכום היום של 19:00';
   // A row from before 7.10.2026, when an update stayed in the app.
   return 'בתוך המערכת';
 }

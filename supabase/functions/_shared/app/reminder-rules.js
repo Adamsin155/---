@@ -51,7 +51,7 @@
 import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
-  businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel,
+  businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel, clientState,
 } from './protocol-logic.js';
 // The owner's decisions of 3.10.2026: Stav's deals, the station-change message, the
 // automatic editor assignment.
@@ -60,7 +60,7 @@ import { stationChange } from './messages-logic.js';
 import { autoReasonOf } from './auto-assign.js';
 import { shootPrep, reportedOf, TELL, requestOf } from './shoot-prep.js';
 import { BLOCKING_TITLE } from './characterization.js';
-import { ANSWER_CLOCKS } from './clocks.js';
+import { ANSWER_CLOCKS, fixAnswered } from './clocks.js';
 import {
   QA_KINDS, qaState, qaDue, SHIFT_KEY, readShift, ACCESS_FIXED, readAccessFix,
 } from './office-marks.js';
@@ -75,6 +75,9 @@ import { nudgeTimes } from './access-nudge.js';
 import { STATUS_RULES, STATUS_SOURCES } from './status-rules.js';
 // Stage 5: the monthly cycle (a draft) and the 90-day renewals list.
 import { YEAR_RULES } from './year-rules.js';
+// The ladder of a late item and the owners' end-of-day table (docs/ops.md, section 48).
+import { LATE_LADDER, lateItems, lateWords } from './late-chain.js';
+import { EOD } from './day-summary.js';
 
 export const OWNER = 'owner';
 // Who has reminders: the owner and the team, sales too (reminder_log.person).
@@ -99,7 +102,10 @@ export const BATCH = 'batch';
 export const BURST_MAX = 4;
 export const BURST = 'burst';
 // Digest times (principle 4, section 3, decision 24).
-export const DIGESTS = { morning: '08:30', lists: ['12:00', '16:00'], owner: '18:00', ownerWeek: '08:30' };
+// The owners' end-of-day table goes out at the END of the sending window (19:00; on erev
+// chag at 13:00, when the window ends): `ownerDigestAt`. It replaced the 18:00 digest
+// "חריגות היום" on 8.10.2026 (docs/ops.md, section 48); the numbers are EOD in app/day-summary.js.
+export const DIGESTS = { morning: '08:30', lists: ['12:00', '16:00'], owner: EOD.at, ownerErev: EOD.erevAt, ownerWeek: '08:30' };
 // What is scheduled for 09:00–09:30 goes into the 08:30 digest instead.
 export const FOLD = { from: '09:00', to: '09:30' };
 // Rings a day each person is expected to get (section 5), for the owner's weekly report.
@@ -129,6 +135,7 @@ const hm = (s) => s.split(':').map(Number);
 export const minuteOfDay = (d) => { const p = partsIL(d); return p.hour * 60 + p.minute; };
 export const atIL = (d, s) => { const [h, m] = hm(s); return atTimeIL(d, h, m); };
 // Whether a push may go out at `d` (outside it only shoot-day events do).
+export const ownerDigestAt = (d) => (erevOn(d) ? DIGESTS.ownerErev : DIGESTS.owner);
 export const inSendHours = (d) => isBusinessDay(d) && minuteOfDay(d) >= SEND_HOURS.from && minuteOfDay(d) < (erevOn(d) ? SEND_HOURS.erevTo : SEND_HOURS.to);
 // The nth business day after (n > 0) or before (n < 0) the Israel day of `d`, same wall time.
 export function businessDayFrom(d, n) {
@@ -279,8 +286,8 @@ const dayOfThree = (from, now) => Math.max(1, businessDaysBetween(from, now));
 // update is pushed to the phone like a ring; the word no longer means "in the app only".
 // Processes whose lateness also has its own ladder below (they keep ringing as
 // before). Since 3.10.2026 every late process, these too, also tells Ofir and Lior
-// quietly (`late`), and 24 hours late it is in the owner's 18:00 summary
-// (lateSummary in app/reminder-engine.js).
+// quietly (`late`); since 8.10.2026 whoever holds it is reminded twice a day from the
+// next day on (`lateNag`), and it is in the owners' end-of-day table.
 export const OWN_LATE = new Set(['p01', 'p02', 'p03', 'p06', 'p11b', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21', 'p22a', 'p25', 'p31']);
 // Quality and editing (principle 5).
 export const QUALITY = new Set(['p22', 'p23', 'p24', 'p25', 'p27']);
@@ -292,8 +299,6 @@ export const LATE_GRACE_MINUTES = 15;
 // A late process whose own ladder already rings one of the watchers at the deadline
 // (8ב: Ofir, `highlightsUpload`): `late` does not tell that watcher again; the other still hears.
 export const LATE_RUNG = { p08b: 'ofir' };
-// How late an item is before it joins the owner's daily summary (one message, 18:00).
-export const OWNER_LATE_HOURS = 24;
 
 export const RULES = [
   // 1–3: a new deal. Irit at once; again at 5 office minutes if the group (with its
@@ -515,6 +520,8 @@ export const RULES = [
           if (!sentAt) continue;
           const since = (k) => { const x = i.check(k); return !!x && x.state === 'done' && new Date(x.at) >= sentAt; };
           if (since(`${b}.answered`) || since(`${b}.call`) || (spec.approval && since(spec.approval))) continue;
+          // A fix request is an answer (section 48): the client wrote what to fix.
+          if ((spec.notes && since(spec.notes)) || (spec.approval && fixAnswered([...env.tasks, ...(env.doneTasks || [])], i.cid, i.pre + spec.approval, sentAt))) continue;
           if (i.s.wait && new Date(i.s.wait.at) >= sentAt) continue;
           out.push({ ...i, id: `${i.proc.id}@${sentAt.toISOString()}`, what: spec.what, minutes: spec.minutes, anchors: { event: sentAt, due: addWorkingMinutes(sentAt, spec.minutes) } });
         }
@@ -911,8 +918,9 @@ export const RULES = [
   },
 
   // An ordinary task: quiet when created, in the digest on the morning it is due;
-  // a day late, its owner, whoever opened it, Ofir and Lior (quiet; the owner's
-  // decision of 3.10.2026); from 24 hours late, the owner's 18:00 summary.
+  // a day late, Ofir and Lior are told (quiet; the owner's decision of 3.10.2026) and
+  // the ladder of a late item starts for its owner (section 48); what is late is in
+  // the owners' end-of-day table.
   {
     id: 'task', event: 'משימה רגילה', procs: [],
     instances(env) {
@@ -925,7 +933,10 @@ export const RULES = [
     steps: [
       { id: 'created', to: (i) => i.who, level: 'quiet', handover: true, when: (i) => i.creator !== null || !i.task.created_by_email, title: (i) => `משימה חדשה: ${i.name}`, body: (i) => i.task.title },
       { id: 'due', from: 'due', at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `משימה להיום: ${i.name} · ${i.task.title}`, body: () => '' },
-      { id: 'late', from: 'due', businessDays: 1, at: '08:30', to: (i) => [...new Set([i.who, i.creator, ...LATE_WATCHERS].filter(Boolean))], level: 'quiet', batch: true, overdue: true, title: (i) => `משימה באיחור: ${i.name}`, body: (i) => `${personName(i.who)}: ${i.task.title}` },
+      // Past its due day it follows the ladder of every late item (`lateOwn`, `lateNag` below;
+      // docs/ops.md, section 48): its owner rings and is reminded twice a day, whoever opened
+      // it is told once, then the managers and the owners. Ofir and Lior keep their one note:
+      { id: 'late', from: 'due', businessDays: 1, at: '09:15', to: (i) => LATE_WATCHERS.filter((p) => p !== i.who), level: 'quiet', batch: true, overdue: true, title: (i) => `באיחור: ${i.name} · ${i.task.title} · ${personName(i.who)}`, body: (i, env) => `משימה. היעד היה ${whenText(i.anchors.due, env.now).split(' ')[0]}.` },
     ],
   },
 
@@ -1333,8 +1344,8 @@ export const RULES = [
   // one at once, then at most one push per person every LATE_BATCH_MINUTES with all
   // that became late meanwhile; each item is its own row in "התראות". Whatever already rings for it (its own ladder above: urgent, the
   // protocol clocks, the shoot day) keeps ringing. From 24 hours late it is in the
-  // owner's one summary at 18:00 (lateSummary in app/reminder-engine.js), never a
-  // message per item.
+  // owners' end-of-day table (app/day-summary.js), and whoever holds it follows the
+  // ladder of a late item (`lateOwn`, `lateNag` at the end of this file).
   {
     id: 'late', event: 'איחור', procs: [],
     instances(env) {
@@ -1350,6 +1361,11 @@ export const RULES = [
           // The final versions are in the Drive: only Ilai's "קיבלתי" (p27.toilai) keeps
           // 27 open, and finalReady follows it; not a second line, nor the editor's lateness.
           if (baseId(s.proc.id) === 'p27' && i.resolved('p27.final')) continue;
+          // Sent to the client and waiting for the client's answer (8.10.2026; docs/ops.md, section
+          // 48): nobody in the office is late, so nobody is named as late.
+          // Nor while the fix the client asked for is being made: that task has its own due day and carries the lateness.
+          const chain = allLate(env).find((x) => x.cid === c.id && x.procId === s.proc.id);
+          if (chain && (chain.clientTurn || (chain.fixing && !chain.holders.length))) continue;
           const owners = s.claim ? [s.claim.person] : s.proc.owners;
           out.push({ ...i, id: `${s.proc.id}@${s.dueAt.toISOString()}`, owners, anchors: { event: s.dueAt } });
         }
@@ -2116,3 +2132,122 @@ for (const r of PEOPLE_RULES) RULE_BY_ID.set(r.id, r);
 // The rules whose notification means nothing once its case is gone (a question that
 // was withdrawn or answered): the server marks it read (supabase/functions/reminders/tick.js).
 export const VOID_WHEN_GONE = new Set(RULES.filter((r) => r.voidWhenGone).map((r) => r.id));
+
+// ── Whoever is late keeps being reminded (the owner's approval of 8.10.2026; docs/ops.md, section 48) ──
+// One self-contained block. What is late, who holds it and who waits for it is one
+// answer (app/late-chain.js), shared with the owners' end-of-day table; the numbers are
+// LATE_LADDER there, each a one-line change. A late item is a process past its deadline
+// or a task (public.client_tasks, a decision's task too) open after its due day.
+//   lateOwn.own    when the deadline passes (and the grace): whoever holds it rings,
+//                  "באיחור". Several at one moment are ONE message with the list (`batch`:
+//                  at most one such push per person every LATE_BATCH_MINUTES). Only then:
+//                  whoever is handed late work hours later is not rung "באיחור" in the minute
+//                  it lands (LATE_LADDER.tellWithinMinutes); the reminders below reach them.
+//   lateOwn.wait   at the same moment, once: whoever waits for that work (the next in
+//                  the protocol's chain) is told whose work holds their card.
+//   lateOwn.mgr    one full business day late: the managers ring (not themselves).
+//   lateOwn.owner  two business days late: the owners ring.
+//                  Both go out at the next of the day's two hours (09:00, 14:00), so everything
+//                  that crossed the line since the hour before is ONE ring: a manager or an
+//                  owner gets at most two of these a day, however many items are late.
+//   lateNag        every working day at LATE_LADDER.nagAt (09:00 and 14:00), until it
+//                  is done: ONE ring per person with everything they hold that is late.
+//                  The step's id names the day and the hour, so each goes out once.
+// Not for: a client in landing; a process marked "ממתין ללקוח" or a paused editing; work
+// that was sent to the client and waits for the client's answer (`clientTurn`: a
+// lateness that is only inherited there is nobody's to act on); process 3 with no
+// meeting date and the two cases another rule already follows (`gap`, `ownLadder`).
+// A process whose own ladder already rings at its deadline (OWN_LATE: the new deal, the
+// shoot day, the editor's assignment…; LATE_RUNG) gets no second "באיחור" ring at that
+// moment, and joins the twice-a-day reminder only from the next day on (`rung`): nobody
+// is rung "באיחור" in the middle of the shoot day about the shoot day.
+// The sending hours, erev chag, Lior's shoot day and the bursts apply as to every rule,
+// and so does "לדחות עד…" on a process (its reminders wait until that moment).
+function allLate(env) { return (env.lateAll ||= lateItems({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: env.tasks, personOf: env.personOf, now: env.now })); }
+const lateOf = (env) => (env.lateItems ||= allLate(env)
+  .filter((x) => !x.clientTurn && !x.gap && !x.ownLadder && x.holders.length)
+  .map((x) => ({ ...x, rung: x.kind === 'proc' && (OWN_LATE.has(baseId(x.procId)) || !!LATE_RUNG[baseId(x.procId)]) })));
+const lateUrl = (x) => (x.kind === 'task' ? TASK_URL(x.cid) : clientUrl(x.cid, x.procId));
+const lateLine = (x, env) => `${x.name} · ${x.what} (באיחור ${lateWords(x.dueAt, env.now)})`;
+const listed = (lines, max = LATE_LADDER.listMax) => (lines.length > max ? [...lines.slice(0, max), `ועוד ${lines.length - max}`] : lines);
+const NAG_WORDS = `תזכורת ב־${LATE_LADDER.nagAt.join(' וב־')} בכל יום עבודה, עד שזה מסומן`;
+// The first of the day's reminder hours at or after `d` (a working day, inside the sending hours).
+export function nextNagSlot(d) {
+  let day = new Date(d);
+  for (let n = 0; n < 40; n += 1) {
+    for (const t of LATE_LADDER.nagAt) { const at = atIL(day, t); if (at >= d && inSendHours(at)) return at; }
+    day = addDaysIL(atTimeIL(day, 12), 1);
+  }
+  return new Date(d);
+}
+// Ofir and Lior hear of every late process through the rule `late` at this very moment, their
+// own too ("באיחור: … · אופיר"): they are not told twice.
+const toldByLate = (x, p) => x.kind === 'proc' && LATE_WATCHERS.includes(p) && LATE_RUNG[baseId(x.procId)] !== p;
+// Who held each late item at the moment of a reminder hour, from the marks as they stood then:
+// work that was handed to someone after 09:00 is not "still late" on them at 09:45.
+const lateKey = (x) => (x.kind === 'task' ? `t:${x.task.id}` : `${x.cid}:${x.procId}`);
+function heldAt(env, slot) {
+  if (env.heldAtSlot?.at === +slot.at) return env.heldAtSlot.by;
+  const ids = new Set(lateOf(env).map((x) => x.cid));
+  const then = new Map();
+  const checksAt = (c) => { if (!then.has(c.id)) then.set(c.id, Object.fromEntries(Object.entries(env.checksOf(c)).filter(([, v]) => !v.at || new Date(v.at) <= slot.at))); return then.get(c.id); };
+  const states = new Map();
+  const items = lateItems({
+    clients: env.clients.filter((c) => ids.has(c.id)), checksOf: checksAt, tasks: env.tasks.filter((t) => !t.created_at || new Date(t.created_at) <= slot.at), personOf: env.personOf, now: slot.at,
+    stateOf: (c) => { if (!states.has(c.id)) states.set(c.id, clientState(c, checksAt(c), slot.at)); return states.get(c.id); },
+  });
+  const by = new Map(items.map((x) => [lateKey(x), new Set(x.holders)]));
+  env.heldAtSlot = { at: +slot.at, by };
+  return by;
+}
+const justLate = (i, env) => env.now - i.x.lateAt <= LATE_LADDER.tellWithinMinutes * MIN;
+const DAY_WORDS = (n) => (n === 1 ? 'יום עסקים' : n === 2 ? 'יומיים' : `${n} ימי עסקים`);
+const LADDER_RULES = [
+  {
+    id: 'lateOwn', event: 'איחור: למי שמאחר, למי שמחכה לו, למנהלים ולבעלים', procs: [],
+    instances(env) {
+      return lateOf(env).map((x) => ({
+        id: x.id, cid: x.cid, client: x.client, name: x.name, ref: x.ref, url: lateUrl(x), x, snooze: x.snooze,
+        managers: LATE_LADDER.managers.filter((p) => !x.holders.includes(p)),
+        // Ofir and Lior already get the note of the rule `late` (or `task`) at this moment.
+        waiters: x.waiters.filter((p) => !LATE_WATCHERS.includes(p) && REMINDER_PEOPLE.has(p)),
+        anchors: { event: x.lateAt, mgr: nextNagSlot(businessDayFrom(x.lateAt, LATE_LADDER.managerAfter)), owner: nextNagSlot(businessDayFrom(x.lateAt, LATE_LADDER.ownerAfter)) },
+      }));
+    },
+    steps: [
+      { id: 'own', to: (i) => i.x.holders.filter((p) => !toldByLate(i.x, p)), level: 'ring', batch: true, overdue: true, when: (i, env) => !i.x.rung && justLate(i, env), title: (i) => `באיחור: ${i.name} · ${i.x.what}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. ${NAG_WORDS}.` },
+      { id: 'wait', to: (i) => i.waiters, level: 'quiet', batch: true, when: justLate, title: (i) => `מתעכב אצל ${names(i.x.holders.map(personName))}: ${i.name} · ${i.x.what}`, body: (i, env) => `בגלל זה הכרטיס שלך מחכה. היעד היה ${whenText(i.x.dueAt, env.now)}; התזכורות אצל ${names(i.x.holders.map(personName))} נמשכות עד שזה נגמר.` },
+      { id: 'mgr', from: 'mgr', to: (i) => i.managers, level: 'ring', batch: true, overdue: true, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.managerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}, ועוד לא נסגר.` },
+      { id: 'owner', from: 'owner', to: OWNER, level: 'ring', batch: true, overdue: true, url: () => EOD.url, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.ownerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. המנהלים קיבלו על זה צלצול אחרי יום עסקים. הכול בסיכום היום.` },
+    ],
+  },
+  {
+    id: 'lateNag', event: 'עדיין באיחור: תזכורת פעמיים ביום עד שזה נסגר', procs: [],
+    instances(env) {
+      if (!isBusinessDay(env.now)) return [];
+      // The slot `now` is in: the last of today's hours that passed (only inside the sending hours).
+      const slot = LATE_LADDER.nagAt.map((t) => ({ t, at: atIL(env.now, t) })).filter((x) => x.at <= env.now && inSendHours(x.at)).at(-1);
+      if (!slot) return [];
+      const by = new Map();
+      const held = heldAt(env, slot);
+      // What became late before this hour (its own "באיחור" ring was the first word on it), and
+      // was already this person's at this hour.
+      for (const x of lateOf(env)) {
+        if (!(x.lateAt < slot.at) || (x.snooze && x.snooze > env.now) || (x.rung && dayKeyIL(x.lateAt) === dayKeyIL(env.now))) continue;
+        for (const p of x.holders) if (held.get(lateKey(x))?.has(p)) (by.get(p) || by.set(p, []).get(p)).push(x);
+      }
+      return [...by].filter(([p]) => REMINDER_PEOPLE.has(p)).map(([p, items]) => ({ id: p, cid: null, who: p, items, slot, url: MINE_URL, anchors: { event: slot.at } }));
+    },
+    steps: (i, env) => [{
+      id: `d${dayKeyIL(env.now)}.${i.slot.t.replace(':', '')}`, to: i.who, level: 'ring', noFold: true, overdue: true,
+      url: () => (i.items.length === 1 ? lateUrl(i.items[0]) : MINE_URL),
+      title: () => (i.items.length === 1 ? `עדיין באיחור: ${i.items[0].name} · ${i.items[0].what}` : `${i.items.length} דברים באיחור אצלך`),
+      body: () => (i.items.length === 1
+        ? `באיחור ${lateWords(i.items[0].dueAt, env.now)}. מסמנים ב״המשימות שלי״; ${NAG_WORDS}.`
+        : [...listed(i.items.map((x) => lateLine(x, env))), `מסמנים ב״המשימות שלי״; ${NAG_WORDS}.`].join('\n')),
+    }],
+  },
+];
+RULES.push(...LADDER_RULES);
+for (const r of LADDER_RULES) RULE_BY_ID.set(r.id, r);
+export { LATE_LADDER };

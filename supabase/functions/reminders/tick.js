@@ -194,7 +194,7 @@ export async function runTick({ db, push, wa = null, now = new Date() }) {
     }
     if (!d.key) continue;
     const [row] = await db.insertLog([{
-      key: d.key, rule: 'digest', person: d.person, level: 'digest', channel: 'push', status: 'pending', reason: d.kind, exempt: true,
+      key: d.key, rule: 'digest', person: d.person, level: d.level === 'ring' ? 'ring' : 'digest', channel: 'push', status: 'pending', reason: d.kind, exempt: true,
       client_id: null, ref: null, title: clip(d.title, 300), body: clip(d.body, 2000), url: d.url, due_at: now.toISOString(), sent_at: null,
     }]);
     if (!row) continue; // another tick already sent this digest
@@ -204,7 +204,8 @@ export async function runTick({ db, push, wa = null, now = new Date() }) {
       await claim(db, d.fold.map((r) => ({ ...rowOf({ ...r, channel: 'digest', status: 'sent', reason: 'fold' }, now), digest_key: d.key })), stats);
     }
     stats.digests += 1;
-    sends.push({ row, kind: 'digest' });
+    // A batch of lateness notes that carries a ring goes out as a ring (docs/ops.md, section 48).
+    sends.push({ row, kind: d.level === 'ring' ? 'ring' : 'digest' });
   }
 
   // Pushes a tick that is gone left pending: not too old, still true, and planned

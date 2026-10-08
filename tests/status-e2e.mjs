@@ -454,6 +454,27 @@ await step('asking for a fix on the videos: the note is required; the editor get
   const w = { clients: db.clients, checks: db.protocol_checks, tasks: db.client_tasks, staff, access: [], reviews: [], statusNotes: [], messages: [], subscriptions: [] };
   const rings = computeReminders({ ...w, now: serverNow() }).filter((r) => r.person === 'nadia' && r.level === 'ring' && /^clientFix/.test(r.rule)).map((r) => `${r.rule}.${r.step}`);
   assert.deepEqual(rings, ['clientFixes.editor']);
+  // 8.10.2026 (docs/ops.md, section 48): Irit rings at the same moment, with the client's words…
+  const toIrit = computeReminders({ ...w, now: serverNow() }).filter((r) => r.person === 'irit' && r.rule === 'clientFix');
+  assert.deepEqual(toIrit.map((r) => [r.step, r.level]), [['irit', 'ring']]);
+  assert.match(toIrit[0].title, /^הלקוח ביקש תיקון: /);
+  assert.match(toIrit[0].body, /^הלקוח כתב: ״סרטון 3: להחליף את המוזיקה\..*״\. לברר שההערות ברורות ולתעד\. נדיה מתקן\/ת/);
+  // …and her item says what there is to do, not "the client approved", on "המשימות שלי" and in the card.
+  const mine = await newPage(iritCtx);
+  await mine.goto(`${BASE}clients.html#mine`);
+  await mine.waitForSelector('#mine-list .wproc');
+  const fixRow = mine.locator('#mine-list .witem', { hasText: 'הלקוח ביקש תיקונים: לברר ולתעד' });
+  assert.equal(await fixRow.count(), 1);
+  // (Her card of 27 is in a later group of the list; the words are the row's own.)
+  assert.match(await fixRow.evaluate((el) => el.textContent), /הלקוח כתב: ״סרטון 3: להחליף את המוזיקה[^]*נדיה מתקן\/ת\. מסמנים כאן רק כשהלקוח מאשר אחרי התיקון\./);
+  assert.equal(await mine.locator('#mine-list .wlabel', { hasText: 'הלקוח אישר את הסרטונים' }).count(), 0);
+  // The client answered (with a fix request): the "client did not answer, call" clock is gone from her bar.
+  assert.equal(await mine.locator('#now-bar', { hasText: 'הלקוח לא ענה: הסרטונים' }).count(), 0);
+  await mine.close();
+  await irit.reload();
+  await irit.waitForSelector('#status-block');
+  assert.equal(await irit.locator('.ilabel', { hasText: 'הלקוח ביקש תיקונים: לברר ולתעד' }).count(), 1);
+  assert.equal(await irit.locator('.ilabel', { hasText: 'הלקוח אישר את הסרטונים' }).count(), 0);
 });
 
 await step('the shoot-day question: 2 → a task for Lior to call, and the owner hears (rings once each)', async () => {

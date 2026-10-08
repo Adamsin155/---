@@ -41,6 +41,8 @@ import { shootRow, shootGroups, searchRows, countText, heldText, agoText, aheadT
 import { weekClosings, weekSummary, weekLabel } from './week-chart.js';
 import { countUp, growOnce, glide } from './shell.js';
 import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeClient } from './manager-data.js';
+// The owners' end of the day (docs/ops.md, section 48): the same numbers as the 19:00 message.
+import { daySummary, headline } from './day-summary.js';
 
 let viewer = null;
 let landingCtl = null;  // the owners' control of the clients in landing
@@ -71,6 +73,7 @@ let sortKey = 'color';
 let sortDir = 'asc';
 let archived = null;   // archived_clients() (null: not loaded)
 let mayShoots = false; // Lior, Ofir and the owner: the shoot-day table
+let mayEod = false;    // the owners only: the end-of-day table
 let shootRows = [];    // one row per active client (app/shoot-table.js)
 let shootQ = '';
 let shootSort = { ...DEFAULT_SORT };
@@ -172,12 +175,13 @@ function renderKeepingFocus() {
 }
 
 // ── Tabs ────────────────────────────────────
-const TABS = ['now', 'all', 'table', 'shoots', 'archive'];
+const TABS = ['now', 'all', 'eod', 'table', 'shoots', 'archive'];
 const tabsShown = () => TABS.filter((t) => !$(`tab-${t}`).hidden);
 // The page's heading follows the tab.
 const VIEW_TITLES = {
   now: ['מה דורש אותי', 'רק מה שחרג, עם שם אחד וסיבה אחת. הכול מחושב ממה שהצוות מסמן.'],
   all: ['כל הלקוחות במבט', 'איפה כל לקוח, מה הבא, מי ומתי. לחיצה על לקוח מציגה את השאר.'],
+  eod: ['סיכום היום', 'כמה פריטים באיחור אצל כל עובד, ומה היה להיום ועוד לא בוצע.'],
   table: ['כל הלקוחות בטבלה', 'שורה לכל לקוח: מה בחוזה, איפה הוא עומד, מה הבא ומה בוצע. מיון, סינון וייצוא.'],
   shoots: ['טבלת ימי צילום', 'כל הלקוחות הפעילים לפי יום הצילום האחרון שהתקיים: מי שצולם הכי מזמן למעלה, ומתחתם מי שטרם צולם.'],
   archive: ['ארכיון', 'לקוחות שהועברו לארכיון: שחזור, או מחיקה לצמיתות.'],
@@ -211,6 +215,7 @@ $('ow-tabs').addEventListener('keydown', (e) => {
 
 function render() {
   if (view === 'now') renderNow();
+  else if (view === 'eod') renderEod();
   else if (view === 'table') renderTable();
   else if (view === 'shoots') renderShoots();
   else if (view === 'archive') renderArchive();
@@ -368,6 +373,37 @@ function renderNow() {
       q.context ? h('span', { class: 'muted' }, ` · ${q.context}`) : null,
       questionLine(q));
   }));
+}
+
+// ── The owners' end of the day ──────────────
+// One row per employee who has anything, the totals, and the items under them, worst
+// first. Computed here from what the page loaded, by the function the 19:00 message uses.
+function renderEod() {
+  if (!mayEod) return;
+  const now = new Date();
+  const sum = daySummary({
+    clients, checksOf: (c) => checks[c.id] || {}, stateOf, tasks, now,
+    personOf: (email) => directory[String(email || '').toLowerCase()] || null,
+  });
+  $('eod-head').textContent = headline(sum);
+  $('eod-head').classList.toggle('is-clear', sum.empty);
+  $('eod-wrap').hidden = sum.empty;
+  $('eod-items-h').hidden = sum.empty;
+  const numCell = (n, late) => h('td', { class: `is-num num${late && n ? ' is-late' : ''}` }, n ? String(n) : '—');
+  fill($('eod-body'), sum.rows.map((r) => h('tr', { 'data-person': r.person },
+    h('th', { scope: 'row' }, personChip(r.person)), numCell(r.late, true), numCell(r.today, false), h('td', {}, r.late ? r.longest : '—'))));
+  fill($('eod-foot'), sum.empty ? null : h('tr', {},
+    h('th', { scope: 'row' }, 'סך הכול'), numCell(sum.totals.late, true), numCell(sum.totals.today, false), h('td', {}, sum.totals.late ? sum.totals.longest : '—')));
+  fill($('eod-items'), sum.items.map((x) => h('li', { class: `eod-item is-${x.kind}` },
+    h('a', { class: 'wclient', href: clientUrl(x.cid, x.taskId ? '#tasks' : x.procId ? `#${x.procId}` : '') }, x.name),
+    h('span', { class: 'eod-what' }, x.what),
+    h('span', { class: 'eod-who' }, ...x.who.map((p) => personChip(p))),
+    h('span', { class: `eod-how${x.kind === 'late' ? ' is-late' : ''}` }, x.kind === 'late' ? `באיחור ${x.how}` : 'היעד היום'))));
+  capList($('eod-items'), 12, 'ow:eod');
+  $('eod-wait').hidden = !sum.waiting.length;
+  $('eod-wait').textContent = sum.waiting.length
+    ? `${sum.waiting.length === 1 ? 'פריט אחד עבר את היעד ומחכה' : `${sum.waiting.length} פריטים עברו את היעד ומחכים`} לתשובת הלקוח, ולכן לא נספר לאף עובד: ${sum.waiting.slice(0, 4).map((x) => `${x.name} (${x.what})`).join(', ')}${sum.waiting.length > 4 ? ` ועוד ${sum.waiting.length - 4}` : ''}.`
+    : '';
 }
 
 // ── Asking the responsible person ───────────
@@ -729,6 +765,8 @@ mountSession(async (staff) => {
   showMoney = seesFinance(v);
   mayArchive = canArchive(v);
   mayShoots = canSeeShootTable(v);
+  // The end-of-day table: the two owners only (staff rows with no person), as its message is theirs.
+  mayEod = isOwnerView(v);
   // Landed: from now on in this tab, "לקוחות" opens the clients list, not this screen.
   if (isOwner) markOwnerLanded();
   $('ow-page').hidden = false;
@@ -738,6 +776,7 @@ mountSession(async (staff) => {
   $('tab-now').hidden = !isOwner;
   $('tab-table').hidden = !mayTable;
   $('tab-shoots').hidden = !mayShoots;
+  $('tab-eod').hidden = !mayEod;
   $('tab-archive').hidden = !mayArchive;
   $('ow-tabs').hidden = tabsShown().length < 2;
   // Someone with a person of their own goes back to their own tasks; the owner to the team's work.

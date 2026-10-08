@@ -74,7 +74,8 @@ test('one ring per editing event: the return, the fixes back with Ofir, the fina
   mark(w, c, 'p22a.assigned', IL(2026, 10, 18, 10));
   mark(w, c, 'p22.received', IL(2026, 10, 18, 11));
   mark(w, c, 'p24.notify', IL(2026, 10, 20, 11));
-  const rings = (now, who) => due(w, now).filter((r) => r.person === who && r.level === 'ring').map((r) => `${r.rule}.${r.step}`);
+  // (The ladder of what is late in this fixture, rules lateOwn and lateNag, is tests/late-ladder.test.mjs.)
+  const rings = (now, who) => due(w, now).filter((r) => r.person === who && r.level === 'ring' && !/^late(Own|Nag)$/.test(r.rule)).map((r) => `${r.rule}.${r.step}`);
   assert.deepEqual(rings(IL(2026, 10, 20, 11), 'ofir'), ['qa.now']);
   mark(w, c, returnKey('', 'videos', 1), IL(2026, 10, 20, 11, 20), returnNote([{ ref: '1', text: 'x' }], IL(2026, 10, 20, 18)));
   assert.deepEqual(rings(IL(2026, 10, 20, 11, 20), 'nadia'), ['qaReturn.now']);
@@ -689,7 +690,7 @@ test('exception to Lior (not urgent): his list at once, the owner\'s screen afte
   one(due(w, IL(2026, 10, 6, 10)), 'exception', 'board', 'owner');
 });
 
-test('ordinary task: quiet when created, the morning it is due, a day late to it, its creator, Ofir and Lior (quiet)', () => {
+test('ordinary task: quiet when created, the morning it is due; a day late: Ofir and Lior (quiet), and the ladder of a late item for its owner and whoever opened it', () => {
   const w = world();
   const c = client(w, { name: 'משימות' });
   importTo(w, c, 'ongoing');
@@ -697,10 +698,13 @@ test('ordinary task: quiet when created, the morning it is due, a day late to it
   assert.equal(one(due(w, IL(2026, 10, 5, 11)), 'task', 'created', 'irit').level, 'quiet');
   none(due(w, IL(2026, 10, 6, 8, 29)), 'task', 'due');
   assert.equal(one(due(w, IL(2026, 10, 6, 8, 30)), 'task', 'due', 'irit').level, 'digest');
-  const late = due(w, IL(2026, 10, 7, 8, 30));
-  one(late, 'task', 'late', 'irit');
-  one(late, 'task', 'late', 'lior'); // who opened it, and a watcher of every late item: once
+  none(due(w, IL(2026, 10, 7, 9, 14)), 'task', 'late');
+  const late = due(w, IL(2026, 10, 7, 9, 15));
+  one(late, 'task', 'late', 'lior'); // a watcher of every late item: once
   assert.equal(one(late, 'task', 'late', 'ofir').level, 'quiet'); // 3.10.2026: Ofir too
+  // 8.10.2026 (docs/ops.md, section 48): its owner rings "באיחור" at the same moment, not a quiet line.
+  assert.equal(pick(late, 'task', 'late', 'irit').length, 0);
+  assert.deepEqual([one(late, 'lateOwn', 'own', 'irit').level, one(late, 'lateOwn', 'own', 'irit').batch], ['ring', true]);
   // No per-item list for Lior two days later: from 24 hours late it is in the owner's summary.
   none(due(w, IL(2026, 10, 8, 8, 30)), 'task', 'lior');
   // Her own task: no "new task" note to herself.
