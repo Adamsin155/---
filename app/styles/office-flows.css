@@ -130,8 +130,9 @@
 .il-card details > summary::-webkit-details-marker { display: none; }
 .il-part { display: grid; gap: 4px; padding: 8px 0; border-top: 1px dashed var(--line); }
 .il-part > h4 { margin: 0; font-size: 14.5px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
-.il-checks { display: flex; flex-wrap: wrap; gap: 0 14px; }
-.il-checks .wrow { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; }
+/* Each check is a row with its "סיימתי" pill at the end (ops.md section 44); two columns where there is room. */
+.il-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 0 28px; }
+.il-checks .wrow, .il-part > .wrow { min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 4px 0; }
 .il-net { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; font-size: 13px; }
 
 @media (max-width: 760px) {
