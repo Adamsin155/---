@@ -353,7 +353,8 @@ function reachedStation(states, now, floor) {
     if (s.touched || s.complete || (DATED.has(id) && s.startAt && s.startAt <= now)) i = k;
   }
   const ongoing = stationAt('ongoing');
-  while (i < ongoing && states.every((s) => STATION_OF.get(baseId(s.proc.id)) !== i || s.proc.recurring || s.complete)) i += 1;
+  // (The daily follow-up, 14, holds its station while it runs: protocol v8 did not move anybody's station.)
+  while (i < ongoing && states.every((s) => STATION_OF.get(baseId(s.proc.id)) !== i || (s.proc.recurring ? !s.holds : s.complete))) i += 1;
   return i;
 }
 

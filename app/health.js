@@ -500,9 +500,7 @@ export function clientHealth(client, state, extras = {}) {
     const norm = STATION_NORM[key];
     const since = fromFloor(norm ? stationSince(client, state, checks, index, now) : null);
     const dateAhead = (key === 'join' && parseDate(client.char_at) > now)
-      // Since protocol v8 the daily follow-up (14) no longer holds a client in "תוכן ואישור"
-      // until the shoot: with the scripts approved it waits in "יום צילום", for the same date.
-      || ((key === 'content' || key === 'shoot') && shootContexts(client).some((x) => parseDate(x.ctx.shoot_at) > now));
+      || (key === 'content' && shootContexts(client).some((x) => parseDate(x.ctx.shoot_at) > now));
     if (since && !dateAhead) {
       const days = businessDaysBetween(since, now) - (isBusinessDay(now) ? 1 : 0);
       if (days > norm) {

@@ -441,7 +441,7 @@ await step('scripts and Zoom (12, 13): the link to the client\'s links, the Zoom
   await lior.click('#tab-scripts');
   await lior.waitForSelector('#sc-link');
   // Decision 14: the scripts were due at the end of business day 2 (yesterday, Monday 12.10).
-  assert.match(await lior.locator('#sc-h + p').innerText(), /^באיחור: היעד היה אתמול\. היעד: סוף יום העסקים השני/);
+  assert.match(await lior.locator('#sc-h + p').innerText(), /^באיחור: היעד היה אתמול 18:00\. היעד: סוף יום העסקים השני/);
   assert.match(await lior.locator('#zm-h + p').innerText(), /^עד היום\.$/); // the Zoom: day 3
   await lior.fill('#sc-link', 'https://docs.google.com/document/d/golan');
   await lior.click('#sc-save');

@@ -140,7 +140,8 @@ export function shootPrep(client, checks, state, { tasks = [], access = [], now 
   const byId = new Map(state.states.map((s) => [s.proc.id, s]));
   let wideDone = false;
   const contexts = shootContexts(client).map((x) => ({ x, shoot: parseDate(x.ctx.shoot_at) }))
-    .filter(({ x, shoot }) => { const p14 = byId.get(`${x.pid}p14`); return p14 && p14.ready && (!shoot || shoot > now); })
+    // (Started, as before protocol v8: whether the daily follow-up itself is asked is another matter.)
+    .filter(({ x, shoot }) => { const p14 = byId.get(`${x.pid}p14`); return p14 && (p14.touched || (p14.startAt && p14.startAt <= now)) && (!shoot || shoot > now); })
     .sort((a, b) => (a.shoot?.getTime() ?? Infinity) - (b.shoot?.getTime() ?? Infinity));
   for (const { x, shoot } of contexts) {
     const st = (id) => byId.get(`${x.pid}${id}`) || null;

@@ -322,15 +322,13 @@ test('the timeline: done with who and when (automatic marked), now, and planned 
 test('stuck in a station longer than its norm (not while waiting for a date that is set, nor on the client)', () => {
   // Onboarded on Monday 12.10; the shoot day never set.
   const checks = { ...onboarded(), ...done(base, ['p12a', 'p12', 'p13'], '2026-10-13T12:00:00+03:00') };
-  // Since protocol v8 the daily follow-up (14) is not a step that holds the client in "תוכן
-  // ואישור": with the scripts approved the client is waiting for its shoot day, and what is
-  // open there is the date itself (11, Irit's). The norm of that station is 3 business days.
-  const norm = STATION_NORM.shoot;
-  assert.equal(norm, 3);
-  // In the station since Tuesday 13.10 at noon (the scripts were approved). On Monday 19.10, 3 whole business days: the norm.
-  assert.equal(find(health(base, checks, '2026-10-19T17:00:00+03:00'), 'stuck'), undefined);
-  const s = find(health(base, checks, '2026-10-20T10:00:00+03:00'), 'stuck');
-  assert.deepEqual([s.color, s.text, s.what, s.who, s.procId], ['yellow', 'בתחנה 4 ימי עסקים', 'יום צילום · הנורמה עד 3 ימי עסקים', 'irit', 'p11']);
+  // (The daily follow-up, 14, still holds the client in "תוכן ואישור" until the shoot day: protocol v8 moved nobody's station.)
+  const norm = STATION_NORM.content;
+  assert.equal(norm, 10);
+  // In the station since Tuesday 13.10 (the first thing done in it). On Wednesday 28.10, 10 whole business days: the norm.
+  assert.equal(find(health(base, checks, '2026-10-28T17:00:00+02:00'), 'stuck'), undefined);
+  const s = find(health(base, checks, '2026-10-29T10:00:00+02:00'), 'stuck');
+  assert.deepEqual([s.color, s.text, s.what, s.who], ['yellow', 'בתחנה 11 ימי עסקים', 'תוכן ואישור · הנורמה עד 10 ימי עסקים', 'irit']);
   // A shoot day set ahead: the station waits for it, nobody is stuck.
   const ahead = { ...base, shoot_at: '2026-11-15T10:00:00+02:00' };
   assert.equal(find(health(ahead, checks, '2026-10-29T10:00:00+02:00'), 'stuck'), undefined);

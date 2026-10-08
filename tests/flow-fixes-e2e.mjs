@@ -421,6 +421,22 @@ try {
     await ctx.close();
   });
 
+  await step('7: the two other places that mark "the scripts are on the scripts page" keep the link and wait for a script too (the intake page)', async () => {
+    const { page, ctx, db } = await signedIn('lior', office(), `intake.html?id=${SCRIPTS}#scripts`);
+    await page.waitForSelector('#sc-link');
+    await page.fill('#sc-link', 'https://app.astrateg.tech/scripts-view.html#t=abc');
+    await page.click('#sc-save');
+    await settle(page);
+    assert.match(await toastText(page), /^הקישור נשמר\. עוד אין תסריט בעמוד התסריטים\./);
+    assert.equal(db.clients.find((x) => x.id === SCRIPTS).links.scripts, 'https://app.astrateg.tech/scripts-view.html#t=abc', 'the link itself is kept');
+    assert.equal(checkOf(db, SCRIPTS, 'p12.docs'), null);
+    db.client_scripts.push({ client_id: SCRIPTS, round: 1, n: 1, content: 'פתיח', version: 1 });
+    await page.click('#sc-save');
+    await settle(page);
+    assert.equal(checkOf(db, SCRIPTS, 'p12.docs')?.state, 'done');
+    await ctx.close();
+  });
+
   assert.deepEqual(errors, []);
   noCspViolations();
   console.log(`\n${passed} steps passed.`);

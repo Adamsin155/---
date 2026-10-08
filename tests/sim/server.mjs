@@ -163,6 +163,14 @@ function access(sim, rpc, { body, me, office, now }) {
     Object.assign(l, { submitted_at: now, summary: summaryOf(payload), client_note: null, client_note_private: String(payload.notes ?? "").trim() || null });
     setCheck(c, "p05.access", `מהלקוח, בטופס פרטי הכניסה: ${names.join(", ")}`);
     setCheck(c, "p05.vault", "נכנס לכספת מטופס פרטי הכניסה של הלקוח");
+    // Trigger client_access_links_filled (20261022100000_flow_fixes_v8.sql): the moment the link gets its
+    // submitted_at closes Irit's "send the client the link" (5ב) and answers "are there other networks".
+    // A mark that is already done keeps its time and its words; one in another state is set to done.
+    for (const [key, note] of [["p05b.sent", "נסגר לבד: הלקוח מילא את טופס פרטי הכניסה"], ["p05.allnets", "נסגר לבד: הלקוח מילא בטופס את הרשתות שלו"]]) {
+      const old = db.protocol_checks.find((x) => x.client_id === c.id && x.item_key === key);
+      if (!old) db.protocol_checks.push({ client_id: c.id, item_key: key, state: "done", note, by_email: null, at: now });
+      else if (old.state !== "done") Object.assign(old, { state: "done", note });
+    }
     if (open.length) db.client_tasks.push({ id: randomUUID(), client_id: c.id, title: `לפתוח ללקוח ${open.join(", ")} ולהכניס את הגישה לכספת (הלקוח סימן בטופס: אין כיום)`, owner: "ilai", urgent: true, due_on: null, done_at: null, done_by_email: null, source: null, brief: null, started_at: null, created_by_email: "", created_at: now });
     return [200, { state: "done" }];
   }

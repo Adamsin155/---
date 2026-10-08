@@ -598,6 +598,9 @@ export function clientState(client, checks = {}, now = new Date()) {
       const started = !!(s.startAt && s.startAt <= now);
       s.ready = !quiet && started && !over && client.status !== 'cancelled' && client.status !== 'ended';
       s.over = over;
+      // Still running (whoever is asked, landing or not): it keeps the client in its
+      // station ("תוכן ואישור") until the shoot day, as the list of eight topics did.
+      s.holds = started && !over;
       s.status = !s.ready ? (over ? 'done' : 'waiting') : isResolved(item, checks[item.key], now) ? 'done' : isBusinessDay(now) ? 'due' : 'waiting';
       s.lastAt = checks[item.key]?.at || null;
       continue;

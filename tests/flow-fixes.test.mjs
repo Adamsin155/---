@@ -29,6 +29,8 @@ import { guardVerdict, guardOf, ganttFacts, graphicsAsk, roundOfKey, REFUSALS } 
 import { accessGapQuestion } from '../app/access-logic.js';
 import { freeAhead } from '../app/availability-logic.js';
 import { dateIL, partsIL } from '../app/tz.js';
+import { stationOf } from '../app/messages-logic.js';
+import { intakeItems } from '../app/landing-logic.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
 const hhmm = (d) => { const p = partsIL(d); return `${p.day}.${p.month} ${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`; };
@@ -493,4 +495,36 @@ test('a guarded item is never closed with "mark the whole process"', () => {
   const keys = bulkEligible(s, 'lior', c, w.checks[c.id], now).map((i) => i.key);
   assert.deepEqual(keys, ['p12.scripts', 'p12.numbered']);
   assert.ok(mine(w, c, 'lior', now).includes('p12.docs'), 'it is still his to tick, by itself');
+});
+
+// ── Nothing else moved ──────────────────────────────────────────────────────
+test('the daily follow-up keeps the client in "תוכן ואישור" until the shoot day, as the list of eight topics did: nobody\'s station moved', () => {
+  const key = (c, w, now) => STATIONS[stationOf(c, stateOf(w, c, now), now)].key;
+  for (const version of [5, 7, 8]) {
+    // The scripts are approved, the shoot day is a week ahead (and for another client: not set at all).
+    for (const shoot of [IL(2026, 10, 20, 10).toISOString(), null]) {
+      const { w, c } = afterMeeting(world(), { protocol_version: version, shoot_at: shoot });
+      for (const id of ['p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p12a', 'p12', 'p13']) marks(w, c, itemsOf(id), IL(2026, 10, 7, 12));
+      assert.equal(key(c, w, IL(2026, 10, 12, 10)), 'content', `v${version} ${shoot ? 'dated' : 'no date'}`);
+    }
+  }
+  // A client that was imported at "יום צילום" is where it was placed: the follow-up's topics came in as history.
+  const w = world();
+  const c = client(w, { char_at: IL(2026, 9, 20, 10).toISOString(), shoot_at: IL(2026, 10, 27, 10).toISOString() });
+  importTo(w, c, 'shoot');
+  assert.equal(key(c, w, IL(2026, 10, 12, 10)), 'shoot');
+  assert.ok(importKeys('shoot').includes('p14.approvals') && !importKeys('shoot').includes('p14.day'));
+});
+
+test('the taking-in of a client from the old system does not ask about a step that version 8 added', () => {
+  const w = world();
+  const c = client(w, { landing: true, protocol_version: 7, char_at: IL(2026, 9, 20, 10).toISOString() });
+  marks(w, c, importKeys('char').filter((k) => !['p05b.sent', 'p05.allnets', 'p07a.sent'].includes(k)), IL(2026, 9, 1, 9), IMPORT_NOTE);
+  const now = IL(2026, 10, 12, 10);
+  for (const p of ['irit', 'ofir', 'lior', 'ilai']) {
+    const keys = intakeItems(p, c, w.checks[c.id], {}, now).map((i) => i.key);
+    for (const k of ['p05b.sent', 'p05.allnets', 'p07a.sent', 'p14.day']) assert.ok(!keys.includes(k), `${p}: ${k}`);
+  }
+  // What was asked before is still asked (the review of the first graphics is Irit's).
+  assert.ok(intakeItems('irit', c, w.checks[c.id], {}, now).some((i) => i.key === 'p07.sent'));
 });

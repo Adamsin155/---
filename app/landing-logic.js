@@ -68,6 +68,9 @@ export function intakeItems(person, client, checks = {}, marks = {}, now = new D
     if (s.proc.recurring) continue;
     for (const i of itemsOf(person, s)) {
       if (i.optional || i.recurring) continue;
+      // An item a later protocol version added is not a question of the taking-in: a
+      // client from the old system is not asked about a step that did not exist then.
+      if (i.fresh) continue;
       const real = checks[i.key];
       if (real && (real.state === 'done' || real.state === 'na')) continue;
       const m = marks?.[i.key] || null;
@@ -83,7 +86,7 @@ export function stationNow(client, checks = {}, now = new Date()) {
   const state = clientState(client, checks, now);
   for (let i = 0; i < STATIONS.length; i += 1) {
     if (STATIONS[i].key === 'renewal') break;
-    if (state.states.some((s) => !s.proc.recurring && !s.complete && !/^r\d+-/.test(s.proc.id) && STATION_OF.get(s.proc.id) === i)) return i;
+    if (state.states.some((s) => (s.proc.recurring ? s.holds : !s.complete) && !/^r\d+-/.test(s.proc.id) && STATION_OF.get(s.proc.id) === i)) return i;
   }
   return stationIndex('ongoing');
 }
@@ -168,7 +171,7 @@ export function stationPlan(client, checks = {}, stationKey) {
   if (stationIndex(stationKey) < 0) return null;
   const keys = importKeys(stationKey, { shootSet: !!client.shoot_at });
   const want = new Set(keys);
-  const importable = new Set(PROCESSES.filter((p) => !p.recurring).flatMap((p) => p.items.filter((i) => !i.recurring).map((i) => i.key)));
+  const importable = new Set(PROCESSES.filter((p) => p.recurring !== 'weekly').flatMap((p) => p.items.filter((i) => !i.recurring).map((i) => i.key)));
   return {
     set: keys.filter((k) => !checks[k]),
     clear: Object.keys(checks).filter((k) => importable.has(k) && !want.has(k) && checks[k]?.note === IMPORT_NOTE),

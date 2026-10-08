@@ -860,7 +860,7 @@ test('focus call (12א) the next business day; shoot blockers (14) every morning
   const w = world();
   const c = client(w, { char_at: IL(2026, 10, 4, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
   importTo(w, c, 'shoot');
-  for (const k of [...itemsOf('p12a'), ...itemsOf('p14')]) delete w.checks[c.id][k];
+  for (const k of [...itemsOf('p12a'), ...PROCESSES.find((p) => p.id === 'p14').items.map((i) => i.key)]) delete w.checks[c.id][k];
   assert.equal(one(due(w, IL(2026, 10, 5, 8, 30)), 'focusCall', 'next', 'lior').level, 'digest');
   // The blockers are computed (shoot-prep.js): the focus call is late, an employee's delay.
   const mon = one(due(w, IL(2026, 10, 12, 8, 30)), 'blockers', 'd2026-10-12', 'irit');

@@ -280,7 +280,7 @@ test('the shoot-day coordinator (11): closed only when all four approved and it 
 test('shoot blockers (14) are computed from what the system knows, by the 8 topics of process 14', () => {
   const c = client({ char_at: IL(2026, 10, 4, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
   // Everything before the shoot done, except: the scripts (late), the client's approval, a broken login.
-  const checks = without(imported('shoot'), [...itemsOf('p12'), ...itemsOf('p13'), ...itemsOf('p14')]);
+  const checks = without(imported('shoot'), [...itemsOf('p12'), ...itemsOf('p13'), ...PROCESSES.find((p) => p.id === 'p14').items.map((i) => i.key)]);
   const now = IL(2026, 10, 12, 9);
   const access = [{ id: 'a1', client_id: c.id, network: 'instagram', status: 'broken', updated_at: IL(2026, 10, 10).toISOString() }];
   const tasks = [
