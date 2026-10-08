@@ -569,8 +569,24 @@ export function clientState(client, checks = {}, now = new Date()) {
     };
   });
 
+  // The daily follow-up (14): is it still running? Over: the day of `until` came; or the
+  // shoot day is behind the client although no date says so (its closing, 19, is done or
+  // was brought in as history: an old client with no shoot date on record is not asked
+  // about a shoot that took place long ago); or it is imported history itself. While it
+  // runs it holds its phase and its station ("תוכן ואישור"), as the list of eight topics
+  // did until the shoot day, whoever is asked (a client in landing too).
+  for (const s of states) {
+    if (!isDaily(s.proc)) continue;
+    const ctx = s.proc.ctx || client;
+    const end = s.proc.until ? realAnchor(s.proc.until, ctx, procs, checks, now) : null;
+    const round = /^(r\d+-)/.exec(s.proc.id)?.[1] || '';
+    const closing = ANCHOR_PROC[s.proc.until] ? states.find((x) => x.proc.id === `${round}${ANCHOR_PROC[s.proc.until]}`) : null;
+    s.over = (!!end && dayKeyIL(now) >= dayKeyIL(end)) || isImported(s.proc, checks)
+      || !!(closing && (closing.complete || isImported(closing.proc, checks)));
+    s.holds = !!(s.startAt && s.startAt <= now) && !s.over;
+  }
   // Current phase: the first one that still has open work.
-  const openPhase = phaseList.find((ph) => states.some((s) => s.proc.phase === ph.key && !s.complete && !s.proc.recurring && ph.key !== 'renewal'));
+  const openPhase = phaseList.find((ph) => states.some((s) => s.proc.phase === ph.key && (s.proc.recurring ? s.holds : !s.complete) && ph.key !== 'renewal'));
   const current = openPhase ? openPhase.key : 'ongoing';
   const cur = phaseIndex(current);
 
@@ -585,22 +601,9 @@ export function clientState(client, checks = {}, now = new Date()) {
       // 14: asked on every working day from its start until the day of `until` (the
       // shoot day), never of a client in landing or of imported history. Answered
       // today: 'done'. It is never late; a day that passed unanswered is simply gone.
-      const ctx = s.proc.ctx || client;
       const item = s.proc.items[0];
-      const end = s.proc.until ? realAnchor(s.proc.until, ctx, procs, checks, now) : null;
-      // Over: the day came; or the shoot day is behind the client although no date says
-      // so (its closing, 19, is done or was brought in as history: an old client with no
-      // shoot date on record is not asked about a shoot that took place long ago).
-      const round = /^(r\d+-)/.exec(s.proc.id)?.[1] || '';
-      const closing = ANCHOR_PROC[s.proc.until] ? states.find((x) => x.proc.id === `${round}${ANCHOR_PROC[s.proc.until]}`) : null;
-      const over = (!!end && dayKeyIL(now) >= dayKeyIL(end)) || isImported(s.proc, checks)
-        || !!(closing && (closing.complete || isImported(closing.proc, checks)));
-      const started = !!(s.startAt && s.startAt <= now);
-      s.ready = !quiet && started && !over && client.status !== 'cancelled' && client.status !== 'ended';
-      s.over = over;
-      // Still running (whoever is asked, landing or not): it keeps the client in its
-      // station ("תוכן ואישור") until the shoot day, as the list of eight topics did.
-      s.holds = started && !over;
+      const over = s.over;
+      s.ready = !quiet && s.holds && client.status !== 'cancelled' && client.status !== 'ended';
       s.status = !s.ready ? (over ? 'done' : 'waiting') : isResolved(item, checks[item.key], now) ? 'done' : isBusinessDay(now) ? 'due' : 'waiting';
       s.lastAt = checks[item.key]?.at || null;
       continue;

@@ -822,7 +822,9 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
 /* "העתקת הקישור" on a card whose step is sending the client a link: the button, and
    nothing else (the step's own sentence is the row under it). */
 .wlink { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.wlink { align-items: center; }
 .wlink .btn { min-height: 44px; }
+.wlink .wlink-done { margin-inline-start: auto; }
 .wlink .wlink-text { flex: 1 1 100%; margin: 0; }
 .wlink .wlink-text input { width: 100%; min-height: 44px; }
 /* The shoot-date dialog: the photographer's free days, and who approved. The chips are

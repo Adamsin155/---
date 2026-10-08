@@ -418,6 +418,11 @@ try {
     assert.match(await text(page.locator('#call-err')), /לא נכתב דבר בסיכום/);
     assert.equal(checkOf(db, ONGOING, 'p31.call'), null);
     await shot(page.locator('#dlg-call'), 'lior-weekly-call-dialog');
+    // One line of summary: saved, and the call is marked.
+    await page.fill('#call-topic-campaigns', 'הקמפיין רץ, 12 פניות השבוע');
+    await page.click('#call-submit');
+    await page.waitForFunction(() => !document.querySelector('#dlg-call[open]'));
+    assert.match(JSON.parse(checkOf(db, ONGOING, 'p31.call').note).topics.campaigns, /12 פניות/);
     await ctx.close();
   });
 

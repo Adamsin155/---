@@ -808,7 +808,8 @@ function renderPhases(s) {
       : { late: ph.states.filter((x) => x.status === 'overdue').length, done: ph.procsDone, total: ph.procsTotal, complete: ph.complete };
     const late = meta.late;
     const done = list.filter((x) => x.complete);
-    const showDone = printing || shownDone.has(ph.key) || done.length === list.length;
+    // (A recurring process, the daily follow-up or the weekly call, is never "complete": it does not fold the done ones away.)
+    const showDone = printing || shownDone.has(ph.key) || done.length === counted.length;
     const missing = missingFields(ph.round ? { needs: [] } : ph, client);
     const det = h('details', { class: `phase${ph.key === s.current ? ' is-current' : ''}${ph.round ? ' is-round' : ''}`, open: printing || openPhases.has(ph.key) },
       h('summary', {},
@@ -1125,7 +1126,8 @@ async function mark(key, state, focusId, note = null) {
   // one sentence, only when it knows there is nothing behind it.
   if (state === 'done') {
     const verdict = await checkMark(id, key);
-    if (verdict?.via === 'call') { renderKeepingFocus(focusId); openCall(key); return false; }
+    // (The call's own dialog saves through here with its summary as the note: that is the mark itself.)
+    if (verdict?.via === 'call' && note === null) { renderKeepingFocus(focusId); openCall(key); return false; }
     if (verdict?.refuse) { renderKeepingFocus(focusId); toast(verdict.refuse); return false; }
   }
   const prev = checks[key];

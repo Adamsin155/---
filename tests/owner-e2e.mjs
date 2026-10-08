@@ -368,7 +368,7 @@ await step('screen 2: two lines per client, most severe first; a tap opens the r
   assert.match(await row.locator('.ga-l1').innerText(), /אדום\s*מספרת רון\s*צילום בסיכון · אין אישור לקוח על התסריטים[^]*· ליאור/);
   assert.match(await row.locator('.ga-l2').innerText(), /^הבא: אישור התסריטים · ליאור · /);
   // A milestone already late says so; one the client holds says that, not a date that keeps moving.
-  assert.match(await owner.locator(`#gab-${B.id} .ga-l2`).innerText(), /^הבא: קביעת יום הצילום · עירית · היה עד יום ה׳, 15\.10 · באיחור$/);
+  assert.match(await owner.locator(`#gab-${B.id} .ga-l2`).innerText(), /^הבא: קביעת יום הצילום · עירית · היה עד יום ה׳, 15\.10 18:00 · באיחור$/);
   assert.equal(await owner.locator(`#gab-${C.id} .ga-l2`).innerText(), 'הבא: קביעת יום הצילום · עירית · ממתין ללקוח');
   assert.equal(await row.getAttribute('aria-expanded'), 'false');
   assert.equal(await owner.isHidden(`#ga-${A.id}`), true);

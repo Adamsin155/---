@@ -30,10 +30,10 @@ export const COUNTS = {
   shootSoon: { landing: 1 },           // shoots next week
   // The daily follow-up before the shoot day (14, protocol v8): the characterization is
   // behind them and the shoot day is not (three of them have no date yet). A client in
-  // landing is not asked about.
-  followup: 6,
+  // landing is not asked about, nor one that was imported past "תוכן ואישור" (its follow-up is history).
+  followup: 5,
 };
-export const FOLLOWUP_CLIENTS = [4, 5, 7, 8, 9, 10];
+export const FOLLOWUP_CLIENTS = [4, 5, 7, 8, 9];
 const keysOf = (...ids) => ids.flatMap((id) => PROCESSES.find((p) => p.id === id).items.filter((i) => !i.optional).map((i) => i.key));
 
 export function flowWorld({ landing = true, queues = true } = {}) {

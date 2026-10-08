@@ -636,7 +636,7 @@ $('shoot-form').addEventListener('submit', async (ev) => {
 // that gets it: the link that waits, or a new one when there is none. The ready message
 // with the link goes to the clipboard; where the browser refuses, it is shown to copy.
 const linkShown = new Map(); // card key → the message, when it could not be copied
-function linkLine(g) {
+function linkLine(g, entry = null) {
   const kind = g.proc?.link;
   if (!kind || g.task) return null;
   const id = `link-${g.key}`.replace(/[^\w-]/g, '_');
@@ -644,7 +644,12 @@ function linkLine(g) {
   if (!may) return null;
   const shown = linkShown.get(g.key);
   return h('div', { class: 'wlink', role: 'group', 'aria-label': 'הקישור ללקוח' },
-    h('button', { type: 'button', class: 'btn btn-sm btn-primary', id, onclick: (ev) => copyLink(g, kind, ev.currentTarget) }, 'העתקת הקישור'),
+    // Outlined, like every action of a row: pink is the screen's one main action.
+    h('button', { type: 'button', class: 'btn btn-sm', id, onclick: (ev) => copyLink(g, kind, ev.currentTarget) }, 'העתקת הקישור'),
+    entry ? (() => {
+      const tid = `w-${entry.client.id}-${entry.item.key}`.replace(/[^\w-]/g, '_');
+      return h('label', { class: 'wrow wlink-done', for: tid }, tickOf(entry, tid), h('span', { class: 'wlabel sr-only' }, entryLabel(entry)));
+    })() : null,
     shown ? h('p', { class: 'wlink-text' }, h('label', { class: 'sr-only', for: `${id}-t` }, 'ההודעה עם הקישור, להעתקה'),
       h('input', { class: 'input', id: `${id}-t`, readonly: true, dir: 'auto', value: shown, onfocus: (ev) => ev.currentTarget.select() })) : null);
 }
@@ -932,6 +937,8 @@ function compactCard(g, person) {
     },
   }, label);
   const when = whenWords(g);
+  // Whoever may not make the link (a viewer of somebody else's list) keeps the plain row.
+  const link = linkLine(g, single ? ticks[0] : null);
   return h('li', { class: `wproc wc s-${g.status}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
     h('div', { class: 'wc-head', 'aria-describedby': g.wait ? waitId : null },
       h('a', { class: 'wclient', href }, clientLabel(g.client)),
@@ -943,10 +950,10 @@ function compactCard(g, person) {
       h('p', { class: 'wc-title' }, single && g.task ? h('span', { class: 'wc-sub' }, sub || 'משימה') : [what, sub ? h('span', { class: 'wc-sub' }, ` · ${sub}`) : null]),
       panel && !listIsAction ? toggle('פירוט', 'btn-text wc-more') : null),
     need, // a detail of the client that is still missing, set from here
-    linkLine(g), // the link this step sends to the client
+    link, // the link this step sends to the client, with its "סיימתי" in the same row
     start, // "התחלתי", or when it was pressed
     shortcut,
-    single ? rows() : null,
+    single && !link ? rows() : null,
     listIsAction ? toggle(`הצגת הפריטים (${n})`, 'btn btn-sm wc-go wc-open') : null,
     panel);
 }

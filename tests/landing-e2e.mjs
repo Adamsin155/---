@@ -87,7 +87,9 @@ const seed = (business, station, extra = []) => {
   for (const k of [...importKeys(station, { shootSet: !!C(business).shoot_at })]) db.protocol_checks.push({ client_id: C(business).id, item_key: k, state: 'done', note: IMPORT_NOTE, by_email: '', at: IMPORTED });
   for (const k of extra) db.protocol_checks.push({ client_id: C(business).id, item_key: k, state: 'done', note: null, by_email: 'ofir@astrateg.test', at: '2026-10-12T08:00:00Z' });
 };
-seed('מוסך הצפון', 'content');
+// Protocol v8: the old system had it one station back. (At "תוכן ואישור" Irit has nothing to
+// take in any more: her process there, 14, is a daily follow-up, never an item of a list.)
+seed('מוסך הצפון', 'char');
 seed('מספרת יעל', 'ongoing');
 seed('סטודיו נועה', 'post', clientState(C('סטודיו נועה'), {}, NOW).states.find((s) => s.proc.id === 'p22a').proc.items.map((i) => i.key));
 
@@ -408,7 +410,7 @@ try {
   await step('the office corrects the station in one step, as the import form marks it', async () => {
     const c = C('מוסך הצפון');
     const card = cardOf(irit, 'מוסך הצפון');
-    assert.equal((await card.locator('.land-head .tag').innerText()).trim(), 'לפי המערכת: תוכן ואישור');
+    assert.equal((await card.locator('.land-head .tag').innerText()).trim(), 'לפי המערכת: אפיון');
     const had = db.protocol_checks.filter((r) => r.client_id === c.id).length;
     await showItems(irit, 'מוסך הצפון');
     await card.locator('select.land-st').selectOption('shoot');

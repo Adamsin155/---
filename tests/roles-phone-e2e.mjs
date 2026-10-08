@@ -106,7 +106,8 @@ async function shortList(page, label) {
     const cards = [...document.querySelectorAll('#mine-list .wproc.wc')].filter(vis).map((c) => ({
       client: c.querySelector('.wclient')?.innerText,
       when: c.querySelector('.wc-when')?.innerText || '',
-      actions: [...c.querySelectorAll(':scope > .wc-go, :scope > .wlist .cbx, :scope > .task-start button')].filter(vis).length,
+      // (A step that sends the client a link, 5ב and 7א since protocol v8, has its "סיימתי" next to "העתקת הקישור", in the link's row.)
+      actions: [...c.querySelectorAll(':scope > .wc-go, :scope > .wlist .cbx, :scope > .wlist a.wcall, :scope > .wlink .cbx, :scope > .task-start button')].filter(vis).length,
       boxes: [...c.querySelectorAll('.cbx')].filter(vis).length,
       h: Math.round(c.getBoundingClientRect().height),
     }));
@@ -154,7 +155,11 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.equal(await page.locator('#deals-card a.btn', { hasText: 'להכנת החוזה' }).first().evaluate((el) => el.classList.contains('btn-primary')), false);
   assert.match(await page.innerText('#deals-card'), /עסקאות חדשות מהשטח \(2\)[^]*להכין חוזה ל־קפה הפינה[^]*להכין חוזה ל־מאפיית השכונה/);
   const list = await shortList(page, 'irit');
-  assert.deepEqual(list.groups.filter((g) => /g-(overdue|today|tomorrow)/.test(g.cls)).map((g) => g.title), ['באיחור', 'היום', 'מחר']);
+  // Protocol v8: what was her one card of "מחר" (the eight follow-up topics of the client that shoots
+  // tomorrow) is now part of the one counted line of the daily follow-up, in "היום".
+  assert.deepEqual(list.groups.filter((g) => /g-(overdue|today|tomorrow)/.test(g.cls)).map((g) => g.title), ['באיחור', 'היום']);
+  assert.match(await page.locator('#mine-list a[href="prep.html#followup"]').innerText(), /מעקב לפני צילום: \d+ לקוחות/);
+  assert.equal(await page.locator('#mine-list .wproc[data-key$=":p14"]').count(), 0);
   assert.ok(list.cards.some((c) => /^באיחור \d+ ימי עסקים$/.test(c.when)), 'the deadline in words');
   assert.ok(list.cards.some((c) => /^היום עד \d\d:\d\d$/.test(c.when)));
   const h = await heightOf(page);
@@ -533,7 +538,7 @@ await step('at 360px nothing scrolls sideways, on Irit\'s list and with a card o
   await page.waitForSelector('#mine-list .wproc.wc');
   await settle(page);
   await tidy(page, 'irit 360');
-  await page.locator('#mine-list .wc-open').first().click();
+  await page.locator('#mine-list .wc-open:visible, #mine-list .wc-more:visible').first().click();
   await page.click('#side-more');
   assert.ok(await noHScroll(page));
 });
