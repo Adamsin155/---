@@ -15,6 +15,7 @@
 import { PEOPLE } from './protocol.js';
 import { loadClient, loadChecks, setCheck, updateClient, loadDirectory, loadStaffPhones } from './protocol-data.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, directory, who, formatStamp, store } from './protocol-ui.js';
+import { checkMark } from './mark-guards.js';
 import { briefBlock } from './briefs.js';
 import { loadBriefs } from './intake-data.js';
 import { waLink, groupLink, dayText } from './messages-logic.js';
@@ -488,8 +489,13 @@ async function dropShare() {
 async function useForClient(url) {
   try {
     card = await updateClient(id, { links: { ...(card.links || {}), scripts: url } });
-    checks[`${pre()}p12.docs`] = await setCheck(id, `${pre()}p12.docs`, 'done', url);
-    toast('נשמר כקישור התסריטים של הלקוח.');
+    // Marked with it only when this round has a script here (protocol v8, app/mark-guards.js).
+    const verdict = await checkMark(id, `${pre()}p12.docs`);
+    if (verdict?.refuse) toast(`הקישור נשמר. ${verdict.refuse}`);
+    else {
+      checks[`${pre()}p12.docs`] = await setCheck(id, `${pre()}p12.docs`, 'done', url);
+      toast('נשמר כקישור התסריטים של הלקוח.');
+    }
   } catch (err) { toast(`לא נשמר. ${errorText(err)}`); }
   redrawShare('sh-copy');
   renderHead();

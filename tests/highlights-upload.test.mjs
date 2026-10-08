@@ -60,9 +60,9 @@ test('8ב in the protocol: right after 8, Ofir\'s, in "אפיון", one new key,
   assert.equal(onOfficeTime(p.due), true, '30 office minutes');
   const char = STATIONS.find((s) => s.key === 'char').procs;
   assert.equal(char[char.indexOf('p08') + 1], 'p08b');
-  assert.equal(PROTOCOL_VERSION, 7);
+  assert.equal(PROTOCOL_VERSION, 8); // 8 since 8.10.2026 (docs/ops.md, section 49); this feature itself did not move it
   assert.equal(itemSince('p08b.posted'), 7);
-  assert.deepEqual(PROTOCOL_HISTORY.at(-1).items, ['p08b.posted']);
+  assert.deepEqual(PROTOCOL_HISTORY.find((v) => v.version === 7).items, ['p08b.posted']);
 });
 
 test('the clock: it starts when process 8 is complete (both items) and is due 30 office minutes later', () => {

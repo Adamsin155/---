@@ -130,7 +130,9 @@ export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks 
         snooze: sn?.state === 'done' ? parseDate(sn.note) : null,
         kind: 'proc', id: `${s.proc.id}@${s.dueAt.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), what: `${s.proc.num} · ${s.proc.title}`, num: s.proc.num,
         dueAt: s.dueAt, lateAt: addWorkingMinutes(s.dueAt, grace), ...chain,
-        ownLadder: (b === 'p04' && done('p04.ended')) || (b === 'p27' && done('p27.final')), gap: !!s.gap,
+        // Only process 3's missing meeting date has a daily ring of its own (section 47). 11
+        // without a shoot date (protocol v8) is a late item like any other: it is on the ladder.
+        ownLadder: (b === 'p04' && done('p04.ended')) || (b === 'p27' && done('p27.final')), gap: !!s.gap && b === 'p03',
         ref: s.proc.keyBase || s.proc.id, procId: s.proc.id, task: null,
       });
     }

@@ -15,7 +15,7 @@
 //   soon    any other process of the person due within the next hour.
 // A clock that ran out stays in the bar, red, until the end of that day (a
 // "soon" one for an hour; after that it is in the "overdue" list).
-import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, ANSWERED, waitOf, IMPORT_NOTE, inLanding, workFloor, parseDate } from './protocol-logic.js';
+import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, isDayEnd, ANSWERED, waitOf, IMPORT_NOTE, inLanding, workFloor, parseDate } from './protocol-logic.js';
 import { endOfDayIL, partsIL } from './tz.js';
 
 const MIN = 6e4;
@@ -54,7 +54,7 @@ export const SOON_MINUTES = 60;
 const KIND_ORDER = { answer: 0, deal: 1, soon: 2 };
 const baseId = (proc) => proc.id.replace(/^r\d+-/, '');
 // A deadline "by the end of the day" is a date, not a clock.
-const endOfDay = (d) => { const p = partsIL(d); return p.hour === 23 && p.minute === 59; };
+const endOfDay = (d) => isDayEnd(d); // a deadline of a day, not of an hour: no countdown in the bar
 const peopleOf = (entries) => [...new Set(entries.flatMap((e) => (e.claim ? [e.claim.person] : e.item.owners)))];
 
 // Where a clock stands at `now`. Office clocks stop outside office hours:

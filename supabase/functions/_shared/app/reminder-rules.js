@@ -51,14 +51,14 @@
 import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
-  businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel, clientState,
+  businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel, clientState, blockers,
 } from './protocol-logic.js';
 // The owner's decisions of 3.10.2026: Stav's deals, the station-change message, the
 // automatic editor assignment.
 import { DEAL_MINUTES, contractTitle, dealSummary, dealUrl } from './deal-logic.js';
 import { stationChange } from './messages-logic.js';
 import { autoReasonOf } from './auto-assign.js';
-import { shootPrep, reportedOf, TELL, requestOf } from './shoot-prep.js';
+import { shootPrep, reportedOf, TELL, requestOf, followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
 import { BLOCKING_TITLE } from './characterization.js';
 import { ANSWER_CLOCKS, fixAnswered } from './clocks.js';
 import {
@@ -387,7 +387,10 @@ export const RULES = [
           const open = ids.map((id) => i0.same(id)).filter((s) => s && !s.complete && !s.wait && !s.claim);
           const m = i0.same(main);
           if (!open.length || !m) continue;
-          out.push({ ...procCase(env, c, m), id: person, who: person, open, mainOpen: open.includes(m), anchors: { event: endAt, due: m.dueAt } });
+          // Once the work was handed on inside the process (7: the graphics are with Irit,
+          // protocol v8) its deadline is the next person's: no "30 minutes left" to this one.
+          const mc = procCase(env, c, m);
+          out.push({ ...mc, id: person, who: person, open, mainOpen: open.includes(m) && openOf(mc, person).some((it) => !blockers(it, mc.ctx, mc.checks)), anchors: { event: endAt, due: m.dueAt } });
         }
       }
       return out;
@@ -496,7 +499,10 @@ export const RULES = [
     ],
   },
 
-  // 7: the 9 graphics are ready. Irit checks and sends; Lior after 30 minutes (decision 7).
+  // 7: the 9 graphics are ready. Irit checks and sends. Since protocol v8 the review is
+  // hers alone, with its own two office hours from this moment: Lior is no longer rung
+  // after 30 minutes to do it himself (decision 7); he hears when she is late, as of any
+  // late item (`late`, and the ladder of section 48).
   {
     id: 'graphics9', event: '9 גרפיקות מוכנות (7)', procs: ['p07'],
     instances(env) {
@@ -504,8 +510,23 @@ export const RULES = [
         .map((i) => ({ ...i, id: 'p07', anchors: { event: i.doneAt('p07.made') } }));
     },
     steps: [
-      { id: 'now', to: 'irit', level: 'ring', title: (i) => `9 גרפיקות מוכנות לבדיקה: ${i.name}`, body: () => '7 בדיקות, ואז שליחה ללקוח לאישור.' },
-      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', title: (i) => `9 גרפיקות מחכות 30 דקות: ${i.name}`, body: () => 'עירית עוד לא שלחה אותן ללקוח. לבדוק ולשלוח.' },
+      { id: 'now', to: 'irit', level: 'ring', title: (i) => `9 גרפיקות מוכנות לבדיקה: ${i.name}`, body: (i, env) => `7 בדיקות, ואז שליחה ללקוח לאישור.${i.s.dueAt ? ` יעד ${whenText(i.s.dueAt, env.now)}.` : ''}` },
+    ],
+  },
+
+  // 5ב, 7א (protocol v8): the two links only Irit sends to the client, each a step of
+  // its own on her list with "העתקת הקישור". Rung when the step opens. From its deadline
+  // on it is a late item like any other: `lateOwn` rings her, `lateNag` at 09:00 and
+  // 14:00 until it is marked, `late` tells Ofir and Lior (section 48; nothing here).
+  // Not for history: a step that was imported, or that the client's own form closed.
+  {
+    id: 'clientLink', event: 'קישור ללקוח: טופס פרטי הכניסה (5ב), דף הסטטוס (7א)', procs: ['p05b', 'p07a'],
+    instances(env) {
+      return ['p05b', 'p07a'].flatMap((b) => casesOf(env, b, (i) => !!i.s.ready && !!i.s.startAt && !!i.s.dueAt && !halted(i) && openOf(i, i.proc.owners[0]).length > 0)
+        .map((i) => ({ ...i, id: `${i.proc.id}@${i.s.startAt.toISOString()}`, url: MINE_URL, anchors: { event: i.s.startAt, due: i.s.dueAt } })));
+    },
+    steps: [
+      { id: 'now', to: (i) => i.proc.owners[0], level: 'ring', exempt: 'clock', title: (i) => `${i.proc.items[0].label}: ${i.name}`, body: (i, env) => `מעתיקים את הקישור מהכרטיס ב״המשימות שלי״, שולחים ללקוח ומסמנים. יעד ${whenText(i.anchors.due, env.now)}.` },
     ],
   },
 
@@ -835,6 +856,24 @@ export const RULES = [
       { id: 'list', at: '08:30', to: 'irit', level: 'digest', title: () => 'בקרה יומית (32) היום', body: () => '' },
       { id: '1400', at: '14:00', to: 'irit', level: 'ring', title: () => 'הבקרה היומית עוד לא בוצעה', body: () => 'תהליך 32: לעבור על המשימות ולסמן את החריגות.' },
       { id: 'lior', at: '18:00', to: 'lior', level: 'digest', list: true, overdue: true, title: () => 'הבקרה היומית של עירית הוחמצה', body: () => '' },
+    ],
+  },
+
+  // 14 (protocol v8): the daily follow-up before the shoot day. One line in Irit's
+  // morning digest with the number of clients, and one ring at 12:00 while a client of
+  // today is still unanswered. A day that passed is gone: nothing is late, nobody else
+  // is told (a topic she marks as stuck goes to Lior as an exception, at once).
+  {
+    id: 'followup', event: 'מעקב יומי לפני יום הצילום (14)', procs: ['p14'],
+    instances(env) {
+      if (!isBusinessDay(env.now)) return [];
+      const n = followupDue(followupRows({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, now: env.now })).length;
+      if (!n) return [];
+      return [{ id: dayKeyIL(env.now), cid: null, name: '', n, url: FOLLOWUP_URL, anchors: { event: atTimeIL(env.now, 0) } }];
+    },
+    steps: [
+      { id: 'list', at: '08:30', to: 'irit', level: 'digest', title: (i) => followupLine(i.n), body: () => '' },
+      { id: '1200', at: '12:00', to: 'irit', level: 'ring', title: (i) => `${followupLine(i.n)} עוד לא נבדקו היום`.replace('לקוח אחד עוד לא נבדקו', 'לקוח אחד עוד לא נבדק'), body: () => 'לכל לקוח לחיצה אחת: ״הכול תקין״, או מה תקוע.' },
     ],
   },
 

@@ -11,7 +11,23 @@ const cid = sim.client().id;
 const marks = (keys) => keys.map((k) => `${k}=${sim.checkOf(k)?.state || "-"}`);
 
 // 28: Ilai schedules (no real Metricool here: the mark only).
-await proto(sim, { id: "p28", step: "עילאי מתזמן את הסרטונים והגרפיקות (בלי Metricool אמיתי: הסימון בלבד)", proc: "p28", role: "ilai", shot: "p28-schedule", wait: 30, keys: ["p28.scheduled"], peek: ["irit"], next: [] });
+// Protocol v8: first as in the first run, with an empty Gantt: "הגאנט מלא" and "תוזמן" are pressed with nothing behind them.
+{
+  sim.advance(30);
+  await sim.tick();
+  const { page, ctx } = await sim.open("ilai");
+  const card = page.locator(`.il-card[data-key^="il-gantt:${cid}"]`).first();
+  let said = "(אין כרטיס גאנט)";
+  if (await card.count()) { await card.locator("button", { hasText: "הגאנט מלא" }).first().click(); await settle(page, 900); said = (await page.locator("#toast").innerText().catch(() => "")).replace(/\s+/g, " "); }
+  await ctx.close();
+  sim.rec({ id: "p29-empty", step: "עילאי לוחץ ״הגאנט מלא״ כשבגאנט אין אף שורה", proc: "p29", role: "ilai", before: { note: `שורות בגאנט של הלקוחה: ${sim.db.client_gantt.filter((r) => r.client_id === cid).length}` },
+    act: "הכרטיס שלו -> ״הגאנט מלא״", taps: 1, after: { said, check: `p29.filled=${sim.checkOf("p29.filled")?.state || "-"}` }, reminders: fmtLog(await sim.tick()) });
+}
+await proto(sim, { id: "p28", step: "עילאי מסמן ״תוזמנו מראש״ כששום דבר לא מתוזמן בגאנט", proc: "p28", role: "ilai", shot: "p28-schedule", keys: ["p28.scheduled"], peek: ["irit"], next: [] });
+// The Gantt gets its content (seeded into the fake's client_gantt: the simulation does not drive gantt.html, and there is no Metricool here).
+sim.db.client_gantt.push(...Array.from({ length: 4 }, (_, i) => ({ id: `00000000-0000-4000-8000-00000000g${i}`.replace("g", "9"), client_id: cid, key: `sim-${i}`, kind: i < 3 ? "video" : "graphic", state: i < 2 ? "scheduled" : "planned", day: `2026-11-0${i + 1}`, time: "12:00" })));
+sim.nudges.push({ at: sim.iso(), what: "4 שורות תוכן (2 מהן ״תוזמן״) הוכנסו ישירות לגאנט של המשרד המדומה (עמוד הגאנט ו־Metricool לא הופעלו בסימולציה), כדי שהסימונים 28 ו־29 יתקבלו" });
+await proto(sim, { id: "p28-ok", step: "עילאי מסמן ״תוזמנו מראש״ אחרי שיש בגאנט תכנים מתוזמנים", proc: "p28", role: "ilai", wait: 5, keys: ["p28.scheduled"], peek: [], next: [] });
 // 29: the Gantt is full (the button of his card), then Irit sends it to the client.
 {
   sim.advance(20);

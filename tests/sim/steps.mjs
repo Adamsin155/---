@@ -55,7 +55,7 @@ export async function markMine(sim, role, keys, { gap = 0 } = {}) {
     await box.check();
     taps += 1;
     await settle(page, 350);
-    const err = await page.locator(".toast.is-error, #toast.is-error, [role=alert]").allInnerTexts().catch(() => []);
+    const err = await page.locator(".toast.is-error, #toast, [role=alert]:visible").allInnerTexts().catch(() => []);
     const saved = /^(r\d+\.)?p\d/.test(key) ? sim.done(key) : !!sim.db.client_tasks.find((t) => t.id === key)?.done_at;
     out[key] = saved ? "done" : `not saved${err.length ? `: ${err.join(" ")}` : ""}`;
     if (gap) sim.advance(gap);
@@ -226,5 +226,88 @@ export async function ofirQa(sim, { fixes = null, shot = null } = {}) {
   out.errors = page.errors.slice();
   await ctx.close();
   return out;
+}
+// '
+
+// '
+// Protocol v8 (docs/ops.md, section 49).
+const one = (s) => String(s || "").replace(/\s+/g, " ").trim();
+// Everything of the list on the screen: the folded groups opened, "הצג עוד" pressed.
+export async function unfold(page) {
+  await page.evaluate(() => { for (const d of document.querySelectorAll("#mine-list details")) d.open = true; });
+  for (let i = 0; i < 10 && await page.locator("#mine-list .more-btn:visible").count(); i += 1) await page.locator("#mine-list .more-btn:visible").first().click();
+}
+// Irit's card of a link to send the client (5ב, 7א): "העתקת הקישור", then "סיימתי".
+export async function linkCard(sim, role, proc, { shot = null } = {}) {
+  const { page, ctx } = await sim.open(role);
+  const cid = sim.client().id;
+  await unfold(page);
+  const card = page.locator(`#mine-list .wproc[data-key="${cid}:${proc}"]`);
+  const out = { found: (await card.count()) > 0, taps: 0 };
+  if (out.found) {
+    out.card = one(await card.innerText());
+    if (shot) out.shot = await shotOf(sim, page, role, shot);
+    const btn = card.locator(".wlink button");
+    if (await btn.count()) {
+      await btn.click(); out.taps += 1;
+      await settle(page, 700);
+      out.said = one(await page.locator("#toast").innerText().catch(() => ""));
+      out.copied = one(await page.evaluate(() => navigator.clipboard.readText()).catch(() => "(הלוח לא נקרא)")).replace(/#t=[^ ]+/, "#t=…");
+    } else out.said = "אין כפתור העתקת הקישור בכרטיס";
+    const pill = card.locator(".cbx").first();
+    if (await pill.count()) { await pill.check(); out.taps += 1; await settle(page, 500); }
+  }
+  out.errors = page.errors.slice();
+  await ctx.close();
+  return out;
+}
+// The daily follow-up before the shoot day (14): the counted line of Irit, then the row of the client.
+// o: { id, step, stuck: null | { topic, note }, shot, note }
+export async function followUp(sim, o) {
+  const rowsBefore = await sim.tick();
+  const cid = sim.client().id;
+  const { page, ctx } = await sim.open("irit");
+  await unfold(page);
+  const line = page.locator('#mine-list a[href="prep.html#followup"]');
+  const cardsOf14 = await page.locator(`#mine-list .wproc[data-key="${cid}:p14"]`).count();
+  let taps = 0; let lineText = "אין שורה של המעקב ברשימה"; let header = ""; let rowBefore = ""; let rowAfter = ""; let said = ""; let shot = null;
+  if (await line.count()) {
+    lineText = one(await line.innerText());
+    if (o.shot) shot = await shotOf(sim, page, "irit", o.shot);
+    await line.click(); taps += 1;
+    await page.waitForSelector("#followup:not([hidden]) .pp-follow-row", { timeout: 10000 }).catch(() => null);
+    await settle(page, 500);
+    header = one(await page.locator("#fu-h").innerText().catch(() => ""));
+    const row = page.locator(`[id="fu-${cid}-1"]`);
+    rowBefore = one(await row.innerText().catch(() => "(אין שורה ללקוח)"));
+    if (o.stuck) {
+      await page.locator(`[id="fu-${cid}-1-stuck"]`).click(); taps += 1;
+      await page.locator(`[id="fu-${cid}-1-t-${o.stuck.topic}"]`).click(); taps += 1;
+      await page.locator(`[id="fu-${cid}-1-note"]`).fill(o.stuck.note); taps += 1;
+      if (o.shot) await shotOf(sim, page, "irit", `${o.shot}-stuck`);
+      await page.locator(`[id="fu-${cid}-1-save"]`).click(); taps += 1;
+    } else if (await page.locator(`[id="fu-${cid}-1-ok"]`).count()) { await page.locator(`[id="fu-${cid}-1-ok"]`).click(); taps += 1; }
+    await settle(page, 700);
+    said = one(await page.locator("#toast").innerText().catch(() => ""));
+    rowAfter = one(await page.locator(`[id="fu-${cid}-1"]`).innerText().catch(() => ""));
+  }
+  const errors = page.errors.slice();
+  await ctx.close();
+  sim.advance(1);
+  const rows = await sim.tick();
+  const after = await sim.mine("irit");
+  const next = o.stuck ? { lior: brief(await sim.mine("lior")) } : {};
+  const day = sim.checkOf("p14.day");
+  return sim.rec({ id: o.id, step: o.step, proc: "p14", role: "irit",
+    before: { note: `השורה ברשימה: ״${lineText}״. כרטיסים של תהליך 14 ברשימה: ${cardsOf14}. בעמוד: ״${header}״; השורה של הלקוחה: ${rowBefore}${o.note ? `. ${o.note}` : ""}`, shot, remindersSinceLast: fmtLog(rowsBefore) },
+    act: o.stuck ? `השורה ״מעקב לפני צילום״ -> ״משהו תקוע״ -> הנושא (${o.stuck.topic}) -> כמה מילים -> ״שמירה והודעה לליאור״` : "השורה ״מעקב לפני צילום״ -> ״הכול תקין״", taps,
+    after: { said, result: `השורה אחרי: ${rowAfter}`, check: `p14.day=${day?.state || "-"} ${day?.note || ""}`, tasks: sim.db.client_tasks.filter((t) => !t.done_at).map((t) => `${t.owner}: ${t.title} (עד ${t.due_on || "-"})`),
+      counted: [`השורות של עירית אחרי: ${(after.lines || []).join(" ; ") || "אין"}`], next },
+    reminders: fmtLog(rows), errors: errors.length ? errors : undefined });
+}
+// What a role sees of the follow-up on a day when it is not asked (a weekend, the shoot day).
+export async function followLine(sim) {
+  const s = await sim.mine("irit");
+  return (s.lines || []).filter((l) => /מעקב לפני צילום/.test(l)).join(" ; ") || "אין שורה";
 }
 // '

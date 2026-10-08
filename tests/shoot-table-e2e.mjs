@@ -351,7 +351,7 @@ await step('the owner: a tab next to the manager table, the same rows', async ()
   const owner = await newPage(ctx);
   await signIn(owner, 'owner.html', 'owner@astrateg.test');
   await owner.waitForSelector('#view-now:not([hidden])');
-  assert.deepEqual(await owner.locator('#ow-tabs [role=tab]:visible').allInnerTexts(), ['מה דורש אותי', 'כל הלקוחות במבט', 'טבלה', 'ימי צילום', 'ארכיון']);
+  assert.deepEqual(await owner.locator('#ow-tabs [role=tab]:visible').allInnerTexts(), ['מה דורש אותי', 'כל הלקוחות במבט', 'סיכום היום', 'טבלה', 'ימי צילום', 'ארכיון'] /* "סיכום היום": the owners' end-of-day table, docs/ops.md section 48 */);
   assert.equal(await text(owner, '#side-shoot-table'), 'טבלת ימי צילום');
   await owner.click('#tab-shoots');
   await ready(owner);

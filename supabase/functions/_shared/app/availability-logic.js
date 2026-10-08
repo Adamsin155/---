@@ -190,6 +190,16 @@ export function submitProblem({ month, days = [], none = false, row = null, take
   return null;
 }
 export const consecutive = (days) => { const l = [...days].map(dayOf).sort(); return l.every((d, i) => i === 0 || utcOf(d) - utcOf(l[i - 1]) === 864e5); };
+// The next days he marked free and no shoot is set on, from tomorrow on, at most
+// `limit` (the shoot-date dialog of "המשימות שלי": protocol v8, docs/ops.md section 49).
+// null when no month of his was handed over in what was read: nothing is known.
+export function freeAhead({ person = PHOTOGRAPHERS[0], months = [], taken = {}, now = new Date(), limit = 6 }) {
+  const today = dayKeyIL(now);
+  const rows = (months || []).filter((m) => m.person === person);
+  if (!rows.length) return null;
+  return rows.flatMap((r) => [...freeDays(r)]).filter((d) => d > today && !takenOn(taken, d)).sort().filter((d, i, a) => a.indexOf(d) === i).slice(0, limit);
+}
+
 // What stops an unexpected change; null when it may go.
 export function changeProblem({ days = [], person, months = [], changes = [], taken = {}, now = new Date() }) {
   const list = [...new Set([...days].map(dayOf))].sort();

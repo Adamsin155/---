@@ -260,7 +260,11 @@ test('a submission: the vault as access_save writes it, the statuses, process 5,
 
   // Process 5 is marked, by the system; Ilai gets one task for what has to be opened.
   const marks = await all("select item_key, state, note, by_email from public.protocol_checks where client_id = $1 and item_key like 'p05.%' order by 1", [ids.dana]);
-  assert.deepEqual(marks.map((m) => [m.item_key, m.state, m.by_email]), [['p05.access', 'done', 'system'], ['p05.vault', 'done', 'system']]);
+  // Since protocol v8 the client's own form also answers "are there other networks" (p05.allnets)
+  // and closes Irit's "send the client the link" (5ב): 20261022100000_flow_fixes_v8.sql.
+  assert.deepEqual(marks.map((m) => [m.item_key, m.state, m.by_email]), [['p05.access', 'done', 'system'], ['p05.allnets', 'done', 'system'], ['p05.vault', 'done', 'system']]);
+  const sentLink = await all("select state, note, by_email from public.protocol_checks where client_id = $1 and item_key = 'p05b.sent'", [ids.dana]);
+  assert.deepEqual(sentLink, [{ state: 'done', note: 'נסגר לבד: הלקוח מילא את טופס פרטי הכניסה', by_email: 'system' }]);
   assert.equal(marks[0].note, 'מהלקוח, בטופס פרטי הכניסה: Instagram, Facebook, TikTok, LinkedIn');
   const tasks = await all('select title, owner, urgent, done_at from public.client_tasks where client_id = $1', [ids.dana]);
   assert.deepEqual(tasks, [{ title: 'לפתוח ללקוח Facebook ולהכניס את הגישה לכספת (הלקוח סימן בטופס: אין כיום)', owner: 'ilai', urgent: true, done_at: null }]);

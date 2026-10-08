@@ -29,7 +29,7 @@ const keysFor = (c, ids) => applicableProcesses(c).filter((p) => ids.includes(p.
 const done = (c, ids, when, note = null, by = 'irit@x.test') => Object.fromEntries(keysFor(c, ids).map((k) => [k, { state: 'done', at: when, note, by_email: by }]));
 const item = (key, when, note = null, by = 'irit@x.test') => ({ [key]: { state: 'done', at: when, note, by_email: by } });
 const JOIN = ['p01', 'p02', 'p03'];
-const CHAR = ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10'];
+const CHAR = ['p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10'];
 const health = (c, checks, now, extras = {}) => clientHealth(c, clientState(c, checks, at(now)), { checks, now: at(now), ...extras });
 const codes = (h) => h.reasons.map((r) => r.code);
 const find = (h, code, procId) => h.reasons.find((r) => (!code || r.code === code) && (!procId || r.procId === procId));
@@ -48,10 +48,10 @@ test('green: everything on time, the client heard from us, nothing waits', () =>
 });
 
 test('red: a critical item more than 2 business days late; yellow up to 2; one name', () => {
-  // Process 11 (setting the shoot day) is due 3 business days after the meeting: Thursday 15.10 at the end of the day.
+  // Process 11 (setting the shoot day) is due 3 business days after the meeting: Thursday 15.10 at the office's close (18:00).
   const checks = onboarded();
   const late = (now) => find(health(base, checks, now), null, 'p11');
-  assert.equal(late('2026-10-15T20:00:00+03:00').code, 'due-soon'); // its own day: not late, not started yet
+  assert.equal(late('2026-10-15T17:00:00+03:00').code, 'due-soon'); // its own day: not late, not started yet
   const sun = late('2026-10-18T10:00:00+03:00'); // 1 business day (Friday and Saturday do not count)
   assert.deepEqual([sun.color, sun.code, sun.who, sun.text], ['yellow', 'late-soon', 'irit', 'באיחור יום עסקים']);
   assert.equal(late('2026-10-19T10:00:00+03:00').color, 'yellow'); // 2
@@ -61,9 +61,9 @@ test('red: a critical item more than 2 business days late; yellow up to 2; one n
   // A shared process belongs to whoever took it; the rest to the owner of its first open item.
   const h = health(base, { ...checks, ...done(base, ['p11'], '2026-10-13T10:00:00+03:00') }, '2026-10-20T10:00:00+03:00');
   assert.equal(find(h, null, 'p12a').who, 'lior');
-  // The daily follow-up until the shoot (14) is not critical: late, it stays yellow.
-  const p14 = find(health({ ...base, shoot_at: '2026-10-14T10:00:00+03:00' }, checks, '2026-10-20T10:00:00+03:00'), null, 'p14');
-  assert.deepEqual([p14.color, p14.days], ['yellow', 4]);
+  // The daily follow-up until the shoot (14) is asked once a day and is never late (protocol v8).
+  assert.equal(find(health({ ...base, shoot_at: '2026-10-14T10:00:00+03:00' }, checks, '2026-10-20T10:00:00+03:00'), null, 'p14'), undefined);
+  assert.equal(find(health({ ...base, shoot_at: '2026-10-27T10:00:00+02:00' }, checks, '2026-10-20T10:00:00+03:00'), null, 'p14'), undefined);
 });
 
 test('waiting on the client is never late: yellow only after 2 business days, and Irit follows it', () => {
@@ -281,18 +281,21 @@ test('the station: where, how long, what next and by whom, the month, the pace a
   assert.equal(+s.since, +at('2026-10-12T12:00:00+03:00'));
   assert.equal(s.days, 1);
   assert.deepEqual([s.next.what, s.next.who, s.next.procId], ['קביעת יום הצילום', 'irit', 'p11']);
-  assert.equal(+s.next.when, +at('2026-10-15T23:59:59.999+03:00'));
+  assert.equal(+s.next.when, +at('2026-10-15T18:00:00+03:00'));
   assert.equal(s.paceText, 'סרטונים 18/42 · גרפיקות 20/42');
   assert.equal(s.month.text, 'חודש 1 מתוך 12');
   assert.equal(+s.lastContact, +at('2026-10-12T16:00:00+03:00'));
   assert.equal(s.waiting, false);
   assert.deepEqual([s.current.who, s.current.procId], ['lior', 'p12a']);
   // A shoot day not set yet: the milestone has no date, and must be set by process 11's deadline.
+  // Since protocol v8 process 11 cannot be closed without a date, so this is only a history
+  // that was brought in (the note "ייבוא") with no date typed.
   const later = at('2026-10-16T10:00:00+03:00');
-  const withScripts = { ...checks, ...done(c, ['p11', 'p12a', 'p12', 'p13'], '2026-10-14T10:00:00+03:00') };
+  const history = Object.fromEntries(Object.entries(done(c, ['p11'], '2026-10-14T10:00:00+03:00')).map(([k, v]) => [k, { ...v, note: 'ייבוא' }]));
+  const withScripts = { ...checks, ...history, ...done(c, ['p12a', 'p12', 'p13'], '2026-10-14T10:00:00+03:00') };
   const n = station(c, clientState(c, withScripts, later), { checks: withScripts, now: later }).next;
   assert.deepEqual([n.what, n.when, n.who], ['יום הצילום', null, 'lior']);
-  assert.equal(+n.mustSetBy, +at('2026-10-15T23:59:59.999+03:00'));
+  assert.equal(+n.mustSetBy, +at('2026-10-15T18:00:00+03:00'));
   assert.deepEqual(contractMonth({ deal_at: '2026-10-11T09:00:00+03:00', contract_end: '2027-10-11' }, at('2026-12-20T10:00:00+02:00')), { n: 3, of: 12, text: 'חודש 3 מתוך 12' });
 });
 
@@ -317,8 +320,9 @@ test('the timeline: done with who and when (automatic marked), now, and planned 
 });
 
 test('stuck in a station longer than its norm (not while waiting for a date that is set, nor on the client)', () => {
-  // Onboarded on Monday 12.10; the shoot day never set: in "תוכן ואישור" since then.
+  // Onboarded on Monday 12.10; the shoot day never set.
   const checks = { ...onboarded(), ...done(base, ['p12a', 'p12', 'p13'], '2026-10-13T12:00:00+03:00') };
+  // (The daily follow-up, 14, still holds the client in "תוכן ואישור" until the shoot day: protocol v8 moved nobody's station.)
   const norm = STATION_NORM.content;
   assert.equal(norm, 10);
   // In the station since Tuesday 13.10 (the first thing done in it). On Wednesday 28.10, 10 whole business days: the norm.
@@ -438,7 +442,7 @@ test('screen 4: open, late, this week, on time, median vs norm, editor load vs c
 
 test('the weekly call is due by Thursday of the week after the last one; the board of the week', () => {
   const c = { ...base, shoot_at: '2026-10-14T10:00:00+03:00' };
-  const all = ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21', 'p22a', 'p22', 'p23', 'p24', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30'];
+  const all = ['p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21', 'p22a', 'p22', 'p23', 'p24', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30'];
   const checks = { ...done(c, JOIN, '2026-10-11T09:03:00+03:00'), ...done(c, all, '2026-10-20T10:00:00+03:00') };
   const s = clientState(c, checks, at('2026-10-21T10:00:00+03:00')).states.find((x) => x.proc.id === 'p31');
   // Campaigns up on Tuesday 20.10: the first call is due by Thursday of the following week.

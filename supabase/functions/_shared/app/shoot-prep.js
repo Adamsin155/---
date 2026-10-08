@@ -23,7 +23,7 @@
 //                  (a database trigger opens it) with a ready message.
 import { PEOPLE, NETWORKS } from './protocol.js';
 import {
-  parseDate, roundsOf, roundContext, isBusinessDay, businessDaysBetween, addBusinessDays,
+  parseDate, roundsOf, roundContext, isBusinessDay, businessDaysBetween, addBusinessDays, isDaily, inLanding,
 } from './protocol-logic.js';
 import { dayKeyIL, atTimeIL, addDaysIL, startOfDayIL, daysBetweenIL } from './tz.js';
 import { materialsOf, listText, dayText, timeText } from './messages-logic.js';
@@ -141,7 +141,8 @@ export function shootPrep(client, checks, state, { tasks = [], access = [], now 
   const byId = new Map(state.states.map((s) => [s.proc.id, s]));
   let wideDone = false;
   const contexts = shootContexts(client).map((x) => ({ x, shoot: parseDate(x.ctx.shoot_at) }))
-    .filter(({ x, shoot }) => { const p14 = byId.get(`${x.pid}p14`); return p14 && p14.ready && (!shoot || shoot > now); })
+    // (Started, as before protocol v8: whether the daily follow-up itself is asked is another matter.)
+    .filter(({ x, shoot }) => { const p14 = byId.get(`${x.pid}p14`); return p14 && (p14.touched || (p14.startAt && p14.startAt <= now)) && (!shoot || shoot > now); })
     .sort((a, b) => (a.shoot?.getTime() ?? Infinity) - (b.shoot?.getTime() ?? Infinity));
   for (const { x, shoot } of contexts) {
     const st = (id) => byId.get(`${x.pid}${id}`) || null;
@@ -243,6 +244,71 @@ export function blockerTask(client, prep, blocker, now = new Date()) {
   return {
     client_id: client.id, owner: 'lior', source: 'escalation', urgent: !!(prep.shootAt && businessDaysBetween(now, prep.shootAt) <= 2),
     title: `${BLOCKER_TITLE}${when}: ${blocker.text}`.slice(0, 500), due_on: null, brief: { blocker: blocker.id },
+  };
+}
+
+// ── 14 (protocol v8): the daily follow-up until the shoot day ──
+// Once every working day, from the end of the characterization until the shoot day,
+// Irit answers for each client in one tap: "הכול תקין", or which of the eight topics is
+// stuck, with a short note (then Lior is told: followupTask). The answer is the mark
+// `p14.day` (in a second shoot round `r2.p14.day`), written over every day; its note is
+// JSON { ok: true } or { stuck: [topic keys], note }, and it counts for the Israel day
+// it was written on (isResolved in app/protocol-logic.js). The history of the marks
+// (protocol_log) keeps the days before. No table of its own.
+export const FOLLOWUP_KEY = (pre = '') => `${pre}p14.day`;
+export const FOLLOWUP_URL = 'prep.html#followup';
+export const FOLLOWUP_NOTE_MAX = 200;
+export const FOLLOWUP_TITLE = 'תקוע לפני יום הצילום';
+const topicLabel = (k) => TOPICS.find((t) => t.key === k)?.label || k;
+export function followupNote({ stuck = [], note = '' } = {}) {
+  const keys = [...new Set(stuck)].filter((k) => TOPICS.some((t) => t.key === k));
+  return JSON.stringify(keys.length ? { stuck: keys, note: clean(note).slice(0, FOLLOWUP_NOTE_MAX) } : { ok: true });
+}
+// An answer read back: { at, day, by_email, ok, stuck: [keys], note }; null when there is none.
+export function readFollowup(check) {
+  if (!check || check.state !== 'done' || !check.at) return null;
+  let v = null;
+  try { v = JSON.parse(check.note); } catch { /* a plain note: read as "all is well" */ }
+  const stuck = Array.isArray(v?.stuck) ? v.stuck.filter((k) => TOPICS.some((t) => t.key === k)) : [];
+  return { at: new Date(check.at), day: dayKeyIL(new Date(check.at)), by_email: check.by_email || null, ok: !stuck.length, stuck, note: clean(v?.note) };
+}
+// "תקוע: תסריטים, גישות · הלקוח לא עונה".
+export const followupText = (a) => (!a ? '' : a.ok ? 'הכול תקין' : `תקוע: ${a.stuck.map(topicLabel).join(', ')}${a.note ? ` · ${a.note}` : ''}`);
+// Every shoot the follow-up is asked of today, the nearest shoot first:
+//   [{ client, n, pre, pid, shootAt, status: 'due' | 'done', answer (today's, or null),
+//      last (the latest answer of any day, or null) }]
+// A client in landing, an imported history, a shoot day that came, a weekend or a
+// holiday: not asked (clientState decides; this only reads it).
+export function followupRows({ clients = [], checksOf = () => ({}), stateOf, now = new Date() }) {
+  const out = [];
+  for (const c of clients) {
+    if (!live(c) || inLanding(c)) continue;
+    const checks = checksOf(c) || {};
+    for (const s of stateOf(c).states) {
+      if (!isDaily(s.proc) || !s.ready || (s.status !== 'due' && s.status !== 'done')) continue;
+      const kb = s.proc.keyBase || s.proc.id;
+      const pre = kb.slice(0, kb.length - 'p14'.length);
+      const last = readFollowup(checks[FOLLOWUP_KEY(pre)]);
+      const answer = last && last.day === dayKeyIL(now) ? last : null;
+      out.push({
+        client: c, n: Number(/^r(\d+)-/.exec(s.proc.id)?.[1] || 1), pre, pid: s.proc.id.slice(0, s.proc.id.length - 'p14'.length),
+        shootAt: parseDate((s.proc.ctx || c).shoot_at), status: answer ? 'done' : 'due', answer, last,
+      });
+    }
+  }
+  return out.sort((a, b) => (a.shootAt?.getTime() ?? Infinity) - (b.shootAt?.getTime() ?? Infinity));
+}
+export const followupDue = (rows) => rows.filter((r) => r.status === 'due');
+// "מעקב לפני צילום: 3 לקוחות" (the counted line of "המשימות שלי" and the reminder).
+export const followupLine = (n) => `מעקב לפני צילום: ${n === 1 ? 'לקוח אחד' : `${n} לקוחות`}`;
+// "Lior is told": an exception, as a blocker reported from this page is (urgent when
+// the shoot is two business days away or less). One per client per day.
+export function followupTask(client, row, { stuck = [], note = '' }, now = new Date()) {
+  const when = row.shootAt ? ` (${dayText(row.shootAt)})` : '';
+  const text = `${stuck.map(topicLabel).join(', ')}${clean(note) ? ` · ${clean(note)}` : ''}`;
+  return {
+    client_id: client.id, owner: 'lior', source: 'escalation', urgent: !!(row.shootAt && businessDaysBetween(now, row.shootAt) <= 2),
+    title: `${FOLLOWUP_TITLE}${when}: ${text}`.slice(0, 500), due_on: null, brief: { blocker: `followup:${row.pre}${dayKeyIL(now)}` },
   };
 }
 

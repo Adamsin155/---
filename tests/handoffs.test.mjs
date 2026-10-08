@@ -114,8 +114,8 @@ test('both editing deadlines go to the editor, counted in business days from the
   assert.equal(msg(o, '2026-10-07T15:05:00+03:00'), [
     'היי ניראל,',
     'הלקוח מספרת רון עובר לעריכה אצלך. הכונן, התסריטים והלוגו בכרטיס הלקוח.',
-    'בדרייב של הלקוח ואצל אופיר לבקרה: סוף יום ב׳ 12.10',
-    'סגירה, כולל תיקוני הלקוח: סוף יום ג׳ 13.10',
+    'בדרייב של הלקוח ואצל אופיר לבקרה: יום ב׳ 12.10 18:00',
+    'סגירה, כולל תיקוני הלקוח: יום ג׳ 13.10 18:00',
     'כרטיס הלקוח: https://app.astrateg.tech/client.html?id=c-1#p22',
   ].join('\n'));
 });
@@ -137,12 +137,13 @@ test('due times: next business day at 12:00, office hours, right away, already l
   // Ofir approved on Thursday: Irit sends now, Lior's campaign by the end of Sunday.
   const [irit, lior] = offer(c, all('p25', '2026-10-29T10:00:00+02:00'), 'p25.approved', '2026-10-29T10:01:00+02:00');
   assert.match(msg(irit, '2026-10-29T10:01:00+02:00'), /^היי עירית,\nאופיר אישר את הסרטונים של מספרת רון\. לשלוח אותם ללקוח לאישור\.\nיעד: מיד\n.*#p26$/);
-  assert.match(msg(lior, '2026-10-29T10:01:00+02:00'), /\nיעד: סוף יום א׳ 1\.11\n.*#p30$/);
-  // Nine graphics after their deadline (two hours from the meeting's end): due now, and said so.
+  assert.match(msg(lior, '2026-10-29T10:01:00+02:00'), /\nיעד: יום א׳ 1\.11 18:00\n.*#p30$/);
+  // Nine graphics handed over after their own deadline: Irit's check has its own two office
+  // hours from the moment they reach her (protocol v8), whenever Ilai delivered.
   const [late] = offer(c, { 'p07.made': done('2026-10-19T15:00:00+03:00') }, 'p07.made', '2026-10-19T15:01:00+03:00');
-  assert.match(msg(late, '2026-10-19T15:01:00+03:00'), /\nיעד: מיד \(היעד היה היום 14:00\)\n/);
+  assert.match(msg(late, '2026-10-19T15:01:00+03:00'), /\nיעד: היום 17:00\n/);
   const [early] = offer(c, { 'p07.made': done('2026-10-19T13:00:00+03:00') }, 'p07.made', '2026-10-19T13:01:00+03:00');
-  assert.match(msg(early, '2026-10-19T13:01:00+03:00'), /\nיעד: היום 14:00\n/);
+  assert.match(msg(early, '2026-10-19T13:01:00+03:00'), /\nיעד: היום 15:00\n/);
   // Final versions before the client approved: no clock yet, so the protocol's words.
   const [fin] = offer(c, { 'p27.final': done('2026-10-29T10:00:00+02:00') }, 'p27.final', '2026-10-29T10:01:00+02:00');
   assert.match(msg(fin, '2026-10-29T10:01:00+02:00'), /\nיעד: עד שעתיים מרגע שהתוכן מוכן ומאושר\n/);

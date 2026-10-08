@@ -98,9 +98,9 @@ test('v4 client, v5 change: the scripts are due on business day 3 as it started,
   const now = IL(2026, 10, 15, 10);
   const v5 = proc(stateOf(client({ protocol_version: 5 }), checks, now), 'p12');
   const v4 = proc(stateOf(client({ protocol_version: 4 }), checks, now), 'p12');
-  assert.equal(day(v5.dueAt), '14.10 23:59');
+  assert.equal(day(v5.dueAt), '14.10 18:00');
   assert.equal(v5.status, 'overdue');
-  assert.equal(day(v4.dueAt), '15.10 23:59');
+  assert.equal(day(v4.dueAt), '15.10 18:00');
   assert.equal(v4.status, 'today');
   assert.equal(stateOf(client({ protocol_version: 4 }), checks, IL(2026, 10, 16, 10)).overdue >= 1, true, 'late after its own deadline');
   // The same inside a shoot round (r2-p12, counted from the round's start).
@@ -154,7 +154,7 @@ test('v1 client: editing is due 5 business days from the shoot as it started, ev
   const s = stateOf(c1, checks, IL(2026, 10, 22, 10));
   const p22 = proc(s, 'p22');
   // Shoot Tuesday 20.10: 5 business days end Tuesday 27.10.
-  assert.equal(day(p22.dueAt), '27.10 23:59');
+  assert.equal(day(p22.dueAt), '27.10 18:00');
   // 22א itself (all of it from version 2) is open work, never late.
   const p22a = proc(stateOf(c1, checks, IL(2026, 11, 20, 10)), 'p22a');
   assert.equal(p22a.status === 'overdue', false);

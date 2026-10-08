@@ -35,7 +35,8 @@ import { shootDayHint, confirmShootDay } from './availability-ui.js';
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
 import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
-import { dayBeforeText } from './shoot-prep.js';
+import { dayBeforeText, readFollowup, followupText } from './shoot-prep.js';
+import { checkMark } from './mark-guards.js';
 import { stationTitle } from './messages-logic.js';
 
 // A note as a person reads it. What the system keeps as JSON (Irit's day-before check,
@@ -57,7 +58,7 @@ import { mountClientStatus } from './status-link-ui.js';
 import { mountAccessLink } from './access-link-ui.js';
 import { seesAccessLinks } from './access-data.js';
 import { askVaultCode, mountVaultHint } from './vault-gate.js';
-import { ACCESS_STATUS_LABEL, NEW_STATUS } from './access-logic.js';
+import { ACCESS_STATUS_LABEL, NEW_STATUS, accessGapQuestion } from './access-logic.js';
 // Stage 5: the monthly cycle (a draft), and items newer than the client's protocol version.
 import { mountClientMonth, worksCycle } from './month-ui.js';
 import { freshText } from './protocol-versions.js';
@@ -807,7 +808,8 @@ function renderPhases(s) {
       : { late: ph.states.filter((x) => x.status === 'overdue').length, done: ph.procsDone, total: ph.procsTotal, complete: ph.complete };
     const late = meta.late;
     const done = list.filter((x) => x.complete);
-    const showDone = printing || shownDone.has(ph.key) || done.length === list.length;
+    // (A recurring process, the daily follow-up or the weekly call, is never "complete": it does not fold the done ones away.)
+    const showDone = printing || shownDone.has(ph.key) || done.length === counted.length;
     const missing = missingFields(ph.round ? { needs: [] } : ph, client);
     const det = h('details', { class: `phase${ph.key === s.current ? ' is-current' : ''}${ph.round ? ' is-round' : ''}`, open: printing || openPhases.has(ph.key) },
       h('summary', {},
@@ -1088,6 +1090,7 @@ function itemRow(p, i) {
   if (i.fresh && !state) meta.push(h('span', { class: 'tag tag-fresh' }, freshText(i.fresh)));
   if (ownOwners) meta.push(peopleChips(i.owners));
 
+  if (i.recurring === 'daily') return followRow(i, c, mine);
   if (i.recurring) return callRow(p, i, state, c, busy, mine);
 
   const calendar = baseKey(i.key) === 'p11.calendar' && !state ? calendarMenu('shoot', roundOfKey(i.key)) : null;
@@ -1095,12 +1098,14 @@ function itemRow(p, i) {
   return h('li', { class: `item fin-row${state === 'done' ? ' is-done' : ''}${state === 'na' ? ' is-na' : ''}${mine ? ' is-mine' : ''}${busy ? ' is-busy' : ''}${block ? ' is-blocked' : ''}` },
     h('label', { class: 'irow', for: cid },
       h('input', {
-        type: 'checkbox', id: cid, class: 'cbx fin', checked: state === 'done', disabled: busy || state === 'na' || !!block || !!via,
+        type: 'checkbox', id: cid, class: 'cbx fin', 'data-word': i.word || null, checked: state === 'done', disabled: busy || state === 'na' || !!block || !!via,
         'aria-describedby': meta.length ? `${cid}-m` : null,
         onchange: (e) => mark(i.key, e.currentTarget.checked ? 'done' : null, cid),
       }),
       h('span', { class: 'ibody' },
-        h('span', { class: 'ilabel' }, state !== 'done' && fixTaskOf(tasks, client.id, i.key) ? FIX_ITEM_LABEL : i.label, state === 'na' ? h('span', { class: 'tag' }, i.optional ? 'לא נדרש' : 'לא רלוונטי') : null),
+        h('span', { class: 'ilabel' }, state !== 'done' && fixTaskOf(tasks, client.id, i.key) ? FIX_ITEM_LABEL
+          // Process 5 (protocol v8): open, it asks what the system cannot know; "אין עוד" answers.
+          : !state && !block && baseKey(i.key) === 'p05.allnets' ? accessGapQuestion(checks['p05.access']) : i.label, state === 'na' ? h('span', { class: 'tag' }, i.optional ? 'לא נדרש' : 'לא רלוונטי') : null),
         meta.length ? h('span', { class: 'imeta', id: `${cid}-m` }, ...meta) : null)),
     calendar,
     state === 'done' || via || (baseKey(i.key) === 'p13.approved' && state !== 'na') ? null : h('button', {
@@ -1117,6 +1122,14 @@ function itemRow(p, i) {
 // Optimistic: the screen changes at once and rolls back if the save fails.
 async function mark(key, state, focusId, note = null) {
   if (pending.has(key)) return false;
+  // A mark the system looks into first (protocol v8; app/mark-guards.js): refused, in
+  // one sentence, only when it knows there is nothing behind it.
+  if (state === 'done') {
+    const verdict = await checkMark(id, key);
+    // (The call's own dialog saves through here with its summary as the note: that is the mark itself.)
+    if (verdict?.via === 'call' && note === null) { renderKeepingFocus(focusId); openCall(key); return false; }
+    if (verdict?.refuse) { renderKeepingFocus(focusId); toast(verdict.refuse); return false; }
+  }
   const prev = checks[key];
   pending.add(key);
   if (state) checks[key] = { state, note, at: new Date().toISOString(), by_email: myEmail };
@@ -1279,6 +1292,20 @@ function callTasks(call) {
   if (!call) return [];
   const t0 = new Date(call.at).getTime();
   return tasks.filter((t) => t.source === 'p31' && Math.abs(new Date(t.created_at).getTime() - t0) < 15 * 6e4);
+}
+// 14 (protocol v8): the daily follow-up before the shoot day. Answered on "לפני יום
+// צילום", one row per client; here it is the latest answer and the way there.
+function followRow(i, c, mine) {
+  const a = readFollowup(c);
+  const today = !!a && a.day === dayKeyIL(new Date());
+  return h('li', { class: `item recurring${today ? ' is-done' : ''}${mine ? ' is-mine' : ''}` },
+    h('span', { class: `rmark${today ? ' on' : ''}`, 'aria-hidden': 'true' }),
+    h('div', { class: 'ibody' },
+      h('span', { class: 'ilabel' }, i.label),
+      h('div', { class: 'imeta' }, a
+        ? h('span', { class: 'by' }, `${today ? 'היום' : formatStamp(a.at)}: ${followupText(a)} · ${who(a.by_email)}`)
+        : h('span', { class: 'muted' }, 'עוד לא נענה'))),
+    own() ? null : h('a', { class: 'btn btn-sm', href: `prep.html?id=${encodeURIComponent(client.id)}#followup` }, 'למעקב'));
 }
 function callRow(p, i, state, c, busy, mine) {
   const calls = pastCalls(i.key);
@@ -1959,4 +1986,7 @@ mountSession(async (staff) => {
   ensurePhones().then(() => { if (client && !busy()) renderKeepingFocus(); });
   const target = location.hash && document.getElementById(location.hash.slice(1));
   if (target) target.scrollIntoView({ block: 'start' });
+  // "תיעוד שיחה" pressed on "המשימות שלי" (the weekly call's row): its dialog opens here.
+  const call = new URLSearchParams(location.search).get('call');
+  if (client && call && /^(r\d+\.)?p31\.call$/.test(call) && !own() && !busy()) openCall(call);
 });

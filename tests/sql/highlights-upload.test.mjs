@@ -54,7 +54,8 @@ test('the process exists once, Ofir\'s, with the one new key', () => {
 });
 
 test('version 7: the function, the column default, a new client', async () => {
-  assert.equal(PROTOCOL_VERSION, 7);
+  // (This database stops at that migration; the protocol itself has moved on since.)
+  assert.ok(PROTOCOL_VERSION >= 7);
   assert.equal((await db.query('select private.protocol_version_current() as v')).rows[0].v, 7);
   const d = await db.query("select column_default from information_schema.columns where table_schema = 'public' and table_name = 'clients' and column_name = 'protocol_version'");
   assert.equal(d.rows[0].column_default, '7');

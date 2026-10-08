@@ -30,7 +30,7 @@ function client(w, o = {}) {
 const mark = (w, c, key, at, note = null) => { (w.checks[c.id] ||= {})[key] = { client_id: c.id, item_key: key, state: 'done', note, at: at.toISOString(), by_email: 'x@x' }; };
 const itemsOf = (id) => PROCESSES.find((p) => p.id === id).items.filter((i) => !i.optional).map((i) => i.key);
 const all = (w, c, ids, at, note = null) => { for (const id of ids) for (const k of itemsOf(id)) mark(w, c, k, at, note); };
-const UPTO_SHOOT = ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21'];
+const UPTO_SHOOT = ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21'];
 
 // ── The stuck client ────────────────────────
 test('stuck: how long what blocks the client has been open, and with whom', () => {
@@ -124,20 +124,20 @@ test('a swap and the editing clocks: on time the days start over, a late job kee
   const c = editing(w);
   const job = jobOf(w, c, now);
   assert.equal(job.editor, 'nadia');
-  assert.equal(hhmm(job.dueAt), '21.10 23:59');
+  assert.equal(hhmm(job.dueAt), '21.10 18:00');
   let k = swapClock(job, now);
-  assert.deepEqual([k.late, k.choice, hhmm(k.keepDue), hhmm(k.restartDue)], [false, 'restart', '21.10 23:59', '25.10 23:59']);
+  assert.deepEqual([k.late, k.choice, hhmm(k.keepDue), hhmm(k.restartDue)], [false, 'restart', '21.10 18:00', '25.10 18:00']);
   // Marking 22א again (what "restart" does) moves the three deadlines; leaving it keeps them.
   const due = (id) => hhmm(clientState(c, w.checks[c.id], now).states.find((s) => s.proc.id === id).dueAt);
-  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['21.10 23:59', '21.10 23:59', '22.10 23:59']);
+  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['21.10 18:00', '21.10 18:00', '22.10 18:00']);
   mark(w, c, 'p22a.assigned', now);
-  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['25.10 23:59', '25.10 23:59', '26.10 23:59']);
+  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['25.10 18:00', '25.10 18:00', '26.10 18:00']);
   // A job assigned a week ago is late: the default keeps it late.
   const w2 = world();
   const l = editing(w2, {}, IL(2026, 10, 11, 12));
   const lateJob = jobOf(w2, l, now);
   k = swapClock(lateJob, now);
-  assert.deepEqual([k.late, k.choice, hhmm(k.keepDue)], [true, 'keep', '14.10 23:59']);
+  assert.deepEqual([k.late, k.choice, hhmm(k.keepDue)], [true, 'keep', '14.10 18:00']);
   // The reason: the usual rules, and a late job restarted.
   assert.equal(swapReasonNeeded({ shootType: 'dms', editor: 'yariv', late: true, restart: false }), false);
   assert.equal(swapReasonNeeded({ shootType: 'dms', editor: 'yariv', late: true, restart: true }), true);

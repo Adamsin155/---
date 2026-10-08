@@ -248,7 +248,8 @@ await step('Ofir approves the videos: Irit (with her number) and Lior (none yet:
   assert.match(waText(irit), /^היי עירית,\nאופיר אישר את הסרטונים של פיצה נאפולי\. לשלוח אותם ללקוח לאישור\.\nיעד: מיד\n/);
   const lior = await rows.nth(1).locator('a.handoff-wa').getAttribute('href');
   assert.ok(lior.startsWith('https://wa.me/?text='), 'no number: WhatsApp asks whom to send to');
-  assert.match(waText(lior), new RegExp(`^היי ליאור,\\n.*קמפיין\\.\\nיעד: סוף יום ד׳ 21\\.10\\nכרטיס הלקוח: .*client\\.html\\?id=${pizza.id}#p30$`));
+  // Protocol v8: a business day ends when the office closes, and the message names the hour.
+  assert.match(waText(lior), new RegExp(`^היי ליאור,\\n.*קמפיין\\.\\nיעד: יום ד׳ 21\\.10 18:00\\nכרטיס הלקוח: .*client\\.html\\?id=${pizza.id}#p30$`));
   // Ofir cannot open the team page: the hint says who adds numbers, with no link there.
   assert.match(await rows.nth(1).innerText(), /אין במערכת מספר וואטסאפ של ליאור[\s\S]*עירית או ליאור מוסיפים מספרים בעמוד הצוות/);
   assert.equal(await rows.nth(1).locator('.handoff-nophone a').count(), 0);

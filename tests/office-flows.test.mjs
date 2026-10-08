@@ -64,7 +64,7 @@ const none = (list, rule, step = null) => assert.equal(list.filter((r) => r.rule
 // A client whose editing is with Nadia: shot on Sunday 18.10, assigned Sunday 12:00.
 function editingClient(w, o = {}) {
   const c = client(w, { editor: 'nadia', shoot_at: IL(2026, 10, 18, 10).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString(), ...o });
-  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21']) {
+  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21']) {
     marks(w, c, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
   }
   marks(w, c, itemsOf('p22a'), IL(2026, 10, 18, 12));
@@ -205,7 +205,7 @@ test('waiting for an editor: the client\'s shoot and a round\'s, once the shoot 
   const w = world();
   const now = IL(2026, 10, 19, 10);
   const c = client(w, { shoot_at: IL(2026, 10, 18, 10).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
-  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19b', 'p21']) marks(w, c, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
+  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19b', 'p21']) marks(w, c, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
   assert.equal(awaitingEditor({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks }).length, 0);
   marks(w, c, itemsOf('p19'), IL(2026, 10, 18, 16));
   const list = awaitingEditor({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks });
@@ -253,11 +253,11 @@ test('a shift mark moves the editing deadlines (22, 24, 27) by business days', (
   const c = editingClient(w);
   const now = IL(2026, 10, 20, 10);
   const due = (id) => hhmm(clientState(c, w.checks[c.id], now).states.find((s) => s.proc.id === id).dueAt);
-  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['21.10 23:59', '21.10 23:59', '22.10 23:59']);
+  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['21.10 18:00', '21.10 18:00', '22.10 18:00']);
   mark(w, c, SHIFT_KEY(''), IL(2026, 10, 20, 9), shiftNote(2, 'עצירה'));
-  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['25.10 23:59', '25.10 23:59', '26.10 23:59']);
+  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['25.10 18:00', '25.10 18:00', '26.10 18:00']);
   mark(w, c, SHIFT_KEY(''), IL(2026, 10, 20, 9), JSON.stringify({ days: 99 }));
-  assert.equal(due('p24'), '21.10 23:59');
+  assert.equal(due('p24'), '21.10 18:00');
 });
 
 // ── The pass over the clients (33) ──────────
@@ -320,10 +320,10 @@ test('data health: a shared process nobody took, a task without a due date, a sh
   const now = IL(2026, 10, 20, 16);
   // Shot yesterday, an editor chosen in the card but the assignment (22א, Ofir's or Lior's) not taken by anyone.
   const c = client(w, { editor: 'nadia', shoot_at: IL(2026, 10, 18, 10).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
-  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21']) marks(w, c, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
+  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21']) marks(w, c, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
   w.tasks.push({ id: 't1', client_id: c.id, owner: 'irit', title: 'בלי מועד', done_at: null, due_on: null });
   const d = client(w, { shoot_at: IL(2026, 10, 18, 10).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
-  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21']) marks(w, d, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
+  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21']) marks(w, d, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
   const h = dataHealth({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, tasks: w.tasks, now });
   assert.deepEqual(h.unowned.map((x) => [x.client.id, x.state.proc.id, x.owner]), [[c.id, 'p22a', 'ofir']]);
   assert.deepEqual(h.noDue.map((x) => x.task.id), ['t1']);

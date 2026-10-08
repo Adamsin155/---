@@ -53,6 +53,9 @@ export function importKeys(stationKey, { shootSet = true } = {}) {
   if (i < 0) return [];
   const before = new Set(STATIONS.slice(0, i).flatMap((s) => s.procs));
   if (!shootSet && i <= stationIndex('shoot')) for (const p of ['p11', 'p11b']) before.delete(p);
-  return PROCESSES.filter((p) => before.has(p.id) && !p.recurring)
+  // The daily follow-up (14) is history too once its station is behind the client: its
+  // eight topics are marked, as they were before protocol v8, and it is not asked again
+  // (its daily answer itself, a recurring item, is never a mark of history).
+  return PROCESSES.filter((p) => before.has(p.id) && p.recurring !== 'weekly')
     .flatMap((p) => p.items.filter((it) => !it.recurring).map((it) => it.key));
 }

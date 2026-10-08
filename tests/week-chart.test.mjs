@@ -40,7 +40,7 @@ test('closed: done checks of protocol items by Israel day; never an import, a pr
   const join = done(base, JOIN, '2026-10-11T09:03:00+03:00');
   const n = Object.keys(join).length;
   assert.ok(n >= 3);
-  const [k1, k2, k3, k4] = keysFor(base, ['p04', 'p05', 'p06', 'p07']);
+  const [k1, k2, k3, k4] = keysFor(base, ['p04', 'p05', 'p05b', 'p06', 'p07']);
   const checks = {
     ...join,
     [k1]: { state: 'done', at: '2026-10-12T23:30:00+03:00', note: null },            // Monday, late evening in Israel

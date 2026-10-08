@@ -172,3 +172,67 @@ SIM_STATE=<folder> node tests/sim/log.mjs s10        # the reminder log of the r
 
 **Still open after the rerun** (not fixed here): Nadia's own page still shows card 27 as "באיחור" while the client's answer is awaited (the reminders no longer say so; the screens were not changed); the reviewer of work that arrived late is reminded on the original deadline from the next 09:00 or 14:00 (finding 4.1 waits for a decision); findings 1.3 to 1.5, 2.3, 2.4, 3.4, 4.1 to 4.6, 5.x and 6.x are as they were.
 <!-- ' -->
+
+## After the report: findings 1.3, 1.4, 4.1, 4.2, 4.6, 5.1 and 6.1 were fixed (9.10.2026, docs/ops.md section 49, protocol version 8)
+
+The owner approved four more fixes: the two links only Irit sends are steps of her list (1.3); a review has its own clock from the moment the work arrives, the review of the 9 graphics has one owner, process 14 is a light daily follow-up, and the end of a business day is 18:00 (4.1, 5.1, 4.2, 4.6); a mark with nothing behind it is refused or asked about (6.1); the shoot date is set from the card and process 11 does not close without it (1.4). What changed, the numbers and the open questions are docs/ops.md, section 49.
+
+**The rerun.** The whole scenario was run again on the changed code, into a separate folder, so the recorded run stays as it was (`steps.md`, `steps-after-48.md`, the screenshots and `tests/sim/state/` were not touched):
+
+```
+SIM_OUT=<folder> SIM_STATE=<folder> node tests/sim/run.mjs      # here: stage after stage, each as its own command
+SIM_STATE=<folder> node tests/sim/show.mjs s10 1 short
+```
+
+The step table of the rerun is `steps-after-49.md` in this folder. The scenario is the same client, calendar and deliberate delays; the harness changed only where a role now acts differently (`tests/sim/stage3b.mjs` to `stage8.mjs`, `steps.mjs`): Irit copies each link from its card; she sets the shoot date from the card's dialog; she answers the daily follow-up on every working day until the shoot (once with a stuck topic); Lior, Ilai and the weekly call first press exactly what they pressed in the first run, and the refusal is recorded. Two things were put into the fake directly and are said so in the table ("דחיפות נתונים"): three scripts and four Gantt rows (the simulation does not drive scripts.html or gantt.html, and there is no Metricool). One step was added because the flow changed around it (step 20, below).
+
+**Totals.**
+
+| Run | Steps | Flow | of them with a remark | Confusing | Missing | Not simulated | Reminder log |
+|---|---|---|---|---|---|---|---|
+| The first run | 84 | 60 | 7 | 12 | 9 | 3 | 732 rows |
+| After section 48 | 84 | 65 | | 12 | 4 | 3 | 802 rows |
+| After section 49 | 97 | 88 | 30 | 5 | 1 | 3 | 834 rows |
+
+The 13 added steps: the daily follow-ups of Monday, Tuesday, Wednesday, Sunday and Monday (5; Thursday's replaced the old one-time step of process 14), the looks at Irit's list on Friday and on the shoot day (2), the try to close process 11 with no date (1), the press of "הגאנט מלא" on an empty Gantt and the two second presses after the content was put in (3), Lior closing the exception of the follow-up (1), and Ilai ticking "בדיקת גישות" (1). The five confusing steps left are 6 (finding 4.4), 7 (the harness still sets the meeting date through the client card; the dialog of section 47 is shown in experiment B), 18 (5.2), 67 (5.3) and 95 (4.5). The one missing step is 3: in the main run the client signs 25 minutes after the contract is sent, and the line of section 47 is shown in experiment A.
+
+**Every finding of the report, after this rerun.** "Closed" means a step of this rerun shows it.
+
+| Finding | Status | Steps | What the rerun showed |
+|---|---|---|---|
+| 1.1 Process 3 with no meeting date | closed (section 47) | experiment B, 1 to 4 | Rerun on this code: the card stays, late, with "עוד לא נקבע מועד"; the date is set in 3 taps |
+| 1.2 A contract sent and not signed | closed (section 47) | experiment A, 1 to 5 | Rerun: Irit's line "ההסכם של מאפיית הדקל מחכה לחתימה" on each day, and the list of the waiting quotes |
+| 1.3 The two links are not on Irit's list | closed | 9, 11, 12, 25, 27 | Card "5ב" from the minute the meeting ended (a ring at 11:25) and card "7א" from the minute the graphics were ready (a ring at 09:45); on each, "העתקת הקישור" made the link and copied the message, then "סיימתי": 2 taps. Process 5 stayed open at Ofir with "נשמרה גישה ל־Instagram בלבד. יש עוד רשתות?" until the client's form closed it by itself at 12:55 |
+| 1.4 The meeting date and the shoot date are 11 taps away | closed | 30, 31; experiment B 3 | Shoot date: 3 taps from the card (the button, the date, save), 5 with "ביומן של כולם". With everything else ticked and no date the card stayed, late (step 30). The meeting date: 3 taps (experiment B); step 7 of the main run still walks the old way |
+| 1.5 The Thursday summary card leads to the daily control | open | 86 | Not changed, not simulated further |
+| 2.1 The client's fix request reaches the editor only | closed (section 48) | 71 | Irit and Nadia both rang, as after section 48 |
+| 2.2 The one who waits is not told | closed (section 48) | 23, 65 | Irit: "מתעכב אצל עילאי" at 13:40, and "מתעכב אצל אופיר" on the quality control |
+| 2.3 Confirmations of others are marked by the one who asks | open | 31, 47 | Irit still marks "ליאור אישר" and "הצלם אישר" (now also possible inside the dialog); Lior still marks for the photographer |
+| 2.4 The editor assignment did not wait for Ofir | open (for the record) | 55 | As before |
+| 3.1 The unsigned contract: no reminder | closed (section 47) | experiment A | As after section 47 |
+| 3.2 The late person is not rung again | closed (section 48) | 23, 24, 65 | Ilai "באיחור" 15 work minutes after the deadline; Irit on the shoot date at 09:15; Nadia at 09:15 |
+| 3.3 An ordinary late task is mentioned once | closed (section 48) | 92 | Rung twice every working day. The weekly call is now really recorded, so the task it opens for Irit ("לוודא שהשיחה השבועית מתועדת…") was also left open in the idle month, and she had two tasks in each reminder |
+| 3.4 A deal between 08:30 and 09:30 can swallow its own rings | open | 1 | Not changed |
+| 4.1 The review is due with the work it reviews | closed | 25, 26, 58, 59, 60 | Before the hand-over Irit and Lior had nothing of process 7. Ilai delivered at 09:45, a day late; Irit's card read "היום עד 11:45", not late. The rest: Ofir "היום עד 14:00" (an hour from 13:00), then Irit "מחר עד 18:00" |
+| 4.2 Process 14 is one-time | closed | 22, 32, 34, 40, 41, 43, 44, 48 | One line "מעקב לפני צילום: לקוח אחד" on Monday, Tuesday, Wednesday, Thursday, Sunday and Monday; never a card; 2 taps for "הכול תקין"; nothing on Friday and nothing on the shoot day. Wednesday: "משהו תקוע", scripts, a note: 5 taps, and an exception for Lior |
+| 4.3 Process 5 is late the minute the meeting ends | open | 9 | Unchanged, and more visible now: the question "יש עוד רשתות?" sits on a card that is red from its first minute |
+| 4.4 Lior's two checks in process 2 inherit the 5 minutes | open | 6 | As before |
+| 4.5 Process 34 is due the day it opens | open | 95 | As before; the deadline is now 18:00 of that day |
+| 4.6 18:00 or midnight | closed | 23, 64 | Process 11 was late at 18:05 on its day ("באיחור 5 דק׳"), and the editing at 18:05 on its third day; the lists say "עד 18:00". The "באיחור" rings came at 09:15 the next morning, as before (15 work minutes after 18:00) |
+| 4.7 Process 27 late while everybody waits for the client | partly (as after section 48) | 71 | The reminders are quiet; the editor's own page was not changed here |
+| 5.1 The review of the 9 graphics is on two lists | closed | 25, 26 | Irit only. Lior had no card of process 7 at any step |
+| 5.2 The logo sat with two people | open | 18 | As before |
+| 5.3 Card 25 stays with Ofir after he returns the videos | open | 67 | As before |
+| 6.1 Five marks accepted with nothing behind them | closed (23: it asks, as decided) | 35, 36, 58, 76, 77, 78, 79, 87 | 12: "עוד אין תסריט בעמוד התסריטים…", not marked (35); 29: "הגאנט עדיין ריק…" (76); 28: "עוד שום תוכן לא סומן ״תוזמן״ בגאנט…" (77); each was taken once there was content (36, 78, 79). 23: "הועלו 6 מתוך 26. לשלוח בכל זאת?", confirmed, and it went on as before (58). 31: no pill; "תיעוד שיחה" opened the dialog, an empty save was refused, one line was saved (87). All of it is checked in the browser only |
+| 6.2 Taps | partly | 11, 27, 31 | The shoot date 11 → 5; each link 3 (inside the client card) → 2 (on the list). Ilai's day (19 taps) and the characterization form (15) are as they were |
+| 6.3 Ilai's card says "בדיקת גישות · נבדק" too early | partly | 20 | Not fixed, but it did not happen in this run: the early close had been triggered by Irit opening the client card for the link, which she no longer does. Nothing closed it by itself afterwards either (TikTok is "אין רשת" from the client's form), so Ilai ticked it on his card; the card does not say why it stays open |
+| 6.4 Wording | open | | Not changed |
+
+**The reminders of what section 49 added, as the log recorded them.** `clientLink`: two rings to Irit (5ב at 11:25 on the meeting's day, 7א at 09:45 the next day). `followup`: a line in Irit's 08:30 digest on each of the five mornings after the first day, and a ring at 12:00 on two days (Monday, when the meeting had ended at 11:25, and Wednesday, when she answered at 15:30). 5ב passed its deadline before she copied the link (the scenario keeps the first run's 12:15, and 5ב is due 30 work minutes after 11:25): "באיחור: … 5ב" rang her at 12:10. Lior was never rung about the review of the graphics.
+
+**Noticed in this rerun, not fixed.**
+- On each day the follow-up row said "המערכת מצאה חוסם אחד" while Irit pressed "הכול תקין". Which blocker it was, was not looked into; the two answers do not talk to each other.
+- The exception from "משהו תקוע" reached Lior in his 16:00 list, not as a ring (the shoot was more than two business days away). He closed it from his list (step 37).
+- The photographer's free days were not shown in the dialog, because in this scenario Eli never handed his month over; the dialog said so ("אלי עוד לא מסר זמינות לאוקטובר"). The chips and the question about a day he did not mark are covered by `tests/flow-fixes-e2e.mjs`, not by this run.
+- Findings 1.5, 2.3, 2.4, 3.4, 4.3, 4.4, 4.5, 5.2, 5.3 and 6.4 are as they were.
+<!-- ' -->

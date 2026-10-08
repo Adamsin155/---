@@ -16,7 +16,7 @@
 // Run: npx http-server -p 8080 -s -c-1 . &  then  node tests/all-in-mine-e2e.mjs
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
-import { NOW, SUPA, emailOf, flowWorld, makeFlowFake, COUNTS, cid } from './flow-world.mjs';
+import { NOW, SUPA, emailOf, flowWorld, makeFlowFake, COUNTS, FOLLOWUP_CLIENTS, cid } from './flow-world.mjs';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
@@ -82,6 +82,8 @@ const EXPECTED = {
     'landing-shoot': [`לקוח אחד מצטלם ב־14 הימים הקרובים · ${NO_CLOCK}`, 'landing', 'prep.html'],
     'availability-missing': ['אלי עוד לא מסר זמינות לנובמבר', 'overdue', 'prep.html#availability'],
     messages: [`${COUNTS.messages.clock} לקוחות עוד לא קיבלו הודעה היום (ועוד ${COUNTS.messages.landing} בקליטה)`, 'today', 'messages.html'],
+    // Protocol v8: the daily follow-up before the shoot day (14) is one counted line, hers alone.
+    followup: [`מעקב לפני צילום: ${COUNTS.followup} לקוחות`, 'today', 'prep.html#followup'],
   },
   anna: { fixes: ['לקוח אחד חזר מאופיר עם תיקונים', 'today', `editor.html#c-${cid(16)}`] },
   yariv: { 'landing-editing': [`לקוח אחד בעריכה אצלך · ${NO_CLOCK}`, 'landing', 'editor.html'] },
@@ -125,6 +127,7 @@ try {
           assert.equal(await page.evaluate(() => document.activeElement?.id), hash, `${role}: ${href} did not move the focus`);
         }
         if (hash === 'availability') assert.equal(await page.locator('#availability:not([hidden])').count(), 1, `${role}: ${href}`);
+        if (hash === 'followup') assert.equal(await page.locator('#followup:not([hidden]) .pp-follow-row').count(), COUNTS.followup, `${role}: ${href}`);
         if (hash?.startsWith('c-')) assert.equal(await page.locator(`[id="${hash}"]`).count(), 1, `${role}: ${href}`);
         await ctx.close();
       }
@@ -137,6 +140,8 @@ try {
       db.client_messages = db.clients.map((c) => ({ id: `m-${c.id}`, client_id: c.id, kind: 'daily', sent_at: '2026-10-20T09:00:00+03:00', by_email: emailOf('irit') }));
       db.office_reviews = [{ day: '2026-10-20', kind: 'campaigns', note: null, by_email: emailOf('lior'), at: '2026-10-20T09:00:00+03:00' }];
       db.photographer_months = [{ person: 'eli', month: '2026-11-01', days: ['2026-11-03'], none: false, submitted_at: '2026-10-12T09:00:00+03:00', updated_at: '2026-10-12T09:00:00+03:00', by_person: 'eli' }];
+      // Today's follow-up before the shoot day was answered for every client it is asked of.
+      for (const n of FOLLOWUP_CLIENTS) db.protocol_checks.push({ client_id: cid(n), item_key: 'p14.day', state: 'done', note: JSON.stringify({ ok: true }), by_email: emailOf('irit'), at: '2026-10-20T09:00:00+03:00' });
       const { page, ctx } = await signedIn(role, { db });
       assert.deepEqual(await lines(page), {}, role);
       assert.equal(await page.locator('#land-line:not([hidden])').count(), 0, `${role}: a landing line with no client in landing`);

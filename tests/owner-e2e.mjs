@@ -60,7 +60,7 @@ const checks = [];
 const doneAll = (c, ids, at, by = 'irit@astrateg.test') => { for (const k of keysFor(c, ids)) checks.push({ client_id: c.id, item_key: k, state: 'done', note: null, by_email: by, at }); };
 const one = (c, key, at, note = null, by = 'irit@astrateg.test') => checks.push({ client_id: c.id, item_key: key, state: 'done', note, by_email: by, at });
 const JOIN = ['p01', 'p02', 'p03'];
-const CHAR = ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10'];
+const CHAR = ['p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10'];
 const onboard = (c) => { doneAll(c, JOIN, '2026-10-11T09:03:00+03:00'); doneAll(c, CHAR, '2026-10-12T12:00:00+03:00'); };
 
 // Red: the shoot is tomorrow (Wednesday), a business day away, and the client has not approved the scripts.
@@ -368,7 +368,7 @@ await step('screen 2: two lines per client, most severe first; a tap opens the r
   assert.match(await row.locator('.ga-l1').innerText(), /אדום\s*מספרת רון\s*צילום בסיכון · אין אישור לקוח על התסריטים[^]*· ליאור/);
   assert.match(await row.locator('.ga-l2').innerText(), /^הבא: אישור התסריטים · ליאור · /);
   // A milestone already late says so; one the client holds says that, not a date that keeps moving.
-  assert.match(await owner.locator(`#gab-${B.id} .ga-l2`).innerText(), /^הבא: קביעת יום הצילום · עירית · היה עד יום ה׳, 15\.10 · באיחור$/);
+  assert.match(await owner.locator(`#gab-${B.id} .ga-l2`).innerText(), /^הבא: קביעת יום הצילום · עירית · היה עד יום ה׳, 15\.10 18:00 · באיחור$/);
   assert.equal(await owner.locator(`#gab-${C.id} .ga-l2`).innerText(), 'הבא: קביעת יום הצילום · עירית · ממתין ללקוח');
   assert.equal(await row.getAttribute('aria-expanded'), 'false');
   assert.equal(await owner.isHidden(`#ga-${A.id}`), true);

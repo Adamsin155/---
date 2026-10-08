@@ -280,7 +280,7 @@ test('the shoot-day coordinator (11): closed only when all four approved and it 
 test('shoot blockers (14) are computed from what the system knows, by the 8 topics of process 14', () => {
   const c = client({ char_at: IL(2026, 10, 4, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
   // Everything before the shoot done, except: the scripts (late), the client's approval, a broken login.
-  const checks = without(imported('shoot'), [...itemsOf('p12'), ...itemsOf('p13'), ...itemsOf('p14')]);
+  const checks = without(imported('shoot'), [...itemsOf('p12'), ...itemsOf('p13'), ...PROCESSES.find((p) => p.id === 'p14').items.map((i) => i.key)]);
   const now = IL(2026, 10, 12, 9);
   const access = [{ id: 'a1', client_id: c.id, network: 'instagram', status: 'broken', updated_at: IL(2026, 10, 10).toISOString() }];
   const tasks = [
@@ -292,7 +292,7 @@ test('shoot blockers (14) are computed from what the system knows, by the 8 topi
   assert.deepEqual(p.topics.map((t) => t.item), TOPICS.map((t) => `p14.${t.key}`));
   const ids = p.blockers.map((b) => b.id);
   assert.deepEqual(ids, ['approvals:p13', 'scripts:p12', 'access:a1', 'team:t1']);
-  assert.match(p.blockers[1].text, /התסריטים לא מוכנים \(היעד: יום ג׳ 6\.10 23:59\)/);
+  assert.match(p.blockers[1].text, /התסריטים לא מוכנים \(היעד: יום ג׳ 6\.10 18:00\)/);
   assert.equal(p.blockers.find((b) => b.id === 'access:a1').who, 'lior');
   // An approval not late yet blocks from two business days before the shoot.
   const d = client({ char_at: IL(2026, 10, 11, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });

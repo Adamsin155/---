@@ -18,7 +18,7 @@ import { chromium } from "playwright";
 import { SUPA, ROLES, emailOf } from "../roles-world.mjs";
 import { makeFlowFake } from "../flow-world.mjs";
 import { validateSelection, buildQuoteModel } from "../../app/pricing.js";
-import { packageDeliverables } from "../../app/protocol-logic.js";
+import { packageDeliverables, clientState } from "../../app/protocol-logic.js";
 import { runTick } from "../../supabase/functions/reminders/tick.js";
 import { partsIL, dateIL } from "../../app/tz.js";
 import { serveMore, triggers } from "./server.mjs";
@@ -103,6 +103,8 @@ export class Sim {
   client() { return this.db.clients[0]; }
   checkOf(key) { const c = this.client(); return this.db.protocol_checks.find((x) => x.client_id === c?.id && x.item_key === key) || null; }
   done(key) { return ["done", "na"].includes(this.checkOf(key)?.state); }
+  // The protocol's state of the client at the simulated moment (the same computation the screens use).
+  state() { const c = this.client(); return clientState(c, Object.fromEntries(this.db.protocol_checks.filter((x) => x.client_id === c.id).map((x) => [x.item_key, x])), new Date(this.now)); }
   // A data nudge: something no screen of the role could do. Always recorded.
   nudge(what, fn) { this.nudges.push({ at: this.iso(), what }); console.log(`  NUDGE: ${what}`); return fn?.(this.db); }
   rec(r) { const row = { n: this.records.length + 1, at: this.iso(), ...r }; this.records.push(row); console.log(`#${row.n} ${stamp(this.now)} ${r.step}`); this.save(`${this.stage}-wip`); return row; }
@@ -223,7 +225,8 @@ export class Sim {
   // ── The browser ────────────────────────────
   // A page of `role` (null: nobody signed in, the public pages of the client) at the simulated moment.
   async open(role, path = "clients.html#mine", { phone = true, wait = null } = {}) {
-    const ctx = await this.browser.newContext({ locale: "he-IL", timezoneId: "Asia/Jerusalem", viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 900 }, isMobile: phone, hasTouch: phone });
+    // The clipboard is allowed, as on a phone that was asked once: "העתקת הקישור" (5ב, 7א) copies the ready message.
+    const ctx = await this.browser.newContext({ locale: "he-IL", timezoneId: "Asia/Jerusalem", viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 900 }, isMobile: phone, hasTouch: phone, permissions: ["clipboard-read", "clipboard-write"] });
     await ctx.clock.install({ time: this.now });
     await ctx.route(`${SUPA}/**`, this.fake.route);
     // Nothing leaves the machine: WhatsApp, Drive, Metricool and every other outside address is refused.
@@ -232,7 +235,9 @@ export class Sim {
     page.setDefaultTimeout(10000);
     page.errors = [];
     page.on("pageerror", (e) => page.errors.push(String(e)));
-    page.on("dialog", (d) => d.accept());
+    // A question of the browser (confirm) is answered yes, and what it asked is kept for the record.
+    page.dialogs = [];
+    page.on("dialog", (d) => { page.dialogs.push(d.message()); return d.accept(); });
     await page.goto(`${this.base}${path}`);
     if (role) {
       await page.waitForSelector("#lg-email", { state: "visible" });

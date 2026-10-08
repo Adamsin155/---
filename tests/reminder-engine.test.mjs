@@ -261,14 +261,17 @@ test('broken access: editing the row while it is still broken does not start the
   assert.ok(candidates(buildEnv({ ...w, now: IL(2026, 10, 7, 16) })).some((r) => r.key === first.key));
 });
 
-test('9 graphics ready: Irit at once, Lior after 30 minutes (decision 7); waiting on the client or sending stops it', () => {
+test('9 graphics ready: Irit at once, with her own two office hours; Lior is not rung to do it himself (protocol v8); waiting on the client or sending stops it', () => {
   const w = world();
   const c = client(w);
   importTo(w, c, 'char');
   mark(w, c, 'p07.made', IL(2026, 10, 7, 11));
-  one(due(w, IL(2026, 10, 7, 11)), 'graphics9', 'now', 'irit');
-  none(due(w, IL(2026, 10, 7, 11, 29)), 'graphics9', 'lior');
-  one(due(w, IL(2026, 10, 7, 11, 30)), 'graphics9', 'lior', 'lior');
+  const ring = one(due(w, IL(2026, 10, 7, 11)), 'graphics9', 'now', 'irit');
+  assert.match(ring.body, /יעד היום 13:00/);
+  none(due(w, IL(2026, 10, 7, 11, 30)), 'graphics9', 'lior');
+  none(due(w, IL(2026, 10, 7, 13, 30)), 'graphics9', 'lior');
+  // He hears when she is late, as of every late item (the rule `late`, 15 office minutes past her deadline).
+  assert.ok(due(w, IL(2026, 10, 7, 13, 15)).some((r) => r.rule === 'late' && r.person === 'lior' && /7 · הכנת 9 גרפיקות ראשונות/.test(r.title)));
   mark(w, c, 'p07.wait', IL(2026, 10, 7, 11, 5), JSON.stringify({ reason: 'הלקוח ביקש לחכות' }));
   none(due(w, IL(2026, 10, 7, 11, 30)), 'graphics9');
   delete w.checks[c.id]['p07.wait'];
@@ -306,7 +309,7 @@ test('setting the shoot day (11, v6): right after the group opens; Irit in the a
   mark(w, c, 'p02.opened', IL(2026, 10, 4, 11));
   const start = one(due(w, IL(2026, 10, 4, 11)), 'shootDate', 'start', 'irit');
   assert.equal(start.level, 'quiet');
-  assert.match(start.body, /יעד: מחר 23:59/);
+  assert.match(start.body, /יעד: מחר 18:00/);
   assert.match(one(due(w, IL(2026, 10, 5, 8, 30)), 'shootDate', 'd2026-10-05', 'irit').title, /יום צילום עוד לא נסגר \(יום 1\)/);
   none(due(w, IL(2026, 10, 5, 15, 59)), 'shootDate', 'due16');
   const ring = one(due(w, IL(2026, 10, 5, 16)), 'shootDate', 'due16', 'irit');
@@ -481,7 +484,7 @@ test('editing (22, 24): assigned, not started after 2 office hours (Lior after 4
   for (const k of [...itemsOf('p22'), ...itemsOf('p24'), ...itemsOf('p22a')]) delete w.checks[c.id][k];
   mark(w, c, 'p22a.assigned', IL(2026, 10, 18, 10));
   const now = one(due(w, IL(2026, 10, 18, 10)), 'editing', 'assigned', 'nadia');
-  assert.match(now.body, /בדרייב ואצל אופיר עד ד׳ 21\.10 23:59 · סגירה עד ה׳ 22\.10 23:59/);
+  assert.match(now.body, /בדרייב ואצל אופיר עד ד׳ 21\.10 18:00 · סגירה עד ה׳ 22\.10 18:00/);
   none(due(w, IL(2026, 10, 18, 11, 59)), 'editing', 'nostart');
   one(due(w, IL(2026, 10, 18, 12)), 'editing', 'nostart', 'nadia');
   const at14 = due(w, IL(2026, 10, 18, 14));
@@ -785,7 +788,7 @@ test('"לדחות עד…": what came due meanwhile waits for that moment, as on
   mark(w, c, SNOOZE('p07'), IL(2026, 10, 7, 11, 1), IL(2026, 10, 7, 13).toISOString());
   none(due(w, IL(2026, 10, 7, 12, 59)), 'graphics9');
   const at13 = due(w, IL(2026, 10, 7, 13)).filter((r) => r.rule === 'graphics9');
-  assert.deepEqual(at13.map((r) => r.step), ['lior']);
+  assert.deepEqual(at13.map((r) => r.step), ['now']);
   assert.equal(hhmm(at13[0].at), '7.10 13:00');
 });
 
@@ -857,7 +860,7 @@ test('focus call (12א) the next business day; shoot blockers (14) every morning
   const w = world();
   const c = client(w, { char_at: IL(2026, 10, 4, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
   importTo(w, c, 'shoot');
-  for (const k of [...itemsOf('p12a'), ...itemsOf('p14')]) delete w.checks[c.id][k];
+  for (const k of [...itemsOf('p12a'), ...PROCESSES.find((p) => p.id === 'p14').items.map((i) => i.key)]) delete w.checks[c.id][k];
   assert.equal(one(due(w, IL(2026, 10, 5, 8, 30)), 'focusCall', 'next', 'lior').level, 'digest');
   // The blockers are computed (shoot-prep.js): the focus call is late, an employee's delay.
   const mon = one(due(w, IL(2026, 10, 12, 8, 30)), 'blockers', 'd2026-10-12', 'irit');

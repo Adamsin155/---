@@ -441,8 +441,8 @@ await step('scripts and Zoom (12, 13): the link to the client\'s links, the Zoom
   await lior.click('#tab-scripts');
   await lior.waitForSelector('#sc-link');
   // Decision 14: the scripts were due at the end of business day 2 (yesterday, Monday 12.10).
-  assert.match(await lior.locator('#sc-h + p').innerText(), /^באיחור: היעד היה אתמול\. היעד: סוף יום העסקים השני/);
-  assert.match(await lior.locator('#zm-h + p').innerText(), /^עד היום\.$/); // the Zoom: day 3
+  assert.match(await lior.locator('#sc-h + p').innerText(), /^באיחור: היעד היה אתמול 18:00\. היעד: סוף יום העסקים השני/);
+  assert.match(await lior.locator('#zm-h + p').innerText(), /^עד היום 18:00\.$/); // the Zoom: day 3, by the office's close
   await lior.fill('#sc-link', 'https://docs.google.com/document/d/golan');
   await lior.click('#sc-save');
   await toastHas(lior, 'עכשיו לתאם זום');
@@ -642,7 +642,10 @@ await step('Irit\'s card for a client: the request and the shoot-day screens are
   await irit.goto(`${BASE}client.html?id=${B.id}`);
   await irit.waitForSelector('#ik-request');
   assert.match(await irit.getAttribute('#ik-request', 'href'), /^prep\.html\?id=.*#requests$/);
-  // Process 14 (still open) links to the blockers.
+  // Process 14 (still running) links to the blockers. Since protocol v8 it is a daily follow-up
+  // and never late, so its phase is no longer opened by a lateness of its own: open the phase.
+  await irit.waitForSelector('#p14', { state: 'attached' });
+  if (!await irit.locator('#p14 a.ik-go').isVisible()) await irit.locator('details.phase:has(#p14) > summary').click();
   await irit.waitForSelector('#p14 a.ik-go');
   assert.equal(await irit.locator('#p14 a.ik-go').innerText(), 'חוסמי יום צילום');
   assert.match(await irit.getAttribute('#p14 a.ik-go', 'href'), /^prep\.html\?id=/);
