@@ -20,9 +20,9 @@
 // but could not be recorded may so go out twice; it has the same tag, so the phone
 // replaces the first rather than showing two.)
 import {
-  buildEnv, candidates, computeReminders, planDelivery, planDigests, pushPayload, notKnown,
+  buildEnv, candidates, computeReminders, planDelivery, planDigests, pushPayload, notKnown, planHandover, handoverPrefixes,
 } from '../_shared/app/reminder-engine.js';
-import { atIL, DIGESTS, FOLD, REMINDER_PEOPLE, BATCH } from '../_shared/app/reminder-rules.js';
+import { atIL, DIGESTS, FOLD, REMINDER_PEOPLE, BATCH, VOID_WHEN_GONE } from '../_shared/app/reminder-rules.js';
 import { isBusinessDay } from '../_shared/app/protocol-logic.js';
 import { planAutoAssign } from '../_shared/app/auto-assign.js';
 
@@ -159,7 +159,13 @@ export async function runTick({ db, push, wa = null, now = new Date() }) {
   const all = candidates(env);
   const active = new Set(all.map((r) => r.key));
   const known = await db.known([...active]);
-  const fresh = all.filter(notKnown(known));
+  let fresh = all.filter(notKnown(known));
+  // Work that passed to someone else (an editor swap, a task moved): the step is told
+  // now to whoever got it, and whoever had it hears it passed on (planHandover).
+  const passing = handoverPrefixes(fresh);
+  if (passing.length && typeof db.siblings === 'function') {
+    fresh = planHandover({ reminders: fresh, siblings: await db.siblings(passing), now });
+  }
   const planned = planDelivery({ reminders: fresh, now, liorShoot: env.liorShoot });
   const inserted = await claim(db, planned.map((r) => rowOf(r, now)), stats);
   stats.steps = inserted.length;
@@ -168,6 +174,11 @@ export async function runTick({ db, push, wa = null, now = new Date() }) {
     else if (r.status === 'suppressed') stats.stale += 1;
     else if (r.channel === 'app') stats.app += 1;
   }
+
+  // A notification whose case is gone (a question that was withdrawn or answered) is
+  // marked read, so it does not wait in "התראות" for something that is no longer asked.
+  const gone = (input.log || []).filter((r) => VOID_WHEN_GONE.has(r.rule) && !r.read_at && r.status === 'sent' && !active.has(r.key));
+  if (gone.length) await db.updateLog(gone.map((r) => r.id), { read_at: now.toISOString() });
 
   // The 08:30 digest also carries what is due 09:00–09:30 today.
   const morning = atIL(now, DIGESTS.morning);
@@ -212,7 +223,8 @@ export async function runTick({ db, push, wa = null, now = new Date() }) {
       await db.updateLog([row.id], { status: 'suppressed', reason: 'resolved' });
       stats.dropped += 1;
     } else {
-      const [again] = planDelivery({ reminders: [step], now, liorShoot: env.liorShoot });
+      // A step that passed to this person keeps the moment it was told at (planHandover), not the work's start.
+      const [again] = planDelivery({ reminders: [{ ...step, at: step.handover && row.due_at ? new Date(row.due_at) : step.at }], now, liorShoot: env.liorShoot });
       if (again.channel === 'push') {
         sends.push({ row, kind: 'ring' });
         stats.recovered += 1;

@@ -247,7 +247,10 @@ test('the scripts approved on the page while the Zoom was open: the Zoom is \'na
   w.checks.c1['p13.zoom'] = { client_id: 'c1', item_key: 'p13.zoom', state: 'na', note: 'אושר בדף המצב', at };
   assert.equal(clientState(c, w.checks.c1, now).states.find((x) => x.proc.id === 'p13').complete, true);
   const got = computeReminders({ ...w, now });
-  assert.deepEqual(got.filter((r) => r.ref === 'p13'), []);
+  // Nothing reminds about 13 any more. The approval itself is news for whoever waited
+  // for it (rule `clientApproved`, docs/ops.md section 45): Irit and Lior hear, once.
+  assert.deepEqual(got.filter((r) => r.ref === 'p13' && r.rule !== 'clientApproved'), []);
+  assert.deepEqual(got.filter((r) => r.ref === 'p13').map((r) => [r.rule, r.person, r.level]).sort(), [['clientApproved', 'irit', 'quiet'], ['clientApproved', 'lior', 'quiet']]);
   const sql = readFileSync(new URL('../supabase/migrations/20260930210000_hardening.sql', import.meta.url), 'utf8');
   assert.match(sql, /regexp_replace\(p_key, 'approved\$', 'zoom'\), 'na', 'אושר בדף המצב'\)/);
 });
