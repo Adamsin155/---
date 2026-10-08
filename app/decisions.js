@@ -31,6 +31,7 @@ import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, startControl } from './office-ui.js';
 import { dayKeyIL, TZ } from './tz.js';
 import { mountApprovals } from './approvals-ui.js';
+import { canSeeOfficeQueues } from './manager-rules.js';
 
 let viewer = null;
 let me = null;
@@ -448,7 +449,8 @@ mountSession(async (staff) => {
   viewer = v;
   me = v.me;
   markFirstLanded();
-  if (v.error || v.scope !== 'office') { $('no-access').hidden = false; return; }
+  // Lior's and Ofir's screens, and the owners': not Irit's (canSeeOfficeQueues, 8.10.2026).
+  if (!canSeeOfficeQueues(v)) { $('no-access').hidden = false; return; }
   $('dc-page').hidden = false;
   $('head-actions').prepend(...officeLinks(v, 'decisions.html'));
   // "חוזים חריגים לאישור": first on Lior's screen (the owner and Ofir decide here too).

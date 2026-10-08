@@ -21,6 +21,11 @@ const personOfViewer = (viewer) => {
   return viewer.scope === 'office' ? OWNER : null;
 };
 export const canConnect = (viewer) => CONNECTORS.includes(personOfViewer(viewer));
+// Where the card is shown (8.10.2026). Connecting the clients is Ilai's task: his
+// "המשימות שלי" always has the card. The owners may connect too, but it is not their
+// own task: not in their personal "המשימות שלי" (#mine), only in the manager profile's
+// "עבודת הצוות" (#team), where it was.
+export const showsCard = (viewer, personal = false) => canConnect(viewer) && !(personal && personOfViewer(viewer) === OWNER);
 
 // The first rows shown; the rest wait behind "הצג עוד".
 export const CONNECT_CAP = 8;

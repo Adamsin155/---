@@ -33,6 +33,7 @@ import { offerHandoff } from './handoff-ui.js';
 import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, navLink } from './office-ui.js';
 import { mountApprovals } from './approvals-ui.js';
+import { canSeeOfficeQueues } from './manager-rules.js';
 import { inputValueIL, fromInputIL, dayFromKeyIL, endOfDayIL, TZ } from './tz.js';
 import { mountWorkFiles, forgetFiles } from './files-ui.js';
 import { videoWindow, graphicsWindow, videosLinkOf } from './files-logic.js';
@@ -588,7 +589,8 @@ mountSession(async (staff) => {
   viewer = v;
   me = v.me;
   markFirstLanded();
-  if (v.error || v.scope !== 'office') { $('no-access').hidden = false; return; }
+  // Lior's and Ofir's screens, and the owners': not Irit's (canSeeOfficeQueues, 8.10.2026).
+  if (!canSeeOfficeQueues(v)) { $('no-access').hidden = false; return; }
   $('of-page').hidden = false;
   $('head-actions').prepend(...officeLinks(v, 'qa.html'));
   // "חוזים חריגים לאישור": Ofir's first screen.

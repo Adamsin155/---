@@ -23,6 +23,20 @@ const REVISE_PARAM = new URLSearchParams(location.search).get('revise');
 let reviseId = null;
 // "חוזה מותאם אישית" is the office's (the server refuses it from anyone else).
 let office = false;
+// The builder is for whoever builds a contract (canBuildQuote in app/manager-rules.js: the
+// owners, Irit, Lior, Ofir). A signed-in member of staff who is not one of them gets
+// "אין לך גישה לעמוד הזה" with the way back to their own screen, and nothing of the builder.
+let denied = false;
+function deny(link) {
+  denied = true;
+  const box = $('no-access');
+  for (const el of $('main').children) el.hidden = el !== box;
+  $('mobilebar').hidden = true;
+  for (const d of document.querySelectorAll('dialog[open]')) d.close();
+  const a = $('na-home');
+  a.href = link.href;
+  a.textContent = link.label;
+}
 
 // Supabase loads lazily so the builder still works if the network is down.
 let supa = null;
@@ -750,14 +764,17 @@ async function refreshSession() {
     $('session-who').textContent = staff ? staff.email : 'לא מחובר';
     // The app shell: the menu of this person's screens, with the managers' switch (app/shell.js).
     if (staff?.isStaff) {
-      import('./shell.js').then(async (m) => {
+      // Who this is decides whether the page is theirs: answered before anything goes on.
+      try {
+        const [m, rules, menu] = await Promise.all([import('./shell.js'), import('./manager-rules.js'), import('./shell-rules.js')]);
         m.mountShell(staff.email);
-        // "חוזה מותאם אישית" is offered to the office only.
         const v = await m.viewerFor(staff.email);
+        if (!v.error && !rules.canBuildQuote(v)) { deny(menu.homeLink(v)); return staff; }
+        // "חוזה מותאם אישית" is offered to the office only.
         const was = office;
         office = !v.error && v.scope === 'office';
         if (office !== was) render();
-      }).catch(() => {});
+      } catch { /* the menu could not be drawn; the server still decides who creates a quote */ }
     } else if (office) { office = false; render(); }
     return staff;
   } catch {
@@ -783,6 +800,7 @@ function askLogin() {
         if (error) throw error;
         const staff = await refreshSession();
         if (!staff?.isStaff) throw new Error('not staff');
+        if (denied) return; // not their page: deny() closed the dialog, and nothing is created
         // A fresh sign-in starts in the personal profile (app/manager-rules.js).
         import('./manager-rules.js').then((m) => m.resetMode()).catch(() => {});
         form.removeEventListener('submit', onSubmit);
@@ -839,6 +857,7 @@ $('btn-link').addEventListener('click', async (e) => {
   try {
     const staff = await refreshSession();
     if (!staff?.isStaff && !(await askLogin())) return;
+    if (denied) return;
     await createLink(btn);
   } finally {
     creating = false;
@@ -969,6 +988,7 @@ document.querySelectorAll('#doc-switch [data-doc]').forEach((b) => b.addEventLis
 async function openFromDeal(id) {
   const staff = await refreshSession();
   if (!staff?.isStaff && !(await askLogin())) return;
+  if (denied) return;
   try {
     const [{ loadDeal }, { prefillFromDeal, contractTitle }] = await Promise.all([import('./deal-data.js'), import('./deal-logic.js')]);
     const d = await loadDeal(id);
@@ -1000,6 +1020,7 @@ async function openFromDeal(id) {
 async function openForRevise(id) {
   const staff = await refreshSession();
   if (!staff?.isStaff && !(await askLogin())) return;
+  if (denied) return;
   try {
     const s = await getSupa();
     const { data: q, error } = await s.supabase.from('quotes')
