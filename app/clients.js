@@ -22,10 +22,11 @@ import {
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar, capList,
-  mountSession, store, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
+  KEEP_BOOT, mountSession, store, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
   isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
+import { warm, taken } from './supa.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys, openedBySigning } from './client-open.js';
@@ -144,11 +145,14 @@ const isStaff = (key) => STAFF_PEOPLE().some((p) => p.key === key);
 const officePeople = () => STAFF_PEOPLE().filter((p) => !p.editor);
 const editorPeople = () => STAFF_PEOPLE().filter((p) => p.editor);
 
+// The first rows of the page, asked for while the session is being confirmed (app/supa.js warm).
+const firstRows = () => Promise.all([loadClients({ includeEnded: true }), loadChecks(), loadTasks({ openOnly: true })]);
+warm('clients', firstRows);
 async function load() {
   $('state').textContent = clients.length ? '' : 'טוען…';
   const now = new Date();
   try {
-    [clients, checks, tasks] = await Promise.all([loadClients({ includeEnded: true }), loadChecks(), loadTasks({ openOnly: true })]);
+    [clients, checks, tasks] = await taken('clients', firstRows);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
@@ -1299,7 +1303,7 @@ function renderClients() {
     const s = stateOf(c);
     const next = live(c) && !own ? nextStep(c, s) : null;
     const signed = quoteInfo.get(c.quote_id)?.signed_at;
-    return h('li', { style: `view-transition-name:cl-${String(c.id).replace(/[^w-]/g, '')}` },
+    return h('li', { style: `--vt:cl-${String(c.id).replace(/[^\w-]/g, '')}` },
       h('a', { class: 'crow', href: clientUrl(c.id) },
         h('div', { class: 'cname' },
           h('strong', {}, clientLabel(c)),
@@ -2534,9 +2538,9 @@ mountSession(async (staff) => {
   // the owners, Ofir and Lior otherwise stay here, in their personal profile. Only
   // when the tab opens here without a view, once per tab; "המשימות שלי" stays #mine.
   // Sales (Stav) have no client work: always their own page.
-  if (landingOf(me)) { location.replace(landingOf(me)); return; }
+  if (landingOf(me)) { location.replace(landingOf(me)); return KEEP_BOOT; }
   const first = landingNow({ me, viewer, arrived: ARRIVED_WITH || location.hash });
-  if (first) { location.replace(first); return; }
+  if (first) { location.replace(first); return KEEP_BOOT; }
   // The shortcuts of each role in the page head: the editors' page; the shoot day
   // (Eli's page, Lior's shoot-day mode and the counter the office watches); the
   // office's screens (Ofir's queue and pass, Lior's decisions).
@@ -2560,6 +2564,8 @@ mountSession(async (staff) => {
   applyScope();
   renderMe();
   // Notifications on the phone and today's list (app/push.js); the owner's list is 'owner'.
+  // (The cards here each ask for their own rows; the page is shown when they have
+  // answered, so none lands above a list that is already on the screen: bootEnd in protocol-ui.js.)
   mountPush({
     who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
     changed: () => { if (view === 'mine' && !$('app').hidden && !busy()) renderKeepingFocus(); },

@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- The address of this page goes to no other site (a link opened from here carries no Referer). -->
   <meta name="referrer" content="no-referrer">
   <!-- Only this site's own files, and the office's database and files (docs/ops.md, section 36). -->
@@ -18,6 +18,28 @@
   <link rel="stylesheet" href="app/styles/quotes.css">
   <link rel="stylesheet" href="app/styles/approvals.css">
   <link rel="stylesheet" href="app/styles/shell.css">
+  <!-- Written at publish (scripts/build-pages.mjs): what this page will load, asked for together. -->
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/heebo-hebrew.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/heebo-latin.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/varela-round-hebrew.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/varela-round-latin.woff2" crossorigin>
+  <link rel="modulepreload" href="app/supa.js">
+  <link rel="modulepreload" href="app/quote-doc.js">
+  <link rel="modulepreload" href="app/pricing.js">
+  <link rel="modulepreload" href="app/shell.js">
+  <link rel="modulepreload" href="app/manager-rules.js">
+  <link rel="modulepreload" href="app/approvals-logic.js">
+  <link rel="modulepreload" href="app/vendor/supabase.js">
+  <link rel="modulepreload" href="app/catalog.js">
+  <link rel="modulepreload" href="app/legal.js">
+  <link rel="modulepreload" href="app/feel.js">
+  <link rel="modulepreload" href="app/protocol.js">
+  <link rel="modulepreload" href="app/shell-rules.js">
+  <link rel="modulepreload" href="app/team-rules.js">
+  <link rel="modulepreload" href="app/protocol-logic.js">
+  <link rel="modulepreload" href="app/holidays.js">
+  <link rel="modulepreload" href="app/protocol-versions.js">
+  <link rel="modulepreload" href="app/tz.js">
 </head>
 <body>
   <header class="topbar">

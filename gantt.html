@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- Only this site's own files, and the office's database and files (docs/ops.md, section 36). -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
@@ -21,6 +21,32 @@
   <link rel="stylesheet" href="app/styles/protocol.css">
   <link rel="stylesheet" href="app/styles/gantt.css">
   <link rel="stylesheet" href="app/styles/shell.css">
+  <!-- Written at publish (scripts/build-pages.mjs): what this page will load, asked for together. -->
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/heebo-hebrew.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/heebo-latin.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/varela-round-hebrew.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/varela-round-latin.woff2" crossorigin>
+  <link rel="modulepreload" href="app/gantt-template.js">
+  <link rel="modulepreload" href="app/gantt-logic.js">
+  <link rel="modulepreload" href="app/team-rules.js">
+  <link rel="modulepreload" href="app/protocol-logic.js">
+  <link rel="modulepreload" href="app/year-logic.js">
+  <link rel="modulepreload" href="app/tz.js">
+  <link rel="modulepreload" href="app/shell.js">
+  <link rel="modulepreload" href="app/link-token.js">
+  <link rel="modulepreload" href="app/holidays.js">
+  <link rel="modulepreload" href="app/files-logic.js">
+  <link rel="modulepreload" href="app/protocol.js">
+  <link rel="modulepreload" href="app/catalog.js">
+  <link rel="modulepreload" href="app/protocol-versions.js">
+  <link rel="modulepreload" href="app/supa.js">
+  <link rel="modulepreload" href="app/feel.js">
+  <link rel="modulepreload" href="app/quote-doc.js">
+  <link rel="modulepreload" href="app/manager-rules.js">
+  <link rel="modulepreload" href="app/shell-rules.js">
+  <link rel="modulepreload" href="app/vendor/supabase.js">
+  <link rel="modulepreload" href="app/pricing.js">
+  <link rel="modulepreload" href="app/legal.js">
 </head>
 <body>
   <header class="topbar">

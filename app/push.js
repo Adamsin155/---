@@ -9,6 +9,7 @@
 // Pure decisions are in push-logic.js. Nothing here runs until the database has
 // the push tables (the migration 20260930110000): until then it stays hidden.
 import { supabase } from './supa.js';
+import { siteWorker } from './feel.js';
 import { VAPID_PUBLIC_KEY } from './push-config.js';
 import { platformOf, pushState, keyBytes, sameKey, inboxRows, unreadCount, deliveryText, SNOOZE_CHOICES, sitePage } from './push-logic.js';
 import { businessDayFrom, atIL, SNOOZE } from './reminder-rules.js';
@@ -16,22 +17,8 @@ import { atTimeIL } from './tz.js';
 import { $, fill, h, toast, errorText, formatStamp } from './protocol-ui.js';
 
 // ── The service worker ────────────────────
-let worker = null;
-// Registered once, at the site root (sw.js controls clients.html); resolves when active (or null).
-export function siteWorker() {
-  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
-  worker ||= navigator.serviceWorker.register(new URL('../sw.js', import.meta.url), { scope: new URL('../', import.meta.url).href })
-    .then((reg) => (reg.active ? reg : new Promise((resolve) => {
-      const sw = reg.installing || reg.waiting;
-      if (!sw) { resolve(null); return; }
-      sw.addEventListener('statechange', () => {
-        if (sw.state === 'activated') resolve(reg);
-        else if (sw.state === 'redundant') resolve(null);
-      });
-    })))
-    .catch(() => null);
-  return worker;
-}
+// The one registration of the site's worker is in app/feel.js (every staff page makes it).
+export { siteWorker };
 // The stage 1 worker (app/notify-sw.js) is gone; its registration is removed.
 function retireOldWorker() {
   navigator.serviceWorker?.getRegistrations?.()
