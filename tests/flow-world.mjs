@@ -1,5 +1,5 @@
 // The office of tests/roles-world.mjs with work waiting in every queue that is done on a
-// page other than "המשימות שלי" (docs/ops.md, section 46), and five clients that came from
+// page other than "המשימות שלי" (docs/ops.md, section 46), and six clients that came from
 // the old system and are still in landing. The clock is the same Tuesday, 20.10.2026,
 // 10:00 in Israel. Names are invented.
 //   - Ofir (qa.html): one round of videos waits for his check and one client waits for an
@@ -24,7 +24,10 @@ export const COUNTS = {
   assign: { clock: 4, landing: 3 },   // with a clock: the new one, and three of the roles world that were never assigned
   qa: { clock: 1, landing: 1 },
   paused: 1, broken: 1, changes: 1, urgentBack: 1,
-  messages: { clock: 22, landing: 5 }, // every open client: nobody was written to today
+  messages: { clock: 22, landing: 6 }, // every open client: nobody was written to today
+  landing: 6,                          // clients from the old system
+  editing: { landing: 1 },             // Yariv's, in the middle of the editing
+  shootSoon: { landing: 1 },           // shoots next week
 };
 const keysOf = (...ids) => ids.flatMap((id) => PROCESSES.find((p) => p.id === id).items.filter((i) => !i.optional).map((i) => i.key));
 
@@ -83,6 +86,9 @@ export function flowWorld({ landing = true, queues = true } = {}) {
     add(34, 'post', { ...OLD, name: 'אבנר גולן', business: 'גולן מזגנים', editor: 'anna', shoot_at: '2026-07-05T10:00:00+03:00' }, '2026-10-06T09:00:00+03:00');
     edited(34, 'anna', '2026-10-07T09:00:00+03:00', '2026-10-12T15:00:00+03:00');
     add(35, 'content', { ...OLD, name: 'רותי אלון', business: 'אלון צמחים', shoot_at: '2026-10-26T10:00:00+03:00' }, '2026-10-06T09:00:00+03:00');
+    // Yariv got this one in the old system and is in the middle of the editing.
+    add(36, 'post', { ...OLD, name: 'עדי נוי', business: 'נוי מסגרות', editor: 'yariv', shoot_at: '2026-07-08T10:00:00+03:00' }, '2026-10-06T09:00:00+03:00');
+    for (const k of [...keysOf('p22a'), 'p22.received']) mark(36, k, '2026-10-08T09:00:00+03:00', null, k.startsWith('p22a') ? 'ofir' : 'yariv');
   }
   return db;
 }

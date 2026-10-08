@@ -29,7 +29,7 @@ for (const role of roles) {
       const vis = (el) => !!el && !el.hidden && el.getClientRects().length > 0;
       const t = (el) => String(el?.innerText || '').replace(/\s+/g, ' ').trim();
       return {
-        flow: [...document.querySelectorAll('#flow-lines a, #flow-lines li')].filter(vis).map(t),
+        flow: [...document.querySelectorAll('a[id^="flow-"]')].map((a) => `[${a.closest('.wgroup')?.querySelector('.wgroup-h')?.firstChild?.textContent || (a.closest('#land-line') ? 'קליטה' : '?')}] ${t(a) || a.textContent} -> ${a.getAttribute('href')}`),
         land: vis(document.querySelector('#land-line')) ? t(document.querySelector('#land-line')) : null,
         cards: ['#now-bar', '#staff-tasks-card', '#deals-card', '#approvals-card', '#my-questions', '#my-months'].filter((s) => vis(document.querySelector(s))).map((s) => `${s}: ${t(document.querySelector(s)).slice(0, 90)}`),
         groups: [...document.querySelectorAll('#mine-list .wgroup-h, #mine-list .team-fold, #mine-list .empty')].filter(vis).map(t),
