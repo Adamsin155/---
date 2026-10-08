@@ -12,7 +12,7 @@
 import { PEOPLE, isSales } from './protocol.js';
 import { isOwnerView, canManageTeam } from './team-rules.js';
 import {
-  isManager, hasProfiles, canSeeTable, canSeeShootTable, canSeeQuoteList, managerHome, MODES, BACK_LABEL,
+  isManager, hasProfiles, canSeeTable, canSeeShootTable, canSeeQuoteList, canBuildQuote, managerHome, MODES, BACK_LABEL,
 } from './manager-rules.js';
 
 const known = (v) => !!v && !v.error;
@@ -69,7 +69,8 @@ export function menuOf(viewer) {
   if (canSeeShootTable(viewer)) list.push({ id: 'shoot-table', href: 'owner.html#shoots', label: 'טבלת ימי צילום' });
   // The builder of a quote and of the contract (the owner's wording, 7.10.2026). `short` is
   // the name in the phone's bottom bar, where the full one does not fit a quarter of 360px.
-  list.push({ id: 'quote', href: 'index.html', label: QUOTE_LABEL, short: 'הצעה וחוזה' });
+  // Only for whoever builds a contract (canBuildQuote, 8.10.2026): the owners, Irit, Lior, Ofir.
+  if (canBuildQuote(viewer)) list.push({ id: 'quote', href: 'index.html', label: QUOTE_LABEL, short: 'הצעה וחוזה' });
   // The list of sent quotes: the owners and Irit (6.10.2026; the database answers nobody else).
   if (canSeeQuoteList(viewer)) list.push({ id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
@@ -87,6 +88,12 @@ function unique(list) {
     return true;
   });
 }
+
+// The way back from a page that is not this person's ("אין לך גישה לעמוד הזה"): their own
+// first screen. The field sales have one screen, their deals; everyone else their tasks.
+export const homeLink = (viewer) => (known(viewer) && isSales(viewer.me)
+  ? { href: 'deal.html', label: 'מעבר לעסקה חדשה' }
+  : { href: MODES.mine.href, label: 'מעבר להמשימות שלי' });
 
 // ── The two profiles of the owners, Ofir, Lior (6.10.2026) and Irit (7.10.2026) ──
 // The personal profile: only what this person acts on every day, "המשימות שלי" first.

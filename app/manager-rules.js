@@ -30,7 +30,18 @@ export const canSeeQuoteList = (v) => isOwnerView(v) || (known(v) && QUOTE_LIST_
 // Stav's and Amos's deals with what was agreed (the discount, a price typed by hand):
 // Irit, who prepares the contract from them, and the owners.
 export const canSeeDeals = (v) => canSeeQuoteList(v);
-export const canSeeTable = (v) => isOwnerView(v) || (known(v) && TABLE_VIEWERS.includes(v.me));
+// The builder of a quote and of the contract (index.html), 8.10.2026: whoever prepares or
+// approves a contract. The create-quote function answers the office only
+// (public.is_office(): these and Ilai); Ilai builds no contracts, so the screens leave him
+// out, and so the editors, Nirel, Eli and the field sales, whom the server refuses anyway.
+export const QUOTE_BUILDERS = ['irit', 'lior', 'ofir'];   // and the owner
+export const canBuildQuote = (v) => isOwnerView(v) || (known(v) && QUOTE_BUILDERS.includes(v.me));
+// "החלטות" (decisions.html) and "בקרה ושיוך" (qa.html): Lior's and Ofir's screens, and the
+// owners'. Irit is of the office and the database would take her writes, but neither
+// screen is her work (8.10.2026). Nobody else's side of them changed.
+export const NOT_ON_OFFICE_QUEUES = ['irit'];
+export const canSeeOfficeQueues = (v) => known(v) && v.scope === 'office' && !NOT_ON_OFFICE_QUEUES.includes(v.me);
+export const canSeeTable =(v) => isOwnerView(v) || (known(v) && TABLE_VIEWERS.includes(v.me));
 // The shoot-day table (owner.html#shoots, app/shoot-table.js): read-only, no prices in it.
 export const canSeeShootTable = (v) => isOwnerView(v) || (known(v) && SHOOT_TABLE_VIEWERS.includes(v.me));
 

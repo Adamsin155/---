@@ -57,6 +57,7 @@
     </section>
 
     <div id="app" class="pr-app of-app land-app" hidden>
+      <div id="land-page">
       <div class="page-head">
         <div>
           <h1 id="land-h">קליטת לקוחות קיימים</h1>
@@ -69,6 +70,14 @@
       <div class="land-progress" id="land-progress" role="status" aria-live="polite"></div>
       <ul class="land-list" id="land-list" aria-labelledby="land-h"></ul>
       <div id="land-done"></div>
+      </div>
+
+      <!-- The field sales have no client work to take in (app/landing-ui.js). -->
+      <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
+        <p>קליטת הלקוחות הקיימים פתוחה למי שיש לו עבודה בלקוחות.</p>
+        <a class="btn" id="na-home" href="clients.html#mine">מעבר להמשימות שלי</a>
+      </section>
     </div>
 
     <p class="state" id="state" role="status"></p>
