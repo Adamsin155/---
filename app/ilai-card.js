@@ -13,7 +13,7 @@
 // the videos' Drive folder (the videos stay in Drive: the owner's decision of 7.10.2026).
 import { setCheck, clearCheck, setChecksBulk, updateClient, canUseVault } from './protocol-data.js';
 import { clientLabel } from './protocol-logic.js';
-import { h, toast, errorText, formatWhen } from './protocol-ui.js';
+import { h, toast, errorText, formatWhen, landingTag } from './protocol-ui.js';
 import { offerHandoff } from './handoff-ui.js';
 import { loadAccessStatusForWork } from './office-data.js';
 import { charDay, ilaiWork, PAGE_KEYS, PAGE_LABELS, GANTT_KEYS, AUTO_ACCESS_NOTE } from './ilai-logic.js';
@@ -253,7 +253,7 @@ function firstCard(x, ctx) {
   const cs = ctx.checks[c.id] || {};
   const idp = `il-9-${c.id}`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-first:${c.id}` },
-    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'p07') }, clientLabel(c)), h('span', { class: 'il-title' }, '9 גרפיקות ראשונות'), until(x.state.dueAt)),
+    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'p07') }, clientLabel(c)), landingTag(c), h('span', { class: 'il-title' }, '9 גרפיקות ראשונות'), until(x.state.dueAt)),
     h('div', { class: 'of-acts' }, charLink(c)),
     gfxFiles(ctx, c, cs, 'first', `${idp}-g`),
     readyButton(`${idp}-ready`, 'מוכן לבדיקה (לעירית)', gfxGate(c, cs, 'first'),
@@ -265,7 +265,7 @@ function restCard(x, ctx) {
   const cs = ctx.checks[c.id] || {};
   const idp = `il-r-${c.id}`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-rest:${c.id}` },
-    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'p23') }, clientLabel(c)), h('span', { class: 'il-title' }, 'יתרת הגרפיקות'), until(x.state.dueAt)),
+    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, 'p23') }, clientLabel(c)), landingTag(c), h('span', { class: 'il-title' }, 'יתרת הגרפיקות'), until(x.state.dueAt)),
     h('div', { class: 'of-acts' }, charLink(c)),
     gfxFiles(ctx, c, cs, 'rest', `${idp}-g`),
     x.qa.stage === 'fixing'
@@ -285,7 +285,7 @@ function finalCard(x, ctx) {
   const c = x.client;
   const key = `${x.pre}p27.toilai`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-final:${c.id}:${x.pre}` },
-    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, clientLabel(c)),
+    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, clientLabel(c)), landingTag(c),
       h('span', { class: 'il-title' }, `גרסאות סופיות בדרייב${x.n ? ` · סבב ${x.n}` : ''}`), h('span', { class: 'muted' }, ` · מ־${formatWhen(x.at)}`)),
     // Where they are: the client's Drive (the editor's link); any uploaded into the system are listed.
     finalDrive(c, ctx.checks[c.id] || {}, x),
@@ -304,7 +304,7 @@ function ganttCard(x, ctx) {
   const c = x.client;
   const key = `${x.pre}p29.filled`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-gantt:${c.id}:${x.pre}` },
-    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, clientLabel(c)),
+    h('div', { class: 'wproc-h' }, h('a', { class: 'wclient', href: clientUrl(c.id, x.state.proc.id) }, clientLabel(c)), landingTag(c),
       h('span', { class: 'il-title' }, `גאנט${x.n ? ` · סבב ${x.n}` : ''}`), until(x.state.dueAt)),
     h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-ghost gantt-go', href: ganttUrl(c.id) }, 'פתיחת גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`)), h('button', {
       type: 'button', class: 'btn btn-sm', id: `il-g-${c.id}-${x.pre.replace(/\W/g, '')}`,

@@ -19,7 +19,7 @@ import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, setTaskDone, updateClient, loadDirectory,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, formatDay,
+  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, formatDay, landingTag,
 } from './protocol-ui.js';
 import { noteDateChange } from './owner-data.js';
 import {
@@ -143,7 +143,7 @@ function shootCard(e) {
   const blocked = !!prep?.blockers.length;
   return h('li', { class: `pp-card${coord.fullyClosed && !blocked ? ' is-closed' : ''}${blocked ? ' has-block' : ''}`, id: `shoot-${k}` },
     h('div', { class: 'pp-head' },
-      h('h2', {}, h('a', { href: cardUrl(c.id, `#${x.pid}p11`) }, c.name), round),
+      h('h2', {}, h('a', { href: cardUrl(c.id, `#${x.pid}p11`) }, c.name), round, c.landing === true ? [' ', landingTag(c)] : null),
       h('span', { class: 'pp-when' }, [e.shoot ? `יום צילום ${formatStamp(e.shoot)}` : 'יום הצילום טרם נקבע', coord.shootType ? SHOOT_TYPES[coord.shootType]?.name : null].filter(Boolean).join(' · '))),
     coordinatorBlock(e, k),
     prep ? blockersBlock(e, k) : null,

@@ -62,6 +62,9 @@ import { showMonths, worksCycle } from './month-ui.js';
 import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageText } from './control-topics.js';
 import { loadDeals } from './deal-data.js';
 import { canSeeDeals } from './manager-rules.js';
+// Everything that waits for me on another page, as counted lines (docs/ops.md, section 46).
+import { flowLines, flowNeeds } from './mine-flow.js';
+import { loadFlowExtra } from './mine-flow-data.js';
 
 let clients = [];
 let checks = {};
@@ -125,6 +128,9 @@ const live = (c) => c.status !== 'cancelled';
 // The clients from the old system that are in landing (docs/ops.md, section 41): what
 // was said about them so far. Loaded only while some client is in landing.
 let intake = { marks: {}, done: {}, ready: false };
+// The rows of the queues that are worked on another page, for the counted lines of
+// "המשימות שלי" (app/mine-flow.js): { name: rows | null }.
+let flowExtra = {};
 const landingTag = (c) => (c.landing === true ? h('span', { class: 'tag tag-landing', title: 'לקוח מהמערכת הישנה: בלי שעונים והתראות עד שיופעל' }, 'בקליטה') : null);
 // A client opened by the signing trigger stays "new" until someone confirms its details.
 // An imported client is never "new" (openedBySigning in app/client-open.js).
@@ -157,6 +163,8 @@ async function load() {
     $('state').textContent = errorText(err);
     return;
   }
+  // The counted lines of "המשימות שלי" ask for their own rows meanwhile (app/mine-flow-data.js).
+  const flowAsked = loadFlowExtra(flowNeeds({ me, scope, error: viewerError }, now), { now, clients, checks, stateOf: (c) => clientState(c, checks[c.id] || {}, now) });
   // Reviews and agreement numbers are extras: the page works without them.
   // They serve the office screens only, so an 'own' view does not load them.
   const none = { status: 'rejected', reason: null };
@@ -179,6 +187,7 @@ async function load() {
     for (const r of lg.value) if (!lastLog.has(r.client_id) || r.at > lastLog.get(r.client_id)) lastLog.set(r.client_id, r.at);
   }
   if (clients.some((c) => c.landing === true)) intake = await loadIntake();
+  flowExtra = await flowAsked;
   states.clear();
   lastLoad = Date.now();
   $('state').textContent = '';
@@ -818,7 +827,7 @@ function upcomingSection(list, open) {
 
 // The one line at the top of "המשימות שלי" while I have old clients to take in, and
 // under the list what I left open on clients still in landing (no clock, no colour).
-function renderLanding() {
+function renderLanding(flow = []) {
   const now = new Date();
   const line = $('land-line');
   const quiet = $('land-quiet');
@@ -827,11 +836,15 @@ function renderLanding() {
   const left = intakeLeft(list);
   // The owners: how many are still in landing, and where they activate.
   const total = !me && scope === 'office' && !viewerError ? landingBoard(clients, checks, intake.marks, intake.done, now).total : 0;
-  line.hidden = !left && !total;
+  // Work that waits for me on the clients still in landing, each a counted line to the
+  // page it is done on: said plainly, with no clock and no colour (section 46).
+  const quietLines = flow.filter((f) => f.bucket === 'landing');
+  line.hidden = !left && !total && !quietLines.length;
   fill(line, left ? h('a', { class: 'land-line', href: 'landing.html' },
     h('strong', {}, left === 1 ? 'יש לקוח קיים אחד לקלוט' : `יש ${left} לקוחות קיימים לקלוט`), h('span', {}, 'לקליטה'))
     : total ? h('a', { class: 'land-line', href: 'owner.html#landing' },
-      h('strong', {}, total === 1 ? 'לקוח קיים אחד עדיין בקליטה' : `${total} לקוחות קיימים עדיין בקליטה`), h('span', {}, 'להפעלה')) : null);
+      h('strong', {}, total === 1 ? 'לקוח קיים אחד עדיין בקליטה' : `${total} לקוחות קיימים עדיין בקליטה`), h('span', {}, 'להפעלה')) : null,
+    ...quietLines.map((f) => h('a', { class: 'land-line flow-line is-landing', id: `flow-${f.id}`, 'data-flow': f.id, href: f.href }, h('strong', {}, f.text), h('span', {}, f.cta))));
   const rest = mine ? quietWork(me, clients, checks, intake.marks, intake.done, now) : [];
   const n = rest.reduce((sum, x) => sum + x.items.length, 0);
   quiet.hidden = !n;
@@ -843,12 +856,22 @@ function renderLanding() {
       h('ul', {}, ...x.items.map((i) => h('li', {}, i.label))))))) : null);
 }
 
+// One counted line of work that is done on another page: what waits and how many. The
+// whole row is the link to the place (one sentence, 44px and up).
+function flowCard(f) {
+  return h('li', { class: 'wproc flow-card', 'data-flow': f.id },
+    h('a', { class: 'flow-line', id: `flow-${f.id}`, href: f.href }, h('strong', {}, f.text), h('span', { class: 'flow-go' }, f.cta)));
+}
+
 function renderMine() {
   const wrap = $('mine-list');
   const own = scope === 'own';
   rebuildClocks();
   paintNowBar();
-  renderLanding();
+  // What waits for me on another page (app/mine-flow.js): on my own list only.
+  const showsMine = !!me && (own || personal || (minePerson || null) === me);
+  const flow = showsMine ? flowLines({ viewer: { me, scope, error: viewerError }, clients, checks, stateOf, tasks, reviews, extra: flowExtra, now: new Date() }) : [];
+  renderLanding(flow);
   if (own && !me) {
     $('mine-people').hidden = true;
     fill($('mine-people'));
@@ -916,7 +939,9 @@ function renderMine() {
   const review = person ? OFFICE_REVIEWS.find((r) => r.owner === person && reviewPending(r)) : null;
   const thursday = person === 'ofir' ? thursdayCard() : null;
   const banner = !person || person === 'irit' ? autoBanner() : null;
-  if (!list.length && !review && !thursday) {
+  // The counted lines with a clock sit in the group of their urgency, before its cards.
+  const flowIn = (k) => flow.filter((f) => f.bucket === k).map(flowCard);
+  if (!list.length && !review && !thursday && !flow.some((f) => f.bucket !== 'landing')) {
     fill(wrap, banner, ilai, ilai ? null : h('p', { class: 'empty' }, nothing), soon);
     return;
   }
@@ -928,7 +953,7 @@ function renderMine() {
   fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, k === 'client' ? soon : null, (() => {
     let g = list.filter((x) => bucketFor(x) === k);
     if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
-    const extra = k === 'today' && review ? [reviewCard(review)] : [];
+    const extra = [...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : [])];
     if (!g.length && !extra.length) return null;
     if (k === 'client') {
       // What reached its recheck day first, then the longest wait.
@@ -944,8 +969,8 @@ function renderMine() {
     // On a short list what is not for today or tomorrow waits folded, one tap away.
     if (!full && (k === 'week' || k === 'later')) {
       return h('details', { class: `wgroup g-${k}`, open: laterOpen.has(k), ontoggle: (ev) => { if (ev.currentTarget.open) laterOpen.add(k); else laterOpen.delete(k); } },
-        h('summary', { class: 'wgroup-h' }, title, h('span', { class: 'n' }, String(g.length))),
-        cap(h('ul', { class: 'wprocs' }, ...g.map((x) => groupCard(x, person))), k));
+        h('summary', { class: 'wgroup-h' }, title, h('span', { class: 'n' }, String(g.length + extra.length))),
+        cap(h('ul', { class: 'wprocs' }, ...extra, ...g.map((x) => groupCard(x, person))), k));
     }
     return h('section', { class: `wgroup g-${k}`, 'aria-label': title },
       h('h2', { class: 'wgroup-h' }, k === 'urgent' || k === 'escalation' ? [h('span', { class: 'sicon', 'aria-hidden': 'true' }), title] : title,
