@@ -61,6 +61,7 @@ import { showMonths, worksCycle } from './month-ui.js';
 // Irit's daily control (process 32): her eleven topics, each with what is open now.
 import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageText } from './control-topics.js';
 import { loadDeals } from './deal-data.js';
+import { fixTaskOf, fixNote, FIX_ITEM_LABEL } from './late-chain.js';
 import { canSeeDeals, canSeeQuoteList } from './manager-rules.js';
 // Everything that waits for me on another page, as counted lines (docs/ops.md, section 46).
 import { flowLines, flowNeeds } from './mine-flow.js';
@@ -319,6 +320,11 @@ const byReported = (a, b) => (isEscalation(b.task) - isEscalation(a.task)) || (n
 // Outside the office, a mark that hands finished files on ("מוכן לבדיקה", the final
 // versions) is pressed on the page where the files go up, where its lock is seen
 // (app/files-logic.js uploadStepOf): here the row only points there.
+// The client asked for a fix on the status page: the approval item says so, until the
+// fix is done (docs/ops.md, section 48; the task of whoever fixes is in `tasks`).
+const fixOf = (e) => (e.task ? null : fixTaskOf(tasks, e.client.id, e.item.key));
+const entryLabel = (e) => (e.task ? e.task.title : fixOf(e) ? FIX_ITEM_LABEL : e.item.label);
+const fixLine = (e) => { const t = fixOf(e); return t ? h('p', { class: 'hint fix-note' }, fixNote(t, (p) => PEOPLE[p]?.name || p)) : null; };
 const viaPage = (e) => (e.task || scope === 'office' ? null : uploadStepOf(e.item.key, me, e.client.id));
 function viaLine(e) {
   const via = viaPage(e);
@@ -719,8 +725,9 @@ function compactCard(g, person) {
     return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
       h('label', { class: 'wrow', for: id },
         h('input', { type: 'checkbox', id, class: 'cbx fin', disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
-        h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
+        h('span', { class: 'wlabel' }, entryLabel(e))),
       viaLine(e),
+      fixLine(e),
       e.task ? briefDetails(e.task) : null);
   }));
   // The one action: "התחלתי" on an urgent task; the form the process is worked in; the
@@ -814,8 +821,9 @@ function groupCard(g, person) {
       return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
         h('label', { class: 'wrow', for: id },
           h('input', { type: 'checkbox', id, class: 'cbx fin', disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
-          h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
+          h('span', { class: 'wlabel' }, entryLabel(e))),
         viaLine(e),
+        fixLine(e),
         e.task ? briefDetails(e.task) : null);
     })));
 }

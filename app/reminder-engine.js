@@ -485,10 +485,12 @@ export function lateBatches({ env, now = env.now, log = [], holds = () => true, 
     const d = { key: `${prefix}${day}:${last}`, kind: 'late', level: keep.some((r) => r.level === 'ring') ? 'ring' : 'digest', person, include: keep, drop };
     if (keep.length === 1) out.push({ ...d, title: keep[0].title, lines: [keep[0].body, ...sum].filter(Boolean), url: keep[0].url || MINE_URL });
     else {
-      // All of one kind ("באיחור: …"): the word is in the title once. Mixed: each line says what it is.
-      const plain = keep.every((r) => /^באיחור: /.test(String(r.title)));
-      const names = keep.map((r) => (plain ? String(r.title).replace(/^באיחור: /, '') : String(r.title)));
-      out.push({ ...d, title: plain ? `${keep.length} איחורים חדשים` : `${keep.length} עדכוני איחור`, lines: [...names.slice(0, 4), ...(names.length > 4 ? [`ועוד ${names.length - 4}`] : []), ...sum], url: MINE_URL });
+      // All of one kind ("באיחור: …", "באיחור יום עסקים: …"): the words are in the title once.
+      // Mixed: each line says what it is.
+      const kinds = new Set(keep.map((r) => String(r.title).split(': ')[0]));
+      const kind = kinds.size === 1 && keep.every((r) => String(r.title).includes(': ')) ? [...kinds][0] : null;
+      const names = keep.map((r) => (kind ? String(r.title).slice(kind.length + 2) : String(r.title)));
+      out.push({ ...d, title: kind === 'באיחור' ? `${keep.length} איחורים חדשים` : kind ? `${kind}: ${keep.length} פריטים` : `${keep.length} עדכוני איחור`, lines: [...names.slice(0, 4), ...(names.length > 4 ? [`ועוד ${names.length - 4}`] : []), ...sum], url: MINE_URL });
     }
   }
   return out;

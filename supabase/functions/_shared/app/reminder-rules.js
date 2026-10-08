@@ -934,7 +934,7 @@ export const RULES = [
       // Past its due day it follows the ladder of every late item (`lateOwn`, `lateNag` below;
       // docs/ops.md, section 48): its owner rings and is reminded twice a day, whoever opened
       // it is told once, then the managers and the owners. Ofir and Lior keep their one note:
-      { id: 'late', from: 'due', businessDays: 1, at: '09:15', to: (i) => LATE_WATCHERS.filter((p) => p !== i.who), level: 'quiet', batch: true, overdue: true, title: (i) => `משימה באיחור: ${i.name}`, body: (i) => `${personName(i.who)}: ${i.task.title}` },
+      { id: 'late', from: 'due', businessDays: 1, at: '09:15', to: (i) => LATE_WATCHERS.filter((p) => p !== i.who), level: 'quiet', batch: true, overdue: true, title: (i) => `באיחור: ${i.name} · ${i.task.title} · ${personName(i.who)}`, body: (i, env) => `משימה. היעד היה ${whenText(i.anchors.due, env.now).split(' ')[0]}.` },
     ],
   },
 
@@ -2133,7 +2133,9 @@ export const VOID_WHEN_GONE = new Set(RULES.filter((r) => r.voidWhenGone).map((r
 // or a task (public.client_tasks, a decision's task too) open after its due day.
 //   lateOwn.own    when the deadline passes (and the grace): whoever holds it rings,
 //                  "באיחור". Several at one moment are ONE message with the list (`batch`:
-//                  at most one such push per person every LATE_BATCH_MINUTES).
+//                  at most one such push per person every LATE_BATCH_MINUTES). Only then:
+//                  whoever is handed late work hours later is not rung "באיחור" in the minute
+//                  it lands (LATE_LADDER.tellWithinMinutes); the reminders below reach them.
 //   lateOwn.wait   at the same moment, once: whoever waits for that work (the next in
 //                  the protocol's chain) is told whose work holds their card.
 //   lateOwn.mgr    one full business day late: the managers ring (not themselves).
@@ -2158,6 +2160,7 @@ const lateUrl = (x) => (x.kind === 'task' ? TASK_URL(x.cid) : clientUrl(x.cid, x
 const lateLine = (x, env) => `${x.name} · ${x.what} (באיחור ${lateWords(x.dueAt, env.now)})`;
 const listed = (lines, max = LATE_LADDER.listMax) => (lines.length > max ? [...lines.slice(0, max), `ועוד ${lines.length - max}`] : lines);
 const NAG_WORDS = `תזכורת ב־${LATE_LADDER.nagAt.join(' וב־')} בכל יום עבודה, עד שזה מסומן`;
+const justLate = (i, env) => env.now - i.x.lateAt <= LATE_LADDER.tellWithinMinutes * MIN;
 const DAY_WORDS = (n) => (n === 1 ? 'יום עסקים' : n === 2 ? 'יומיים' : `${n} ימי עסקים`);
 const LADDER_RULES = [
   {
@@ -2172,8 +2175,8 @@ const LADDER_RULES = [
       }));
     },
     steps: [
-      { id: 'own', to: (i) => i.x.holders, level: 'ring', batch: true, overdue: true, when: (i) => !i.x.rung, title: (i) => `באיחור: ${i.name} · ${i.x.what}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. ${NAG_WORDS}.` },
-      { id: 'wait', to: (i) => i.waiters, level: 'quiet', batch: true, title: (i) => `מתעכב אצל ${names(i.x.holders.map(personName))}: ${i.name} · ${i.x.what}`, body: (i, env) => `בגלל זה הכרטיס שלך מחכה. היעד היה ${whenText(i.x.dueAt, env.now)}; התזכורות אצל ${names(i.x.holders.map(personName))} נמשכות עד שזה נגמר.` },
+      { id: 'own', to: (i) => i.x.holders, level: 'ring', batch: true, overdue: true, when: (i, env) => !i.x.rung && justLate(i, env), title: (i) => `באיחור: ${i.name} · ${i.x.what}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. ${NAG_WORDS}.` },
+      { id: 'wait', to: (i) => i.waiters, level: 'quiet', batch: true, when: justLate, title: (i) => `מתעכב אצל ${names(i.x.holders.map(personName))}: ${i.name} · ${i.x.what}`, body: (i, env) => `בגלל זה הכרטיס שלך מחכה. היעד היה ${whenText(i.x.dueAt, env.now)}; התזכורות אצל ${names(i.x.holders.map(personName))} נמשכות עד שזה נגמר.` },
       { id: 'mgr', from: 'mgr', to: (i) => i.managers, level: 'ring', batch: true, overdue: true, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.managerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}, ועוד לא נסגר.` },
       { id: 'owner', from: 'owner', to: OWNER, level: 'ring', batch: true, overdue: true, url: () => EOD.url, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.ownerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. המנהלים קיבלו על זה צלצול אחרי יום עסקים.` },
     ],

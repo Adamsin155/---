@@ -84,6 +84,7 @@
         <div class="tabs" role="tablist" aria-label="תצוגה" id="ow-tabs">
           <button type="button" role="tab" class="tab" id="tab-now" aria-controls="view-now">מה דורש אותי</button>
           <button type="button" role="tab" class="tab" id="tab-all" aria-controls="view-all">כל הלקוחות במבט</button>
+          <button type="button" role="tab" class="tab" id="tab-eod" aria-controls="view-eod" hidden>סיכום היום</button>
           <button type="button" role="tab" class="tab" id="tab-table" aria-controls="view-table" hidden>טבלה</button>
           <button type="button" role="tab" class="tab" id="tab-shoots" aria-controls="view-shoots" hidden>ימי צילום</button>
           <button type="button" role="tab" class="tab" id="tab-archive" aria-controls="view-archive" hidden>ארכיון</button>
@@ -119,6 +120,30 @@
             <p class="board-sum" id="board-sum"></p>
             <div id="board"></div>
           </section>
+        </section>
+
+        <!-- The owners' end of the day (app/day-summary.js; docs/ops.md, section 48): who has what late
+             and what was for today and is still open. The 19:00 message opens it (owner.html#eod).
+             Owners only; no prices in it. -->
+        <section class="block ow-view eod-view" id="view-eod" role="tabpanel" aria-labelledby="tab-eod" hidden>
+          <p class="eod-head" id="eod-head" role="status"></p>
+          <div class="eod-wrap" id="eod-wrap" hidden>
+            <table class="eod" id="eod">
+              <caption class="sr-only">באיחור ומה שלא בוצע היום, לפי עובד</caption>
+              <thead><tr>
+                <th scope="col">עובד</th>
+                <th scope="col" class="is-num">באיחור עכשיו</th>
+                <th scope="col" class="is-num">מהיום, לא בוצע</th>
+                <th scope="col">האיחור הארוך</th>
+              </tr></thead>
+              <tbody id="eod-body"></tbody>
+              <tfoot id="eod-foot"></tfoot>
+            </table>
+          </div>
+          <h2 class="wgroup-h" id="eod-items-h" hidden>הפריטים, מהמאוחר ביותר</h2>
+          <ol class="eod-items" id="eod-items" aria-labelledby="eod-items-h"></ol>
+          <p class="eod-note" id="eod-wait" hidden></p>
+          <p class="eod-note" id="eod-about">נספר מה שעבר את היעד שלו ונמצא אצל מישהו מהצוות, ומה שהיעד שלו היום ועוד פתוח. לקוחות בקליטה, ״ממתין ללקוח״ ועריכה עצורה לא נספרים. ההודעה היומית יוצאת ב־19:00 (בערב חג ב־13:00).</p>
         </section>
 
         <!-- The manager table (app/manager-table.js): one row per client. The price columns

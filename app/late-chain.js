@@ -30,6 +30,7 @@ import { dayFromKeyIL, endOfDayIL, dayKeyIL } from './tz.js';
 // The numbers of the ladder: each is a one-line change.
 export const LATE_LADDER = {
   graceMinutes: 15,          // office minutes past the deadline before anybody is told (a hand-off that just landed is not late)
+  tellWithinMinutes: 60,     // "באיחור" and "מתעכב אצל…" are said when it becomes late, to whoever holds or waits then; never hours later to whoever got it since
   nagAt: ['09:00', '14:00'], // every working day, to whoever holds something late, until it is done
   managerAfter: 1,           // business days of lateness before the managers ring
   ownerAfter: 2,             // business days of lateness before the owners ring
@@ -166,4 +167,10 @@ export function lateWords(dueAt, now = new Date()) {
 // The client's approval item that is under a fix the client asked for: its wording on
 // the lists changes from waiting for the approval to what there is to do (section 48).
 export const FIX_ITEM_LABEL = 'הלקוח ביקש תיקונים: לברר ולתעד';
-export const fixRequested = (tasks, clientId, itemKey) => !!openFix(tasks, clientId, itemKey);
+export const fixTaskOf = (tasks, clientId, itemKey) => openFix(tasks, clientId, itemKey);
+// The line under it: the client's own words, who fixes, and when the item is ticked.
+export function fixNote(task, nameOf = (p) => p) {
+  const words = String(task?.brief?.problem || '').replace(/\s+/g, ' ').trim();
+  const said = words ? `הלקוח כתב: ״${words.length > 200 ? `${words.slice(0, 199)}…` : words}״. ` : '';
+  return `${said}${task?.owner ? `${nameOf(task.owner)} ${task.brief?.extra ? 'מחליט/ה על סבב נוסף' : 'מתקן/ת'}. ` : ''}מסמנים כאן רק כשהלקוח מאשר אחרי התיקון.`;
+}

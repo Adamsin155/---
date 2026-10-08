@@ -70,6 +70,7 @@ import { loadDeliverableFiles, archiveClient } from './manager-data.js';
 import { canArchive } from './manager-rules.js';
 import { openedBySigning } from './client-open.js';
 import { warm, taken } from './supa.js';
+import { fixTaskOf, FIX_ITEM_LABEL } from './late-chain.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -1099,7 +1100,7 @@ function itemRow(p, i) {
         onchange: (e) => mark(i.key, e.currentTarget.checked ? 'done' : null, cid),
       }),
       h('span', { class: 'ibody' },
-        h('span', { class: 'ilabel' }, i.label, state === 'na' ? h('span', { class: 'tag' }, i.optional ? 'לא נדרש' : 'לא רלוונטי') : null),
+        h('span', { class: 'ilabel' }, state !== 'done' && fixTaskOf(tasks, client.id, i.key) ? FIX_ITEM_LABEL : i.label, state === 'na' ? h('span', { class: 'tag' }, i.optional ? 'לא נדרש' : 'לא רלוונטי') : null),
         meta.length ? h('span', { class: 'imeta', id: `${cid}-m` }, ...meta) : null)),
     calendar,
     state === 'done' || via || (baseKey(i.key) === 'p13.approved' && state !== 'na') ? null : h('button', {
