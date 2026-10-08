@@ -50,7 +50,7 @@
 import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
-  businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel,
+  businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel, clientState,
 } from './protocol-logic.js';
 // The owner's decisions of 3.10.2026: Stav's deals, the station-change message, the
 // automatic editor assignment.
@@ -1360,6 +1360,9 @@ export const RULES = [
           // The final versions are in the Drive: only Ilai's "קיבלתי" (p27.toilai) keeps
           // 27 open, and finalReady follows it; not a second line, nor the editor's lateness.
           if (baseId(s.proc.id) === 'p27' && i.resolved('p27.final')) continue;
+          // Sent to the client and waiting for the client's answer (8.10.2026; docs/ops.md, section
+          // 48): nobody in the office is late, so nobody is named as late.
+          if (allLate(env).find((x) => x.cid === c.id && x.procId === s.proc.id)?.clientTurn) continue;
           const owners = s.claim ? [s.claim.person] : s.proc.owners;
           out.push({ ...i, id: `${s.proc.id}@${s.dueAt.toISOString()}`, owners, anchors: { event: s.dueAt } });
         }
@@ -2157,7 +2160,8 @@ export const VOID_WHEN_GONE = new Set(RULES.filter((r) => r.voidWhenGone).map((r
 // is rung "באיחור" in the middle of the shoot day about the shoot day.
 // The sending hours, erev chag, Lior's shoot day and the bursts apply as to every rule,
 // and so does "לדחות עד…" on a process (its reminders wait until that moment).
-const lateOf = (env) => (env.lateItems ||= lateItems({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: env.tasks, personOf: env.personOf, now: env.now })
+function allLate(env) { return (env.lateAll ||= lateItems({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: env.tasks, personOf: env.personOf, now: env.now })); }
+const lateOf = (env) => (env.lateItems ||= allLate(env)
   .filter((x) => !x.clientTurn && !x.gap && !x.ownLadder && x.holders.length)
   .map((x) => ({ ...x, rung: x.kind === 'proc' && (OWN_LATE.has(baseId(x.procId)) || !!LATE_RUNG[baseId(x.procId)]) })));
 const lateUrl = (x) => (x.kind === 'task' ? TASK_URL(x.cid) : clientUrl(x.cid, x.procId));
@@ -2172,6 +2176,26 @@ export function nextNagSlot(d) {
     day = addDaysIL(atTimeIL(day, 12), 1);
   }
   return new Date(d);
+}
+// Ofir and Lior hear of every late process through the rule `late` at this very moment, their
+// own too ("באיחור: … · אופיר"): they are not told twice.
+const toldByLate = (x, p) => x.kind === 'proc' && LATE_WATCHERS.includes(p) && LATE_RUNG[baseId(x.procId)] !== p;
+// Who held each late item at the moment of a reminder hour, from the marks as they stood then:
+// work that was handed to someone after 09:00 is not "still late" on them at 09:45.
+const lateKey = (x) => (x.kind === 'task' ? `t:${x.task.id}` : `${x.cid}:${x.procId}`);
+function heldAt(env, slot) {
+  if (env.heldAtSlot?.at === +slot.at) return env.heldAtSlot.by;
+  const ids = new Set(lateOf(env).map((x) => x.cid));
+  const then = new Map();
+  const checksAt = (c) => { if (!then.has(c.id)) then.set(c.id, Object.fromEntries(Object.entries(env.checksOf(c)).filter(([, v]) => !v.at || new Date(v.at) <= slot.at))); return then.get(c.id); };
+  const states = new Map();
+  const items = lateItems({
+    clients: env.clients.filter((c) => ids.has(c.id)), checksOf: checksAt, tasks: env.tasks.filter((t) => !t.created_at || new Date(t.created_at) <= slot.at), personOf: env.personOf, now: slot.at,
+    stateOf: (c) => { if (!states.has(c.id)) states.set(c.id, clientState(c, checksAt(c), slot.at)); return states.get(c.id); },
+  });
+  const by = new Map(items.map((x) => [lateKey(x), new Set(x.holders)]));
+  env.heldAtSlot = { at: +slot.at, by };
+  return by;
 }
 const justLate = (i, env) => env.now - i.x.lateAt <= LATE_LADDER.tellWithinMinutes * MIN;
 const DAY_WORDS = (n) => (n === 1 ? 'יום עסקים' : n === 2 ? 'יומיים' : `${n} ימי עסקים`);
@@ -2188,7 +2212,7 @@ const LADDER_RULES = [
       }));
     },
     steps: [
-      { id: 'own', to: (i) => i.x.holders, level: 'ring', batch: true, overdue: true, when: (i, env) => !i.x.rung && justLate(i, env), title: (i) => `באיחור: ${i.name} · ${i.x.what}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. ${NAG_WORDS}.` },
+      { id: 'own', to: (i) => i.x.holders.filter((p) => !toldByLate(i.x, p)), level: 'ring', batch: true, overdue: true, when: (i, env) => !i.x.rung && justLate(i, env), title: (i) => `באיחור: ${i.name} · ${i.x.what}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. ${NAG_WORDS}.` },
       { id: 'wait', to: (i) => i.waiters, level: 'quiet', batch: true, when: justLate, title: (i) => `מתעכב אצל ${names(i.x.holders.map(personName))}: ${i.name} · ${i.x.what}`, body: (i, env) => `בגלל זה הכרטיס שלך מחכה. היעד היה ${whenText(i.x.dueAt, env.now)}; התזכורות אצל ${names(i.x.holders.map(personName))} נמשכות עד שזה נגמר.` },
       { id: 'mgr', from: 'mgr', to: (i) => i.managers, level: 'ring', batch: true, overdue: true, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.managerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}, ועוד לא נסגר.` },
       { id: 'owner', from: 'owner', to: OWNER, level: 'ring', batch: true, overdue: true, url: () => EOD.url, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.ownerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. המנהלים קיבלו על זה צלצול אחרי יום עסקים. הכול בסיכום היום.` },
@@ -2202,8 +2226,13 @@ const LADDER_RULES = [
       const slot = LATE_LADDER.nagAt.map((t) => ({ t, at: atIL(env.now, t) })).filter((x) => x.at <= env.now && inSendHours(x.at)).at(-1);
       if (!slot) return [];
       const by = new Map();
-      // What became late before this hour (its own "באיחור" ring was the first word on it).
-      for (const x of lateOf(env)) if (x.lateAt < slot.at && !(x.snooze && x.snooze > env.now) && !(x.rung && dayKeyIL(x.lateAt) === dayKeyIL(env.now))) for (const p of x.holders) (by.get(p) || by.set(p, []).get(p)).push(x);
+      const held = heldAt(env, slot);
+      // What became late before this hour (its own "באיחור" ring was the first word on it), and
+      // was already this person's at this hour.
+      for (const x of lateOf(env)) {
+        if (!(x.lateAt < slot.at) || (x.snooze && x.snooze > env.now) || (x.rung && dayKeyIL(x.lateAt) === dayKeyIL(env.now))) continue;
+        for (const p of x.holders) if (held.get(lateKey(x))?.has(p)) (by.get(p) || by.set(p, []).get(p)).push(x);
+      }
       return [...by].filter(([p]) => REMINDER_PEOPLE.has(p)).map(([p, items]) => ({ id: p, cid: null, who: p, items, slot, url: MINE_URL, anchors: { event: slot.at } }));
     },
     steps: (i, env) => [{

@@ -77,6 +77,11 @@ test('who holds a late item and who waits for it come from the protocol: its ite
   // 8 and 10 are their owner's alone: nobody waits inside the protocol.
   assert.deepEqual([by('8').holders, by('10').holders], [['ofir'], ['lior']]);
   assert.equal(hhmm(by('7').lateAt), '5.10 14:15'); // the deadline and the grace
+  // Ofir and Lior are told of their own late process by the note every late process sends them
+  // (rule `late`), not a second time: one line each in their batch, never the same item twice.
+  const at1415 = due(w, IL(2026, 10, 5, 14, 15));
+  const told = (p, num) => at1415.filter((r) => r.person === p && /^late(Own)?$/.test(r.rule) && new RegExp(` ${num} · `).test(r.title)).map((r) => `${r.rule}.${r.step}`);
+  assert.deepEqual([told('ofir', '8'), told('lior', '10'), told('ilai', '7'), told('ofir', '7')], [['late.ofir'], ['late.lior'], ['lateOwn.own'], ['late.ofir']]);
   assert.equal(LATE_LADDER.graceMinutes, 15);
   // Ilai delivered: now the review is late, and it is Irit's and Lior's to do.
   mark(w, c, 'p07.made', IL(2026, 10, 6, 9, 45));
@@ -87,6 +92,11 @@ test('who holds a late item and who waits for it come from the protocol: its ite
   assert.deepEqual(stepsOf(due(w, IL(2026, 10, 6, 10)), 'lateOwn').filter((s) => /^(own|wait)@/.test(s) && /7/.test(s)), []);
   assert.deepEqual(due(w, IL(2026, 10, 6, 10)).filter((r) => r.rule === 'lateOwn' && /^(own|wait)$/.test(r.step) && / 7 · /.test(r.title)), []);
   assert.equal(LATE_LADDER.tellWithinMinutes, 60);
+  // Nor "still late" at 09:45 about work that became theirs at 09:45: the 09:00 reminder is for
+  // whoever held it at 09:00 (read from the marks as they stood then). From 14:00 it is theirs.
+  const nagTo = (now) => due(w, now).filter((r) => r.rule === 'lateNag' && / 7 · /.test(`${r.title} ${r.body}`)).map((r) => r.person).sort();
+  assert.deepEqual(nagTo(IL(2026, 10, 6, 9, 46)), []);
+  assert.deepEqual(nagTo(IL(2026, 10, 6, 14, 0)), ['irit', 'lior']);
   // Sent to the client: it is the client's turn, nobody in the office holds it.
   marks(w, c, itemsOf('p07').filter((k) => k !== 'p07.approved'), IL(2026, 10, 6, 10, 30));
   const sent = lateOf(w, IL(2026, 10, 6, 11)).find((x) => x.num === '7');
@@ -376,6 +386,8 @@ test('the client\'s turn: work that was sent and waits for the client is nobody\
   // Meanwhile Irit is rung to call the client who did not answer (the rule `answer`, as before).
   assert.equal(due(w, now).filter((r) => r.rule === 'answer' && r.person === 'irit').length, 1);
   assert.deepEqual(due(w, now).filter((r) => (r.rule === 'lateOwn' || r.rule === 'lateNag') && /27 ·/.test(`${r.title}${r.body}`)), []);
+  // Ofir and Lior are not told "באיחור: … · נדיה" either: nobody in the office is late there.
+  assert.deepEqual(due(w, now).filter((r) => r.rule === 'late' && / 27 · /.test(r.title)), []);
   // In the owners' table it is listed apart, and counted for nobody.
   const sum = summaryOf(buildEnv({ ...w, now }));
   assert.deepEqual(sum.waiting.map((x) => x.what), ['27 · תיקוני הלקוח וסגירת העריכה']);
