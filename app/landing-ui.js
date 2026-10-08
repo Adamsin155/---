@@ -8,7 +8,9 @@
 // No clock, no lateness and no colour of urgency anywhere on this screen.
 // The logic: app/landing-logic.js; the writes: app/landing-data.js (functions of the
 // database that check whose item it is and stamp who and when).
-import { STATIONS, PEOPLE } from './protocol.js';
+import { STATIONS, PEOPLE, isSales } from './protocol.js';
+import { isOwnerView } from './team-rules.js';
+import { homeLink } from './shell-rules.js';
 import { clientLabel } from './protocol-logic.js';
 import { loadClients, loadChecks, loadDirectory, setChecksBulk, clearChecksBulk } from './protocol-data.js';
 import { $, fill, h, toast, errorText, mountSession, directory, viewerOf, VIEWER_UNKNOWN, progressBar } from './protocol-ui.js';
@@ -180,7 +182,9 @@ function clientCard(x, now) {
 function render() {
   const now = new Date();
   if (viewer?.error) { fill($('land-progress'), h('p', { class: 'muted' }, VIEWER_UNKNOWN)); fill($('land-list')); return; }
-  if (!me) {
+  // The owners' line is for the owners only (a staff row with no person): a login with a
+  // role that has nothing to take in here is not one of them.
+  if (!me && isOwnerView(viewer)) {
     fill($('land-progress'), h('p', {}, 'לבעלים אין פריטים לקלוט. מי סיים לקלוט וההפעלה נמצאים ב״מבט מנהל״. ', h('a', { href: 'owner.html#landing' }, 'למבט מנהל')));
     fill($('land-list'));
     return;
@@ -202,12 +206,22 @@ function render() {
   fill($('land-done'));
 }
 
-document.addEventListener('visibilitychange', () => { if (!document.hidden && viewer && !busy.size) load(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && viewer && !busy.size && $('no-access').hidden) load(); });
 
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
   Object.assign(directory, dir);
   viewer = v;
   me = v.me && PEOPLE[v.me] && !PEOPLE[v.me].sales ? v.me : null;
+  // The field sales have no client work, and so nothing to take in: not their page.
+  if (!v.error && isSales(v.me)) {
+    const home = homeLink(v);
+    const a = $('na-home');
+    a.href = home.href;
+    a.textContent = home.label;
+    $('land-page').hidden = true;
+    $('no-access').hidden = false;
+    return;
+  }
   await load();
 });

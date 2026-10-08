@@ -587,3 +587,8 @@ dialog.preview[open] { display: flex; flex-direction: column; }
   .start-card { min-height: 0; }
   .doc-switch button { min-height: 44px; }
 }
+
+/* "אין לך גישה לעמוד הזה" on the builder (as on the list of sent quotes, quotes.css). */
+.shell > .ow-noaccess { grid-column: 1 / -1; padding: 20px; }
+.shell > .ow-noaccess p { color: var(--text-2); }
+.shell > .ow-noaccess .btn { min-height: 44px; }
