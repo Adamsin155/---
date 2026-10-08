@@ -89,6 +89,12 @@ const dueSpec = (proc) => (isImmediate(proc) ? { ...proc.due, minutes: IMMEDIATE
 const sameDay = (a, b) => dayKeyIL(a) === dayKeyIL(b);
 
 // End of the nth business day after `date` (the count starts the next business day).
+// "The end of a business day" is the office's close: 18:00, and 13:00 on erev chag
+// (protocol v8; docs/ops.md, section 49). Until then it was 23:59, while the editor's
+// page already said "עד ראשון 18:00": the deadline shown and the moment lateness starts
+// are now the same moment everywhere. With no days to add it is the end of that
+// calendar day, as before (a bare date).
+export const endOfBusinessDay = (d) => closeAt(d);
 export function addBusinessDays(date, n) {
   let d = new Date(date);
   let left = n;
@@ -96,7 +102,7 @@ export function addBusinessDays(date, n) {
     d = nextDay(d);
     if (isBusinessDay(d)) left -= 1;
   }
-  return endOfDayIL(d);
+  return n > 0 ? closeAt(d) : endOfDayIL(d);
 }
 
 export function parseDate(v) {
@@ -108,6 +114,10 @@ export function parseDate(v) {
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
+// The stages of a deadline (`afterMark`: one, or a list in order).
+export const stagesOf = (spec) => (!spec?.afterMark ? [] : Array.isArray(spec.afterMark) ? spec.afterMark : [spec.afterMark]);
+export const isDaily = (proc) => proc?.recurring === 'daily';
 
 export const ownersOf = (entry, client) => (typeof entry.owners === 'function' ? entry.owners(client) : entry.owners || []);
 const applies = (entry, client) => !entry.when || entry.when(client);
@@ -147,11 +157,13 @@ export function applicableProcesses(client) {
       if (item && ROUND_IDS.has(item[1])) return { ...spec, from: `item:${pre(spec.from.slice(5))}` };
       return spec;
     };
+    // The stages of a deadline (afterMark) are marks of the round's own items.
+    const staged = (spec) => (spec?.afterMark ? { ...spec, afterMark: stagesOf(spec).map((st) => ({ ...st, key: pre(st.key) })) } : spec);
     return PROCESSES.filter((p) => p.round && applies(p, ctx)).map((p) => {
       const x = resolve(p, ctx);
       return {
         ...x, id: `r${r.n}-${p.id}`, keyBase: pre(p.id), phase: `round-${r.n}`, ctx,
-        start: shift(p.start), due: shift(p.due),
+        start: shift(p.start), due: staged(shift(p.due)),
         items: x.items.map((i) => ({ ...i, key: pre(i.key), requires: i.requires?.map(pre) })),
       };
     });
@@ -171,6 +183,8 @@ export function phasesFor(client) {
 export function isResolved(item, check, now = new Date()) {
   if (!check) return false;
   if (item.recurring === 'weekly') return check.state === 'done' && now - new Date(check.at) < 7 * DAY;
+  // A daily item (14's follow-up) is answered for the Israel day it was answered on.
+  if (item.recurring === 'daily') return check.state === 'done' && !!check.at && dayKeyIL(check.at) === dayKeyIL(now);
   return check.state === 'done' || check.state === 'na';
 }
 
@@ -276,8 +290,18 @@ function shiftDays(from, checks) {
 
 export function resolveTime(spec, client, procs, checks, now = new Date()) {
   if (!spec) return null;
-  const after = spec.afterMark && checks[spec.afterMark.key];
-  if (after && after.state === 'done') return new Date(new Date(after.at).getTime() + spec.afterMark.minutes * 6e4);
+  // The stages of the deadline: the last one whose mark is done sets it, counted from
+  // that mark (the moment the work reached whoever acts next).
+  let stage = null;
+  for (const st of stagesOf(spec)) {
+    const c = checks[st.key];
+    if (c && c.state === 'done' && c.at) stage = { st, at: new Date(c.at) };
+  }
+  if (stage) {
+    const { st, at } = stage;
+    if (st.businessDays) return addBusinessDays(at, st.businessDays);
+    return st.office ? addWorkingMinutes(at, st.minutes) : new Date(at.getTime() + st.minutes * 6e4);
+  }
   const base = anchor(spec.from, client, procs, checks, now);
   if (!base) return null;
   if (spec.businessDays) return addBusinessDays(base, spec.businessDays + shiftDays(spec.from, checks));
@@ -370,7 +394,8 @@ export function fieldGap(proc, client, checks = {}, procs = [], now = new Date()
     const need = isResolved(item, check, now) ? (item.setHere.keep || item.requiresFields) : item.requiresFields;
     const fields = (need || []).filter((f) => blank(client[f]));
     if (!fields.length) continue;
-    const next = item.setHere.unless && procs.find((p) => p.id === item.setHere.unless);
+    const round = /^(r\d+-)/.exec(proc.id)?.[1] || '';
+    const next = item.setHere.unless && procs.find((p) => p.id === `${round}${item.setHere.unless}`);
     if (next && (isImported(next, checks) || completedAt(next, checks, now) || (next.id === 'p04' && charEndedAt(checks)))) continue;
     return { item, fields };
   }
@@ -474,8 +499,35 @@ export function bulkEligible(state, person, client, checks, now = new Date()) {
 }
 
 // Full state of a client's protocol. `checks` maps item key -> { state, at, by_email }.
+// An item a later protocol version added (`fresh`) is not asked of history that was
+// brought in by an import (docs/ops.md, section 49): when its own process carries an
+// imported mark, or the mark or process its clock starts from does, the work it belongs
+// to was done before this system knew of it. It stays in the card as "לא חובה" and is in
+// nobody's list; a client that is still working through that step gets it as usual.
+const ANCHOR_PROC = { deal: 'p01', group: 'p02', char: 'p04', charEnd: 'p04', shoot: 'p19' };
+function afterImport(proc, procs, checks) {
+  if (isImported(proc, checks)) return true;
+  const from = proc.start?.from || proc.due?.from;
+  if (!from) return false;
+  if (from.startsWith('item:')) return checks[from.slice(5)]?.note === IMPORT_NOTE;
+  // Inside an extra shoot round only the round's own shoot day is "before" it: the
+  // round itself began in this system.
+  const round = /^(r\d+-)/.exec(proc.id)?.[1] || '';
+  if (round && ANCHOR_PROC[from] && from !== 'shoot') return false;
+  const id = ANCHOR_PROC[from] ? `${round}${ANCHOR_PROC[from]}` : from;
+  const p = procs.find((x) => x.id === id);
+  return !!p && isImported(p, checks);
+}
+function withoutFreshAfterImport(procs, checks) {
+  return procs.map((p) => {
+    if (!p.items.some((i) => i.fresh && !i.optional)) return p;
+    if (!afterImport(p, procs, checks)) return p;
+    return { ...p, items: p.items.map((i) => (i.fresh && !i.optional ? { ...i, optional: true, history: true } : i)) };
+  });
+}
+
 export function clientState(client, checks = {}, now = new Date()) {
-  const procs = applicableProcesses(client);
+  const procs = withoutFreshAfterImport(applicableProcesses(client), checks);
   const phaseList = phasesFor(client);
   const phaseIndex = (key) => phaseList.findIndex((p) => p.key === key);
   // In landing nothing has a deadline; after it, deadlines are counted from landed_at.
@@ -525,6 +577,21 @@ export function clientState(client, checks = {}, now = new Date()) {
       || !!(s.dueAt && s.dueAt < now); // a passed deadline makes it actionable regardless
     s.claim = claimOf(s.proc, checks);
     s.wait = s.complete ? null : waitOf(s.proc, checks);
+    if (isDaily(s.proc)) {
+      // 14: asked on every working day from its start until the day of `until` (the
+      // shoot day), never of a client in landing or of imported history. Answered
+      // today: 'done'. It is never late; a day that passed unanswered is simply gone.
+      const ctx = s.proc.ctx || client;
+      const item = s.proc.items[0];
+      const end = s.proc.until ? realAnchor(s.proc.until, ctx, procs, checks, now) : null;
+      const over = (!!end && dayKeyIL(now) >= dayKeyIL(end)) || isImported(s.proc, checks);
+      const started = !!(s.startAt && s.startAt <= now);
+      s.ready = !quiet && started && !over && client.status !== 'cancelled' && client.status !== 'ended';
+      s.over = over;
+      s.status = !s.ready ? (over ? 'done' : 'waiting') : isResolved(item, checks[item.key], now) ? 'done' : isBusinessDay(now) ? 'due' : 'waiting';
+      s.lastAt = checks[item.key]?.at || null;
+      continue;
+    }
     if (s.proc.recurring) {
       const item = s.proc.items[0];
       const done = isResolved(item, checks[item.key], now);
@@ -579,6 +646,9 @@ export function openItemsFor(person, client, checks, state, now = new Date()) {
   for (const s of state.states) {
     if (!s.ready || s.status === 'done') continue;
     if (client.status === 'ended' && s.proc.id !== 'p35') continue;
+    // The daily follow-up is one counted line on its owner's list (app/mine-flow.js),
+    // answered on its own page: never a card per client.
+    if (isDaily(s.proc)) continue;
     for (const i of s.proc.items) {
       if (person && !i.owners.includes(person)) continue;
       const shared = i.owners === s.proc.owners || i.owners.join() === s.proc.owners.join();

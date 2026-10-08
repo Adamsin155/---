@@ -61,7 +61,7 @@ function afterMeeting(w = world(), o = {}) {
 // Everything of the meeting day done on time, but Ilai's 9 graphics.
 function onlyGraphicsLate(o = {}) {
   const { w, c } = afterMeeting(world(), o);
-  for (const id of ['p05', 'p06', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12']) marks(w, c, itemsOf(id), IL(2026, 10, 5, 12, 30));
+  for (const id of ['p05', 'p05b', 'p06', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12']) marks(w, c, itemsOf(id), IL(2026, 10, 5, 12, 30));
   return { w, c };
 }
 

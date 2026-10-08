@@ -33,8 +33,8 @@ const topics = (w, now = NOW) => {
   return Object.fromEntries(got.map((t) => [t.key, t]));
 };
 const rows = (t) => t.items.map((x) => [x.client?.name || x.title, x.text, x.late]);
-const UPTO_CHAR = ['p01', 'p02', 'p03', 'p04', 'p05', 'p06'];
-const UPTO_SHOOT = [...UPTO_CHAR, 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21'];
+const UPTO_CHAR = ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06'];
+const UPTO_SHOOT = [...UPTO_CHAR, 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21'];
 
 test('the eleven topics, in the protocol\'s order and with the protocol\'s own words', () => {
   const got = controlTopics({ clients: [], stateOf: () => ({ states: [] }), now: NOW });

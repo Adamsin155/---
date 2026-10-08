@@ -141,7 +141,7 @@ test('a change request rings Lior, and his decision goes back to whoever asked; 
 
 // ── A client with its marks ─────────────────
 const itemsOf = (id) => PROCESSES.find((p) => p.id === id).items.filter((i) => !i.optional).map((i) => i.key);
-const UPTO_SHOOT = ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21'];
+const UPTO_SHOOT = ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21'];
 const mark = (w, key, at, note = null) => { (w.checks.c1 ||= {})[key] = { client_id: 'c1', item_key: key, state: 'done', note, at: at.toISOString() }; };
 // "קפה דנה", shot on 1.10.2026 and assigned to Nadia on Sunday 4.10 at 10:00.
 function editing(o = {}) {
