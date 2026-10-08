@@ -1,3 +1,4 @@
+// generated — edit app/ instead. Source: app/day-summary.js. Regenerate: node scripts/sync-functions.mjs
 // The owners' end-of-day table (the owner's request of 8.10.2026; docs/ops.md, section
 // 48): every working day at 19:00, how many items are late and what was not done, per
 // employee. One computation for the page (owner.html#eod, owners only), for the push

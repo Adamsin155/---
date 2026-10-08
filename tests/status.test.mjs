@@ -172,19 +172,24 @@ test('rules: both are in the matrix, with their own ids', () => {
   assert.ok(RULES.some((r) => r.id === 'clientFix') && RULES.some((r) => r.id === 'clientScore'));
 });
 
-test('a fix request rings whoever fixes, once; the ordinary task rule leaves it alone; late: the owner and Lior\'s list', () => {
+test('a fix request rings whoever fixes and Irit, once; the ordinary task rule leaves it alone; late: Lior\'s list and the ladder of a late item', () => {
   const w = world();
   w.tasks.push(task({ source: 'client_fix', title: 'תיקון לבקשת הלקוח: 9 הגרפיקות הראשונות · סבב 1', brief: { item: 'graphics9', item_key: 'p07.approved', problem: 'הלוגו קטן מדי', round: 1 } }));
   const now = IL(2026, 10, 13, 10, 1);
   const got = computeReminders({ ...w, now });
-  assert.deepEqual(of(got, 'clientFix'), ['now@ilai:ring']);
-  assert.match(got.find((r) => r.rule === 'clientFix').body, /הלוגו קטן מדי/);
+  // 8.10.2026 (docs/ops.md, section 48): Irit rings at the same moment, with the client's words.
+  assert.deepEqual(of(got, 'clientFix'), ['irit@irit:ring', 'now@ilai:ring']);
+  assert.match(got.find((r) => r.rule === 'clientFix' && r.person === 'ilai').body, /הלוגו קטן מדי/);
+  const irit = got.find((r) => r.rule === 'clientFix' && r.person === 'irit');
+  assert.equal(irit.title, 'הלקוח ביקש תיקון: קפה דנה');
+  assert.match(irit.body, /^הלקוח כתב: ״הלוגו קטן מדי״\. לברר שההערות ברורות ולתעד\. עילאי מתקן\/ת/);
   assert.deepEqual(of(got, 'task'), []);
   // Logged: not again.
   assert.deepEqual(of(computeReminders({ ...w, now: IL(2026, 10, 13, 12), log: got.map((r) => ({ key: r.key })) }), 'clientFix'), []);
-  // The due day passes (Tuesday): Wednesday 08:30, Ilai in the app and Lior's list.
-  const late = computeReminders({ ...w, now: IL(2026, 10, 14, 8, 31), log: got.map((r) => ({ key: r.key })) });
-  assert.deepEqual(of(late, 'clientFix'), ['late@ilai:quiet', 'lior@lior:digest']);
+  // The due day passes (Tuesday): Wednesday 08:30, Lior's list; at 09:15 Ilai rings "באיחור" (the ladder of every late item).
+  const late = computeReminders({ ...w, now: IL(2026, 10, 14, 9, 15), log: got.map((r) => ({ key: r.key })) });
+  assert.deepEqual(of(late, 'clientFix'), ['lior@lior:digest']);
+  assert.deepEqual(late.filter((r) => r.rule === 'lateOwn' && r.x?.kind !== 'proc' && /תיקון לבקשת הלקוח/.test(r.title)).map((r) => `${r.step}@${r.person}:${r.level}`), ['own@ilai:ring', 'wait@irit:quiet']);
   // Done: nothing more.
   w.tasks[0].done_at = IL(2026, 10, 13, 15).toISOString();
   assert.deepEqual(of(computeReminders({ ...w, now: IL(2026, 10, 14, 8, 31) }), 'clientFix'), []);
@@ -209,12 +214,13 @@ test('the videos\' notes with no editor on that shoot: Ofir\'s task rings him (c
   w.checks.c1['p27.notes'] = { client_id: 'c1', item_key: 'p27.notes', state: 'done', note: JSON.stringify({ text: 'סרטון 3', via: 'status' }), at: IL(2026, 10, 13, 10).toISOString() };
   w.tasks.push(task({ owner: 'ofir', source: 'client_fix', brief: { item: 'videos', item_key: 'p27.approved', notes_marked: true, round: 1 } }));
   const got = computeReminders({ ...w, now: IL(2026, 10, 13, 10, 1) });
-  assert.deepEqual(of(got, 'clientFix'), ['now@ofir:ring']);
+  assert.deepEqual(of(got, 'clientFix'), ['irit@irit:ring', 'now@ofir:ring']);
   assert.deepEqual(of(got, 'clientFixes'), []);
   // A round with its own editor: that editor's ladder, and this one stays quiet.
   w.clients[0].rounds = [{ n: 2, editor: 'nadia', shoot_type: 'dms', shoot_at: IL(2026, 10, 1, 11).toISOString() }];
   w.tasks[0].brief = { item: 'videos', item_key: 'r2.p27.approved', notes_marked: true, round: 1 };
-  assert.deepEqual(of(computeReminders({ ...w, now: IL(2026, 10, 13, 10, 1) }), 'clientFix'), []);
+  // (Irit still rings: the client's notes are hers to clarify and document, whoever fixes.)
+  assert.deepEqual(of(computeReminders({ ...w, now: IL(2026, 10, 13, 10, 1) }), 'clientFix'), ['irit@irit:ring']);
 });
 
 test('a low score: Lior rings once to call; 2 or less rings the owner too; not called a day after the due day: the owner\'s screen', () => {

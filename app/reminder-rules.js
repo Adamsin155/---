@@ -285,8 +285,8 @@ const dayOfThree = (from, now) => Math.max(1, businessDaysBetween(from, now));
 // update is pushed to the phone like a ring; the word no longer means "in the app only".
 // Processes whose lateness also has its own ladder below (they keep ringing as
 // before). Since 3.10.2026 every late process, these too, also tells Ofir and Lior
-// quietly (`late`), and 24 hours late it is in the owner's 18:00 summary
-// (lateSummary in app/reminder-engine.js).
+// quietly (`late`); since 8.10.2026 whoever holds it is reminded twice a day from the
+// next day on (`lateNag`), and it is in the owners' end-of-day table.
 export const OWN_LATE = new Set(['p01', 'p02', 'p03', 'p06', 'p11b', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21', 'p22a', 'p25', 'p31']);
 // Quality and editing (principle 5).
 export const QUALITY = new Set(['p22', 'p23', 'p24', 'p25', 'p27']);
@@ -298,8 +298,6 @@ export const LATE_GRACE_MINUTES = 15;
 // A late process whose own ladder already rings one of the watchers at the deadline
 // (8ב: Ofir, `highlightsUpload`): `late` does not tell that watcher again; the other still hears.
 export const LATE_RUNG = { p08b: 'ofir' };
-// How late an item is before it joins the owner's daily summary (one message, 18:00).
-export const OWNER_LATE_HOURS = 24;
 
 export const RULES = [
   // 1–3: a new deal. Irit at once; again at 5 office minutes if the group (with its
@@ -1343,8 +1341,8 @@ export const RULES = [
   // one at once, then at most one push per person every LATE_BATCH_MINUTES with all
   // that became late meanwhile; each item is its own row in "התראות". Whatever already rings for it (its own ladder above: urgent, the
   // protocol clocks, the shoot day) keeps ringing. From 24 hours late it is in the
-  // owner's one summary at 18:00 (lateSummary in app/reminder-engine.js), never a
-  // message per item.
+  // owners' end-of-day table (app/day-summary.js), and whoever holds it follows the
+  // ladder of a late item (`lateOwn`, `lateNag` at the end of this file).
   {
     id: 'late', event: 'איחור', procs: [],
     instances(env) {
@@ -2146,10 +2144,15 @@ export const VOID_WHEN_GONE = new Set(RULES.filter((r) => r.voidWhenGone).map((r
 // that was sent to the client and waits for the client's answer (`clientTurn`: a
 // lateness that is only inherited there is nobody's to act on); process 3 with no
 // meeting date and the two cases another rule already follows (`gap`, `ownLadder`).
+// A process whose own ladder already rings at its deadline (OWN_LATE: the new deal, the
+// shoot day, the editor's assignment…; LATE_RUNG) gets no second "באיחור" ring at that
+// moment, and joins the twice-a-day reminder only from the next day on (`rung`): nobody
+// is rung "באיחור" in the middle of the shoot day about the shoot day.
 // The sending hours, erev chag, Lior's shoot day and the bursts apply as to every rule,
 // and so does "לדחות עד…" on a process (its reminders wait until that moment).
 const lateOf = (env) => (env.lateItems ||= lateItems({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: env.tasks, personOf: env.personOf, now: env.now })
-  .filter((x) => !x.clientTurn && !x.gap && !x.ownLadder && x.holders.length));
+  .filter((x) => !x.clientTurn && !x.gap && !x.ownLadder && x.holders.length)
+  .map((x) => ({ ...x, rung: x.kind === 'proc' && (OWN_LATE.has(baseId(x.procId)) || !!LATE_RUNG[baseId(x.procId)]) })));
 const lateUrl = (x) => (x.kind === 'task' ? TASK_URL(x.cid) : clientUrl(x.cid, x.procId));
 const lateLine = (x, env) => `${x.name} · ${x.what} (באיחור ${lateWords(x.dueAt, env.now)})`;
 const listed = (lines, max = LATE_LADDER.listMax) => (lines.length > max ? [...lines.slice(0, max), `ועוד ${lines.length - max}`] : lines);
@@ -2168,8 +2171,8 @@ const LADDER_RULES = [
       }));
     },
     steps: [
-      { id: 'own', to: (i) => i.x.holders, level: 'ring', batch: true, overdue: true, title: (i) => `באיחור: ${i.name} · ${i.x.what}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. ${NAG_WORDS}.` },
-      { id: 'wait', to: (i) => i.waiters, level: 'quiet', batch: true, title: (i) => `מתעכב אצל ${names(i.x.holders.map(personName))}: ${i.name} · ${i.x.what}`, body: (i, env) => `בגלל זה הכרטיס שלך מחכה. היעד היה ${whenText(i.x.dueAt, env.now)}; ${names(i.x.holders.map(personName))} מקבל/ת תזכורות עד שזה נגמר.` },
+      { id: 'own', to: (i) => i.x.holders, level: 'ring', batch: true, overdue: true, when: (i) => !i.x.rung, title: (i) => `באיחור: ${i.name} · ${i.x.what}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. ${NAG_WORDS}.` },
+      { id: 'wait', to: (i) => i.waiters, level: 'quiet', batch: true, title: (i) => `מתעכב אצל ${names(i.x.holders.map(personName))}: ${i.name} · ${i.x.what}`, body: (i, env) => `בגלל זה הכרטיס שלך מחכה. היעד היה ${whenText(i.x.dueAt, env.now)}; התזכורות אצל ${names(i.x.holders.map(personName))} נמשכות עד שזה נגמר.` },
       { id: 'mgr', from: 'mgr', to: (i) => i.managers, level: 'ring', batch: true, overdue: true, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.managerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}, ועוד לא נסגר.` },
       { id: 'owner', from: 'owner', to: OWNER, level: 'ring', batch: true, overdue: true, url: () => EOD.url, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.ownerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. המנהלים קיבלו על זה צלצול אחרי יום עסקים.` },
     ],
@@ -2183,7 +2186,7 @@ const LADDER_RULES = [
       if (!slot) return [];
       const by = new Map();
       // What became late before this hour (its own "באיחור" ring was the first word on it).
-      for (const x of lateOf(env)) if (x.lateAt < slot.at && !(x.snooze && x.snooze > env.now)) for (const p of x.holders) (by.get(p) || by.set(p, []).get(p)).push(x);
+      for (const x of lateOf(env)) if (x.lateAt < slot.at && !(x.snooze && x.snooze > env.now) && !(x.rung && dayKeyIL(x.lateAt) === dayKeyIL(env.now))) for (const p of x.holders) (by.get(p) || by.set(p, []).get(p)).push(x);
       return [...by].filter(([p]) => REMINDER_PEOPLE.has(p)).map(([p, items]) => ({ id: p, cid: null, who: p, items, slot, url: MINE_URL, anchors: { event: slot.at } }));
     },
     steps: (i, env) => [{

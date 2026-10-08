@@ -69,7 +69,7 @@ test('the list: today (Israel day), newest first, without suppressed steps or qu
   assert.equal(deliveryText({ status: 'queued', channel: 'digest', level: 'quiet', reason: 'batch' }), 'יישלח לטלפון בתוך חצי שעה, יחד עם שאר האיחורים');
   assert.equal(deliveryText({ status: 'sent', channel: 'digest', level: 'quiet', reason: 'batch' }), 'נשלח לטלפון, בהודעה אחת עם שאר האיחורים');
   assert.equal(deliveryText({ status: 'sent', channel: 'digest', level: 'ring', reason: 'digest' }), 'נשלח לטלפון בתוך תקציר');
-  assert.equal(deliveryText({ status: 'sent', channel: 'app', level: 'board' }), 'בלוח הבעלים, ובטלפון בתקציר של 18:00');
+  assert.equal(deliveryText({ status: 'sent', channel: 'app', level: 'board' }), 'בלוח הבעלים, ובטלפון בסיכום היום של 19:00');
   assert.equal(deliveryText({ status: 'queued', channel: 'digest', level: 'board', reason: 'owner_digest' }), 'יגיע לטלפון בתקציר הבא');
   assert.equal(deliveryText({ status: 'sent', channel: 'app', level: 'quiet' }), 'בתוך המערכת'); // a row from before the rule
   // A batch of lateness notes: each note is a row, the batch's own row is not shown or counted.

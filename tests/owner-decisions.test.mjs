@@ -2,15 +2,17 @@
 // runs this under UTC, New York and Jerusalem):
 //   1–3  Stav's deals (app/deal-logic.js) and their reminders: Irit's 10-minute office
 //        clock, again with Ofir, the seller told quietly when it is signed.
-//   4    every late item to Ofir and Lior (quiet), 24 hours late in the owner's one
-//        18:00 summary (lateSummary).
+//   4    every late item to Ofir and Lior (quiet). (The owner's 18:00 summary of what is
+//        24 hours late was replaced on 8.10.2026 by the owners' end-of-day table at 19:00:
+//        docs/ops.md, section 48, and tests/late-ladder.test.mjs.)
 //   5    the shoot day right after the group (protocol v6, anchor 'group').
 //   6    the automatic editor assignment when the shoot day is closed (app/auto-assign.js).
 //   7    7ב / 23ב: approved graphics, Ilai's 30-minute ring.
 //   8    the station-change message (app/messages-logic.js stationChange): Irit, quietly.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeReminders, buildEnv, lateSummary, planDigests, planDelivery } from '../app/reminder-engine.js';
+import { computeReminders, buildEnv, summaryOf, planDigests, planDelivery } from '../app/reminder-engine.js';
+import { headline, pushLines, EMPTY_DAY } from '../app/day-summary.js';
 import { REMINDER_PEOPLE, LATE_GRACE_MINUTES } from '../app/reminder-rules.js';
 import { clocksFor, ANSWER_CLOCKS } from '../app/clocks.js';
 import { PROCESSES, PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, scopeOf, isSales, STATIONS } from '../app/protocol.js';
@@ -154,28 +156,37 @@ test('the deal signed: Stav hears quietly, "<עסק> חתם 🎉", once', () => 
 });
 
 // ── 4. Lateness ───────────────────────────
-test('the owner\'s summary: everything 24 hours late or more, one section, by person; less than 24 hours is not in it', () => {
+test('the owners\' end of the day (19:00) replaced the 18:00 summary: everything late, by person, from the first hour; one message', () => {
   const w = world();
   const c = client(w, { name: 'אלפא', char_at: IL(2026, 10, 5, 10).toISOString() });
   importTo(w, c, 'char');
   marks(w, c, itemsOf('p04'), IL(2026, 10, 5, 12)); // 7, 8, 10 due 14:00 on Monday 5.10
   w.tasks.push({ id: 't1', client_id: c.id, title: 'לשלוח חשבונית', owner: 'irit', due_on: '2026-10-01', created_at: IL(2026, 9, 30, 10).toISOString() });
-  const at = (now) => lateSummary(buildEnv({ ...w, now }), now);
-  // Monday 18:00: four hours late only; the task (due Thursday 1.10) is days late.
-  assert.deepEqual(at(IL(2026, 10, 5, 18)), ['באיחור 24 שעות ומעלה (1):', 'עירית (1): אלפא: לשלוח חשבונית']);
-  const tue = at(IL(2026, 10, 6, 18));
-  // 5, 7, 8, 9 and 10 (the characterization's clocks of Monday) and the task: the most late person first, each oldest first.
-  assert.deepEqual(tue, ['באיחור 24 שעות ומעלה (6):', 'אופיר (2): אלפא (5), אלפא (8)', 'עילאי (2): אלפא (9), אלפא (7)', 'עירית (1): אלפא: לשלוח חשבונית', 'ליאור (1): אלפא (10)']);
-  // In the 18:00 digest, as one section; one digest, not a message per item.
-  const env = buildEnv({ ...w, now: IL(2026, 10, 6, 18) });
-  const d = planDigests({ env, now: IL(2026, 10, 6, 18), log: [], active: new Set() }).filter((x) => x.person === 'owner');
+  const at = (now) => summaryOf(buildEnv({ ...w, now }), now);
+  // Monday 19:00: the task (due Thursday 1.10) is days late, and the clocks of the meeting a few hours
+  // (the old summary waited 24 hours before it said so).
+  const mon = at(IL(2026, 10, 5, 19));
+  assert.equal(headline(mon), 'היום: 6 באיחור אצל 4 עובדים, כל מה שהיה להיום בוצע');
+  assert.deepEqual(mon.rows.map((r) => [r.person, r.late, r.longest]), [['irit', 2, '2 ימי עסקים'], ['ofir', 2, '6 שעות'], ['ilai', 2, '6 שעות'], ['lior', 1, '4 שעות']]);
+  // Tuesday: a day later, and Lior's focus call (12א) was for today and is still open.
+  const tue = at(IL(2026, 10, 6, 19));
+  assert.equal(headline(tue), 'היום: 6 באיחור אצל 4 עובדים, אחד מהיום לא בוצע');
+  assert.deepEqual(tue.items.map((x) => `${x.kind}:${x.what}:${x.who}`), [
+    'late:לשלוח חשבונית:irit', 'late:5 · לקיחת גישות לרשתות:ofir,irit', 'late:9 · פתיחת גאנט שנתי:ilai', 'late:7 · הכנת 9 גרפיקות ראשונות:ilai',
+    'late:8 · הכנת Highlights:ofir', 'late:10 · סידור Meta ומנהל מודעות:lior', 'today:12א · שיחת דגשים לתוכן:lior',
+  ]);
+  // One message at 19:00 with the numbers in it, none at 18:00.
+  const env = buildEnv({ ...w, now: IL(2026, 10, 6, 19) });
+  const d = planDigests({ env, now: IL(2026, 10, 6, 19), log: [], active: new Set() }).filter((x) => x.person === 'owner');
   assert.equal(d.length, 1);
-  assert.ok(d[0].lines.includes('באיחור 24 שעות ומעלה (6):'), d[0].lines.join('\n'));
-  assert.ok(!d[0].lines.includes('הכול לפי התוכנית.'));
-  // Nothing late: "הכול לפי התוכנית".
+  assert.deepEqual(d[0].lines, pushLines(tue));
+  assert.equal(d[0].lines[1], 'עירית: 2 באיחור (הארוך: 3 ימי עסקים)');
+  const env18 = buildEnv({ ...w, now: IL(2026, 10, 6, 18) });
+  assert.equal(planDigests({ env: env18, now: IL(2026, 10, 6, 18), log: [], active: new Set() }).filter((x) => x.person === 'owner').length, 0);
+  // Nothing late and nothing left: still sent, one friendly sentence.
   const empty = world();
-  const e2 = buildEnv({ ...empty, now: IL(2026, 10, 6, 18) });
-  assert.deepEqual(planDigests({ env: e2, now: IL(2026, 10, 6, 18), log: [], active: new Set() }).filter((x) => x.person === 'owner').map((x) => x.lines[0]), ['הכול לפי התוכנית.']);
+  const e2 = buildEnv({ ...empty, now: IL(2026, 10, 6, 19) });
+  assert.deepEqual(planDigests({ env: e2, now: IL(2026, 10, 6, 19), log: [], active: new Set() }).filter((x) => x.person === 'owner').map((x) => x.lines), [[EMPTY_DAY]]);
 });
 
 // ── 5. The shoot day right after the group ──
@@ -422,8 +433,7 @@ test('a client is named by the business first, then the contact: in reminder tit
   const later = due(w, IL(2026, 10, 21, 12)).filter((r) => [a.id, b.id].includes(r.clientId));
   assert.ok(later.length > 2);
   for (const r of later) assert.ok(!/(^|[^·] )דנה($|[ :])/.test(r.title.replace(/(קפה|סטודיו) דנה · דנה/g, '')), r.title);
-  // The owner's summary of what is 24 hours late, and the clocks, name them the same way.
-  const late = lateSummary(buildEnv({ ...w, now: IL(2026, 10, 22, 18) }), IL(2026, 10, 22, 18)).join(' | ');
-  assert.match(late, /קפה דנה · דנה \(\d\)/); // the line lists the first three, then "ועוד"
-  assert.doesNotMatch(late, /[(,:] דנה \(/);
+  // The owners' end-of-day table names them the same way.
+  const late = summaryOf(buildEnv({ ...w, now: IL(2026, 10, 22, 19) }), IL(2026, 10, 22, 19)).items.filter((x) => [a.id, b.id].includes(x.cid)).map((x) => x.name);
+  assert.ok(late.length > 0 && late.every((n) => /^(קפה|סטודיו) דנה · דנה$/.test(n)), late.join(' | '));
 });

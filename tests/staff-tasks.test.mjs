@@ -14,7 +14,7 @@ import {
   GIVERS, canGive, personOfViewer, ASSIGNEES, personName, homeUrl, validateTask, BODY_MAX, shortBody,
   NAG_HOURS, NAG_EVERY, nagOpen, nextNagMoment, nagSlot, nextNagAt, taskLists, KEEP_DAYS,
 } from '../app/staff-tasks-logic.js';
-import { buildEnv, computeReminders, planDelivery, planDigests, pushPayload, lateSummary, personWork } from '../app/reminder-engine.js';
+import { buildEnv, computeReminders, planDelivery, planDigests, pushPayload, summaryOf, personWork } from '../app/reminder-engine.js';
 import { RULES, RULE_BY_ID, NAG, SEND_HOURS, inSendHours, REMINDER_PEOPLE } from '../app/reminder-rules.js';
 import { PEOPLE, TEAM_PEOPLE, WORK_HOURS } from '../app/protocol.js';
 import { inboxRows, unreadCount } from '../app/push-logic.js';
@@ -22,6 +22,7 @@ import { templateFor, TEMPLATES, taskIdOf } from '../app/wa-templates.js';
 import { waPlan } from '../app/wa-logic.js';
 import { runTick } from '../supabase/functions/reminders/tick.js';
 import { dateIL, partsIL } from '../app/tz.js';
+import { EMPTY_DAY } from '../app/day-summary.js';
 
 const IL = (y, m, d, h = 0, mi = 0, s = 0) => dateIL(y, m, d, h, mi, s);
 const MIN = 6e4;
@@ -267,17 +268,17 @@ test('it goes to the phone at 19:30 whatever went out before (there is no daily 
   const noon = IL(2026, 10, 6, 12, 0);
   const [sixth] = planDelivery({ reminders: [{ ...due[0], key: 'k2', rule: 'task', ownHours: false, exempt: null, at: noon }], now: noon, log });
   assert.deepEqual([sixth.channel, sixth.status], ['push', 'sent']);
-  // The lateness notes to Ofir and Lior, the owner's 24-hour summary and the morning digest do not know it.
+  // The lateness notes to Ofir and Lior, the owners' end-of-day table and the morning digest do not know it.
   const old = world([task({ created_at: IL(2026, 10, 1, 9, 0).toISOString() })]); // five days open
-  const env = buildEnv({ ...old, now: IL(2026, 10, 6, 18, 0) });
-  assert.deepEqual(lateSummary(env), []);
+  const env = buildEnv({ ...old, now: IL(2026, 10, 6, 19, 0) });
+  assert.equal(summaryOf(env).empty, true);
   assert.deepEqual(personWork(env, 'nadia'), { overdue: [], today: [] });
-  const at18 = computeReminders({ ...old, now: IL(2026, 10, 6, 18, 0) });
+  const at18 = computeReminders({ ...old, now: IL(2026, 10, 6, 19, 0) });
   assert.deepEqual(ours(at18).map((r) => [r.rule, r.person]), [[NAG, 'nadia']]);
-  // Its ring, once in the log, is in nobody's digest: the owner's 18:00 has nothing to report.
-  const rung = planDelivery({ reminders: ours(at18), now: IL(2026, 10, 6, 18, 0) }).map((r, i) => ({ ...r, id: i + 1, created_at: IL(2026, 10, 6, 18, 0).toISOString() }));
+  // Its ring, once in the log, is in nobody's digest: the owners' end-of-day message has nothing to report.
+  const rung = planDelivery({ reminders: ours(at18), now: IL(2026, 10, 6, 19, 0) }).map((r, i) => ({ ...r, id: i + 1, created_at: IL(2026, 10, 6, 19, 0).toISOString() }));
   const digests = planDigests({ env, log: rung, active: new Set(at18.map((r) => r.key)) });
-  assert.deepEqual(digests.map((d) => [d.person, d.lines]), [['owner', ['הכול לפי התוכנית.']]]);
+  assert.deepEqual(digests.map((d) => [d.person, d.lines]), [['owner', [EMPTY_DAY]]]);
   const morningEnv = buildEnv({ ...old, now: IL(2026, 10, 7, 8, 30) });
   const morning = planDigests({ env: morningEnv, log: rung, active: new Set() });
   assert.deepEqual(morning.filter((d) => d.key && d.person === 'nadia'), []);
@@ -384,7 +385,8 @@ test('a ring at 19:40 goes out by push; someone with no phone connected still ge
   const { push, sent } = fakePush();
   const now = IL(2026, 10, 6, 19, 40);
   const stats = await runTick({ db: db.at(now), push, now });
-  assert.deepEqual([stats.pushed, stats.noDevice, stats.queued], [1, 1, 0]);
+  // (The second "no device" is the owners' end-of-day message, which goes out in this hour.)
+  assert.deepEqual([stats.pushed, stats.noDevice, stats.queued], [1, 2, 0]);
   assert.equal(sent.length, 1);
   const rows = () => db.log.filter((r) => OURS.has(r.rule)).map((r) => [r.person, r.channel, r.status, r.reason]).sort();
   assert.deepEqual(rows(), [['eli', 'app', 'sent', 'no_device'], ['nadia', 'push', 'sent', null]]);
