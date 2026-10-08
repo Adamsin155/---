@@ -22,8 +22,9 @@
 //     batches of lateness notes.
 import {
   RULES, OWNER, timeOf, inSendHours, atIL, STALE_MINUTES, FOLD, DIGESTS, RING_TARGETS, personName, MINE_URL,
-  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, OWNER_LATE_HOURS, NAG, BATCH, LATE_BATCH_MINUTES, BURST, BURST_MAX, OFF,
+  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, OWNER_LATE_HOURS, NAG, BATCH, LATE_BATCH_MINUTES, BURST, BURST_MAX, OFF, ownerDigestAt,
 } from './reminder-rules.js';
+import { daySummary, pushLines, EOD } from './day-summary.js';
 import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf, pauseOf, clientLabel } from './protocol-logic.js';
 import { STAFF_PEOPLE, TEAM_PEOPLE } from './protocol.js';
 import { ofirMeetings as meetingsOf } from './office-marks.js';
@@ -162,7 +163,7 @@ export function candidates(env, { until = env.now } = {}) {
             key: `${rule.id}:${inst.cid || '-'}:${inst.id}:${d.step.id}@${person}`,
             rule: rule.id, step: d.step.id, person, level: d.step.level,
             exempt: d.step.exempt || null, shoot: !!d.step.shoot, ownHours: !!d.step.ownHours, exception: !!d.step.exception,
-            list: !!d.step.list, overdue: !!d.step.overdue, batch: !!d.step.batch, escalation: d.escalation,
+            list: !!d.step.list, overdue: !!d.step.overdue, batch: !!d.step.batch, noFold: !!d.step.noFold, escalation: d.escalation,
             at: d.at, clientId: inst.cid || null, ref: inst.ref || null, url: (d.step.url ? d.step.url(inst, env) : inst.url) || MINE_URL,
             title: d.step.title(inst, env), body: d.step.body ? d.step.body(inst, env) : '',
             // The step follows whoever holds the work (planHandover): what the one before is told, if anything.
@@ -238,12 +239,12 @@ export function planHandover({ reminders, siblings = [], now }) {
 const isPushRing = (row) => row.level === 'ring' && row.channel === 'push' && (row.status === 'sent' || row.status === 'pending');
 // Whether the owner's digest of the day is behind us (or there is none today): a
 // line for his board from then on waits for his next digest instead of missing it.
-const afterOwnerDigest = (now) => !isBusinessDay(now) || now >= atIL(now, DIGESTS.owner);
+const afterOwnerDigest = (now) => !isBusinessDay(now) || now >= atIL(now, ownerDigestAt(now));
 
 // What happens to each new step now (the owner's rule of 7.10.2026: everything
 // reaches the phone, and there is no daily cap).
 //   a digest line          waits for the next digest, which is one push;
-//   the owner's board      is on his screen at once and in his 18:00 digest; after
+//   the owner's board      is on his screen at once and in his end-of-day message; after
 //                          it (or on a closed day) it waits for his next digest;
 //   a ring and an update   ('quiet') are pushed now. Outside the sending hours they
 //                          wait for the next digest (a shoot-day event does not, nor a
@@ -370,7 +371,7 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
     const known = new Set(log.map((r) => r.key));
     for (const person of staffPeople) {
       const { keep, drop } = split(queuedFor(person));
-      const fold = lookahead.filter((r) => r.person === person && r.level === 'ring' && !r.shoot && r.at >= foldFrom && r.at <= foldTo && !known.has(r.key));
+      const fold = lookahead.filter((r) => r.person === person && r.level === 'ring' && !r.shoot && !r.batch && !r.noFold && r.at >= foldFrom && r.at <= foldTo && !known.has(r.key));
       const work = personWork(env, person);
       const lines = digestLines({ work, rows: [...keep, ...fold], max: 5, clientName });
       if (!lines.length) { if (drop.length) out.push({ key: null, person, drop }); continue; }
@@ -401,18 +402,22 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
     if (lines.length) out.push({ key: `digest:shoot:lior:${day}:${last}`, kind: 'shoot', person: 'lior', title: 'סיכום אחרי יום הצילום', lines, url: MINE_URL, include: keep, drop });
     else if (drop.length) out.push({ key: null, person: 'lior', drop });
   }
-  if (env.hasStaff(OWNER) && business && within(DIGESTS.owner)) {
+  // The owners' end of the day (8.10.2026; docs/ops.md, section 48): at the END of the
+  // sending window (19:00; 13:00 on erev chag), every working day, also when nothing is
+  // late. The push says the numbers by itself and opens the table (owner.html#eod), which
+  // computes the same summary (app/day-summary.js). It replaced the 18:00 digest "חריגות
+  // היום": what that one carried besides the lateness (the lines of the owners' board, and
+  // the weekly report on the last working day of the week) is under the numbers here.
+  // A digest is pushed by the tick itself, so the end of the window does not hold it.
+  if (env.hasStaff(OWNER) && business && within(ownerDigestAt(now))) {
     const sinceDay = log.filter((r) => r.person === OWNER && r.level === 'board' && r.status === 'sent' && dayKeyIL(asDate(r.created_at)) === day);
     const { keep, drop } = split([...sinceDay, ...queuedFor(OWNER)]);
-    let lines = digestLines({ rows: keep, max: 10, clientName });
-    // Everything 24 hours late or more, of everyone, in one section (3.10.2026).
-    const late = lateSummary(env, now);
-    if (!lines.length && !late.length) lines = ['הכול לפי התוכנית.'];
-    lines = [...lines, ...late];
+    const board = digestLines({ rows: keep, max: 10, clientName });
+    let lines = [...pushLines(summaryOf(env, now)), ...(board.length ? ['עוד מהיום:', ...board] : [])];
     // The weekly report: Thursday, or the last business day of the week when Thursday is a holiday.
     const weekly = lastBusinessDayOfWeek(now);
     if (weekly) lines = [...lines, ...weeklyReport(env, log, now)];
-    out.push({ key: `digest:owner18:owner:${day}`, kind: 'owner', person: OWNER, title: weekly ? 'חריגות היום ודוח שבועי' : 'חריגות היום', lines, url: 'clients.html', include: keep.filter((r) => r.status === 'queued'), drop: drop.filter((r) => r.status === 'queued') });
+    out.push({ key: `digest:eod:owner:${day}`, kind: 'owner', person: OWNER, title: weekly ? 'סיכום היום ודוח שבועי' : 'סיכום היום', lines, url: EOD.url, include: keep.filter((r) => r.status === 'queued'), drop: drop.filter((r) => r.status === 'queued') });
   }
   if (env.hasStaff(OWNER) && business && within(DIGESTS.ownerWeek) && firstBusinessDayOfWeek(now)) {
     // Also what waited for the owner since the last digest (an immediate case that
@@ -441,6 +446,10 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
   }
   return out.map((d) => (d.key ? { ...d, body: d.lines.join('\n') } : d));
 }
+
+// The owners' end-of-day table from what the engine loaded (the page builds the same
+// from what it loaded: app/owner.js).
+export const summaryOf = (env, now = env.now) => daySummary({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: env.tasks, personOf: env.personOf, now });
 
 // The lateness notes (`batch` steps: every late item to Ofir and Lior, a late task to
 // its owner and whoever opened it, a client's fix that is late) go to the phone
@@ -472,11 +481,14 @@ export function lateBatches({ env, now = env.now, log = [], holds = () => true, 
     // How many he heard of today, these included: the banner on the phone replaces the one before.
     const today = keep.length + log.filter((r) => r.person === person && r.reason === BATCH && r.status === 'sent' && dayKeyIL(asDate(r.sent_at || r.created_at)) === day).length;
     const sum = today > keep.length ? [`היום עד עכשיו: ${today} איחורים. הכול ב״התראות״.`] : [];
-    const d = { key: `${prefix}${day}:${last}`, kind: 'late', person, include: keep, drop };
+    // A batch that carries a ring (the ladder of a late item, section 48) is a ring itself.
+    const d = { key: `${prefix}${day}:${last}`, kind: 'late', level: keep.some((r) => r.level === 'ring') ? 'ring' : 'digest', person, include: keep, drop };
     if (keep.length === 1) out.push({ ...d, title: keep[0].title, lines: [keep[0].body, ...sum].filter(Boolean), url: keep[0].url || MINE_URL });
     else {
-      const names = keep.map((r) => String(r.title).replace(/^באיחור: /, ''));
-      out.push({ ...d, title: `${keep.length} איחורים חדשים`, lines: [...names.slice(0, 4), ...(names.length > 4 ? [`ועוד ${names.length - 4}`] : []), ...sum], url: MINE_URL });
+      // All of one kind ("באיחור: …"): the word is in the title once. Mixed: each line says what it is.
+      const plain = keep.every((r) => /^באיחור: /.test(String(r.title)));
+      const names = keep.map((r) => (plain ? String(r.title).replace(/^באיחור: /, '') : String(r.title)));
+      out.push({ ...d, title: plain ? `${keep.length} איחורים חדשים` : `${keep.length} עדכוני איחור`, lines: [...names.slice(0, 4), ...(names.length > 4 ? [`ועוד ${names.length - 4}`] : []), ...sum], url: MINE_URL });
     }
   }
   return out;
