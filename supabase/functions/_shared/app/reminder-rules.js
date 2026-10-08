@@ -38,10 +38,16 @@
 //       ownHours  true: the rule keeps its own hours (the tasks given on the spot, `nag`:
 //                 09:00–20:00), so the sending hours above do not hold it for a digest
 //       exception true: an exception for Lior (decision 8: on his shoot day it goes to Ofir)
+//       handover  the step follows whoever holds the work now (the assigned editor, the
+//                 owner of a task). When the work passes to someone else, the step is new
+//                 for them although its moment is long past: it is told now, not recorded
+//                 as stale (planHandover in app/reminder-engine.js). With { title, body,
+//                 url? } whoever had it before is told too, once (the step `off`).
 //       when      (inst, env) → false skips the step (the thing it reminds of is done)
 //       expires   an anchor name: the step is not sent from that moment on
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
+//       url       (inst, env) → where this step opens, when not the case's own page
 import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
@@ -105,7 +111,9 @@ export const RING_TARGETS = { irit: 8, lior: 6, ofir: 5, ilai: 5, nirel: 3, nadi
 export const STALE_MINUTES = { ring: 6 * 60, quiet: 6 * 60, board: 24 * 60, digest: 60 };
 // Steps that report something that happened (a missed call, a missed review): once
 // queued, they stay in the next digest even though the day that produced them is over.
-export const FACTS = new Set(['control32.lior', 'control33.lior', 'thursday.lior', 'thursday.board', 'weekly.missed']);
+export const FACTS = new Set(['control32.lior', 'control33.lior', 'thursday.lior', 'thursday.board', 'weekly.missed', 'editing.off']);
+// The step that tells whoever had the work before that it passed on (`handover`).
+export const OFF = 'off';
 // The end of the key of Lior's copy of an exception that went to Ofir on his shoot
 // day (decision 8): held for his summary after the day, never pushed.
 export const SHOOT_COPY = '+shoot';
@@ -674,7 +682,12 @@ export const RULES = [
         .filter((i) => !i.ready);
     },
     steps: [
-      { id: 'assigned', to: (i) => i.who, level: 'ring', title: (i) => `לקוח חדש בעריכה אצלך: ${i.name}`, body: (i, env) => [i.p24due && `בדרייב ואצל אופיר עד ${whenText(i.p24due, env.now)}`, i.p27due && `סגירה עד ${whenText(i.p27due, env.now)}`].filter(Boolean).join(' · ') },
+      {
+        id: 'assigned', to: (i) => i.who, level: 'ring',
+        // An editor swap (Ofir's "החלפת עורך", Lior's decision on a paused editing, or the card): the one before hears too.
+        handover: { title: (i) => `העריכה של ${i.name} עברה ל${personName(i.who)}`, body: () => 'הלקוח כבר לא בעריכה אצלך.', url: () => 'editor.html' },
+        title: (i) => `לקוח חדש בעריכה אצלך: ${i.name}`, body: (i, env) => [i.p24due && `בדרייב ואצל אופיר עד ${whenText(i.p24due, env.now)}`, i.p27due && `סגירה עד ${whenText(i.p27due, env.now)}`].filter(Boolean).join(' · '),
+      },
       { id: 'nostart', officeMinutes: 120, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved('p22.received'), title: (i) => `עוד לא התחלת: ${i.name}`, body: () => 'עברו שעתיים עבודה מאז שהכונן נמסר. ללחוץ "קיבלתי את הכונן והתחלתי".' },
       { id: 'nostartLior', officeMinutes: 240, to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עברו 4 שעות עבודה מהשיוך.' },
       { id: 'ofir', officeMinutes: 240, to: 'ofir', level: 'quiet', when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עותק לידיעה: עברו 4 שעות עבודה מהשיוך.' },
@@ -869,7 +882,7 @@ export const RULES = [
       });
     },
     steps: [
-      { id: 'now', to: (i) => i.who, level: 'ring', exempt: 'urgent', exception: true, when: (i) => !i.started, title: (i) => `משימה דחופה: ${i.name}`, body: (i) => `${i.task.title}. ללחוץ "התחלתי".` },
+      { id: 'now', to: (i) => i.who, level: 'ring', exempt: 'urgent', exception: true, handover: true, when: (i) => !i.started, title: (i) => `משימה דחופה: ${i.name}`, body: (i) => `${i.task.title}. ללחוץ "התחלתי".` },
       { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', exempt: 'urgent', exception: true, when: (i) => !i.started && i.who !== 'lior', title: (i) => `משימה דחופה לא התחילה: ${i.name}`, body: (i) => `${personName(i.who)}: ${i.task.title}. עברו 30 דקות עבודה.` },
       { id: 'owner', officeMinutes: 240, to: OWNER, level: 'ring', title: (i) => `חריגה דחופה פתוחה 4 שעות: ${i.name}`, body: (i) => `${personName(i.who)}: ${i.task.title}` },
     ],
@@ -910,7 +923,7 @@ export const RULES = [
       });
     },
     steps: [
-      { id: 'created', to: (i) => i.who, level: 'quiet', when: (i) => i.creator !== null || !i.task.created_by_email, title: (i) => `משימה חדשה: ${i.name}`, body: (i) => i.task.title },
+      { id: 'created', to: (i) => i.who, level: 'quiet', handover: true, when: (i) => i.creator !== null || !i.task.created_by_email, title: (i) => `משימה חדשה: ${i.name}`, body: (i) => i.task.title },
       { id: 'due', from: 'due', at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `משימה להיום: ${i.name} · ${i.task.title}`, body: () => '' },
       { id: 'late', from: 'due', businessDays: 1, at: '08:30', to: (i) => [...new Set([i.who, i.creator, ...LATE_WATCHERS].filter(Boolean))], level: 'quiet', batch: true, overdue: true, title: (i) => `משימה באיחור: ${i.name}`, body: (i) => `${personName(i.who)}: ${i.task.title}` },
     ],
@@ -1807,3 +1820,211 @@ const SHOOT_SET_RULE = {
 };
 RULES.push(SHOOT_SET_RULE);
 RULE_BY_ID.set(SHOOT_SET, SHOOT_SET_RULE);
+
+// ── What one person tells another (the owner's rule of 7.10.2026, repeated 8.10.2026; docs/ops.md, section 45) ──
+// One self-contained block (its import included). The owner asked Irit a question from
+// the manager view and it reached her only inside the app: nothing was written to the
+// log, so no push went out. Every action of one person that is meant to tell another
+// something is a rule here, so that it reaches the phone like everything else:
+//   question          a question to the responsible person (public.client_questions,
+//     owner.html "שאלה לאחראי"): they ring at once, with who asks, about what, and the
+//     question itself; the ring opens "המשימות שלי", where it is answered. Withdrawn
+//     (the row is gone) or answered: the case is not returned, so nothing more is sent,
+//     and its notification is marked read (`voidWhenGone`; tick.js).
+//   questionAnswered  the answer: whoever asked hears.
+//   changeRequest     "בקשת שינוי" (pass.html): Lior rings; changeDecided: his decision
+//     goes back to whoever asked.
+//   exceptionDecided  Lior closed an exception with a decision (decisions.html):
+//     whoever reported it hears the decision.
+//   pauseDecided      Lior moved the deadlines of a paused editing: the editor hears.
+//     (Passing it to another editor is the step `editing.assigned`, with its `handover`.)
+//   clientApproved    the client approved on the status page: Irit hears (she sent it and
+//     her clock to call runs), Lior for the scripts; and when the videos are approved,
+//     however it was marked, the editor.
+//   dealSent, dealCancelled  the field agent hears what became of the deal he sent.
+// Nobody is told of what they did themselves. A message written outside the sending
+// hours is due when they next open (`nextSendMoment`): it goes out by itself at 08:30,
+// with its own title, and is never one line among others in a digest.
+import { DECISION_KEY, readJson as readMark } from './office-marks.js';
+export function nextSendMoment(d) {
+  let t = new Date(d);
+  for (let i = 0; i < 40; i += 1) {
+    if (inSendHours(t)) return t;
+    const open = atTimeIL(t, Math.floor(SEND_HOURS.from / 60), SEND_HOURS.from % 60);
+    if (isBusinessDay(t) && t < open) return open;
+    t = atTimeIL(addDaysIL(atTimeIL(t, 12), 1), 0);
+  }
+  return t;
+}
+const said = (text, max = 300) => { const s = String(text || '').replace(/\s+/g, ' ').trim(); return s.length > max ? `${s.slice(0, max - 1)}…` : s; };
+// The client a row is about, in words: a live client by its label, any other (in
+// landing, archived) by the name the server read for it, and "המשרד" when there is none.
+const aboutOf = (env, row) => {
+  const c = row.client_id ? env.clientById.get(row.client_id) : null;
+  return c ? clientLabel(c) : said(row.client_name, 120) || (row.client_id ? 'לקוח' : 'המשרד');
+};
+const fromWho = (p) => (p ? ` מ${personName(p)}` : '');
+const DAYS_WORDS = (n) => (n === 1 ? 'יום עסקים אחד' : `${n} ימי עסקים`);
+const APPROVED_ITEMS = [['p07', '9 הגרפיקות הראשונות'], ['p13', 'התסריטים'], ['p23', 'יתרת הגרפיקות'], ['p27', 'הסרטונים']];
+const VIA_PAGE = 'אושר בדף המצב';
+const PEOPLE_RULES = [
+  {
+    id: 'question', event: 'שאלה לאחראי', procs: [], voidWhenGone: true,
+    instances(env) {
+      return (env.questions || []).filter((q) => !q.answer && parseDate(q.asked_at) && REMINDER_PEOPLE.has(q.to_person) && env.personOf(q.asked_by) !== q.to_person).map((q) => ({
+        // The question's own client id (it leaves with the client), never whether the client is live: the key must not change.
+        id: q.id, cid: q.client_id || null, q, who: q.to_person, asker: env.personOf(q.asked_by), about: aboutOf(env, q), url: MINE_URL,
+        anchors: { event: nextSendMoment(parseDate(q.asked_at)) },
+      }));
+    },
+    steps: [
+      {
+        id: 'ask', to: (i) => i.who, level: 'ring',
+        title: (i) => `שאלה${fromWho(i.asker)}: ${i.about}`,
+        body: (i) => [`״${said(i.q.question, 600)}״`, i.q.context ? `על: ${said(i.q.context, 200)}` : null, 'עונים ב״המשימות שלי״, בראש העמוד.'].filter(Boolean).join(' · '),
+      },
+    ],
+  },
+  {
+    id: 'questionAnswered', event: 'תשובה לשאלה ששאלת', procs: [],
+    instances(env) {
+      return (env.questions || []).filter((q) => q.answer && parseDate(q.answered_at)).map((q) => ({
+        id: q.id, cid: q.client_id || null, q, who: env.personOf(q.asked_by), about: aboutOf(env, q), url: 'owner.html',
+        anchors: { event: nextSendMoment(parseDate(q.answered_at)) },
+      })).filter((i) => i.who && REMINDER_PEOPLE.has(i.who) && i.who !== i.q.to_person && i.who !== env.personOf(i.q.answered_by));
+    },
+    steps: [
+      {
+        id: 'answer', to: (i) => i.who, level: 'quiet',
+        title: (i) => `${personName(i.q.to_person)} ענה/תה: ${i.about}`,
+        body: (i) => [`״${said(i.q.answer, 600)}״`, `שאלת: ״${said(i.q.question, 200)}״`].join(' · '),
+      },
+    ],
+  },
+  {
+    id: 'changeRequest', event: 'בקשת שינוי', procs: [],
+    instances(env) {
+      return (env.changeRequests || []).filter((r) => !r.decided_at && parseDate(r.created_at) && env.personOf(r.created_by_email) !== 'lior').map((r) => ({
+        // No client in the key: a request outlives its client (the column is emptied then).
+        id: r.id, cid: null, r, from: env.personOf(r.created_by_email), about: r.client_id ? aboutOf(env, r) : '', url: 'decisions.html',
+        anchors: { event: nextSendMoment(parseDate(r.created_at)) },
+      }));
+    },
+    steps: [
+      {
+        id: 'new', to: 'lior', level: 'ring',
+        title: (i) => `בקשת שינוי${fromWho(i.from)}${i.about ? `: ${i.about}` : ''}`,
+        body: (i) => [said(i.r.problem), `ההצעה: ${said(i.r.proposal)}`, 'ההחלטה נכתבת ב״החלטות״.'].join(' · '),
+      },
+    ],
+  },
+  {
+    id: 'changeDecided', event: 'בקשת שינוי: התקבלה החלטה', procs: [],
+    instances(env) {
+      return (env.changeRequests || []).filter((r) => parseDate(r.decided_at) && said(r.decision)).map((r) => ({
+        id: r.id, cid: null, r, who: env.personOf(r.created_by_email), by: env.personOf(r.decided_by_email), about: r.client_id ? aboutOf(env, r) : '', url: 'pass.html',
+        anchors: { event: nextSendMoment(parseDate(r.decided_at)) },
+      })).filter((i) => i.who && REMINDER_PEOPLE.has(i.who) && i.who !== i.by);
+    },
+    steps: [
+      {
+        id: 'decided', to: (i) => i.who, level: 'quiet',
+        title: (i) => `${i.by ? `${personName(i.by)} החליט/ה` : 'התקבלה החלטה'} על בקשת השינוי שלך${i.about ? `: ${i.about}` : ''}`,
+        body: (i) => [`ההחלטה: ${said(i.r.decision)}`, `הבקשה: ${said(i.r.problem, 200)}`].join(' · '),
+      },
+    ],
+  },
+  {
+    id: 'exceptionDecided', event: 'חריגה: התקבלה החלטה', procs: [],
+    instances(env) {
+      const out = [];
+      for (const d of env.decisions || []) {
+        const t = (env.doneTasks || []).find((x) => x.id === d.task_id);
+        const c = t && env.clientById.get(t.client_id);
+        const at = t && parseDate(t.done_at);
+        const who = t && env.personOf(t.created_by_email);
+        const by = env.personOf(d.by_email);
+        if (!c || !at || !who || !REMINDER_PEOPLE.has(who) || who === by || !said(d.decision)) continue;
+        out.push({ id: t.id, cid: c.id, client: c, name: clientLabel(c), task: t, d, who, by, url: TASK_URL(c.id), anchors: { event: nextSendMoment(at) } });
+      }
+      return out;
+    },
+    steps: [
+      {
+        id: 'decided', to: (i) => i.who, level: 'quiet',
+        title: (i) => `${i.by ? `${personName(i.by)} החליט/ה` : 'התקבלה החלטה'} על החריגה שדיווחת: ${i.name}`,
+        body: (i) => [`ההחלטה: ${said(i.d.decision)}`, said(i.task.title, 200)].join(' · '),
+      },
+    ],
+  },
+  {
+    id: 'pauseDecided', event: 'עריכה עצורה: המועדים הוזזו', procs: ['p22'],
+    instances(env) {
+      return casesOf(env, 'p22', (i) => !!i.ctx.editor && !i.s.complete).flatMap((i) => {
+        const mark = i.checks[DECISION_KEY(i.pre)];
+        const d = readMark(mark);
+        const at = d && parseDate(mark.at);
+        if (!at || d.choice !== 'move' || !(Number(d.days) > 0)) return [];
+        return [{ ...i, id: `${i.proc.id}@${at.toISOString()}`, who: i.ctx.editor, days: Number(d.days), p24due: i.same('p24')?.dueAt, url: EDITOR_URL(i.cid), anchors: { event: nextSendMoment(at) } }];
+      });
+    },
+    steps: [
+      {
+        id: 'editor', to: (i) => i.who, level: 'quiet',
+        title: (i) => `מועדי העריכה הוזזו ב־${DAYS_WORDS(i.days)}: ${i.name}`,
+        body: (i, env) => ['הוחלט ב״החלטות״, על העריכה העצורה.', i.p24due ? `בדרייב ואצל אופיר עד ${whenText(i.p24due, env.now)}.` : null].filter(Boolean).join(' '),
+      },
+    ],
+  },
+  {
+    id: 'clientApproved', event: 'הלקוח אישר', procs: ['p07', 'p13', 'p23', 'p27'],
+    instances(env) {
+      return APPROVED_ITEMS.flatMap(([b, what]) => casesOf(env, b, (i) => !!i.doneAt(`${b}.approved`)).map((i) => {
+        const at = i.doneAt(`${b}.approved`);
+        const note = String(i.check(`${b}.approved`).note || '');
+        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, b, what: `${what}${i.pre ? ` (סבב ${i.pre.slice(1, -1)})` : ''}`, page: note.startsWith(VIA_PAGE), note: said(note, 200), editor: i.ctx.editor || null, anchors: { event: nextSendMoment(at) } };
+      }));
+    },
+    steps: [
+      // On the page, by the client: nobody in the office did it, so the one who sent it hears.
+      { id: 'irit', to: 'irit', level: 'quiet', when: (i) => i.page, title: (i) => `הלקוח אישר בדף המצב: ${i.what} · ${i.name}`, body: (i) => `${i.note}.` },
+      { id: 'lior', to: 'lior', level: 'quiet', when: (i) => i.page && i.b === 'p13', title: (i) => `הלקוח אישר בדף המצב: ${i.what} · ${i.name}`, body: (i) => `${i.note}.` },
+      // The videos: the editor waits for notes, and hears there are none (Ilai's ladder starts when 27 closes).
+      {
+        id: 'editor', to: (i) => i.editor, level: 'quiet', when: (i) => i.b === 'p27' && !!i.editor && !i.resolved('p27.final'), url: (i) => EDITOR_URL(i.cid),
+        title: (i) => `הלקוח אישר את הסרטונים: ${i.name}`, body: () => 'מה שנשאר פתוח אצלך בתהליך 27 מופיע בעמוד העריכה.',
+      },
+    ],
+  },
+  {
+    id: 'dealSent', event: 'עסקה מהשטח: החוזה נשלח ללקוח', procs: [],
+    instances(env) {
+      // A contract that went through a manager's approval: `contractDecided` already told the seller.
+      const approved = new Set((env.approvals || []).filter((q) => q.approval === 'approved').map((q) => q.id));
+      return (env.deals || []).filter((d) => d.status === 'sent' && parseDate(d.sent_at) && !approved.has(d.quote_id)).map((d) => ({
+        id: d.id, cid: null, deal: d, name: d.business_name, seller: env.personOf(d.created_by_email), by: env.personOf(d.status_by_email), url: 'deal.html',
+        anchors: { event: nextSendMoment(parseDate(d.sent_at)) },
+      })).filter((i) => i.seller && i.seller !== OWNER && i.seller !== i.by);
+    },
+    steps: [
+      { id: 'seller', to: (i) => i.seller, level: 'quiet', title: (i) => `החוזה של ${i.name} נשלח ללקוח`, body: () => 'כשהלקוח יחתום תגיע הודעה.' },
+    ],
+  },
+  {
+    id: 'dealCancelled', event: 'עסקה מהשטח: בוטלה', procs: [],
+    instances(env) {
+      return (env.deals || []).filter((d) => d.status === 'cancelled' && parseDate(d.cancelled_at)).map((d) => ({
+        id: d.id, cid: null, deal: d, name: d.business_name, seller: env.personOf(d.created_by_email), by: env.personOf(d.status_by_email), url: 'deal.html',
+        anchors: { event: nextSendMoment(parseDate(d.cancelled_at)) },
+      })).filter((i) => i.seller && i.seller !== OWNER && i.seller !== i.by);
+    },
+    steps: [
+      { id: 'seller', to: (i) => i.seller, level: 'quiet', title: (i) => `העסקה של ${i.name} סומנה ״בוטל״`, body: (i) => (i.by ? `סימן/ה: ${personName(i.by)}.` : '') },
+    ],
+  },
+];
+RULES.push(...PEOPLE_RULES);
+for (const r of PEOPLE_RULES) RULE_BY_ID.set(r.id, r);
+// The rules whose notification means nothing once its case is gone (a question that
+// was withdrawn or answered): the server marks it read (supabase/functions/reminders/tick.js).
+export const VOID_WHEN_GONE = new Set(RULES.filter((r) => r.voidWhenGone).map((r) => r.id));

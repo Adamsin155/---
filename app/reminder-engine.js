@@ -22,7 +22,7 @@
 //     batches of lateness notes.
 import {
   RULES, OWNER, timeOf, inSendHours, atIL, STALE_MINUTES, FOLD, DIGESTS, RING_TARGETS, personName, MINE_URL,
-  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, OWNER_LATE_HOURS, NAG, BATCH, LATE_BATCH_MINUTES, BURST, BURST_MAX,
+  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, OWNER_LATE_HOURS, NAG, BATCH, LATE_BATCH_MINUTES, BURST, BURST_MAX, OFF,
 } from './reminder-rules.js';
 import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf, pauseOf, clientLabel } from './protocol-logic.js';
 import { STAFF_PEOPLE, TEAM_PEOPLE } from './protocol.js';
@@ -53,6 +53,10 @@ export function buildEnv({
   staffTasks = [], // 6.10.2026: public.staff_tasks rows, the tasks given on the spot (app/staff-tasks-logic.js)
   availability = { months: [], changes: [] }, // 7.10.2026: the photographer's free dates and unexpected changes (app/availability-logic.js)
   shootTold = [], // 7.10.2026: public.reminder_log rows of the rule `shootSet` (what the photographer was told of each shoot day)
+  // 8.10.2026, what one person tells another (docs/ops.md, section 45):
+  questions = [], // public.client_questions rows: the open ones and those answered lately
+  changeRequests = [], // public.change_requests rows: the open ones and those decided lately
+  decisions = [], // public.task_decisions rows of the last days (Lior's decisions on exceptions)
 }) {
   const byClient = groupChecks(checks);
   const liveClients = clients.filter(live);
@@ -76,7 +80,7 @@ export function buildEnv({
     tasks: tasks.filter((t) => !t.done_at),
     // Tasks finished lately (the server loads the last two days): "the requester hears".
     doneTasks: tasks.filter((t) => t.done_at),
-    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold,
+    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions,
     personOf: (email) => people.get(String(email || '').toLowerCase()) || null,
     emailsOf: (person) => [...people].filter(([, p]) => p === person).map(([e]) => e),
     hasStaff: (person) => [...people.values()].includes(person),
@@ -158,8 +162,12 @@ export function candidates(env, { until = env.now } = {}) {
             rule: rule.id, step: d.step.id, person, level: d.step.level,
             exempt: d.step.exempt || null, shoot: !!d.step.shoot, ownHours: !!d.step.ownHours, exception: !!d.step.exception,
             list: !!d.step.list, overdue: !!d.step.overdue, batch: !!d.step.batch, escalation: d.escalation,
-            at: d.at, clientId: inst.cid || null, ref: inst.ref || null, url: inst.url || MINE_URL,
+            at: d.at, clientId: inst.cid || null, ref: inst.ref || null, url: (d.step.url ? d.step.url(inst, env) : inst.url) || MINE_URL,
             title: d.step.title(inst, env), body: d.step.body ? d.step.body(inst, env) : '',
+            // The step follows whoever holds the work (planHandover): what the one before is told, if anything.
+            handover: !d.step.handover ? null : d.step.handover === true ? {} : {
+              title: d.step.handover.title(inst, env), body: d.step.handover.body ? d.step.handover.body(inst, env) : '', url: d.step.handover.url ? d.step.handover.url(inst, env) : MINE_URL,
+            },
           });
         }
       }
@@ -192,6 +200,36 @@ export const notKnown = (known) => (r) => !known.has(r.key) && !(r.copy && known
 export function computeReminders({ log = [], until, env = null, ...input }) {
   const e = env || buildEnv(input);
   return candidates(e, { until }).filter(notKnown(keysOf(log)));
+}
+
+// ── Work that passed to someone else ──────
+// A step that follows whoever holds the work (`handover` in app/reminder-rules.js: the
+// assigned editor, the owner of a task) is keyed by its person, and its moment is when
+// the work started. When the work passes to someone else days later, the step is new
+// for them and long past its moment: it used to be recorded as stale, so the new editor
+// of a late job was never told (found in the audit of 8.10.2026). `siblings`: the log's
+// rows of the same step of the same case (the key up to its '@'), of anyone. When
+// someone else was already told, this is a handover: the step is due now, and with a
+// handover text the one who had it last is told once that it passed on (the step
+// `off`; its key carries the row it follows, so a job that changes hands again is told
+// again). With no sibling it is a first assignment, and nothing changes.
+const beforeAt = (key) => String(key).slice(0, String(key).lastIndexOf('@'));
+export const handoverPrefixes = (reminders) => [...new Set(reminders.filter((r) => r.handover).map((r) => beforeAt(r.key)))];
+export function planHandover({ reminders, siblings = [], now }) {
+  const out = [];
+  for (const r of reminders) {
+    const others = r.handover ? siblings.filter((s) => beforeAt(s.key) === beforeAt(r.key) && s.person !== r.person) : [];
+    if (!others.length) { out.push(r); continue; }
+    const last = others.reduce((a, b) => ((Number(b.id) || 0) > (Number(a.id) || 0) ? b : a));
+    out.push({ ...r, at: now, passed: true });
+    if (!r.handover.title || last.person === r.person) continue;
+    const base = beforeAt(r.key).split(':').slice(0, -1).join(':'); // rule:client:case
+    out.push({
+      ...r, key: `${base}#${last.id}:${OFF}@${last.person}`, step: OFF, person: last.person, level: 'quiet', exempt: null, shoot: false, ownHours: false,
+      exception: false, list: false, overdue: false, batch: false, escalation: null, at: now, title: r.handover.title, body: r.handover.body, url: r.handover.url, handover: null,
+    });
+  }
+  return out;
 }
 
 // ── Delivery ──────────────────────────────

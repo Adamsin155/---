@@ -39,7 +39,7 @@ const admin = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey(), {
 });
 
 type Row = Record<string, any>;
-const LOG_COLS = 'id, key, rule, person, level, channel, status, reason, exempt, client_id, ref, title, body, url, due_at, sent_at, created_at, digest_key';
+const LOG_COLS = 'id, key, rule, person, level, channel, status, reason, exempt, client_id, ref, title, body, url, due_at, sent_at, created_at, digest_key, read_at';
 const PAGE = 1000;
 async function all(build: () => any): Promise<Row[]> {
   let out: Row[] = [];
@@ -81,17 +81,78 @@ async function loadMonthMarks(): Promise<Row[]> {
 // Stav's deals (3.10.2026, app/deal-logic.js): those still waiting for a contract, and
 // the ones signed in the last two days (the seller hears). Until migration
 // 20261003100000_sales_deals.sql adds the table, none.
+// Since 8.10.2026 (docs/ops.md, section 45) also the ones whose contract was sent or
+// that were marked cancelled in the last two days: the seller hears (rules `dealSent`,
+// `dealCancelled`). Until migration 20261021100000_people_messages.sql adds
+// deal_requests.cancelled_at, without the cancelled ones.
+const DEAL_COLS = 'id, created_at, created_by_email, seller, business_name, contact_name, tier, influencer, paid, free, discount_agorot, status, quote_id, sent_at, signed_at, status_by_email';
 async function loadDeals(now: Date): Promise<Row[]> {
   const since = new Date(now.getTime() - 2 * 864e5).toISOString();
   try {
-    return await all(() => admin.from('deal_requests').select('id, created_at, created_by_email, seller, business_name, contact_name, tier, influencer, paid, free, discount_agorot, status, quote_id, sent_at, signed_at')
-      .or(`status.eq.pending,signed_at.gte."${since}"`).order('id'));
+    try {
+      return await all(() => admin.from('deal_requests').select(`${DEAL_COLS}, cancelled_at`)
+        .or(`status.eq.pending,signed_at.gte."${since}",sent_at.gte."${since}",cancelled_at.gte."${since}"`).order('id'));
+    } catch (err) {
+      if ((err as { code?: string })?.code !== '42703') throw err;
+      return await all(() => admin.from('deal_requests').select(DEAL_COLS)
+        .or(`status.eq.pending,signed_at.gte."${since}",sent_at.gte."${since}"`).order('id'));
+    }
   } catch (err) {
     const code = (err as { code?: string })?.code;
     if (code === '42P01' || code === 'PGRST205') return [];
     throw err;
   }
 }
+
+// What one person tells another (8.10.2026; docs/ops.md, section 45). A table that is
+// not there yet: none.
+const optional = async (load: () => Promise<Row[]>): Promise<Row[]> => {
+  try {
+    return await load();
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205') return [];
+    throw err;
+  }
+};
+// The name of the client a row is about, also for a client the rules do not load (in
+// landing, archived): a person's message about it still names it.
+async function withClientNames(rows: Row[]): Promise<Row[]> {
+  const ids = [...new Set(rows.map((r) => r.client_id).filter(Boolean))];
+  if (!ids.length) return rows;
+  const names = new Map<string, string>();
+  for (const part of chunks(ids, 200)) {
+    const { data, error } = await admin.from('clients').select('id, name, business').in('id', part);
+    if (error) throw error;
+    for (const c of data ?? []) {
+      const name = String(c.name ?? '').trim();
+      const business = String(c.business ?? '').trim();
+      names.set(c.id, !business || business === name ? name : name ? `${business} · ${name}` : business);
+    }
+  }
+  return rows.map((r) => ({ ...r, client_name: names.get(r.client_id) ?? null }));
+}
+// Questions to the responsible person (owner.html): the open ones (rule `question`
+// rings whoever was asked) and those answered in the last two days (whoever asked
+// hears, rule `questionAnswered`). A withdrawn question is not a row any more.
+const loadQuestions = (now: Date) => optional(async () => {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  return withClientNames(await all(() => admin.from('client_questions')
+    .select('id, client_id, to_person, about, context, question, asked_by, asked_at, answer, answered_by, answered_at')
+    .or(`answer.is.null,answered_at.gte."${since}"`).order('asked_at').order('id')));
+});
+// "בקשת שינוי" (pass.html): the open ones (Lior rings) and those decided in the last two days.
+const loadChangeRequests = (now: Date) => optional(async () => {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  return withClientNames(await all(() => admin.from('change_requests')
+    .select('id, client_id, problem, why, proposal, created_by_email, created_at, decision, decided_by_email, decided_at')
+    .or(`decided_at.is.null,decided_at.gte."${since}"`).order('created_at').order('id')));
+});
+// Lior's decisions on exceptions, of the last two days (whoever reported hears once the exception is closed).
+const loadDecisions = (now: Date) => optional(() => {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  return all(() => admin.from('task_decisions').select('task_id, client_id, reason, decision, next_task_id, by_email, at').gte('at', since).order('at').order('task_id'));
+});
 
 // The links to the client's logins form (6.10.2026, app/access-logic.js): those made
 // or filled in the last 16 days (a link lives 14). Only when it was made, filled,
@@ -215,7 +276,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).eq('landing', false).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -239,10 +300,13 @@ const db = {
       loadStaffTasks(now),
       loadAvailability(now),
       loadShootTold(now),
+      loadQuestions(now),
+      loadChangeRequests(now),
+      loadDecisions(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();
@@ -250,6 +314,17 @@ const db = {
       const { data, error } = await admin.rpc('reminders_known', { p_keys: part });
       if (error) throw error;
       for (const r of data ?? []) out.add(typeof r === 'string' ? r : r.key);
+    }
+    return out;
+  },
+  // The log's rows of the same step of the same case, of anyone (the keys that start
+  // with one of these, up to the '@'): who held the work before (planHandover).
+  async siblings(prefixes: string[]) {
+    const out: Row[] = [];
+    for (const p of prefixes) {
+      const { data, error } = await admin.from('reminder_log').select('id, key, person').like('key', `${p.replace(/[\\%_]/g, '\\$&')}@%`).order('id', { ascending: false }).limit(20);
+      if (error) throw error;
+      out.push(...(data ?? []));
     }
     return out;
   },
