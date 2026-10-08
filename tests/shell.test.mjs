@@ -112,7 +112,7 @@ test('the builder is for whoever builds a contract: the owners, Irit, Lior and O
 test('"החלטות" and "בקרה ושיוך" are not Irit\'s: the pages refuse her, and whoever has them in the menu gets in', () => {
   for (const viewer of [OWNER, ...ROLES.map(v)]) {
     const who = viewer.me || 'owner';
-    assert.equal(canSeeOfficeQueues(viewer), [null, 'lior', 'ofir', 'ilai'].includes(viewer.me), who);
+    assert.equal(canSeeOfficeQueues(viewer), [null, 'lior', 'ofir'].includes(viewer.me), who);
     // The menu never offers one of the two to someone its page would refuse.
     for (const id of ['qa', 'decisions']) if (ids(viewer).includes(id)) assert.equal(canSeeOfficeQueues(viewer), true, `${who}: ${id}`);
   }
