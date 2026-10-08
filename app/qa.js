@@ -15,7 +15,7 @@ import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory, setTaskDone,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, viewerOf, officeMinutes,
+  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, viewerOf, officeMinutes, landingTag,
 } from './protocol-ui.js';
 import {
   qaQueue, qaFixing, charsToday, awaitingEditor, editorLoad, loadText, dayText, preselected, reasonNeeded, reasonHint,
@@ -58,6 +58,8 @@ const busy = () => !!document.querySelector('dialog[open]');
 const roundText = (ctx) => (ctx?.round ? ` · סבב צילום ${ctx.round}` : '');
 // "25 דק׳", "שעה", "1 ש׳ ו־10 דק׳".
 const waitWords = (min) => (min === 60 ? 'שעה' : officeMinutes(min));
+// What stands in place of a clock on work of a client that came from the old system (docs/ops.md, sections 41 and 46).
+const LANDING_LINE = 'בקליטה · בלי שעון עד שהלקוח יופעל';
 const meetings = () => ofirMeetings(clients.filter((c) => c.status === 'active' || c.status === 'ending'), checksOf);
 
 // ── Data ────────────────────────────────────
@@ -117,11 +119,11 @@ function render() {
     h('summary', {}, `הוחזרו לתיקון ועוד לא חזרו (${fixing.length})`),
     h('ul', { class: 'of-list' }, ...fixing.map((x) => h('li', { class: 'of-card' },
       h('div', { class: 'of-head' },
-        h('a', { class: 'wclient', href: clientUrl(x.client.id, x.proc.id) }, clientLabel(x.client)),
+        h('a', { class: 'wclient', href: clientUrl(x.client.id, x.proc.id) }, clientLabel(x.client)), landingTag(x.client),
         h('span', { class: 'wtitle' }, `${QA_KINDS[x.kind].title}${roundText(x.ctx)} · סבב ${x.open.n}`),
         personChip(x.who === 'editor' ? 'editor' : x.who)),
       h('p', { class: 'of-line' }, `${x.open.issues.length === 1 ? 'בעיה אחת' : `${x.open.issues.length} בעיות`} · תוקנו ${x.open.fixed.size}`,
-        x.open.due ? h('span', { class: x.open.due < now ? 'late' : '' }, ` · עד ${formatWhen(x.open.due, now)}`) : null))))) : null);
+        x.open.due ? h('span', { class: x.open.due < now && x.client.landing !== true ? 'late' : '' }, ` · עד ${formatWhen(x.open.due, now)}`) : null))))) : null);
   $('char-n').textContent = String(chars.length);
   fill($('char-list'), ...(chars.length ? chars.map((x) => charCard(x, now)) : [h('li', { class: 'empty' }, 'אין היום אפיונים שלך.')]));
   $('assign-n').textContent = String(waiting.length);
@@ -146,14 +148,15 @@ function qaCard(x, ms, now) {
   const inMeeting = !!meetingNow(ms, now);
   return h('li', { class: `of-card${x.late ? ' is-late' : ''}`, 'data-key': x.key },
     h('div', { class: 'of-head' },
-      h('a', { class: 'wclient', href: clientUrl(x.client.id, x.proc.id) }, clientLabel(x.client)),
+      h('a', { class: 'wclient', href: clientUrl(x.client.id, x.proc.id) }, clientLabel(x.client)), landingTag(x.client),
       h('span', { class: 'wtitle' }, `${k.title}${roundText(x.ctx)}`),
       x.round > 1 ? h('span', { class: 'tag' }, `בדיקה ${x.round} · אחרי תיקון`) : null,
       x.late ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'עבר היעד') : null),
-    h('p', { class: 'of-line' },
+    // A client in landing: the work is here as usual, and its hour is counted from the activation.
+    x.landing ? h('p', { class: 'of-line muted' }, LANDING_LINE) : h('p', { class: 'of-line' },
       `מחכה ${waitWords(x.waited)} מתוך שעה · בקרה עד ${formatWhen(x.dueAt, now)}`,
       inMeeting ? h('span', { class: 'muted' }, ' · השעון עצור בזמן האפיון') : null),
-    h('span', { class: `of-meter${x.late ? ' is-late' : ''}`, role: 'img', 'aria-label': `זמן המתנה: ${x.waited} מתוך ${QA_TARGET_MINUTES} דקות` },
+    x.landing ? null : h('span', { class: `of-meter${x.late ? ' is-late' : ''}`, role: 'img', 'aria-label': `זמן המתנה: ${x.waited} מתוך ${QA_TARGET_MINUTES} דקות` },
       h('span', { style: `inline-size:${pct}%` })),
     h('div', { class: 'of-acts' },
       h('button', {
@@ -183,9 +186,9 @@ function assignCard(a, load, now) {
   const pre = preselected(type, joint);
   return h('li', { class: 'of-card', 'data-key': a.key },
     h('div', { class: 'of-head' },
-      h('a', { class: 'wclient', href: clientUrl(a.client.id, a.proc.id) }, clientLabel(a.client)),
+      h('a', { class: 'wclient', href: clientUrl(a.client.id, a.proc.id) }, clientLabel(a.client)), landingTag(a.client),
       h('span', { class: 'wtitle' }, `${SHOOT_TYPES[type]?.name || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
-      a.state.status === 'overdue' ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
+      a.state.status === 'overdue' && a.client.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
     h('p', { class: 'of-line' }, a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : '',
       joint ? ' · יום משותף לנטלי ולסמיון' : pre ? ` · ${PEOPLE[pre].name} מסומנת מראש (${loadText(load[pre])})` : ''),
     h('div', { class: 'of-acts' },
@@ -201,11 +204,11 @@ function loadCard(l, now) {
       h('span', { class: 'of-line' }, loadText(l))),
     l.jobs.length ? h('ul', { class: 'of-jobs' }, ...l.jobs.map((j) => h('li', {},
       h('a', { href: clientUrl(j.client.id, `${j.pre ? j.pre.replace('.', '-') : ''}p22`) }, j.client.name, j.n ? ` · סבב ${j.n}` : ''),
-      ` · ${j.landing ? 'בקליטה' : j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
+      j.landing ? [' ', landingTag(j.client)] : ` · ${j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
       j.stage === 'closing' ? ' · תיקונים וסגירה' : '',
       j.paused ? [' ', h('span', { class: 'tag tag-warn' }, 'עצורה')] : null,
       autoReasonOf(checksOf(j.client), j.pre) ? [' ', h('span', { class: 'tag' }, 'שויך אוטומטית')] : null,
-      j.dueAt ? h('span', { class: `muted${j.dueAt < now ? ' late' : ''}` }, ` · יעד ${formatWhen(j.dueAt, now)}`) : null,
+      j.dueAt && !j.landing ? h('span', { class: `muted${j.dueAt < now ? ' late' : ''}` }, ` · יעד ${formatWhen(j.dueAt, now)}`) : null,
       h('button', {
         type: 'button', class: 'btn-text sw-btn', id: swapId(j),
         'aria-label': `החלפת עורך: ${j.client.name}${j.n ? `, סבב ${j.n}` : ''} (עכשיו ${PEOPLE[l.editor].name})`, onclick: () => openSwap(l.editor, j),
@@ -232,7 +235,7 @@ function openQa(x) {
   const k = QA_KINDS[x.kind];
   const now = new Date();
   $('qa-dlg-h').textContent = `בקרת איכות · ${x.client.name}`;
-  $('qa-meta').textContent = `${k.title}${roundText(x.ctx)} · ${x.round > 1 ? `בדיקה ${x.round}, אחרי ${x.round - 1 === 1 ? 'סבב תיקונים אחד' : `${x.round - 1} סבבי תיקונים`}` : 'בדיקה ראשונה'} · מחכה ${waitWords(x.waited)} · בקרה עד ${formatWhen(x.dueAt, now)}`;
+  $('qa-meta').textContent = `${k.title}${roundText(x.ctx)} · ${x.round > 1 ? `בדיקה ${x.round}, אחרי ${x.round - 1 === 1 ? 'סבב תיקונים אחד' : `${x.round - 1} סבבי תיקונים`}` : 'בדיקה ראשונה'} · ${x.landing ? LANDING_LINE : `מחכה ${waitWords(x.waited)} · בקרה עד ${formatWhen(x.dueAt, now)}`}`;
   const last = x.rounds.at(-1);
   fill($('qa-prev'), last ? h('details', { class: 'of-prev', open: true },
     h('summary', {}, `מה הוחזר בסבב ${last.n} (לבדוק שתוקן)`),
@@ -408,7 +411,7 @@ function openAssign(a) {
   $('as-h').textContent = `${sw ? 'החלפת עורך' : 'שיוך עורך'} · ${a.client.name}${roundText(a.ctx)}`;
   $('as-meta').textContent = sw
     ? [SHOOT_TYPES[type]?.name, `עכשיו אצל ${PEOPLE[sw.from].name}`, sw.job.day === null ? null : dayText(sw.job.day, sw.job.of), sw.job.paused ? 'העריכה עצורה' : null].filter(Boolean).join(' · ')
-    : [SHOOT_TYPES[type]?.name, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.dueAt ? `לשייך עד ${formatWhen(a.dueAt)}` : 'לשייך עד 12:00 ביום העסקים שאחרי הצילום'].filter(Boolean).join(' · ');
+    : [SHOOT_TYPES[type]?.name, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.client.landing === true ? LANDING_LINE : a.dueAt ? `לשייך עד ${formatWhen(a.dueAt)}` : 'לשייך עד 12:00 ביום העסקים שאחרי הצילום'].filter(Boolean).join(' · ');
   $('as-joint-wrap').hidden = type !== 'natali';
   $('as-joint').checked = joint;
   $('as-reason').value = '';
@@ -575,6 +578,13 @@ $('as-form').addEventListener('submit', async (e) => {
 });
 
 // ── Boot ────────────────────────────────────
+function goToSection(hash) {
+  const el = /^#[a-z]+-h$/.test(hash) ? document.getElementById(hash.slice(1)) : null;
+  if (!el || !$('of-page').contains(el)) return;
+  el.scrollIntoView({ block: 'start' });
+  el.focus({ preventScroll: true });
+}
+window.addEventListener('hashchange', () => { if (!$('of-page').hidden) goToSection(location.hash); });
 $('btn-refresh').addEventListener('click', () => load());
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('app').hidden && !busy()) load(); });
 setInterval(() => {
@@ -596,6 +606,8 @@ mountSession(async (staff) => {
   // "חוזים חריגים לאישור": Ofir's first screen.
   mountApprovals($('approvals-card'), v, { mail: staff.email, toast });
   await load();
+  // A link to one of the queues (from "המשימות שלי": qa.html#qa-h, #assign-h): the page opens on it.
+  goToSection(location.hash);
   // A link from the pass over the clients: qa.html#assign-<client id>[-r<round>].
   const m = /^#assign-([\w-]+?)(?:-r(\d+))?$/.exec(location.hash);
   if (m) {
