@@ -1,6 +1,6 @@
 {
- "now": "2026-10-11T06:50:00.000Z",
- "lastTick": "2026-10-11T06:50:00.000Z",
+ "now": "2026-10-13T09:00:00.000Z",
+ "lastTick": "2026-10-13T09:00:00.000Z",
  "db": {
   "staff": [
    {
@@ -75,16 +75,16 @@
     "id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
     "name": "רונית דקל",
     "business": "מאפיית הדקל",
-    "address": "הדקל 12, רמת גן",
+    "address": null,
     "phone": "050-5550142",
     "package_name": "Social all in one · סמיון, מישל ודניס",
     "shoot_type": "dms",
-    "characterizer": "ofir",
+    "characterizer": null,
     "has_logo": null,
     "editor_name": null,
     "editor": null,
     "deal_at": "2026-10-11T06:36:00.000Z",
-    "char_at": "2026-10-12T07:00:00.000Z",
+    "char_at": null,
     "shoot_at": null,
     "contract_end": "2027-10-11",
     "status": "active",
@@ -140,9 +140,9 @@
     "at": "2026-10-11T06:36:00.000Z"
    },
    {
-    "id": "186bc942-bd84-4228-9520-676ae626ddf0",
-    "created_at": "2026-10-11T06:37:00.000Z",
-    "at": "2026-10-11T06:37:00.000Z",
+    "id": "c4a0bbfb-bf76-4bfd-85f5-9d94c420c72c",
+    "created_at": "2026-10-11T06:38:00.000Z",
+    "at": "2026-10-11T06:38:00.000Z",
     "by_email": "irit@astrateg.test",
     "created_by_email": "irit@astrateg.test",
     "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
@@ -151,9 +151,9 @@
     "note": null
    },
    {
-    "id": "c3c1292f-cf15-486e-aec6-c6907cff6d03",
-    "created_at": "2026-10-11T06:37:00.000Z",
-    "at": "2026-10-11T06:37:00.000Z",
+    "id": "3078861a-8047-418d-8a42-0dadecfa881b",
+    "created_at": "2026-10-11T06:38:00.000Z",
+    "at": "2026-10-11T06:38:00.000Z",
     "by_email": "irit@astrateg.test",
     "created_by_email": "irit@astrateg.test",
     "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
@@ -162,9 +162,9 @@
     "note": null
    },
    {
-    "id": "8f3ed6b0-d5e7-47c5-bc54-79bdab339f16",
-    "created_at": "2026-10-11T06:37:00.000Z",
-    "at": "2026-10-11T06:37:00.000Z",
+    "id": "b3f93840-0674-4b5a-9aeb-17fb86cdd13f",
+    "created_at": "2026-10-11T06:38:00.000Z",
+    "at": "2026-10-11T06:38:00.000Z",
     "by_email": "irit@astrateg.test",
     "created_by_email": "irit@astrateg.test",
     "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
@@ -173,9 +173,9 @@
     "note": null
    },
    {
-    "id": "d117fe67-45fa-4cf8-b90b-71768ceecd4d",
-    "created_at": "2026-10-11T06:37:00.000Z",
-    "at": "2026-10-11T06:37:00.000Z",
+    "id": "02b3d313-55e8-4486-9478-7b55ee725553",
+    "created_at": "2026-10-11T06:38:00.000Z",
+    "at": "2026-10-11T06:38:00.000Z",
     "by_email": "irit@astrateg.test",
     "created_by_email": "irit@astrateg.test",
     "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
@@ -184,9 +184,9 @@
     "note": null
    },
    {
-    "id": "74c7fead-d651-4063-bac1-627847026ef6",
-    "created_at": "2026-10-11T06:37:00.000Z",
-    "at": "2026-10-11T06:37:00.000Z",
+    "id": "d4f833d2-4b03-42aa-9ad6-da6d1d96133f",
+    "created_at": "2026-10-11T06:38:00.000Z",
+    "at": "2026-10-11T06:38:00.000Z",
     "by_email": "irit@astrateg.test",
     "created_by_email": "irit@astrateg.test",
     "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
@@ -195,9 +195,9 @@
     "note": null
    },
    {
-    "id": "a6a365e7-eeb3-4680-9837-5cddc78b6374",
-    "created_at": "2026-10-11T06:37:00.000Z",
-    "at": "2026-10-11T06:37:00.000Z",
+    "id": "69a111c9-2163-4322-9083-e811d8616ac7",
+    "created_at": "2026-10-11T06:38:00.000Z",
+    "at": "2026-10-11T06:38:00.000Z",
     "by_email": "irit@astrateg.test",
     "created_by_email": "irit@astrateg.test",
     "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
@@ -206,9 +206,9 @@
     "note": null
    },
    {
-    "id": "ac5079e2-caf7-40ca-8325-169b0777440c",
-    "created_at": "2026-10-11T06:37:00.000Z",
-    "at": "2026-10-11T06:37:00.000Z",
+    "id": "88ebf073-d717-4e73-a256-e192f36484fa",
+    "created_at": "2026-10-11T06:38:00.000Z",
+    "at": "2026-10-11T06:38:00.000Z",
     "by_email": "irit@astrateg.test",
     "created_by_email": "irit@astrateg.test",
     "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
@@ -217,31 +217,9 @@
     "note": null
    },
    {
-    "id": "b936a17e-055b-46cc-b67b-d6e174061d6c",
-    "created_at": "2026-10-11T06:44:00.000Z",
-    "at": "2026-10-11T06:44:00.000Z",
-    "by_email": "lior@astrateg.test",
-    "created_by_email": "lior@astrateg.test",
-    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
-    "item_key": "p02.deal",
-    "state": "done",
-    "note": null
-   },
-   {
-    "id": "2846925a-430b-4ab6-bebc-5fd937b58794",
-    "created_at": "2026-10-11T06:44:00.000Z",
-    "at": "2026-10-11T06:44:00.000Z",
-    "by_email": "lior@astrateg.test",
-    "created_by_email": "lior@astrateg.test",
-    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
-    "item_key": "p02.team",
-    "state": "done",
-    "note": null
-   },
-   {
-    "id": "35b78cd3-f6c2-4f51-afc7-d4a10002e6be",
-    "created_at": "2026-10-11T06:49:00.000Z",
-    "at": "2026-10-11T06:49:00.000Z",
+    "id": "56526c55-bee1-4c0e-89d7-843e5e90acfe",
+    "created_at": "2026-10-11T06:38:00.000Z",
+    "at": "2026-10-11T06:38:00.000Z",
     "by_email": "irit@astrateg.test",
     "created_by_email": "irit@astrateg.test",
     "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
@@ -250,9 +228,9 @@
     "note": null
    },
    {
-    "id": "21cabbfe-d17f-490b-a29a-aac76876eca3",
-    "created_at": "2026-10-11T06:49:00.000Z",
-    "at": "2026-10-11T06:49:00.000Z",
+    "id": "95b0ef3f-abbc-4e2f-bb72-735e25d2300b",
+    "created_at": "2026-10-11T06:38:00.000Z",
+    "at": "2026-10-11T06:38:00.000Z",
     "by_email": "irit@astrateg.test",
     "created_by_email": "irit@astrateg.test",
     "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
@@ -261,20 +239,9 @@
     "note": null
    },
    {
-    "id": "8041c0e9-397b-4664-a30f-442edae64f8c",
-    "created_at": "2026-10-11T06:49:00.000Z",
-    "at": "2026-10-11T06:49:00.000Z",
-    "by_email": "irit@astrateg.test",
-    "created_by_email": "irit@astrateg.test",
-    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
-    "item_key": "p03.scheduled",
-    "state": "done",
-    "note": null
-   },
-   {
-    "id": "5bf880c7-8a4c-44e6-82b9-9addbd140ec4",
-    "created_at": "2026-10-11T06:49:00.000Z",
-    "at": "2026-10-11T06:49:00.000Z",
+    "id": "8f9ac489-6038-456d-af1b-16390a90f412",
+    "created_at": "2026-10-11T06:38:00.000Z",
+    "at": "2026-10-11T06:38:00.000Z",
     "by_email": "irit@astrateg.test",
     "created_by_email": "irit@astrateg.test",
     "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
@@ -951,8 +918,8 @@
    },
    {
     "id": 15,
-    "created_at": "2026-10-11T06:38:00.000Z",
-    "claimed_at": "2026-10-11T06:38:00.000Z",
+    "created_at": "2026-10-11T06:39:00.000Z",
+    "claimed_at": "2026-10-11T06:39:00.000Z",
     "attempts": 0,
     "read_at": null,
     "digest_key": null,
@@ -969,13 +936,13 @@
     "title": "לקבוע יום צילום: מאפיית הדקל · רונית דקל",
     "body": "במועד המוקדם ביותר, מול הלקוח, המשפיענים, ליאור ואלי. יעד: מחר 23:59.",
     "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p11",
-    "due_at": "2026-10-11T06:37:00.000Z",
-    "sent_at": "2026-10-11T06:38:00.000Z"
+    "due_at": "2026-10-11T06:38:00.000Z",
+    "sent_at": "2026-10-11T06:39:00.000Z"
    },
    {
     "id": 16,
-    "created_at": "2026-10-11T06:38:00.000Z",
-    "claimed_at": "2026-10-11T06:38:00.000Z",
+    "created_at": "2026-10-11T06:39:00.000Z",
+    "claimed_at": "2026-10-11T06:39:00.000Z",
     "attempts": 0,
     "read_at": null,
     "digest_key": null,
@@ -992,8 +959,8 @@
     "title": "קבוצה חדשה נפתחה: מאפיית הדקל · רונית דקל",
     "body": "הודעת היכרות (עם עירית), בדיקת עסקה חריגה, והלקוח יודע מי מטפל בו.",
     "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p02",
-    "due_at": "2026-10-11T06:37:00.000Z",
-    "sent_at": "2026-10-11T06:38:00.000Z"
+    "due_at": "2026-10-11T06:38:00.000Z",
+    "sent_at": "2026-10-11T06:39:00.000Z"
    },
    {
     "id": 17,
@@ -1017,6 +984,857 @@
     "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p01",
     "due_at": "2026-10-11T06:41:00.000Z",
     "sent_at": "2026-10-11T06:41:00.000Z"
+   },
+   {
+    "id": 18,
+    "created_at": "2026-10-11T06:56:00.000Z",
+    "claimed_at": "2026-10-11T06:56:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:late:ofir:2026-10-11:20",
+    "key": "late:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:p02@2026-10-11T06:41:00.000Z:ofir@ofir",
+    "rule": "late",
+    "person": "ofir",
+    "level": "quiet",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "batch",
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p02",
+    "title": "באיחור: מאפיית הדקל · רונית דקל · 2 · פתיחת קבוצת WhatsApp · עירית",
+    "body": "היעד היה היום 09:41.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p02",
+    "due_at": "2026-10-11T06:56:00.000Z",
+    "sent_at": "2026-10-11T06:56:00.000Z"
+   },
+   {
+    "id": 19,
+    "created_at": "2026-10-11T06:56:00.000Z",
+    "claimed_at": "2026-10-11T06:56:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:late:lior:2026-10-11:21",
+    "key": "late:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:p02@2026-10-11T06:41:00.000Z:lior@lior",
+    "rule": "late",
+    "person": "lior",
+    "level": "quiet",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "batch",
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p02",
+    "title": "באיחור: מאפיית הדקל · רונית דקל · 2 · פתיחת קבוצת WhatsApp · עירית",
+    "body": "היעד היה היום 09:41.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p02",
+    "due_at": "2026-10-11T06:56:00.000Z",
+    "sent_at": "2026-10-11T06:56:00.000Z"
+   },
+   {
+    "id": 20,
+    "created_at": "2026-10-11T06:56:00.000Z",
+    "claimed_at": "2026-10-11T06:56:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:late:ofir:2026-10-11:20",
+    "key": "late:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:p03@2026-10-11T06:41:00.000Z:ofir@ofir",
+    "rule": "late",
+    "person": "ofir",
+    "level": "quiet",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "batch",
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p03",
+    "title": "באיחור: מאפיית הדקל · רונית דקל · 3 · קביעת פגישת אפיון · עירית",
+    "body": "היעד היה היום 09:41.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p03",
+    "due_at": "2026-10-11T06:56:00.000Z",
+    "sent_at": "2026-10-11T06:56:00.000Z"
+   },
+   {
+    "id": 21,
+    "created_at": "2026-10-11T06:56:00.000Z",
+    "claimed_at": "2026-10-11T06:56:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:late:lior:2026-10-11:21",
+    "key": "late:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:p03@2026-10-11T06:41:00.000Z:lior@lior",
+    "rule": "late",
+    "person": "lior",
+    "level": "quiet",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "batch",
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p03",
+    "title": "באיחור: מאפיית הדקל · רונית דקל · 3 · קביעת פגישת אפיון · עירית",
+    "body": "היעד היה היום 09:41.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p03",
+    "due_at": "2026-10-11T06:56:00.000Z",
+    "sent_at": "2026-10-11T06:56:00.000Z"
+   },
+   {
+    "id": 22,
+    "created_at": "2026-10-11T06:56:00.000Z",
+    "claimed_at": "2026-10-11T06:56:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:late:ofir:2026-10-11:20",
+    "rule": "digest",
+    "person": "ofir",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "2 איחורים חדשים",
+    "body": "מאפיית הדקל · רונית דקל · 2 · פתיחת קבוצת WhatsApp · עירית\nמאפיית הדקל · רונית דקל · 3 · קביעת פגישת אפיון · עירית",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-11T06:56:00.000Z",
+    "sent_at": "2026-10-11T06:56:00.000Z"
+   },
+   {
+    "id": 23,
+    "created_at": "2026-10-11T06:56:00.000Z",
+    "claimed_at": "2026-10-11T06:56:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:late:lior:2026-10-11:21",
+    "rule": "digest",
+    "person": "lior",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "2 איחורים חדשים",
+    "body": "מאפיית הדקל · רונית דקל · 2 · פתיחת קבוצת WhatsApp · עירית\nמאפיית הדקל · רונית דקל · 3 · קביעת פגישת אפיון · עירית",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-11T06:56:00.000Z",
+    "sent_at": "2026-10-11T06:56:00.000Z"
+   },
+   {
+    "id": 24,
+    "created_at": "2026-10-11T07:06:00.000Z",
+    "claimed_at": "2026-10-11T07:06:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "deal:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:deal:lior@lior",
+    "rule": "deal",
+    "person": "lior",
+    "level": "ring",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p01",
+    "title": "עסקה חדשה בלי טיפול: מאפיית הדקל · רונית דקל",
+    "body": "עברו 30 דקות עבודה ועוד חסר: קבוצה, מועד אפיון.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p01",
+    "due_at": "2026-10-11T07:06:00.000Z",
+    "sent_at": "2026-10-11T07:06:00.000Z"
+   },
+   {
+    "id": 25,
+    "created_at": "2026-10-11T07:36:00.000Z",
+    "claimed_at": "2026-10-11T07:36:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "deal:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:deal:board@owner",
+    "rule": "deal",
+    "person": "owner",
+    "level": "board",
+    "channel": "app",
+    "status": "sent",
+    "reason": null,
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p01",
+    "title": "עסקה חדשה בלי טיפול שעה: מאפיית הדקל · רונית דקל",
+    "body": "חסר: קבוצה, מועד אפיון.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p01",
+    "due_at": "2026-10-11T07:36:00.000Z",
+    "sent_at": "2026-10-11T07:36:00.000Z"
+   },
+   {
+    "id": 26,
+    "created_at": "2026-10-11T11:00:00.000Z",
+    "claimed_at": "2026-10-11T11:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "dailyMessages:-:2026-10-11:1400@irit",
+    "rule": "dailyMessages",
+    "person": "irit",
+    "level": "quiet",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "עוד לא קיבלו הודעה היום: 1 לקוחות",
+    "body": "רונית דקל",
+    "url": "messages.html",
+    "due_at": "2026-10-11T11:00:00.000Z",
+    "sent_at": "2026-10-11T11:00:00.000Z"
+   },
+   {
+    "id": 27,
+    "created_at": "2026-10-11T11:00:00.000Z",
+    "claimed_at": "2026-10-11T11:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "control32:-:2026-10-11:1400@irit",
+    "rule": "control32",
+    "person": "irit",
+    "level": "ring",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "הבקרה היומית עוד לא בוצעה",
+    "body": "תהליך 32: לעבור על המשימות ולסמן את החריגות.",
+    "url": "clients.html#control",
+    "due_at": "2026-10-11T11:00:00.000Z",
+    "sent_at": "2026-10-11T11:00:00.000Z"
+   },
+   {
+    "id": 28,
+    "created_at": "2026-10-11T15:00:00.000Z",
+    "claimed_at": "2026-10-11T15:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:lior:2026-10-12",
+    "key": "control32:-:2026-10-11:lior@lior",
+    "rule": "control32",
+    "person": "lior",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "הבקרה היומית של עירית הוחמצה",
+    "body": "",
+    "url": "clients.html#control",
+    "due_at": "2026-10-11T15:00:00.000Z",
+    "sent_at": "2026-10-12T05:30:00.000Z"
+   },
+   {
+    "id": 29,
+    "created_at": "2026-10-11T15:00:00.000Z",
+    "claimed_at": "2026-10-11T15:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:owner18:owner:2026-10-11",
+    "rule": "digest",
+    "person": "owner",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "חריגות היום",
+    "body": "עסקה חדשה בלי טיפול שעה: מאפיית הדקל · רונית דקל",
+    "url": "clients.html",
+    "due_at": "2026-10-11T15:00:00.000Z",
+    "sent_at": "2026-10-11T15:00:00.000Z"
+   },
+   {
+    "id": 30,
+    "created_at": "2026-10-12T05:30:00.000Z",
+    "claimed_at": "2026-10-12T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:irit:2026-10-12",
+    "key": "shootDate:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:p11:d2026-10-12@irit",
+    "rule": "shootDate",
+    "person": "irit",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p11",
+    "title": "יום צילום עוד לא נסגר (יום 1): מאפיית הדקל · רונית דקל",
+    "body": "",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p11",
+    "due_at": "2026-10-12T05:30:00.000Z",
+    "sent_at": "2026-10-12T05:30:00.000Z"
+   },
+   {
+    "id": 31,
+    "created_at": "2026-10-12T05:30:00.000Z",
+    "claimed_at": "2026-10-12T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:irit:2026-10-12",
+    "key": "dailyMessages:-:2026-10-12:list@irit",
+    "rule": "dailyMessages",
+    "person": "irit",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "הודעות יומיות ללקוחות: 1",
+    "body": "",
+    "url": "messages.html",
+    "due_at": "2026-10-12T05:30:00.000Z",
+    "sent_at": "2026-10-12T05:30:00.000Z"
+   },
+   {
+    "id": 32,
+    "created_at": "2026-10-12T05:30:00.000Z",
+    "claimed_at": "2026-10-12T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:irit:2026-10-12",
+    "key": "control32:-:2026-10-12:list@irit",
+    "rule": "control32",
+    "person": "irit",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "בקרה יומית (32) היום",
+    "body": "",
+    "url": "clients.html#control",
+    "due_at": "2026-10-12T05:30:00.000Z",
+    "sent_at": "2026-10-12T05:30:00.000Z"
+   },
+   {
+    "id": 33,
+    "created_at": "2026-10-12T05:30:00.000Z",
+    "claimed_at": "2026-10-12T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:ofir:2026-10-12",
+    "key": "control33:-:2026-10-12:ofir@ofir",
+    "rule": "control33",
+    "person": "ofir",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "בקרת לקוחות (33) היום",
+    "body": "",
+    "url": "pass.html",
+    "due_at": "2026-10-12T05:30:00.000Z",
+    "sent_at": "2026-10-12T05:30:00.000Z"
+   },
+   {
+    "id": 34,
+    "created_at": "2026-10-12T05:30:00.000Z",
+    "claimed_at": "2026-10-12T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:lior:2026-10-12",
+    "key": "control33:-:2026-10-12:lior@lior",
+    "rule": "control33",
+    "person": "lior",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "בקרת הלקוחות של אופיר לא בוצעה 3 ימי עסקים",
+    "body": "",
+    "url": "pass.html",
+    "due_at": "2026-10-12T05:30:00.000Z",
+    "sent_at": "2026-10-12T05:30:00.000Z"
+   },
+   {
+    "id": 35,
+    "created_at": "2026-10-12T05:30:00.000Z",
+    "claimed_at": "2026-10-12T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:morning:irit:2026-10-12",
+    "rule": "digest",
+    "person": "irit",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "תקציר בוקר",
+    "body": "יום צילום עוד לא נסגר (יום 1): מאפיית הדקל · רונית דקל\nהודעות יומיות ללקוחות: 1\nבקרה יומית (32) היום\nהיום: מאפיית הדקל · רונית דקל · קביעת יום צילום",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-12T05:30:00.000Z",
+    "sent_at": "2026-10-12T05:30:00.000Z"
+   },
+   {
+    "id": 36,
+    "created_at": "2026-10-12T05:30:00.000Z",
+    "claimed_at": "2026-10-12T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:morning:lior:2026-10-12",
+    "rule": "digest",
+    "person": "lior",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "תקציר בוקר",
+    "body": "באיחור: מאפיית הדקל · רונית דקל · פתיחת קבוצת WhatsApp\nהבקרה היומית של עירית הוחמצה\nבקרת הלקוחות של אופיר לא בוצעה 3 ימי עסקים",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-12T05:30:00.000Z",
+    "sent_at": "2026-10-12T05:30:00.000Z"
+   },
+   {
+    "id": 37,
+    "created_at": "2026-10-12T05:30:00.000Z",
+    "claimed_at": "2026-10-12T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:morning:ofir:2026-10-12",
+    "rule": "digest",
+    "person": "ofir",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "תקציר בוקר",
+    "body": "בקרת לקוחות (33) היום",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-12T05:30:00.000Z",
+    "sent_at": "2026-10-12T05:30:00.000Z"
+   },
+   {
+    "id": 38,
+    "created_at": "2026-10-12T11:00:00.000Z",
+    "claimed_at": "2026-10-12T11:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "dailyMessages:-:2026-10-12:1400@irit",
+    "rule": "dailyMessages",
+    "person": "irit",
+    "level": "quiet",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "עוד לא קיבלו הודעה היום: 1 לקוחות",
+    "body": "רונית דקל",
+    "url": "messages.html",
+    "due_at": "2026-10-12T11:00:00.000Z",
+    "sent_at": "2026-10-12T11:00:00.000Z"
+   },
+   {
+    "id": 39,
+    "created_at": "2026-10-12T11:00:00.000Z",
+    "claimed_at": "2026-10-12T11:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "control32:-:2026-10-12:1400@irit",
+    "rule": "control32",
+    "person": "irit",
+    "level": "ring",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "הבקרה היומית עוד לא בוצעה",
+    "body": "תהליך 32: לעבור על המשימות ולסמן את החריגות.",
+    "url": "clients.html#control",
+    "due_at": "2026-10-12T11:00:00.000Z",
+    "sent_at": "2026-10-12T11:00:00.000Z"
+   },
+   {
+    "id": 40,
+    "created_at": "2026-10-12T13:00:00.000Z",
+    "claimed_at": "2026-10-12T13:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "shootDate:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:p11:due16@irit",
+    "rule": "shootDate",
+    "person": "irit",
+    "level": "ring",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p11",
+    "title": "יום הצילום עוד לא נסגר: מאפיית הדקל · רונית דקל",
+    "body": "היעד: סוף היום. חסרים אישורים או תאריך.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p11",
+    "due_at": "2026-10-12T13:00:00.000Z",
+    "sent_at": "2026-10-12T13:00:00.000Z"
+   },
+   {
+    "id": 41,
+    "created_at": "2026-10-12T15:00:00.000Z",
+    "claimed_at": "2026-10-12T15:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:lior:2026-10-13",
+    "key": "control32:-:2026-10-12:lior@lior",
+    "rule": "control32",
+    "person": "lior",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "הבקרה היומית של עירית הוחמצה",
+    "body": "",
+    "url": "clients.html#control",
+    "due_at": "2026-10-12T15:00:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 42,
+    "created_at": "2026-10-12T15:00:00.000Z",
+    "claimed_at": "2026-10-12T15:00:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:owner18:owner:2026-10-12",
+    "rule": "digest",
+    "person": "owner",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "חריגות היום",
+    "body": "באיחור 24 שעות ומעלה (2):\nעירית (2): מאפיית הדקל · רונית דקל (2), מאפיית הדקל · רונית דקל (3)",
+    "url": "clients.html",
+    "due_at": "2026-10-12T15:00:00.000Z",
+    "sent_at": "2026-10-12T15:00:00.000Z"
+   },
+   {
+    "id": 43,
+    "created_at": "2026-10-13T05:30:00.000Z",
+    "claimed_at": "2026-10-13T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:irit:2026-10-13",
+    "key": "shootDate:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:p11:d2026-10-13@irit",
+    "rule": "shootDate",
+    "person": "irit",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p11",
+    "title": "יום צילום עוד לא נסגר (יום 2): מאפיית הדקל · רונית דקל",
+    "body": "",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p11",
+    "due_at": "2026-10-13T05:30:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 44,
+    "created_at": "2026-10-13T05:30:00.000Z",
+    "claimed_at": "2026-10-13T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:irit:2026-10-13",
+    "key": "dailyMessages:-:2026-10-13:list@irit",
+    "rule": "dailyMessages",
+    "person": "irit",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "הודעות יומיות ללקוחות: 1",
+    "body": "",
+    "url": "messages.html",
+    "due_at": "2026-10-13T05:30:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 45,
+    "created_at": "2026-10-13T05:30:00.000Z",
+    "claimed_at": "2026-10-13T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:irit:2026-10-13",
+    "key": "control32:-:2026-10-13:list@irit",
+    "rule": "control32",
+    "person": "irit",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "בקרה יומית (32) היום",
+    "body": "",
+    "url": "clients.html#control",
+    "due_at": "2026-10-13T05:30:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 46,
+    "created_at": "2026-10-13T05:30:00.000Z",
+    "claimed_at": "2026-10-13T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:ofir:2026-10-13",
+    "key": "control33:-:2026-10-13:ofir@ofir",
+    "rule": "control33",
+    "person": "ofir",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "בקרת לקוחות (33) היום",
+    "body": "",
+    "url": "pass.html",
+    "due_at": "2026-10-13T05:30:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 47,
+    "created_at": "2026-10-13T05:30:00.000Z",
+    "claimed_at": "2026-10-13T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:morning:lior:2026-10-13",
+    "key": "control33:-:2026-10-13:lior@lior",
+    "rule": "control33",
+    "person": "lior",
+    "level": "digest",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "digest",
+    "exempt": false,
+    "client_id": null,
+    "ref": null,
+    "title": "בקרת הלקוחות של אופיר לא בוצעה 3 ימי עסקים",
+    "body": "",
+    "url": "pass.html",
+    "due_at": "2026-10-13T05:30:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 48,
+    "created_at": "2026-10-13T05:30:00.000Z",
+    "claimed_at": "2026-10-13T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:morning:irit:2026-10-13",
+    "rule": "digest",
+    "person": "irit",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "תקציר בוקר",
+    "body": "באיחור: מאפיית הדקל · רונית דקל · קביעת יום צילום\nיום צילום עוד לא נסגר (יום 2): מאפיית הדקל · רונית דקל\nהודעות יומיות ללקוחות: 1\nבקרה יומית (32) היום",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-13T05:30:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 49,
+    "created_at": "2026-10-13T05:30:00.000Z",
+    "claimed_at": "2026-10-13T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:morning:lior:2026-10-13",
+    "rule": "digest",
+    "person": "lior",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "תקציר בוקר",
+    "body": "באיחור: מאפיית הדקל · רונית דקל · פתיחת קבוצת WhatsApp\nהבקרה היומית של עירית הוחמצה\nבקרת הלקוחות של אופיר לא בוצעה 3 ימי עסקים",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-13T05:30:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 50,
+    "created_at": "2026-10-13T05:30:00.000Z",
+    "claimed_at": "2026-10-13T05:30:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:morning:ofir:2026-10-13",
+    "rule": "digest",
+    "person": "ofir",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "תקציר בוקר",
+    "body": "בקרת לקוחות (33) היום",
+    "url": "clients.html#mine",
+    "due_at": "2026-10-13T05:30:00.000Z",
+    "sent_at": "2026-10-13T05:30:00.000Z"
+   },
+   {
+    "id": 51,
+    "created_at": "2026-10-13T06:15:00.000Z",
+    "claimed_at": "2026-10-13T06:15:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:late:ofir:2026-10-13:51",
+    "key": "late:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:p11@2026-10-12T20:59:59.999Z:ofir@ofir",
+    "rule": "late",
+    "person": "ofir",
+    "level": "quiet",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "batch",
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p11",
+    "title": "באיחור: מאפיית הדקל · רונית דקל · 11 · קביעת יום צילום · עירית",
+    "body": "היעד היה אתמול 23:59.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p11",
+    "due_at": "2026-10-13T06:15:00.000Z",
+    "sent_at": "2026-10-13T06:15:00.000Z"
+   },
+   {
+    "id": 52,
+    "created_at": "2026-10-13T06:15:00.000Z",
+    "claimed_at": "2026-10-13T06:15:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": "digest:late:lior:2026-10-13:52",
+    "key": "late:08d90dbd-8d4a-422d-8cbd-a33be1ef40fa:p11@2026-10-12T20:59:59.999Z:lior@lior",
+    "rule": "late",
+    "person": "lior",
+    "level": "quiet",
+    "channel": "digest",
+    "status": "sent",
+    "reason": "batch",
+    "exempt": false,
+    "client_id": "08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+    "ref": "p11",
+    "title": "באיחור: מאפיית הדקל · רונית דקל · 11 · קביעת יום צילום · עירית",
+    "body": "היעד היה אתמול 23:59.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p11",
+    "due_at": "2026-10-13T06:15:00.000Z",
+    "sent_at": "2026-10-13T06:15:00.000Z"
+   },
+   {
+    "id": 53,
+    "created_at": "2026-10-13T06:15:00.000Z",
+    "claimed_at": "2026-10-13T06:15:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:late:ofir:2026-10-13:51",
+    "rule": "digest",
+    "person": "ofir",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "באיחור: מאפיית הדקל · רונית דקל · 11 · קביעת יום צילום · עירית",
+    "body": "היעד היה אתמול 23:59.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p11",
+    "due_at": "2026-10-13T06:15:00.000Z",
+    "sent_at": "2026-10-13T06:15:00.000Z"
+   },
+   {
+    "id": 54,
+    "created_at": "2026-10-13T06:15:00.000Z",
+    "claimed_at": "2026-10-13T06:15:00.000Z",
+    "attempts": 0,
+    "read_at": null,
+    "digest_key": null,
+    "key": "digest:late:lior:2026-10-13:52",
+    "rule": "digest",
+    "person": "lior",
+    "level": "digest",
+    "channel": "push",
+    "status": "sent",
+    "reason": null,
+    "exempt": true,
+    "client_id": null,
+    "ref": null,
+    "title": "באיחור: מאפיית הדקל · רונית דקל · 11 · קביעת יום צילום · עירית",
+    "body": "היעד היה אתמול 23:59.",
+    "url": "client.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa#p11",
+    "due_at": "2026-10-13T06:15:00.000Z",
+    "sent_at": "2026-10-13T06:15:00.000Z"
    }
   ],
   "push_subscriptions": [],
@@ -1025,196 +1843,34 @@
   "client_month_marks": [],
   "client_gantt": [],
   "staff_tasks": [],
-  "task_decisions": [],
-  "client_gallery_links": []
+  "task_decisions": []
  },
  "records": [
   {
    "n": 1,
-   "at": "2026-10-11T06:05:00.000Z",
-   "id": "deal",
-   "step": "סתיו שולח עסקה חדשה לעירית",
-   "proc": "לפני 1",
-   "role": "stav",
-   "before": {
-    "landed": "deal.html (clients.html מפנה אותו לשם)",
-    "inputs": 17,
-    "shot": "01-stav-deal-page.png"
-   },
-   "act": "deal.html: שם עסק, איש קשר, טלפון, משפיען, חבילה, הערות, ואז הכפתור של השליחה",
-   "taps": 7,
-   "after": {
-    "list": [
-     "מאפיית הדקל\nממתין לחוזה\n\nSocial · סמיון, מישל ודניס · נשלח יום א׳, 11.10 09:05"
-    ],
-    "deal": {
-     "status": "pending",
-     "tier": "social",
-     "influencer": "simeon"
-    }
-   },
-   "reminders": [
-    "11.10 09:05 dealNew -> irit [ring/push/sent] להכין חוזה ל־מאפיית הדקל",
-    "11.10 09:05 digest -> irit [digest/push/sent] תקציר בוקר",
-    "11.10 09:05 dealNew -> irit [ring/digest/sent:fold] עברו 10 דקות: להכין חוזה ל־מאפיית הדקל",
-    "11.10 09:05 digest -> ofir [digest/push/sent] תקציר בוקר",
-    "11.10 09:05 dealNew -> ofir [ring/digest/sent:fold] חוזה לא נשלח 10 דקות: מאפיית הדקל"
-   ]
-  },
-  {
-   "n": 2,
-   "at": "2026-10-11T06:11:00.000Z",
-   "id": "p01-contract",
-   "step": "עירית מכינה את החוזה מהעסקה ושולחת קישור לחתימה",
-   "proc": "p01",
+   "at": "2026-10-11T06:41:00.000Z",
+   "id": "p03-no-date",
+   "step": "ניסוי ב: עירית מסמנת את כל מה שמופיע בתהליך 3 בלי להזין מועד אפיון",
+   "proc": "p03",
    "role": "irit",
-   "before": {
-    "landed": "clients.html#mine",
-    "top": [
-     "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק",
-     "#deals-card: עסקאות חדשות מהשטח (1) חוזה תוך 10 דקות עבודה מכל עסקה. ״להכנת החוזה״ פותח את מחולל ההצעות עם פרטי העסקה. להכין חוזה ל־מאפיית הדקל נשארו 8:00 Social · סמיון, מישל ודניס רונית דקל · 050-5550142 · מסתיו, יום א׳, 11.10 09:05 הערות: לקוחה חדשה, רוצה להתחיל מהר. זמינה בבקרים. להכנת החוזה החוזה נשלח בוטל"
-    ],
-    "lines": [],
-    "cards": [],
-    "empty": "עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.",
-    "shot": "02-irit-deal-arrived.png",
-    "others": {
-     "ofir": {
-      "landed": "clients.html#mine",
-      "top": [],
-      "lines": [],
-      "cards": [],
-      "empty": "עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״."
-     },
-     "lior": {
-      "landed": "clients.html#mine",
-      "top": [],
-      "lines": [],
-      "cards": [],
-      "empty": "עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״."
-     },
-     "ilai": {
-      "landed": "clients.html#mine",
-      "top": [],
-      "lines": [],
-      "cards": [],
-      "empty": "אין כרגע משהו פתוח אצלך."
-     }
-    }
-   },
-   "act": "כרטיס העסקה: \"להכין חוזה ל־מאפיית הדקל נשארו 7:59 Social · סמיון, מישל ודניס רונית דקל · 050-5550142 · מסתיו, יום א׳, 11.10 09:05 הערות: לקוחה חדשה, רוצה להתחיל מהר. זמינה בבקרים. להכנת החוזה החוזה נשלח בוטל\" -> index.html?deal=5f861a84-63dd-4bd4-b279-bd1be016bcc8; בבונה: הכול ממולא ({\"name\":\"רונית דקל\",\"phone\":\"050-5550142\",\"tier\":\"social\",\"influencer\":\"simeon\",\"h1\":\"הסכם התקשרות חדש\",\"btn\":\"יצירת קישור לחתימה\"}); \"יצירת קישור לחתימה\"",
-   "taps": 2,
-   "after": {
-    "landed": "clients.html#mine",
-    "top": [
-     "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
-    ],
-    "lines": [],
-    "cards": [],
-    "empty": "עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.",
-    "shot": "03-irit-contract-sent-waiting.png",
-    "deal": "sent",
-    "link": "http://127.0.0.1:59171/q.html#t=...",
-    "stav": "עסקה חדשה ממלאים את מה שסגרת עם הלקוח, ועירית מכינה את החוזה תוך 10 דקות עבודה. התראות 1 ההתראות חסומות מה עושים הלקוח שם העסק* איש קשר* טלפון* מה נסגר חבילה מובנית אחת מהחבילות, עם תוספות הצעה אחרת תכנים ומחיר שסיכמת, באישור מנהל חבילה* Podcast פודקאסט עם משפיענים Social Social all in one Social + TV Social + TV all in one משפיענים* נטלי דדון סמיון, מישל ודניס תוספות בוחרים חבילה ומשפיענים, ואז מ"
-   },
-   "reminders": [
-    "11.10 09:11 dealSent -> stav [quiet/push/sent] החוזה של מאפיית הדקל נשלח ללקוח"
-   ]
-  },
-  {
-   "n": 3,
-   "at": "2026-10-11T06:36:00.000Z",
-   "id": "p01-sign",
-   "step": "הלקוחה חותמת בדף החתימה הציבורי; הלקוח נפתח במערכת",
-   "proc": "p01",
-   "role": "client",
-   "before": {
-    "irit": {
-     "landed": "clients.html#mine",
-     "top": [
-      "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
-     ],
-     "lines": [],
-     "cards": [],
-     "empty": "עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״."
-    },
-    "waitingReminders": []
-   },
-   "act": "q.html (קישור ציבורי, טלפון): שם, חתימה באצבע, תיבת ההסכמה, כפתור החתימה",
-   "taps": 4,
-   "after": {
-    "signedText": "נחתם על ידי רונית דקל ב־11 באוקטובר 2026 בשעה 09:36. אפשר להדפיס או לשמור עותק כ־PDF.",
-    "client": {
-     "name": "רונית דקל",
-     "business": "מאפיית הדקל",
-     "package_name": "Social all in one · סמיון, מישל ודניס",
-     "shoot_type": "dms",
-     "contract_end": "2027-10-11",
-     "deliverables": {
-      "videos": 25,
-      "graphics": 35,
-      "shoot_days": 1,
-      "collabs": 1,
-      "stories": 0,
-      "ch14": 0,
-      "monthly": 0
-     },
-     "characterizer": null,
-     "has_logo": null
-    },
-    "deal": "signed",
-    "p01": [
-     true,
-     true,
-     true
-    ]
-   },
-   "reminders": [
-    "11.10 09:36 dailyMessages -> irit [digest/digest/suppressed:stale] הודעות יומיות ללקוחות: 1",
-    "11.10 09:36 control32 -> irit [digest/digest/suppressed:stale] בקרה יומית (32) היום",
-    "11.10 09:36 control33 -> ofir [digest/digest/suppressed:stale] בקרת לקוחות (33) היום",
-    "11.10 09:36 control33 -> lior [digest/digest/suppressed:stale] בקרת הלקוחות של אופיר לא בוצעה 3 ימי עסקים",
-    "11.10 09:36 deal -> irit [ring/push/sent] עסקה חדשה: מאפיית הדקל · רונית דקל",
-    "11.10 09:36 dealSigned -> stav [quiet/push/sent] מאפיית הדקל חתם 🎉"
-   ]
-  },
-  {
-   "n": 4,
-   "at": "2026-10-11T06:37:00.000Z",
-   "id": "opened",
-   "step": "הלקוח נפתח: מה יש לכל אחד ב״המשימות שלי״ דקה אחרי החתימה",
-   "proc": "p01→p02,p03",
-   "role": "כולם",
    "before": {},
-   "act": "צפייה בלבד",
-   "taps": 0,
+   "act": "הגלולות במשימות שלי: {\"p02.opened\":\"done\",\"p02.m.lior\":\"done\",\"p02.m.irit\":\"done\",\"p02.m.ofir\":\"done\",\"p02.m.ilai\":\"done\",\"p02.m.client\":\"done\",\"p02.intro\":\"done\",\"p03.who\":\"done\",\"p03.available\":\"done\",\"p03.calendar\":\"done\"}",
+   "taps": 12,
    "after": {
+    "char_at": null,
+    "characterizer": null,
     "mine": {
      "irit": {
       "landed": "clients.html#mine",
       "top": [
-       "#now-bar: עכשיו 1 השעונים שרצים עכשיו אצלך. התראה כשהזמן נגמר מגיעה רק כשהעמוד הזה פתוח. נשארו 3:58 מאפיית הדקל · רונית דקל עסקה חדשה: קבוצה ומועד אפיון תהליכים 2, 3 · יעד היום 09:41",
        "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
       ],
       "lines": [
        "[היום] לקוח אחד עוד לא קיבל הודעה היום להודעות -> messages.html"
       ],
       "cards": [
-       "[היום] - |  | ",
        "[היום] - |  | בקרה יומית · תהליך 32 · בקרה על ביצוע המשימות",
-       "[היום] היום עד 09:41 | מאפיית הדקל · רונית דקל | 2 · פתיחת קבוצת WhatsApp · 7 פריטים לסימון | הקבוצה נפתחה; ליאור בקבוצה; עירית בקבוצה; אופיר בקבוצה; עילאי בקבוצה; הלקוח בקבוצה; נשלחה הודעת היכרות מטעם ליאור ועירית",
-       "[היום] היום עד 09:41 | מאפיית הדקל · רונית דקל | 3 · קביעת פגישת אפיון · 3 פריטים לסימון | נקבע מי מבצע את האפיון (אופיר, או ליאור כשאופיר לא יכול); נבדקה זמינות מבצע האפיון; הפגישה הוכנסה ליומן"
-      ],
-      "empty": null
-     },
-     "lior": {
-      "landed": "clients.html#mine",
-      "top": [
-       "#now-bar: עכשיו 1 השעונים שרצים עכשיו אצלך. התראה כשהזמן נגמר מגיעה רק כשהעמוד הזה פתוח. נשארו 3:59 מאפיית הדקל · רונית דקל עסקה חדשה: קבוצה תהליך 2 · יעד היום 09:41"
-      ],
-      "lines": [],
-      "cards": [
-       "[היום] היום עד 09:41 | מאפיית הדקל · רונית דקל | 2 · פתיחת קבוצת WhatsApp · 3 פריטים לסימון | נשלחה הודעת היכרות מטעם ליאור ועירית; ליאור בדק שאין בעסקה או בחבילה משהו חריג שדורש טיפול ניהולי; ליאור וידא שהלקוח יודע מי הגורמים שמטפלים בו"
+       "[מחר] מחר | מאפיית הדקל · רונית דקל | 11 · קביעת יום צילום · 5 פריטים לסימון | נבדק בחוזה אילו משפיענים נרכשו; הלקוח אישר את המועד; המשפיענים אישרו; ליאור (מנהל יום הצילום) אישר; הצלם אישר | קישור: סגירת יום הצילום -> prep.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa"
       ],
       "empty": null
      },
@@ -1227,31 +1883,74 @@
       ],
       "empty": null
      },
-     "ilai": {
+     "lior": {
       "landed": "clients.html#mine",
-      "top": [],
+      "top": [
+       "#now-bar: עכשיו 1 השעונים שרצים עכשיו אצלך. התראה כשהזמן נגמר מגיעה רק כשהעמוד הזה פתוח. נגמר לפני 1 דק׳ מאפיית הדקל · רונית דקל עסקה חדשה: קבוצה תהליך 2 · יעד היום 09:41"
+      ],
       "lines": [],
-      "cards": [],
-      "empty": "אין כרגע משהו פתוח אצלך."
+      "cards": [
+       "[באיחור] באיחור 1 דק׳ | מאפיית הדקל · רונית דקל | 2 · פתיחת קבוצת WhatsApp · 2 פריטים לסימון | ליאור בדק שאין בעסקה או בחבילה משהו חריג שדורש טיפול ניהולי; ליאור וידא שהלקוח יודע מי הגורמים שמטפלים בו"
+      ],
+      "empty": null
+     }
+    }
+   },
+   "reminders": [
+    "11.10 09:39 shootDate -> irit [quiet/push/sent] לקבוע יום צילום: מאפיית הדקל · רונית דקל",
+    "11.10 09:39 group -> lior [ring/push/sent] קבוצה חדשה נפתחה: מאפיית הדקל · רונית דקל",
+    "11.10 09:41 deal -> irit [ring/push/sent] עברו 5 דקות: מאפיית הדקל · רונית דקל"
+   ]
+  },
+  {
+   "n": 2,
+   "at": "2026-10-13T09:00:00.000Z",
+   "id": "p03-no-date-2days",
+   "step": "ניסוי ב: יומיים אחר כך, עדיין אין מועד אפיון",
+   "proc": "p03→p04",
+   "role": "irit",
+   "before": {},
+   "act": "אף אחד לא עושה כלום; השעון מתקדם",
+   "taps": 0,
+   "after": {
+    "mine": {
+     "irit": {
+      "landed": "clients.html#mine",
+      "top": [
+       "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
+      ],
+      "lines": [
+       "[היום] לקוח אחד עוד לא קיבל הודעה היום להודעות -> messages.html"
+      ],
+      "cards": [
+       "[באיחור] באיחור 12 שעות | מאפיית הדקל · רונית דקל | 11 · קביעת יום צילום · 5 פריטים לסימון | נבדק בחוזה אילו משפיענים נרכשו; הלקוח אישר את המועד; המשפיענים אישרו; ליאור (מנהל יום הצילום) אישר; הצלם אישר | קישור: סגירת יום הצילום -> prep.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
+       "[היום] - |  | בקרה יומית · תהליך 32 · בקרה על ביצוע המשימות"
+      ],
+      "empty": null
      },
-     "nadia": {
+     "ofir": {
       "landed": "clients.html#mine",
       "top": [],
       "lines": [],
-      "cards": [],
-      "empty": "אין כרגע משהו פתוח אצלך."
+      "cards": [
+       "[היום] - |  | בקרה יומית · תהליך 33 · בקרה על כל רשימת הלקוחות"
+      ],
+      "empty": null
      },
-     "eli": {
+     "lior": {
       "landed": "clients.html#mine",
       "top": [],
-      "lines": [],
-      "cards": [],
-      "empty": "אין כרגע משהו פתוח אצלך."
+      "lines": [
+       "[היום] בדיקת הקמפיינים השבועית עוד לא סומנה לבדיקה -> decisions.html#cp-h"
+      ],
+      "cards": [
+       "[באיחור] באיחור 2 ימי עסקים | מאפיית הדקל · רונית דקל | 2 · פתיחת קבוצת WhatsApp · 2 פריטים לסימון | ליאור בדק שאין בעסקה או בחבילה משהו חריג שדורש טיפול ניהולי; ליאור וידא שהלקוח יודע מי הגורמים שמטפלים בו"
+      ],
+      "empty": null
      },
      "owner": {
       "landed": "clients.html#mine",
       "top": [
-       "#now-bar: עכשיו 1 השעונים שרצים עכשיו אצל הצוות. התראה כשהזמן נגמר מגיעה רק כשהעמוד הזה פתוח. נשארו 3:59 מאפיית הדקל · רונית דקל עסקה חדשה: קבוצה ומועד אפיון תהליכים 2, 3 · יעד היום 09:41 עירית ליאור",
        "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
       ],
       "lines": [],
@@ -1260,209 +1959,45 @@
      }
     }
    },
-   "reminders": []
-  },
-  {
-   "n": 5,
-   "at": "2026-10-11T06:38:00.000Z",
-   "id": "p02-irit",
-   "step": "עירית פותחת קבוצת WhatsApp, מצרפת את כולם ושולחת הודעת היכרות",
-   "proc": "p02",
-   "role": "irit",
-   "before": {
-    "landed": "clients.html#mine",
-    "top": [
-     "#now-bar: עכשיו 1 השעונים שרצים עכשיו אצלך. התראה כשהזמן נגמר מגיעה רק כשהעמוד הזה פתוח. נשארו 3:59 מאפיית הדקל · רונית דקל עסקה חדשה: קבוצה ומועד אפיון תהליכים 2, 3 · יעד היום 09:41",
-     "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
-    ],
-    "lines": [
-     "[היום] לקוח אחד עוד לא קיבל הודעה היום להודעות -> messages.html"
-    ],
-    "cards": [
-     "[היום] - |  | ",
-     "[היום] - |  | בקרה יומית · תהליך 32 · בקרה על ביצוע המשימות",
-     "[היום] היום עד 09:41 | מאפיית הדקל · רונית דקל | 2 · פתיחת קבוצת WhatsApp · 7 פריטים לסימון | הקבוצה נפתחה; ליאור בקבוצה; עירית בקבוצה; אופיר בקבוצה; עילאי בקבוצה; הלקוח בקבוצה; נשלחה הודעת היכרות מטעם ליאור ועירית",
-     "[היום] היום עד 09:41 | מאפיית הדקל · רונית דקל | 3 · קביעת פגישת אפיון · 3 פריטים לסימון | נקבע מי מבצע את האפיון (אופיר, או ליאור כשאופיר לא יכול); נבדקה זמינות מבצע האפיון; הפגישה הוכנסה ליומן"
-    ],
-    "empty": null,
-    "shot": "05-irit-p02-group.png",
-    "where": {
-     "p02.opened": "היום · היום עד 09:41",
-     "p02.m.lior": "היום · היום עד 09:41",
-     "p02.m.irit": "היום · היום עד 09:41",
-     "p02.m.ofir": "היום · היום עד 09:41",
-     "p02.m.ilai": "היום · היום עד 09:41",
-     "p02.m.client": "היום · היום עד 09:41",
-     "p02.intro": "היום · היום עד 09:41"
-    },
-    "peek": {
-     "lior": [
-      "היום · 2 · פתיחת קבוצת WhatsApp · 3 פריטים לסימון · נשלחה הודעת היכרות מטעם ליאור ועירית; ליאור בדק שאין בעסקה או בחבילה משהו חריג שדורש טיפול ניהולי; ליאור וידא שהלקוח יודע מי הגורמים שמטפלים בו"
-     ],
-     "ofir": [],
-     "ilai": []
-    },
-    "remindersSinceLast": []
-   },
-   "act": "הגלולה \"סיימתי\" ב\"המשימות שלי\": p02.opened=done, p02.m.lior=done, p02.m.irit=done, p02.m.ofir=done, p02.m.ilai=done, p02.m.client=done, p02.intro=done",
-   "taps": 8,
-   "after": {
-    "landed": "clients.html#mine",
-    "top": [
-     "#now-bar: עכשיו 1 השעונים שרצים עכשיו אצלך. התראה כשהזמן נגמר מגיעה רק כשהעמוד הזה פתוח. נשארו 2:59 מאפיית הדקל · רונית דקל עסקה חדשה: מועד אפיון תהליך 3 · יעד היום 09:41",
-     "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
-    ],
-    "lines": [
-     "[היום] לקוח אחד עוד לא קיבל הודעה היום להודעות -> messages.html"
-    ],
-    "cards": [
-     "[היום] - |  | ",
-     "[היום] - |  | בקרה יומית · תהליך 32 · בקרה על ביצוע המשימות",
-     "[היום] היום עד 09:41 | מאפיית הדקל · רונית דקל | 3 · קביעת פגישת אפיון · 3 פריטים לסימון | נקבע מי מבצע את האפיון (אופיר, או ליאור כשאופיר לא יכול); נבדקה זמינות מבצע האפיון; הפגישה הוכנסה ליומן",
-     "[מחר] מחר | מאפיית הדקל · רונית דקל | 11 · קביעת יום צילום · 5 פריטים לסימון | נבדק בחוזה אילו משפיענים נרכשו; הלקוח אישר את המועד; המשפיענים אישרו; ליאור (מנהל יום הצילום) אישר; הצלם אישר | קישור: סגירת יום הצילום -> prep.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa"
-    ],
-    "empty": null,
-    "left": [],
-    "next": {
-     "lior": {
-      "landed": "clients.html#mine",
-      "top": [
-       "#now-bar: עכשיו 1 השעונים שרצים עכשיו אצלך. התראה כשהזמן נגמר מגיעה רק כשהעמוד הזה פתוח. נשארו 2:59 מאפיית הדקל · רונית דקל עסקה חדשה: קבוצה תהליך 2 · יעד היום 09:41"
-      ],
-      "lines": [],
-      "cards": [
-       "[היום] היום עד 09:41 | מאפיית הדקל · רונית דקל | 2 · פתיחת קבוצת WhatsApp · 2 פריטים לסימון | ליאור בדק שאין בעסקה או בחבילה משהו חריג שדורש טיפול ניהולי; ליאור וידא שהלקוח יודע מי הגורמים שמטפלים בו"
-      ],
-      "empty": null
-     }
-    }
-   },
    "reminders": [
-    "11.10 09:38 shootDate -> irit [quiet/push/sent] לקבוע יום צילום: מאפיית הדקל · רונית דקל",
-    "11.10 09:38 group -> lior [ring/push/sent] קבוצה חדשה נפתחה: מאפיית הדקל · רונית דקל"
+    "11.10 09:56 late -> ofir [quiet/digest/sent:batch] באיחור: מאפיית הדקל · רונית דקל · 2 · פתיחת קבוצת WhatsApp · עירית",
+    "11.10 09:56 late -> lior [quiet/digest/sent:batch] באיחור: מאפיית הדקל · רונית דקל · 2 · פתיחת קבוצת WhatsApp · עירית",
+    "11.10 09:56 late -> ofir [quiet/digest/sent:batch] באיחור: מאפיית הדקל · רונית דקל · 3 · קביעת פגישת אפיון · עירית",
+    "11.10 09:56 late -> lior [quiet/digest/sent:batch] באיחור: מאפיית הדקל · רונית דקל · 3 · קביעת פגישת אפיון · עירית",
+    "11.10 09:56 digest -> ofir [digest/push/sent] 2 איחורים חדשים",
+    "11.10 09:56 digest -> lior [digest/push/sent] 2 איחורים חדשים",
+    "11.10 10:06 deal -> lior [ring/push/sent] עסקה חדשה בלי טיפול: מאפיית הדקל · רונית דקל",
+    "11.10 10:36 deal -> owner [board/app/sent] עסקה חדשה בלי טיפול שעה: מאפיית הדקל · רונית דקל",
+    "11.10 14:00 dailyMessages -> irit [quiet/push/sent] עוד לא קיבלו הודעה היום: 1 לקוחות",
+    "11.10 14:00 control32 -> irit [ring/push/sent] הבקרה היומית עוד לא בוצעה",
+    "11.10 18:00 control32 -> lior [digest/digest/sent:digest] הבקרה היומית של עירית הוחמצה",
+    "11.10 18:00 digest -> owner [digest/push/sent] חריגות היום",
+    "12.10 08:30 shootDate -> irit [digest/digest/sent:digest] יום צילום עוד לא נסגר (יום 1): מאפיית הדקל · רונית דקל",
+    "12.10 08:30 dailyMessages -> irit [digest/digest/sent:digest] הודעות יומיות ללקוחות: 1",
+    "12.10 08:30 control32 -> irit [digest/digest/sent:digest] בקרה יומית (32) היום",
+    "12.10 08:30 control33 -> ofir [digest/digest/sent:digest] בקרת לקוחות (33) היום",
+    "12.10 08:30 control33 -> lior [digest/digest/sent:digest] בקרת הלקוחות של אופיר לא בוצעה 3 ימי עסקים",
+    "12.10 08:30 digest -> irit [digest/push/sent] תקציר בוקר",
+    "12.10 08:30 digest -> lior [digest/push/sent] תקציר בוקר",
+    "12.10 08:30 digest -> ofir [digest/push/sent] תקציר בוקר",
+    "12.10 14:00 dailyMessages -> irit [quiet/push/sent] עוד לא קיבלו הודעה היום: 1 לקוחות",
+    "12.10 14:00 control32 -> irit [ring/push/sent] הבקרה היומית עוד לא בוצעה",
+    "12.10 16:00 shootDate -> irit [ring/push/sent] יום הצילום עוד לא נסגר: מאפיית הדקל · רונית דקל",
+    "12.10 18:00 control32 -> lior [digest/digest/sent:digest] הבקרה היומית של עירית הוחמצה",
+    "12.10 18:00 digest -> owner [digest/push/sent] חריגות היום",
+    "13.10 08:30 shootDate -> irit [digest/digest/sent:digest] יום צילום עוד לא נסגר (יום 2): מאפיית הדקל · רונית דקל",
+    "13.10 08:30 dailyMessages -> irit [digest/digest/sent:digest] הודעות יומיות ללקוחות: 1",
+    "13.10 08:30 control32 -> irit [digest/digest/sent:digest] בקרה יומית (32) היום",
+    "13.10 08:30 control33 -> ofir [digest/digest/sent:digest] בקרת לקוחות (33) היום",
+    "13.10 08:30 control33 -> lior [digest/digest/sent:digest] בקרת הלקוחות של אופיר לא בוצעה 3 ימי עסקים",
+    "13.10 08:30 digest -> irit [digest/push/sent] תקציר בוקר",
+    "13.10 08:30 digest -> lior [digest/push/sent] תקציר בוקר",
+    "13.10 08:30 digest -> ofir [digest/push/sent] תקציר בוקר",
+    "13.10 09:15 late -> ofir [quiet/digest/sent:batch] באיחור: מאפיית הדקל · רונית דקל · 11 · קביעת יום צילום · עירית",
+    "13.10 09:15 late -> lior [quiet/digest/sent:batch] באיחור: מאפיית הדקל · רונית דקל · 11 · קביעת יום צילום · עירית",
+    "13.10 09:15 digest -> ofir [digest/push/sent] באיחור: מאפיית הדקל · רונית דקל · 11 · קביעת יום צילום · עירית",
+    "13.10 09:15 digest -> lior [digest/push/sent] באיחור: מאפיית הדקל · רונית דקל · 11 · קביעת יום צילום · עירית"
    ]
-  },
-  {
-   "n": 6,
-   "at": "2026-10-11T06:45:00.000Z",
-   "id": "p02-lior",
-   "step": "ליאור: בדיקת עסקה חריגה, והלקוח יודע מי מטפל בו",
-   "proc": "p02",
-   "role": "lior",
-   "before": {
-    "landed": "clients.html#mine",
-    "top": [
-     "#now-bar: עכשיו 1 השעונים שרצים עכשיו אצלך. התראה כשהזמן נגמר מגיעה רק כשהעמוד הזה פתוח. נגמר לפני 3 דק׳ מאפיית הדקל · רונית דקל עסקה חדשה: קבוצה תהליך 2 · יעד היום 09:41"
-    ],
-    "lines": [],
-    "cards": [
-     "[באיחור] באיחור 3 דק׳ | מאפיית הדקל · רונית דקל | 2 · פתיחת קבוצת WhatsApp · 2 פריטים לסימון | ליאור בדק שאין בעסקה או בחבילה משהו חריג שדורש טיפול ניהולי; ליאור וידא שהלקוח יודע מי הגורמים שמטפלים בו"
-    ],
-    "empty": null,
-    "shot": "06-lior-p02-lior.png",
-    "where": {
-     "p02.deal": "באיחור · באיחור 3 דק׳",
-     "p02.team": "באיחור · באיחור 3 דק׳"
-    },
-    "peek": {
-     "irit": []
-    },
-    "remindersSinceLast": [
-     "11.10 09:41 deal -> irit [ring/push/sent] עברו 5 דקות: מאפיית הדקל · רונית דקל"
-    ]
-   },
-   "act": "הגלולה \"סיימתי\" ב\"המשימות שלי\": p02.deal=done, p02.team=done",
-   "taps": 3,
-   "after": {
-    "landed": "clients.html#mine",
-    "top": [],
-    "lines": [],
-    "cards": [],
-    "empty": "אין כרגע משהו פתוח אצלך.",
-    "left": [],
-    "next": {}
-   },
-   "reminders": []
-  },
-  {
-   "n": 7,
-   "at": "2026-10-11T06:50:00.000Z",
-   "id": "p03",
-   "step": "עירית קובעת פגישת אפיון (מי מבצע, מתי) ומסמנת את תהליך 3",
-   "proc": "p03",
-   "role": "irit",
-   "before": {
-    "landed": "clients.html#mine",
-    "top": [
-     "#now-bar: עכשיו 1 השעונים שרצים עכשיו אצלך. התראה כשהזמן נגמר מגיעה רק כשהעמוד הזה פתוח. נגמר לפני 6 דק׳ מאפיית הדקל · רונית דקל עסקה חדשה: מועד אפיון תהליך 3 · יעד היום 09:41",
-     "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
-    ],
-    "lines": [
-     "[היום] לקוח אחד עוד לא קיבל הודעה היום להודעות -> messages.html"
-    ],
-    "cards": [
-     "[באיחור] באיחור 6 דק׳ | מאפיית הדקל · רונית דקל | 3 · קביעת פגישת אפיון · 3 פריטים לסימון | נקבע מי מבצע את האפיון (אופיר, או ליאור כשאופיר לא יכול); נבדקה זמינות מבצע האפיון; הפגישה הוכנסה ליומן",
-     "[היום] - |  | ",
-     "[היום] - |  | בקרה יומית · תהליך 32 · בקרה על ביצוע המשימות",
-     "[מחר] מחר | מאפיית הדקל · רונית דקל | 11 · קביעת יום צילום · 5 פריטים לסימון | נבדק בחוזה אילו משפיענים נרכשו; הלקוח אישר את המועד; המשפיענים אישרו; ליאור (מנהל יום הצילום) אישר; הצלם אישר | קישור: סגירת יום הצילום -> prep.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa"
-    ],
-    "empty": null,
-    "shot": "07-irit-p03-set-meeting.png",
-    "cardText": "מאפיית הדקל · רונית דקל חדש באיחור 6 דק׳ 3 · קביעת פגישת אפיון · 3 פריטים לסימון הצגת הפריטים (3)",
-    "hintInCard": "חסר בפרטי הלקוח: מי מבצע את האפיון, מועד פגישת האפיון. השלמת פרטים"
-   },
-   "act": "שם הלקוח בכרטיס -> כרטיס הלקוח -> \"השלמת פרטים\" -> מי מבצע + מועד + כתובת -> שמירה ({\"characterizer\":\"ofir\",\"char_at\":\"2026-10-12T07:00:00.000Z\"}); חזרה ל\"המשימות שלי\" וסימון: p03.who=done, p03.available=done, p03.scheduled=done, p03.calendar=done",
-   "taps": 11,
-   "after": {
-    "mid": [
-     "באיחור 8 דק׳ | נקבע מי מבצע את האפיון (אופיר, או ליאור כשאופיר לא יכול); נבדקה זמינות מבצע האפיון; נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים; הפגישה הוכנסה ליומן"
-    ],
-    "landed": "clients.html#mine",
-    "top": [
-     "#staff-tasks-card: נודניק תזכורת לעובד אין נודניקים פתוחים ששלחת. שליחת נודניק"
-    ],
-    "lines": [
-     "[היום] לקוח אחד עוד לא קיבל הודעה היום להודעות -> messages.html"
-    ],
-    "cards": [
-     "[היום] - |  | ",
-     "[היום] - |  | בקרה יומית · תהליך 32 · בקרה על ביצוע המשימות",
-     "[מחר] מחר | מאפיית הדקל · רונית דקל | 11 · קביעת יום צילום · 5 פריטים לסימון | נבדק בחוזה אילו משפיענים נרכשו; הלקוח אישר את המועד; המשפיענים אישרו; ליאור (מנהל יום הצילום) אישר; הצלם אישר | קישור: סגירת יום הצילום -> prep.html?id=08d90dbd-8d4a-422d-8cbd-a33be1ef40fa",
-     "[בקרוב · עוד אין מה לסמן] - |  | "
-    ],
-    "empty": null,
-    "next": {
-     "ofir": {
-      "landed": "clients.html#mine",
-      "top": [],
-      "lines": [],
-      "cards": [
-       "[היום] - |  | בקרה יומית · תהליך 33 · בקרה על כל רשימת הלקוחות",
-       "[בקרוב · עוד אין מה לסמן] - |  | "
-      ],
-      "empty": null
-     },
-     "lior": {
-      "landed": "clients.html#mine",
-      "top": [],
-      "lines": [],
-      "cards": [
-       "[בקרוב · עוד אין מה לסמן] - |  | "
-      ],
-      "empty": "אין כרגע משהו פתוח אצלך."
-     },
-     "ilai": {
-      "landed": "clients.html#mine",
-      "top": [],
-      "lines": [],
-      "cards": [
-       "[בקרוב · עוד אין מה לסמן] - | מאפיית הדקל · רונית דקל | מתחיל בקרוב"
-      ],
-      "empty": "אין כרגע משהו פתוח אצלך."
-     }
-    }
-   },
-   "reminders": []
   }
  ],
  "secrets": {
@@ -1471,5 +2006,5 @@
   "signLink": "http://127.0.0.1:59171/q.html#t=f8e073f3-e587-46c2-b5f0-52da4e99c4e8"
  },
  "nudges": [],
- "shots": 8
+ "shots": 5
 }

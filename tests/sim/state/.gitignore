@@ -1,0 +1,6 @@
+# The states between the stages are rebuilt by a run (node tests/sim/run.mjs). Kept: the end of the main run
+# (the step table is built from it) and the two side experiments.
+*.json
+!s10.json
+!exp-a.json
+!exp-b.json
