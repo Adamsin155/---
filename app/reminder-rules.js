@@ -59,7 +59,7 @@ import { stationChange } from './messages-logic.js';
 import { autoReasonOf } from './auto-assign.js';
 import { shootPrep, reportedOf, TELL, requestOf } from './shoot-prep.js';
 import { BLOCKING_TITLE } from './characterization.js';
-import { ANSWER_CLOCKS } from './clocks.js';
+import { ANSWER_CLOCKS, fixAnswered } from './clocks.js';
 import {
   QA_KINDS, qaState, qaDue, SHIFT_KEY, readShift, ACCESS_FIXED, readAccessFix,
 } from './office-marks.js';
@@ -519,6 +519,8 @@ export const RULES = [
           if (!sentAt) continue;
           const since = (k) => { const x = i.check(k); return !!x && x.state === 'done' && new Date(x.at) >= sentAt; };
           if (since(`${b}.answered`) || since(`${b}.call`) || (spec.approval && since(spec.approval))) continue;
+          // A fix request is an answer (section 48): the client wrote what to fix.
+          if ((spec.notes && since(spec.notes)) || (spec.approval && fixAnswered([...env.tasks, ...(env.doneTasks || [])], i.cid, i.pre + spec.approval, sentAt))) continue;
           if (i.s.wait && new Date(i.s.wait.at) >= sentAt) continue;
           out.push({ ...i, id: `${i.proc.id}@${sentAt.toISOString()}`, what: spec.what, minutes: spec.minutes, anchors: { event: sentAt, due: addWorkingMinutes(sentAt, spec.minutes) } });
         }

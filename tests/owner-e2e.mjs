@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
 import { applicableProcesses, clientState } from '../app/protocol-logic.js';
 import { clientHealth } from '../app/health.js';
+import { daySummary, headline, EMPTY_DAY } from '../app/day-summary.js';
 import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
@@ -574,6 +575,54 @@ await step('the team screen: a worker sees only their own row; the owner and Lio
   assert.equal(await owner.locator('.perf-me').count(), 0);
 });
 
+await step('the owners\' end of the day (owner.html#eod): a row per employee, the totals, the items worst first; the same numbers as the 19:00 message; owners only', async () => {
+  // What the message would say now, from the same data (app/day-summary.js through the engine's own function).
+  const live = db.clients.filter((c) => c.status === 'active' || c.status === 'ending');
+  const checksOf = (c) => Object.fromEntries(db.protocol_checks.filter((x) => x.client_id === c.id).map((x) => [x.item_key, x]));
+  const expected = daySummary({ clients: live, checksOf, stateOf: (c) => clientState(c, checksOf(c), serverNow()), tasks: db.client_tasks, now: serverNow() });
+  assert.ok(expected.rows.length >= 1 && expected.totals.late >= 1, JSON.stringify(expected.totals));
+  await owner.goto(`${BASE}owner.html#eod`);
+  await owner.waitForSelector('#view-eod:not([hidden]) #eod-body tr');
+  assert.equal(await owner.isHidden('#tab-eod'), false);
+  assert.equal(await owner.getAttribute('#tab-eod', 'aria-selected'), 'true');
+  assert.equal(await text(owner, '#ow-title'), 'סיכום היום');
+  assert.equal(await text(owner, '#eod-head'), headline(expected));
+  const rows = await owner.locator('#eod-body tr').evaluateAll((trs) => trs.map((tr) => [tr.dataset.person, ...[...tr.querySelectorAll('td')].map((td) => td.innerText.trim())]));
+  assert.deepEqual(rows, expected.rows.map((r) => [r.person, r.late ? String(r.late) : '—', r.today ? String(r.today) : '—', r.late ? r.longest : '—']));
+  assert.match(await text(owner, '#eod-foot'), new RegExp(`סך הכול\\s+${expected.totals.late}`));
+  const items = await owner.locator('#eod-items > li.eod-item').count();
+  assert.equal(items + (await owner.locator('#eod-items .more-row').count() ? expected.items.length - items : 0), expected.items.length);
+  assert.match(await owner.locator('#eod-items > li').first().innerText(), /באיחור/);
+  // No price anywhere in it (ops §35).
+  assert.doesNotMatch(await owner.locator('#view-eod').innerText(), /₪|מחיר/);
+  // An item opens its process in the client card.
+  assert.match(await owner.locator('#eod-items .wclient').first().getAttribute('href'), /^client\.html\?id=/);
+  await shot(owner, 'owner-07-eod');
+  // On a 360px phone: no sideways scrolling of the page, and the tab is a 44px target.
+  const pctx = await newContext({ width: 360, height: 780 });
+  const phone = await newPage(pctx);
+  await signIn(phone, 'owner.html#eod', 'owner@astrateg.test');
+  await phone.waitForSelector('#view-eod:not([hidden]) #eod-body tr');
+  assert.ok(await noHScroll(phone), 'the end-of-day table scrolls the page sideways at 360px');
+  assert.ok((await phone.locator('#tab-eod').boundingBox()).height >= 44);
+  await shot(phone, 'owner-08-eod-phone');
+  await pctx.close();
+  // Nobody but the owners: no tab, and the address does not open it (Irit and Ofir are managers; Lior sees screen 2).
+  for (const [email, home] of [['irit@astrateg.test', '#view-now'], ['ofir@astrateg.test', '#view-now'], ['lior@astrateg.test', '#view-all']]) {
+    const ctx = await newContext();
+    const page = await newPage(ctx);
+    await signIn(page, 'owner.html#eod', email);
+    await page.waitForSelector(`${home}:not([hidden])`);
+    assert.equal(await page.isHidden('#tab-eod'), true, email);
+    assert.equal(await page.isHidden('#view-eod'), true, email);
+    await page.evaluate(() => { location.hash = '#eod'; });
+    await page.waitForTimeout(200);
+    assert.equal(await page.isHidden('#view-eod'), true, email);
+    assert.equal(await page.locator('#eod-body tr').count(), 0, email);
+    await ctx.close();
+  }
+});
+
 await step('everything green: "הכול לפי התוכנית"', async () => {
   const saved = [db.office_reviews, [A, B, C].map((c) => c.status)];
   for (const c of [A, B, C]) c.status = 'ended';
@@ -586,6 +635,13 @@ await step('everything green: "הכול לפי התוכנית"', async () => {
   // The answered question whose row is gone is still there to read, for three days.
   assert.match(await owner.locator('#ow-answers').innerText(), /תשובות אחרונות[^]*מספרת רון[^]*ליאור ענה\/תה/);
   await shot(owner, 'owner-05-all-green');
+  // The end of the day says so in one friendly sentence, with no table.
+  await owner.goto(`${BASE}owner.html#eod`);
+  await owner.waitForSelector('#view-eod:not([hidden]) #eod-head.is-clear');
+  assert.equal(await text(owner, '#eod-head'), EMPTY_DAY);
+  assert.equal(await owner.isHidden('#eod-wrap'), true);
+  assert.equal(await owner.locator('#eod-items > li').count(), 0);
+  await shot(owner, 'owner-09-eod-empty');
   db.office_reviews = saved[0];
   [A, B, C].forEach((c, i) => { c.status = saved[1][i]; });
 });

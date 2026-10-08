@@ -1259,7 +1259,7 @@ let clockSeen = new Map(); // clock id -> 'running' | 'expired' at the last seco
 const clockPerson = () => me || (scope === 'office' && !viewerError ? null : undefined);
 function rebuildClocks(now = new Date()) {
   const person = clockPerson();
-  clocks = person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf });
+  clocks = person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf, tasks });
 }
 function paintNowBar() {
   renderNowBar($('now-bar'), clocks, { everyone: !me, onAnswered: markAnswered });

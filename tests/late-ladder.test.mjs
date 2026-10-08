@@ -22,6 +22,7 @@ import { importKeys } from '../app/client-open.js';
 import { isOwnerView } from '../app/team-rules.js';
 import { runTick } from '../supabase/functions/reminders/tick.js';
 import { dateIL, partsIL } from '../app/tz.js';
+import { clocksFor, fixAnswered } from '../app/clocks.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
 const hhmm = (d) => { const p = partsIL(d); return `${p.day}.${p.month} ${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`; };
@@ -364,6 +365,8 @@ test('the client\'s turn: work that was sent and waits for the client is nobody\
   const now = IL(2026, 10, 19, 14, 0);
   const p27 = lateOf(w, now).find((x) => x.num === '27');
   assert.deepEqual([p27.clientTurn, p27.holders, p27.waiters], [true, [], []]);
+  // Meanwhile Irit is rung to call the client who did not answer (the rule `answer`, as before).
+  assert.equal(due(w, now).filter((r) => r.rule === 'answer' && r.person === 'irit').length, 1);
   assert.deepEqual(due(w, now).filter((r) => (r.rule === 'lateOwn' || r.rule === 'lateNag') && /27 ·/.test(`${r.title}${r.body}`)), []);
   // In the owners' table it is listed apart, and counted for nobody.
   const sum = summaryOf(buildEnv({ ...w, now }));
@@ -378,6 +381,12 @@ test('the client\'s turn: work that was sent and waits for the client is nobody\
   const irit = at10.find((r) => r.rule === 'clientFix' && r.person === 'irit');
   assert.deepEqual([irit.level, irit.title], ['ring', 'הלקוח ביקש תיקון: דקל']);
   assert.match(irit.body, /^הלקוח כתב: ״סרטון 3: להחליף מוזיקה״\. לברר שההערות ברורות ולתעד\. נדיה מתקן\/ת עד ג׳ 20\.10\.$/);
+  // A fix request is an answer: the "client did not answer, call" ring and clock of that sending stop.
+  assert.deepEqual(at10.filter((r) => r.rule === 'answer'), []);
+  const clocks = (tasks) => clocksFor('irit', w.clients, w.checks, { now: IL(2026, 10, 20, 10, 1), tasks }).filter((x) => x.kind === 'answer').length;
+  assert.equal(clocks(w.tasks), 0);
+  assert.equal(fixAnswered(w.tasks, c.id, 'p27.approved', IL(2026, 10, 19, 9, 30)), true);
+  assert.equal(fixAnswered(w.tasks, c.id, 'p27.approved', IL(2026, 10, 21, 9, 30)), false); // sent again after the fix: a new wait
   // Her item says what there is to do, with the client's words under it, until the fix is done.
   assert.equal(FIX_ITEM_LABEL, 'הלקוח ביקש תיקונים: לברר ולתעד');
   assert.equal(fixTaskOf(w.tasks, c.id, 'p27.approved').id, 'fix1');
