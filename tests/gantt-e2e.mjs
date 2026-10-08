@@ -838,12 +838,12 @@ await step('the index for the owner, Irit, Lior and Ofir (reading; no "יציר�
   assert.equal(await nadia.isVisible('#gx'), false);
   assert.equal(await nadia.locator('#side-gantt').count(), 0);
   await nctx.close();
-  // Ilai's phone: the Gantt is one of the three in the bar; the index fits 375px with 44px targets.
+  // Ilai's phone: the Gantt is in the bar, with his three other screens (no builder since 8.10.2026, so no "עוד"); the index fits 375px with 44px targets.
   const pctx = await newContext({ width: 375, height: 780 });
   const ph = await newPage(pctx);
   await signIn(ph, 'clients.html#mine', 'ilai@astrateg.test');
   await ph.waitForSelector('#side-list #side-gantt');
-  assert.deepEqual(await ph.locator('#side-list > a, #side-list > button').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'עוד']);
+  assert.deepEqual(await ph.locator('#side-list > a, #side-list > button').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'שנת החבילה']);
   await ph.click('#side-gantt');
   await ph.waitForSelector('#gx:not([hidden]) #gx-list .gx-client');
   assert.equal(await noHScroll(ph), true);
