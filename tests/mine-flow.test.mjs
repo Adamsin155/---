@@ -143,8 +143,8 @@ test('the photographer is asked for next month by its phase', () => {
   assert.equal(at('16'), 'overdue');
   // The managers hear of it from the 16th only.
   assert.equal(byId(linesOf(db, 'irit', { now: new Date('2026-10-15T10:00:00+03:00') }))['availability-missing'], undefined);
-  assert.deepEqual(flowNeeds(viewerOf('irit'), new Date('2026-10-15T10:00:00+03:00')), ['messages']);
-  assert.deepEqual(flowNeeds(viewerOf('irit'), NOW), ['messages', 'availability']);
+  assert.deepEqual(flowNeeds(viewerOf('irit'), new Date('2026-10-15T10:00:00+03:00')), ['messages', 'unsigned']);
+  assert.deepEqual(flowNeeds(viewerOf('irit'), NOW), ['messages', 'unsigned', 'availability']);
 });
 
 test('a line never leads to a page its reader may not open, and each has one plain sentence', () => {

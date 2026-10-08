@@ -207,6 +207,28 @@ async function loadApprovals(now: Date): Promise<Row[]> {
   }
 }
 
+// Contracts sent for signature and not signed (8.10.2026, app/unsigned-logic.js; docs/ops.md,
+// section 47): every quote still 'sent', and for two days after its validity ran out (the
+// one notice of that), each with the email of the seller whose deal it came from. No
+// amounts are read. Which of them really wait for the client (an agreement, not one that
+// waits for a manager) is decided by the shared logic, as on the screens.
+async function loadUnsigned(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  try {
+    const rows = await all(() => admin.from('quotes')
+      .select('id, number, client_name, business:model->client->>company, signable:model->>signable, valid:model->>validHours, status, approval, approval_at, created_at, created_by_email, expires_at')
+      .eq('status', 'sent').or(`expires_at.is.null,expires_at.gte."${since}"`).order('id'));
+    if (!rows.length) return rows;
+    const { data: deals } = await admin.from('deal_requests').select('quote_id, created_by_email').in('quote_id', rows.map((r: Row) => r.id));
+    const seller = new Map((deals ?? []).map((d: Row) => [d.quote_id, d.created_by_email]));
+    return rows.map((r: Row) => ({ ...r, seller_email: seller.get(r.id) ?? null }));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42703' || code === '42P01' || code === 'PGRST204' || code === 'PGRST205') return [];
+    throw err;
+  }
+}
+
 // The tasks given on the spot (6.10.2026, app/staff-tasks-logic.js): the open ones
 // (rule `nag` rings them every 10 minutes) and those finished in the last two days
 // (whoever gave them hears, rule `nagDone`). Until migration
@@ -276,7 +298,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).eq('landing', false).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -303,10 +325,11 @@ const db = {
       loadQuestions(now),
       loadChangeRequests(now),
       loadDecisions(now),
+      loadUnsigned(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();

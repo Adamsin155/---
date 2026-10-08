@@ -61,7 +61,7 @@ import { showMonths, worksCycle } from './month-ui.js';
 // Irit's daily control (process 32): her eleven topics, each with what is open now.
 import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageText } from './control-topics.js';
 import { loadDeals } from './deal-data.js';
-import { canSeeDeals } from './manager-rules.js';
+import { canSeeDeals, canSeeQuoteList } from './manager-rules.js';
 // Everything that waits for me on another page, as counted lines (docs/ops.md, section 46).
 import { flowLines, flowNeeds } from './mine-flow.js';
 import { loadFlowExtra } from './mine-flow-data.js';
@@ -164,7 +164,11 @@ async function load() {
     return;
   }
   // The counted lines of "המשימות שלי" ask for their own rows meanwhile (app/mine-flow-data.js).
-  const flowAsked = loadFlowExtra(flowNeeds({ me, scope, error: viewerError }, now), { now, clients, checks, stateOf: (c) => clientState(c, checks[c.id] || {}, now) });
+  const flowWants = flowNeeds({ me, scope, error: viewerError }, now);
+  // The owners have no list of their own: they read the contracts still out for signature
+  // for the control's "חתימות" (the database answers only whoever may read the quotes).
+  if (!flowWants.includes('unsigned') && canSeeQuoteList({ me, scope, error: viewerError })) flowWants.push('unsigned');
+  const flowAsked = loadFlowExtra(flowWants, { now, clients, checks, stateOf: (c) => clientState(c, checks[c.id] || {}, now) });
   // Reviews and agreement numbers are extras: the page works without them.
   // They serve the office screens only, so an 'own' view does not load them.
   const none = { status: 'rejected', reason: null };
@@ -1566,7 +1570,7 @@ function markTopicSeen(key) {
   store.set(seenKey(), JSON.stringify(seenTopics()));
 }
 const workRows = (rows) => rows.map((x) => ({ key: x.p.key, late: x.late, urgent: x.urgent, today: x.today, open: x.open }));
-const topicsNow = (now = new Date(), rows = personRows()) => controlTopics({ clients, checks, stateOf, tasks, deals, work: workRows(rows), now });
+const topicsNow = (now = new Date(), rows = personRows()) => controlTopics({ clients, checks, stateOf, tasks, deals, unsigned: flowExtra.unsigned || null, work: workRows(rows), now });
 
 // The rest of a topic that the control already lists in full, lower on the page.
 const TOPIC_MORE = { tasks: ['ctl-late', 'לכל האיחורים'], staff: ['ctl-people', 'לטבלה של כל הצוות'], back: ['ctl-wait', 'לרשימה המלאה, עם התקשרות'] };

@@ -139,6 +139,9 @@ test('new deal (1–3): Irit at once, at 5 minutes (group, meeting date) and at 
   assert.equal(one(due(w, IL(2026, 10, 5, 10, 5)), 'deal', 'due').body, 'עוד חסר: קבוצה, מועד אפיון.');
   none(due(w, IL(2026, 10, 5, 10, 10)), 'deal', 'contract'); // the contract was sent: no ring about it
   marks(w, c, [...itemsOf('p02'), ...itemsOf('p03')], IL(2026, 10, 5, 10, 3));
+  // Ticks without a meeting date do not close process 3 (docs/ops.md, section 47).
+  assert.equal(one(due(w, IL(2026, 10, 5, 10, 5)), 'deal', 'due').body, 'עוד חסר: מועד אפיון.');
+  c.char_at = IL(2026, 10, 6, 10).toISOString();
   none(due(w, IL(2026, 10, 5, 11)), 'deal');
   // Each step once: a step in the log is not due again.
   const w2 = world();

@@ -9,6 +9,7 @@ import { REVIEW_TOPICS, PEOPLE } from './protocol.js';
 import { businessDaysBetween, addBusinessDays, parseDate, IMPORT_NOTE, inLanding, workFloor } from './protocol-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import { dealUrl, dealDue } from './deal-logic.js';
+import { unsignedList, UNSIGNED_URL } from './unsigned-logic.js';
 
 // The protocol's order (docs/protocols/irit.md, step 19). The words come from
 // REVIEW_TOPICS.p32 (app/protocol.js), so a wording change there shows here too.
@@ -70,13 +71,20 @@ function contracts({ live, cs, st, deals, now }) {
   }
   return out.sort(oldestFirst);
 }
-function signatures({ live, cs, st, deals, now }) {
+function signatures({ live, cs, st, deals, unsigned, now }) {
   const out = [];
   const late = (since) => !!since && businessDaysBetween(since, now) > WAIT_LATE_DAYS;
+  const ofDeal = new Set();
   for (const d of deals || []) {
     if (d.status !== 'sent' || d.signed_at) continue;
+    if (d.quote_id) ofDeal.add(d.quote_id);
     const since = parseDate(d.sent_at) || parseDate(d.created_at);
     out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: 'החוזה נשלח ולא נחתם', href: 'quotes.html', since, late: late(since) }));
+  }
+  // A contract built directly, with no field deal behind it (app/unsigned-logic.js; section 47).
+  for (const u of unsignedList(unsigned || [], now)) {
+    if (ofDeal.has(u.quote.id)) continue;
+    out.push(item({ id: `quote:${u.quote.id}`, title: u.name, text: 'ההסכם נשלח ולא נחתם', href: UNSIGNED_URL, since: u.since, late: late(u.since) }));
   }
   for (const c of live) {
     const s = st(c).find((x) => x.proc.id === 'p01');
@@ -272,10 +280,11 @@ const BUILD = { contracts, signatures, groups, intro, chars, shoots, tasks: open
 
 // The eleven topics in the protocol's order: [{ key, label, items, count, late }].
 //   clients, checks (by client id), stateOf(client) -> clientState, tasks (open),
-//   deals (Stav's deals, or null when this viewer may not read them), work (per person).
-export function controlTopics({ clients = [], checks = {}, stateOf, tasks = [], deals = null, work = [], now = new Date() }) {
+//   deals (Stav's deals, or null when this viewer may not read them), unsigned (the
+//   quotes still out for signature, or null likewise), work (per person).
+export function controlTopics({ clients = [], checks = {}, stateOf, tasks = [], deals = null, unsigned = null, work = [], now = new Date() }) {
   const live = clients.filter(inWork);
-  const env = { live, cs: (c) => checks[c.id] || {}, st: (c) => stateOf(c).states, tasks, deals, work, now };
+  const env = { live, cs: (c) => checks[c.id] || {}, st: (c) => stateOf(c).states, tasks, deals, unsigned, work, now };
   return TOPIC_KEYS.map((key) => {
     // An activated client's work is counted from its activation, never from months before it.
     const items = BUILD[key](env).map((x) => {

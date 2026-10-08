@@ -9,10 +9,13 @@ import { glide, countUp, viewerFor } from './shell.js';
 import { canSeeQuoteList, seesFinance, resetMode } from './manager-rules.js';
 // Exceptional contracts (6.10.2026): their approval state, and what the office does next.
 import { APPROVAL_TEXT, reviseUrl } from './approvals-logic.js';
+// The contracts still out for signature (docs/ops.md, section 47): the filter "מחכות
+// לחתימה" lists exactly what the line of "המשימות שלי" counts, the oldest first.
+import { waitsForSignature, sentForSignatureAt, UNSIGNED_FILTER } from './unsigned-logic.js';
 
 const $ = (id) => document.getElementById(id);
 let quotes = [];
-let filter = 'all';
+let filter = location.hash === `#${UNSIGNED_FILTER}` ? UNSIGNED_FILTER : 'all';
 let showMoney = false;      // the amounts and their sum: the owners only (seesFinance)
 
 const STATUS = {
@@ -73,10 +76,11 @@ function renderStats() {
 }
 
 function renderFilters() {
-  const n = (k) => quotes.filter((q) => k === 'all' || (k === 'open' ? OPEN.includes(statusOf(q)) : k === 'approval' ? APPROVAL.includes(statusOf(q)) : statusOf(q) === k)).length;
+  const n = (k) => quotes.filter((q) => k === 'all' || (k === 'open' ? OPEN.includes(statusOf(q)) : k === 'approval' ? APPROVAL.includes(statusOf(q)) : k === UNSIGNED_FILTER ? waitsForSignature(q) : statusOf(q) === k)).length;
   const opts = [['all', 'הכול'], ['open', 'ממתינות'], ['signed', 'נחתמו'], ['expired', 'פג תוקף'], ['cancelled', 'בוטלו']];
   // Shown only when there is such a contract.
   if (n('approval') || filter === 'approval') opts.splice(1, 0, ['approval', 'באישור מנהל']);
+  if (n(UNSIGNED_FILTER) || filter === UNSIGNED_FILTER) opts.splice(1, 0, [UNSIGNED_FILTER, 'מחכות לחתימה']);
   $('filters').replaceChildren(...opts.map(([k, label]) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(filter === k),
     onclick: () => glide(() => { filter = k; renderFilters(); renderRows(); }),
@@ -126,8 +130,11 @@ function renderRows() {
     if (filter === 'all') return true;
     if (filter === 'open') return OPEN.includes(s);
     if (filter === 'approval') return APPROVAL.includes(s);
+    if (filter === UNSIGNED_FILTER) return waitsForSignature(q);
     return s === filter;
   });
+  // What waits for a signature: the one that waits longest first.
+  if (filter === UNSIGNED_FILTER) list.sort((a, b) => sentForSignatureAt(a) - sentForSignatureAt(b));
   $('rows').replaceChildren(...list.map((q) => {
     const s = statusOf(q);
     const link = quoteLink(q.token);
@@ -160,7 +167,7 @@ function renderRows() {
     );
   }));
   $('empty').hidden = list.length > 0;
-  $('empty').textContent = quotes.length ? 'אין הצעות בסינון הזה.' : 'עדיין לא נוצרו קישורים. הצעה חדשה נוצרת במסך ״הצעה חדשה והכנת חוזה״.';
+  $('empty').textContent = quotes.length ? (filter === UNSIGNED_FILTER ? 'אין כרגע הסכם שמחכה לחתימה.' : 'אין הצעות בסינון הזה.') : 'עדיין לא נוצרו קישורים. הצעה חדשה נוצרת במסך ״הצעה חדשה והכנת חוזה״.';
 }
 
 async function loadQuotes() {
