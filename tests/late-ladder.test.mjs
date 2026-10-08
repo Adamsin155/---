@@ -13,7 +13,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeReminders, buildEnv, planDelivery, planDigests, summaryOf } from '../app/reminder-engine.js';
-import { RULES, LATE_LADDER, LATE_BATCH_MINUTES, DIGESTS, ownerDigestAt, OWN_LATE } from '../app/reminder-rules.js';
+import { RULES, LATE_LADDER, LATE_BATCH_MINUTES, DIGESTS, ownerDigestAt, OWN_LATE, nextNagSlot } from '../app/reminder-rules.js';
 import { lateItems, lateWords, fixTaskOf, fixNote, FIX_ITEM_LABEL, CLIENT_TURN } from '../app/late-chain.js';
 import { daySummary, headline, pushLines, waText, EOD, EMPTY_DAY } from '../app/day-summary.js';
 import { PROCESSES } from '../app/protocol.js';
@@ -138,19 +138,25 @@ test('the ladder of a late item: "באיחור" when the deadline passes, the on
   assert.match(of(nine, 'lateNag')[0].body, /^באיחור יום עסקים\. מסמנים ב״המשימות שלי״/);
   assert.deepEqual(stepsOf(at(IL(2026, 10, 6, 11)), 'lateNag'), []);
   assert.deepEqual(stepsOf(at(IL(2026, 10, 6, 14, 0)), 'lateNag'), ['d2026-10-06.1400@ilai:ring']);
-  // One full business day late (Tuesday 14:15): the managers ring. Nothing new for Ilai or Irit.
-  assert.deepEqual(stepsOf(at(IL(2026, 10, 6, 14, 14)), 'lateOwn'), []);
-  const mgr = at(IL(2026, 10, 6, 14, 15));
+  // One full business day late (Tuesday 14:15 passed): the managers ring at the next of the two hours,
+  // Wednesday 09:00, so that everything that crossed the line since 14:00 is one ring. Nothing new for Ilai or Irit.
+  assert.deepEqual(stepsOf(at(IL(2026, 10, 6, 14, 15)), 'lateOwn'), []);
+  assert.deepEqual(stepsOf(at(IL(2026, 10, 7, 8, 59)), 'lateOwn'), []);
+  const mgr = at(IL(2026, 10, 7, 9, 0));
   assert.deepEqual(stepsOf(mgr, 'lateOwn'), ['mgr@lior:ring', 'mgr@ofir:ring']);
+  assert.equal(hhmm(nextNagSlot(IL(2026, 10, 6, 14, 15))), '7.10 09:00');
+  assert.equal(hhmm(nextNagSlot(IL(2026, 10, 8, 14, 1))), '11.10 09:00'); // Thursday afternoon: Sunday
+  assert.equal(hhmm(nextNagSlot(IL(2027, 4, 21, 9, 15))), '25.4 09:00');  // erev Pesach after 09:00: after the holiday and the weekend
   assert.equal(of(mgr, 'lateOwn', 'ofir')[0].title, 'באיחור יום עסקים: אלפא · 7 · הכנת 9 גרפיקות ראשונות · עילאי');
-  // Two business days (Wednesday 14:15): the owners ring, with a link to their table.
-  at(IL(2026, 10, 7, 9, 0)); at(IL(2026, 10, 7, 14, 0));
-  const owner = at(IL(2026, 10, 7, 14, 15));
+  // Two business days (Wednesday 14:15 passed): the owners ring on Thursday 09:00, with a link to their table.
+  at(IL(2026, 10, 7, 14, 0));
+  assert.deepEqual(stepsOf(at(IL(2026, 10, 7, 14, 15)), 'lateOwn'), []);
+  const owner = at(IL(2026, 10, 8, 9, 0));
   assert.deepEqual(stepsOf(owner, 'lateOwn'), ['owner@owner:ring']);
   assert.equal(of(owner, 'lateOwn')[0].title, 'באיחור יומיים: אלפא · 7 · הכנת 9 גרפיקות ראשונות · עילאי');
   assert.equal(of(owner, 'lateOwn')[0].url, 'owner.html#eod');
   // Thursday as every day; Friday and Saturday nothing; Sunday again. Until it is done.
-  assert.deepEqual(stepsOf(at(IL(2026, 10, 8, 9, 0)), 'lateNag'), ['d2026-10-08.0900@ilai:ring']);
+  assert.deepEqual(stepsOf(owner, 'lateNag'), ['d2026-10-08.0900@ilai:ring']);
   assert.deepEqual(stepsOf(at(IL(2026, 10, 9, 9, 0)), 'lateNag'), []);
   assert.deepEqual(stepsOf(at(IL(2026, 10, 10, 14, 0)), 'lateNag'), []);
   assert.deepEqual(stepsOf(at(IL(2026, 10, 11, 9, 0)), 'lateNag'), ['d2026-10-11.0900@ilai:ring']);
@@ -179,9 +185,11 @@ test('an ordinary task (a decision\'s task too) that stays open past its due day
   assert.deepEqual(at(IL(2026, 10, 6, 9, 15)), ['lateOwn.own@irit:ring', 'lateOwn.wait@nadia:quiet', 'task.late@lior:quiet', 'task.late@ofir:quiet']);
   assert.deepEqual(at(IL(2026, 10, 6, 14, 0)), ['lateNag.d2026-10-06.1400@irit:ring']);
   assert.deepEqual(at(IL(2026, 10, 7, 9, 0)), ['lateNag.d2026-10-07.0900@irit:ring']);
-  assert.deepEqual(at(IL(2026, 10, 7, 9, 15)), ['lateOwn.mgr@lior:ring', 'lateOwn.mgr@ofir:ring']);
-  assert.deepEqual(at(IL(2026, 10, 7, 14, 0)), ['lateNag.d2026-10-07.1400@irit:ring']);
-  assert.deepEqual(at(IL(2026, 10, 8, 9, 15)), ['lateNag.d2026-10-08.0900@irit:ring', 'lateOwn.owner@owner:ring']);
+  assert.deepEqual(at(IL(2026, 10, 7, 9, 15)), []);
+  // A full business day late since Wednesday 09:15: the managers at 14:00; the owners on Thursday at 14:00.
+  assert.deepEqual(at(IL(2026, 10, 7, 14, 0)), ['lateNag.d2026-10-07.1400@irit:ring', 'lateOwn.mgr@lior:ring', 'lateOwn.mgr@ofir:ring']);
+  assert.deepEqual(at(IL(2026, 10, 8, 9, 15)), ['lateNag.d2026-10-08.0900@irit:ring']);
+  assert.deepEqual(at(IL(2026, 10, 8, 14, 0)), ['lateNag.d2026-10-08.1400@irit:ring', 'lateOwn.owner@owner:ring']);
   // Weeks later it still rings twice a day (it used to be mentioned once and forgotten).
   assert.deepEqual(at(IL(2026, 11, 2, 9, 0)), ['lateNag.d2026-11-02.0900@irit:ring']);
   assert.match(due(w, IL(2026, 11, 2, 9, 0)).find((r) => r.rule === 'lateNag').body, /^באיחור 20 ימי עסקים/);
@@ -192,7 +200,7 @@ test('an ordinary task (a decision\'s task too) that stays open past its due day
   const c2 = client(w2);
   importTo(w2, c2, 'ongoing');
   w2.tasks.push({ id: 't2', client_id: c2.id, title: 'לבדוק קמפיין', owner: 'lior', due_on: '2026-10-05', urgent: false, created_at: IL(2026, 10, 4, 11).toISOString(), created_by_email: 'lior@x' });
-  assert.deepEqual(due(w2, IL(2026, 10, 7, 9, 15)).filter((r) => r.rule === 'lateOwn' && r.step === 'mgr').map((r) => r.person), ['ofir']);
+  assert.deepEqual(due(w2, IL(2026, 10, 7, 14, 0)).filter((r) => r.rule === 'lateOwn' && r.step === 'mgr').map((r) => r.person), ['ofir']);
 });
 
 // ── 3. One message, and the day's volume ────────────────────────────────────
@@ -284,11 +292,11 @@ test('the volume of a day: with 5 late items each, a person gets the two daily r
   const d2 = await day(7);
   for (const p of ['irit', 'ilai', 'nadia']) assert.deepEqual(about(d2, p), ['08:30 תקציר בוקר', '09:00 5 דברים באיחור אצלך', '14:00 5 דברים באיחור אצלך'], p);
   // The managers: ONE ring for the 15 items that are a business day late.
-  assert.deepEqual(about(d2, 'ofir').filter((t) => /איחור/.test(t)), ['09:15 באיחור יום עסקים: 15 פריטים']);
-  assert.deepEqual(about(d2, 'lior').filter((t) => /איחור/.test(t)), ['09:15 באיחור יום עסקים: 15 פריטים']);
+  assert.deepEqual(about(d2, 'ofir').filter((t) => /איחור/.test(t)), ['14:00 באיחור יום עסקים: 15 פריטים']);
+  assert.deepEqual(about(d2, 'lior').filter((t) => /איחור/.test(t)), ['14:00 באיחור יום עסקים: 15 פריטים']);
   assert.equal(db.log.find((r) => r.key.startsWith('digest:late:ofir:2026-10-07')).level, 'ring');
   const d3 = await day(8);
-  assert.deepEqual(about(d3, 'owner').filter((t) => !/סיכום היום/.test(t)), ['09:15 באיחור יומיים: 15 פריטים']);
+  assert.deepEqual(about(d3, 'owner').filter((t) => !/סיכום היום/.test(t)), ['14:00 באיחור יומיים: 15 פריטים']);
   assert.ok(about(d3, 'owner').some((t) => /^19:00 סיכום היום/.test(t)));
   // Over the three days nobody got more than the two reminders and one batch about lateness a day.
   for (const list of [d1, d2, d3]) {

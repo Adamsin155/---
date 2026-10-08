@@ -11,7 +11,7 @@
 // (This file uses double quotes only: the tool that wrote it could not carry single ones.)
 import http from "node:http";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { extname, join, normalize } from "node:path";
+import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
@@ -25,8 +25,13 @@ import { serveMore, triggers } from "./server.mjs";
 
 export { SUPA, ROLES, emailOf };
 export const ROOT = fileURLToPath(new URL("../../", import.meta.url));
-export const OUT = join(ROOT, "docs/design/full-flow/");
-export const STATE = join(ROOT, "tests/sim/state/");
+// A rerun that must not write over the recorded run (the screenshots and the step table the
+// report's findings point at, and the saved state) goes somewhere else:
+//   SIM_OUT=<folder> SIM_STATE=<folder> node tests/sim/run.mjs
+const dir = (v, fallback) => (v ? join(resolve(v), "/") : join(ROOT, fallback));
+export const OUT = dir(process.env.SIM_OUT, "docs/design/full-flow/");
+export const STATE = dir(process.env.SIM_STATE, "tests/sim/state/");
+mkdirSync(OUT, { recursive: true });
 export const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
 export const hhmm = (d) => { const p = partsIL(new Date(d)); return `${p.day}.${p.month} ${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`; };
 const DAYS = ["א", "ב", "ג", "ד", "ה", "ו", "שבת"];

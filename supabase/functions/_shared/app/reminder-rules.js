@@ -2142,6 +2142,9 @@ export const VOID_WHEN_GONE = new Set(RULES.filter((r) => r.voidWhenGone).map((r
 //                  the protocol's chain) is told whose work holds their card.
 //   lateOwn.mgr    one full business day late: the managers ring (not themselves).
 //   lateOwn.owner  two business days late: the owners ring.
+//                  Both go out at the next of the day's two hours (09:00, 14:00), so everything
+//                  that crossed the line since the hour before is ONE ring: a manager or an
+//                  owner gets at most two of these a day, however many items are late.
 //   lateNag        every working day at LATE_LADDER.nagAt (09:00 and 14:00), until it
 //                  is done: ONE ring per person with everything they hold that is late.
 //                  The step's id names the day and the hour, so each goes out once.
@@ -2162,6 +2165,15 @@ const lateUrl = (x) => (x.kind === 'task' ? TASK_URL(x.cid) : clientUrl(x.cid, x
 const lateLine = (x, env) => `${x.name} · ${x.what} (באיחור ${lateWords(x.dueAt, env.now)})`;
 const listed = (lines, max = LATE_LADDER.listMax) => (lines.length > max ? [...lines.slice(0, max), `ועוד ${lines.length - max}`] : lines);
 const NAG_WORDS = `תזכורת ב־${LATE_LADDER.nagAt.join(' וב־')} בכל יום עבודה, עד שזה מסומן`;
+// The first of the day's reminder hours at or after `d` (a working day, inside the sending hours).
+export function nextNagSlot(d) {
+  let day = new Date(d);
+  for (let n = 0; n < 40; n += 1) {
+    for (const t of LATE_LADDER.nagAt) { const at = atIL(day, t); if (at >= d && inSendHours(at)) return at; }
+    day = addDaysIL(atTimeIL(day, 12), 1);
+  }
+  return new Date(d);
+}
 const justLate = (i, env) => env.now - i.x.lateAt <= LATE_LADDER.tellWithinMinutes * MIN;
 const DAY_WORDS = (n) => (n === 1 ? 'יום עסקים' : n === 2 ? 'יומיים' : `${n} ימי עסקים`);
 const LADDER_RULES = [
@@ -2173,14 +2185,14 @@ const LADDER_RULES = [
         managers: LATE_LADDER.managers.filter((p) => !x.holders.includes(p)),
         // Ofir and Lior already get the note of the rule `late` (or `task`) at this moment.
         waiters: x.waiters.filter((p) => !LATE_WATCHERS.includes(p) && REMINDER_PEOPLE.has(p)),
-        anchors: { event: x.lateAt, mgr: businessDayFrom(x.lateAt, LATE_LADDER.managerAfter), owner: businessDayFrom(x.lateAt, LATE_LADDER.ownerAfter) },
+        anchors: { event: x.lateAt, mgr: nextNagSlot(businessDayFrom(x.lateAt, LATE_LADDER.managerAfter)), owner: nextNagSlot(businessDayFrom(x.lateAt, LATE_LADDER.ownerAfter)) },
       }));
     },
     steps: [
       { id: 'own', to: (i) => i.x.holders, level: 'ring', batch: true, overdue: true, when: (i, env) => !i.x.rung && justLate(i, env), title: (i) => `באיחור: ${i.name} · ${i.x.what}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. ${NAG_WORDS}.` },
       { id: 'wait', to: (i) => i.waiters, level: 'quiet', batch: true, when: justLate, title: (i) => `מתעכב אצל ${names(i.x.holders.map(personName))}: ${i.name} · ${i.x.what}`, body: (i, env) => `בגלל זה הכרטיס שלך מחכה. היעד היה ${whenText(i.x.dueAt, env.now)}; התזכורות אצל ${names(i.x.holders.map(personName))} נמשכות עד שזה נגמר.` },
       { id: 'mgr', from: 'mgr', to: (i) => i.managers, level: 'ring', batch: true, overdue: true, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.managerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}, ועוד לא נסגר.` },
-      { id: 'owner', from: 'owner', to: OWNER, level: 'ring', batch: true, overdue: true, url: () => EOD.url, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.ownerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. המנהלים קיבלו על זה צלצול אחרי יום עסקים.` },
+      { id: 'owner', from: 'owner', to: OWNER, level: 'ring', batch: true, overdue: true, url: () => EOD.url, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.ownerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. המנהלים קיבלו על זה צלצול אחרי יום עסקים. הכול בסיכום היום.` },
     ],
   },
   {
