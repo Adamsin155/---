@@ -1,0 +1,160 @@
+/* The client card (client.html): what the visual sweep of 9.10.2026 found on the phone
+   and on the desktop. Look only: long names and addresses that pushed the page sideways,
+   fields that did not line up, leftovers of the old look next to the kit's (kit.css).
+   Loaded after kit.css; every rule is held to this page's own blocks. */
+
+/* ── Nothing in the card can push the page sideways ── */
+.pr-app { min-width: 0; }
+.pr-app > * { min-width: 0; max-inline-size: 100%; }
+#cc-head { grid-template-columns: minmax(0, 1fr); }
+#cc-head > * { min-width: 0; }
+.cc-top > div:first-child { flex: 1 1 260px; min-width: 0; }
+.cc-top h1, .cc-top p, .cc-top .kicker, .cc-notes, .cc-next, .cc-next > span, .cc-sticky .sticky-name,
+#cc-head .auto-note p, #cc-head .land-note, .status-note dd, .cs-when, .cs-flags,
+#tasks .tlist li, #tasks .tlist .wlabel, #hist-list li, #access-log li, .access-main, .access-main .inote,
+#phases .ilabel, #phases .inote, #phases .proc-title h3, #phases .proc-what, #phases .proc-note, #phases .proc-guide, #phases .proc-rule,
+#phases .handoff-list li, #qa-block, #tl-slot .tl-body, #mc-slot, dialog .dlg-body p, dialog .dlg-head h2 { overflow-wrap: anywhere; }
+.cc-top h1 { overflow-wrap: break-word; }
+.cc-next { flex-wrap: wrap; min-width: 0; }
+.head-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ── The state of the client: its reasons as rows with a dot, not a plain bullet list ── */
+#cc-head .hhead { grid-template-columns: minmax(0, 1fr); margin: 0; gap: 6px; }
+#cc-head .hrest { list-style: none; padding: 0; gap: 4px; }
+#cc-head .hrest > li { position: relative; padding-inline-start: 16px; min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+#cc-head .hrest > li::before { content: ''; position: absolute; inset-inline-start: 3px; inset-block-start: .62em; inline-size: 6px; block-size: 6px; border-radius: 50%; background: var(--ds-line-strong); }
+#cc-head .hline { min-width: 0; }
+#cc-head .hline-why > * { min-width: 0; }
+
+/* ── The details: one card of rows whose lines meet ── */
+#cc-head .cc-facts { gap: 0; padding: 0; border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-surface); overflow: hidden; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+#cc-head .cc-facts .fact { padding: 10px 14px; border: 0; border-inline-end: 1px solid var(--ds-line); border-block-end: 1px solid var(--ds-line); margin: 0 0 -1px; margin-inline-end: -1px; }
+#cc-head .cc-facts dd { font-weight: 600; color: var(--ds-ink); }
+#cc-head .cc-facts dd a { font-weight: 600; }
+@media (max-width: 760px) {
+  #cc-head .cc-facts { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; }
+  #cc-head .cc-facts .fact:has(details.cal) { grid-column: 1 / -1; }
+}
+@media (max-width: 380px) {
+  #cc-head .cc-facts .fact { padding: 10px 12px; }
+}
+
+/* ── The small heads inside the head card take the kit's square like the blocks below ── */
+#cc-head .deliv-head h2, #cc-head .cs-head h2 { font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; }
+#cc-head .cs-head, #cc-head .deliv-head { align-items: center; }
+#cc-head .cc-links { align-items: center; }
+#cc-head .cc-links .me-label { display: inline-flex; align-items: center; gap: 8px; font-family: var(--ds-font-h); font-size: 17px; color: var(--ds-ink); flex: 1 1 100%; }
+#cc-head .chips-row { min-width: 0; flex: 1 1 100%; }
+#cc-head .chips-row > li { min-width: 0; max-inline-size: 100%; }
+#cc-head .chips-row .chip { max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; text-align: start; line-height: 1.3; min-height: 44px; display: inline-flex; align-items: center; }
+/* A missing link: the same pill, quieter, with a plus (no dashed outline). */
+#cc-head .chip-missing { border-style: solid; border-color: var(--ds-line-strong); background: var(--ds-soft); color: var(--ds-ink-2); }
+
+/* What the package holds: label, count, bar and the two round buttons on one line. */
+#cc-head .deliv-row { grid-template-columns: minmax(96px, 180px) minmax(0, 240px) minmax(80px, 160px) auto; }
+#cc-head .deliv-row > span { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  #cc-head .deliv-row { grid-template-columns: minmax(0, 1fr) auto; }
+}
+.cs-item { min-width: 0; }
+
+/* ── Access to the networks ── */
+#access .access-head > div { flex: 1 1 220px; min-width: 0; }
+@media (max-width: 760px) {
+  /* The button under the two lines, not beside a squeezed paragraph. */
+  #access .access-head.k-sidehead > .btn { grid-column: 2 / -1; grid-row: auto; justify-self: start; margin-block: 2px 10px; min-height: 44px; }
+  #access .access-head.k-sidehead > div { grid-column: 2 / -1; }
+}
+#access .access-row { border-radius: var(--ds-r-item); padding: 12px; background: var(--ds-surface); border: 1px solid var(--ds-line); align-items: center; }
+#access .access-row.a-broken, #access .access-row.a-missing { border-inline-start: 3px solid var(--ds-amber-line); }
+#access .access-row.a-new { border-inline-start: 3px solid var(--ds-navy-mid); }
+#access .access-main { flex: 1 1 220px; }
+#access .access-main .num[dir='ltr'] { max-inline-size: 100%; text-align: start; unicode-bidi: plaintext; }
+#access .access-main .imeta > * { min-width: 0; }
+#access .access-acts { flex: 0 1 auto; }
+#access .access-acts .btn-text { min-height: 44px; display: inline-flex; align-items: center; }
+#access .access-log > summary { min-height: 44px; }
+/* The status word of a login, as the kit's pill. */
+#access .imeta .tag { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding: 2px 10px; border: 0; border-radius: var(--ds-r-pill); background: var(--ds-ok-soft); color: var(--ds-ok); font-size: 12.5px; font-weight: 600; line-height: 1.3; }
+#access .imeta .tag::before { content: ''; inline-size: 7px; block-size: 7px; border-radius: 50%; background: currentColor; flex: none; }
+#access .imeta .tag.tag-warn { background: var(--ds-amber-soft); color: var(--ds-amber); }
+
+/* ── The protocol ── */
+/* Somebody else's process recedes by a quiet solid line (the dashed outline was the old look). */
+#phases .proc.is-dim { border-style: solid; border-color: var(--ds-line); }
+#phases .done-row { border: 1px solid var(--ds-line); background: var(--ds-surface); border-radius: var(--ds-r-item); }
+#phases .done-row:hover { background: var(--ds-soft); }
+#phases .handoff-line { border-top: 1px solid var(--ds-line); }
+#phases .handoff-list li > * { min-width: 0; }
+#phases .handoff-send { white-space: normal; text-align: start; }
+/* The status of a process: its words stay on their line, the link under them. */
+#phases .proc-head { flex-wrap: wrap; }
+#phases .proc-title { flex: 1 1 200px; }
+#phases .proc-status { max-inline-size: 100%; }
+#phases .proc-status .wait-btn, #phases .proc-status .btn-text { white-space: nowrap; }
+/* "אם רלוונטי" and the other small words on an item: the kit's quiet pill. */
+#phases .imeta .tag, #tl-slot .tl-body .tag { display: inline-flex; align-items: center; min-height: 22px; padding: 1px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 12px; font-weight: 500; line-height: 1.3; vertical-align: middle; }
+#tl-slot .tl-body .tag.tag-warn { background: var(--ds-hot-soft); color: var(--ds-hot-text); border: 0; font-weight: 600; }
+@media (max-width: 760px) {
+  /* "לא נדרש" under an item: its own 44px row, clear of the label above it. */
+  #phases .fin-row > .na-btn { margin: 0; align-self: start; }
+  #phases .fin-row > .irow { padding-bottom: 4px; }
+}
+
+/* ── Tasks: the fields of the form on one grid ── */
+#tasks .task-form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto auto; align-items: end; gap: 12px; }
+#tasks .task-form > .field { min-width: 0; flex: none; }
+#tasks .task-form .input { inline-size: 100%; min-width: 0; box-sizing: border-box; }
+#tasks .task-form > label.only { min-height: 46px; align-self: end; white-space: nowrap; }
+#tasks .task-form > .btn { min-height: 46px; }
+#tasks .task-form > .span-all { grid-column: 1 / -1; }
+@media (max-width: 760px) {
+  #tasks .task-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  #tasks .task-form > .grow { grid-column: 1 / -1; }
+  #tasks .task-form > label.only { justify-self: start; }
+  #tasks .task-form > .btn { justify-self: stretch; }
+}
+#tasks .tlist > li { min-width: 0; }
+#tasks .tlist .imeta > * { min-width: 0; }
+#tasks .brief-grid .input { inline-size: 100%; box-sizing: border-box; }
+
+/* ── The phone: rows that keep their icon beside them, taps of 44px ── */
+#cc-head .cc-facts dd a[href^='tel:'] { white-space: nowrap; }
+@media (max-width: 760px) {
+  #access .access-main { flex: 1 1 150px; }
+  #st-slot details > summary, #ik-slot details > summary, #mc-slot details > summary, #tl-slot details > summary { min-height: 44px; }
+  #cc-head .cc-links .btn-text, #viewbar .btn-text, #viewbar .btn { min-height: 44px; }
+}
+
+/* ── History and the timeline ── */
+#hist-list, #access-log { overflow-x: hidden; }
+#tl-slot .tl-item { min-width: 0; }
+
+/* ── The dialogs of the card ── */
+dialog .dlg-head h2 { flex: 1 1 auto; min-width: 0; }
+dialog .dlg-head .close { flex: none; }
+dialog .dlg-body .input { max-inline-size: 100%; box-sizing: border-box; }
+dialog .dlg-body .field { min-width: 0; }
+dialog .form-grid > * { min-width: 0; }
+/* The details form scrolls under its buttons: a line says where the buttons begin. */
+#dlg-edit .dlg-foot, #dlg-access .dlg-foot { border-top: 1px solid var(--ds-line); padding-top: 14px; }
+/* A date with its hour needs the room of two columns, not three. */
+#dlg-edit .form-grid.inner { grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); }
+#dlg-edit .fs, dialog .fs { border-color: var(--ds-line); border-radius: var(--ds-r-item); min-width: 0; }
+#dlg-edit .fs legend.k-h { display: inline-flex; }
+dialog label.only { align-items: flex-start; min-height: 44px; }
+dialog label.only input { flex: none; margin-top: 3px; }
+dialog .dlg-foot .btn { min-height: 46px; }
+#dlg-call .call-task { min-width: 0; }
+#dlg-call .call-task .field { min-width: 0; flex: 1 1 140px; }
+#dlg-call .call-task .input { inline-size: 100%; }
+@media (max-width: 760px) {
+  dialog .dlg-head .close { inline-size: 44px; block-size: 44px; min-inline-size: 44px; }
+  dialog .dlg-foot { flex-wrap: nowrap; }
+  dialog .dlg-foot .btn { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.25; }
+  dialog .dlg-foot .btn.btn-ghost { flex: 0 1 auto; }
+}
+
+@media print {
+  #cc-head .cc-facts { border: 1px solid #999; }
+}
