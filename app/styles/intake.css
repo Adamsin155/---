@@ -289,3 +289,7 @@ details.pp-sub > summary.pp-sum .pp-status.is-ok { color: var(--ds-ink); font-we
   .pp-form > .btn, .pp-app .ik-big { inline-size: auto; justify-self: start; min-inline-size: 240px; }
 }
 .pp-app .k-note { overflow-wrap: anywhere; }
+/* The closed day's line opens the approvals: a chevron says so (the browser's own marker is off). */
+details.pp-sub > summary.pp-sum::after { content: ''; flex: none; margin-inline-start: auto; inline-size: 8px; block-size: 8px; border-inline-end: 2px solid var(--ds-ink-2); border-block-end: 2px solid var(--ds-ink-2); transform: rotate(45deg); transition: transform var(--ds-t-fast, .15s); }
+details.pp-sub[open] > summary.pp-sum::after { transform: rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) { details.pp-sub > summary.pp-sum::after { transition: none; } }

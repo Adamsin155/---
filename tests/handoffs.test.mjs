@@ -187,9 +187,9 @@ test('the card\'s "העברות" line: what went to whom, and whether WhatsApp w
   const p19 = line(all('p19', '2026-10-08T19:00:00+03:00'), 'p19');
   assert.deepEqual(people(p19), ['ofir']);
   assert.match(p19[0].triggerKey, /^p19\./);
-  assert.equal(describeMark('p05.handoff.ilai'), 'גישות התקבלו → עילאי');
-  assert.equal(describeMark('r2.p22a.handoff.editor'), 'עורך שויך → העורך המשויך');
-  assert.equal(describeMark('p25.handoff.lior'), 'אופיר אישר את הסרטונים → ליאור');
+  assert.equal(describeMark('p05.handoff.ilai'), 'גישות התקבלו ← עילאי');
+  assert.equal(describeMark('r2.p22a.handoff.editor'), 'עורך שויך ← העורך המשויך');
+  assert.equal(describeMark('p25.handoff.lior'), 'אופיר אישר את הסרטונים ← ליאור');
   assert.equal(describeMark('p05.access'), null);
 });
 
@@ -200,11 +200,11 @@ test('the record names whom WhatsApp was opened for: Lior when he took 22א, the
   const [o] = offer(c, byLior, 'p19.took', '2026-10-08T19:01:00+03:00');
   // A neutral key (whoever assigns the editor); the person goes in the record's note.
   assert.deepEqual([o.person, o.name, o.markKey], ['lior', 'ליאור', 'p19.handoff.assigner']);
-  assert.equal(describeMark(o.markKey, 'lior'), 'יום הצילום הסתיים → ליאור');
-  assert.equal(describeMark(o.markKey, 'ofir'), 'יום הצילום הסתיים → אופיר');
-  assert.equal(describeMark(o.markKey), 'יום הצילום הסתיים → מי שמשייך את העורך');
-  assert.equal(describeMark('p22a.handoff.editor', 'nirel'), 'עורך שויך → ניראל');
-  assert.equal(describeMark('p22a.handoff.editor', 'editor'), 'עורך שויך → העורך המשויך');
+  assert.equal(describeMark(o.markKey, 'lior'), 'יום הצילום הסתיים ← ליאור');
+  assert.equal(describeMark(o.markKey, 'ofir'), 'יום הצילום הסתיים ← אופיר');
+  assert.equal(describeMark(o.markKey), 'יום הצילום הסתיים ← מי שמשייך את העורך');
+  assert.equal(describeMark('p22a.handoff.editor', 'nirel'), 'עורך שויך ← ניראל');
+  assert.equal(describeMark('p22a.handoff.editor', 'editor'), 'עורך שויך ← העורך המשויך');
   // The card's line says whom it was opened for when the editor was changed since.
   const now = at('2026-10-09T10:00:00+03:00');
   const checks = { 'p22a.assigned': done(when), 'p22a.handoff.editor': done('2026-10-08T19:05:00+03:00', 'nirel') };

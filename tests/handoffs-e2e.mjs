@@ -322,7 +322,7 @@ await step('in the card: the prompt and the "העברות" line, on Israel time 
   assert.ok(href.startsWith('https://wa.me/972500000004?text='));
   assert.match(waText(href), new RegExp(`\\nיעד: היום 11:30\\nכרטיס הלקוח: ${BASE.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}client\\.html\\?id=${cafe.id}#p06$`));
   await card.waitForSelector('#p05 .handoff-line');
-  assert.match(await text(card, '#p05 .handoff-line'), /העברות:[\s\S]*גישות התקבלו → עילאי[\s\S]*וואטסאפ עוד לא נפתח[\s\S]*לשלוח לעילאי בוואטסאפ/);
+  assert.match(await text(card, '#p05 .handoff-line'), /העברות:[\s\S]*גישות התקבלו ← עילאי[\s\S]*וואטסאפ עוד לא נפתח[\s\S]*לשלוח לעילאי בוואטסאפ/);
   assert.equal(await card.getAttribute('#hl-p05-handoff-ilai', 'href'), href);
   assert.ok(await card.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), 'no sideways scrolling at 360px');
   const box = await card.locator('#handoff a.handoff-wa').boundingBox();
@@ -345,7 +345,7 @@ await step('the line records who opened WhatsApp; the history says so', async ()
   await until(() => hasCheck(cafe, 'p05.handoff.ilai'), 'the handoff record');
   await card.waitForFunction(() => /וואטסאפ נפתח · אופיר/.test(document.querySelector('#p05 .handoff-line')?.textContent || ''));
   assert.match(await text(card, '#p05 .handoff-line'), /לשלוח שוב לעילאי/);
-  await card.waitForFunction(() => /פתח\/ה וואטסאפ להעברה: גישות התקבלו → עילאי/.test(document.querySelector('#hist-list')?.textContent || ''));
+  await card.waitForFunction(() => /פתח\/ה וואטסאפ להעברה: גישות התקבלו ← עילאי/.test(document.querySelector('#hist-list')?.textContent || ''));
 });
 
 await step('unchecking the item takes the prompt away', async () => {
@@ -362,7 +362,7 @@ await step('unchecking the item takes the prompt away', async () => {
   assert.equal(hasCheck(cafe, 'p05.access'), false);
   // The record of the handoff stays in the card, without a button to send again.
   await card.waitForFunction(() => !document.getElementById('hl-p05-handoff-ilai'));
-  assert.match(await text(card, '#p05 .handoff-line'), /גישות התקבלו → עילאי[\s\S]*וואטסאפ נפתח · אופיר/);
+  assert.match(await text(card, '#p05 .handoff-line'), /גישות התקבלו ← עילאי[\s\S]*וואטסאפ נפתח · אופיר/);
 });
 
 await step('work handed over before, and closed clients: nothing to send', async () => {
@@ -394,7 +394,7 @@ await step('Irit approves in the card: the prompt skips her, and links the team 
   await until(() => hasCheck(pizza, 'p25.handoff.lior'), 'the handoff record');
   const rec = checksOf(pizza).find((x) => x.item_key === 'p25.handoff.lior');
   assert.deepEqual([rec.by_email, rec.note], [IRIT.email, 'lior']);
-  await irit.waitForFunction(() => /פתח\/ה וואטסאפ להעברה: אופיר אישר את הסרטונים → ליאור/.test(document.querySelector('#hist-list')?.textContent || ''));
+  await irit.waitForFunction(() => /פתח\/ה וואטסאפ להעברה: אופיר אישר את הסרטונים ← ליאור/.test(document.querySelector('#hist-list')?.textContent || ''));
 });
 
 await browser.close();

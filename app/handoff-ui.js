@@ -206,7 +206,7 @@ export function handoffLine({ client, checks, state, x, me = null, canTeam = fal
       const sentTo = o.sentTo && o.sentTo !== o.name ? ` ל${o.sentTo}` : '';
       const button = o.live && o.person !== me;
       return h('li', {},
-        h('span', {}, `${o.point.label} → ${o.known ? o.name : 'העורך המשויך'}`),
+        h('span', {}, `${o.point.label} ← ${o.known ? o.name : 'העורך המשויך'}`),
         o.sent
           ? h('span', { class: 'muted' }, `וואטסאפ נפתח${sentTo} · ${who(o.sent.by_email)} · ${formatStamp(o.sent.at)}`)
           : h('span', { class: 'muted' }, 'וואטסאפ עוד לא נפתח'),

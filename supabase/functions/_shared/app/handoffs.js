@@ -151,7 +151,7 @@ export const markKeyOf = (pre, point, target) => `${pre}${procOfPoint(point)}.ha
 export const nameOf = (person) => (person && person !== 'editor' && PEOPLE[person] ? PEOPLE[person].name : null);
 export const toName = (person) => (nameOf(person) ? `ל${nameOf(person)}` : 'לעורך המשויך');
 
-// A record key in words, for the card's history: "גישות התקבלו → עילאי". `note` is
+// A record key in words, for the card's history: "גישות התקבלו ← עילאי". `note` is
 // the record's note: the person WhatsApp was opened for (Lior, when he took the
 // editor assignment; the editor by name). Null when the key is not a handoff record.
 export function describeMark(key, note = null) {
@@ -159,7 +159,7 @@ export function describeMark(key, note = null) {
   if (!m) return null;
   for (const point of HANDOFFS) {
     const target = procOfPoint(point) === m[1] && point.to.find((t) => t.id === m[2]);
-    if (target) return `${point.label} → ${nameOf(note) || nameOf(typeof target.person === 'string' ? target.person : null) || target.who}`;
+    if (target) return `${point.label} ← ${nameOf(note) || nameOf(typeof target.person === 'string' ? target.person : null) || target.who}`;
   }
   return null;
 }
