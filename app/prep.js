@@ -283,29 +283,47 @@ function coordinatorBlock(e, k) {
 }
 // The date with, under it, what the photographer handed over for the day being picked.
 function shootAtField(c, k, dt) {
-  const input = h('input', { class: 'input', id: `sh-at-${k}`, type: 'datetime-local', dir: 'ltr', value: dt, 'aria-describedby': `sh-at-${k}-avail`, oninput: (ev) => shootDraft.set(c.id, ev.currentTarget.value) });
+  // With no date nothing is saved: the sentence under the field says so (saveShoot), and goes when a date is typed.
+  const err = h('p', { class: 'err pp-field-err', id: `sh-at-${k}-err`, role: 'alert', hidden: true });
+  const input = h('input', {
+    class: 'input', id: `sh-at-${k}`, type: 'datetime-local', dir: 'ltr', value: dt, 'aria-describedby': `sh-at-${k}-err sh-at-${k}-avail`,
+    oninput: (ev) => { shootDraft.set(c.id, ev.currentTarget.value); if (ev.currentTarget.value) { err.hidden = true; ev.currentTarget.removeAttribute('aria-invalid'); } },
+  });
   const hint = shootDayHint(input, { me, own: c.shoot_at });
   hint.id = `sh-at-${k}-avail`;
   if (dt) hint.refresh();
-  return [input, hint];
+  return [input, err, hint];
 }
+// What "שמירת המועד" answers when the date field is empty.
+const NO_DATE = 'צריך לבחור תאריך ושעה';
 async function saveShoot(c, k) {
+  if (busy) return;
   const type = $(`sh-type-${k}`).value || null;
-  const at = fromInputIL($(`sh-at-${k}`).value);
-  const fields = {};
+  const field = $(`sh-at-${k}`);
+  const at = fromInputIL(field.value);
+  // "שמירת המועד" with an empty date wrote only "עם מי מצלמים" and still said "המועד נשמר."
+  // Now it saves nothing: the sentence is next to the field and the focus goes there
+  // (docs/ops.md, section 50). A date is never cleared from this form.
+  if (!at) {
+    const err = $(`sh-at-${k}-err`);
+    err.textContent = NO_DATE;
+    err.hidden = false;
+    field.setAttribute('aria-invalid', 'true');
+    field.focus();
+    return;
+  }
+  const fields = { shoot_at: at.toISOString() };
   if (type) fields.shoot_type = type;
-  if (at) fields.shoot_at = at.toISOString();
-  if (!Object.keys(fields).length) { toast('לבחור עם מי מצלמים ומועד.'); return; }
   // Against the usual order (in the past, before the characterization, too soon after it): ask, with the reason.
-  const asked = at ? await confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me }) : { ok: true, note: null };
-  if (!asked.ok) { $(`sh-at-${k}`).focus(); return; }
+  const asked = await confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me });
+  if (!asked.ok) { field.focus(); return; }
   busy = true;
   try {
     const row = await updateClient(c.id, fields);
     if (asked.note) await noteDateChange(c.id, 'shoot_at', null, fields.shoot_at, asked.note);
     clients = clients.map((x) => (x.id === c.id ? row : x));
     shootDraft.delete(c.id);
-    toast('המועד נשמר.');
+    toast(`המועד נשמר: ${formatStamp(at)}.${type ? '' : ' עוד לא נבחר עם מי מצלמים.'}`);
   } catch (err) { toast(`לא נשמר. ${errorText(err)}`); }
   busy = false;
   render(`sh-save-${k}`);

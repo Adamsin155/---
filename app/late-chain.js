@@ -22,7 +22,7 @@
 //             'overdue' at all, and a paused editing is left out here.)
 // Not asked of a client in landing (docs/ops.md, section 41).
 import { PROCESSES } from './protocol.js';
-import { isResolved, blockers, pauseOf, clientLabel, inLanding, addWorkingMinutes, businessDaysBetween, officeMsBetween, parseDate } from './protocol-logic.js';
+import { isResolved, blockers, pauseOf, clientLabel, inLanding, addWorkingMinutes, businessDaysBetween, officeMsBetween, parseDate, endOfBusinessDay } from './protocol-logic.js';
 import { HANDOFFS } from './handoffs.js';
 import { ANSWER_CLOCKS } from './clocks.js';
 import { dayFromKeyIL, endOfDayIL, dayKeyIL } from './tz.js';
@@ -154,6 +154,26 @@ export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks 
   }
   return out.sort((a, b) => a.dueAt - b.dueAt);
 }
+
+// ── "Late", for one person, as one number (docs/ops.md, section 50) ──
+// The "באיחור" tab of "המשימות שלי", the "באיחור" group of the list, the daily control's
+// column and the owners' end-of-day table all count with these, so a person sees the
+// same number wherever it is written:
+//   - past its deadline, and held by that person now (`holders`);
+//   - not the client's turn (`clientTurn`): that is nobody's lateness;
+//   - not a client in landing, not a paused editing, not "ממתין ללקוח" (lateItems leaves them out);
+//   - a deadline at the close of this very day (18:00) is "of today, not done" until
+//     tomorrow, as in the owners' table.
+// The reminders (app/reminder-rules.js) read the same lateItems and add what is theirs
+// alone: 15 office minutes of grace, "לדחות עד…", and the two cases another rule rings for.
+export const dueAtCloseToday = (x, now = new Date()) => x.kind === 'proc' && dayKeyIL(x.dueAt) === dayKeyIL(now) && x.dueAt.getTime() === endOfBusinessDay(x.dueAt).getTime();
+export const countsLate = (x, now = new Date()) => !x.clientTurn && x.holders.length > 0 && !dueAtCloseToday(x, now);
+// The late items one person holds, the longest lateness first (lateItems is sorted so).
+export const heldLate = (items, person, now = new Date()) => items.filter((x) => countsLate(x, now) && x.holders.includes(person));
+// The key of a late item as the lists name their cards: `${client}:${process}`, `task:${id}`.
+export const lateKey = (x) => (x.kind === 'task' ? `task:${x.task.id}` : `${x.cid}:${x.procId}`);
+// Where a reminder about several late items opens: the "באיחור" tab of "המשימות שלי".
+export const LATE_URL = 'clients.html#late';
 
 // "באיחור 3 שעות", "באיחור יום עסקים", "באיחור 4 ימי עסקים": how late, in the office's time.
 export function lateWords(dueAt, now = new Date()) {

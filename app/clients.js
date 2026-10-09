@@ -61,7 +61,9 @@ import { showMonths, worksCycle } from './month-ui.js';
 // Irit's daily control (process 32): her eleven topics, each with what is open now.
 import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageText } from './control-topics.js';
 import { loadDeals } from './deal-data.js';
-import { fixTaskOf, fixNote, FIX_ITEM_LABEL } from './late-chain.js';
+import { fixTaskOf, fixNote, FIX_ITEM_LABEL, lateItems, countsLate, lateKey } from './late-chain.js';
+// The shared look (docs/ops.md, section 50): icon squares, the counted line, the empty state.
+import { headIcon, sectionHead, emptyState, countedLine } from './kit.js';
 import { canSeeDeals, canSeeQuoteList } from './manager-rules.js';
 // Everything that waits for me on another page, as counted lines (docs/ops.md, section 46).
 import { flowLines, flowNeeds } from './mine-flow.js';
@@ -104,6 +106,8 @@ function syncProfile() {
   managing = profile === 'manager';
   return was !== personal;
 }
+// "המשימות שלי" and its "באיחור" tab are one panel (the list alone, with the late items only).
+const onMine = () => view === 'mine' || view === 'late';
 // The view an address asks for, and the address of a view.
 const viewOfHash = () => { const v = location.hash.slice(1); return v === 'team' ? 'mine' : v; };
 const hashOfView = (v) => (v === 'mine' && managing ? 'team' : v);
@@ -260,15 +264,20 @@ function applyScope() {
 }
 
 // ── Tabs ────────────────────────────────────
-const TABS = ['mine', 'clients', 'control', 'performance'];
+const TABS = ['mine', 'late', 'clients', 'control', 'performance'];
 const tabsShown = () => TABS.filter((t) => !$(`tab-${t}`).hidden);
+// "באיחור" has no panel of its own: it is the list of "המשימות שלי" with the late items alone.
+const panelOf = (t) => (t === 'late' ? 'mine' : t);
 function setView(v, focus = false) {
+  syncLateTab();
   view = tabsShown().includes(v) ? v : 'mine';
+  if (view === 'late') lateStays = true;
   for (const t of TABS) {
     $(`tab-${t}`).setAttribute('aria-selected', String(t === view));
     $(`tab-${t}`).tabIndex = t === view ? 0 : -1;
-    $(`view-${t}`).hidden = t !== view;
+    if (t !== 'late') $(`view-${t}`).hidden = t !== panelOf(view);
   }
+  $('view-mine').setAttribute('aria-labelledby', view === 'late' ? 'tab-late' : 'tab-mine');
   if (focus) $(`tab-${view}`).focus();
   history.replaceState(null, '', `#${hashOfView(view)}`);
   // The address changed without an event: the app menu marks the screen by it (app/shell.js).
@@ -288,7 +297,7 @@ document.querySelector('.tabs').addEventListener('keydown', (e) => {
 function render() {
   // The landing line and list belong to "המשימות שלי" alone.
   if (view !== 'mine') { $('land-line').hidden = true; $('land-quiet').hidden = true; }
-  if (view === 'mine') renderMine();
+  if (onMine()) renderMine(); else syncLateTab();
   if (view === 'clients') renderClients();
   if (view === 'control') renderControl();
   if (view === 'performance') renderPerformance();
@@ -315,12 +324,36 @@ function workFor(person) {
     const status = dueAt && dueAt < now ? 'overdue' : dueAt && t.due_on === dayIso(now) ? 'today' : 'open';
     groups.set(`task:${t.id}`, { key: `task:${t.id}`, client, task: t, status, dueAt, urgent: isUrgentTask(t), escalation: isEscalation(t), entries: [{ client, task: t }] });
   }
+  // What is late is one answer for every screen (app/late-chain.js; docs/ops.md, section
+  // 50): `late` is a card this person holds past its deadline; `turn` is a deadline that
+  // passed while the work waits for the client's answer, which is nobody's lateness.
+  const late = lateState(now);
+  const held = late.held(person);
+  for (const g of groups.values()) { g.late = held.has(g.key); g.turn = !g.late && late.turn.has(g.key); }
   return [...groups.values()].sort(byUrgency);
 }
+// Every late item of the office now, as the reminders and the owners' table read it.
+function lateState(now = new Date()) {
+  const items = lateItems({ clients, checksOf: (c) => checks[c.id] || {}, stateOf, tasks, now });
+  const counted = items.filter((x) => countsLate(x, now));
+  return {
+    items: (person) => counted.filter((x) => !person || x.holders.includes(person)),
+    held: (person) => new Set(counted.filter((x) => !person || x.holders.includes(person)).map(lateKey)),
+    turn: new Set(items.filter((x) => x.clientTurn).map(lateKey)),
+  };
+}
 
-// "Urgent" comes before "overdue": an urgent task is done at that moment (Lior's protocol).
-// Exceptions reported to Lior come right after it, urgent or not.
-const bucketFor = (g, now = new Date()) => (g.urgent ? 'urgent' : g.escalation ? 'escalation' : bucketOf(g.status, g.dueAt, now));
+// What is late comes first by its own count: the "באיחור" group holds exactly what the
+// "באיחור" tab counts, an urgent task past its day too (it keeps its mark, first in the
+// group). Then "urgent" (an urgent task is done at that moment, Lior's protocol), then
+// the exceptions reported to Lior. A deadline that passed and is not this person's
+// lateness (the client's turn; due at today's close) is work for today.
+const bucketFor = (g, now = new Date()) => (g.late ? 'overdue' : g.urgent ? 'urgent' : g.escalation ? 'escalation'
+  : g.status === 'overdue' ? 'today' : bucketOf(g.status, g.dueAt, now));
+// How a card is coloured: red only for what counts as late.
+const shownStatus = (g) => (g.status === 'overdue' && !g.late ? 'today' : g.status);
+// Inside "באיחור": urgent, then reported exceptions, then the longest lateness.
+const worstFirst = (a, b) => (!!b.urgent - !!a.urgent) || (!!b.escalation - !!a.escalation) || ((a.dueAt?.getTime() ?? Infinity) - (b.dueAt?.getTime() ?? Infinity));
 const byReported = (a, b) => (isEscalation(b.task) - isEscalation(a.task)) || (new Date(a.task.created_at) - new Date(b.task.created_at));
 
 // Outside the office, a mark that hands finished files on ("מוכן לבדיקה", the final
@@ -866,7 +899,9 @@ function viewToggle() {
 }
 // The deadline in words: "באיחור 3 ימי עסקים", "היום עד 14:00", "מחר", "עד יום ה׳, 22.10".
 function whenWords(g, now = new Date()) {
-  if (g.status === 'overdue' && g.dueAt) return `באיחור ${lateBy(g.dueAt, now)}`;
+  // "באיחור" is said only of what counts as late (section 50): a deadline that passed while
+  // the client has the work is the client's turn, and one at today's close is still today's.
+  if (g.status === 'overdue' && g.dueAt) return g.late ? `באיחור ${lateBy(g.dueAt, now)}` : g.turn ? 'מחכה לתשובת הלקוח' : 'היעד עבר';
   if (g.status === 'client') return 'ממתין ללקוח';
   if (!g.dueAt) return g.urgent ? 'עכשיו' : '';
   const w = formatWhen(g.dueAt, now);
@@ -939,12 +974,12 @@ function compactCard(g, person) {
   const when = whenWords(g);
   // Whoever may not make the link (a viewer of somebody else's list) keeps the plain row.
   const link = linkLine(g, single ? ticks[0] : null);
-  return h('li', { class: `wproc wc s-${g.status}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
+  return h('li', { class: `wproc wc s-${shownStatus(g)}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
     h('div', { class: 'wc-head', 'aria-describedby': g.wait ? waitId : null },
       h('a', { class: 'wclient', href }, clientLabel(g.client)),
       isAuto(g.client) ? h('span', { class: 'auto-tag' }, 'חדש') : null,
       g.task ? taskBadge(g.task) : null,
-      when ? h('span', { class: `wc-when s-${g.status}` }, when) : null),
+      when ? h('span', { class: `wc-when s-${g.turn ? 'client' : shownStatus(g)}` }, when) : null),
     h('div', { class: 'wc-what' },
       // A single task is named by its own check below; its kind is the line here.
       h('p', { class: 'wc-title' }, single && g.task ? h('span', { class: 'wc-sub' }, sub || 'משימה') : [what, sub ? h('span', { class: 'wc-sub' }, ` · ${sub}`) : null]),
@@ -968,7 +1003,7 @@ function groupCard(g, person) {
   const waitId = `wl-${g.key}`.replace(/[^\w-]/g, '_');
   // 'own' roles mark a wait only where the client is part of their work (approvals, corrections).
   const canWait = !g.task && !g.proc.recurring && (scope === 'office' || CLIENT_PROCS.has(baseId(g.proc)));
-  return h('li', { class: `wproc s-${g.status}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
+  return h('li', { class: `wproc s-${shownStatus(g)}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
     h('div', { class: 'wproc-h', 'aria-describedby': g.wait ? waitId : null },
       h('a', { class: 'wclient', href }, clientLabel(g.client)),
       isAuto(g.client) ? h('span', { class: 'auto-tag' }, 'חדש') : null,
@@ -976,7 +1011,7 @@ function groupCard(g, person) {
       title ? h('span', { class: 'wtitle' }, title) : null,
       person ? null : peopleChips(owners),
       g.dueAt ? h('span', { class: 'num' }, `יעד: ${formatWhen(g.dueAt)}`) : null,
-      statusBadge(g.status, g.dueAt),
+      g.status === 'overdue' && !g.late ? h('span', { class: 'sbadge s-today' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), whenWords(g)) : statusBadge(g.status, g.dueAt),
       claimControl(g, person)),
     g.task ? taskMeta(g.task) : null,
     g.task && g.urgent ? taskStart(g.task) : null,
@@ -1027,6 +1062,11 @@ async function startTask(t, btn) {
   toast(`נרשם שהתחלת: ${t.title}`);
 }
 
+// The icon square of each group's heading (app/kit.js): the colour is in the icon only.
+const GROUP_ICON = {
+  urgent: ['bolt', 'pink'], escalation: ['flag', 'pink'], overdue: ['alert', 'pink'], today: ['sun', 'orange'], tomorrow: ['calendar', 'blue'],
+  week: ['calendar', 'navy'], later: ['calendar', 'navy'], client: ['hourglass', 'purple'], soon: ['clock', 'teal'],
+};
 const BUCKETS = [['urgent', 'דחוף'], ['escalation', 'חריגות שדווחו'], ['overdue', 'באיחור'], ['today', 'היום'], ['tomorrow', 'מחר'], ['week', 'השבוע'], ['later', 'בהמשך'], ['client', 'ממתין ללקוח']];
 
 // Clients the signing trigger opened, shown to Irit and to the whole-team view (spec §10).
@@ -1106,11 +1146,12 @@ function renderLanding(flow = []) {
   // page it is done on: said plainly, with no clock and no colour (section 46).
   const quietLines = flow.filter((f) => f.bucket === 'landing');
   line.hidden = !left && !total && !quietLines.length;
-  fill(line, left ? h('a', { class: 'land-line', href: 'landing.html' },
-    h('strong', {}, left === 1 ? 'יש לקוח קיים אחד לקלוט' : `יש ${left} לקוחות קיימים לקלוט`), h('span', {}, 'לקליטה'))
-    : total ? h('a', { class: 'land-line', href: 'owner.html#landing' },
-      h('strong', {}, total === 1 ? 'לקוח קיים אחד עדיין בקליטה' : `${total} לקוחות קיימים עדיין בקליטה`), h('span', {}, 'להפעלה')) : null,
-    ...quietLines.map((f) => h('a', { class: 'land-line flow-line is-landing', id: `flow-${f.id}`, 'data-flow': f.id, href: f.href }, h('strong', {}, f.text), h('span', {}, f.cta))));
+  // Each is a solid counted line (app/kit.js; section 50): a big number, one sentence, a button.
+  fill(line, left ? countedLine({ n: left, tone: 'landing', cls: 'land-line', href: 'landing.html', cta: 'לקליטה',
+    text: left === 1 ? 'יש לקוח קיים אחד לקלוט' : `יש ${left} לקוחות קיימים לקלוט` })
+    : total ? countedLine({ n: total, tone: 'landing', cls: 'land-line', href: 'owner.html#landing', cta: 'להפעלה',
+      text: total === 1 ? 'לקוח קיים אחד עדיין בקליטה' : `${total} לקוחות קיימים עדיין בקליטה` }) : null,
+    ...quietLines.map((f) => countedLine({ id: `flow-${f.id}`, n: f.n, text: f.text, cta: f.cta, href: f.href, tone: 'landing', cls: 'land-line flow-line is-landing', data: { flow: f.id } })));
   const rest = mine ? quietWork(me, clients, checks, intake.marks, intake.done, now) : [];
   const n = rest.reduce((sum, x) => sum + x.items.length, 0);
   quiet.hidden = !n;
@@ -1124,19 +1165,104 @@ function renderLanding(flow = []) {
 
 // One counted line of work that is done on another page: what waits and how many. The
 // whole row is the link to the place (one sentence, 44px and up).
+// A line with a clock carries the colour of its urgency: late (and urgent), today, or plain.
+const FLOW_TONE = { urgent: 'late', escalation: 'late', overdue: 'late', today: 'today' };
 function flowCard(f) {
   return h('li', { class: 'wproc flow-card', 'data-flow': f.id },
-    h('a', { class: 'flow-line', id: `flow-${f.id}`, href: f.href }, h('strong', {}, f.text), h('span', { class: 'flow-go' }, f.cta)));
+    countedLine({ id: `flow-${f.id}`, n: f.n, text: f.text, cta: f.cta, href: f.href, tone: FLOW_TONE[f.bucket] || 'plain', cls: 'flow-line' }));
+}
+
+// ── The kit on the cards of "המשימות שלי" (docs/ops.md, section 50) ──
+// Every card above the list is drawn by its own module, which other pages use too. Here,
+// on this screen only, each card's heading takes its icon square as it is drawn: one
+// table, and the modules stay as they are. (The squares are added in the same turn the
+// card is drawn, before the page is painted, so nothing moves.)
+const CARD_ICONS = [
+  ['#now-h', 'clock', 'orange'], ['#staff-tasks-h', 'megaphone', 'purple'], ['#deals-h', 'handshake', 'green'], ['#approvals-h', 'file', 'blue'],
+  ['#metricool-h', 'chart', 'teal'], ['#wa-card-h', 'chat', 'green'], ['#cal-h', 'calendar', 'blue'], ['#myq-h', 'question', 'purple'],
+  ['#mc-h', 'loop', 'teal'], ['#il-h', 'image', 'purple'], ['.g-soon > .wgroup-h', 'clock', 'teal'], ['.g-landing > .wgroup-h', 'inbox', 'navy'],
+];
+function dressCards(root = $('app')) {
+  for (const [sel, name, tone] of CARD_ICONS) for (const el of root.querySelectorAll(sel)) headIcon(el, name, tone, { size: 'sm', end: true });
+  // The notifications card says its state in its heading: blocked or missing is the pink one.
+  for (const el of root.querySelectorAll('h2#push-h')) headIcon(el, /חסומות|לא /.test(el.textContent) ? 'bell-off' : 'bell', /חסומות|לא /.test(el.textContent) ? 'pink' : 'blue', { size: 'sm', end: true });
+}
+new MutationObserver(() => dressCards()).observe($('app'), { childList: true, subtree: true });
+
+// ── "באיחור": the tab, and the list with the late items alone (docs/ops.md, section 50) ──
+// Whoever has "המשימות שלי" of their own has the tab, only while something is late: what
+// this person holds past its deadline (app/late-chain.js: the same answer as the
+// reminders and the owners' table), and each counted line that sits in "באיחור" (a line
+// is one thing to do, so it counts once, whatever its own number).
+const flowOfMe = (now = new Date()) => (me && !viewerError ? flowLines({ viewer: { me, scope, error: viewerError }, clients, checks, stateOf, tasks, reviews, extra: flowExtra, now }) : []);
+const hasLateTab = () => !!me && !viewerError && !managing;
+function lateOfMe(flow = flowOfMe()) {
+  const lines = flow.filter((f) => f.bucket === 'overdue');
+  const items = lateState().items(me);
+  return { lines, items, n: lines.length + items.length };
+}
+// The tab stays while it is the open view (the last item was just closed there), and goes when it is left.
+let lateStays = false;
+function syncLateTab() {
+  const tab = $('tab-late');
+  const n = hasLateTab() ? lateOfMe().n : 0;
+  if (view !== 'late') lateStays = false;
+  tab.hidden = !(hasLateTab() && (n > 0 || lateStays));
+  $('tab-late-n').textContent = n ? String(n) : '';
+  $('tab-late-n').hidden = !n;
+  return n;
+}
+// A late item with no card in this person's list (they hold the process, and its open
+// item is another's to tick): a plain row to the place, so the count is what is listed.
+function lateRow(x) {
+  return h('li', { class: 'wproc wc s-overdue late-row', 'data-key': lateKey(x) },
+    h('div', { class: 'wc-head' },
+      h('a', { class: 'wclient', href: clientUrl(x.cid, x.procId ? `#${x.procId}` : '#tasks') }, x.name),
+      h('span', { class: 'wc-when s-overdue' }, `באיחור ${lateBy(x.dueAt, new Date())}`)),
+    h('div', { class: 'wc-what' }, h('p', { class: 'wc-title' }, x.what)),
+    h('a', { class: 'btn btn-sm wc-go', href: clientUrl(x.cid, x.procId ? `#${x.procId}` : '#tasks') }, 'לכרטיס הלקוח'));
+}
+function renderLate(flow) {
+  const wrap = $('mine-list');
+  for (const id of ['mine-people', 'mine-tools', 'mine-foot']) fill($(id));
+  $('mine-people').hidden = true;
+  $('my-months').hidden = true;
+  wrap.classList.toggle('is-short', !fullView());
+  const { lines, items, n } = lateOfMe(flow);
+  if (!n) {
+    fill(wrap, emptyState({ icon: 'check-circle', tone: 'green', text: 'אין אצלך כרגע שום דבר באיחור.',
+      action: h('button', { type: 'button', class: 'btn btn-sm', id: 'late-back', onclick: () => setView('mine', true) }, 'חזרה להמשימות שלי') }));
+    return;
+  }
+  const work = workFor(me);
+  const byKey = new Map(work.map((g) => [g.key, g]));
+  // Ilai's own cards (the graphics, the Gantt, the final versions) hold his late work: the same cards, the late ones alone.
+  const ilaiCtx = me === 'ilai' ? { clients, checks, stateOf, me, viewer: { me, scope, error: viewerError }, refresh: () => { if (onMine() && !busy()) renderKeepingFocus(); } } : null;
+  const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
+  const ilai = ilaiCtx ? ilaiSection(ilaiCtx, new Set(items.map(lateKey))) : null;
+  // Worst first: urgent, then the longest lateness (lateItems is sorted by its deadline).
+  const cards = items.map((x) => byKey.get(lateKey(x)) || x).filter((g) => !(g.key && covered(g)))
+    .sort((a, b) => (a.key && b.key ? worstFirst(a, b) : 0));
+  fill(wrap,
+    sectionHead({ icon: 'alert', tone: 'pink', id: 'late-h', title: n === 1 ? 'דבר אחד באיחור אצלך' : `${n} דברים באיחור אצלך`,
+      hint: 'מהמאוחר ביותר. מסמנים כאן בדיוק כמו ב״המשימות שלי״, והם נשארים גם שם.' }),
+    ilai,
+    h('ul', { class: 'wprocs late-list', 'aria-labelledby': 'late-h' }, ...lines.map(flowCard), ...cards.map((g) => (g.key ? groupCard(g, me) : lateRow(g)))));
 }
 
 function renderMine() {
+  syncLateTab(); // every redraw of the list (a tick, a refresh) keeps the tab's number with it
   const wrap = $('mine-list');
   const own = scope === 'own';
   rebuildClocks();
   paintNowBar();
   // What waits for me on another page (app/mine-flow.js): on my own list only.
   const showsMine = !!me && (own || personal || (minePerson || null) === me);
-  const flow = showsMine ? flowLines({ viewer: { me, scope, error: viewerError }, clients, checks, stateOf, tasks, reviews, extra: flowExtra, now: new Date() }) : [];
+  const flow = showsMine || view === 'late' ? flowOfMe() : [];
+  // "באיחור": the same panel with the list alone, and in it only what is late.
+  const lateView = view === 'late' && hasLateTab();
+  $('view-mine').classList.toggle('is-late', lateView);
+  if (lateView) { $('land-line').hidden = true; $('land-quiet').hidden = true; renderLate(flow); return; }
   renderLanding(flow);
   if (own && !me) {
     $('mine-people').hidden = true;
@@ -1193,12 +1319,12 @@ function renderMine() {
   // With no client at all the list is still not empty when something waits on another
   // page (a contract out for signature is there before its client exists; section 47).
   if (!clients.length && !flow.some((f) => f.bucket !== 'landing')) {
-    fill(wrap, h('p', { class: 'empty' }, own ? nothing : 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.'));
+    fill(wrap, own ? emptyState({ text: nothing }) : emptyState({ icon: 'users', tone: 'blue', text: 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.' }));
     return;
   }
   // Ilai: the characterization day's card (and the rest of his graphics, the final
   // versions, the Gantt) comes first and replaces the process groups it covers.
-  const ilaiCtx = person === 'ilai' ? { clients, checks, stateOf, me, viewer: { me, scope, error: viewerError }, refresh: () => { if (view === 'mine' && !busy()) renderKeepingFocus(); } } : null;
+  const ilaiCtx = person === 'ilai' ? { clients, checks, stateOf, me, viewer: { me, scope, error: viewerError }, refresh: () => { if (onMine() && !busy()) renderKeepingFocus(); } } : null;
   const ilai = ilaiCtx ? ilaiSection(ilaiCtx) : null;
   const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
   if (ilai && !full) capList(ilai.querySelector('.il-list'), MINE_CAP, 'mine:ilai');
@@ -1209,10 +1335,19 @@ function renderMine() {
   const banner = !person || person === 'irit' ? autoBanner() : null;
   // The counted lines with a clock sit in the group of their urgency, before its cards.
   const flowIn = (k) => flow.filter((f) => f.bucket === k).map(flowCard);
-  if (!list.length && !review && !thursday && !flow.some((f) => f.bucket !== 'landing')) {
-    fill(wrap, banner, ilai, ilai ? null : h('p', { class: 'empty' }, nothing), soon);
+  const heldItems = person ? lateState().items(person) : [];
+  if (!list.length && !review && !thursday && !heldItems.length && !flow.some((f) => f.bucket !== 'landing')) {
+    fill(wrap, banner, ilai, ilai ? null : emptyState({ text: nothing }), soon);
     return;
   }
+  // The late items this person holds, as the tab counts them. One with no card of its own
+  // here is a plain row of the group; Ilai's, inside his cards above, are said in one line.
+  const listKeys = new Set(list.map((g) => g.key));
+  const inCards = heldItems.filter((x) => covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).length;
+  const lateRows = heldItems.filter((x) => !listKeys.has(lateKey(x)) && !covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).map(lateRow);
+  const lateNote = inCards ? h('li', { class: 'wproc late-note' }, h('p', { class: 'hint' },
+    inCards === 1 ? 'אחד מהם נמצא בכרטיסים שלך למעלה.' : `${inCards} מהם נמצאים בכרטיסים שלך למעלה.`, ' ',
+    person === me && hasLateTab() ? h('a', { href: '#late' }, 'הצגת כל האיחורים') : null)) : null;
   const today = dayIso(new Date());
   // A short list: each group shows its first cards and "הצג עוד" (kept per person and group).
   const cap = (ul, k) => (full ? ul : capList(ul, MINE_CAP, `mine:${person || 'all'}:${k}`));
@@ -1221,8 +1356,13 @@ function renderMine() {
   fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, k === 'client' ? soon : null, (() => {
     let g = list.filter((x) => bucketFor(x) === k);
     if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
-    const extra = [...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : [])];
-    if (!g.length && !extra.length) return null;
+    if (k === 'overdue') g = g.sort(worstFirst);
+    const extra = [...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : []), ...(k === 'overdue' ? lateRows : [])];
+    if (!g.length && !extra.length && !(k === 'overdue' && inCards)) return null;
+    // The number of "באיחור" is the number of the tab: Ilai's late work inside his cards is part of it.
+    const more = k === 'overdue' ? inCards : 0;
+    const head = (tag, n) => headIcon(h(tag, { class: 'wgroup-h' }, k === 'urgent' || k === 'escalation' ? [h('span', { class: 'sicon', 'aria-hidden': 'true' }), title] : title,
+      h('span', { class: 'n' }, String(n + more))), ...GROUP_ICON[k], { size: 'sm', end: true });
     if (k === 'client') {
       // What reached its recheck day first, then the longest wait.
       g = g.sort((a, b) => (recheckDue(b.wait, today) - recheckDue(a.wait, today)) || (new Date(a.wait?.at || 0) - new Date(b.wait?.at || 0)));
@@ -1231,19 +1371,18 @@ function renderMine() {
         class: 'wgroup g-client', open: waitGroupOpen,
         ontoggle: (ev) => { waitGroupOpen = ev.currentTarget.open; },
       },
-      h('summary', { class: 'wgroup-h' }, title, h('span', { class: 'n' }, String(g.length))),
+      head('summary', g.length),
       cap(h('ul', { class: 'wprocs' }, ...g.map((x) => groupCard(x, person))), k));
     }
     // On a short list what is not for today or tomorrow waits folded, one tap away.
     if (!full && (k === 'week' || k === 'later')) {
       return h('details', { class: `wgroup g-${k}`, open: laterOpen.has(k), ontoggle: (ev) => { if (ev.currentTarget.open) laterOpen.add(k); else laterOpen.delete(k); } },
-        h('summary', { class: 'wgroup-h' }, title, h('span', { class: 'n' }, String(g.length + extra.length))),
+        head('summary', g.length + extra.length),
         cap(h('ul', { class: 'wprocs' }, ...extra, ...g.map((x) => groupCard(x, person))), k));
     }
     return h('section', { class: `wgroup g-${k}`, 'aria-label': title },
-      h('h2', { class: 'wgroup-h' }, k === 'urgent' || k === 'escalation' ? [h('span', { class: 'sicon', 'aria-hidden': 'true' }), title] : title,
-        h('span', { class: 'n' }, String(g.length + extra.length))),
-      cap(h('ul', { class: 'wprocs' }, ...extra, ...g.map((x) => groupCard(x, person))), k));
+      head('h2', g.length + extra.length),
+      cap(h('ul', { class: 'wprocs' }, k === 'overdue' ? lateNote : null, ...extra, ...g.map((x) => groupCard(x, person))), k));
   })()]));
 }
 
@@ -1262,9 +1401,9 @@ function personSummary(person, now = new Date()) {
   const sections = [
     ['דחוף', w.filter((g) => g.urgent).sort(byReported), taskLine],
     ['חריגות שדווחו', w.filter((g) => g.escalation && !g.urgent).sort(byReported), taskLine],
-    ['באיחור', procs.filter((g) => g.status === 'overdue'), (g) => `${line(g)} · באיחור ${lateBy(g.dueAt, now)}`],
-    ['היום', procs.filter((g) => bucketOf(g.status, g.dueAt, now) === 'today'), (g) => (g.dueAt ? `${line(g)} · ${until(g.dueAt)}` : line(g))],
-    ['מחר', procs.filter((g) => bucketOf(g.status, g.dueAt, now) === 'tomorrow'), line],
+    ['באיחור', procs.filter((g) => g.late), (g) => `${line(g)} · באיחור ${lateBy(g.dueAt, now)}`],
+    ['היום', procs.filter((g) => bucketFor(g, now) === 'today'), (g) => (g.status === 'overdue' ? `${line(g)} · ${whenWords(g, now)}` : g.dueAt ? `${line(g)} · ${until(g.dueAt)}` : line(g))],
+    ['מחר', procs.filter((g) => bucketFor(g, now) === 'tomorrow'), line],
     ['ממתין ללקוח, לבדוק היום', procs.filter((g) => g.status === 'client' && recheckDue(g.wait, today)), (g) => `${line(g)}${g.wait?.reason ? ` · ${g.wait.reason}` : ''}`],
     ['משימות', w.filter((g) => g.task && !g.urgent && !g.escalation).sort((a, b) => (a.dueAt?.getTime() ?? Infinity) - (b.dueAt?.getTime() ?? Infinity)), taskLine],
   ].filter(([, list]) => list.length);
@@ -1296,7 +1435,7 @@ function teamSummary(now = new Date()) {
   for (const p of STAFF_PEOPLE()) {
     const w = workFor(p.key);
     const urgent = w.filter((g) => g.urgent).length;
-    lines.push(`${p.name}: ${urgent ? `דחוף ${urgent} · ` : ''}באיחור ${w.filter((g) => g.status === 'overdue').length} · להיום ${w.filter((g) => bucketFor(g, now) === 'today').length}`);
+    lines.push(`${p.name}: ${urgent ? `דחוף ${urgent} · ` : ''}באיחור ${w.filter((g) => g.late).length} · להיום ${w.filter((g) => bucketFor(g, now) === 'today').length}`);
   }
   const esc = openEscalations();
   if (esc.length) {
@@ -2369,7 +2508,7 @@ const PERSON_COLS = ['עובד', 'דחוף', 'באיחור', 'להיום', 'פת
 function personRows() {
   return STAFF_PEOPLE().map((p) => {
     const w = workFor(p.key);
-    const late = w.filter((g) => g.status === 'overdue');
+    const late = w.filter((g) => g.late); // the same count as that person's "באיחור" tab (section 50)
     return {
       p, late: late.length, today: w.filter((g) => bucketFor(g) === 'today').length, open: w.length, urgent: w.filter((g) => g.urgent).length,
       waiting: w.filter((g) => g.status === 'client').length, opened: store.get(openedKey(p.key)),
@@ -2861,7 +3000,7 @@ mountSession(async (staff) => {
   // answered, so none lands above a list that is already on the screen: bootEnd in protocol-ui.js.)
   mountPush({
     who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
-    changed: () => { if (view === 'mine' && !$('app').hidden && !busy()) renderKeepingFocus(); },
+    changed: () => { if (onMine() && !$('app').hidden && !busy()) renderKeepingFocus(); },
   });
   mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
   // "היומן שלי": the personal calendar link (app/calendar-card.js).
@@ -2878,5 +3017,6 @@ mountSession(async (staff) => {
   const fromHash = viewOfHash();
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();
-  setView(view);
+  // "באיחור" (#late) is known only once the rows are here: asked for now, and it falls back to the list when nothing is late.
+  setView(fromHash === 'late' ? 'late' : view);
 });

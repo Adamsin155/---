@@ -80,7 +80,8 @@ const shot = async (page, name) => { if (OUT) await page.screenshot({ path: join
 const menu = (page) => page.evaluate(() => [...document.querySelectorAll('#side-list .side-link, #side-sheet .side-link')].filter((a) => a.id !== 'side-more').map((a) => a.textContent.trim()));
 const sw = (page) => page.evaluate(() => { const a = document.getElementById('profile-switch'); return a ? [a.textContent, a.getAttribute('href'), a.dataset.to] : null; });
 const headLinks = (page) => page.locator('.page-head .head-actions a:visible').allInnerTexts();
-const tabs = (page) => page.locator('.tabs [role=tab]:visible').allInnerTexts();
+// The views of the role. The "באיחור" tab (docs/ops.md, section 50) is there only while something is late, with its number: tests/late-tab-e2e.mjs holds it.
+const tabs = (page) => page.locator('.tabs [role=tab]:visible:not(#tab-late)').allInnerTexts();
 const noSideScroll = async (page, what) => {
   const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(over <= 1, `${what}: the page scrolls sideways by ${over}px`);

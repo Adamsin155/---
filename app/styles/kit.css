@@ -1,0 +1,123 @@
+/* The shared kit (docs/ops.md, section 50; helpers in app/kit.js): the look the owner
+   chose on 9.10.2026 for adding things and for every block. A soft coloured rounded
+   square with an icon per kind, a section head (icon, title, one line), an "add" tile
+   with a plus and a counter, a friendly empty state, a notice strip, the counted line.
+   Colour lives ONLY in the icon squares. The product stays navy, with the brand pink for
+   a screen's one primary action and for what is late (tokens.css).
+   Contrast (WCAG 2.x), glyph on its soft square, 3:1 needed: navy 12.1, purple 5.99,
+   green 5.72, orange 5.07, pink 5.15, blue 6.19, teal 5.46. */
+:root {
+  --k-navy: #0E2260;   --k-navy-soft: #E4E8F3;
+  --k-purple: #5B3FC4; --k-purple-soft: #EEE9FB;
+  --k-green: #0F6B3D;  --k-green-soft: #E2F3EA;
+  --k-orange: #A84B00; --k-orange-soft: #FFEFDC;
+  --k-pink: #C4124F;   --k-pink-soft: #FEEAF1;
+  --k-blue: #1D4FB8;   --k-blue-soft: #E4ECFD;
+  --k-teal: #0B6B6B;   --k-teal-soft: #DDF3F1;
+}
+
+/* ── The icon square ── */
+.k-svg { display: block; flex: none; }
+.k-ico {
+  --k-fg: var(--k-navy); --k-bg: var(--k-navy-soft);
+  display: inline-grid; place-items: center; flex: none;
+  inline-size: 40px; block-size: 40px; border-radius: 13px;
+  background: var(--k-bg); color: var(--k-fg);
+}
+.k-ico-sm { inline-size: 28px; block-size: 28px; border-radius: 9px; }
+.k-ico-lg { inline-size: 48px; block-size: 48px; border-radius: 15px; }
+[data-tone='purple'] { --k-fg: var(--k-purple); --k-bg: var(--k-purple-soft); }
+[data-tone='green'] { --k-fg: var(--k-green); --k-bg: var(--k-green-soft); }
+[data-tone='orange'] { --k-fg: var(--k-orange); --k-bg: var(--k-orange-soft); }
+[data-tone='pink'] { --k-fg: var(--k-pink); --k-bg: var(--k-pink-soft); }
+[data-tone='blue'] { --k-fg: var(--k-blue); --k-bg: var(--k-blue-soft); }
+[data-tone='teal'] { --k-fg: var(--k-teal); --k-bg: var(--k-teal-soft); }
+
+/* An existing heading that took an icon square in front of its words (headIcon). */
+.k-h { display: flex; align-items: center; gap: 8px; }
+/* The square adds no height to its heading's line. */
+.k-h > .k-ico { margin-block: -4px; }
+
+/* ── The section head ── */
+.k-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.k-head-t { flex: 1 1 auto; min-width: 0; }
+.k-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-family: var(--ds-font-h); font-size: 19px; font-weight: 400; line-height: 1.25; color: var(--ds-ink); }
+.k-title:focus { outline: none; }
+.k-hint { margin: 2px 0 0; font-size: 14px; line-height: 1.4; color: var(--ds-muted); }
+.k-count {
+  display: inline-grid; place-items: center; min-inline-size: 24px; block-size: 24px; padding: 0 7px; border-radius: var(--ds-r-pill);
+  background: var(--ds-soft); color: var(--ds-ink-2); font-family: var(--ds-font-b); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+
+/* ── The "add" tile ── */
+.k-add {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 14px 6px 12px; max-inline-size: 100%;
+  border: 1.5px dashed var(--ds-edge); border-radius: var(--ds-r-item); background: var(--ds-surface); color: var(--ds-ink);
+  font: inherit; font-size: 15px; font-weight: 600; text-decoration: none; cursor: pointer; text-align: start;
+  transition: background-color var(--ds-t-fast), border-color var(--ds-t-fast);
+}
+.k-add:hover { background: var(--ds-soft); border-color: var(--ds-navy); }
+.k-add-plus { --k-fg: var(--k-navy); --k-bg: var(--k-navy-soft); display: inline-grid; place-items: center; flex: none; inline-size: 30px; block-size: 30px; border-radius: 10px; background: var(--k-bg); color: var(--k-fg); }
+.k-add-label { min-width: 0; overflow-wrap: anywhere; }
+.k-add .k-count { margin-inline-start: 2px; }
+
+/* ── The empty state ── */
+.k-empty {
+  display: grid; justify-items: center; gap: 10px; padding: 24px 16px; margin: 8px 0; text-align: center;
+  border-radius: var(--ds-r-card); background: var(--ds-surface);
+}
+.k-empty > p { margin: 0; padding: 0; max-inline-size: 420px; font-size: 16px; font-weight: 500; line-height: 1.45; color: var(--ds-ink-2); }
+.k-empty .btn { min-height: 44px; }
+
+/* ── The notice strip ── */
+.k-notice { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--k-navy-soft); color: var(--ds-ink); }
+.k-notice-t { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 14.5px; line-height: 1.4; }
+.k-notice-ok { background: var(--ds-ok-soft); }
+.k-notice-warn { background: var(--ds-amber-soft); }
+.k-notice-late { background: var(--ds-hot-soft); }
+.k-notice > .k-ico { background: var(--ds-surface); }
+
+/* ── The counted line ──
+   Text on its surface, 4.5:1 needed: ink on white 17.96, on the late soft 15.61, on the
+   today soft 16.31; the small second line (muted) 5.88 / 5.11 / 5.34. The number: ink on
+   the pink 4.67 (large and bold: 3:1 needed), white on amber 6.43, white on navy 18.15,
+   navy on its soft square 12.1. The button: white on navy 18.15. */
+.k-line {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 12px;
+  min-height: 60px; padding: 10px 12px; border-radius: var(--ds-r-item);
+  background: var(--ds-surface); color: var(--ds-ink); text-decoration: none;
+  box-shadow: inset 0 0 0 1px var(--ds-line);
+  transition: box-shadow var(--ds-t-fast), transform var(--ds-t-fast) var(--ds-ease);
+}
+.k-num {
+  display: inline-grid; place-items: center; min-inline-size: 44px; block-size: 44px; padding: 0 8px; border-radius: 14px;
+  background: var(--ds-navy); color: var(--ds-on-navy);
+  font-family: var(--ds-font-h); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+.k-num::before { content: attr(data-n); }
+.k-line-t { min-width: 0; font-size: 15.5px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.k-line-sub { display: block; margin-top: 1px; font-size: 13px; font-weight: 400; color: var(--ds-muted); }
+/* The " · " before the second line stays in the text and is not drawn. */
+.k-sep { font-size: 0; }
+.k-go {
+  display: inline-flex; align-items: center; gap: 2px; min-height: 40px; padding: 6px 10px 6px 14px; border-radius: var(--ds-r-pill);
+  background: var(--ds-navy); color: var(--ds-on-navy); font-size: 14px; font-weight: 600; white-space: nowrap;
+}
+.k-line-late { background: var(--ds-hot-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-hot) 35%, transparent); }
+.k-line-late .k-num { background: var(--ds-hot); color: var(--ds-on-hot); }
+.k-line-today { background: var(--ds-amber-soft); box-shadow: inset 0 0 0 1px var(--ds-amber-line); }
+.k-line-today .k-num { background: var(--ds-amber); color: #fff; }
+.k-line-landing { box-shadow: var(--ds-shadow-hover); }
+.k-line-landing .k-num { background: var(--k-navy-soft); color: var(--k-navy); }
+@media (hover: hover) { .k-line:hover .k-go { background: var(--ds-navy-2); } .k-line:hover { box-shadow: inset 0 0 0 1.5px var(--ds-navy); } }
+.k-line:active { transform: scale(.985); }
+.k-line:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; }
+/* A phone: the three parts stay in one row; the sentence wraps, the button stays a button. */
+@media (max-width: 480px) {
+  .k-line { gap: 6px 10px; min-height: 52px; padding: 6px 10px; }
+  .k-num { min-inline-size: 40px; block-size: 40px; font-size: 22px; border-radius: 13px; }
+  .k-line-t { font-size: 15px; }
+  .k-go { padding: 6px 6px 6px 12px; font-size: 13.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .k-line, .k-add { transition: none; } .k-line:active { transform: none; } }
+@media print { .k-go { display: none; } .k-line, .k-empty { box-shadow: none; border: 1px solid #999; background: #fff; } }

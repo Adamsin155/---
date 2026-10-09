@@ -207,7 +207,8 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   // Her personal profile (7.10.2026): no chooser of whose list, the daily control (process 32) one tap away, no "ביצועים".
   assert.equal(await page.locator('#mine-people').isVisible(), false);
   assert.equal(await page.locator('#mine-select, #mine-people .chip').count(), 0);
-  assert.deepEqual(await page.locator('.tabs [role=tab]:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
+  // (The "באיחור" tab comes and goes with what is late: tests/late-tab-e2e.mjs.)
+  assert.deepEqual(await page.locator('.tabs [role=tab]:visible:not(#tab-late)').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
   // The other screens: the bottom bar with her daily ones, and the rest of them one tap away.
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'עוד']);
   assert.equal(await page.getAttribute('#side-mine', 'aria-current'), 'page');
@@ -375,7 +376,7 @@ await step('Ilai stays on "המשימות שלי": his cards first, the draft mo
   assert.equal(await page.innerText('h1'), 'שלום עילאי');
   assert.equal(await page.innerText('#mine-list .g-soon .wgroup-h'), 'בקרוב · עוד אין מה לסמן\n' + await page.innerText('#mine-list .g-soon .wgroup-h .n'));
   await tidy(page, 'ilai');
-  assert.deepEqual(await page.locator('.tabs [role=tab]:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הנתונים שלי']);
+  assert.deepEqual(await page.locator('.tabs [role=tab]:visible:not(#tab-late)').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הנתונים שלי']);
   for (const id of ['btn-new', 'cta-owner', 'cta-messages', 'cta-prep', 'tab-control']) assert.equal(await page.locator(`#${id}`).isVisible(), false, id);
   // The draft monthly cycle waits folded; his cards are the first thing in the list.
   assert.equal(await page.locator('#my-months details.mc-fold').getAttribute('open'), null);
@@ -403,7 +404,7 @@ for (const [role, title] of [['nadia', 'הלקוחות שלי בעריכה'], ['
     await page.waitForSelector('#view-mine:not([hidden])');
     await settle(page);
     await tidy(page, `${role} mine`);
-    assert.deepEqual(await page.locator('.tabs [role=tab]:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הנתונים שלי']);
+    assert.deepEqual(await page.locator('.tabs [role=tab]:visible:not(#tab-late)').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הנתונים שלי']);
     // Her screens are the bar; the head does not repeat them.
     assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
     // (Her three screens: "הצעות שנשלחו" left on 6.10.2026 and the builder on 8.10.2026, so there is no "עוד".)
