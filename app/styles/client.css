@@ -161,3 +161,10 @@ button, input { font: inherit; color: inherit; }
   .cstrip-go { width: 100%; justify-content: center; margin-inline-start: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+/* ── The look of the kit on the signing page (app/kit.js; docs/ops.md, section 53): only the
+   icon square of the two headings around the document. Never in print. ── */
+.signbox-head h2.k-h, .expired h2.k-h { gap: 10px; align-items: center; }
+.signbox-head h2.k-h > .k-ico, .expired h2.k-h > .k-ico { margin-block: 0; }
+.expired h2.k-h { justify-content: center; }
+@media print { .k-ico { display: none !important; } .k-h { display: block; } }

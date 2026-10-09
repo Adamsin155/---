@@ -6,6 +6,7 @@
 import { supabase } from './supa.js';
 import { TEAM_PEOPLE } from './protocol.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, formatWhen } from './protocol-ui.js';
+import { dress } from './kit.js';
 import { whatsappLink } from './quote-doc.js';
 import {
   canManageTeam, loginState, linkMessage, LINK_VALID_FOR, TEAM_MANAGERS, normPhone, formatPhone, canEditPhone, hasPhone, linkOnlyByOwner,
@@ -368,6 +369,9 @@ function showNoAccess(msg = null) {
 
 $('btn-refresh').addEventListener('click', load);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('team-page').hidden) load(); });
+
+// The kit (docs/ops.md, section 52): the people already have their avatars; the two blocks of words take an icon square.
+dress($('app'), [['#help-h', 'question', 'purple', 'md'], ['#na-h', 'lock', 'navy'], ['.tm-link-h', 'link', 'blue']]);
 
 mountSession(async (staff) => {
   const viewer = await viewerOf(staff.email);

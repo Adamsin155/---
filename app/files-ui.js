@@ -24,6 +24,24 @@ import {
   workFiles, uploadedText,
 } from './files-logic.js';
 import { uploadFile } from './upload.js';
+import { tile as kTile, dressHead, headIcon, emptyRow } from './kit.js';
+
+// The look of each kind's tile in the client card (app/kit.js; docs/ops.md, section 53).
+const KIND_LOOK = {
+  logo: ['star', 'purple'], image: ['image', 'green'], video_existing: ['video', 'orange'], material_other: ['file', 'purple'],
+  deliverable_graphic: ['palette', 'pink'], deliverable_video: ['play', 'orange'], deliverable_highlight: ['target', 'purple'],
+  deliverable_site: ['globe', 'blue'], deliverable_other: ['grid', 'navy'],
+};
+const filesText = (n) => (n === 1 ? 'קובץ אחד' : `${n} קבצים`);
+// The "add" control of one kind: a tile in the client card, the plain button elsewhere.
+function addControl(kind, { compact, tag = 'button', onclick = null }) {
+  const k = KINDS[kind];
+  if (compact) return h(tag, { type: tag === 'button' ? 'button' : null, class: 'btn btn-sm fl-add', id: `fl-add-${kind}`, onclick }, `+ ${k.label}`);
+  const [name, tone] = KIND_LOOK[kind] || ['file', 'navy'];
+  const node = kTile({ icon: name, tone, label: k.plural, count: filesText(0), id: `fl-add-${kind}`, cls: 'fl-add fl-tile', tag, onclick, lead: 'הוספה: ' });
+  node.querySelector('.k-tile-n').dataset.tileCount = kind;
+  return node;
+}
 
 const COLS = 'id, client_id, kind, label, storage_path, mime, size_bytes, posted_on, link, uploaded_by, created_at, deleted_at';
 const LINK_COLS = 'id, created_at, created_by, expires_at, revoked_at, last_opened_at, open_count';
@@ -151,7 +169,7 @@ function buildRoot(opts) {
   const galleryPart = h('div', { class: 'fl-gallery' });
   const status = h('p', { class: 'muted fl-status', role: 'status' });
   const root = h(compact ? 'div' : 'section', { class: `${compact ? 'fl-compact' : 'block cc-side'} fl-block`, id: compact ? 'files-materials' : 'files-block', 'aria-labelledby': hid },
-    h('div', { class: 'side-head' },
+    h('div', { class: 'side-head fl-head' },
       h(compact ? 'h3' : 'h2', { id: hid }, compact ? 'העלאת חומרים מהלקוח' : 'תיק לקוח'),
       h('p', { class: 'muted' }, compact
         ? 'לוגו, תמונות וסרטונים מהטלפון של הלקוח או מגלריית התמונות שלך. נשמרים בתיק הלקוח.'
@@ -163,9 +181,10 @@ function buildRoot(opts) {
       compact ? null : h('h3', {}, GROUPS[g].title),
       parts[g].counts,
       compact ? null : h('p', { class: 'muted fl-hint' }, GROUPS[g].hint),
-      uploadBar(g, { progress, err }),
+      uploadBar(g, { progress, err, compact }),
       parts[g].body)),
     only ? null : galleryPart);
+  if (!compact) dressHead(root.querySelector('.fl-head'), 'folder', 'navy');
   // The upload bars need the root's current options (the viewer may change after a refresh).
   root.__draw = () => {
     const o = root.__opts;
@@ -177,6 +196,7 @@ function buildRoot(opts) {
     for (const g of groups) {
       const c = counts(st.files);
       parts[g].counts.replaceChildren(...kindsOf(g).flatMap((k, i) => [i ? ' · ' : '', h('span', { 'data-count': k }, `${KINDS[k].plural} ${c[k]}`)]));
+      for (const n of root.querySelectorAll('[data-tile-count]')) n.textContent = filesText(c[n.dataset.tileCount] || 0);
       parts[g].body.replaceChildren(...(st.loaded && !st.error ? listOf(g, o) : []));
     }
     if (!only) galleryPart.replaceChildren(...galleryBlock(o));
@@ -187,8 +207,8 @@ function buildRoot(opts) {
 // ── Uploading ─────────────────────────────
 // One button per kind the viewer may upload (hidden otherwise). A kind with a custom
 // label, or the site (a link), opens a small form first.
-function uploadBar(group, { progress, err }) {
-  const bar = h('div', { class: 'fl-bar' });
+function uploadBar(group, { progress, err, compact = false }) {
+  const bar = h('div', { class: compact ? 'fl-bar' : 'fl-bar k-tiles' });
   for (const kind of kindsOf(group)) {
     const k = KINDS[kind];
     const input = h('input', { type: 'file', class: 'sr-only', id: `fl-in-${kind}-${Math.random().toString(36).slice(2, 7)}`, accept: k.accept || null, multiple: k.needsLabel || k.link || kind === 'logo' ? null : true, tabindex: '-1', 'aria-hidden': 'true' });
@@ -196,7 +216,7 @@ function uploadBar(group, { progress, err }) {
     if (!k.needsLabel && !k.link) {
       input.addEventListener('change', () => { const files = [...input.files]; input.value = ''; run(files); });
       bar.append(h('span', { 'data-kind-btn': kind, hidden: true },
-        h('button', { type: 'button', class: 'btn btn-sm fl-add', id: `fl-add-${kind}`, onclick: () => input.click() }, `+ ${k.label}`), input));
+        addControl(kind, { compact, onclick: () => input.click() }), input));
       continue;
     }
     // The custom addition, "other", and the site: a label (and a link) first.
@@ -211,7 +231,7 @@ function uploadBar(group, { progress, err }) {
     label.addEventListener('keydown', stopEnter);
     link?.addEventListener('keydown', stopEnter);
     const box = h('details', { class: 'fl-form', 'data-kind-btn': kind, hidden: true },
-      h('summary', { class: 'btn btn-sm fl-add', id: `fl-add-${kind}` }, `+ ${k.label}`),
+      addControl(kind, { compact, tag: 'summary' }),
       h('div', { class: 'fl-form-body' },
         h('div', { class: 'field' }, h('label', { for: label.id }, k.link ? 'שם (לא חובה)' : 'מה זה? (חובה)'), label),
         link ? h('div', { class: 'field' }, h('label', { for: link.id }, 'קישור לאתר או לדף הנחיתה'), link) : null,
@@ -314,7 +334,12 @@ function listOf(group, o) {
       h('h4', {}, `${KINDS[kind].plural} (${files.length})`),
       h('ul', { class: 'fl-grid' }, files.map((f) => tile(f, o)))));
   }
-  if (!out.length) out.push(h('p', { class: 'muted' }, group === 'materials' ? 'עוד לא הועלו חומרים.' : 'עוד לא הועלו תוצרים.'));
+  if (!out.length) {
+    const words = group === 'materials' ? 'עוד לא הועלו חומרים.' : 'עוד לא הועלו תוצרים.';
+    const may = !o.compact && uploadKinds(o.me, o.client).some((k) => KINDS[k].group === group);
+    out.push(o.compact ? h('p', { class: 'muted' }, words)
+      : emptyRow({ icon: 'upload', text: may ? `${words} ${group === 'materials' ? 'בחרו סוג קובץ למעלה כדי להתחיל.' : 'בחרו סוג תוצר למעלה כדי להתחיל.'}` : words }));
+  }
   return out;
 }
 
@@ -484,7 +509,7 @@ function buildWork(opts) {
 function galleryBlock(o) {
   const st = data.get(o.client.id);
   if (o.me === undefined || !(isManager(o.me) || o.me === 'ilai')) return [];
-  const head = [h('h3', { id: 'fl-gal-h' }, 'גלריה ללקוח (צפייה בלבד)'),
+  const head = [headIcon(h('h3', { id: 'fl-gal-h' }, 'גלריה ללקוח (צפייה בלבד)'), 'image', 'teal'),
     h('p', { class: 'muted' }, 'קישור שאפשר לשלוח ללקוח או לצוות שלו: הגרפיקות, הסרטונים, ה־Highlights והאתר. בלי שמות עובדים, בלי מועדים פנימיים, בלי אפשרות לשנות.')];
   const g = st.gallery;
   if (!g) return [...head, h('p', { class: 'muted' }, 'טוען…')];

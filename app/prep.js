@@ -35,6 +35,7 @@ import { googleCalendarUrl } from './calendar.js';
 import { inputValueIL, fromInputIL, dayKeyIL, dayFromKeyIL } from './tz.js';
 // The photographer's monthly availability (docs/ops.md, section 39): the line next to the date, and the reason for a day he did not mark free.
 import { mountAvailability, shootDayHint, confirmShootDay, photographerNote } from './availability-ui.js';
+import { headIcon, emptyState, noteIcon, dress } from './kit.js';
 
 const only = new URLSearchParams(location.search).get('id');
 let clients = [];
@@ -138,10 +139,11 @@ function render(focusId = document.activeElement?.id) {
     list.length ? `${list.length === 1 ? 'יום צילום אחד' : `${list.length} ימי צילום`} בהכנה` : 'אין ימי צילום בהכנה',
     open ? `${open} עוד לא סגורים מול כולם` : null, blockers ? `${blockers === 1 ? 'חוסם אחד' : `${blockers} חוסמים`}` : null].filter(Boolean).join(' · ');
   if ($('pp-summary').textContent !== summary) $('pp-summary').textContent = summary;
+  if (!$('pp-summary').querySelector('.k-ico')) noteIcon($('pp-summary'), blockers ? 'warn' : 'info', blockers ? 'alert' : 'camera');
   fill($('pp-filter'), only ? h('a', { class: 'btn btn-sm btn-ghost', href: 'prep.html' }, 'כל הלקוחות') : null,
     only ? h('a', { class: 'btn btn-sm btn-ghost', href: cardUrl(only) }, 'לכרטיס הלקוח') : null);
   renderFollowup(list);
-  fill($('pp-shoots'), ...(list.length ? list.map(shootCard) : [h('li', { class: 'pp-card' }, h('p', { class: 'muted' }, 'אין כרגע יום צילום שצריך לסגור או להכין.'))]));
+  fill($('pp-shoots'), ...(list.length ? list.map(shootCard) : [h('li', { class: 'pp-card pp-none' }, emptyState({ icon: 'calendar-check', tone: 'green', cls: 'muted', text: 'אין כרגע יום צילום שצריך לסגור או להכין.' }))]));
   fill($('pp-requests'), requestsBlock());
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
 }
@@ -153,7 +155,7 @@ function shootCard(e) {
   const blocked = !!prep?.blockers.length;
   return h('li', { class: `pp-card${coord.fullyClosed && !blocked ? ' is-closed' : ''}${blocked ? ' has-block' : ''}`, id: `shoot-${k}` },
     h('div', { class: 'pp-head' },
-      h('h2', {}, h('a', { href: cardUrl(c.id, `#${x.pid}p11`) }, c.name), round, c.landing === true ? [' ', landingTag(c)] : null),
+      headIcon(h('h2', {}, h('a', { href: cardUrl(c.id, `#${x.pid}p11`) }, c.name), round, c.landing === true ? [' ', landingTag(c)] : null), 'camera', blocked ? 'pink' : coord.fullyClosed ? 'green' : 'teal', { size: 'md' }),
       h('span', { class: 'pp-when' }, [e.shoot ? `יום צילום ${formatStamp(e.shoot)}` : 'יום הצילום טרם נקבע', coord.shootType ? SHOOT_TYPES[coord.shootType]?.name : null].filter(Boolean).join(' · '))),
     coordinatorBlock(e, k),
     prep ? blockersBlock(e, k) : null,
@@ -258,7 +260,7 @@ function coordinatorBlock(e, k) {
   const Wrap = coord.fullyClosed ? 'details' : 'section';
   return h(Wrap, { class: 'pp-sub', 'aria-labelledby': coord.fullyClosed ? null : `co-${k}` },
     coord.fullyClosed ? h('summary', { class: 'pp-sum' }, h('span', { id: `co-${k}` }, 'סגירת יום הצילום (11): '), h('span', { class: 'pp-status is-ok' }, status))
-      : h('h3', { id: `co-${k}` }, 'סגירת יום הצילום (11)'),
+      : headIcon(h('h3', { id: `co-${k}` }, 'סגירת יום הצילום (11)'), 'handshake', 'green'),
     coord.fullyClosed ? null : h('p', { class: `pp-status ${coord.closed ? 'is-ok' : 'is-open'}`, role: 'status' }, status),
     edit ? h('div', { class: 'pp-form' },
       h('div', { class: 'row2' },
@@ -278,34 +280,52 @@ function coordinatorBlock(e, k) {
         onclick: (ev) => toggleCheck(c.id, coord.calendar.key, !coord.calendar.done, ev.currentTarget.id),
       }, coord.calendar.done ? '✓ ביומן של כולם' : 'הוכנס ליומן של כולם')),
     coord.natali.length ? h('div', { class: 'pp-sub' },
-      h('h3', {}, 'נטלי: מאפרת והסעה (11ב, באחריות ליאור)'),
+      headIcon(h('h3', {}, 'נטלי: מאפרת והסעה (11ב, באחריות ליאור)'), 'users', 'purple'),
       h('ul', { class: 'pp-parties' }, ...coord.natali.map((a) => party(a, me === 'lior' ? null : 'סימון בשם ליאור נרשם בשמך')))) : null);
 }
 // The date with, under it, what the photographer handed over for the day being picked.
 function shootAtField(c, k, dt) {
-  const input = h('input', { class: 'input', id: `sh-at-${k}`, type: 'datetime-local', dir: 'ltr', value: dt, 'aria-describedby': `sh-at-${k}-avail`, oninput: (ev) => shootDraft.set(c.id, ev.currentTarget.value) });
+  // With no date nothing is saved: the sentence under the field says so (saveShoot), and goes when a date is typed.
+  const err = h('p', { class: 'err pp-field-err', id: `sh-at-${k}-err`, role: 'alert', hidden: true });
+  const input = h('input', {
+    class: 'input', id: `sh-at-${k}`, type: 'datetime-local', dir: 'ltr', value: dt, 'aria-describedby': `sh-at-${k}-err sh-at-${k}-avail`,
+    oninput: (ev) => { shootDraft.set(c.id, ev.currentTarget.value); if (ev.currentTarget.value) { err.hidden = true; ev.currentTarget.removeAttribute('aria-invalid'); } },
+  });
   const hint = shootDayHint(input, { me, own: c.shoot_at });
   hint.id = `sh-at-${k}-avail`;
   if (dt) hint.refresh();
-  return [input, hint];
+  return [input, err, hint];
 }
+// What "שמירת המועד" answers when the date field is empty.
+const NO_DATE = 'צריך לבחור תאריך ושעה';
 async function saveShoot(c, k) {
+  if (busy) return;
   const type = $(`sh-type-${k}`).value || null;
-  const at = fromInputIL($(`sh-at-${k}`).value);
-  const fields = {};
+  const field = $(`sh-at-${k}`);
+  const at = fromInputIL(field.value);
+  // "שמירת המועד" with an empty date wrote only "עם מי מצלמים" and still said "המועד נשמר."
+  // Now it saves nothing: the sentence is next to the field and the focus goes there
+  // (docs/ops.md, section 50). A date is never cleared from this form.
+  if (!at) {
+    const err = $(`sh-at-${k}-err`);
+    err.textContent = NO_DATE;
+    err.hidden = false;
+    field.setAttribute('aria-invalid', 'true');
+    field.focus();
+    return;
+  }
+  const fields = { shoot_at: at.toISOString() };
   if (type) fields.shoot_type = type;
-  if (at) fields.shoot_at = at.toISOString();
-  if (!Object.keys(fields).length) { toast('לבחור עם מי מצלמים ומועד.'); return; }
   // Against the usual order (in the past, before the characterization, too soon after it): ask, with the reason.
-  const asked = at ? await confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me }) : { ok: true, note: null };
-  if (!asked.ok) { $(`sh-at-${k}`).focus(); return; }
+  const asked = await confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me });
+  if (!asked.ok) { field.focus(); return; }
   busy = true;
   try {
     const row = await updateClient(c.id, fields);
     if (asked.note) await noteDateChange(c.id, 'shoot_at', null, fields.shoot_at, asked.note);
     clients = clients.map((x) => (x.id === c.id ? row : x));
     shootDraft.delete(c.id);
-    toast('המועד נשמר.');
+    toast(`המועד נשמר: ${formatStamp(at)}.${type ? '' : ' עוד לא נבחר עם מי מצלמים.'}`);
   } catch (err) { toast(`לא נשמר. ${errorText(err)}`); }
   busy = false;
   render(`sh-save-${k}`);
@@ -344,7 +364,7 @@ function blockersBlock(e, k) {
             h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: `${bid}-report`, disabled: busy, onclick: () => report(c, prep, b, `${bid}-report`) }, 'דווח לליאור')));
   };
   return h('section', { class: 'pp-sub', 'aria-labelledby': `bl-${k}` },
-    h('h3', { id: `bl-${k}`, tabindex: '-1' }, `חוסמי יום צילום (14)${prep.blockers.length ? ` · ${prep.blockers.length}` : ''}`),
+    headIcon(h('h3', { id: `bl-${k}`, tabindex: '-1' }, `חוסמי יום צילום (14)${prep.blockers.length ? ` · ${prep.blockers.length}` : ''}`), prep.blockers.length ? 'alert' : 'shield', prep.blockers.length ? 'pink' : 'green'),
     prep.blockers.length ? h('ul', { class: 'pp-blockers' }, ...prep.blockers.map(row))
       : h('p', { class: 'pp-clear' }, `אין חוסמים. ${clear} מתוך ${prep.topics.length} נושאים סגורים.`));
 }
@@ -368,12 +388,12 @@ function dayBeforeBlock(e, k) {
   const akey = `${c.id}:${eve.pre}`;
   const given = answers.get(akey) || {};
   if (!eve.open && !eve.done) {
-    return h('section', { class: 'pp-sub' }, h('h3', {}, 'בדיקת יום לפני (15)'),
+    return h('section', { class: 'pp-sub' }, headIcon(h('h3', {}, 'בדיקת יום לפני (15)'), 'calendar-check', 'blue'),
       h('p', { class: 'hint' }, `נפתחת ב${dayText(eve.eve)}, עם תזכורת ב־11:15.`));
   }
   if (eve.done) {
     const failed = eve.items.filter((i) => eve.done.failed.includes(i.id)).map((i) => i.label);
-    return h('section', { class: 'pp-sub' }, h('h3', {}, 'בדיקת יום לפני (15)'),
+    return h('section', { class: 'pp-sub' }, headIcon(h('h3', {}, 'בדיקת יום לפני (15)'), 'calendar-check', 'blue'),
       h('p', { class: `pp-status ${failed.length ? 'is-open' : 'is-ok'}` },
         `בוצעה ${formatStamp(eve.done.at)} · ${who(eve.done.by_email)}${failed.length ? ` · נכשלו ועברו לליאור: ${failed.join(', ')}` : ' · הכול תקין'}`));
   }
@@ -391,7 +411,7 @@ function dayBeforeBlock(e, k) {
   };
   const res = dayBeforeResult(eve, given);
   return h('section', { class: 'pp-sub', 'aria-labelledby': `db-${k}` },
-    h('h3', { id: `db-${k}` }, `בדיקת יום לפני (15) · עד ${formatWhen(eve.at)}`),
+    headIcon(h('h3', { id: `db-${k}` }, `בדיקת יום לפני (15) · עד ${formatWhen(eve.at)}`), 'calendar-check', 'blue'),
     h('ul', { class: 'pp-checks' }, ...eve.items.map(item)),
     h('button', { type: 'button', class: 'btn btn-primary ik-big', id: `db-done-${k}`, disabled: busy || !res, 'aria-describedby': `db-done-${k}-d`, onclick: () => submitDayBefore(e, k) },
       res?.failed.length ? `סיום הבדיקה ושליחה לליאור (${res.failed.length})` : 'סיום הבדיקה'),
@@ -448,11 +468,11 @@ function requestsBlock() {
       h('div', { class: 'pp-acts' },
         h('a', { class: 'btn btn-primary', href: waLink(ack.phone, ackMessage(ack, lastAck.title, lastAck.owner, lastAck.due_on)), target: '_blank', rel: 'noopener', id: 'rq-ack-wa' }, 'שליחה בוואטסאפ', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')),
         h('button', { type: 'button', class: 'btn-text', onclick: () => { lastAck = null; render('rq-text'); } }, 'סגירה'))) : null,
-    tells.length ? h('section', { 'aria-labelledby': 'tell-h' }, h('h3', { id: 'tell-h' }, `לעדכן את הלקוח (${tells.length})`),
+    tells.length ? h('section', { 'aria-labelledby': 'tell-h' }, headIcon(h('h3', { id: 'tell-h' }, `לעדכן את הלקוח (${tells.length})`), 'send', 'green'),
       h('ul', { class: 'pp-requests' }, ...tells.map(tellRow))) : null,
-    missing.length ? h('section', { 'aria-labelledby': 'miss-h' }, h('h3', { id: 'miss-h' }, `חומרים להשלים מהלקוח (${missing.length})`),
+    missing.length ? h('section', { 'aria-labelledby': 'miss-h' }, headIcon(h('h3', { id: 'miss-h' }, `חומרים להשלים מהלקוח (${missing.length})`), 'folder', 'orange'),
       h('ul', { class: 'pp-requests' }, ...missing.map(missingRow))) : null,
-    h('section', { 'aria-labelledby': 'open-h' }, h('h3', { id: 'open-h' }, `בקשות בטיפול (${openReq.length})`),
+    h('section', { 'aria-labelledby': 'open-h' }, headIcon(h('h3', { id: 'open-h' }, `בקשות בטיפול (${openReq.length})`), 'inbox', 'blue'),
       openReq.length ? h('ul', { class: 'pp-requests' }, ...openReq.map((t) => {
         const c = clientOf(t.client_id);
         const late = t.due_on && t.due_on < dayKeyIL(now);
@@ -460,7 +480,7 @@ function requestsBlock() {
           h('p', {}, h('a', { href: cardUrl(t.client_id, '#tasks') }, c?.name || 'לקוח'), ` · ${clean(t.title)}`),
           h('p', { class: 'hint' }, [`אצל ${PEOPLE[t.owner]?.name || t.owner}`, t.due_on ? `עד ${formatDay(t.due_on)}` : null, late ? 'באיחור' : null, t.urgent ? 'דחוף' : null,
             `נפתח ${formatStamp(t.created_at)}`].filter(Boolean).join(' · ')));
-      })) : h('p', { class: 'muted' }, 'אין בקשות פתוחות.')));
+      })) : emptyState({ icon: 'inbox', tone: 'blue', cls: 'muted', text: 'אין בקשות פתוחות.' })));
 }
 function tellRow(t) {
   const c = clientOf(t.client_id);
@@ -539,6 +559,8 @@ mountSession(async (staff) => {
   }
   await load();
   mountAvailability($('availability'), { me });
+  // The headings other code writes take their icon square (app/kit.js; docs/ops.md, section 52).
+  dress($('app'), [['#fu-h', 'check-circle', 'green', 'md'], ['#req-h', 'chat', 'purple', 'md'], ['#availability summary#av-h > strong', 'calendar-check', 'teal']]);
   if (location.hash === '#requests') { $('requests').scrollIntoView(); $('rq-text')?.focus({ preventScroll: true }); }
   setInterval(() => { if (!document.hidden && !busy && !document.activeElement?.closest('form')) load(); }, 120e3);
 });

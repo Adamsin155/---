@@ -72,6 +72,7 @@ import { canArchive } from './manager-rules.js';
 import { openedBySigning } from './client-open.js';
 import { warm, taken } from './supa.js';
 import { fixTaskOf, FIX_ITEM_LABEL } from './late-chain.js';
+import { icon as kIcon, iconSquare, headIcon, dressHeads, emptyState } from './kit.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -217,6 +218,30 @@ function scriptsOk() {
   return scriptsGrant.ok;
 }
 
+// ── The look of the kit on the card (app/kit.js; docs/ops.md, section 53) ──
+// Every block's head takes its icon square; the words, the ids and the controls stay.
+const CARD_HEADS = [
+  ['#access > .side-head', 'key', 'purple'], ['#tasks > .side-head', 'check-circle', 'green'], ['#history > .side-head', 'history', 'navy'],
+  ['#tl-slot .side-head', 'calendar', 'blue'], ['#questions > .side-head', 'question', 'orange'], ['#mc-slot .side-head', 'loop', 'teal'],
+];
+const DIALOG_HEADS = { 'ed-h': ['edit', 'navy'], 'na-h': ['info', 'navy'], 'call-h': ['chat', 'blue'], 'wait-h': ['hourglass', 'orange'], 'cancel-h': ['alert', 'pink'], 'round-h': ['camera', 'pink'], 'acc-h': ['key', 'purple'], 'esc-h': ['flag', 'pink'], 'pause-h': ['hourglass', 'orange'] };
+const PHASE_LOOK = { onboarding: ['handshake', 'purple'], parallel: ['bolt', 'orange'], prep: ['list', 'blue'], eve: ['calendar', 'teal'], shoot: ['camera', 'pink'], post: ['edit', 'purple'], publish: ['send', 'green'], ongoing: ['loop', 'blue'], renewal: ['calendar-check', 'teal'] };
+const emptyLi = (text, name = 'inbox') => h('li', { class: 'empty k-emptyrow' }, kIcon(name, { size: 18 }), h('span', {}, text));
+let dialogsDressed = false;
+function dressCard() {
+  dressHeads(CARD_HEADS);
+  headIcon($('qa-block-h'), 'shield', 'teal', { size: 'md' });
+  headIcon($('ik-sum-h'), 'handshake', 'purple', { size: 'md' });
+  if (dialogsDressed) return;
+  dialogsDressed = true;
+  for (const [hid, [name, tone]] of Object.entries(DIALOG_HEADS)) headIcon($(hid), name, tone);
+  // The details form: each group of fields by its icon.
+  [['handshake', 'purple'], ['camera', 'pink'], ['box', 'blue'], ['link', 'teal']].forEach(([name, tone], i) => headIcon(document.querySelectorAll('#ed-form .dlg-body > fieldset > legend')[i], name, tone));
+  $('access-add')?.classList.add('k-btn-navy');
+  $('task-submit')?.classList.add('k-btn-navy');
+}
+for (const slot of ['mc-slot', 'tl-slot', 'ik-slot', 'qa-block']) if ($(slot)) new MutationObserver(() => dressCard()).observe($(slot), { childList: true });
+
 function render() {
   const s = clientState(client, checks, new Date());
   resolved = new Map(s.states.flatMap((x) => x.proc.items.map((i) => [i.key, { proc: x.proc, item: i }])));
@@ -242,6 +267,7 @@ function render() {
   mountClientMonth($('mc-slot'), { client, state: s, me, scope, office: worksCycle({ me, scope, error: viewerError }), rerender: () => renderKeepingFocus() });
   renderTimeline(s);
   renderTasks();
+  dressCard();
 }
 
 // ── Ofir's quality control (stage 3, part 2) ──
@@ -472,6 +498,7 @@ function renderAccess() {
   show();
   if (!vaultOk) return;
   fill($('access-list'), ...(access.length ? access.map((a) => h('li', { class: `access-row a-${a.status}` },
+    iconSquare(a.status === 'ok' ? 'key' : 'alert', a.status === 'ok' ? 'green' : a.status === 'new' ? 'blue' : 'orange'),
     h('div', { class: 'access-main' },
       // 'other' is shown by its own name (LinkedIn, the site…), as the client or the office wrote it.
       h('strong', {}, a.network === 'other' && a.label ? a.label : networkName(a.network)), a.label && a.network !== 'other' ? h('span', { class: 'muted' }, ` · ${a.label}`) : null,
@@ -485,7 +512,7 @@ function renderAccess() {
       a.has_secret ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => reveal(a) }, 'הצגת סיסמה') : h('span', { class: 'muted' }, 'אין סיסמה'),
       h('button', { type: 'button', class: 'btn-text', onclick: () => openAccess(a) }, 'עריכה'),
       h('button', { type: 'button', class: 'btn-text danger', onclick: () => removeAccess(a) }, 'מחיקה'))))
-    : [h('li', { class: 'empty' }, 'עוד לא הוכנסו גישות. כל גישה תקינה נכנסת לכאן מיד, לא נשארת בוואטסאפ.')]));
+    : [emptyLi('עוד לא הוכנסו גישות. כל גישה תקינה נכנסת לכאן מיד, לא נשארת בוואטסאפ.', 'key')]));
 }
 async function refreshAccess() {
   if (!vaultOk) return;
@@ -507,7 +534,7 @@ async function refreshAccessLog() {
     const rows = await loadAccessLog(id);
     const verb = { create: 'הוסיף/ה', update: 'עדכן/ה', reveal: 'צפה/תה בסיסמה של', delete: 'מחק/ה' };
     fill($('access-log'), ...(rows.length ? rows.map((r) => h('li', {}, h('span', { class: 'num muted' }, formatStamp(r.at)), ' ',
-      h('strong', {}, who(r.by_email)), ` ${verb[r.action]} ${networkName(r.network)}`)) : [h('li', { class: 'empty' }, 'אין עדיין פעולות.')]));
+      h('strong', {}, who(r.by_email)), ` ${verb[r.action]} ${networkName(r.network)}`)) : [emptyLi('אין עדיין פעולות.', 'history')]));
   } catch { /* the log is informational */ }
 }
 const revealTimers = {};
@@ -787,6 +814,7 @@ function roundHeader(ph) {
   if (!r) return null;
   const has = Object.keys(checks).some((k) => k.startsWith(`r${r.n}.`));
   return h('div', { class: 'round-head' },
+    iconSquare('camera', 'pink', { size: 'sm' }),
     h('span', {}, [r.shoot_type ? SHOOT_TYPES[r.shoot_type].name : null, r.shoot_at ? `יום צילום ${formatStamp(r.shoot_at)}` : 'מועד יום הצילום טרם נקבע'].filter(Boolean).join(' · ')),
     own() ? null : h('button', { type: 'button', class: 'btn-text', onclick: () => openRound(r.n) }, 'עריכת הסבב'),
     calendarMenu('shoot', r.n),
@@ -814,6 +842,7 @@ function renderPhases(s) {
     const det = h('details', { class: `phase${ph.key === s.current ? ' is-current' : ''}${ph.round ? ' is-round' : ''}`, open: printing || openPhases.has(ph.key) },
       h('summary', {},
         h('span', { class: 'ph-idx num' }, String(idx + 1)),
+        iconSquare(...(PHASE_LOOK[ph.key] || ['camera', 'pink']), { size: 'sm' }),
         h('span', { class: 'ph-title' }, h('h2', {}, ph.title), ph.key === s.current ? h('span', { class: 'ph-now' }, 'פתוח עכשיו') : null),
         h('span', { class: 'ph-meta' },
           late ? statusBadge('overdue', null) : null,
@@ -841,8 +870,8 @@ function renderPhases(s) {
     return h('section', { class: 'phase-wrap', 'aria-label': ph.title }, det);
   });
   const none = mineOnly() && !phases.some(Boolean);
-  fill($('phases'), ...phases, none ? h('p', { class: 'empty' }, own() ? 'אין לך תהליכים בלקוח הזה.'
-    : 'אין לך תהליכים בלקוח הזה. ״הצגת כל הפרוטוקול״ מציג את כל התהליכים.') : null);
+  fill($('phases'), ...phases, none ? emptyState({ text: own() ? 'אין לך תהליכים בלקוח הזה.'
+    : 'אין לך תהליכים בלקוח הזה. ״הצגת כל הפרוטוקול״ מציג את כל התהליכים.' }) : null);
 }
 
 function claimLine(x) {
@@ -1642,6 +1671,9 @@ $('round-form').addEventListener('submit', async (e) => {
   const before = roundEditing ? rounds.find((r) => r.n === roundEditing)?.shoot_at : null;
   const asked = at && +new Date(at) !== +new Date(before || 0) ? await confirmShootDay({ shootAt: at, own: before, me }) : { ok: true, note: null };
   if (!asked.ok) { $('round-at').focus(); return; }
+  // The round had a date and the field is empty: clearing is asked about, not saved quietly.
+  const clearing = !!roundEditing && !!before && !at;
+  if (clearing && !confirm(clearQuestion([`מועד הצילום של סבב ${roundEditing}`]))) { $('round-at').focus(); return; }
   $('round-submit').disabled = true;
   try {
     client = await updateClient(id, { rounds: next });
@@ -1653,7 +1685,7 @@ $('round-form').addEventListener('submit', async (e) => {
     if (!roundEditing) {
       toast(`נוסף סבב צילום ${n}. תהליך 11 (קביעת יום צילום) פתוח אצל עירית.`);
       document.getElementById(`r${n}-p11`)?.scrollIntoView({ block: 'start' });
-    } else toast('הסבב נשמר.');
+    } else toast(clearing ? 'הסבב נשמר. מועד הצילום שלו נוקה.' : 'הסבב נשמר.');
   } catch (err) {
     showErr('round-err', `הסבב לא נוסף. ${errorText(err)}`);
   }
@@ -1708,7 +1740,7 @@ function renderTasks() {
       t.urgent && !t.done_at ? startControl(t, me, () => renderTasks()) : null);
   };
   open.sort((a, b) => Number(b.urgent) - Number(a.urgent));
-  if (!list.length) fill($('task-list'), h('li', { class: 'empty' }, 'אין משימות פתוחות.'));
+  if (!list.length) fill($('task-list'), emptyLi('אין משימות פתוחות.', 'check-circle'));
   else fill($('task-list'), ...open.map(row), ...done.map(row));
 }
 async function toggleTask(t, input) {
@@ -1814,7 +1846,7 @@ async function loadHistory() {
       !special && ref ? h('a', { href: `#${procId}`, onclick: (e) => { e.preventDefault(); goTo(procId); } }, `${round > 1 ? `סבב ${round} · ` : ''}${ref.proc.num} · ${ref.item.label}`) : null,
       !special && !ref ? r.item_key : null,
       r.note && !special && r.note !== 'בסימון כל התהליך' && noteWords(r.item_key, r.note) ? h('div', { class: 'inote' }, noteWords(r.item_key, r.note)) : null);
-  }) : [h('li', { class: 'empty' }, 'עוד לא סומן דבר.')]));
+  }) : [emptyLi('עוד לא סומן דבר.', 'history')]));
   // The last call summary may have changed.
   if (!pending.size) renderKeepingFocus();
 }
@@ -1823,6 +1855,10 @@ async function loadHistory() {
 const edDlg = dialog('dlg-edit');
 // The date fields are Israel time on every device.
 const toLocal = (v) => inputValueIL(v);
+// The dates of the edit dialog that can be emptied, and the question asked before one is
+// (docs/ops.md, section 50: a date is never cleared as a silent part of "שמירה").
+const CLEARABLE = [['char_at', 'ed-char-at', 'מועד פגישת האפיון'], ['shoot_at', 'ed-shoot-at', 'מועד יום הצילום'], ['contract_end', 'ed-contract-end', 'תאריך סיום החוזה']];
+function clearQuestion(labels) { return `ניקוי המועד: ${labels.join(', ')}.\nהשדה ריק, ולכן המועד שהיה שמור יימחק מכרטיס הלקוח. לנקות?`; }
 const fromLocal = (v) => fromInputIL(v)?.toISOString() || null;
 const DELIV_FIELDS = [...DELIVERABLES.map((x) => [x.key, x.label]), ['shoot_days', 'ימי צילום']];
 fill($('ed-deliv'), ...DELIV_FIELDS.map(([k, l]) => h('div', { class: 'field' },
@@ -1919,6 +1955,9 @@ $('ed-form').addEventListener('submit', async (e) => {
   const shootMoved = !!newShoot && +new Date(newShoot) !== +new Date(client.shoot_at || 0);
   const asked = shootMoved ? await confirmShootDay({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value), own: client.shoot_at, me }) : { ok: true, note: null };
   if (!asked.ok) { $('ed-shoot-at').focus(); return; }
+  // A date that was saved and whose field is now empty: "ניקוי המועד" is asked by name.
+  const cleared = CLEARABLE.filter(([f, input]) => client[f] && !$(input).value);
+  if (cleared.length && !confirm(clearQuestion(cleared.map(([, , label]) => label)))) { $(cleared[0][1]).focus(); return; }
   $('ed-submit').disabled = true;
   try {
     client = await updateClient(id, {
@@ -1932,7 +1971,7 @@ $('ed-form').addEventListener('submit', async (e) => {
     if (asked.note) await noteDateChange(id, 'shoot_at', null, newShoot, asked.note);
     edDlg.close();
     render();
-    toast('הפרטים נשמרו.');
+    toast(cleared.length ? `הפרטים נשמרו. נוקה: ${cleared.map(([, , label]) => label).join(', ')}.` : 'הפרטים נשמרו.');
   } catch (err) {
     fail(errorText(err));
   }

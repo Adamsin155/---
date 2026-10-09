@@ -71,3 +71,28 @@
 @media (max-width: 400px) {
   .fl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 }
+
+/* ── The look of the kit in the client card (app/kit.js; docs/ops.md, section 53) ──
+   Each kind is a tile (its icon square, a plus, its name, how many files); the group's
+   title and its hint share a line; an empty group is one quiet line. The compact form of
+   the characterization page and the work batches (mountWorkFiles) keep the plain buttons. */
+.fl-block .fl-head > p { margin: 2px 0 0; }
+.fl-block:not(.fl-compact) .fl-group { grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: baseline; padding-top: 14px; }
+.fl-block:not(.fl-compact) .fl-group > * { grid-column: 1 / -1; }
+.fl-block:not(.fl-compact) .fl-group > h3 { grid-column: 1; grid-row: 1; margin: 0; font-size: 17px; }
+.fl-block:not(.fl-compact) .fl-group > .fl-hint { grid-column: 2; grid-row: 1; font-size: 13.5px; }
+@media (max-width: 720px) { .fl-block:not(.fl-compact) .fl-group > .fl-hint { grid-column: 1 / -1; grid-row: 2; } }
+/* The counts are on the tiles; the line of counts stays for whoever sees no tile (and for a screen reader). */
+.fl-group:has(.fl-tile):has([data-kind-btn]:not([hidden])) > .fl-counts { position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.fl-bar.k-tiles { display: grid; align-items: stretch; }
+.fl-bar.k-tiles:not(:has([data-kind-btn]:not([hidden]))) { display: none; }
+.fl-bar.k-tiles > [data-kind-btn] { display: grid; min-width: 0; }
+.fl-bar.k-tiles > [data-kind-btn][hidden] { display: none; }
+.fl-bar.k-tiles > .fl-form[open] { grid-column: 1 / -1; }
+.fl-bar.k-tiles > .fl-form[open] > summary { max-inline-size: 220px; border-color: var(--ds-navy); }
+.fl-bar.k-tiles > .fl-form > summary { display: grid; }
+.fl-bar.k-tiles .fl-form-body { background: var(--ds-surface); border-radius: var(--ds-r-item); }
+.fl-block .k-emptyrow > p { margin: 0; }
+.fl-kind > h4 { display: flex; align-items: center; gap: 8px; }
+.fl-gallery { gap: 10px; padding-top: 14px; }
+.fl-gallery > h3 { margin: 0; font-size: 17px; }

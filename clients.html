@@ -9,6 +9,9 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
   <script src="app/frame-guard.js"></script>
+  <!-- The sign-in screen (docs/ops.md, section 51): what the first paint is, before the page is drawn. -->
+  <script src="app/login-gate.js"></script>
+  <link rel="stylesheet" href="app/styles/login.css">
   <title>לקוחות ופרוטוקול · astrateg</title>
   <meta name="robots" content="noindex">
   <link rel="icon" href="app/assets/logo-mark.png">
@@ -35,6 +38,7 @@
   <link rel="stylesheet" href="app/styles/staff-tasks.css">
   <link rel="stylesheet" href="app/styles/metricool-connect.css">
   <link rel="stylesheet" href="app/styles/files.css">
+  <link rel="stylesheet" href="app/styles/kit.css">
   <link rel="stylesheet" href="app/styles/shell.css">
   <!-- Written at publish (scripts/build-pages.mjs): what this page will load, asked for together. -->
   <link rel="preload" as="font" type="font/woff2" href="app/fonts/heebo-hebrew.woff2" crossorigin>
@@ -80,6 +84,7 @@
   <link rel="modulepreload" href="app/control-topics.js">
   <link rel="modulepreload" href="app/deal-data.js">
   <link rel="modulepreload" href="app/late-chain.js">
+  <link rel="modulepreload" href="app/kit.js">
   <link rel="modulepreload" href="app/mine-flow.js">
   <link rel="modulepreload" href="app/mark-guards.js">
   <link rel="modulepreload" href="app/access-logic.js">
@@ -90,6 +95,7 @@
   <link rel="modulepreload" href="app/protocol-versions.js">
   <link rel="modulepreload" href="app/feel.js">
   <link rel="modulepreload" href="app/set-password.js">
+  <link rel="modulepreload" href="app/login-ui.js">
   <link rel="modulepreload" href="app/pricing.js">
   <link rel="modulepreload" href="app/vendor/supabase.js">
   <link rel="modulepreload" href="app/access-nudge.js">
@@ -147,8 +153,7 @@
   <main class="list-shell" id="main">
     <section class="block" id="login-block" hidden aria-labelledby="lg-h">
       <form class="login" id="login-form" novalidate>
-        <h2 id="lg-h">כניסה לצוות</h2>
-        <p>הלקוחות והפרוטוקול זמינים לאנשי צוות מורשים בלבד.</p>
+        <h2 id="lg-h">ברוכים השבים</h2>
         <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
         <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
         <div class="err" id="lg-err" role="alert" hidden></div>
@@ -183,6 +188,8 @@
 
       <div class="tabs" role="tablist" aria-label="תצוגה">
         <button type="button" role="tab" class="tab" id="tab-mine" aria-controls="view-mine">המשימות שלי</button>
+        <!-- "באיחור": only while this person holds something late, with how many (docs/ops.md, section 50). It shows the same panel, with the late items alone. -->
+        <button type="button" role="tab" class="tab tab-late" id="tab-late" aria-controls="view-mine" hidden><span class="tab-t">באיחור</span><span class="tab-n" id="tab-late-n"></span></button>
         <button type="button" role="tab" class="tab" id="tab-clients" aria-controls="view-clients">לקוחות</button>
         <button type="button" role="tab" class="tab" id="tab-control" aria-controls="view-control">בקרה יומית</button>
         <button type="button" role="tab" class="tab" id="tab-performance" aria-controls="view-performance">ביצועים</button>

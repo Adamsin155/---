@@ -43,6 +43,7 @@ import { countUp, growOnce, glide } from './shell.js';
 import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeClient } from './manager-data.js';
 // The owners' end of the day (docs/ops.md, section 48): the same numbers as the 19:00 message.
 import { daySummary, headline } from './day-summary.js';
+import { icon as kIcon, headIcon, besideIcon, leadIcon } from './kit.js';
 
 let viewer = null;
 let landingCtl = null;  // the owners' control of the clients in landing
@@ -511,7 +512,7 @@ function renderAll() {
   const top = (e) => e.health.reasons[0] || { color: 'green', code: '', days: 0 };
   const list = entries.filter(matches).sort((a, b) => bySeverity(top(a), top(b)) || String(a.client.name).localeCompare(String(b.client.name), 'he'));
   fill($('ga-list'), list.length ? list.map((e) => clientItem(e, now))
-    : [h('li', { class: 'empty' }, entries.length ? 'אין לקוחות בסינון הזה.' : 'אין לקוחות פעילים.')]);
+    : [h('li', { class: 'empty k-emptyrow' }, kIcon('search', { size: 18 }), h('span', {}, entries.length ? 'אין לקוחות בסינון הזה.' : 'אין לקוחות פעילים.'))]);
   renderBoard(now);
 }
 
@@ -792,3 +793,20 @@ mountSession(async (staff) => {
   // Only the owners activate (the database checks it as well).
   if (isOwnerView(v)) landingCtl = mountLandingControl($('landing'), { clients: () => allClients, checks: () => checks, reload: load, toast });
 });
+
+// ── The look of the kit on the manager view (app/kit.js; docs/ops.md, section 53) ──
+// The heads and the tabs take their icons once; the words, the ids and the numbers stay.
+// The blocks other modules draw (the landing control, the week in bars, the exceptional
+// contracts) take theirs when they are drawn.
+function dressOwner() {
+  for (const [hid, name, tone] of [['rows-h', 'alert', 'pink'], ['ans-h', 'chat', 'blue'], ['board-h', 'calendar', 'blue'], ['eod-items-h', 'clock', 'orange'], ['ar-h', 'archive', 'navy'],
+    ['na-h', 'lock', 'navy'], ['landing-h', 'inbox', 'teal'], ['wk-h', 'chart', 'purple'], ['approvals-h', 'sign', 'orange']]) headIcon($(hid), name, tone);
+  for (const [tid, name] of [['tab-now', 'alert'], ['tab-all', 'grid'], ['tab-eod', 'clock'], ['tab-table', 'table'], ['tab-shoots', 'camera'], ['tab-archive', 'archive']]) leadIcon($(tid), name);
+  besideIcon($('eod-head'), 'clock', 'orange');
+  const empty = $('ow-empty');
+  if (empty && !empty.querySelector('.k-svg')) { empty.classList.add('k-emptyrow'); empty.prepend(kIcon('check-circle', { size: 20 })); }
+  for (const p of document.querySelectorAll('.mt-money-note, #eod-about')) leadIcon(p, 'info');
+  leadIcon($('mt-csv'), 'download');
+}
+dressOwner();
+for (const slot of ['landing', 'wk-card', 'approvals-card']) if ($(slot)) new MutationObserver(dressOwner).observe($(slot), { childList: true });

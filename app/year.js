@@ -12,6 +12,7 @@ import { PROTOCOL_VERSION } from './protocol.js';
 import { clientState, clientLabel } from './protocol-logic.js';
 import { loadClients, loadChecks, loadDirectory } from './protocol-data.js';
 import { $, fill, h, toast, errorText, mountSession, directory, viewerOf, formatDay } from './protocol-ui.js';
+import { emptyItem, dress } from './kit.js';
 import { DRAFT_LABEL, yearOf, renewalsDue, marksByKey, groupMarks, RENEWAL_DAYS } from './year-logic.js';
 import { resultsSummary, renewalStage, renewalDraft, packageText, QUOTE_DRAFT_KEY, BUILDER_URL } from './renewals.js';
 import { loadMonthMarks, loadAgreements, loadSurveys } from './year-data.js';
@@ -101,7 +102,7 @@ function renderRenewals(now) {
   $('rn-n').textContent = String(list.length);
   const grouped = groupMarks(marks || []);
   fill($('rn-list'), ...(list.length ? list.map((x) => renewalCard(x, grouped[x.client.id] || {}, now))
-    : [h('li', { class: 'empty' }, 'אין לקוח שהחבילה שלו מסתיימת ב־90 הימים הקרובים.')]));
+    : [emptyItem('אין לקוח שהחבילה שלו מסתיימת ב־90 הימים הקרובים.', { icon: 'loop' })]));
 }
 function renewalCard({ client: c, endAt, daysLeft }, cmarks, now) {
   const s = stateOf(c);
@@ -208,8 +209,8 @@ function renderMonths(now) {
     .filter((x) => x.s)
     .sort((a, b) => ((b.s.current?.late || 0) - (a.s.current?.late || 0)) || String(a.c.name).localeCompare(String(b.c.name), 'he'));
   $('mo-n').textContent = String(rows.length);
-  const note = marks === null ? h('li', { class: 'empty' }, 'הסימונים של המחזור החודשי יישמרו אחרי שהמיגרציה של שלב 5 תוחל.') : null;
-  fill($('mo-list'), note, ...(rows.length ? rows.map((x) => monthRow(x.c, now)) : [h('li', { class: 'empty' }, 'אין לקוחות פעילים.')]));
+  const note = marks === null ? emptyItem('הסימונים של המחזור החודשי יישמרו אחרי שהמיגרציה של שלב 5 תוחל.', { icon: 'hourglass', tone: 'orange' }) : null;
+  fill($('mo-list'), note, ...(rows.length ? rows.map((x) => monthRow(x.c, now)) : [emptyItem('אין לקוחות פעילים.', { icon: 'users', tone: 'blue' })]));
 }
 
 // ── Protocol versions ───────────────────────
@@ -231,6 +232,10 @@ function renderVersions() {
 $('btn-refresh').addEventListener('click', () => load());
 document.addEventListener('visibilitychange', () => { if (!document.hidden && viewer && Date.now() - lastLoad > 60e3) load(); });
 window.addEventListener('hashchange', () => document.getElementById(location.hash.slice(1))?.focus());
+
+// The kit (docs/ops.md, section 52): the three sections and their cards take an icon square.
+dress($('app'), [['#rn-h', 'loop', 'green', 'md'], ['#mo-h', 'calendar', 'blue', 'md'], ['#vr-h', 'list', 'navy', 'md'], ['#na-h', 'lock', 'navy'],
+  ['.yr-renew > .of-head', 'loop', 'green', 'md'], ['.yr-row.is-late > .of-head', 'calendar', 'pink', 'md'], ['.yr-row > .of-head', 'calendar', 'blue', 'md']]);
 
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);

@@ -69,3 +69,11 @@
   .deal-task-acts .btn { flex: 1 1 40%; }
   .deal-task-acts .btn-primary { flex-basis: 100%; }
 }
+
+/* ── The look of the kit on the sales page (app/kit.js; docs/ops.md, section 53) ── */
+.deal-sec legend.k-h { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.deal-sec legend.k-h > .k-ico, .deal-mine h2.k-h > .k-ico, .deal-noaccess h2.k-h > .k-ico { margin-block: 0; }
+.deal-mine h2.k-h { gap: 10px; }
+.deal-item-head > .k-ico { flex: none; }
+.deal-item-head > .deal-item-name { flex: 1 1 auto; min-width: 0; }
+.deal-list > .k-emptyrow { list-style: none; }

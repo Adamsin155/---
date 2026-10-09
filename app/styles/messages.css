@@ -97,3 +97,15 @@ details.msg-history[open] > summary::after { transform: rotate(-135deg); }
 @media (prefers-reduced-motion: reduce) {
   details.msg-history > summary::after { transition: none; }
 }
+
+/* The shared kit on the day's messages (docs/ops.md, section 52): an icon square per kind
+   of message, the kind as a pill, the summary and the "all sent" line as notice strips.
+   Pills, 4.5:1 needed: amber on its soft 5.9, green on its soft 5.72, ink-2 on soft 9.2. */
+.msg-head { align-items: center; }
+.msg-name.k-h { gap: 10px; min-width: 0; flex-wrap: wrap; }
+.msg-name.k-h > .k-ico { margin-block: 0; }
+.mk { padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); }
+.mk-delay { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.mk-thursday { background: var(--ds-ok-soft); }
+.mk-milestone, .mk-daily { color: var(--ds-ink-2); }
+.msg-empty.k-note { font-size: 15.5px; font-weight: 500; padding: 14px; }

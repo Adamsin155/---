@@ -28,6 +28,7 @@ import { termOf } from './year-logic.js';
 import { dayKeyIL } from './tz.js';
 import { glide } from './shell.js'; // a day or a month chosen: the calendar changes softly
 import { tokenFrom } from './link-token.js';
+import { iconSquare as kSquare, headIcon as kHeadIcon, dressHead as kDressHead } from './kit.js'; // the client's public view only (bootShare)
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -89,6 +90,11 @@ async function boot() {
   ui = await import('./protocol-ui.js');
   const { loadClient, loadDirectory } = await import('./protocol-data.js');
   const { worksCycle } = await import('./month-ui.js');
+  // The kit, for the office only (docs/ops.md, section 52): the client's link stays as it is.
+  const { dress } = await import('./kit.js');
+  dress($('app'), [['#gxw-h', 'calendar', 'blue', 'md'], ['#gxc-h', 'users', 'teal', 'md'], ['#ge-h', 'calendar', 'purple', 'md'], ['#gg-h', 'chart', 'teal', 'md'], ['#gs-h', 'link', 'blue', 'md'], ['#na-h', 'lock', 'navy'],
+    ['#gt-rules > summary', 'list', 'navy'], ['.gx .gt-none', 'calendar', 'blue'],
+    ['.gx-client.has-missing > .gx-main', 'alert', 'pink', 'md'], ['.gx-client.no-gantt > .gx-main', 'calendar', 'navy', 'md'], ['.gx-client > .gx-main', 'calendar-check', 'green', 'md']]);
   ui.mountSession(async (staff) => {
     const id = params.get('id');
     const [dir, viewer] = await Promise.all([loadDirectory().catch(() => ({})), ui.viewerOf(staff.email)]);
@@ -138,12 +144,16 @@ const CLOSED = {
 };
 async function bootShare() {
   document.body.classList.add('is-share');
+  // The client's public view: the look of the kit (app/kit.js; docs/ops.md, section 53).
+  kDressHead(document.querySelector('#gt-hero .gt-hero-text'), 'calendar', 'purple', { size: 'lg' });
+  kHeadIcon($('gg-h'), 'chart', 'blue', { size: 'md' });
+  kHeadIcon($('ge-h'), 'calendar', 'navy', { size: 'md' });
   $('staff-nav').hidden = true;
   $('brand').removeAttribute('href');
   $('login-block').hidden = true;
   const closed = (kind) => {
     const [t, x] = CLOSED[kind] || CLOSED.error;
-    $('closed').replaceChildren(h('h1', {}, t), h('p', {}, x));
+    $('closed').replaceChildren(kSquare('info', 'navy', { size: 'lg' }), h('h1', {}, t), h('p', {}, x));
     $('closed').hidden = false;
     document.title = `${t} · astrateg`;
   };

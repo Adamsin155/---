@@ -26,3 +26,15 @@
 .al-summary, .al-note { margin: 0; overflow-wrap: anywhere; }
 .al-note { white-space: pre-wrap; padding: 8px 10px; border-radius: var(--ds-r-sm); background: var(--ds-surface); }
 .al-block .st-acts { margin-top: 0; }
+
+/* ── The look of the kit in the status block (app/kit.js; docs/ops.md, section 53) ── */
+.st-block .side-head > p { margin: 2px 0 0; }
+.st-block .k-row .st-state { font-weight: 700; }
+.st-block .k-row .k-hint, .st-block .k-row .muted { margin: 2px 0 0; font-size: 13.5px; font-weight: 400; color: var(--ds-muted); }
+.st-block .k-row > .btn { min-height: 44px; }
+.st-link-on { padding: 12px 14px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-surface); }
+.st-consent { display: grid; gap: 6px; }
+.st-consent .st-state.is-ok { color: var(--ds-ink); }
+.st-block .k-card h3 { margin: 0; }
+.st-block .k-emptyrow > p { margin: 0; }
+@media (max-width: 480px) { .st-block .k-sidehead > .k-pill { grid-column: 2; grid-row: 3; justify-self: start; margin-top: 6px; } }

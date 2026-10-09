@@ -19,6 +19,7 @@ import {
   CHOICES, CHOICE_TEXT, intakeFor, intakeLeft, waitingPeople, stationNow, evidentStation, stationPlan,
 } from './landing-logic.js';
 import { IMPORT_NOTE } from './client-open.js';
+import { dress } from './kit.js';
 
 let viewer = null;
 let me = null;
@@ -207,6 +208,9 @@ function render() {
 }
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && viewer && !busy.size && $('no-access').hidden) load(); });
+
+// The kit (docs/ops.md, section 52): quiet here too, so every square is the navy one.
+dress($('app'), [['.land-count', 'inbox', 'navy', 'md'], ['.land-empty', 'check-circle', 'green', 'md'], ['.land-card:not(.is-finished) .land-head h2', 'user', 'navy', 'md'], ['#na-h', 'lock', 'navy']]);
 
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);

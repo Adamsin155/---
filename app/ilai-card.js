@@ -88,18 +88,22 @@ export function coveredByCard(ctx) {
 }
 
 // ctx: { clients, checks (all, by client), stateOf, me, viewer, refresh }
-export function ilaiSection(ctx) {
-  const day = charDay({ ...ctx, access, now: new Date() });
+// `only`: a set of `${client}:${process}` keys; then only the cards that cover one of
+// them (the "באיחור" tab of "המשימות שלי": the same cards, the late ones alone; section 50).
+export function ilaiSection(ctx, only = null) {
+  const keep = (x, procs) => !only || procs.some((p) => only.has(`${x.client.id}:${p}`));
+  const one = (x) => keep(x, [x.state.proc.id]);
+  const day = charDay({ ...ctx, access, now: new Date() }).filter((x) => keep(x, ['p05', 'p06', 'p07', 'p09']));
   const work = ilaiWork(ctx);
   whoAmI(ctx);
   ensureAccess(day.map((x) => x.client.id), ctx);
   for (const x of day) autoAccess(x, ctx);
   const cards = [
     ...day.map((x) => dayCard(x, ctx)),
-    ...work.first.map((x) => firstCard(x, ctx)),
-    ...work.rest.map((x) => restCard(x, ctx)),
-    ...work.finals.map((x) => finalCard(x, ctx)),
-    ...work.gantt.map((x) => ganttCard(x, ctx)),
+    ...work.first.filter(one).map((x) => firstCard(x, ctx)),
+    ...work.rest.filter(one).map((x) => restCard(x, ctx)),
+    ...work.finals.filter(one).map((x) => finalCard(x, ctx)),
+    ...work.gantt.filter(one).map((x) => ganttCard(x, ctx)),
   ];
   if (!cards.length) return null;
   const title = day.length ? 'יום אפיון: שעתיים' : 'גרפיקות, גאנט וגרסאות סופיות';

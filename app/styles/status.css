@@ -153,3 +153,15 @@ h2 { margin: 0 0 10px; font-size: 18px; }
   .sbtn { width: auto; min-width: 180px; }
   .sscale-row.is-11 { grid-template-columns: repeat(11, 1fr); }
 }
+
+/* ── The look of the kit on the pages the agency's clients open (app/kit.js; docs/ops.md,
+   section 53): status.html, gallery.html, scripts-view.html. A soft icon square in front
+   of every card's heading; the closed-link message with its square above it. ── */
+.scard > h2.k-h, .sgroup > h2.k-h, .sfoot h2.k-h { gap: 10px; align-items: center; }
+.scard > h2.k-h > .k-ico, .sgroup > h2.k-h > .k-ico { margin-block: 0; }
+.sfoot h2.k-h > .k-ico { inline-size: 28px; block-size: 28px; border-radius: 9px; }
+.sstate > .k-ico { margin: 0 auto 12px; display: grid; }
+#empty > .k-ico { margin-bottom: 10px; }
+.next > .k-emptyrow { list-style: none; justify-content: flex-start; text-align: start; }
+.k-ico-first { order: -1; }
+@media print { .k-ico { display: none !important; } }

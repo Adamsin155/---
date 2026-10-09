@@ -12,6 +12,12 @@ import {
 } from './status-logic.js';
 import { dayText, timeText } from './messages-logic.js';
 import { pageToken } from './link-token.js';
+import { icon as kIcon, iconSquare, headIcon } from './kit.js';
+
+// The look of the kit on the client's page (app/kit.js; docs/ops.md, section 53): every
+// card's heading takes its icon square. The words are the client's words, unchanged.
+for (const [hid, name, tone] of [['needs-h', 'flag', 'orange'], ['appr-h', 'check-circle', 'green'], ['next-h', 'calendar', 'blue'], ['thu-h', 'megaphone', 'purple'],
+  ['team-h', 'users', 'teal'], ['links-h', 'folder', 'pink'], ['times-h', 'clock', 'navy'], ['hist-h', 'history', 'navy'], ['privacy-h', 'shield', 'navy']]) headIcon(document.getElementById(hid), name, tone, { size: 'md' });
 
 const $ = (id) => document.getElementById(id);
 const fill = (el, ...kids) => el.replaceChildren(...kids.flat().filter((k) => k !== null && k !== undefined && k !== false));
@@ -33,7 +39,7 @@ const at = (v) => { const d = new Date(v); return `${dayText(d)} בשעה ${time
 function showState(kind) {
   const [title, text] = CLOSED_TEXT[kind] || CLOSED_TEXT.error;
   $('page').hidden = true;
-  fill($('state'), h('h1', {}, title), h('p', {}, text));
+  fill($('state'), iconSquare('info', 'navy', { size: 'lg' }), h('h1', {}, title), h('p', {}, text));
   $('state').hidden = false;
   document.title = `${title} · astrateg`;
 }
@@ -77,7 +83,7 @@ function render(d) {
 
   const next = nextMilestones(d, now);
   fill($('next'), next.length ? next.map((m) => h('li', {}, h('span', { class: 'next-when' }, m.when), h('span', { class: 'next-what' }, m.label)))
-    : h('li', { class: 'muted' }, 'אין כרגע תאריך קרוב. נעדכן כאן ובקבוצה.'));
+    : h('li', { class: 'muted k-emptyrow' }, kIcon('calendar', { size: 18 }), h('span', {}, 'אין כרגע תאריך קרוב. נעדכן כאן ובקבוצה.')));
 
   const thu = d.thursday;
   $('thursday-sec').hidden = !thu;
@@ -253,7 +259,7 @@ function renderSurvey() {
   sec.hidden = false;
   const name = h('input', { class: 'sinput', id: 'sv-name', autocomplete: 'name', maxlength: '120', value: currentName(), oninput: (e) => { typedName = e.target.value; } });
   fill(sec,
-    h('h2', { id: 'survey-h' }, `שאלה קצרה: ${SURVEY_TITLES[kind]}`),
+    headIcon(h('h2', { id: 'survey-h' }, `שאלה קצרה: ${SURVEY_TITLES[kind]}`), 'smile', 'orange', { size: 'md' }),
     h('form', { id: 'sv-form', novalidate: true, onsubmit: (e) => { e.preventDefault(); answer(kind); } },
       h('fieldset', { class: 'sscale' },
         h('legend', {}, QUESTIONS[kind]),

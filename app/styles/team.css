@@ -102,3 +102,8 @@
 .staff-privacy h1 { margin: 6px 0 12px; font-size: 22px; line-height: 1.35; }
 .staff-privacy h2 { margin: 18px 0 6px; }
 .staff-privacy ul { margin: 0; padding-inline-start: 20px; display: grid; gap: 4px; color: var(--text-2); font-size: 14.5px; }
+
+/* The shared kit (docs/ops.md, section 52): an icon square on "איך זה עובד" and on a made link. */
+.tm-help h2.k-h { gap: 12px; }
+.tm-help h2.k-h > .k-ico { margin-block: 0; }
+.tm-link-h.k-h { gap: 8px; }

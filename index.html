@@ -9,6 +9,8 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
   <script src="app/frame-guard.js"></script>
+  <!-- The sign-in screen (docs/ops.md, section 51). -->
+  <link rel="stylesheet" href="app/styles/login.css">
   <title>מחולל הצעות מחיר · astrateg</title>
   <meta name="robots" content="noindex">
   <link rel="icon" href="app/assets/logo-mark.png">
@@ -17,6 +19,7 @@
   <link rel="stylesheet" href="app/styles/app.css">
   <link rel="stylesheet" href="app/styles/quote.css">
   <link rel="stylesheet" href="app/styles/approvals.css">
+  <link rel="stylesheet" href="app/styles/kit.css">
   <link rel="stylesheet" href="app/styles/shell.css">
   <!-- Written at publish (scripts/build-pages.mjs): what this page will load, asked for together. -->
   <link rel="preload" as="font" type="font/woff2" href="app/fonts/heebo-hebrew.woff2" crossorigin>
@@ -26,6 +29,8 @@
   <link rel="modulepreload" href="app/catalog.js">
   <link rel="modulepreload" href="app/pricing.js">
   <link rel="modulepreload" href="app/quote-doc.js">
+  <link rel="modulepreload" href="app/kit.js">
+  <link rel="modulepreload" href="app/login-ui.js">
   <link rel="modulepreload" href="app/shell.js">
   <link rel="modulepreload" href="app/legal.js">
   <link rel="modulepreload" href="app/supa.js">
@@ -295,7 +300,7 @@
       </div>
       <div class="dlg-body">
         <p>כדי ליצור קישור שהלקוח יכול לחתום עליו, יש להתחבר עם חשבון הצוות.</p>
-        <div class="field" style="margin-bottom:14px">
+        <div class="field">
           <label for="lg-email">אימייל</label>
           <input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required>
         </div>
@@ -303,7 +308,7 @@
           <label for="lg-pass">סיסמה</label>
           <input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required>
         </div>
-        <button type="button" class="btn-text" id="lg-forgot" style="margin-top:6px">שכחתי סיסמה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
         <div class="err" id="lg-err" role="alert" hidden></div>
         <div class="note-ok" id="lg-msg" role="status" hidden></div>
       </div>

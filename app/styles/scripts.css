@@ -127,3 +127,11 @@
   .scp-links p { margin: 8pt 0 2pt; font-weight: 600; font-size: 11pt; }
   .scp-links ul { margin: 0; padding-inline-start: 16pt; font-size: 10.5pt; overflow-wrap: anywhere; }
 }
+
+/* The shared kit on the scripts (docs/ops.md, section 52): an icon square on each script,
+   on the two folded panels and on the share and access blocks. */
+.sc-slot-h > h2.k-h { gap: 10px; }
+.sc-slot-h > h2.k-h > .k-ico { margin-block: 0; }
+.sc-panel > h2.k-h { gap: 12px; }
+.sc-panel > h2.k-h > .k-ico { margin-block: 0; }
+#sc-side summary.k-h { gap: 10px; }

@@ -66,3 +66,12 @@
 .land-ctl-row .btn { min-height: 44px; }
 .land-ctl-row .pbar { flex: 0 1 120px; }
 .land-ctl-note { font-size: 13.5px; color: var(--ds-muted); }
+
+/* The shared kit on the taking-in (docs/ops.md, section 52): the count as a strip with its
+   icon, an icon square on each client's name. Navy only: the page stays quiet. */
+.land-count.k-h, .land-empty.k-h { padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--k-navy-soft); gap: 8px 12px; }
+.land-empty.k-h { background: var(--ds-ok-soft); flex-wrap: wrap; }
+.land-progress .k-h > .k-ico { margin-block: 0; background: var(--ds-surface); }
+.land-progress p.k-h { margin: 0; }
+.land-head h2.k-h { gap: 10px; min-width: 0; }
+.land-head h2.k-h > .k-ico { margin-block: 0; }

@@ -9,6 +9,7 @@ import { h } from './quote-doc.js';
 import { supabase } from './supa.js';
 import { dayText, timeText, waLink, groupLink } from './messages-logic.js';
 import { statusUrl, statusLinkMessage, itemText, SURVEY_TITLES, scaleOf, lowScore, severeScore, cleanName, nameOk } from './status-logic.js';
+import { icon, iconSquare, dressHead, pill, emptyRow, cardHead, noticeAround } from './kit.js';
 
 const LINK_COLS = 'id, created_at, created_by, expires_at, revoked_at, revoked_by';
 const APPROVAL_COLS = 'id, item, item_key, shoot_round, decision, round, signer_name, note, wording, at';
@@ -83,13 +84,18 @@ function block(client, { manage, toast, reload }) {
   const head = h('div', { class: 'side-head' },
     h('h2', { id: 'st-h' }, 'דף המצב ללקוח'),
     h('p', { class: 'muted' }, 'קישור אישי שהלקוח פותח בטלפון: איפה אנחנו עומדים, התאריכים שהבטחנו, מה צריך ממנו, אישורים ושאלת משוב.'));
+  // The look of the kit (docs/ops.md, section 53): the icon square, and the link's state as a pill.
+  dressHead(head, 'phone', 'blue');
+  if (!c.error) {
+    const last = c.links?.[0];
+    head.append(c.active ? pill('קישור פעיל', 'ok', { id: 'st-pill' }) : last ? pill(last.revoked_at ? 'הקישור בוטל' : 'תוקף הקישור הסתיים', 'warn', { id: 'st-pill' }) : pill('טרם פורסם', 'plain', { id: 'st-pill' }));
+  }
   if (c.error) return h('section', { class: 'block cc-side st-block', id: 'status-block', 'aria-labelledby': 'st-h' }, head, h('p', { class: 'muted', role: 'status' }, c.error));
   return h('section', { class: 'block cc-side st-block', id: 'status-block', 'aria-labelledby': 'st-h' },
     head,
     linkPart(client, { manage, toast, reload }),
     consentPart(client, { toast, reload }),
-    approvalsPart(),
-    surveysPart(client, { toast, reload }));
+    h('div', { class: 'k-cards-2' }, approvalsPart(), surveysPart(client, { toast, reload })));
 }
 
 // ── The link ──────────────────────────────
@@ -114,17 +120,20 @@ function linkPart(client, { manage, toast, reload }) {
   };
   if (!c.active) {
     const last = c.links[0];
-    return h('div', { class: 'st-link' },
-      h('p', { class: 'st-state' }, last ? (last.revoked_at ? `הקישור האחרון בוטל ב${when(last.revoked_at)}.` : `תוקף הקישור האחרון הסתיים ב${when(last.expires_at)}.`) : 'עוד לא נוצר קישור ללקוח.'),
-      manage ? h('button', { type: 'button', class: 'btn btn-sm', id: 'st-create', onclick: () => create(false) }, 'יצירת קישור') : h('p', { class: 'muted' }, 'עירית, ליאור או הבעלים יוצרים את הקישור.'));
+    return h('div', { class: 'st-link k-linkrow' },
+      iconSquare('link', 'navy'),
+      h('div', { class: 'k-linkrow-t' },
+        h('p', { class: 'st-state' }, last ? (last.revoked_at ? `הקישור האחרון בוטל ב${when(last.revoked_at)}.` : `תוקף הקישור האחרון הסתיים ב${when(last.expires_at)}.`) : 'עוד לא נוצר קישור ללקוח.'),
+        manage ? h('p', { class: 'k-hint' }, 'אחרי היצירה תוכלו להעתיק את הקישור ולשלוח אותו ללקוח.') : h('p', { class: 'muted' }, 'עירית, ליאור או הבעלים יוצרים את הקישור.')),
+      manage ? h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: 'st-create', onclick: () => create(false) }, icon('plus', { size: 16 }), 'יצירת קישור') : null);
   }
   const url = c.token ? statusUrl(location.href, c.token) : null;
   const msg = url ? statusLinkMessage(client, url) : null;
-  return h('div', { class: 'st-link' },
+  return h('div', { class: 'st-link st-link-on' },
     h('p', { class: 'st-state' }, h('strong', {}, 'קישור פעיל'), ` עד ${dayText(new Date(c.active.expires_at), new Date())}`,
       ' · ', views.length ? `נפתח ${views.length === 1 ? 'פעם אחת' : `${views.length} פעמים`}, לאחרונה ${when(views[0].at)}` : 'עוד לא נפתח'),
     manage && url ? h('div', { class: 'st-acts' },
-      h('button', { type: 'button', class: 'btn btn-sm', id: 'st-copy-msg', onclick: () => copy(msg, toast) }, 'העתקת הודעה עם הקישור'),
+      h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: 'st-copy-msg', onclick: () => copy(msg, toast) }, 'העתקת הודעה עם הקישור'),
       h('a', { class: 'btn btn-sm', id: 'st-wa', href: client.phone ? waLink(client.phone, msg) : groupLink(msg), target: '_blank', rel: 'noopener' }, 'שליחה ב־WhatsApp', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')),
       h('button', { type: 'button', class: 'btn-text', id: 'st-copy', onclick: () => copy(url, toast) }, 'העתקת הקישור'),
       h('a', { class: 'btn-text', href: url, target: '_blank', rel: 'noopener' }, 'תצוגה', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש; הצפייה שלך לא נרשמת)')),
@@ -151,7 +160,7 @@ function consentPart(client, { toast, reload }) {
     await reload();
   };
   return h('div', { class: 'st-consent' },
-    h('p', { class: `st-state${k?.given && !k.revoked_at ? ' is-ok' : ''}`, id: 'st-consent' }, text),
+    noticeAround(h('p', { class: `st-state${k?.given && !k.revoked_at ? ' is-ok' : ''}`, id: 'st-consent' }, text), k?.given && !k.revoked_at ? { kind: 'ok' } : { kind: 'warn', icon: k ? 'bell-off' : 'alert' }),
     canRevoke ? h('details', { class: 'st-revoke' }, h('summary', {}, 'הלקוח ביקש להפסיק'),
       h('div', { class: 'st-row' }, h('label', { for: 'st-via' }, 'איך'), sel, h('button', { type: 'button', class: 'btn btn-sm', onclick: revoke }, 'רישום'))) : null);
 }
@@ -159,14 +168,14 @@ function consentPart(client, { toast, reload }) {
 // ── Approvals and fix requests from the page ──
 function approvalsPart() {
   const list = cache.approvals;
-  return h('div', { class: 'st-approvals' },
-    h('h3', {}, 'אישורים ובקשות תיקון מהדף'),
+  return h('div', { class: 'st-approvals k-card' },
+    cardHead({ icon: 'check-circle', tone: 'green', title: 'אישורים ובקשות תיקון מהדף', count: list.length }),
     list.length ? h('ol', { class: 'hlist st-list' }, list.map((a) => h('li', {},
       h('span', { class: a.decision === 'approve' ? 'st-ok' : 'st-fix' }, a.decision === 'approve' ? 'אישר/ה' : 'ביקש/ה תיקון'),
       ` · ${itemText(a.item, a.shoot_round)} · סבב ${a.round} · ${a.signer_name} · ${when(a.at)}`,
       a.note ? h('span', { class: 'st-note' }, a.note) : null,
       h('details', {}, h('summary', {}, 'הנוסח שהלקוח ראה'), h('p', { class: 'st-note' }, a.wording)))))
-      : h('p', { class: 'muted' }, 'עוד אין.'));
+      : emptyRow({ text: 'עוד אין אישורים או בקשות.' }));
 }
 
 // ── Satisfaction (decision 28) ────────────
@@ -190,14 +199,14 @@ function surveysPart(client, { toast, reload }) {
     toast?.(lowScore(kind, n) ? 'נרשם. נפתחה לליאור משימה להתקשר ללקוח.' : 'נרשם. תודה!');
     await reload();
   };
-  return h('div', { class: 'st-surveys' },
-    h('h3', {}, 'שביעות רצון'),
+  return h('div', { class: 'st-surveys k-card' },
+    cardHead({ icon: 'smile', tone: 'orange', title: 'שביעות רצון', count: list.length }),
     list.length ? h('ul', { class: 'st-list' }, list.map((s) => h('li', {},
       h('strong', {}, `${SURVEY_TITLES[s.kind]}: ${s.score} מתוך ${s.kind === 'nps' ? 10 : 5}`),
       severeScore(s.kind, s.score) ? h('span', { class: 'st-low' }, ' · נמוך מאוד: ליאור והבעלים') : lowScore(s.kind, s.score) ? h('span', { class: 'st-low' }, ' · נמוך: ליאור מתקשר') : null,
       ` · ${s.respondent} · ${when(s.at)} · ${s.source === 'page' ? 'בדף המצב' : 'מהקבוצה'}`)))
-      : h('p', { class: 'muted' }, 'עוד אין תשובות.'),
-    open.length ? h('details', { class: 'st-record' }, h('summary', {}, 'רישום תשובה שהלקוח נתן בקבוצה'),
+      : emptyRow({ icon: 'chat', text: 'עוד אין תשובות.' }),
+    open.length ? h('details', { class: 'st-record' }, h('summary', { class: 'k-with-ico' }, icon('chat', { size: 16 }), 'רישום תשובה שהלקוח נתן בקבוצה'),
       h('form', { class: 'st-form', novalidate: true, onsubmit: record },
         h('div', { class: 'field' }, h('label', { for: 'st-sv-kind' }, 'השאלה'), kindSel),
         h('div', { class: 'field' }, h('label', { for: 'st-sv-score' }, 'הציון'), score),
