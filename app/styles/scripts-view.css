@@ -41,3 +41,5 @@
   .vscript { box-shadow: none; border-bottom: 0.75pt solid #999; border-radius: 0; break-inside: avoid; page-break-inside: avoid; }
   .vlinks a::after { content: ' ' attr(href); font-size: 10pt; }
 }
+
+.skip { min-height: 44px; display: inline-flex; align-items: center; }

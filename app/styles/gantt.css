@@ -473,6 +473,8 @@ a.gt-row-main { text-decoration: none; }
 .gg-m, .gt-pill-y { font-size: 12px; }
 .gt-hero .kicker { font-size: 12px; }
 @media (max-width: 760px) {
+  /* Five figures in two columns: the last one takes the whole row instead of leaving a hole. */
+  .gt-stats > :last-child:nth-child(odd) { grid-column: 1 / -1; }
   .gt-view-btn { min-height: 44px; }
   .gt-view { padding: 4px; }
   /* A day of the phone's grid is one target: the number's button covers its cell. */
