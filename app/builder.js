@@ -10,6 +10,8 @@ import {
 } from './pricing.js';
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
 import { iconSquare, headIcon } from './kit.js';
+// The sign-in form's look and its button with the door (docs/ops.md, section 51).
+import { loginDoor } from './login-ui.js';
 
 // The look of the kit on the builder's own screen (app/kit.js; docs/ops.md, section 53):
 // each section's head, each group of add-ons and the notice take an icon square. Nothing
@@ -802,7 +804,9 @@ function askLogin() {
     const onSubmit = async (e) => {
       e.preventDefault();
       const btn = $('lg-submit');
-      busy(btn, true, 'מתחבר…');
+      // The door on the button says "מתחברים…" for as long as the server is asked.
+      btn.disabled = true;
+      loginDoor.signing();
       try {
         const s = await getSupa();
         const { error } = await s.supabase.auth.signInWithPassword({
@@ -815,14 +819,16 @@ function askLogin() {
         // A fresh sign-in starts in the personal profile (app/manager-rules.js).
         import('./manager-rules.js').then((m) => m.resetMode()).catch(() => {});
         form.removeEventListener('submit', onSubmit);
+        await loginDoor.success(); // the figure walks in and the button turns green; then the dialog closes
         dlg.close();
         resolve(true);
       } catch (err) {
         const s = await getSupa().catch(() => null);
         $('lg-err').textContent = s ? s.explainError(err) : 'אין חיבור לשרת.';
         $('lg-err').hidden = false;
+        loginDoor.failed();
       } finally {
-        busy(btn, false);
+        btn.disabled = false;
       }
     };
     form.addEventListener('submit', onSubmit);

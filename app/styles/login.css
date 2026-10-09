@@ -1,0 +1,289 @@
+/* The staff sign-in screen (docs/ops.md, section 51): a night in the logo's colours, a
+   glass card, and a button with a small figure that walks through a door.
+   The markup is the pages' small form shell, completed by app/login-ui.js; the first
+   paint is decided by app/login-gate.js (<html data-door>):
+     data-door="in"       the sign-in screen (nobody is signed in on this device)
+     data-door="through"  the person just signed in: the night stays over the page that
+                          is being built, with the green button for a moment
+     data-door="out"      the night fades off the finished page
+     no data-door         everyone who is signed in: nothing of this file is drawn.
+   Motion is transform and opacity only; the numbers match LOGIN_TIMES in login-ui.js.
+   The brand guide keeps glows and the purple-to-pink blend out of the working screens;
+   this one screen has them at the owner's request (9.10.2026), and no text is read on them
+   below 7:1. */
+html {
+  --lg-purple: #5302DF;      /* the logo's left leg */
+  --lg-lilac: #A980EF;       /* the same purple on navy: 6.1:1 (brand guide) */
+  --lg-lilac-text: #DCCDFB;  /* small purple text on the card: above 10:1 */
+  --lg-night: var(--ds-navy, #071433);
+  --lg-ok-1: var(--ds-ok, #0F6B3D);  /* white on it: 6.5:1 */
+  --lg-ok-2: #14804A;                /* white on it: 5.0:1 */
+}
+
+/* ── The night: two fixed layers behind the card, drawn from the first paint ── */
+html[data-door]::before, html[data-door]::after { content: ''; position: fixed; z-index: 56; pointer-events: none; }
+/* The sky: the navy of the shell, and a few still stars. */
+html[data-door]::before {
+  inset: 0;
+  background:
+    radial-gradient(circle at 31px 47px, rgba(255, 255, 255, .85) 0 .9px, transparent 1.5px) 0 0 / 419px 383px,
+    radial-gradient(circle at 277px 121px, rgba(255, 255, 255, .6) 0 .8px, transparent 1.4px) 40px 10px / 419px 383px,
+    radial-gradient(circle at 157px 303px, rgba(255, 255, 255, .45) 0 .7px, transparent 1.3px) 0 0 / 353px 461px,
+    radial-gradient(circle at 61px 263px, rgba(255, 255, 255, .7) 0 1px, transparent 1.7px) 90px 30px / 547px 331px,
+    radial-gradient(circle at 389px 83px, rgba(220, 205, 251, .8) 0 1.1px, transparent 1.8px) 0 0 / 547px 409px,
+    radial-gradient(circle at 211px 191px, rgba(255, 255, 255, .4) 0 .8px, transparent 1.4px) 20px 70px / 311px 269px,
+    radial-gradient(circle at 139px 29px, rgba(255, 255, 255, .5) 0 .7px, transparent 1.3px) 0 0 / 283px 499px,
+    radial-gradient(circle at 97px 173px, rgba(255, 255, 255, .35) 0 .6px, transparent 1.2px) 60px 0 / 233px 307px,
+    linear-gradient(165deg, var(--lg-night) 0%, #0A1A45 52%, var(--ds-navy-2, #1C2F6B) 135%);
+}
+/* The glows: the logo's purple and the brand pink, soft, on one layer that drifts very
+   slowly (a single composited transform; nothing is blurred or repainted). */
+html[data-door]::after {
+  inset: -22%;
+  background:
+    radial-gradient(44vmax 40vmax at 29% 27%, color-mix(in srgb, var(--lg-purple) 66%, transparent), transparent 72%),
+    radial-gradient(40vmax 36vmax at 74% 73%, color-mix(in srgb, var(--ds-hot, #F82272) 32%, transparent), transparent 72%),
+    radial-gradient(32vmax 30vmax at 73% 24%, color-mix(in srgb, var(--lg-lilac) 24%, transparent), transparent 72%),
+    radial-gradient(36vmax 34vmax at 24% 78%, color-mix(in srgb, var(--ds-navy-2, #1C2F6B) 80%, transparent), transparent 72%);
+  animation: lg-drift 80s ease-in-out infinite alternate;
+}
+@keyframes lg-drift {
+  from { transform: translate3d(-3%, 2%, 0) rotate(-7deg) scale(1); }
+  to { transform: translate3d(4%, -3%, 0) rotate(9deg) scale(1.12); }
+}
+html[data-door-still]::after { animation-play-state: paused; }
+/* The screen came up on a page that was already drawn (a session that ended, signing out). */
+html[data-door-late]::before { animation: lg-fade .24s ease-out; }
+html[data-door-late]::after { animation: lg-drift 80s ease-in-out infinite alternate, lg-fade .24s ease-out; }
+/* Through the door: the night never stays over a page for long, even if nothing lifts it. */
+html[data-door='through']::before { animation: lg-giveup .4s ease-out 7s forwards; }
+html[data-door='through']::after { animation: lg-drift 80s ease-in-out infinite alternate, lg-giveup .4s ease-out 7s forwards; }
+html[data-door='out']::before, html[data-door='out']::after { opacity: 0; transition: opacity .32s ease-out; }
+@keyframes lg-fade { from { opacity: 0; } }
+@keyframes lg-giveup { to { opacity: 0; } }
+/* What is behind the night is not reachable by keyboard either. */
+html[data-door='in'] .topbar { visibility: hidden; }
+
+/* ── The screen ── */
+/* (`html` in front: the older rules of #login-block, in protocol.css, come later in the page.) */
+html #login-block {
+  position: fixed; z-index: 58; inset-inline: 0; top: var(--lg-top, 0px); block-size: var(--lg-vh, 100dvh);
+  inline-size: auto; max-inline-size: none; margin: 0; justify-self: stretch;
+  display: grid; place-items: center; overflow: hidden auto; overscroll-behavior: contain;
+  padding: max(20px, env(safe-area-inset-top, 0px)) 16px max(20px, env(safe-area-inset-bottom, 0px));
+  background: none; border-radius: 0; box-shadow: none; color: #fff; color-scheme: dark;
+  animation: lg-in .26s var(--ds-ease, ease-out);
+}
+@keyframes lg-in { from { opacity: 0; transform: translateY(10px) scale(.985); } }
+/* Without the night (the gate or the module did not run): still a dark, readable screen. */
+html:not([data-door]) #login-block { background: var(--ds-navy-grad, #071433); }
+/* The person is in: the card stays for the green button although the page put the form away. */
+#login-block.lg-won[hidden] { display: grid !important; animation: lg-giveup .4s ease-out 7s forwards; }
+html[data-door='through'] #login-block { pointer-events: none; }
+html[data-door='out'] #login-block { opacity: 0; transform: scale(1.04); pointer-events: none; transition: opacity .22s ease-out, transform .32s ease-out; }
+
+/* ── The card (also the "choose a password" form of a sign-in link, app/set-password.js) ── */
+#login-block form {
+  inline-size: min(420px, 100%); max-inline-size: none; margin: 0; padding: 26px 20px 18px; display: grid; gap: 14px;
+  border-radius: 26px; border: 1px solid rgba(255, 255, 255, .17);
+  /* Glass without a blur: a blur over a background that moves is redrawn on every frame
+     (the phone's battery). The glows are soft already; the tint keeps the stars out of the fields. */
+  background: linear-gradient(160deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .04)), rgba(11, 24, 68, .58);
+  box-shadow: 0 34px 80px -34px rgba(0, 0, 0, .75), inset 0 1px 0 rgba(255, 255, 255, .2);
+}
+/* The full logo of the light card (protocol.css) has black letters: no use on the night. */
+#login-block .login::before { content: none; }
+#login-block h2 { margin: 2px 0 0; font-family: var(--ds-font-h, inherit); font-size: 30px; line-height: 1.2; font-weight: 400; color: #fff; text-align: start; }
+#login-block form p { margin: -6px 0 4px; font-size: 15px; line-height: 1.5; color: rgba(255, 255, 255, .8); text-align: start; }
+.lg-brand { display: flex; align-items: center; gap: 10px; }
+.lg-brand-chip { display: grid; place-items: center; inline-size: 40px; block-size: 40px; border-radius: 12px; background: #fff; }
+.lg-brand-chip img { display: block; inline-size: 30px; block-size: auto; }
+.lg-brand-name { font-family: var(--ds-font-h, inherit); font-size: 19px; letter-spacing: .04em; color: rgba(255, 255, 255, .92); }
+
+/* ── Fields ── */
+:is(#login-block, .lg-dialog) .field { position: relative; margin: 0; }
+:is(#login-block, .lg-dialog) .field label { color: rgba(255, 255, 255, .84); }
+:is(#login-block, .lg-dialog) .hint { color: rgba(255, 255, 255, .76); }
+:is(#login-block, .lg-dialog) .input {
+  inline-size: 100%; block-size: 56px; padding: 0 16px; border-radius: 16px; font-size: 16px; text-align: right;
+  border: 1.5px solid rgba(255, 255, 255, .42); background: rgba(255, 255, 255, .07); color: #fff; caret-color: #fff;
+  transition: border-color .15s ease-out, box-shadow .15s ease-out, background-color .15s ease-out;
+}
+:is(#login-block, .lg-dialog) .input:hover { border-color: rgba(255, 255, 255, .62); }
+:is(#login-block, .lg-dialog) .input:focus {
+  outline: none; border-color: var(--lg-lilac); background: rgba(255, 255, 255, .1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lg-lilac) 40%, transparent);
+}
+:is(#login-block, .lg-dialog) .input[aria-invalid='true'] { border-color: #FF9DB5; }
+/* What the browser fills in keeps the card's colours. */
+:is(#login-block, .lg-dialog) .input:-webkit-autofill {
+  -webkit-text-fill-color: #fff; caret-color: #fff; box-shadow: 0 0 0 100px #1B2658 inset; transition: background-color 99999s;
+}
+:is(#login-block, .lg-dialog) .input:-webkit-autofill:focus { box-shadow: 0 0 0 100px #1B2658 inset, 0 0 0 3px color-mix(in srgb, var(--lg-lilac) 40%, transparent); }
+/* The label sits in the field, and moves up small when the field is in use or filled. */
+:is(#login-block, .lg-dialog) .lg-field label {
+  position: absolute; z-index: 1; inset-inline-start: 18px; top: 0; block-size: 56px; margin: 0; display: flex; align-items: center;
+  font-size: 16px; font-weight: 400; color: rgba(255, 255, 255, .78); pointer-events: none;
+  transform-origin: 100% 50%; transition: transform .16s var(--ds-ease, ease-out), color .16s ease-out;
+}
+:is(#login-block, .lg-dialog) .lg-field .input { padding: 21px 16px 5px; }
+:is(#login-block, .lg-dialog) :is(.lg-field:focus-within, .lg-field.is-filled) label { transform: translateY(-14px) scale(.76); color: var(--lg-lilac-text); }
+:is(#login-block, .lg-dialog) .lg-field:has(.input:-webkit-autofill) label { transform: translateY(-14px) scale(.76); color: var(--lg-lilac-text); }
+:is(#login-block, .lg-dialog) .lg-field:has(.input:autofill) label { transform: translateY(-14px) scale(.76); color: var(--lg-lilac-text); }
+:is(#login-block, .lg-dialog) .lg-field-pass .input { padding-left: 54px; }
+.lg-eye {
+  position: absolute; z-index: 1; left: 6px; top: 6px; inline-size: 44px; block-size: 44px; padding: 0; display: grid; place-items: center;
+  border: 0; border-radius: 12px; background: none; color: rgba(255, 255, 255, .82); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background-color .15s ease-out, color .15s ease-out;
+}
+.lg-eye svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.lg-eye-off { opacity: 0; transition: opacity .12s ease-out; }
+.lg-eye[aria-pressed='true'] { color: #fff; background: rgba(255, 255, 255, .12); }
+.lg-eye[aria-pressed='true'] .lg-eye-off { opacity: 1; }
+.lg-eye:active { background: rgba(255, 255, 255, .18); }
+@media (hover: hover) { .lg-eye:hover { background: rgba(255, 255, 255, .12); color: #fff; } }
+:is(#login-block, .lg-dialog) :focus-visible { outline: 2.5px solid #fff; outline-offset: 2px; }
+:is(#login-block, .lg-dialog) .input:focus-visible { outline: none; }
+
+.lg-row { display: flex; justify-content: flex-end; margin-block: -8px -6px; }
+:is(#login-block, .lg-dialog) .btn-text {
+  min-block-size: 44px; padding: 0 6px; margin: 0; border: 0; background: none; font-size: 14.5px; cursor: pointer;
+  color: var(--lg-lilac-text); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--lg-lilac-text) 55%, transparent); text-underline-offset: 4px;
+}
+:is(#login-block, .lg-dialog) .btn-text:hover { text-decoration-color: currentColor; }
+
+/* ── What the page says: an error, a sent link ── */
+:is(#login-block, .lg-dialog) :is(.err, .note-ok) {
+  margin: 0; padding: 10px 12px; border-radius: 12px; font-size: 14.5px; line-height: 1.45; animation: lg-fade .18s ease-out;
+}
+:is(#login-block, .lg-dialog) .err { color: #FFD0DC; background: color-mix(in srgb, var(--ds-hot, #F82272) 18%, transparent); border: 1px solid color-mix(in srgb, var(--ds-hot, #F82272) 55%, transparent); }
+:is(#login-block, .lg-dialog) .err::before {
+  content: '!'; display: inline-grid; place-items: center; inline-size: 18px; block-size: 18px; margin-inline-end: 8px; border-radius: 50%;
+  border: 1.5px solid currentColor; font-size: 12px; font-weight: 700; line-height: 1; vertical-align: -2px;
+}
+:is(#login-block, .lg-dialog) .note-ok { color: #C9F3DA; background: rgba(34, 160, 98, .16); border: 1px solid rgba(86, 201, 141, .5); }
+
+/* ── The button: purple under the word, pink at the door ── */
+#login-block .btn-primary, #lg-submit.lg-go {
+  position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  inline-size: 100%; min-block-size: 56px; margin: 2px 0 0; padding: 0 22px; border: 0; border-radius: 18px;
+  background: linear-gradient(to left, var(--lg-purple) 0%, #6A0AD8 40%, #BE169F 76%, var(--ds-hot, #F82272) 100%);
+  color: #fff; font-family: var(--ds-font-b, inherit); font-size: 17px; font-weight: 700; cursor: pointer; opacity: 1;
+  box-shadow: 0 14px 30px -14px color-mix(in srgb, var(--ds-hot, #F82272) 80%, transparent), inset 0 1px 0 rgba(255, 255, 255, .28);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
+  transition: transform .12s ease-out, filter .15s ease-out, box-shadow .22s ease-out;
+}
+#login-block .btn-primary:active:not(:disabled), #lg-submit.lg-go:active:not(:disabled) { transform: scale(.98); }
+#login-block .btn-primary:disabled, #lg-submit.lg-go:disabled { opacity: 1; cursor: progress; }
+@media (hover: hover) { #login-block .btn-primary:hover:not(:disabled), #lg-submit.lg-go:hover:not(:disabled) { filter: brightness(1.08); } }
+#lg-submit.lg-go { justify-content: space-between; padding: 0 22px 0 8px; }
+/* Success: the whole button turns green, with a white check. */
+#lg-submit.lg-go::after {
+  content: ''; position: absolute; z-index: 1; inset: 0; opacity: 0; transition: opacity .22s ease-out;
+  background: linear-gradient(to left, var(--lg-ok-1), var(--lg-ok-2));
+}
+#lg-submit.is-won { box-shadow: 0 14px 30px -14px color-mix(in srgb, var(--lg-ok-2) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, .28); }
+#lg-submit.is-won::after { opacity: 1; transition-delay: .32s; }
+.lg-btn-label, .lg-scene { position: relative; z-index: 2; transition: opacity .14s ease-out; }
+.is-won .lg-btn-label, .is-won .lg-scene { opacity: 0; transition-delay: .32s; }
+.lg-check {
+  position: absolute; z-index: 3; inset: 0; margin: auto; fill: none; stroke: #fff; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round;
+  opacity: 0; transform: scale(.5); transition: opacity .18s ease-out, transform .26s var(--ds-ease, ease-out);
+}
+.is-won .lg-check { opacity: 1; transform: none; transition-delay: .4s; }
+
+/* The door and the figure, at the button's end. */
+.lg-scene { flex: none; overflow: visible; }
+.lg-doorway { fill: #FFF3F8; }
+.lg-leaf { transform-box: fill-box; transform-origin: 0 50%; transition: transform .24s var(--ds-ease, ease-out); }
+.lg-leaf rect { fill: #0C1B4B; }
+.lg-knob { fill: #fff; }
+.lg-frame { fill: none; stroke: #fff; stroke-width: 1.6; }
+.lg-glow { opacity: 0; transition: opacity .24s ease-out; }
+.lg-figure { transition: transform .24s var(--ds-ease, ease-out), opacity .12s linear; }
+.lg-head { fill: #fff; }
+.lg-body, .lg-leg { fill: none; stroke: #fff; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.lg-leg { transform-origin: 47px 29px; }
+.lg-leg-a { transform: rotate(14deg); }
+.lg-leg-b { transform: rotate(-14deg); }
+/* Signing in: the door half open with light behind it, the figure one step closer, waiting. */
+.is-signing .lg-leaf { transform: scaleX(.52); }
+.is-signing .lg-glow { opacity: .55; animation: lg-waiting 1.2s ease-in-out .24s infinite alternate; }
+.is-signing .lg-figure { transform: translateX(-7px); }
+.is-signing .lg-leg-a { animation: lg-step-a .12s ease-in-out 2 alternate; }
+.is-signing .lg-leg-b { animation: lg-step-b .12s ease-in-out 2 alternate; }
+/* In: the door wide open, the figure walks into the light and is gone. */
+.is-won .lg-leaf { transform: scaleX(.14); transition-duration: .18s; }
+.is-won .lg-glow { opacity: 1; }
+.is-won .lg-figure { transform: translateX(-29px); opacity: 0; transition: transform .34s cubic-bezier(.45, 0, .7, 1), opacity .1s linear .25s; }
+.is-won .lg-leg-a { animation: lg-step-a .085s ease-in-out 4 alternate; }
+.is-won .lg-leg-b { animation: lg-step-b .085s ease-in-out 4 alternate; }
+@keyframes lg-step-a { from { transform: rotate(14deg); } to { transform: rotate(-24deg); } }
+@keyframes lg-step-b { from { transform: rotate(-14deg); } to { transform: rotate(24deg); } }
+@keyframes lg-waiting { from { opacity: .55; } to { opacity: .22; } }
+
+/* The line under the button: its room is kept, so nothing moves when it speaks. */
+.lg-status { margin: 0; min-block-size: 22px; text-align: center; font-size: 14.5px; line-height: 22px; color: rgba(255, 255, 255, .86); }
+#login-block form p.lg-status { margin: 0; font-size: 14.5px; line-height: 22px; text-align: center; }
+.lg-status span { display: inline-block; animation: lg-fade .18s ease-out; }
+
+/* A refusal: one short, gentle shake of the card. */
+.lg-card.is-shaking { animation: lg-shake .34s cubic-bezier(.36, .07, .19, .97); }
+@keyframes lg-shake {
+  20% { transform: translateX(-7px); }
+  45% { transform: translateX(6px); }
+  70% { transform: translateX(-3px); }
+  88% { transform: translateX(1.5px); }
+}
+
+/* ── With the phone's keyboard up (login-ui.js: fit): only the fields and the button ── */
+html #login-block.lg-kb { place-items: start center; padding-block: 10px; }
+.lg-kb .lg-brand, .lg-kb .lg-hint, .lg-kb .lg-row { display: none; }
+.lg-kb h2 { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+#login-block.lg-kb form { padding: 14px 14px 10px; gap: 10px; border-radius: 22px; }
+
+@media (min-width: 760px) {
+  #login-block form { padding: 36px 34px 26px; gap: 16px; }
+  #login-block h2 { font-size: 34px; }
+}
+
+/* ── The same form in the quote builder's dialog (index.html) ── */
+dialog.lg-dialog {
+  color: #fff; color-scheme: dark; border: 1px solid rgba(255, 255, 255, .17); inline-size: min(440px, calc(100vw - 24px));
+  background:
+    radial-gradient(70% 60% at 100% 0%, color-mix(in srgb, var(--lg-purple) 60%, transparent), transparent 70%),
+    radial-gradient(60% 55% at 0% 100%, color-mix(in srgb, var(--ds-hot, #F82272) 26%, transparent), transparent 70%),
+    linear-gradient(165deg, var(--lg-night), #0A1A45);
+}
+.lg-dialog .dlg-head h2 { color: #fff; font-family: var(--ds-font-h, inherit); font-weight: 400; }
+.lg-dialog .dlg-head .close { color: #fff; background: rgba(255, 255, 255, .1); }
+.lg-dialog .dlg-head .close:hover { background: rgba(255, 255, 255, .2); }
+.lg-dialog .dlg-body { display: grid; gap: 14px; padding-block-end: 16px; }
+.lg-dialog .dlg-body p { margin: 0; color: rgba(255, 255, 255, .8); }
+.lg-dialog .dlg-foot { flex-wrap: nowrap; align-items: center; padding-block-end: 10px; }
+.lg-dialog .dlg-foot .btn-ghost { min-block-size: 56px; border-radius: 18px; color: #fff; background: rgba(255, 255, 255, .06); border: 1.5px solid rgba(255, 255, 255, .42); }
+.lg-dialog .dlg-foot .btn-ghost:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+.lg-dialog #lg-submit.lg-go { flex: 1; margin: 0; }
+.lg-dialog .lg-status { padding: 0 22px 14px; }
+
+/* ── Less motion: nothing walks, slides or shakes; the states change with a fade ── */
+@media (prefers-reduced-motion: reduce) {
+  html[data-door]::after, html[data-door-late]::after { animation: none; }
+  html[data-door='through']::after { animation: lg-giveup .4s ease-out 7s forwards; }
+  /* app.css turns every transition and animation off for this setting (`*`, !important).
+     The fades below are opacity only, and say so with the same weight. */
+  html #login-block { animation: lg-fade .2s ease-out !important; }
+  html #login-block.lg-won[hidden] { animation: lg-giveup .4s ease-out 7s forwards !important; }
+  html[data-door='out'] #login-block { transform: none; transition: opacity .22s ease-out !important; }
+  .lg-leaf, .lg-figure, .lg-check, .is-won .lg-check { transform: none !important; }
+  .lg-figure, .lg-check, .lg-glow, .lg-btn-label, .lg-scene, .lg-eye-off { transition: opacity .15s linear !important; }
+  .is-won .lg-figure { transition-delay: .2s !important; }
+  .is-won .lg-btn-label, .is-won .lg-scene { transition-delay: .32s !important; }
+  .is-won .lg-check { transition-delay: .4s !important; }
+  .lg-status span, :is(#login-block, .lg-dialog) :is(.err, .note-ok) { animation: lg-fade .18s ease-out !important; }
+  #login-block .btn-primary:active:not(:disabled), #lg-submit.lg-go:active:not(:disabled) { transform: none; }
+}
+
+@media print {
+  html[data-door]::before, html[data-door]::after { content: none; }
+}

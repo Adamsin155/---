@@ -8,6 +8,8 @@ import { formatILS } from './pricing.js';
 import { glide, countUp, viewerFor } from './shell.js';
 // Who opens this list (the owners and Irit) and who sees its amounts (the owners), 6.10.2026.
 import { canSeeQuoteList, seesFinance, resetMode } from './manager-rules.js';
+// The sign-in screen and its button with the door (docs/ops.md, section 51).
+import { loginDoor } from './login-ui.js';
 // Exceptional contracts (6.10.2026): their approval state, and what the office does next.
 import { APPROVAL_TEXT, reviseUrl } from './approvals-logic.js';
 // The contracts still out for signature (docs/ops.md, section 47): the filter "ממתינות
@@ -232,6 +234,7 @@ $('login-form').addEventListener('submit', async (e) => {
   btn.disabled = true;
   $('lg-err').hidden = true;
   $('lg-msg').hidden = true;
+  loginDoor.signing(); // half open for as long as the server is asked; it opens when boot() puts the form away
   const { error } = await supabase.auth.signInWithPassword({
     email: cleanEmail($('lg-email').value), password: $('lg-pass').value,
   });
@@ -239,10 +242,12 @@ $('login-form').addEventListener('submit', async (e) => {
   if (error) {
     $('lg-err').textContent = explainError(error);
     $('lg-err').hidden = false;
+    loginDoor.failed();
     return;
   }
   resetMode(); // a fresh sign-in starts in the personal profile
   await boot();
+  if (!$('login-block').hidden) loginDoor.failed(); // signed in, but not one of the staff
 });
 $('lg-forgot').addEventListener('click', async (e) => {
   const btn = e.currentTarget;

@@ -7,6 +7,9 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
   <script src="app/frame-guard.js"></script>
+  <!-- The sign-in screen (docs/ops.md, section 51): what the first paint is, before the page is drawn. -->
+  <script src="app/login-gate.js"></script>
+  <link rel="stylesheet" href="app/styles/login.css">
   <title>בקרה ושיוך · astrateg</title>
   <meta name="robots" content="noindex">
   <meta name="referrer" content="no-referrer">
@@ -47,8 +50,7 @@
   <main class="list-shell" id="main">
     <section class="block" id="login-block" hidden aria-labelledby="lg-h">
       <form class="login" id="login-form" novalidate>
-        <h2 id="lg-h">כניסה לצוות</h2>
-        <p>בקרת האיכות ושיוך העורכים זמינים לאופיר, לליאור ולמשרד.</p>
+        <h2 id="lg-h">ברוכים השבים</h2>
         <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
         <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
         <div class="err" id="lg-err" role="alert" hidden></div>
