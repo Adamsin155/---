@@ -37,7 +37,7 @@ async function open(role, { viewport = PHONE, full = false, prepare = null, cale
   await ctx.route(`${SUPA}/**`, fake.route);
   // "היומן שלי" is offered, not connected yet (the fake has no such function otherwise).
   if (calendar) await ctx.route(`${SUPA}/rest/v1/rpc/calendar_feed_status`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]', headers: { 'access-control-allow-origin': '*' } }));
-  if (full) await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
+  if (full) await ctx.addInitScript(() => { try { sessionStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${role}: ${e}`));
   watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)
@@ -210,7 +210,7 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   // (The "באיחור" tab comes and goes with what is late: tests/late-tab-e2e.mjs.)
   assert.deepEqual(await page.locator('.tabs [role=tab]:visible:not(#tab-late)').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
   // The other screens: the bottom bar with her daily ones, and the rest of them one tap away.
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'עוד']);
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'לפני צילום', 'עוד']);
   assert.equal(await page.getAttribute('#side-mine', 'aria-current'), 'page');
   const bar = await page.locator('#app-side').boundingBox();
   assert.ok(bar.y + bar.height <= 740 && bar.y > 600, `the bar floats at the bottom: ${JSON.stringify(bar)}`);
@@ -341,7 +341,7 @@ await step('Ofir lands on "המשימות שלי"; the quality-control queue is 
   await page.waitForSelector('#profile-switch[data-to="manager"]');
   await page.waitForSelector('#mine-list .wproc.wc');
   assert.match(page.url(), /clients\.html(#mine)?$/);
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות']);
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר']);
   await page.click('#side-qa');
   await page.waitForURL(/qa\.html/);
   await page.waitForSelector('#profile-switch');
@@ -388,7 +388,8 @@ await step('Ilai stays on "המשימות שלי": his cards first, the draft mo
   assert.equal(await page.locator('#metricool-card .mcn-row').count(), 0);
   assert.equal(await page.getAttribute('#mcn-toggle', 'aria-expanded'), 'false');
   const tall = await heightOf(page);
-  assert.ok(tall < 4300, `Ilai's page is ${tall}px tall (3,500 before the Metricool card)`);
+  // 4,300 until 9.10.2026: his cards wear the kit now (a head row with a square, the upload tile; docs/ops.md, section 54).
+  assert.ok(tall < 4500, `Ilai's page is ${tall}px tall (3,500 before the Metricool card)`);
   await shot(page, 'ilai-01-mine-short');
 });
 
@@ -396,6 +397,10 @@ await step('Ilai stays on "המשימות שלי": his cards first, the draft mo
 for (const [role, title] of [['nadia', 'הלקוחות שלי בעריכה'], ['nirel', 'העריכה והבריפים שלי']]) {
   await step(`${role} lands on the editing page and is offered only her own screens`, async () => {
     const { page } = await open(role);
+    // The owner's rule of 9.10.2026 (docs/ops.md, section 54): everyone lands on "המשימות שלי"; this screen is one tap away.
+    await page.waitForSelector('#view-mine:not([hidden])');
+    assert.match(page.url(), /clients\.html(#mine)?$/);
+    await page.goto(`${BASE}editor.html`);
     await page.waitForURL(/editor\.html/);
     await settle(page);
     assert.equal(await page.innerText('h1'), title);
@@ -409,7 +414,7 @@ for (const [role, title] of [['nadia', 'הלקוחות שלי בעריכה'], ['
     // Her screens are the bar; the head does not repeat them.
     assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
     // (Her three screens: "הצעות שנשלחו" left on 6.10.2026 and the builder on 8.10.2026, so there is no "עוד".)
-    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה']);
+    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'בעריכה']);
     assert.equal(await page.locator('#side-more, #side-quotes, #side-quote').count(), 0);
     assert.ok(await heightOf(page) < 1500);
   });
@@ -418,6 +423,10 @@ for (const [role, title] of [['nadia', 'הלקוחות שלי בעריכה'], ['
 // ── Eli ───────────────────────────────────
 await step('Eli lands on "ימי הצילום שלי", with tomorrow\'s shoots', async () => {
   const { page } = await open('eli');
+  // The owner's rule of 9.10.2026 (docs/ops.md, section 54): everyone lands on "המשימות שלי"; this screen is one tap away.
+  await page.waitForSelector('#view-mine:not([hidden])');
+  assert.match(page.url(), /clients\.html(#mine)?$/);
+  await page.goto(`${BASE}shoot.html`);
   await page.waitForURL(/shoot\.html/);
   await settle(page);
   assert.equal(await page.innerText('h1'), 'ימי הצילום שלי');

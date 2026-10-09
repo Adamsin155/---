@@ -220,8 +220,11 @@ export async function consumeRecoveryLink() {
 //  - drafts kept in the browser: unsaved text of the characterization form, the focus
 //    call and the scripts (localStorage, "astrateg.<form>.<client>…"), and the quote
 //    draft with its prices (sessionStorage "astrateg-draft").
-// Preferences (which view, which filter) stay. Each step is best effort and none
-// holds the sign-out for long.
+//  - where that person stood (the profile, "תצוגה מלאה", the filters): forgotten by the
+//    pages' own sign-out buttons (forgetPlace in app/visit.js; the owner's rule of 9.10.2026).
+//    Not from here: this file is also loaded by the client's passwords form (section 36).
+// Other preferences of the device stay (the notifications switch, what was seen). Each
+// step is best effort and none holds the sign-out for long.
 export const DRAFT_PREFIXES = ['astrateg.charform.', 'astrateg.brief.', 'astrateg.scripts.'];
 export const SESSION_DRAFTS = ['astrateg-draft'];
 export function clearDeviceDrafts(local = globalThis.localStorage, session = globalThis.sessionStorage) {

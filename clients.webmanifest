@@ -5,7 +5,7 @@
   "description": "המשימות שלי, כרטיסי לקוחות ופרוטוקול העבודה של המשרד.",
   "lang": "he",
   "dir": "rtl",
-  "start_url": "/clients.html",
+  "start_url": "/clients.html#mine",
   "scope": "/",
   "display": "standalone",
   "background_color": "#EEF0F4",

@@ -325,12 +325,14 @@ await step('someone who is signed in never sees the sign-in screen or its backgr
 });
 
 await step('a page that sends the person on to their first screen: the night stays through the move and opens onto that page', async () => {
-  // An editor on clients.html, a new tab: the page leaves for editor.html without showing itself.
+  // A field agent on clients.html, a new tab: the page leaves for deal.html without showing itself.
+  // (Until 9.10.2026 this was an editor leaving for editor.html; the editors now stay on
+  // "המשימות שלי", and only the field sales are sent on: docs/ops.md, section 54.)
   const { page, ctx } = await open({ path: 'clients.html' });
-  await fillIn(page, 'nadia');
+  await fillIn(page, 'stav');
   const first = page.url();
   await page.click('#lg-submit');
-  await page.waitForURL((u) => u.toString() !== first && /editor\.html/.test(u.toString()), { timeout: 15000 });
+  await page.waitForURL((u) => u.toString() !== first && /deal\.html/.test(u.toString()), { timeout: 15000 });
   await page.waitForSelector('#app:not([hidden])');
   // The new page started under the night and never drew the sign-in form.
   assert.equal(await page.evaluate(() => window.__door[0]), 'through');

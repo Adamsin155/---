@@ -195,7 +195,7 @@ const errors = [];
 async function open(who, { viewport = { width: 1280, height: 900 }, push = {}, mobile = false } = {}) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, isMobile: mobile, hasTouch: mobile });
   // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
-  await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
+  await ctx.addInitScript(() => { try { sessionStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
   await ctx.clock.install({ time: NOW });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   await ctx.addInitScript(fakePush, { key: VAPID_PUBLIC_KEY, ...push });
@@ -328,7 +328,8 @@ await step('signing out: this device stops getting the person\'s notifications, 
     localStorage.setItem('astrateg.scripts.c1.1.3', '{"title":"טיוטה"}');
     localStorage.setItem('astrateg.charform.c1', '{"address":"x"}');
     localStorage.setItem('astrateg.brief.c1.1', '{"focus":"x"}');
-    localStorage.setItem('astrateg.messages.station', 'intake');
+    localStorage.setItem('astrateg.notify', 'on');
+    sessionStorage.setItem('astrateg.messages.station', 'intake');
     sessionStorage.setItem('astrateg-draft', '{"state":{"discount":250}}');
   });
   const before = calls.length;
@@ -340,9 +341,11 @@ await step('signing out: this device stops getting the person\'s notifications, 
     sub: localStorage.getItem('fake.sub'),
     drafts: Object.keys(localStorage).filter((k) => /^astrateg\.(scripts|charform|brief)\./.test(k)),
     quote: sessionStorage.getItem('astrateg-draft'),
-    pref: localStorage.getItem('astrateg.messages.station'),
+    pref: localStorage.getItem('astrateg.notify'),
+    place: sessionStorage.getItem('astrateg.messages.station'),
   }));
-  assert.deepEqual(left, { sub: null, drafts: [], quote: null, pref: 'intake' }, 'drafts gone, a preference stays');
+  // Since 9.10.2026 the filter of a page is a place of whoever signed out, and goes with them (docs/ops.md, section 54).
+  assert.deepEqual(left, { sub: null, drafts: [], quote: null, pref: 'on', place: null }, 'drafts and the place gone, a setting of the device stays');
   await ctx.close();
 });
 

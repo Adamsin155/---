@@ -16,7 +16,7 @@ import {
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
-  statusBadge, dueText, progressBar, mountSession, store, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
+  statusBadge, dueText, progressBar, mountSession, store, visitStore, directory, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { safeLink } from './gantt-logic.js';
@@ -793,7 +793,7 @@ function renderViewbar() {
     h('button', { type: 'button', class: 'btn-text', onclick: () => { openPhases.clear(); openPhases.add('__none'); shownDone.clear(); render(); } }, 'קיפול'));
   const toggle = me && !own() ? h('button', {
     type: 'button', class: 'btn btn-sm btn-ghost view-toggle', id: 'view-toggle',
-    onclick: () => { showAll = !showAll; store.set('card.all', showAll ? '1' : ''); renderKeepingFocus('view-toggle'); },
+    onclick: () => { showAll = !showAll; visitStore.set('card.all', showAll ? '1' : ''); renderKeepingFocus('view-toggle'); },
   }, showAll ? 'רק התהליכים שלי' : 'הצגת כל הפרוטוקול') : null;
   if (own() && !me) {
     fill($('viewbar'), h('p', { class: 'err', role: 'alert' }, viewerError ? VIEWER_UNKNOWN : 'לא הוגדר לך תפקיד בפרוטוקול. פנו למנהל המערכת.'));
@@ -805,7 +805,7 @@ function renderViewbar() {
     return;
   }
   const opts = [['', 'כל הצוות'], ...STAFF_PEOPLE().map((p) => [p.key, p.key === me ? `${p.name} (אני)` : p.name])];
-  const choose = (k) => { focusPerson = k; store.set('focus', k); render(); };
+  const choose = (k) => { focusPerson = k; visitStore.set('focus', k); render(); };
   fill($('viewbar'),
     h('div', { class: 'chips-row wide-only', role: 'group', 'aria-label': 'הדגשה לפי עובד' },
       h('span', { class: 'me-label' }, 'הצגה לפי עובד:'),
@@ -2028,8 +2028,8 @@ mountSession(async (staff) => {
   viewerError = viewer.error;
   vaultOk = vault;
   // Mine by default; the whole protocol only when an office user chose it (or for the owner).
-  showAll = !me || (!own() && store.get('card.all') === '1');
-  const saved = store.get('focus');
+  showAll = !me || (!own() && visitStore.get('card.all') === '1');
+  const saved = visitStore.get('focus');
   focusPerson = saved !== null && !own() ? saved : me || '';
   if (focusPerson && !PEOPLE[focusPerson]) focusPerson = '';
   applyScope();

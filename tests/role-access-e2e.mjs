@@ -174,7 +174,9 @@ await step('index.html opens as before for the owners, Irit, Lior and Ofir, and 
   await ctx.close();
 });
 
-await step('a member of staff who signs in from the builder\'s own dialog and is not a builder gets the same answer, and no quote is asked for', async () => {
+// Since 9.10.2026 (docs/ops.md, section 54) a sign-in on a page that is not theirs takes the
+// person to their own home instead of leaving them on the refusal.
+await step('a member of staff who signs in from the builder\'s own dialog and is not a builder is taken to their home, and no quote is asked for', async () => {
   const fake = makeFake(world());
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: WIDE });
   await ctx.clock.install({ time: NOW });
@@ -191,11 +193,11 @@ await step('a member of staff who signs in from the builder\'s own dialog and is
   await page.fill('#lg-email', emailOf('nadia'));
   await page.fill('#lg-pass', 'correct-horse');
   await page.click('#lg-submit');
-  await page.waitForSelector('#no-access:not([hidden])');
+  await page.waitForURL(/clients\.html#mine$/);
+  await page.waitForSelector('#view-mine:not([hidden])');
   await settle(page);
   assert.equal(await page.locator('dialog[open]').count(), 0);
-  assert.equal(await visible(page, '#summary'), false);
-  assert.equal(/₪/.test(await page.innerText('body')), false);
+  assert.equal(await page.locator('#no-access:not([hidden])').count(), 0);
   assert.deepEqual(requests.filter((r) => /create-quote/.test(r)), []);
   await ctx.close();
 });

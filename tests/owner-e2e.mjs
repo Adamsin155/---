@@ -540,7 +540,12 @@ await step('the managers: Irit opens screen 1 too; Lior opens screen 2 but not s
   await lctx.close();
   const nctx = await newContext();
   const nadia = await newPage(nctx);
-  await signIn(nadia, 'owner.html', 'nadia@astrateg.test');
+  // Signed in at home, then this page by its address: a sign-in ON a page that is not theirs
+  // takes the person home instead of showing the refusal (docs/ops.md, section 54).
+  await signIn(nadia, 'clients.html', 'nadia@astrateg.test');
+  await nadia.waitForSelector('#app-side');
+  await nadia.waitForFunction(() => !document.documentElement.hasAttribute('data-boot'));
+  await nadia.goto(`${BASE}owner.html`);
   await nadia.waitForSelector('#no-access:not([hidden])');
   assert.equal(await nadia.isHidden('#ow-page'), true);
   assert.equal(await nadia.getAttribute('#no-access a', 'href'), 'clients.html#mine');

@@ -12,6 +12,8 @@
 //                        It holds for as long as the request runs.
 //   loginDoor.failed()   the server refused, or the person may not come in: the door shuts,
 //                        the card shakes once. The handler shows its own text in #lg-err.
+//   loginDoor.leave()    the server said yes and the person's home is another page: the walk
+//                        and the green button here; the next page opens under the same night.
 //   loginDoor.success()  only where the form sits in a dialog (index.html): the walk and the
 //                        green button; resolves when they were seen.
 // On a page, success needs no call: the page hides #login-block once the server said who is
@@ -87,7 +89,7 @@ const eyeIcon = () => svg('svg', { viewBox: '0 0 24 24', width: '22', height: '2
   svg('circle', { cx: '12', cy: '12', r: '3' }),
   svg('path', { class: 'lg-eye-off', d: 'M4.5 4.5l15 15' }));
 
-const NOTHING = { signing() {}, failed() {}, success: () => Promise.resolve() };
+const NOTHING = { signing() {}, failed() {}, success: () => Promise.resolve(), leave: () => Promise.resolve() };
 
 function mountLogin() {
   const form = $('login-form');
@@ -190,9 +192,9 @@ function mountLogin() {
 
   if (dialog) {
     dialog.addEventListener('close', reset);
-    return { signing, failed, success: () => won(LOGIN_TIMES.dialogBeat) };
+    return { signing, failed, success: () => won(LOGIN_TIMES.dialogBeat), leave: () => won(LOGIN_TIMES.dialogBeat) };
   }
-  if (!block) return { signing, failed, success: () => won(LOGIN_TIMES.beat) };
+  if (!block) return { signing, failed, success: () => won(LOGIN_TIMES.beat), leave: () => won(LOGIN_TIMES.beat) };
 
   // ── The screen: the night behind the card, and how it opens onto the page ──
   const app = $('app');
@@ -253,7 +255,10 @@ function mountLogin() {
   function fit() {
     if (block.hidden && !block.classList.contains('lg-won')) return;
     const tall = view ? view.height : window.innerHeight;
-    block.classList.toggle('lg-kb', tall < 480 || window.innerHeight - tall > 120);
+    const kb = tall < 480 || window.innerHeight - tall > 120;
+    block.classList.toggle('lg-kb', kb);
+    // Very little is left (a phone on its side): the fields and the button alone.
+    block.classList.toggle('lg-tight', kb && tall < 380);
     if (view) {
       block.style.setProperty('--lg-vh', `${Math.round(view.height)}px`);
       block.style.setProperty('--lg-top', `${Math.round(view.offsetTop)}px`);
@@ -274,7 +279,10 @@ function mountLogin() {
   // Back to a page the browser kept as it was left (after signing in on it).
   window.addEventListener('pageshow', (e) => { if (e.persisted) look(); });
   look();
-  return { signing, failed, success: () => won(LOGIN_TIMES.beat) };
+  // The server said yes and the person's home is another page (docs/ops.md, section 54):
+  // the figure walks in here, and the next page opens under the same night (the note).
+  const leave = () => { keep(true); note(true); return won(LOGIN_TIMES.beat); };
+  return { signing, failed, success: () => won(LOGIN_TIMES.beat), leave };
 }
 
 export const loginDoor = HAS_PAGE ? mountLogin() : NOTHING;

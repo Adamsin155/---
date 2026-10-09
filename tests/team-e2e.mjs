@@ -494,7 +494,12 @@ await step('Lior, with or without the vault, gets no link into an office or vaul
 await step('an editor gets a friendly "no access", and no team link', async () => {
   const yariv = await newPage();
   const before = fnCalls.length;
-  await signIn(yariv, 'team.html', 'yariv@astrateg.test');
+  // Signed in at home, then this page by its address: a sign-in ON a page that is not theirs
+  // takes the person home instead of showing the refusal (docs/ops.md, section 54).
+  await signIn(yariv, 'clients.html', 'yariv@astrateg.test');
+  await yariv.waitForSelector('#app-side');
+  await yariv.waitForFunction(() => !document.documentElement.hasAttribute('data-boot'));
+  await yariv.goto(`${BASE}team.html`);
   await yariv.waitForSelector('#no-access:not([hidden])');
   assert.match(await text(yariv, '#no-access'), /אין לך גישה לעמוד הזה/);
   assert.equal(await yariv.getAttribute('#no-access a', 'href'), 'clients.html');

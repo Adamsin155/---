@@ -211,7 +211,7 @@ const errors = [];
 async function newPage({ viewport = { width: 1280, height: 900 } } = {}) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
   // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
-  await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
+  await ctx.addInitScript(() => { try { sessionStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
   await ctx.clock.install({ time: NOW });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   const page = await ctx.newPage();
@@ -271,7 +271,11 @@ await step('opening a client that is not hers: "אין לך גישה ללקוח 
 
 await step('on a phone the notice fits the screen and its link is a full-size target', async () => {
   const phone = await newPage({ viewport: { width: 360, height: 740 } });
-  await signIn(phone, `client.html?id=${pizza.id}`, 'nadia');
+  // Signed in on her home, then the card by its address (a sign-in ON a card that is not hers
+  // takes her home instead of showing the notice: docs/ops.md, section 54).
+  await signIn(phone, 'clients.html', 'nadia');
+  await phone.waitForSelector('#view-mine:not([hidden])');
+  await phone.goto(`${BASE}client.html?id=${pizza.id}`);
   await phone.waitForSelector('.state.no-access');
   assert.ok(await noHScroll(phone));
   const box = await phone.locator('#state a').boundingBox();

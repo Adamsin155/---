@@ -414,7 +414,12 @@ await step('an editor gets "no access", asks nothing of the messages tables, and
   const ctx = await newContext();
   const page = await newPage(ctx);
   const before = requests.length;
-  await signIn(page, 'messages.html', 'yariv@astrateg.test');
+  // Signed in at home, then this page by its address: a sign-in ON a page that is not theirs
+  // takes the person home instead of showing the refusal (docs/ops.md, section 54).
+  await signIn(page, 'clients.html', 'yariv@astrateg.test');
+  await page.waitForSelector('#app-side');
+  await page.waitForFunction(() => !document.documentElement.hasAttribute('data-boot'));
+  await page.goto(`${BASE}messages.html`);
   await page.waitForSelector('#no-access:not([hidden])');
   assert.match(await text(page, '#no-access'), /אין לך גישה לעמוד הזה/);
   assert.equal(await page.locator('#msg-page').isHidden(), true);
@@ -432,7 +437,12 @@ await step('an editor gets "no access", asks nothing of the messages tables, and
 await step('Ofir sees "no access" on the page; the owner works in it; Irit has the link on clients.html', async () => {
   const ctx = await newContext();
   const ofir = await newPage(ctx);
-  await signIn(ofir, 'messages.html', 'ofir@astrateg.test');
+  // Signed in at home, then this page by its address: a sign-in ON a page that is not theirs
+  // takes the person home instead of showing the refusal (docs/ops.md, section 54).
+  await signIn(ofir, 'clients.html', 'ofir@astrateg.test');
+  await ofir.waitForSelector('#app-side');
+  await ofir.waitForFunction(() => !document.documentElement.hasAttribute('data-boot'));
+  await ofir.goto(`${BASE}messages.html`);
   await ofir.waitForSelector('#no-access:not([hidden])');
   await ctx.close();
   const octx = await newContext();

@@ -820,7 +820,10 @@ function askLogin() {
         if (error) throw error;
         const staff = await refreshSession();
         if (!staff?.isStaff) throw new Error('not staff');
-        if (denied) return; // not their page: deny() closed the dialog, and nothing is created
+        // Not their page: nothing is created, and they are taken to their own home instead of
+        // being left on "אין לך גישה" (the owner's rule, 9.10.2026; docs/ops.md, section 54).
+        // Whoever builds contracts stays: the dialog sits over the quote they are making.
+        if (denied) { const home = $('na-home').getAttribute('href'); if (home) location.replace(home); return; }
         // A fresh sign-in starts in the personal profile (app/manager-rules.js).
         import('./manager-rules.js').then((m) => m.resetMode()).catch(() => {});
         form.removeEventListener('submit', onSubmit);

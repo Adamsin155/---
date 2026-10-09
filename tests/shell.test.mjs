@@ -76,7 +76,7 @@ test('the menu offers a screen exactly when the page\'s own rule opens it', () =
 test('nobody has a switch inside the menu (Irit\'s two entries went on 7.10.2026): the one switch is the button at the top', () => {
   assert.deepEqual(menuOf(v('irit')).slice(0, 2).map((it) => [it.href, it.label]), [['clients.html#mine', 'המשימות שלי'], ['owner.html#now', 'מבט מנהל']]);
   for (const viewer of [OWNER, ...ROLES.map(v)]) assert.equal(menuOf(viewer).some((it) => 'mode' in it), false, viewer.me || 'owner');
-  assert.deepEqual(menuOf(v('lior'))[1], { id: 'overview', href: 'owner.html#all', label: 'כל הלקוחות במבט' });
+  assert.deepEqual(menuOf(v('lior'))[1], { id: 'overview', href: 'owner.html#all', label: 'כל הלקוחות במבט', short: 'במבט' });
   // Without profiles the menu of either profile is the whole menu, unchanged.
   for (const viewer of ['ilai', 'nadia', 'eli', 'stav'].map(v)) for (const p of ['mine', 'manager', null]) assert.deepEqual(profileMenu(viewer, p), menuOf(viewer), viewer.me);
 });
@@ -87,7 +87,9 @@ test('the builder\'s entry: "הצעה חדשה והכנת חוזה", with a shor
   for (const viewer of [OWNER, ...['irit', 'lior'].map(v)]) {
     assert.deepEqual(menuOf(viewer).find((it) => it.id === 'quote'), { id: 'quote', href: 'index.html', label: 'הצעה חדשה והכנת חוזה', short: 'הצעה וחוזה' }, viewer.me || 'owner');
   }
-  for (const viewer of [OWNER, ...ROLES.map(v)]) for (const it of menuOf(viewer)) assert.equal('short' in it, it.id === 'quote', `${viewer.me || 'owner'}: ${it.id}`);
+  // The names that do not fit one line of the phone's bar have a short one (9.10.2026: four more).
+  const SHORT = { quote: 'הצעה וחוזה', overview: 'במבט', pass: 'מעבר', prep: 'לפני צילום', editor: 'בעריכה' };
+  for (const viewer of [OWNER, ...ROLES.map(v)]) for (const it of menuOf(viewer)) assert.equal(it.short, SHORT[it.id], `${viewer.me || 'owner'}: ${it.id}`);
 });
 
 // The owner's rule of 8.10.2026: nobody has, on any page, something that is not theirs to do.

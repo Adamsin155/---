@@ -253,7 +253,7 @@ await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and 
   await page.click('#profile-switch');
   await page.waitForSelector('#profile-switch[data-to="mine"]');
   await page.waitForSelector('#view-all:not([hidden])');
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'עוד']);
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['במבט', 'לקוחות', 'גאנט תוכן', 'עוד']);
   await page.click('#side-more');
   assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(),
     ['בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'צוות']);

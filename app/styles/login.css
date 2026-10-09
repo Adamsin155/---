@@ -20,6 +20,12 @@ html {
   --lg-ok-2: #14804A;                /* white on it: 5.0:1 */
 }
 
+/* The page itself is the night while the sign-in screen is on, so whatever the phone
+   draws outside the screen's own layers (the strip under the status bar of an installed
+   app, the edge beyond a scroll) is the night too, and not the light page (section 54). */
+html[data-door='in'], html[data-door='in'] body, html[data-door='through'], html[data-door='through'] body { background-color: var(--lg-night); }
+html[data-door='in'] body::before, html[data-door='through'] body::before { background: var(--lg-night); }
+
 /* ── The night: two fixed layers behind the card, drawn from the first paint ── */
 html[data-door]::before, html[data-door]::after { content: ''; position: fixed; z-index: 56; pointer-events: none; }
 /* The sky: the navy of the shell, and a few still stars. */
@@ -237,10 +243,22 @@ html[data-door='out'] #login-block { opacity: 0; transform: scale(1.04); pointer
 }
 
 /* ── With the phone's keyboard up (login-ui.js: fit): only the fields and the button ── */
-html #login-block.lg-kb { place-items: start center; padding-block: 10px; }
-.lg-kb .lg-brand, .lg-kb .lg-hint, .lg-kb .lg-row { display: none; }
-.lg-kb h2 { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-#login-block.lg-kb form { padding: 14px 14px 10px; gap: 10px; border-radius: 22px; }
+/* The keyboard is up (section 54): the card stays whole and keeps a margin from the top.
+   It only gets shorter: the logo and the heading share one small row, the hint and
+   "שכחתי סיסמה" step aside. Only when what is left is very short (.lg-tight: a phone on
+   its side) the head goes too, and the two fields and the button are all there is. */
+html #login-block.lg-kb { place-items: start center; padding-block: max(16px, env(safe-area-inset-top, 0px)) 12px; }
+.lg-kb .lg-hint, .lg-kb .lg-row { display: none; }
+.lg-kb .lg-brand-name { display: none; }
+.lg-kb .lg-brand-chip { inline-size: 32px; block-size: 32px; border-radius: 10px; }
+.lg-kb .lg-brand-chip img { inline-size: 24px; }
+#login-block.lg-kb form { padding: 14px 14px 10px; gap: 10px; border-radius: 22px; grid-template-columns: auto minmax(0, 1fr); align-items: center; }
+#login-block.lg-kb form > * { grid-column: 1 / -1; }
+#login-block.lg-kb form > .lg-brand { grid-column: 1; }
+#login-block.lg-kb form > h2 { grid-column: 2; margin: 0; font-size: 20px; line-height: 32px; }
+.lg-kb.lg-tight .lg-brand { display: none; }
+.lg-kb.lg-tight h2 { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+html #login-block.lg-kb.lg-tight { padding-block: 10px; }
 
 @media (min-width: 760px) {
   #login-block form { padding: 36px 34px 26px; gap: 16px; }

@@ -377,7 +377,12 @@ await step('who does not get it: Irit (no entry, no tab), an editor and a sales 
   for (const who of ['nadia', 'stav']) {
     const ctx = await newContext();
     const page = await newPage(ctx);
-    await signIn(page, 'owner.html#shoots', `${who}@astrateg.test`);
+    // Signed in at home, then this page by its address: a sign-in ON a page that is not theirs
+    // takes the person home instead of showing the refusal (docs/ops.md, section 54).
+    await signIn(page, 'clients.html', `${who}@astrateg.test`);
+    await page.waitForSelector('#app-side');
+    await page.waitForFunction(() => !document.documentElement.hasAttribute('data-boot'));
+    await page.goto(`${BASE}owner.html#shoots`);
     await page.waitForSelector('#no-access:not([hidden])');
     assert.equal(await page.isHidden('#ow-page'), true, who);
     assert.equal(await page.locator('#sd tbody tr').count(), 0, who);

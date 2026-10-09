@@ -342,7 +342,8 @@ await step('"מוכן לבדיקה" refuses without the Drive link (and with a b
 await step('uploading into the system is optional: a failed upload says what to do; one video goes up and counts', async () => {
   await nadia.click(`${card}-up > summary`);
   await nadia.waitForSelector(`${card}-v-add`);
-  assert.equal(await text(nadia, `${card}-v-add`), '+ העלאת סרטונים');
+  // The kit's tile since 9.10.2026 (docs/ops.md, section 54): the plus is drawn, the name and the count are its words.
+  assert.match(await text(nadia, `${card}-v-add`), /^העלאת סרטונים\s/);
   assert.ok((await nadia.locator(`${card}-v-add`).boundingBox()).height >= 44);
   flags.failUploads = 1;
   await nadia.locator(`${card}-v-in`).setInputFiles({ name: 'video-1.mp4', mimeType: 'video/mp4', buffer: mp4() });
@@ -456,7 +457,7 @@ await step('Ilai\'s card: the graphics upload, "מוכן לבדיקה (לעיר�
   assert.equal(await text(ilai, `${day}-g9-files .fl-work-h`), '9 הגרפיקות הראשונות · עוד לא הועלה כלום');
   assert.equal(await ilai.locator(`${day}-gfx`).isDisabled(), true);
   assert.equal(await text(ilai, `${day}-gfx-lock`), 'נפתח אחרי שמעלים כאן לפחות גרפיקה אחת.');
-  assert.equal(await text(ilai, `${day}-g9-add`), '+ העלאת גרפיקות');
+  assert.match(await text(ilai, `${day}-g9-add`), /^העלאת גרפיקות\s+0 מתוך 9$/);
   // The Gantt is the system's, not a yearly file.
   assert.match(await text(ilai, `${day}-d`), /גאנט התוכן נפתח במערכת, עם כל העמודות/);
   assert.doesNotMatch(await text(ilai, `${day}-d`), /הקובץ השנתי|דרייב/);

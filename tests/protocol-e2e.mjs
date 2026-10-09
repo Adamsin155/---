@@ -180,7 +180,7 @@ const duplicateIds = (pg) => pg.evaluate(() => {
 });
 const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
 // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
-await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
+await ctx.addInitScript(() => { try { sessionStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
 await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
 const page = await ctx.newPage();
 const errors = [];
@@ -845,6 +845,9 @@ assert.ok(gelatoChecks.every((c) => c.note === 'ייבוא'));
 const mob = await ctx.newPage();
 await mob.setViewportSize({ width: 360, height: 780 });
 await mob.goto(`${BASE}client.html?id=${seeded.id}`);
+// "הצגת כל הפרוטוקול" is a choice of the tab since 9.10.2026 (docs/ops.md, section 54): a new tab starts folded.
+await mob.waitForSelector('#view-toggle');
+if (!(await mob.locator('#p06').count())) await mob.click('#view-toggle');
 await mob.waitForSelector('#p06', { state: 'attached' });
 assert.ok(await noHScroll(mob), 'client card scrolls sideways at 360px');
 const box = await mob.locator('#i-p06-name').boundingBox();
