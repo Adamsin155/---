@@ -281,3 +281,14 @@ details.brief > summary { cursor: pointer; color: var(--accent); min-height: 32p
   .wproc-acts, .mine-tools, .team-summary, .row-acts, .ctl-nav, .status-edit { display: none !important; }
   details.brief::details-content { content-visibility: visible; }
 }
+
+/* The shared kit on the other tabs of clients.html (docs/ops.md, section 52): the clients
+   list (a square per client), "בקרה יומית" and the numbers (a square per section). */
+.crow > .cname.k-h { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: center; justify-items: start; }
+.crow > .cname.k-h > .k-ico { grid-row: 1 / span 4; margin-block: 0; align-self: start; }
+.crow > .cname.k-h > :not(.k-ico) { grid-column: 2; }
+.crow > .cname.k-h > .tag { margin-inline-start: 0; }
+.ctl-sec > .wgroup-h.k-h, .perf .wgroup-h.k-h, .rv-panel > .wgroup-h.k-h { font-size: 17px; color: var(--ds-ink); }
+.ctl-urgent > .wgroup-h.k-h, #ctl-late.k-h { color: var(--late); }
+#client-list > .k-empty, #view-control .k-empty, .perf > .k-empty { background: var(--ds-surface); }
+@media (min-width: 761px) { .crow > .cname.k-h { column-gap: 10px; } .crow > .cname.k-h > .k-ico { inline-size: 32px; block-size: 32px; border-radius: 10px; } }

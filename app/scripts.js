@@ -15,6 +15,7 @@
 import { PEOPLE } from './protocol.js';
 import { loadClient, loadChecks, setCheck, updateClient, loadDirectory, loadStaffPhones } from './protocol-data.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, directory, who, formatStamp, store } from './protocol-ui.js';
+import { dress } from './kit.js';
 import { checkMark } from './mark-guards.js';
 import { briefBlock } from './briefs.js';
 import { loadBriefs } from './intake-data.js';
@@ -534,6 +535,10 @@ async function grant(person, on) {
 }
 
 // ── Start ─────────────────────────────────
+// The kit (docs/ops.md, section 52): each script, each side panel and the two blocks under them open with an icon square.
+dress($('app'), [['.sc-slot > .sc-slot-h > h2', 'file', 'purple', 'md'], ['.sc-slot h3[id$="-links-h"]', 'link', 'blue'], ['#sh-h', 'link', 'blue', 'md'], ['#ac-h', 'users', 'teal', 'md'],
+  ['#sc-side details:first-of-type > summary', 'star', 'orange'], ['#sc-side details:last-of-type > summary', 'list', 'navy']]);
+
 mountSession(async (staff) => {
   const v = await viewerOf(staff.email);
   me = v.me;

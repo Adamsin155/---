@@ -28,6 +28,7 @@ import {
   $, fill, h, toast, errorText, mountSession, viewerOf, directory, formatStamp, formatWhen, briefDetails, taskBadge,
   isUrgentTask, hasBrief, VIEWER_UNKNOWN,
 } from './protocol-ui.js';
+import { emptyState, noteIcon, dress } from './kit.js';
 import { mountPush } from './push.js';
 import { offerHandoff } from './handoff-ui.js';
 import { closedProcesses } from './health.js';
@@ -105,8 +106,9 @@ function render() {
   $('ed-summary').textContent = jobs.length
     ? `${jobs.length === 1 ? 'לקוח אחד בעריכה' : `${jobs.length} לקוחות בעריכה`}${waiting ? ` · ${waiting} ממתינים לכונן` : ''}`
     : '';
+  if (jobs.length) noteIcon($('ed-summary'), 'info', 'scissors');
   fill($('ed-list'), jobs.length ? jobs.map(jobCard)
-    : h('p', { class: 'empty' }, 'אין כרגע לקוח בעריכה אצלך. כשאופיר ישייך לקוח, הוא יופיע כאן ותקבל/י הודעה.'));
+    : emptyState({ icon: 'scissors', tone: 'purple', text: 'אין כרגע לקוח בעריכה אצלך. כשאופיר ישייך לקוח, הוא יופיע כאן ותקבל/י הודעה.' }));
   renderBriefs();
   renderStats();
 }
@@ -683,7 +685,7 @@ function renderBriefs() {
             ? h('button', { type: 'button', class: 'btn btn-primary', id: `t-${t.id}-start`, onclick: (e) => startUrgent(t, e.currentTarget) }, 'התחלתי') : null,
           isUrgentTask(t) && t.started_at ? h('span', { class: 'hint' }, `התחלת ${formatStamp(t.started_at)}`) : null,
           h('button', { type: 'button', class: 'btn', id: `t-${t.id}-done`, onclick: () => openDone(t) }, 'סיום המשימה')));
-    })) : h('p', { class: 'empty' }, 'אין בריפים פתוחים.'));
+    })) : emptyState({ icon: 'check-circle', tone: 'green', text: 'אין בריפים פתוחים.' }));
 }
 
 // An urgent task taken while editing: "לעצור את העריכה של X?", prefilled.
@@ -839,6 +841,10 @@ setInterval(() => {
   states.clear();
   renderKeepingFocus();
 }, 60e3);
+
+// The kit (docs/ops.md, section 52): the headings and the cards take their icon square.
+dress($('app'), [['.ed-card .ed-head h2', 'scissors', 'purple', 'md'], ['#briefs-h', 'list', 'orange', 'md'], ['#stats-h', 'chart', 'teal', 'md'],
+  ['.prod-task.is-urgent .prod-task-h', 'bolt', 'pink'], ['.prod-task .prod-task-h', 'check-circle', 'blue'], ['#na-h', 'lock', 'navy']]);
 
 mountSession(async (staff) => {
   let dir;

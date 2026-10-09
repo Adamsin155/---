@@ -397,3 +397,15 @@ a.gt-row-main { text-decoration: none; }
 .is-share .gt-sec-head h2.k-h > .k-ico, .is-share .gt-empty h2.k-h > .k-ico { margin-block: 0; }
 @media print { .is-share .k-ico { display: none !important; } }
 /* ── end: the client's public view ── */
+
+/* The shared kit on the office's Gantt (docs/ops.md, section 52; never on the client's
+   link): icon squares on the section heads, and one per client in the list. */
+.gt-app h2.k-h { gap: 12px; }
+.gt-app h2.k-h > .k-ico { margin-block: 0; }
+.gx-main.k-h { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: start; }
+.gx-main.k-h > .k-ico { grid-row: 1 / span 4; }
+.gx-main.k-h > :not(.k-ico) { grid-column: 2; }
+.gx .gt-none.k-h { padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--k-navy-soft); color: var(--ds-ink); gap: 10px; }
+.gx .gt-none.k-h > .k-ico { margin-block: 0; background: var(--ds-surface); }
+.gx-create { margin-inline-start: 64px; }
+#gt-rules > summary.k-h { gap: 10px; }

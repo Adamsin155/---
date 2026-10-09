@@ -28,6 +28,7 @@ import { offerHandoff } from './handoff-ui.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import * as P from './production.js';
 import { mountAvailability } from './availability-ui.js';
+import { headIcon, iconSquare, sectionHead, emptyState, noteIcon, row, facts, dress } from './kit.js';
 
 let me = null;
 let mode = null; // 'eli' | 'lior'
@@ -100,12 +101,20 @@ const btn = (id, text, onclick, cls = 'btn', extra = {}) => h('button', { type: 
 function placeBlock(sc) {
   const nav = P.navLinks(sc.client.address);
   return h('div', { class: 'sh-place' },
-    h('p', {}, h('span', { class: 'ed-k' }, 'כתובת'), sc.client.address || 'אין כתובת בכרטיס. לבקש מליאור.'),
+    h('p', { class: 'sh-addr' }, iconSquare('pin', 'blue', { size: 'sm' }), h('span', {}, h('span', { class: 'ed-k' }, 'כתובת'), sc.client.address || 'אין כתובת בכרטיס. לבקש מליאור.')),
     nav ? h('div', { class: 'sh-nav' },
       h('a', { class: 'btn btn-sm', href: nav.waze, target: '_blank', rel: 'noopener noreferrer' }, 'ניווט ב־Waze'),
       h('a', { class: 'btn btn-sm btn-ghost', href: nav.maps, target: '_blank', rel: 'noopener noreferrer' }, 'Google Maps')) : null);
 }
 const scriptsCount = (sc) => P.videosPerDay(sc.ctx);
+// The page's one status sentence, as a notice strip (app/kit.js): the words are the same.
+function say(text, kind = 'info', name = 'camera') {
+  const el = $('sh-summary');
+  el.textContent = text;
+  if (text) noteIcon(el, kind, name);
+}
+// A card's heading with its icon square.
+const cardHead = (id, text, name, tone) => headIcon(h('h2', { id: `${id}-h`, tabindex: '-1' }, text), name, tone, { size: 'md' });
 
 // ── Eli ─────────────────────────────────────
 // The days to show: from yesterday (while the drive is not handed back) to 30 days ahead.
@@ -121,9 +130,9 @@ function renderEli() {
   const now = new Date();
   const days = eliDays(now);
   const next = days[0];
-  $('sh-summary').textContent = next ? `הקרוב: ${P.dayWords(next.shootAt, now)} · ${scName(next)} · הגעה ${P.clockText(P.arrivalOf(next.shootAt))}` : '';
+  say(next ? `הקרוב: ${P.dayWords(next.shootAt, now)} · ${scName(next)} · הגעה ${P.clockText(P.arrivalOf(next.shootAt))}` : '', 'info', 'clock');
   fill($('sh-list'), days.length ? days.map((sc) => eliCard(sc, now))
-    : h('p', { class: 'empty' }, 'אין ימי צילום בחודש הקרוב. כשיום צילום ייסגר, הוא יופיע כאן.'));
+    : emptyState({ icon: 'calendar', tone: 'blue', text: 'אין ימי צילום בחודש הקרוב. כשיום צילום ייסגר, הוא יופיע כאן.' }));
 }
 
 function eliCard(sc, now) {
@@ -135,7 +144,7 @@ function eliCard(sc, now) {
   const eveOrDay = now >= P.briefingDay(sc.shootAt) || today || !!b;
   return h('article', { class: `sh-card${today ? ' is-today' : ''}`, id, 'aria-labelledby': `${id}-h` },
     h('header', { class: 'ed-head' },
-      h('h2', { id: `${id}-h`, tabindex: '-1' }, `${P.dayWords(sc.shootAt, now) === 'היום' ? 'היום' : P.dateWords(sc.shootAt)} · ${scName(sc)}`),
+      cardHead(id, `${P.dayWords(sc.shootAt, now) === 'היום' ? 'היום' : P.dateWords(sc.shootAt)} · ${scName(sc)}`, 'camera', today ? 'pink' : 'teal'),
       today ? h('span', { class: 'ed-state s-editing' }, 'יום צילום היום') : null),
     h('dl', { class: 'sh-facts' },
       h('dt', {}, 'ההגעה שלך'), h('dd', { class: 'num' }, `${P.clockText(P.arrivalOf(sc.shootAt))} · שעה לפני המשפיענים (${P.clockText(sc.shootAt)})`),
@@ -152,7 +161,7 @@ function eliCard(sc, now) {
 function briefingForEli(sc, b) {
   const id = cardId(sc);
   return h('section', { class: 'sh-brief', 'aria-labelledby': `${id}-bh` },
-    h('h3', { id: `${id}-bh` }, 'התדריך מליאור'),
+    headIcon(h('h3', { id: `${id}-bh` }, 'התדריך מליאור'), 'megaphone', 'orange'),
     b.label ? h('p', {}, P.driveName(b.label)) : null,
     b.notes ? h('p', { class: 'ed-note' }, b.notes) : null,
     b.ack ? h('p', { class: 'note-ok' }, `אישרת ${formatWhen(b.ack)}. ליאור רואה.`)
@@ -292,14 +301,17 @@ function renderLior() {
   const briefs = all.filter((sc) => sc.shootAt > now && dayKeyIL(P.briefingDay(sc.shootAt)) <= dayKeyIL(now) && dayKeyIL(sc.shootAt) !== dayKeyIL(now))
     .sort((a, b) => a.shootAt - b.shootAt);
   const later = all.filter((sc) => sc.shootAt > now && !today.includes(sc) && !briefs.includes(sc)).sort((a, b) => a.shootAt - b.shootAt).slice(0, 8);
-  $('sh-summary').textContent = today.length ? `יום צילום היום: ${today.map(scName).join(', ')}` : 'אין היום יום צילום.';
+  say(today.length ? `יום צילום היום: ${today.map(scName).join(', ')}` : 'אין היום יום צילום.', today.length ? 'late' : 'info', today.length ? 'video' : 'sun');
   fill($('sh-list'),
     ...today.map((sc) => shootMode(sc, now)),
     ...briefs.map((sc) => briefingForm(sc, now)),
-    later.length ? h('section', { class: 'prod-sec', 'aria-labelledby': 'later-h' },
-      h('h2', { class: 'prod-h', id: 'later-h' }, 'ימי הצילום הבאים'),
-      h('ul', { class: 'sh-later' }, ...later.map((sc) => h('li', {}, h('span', { class: 'num' }, `${P.dateWords(sc.shootAt)} ${P.clockText(sc.shootAt)}`), ` · ${scName(sc)}`)))) : null,
-    !today.length && !briefs.length && !later.length ? h('p', { class: 'empty' }, 'אין ימי צילום קרובים.') : null);
+    later.length ? h('section', { class: 'prod-sec k-sec', 'aria-labelledby': 'later-h' },
+      sectionHead({ icon: 'calendar', tone: 'blue', id: 'later-h', title: 'ימי הצילום הבאים', hint: 'מה שכבר נקבע, לפי הסדר.', count: later.length }),
+      // Each day is a row: the date and the hour first, the client under them.
+      h('ul', { class: 'sh-later k-rows' }, ...later.map((sc) => row({ tag: 'li', icon: 'camera', tone: 'teal',
+        title: h('span', { class: 'num' }, `${P.dateWords(sc.shootAt)} ${P.clockText(sc.shootAt)}`),
+        sub: [h('i', { class: 'k-sep' }, ' · '), scName(sc)] })))) : null,
+    !today.length && !briefs.length && !later.length ? emptyState({ icon: 'calendar', tone: 'blue', text: 'אין ימי צילום קרובים.' }) : null);
 }
 
 function shootMode(sc, now) {
@@ -321,7 +333,7 @@ function shootMode(sc, now) {
   const nextPoint = tl.find((x) => x.at > now);
   return h('article', { class: 'sh-card sh-mode is-today', id, 'aria-labelledby': `${id}-h` },
     h('header', { class: 'ed-head' },
-      h('h2', { id: `${id}-h`, tabindex: '-1' }, `מצב יום צילום · ${scName(sc)}`),
+      cardHead(id, `מצב יום צילום · ${scName(sc)}`, 'video', 'pink'),
       h('span', { class: `ed-state ${closed ? 's-done' : 's-editing'}` }, closed ? 'היום נסגר' : !started ? P.startsText(sc.shootAt) : SHOOT_TYPES[sc.ctx.shoot_type]?.name || '')),
     // Quiet mode (decision 8): from Eli's "הגעתי" until the drive is back.
     closed ? null : quietOn
@@ -348,7 +360,7 @@ function shootMode(sc, now) {
     // Closing: the lock (testimonial, the full quantity, the drive back and confirmed by both).
     closed ? h('p', { class: 'note-ok' }, `יום הצילום נסגר ${formatWhen(st.completedAt, now)}. ${P.afterCloseText(c, sc.pre, sc.ctx)}`)
       : h('section', { class: 'sh-close', 'aria-labelledby': `${id}-close-h` },
-        h('h3', { id: `${id}-close-h` }, 'סגירת היום'),
+        headIcon(h('h3', { id: `${id}-close-h` }, 'סגירת היום'), 'lock', 'navy'),
         h('label', { class: 'prod-check', for: `${id}-testimonial` },
           h('input', { type: 'checkbox', id: `${id}-testimonial`, class: 'cbx', checked: isDone(sc, 'p19.testimonial'), disabled: !canAct || !started, onchange: (e) => (e.currentTarget.checked ? mark(sc, 'p19.testimonial', null, `${id}-testimonial`) : unmark(sc, 'p19.testimonial', `${id}-testimonial`)) }),
           h('span', {}, 'צולם סרטון המלצה של הלקוח עם המשפיענים')),
@@ -386,9 +398,10 @@ function briefingForm(sc, now) {
   const waText = (label, notes) => [`תדריך ליום צילום · ${summary.join(' · ')}`, label ? P.driveName(label) : null, notes || null, `ללחוץ "קיבלתי" בעמוד ימי הצילום.`].filter(Boolean).join('\n');
   return h('article', { class: 'sh-card sh-briefing', id, 'aria-labelledby': `${id}-h` },
     h('header', { class: 'ed-head' },
-      h('h2', { id: `${id}-h`, tabindex: '-1' }, `תדריך לאלי · ${scName(sc)}`),
+      cardHead(id, `תדריך לאלי · ${scName(sc)}`, 'megaphone', 'orange'),
       h('span', { class: `ed-state ${b?.ack ? 's-done' : b ? 's-qa' : 's-waiting'}` }, b?.ack ? 'אלי אישר' : b ? 'נשלח' : 'עוד לא נשלח')),
-    h('p', {}, summary.join(' · ')),
+    // The same facts, each with its own small icon.
+    facts([['calendar', summary[0]], ['clock', summary[1]], sc.client.address ? ['pin', sc.client.address] : null, n ? ['file', `${n} תסריטים`] : null]),
     b ? h('p', { class: b.ack ? 'note-ok' : 'ed-wait' }, `נשלח ${formatWhen(b.at, now)}${b.label ? ` · ${P.driveName(b.label)}` : ''}. ${b.ack ? `אלי אישר ${formatWhen(b.ack, now)}.` : 'אלי עוד לא אישר (ב־20:00 תקבל תזכורת).'}`) : null,
     canAct ? h('form', {
       class: 'sh-brief-form', novalidate: true,
@@ -448,5 +461,7 @@ mountSession(async (staff) => {
   mountPush({ who: me || 'owner', card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'), changed: () => {} });
   // The photographer's monthly availability (docs/ops.md, section 39): its own mount point, above the shoot days.
   mountAvailability($('availability'), { me });
+  // The cards other modules draw on this page take their icon square (app/kit.js).
+  dress($('app'), [['#availability h2#av-h', 'calendar-check', 'teal'], ['#availability summary#av-h > strong', 'calendar-check', 'teal'], ['#na-h', 'lock', 'navy']]);
   await load();
 });

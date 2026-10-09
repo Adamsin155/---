@@ -145,9 +145,32 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
 .sh-counter > * { margin: 0; }
 .sh-counter .pbar { width: 100%; }
 .sh-count { font-size: 26px; font-weight: 700; }
-.sh-later { margin: 0; padding-inline-start: 20px; display: grid; gap: 4px; }
+.sh-later { margin: 0; padding: 0; }
 .sh-brief-form { display: grid; gap: 10px; }
 .sh-brief-form .field { margin: 0; }
+
+/* The shared kit on the shoot days (docs/ops.md, section 52): an icon square on each card's
+   heading, the facts as a soft panel, the next days as rows. */
+.sh-card .ed-head { align-items: center; }
+.sh-card .ed-head h2.k-h { flex: 1 1 220px; min-width: 0; align-items: flex-start; gap: 10px; }
+.sh-card .ed-head h2.k-h > .k-ico { margin-block: -2px; }
+.sh-card .sh-facts { padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); gap: 6px 12px; align-items: center; }
+.sh-card .k-fact { background: var(--ds-surface); }
+.sh-addr { display: flex; align-items: center; gap: 10px; }
+.sh-addr > span { min-width: 0; }
+.sh-brief h3.k-h, .sh-close h3.k-h { margin: 0; }
+/* The editor's page: the client's name with its square (the business stays under the name),
+   the two headings as section heads, the tasks with their small square. */
+.ed-card .ed-head h2.k-h { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center; flex: 1 1 200px; }
+.ed-card .ed-head h2.k-h > .k-ico { grid-row: 1 / span 2; margin-block: 0; }
+.ed-card .ed-head h2.k-h > small { grid-column: 2; margin-top: 0; }
+.prod-h.k-h { gap: 12px; font-family: var(--ds-font-h); font-size: 19px; font-weight: 400; }
+.prod-h.k-h > .k-ico { margin-block: 0; }
+.prod-task-h.k-h { flex-wrap: wrap; }
+.sh-later .k-sep { font-size: 0; }
+.sh-later .num { font-family: var(--ds-font-h); font-size: 16.5px; }
+.prod-list .k-empty { margin: 0; }
+.prod-noaccess h2.k-h { margin-bottom: 6px; }
 
 @media (max-width: 480px) {
   .ed-card, .sh-card { padding: 14px 12px; }

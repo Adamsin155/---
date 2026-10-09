@@ -357,7 +357,8 @@ await step('Ofir lands on "המשימות שלי"; the quality-control queue is 
   const ph = await heightOf(page);
   // (A client is named "business · contact" since 6.10.2026: long names wrap to a second line.)
   // (7.10.2026: a stuck client shows how long it has been open and three ways out instead of two buttons, tests/office-flows-e2e.mjs: 8,200 became 8,400.)
-  assert.ok(ph < 8400, `the pass is ${ph}px tall (it was about 10,300)`);
+  // (9.10.2026: each of the six sections opens with an icon square, docs/ops.md section 52: 8,400 became 8,600.)
+  assert.ok(ph < 8600, `the pass is ${ph}px tall (it was about 10,300)`);
   await page.goto(`${BASE}clients.html#mine`);
   await page.waitForSelector('#mine-list .wproc.wc');
   await settle(page);

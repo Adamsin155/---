@@ -247,3 +247,81 @@ export function leadIcon(node, name, { size = 16 } = {}) {
   return node;
 }
 /* end: client and owner screens */
+
+/* office screens */
+// ── The office's screens (docs/ops.md, section 52): more icons, and the pieces a list of
+// things is built from: a row with an icon square, a status pill, a line of small facts,
+// an icon on a status sentence, and one table that dresses the headings a page's modules draw.
+Object.assign(ICONS, {
+  pin: ['M12 21s-6.5-5.9-6.5-11a6.5 6.5 0 0 1 13 0c0 5.1-6.5 11-6.5 11z', ['circle', { cx: 12, cy: 10, r: 2.4 }]],
+  scissors: [['circle', { cx: 6.5, cy: 7, r: 2.6 }], ['circle', { cx: 6.5, cy: 17, r: 2.6 }], 'M8.7 8.5 20 17.5', 'M8.7 15.5 20 6.5'],
+  pause: [['circle', { cx: 12, cy: 12, r: 8.5 }], 'M10 9v6', 'M14 9v6'],
+  key: [['circle', { cx: 8, cy: 15, r: 4 }], 'M11 12.2 19.5 3.8', 'M16 7.3l2.7 2.7'],
+  star: ['M12 3.8l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z'],
+  target: [['circle', { cx: 12, cy: 12, r: 8.5 }], ['circle', { cx: 12, cy: 12, r: 4.5 }], 'M12 12h.01'],
+  play: [['circle', { cx: 12, cy: 12, r: 8.5 }], 'M10.2 8.6v6.8l5.4-3.4z'],
+  search: [['circle', { cx: 11, cy: 11, r: 6.5 }], 'M16 16l4.5 4.5'],
+  shield: ['M12 3.5 5 6.2v5.3c0 4.3 2.9 7.6 7 9 4.1-1.4 7-4.7 7-9V6.2z', 'M9 12l2.2 2.2 3.8-4'],
+  sliders: ['M5 7h9', 'M18 7h1', 'M5 12h2', 'M11 12h8', 'M5 17h8', 'M17 17h2', ['circle', { cx: 16, cy: 7, r: 2 }], ['circle', { cx: 9, cy: 12, r: 2 }], ['circle', { cx: 15, cy: 17, r: 2 }]],
+  eye: ['M2.8 12S6.2 5.8 12 5.8 21.2 12 21.2 12 17.8 18.2 12 18.2 2.8 12 2.8 12z', ['circle', { cx: 12, cy: 12, r: 2.8 }]],
+  lock: [['rect', { x: 5, y: 10.5, width: 14, height: 10, rx: 2.5 }], 'M8.2 10.5V7.8a3.8 3.8 0 0 1 7.6 0v2.7'],
+  drive: [['rect', { x: 3.5, y: 13, width: 17, height: 7, rx: 2.5 }], 'M5.2 13 7.4 5.6A1.5 1.5 0 0 1 8.8 4.5h6.4a1.5 1.5 0 0 1 1.4 1.1l2.2 7.4', 'M16.5 16.5h.01'],
+  upload: ['M12 15.5V4.5', 'M7.5 9 12 4.5 16.5 9', 'M4.5 15.5V18A1.5 1.5 0 0 0 6 19.5h12a1.5 1.5 0 0 0 1.5-1.5v-2.5'],
+  mic: [['rect', { x: 9, y: 3.5, width: 6, height: 10.5, rx: 3 }], 'M5.5 11.5a6.5 6.5 0 0 0 13 0', 'M12 18v2.5'],
+  palette: ['M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-1 1.6-2.2-.5-1.4.3-2.6 1.8-2.6H17a3.5 3.5 0 0 0 3.5-3.6C20.4 7.1 16.6 3.5 12 3.5z', 'M7.8 12.5h.01', 'M9.5 8.3h.01', 'M14 7.6h.01'],
+  trend: ['M3.5 17 9.5 11l3.5 3.5L20.5 7', 'M15.5 7h5v5'],
+  wallet: [['rect', { x: 3.5, y: 6, width: 17, height: 13.5, rx: 3 }], 'M3.5 10h17', 'M16 14.8h.01'],
+  box: ['M12 3.5 20 8v8l-8 4.5L4 16V8z', 'M4 8l8 4.5L20 8', 'M12 12.5v8'],
+  tv: [['rect', { x: 3.5, y: 5, width: 17, height: 11.5, rx: 2.5 }], 'M8.5 20h7', 'M12 16.5V20'],
+});
+
+// (pill() is defined once, above: any tone the stylesheet knows.)
+
+// One thing in a list, as a row: the icon square, the key fact, a quiet second line, and
+// whatever sits at the far end (a pill, a button). Its text is its parts in order.
+//   { icon, tone, title, sub, end, tag ('div' | 'li' | 'a'), cls, href, id, size }
+export function row({ icon: name, tone = 'navy', title, sub = null, end = null, tag = 'div', cls = '', href = null, id = null, size = 'md' }) {
+  return el(tag, { class: `k-row${cls ? ` ${cls}` : ''}`, href, id },
+    iconSquare(name, tone, { size }),
+    el('span', { class: 'k-row-t' }, el('strong', { class: 'k-row-title' }, title), sub ? el('span', { class: 'k-row-sub' }, sub) : null),
+    end);
+}
+
+// The friendly empty state as a list's one item (`<li class="empty">`, as the lists already have it).
+export function emptyItem(text, { icon: name = 'check-circle', tone = 'green', cls = 'empty' } = {}) {
+  return el('li', { class: `${cls} k-empty` }, iconSquare(name, tone, { size: 'lg' }), el('p', {}, text));
+}
+
+// A few small facts in one wrapping line, each with its own small icon: [[icon, text], …].
+// Read as text they are still one sentence: the " · " between them stays, and is not drawn.
+export function facts(list, { cls = '' } = {}) {
+  return el('ul', { class: `k-facts${cls ? ` ${cls}` : ''}` }, list.filter((x) => x && x[1]).map(([name, text], i) => el('li', {}, i ? el('i', { class: 'k-sep' }, ' · ') : null, el('span', { class: 'k-fact' }, icon(name, { size: 16 }), text))));
+}
+
+// An existing sentence (a status line, a note) takes a small icon square and the look of
+// a notice strip; its words, its id and its role stay. `kind` as in `notice`.
+export function noteIcon(node, kind = 'info', name = null) {
+  if (!node) return node;
+  const [defIcon, tone] = NOTICE[kind] || NOTICE.info;
+  for (const k of Object.keys(NOTICE)) node.classList.remove(`k-note-${k}`);
+  node.classList.add('k-note', `k-note-${NOTICE[kind] ? kind : 'info'}`);
+  node.querySelector(':scope > .k-ico')?.remove();
+  const square = iconSquare(name || defIcon, tone, { size: 'sm' });
+  square.classList.add('k-ico-first');
+  node.append(square);
+  return node;
+}
+
+// One table per page: [selector, icon, tone, size?]. The headings a page's modules draw
+// take their icon square as they are drawn (in the same turn, before the paint, so
+// nothing moves). The words, ids and whatever reads them stay as they are.
+export function dress(root, table) {
+  if (!root) return;
+  const run = () => {
+    for (const [sel, name, tone, size = 'sm'] of table) for (const node of root.querySelectorAll(sel)) headIcon(node, name, tone, { size, end: true });
+    // The notifications card says its state in its heading: blocked or missing is the pink one.
+    for (const node of root.querySelectorAll('h2#push-h')) { const off = /חסומות|לא /.test(node.textContent); headIcon(node, off ? 'bell-off' : 'bell', off ? 'pink' : 'blue', { size: 'sm', end: true }); }
+  };
+  run();
+  new MutationObserver(run).observe(root, { childList: true, subtree: true });
+}

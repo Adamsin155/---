@@ -90,6 +90,11 @@ async function boot() {
   ui = await import('./protocol-ui.js');
   const { loadClient, loadDirectory } = await import('./protocol-data.js');
   const { worksCycle } = await import('./month-ui.js');
+  // The kit, for the office only (docs/ops.md, section 52): the client's link stays as it is.
+  const { dress } = await import('./kit.js');
+  dress($('app'), [['#gxw-h', 'calendar', 'blue', 'md'], ['#gxc-h', 'users', 'teal', 'md'], ['#ge-h', 'calendar', 'purple', 'md'], ['#gg-h', 'chart', 'teal', 'md'], ['#gs-h', 'link', 'blue', 'md'], ['#na-h', 'lock', 'navy'],
+    ['#gt-rules > summary', 'list', 'navy'], ['.gx .gt-none', 'calendar', 'blue'],
+    ['.gx-client.has-missing > .gx-main', 'alert', 'pink', 'md'], ['.gx-client.no-gantt > .gx-main', 'calendar', 'navy', 'md'], ['.gx-client > .gx-main', 'calendar-check', 'green', 'md']]);
   ui.mountSession(async (staff) => {
     const id = params.get('id');
     const [dir, viewer] = await Promise.all([loadDirectory().catch(() => ({})), ui.viewerOf(staff.email)]);

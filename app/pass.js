@@ -24,6 +24,7 @@ import {
 } from './pass-logic.js';
 import { loadPasses, savePass, loadTasksBy, updateTask, addChangeRequest, loadChangeRequests } from './office-data.js';
 import { officeLinks, markFirstLanded, startControl } from './office-ui.js';
+import { emptyItem, dress } from './kit.js';
 import { dayKeyIL, dayFromKeyIL, endOfDayIL, inputValueIL, fromInputIL, TZ } from './tz.js';
 
 let viewer = null;
@@ -149,7 +150,7 @@ function render() {
       progressBar(prog.handled, prog.total, 'לקוחות שעברת עליהם היום'),
       h('span', { class: 'muted' }, prev ? `המעבר הקודם: ${formatDay(prev.day)}${prev.by_email ? ` · ${who(prev.by_email)}` : ''}` : 'אין מעבר קודם להשוואה')));
   const attention = rows.filter((r) => r.attention);
-  fill($('ps-list'), ...(attention.length ? attention.map((r) => passRow(r, closesRow(r, seen[r.client.id]) ? seen[r.client.id] : null, now)) : [h('li', { class: 'empty' }, 'אין לקוחות באדום, בצהוב, שהשתנו או תקועים.')]));
+  fill($('ps-list'), ...(attention.length ? attention.map((r) => passRow(r, closesRow(r, seen[r.client.id]) ? seen[r.client.id] : null, now)) : [emptyItem('אין לקוחות באדום, בצהוב, שהשתנו או תקועים.')]));
   capList($('ps-list'), 6, 'ps:list');
   const rest = rows.filter((r) => !r.attention);
   const restOpen = rest.filter((r) => !seen[r.client.id]);
@@ -443,7 +444,7 @@ function renderMine(now) {
       h('p', { class: 'of-line' }, t.done_at ? `בוצע · ${who(t.done_by_email)} · ${formatStamp(t.done_at)}` : [t.due_on ? `${late ? 'באיחור · ' : ''}עד ${formatDay(t.due_on)}` : 'בלי מועד', ` · נפתחה ${formatStamp(t.created_at)}`]),
       t.urgent && !t.done_at ? startControl(t, me, () => renderKeepingFocus()) : null);
   };
-  fill($('my-list'), ...(open.length || done.length ? [...open.map(row), ...done.map(row)] : [h('li', { class: 'empty' }, 'לא פתחת משימות בשבועיים האחרונים.')]));
+  fill($('my-list'), ...(open.length || done.length ? [...open.map(row), ...done.map(row)] : [emptyItem('לא פתחת משימות בשבועיים האחרונים.')]));
 }
 
 // ── To Lior: nobody to go; a change request ──
@@ -517,6 +518,10 @@ setInterval(() => {
   if ($('app').hidden || $('ps-page').hidden || busy() || document.activeElement?.closest('form')) return;
   if (Date.now() - lastLoad > 5 * 60e3) load();
 }, 60e3);
+
+// The kit (docs/ops.md, section 52): each section's heading and each card take an icon square.
+dress($('app'), [['#ps-h', 'eye', 'blue', 'md'], ['#hl-h', 'shield', 'green', 'md'], ['#th-h', 'calendar', 'teal', 'md'], ['#my-h', 'check-circle', 'purple', 'md'], ['#nb-h', 'users', 'orange', 'md'], ['#cr-h', 'edit', 'purple', 'md'], ['#na-h', 'lock', 'navy'],
+  ['#my-list .of-head', 'check-circle', 'purple', 'md'], ['#cr-list .of-head', 'edit', 'purple', 'md']]);
 
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);

@@ -183,3 +183,26 @@ details.pp-sub[open] > summary.pp-sum { margin-bottom: 4px; }
 .pp-field-err { margin: 4px 0 0; font-size: 14px; font-weight: 600; }
 .pp-field-err[hidden] { display: none; }
 .pp-form .input[aria-invalid='true'] { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+
+/* The shared kit on "לפני יום צילום" (docs/ops.md, section 52): icon squares on the
+   headings, the status sentences as soft strips, the follow-up rows as white tiles.
+   Text on its strip, 4.5:1 needed: ink on the amber soft 16.3, on the green soft 15.4. */
+.pp-head { align-items: center; }
+.pp-head h2.k-h { gap: 10px; min-width: 0; overflow-wrap: anywhere; }
+.pp-card > h2.k-h { gap: 10px; }
+.pp-sub h3.k-h { overflow-wrap: anywhere; }
+p.pp-status { padding: 8px 12px; border-radius: var(--ds-r-sm); font-weight: 500; font-size: 14.5px; line-height: 1.45; }
+p.pp-status.is-ok { background: var(--ds-ok-soft); color: var(--ds-ink); }
+p.pp-status.is-open { background: var(--ds-amber-soft); color: var(--ds-ink); }
+.pp-follow-row { background: var(--ds-surface); border-color: transparent; border-radius: var(--ds-r-item); }
+.pp-follow-row p.pp-status.is-ok { background: transparent; padding: 0; color: var(--ok); }
+.pp-follow-found { padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-hot-soft); color: var(--ds-hot-text); font-size: 13px; font-weight: 600; }
+.pp-none { padding: 0; background: transparent; box-shadow: none; }
+.pp-card .k-empty { margin: 0; }
+.pp-request { border-radius: var(--ds-r-item); }
+
+/* The shared kit on the characterization (intake.html; docs/ops.md, section 52): each form
+   opens with a section head, and its fields get a little more air. */
+.ik-card > h2.k-h { gap: 12px; align-items: center; overflow-wrap: anywhere; }
+.ik-card > h2.k-h > .k-ico { margin-block: 0; }
+.ik-app form.ik-card { gap: 14px; }

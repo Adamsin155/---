@@ -127,3 +127,9 @@ dialog.av-dlg { max-width: min(480px, calc(100vw - 32px)); }
   .av-office-month { padding-inline: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .av-cell::before { transition: none; } }
+
+/* The shared kit (docs/ops.md, section 52): the office's line says each month as a pill. */
+.av-office > summary > strong.k-h { display: inline-flex; }
+.av-office > summary .av-sum { padding: 3px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); font-size: 13.5px; }
+.av-office > summary .av-sum.is-late { background: var(--ds-hot-soft); }
+.av-card h2.k-h { align-items: center; }

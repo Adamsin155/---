@@ -17,6 +17,7 @@ import {
 import {
   $, fill, h, errorText, mountSession, directory, viewerOf, VIEWER_UNKNOWN, officeMinutes, personChip,
 } from './protocol-ui.js';
+import { emptyItem, dress } from './kit.js';
 import { canManageTeam } from './team-rules.js';
 import { officeLinks } from './office-ui.js';
 import { SURVEY_TABLE, SURVEY_REPORT_COLS } from './surveys.js';
@@ -149,7 +150,7 @@ function renderQa() {
   fill($('in-qa'), list.length ? h('li', {}, h('ul', { class: 'bars' }, ...list.map((r) => bar({
     id: `qa-${r.graphics ? 'graphics' : r.key}`, label: r.graphics ? `${r.name} (גרפיקות)` : r.name, value: r.returns / max,
     text: r.returns === 1 ? 'החזרה אחת' : `${r.returns} החזרות`, sub: detail(r),
-  })))) : h('li', { class: 'muted' }, 'לא היו החזרות החודש.'));
+  })))) : emptyItem('לא היו החזרות החודש.', { cls: 'muted' }));
 }
 
 function renderDelivery() {
@@ -200,7 +201,7 @@ function renderNa() {
     h('p', { class: 'na-meta' }, h('span', { class: 'muted' }, `${x.proc} · `),
       h('span', { class: 'num' }, `${x.na} מתוך ${x.cases} (${pct(x.share)})`),
       x.suggest ? h('span', { class: 'sbadge s-waiting na-flag' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'להסרה בגרסה הבאה') : null)))
-    : h('li', { class: 'muted' }, 'שום פריט לא סומן ״לא רלוונטי״ החודש.'));
+    : emptyItem('שום פריט לא סומן ״לא רלוונטי״ החודש.', { cls: 'muted' }));
 }
 
 function renderPipeline() {
@@ -219,7 +220,7 @@ function renderPipeline() {
         h('span', { class: 'pipe-when' }, word, s.days !== undefined && s.at ? h('span', { class: 'muted' }, ` · +${s.days}`) : null));
     })),
     p.total !== null ? h('p', { class: 'pipe-total muted' }, `מהצילום ועד התזמון: ${days(p.total)}`) : null))
-    : h('li', { class: 'muted' }, 'אין ימי צילום בחודש הזה.'));
+    : emptyItem('אין ימי צילום בחודש הזה.', { cls: 'muted' }));
 }
 
 function render() {
@@ -241,6 +242,11 @@ function monthOptions() {
 }
 $('in-month').addEventListener('change', (e) => { month = e.target.value; load(); });
 $('btn-refresh').addEventListener('click', () => load());
+
+// The kit (docs/ops.md, section 52): every figure and every section opens with its icon square.
+dress($('app'), [['#st-ontime', 'clock', 'blue', 'md'], ['#st-returns', 'loop', 'purple', 'md'], ['#st-delivery', 'camera', 'teal', 'md'], ['#st-requests', 'chat', 'orange', 'md'], ['#st-sat', 'heart', 'pink', 'md'],
+  ['#h-ontime', 'clock', 'blue', 'md'], ['#h-qa', 'shield', 'purple', 'md'], ['#h-delivery', 'camera', 'teal', 'md'], ['#h-req', 'chat', 'orange', 'md'], ['#h-sat', 'heart', 'pink', 'md'],
+  ['#h-na', 'pause', 'navy', 'md'], ['#h-pipe', 'trend', 'green', 'md'], ['#in-ro', 'eye', 'blue'], ['#na-h', 'lock', 'navy']]);
 
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);

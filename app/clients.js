@@ -1181,9 +1181,16 @@ const CARD_ICONS = [
   ['#now-h', 'clock', 'orange'], ['#staff-tasks-h', 'megaphone', 'purple'], ['#deals-h', 'handshake', 'green'], ['#approvals-h', 'file', 'blue'],
   ['#metricool-h', 'chart', 'teal'], ['#wa-card-h', 'chat', 'green'], ['#cal-h', 'calendar', 'blue'], ['#myq-h', 'question', 'purple'],
   ['#mc-h', 'loop', 'teal'], ['#il-h', 'image', 'purple'], ['.g-soon > .wgroup-h', 'clock', 'teal'], ['.g-landing > .wgroup-h', 'inbox', 'navy'],
+  // The other tabs (docs/ops.md, section 52). "בקרה יומית": each part of the control.
+  ['#ctl-urgent', 'bolt', 'pink'], ['#ctl-esc', 'flag', 'orange'], ['#rv-h', 'check-circle', 'blue'], ['#ctl-people', 'users', 'teal'], ['#ctl-late', 'alert', 'pink'],
+  ['#ctl-wait', 'hourglass', 'orange'], ['#ctl-status', 'file', 'purple'], ['#ctl-editors', 'scissors', 'blue'], ['#ctl-health', 'shield', 'green'],
+  // The numbers: mine, by process, the weekly call, the team.
+  ['.perf-me > .wgroup-h', 'user', 'purple'], ['.perf-team > .wgroup-h', 'users', 'teal'], ['.perf > h2.wgroup-h:first-of-type', 'chart', 'blue'], ['.perf > h2.wgroup-h:last-of-type', 'phone', 'green'],
+  // The clients: one square per client, by what the row already says (late, in landing, or neither).
+  ['.crow:has(.s-overdue) > .cname', 'alert', 'pink', 'md'], ['.crow:has(.tag-landing) > .cname', 'inbox', 'navy', 'md'], ['.crow > .cname', 'user', 'blue', 'md'],
 ];
 function dressCards(root = $('app')) {
-  for (const [sel, name, tone] of CARD_ICONS) for (const el of root.querySelectorAll(sel)) headIcon(el, name, tone, { size: 'sm', end: true });
+  for (const [sel, name, tone, size = 'sm'] of CARD_ICONS) for (const el of root.querySelectorAll(sel)) headIcon(el, name, tone, { size, end: true });
   // The notifications card says its state in its heading: blocked or missing is the pink one.
   for (const el of root.querySelectorAll('h2#push-h')) headIcon(el, /חסומות|לא /.test(el.textContent) ? 'bell-off' : 'bell', /חסומות|לא /.test(el.textContent) ? 'pink' : 'blue', { size: 'sm', end: true });
 }
@@ -1723,8 +1730,8 @@ function renderClients() {
   }).sort((a, b) => (isAuto(b) - isAuto(a)) || (stateOf(b).overdue - stateOf(a).overdue) || (new Date(b.deal_at) - new Date(a.deal_at)));
 
   if (!list.length) {
-    fill($('client-list'), h('p', { class: 'empty' }, own ? 'אין כרגע לקוחות עם עבודה שלך.'
-      : clients.length ? 'אין לקוחות בסינון הזה.' : 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.'));
+    fill($('client-list'), emptyState({ icon: 'users', tone: 'blue', text: own ? 'אין כרגע לקוחות עם עבודה שלך.'
+      : clients.length ? 'אין לקוחות בסינון הזה.' : 'עדיין אין לקוחות. לקוח חדש נפתח בכפתור ״לקוח חדש״.' }));
     return;
   }
   const now = new Date();
@@ -2593,7 +2600,7 @@ function renderControl() {
           ...lateTasks.map((t) => h('li', {},
             h('a', { href: clientUrl(c.id, '#tasks') }, `משימה: ${t.title}`), ' ', personChip(t.owner), taskBadge(t),
             h('span', { class: 'muted num' }, ` · עד ${formatDay(t.due_on)}`))))))), 6, 'ctl:late')
-      : h('p', { class: 'empty' }, 'אין לקוחות עם תהליכים או משימות באיחור.'),
+      : emptyState({ text: 'אין לקוחות עם תהליכים או משימות באיחור.' }),
     h('h2', { class: 'wgroup-h', id: 'ctl-wait', tabindex: '-1' }, 'ממתין ללקוח · צריך ליצור קשר', h('span', { class: 'n' }, String(byClient.size))),
     byClient.size
       ? capList(h('ul', { class: 'stuck waiting-list' }, ...[...byClient.values()].map(({ c, list }) => h('li', {},
@@ -2606,7 +2613,7 @@ function renderControl() {
           x.wait.recheck ? h('span', { class: 'muted' }, ` · לבדוק שוב: ${dayShort(x.wait.recheck)}`) : null,
           recheckDue(x.wait) ? h('span', { class: 'tag tag-warn' }, 'הגיע מועד הבדיקה') : null,
           businessDaysBetween(new Date(x.wait.at), now) > 2 ? h('span', { class: 'tag' }, 'ממתין יותר מיומיים') : null)))))), 6, 'ctl:wait')
-      : h('p', { class: 'empty' }, 'אין לקוחות שממתינים להם.'),
+      : emptyState({ text: 'אין לקוחות שממתינים להם.' }),
     statusSection(now),
     editorSection(now),
     healthSection(now),
@@ -2692,7 +2699,7 @@ async function renderPerformance() {
   const rows = closings(days, now, log);
   const calls = weeklyCalls(log, days, now);
   const byProc = PROCESSES.filter((p) => !p.recurring).map((p) => ({ p, list: rows.filter((r) => r.key === p.id) })).filter((x) => x.list.length);
-  const procTable = !byProc.length ? h('p', { class: 'empty' }, 'עוד אין מספיק תהליכים שנסגרו בתקופה הזו. הנתונים יופיעו אחרי שייסגרו תהליכים עם יעד מחושב.')
+  const procTable = !byProc.length ? emptyState({ icon: 'chart', tone: 'blue', text: 'עוד אין מספיק תהליכים שנסגרו בתקופה הזו. הנתונים יופיעו אחרי שייסגרו תהליכים עם יעד מחושב.' })
     : h('div', { class: 'table-wrap' }, h('table', { class: 'qtable ctable perf-table' },
       h('caption', { class: 'sr-only' }, 'לפי תהליך'),
       h('thead', {}, h('tr', {}, ...['תהליך', 'זמן ביצוע בפרוטוקול', 'נסגרו', 'בזמן', 'זמן בפועל (חציון)', 'יעד'].map((t) => h('th', { scope: 'col' }, t)))),

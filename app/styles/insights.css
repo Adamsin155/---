@@ -76,3 +76,13 @@
   .in-month { flex: 1 1 100%; }
   .in-month .input { width: 100%; }
 }
+
+/* The shared kit on the month's insights (docs/ops.md, section 52): an icon square on each
+   figure and each section, the read-only line as a notice strip, empty lists as empty states. */
+.in-stats .ow-stat.k-h { display: grid; align-items: start; gap: 4px; }
+.in-stats .ow-stat.k-h > .k-ico { margin-block: 0 6px; }
+.in-h.k-h { gap: 12px; margin-bottom: 8px; }
+.in-h.k-h > .k-ico { margin-block: 0; }
+.in-ro.k-h { padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--k-navy-soft); color: var(--ds-ink); gap: 10px; }
+.in-ro.k-h > .k-ico { margin-block: 0; background: var(--ds-surface); }
+.in-list > .k-empty, .pipe-list > .k-empty { margin: 0; padding: 18px 16px; background: var(--ds-surface); }

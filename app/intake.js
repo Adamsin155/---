@@ -22,6 +22,7 @@ import {
 import {
   $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, store,
 } from './protocol-ui.js';
+import { dress } from './kit.js';
 import { checkMark } from './mark-guards.js';
 import {
   ACCESS_STATUS, MAIN_NETWORKS, networkName, FORM_FIELDS, MATERIALS, MATERIAL_STATES, endedProblems, endedNote, endedChecks,
@@ -718,6 +719,10 @@ async function showRead() {
 }
 
 // ── Start ─────────────────────────────────
+// The kit (docs/ops.md, section 52): each form and each read-only card opens with its icon square.
+dress($('app'), [['.ik-done > #end-h', 'check-circle', 'green', 'md'], ['#end-h', 'flag', 'green', 'md'], ['#form-h', 'file', 'purple', 'md'], ['#focus-h', 'mic', 'orange', 'md'],
+  ['#sc-h', 'edit', 'blue', 'md'], ['#zm-h', 'video', 'teal', 'md'], ['#rd-char-h', 'chat', 'purple', 'md'], ['#rd-brand-h', 'palette', 'orange', 'md']]);
+
 mountSession(async (staff) => {
   const v = await viewerOf(staff.email);
   myEmail = staff.email;

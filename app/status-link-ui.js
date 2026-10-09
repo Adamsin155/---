@@ -120,9 +120,9 @@ function linkPart(client, { manage, toast, reload }) {
   };
   if (!c.active) {
     const last = c.links[0];
-    return h('div', { class: 'st-link k-row' },
+    return h('div', { class: 'st-link k-linkrow' },
       iconSquare('link', 'navy'),
-      h('div', { class: 'k-row-t' },
+      h('div', { class: 'k-linkrow-t' },
         h('p', { class: 'st-state' }, last ? (last.revoked_at ? `הקישור האחרון בוטל ב${when(last.revoked_at)}.` : `תוקף הקישור האחרון הסתיים ב${when(last.expires_at)}.`) : 'עוד לא נוצר קישור ללקוח.'),
         manage ? h('p', { class: 'k-hint' }, 'אחרי היצירה תוכלו להעתיק את הקישור ולשלוח אותו ללקוח.') : h('p', { class: 'muted' }, 'עירית, ליאור או הבעלים יוצרים את הקישור.')),
       manage ? h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: 'st-create', onclick: () => create(false) }, icon('plus', { size: 16 }), 'יצירת קישור') : null);

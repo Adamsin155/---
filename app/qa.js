@@ -33,6 +33,7 @@ import { offerHandoff } from './handoff-ui.js';
 import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, navLink } from './office-ui.js';
 import { mountApprovals } from './approvals-ui.js';
+import { emptyItem, dress } from './kit.js';
 import { canSeeOfficeQueues } from './manager-rules.js';
 import { inputValueIL, fromInputIL, dayFromKeyIL, endOfDayIL, TZ } from './tz.js';
 import { mountWorkFiles, forgetFiles } from './files-ui.js';
@@ -114,7 +115,7 @@ function render() {
         type: 'button', class: 'chip', onclick: () => { const el = $(id); el.scrollIntoView({ block: 'start' }); el.focus({ preventScroll: true }); },
       }, label, n === null ? null : h('span', { class: 'n' }, String(n)))))));
   $('qa-n').textContent = String(queue.length);
-  fill($('qa-list'), ...(queue.length ? queue.map((x) => qaCard(x, ms, now)) : [h('li', { class: 'empty' }, 'אין כרגע עבודה שמחכה לבקרה שלך.')]));
+  fill($('qa-list'), ...(queue.length ? queue.map((x) => qaCard(x, ms, now)) : [emptyItem('אין כרגע עבודה שמחכה לבקרה שלך.', { icon: 'shield' })]));
   fill($('qa-fixing'), fixing.length ? h('details', { class: 'of-fixing' },
     h('summary', {}, `הוחזרו לתיקון ועוד לא חזרו (${fixing.length})`),
     h('ul', { class: 'of-list' }, ...fixing.map((x) => h('li', { class: 'of-card' },
@@ -125,9 +126,9 @@ function render() {
       h('p', { class: 'of-line' }, `${x.open.issues.length === 1 ? 'בעיה אחת' : `${x.open.issues.length} בעיות`} · תוקנו ${x.open.fixed.size}`,
         x.open.due ? h('span', { class: x.open.due < now && x.client.landing !== true ? 'late' : '' }, ` · עד ${formatWhen(x.open.due, now)}`) : null))))) : null);
   $('char-n').textContent = String(chars.length);
-  fill($('char-list'), ...(chars.length ? chars.map((x) => charCard(x, now)) : [h('li', { class: 'empty' }, 'אין היום אפיונים שלך.')]));
+  fill($('char-list'), ...(chars.length ? chars.map((x) => charCard(x, now)) : [emptyItem('אין היום אפיונים שלך.', { icon: 'target', tone: 'orange' })]));
   $('assign-n').textContent = String(waiting.length);
-  fill($('assign-list'), ...(waiting.length ? waiting.map((a) => assignCard(a, load, now)) : [h('li', { class: 'empty' }, 'אין לקוחות שמחכים לשיוך עורך.')]));
+  fill($('assign-list'), ...(waiting.length ? waiting.map((a) => assignCard(a, load, now)) : [emptyItem('אין לקוחות שמחכים לשיוך עורך.', { icon: 'scissors', tone: 'blue' })]));
   fill($('load-list'), ...EDITORS.map((k) => loadCard(load[k], now)));
 }
 
@@ -592,6 +593,11 @@ setInterval(() => {
   if (Date.now() - lastLoad > 5 * 60e3 && !busy()) { load(); return; }
   if (!document.hidden && !busy()) renderKeepingFocus();
 }, 60e3);
+
+// The kit (docs/ops.md, section 52): each section's heading and each card take an icon square.
+dress($('app'), [['#qa-h', 'shield', 'purple', 'md'], ['#char-h', 'target', 'orange', 'md'], ['#assign-h', 'scissors', 'blue', 'md'], ['#load-h', 'chart', 'teal', 'md'],
+  ['#approvals-h', 'file', 'blue'], ['#myq-h', 'question', 'purple'], ['#na-h', 'lock', 'navy'],
+  ['#qa-list .of-head, #qa-fixing .of-head', 'video', 'purple', 'md'], ['#assign-list .of-head', 'scissors', 'blue', 'md'], ['#load-list .of-head', 'user', 'teal', 'md']]);
 
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);

@@ -149,3 +149,19 @@
 /* Choices: native radios, large enough to hit, in the brand violet. */
 .of-app input.radio { inline-size: 22px; block-size: 22px; margin: 0; accent-color: var(--accent); flex: none; }
 .ps-preview { flex-basis: 100%; }
+
+/* The shared kit on the office's queues (qa.html, decisions.html, pass.html; docs/ops.md,
+   section 52): a section's heading is a section head (icon square, title, counter), each
+   card starts with its icon square, an empty list is a friendly empty state. */
+.of-sec > .wgroup-h.k-h, .ps-sec > .wgroup-h.k-h { gap: 12px; margin-bottom: 12px; font-family: var(--ds-font-h); font-size: 19px; font-weight: 400; line-height: 1.25; color: var(--ds-ink); }
+.of-sec > .wgroup-h.k-h > .k-ico { margin-block: 0; }
+.of-sec > .wgroup-h.k-h > .n {
+  display: inline-grid; place-items: center; min-inline-size: 24px; block-size: 24px; padding: 0 7px; border-radius: var(--ds-r-pill);
+  background: var(--ds-soft); color: var(--ds-ink-2); font-family: var(--ds-font-b); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+.of-head.k-h { gap: 4px 10px; }
+.of-head.k-h > .k-ico { margin-block: 0; margin-inline-end: 2px; }
+.of-card.is-late .of-head > .k-ico { background: var(--ds-surface); }
+.of-list > .empty.k-empty, .of-load > .empty.k-empty { padding: 20px 16px; margin: 0; }
+.of-list > .empty.k-empty > p { font-size: 15.5px; }
+@media (max-width: 480px) { .of-head.k-h > .k-ico-md { inline-size: 36px; block-size: 36px; border-radius: 12px; } }

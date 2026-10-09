@@ -31,6 +31,7 @@ import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, startControl } from './office-ui.js';
 import { dayKeyIL, TZ } from './tz.js';
 import { mountApprovals } from './approvals-ui.js';
+import { emptyItem, dress } from './kit.js';
 import { canSeeOfficeQueues } from './manager-rules.js';
 
 let viewer = null;
@@ -135,26 +136,26 @@ function render() {
         type: 'button', class: 'chip', onclick: () => { const el = $(id); el.scrollIntoView({ block: 'start' }); el.focus({ preventScroll: true }); },
       }, label, h('span', { class: 'n' }, String(n)))))));
   $('ex-n').textContent = String(exceptions.length);
-  fill($('ex-list'), ...(exceptions.length ? exceptions.map((t) => exceptionCard(t, now)) : [h('li', { class: 'empty' }, 'אין חריגות פתוחות.')]));
+  fill($('ex-list'), ...(exceptions.length ? exceptions.map((t) => exceptionCard(t, now)) : [emptyItem('אין חריגות פתוחות.')]));
   $('ur-n').textContent = String(urgent.length);
-  fill($('ur-list'), ...(urgent.length ? urgent.map((x) => urgentCard(x, now)) : [h('li', { class: 'empty' }, 'אין משימות דחופות פתוחות.')]));
+  fill($('ur-list'), ...(urgent.length ? urgent.map((x) => urgentCard(x, now)) : [emptyItem('אין משימות דחופות פתוחות.')]));
   $('ac-sec').hidden = access === null;
   $('ac-n').textContent = String(broken.length);
-  fill($('ac-list'), ...(broken.length ? broken.map((a) => accessCard(a, now)) : [h('li', { class: 'empty' }, 'אין גישות שבורות.')]));
+  fill($('ac-list'), ...(broken.length ? broken.map((a) => accessCard(a, now)) : [emptyItem('אין גישות שבורות.')]));
   $('pz-n').textContent = String(paused.length);
   const load = editorLoad({ clients, stateOf, checks, tasks, now });
-  fill($('pz-list'), ...(paused.length ? paused.map((p) => pausedCard(p, load, now)) : [h('li', { class: 'empty' }, 'אין עריכה שעצורה מאתמול.')]));
+  fill($('pz-list'), ...(paused.length ? paused.map((p) => pausedCard(p, load, now)) : [emptyItem('אין עריכה שעצורה מאתמול.')]));
   $('cp-sec').hidden = !cc.show;
   if (cc.show) renderCampaigns(cc, now);
   $('ls-n').textContent = String(list.length);
   fill($('ls-list'), ...(list.length ? list.map((r) => h('li', { class: 'of-card' },
     h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: r.url }, r.title), landingTag(clientOf(r.clientId)), r.overdue && clientOf(r.clientId)?.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
-    r.body ? h('p', { class: 'of-line' }, r.body) : null)) : [h('li', { class: 'empty' }, 'אין כרגע הסלמות ברשימות.')]));
+    r.body ? h('p', { class: 'of-line' }, r.body) : null)) : [emptyItem('אין כרגע הסלמות ברשימות.')]));
   // Long queues are short on the screen: the first five and "הצג עוד" (the count stays whole).
   for (const id of ['ex-list', 'ur-list', 'ac-list', 'pz-list', 'ls-list']) capList($(id), 5, `dc:${id}`);
   $('cq-n').textContent = String(openReq.length);
-  fill($('cq-list'), ...(requests === null ? [h('li', { class: 'empty' }, 'בקשות השינוי עוד לא זמינות במסד הנתונים.')]
-    : openReq.length ? openReq.map((r) => requestCard(r)) : [h('li', { class: 'empty' }, 'אין בקשות שינוי פתוחות.')]));
+  fill($('cq-list'), ...(requests === null ? [emptyItem('בקשות השינוי עוד לא זמינות במסד הנתונים.')]
+    : openReq.length ? openReq.map((r) => requestCard(r)) : [emptyItem('אין בקשות שינוי פתוחות.')]));
 }
 
 // The engine's own list items for Lior (his 12:00 and 16:00 lists), still true now.
@@ -449,6 +450,11 @@ setInterval(() => {
   if ($('app').hidden || $('dc-page').hidden || document.activeElement?.closest('form')) return;
   if (Date.now() - lastLoad > 5 * 60e3) load(); else if (!document.hidden) renderKeepingState();
 }, 60e3);
+
+// The kit (docs/ops.md, section 52): each section's heading and each card take an icon square.
+dress($('app'), [['#ex-h', 'flag', 'pink', 'md'], ['#ur-h', 'bolt', 'orange', 'md'], ['#ac-h', 'key', 'purple', 'md'], ['#pz-h', 'pause', 'navy', 'md'], ['#cp-h', 'megaphone', 'teal', 'md'], ['#ls-h', 'list', 'blue', 'md'], ['#cq-h', 'edit', 'purple', 'md'],
+  ['#approvals-h', 'file', 'blue'], ['#myq-h', 'question', 'purple'], ['#na-h', 'lock', 'navy'],
+  ['#ex-list .of-head', 'flag', 'pink', 'md'], ['#ur-list .of-head', 'bolt', 'orange', 'md'], ['#ac-list .of-head', 'key', 'purple', 'md'], ['#pz-list .of-head', 'pause', 'navy', 'md'], ['#ls-list .of-head', 'bell', 'blue', 'md'], ['#cq-list .of-head', 'edit', 'purple', 'md']]);
 
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);

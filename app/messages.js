@@ -16,6 +16,7 @@ import { loadClients, loadChecks, loadDirectory, setCheck, clearCheck } from './
 import {
   $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, store, capList
 } from './protocol-ui.js';
+import { noteIcon, dress } from './kit.js';
 import { dayKeyIL } from './tz.js';
 import { canManageTeam } from './team-rules.js';
 import {
@@ -208,6 +209,7 @@ function renderSummary(now) {
   ].join(' · ');
   // A status line: changed only when it says something new, so it is not read out on every refresh.
   if ($('msg-summary').textContent !== next) $('msg-summary').textContent = next;
+  if (next && !$('msg-summary').querySelector('.k-ico')) noteIcon($('msg-summary'), 'info', 'chat');
 }
 
 function renderFilters() {
@@ -236,6 +238,8 @@ function render() {
   else if (!list.length) empty.textContent = station === 'all' ? 'אין היום לקוחות פעילים בתור.' : 'אין היום לקוחות בתחנה הזו.';
   else if (!pending(list).length) empty.textContent = 'כל ההודעות של היום נשלחו. יפה!';
   empty.hidden = !(off || !list.length || !pending(list).length);
+  // The same sentence, as a friendly strip with its icon (app/kit.js).
+  if (!empty.hidden) noteIcon(empty, off || !list.length ? 'info' : 'ok', off ? 'sun' : !list.length ? 'inbox' : 'check-circle');
 }
 
 // Re-rendering replaces the cards: keep focus, the caret and the scroll.
@@ -622,6 +626,10 @@ setInterval(() => {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !$('msg-page').hidden && Date.now() - lastLoad > 60e3) load();
 });
+
+// The kit (docs/ops.md, section 52): each card's name takes the icon of its kind of message.
+dress($('app'), [['.msg-card.is-sent .msg-name', 'check-circle', 'green', 'md'], ['.msg-card.k-delay .msg-name', 'alert', 'orange', 'md'], ['.msg-card.k-milestone .msg-name', 'star', 'purple', 'md'],
+  ['.msg-card.k-thursday .msg-name', 'calendar', 'teal', 'md'], ['.msg-card .msg-name', 'chat', 'blue', 'md'], ['#na-h', 'lock', 'navy']]);
 
 mountSession(async (staff) => {
   myEmail = String(staff.email || '').toLowerCase();
