@@ -444,6 +444,14 @@ a.gt-row-main { text-decoration: none; }
 .gt-bulk-opt { white-space: normal; padding-block: 8px; }
 .gt-bulk-opt span { min-inline-size: 0; overflow-wrap: anywhere; }
 .gt-brand-t bdi, .gt-brand-t small { overflow-wrap: anywhere; }
+/* The brands: a column whose rows keep the height of their words (a long name ran over the next row). */
+.gt-brands { display: flex; flex-direction: column; min-block-size: 96px; }
+.gt-brand { flex: none; }
+.gt-brand-t { flex: 1 1 auto; }
+.gt-dlg-head h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+/* "איך זה נראה ללקוח" inside the editor of an entry: a preview, so its button is not a second pink one. */
+.gt-view-ro .gt-open-big { background: var(--ds-surface); border-color: var(--ds-navy); color: var(--ds-navy); min-height: 44px; }
+.gt-state-btn { min-inline-size: 44px; justify-content: center; }
 
 /* The grid's chips: the title takes two lines before it is cut. */
 .gt-chip { align-items: flex-start; padding: 3px 7px; font-size: 12px; line-height: 1.3; }
