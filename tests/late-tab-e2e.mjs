@@ -297,7 +297,7 @@ try {
         const num = a.querySelector('.k-num');
         return {
           id: a.id || a.getAttribute('href'), cls: a.className, height: a.getBoundingClientRect().height, bg: cs.backgroundColor, dashed: cs.borderStyle.includes('dashed'),
-          num: num?.textContent, numSize: parseFloat(getComputedStyle(num).fontSize), numWeight: Number(getComputedStyle(num).fontWeight),
+          num: num?.dataset.n, numSize: parseFloat(getComputedStyle(num).fontSize), numWeight: Number(getComputedStyle(num).fontWeight),
           words: a.querySelector('strong').textContent, go: go?.textContent, goBg: go ? getComputedStyle(go).backgroundColor : null, weight: Number(getComputedStyle(a.querySelector('strong')).fontWeight),
           group: a.closest('#land-line') ? 'landing' : [...(a.closest('.wgroup')?.classList || [])].find((c) => c.startsWith('g-'))?.slice(2) || null,
           wide: a.scrollWidth > a.clientWidth + 1,

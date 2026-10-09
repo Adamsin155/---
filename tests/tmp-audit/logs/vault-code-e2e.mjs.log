@@ -1,0 +1,13 @@
+ok 1 - before any code exists the vault works exactly as before: Ilai sees a password with no dialog
+ok 2 - a copied password leaves the clipboard 30 seconds later; leaving the page hides the shown one and clears the clipboard at once
+ok 3 - the owner's card on the team page: no code yet, and it says the vault works as it did
+ok 4 - a weak code and a mistyped one are refused in Hebrew; then the code is set, and never shown
+ok 5 - Ilai on a 360px phone: "הצגת סיסמה" now asks for the code, in a small dialog with a masked numeric field
+ok 6 - a wrong code counts down ("קוד שגוי. נותרו 4 ניסיונות"); the right one shows the password
+ok 7 - "הכספת פתוחה עוד 10:00" and "נעילה עכשיו"; while it is open no code is asked
+ok 8 - ten minutes after the code, it is asked again (the database decides, not the page)
+ok 9 - Nirel has the vault flag and not the code: five wrong codes lock her for 15 minutes; nothing is revealed
+ok 10 - the owner sees who typed a wrong code and who was locked, and when; never what was typed
+ok 11 - changing the code ends everyone's unlocks: the old code no longer opens, the new one does
+ok 12 - Irit manages the team but is not the owner: no "קוד הכספת" card, and she cannot set a code
+vault code e2e: 12 steps passed

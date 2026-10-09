@@ -1,0 +1,13 @@
+ok - the card offers "הפעלת התראות"; permission is asked only from the button
+ok - connecting: the browser subscribes with the office key, the device is saved, a test notification goes to it
+ok - "לא הגיעה" sends again with tips; "קיבלתי" confirms and the card folds to one line
+ok - "התראות": today's reminders, newest first, with how each arrived; unread count; mark read
+ok - "לדחות…": the reminder comes back later (a snooze mark on the process)
+ok - switching off removes this device only
+ok - signing out: this device stops getting the person's notifications, and the drafts kept in the browser are gone
+ok - iPhone in Safari: "הוספה למסך הבית" first, and no permission request
+ok - iPhone from the home screen: the button; an old iOS: update first
+ok - blocked in the browser: how to allow it, no button
+ok - an urgent task: "התחלתי" is stamped by the database and shown
+ok - before the migrations: no card, no button, and tasks still load (without "התחלתי")
+push-e2e: 12 passed

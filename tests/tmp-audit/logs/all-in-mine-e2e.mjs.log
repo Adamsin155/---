@@ -1,0 +1,11 @@
+ok - per role, each queue with N waiting is one counted line of "המשימות שלי": the number, the group, the link, a 44px target
+ok - every line opens a page that lets its reader in, on the section of the queue
+ok - with nothing waiting there is no line, for anyone
+ok - a line follows its queue: it counts down when the work is done, and goes at zero
+ok - the lines are of the person's own list only: not on the team's work, and not on another person's list
+ok - qa.html: work of a client in landing is marked "בקליטה", with no clock and no late colour, in the queue and in the assignment list
+ok - decisions.html, prep.html, pass.html and Ilai's cards mark a client in landing the same way
+ok - Ofir's card of 22א opens the assignment of that client on his page, and of 25 his queue; Irit's card of 22א has no such link
+ok - the lines are there when the list is first shown: "המשימות שלי" does not jump
+
+all-in-mine: 9 steps passed

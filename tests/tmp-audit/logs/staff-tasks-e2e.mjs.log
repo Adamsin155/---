@@ -1,0 +1,14 @@
+ok - Irit: "נודניק תזכורת לעובד" right under the "now" bar, with "שליחת נודניק" and nothing open yet
+ok - the form: everyone on the team and the owner, the client is optional, an empty form is refused in words
+ok - sending: the database is asked with who, what and the client; the task is in "פתוחות" with the assignee
+ok - on entering, the giver's part is one row: "שליחת נודניק" and "פתוחים (1)", and the list opens on demand
+ok - Nadia on a 360px phone: "תזכורות שקיבלת (1)", who sent it and when, the next reminder, and "בוצע"
+ok - "בוצע": only this stops it; the card goes, and Irit sees it done, by whom and when
+ok - an assignee with no login is refused in words, and the form stays
+ok - Stav (sales) gets his on deal.html, with the phone's notifications card, and marks it done
+ok - Irit cancels a task: kept as cancelled, not done, and gone from the assignee
+ok - a task cancelled while the assignee looks at it: "בוצע" is refused in words and the card refreshes
+ok - the owner sees everyone's and gives too; Lior, who neither gives nor got one, has no card
+ok - before the migration: the card is not there, for Irit too, and the page is whole
+
+12 steps passed

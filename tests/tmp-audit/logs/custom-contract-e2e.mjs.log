@@ -1,0 +1,18 @@
+ok - a regular contract is unchanged: the same request, the link at once, no approval anywhere
+ok - Irit: "חוזה מותאם אישית" opens the overrides; the panel lists what differs; the summary follows
+ok - "שליחה לאישור": stored as pending, no link comes back, and to the client it does not exist
+ok - Irit sees "ממתין לאישור" on quotes.html and in her work list, with nothing to send
+ok - Lior: "חוזים חריגים לאישור (1)" on his first screen, with what differs, the totals, who prepared it and the preview
+ok - the card on a phone (375px): one column, 44px targets, nothing scrolls sideways
+ok - "לא מאשר" asks for a note; with it the contract goes back, and it leaves his list
+ok - Irit: "לא אושר: <הערה>" with "תיקון ושליחה מחדש"; the builder opens on the same contract with the note
+ok - Ofir approves on his first screen: one approval is enough; Lior has nothing left to decide
+ok - Irit: "אושר — אפשר לשלוח" with the share dialog; the link works and the client signs
+ok - the client opened with the custom quantities: "X מתוך Y" follows the signed contract, the added line is listed
+ok - Stav: "הצעה אחרת" instead of a built-in package: his words, optional quantities, the price and the term
+ok - Irit opens the builder from it: custom mode, prefilled from what he wrote; sending it stops her clock and waits for a manager
+ok - Stav's list follows the approval: "ממתין לאישור מנהל" → "לא אושר" → "חוזה נשלח" → "נחתם"; he reads no quote
+ok - nobody approves their own contract (Lior), another manager may; an editor sees nothing new
+ok - the builder on a phone (375px): the custom area in one column, 44px targets, nothing scrolls sideways
+
+16 steps passed

@@ -1,0 +1,27 @@
+ok 1 - the card: the vault block shows the form's link to Irit, who has no vault flag: not created yet
+ok 2 - Irit creates the link and copies a ready WhatsApp message with it: 14 days, waiting for the client
+ok 3 - the welcome message in Irit's queue carries the link by itself, in one line
+ok 4 - a client without a link: the plain sentence, and "יצירת קישור" right there puts the link in the message
+ok 5 - sending the welcome: WhatsApp gets the link; the record of the message keeps the words, never the token
+ok 6 - the link opens on a 360px phone: the business, why, how it is kept; three mandatory cards; the send button waits
+ok 7 - nothing internal on the client's page: no staff name, no note, no phone
+ok 8 - a login: user name and password are both required, with Hebrew messages; the password hides and shows
+ok 9 - "אין כיום, צריך לפתוח" and "יש, וצריך לחדש סיסמה" (the user name optional): the button is enabled
+ok 10 - "הוספת פלטפורמה": the suggestions, a free name, and its own messages before the form goes on
+ok 11 - the confirmation lists the platforms and the choices, never a password
+ok 12 - nothing typed is kept in the browser, and nothing is loaded from a third party
+ok 13 - sending: thanks; the vault got the logins as the office saves them; process 5 and Ilai's task
+ok 14 - opening the link again shows "הפרטים התקבלו" and nothing else
+ok 15 - an expired, a revoked, a malformed and a locked link each get a plain message
+ok 16 - the database refuses a form (a rule broken): the client is told, in Hebrew, and nothing is saved
+ok 17 - over http:// the page refuses to work: "פתחו את הקישור בכתובת מאובטחת", and it sends the visitor to https
+ok 18 - Irit's card: "מולא", the platforms and the choices; never a login, and (no vault flag) not the client's notes
+ok 19 - Irit hears quietly, Ilai is rung "קיבלת גישות" with 30 office minutes, Lior the broken login: each once
+ok 20 - Ilai (no vault flag) sees the client's form in his work and in the card: statuses only
+ok 21 - Lior (vault) sees "התקבל מהלקוח, עוד לא נבדק", who set it, and opens the password; checking it is his status
+ok 22 - Ofir's "האפיון הסתיים" form: what the client already sent, per network, status only; he is asked only for the rest
+ok 23 - "לשנות" lets Ofir set a network the client filled; a later form of the client never replaces what Ofir saved
+ok 24 - the card after it: both logins of TikTok, which is the client's and unchecked, each with its password; Lior decides
+ok 25 - a link still waiting two days later: Irit is reminded quietly, and the nudge with the link is in her queue
+ok 26 - the client's page on a 375px phone and on a desktop
+access form e2e: 26 steps passed

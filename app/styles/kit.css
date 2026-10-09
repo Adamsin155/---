@@ -35,7 +35,8 @@
 
 /* An existing heading that took an icon square in front of its words (headIcon). */
 .k-h { display: flex; align-items: center; gap: 8px; }
-.k-h > .k-ico { margin-block: -2px; }
+/* The square adds no height to its heading's line. */
+.k-h > .k-ico { margin-block: -4px; }
 
 /* ── The section head ── */
 .k-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -93,8 +94,11 @@
   background: var(--ds-navy); color: var(--ds-on-navy);
   font-family: var(--ds-font-h); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
 }
+.k-num::before { content: attr(data-n); }
 .k-line-t { min-width: 0; font-size: 15.5px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
 .k-line-sub { display: block; margin-top: 1px; font-size: 13px; font-weight: 400; color: var(--ds-muted); }
+/* The " · " before the second line stays in the text and is not drawn. */
+.k-sep { font-size: 0; }
 .k-go {
   display: inline-flex; align-items: center; gap: 2px; min-height: 40px; padding: 6px 10px 6px 14px; border-radius: var(--ds-r-pill);
   background: var(--ds-navy); color: var(--ds-on-navy); font-size: 14px; font-weight: 600; white-space: nowrap;
@@ -110,7 +114,7 @@
 .k-line:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; }
 /* A phone: the three parts stay in one row; the sentence wraps, the button stays a button. */
 @media (max-width: 480px) {
-  .k-line { gap: 6px 10px; padding: 10px; }
+  .k-line { gap: 6px 10px; min-height: 52px; padding: 6px 10px; }
   .k-num { min-inline-size: 40px; block-size: 40px; font-size: 22px; border-radius: 13px; }
   .k-line-t { font-size: 15px; }
   .k-go { padding: 6px 6px 6px 12px; font-size: 13.5px; }

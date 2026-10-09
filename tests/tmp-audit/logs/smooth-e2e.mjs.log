@@ -1,0 +1,10 @@
+ok - a page opens whole: "המשימות שלי" and the client card do not jump
+ok - while a page is built it is out of sight, with the placeholder and the bar's place; a tap cannot land on it
+ok - the second time, every file of the site comes from the device; the database never passes through the worker
+ok - controls answer the finger: no double-tap zoom, no selection, their own pressed state; the next page is fetched when the finger lands
+ok - no staff page is left waiting: each one a role opens is shown, from the device
+ok - a new publish reaches the device: the open page keeps its version, the next page runs the new one, the open page loads itself again in the background
+ok - something typed, or a dialog open: the page is not loaded again under the person
+ok - signing out leaves the device with the site's files only
+
+smooth e2e: 8 steps passed

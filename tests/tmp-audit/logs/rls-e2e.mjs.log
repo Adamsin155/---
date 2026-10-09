@@ -1,0 +1,11 @@
+ok - an editor's "המשימות שלי" and client list hold only her clients, from rows the database returned
+ok - opening a client that is not hers: "אין לך גישה ללקוח הזה", a way back to "המשימות שלי", nothing of the client
+ok - on a phone the notice fits the screen and its link is a full-size target
+ok - her own client opens as before: a check is saved in her name, and pausing the edit tells Lior and Ofir
+ok - the editing moves to someone else while her card is open: the next check is refused kindly and undone; reopening says she has no access
+ok - an editor with no clients: friendly empty lists, no errors
+ok - Nirel opens a Natali client she does not edit, without its logins; her own client shows them; a task she opens for herself does not, a brief from Ofir does
+ok - Eli sees the shoot coming up; a shoot from 12 days ago is no longer his
+ok - the office sees every client and its vault; a wrong link says "הלקוח לא נמצא" with a way back to the list
+
+9 steps passed

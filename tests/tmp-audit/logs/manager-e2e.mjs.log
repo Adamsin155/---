@@ -1,0 +1,11 @@
+ok - the owner lands on "המשימות שלי"; the button at the top opens the manager profile and leads back
+ok - the manager table: a row per open client, the contract and the summary, the prices, a sticky header
+ok - sorting by any column, filters by station, colour, editor and status, and search
+ok - the CSV: what the table shows, in Hebrew, with the prices for the owner
+ok - the contract summary in the client card: "בוצעו X מתוך Y שבחוזה", with uploaded files counted
+ok - Lior: the table without any price, the summary in the card, no switch, no archive
+ok - Irit: the button, screen 1, the table without prices, no archive; her own work until she switches
+ok - Ofir archives a client from its card: gone from every list, in the archive, restored as it was
+ok - permanent deletion: only from the archive, with the business name typed again and the box ticked
+ok - 360px phones: the switch, the table scrolls sideways inside itself only, 44px targets; the card and the archive
+manager-e2e: 10 passed

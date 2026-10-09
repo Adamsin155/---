@@ -1,0 +1,7 @@
+ok - before sign-in there is no menu; the client's pages never have one and take the fonts
+ok - a wide screen: the side menu, the rail on the current screen, the name in the top bar
+ok - the manager view: the week's chart, five office days, today marked, read out as one sentence
+ok - the motion: the entrance ends with everything visible; a counting number keeps the page's text
+ok - prefers-reduced-motion: nothing rises, counts or glides
+ok - a phone: the bar is the menu; the sheet of "עוד" takes focus and gives it back
+shell e2e: 6 steps passed

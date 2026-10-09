@@ -818,7 +818,7 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
 .wprocs:not(:has(> .wc)) > .flow-card { padding: 6px 0; }
 /* The icon square of a group heading: added after the words, drawn before them. */
 .k-ico-first { order: -1; }
-.wgroup-h.k-h { gap: 8px; font-size: 16px; }
+.wgroup-h.k-h { gap: 8px; }
 .wgroup-h.k-h > .sicon { display: none; }
 /* The tab: the late colour, with how many. Text on the soft pink 5.15:1; chosen: ink on the pink 4.67:1 (bold). */
 .tab-late { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--ds-hot-soft); color: var(--ds-hot-text); font-weight: 700; }
@@ -841,3 +841,5 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
   .tab { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.15; padding: 6px 4px; font-size: 13.5px; overflow-wrap: anywhere; }
   .tab-late { flex: 1 1 0; gap: 4px; }
 }
+/* The quiet one-row card of whoever gives a "נודניק" stays one row on a phone: its heading keeps its words, without the square. */
+@media (max-width: 480px) { .st-card.is-quiet .k-ico { display: none; } }

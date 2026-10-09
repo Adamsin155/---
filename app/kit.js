@@ -137,14 +137,16 @@ export function notice({ kind = 'info', icon: name = null, text, action = null, 
 // The sentence keeps its full words for whoever reads the page without eyes (and for
 // the suites): when it starts with the number ("14 לקוחות מחכים…", "יש 13 לקוחות…") those
 // first words are still there, only not drawn twice next to the big number. The last
-// part after " · " ("בקליטה, בלי שעון") is the small second line.
+// part after " · " ("בקליטה, בלי שעון") is the small second line. The big number is drawn
+// by the stylesheet from `data-n`, so the text of the row is the sentence and the action,
+// as it always was (the first <span> of the row is still the action).
 export function countedLine({ id = null, n, text, cta, href, tone = 'plain', cls = '', data = {} }) {
   const lead = new RegExp(`^((?:יש )?${n} )(.+)$`).exec(String(text));
   const rest = lead ? lead[2] : String(text);
   const cut = rest.lastIndexOf(' · ');
   const [main, sub] = cut > 0 ? [rest.slice(0, cut), rest.slice(cut + 3)] : [rest, ''];
   return el('a', { class: `k-line k-line-${tone}${cls ? ` ${cls}` : ''}`, id, href, ...Object.fromEntries(Object.entries(data).map(([k, v]) => [`data-${k}`, v])) },
-    el('span', { class: 'k-num', 'aria-hidden': 'true' }, String(n)),
-    el('strong', { class: 'k-line-t' }, lead ? el('span', { class: 'sr-only' }, lead[1]) : null, main, sub ? el('small', { class: 'k-line-sub' }, el('span', { class: 'sr-only' }, ' · '), sub) : null),
+    el('b', { class: 'k-num', 'data-n': String(n), 'aria-hidden': 'true' }),
+    el('strong', { class: 'k-line-t' }, lead ? el('b', { class: 'sr-only' }, lead[1]) : null, main, sub ? el('small', { class: 'k-line-sub' }, el('i', { class: 'k-sep' }, ' · '), sub) : null),
     el('span', { class: 'k-go' }, cta, icon('go', { size: 16 })));
 }

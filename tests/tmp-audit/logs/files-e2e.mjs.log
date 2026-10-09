@@ -1,0 +1,15 @@
+ok 1 - the card has "תיק לקוח": two parts, counts per kind, nothing uploaded yet
+ok 2 - the logo and two photos: uploaded, counted, previews from signed URLs, who and when
+ok 3 - a photo over 20MB is refused in Hebrew before anything is sent; a video is not a photo
+ok 4 - a text file named .mp4 is refused by its content, in Hebrew, before anything is sent; so is a fake .png
+ok 5 - a custom addition needs its label
+ok 6 - a 13MB video goes up resumably in 6MB chunks, with progress
+ok 7 - graphics and the landing page (a link); "עלה לרשתות בתאריך" is saved
+ok 8 - deleting a photo (soft): gone from the card and the counts
+ok 9 - the client's gallery link: Irit creates it and copies a ready WhatsApp message
+ok 10 - the client opens the gallery on a 360px phone: the deliverables, nothing internal
+ok 11 - the status page shows the graphics next to the approval of the first 9
+ok 12 - Nadia (the editor): sees the files, uploads only videos, deletes nothing of Irit's, no gallery link
+ok 13 - Ofir uploads a photo from the characterization form on the phone: in the files, photos marked received
+ok 14 - Irit revokes the gallery link: the client gets a friendly message
+files e2e: 14 steps passed

@@ -1,0 +1,9 @@
+ok - Lior: "טבלת ימי צילום" in the menu and as a tab; every active client, the oldest last shoot day on top, "טרם צולמו" below
+ok - a row: the last shoot day and how long ago, held out of the contract, the next one or "לא נקבע", station, editor, a link to the card
+ok - a click on a header sorts by it (one list), a second click turns it over; back to the last shoot day brings the two groups back
+ok - the search by client name; the order survives the minute's refresh
+ok - Ofir: from his own work, "מבט מנהל" and the entry in its menu; the same table and order
+ok - the owner: a tab next to the manager table, the same rows
+ok - who does not get it: Irit (no entry, no tab), an editor and a sales agent ("אין לך גישה"); nothing was written by anyone
+ok - 360px phones: a card per client, no sideways scroll anywhere, 44px targets, the first 12 and "הצג עוד", the entry behind "עוד"
+shoot-table-e2e: 8 passed

@@ -1,0 +1,16 @@
+ok 1 - "המשימות שלי": the characterization links straight to "האפיון הסתיים"
+ok 2 - "האפיון הסתיים" asks for the 4 short fields, in plain Hebrew, and marks what is missing
+ok 3 - with the 4 fields: the mark, the vault per network, process 5 and the client's details, at once
+ok 4 - the full form keeps a draft on the phone: leaving and coming back restores it
+ok 5 - saving the complete form checks process 4, closes Irit's follow-up, and asks for what is missing
+ok 6 - "האפיון הסתיים" shows what started, and the card shows the business phone, not a form to refill
+ok 7 - Lior's focus call (12א): the 10 topics, the two that matter to the editors first
+ok 8 - scripts and Zoom (12, 13): the link to the client's links, the Zoom time, its recording, then the approval
+ok 9 - the editor sees what must and must not be said, and the business phone, never the client's private phone
+ok 10 - the coordinator (11): a separate approval for each side; the day is closed only with all four and the calendar
+ok 11 - the blockers (14): computed from what the system knows; "עברתי" for today, "דווח לליאור" opens an exception at once
+ok 12 - the day-before check (15): what the system knows is filled in, Irit answers the rest, a failure goes to Lior
+ok 13 - a client's request: one tap opens a task with an owner and a due day, with a ready "we got it"
+ok 14 - when the request is done, Irit gets "לעדכן את הלקוח" with a ready message
+ok 15 - Irit's card for a client: the request and the shoot-day screens are one tap away
+intake e2e: 15 steps passed

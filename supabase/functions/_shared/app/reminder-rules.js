@@ -76,7 +76,7 @@ import { STATUS_RULES, STATUS_SOURCES } from './status-rules.js';
 // Stage 5: the monthly cycle (a draft) and the 90-day renewals list.
 import { YEAR_RULES } from './year-rules.js';
 // The ladder of a late item and the owners' end-of-day table (docs/ops.md, section 48).
-import { LATE_LADDER, lateItems, lateWords } from './late-chain.js';
+import { LATE_LADDER, LATE_URL, lateItems, lateWords } from './late-chain.js';
 import { EOD } from './day-summary.js';
 
 export const OWNER = 'owner';
@@ -2275,11 +2275,12 @@ const LADDER_RULES = [
         if (!(x.lateAt < slot.at) || (x.snooze && x.snooze > env.now) || (x.rung && dayKeyIL(x.lateAt) === dayKeyIL(env.now))) continue;
         for (const p of x.holders) if (held.get(lateKey(x))?.has(p)) (by.get(p) || by.set(p, []).get(p)).push(x);
       }
-      return [...by].filter(([p]) => REMINDER_PEOPLE.has(p)).map(([p, items]) => ({ id: p, cid: null, who: p, items, slot, url: MINE_URL, anchors: { event: slot.at } }));
+      return [...by].filter(([p]) => REMINDER_PEOPLE.has(p)).map(([p, items]) => ({ id: p, cid: null, who: p, items, slot, url: LATE_URL, anchors: { event: slot.at } }));
     },
     steps: (i, env) => [{
       id: `d${dayKeyIL(env.now)}.${i.slot.t.replace(':', '')}`, to: i.who, level: 'ring', noFold: true, overdue: true,
-      url: () => (i.items.length === 1 ? lateUrl(i.items[0]) : MINE_URL),
+      // Several: the "באיחור" tab of "המשימות שלי", which lists exactly these (section 50).
+      url: () => (i.items.length === 1 ? lateUrl(i.items[0]) : LATE_URL),
       title: () => (i.items.length === 1 ? `עדיין באיחור: ${i.items[0].name} · ${i.items[0].what}` : `${i.items.length} דברים באיחור אצלך`),
       body: () => (i.items.length === 1
         ? `באיחור ${lateWords(i.items[0].dueAt, env.now)}. מסמנים ב״המשימות שלי״; ${NAG_WORDS}.`

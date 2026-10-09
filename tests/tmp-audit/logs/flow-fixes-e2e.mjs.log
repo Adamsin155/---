@@ -1,0 +1,10 @@
+ok - 5: "לשלוח ללקוח קישור למילוי פרטי הכניסה" is a card of Irit with "העתקת הקישור"; one press makes and copies; "סיימתי" closes it
+ok - 5: "לשלוח ללקוח קישור לדף הסטטוס" opens when the 9 graphics are ready; the review is Irit's alone, with its own deadline
+ok - 5: process 5 does not close on one network: the card names what was saved and "אין עוד" closes it
+ok - 8: the shoot date is set from Irit's card in three taps, with the photographer's free days; a day he did not mark free is asked about
+ok - 6: the daily follow-up is ONE counted line for Irit; on its list each client is one row: "הכול תקין" in one tap, or what is stuck (and Lior is told)
+ok - 7: "הגאנט מלא" and "תוזמן" are refused, in one sentence, while the Gantt is empty or nothing is scheduled; with content they are taken
+ok - 7: the scripts mark waits for a script on the scripts page; the weekly call's row leads to its dialog, which asks for the summary
+ok - 7: the two other places that mark "the scripts are on the scripts page" keep the link and wait for a script too (the intake page)
+
+8 steps passed.

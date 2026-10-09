@@ -1,0 +1,30 @@
+ok - A1: the approvals of "לפני יום צילום" stay inside their buttons at 360px
+ok - A1: the approvals of the shoot-date dialog at 360px
+ok - A1: the approvals of "לפני יום צילום" stay inside their buttons at 390px
+ok - A1: the approvals of the shoot-date dialog at 390px
+ok - A1: the approvals of "לפני יום צילום" stay inside their buttons at 1280px
+ok - A1: the approvals of the shoot-date dialog at 1280px
+ok - A2: "שמירת המועד" with no date saves nothing, says so at the field, and a date then saves
+ok - A2: the client card clears a date only after "ניקוי המועד" is confirmed
+ok - B: irit: the "באיחור" tab carries the table's own number, and so does the group
+ok - B: ofir: the "באיחור" tab carries the table's own number, and so does the group
+ok - B: lior: the "באיחור" tab carries the table's own number, and so does the group
+ok - B: ilai: the "באיחור" tab carries the table's own number, and so does the group
+ok - B: nadia: the "באיחור" tab carries the table's own number, and so does the group
+ok - B: anna: the "באיחור" tab carries the table's own number, and so does the group
+ok - B: eli: the "באיחור" tab carries the table's own number, and so does the group
+ok - B: somebody is late and somebody is not (the world covers both), and the owners have no tab
+ok - B: the address #late opens the tab, the keyboard walks the row, and the tab stays personal
+ok - B: a late item ticked in the tab leaves it, and the number follows
+ok - B: the client's turn and a client in landing are nobody's lateness
+ok - B: irit on a 360px phone: the 4 tabs are all on the screen, 44px and up, and the page does not scroll sideways
+ok - B: ilai on a 360px phone: the 4 tabs are all on the screen, 44px and up, and the page does not scroll sideways
+ok - C: ofir: every counted line is solid, with its number, one sentence and a button
+ok - C: irit: every counted line is solid, with its number, one sentence and a button
+ok - C: lior: every counted line is solid, with its number, one sentence and a button
+ok - C: eli: every counted line is solid, with its number, one sentence and a button
+ok - C: yariv: every counted line is solid, with its number, one sentence and a button
+ok - D: the kit on "המשימות שלי": icon squares on the headings, and a friendly empty state
+ok - D: the client-file blocks of the client card are as they were (their turn comes with the next screens)
+
+late-tab-e2e: 28 steps passed

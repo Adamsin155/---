@@ -1,0 +1,10 @@
+ok - Stav signs in through clients.html and lands on his page; he sees only his own deals
+ok - the form: what is missing is said field by field; every target is 44px or more
+ok - Stav sends the deal "לעירית להכנת חוזה": the add-ons follow the package, the row is his, the status "ממתין לחוזה"
+ok - Irit: "להכין חוזה ל־פיצה רון" in המשימות שלי, with the 10-minute office clock, the details and the link to the builder
+ok - the builder opens prefilled from the deal; the quote created is linked to it ("חוזה נשלח")
+ok - "החוזה נשלח" on the other deal: it leaves the list
+ok - back on his page, Stav sees "חוזה נשלח"
+ok - anyone else on deal.html: "העמוד הזה לסוכני השטח", no form
+
+8 passed

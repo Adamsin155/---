@@ -5,9 +5,9 @@
 // that announces it (planDigests in app/reminder-engine.js) and, later, for a WhatsApp
 // text (waText; nothing is sent on WhatsApp now). Pure: no DOM, no network, Israel
 // time. No money in it, and no client in landing (app/late-chain.js leaves them out).
-import { lateItems, chainOf, lateWords } from './late-chain.js';
+import { lateItems, chainOf, lateWords, dueAtCloseToday } from './late-chain.js';
 import { PEOPLE } from './protocol.js';
-import { clientLabel, inLanding, pauseOf, endOfBusinessDay } from './protocol-logic.js';
+import { clientLabel, inLanding, pauseOf } from './protocol-logic.js';
 import { dayKeyIL, dayFromKeyIL, endOfDayIL } from './tz.js';
 
 // The numbers: each is a one-line change.
@@ -38,7 +38,8 @@ export function daySummary({ clients = [], checksOf = () => ({}), stateOf, tasks
     if (!x.holders.length) continue; // it waits for work that is itself late, and counted there
     // Due at the close of this very day (18:00) and still open: "of today, not done", as
     // it was while the end of a business day was midnight. It is late from tomorrow on.
-    if (x.kind === 'proc' && dayKeyIL(x.dueAt) === dayKeyIL(now) && x.dueAt.getTime() === endOfBusinessDay(x.dueAt).getTime()) {
+    // (The same test as the "באיחור" tab of "המשימות שלי": dueAtCloseToday, countsLate.)
+    if (dueAtCloseToday(x, now)) {
       items.push({ kind: 'today', cid: x.cid, name: x.name, what: x.what, who: x.holders, dueAt: x.dueAt, how: 'היעד היום', procId: x.procId, taskId: null });
       continue;
     }
