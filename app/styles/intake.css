@@ -246,3 +246,4 @@ details.pp-sub > summary.pp-sum .pp-status.is-ok { color: var(--ds-ink); font-we
 @media (min-width: 761px) {
   .pp-form > .btn, .pp-app .ik-big { inline-size: auto; justify-self: start; min-inline-size: 240px; }
 }
+.pp-app .k-note { overflow-wrap: anywhere; }

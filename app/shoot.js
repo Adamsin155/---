@@ -28,7 +28,7 @@ import { offerHandoff } from './handoff-ui.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import * as P from './production.js';
 import { mountAvailability } from './availability-ui.js';
-import { headIcon, icon, iconSquare, sectionHead, emptyState, noteIcon, row, facts, dress } from './kit.js';
+import { headIcon, leadIcon, icon, iconSquare, sectionHead, emptyState, noteIcon, row, facts, dress } from './kit.js';
 
 let me = null;
 let mode = null; // 'eli' | 'lior'
@@ -174,7 +174,7 @@ function gearBlock(sc) {
   if (isDone(sc, 'p17b.gear')) return h('p', { class: 'note-ok' }, 'הציוד מוכן: סוללות, כרטיסים, מיקרופונים ותאורה.');
   const key = (g) => `gear.${sc.client.id}.${sc.n}.${g}`;
   return h('fieldset', { class: 'prod-checks sh-gear' },
-    h('legend', {}, 'ציוד לערב שלפני'),
+    leadIcon(h('legend', {}, 'ציוד לערב שלפני'), 'box'),
     ...P.GEAR.map(([g, l]) => h('label', { class: 'prod-check', for: `${id}-gear-${g}` },
       h('input', {
         type: 'checkbox', id: `${id}-gear-${g}`, class: 'cbx', checked: store.get(key(g)) === '1', disabled: !canAct,
@@ -233,7 +233,7 @@ function eliDay(sc, now) {
   return h('div', { class: 'sh-day' },
     arrival,
     broll,
-    h('details', { class: 'ed-more' }, h('summary', {}, 'הנחיות הצילום'),
+    h('details', { class: 'ed-more' }, leadIcon(h('summary', {}, 'הנחיות הצילום'), 'list'),
       h('ul', { class: 'sh-guide' },
         h('li', {}, 'עוברים עם ליאור על אזורי הצילום: זוויות, תאורה, סאונד ורקע נקי.'),
         h('li', {}, 'בי־רול מגוון לפני המשפיענים: המקום, חזית ופנים, מוצרים, שירותים, עובדים, שילוט ואווירה; תקריבים וצילומים רחבים.'),

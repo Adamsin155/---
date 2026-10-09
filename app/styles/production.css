@@ -216,3 +216,7 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
   #dlg-scripts .dlg-foot .btn { flex: 1 1 auto; justify-content: center; }
   #dlg-scripts .dlg-foot .btn-primary { flex-basis: 100%; order: 9; }
 }
+/* A status sentence with a very long name wraps inside its strip (360px). */
+.prod-page .k-note { overflow-wrap: anywhere; }
+.prod-checks legend.k-with-ico, details.ed-more > summary.k-with-ico { gap: 8px; }
+.prod-checks legend.k-with-ico > .k-svg, details.ed-more > summary.k-with-ico > .k-svg { color: var(--k-teal); }

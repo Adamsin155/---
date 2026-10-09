@@ -268,3 +268,4 @@ details.ps-sum { min-width: 0; }
 .ps-form .row2 { align-items: start; }
 .ps-form .row2 > .field { min-width: 0; margin: 0; }
 .ps-form .field > .input:not(textarea) { min-height: 46px; }
+.of-app .k-note, .of-banner { overflow-wrap: anywhere; }

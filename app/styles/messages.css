@@ -153,3 +153,4 @@ details.msg-history[open] > summary::after { transform: rotate(-135deg); }
 }
 
 #dlg-templates .tpl-body .field label { margin-bottom: 0; }
+#msg-page .k-note { overflow-wrap: anywhere; }
