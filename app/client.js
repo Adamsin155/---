@@ -2,6 +2,13 @@
 import { renderQuoteDoc, formatDate } from './quote-doc.js';
 import { formatILS } from './pricing.js';
 import { pageToken } from './link-token.js';
+import { headIcon } from './kit.js';
+
+// The look of the kit, kept small here (app/kit.js; docs/ops.md, section 53): an icon
+// square on the two headings around the document. The document itself, the legal text
+// and the signature area are exactly as they were, on the screen and in print.
+headIcon(document.getElementById('sign-h'), 'sign', 'purple', { size: 'md' });
+headIcon(document.querySelector('#expired > h2'), 'clock', 'orange', { size: 'md' });
 
 const $ = (id) => document.getElementById(id);
 const token = pageToken(); // q.html#t=… (and ?t=… of a link sent before 6.10.2026)

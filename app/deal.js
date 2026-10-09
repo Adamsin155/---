@@ -15,6 +15,15 @@ import { loadDeals, addDeal } from './deal-data.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, formatStamp } from './protocol-ui.js';
 import { mountPush } from './push.js';
 import { mountStaffTasks } from './staff-tasks-ui.js';
+import { icon as kIcon, iconSquare, headIcon } from './kit.js';
+
+// The look of the kit (app/kit.js; docs/ops.md, section 53): every card of the form takes
+// its icon square in front of its heading; the words and the fields stay as they are.
+const SEC_LOOK = [['user', 'navy'], ['handshake', 'purple'], ['edit', 'orange'], ['box', 'blue'], ['users', 'pink'], ['star', 'green'], ['tag', 'teal']];
+document.querySelectorAll('#deal-form > .deal-sec > legend').forEach((lg, i) => headIcon(lg, ...(SEC_LOOK[i] || ['list', 'navy']), { size: 'md' }));
+headIcon($('mine-h'), 'briefcase', 'navy', { size: 'md' });
+headIcon($('na-h'), 'lock', 'navy', { size: 'md' });
+const STATUS_ICON = { pending: ['hourglass', 'orange'], approval: ['shield', 'blue'], rejected: ['alert', 'pink'], sent: ['send', 'purple'], signed: ['check-circle', 'green'], cancelled: ['archive', 'navy'] };
 
 let me = null;
 let deals = [];
@@ -162,9 +171,10 @@ const STATUS_CLASS = { pending: 'is-pending', approval: 'is-approval', rejected:
 function renderList() {
   $('deal-mine').hidden = false;
   const list = [...deals].sort(byNewest);
-  if (!list.length) { fill($('deal-list'), h('li', { class: 'empty' }, 'עוד לא שלחת עסקאות.')); return; }
+  if (!list.length) { fill($('deal-list'), h('li', { class: 'empty k-emptyrow' }, kIcon('briefcase', { size: 18 }), h('span', {}, 'עוד לא שלחת עסקאות.'))); return; }
   fill($('deal-list'), ...list.map((d) => h('li', { class: 'deal-item' },
     h('div', { class: 'deal-item-head' },
+      iconSquare(...(STATUS_ICON[d.status] || ['briefcase', 'navy']), { size: 'sm' }),
       h('strong', { class: 'deal-item-name', dir: 'auto' }, d.business_name),
       h('span', { class: `deal-status ${STATUS_CLASS[d.status] || ''}` }, statusText(d))),
     h('p', { class: 'deal-item-meta' }, `${dealSummary(d)} · נשלח ${formatStamp(d.created_at)}`),

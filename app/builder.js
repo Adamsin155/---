@@ -9,6 +9,17 @@ import {
   exceptionOf, normalizeSelection, baseQuantities,
 } from './pricing.js';
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
+import { iconSquare, headIcon } from './kit.js';
+
+// The look of the kit on the builder's own screen (app/kit.js; docs/ops.md, section 53):
+// each section's head, each group of add-ons and the notice take an icon square. Nothing
+// of the printed quote or agreement is touched (app/quote-doc.js, quote.css).
+for (const [hid, name, tone] of [['s1', 'box', 'purple'], ['s2', 'star', 'green'], ['s3', 'user', 'blue']]) {
+  const head = document.getElementById(hid)?.closest('.block-head');
+  if (head && !head.querySelector(':scope > .k-ico')) head.querySelector('.idx')?.after(iconSquare(name, tone));
+}
+for (const [hid, name, tone] of [['paid-h', 'coins', 'orange'], ['free-h', 'heart', 'green'], ['disc-h', 'tag', 'teal'], ['na-h', 'lock', 'navy']]) headIcon(document.getElementById(hid), name, tone);
+document.getElementById('removed-notice')?.prepend(iconSquare('info', 'blue', { size: 'sm' }));
 
 const $ = (id) => document.getElementById(id);
 let state = emptySelection();

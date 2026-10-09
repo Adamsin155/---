@@ -252,3 +252,16 @@
 .eod-item .eod-how:not(.is-late) { color: var(--muted); }
 .eod-item .eod-how { grid-column: 2; grid-row: 2; font-size: 13px; text-align: end; white-space: nowrap; }
 .eod-note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+
+/* ── The look of the kit on the manager view (app/kit.js; docs/ops.md, section 53) ── */
+.ow-page .wgroup-h.k-h { gap: 10px; }
+.ow-page .tab.k-with-ico { gap: 6px; }
+.ow-page .tab > .k-svg { opacity: .8; }
+@media (max-width: 720px) { .ow-page .tab > .k-svg { display: none; } }
+.ow-page .k-beside { margin-bottom: 12px; }
+.ow-page #ow-empty.k-emptyrow { color: var(--ds-ok); font-weight: 600; }
+.ow-page #ow-empty.k-emptyrow[hidden] { display: none; }
+.ow-page :is(.mt-money-note, #eod-about).k-with-ico { display: flex; align-items: flex-start; gap: 8px; }
+.ow-page :is(.mt-money-note, #eod-about).k-with-ico[hidden] { display: none; }
+.ow-page :is(.mt-money-note, #eod-about) > .k-svg { margin-top: 2px; color: var(--ds-muted); }
+.ow-page .ga-list > .k-emptyrow { list-style: none; }

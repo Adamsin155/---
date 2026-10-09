@@ -150,3 +150,100 @@ export function countedLine({ id = null, n, text, cta, href, tone = 'plain', cls
     el('strong', { class: 'k-line-t' }, lead ? el('b', { class: 'sr-only' }, lead[1]) : null, main, sub ? el('small', { class: 'k-line-sub' }, el('i', { class: 'k-sep' }, ' · '), sub) : null),
     el('span', { class: 'k-go' }, cta, icon('go', { size: 16 })));
 }
+
+/* client and owner screens */
+// The additions of the client card, the manager view, the sales pages, the quote builder
+// and the pages the agency's clients open (docs/ops.md, section 53). Appended only:
+// nothing above this line is changed.
+Object.assign(ICONS, {
+  star: ['M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z'],
+  key: [['circle', { cx: 8, cy: 15.5, r: 4 }], 'M11 12.5l8.5-8.5', 'M16.5 7l2.5 2.5', 'M14 9.5l2 2'],
+  lock: [['rect', { x: 5, y: 10.5, width: 14, height: 10, rx: 2.5 }], 'M8 10.5V8a4 4 0 0 1 8 0v2.5', 'M12 14.5v2'],
+  shield: ['M12 3.5l7 2.6v5.4c0 4.4-2.9 7.6-7 9-4.1-1.4-7-4.6-7-9V6.1z', 'M9 12l2.2 2.2L15 10.3'],
+  globe: [['circle', { cx: 12, cy: 12, r: 8.5 }], 'M3.5 12h17', 'M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5', 'M12 3.5c-2.6 2.4-3.8 5.2-3.8 8.5s1.2 6.1 3.8 8.5'],
+  grid: [['rect', { x: 4, y: 4, width: 6.5, height: 6.5, rx: 1.8 }], ['rect', { x: 13.5, y: 4, width: 6.5, height: 6.5, rx: 1.8 }], ['rect', { x: 4, y: 13.5, width: 6.5, height: 6.5, rx: 1.8 }], ['rect', { x: 13.5, y: 13.5, width: 6.5, height: 6.5, rx: 1.8 }]],
+  palette: ['M12 3.5a8.5 8.5 0 1 0 0 17c1.3 0 2-.9 2-1.9 0-1.3-1.1-1.6-1.1-2.8 0-1 .8-1.8 1.9-1.8h2.200a3.5 3.5 0 0 0 3.5-3.500c0-3.9-3.8-7-8.5-7z', 'M7.8 12.5h.01', 'M9.5 8.5h.01', 'M13.5 7.5h.01'],
+  play: [['circle', { cx: 12, cy: 12, r: 8.5 }], 'M10.3 8.800v6.4l5.2-3.2z'],
+  target: [['circle', { cx: 12, cy: 12, r: 8.5 }], ['circle', { cx: 12, cy: 12, r: 4.3 }], 'M12 12h.01'],
+  upload: ['M12 15.5V4.5', 'M7.5 8.5L12 4l4.5 4.5', 'M4.5 15.5V18A1.5 1.5 0 0 0 6 19.5h12a1.5 1.5 0 0 0 1.5-1.5v-2.5'],
+  download: ['M12 4.5v11', 'M7.5 11.5L12 16l4.5-4.5', 'M4.5 15.5V18A1.5 1.5 0 0 0 6 19.5h12a1.5 1.5 0 0 0 1.5-1.5v-2.5'],
+  smile: [['circle', { cx: 12, cy: 12, r: 8.5 }], 'M8.5 13.8a4.2 4.2 0 0 0 7 0', 'M9.2 9.8h.01', 'M14.8 9.8h.01'],
+  history: ['M4.5 12a7.5 7.5 0 1 0 2.3-5.4', 'M4 4.5v3.8h3.8', 'M12 8v4.2l2.8 1.7'],
+  table: [['rect', { x: 3.5, y: 4.5, width: 17, height: 15, rx: 2.5 }], 'M3.5 9.5h17', 'M3.5 14.5h17', 'M9.5 9.5v10'],
+  archive: [['rect', { x: 3.5, y: 4.5, width: 17, height: 4.5, rx: 1.5 }], 'M5 9v9a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 18V9', 'M10 13h4'],
+  sign: ['M4 19.5h16', 'M5.5 15.5c2-5 4-8.5 5.5-8.5 2 0-1.5 7 .5 7 1.5 0 2-3 3.5-3s1 2.5 3.5 2.5'],
+  tag: ['M3.8 12.3V5.3a1.5 1.5 0 0 1 1.5-1.5h7l8 8a1.5 1.5 0 0 1 0 2.1l-6.4 6.4a1.5 1.5 0 0 1-2.1 0z', 'M8.3 8.3h.01'],
+  coins: [['circle', { cx: 9, cy: 9, r: 5.5 }], 'M14.2 9.7a5.5 5.5 0 1 1-4.5 4.5', 'M9 7v4'],
+  briefcase: [['rect', { x: 3.5, y: 7.5, width: 17, height: 12, rx: 2.5 }], 'M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5', 'M3.5 13h17'],
+  search: [['circle', { cx: 11, cy: 11, r: 6.5 }], 'M16 16l4 4'],
+  info: [['circle', { cx: 12, cy: 12, r: 8.5 }], 'M12 11v5', 'M12 7.8v.2'],
+  script: ['M6.5 3.5h11A1.5 1.5 0 0 1 19 5v14a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19V5a1.5 1.5 0 0 1 1.5-1.5z', 'M8.5 8h7', 'M8.5 12h7', 'M8.5 16h4'],
+  box: ['M12 3.5l8 4.2v8.6l-8 4.2-8-4.2V7.7z', 'M4 7.7l8 4.3 8-4.3', 'M12 12v8.5'],
+});
+
+// A side head that already exists in the page (`.side-head`, `.block-head` or any box
+// holding a heading and its one line of hint) takes the icon square at its start; its
+// heading, its id and its words stay as they are.
+export function dressHead(box, name, tone = 'navy', { size = 'md' } = {}) {
+  if (!box || box.querySelector(':scope > .k-ico')) return box;
+  box.classList.add('k-sidehead');
+  box.prepend(iconSquare(name, tone, { size }));
+  return box;
+}
+// The same for several heads of a page at once: [[selector, icon, tone], …].
+export function dressHeads(list, root = document) {
+  for (const [sel, name, tone, opts] of list) for (const box of root.querySelectorAll(sel)) dressHead(box, name, tone, opts);
+}
+
+// A status word as a pill. `tone`: 'plain', 'ok', 'warn', 'late', 'info'.
+export function pill(text, tone = 'plain', { id = null } = {}) {
+  return el('span', { class: `k-pill k-pill-${tone}`, id }, text);
+}
+
+// The tile of one kind of thing that can be added: its icon square, a plus at the
+// corner, its name and how many there are. A real <button> (or the <summary> of a
+// <details> that opens a small form): `tag`.
+//   { icon, tone, label, count (words: "3 קבצים"), id, cls, tag ('button' | 'summary'), onclick, lead (words for a screen reader before the name) }
+export function tile({ icon: name, tone = 'navy', label, count = null, id = null, cls = '', tag = 'button', onclick = null, lead = null }) {
+  return el(tag, { type: tag === 'button' ? 'button' : null, class: `k-tile${cls ? ` ${cls}` : ''}`, id, onclick },
+    iconSquare(name, tone),
+    el('span', { class: 'k-tile-plus', 'aria-hidden': 'true' }, icon('plus', { size: 16 })),
+    el('span', { class: 'k-tile-name' }, lead ? el('span', { class: 'sr-only' }, lead) : null, label),
+    count === null ? null : el('span', { class: 'k-tile-n' }, count));
+}
+
+// The quiet empty line: a soft box, a small icon and one sentence in a row (inside a
+// block that already has its head; `emptyState` is the big one for a whole screen).
+export function emptyRow({ icon: name = 'inbox', text, cls = 'muted', id = null }) {
+  return el('div', { class: 'k-emptyrow', id }, icon(name, { size: 18 }), el('p', { class: cls }, text));
+}
+
+// The head of a small card inside a block: a small icon square, the heading and a counter.
+export function cardHead({ icon: name, tone = 'navy', title, level = 3, count = null, id = null }) {
+  return el('div', { class: 'k-cardhead' }, iconSquare(name, tone, { size: 'sm' }), el(`h${level}`, { id }, title), count === null ? null : el('span', { class: 'k-count' }, String(count)));
+}
+
+// A notice strip around a sentence that already exists (its element, id and words stay).
+export function noticeAround(p, { kind = 'info', icon: name = null } = {}) {
+  const [defIcon, tone] = NOTICE[kind] || NOTICE.info;
+  p.classList.add('k-notice-t');
+  return el('div', { class: `k-notice k-notice-${NOTICE[kind] ? kind : 'info'}` }, iconSquare(name || defIcon, tone, { size: 'sm' }), p);
+}
+// An element that already exists (a status sentence whose text the page rewrites) gets
+// the icon square beside it: a small row is put in its place, holding the square and the
+// element itself, which keeps its id, its classes and its words.
+export function besideIcon(node, name, tone = 'navy', { size = 'md' } = {}) {
+  if (!node || node.parentNode?.classList.contains('k-beside')) return node;
+  const row = el('div', { class: 'k-beside' });
+  node.replaceWith(row);
+  row.append(iconSquare(name, tone, { size }), node);
+  return node;
+}
+// A control that already exists (a tab, a button, a link) gets a small icon before its words.
+export function leadIcon(node, name, { size = 16 } = {}) {
+  if (!node || node.querySelector(':scope > .k-svg')) return node;
+  node.classList.add('k-with-ico');
+  node.prepend(icon(name, { size }));
+  return node;
+}
+/* end: client and owner screens */

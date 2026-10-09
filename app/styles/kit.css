@@ -121,3 +121,102 @@
 }
 @media (prefers-reduced-motion: reduce) { .k-line, .k-add { transition: none; } .k-line:active { transform: none; } }
 @media print { .k-go { display: none; } .k-line, .k-empty { box-shadow: none; border: 1px solid #999; background: #fff; } }
+
+/* client and owner screens */
+/* The additions of the client card, the manager view, the sales pages, the quote builder
+   and the pages the agency's clients open (docs/ops.md, section 53; helpers at the end of
+   app/kit.js). Appended only. Contrast, text on its pill (4.5:1 needed): plain 9.0,
+   ok 5.7, warn 5.9, late 5.15, info 6.19; the plus of a tile (navy on the soft) 12.1. */
+
+/* ── A head that already existed, with the icon square at its start (dressHead) ──
+   A heading and its hint as direct children: the square spans both lines. */
+.k-sidehead { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; align-items: center; }
+.k-sidehead > .k-ico { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+.k-sidehead > :is(h1, h2, h3, div, legend) { grid-column: 2; min-width: 0; }
+.k-sidehead > p { grid-column: 2 / -1; min-width: 0; }
+.k-sidehead > :is(.btn, .k-pill, .k-end) { grid-column: 3; grid-row: 1; justify-self: end; }
+@media (max-width: 480px) {
+  .k-sidehead { column-gap: 10px; }
+  .k-sidehead > .k-ico { inline-size: 36px; block-size: 36px; border-radius: 12px; }
+}
+
+/* ── The status pill ── */
+.k-pill {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill);
+  background: var(--ds-soft); color: var(--ds-ink-2); font-family: var(--ds-font-b); font-size: 13px; font-weight: 600; line-height: 1.3; white-space: nowrap;
+}
+.k-pill::before { content: ''; inline-size: 7px; block-size: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.k-pill-ok { background: var(--ds-ok-soft); color: var(--ds-ok); }
+.k-pill-warn { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.k-pill-late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+.k-pill-info { background: var(--k-blue-soft); color: var(--k-blue); }
+
+/* ── The tile of a kind that can be added (tile) ── */
+.k-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; min-width: 0; }
+.k-tile {
+  position: relative; display: grid; justify-items: start; align-content: start; gap: 2px; min-height: 104px; min-width: 0; inline-size: 100%; padding: 12px;
+  border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-surface); color: var(--ds-ink);
+  font: inherit; text-align: start; cursor: pointer; list-style: none;
+  transition: border-color var(--ds-t-fast), box-shadow var(--ds-t-fast), transform var(--ds-t-fast) var(--ds-ease);
+}
+.k-tile::-webkit-details-marker { display: none; }
+.k-tile > .k-ico { margin-bottom: 8px; }
+.k-tile-plus {
+  position: absolute; inset-block-start: 10px; inset-inline-end: 10px; display: grid; place-items: center; inline-size: 26px; block-size: 26px;
+  border-radius: 50%; background: var(--ds-soft); color: var(--k-navy);
+}
+.k-tile-name { min-width: 0; font-size: 15px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.k-tile-n { font-size: 13px; color: var(--ds-muted); font-variant-numeric: tabular-nums; }
+@media (hover: hover) { .k-tile:hover { border-color: var(--ds-navy); box-shadow: var(--ds-shadow-hover); } .k-tile:hover .k-tile-plus { background: var(--ds-navy); color: var(--ds-on-navy); } }
+.k-tile:active { transform: scale(.98); }
+.k-tile:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; }
+@media (max-width: 480px) { .k-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .k-tile { min-height: 96px; padding: 10px; } }
+
+/* ── The quiet empty line (emptyRow) ── */
+.k-emptyrow {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 52px; padding: 10px 14px;
+  border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-ground); color: var(--ds-muted); text-align: center;
+}
+.k-emptyrow > :is(p, span) { margin: 0; min-width: 0; font-size: 14.5px; line-height: 1.4; color: var(--ds-muted); }
+
+/* ── A small card inside a block, and its head (cardHead) ── */
+.k-card { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-surface); }
+.k-cardhead { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.k-cardhead > :is(h2, h3, h4) { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 15.5px; font-weight: 700; line-height: 1.3; }
+.k-cards-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+@media (max-width: 720px) { .k-cards-2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── A row with an icon square, the key fact, a hint, and one action at the end ── */
+.k-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; min-width: 0; padding: 12px 14px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-surface); }
+.k-row-t { flex: 1 1 200px; min-width: 0; }
+.k-row-t > :first-child { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.k-row-t > .k-hint { font-weight: 400; }
+.k-row > .btn { flex: none; }
+
+/* ── The filled navy button: an area's one main action that is not the screen's pink one ── */
+.btn.k-btn-navy { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); }
+.btn.k-btn-navy:hover { background: var(--ds-navy-2); border-color: var(--ds-navy-2); color: var(--ds-on-navy); }
+/* A link or a text button with a small icon before its words. */
+.k-with-ico { display: inline-flex; align-items: center; gap: 6px; }
+
+@media (prefers-reduced-motion: reduce) { .k-tile { transition: none; } .k-tile:active { transform: none; } }
+@media print {
+  .k-tile-plus { display: none; }
+  .k-tile, .k-card, .k-row, .k-emptyrow, .k-notice { background: #fff; border: 1px solid #999; box-shadow: none; }
+  .k-pill { background: #fff; border: 1px solid #999; color: #000; }
+}
+.k-beside { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.k-beside > :not(.k-ico) { flex: 1 1 auto; min-width: 0; margin-block: 0; }
+/* The row is gone with its sentence. */
+.k-beside:has(> [hidden]) { display: none; }
+.k-beside.k-emptyrow > :not(.k-ico) { flex: 0 1 auto; padding: 0; }
+/* A page's own head (kicker, h1, one line) with a large square. */
+.k-sidehead > .k-ico-lg { grid-row: 1 / span 3; align-self: center; }
+/* The quote builder's own heads (index.html): the number of the step, then the square. */
+.block-head > .k-ico { inline-size: 38px; block-size: 38px; }
+.group-head > .k-h { align-self: center; }
+.notice > .k-ico { flex: none; margin-inline-end: 8px; vertical-align: middle; }
+@media (max-width: 480px) { .block-head > .idx:has(+ .k-ico) { display: none; } }
+/* A fieldset's legend with its square (the details form of the client card). */
+legend.k-h { display: inline-flex; padding-inline: 6px; }
+/* end: client and owner screens */

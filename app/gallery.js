@@ -8,6 +8,12 @@ import { h } from './quote-doc.js';
 import { KINDS, TOKEN, gallerySections, isImage, isVideo, formatSize } from './files-logic.js';
 import { dayText } from './messages-logic.js';
 import { pageToken } from './link-token.js';
+import { iconSquare, headIcon } from './kit.js';
+
+// The look of the kit on the client's gallery (app/kit.js; docs/ops.md, section 53).
+const KIND_LOOK = { deliverable_graphic: ['palette', 'pink'], deliverable_video: ['play', 'orange'], deliverable_highlight: ['target', 'purple'], deliverable_site: ['globe', 'blue'], deliverable_other: ['grid', 'navy'] };
+headIcon(document.getElementById('about-h'), 'info', 'navy', { size: 'md' });
+document.getElementById('empty')?.prepend(iconSquare('image', 'teal', { size: 'lg' }));
 
 const $ = (id) => document.getElementById(id);
 const token = pageToken(); // gallery.html#t=… (and ?t=… of a link sent before 6.10.2026)
@@ -25,7 +31,7 @@ export const CLOSED = {
 function showState(kind) {
   const [title, text] = CLOSED[kind] || CLOSED.error;
   $('page').hidden = true;
-  $('state').replaceChildren(h('h1', {}, title), h('p', {}, text));
+  $('state').replaceChildren(iconSquare('info', 'navy', { size: 'lg' }), h('h1', {}, title), h('p', {}, text));
   $('state').hidden = false;
   document.title = `${title} · astrateg`;
 }
@@ -58,7 +64,7 @@ function render(d) {
   $('gnav').replaceChildren(...(sections.length > 1 ? sections.map((s) => h('a', { href: `#${SECTION_ID(s.kind)}`, class: 'gchip' }, `${s.title} (${s.files.length})`)) : []));
   $('empty').hidden = !!sections.length;
   $('sections').replaceChildren(...sections.map((s) => h('section', { class: 'scard gsec', id: SECTION_ID(s.kind), 'aria-labelledby': `${SECTION_ID(s.kind)}-h` },
-    h('h2', { id: `${SECTION_ID(s.kind)}-h` }, `${s.title} (${s.files.length})`),
+    headIcon(h('h2', { id: `${SECTION_ID(s.kind)}-h` }, `${s.title} (${s.files.length})`), ...(KIND_LOOK[s.kind] || ['folder', 'navy']), { size: 'md' }),
     h('ul', { class: s.kind === 'deliverable_site' || s.kind === 'deliverable_other' ? 'glist' : 'ggrid' }, s.files.map((f, i) => item(f, i, s))))));
   $('state').hidden = true;
   $('page').hidden = false;

@@ -356,10 +356,11 @@ try {
     }
     await quiet.ctx.close();
   });
-  await step('D: the client-file blocks of the client card are as they were (their turn comes with the next screens)', async () => {
+  await step('D: the client-file blocks of the client card took the kit too (section 53): a tile per kind, the same controls', async () => {
     const { page, ctx } = await signedIn('irit', { path: `client.html?id=${cid(4)}`, width: 1280 });
     await page.waitForSelector('#fl-slot .fl-block');
-    assert.equal(await page.locator('#fl-slot .k-ico, #st-slot .k-ico').count(), 0);
+    await page.waitForSelector('#st-slot .k-ico');
+    assert.ok(await page.locator('#fl-slot .fl-add .k-ico').count() >= 4);
     assert.ok(await page.locator('#fl-slot .fl-add').count() >= 4);
     await ctx.close();
   });

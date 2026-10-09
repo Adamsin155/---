@@ -292,6 +292,8 @@ await step('client link shows the same quote', async () => {
   assert.match(t, /97,704 ₪/);
   assert.equal(await client.locator('#s-name').inputValue(), '', 'signer types their own name');
   await shot(client, '05-client-mobile');
+  // The agreement as it prints (kept next to the screenshots, to compare a look change against it).
+  if (OUT) await client.pdf({ path: `${OUT}/05-agreement-print.pdf`, format: 'A4', printBackground: true });
 });
 
 await step('client sign: validation, draw, consent, signed state', async () => {

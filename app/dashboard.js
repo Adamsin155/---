@@ -3,6 +3,7 @@ import {
   sendPasswordReset, consumeRecoveryLink, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT,
 } from './supa.js';
 import { h, formatDate, whatsappLink } from './quote-doc.js';
+import { dressHead, headIcon, besideIcon, leadIcon } from './kit.js';
 import { formatILS } from './pricing.js';
 import { glide, countUp, viewerFor } from './shell.js';
 // Who opens this list (the owners and Irit) and who sees its amounts (the owners), 6.10.2026.
@@ -14,6 +15,14 @@ import { APPROVAL_TEXT, reviseUrl } from './approvals-logic.js';
 import { waitsForSignature, sentForSignatureAt, UNSIGNED_FILTER } from './unsigned-logic.js';
 
 const $ = (id) => document.getElementById(id);
+
+// The look of the kit (app/kit.js; docs/ops.md, section 53): the page's head, the empty
+// list and the dialogs take their icons; the table, its numbers and its words stay.
+dressHead(document.querySelector('.page-head > div'), 'send', 'purple', { size: 'lg' });
+headIcon($('na-h'), 'lock', 'navy', { size: 'md' });
+headIcon($('pw-h'), 'lock', 'navy');
+besideIcon($('empty'), 'inbox', 'navy', { size: 'sm' }).parentNode.classList.add('k-emptyrow');
+leadIcon($('btn-refresh'), 'loop');
 let quotes = [];
 let filter = location.hash === `#${UNSIGNED_FILTER}` ? UNSIGNED_FILTER : 'all';
 let showMoney = false;      // the amounts and their sum: the owners only (seesFinance)

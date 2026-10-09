@@ -9,6 +9,10 @@ import { h } from './quote-doc.js';
 import { TOKEN, STATUS, scriptLabel, linkName } from './scripts-logic.js';
 import { CLOSED_TEXT } from './status-logic.js';
 import { pageToken } from './link-token.js';
+import { iconSquare, headIcon } from './kit.js';
+
+// The look of the kit on the client's scripts page (app/kit.js; docs/ops.md, section 53).
+headIcon(document.getElementById('jump-h'), 'list', 'navy');
 
 const $ = (id) => document.getElementById(id);
 const fill = (el, ...kids) => el.replaceChildren(...kids.flat().filter((k) => k !== null && k !== undefined && k !== false));
@@ -17,7 +21,7 @@ const token = pageToken(); // scripts-view.html#t=… (and ?t=… of a link sent
 function showState(kind) {
   const [title, text] = CLOSED_TEXT[kind] || CLOSED_TEXT.error;
   $('page').hidden = true;
-  fill($('state'), h('h1', {}, title), h('p', {}, kind === 'closed' ? 'התסריטים כבר לא זמינים בקישור הזה.' : text.replace('דף המצב', 'הדף')));
+  fill($('state'), iconSquare('info', 'navy', { size: 'lg' }), h('h1', {}, title), h('p', {}, kind === 'closed' ? 'התסריטים כבר לא זמינים בקישור הזה.' : text.replace('דף המצב', 'הדף')));
   $('state').hidden = false;
   document.title = `${title} · astrateg`;
 }
@@ -53,7 +57,7 @@ function render(d) {
   fill($('scripts'), list.map((s) => h('li', {},
     h('article', { class: 'sitem vscript', id: idOf(s), 'aria-labelledby': `${idOf(s)}-h` },
       h('header', { class: 'vhead' },
-        h('h2', { id: `${idOf(s)}-h` }, label(s), s.title ? h('span', { class: 'vtitle' }, s.title) : null),
+        headIcon(h('h2', { id: `${idOf(s)}-h` }, label(s), s.title ? h('span', { class: 'vtitle' }, s.title) : null), 'script', 'purple', { end: true }),
         s.status === 'draft' ? h('span', { class: 'vtag' }, `${STATUS.draft}: עוד יכול להשתנות`) : null),
       s.body ? h('p', { class: 'vbody' }, s.body) : null,
       s.links?.length ? h('div', { class: 'vlinks' }, h('h3', {}, 'קישור להשראה'),

@@ -388,3 +388,12 @@ a.gt-row-main { text-decoration: none; }
   .gt-more { color: #333; }
   .gt-swatch, .gt-tick, .gt-pm, .gt-grid td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ── client and owner screens: the client's public view only (body.is-share; app/kit.js;
+   docs/ops.md, section 53). Nothing here applies to the staff view. ── */
+.is-share #closed > .k-ico { display: grid; margin: 0 auto 12px; }
+.is-share .gt-hero-text.k-sidehead { column-gap: 14px; }
+.is-share .gt-sec-head h2.k-h { gap: 10px; }
+.is-share .gt-sec-head h2.k-h > .k-ico, .is-share .gt-empty h2.k-h > .k-ico { margin-block: 0; }
+@media print { .is-share .k-ico { display: none !important; } }
+/* ── end: the client's public view ── */
