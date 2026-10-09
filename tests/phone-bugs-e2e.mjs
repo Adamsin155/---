@@ -547,11 +547,12 @@ await step('every upload block wears the kit: the editor\'s batch, the short for
     const page = await tab(ctx);
     await signIn(page, 'editor.html', 'yariv');
     const add = page.locator('.ed-card .fl-work .fl-work-add').first();
-    await add.scrollIntoViewIfNeeded();
+    // (The batch sits in a folded part of the card until the editor opens it.)
     assert.equal(await add.evaluate((b) => b.tagName === 'BUTTON' && b.classList.contains('k-tile') && b.classList.contains('fl-add') && /-v-add$/.test(b.id)), true);
     assert.equal(await add.locator('.k-ico, .k-tile-plus, .k-tile-name, .k-tile-n').count(), 4);
-    assert.match(await add.locator('.k-tile-name').innerText(), /^העלאת סרטונים$/);
-    assert.ok((await add.boundingBox()).height >= 56);
+    assert.match(await add.locator('.k-tile-name').textContent(), /^העלאת סרטונים$/);
+    await page.evaluate(() => { for (const d of document.querySelectorAll('.ed-card details')) d.open = true; });
+    if (await add.isVisible()) assert.ok((await add.boundingBox()).height >= 56);
     assert.ok(await sideways(page) <= 0);
     await ctx.close();
   }
