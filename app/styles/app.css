@@ -645,6 +645,8 @@ dialog.preview[open] { display: flex; flex-direction: column; }
 
 @media (max-width: 760px) {
   html { scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-room, 10px) + 96px); }
+  /* With the app's bottom bar under the price bar (the room is set on the body, shell.css). */
+  html:has(body.has-tabbar) { scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 176px); }
   .start-grid { grid-template-columns: minmax(0, 1fr); }
   /* The four steps fit one row. */
   .stepnav { gap: 2px; padding: 4px; }
