@@ -1,20 +1,25 @@
 /* The client's gallery (gallery.html), on top of status.css: the same brand, phone first. */
 .gnav { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .gchip { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 999px; background: var(--ds-soft); color: var(--purple); font-weight: 600; text-decoration: none; }
+/* The kinds are cards with air between them, as on the status page. */
+#sections { display: grid; gap: 14px; min-width: 0; }
+#sections:empty { display: none; }
 .gsec h2 { margin-bottom: 12px; }
 .ggrid { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (min-width: 560px) { .ggrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.gitem { display: grid; gap: 6px; min-width: 0; }
+/* The actions of the tiles of one row sit on one line, with or without a caption. */
+.gitem { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .gthumb { display: grid; place-items: center; width: 100%; aspect-ratio: 1 / 1; padding: 0; border: 0; border-radius: var(--ds-r-ctl); overflow: hidden; background: var(--ds-ground); cursor: pointer; }
 .gthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .gvideo { background: var(--ink); color: #fff; gap: 4px; align-content: center; }
 .gplay { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--pink); color: var(--ink); font-size: 20px; }
 .gvlabel { font-weight: 600; }
-.gmeta { display: grid; gap: 2px; font-size: 14px; min-width: 0; }
+.gmeta { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; font-size: 14px; min-width: 0; }
+.gmeta .gacts { margin-top: auto; }
 .gname { font-weight: 600; overflow-wrap: anywhere; }
 .gposted { color: var(--muted); font-size: 13px; }
 .gacts { display: flex; flex-wrap: wrap; gap: 0 14px; align-items: center; }
-.gdl, .gpost { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+.gdl, .gpost { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; font-weight: 600; }
 .glist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .grow { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
 .grow:first-child { border-top: 0; padding-top: 0; }

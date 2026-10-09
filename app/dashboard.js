@@ -41,6 +41,8 @@ const STATUS = {
   awaiting: 'ממתין לאישור',
   rejected: 'לא אושר',
 };
+// The tone of each state's pill (the kit's status pill, kit.css).
+const TONE = { sent: 'warn', viewed: 'info', shared: 'plain', seen: 'info', signed: 'ok', expired: 'late', cancelled: 'plain', awaiting: 'warn', rejected: 'late' };
 const OPEN = ['sent', 'viewed', 'shared', 'seen'];
 const APPROVAL = ['awaiting', 'rejected'];
 // View-only quotes have no signing step: they are either shared or seen.
@@ -161,7 +163,7 @@ function renderRows() {
       h('td', { class: 'client', 'data-label': 'חבילה' }, h('span', { dir: 'auto' }, q.tier || ''), h('small', {}, q.influencer || '')),
       showMoney ? h('td', { class: 'amt', dir: 'ltr', 'data-label': 'לחודש' }, formatILS(q.monthly_gross_agorot)) : null,
       h('td', { 'data-label': 'נוצר' }, formatDate(q.created_at), h('small', { class: 'by' }, q.created_by_email || '')),
-      h('td', { 'data-label': 'סטטוס' }, h('span', { class: `pill ${s}` }, STATUS[s], when ? h('small', {}, ` · ${when}`) : null),
+      h('td', { 'data-label': 'סטטוס' }, h('span', { class: `pill k-pill k-pill-${TONE[s] || 'plain'} ${s}` }, STATUS[s]), when ? h('small', { class: 'when' }, h('span', { class: 'k-sep' }, ' · '), when) : null,
         open && q.expires_at ? h('small', { class: 'until' }, `${agreement ? 'לחתימה' : 'בתוקף'} עד ${formatDate(q.expires_at, true)}`) : null),
       h('td', { 'data-label': 'אישור מנהל' }, approvalCell(q)),
       h('td', { class: 'acts-cell' }, h('div', { class: 'acts' },

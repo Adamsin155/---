@@ -34,7 +34,8 @@ a { color: var(--purple); }
   background: var(--ds-surface); border-bottom: 1px solid var(--line);
 }
 .sbar-logo { height: 30px; width: 30px; }
-.sbar-title { font-weight: 600; min-width: 0; }
+/* A long business name: two lines at most, the bar stays a bar (the full name is in the page). */
+.sbar-title { font-weight: 600; min-width: 0; line-height: 1.3; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 
 .smain { max-width: 720px; margin: 0 auto; padding: 16px 16px 48px; display: grid; gap: 14px; }
 .smain:focus { outline: none; }
@@ -58,7 +59,7 @@ a { color: var(--purple); }
 .sbarline span { height: 8px; border-radius: 4px; background: var(--line); }
 .sbarline .is-done { background: var(--ok); }
 .sbarline .is-now { background: var(--pink); }
-.sall summary { cursor: pointer; color: var(--purple); font-weight: 600; min-height: 36px; display: flex; align-items: center; }
+.sall summary { cursor: pointer; color: var(--purple); font-weight: 600; min-height: 44px; display: flex; align-items: center; }
 .stations { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
 .stations li { display: flex; gap: 10px; align-items: flex-start; color: var(--muted); }
 .stations li.is-done { color: var(--ink-2); }

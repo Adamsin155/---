@@ -592,3 +592,78 @@ dialog.preview[open] { display: flex; flex-direction: column; }
 .shell > .ow-noaccess { grid-column: 1 / -1; padding: 20px; }
 .shell > .ow-noaccess p { color: var(--text-2); }
 .shell > .ow-noaccess .btn { min-height: 44px; }
+
+/* ── The builder, checked at 360, 390 and 1280 (9.10.2026) ──────────────
+   A price never parts from its ₪; the fields of a price keep the sign clear of the
+   digits; the tiles and the start cards take the kit's surface (white, a hairline, the
+   navy frame when chosen); the phone's price bar steps aside while the client's details
+   or a long text are typed and when the summary's own buttons are on screen. */
+.tier-price .amount, .tile-price .m, .tile-price .y, .grand-amount, .lines .val, .breakdown dd, .mobilebar .num, .mobilebar small span { white-space: nowrap; }
+.grand { flex-wrap: wrap; }
+.grand-amount { font-size: clamp(26px, 8.4vw, 38px); }
+/* The field is left-to-right inside a right-to-left row: the sign sits at the left, and
+   the digits start after it. */
+.discount-input .input { padding-left: 38px; padding-right: 14px; }
+.tiles { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.tile, .tier label, .inf label { box-shadow: inset 0 0 0 1px var(--ds-line); }
+.tile.is-on, .tier input:checked + label, .inf input:checked + label { box-shadow: none; }
+.tile-title { min-width: 0; overflow-wrap: anywhere; }
+.tile-foot .tag { white-space: normal; }
+.included-title { display: flex; flex-wrap: wrap; gap: 0 8px; min-width: 0; }
+.included-title .nw { white-space: nowrap; }
+.included-title .of { color: var(--muted); }
+.included-head .tag { align-self: start; }
+.summary-pkg, .summary-inf, .lines .name { overflow-wrap: anywhere; min-width: 0; }
+.lines li { border-top: 1px solid var(--line); }
+.lines li:first-child { border-top: 0; }
+.lines .lead { border-bottom: 0; }
+.breakdown.term { border-top-style: solid; border-top-color: var(--line); }
+.dlg-head .close { width: 44px; height: 44px; }
+.dlg-head h2 { min-width: 0; }
+.status-line { display: block; }
+.status-line .dot { display: inline-block; margin-inline-end: 8px; }
+.linkbox .input { min-width: 0; }
+
+/* The start: two cards of the kit (a hairline, the icon square, "onward"). */
+.start-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.start-card {
+  min-height: 0; padding: 20px; gap: 8px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-card); background: var(--ds-ground);
+  font: inherit;
+}
+.start-card:hover { border-color: var(--ds-navy); }
+.start-card:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; }
+.start-card::after { content: none; }
+.start-ico, #start-agreement .start-ico { width: 48px; height: 48px; border-radius: 15px; background: var(--k-bg); color: var(--k-fg); }
+.start-go {
+  position: absolute; inset-inline-end: 18px; top: 20px; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
+  background: var(--ds-surface); color: var(--ds-navy); transition: background-color var(--ds-t-fast), color var(--ds-t-fast);
+}
+@media (hover: hover) { .start-card:hover .start-go { background: var(--ds-navy); color: var(--ds-on-navy); } }
+.start-title { font-size: 22px; margin-top: 8px; }
+.start-foot { border-top-color: var(--ds-line); }
+.revise-note > span { min-width: 0; flex: 1 1 auto; }
+
+@media (max-width: 760px) {
+  html { scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-room, 10px) + 96px); }
+  /* With the app's bottom bar under the price bar (the room is set on the body, shell.css). */
+  html:has(body.has-tabbar) { scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 176px); }
+  .start-grid { grid-template-columns: minmax(0, 1fr); }
+  /* The four steps fit one row. */
+  .stepnav { gap: 2px; padding: 4px; }
+  .stepnav a { flex: 1 1 auto; justify-content: center; gap: 6px; min-height: 44px; padding: 6px 8px; font-size: 13.5px; }
+  .stepnav .n { width: 20px; height: 20px; font-size: 11px; }
+  .stepnav a.to-summary { margin-inline-start: 0; }
+  .tier-top { grid-template-columns: minmax(0, 1fr); }
+  .tier-price .amount { font-size: 30px; }
+  .stepper { grid-template-columns: 44px 52px 44px; height: 46px; }
+  .discount-input { inline-size: min(100%, 180px); }
+  dialog.preview .dlg-head .hint { display: none; }
+  #dlg-share .dlg-foot .btn { flex: 1 1 40%; }
+  #dlg-share .dlg-foot .btn-primary { flex-basis: 100%; order: -1; }
+  .mobilebar { transition: opacity var(--ds-t-fast), transform var(--ds-t-fast) var(--ds-ease), visibility 0s; }
+  .mobilebar .btn { flex: none; }
+  body.at-summary .mobilebar,
+  body:has(#client-form :is(input, textarea):focus) .mobilebar,
+  body:has(main textarea:focus) .mobilebar { opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(12px); }
+}
+@media (max-width: 380px) { .stepnav a:not(.is-active) .n { display: none; } }
