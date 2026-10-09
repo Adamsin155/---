@@ -107,3 +107,16 @@ dialog.apv-share { max-width: min(560px, calc(100vw - 32px)); }
 .deal-custom-qty { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .deal-custom-qty .deal-num, .deal-custom-money .deal-num { max-width: none; }
 .deal-custom-money { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* Fields side by side stand on one grid (docs/ops.md, section 54): the labels share a
+   row and start at its top, the inputs share the next one. (The first field of a card
+   had its own top margin, so it stood higher than its neighbours; and a label that
+   broke into two lines pushed its input down.) */
+.deal-custom-qty, .deal-custom-money { grid-template-rows: auto auto; row-gap: 6px; align-items: end; margin-top: 12px; }
+.deal-sec :is(.deal-custom-qty, .deal-custom-money) > .field { margin: 0; min-width: 0; display: grid; grid-row: span 2; grid-template-rows: subgrid; row-gap: 6px; align-content: end; }
+.deal-sec :is(.deal-custom-qty, .deal-custom-money) > .field > label { margin: 0; align-self: start; overflow-wrap: anywhere; }
+.deal-sec :is(.deal-custom-qty, .deal-custom-money) > .field > .input { inline-size: 100%; min-width: 0; }
+@supports not (grid-template-rows: subgrid) {
+  .deal-sec :is(.deal-custom-qty, .deal-custom-money) > .field { display: flex; flex-direction: column; justify-content: flex-end; }
+  .deal-sec :is(.deal-custom-qty, .deal-custom-money) > .field > label { margin-bottom: 6px; }
+}

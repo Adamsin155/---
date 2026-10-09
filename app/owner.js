@@ -187,6 +187,18 @@ const VIEW_TITLES = {
   shoots: ['טבלת ימי צילום', 'כל הלקוחות הפעילים לפי יום הצילום האחרון שהתקיים: מי שצולם הכי מזמן למעלה, ומתחתם מי שטרם צולם.'],
   archive: ['ארכיון', 'לקוחות שהועברו לארכיון: שחזור, או מחיקה לצמיתות.'],
 };
+// The chosen tab is brought whole into its row, which scrolls sideways on a phone when
+// the tabs do not fit (docs/ops.md, section 54). Only the row moves, never the page.
+function showTab(tab) {
+  const row = tab?.parentElement;
+  if (!row || row.scrollWidth <= row.clientWidth + 1) return;
+  const r = row.getBoundingClientRect();
+  const t = tab.getBoundingClientRect();
+  if (!t.width) return;
+  const pad = 5;
+  if (t.left < r.left + pad) row.scrollLeft -= r.left + pad - t.left;
+  else if (t.right > r.right - pad) row.scrollLeft += t.right - (r.right - pad);
+}
 function setView(v, focus = false) {
   view = tabsShown().includes(v) ? v : tabsShown()[0];
   const [title, sub] = VIEW_TITLES[view];
@@ -195,6 +207,7 @@ function setView(v, focus = false) {
   document.title = title + ' · astrateg';
   for (const t of TABS) {
     $(`tab-${t}`).setAttribute('aria-selected', String(t === view));
+    if (t === view) showTab($(`tab-${t}`));
     $(`tab-${t}`).tabIndex = t === view ? 0 : -1;
     $(`view-${t}`).hidden = t !== view;
   }

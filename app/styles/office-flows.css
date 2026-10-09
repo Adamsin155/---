@@ -165,3 +165,26 @@
 .of-list > .empty.k-empty, .of-load > .empty.k-empty { padding: 20px 16px; margin: 0; }
 .of-list > .empty.k-empty > p { font-size: 15.5px; }
 @media (max-width: 480px) { .of-head.k-h > .k-ico-md { inline-size: 36px; block-size: 36px; border-radius: 12px; } }
+
+/* ── Ilai's cards in the look of the kit (docs/ops.md, section 54) ── */
+.il-list { display: grid; gap: 8px; padding-top: 4px; }
+.il-list > .il-card { display: grid; gap: 10px; min-width: 0; padding: 14px; border: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
+.il-list > .more-row { border-top: 0; padding: 2px 0 0; }
+.il-card > * { min-width: 0; }
+.il-head { gap: 6px 10px; }
+.il-head > .k-ico { flex: none; }
+.il-head > .wclient { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 15.5px; }
+.il-head > .tag { margin-inline-start: 0; }
+.il-title { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-ground); color: var(--ds-ink-2); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.il-head > .muted { white-space: nowrap; }
+.il-links .btn-text { min-height: 44px; }
+.il-go .btn { min-height: 44px; padding-inline: 18px; }
+.il-go .btn.k-btn-navy:disabled { background: var(--ds-soft-2); border-color: transparent; color: var(--ds-muted); opacity: 1; cursor: default; }
+.il-lock { display: flex; align-items: center; gap: 6px; margin: -4px 0 0; color: var(--ds-muted); font-size: 13.5px; }
+.il-lock > .k-svg { flex: none; }
+/* The clients in landing: one counted line a kind, and the same cards under it. */
+.il-fold { margin-top: 8px; min-width: 0; }
+.il-fold > summary { list-style: none; cursor: pointer; }
+.il-fold > summary::-webkit-details-marker { display: none; }
+.il-fold[open] .il-fold-open, .il-fold:not([open]) .il-fold-close { display: none; }
+.il-fold > .il-list-quiet { margin-top: 8px; }

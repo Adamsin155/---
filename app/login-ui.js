@@ -255,7 +255,10 @@ function mountLogin() {
   function fit() {
     if (block.hidden && !block.classList.contains('lg-won')) return;
     const tall = view ? view.height : window.innerHeight;
-    block.classList.toggle('lg-kb', tall < 480 || window.innerHeight - tall > 120);
+    const kb = tall < 480 || window.innerHeight - tall > 120;
+    block.classList.toggle('lg-kb', kb);
+    // Very little is left (a phone on its side): the fields and the button alone.
+    block.classList.toggle('lg-tight', kb && tall < 380);
     if (view) {
       block.style.setProperty('--lg-vh', `${Math.round(view.height)}px`);
       block.style.setProperty('--lg-top', `${Math.round(view.offsetTop)}px`);
