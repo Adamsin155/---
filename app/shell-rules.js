@@ -144,7 +144,7 @@ export function profileOf(viewer, pathname, hash = '', search = '', saved = null
   const page = pageOf(pathname);
   if (page === 'owner.html') return 'manager';
   if (page === 'clients.html') {
-    if (!hash || hash === '#mine') return 'mine';
+    if (isMineHash(hash)) return 'mine';
     return managerTabs(viewer).includes(hash.slice(1)) ? 'manager' : last;
   }
   const { id } = currentOf(menuOf(viewer), pathname, hash, search);
@@ -192,6 +192,8 @@ export function groupsOf(items, viewer) {
   return { daily: items.filter((it) => daily.includes(it.id)), rest: items.filter((it) => !daily.includes(it.id)) };
 }
 
+// "המשימות שלי" on clients.html: no hash, #mine, and its "באיחור" tab (#late; docs/ops.md, section 50).
+export const isMineHash = (hash) => !hash || hash === '#mine' || hash === '#late';
 const split = (href) => { const [page, hash = ''] = String(href).split('#'); return { page: page || 'index.html', hash: hash ? `#${hash}` : '' }; };
 export const pageOf = (pathname) => String(pathname || '').split('/').pop() || 'index.html';
 // Pages that belong to a client: the menu marks the clients list as where they are.
@@ -213,7 +215,7 @@ export function currentOf(items, pathname, hash = '', search = '') {
   }
   if (same.length > 1) {
     // clients.html holds "המשימות שלי" (no hash, or #mine) and the lists (#clients, #control …).
-    const mine = !hash || hash === '#mine';
+    const mine = isMineHash(hash);
     const hit = same.find((it) => (split(it.href).hash === '#mine') === mine) || same[0];
     return { id: hit.id, exact: true };
   }
@@ -229,7 +231,7 @@ export function inMenu(items, pathname, hash = '') {
     const s = split(it.href);
     if (s.page !== page) return false;
     if (page !== 'clients.html') return true;         // owner.html, owner.html#all: the same screen
-    return (s.hash === '#mine') === (!hash || hash === '#mine');
+    return (s.hash === '#mine') === isMineHash(hash);
   });
 }
 

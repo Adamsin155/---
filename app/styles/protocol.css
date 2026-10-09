@@ -467,32 +467,6 @@ dialog.dlg-wide .dlg-body { max-height: calc(100vh - 200px); overflow: auto; dis
 .tag.tag-warn { color: var(--warn); background: var(--warn-soft); border: 1px solid var(--warn-line); }
 /* A client from the old system that was not activated yet (docs/ops.md, section 41): quiet on purpose. */
 .tag.tag-landing { color: var(--ds-muted); background: transparent; border: 1px dashed var(--ds-line-strong); }
-.land-line {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px;
-  min-height: 48px; padding: 8px 16px; margin-bottom: 12px; border-radius: var(--ds-r-item);
-  background: var(--ds-soft); color: var(--ds-ink); text-decoration: none;
-}
-.land-line span { color: var(--ds-navy-text); font-weight: 600; }
-.land-line:hover { background: var(--ds-soft-2); }
-/* Work that waits on another page: one counted line, and the whole row is the link
-   (docs/ops.md, section 46). With a clock it sits in its group of the list. Of a client
-   in landing it sits under the landing line, quiet: no colour, the dashed edge of the
-   "בקליטה" tag. */
-.wproc.flow-card { border: 0; padding: 0; background: transparent; }
-.flow-card .flow-line {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px;
-  min-height: 48px; padding: 8px 14px; border-radius: var(--radius-md);
-  background: var(--ds-surface); color: var(--ds-ink); text-decoration: none;
-  border-inline-start: 3px solid var(--ds-navy-text);
-}
-.flow-card .flow-line strong { flex: 1 1 180px; min-width: 0; font-weight: 600; font-size: 14.5px; line-height: 1.4; }
-.flow-card .flow-go { color: var(--ds-navy-text); font-weight: 600; font-size: 14px; white-space: nowrap; }
-.flow-card .flow-line:hover { background: var(--ds-soft); }
-.wprocs:not(:has(> .wc)) > .flow-card { padding: 6px 0; }
-.land-line.is-landing { background: transparent; border: 1px dashed var(--ds-line-strong); }
-.land-line.is-landing strong { flex: 1 1 180px; min-width: 0; font-weight: 500; color: var(--ds-ink-2); }
-.land-line.is-landing:hover { background: var(--ds-soft); }
-#land-line .land-line + .land-line { margin-top: -4px; }
 .land-quiet-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .land-quiet-list .wclient { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
 .land-quiet-list ul { margin: 0; padding-inline-start: 18px; color: var(--ds-ink-2); }
@@ -831,8 +805,39 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
    outlined here (on the white of a dialog the plain chip has no edge). */
 .shoot-free { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .shoot-free .hint { flex: 1 1 100%; margin: 0; }
-.shoot-free .chip, .shoot-oks .chip { min-height: 44px; border: 1px solid var(--ds-edge); background: var(--ds-surface); color: var(--text); }
+.shoot-free .chip, .shoot-oks .chip { min-height: 44px; border: 1px solid var(--ds-edge); background: var(--ds-surface); color: var(--text); max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; text-align: start; line-height: 1.3; }
 .shoot-oks { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .shoot-oks legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
 .shoot-oks .chip[aria-pressed="true"] { background: var(--ds-ok-soft); border-color: var(--ds-ok); color: var(--ds-ok); font-weight: 600; opacity: 1; }
 .shoot-oks .chip[aria-pressed="true"]::before { content: '✓ '; content: '✓ ' / ''; }
+
+/* ── The "באיחור" tab, the solid counted lines and the kit on "המשימות שלי" (docs/ops.md, section 50) ── */
+#land-line { display: grid; gap: 8px; margin-bottom: 12px; }
+#land-line[hidden] { display: none; }
+.wproc.flow-card { border: 0; padding: 0; background: transparent; }
+.wprocs:not(:has(> .wc)) > .flow-card { padding: 6px 0; }
+/* The icon square of a group heading: added after the words, drawn before them. */
+.k-ico-first { order: -1; }
+.wgroup-h.k-h { gap: 8px; font-size: 16px; }
+.wgroup-h.k-h > .sicon { display: none; }
+/* The tab: the late colour, with how many. Text on the soft pink 5.15:1; chosen: ink on the pink 4.67:1 (bold). */
+.tab-late { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--ds-hot-soft); color: var(--ds-hot-text); font-weight: 700; }
+.tab-late[hidden], .tab-n[hidden] { display: none; }
+.tab-late:hover { color: var(--ds-hot-text); }
+.tab-n { display: inline-grid; place-items: center; min-inline-size: 22px; block-size: 22px; padding: 0 6px; border-radius: var(--ds-r-pill); background: var(--ds-hot); color: var(--ds-on-hot); font-family: var(--ds-font-b); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.tab-late[aria-selected='true'] { background: var(--ds-hot); color: var(--ds-on-hot); }
+.tab-late[aria-selected='true'] .tab-n { background: var(--ds-navy); color: var(--ds-on-navy); }
+.tab-late[aria-selected='true']:focus-visible { outline-color: var(--ds-navy); }
+/* The opened tab: the panel of "המשימות שלי" with its list alone. */
+#view-mine.is-late > :not(#mine-list) { display: none !important; }
+#view-mine.is-late .k-head { padding: 14px 0 12px; }
+#view-mine.is-late .wgroup-h { margin-top: 4px; }
+.wproc.late-note { border: 0; padding: 0 2px; background: transparent; }
+.late-note .hint { margin: 0; }
+.late-note a { display: inline-flex; align-items: center; min-height: 44px; }
+/* Four tabs on a phone: a label of two words breaks into two lines, so all four are seen at once (no sideways scroll of the row). */
+@media (max-width: 480px) {
+  .tabs { gap: 2px; }
+  .tab { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.15; padding: 6px 4px; font-size: 13.5px; overflow-wrap: anywhere; }
+  .tab-late { flex: 1 1 0; gap: 4px; }
+}

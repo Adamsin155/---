@@ -1,10 +1,10 @@
 // The screenshots of docs/ops.md section 50 (the "באיחור" tab, the solid counted lines,
-// the shared kit, and the two fixes on "לפני יום צילום"), against tests/flow-world.mjs
+// the shared kit, and the two fixes on "לפני יום צילום"), against tests/late-world.mjs
 // (an invented office: no real client data), at 390px and 1280px.
 // Run: npx http-server -p 8080 -s -c-1 . &  then  node docs/design/late-tab/shots.mjs <before|after>
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
-import { NOW, SUPA, emailOf, flowWorld, makeFlowFake, cid } from '../../../tests/flow-world.mjs';
+import { NOW, SUPA, emailOf, lateWorld, makeFlowFake, cid } from '../../../tests/late-world.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const TAG = process.argv[2] || 'after';
@@ -16,7 +16,7 @@ const settle = async (page) => { await page.waitForLoadState('networkidle').catc
 async function open(role, w, viewport, phone, path, ready) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, isMobile: phone, hasTouch: phone, deviceScaleFactor: phone ? 2 : 1 });
   await ctx.clock.install({ time: NOW });
-  await ctx.route(`${SUPA}/**`, makeFlowFake(flowWorld()).route);
+  await ctx.route(`${SUPA}/**`, makeFlowFake(lateWorld()).route);
   const page = await ctx.newPage();
   await page.goto(`${BASE}${path}`);
   await page.fill('#lg-email', emailOf(role));
@@ -79,7 +79,7 @@ for (const [w, viewport, phone] of SIZES) {
     const { ctx, page } = await open('irit', w, viewport, phone, 'clients.html#mine', '#view-mine:not([hidden])');
     const b = page.locator('#mine-list [data-need*="shoot_at"] button').first();
     if (await b.count()) {
-      await b.click();
+      await b.evaluate((el) => el.click());
       await page.waitForSelector('#dlg-shoot[open]');
       await settle(page);
       await shot(page, 'dlg-shoot', w);

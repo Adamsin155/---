@@ -19,6 +19,8 @@
   min-height: 40px; padding: 6px 16px; border-radius: 999px; border: 0;
   background: var(--ds-surface); color: var(--text-2); cursor: pointer; font-size: 14px;
   transition: color .25s, background-color .25s;
+  /* A chip grows with its words and never leaves its row (section 50). */
+  max-inline-size: 100%; overflow-wrap: anywhere;
 }
 .chip:hover { color: var(--text); background: var(--panel-2); }
 .chip[aria-pressed='true'] { background: var(--ds-navy); color: var(--ds-on-navy); font-weight: 600; }

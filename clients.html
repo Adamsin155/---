@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="app/styles/staff-tasks.css">
   <link rel="stylesheet" href="app/styles/metricool-connect.css">
   <link rel="stylesheet" href="app/styles/files.css">
+  <link rel="stylesheet" href="app/styles/kit.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -96,6 +97,8 @@
 
       <div class="tabs" role="tablist" aria-label="תצוגה">
         <button type="button" role="tab" class="tab" id="tab-mine" aria-controls="view-mine">המשימות שלי</button>
+        <!-- "באיחור": only while this person holds something late, with how many (docs/ops.md, section 50). It shows the same panel, with the late items alone. -->
+        <button type="button" role="tab" class="tab tab-late" id="tab-late" aria-controls="view-mine" hidden><span class="tab-t">באיחור</span><span class="tab-n" id="tab-late-n"></span></button>
         <button type="button" role="tab" class="tab" id="tab-clients" aria-controls="view-clients">לקוחות</button>
         <button type="button" role="tab" class="tab" id="tab-control" aria-controls="view-control">בקרה יומית</button>
         <button type="button" role="tab" class="tab" id="tab-performance" aria-controls="view-performance">ביצועים</button>

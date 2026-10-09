@@ -1642,6 +1642,9 @@ $('round-form').addEventListener('submit', async (e) => {
   const before = roundEditing ? rounds.find((r) => r.n === roundEditing)?.shoot_at : null;
   const asked = at && +new Date(at) !== +new Date(before || 0) ? await confirmShootDay({ shootAt: at, own: before, me }) : { ok: true, note: null };
   if (!asked.ok) { $('round-at').focus(); return; }
+  // The round had a date and the field is empty: clearing is asked about, not saved quietly.
+  const clearing = !!roundEditing && !!before && !at;
+  if (clearing && !confirm(clearQuestion([`מועד הצילום של סבב ${roundEditing}`]))) { $('round-at').focus(); return; }
   $('round-submit').disabled = true;
   try {
     client = await updateClient(id, { rounds: next });
@@ -1653,7 +1656,7 @@ $('round-form').addEventListener('submit', async (e) => {
     if (!roundEditing) {
       toast(`נוסף סבב צילום ${n}. תהליך 11 (קביעת יום צילום) פתוח אצל עירית.`);
       document.getElementById(`r${n}-p11`)?.scrollIntoView({ block: 'start' });
-    } else toast('הסבב נשמר.');
+    } else toast(clearing ? 'הסבב נשמר. מועד הצילום שלו נוקה.' : 'הסבב נשמר.');
   } catch (err) {
     showErr('round-err', `הסבב לא נוסף. ${errorText(err)}`);
   }
@@ -1823,6 +1826,10 @@ async function loadHistory() {
 const edDlg = dialog('dlg-edit');
 // The date fields are Israel time on every device.
 const toLocal = (v) => inputValueIL(v);
+// The dates of the edit dialog that can be emptied, and the question asked before one is
+// (docs/ops.md, section 50: a date is never cleared as a silent part of "שמירה").
+const CLEARABLE = [['char_at', 'ed-char-at', 'מועד פגישת האפיון'], ['shoot_at', 'ed-shoot-at', 'מועד יום הצילום'], ['contract_end', 'ed-contract-end', 'תאריך סיום החוזה']];
+function clearQuestion(labels) { return `ניקוי המועד: ${labels.join(', ')}.\nהשדה ריק, ולכן המועד שהיה שמור יימחק מכרטיס הלקוח. לנקות?`; }
 const fromLocal = (v) => fromInputIL(v)?.toISOString() || null;
 const DELIV_FIELDS = [...DELIVERABLES.map((x) => [x.key, x.label]), ['shoot_days', 'ימי צילום']];
 fill($('ed-deliv'), ...DELIV_FIELDS.map(([k, l]) => h('div', { class: 'field' },
@@ -1919,6 +1926,9 @@ $('ed-form').addEventListener('submit', async (e) => {
   const shootMoved = !!newShoot && +new Date(newShoot) !== +new Date(client.shoot_at || 0);
   const asked = shootMoved ? await confirmShootDay({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value), own: client.shoot_at, me }) : { ok: true, note: null };
   if (!asked.ok) { $('ed-shoot-at').focus(); return; }
+  // A date that was saved and whose field is now empty: "ניקוי המועד" is asked by name.
+  const cleared = CLEARABLE.filter(([f, input]) => client[f] && !$(input).value);
+  if (cleared.length && !confirm(clearQuestion(cleared.map(([, , label]) => label)))) { $(cleared[0][1]).focus(); return; }
   $('ed-submit').disabled = true;
   try {
     client = await updateClient(id, {
@@ -1932,7 +1942,7 @@ $('ed-form').addEventListener('submit', async (e) => {
     if (asked.note) await noteDateChange(id, 'shoot_at', null, newShoot, asked.note);
     edDlg.close();
     render();
-    toast('הפרטים נשמרו.');
+    toast(cleared.length ? `הפרטים נשמרו. נוקה: ${cleared.map(([, , label]) => label).join(', ')}.` : 'הפרטים נשמרו.');
   } catch (err) {
     fail(errorText(err));
   }
