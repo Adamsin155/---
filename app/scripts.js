@@ -272,7 +272,7 @@ function linksPart(s) {
     h('div', { class: 'sc-link-add' },
       h('label', { class: 'sr-only', for: `${sid}-link` }, `קישור להשראה ל${scriptLabel(s.n)}`),
       input,
-      h('button', { type: 'button', class: 'btn btn-sm', id: `${sid}-link-add`, onclick: add }, 'הוספה')),
+      h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${sid}-link-add`, onclick: add }, 'הוספה')),
     h('p', { class: 'err', id: `${sid}-link-err`, hidden: true }));
 }
 function linkList(s) {

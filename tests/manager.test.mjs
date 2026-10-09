@@ -137,22 +137,17 @@ test('which profile a page is shown in: a manager screen by its address opens th
   assert.deepEqual(Object.keys(PERSONAL).sort(), ['irit', 'lior', 'ofir', 'owner']);
 });
 
-test('where each one lands: on "המשימות שלי" (null), or on the manager view when that profile was chosen; the editors and Eli as before', () => {
-  // The owners, Ofir and Lior start in the personal profile (6.10.2026): no first screen of their own any more.
-  assert.equal(firstScreenOf(null, OWNER), null);
-  assert.equal(firstScreenOf(null, OWNER, 'manager'), 'owner.html');
-  assert.equal(firstScreenOf(null, OWNER, 'mine'), null);
-  assert.equal(firstScreenOf('irit', v('irit'), 'mine'), null);
-  assert.equal(firstScreenOf('irit', v('irit'), 'manager'), 'owner.html');
-  assert.equal(firstScreenOf('ofir', v('ofir'), 'mine'), null);
-  assert.equal(firstScreenOf('ofir', v('ofir'), null), null);
-  assert.equal(firstScreenOf('ofir', v('ofir'), 'manager'), 'owner.html');
-  assert.equal(firstScreenOf('lior', v('lior'), 'mine'), null);
-  assert.equal(firstScreenOf('lior', v('lior'), 'manager'), 'owner.html');
-  // The editors, Eli and Ilai have no profiles: a stored 'manager' changes nothing.
-  assert.equal(firstScreenOf('nadia', v('nadia', 'own'), 'manager'), 'editor.html');
-  assert.equal(firstScreenOf('eli', v('eli', 'own'), 'manager'), 'shoot.html');
-  assert.equal(firstScreenOf('ilai', v('ilai', 'own'), 'manager'), null);
+// The owner's rule of 9.10.2026 (docs/ops.md, section 54): everyone starts on "המשימות שלי"
+// in the personal profile. Nobody is sent to the manager view by a remembered choice, and the
+// editors and Eli are no longer sent to editor.html / shoot.html. Only the field sales leave
+// clients.html (they have no "המשימות שלי").
+test('where each one lands: everyone on "המשימות שלי" (null), whatever profile was chosen before; only the field sales go to their page', () => {
+  for (const mode of [undefined, null, 'mine', 'manager']) {
+    assert.equal(firstScreenOf(null, OWNER, mode), null);
+    for (const who of ['irit', 'ofir', 'lior']) assert.equal(firstScreenOf(who, v(who), mode), null, who);
+    for (const who of ['nadia', 'yariv', 'anna', 'nirel', 'eli', 'ilai']) assert.equal(firstScreenOf(who, v(who, 'own'), mode), null, who);
+    for (const who of ['stav', 'amos']) assert.equal(firstScreenOf(who, v(who, 'own'), mode), 'deal.html', who);
+  }
 });
 
 // ── The contract summary ─────────────────────

@@ -135,3 +135,11 @@
 .sc-panel > h2.k-h { gap: 12px; }
 .sc-panel > h2.k-h > .k-ico { margin-block: 0; }
 #sc-side summary.k-h { gap: 10px; }
+
+/* The inspiration links in the look of the kit (docs/ops.md, section 54): what was added
+   is a tidy row each, nothing yet is the soft box, and "הוספה" is the filled action. */
+.sc-linklist { gap: 6px; }
+.sc-linklist li { padding: 2px 12px; border-radius: var(--ds-r-ctl); background: var(--ds-ground); }
+.sc-linklist a { flex: 1 1 auto; }
+.sc-nolinks { padding: 10px 14px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-ground); }
+.sc-link-add .btn { padding-inline: 18px; }

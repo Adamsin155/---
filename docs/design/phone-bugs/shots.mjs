@@ -74,7 +74,7 @@ const SHOTS = {
         await page.waitForTimeout(200);
         await shot(page, 'bug5-end-of-page');
       } else {
-        await part(page, '#ow-all, #view-all, .ow-view:not([hidden])', 'bug6-landing-tag-rows', 900);
+        await part(page, 'li:has(.tag-landing)', 'bug6-landing-pill', 300);
       }
       await ctx.close();
     }
@@ -85,7 +85,7 @@ const SHOTS = {
       const { page, ctx } = await open('ilai', 'clients.html', { viewport });
       await page.waitForSelector('#mine-list');
       await settle(page);
-      await shot(page, `bug7-ilai-${name}`, { fullPage: true });
+      await part(page, '.g-ilai', `bug7-ilai-cards-${name}`, 1500);
       await ctx.close();
     }
   },
@@ -96,7 +96,7 @@ const SHOTS = {
     const custom = page.locator('input[type=radio][value=custom]').first();
     if (await custom.count()) await custom.check({ force: true });
     await page.waitForTimeout(300);
-    await part(page, '#deal-custom, .deal-custom', 'bug8-deal-fields');
+    await part(page, '#d-custom', 'bug8-deal-fields');
     await page.evaluate(() => scrollTo(0, 500));
     await page.waitForTimeout(200);
     await shot(page, 'bug3-deal-scrolled');
@@ -107,38 +107,37 @@ const SHOTS = {
     {
       const { page, ctx } = await open('nadia', 'editor.html');
       await settle(page);
-      await shot(page, 'bug9-editor', { fullPage: true });
+      await part(page, '.ed-card .fl-work', 'bug9-editor-upload', 700);
       await ctx.close();
     }
     {
       const { page, ctx } = await open('ofir', 'qa.html');
       await settle(page);
-      await shot(page, 'bug9-qa', { fullPage: true });
       await ctx.close();
     }
     {
-      const { page, ctx } = await open('ofir', `intake.html?id=${cid(4)}`);
+      const { page, ctx } = await open('ofir', `intake.html?id=${cid(4)}#form`);
       await settle(page);
-      await part(page, '.fl-block, #fl-slot, [id^=fl-]', 'bug9-intake-files');
+      await part(page, '#files-materials', 'bug9-intake-short-form');
+      await ctx.close();
+    }
+    {
+      const { page, ctx } = await open('ilai', `intake.html?id=${cid(4)}`);
+      await settle(page);
+      await part(page, '#files-block', 'bug9-intake-read-materials');
       await ctx.close();
     }
     {
       const { page, ctx } = await open('irit', `client.html?id=${cid(4)}`);
       await page.waitForSelector('#fl-slot .fl-block').catch(() => {});
       await settle(page);
-      await part(page, '#fl-slot', 'bug9-card-files', 2400);
-      await ctx.close();
-    }
-    {
-      const { page, ctx } = await open('ilai', `gantt.html?id=${cid(4)}`);
-      await settle(page);
-      await shot(page, 'bug9-gantt', { fullPage: true });
+      await part(page, '.fl-gallery', 'bug9-card-gallery');
       await ctx.close();
     }
     {
       const { page, ctx } = await open('lior', `scripts.html?id=${cid(4)}`);
       await settle(page);
-      await shot(page, 'bug9-scripts', { fullPage: true });
+      await part(page, '.sc-links', 'bug9-scripts-inspiration-link');
       await ctx.close();
     }
   },
