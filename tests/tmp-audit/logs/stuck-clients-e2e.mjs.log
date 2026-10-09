@@ -1,8 +1,0 @@
-ok - A: process 3 says what is missing; ticking what can be ticked does not make it leave
-ok - A: the date is set from the card in three taps, through the client's own fields; then the card leaves
-ok - A: a client in landing and imported history ask for no date
-ok - B: Irit has one counted line for the contracts that wait for a signature, and it opens the list on them
-ok - B: with one contract the line names it; with none there is no line; nobody else gets one
-ok - B: the owners see them in the daily control, under "חתימות"
-
-stuck-clients: 6 steps passed
