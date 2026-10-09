@@ -212,22 +212,26 @@ await step('a manager screen opened by its address opens in the manager profile;
   await l.ctx.close();
 });
 
-await step('the choice is remembered in the browser; a sign-in starts in the personal profile', async () => {
+// Since 9.10.2026 (docs/ops.md, section 54) the choice lives in the tab: a new tab, a new
+// launch of the installed app and a sign-in all start in the personal profile.
+await step('the choice is kept inside the tab; a new tab (the installed app starting) and a sign-in start in the personal profile', async () => {
   const { page, ctx } = await open('owner');
   await page.waitForSelector('#profile-switch');
   await page.click('#profile-switch');
   await page.waitForURL(/owner\.html#now$/);
-  // A new tab of the same browser (the installed app starting): the profile last chosen.
+  // In the same tab a client's card keeps the choice.
+  await page.goto(`${BASE}clients.html#clients`);
+  await page.locator('#client-list a.crow').first().click();
+  await page.waitForURL(/client\.html\?id=/);
+  await page.waitForSelector('#profile-switch[data-to="mine"]');
+  assert.equal(await page.getAttribute('#side-clients', 'aria-current'), 'true');
+  // A new tab of the same browser (the installed app starting): the home, in the personal profile.
   const again = await ctx.newPage();
   await again.goto(`${BASE}clients.html`);
-  await again.waitForURL(/owner\.html$/);
-  await again.waitForSelector('#profile-switch[data-to="mine"]');
-  // A client's card keeps it too.
-  await again.goto(`${BASE}clients.html#clients`);
-  await again.locator('#client-list a.crow').first().click();
-  await again.waitForURL(/client\.html\?id=/);
-  await again.waitForSelector('#profile-switch[data-to="mine"]');
-  assert.equal(await again.getAttribute('#side-clients', 'aria-current'), 'true');
+  await again.waitForSelector('#profile-switch[data-to="manager"]');
+  await again.waitForSelector('#view-mine:not([hidden])');
+  assert.match(again.url(), /clients\.html(#mine)?$/);
+  assert.equal(await again.evaluate(() => localStorage.getItem('astrateg.profile')), null, 'nothing is kept for the browser');
   // Signing out and in again: the personal profile, on "המשימות שלי".
   await again.goto(`${BASE}clients.html#clients`);
   await again.waitForSelector('#btn-logout:visible');
@@ -425,7 +429,11 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\'; Ir
   await i.ctx.close();
 
   for (const role of ['lior', 'ofir', 'ilai', 'nadia', 'eli']) {
-    const x = await open(role, { path: 'quotes.html' });
+    // Signed in, then the page by its address. (A sign-in ON a page that is not theirs takes
+    // them home instead of showing the refusal: docs/ops.md, section 54; tests/phone-bugs-e2e.mjs.)
+    const x = await open(role);
+    await x.page.waitForSelector('#view-mine:not([hidden])');
+    await x.page.goto(`${BASE}quotes.html`);
     await x.page.waitForSelector('#no-access:not([hidden])');
     await settle(x.page);
     assert.equal(await x.page.innerText('#na-h'), 'אין לך גישה לעמוד הזה', role);
@@ -497,7 +505,7 @@ await step('a phone: the button is 44px high and in the same place on every page
     // The bar: the personal screens; the owners and Ofir need no "עוד".
     const bar = await page.locator('#side-list > .side-link:visible').allInnerTexts();
     // The builder's long name is short in the bar ("הצעה וחוזה"); the link keeps the full name for a screen reader.
-    const BAR = { owner: ['המשימות שלי', 'לקוחות', 'הצעה וחוזה', 'הצעות שנשלחו'], lior: ['המשימות שלי', 'לקוחות', 'החלטות', 'עוד'], ofir: PERSONAL.ofir, irit: ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'עוד'] };
+    const BAR = { owner: ['המשימות שלי', 'לקוחות', 'הצעה וחוזה', 'הצעות שנשלחו'], lior: ['המשימות שלי', 'לקוחות', 'החלטות', 'עוד'], ofir: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר'], irit: ['המשימות שלי', 'לקוחות', 'לפני צילום', 'עוד'] };
     assert.deepEqual(bar.map((t) => t.trim()), BAR[role], role);
     if (role === 'owner') assert.equal(await page.getAttribute('#side-quote', 'aria-label'), 'הצעה חדשה והכנת חוזה');
     for (const lines of await page.locator('#side-list > .side-link:visible .side-t').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight))))) assert.ok(lines <= 2, `${role}: a bar entry runs ${lines} lines`);
