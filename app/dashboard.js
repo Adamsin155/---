@@ -278,7 +278,7 @@ $('lg-forgot').addEventListener('click', async (e) => {
     btn.disabled = false;
   }
 });
-$('btn-logout').addEventListener('click', async () => { resetMode(); await signOutHere(); await boot(); });
+$('btn-logout').addEventListener('click', async () => { resetMode(); forgetPlace(); await signOutHere(); await boot(); });
 $('btn-refresh').addEventListener('click', loadQuotes);
 
 const pwDialog = $('dlg-password');

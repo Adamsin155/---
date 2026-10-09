@@ -128,7 +128,9 @@ test('every sign-in form asks the same rule, and the sign-out forgets the place'
     assert.match(read(f), /loginDoor\.leave\(\)/, f);
   }
   assert.match(read('builder.js'), /if \(denied\) \{ const home = /, 'the builder dialog: whoever may not build goes home');
-  assert.match(read('supa.js'), /clearDeviceDrafts\(\);\n\s*forgetPlace\(\);/, 'signOutHere');
+  for (const f of ['protocol-ui.js', 'dashboard.js']) assert.match(read(f), /resetMode\(\); forgetPlace\(\); await signOutHere\(\)/, `${f}: the sign-out`);
+  // Not from supa.js: the client's passwords form loads it, and only its own short list of files (section 36).
+  assert.doesNotMatch(read('supa.js'), /import [^;]*visit\.js/);
   // The installed app starts on the home.
   const manifest = JSON.parse(readFileSync(new URL('../clients.webmanifest', import.meta.url), 'utf8'));
   assert.equal(manifest.start_url, '/clients.html#mine');

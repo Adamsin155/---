@@ -503,7 +503,12 @@ await step('Lior reads it (no payouts link); Irit, Ofir and an editor have no ac
   for (const who of ['irit', 'ofir', 'nadia']) {
     const c = await newContext();
     const page = await newPage(c);
-    await signIn(page, 'insights.html', `${who}@astrateg.test`);
+    // Signed in at home, then this page by its address: a sign-in ON a page that is not theirs
+    // takes the person home instead of showing the refusal (docs/ops.md, section 54).
+    await signIn(page, 'clients.html', `${who}@astrateg.test`);
+    await page.waitForSelector('#app-side');
+    await page.waitForFunction(() => !document.documentElement.hasAttribute('data-boot'));
+    await page.goto(`${BASE}insights.html`);
     await page.waitForSelector('#no-access:not([hidden])');
     assert.equal(await page.isHidden('#in-page'), true, who);
     assert.equal(await page.locator('.bar-row').count(), 0, who);

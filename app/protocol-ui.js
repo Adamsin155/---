@@ -254,7 +254,7 @@ export function mountSession(onReady) {
     try { await sendPasswordReset(email); $('lg-msg').textContent = RESET_SENT; $('lg-msg').hidden = false; } catch (err) { $('lg-err').textContent = explainError(err); $('lg-err').hidden = false; }
     btn.disabled = false;
   });
-  $('btn-logout').addEventListener('click', async () => { resetMode(); await signOutHere(); location.reload(); });
+  $('btn-logout').addEventListener('click', async () => { resetMode(); forgetPlace(); await signOutHere(); location.reload(); });
   // Opened from a personal sign-in link (team.html): choose a password first.
   return (async () => {
     const landed = await landFromLink();
