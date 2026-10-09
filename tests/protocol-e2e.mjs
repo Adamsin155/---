@@ -845,6 +845,9 @@ assert.ok(gelatoChecks.every((c) => c.note === 'ייבוא'));
 const mob = await ctx.newPage();
 await mob.setViewportSize({ width: 360, height: 780 });
 await mob.goto(`${BASE}client.html?id=${seeded.id}`);
+// "הצגת כל הפרוטוקול" is a choice of the tab since 9.10.2026 (docs/ops.md, section 54): a new tab starts folded.
+await mob.waitForSelector('#view-toggle');
+if (!(await mob.locator('#p06').count())) await mob.click('#view-toggle');
 await mob.waitForSelector('#p06', { state: 'attached' });
 assert.ok(await noHScroll(mob), 'client card scrolls sideways at 360px');
 const box = await mob.locator('#i-p06-name').boundingBox();
