@@ -211,6 +211,7 @@ p.pp-status.is-open { background: var(--ds-amber-soft); color: var(--ds-ink); }
    keep their own width on a wide screen (they were stretched edge to edge beside ones that
    were not), long words stay in their boxes, the tabs and the choices match the kit's pills.
    Look only. ── */
+.ik-app > .back { max-inline-size: 100%; min-inline-size: 0; overflow-wrap: anywhere; }
 .ik-app .ik-head p, .ik-app .ik-card p, .ik-app .ik-card label, .ik-app .ik-card legend { overflow-wrap: anywhere; }
 .ik-app .ik-tab { border-color: transparent; background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
 .ik-app .ik-tab.is-on { background: var(--ds-navy); box-shadow: none; }
@@ -234,7 +235,9 @@ p.pp-status.is-open { background: var(--ds-amber-soft); color: var(--ds-ink); }
 .ik-app .ik-group > legend, .ik-app .ik-nets > legend { font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; }
 .ik-app .ik-read dd a, .ik-app .ik-facts dd a { overflow-wrap: anywhere; min-inline-size: 0; }
 .ik-app .ik-facts dd { min-inline-size: 0; }
-.ik-app .ik-sticky { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+/* The save button sticks above the phone's bottom bar (it sat behind it: with the keyboard open
+   or on a short screen the button could not be reached). --tabbar-room is the shell's, set only while the bar shows. */
+.ik-app .ik-sticky { bottom: calc(var(--tabbar-room, 0px) + env(safe-area-inset-bottom, 0px) + 6px); padding: 10px 0; }
 .ik-app .ik-card .input[type="url"], .ik-app .ik-card .input[dir="ltr"] { text-overflow: ellipsis; }
 @media (max-width: 760px) {
   .ik-app .ik-card > .btn, .ik-app .ik-card > .ik-go, .ik-app .ik-approve > .btn { justify-self: stretch; }

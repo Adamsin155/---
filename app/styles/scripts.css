@@ -139,6 +139,7 @@
 /* ── The visual pass of 9.10.2026 (scripts.html): long titles, names and links stay inside
    their boxes; the status choices and the jump tiles match the kit (pills, no dashed boxes).
    Look only. ── */
+.sc-app > .back { max-inline-size: 100%; min-inline-size: 0; overflow-wrap: anywhere; }
 .sc-head p, .sc-panel p, .sc-slot p, .sc-offer p { overflow-wrap: anywhere; }
 .sc-tools .btn { white-space: normal; text-align: center; }
 .sc-slot-h > h2 { min-inline-size: 0; overflow-wrap: anywhere; }
