@@ -60,16 +60,18 @@
 @media (min-width: 761px) {
   .table-wrap { overflow: visible; }
   .qtable, .qtable thead, .qtable tbody { display: block; }
-  .qtable tr { display: grid; grid-template-columns: 1.1fr 1.2fr 1.3fr 1.1fr 1.5fr 1.25fr; align-items: start; }
-  .qtable:has(#th-amt:not([hidden])) tr { grid-template-columns: 1.1fr 1.2fr 1.3fr .9fr 1.1fr 1.5fr 1.25fr; }
-  .qtable th, .qtable td { display: block; white-space: normal; min-width: 0; border-bottom: 0; padding: 12px 14px 6px; overflow-wrap: anywhere; }
+  .qtable tr { display: grid; grid-template-columns: 1.15fr 1.3fr 1.2fr 1.25fr 1.45fr 1fr; align-items: start; }
+  .qtable:has(#th-amt:not([hidden])) tr { grid-template-columns: 1.15fr 1.25fr 1.15fr .8fr 1.25fr 1.4fr .95fr; }
+  .qtable th, .qtable td { display: block; white-space: normal; min-width: 0; border-bottom: 0; padding: 12px 10px 6px; overflow-wrap: anywhere; }
+  .qtable :is(th, td):first-child { padding-inline-start: 16px; }
   .qtable thead tr { border-bottom: 1px solid var(--line); }
   .qtable thead th { padding-bottom: 10px; }
   .qtable thead th:last-child { display: none; }
   .qtable tbody tr { border-bottom: 1px solid var(--line); }
   .qtable tbody tr:last-child { border-bottom: 0; }
   .qtable .client { min-width: 0; }
-  .qtable .acts-cell { grid-column: 1 / -1; padding: 2px 14px 12px; }
+  .qtable .acts-cell { grid-column: 1 / -1; padding: 2px 16px 12px; }
+  .qtable .acts-cell:has(.acts:empty) { padding: 0 0 6px; }
   .qtable .acts { justify-content: flex-start; flex-wrap: wrap; }
   .apv-cell { max-width: none; }
 }
