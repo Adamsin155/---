@@ -22,7 +22,7 @@ import {
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar, capList,
-  KEEP_BOOT, mountSession, store, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
+  KEEP_BOOT, mountSession, store, visitStore, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
   isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
@@ -887,14 +887,14 @@ function taskMeta(t, now = new Date()) {
 // shows its first MINE_CAP cards and "הצג עוד". "תצוגה מלאה" (kept per browser) gives
 // the whole list, as it was. Nothing is removed, only folded.
 const MINE_CAP = 5;
-const fullView = () => store.get('mine.full') === 'on';
+const fullView = () => visitStore.get('mine.full') === 'on';
 const openCards = new Set();   // cards whose details are open: kept across rebuilds
 function viewToggle() {
   const full = fullView();
   return h('div', { class: 'view-toggle', role: 'group', 'aria-label': 'אורך הרשימה' },
     ...[['off', 'תצוגה קצרה'], ['on', 'תצוגה מלאה']].map(([v, label]) => h('button', {
       type: 'button', class: 'chip', id: `mine-view-${v}`, 'aria-pressed': String((full ? 'on' : 'off') === v),
-      onclick: () => { store.set('mine.full', v); renderMine(); document.getElementById(`mine-view-${v}`)?.focus(); },
+      onclick: () => { visitStore.set('mine.full', v); renderMine(); document.getElementById(`mine-view-${v}`)?.focus(); },
     }, label)));
 }
 // The deadline in words: "באיחור 3 ימי עסקים", "היום עד 14:00", "מחר", "עד יום ה׳, 22.10".

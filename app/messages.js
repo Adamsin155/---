@@ -14,7 +14,7 @@ import { STATIONS } from './protocol.js';
 import { isBusinessDay } from './protocol-logic.js';
 import { loadClients, loadChecks, loadDirectory, setCheck, clearCheck } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, store, capList
+  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, store, visitStore, capList
 } from './protocol-ui.js';
 import { noteIcon, dress } from './kit.js';
 import { dayKeyIL } from './tz.js';
@@ -43,7 +43,7 @@ let templatesError = null;
 let entries = [];             // today's queue (dayQueue)
 let day = null;               // the Israel day the queue was built for
 let lastLoad = 0;
-let station = store.get('messages.station') || 'all';
+let station = visitStore.get('messages.station') || 'all';
 let myEmail = '';
 const drafts = new Map();     // client id -> { opt, text }: the chosen option and the text as edited
 const recording = new Set();  // client ids whose record is on its way
@@ -217,7 +217,7 @@ function renderFilters() {
   const used = new Set(all.map(stationKey));
   const chip = (key, title, n) => h('button', {
     type: 'button', class: 'chip', id: `msg-st-${key}`, 'aria-pressed': String(station === key),
-    onclick: () => { station = key; store.set('messages.station', key); render(); },
+    onclick: () => { station = key; visitStore.set('messages.station', key); render(); },
   }, title, h('span', { class: 'n' }, n, h('span', { class: 'sr-only' }, ' לשליחה')));
   fill($('msg-filters'),
     chip('all', 'כל התחנות', pending(all).length),
@@ -630,6 +630,8 @@ document.addEventListener('visibilitychange', () => {
 // The kit (docs/ops.md, section 52): each card's name takes the icon of its kind of message.
 dress($('app'), [['.msg-card.is-sent .msg-name', 'check-circle', 'green', 'md'], ['.msg-card.k-delay .msg-name', 'alert', 'orange', 'md'], ['.msg-card.k-milestone .msg-name', 'star', 'purple', 'md'],
   ['.msg-card.k-thursday .msg-name', 'calendar', 'teal', 'md'], ['.msg-card .msg-name', 'chat', 'blue', 'md'], ['#na-h', 'lock', 'navy']]);
+
+dress($('dlg-templates'), [['.dlg-head h2', 'edit', 'purple', 'md']]);
 
 mountSession(async (staff) => {
   myEmail = String(staff.email || '').toLowerCase();

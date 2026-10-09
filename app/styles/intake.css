@@ -206,3 +206,90 @@ p.pp-status.is-open { background: var(--ds-amber-soft); color: var(--ds-ink); }
 .ik-card > h2.k-h { gap: 12px; align-items: center; overflow-wrap: anywhere; }
 .ik-card > h2.k-h > .k-ico { margin-block: 0; }
 .ik-app form.ik-card { gap: 14px; }
+
+/* ── The visual pass of 9.10.2026 (intake.html only: every rule starts at .ik-app). Buttons
+   keep their own width on a wide screen (they were stretched edge to edge beside ones that
+   were not), long words stay in their boxes, the tabs and the choices match the kit's pills.
+   Look only. ── */
+.ik-app > .back { max-inline-size: 100%; min-inline-size: 0; overflow-wrap: anywhere; }
+.ik-app .ik-head p, .ik-app .ik-card p, .ik-app .ik-card label, .ik-app .ik-card legend { overflow-wrap: anywhere; }
+.ik-app .ik-tab { border-color: transparent; background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
+.ik-app .ik-tab.is-on { background: var(--ds-navy); box-shadow: none; }
+.ik-app .ik-card > .btn, .ik-app .ik-card > .ik-go, .ik-app .ik-approve > .btn { justify-self: start; min-height: 44px; }
+.ik-app .ik-card > .btn-primary.ik-big, .ik-app .ik-approve > .btn-primary { min-inline-size: 240px; }
+.ik-app .ik-row .btn, .ik-app .ik-actions .btn { min-height: 44px; }
+.ik-app .ik-opt span { border-radius: var(--ds-r-pill); padding-inline: 16px; text-align: center; }
+.ik-app .ik-net { border-radius: var(--ds-r-item); background: var(--ds-surface); }
+.ik-app .ik-net > strong, .ik-app .ik-net legend { overflow-wrap: anywhere; }
+.ik-app .ik-more { max-inline-size: 360px; }
+.ik-app .ik-more > span { flex: none; white-space: nowrap; font-weight: 600; }
+.ik-app .ik-more .input { flex: 1 1 auto; min-inline-size: 0; }
+.ik-app .ik-round > span { flex: none; white-space: nowrap; }
+.ik-app .ik-round .input { flex: 1 1 auto; min-inline-size: 0; }
+.ik-app .ik-check { align-items: center; }
+.ik-app .ik-check input { margin-top: 0; }
+.ik-app .ik-check > span { min-inline-size: 0; }
+.ik-app .ik-note, .ik-app .ik-draft { border-radius: var(--ds-r-item); }
+.ik-app .ik-note { border-color: transparent; background: var(--ds-amber-soft); }
+.ik-app .ik-progress { display: inline-flex; justify-self: start; padding: 4px 12px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 14px; }
+.ik-app .ik-group > legend, .ik-app .ik-nets > legend { font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; }
+.ik-app .ik-read dd a, .ik-app .ik-facts dd a { overflow-wrap: anywhere; min-inline-size: 0; }
+.ik-app .ik-facts dd { min-inline-size: 0; }
+/* The save button sticks above the phone's bottom bar (it sat behind it: with the keyboard open
+   or on a short screen the button could not be reached). --tabbar-room is the shell's, set only while the bar shows. */
+.ik-app .ik-sticky { bottom: calc(var(--tabbar-room, 0px) + env(safe-area-inset-bottom, 0px) + 6px); padding: 10px 0; }
+.ik-app .ik-card .input[type="url"], .ik-app .ik-card .input[dir="ltr"] { text-overflow: ellipsis; }
+@media (max-width: 760px) {
+  .ik-app .ik-card > .btn, .ik-app .ik-card > .ik-go, .ik-app .ik-approve > .btn { justify-self: stretch; }
+  .ik-app .ik-card > .btn-primary.ik-big { min-inline-size: 0; }
+  .ik-app .ik-tabs ul { gap: 6px; }
+  .ik-app .ik-tab { padding-inline: 12px; }
+  .ik-app .ik-seg-opts { gap: 6px; }
+  .ik-app .ik-opt { flex: 1 1 auto; }
+  .ik-app .ik-opt span { flex: 1 1 auto; justify-content: center; padding-inline: 12px; }
+  .ik-app .ik-more { max-inline-size: none; }
+}
+/* vfix office */
+/* The visual sweep of 9.10.2026: what was still in the old look next to the kit, what
+   overflowed with long names, and the dialogs. Look only. Pills, 4.5:1 needed: ink-2 on
+   soft 9.2, amber on its soft 5.9, late on its soft 5.15. */
+.pp-app .tag:not(.tag-landing) {
+  display: inline-flex; align-items: center; min-block-size: 24px; max-inline-size: 100%; padding: 2px 10px; border: 0; border-radius: var(--ds-r-pill);
+  background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 600; line-height: 1.3; vertical-align: middle; overflow-wrap: anywhere;
+}
+.pp-app .tag.tag-warn { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.pp-app .tag.tag-urgent { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+.pp-app .more-btn { border-style: solid; border-color: var(--ds-line-strong); background: var(--ds-surface); color: var(--ds-ink); font-weight: 600; }
+
+.pp-card { overflow-wrap: anywhere; }
+.pp-head > *, .pp-follow-h > *, .pp-acts > * { min-width: 0; }
+.pp-acts .btn { white-space: normal; text-align: center; }
+.pp-msg { border-style: solid; border-color: var(--ds-line); border-radius: var(--ds-r-item); }
+.pp-blocker { border-radius: var(--ds-r-item); }
+/* What the system knows about a check, as a pill. */
+.pp-sys { padding: 2px 10px; border-radius: var(--ds-r-pill); font-weight: 600; }
+.pp-sys.is-ok { background: var(--ds-ok-soft); color: var(--ds-ok); }
+.pp-sys.is-fail { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+/* A day that is closed with everyone: one green line with its square. */
+details.pp-sub > summary.pp-sum { gap: 6px 8px; padding: 4px 12px; border-radius: var(--ds-r-item); background: var(--ds-ok-soft); list-style: none; }
+details.pp-sub > summary.pp-sum::-webkit-details-marker { display: none; }
+details.pp-sub > summary.pp-sum > .k-ico { background: var(--ds-surface); }
+details.pp-sub > summary.pp-sum .pp-status.is-ok { color: var(--ds-ink); font-weight: 500; }
+/* "עם מי מצלמים" and "הגעת המשפיענים": the two labels on one line and the two fields on
+   the next, the same height, also where the browser draws a date field its own way (iOS). */
+.pp-form .row2 { align-items: start; }
+.pp-form .row2 > .field, .pp-form > .field { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 6px; margin: 0; min-width: 0; }
+.pp-form .field > label { margin: 0; min-block-size: 20px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-form .field > .input { display: block; box-sizing: border-box; inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; block-size: 48px; min-height: 48px; margin: 0; }
+.pp-form .field > textarea.input { block-size: auto; }
+.pp-form input[type='date'], .pp-form input[type='datetime-local'] { -webkit-appearance: none; appearance: none; text-align: start; line-height: 1.2; }
+.pp-form input::-webkit-date-and-time-value { text-align: start; }
+.pp-form .field > .hint, .pp-form .field > .err { margin: 0; }
+@media (min-width: 761px) {
+  .pp-form > .btn, .pp-app .ik-big { inline-size: auto; justify-self: start; min-inline-size: 240px; }
+}
+.pp-app .k-note { overflow-wrap: anywhere; }
+/* The closed day's line opens the approvals: a chevron says so (the browser's own marker is off). */
+details.pp-sub > summary.pp-sum::after { content: ''; flex: none; margin-inline-start: auto; inline-size: 8px; block-size: 8px; border-inline-end: 2px solid var(--ds-ink-2); border-block-end: 2px solid var(--ds-ink-2); transform: rotate(45deg); transition: transform var(--ds-t-fast, .15s); }
+details.pp-sub[open] > summary.pp-sum::after { transform: rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) { details.pp-sub > summary.pp-sum::after { transition: none; } }

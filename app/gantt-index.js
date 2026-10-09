@@ -73,7 +73,7 @@ function renderWeek(now) {
   $('gxw-sub').textContent = `${dm(week.from)}–${dm(week.to)} · ${n === 1 ? 'פרסום אחד' : `${n} פרסומים`} בכל הלקוחות`;
   if (!days.length) { $('gxw-body').replaceChildren(h('p', { class: 'gt-none' }, 'אין פרסומים מתוכננים השבוע.')); return; }
   $('gxw-body').replaceChildren(h('ol', { class: 'gt-agenda gx-days' }, ...days.map((d) => h('li', { class: `gt-aday${d.day === today ? ' is-today' : ''}`, 'data-day': d.day },
-    h('h3', { class: 'gt-aday-h' }, dayLine(d.day), d.day === today ? h('span', { class: 'tag' }, 'היום') : null),
+    h('h3', { class: 'gt-aday-h' }, dayLine(d.day), d.day === today ? h('span', { class: 'k-pill k-pill-navy' }, 'היום') : null),
     h('ul', { class: 'gt-rows' }, ...d.items.map(({ entry: e, client, status }) => {
       const k = GANTT_KINDS[e.kind] || GANTT_KINDS.custom;
       return h('li', { class: `gt-row gx-row s-${status}`, style: kindStyle(e.kind) },

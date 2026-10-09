@@ -172,6 +172,50 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
 .prod-list .k-empty { margin: 0; }
 .prod-noaccess h2.k-h { margin-bottom: 6px; }
 
+/* ── The visual pass of 9.10.2026, the editor's page only (editor.html): its six dialogs get
+   the kit's head, even air between the fields, and a foot that stays in reach while the body
+   scrolls (a short phone, or the keyboard open). Look only. ── */
+/* A long client name stays inside its task (it pushed the page sideways on a phone). */
+.prod-page .prod-task-h > strong { min-inline-size: 0; overflow-wrap: anywhere; }
+.prod-page .prod-task-h > .k-ico { align-self: flex-start; }
+.prod-page .prod-task p, .prod-page .ed-card p, .prod-page .ed-sheet, .prod-page .ed-links { min-inline-size: 0; overflow-wrap: anywhere; }
+.prod-page .ed-links .btn, .prod-page .ed-sheet .btn { white-space: normal; text-align: start; max-inline-size: 100%; }
+.prod-page .ed-state { white-space: normal; max-inline-size: 100%; }
+.prod-page .ed-fix-list li { min-inline-size: 0; }
+.prod-page .prod-kpi { min-inline-size: 0; }
+dialog.ed-dlg { max-block-size: calc(100dvh - 24px); overflow: hidden; }
+dialog.ed-dlg[open] { display: flex; flex-direction: column; }
+dialog.ed-dlg > form { display: flex; flex-direction: column; flex: 1 1 auto; min-block-size: 0; }
+dialog.ed-dlg .dlg-head { padding: 16px 16px 10px 20px; flex: none; }
+dialog.ed-dlg .dlg-head h2 { flex: 1 1 auto; min-inline-size: 0; font-size: 20px; line-height: 1.3; gap: 12px; overflow-wrap: anywhere; }
+dialog.ed-dlg .dlg-head h2 > .k-ico { margin-block: 0; }
+dialog.ed-dlg .dlg-head .close { flex: none; inline-size: 44px; block-size: 44px; }
+dialog.ed-dlg .dlg-body { flex: 1 1 auto; min-block-size: 0; overflow-y: auto; display: grid; gap: 12px; align-content: start; padding: 6px 20px 16px; }
+dialog.ed-dlg .dlg-body > * { margin: 0; min-inline-size: 0; }
+dialog.ed-dlg .dlg-body > p { overflow-wrap: anywhere; }
+dialog.ed-dlg .dlg-body > .muted, dialog.ed-dlg #urg-ctx { padding: 8px 12px; border-radius: var(--ds-r-ctl); background: var(--panel); color: var(--text); font-weight: 500; }
+dialog.ed-dlg .dlg-body > .muted:empty { display: none; }
+dialog.ed-dlg .field { margin: 0; display: grid; gap: 0; min-inline-size: 0; }
+dialog.ed-dlg .field > label { font-size: 14px; font-weight: 600; color: var(--text); }
+dialog.ed-dlg .field .input { inline-size: 100%; min-height: 44px; font-size: 16px; }
+dialog.ed-dlg .field .hint, dialog.ed-dlg .field .err { margin: 6px 0 0; }
+dialog.ed-dlg .hint:empty { display: none; }
+dialog.ed-dlg .prod-checks { gap: 6px; }
+dialog.ed-dlg .prod-checks legend { font-size: 15px; margin-bottom: 6px; }
+dialog.ed-dlg .prod-check { padding: 10px 12px; border-radius: var(--ds-r-ctl); background: var(--panel); align-items: center; }
+dialog.ed-dlg .prod-check .cbx { margin-top: 0; }
+dialog.ed-dlg .prod-check span { min-inline-size: 0; }
+dialog.ed-dlg .dlg-foot { flex: none; align-items: center; padding: 12px 20px 16px; border-top: 1px solid var(--line); }
+dialog.ed-dlg .dlg-foot .btn { min-height: 44px; white-space: normal; }
+@media (max-width: 480px) {
+  dialog.ed-dlg { max-inline-size: calc(100vw - 16px); }
+  dialog.ed-dlg .dlg-head { padding: 14px 12px 8px 14px; }
+  dialog.ed-dlg .dlg-head h2 { font-size: 19px; gap: 10px; }
+  dialog.ed-dlg .dlg-body { padding: 6px 14px 14px; }
+  dialog.ed-dlg .dlg-foot { padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); }
+  dialog.ed-dlg .dlg-foot .btn { flex: 1 1 auto; }
+}
+
 @media (max-width: 480px) {
   .ed-card, .sh-card { padding: 14px 12px; }
   .ed-act .btn-primary, .sh-counter .btn-big { flex: 1 1 100%; justify-content: center; }
@@ -179,3 +223,44 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
   .ed-fix-list li > :last-child { grid-column: 1 / -1; justify-self: start; }
   .ed-hl { grid-template-columns: 1fr; }
 }
+
+/* vfix office */
+.sh-card { overflow-wrap: anywhere; }
+.sh-card > *, .sh-card .ed-head > *, .sh-nav > * { min-width: 0; }
+.sh-card .btn { white-space: normal; text-align: center; max-inline-size: 100%; }
+/* "להתחיל לצלם" in the day's timeline: the kit's clock, not an emoji. */
+.sh-timeline li.is-prompt span:last-child::before { content: none; }
+.sh-prompt { display: inline-flex; align-items: center; gap: 6px; }
+.sh-prompt > .k-svg { color: var(--k-orange); }
+.sh-fixed { border-inline-start: 0; border-radius: var(--ds-r-item); background: var(--k-navy-soft); font-size: 14.5px; }
+.sh-script { border-color: transparent; border-radius: var(--ds-r-item); background: var(--ds-ground); overflow-wrap: anywhere; }
+.sh-script-links a { overflow-wrap: anywhere; }
+@media (min-width: 761px) { .sh-close .btn, .sh-day .btn:not(.btn-big) { justify-self: start; } }
+
+/* The dialogs: a head with its icon square, a 44px close, the body from its top (no
+   stretched rows on a phone), choices as rows that can be hit, the actions in one line. */
+#dlg-scripts .dlg-head { align-items: center; gap: 12px; padding: 16px 20px 12px; border-bottom: 1px solid var(--ds-line); }
+#dlg-scripts .dlg-head h2 { flex: 1 1 auto; min-width: 0; font-size: 20px; line-height: 1.25; overflow-wrap: anywhere; }
+#dlg-scripts .dlg-head h2.k-h { gap: 10px; }
+#dlg-scripts .dlg-head h2.k-h > .k-ico { margin-block: 0; }
+#dlg-scripts .dlg-head h2:focus { outline: none; }
+#dlg-scripts .dlg-head .close { flex: none; inline-size: 44px; block-size: 44px; }
+#dlg-scripts .dlg-body { padding: 14px 20px 18px; align-content: start; overflow-wrap: anywhere; }
+#dlg-scripts .dlg-body > * { min-width: 0; }
+#dlg-scripts .dlg-body > :empty { display: none; }
+#dlg-scripts .dlg-body .field { margin: 0; }
+#dlg-scripts .dlg-foot { padding: 12px 20px 18px; border-top: 1px solid var(--ds-line); align-items: center; }
+#dlg-scripts .dlg-foot .btn { min-height: 44px; }
+#dlg-scripts input.radio { inline-size: 22px; block-size: 22px; margin: 0; flex: none; accent-color: var(--ds-navy); }
+@media (max-width: 760px) {
+  #dlg-scripts .dlg-head { padding: 12px 14px 10px; }
+  #dlg-scripts .dlg-head h2 { font-size: 18px; }
+  #dlg-scripts .dlg-body { padding: 12px 14px 16px; }
+  #dlg-scripts .dlg-foot { padding-inline: 14px; }
+  #dlg-scripts .dlg-foot .btn { flex: 1 1 auto; justify-content: center; }
+  #dlg-scripts .dlg-foot .btn-primary { flex-basis: 100%; order: 9; }
+}
+/* A status sentence with a very long name wraps inside its strip (360px). */
+.prod-page .k-note { overflow-wrap: anywhere; }
+.prod-checks legend.k-with-ico, details.ed-more > summary.k-with-ico { gap: 8px; }
+.prod-checks legend.k-with-ico > .k-svg, details.ed-more > summary.k-with-ico > .k-svg { color: var(--k-teal); }

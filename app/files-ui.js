@@ -36,7 +36,6 @@ const filesText = (n) => (n === 1 ? 'קובץ אחד' : `${n} קבצים`);
 // The "add" control of one kind: a tile in the client card, the plain button elsewhere.
 function addControl(kind, { compact, tag = 'button', onclick = null }) {
   const k = KINDS[kind];
-  if (compact) return h(tag, { type: tag === 'button' ? 'button' : null, class: 'btn btn-sm fl-add', id: `fl-add-${kind}`, onclick }, `+ ${k.label}`);
   const [name, tone] = KIND_LOOK[kind] || ['file', 'navy'];
   const node = kTile({ icon: name, tone, label: k.plural, count: filesText(0), id: `fl-add-${kind}`, cls: 'fl-add fl-tile', tag, onclick, lead: 'הוספה: ' });
   node.querySelector('.k-tile-n').dataset.tileCount = kind;
@@ -184,7 +183,7 @@ function buildRoot(opts) {
       uploadBar(g, { progress, err, compact }),
       parts[g].body)),
     only ? null : galleryPart);
-  if (!compact) dressHead(root.querySelector('.fl-head'), 'folder', 'navy');
+  dressHead(root.querySelector('.fl-head'), compact ? 'upload' : 'folder', compact ? 'green' : 'navy');
   // The upload bars need the root's current options (the viewer may change after a refresh).
   root.__draw = () => {
     const o = root.__opts;
@@ -208,7 +207,7 @@ function buildRoot(opts) {
 // One button per kind the viewer may upload (hidden otherwise). A kind with a custom
 // label, or the site (a link), opens a small form first.
 function uploadBar(group, { progress, err, compact = false }) {
-  const bar = h('div', { class: compact ? 'fl-bar' : 'fl-bar k-tiles' });
+  const bar = h('div', { class: `fl-bar k-tiles${compact ? ' fl-tiles-sm' : ''}` });
   for (const kind of kindsOf(group)) {
     const k = KINDS[kind];
     const input = h('input', { type: 'file', class: 'sr-only', id: `fl-in-${kind}-${Math.random().toString(36).slice(2, 7)}`, accept: k.accept || null, multiple: k.needsLabel || k.link || kind === 'logo' ? null : true, tabindex: '-1', 'aria-hidden': 'true' });
@@ -336,9 +335,8 @@ function listOf(group, o) {
   }
   if (!out.length) {
     const words = group === 'materials' ? 'עוד לא הועלו חומרים.' : 'עוד לא הועלו תוצרים.';
-    const may = !o.compact && uploadKinds(o.me, o.client).some((k) => KINDS[k].group === group);
-    out.push(o.compact ? h('p', { class: 'muted' }, words)
-      : emptyRow({ icon: 'upload', text: may ? `${words} ${group === 'materials' ? 'בחרו סוג קובץ למעלה כדי להתחיל.' : 'בחרו סוג תוצר למעלה כדי להתחיל.'}` : words }));
+    const may = uploadKinds(o.me, o.client).some((k) => KINDS[k].group === group);
+    out.push(emptyRow({ icon: 'upload', text: may ? `${words} ${group === 'materials' ? 'בחרו סוג קובץ למעלה כדי להתחיל.' : 'בחרו סוג תוצר למעלה כדי להתחיל.'}` : words }));
   }
   return out;
 }
@@ -483,8 +481,14 @@ function buildWork(opts) {
   const progress = h('ul', { class: 'fl-progress', 'aria-live': 'polite' });
   const list = h('ul', { class: 'fl-grid' });
   const input = h('input', { type: 'file', class: 'sr-only', id: `${idp}-in`, accept: k.accept || null, multiple: true, tabindex: '-1', 'aria-hidden': 'true' });
-  const add = h('button', { type: 'button', class: 'btn btn-sm fl-add', id: `${idp}-add`, onclick: () => input.click() }, `+ העלאת ${k.plural}`);
-  const bar = h('div', { class: 'fl-bar' }, add, input);
+  // The kit's "add" tile (docs/ops.md, section 54): the square of the kind, a plus at the
+  // corner, the name and how many are up. The same button, the same id.
+  const [tileIcon, tileTone] = KIND_LOOK[kind] || ['file', 'navy'];
+  const add = kTile({ icon: tileIcon, tone: tileTone, label: `העלאת ${k.plural}`, count: filesText(0), id: `${idp}-add`, cls: 'fl-add fl-tile fl-work-add', onclick: () => input.click() });
+  const addCount = add.querySelector('.k-tile-n');
+  const empty = emptyRow({ icon: 'upload', text: '' });
+  empty.classList.add('fl-work-empty');
+  const bar = h('div', { class: 'fl-bar fl-work-bar' }, add, input, empty);
   input.addEventListener('change', () => { const files = [...input.files]; input.value = ''; startUploads(bar, kind, files, { progress, err }); });
   const root = h('div', { class: 'fl-block fl-work', id: `${idp}-files`, 'data-kind': kind }, head, status, err, progress, bar, list);
   root.__draw = () => {
@@ -495,6 +499,9 @@ function buildWork(opts) {
     status.textContent = !st.loaded ? 'טוען את הקבצים…' : st.error || '';
     status.hidden = st.loaded && !st.error;
     bar.hidden = !!o.readOnly || !!st.error || !uploadKinds(o.me, o.client).includes(kind);
+    addCount.textContent = o.total ? `${files.length} מתוך ${o.total}` : filesText(files.length);
+    empty.hidden = !st.loaded || !!files.length;
+    empty.querySelector('p').textContent = `עוד לא הועלו ${k.plural}. בוחרים קבצים מהמחשב או מהטלפון.`;
     // The same tiles while nothing changed: a video that is playing keeps playing.
     const sig = `${o.myEmail || ''}|${files.map((f) => f.id).join()}`;
     if (list.dataset.sig !== sig) { list.dataset.sig = sig; list.replaceChildren(...files.map((f) => tile(f, o))); }
@@ -537,7 +544,7 @@ function galleryBlock(o) {
     const last = g.links[0];
     return [...head,
       h('p', { class: 'st-state' }, last ? (last.revoked_at ? `הקישור האחרון בוטל ב${when(last.revoked_at)}.` : `תוקף הקישור האחרון הסתיים ב${when(last.expires_at)}.`) : 'עוד לא נוצר קישור לגלריה.'),
-      manage ? h('button', { type: 'button', class: 'btn btn-sm', id: 'fl-gal-create', onclick: () => create(false) }, 'יצירת קישור לגלריה')
+      manage ? h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: 'fl-gal-create', onclick: () => create(false) }, 'יצירת קישור לגלריה')
         : h('p', { class: 'muted' }, 'עירית, ליאור או הבעלים יוצרים את הקישור.')];
   }
   const url = g.token ? galleryUrl(location.href, g.token) : null;
@@ -547,7 +554,7 @@ function galleryBlock(o) {
     h('p', { class: 'st-state', id: 'fl-gal-state' }, h('strong', {}, 'קישור פעיל'), ` עד ${dayText(new Date(a.expires_at), new Date())} · `,
       a.open_count ? `נפתח ${a.open_count === 1 ? 'פעם אחת' : `${a.open_count} פעמים`}, לאחרונה ${when(a.last_opened_at)}` : 'עוד לא נפתח'),
     manage && url ? h('div', { class: 'st-acts' },
-      h('button', { type: 'button', class: 'btn btn-sm', id: 'fl-gal-copy-msg', onclick: () => copy(msg) }, 'העתקת הודעה עם הקישור'),
+      h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: 'fl-gal-copy-msg', onclick: () => copy(msg) }, 'העתקת הודעה עם הקישור'),
       h('a', { class: 'btn btn-sm', id: 'fl-gal-wa', href: o.client.phone ? waLink(o.client.phone, msg) : groupLink(msg), target: '_blank', rel: 'noopener' }, 'שליחה ב־WhatsApp', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')),
       h('button', { type: 'button', class: 'btn-text', id: 'fl-gal-copy', onclick: () => copy(url) }, 'העתקת הקישור'),
       h('a', { class: 'btn-text', id: 'fl-gal-open', href: url, target: '_blank', rel: 'noopener' }, 'פתיחה', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')),

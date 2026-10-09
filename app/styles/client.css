@@ -61,7 +61,7 @@ button, input { font: inherit; color: inherit; }
 .cstrip-sub { font-size: 13.5px; color: #C9D1E6; }
 .cstrip-go {
   margin-inline-start: auto; color: var(--ink); background: var(--pink); text-decoration: none;
-  font-weight: 600; font-size: 14px; padding: 8px 18px; border-radius: 999px; min-height: 40px;
+  font-weight: 600; font-size: 14px; padding: 8px 18px; border-radius: 999px; min-height: 44px;
   display: inline-flex; align-items: center;
 }
 .cstrip-go:focus-visible { outline-color: #fff; }
@@ -94,7 +94,7 @@ button, input { font: inherit; color: inherit; }
 .pad-head { display: flex; justify-content: space-between; align-items: baseline; }
 .linkbtn {
   background: none; border: 0; color: var(--purple); font-weight: 600; cursor: pointer;
-  min-height: 36px; padding: 4px 8px;
+  min-height: 44px; padding: 4px 8px;
 }
 .pad {
   position: relative; height: 180px; border-radius: var(--ds-r-ctl); border: 1.5px dashed var(--ds-edge); background: #fff;
@@ -113,8 +113,8 @@ button, input { font: inherit; color: inherit; }
 .consent { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; margin: 6px 0 4px; color: var(--ink-2); }
 .consent input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--purple); flex: none; }
 /* Decision 26: the WhatsApp updates, a separate optional choice below the agreement's consent. */
-.wa-consent { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
-.wa-what { margin-inline-start: 32px; min-height: 32px; }
+.wa-consent { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.wa-what { margin-inline-start: 24px; min-height: 44px; }
 .wa-more { margin: 4px 0 0; margin-inline-start: 32px; font-size: 13.5px; color: var(--ink-2); }
 .cerr { color: var(--danger); font-size: 13.5px; margin-top: 6px; }
 .cerr[hidden] { display: none; }
@@ -168,3 +168,6 @@ button, input { font: inherit; color: inherit; }
 .signbox-head h2.k-h > .k-ico, .expired h2.k-h > .k-ico { margin-block: 0; }
 .expired h2.k-h { justify-content: center; }
 @media print { .k-ico { display: none !important; } .k-h { display: block; } }
+/* The consent row is one finger-sized target (the visual sweep of 9.10.2026 measured 22px). */
+.consent { min-height: 44px; align-items: center; padding-block: 6px; }
+.consent input { width: 24px; height: 24px; margin: 0; }

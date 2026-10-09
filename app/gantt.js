@@ -78,6 +78,18 @@ const stateMark = (s) => (s === 'posted' ? h('span', { class: 'gt-tick', 'aria-h
     : s === 'missing' || s === 'error' ? h('span', { class: 'gt-warn', 'aria-hidden': 'true' }, '!') : null);
 const stateLabel = (e, s) => (s === 'posted' && postedOn(e) ? `עלה ${dm(postedOn(e))}` : statusText(s));
 const toast = (msg, action) => (ui ? ui.toast(msg, action) : null);
+// The short weekday of the phone's grid: the Hebrew day letters (the first letter of the name repeats).
+const WD_LETTER = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+// A dialog's head opens with the kit's icon square (app/kit.js): the entry's in the colour of its kind.
+const KIND_ICON = { video: 'video', monthly: 'video', graphic: 'image', highlight: 'star', story: 'phone', collab: 'users', ch14: 'megaphone', shoot: 'camera', photo: 'camera', report: 'chart', plan: 'list', renewal: 'handshake', end: 'flag', custom: 'calendar' };
+function dlgIcon(id, name, tone = 'navy', style = null) {
+  const head = $(id)?.querySelector('.gt-dlg-head');
+  if (!head) return;
+  head.querySelector(':scope > .k-ico')?.remove();
+  const sq = kSquare(name, tone, { size: 'md' });
+  if (style) sq.setAttribute('style', style);
+  head.prepend(sq);
+}
 // The team names a client by the business first, then the contact (clientLabel); the
 // client's own link has the business name only.
 const nameOfClient = () => (SHARE ? client.name : clientLabel(client));
@@ -86,6 +98,7 @@ const nameOfClient = () => (SHARE ? client.name : clientLabel(client));
 async function boot() {
   ({ h } = await import('./quote-doc.js'));
   data = await import('./gantt-data.js');
+  dlgIcon('regen-dlg', 'loop', 'teal'); dlgIcon('bulk-dlg', 'calendar-check', 'blue'); dlgIcon('brand-dlg', 'link', 'purple');
   if (SHARE) return bootShare();
   ui = await import('./protocol-ui.js');
   const { loadClient, loadDirectory } = await import('./protocol-data.js');
@@ -399,7 +412,7 @@ function renderGrid(year, month, visible) {
   const today = todayKey();
   const starts = new Map();
   for (let n = 1; n <= termOf(client); n += 1) { const r = monthRange(client, n); if (r) starts.set(r.from, n); }
-  const head = h('tr', {}, ...WEEKDAY_NAMES.map((w) => h('th', { scope: 'col' }, h('span', { class: 'wd-long' }, w), h('span', { class: 'wd-short', 'aria-hidden': 'true' }, w.slice(0, 1)))));
+  const head = h('tr', {}, ...WEEKDAY_NAMES.map((w, i) => h('th', { scope: 'col' }, h('span', { class: 'wd-long' }, w), h('span', { class: 'wd-short', 'aria-hidden': 'true' }, WD_LETTER[i]))));
   const body = monthGrid(year, month).map((week) => h('tr', {}, ...week.map((d) => {
     const list = d.inMonth ? byDay.get(d.key) || [] : [];
     const out = d.key < deal || d.key > end;
@@ -472,7 +485,7 @@ function renderList(visible) {
   $('gm-list').replaceChildren(h('ol', { class: 'gt-agenda' }, ...[...byDay].map(([key, list]) => {
     const hol = holidayName(key);
     return h('li', { class: `gt-aday${key === today ? ' is-today' : ''}`, 'data-day': key },
-      h('h3', { class: 'gt-aday-h' }, dayLine(key), key === today ? h('span', { class: 'tag' }, 'היום') : null, hol ? h('span', { class: 'gt-hol' }, hol) : null),
+      h('h3', { class: 'gt-aday-h' }, dayLine(key), key === today ? h('span', { class: 'k-pill k-pill-navy' }, 'היום') : null, hol ? h('span', { class: 'gt-hol' }, hol) : null),
       h('ul', { class: 'gt-rows' }, ...list.map(entryRow)));
   })));
   loadThumbs($('gm-list'));
@@ -535,6 +548,8 @@ function openEntry(e, day = null) {
   const kind = e?.kind || 'custom';
   $('ed-kind').textContent = isNew ? 'פריט חדש' : kindOf(e).label;
   $('ed-kind').setAttribute('style', kindStyle(kind));
+  const kd = GANTT_KINDS[kind] || GANTT_KINDS.custom;
+  dlgIcon('entry-dlg', isNew ? 'plus' : KIND_ICON[kind] || 'calendar', 'navy', isNew || kind === 'end' ? null : `--k-fg:${kd.color};--k-bg:${kd.soft}`);
   $('ed-h').textContent = isNew ? 'הוספת פריט לגאנט' : e.title;
   const foot = [];
   if (!canEdit) {

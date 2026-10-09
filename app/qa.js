@@ -161,7 +161,7 @@ function qaCard(x, ms, now) {
       h('span', { style: `inline-size:${pct}%` })),
     h('div', { class: 'of-acts' },
       h('button', {
-        type: 'button', class: 'btn btn-primary btn-sm', id: `qa-open-${x.key.replace(/\W/g, '_')}`,
+        type: 'button', class: 'btn k-btn-navy btn-sm', id: `qa-open-${x.key.replace(/\W/g, '_')}`,
         'aria-label': `לבדיקה: ${x.client.name}, ${k.title}`, onclick: () => openQa(x),
       }, 'לבדיקה')));
 }
@@ -193,7 +193,7 @@ function assignCard(a, load, now) {
     h('p', { class: 'of-line' }, a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : '',
       joint ? ' · יום משותף לנטלי ולסמיון' : pre ? ` · ${PEOPLE[pre].name} מסומנת מראש (${loadText(load[pre])})` : ''),
     h('div', { class: 'of-acts' },
-      h('button', { type: 'button', class: 'btn btn-primary btn-sm', id: `as-open-${a.key.replace(/\W/g, '_')}`, 'aria-label': `שיוך עורך: ${a.client.name}${roundText(a.ctx)}`, onclick: () => openAssign(a) }, 'שיוך עורך')));
+      h('button', { type: 'button', class: 'btn k-btn-navy btn-sm', id: `as-open-${a.key.replace(/\W/g, '_')}`, 'aria-label': `שיוך עורך: ${a.client.name}${roundText(a.ctx)}`, onclick: () => openAssign(a) }, 'שיוך עורך')));
 }
 
 // Each job can change hands from here ("החלפת עורך"): the notice of an automatic
@@ -597,7 +597,11 @@ setInterval(() => {
 // The kit (docs/ops.md, section 52): each section's heading and each card take an icon square.
 dress($('app'), [['#qa-h', 'shield', 'purple', 'md'], ['#char-h', 'target', 'orange', 'md'], ['#assign-h', 'scissors', 'blue', 'md'], ['#load-h', 'chart', 'teal', 'md'],
   ['#approvals-h', 'file', 'blue'], ['#myq-h', 'question', 'purple'], ['#na-h', 'lock', 'navy'],
-  ['#qa-list .of-head, #qa-fixing .of-head', 'video', 'purple', 'md'], ['#assign-list .of-head', 'scissors', 'blue', 'md'], ['#load-list .of-head', 'user', 'teal', 'md']]);
+  ['#qa-list .of-head, #qa-fixing .of-head', 'video', 'purple', 'md'], ['#char-list .of-head', 'target', 'orange', 'md'], ['#assign-list .of-head', 'scissors', 'blue', 'md'], ['#load-list .of-head', 'user', 'teal', 'md']]);
+
+// The two dialogs' heads (their titles are rewritten on every opening).
+dress($('dlg-qa'), [['.dlg-head h2', 'shield', 'purple', 'md']]);
+dress($('dlg-assign'), [['.dlg-head h2', 'scissors', 'blue', 'md']]);
 
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);

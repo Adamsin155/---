@@ -119,7 +119,7 @@ select.sinput { appearance: auto; }
 .sbtn-ok:hover:not(:disabled) { background: var(--ds-hot-hover); border-color: var(--ds-hot-hover); }
 .sbtn:disabled { background: var(--ds-soft); border-color: var(--ds-soft); color: var(--muted); cursor: not-allowed; }
 .sbtn-add { border-style: dashed; border-color: var(--ds-edge); color: var(--navy); background: transparent; }
-.sbtn-text { width: auto; min-height: 44px; padding: 6px 4px; border: 0; background: none; color: var(--danger); font-size: 14px; text-decoration: underline; justify-self: start; }
+.sbtn-text { width: auto; min-height: 44px; min-width: 44px; padding: 6px 4px; border: 0; background: none; color: var(--danger); font-size: 14px; text-decoration: underline; justify-self: start; }
 .sextra-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .sextra-head h2 { margin: 0; }
 .sextra .slogin { margin-top: 8px; }

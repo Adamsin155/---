@@ -63,11 +63,12 @@
   <link rel="modulepreload" href="app/landing-data.js">
   <link rel="modulepreload" href="app/quote-doc.js">
   <link rel="modulepreload" href="app/team-rules.js">
-  <link rel="modulepreload" href="app/manager-rules.js">
   <link rel="modulepreload" href="app/shell-rules.js">
   <link rel="modulepreload" href="app/shoot-prep.js">
   <link rel="modulepreload" href="app/set-password.js">
   <link rel="modulepreload" href="app/login-ui.js">
+  <link rel="modulepreload" href="app/manager-rules.js">
+  <link rel="modulepreload" href="app/visit.js">
   <link rel="modulepreload" href="app/access-logic.js">
   <link rel="modulepreload" href="app/whatsapp.js">
   <link rel="modulepreload" href="app/shell.js">
@@ -157,7 +158,7 @@
   </main>
 
   <!-- (1) The drive arrived: four checks, or "something is missing". -->
-  <dialog id="dlg-start" aria-labelledby="start-h">
+  <dialog id="dlg-start" class="ed-dlg" aria-labelledby="start-h">
     <form id="start-form" novalidate>
       <div class="dlg-head">
         <h2 id="start-h">קיבלתי את הכונן</h2>
@@ -180,7 +181,7 @@
   </dialog>
 
   <!-- What is missing, to Irit at once. -->
-  <dialog id="dlg-missing" aria-labelledby="miss-h">
+  <dialog id="dlg-missing" class="ed-dlg" aria-labelledby="miss-h">
     <form id="miss-form" novalidate>
       <div class="dlg-head">
         <h2 id="miss-h">מה חסר?</h2>
@@ -207,7 +208,7 @@
   </dialog>
 
   <!-- (2) Ready for QA: the short self-check. -->
-  <dialog id="dlg-ready" aria-labelledby="ready-h">
+  <dialog id="dlg-ready" class="ed-dlg" aria-labelledby="ready-h">
     <form id="ready-form" novalidate>
       <div class="dlg-head">
         <h2 id="ready-h">מוכן לבדיקה</h2>
@@ -237,7 +238,7 @@
   </dialog>
 
   <!-- Pausing the editing for another task. -->
-  <dialog id="dlg-pause" aria-labelledby="pause-h">
+  <dialog id="dlg-pause" class="ed-dlg" aria-labelledby="pause-h">
     <form id="pause-form" novalidate>
       <div class="dlg-head">
         <h2 id="pause-h">עצירת העריכה</h2>
@@ -259,7 +260,7 @@
   </dialog>
 
   <!-- An urgent task taken while editing: pause it first? -->
-  <dialog id="dlg-urgent" aria-labelledby="urg-h">
+  <dialog id="dlg-urgent" class="ed-dlg" aria-labelledby="urg-h">
     <form id="urg-form" novalidate>
       <div class="dlg-head">
         <h2 id="urg-h">לעצור את העריכה?</h2>
@@ -279,7 +280,7 @@
   </dialog>
 
   <!-- Finishing a brief task (Nirel). -->
-  <dialog id="dlg-done" aria-labelledby="done-h">
+  <dialog id="dlg-done" class="ed-dlg" aria-labelledby="done-h">
     <form id="done-form" novalidate>
       <div class="dlg-head">
         <h2 id="done-h">סיום המשימה</h2>

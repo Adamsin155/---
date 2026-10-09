@@ -43,7 +43,7 @@ import { countUp, growOnce, glide } from './shell.js';
 import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeClient } from './manager-data.js';
 // The owners' end of the day (docs/ops.md, section 48): the same numbers as the 19:00 message.
 import { daySummary, headline } from './day-summary.js';
-import { icon as kIcon, headIcon, besideIcon, leadIcon } from './kit.js';
+import { icon as kIcon, iconSquare, headIcon, besideIcon, leadIcon } from './kit.js';
 
 let viewer = null;
 let landingCtl = null;  // the owners' control of the clients in landing
@@ -187,6 +187,18 @@ const VIEW_TITLES = {
   shoots: ['טבלת ימי צילום', 'כל הלקוחות הפעילים לפי יום הצילום האחרון שהתקיים: מי שצולם הכי מזמן למעלה, ומתחתם מי שטרם צולם.'],
   archive: ['ארכיון', 'לקוחות שהועברו לארכיון: שחזור, או מחיקה לצמיתות.'],
 };
+// The chosen tab is brought whole into its row, which scrolls sideways on a phone when
+// the tabs do not fit (docs/ops.md, section 54). Only the row moves, never the page.
+function showTab(tab) {
+  const row = tab?.parentElement;
+  if (!row || row.scrollWidth <= row.clientWidth + 1) return;
+  const r = row.getBoundingClientRect();
+  const t = tab.getBoundingClientRect();
+  if (!t.width) return;
+  const pad = 5;
+  if (t.left < r.left + pad) row.scrollLeft -= r.left + pad - t.left;
+  else if (t.right > r.right - pad) row.scrollLeft += t.right - (r.right - pad);
+}
 function setView(v, focus = false) {
   view = tabsShown().includes(v) ? v : tabsShown()[0];
   const [title, sub] = VIEW_TITLES[view];
@@ -195,6 +207,7 @@ function setView(v, focus = false) {
   document.title = title + ' · astrateg';
   for (const t of TABS) {
     $(`tab-${t}`).setAttribute('aria-selected', String(t === view));
+    if (t === view) showTab($(`tab-${t}`));
     $(`tab-${t}`).tabIndex = t === view ? 0 : -1;
     $(`view-${t}`).hidden = t !== view;
   }
@@ -261,17 +274,19 @@ function statTiles(now) {
     stateOf, checksByClient: checks, since: trendSince(now), now, log,
   }), now);
   const shoots = shootsAhead(clients, now);
+  // The label line of a tile opens with its icon square, as the tiles of "תובנות" do.
+  const head = (name, tone, label) => h('span', { class: 'ow-stat-h' }, iconSquare(name, tone, { size: 'sm' }), h('span', { class: 'k' }, label));
   return [
-    h('li', { class: 'ow-stat ow-colors' }, h('span', { class: 'k' }, 'לקוחות'),
+    h('li', { class: 'ow-stat ow-colors' }, head('users', 'navy', 'לקוחות'),
       h('strong', { class: 'v ds-num' }, String(counts.red + counts.yellow + counts.green)),
       h('span', { class: 'ow-cc' }, ...['red', 'yellow', 'green'].map((k) => h('span', { class: `ow-c h-${k}` },
-        h('span', { class: 'hicon', 'aria-hidden': 'true' }), h('strong', { class: 'v-sm' }, String(counts[k])), ` ${COLORS[k]}`)))),
-    h('li', { class: `ow-stat${late ? ' is-late' : ''}` }, h('span', { class: 'k' }, 'באיחור עכשיו'),
+        h('span', { class: 'hicon', 'aria-hidden': 'true' }), h('strong', { class: 'v-sm' }, String(counts[k])), h('span', { class: 'ow-cw' }, ` ${COLORS[k]}`))))),
+    h('li', { class: `ow-stat${late ? ' is-late' : ''}` }, head('alert', 'pink', 'באיחור עכשיו'),
       h('strong', { class: 'v ds-num' }, String(late)), h('span', { class: 'sub' }, late === 1 ? 'פריט אחד, בלי ממתין ללקוח' : 'פריטים, בלי ממתין ללקוח')),
-    h('li', { class: 'ow-stat' }, h('span', { class: 'k' }, 'בזמן · 8 שבועות'),
+    h('li', { class: 'ow-stat' }, head('clock', 'blue', 'בזמן · 8 שבועות'),
       h('span', { class: 'ow-trend' }, h('strong', { class: 'v ds-num' }, pct(trend.rate)), trend.done ? sparkline(trend) : null),
       h('span', { class: 'sub' }, trend.done ? `${trend.onTime} מתוך ${trend.done} תהליכים` : 'עוד לא נסגרו תהליכים')),
-    h('li', { class: 'ow-stat' }, h('span', { class: 'k' }, 'ימי צילום · 7 ימים'),
+    h('li', { class: 'ow-stat' }, head('camera', 'teal', 'ימי צילום · 7 ימים'),
       h('strong', { class: 'v ds-num' }, String(shoots.length)),
       h('span', { class: 'sub' }, shoots.length ? shoots.slice(0, 2).map((x) => `${x.client.name} ${dayText(x.at)}`).join(' · ') + (shoots.length > 2 ? ` ועוד ${shoots.length - 2}` : '') : 'אין בשבוע הקרוב')),
   ];
@@ -329,7 +344,7 @@ function rowItem(r, i) {
       r.station ? h('span', { class: 'ow-station' }, r.station.title) : null,
       personChip(r.who)),
     h('p', { class: 'ow-reason' }, h('strong', {}, r.text), r.what ? ` · ${r.what}` : '',
-      r.more ? h('span', { class: 'muted' }, ` · ועוד ${r.more === 1 ? 'סיבה אחת' : `${r.more} סיבות`}`) : null),
+      r.more ? [' ', h('span', { class: 'ow-morew' }, `ועוד ${r.more === 1 ? 'סיבה אחת' : `${r.more} סיבות`}`)] : null),
     r.waiting ? h('p', { class: 'ow-waitnote' }, h('span', { class: 'sbadge s-client' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'ממתינים ללקוח, לא עיכוב של הצוות')) : null,
     q ? questionLine(q) : null,
     h('div', { class: 'ow-acts' },
@@ -518,6 +533,7 @@ function renderAll() {
 
 // "השבוע / 30 יום": what happens across the clients.
 const KIND = { char: 'אפיונים', shoot: 'ימי צילום', delivery: 'מסירות', campaign: 'קמפיינים', renewal: 'חידושים' };
+const KIND_ICON = { char: ['edit', 'purple'], shoot: ['camera', 'teal'], delivery: ['send', 'blue'], campaign: ['megaphone', 'orange'], renewal: ['loop', 'green'] };
 function dayHead(d, now) {
   const n = daysBetweenIL(now, d);
   return n === 0 ? `היום · ${dayText(d)}` : n === 1 ? `מחר · ${dayText(d)}` : dayText(d);
@@ -527,12 +543,14 @@ function renderBoard(now) {
     type: 'button', class: 'chip', 'aria-pressed': String(boardDays === d), id: `range-${d}`, onclick: () => glide(() => { boardDays = d; renderBoard(new Date()); document.getElementById(`range-${d}`)?.focus(); }),
   }, label)));
   const events = upcomingEvents(clients, stateOf, now, boardDays, checks);
-  fill($('board-sum'), Object.entries(KIND).map(([k, label]) => `${label}: ${events.filter((e) => e.kind === k).length}`).join(' · '));
+  // Each count is one piece that never breaks from its word (the line reads the same).
+  fill($('board-sum'), Object.entries(KIND).flatMap(([k, label], i) => [i ? ' · ' : null, h('span', { class: 'board-n' }, `${label}: ${events.filter((e) => e.kind === k).length}`)]));
   if (!events.length) { fill($('board'), h('p', { class: 'muted' }, 'אין אירועים בתקופה הזו.')); return; }
   const days = groupBy(events.map((e) => ({ ...e, day: dayKeyIL(e.at) })), 'day');
   fill($('board'), [...days.entries()].map(([, list]) => h('section', { class: 'board-day', 'aria-label': dayHead(list[0].at, now) },
     h('h3', { class: 'board-dh' }, dayHead(list[0].at, now)),
     h('ul', { class: 'board-list' }, ...list.map((e) => h('li', { class: `board-ev k-${e.kind}${e.done ? ' is-done' : ''}` },
+      iconSquare(KIND_ICON[e.kind]?.[0] || 'calendar', KIND_ICON[e.kind]?.[1] || 'navy', { size: 'sm' }),
       h('span', { class: 'board-t num' }, /23:59/.test(hmFmt.format(e.at)) ? 'עד סוף היום' : hmFmt.format(e.at)),
       h('span', { class: 'board-what' }, e.label),
       h('a', { class: 'wclient', href: clientUrl(e.client.id, e.procId ? `#${e.procId}` : '') }, clientLabel(e.client)),
@@ -673,7 +691,7 @@ async function renderArchive() {
     h('div', { class: 'ar-acts' },
       h('button', { type: 'button', class: 'btn btn-sm', id: `ar-restore-${a.id}`, 'aria-label': `שחזור: ${a.label}`, onclick: (e) => restore(a, e.currentTarget) }, 'שחזור'),
       h('button', { type: 'button', class: 'btn btn-sm btn-danger', id: `ar-purge-${a.id}`, 'aria-label': `מחיקה לצמיתות: ${a.label}`, onclick: () => openPurge(a) }, 'מחיקה לצמיתות'))))
-    : [h('li', { class: 'muted' }, 'אין לקוחות בארכיון.')]);
+    : [h('li', { class: 'muted k-emptyrow' }, kIcon('archive', { size: 18 }), h('span', {}, 'אין לקוחות בארכיון.'))]);
 }
 async function restore(a, btn) {
   btn.disabled = true;

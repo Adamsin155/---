@@ -28,7 +28,7 @@ import {
   $, fill, h, toast, errorText, mountSession, viewerOf, directory, formatStamp, formatWhen, briefDetails, taskBadge,
   isUrgentTask, hasBrief, VIEWER_UNKNOWN,
 } from './protocol-ui.js';
-import { emptyState, noteIcon, dress } from './kit.js';
+import { emptyState, noteIcon, dress, headIcon } from './kit.js';
 import { mountPush } from './push.js';
 import { offerHandoff } from './handoff-ui.js';
 import { closedProcesses } from './health.js';
@@ -845,6 +845,10 @@ setInterval(() => {
 // The kit (docs/ops.md, section 52): the headings and the cards take their icon square.
 dress($('app'), [['.ed-card .ed-head h2', 'scissors', 'purple', 'md'], ['#briefs-h', 'list', 'orange', 'md'], ['#stats-h', 'chart', 'teal', 'md'],
   ['.prod-task.is-urgent .prod-task-h', 'bolt', 'pink'], ['.prod-task .prod-task-h', 'check-circle', 'blue'], ['#na-h', 'lock', 'navy']]);
+
+// The dialogs of this page open with the same icon square in their head.
+for (const [sel, name, tone] of [['#start-h', 'drive', 'purple', 'md'], ['#miss-h', 'alert', 'orange', 'md'], ['#ready-h', 'check-circle', 'green', 'md'],
+  ['#pause-h', 'pause', 'navy'], ['#urg-h', 'bolt', 'pink'], ['#done-h', 'check', 'green']]) headIcon(document.querySelector(sel), name, tone, { size: 'md' });
 
 mountSession(async (staff) => {
   let dir;

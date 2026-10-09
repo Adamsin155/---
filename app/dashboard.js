@@ -1,6 +1,6 @@
 import {
   supabase, currentStaff, quoteLink, explainError,
-  sendPasswordReset, consumeRecoveryLink, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT,
+  sendPasswordReset, consumeRecoveryLink, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT, sessionEmail,
 } from './supa.js';
 import { h, formatDate, whatsappLink } from './quote-doc.js';
 import { dressHead, headIcon, besideIcon, leadIcon } from './kit.js';
@@ -8,6 +8,7 @@ import { formatILS } from './pricing.js';
 import { glide, countUp, viewerFor } from './shell.js';
 // Who opens this list (the owners and Irit) and who sees its amounts (the owners), 6.10.2026.
 import { canSeeQuoteList, seesFinance, resetMode } from './manager-rules.js';
+import { forgetPlace, signInPlan, refusedHere } from './visit.js';
 // The sign-in screen and its button with the door (docs/ops.md, section 51).
 import { loginDoor } from './login-ui.js';
 // Exceptional contracts (6.10.2026): their approval state, and what the office does next.
@@ -41,6 +42,8 @@ const STATUS = {
   awaiting: 'ממתין לאישור',
   rejected: 'לא אושר',
 };
+// The tone of each state's pill (the kit's status pill, kit.css).
+const TONE = { sent: 'warn', viewed: 'info', shared: 'plain', seen: 'info', signed: 'ok', expired: 'late', cancelled: 'plain', awaiting: 'warn', rejected: 'late' };
 const OPEN = ['sent', 'viewed', 'shared', 'seen'];
 const APPROVAL = ['awaiting', 'rejected'];
 // View-only quotes have no signing step: they are either shared or seen.
@@ -161,7 +164,7 @@ function renderRows() {
       h('td', { class: 'client', 'data-label': 'חבילה' }, h('span', { dir: 'auto' }, q.tier || ''), h('small', {}, q.influencer || '')),
       showMoney ? h('td', { class: 'amt', dir: 'ltr', 'data-label': 'לחודש' }, formatILS(q.monthly_gross_agorot)) : null,
       h('td', { 'data-label': 'נוצר' }, formatDate(q.created_at), h('small', { class: 'by' }, q.created_by_email || '')),
-      h('td', { 'data-label': 'סטטוס' }, h('span', { class: `pill ${s}` }, STATUS[s], when ? h('small', {}, ` · ${when}`) : null),
+      h('td', { 'data-label': 'סטטוס' }, h('span', { class: `pill k-pill k-pill-${TONE[s] || 'plain'} ${s}` }, STATUS[s]), when ? h('small', { class: 'when' }, h('span', { class: 'k-sep' }, ' · '), when) : null,
         open && q.expires_at ? h('small', { class: 'until' }, `${agreement ? 'לחתימה' : 'בתוקף'} עד ${formatDate(q.expires_at, true)}`) : null),
       h('td', { 'data-label': 'אישור מנהל' }, approvalCell(q)),
       h('td', { class: 'acts-cell' }, h('div', { class: 'acts' },
@@ -235,7 +238,7 @@ $('login-form').addEventListener('submit', async (e) => {
   $('lg-err').hidden = true;
   $('lg-msg').hidden = true;
   loginDoor.signing(); // half open for as long as the server is asked; it opens when boot() puts the form away
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email: cleanEmail($('lg-email').value), password: $('lg-pass').value,
   });
   btn.disabled = false;
@@ -246,7 +249,12 @@ $('login-form').addEventListener('submit', async (e) => {
     return;
   }
   resetMode(); // a fresh sign-in starts in the personal profile
+  // Their home, whatever page the form was on; a page opened on purpose keeps them only
+  // if it is theirs (docs/ops.md, section 54).
+  const plan = await signInPlan(data?.user?.email || cleanEmail($('lg-email').value));
+  if (plan?.go) { await loginDoor.leave(); location.replace(plan.go); return; }
   await boot();
+  if (plan?.guard && refusedHere()) { location.replace(plan.guard); return; }
   if (!$('login-block').hidden) loginDoor.failed(); // signed in, but not one of the staff
 });
 $('lg-forgot').addEventListener('click', async (e) => {
@@ -272,7 +280,7 @@ $('lg-forgot').addEventListener('click', async (e) => {
     btn.disabled = false;
   }
 });
-$('btn-logout').addEventListener('click', async () => { resetMode(); await signOutHere(); await boot(); });
+$('btn-logout').addEventListener('click', async () => { resetMode(); forgetPlace(); await signOutHere(); await boot(); });
 $('btn-refresh').addEventListener('click', loadQuotes);
 
 const pwDialog = $('dlg-password');
@@ -298,12 +306,23 @@ $('pw-form').addEventListener('submit', async (e) => {
   if (error) return fail(/same/i.test(error.message) ? 'זו הסיסמה הנוכחית. בחרו סיסמה אחרת.' : explainError(error));
   pwDialog.close();
   toast('הסיסמה עודכנה.');
+  // Chosen from a reset link: a sign-in like any other, so the person goes to their home
+  // (the link opens this page for everyone; docs/ops.md, section 54).
+  if (cameByLink) {
+    cameByLink = false;
+    resetMode();
+    forgetPlace();
+    const email = await sessionEmail();
+    const plan = email ? await signInPlan(email, { entry: false }) : null;
+    if (plan?.go) location.replace(plan.go);
+  }
 });
 
+let cameByLink = false;
 (async () => {
   const link = await consumeRecoveryLink();
   await boot();
-  if (link === 'recovery') openPasswordDialog(true);
+  if (link === 'recovery') { cameByLink = true; openPasswordDialog(true); }
   if (link === 'kept') toast(LINK_KEPT);
   if (link === 'expired') {
     const msg = 'הקישור לאיפוס הסיסמה אינו תקף או שפג תוקפו. אפשר לבקש קישור חדש דרך ״שכחתי סיסמה״.';

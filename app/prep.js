@@ -35,7 +35,7 @@ import { googleCalendarUrl } from './calendar.js';
 import { inputValueIL, fromInputIL, dayKeyIL, dayFromKeyIL } from './tz.js';
 // The photographer's monthly availability (docs/ops.md, section 39): the line next to the date, and the reason for a day he did not mark free.
 import { mountAvailability, shootDayHint, confirmShootDay, photographerNote } from './availability-ui.js';
-import { headIcon, emptyState, noteIcon, dress } from './kit.js';
+import { headIcon, iconSquare, emptyState, noteIcon, dress } from './kit.js';
 
 const only = new URLSearchParams(location.search).get('id');
 let clients = [];
@@ -214,7 +214,7 @@ function followRow(r, list, now) {
   const before = r.last && !r.last.ok ? h('p', { class: 'hint' }, `בפעם הקודמת (${dayText(r.last.at)}): ${followupText(r.last)}`) : null;
   return h('li', { class: 'pp-follow-row', id: `fu-${k}` }, head, before,
     h('div', { class: 'pp-acts' },
-      h('button', { type: 'button', class: 'btn btn-primary', id: `fu-${k}-ok`, disabled: busy, onclick: () => answerFollowup(r, k, { stuck: [], note: '' }) }, 'הכול תקין'),
+      h('button', { type: 'button', class: 'btn k-btn-navy', id: `fu-${k}-ok`, disabled: busy, onclick: () => answerFollowup(r, k, { stuck: [], note: '' }) }, 'הכול תקין'),
       h('button', { type: 'button', class: 'btn', id: `fu-${k}-stuck`, disabled: busy, onclick: () => { stuckOpen = key; render(`fu-${k}-t-${TOPICS[0].key}`); } }, 'משהו תקוע')));
 }
 async function answerFollowup(r, k, answer) {
@@ -259,7 +259,7 @@ function coordinatorBlock(e, k) {
   // Closed with everyone: one line, the approvals folded under it.
   const Wrap = coord.fullyClosed ? 'details' : 'section';
   return h(Wrap, { class: 'pp-sub', 'aria-labelledby': coord.fullyClosed ? null : `co-${k}` },
-    coord.fullyClosed ? h('summary', { class: 'pp-sum' }, h('span', { id: `co-${k}` }, 'סגירת יום הצילום (11): '), h('span', { class: 'pp-status is-ok' }, status))
+    coord.fullyClosed ? h('summary', { class: 'pp-sum' }, iconSquare('handshake', 'green', { size: 'sm' }), h('span', { id: `co-${k}` }, 'סגירת יום הצילום (11): '), h('span', { class: 'pp-status is-ok' }, status))
       : headIcon(h('h3', { id: `co-${k}` }, 'סגירת יום הצילום (11)'), 'handshake', 'green'),
     coord.fullyClosed ? null : h('p', { class: `pp-status ${coord.closed ? 'is-ok' : 'is-open'}`, role: 'status' }, status),
     edit ? h('div', { class: 'pp-form' },
@@ -270,7 +270,7 @@ function coordinatorBlock(e, k) {
             ...Object.values(SHOOT_TYPES).map((t) => h('option', { value: t.key, selected: coord.shootType === t.key }, t.name)))),
         h('div', { class: 'field' }, h('label', { for: `sh-at-${k}` }, 'הגעת המשפיענים'),
           shootAtField(c, k, dt))),
-      h('button', { type: 'button', class: 'btn', id: `sh-save-${k}`, disabled: busy, onclick: () => saveShoot(c, k) }, 'שמירת המועד')) : null,
+      h('button', { type: 'button', class: 'btn k-btn-navy', id: `sh-save-${k}`, disabled: busy, onclick: () => saveShoot(c, k) }, 'שמירת המועד')) : null,
     h('ul', { class: 'pp-parties', 'aria-label': 'אישורים' },
       ...coord.approvals.map((a) => party(a, a.key === `${x.pre}p11.ok.photographer` ? eliNotes.get(coord.shootAt?.toISOString()) || null : null)), party(coord.contract)),
     h('div', { class: 'ik-row' },
@@ -361,7 +361,7 @@ function blockersBlock(e, k) {
       rep ? h('p', { class: 'hint' }, `דווח לליאור ${formatStamp(rep.created_at)}${rep.urgent ? ' · דחוף' : ''}. נשאר כאן עד שהחריגה תיסגר.`)
         : b.known ? h('div', { class: 'pp-acts' }, seenBtn, h('span', { class: 'hint' }, 'כבר אצל ליאור כחריגה.'))
           : h('div', { class: 'pp-acts' }, seenBtn,
-            h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: `${bid}-report`, disabled: busy, onclick: () => report(c, prep, b, `${bid}-report`) }, 'דווח לליאור')));
+            h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${bid}-report`, disabled: busy, onclick: () => report(c, prep, b, `${bid}-report`) }, 'דווח לליאור')));
   };
   return h('section', { class: 'pp-sub', 'aria-labelledby': `bl-${k}` },
     headIcon(h('h3', { id: `bl-${k}`, tabindex: '-1' }, `חוסמי יום צילום (14)${prep.blockers.length ? ` · ${prep.blockers.length}` : ''}`), prep.blockers.length ? 'alert' : 'shield', prep.blockers.length ? 'pink' : 'green'),
@@ -413,7 +413,7 @@ function dayBeforeBlock(e, k) {
   return h('section', { class: 'pp-sub', 'aria-labelledby': `db-${k}` },
     headIcon(h('h3', { id: `db-${k}` }, `בדיקת יום לפני (15) · עד ${formatWhen(eve.at)}`), 'calendar-check', 'blue'),
     h('ul', { class: 'pp-checks' }, ...eve.items.map(item)),
-    h('button', { type: 'button', class: 'btn btn-primary ik-big', id: `db-done-${k}`, disabled: busy || !res, 'aria-describedby': `db-done-${k}-d`, onclick: () => submitDayBefore(e, k) },
+    h('button', { type: 'button', class: 'btn k-btn-navy ik-big', id: `db-done-${k}`, disabled: busy || !res, 'aria-describedby': `db-done-${k}-d`, onclick: () => submitDayBefore(e, k) },
       res?.failed.length ? `סיום הבדיקה ושליחה לליאור (${res.failed.length})` : 'סיום הבדיקה'),
     h('p', { class: 'hint', id: `db-done-${k}-d` }, res ? 'כל פריט שנכשל עובר לליאור מיד, כחריגה דחופה.' : 'לענות קודם על מה שהמערכת לא יודעת.'));
 }
@@ -493,7 +493,7 @@ function tellRow(t) {
     h('p', { class: 'pp-msg' }, text),
     h('div', { class: 'pp-acts' },
       h('a', { class: 'btn', href: waLink(c.phone, text), target: '_blank', rel: 'noopener' }, 'שליחה בוואטסאפ', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')),
-      h('button', { type: 'button', class: 'btn btn-primary', id: `${rid}-done`, disabled: busy, onclick: () => finishTask(t, 'עודכן. תודה!', `${rid}-done`) }, 'עדכנתי את הלקוח')));
+      h('button', { type: 'button', class: 'btn k-btn-navy', id: `${rid}-done`, disabled: busy, onclick: () => finishTask(t, 'עודכן. תודה!', `${rid}-done`) }, 'עדכנתי את הלקוח')));
 }
 function missingRow(t) {
   const c = clientOf(t.client_id);
@@ -506,7 +506,7 @@ function missingRow(t) {
     h('p', { class: 'pp-msg' }, text),
     h('div', { class: 'pp-acts' },
       h('a', { class: 'btn', href: waLink(c.phone, text), target: '_blank', rel: 'noopener' }, 'שליחה בוואטסאפ', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')),
-      h('button', { type: 'button', class: 'btn btn-primary', id: `${rid}-done`, disabled: busy, onclick: () => finishTask(t, 'המשימה סומנה כבוצעה.', `${rid}-done`) }, 'הכול התקבל')));
+      h('button', { type: 'button', class: 'btn k-btn-navy', id: `${rid}-done`, disabled: busy, onclick: () => finishTask(t, 'המשימה סומנה כבוצעה.', `${rid}-done`) }, 'הכול התקבל')));
 }
 async function finishTask(t, msg, focusId) {
   if (busy) return;

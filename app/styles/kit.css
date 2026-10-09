@@ -277,3 +277,6 @@ a.k-row:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; 
 }
 @media (prefers-reduced-motion: reduce) { a.k-row { transition: none; } }
 @media print { .k-row { box-shadow: none; border: 1px solid #999; } .k-note, .k-fact, .k-pill { background: #fff; } }
+
+/* Leftover of the visual pass of 9.10.2026: a long unbroken name wraps inside a note or a notice. */
+.k-note, .k-notice-t, .k-note > :not(.k-ico) { overflow-wrap: anywhere; min-inline-size: 0; }

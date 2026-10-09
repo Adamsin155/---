@@ -9,7 +9,7 @@ import {
   exceptionOf, normalizeSelection, baseQuantities,
 } from './pricing.js';
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
-import { iconSquare, headIcon } from './kit.js';
+import { iconSquare, headIcon, noteIcon } from './kit.js';
 // The sign-in form's look and its button with the door (docs/ops.md, section 51).
 import { loginDoor } from './login-ui.js';
 
@@ -133,7 +133,7 @@ function renderIncluded() {
   const tier = TIERS.find((t) => t.id === state.tier);
   $('included').replaceChildren(
     h('div', { class: 'included-head' },
-      h('span', { class: 'included-title' }, 'מה כלול ב־', h('bdi', {}, tier.short), ` · ${INFLUENCERS[state.influencer].name}`),
+      h('span', { class: 'included-title' }, h('span', { class: 'nw' }, 'מה כלול ב־', h('bdi', {}, tier.short)), h('span', { class: 'k-sep' }, ' · '), h('span', { class: 'of' }, INFLUENCERS[state.influencer].name)),
       h('span', { class: 'tag' }, 'כמויות לשנה'),
     ),
     h('ul', {}, pkg.includes.map((i) => h('li', {},
@@ -462,7 +462,8 @@ function renderCustom() {
     diff.length
       ? h('ul', { id: 'custom-diff-list' }, diff.map((d) => h('li', {}, d.text)))
       : h('p', {}, 'אין שינוי מהחבילה: זה חוזה רגיל, והוא נשלח ללקוח בלי אישור.'),
-    diff.length ? h('p', { class: 'needs' }, 'נדרש אישור של אדם, אופיר או ליאור לפני שהלקוח מקבל את החוזה.') : null,
+    // (replaceChildren would print a null as the word 'null'.)
+    ...(diff.length ? [h('p', { class: 'needs' }, 'נדרש אישור של אדם, אופיר או ליאור לפני שהלקוח מקבל את החוזה.')] : []),
   );
 }
 
@@ -537,6 +538,10 @@ function setupSectionNav() {
     }
   }, { rootMargin: '-35% 0px -55% 0px' });
   sections.forEach((s) => s && obs.observe(s));
+  // A phone: the price bar steps aside while the summary's own buttons are on screen
+  // (it would cover them, and its one button leads here).
+  const acts = document.querySelector('#summary .actions');
+  if (acts) new IntersectionObserver(([en]) => document.body.classList.toggle('at-summary', en.isIntersecting), { rootMargin: '0px 0px -80px 0px' }).observe(acts);
 }
 
 /* ── State changes ─────────────────────────── */
@@ -815,7 +820,10 @@ function askLogin() {
         if (error) throw error;
         const staff = await refreshSession();
         if (!staff?.isStaff) throw new Error('not staff');
-        if (denied) return; // not their page: deny() closed the dialog, and nothing is created
+        // Not their page: nothing is created, and they are taken to their own home instead of
+        // being left on "אין לך גישה" (the owner's rule, 9.10.2026; docs/ops.md, section 54).
+        // Whoever builds contracts stays: the dialog sits over the quote they are making.
+        if (denied) { const home = $('na-home').getAttribute('href'); if (home) location.replace(home); return; }
         // A fresh sign-in starts in the personal profile (app/manager-rules.js).
         import('./manager-rules.js').then((m) => m.resetMode()).catch(() => {});
         form.removeEventListener('submit', onSubmit);
@@ -1063,10 +1071,12 @@ async function openForRevise(id) {
     const note = $('revise-note');
     note.hidden = false;
     note.classList.toggle('is-plain', q.approval !== 'rejected');
-    note.replaceChildren(h('strong', {}, 'תיקון חוזה ', h('bdi', { class: 'num', dir: 'ltr' }, q.number), ' · '),
+    note.replaceChildren(h('span', {}, h('strong', {}, 'תיקון חוזה ', h('bdi', { class: 'num', dir: 'ltr' }, q.number), ' · '),
       q.approval === 'rejected' ? `לא אושר: ${q.approval_note || ''}`
         : q.approval === 'approved' ? 'החוזה כבר אושר. כל שינוי בו מחזיר אותו לאישור, והקישור שנשלח ללקוח מפסיק לעבוד עד האישור החדש.'
-          : 'החוזה ממתין לאישור. אפשר לתקן ולשלוח שוב.');
+          : 'החוזה ממתין לאישור. אפשר לתקן ולשלוח שוב.'));
+    // The strip of the kit: a small icon square, the tone of what happened (app/kit.js).
+    noteIcon(note, q.approval === 'rejected' ? 'late' : 'warn');
     document.body.classList.remove('is-choosing');
     $('start').hidden = true;
     office = true; // only the office reads the quote above

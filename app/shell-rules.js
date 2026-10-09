@@ -35,11 +35,11 @@ export function officeScreens(viewer) {
   const owner = ok && !me && viewer.scope === 'office';
   return [
     ['qa', 'qa.html', 'בקרה ושיוך', me === 'ofir' || me === 'lior' || owner],
-    ['pass', 'pass.html', 'מעבר על הלקוחות', me === 'ofir' || owner],
+    ['pass', 'pass.html', 'מעבר על הלקוחות', me === 'ofir' || owner, 'מעבר'],
     ['decisions', 'decisions.html', 'החלטות', me === 'lior' || me === 'ofir' || owner],
     ['insights', 'insights.html', 'תובנות', seesInsights(viewer)],
     ['year', 'year.html', 'שנת החבילה', ok && (viewer.scope === 'office' || me === 'ilai')],
-  ].filter(([, , , show]) => show).map(([id, href, label]) => ({ id, href, label }));
+  ].filter(([, , , show]) => show).map(([id, href, label, , short]) => (short ? { id, href, label, short } : { id, href, label }));
 }
 
 export const QUOTE_LABEL = 'הצעה חדשה והכנת חוזה';
@@ -54,16 +54,16 @@ export function menuOf(viewer) {
   if (isManager(viewer)) {
     list.push({ id: 'manager', href: MODES.manager.href, label: MODES.manager.label }); // the owner, Irit, Ofir: behind the button
   } else if (seesAllClients(viewer)) {
-    list.push({ id: 'overview', href: 'owner.html#all', label: 'כל הלקוחות במבט' }); // Lior: screen 2 and the table
+    list.push({ id: 'overview', href: 'owner.html#all', label: 'כל הלקוחות במבט', short: 'במבט' }); // Lior: screen 2 and the table
   }
   list.push({ id: 'clients', href: 'clients.html#clients', label: office ? 'לקוחות' : 'הלקוחות שלי' });
   // The content Gantt of every client (gantt.html without a client), 6.10.2026: Ilai, whose
   // it is, always has a way in, also with no open work; the owner, Irit, Lior and Ofir read.
   if (seesGantt(viewer)) list.push({ id: 'gantt', href: 'gantt.html', label: 'גאנט תוכן' });
   list.push(...officeScreens(viewer));
-  if (office) list.push({ id: 'prep', href: 'prep.html', label: 'לפני יום צילום' });
+  if (office) list.push({ id: 'prep', href: 'prep.html', label: 'לפני יום צילום', short: 'לפני צילום' });
   if (sendsMessages(viewer)) list.push({ id: 'messages', href: 'messages.html', label: 'הודעות ללקוחות' });
-  if (PEOPLE[me]?.editor) list.push({ id: 'editor', href: 'editor.html', label: 'הלקוחות שלי בעריכה' });
+  if (PEOPLE[me]?.editor) list.push({ id: 'editor', href: 'editor.html', label: 'הלקוחות שלי בעריכה', short: 'בעריכה' });
   if (me === 'eli' || office) list.push({ id: 'shoot', href: 'shoot.html', label: 'ימי צילום' });
   // Every client by its last shoot day, the oldest first (6.10.2026): Lior, Ofir and the owner.
   if (canSeeShootTable(viewer)) list.push({ id: 'shoot-table', href: 'owner.html#shoots', label: 'טבלת ימי צילום' });
@@ -94,6 +94,29 @@ function unique(list) {
 export const homeLink = (viewer) => (known(viewer) && isSales(viewer.me)
   ? { href: 'deal.html', label: 'מעבר לעסקה חדשה' }
   : { href: MODES.mine.href, label: 'מעבר להמשימות שלי' });
+
+// The person's home: the one answer to "where does this person start" (the owner's rule,
+// 9.10.2026; docs/ops.md, section 54). Everyone on "המשימות שלי" in the personal profile:
+// the owners and the office, Ilai, and since that day also the editors, Nirel and Eli
+// (who used to land on editor.html / shoot.html; those stay one tap away in their menu).
+// The field sales have no "המשימות שלי": their home is the deal page.
+export const homeHref = (viewer) => homeLink(viewer).href;
+// After a sign-in form said yes: stay on this page, or go home.
+//   { stay: true }                 this page is the person's home already
+//   { stay: true, rewrite: href }  the same page, another tab of it: the address becomes the home
+//   { stay: true, guard: href }    a deep link opened on purpose in this visit (`entry`):
+//                                  the page opens; if it answers "אין לך גישה", go to `guard`
+//   { go: href }                   any other page: the home
+export function afterSignIn(viewer, { pathname = '', hash = '', search = '', entry = false } = {}) {
+  const home = homeHref(viewer);
+  const to = split(home);
+  const here = pageOf(pathname);
+  const atHome = here === to.page && !search;
+  if (atHome && (here !== 'clients.html' || !hash || hash === to.hash)) return { stay: true };
+  if (entry) return { stay: true, guard: home };
+  if (atHome) return { stay: true, rewrite: home };
+  return { go: home };
+}
 
 // ── The two profiles of the owners, Ofir, Lior (6.10.2026) and Irit (7.10.2026) ──
 // The personal profile: only what this person acts on every day, "המשימות שלי" first.
