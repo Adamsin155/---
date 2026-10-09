@@ -234,13 +234,14 @@ export function mountSession(onReady) {
     if (!$('login-block').hidden) loginDoor.failed(); // signed in, but not one of the staff
   });
   $('lg-forgot').addEventListener('click', async (e) => {
+    const btn = e.currentTarget; // gone from the event once the request is awaited (the button stayed disabled)
     const email = cleanEmail($('lg-email').value);
     $('lg-err').hidden = true;
     $('lg-msg').hidden = true;
     if (!looksLikeEmail(email)) { $('lg-err').textContent = RESET_NEEDS_EMAIL; $('lg-err').hidden = false; $('lg-email').focus(); return; }
-    e.currentTarget.disabled = true;
+    btn.disabled = true;
     try { await sendPasswordReset(email); $('lg-msg').textContent = RESET_SENT; $('lg-msg').hidden = false; } catch (err) { $('lg-err').textContent = explainError(err); $('lg-err').hidden = false; }
-    e.currentTarget.disabled = false;
+    btn.disabled = false;
   });
   $('btn-logout').addEventListener('click', async () => { resetMode(); await signOutHere(); location.reload(); });
   // Opened from a personal sign-in link (team.html): choose a password first.

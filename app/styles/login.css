@@ -26,13 +26,14 @@ html[data-door]::before, html[data-door]::after { content: ''; position: fixed; 
 html[data-door]::before {
   inset: 0;
   background:
-    radial-gradient(circle at 31px 47px, rgba(255, 255, 255, .85) 0 .9px, transparent 1.5px) 0 0 / 233px 251px,
-    radial-gradient(circle at 177px 121px, rgba(255, 255, 255, .6) 0 .8px, transparent 1.4px) 0 0 / 233px 251px,
-    radial-gradient(circle at 97px 203px, rgba(255, 255, 255, .45) 0 .7px, transparent 1.3px) 0 0 / 233px 251px,
-    radial-gradient(circle at 61px 263px, rgba(255, 255, 255, .7) 0 1px, transparent 1.7px) 0 0 / 367px 331px,
-    radial-gradient(circle at 289px 83px, rgba(220, 205, 251, .8) 0 1.1px, transparent 1.8px) 0 0 / 367px 331px,
-    radial-gradient(circle at 211px 191px, rgba(255, 255, 255, .4) 0 .8px, transparent 1.4px) 0 0 / 367px 331px,
-    radial-gradient(circle at 139px 29px, rgba(255, 255, 255, .5) 0 .7px, transparent 1.3px) 0 0 / 191px 173px,
+    radial-gradient(circle at 31px 47px, rgba(255, 255, 255, .85) 0 .9px, transparent 1.5px) 0 0 / 419px 383px,
+    radial-gradient(circle at 277px 121px, rgba(255, 255, 255, .6) 0 .8px, transparent 1.4px) 40px 10px / 419px 383px,
+    radial-gradient(circle at 157px 303px, rgba(255, 255, 255, .45) 0 .7px, transparent 1.3px) 0 0 / 353px 461px,
+    radial-gradient(circle at 61px 263px, rgba(255, 255, 255, .7) 0 1px, transparent 1.7px) 90px 30px / 547px 331px,
+    radial-gradient(circle at 389px 83px, rgba(220, 205, 251, .8) 0 1.1px, transparent 1.8px) 0 0 / 547px 409px,
+    radial-gradient(circle at 211px 191px, rgba(255, 255, 255, .4) 0 .8px, transparent 1.4px) 20px 70px / 311px 269px,
+    radial-gradient(circle at 139px 29px, rgba(255, 255, 255, .5) 0 .7px, transparent 1.3px) 0 0 / 283px 499px,
+    radial-gradient(circle at 97px 173px, rgba(255, 255, 255, .35) 0 .6px, transparent 1.2px) 60px 0 / 233px 307px,
     linear-gradient(165deg, var(--lg-night) 0%, #0A1A45 52%, var(--ds-navy-2, #1C2F6B) 135%);
 }
 /* The glows: the logo's purple and the brand pink, soft, on one layer that drifts very
@@ -269,15 +270,17 @@ dialog.lg-dialog {
 @media (prefers-reduced-motion: reduce) {
   html[data-door]::after, html[data-door-late]::after { animation: none; }
   html[data-door='through']::after { animation: lg-giveup .4s ease-out 7s forwards; }
-  html #login-block { animation: lg-fade .2s ease-out; }
-  html[data-door='out'] #login-block { transform: none; }
-  :is(#login-block, .lg-dialog) .lg-field label { transition: none; }
-  .lg-leaf, .lg-figure, .lg-check { transition: opacity .15s linear; }
+  /* app.css turns every transition and animation off for this setting (`*`, !important).
+     The fades below are opacity only, and say so with the same weight. */
+  html #login-block { animation: lg-fade .2s ease-out !important; }
+  html #login-block.lg-won[hidden] { animation: lg-giveup .4s ease-out 7s forwards !important; }
+  html[data-door='out'] #login-block { transform: none; transition: opacity .22s ease-out !important; }
   .lg-leaf, .lg-figure, .lg-check, .is-won .lg-check { transform: none !important; }
-  .lg-leg, .lg-glow { animation: none !important; }
-  .is-won .lg-figure { transition-delay: .2s; }
-  .lg-card.is-shaking { animation: none; }
-  #login-block .btn-primary, #lg-submit.lg-go { transition: none; }
+  .lg-figure, .lg-check, .lg-glow, .lg-btn-label, .lg-scene, .lg-eye-off { transition: opacity .15s linear !important; }
+  .is-won .lg-figure { transition-delay: .2s !important; }
+  .is-won .lg-btn-label, .is-won .lg-scene { transition-delay: .32s !important; }
+  .is-won .lg-check { transition-delay: .4s !important; }
+  .lg-status span, :is(#login-block, .lg-dialog) :is(.err, .note-ok) { animation: lg-fade .18s ease-out !important; }
   #login-block .btn-primary:active:not(:disabled), #lg-submit.lg-go:active:not(:disabled) { transform: none; }
 }
 

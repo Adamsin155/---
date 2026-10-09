@@ -55,7 +55,11 @@ async function open({ viewport = PHONE, reduced = false, path = 'clients.html#mi
   await ctx.clock.install({ time: NOW });
   // `hold`: the server's answer to a sign-in waits until the test lets it go.
   await ctx.route(`${SUPA}/**`, async (route) => {
-    if (hold && new URL(route.request().url()).pathname === '/auth/v1/token') await hold.gate;
+    const path = new URL(route.request().url()).pathname;
+    if (hold && path === '/auth/v1/token') await hold.gate;
+    if (path === '/auth/v1/recover' && route.request().method() === 'POST') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{}', headers: { 'access-control-allow-origin': '*' } });
+    }
     return fake.route(route);
   });
   await ctx.addInitScript(record);
@@ -119,7 +123,7 @@ await step('nobody signed in: the night from the first paint, and a card with an
     const tied = ['lg-email', 'lg-pass'].map((id) => form.querySelector(`label[for="${id}"]`)?.textContent);
     const sky = getComputedStyle(document.documentElement, '::before');
     const glow = getComputedStyle(document.documentElement, '::after');
-    const under = document.elementFromPoint(4, 4);
+    const under = document.elementFromPoint(4, window.innerHeight / 2);
     return {
       controls, tied,
       heading: document.getElementById('lg-h').textContent,
@@ -210,6 +214,7 @@ await step('the fields: the label moves up when the field is in use or filled, t
   await page.click('#lg-forgot');
   await page.waitForSelector('#lg-msg:not([hidden])');
   assert.equal(await page.locator('#lg-err').isHidden(), true);
+  await page.waitForFunction(() => !document.getElementById('lg-forgot').disabled); // it can be asked for again
   await ctx.close();
 });
 
@@ -238,9 +243,16 @@ await step('idle → signing → success: "מתחברים…" holds as long as t
   assert.equal(await page.locator('#lg-submit').isDisabled(), true);
   assert.equal(await page.locator('#login-form').isVisible(), true);
   await shot(page, 'login-390-signing');
+  await page.evaluate(() => {
+    window.__ran = [];
+    document.getElementById('lg-submit').addEventListener('transitionrun', (e) => window.__ran.push(`${e.target.classList[0]}:${e.propertyName}`));
+  });
   hold.release();
   // The server said yes: the figure walks in, the button is green with a check.
   await page.waitForFunction(() => document.getElementById('lg-status').textContent === 'ברוכים השבים!');
+  // It really walked: the page put the form away, and the card was not redrawn in its last state.
+  const ran = await page.evaluate(() => window.__ran);
+  for (const piece of ['lg-leaf:transform', 'lg-figure:transform', 'lg-figure:opacity', 'lg-check:opacity']) assert.ok(ran.includes(piece), `${piece} moved (${ran})`);
   await page.waitForFunction(() => getComputedStyle(document.getElementById('lg-submit'), '::after').opacity === '1' && getComputedStyle(document.querySelector('.lg-check')).opacity === '1');
   const won = await door(page);
   assert.deepEqual({ state: won.state, won: won.won, signing: won.signing, errHidden: won.errHidden }, { state: 'won', won: true, signing: false, errHidden: true });
@@ -313,12 +325,12 @@ await step('someone who is signed in never sees the sign-in screen or its backgr
 });
 
 await step('a page that sends the person on to their first screen: the night stays through the move and opens onto that page', async () => {
-  // Ofir on clients.html, a new tab: the page leaves for his own screen without showing itself.
+  // An editor on clients.html, a new tab: the page leaves for editor.html without showing itself.
   const { page, ctx } = await open({ path: 'clients.html' });
-  await fillIn(page, 'ofir');
+  await fillIn(page, 'nadia');
   const first = page.url();
   await page.click('#lg-submit');
-  await page.waitForURL((u) => u.toString() !== first && !/clients\.html/.test(u.toString()), { timeout: 15000 });
+  await page.waitForURL((u) => u.toString() !== first && /editor\.html/.test(u.toString()), { timeout: 15000 });
   await page.waitForSelector('#app:not([hidden])');
   // The new page started under the night and never drew the sign-in form.
   assert.equal(await page.evaluate(() => window.__door[0]), 'through');
@@ -326,9 +338,9 @@ await step('a page that sends the person on to their first screen: the night sta
   assert.deepEqual(await page.evaluate(() => ({ door: window.__door, form: window.__formSeen, boot: 'boot' in document.documentElement.dataset })), { door: ['through', 'out'], form: false, boot: false });
   assert.equal(await page.evaluate(() => sessionStorage.getItem('astrateg.door')), null, 'the note is used once');
   // The next page of the same tab is an ordinary signed-in page.
-  await page.goto(`${BASE}qa.html`);
+  await page.goto(`${BASE}clients.html#mine`);
   await page.waitForFunction(() => !('boot' in document.documentElement.dataset));
-  assert.deepEqual(await page.evaluate(() => window.__door), []);
+  assert.deepEqual(await page.evaluate(() => ({ door: window.__door, form: window.__formSeen })), { door: [], form: false });
   await ctx.close();
 });
 
@@ -435,6 +447,8 @@ await step('the builder\'s dialog: the same fields and button, and it closes onl
   const box = await page.locator('#lg-submit').boundingBox();
   assert.ok(box.height >= 44 && box.x >= 0 && box.x + box.width <= PHONE.width);
   await fillIn(page, 'irit');
+  await page.waitForTimeout(300);
+  assert.ok(!SHUT.includes(await page.evaluate(() => getComputedStyle(document.querySelector('label[for="lg-pass"]')).transform)), 'the labels move up here too');
   await shot(page, 'login-390-dialog');
   await ctx.close();
 });
@@ -465,6 +479,7 @@ await step('a wide screen: the same card in the middle, nothing overflowing', as
   hold.gate = Promise.resolve();
   await page.fill('#lg-pass', 'correct-horse');
   await page.click('#lg-submit');
+  await page.waitForFunction(() => document.getElementById('lg-status').textContent === 'ברוכים השבים!');
   await page.waitForFunction(() => getComputedStyle(document.getElementById('lg-submit'), '::after').opacity === '1' && getComputedStyle(document.querySelector('.lg-check')).opacity === '1');
   await shot(page, 'login-1280-success');
   await gone(page);

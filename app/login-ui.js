@@ -17,8 +17,9 @@
 // On a page, success needs no call: the page hides #login-block once the server said who is
 // signed in, and that is when the figure walks in. The dark screen then stays over the page
 // that is being built (<html data-boot>, section 42) and opens onto it when it is whole.
+const HAS_PAGE = typeof document !== 'undefined'; // the unit tests load the pages' modules with no page
 const $ = (id) => document.getElementById(id);
-const root = document.documentElement;
+const root = HAS_PAGE ? document.documentElement : null;
 const SVG = 'http://www.w3.org/2000/svg';
 
 export const LOGIN_TEXT = {
@@ -155,7 +156,11 @@ function mountLogin() {
     button.classList.toggle('is-won', next === 'won');
     if (next === 'signing') form.setAttribute('aria-busy', 'true'); else form.removeAttribute('aria-busy');
   };
-  const reset = () => { set('idle'); say(''); form.classList.remove('is-shaking'); };
+  // While the server is asked, and after its yes, the card stays drawn even if the page puts
+  // the form away (login.css: .lg-won). It is held from the moment the request leaves, so the
+  // card is never taken off the screen and put back: the walk would be skipped.
+  const keep = (on) => block?.classList.toggle('lg-won', on);
+  const reset = () => { set('idle'); say(''); keep(false); form.classList.remove('is-shaking'); };
   form.addEventListener('animationend', (e) => { if (e.target === form) form.classList.remove('is-shaking'); });
   // Once the person is in, a second Enter sends nothing.
   form.addEventListener('submit', (e) => { if (state === 'won') { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
@@ -164,11 +169,13 @@ function mountLogin() {
     if (state === 'won') return;
     showPass(false); // what is sent, and what the browser offers to save, is a password field
     form.classList.remove('is-shaking');
+    keep(true);
     set('signing');
     say(LOGIN_TEXT.signing);
   }
   function failed() {
     if (state !== 'signing') return;
+    keep(false);
     set('idle');
     say('');
     form.classList.add('is-shaking');
@@ -203,7 +210,7 @@ function mountLogin() {
     root.dataset.door = 'out';
     await wait(LOGIN_TIMES.lift);
     delete root.dataset.door;
-    block.classList.remove('lg-won');
+    delete root.dataset.doorLate;
     note(false);
     paint(false);
     reset();
@@ -216,15 +223,20 @@ function mountLogin() {
     if (lifting) return;
     if (!block.hidden) {
       // The sign-in screen is on (also for a session that ended, or a page with no gate).
-      if (state === 'won') { block.classList.remove('lg-won'); reset(); }
-      if (root.dataset.door !== 'in') { root.dataset.door = 'in'; paint(true); }
+      if (state === 'won') reset();
+      if (root.dataset.door !== 'in') {
+        // Over a page that was already drawn (a session that ended, signing out with no reload,
+        // a page with no gate): the night fades in instead of cutting in.
+        if (!('door' in root.dataset)) root.dataset.doorLate = '';
+        root.dataset.door = 'in';
+      }
+      paint(true);
       fit();
       return;
     }
     // The form was put away while the request ran: the server said who this is. Now the
     // figure walks in; the card stays for the green button although the page hid it.
     if (state === 'signing') {
-      block.classList.add('lg-won');
       root.dataset.door = 'through';
       note(true); // a page that sends the person on to their first screen: the next page opens the door
       won(LOGIN_TIMES.beat);
@@ -265,4 +277,4 @@ function mountLogin() {
   return { signing, failed, success: () => won(LOGIN_TIMES.beat) };
 }
 
-export const loginDoor = mountLogin();
+export const loginDoor = HAS_PAGE ? mountLogin() : NOTHING;
