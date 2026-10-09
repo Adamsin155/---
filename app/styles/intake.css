@@ -249,3 +249,43 @@ p.pp-status.is-open { background: var(--ds-amber-soft); color: var(--ds-ink); }
   .ik-app .ik-opt span { flex: 1 1 auto; justify-content: center; padding-inline: 12px; }
   .ik-app .ik-more { max-inline-size: none; }
 }
+/* vfix office */
+/* The visual sweep of 9.10.2026: what was still in the old look next to the kit, what
+   overflowed with long names, and the dialogs. Look only. Pills, 4.5:1 needed: ink-2 on
+   soft 9.2, amber on its soft 5.9, late on its soft 5.15. */
+.pp-app .tag:not(.tag-landing) {
+  display: inline-flex; align-items: center; min-block-size: 24px; max-inline-size: 100%; padding: 2px 10px; border: 0; border-radius: var(--ds-r-pill);
+  background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 600; line-height: 1.3; vertical-align: middle; overflow-wrap: anywhere;
+}
+.pp-app .tag.tag-warn { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.pp-app .tag.tag-urgent { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+.pp-app .more-btn { border-style: solid; border-color: var(--ds-line-strong); background: var(--ds-surface); color: var(--ds-ink); font-weight: 600; }
+
+.pp-card { overflow-wrap: anywhere; }
+.pp-head > *, .pp-follow-h > *, .pp-acts > * { min-width: 0; }
+.pp-acts .btn { white-space: normal; text-align: center; }
+.pp-msg { border-style: solid; border-color: var(--ds-line); border-radius: var(--ds-r-item); }
+.pp-blocker { border-radius: var(--ds-r-item); }
+/* What the system knows about a check, as a pill. */
+.pp-sys { padding: 2px 10px; border-radius: var(--ds-r-pill); font-weight: 600; }
+.pp-sys.is-ok { background: var(--ds-ok-soft); color: var(--ds-ok); }
+.pp-sys.is-fail { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+/* A day that is closed with everyone: one green line with its square. */
+details.pp-sub > summary.pp-sum { gap: 6px 8px; padding: 4px 12px; border-radius: var(--ds-r-item); background: var(--ds-ok-soft); list-style: none; }
+details.pp-sub > summary.pp-sum::-webkit-details-marker { display: none; }
+details.pp-sub > summary.pp-sum > .k-ico { background: var(--ds-surface); }
+details.pp-sub > summary.pp-sum .pp-status.is-ok { color: var(--ds-ink); font-weight: 500; }
+/* "עם מי מצלמים" and "הגעת המשפיענים": the two labels on one line and the two fields on
+   the next, the same height, also where the browser draws a date field its own way (iOS). */
+.pp-form .row2 { align-items: start; }
+.pp-form .row2 > .field, .pp-form > .field { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 6px; margin: 0; min-width: 0; }
+.pp-form .field > label { margin: 0; min-block-size: 20px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-form .field > .input { display: block; box-sizing: border-box; inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; block-size: 48px; min-height: 48px; margin: 0; }
+.pp-form .field > textarea.input { block-size: auto; }
+.pp-form input[type='date'], .pp-form input[type='datetime-local'] { -webkit-appearance: none; appearance: none; text-align: start; line-height: 1.2; }
+.pp-form input::-webkit-date-and-time-value { text-align: start; }
+.pp-form .field > .hint, .pp-form .field > .err { margin: 0; }
+@media (min-width: 761px) {
+  .pp-form > .btn, .pp-app .ik-big { inline-size: auto; justify-self: start; min-inline-size: 240px; }
+}
+.pp-app .k-note { overflow-wrap: anywhere; }

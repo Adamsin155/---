@@ -28,7 +28,7 @@ import { offerHandoff } from './handoff-ui.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import * as P from './production.js';
 import { mountAvailability } from './availability-ui.js';
-import { headIcon, iconSquare, sectionHead, emptyState, noteIcon, row, facts, dress } from './kit.js';
+import { headIcon, leadIcon, icon, iconSquare, sectionHead, emptyState, noteIcon, row, facts, dress } from './kit.js';
 
 let me = null;
 let mode = null; // 'eli' | 'lior'
@@ -165,7 +165,7 @@ function briefingForEli(sc, b) {
     b.label ? h('p', {}, P.driveName(b.label)) : null,
     b.notes ? h('p', { class: 'ed-note' }, b.notes) : null,
     b.ack ? h('p', { class: 'note-ok' }, `אישרת ${formatWhen(b.ack)}. ליאור רואה.`)
-      : btn(`${id}-ack`, 'קיבלתי', () => mark(sc, 'p16.photographer', 'אלי אישר את התדריך', `${id}-h`), 'btn btn-primary'));
+      : btn(`${id}-ack`, 'קיבלתי', () => mark(sc, 'p16.photographer', 'אלי אישר את התדריך', `${id}-h`), 'btn k-btn-navy'));
 }
 
 // The gear list: ticks kept on this phone until all four are done (then one mark).
@@ -174,7 +174,7 @@ function gearBlock(sc) {
   if (isDone(sc, 'p17b.gear')) return h('p', { class: 'note-ok' }, 'הציוד מוכן: סוללות, כרטיסים, מיקרופונים ותאורה.');
   const key = (g) => `gear.${sc.client.id}.${sc.n}.${g}`;
   return h('fieldset', { class: 'prod-checks sh-gear' },
-    h('legend', {}, 'ציוד לערב שלפני'),
+    leadIcon(h('legend', {}, 'ציוד לערב שלפני'), 'box'),
     ...P.GEAR.map(([g, l]) => h('label', { class: 'prod-check', for: `${id}-gear-${g}` },
       h('input', {
         type: 'checkbox', id: `${id}-gear-${g}`, class: 'cbx', checked: store.get(key(g)) === '1', disabled: !canAct,
@@ -208,7 +208,7 @@ function eliDay(sc, now) {
   const broll = !arrived ? null : !q
     ? h('div', { class: 'sh-q', role: 'group', 'aria-labelledby': `${id}-q` },
       h('p', { id: `${id}-q` }, h('strong', {}, 'הבי־רול גמור?'), ` המשפיענים מגיעים ב־${P.clockText(sc.shootAt)}.`),
-      btn(`${id}-yes`, 'כן', () => mark(sc, ['p17b.brollq', ...notYet(sc, ['p17b.broll', 'p17b.zones', 'p17b.variety'])], null, `${id}-h`), 'btn btn-primary'),
+      btn(`${id}-yes`, 'כן', () => mark(sc, ['p17b.brollq', ...notYet(sc, ['p17b.broll', 'p17b.zones', 'p17b.variety'])], null, `${id}-h`), 'btn k-btn-navy'),
       btn(`${id}-no`, 'לא', () => answerNo(sc), 'btn'))
     : q.note === 'no' && !isDone(sc, 'p17b.broll')
       ? h('div', { class: 'sh-q' }, h('p', {}, 'ענית שהבי־רול לא גמור. ליאור קיבל הודעה.'),
@@ -233,7 +233,7 @@ function eliDay(sc, now) {
   return h('div', { class: 'sh-day' },
     arrival,
     broll,
-    h('details', { class: 'ed-more' }, h('summary', {}, 'הנחיות הצילום'),
+    h('details', { class: 'ed-more' }, leadIcon(h('summary', {}, 'הנחיות הצילום'), 'list'),
       h('ul', { class: 'sh-guide' },
         h('li', {}, 'עוברים עם ליאור על אזורי הצילום: זוויות, תאורה, סאונד ורקע נקי.'),
         h('li', {}, 'בי־רול מגוון לפני המשפיענים: המקום, חזית ופנים, מוצרים, שירותים, עובדים, שילוט ואווירה; תקריבים וצילומים רחבים.'),
@@ -264,6 +264,8 @@ async function saveNotes(sc) {
 // The database gives them only for Eli's own shoot days, from the day the shoot is
 // in his list until the day after it; nothing here can be changed.
 const scriptsDlg = $('dlg-scripts');
+// The dialog's head takes its icon square (app/kit.js); the title is rewritten on every opening.
+dress(scriptsDlg, [['.dlg-head h2', 'file', 'blue', 'md']]);
 scriptsDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === scriptsDlg) scriptsDlg.close(); });
 let scriptsBack = null;
 scriptsDlg.addEventListener('close', () => { document.getElementById(scriptsBack)?.focus(); });
@@ -350,7 +352,7 @@ function shootMode(sc, now) {
         shot.length ? btn(`${id}-minus`, `ביטול סרטון ${Math.max(...shot)}`, () => count(sc, shot.filter((x) => x !== Math.max(...shot)), `${id}-minus`), 'btn btn-sm btn-ghost', { disabled: !canAct || !started }) : null),
       closed || started ? null : h('p', { class: 'hint', id: `${id}-early` }, `יום הצילום ${P.startsText(sc.shootAt)}. המונה והסגירה נפתחים אז.`)),
     h('ol', { class: 'sh-timeline' }, ...tl.map((x) => h('li', { class: `${x.at <= now ? 'is-past' : ''}${x === nextPoint ? ' is-next' : ''}${x.prompt ? ' is-prompt' : ''}` },
-      h('span', { class: 'num sh-t' }, P.clockText(x.at)), h('span', {}, x.label), x === nextPoint ? h('span', { class: 'sr-only' }, ' (הבא)') : null))),
+      h('span', { class: 'num sh-t' }, P.clockText(x.at)), h('span', { class: x.prompt ? 'sh-prompt' : null }, x.prompt ? icon('clock', { size: 16 }) : null, x.label), x === nextPoint ? h('span', { class: 'sr-only' }, ' (הבא)') : null))),
     h('p', { class: 'sh-fixed' }, 'להחזיק את הראיונות על המסר.'),
     // Eli, at a glance.
     h('dl', { class: 'sh-facts' },
@@ -370,7 +372,7 @@ function shootMode(sc, now) {
         h2.lior ? h('p', { class: 'note-ok' }, `אישרת שהכונן חזר ${P.clockText(h2.lior)}.${h2.eli ? '' : ' אלי עוד לא סימן מסירה.'}`)
           : btn(`${id}-took`, h2.eli ? `אלי מסר את הכונן · קיבלתי` : 'הכונן חזר אליי', () => mark(sc, 'p19.took', h2.eli ? null : 'ליאור אישר לפני אלי', `${id}-close`), 'btn', { disabled: !canAct || !started }),
         h('div', { class: 'ed-act' },
-          btn(`${id}-close`, 'סגירת יום הצילום', () => closeDay(sc), 'btn btn-primary', { disabled: !canAct || !lock.ok, 'aria-describedby': `${id}-lock` }),
+          btn(`${id}-close`, 'סגירת יום הצילום', () => closeDay(sc), 'btn k-btn-navy', { disabled: !canAct || !lock.ok, 'aria-describedby': `${id}-lock` }),
           h('p', { class: lock.ok ? 'hint' : 'ed-miss', id: `${id}-lock` }, lock.ok ? 'אפשר לסגור.' : `עוד חסר: ${lock.missing.join(' · ')}`))));
 }
 async function count(sc, videos, focusId) {
@@ -421,7 +423,7 @@ function briefingForm(sc, now) {
       h('textarea', { class: 'input', id: `${id}-notes`, rows: 2, maxlength: 1000 }, b?.notes || '')),
     h('p', { class: 'err', id: `${id}-err`, role: 'alert', hidden: true }),
     h('div', { class: 'ed-act' },
-      h('button', { type: 'submit', class: 'btn btn-primary', id: `${id}-send` }, b ? 'עדכון התדריך' : 'שליחת התדריך לאלי'),
+      h('button', { type: 'submit', class: 'btn k-btn-navy', id: `${id}-send` }, b ? 'עדכון התדריך' : 'שליחת התדריך לאלי'),
       phones.eli ? h('a', { class: 'btn btn-sm btn-ghost', href: whatsappLink(phones.eli, waText(b?.label, b?.notes)), target: '_blank', rel: 'noopener noreferrer' }, 'גם בוואטסאפ') : null)) : null);
 }
 

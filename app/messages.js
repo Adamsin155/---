@@ -631,6 +631,8 @@ document.addEventListener('visibilitychange', () => {
 dress($('app'), [['.msg-card.is-sent .msg-name', 'check-circle', 'green', 'md'], ['.msg-card.k-delay .msg-name', 'alert', 'orange', 'md'], ['.msg-card.k-milestone .msg-name', 'star', 'purple', 'md'],
   ['.msg-card.k-thursday .msg-name', 'calendar', 'teal', 'md'], ['.msg-card .msg-name', 'chat', 'blue', 'md'], ['#na-h', 'lock', 'navy']]);
 
+dress($('dlg-templates'), [['.dlg-head h2', 'edit', 'purple', 'md']]);
+
 mountSession(async (staff) => {
   myEmail = String(staff.email || '').toLowerCase();
   const [dir, viewer] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
