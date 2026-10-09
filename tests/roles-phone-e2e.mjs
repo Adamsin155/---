@@ -37,7 +37,7 @@ async function open(role, { viewport = PHONE, full = false, prepare = null, cale
   await ctx.route(`${SUPA}/**`, fake.route);
   // "היומן שלי" is offered, not connected yet (the fake has no such function otherwise).
   if (calendar) await ctx.route(`${SUPA}/rest/v1/rpc/calendar_feed_status`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]', headers: { 'access-control-allow-origin': '*' } }));
-  if (full) await ctx.addInitScript(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
+  if (full) await ctx.addInitScript(() => { try { sessionStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${role}: ${e}`));
   watchCsp(page); // a load the Content-Security-Policy refused fails the suite (tests/csp-watch.mjs)

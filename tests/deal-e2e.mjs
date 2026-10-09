@@ -265,7 +265,11 @@ await step('back on his page, Stav sees "חוזה נשלח"', async () => {
 
 await step('anyone else on deal.html: "העמוד הזה לסוכני השטח", no form', async () => {
   const n = await newPage({ width: 360, height: 780 });
-  await signIn(n, 'deal.html', 'nadia@astrateg.test');
+  // Signed in on her own home, then this page by its address. (A sign-in ON this page takes
+  // her home instead: docs/ops.md, section 54; tests/phone-bugs-e2e.mjs.)
+  await signIn(n, 'clients.html', 'nadia@astrateg.test');
+  await n.waitForSelector('#view-mine:not([hidden])');
+  await n.goto(`${BASE}deal.html`);
   await n.waitForSelector('#no-access:not([hidden])');
   assert.equal(await n.locator('#deal-form').isVisible(), false);
   assert.match(await n.locator('#no-access').innerText(), /למשימות שלי/);

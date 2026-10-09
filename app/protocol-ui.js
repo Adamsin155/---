@@ -236,7 +236,6 @@ export function mountSession(onReady) {
     $('lg-submit').disabled = false;
     if (error) { $('lg-err').textContent = explainError(error); $('lg-err').hidden = false; loginDoor.failed(); return; }
     resetMode(); // a fresh sign-in starts in the personal profile (app/manager-rules.js)
-    forgetPlace(); // and with nothing of whoever was here before: the view, the filters
     // Their home, whatever page the form happened to be on (the owner's rule, 9.10.2026):
     // only a page opened on purpose in this visit keeps them, if it is theirs to open.
     const plan = await signInPlan(data?.user?.email || cleanEmail($('lg-email').value));

@@ -268,7 +268,7 @@ try {
 
   await step('Ofir\'s card of 22א opens the assignment of that client on his page, and of 25 his queue; Irit\'s card of 22א has no such link', async () => {
     const { page, ctx } = await signedIn('ofir');
-    await page.evaluate(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
+    await page.evaluate(() => { try { sessionStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
     await page.reload();
     await page.waitForSelector('#view-mine:not([hidden]) .wproc');
     await settle(page);
@@ -282,7 +282,7 @@ try {
     await ctx.close();
 
     const irit = await signedIn('irit');
-    await irit.page.evaluate(() => { try { localStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
+    await irit.page.evaluate(() => { try { sessionStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
     await irit.page.reload();
     await irit.page.waitForSelector('#view-mine:not([hidden]) .wproc');
     await settle(irit.page);

@@ -706,7 +706,11 @@ await step('the client\'s editor reads the Gantt and nothing more; an editor wit
   await nctx.close();
   const actx = await newContext();
   const anna = await newPage(actx);
-  await signIn(anna, `gantt.html?id=${A.id}`, 'anna@astrateg.test');
+  // Signed in on her home, then the Gantt by its address (a sign-in ON a page that is not hers
+  // takes her home instead of showing the refusal: docs/ops.md, section 54).
+  await signIn(anna, 'clients.html', 'anna@astrateg.test');
+  await anna.waitForSelector('#view-mine:not([hidden])');
+  await anna.goto(`${BASE}gantt.html?id=${A.id}`);
   await anna.waitForSelector('#no-access:not([hidden])');
   await actx.close();
 });

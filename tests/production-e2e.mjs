@@ -316,9 +316,13 @@ const nadia = await scene('2026-10-19T10:00:00');
 const card = '#c-aaaaaaaa-0000-4000-8000-000000000001';
 const A_ID = 'c-aaaaaaaa-0000-4000-8000-000000000001';
 
-await step('an editor lands on "הלקוחות שלי בעריכה" and sees only her client, day 1 of 3 and both dates in words', async () => {
+await step('an editor lands on "המשימות שלי"; "הלקוחות שלי בעריכה" is one tap away and shows only her client, day 1 of 3 and both dates in words', async () => {
   const { page } = nadia;
   await signIn(page, 'clients.html', 'nadia');
+  // The owner's rule of 9.10.2026 (docs/ops.md, section 54): she lands on "המשימות שלי"; this screen is one tap away.
+  await page.waitForSelector('#view-mine:not([hidden])');
+  assert.match(page.url(), /clients\.html(#mine)?$/);
+  await page.goto(`${BASE}editor.html`);
   await page.waitForURL(/editor\.html/);
   await page.waitForSelector(card);
   assert.equal(await text(page, 'h1'), 'הלקוחות שלי בעריכה');
@@ -626,9 +630,13 @@ await step('Lior sends the 17:00 briefing to Eli with the drive label', async ()
   await ctx.close();
 });
 
-await step('Eli lands on "ימי הצילום שלי": his arrival, the scripts, the label, navigation; "קיבלתי" and the gear list', async () => {
+await step('Eli lands on "המשימות שלי"; "ימי הצילום שלי" is one tap away: his arrival, the scripts, the label, navigation; "קיבלתי" and the gear list', async () => {
   const { page, ctx } = await scene('2026-10-21T17:10:00');
   await signIn(page, 'clients.html', 'eli');
+  // The owner's rule of 9.10.2026 (docs/ops.md, section 54): she lands on "המשימות שלי"; this screen is one tap away.
+  await page.waitForSelector('#view-mine:not([hidden])');
+  assert.match(page.url(), /clients\.html(#mine)?$/);
+  await page.goto(`${BASE}shoot.html`);
   await page.waitForURL(/shoot\.html/);
   await page.waitForSelector(sCard);
   assert.equal(await text(page, 'h1'), 'ימי הצילום שלי');
@@ -811,11 +819,17 @@ await step('who sees what: the office watches the shoot without buttons; an edit
   assert.match(await text(irit.page, '#sh-sub'), /לצפייה/);
   await irit.ctx.close();
   const yariv = await scene('2026-10-22T12:00:00');
-  await signIn(yariv.page, 'shoot.html', 'yariv');
+  // Signed in on his home, then the page by its address (a sign-in ON a page that is not his
+  // takes him home instead of showing the refusal: section 54; tests/phone-bugs-e2e.mjs).
+  await signIn(yariv.page, 'clients.html', 'yariv');
+  await yariv.page.waitForSelector('#view-mine:not([hidden])');
+  await yariv.page.goto(`${BASE}shoot.html`);
   await yariv.page.waitForSelector('#no-access:not([hidden])');
   await yariv.ctx.close();
   const eli = await scene('2026-10-22T12:00:00');
-  await signIn(eli.page, 'editor.html', 'eli');
+  await signIn(eli.page, 'clients.html', 'eli');
+  await eli.page.waitForSelector('#view-mine:not([hidden])');
+  await eli.page.goto(`${BASE}editor.html`);
   await eli.page.waitForSelector('#no-access:not([hidden])');
   // "המשימות שלי" stays one tap away, without a loop back.
   await eli.page.goto(`${BASE}clients.html#mine`);

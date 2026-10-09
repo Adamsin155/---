@@ -821,7 +821,6 @@ function askLogin() {
         if (denied) { const home = $('na-home').getAttribute('href'); if (home) location.replace(home); return; }
         // A fresh sign-in starts in the personal profile (app/manager-rules.js).
         import('./manager-rules.js').then((m) => m.resetMode()).catch(() => {});
-        import('./visit.js').then((m) => m.forgetPlace()).catch(() => {});
         form.removeEventListener('submit', onSubmit);
         await loginDoor.success(); // the figure walks in and the button turns green; then the dialog closes
         dlg.close();

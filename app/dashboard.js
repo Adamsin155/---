@@ -247,7 +247,6 @@ $('login-form').addEventListener('submit', async (e) => {
     return;
   }
   resetMode(); // a fresh sign-in starts in the personal profile
-  forgetPlace();
   // Their home, whatever page the form was on; a page opened on purpose keeps them only
   // if it is theirs (docs/ops.md, section 54).
   const plan = await signInPlan(data?.user?.email || cleanEmail($('lg-email').value));
