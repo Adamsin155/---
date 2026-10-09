@@ -604,7 +604,6 @@ dialog.preview[open] { display: flex; flex-direction: column; }
 /* The field is left-to-right inside a right-to-left row: the sign sits at the left, and
    the digits start after it. */
 .discount-input .input { padding-left: 38px; padding-right: 14px; }
-.discount-input span { left: 14px; right: auto; inset-inline-end: auto; }
 .tiles { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
 .tile, .tier label, .inf label { box-shadow: inset 0 0 0 1px var(--ds-line); }
 .tile.is-on, .tier input:checked + label, .inf input:checked + label { box-shadow: none; }
