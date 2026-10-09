@@ -210,7 +210,7 @@ function exceptionForm(t, d, path, rep, id) {
     h('p', { class: 'err', id: `${id}-err`, role: 'alert', hidden: true }),
     h('div', { class: 'of-acts' },
       h('button', { type: 'submit', class: 'btn btn-sm', value: 'save', id: `${id}-save` }, 'שמירה'),
-      h('button', { type: 'submit', class: 'btn btn-sm btn-primary', value: 'close', id: `${id}-close` }, disabledNext ? '4. סגירת החריגה' : 'פתיחת המשימה וסגירה')));
+      h('button', { type: 'submit', class: 'btn btn-sm k-btn-navy', value: 'close', id: `${id}-close` }, disabledNext ? '4. סגירת החריגה' : 'פתיחת המשימה וסגירה')));
 }
 async function stepException(t, id, action) {
   const err = $(`${id}-err`);
@@ -357,7 +357,7 @@ function pausedCard(p, load, now) {
           h('div', { class: 'field' }, h('label', { for: `${id}-to`, class: 'sr-only' }, 'העורך החדש'),
             h('select', { class: 'input', id: `${id}-to` }, ...eligibleEditors(type).filter((e) => e !== p.editor).map((e) => h('option', { value: e, selected: e === proposal }, `${PEOPLE[e].name}${e === proposal ? ' (ההצעה)' : ''}`)))))),
       h('p', { class: 'err', id: `${id}-err`, role: 'alert', hidden: true }),
-      h('div', { class: 'of-acts' }, h('button', { type: 'submit', class: 'btn btn-sm btn-primary', id: `${id}-go` }, 'החלטה'))));
+      h('div', { class: 'of-acts' }, h('button', { type: 'submit', class: 'btn btn-sm k-btn-navy', id: `${id}-go` }, 'החלטה'))));
 }
 async function decidePaused(p, id, proposal) {
   const c = p.client;
@@ -433,7 +433,7 @@ function requestCard(r) {
       $('cq-h').focus();
     } },
     h('div', { class: 'field grow' }, h('label', { for: `${id}-dec` }, 'ההחלטה'), h('input', { class: 'input', id: `${id}-dec`, maxlength: '1000', autocomplete: 'off' })),
-    h('button', { type: 'submit', class: 'btn btn-sm btn-primary', id: `${id}-go` }, 'החלטה וסגירה')));
+    h('button', { type: 'submit', class: 'btn btn-sm k-btn-navy', id: `${id}-go` }, 'החלטה וסגירה')));
 }
 
 // ── Boot ────────────────────────────────────

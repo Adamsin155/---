@@ -164,13 +164,13 @@ function clientCard(x, now) {
     p ? h('div', { class: 'land-proposal' },
       h('p', {}, h('strong', {}, 'ההצעה: '), `${p.why}, ולכן ${p.done.length === 1 ? 'פריט אחד כבר בוצע' : `${p.done.length} פריטים כבר בוצעו`}${p.open.length ? ` ו${p.open.length === 1 ? 'אחד עדיין פתוח' : `־${p.open.length} עדיין פתוחים`}` : ''}.`),
       h('button', {
-        type: 'button', class: 'btn btn-primary', disabled: off, 'data-act': 'accept',
+        type: 'button', class: 'btn k-btn-navy', disabled: off, 'data-act': 'accept',
         onclick: () => finish(x, { ...Object.fromEntries(p.done.map((k) => [k, 'done'])), ...Object.fromEntries(p.open.map((k) => [k, 'open'])) }, `${clientLabel(c)}: ההצעה התקבלה.`),
       }, 'לקבל את ההצעה ולסיים')) : null,
     // The two quick ways first; the items one by one are a tap away (a client can have dozens).
     h('div', { class: 'land-actions' },
       h('button', { type: 'button', class: 'btn', disabled: off, 'data-act': 'all', onclick: () => finish(x, all, `${clientLabel(c)}: הכול סומן ״כבר בוצע״.`) }, 'הכול כבר בוצע אצלי בלקוח הזה'),
-      h('button', { type: 'button', class: p ? 'btn' : 'btn btn-primary', disabled: off, 'data-act': 'finish', onclick: () => finish(x, {}, `${clientLabel(c)} נקלט.`) }, answered(x) ? 'סיימתי עם הלקוח הזה' : 'הכול עדיין פתוח · סיימתי')),
+      h('button', { type: 'button', class: p ? 'btn' : 'btn k-btn-navy', disabled: off, 'data-act': 'finish', onclick: () => finish(x, {}, `${clientLabel(c)} נקלט.`) }, answered(x) ? 'סיימתי עם הלקוח הזה' : 'הכול עדיין פתוח · סיימתי')),
     h('details', { class: 'land-more', open: openItems.has(c.id), ontoggle: (e) => { if (e.currentTarget.open) openItems.add(c.id); else openItems.delete(c.id); } },
       h('summary', { 'data-act': 'items' }, `פריט־פריט (${x.items.length})`, answered(x) ? h('span', { class: 'muted' }, ` · נענו ${answered(x)}`) : null),
       office() && !stationOff(c, now) ? stationRow(x, now) : null,

@@ -161,7 +161,7 @@ function qaCard(x, ms, now) {
       h('span', { style: `inline-size:${pct}%` })),
     h('div', { class: 'of-acts' },
       h('button', {
-        type: 'button', class: 'btn btn-primary btn-sm', id: `qa-open-${x.key.replace(/\W/g, '_')}`,
+        type: 'button', class: 'btn k-btn-navy btn-sm', id: `qa-open-${x.key.replace(/\W/g, '_')}`,
         'aria-label': `לבדיקה: ${x.client.name}, ${k.title}`, onclick: () => openQa(x),
       }, 'לבדיקה')));
 }
@@ -193,7 +193,7 @@ function assignCard(a, load, now) {
     h('p', { class: 'of-line' }, a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : '',
       joint ? ' · יום משותף לנטלי ולסמיון' : pre ? ` · ${PEOPLE[pre].name} מסומנת מראש (${loadText(load[pre])})` : ''),
     h('div', { class: 'of-acts' },
-      h('button', { type: 'button', class: 'btn btn-primary btn-sm', id: `as-open-${a.key.replace(/\W/g, '_')}`, 'aria-label': `שיוך עורך: ${a.client.name}${roundText(a.ctx)}`, onclick: () => openAssign(a) }, 'שיוך עורך')));
+      h('button', { type: 'button', class: 'btn k-btn-navy btn-sm', id: `as-open-${a.key.replace(/\W/g, '_')}`, 'aria-label': `שיוך עורך: ${a.client.name}${roundText(a.ctx)}`, onclick: () => openAssign(a) }, 'שיוך עורך')));
 }
 
 // Each job can change hands from here ("החלפת עורך"): the notice of an automatic

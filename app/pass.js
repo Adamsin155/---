@@ -185,7 +185,7 @@ function passRow(r, seen, now) {
       : r.stuck.length ? stuckActs(r, id)
         : h('div', { class: 'of-acts' },
           h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-seen`, 'aria-label': `עברתי: ${c.name}`, onclick: (e) => markSeen([c], 'seen', e.currentTarget) }, 'עברתי'),
-          h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה')));
+          h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה')));
 }
 
 // A stuck client leaves the check with a clear action (Ofir's protocol, stage 11):
@@ -197,7 +197,7 @@ function stuckActs(r, id) {
   const open = whyOpen.has(c.id);
   return h('div', { class: 'ps-stuck-acts' },
     h('div', { class: 'of-acts', role: 'group', 'aria-label': `לקוח תקוע יוצא מהבדיקה עם פעולה ברורה: ${c.name}` },
-      h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה'),
+      h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה'),
       h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-lior`, 'aria-label': `עדכון לליאור: ${c.name}`, onclick: () => openTask(r, 'lior') }, 'עדכון לליאור'),
       h('button', {
         type: 'button', class: 'btn btn-sm btn-ghost', id: `${id}-why-open`, 'aria-expanded': String(open), 'aria-controls': `${id}-why`,
@@ -338,7 +338,7 @@ function renderHealth(hl, now) {
       }, `לקבוע יעד: ${dueWords}`)))),
     group('לקוח בלי עורך', hl.noEditor, (x) => h('li', { class: 'of-card' },
       h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(x.client.id, x.state.proc.id) }, clientLabel(x.client)), x.n ? h('span', { class: 'wtitle' }, `סבב צילום ${x.n}`) : null),
-      h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-primary', href: `qa.html#assign-${x.client.id}${x.n ? `-r${x.n}` : ''}` }, 'שיוך עורך')))),
+      h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm k-btn-navy', href: `qa.html#assign-${x.client.id}${x.n ? `-r${x.n}` : ''}` }, 'שיוך עורך')))),
   ] : h('p', { class: 'muted' }, 'לא נמצאו חוסרים: לכל תהליך אחראי, לכל משימה מועד, לכל צילום עורך.'));
 }
 async function fixClaim(x, btn) {
@@ -397,7 +397,7 @@ function summaryRow(e, note, now) {
           h('div', { class: 'field' }, h('label', { for: `${id}-due` }, 'מועד יעד'), h('input', { class: 'input', id: `${id}-due`, name: 'due_on', type: 'date', dir: 'ltr', value: v.due_on || '' }))),
         h('p', { class: 'err', id: `${id}-err`, role: 'alert', hidden: true }),
         h('div', { class: 'of-acts' },
-          h('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: `${id}-save`, value: 'save' }, note ? 'שמירת השינויים' : 'שמירה'),
+          h('button', { type: 'submit', class: 'btn k-btn-navy btn-sm', id: `${id}-save`, value: 'save' }, note ? 'שמירת השינויים' : 'שמירה'),
           // Not `${id}-next`: that is the id of the field "פעולה הבאה" above (a duplicate id, found by the e2e check).
           h('button', { type: 'submit', class: 'btn btn-sm', id: `${id}-save-next`, value: 'next' }, 'שמירה והבא')))));
 }

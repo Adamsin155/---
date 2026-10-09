@@ -214,7 +214,7 @@ function followRow(r, list, now) {
   const before = r.last && !r.last.ok ? h('p', { class: 'hint' }, `בפעם הקודמת (${dayText(r.last.at)}): ${followupText(r.last)}`) : null;
   return h('li', { class: 'pp-follow-row', id: `fu-${k}` }, head, before,
     h('div', { class: 'pp-acts' },
-      h('button', { type: 'button', class: 'btn btn-primary', id: `fu-${k}-ok`, disabled: busy, onclick: () => answerFollowup(r, k, { stuck: [], note: '' }) }, 'הכול תקין'),
+      h('button', { type: 'button', class: 'btn k-btn-navy', id: `fu-${k}-ok`, disabled: busy, onclick: () => answerFollowup(r, k, { stuck: [], note: '' }) }, 'הכול תקין'),
       h('button', { type: 'button', class: 'btn', id: `fu-${k}-stuck`, disabled: busy, onclick: () => { stuckOpen = key; render(`fu-${k}-t-${TOPICS[0].key}`); } }, 'משהו תקוע')));
 }
 async function answerFollowup(r, k, answer) {
@@ -361,7 +361,7 @@ function blockersBlock(e, k) {
       rep ? h('p', { class: 'hint' }, `דווח לליאור ${formatStamp(rep.created_at)}${rep.urgent ? ' · דחוף' : ''}. נשאר כאן עד שהחריגה תיסגר.`)
         : b.known ? h('div', { class: 'pp-acts' }, seenBtn, h('span', { class: 'hint' }, 'כבר אצל ליאור כחריגה.'))
           : h('div', { class: 'pp-acts' }, seenBtn,
-            h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: `${bid}-report`, disabled: busy, onclick: () => report(c, prep, b, `${bid}-report`) }, 'דווח לליאור')));
+            h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${bid}-report`, disabled: busy, onclick: () => report(c, prep, b, `${bid}-report`) }, 'דווח לליאור')));
   };
   return h('section', { class: 'pp-sub', 'aria-labelledby': `bl-${k}` },
     headIcon(h('h3', { id: `bl-${k}`, tabindex: '-1' }, `חוסמי יום צילום (14)${prep.blockers.length ? ` · ${prep.blockers.length}` : ''}`), prep.blockers.length ? 'alert' : 'shield', prep.blockers.length ? 'pink' : 'green'),
@@ -413,7 +413,7 @@ function dayBeforeBlock(e, k) {
   return h('section', { class: 'pp-sub', 'aria-labelledby': `db-${k}` },
     headIcon(h('h3', { id: `db-${k}` }, `בדיקת יום לפני (15) · עד ${formatWhen(eve.at)}`), 'calendar-check', 'blue'),
     h('ul', { class: 'pp-checks' }, ...eve.items.map(item)),
-    h('button', { type: 'button', class: 'btn btn-primary ik-big', id: `db-done-${k}`, disabled: busy || !res, 'aria-describedby': `db-done-${k}-d`, onclick: () => submitDayBefore(e, k) },
+    h('button', { type: 'button', class: 'btn k-btn-navy ik-big', id: `db-done-${k}`, disabled: busy || !res, 'aria-describedby': `db-done-${k}-d`, onclick: () => submitDayBefore(e, k) },
       res?.failed.length ? `סיום הבדיקה ושליחה לליאור (${res.failed.length})` : 'סיום הבדיקה'),
     h('p', { class: 'hint', id: `db-done-${k}-d` }, res ? 'כל פריט שנכשל עובר לליאור מיד, כחריגה דחופה.' : 'לענות קודם על מה שהמערכת לא יודעת.'));
 }
@@ -493,7 +493,7 @@ function tellRow(t) {
     h('p', { class: 'pp-msg' }, text),
     h('div', { class: 'pp-acts' },
       h('a', { class: 'btn', href: waLink(c.phone, text), target: '_blank', rel: 'noopener' }, 'שליחה בוואטסאפ', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')),
-      h('button', { type: 'button', class: 'btn btn-primary', id: `${rid}-done`, disabled: busy, onclick: () => finishTask(t, 'עודכן. תודה!', `${rid}-done`) }, 'עדכנתי את הלקוח')));
+      h('button', { type: 'button', class: 'btn k-btn-navy', id: `${rid}-done`, disabled: busy, onclick: () => finishTask(t, 'עודכן. תודה!', `${rid}-done`) }, 'עדכנתי את הלקוח')));
 }
 function missingRow(t) {
   const c = clientOf(t.client_id);
@@ -506,7 +506,7 @@ function missingRow(t) {
     h('p', { class: 'pp-msg' }, text),
     h('div', { class: 'pp-acts' },
       h('a', { class: 'btn', href: waLink(c.phone, text), target: '_blank', rel: 'noopener' }, 'שליחה בוואטסאפ', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')),
-      h('button', { type: 'button', class: 'btn btn-primary', id: `${rid}-done`, disabled: busy, onclick: () => finishTask(t, 'המשימה סומנה כבוצעה.', `${rid}-done`) }, 'הכול התקבל')));
+      h('button', { type: 'button', class: 'btn k-btn-navy', id: `${rid}-done`, disabled: busy, onclick: () => finishTask(t, 'המשימה סומנה כבוצעה.', `${rid}-done`) }, 'הכול התקבל')));
 }
 async function finishTask(t, msg, focusId) {
   if (busy) return;
