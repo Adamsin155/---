@@ -10,6 +10,8 @@ import { businessDaysBetween, readWaited } from './protocol-logic.js';
 import { TZ, partsIL, daysBetweenIL, dayFromKeyIL, needsYear } from './tz.js';
 import { shootDateConcerns, shootDateQuestion, shootDateNote } from './shoot-prep.js';
 import { landFromLink, LINK_EXPIRED, PASSWORD_SAVED } from './set-password.js';
+// The sign-in screen and its button with the door (docs/ops.md, section 51).
+import { loginDoor } from './login-ui.js';
 import { resetMode } from './manager-rules.js';
 import { CLIENT_BY, CLIENT_BY_NAME } from './access-logic.js';
 
@@ -221,11 +223,15 @@ export function mountSession(onReady) {
     $('lg-submit').disabled = true;
     $('lg-err').hidden = true;
     $('lg-msg').hidden = true;
+    // The door on the button: half open for as long as the server is asked, shut again on
+    // a refusal. It opens by itself when boot() puts the form away (app/login-ui.js).
+    loginDoor.signing();
     const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail($('lg-email').value), password: $('lg-pass').value });
     $('lg-submit').disabled = false;
-    if (error) { $('lg-err').textContent = explainError(error); $('lg-err').hidden = false; return; }
+    if (error) { $('lg-err').textContent = explainError(error); $('lg-err').hidden = false; loginDoor.failed(); return; }
     resetMode(); // a fresh sign-in starts in the personal profile (app/manager-rules.js)
     await boot();
+    if (!$('login-block').hidden) loginDoor.failed(); // signed in, but not one of the staff
   });
   $('lg-forgot').addEventListener('click', async (e) => {
     const email = cleanEmail($('lg-email').value);
