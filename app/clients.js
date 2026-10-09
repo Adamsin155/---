@@ -297,8 +297,7 @@ document.querySelector('.tabs').addEventListener('keydown', (e) => {
 function render() {
   // The landing line and list belong to "המשימות שלי" alone.
   if (view !== 'mine') { $('land-line').hidden = true; $('land-quiet').hidden = true; }
-  syncLateTab();
-  if (onMine()) renderMine();
+  if (onMine()) renderMine(); else syncLateTab();
   if (view === 'clients') renderClients();
   if (view === 'control') renderControl();
   if (view === 'performance') renderPerformance();
@@ -1173,6 +1172,23 @@ function flowCard(f) {
     countedLine({ id: `flow-${f.id}`, n: f.n, text: f.text, cta: f.cta, href: f.href, tone: FLOW_TONE[f.bucket] || 'plain', cls: 'flow-line' }));
 }
 
+// ── The kit on the cards of "המשימות שלי" (docs/ops.md, section 50) ──
+// Every card above the list is drawn by its own module, which other pages use too. Here,
+// on this screen only, each card's heading takes its icon square as it is drawn: one
+// table, and the modules stay as they are. (The squares are added in the same turn the
+// card is drawn, before the page is painted, so nothing moves.)
+const CARD_ICONS = [
+  ['#now-h', 'clock', 'orange'], ['#staff-tasks-h', 'megaphone', 'purple'], ['#deals-h', 'handshake', 'green'], ['#approvals-h', 'file', 'blue'],
+  ['#metricool-h', 'chart', 'teal'], ['#wa-card-h', 'chat', 'green'], ['#cal-h', 'calendar', 'blue'], ['#myq-h', 'question', 'purple'],
+  ['#mc-h', 'loop', 'teal'], ['#il-h', 'image', 'purple'], ['.g-soon > .wgroup-h', 'clock', 'teal'], ['.g-landing > .wgroup-h', 'inbox', 'navy'],
+];
+function dressCards(root = $('app')) {
+  for (const [sel, name, tone] of CARD_ICONS) for (const el of root.querySelectorAll(sel)) headIcon(el, name, tone, { size: 'sm', end: true });
+  // The notifications card says its state in its heading: blocked or missing is the pink one.
+  for (const el of root.querySelectorAll('h2#push-h')) headIcon(el, /חסומות|לא /.test(el.textContent) ? 'bell-off' : 'bell', /חסומות|לא /.test(el.textContent) ? 'pink' : 'blue', { size: 'sm', end: true });
+}
+new MutationObserver(() => dressCards()).observe($('app'), { childList: true, subtree: true });
+
 // ── "באיחור": the tab, and the list with the late items alone (docs/ops.md, section 50) ──
 // Whoever has "המשימות שלי" of their own has the tab, only while something is late: what
 // this person holds past its deadline (app/late-chain.js: the same answer as the
@@ -1235,6 +1251,7 @@ function renderLate(flow) {
 }
 
 function renderMine() {
+  syncLateTab(); // every redraw of the list (a tick, a refresh) keeps the tab's number with it
   const wrap = $('mine-list');
   const own = scope === 'own';
   rebuildClocks();
