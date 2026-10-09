@@ -260,3 +260,11 @@ details.ps-sum { min-width: 0; }
 /* "התחלתי" on a row is the row's own action: navy (the screen keeps one pink). */
 .of-app .of-card .start-btn.btn-primary { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); }
 .of-app .of-card .start-btn.btn-primary:hover { background: var(--ds-navy-2); border-color: var(--ds-navy-2); }
+/* A date field is as tall and as wide as the field beside it, also where the browser
+   draws it its own way (iOS). */
+.of-app input[type='date'], .of-app input[type='datetime-local'], #dlg-qa input[type='datetime-local'], #dlg-task input[type='date'] {
+  -webkit-appearance: none; appearance: none; display: block; box-sizing: border-box; inline-size: 100%; min-inline-size: 0; min-height: 46px; text-align: start; line-height: 1.2;
+}
+.ps-form .row2 { align-items: start; }
+.ps-form .row2 > .field { min-width: 0; margin: 0; }
+.ps-form .field > .input:not(textarea) { min-height: 46px; }
