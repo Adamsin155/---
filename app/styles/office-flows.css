@@ -197,9 +197,8 @@ details.ps-sum { min-width: 0; }
 @media (max-width: 760px) { .of-jump .chip { min-height: 44px; } }
 /* An editor's jobs: each on its own soft row. */
 .of-jobs { gap: 6px; }
-.of-jobs > li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; padding: 4px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
-.of-jobs .tag, .of-jobs .sw-btn { margin-inline-start: 0; }
-.of-jobs .sw-btn { margin-inline-start: auto; }
+.of-jobs > li { min-width: 0; padding: 6px 12px; line-height: 1.6; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+.of-jobs .tag { margin-inline-start: 4px; }
 /* The sub-groups of "תקינות הנתונים". */
 .ps-health-group > h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 8px; font-size: 15.5px; }
 .ps-health-group > h3 .n { display: inline-grid; place-items: center; min-inline-size: 24px; block-size: 24px; padding: 0 7px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; }
