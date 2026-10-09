@@ -34,7 +34,8 @@ a { color: var(--purple); }
   background: var(--ds-surface); border-bottom: 1px solid var(--line);
 }
 .sbar-logo { height: 30px; width: 30px; }
-.sbar-title { font-weight: 600; min-width: 0; }
+/* A long business name: two lines at most, the bar stays a bar (the full name is in the page). */
+.sbar-title { font-weight: 600; min-width: 0; line-height: 1.3; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 
 .smain { max-width: 720px; margin: 0 auto; padding: 16px 16px 48px; display: grid; gap: 14px; }
 .smain:focus { outline: none; }

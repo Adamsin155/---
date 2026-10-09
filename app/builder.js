@@ -462,7 +462,8 @@ function renderCustom() {
     diff.length
       ? h('ul', { id: 'custom-diff-list' }, diff.map((d) => h('li', {}, d.text)))
       : h('p', {}, 'אין שינוי מהחבילה: זה חוזה רגיל, והוא נשלח ללקוח בלי אישור.'),
-    diff.length ? h('p', { class: 'needs' }, 'נדרש אישור של אדם, אופיר או ליאור לפני שהלקוח מקבל את החוזה.') : null,
+    // (replaceChildren would print a null as the word 'null'.)
+    ...(diff.length ? [h('p', { class: 'needs' }, 'נדרש אישור של אדם, אופיר או ליאור לפני שהלקוח מקבל את החוזה.')] : []),
   );
 }
 

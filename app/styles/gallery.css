@@ -19,7 +19,7 @@
 .gname { font-weight: 600; overflow-wrap: anywhere; }
 .gposted { color: var(--muted); font-size: 13px; }
 .gacts { display: flex; flex-wrap: wrap; gap: 0 14px; align-items: center; }
-.gdl, .gpost { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+.gdl, .gpost { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; font-weight: 600; }
 .glist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .grow { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
 .grow:first-child { border-top: 0; padding-top: 0; }
