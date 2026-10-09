@@ -163,3 +163,7 @@ dialog .dlg-foot .btn { min-height: 46px; }
 @media print {
   #cc-head .cc-facts { border: 1px solid #999; }
 }
+/* The owner and the date of a new task stand on exactly one line (their labels and fields were a pixel apart). */
+#tasks .task-form > .field { display: grid; grid-template-rows: 20px 46px; row-gap: 6px; align-content: end; margin: 0; }
+#tasks .task-form > .field > label { margin: 0; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tasks .task-form > .field > .input { block-size: 46px; min-block-size: 46px; margin: 0; }

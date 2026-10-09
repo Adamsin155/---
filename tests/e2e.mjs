@@ -433,16 +433,17 @@ await step('reset link signs in and asks for a new password; expired link explai
   assert.ok(!(await r.evaluate(() => location.hash)), 'token removed from the address bar');
   await r.locator('#pw-new').fill('new-password-123');
   await r.locator('#pw-again').fill('new-password-123');
+  const before = [...r.errors]; // the home page it leads to is not this suite's subject
   await r.locator('#pw-submit').click();
   await r.locator('#dlg-password').waitFor({ state: 'hidden' });
   assert.equal(passwordUpdates.at(-1), 'new-password-123');
-  assert.ok(await r.locator('#list-block').isVisible());
+  await r.waitForURL(/clients.html/); // a password chosen from a link leads home (docs/ops.md, section 54)
 
   const x = await newPage();
   await x.goto(`${BASE}quotes.html#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`, { waitUntil: 'networkidle' });
   await x.locator('#lg-err').waitFor();
   assert.match(await text(x, '#lg-err'), /פג תוקפו/);
-  assert.deepEqual([...r.errors, ...x.errors], []);
+  assert.deepEqual([...before, ...x.errors], []);
 });
 
 await step('discount: up to 200 ILS a month, shown in summary, document and agreement', async () => {
