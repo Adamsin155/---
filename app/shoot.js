@@ -28,7 +28,7 @@ import { offerHandoff } from './handoff-ui.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import * as P from './production.js';
 import { mountAvailability } from './availability-ui.js';
-import { headIcon, iconSquare, sectionHead, emptyState, noteIcon, row, facts, dress } from './kit.js';
+import { headIcon, icon, iconSquare, sectionHead, emptyState, noteIcon, row, facts, dress } from './kit.js';
 
 let me = null;
 let mode = null; // 'eli' | 'lior'
@@ -264,6 +264,8 @@ async function saveNotes(sc) {
 // The database gives them only for Eli's own shoot days, from the day the shoot is
 // in his list until the day after it; nothing here can be changed.
 const scriptsDlg = $('dlg-scripts');
+// The dialog's head takes its icon square (app/kit.js); the title is rewritten on every opening.
+dress(scriptsDlg, [['.dlg-head h2', 'file', 'blue', 'md']]);
 scriptsDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === scriptsDlg) scriptsDlg.close(); });
 let scriptsBack = null;
 scriptsDlg.addEventListener('close', () => { document.getElementById(scriptsBack)?.focus(); });
@@ -350,7 +352,7 @@ function shootMode(sc, now) {
         shot.length ? btn(`${id}-minus`, `ביטול סרטון ${Math.max(...shot)}`, () => count(sc, shot.filter((x) => x !== Math.max(...shot)), `${id}-minus`), 'btn btn-sm btn-ghost', { disabled: !canAct || !started }) : null),
       closed || started ? null : h('p', { class: 'hint', id: `${id}-early` }, `יום הצילום ${P.startsText(sc.shootAt)}. המונה והסגירה נפתחים אז.`)),
     h('ol', { class: 'sh-timeline' }, ...tl.map((x) => h('li', { class: `${x.at <= now ? 'is-past' : ''}${x === nextPoint ? ' is-next' : ''}${x.prompt ? ' is-prompt' : ''}` },
-      h('span', { class: 'num sh-t' }, P.clockText(x.at)), h('span', {}, x.label), x === nextPoint ? h('span', { class: 'sr-only' }, ' (הבא)') : null))),
+      h('span', { class: 'num sh-t' }, P.clockText(x.at)), h('span', { class: x.prompt ? 'sh-prompt' : null }, x.prompt ? icon('clock', { size: 16 }) : null, x.label), x === nextPoint ? h('span', { class: 'sr-only' }, ' (הבא)') : null))),
     h('p', { class: 'sh-fixed' }, 'להחזיק את הראיונות על המסר.'),
     // Eli, at a glance.
     h('dl', { class: 'sh-facts' },

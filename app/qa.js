@@ -599,6 +599,10 @@ dress($('app'), [['#qa-h', 'shield', 'purple', 'md'], ['#char-h', 'target', 'ora
   ['#approvals-h', 'file', 'blue'], ['#myq-h', 'question', 'purple'], ['#na-h', 'lock', 'navy'],
   ['#qa-list .of-head, #qa-fixing .of-head', 'video', 'purple', 'md'], ['#assign-list .of-head', 'scissors', 'blue', 'md'], ['#load-list .of-head', 'user', 'teal', 'md']]);
 
+// The two dialogs' heads (their titles are rewritten on every opening).
+dress($('dlg-qa'), [['.dlg-head h2', 'shield', 'purple', 'md']]);
+dress($('dlg-assign'), [['.dlg-head h2', 'scissors', 'blue', 'md']]);
+
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
   Object.assign(directory, dir);

@@ -35,7 +35,7 @@ import { googleCalendarUrl } from './calendar.js';
 import { inputValueIL, fromInputIL, dayKeyIL, dayFromKeyIL } from './tz.js';
 // The photographer's monthly availability (docs/ops.md, section 39): the line next to the date, and the reason for a day he did not mark free.
 import { mountAvailability, shootDayHint, confirmShootDay, photographerNote } from './availability-ui.js';
-import { headIcon, emptyState, noteIcon, dress } from './kit.js';
+import { headIcon, iconSquare, emptyState, noteIcon, dress } from './kit.js';
 
 const only = new URLSearchParams(location.search).get('id');
 let clients = [];
@@ -259,7 +259,7 @@ function coordinatorBlock(e, k) {
   // Closed with everyone: one line, the approvals folded under it.
   const Wrap = coord.fullyClosed ? 'details' : 'section';
   return h(Wrap, { class: 'pp-sub', 'aria-labelledby': coord.fullyClosed ? null : `co-${k}` },
-    coord.fullyClosed ? h('summary', { class: 'pp-sum' }, h('span', { id: `co-${k}` }, 'סגירת יום הצילום (11): '), h('span', { class: 'pp-status is-ok' }, status))
+    coord.fullyClosed ? h('summary', { class: 'pp-sum' }, iconSquare('handshake', 'green', { size: 'sm' }), h('span', { id: `co-${k}` }, 'סגירת יום הצילום (11): '), h('span', { class: 'pp-status is-ok' }, status))
       : headIcon(h('h3', { id: `co-${k}` }, 'סגירת יום הצילום (11)'), 'handshake', 'green'),
     coord.fullyClosed ? null : h('p', { class: `pp-status ${coord.closed ? 'is-ok' : 'is-open'}`, role: 'status' }, status),
     edit ? h('div', { class: 'pp-form' },

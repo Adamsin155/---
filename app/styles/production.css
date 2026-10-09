@@ -179,3 +179,40 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
   .ed-fix-list li > :last-child { grid-column: 1 / -1; justify-self: start; }
   .ed-hl { grid-template-columns: 1fr; }
 }
+
+/* vfix office */
+.sh-card { overflow-wrap: anywhere; }
+.sh-card > *, .sh-card .ed-head > *, .sh-nav > * { min-width: 0; }
+.sh-card .btn { white-space: normal; text-align: center; max-inline-size: 100%; }
+/* "להתחיל לצלם" in the day's timeline: the kit's clock, not an emoji. */
+.sh-timeline li.is-prompt span:last-child::before { content: none; }
+.sh-prompt { display: inline-flex; align-items: center; gap: 6px; }
+.sh-prompt > .k-svg { color: var(--k-orange); }
+.sh-fixed { border-inline-start: 0; border-radius: var(--ds-r-item); background: var(--k-navy-soft); font-size: 14.5px; }
+.sh-script { border-color: transparent; border-radius: var(--ds-r-item); background: var(--ds-ground); overflow-wrap: anywhere; }
+.sh-script-links a { overflow-wrap: anywhere; }
+@media (min-width: 761px) { .sh-close .btn, .sh-day .btn:not(.btn-big) { justify-self: start; } }
+
+/* The dialogs: a head with its icon square, a 44px close, the body from its top (no
+   stretched rows on a phone), choices as rows that can be hit, the actions in one line. */
+#dlg-scripts .dlg-head { align-items: center; gap: 12px; padding: 16px 20px 12px; border-bottom: 1px solid var(--ds-line); }
+#dlg-scripts .dlg-head h2 { flex: 1 1 auto; min-width: 0; font-size: 20px; line-height: 1.25; overflow-wrap: anywhere; }
+#dlg-scripts .dlg-head h2.k-h { gap: 10px; }
+#dlg-scripts .dlg-head h2.k-h > .k-ico { margin-block: 0; }
+#dlg-scripts .dlg-head h2:focus { outline: none; }
+#dlg-scripts .dlg-head .close { flex: none; inline-size: 44px; block-size: 44px; }
+#dlg-scripts .dlg-body { padding: 14px 20px 18px; align-content: start; overflow-wrap: anywhere; }
+#dlg-scripts .dlg-body > * { min-width: 0; }
+#dlg-scripts .dlg-body > :empty { display: none; }
+#dlg-scripts .dlg-body .field { margin: 0; }
+#dlg-scripts .dlg-foot { padding: 12px 20px 18px; border-top: 1px solid var(--ds-line); align-items: center; }
+#dlg-scripts .dlg-foot .btn { min-height: 44px; }
+#dlg-scripts input.radio { inline-size: 22px; block-size: 22px; margin: 0; flex: none; accent-color: var(--ds-navy); }
+@media (max-width: 760px) {
+  #dlg-scripts .dlg-head { padding: 12px 14px 10px; }
+  #dlg-scripts .dlg-head h2 { font-size: 18px; }
+  #dlg-scripts .dlg-body { padding: 12px 14px 16px; }
+  #dlg-scripts .dlg-foot { padding-inline: 14px; }
+  #dlg-scripts .dlg-foot .btn { flex: 1 1 auto; justify-content: center; }
+  #dlg-scripts .dlg-foot .btn-primary { flex-basis: 100%; order: 9; }
+}

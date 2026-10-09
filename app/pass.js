@@ -523,6 +523,8 @@ setInterval(() => {
 dress($('app'), [['#ps-h', 'eye', 'blue', 'md'], ['#hl-h', 'shield', 'green', 'md'], ['#th-h', 'calendar', 'teal', 'md'], ['#my-h', 'check-circle', 'purple', 'md'], ['#nb-h', 'users', 'orange', 'md'], ['#cr-h', 'edit', 'purple', 'md'], ['#na-h', 'lock', 'navy'],
   ['#my-list .of-head', 'check-circle', 'purple', 'md'], ['#cr-list .of-head', 'edit', 'purple', 'md']]);
 
+dress($('dlg-task'), [['.dlg-head h2', 'plus', 'navy', 'md']]);
+
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
   Object.assign(directory, dir);

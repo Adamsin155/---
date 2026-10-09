@@ -22,6 +22,7 @@ import { shootDateConcerns } from './shoot-prep.js';
 import { dayText, timeText } from './messages-logic.js';
 import { dayKeyIL } from './tz.js';
 import * as A from './availability-logic.js';
+import { headIcon } from './kit.js';
 
 if (typeof document !== 'undefined' && !document.querySelector('link[href="app/styles/availability.css"]')) {
   document.head.append(h('link', { rel: 'stylesheet', href: 'app/styles/availability.css' }));
@@ -390,13 +391,13 @@ function askReason(shootAt, concerns) {
           dlg.close();
         },
       },
-      h('h2', { id: 'av-dlg-h' }, 'לקבוע את יום הצילום בכל זאת?'),
+      headIcon(h('h2', { id: 'av-dlg-h' }, 'לקבוע את יום הצילום בכל זאת?'), 'alert', 'orange', { size: 'md' }),
       h('p', { class: 'av-dlg-when' }, `${dayText(d, new Date())} בשעה ${timeText(d)}`),
       h('ul', { class: 'av-warn' }, ...concerns.map((c) => h('li', {}, c))),
       h('div', { class: 'field' }, h('label', { for: 'av-reason' }, 'סיבה קצרה (נשמרת עם שינוי המועד)'), input),
       err,
       h('div', { class: 'av-act' },
-        h('button', { type: 'submit', class: 'btn', id: 'av-reason-ok' }, 'לקבוע בכל זאת'),
+        h('button', { type: 'submit', class: 'btn av-go', id: 'av-reason-ok' }, 'לקבוע בכל זאת'),
         h('button', { type: 'button', class: 'btn btn-ghost', id: 'av-reason-cancel', onclick: () => dlg.close() }, 'ביטול'))));
     dlg.addEventListener('close', () => { dlg.remove(); resolve(answer); });
     document.body.append(dlg);
