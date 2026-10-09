@@ -24,6 +24,15 @@
 .vlinks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .vlinks a { display: inline-flex; align-items: center; min-height: 44px; overflow-wrap: anywhere; }
 .sfoot p { color: var(--muted); font-size: 14px; }
+/* The visual pass of 9.10.2026: the script's own title sits on its own line under "תסריט N"
+   (it used to wrap there with a stray "·" before it), and long words or links stay inside. */
+.vhead h2 { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 10px; }
+.vhead h2 > .k-ico { grid-column: 1; grid-row: 1; margin-block: 0; }
+.vtitle { grid-column: 1 / -1; min-inline-size: 0; overflow-wrap: anywhere; line-height: 1.4; }
+.vtitle::before { content: none; }
+.vbody { overflow-wrap: anywhere; }
+.shero h1, .shero-where, .sbar-title { overflow-wrap: anywhere; min-inline-size: 0; }
+.vlinks li { min-inline-size: 0; }
 
 @media print {
   .sbar, .vtools, .vjump, .skip, .sfoot, #preview { display: none !important; }
