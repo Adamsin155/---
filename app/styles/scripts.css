@@ -135,3 +135,38 @@
 .sc-panel > h2.k-h { gap: 12px; }
 .sc-panel > h2.k-h > .k-ico { margin-block: 0; }
 #sc-side summary.k-h { gap: 10px; }
+
+/* ── The visual pass of 9.10.2026 (scripts.html): long titles, names and links stay inside
+   their boxes; the status choices and the jump tiles match the kit (pills, no dashed boxes).
+   Look only. ── */
+.sc-app > .back { max-inline-size: 100%; min-inline-size: 0; overflow-wrap: anywhere; }
+.sc-head p, .sc-panel p, .sc-slot p, .sc-offer p { overflow-wrap: anywhere; }
+.sc-tools .btn { white-space: normal; text-align: center; }
+.sc-slot-h > h2 { min-inline-size: 0; overflow-wrap: anywhere; }
+.sc-chip { white-space: nowrap; }
+.sc-app .ik-opt span { border-radius: var(--ds-r-pill); padding-inline: 16px; }
+.sc-app .ik-seg legend { font-size: 15px; }
+.sc-jumpl { border: 0; background: var(--ds-ground); box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: 12px; }
+.sc-jumpl.has-text { background: var(--ds-surface); box-shadow: inset 0 0 0 1.5px var(--ds-edge); }
+.sc-jumpl.is-ready { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sc-jumpl.is-approved { box-shadow: inset 0 0 0 1.5px var(--ok); }
+.sc-linklist li { padding: 2px 4px 2px 10px; border-radius: var(--ds-r-ctl); background: var(--ds-ground); }
+.sc-linklist a { flex: 1 1 auto; text-align: start; }
+.sc-unlink { flex: none; }
+.sc-link-add .btn { flex: none; }
+.sc-url { padding: 8px 12px; border-radius: var(--ds-r-ctl); background: var(--ds-ground); }
+.sc-url a { overflow-wrap: anywhere; }
+.sc-panel .ik-row { min-inline-size: 0; }
+.sc-panel .ik-row .btn, .sc-panel .ik-row .btn-text { min-height: 44px; }
+.sc-grants li { min-inline-size: 0; padding: 4px 12px; border-radius: var(--ds-r-ctl); background: var(--ds-ground); }
+.sc-grants li > span { overflow-wrap: anywhere; }
+.sc-grants .btn-text { min-height: 44px; margin-inline-start: auto; }
+.sc-focus .brief-view, .sc-focus dd { min-inline-size: 0; overflow-wrap: anywhere; }
+.sc-theirs { max-block-size: 40vh; overflow: auto; }
+@media (max-width: 760px) {
+  .sc-tools .btn { flex: 1 1 calc(50% - 8px); }
+  .sc-app .ik-opt { flex: 1 1 auto; }
+  .sc-app .ik-opt span { flex: 1 1 auto; justify-content: center; padding-inline: 10px; }
+  .sc-add { justify-self: stretch; }
+  .sc-access .ik-row .input { max-inline-size: none; flex: 1 1 140px; }
+}

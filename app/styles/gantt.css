@@ -409,3 +409,90 @@ a.gt-row-main { text-decoration: none; }
 .gx .gt-none.k-h > .k-ico { margin-block: 0; background: var(--ds-surface); }
 .gx-create { margin-inline-start: 64px; }
 #gt-rules > summary.k-h { gap: 10px; }
+
+/* ── The visual pass of 9.10.2026 (found on the owner's phone and desktop): the dialogs get
+   the kit's head, long words stay inside their boxes, phone targets reach 44px. Look only. ── */
+/* Dialogs: the icon square, then the kind and the title, then the close button. */
+.gt-dlg { max-block-size: calc(100dvh - 24px); }
+.gt-dlg form { max-block-size: calc(100dvh - 24px); min-block-size: 0; }
+.gt-dlg-head { grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; align-items: center; padding: 16px 16px 12px 20px; }
+.gt-dlg-head > .k-ico { grid-column: 1; grid-row: 1 / span 2; align-self: start; margin-top: 2px; }
+.gt-dlg-kind, .gt-dlg-head h2 { grid-column: 2; min-inline-size: 0; }
+.gt-dlg-head h2 { font-size: 20px; line-height: 1.3; }
+.gt-dlg-head > .k-ico + h2 { grid-row: 1 / span 2; align-self: center; }
+.gt-dlg-kind:empty { display: none; }
+.gt-x { grid-column: 3; display: grid; place-items: center; line-height: 1; padding: 0; }
+.gt-dlg-body { min-block-size: 0; overscroll-behavior: contain; }
+.gt-dlg-body > * { min-inline-size: 0; }
+.gt-dlg-foot { align-items: center; }
+.gt-dlg-foot .btn-primary { min-inline-size: 120px; }
+.gt-form .field > label, .gt-fs legend { font-size: 14px; font-weight: 600; color: var(--text); }
+.gt-form select.input { padding-inline-end: 12px; text-overflow: ellipsis; }
+.gt-form .input[type="url"] { text-overflow: ellipsis; }
+.gt-form-row { align-items: start; }
+/* The states: one row of equal pills (four, or five while a failure is shown). */
+.gt-seg { display: flex; flex-wrap: wrap; }
+.gt-seg-opt { flex: 1 1 64px; min-inline-size: 0; }
+.gt-seg-opt span { padding-inline: 6px; white-space: nowrap; }
+.gt-facts { align-items: baseline; }
+.gt-facts dd { min-inline-size: 0; overflow-wrap: anywhere; }
+.gt-meta { padding: 8px 12px; border-radius: var(--ds-r-ctl); background: var(--panel); line-height: 1.5; overflow-wrap: anywhere; }
+.gt-regen-list, .gt-rules ul { list-style: none; padding-inline-start: 0; }
+.gt-regen-list li, .gt-rules li { position: relative; padding-inline-start: 18px; overflow-wrap: anywhere; }
+.gt-regen-list li::before, .gt-rules li::before { content: ''; position: absolute; inset-inline-start: 4px; inset-block-start: 0.6em; inline-size: 6px; block-size: 6px; border-radius: 50%; background: var(--ds-navy-2); }
+.gt-check span { min-inline-size: 0; overflow-wrap: anywhere; }
+.gt-bulk-opt { white-space: normal; padding-block: 8px; }
+.gt-bulk-opt span { min-inline-size: 0; overflow-wrap: anywhere; }
+.gt-brand-t bdi, .gt-brand-t small { overflow-wrap: anywhere; }
+/* The brands: a column whose rows keep the height of their words (a long name ran over the next row). */
+.gt-brands { display: flex; flex-direction: column; min-block-size: 96px; }
+.gt-brand { flex: none; }
+.gt-brand-t { flex: 1 1 auto; }
+.gt-dlg-head h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+/* "איך זה נראה ללקוח" inside the editor of an entry: a preview, so its button is not a second pink one. */
+.gt-view-ro .gt-open-big { background: var(--ds-surface); border-color: var(--ds-navy); color: var(--ds-navy); min-height: 44px; }
+.gt-state-btn { min-inline-size: 44px; justify-content: center; }
+
+/* The grid's chips: the title takes two lines before it is cut. */
+.gt-chip { align-items: flex-start; padding: 3px 7px; font-size: 12px; line-height: 1.3; }
+.gt-chip-t { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.gt-chip-time { font-size: 11px; line-height: 1.45; }
+.gt-chip .gt-tick, .gt-chip .gt-clock, .gt-chip .gt-warn { margin-top: 1px; }
+.gt-pm, .gt-hol { font-size: 11px; }
+/* The lists: the time never breaks, the state keeps a readable size. */
+.gt-row-time { inline-size: 46px; white-space: nowrap; font-size: 12.5px; }
+.gt-row-meta { overflow-wrap: anywhere; min-inline-size: 0; }
+.gt-state { font-size: 12.5px; }
+.gt-aday-h .k-pill { min-block-size: 22px; font-size: 12px; }
+.gt-day-h h3 { margin: 0; min-inline-size: 0; }
+.gt-day-h .btn-text { flex: none; padding-inline: 8px; }
+.gt-stat-x { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; line-height: 1.35; }
+.gt-sub { overflow-wrap: anywhere; }
+.gt-share-row .input { text-overflow: ellipsis; }
+.gg-month { min-inline-size: 44px; }
+.gg-m, .gt-pill-y { font-size: 12px; }
+.gt-hero .kicker { font-size: 12px; }
+@media (max-width: 760px) {
+  /* Five figures in two columns: the last one takes the whole row instead of leaving a hole. */
+  .gt-stats > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .gt-view-btn { min-height: 44px; }
+  .gt-view { padding: 4px; }
+  /* A day of the phone's grid is one target: the number's button covers its cell. */
+  .gt-grid td { position: relative; }
+  .gt-daynum::after { content: ''; position: absolute; inset: 0; }
+  .gt-dlg { inline-size: calc(100vw - 16px); }
+  .gt-dlg-head { padding: 14px 12px 10px 14px; column-gap: 10px; }
+  .gt-dlg-head h2 { font-size: 19px; }
+  .gt-dlg-body { padding: 12px 14px; }
+  .gt-dlg-foot { padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); }
+  .gt-dlg-foot .btn { flex: 1 1 auto; }
+  .gt-form .input { font-size: 16px; } /* 16px: no zoom on focus in iOS */
+  .gt-form-row { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+  .gt-share-row .btn { flex: 1 1 auto; }
+  .gt-share-row .input { flex-basis: 100%; }
+}
+@media (max-width: 400px) {
+  .gt-state { font-size: 12px; padding: 3px 8px; }
+  .gt-row-time { inline-size: 46px; }
+}
+@media print { .gt-chip-t { -webkit-line-clamp: 3; } }
