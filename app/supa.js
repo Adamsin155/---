@@ -2,6 +2,7 @@
 // access is enforced by row level security and the create-quote function.
 import { createClient } from './vendor/supabase.js';
 
+import { forgetPlace } from './visit.js';
 export const SUPABASE_URL = 'https://czncjzziqrqtezpwxxpz.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_kf4V_lkjM658wkDiPVukWA_HoB5AH_e';
 
@@ -220,8 +221,10 @@ export async function consumeRecoveryLink() {
 //  - drafts kept in the browser: unsaved text of the characterization form, the focus
 //    call and the scripts (localStorage, "astrateg.<form>.<client>…"), and the quote
 //    draft with its prices (sessionStorage "astrateg-draft").
-// Preferences (which view, which filter) stay. Each step is best effort and none
-// holds the sign-out for long.
+//  - where that person stood: the profile ("מבט מנהל"), "תצוגה מלאה", the filters, and
+//    the visit's claim on this page (app/visit.js; the owner's rule of 9.10.2026).
+// Other preferences of the device stay (the notifications switch, what was seen). Each
+// step is best effort and none holds the sign-out for long.
 export const DRAFT_PREFIXES = ['astrateg.charform.', 'astrateg.brief.', 'astrateg.scripts.'];
 export const SESSION_DRAFTS = ['astrateg-draft'];
 export function clearDeviceDrafts(local = globalThis.localStorage, session = globalThis.sessionStorage) {
@@ -242,6 +245,7 @@ async function forgetPushDevice() {
 export async function signOutHere() {
   await Promise.race([forgetPushDevice().catch(() => {}), new Promise((done) => { setTimeout(done, 3000); })]);
   clearDeviceDrafts();
+  forgetPlace(); // the profile, the view and the filters of whoever signs out (app/visit.js)
   await supabase.auth.signOut();
 }
 

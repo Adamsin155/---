@@ -13,6 +13,8 @@ import { landFromLink, LINK_EXPIRED, PASSWORD_SAVED } from './set-password.js';
 // The sign-in screen and its button with the door (docs/ops.md, section 51).
 import { loginDoor } from './login-ui.js';
 import { resetMode } from './manager-rules.js';
+// Where a person stands after a sign-in, and what a place remembers (docs/ops.md, section 54).
+import { forgetPlace, signInPlan, refusedHere, visitStore } from './visit.js';
 import { CLIENT_BY, CLIENT_BY_NAME } from './access-logic.js';
 
 export { h };
@@ -183,7 +185,9 @@ export function mountSession(onReady) {
     $('session-who').textContent = staff ? staff.email : 'לא מחובר';
     $('btn-logout').hidden = !staff;
   };
-  async function boot() {
+  // `guard`: the home of whoever just signed in on a page they opened on purpose; if the
+  // page answers "אין לך גישה", they are taken there instead of being shown the refusal.
+  async function boot(guard = null) {
     let staff = null;
     // Someone is signed in on this device: who they are and the team's names are asked
     // for now, while the server confirms the session, and not one after the other.
@@ -204,7 +208,9 @@ export function mountSession(onReady) {
       // phone) with the managers' switch, "המשימות שלי" / "מבט מנהל", as its first entries (app/shell.js).
       const shell = import('./shell.js').then((m) => m.mountShell(staff.email)).catch(() => {});
       try {
-        return await onReady(staff);
+        const result = await onReady(staff);
+        if (guard && refusedHere()) { location.replace(guard); await KEEP_BOOT; }
+        return result;
       } finally {
         // Shown together with the page: the menu (it hides the head's links to screens it
         // already offers) and what the page's cards asked for on their own. Never held for long.
@@ -226,11 +232,17 @@ export function mountSession(onReady) {
     // The door on the button: half open for as long as the server is asked, shut again on
     // a refusal. It opens by itself when boot() puts the form away (app/login-ui.js).
     loginDoor.signing();
-    const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail($('lg-email').value), password: $('lg-pass').value });
+    const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail($('lg-email').value), password: $('lg-pass').value });
     $('lg-submit').disabled = false;
     if (error) { $('lg-err').textContent = explainError(error); $('lg-err').hidden = false; loginDoor.failed(); return; }
     resetMode(); // a fresh sign-in starts in the personal profile (app/manager-rules.js)
-    await boot();
+    forgetPlace(); // and with nothing of whoever was here before: the view, the filters
+    // Their home, whatever page the form happened to be on (the owner's rule, 9.10.2026):
+    // only a page opened on purpose in this visit keeps them, if it is theirs to open.
+    const plan = await signInPlan(data?.user?.email || cleanEmail($('lg-email').value));
+    if (plan?.go) { await loginDoor.leave(); location.replace(plan.go); return; }
+    if (plan?.rewrite) history.replaceState(null, '', plan.rewrite);
+    await boot(plan?.guard || null);
     if (!$('login-block').hidden) loginDoor.failed(); // signed in, but not one of the staff
   });
   $('lg-forgot').addEventListener('click', async (e) => {
@@ -249,6 +261,16 @@ export function mountSession(onReady) {
     const landed = await landFromLink();
     if (landed === 'password') toast(PASSWORD_SAVED);
     if (landed === 'kept') toast(LINK_KEPT);
+    // A password was just chosen from a sign-in link: this is a sign-in like any other,
+    // and the page the link happened to open is not a place the person chose.
+    if (landed === 'password') {
+      resetMode();
+      forgetPlace();
+      const email = await sessionEmail();
+      const plan = email ? await signInPlan(email, { entry: false }) : null;
+      if (plan?.go) { location.replace(plan.go); return KEEP_BOOT; }
+      if (plan?.rewrite) history.replaceState(null, '', plan.rewrite);
+    }
     const result = await boot();
     if (landed === 'expired') {
       if ($('login-block').hidden) toast(LINK_EXPIRED);
@@ -270,6 +292,7 @@ export async function viewerOf(email) {
 export const VIEWER_UNKNOWN = 'לא הצלחנו לזהות את המשתמש שלך בפרוטוקול. רעננו את הדף; אם זה חוזר, פנו למנהל המערכת.';
 
 // Per-browser conveniences only (never who the user is).
+export { visitStore };
 export const store = {
   get(k) { try { return localStorage.getItem(`astrateg.${k}`); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(`astrateg.${k}`, v); } catch { /* private mode */ } },

@@ -95,6 +95,29 @@ export const homeLink = (viewer) => (known(viewer) && isSales(viewer.me)
   ? { href: 'deal.html', label: 'מעבר לעסקה חדשה' }
   : { href: MODES.mine.href, label: 'מעבר להמשימות שלי' });
 
+// The person's home: the one answer to "where does this person start" (the owner's rule,
+// 9.10.2026; docs/ops.md, section 54). Everyone on "המשימות שלי" in the personal profile:
+// the owners and the office, Ilai, and since that day also the editors, Nirel and Eli
+// (who used to land on editor.html / shoot.html; those stay one tap away in their menu).
+// The field sales have no "המשימות שלי": their home is the deal page.
+export const homeHref = (viewer) => homeLink(viewer).href;
+// After a sign-in form said yes: stay on this page, or go home.
+//   { stay: true }                 this page is the person's home already
+//   { stay: true, rewrite: href }  the same page, another tab of it: the address becomes the home
+//   { stay: true, guard: href }    a deep link opened on purpose in this visit (`entry`):
+//                                  the page opens; if it answers "אין לך גישה", go to `guard`
+//   { go: href }                   any other page: the home
+export function afterSignIn(viewer, { pathname = '', hash = '', search = '', entry = false } = {}) {
+  const home = homeHref(viewer);
+  const to = split(home);
+  const here = pageOf(pathname);
+  const atHome = here === to.page && !search;
+  if (atHome && (here !== 'clients.html' || !hash || hash === to.hash)) return { stay: true };
+  if (entry) return { stay: true, guard: home };
+  if (atHome) return { stay: true, rewrite: home };
+  return { go: home };
+}
+
 // ── The two profiles of the owners, Ofir, Lior (6.10.2026) and Irit (7.10.2026) ──
 // The personal profile: only what this person acts on every day, "המשימות שלי" first.
 // Everything else they may open is the manager profile's, behind the one button at the

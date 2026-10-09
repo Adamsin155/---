@@ -9,40 +9,31 @@ import {
   h, toast, errorText, formatStamp, formatWhen, who, TAB_FRESH, firstLanded, markFirstLanded,
 } from './protocol-ui.js';
 import { isOwnerView } from './team-rules.js';
-import { hasProfiles, modeOf } from './manager-rules.js';
 import { officeScreens } from './shell-rules.js';
 import {
   QA_KINDS, qaState, fixedKey, fixedItemKey, qaDue,
 } from './office-marks.js';
 
 // ── The first screen ────────────────────────
-// One landing rule for everyone (sections 3 and 6): the editors and Nirel land on
-// their editing page, Eli on his shoot days; everyone else stays on "המשימות שלי".
-// Since 6.10.2026 that includes the owners, Ofir and Lior: they start in their
-// personal profile, and their old first screens (the manager view, the quality-control
-// queue, "החלטות") are one tap away in its menu or behind "מבט מנהל" (ops.md, section 35).
-// Only when the tab opens on clients.html without a view (#…),
-// and once per tab (the installed app, a sign-in, a new tab; this tab's session
-// storage); after that every link opens where it points, and "המשימות שלי" is always
-// clients.html#mine. Each role also has a shortcut to its screen on that page.
-export const FIRST_SCREEN = { eli: 'shoot.html' };
-export const EDITOR_SCREEN = 'editor.html';
+// One landing rule for everyone (the owner's rule, 9.10.2026; docs/ops.md, section 54):
+// whoever opens the app or signs in stands on THEIR home, "המשימות שלי"
+// (clients.html#mine) in the personal profile. That now includes the editors and Nirel
+// (who used to be sent to editor.html) and Eli (shoot.html): their own screens are one
+// tap away in the menu. Nobody is sent to "מבט מנהל" by a remembered choice any more.
+// The field sales have no "המשימות שלי": clients.html sends them to deal.html every
+// time (landingOf in app/deal-logic.js). The home itself is homeHref (app/shell-rules.js).
+export const FIRST_SCREEN = {};
 export const OWNER_SCREEN = 'owner.html';
-// Whoever has two profiles (the owners, Ofir, Lior, and Irit; app/manager-rules.js) and
-// chose the manager's on this browser lands on it (owner.html); otherwise on
-// "המשימות שלי". `mode` is modeOf(viewer); null for everyone else.
-export function firstScreenOf(me, viewer = null, mode = null) {
-  if (mode === 'manager' && hasProfiles(viewer)) return OWNER_SCREEN;
-  if (!me || hasProfiles(viewer)) return null;
-  if (PEOPLE[me]?.editor) return EDITOR_SCREEN;
+// The page clients.html leaves for, or null (stay on "המשימות שלי"): only the field sales.
+export function firstScreenOf(me) {
   if (PEOPLE[me]?.sales) return 'deal.html'; // Stav (3.10.2026); clients.js sends him there every time
-  return FIRST_SCREEN[me] || null;
+  return null;
 }
 // Where clients.html sends this person now, or null: `arrived` is the hash the page
 // was opened with (a sign-in link, #mine, #control…). Marks the landing.
-export function landingNow({ me, viewer, arrived = '', fresh = TAB_FRESH, mode = modeOf(viewer) }) {
+export function landingNow({ me, viewer, arrived = '', fresh = TAB_FRESH }) {
   if (!fresh || arrived || firstLanded()) return null;
-  const page = firstScreenOf(me, viewer, mode);
+  const page = firstScreenOf(me, viewer);
   if (page) markFirstLanded();
   return page;
 }

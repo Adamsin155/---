@@ -69,23 +69,28 @@ export const MODES = {
 export const BACK_LABEL = 'חזרה למשימות שלי';
 // Where the manager profile opens: screen 1 for the managers, screen 2 for Lior (who has no screen 1).
 export const managerHome = (v) => (isManager(v) ? MODES.manager.href : 'owner.html#all');
-// A new key (it was 'astrateg.mode'): what a browser remembered before 6.10.2026 is
-// left behind, so everyone starts in the personal profile.
+// The choice lives in this tab only (sessionStorage) since 9.10.2026: "מבט מנהל" is not
+// remembered across launches of the app, new tabs or sign-ins; everyone starts in the
+// personal profile (docs/ops.md, section 54). Until then it was kept for the browser
+// (localStorage, 'astrateg.profile'; before 6.10.2026 'astrateg.mode'): never read again.
 const MODE_KEY = 'astrateg.profile';
+const tabStore = () => { try { return globalThis.sessionStorage; } catch { return undefined; } };
+const oldStore = () => { try { return globalThis.localStorage; } catch { return undefined; } };
 // Everyone starts in their own work; the manager profile is a choice.
 export const defaultMode = () => 'mine';
-// The profile this browser last chose, for whoever has two; null for anyone else.
-export function modeOf(v, storage = globalThis.localStorage) {
+// The profile chosen in this tab, for whoever has two; null for anyone else.
+export function modeOf(v, storage = tabStore()) {
   if (!hasProfiles(v)) return null;
   let saved = null;
   try { saved = storage?.getItem(MODE_KEY) || null; } catch { /* no storage */ }
   return MODES[saved] ? saved : defaultMode(v);
 }
-export function setMode(mode, storage = globalThis.localStorage) {
+export function setMode(mode, storage = tabStore()) {
   if (!MODES[mode]) return;
   try { storage?.setItem(MODE_KEY, mode); } catch { /* no storage */ }
 }
-// A sign-in or a sign-out: whoever comes next on this browser starts in the personal profile.
-export function resetMode(storage = globalThis.localStorage) {
+// A sign-in or a sign-out: whoever comes next starts in the personal profile.
+export function resetMode(storage = tabStore()) {
   try { storage?.removeItem(MODE_KEY); } catch { /* no storage */ }
+  try { oldStore()?.removeItem(MODE_KEY); } catch { /* no storage */ }
 }

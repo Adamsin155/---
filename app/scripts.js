@@ -93,6 +93,7 @@ async function load() {
 function noAccess() {
   $('app').hidden = true;
   const st = $('state');
+  st.classList.add('no-access'); // a sign-in on this page goes home instead (app/visit.js)
   fill(st, h('strong', {}, 'אין לך גישה לתסריטים של הלקוח הזה.'), ' ',
     h('span', {}, 'את התסריטים כותבים ליאור והבעלים, ומי שליאור פתח לו גישה ללקוח.'), ' ',
     h('a', { class: 'btn', href: 'clients.html#mine' }, '→ המשימות שלי'));
