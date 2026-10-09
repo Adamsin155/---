@@ -22,6 +22,7 @@ import {
 import {
   $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, store,
 } from './protocol-ui.js';
+import { checkMark } from './mark-guards.js';
 import {
   ACCESS_STATUS, MAIN_NETWORKS, networkName, FORM_FIELDS, MATERIALS, MATERIAL_STATES, endedProblems, endedNote, endedChecks,
   endedClientFields, formProblems, isComplete, missingFields, filledCount, missingMaterials, formChecks, missingTask, blockingTask,
@@ -633,8 +634,14 @@ async function saveScriptsLink() {
   busy = true;
   try {
     if (round === 1) client = await updateClient(id, { links: { ...(client.links || {}), scripts: v } });
-    checks[key('p12.docs')] = await setCheck(id, key('p12.docs'), 'done', v);
-    toast('הקישור נשמר. עכשיו לתאם זום.');
+    // The link is kept; "the scripts are on the scripts page" is marked with it only when
+    // there is a script there for this round (protocol v8, app/mark-guards.js).
+    const verdict = await checkMark(id, key('p12.docs'));
+    if (verdict?.refuse) toast(`הקישור נשמר. ${verdict.refuse}`);
+    else {
+      checks[key('p12.docs')] = await setCheck(id, key('p12.docs'), 'done', v);
+      toast('הקישור נשמר. עכשיו לתאם זום.');
+    }
   } catch (err) { toast(`לא נשמר. ${errorText(err)}`); }
   busy = false;
   render('zm-at');

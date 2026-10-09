@@ -30,6 +30,7 @@ import {
 } from './availability-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import { unsignedLine, UNSIGNED_URL } from './unsigned-logic.js';
+import { followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
 import { QUOTE_LIST_VIEWERS } from './manager-rules.js';
 
 // The words every line of a client in landing ends with.
@@ -154,6 +155,14 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
       add({ id: 'landing-messages', bucket: 'landing', n: quiet, rule: null, href: QUEUE_PAGES.messages, cta: 'להודעות',
         text: landingText(`${words(quiet, 'לקוח אחד עוד לא קיבל', 'לקוחות עוד לא קיבלו')} הודעה היום`) });
     }
+  }
+
+  // ── Irit: the daily follow-up before the shoot day (14, protocol v8; prep.html) ──
+  // One line for all the clients, never a card of eight ticks per client: each client
+  // is one row there, closed for the day in one tap.
+  if (me === 'irit') {
+    const due = followupDue(followupRows({ clients: live, checksOf: (c) => checks[c.id] || {}, stateOf, now })).length;
+    add({ id: 'followup', bucket: 'today', n: due, rule: 'followup', href: FOLLOWUP_URL, cta: 'למעקב', text: followupLine(due) });
   }
 
   // ── Contracts sent for signature and not signed yet (quotes.html; section 47) ──

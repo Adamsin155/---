@@ -331,6 +331,17 @@ export async function dayStatuses(day, { me, own = null } = {}) {
   const data = await monthData(A.monthOfDay(day));
   return data ? A.PHOTOGRAPHERS.map((person) => A.dayStatus({ day, person, ...data, own: ownDay(own) })) : null;
 }
+// The photographer's next free days (this month and the next), for whoever picks a
+// shoot date: ['YYYY-MM-DD'], or null when nothing is known here.
+export async function freeDaysAhead({ me, now = new Date(), limit = 6 } = {}) {
+  if (!canSee(me) || isPhotographer(me)) return null;
+  const month = dayKeyIL(now).slice(0, 7);
+  const got = await Promise.all([monthData(month), monthData(A.addMonths(month, 1))]).catch(() => null);
+  const known = (got || []).filter(Boolean);
+  if (!known.length) return null;
+  return A.freeAhead({ months: known.flatMap((d) => d.months), taken: Object.assign({}, ...known.map((d) => d.taken)), now, limit });
+}
+
 // The line under a datetime-local input (its value is an Israel wall time). `own`: the
 // saved date of the shoot being edited (or a function giving it), which is not "taken".
 // `me` may be a function too (a page that learns who is signed in after it is drawn).

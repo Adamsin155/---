@@ -14,7 +14,7 @@
 //   soon    any other process of the person due within the next hour.
 // A clock that ran out stays in the bar, red, until the end of that day (a
 // "soon" one for an hour; after that it is in the "overdue" list).
-import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, ANSWERED, waitOf, IMPORT_NOTE, inLanding, workFloor, parseDate } from './protocol-logic.js';
+import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, isDayEnd, ANSWERED, waitOf, IMPORT_NOTE, inLanding, workFloor, parseDate } from './protocol-logic.js';
 import { endOfDayIL, partsIL } from './tz.js';
 
 const MIN = 6e4;
@@ -34,11 +34,17 @@ export const DEAL_CLOCKS = {
 // `approval` is the client's own approval, also when it comes from the status page
 // (approve_item writes the same key). Every clock needs one: without it Irit is
 // rung "call the client" about something the client already approved.
+// A request for a fix is an answer too (8.10.2026; docs/ops.md, section 48): the task the
+// status page opened for that approval (`fixAnswered`), or the notes the office wrote
+// down itself (`notes`). Until then Irit was told "the client did not answer" about a
+// client who had just written what to fix.
 export const ANSWER_CLOCKS = {
   p07: { minutes: 10, what: '9 הגרפיקות הראשונות', approval: 'p07.approved' },
   p23: { minutes: 10, what: 'יתרת הגרפיקות', approval: 'p23.approved' },
-  p26: { minutes: 5, what: 'הסרטונים', approval: 'p27.approved' },
+  p26: { minutes: 5, what: 'הסרטונים', approval: 'p27.approved', notes: 'p27.notes' },
 };
+export const fixAnswered = (tasks, clientId, itemKey, sentAt) => (tasks || []).some((t) => t.source === 'client_fix' && t.client_id === clientId
+  && t.brief?.item_key === itemKey && new Date(t.created_at) >= sentAt);
 
 // Other deadlines join the bar this many minutes before they are due, and a
 // "soon" clock that ran out stays as long after.
@@ -47,7 +53,7 @@ export const SOON_MINUTES = 60;
 const KIND_ORDER = { answer: 0, deal: 1, soon: 2 };
 const baseId = (proc) => proc.id.replace(/^r\d+-/, '');
 // A deadline "by the end of the day" is a date, not a clock.
-const endOfDay = (d) => { const p = partsIL(d); return p.hour === 23 && p.minute === 59; };
+const endOfDay = (d) => isDayEnd(d); // a deadline of a day, not of an hour: no countdown in the bar
 const peopleOf = (entries) => [...new Set(entries.flatMap((e) => (e.claim ? [e.claim.person] : e.item.owners)))];
 
 // Where a clock stands at `now`. Office clocks stop outside office hours:
@@ -87,7 +93,7 @@ function inBar(kind, deadline, now) {
 // `stateOf(client)` may pass a cached clientState.
 // Each clock: { id, kind, client, proc, what, deadline, office, people, phone,
 // sentAt (answer only), minutes, state, remaining, paused, resumeAt }.
-export function clocksFor(person, clients, checksByClient = {}, { now = new Date(), stateOf = null } = {}) {
+export function clocksFor(person, clients, checksByClient = {}, { now = new Date(), stateOf = null, tasks = [] } = {}) {
   const out = [];
   const add = (c) => { if (inBar(c.kind, c.deadline, now)) out.push({ ...c, ...clockTime(c, now) }); };
   for (const client of clients) {
@@ -136,6 +142,7 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
       const since = (key) => { const x = checks[key]; return !!x && x.state === 'done' && new Date(x.at) >= sentAt; };
       const round = kb.slice(0, kb.length - baseId(s.proc).length); // 'r2.' in a second shoot round
       if (since(ANSWERED(s.proc)) || since(`${kb}.call`) || (spec.approval && since(round + spec.approval))) continue;
+      if ((spec.notes && since(round + spec.notes)) || (spec.approval && fixAnswered(tasks, client.id, round + spec.approval, sentAt))) continue;
       // A wait that began before this sending (say, for the client's material) is not an answer to it.
       const wait = waitOf(s.proc, checks);
       if (wait && new Date(wait.at) >= sentAt) continue;

@@ -27,8 +27,24 @@
 // scripts are in the system, not in Excel or Google Docs; the finished VIDEOS stay in
 // the client's Google Drive, the owner's decision of 7.10.2026 after checking the
 // storage quota; the contract has 10 office minutes). Keys and items are unchanged.
+// v8 (the owner's decisions of 8.10.2026 after the full-flow simulation; docs/ops.md, section 49):
+//   - New: 5ב (Irit sends the client the link to the logins form, right after the
+//     characterization) and 7א (Irit sends the client the link to the status page, once
+//     the first 9 graphics are ready). Both carry `link`: the card has "העתקת הקישור".
+//   - New item p05.allnets: process 5 is not complete while nobody said that no other
+//     network of the client is still without a login.
+//   - A review has its own clock, from the moment the work arrives (`due.afterMark`,
+//     now a list of stages): Irit's check of the 9 graphics (7), Ofir's check of the
+//     rest (23) and Irit's sending of them. The review items need the work first
+//     (`requires`), so they are on nobody's list before it arrives.
+//   - The review of the 9 graphics has one owner, Irit (Lior no longer carries it).
+//   - 14 is a daily follow-up (`recurring: 'daily'`): one answer per client per working
+//     day (p14.day) until the shoot day; its eight topics stay, as what can be stuck.
+//   - 11 stays open while the shoot day has no date (`setHere` on p11.calendar).
+//   - "The end of a business day" is the office's close (18:00; erev chag 13:00)
+//     everywhere (addBusinessDays in protocol-logic.js), and 34 is due at 18:00.
 
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 // Office hours, in Israel time (decisions 1–2 in docs/plan/decisions.md).
 // Deadlines of minutes or hours that start from an office event (a deal coming
@@ -176,6 +192,11 @@ const isDms = (c) => c.shoot_type === 'dms';
 //   from 'pNN' means "when process NN was completed"; 'item:pNN.x' when that one item was done.
 //   prevBusinessDay: the business day before the anchor ("the day before the shoot").
 //   afterMark: { key, minutes }: once that mark is done, the deadline is `minutes` after it.
+//     A list of them is the stages of one process, in order: the last stage whose mark is
+//     done sets the deadline, so work that is handed on inside a process (made, then
+//     checked, then sent) gives each person a clock that starts when the work reaches
+//     them. `office: true` counts the minutes in office time; `businessDays` instead of
+//     minutes is the end of that business day after the mark.
 // `sla` is the protocol's own wording and is always shown.
 // `round: true`: the process repeats for every extra shoot round (a second shoot day).
 // Item `noBulk`: a confirmation by the client or someone outside the office; never marked in bulk.
@@ -186,6 +207,14 @@ const isDms = (c) => c.shoot_type === 'dms';
 //   unless the process `unless` is already behind the client. Once the item is ticked only
 //   the details in `keep` still hold the process open.
 // A process with several owners can be claimed by one of them (key `pNN.claim`).
+// Process `link: 'access' | 'status'`: its card carries "העתקת הקישור" (the client's logins
+//   form, the client's status page); the link is made on that press when there is none.
+// Process `recurring: 'daily'` with `until`: asked once every working day from its start
+//   until the day of that anchor (14: the shoot day). It is a counted line on its owner's
+//   list, not a card (app/mine-flow.js), and it is never late.
+// Item `guard`: what the system looks at before the mark is taken (app/mark-guards.js):
+//   it is refused only when the system knows there is nothing behind it.
+// Item `word`: the word on its "סיימתי" pill when it is a one-tap answer.
 
 export const PHASES = [
   { key: 'onboarding', title: 'קליטת לקוח ואפיון' },
@@ -204,7 +233,7 @@ export const PHASES = [
 // station is a run of processes in PROCESSES order; against PHASES above:
 //   הצטרפות      onboarding 1–3 (the deal, the WhatsApp group, setting the meeting)
 //                and, since v6, 11 and 11ב (the shoot day is set right after the group)
-//   אפיון        onboarding 4–6 (the meeting, access, the pages) + parallel 7, 7ב, 8, 8ב, 9, 10
+//   אפיון        onboarding 4–6 (the meeting, access with 5ב, the pages) + parallel 7, 7א, 7ב, 8, 8ב, 9, 10
 //   תוכן ואישור  prep (12א, 12, 13, 14)
 //   יום צילום    eve (15, 16) + shoot (17–21, with 17ב, 18ב, 19ב)
 //   עריכה ובקרה  post (22א, 22, 23, 23ב, 24, 25, 26, 27)
@@ -214,7 +243,7 @@ export const PHASES = [
 // tests/client-open.test.mjs checks that every process sits in exactly one station.
 export const STATIONS = [
   { key: 'join', title: 'הצטרפות', procs: ['p01', 'p02', 'p03', 'p11', 'p11b'] },
-  { key: 'char', title: 'אפיון', procs: ['p04', 'p05', 'p06', 'p07', 'p07b', 'p08', 'p08b', 'p09', 'p10'] },
+  { key: 'char', title: 'אפיון', procs: ['p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10'] },
   { key: 'content', title: 'תוכן ואישור', procs: ['p12a', 'p12', 'p13', 'p14'] },
   { key: 'shoot', title: 'יום צילום', procs: ['p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21'] },
   { key: 'post', title: 'עריכה ובקרה', procs: ['p22a', 'p22', 'p23', 'p23b', 'p24', 'p25', 'p26', 'p27'] },
@@ -281,7 +310,9 @@ export const PROCESSES = [
       { key: 'p11.ok.influencers', label: 'המשפיענים אישרו', noBulk: true },
       { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר', noBulk: true },
       { key: 'p11.ok.photographer', label: 'הצלם אישר', noBulk: true },
-      { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'] },
+      // v8: no date, no closed shoot day: 11 stays on Irit's list with "קביעת יום צילום"
+      // (the date is asked for until the shoot day is behind the client: 19).
+      { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'], setHere: { unless: 'p19', keep: ['shoot_at'] } },
     ],
   },
   {
@@ -329,12 +360,28 @@ export const PROCESSES = [
     items: [
       { key: 'p05.access', label: 'התקבלה גישה לכל הרשתות הרלוונטיות' },
       { key: 'p05.vault', label: 'כל הגישות הוכנסו לכספת הגישות במערכת', owners: ['irit'] },
+      // v8: one login saved is not "every network". The system does not hold the list of
+      // the client's networks, so it asks: the card names what was saved (the note of
+      // p05.access) and "אין עוד" closes it. The client's own form closes it by itself.
+      { key: 'p05.allnets', label: 'אין ללקוח עוד רשתות שחסרה להן גישה', requires: ['p05.access'], noBulk: true, word: 'אין עוד' },
       { key: 'p05.logo', label: 'לוגו' },
       { key: 'p05.colors', label: 'צבעי מותג' },
       { key: 'p05.photos', label: 'תמונות' },
       { key: 'p05.videos', label: 'סרטונים קיימים' },
       { key: 'p05.menu', label: 'תפריט או מחירון', optional: true },
       { key: 'p05.newlogo', label: 'עילאי הכין לוגו חדש (אין ללקוח לוגו)', owners: ['ilai'], when: (c) => c.has_logo === false },
+    ],
+  },
+  {
+    id: 'p05b', num: '5ב', phase: 'onboarding', title: 'קישור ללקוח למילוי פרטי הכניסה לרשתות', owners: ['irit'],
+    sla: 'עד 30 דקות עבודה מסיום פגישת האפיון',
+    // v8: only Irit sends it, and the client's logins depend on it. Done by itself when
+    // the client filled the form (the database marks it; migration 20261022100000).
+    start: { from: 'charEnd' }, due: { from: 'charEnd', minutes: 30 },
+    link: 'access',
+    what: 'שולחים ללקוח את הקישור לטופס שבו הוא ממלא בעצמו את פרטי הכניסה לרשתות שלו. הפרטים נכנסים ישר לכספת.',
+    items: [
+      { key: 'p05b.sent', label: 'לשלוח ללקוח קישור למילוי פרטי הכניסה לרשתות', noBulk: true },
     ],
   },
   {
@@ -358,17 +405,30 @@ export const PROCESSES = [
   {
     id: 'p07', num: '7', phase: 'parallel', title: 'הכנת 9 גרפיקות ראשונות', owners: ['ilai'],
     sla: 'עד שעתיים לאחר האפיון',
-    start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2 },
-    what: 'עילאי מכין 9 גרפיקות לפי האפיון והשפה של העסק. עירית או ליאור בודקים, ואז הן נשלחות ללקוח לאישור. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת אליו.',
+    // v8: Irit's check has its own clock from the moment the graphics reach her. The
+    // written protocol gives it no time, so it keeps the two hours the process had.
+    start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2, afterMark: [{ key: 'p07.made', minutes: 120, office: true }] },
+    what: 'עילאי מכין 9 גרפיקות לפי האפיון והשפה של העסק. עירית בודקת, ואז הן נשלחות ללקוח לאישור. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת אליו.',
     items: [
       // noBulk on the marks that hand finished files on (7, 23, 24, 27): each is pressed
       // where the files are uploaded, never with "mark the whole process".
       { key: 'p07.made', label: '9 גרפיקות הוכנו לפי האפיון ושפת העסק', noBulk: true },
       ...[['spelling', 'כתיב'], ['phone', 'טלפון'], ['address', 'כתובת'], ['logo', 'לוגו'], ['details', 'פרטי העסק'], ['wording', 'ניסוחים'], ['design', 'עיצוב']]
-        .map(([k, l]) => ({ key: `p07.r.${k}`, label: `נבדק: ${l}`, owners: ['irit', 'lior'] })),
-      { key: 'p07.sent', label: 'נשלחו ללקוח לאישור', owners: ['irit', 'lior'], requires: ['p07.r.spelling', 'p07.r.phone', 'p07.r.address', 'p07.r.logo', 'p07.r.details', 'p07.r.wording', 'p07.r.design'] },
+        .map(([k, l]) => ({ key: `p07.r.${k}`, label: `נבדק: ${l}`, owners: ['irit'], requires: ['p07.made'] })),
+      { key: 'p07.sent', label: 'נשלחו ללקוח לאישור', owners: ['irit'], requires: ['p07.r.spelling', 'p07.r.phone', 'p07.r.address', 'p07.r.logo', 'p07.r.details', 'p07.r.wording', 'p07.r.design'] },
       { key: 'p07.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
-      { key: 'p07.approved', label: 'הלקוח אישר את הגרפיקות', owners: ['irit', 'lior'], requires: ['p07.sent'], noBulk: true },
+      { key: 'p07.approved', label: 'הלקוח אישר את הגרפיקות', owners: ['irit'], requires: ['p07.sent'], noBulk: true },
+    ],
+  },
+  {
+    id: 'p07a', num: '7א', phase: 'parallel', title: 'קישור ללקוח לדף הסטטוס', owners: ['irit'],
+    sla: 'עד 30 דקות עבודה מרגע ש־9 הגרפיקות מוכנות',
+    // v8: without this link the client cannot approve graphics, scripts or videos.
+    start: { from: 'item:p07.made' }, due: { from: 'item:p07.made', minutes: 30 },
+    link: 'status',
+    what: 'שולחים ללקוח את הקישור לדף הסטטוס שלו. שם הוא רואה איפה הדברים עומדים ומאשר גרפיקות, תסריטים וסרטונים.',
+    items: [
+      { key: 'p07a.sent', label: 'לשלוח ללקוח קישור לדף הסטטוס', noBulk: true },
     ],
   },
   {
@@ -450,7 +510,7 @@ export const PROCESSES = [
     items: [
       { key: 'p12.scripts', label: 'התסריטים הוכנו לפי החבילה (תסריט לכל סרטון), הדגשים והמשפיענים', requires: ['p12a.call'] },
       { key: 'p12.numbered', label: 'לכל סרטון מספר ברור, כדי לסמן אותו ביום הצילום' },
-      { key: 'p12.docs', label: 'התסריטים מסודרים בעמוד התסריטים במערכת, לפי סדר הצילום' },
+      { key: 'p12.docs', label: 'התסריטים מסודרים בעמוד התסריטים במערכת, לפי סדר הצילום', guard: 'scripts' },
     ],
   },
   {
@@ -468,17 +528,24 @@ export const PROCESSES = [
   {
     id: 'p14', round: true, num: '14', phase: 'prep', title: 'Follow-up עד יום הצילום', owners: ['irit'],
     sla: 'מעקב שוטף מדי יום עד יום הצילום',
-    start: { from: 'charEnd' }, due: { from: 'shoot' },
-    what: 'מוודאים שאין דבר שיכול לעצור את יום הצילום. מסמנים כל נושא כשהוא סגור.',
+    // v8: daily and light. One answer per client on every working day until the shoot
+    // day: "הכול תקין", or which of the eight topics is stuck (then Lior is told). The
+    // answer is the mark p14.day (note JSON, app/shoot-prep.js); it counts for its day.
+    // The eight topics stay as they were (the system still closes a clear one by itself);
+    // nobody ticks them one by one.
+    recurring: 'daily', until: 'shoot',
+    start: { from: 'charEnd' },
+    what: 'בכל יום עבודה עד יום הצילום מוודאים שאין דבר שיכול לעצור אותו: ״הכול תקין״, או מה תקוע. על נושא תקוע ליאור מקבל הודעה.',
     items: [
-      { key: 'p14.approvals', label: 'אישורי לקוח' },
-      { key: 'p14.scripts', label: 'תסריטים' },
-      { key: 'p14.graphics', label: 'גרפיקות' },
-      { key: 'p14.access', label: 'גישות' },
-      { key: 'p14.shootday', label: 'יום צילום' },
-      { key: 'p14.team', label: 'משימות צוות' },
-      { key: 'p14.missing', label: 'חוסרים מהלקוח' },
-      { key: 'p14.delays', label: 'אין עיכוב מצד אחד העובדים (אם יש: מתועד ועודכן ליאור)' },
+      { key: 'p14.day', label: 'מעקב היום: הכול תקין, או מה תקוע', recurring: 'daily' },
+      { key: 'p14.approvals', label: 'אישורי לקוח', optional: true, topic: true },
+      { key: 'p14.scripts', label: 'תסריטים', optional: true, topic: true },
+      { key: 'p14.graphics', label: 'גרפיקות', optional: true, topic: true },
+      { key: 'p14.access', label: 'גישות', optional: true, topic: true },
+      { key: 'p14.shootday', label: 'יום צילום', optional: true, topic: true },
+      { key: 'p14.team', label: 'משימות צוות', optional: true, topic: true },
+      { key: 'p14.missing', label: 'חוסרים מהלקוח', optional: true, topic: true },
+      { key: 'p14.delays', label: 'אין עיכוב מצד אחד העובדים (אם יש: מתועד ועודכן ליאור)', optional: true, topic: true },
     ],
   },
   {
@@ -652,13 +719,17 @@ export const PROCESSES = [
   {
     id: 'p23', num: '23', phase: 'post', title: 'הכנת יתרת הגרפיקות', owners: ['ilai'],
     sla: 'עד יום עסקים אחד, במקביל לעריכת הסרטונים',
-    start: { from: 'shoot' }, due: { from: 'shoot', businessDays: 1 },
+    // v8: each one's clock starts when the work reaches them. Ofir checks "מיד" (his
+    // protocol), within the hour of his quality control (decision 11); Irit's sending has
+    // no time in the written protocol, so it keeps the business day the process had.
+    start: { from: 'shoot' },
+    due: { from: 'shoot', businessDays: 1, afterMark: [{ key: 'p23.made', minutes: 60, office: true }, { key: 'p23.ofir', businessDays: 1 }] },
     what: 'משלימים את כל הגרפיקות לפי החבילה (היתרה אחרי 9 הגרפיקות הראשונות). אופיר בודק; אחרי אישורו נשלחות ללקוח. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת.',
     items: [
-      { key: 'p23.made', label: 'כל הגרפיקות לפי החבילה הושלמו (היתרה אחרי 9 הראשונות)', noBulk: true },
+      { key: 'p23.made', label: 'כל הגרפיקות לפי החבילה הושלמו (היתרה אחרי 9 הראשונות)', noBulk: true, guard: 'graphicsCount' },
       ...[['design', 'העיצוב מתאים לעסק'], ['errors', 'אין טעויות'], ['logo', 'הלוגו נכון'], ['contact', 'הטלפון והכתובת נכונים'],
         ['match', 'המידע תואם לאפיון'], ['pro', 'הגרפיקות ברמה מקצועית'], ['variety', 'אין חזרתיות מוגזמת בין הגרפיקות']]
-        .map(([k, l]) => ({ key: `p23.q.${k}`, label: `אופיר בדק: ${l}`, owners: ['ofir'] })),
+        .map(([k, l]) => ({ key: `p23.q.${k}`, label: `אופיר בדק: ${l}`, owners: ['ofir'], requires: ['p23.made'] })),
       { key: 'p23.ofir', label: 'אופיר אישר את הגרפיקות (תיקון: משימה לעילאי)', owners: ['ofir'], requires: ['p23.q.design', 'p23.q.errors', 'p23.q.logo', 'p23.q.contact', 'p23.q.match', 'p23.q.pro', 'p23.q.variety'] },
       { key: 'p23.sent', label: 'נשלחו ללקוח', owners: ['irit'], requires: ['p23.ofir'] },
       { key: 'p23.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
@@ -726,7 +797,7 @@ export const PROCESSES = [
     sla: 'עד שעתיים מרגע שהתוכן מוכן ומאושר',
     start: { from: 'p27' }, due: { from: 'p27', hours: 2 },
     items: [
-      { key: 'p28.scheduled', label: 'הסרטונים והגרפיקות תוזמנו מראש לפי הכמות והתדירות בחבילה' },
+      { key: 'p28.scheduled', label: 'הסרטונים והגרפיקות תוזמנו מראש לפי הכמות והתדירות בחבילה', guard: 'scheduled' },
     ],
   },
   {
@@ -735,7 +806,7 @@ export const PROCESSES = [
     start: { from: 'p27' }, due: { from: 'p27', hours: 2 },
     what: 'על כל תוכן שמתוזמן מעדכנים בגאנט מספר סרטון, קישור, יום, תאריך ושעה, כך שהגאנט והתזמון תמיד תואמים.',
     items: [
-      { key: 'p29.filled', label: 'הגאנט מלא ותואם לתזמון בפועל', owners: ['ilai'] },
+      { key: 'p29.filled', label: 'הגאנט מלא ותואם לתזמון בפועל', owners: ['ilai'], guard: 'gantt' },
       { key: 'p29.sent', label: 'הגאנט הועבר ללקוח', owners: ['irit'], requires: ['p29.filled'] },
     ],
   },
@@ -754,13 +825,13 @@ export const PROCESSES = [
     recurring: 'weekly', start: { from: 'p30' },
     what: 'עוברים עם הלקוח על קמפיינים, לידים, תוצאות, סרטונים, תכנים שעלו, תכנים עתידיים, בעיות, דברים שצריך לשפר ובקשות חדשות. הכול מתועד בסיכום השיחה; כל משימה נפתחת עם אחראי ברור. לאורך התקופה ליאור בודק גם ביצועים, לידים, הודעות, עלויות, קריאייטיבים וצורך באופטימיזציה. עירית בודקת אחרי השיחה שלכל משימה יש אחראי.',
     items: [
-      { key: 'p31.call', label: 'בוצעה שיחה שבועית ותועדה', recurring: 'weekly' },
+      { key: 'p31.call', label: 'בוצעה שיחה שבועית ותועדה', recurring: 'weekly', guard: 'callSummary' },
     ],
   },
   {
     id: 'p34', num: '34', phase: 'renewal', title: 'חידוש חוזה', owners: ['lior'],
     sla: 'מתחילים 60 יום לפני סיום החוזה',
-    start: { from: 'contractEnd', days: -60 }, due: { from: 'contractEnd', days: -60, at: '23:59' },
+    start: { from: 'contractEnd', days: -60 }, due: { from: 'contractEnd', days: -60, at: '18:00' },
     items: [
       { key: 'p34.state', label: 'נבדקו מצב הלקוח והתוצאות' },
       { key: 'p34.satisfaction', label: 'נבדקה שביעות רצון' },

@@ -79,14 +79,17 @@
   <link rel="modulepreload" href="app/month-ui.js">
   <link rel="modulepreload" href="app/control-topics.js">
   <link rel="modulepreload" href="app/deal-data.js">
+  <link rel="modulepreload" href="app/late-chain.js">
   <link rel="modulepreload" href="app/mine-flow.js">
+  <link rel="modulepreload" href="app/mark-guards.js">
+  <link rel="modulepreload" href="app/access-logic.js">
+  <link rel="modulepreload" href="app/access-data.js">
+  <link rel="modulepreload" href="app/shoot-prep.js">
   <link rel="modulepreload" href="app/mine-flow-data.js">
   <link rel="modulepreload" href="app/holidays.js">
   <link rel="modulepreload" href="app/protocol-versions.js">
   <link rel="modulepreload" href="app/feel.js">
-  <link rel="modulepreload" href="app/shoot-prep.js">
   <link rel="modulepreload" href="app/set-password.js">
-  <link rel="modulepreload" href="app/access-logic.js">
   <link rel="modulepreload" href="app/pricing.js">
   <link rel="modulepreload" href="app/vendor/supabase.js">
   <link rel="modulepreload" href="app/access-nudge.js">
@@ -117,6 +120,7 @@
   <link rel="modulepreload" href="app/auto-assign.js">
   <link rel="modulepreload" href="app/status-rules.js">
   <link rel="modulepreload" href="app/year-rules.js">
+  <link rel="modulepreload" href="app/day-summary.js">
   <link rel="modulepreload" href="app/upload.js">
   <link rel="modulepreload" href="app/surveys.js">
 </head>
@@ -316,6 +320,30 @@
       <div class="dlg-foot">
         <button type="button" class="btn btn-ghost" data-close>ביטול</button>
         <button type="submit" class="btn btn-primary" id="meet-submit">שמירת המועד</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-shoot" aria-labelledby="shoot-h">
+    <form id="shoot-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="shoot-h">קביעת יום הצילום</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body form-grid">
+        <p class="span-2 wait-ctx" id="shoot-ctx"></p>
+        <div class="field"><label for="shoot-at">מתי מגיעים המשפיענים?</label><input class="input" id="shoot-at" type="datetime-local" dir="ltr" required aria-describedby="shoot-avail"></div>
+        <div class="field"><label for="shoot-type">עם מי מצלמים?</label>
+          <select class="input" id="shoot-type"><option value="">לבחור</option><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
+        <div class="span-2" id="shoot-avail-slot"></div>
+        <div class="span-2 shoot-free" id="shoot-free" hidden></div>
+        <fieldset class="span-2 shoot-oks" id="shoot-oks"><legend>מי כבר אישר? (אפשר גם אחר כך, מהכרטיס)</legend></fieldset>
+        <p class="hint span-2">המועד נשמר בכרטיס הלקוח. יום הצילום נסגר כשכולם אישרו והוא ביומן.</p>
+        <div class="err span-2" id="shoot-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="shoot-submit">שמירת המועד</button>
       </div>
     </form>
   </dialog>

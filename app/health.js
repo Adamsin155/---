@@ -349,6 +349,7 @@ export function clientHealth(client, state, extras = {}) {
   // Late: red past 2 business days on anything critical; yellow before that.
   for (const s of state.states) {
     let dueAt = null;
+    if (s.proc.recurring === 'daily') continue; // 14: a day that passed unanswered is gone, never late
     if (s.proc.recurring) {
       if (!s.ready) continue;
       dueAt = weeklyCallDue(s, checks);
@@ -671,6 +672,7 @@ export function timeline(client, state, checks = {}, now = new Date()) {
   const current = [];
   const planned = [];
   for (const s of state.states) {
+    if (s.proc.recurring === 'daily') continue; // 14's daily follow-up is not a step of the timeline
     if (s.proc.recurring) {
       if (s.ready) current.push({ procId: s.proc.id, what: procName(s.proc), who: responsibleOf(s, checks, client, now), until: weeklyCallDue(s, checks), status: s.status });
       continue;

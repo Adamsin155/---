@@ -34,7 +34,7 @@ import { canManageTeam } from './team-rules.js';
 import { canSendMessages, stationTitle } from './messages-logic.js';
 import { offerHandoff, dropHandoff } from './handoff-ui.js';
 import { canSeeAllClients, canSeeOwnerScreen, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
-import { loadDateChanges, loadLogFor } from './owner-data.js';
+import { loadDateChanges, loadLogFor, noteDateChange } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
 import { mountWhatsappCard } from './whatsapp.js';
@@ -61,9 +61,16 @@ import { showMonths, worksCycle } from './month-ui.js';
 // Irit's daily control (process 32): her eleven topics, each with what is open now.
 import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageText } from './control-topics.js';
 import { loadDeals } from './deal-data.js';
+import { fixTaskOf, fixNote, FIX_ITEM_LABEL } from './late-chain.js';
 import { canSeeDeals, canSeeQuoteList } from './manager-rules.js';
 // Everything that waits for me on another page, as counted lines (docs/ops.md, section 46).
 import { flowLines, flowNeeds } from './mine-flow.js';
+// Protocol v8 (docs/ops.md, section 49): a mark the system looks into before it is
+// taken, the question of process 5, and the links Irit sends from her own list.
+import { checkMark } from './mark-guards.js';
+import { accessGapQuestion } from './access-logic.js';
+import { canManageAccessLinks } from './access-data.js';
+import { PARTIES } from './shoot-prep.js';
 import { loadFlowExtra } from './mine-flow-data.js';
 
 let clients = [];
@@ -319,6 +326,21 @@ const byReported = (a, b) => (isEscalation(b.task) - isEscalation(a.task)) || (n
 // Outside the office, a mark that hands finished files on ("מוכן לבדיקה", the final
 // versions) is pressed on the page where the files go up, where its lock is seen
 // (app/files-logic.js uploadStepOf): here the row only points there.
+// The client asked for a fix on the status page: the approval item says so, until the
+// fix is done (docs/ops.md, section 48; the task of whoever fixes is in `tasks`).
+const fixOf = (e) => (e.task ? null : fixTaskOf(tasks, e.client.id, e.item.key));
+const baseKeyOf = (key) => String(key || '').replace(/^r\d+\./, '');
+const entryLabel = (e) => (e.task ? e.task.title : fixOf(e) ? FIX_ITEM_LABEL
+  : baseKeyOf(e.item.key) === 'p05.allnets' ? accessGapQuestion(checks[e.client.id]?.['p05.access']) : e.item.label);
+// The weekly call is recorded in its own dialog, which asks for the summary: the row
+// leads there instead of a pill that would close it with nothing written.
+const viaCall = (e) => !e.task && e.item.guard === 'callSummary';
+const callUrl = (e) => `client.html?id=${encodeURIComponent(e.client.id)}&call=${encodeURIComponent(e.item.key)}#${e.proc.id}`;
+function tickOf(e, id) {
+  if (viaCall(e)) return h('a', { class: 'btn btn-sm wcall', id, href: callUrl(e) }, 'תיעוד שיחה', h('span', { class: 'sr-only' }, `: ${e.client.name}`));
+  return h('input', { type: 'checkbox', id, class: 'cbx fin', 'data-word': e.item?.word || null, disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) });
+}
+const fixLine = (e) => { const t = fixOf(e); return t ? h('p', { class: 'hint fix-note' }, fixNote(t, (p) => PEOPLE[p]?.name || p)) : null; };
 const viaPage = (e) => (e.task || scope === 'office' ? null : uploadStepOf(e.item.key, me, e.client.id));
 function viaLine(e) {
   const via = viaPage(e);
@@ -342,6 +364,14 @@ async function toggleEntry(e, input) {
       const folder = folderItemOf(e.task);
       if (folder) try { (checks[e.client.id] ||= {})[folder] = await setCheck(e.client.id, folder, 'done'); states.delete(e.client.id); } catch { /* the item stays for the card */ }
     } else {
+      const verdict = await checkMark(e.client.id, e.item.key);
+      if (verdict?.refuse) {
+        input.checked = false;
+        input.disabled = false;
+        toast(verdict.refuse);
+        input.focus();
+        return;
+      }
       const row = await setCheck(e.client.id, e.item.key, 'done');
       (checks[e.client.id] ||= {})[e.item.key] = row;
       states.delete(e.client.id);
@@ -476,17 +506,165 @@ async function bulkUndo(c, keys, g) {
 const MEET_FIELDS = ['characterizer', 'char_at'];
 const gapOf = (g) => g.entries.find((e) => e.fields) || null;
 const checkable = (g) => g.entries.filter((e) => !e.fields);
-const gapText = (fields) => (fields.includes('char_at') ? 'עוד לא נקבע מועד לפגישת האפיון.' : 'עוד לא נקבע מי מבצע את האפיון.');
+// Process 11 (protocol v8): the same shape for the shoot day. A second shoot round's
+// date is set in the client card, where the rounds are.
+const SHOOT_FIELDS = ['shoot_type', 'shoot_at'];
+const gapText = (fields) => (fields.includes('char_at') ? 'עוד לא נקבע מועד לפגישת האפיון.'
+  : fields.includes('characterizer') ? 'עוד לא נקבע מי מבצע את האפיון.'
+    : fields.includes('shoot_at') ? 'עוד לא נקבע תאריך ליום הצילום.' : 'עוד לא נקבע עם מי מצלמים.');
 function needLine(g) {
   const e = gapOf(g);
   if (!e) return null;
   const meeting = e.fields.every((f) => MEET_FIELDS.includes(f));
+  const shoot = e.fields.every((f) => SHOOT_FIELDS.includes(f)) && !roundOf(g.proc);
   const id = `need-${g.key}`.replace(/[^\w-]/g, '_');
   return h('div', { class: 'need wneed', role: 'note', 'data-need': e.fields.join(',') },
     h('span', {}, gapText(e.fields), scope === 'office' ? '' : ' המשרד משלים את זה בכרטיס הלקוח.'),
     scope !== 'office' ? null : meeting
       ? h('button', { type: 'button', class: 'btn btn-sm btn-primary', id, onclick: () => openMeet(g, id) }, e.fields.includes('char_at') ? 'קביעת מועד' : 'בחירת מבצע')
-      : h('a', { class: 'btn btn-sm', id, href: clientUrl(g.client.id, `#${g.proc.id}`) }, 'לכרטיס הלקוח'));
+      : shoot ? h('button', { type: 'button', class: 'btn btn-sm btn-primary', id, onclick: () => openShoot(g, id) }, 'קביעת יום צילום')
+        : h('a', { class: 'btn btn-sm', id, href: clientUrl(g.client.id, `#${g.proc.id}`) }, 'לכרטיס הלקוח'));
+}
+
+// ── The shoot date, set from the card (process 11; docs/ops.md, section 49) ──
+// One button on Irit's card opens it: when, with whom, and who already approved. It
+// writes the same two fields of the client card, the same way (updateClient, with the
+// same questions as "לפני יום צילום": a day the photographer did not mark free, a date
+// against the usual order), and ticks the approvals that were pressed. The
+// photographer's next free days are offered when he handed his month over.
+const shootDlg = $('dlg-shoot');
+let shootTarget = null;
+let shootHint = null;
+const SHOOT_TICKS = [...PARTIES, { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו' }, { key: 'p11.calendar', label: 'ביומן של כולם' }];
+shootDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === shootDlg) shootDlg.close(); });
+async function openShoot(g, focusId) {
+  shootTarget = { g, focusId };
+  const c = g.client;
+  const cs = checks[c.id] || {};
+  $('shoot-form').reset();
+  $('shoot-err').hidden = true;
+  $('shoot-at').removeAttribute('aria-invalid');
+  $('shoot-ctx').textContent = clientLabel(c);
+  $('shoot-at').value = c.shoot_at ? inputValueIL(new Date(c.shoot_at)) : '';
+  $('shoot-type').value = c.shoot_type || '';
+  fill($('shoot-oks'), h('legend', {}, 'מי כבר אישר? (אפשר גם אחר כך, מהכרטיס)'), ...SHOOT_TICKS.map((p) => {
+    const was = cs[p.key]?.state === 'done';
+    return h('button', {
+      type: 'button', class: 'chip', id: `shoot-ok-${p.key.replace(/\W/g, '-')}`, 'data-key': p.key, 'aria-pressed': String(was), disabled: was,
+      onclick: (ev) => ev.currentTarget.setAttribute('aria-pressed', String(ev.currentTarget.getAttribute('aria-pressed') !== 'true')),
+    }, p.label);
+  }));
+  fill($('shoot-free'));
+  $('shoot-free').hidden = true;
+  fill($('shoot-avail-slot'));
+  shootDlg.showModal();
+  $('shoot-at').focus();
+  // The photographer's days: read after the dialog is open, so it opens at once.
+  try {
+    const A = await import('./availability-ui.js');
+    if (shootTarget?.g !== g || !shootDlg.open) return;
+    shootHint = A.shootDayHint($('shoot-at'), { me, own: c.shoot_at });
+    shootHint.id = 'shoot-avail';
+    fill($('shoot-avail-slot'), shootHint);
+    if ($('shoot-at').value) shootHint.refresh();
+    const free = await A.freeDaysAhead({ me });
+    if (shootTarget?.g !== g || !shootDlg.open || !free) return;
+    fill($('shoot-free'), h('span', { class: 'hint' }, free.length ? 'הימים הפנויים הקרובים של הצלם:' : 'לצלם אין ימים פנויים שנמסרו בחודשיים הקרובים.'),
+      ...free.map((d) => h('button', {
+        type: 'button', class: 'chip', 'data-day': d,
+        onclick: () => {
+          const time = ($('shoot-at').value || '').slice(11, 16) || '10:00';
+          $('shoot-at').value = `${d}T${time}`;
+          $('shoot-at').dispatchEvent(new Event('change', { bubbles: true }));
+          $('shoot-at').focus();
+        },
+      }, dayShort(d))));
+    $('shoot-free').hidden = false;
+  } catch { /* the date can still be typed */ }
+}
+$('shoot-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const { g, focusId } = shootTarget;
+  const c = g.client;
+  const cid = c.id;
+  const at = $('shoot-at').value ? fromInputIL($('shoot-at').value) : null;
+  const type = $('shoot-type').value;
+  const fail = (text, el) => { $('shoot-err').textContent = text; $('shoot-err').hidden = false; el?.focus(); };
+  $('shoot-at').setAttribute('aria-invalid', String(!at));
+  if (!at) return fail('בחרו יום ושעה ליום הצילום.', $('shoot-at'));
+  if (!type) return fail('בחרו עם מי מצלמים.', $('shoot-type'));
+  $('shoot-err').hidden = true;
+  // A day the photographer did not mark free, a day that is taken, a date against the
+  // usual order: asked, with a reason that is kept (as on "לפני יום צילום").
+  let asked = { ok: true, note: null };
+  try {
+    const A = await import('./availability-ui.js');
+    asked = await A.confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me });
+  } catch { /* nothing known here: the date is saved as typed */ }
+  if (!asked.ok) { $('shoot-at').focus(); return; }
+  $('shoot-submit').disabled = true;
+  try {
+    const row = await updateClient(cid, { shoot_at: at.toISOString(), shoot_type: type });
+    if (asked.note) { try { await noteDateChange(cid, 'shoot_at', null, at.toISOString(), asked.note); } catch { /* the date itself is saved */ } }
+    clients = clients.map((x) => (x.id === cid ? { ...x, ...row } : x));
+    states.delete(cid);
+  } catch (err) {
+    $('shoot-submit').disabled = false;
+    return fail(`המועד לא נשמר. ${errorText(err)}`, $('shoot-at'));
+  }
+  // The approvals pressed here are ticked with it; one that fails stays on the card.
+  const keys = [...$('shoot-oks').querySelectorAll('.chip[aria-pressed="true"]:not(:disabled)')].map((b) => b.dataset.key);
+  let marked = 0;
+  if (keys.length) {
+    try {
+      const rows = await setChecksBulk(cid, keys, 'done', 'סומן בקביעת יום הצילום');
+      for (const r of rows) (checks[cid] ||= {})[r.item_key] = r;
+      states.delete(cid);
+      marked = rows.length;
+    } catch { /* they stay open on the card */ }
+  }
+  $('shoot-submit').disabled = false;
+  shootDlg.close();
+  renderKeepingFocus();
+  const card = `#mine-list .wproc[data-key="${CSS.escape(g.key)}"]`;
+  (document.getElementById(focusId) || document.querySelector(`${card} .cbx, ${card} button`))?.focus();
+  toast(`יום הצילום נשמר: ${formatStamp(at)}.${marked ? ` סומנו ${marked === 1 ? 'אישור אחד' : `${marked} אישורים`}.` : ''}`);
+});
+
+// ── A link to send the client, copied from the card (5ב, 7א; section 49) ──
+// The card of a step whose whole work is sending the client a link carries the button
+// that gets it: the link that waits, or a new one when there is none. The ready message
+// with the link goes to the clipboard; where the browser refuses, it is shown to copy.
+const linkShown = new Map(); // card key → the message, when it could not be copied
+function linkLine(g, entry = null) {
+  const kind = g.proc?.link;
+  if (!kind || g.task) return null;
+  const id = `link-${g.key}`.replace(/[^\w-]/g, '_');
+  const may = kind === 'access' ? canManageAccessLinks({ me, scope, error: viewerError }) : scope === 'office' && !viewerError && (me === null || ['irit', 'lior'].includes(me));
+  if (!may) return null;
+  const shown = linkShown.get(g.key);
+  return h('div', { class: 'wlink', role: 'group', 'aria-label': 'הקישור ללקוח' },
+    // Outlined, like every action of a row: pink is the screen's one main action.
+    h('button', { type: 'button', class: 'btn btn-sm', id, onclick: (ev) => copyLink(g, kind, ev.currentTarget) }, 'העתקת הקישור'),
+    entry ? (() => {
+      const tid = `w-${entry.client.id}-${entry.item.key}`.replace(/[^\w-]/g, '_');
+      return h('label', { class: 'wrow wlink-done', for: tid }, tickOf(entry, tid), h('span', { class: 'wlabel sr-only' }, entryLabel(entry)));
+    })() : null,
+    shown ? h('p', { class: 'wlink-text' }, h('label', { class: 'sr-only', for: `${id}-t` }, 'ההודעה עם הקישור, להעתקה'),
+      h('input', { class: 'input', id: `${id}-t`, readonly: true, dir: 'auto', value: shown, onfocus: (ev) => ev.currentTarget.select() })) : null);
+}
+async function copyLink(g, kind, btn) {
+  btn.disabled = true;
+  const { copyClientLink } = await import('./client-links.js');
+  const r = await copyClientLink(kind, g.client);
+  btn.disabled = false;
+  if (!r.ok) { toast(r.error); return; }
+  if (r.filled) { toast('הלקוח כבר מילא את הטופס. אין מה לשלוח.'); return; }
+  if (r.copied) { linkShown.delete(g.key); toast(`${r.made ? 'נוצר קישור. ' : ''}ההודעה עם הקישור הועתקה. שולחים ללקוח ומסמנים ״סיימתי״.`); return; }
+  linkShown.set(g.key, r.message);
+  renderKeepingFocus();
+  document.getElementById(`${btn.id}-t`)?.focus();
+  toast('ההעתקה לא הצליחה. ההודעה מוצגת בכרטיס: מסמנים ומעתיקים.');
 }
 const meetDlg = $('dlg-meet');
 let meetTarget = null;
@@ -718,9 +896,10 @@ function compactCard(g, person) {
     const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
     return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
       h('label', { class: 'wrow', for: id },
-        h('input', { type: 'checkbox', id, class: 'cbx fin', disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
-        h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
+        tickOf(e, id),
+        h('span', { class: 'wlabel' }, entryLabel(e))),
       viaLine(e),
+      fixLine(e),
       e.task ? briefDetails(e.task) : null);
   }));
   // The one action: "התחלתי" on an urgent task; the form the process is worked in; the
@@ -758,6 +937,8 @@ function compactCard(g, person) {
     },
   }, label);
   const when = whenWords(g);
+  // Whoever may not make the link (a viewer of somebody else's list) keeps the plain row.
+  const link = linkLine(g, single ? ticks[0] : null);
   return h('li', { class: `wproc wc s-${g.status}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
     h('div', { class: 'wc-head', 'aria-describedby': g.wait ? waitId : null },
       h('a', { class: 'wclient', href }, clientLabel(g.client)),
@@ -769,9 +950,10 @@ function compactCard(g, person) {
       h('p', { class: 'wc-title' }, single && g.task ? h('span', { class: 'wc-sub' }, sub || 'משימה') : [what, sub ? h('span', { class: 'wc-sub' }, ` · ${sub}`) : null]),
       panel && !listIsAction ? toggle('פירוט', 'btn-text wc-more') : null),
     need, // a detail of the client that is still missing, set from here
+    link, // the link this step sends to the client, with its "סיימתי" in the same row
     start, // "התחלתי", or when it was pressed
     shortcut,
-    single ? rows() : null,
+    single && !link ? rows() : null,
     listIsAction ? toggle(`הצגת הפריטים (${n})`, 'btn btn-sm wc-go wc-open') : null,
     panel);
 }
@@ -799,6 +981,7 @@ function groupCard(g, person) {
     g.task ? taskMeta(g.task) : null,
     g.task && g.urgent ? taskStart(g.task) : null,
     needLine(g),
+    linkLine(g),
     g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null,
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
@@ -813,9 +996,10 @@ function groupCard(g, person) {
       const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
       return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
         h('label', { class: 'wrow', for: id },
-          h('input', { type: 'checkbox', id, class: 'cbx fin', disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) }),
-          h('span', { class: 'wlabel' }, e.task ? e.task.title : e.item.label)),
+          tickOf(e, id),
+          h('span', { class: 'wlabel' }, entryLabel(e))),
         viaLine(e),
+        fixLine(e),
         e.task ? briefDetails(e.task) : null);
     })));
 }
@@ -1251,7 +1435,7 @@ let clockSeen = new Map(); // clock id -> 'running' | 'expired' at the last seco
 const clockPerson = () => me || (scope === 'office' && !viewerError ? null : undefined);
 function rebuildClocks(now = new Date()) {
   const person = clockPerson();
-  clocks = person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf });
+  clocks = person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf, tasks });
 }
 function paintNowBar() {
   renderNowBar($('now-bar'), clocks, { everyone: !me, onAnswered: markAnswered });
