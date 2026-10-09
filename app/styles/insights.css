@@ -86,3 +86,22 @@
 .in-ro.k-h { padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--k-navy-soft); color: var(--ds-ink); gap: 10px; }
 .in-ro.k-h > .k-ico { margin-block: 0; background: var(--ds-surface); }
 .in-list > .k-empty, .pipe-list > .k-empty { margin: 0; padding: 18px 16px; background: var(--ds-surface); }
+
+/* ── The visual sweep ── */
+/* The figures: the icon, the label, the number and the line under it start on the same
+   lines in every tile of a row, also when one label takes two lines (subgrid). */
+@supports (grid-template-rows: subgrid) {
+  .in-stats .ow-stat.k-h { grid-row: span 4; grid-template-rows: subgrid; row-gap: 4px; }
+}
+/* The bars of one list end on one line: the number beside them has a column of its own. */
+@media (min-width: 761px) { .bar-row { grid-template-columns: minmax(110px, 14em) minmax(60px, 1fr) minmax(9.5em, auto); } }
+/* The two folded tables say that they open. */
+.in-trend summary, .in-late summary { list-style: none; gap: 8px; }
+.in-trend summary::-webkit-details-marker, .in-late summary::-webkit-details-marker { display: none; }
+.in-trend summary::before, .in-late summary::before {
+  content: ''; flex: none; inline-size: 7px; block-size: 7px; margin-inline: 3px 5px; border: solid currentColor; border-width: 0 0 2px 2px;
+  transform: rotate(45deg); transition: transform .15s ease;
+}
+.in-trend[open] summary::before, .in-late[open] summary::before { transform: translateY(-2px) rotate(-45deg); }
+@media (prefers-reduced-motion: reduce) { .in-trend summary::before, .in-late summary::before { transition: none; } }
+.pipe-h a.wclient { padding-block: 10px; margin-block: -10px; }

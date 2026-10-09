@@ -83,6 +83,18 @@
   .mt th:first-child, .mt td:first-child { min-inline-size: 132px; max-inline-size: 150px; }
 }
 
+/* The visual sweep: a very long business name or package wraps inside its column
+   instead of pushing every other column out of sight. */
+.mt td:first-child { white-space: normal; }
+.mt td:first-child .mt-name { display: inline-block; max-inline-size: 230px; overflow-wrap: anywhere; }
+.mt td:first-child .sub { max-inline-size: 230px; overflow-wrap: anywhere; }
+.mt:not(.sd) td:nth-child(2) { white-space: normal; min-inline-size: 150px; max-inline-size: 260px; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .mt td:first-child :is(.mt-name, .sub) { max-inline-size: 128px; }
+  .sd tbody td:first-child .mt-name { display: inline-flex; max-inline-size: none; }
+  .sd tbody td:first-child .sub { max-inline-size: none; }
+}
+
 /* ── The shoot-day table (owner.html#shoots): the manager table's look, seven columns ── */
 .sd-tools { grid-template-columns: minmax(180px, 360px); }
 .sd .sd-group th {
