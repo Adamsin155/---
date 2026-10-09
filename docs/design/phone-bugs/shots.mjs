@@ -105,7 +105,7 @@ const SHOTS = {
   // BUG 9: every place where the staff upload or attach.
   async uploads() {
     {
-      const { page, ctx } = await open('nadia', 'editor.html');
+      const { page, ctx } = await open('yariv', 'editor.html');
       await settle(page);
       await part(page, '.ed-card .fl-work', 'bug9-editor-upload', 700);
       await ctx.close();
