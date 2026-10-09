@@ -597,7 +597,7 @@ setInterval(() => {
 // The kit (docs/ops.md, section 52): each section's heading and each card take an icon square.
 dress($('app'), [['#qa-h', 'shield', 'purple', 'md'], ['#char-h', 'target', 'orange', 'md'], ['#assign-h', 'scissors', 'blue', 'md'], ['#load-h', 'chart', 'teal', 'md'],
   ['#approvals-h', 'file', 'blue'], ['#myq-h', 'question', 'purple'], ['#na-h', 'lock', 'navy'],
-  ['#qa-list .of-head, #qa-fixing .of-head', 'video', 'purple', 'md'], ['#assign-list .of-head', 'scissors', 'blue', 'md'], ['#load-list .of-head', 'user', 'teal', 'md']]);
+  ['#qa-list .of-head, #qa-fixing .of-head', 'video', 'purple', 'md'], ['#char-list .of-head', 'target', 'orange', 'md'], ['#assign-list .of-head', 'scissors', 'blue', 'md'], ['#load-list .of-head', 'user', 'teal', 'md']]);
 
 // The two dialogs' heads (their titles are rewritten on every opening).
 dress($('dlg-qa'), [['.dlg-head h2', 'shield', 'purple', 'md']]);

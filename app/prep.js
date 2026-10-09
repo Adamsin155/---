@@ -270,7 +270,7 @@ function coordinatorBlock(e, k) {
             ...Object.values(SHOOT_TYPES).map((t) => h('option', { value: t.key, selected: coord.shootType === t.key }, t.name)))),
         h('div', { class: 'field' }, h('label', { for: `sh-at-${k}` }, 'הגעת המשפיענים'),
           shootAtField(c, k, dt))),
-      h('button', { type: 'button', class: 'btn', id: `sh-save-${k}`, disabled: busy, onclick: () => saveShoot(c, k) }, 'שמירת המועד')) : null,
+      h('button', { type: 'button', class: 'btn k-btn-navy', id: `sh-save-${k}`, disabled: busy, onclick: () => saveShoot(c, k) }, 'שמירת המועד')) : null,
     h('ul', { class: 'pp-parties', 'aria-label': 'אישורים' },
       ...coord.approvals.map((a) => party(a, a.key === `${x.pre}p11.ok.photographer` ? eliNotes.get(coord.shootAt?.toISOString()) || null : null)), party(coord.contract)),
     h('div', { class: 'ik-row' },

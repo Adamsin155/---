@@ -248,3 +248,15 @@ details.ps-sum { min-width: 0; }
 #dlg-qa .of-prev > summary { color: var(--ds-ink); font-weight: 600; }
 #dlg-task .dlg-body { display: grid; gap: 12px; }
 #dlg-task { inline-size: min(560px, calc(100vw - 24px)); }
+/* A choice with its field: the radio, its words, a short field and the unit on one line. */
+.dc-choice .dc-inline { align-items: center; }
+.dc-choice .dc-inline > .field { flex: 0 1 auto; }
+.dc-choice .dc-inline input[type='number'] { inline-size: 88px; text-align: center; }
+.dc-choice .dc-inline select.input { inline-size: auto; min-inline-size: 180px; }
+@media (min-width: 761px) { .of-card > .dc-inline > .field, .of-card .dc-inline select.input { max-inline-size: 360px; } }
+/* The clients of the weekly campaign check: pills in a line, not a bare list. */
+#cp-body .of-jobs { display: flex; flex-wrap: wrap; gap: 8px; }
+#cp-body .of-jobs > li { background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: var(--ds-r-pill); }
+/* "התחלתי" on a row is the row's own action: navy (the screen keeps one pink). */
+.of-app .of-card .start-btn.btn-primary { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); }
+.of-app .of-card .start-btn.btn-primary:hover { background: var(--ds-navy-2); border-color: var(--ds-navy-2); }
