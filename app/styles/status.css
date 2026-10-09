@@ -58,7 +58,7 @@ a { color: var(--purple); }
 .sbarline span { height: 8px; border-radius: 4px; background: var(--line); }
 .sbarline .is-done { background: var(--ok); }
 .sbarline .is-now { background: var(--pink); }
-.sall summary { cursor: pointer; color: var(--purple); font-weight: 600; min-height: 36px; display: flex; align-items: center; }
+.sall summary { cursor: pointer; color: var(--purple); font-weight: 600; min-height: 44px; display: flex; align-items: center; }
 .stations { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
 .stations li { display: flex; gap: 10px; align-items: flex-start; color: var(--muted); }
 .stations li.is-done { color: var(--ink-2); }

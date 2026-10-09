@@ -1,11 +1,12 @@
 .list-shell > * { min-width: 0; }
 .list-shell { padding: 22px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; }
 .head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 /* Big-number tiles; the first one is the navy tile. */
 .stat { background: var(--panel); border-radius: var(--radius); padding: 16px; display: grid; gap: 4px; align-content: start; }
 .stat .k { font-size: 13.5px; color: var(--muted); }
-.stat .v { font-family: var(--font-h); font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat { min-width: 0; }
+.stat .v { font-family: var(--font-h); font-size: clamp(28px, 3.2vw, 40px); line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stat:first-child { background: var(--ds-navy-grad); color: var(--ds-on-navy); }
 .stat:first-child .k { color: inherit; opacity: .85; }
 
@@ -38,24 +39,45 @@
 .qtable .client { white-space: normal; min-width: 160px; }
 .qtable .client small { display: block; color: var(--muted); font-size: 12.5px; }
 .qtable .acts { display: flex; gap: 6px; justify-content: flex-end; }
-.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
-.pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.pill.sent { color: var(--warn); }
-.pill.viewed, .pill.seen { color: var(--accent-deep); }
-.pill.shared { color: var(--text-2); }
+/* The state of a quote: the kit's status pill (kit.css), its tone chosen in dashboard.js.
+   The same shape for the approval of an exceptional contract beside it. */
+.qtable .pill.k-pill { color: var(--ds-ink-2); }
+.qtable .pill.k-pill-ok { color: var(--ds-ok); }
+.qtable .pill.k-pill-warn { color: var(--ds-amber); }
+.qtable .pill.k-pill-late { color: var(--ds-hot-text); }
+.qtable .pill.k-pill-info { color: var(--k-blue); }
+.qtable .apv-state { display: inline-flex; align-items: center; min-height: 26px; border-radius: var(--ds-r-pill); }
 .doc-type { display: block; font-size: 12px; color: var(--muted); }
-.pill.signed { color: var(--ok); }
-.pill.cancelled { color: var(--muted); }
-.pill.expired { color: var(--danger); }
-.qtable small.until, .qtable small.by { display: block; color: var(--muted); font-size: 12px; }
-.pill small { color: var(--muted); font-weight: 400; }
+.qtable small.until, .qtable small.by, .qtable small.when { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.qtable small.when, .qtable small.until { margin-top: 3px; }
+.qtable .num { white-space: nowrap; }
 .empty, .state { color: var(--muted); text-align: center; padding: 32px 16px; margin: 0; }
 .state:empty { display: none; }
 
+/* A computer: every row keeps its facts in one line of columns and its actions in a line
+   of their own under them, so nothing is cut and nothing scrolls sideways, with the
+   menu open or closed (the table used to be wider than its card and lose its buttons). */
+@media (min-width: 761px) {
+  .table-wrap { overflow: visible; }
+  .qtable, .qtable thead, .qtable tbody { display: block; }
+  .qtable tr { display: grid; grid-template-columns: 1.1fr 1.2fr 1.3fr 1.1fr 1.5fr 1.25fr; align-items: start; }
+  .qtable:has(#th-amt:not([hidden])) tr { grid-template-columns: 1.1fr 1.2fr 1.3fr .9fr 1.1fr 1.5fr 1.25fr; }
+  .qtable th, .qtable td { display: block; white-space: normal; min-width: 0; border-bottom: 0; padding: 12px 14px 6px; overflow-wrap: anywhere; }
+  .qtable thead tr { border-bottom: 1px solid var(--line); }
+  .qtable thead th { padding-bottom: 10px; }
+  .qtable thead th:last-child { display: none; }
+  .qtable tbody tr { border-bottom: 1px solid var(--line); }
+  .qtable tbody tr:last-child { border-bottom: 0; }
+  .qtable .client { min-width: 0; }
+  .qtable .acts-cell { grid-column: 1 / -1; padding: 2px 14px 12px; }
+  .qtable .acts { justify-content: flex-start; flex-wrap: wrap; }
+  .apv-cell { max-width: none; }
+}
 @media (max-width: 760px) {
   .list-shell { padding: 14px 10px 20px; gap: 14px; }
   .stats { grid-template-columns: 1fr 1fr; }
-  .stats .stat:last-child { grid-column: 1 / -1; }
+  .stats .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .chip { min-height: 44px; }
   .page-head { flex-wrap: wrap; }
   /* Rows become cards so status and actions stay on screen. */
   .qtable thead { display: none; }
