@@ -228,10 +228,23 @@ const DIALOG_HEADS = { 'ed-h': ['edit', 'navy'], 'na-h': ['info', 'navy'], 'call
 const PHASE_LOOK = { onboarding: ['handshake', 'purple'], parallel: ['bolt', 'orange'], prep: ['list', 'blue'], eve: ['calendar', 'teal'], shoot: ['camera', 'pink'], post: ['edit', 'purple'], publish: ['send', 'green'], ongoing: ['loop', 'blue'], renewal: ['calendar-check', 'teal'] };
 const emptyLi = (text, name = 'inbox') => h('li', { class: 'empty k-emptyrow' }, kIcon(name, { size: 18 }), h('span', {}, text));
 let dialogsDressed = false;
+// A dialog's title that changes with what it opens for keeps its icon square.
+function headText(hid, text) {
+  const hd = $(hid);
+  hd.textContent = text;
+  const look = DIALOG_HEADS[hid];
+  if (look && dialogsDressed) headIcon(hd, look[0], look[1]);
+}
 function dressCard() {
   dressHeads(CARD_HEADS);
   headIcon($('qa-block-h'), 'shield', 'teal', { size: 'md' });
   headIcon($('ik-sum-h'), 'handshake', 'purple', { size: 'md' });
+  // The small heads inside the head card and the link to the logins form: the same square.
+  headIcon($('cs-h'), 'file', 'teal');
+  headIcon($('deliv-h'), 'box', 'blue');
+  headIcon($('al-h'), 'link', 'purple');
+  headIcon(document.querySelector('#cc-head .status-note h2'), 'chart', 'purple');
+  headIcon(document.querySelector('#cc-head .cc-links .me-label'), 'link', 'teal');
   if (dialogsDressed) return;
   dialogsDressed = true;
   for (const [hid, [name, tone]] of Object.entries(DIALOG_HEADS)) headIcon($(hid), name, tone);
@@ -240,7 +253,7 @@ function dressCard() {
   $('access-add')?.classList.add('k-btn-navy');
   $('task-submit')?.classList.add('k-btn-navy');
 }
-for (const slot of ['mc-slot', 'tl-slot', 'ik-slot', 'qa-block']) if ($(slot)) new MutationObserver(() => dressCard()).observe($(slot), { childList: true });
+for (const slot of ['mc-slot', 'tl-slot', 'ik-slot', 'qa-block', 'al-slot']) if ($(slot)) new MutationObserver(() => dressCard()).observe($(slot), { childList: true });
 
 function render() {
   const s = clientState(client, checks, new Date());
@@ -387,6 +400,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ── Header ──────────────────────────────────
+// A long compound name (״בן־אליעזר־וינשטיין״) may break after its hyphens: the words stay the same.
+const breakable = (text) => String(text || '').split(/(?<=[־/-])/).flatMap((part, i) => (i ? [document.createElement('wbr'), part] : [part]));
 function fact(k, v, extra = null) {
   return h('div', { class: 'fact' }, h('dt', {}, k), h('dd', {}, v || h('span', { class: 'muted' }, 'לא הוזן'), extra));
 }
@@ -677,7 +692,7 @@ function renderHead(s) {
       h('div', {},
         // The station, as the "עכשיו" line below and the status page name it (not the protocol's phase).
         h('div', { class: 'kicker' }, c.status === 'active' ? `שלב נוכחי: ${stationTitle(c, s, new Date())}` : CLIENT_STATUS[c.status]),
-        h('h1', {}, c.name),
+        h('h1', {}, ...breakable(c.name)),
         h('p', { class: 'muted' }, [c.business, c.package_name].filter(Boolean).join(' · ') || ' ')),
       h('div', { class: 'head-actions' },
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-escalate', onclick: () => openEscalate() }, 'דיווח חריגה לליאור'),
@@ -1401,7 +1416,7 @@ function openCall(key) {
   callTaskOwners = [];
   $('call-form').reset();
   $('call-err').hidden = true;
-  $('call-h').textContent = `תיעוד שיחה שבועית · ${client.name}`;
+  headText('call-h', `תיעוד שיחה שבועית · ${client.name}`);
   $('call-at').value = inputValueIL(new Date());
   fill($('call-topics'), ...CALL_TOPICS.map(([k, l]) => h('div', { class: 'field' },
     h('label', { for: callTopicId(k) }, l), h('textarea', { class: 'input', id: callTopicId(k), rows: '1', maxlength: '500' }))));
@@ -1492,7 +1507,7 @@ function openAccess(a = null) {
   accEditing = a;
   $('acc-form').reset();
   $('acc-err').hidden = true;
-  $('acc-h').textContent = a ? `גישה: ${networkName(a.network)}` : 'גישה חדשה לרשת';
+  headText('acc-h', a ? `גישה: ${networkName(a.network)}` : 'גישה חדשה לרשת');
   // "התקבל מהלקוח, עוד לא נבדק" is never chosen by hand: it stays only while a login
   // that came from the client's form is being edited without checking it.
   const fromClient = a?.status === NEW_STATUS;
@@ -1638,7 +1653,7 @@ function openRound(n = null) {
   const total = client.deliverables?.shoot_days;
   $('round-form').reset();
   $('round-err').hidden = true;
-  $('round-h').textContent = `סבב צילום ${nextN}`;
+  headText('round-h', `סבב צילום ${nextN}`);
   $('round-type').value = r?.shoot_type || client.shoot_type || 'natali';
   fillEditors('round-editor', $('round-type').value, r?.editor);
   $('round-at').value = inputValueIL(r?.shoot_at);
