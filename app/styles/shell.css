@@ -252,3 +252,9 @@ body::before {
   .tabs-scroll { justify-self: stretch; gap: 4px; padding: 5px; }
   .tabs-scroll > .tab { padding: 8px 16px; font-size: 14.5px; }
 }
+
+/* Leftovers of the visual pass of 9.10.2026 (shared chrome, look only). */
+/* A toast with a long task name stays on the screen and wraps. */
+.toast, .pr-toast { max-inline-size: calc(100vw - 24px); box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
+/* Dialog close buttons are a full finger wide on a phone, wherever the dialog comes from. */
+@media (max-width: 760px) { dialog .close { min-inline-size: 44px; min-block-size: 44px; } }

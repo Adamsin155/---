@@ -333,3 +333,11 @@
   .eod th, .eod td { padding: 10px 4px; }
   .ow-stat-h .k { font-size: 13px; }
 }
+
+/* On a phone the landing board sat above the tabs on every tab and pushed the content a whole
+   screen down: there it goes to the end of the page (the line on "המשימות שלי" and
+   owner.html#landing still lead to it). Look only. */
+@media (max-width: 720px) {
+  :is(main, .ow-page):has(> #landing) { display: flex; flex-direction: column; }
+  :is(main, .ow-page) > #landing { order: 99; margin-block-start: 16px; }
+}
