@@ -72,6 +72,10 @@
   .tm-phone-form .input { min-height: 44px; }
   .tm-link .linkbox .btn { flex: 1 1 auto; }
   .tm-help { padding: 14px; }
+  /* The visual sweep: the address field and its button are a full finger high, and the
+     person's states stand one under the other instead of in a ragged wrapped line. */
+  .tm-add .input, .tm-add .btn { min-height: 44px; }
+  .tm-state { display: grid; justify-items: start; gap: 6px; }
 }
 
 /* WhatsApp for the team (app/wa-team.js): the switch (the owner) and each person's choice. */

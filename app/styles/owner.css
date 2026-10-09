@@ -265,3 +265,70 @@
 .ow-page :is(.mt-money-note, #eod-about).k-with-ico[hidden] { display: none; }
 .ow-page :is(.mt-money-note, #eod-about) > .k-svg { margin-top: 2px; color: var(--ds-muted); }
 .ow-page .ga-list > .k-emptyrow { list-style: none; }
+
+/* ── The visual sweep of the manager view (phone 360/390 and 1280) ── */
+/* The four tiles: one icon square beside each label, and the label, the number and the line
+   under it start on the same lines in every tile of a row (subgrid; without it, a plain grid). */
+#ow-stats .ow-stat { grid-template-rows: auto auto 1fr; gap: 6px; }
+@supports (grid-template-rows: subgrid) {
+  #ow-stats .ow-stat { grid-row: span 3; grid-template-rows: subgrid; row-gap: 6px; }
+}
+.ow-stat-h { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ow-stat-h .k { min-width: 0; line-height: 1.25; overflow-wrap: anywhere; }
+#ow-stats .ow-stat .v { align-self: center; }
+#ow-stats .ow-stat .sub { line-height: 1.4; }
+.ow-colors .ow-stat-h .k-ico { background: rgba(255, 255, 255, .14); color: var(--ds-on-navy); }
+/* The three colours: three equal pills in one line, the number over its word. */
+.ow-cc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 0; align-self: start; }
+.ow-c { display: grid; grid-template-columns: auto auto; justify-content: center; align-items: center; gap: 0 4px; padding: 5px 2px 4px; border-radius: 12px; text-align: center; min-width: 0; }
+.ow-cw { grid-column: 1 / -1; font-size: 12px; line-height: 1.25; }
+
+/* The rows: "ועוד 2 סיבות" is one piece; "הצג עוד" is a whole button, not a dashed outline. */
+.ow-morew { display: inline-block; white-space: nowrap; font-size: 12.5px; color: var(--text-2); background: var(--panel-2); border-radius: 999px; padding: 1px 9px; vertical-align: 1px; }
+.ow-page .more-btn { border-style: solid; border-color: transparent; background: var(--ds-surface); color: var(--text); }
+.ow-page .eod-items .more-btn { background: var(--panel-2); }
+.ow-row-h a.wclient, .board-ev a.wclient { padding-block: 6px; margin-block: -6px; }
+.eod-item a.wclient { display: inline-block; padding-block: 10px; margin-block: -10px; }
+.ow-acts .btn { min-inline-size: 88px; justify-content: center; }
+#dlg-ask .close, #dlg-purge .close { inline-size: 44px; block-size: 44px; min-inline-size: 44px; }
+
+/* "כל הלקוחות במבט": the row says it opens (the arrow turns). */
+.ga-row { position: relative; padding-inline-end: 40px; }
+.ga-row::after {
+  content: ''; position: absolute; inset-inline-end: 16px; inset-block-start: 20px; inline-size: 8px; block-size: 8px;
+  border: solid var(--muted); border-width: 0 0 2px 2px; transform: rotate(-45deg); transition: transform .15s ease;
+}
+.ga-row[aria-expanded='true']::after { transform: translateY(4px) rotate(135deg); }
+.ga-row[aria-expanded='true'] { background: var(--row-hover); }
+.ga-more { border-top: 1px solid var(--line); padding-top: 12px; }
+.ga-reasons li { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; min-height: 28px; }
+@media (prefers-reduced-motion: reduce) { .ga-row::after { transition: none; } }
+
+/* The board: an icon per kind, and each count stays with its word. */
+.board-n { white-space: nowrap; }
+.board-ev > .k-ico { margin-block: -2px; }
+.board-ev { border-inline-start-width: 0; background: var(--ds-surface); padding: 8px 10px; }
+.board-ev.is-done { opacity: 1; }
+.board-ev.is-done .board-what, .board-ev.is-done .board-t { color: var(--text-2); }
+.board-dh { margin: 10px 0 6px; font-size: 13.5px; color: var(--text-2); }
+
+/* The day's summary: the last column never breaks inside "18 ימי עסקים". */
+.eod td:last-child { white-space: nowrap; }
+.eod-item { border-color: transparent; }
+
+/* The deletion dialog: what goes, as a marked list (not the browser's bullets). */
+.purge-list { list-style: none; padding: 10px 12px; display: grid; gap: 6px; background: var(--late-soft, var(--panel-2)); border-radius: var(--radius-sm); color: var(--text); }
+.purge-list li { position: relative; padding-inline-start: 18px; }
+.purge-list li::before { content: ''; position: absolute; inset-inline-start: 2px; inset-block-start: .62em; inline-size: 8px; block-size: 2px; border-radius: 2px; background: var(--danger); }
+.ow-page .ar-list > .k-emptyrow { list-style: none; }
+
+@media (max-width: 760px) {
+  /* The colour and the name fill the first line; the station and the person share the second. */
+  .ow-row-h .wclient { flex: 1 1 calc(100% - 90px); }
+  .ga-l1 .ga-why { flex-basis: 100%; }
+  .ga-row { padding-inline-end: 34px; }
+  .ga-row::after { inset-inline-end: 13px; }
+  .eod { font-size: 14px; }
+  .eod th, .eod td { padding: 10px 4px; }
+  .ow-stat-h .k { font-size: 13px; }
+}
