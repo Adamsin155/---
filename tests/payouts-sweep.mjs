@@ -475,6 +475,7 @@ async function sweep(worldKey, sizeKey) {
     return { ctx, page };
   };
   const rec = async (page, name, opts = {}) => {
+    await page.mouse.move(0, 0).catch(() => {}); // no hover in the picture or in the colours
     await page.waitForTimeout(opts.wait ?? 350); // the entrance of a dialog, a fade
     if (!opts.keep) await page.evaluate(() => { window.scrollTo(0, 0); document.querySelector('dialog[open] .sheet-body')?.scrollTo(0, 0); });
     const res = await page.evaluate(audit, { phone: !!size.phone, safeTop: size.safe ? size.safe[0] : 0, safeBottom: size.safe ? size.safe[1] : 0, scope: opts.scope || null })

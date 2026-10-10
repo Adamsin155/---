@@ -479,7 +479,14 @@ console.log('ok  half-year deal');
 // Influencer tabs: owed only when the work is marked as done, in that month.
 await page.goto(`${BASE}payouts/#/simeon/2026-09`);
 await page.getByRole('heading', { name: 'ממתין לביצוע' }).waitFor();
+// On a phone the influencer screens sit under "עוד" in the bottom bar (docs/ops.md, section 56):
+// the button is marked while one of them is open, and the sheet shows which.
+assert.equal(await page.locator('#side-more').evaluate((b) => b.classList.contains('is-on')), true, '"עוד" is marked on a screen of its sheet');
+await page.getByRole('button', { name: 'עוד' }).click();
 assert.equal(await page.getByRole('link', { name: 'סמיון, מישל ודניס' }).getAttribute('aria-current'), 'page');
+await shot(page, 'phone-more-sheet');
+await page.keyboard.press('Escape');
+assert.equal(await page.locator('#side-sheet').isVisible(), false, 'Escape closes the sheet');
 const openText = await page.locator('#view').innerText();
 assert.ok(openText.includes('לקוח שני') && openText.includes('לקוח חצי שנתי'), 'Simeon deals listed as open');
 assert.ok(!openText.includes('מסעדת'), 'Natali deal not in the Simeon tab');

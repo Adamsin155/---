@@ -583,7 +583,7 @@ function viewMonth() {
       stat('trend', 'green', 'הכנסות', money(t.revenue), `${r.counts.deals} עסקאות${t.incomeRevenue ? ` + הכנסה נוספת` : ''}`),
       stat('wallet', 'orange', 'הוצאות', money(t.variable + t.fixed)),
       stat('coins', t.profit < 0 ? 'pink' : 'navy', 'רווח', signed(t.profit), t.marginBp === null ? '' : `${pct(t.marginBp)} מההכנסות`, t.profit < 0 ? 'is-loss' : 'is-hero'),
-      t.incomeRevenue ? stat('chart', 'purple', 'רווח בלי הכנסה נוספת', signed(t.profitExcludingIncome), null, 'is-wide') : null,
+      t.incomeRevenue ? stat('chart', 'purple', 'רווח בלי הכנסה נוספת', signed(t.profitExcludingIncome), null, 'is-full') : null,
     ),
     h('section', { class: 'card', 'aria-labelledby': 'h-partners' },
       head('handshake', 'purple', 'חלוקה לשותפים', { id: 'h-partners' }),

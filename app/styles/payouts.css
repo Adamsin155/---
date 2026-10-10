@@ -158,7 +158,11 @@ body > main {
 .p-stat.is-hero .kpi-k, .p-stat.is-hero .kpi-s { color: color-mix(in srgb, var(--ds-on-navy) 84%, transparent); }
 .p-stat.is-loss { background: var(--ds-hot-soft); }
 .p-stat.is-loss .kpi-k, .p-stat.is-loss .kpi-s { color: var(--ds-ink-2); }
-@media (max-width: 1023.98px) { .p-stat.is-hero, .p-stat.is-loss, .p-stat.is-wide { grid-column: 1 / -1; } }
+/* A very long number (14 characters and up, marked by the view) is drawn smaller, so it stays whole in its tile. */
+.p-stat.is-wide .kpi-v { font-size: clamp(16px, 9.2cqi, 30px); }
+@media (max-width: 1023.98px) { .p-stat.is-hero, .p-stat.is-loss, .p-stat.is-wide, .p-stat.is-full { grid-column: 1 / -1; } }
+/* A tile left alone on its row (after a full-width one) takes the row. */
+@media (max-width: 1023.98px) { .kpis > .is-hero:first-child + .p-stat:last-child { grid-column: 1 / -1; } }
 @media (max-width: 379px) { .kpis { grid-template-columns: minmax(0, 1fr); } }
 
 /* ── Notices: the kit's strips ── */
@@ -299,7 +303,7 @@ textarea.input { block-size: auto; min-block-size: 88px; padding: 11px 14px; lin
 .card .deal-nums > span, .preview .deal-nums > span { background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
 .card .list-btn .deal-nums > span { background: var(--ds-ground); box-shadow: none; }
 .deal-nums > span > small:first-child { color: var(--ds-muted); font-size: 12.5px; line-height: 1.35; }
-.deal-nums .num { font-family: var(--ds-font-h); font-size: clamp(13.5px, 13.5cqi, 16.5px); }
+.deal-nums .num { font-family: var(--ds-font-h); font-size: clamp(12px, 11.5cqi, 16.5px); }
 .deal-nums .neg { display: flex; flex-wrap: wrap; column-gap: 4px; font-size: 13.5px; }
 .deal-nums .margin { color: var(--ds-ok); font-weight: 600; font-size: 12.5px; }
 .deal-nums .margin.neg { color: var(--ds-hot-text); }
@@ -311,7 +315,7 @@ textarea.input { block-size: auto; min-block-size: 88px; padding: 11px 14px; lin
 @media (min-width: 720px) { .card > .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .tile { container-type: inline-size; display: grid; gap: 2px; align-content: start; justify-items: start; min-width: 0; padding: 11px 13px; background: var(--ds-surface); border-radius: var(--ds-r-item); box-shadow: inset 0 0 0 1px var(--ds-line); }
 .tile small { color: var(--ds-muted); font-size: 13px; line-height: 1.35; }
-.tile .num, .tile > span:last-child { font-family: var(--ds-font-h); font-size: clamp(14px, 13cqi, 19px); }
+.tile .num, .tile > span:last-child { font-family: var(--ds-font-h); font-size: clamp(12px, 11cqi, 19px); }
 .tile .neg { display: flex; flex-wrap: wrap; column-gap: 4px; font-weight: 400; }
 .tile-neg .num { color: var(--ds-hot-text); }
 .fig { display: inline-grid; gap: 2px; justify-items: start; text-align: start; min-width: 0; }
@@ -332,7 +336,10 @@ details.set-sec > summary::after, .payee summary::after {
 }
 details.set-sec[open] > summary::after, .payee[open] summary::after { transform: rotate(-135deg); margin-block: 4px 0; }
 details.set-sec > summary:focus-visible, .payee summary:focus-visible { outline-offset: 4px; border-radius: var(--ds-r-ctl); }
-.settings .set-sec > .btn { justify-self: start; }
+/* A folded section is its head alone (the hidden part of a <details> takes no row and no gap). */
+details.set-sec { display: block; }
+details.set-sec > :not(summary) { margin-block-start: 12px; }
+.stack > div:empty { display: none; }
 
 /* ── Who to pay how much: one row a person, the name at the start, the amount at the end, the detail folded ── */
 .pay-group { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 16px; border-radius: var(--ds-r-card); background: var(--ds-ground); }
@@ -342,8 +349,8 @@ details.set-sec > summary:focus-visible, .payee summary:focus-visible { outline-
 .group-total .num { font-family: var(--ds-font-h); font-size: 16px; }
 .pay-group > .hint { margin: -4px 0 2px; }
 .payee { min-width: 0; background: var(--ds-surface); border-radius: var(--ds-r-item); box-shadow: inset 0 0 0 1px var(--ds-line); }
-.payee summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; padding: 10px 14px; cursor: pointer; list-style: none; }
-.payee-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 15.5px; overflow-wrap: anywhere; }
+.payee summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 10px; min-height: 56px; padding: 10px 14px; cursor: pointer; list-style: none; }
+.payee-name { flex: 1 1 9em; min-width: 0; font-weight: 600; font-size: 15.5px; overflow-wrap: anywhere; }
 .payee summary > .num, .payee summary > .neg { flex: none; font-family: var(--ds-font-h); font-size: 18px; font-weight: 400; }
 .payee summary > .neg { display: grid; justify-items: end; font-size: 13px; font-family: var(--ds-font-b); font-weight: 600; }
 .payee summary > .neg .num { font-family: var(--ds-font-h); font-size: 18px; font-weight: 400; }
@@ -393,6 +400,8 @@ dialog.wide .sheet-head { padding-block-start: calc(12px + env(safe-area-inset-t
 .form-grid { display: grid; gap: 16px; min-width: 0; }
 .form-main { display: grid; gap: 18px; min-width: 0; }
 .form-main > div:empty { display: none; }
+/* The groups a redraw puts in one box (package and influencers, the two kinds of add-ons) keep the same air. */
+.form-main > div:not([class]) { display: grid; gap: 18px; min-width: 0; }
 .form-side { min-width: 0; }
 .preview { display: grid; min-width: 0; padding: 14px; border-radius: var(--ds-r-card); background: var(--ds-ground); }
 .preview:empty { display: none; }

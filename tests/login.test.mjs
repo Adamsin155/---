@@ -61,8 +61,19 @@ test('every page with the form takes the stylesheet; the gate is a plain script 
     assert.ok(head.indexOf('app/frame-guard.js') < head.indexOf(GATE) && head.indexOf(GATE) > 0, page);
     assert.ok(head.indexOf(GATE) < head.indexOf('rel="stylesheet"'), `${page}: before the styles`);
   }
-  // The client's pages and the payments app know nothing of it.
-  for (const page of ['q.html', 'status.html', 'gallery.html', 'scripts-view.html', 'access.html', 'payouts/index.html']) assert.doesNotMatch(read(page), /login-gate|login\.css/, page);
+  // The client's pages know nothing of it.
+  for (const page of ['q.html', 'status.html', 'gallery.html', 'scripts-view.html', 'access.html']) assert.doesNotMatch(read(page), /login-gate|login\.css/, page);
+  // The payments app takes the look of the screen (the owner's decision of 10.10.2026;
+  // docs/ops.md, section 56): the same stylesheet, and a gate of its own, because it keeps
+  // its own session under its own key. The staff gate and the staff module stay out of it.
+  const pay = read('payouts/index.html');
+  const payHead = pay.slice(0, pay.indexOf('</head>'));
+  assert.ok(payHead.includes('<link rel="stylesheet" href="../app/styles/login.css">'), 'payouts: login.css');
+  assert.ok(payHead.indexOf('../app/frame-guard.js') < payHead.indexOf('<script src="../app/payouts/gate.js"></script>'), 'payouts: its gate, after the frame guard');
+  assert.ok(payHead.indexOf('../app/payouts/gate.js') < payHead.indexOf('rel="stylesheet"'), 'payouts: the gate before the styles');
+  assert.doesNotMatch(pay, /login-gate|login-ui/, 'payouts: not the staff gate, not the staff module');
+  assert.match(read('app/payouts/gate.js'), /getItem\('astrateg-payment-auth'\)/);
+  assert.doesNotMatch(read('app/payouts/gate.js'), /\b(import|export|let|const|=>)\b/, 'a plain script');
 });
 
 // The gate, run as the browser runs it: a plain script with the page's storage.
