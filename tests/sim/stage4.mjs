@@ -8,13 +8,13 @@ const sim = await Sim.start("s4", "s3c");
 const cid = sim.client().id;
 const png = (n = 2000) => Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.alloc(n)]);
 
-// 7: Ilai uploads the 9 graphics on his card and passes them to Irit (20 hours late).
+// 7: Ilai uploads the 9 graphics on his card and passes them to Ofir (20 hours late; protocol v9: Ofir alone checks them).
 {
   await sim.until(IL(2026, 10, 13, 9, 45));
   const before = await sim.mine("ilai", { shot: "p07-graphics-late" });
   // Before he hands them over: is anything of process 7 on Irit's or Lior's list?
   const peekBefore = {};
-  for (const r of ["irit", "lior"]) peekBefore[r] = cardsOf(await sim.mine(r), "p07").map((c) => `${c.group} · ${c.when || "-"} · ${c.items.length} פריטים`);
+  for (const r of ["ofir", "irit", "lior"]) peekBefore[r] = cardsOf(await sim.mine(r), "p07").map((c) => `${c.group} · ${c.when || "-"} · ${c.items.length} פריטים`);
   const { page, ctx } = await sim.open("ilai");
   let taps = 0;
   await page.locator(`[id="il-${cid}-s"]`).click(); taps += 1;
@@ -27,17 +27,19 @@ const png = (n = 2000) => Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"),
   await ctx.close();
   const rows = await sim.tick();
   const after = await sim.mine("ilai");
-  const next = { irit: brief(await sim.mine("irit", { shot: "p07-review" })), lior: brief(await sim.mine("lior")) };
-  sim.rec({ id: "p07-made", step: "עילאי מעלה את 9 הגרפיקות ולוחץ מוכן לבדיקה (לעירית), באיחור של יום", proc: "p07", role: "ilai",
+  const next = { ofir: brief(await sim.mine("ofir", { shot: "p07-review" })), irit: brief(await sim.mine("irit", { shot: "p07-waiting-ofir" })), lior: brief(await sim.mine("lior")) };
+  sim.rec({ id: "p07-made", step: "עילאי מעלה את 9 הגרפיקות ולוחץ מוכן לבדיקה (לאופיר), באיחור של יום", proc: "p07", role: "ilai",
     before: { ...brief(before), shot: before.shot, peek: peekBefore },
-    act: `הכרטיס שלו: פתיחה, + העלאת גרפיקות (9 קבצים: ${head}), מוכן לבדיקה (לעירית). מה נאמר אחרי הלחיצה: ${said}`, taps,
+    act: `הכרטיס שלו: פתיחה, + העלאת גרפיקות (9 קבצים: ${head}), מוכן לבדיקה (לאופיר). מה נאמר אחרי הלחיצה: ${said}`, taps,
     after: { made: sim.checkOf("p07.made")?.state || "-", files: sim.db.client_files.filter((f) => !f.deleted_at).length, ...brief(after),
-      result: `אצל עירית אחרי המסירה: ${(next.irit.cards || []).filter((c) => / 7א? · /.test(c)).map((c) => c.split(" | ").slice(0, 4).join(" | ")).join(" ;; ") || "אין כרטיס 7"}. אצל ליאור: ${(next.lior.cards || []).filter((c) => / 7א? · /.test(c)).length} כרטיסים של 7`, next }, reminders: fmtLog(rows) });
+      result: `אצל אופיר אחרי המסירה: ${(next.ofir.cards || []).filter((c) => / 7א? · /.test(c)).map((c) => c.split(" | ").slice(0, 4).join(" | ")).join(" ;; ") || "אין כרטיס 7"}. אצל עירית: ${(next.irit.cards || []).filter((c) => / 7א? · /.test(c)).length} כרטיסים של 7. אצל ליאור: ${(next.lior.cards || []).filter((c) => / 7א? · /.test(c)).length} כרטיסים של 7`, next }, reminders: fmtLog(rows) });
 }
-// 7: Irit checks the 7 points and sends to the client.
-await proto(sim, { id: "p07-review", step: "עירית בודקת את 9 הגרפיקות (7 בדיקות) ושולחת ללקוחה", proc: "p07", role: "irit", wait: 10,
-  keys: ["p07.r.spelling", "p07.r.phone", "p07.r.address", "p07.r.logo", "p07.r.details", "p07.r.wording", "p07.r.design", "p07.sent"], peek: ["lior", "ilai"], next: ["lior"] });
-// The status page (protocol v8): the step is the card 7א of her list; the client approves there.
+// 7 (protocol v9): Ofir, and only he, checks the 7 points and approves, inside his ten minutes (6 after the hand-over).
+await proto(sim, { id: "p07-review", step: "אופיר בודק את 9 הגרפיקות (7 בדיקות) ומאשר, בתוך 10 הדקות שלו", proc: "p07", role: "ofir", wait: 6,
+  keys: ["p07.r.spelling", "p07.r.phone", "p07.r.address", "p07.r.logo", "p07.r.details", "p07.r.wording", "p07.r.design", "p07.ofir"], peek: ["irit", "lior", "ilai"], next: ["irit", "lior"] });
+// Irit is told the moment he approved: she sends them to the client.
+await proto(sim, { id: "p07-sent", step: "עירית שולחת את 9 הגרפיקות ללקוחה, אחרי האישור של אופיר", proc: "p07", role: "irit", wait: 3, keys: ["p07.sent"], peek: ["ofir"], next: [] });
+// The status page (protocol v8; since v9 the step opens with Ofir's approval): the card 7א of her list; the client approves there.
 {
   sim.advance(2);
   const res = await linkCard(sim, "irit", "p07a", { shot: "p07a-status-link-card" });

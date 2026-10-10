@@ -433,9 +433,10 @@ await step('the month grid: which month each client is in, this month\'s items, 
 
 await step('the protocol\'s versions: what changed in each, and how many clients started under which', async () => {
   const v = lior.locator('#versions');
-  assert.equal(await v.locator('.yr-versions > li').count(), 8); // versions 1 to 8
-  assert.match(await v.locator('.yr-versions > li').first().innerText(), /גרסה 8 · אחרי הסימולציה המלאה[^]*נוספו 5ב ו־7א/);
-  assert.match(await v.locator('.yr-versions > li').nth(1).innerText(), /גרסה 7 · העלאת ה־Highlights לרשתות[^]*פריט חדש אחד[^]*נוסף 8ב/);
+  assert.equal(await v.locator('.yr-versions > li').count(), 9); // versions 1 to 9
+  assert.match(await v.locator('.yr-versions > li').first().innerText(), /גרסה 9 · אופיר לבדו בודק את הגרפיקות ומשייך עורך, עם סולם מהיר[^]*פריט חדש אחד[^]*בדיקת הגרפיקות היא של אופיר בלבד[^]*עד 21:00/);
+  assert.match(await v.locator('.yr-versions > li').nth(1).innerText(), /גרסה 8 · אחרי הסימולציה המלאה[^]*נוספו 5ב ו־7א/);
+  assert.match(await v.locator('.yr-versions > li').nth(2).innerText(), /גרסה 7 · העלאת ה־Highlights לרשתות[^]*פריט חדש אחד[^]*נוסף 8ב/);
   assert.match(await v.innerText(), /גרסה 6 · יום הצילום מיד אחרי פתיחת הקבוצה[^]*3 פריטים חדשים/);
   assert.match(await v.innerText(), /גרסה 5 · זרימות המשרד והאפיון[^]*התסריטים עד סוף יום העסקים השני/);
   assert.match(await v.innerText(), /גרסה 4 · הפרוטוקול של הצלם[^]*15 פריטים חדשים/);

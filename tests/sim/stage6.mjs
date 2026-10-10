@@ -1,6 +1,6 @@
 // '
 // Stage 6, editing and delivery, part 1 (Wednesday 21.10 to Monday 26.10.2026): the editor was assigned by
-// the system when the shoot day closed (22א). Nadia takes the drive (22), Ilai prepares the rest of the
+// Ofir when the shoot day closed (22א; protocol v9). Nadia takes the drive (22), Ilai prepares the rest of the
 // graphics (23), Ofir checks them, the client approves, Ilai uploads (23ב). Nadia does NOT finish by her
 // deadline (the end of Sunday 25.10): the deliberate delay of the editor. Run: node tests/sim/stage6.mjs
 import { Sim, IL, fmtLog, settle } from "./lib.mjs";
@@ -21,8 +21,8 @@ const png = (n = 2000) => Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"),
     act: `עמוד העריכה (editor.html): הכפתור "${r.button}"${r.dialog ? `, בדיאלוג: ${r.dialog.slice(0, 200)} -> "${r.submit}"` : ""}. ${r.result || ""}`, taps: r.taps + 1,
     after: { said: r.said, cardAfter: r.cardAfter, marks: ["p22.received", "p22.check.footage", "p22.check.logo"].map((k) => `${k}=${sim.checkOf(k)?.state || "-"}`), ...brief(after) }, reminders: fmtLog(rows), errors: r.errors?.length ? r.errors : undefined });
 }
-// 24: Ofir opens the Drive folder (the task the automatic assignment opened for him).
-await proto(sim, { id: "p24-folder", step: "אופיר פותח תיקייה מסודרת בדרייב (המשימה שנפתחה לו עם השיוך האוטומטי)", proc: "p24", role: "ofir", shot: "p24-folder", wait: 20,
+// 24: Ofir opens the Drive folder (the task his assignment opened for him).
+await proto(sim, { id: "p24-folder", step: "אופיר פותח תיקייה מסודרת בדרייב (המשימה שנפתחה לו עם השיוך)", proc: "p24", role: "ofir", shot: "p24-folder", wait: 20,
   keys: [sim.db.client_tasks.find((t) => t.owner === "ofir" && !t.done_at).id], peek: [], next: [] });
 // 23: Ilai uploads the rest of the graphics on his card and passes them to Ofir (due: the end of Wednesday).
 {
@@ -48,7 +48,8 @@ await proto(sim, { id: "p24-folder", step: "אופיר פותח תיקייה מ�
     after: { made: sim.checkOf("p23.made")?.state || "-", next }, reminders: fmtLog(rows) });
 }
 // 23: Ofir checks the 7 points and approves; Irit sends; the client approves; Ilai uploads.
-await proto(sim, { id: "p23-ofir", step: "אופיר בודק את יתרת הגרפיקות (7 בדיקות) ומאשר", proc: "p23", role: "ofir", wait: 25,
+// (Protocol v9: inside his ten minutes, 7 after the hand-over. Ignoring it is one of the experiments: exp.mjs.)
+await proto(sim, { id: "p23-ofir", step: "אופיר בודק את יתרת הגרפיקות (7 בדיקות) ומאשר, בתוך 10 הדקות שלו", proc: "p23", role: "ofir", wait: 7,
   keys: ["p23.q.design", "p23.q.errors", "p23.q.logo", "p23.q.contact", "p23.q.match", "p23.q.pro", "p23.q.variety", "p23.ofir"], peek: ["irit"], next: ["irit"] });
 await proto(sim, { id: "p23-sent", step: "עירית שולחת את יתרת הגרפיקות ללקוחה", proc: "p23", role: "irit", shot: "p23-send", wait: 6, keys: ["p23.sent"], peek: [], next: [] });
 await clientApproves(sim, { id: "p23-approved", step: "הלקוחה מאשרת את יתרת הגרפיקות בדף המצב", proc: "p23→p23b", key: "p23.approved", wait: 50, next: ["ilai"], shot: "status-rest-graphics" });

@@ -106,6 +106,22 @@ export async function proto(sim, o) {
     after: { ...brief(afterSnap), left: cardsOf(afterSnap, o.proc).flatMap((c) => c.items.map((i) => i.label)), next },
     reminders: fmtLog(rows), note: o.note, errors: res.errors.length ? res.errors : undefined });
 }
+// 22א (protocol v9): Ofir assigns the editor himself, from the ring's own address: his screen opens on the
+// assignment of this client with the suggested editor already chosen, and he presses "שיוך".
+export async function assignGo(sim, { shot = null, round = null } = {}) {
+  const cid = sim.client().id;
+  const { page, ctx } = await sim.open("ofir", `qa.html#assign-${cid}${round ? `-r${round}` : ""}`, { wait: "#dlg-assign[open]" });
+  const text = async (sel) => (await page.locator(sel).innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+  const meta = await text("#as-meta");
+  const editors = await page.locator("#as-editors label").evaluateAll((els) => els.map((e) => `${e.querySelector("input").checked ? "(*) " : ""}${e.innerText.replace(/\s+/g, " ").trim()}`));
+  const chosen = await page.locator("#as-editors input:checked").getAttribute("value").catch(() => null);
+  const file = shot ? await shotOf(sim, page, "ofir", shot) : null;
+  await page.click("#as-submit");
+  await settle(page, 900);
+  const said = await page.evaluate(() => [...document.querySelectorAll("#toast, .toast, #handoff")].map((e) => e.innerText).join(" | ").replace(/\s+/g, " ").slice(0, 300));
+  await ctx.close();
+  return { meta, editors, chosen, shot: file, said, taps: 2 };
+}
 // Lets time pass with nobody acting and returns what the reminders did: the delay experiments.
 export async function letPass(sim, to, { id, step, proc, role, watch = [], note }) {
   const rows = await sim.until(to, { step: 1 });

@@ -2,11 +2,17 @@
 // Two side experiments, each from a saved state of the main run (their records are kept apart, in exp-*.json):
 //   A. the agreement was sent and the client does not sign, until its validity runs out;
 //   B. Irit marks process 3 on "המשימות שלי" without entering the date of the meeting in the client card.
+//   C–F (protocol v9; docs/ops.md, section 57), Ofir's fast ladder, the reminder rows minute by minute:
+//      C. Ilai hands the 9 graphics over and Ofir approves in time (no lateness ring; Irit is told at once);
+//      D. Ofir ignores them (a ring at 10 minutes, Lior at 15, then Ofir every 10 minutes), then approves;
+//      E. the shoot day is closed and Ofir does not assign an editor (the same ladder);
+//      F. the graphics are handed over at 20:55 (nothing after 21:00; the count goes on the next morning).
+//      C, D and F start from the state s3c, E from s5a (node tests/sim/stage5.mjs writes it).
 // Both were the two places a client was silently lost (report.md, findings 1.1, 1.2, 3.1). Since the fix
 // (docs/ops.md, section 47) the experiments show them caught: the screenshots end in "-fixed".
 // Run: node tests/sim/exp.mjs   (needs the states s1a and s1: node tests/sim/stage1.mjs first)
 import { join } from "node:path";
-import { Sim, IL, OUT, fmtLog, settle } from "./lib.mjs";
+import { Sim, IL, OUT, fmtLog, settle, emailOf } from "./lib.mjs";
 import { brief, markMine, letPass } from "./steps.mjs";
 
 const shoot = async (page, name) => {
@@ -15,8 +21,10 @@ const shoot = async (page, name) => {
   return name;
 };
 
+// One experiment alone: node tests/sim/exp.mjs exp-d
+const only = process.argv[2] || "";
 // A.
-{
+if (!only || only === "exp-a") {
   const sim = await Sim.start("exp-a", "s1a");
   sim.records = [];
   const before = sim.db.reminder_log.length;
@@ -46,7 +54,7 @@ const shoot = async (page, name) => {
   await sim.stop();
 }
 // B.
-{
+if (!only || only === "exp-b") {
   const sim = await Sim.start("exp-b", "s1");
   sim.records = [];
   const before = sim.db.reminder_log.length;
@@ -86,4 +94,57 @@ const shoot = async (page, name) => {
   sim.save("exp-b");
   await sim.stop();
 }
+
+// ── Protocol v9: Ofir's fast ladder ──
+const markAs = (sim, role, keys, note = null) => { for (const k of [].concat(keys)) sim.db.protocol_checks.push({ client_id: sim.client().id, item_key: k, state: "done", note, by_email: emailOf(role), at: sim.iso() }); };
+const P07 = ["spelling", "phone", "address", "logo", "details", "wording", "design"].map((k) => `p07.r.${k}`);
+// The rows that are about the check or the assignment (and whatever any other ladder says of them).
+const about = (r) => r.rule === "fast" || r.rule === "graphics9" || (r.rule === "clientLink" && /סטטוס/.test(r.title))
+  || (["late", "lateOwn", "lateNag", "qaReturn", "editing", "digest"].includes(r.rule) && /גרפיקות| 7 · |22א|עורך|בעריכה/.test(`${r.title} ${r.body || ""}`));
+const rowsOf = (sim, from) => fmtLog(sim.db.reminder_log.slice(from).filter(about));
+async function experiment(name, from, run) {
+  if (only && only !== name) return;
+  const sim = await Sim.start(name, from);
+  sim.records = [];
+  const before = sim.db.reminder_log.length;
+  const what = await run(sim);
+  const rows = rowsOf(sim, before);
+  sim.rec({ ...what, before: {}, taps: 0, after: { mine: { ofir: brief(await sim.mine("ofir", { shot: name })), irit: brief(await sim.mine("irit")), lior: brief(await sim.mine("lior")) } }, reminders: rows });
+  console.log(`
+--- ${name}: ${what.step}`);
+  for (const r of rows) console.log(`    ${r}`);
+  sim.save(name);
+  await sim.stop();
+}
+// C. Approved in time.
+await experiment("exp-c", "s3c", async (sim) => {
+  await sim.until(IL(2026, 10, 13, 9, 45));
+  markAs(sim, "ilai", "p07.made");
+  await sim.until(IL(2026, 10, 13, 9, 52));
+  markAs(sim, "ofir", [...P07, "p07.ofir"]);
+  await sim.until(IL(2026, 10, 13, 10, 30), { step: 1 });
+  return { id: "fast-review-in-time", step: "ניסוי ג: עילאי מסר את 9 הגרפיקות ב־09:45, אופיר אישר ב־09:52", proc: "p07", role: "ofir", act: "עילאי: מוכן לבדיקה. אופיר: 7 בדיקות ואישור אחרי 7 דקות" };
+});
+// D. Ignored for an hour, then approved.
+await experiment("exp-d", "s3c", async (sim) => {
+  await sim.until(IL(2026, 10, 13, 9, 45));
+  markAs(sim, "ilai", "p07.made");
+  await sim.until(IL(2026, 10, 13, 10, 46), { step: 1 });
+  markAs(sim, "ofir", [...P07, "p07.ofir"]);
+  await sim.until(IL(2026, 10, 13, 11, 10), { step: 1 });
+  return { id: "fast-review-ignored", step: "ניסוי ד: עילאי מסר ב־09:45, אופיר לא נגע שעה ואישר ב־10:46", proc: "p07", role: "ofir", act: "אף אחד לא עושה כלום שעה; אז אופיר מאשר" };
+});
+// E. The assignment, ignored.
+await experiment("exp-e", "s5a", async (sim) => {
+  const closed = new Date(sim.checkOf("p19.took").at);
+  await sim.until(new Date(closed.getTime() + 52 * 6e4), { step: 1 });
+  return { id: "fast-assign-ignored", step: `ניסוי ה: יום הצילום נסגר ב־${closed.toLocaleTimeString("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit" })}, ואופיר לא משייך עורך 50 דקות`, proc: "p22a", role: "ofir", act: "אף אחד לא עושה כלום" };
+});
+// F. Handed over at 20:55.
+await experiment("exp-f", "s3c", async (sim) => {
+  await sim.until(IL(2026, 10, 13, 20, 55), { step: 1 });
+  markAs(sim, "ilai", "p07.made");
+  await sim.until(IL(2026, 10, 14, 9, 5), { step: 1 });
+  return { id: "fast-review-2055", step: "ניסוי ו: עילאי מסר את 9 הגרפיקות ביום ג׳ ב־20:55, ואף אחד לא נגע עד למחרת 09:05", proc: "p07", role: "ofir", act: "אף אחד לא עושה כלום" };
+});
 // '

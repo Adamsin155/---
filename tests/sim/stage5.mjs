@@ -2,8 +2,8 @@
 // Stage 5, the day before the shoot (Monday 19.10.2026) and the shoot day (Tuesday 20.10.2026, 10:00):
 // the reminders to everyone (15), the briefing of the photographer (16), the day itself (17 to 21, with
 // the photographer: 17ב, 18ב, 19ב), and the drive back (22א). Run: node tests/sim/stage5.mjs
-import { Sim, IL } from "./lib.mjs";
-import { proto, letPass, followUp, followLine } from "./steps.mjs";
+import { Sim, IL, fmtLog } from "./lib.mjs";
+import { proto, letPass, followUp, followLine, assignGo, brief, cardsOf } from "./steps.mjs";
 
 const sim = await Sim.start("s5", "s4b");
 
@@ -42,6 +42,26 @@ await proto(sim, { id: "p18b", step: "אלי: צילום לפי הסדר, בדי
 await proto(sim, { id: "p19b", step: "אלי: סידור הכונן ומסירה לליאור", proc: "p19b", role: "eli", shot: "p19b-drive", keys: ["p19b.folders", "p19b.complete", "p19b.opens", "p19b.cards", "p19b.handed"], peek: ["lior"], next: ["lior"] });
 await proto(sim, { id: "p19", step: "ליאור: סיום יום הצילום (הכול צולם, סרטון המלצה, הכונן חזר)", proc: "p19", role: "lior", shot: "p19-close", wait: 5,
   keys: ["p19.all", "p19.testimonial", "p19.drive", "p19.took"], peek: ["eli"], next: ["ofir", "ilai", "irit"] });
+// The shoot day is closed and nobody assigned yet: the state the experiments of the assignment start from.
+sim.save("s5a");
+// 22א (protocol v9): Ofir assigns the editor himself, four minutes after the ring, with the suggested editor.
+{
+  sim.advance(3);
+  const waiting = await sim.tick();
+  const before = await sim.mine("ofir", { shot: "p22a-assign-card" });
+  const peek = {};
+  for (const r of ["lior", "irit"]) peek[r] = cardsOf(await sim.mine(r), "p22a").map((c) => `${c.group} · ${c.title} · ${c.items.map((i) => i.label).join("; ")}`);
+  const r = await assignGo(sim, { shot: "p22a-assign-dialog" });
+  sim.advance(1);
+  const rows = await sim.tick();
+  const after = await sim.mine("ofir");
+  sim.rec({ id: "p22a-assign", step: "אופיר משייך עורך מחלון השיוך, עם העורך שהמערכת המליצה עליו", proc: "p22a", role: "ofir",
+    before: { ...brief(before), shot: before.shot, peek, remindersSinceLast: fmtLog(waiting) },
+    act: `הקישור שבהתראה (qa.html#assign-…) פותח את חלון השיוך: ${r.meta}. העורכים: ${r.editors.join(" ;; ")}. לחיצה על ״שיוך״ (נבחר: ${r.chosen}). תמונה: ${r.shot}`, taps: r.taps,
+    after: { said: r.said, editor: sim.client().editor, marks: ["p22a.drive", "p22a.load", "p22a.assigned", "p22a.irit"].map((k) => `${k}=${sim.checkOf(k)?.state || "-"}${sim.checkOf(k)?.note ? ` (${sim.checkOf(k).note})` : ""}`),
+      p22a: sim.state().states.find((s) => s.proc.id === "p22a").status, tasks: sim.db.client_tasks.filter((t) => !t.done_at).map((t) => `${t.owner}: ${t.title}`), ...brief(after) },
+    reminders: fmtLog(rows) });
+}
 sim.save();
 await sim.stop();
 // '
