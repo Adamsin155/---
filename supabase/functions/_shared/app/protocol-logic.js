@@ -521,6 +521,14 @@ export function claimOf(proc, checks) {
   const c = checks[CLAIM(proc)];
   return c && c.state === 'done' && c.note ? { person: c.note, at: c.at, by_email: c.by_email } : null;
 }
+// Who a finished process is counted for (the performance numbers): whoever took it
+// ("אני על זה"), else its owners. The claim is read as it was written, also on a process
+// that has one owner today: 22א was Ofir's and Lior's until protocol v9, and an assignment
+// Lior took and closed then stays his in the numbers, not Ofir's.
+export function creditedTo(proc, checks) {
+  const c = checks[CLAIM(proc)];
+  return c && c.state === 'done' && c.note ? [c.note] : proc.owners;
+}
 // The wait note is JSON {reason, recheck}; a plain note is read as the reason.
 export function parseWaitNote(note) {
   try {
@@ -882,7 +890,7 @@ export function performanceReport(clients, checksByClient, { days = 30, now = ne
         minutes: workedMinutes(x, durationStart(x, c, procs, checks, now)),
       };
       add(byProc, x.proc.id.replace(/^r\d+-/, ''), row);
-      for (const p of x.claim ? [x.claim.person] : x.proc.owners) add(byPerson, p, row);
+      for (const p of creditedTo(x.proc, checks)) add(byPerson, p, row);
     }
   }
   const finish = (m) => {

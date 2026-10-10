@@ -27,7 +27,7 @@ import { STATIONS, PEOPLE, PROCESSES, WORK_HOURS, DELIVERABLES, NETWORKS } from 
 import {
   isResolved, blockers, businessDaysBetween, isBusinessDay, parseDate, roundsOf, roundContext, IMPORT_NOTE,
   isImported, workingMinutesBetween, addWorkingMinutes, workedMinutes, targetMinutes, durationStart, weekKey,
-  openItemsFor, byUrgency, bucketOf, PAUSE, erevOn, applicableProcesses, inLanding, workFloor,
+  openItemsFor, byUrgency, bucketOf, PAUSE, erevOn, applicableProcesses, inLanding, workFloor, creditedTo,
 } from './protocol-logic.js';
 import { stationOf, stationSince, promisedClosing, materialsOf, SENT_CHECK_NOTE } from './messages-logic.js';
 import { isOwnerView } from './team-rules.js';
@@ -820,7 +820,7 @@ export function closedProcesses(clients, { stateOf, checksByClient = {}, since, 
         onTime: x.completedAt <= dueAt,
         min: worked === null ? null : Math.max(0, worked - paused.min),
         targetMin: targetMinutes(x, start),
-        people: x.claim ? [x.claim.person] : x.proc.owners,
+        people: creditedTo(x.proc, cs),
         paused: paused.min,
       });
     }

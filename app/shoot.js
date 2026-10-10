@@ -385,7 +385,7 @@ async function closeDay(sc) {
   if (!lock.ok) { toast(`עוד חסר: ${lock.missing.join(' · ')}`); return; }
   const keys = notYet(sc, P.CLOSE_KEYS);
   if (keys.length && !await mark(sc, keys, 'בסגירת יום הצילום', `${cardId(sc)}-h`)) return;
-  // What really happens next: the server assigns the editor by itself (app/auto-assign.js).
+  // What really happens next: Ofir is rung to assign the editor (protocol v9, the rule `fast`).
   toast(`יום הצילום נסגר. ${P.afterCloseText(cs(sc.client), sc.pre, sc.ctx)} אלי קיבל ״אפשר לפרמט את הכרטיסים״.`);
   offerHandoff({ client: sc.client, keys: keys.map((k) => sc.pre + k), checks: () => cs(sc.client), me });
 }

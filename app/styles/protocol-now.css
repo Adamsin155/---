@@ -54,6 +54,14 @@
 .now-clock[data-state='running'] .now-acts .btn { flex: 0 0 auto; min-height: 44px; font-size: 14px; }
 .now-nophone { margin: 0; flex: 1 1 200px; align-self: center; font-size: 14px; color: var(--text-2); }
 
+/* Ofir's fast ladder (protocol v9): one button to the place it is done in, small and under
+   the text in every phase. Late with minutes still counting keeps the digits; once the
+   manager was told it is two short words, which may wrap inside the narrow column. */
+.now-clock .now-fast-acts { grid-column: 2; }
+.now-clock .now-fast-acts .btn { flex: 0 0 auto; min-height: 44px; font-size: 14px; }
+.now-clock.k-fast[data-phase='late'] .now-left { font-family: var(--font-h); font-size: 24px; }
+.now-clock.k-fast[data-phase='told'] .now-left { font-size: 14px; font-weight: 600; white-space: normal; letter-spacing: 0; line-height: 1.25; }
+
 @media (max-width: 760px) {
   .now-bar { margin-inline: 12px; padding-inline: 12px; }
   .now-clock { grid-template-columns: 76px minmax(0, 1fr); gap: 8px 10px; padding-inline: 10px; }

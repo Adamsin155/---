@@ -46,6 +46,8 @@ export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office'
   if (me === 'ofir' || me === null) {
     if (b === 'p22a' && !complete && checks[`${round > 1 ? `r${round}.` : ''}p22a.assigned`]?.state !== 'done') return go(`qa.html#assign-${enc(clientId)}${round > 1 ? `-r${round}` : ''}`, 'שיוך עורך');
     if (b === 'p25' && !complete) return go('qa.html#qa-h', 'לבקרת האיכות');
+    // The graphics waiting for his check (protocol v9: the first 9 as the rest): straight to that check.
+    if ((b === 'p07' || b === 'p23') && !complete && checks[`${b}.made`]?.state === 'done' && !['done', 'na'].includes(checks[`${b}.ofir`]?.state)) return go(`qa.html#review-${enc(clientId)}-${b}`, 'לבדיקת הגרפיקות');
   }
   if (b === 'p04' && !complete) return go(`intake.html?id=${enc(clientId)}#${checks[CHAR_ENDED]?.state === 'done' ? 'form' : 'end'}`, checks[CHAR_ENDED]?.state === 'done' ? 'לטופס האפיון' : 'האפיון הסתיים');
   if (b === 'p12a') return go(`intake.html?id=${enc(clientId)}${r}#focus`, 'טופס שיחת הדגשים');

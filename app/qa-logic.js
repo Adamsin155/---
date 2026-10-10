@@ -11,6 +11,7 @@ import { dayKeyIL, daysBetweenIL } from './tz.js';
 import {
   QA_KINDS, qaState, qaDue, qaWaited, meetingNow, kindOfProc, readJson, REASON_KEY,
 } from './office-marks.js';
+import { fastCaseOf, fastWaited } from './fast-ladder.js';
 
 export const QA_TARGET_MINUTES = 60;
 const baseId = (id) => id.replace(/^r\d+-/, '');
@@ -18,10 +19,12 @@ const inWork = (c) => c.status === 'active' || c.status === 'ending';
 const preOf = (proc) => proc.keyBase.slice(0, proc.keyBase.length - baseId(proc.id).length);
 
 // ── The queue ───────────────────────────────
-// Everything waiting for Ofir's check: the videos of each shoot round (25) and the
-// rest of the graphics (23), first due first. Each item: { client, kind, pre,
-// proc, ctx, round (1 = first check), readyAt, dueAt, waited (office minutes, his
-// meetings not counted), late, rounds (earlier returns) }.
+// Everything waiting for Ofir's check: the videos of each shoot round (25), the first 9
+// graphics (7, protocol v9) and the rest of the graphics (23), first due first. Each
+// item: { client, kind, pre, proc, ctx, round (1 = first check), readyAt, dueAt, waited
+// (office minutes, his meetings not counted), target (the minutes he has), late, rounds
+// (earlier returns), fast }. `fast`: the graphics are on his fast ladder
+// (app/fast-ladder.js): its own minutes and window, and his meetings do not stop it.
 export function qaQueue({ clients, stateOf, checks, meetings = [], now = new Date() }) {
   const out = [];
   for (const c of clients) {
@@ -36,10 +39,13 @@ export function qaQueue({ clients, stateOf, checks, meetings = [], now = new Dat
       // Work that was waiting when the client was activated: its hour starts then.
       const floor = workFloor(c);
       if (floor && q.readyAt < floor) q.readyAt = floor;
-      const dueAt = qaDue(meetings, q.readyAt, QA_TARGET_MINUTES);
+      const st = stateOf(c).states;
+      const fast = fastCaseOf(c, s, st, cs);
+      const dueAt = fast ? fast.dueAt : qaDue(meetings, q.readyAt, QA_TARGET_MINUTES);
       out.push({
-        key: `${c.id}:${s.proc.id}`, client: c, kind, pre, proc: s.proc, ctx: s.proc.ctx || c, round: q.round, rounds: q.rounds,
-        readyAt: q.readyAt, dueAt, waited: inLanding(c) ? 0 : qaWaited(meetings, q.readyAt, now),
+        key: `${c.id}:${s.proc.id}`, client: c, kind, pre, proc: s.proc, ctx: s.proc.ctx || c, round: q.round, rounds: q.rounds, fast,
+        target: fast ? fast.spec.minutes : QA_TARGET_MINUTES,
+        readyAt: q.readyAt, dueAt, waited: inLanding(c) ? 0 : fast ? fastWaited(fast, now) : qaWaited(meetings, q.readyAt, now),
         // The work is in the queue as usual; the hour is not counted while the client is in landing.
         late: !inLanding(c) && now >= dueAt, landing: inLanding(c),
       });
@@ -98,7 +104,7 @@ export function awaitingEditor({ clients, stateOf, checks }) {
       const pre = preOf(s.proc);
       if (cs[`${pre}p22a.assigned`]?.state === 'done') continue;
       const ctx = s.proc.ctx || c;
-      out.push({ key: `${c.id}:${s.proc.id}`, client: c, pre, n: ctx.round || null, proc: s.proc, ctx, state: s, dueAt: s.dueAt });
+      out.push({ key: `${c.id}:${s.proc.id}`, client: c, pre, n: ctx.round || null, proc: s.proc, ctx, state: s, dueAt: s.dueAt, fast: fastCaseOf(c, s, stateOf(c).states, cs) });
     }
   }
   return out;
@@ -219,6 +225,17 @@ export function proposeEditor(load, shootType, exclude = []) {
   return eligibleEditors(shootType).filter((e) => !exclude.includes(e) && load[e])
     .sort((a, b) => (active(load[a]) - active(load[b])) || (load[a].tasks - load[b].tasks) || EDITORS.indexOf(a) - EDITORS.indexOf(b))[0] || null;
 }
+
+// What the assignment dialog marks for Ofir (protocol v9: he assigns, the system only
+// suggests): the rule's own choice where there is one (Nirel for Natali's shoot), else
+// the least loaded editor who may take this shoot. { editor, why: 'rule' | 'load' } or null.
+export function suggestEditor(load, shootType, joint = false, exclude = []) {
+  const pre = preselected(shootType, joint);
+  if (pre && !exclude.includes(pre)) return { editor: pre, why: 'rule' };
+  const editor = proposeEditor(load, shootType === 'natali' ? 'natali' : 'dms', exclude);
+  return editor ? { editor, why: 'load' } : null;
+}
+export const SUGGESTED_TAG = 'מומלץ לפי עומס';
 
 // "נדיה: 2 לקוחות בעריכה · 1 עצורה · 3 משימות"
 export function loadText(l) {

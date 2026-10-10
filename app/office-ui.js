@@ -13,6 +13,7 @@ import { officeScreens } from './shell-rules.js';
 import {
   QA_KINDS, qaState, fixedKey, fixedItemKey, qaDue,
 } from './office-marks.js';
+import { ladderWords } from './fast-ladder.js';
 
 // ── The first screen ────────────────────────
 // One landing rule for everyone (the owner's rule, 9.10.2026; docs/ops.md, section 54):
@@ -136,13 +137,18 @@ export function fixList(ctx) {
 // The quality-control line of process 23 or 25 in the client card: with Ofir
 // since when and until when ("אופיר באפיון, בקרה עד HH:MM" while he is in a
 // meeting), returned and what to fix, or approved after N rounds; the earlier rounds folded.
-export function qaLine({ client, checks, kind, pre, ctx, me, viewer, meetings = null, onChange }) {
+// `fast`: the case of Ofir's fast ladder (the graphics, protocol v9; app/fast-ladder.js):
+// then the line says how long he has, in that ladder's own words.
+export function qaLine({ client, checks, kind, pre, ctx, me, viewer, meetings = null, fast = null, onChange }) {
   const q = qaState(checks, pre, kind);
   if (q.stage === 'none' && !q.returns) return null;
   const k = QA_KINDS[kind];
   const now = new Date();
   let head = null;
-  if (q.stage === 'ofir') {
+  if (q.stage === 'ofir' && fast) {
+    head = h('p', { class: 'qa-now' }, h('strong', {}, q.round > 1 ? `אצל אופיר לבדיקה חוזרת (אחרי סבב ${q.round - 1})` : 'אצל אופיר לבדיקה'),
+      ` · ${ladderWords(fast, now)} · מאז ${formatStamp(q.readyAt)}`);
+  } else if (q.stage === 'ofir') {
     const due = qaDue(meetings || [], q.readyAt, 60);
     const busy = (meetings || []).some(([a, b]) => +now >= a && +now < b);
     head = h('p', { class: 'qa-now' }, h('strong', {}, q.round > 1 ? `אצל אופיר לבדיקה חוזרת (אחרי סבב ${q.round - 1})` : 'אצל אופיר לבקרה'),
