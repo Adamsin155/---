@@ -2381,6 +2381,10 @@ RULE_BY_ID.set(FAST_RULE.id, FAST_RULE);
 import { waitingApprovals, waitLine, waitDays, CLIENT_WAITS } from './client-waits.js';
 import { contractsEnded, CONTRACT_END } from './contract-end.js';
 const waitsOf = (env) => (env.clientWaits ||= waitingApprovals({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: [...env.tasks, ...(env.doneTasks || [])], now: env.now }).filter((x) => x.days >= 1));
+// The day itself when the office works on it; otherwise the first working day after it
+// (a contract that ends on a Saturday or a holiday is asked about on the next morning, at the same hour).
+const firstBusinessDay = (d) => { let x = atTimeIL(d, 12); while (!isBusinessDay(x)) x = addDaysIL(x, 1); return x; };
+const dayMonth = (d) => { const p = partsIL(d); return `${p.day}.${p.month}`; };
 const V10_RULES = [
   {
     id: 'clientWaitsLine', event: 'הלקוח עוד לא אישר: שורה בתקציר הבוקר של עירית (7, 23, 26)', procs: ['p07', 'p23', 'p26'],
@@ -2406,11 +2410,11 @@ const V10_RULES = [
   {
     id: 'contractEnd', event: 'החוזה הסתיים והלקוח עדיין פעיל (34, 35)', procs: ['p34', 'p35'],
     instances: (env) => contractsEnded(env.clients, env.now).map((x) => ({
-      id: `end@${x.endKey}`, cid: x.cid, client: x.client, name: x.name, x, url: MINE_URL, anchors: { event: nextSendMoment(atIL(x.endAt, CONTRACT_END.ringAt)) },
+      id: `end@${x.endKey}`, cid: x.cid, client: x.client, name: x.name, x, url: MINE_URL, anchors: { event: atIL(firstBusinessDay(x.endAt), CONTRACT_END.ringAt) },
     })),
     steps: [{
       id: 'day', to: CONTRACT_END.who, level: 'ring',
-      title: (i, env) => `החוזה של ${i.name} הסתיים ${dayKeyIL(env.now) === i.x.endKey ? 'היום' : `ב־${dayText(i.x.endAt)}`}: חידוש או סיום התקשרות?`,
+      title: (i, env) => `החוזה של ${i.name} הסתיים ${dayKeyIL(env.now) === i.x.endKey ? 'היום' : `ב־${dayMonth(i.x.endAt)}`}: חידוש או סיום התקשרות?`,
       body: () => 'ב״המשימות שלי״: ״נרשם חידוש״ עם תאריך הסיום החדש, או ״סיום התקשרות״, שפותח את תהליך 35. הלקוח נשאר ״פעיל״ עד שבוחרים.',
     }],
   },

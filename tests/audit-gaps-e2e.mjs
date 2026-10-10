@@ -296,6 +296,9 @@ try {
     await c2.locator('button', { hasText: 'סיום התקשרות' }).click();
     await card(page, END2, 'p35').waitFor({ state: 'attached' }); // (on his list; further down than the first cards shown)
     assert.equal(db.clients.find((x) => x.id === END2).status, 'ending');
+    // The moment it was started is written down, and the five items are due tomorrow evening (not born late).
+    assert.equal(checkOf(db, END2, 'p35.opened')?.state, 'done');
+    assert.match(await card(page, END2, 'p35').evaluate((el) => el.textContent), /מחר עד 18:00/);
     assert.equal(await page.locator('#mine-list .contract-end').count(), 0);
     await shot(page, `3-lior-ending-${width}`);
     await ctx.close();

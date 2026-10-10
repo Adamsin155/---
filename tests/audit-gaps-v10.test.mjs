@@ -539,6 +539,16 @@ test('5. a contract that ended while the client is still active: Lior rings once
   c.status = 'ending';
   assert.deepEqual(ended(IL(2027, 3, 17, 10)), []);
   assert.ok(mine(w, c, 'lior', IL(2027, 3, 17, 10)).includes('p35.campaigns'));
+  // Without the moment it was started (the status was changed in the client card): due on the contract's last day, as before.
+  assert.deepEqual([hhmm(proc(w, c, 'p35', IL(2027, 3, 17, 10)).dueAt), proc(w, c, 'p35', IL(2027, 3, 17, 10)).status], ['15.3 23:59', 'overdue']);
+  // Started from the card ("סיום התקשרות" writes the mark p35.opened): the end of the next business day, so it is not born late.
+  mark(w, c, 'p35.opened', IL(2027, 3, 17, 10));
+  assert.deepEqual([hhmm(proc(w, c, 'p35', IL(2027, 3, 17, 10, 5)).dueAt), proc(w, c, 'p35', IL(2027, 3, 17, 10, 5)).status], ['18.3 18:00', 'open']);
+  assert.ok(!lateAt(w, IL(2027, 3, 17, 12)).some((x) => x.cid === c.id && x.num === '35'));
+  assert.equal(describeOfficeMark('p35.opened', 'done', null), 'התחיל/ה את סיום ההתקשרות (החוזה הסתיים)');
+  delete w.checks[c.id]['p35.opened'];
+  // On the last day itself the process is already on his list (it used to appear only once that day had passed).
+  assert.deepEqual([proc(w, c, 'p35', IL(2027, 3, 15, 10)).ready, proc(w, c, 'p35', IL(2027, 3, 15, 10)).status, proc(w, c, 'p35', IL(2027, 3, 14, 10)).ready], [true, 'today', false]);
   // "נרשם חידוש": the new end date. The card is gone, and the next renewal is counted from the new date.
   c.status = 'active';
   assert.equal(renewedEnd('2027-03-15'), '2028-03-15');
@@ -547,13 +557,13 @@ test('5. a contract that ended while the client is still active: Lior rings once
   assert.deepEqual(ended(IL(2027, 3, 17, 10)), []);
   const now = IL(2027, 3, 17, 10);
   assert.deepEqual([validRenewal('2028-03-15', now), validRenewal('2027-03-17', now), validRenewal('2027-03-10', now), validRenewal('', now), validRenewal('15.3.2028', now)], [true, false, false, false, false]);
-  // A contract that ended on a Saturday: the ring waits for Sunday morning, and says the date.
+  // A contract that ended on a Saturday: the ring waits for Sunday morning, at the same hour, and says the date.
   const sat = world();
   const s = client(sat, { name: 'שבת', contract_end: '2027-03-13' });
   importTo(sat, s, 'renewal');
   marks(sat, s, itemsOf('p34'), IL(2027, 2, 1, 10));
   const satRows = walk(sat, IL(2027, 3, 13, 8), IL(2027, 3, 14, 12)).filter((r) => r.rule === 'contractEnd');
-  assert.deepEqual(satRows.map((r) => [r.at, r.title]), [['14.3 08:30', 'החוזה של שבת הסתיים ב־ש׳ 13.3.2027: חידוש או סיום התקשרות?']]);
+  assert.deepEqual(satRows.map((r) => [r.at, r.title]), [['14.3 09:45', 'החוזה של שבת הסתיים ב־13.3: חידוש או סיום התקשרות?']]);
 });
 
 // ── 6. The raw material and the take, per script ────────────────────────────

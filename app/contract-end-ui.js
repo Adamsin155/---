@@ -7,12 +7,13 @@
 //                    card's own field), which is what process 35 needs to appear.
 // Nothing changes by itself: until one of them is pressed the client stays "active".
 import { h, toast, errorText, formatDay } from './protocol-ui.js';
-import { updateClient } from './protocol-data.js';
+import { updateClient, setCheck } from './protocol-data.js';
 import { CONTRACT_END, renewedEnd, validRenewal } from './contract-end.js';
 import { dayFromKeyIL } from './tz.js';
 
 export const RENEW_ACTION = 'נרשם חידוש';
 export const END_ACTION = 'סיום התקשרות';
+export const ENDING_MARK = 'p35.opened';
 // Lior decides (and the owners, who see everything). The database lets the office edit a client.
 export const mayDecideContract = (viewer) => !!viewer && !viewer.error && viewer.scope === 'office' && (viewer.me === null || viewer.me === CONTRACT_END.who);
 export const contractSentence = (x) => (x.today ? 'החוזה הסתיים היום: חידוש או סיום התקשרות?' : `החוזה הסתיים ב־${formatDay(x.endAt)}: חידוש או סיום התקשרות?`);
@@ -75,6 +76,8 @@ async function startEnding(x, btn, onDone) {
   if (!window.confirm(`לסמן את ${x.name} כ״מסיים התקשרות״? תהליך 35 (עצירת קמפיינים, הסרת גישות וסגירת חיבורים) ייפתח אצלך.`)) return;
   btn.disabled = true;
   try {
+    // The moment it was started (the mark p35.opened): process 35 is due a business day from it.
+    await setCheck(x.cid, ENDING_MARK, 'done', 'סיום התקשרות: החוזה הסתיים');
     const row = await updateClient(x.cid, { status: 'ending' });
     toast(`${x.name} סומן ״מסיים התקשרות״. תהליך 35 נפתח.`);
     await onDone?.(row);

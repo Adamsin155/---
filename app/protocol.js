@@ -976,7 +976,11 @@ export const PROCESSES = [
     sla: 'במועד סיום העבודה עם הלקוח',
     // v10: it opens on the morning of the contract's last day (it used to appear only once that
     // day had passed, already late: "סיום התקשרות" pressed on the day itself showed nothing).
-    when: (c) => c.status === 'ending' || c.status === 'ended', start: { from: 'contractEnd', days: 0 }, due: { from: 'contractEnd' },
+    // And once Lior pressed "סיום התקשרות" on the ended contract (the mark p35.opened), the five
+    // items are due at the end of the next business day: pressed a day after the end, the card
+    // was born late.
+    when: (c) => c.status === 'ending' || c.status === 'ended', start: { from: 'contractEnd', days: 0 },
+    due: { from: 'contractEnd', afterMark: [{ key: 'p35.opened', businessDays: 1 }] },
     items: [
       { key: 'p35.campaigns', label: 'הקמפיינים נעצרו' },
       { key: 'p35.access', label: 'הוסרו גישות לפי הצורך (ונמחקו מכספת הגישות)' },

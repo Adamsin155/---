@@ -223,9 +223,10 @@ await experiment("exp-j", "s9", async (sim) => {
   return { id: "renewal-14-days", step: `ניסוי י: החידוש נפתח ב־12.8.2027 (יעד ${hhmmOf(s.dueAt)}); ליאור לא עושה כלום. ב־26.8 בצהריים: ${mid}; ב־29.8: ${end}`, proc: "p34", role: "lior", act: "אף אחד לא עושה כלום" };
 }, renewalRows);
 // K. The contract ends on Monday 11.10.2027 and the client is still "active" (the renewal talk was done in August).
+// That Monday is Yom Kippur: nothing is sent on it, and Lior's ring goes out the next working morning (Tuesday 12.10, 09:45).
 await experiment("exp-k", "s10", async (sim) => {
   sim.jump(IL(2027, 10, 11, 8, 0), "מ־16.8.2027 עד 11.10.2027 לא הורצו תזכורות; יום סיום החוזה נבדק מכאן");
-  await sim.until(IL(2027, 10, 11, 10, 0), { step: 5 });
+  await sim.until(IL(2027, 10, 12, 10, 0), { step: 5 });
   const cid = sim.client().id;
   const { page, ctx } = await sim.open("lior");
   const card = page.locator(`#mine-list .contract-end[data-contract="${cid}"]`);
@@ -238,8 +239,8 @@ await experiment("exp-k", "s10", async (sim) => {
   await shoot(page, "exp-k-lior-ending.png");
   await ctx.close();
   console.log(`    אחרי ״סיום התקשרות״: סטטוס ${sim.client().status} | כרטיס 35: ${p35.slice(0, 160)}`);
-  await sim.until(IL(2027, 10, 11, 12, 0), { step: 5 });
-  return { id: "contract-ended-active", step: `ניסוי יא: החוזה הסתיים ב־11.10.2027 והלקוחה עדיין ״פעיל״. הכרטיס של ליאור: ${text}. אחרי ״סיום התקשרות״: סטטוס ${sim.client().status}`, proc: "p34→p35", role: "lior", act: "ליאור: ״סיום התקשרות״ (לחיצה ואישור)" };
+  await sim.until(IL(2027, 10, 12, 12, 0), { step: 5 });
+  return { id: "contract-ended-active", step: `ניסוי יא: החוזה הסתיים ב־11.10.2027 (יום כיפור) והלקוחה עדיין ״פעיל״; ליאור נכנס למחרת ב־10:00. הכרטיס של ליאור: ${text}. אחרי ״סיום התקשרות״: סטטוס ${sim.client().status}`, proc: "p34→p35", role: "lior", act: "ליאור: ״סיום התקשרות״ (לחיצה ואישור)" };
 }, renewalRows);
 // F. Handed over at 20:55.
 await experiment("exp-f", "s3c", async (sim) => {

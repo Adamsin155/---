@@ -35,7 +35,7 @@ test('the lists copied from browser modules are the same as there', () => {
 // Marks that are not items and that only the office writes (no row: denied to the rest).
 // (p07.moved is written once, by the migration of protocol v9: no page writes it.)
 // (p13.left, protocol v10: Lior says that fixes remained after the Zoom.)
-const OFFICE_ONLY = new Set(['p04.ended', 'p07.moved', 'p13.left', 'p13.zoomat', 'p14.seen', 'p16.brief', 'p18.quiet', 'p18.shot', 'p22.decision', 'p22a.reason', 'p22a.shift']);
+const OFFICE_ONLY = new Set(['p04.ended', 'p07.moved', 'p13.left', 'p13.zoomat', 'p14.seen', 'p16.brief', 'p18.quiet', 'p18.shot', 'p22.decision', 'p22a.reason', 'p22a.shift', 'p35.opened']);
 test('every mark an app page writes is an item, a known rule, a listed extra mark, or the office\'s', () => {
   const items = new Set(PROCESSES.flatMap((p) => p.items.map((i) => i.key)));
   const unknown = [];
