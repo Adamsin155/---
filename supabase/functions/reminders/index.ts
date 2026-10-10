@@ -275,26 +275,6 @@ async function loadShootTold(now: Date): Promise<Row[]> {
 
 // The database as tick.js sees it (service role: row level security does not apply).
 const db = {
-  // The automatic editor assignment (app/auto-assign.js), as qa.html writes it: the
-  // editor on the client (only while it has none: Ofir may have assigned meanwhile)
-  // or on the round, the marks, the reason with `auto`, and Ofir's folder task.
-  async autoAssign(a: Row, now: Date) {
-    if (a.patch) {
-      let q = admin.from('clients').update(a.patch).eq('id', a.clientId);
-      if (!a.n) q = q.is('editor', null);
-      const { data, error } = await q.select('id');
-      if (error) throw error;
-      if (!data?.length) return false; // assigned by hand meanwhile
-    }
-    const rows = [...a.checks, a.reason].map((x: Row) => ({ client_id: a.clientId, item_key: x.key, state: 'done', note: x.note, at: now.toISOString() }));
-    const { error: e1 } = await admin.from('protocol_checks').upsert(rows, { onConflict: 'client_id,item_key', ignoreDuplicates: true });
-    if (e1) throw e1;
-    if (a.task) {
-      const { error: e2 } = await admin.from('client_tasks').insert({ ...a.task, created_by_email: null });
-      if (e2) console.error('reminders: folder task not opened', e2.code ?? 'error');
-    }
-    return true;
-  },
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report

@@ -454,14 +454,14 @@ export function closeLock(checks, pre = '', target = null, { startAt = null, now
   if (!h.lior) missing.push('לא אישרת שהכונן חזר אליך');
   return { ok: !missing.length, missing, shot, early };
 }
-// After the day is closed: who edits. The server assigns the editor by itself in the
-// next reminders run (app/auto-assign.js) and tells Ofir quietly; an editor already
-// in the card is kept.
+// After the day is closed: who edits. Since protocol v9 Ofir assigns the editor (he is
+// rung at that moment and has ten minutes: the rule `fast`); an editor that is already
+// in the card is what his dialog proposes.
 export function afterCloseText(checks, pre = '', ctx = null) {
   const editor = ctx?.editor && PEOPLE[ctx.editor] ? PEOPLE[ctx.editor].name : null;
   if (done(checks, `${pre}p22a.assigned`) && editor) return `העריכה אצל ${editor}.`;
-  if (editor) return `העריכה נשארת אצל ${editor}, כפי שנרשם בכרטיס, ואופיר יקבל על כך הודעה.`;
-  return 'העורך ישויך אוטומטית לפי העומס, ואופיר יקבל על כך הודעה.';
+  if (editor) return `בכרטיס רשום ${editor} כעורך. אופיר קיבל הודעה לשייך.`;
+  return 'אופיר קיבל הודעה לשייך עורך.';
 }
 // What closing the day marks (with the testimonial and the handoff already marked).
 export const CLOSE_KEYS = ['p18.order', 'p18.all', 'p19.all', 'p19.drive'];

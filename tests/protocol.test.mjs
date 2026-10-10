@@ -48,12 +48,17 @@ test('whatsapp group and characterization checklists match the document', () => 
 });
 
 test('sequence rules: send only after the review, calendar only with shoot details', () => {
+  // Protocol v9: the graphics are sent only after Ofir approved, and he approves only after his seven checks.
   const p7sent = PROCESSES.find((p) => p.id === 'p07').items.find((i) => i.key === 'p07.sent');
-  assert.equal(blockers(p7sent, {}, {}).items.length, 7);
-  const allReviewed = Object.fromEntries(p7sent.requires.map((k) => [k, { state: 'done', at: '2026-10-01T10:00:00+03:00' }]));
-  assert.equal(blockers(p7sent, {}, allReviewed), null);
+  const p7ofir = PROCESSES.find((p) => p.id === 'p07').items.find((i) => i.key === 'p07.ofir');
+  assert.deepEqual(blockers(p7sent, {}, {}).items, ['p07.ofir']);
+  assert.equal(blockers(p7ofir, {}, {}).items.length, 7);
+  const allReviewed = Object.fromEntries(p7ofir.requires.map((k) => [k, { state: 'done', at: '2026-10-01T10:00:00+03:00' }]));
+  assert.equal(blockers(p7ofir, {}, allReviewed), null);
+  assert.deepEqual(blockers(p7sent, {}, allReviewed).items, ['p07.ofir'], 'the checks alone do not open the sending');
+  assert.equal(blockers(p7sent, {}, { ...allReviewed, 'p07.ofir': { state: 'done', at: '2026-10-01T10:05:00+03:00' } }), null);
   const naReview = { ...allReviewed, 'p07.r.logo': { state: 'na', at: '2026-10-01T10:00:00+03:00' } };
-  assert.equal(blockers(p7sent, {}, naReview), null); // a review item that does not apply does not hold sending
+  assert.equal(blockers(p7ofir, {}, naReview), null); // a review item that does not apply does not hold the approval
   const p26sent = PROCESSES.find((p) => p.id === 'p26').items.find((i) => i.key === 'p26.sent');
   assert.deepEqual(blockers(p26sent, {}, {}).items, ['p25.approved']);
   const cal = PROCESSES.find((p) => p.id === 'p11').items.find((i) => i.key === 'p11.calendar');
@@ -65,27 +70,29 @@ test('sequence rules: send only after the review, calendar only with shoot detai
   // The review needs the graphics first (protocol v8): nothing of it before Ilai hands them over.
   assert.ok(!irit.includes('p07.r.logo') && !irit.includes('p07.sent'));
   const made = { 'p07.made': { state: 'done', at: '2026-10-01T11:30:00+03:00' } };
-  const after = openItemsFor('irit', c, made, clientState(c, made, now), now).map((x) => x.item.key);
-  assert.ok(after.includes('p07.r.logo') && !after.includes('p07.sent'));
-  assert.ok(!openItemsFor('lior', c, made, clientState(c, made, now), now).some((x) => x.item.key.startsWith('p07.')), 'the review is Irit\'s alone');
+  const after = openItemsFor('ofir', c, made, clientState(c, made, now), now).map((x) => x.item.key);
+  assert.ok(after.includes('p07.r.logo') && !after.includes('p07.ofir') && !after.includes('p07.sent'));
+  for (const p of ['irit', 'lior']) assert.ok(!openItemsFor(p, c, made, clientState(c, made, now), now).some((x) => x.item.key.startsWith('p07.')), `the review is Ofir's alone: ${p}`);
 });
 
-test('a shared process taken by one owner leaves the other owner\'s list', () => {
-  // Process 22א (assigning the editor) belongs to Ofir or Lior.
+test('22א is Ofir\'s alone (protocol v9): Lior keeps only "the drive came back", and an old "אני על זה" of his changes nothing', () => {
+  // Process 22א (assigning the editor) belonged to Ofir or Lior until protocol v9.
   const c = { ...base, id: 'c', char_at: '2026-10-01T08:00:00+03:00', shoot_type: 'dms', shoot_at: '2026-10-05T10:00:00+03:00' };
   const done = { state: 'done', at: '2026-10-05T16:00:00+03:00' };
   const p19 = applicableProcesses(c).find((p) => p.id === 'p19');
   const checks = Object.fromEntries(p19.items.map((i) => [i.key, done]));
   const now = at('2026-10-05T17:00:00+03:00');
   const before = (p) => openItemsFor(p, c, checks, clientState(c, checks, now), now).map((x) => x.item.key);
-  assert.ok(before('ofir').includes('p22a.load') && before('lior').includes('p22a.load'));
-  checks['p22a.claim'] = { state: 'done', note: 'ofir', at: '2026-10-05T16:30:00+03:00' };
+  assert.ok(before('ofir').includes('p22a.load') && !before('lior').includes('p22a.load'));
+  assert.deepEqual(before('lior').filter((k) => k.startsWith('p22a.')), ['p22a.drive']); // his own item stays
+  // A claim Lior made before the change (the mark is still there) does not take the assignment from Ofir.
+  checks['p22a.claim'] = { state: 'done', note: 'lior', at: '2026-10-05T16:30:00+03:00' };
   const s = clientState(c, checks, now);
-  assert.equal(s.states.find((x) => x.proc.id === 'p22a').claim.person, 'ofir');
+  assert.equal(s.states.find((x) => x.proc.id === 'p22a').claim, null);
   const keys = (p) => openItemsFor(p, c, checks, s, now).map((x) => x.item.key);
   assert.ok(keys('ofir').includes('p22a.load'));
   assert.ok(!keys('lior').includes('p22a.load'));
-  assert.ok(keys('lior').includes('p22a.drive')); // his own item stays
+  assert.ok(keys('lior').includes('p22a.drive'));
 });
 
 test('my-work buckets and business-day lateness', () => {
@@ -350,9 +357,12 @@ test('bulk marking never marks a confirmation by the client or others', async ()
   const made = { 'p07.made': { state: 'done', at: '2026-10-01T11:30:00+03:00' } };
   const s = clientState(c, made, now);
   const p7 = s.states.find((x) => x.proc.id === 'p07');
-  const keys = bulkEligible(p7, 'irit', c, made, now).map((i) => i.key);
+  // The seven checks are Ofir's (protocol v9); nothing of 7 is Irit's to mark in bulk before he approved.
+  const keys = bulkEligible(p7, 'ofir', c, made, now).map((i) => i.key);
   assert.ok(keys.includes('p07.r.logo'));
-  assert.ok(!keys.includes('p07.approved') && !keys.includes('p07.sent'));
+  assert.ok(!keys.includes('p07.ofir'), 'his approval needs the checks first');
+  const irit = bulkEligible(p7, 'irit', c, made, now).map((i) => i.key);
+  assert.ok(!irit.includes('p07.approved') && !irit.includes('p07.sent') && !irit.includes('p07.r.logo'));
   const p13 = s.states.find((x) => x.proc.id === 'p13');
   assert.ok(!bulkEligible(p13, 'lior', c, {}, now).some((i) => i.key === 'p13.approved'));
 });
@@ -368,8 +378,9 @@ test('process 6 starts when access arrives, not when all brand materials are in'
 
 test('a not-relevant review item unblocks sending; a not-relevant approval does not', () => {
   const allNa = Object.fromEntries(['spelling', 'phone', 'address', 'logo', 'details', 'wording', 'design'].map((k) => [`p07.r.${k}`, { state: 'na', at: '2026-10-01T10:00:00+03:00' }]));
-  const sent = PROCESSES.find((p) => p.id === 'p07').items.find((i) => i.key === 'p07.sent');
-  assert.equal(blockers(sent, {}, allNa), null);
+  // (Since protocol v9 the checks open Ofir's approval, and his approval opens the sending.)
+  const ofirOk = PROCESSES.find((p) => p.id === 'p07').items.find((i) => i.key === 'p07.ofir');
+  assert.equal(blockers(ofirOk, {}, allNa), null);
   const p26 = PROCESSES.find((p) => p.id === 'p26').items.find((i) => i.key === 'p26.sent');
   assert.deepEqual(blockers(p26, {}, { 'p25.approved': { state: 'na', at: '2026-10-01T10:00:00+03:00' } }).items, ['p25.approved']);
 });
@@ -393,7 +404,8 @@ test('renewal deadline never falls on a day off', () => {
 test('employee protocol details: who assigns the editor, Irit checks, Nirel brief', async () => {
   const { BRIEF_FIELDS, BRIEF_MUST } = await import('../app/protocol.js');
   const p22a = PROCESSES.find((p) => p.id === 'p22a');
-  assert.deepEqual(p22a.owners, ['ofir', 'lior']); // Ofir or Lior assigns the editor
+  assert.deepEqual(p22a.owners, ['ofir']); // Ofir alone assigns the editor (protocol v9)
+  assert.deepEqual(p22a.items.find((i) => i.key === 'p22a.drive').owners, ['lior']);
   assert.deepEqual(p22a.items.find((i) => i.key === 'p22a.irit').owners, ['irit']);
   const keys = PROCESSES.flatMap((p) => p.items.map((i) => i.key));
   for (const k of ['p02.team', 'p04.tasks', 'p17.plan']) assert.ok(keys.includes(k), k);
@@ -451,11 +463,11 @@ test('role views: coming shoot days, "my clients", items of a taken shared proce
   const ilaiKeys = st.states.filter((s) => s.ready || s.startAt).flatMap((s) => itemsOf('ilai', s)).filter((i) => !i.optional).map((i) => i.key);
   const allDone = done(ilaiKeys, '2026-10-02T10:00:00+03:00');
   assert.equal(involves('ilai', c, allDone, clientState(c, allDone, now), now), false);
-  // A shared process taken by Lior (22א, Ofir or Lior): its shared items are no longer Ofir's.
+  // 22א is Ofir's alone (protocol v9): the assignment is his whatever was claimed before, and Lior's is the drive.
   const p22a = (checks) => clientState(c, checks, now).states.find((s) => s.proc.id === 'p22a');
   assert.deepEqual(itemsOf('ofir', p22a({})).map((i) => i.key), ['p22a.load', 'p22a.assigned']);
   const claimed = { 'p22a.claim': { state: 'done', note: 'lior', at: '2026-10-02T10:00:00+03:00' } };
-  assert.deepEqual(itemsOf('ofir', p22a(claimed)), []);
-  assert.deepEqual(itemsOf('lior', p22a(claimed)).map((i) => i.key), ['p22a.drive', 'p22a.load', 'p22a.assigned']);
+  assert.deepEqual(itemsOf('ofir', p22a(claimed)).map((i) => i.key), ['p22a.load', 'p22a.assigned']);
+  assert.deepEqual(itemsOf('lior', p22a(claimed)).map((i) => i.key), ['p22a.drive']);
   assert.deepEqual(itemsOf(null, p22a({})), []);
 });

@@ -24,7 +24,6 @@ import {
 } from '../_shared/app/reminder-engine.js';
 import { atIL, DIGESTS, FOLD, REMINDER_PEOPLE, BATCH, VOID_WHEN_GONE } from '../_shared/app/reminder-rules.js';
 import { isBusinessDay } from '../_shared/app/protocol-logic.js';
-import { planAutoAssign } from '../_shared/app/auto-assign.js';
 
 const MIN = 6e4;
 // How long a push may wait at the push service before it is dropped (a ring is
@@ -118,44 +117,15 @@ async function deliver({ db, push, env, row, kind, now, stats }) {
   }
 }
 
-// The automatic editor assignment (the owner's decision of 3.10.2026,
-// app/auto-assign.js): a shoot day closed with no editor yet gets one, so it happens
-// even when nobody opens the app. Written through db.autoAssign (the service role);
-// a database without it (or a failure) leaves the assignment to Ofir's screen, and
-// never stops the reminders. Returns how many were assigned.
-async function autoAssign(db, env, input, now, stats) {
-  if (typeof db.autoAssign !== 'function') return 0;
-  let plan = [];
-  try {
-    plan = planAutoAssign({ clients: env.clients, stateOf: env.stateOf, checks: Object.fromEntries(env.clients.map((c) => [c.id, env.checksOf(c)])), tasks: input.tasks || [], now });
-  } catch (err) {
-    stats.errors += 1;
-    console.error('reminders: auto-assign plan failed', err?.code || err?.name || 'error');
-    return 0;
-  }
-  let done = 0;
-  for (const a of plan) {
-    try {
-      if (await db.autoAssign(a, now)) done += 1;
-    } catch (err) {
-      stats.errors += 1;
-      console.error('reminders: auto-assign failed', err?.code || err?.name || 'error');
-    }
-  }
-  return done;
-}
+// (Until protocol v9 the tick also assigned an editor by itself when a shoot day was
+// closed. The owner's decision of 10.10.2026: Ofir assigns, and is rung to do it, the
+// rule `fast`. Nothing is written to a client here any more.)
 
 /** @param {{ db: any, push: any, wa?: any, now?: Date }} args */
 export async function runTick({ db, push, wa = null, now = new Date() }) {
-  const stats = { steps: 0, pushed: 0, queued: 0, app: 0, stale: 0, digests: 0, failed: 0, removed: 0, noDevice: 0, dropped: 0, recovered: 0, lost: 0, rejected: 0, errors: 0, assigned: 0 };
-  let input = await db.load(now);
-  let env = buildEnv({ ...input, now });
-  // An editor assigned now changes this very minute's ladders (22א stops, the editor's starts).
-  stats.assigned = await autoAssign(db, env, input, now, stats);
-  if (stats.assigned) {
-    input = await db.load(now);
-    env = buildEnv({ ...input, now });
-  }
+  const stats = { steps: 0, pushed: 0, queued: 0, app: 0, stale: 0, digests: 0, failed: 0, removed: 0, noDevice: 0, dropped: 0, recovered: 0, lost: 0, rejected: 0, errors: 0 };
+  const input = await db.load(now);
+  const env = buildEnv({ ...input, now });
   const all = candidates(env);
   const active = new Set(all.map((r) => r.key));
   const known = await db.known([...active]);

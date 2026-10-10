@@ -33,7 +33,7 @@ test('every handoff point uses real protocol keys, and its record fits the datab
     assert.ok(point.label && point.to.length, point.id);
     for (const t of point.to) {
       assert.ok(procs.has(t.proc), `${point.id} → ${t.proc}`);
-      if (t.until) assert.ok(items.has(t.until), `${point.id}: until ${t.until}`);
+      for (const u of [t.until || []].flat()) assert.ok(items.has(u), `${point.id}: until ${u}`);
       if (typeof t.person === 'function') assert.ok(t.who, `${point.id}: who that is, in words`);
       assert.match(t.text, /\{client\}/, `${point.id}: the message names the client`);
       assert.doesNotMatch(t.text, /\d{3}-?\d{7}|@/, 'no numbers or emails in the repository');
@@ -47,7 +47,7 @@ test('every handoff point uses real protocol keys, and its record fits the datab
     }
   }
   // The points of the plan's reminder matrix, in protocol order.
-  assert.deepEqual(HANDOFFS.map((p) => p.on), ['p05.access', 'p07.made', 'p19', 'p22a.assigned', 'p23.made', 'p23.ofir', 'p24.notify', 'p25.approved', 'p27.final', 'p29.filled']);
+  assert.deepEqual(HANDOFFS.map((p) => p.on), ['p05.access', 'p07.made', 'p07.ofir', 'p19', 'p22a.assigned', 'p23.made', 'p23.ofir', 'p24.notify', 'p25.approved', 'p27.final', 'p29.filled']);
 });
 
 test('who is next at each point', () => {
@@ -56,19 +56,21 @@ test('who is next at each point', () => {
   const when = '2026-10-29T10:00:00+02:00';
   const next = (key, extra = {}) => people(offer(c, { [key]: done(when), ...extra }, key, now));
   assert.deepEqual(next('p05.access'), ['ilai']);
-  assert.deepEqual(next('p07.made'), ['irit']);
+  // Protocol v9: the first 9 graphics go to Ofir's check, and to Irit once he approved.
+  assert.deepEqual(next('p07.made'), ['ofir']);
+  assert.deepEqual(next('p07.ofir'), ['irit']);
   assert.deepEqual(next('p23.made'), ['ofir']);
   assert.deepEqual(next('p23.ofir'), ['irit']);
   assert.deepEqual(next('p24.notify'), ['ofir']);
   assert.deepEqual(next('p25.approved'), ['irit', 'lior']);
   assert.deepEqual(next('p27.final'), ['ilai']);
   assert.deepEqual(next('p29.filled'), ['irit']);
-  // The shoot day is done when process 19 is complete: Ofir assigns the editor,
-  // or Lior when he took the assignment (process 22א is shared).
+  // The shoot day is done when process 19 is complete: Ofir assigns the editor. Since
+  // protocol v9 the assignment is his alone: an old "אני על זה" of Lior's changes nothing.
   const p19 = all('p19', when);
   assert.deepEqual(people(offer(c, p19, 'p19.took', now)), ['ofir']);
   assert.deepEqual(people(offer(c, p19, 'p19.all', now)), ['ofir'], 'whichever item completed it');
-  assert.deepEqual(people(offer(c, { ...p19, 'p22a.claim': done(when, 'lior') }, 'p19.took', now)), ['lior']);
+  assert.deepEqual(people(offer(c, { ...p19, 'p22a.claim': done(when, 'lior') }, 'p19.took', now)), ['ofir']);
   const { 'p19.drive': _, ...partial } = p19;
   assert.deepEqual(offer(c, partial, 'p19.took', now), [], 'not before the whole day is closed');
 });
@@ -120,14 +122,17 @@ test('both editing deadlines go to the editor, counted in business days from the
   ].join('\n'));
 });
 
-test('due times: next business day at 12:00, office hours, right away, already late, or the protocol\'s words', () => {
+test('due times: the fast ladder\'s ten minutes, office hours, right away, already late, or the protocol\'s words', () => {
   const c = client();
-  // A Thursday evening shoot: the editor is assigned by Sunday 12:00.
+  // A Thursday evening shoot closed at 19:00: Ofir assigns within ten minutes (protocol v9; the ladder counts until 21:00).
   const [s] = offer(c, all('p19', '2026-10-08T19:00:00+03:00'), 'p19.took', '2026-10-08T19:01:00+03:00');
-  assert.match(msg(s, '2026-10-08T19:01:00+03:00'), /^היי אופיר,\nיום הצילום של מספרת רון הסתיים\. צריך לשייך עורך ולהעביר אליו את הכונן\.\nיעד: יום א׳ 11\.10 12:00\n.*#p22a$/);
-  // Ofir checks the rest of the graphics within an office hour.
+  assert.match(msg(s, '2026-10-08T19:01:00+03:00'), /^היי אופיר,\nיום הצילום של מספרת רון הסתיים\. צריך לשייך עורך ולהעביר אליו את הכונן\.\nיעד: היום 19:10\n.*#p22a$/);
+  // Closed at 20:55: five minutes that evening, five more from 08:30 on Sunday.
+  const [s2] = offer(c, all('p19', '2026-10-08T20:55:00+03:00'), 'p19.took', '2026-10-08T20:56:00+03:00');
+  assert.match(msg(s2, '2026-10-08T20:56:00+03:00'), /\nיעד: יום א׳ 11\.10 08:35\n/);
+  // Ofir checks the rest of the graphics within the same ten minutes.
   const [g] = offer(c, { 'p23.made': done('2026-10-29T10:00:00+02:00') }, 'p23.made', '2026-10-29T10:00:00+02:00');
-  assert.match(msg(g, '2026-10-29T10:00:00+02:00'), /\nיעד: היום 11:00\n/);
+  assert.match(msg(g, '2026-10-29T10:00:00+02:00'), /\nיעד: היום 10:10\n/);
   const [ok] = offer(c, { 'p23.ofir': done('2026-10-29T10:00:00+02:00') }, 'p23.ofir', '2026-10-29T10:00:00+02:00');
   assert.match(msg(ok, '2026-10-29T10:00:00+02:00'), /\nיעד: מיד\n/);
   // Ready for review late on Thursday (before the folder is marked): the hour runs
@@ -138,12 +143,16 @@ test('due times: next business day at 12:00, office hours, right away, already l
   const [irit, lior] = offer(c, all('p25', '2026-10-29T10:00:00+02:00'), 'p25.approved', '2026-10-29T10:01:00+02:00');
   assert.match(msg(irit, '2026-10-29T10:01:00+02:00'), /^היי עירית,\nאופיר אישר את הסרטונים של מספרת רון\. לשלוח אותם ללקוח לאישור\.\nיעד: מיד\n.*#p26$/);
   assert.match(msg(lior, '2026-10-29T10:01:00+02:00'), /\nיעד: יום א׳ 1\.11 18:00\n.*#p30$/);
-  // Nine graphics handed over after their own deadline: Irit's check has its own two office
-  // hours from the moment they reach her (protocol v8), whenever Ilai delivered.
+  // Nine graphics handed over after their own deadline: Ofir's check has its own ten minutes
+  // from the moment they reach him (protocol v9), whenever Ilai delivered.
   const [late] = offer(c, { 'p07.made': done('2026-10-19T15:00:00+03:00') }, 'p07.made', '2026-10-19T15:01:00+03:00');
-  assert.match(msg(late, '2026-10-19T15:01:00+03:00'), /\nיעד: היום 17:00\n/);
+  assert.match(msg(late, '2026-10-19T15:01:00+03:00'), /^היי אופיר,\n9 הגרפיקות הראשונות של מספרת רון מוכנות לבדיקה שלך\.\nיעד: היום 15:10\n/);
   const [early] = offer(c, { 'p07.made': done('2026-10-19T13:00:00+03:00') }, 'p07.made', '2026-10-19T13:01:00+03:00');
-  assert.match(msg(early, '2026-10-19T13:01:00+03:00'), /\nיעד: היום 15:00\n/);
+  assert.match(msg(early, '2026-10-19T13:01:00+03:00'), /\nיעד: היום 13:10\n/);
+  // He approved: Irit sends them, two office hours from his approval.
+  const [send] = offer(c, { 'p07.made': done('2026-10-19T13:00:00+03:00'), 'p07.ofir': done('2026-10-19T13:08:00+03:00') }, 'p07.ofir', '2026-10-19T13:09:00+03:00');
+  assert.match(msg(send, '2026-10-19T13:09:00+03:00'), /^היי עירית,\nאופיר אישר את 9 הגרפיקות הראשונות של מספרת רון\. אפשר לשלוח אותן ללקוח\.\nיעד: היום 15:08\n/);
+  assert.equal(send.markKey, 'p07.handoff.send');
   // Final versions before the client approved: no clock yet, so the protocol's words.
   const [fin] = offer(c, { 'p27.final': done('2026-10-29T10:00:00+02:00') }, 'p27.final', '2026-10-29T10:01:00+02:00');
   assert.match(msg(fin, '2026-10-29T10:01:00+02:00'), /\nיעד: עד שעתיים מרגע שהתוכן מוכן ומאושר\n/);
@@ -193,16 +202,21 @@ test('the card\'s "העברות" line: what went to whom, and whether WhatsApp w
   assert.equal(describeMark('p05.access'), null);
 });
 
-test('the record names whom WhatsApp was opened for: Lior when he took 22א, the editor by name', () => {
+test('the record names whom WhatsApp was opened for: the editor by name; an old record of Lior\'s 22א keeps his name', () => {
   const c = client({ shoot_type: 'natali', editor: 'nirel' });
   const when = '2026-10-08T19:00:00+03:00';
   const byLior = { ...all('p19', when), 'p22a.claim': done(when, 'lior') };
   const [o] = offer(c, byLior, 'p19.took', '2026-10-08T19:01:00+03:00');
-  // A neutral key (whoever assigns the editor); the person goes in the record's note.
-  assert.deepEqual([o.person, o.name, o.markKey], ['lior', 'ליאור', 'p19.handoff.assigner']);
+  // Protocol v9: Ofir assigns, whoever took it before. The key stays the neutral one it
+  // was, and a record written when Lior had taken the assignment still names him.
+  assert.deepEqual([o.person, o.name, o.markKey], ['ofir', 'אופיר', 'p19.handoff.assigner']);
   assert.equal(describeMark(o.markKey, 'lior'), 'יום הצילום הסתיים ← ליאור');
   assert.equal(describeMark(o.markKey, 'ofir'), 'יום הצילום הסתיים ← אופיר');
-  assert.equal(describeMark(o.markKey), 'יום הצילום הסתיים ← מי שמשייך את העורך');
+  assert.equal(describeMark(o.markKey), 'יום הצילום הסתיים ← אופיר');
+  // The record of the hand-off that is gone (the first graphics to Irit's check) keeps its words.
+  assert.equal(describeMark('p07.handoff.irit'), '9 גרפיקות מוכנות לבדיקה ← עירית');
+  assert.equal(describeMark('p07.handoff.ofir'), '9 גרפיקות מוכנות לבדיקה ← אופיר');
+  assert.equal(describeMark('p07.handoff.send'), 'אופיר אישר את 9 הגרפיקות ← עירית');
   assert.equal(describeMark('p22a.handoff.editor', 'nirel'), 'עורך שויך ← ניראל');
   assert.equal(describeMark('p22a.handoff.editor', 'editor'), 'עורך שויך ← העורך המשויך');
   // The card's line says whom it was opened for when the editor was changed since.

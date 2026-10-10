@@ -13,10 +13,18 @@
 //           moment the 9 graphics (7), the rest of the graphics (23) or the
 //           videos (26) were marked sent, until the client answered. Then Irit calls.
 //   soon    any other process of the person due within the next hour.
+//   fast    Ofir's fast ladder (protocol v9; app/fast-ladder.js): the graphics waiting
+//           for his check and the editor to assign, from the moment the work reached
+//           him until it is done. Its phases: the minutes run ("נשארו 7:12"), then the
+//           extra minutes ("באיחור · עוד 4:10"), then "באיחור · ליאור עודכן". It counts
+//           in the ladder's own window (until 21:00), and its row leads straight to
+//           the place it is done in.
 // A clock that ran out stays in the bar, red, until the end of that day (a
 // "soon" one for an hour; after that it is in the "overdue" list).
 import { clientState, openItemsFor, addWorkingMinutes, nextWorkMoment, officeMsBetween, onOfficeTime, isDayEnd, ANSWERED, waitOf, IMPORT_NOTE, inLanding, workFloor, parseDate } from './protocol-logic.js';
 import { endOfDayIL, partsIL } from './tz.js';
+import { FAST_LADDER } from './protocol.js';
+import { fastCaseOf, ladderAt } from './fast-ladder.js';
 
 const MIN = 6e4;
 
@@ -51,7 +59,7 @@ export const fixAnswered = (tasks, clientId, itemKey, sentAt) => (tasks || []).s
 // "soon" clock that ran out stays as long after.
 export const SOON_MINUTES = 60;
 
-const KIND_ORDER = { answer: 0, deal: 1, soon: 2 };
+const KIND_ORDER = { fast: 0, answer: 1, deal: 2, soon: 3 };
 const baseId = (proc) => proc.id.replace(/^r\d+-/, '');
 // A deadline "by the end of the day" is a date, not a clock.
 const endOfDay = (d) => isDayEnd(d); // a deadline of a day, not of an hour: no countdown in the bar
@@ -61,6 +69,15 @@ const peopleOf = (entries) => [...new Set(entries.flatMap((e) => (e.claim ? [e.c
 // `remaining` is then the office time left and `resumeAt` when it runs again.
 // A clock that ran out has a negative `remaining` (how long ago, real time).
 export function clockTime(clock, now = new Date()) {
+  if (clock.kind === 'fast') {
+    // `phase`: 'run' | 'late' | 'told'. While it runs `remaining` is the time left; once
+    // late it is negative (how long ago), and `more` is what is left of the extra minutes.
+    const t = ladderAt(clock.fast, now);
+    return {
+      state: t.phase === 'run' ? 'running' : 'expired', phase: t.phase, remaining: t.phase === 'run' ? t.remaining : clock.fast.dueAt - now,
+      more: t.phase === 'late' ? t.remaining : 0, paused: t.paused, resumeAt: t.resumeAt,
+    };
+  }
   const left = clock.deadline - now;
   if (left <= 0) return { state: 'expired', remaining: left, paused: false, resumeAt: null };
   if (!clock.office) return { state: 'running', remaining: left, paused: false, resumeAt: null };
@@ -85,6 +102,7 @@ export function clockDigits(ms) {
 
 // Whether a clock belongs in the bar at `now`.
 function inBar(kind, deadline, now) {
+  if (kind === 'fast') return true; // until it is done
   if (kind === 'soon') return Math.abs(deadline - now) <= SOON_MINUTES * MIN;
   return now <= endOfDayIL(deadline);
 }
@@ -104,6 +122,20 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
     const state = stateOf ? stateOf(client) : clientState(client, checks, now);
     const phone = client.phone || null;
 
+    // Ofir's fast ladder: his alone (and the owners' view of everyone). The process it
+    // belongs to gets no second, plain clock from the lines below, for anybody.
+    const fastProcs = new Set();
+    for (const s of state.states) {
+      const f = fastCaseOf(client, s, state.states, checks);
+      if (!f) continue;
+      fastProcs.add(s.proc.id);
+      if (person && person !== FAST_LADDER.who) continue;
+      add({
+        id: `fast:${client.id}:${s.proc.id}:${f.t0.toISOString()}`, kind: 'fast', client, proc: s.proc, what: f.what, fast: f, url: f.url,
+        deadline: f.dueAt, office: false, people: [FAST_LADDER.who], phone,
+      });
+    }
+
     // Process deadlines: the new-deal clocks, and whatever else is due within the hour.
     const groups = new Map();
     for (const e of openItemsFor(person, client, checks, state, now)) {
@@ -112,6 +144,7 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
       groups.get(e.proc.id).entries.push(e);
     }
     for (const g of groups.values()) {
+      if (fastProcs.has(g.proc.id)) continue;
       // A client activated out of landing is not a new deal: its contract, group and
       // meeting have no "5 minutes" countdown (they are ordinary deadlines now).
       const floor = workFloor(client);

@@ -64,7 +64,7 @@ test('the migration has none of the words the production deploy tool refuses, co
 });
 
 test('version 8: the function, the column default, a new client; a client that started before keeps its version', async () => {
-  assert.equal(PROTOCOL_VERSION, 8);
+  assert.ok(PROTOCOL_VERSION >= 8); // (9 since 10.10.2026: tests/sql/fast-ladder.test.mjs; this database stops at the migration of 8)
   assert.equal((await db.query('select private.protocol_version_current() as v')).rows[0].v, 8);
   const d = await db.query("select column_default from information_schema.columns where table_schema = 'public' and table_name = 'clients' and column_name = 'protocol_version'");
   assert.equal(d.rows[0].column_default, '8');
@@ -129,7 +129,9 @@ test('who marks the new steps: the office (Irit, Lior, Ofir, the owner); not Ila
     assert.equal(p.length, 1);
     assert.deepEqual(p[0].owners, ['irit']);
   }
-  assert.equal((await db.query('select count(*)::int as n from private.protocol_writers')).rows[0].n, writerRows().length);
+  // The table as this migration left it: 86 rows (protocol v9 added one, p07.@qafixed: tests/sql/fast-ladder.test.mjs).
+  assert.equal((await db.query('select count(*)::int as n from private.protocol_writers')).rows[0].n, 86);
+  assert.ok(writerRows().length >= 86);
   // Lior left the review of the first graphics: he is out of the two rules of process 7.
   const p07 = (await db.query("select key, persons from private.protocol_writers where key in ('p07.@wait', 'p07.@part') order by key")).rows;
   assert.deepEqual(p07.map((r) => [r.key, r.persons]), [['p07.@part', ['ilai', 'irit']], ['p07.@wait', ['ilai', 'irit']]]);

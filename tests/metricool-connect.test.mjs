@@ -133,5 +133,5 @@ test('the migration as the deploy tool reads it: nothing is removed, and it can 
 });
 
 test('the protocol did not change: the card is not a protocol item', () => {
-  assert.equal(PROTOCOL_VERSION, 8); // 8 since 8.10.2026 (docs/ops.md, section 49); this feature itself did not move it
+  assert.equal(PROTOCOL_VERSION, 9); // 9 since 10.10.2026 (docs/ops.md, section 57); this feature itself did not move it
 });

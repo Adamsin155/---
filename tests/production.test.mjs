@@ -291,8 +291,9 @@ test('shoot-day lock: the testimonial, the full quantity and the drive back, con
   assert.equal(P.shootStarted({ shootAt: startAt }, IL(2026, 10, 15, 10, 59)), false);
   assert.equal(P.shootStarted({ shootAt: startAt }, startAt), true);
   // What closing says: the editor is assigned by the server; one already in the card is kept.
-  assert.equal(P.afterCloseText(c, '', { editor: null }), 'העורך ישויך אוטומטית לפי העומס, ואופיר יקבל על כך הודעה.');
-  assert.match(P.afterCloseText(c, '', { editor: 'nadia' }), /^העריכה נשארת אצל נדיה/);
+  // Protocol v9: nothing is assigned by itself; Ofir is rung to assign.
+  assert.equal(P.afterCloseText(c, '', { editor: null }), 'אופיר קיבל הודעה לשייך עורך.');
+  assert.equal(P.afterCloseText(c, '', { editor: 'nadia' }), 'בכרטיס רשום נדיה כעורך. אופיר קיבל הודעה לשייך.');
   assert.equal(P.afterCloseText({ 'p22a.assigned': done(IL(2026, 10, 15, 17)) }, '', { editor: 'nadia' }), 'העריכה אצל נדיה.');
   // Without a number in the package: Lior's own check of the quantity.
   assert.deepEqual(P.closeLock(c, '', null).missing, ['סימון שכל הכמות צולמה']);

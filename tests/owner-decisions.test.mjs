@@ -6,7 +6,8 @@
 //        24 hours late was replaced on 8.10.2026 by the owners' end-of-day table at 19:00:
 //        docs/ops.md, section 48, and tests/late-ladder.test.mjs.)
 //   5    the shoot day right after the group (protocol v6, anchor 'group').
-//   6    the automatic editor assignment when the shoot day is closed (app/auto-assign.js).
+//   6    the editor assignment when the shoot day is closed: automatic until protocol v9; since the
+//        owner's decision of 10.10.2026 Ofir assigns, and the same load calculation is a suggestion.
 //   7    7ב / 23ב: approved graphics, Ilai's 30-minute ring.
 //   8    the station-change message (app/messages-logic.js stationChange): Irit, quietly.
 import { test } from 'node:test';
@@ -23,7 +24,9 @@ import { dateIL, partsIL } from '../app/tz.js';
 import {
   validateDeal, dealSummary, prefillFromDeal, contractTitle, dealDue, statusText, DEAL_STATUS, addonsFor, pendingDeals, dealUrl, landingOf,
 } from '../app/deal-logic.js';
-import { planAutoAssign, autoReasonOf, AUTO_REASON, AUTO_DRIVE_NOTE } from '../app/auto-assign.js';
+import { autoReasonOf, AUTO_DRIVE_NOTE } from '../app/auto-assign.js';
+import { editorLoad, suggestEditor, SUGGESTED_TAG, awaitingEditor } from '../app/qa-logic.js';
+import { fastCases } from '../app/fast-ladder.js';
 import { stationChange, stationChangeText, suggestFor, templatesByKey, messageText } from '../app/messages-logic.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
@@ -217,9 +220,21 @@ function shotClient(w, o = {}) {
   return c;
 }
 const closeDay = (w, c, at = IL(2026, 10, 18, 17)) => marks(w, c, itemsOf('p19'), at);
-const planOf = (w, now) => planAutoAssign({ clients: w.clients, stateOf: (c) => clientState(c, w.checks[c.id] || {}, now), checks: w.checks, tasks: w.tasks, now });
+const stateAt = (w, now) => (c) => clientState(c, w.checks[c.id] || {}, now);
+const loadOf = (w, now) => editorLoad({ clients: w.clients, stateOf: stateAt(w, now), checks: w.checks, tasks: w.tasks, now });
+// (Only the clients of the shoot in question: the "busy" ones of a test were imported into the editing itself.)
+const waitingOf = (w, now) => awaitingEditor({ clients: w.clients, stateOf: stateAt(w, now), checks: w.checks }).filter((a) => !a.client.editor || a.client.name === 'קבוע');
+const ladderOf = (w, now) => fastCases({ clients: w.clients, stateOf: stateAt(w, now), checksOf: (c) => w.checks[c.id] || {} }).filter((f) => f.kind === 'assign');
+// What Ofir's dialog writes when he presses "שיוך" (app/qa.js): the editor, 22א's marks, and Lior's "the drive
+// came back" when Lior confirmed it at the closing of the shoot day.
+function assignAs(w, c, editor, at) {
+  c.editor = editor;
+  for (const k of ['p22a.load', 'p22a.assigned']) mark(w, c, k, at);
+  mark(w, c, 'p22a.irit', at, 'נסגר לבד: השיוך נרשם במערכת');
+  if (w.checks[c.id]['p19.took']?.state === 'done') mark(w, c, 'p22a.drive', at, AUTO_DRIVE_NOTE);
+}
 
-test('auto-assign: Natali → Nirel; otherwise the least loaded of Nadia, Yariv and Anna; only once the shoot day is closed for real', () => {
+test('the suggestion in Ofir\'s dialog (it was the automatic assignment): Natali → Nirel; otherwise the least loaded of Nadia, Yariv and Anna; nothing is assigned by itself', () => {
   const w = world();
   // Nadia holds two editing jobs, Yariv one, Anna none.
   for (const ed of ['nadia', 'nadia', 'yariv']) {
@@ -230,53 +245,58 @@ test('auto-assign: Natali → Nirel; otherwise the least loaded of Nadia, Yariv 
   const dms = shotClient(w, { name: 'דמס' });
   const nat = shotClient(w, { name: 'נטלי', shoot_type: 'natali' });
   const now = IL(2026, 10, 18, 17, 1);
-  assert.deepEqual(planOf(w, now), [], 'the day is not closed yet');
+  assert.deepEqual(waitingOf(w, now), [], 'the day is not closed yet');
+  assert.deepEqual(ladderOf(w, now), []);
   closeDay(w, dms);
   closeDay(w, nat);
-  const plan = planOf(w, now);
-  assert.deepEqual(plan.map((a) => [a.client.name, a.editor]), [['דמס', 'anna'], ['נטלי', 'nirel']]);
-  const a = plan[0];
-  assert.deepEqual(a.patch, { editor: 'anna' });
-  // Lior confirmed the drive is back when he closed the day (p19.took): 22א's own "the drive came back" closes with it.
-  assert.deepEqual(a.checks.map((x) => x.key), ['p22a.drive', 'p22a.load', 'p22a.assigned', 'p22a.irit']);
-  assert.equal(a.checks[0].note, AUTO_DRIVE_NOTE);
-  assert.equal(a.reason.key, 'p22a.reason');
-  assert.deepEqual(JSON.parse(a.reason.note), { editor: 'anna', reason: AUTO_REASON, preselected: null, joint: false, auto: true, kept: false });
-  assert.deepEqual(a.task, { client_id: dms.id, title: 'פתיחת תיקייה מסודרת בדרייב לעריכה (24)', owner: 'ofir', due_on: '2026-10-19' });
-  // Two in one tick spread the load: a second dms client goes to Yariv (Anna just got one).
+  // Both wait for Ofir, each on his ten-minute ladder from the closing; no editor was written anywhere.
+  assert.deepEqual(waitingOf(w, now).map((a) => a.client.name).sort(), ['דמס', 'נטלי']);
+  assert.deepEqual(ladderOf(w, now).map((f) => [f.client.name, hhmm(f.dueAt)]).sort(), [['דמס', '18.10 17:10'], ['נטלי', '18.10 17:10']]);
+  assert.deepEqual([dms.editor ?? null, nat.editor ?? null, w.checks[dms.id]['p22a.assigned']], [null, null, undefined]);
+  // What the dialog marks: by the rule for Natali, by the load otherwise.
+  assert.deepEqual(suggestEditor(loadOf(w, now), 'dms'), { editor: 'anna', why: 'load' });
+  assert.deepEqual(suggestEditor(loadOf(w, now), 'natali'), { editor: 'nirel', why: 'rule' });
+  assert.equal(SUGGESTED_TAG, 'מומלץ לפי עומס');
+  // A joint Natali and Semyon day has no rule: the least loaded of the four, Nirel too.
+  assert.equal(suggestEditor(loadOf(w, now), 'natali', true).why, 'load');
+  // Ofir takes the suggestion: the next suggestion sees it (Anna just got one, so Yariv).
+  assignAs(w, dms, 'anna', now);
   const dms2 = shotClient(w, { name: 'דמס 2' });
   closeDay(w, dms2);
-  assert.deepEqual(planOf(w, now).filter((x) => x.client.shoot_type === 'dms').map((x) => x.editor), ['anna', 'yariv']);
-  // An editor the card already has is kept (no client update), and imported history is not a closed day.
-  const kept = shotClient(w, { name: 'קבוע', editor: 'nadia' });
-  closeDay(w, kept);
-  const k = planOf(w, now).find((x) => x.client.id === kept.id);
-  assert.deepEqual([k.editor, k.kept, k.patch], ['nadia', true, null]);
+  assert.deepEqual(suggestEditor(loadOf(w, now), 'dms'), { editor: 'yariv', why: 'load' });
+  // Never the editor being replaced (a swap).
+  assert.equal(suggestEditor(loadOf(w, now), 'dms', false, ['yariv']).editor, 'anna');
+  // Imported history is not a closed day: no ladder.
   const imp = shotClient(w, { name: 'מיובא' });
   marks(w, imp, itemsOf('p19'), IL(2026, 10, 18, 17), IMPORT_NOTE);
-  assert.ok(!planOf(w, now).some((x) => x.client.id === imp.id));
+  assert.ok(!ladderOf(w, now).some((f) => f.client.id === imp.id));
 });
 
-test('auto-assign: assigned, Ofir hears quietly and the editor\'s ladder starts; Ofir\'s "assign an editor" does not ring', () => {
+test('the shoot day closed: Ofir is rung to assign; once he does, the editor\'s ladder starts; a client assigned automatically before the change stays as it is', () => {
   const w = world();
   const c = shotClient(w);
   closeDay(w, c);
   const now = IL(2026, 10, 18, 17, 1);
-  // Before: the 22א ladder would ring Ofir.
-  one(due(w, now), 'assign', 'now', 'ofir');
-  const [a] = planOf(w, now);
-  Object.assign(c, a.patch);
-  for (const x of [...a.checks, a.reason]) mark(w, c, x.key, now, x.note);
-  assert.equal(autoReasonOf(w.checks[c.id]).editor, a.editor);
-  const after = due(w, now);
-  none(after, 'assign');
-  const q = one(after, 'autoAssigned', 'ofir', 'ofir');
-  assert.equal(q.level, 'quiet');
-  assert.match(q.title, new RegExp(`שויך אוטומטית: .* · ${PEOPLE[a.editor].name}`));
-  one(after, 'editing', 'assigned', a.editor);
-  // Ofir changed it by hand (the reason is no longer automatic): no more notes.
-  mark(w, c, 'p22a.reason', IL(2026, 10, 18, 17, 30), JSON.stringify({ editor: 'nadia', reason: 'מכירה את הלקוח' }));
-  none(due(w, IL(2026, 10, 18, 17, 31)), 'autoAssigned');
+  const ring = one(due(w, now), 'fast', 'now', 'ofir');
+  assert.equal(ring.level, 'ring');
+  assert.match(ring.body, /^יום הצילום נסגר\. 10 דקות לשייך, עד 17:10\./);
+  none(due(w, now), 'autoAssigned');
+  none(due(w, now), 'editing');
+  assignAs(w, c, 'anna', IL(2026, 10, 18, 17, 4));
+  const after = due(w, IL(2026, 10, 18, 17, 5));
+  none(after, 'fast');
+  one(after, 'editing', 'assigned', 'anna');
+  // The editing clock starts at the assignment, as before: three business days from 17:04 on Sunday.
+  assert.equal(hhmm(clientState(c, w.checks[c.id], IL(2026, 10, 18, 17, 5)).states.find((s) => s.proc.id === 'p24').dueAt), '21.10 18:00');
+  // Assigned by the server before protocol v9: the mark still reads as automatic (the tag on Ofir's load
+  // list), nothing is sent about it again, and nothing reopens.
+  const old = shotClient(w, { name: 'ותיק', editor: 'nadia' });
+  closeDay(w, old, IL(2026, 10, 12, 17));
+  for (const k of ['p22a.drive', 'p22a.load', 'p22a.assigned', 'p22a.irit']) mark(w, old, k, IL(2026, 10, 12, 17, 1), 'שויך אוטומטית בסיום יום הצילום');
+  mark(w, old, 'p22a.reason', IL(2026, 10, 12, 17, 1), JSON.stringify({ editor: 'nadia', reason: 'שיוך אוטומטי בסיום יום הצילום, לפי העומס', preselected: null, joint: false, auto: true, kept: false }));
+  assert.equal(autoReasonOf(w.checks[old.id]).editor, 'nadia');
+  assert.equal(clientState(old, w.checks[old.id], now).states.find((s) => s.proc.id === 'p22a').complete, true);
+  assert.deepEqual(due(w, IL(2026, 10, 18, 17, 5)).filter((r) => r.clientId === old.id && (r.rule === 'fast' || r.rule === 'autoAssigned')), []);
 });
 
 // ── 7. Approved graphics: Ilai, 30 minutes ──
@@ -346,7 +366,8 @@ test('"מיד" gets 15 office minutes before it is late anywhere; Ofir and Lior 
   assert.deepEqual([IMMEDIATE_MINUTES, LATE_GRACE_MINUTES], [15, 15]);
   // Exactly the processes whose deadline is the event that starts them.
   // (5 starts with the meeting and is due at its end: it has the meeting's two hours, not zero.)
-  assert.deepEqual(PROCESSES.filter((p) => isImmediate(p)).map((p) => p.id).sort(), ['p11b', 'p22a', 'p26']);
+  // (22א left the list with protocol v9: it has its own ten minutes, on Ofir's fast ladder.)
+  assert.deepEqual(PROCESSES.filter((p) => isImmediate(p)).map((p) => p.id).sort(), ['p11b', 'p26']);
   const w = world();
   const c = client(w, { name: 'מיידי', editor: 'nadia', shoot_at: IL(2026, 10, 15, 11).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
   importTo(w, c, 'post');
@@ -383,34 +404,35 @@ test('"מיד" gets 15 office minutes before it is late anywhere; Ofir and Lior 
   assert.deepEqual(Object.fromEntries(Object.entries(ANSWER_CLOCKS).map(([k, v]) => [k, v.minutes])), { p07: 10, p23: 10, p26: 5 });
 });
 
-test('the shoot day closed and the editor assigned by the server: 22א is whole, and never reported late', () => {
+test('the shoot day closed and the editor assigned by Ofir: 22א is whole; while it waits it is his fast ladder\'s alone, never a note of the rule `late`', () => {
   const w = world();
   const c = shotClient(w);
   closeDay(w, c, IL(2026, 10, 18, 16)); // Sunday 16:00
   const lateOf = (now) => due(w, now).filter((r) => r.rule === 'late' && r.key.includes(':p22a@'));
-  // The minute the day closed, before the server's run: not late (it was, in the live run).
+  // The minute the day closed: not late (it was, in the live run of 6.10.2026).
   const now = IL(2026, 10, 18, 16, 1);
   assert.deepEqual(lateOf(now), []);
-  const [a] = planOf(w, now);
-  Object.assign(c, a.patch);
-  for (const x of [...a.checks, a.reason]) mark(w, c, x.key, now, x.note);
+  assignAs(w, c, 'anna', now);
   assert.equal(w.checks[c.id]['p22a.drive'].note, AUTO_DRIVE_NOTE);
   assert.equal(clientState(c, w.checks[c.id], now).states.find((x) => x.proc.id === 'p22a').complete, true);
   for (const t of [now, IL(2026, 10, 18, 16, 31), IL(2026, 10, 18, 17, 30), IL(2026, 10, 19, 9, 30), IL(2026, 10, 19, 12)]) assert.deepEqual(lateOf(t), [], hhmm(t));
-  // A drive Lior never confirmed (the day closed from the card) is not closed for him.
+  // A drive Lior never confirmed (the day closed from the card) is not closed for him: it stays his item.
   const w2 = world();
   const d = shotClient(w2);
   marks(w2, d, itemsOf('p19').filter((k) => k !== 'p19.took'), IL(2026, 10, 18, 16));
   mark(w2, d, 'p19.took', IL(2026, 10, 18, 16), 'לא רלוונטי');
   w2.checks[d.id]['p19.took'].state = 'na';
-  assert.deepEqual(planOf(w2, now)[0].checks.map((x) => x.key), ['p22a.load', 'p22a.assigned', 'p22a.irit']);
-  // With the assignment not running at all, 22א is late after the allowance and the note 15 minutes after that.
+  assignAs(w2, d, 'anna', now);
+  assert.equal(w2.checks[d.id]['p22a.drive'], undefined);
+  assert.equal(clientState(d, w2.checks[d.id], now).states.find((x) => x.proc.id === 'p22a').complete, false);
+  // Nobody assigns: it is late after Ofir's ten minutes, and the fast ladder is the only thing that says so
+  // (Lior is told by it at 16:15; the rule `late` adds nothing, at any hour).
   const w3 = world();
   const e = shotClient(w3);
   closeDay(w3, e, IL(2026, 10, 18, 16));
   const late3 = (t) => due(w3, t).filter((r) => r.rule === 'late' && r.key.includes(':p22a@')).map((r) => r.person).sort();
-  assert.deepEqual(late3(IL(2026, 10, 18, 16, 29)), []);
-  assert.deepEqual(late3(IL(2026, 10, 18, 16, 30)), ['lior', 'ofir']);
+  for (const t of [IL(2026, 10, 18, 16, 29), IL(2026, 10, 18, 16, 30), IL(2026, 10, 19, 9, 0), IL(2026, 10, 19, 14, 0)]) assert.deepEqual(late3(t), [], hhmm(t));
+  assert.deepEqual(due(w3, IL(2026, 10, 18, 16, 15)).filter((r) => r.rule === 'fast').map((r) => `${r.step}@${r.person}`).sort(), ['late@ofir', 'lior@lior', 'now@ofir']);
 });
 
 // Found live (6.10.2026): lists, clocks, the Thursday summary and reminder titles named

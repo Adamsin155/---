@@ -36,7 +36,8 @@
 //                 outside the sending hours) or 'urgent': kept on the log row (the daily
 //                 cap they were exempt from is gone since 7.10.2026)
 //       ownHours  true: the rule keeps its own hours (the tasks given on the spot, `nag`:
-//                 09:00–20:00), so the sending hours above do not hold it for a digest
+//                 09:00–20:00; Ofir's fast ladder, `fast`: until 21:00), so the sending
+//                 hours above do not hold it for a digest
 //       exception true: an exception for Lior (decision 8: on his shoot day it goes to Ofir)
 //       handover  the step follows whoever holds the work now (the assigned editor, the
 //                 owner of a task). When the work passes to someone else, the step is new
@@ -48,16 +49,16 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER } from './protocol.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
   businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel, clientState, blockers,
 } from './protocol-logic.js';
-// The owner's decisions of 3.10.2026: Stav's deals, the station-change message, the
-// automatic editor assignment.
+// The owner's decisions of 3.10.2026: Stav's deals and the station-change message.
 import { DEAL_MINUTES, contractTitle, dealSummary, dealUrl } from './deal-logic.js';
 import { stationChange } from './messages-logic.js';
-import { autoReasonOf } from './auto-assign.js';
+// Protocol v9: Ofir's fast ladder for the graphics and the editor's assignment.
+import { fastCases, ladderAt, fastWaited, fastOpen } from './fast-ladder.js';
 import { shootPrep, reportedOf, TELL, requestOf, followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
 import { BLOCKING_TITLE } from './characterization.js';
 import { ANSWER_CLOCKS, fixAnswered } from './clocks.js';
@@ -288,7 +289,10 @@ const dayOfThree = (from, now) => Math.max(1, businessDaysBetween(from, now));
 // before). Since 3.10.2026 every late process, these too, also tells Ofir and Lior
 // quietly (`late`); since 8.10.2026 whoever holds it is reminded twice a day from the
 // next day on (`lateNag`), and it is in the owners' end-of-day table.
-export const OWN_LATE = new Set(['p01', 'p02', 'p03', 'p06', 'p11b', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21', 'p22a', 'p25', 'p31']);
+// (22א left the list with protocol v9: on Ofir's fast ladder it is not on the ladder of a
+// late item at all, `fast` in app/late-chain.js; off it, a client that came out of landing
+// with an assignment waiting, it is a late item like any other.)
+export const OWN_LATE = new Set(['p01', 'p02', 'p03', 'p06', 'p11b', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21', 'p25', 'p31']);
 // Quality and editing (principle 5).
 export const QUALITY = new Set(['p22', 'p23', 'p24', 'p25', 'p27']);
 // Who hears of every late item (the owner's decision of 3.10.2026), quietly.
@@ -387,8 +391,8 @@ export const RULES = [
           const open = ids.map((id) => i0.same(id)).filter((s) => s && !s.complete && !s.wait && !s.claim);
           const m = i0.same(main);
           if (!open.length || !m) continue;
-          // Once the work was handed on inside the process (7: the graphics are with Irit,
-          // protocol v8) its deadline is the next person's: no "30 minutes left" to this one.
+          // Once the work was handed on inside the process (7: the graphics are with Ofir,
+          // protocol v9) its deadline is the next person's: no "30 minutes left" to this one.
           const mc = procCase(env, c, m);
           out.push({ ...mc, id: person, who: person, open, mainOpen: open.includes(m) && openOf(mc, person).some((it) => !blockers(it, mc.ctx, mc.checks)), anchors: { event: endAt, due: m.dueAt } });
         }
@@ -499,18 +503,17 @@ export const RULES = [
     ],
   },
 
-  // 7: the 9 graphics are ready. Irit checks and sends. Since protocol v8 the review is
-  // hers alone, with its own two office hours from this moment: Lior is no longer rung
-  // after 30 minutes to do it himself (decision 7); he hears when she is late, as of any
-  // late item (`late`, and the ladder of section 48).
+  // 7: the 9 graphics. Since protocol v9 Ofir alone checks them, on his fast ladder (the
+  // rule `fast` at the end of this file): Irit and Lior hear nothing of the check itself.
+  // Irit is rung the moment he approved, to send them to the client (as in 23).
   {
-    id: 'graphics9', event: '9 גרפיקות מוכנות (7)', procs: ['p07'],
+    id: 'graphics9', event: 'אופיר אישר את 9 הגרפיקות: לשלוח ללקוח (7)', procs: ['p07'],
     instances(env) {
-      return casesOf(env, 'p07', (i) => !!i.doneAt('p07.made') && !i.resolved('p07.sent') && !halted(i))
-        .map((i) => ({ ...i, id: 'p07', anchors: { event: i.doneAt('p07.made') } }));
+      return casesOf(env, 'p07', (i) => !!i.doneAt('p07.ofir') && !i.resolved('p07.sent') && !halted(i))
+        .map((i) => ({ ...i, id: 'p07.ofir', anchors: { event: i.doneAt('p07.ofir') } }));
     },
     steps: [
-      { id: 'now', to: 'irit', level: 'ring', title: (i) => `9 גרפיקות מוכנות לבדיקה: ${i.name}`, body: (i, env) => `7 בדיקות, ואז שליחה ללקוח לאישור.${i.s.dueAt ? ` יעד ${whenText(i.s.dueAt, env.now)}.` : ''}` },
+      { id: 'irit', to: 'irit', level: 'ring', title: (i) => `לשלוח ללקוח: 9 הגרפיקות · ${i.name}`, body: (i, env) => `אופיר אישר.${i.s.dueAt ? ` יעד ${whenText(i.s.dueAt, env.now)}.` : ''}` },
     ],
   },
 
@@ -522,7 +525,11 @@ export const RULES = [
   {
     id: 'clientLink', event: 'קישור ללקוח: טופס פרטי הכניסה (5ב), דף הסטטוס (7א)', procs: ['p05b', 'p07a'],
     instances(env) {
-      return ['p05b', 'p07a'].flatMap((b) => casesOf(env, b, (i) => !!i.s.ready && !!i.s.startAt && !!i.s.dueAt && !halted(i) && openOf(i, i.proc.owners[0]).length > 0)
+      // (7א opens with Ofir's approval of the graphics, protocol v9. An approval that is imported history,
+      // as the migration of v9 writes for graphics checked before it, is not an event: the step stays on
+      // Irit's list, and no ring says it has just opened.)
+      const fromHistory = (i) => { const from = String(i.proc.start?.from || ''); return from.startsWith('item:') && i.checks[from.slice(5)]?.note === IMPORT_NOTE; };
+      return ['p05b', 'p07a'].flatMap((b) => casesOf(env, b, (i) => !!i.s.ready && !!i.s.startAt && !!i.s.dueAt && !halted(i) && !fromHistory(i) && openOf(i, i.proc.owners[0]).length > 0)
         .map((i) => ({ ...i, id: `${i.proc.id}@${i.s.startAt.toISOString()}`, url: MINE_URL, anchors: { event: i.s.startAt, due: i.s.dueAt } })));
     },
     steps: [
@@ -674,21 +681,9 @@ export const RULES = [
     },
   },
 
-  // 22א: assign an editor once the shoot day is closed. Ofir (or whoever took it) at
-  // once, in the next morning's digest, and Lior at 12:00 on the next business day
-  // (a hard stop: it fires even if someone said "אני על זה").
-  {
-    id: 'assign', event: 'שיוך עורך (22א)', procs: ['p22a'],
-    instances(env) {
-      return casesOf(env, 'p22a', (i) => !!i.finishedAt('p19') && !i.resolved('p22a.assigned') && !halted(i, { claim: false }))
-        .map((i) => ({ ...i, id: i.proc.id, who: i.s.claim?.person || 'ofir', anchors: { event: i.finishedAt('p19') } }));
-    },
-    steps: [
-      { id: 'now', to: (i) => i.who, level: 'ring', when: (i) => !i.s.claim, title: (i) => `לשייך עורך: ${i.name}`, body: (i, env) => `יום הצילום הסתיים. לשייך עורך עד ${whenText(businessDayFrom(atIL(i.anchors.event, '12:00'), 1), env.now)}.` },
-      { id: 'morning', businessDays: 1, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עורך עוד לא שויך: ${i.name}`, body: () => 'עד 12:00 היום.' },
-      { id: 'stop12', businessDays: 1, at: '12:00', to: 'lior', level: 'ring', exempt: 'urgent', title: (i) => `עורך לא שויך: ${i.name}`, body: () => 'עצירה קשיחה: היום 12:00 עבר ועוד אין עורך. לשייך עכשיו.' },
-    ],
-  },
+  // 22א: the editor's assignment. Since protocol v9 it is Ofir's alone, on his fast ladder
+  // (the rule `fast` at the end of this file); the rule `assign` (Ofir at once, the next
+  // morning's digest, Lior's hard stop at 12:00 the next business day) is gone with it.
 
   // 22–24: the editor. A ring on assignment, "not started" two office hours after
   // the drive was handed over (Lior's list after four), days 2 and 3 in the digest,
@@ -725,22 +720,16 @@ export const RULES = [
     ],
   },
 
-  // 23: the rest of the graphics. Ofir checks when Ilai marks them ready (and again
-  // after each round of fixes: its own case, so each check rings once; decision 16:
-  // within the hour); Irit sends once Ofir approved.
+  // 23: the rest of the graphics. Ofir's check (and each check after a round of fixes) is
+  // on his fast ladder since protocol v9 (the rule `fast`); Irit sends once he approved.
   {
-    id: 'graphicsRest', event: 'יתרת גרפיקות (23)', procs: ['p23'],
+    id: 'graphicsRest', event: 'אופיר אישר את יתרת הגרפיקות: לשלוח ללקוח (23)', procs: ['p23'],
     instances(env) {
-      return casesOf(env, 'p23', (i) => !halted(i)).flatMap((i) => {
-        const q = qaState(i.checks, i.pre, 'graphics');
-        if (q.stage === 'ofir') return [{ ...i, id: q.returns ? `p23.fixed.${q.returns}` : 'p23.made', stage: 'ofir', round: q.round, anchors: { event: q.readyAt } }];
-        if (i.doneAt('p23.ofir') && !i.resolved('p23.sent')) return [{ ...i, id: 'p23.ofir', stage: 'irit', anchors: { event: i.doneAt('p23.ofir') } }];
-        return [];
-      });
+      return casesOf(env, 'p23', (i) => !!i.doneAt('p23.ofir') && !i.resolved('p23.sent') && !halted(i))
+        .map((i) => ({ ...i, id: 'p23.ofir', anchors: { event: i.doneAt('p23.ofir') } }));
     },
     steps: [
-      { id: 'ofir', to: 'ofir', level: 'ring', when: (i) => i.stage === 'ofir', title: (i) => `${i.round > 1 ? `התיקונים מוכנים לבדיקה (סבב ${i.round - 1})` : 'יתרת הגרפיקות מוכנה לבדיקה'}: ${i.name}`, body: () => 'יעד: שעה.' },
-      { id: 'irit', to: 'irit', level: 'ring', when: (i) => i.stage === 'irit', title: (i) => `לשלוח ללקוח: יתרת הגרפיקות · ${i.name}`, body: () => 'אופיר אישר.' },
+      { id: 'irit', to: 'irit', level: 'ring', title: (i) => `לשלוח ללקוח: יתרת הגרפיקות · ${i.name}`, body: () => 'אופיר אישר.' },
     ],
   },
 
@@ -1307,14 +1296,14 @@ export const RULES = [
     ],
   },
 
-  // Returned for fixes by Ofir (23, 25): the editor (videos) or Ilai (graphics) at
+  // Returned for fixes by Ofir (7, 23, 25): the editor (videos) or Ilai (graphics) at
   // once, with the list and the due time; Lior's list if not fixed by then; the
   // owner's screen on a second round.
   {
-    id: 'qaReturn', event: 'הוחזר לתיקון מאופיר (23, 25)', procs: ['p23', 'p25'],
+    id: 'qaReturn', event: 'הוחזר לתיקון מאופיר (7, 23, 25)', procs: ['p07', 'p23', 'p25'],
     instances(env) {
       const out = [];
-      for (const kind of ['videos', 'graphics']) {
+      for (const kind of Object.keys(QA_KINDS)) {
         const k = QA_KINDS[kind];
         for (const i of casesOf(env, k.base, (x) => !halted(x, { claim: false }))) {
           const q = qaState(i.checks, i.pre, kind);
@@ -1405,6 +1394,8 @@ export const RULES = [
           // Nor while the fix the client asked for is being made: that task has its own due day and carries the lateness.
           const chain = allLate(env).find((x) => x.cid === c.id && x.procId === s.proc.id);
           if (chain && (chain.clientTurn || (chain.fixing && !chain.holders.length))) continue;
+          // On Ofir's fast ladder (protocol v9): Lior is told by the ladder itself, once, at its own moment.
+          if (chain?.fast) continue;
           const owners = s.claim ? [s.claim.person] : s.proc.owners;
           out.push({ ...i, id: `${s.proc.id}@${s.dueAt.toISOString()}`, owners, anchors: { event: s.dueAt } });
         }
@@ -1526,20 +1517,8 @@ export const RULES = [
     ],
   },
 
-  // 22א assigned by the server when the shoot day was closed (app/auto-assign.js):
-  // Ofir hears quietly, and can change it.
-  {
-    id: 'autoAssigned', event: 'עורך שויך אוטומטית (22א)', procs: ['p22a'],
-    instances(env) {
-      return casesOf(env, 'p22a', (i) => !!autoReasonOf(i.checks, i.pre) && !!i.doneAt('p22a.assigned')).map((i) => {
-        const r = autoReasonOf(i.checks, i.pre);
-        return { ...i, id: `${i.proc.id}@${r.editor}`, editor: r.editor, url: 'qa.html', anchors: { event: i.doneAt('p22a.assigned') } };
-      });
-    },
-    steps: [
-      { id: 'ofir', to: 'ofir', level: 'quiet', title: (i) => `שויך אוטומטית: ${i.name} · ${personName(i.editor)}`, body: () => 'לפי העומס, בסיום יום הצילום. אפשר להחליף בבקרה ושיוך.' },
-    ],
-  },
+  // (The rule `autoAssigned`, "עורך שויך אוטומטית", went with the automatic assignment
+  // itself in protocol v9: Ofir assigns. What was assigned before stays as it is.)
   ...STATUS_RULES,
 ];
 RULES.push(...YEAR_RULES);
@@ -2197,7 +2176,7 @@ export const VOID_WHEN_GONE = new Set(RULES.filter((r) => r.voidWhenGone).map((r
 // lateness that is only inherited there is nobody's to act on); process 3 with no
 // meeting date and the two cases another rule already follows (`gap`, `ownLadder`).
 // A process whose own ladder already rings at its deadline (OWN_LATE: the new deal, the
-// shoot day, the editor's assignment…; LATE_RUNG) gets no second "באיחור" ring at that
+// shoot day…; LATE_RUNG) gets no second "באיחור" ring at that
 // moment, and joins the twice-a-day reminder only from the next day on (`rung`): nobody
 // is rung "באיחור" in the middle of the shoot day about the shoot day.
 // The sending hours, erev chag, Lior's shoot day and the bursts apply as to every rule,
@@ -2290,4 +2269,84 @@ const LADDER_RULES = [
 ];
 RULES.push(...LADDER_RULES);
 for (const r of LADDER_RULES) RULE_BY_ID.set(r.id, r);
+
+// ── Ofir's fast ladder (protocol v9, the owner's decision of 10.10.2026; docs/ops.md, section 57) ──
+// One self-contained block. The graphics Ilai handed over (the first 9: process 7; the
+// rest: 23; and each check after a round of fixes) and the editor's assignment once the
+// shoot day is closed (22א) are Ofir's alone. The cases, their moments and the window
+// are one answer (app/fast-ladder.js); the numbers are FAST_LADDER in app/protocol.js.
+//   fast.now       T0, the work reached him: a ring, and `minutes` to do it.
+//   fast.late      T0 + minutes, not done: a second ring, worded as lateness; `more` minutes.
+//   fast.lior      T0 + minutes + more, not done: the manager is told that Ofir is late.
+//                  While Lior is on a shoot day (decision 8) his rings are held for the
+//                  summary after it, and Ofir, who takes his exceptions then, is the one
+//                  this is about: so it goes to the owners at that moment instead, and
+//                  Lior hears after the shoot only if it is still open then.
+//   fast.again.N   from then on, every `every` minutes: Ofir again, until he approves,
+//                  returns it for fixes or assigns. One step at a time, the slot `now`
+//                  falls in; its id names the slot, so each goes out once and a slot the
+//                  engine missed is not sent late.
+// The window is the ladder's own (`ownHours`: working days until 21:00, and until the
+// office closes on erev chag): every moment above is counted in it, and outside it no
+// step exists, so nothing rings at night, on a weekend or on a holiday. Not folded into
+// the 08:30 digest (`noFold`), not held for a burst.
+// This ladder replaces the ladder of a late item for these cases (`fast` in
+// app/late-chain.js: no "באיחור" at +15 minutes, no 09:00 / 14:00 reminder, no manager
+// after a business day, no note of the rule `late`), and the rules `assign`,
+// `autoAssigned` and the step `graphicsRest.ofir` that were here before it.
+// Not for a client in landing, imported history, or work that waited from before a
+// client's activation (app/fast-ladder.js).
+const clockOf = (d) => clock(d);
+const FAST_WORDS = {
+  review: {
+    now: (i) => (i.f.round > 1 ? `התיקונים מוכנים לבדיקה (סבב ${i.f.round - 1}): ${i.f.what} · ${i.name}` : `${i.f.what} ${i.f.qa === 'graphics' ? 'מוכנה' : 'מוכנות'} לבדיקה: ${i.name}`),
+    nowBody: (i) => `${i.f.spec.minutes} דקות לעבור עליהן ולאשר (או להחזיר לעילאי לתיקון), עד ${clockOf(i.f.dueAt)}.`,
+    late: (i) => `באיחור: לעבור על הגרפיקות של ${i.name} ולאשר — עוד ${i.f.spec.more} דקות`,
+    told: (i) => `אופיר באיחור בבדיקת הגרפיקות: ${i.name}`,
+    again: (i) => `עדיין באיחור: לעבור על הגרפיקות של ${i.name} ולאשר`,
+    until: 'שיאשר או יחזיר לתיקון',
+  },
+  assign: {
+    now: (i) => `לשייך עורך: ${i.name}`,
+    nowBody: (i) => `יום הצילום נסגר. ${i.f.spec.minutes} דקות לשייך, עד ${clockOf(i.f.dueAt)}. בחלון השיוך מסומן העורך המומלץ לפי העומס.`,
+    late: (i) => `באיחור: לשייך עורך ל${i.name} — עוד ${i.f.spec.more} דקות`,
+    told: (i) => `אופיר באיחור בשיוך עורך: ${i.name}`,
+    again: (i) => `עדיין באיחור: לשייך עורך ל${i.name}`,
+    until: 'שישייך',
+  },
+};
+const fastWhat = (i) => (i.f.kind === 'assign' ? i.f.what : `${i.f.what}${i.f.round > 1 ? ` (בדיקה ${i.f.round}, אחרי תיקון)` : ''}`);
+const FAST_RULE = {
+  id: 'fast', event: 'הסולם המהיר של אופיר: בדיקת הגרפיקות (7, 23) ושיוך עורך (22א)', procs: ['p07', 'p23', 'p22a'],
+  instances(env) {
+    return fastCases({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf }).map((f) => {
+      const i = procCase(env, f.client, f.state);
+      const at = ladderAt(f, env.now);
+      // The telling of the manager is not lost to a tick that was missed the evening before.
+      const today = atIL(env.now, FAST_LADDER.window.from);
+      return { ...i, id: `${f.procId}@${f.t0.toISOString()}`, f, at, url: f.url, anchors: { event: f.startAt, due: f.dueAt, tell: f.tellAt < today && today <= env.now ? today : f.tellAt, again: at.slot?.at || null } };
+    });
+  },
+  steps: (i, env) => {
+    const w = FAST_WORDS[i.f.kind];
+    const who = FAST_LADDER.who;
+    const base = { level: 'ring', exempt: 'clock', ownHours: true, noFold: true, when: () => fastOpen(env.now) };
+    const waited = `${fastWaited(i.f, env.now)} דקות`;
+    return [
+      { ...base, id: 'now', to: who, title: () => w.now(i), body: () => w.nowBody(i) },
+      { ...base, id: 'late', from: 'due', to: who, overdue: true, title: () => w.late(i), body: () => `${fastWhat(i)}. היעד היה ${clockOf(i.f.dueAt)}. אם זה לא נסגר עד ${clockOf(i.f.tellAt)}, ${personName(FAST_LADDER.manager)} מקבל הודעה.` },
+      {
+        ...base, id: FAST_LADDER.manager, from: 'tell', overdue: true,
+        to: () => (env.liorShoot?.active && FAST_LADDER.manager === 'lior' ? OWNER : FAST_LADDER.manager),
+        title: () => w.told(i), body: () => `${fastWhat(i)} · מחכה מ־${whenText(i.f.t0, env.now)} (${waited}). אופיר מקבל תזכורת כל ${i.f.spec.every} דקות עד ${w.until}.`,
+      },
+      ...(i.at.slot?.n ? [{
+        ...base, id: `again.${i.at.slot.n}`, from: 'again', to: who, overdue: true,
+        title: () => w.again(i), body: () => `${fastWhat(i)} · מחכה ${waited}. ${personName(FAST_LADDER.manager)} עודכן. תזכורת כל ${i.f.spec.every} דקות עד ${w.until}.`,
+      }] : []),
+    ];
+  },
+};
+RULES.push(FAST_RULE);
+RULE_BY_ID.set(FAST_RULE.id, FAST_RULE);
 export { LATE_LADDER };

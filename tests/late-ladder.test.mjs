@@ -72,9 +72,9 @@ test('who holds a late item and who waits for it come from the protocol: its ite
   const { w, c } = afterMeeting();
   const now = IL(2026, 10, 5, 15);
   const by = (num) => lateOf(w, now).find((x) => x.num === num);
-  // 7: Ilai makes; Irit reviews after him (the hand-off "9 גרפיקות מוכנות" goes to her). Since
-  // protocol v8 the review is hers alone: Lior is not a waiter.
-  assert.deepEqual([by('7').holders, by('7').waiters.sort()], [['ilai'], ['irit']]);
+  // 7: Ilai makes; Ofir checks after him (the hand-off "9 גרפיקות מוכנות" goes to him, protocol
+  // v9), and Irit sends once he approved. Lior is not a waiter: he has no item in 7.
+  assert.deepEqual([by('7').holders, by('7').waiters.sort()], [['ilai'], ['irit', 'ofir']]);
   // 5: the access is taken by the characterizer and Irit; Ilai's 30 minutes (6) start from it.
   assert.deepEqual([by('5').holders.sort(), by('5').waiters], [['irit', 'ofir'], ['ilai']]);
   // 8 and 10 are their owner's alone: nobody waits inside the protocol.
@@ -86,26 +86,36 @@ test('who holds a late item and who waits for it come from the protocol: its ite
   const told = (p, num) => at1415.filter((r) => r.person === p && /^late(Own)?$/.test(r.rule) && new RegExp(` ${num} · `).test(r.title)).map((r) => `${r.rule}.${r.step}`);
   assert.deepEqual([told('ofir', '8'), told('lior', '10'), told('ilai', '7'), told('ofir', '7')], [['late.ofir'], ['late.lior'], ['lateOwn.own'], ['late.ofir']]);
   assert.equal(LATE_LADDER.graceMinutes, 15);
-  // Ilai delivered a day late. The review is Irit's alone, and since protocol v8 it has its own
-  // clock from the moment the graphics reach her: two office hours, so 7 is not late at all now.
+  // Ilai delivered a day late. The check is Ofir's alone, and it has its own clock from the
+  // moment the graphics reach him (protocol v9: ten minutes on his fast ladder), so 7 is not late now.
   mark(w, c, 'p07.made', IL(2026, 10, 6, 9, 45));
-  assert.equal(lateOf(w, IL(2026, 10, 6, 10)).find((x) => x.num === '7'), undefined);
-  assert.equal(hhmm(clientState(c, w.checks[c.id], IL(2026, 10, 6, 10)).states.find((s) => s.proc.id === 'p07').dueAt), '6.10 11:45');
+  assert.equal(lateOf(w, IL(2026, 10, 6, 9, 50)).find((x) => x.num === '7'), undefined);
+  assert.equal(hhmm(clientState(c, w.checks[c.id], IL(2026, 10, 6, 9, 50)).states.find((s) => s.proc.id === 'p07').dueAt), '6.10 09:55');
   // Nobody is rung "באיחור", told "מתעכב" or reminded "עדיין באיחור" about work that just landed on them.
-  assert.deepEqual(due(w, IL(2026, 10, 6, 10)).filter((r) => /^late(Own|Nag)?$/.test(r.rule) && / 7 · /.test(`${r.title} ${r.body}`)), []);
+  assert.deepEqual(due(w, IL(2026, 10, 6, 9, 50)).filter((r) => /^late(Own|Nag)?$/.test(r.rule) && / 7 · /.test(`${r.title} ${r.body}`)), []);
   assert.equal(LATE_LADDER.tellWithinMinutes, 60);
-  // Her own deadline passed (11:45, and the grace): now it is hers, and Lior hears as a manager only.
+  // His ten minutes passed: it counts as his lateness (the tab and the owners' table read this), and
+  // Irit and Ilai wait. The fast ladder is the only one that rings for it: no "באיחור" after the
+  // grace, no note to the managers, no reminder at 14:00 or at 09:00 the next day.
+  const fast = lateOf(w, IL(2026, 10, 6, 10, 0)).find((x) => x.num === '7');
+  assert.deepEqual([fast.holders, fast.waiters.sort(), fast.fast, fast.ownLadder], [['ofir'], ['ilai', 'irit'], true, true]);
+  const generic = (now) => due(w, now).filter((r) => /^late(Own|Nag)?$/.test(r.rule) && / 7 · /.test(`${r.title} ${r.body}`)).map((r) => `${r.rule}.${r.step}@${r.person}`);
+  for (const now of [IL(2026, 10, 6, 10, 10), IL(2026, 10, 6, 10, 25)]) assert.deepEqual(generic(now), [], hhmm(now));
+  // He approves at 10:30: the sending is Irit's, two office hours from his approval.
+  marks(w, c, itemsOf('p07').filter((k) => k.startsWith('p07.r.') || k === 'p07.ofir'), IL(2026, 10, 6, 10, 30));
+  assert.equal(lateOf(w, IL(2026, 10, 6, 11)).find((x) => x.num === '7'), undefined);
+  // Her own deadline passed (12:30, and the grace): now it is hers, and Lior hears as a manager only.
   // (Ilai waits again: his upload, 7ב, starts when the client approves.)
-  const after = lateOf(w, IL(2026, 10, 6, 12, 5)).find((x) => x.num === '7');
-  assert.deepEqual([after.holders, after.waiters, hhmm(after.lateAt)], [['irit'], ['ilai'], '6.10 12:00']);
-  const at12 = due(w, IL(2026, 10, 6, 12, 0)).filter((r) => / 7 · /.test(r.title));
+  const after = lateOf(w, IL(2026, 10, 6, 12, 50)).find((x) => x.num === '7');
+  assert.deepEqual([after.holders, after.waiters, hhmm(after.lateAt), after.fast], [['irit'], ['ilai'], '6.10 12:45', false]);
+  const at12 = due(w, IL(2026, 10, 6, 12, 45)).filter((r) => / 7 · /.test(r.title));
   assert.deepEqual(at12.filter((r) => r.rule === 'lateOwn').map((r) => `${r.step}@${r.person}`).sort(), ['own@irit', 'wait@ilai']);
   assert.deepEqual(at12.filter((r) => r.rule === 'late').map((r) => r.person).sort(), ['lior', 'ofir']);
   const nagTo = (now) => due(w, now).filter((r) => r.rule === 'lateNag' && / 7 · /.test(`${r.title} ${r.body}`)).map((r) => r.person).sort();
   assert.deepEqual(nagTo(IL(2026, 10, 6, 9, 46)), []);
   assert.deepEqual(nagTo(IL(2026, 10, 6, 14, 0)), ['irit']);
   // Sent to the client: it is the client's turn, nobody in the office holds it.
-  marks(w, c, itemsOf('p07').filter((k) => k !== 'p07.approved' && k !== 'p07.made'), IL(2026, 10, 6, 10, 30));
+  mark(w, c, 'p07.sent', IL(2026, 10, 6, 13));
   const sent = lateOf(w, IL(2026, 10, 6, 14)).find((x) => x.num === '7');
   assert.deepEqual([sent.holders, sent.waiters, sent.clientTurn], [[], [], true]);
   assert.ok(CLIENT_TURN.has('p07.approved') && CLIENT_TURN.has('p27.approved') && CLIENT_TURN.has('p13.approved'));
@@ -178,9 +188,11 @@ test('the ladder of a late item: "באיחור" when the deadline passes, the on
   assert.deepEqual(stepsOf(at(IL(2026, 10, 10, 14, 0)), 'lateNag'), []);
   assert.deepEqual(stepsOf(at(IL(2026, 10, 11, 9, 0)), 'lateNag'), ['d2026-10-11.0900@ilai:ring']);
   mark(w, c, 'p07.made', IL(2026, 10, 11, 10));
-  // Done: Ilai's ladder stops. The review he handed on is late from its first minute: Irit and Lior hold it now.
+  // Done: Ilai's ladder stops. The check he handed on is Ofir's, on the fast ladder of protocol v9
+  // (its own rings: tests/fast-ladder.test.mjs): the reminder of 14:00 says nothing of 7 to anybody.
   const done = at(IL(2026, 10, 11, 14, 0));
-  assert.deepEqual(of(done, 'lateNag').map((r) => r.person).sort(), ['irit', 'lior']);
+  assert.deepEqual(of(done, 'lateNag').filter((r) => / 7 · /.test(`${r.title} ${r.body}`)), []);
+  assert.deepEqual(of(done, 'lateNag').filter((r) => ['irit', 'ilai', 'ofir'].includes(r.person)), []);
   assert.deepEqual(stepsOf(done, 'lateOwn'), []);
   // The numbers are data.
   assert.deepEqual(LATE_LADDER, { graceMinutes: 15, tellWithinMinutes: 60, nagAt: ['09:00', '14:00'], managerAfter: 1, ownerAfter: 2, managers: ['ofir', 'lior'], listMax: 6 });

@@ -70,8 +70,8 @@ function afterMeeting(w = world(), o = {}) {
 }
 
 // ── The protocol itself ─────────────────────────────────────────────────────
-test('version 8 as data: the two link steps are Irit\'s, in "אפיון"; the review of the first graphics is hers alone', () => {
-  assert.equal(PROTOCOL_VERSION, 8);
+test('version 8 as data: the two link steps are Irit\'s, in "אפיון"; the review of the first graphics has one owner (Ofir, since version 9)', () => {
+  assert.ok(PROTOCOL_VERSION >= 8);
   const byId = Object.fromEntries(PROCESSES.map((p) => [p.id, p]));
   assert.deepEqual([byId.p05b.owners, byId.p05b.link, byId.p05b.items.map((i) => i.key)], [['irit'], 'access', ['p05b.sent']]);
   assert.deepEqual([byId.p07a.owners, byId.p07a.link, byId.p07a.items.map((i) => i.key)], [['irit'], 'status', ['p07a.sent']]);
@@ -81,14 +81,16 @@ test('version 8 as data: the two link steps are Irit\'s, in "אפיון"; the re
   for (const p of PROCESSES) assert.match(p.id, /^p\d+[ab]?$/, p.id);
   // One owner for the review; Lior owns nothing of process 7.
   for (const i of byId.p07.items) assert.ok(!(i.owners || byId.p07.owners).includes('lior'), i.key);
-  for (const k of ['p07.r.spelling', 'p07.r.design', 'p07.sent', 'p07.approved']) assert.deepEqual(byId.p07.items.find((i) => i.key === k).owners, ['irit'], k);
+  // Version 9: the seven checks and the approval are Ofir's; the sending and the client's answer stay Irit's.
+  for (const k of ['p07.r.spelling', 'p07.r.design', 'p07.ofir']) assert.deepEqual(byId.p07.items.find((i) => i.key === k).owners, ['ofir'], k);
+  for (const k of ['p07.sent', 'p07.call', 'p07.approved']) assert.deepEqual(byId.p07.items.find((i) => i.key === k).owners, ['irit'], k);
   // The old keys are all there: nothing was renamed, the eight topics of 14 included.
   for (const t of TOPICS) assert.ok(byId.p14.items.some((i) => i.key === `p14.${t.key}` && i.optional && i.topic), t.key);
   assert.deepEqual([byId.p14.recurring, byId.p14.until, byId.p14.items[0].key], ['daily', 'shoot', 'p14.day']);
 });
 
 // ── FIX 5: the two links, and process 5 ─────────────────────────────────────
-test('5ב opens for Irit when the characterization ends, with 30 office minutes; 7א when the 9 graphics are ready; each is marked by her', () => {
+test('5ב opens for Irit when the characterization ends, with 30 office minutes; 7א when Ofir approved the 9 graphics (version 9); each is marked by her', () => {
   const { w, c } = afterMeeting();
   // Before the meeting ended there is nothing of it.
   const before = world();
@@ -100,9 +102,11 @@ test('5ב opens for Irit when the characterization ends, with 30 office minutes;
   for (const p of ['lior', 'ofir', 'ilai']) assert.ok(!mine(w, c, p, noon).includes('p05b.sent'), p);
   const s = proc(w, c, 'p05b', noon);
   assert.deepEqual([hhmm(s.startAt), hhmm(s.dueAt), s.status], ['5.10 12:00', '5.10 12:30', 'today']);
-  // 7א: not before the graphics are ready; from that minute, 30 office minutes.
+  // 7א: not when the graphics are ready (they are with Ofir then), but from the minute he approved; 30 office minutes.
   assert.ok(!mine(w, c, 'irit', noon).includes('p07a.sent'));
-  mark(w, c, 'p07.made', IL(2026, 10, 5, 13, 30));
+  mark(w, c, 'p07.made', IL(2026, 10, 5, 13, 24));
+  assert.ok(!mine(w, c, 'irit', IL(2026, 10, 5, 13, 25)).includes('p07a.sent'), 'nothing to show the client before Ofir approved');
+  marks(w, c, PROCESSES.find((p) => p.id === 'p07').items.filter((i) => i.key.startsWith('p07.r.') || i.key === 'p07.ofir').map((i) => i.key), IL(2026, 10, 5, 13, 30));
   const s7 = proc(w, c, 'p07a', IL(2026, 10, 5, 13, 31));
   assert.deepEqual([hhmm(s7.startAt), hhmm(s7.dueAt)], ['5.10 13:30', '5.10 14:00']);
   assert.ok(mine(w, c, 'irit', IL(2026, 10, 5, 13, 31)).includes('p07a.sent'));
@@ -133,8 +137,10 @@ test('each new step rings Irit when it opens, and from its deadline it is on the
   assert.match(`${nine[0].title} ${nine[0].body}`, /5ב · קישור ללקוח למילוי פרטי הכניסה לרשתות/);
   mark(w, c, 'p05b.sent', IL(2026, 10, 6, 9, 30));
   assert.ok(!due(w, IL(2026, 10, 6, 14, 0)).some((r) => /5ב/.test(`${r.title} ${r.body}`)));
-  // The status link: the same, from the minute the graphics are ready.
-  mark(w, c, 'p07.made', IL(2026, 10, 6, 10));
+  // The status link: the same, from the minute Ofir approved the graphics (version 9).
+  mark(w, c, 'p07.made', IL(2026, 10, 6, 9, 55));
+  assert.deepEqual(of(due(w, IL(2026, 10, 6, 9, 56)), 'clientLink'), [], 'not while they are with Ofir');
+  marks(w, c, PROCESSES.find((p) => p.id === 'p07').items.filter((i) => i.key.startsWith('p07.r.') || i.key === 'p07.ofir').map((i) => i.key), IL(2026, 10, 6, 10));
   const st = of(due(w, IL(2026, 10, 6, 10)), 'clientLink');
   assert.deepEqual(st.map((r) => [r.person, r.title]), [['irit', 'לשלוח ללקוח קישור לדף הסטטוס: אלפא']]);
   assert.ok(due(w, IL(2026, 10, 6, 10, 45)).some((r) => r.rule === 'lateOwn' && r.person === 'irit' && / 7א · /.test(r.title)));
@@ -233,42 +239,49 @@ test('a client of the old version that is still working through the step gets it
 });
 
 // ── FIX 6: a review has its own clock ───────────────────────────────────────
-test('the review of the 9 graphics is not on Irit\'s list before they arrive, and is due two office hours after', () => {
+test('the review of the 9 graphics is on nobody\'s list before they arrive; then it is Ofir\'s, ten minutes on his fast ladder, and Irit\'s sending has two office hours from his approval (version 9)', () => {
   const { w, c } = afterMeeting();
   const p7 = () => PROCESSES.find((p) => p.id === 'p07');
-  assert.deepEqual(stagesOf(p7().due), [{ key: 'p07.made', minutes: 120, office: true }]);
+  assert.deepEqual(stagesOf(p7().due), [{ key: 'p07.made', fast: 'review', qa: 'p07' }, { key: 'p07.ofir', minutes: 120, office: true }]);
   // Until Ilai delivers: the making's own deadline, and it is Ilai's alone.
   assert.equal(hhmm(proc(w, c, 'p07', IL(2026, 10, 5, 13)).dueAt), '5.10 14:00');
   assert.deepEqual(mine(w, c, 'irit', IL(2026, 10, 5, 13)).filter((k) => k.startsWith('p07.')), []);
   assert.deepEqual(mine(w, c, 'lior', IL(2026, 10, 5, 13)).filter((k) => k.startsWith('p07.')), []);
+  assert.deepEqual(mine(w, c, 'ofir', IL(2026, 10, 5, 13)).filter((k) => k.startsWith('p07.')), []);
   assert.deepEqual(mine(w, c, 'ilai', IL(2026, 10, 5, 13)).filter((k) => k.startsWith('p07.')), ['p07.made']);
-  // He delivers a day late, at 09:45 on Tuesday: her seven checks open, due at 11:45, not "late 21 hours".
+  // He delivers a day late, at 09:45 on Tuesday: Ofir's seven checks open, due at 09:55, not "late 21 hours".
   mark(w, c, 'p07.made', IL(2026, 10, 6, 9, 45));
-  const s = proc(w, c, 'p07', IL(2026, 10, 6, 9, 56));
-  assert.deepEqual([hhmm(s.dueAt), s.status], ['6.10 11:45', 'today']);
-  assert.equal(mine(w, c, 'irit', IL(2026, 10, 6, 9, 56)).filter((k) => k.startsWith('p07.r.')).length, 7);
-  assert.deepEqual(mine(w, c, 'lior', IL(2026, 10, 6, 9, 56)).filter((k) => k.startsWith('p07.')), [], 'Lior does not carry the card');
-  assert.equal(proc(w, c, 'p07', IL(2026, 10, 6, 11, 46)).status, 'overdue');
-  // Office time: delivered at 17:30, the two hours end at 10:30 the next working morning.
+  const s = proc(w, c, 'p07', IL(2026, 10, 6, 9, 50));
+  assert.deepEqual([hhmm(s.dueAt), s.status], ['6.10 09:55', 'today']);
+  assert.equal(mine(w, c, 'ofir', IL(2026, 10, 6, 9, 50)).filter((k) => k.startsWith('p07.r.')).length, 7);
+  assert.deepEqual(mine(w, c, 'irit', IL(2026, 10, 6, 9, 50)).filter((k) => k.startsWith('p07.')), [], 'Irit is not part of the check');
+  assert.deepEqual(mine(w, c, 'lior', IL(2026, 10, 6, 9, 50)).filter((k) => k.startsWith('p07.')), [], 'nor Lior');
+  assert.equal(proc(w, c, 'p07', IL(2026, 10, 6, 9, 56)).status, 'overdue');
+  // His approval hands it to Irit: her sending is due two office hours later, and only now is it on her list.
+  marks(w, c, p7().items.filter((i) => i.key.startsWith('p07.r.') || i.key === 'p07.ofir').map((i) => i.key), IL(2026, 10, 6, 10));
+  assert.equal(hhmm(proc(w, c, 'p07', IL(2026, 10, 6, 10, 1)).dueAt), '6.10 12:00');
+  assert.deepEqual(mine(w, c, 'irit', IL(2026, 10, 6, 10, 1)).filter((k) => k.startsWith('p07.')), ['p07.sent']);
+  assert.deepEqual(mine(w, c, 'ofir', IL(2026, 10, 6, 10, 1)).filter((k) => k.startsWith('p07.')), []);
+  // The ladder's own window, not the office's hours: delivered at 17:55, his ten minutes end at 18:05 the same evening.
   const eve = afterMeeting();
-  mark(eve.w, eve.c, 'p07.made', IL(2026, 10, 5, 17, 30));
-  assert.equal(hhmm(proc(eve.w, eve.c, 'p07', IL(2026, 10, 5, 17, 31)).dueAt), '6.10 10:30');
-  // A client that started before version 8 keeps the later of the two deadlines.
+  mark(eve.w, eve.c, 'p07.made', IL(2026, 10, 5, 17, 55));
+  assert.equal(hhmm(proc(eve.w, eve.c, 'p07', IL(2026, 10, 5, 17, 56)).dueAt), '5.10 18:05');
+  // A client that started before version 8 is on the same ten minutes: the fast ladder is one for everybody.
   const old = afterMeeting(world(), { protocol_version: 7 });
   mark(old.w, old.c, 'p07.made', IL(2026, 10, 5, 12, 30));
-  assert.equal(hhmm(proc(old.w, old.c, 'p07', IL(2026, 10, 5, 12, 31)).dueAt), '5.10 14:30');
+  assert.equal(hhmm(proc(old.w, old.c, 'p07', IL(2026, 10, 5, 12, 31)).dueAt), '5.10 12:40');
 });
 
-test('the rest of the graphics (23): Ilai by the business day, then Ofir\'s hour from the hand-over, then Irit\'s business day from his approval', () => {
+test('the rest of the graphics (23): Ilai by the business day, then Ofir\'s ten minutes from the hand-over (version 9), then Irit\'s business day from his approval', () => {
   const { w, c } = afterMeeting(world(), { shoot_at: IL(2026, 10, 13, 10).toISOString(), editor: 'nadia' });
   const p23 = PROCESSES.find((p) => p.id === 'p23');
-  assert.deepEqual(stagesOf(p23.due), [{ key: 'p23.made', minutes: 60, office: true }, { key: 'p23.ofir', businessDays: 1 }]);
+  assert.deepEqual(stagesOf(p23.due), [{ key: 'p23.made', fast: 'review', qa: 'p23' }, { key: 'p23.ofir', businessDays: 1 }]);
   // Made: by the close of the business day after the shoot (Wednesday 14.10, 18:00).
   assert.equal(hhmm(proc(w, c, 'p23', IL(2026, 10, 13, 12)).dueAt), '14.10 18:00');
   assert.deepEqual(mine(w, c, 'ofir', IL(2026, 10, 13, 12)).filter((k) => k.startsWith('p23.')), [], 'nothing to check before it is uploaded');
-  // Handed to Ofir at 16:30 on Wednesday: his hour, in office time, ends at 17:30.
+  // Handed to Ofir at 16:30 on Wednesday: his ten minutes end at 16:40.
   mark(w, c, 'p23.made', IL(2026, 10, 14, 16, 30));
-  assert.equal(hhmm(proc(w, c, 'p23', IL(2026, 10, 14, 16, 31)).dueAt), '14.10 17:30');
+  assert.equal(hhmm(proc(w, c, 'p23', IL(2026, 10, 14, 16, 31)).dueAt), '14.10 16:40');
   assert.equal(mine(w, c, 'ofir', IL(2026, 10, 14, 16, 31)).filter((k) => k.startsWith('p23.q.')).length, 7);
   // He approves on Thursday at 10:00: Irit sends by the close of the next business day (Sunday 18.10).
   for (const i of p23.items.filter((x) => x.key.startsWith('p23.q.') || x.key === 'p23.ofir')) mark(w, c, i.key, IL(2026, 10, 15, 10));

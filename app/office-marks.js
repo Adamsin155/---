@@ -42,13 +42,23 @@ export const QA_KINDS = {
     kind: 'graphics', base: 'p23', proc: 'p23', ready: 'p23.made', approved: 'p23.ofir', checks: itemsOf('p23', 'p23.q.'),
     unit: 'גרפיקה', units: 'גרפיקות', title: 'יתרת הגרפיקות', fixer: () => 'ilai',
   },
+  // Protocol v9: the first 9 graphics are checked by Ofir too, with the same returns.
+  graphics9: {
+    kind: 'graphics9', base: 'p07', proc: 'p07', ready: 'p07.made', approved: 'p07.ofir', checks: itemsOf('p07', 'p07.r.'),
+    unit: 'גרפיקה', units: 'גרפיקות', title: '9 הגרפיקות הראשונות', fixer: () => 'ilai',
+  },
 };
-export const kindOfProc = (procId) => ({ p25: 'videos', p23: 'graphics' })[baseOf(procId)] || null;
+export const kindOfProc = (procId) => ({ p25: 'videos', p23: 'graphics', p07: 'graphics9' })[baseOf(procId)] || null;
+// The kinds that are graphics (Ilai's): checked on the fast ladder (FAST_LADDER in app/protocol.js).
+export const GRAPHICS_KINDS = ['graphics9', 'graphics'];
+// A check that was under way when the first graphics passed to Ofir (the migration of
+// protocol v9 writes it once): his minutes start at that moment, not hours before it.
+export const movedKey = (pre, kind) => `${pre}${QA_KINDS[kind].base}.moved`;
 
 export const returnKey = (pre, kind, n) => `${pre}${QA_KINDS[kind].base}.return.${n}`;
 export const fixedKey = (pre, kind, n) => `${pre}${QA_KINDS[kind].base}.fixed.${n}`;
 export const fixedItemKey = (pre, kind, n, i) => `${fixedKey(pre, kind, n)}.${i}`;
-export const QA_MARK = /^(?:r\d+\.)?p2[35]\.(?:return|fixed)\.\d+(?:\.\d+)?$/;
+export const QA_MARK = /^(?:r\d+\.)?p(?:07|23|25)\.(?:return|fixed)\.\d+(?:\.\d+)?$/;
 
 // Limits that keep a return inside one check's note.
 export const ISSUE_MAX = 30;
@@ -100,11 +110,14 @@ export function qaState(checks, pre, kind) {
   const ready = checks[`${pre}${k.ready}`];
   let readyAt = real(ready) ? new Date(ready.at) : null;
   for (const r of rounds) if (r.fixedAt && (!readyAt || r.fixedAt > readyAt)) readyAt = r.fixedAt;
+  const moved = checks[movedKey(pre, kind)];
+  if (readyAt && moved?.state === 'done' && new Date(moved.at) > readyAt) readyAt = new Date(moved.at);
   const ap = checks[`${pre}${k.approved}`];
   const base = { kind, pre, rounds, returns: rounds.length, open: null, readyAt: null, round: rounds.length + 1 };
   if (ap && (ap.state === 'done' || ap.state === 'na')) return { ...base, stage: 'approved', approvedAt: new Date(ap.at) };
   if (last?.open) return { ...base, stage: 'fixing', open: last, round: rounds.length };
-  if (readyAt && (!last || readyAt > last.at)) return { ...base, stage: 'ofir', readyAt };
+  // (At or after the last return: a return that was fixed in the very instant it was written is fixed.)
+  if (readyAt && (!last || readyAt >= last.at)) return { ...base, stage: 'ofir', readyAt };
   return { ...base, stage: 'none' };
 }
 
@@ -191,9 +204,9 @@ export function readAccessFix(check) {
 const nameOf = (p) => PEOPLE[p]?.name || p || '';
 export function describeOfficeMark(key, action, note) {
   const clear = action === 'clear';
-  let m = /^(p2[35])\.(return|fixed)\.(\d+)(?:\.(\d+))?$/.exec(key);
+  let m = /^(p07|p2[35])\.(return|fixed)\.(\d+)(?:\.(\d+))?$/.exec(key);
   if (m) {
-    const what = m[1] === 'p25' ? 'הסרטונים' : 'יתרת הגרפיקות';
+    const what = m[1] === 'p25' ? 'הסרטונים' : m[1] === 'p07' ? '9 הגרפיקות הראשונות' : 'יתרת הגרפיקות';
     if (m[2] === 'return') {
       if (clear) return `ביטל/ה את ההחזרה לתיקון (${what}, סבב ${m[3]})`;
       const v = json(note);
@@ -203,6 +216,7 @@ export function describeOfficeMark(key, action, note) {
     if (m[4] !== undefined) return clear ? `ביטל/ה סימון תיקון (${what}, סבב ${m[3]})` : `סימן/ה תיקון (${what}, סבב ${m[3]}, שורה ${Number(m[4]) + 1})`;
     return clear ? `ביטל/ה ״התיקונים מוכנים״ (${what}, סבב ${m[3]})` : `התיקונים מוכנים וחזרו לבדיקה של אופיר (${what}, סבב ${m[3]})`;
   }
+  if (key === 'p07.moved') return clear ? null : 'בדיקת 9 הגרפיקות עברה לאופיר (גרסה 9 של הפרוטוקול)';
   if (key === 'p22a.reason') {
     const v = json(note);
     return clear ? 'ביטל/ה את סיבת השיוך' : `נימק/ה את בחירת העורך${v?.editor ? ` (${nameOf(v.editor)})` : ''}: ${v?.reason || ''}`;

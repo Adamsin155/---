@@ -23,7 +23,8 @@ import { PROCESSES } from '../app/protocol.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const SHOTS = process.env.SHOTS === '1';
-const OUT = fileURLToPath(new URL('../docs/design/full-flow/', import.meta.url));
+// SHOTS_OUT=<folder>: the screenshots go there instead of over the recorded ones (as SIM_OUT does for the simulation).
+const OUT = process.env.SHOTS_OUT ? `${process.env.SHOTS_OUT.replace(/[\\/]+$/, '')}/` : fileURLToPath(new URL('../docs/design/full-flow/', import.meta.url));
 const PHONE = { width: 390, height: 844 };
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*', 'access-control-expose-headers': '*' };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
@@ -215,8 +216,23 @@ try {
     }
   });
 
-  await step('5: "לשלוח ללקוח קישור לדף הסטטוס" opens when the 9 graphics are ready; the review is Irit\'s alone, with its own deadline', async () => {
+  // Protocol v9 (docs/ops.md, section 57): the 9 graphics go to Ofir's check first, on his fast ladder.
+  await step('5: the 9 graphics are with Ofir first: Irit only sees where they are; once he approved, "לשלוח ללקוח קישור לדף הסטטוס" opens and the sending is hers', async () => {
     const { page, ctx, db, fake } = await signedIn('irit', office());
+    // Ilai handed them over at 09:40; it is 10:00. Nothing of 7 is Irit's to do yet.
+    assert.equal(await card(page, GFX, 'p07a').count(), 0);
+    assert.equal(await card(page, GFX, 'p07').count(), 0);
+    const waiting = page.locator(`#mine-list [data-flow="waiting-ofir-${GFX}"]`);
+    await waiting.waitFor();
+    assert.match(await text(waiting), /9 הגרפיקות של גל אשכנזי: מחכה לאישור של אופיר \(באיחור\)/);
+    assert.ok((await waiting.boundingBox()).height >= 44);
+    await noOverflow(page);
+    await shot(waiting, 'irit-waiting-for-ofir');
+    // Ofir checks and approves (on his own screen).
+    for (const k of [...itemsOf('p07').filter((x) => x.startsWith('p07.r.')), 'p07.ofir']) db.protocol_checks.push({ client_id: GFX, item_key: k, state: 'done', note: null, by_email: emailOf('ofir'), at: NOW.toISOString() });
+    await page.click('#btn-refresh');
+    await settle(page);
+    assert.equal(await page.locator(`#mine-list [data-flow="waiting-ofir-${GFX}"]`).count(), 0);
     const c = card(page, GFX, 'p07a');
     await c.waitFor();
     assert.equal(await text(c.locator('.wlabel')), 'לשלוח ללקוח קישור לדף הסטטוס');
@@ -228,22 +244,51 @@ try {
     await card(page, GFX, 'p07a').locator('.cbx').check();
     await settle(page);
     assert.equal(checkOf(db, GFX, 'p07a.sent')?.state, 'done');
-    // The review card: hers, due two office hours after the graphics arrived (09:40 → 11:40), not late.
-    const review = card(page, GFX, 'p07');
-    assert.equal(await review.count(), 1);
-    assert.match(await text(review.locator('.wc-when')), /11:40/);
-    assert.doesNotMatch(await text(review.locator('.wc-when')), /באיחור/);
-    await review.locator('button.wc-open').click();
-    assert.equal(await review.locator('.cbx').count(), 7, 'the seven checks; "sent" waits for them');
-    await shot(review, 'irit-graphics-review-card');
+    // The sending card: hers, due two office hours after his approval (10:00 → 12:00), not late.
+    const send = card(page, GFX, 'p07');
+    assert.equal(await send.count(), 1);
+    assert.match(await text(send.locator('.wc-when')), /12:00/);
+    assert.doesNotMatch(await text(send.locator('.wc-when')), /באיחור/);
+    assert.equal(await text(send.locator('.wlabel')), 'נשלחו ללקוח לאישור');
+    assert.equal(await send.locator('.cbx').count(), 1, 'the seven checks are not hers');
+    await shot(send, 'irit-graphics-send-card');
     await ctx.close();
-    // Lior does not carry it; before the graphics are ready Irit has nothing of it either.
+    // Ofir, before he approved: the card with his seven checks, late since 09:50, with a button straight
+    // to that check; and the countdown in "עכשיו" (at 10:00: the extra five minutes are over too).
+    const o = await signedIn('ofir', office());
+    const review = card(o.page, GFX, 'p07');
+    await review.waitFor();
+    assert.match(await text(review.locator('.wc-when')), /באיחור/);
+    const go = review.locator('a.ik-go');
+    assert.deepEqual([await text(go), await go.getAttribute('href')], ['לבדיקת הגרפיקות', `qa.html#review-${GFX}-p07`]);
+    const clock = o.page.locator('#now-bar .now-clock.k-fast').filter({ hasText: 'סטודיו גל' });
+    await clock.waitFor();
+    assert.equal(await clock.getAttribute('data-phase'), 'told');
+    assert.match(await text(clock), /באיחור ליאור עודכן/);
+    assert.match(await text(clock), /לבדוק ולאשר: 9 הגרפיקות הראשונות/);
+    const btn = clock.locator('a.now-go');
+    assert.deepEqual([await text(btn), await btn.getAttribute('href')], ['לבדיקה', `qa.html#review-${GFX}-p07`]);
+    assert.ok((await btn.boundingBox()).height >= 44);
+    await noOverflow(o.page);
+    await shot(o.page.locator('#now-bar'), 'ofir-fast-clock');
+    // The button opens his screen on that very check: the seven checks, "אישור" and "החזרה לתיקון".
+    await btn.click();
+    await o.page.waitForSelector('#dlg-qa[open]');
+    assert.match(await text(o.page.locator('#qa-dlg-h')), /בקרת איכות · גל אשכנזי/);
+    assert.match(await text(o.page.locator('#qa-meta')), /9 הגרפיקות הראשונות · בדיקה ראשונה · באיחור · ליאור עודכן · לאשר עד היום 09:50/);
+    assert.equal(await o.page.locator('#qa-checks input').count(), 7);
+    await shot(o.page.locator('#dlg-qa'), 'ofir-graphics9-review-dialog');
+    await o.ctx.close();
+    // Lior does not carry it; before the graphics are ready nobody has the check.
     const lior = await signedIn('lior', office());
     assert.equal(await card(lior.page, GFX, 'p07').count(), 0);
+    assert.equal(await lior.page.locator('#now-bar .now-clock.k-fast').count(), 0);
     await lior.ctx.close();
-    const irit = await signedIn('irit', office());
-    assert.equal(await card(irit.page, NEW, 'p07').count(), 0, 'nothing to review before it arrives');
-    await irit.ctx.close();
+    for (const role of ['irit', 'ofir']) {
+      const x = await signedIn(role, office());
+      assert.equal(await card(x.page, NEW, 'p07').count(), 0, `nothing to review before it arrives: ${role}`);
+      await x.ctx.close();
+    }
   });
 
   await step('5: process 5 does not close on one network: the card names what was saved and "אין עוד" closes it', async () => {

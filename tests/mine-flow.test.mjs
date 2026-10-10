@@ -45,7 +45,8 @@ test('each queue with work gives one counted line, in its group, to its page', (
   assert.equal(ofir['landing-qa'].href, 'qa.html#qa-h');
 
   const lior = byId(linesOf(db, 'lior'));
-  assert.deepEqual(Object.keys(lior).sort(), ['access', 'availability-missing', 'campaigns', 'changes', 'landing-assign', 'landing-shoot', 'paused', 'urgent-back']);
+  // Protocol v9: the editor's assignment is Ofir's alone, so "מחכים לשיוך עורך" is not a line of Lior's.
+  assert.deepEqual(Object.keys(lior).sort(), ['access', 'availability-missing', 'campaigns', 'changes', 'landing-shoot', 'paused', 'urgent-back']);
   assert.deepEqual([lior['urgent-back'].n, lior['urgent-back'].bucket, lior['urgent-back'].href], [COUNTS.urgentBack, 'urgent', 'decisions.html#ur-h']);
   assert.deepEqual([lior.paused.n, lior.paused.bucket, lior.paused.href], [COUNTS.paused, 'today', 'decisions.html#pz-h']);
   assert.deepEqual([lior.access.n, lior.access.href], [COUNTS.broken, 'decisions.html#ac-h']);
@@ -116,8 +117,8 @@ test('an empty queue gives no line', () => {
 test('rows that could not be read give no line, and nothing breaks', () => {
   const db = flowWorld();
   const none = { access: null, requests: null, messages: null, availability: null, liorShoot: null };
-  assert.deepEqual(linesOf(db, 'lior', { extra: none }).map((l) => l.id).sort(), ['landing-assign', 'landing-shoot', 'paused', 'urgent-back', 'campaigns'].sort());
-  assert.deepEqual(flowLines({ ...inputs(db, 'lior', { extra: none }), reviews: null }).map((l) => l.id).sort(), ['landing-assign', 'landing-shoot', 'paused', 'urgent-back'].sort());
+  assert.deepEqual(linesOf(db, 'lior', { extra: none }).map((l) => l.id).sort(), ['landing-shoot', 'paused', 'urgent-back', 'campaigns'].sort());
+  assert.deepEqual(flowLines({ ...inputs(db, 'lior', { extra: none }), reviews: null }).map((l) => l.id).sort(), ['landing-shoot', 'paused', 'urgent-back'].sort());
   assert.deepEqual(linesOf(db, 'irit', { extra: none }).map((l) => l.id).sort(), ['followup', 'landing-shoot']); // the follow-up is counted from the page's own rows
   assert.deepEqual(linesOf(db, 'eli', { extra: none }), []);
   // The owners, a field agent and somebody the app could not identify: no lines.

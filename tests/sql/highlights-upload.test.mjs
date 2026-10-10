@@ -92,7 +92,9 @@ test('the migration runs again safely: nothing doubled, and an upload that is re
 test('who marks it: Ofir and the office; not Ilai or an editor (the database agrees with the app)', async () => {
   // No row of its own in the writers table: the office's alone.
   assert.deepEqual((await db.query("select key from private.protocol_writers where proc = 'p08b'")).rows, []);
-  assert.equal((await db.query('select count(*)::int as n from private.protocol_writers')).rows[0].n, writerRows().length);
+  // The table as it stood at this migration: 86 rows (protocol v9 added one, p07.@qafixed: tests/sql/fast-ladder.test.mjs).
+  assert.equal((await db.query('select count(*)::int as n from private.protocol_writers')).rows[0].n, 86);
+  assert.ok(writerRows().length >= 86);
   for (const who of ['owner', 'irit', 'ofir', 'ilai', 'nadia']) {
     const person = who === 'owner' ? null : who;
     const app = mayWrite({ person, client: { editor: 'nadia', rounds: [] }, key: KEY });

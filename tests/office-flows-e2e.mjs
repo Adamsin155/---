@@ -81,6 +81,10 @@ const quoteN = { id: randomUUID(), selection: { paid: [], free: { simeonJoin: fa
 const N = client({ name: 'סטודיו נטלי', shoot_type: 'natali', shoot_at: IL('2026-10-19T10:00:00'), quote_id: quoteN.id });
 all(N, UPTO_SHOOT, IL('2026-10-19T09:00:00'));
 all(N, ['p19'], IL('2026-10-19T15:00:00'), null);
+// The day was closed from the card with "the drive is back with Lior" as "לא רלוונטי": Lior never confirmed it.
+// So Ofir's assignment does not close Lior's own item of 22א for him (since protocol v9 it does when he
+// confirmed), and 22א stays open on that item, as it did in this scenario before.
+checks.find((x) => x.client_id === N.id && x.item_key === 'p19.took').state = 'na';
 // Ofir's characterization at 12:00 today.
 const C = client({ name: 'גן ורד', char_at: IL('2026-10-20T12:00:00'), deal_at: IL('2026-10-19T09:00:00'), created_at: IL('2026-10-19T09:00:00'), address: 'ויצמן 5, רחובות' });
 all(C, ['p01', 'p02', 'p03'], IL('2026-10-19T09:10:00'), null);
@@ -328,7 +332,8 @@ await step('Ofir\'s queue, one tap from "המשימות שלי": what waits for 
   await ofir.waitForSelector('#qa-list .of-card');
   const cards = await ofir.locator('#qa-list > li.of-card').evaluateAll((els) => els.map((e) => [e.querySelector('.wclient').textContent, e.querySelector('.wtitle').textContent, e.querySelector('.of-line').textContent]));
   assert.deepEqual(cards.map((x) => x.slice(0, 2)), [['קפה גליה', 'יתרת הגרפיקות'], ['מספרת רון', 'סרטונים']]);
-  assert.match(cards[0][2], /^מחכה שעה מתוך שעה · בקרה עד היום 10:00/);
+  // The graphics are on Ofir's fast ladder (protocol v9): ten minutes from the hand-over at 09:00, long passed by 10:00.
+  assert.match(cards[0][2], /^באיחור · ליאור עודכן · הגיע היום 09:00 · לאשר עד היום 09:10/);
   assert.match(cards[1][2], /^מחכה 30 דק׳ מתוך שעה · בקרה עד היום 10:30/);
   assert.equal(await ofir.locator('#qa-list > li').first().locator('.s-overdue').count(), 1);
   // Today's characterization, with navigation; the Natali shoot waiting for an editor, Nirel preselected.
@@ -642,11 +647,11 @@ await step('Ilai: the characterization day card; the vault statuses check the ac
   await toastHas(ilai, 'Metricool סומן כמחובר');
   assert.equal(db.clients.find((c) => c.id === I.id).links.metricool, 'https://app.metricool.com/shahar');
   assert.ok(checkOf(I, 'p06.metricool') && checkOf(I, 'p06.name'));
-  await ilai.locator('.il-card', { hasText: 'מאפיית שחר' }).locator('button', { hasText: 'מוכן לבדיקה (לעירית)' }).click();
-  await toastHas(ilai, '9 הגרפיקות עברו לבדיקה של עירית.');
+  await ilai.locator('.il-card', { hasText: 'מאפיית שחר' }).locator('button', { hasText: 'מוכן לבדיקה (לאופיר)' }).click();
+  await toastHas(ilai, '9 הגרפיקות עברו לבדיקה של אופיר.');
   assert.ok(checkOf(I, 'p07.made'));
   await ilai.waitForSelector('#handoff:not([hidden])');
-  assert.match(await ilai.locator('#handoff').innerText(), /לשלוח לעירית בוואטסאפ/);
+  assert.match(await ilai.locator('#handoff').innerText(), /לשלוח לאופיר בוואטסאפ/); // protocol v9: the first 9 graphics go to Ofir's check
   await ilai.click('#handoff-close');
   await ilai.locator('.il-card', { hasText: 'מאפיית שחר' }).locator('label', { hasText: 'גאנט התוכן נפתח במערכת' }).locator('input').check();
   await toastHas(ilai, 'שלד הגאנט סומן.');
@@ -684,6 +689,8 @@ await step('Thursday: the pass (עברתי, one tap for the rest, the day\'s con
   // has been open, and offers a task, an update to Lior, or a written reason.
   const stuckIds = await o.locator('#ps-list .ps-row:not(.is-seen):has(.ps-stuck-acts)').evaluateAll((els) => els.map((e) => e.id));
   assert.ok(stuckIds.length >= 2, `stuck rows: ${stuckIds.length}`);
+  // (One of them is סטודיו נטלי: its 22א is still open on Lior's "the drive came back", see the fixture.)
+  assert.equal(checkOf(N, 'p22a.drive'), null);
   for (const id of stuckIds) {
     const row = o.locator(`#${id}`);
     assert.equal(await row.locator('button', { hasText: /^עברתי$/ }).count(), 0, 'no bare "עברתי" on a stuck client');

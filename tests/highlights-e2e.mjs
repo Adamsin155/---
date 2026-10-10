@@ -181,7 +181,8 @@ await step('the client card: 8ב right after 8, with its words and a checkbox Of
   // His own view lists it among his open processes, after the characterization's
   // (the finished process 8 is folded away); the whole protocol has it between 7ב and 9.
   const mine = await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id));
-  assert.deepEqual(mine.slice(0, 3), ['p04', 'p05', 'p08b'], mine.join(','));
+  // (Since protocol v9 process 7 is among his too: the check of the first graphics is Ofir's.)
+  assert.deepEqual(mine.slice(0, 4), ['p04', 'p05', 'p07', 'p08b'], mine.join(','));
   await page.click('#view-toggle');
   await page.waitForSelector('#p07b', { state: 'attached' });
   const ids = await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id));
@@ -196,8 +197,12 @@ await step('the client card: 8ב right after 8, with its words and a checkbox Of
   assert.equal(await page.isEnabled('#i-p08b-posted'), true);
   await shot('03-card-p08b');
   // One click marks it, and the process is done.
+  // (It used to stay on the screen as done, being the last of his processes in that phase. Since protocol v9
+  // the check of the first graphics, 7, is his and still open there, so the finished one folds into the
+  // "N תהליכים הושלמו" row with the other finished ones, as every finished process of an open phase does.)
   await page.click('#i-p08b-posted');
-  await page.waitForSelector('#p08b.s-done');
+  await page.waitForSelector('#p08b', { state: 'detached' });
+  assert.match(await page.locator('.done-row').first().innerText(), /תהליכים הושלמו/);
   assert.ok(db.protocol_checks.some((c) => c.client_id === ron.id && c.item_key === 'p08b.posted' && c.state === 'done'));
 });
 

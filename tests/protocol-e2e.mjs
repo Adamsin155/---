@@ -257,10 +257,13 @@ await page.waitForSelector('#p02');
 assert.match(await page.locator('#viewbar').innerText(), /רק התהליכים והפריטים שלך/);
 assert.equal(await page.locator('#p11').count(), 1); // hers
 assert.equal(await page.locator('#p11b').count(), 0); // Lior's
-// Process 7 is Ilai's graphics: Irit sees her review items; Ilai's own item is summed up in one line.
+// Process 7 is Ilai's graphics, checked by Ofir alone (protocol v9): Irit sees her own items (the sending and
+// the client's answer); Ilai's item and Ofir's seven checks and approval are summed up in one line.
 assert.equal(await page.locator('#i-p07-made').count(), 0);
-assert.equal(await page.locator('#i-p07-r-spelling').count(), 1);
-assert.match(await page.locator('#p07 .others-note').textContent(), /ועוד פריט אחד בתהליך הזה אצל עילאי/);
+assert.equal(await page.locator('#i-p07-r-spelling').count(), 0);
+assert.equal(await page.locator('#i-p07-ofir').count(), 0);
+assert.equal(await page.locator('#i-p07-sent').count(), 1);
+assert.match(await page.locator('#p07 .others-note').textContent(), /ועוד 9 פריטים בתהליך הזה אצל עילאי.*אופיר/);
 assert.match(await page.locator('.cc-next .k').innerText(), /הצעד הבא שלך/);
 assert.match(await page.locator('#p02 .others-note').textContent(), /ועוד 2 פריטים בתהליך הזה אצל ליאור/); // p02.deal, p02.team
 assert.equal(await page.locator('#i-p02-deal').count(), 0);
@@ -289,12 +292,12 @@ assert.ok(db.protocol_checks.some((c) => c.client_id === created.id && c.item_ke
 assert.match(await page.locator('#p02').textContent(), /בוצע · עירית/); // names, not email prefixes
 // Focus stays on the checkbox after saving.
 assert.equal(await page.evaluate(() => document.activeElement?.id), 'i-p02-opened');
-// Sending the graphics waits for the review items.
+// Sending the graphics waits for Ofir's approval (protocol v9).
 const donePill = await pill('#i-p02-opened');
 assert.ok(donePill.w === openPill.w && donePill.h === openPill.h && /בוצע/.test(donePill.word), `the done pill keeps its box: ${JSON.stringify(donePill)}`);
 assert.equal(await page.locator('#i-p07-sent').isDisabled(), true);
 assert.equal((await pill('#i-p07-sent')).word, 'none', 'an item that cannot be marked does not say "סיימתי"');
-assert.match(await page.locator('#p07').textContent(), /ממתין ל: 7 בדיקות למעלה/);
+assert.match(await page.locator('#p07').textContent(), /ממתין ל: אופיר אישר את הגרפיקות/);
 
 // A required item needs a reason to be marked not relevant.
 await page.click('#i-p02-intro-na', { force: true });

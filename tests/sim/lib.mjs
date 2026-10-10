@@ -322,21 +322,7 @@ export class Sim {
       reclaim: async () => [],
       updateLog: async (ids, patch) => { for (const r of db.reminder_log) if (ids.includes(r.id)) Object.assign(r, patch); },
       subscriptionOk: async () => null, subscriptionFailed: async () => null, removeSubscription: async () => null,
-      // supabase/functions/reminders/index.ts db.autoAssign, as written there.
-      autoAssign: async (a) => {
-        if (a.patch) {
-          const c = db.clients.find((x) => x.id === a.clientId);
-          if (!c || (!a.n && c.editor)) return false;
-          Object.assign(c, a.patch);
-        }
-        for (const x of [...a.checks, a.reason]) {
-          if (db.protocol_checks.some((r) => r.client_id === a.clientId && r.item_key === x.key)) continue;
-          db.protocol_checks.push({ client_id: a.clientId, item_key: x.key, state: "done", note: x.note, by_email: null, at: iso });
-        }
-        if (a.task) db.client_tasks.push({ id: randomUUID(), done_at: null, created_at: iso, urgent: false, started_at: null, source: null, due_on: null, ...a.task, created_by_email: null });
-        this.autoAssigned = { at: iso, plan: a };
-        return true;
-      },
+      // (Until protocol v9 the tick also assigned an editor here, db.autoAssign. Ofir assigns now: steps.mjs assignGo.)
     };
   }
   // Runs the tick for every minute up to `until` (default: the simulated now). Returns the new rows of the log.

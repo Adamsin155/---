@@ -19,10 +19,11 @@ import {
 } from './protocol-ui.js';
 import {
   qaQueue, qaFixing, charsToday, awaitingEditor, editorLoad, loadText, dayText, preselected, reasonNeeded, reasonHint,
-  eligibleEditors, jointFromSelection, reasonNote, folderTitle, folderDueOn, QA_TARGET_MINUTES,
-  swapClock, swapReasonNeeded, swapNote,
+  eligibleEditors, jointFromSelection, reasonNote, folderTitle, folderDueOn,
+  swapClock, swapReasonNeeded, swapNote, suggestEditor, SUGGESTED_TAG,
 } from './qa-logic.js';
-import { autoReasonOf } from './auto-assign.js';
+import { autoReasonOf, AUTO_DRIVE_NOTE } from './auto-assign.js';
+import { ladderWords } from './fast-ladder.js';
 import {
   QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, REASON_KEY, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
 } from './office-marks.js';
@@ -145,8 +146,9 @@ function renderBanners(ms, now) {
 
 function qaCard(x, ms, now) {
   const k = QA_KINDS[x.kind];
-  const pct = Math.min(100, Math.round((x.waited / QA_TARGET_MINUTES) * 100));
-  const inMeeting = !!meetingNow(ms, now);
+  const pct = Math.min(100, Math.round((x.waited / x.target) * 100));
+  // The graphics are on Ofir's fast ladder (protocol v9): its own minutes, and no stop for a meeting.
+  const inMeeting = !x.fast && !!meetingNow(ms, now);
   return h('li', { class: `of-card${x.late ? ' is-late' : ''}`, 'data-key': x.key },
     h('div', { class: 'of-head' },
       h('a', { class: 'wclient', href: clientUrl(x.client.id, x.proc.id) }, clientLabel(x.client)), landingTag(x.client),
@@ -155,11 +157,13 @@ function qaCard(x, ms, now) {
       x.late ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'עבר היעד') : null),
     // A client in landing: the work is here as usual, and its hour is counted from the activation.
     x.landing ? h('p', { class: 'of-line muted' }, LANDING_LINE) : h('p', { class: 'of-line' },
-      `מחכה ${waitWords(x.waited)} מתוך שעה · בקרה עד ${formatWhen(x.dueAt, now)}`,
+      x.fast ? `${ladderWords(x.fast, now)} · הגיע ${formatWhen(x.readyAt, now)} · לאשר עד ${formatWhen(x.dueAt, now)}`
+        : `מחכה ${waitWords(x.waited)} מתוך שעה · בקרה עד ${formatWhen(x.dueAt, now)}`,
       inMeeting ? h('span', { class: 'muted' }, ' · השעון עצור בזמן האפיון') : null),
-    x.landing ? null : h('span', { class: `of-meter${x.late ? ' is-late' : ''}`, role: 'img', 'aria-label': `זמן המתנה: ${x.waited} מתוך ${QA_TARGET_MINUTES} דקות` },
+    x.landing ? null : h('span', { class: `of-meter${x.late ? ' is-late' : ''}`, role: 'img', 'aria-label': `זמן המתנה: ${x.waited} מתוך ${x.target} דקות` },
       h('span', { style: `inline-size:${pct}%` })),
-    h('div', { class: 'of-acts' },
+    // The graphics are checked by Ofir alone (protocol v9). Lior supervises here: he sees them, without the button.
+    me === 'lior' && x.kind !== 'videos' ? h('p', { class: 'of-line muted qa-ofir-only' }, 'אופיר בודק את הגרפיקות.') : h('div', { class: 'of-acts' },
       h('button', {
         type: 'button', class: 'btn k-btn-navy btn-sm', id: `qa-open-${x.key.replace(/\W/g, '_')}`,
         'aria-label': `לבדיקה: ${x.client.name}, ${k.title}`, onclick: () => openQa(x),
@@ -185,14 +189,17 @@ function assignCard(a, load, now) {
   const type = a.ctx.shoot_type;
   const joint = jointFromSelection(selections.get(a.client.quote_id));
   const pre = preselected(type, joint);
+  const sug = suggestEditor(load, type, joint);
   return h('li', { class: 'of-card', 'data-key': a.key },
     h('div', { class: 'of-head' },
       h('a', { class: 'wclient', href: clientUrl(a.client.id, a.proc.id) }, clientLabel(a.client)), landingTag(a.client),
       h('span', { class: 'wtitle' }, `${SHOOT_TYPES[type]?.name || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
       a.state.status === 'overdue' && a.client.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
     h('p', { class: 'of-line' }, a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : '',
-      joint ? ' · יום משותף לנטלי ולסמיון' : pre ? ` · ${PEOPLE[pre].name} מסומנת מראש (${loadText(load[pre])})` : ''),
-    h('div', { class: 'of-acts' },
+      joint ? ' · יום משותף לנטלי ולסמיון' : pre ? ` · ${PEOPLE[pre].name} מסומנת מראש (${loadText(load[pre])})` : sug ? ` · ${SUGGESTED_TAG}: ${PEOPLE[sug.editor].name} (${loadText(load[sug.editor])})` : ''),
+    a.fast ? h('p', { class: 'of-line as-fast' }, ladderWords(a.fast, now), ` · לשייך עד ${formatWhen(a.fast.dueAt, now)}`) : null,
+    // The assignment is Ofir's alone (protocol v9). Lior supervises here: he sees it, without the button.
+    me === 'lior' ? h('p', { class: 'of-line muted as-ofir-only' }, 'אופיר משייך את העורך.') : h('div', { class: 'of-acts' },
       h('button', { type: 'button', class: 'btn k-btn-navy btn-sm', id: `as-open-${a.key.replace(/\W/g, '_')}`, 'aria-label': `שיוך עורך: ${a.client.name}${roundText(a.ctx)}`, onclick: () => openAssign(a) }, 'שיוך עורך')));
 }
 
@@ -236,7 +243,7 @@ function openQa(x) {
   const k = QA_KINDS[x.kind];
   const now = new Date();
   $('qa-dlg-h').textContent = `בקרת איכות · ${x.client.name}`;
-  $('qa-meta').textContent = `${k.title}${roundText(x.ctx)} · ${x.round > 1 ? `בדיקה ${x.round}, אחרי ${x.round - 1 === 1 ? 'סבב תיקונים אחד' : `${x.round - 1} סבבי תיקונים`}` : 'בדיקה ראשונה'} · ${x.landing ? LANDING_LINE : `מחכה ${waitWords(x.waited)} · בקרה עד ${formatWhen(x.dueAt, now)}`}`;
+  $('qa-meta').textContent = `${k.title}${roundText(x.ctx)} · ${x.round > 1 ? `בדיקה ${x.round}, אחרי ${x.round - 1 === 1 ? 'סבב תיקונים אחד' : `${x.round - 1} סבבי תיקונים`}` : 'בדיקה ראשונה'} · ${x.landing ? LANDING_LINE : x.fast ? `${ladderWords(x.fast, now)} · לאשר עד ${formatWhen(x.dueAt, now)}` : `מחכה ${waitWords(x.waited)} · בקרה עד ${formatWhen(x.dueAt, now)}`}`;
   const last = x.rounds.at(-1);
   fill($('qa-prev'), last ? h('details', { class: 'of-prev', open: true },
     h('summary', {}, `מה הוחזר בסבב ${last.n} (לבדוק שתוקן)`),
@@ -245,6 +252,7 @@ function openQa(x) {
   // the card's); the ones uploaded into the system, if any, are played here. The
   // graphics are in the client's files.
   const videos = x.kind === 'videos';
+  const first9 = x.kind === 'graphics9';
   const cs = checksOf(x.client);
   const drive = videos ? videosLinkOf(x.client, cs, x.pre) : null;
   forgetFiles(x.client.id);
@@ -253,9 +261,9 @@ function openQa(x) {
     videos && !drive ? h('p', { class: 'hint', id: 'qa-nodrive' }, 'אין קישור לסרטונים בדרייב. אם גם לא הועלו לכאן סרטונים: לבקש מהעורך.') : null,
     mountWorkFiles({
       client: x.client, kind: videos ? 'deliverable_video' : 'deliverable_graphic', me, readOnly: true, hideEmpty: videos, idp: 'qa-f', toast,
-      window: videos ? videoWindow(x.client, cs, Number(/^r(\d+)\./.exec(x.pre)?.[1] || 1)) : graphicsWindow(cs, 'rest'),
+      window: videos ? videoWindow(x.client, cs, Number(/^r(\d+)\./.exec(x.pre)?.[1] || 1)) : graphicsWindow(cs, first9 ? 'first' : 'rest'),
       title: videos ? 'סרטונים שהועלו למערכת' : 'הגרפיקות לבדיקה',
-      total: videos ? null : Math.max(0, (Number(x.client.deliverables?.graphics) || 0) - 9) || null,
+      total: videos ? null : first9 ? 9 : Math.max(0, (Number(x.client.deliverables?.graphics) || 0) - 9) || null,
     }));
   $('qa-checks-legend').textContent = `${k.checks.length} הבדיקות (${k.title})`;
   renderChecks();
@@ -355,6 +363,7 @@ $('qa-form').addEventListener('submit', async (e) => {
   $('qa-approve').disabled = false;
   qaDlg.close();
   toast(x.kind === 'videos' ? `אושר. עירית מקבלת ״לשלוח ללקוח עכשיו״, וליאור ״קמפיין״.` : 'אושר. עירית מקבלת ״לשלוח ללקוח״.');
+  states.clear();
   offerHandoff({ client: x.client, key, checks: () => checks[x.client.id], me });
 });
 
@@ -412,7 +421,7 @@ function openAssign(a) {
   $('as-h').textContent = `${sw ? 'החלפת עורך' : 'שיוך עורך'} · ${a.client.name}${roundText(a.ctx)}`;
   $('as-meta').textContent = sw
     ? [SHOOT_TYPES[type]?.name, `עכשיו אצל ${PEOPLE[sw.from].name}`, sw.job.day === null ? null : dayText(sw.job.day, sw.job.of), sw.job.paused ? 'העריכה עצורה' : null].filter(Boolean).join(' · ')
-    : [SHOOT_TYPES[type]?.name, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.client.landing === true ? LANDING_LINE : a.dueAt ? `לשייך עד ${formatWhen(a.dueAt)}` : 'לשייך עד 12:00 ביום העסקים שאחרי הצילום'].filter(Boolean).join(' · ');
+    : [SHOOT_TYPES[type]?.name, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.client.landing === true ? LANDING_LINE : a.fast ? `${ladderWords(a.fast, new Date())} · לשייך עד ${formatWhen(a.fast.dueAt)}` : a.dueAt ? `לשייך עד ${formatWhen(a.dueAt)}` : null].filter(Boolean).join(' · ');
   $('as-joint-wrap').hidden = type !== 'natali';
   $('as-joint').checked = joint;
   $('as-reason').value = '';
@@ -442,12 +451,20 @@ function renderEditors(preselect = false) {
   const load = editorLoad({ clients, stateOf, checks, tasks, now: new Date() });
   const pre = preselected(type, joint);
   const from = a.swap?.from || null;
-  // A swap preselects nobody but the rule's own (Nirel for Natali), never the one who has it now.
-  const first = pre && pre !== from ? pre : null;
+  // The suggestion (protocol v9: Ofir assigns, the system only suggests): the rule's own
+  // choice (Nirel for Natali), else the least loaded editor who may take this shoot. It is
+  // marked and already chosen, so the usual case is one tap on "שיוך".
+  // A swap preselects nobody but the rule's own, never the one who has it now.
+  const sug = suggestEditor(load, type, joint, from ? [from] : []);
+  // An editor the office already wrote in the card is the one proposed.
+  const inCard = !a.swap && a.ctx.editor && eligibleEditors(type).includes(a.ctx.editor) ? a.ctx.editor : null;
+  const first = a.swap ? (pre && pre !== from ? pre : null) : inCard || sug?.editor || null;
   const chosen = preselect ? first : $('as-editors').querySelector('input:checked')?.value || null;
   fill($('as-editors'), ...eligibleEditors(type).map((k) => h('label', { class: 'wrow as-editor', for: `as-e-${k}` },
     h('input', { type: 'radio', class: 'radio', name: 'as-editor', id: `as-e-${k}`, value: k, checked: chosen === k, disabled: k === from, onchange: syncReason }),
     h('span', { class: 'wlabel' }, h('strong', {}, PEOPLE[k].name), pre === k ? h('span', { class: 'tag' }, 'מסומנת מראש') : null,
+      !a.swap && pre !== k && sug?.editor === k ? h('span', { class: 'tag as-suggested', id: 'as-suggested' }, SUGGESTED_TAG) : null,
+      inCard === k ? h('span', { class: 'tag' }, 'רשום בכרטיס') : null,
       k === from ? h('span', { class: 'tag' }, 'העורך הנוכחי') : null,
       h('span', { class: 'muted small as-load' }, loadText(load[k]))))));
   syncReason();
@@ -552,6 +569,10 @@ $('as-form').addEventListener('submit', async (e) => {
     // Irit's check that the client moved to editing closes by itself (section 4, 5א).
     const irit = `${a.pre}p22a.irit`;
     if (checks[c.id][irit]?.state !== 'done') checks[c.id][irit] = await setCheck(c.id, irit, 'done', 'נסגר לבד: השיוך נרשם במערכת');
+    // Lior's "the drive came back" (22א) is what he confirmed when he closed the shoot day
+    // (19, "הכונן חזר אליי"): it closes with the assignment, so 22א does not stay open on it.
+    const drive = `${a.pre}p22a.drive`;
+    if (checks[c.id][`${a.pre}p19.took`]?.state === 'done' && !['done', 'na'].includes(checks[c.id][drive]?.state)) checks[c.id][drive] = await setCheck(c.id, drive, 'done', AUTO_DRIVE_NOTE);
     if (reason || reasonNeeded({ shootType: a.ctx.shoot_type, joint, editor })) {
       checks[c.id][REASON_KEY(a.pre)] = await setCheck(c.id, REASON_KEY(a.pre), 'done', reasonNote({ editor, reason, preselected: preselected(a.ctx.shoot_type, joint), joint }));
     }
@@ -620,8 +641,15 @@ mountSession(async (staff) => {
   goToSection(location.hash);
   // A link from the pass over the clients: qa.html#assign-<client id>[-r<round>].
   const m = /^#assign-([\w-]+?)(?:-r(\d+))?$/.exec(location.hash);
-  if (m) {
+  if (m && me !== 'lior') {
     const a = awaitingEditor({ clients, stateOf, checks }).find((x) => x.client.id === m[1] && String(x.n || '') === (m[2] || ''));
     if (a) openAssign(a);
+  }
+  // A link straight to one check (the "עכשיו" clock and the ring of Ofir's fast ladder):
+  // qa.html#review-<client id>-<process id>. Not there any more (approved, returned): the queue.
+  const r = /^#review-([\w-]+)-((?:r\d+-)?p\d+[a-z]?)$/.exec(location.hash);
+  if (r) {
+    const x = qaQueue({ clients, stateOf, checks, meetings: meetings(), now: new Date() }).find((q) => q.key === `${r[1]}:${r[2]}`);
+    if (x && me !== 'lior') openQa(x); else goToSection('#qa-h');
   }
 });

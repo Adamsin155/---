@@ -794,11 +794,11 @@ await step('Lior\'s shoot-day mode: quiet mode from Eli\'s arrival, the timeline
   assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await shot(page, 'lior-shoot');
   await page.click(`#${S_ID}-close`);
-  // The toast says what really happens: the server assigns the editor by itself.
-  await toastHas(page, 'יום הצילום נסגר. העורך ישויך אוטומטית לפי העומס, ואופיר יקבל על כך הודעה.');
+  // The toast says what really happens: Ofir is rung to assign the editor (protocol v9; nothing is assigned by itself).
+  await toastHas(page, 'יום הצילום נסגר. אופיר קיבל הודעה לשייך עורך.');
   for (const k of ['p18.order', 'p18.all', 'p19.all', 'p19.drive', 'p19.took', 'p19.testimonial']) assert.ok(checkOf(S, k), k);
-  assert.match(await text(page, sCard), /יום הצילום נסגר[^]*העורך ישויך אוטומטית לפי העומס/);
-  assert.doesNotMatch(await text(page, sCard), /אופיר קיבל/);
+  assert.match(await text(page, sCard), /יום הצילום נסגר[^]*אופיר קיבל הודעה לשייך עורך/);
+  assert.doesNotMatch(await text(page, sCard), /ישויך אוטומטית/);
   // Closed: the counter is final (no "+1", no "ביטול סרטון"), and the drive is with Lior.
   assert.equal(await page.locator(`#${S_ID}-plus, #${S_ID}-minus`).count(), 0);
   assert.equal(await text(page, `#${S_ID}-count`), 'צולמו 4 מתוך 4');
