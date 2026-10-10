@@ -20,11 +20,10 @@
 //                       Note JSON { choice: 'move' | 'reassign', days, editor, proposal }.
 //   p06.fixed.<network> Lior closed a broken login: fixed, or partly (Irit and Ilai
 //                       are told). Note JSON { partial, missing, access }.
-import { PROCESSES, WORK_HOURS, PEOPLE } from './protocol.js';
+import { PROCESSES, PEOPLE } from './protocol.js';
 import {
-  addWorkingMinutes, officeMsBetween, isBusinessDay, IMPORT_NOTE, parseDate, erevOn, SHIFT,
+  addWorkingMinutes, officeMsBetween, IMPORT_NOTE, parseDate, SHIFT, fixDue, FIX_CUTOFF_HOUR,
 } from './protocol-logic.js';
-import { atTimeIL, addDaysIL, partsIL } from './tz.js';
 
 const MIN = 6e4;
 const baseOf = (id) => id.replace(/^r\d+-/, '');
@@ -124,14 +123,8 @@ export function qaState(checks, pre, kind) {
 
 // Decisions 17 and 18: notes given by 13:00 are fixed the same day; later ones by
 // the end of the next business day (the office's close, 13:00 on erev chag).
-export const FIX_CUTOFF_HOUR = 13;
-const closeOf = (d) => atTimeIL(d, erevOn(d) ? WORK_HOURS.erevEnd : WORK_HOURS.end);
-export function fixDue(now = new Date()) {
-  if (isBusinessDay(now) && partsIL(now).hour < FIX_CUTOFF_HOUR && now < closeOf(now)) return closeOf(now);
-  let x = atTimeIL(now, 12);
-  do x = addDaysIL(x, 1); while (!isBusinessDay(x));
-  return closeOf(x);
-}
+// (The rule itself is in app/protocol-logic.js since protocol v10: the deadline of 27 reads it too.)
+export { fixDue, FIX_CUTOFF_HOUR };
 
 // ── Ofir's quality clock (decision 11) ───────
 // His characterization meetings, [start, end] in ms: from the meeting until he

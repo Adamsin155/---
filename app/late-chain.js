@@ -83,7 +83,11 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
   const fix = turn ? openFix(tasks, client.id, turn.key) : null;
   // Notes the office wrote down by hand (27: p27.notes) are a fix request too.
   const notes = turn && baseKey(turn.key) === 'p27.approved' && checks[`${preOf(turn.key)}p27.notes`]?.state === 'done';
-  if (turn && !fix && !notes) return { holders: [], waiters: [], clientTurn: true, fixing: false };
+  // Fixes that remained after the Zoom (13; protocol v10: Lior marked p13.left, so p13.fixes is asked for)
+  // are the office's to make: the scripts are not with the client meanwhile.
+  const own = turn && baseKey(turn.key) === 'p13.approved' && items.some((i) => baseKey(i.key) === 'p13.fixes');
+  // `turnKey`: the approval that waits (the owners' table says how long: app/client-waits.js).
+  if (turn && !fix && !notes && !own) return { holders: [], waiters: [], clientTurn: true, fixing: false, turnKey: turn.key };
   if (turn) items = items.filter((i) => i !== turn);
   const openKeys = new Set(items.map((i) => i.key));
   // Graphics that Ofir returned for fixes (7, 23; protocol v9) are with whoever fixes

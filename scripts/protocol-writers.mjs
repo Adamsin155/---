@@ -44,6 +44,10 @@ export const EXTRA_MARKS = {
   'p17b.brollq': 'p17b', // Eli: "הבי־רול גמור?" (app/shoot.js)
   'p22.missing': 'p22', // the editor: something is missing (app/editor.js)
   'p27.fixed': 'p27', // the editor: the client's notes fixed (app/editor.js)
+  // Protocol v10 (docs/ops.md, section 58). A mark of a process that is somebody else's names its writers:
+  'p16.photographer': { proc: 'p16', persons: ['eli'] }, // Eli: "קיבלתי" on Lior's briefing (app/shoot.js). The app always let him; the database did not.
+  'p16.read': { proc: 'p16', persons: ['eli'] }, // Eli: "קראתי את התסריטים" (app/shoot.js)
+  'p18b.files': 'p18b', // Eli (and Lior, who is the office): the raw material and the chosen take per script (app/shoot.js)
 };
 
 export const EDITOR = '@editor'; // the editor of that shoot
@@ -83,15 +87,17 @@ export function writerRows() {
     if (PAUSE_PROCS.includes(p.id)) rows.push({ key: `${p.id}.@pause`, proc: p.id, round, persons: union(tokens(p.owners), [EDITOR_FREE]) });
     rows.push({ key: `${p.id}.@part`, proc: p.id, round, persons: participants(p) });
   }
-  for (const [key, pid] of Object.entries(EXTRA_MARKS)) {
+  for (const [key, spec] of Object.entries(EXTRA_MARKS)) {
+    const pid = typeof spec === 'string' ? spec : spec.proc;
     const p = PROCESSES.find((x) => x.id === pid);
-    rows.push({ key, proc: pid, round: !!p.round, persons: tokens(p.owners) });
+    rows.push({ key, proc: pid, round: !!p.round, persons: typeof spec === 'string' ? tokens(p.owners) : [...spec.persons].sort() });
   }
   for (const k of Object.values(QA_KINDS)) {
     const p = PROCESSES.find((x) => x.id === k.base);
     rows.push({ key: `${k.base}.@qafixed`, proc: k.base, round: !!p.round, persons: tokens([k.fixer({ editor: EDITOR })]) });
   }
   // Only what someone outside the office may write: the office writes every key anyway.
+  // (An item that is also listed as an extra mark keeps the row that names somebody outside the office.)
   return rows.filter((r) => r.key.startsWith('@') || r.persons.some((x) => !OFFICE_WRITERS.includes(x)));
 }
 

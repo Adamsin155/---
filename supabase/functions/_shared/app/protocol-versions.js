@@ -139,6 +139,35 @@ export const PROTOCOL_HISTORY = [
     // every client.
     always: ['p07.ofir'],
   },
+  {
+    version: 10, date: '2026-10-10', title: 'אחרי הבדיקה מול הפרוטוקולים הכתובים: חמש הטעויות של העריכה, הבדיקה הסופית של עילאי, ושעונים שהיו חסרים',
+    changes: [
+      'חמש הטעויות הקריטיות של העריכה (סאונד, חשיפה, ייצוב, כל הזוויות, הגדרות ייצוא) הן חמישה סימונים בבדיקה העצמית של העורך וחמישה בבקרת האיכות של אופיר.',
+      'נוסף 29ב: הבדיקה הסופית של עילאי (13 סעיפים) ו"העבודה שלי על הלקוח הושלמה", שמודיעה לעירית.',
+      'לשליחת הגאנט ללקוח יש שעון משלה: 30 דקות עבודה מהרגע שעילאי סימן שהגאנט מלא.',
+      'לחידוש החוזה (34) יש יעד: 14 יום מהיום שבו הוא נפתח.',
+      'תיקונים שנשארו אחרי הזום (13) הם פריט עם יעד, יום עסקים אחד, מהרגע שליאור מסמן שנשארו.',
+      'הסולם המהיר של אופיר ממתין כשהוא בפגישת אפיון.',
+      '"הלקוח ביקש תיקון" נרשם גם כשהבקשה הגיעה בוואטסאפ, ולקוח שלא עונה מוזכר לעירית בכל בוקר.',
+    ],
+    // New required items: "חדש בפרוטוקול" for a client that started before (work, never late).
+    // A client that is already past the step is not asked at all: `passedIf` on the editor's
+    // and Ofir's checks (app/protocol.js), and for 29ב the history the migration writes for
+    // every client whose Gantt was already sent (20261024100000_audit_gaps_v10.sql).
+    items: [
+      'p22.self.sound', 'p22.self.exposure', 'p22.self.stable', 'p22.self.angles', 'p22.self.export',
+      'p25.q.sound', 'p25.q.exposure', 'p25.q.stable', 'p25.q.angles', 'p25.q.export',
+      'p29b.c.nets', 'p29b.c.access', 'p29b.c.metricool', 'p29b.c.look', 'p29b.c.logo', 'p29b.c.graphics', 'p29b.c.gfiles',
+      'p29b.c.vfiles', 'p29b.c.vsched', 'p29b.c.gsched', 'p29b.c.gantt', 'p29b.c.match', 'p29b.c.updated', 'p29b.done',
+    ],
+    // The due dates before version 10 (a client that started before keeps the later of the two).
+    due: {
+      p13: { from: 'char', businessDays: 3 },
+      p27: { from: 'item:p22a.assigned', businessDays: 4 },
+      p29: { from: 'p27', hours: 2 },
+      p34: { from: 'contractEnd', days: -60, at: '18:00' },
+    },
+  },
 ];
 
 export const LATEST = PROTOCOL_HISTORY.at(-1).version;

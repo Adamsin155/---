@@ -183,6 +183,19 @@ export function addBusinessDays(date, n) {
   return n > 0 ? closeAt(d) : endOfDayIL(d);
 }
 
+// Decisions 17 and 18: notes given by 13:00 are fixed the same day; later ones by the end of
+// the next business day (the office's close, 13:00 on erev chag). The one rule for a fix:
+// Ofir's returns (app/office-marks.js), the task of a fix the client asked for (the database
+// uses the same hour: private.client_fix_due), and since protocol v10 the deadline of 27
+// once the client's notes were recorded.
+export const FIX_CUTOFF_HOUR = 13;
+export function fixDue(now = new Date()) {
+  if (isBusinessDay(now) && partsIL(now).hour < FIX_CUTOFF_HOUR && now < closeAt(now)) return closeAt(now);
+  let x = atTimeIL(now, 12);
+  do x = addDaysIL(x, 1); while (!isBusinessDay(x));
+  return closeAt(x);
+}
+
 export function parseDate(v) {
   if (!v) return null;
   if (v instanceof Date) return v;
@@ -383,10 +396,13 @@ export function resolveTime(spec, client, procs, checks, now = new Date()) {
   let stage = null;
   for (const st of stagesOf(spec)) {
     const c = checks[st.key];
-    if (c && c.state === 'done' && c.at) stage = { st, at: new Date(c.at) };
+    // (A fix's stage is an event: notes that were brought in as history set no deadline.)
+    if (c && c.state === 'done' && c.at && !(st.fix && c.note === IMPORT_NOTE)) stage = { st, at: new Date(c.at) };
   }
   if (stage) {
     const { st, at } = stage;
+    // v10: the client's notes were recorded (27): the fix's own deadline, from that moment.
+    if (st.fix) return fixDue(at);
     if (st.businessDays) return addBusinessDays(at, st.businessDays);
     if (st.fast) {
       // Ofir's check on the fast ladder: from the moment the work last reached him; while
@@ -645,8 +661,20 @@ function withoutPassed(procs, checks) {
   });
 }
 
+// An optional item that is asked for once a mark says so (`neededIf`; protocol v10: the
+// fixes that remained after the Zoom, once Lior marked p13.left). While that mark is done
+// the item is required like any other; 'na' ("אין תיקונים") or no mark leave it optional.
+function withNeeded(procs, checks) {
+  return procs.map((p) => {
+    const round = /^(rd+.)/.exec(p.keyBase || '')?.[1] || '';
+    const needed = (i) => !!i.neededIf && i.optional && checks[`${round}${i.neededIf}`]?.state === 'done';
+    if (!p.items.some(needed)) return p;
+    return { ...p, items: p.items.map((i) => (needed(i) ? { ...i, optional: false, needed: true } : i)) };
+  });
+}
+
 export function clientState(client, checks = {}, now = new Date()) {
-  const procs = withoutPassed(withoutFreshAfterImport(applicableProcesses(client), checks), checks);
+  const procs = withNeeded(withoutPassed(withoutFreshAfterImport(applicableProcesses(client), checks), checks), checks);
   const phaseList = phasesFor(client);
   const phaseIndex = (key) => phaseList.findIndex((p) => p.key === key);
   // In landing nothing has a deadline; after it, deadlines are counted from landed_at.
