@@ -57,7 +57,7 @@ import {
 import { DEAL_MINUTES, contractTitle, dealSummary, dealUrl } from './deal-logic.js';
 import { stationChange } from './messages-logic.js';
 // Protocol v9: Ofir's fast ladder for the graphics and the editor's assignment.
-import { fastCases, ladderAt, fastWaited, fastOpen } from './fast-ladder.js';
+import { fastCases, fastCaseOf, ladderAt, fastWaited, fastOpen, pauseNow } from './fast-ladder.js';
 import { shootPrep, reportedOf, TELL, requestOf, followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
 import { BLOCKING_TITLE } from './characterization.js';
 import { ANSWER_CLOCKS, fixAnswered } from './clocks.js';
@@ -413,6 +413,10 @@ export const RULES = [
     },
     steps: [
       { id: 'now', to: 'ilai', level: 'ring', exempt: 'clock', title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
+      // v10: Ilai hears at his own deadline too (the deadline of 6: these same 30 office minutes).
+      // Until now only Lior was rung then, and Ilai heard nothing until the next morning's
+      // reminder (6 is in OWN_LATE: no "באיחור" of `lateOwn`). Nothing is added for Lior.
+      { id: 'ilai30', officeMinutes: 30, to: 'ilai', level: 'ring', exempt: 'clock', overdue: true, title: (i) => `באיחור: לבדוק את הגישות של ${i.name}`, body: () => `עברו 30 דקות מקבלת הגישות. לבדוק אותן מהכספת ולסמן. ${personName('lior')} קיבל הודעה.` },
       { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', title: (i) => `גישות לא נבדקו: ${i.name}`, body: () => 'עברו 30 דקות מקבלת הגישות ועילאי עוד לא סימן שבדק.' },
     ],
   },
@@ -641,8 +645,14 @@ export const RULES = [
     },
     steps: [
       { id: 'lior', prevBusinessDays: 1, at: '17:00', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.brief, title: (i) => `תדריך לאלי: ${i.name}`, body: () => 'לשלוח לאלי את התדריך ואת תווית הכונן, במסך יום הצילום.' },
-      { id: 'eli', from: 'brief', to: 'eli', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', title: (i, env) => `תדריך לצילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: (i) => `${arrivalText(i.anchors.shoot)}${i.client.address ? ` · ${i.client.address}` : ''}${i.brief?.label ? ` · ${driveName(i.brief.label)}` : ''}. ללחוץ "קיבלתי".` },
-      { id: '2000', prevBusinessDays: 1, at: '20:00', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.resolved('p16.photographer'), title: (i) => `אלי עוד לא אישר את התדריך: ${i.name}`, body: (i) => (i.brief ? 'אלי עוד לא לחץ "קיבלתי".' : 'התדריך עוד לא נשלח.') },
+      { id: 'eli', from: 'brief', to: 'eli', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', title: (i, env) => `תדריך לצילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: (i) => `${arrivalText(i.anchors.shoot)}${i.client.address ? ` · ${i.client.address}` : ''}${i.brief?.label ? ` · ${driveName(i.brief.label)}` : ''}. ללחוץ "קיבלתי", לקרוא את התסריטים ולסמן "קראתי את התסריטים".` },
+      // v10: the same line says so when Eli did not tick "קראתי את התסריטים" (the mark p16.read) by then.
+      {
+        id: '2000', prevBusinessDays: 1, at: '20:00', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot',
+        when: (i) => !i.resolved('p16.photographer') || !i.resolved('p16.read'),
+        title: (i) => (i.resolved('p16.photographer') ? `אלי עוד לא סימן שקרא את התסריטים: ${i.name}` : `אלי עוד לא אישר את התדריך: ${i.name}`),
+        body: (i) => (!i.brief ? 'התדריך עוד לא נשלח.' : i.resolved('p16.photographer') ? 'אלי אישר את התדריך, ועוד לא סימן "קראתי את התסריטים".' : `אלי עוד לא לחץ "קיבלתי"${i.resolved('p16.read') ? '' : ', וגם לא סימן שקרא את התסריטים'}.`),
+      },
     ],
   },
 
@@ -781,14 +791,15 @@ export const RULES = [
         const open = !i.s.complete || (p29 && !i.resolved('p29.filled'));
         if (open && !i.s.wait) out.push({ ...i, id: i.proc.id, stage: 'ilai', anchors: { event: i.finishedAt('p27'), due: i.s.dueAt } });
         const filled = i.doneAt('p29.filled');
-        if (filled && !i.resolved('p29.sent')) out.push({ ...i, id: `${i.proc.id}.gantt`, stage: 'irit', anchors: { event: filled } });
+        // v10: her sending has its own clock from this moment (30 office minutes, the stage of 29's deadline).
+        if (filled && !i.resolved('p29.sent')) out.push({ ...i, id: `${i.proc.id}.gantt`, stage: 'irit', sendBy: p29?.dueAt || null, anchors: { event: filled } });
         return out;
       });
     },
     steps: [
       { id: 'start', to: 'ilai', level: 'ring', exempt: 'clock', when: (i) => i.stage === 'ilai', title: (i) => `שעתיים לתזמון ולגאנט: ${i.name}`, body: (i, env) => `הלקוח אישר את הסרטונים. יעד ${whenText(i.anchors.due, env.now)}.` },
       { id: 'pre30', from: 'due', officeMinutes: -30, to: 'ilai', level: 'ring', exempt: 'clock', when: (i) => i.stage === 'ilai', title: (i) => `עוד 30 דקות: תזמון וגאנט · ${i.name}`, body: (i, env) => `יעד ${whenText(i.anchors.due, env.now)}.` },
-      { id: 'gantt', to: 'irit', level: 'ring', when: (i) => i.stage === 'irit', title: (i) => `לשלוח גאנט: ${i.name}`, body: () => 'עילאי סיים למלא את הגאנט.' },
+      { id: 'gantt', to: 'irit', level: 'ring', when: (i) => i.stage === 'irit', title: (i) => `לשלוח גאנט: ${i.name}`, body: (i, env) => `עילאי סיים למלא את הגאנט.${i.sendBy ? ` יעד ${whenText(i.sendBy, env.now)}.` : ''}` },
     ],
   },
 
@@ -992,6 +1003,8 @@ export const RULES = [
       return casesOf(env, 'p34', (i) => i.client.status === 'active' && !!parseDate(i.client.contract_end) && !i.s.complete && !i.resolved('p34.talk'))
         .map((i) => ({ ...i, id: `p34@${i.client.contract_end}`, anchors: { event: parseDate(i.client.contract_end) } }));
     },
+    // (The ring to Lior on the day it opens is `renewalList.start` in app/year-rules.js. Since protocol
+    // v10 the process is due RENEWAL_DAYS after that day, and from then on it is a late item like any other.)
     steps: [
       ...[75, 60, 45].flatMap((n) => ['lior', 'irit'].map((p) => ({
         id: `d${n}`, days: -n, at: '08:30', to: p, level: 'digest', title: (i) => `חידוש בעוד ${n} יום: ${i.name}`, body: () => '',
@@ -1394,7 +1407,8 @@ export const RULES = [
           const chain = allLate(env).find((x) => x.cid === c.id && x.procId === s.proc.id);
           if (chain && (chain.clientTurn || (chain.fixing && !chain.holders.length))) continue;
           // On Ofir's fast ladder (protocol v9): Lior is told by the ladder itself, once, at its own moment.
-          if (chain?.fast) continue;
+          // (Also while its minutes wait for the end of his meeting, v10: then it is not in the late list at all.)
+          if (chain?.fast || fastCaseOf(c, s, env.stateOf(c).states, i.checks, env.ofirMeetings || [])) continue;
           const owners = s.claim ? [s.claim.person] : s.proc.owners;
           out.push({ ...i, id: `${s.proc.id}@${s.dueAt.toISOString()}`, owners, anchors: { event: s.dueAt } });
         }
@@ -2180,7 +2194,7 @@ export const VOID_WHEN_GONE = new Set(RULES.filter((r) => r.voidWhenGone).map((r
 // is rung "באיחור" in the middle of the shoot day about the shoot day.
 // The sending hours, erev chag, Lior's shoot day and the bursts apply as to every rule,
 // and so does "לדחות עד…" on a process (its reminders wait until that moment).
-function allLate(env) { return (env.lateAll ||= lateItems({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: env.tasks, personOf: env.personOf, now: env.now })); }
+function allLate(env) { return (env.lateAll ||= lateItems({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: env.tasks, personOf: env.personOf, now: env.now, meetings: env.ofirMeetings || [] })); }
 const lateOf = (env) => (env.lateItems ||= allLate(env)
   .filter((x) => !x.clientTurn && !x.gap && !x.ownLadder && x.holders.length)
   .map((x) => ({ ...x, rung: x.kind === 'proc' && (OWN_LATE.has(baseId(x.procId)) || !!LATE_RUNG[baseId(x.procId)]) })));
@@ -2210,7 +2224,7 @@ function heldAt(env, slot) {
   const checksAt = (c) => { if (!then.has(c.id)) then.set(c.id, Object.fromEntries(Object.entries(env.checksOf(c)).filter(([, v]) => !v.at || new Date(v.at) <= slot.at))); return then.get(c.id); };
   const states = new Map();
   const items = lateItems({
-    clients: env.clients.filter((c) => ids.has(c.id)), checksOf: checksAt, tasks: env.tasks.filter((t) => !t.created_at || new Date(t.created_at) <= slot.at), personOf: env.personOf, now: slot.at,
+    clients: env.clients.filter((c) => ids.has(c.id)), checksOf: checksAt, tasks: env.tasks.filter((t) => !t.created_at || new Date(t.created_at) <= slot.at), personOf: env.personOf, now: slot.at, meetings: env.ofirMeetings || [],
     stateOf: (c) => { if (!states.has(c.id)) states.set(c.id, clientState(c, checksAt(c), slot.at)); return states.get(c.id); },
   });
   const by = new Map(items.map((x) => [lateKey(x), new Set(x.holders)]));
@@ -2318,7 +2332,7 @@ const fastWhat = (i) => (i.f.kind === 'assign' ? i.f.what : `${i.f.what}${i.f.ro
 const FAST_RULE = {
   id: 'fast', event: 'הסולם המהיר של אופיר: בדיקת הגרפיקות (7, 23) ושיוך עורך (22א)', procs: ['p07', 'p23', 'p22a'],
   instances(env) {
-    return fastCases({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf }).map((f) => {
+    return fastCases({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, meetings: env.ofirMeetings || [] }).map((f) => {
       const i = procCase(env, f.client, f.state);
       const at = ladderAt(f, env.now);
       // The telling of the manager is not lost to a tick that was missed the evening before.
@@ -2332,7 +2346,9 @@ const FAST_RULE = {
     const base = { level: 'ring', exempt: 'clock', ownHours: true, noFold: true, when: () => fastOpen(env.now) };
     const waited = `${fastWaited(i.f, env.now)} דקות`;
     return [
-      { ...base, id: 'now', to: who, title: () => w.now(i), body: () => w.nowBody(i) },
+      // The work reached him while he sits in a characterization meeting (v10): the ring
+      // goes out all the same, and says that the minutes start when the meeting ends.
+      { ...base, id: 'now', to: who, title: () => w.now(i), body: () => (pauseNow(i.f.pauses, i.f.startAt) ? `הספירה ממתינה לסוף פגישת האפיון: ${i.f.spec.minutes} דקות מרגע ״האפיון הסתיים״ (לכל המאוחר עד ${clockOf(i.f.dueAt)}).` : w.nowBody(i)) },
       { ...base, id: 'late', from: 'due', to: who, overdue: true, title: () => w.late(i), body: () => `${fastWhat(i)}. היעד היה ${clockOf(i.f.dueAt)}. אם זה לא נסגר עד ${clockOf(i.f.tellAt)}, ${personName(FAST_LADDER.manager)} מקבל הודעה.` },
       {
         ...base, id: FAST_LADDER.manager, from: 'tell', overdue: true,
@@ -2348,4 +2364,77 @@ const FAST_RULE = {
 };
 RULES.push(FAST_RULE);
 RULE_BY_ID.set(FAST_RULE.id, FAST_RULE);
+
+// ── Protocol v10: the gaps the audit of the written protocols found (the owner's approval of 10.10.2026; docs/ops.md, section 58) ──
+// One self-contained block (its imports included).
+//   clientWaitsLine  an approval that still waits on the client (app/client-waits.js), from the day
+//                    after the sending: one line in Irit's morning digest, every working day.
+//   clientWaits      and ONE ring a day at 10:00 with every client that still waits (several: one
+//                    grouped message). Until the client approves or asks for a fix. It is Irit's
+//                    reminder, not a lateness: no `overdue`, nothing to the managers or the owners.
+//   contractEnd      a contract's end date arrived and the client is still "active" (app/contract-end.js):
+//                    Lior rings once that morning; his card has the two actions. Nothing changes by itself.
+//   finalCheck       29ב, Ilai's final check: he rings when it opens (the Gantt was sent to the client);
+//                    when he marks "העבודה שלי על הלקוח הושלמה" Irit hears. Past its deadline it is a late
+//                    item like any other (`lateOwn`, `lateNag`, `late`).
+import { waitingApprovals, waitLine, waitDays, CLIENT_WAITS } from './client-waits.js';
+import { contractsEnded, CONTRACT_END } from './contract-end.js';
+const waitsOf = (env) => (env.clientWaits ||= waitingApprovals({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: [...env.tasks, ...(env.doneTasks || [])], now: env.now }).filter((x) => x.days >= 1));
+// The day itself when the office works on it; otherwise the first working day after it
+// (a contract that ends on a Saturday or a holiday is asked about on the next morning, at the same hour).
+const firstBusinessDay = (d) => { let x = atTimeIL(d, 12); while (!isBusinessDay(x)) x = addDaysIL(x, 1); return x; };
+const dayMonth = (d) => { const p = partsIL(d); return `${p.day}.${p.month}`; };
+const V10_RULES = [
+  {
+    id: 'clientWaitsLine', event: 'הלקוח עוד לא אישר: שורה בתקציר הבוקר של עירית (7, 23, 26)', procs: ['p07', 'p23', 'p26'],
+    instances: (env) => (isBusinessDay(env.now) ? waitsOf(env).map((x) => ({ id: `${x.procId}@${x.sentAt.toISOString()}`, cid: x.cid, client: x.client, name: x.name, x, url: clientUrl(x.cid, x.procId), anchors: {} })) : []),
+    steps: (i, env) => [{ id: `d${dayKeyIL(env.now)}`, from: 'today', at: CLIENT_WAITS.lineAt, to: CLIENT_WAITS.who, level: 'digest', title: () => waitLine(i.x), body: () => '' }],
+  },
+  {
+    id: 'clientWaits', event: 'הלקוח עוד לא אישר: צלצול אחד ביום לעירית, עם כל הלקוחות שמחכים', procs: ['p07', 'p23', 'p26'],
+    instances(env) {
+      if (!isBusinessDay(env.now)) return [];
+      const items = waitsOf(env);
+      return items.length ? [{ id: CLIENT_WAITS.who, cid: null, who: CLIENT_WAITS.who, items, url: MINE_URL, anchors: {} }] : [];
+    },
+    steps: (i, env) => [{
+      id: `d${dayKeyIL(env.now)}`, from: 'today', at: CLIENT_WAITS.ringAt, to: i.who, level: 'ring', noFold: true,
+      url: () => (i.items.length === 1 ? clientUrl(i.items[0].cid, i.items[0].procId) : MINE_URL),
+      title: () => (i.items.length === 1 ? waitLine(i.items[0]) : `${i.items.length} לקוחות עוד לא אישרו`),
+      body: () => (i.items.length === 1
+        ? `נשלח ${whenText(i.items[0].sentAt, env.now)}. להתקשר ללקוח. תזכורת בכל בוקר עד שהוא מאשר או מבקש תיקון.`
+        : [...listed(i.items.map((x) => `${x.name} · ${x.what} · מחכה ${waitDays(x.days)}`), CLIENT_WAITS.listMax), 'להתקשר ללקוחות. תזכורת בכל בוקר עד שהם מאשרים או מבקשים תיקון.'].join('\n')),
+    }],
+  },
+  {
+    id: 'contractEnd', event: 'החוזה הסתיים והלקוח עדיין פעיל (34, 35)', procs: ['p34', 'p35'],
+    instances: (env) => contractsEnded(env.clients, env.now).map((x) => ({
+      id: `end@${x.endKey}`, cid: x.cid, client: x.client, name: x.name, x, url: MINE_URL, anchors: { event: atIL(firstBusinessDay(x.endAt), CONTRACT_END.ringAt) },
+    })),
+    steps: [{
+      id: 'day', to: CONTRACT_END.who, level: 'ring',
+      title: (i, env) => `החוזה של ${i.name} הסתיים ${dayKeyIL(env.now) === i.x.endKey ? 'היום' : `ב־${dayMonth(i.x.endAt)}`}: חידוש או סיום התקשרות?`,
+      body: () => 'ב״המשימות שלי״: ״נרשם חידוש״ עם תאריך הסיום החדש, או ״סיום התקשרות״, שפותח את תהליך 35. הלקוח נשאר ״פעיל״ עד שבוחרים.',
+    }],
+  },
+  {
+    id: 'finalCheck', event: 'הבדיקה הסופית של עילאי (29ב)', procs: ['p29b'],
+    instances(env) {
+      return casesOf(env, 'p29b').flatMap((i) => {
+        const out = [];
+        const opened = i.finishedAt('p29');
+        if (opened && !i.s.complete && !halted(i)) out.push({ ...i, id: i.proc.id, stage: 'open', url: MINE_URL, anchors: { event: nextSendMoment(opened), due: i.s.dueAt } });
+        const done = i.doneAt('p29b.done');
+        if (done) out.push({ ...i, id: `${i.proc.id}.done`, stage: 'done', anchors: { event: nextSendMoment(done) } });
+        return out;
+      });
+    },
+    steps: [
+      { id: 'open', to: 'ilai', level: 'ring', when: (i) => i.stage === 'open', title: (i) => `בדיקה סופית: ${i.name}`, body: (i, env) => `הגאנט נשלח ללקוח. 13 סעיפים, ואז ״העבודה שלי על הלקוח הושלמה״.${i.anchors.due ? ` יעד ${whenText(i.anchors.due, env.now)}.` : ''}` },
+      { id: 'irit', to: 'irit', level: 'quiet', when: (i) => i.stage === 'done', title: (i) => `עילאי סיים את העבודה על ${i.name}`, body: (i) => `הרשתות, הגרפיקות, התזמון והגאנט נבדקו (13 סעיפים)${i.pre ? `, סבב ${i.pre.slice(1, -1)}` : ''}.` },
+    ],
+  },
+];
+RULES.push(...V10_RULES);
+for (const r of V10_RULES) RULE_BY_ID.set(r.id, r);
 export { LATE_LADDER };

@@ -12,6 +12,7 @@ import { h, fill, formatWhen, lateBy, peopleChips } from './protocol-ui.js';
 import { clockTime, clockDigits } from './clocks.js';
 import { clientLabel } from './protocol-logic.js';
 import { PEOPLE, FAST_LADDER } from './protocol.js';
+import { MEETING_WORDS } from './fast-ladder.js';
 
 export const clockDomId = (id) => String(id).replace(/[^\w-]/g, '_');
 const round = (proc) => /^r(\d+)-/.exec(proc.id)?.[1] || null;
@@ -61,7 +62,10 @@ export function ranOutText(row) {
 }
 const managerName = () => PEOPLE[FAST_LADDER.manager]?.name || '';
 // The fast ladder's three phases (app/fast-ladder.js): the label, and the digits or the words under it.
-const fastLabel = (t, now) => (t.phase === 'run' ? (t.paused ? `עצור עד ${formatWhen(t.resumeAt, now)}` : 'נשארו') : t.phase === 'late' ? 'באיחור · עוד' : 'באיחור');
+// While Ofir is in a characterization meeting the count waits (protocol v10): the row says so,
+// and the digits are what he will have when the meeting ends.
+const fastLabel = (t, now) => (t.meeting ? (t.phase === 'late' ? `באיחור · ${MEETING_WORDS}` : MEETING_WORDS)
+  : t.phase === 'run' ? (t.paused ? `עצור עד ${formatWhen(t.resumeAt, now)}` : 'נשארו') : t.phase === 'late' ? 'באיחור · עוד' : 'באיחור');
 const fastLeft = (t) => (t.phase === 'run' ? clockDigits(t.remaining) : t.phase === 'late' ? clockDigits(t.more) : `${managerName()} עודכן`);
 const stateLabel = (t, now) => (t.phase ? fastLabel(t, now) : t.state === 'expired' ? 'נגמר לפני' : t.paused ? `עצור עד ${formatWhen(t.resumeAt, now)}` : 'נשארו');
 const leftText = (row, t, now) => (t.phase ? fastLeft(t) : t.state === 'expired' ? lateBy(row.deadline, now) : clockDigits(t.remaining));

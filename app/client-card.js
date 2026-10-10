@@ -7,7 +7,7 @@ import {
 } from './protocol.js';
 import {
   clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
-  waitNote, parseWaitNote, bulkEligible, roundsOf, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited,
+  waitNote, parseWaitNote, bulkEligible, roundsOf, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited, clientLabel,
 } from './protocol-logic.js';
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
@@ -23,7 +23,7 @@ import { safeLink } from './gantt-logic.js';
 import { googleCalendarUrl, downloadIcs } from './calendar.js';
 import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
 import { describeMark } from './handoffs.js';
-import { markHistory } from './production.js';
+import { markHistory, filesOf, fileLine, filesHint } from './production.js';
 import { canManageTeam, isOwnerView } from './team-rules.js';
 import { activate as activateLanding } from './landing-data.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
@@ -34,7 +34,7 @@ import { shootDayHint, confirmShootDay } from './availability-ui.js';
 // Stage 3, part 2: Ofir's returns for fixes, the office's marks in the history, "התחלתי".
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
-import { fastCaseOf } from './fast-ladder.js';
+import { fastCaseOf, setOfirMeetings } from './fast-ladder.js';
 import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { dayBeforeText, readFollowup, followupText } from './shoot-prep.js';
 import { checkMark } from './mark-guards.js';
@@ -73,6 +73,9 @@ import { canArchive } from './manager-rules.js';
 import { openedBySigning } from './client-open.js';
 import { warm, taken } from './supa.js';
 import { fixTaskOf, FIX_ITEM_LABEL } from './late-chain.js';
+// Protocol v10 (docs/ops.md, section 58): a fix the client asked for outside the status page.
+import { fixSpecOf, mayRecordFix, awaitsClient } from './fix-request.js';
+import { openFixRequest, fixButton } from './fix-request-ui.js';
 import { icon as kIcon, iconSquare, headIcon, dressHeads, emptyState } from './kit.js';
 
 const id = new URLSearchParams(location.search).get('id');
@@ -157,6 +160,7 @@ async function load() {
       own() ? null : loadDeliverableFiles(id),
     ]);
     statusNote = statusNotes?.[0] || null;
+    setOfirMeetings(ofirMeetings); // the fast ladder waits for the end of his meeting (protocol v10)
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
@@ -1075,6 +1079,7 @@ function procCard(x, now, s) {
         h('span', {}, `חסר בפרטי הלקוח: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`, own() ? ' המשרד משלים אותם.' : ''),
         own() ? null : h('button', { type: 'button', class: 'btn btn-sm', onclick: () => (p.ctx ? openRound(p.ctx.round) : openEdit(FIELD_INPUT[missing[0]])) }, 'השלמת פרטים')) : null,
       p.what ? h('p', { class: 'proc-what' }, p.what) : null,
+      pid === 'p18b' ? rawFilesNote(p) : null,
       link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${linkDef.label}`) : null,
       printing ? null : intakeShortcut(p.id, client.id, { checks, scope, complete: x.complete, me }),
       ...guidance.map((g) => h('p', { class: 'proc-guide' }, g)),
@@ -1086,6 +1091,17 @@ function procCard(x, now, s) {
       bulkButton(x),
     ],
   );
+}
+
+// The raw material and the chosen take per script, as written on the shoot day (protocol v10;
+// FILES_KEY in app/production.js): to read only, under the photographer's process.
+function rawFilesNote(p) {
+  const pre = (p.keyBase || p.id).slice(0, (p.keyBase || p.id).length - p.id.replace(/^r\d+-/, '').length);
+  const files = filesOf(checks, pre);
+  if (!files.size) return null;
+  return h('details', { class: 'proc-files' },
+    h('summary', {}, `חומר גלם וטייק לכל תסריט · ${filesHint(files, null)}`),
+    h('ul', { class: 'proc-file-list' }, ...[...files].map(([n, x]) => h('li', { class: 'num' }, fileLine(n, x)))));
 }
 
 function itemRow(p, i) {
@@ -1139,7 +1155,14 @@ function itemRow(p, i) {
   if (i.recurring) return callRow(p, i, state, c, busy, mine);
 
   const calendar = baseKey(i.key) === 'p11.calendar' && !state ? calendarMenu('shoot', roundOfKey(i.key)) : null;
-  const naLabel = state === 'na' ? 'החזרה לפתוח' : i.optional ? 'לא נדרש' : 'לא רלוונטי';
+  // v10. "הלקוח ביקש תיקון" next to an approval that waits for the client's answer: the same task as on the status page.
+  const fixAct = !state && !printing && fixSpecOf(i.key) && mayRecordFix({ me, scope, error: viewerError }) && awaitsClient(i.key, checks, tasks, client.id)
+    ? fixButton({ id: `${cid}-fix`, onclick: () => openFixRequest({ client, key: i.key, name: clientLabel(client), focusId: `${cid}-fix`, onDone: () => load() }) }) : null;
+  // v10. Fixes after the Zoom (13): "נשארו תיקונים" asks for the item, with its own deadline (the mark p13.left); "אין תיקונים" closes it.
+  const leftKey = i.neededIf ? `${i.key.slice(0, i.key.length - baseKey(i.key).length)}${i.neededIf}` : null;
+  const leftAct = leftKey && !state && !printing && !own() && !checks[leftKey]
+    ? h('button', { type: 'button', class: 'btn-text left-btn', id: `${cid}-left`, disabled: busy, onclick: () => mark(leftKey, 'done', cid) }, 'נשארו תיקונים') : null;
+  const naLabel = state === 'na' ? 'החזרה לפתוח' : leftKey && i.optional ? 'אין תיקונים' : i.optional ? 'לא נדרש' : 'לא רלוונטי';
   return h('li', { class: `item fin-row${state === 'done' ? ' is-done' : ''}${state === 'na' ? ' is-na' : ''}${mine ? ' is-mine' : ''}${busy ? ' is-busy' : ''}${block ? ' is-blocked' : ''}` },
     h('label', { class: 'irow', for: cid },
       h('input', {
@@ -1153,6 +1176,8 @@ function itemRow(p, i) {
           : !state && !block && baseKey(i.key) === 'p05.allnets' ? accessGapQuestion(checks['p05.access']) : i.label, state === 'na' ? h('span', { class: 'tag' }, i.optional ? 'לא נדרש' : 'לא רלוונטי') : null),
         meta.length ? h('span', { class: 'imeta', id: `${cid}-m` }, ...meta) : null)),
     calendar,
+    fixAct,
+    leftAct,
     state === 'done' || via || (baseKey(i.key) === 'p13.approved' && state !== 'na') ? null : h('button', {
       type: 'button', class: `btn-text na-btn${i.optional ? ' is-opt' : ''}`, disabled: busy, id: `${cid}-na`,
       'aria-label': `${naLabel}: ${i.label}`,

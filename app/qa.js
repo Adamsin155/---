@@ -9,7 +9,7 @@
 // Drive link (and any uploaded into the system, played in place), or the rest of the
 // graphics from the client's files.
 // The logic: app/qa-logic.js and app/office-marks.js.
-import { PEOPLE, SHOOT_TYPES, EDITORS } from './protocol.js';
+import { PEOPLE, SHOOT_TYPES, EDITORS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue } from './protocol.js';
 import { clientState, clientLabel } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory, setTaskDone,
@@ -23,7 +23,7 @@ import {
   swapClock, swapReasonNeeded, swapNote, suggestEditor, SUGGESTED_TAG,
 } from './qa-logic.js';
 import { autoReasonOf, AUTO_DRIVE_NOTE } from './auto-assign.js';
-import { ladderWords } from './fast-ladder.js';
+import { ladderWords, setOfirMeetings } from './fast-ladder.js';
 import {
   QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, REASON_KEY, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
 } from './office-marks.js';
@@ -104,6 +104,7 @@ function render() {
   const now = new Date();
   states.clear();
   const ms = meetings();
+  setOfirMeetings(ms); // the fast ladder waits for the end of his meeting (protocol v10)
   const queue = qaQueue({ clients, stateOf, checks, meetings: ms, now });
   const fixing = qaFixing({ clients, stateOf, checks });
   const chars = charsToday({ clients, stateOf, now });
@@ -147,7 +148,7 @@ function renderBanners(ms, now) {
 function qaCard(x, ms, now) {
   const k = QA_KINDS[x.kind];
   const pct = Math.min(100, Math.round((x.waited / x.target) * 100));
-  // The graphics are on Ofir's fast ladder (protocol v9): its own minutes, and no stop for a meeting.
+  // The graphics are on Ofir's fast ladder (protocol v9): its own minutes, and its own words while he is in a meeting (v10).
   const inMeeting = !x.fast && !!meetingNow(ms, now);
   return h('li', { class: `of-card${x.late ? ' is-late' : ''}`, 'data-key': x.key },
     h('div', { class: 'of-head' },
@@ -265,7 +266,6 @@ function openQa(x) {
       title: videos ? 'סרטונים שהועלו למערכת' : 'הגרפיקות לבדיקה',
       total: videos ? null : first9 ? 9 : Math.max(0, (Number(x.client.deliverables?.graphics) || 0) - 9) || null,
     }));
-  $('qa-checks-legend').textContent = `${k.checks.length} הבדיקות (${k.title})`;
   renderChecks();
   setMode('check');
   $('qa-err').hidden = true;
@@ -280,12 +280,20 @@ function renderChecks() {
     const proc = x.proc.items.find((i) => i.key === `${x.pre}${key}`);
     return (proc?.label || key).replace(/^(נבדק|אופיר בדק): /, '');
   };
-  fill($('qa-checks'), ...k.checks.map((key) => {
+  // The five critical mistakes of editing (protocol v10) come under their own line. Videos that
+  // were approved before they existed are not asked for them (`passedIf`: then they are not here).
+  const itemOf = (key) => x.proc.items.find((i) => i.key === `${x.pre}${key}`);
+  const asked = k.checks.filter((key) => !itemOf(key)?.history);
+  $('qa-checks-legend').textContent = `${asked.length} הבדיקות (${k.title})`;
+  fill($('qa-checks'), ...asked.flatMap((key, n) => {
     const full = `${x.pre}${key}`;
     const id = `qa-c-${key.replace(/\W/g, '_')}`;
-    return h('label', { class: 'wrow', for: id },
-      h('input', { type: 'checkbox', class: 'cbx', id, checked: cs[full]?.state === 'done', onchange: (e) => toggleCheck(full, e.currentTarget) }),
-      h('span', { class: 'wlabel' }, labelOf(key)));
+    const critical = !!itemOf(key)?.mistake;
+    return [
+      critical && !itemOf(asked[n - 1])?.mistake ? h('p', { class: 'of-sub of-critical', id: 'qa-critical' }, CRITICAL_TITLE) : null,
+      h('label', { class: 'wrow', for: id },
+        h('input', { type: 'checkbox', class: 'cbx', id, checked: cs[full]?.state === 'done', onchange: (e) => toggleCheck(full, e.currentTarget) }),
+        h('span', { class: 'wlabel' }, labelOf(key)))];
   }));
 }
 async function toggleCheck(key, input) {
@@ -315,8 +323,32 @@ function setMode(mode) {
     $('qa-return-hint').textContent = `לכל שורה: מספר ה${QA_KINDS[qaItem.kind].unit} ומה לתקן. הרשימה עוברת ${qaItem.kind === 'videos' ? 'לעורך' : 'לעילאי'} מיד.`;
     fill($('qa-issues'));
     addIssue();
+    renderMistakes();
     $('qa-due').value = inputValueIL(fixDue(new Date()));
   }
+}
+// A critical mistake that failed (the videos; protocol v10): one tap adds a line that names it,
+// and the usual return for fixes carries it to the editor. The video's number is typed as always.
+function renderMistakes() {
+  const box = $('qa-mistakes');
+  const show = qaItem.kind === 'videos';
+  box.hidden = !show;
+  if (!show) { fill(box); return; }
+  fill(box, h('p', { class: 'of-mistakes-h', id: 'qa-mistakes-h' }, 'טעות קריטית? לחיצה מוסיפה שורה:'),
+    h('div', { class: 'chips-row of-mistake-chips' }, ...CRITICAL_MISTAKES.map(([key, name]) => h('button', {
+      type: 'button', class: 'chip of-mistake', id: `qa-m-${key}`, 'data-mistake': key, onclick: () => addMistake(key),
+    }, name))));
+}
+function addMistake(key) {
+  const text = mistakeIssue(key);
+  const rows = [...$('qa-issues').children];
+  if (rows.some((li) => li.querySelector('[data-text]').value.trim() === text)) { toast('השורה הזאת כבר ברשימה.'); return; }
+  // The first row, while it is still empty, takes it; otherwise a new row.
+  let row = rows.find((li) => !li.querySelector('[data-text]').value.trim() && !li.querySelector('[data-ref]').value.trim());
+  if (!row) { addIssue(); row = $('qa-issues').lastElementChild; }
+  if (!row || row.querySelector('[data-text]').value.trim()) return;
+  row.querySelector('[data-text]').value = text;
+  row.querySelector('[data-ref]').focus();
 }
 function addIssue(focus = false) {
   const list = $('qa-issues');
