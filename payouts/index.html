@@ -9,44 +9,66 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
   <script src="../app/frame-guard.js"></script>
+  <!-- The sign-in screen (docs/ops.md, sections 51 and 56): what the first paint is. This app's own gate, for its own session. -->
+  <script src="../app/payouts/gate.js"></script>
+  <link rel="stylesheet" href="../app/styles/login.css">
   <title>אסטרטג פיימנט</title>
   <meta name="robots" content="noindex">
-  <meta name="theme-color" content="#031432">
+  <meta name="theme-color" content="#EEF0F4">
   <meta name="apple-mobile-web-app-title" content="אסטרטג פיימנט">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="../app/fonts/fonts.css">
+  <!-- The product's look (docs/ops.md, section 56): its tokens, this app's screens, the shared kit, and the shell (last). -->
   <link rel="stylesheet" href="../app/styles/tokens.css">
   <link rel="stylesheet" href="../app/styles/payouts.css">
+  <link rel="stylesheet" href="../app/styles/kit.css">
+  <link rel="stylesheet" href="../app/styles/shell.css">
 </head>
 <body>
   <a class="skip" href="#main">דילוג לתוכן</a>
-  <header class="appbar">
-    <div class="brand">
-      <span class="brand-chip"><img src="../app/assets/logo-mark.png" alt=""></span>
-      <span class="brand-name">astrateg</span>
-      <span class="brand-product">פיימנט</span>
-    </div>
-    <button type="button" class="appbar-btn" id="btn-account" hidden aria-haspopup="dialog">חשבון</button>
+  <!-- The app's menu, in the markup of the staff shell (app/shell.js, shell.css): a floating
+       side menu on a wide screen, a floating bottom bar on a phone. app/payouts/app.js
+       arranges it: on a phone three screens and the new deal in the bar, the rest under "עוד". -->
+  <aside class="side" id="nav" hidden>
+    <a class="side-logo" href="#/month" aria-label="astrateg · החודש"><img src="../app/assets/logo.png" alt="" width="403" height="280"></a>
+    <nav class="side-nav" id="side-nav" aria-label="ניווט ראשי">
+      <span class="side-rail" id="side-rail" aria-hidden="true"></span>
+      <small class="side-k">תפריט</small>
+      <div class="side-list" id="side-list">
+        <a class="side-link" href="#/month" data-route="month"><span class="side-t">החודש</span></a>
+        <a class="side-link" href="#/deals" data-route="deals"><span class="side-t">עסקאות</span></a>
+        <button type="button" class="p-add" id="nav-add" aria-label="עסקה חדשה"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 5.5v13M5.5 12h13"/></svg><span class="p-add-t">עסקה חדשה</span></button>
+        <a class="side-link" href="#/pay" data-route="pay"><span class="side-t">תשלומים</span></a>
+        <a class="side-link" href="#/simeon" data-route="simeon" data-more><span class="side-t">סמיון, מישל ודניס</span></a>
+        <a class="side-link" href="#/natali" data-route="natali" data-more><span class="side-t">נטלי דדון</span></a>
+        <a class="side-link" href="#/settings" data-route="settings" data-more><span class="side-t">הגדרות</span></a>
+        <button type="button" class="side-link side-more" id="side-more" aria-expanded="false" aria-controls="side-sheet"><span class="side-t">עוד</span></button>
+      </div>
+      <div class="side-sheet" id="side-sheet" hidden></div>
+    </nav>
+  </aside>
+
+  <header class="topbar">
+    <a class="brand" href="#/month" aria-label="astrateg · אסטרטג פיימנט">
+      <img class="brand-logo" src="../app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">אסטרטג פיימנט</span>
+    </a>
+    <nav aria-label="חשבון">
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-account" hidden aria-haspopup="dialog">חשבון</button>
+    </nav>
   </header>
 
-  <nav class="nav" id="nav" aria-label="ניווט ראשי" hidden>
-    <a href="#/month" data-route="month"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m6 10V5m6 14v-7m4 7H3"/></svg><span>החודש</span></a>
-    <a href="#/deals" data-route="deals"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 0 1 2-2zm2 5h6m-6 4h6"/></svg><span>עסקאות</span></a>
-    <button type="button" class="nav-add" id="nav-add" aria-label="עסקה חדשה"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>עסקה חדשה</span></button>
-    <a href="#/pay" data-route="pay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v10H3zM3 11h18M7 15h3"/></svg><span>תשלומים</span></a>
-    <a href="#/simeon" data-route="simeon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4l-5.2 2.7 1-5.8L3.5 9.2l5.9-.9z"/></svg><span class="lbl-long">סמיון, מישל ודניס</span><span class="lbl-short" aria-hidden="true">סמיון</span></a>
-    <a href="#/natali" data-route="natali"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 9a7 7 0 0 1 14 0"/></svg><span class="lbl-long">נטלי דדון</span><span class="lbl-short" aria-hidden="true">נטלי</span></a>
-    <a href="#/settings" data-route="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14.5 3h-5l-.4 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2l.4 2.6h5l.4-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/></svg><span>הגדרות</span></a>
-  </nav>
+  <!-- The sign-in card and the new-password card (app/payouts/door.js builds them, login.css draws them). -->
+  <section id="login-block" hidden aria-label="כניסה"></section>
 
   <main id="main" tabindex="-1">
     <div class="monthbar" id="monthbar" hidden>
-      <button type="button" class="icon-btn" id="m-prev" aria-label="החודש הקודם"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-      <h1 class="monthbar-title"><span id="m-title"></span><span class="lock-tag" id="m-lock" hidden>נעול</span></h1>
-      <button type="button" class="icon-btn" id="m-next" aria-label="החודש הבא"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button type="button" class="icon-btn" id="m-prev" aria-label="החודש הקודם"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></button>
+      <h1 class="monthbar-title"><span id="m-title"></span><span class="k-pill k-pill-warn lock-tag" id="m-lock" hidden>נעול</span></h1>
+      <button type="button" class="icon-btn" id="m-next" aria-label="החודש הבא"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6"/></svg></button>
     </div>
     <div id="view"></div>
     <p class="state" id="state" role="status"></p>
@@ -55,15 +77,16 @@
   <dialog id="dlg" aria-labelledby="dlg-title">
     <form method="dialog" class="sheet" id="dlg-form" novalidate>
       <div class="sheet-head">
+        <span class="sheet-ico" id="dlg-ico"></span>
         <h2 id="dlg-title"></h2>
-        <button type="button" class="icon-btn" data-close aria-label="סגירה"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button type="button" class="icon-btn" data-close aria-label="סגירה"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="sheet-body" id="dlg-body"></div>
       <div class="sheet-foot" id="dlg-foot"></div>
     </form>
   </dialog>
 
-  <div class="toast" id="toast" role="status" hidden></div>
+  <div class="toast" id="toast" role="status" popover="manual" hidden></div>
   <script type="module" src="../app/payouts/app.js"></script>
 </body>
 </html>
