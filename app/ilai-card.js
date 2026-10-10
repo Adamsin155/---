@@ -292,7 +292,10 @@ function dayCard(x, ctx) {
           h('input', { type: 'checkbox', class: 'cbx fin', id: `${idp}-gantt`, checked: gantt.done, onchange: (e) => mark(ctx, c, GANTT_KEYS, e.currentTarget.checked, e.currentTarget.checked ? 'שלד הגאנט סומן.' : null) }),
           h('span', { class: 'wlabel' }, 'גאנט התוכן נפתח במערכת, עם כל העמודות')),
         h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm btn-ghost gantt-go', href: ganttUrl(c.id) }, 'גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`)))),
-      logo ? h('div', { class: 'il-part' }, h('h4', {}, 'לוגו חדש', logo.done ? null : until(logo.due, now)), check(ctx, c, 'p05.newlogo', 'הכנתי לוגו חדש (אין ללקוח לוגו)', idp)) : null));
+      // v10: the logo he made goes into the client's files here; the tick is refused while none is there (app/mark-guards.js).
+      logo ? h('div', { class: 'il-part' }, h('h4', {}, 'לוגו חדש', logo.done ? null : until(logo.due, now)),
+        logo.done ? null : mountWorkFiles({ client: c, kind: 'logo', me: ctx.viewer?.error ? undefined : ctx.me, myEmail, idp: `${idp}-logo`, toast, title: 'הלוגו החדש', onChange: ctx.refresh }),
+        check(ctx, c, 'p05.newlogo', 'הכנתי לוגו חדש (אין ללקוח לוגו)', idp)) : null));
 }
 
 // What is typed in a link field and not saved yet: the list is rebuilt after every mark,

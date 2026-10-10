@@ -211,6 +211,10 @@ export function describeOfficeMark(key, action, note) {
     return clear ? `ביטל/ה ״התיקונים מוכנים״ (${what}, סבב ${m[3]})` : `התיקונים מוכנים וחזרו לבדיקה של אופיר (${what}, סבב ${m[3]})`;
   }
   if (key === 'p07.moved') return clear ? null : 'בדיקת 9 הגרפיקות עברה לאופיר (גרסה 9 של הפרוטוקול)';
+  // Protocol v10: marks that are not items.
+  if (key === 'p13.left') return clear ? 'ביטל/ה את ״נשארו תיקונים אחרי הזום״' : action === 'na' ? 'אין תיקונים אחרי הזום' : 'נשארו תיקונים אחרי הזום: נפתח פריט עם יעד';
+  if (key === 'p16.read') return clear ? 'ביטל/ה את ״קראתי את התסריטים״' : 'הצלם קרא את התסריטים של יום הצילום';
+  if (key === 'p18b.files') return clear ? 'ניקה/תה את חומרי הגלם שנרשמו ליד התסריטים' : 'עודכנו חומרי הגלם והטייקים שנבחרו ליד התסריטים';
   if (key === 'p22a.reason') {
     const v = json(note);
     return clear ? 'ביטל/ה את סיבת השיוך' : `נימק/ה את בחירת העורך${v?.editor ? ` (${nameOf(v.editor)})` : ''}: ${v?.reason || ''}`;

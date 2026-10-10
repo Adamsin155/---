@@ -77,6 +77,12 @@ import { loadFlowExtra } from './mine-flow-data.js';
 import { setOfirMeetings, fastCaseOf, ladderAt, MEETING_WORDS } from './fast-ladder.js';
 import { ofirMeetings } from './office-marks.js';
 import { loadOfirMeetings } from './office-data.js';
+// Protocol v10 (docs/ops.md, section 58): a fix the client asked for outside the status page,
+// the question after the Zoom, and a contract that ended while the client is still active.
+import { fixSpecOf, mayRecordFix, awaitsClient } from './fix-request.js';
+import { openFixRequest, fixButton } from './fix-request-ui.js';
+import { contractsEnded } from './contract-end.js';
+import { contractCard } from './contract-end-ui.js';
 
 let clients = [];
 let checks = {};
@@ -378,6 +384,39 @@ function tickOf(e, id) {
   return h('input', { type: 'checkbox', id, class: 'cbx fin', 'data-word': e.item?.word || null, disabled: !!viaPage(e), onchange: (ev) => toggleEntry(e, ev.currentTarget) });
 }
 const fixLine = (e) => { const t = fixOf(e); return t ? h('p', { class: 'hint fix-note' }, fixNote(t, (p) => PEOPLE[p]?.name || p)) : null; };
+// "הלקוח ביקש תיקון": next to an approval that waits for the client's answer (app/fix-request.js).
+// It opens the same task as a fix written on the status page; the row then reads FIX_ITEM_LABEL.
+function fixAsk(e) {
+  if (e.task || !fixSpecOf(e.item.key) || !mayRecordFix({ me, scope, error: viewerError })) return null;
+  if (!awaitsClient(e.item.key, checks[e.client.id] || {}, tasks, e.client.id)) return null;
+  const id = `fx-${e.client.id}-${e.item.key}`.replace(/[^w-]/g, '_');
+  return h('p', { class: 'fix-ask-line' }, fixButton({ id, onclick: () => openFixRequest({ client: e.client, key: e.item.key, name: clientLabel(e.client), focusId: id, onDone: () => load() }) }));
+}
+// The Zoom took place (13): were fixes left? "נשארו תיקונים" opens the item p13.fixes with its
+// own deadline (the mark p13.left; app/protocol.js `neededIf`); "אין תיקונים" closes it.
+const roundPre = (proc) => { const kb = proc.keyBase || proc.id; return kb.slice(0, kb.length - baseId(proc).length); };
+function zoomFixesLine(g) {
+  if (g.task || baseId(g.proc) !== 'p13' || viewerError || scope !== 'office' || !(me === 'lior' || me === null)) return null;
+  const pre = roundPre(g.proc);
+  const cs = checks[g.client.id] || {};
+  if (cs[`${pre}p13.zoom`]?.state !== 'done' || cs[`${pre}p13.left`] || ['done', 'na'].includes(cs[`${pre}p13.fixes`]?.state)) return null;
+  const id = `zf-${g.key}`.replace(/[^w-]/g, '_');
+  const answer = async (left, btn) => {
+    btn.disabled = true;
+    const key = left ? `${pre}p13.left` : `${pre}p13.fixes`;
+    try {
+      (checks[g.client.id] ||= {})[key] = await setCheck(g.client.id, key, left ? 'done' : 'na', left ? null : 'אין תיקונים אחרי הזום');
+      states.delete(g.client.id);
+    } catch (err) { btn.disabled = false; toast(`לא נשמר. ${errorText(err)}`); return; }
+    renderKeepingFocus();
+    toast(left ? 'נפתח פריט: תיקוני התסריטים, עד סוף יום העסקים הבא.' : 'נרשם: אין תיקונים אחרי הזום.');
+  };
+  return h('div', { class: 'need wneed zoom-fixes', role: 'group', 'aria-label': 'תיקונים אחרי הזום' },
+    h('span', {}, 'נשארו תיקונים אחרי הזום?'),
+    h('span', { class: 'zoom-fixes-acts' },
+      h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-y`, onclick: (ev) => answer(true, ev.currentTarget) }, 'נשארו תיקונים'),
+      h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: `${id}-n`, onclick: (ev) => answer(false, ev.currentTarget) }, 'אין תיקונים')));
+}
 const viaPage = (e) => (e.task || scope === 'office' ? null : uploadStepOf(e.item.key, me, e.client.id));
 function viaLine(e) {
   const via = viaPage(e);
@@ -947,6 +986,7 @@ function compactCard(g, person) {
         h('span', { class: 'wlabel' }, entryLabel(e))),
       viaLine(e),
       fixLine(e),
+      fixAsk(e),
       e.task ? briefDetails(e.task) : null);
   }));
   // The one action: "התחלתי" on an urgent task; the form the process is worked in; the
@@ -965,7 +1005,7 @@ function compactCard(g, person) {
         type: 'button', class: 'btn btn-sm btn-ghost bulk-btn',
         'aria-label': `סימון ${bulk.items.length} פריטים כבוצעו בתהליך ${procLabel(g.proc)}`,
         onclick: (ev) => bulkMark(g, bulk, ev.currentTarget),
-      }, bulk.whole ? `סימון כל התהליך כבוצע (${bulk.items.length})` : `סימון כל הפריטים שלי כבוצעו (${bulk.items.length})`) : null,
+      }, g.proc.bulkWord ? `${g.proc.bulkWord} (${bulk.items.length})` : bulk.whole ? `סימון כל התהליך כבוצע (${bulk.items.length})` : `סימון כל הפריטים שלי כבוצעו (${bulk.items.length})`) : null,
       canWait && g.status !== 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => openWait(g) }, 'ממתין ללקוח') : null,
       canWait && g.status === 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(g) }, 'סיום המתנה') : null) : null,
     single || !n ? null : rows(),
@@ -997,6 +1037,7 @@ function compactCard(g, person) {
       h('p', { class: 'wc-title' }, single && g.task ? h('span', { class: 'wc-sub' }, sub || 'משימה') : [what, sub ? h('span', { class: 'wc-sub' }, ` · ${sub}`) : null]),
       panel && !listIsAction ? toggle('פירוט', 'btn-text wc-more') : null),
     need, // a detail of the client that is still missing, set from here
+    zoomFixesLine(g), // 13: were fixes left after the Zoom?
     link, // the link this step sends to the client, with its "סיימתי" in the same row
     start, // "התחלתי", or when it was pressed
     shortcut,
@@ -1028,6 +1069,7 @@ function groupCard(g, person) {
     g.task ? taskMeta(g.task) : null,
     g.task && g.urgent ? taskStart(g.task) : null,
     needLine(g),
+    zoomFixesLine(g),
     linkLine(g),
     g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null,
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
@@ -1036,7 +1078,7 @@ function groupCard(g, person) {
         type: 'button', class: 'btn btn-sm btn-ghost bulk-btn',
         'aria-label': `סימון ${bulk.items.length} פריטים כבוצעו בתהליך ${procLabel(g.proc)}`,
         onclick: (ev) => bulkMark(g, bulk, ev.currentTarget),
-      }, bulk.whole ? `סימון כל התהליך כבוצע (${bulk.items.length})` : `סימון כל הפריטים שלי כבוצעו (${bulk.items.length})`) : null,
+      }, g.proc.bulkWord ? `${g.proc.bulkWord} (${bulk.items.length})` : bulk.whole ? `סימון כל התהליך כבוצע (${bulk.items.length})` : `סימון כל הפריטים שלי כבוצעו (${bulk.items.length})`) : null,
       canWait && g.status !== 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => openWait(g) }, 'ממתין ללקוח') : null,
       canWait && g.status === 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(g) }, 'סיום המתנה') : null) : null,
     h('ul', { class: 'wlist' }, ...checkable(g).map((e) => {
@@ -1047,6 +1089,7 @@ function groupCard(g, person) {
           h('span', { class: 'wlabel' }, entryLabel(e))),
         viaLine(e),
         fixLine(e),
+        fixAsk(e),
         e.task ? briefDetails(e.task) : null);
     })));
 }
@@ -1355,7 +1398,10 @@ function renderMine() {
   // The counted lines with a clock sit in the group of their urgency, before its cards.
   const flowIn = (k) => flow.filter((f) => f.bucket === k).map(flowCard);
   const heldItems = person ? lateState().items(person) : [];
-  if (!list.length && !review && !thursday && !heldItems.length && !flow.some((f) => f.bucket !== 'landing')) {
+  // A contract that ended while the client is still active: Lior's to decide (and the owners see it).
+  const ended = person === 'lior' || (!person && !me) ? contractsEnded(clients, new Date()) : [];
+  const endedCards = ended.map((x) => contractCard(x, { viewer: { me, scope, error: viewerError }, href: clientUrl(x.cid, '#p34'), onDone: () => load() }));
+  if (!list.length && !review && !thursday && !heldItems.length && !ended.length && !flow.some((f) => f.bucket !== 'landing')) {
     fill(wrap, banner, ilai, ilai ? null : emptyState({ text: nothing }), soon);
     return;
   }
@@ -1376,7 +1422,7 @@ function renderMine() {
     let g = list.filter((x) => bucketFor(x) === k);
     if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
     if (k === 'overdue') g = g.sort(worstFirst);
-    const extra = [...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : []), ...(k === 'overdue' ? lateRows : [])];
+    const extra = [...(k === 'today' ? endedCards : []), ...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : []), ...(k === 'overdue' ? lateRows : [])];
     if (!g.length && !extra.length && !(k === 'overdue' && inCards)) return null;
     // The number of "באיחור" is the number of the tab: Ilai's late work inside his cards is part of it.
     const more = k === 'overdue' ? inCards : 0;

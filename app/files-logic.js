@@ -188,13 +188,15 @@ export const validLink = (v) => /^https:\/\/[^\s"<>]+$/.test(String(v || '').tri
 
 // ── Who ───────────────────────────────────
 // `me` is staff.person (null: the owner). The managers upload every kind, edit and
-// delete anything; Ilai uploads graphics, highlights and the site and edits every
+// delete anything; Ilai uploads graphics, highlights, the site and a logo he made, and edits every
 // deliverable (he posts them); an editor uploads videos for a client assigned to
 // them (the database also counts a task someone opened for them).
 export const MANAGERS = ['irit', 'lior', 'ofir'];
 export const isManager = (me) => me === null || MANAGERS.includes(me);
 export const EDITORS = ['nadia', 'yariv', 'anna', 'nirel'];
-export const ILAI_KINDS = ['deliverable_graphic', 'deliverable_highlight', 'deliverable_site'];
+// (The logo: protocol v10. "עילאי הכין לוגו חדש" is ticked only once a logo is in the client's files,
+// so he uploads the one he made; public.can_upload_client_file agrees, migration 20261024100000.)
+export const ILAI_KINDS = ['deliverable_graphic', 'deliverable_highlight', 'deliverable_site', 'logo'];
 export const assignedTo = (client, me) => !!me && (client?.editor === me || (client?.rounds || []).some((r) => r?.editor === me));
 
 export function uploadKinds(me, client) {

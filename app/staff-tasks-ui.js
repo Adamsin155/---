@@ -16,12 +16,15 @@ import { supabase } from './supa.js';
 import { fill, h, toast, errorText, formatWhen } from './protocol-ui.js';
 import {
   canGive, personOfViewer, ASSIGNEES, personName, validateTask, BODY_MAX, taskLists, nextNagAt, nagOpen, NAG_EVERY,
+  needsBrief, NAG_BRIEF, BRIEF_MAX, briefLines,
 } from './staff-tasks-logic.js';
 
 // The state of a "נודניק" as the sender reads it (STATUS_TEXT in the logic speaks of a task).
 const STATE_TEXT = { open: 'פתוח', done: 'בוצע', cancelled: 'בוטל' };
 
-const COLS = 'id, created_at, created_by, assignee, body, client_id, client_name, status, done_at, cancelled_at';
+const BASE_COLS = 'id, created_at, created_by, assignee, body, client_id, client_name, status, done_at, cancelled_at';
+// The brief of a task for Nirel (protocol v10; the column comes with migration 20261024100000).
+const COLS = `${BASE_COLS}, brief`;
 const missing = (error) => ['42P01', 'PGRST205', 'PGRST204', '42703'].includes(error?.code);
 
 let box = null;
@@ -38,7 +41,9 @@ let onChange = () => {};
 // The tasks this login may read (its own, the ones it gave; the owner: all). null:
 // the table is not there yet (before the migration).
 export async function loadStaffTasks() {
-  const { data, error } = await supabase.from('staff_tasks').select(COLS).order('created_at', { ascending: false }).limit(300);
+  let { data, error } = await supabase.from('staff_tasks').select(COLS).order('created_at', { ascending: false }).limit(300);
+  // Until the migration adds the brief's column the tasks load without it (the card must not vanish).
+  if (error?.code === '42703') ({ data, error } = await supabase.from('staff_tasks').select(BASE_COLS).order('created_at', { ascending: false }).limit(300));
   if (error) {
     if (missing(error)) return null;
     throw error;
@@ -59,6 +64,7 @@ function explain(err) {
   if (/not open|task not found/.test(msg)) return 'המשימה כבר נסגרה. הרשימה רועננה.';
   if (/no login/.test(msg)) return 'לעובד הזה עוד אין כניסה למערכת, ולכן הוא לא יקבל את המשימה. מוסיפים אותו בעמוד ״צוות״.';
   if (/task text is required/.test(msg)) return `כותבים מה צריך לעשות, עד ${BODY_MAX} תווים.`;
+  if (/needs the full brief|invalid brief/.test(msg)) return 'משימה לניראל צריכה בריף מלא: הבעיה, מה לשנות, מה נשאר והתוצאה.';
   if (/client not found/.test(msg)) return 'הלקוח שנבחר לא נמצא. בחרו לקוח אחר או השאירו ריק.';
   if (/not allowed|permission denied/.test(msg)) return 'אין לך הרשאה לפעולה הזו.';
   return errorText(err);
@@ -81,17 +87,21 @@ async function act(rpc, t, btn, done) {
 }
 
 async function send(form) {
-  const v = validateTask({ assignee: form.elements.assignee.value, body: form.elements.body.value, clientId: form.elements.client?.value || '' });
-  for (const k of ['assignee', 'body']) {
+  const brief = Object.fromEntries(NAG_BRIEF.map(([k]) => [k, form.elements[`brief-${k}`]?.value || '']));
+  const v = validateTask({ assignee: form.elements.assignee.value, body: form.elements.body.value, clientId: form.elements.client?.value || '', brief });
+  const fields = ['assignee', 'body', ...NAG_BRIEF.map(([k]) => `brief-${k}`)];
+  const errOf = (name) => v.errors[name.replace('brief-', 'brief.')];
+  for (const k of fields) {
     const err = form.querySelector(`#st-${k}-err`);
-    err.textContent = v.errors[k] || '';
-    err.hidden = !v.errors[k];
-    form.elements[k].setAttribute('aria-invalid', v.errors[k] ? 'true' : 'false');
+    if (!err) continue;
+    err.textContent = errOf(k) || '';
+    err.hidden = !errOf(k);
+    form.elements[k].setAttribute('aria-invalid', errOf(k) ? 'true' : 'false');
   }
-  if (!v.ok) { form.elements[v.errors.assignee ? 'assignee' : 'body'].focus(); return; }
+  if (!v.ok) { form.elements[fields.find((k) => errOf(k))]?.focus(); return; }
   const btn = form.querySelector('button[type="submit"]');
   btn.disabled = true;
-  const { error } = await supabase.rpc('staff_task_create', v.args);
+  const { error } = await supabase.rpc(v.rpc, v.args);
   if (error) { toast(explain(error)); btn.disabled = false; return; }
   formOpen = false;
   showOpen = true; // what was just sent is shown
@@ -113,10 +123,14 @@ const stamp = (v) => formatWhen(new Date(v));
 const clientOf = (t) => (t.client_name ? [' · לקוח: ',
   t.client_id && viewer?.scope === 'office' ? h('a', { href: `client.html?id=${encodeURIComponent(t.client_id)}` }, t.client_name) : h('span', { dir: 'auto' }, t.client_name)] : null);
 
+// The brief of a task (Nirel's): the four answers, under what to do.
+const briefOf = (t) => { const lines = briefLines(t); return lines.length ? h('dl', { class: 'st-brief' }, ...lines.flatMap(([l, v]) => [h('dt', {}, l), h('dd', { dir: 'auto' }, v)])) : null; };
+
 function mineItem(t, now) {
   const next = nextNagAt(t.created_at, now);
   return h('article', { class: 'st-item is-mine', 'data-task': t.id, 'aria-labelledby': `st-${t.id}` },
     h('p', { class: 'st-body', id: `st-${t.id}`, dir: 'auto' }, t.body),
+    briefOf(t),
     h('p', { class: 'st-meta' }, `נשלח מ${personName(t.created_by)} · ${stamp(t.created_at)}`, clientOf(t)),
     h('p', { class: 'st-next' }, nagOpen(now) ? `תזכורת כל ${NAG_EVERY} דקות עד שמסמנים ״בוצע״. הבאה: ${formatWhen(next, now)}.` : `התזכורות יתחדשו ${formatWhen(next, now)}.`),
     h('div', { class: 'st-acts' },
@@ -130,6 +144,7 @@ function givenItem(t) {
       h('strong', { class: 'st-who' }, personName(t.assignee)),
       h('span', { class: `st-state is-${t.status}` }, STATE_TEXT[t.status])),
     h('p', { class: 'st-body', id: `sg-${t.id}`, dir: 'auto' }, t.body),
+    briefOf(t),
     h('p', { class: 'st-meta' },
       personOfViewer(viewer) !== t.created_by ? `שלח/ה ${personName(t.created_by)} · ` : '', `נשלח ${stamp(t.created_at)}`,
       t.status === 'done' ? ` · בוצע ${stamp(t.done_at)}` : '', t.status === 'cancelled' ? ` · בוטל ${stamp(t.cancelled_at)}` : '', clientOf(t)),
@@ -142,11 +157,18 @@ function givenItem(t) {
 
 function newForm() {
   const counter = h('span', { class: 'st-count', id: 'st-count', 'aria-live': 'off' }, `0/${BODY_MAX}`);
+  // Nirel's mandatory brief (protocol v10): the four fields appear when she is chosen, and all are required.
+  const briefBox = h('fieldset', { class: 'st-brief-form', id: 'st-brief', hidden: true },
+    h('legend', {}, 'הבריף לניראל (חובה)'),
+    ...NAG_BRIEF.map(([k, l]) => h('div', { class: 'field' },
+      h('label', { for: `st-brief-${k}` }, l),
+      h('textarea', { class: 'input', id: `st-brief-${k}`, name: `brief-${k}`, rows: 2, maxlength: BRIEF_MAX, 'aria-describedby': `st-brief-${k}-err`, oninput: (e) => { if (e.currentTarget.value.trim()) clearError(e.currentTarget); } }),
+      h('div', { class: 'err', id: `st-brief-${k}-err`, hidden: true }))));
   return h('form', { class: 'st-form', id: 'st-form', novalidate: true, 'aria-labelledby': 'st-form-h', onsubmit: (e) => { e.preventDefault(); send(e.currentTarget); } },
     h('h3', { id: 'st-form-h' }, 'נודניק חדש'),
     h('div', { class: 'field' },
       h('label', { for: 'st-assignee' }, 'למי'),
-      h('select', { class: 'input', id: 'st-assignee', name: 'assignee', required: true, 'aria-describedby': 'st-assignee-err', onchange: (e) => clearError(e.currentTarget) },
+      h('select', { class: 'input', id: 'st-assignee', name: 'assignee', required: true, 'aria-describedby': 'st-assignee-err', onchange: (e) => { clearError(e.currentTarget); briefBox.hidden = !needsBrief(e.currentTarget.value); } },
         h('option', { value: '' }, 'בחירת עובד/ת'), ...ASSIGNEES().map((p) => h('option', { value: p.key }, p.name))),
       h('div', { class: 'err', id: 'st-assignee-err', hidden: true })),
     h('div', { class: 'field' },
@@ -156,6 +178,7 @@ function newForm() {
         oninput: (e) => { counter.textContent = `${e.currentTarget.value.length}/${BODY_MAX}`; if (e.currentTarget.value.trim()) clearError(e.currentTarget); },
       }),
       h('div', { class: 'st-under' }, h('div', { class: 'err', id: 'st-body-err', hidden: true }), counter)),
+    briefBox,
     clients?.length ? h('div', { class: 'field' },
       h('label', { for: 'st-client' }, 'לקוח (לא חובה)'),
       h('select', { class: 'input', id: 'st-client', name: 'client' }, h('option', { value: '' }, 'בלי לקוח'), ...clients.map((c) => h('option', { value: c.id }, c.label)))) : null,

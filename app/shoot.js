@@ -16,7 +16,7 @@
 // Every mark is a protocol check; the keys are in app/production.js.
 import { SHOOT_TYPES } from './protocol.js';
 import { clientState, clientLabel } from './protocol-logic.js';
-import { loadChecks, setCheck, clearCheck, setChecksBulk, loadDirectory, loadStaffPhones } from './protocol-data.js';
+import { loadChecks, loadCheck, setCheck, clearCheck, setChecksBulk, loadDirectory, loadStaffPhones } from './protocol-data.js';
 import { loadWorkClients, loadShootScripts } from './production-data.js';
 import { STATUS, scriptLabel, linkName } from './scripts-logic.js';
 import {
@@ -116,6 +116,67 @@ function say(text, kind = 'info', name = 'camera') {
 // A card's heading with its icon square.
 const cardHead = (id, text, name, tone) => headIcon(h('h2', { id: `${id}-h`, tabindex: '-1' }, text), name, tone, { size: 'md' });
 
+// ── The raw material and the chosen take, per script (protocol v10; docs/ops.md, section 58) ──
+// Next to every script of the day: the number of its file (or clip) and the take that was
+// chosen. Two short fields a row, typed in a second and saved by themselves; Lior (next to
+// his counter) and Eli (in his day) fill the same list, and the editor reads it on his
+// page. Not required, and it holds nothing open. One mark per shoot round (P.FILES_KEY):
+// before a row is written the mark is read again, so two phones do not overwrite each other.
+const fileDrafts = new Map(); // what is typed in a field and not saved yet (the page redraws by the minute)
+const filesOpen = new Set();  // the lists that were opened: kept across redraws
+const draftKey = (sc, n, f) => `${sc.client.id}:${sc.pre}:${n}:${f}`;
+function filesBlock(sc) {
+  const id = cardId(sc);
+  const c = cs(sc.client);
+  const files = P.filesOf(c, sc.pre);
+  const target = scriptsCount(sc);
+  const rows = P.fileRows(files, target, P.shotOf(c, sc.pre));
+  const field = (r, f, label, max) => h('input', {
+    class: 'input num sh-file-in', id: `${id}-f${r.n}-${f}`, type: 'text', inputmode: 'numeric', dir: 'ltr', autocomplete: 'off', enterkeyhint: 'next',
+    maxlength: String(max), disabled: !canAct, 'aria-label': `${label}, סרטון ${r.n}`,
+    value: fileDrafts.has(draftKey(sc, r.n, f)) ? fileDrafts.get(draftKey(sc, r.n, f)) : r[f],
+    oninput: (e) => fileDrafts.set(draftKey(sc, r.n, f), e.currentTarget.value),
+    onchange: () => saveFile(sc, r.n),
+  });
+  return h('details', {
+    class: 'ed-more sh-files', id: `${id}-files`, open: filesOpen.has(id),
+    ontoggle: (e) => { if (e.currentTarget.open) filesOpen.add(id); else filesOpen.delete(id); },
+  },
+  leadIcon(h('summary', {}, 'חומר גלם וטייק לכל תסריט', h('span', { class: 'muted sh-files-n', id: `${id}-files-n` }, ` · ${P.filesHint(files, target)}`)), 'drive'),
+  h('p', { class: 'hint' }, 'ליד כל סרטון: מספר הקובץ והטייק שנבחר. לא חובה. נשמר לבד, והעורך רואה את זה בעמוד שלו.'),
+  h('div', { class: 'sh-file-head', 'aria-hidden': 'true' }, h('span', {}, 'סרטון'), h('span', {}, 'קובץ'), h('span', {}, 'טייק')),
+  h('ol', { class: 'sh-file-rows' }, ...rows.map((r) => h('li', { class: 'sh-file-row' },
+    h('span', { class: 'num sh-file-n' }, String(r.n)),
+    field(r, 'raw', 'מספר הקובץ', P.RAW_MAX),
+    field(r, 'take', 'הטייק שנבחר', P.TAKE_MAX)))));
+}
+async function saveFile(sc, n) {
+  const id = cardId(sc);
+  const raw = $(`${id}-f${n}-raw`)?.value ?? '';
+  const take = $(`${id}-f${n}-take`)?.value ?? '';
+  const key = `${sc.pre}${P.FILES_KEY}`;
+  const c = cs(sc.client);
+  try {
+    const latest = await loadCheck(sc.client.id, key);
+    if (latest) c[key] = latest; else delete c[key];
+  } catch { /* not read: the row is set on what this page holds */ }
+  const files = P.withFile(P.filesOf(c, sc.pre), n, raw, take);
+  const note = P.filesNote(files);
+  try {
+    if (note) c[key] = await setCheck(sc.client.id, key, 'done', note);
+    else if (c[key]) { await clearCheck(sc.client.id, key); delete c[key]; }
+  } catch (err) {
+    toast(`לא נשמר. ${errorText(err)}`);
+    return;
+  }
+  fileDrafts.delete(draftKey(sc, n, 'raw'));
+  fileDrafts.delete(draftKey(sc, n, 'take'));
+  // Only the count is rewritten: the fields keep the focus, so the next row is typed at once.
+  const hint = P.filesHint(files, scriptsCount(sc));
+  if ($(`${id}-files-n`)) $(`${id}-files-n`).textContent = ` · ${hint}`;
+  if ($(`${id}-numbered`)) $(`${id}-numbered`).textContent = `${hint}.`;
+}
+
 // ── Eli ─────────────────────────────────────
 // The days to show: from yesterday (while the drive is not handed back) to 30 days ahead.
 function eliDays(now = new Date()) {
@@ -153,9 +214,20 @@ function eliCard(sc, now) {
       // From the briefing's hour on (and on the day itself) "will fill it in" is no longer true.
       h('dt', {}, 'תווית הכונן'), h('dd', {}, label || (eveOrDay ? 'ליאור עוד לא מילא' : 'ליאור ימלא בתדריך'))),
     placeBlock(sc),
+    readLine(sc, now),
     b ? briefingForEli(sc, b) : h('p', { class: 'muted' }, eveOrDay ? 'התדריך: ליאור עוד לא מילא.' : 'התדריך של ליאור יגיע בערב שלפני, ב־17:00.'),
     eveOrDay && !isDone(sc, 'p17b.arrived') ? gearBlock(sc) : null,
     today || isDone(sc, 'p17b.arrived') ? eliDay(sc, now) : null);
+}
+
+// "קראתי את התסריטים" (protocol v10; the photographer's protocol, step 2): one tick per shoot
+// day. Not ticked by 20:00 the evening before, Lior's evening line says so (the rule `briefing`).
+function readLine(sc, now) {
+  const id = cardId(sc);
+  const at = atOf(sc, 'p16.read');
+  return h('div', { class: 'sh-read' }, at
+    ? h('p', { class: 'note-ok', id: `${id}-read-ok` }, `קראת את התסריטים ${formatWhen(at, now)}. ליאור רואה.`)
+    : btn(`${id}-read`, 'קראתי את התסריטים', () => mark(sc, 'p16.read', 'אלי קרא את התסריטים', `${id}-h`), 'btn btn-sm'));
 }
 
 function briefingForEli(sc, b) {
@@ -229,10 +301,13 @@ function eliDay(sc, now) {
       : h('div', { class: 'ed-act' },
         // The shooting guidance was followed: its items close with the handoff (fixed text, not a checklist).
         btn(`${id}-handed`, 'מסרתי לליאור', () => mark(sc, ['p19b.handed', ...notYet(sc, ['p18b.order', 'p18b.quality', 'p18b.numbered'])], null, `${id}-h`), 'btn btn-primary', { disabled: !canAct || open.length > 0, 'aria-describedby': `${id}-lock` }),
-        h('p', { class: 'hint', id: `${id}-lock` }, open.length ? `נפתח אחרי ${open.length === 1 ? 'הפריט שנשאר' : `${open.length} הפריטים שנשארו`} ברשימה.` : 'ליאור מאשר מצדו, והמסירה נרשמת פעם אחת.'))) : null;
+        h('p', { class: 'hint', id: `${id}-lock` }, open.length ? `נפתח אחרי ${open.length === 1 ? 'הפריט שנשאר' : `${open.length} הפריטים שנשארו`} ברשימה.` : 'ליאור מאשר מצדו, והמסירה נרשמת פעם אחת.'),
+        // "לכל חומר ברור לאיזה מספר סרטון הוא שייך" (p18b.numbered) closes with the handoff: how many scripts have a file by now.
+        h('p', { class: 'hint sh-numbered', id: `${id}-numbered` }, `${P.filesHint(P.filesOf(c, sc.pre), scriptsCount(sc))}.`))) : null;
   return h('div', { class: 'sh-day' },
     arrival,
     broll,
+    arrived ? filesBlock(sc) : null,
     h('details', { class: 'ed-more' }, leadIcon(h('summary', {}, 'הנחיות הצילום'), 'list'),
       h('ul', { class: 'sh-guide' },
         h('li', {}, 'עוברים עם ליאור על אזורי הצילום: זוויות, תאורה, סאונד ורקע נקי.'),
@@ -351,6 +426,7 @@ function shootMode(sc, now) {
         btn(`${id}-plus`, `+1 · סרטון ${next}`, () => count(sc, [...shot, next], `${id}-plus`), 'btn btn-primary btn-big', { disabled: !canAct || !started, ...(started ? {} : { 'aria-describedby': `${id}-early` }) }),
         shot.length ? btn(`${id}-minus`, `ביטול סרטון ${Math.max(...shot)}`, () => count(sc, shot.filter((x) => x !== Math.max(...shot)), `${id}-minus`), 'btn btn-sm btn-ghost', { disabled: !canAct || !started }) : null),
       closed || started ? null : h('p', { class: 'hint', id: `${id}-early` }, `יום הצילום ${P.startsText(sc.shootAt)}. המונה והסגירה נפתחים אז.`)),
+    started ? filesBlock(sc) : null,
     h('ol', { class: 'sh-timeline' }, ...tl.map((x) => h('li', { class: `${x.at <= now ? 'is-past' : ''}${x === nextPoint ? ' is-next' : ''}${x.prompt ? ' is-prompt' : ''}` },
       h('span', { class: 'num sh-t' }, P.clockText(x.at)), h('span', { class: x.prompt ? 'sh-prompt' : null }, x.prompt ? icon('clock', { size: 16 }) : null, x.label), x === nextPoint ? h('span', { class: 'sr-only' }, ' (הבא)') : null))),
     h('p', { class: 'sh-fixed' }, 'להחזיק את הראיונות על המסר.'),
@@ -405,6 +481,8 @@ function briefingForm(sc, now) {
     // The same facts, each with its own small icon.
     facts([['calendar', summary[0]], ['clock', summary[1]], sc.client.address ? ['pin', sc.client.address] : null, n ? ['file', `${n} תסריטים`] : null]),
     b ? h('p', { class: b.ack ? 'note-ok' : 'ed-wait' }, `נשלח ${formatWhen(b.at, now)}${b.label ? ` · ${P.driveName(b.label)}` : ''}. ${b.ack ? `אלי אישר ${formatWhen(b.ack, now)}.` : 'אלי עוד לא אישר (ב־20:00 תקבל תזכורת).'}`) : null,
+    // v10: whether he read the scripts of this day (his own tick).
+    h('p', { class: atOf(sc, 'p16.read') ? 'note-ok' : 'ed-wait', id: `${id}-read` }, atOf(sc, 'p16.read') ? `אלי קרא את התסריטים ${formatWhen(atOf(sc, 'p16.read'), now)}.` : 'אלי עוד לא סימן שקרא את התסריטים.'),
     canAct ? h('form', {
       class: 'sh-brief-form', novalidate: true,
       onsubmit: async (e) => {

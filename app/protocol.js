@@ -74,14 +74,19 @@ export const PROTOCOL_VERSION = 10;
 
 // The five critical mistakes of editing, in the order and the words of the editors' written
 // protocol ("נקודות חשובות: טעויות קריטיות", docs/protocols/editors.md and nirel.md):
-// [key, the short name (the reason of a return for fixes), the editor's self-check, Ofir's check].
+// [key, the short name, the editor's self-check, Ofir's check, what is written to the editor
+// when it fails (the line of a return for fixes)].
 export const CRITICAL_MISTAKES = [
-  ['sound', 'סאונד', 'אין בעיות סאונד, והמוזיקה לא עוברת את המינוס 20 dB', 'אין בעיות סאונד; המוזיקה לא עוברת את המינוס 20 dB'],
-  ['exposure', 'חשיפה', 'התוכן מאוזן: לא שרוף, לא מואר מדי ולא חשוך מדי', 'התוכן מאוזן: לא שרוף, לא מואר מדי ולא חשוך מדי'],
-  ['stable', 'ייצוב', 'אין רעידות מצלמה (Warp Stabilizer, לרוב בבי־רולים)', 'אין רעידות מצלמה (Warp Stabilizer)'],
-  ['angles', 'זוויות', 'נעשה שימוש בכל זוויות המצלמה שצולמו, לא רק בזווית אחת', 'נעשה שימוש בכל זוויות המצלמה שצולמו'],
-  ['export', 'הגדרות ייצוא', 'הסרטונים יצאו רק בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים', 'הייצוא בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים'],
+  ['sound', 'סאונד', 'אין בעיות סאונד, והמוזיקה לא עוברת את המינוס 20 dB', 'אין בעיות סאונד; המוזיקה לא עוברת את המינוס 20 dB', 'בעיית סאונד, או מוזיקה שעוברת את המינוס 20 dB'],
+  ['exposure', 'חשיפה', 'התוכן מאוזן: לא שרוף, לא מואר מדי ולא חשוך מדי', 'התוכן מאוזן: לא שרוף, לא מואר מדי ולא חשוך מדי', 'התוכן שרוף, מואר מדי או חשוך מדי'],
+  ['stable', 'ייצוב', 'אין רעידות מצלמה (Warp Stabilizer, לרוב בבי־רולים)', 'אין רעידות מצלמה (Warp Stabilizer)', 'המצלמה רועדת: לייצב ב־Warp Stabilizer'],
+  ['angles', 'זוויות', 'נעשה שימוש בכל זוויות המצלמה שצולמו, לא רק בזווית אחת', 'נעשה שימוש בכל זוויות המצלמה שצולמו', 'לא נעשה שימוש בכל זוויות המצלמה שצולמו'],
+  ['export', 'הגדרות ייצוא', 'הסרטונים יצאו רק בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים', 'הייצוא בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים', 'הסרטון לא יצא בהגדרות שהוגדרו מראש (בעיית פיקסלים)'],
 ];
+// The words of the group, wherever the five are listed.
+export const CRITICAL_TITLE = 'חמש הטעויות הקריטיות של העריכה';
+// The line of a return for fixes that names a critical mistake.
+export const mistakeIssue = (key) => { const m = CRITICAL_MISTAKES.find(([k]) => k === key); return m ? `טעות קריטית · ${m[1]}: ${m[4]}` : ''; };
 
 // The renewal (34): it opens RENEWAL_LEAD_DAYS (60, app/protocol-logic.js) before the
 // contract ends, and is due this many days after it opens (v10; until then its deadline
@@ -295,6 +300,7 @@ const isDms = (c) => c.shoot_type === 'dms';
 // Item `guard`: what the system looks at before the mark is taken (app/mark-guards.js):
 //   it is refused only when the system knows there is nothing behind it.
 // Item `word`: the word on its "סיימתי" pill when it is a one-tap answer.
+// Process `bulkWord`: the words of its "mark them all" button, where the list is one check (29ב).
 // Item `passedIf: key`: an item that was put before a step clients had already taken. Where
 //   that step is done and this item has no mark, it is history: not asked, and it holds nothing.
 // Item `neededIf: key` (v10): an optional item that is asked for once that mark is done
@@ -921,7 +927,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p29b', round: true, num: '29ב', phase: 'publish', title: 'בדיקה סופית של כל העבודה', owners: ['ilai'],
+    id: 'p29b', round: true, num: '29ב', phase: 'publish', title: 'בדיקה סופית של כל העבודה', owners: ['ilai'], bulkWord: 'סימון הכול',
     sla: 'מיד לאחר סיום התזמון והגאנט; עד סוף יום העסקים שאחריו',
     // v10: the last step of Ilai's chain (his written protocol, step 10). It opens when the
     // Gantt is full and was sent to the client (29 complete); the end of the next business

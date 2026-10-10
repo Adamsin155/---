@@ -12,6 +12,10 @@
 //                section 48): by the protocol (27) she receives the notes, makes sure they
 //                are clear and documents them. A day after the due day: Lior's list; the
 //                task itself follows the ladder of every late item (rule `lateOwn`).
+//                Since protocol v10 the office writes down a fix the client asked for on
+//                WhatsApp or in a call ("הלקוח ביקש תיקון", public.staff_request_fix): the
+//                same task from the same code, so every step here is the same. Only the
+//                step to Irit is left out when she is the one who wrote it down.
 //   clientScore  a low satisfaction score (source 'survey'): Lior rings once to call
 //                within a business day; 2 or less of 5 (4 or less of 10) rings the owner
 //                too (decision 24, owner case 3); still open a business day after the
@@ -48,7 +52,8 @@ const ITEMS = new Map(PROCESSES.flatMap((p) => p.items.map((i) => [i.key, { item
 const contactOf = (i) => {
   const x = ITEMS.get(String(i.brief.item_key || '').replace(/^r\d+\./, ''));
   const owners = x ? (x.item.owners || (Array.isArray(x.proc.owners) ? x.proc.owners : [])) : [];
-  return owners.includes(FIX_CONTACT) && i.who !== FIX_CONTACT ? FIX_CONTACT : null;
+  // (She is not told of a request she wrote down herself: "הלקוח ביקש תיקון", protocol v10.)
+  return owners.includes(FIX_CONTACT) && i.who !== FIX_CONTACT && !(i.brief.from === 'office' && i.brief.by === FIX_CONTACT) ? FIX_CONTACT : null;
 };
 
 function casesOf(env, source) {
@@ -77,7 +82,7 @@ export const STATUS_RULES = [
         id: 'irit', to: contactOf, level: 'ring',
         title: (i) => (i.brief.extra ? `הלקוח ביקש סבב תיקונים נוסף: ${i.name}` : `הלקוח ביקש תיקון: ${i.name}`),
         body: (i) => [
-          i.brief.problem ? `הלקוח כתב: ״${short(i.brief.problem, 300)}״.` : `${i.task.title}.`,
+          i.brief.problem ? `${i.brief.from === 'office' ? `הלקוח ביקש (נרשם בידי ${nameOf(i.brief.by)})` : 'הלקוח כתב'}: ״${short(i.brief.problem, 300)}״.` : `${i.task.title}.`,
           `לברר שההערות ברורות ולתעד. ${nameOf(i.who)} ${i.brief.extra ? 'מחליט/ה' : 'מתקן/ת'}${i.task.due_on ? ` עד ${dayWord(dayFromKeyIL(i.task.due_on))}` : ''}.`,
         ].join(' '),
       },

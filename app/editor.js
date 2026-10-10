@@ -13,7 +13,7 @@
 // highlights from the focus call (app/intake-data.js, app/briefs.js).
 // Nirel also gets her "בריפים" inbox here. Each editor sees their own on-time and
 // first-pass numbers, never anyone else's.
-import { PEOPLE } from './protocol.js';
+import { PEOPLE, CRITICAL_TITLE } from './protocol.js';
 import { clientState, WAIT, WAITED, waitNote, endWaitNote } from './protocol-logic.js';
 import { dayFromKeyIL, endOfDayIL } from './tz.js';
 import {
@@ -202,6 +202,15 @@ function eliNotes(job) {
   const text = P.noteOf(cs(job.client)[`${job.pre}p19b.notes`]);
   return text ? h('details', { class: 'ed-more', open: true }, h('summary', {}, 'הערות של אלי מיום הצילום'), h('p', { class: 'ed-note' }, text)) : null;
 }
+// The raw material and the chosen take per script, as Lior and Eli wrote them on the shoot
+// day (protocol v10; P.FILES_KEY). To read only: script → file → the take.
+function rawFiles(job) {
+  const files = P.filesOf(cs(job.client), job.pre);
+  if (!files.size) return null;
+  return h('details', { class: 'ed-more ed-files', open: true },
+    h('summary', {}, `חומר גלם וטייק לכל תסריט (${files.size})`),
+    h('ul', { class: 'ed-file-list' }, ...[...files].map(([n, x]) => h('li', { class: 'num' }, P.fileLine(n, x)))));
+}
 
 // ── The round's finished videos ─────────────
 // In the client's Google Drive (docs/ops.md, section 37). The editor pastes the
@@ -354,6 +363,7 @@ function jobCard(job) {
       !links.drive && !links.scripts ? h('span', { class: 'muted' }, 'אין עדיין קישור לדרייב ולתסריטים בכרטיס.') : null),
     sheetBlock(job),
     eliNotes(job),
+    rawFiles(job),
     highlightsBlock(job));
 }
 
@@ -521,7 +531,10 @@ function openReady(job) {
   $('ready-link').removeAttribute('aria-invalid');
   $('ready-link-hint').textContent = gate.count ? `${gate.count === 1 ? 'סרטון אחד הועלה למערכת' : `${gate.count} סרטונים הועלו למערכת`}: אפשר גם בלי קישור.` : 'התיקייה של הלקוח בדרייב, עם כל הסרטונים הסופיים.';
   showErr('ready-link-err', '');
-  fill($('ready-list'), ...readyList.map(([, l], i) => checkRow(`ready-${i}`, l)));
+  // The five critical mistakes come under their own line (protocol v10).
+  fill($('ready-list'), ...readyList.flatMap(([, l, group], i) => [
+    group === 'critical' && readyList[i - 1]?.[2] !== 'critical' ? h('p', { class: 'prod-sub', id: 'ready-critical' }, CRITICAL_TITLE) : null,
+    checkRow(`ready-${i}`, l)]));
   showErr('ready-err', '');
   readyDlg.showModal();
   $('ready-0').focus();

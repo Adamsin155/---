@@ -2412,7 +2412,7 @@ const V10_RULES = [
   {
     id: 'contractEnd', event: 'החוזה הסתיים והלקוח עדיין פעיל (34, 35)', procs: ['p34', 'p35'],
     instances: (env) => contractsEnded(env.clients, env.now).map((x) => ({
-      id: `end@${x.endKey}`, cid: x.cid, client: x.client, name: x.name, x, url: 'clients.html#contract-end', anchors: { event: nextSendMoment(atIL(x.endAt, CONTRACT_END.ringAt)) },
+      id: `end@${x.endKey}`, cid: x.cid, client: x.client, name: x.name, x, url: MINE_URL, anchors: { event: nextSendMoment(atIL(x.endAt, CONTRACT_END.ringAt)) },
     })),
     steps: [{
       id: 'day', to: CONTRACT_END.who, level: 'ring',

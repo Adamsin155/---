@@ -7,7 +7,8 @@
 --      fix the client writes on the status page;
 --   4. a task given on the spot ("נודניק") to Nirel carries her mandatory brief;
 --   5. the writers table (the new items, and the photographer's own marks);
---   6. nothing else: no table, no policy, no trigger. One column is added (staff_tasks.brief).
+--   6. Ilai may upload a file of the kind 'logo' (the logo he made);
+--   7. nothing else: no table, no policy, no trigger. One column is added (staff_tasks.brief).
 -- Additive: marks are added, never changed; functions are replaced in place with the same
 -- signature, or added. Every statement can run again safely. Tested with every migration
 -- in a real Postgres: tests/sql/audit-gaps.test.mjs.
@@ -331,6 +332,25 @@ language sql security definer set search_path = '' as $$
 $$;
 revoke all on function public.staff_task_create(text, text, uuid) from public, anon, authenticated;
 grant execute on function public.staff_task_create(text, text, uuid) to authenticated;
+
+-- ── 4ב. Ilai uploads the logo he made ────────
+-- "עילאי הכין לוגו חדש" (p05.newlogo) is ticked from now on only once a logo is in the
+-- client's files (the site asks before the mark: app/mark-guards.js). Until now only the
+-- office could upload a file of the kind 'logo', so he could not put there the logo he
+-- made. The function of 20261003110000_client_files.sql, with that one kind added for him.
+create or replace function public.can_upload_client_file(p_client uuid, p_kind text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  with me as (select public.my_person() as p)
+  select coalesce(p_client is not null and public.can_see_client(p_client)
+    and p_kind in ('logo', 'image', 'video_existing', 'material_other', 'deliverable_graphic',
+      'deliverable_video', 'deliverable_highlight', 'deliverable_site', 'deliverable_other') and (
+    public.can_manage_client_files()
+    or (me.p = 'ilai' and p_kind in ('logo', 'deliverable_graphic', 'deliverable_highlight', 'deliverable_site'))
+    or (me.p in ('nadia', 'yariv', 'anna', 'nirel') and p_kind = 'deliverable_video' and private.is_assigned(p_client))), false)
+  from me;
+$$;
+revoke execute on function public.can_upload_client_file(uuid, text) from public, anon;
+grant execute on function public.can_upload_client_file(uuid, text) to authenticated;
 
 -- ── 5. Who writes which protocol item (v10) ──
 -- The office (Irit, Lior, Ofir) writes every key. New rows, and nothing else changes:

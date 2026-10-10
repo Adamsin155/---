@@ -221,6 +221,7 @@ export const fixTaskOf = (tasks, clientId, itemKey) => openFix(tasks, clientId, 
 // The line under it: the client's own words, who fixes, and when the item is ticked.
 export function fixNote(task, nameOf = (p) => p) {
   const words = String(task?.brief?.problem || '').replace(/\s+/g, ' ').trim();
-  const said = words ? `הלקוח כתב: ״${words.length > 200 ? `${words.slice(0, 199)}…` : words}״. ` : '';
+  // (Written by the client on the status page, or written down by the office: "הלקוח ביקש תיקון", protocol v10.)
+  const said = words ? `${task?.brief?.from === 'office' ? 'הלקוח ביקש' : 'הלקוח כתב'}: ״${words.length > 200 ? `${words.slice(0, 199)}…` : words}״. ` : '';
   return `${said}${task?.owner ? `${nameOf(task.owner)} ${task.brief?.extra ? 'מחליט/ה על סבב נוסף' : 'מתקן/ת'}. ` : ''}מסמנים כאן רק כשהלקוח מאשר אחרי התיקון.`;
 }
