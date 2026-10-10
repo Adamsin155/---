@@ -68,8 +68,8 @@ const EXPECTED = {
     'landing-assign': [`${COUNTS.assign.landing} לקוחות מחכים לשיוך עורך · ${NO_CLOCK}`, 'landing', 'qa.html#assign-h'],
     'landing-qa': [`עבודה אחת מחכה לבקרת האיכות שלך · ${NO_CLOCK}`, 'landing', 'qa.html#qa-h'],
   },
+  // (Protocol v9: the editor's assignment is Ofir's alone, so "מחכים לשיוך עורך" is no longer a line of Lior's.)
   lior: {
-    'landing-assign': [`${COUNTS.assign.landing} לקוחות מחכים לשיוך עורך · ${NO_CLOCK}`, 'landing', 'qa.html#assign-h'],
     'landing-shoot': [`לקוח אחד מצטלם ב־14 הימים הקרובים · ${NO_CLOCK}`, 'landing', 'shoot.html'],
     'urgent-back': ['משימה דחופה אחת לא התחילה תוך 30 דקות', 'urgent', 'decisions.html#ur-h'],
     'availability-missing': ['אלי עוד לא מסר זמינות לנובמבר', 'overdue', 'prep.html#availability'],

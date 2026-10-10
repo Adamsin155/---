@@ -10,7 +10,7 @@
 //     ones uploaded into the system;
 //   - after the client's notes the final hand-off stands on the same link (no "newer
 //     file" rule), also when the uploaded video was taken out;
-//   - Ilai: the graphics upload in his card with "מוכן לבדיקה (לעירית)" locked until
+//   - Ilai: the graphics upload in his card with "מוכן לבדיקה (לאופיר)" locked until
 //     a graphic is up, the Drive link of the final versions in his card, and the client's
 //     characterization, read-only, one tap away; an editor still gets no such page;
 //   - Eli: the scripts of his shoot day behind one button, read-only; and a plain
@@ -449,7 +449,7 @@ await step('the final hand-off after the client\'s notes stands on the Drive lin
 // ── Ilai: the graphics, the final versions, the characterization ──
 const ilai = (await newContext()).page;
 const day = `#il-${M.id}`;
-await step('Ilai\'s card: the graphics upload, "מוכן לבדיקה (לעירית)" locked until a graphic is up', async () => {
+await step('Ilai\'s card: the graphics upload, "מוכן לבדיקה (לאופיר)" locked until a graphic is up', async () => {
   await signIn(ilai, 'clients.html#mine', 'ilai');
   await ilai.waitForSelector('.g-ilai .il-card');
   await ilai.locator(`${day}-s`).click();
@@ -471,7 +471,7 @@ await step('Ilai\'s card: the graphics upload, "מוכן לבדיקה (לעיר�
   assert.ok(await noHScroll(ilai));
   await shots(ilai, 'ilai-graphics-upload', { scrollTo: `${day}-gfx` });
   await ilai.click(`${day}-gfx`);
-  await toastHas(ilai, '9 הגרפיקות עברו לבדיקה של עירית.');
+  await toastHas(ilai, '9 הגרפיקות עברו לבדיקה של אופיר.');
   assert.ok(checkOf(M, 'p07.made'));
   await ilai.click('#handoff-close').catch(() => {});
 });

@@ -157,7 +157,7 @@ function qaCard(x, ms, now) {
       x.late ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'עבר היעד') : null),
     // A client in landing: the work is here as usual, and its hour is counted from the activation.
     x.landing ? h('p', { class: 'of-line muted' }, LANDING_LINE) : h('p', { class: 'of-line' },
-      x.fast ? `${ladderWords(x.fast, now)} · מחכה ${waitWords(x.waited)} מתוך ${x.target} דק׳ · לאשר עד ${formatWhen(x.dueAt, now)}`
+      x.fast ? `${ladderWords(x.fast, now)} · הגיע ${formatWhen(x.readyAt, now)} · לאשר עד ${formatWhen(x.dueAt, now)}`
         : `מחכה ${waitWords(x.waited)} מתוך שעה · בקרה עד ${formatWhen(x.dueAt, now)}`,
       inMeeting ? h('span', { class: 'muted' }, ' · השעון עצור בזמן האפיון') : null),
     x.landing ? null : h('span', { class: `of-meter${x.late ? ' is-late' : ''}`, role: 'img', 'aria-label': `זמן המתנה: ${x.waited} מתוך ${x.target} דקות` },
