@@ -974,7 +974,9 @@ export const PROCESSES = [
   {
     id: 'p35', num: '35', phase: 'renewal', title: 'סיום התקשרות', owners: ['lior'],
     sla: 'במועד סיום העבודה עם הלקוח',
-    when: (c) => c.status === 'ending' || c.status === 'ended', due: { from: 'contractEnd' },
+    // v10: it opens on the morning of the contract's last day (it used to appear only once that
+    // day had passed, already late: "סיום התקשרות" pressed on the day itself showed nothing).
+    when: (c) => c.status === 'ending' || c.status === 'ended', start: { from: 'contractEnd', days: 0 }, due: { from: 'contractEnd' },
     items: [
       { key: 'p35.campaigns', label: 'הקמפיינים נעצרו' },
       { key: 'p35.access', label: 'הוסרו גישות לפי הצורך (ונמחקו מכספת הגישות)' },

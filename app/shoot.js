@@ -150,7 +150,15 @@ function filesBlock(sc) {
     field(r, 'raw', 'מספר הקובץ', P.RAW_MAX),
     field(r, 'take', 'הטייק שנבחר', P.TAKE_MAX)))));
 }
-async function saveFile(sc, n) {
+// One save at a time: each one reads the list as it is on the server, sets its row and writes.
+// Two fields left one after the other would otherwise both read the old list, and the second
+// write would lose the first row.
+let fileSaves = Promise.resolve();
+function saveFile(sc, n) {
+  fileSaves = fileSaves.then(() => saveFileNow(sc, n), () => saveFileNow(sc, n));
+  return fileSaves;
+}
+async function saveFileNow(sc, n) {
   const id = cardId(sc);
   const raw = $(`${id}-f${n}-raw`)?.value ?? '';
   const take = $(`${id}-f${n}-take`)?.value ?? '';

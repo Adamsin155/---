@@ -246,6 +246,41 @@ export async function ofirQa(sim, { fixes = null, shot = null } = {}) {
 // '
 
 // '
+// Protocol v10 (docs/ops.md, section 58).
+// 29ב: Ilai's final check, from his card on "המשימות שלי": the list opens, "סימון הכול" ticks the 13 points, and
+// the pill that is left is "העבודה שלי על הלקוח הושלמה". o: { id, step, wait, shot }
+export async function finalCheck(sim, o) {
+  if (o.wait) sim.advance(o.wait);
+  const rowsBefore = await sim.tick();
+  const cid = sim.client().id;
+  const { page, ctx } = await sim.open("ilai");
+  await unfold(page);
+  const card = page.locator(`#mine-list .wproc[data-key="${cid}:p29b"]`);
+  const out = { found: (await card.count()) > 0, taps: 0 };
+  let shot = null;
+  if (out.found) {
+    out.card = (await card.innerText()).replace(/\s+/g, " ").trim();
+    if (o.shot) shot = await shotOf(sim, page, "ilai", o.shot);
+    await card.locator("button.wc-open").click(); out.taps += 1;
+    out.items = await card.locator(".wlist .witem").count();
+    out.bulk = (await card.locator(".bulk-btn").innerText().catch(() => "")).trim();
+    await card.locator(".bulk-btn").click(); out.taps += 1;
+    await settle(page, 700);
+    out.left = (await card.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    const pill = card.locator("input.cbx.fin").first();
+    if (await pill.count()) { await pill.check(); out.taps += 1; await settle(page, 600); }
+  }
+  const errors = page.errors.slice();
+  await ctx.close();
+  sim.advance(1);
+  const rows = await sim.tick();
+  const s = sim.state().states.find((x) => x.proc.id === "p29b");
+  return sim.rec({ id: o.id, step: o.step, proc: "p29b", role: "ilai",
+    before: { where: { "p29b": out.found ? `הכרטיס: ${out.card}` : "לא מופיע" }, shot, remindersSinceLast: fmtLog(rowsBefore) },
+    act: `הכרטיס 29ב: ״הצגת הפריטים״ (${out.items || 0}) -> ״${out.bulk || "-"}״ -> מה שנשאר: ${out.left || "-"} -> הגלולה`, taps: out.taps,
+    after: { result: `תהליך 29ב ${s?.complete ? "הושלם" : "פתוח"}; p29b.done=${sim.checkOf("p29b.done")?.state || "-"}`, next: { irit: brief(await sim.mine("irit")), ilai: brief(await sim.mine("ilai")) } },
+    reminders: fmtLog(rows), errors: errors.length ? errors : undefined });
+}
 // Protocol v8 (docs/ops.md, section 49).
 const one = (s) => String(s || "").replace(/\s+/g, " ").trim();
 // Everything of the list on the screen: the folded groups opened, "הצג עוד" pressed.

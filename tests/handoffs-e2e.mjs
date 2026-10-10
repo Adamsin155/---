@@ -60,7 +60,8 @@ const ron = client({ name: 'מספרת רון', deal_at: hoursAgo(50), char_at: 
 for (const k of P4) check(ron, k, hoursAgo(1));
 // Videos checked by Ofir, ready for his approval: Irit sends, Lior builds the campaign.
 const pizza = client({ name: 'פיצה נאפולי', deal_at: hoursAgo(200), char_at: hoursAgo(190), shoot_at: hoursAgo(100) });
-for (const k of ['editing', 'errors', 'clear', 'match', 'pro', 'fit']) check(pizza, `p25.q.${k}`, hoursAgo(1));
+// (The last five: the critical mistakes of editing, protocol v10.)
+for (const k of ['editing', 'errors', 'clear', 'match', 'pro', 'fit', 'sound', 'exposure', 'stable', 'angles', 'export']) check(pizza, `p25.q.${k}`, hoursAgo(1));
 // A third client for the card.
 const cafe = client({ name: 'קפה גליה', deal_at: hoursAgo(50), char_at: hoursAgo(2) });
 for (const k of P4) check(cafe, k, hoursAgo(1));

@@ -137,6 +137,46 @@ function applyFilters(rows, params) {
   return out;
 }
 
+// The part of the database that opens a fix task (private.client_fix_open, migration
+// 20261024100000), for the fakes: who fixes, by when (asked by 13:00 on a working day in
+// Israel: that day; later, or on Friday and Saturday: the next working day), the videos'
+// notes mark, and the task. Returns { task } or { error }.
+const FIX_ITEMS = { 'p07.approved': ['graphics9', 'p07.sent', '9 הגרפיקות הראשונות'], 'p13.approved': ['scripts', 'p12.docs', 'התסריטים ליום הצילום'], 'p23.approved': ['graphics', 'p23.sent', 'יתרת הגרפיקות'], 'p27.approved': ['videos', 'p26.sent', 'הסרטונים'] };
+export function openClientFix(db, { clientId, key, note, from, by, email = '', at }) {
+  const text = String(note || '').trim();
+  if (text.length < 2) return { error: 'note required' };
+  const c = db.clients.find((x) => x.id === clientId);
+  const pre = /^(r\d+\.)/.exec(String(key))?.[1] || '';
+  const spec = FIX_ITEMS[String(key).slice(pre.length)];
+  const checks = (db.protocol_checks ||= []);
+  const has = (k, states = ['done']) => checks.some((r) => r.client_id === clientId && r.item_key === pre + k && states.includes(r.state));
+  const tasks = (db.client_tasks ||= []);
+  const fixing = tasks.some((t) => t.client_id === clientId && t.source === 'client_fix' && !t.done_at && t.brief?.item_key === key)
+    || (spec?.[0] === 'videos' && has('p27.notes') && !has('p27.fixes', ['done', 'na']) && !has('p27.final'));
+  if (!c || !spec || !has(spec[1]) || has(String(key).slice(pre.length), ['done', 'na']) || fixing) return { error: 'not awaiting approval' };
+  const [item, , label] = spec;
+  const n = pre ? pre.slice(1, -1) : null;
+  const editor = n ? (c.rounds || []).find((r) => String(r.n) === n)?.editor : c.editor;
+  const owner = item === 'scripts' ? 'lior' : item === 'videos' ? (editor || 'ofir') : 'ilai';
+  // Israel's wall clock of `at`, as a UTC date (so its day, weekday and hour read plainly).
+  const il = new Date(new Date(at).toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+  const day = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  let due = new Date(il);
+  if (item === 'scripts' || [5, 6].includes(il.getDay()) || il.getHours() >= 13) do due.setDate(due.getDate() + 1); while ([5, 6].includes(due.getDay()));
+  let marked = false;
+  if (item === 'videos' && !has('p27.notes')) {
+    checks.push({ client_id: clientId, item_key: `${pre}p27.notes`, state: 'done', note: JSON.stringify({ text: text.slice(0, 1500), via: from }), by_email: email, at });
+    marked = true;
+  }
+  const task = {
+    id: randomUUID(), client_id: clientId, title: `תיקון לבקשת הלקוח: ${label}${n ? ` (סבב צילום ${n})` : ''} · סבב 1`, owner, due_on: day(due), done_at: null, done_by_email: null,
+    created_at: at, created_by_email: email, source: 'client_fix', urgent: false, started_at: null, result: null,
+    brief: { problem: text.slice(0, 4000), from, item, item_key: key, round: 1, extra: false, notes_marked: marked, approval: null, by },
+  };
+  tasks.push(task);
+  return { task };
+}
+
 export function makeFake(db, { now = () => NOW.toISOString() } = {}) {
   const users = new Map(db.staff.map((s) => [s.email, { id: randomUUID(), email: s.email, aud: 'authenticated', role: 'authenticated' }]));
   const jwtFor = (u) => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: u.id, email: u.email, role: 'authenticated', exp: EXP })}.sig`;
@@ -179,6 +219,14 @@ export function makeFake(db, { now = () => NOW.toISOString() } = {}) {
         videos: c.deliverables?.videos ?? null, rounds: (c.rounds || []).map((r) => r.n), manage: true });
     }
     if (p === '/rest/v1/rpc/can_write_scripts') return json(200, writes);
+    // "הלקוח ביקש תיקון" written down by the office (public.staff_request_fix, migration
+    // 20261024100000): the task the status page opens, to the same person, by the same rule.
+    if (p === '/rest/v1/rpc/staff_request_fix') {
+      const person = personOf(me);
+      if (!me || !(person === null || ['irit', 'lior', 'ofir'].includes(person))) return json(403, { code: '42501', message: 'not allowed' });
+      const out = openClientFix(db, { clientId: body.p_client, key: body.p_key, note: body.p_note, from: 'office', by: person || 'owner', email: me.email, at: now() });
+      return out.error ? json(400, { code: '22023', message: out.error }) : json(200, out.task);
+    }
     // The client's gallery (gallery.html?t=GALLERY_TOKEN): no sign-in.
     if (p === '/functions/v1/client-media') {
       if (body?.t !== GALLERY_TOKEN) return json(200, { state: 'invalid' });

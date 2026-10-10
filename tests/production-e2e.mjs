@@ -411,15 +411,16 @@ await step('(2) "מוכן לבדיקה": the self-check (with Dropbox), then Ofi
   const { page } = nadia;
   await page.click(`#${A_ID}-go`);
   await page.waitForSelector('#dlg-ready[open]');
-  assert.equal(await page.locator('#ready-list .prod-check').count(), 6);
+  assert.equal(await page.locator('#ready-list .prod-check').count(), 11); // six (with Dropbox), and the five critical mistakes (protocol v10)
+  assert.equal(await text(page, '#ready-critical'), 'חמש הטעויות הקריטיות של העריכה');
   assert.match(await text(page, '#ready-list'), /Dropbox/);
   await page.click('#ready-0');
   await page.click('#ready-submit');
   assert.match(await text(page, '#ready-err'), /עוד לא סומן/);
-  for (const i of [1, 2, 3, 4, 5]) await page.click(`#ready-${i}`);
+  for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) await page.click(`#ready-${i}`);
   await page.click('#ready-submit');
   await toastHas(page, 'נשלח לאופיר');
-  for (const k of ['p22.edited', 'p22.self.spelling', 'p22.self.closing', 'p22.self.broll', 'p22.self.complete', 'p24.drive', 'p24.dropbox', 'p24.notify']) assert.ok(checkOf(A, k), k);
+  for (const k of ['p22.edited', 'p22.self.spelling', 'p22.self.closing', 'p22.self.broll', 'p22.self.complete', 'p22.self.sound', 'p22.self.exposure', 'p22.self.stable', 'p22.self.angles', 'p22.self.export', 'p24.drive', 'p24.dropbox', 'p24.notify']) assert.ok(checkOf(A, k), k);
   assert.equal(await text(page, `${card} .ed-state`), 'אצל אופיר לבקרה');
   await page.waitForSelector('#handoff:not([hidden])');
   assert.match(await text(page, '#handoff'), /אופיר/);

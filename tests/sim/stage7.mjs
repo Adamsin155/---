@@ -4,7 +4,7 @@
 // to an employee and its answer, a nudnik task from Irit, an exception reported to Lior and decided.
 // Run: node tests/sim/stage7.mjs
 import { Sim, IL, fmtLog, settle, scrapeControls } from "./lib.mjs";
-import { brief, proto, shotOf, markMine } from "./steps.mjs";
+import { finalCheck, brief, proto, shotOf, markMine } from "./steps.mjs";
 
 const sim = await Sim.start("s7", "s6b");
 const cid = sim.client().id;
@@ -49,7 +49,9 @@ await proto(sim, { id: "p28-ok", step: "עילאי מסמן ״תוזמנו מר�
     act: `${had ? "הכרטיס שלו -> הגאנט מלא" : "אין כפתור"}${res ? `; ואז במשימות שלי: ${JSON.stringify(res.out)}` : ""}. נאמר: ${said}`, taps: 1 + (res?.taps || 0),
     after: { marks: marks(["p29.filled"]), gantt_rows: sim.db.client_gantt.length, next }, reminders: fmtLog(rows) });
 }
-await proto(sim, { id: "p29-sent", step: "עירית מעבירה את הגאנט ללקוחה", proc: "p29", role: "irit", wait: 10, keys: ["p29.sent"], peek: [], next: [] });
+await proto(sim, { id: "p29-sent", step: "עירית מעבירה את הגאנט ללקוחה", proc: "p29", role: "irit", wait: 10, keys: ["p29.sent"], peek: [], next: ["ilai"] });
+// 29ב (protocol v10): Ilai's final check opens when the Gantt was sent. One card: "סימון הכול" (13), then "העבודה שלי על הלקוח הושלמה".
+await finalCheck(sim, { id: "p29b", step: "עילאי: הבדיקה הסופית (13 סעיפים, ״סימון הכול״) ו״העבודה שלי על הלקוח הושלמה״", wait: 20, shot: "p29b-final-check" });
 // 30: the campaigns of Lior (a business day from the approval of Ofir: the end of Tuesday). He does it Wednesday morning.
 await sim.until(IL(2026, 10, 28, 9, 40));
 await proto(sim, { id: "p30", step: "ליאור בונה את הקמפיינים (יום אחרי היעד)", proc: "p30", role: "lior", shot: "p30-campaigns", keys: ["p30.picked", "p30.live"], peek: ["irit"], next: ["lior", "irit", "ofir", "ilai"] });
