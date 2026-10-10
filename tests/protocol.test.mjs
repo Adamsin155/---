@@ -18,7 +18,7 @@ const keysOf = (procs) => procs.flatMap((p) => p.items.map((i) => i.key));
 
 test('every numbered process in the written protocol exists, except the office-wide reviews', () => {
   const nums = [...doc.matchAll(/^### תהליך (\d+)( ב)?/gm)].map((m) => m[1] + (m[2] ? 'ב' : ''));
-  assert.equal(nums.length, 36);
+  assert.equal(nums.length, 37); // 29 ב (Ilai's final check) since protocol v10
   const have = new Set(PROCESSES.map((p) => p.num));
   for (const n of nums) if (n !== '32' && n !== '33') assert.ok(have.has(n), `process ${n} missing`);
 });
