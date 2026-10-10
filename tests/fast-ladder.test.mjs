@@ -95,8 +95,9 @@ const closeDay = (w, c, at) => marks(w, c, itemsOf('p19'), at);
 
 // ── 1. The data and the window ──────────────────────────────────────────────
 test('version 9 as data: the numbers and the window in one place; the graphics and the assignment are Ofir\'s alone', () => {
-  assert.equal(PROTOCOL_VERSION, 9);
-  assert.deepEqual(FAST_LADDER, { who: 'ofir', manager: 'lior', window: { from: '08:30', until: '21:00' }, review: { minutes: 10, more: 5, every: 10 }, assign: { minutes: 10, more: 5, every: 10 } });
+  assert.ok(PROTOCOL_VERSION >= 9);
+  // (`meeting`: version 10, the count waits while Ofir is in a characterization meeting; tests/audit-gaps-v10.test.mjs.)
+  assert.deepEqual(FAST_LADDER, { who: 'ofir', manager: 'lior', window: { from: '08:30', until: '21:00' }, review: { minutes: 10, more: 5, every: 10 }, assign: { minutes: 10, more: 5, every: 10 }, meeting: { pause: true, capHours: 2 } });
   const byId = Object.fromEntries(PROCESSES.map((p) => [p.id, p]));
   const own = (id, key) => { const p = byId[id]; return p.items.find((i) => i.key === key).owners || p.owners; };
   // 7: Ilai makes; the seven checks and the approval are Ofir's; the sending and the client's answer are Irit's.
@@ -122,7 +123,7 @@ test('version 9 as data: the numbers and the window in one place; the graphics a
   // The history: nothing of version 9 is gated by the version. The approval is not "חדש בפרוטוקול" for
   // anybody (it is asked of every client that has not sent its graphics yet), and no deadline is listed
   // (so no client keeps the hour the check had).
-  const v9 = PROTOCOL_HISTORY.at(-1);
+  const v9 = PROTOCOL_HISTORY.find((v) => v.version === 9);
   assert.deepEqual([v9.version, v9.items, v9.due, itemSince('p07.ofir')], [9, undefined, undefined, 1]);
   assert.equal(byId.p07.items.find((i) => i.key === 'p07.ofir').passedIf, 'p07.sent');
   // The first graphics return for fixes as the rest do.

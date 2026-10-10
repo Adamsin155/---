@@ -42,7 +42,7 @@ import { weekClosings, weekSummary, weekLabel } from './week-chart.js';
 import { countUp, growOnce, glide } from './shell.js';
 import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeClient } from './manager-data.js';
 // The owners' end of the day (docs/ops.md, section 48): the same numbers as the 19:00 message.
-import { daySummary, headline } from './day-summary.js';
+import { daySummary, headline, waitingText } from './day-summary.js';
 import { icon as kIcon, iconSquare, headIcon, besideIcon, leadIcon } from './kit.js';
 
 let viewer = null;
@@ -417,9 +417,7 @@ function renderEod() {
     h('span', { class: `eod-how${x.kind === 'late' ? ' is-late' : ''}` }, x.kind === 'late' ? `באיחור ${x.how}` : 'היעד היום'))));
   capList($('eod-items'), 12, 'ow:eod');
   $('eod-wait').hidden = !sum.waiting.length;
-  $('eod-wait').textContent = sum.waiting.length
-    ? `${sum.waiting.length === 1 ? 'פריט אחד עבר את היעד ומחכה' : `${sum.waiting.length} פריטים עברו את היעד ומחכים`} לתשובת הלקוח, ולכן לא נספר לאף עובד: ${sum.waiting.slice(0, 4).map((x) => `${x.name} (${x.what})`).join(', ')}${sum.waiting.length > 4 ? ` ועוד ${sum.waiting.length - 4}` : ''}.`
-    : '';
+  $('eod-wait').textContent = waitingText(sum);
 }
 
 // ── Asking the responsible person ───────────

@@ -346,14 +346,14 @@ await step('Ofir\'s queue, one tap from "המשימות שלי": what waits for 
   await shot(ofir, 'office-01-qa');
 });
 
-await step('return for fixes: approving needs all six checks; two issues, due today 18:00, round 1', async () => {
+await step('return for fixes: approving needs all eleven checks (six, and the five critical mistakes of protocol v10); two issues, due today 18:00, round 1', async () => {
   await ofir.click('#qa-list > li:nth-child(2) button');
   await ofir.waitForSelector('#dlg-qa[open]');
-  assert.equal(await ofir.locator('#qa-checks input').count(), 6);
+  assert.equal(await ofir.locator('#qa-checks input').count(), 11);
   await ofir.locator('#qa-checks input').first().check();
   await ofir.waitForFunction(() => !document.querySelector('#qa-checks input').disabled);
   await ofir.click('#qa-approve');
-  assert.match(await ofir.locator('#qa-err').innerText(), /כל 6 הבדיקות \(חסרות 5\)/);
+  assert.match(await ofir.locator('#qa-err').innerText(), /כל 11 הבדיקות \(חסרות 10\)/);
   await ofir.click('#qa-to-return');
   assert.equal(await ofir.locator('#qa-return-h').innerText(), 'החזרה לתיקון · סבב 1');
   assert.equal(await ofir.inputValue('#qa-due'), '2026-10-20T18:00');

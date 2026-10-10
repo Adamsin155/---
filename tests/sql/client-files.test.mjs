@@ -85,7 +85,8 @@ test('the kinds, the bucket and the limits are the same as the page\'s', async (
 test('uploading, by person and kind, in the table and in the bucket', async () => {
   const may = {
     owner: Object.keys(KINDS), irit: Object.keys(KINDS), lior: Object.keys(KINDS), ofir: Object.keys(KINDS),
-    ilai: ['deliverable_graphic', 'deliverable_highlight', 'deliverable_site'],
+    // (Protocol v10: Ilai also uploads the logo he makes; "הוכן לוגו חדש" is ticked only once it is in the file.)
+    ilai: ['deliverable_graphic', 'deliverable_highlight', 'deliverable_site', 'logo'],
     nadia: ['deliverable_video'], yariv: [], nirel: [], eli: [],
   };
   for (const [who, kinds] of Object.entries(may)) {

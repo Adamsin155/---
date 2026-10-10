@@ -26,14 +26,16 @@ test('the lists copied from browser modules are the same as there', () => {
   assert.match(src('client-card.js'), /pid === 'p22' \|\| pid === 'p27' \? pauseLine\(x\)/);
   assert.deepEqual(PAUSE_PROCS, ['p22', 'p27']);
   for (const k of Object.keys(EXTRA_MARKS)) {
-    const file = k.startsWith('p17b') ? 'shoot.js' : 'editor.js';
+    // The photographer's marks (the key of the raw material per script is a constant of production.js, which shoot.js writes); the editor's.
+    const file = k === 'p18b.files' ? 'production.js' : /^p1[678]/.test(k) ? 'shoot.js' : 'editor.js';
     assert.ok(src(file).includes(`'${k}'`), `${k} is written in ${file}`);
   }
 });
 
 // Marks that are not items and that only the office writes (no row: denied to the rest).
 // (p07.moved is written once, by the migration of protocol v9: no page writes it.)
-const OFFICE_ONLY = new Set(['p04.ended', 'p07.moved', 'p13.zoomat', 'p14.seen', 'p16.brief', 'p18.quiet', 'p18.shot', 'p22.decision', 'p22a.reason', 'p22a.shift']);
+// (p13.left, protocol v10: Lior says that fixes remained after the Zoom.)
+const OFFICE_ONLY = new Set(['p04.ended', 'p07.moved', 'p13.left', 'p13.zoomat', 'p14.seen', 'p16.brief', 'p18.quiet', 'p18.shot', 'p22.decision', 'p22a.reason', 'p22a.shift', 'p35.opened']);
 test('every mark an app page writes is an item, a known rule, a listed extra mark, or the office\'s', () => {
   const items = new Set(PROCESSES.flatMap((p) => p.items.map((i) => i.key)));
   const unknown = [];

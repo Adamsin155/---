@@ -85,6 +85,14 @@ export async function loadChecks(clientId = null) {
   return out;
 }
 
+// One mark as it is now in the database (null: not marked). For a mark two people write at the
+// same time (the raw material per script, app/shoot.js): read, then write.
+export async function loadCheck(clientId, key) {
+  const { data, error } = await supabase.from('protocol_checks').select(CHECK_COLS).eq('client_id', clientId).eq('item_key', key).maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
 export async function setCheck(clientId, key, state, note = null) {
   const { data, error } = await supabase.from('protocol_checks')
     .upsert({ client_id: clientId, item_key: key, state, note }, { onConflict: 'client_id,item_key' })

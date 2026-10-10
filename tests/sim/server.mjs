@@ -66,8 +66,9 @@ function small(sim, rpc, { body, now }) {
   // tests/office-flows-e2e.mjs
   if (rpc === "ofir_meetings") {
     return [200, db.clients.filter((c) => c.char_at && (c.characterizer || "ofir") === "ofir").map((c) => {
-      const saved = db.protocol_checks.find((x) => x.client_id === c.id && x.item_key === "p04.saved" && x.at > c.char_at);
-      return { starts_at: c.char_at, ends_at: saved ? saved.at : new Date(new Date(c.char_at).getTime() + 2 * 36e5).toISOString() };
+      // The meeting ends when he marks it ("האפיון הסתיים", or the form saved), as public.ofir_meetings answers.
+      const saved = db.protocol_checks.filter((x) => x.client_id === c.id && ["p04.ended", "p04.saved"].includes(x.item_key) && x.state === "done" && x.at > c.char_at).map((x) => x.at).sort()[0];
+      return { starts_at: c.char_at, ends_at: saved || new Date(new Date(c.char_at).getTime() + 2 * 36e5).toISOString() };
     })];
   }
   return null;

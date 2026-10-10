@@ -33,7 +33,7 @@
 // p19b.notes (Eli's notes for the editor, in its note), p19.testimonial / p19.took
 // (Lior's side of the handoff) and p22.pause (note JSON { stage, left, why, for,
 // task }: `for` is whoever asked for the urgent task, "עצירה לבקשת <שם>").
-import { PEOPLE, WORK_HOURS } from './protocol.js';
+import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES } from './protocol.js';
 import {
   roundsOf, roundContext, businessDaysBetween, parseDate, erevOn, IMPORT_NOTE, addBusinessDays, isBusinessDay, nextWorkMoment,
   inLanding, workFloor,
@@ -248,6 +248,8 @@ export function selfCheck(needsDropbox) {
     ['p22.self.complete', 'כל כמות הסרטונים הושלמה ותואמת לתסריטים'],
     ['p24.drive', 'כל הסרטונים בדרייב של הלקוח ונפתחים, בלי גרסאות ישנות'],
     ...(needsDropbox ? [['p24.dropbox', 'הסרטונים הועלו גם ל־Dropbox']] : []),
+    // Protocol v10: the five critical mistakes (the head of the editors' written protocol), each one tap.
+    ...CRITICAL_MISTAKES.map(([k, , l]) => [`p22.self.${k}`, l, 'critical']),
   ];
 }
 // What "מוכן לבדיקה" marks: the edit, the self-check, and the notice to Ofir (last:
@@ -399,6 +401,57 @@ export const shotOf = (checks, pre = '') => nums(json(checks?.[`${pre}p18.shot`]
 export const shotNote = (videos) => JSON.stringify({ videos: nums(videos) });
 export const nextVideo = (shot) => (shot.length ? Math.max(...shot) + 1 : 1);
 export const counterText = (n, y) => (y ? `צולמו ${n} מתוך ${y}` : `צולמו ${n}`);
+
+// ── The raw material and the chosen take, per script (protocol v10; docs/ops.md, section 58) ──
+// The photographer's and the editors' protocols: next to every script, during the shoot
+// day, the number (or file name) of its raw material and the take that was chosen, so the
+// editor gets "script → raw material → the take". One mark per shoot round, `p18b.files`
+// (the round's own key: `r2.p18b.files`), note JSON { v: 1, f: { "<n>": [raw, take] } }.
+// Lior (the counter's screen) and Eli (his day's card) both write it; the assigned editor
+// and the client card read it. Optional per script: it never holds the shoot day open.
+export const FILES_KEY = 'p18b.files';
+export const RAW_MAX = 16;        // characters of a file / clip number or name
+export const TAKE_MAX = 6;        // characters of a take
+export const FILES_ROWS_MAX = 50; // scripts in one shoot day (the note must stay under the 2,000 characters a mark holds)
+const cleanField = (v, max) => String(v ?? '').replace(/[\u0000-\u001f"\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+// The files of a shoot round: Map of the script's number → { raw, take } (only what was filled in).
+export function filesOf(checks, pre = '') {
+  const c = checks?.[`${pre}${FILES_KEY}`];
+  const out = new Map();
+  if (!c || c.state !== 'done') return out;
+  const f = json(c.note)?.f;
+  if (!f || typeof f !== 'object') return out;
+  for (const [k, v] of Object.entries(f)) {
+    const n = Number(k);
+    const raw = cleanField(Array.isArray(v) ? v[0] : '', RAW_MAX);
+    const take = cleanField(Array.isArray(v) ? v[1] : '', TAKE_MAX);
+    if (Number.isInteger(n) && n >= 1 && n <= 200 && (raw || take)) out.set(n, { raw, take });
+  }
+  return new Map([...out].sort((a, b) => a[0] - b[0]));
+}
+// The same files with one script's row set (both fields empty: the row is taken out).
+export function withFile(files, n, raw, take) {
+  const out = new Map(files);
+  const r = cleanField(raw, RAW_MAX);
+  const t = cleanField(take, TAKE_MAX);
+  if (r || t) out.set(Number(n), { raw: r, take: t }); else out.delete(Number(n));
+  return new Map([...out].sort((a, b) => a[0] - b[0]).slice(0, FILES_ROWS_MAX));
+}
+// The note of the mark ('' when nothing is filled in: the mark is then cleared).
+export const filesNote = (files) => (files.size ? JSON.stringify({ v: 1, f: Object.fromEntries([...files].map(([n, x]) => [n, [x.raw, x.take]])) }) : '');
+// The rows the screen offers: every script of the day (the package's count), and never
+// fewer than what was shot or already filled in.
+export function fileRows(files, target, shot = []) {
+  const top = Math.min(FILES_ROWS_MAX, Math.max(Number(target) || 0, ...shot, ...files.keys(), 1));
+  return Array.from({ length: top }, (_, i) => ({ n: i + 1, raw: files.get(i + 1)?.raw || '', take: files.get(i + 1)?.take || '' }));
+}
+// "3 מתוך 12 תסריטים עם קובץ": the hint next to "לכל חומר ברור לאיזה מספר סרטון הוא שייך".
+export const filesHint = (files, total) => {
+  const n = [...files.values()].filter((x) => x.raw).length;
+  return total ? `${n} מתוך ${total} תסריטים עם קובץ` : `${n === 1 ? 'תסריט אחד' : `${n} תסריטים`} עם קובץ`;
+};
+// One script's line, for whoever only reads it: "סרטון 3 · קובץ 0123 · טייק 2".
+export const fileLine = (n, x) => [`סרטון ${n}`, x.raw ? `קובץ ${x.raw}` : null, x.take ? `טייק ${x.take}` : null].filter(Boolean).join(' · ');
 // Lior's briefing to Eli, and Eli's "קיבלתי".
 export function briefingOf(checks, pre = '') {
   const b = checks?.[`${pre}p16.brief`];

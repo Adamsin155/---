@@ -55,8 +55,54 @@
 //   - Both have a fast ladder of their own (FAST_LADDER below): 10 minutes from the
 //     moment the work reaches Ofir, 5 more, then Lior is told, then Ofir every 10
 //     minutes; counted and rung on working days until 21:00.
+// v10 (the owner's approval of 10.10.2026 after the audit of the written protocols against
+// the system; docs/ops.md, section 58):
+//   - The five critical mistakes of editing (the head of docs/protocols/editors.md) are five
+//     ticks of the editor's self-check (p22.self.*) and five of Ofir's quality control
+//     (p25.q.*): CRITICAL_MISTAKES below.
+//   - New: 29ב, Ilai's final check of all his work on the client (13 points, then "the work
+//     on the client is complete", which tells Irit), once the Gantt is full and sent.
+//   - Irit's sending of the Gantt (p29.sent) has its own clock, from the moment Ilai marked
+//     the Gantt full; the renewal (34) has a real deadline, RENEWAL_DAYS after it opens.
+//   - Fixes that remained after the Zoom (13): once Lior says so (the mark p13.left) the item
+//     p13.fixes is asked for, due at the end of the next business day (`neededIf`).
+//   - Ofir's fast ladder waits while he is in a characterization meeting (FAST_LADDER.meeting).
+//   - p05.newlogo is not ticked while the client's files hold no logo (`guard: 'logoFile'`).
+//   Marks that are not items (they hold nothing open): p13.left, p16.read (the photographer
+//   read the scripts), p18b.files (the raw material and the chosen take per script).
 
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
+
+// The five critical mistakes of editing, in the order and the words of the editors' written
+// protocol ("נקודות חשובות: טעויות קריטיות", docs/protocols/editors.md and nirel.md):
+// [key, the short name, the editor's self-check, Ofir's check, what is written to the editor
+// when it fails (the line of a return for fixes)].
+export const CRITICAL_MISTAKES = [
+  ['sound', 'סאונד', 'אין בעיות סאונד, והמוזיקה לא עוברת את המינוס 20 dB', 'אין בעיות סאונד; המוזיקה לא עוברת את המינוס 20 dB', 'בעיית סאונד, או מוזיקה שעוברת את המינוס 20 dB'],
+  ['exposure', 'חשיפה', 'התוכן מאוזן: לא שרוף, לא מואר מדי ולא חשוך מדי', 'התוכן מאוזן: לא שרוף, לא מואר מדי ולא חשוך מדי', 'התוכן שרוף, מואר מדי או חשוך מדי'],
+  ['stable', 'ייצוב', 'אין רעידות מצלמה (Warp Stabilizer, לרוב בבי־רולים)', 'אין רעידות מצלמה (Warp Stabilizer)', 'המצלמה רועדת: לייצב ב־Warp Stabilizer'],
+  ['angles', 'זוויות', 'נעשה שימוש בכל זוויות המצלמה שצולמו, לא רק בזווית אחת', 'נעשה שימוש בכל זוויות המצלמה שצולמו', 'לא נעשה שימוש בכל זוויות המצלמה שצולמו'],
+  ['export', 'הגדרות ייצוא', 'הסרטונים יצאו רק בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים', 'הייצוא בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים', 'הסרטון לא יצא בהגדרות שהוגדרו מראש (בעיית פיקסלים)'],
+];
+// The words of the group, wherever the five are listed.
+export const CRITICAL_TITLE = 'חמש הטעויות הקריטיות של העריכה';
+// The line of a return for fixes that names a critical mistake.
+export const mistakeIssue = (key) => { const m = CRITICAL_MISTAKES.find(([k]) => k === key); return m ? `טעות קריטית · ${m[1]}: ${m[4]}` : ''; };
+
+// The renewal (34): it opens RENEWAL_LEAD_DAYS (60, app/protocol-logic.js) before the
+// contract ends, and is due this many days after it opens (v10; until then its deadline
+// was the day it opened). A one-line change.
+export const RENEWAL_DAYS = 14;
+
+// Ilai's final check before his work on a client is complete (29ב; docs/protocols/ilai.md,
+// step 10), in the protocol's order. "הדרייב" of the graphics is the client's file in the
+// system (the owner's decision of 7.10.2026), and the number of graphics is the package's.
+export const FINAL_CHECK = [
+  ['nets', 'כל הרשתות קיימות'], ['access', 'כל הגישות נמצאות במערכת'], ['metricool', 'כל הרשתות מחוברות ל־Metricool'],
+  ['look', 'הנראות של כל העמודים מסודרת'], ['logo', 'הלוגו מסודר'], ['graphics', 'כל הגרפיקות לפי החבילה מוכנות'],
+  ['gfiles', 'כל הגרפיקות נמצאות בתיק הלקוח במערכת'], ['vfiles', 'הסרטונים נמצאים בדרייב של הלקוח'], ['vsched', 'הסרטונים תוזמנו'],
+  ['gsched', 'הגרפיקות תוזמנו'], ['gantt', 'כל התוכן נמצא בגאנט'], ['match', 'הגאנט תואם לתזמון'], ['updated', 'כל הפעולות שביצעתי עודכנו במערכת'],
+];
 
 // Office hours, in Israel time (decisions 1–2 in docs/plan/decisions.md).
 // Deadlines of minutes or hours that start from an office event (a deal coming
@@ -82,6 +128,10 @@ export const FAST_LADDER = {
   window: { from: '08:30', until: '21:00' },
   review: { minutes: 10, more: 5, every: 10 }, // the graphics: the first 9 (7) and the rest (23)
   assign: { minutes: 10, more: 5, every: 10 }, // the editor's assignment (22א)
+  // v10: while Ofir is the characterizer of a meeting in progress (from its time until
+  // "האפיון הסתיים", at most `capHours`, the window the protocol gives a meeting) neither
+  // ladder counts. The first ring still goes out; the minutes start when the meeting ends.
+  meeting: { pause: true, capHours: 2 },
 };
 
 // People named in the protocol. `key` is stored in the database (staff.person).
@@ -251,8 +301,11 @@ const isDms = (c) => c.shoot_type === 'dms';
 // Item `guard`: what the system looks at before the mark is taken (app/mark-guards.js):
 //   it is refused only when the system knows there is nothing behind it.
 // Item `word`: the word on its "סיימתי" pill when it is a one-tap answer.
+// Process `bulkWord`: the words of its "mark them all" button, where the list is one check (29ב).
 // Item `passedIf: key`: an item that was put before a step clients had already taken. Where
 //   that step is done and this item has no mark, it is history: not asked, and it holds nothing.
+// Item `neededIf: key` (v10): an optional item that is asked for once that mark is done
+//   (p13.fixes once Lior said that fixes remained after the Zoom: the mark p13.left).
 
 export const PHASES = [
   { key: 'onboarding', title: 'קליטת לקוח ואפיון' },
@@ -285,7 +338,7 @@ export const STATIONS = [
   { key: 'content', title: 'תוכן ואישור', procs: ['p12a', 'p12', 'p13', 'p14'] },
   { key: 'shoot', title: 'יום צילום', procs: ['p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21'] },
   { key: 'post', title: 'עריכה ובקרה', procs: ['p22a', 'p22', 'p23', 'p23b', 'p24', 'p25', 'p26', 'p27'] },
-  { key: 'publish', title: 'פרסום', procs: ['p28', 'p29', 'p30'] },
+  { key: 'publish', title: 'פרסום', procs: ['p28', 'p29', 'p29b', 'p30'] },
   { key: 'ongoing', title: 'שוטף', procs: ['p31'] },
   { key: 'renewal', title: 'חידוש', procs: ['p34', 'p35'] },
 ];
@@ -407,7 +460,8 @@ export const PROCESSES = [
       { key: 'p05.photos', label: 'תמונות' },
       { key: 'p05.videos', label: 'סרטונים קיימים' },
       { key: 'p05.menu', label: 'תפריט או מחירון', optional: true },
-      { key: 'p05.newlogo', label: 'עילאי הכין לוגו חדש (אין ללקוח לוגו)', owners: ['ilai'], when: (c) => c.has_logo === false },
+      // v10: not ticked while the client's files hold no logo (app/mark-guards.js).
+      { key: 'p05.newlogo', label: 'עילאי הכין לוגו חדש (אין ללקוח לוגו)', owners: ['ilai'], when: (c) => c.has_logo === false, guard: 'logoFile' },
     ],
   },
   {
@@ -562,13 +616,16 @@ export const PROCESSES = [
   {
     id: 'p13', round: true, num: '13', phase: 'prep', title: 'שיחת Zoom לאישור התוכן', owners: ['lior'],
     sla: 'ביום העסקים השלישי לאחר פגישת האפיון, ללא הגבלת משך עד שהלקוח מאשר',
-    start: { from: 'p12' }, due: { from: 'char', businessDays: 3 },
+    // v10: fixes that remained after the Zoom are a real item once Lior says so (the mark
+    // p13.left, 'done': "נשארו תיקונים"; 'na': "אין תיקונים"), due at the end of the next
+    // business day after he said it (Lior's written protocol, step 7).
+    start: { from: 'p12' }, due: { from: 'char', businessDays: 3, afterMark: [{ key: 'p13.left', businessDays: 1 }] },
     what: 'שיחת Zoom מוקלטת: עוברים על התסריטים, מסבירים את הרעיונות, מקבלים הערות ומשנים ניסוחים, עד שיש אישור ברור. תיקונים שנשארו: ליאור, עד יום עסקים אחד, והגרסה הסופית היא זו שבעמוד התסריטים במערכת.',
     rule: 'לא מגיעים ליום צילום עם תוכן שלא עבר אישור לקוח.',
     items: [
       { key: 'p13.zoom', label: 'התקיימה שיחת Zoom מוקלטת' },
       { key: 'p13.approved', label: 'הלקוח אישר את התסריטים', requires: ['p13.zoom'], noBulk: true },
-      { key: 'p13.fixes', label: 'תיקונים שנשארו אחרי הזום בוצעו ועודכנו בעמוד התסריטים (עד יום עסקים אחד)', optional: true },
+      { key: 'p13.fixes', label: 'תיקונים שנשארו אחרי הזום בוצעו ועודכנו בעמוד התסריטים (עד יום עסקים אחד)', optional: true, neededIf: 'p13.left' },
     ],
   },
   {
@@ -761,6 +818,9 @@ export const PROCESSES = [
       { key: 'p22.self.broll', label: 'בדיקה עצמית: אותה תבנית B-Roll לא חוזרת ביותר מ־3 סרטונים' },
       { key: 'p22.self.closing', label: 'בדיקה עצמית: סגיר נקי — לוגו, "לפרטים נוספים התקשרו" ומספר הטלפון, בלי תוספות' },
       { key: 'p22.self.complete', label: 'בדיקה עצמית: כל כמות הסרטונים הושלמה ותואמת לתסריטים' },
+      // v10: the five critical mistakes, before "מוכן לבדיקה". Not asked of an editing that was
+      // already handed to Ofir before they existed (`passedIf`).
+      ...CRITICAL_MISTAKES.map(([k, , l]) => ({ key: `p22.self.${k}`, label: `בדיקה עצמית: ${l}`, passedIf: 'p24.notify' })),
     ],
   },
   {
@@ -813,7 +873,10 @@ export const PROCESSES = [
       ...[['editing', 'העריכה ברמה טובה'], ['errors', 'אין טעויות'], ['clear', 'הסרטונים ברורים'], ['match', 'התוכן תואם למה שצולם'],
         ['pro', 'אין קטעים לא מקצועיים'], ['fit', 'הסרטונים מתאימים ללקוח']]
         .map(([k, l]) => ({ key: `p25.q.${k}`, label: `נבדק: ${l}` })),
-      { key: 'p25.approved', label: 'אופיר אישר: החומר מוכן לשליחה ללקוח', requires: ['p25.q.editing', 'p25.q.errors', 'p25.q.clear', 'p25.q.match', 'p25.q.pro', 'p25.q.fit'] },
+      // v10: the five critical mistakes; one that fails goes back to the editor as a return
+      // for fixes that names it. Not asked of videos Ofir approved before they existed.
+      ...CRITICAL_MISTAKES.map(([k, , , l]) => ({ key: `p25.q.${k}`, label: `נבדק: ${l}`, passedIf: 'p25.approved', mistake: k })),
+      { key: 'p25.approved', label: 'אופיר אישר: החומר מוכן לשליחה ללקוח', requires: ['p25.q.editing', 'p25.q.errors', 'p25.q.clear', 'p25.q.match', 'p25.q.pro', 'p25.q.fit', ...CRITICAL_MISTAKES.map(([k]) => `p25.q.${k}`)] },
     ],
   },
   {
@@ -828,7 +891,11 @@ export const PROCESSES = [
   {
     id: 'p27', round: true, num: '27', phase: 'post', title: 'תיקוני הלקוח וסגירת העריכה', owners: editorOf,
     sla: 'ביום העסקים הרביעי: כל תיקוני הלקוח סגורים והגרסאות הסופיות בדרייב של הלקוח',
-    start: { from: 'p26' }, due: { from: 'item:p22a.assigned', businessDays: 4 },
+    // v10: once the client's notes were recorded (p27.notes: Irit typed them, pressed "הלקוח
+    // ביקש תיקון", or the client wrote them on the status page) the deadline is the fix's own,
+    // from that moment: the same day when they came by 13:00, else the end of the next
+    // business day (`fix`; fixDue in app/protocol-logic.js). Until then: day 4, as before.
+    start: { from: 'p26' }, due: { from: 'item:p22a.assigned', businessDays: 4, afterMark: [{ key: 'p27.notes', fix: true }] },
     what: 'ללקוח סבב תיקונים אחד. עירית מקבלת את ההערות, מוודאת שהן ברורות ומתעדת; העורך מתקן, בודק מחדש ומחליף את הקבצים. בסוף הלקוח עובר לעילאי לתזמון ולגאנט.',
     items: [
       { key: 'p27.notes', label: 'הערות הלקוח התקבלו, ברורות ומתועדות', owners: ['irit'], optional: true },
@@ -850,11 +917,27 @@ export const PROCESSES = [
   {
     id: 'p29', round: true, num: '29', phase: 'publish', title: 'מילוי הגאנט ושליחה ללקוח', owners: ['ilai', 'irit'],
     sla: 'במקביל לתזמון, בתוך אותן שעתיים',
-    start: { from: 'p27' }, due: { from: 'p27', hours: 2 },
+    // v10: Irit's sending has its own clock, 30 office minutes from the moment Ilai marked
+    // the Gantt full (the written protocol gives it no time; the same half hour as her
+    // other sendings, 5ב and 7א).
+    start: { from: 'p27' }, due: { from: 'p27', hours: 2, afterMark: [{ key: 'p29.filled', minutes: 30, office: true }] },
     what: 'על כל תוכן שמתוזמן מעדכנים בגאנט מספר סרטון, קישור, יום, תאריך ושעה, כך שהגאנט והתזמון תמיד תואמים.',
     items: [
       { key: 'p29.filled', label: 'הגאנט מלא ותואם לתזמון בפועל', owners: ['ilai'], guard: 'gantt' },
       { key: 'p29.sent', label: 'הגאנט הועבר ללקוח', owners: ['irit'], requires: ['p29.filled'] },
+    ],
+  },
+  {
+    id: 'p29b', round: true, num: '29ב', phase: 'publish', title: 'בדיקה סופית של כל העבודה', owners: ['ilai'], bulkWord: 'סימון הכול',
+    sla: 'מיד לאחר סיום התזמון והגאנט; עד סוף יום העסקים שאחריו',
+    // v10: the last step of Ilai's chain (his written protocol, step 10). It opens when the
+    // Gantt is full and was sent to the client (29 complete); the end of the next business
+    // day is a default, a one-line change.
+    start: { from: 'p29' }, due: { from: 'p29', businessDays: 1 },
+    what: 'לפני שעילאי מסיים את העבודה על הלקוח הוא עובר על 13 הסעיפים. רק אחרי שכולם בוצעו הוא מעדכן שהעבודה שלו על הלקוח הושלמה, ועירית מקבלת הודעה.',
+    items: [
+      ...FINAL_CHECK.map(([k, l]) => ({ key: `p29b.c.${k}`, label: l })),
+      { key: 'p29b.done', label: 'העבודה שלי על הלקוח הושלמה', requires: FINAL_CHECK.map(([k]) => `p29b.c.${k}`), noBulk: true, word: 'הושלמה' },
     ],
   },
   {
@@ -877,8 +960,10 @@ export const PROCESSES = [
   },
   {
     id: 'p34', num: '34', phase: 'renewal', title: 'חידוש חוזה', owners: ['lior'],
-    sla: 'מתחילים 60 יום לפני סיום החוזה',
-    start: { from: 'contractEnd', days: -60 }, due: { from: 'contractEnd', days: -60, at: '18:00' },
+    sla: `מתחילים 60 יום לפני סיום החוזה; ${RENEWAL_DAYS} יום לסיים את הבדיקה ואת השיחה עם הלקוח`,
+    // v10: a real deadline, RENEWAL_DAYS after the day it opens (it was the opening day itself,
+    // so the renewal was "late" from its first evening).
+    start: { from: 'contractEnd', days: -60 }, due: { from: 'contractEnd', days: RENEWAL_DAYS - 60, at: '18:00' },
     items: [
       { key: 'p34.state', label: 'נבדקו מצב הלקוח והתוצאות' },
       { key: 'p34.satisfaction', label: 'נבדקה שביעות רצון' },
@@ -890,7 +975,13 @@ export const PROCESSES = [
   {
     id: 'p35', num: '35', phase: 'renewal', title: 'סיום התקשרות', owners: ['lior'],
     sla: 'במועד סיום העבודה עם הלקוח',
-    when: (c) => c.status === 'ending' || c.status === 'ended', due: { from: 'contractEnd' },
+    // v10: it opens on the morning of the contract's last day (it used to appear only once that
+    // day had passed, already late: "סיום התקשרות" pressed on the day itself showed nothing).
+    // And once Lior pressed "סיום התקשרות" on the ended contract (the mark p35.opened), the five
+    // items are due at the end of the next business day: pressed a day after the end, the card
+    // was born late.
+    when: (c) => c.status === 'ending' || c.status === 'ended', start: { from: 'contractEnd', days: 0 },
+    due: { from: 'contractEnd', afterMark: [{ key: 'p35.opened', businessDays: 1 }] },
     items: [
       { key: 'p35.campaigns', label: 'הקמפיינים נעצרו' },
       { key: 'p35.access', label: 'הוסרו גישות לפי הצורך (ונמחקו מכספת הגישות)' },

@@ -53,10 +53,11 @@ test('the path: <client>/<kind>/<uuid>-<ASCII name>', () => {
   assert.equal(fileNameOf(p), 'Logo-final.png');
 });
 
-test('who uploads what: managers all, Ilai three, an editor only videos of an assigned client', () => {
+test('who uploads what: managers all, Ilai his three and a logo he made, an editor only videos of an assigned client', () => {
   const dana = { editor: 'nadia', rounds: [{ n: 2, editor: 'yariv' }] };
   for (const me of [null, 'irit', 'lior', 'ofir']) assert.deepEqual(uploadKinds(me, dana), Object.keys(KINDS), String(me));
-  assert.deepEqual(uploadKinds('ilai', dana), ['deliverable_graphic', 'deliverable_highlight', 'deliverable_site']);
+  // (The logo: protocol v10. "עילאי הכין לוגו חדש" is ticked only once a logo is in the client's files.)
+  assert.deepEqual(uploadKinds('ilai', dana), ['deliverable_graphic', 'deliverable_highlight', 'deliverable_site', 'logo']);
   assert.deepEqual(uploadKinds('nadia', dana), ['deliverable_video']);
   assert.deepEqual(uploadKinds('yariv', dana), ['deliverable_video']); // a round's editor
   assert.deepEqual(uploadKinds('anna', dana), []);

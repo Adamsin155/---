@@ -8,7 +8,7 @@
 // (app/reminder-rules.js `nag`, `nagDone`; a copy runs in the reminders function) and
 // the unit tests read the same rules. The database decides who may do what
 // (supabase/migrations/20261011100000_staff_tasks.sql).
-import { PEOPLE, TEAM_PEOPLE, WORK_HOURS, isSales } from './protocol.js';
+import { PEOPLE, TEAM_PEOPLE, WORK_HOURS, isSales, BRIEF_REQUIRED, BRIEF_MUST, BRIEF_FIELDS } from './protocol.js';
 import { isBusinessDay, erevOn } from './protocol-logic.js';
 import { atTimeIL, dayKeyIL, addDaysIL } from './tz.js';
 
@@ -38,14 +38,34 @@ export const BODY_MAX = 500;
 const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
 // The form, checked before it is sent (the database checks again).
 // → { ok, errors: { assignee?, body? }, args } with the arguments of public.staff_task_create.
-export function validateTask({ assignee = '', body = '', clientId = '' } = {}) {
+// Protocol v10 (docs/ops.md, section 58): a task for Nirel carries her mandatory brief here
+// too, the same four fields a task in the client card must have for her (BRIEF_REQUIRED and
+// BRIEF_MUST in app/protocol.js: the problem, what to change, what stays, the result). The
+// database refuses one without it (public.staff_task_create_brief).
+export const needsBrief = (assignee) => BRIEF_REQUIRED.has(assignee);
+export const BRIEF_MAX = 500;
+// The four fields of the form, in the brief's order: [key, label].
+export const NAG_BRIEF = BRIEF_FIELDS.filter(([k]) => BRIEF_MUST.includes(k));
+// → { ok, errors: { assignee?, body?, 'brief.<key>'? }, rpc, args }: the function to call and its arguments.
+export function validateTask({ assignee = '', body = '', clientId = '', brief = {} } = {}) {
   const errors = {};
   const text = String(body).replace(/\r\n?/g, '\n').trim();
   if (!ASSIGNEES().some((p) => p.key === assignee)) errors.assignee = 'בוחרים למי המשימה.';
   if (!text) errors.body = 'כותבים מה צריך לעשות.';
   else if (text.length > BODY_MAX) errors.body = `עד ${BODY_MAX} תווים (עכשיו ${text.length}).`;
-  return { ok: !Object.keys(errors).length, errors, args: { p_assignee: assignee, p_body: text, p_client: isUuid(clientId) ? clientId : null } };
+  const args = { p_assignee: assignee, p_body: text, p_client: isUuid(clientId) ? clientId : null };
+  if (!needsBrief(assignee)) return { ok: !Object.keys(errors).length, errors, rpc: 'staff_task_create', args };
+  const clean = {};
+  for (const [k] of NAG_BRIEF) {
+    const v = String(brief?.[k] ?? '').replace(/\r\n?/g, '\n').trim();
+    if (!v) errors[`brief.${k}`] = `חובה במשימה ל${personName(assignee)}.`;
+    else if (v.length > BRIEF_MAX) errors[`brief.${k}`] = `עד ${BRIEF_MAX} תווים (עכשיו ${v.length}).`;
+    else clean[k] = v;
+  }
+  return { ok: !Object.keys(errors).length, errors, rpc: 'staff_task_create_brief', args: { ...args, p_brief: clean } };
 }
+// The brief of a task as lines to show: [[label, text], …] (none: an ordinary task).
+export const briefLines = (task) => NAG_BRIEF.map(([k, l]) => [l, String(task?.brief?.[k] ?? '').trim()]).filter(([, v]) => v);
 // One line of a task's text, for a notification's title.
 export const shortBody = (text, max = 90) => {
   const s = String(text || '').replace(/\s+/g, ' ').trim();

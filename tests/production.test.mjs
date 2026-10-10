@@ -163,8 +163,12 @@ test('editor states: the client approved without notes opens button 4; a text-on
 test('the self-check and the start checks are existing items; "מוכן לבדיקה" marks the notice to Ofir last', () => {
   const keys = new Set(PROCESSES.flatMap((p) => p.items.map((i) => i.key)));
   for (const [k] of [...P.START_CHECKS, ...P.selfCheck(true)]) assert.ok(keys.has(k), k);
-  assert.deepEqual(P.selfCheck(false).map(([k]) => k), ['p22.self.spelling', 'p22.self.closing', 'p22.self.broll', 'p22.self.complete', 'p24.drive']);
-  assert.equal(P.selfCheck(true).at(-1)[0], 'p24.dropbox');
+  // (Protocol v10: the five critical mistakes of editing come last, under their own line.)
+  const FIVE = ['sound', 'exposure', 'stable', 'angles', 'export'].map((k) => `p22.self.${k}`);
+  assert.deepEqual(P.selfCheck(false).map(([k]) => k), ['p22.self.spelling', 'p22.self.closing', 'p22.self.broll', 'p22.self.complete', 'p24.drive', ...FIVE]);
+  assert.deepEqual(P.selfCheck(false).filter(([, , g]) => g === 'critical').map(([k]) => k), FIVE);
+  assert.equal(P.selfCheck(true)[5][0], 'p24.dropbox');
+  assert.deepEqual(P.readyKeys(false).slice(-6), [...FIVE, 'p24.notify']);
   assert.equal(P.readyKeys(false).at(-1), 'p24.notify');
   assert.equal(P.needsDropbox({ links: { dropbox: 'https://www.dropbox.com/x' } }), true);
   assert.equal(P.needsDropbox({ links: {} }), false);

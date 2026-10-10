@@ -73,9 +73,10 @@ export function clockTime(clock, now = new Date()) {
     // `phase`: 'run' | 'late' | 'told'. While it runs `remaining` is the time left; once
     // late it is negative (how long ago), and `more` is what is left of the extra minutes.
     const t = ladderAt(clock.fast, now);
+    // `meeting`: Ofir is in a characterization meeting, and the count waits for its end (v10).
     return {
       state: t.phase === 'run' ? 'running' : 'expired', phase: t.phase, remaining: t.phase === 'run' ? t.remaining : clock.fast.dueAt - now,
-      more: t.phase === 'late' ? t.remaining : 0, paused: t.paused, resumeAt: t.resumeAt,
+      more: t.phase === 'late' ? t.remaining : 0, paused: t.paused || (!!t.meeting && t.phase !== 'told'), resumeAt: t.resumeAt, meeting: t.phase === 'told' ? null : t.meeting,
     };
   }
   const left = clock.deadline - now;
@@ -112,7 +113,7 @@ function inBar(kind, deadline, now) {
 // `stateOf(client)` may pass a cached clientState.
 // Each clock: { id, kind, client, proc, what, deadline, office, people, phone,
 // sentAt (answer only), minutes, state, remaining, paused, resumeAt }.
-export function clocksFor(person, clients, checksByClient = {}, { now = new Date(), stateOf = null, tasks = [] } = {}) {
+export function clocksFor(person, clients, checksByClient = {}, { now = new Date(), stateOf = null, tasks = [], meetings = undefined } = {}) {
   const out = [];
   const add = (c) => { if (inBar(c.kind, c.deadline, now)) out.push({ ...c, ...clockTime(c, now) }); };
   for (const client of clients) {
@@ -126,7 +127,7 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
     // belongs to gets no second, plain clock from the lines below, for anybody.
     const fastProcs = new Set();
     for (const s of state.states) {
-      const f = fastCaseOf(client, s, state.states, checks);
+      const f = meetings === undefined ? fastCaseOf(client, s, state.states, checks) : fastCaseOf(client, s, state.states, checks, meetings);
       if (!f) continue;
       fastProcs.add(s.proc.id);
       if (person && person !== FAST_LADDER.who) continue;

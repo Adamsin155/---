@@ -121,7 +121,8 @@ function applyFilters(rows, params) {
 }
 const archivedIds = () => new Set(db.clients.filter((c) => c.archived_at).map((c) => c.id));
 // The functions the pages call only to read (the shell and owner.html ask them for every viewer).
-const READ_RPC = new Set(['is_staff', 'can_use_vault', 'manager_client_finance', 'archived_clients', 'clients_private', 'whatsapp_my_consent', 'calendar_feed_status', 'access_status_overview']);
+const READ_RPC = new Set(['is_staff', 'can_use_vault', 'manager_client_finance', 'archived_clients', 'clients_private', 'whatsapp_my_consent', 'calendar_feed_status', 'access_status_overview',
+  'ofir_meetings']); // (a read: the times of Ofir's meetings, for whoever does not see his clients; protocol v10)
 
 const CLIENT_SHAPE = { clients: () => db.clients, staff: () => db.staff };
 async function fakeSupabase(route) {

@@ -7,6 +7,8 @@
 import { lateItems, chainOf, lateWords, dueAtCloseToday } from './late-chain.js';
 import { PEOPLE } from './protocol.js';
 import { clientLabel, inLanding, pauseOf } from './protocol-logic.js';
+import { ofirMeetings } from './office-marks.js';
+import { waitingApprovals, waitDays } from './client-waits.js';
 import { dayKeyIL, dayFromKeyIL, endOfDayIL } from './tz.js';
 
 // The numbers: each is a one-line change.
@@ -21,19 +23,28 @@ const count = (n, one, many) => (n === 1 ? one : `${n} ${many}`);
 
 // → { day, rows: [{ person, name, late, today, longestAt, longest }], totals: { late,
 //     today, people, longestAt, longest }, items: [{ kind: 'late' | 'today', cid, name,
-//     what, who: [person], dueAt, how, procId, taskId }], waiting: [{ cid, name, what }],
-//     empty }
+//     what, who: [person], dueAt, how, procId, taskId }], waiting: [{ cid, name, what, days }],
+//     waitingLongest: { days, name, words } | null, empty }
 // `late`: what is past its deadline now and held by someone in the office. `today`:
 // what was due today and is still open (a deadline at the end of the day, a task for
 // today). An item two people hold counts for each of them and once in the totals.
-// `waiting`: late on paper, but it is the client's turn; counted for nobody.
-export function daySummary({ clients = [], checksOf = () => ({}), stateOf, tasks = [], personOf = () => null, now = new Date() }) {
+// `waiting`: late on paper, but it is the client's turn; counted for nobody. `days`: how long
+// the client has had it (calendar days since the sending; null when no sending is recorded: the
+// scripts), and `waitingLongest` the longest of them (protocol v10; app/client-waits.js).
+export function daySummary({ clients = [], checksOf = () => ({}), stateOf, tasks = [], personOf = () => null, now = new Date(), meetings = null }) {
   const live = clients.filter((c) => !inLanding(c) && (c.status === 'active' || c.status === 'ending'));
-  const all = lateItems({ clients: live, checksOf, stateOf, tasks, personOf, now });
+  // Ofir's meetings (his fast ladder does not count them): from the same clients, so the
+  // page and the push agree.
+  const all = lateItems({ clients: live, checksOf, stateOf, tasks, personOf, now, meetings: meetings || ofirMeetings(clients.filter((c) => c.status === 'active' || c.status === 'ending'), checksOf) });
   const items = [];
   const waiting = [];
+  const waits = waitingApprovals({ clients: live, checksOf, stateOf, tasks, now });
   for (const x of all) {
-    if (x.clientTurn) { waiting.push({ cid: x.cid, name: x.name, what: x.what }); continue; }
+    if (x.clientTurn) {
+      const w = waits.find((y) => y.cid === x.cid && y.approval === x.turnKey);
+      waiting.push({ cid: x.cid, name: x.name, what: x.what, days: w ? w.days : null });
+      continue;
+    }
     if (!x.holders.length) continue; // it waits for work that is itself late, and counted there
     // Due at the close of this very day (18:00) and still open: "of today, not done", as
     // it was while the end of a business day was midnight. It is late from tomorrow on.
@@ -79,7 +90,8 @@ export function daySummary({ clients = [], checksOf = () => ({}), stateOf, tasks
     late: late.length, today: items.length - late.length, people: rows.filter((r) => r.late).length,
     longestAt: first?.dueAt || null, longest: first?.how || '',
   };
-  return { day: todayKey, rows, totals, items, waiting, empty: !items.length };
+  const longest = waiting.filter((x) => x.days !== null).sort((a, b) => b.days - a.days)[0] || null;
+  return { day: todayKey, rows, totals, items, waiting, waitingLongest: longest ? { days: longest.days, name: longest.name, words: waitDays(longest.days) } : null, empty: !items.length };
 }
 
 // "היום: 6 באיחור אצל 3 עובדים, 4 לא בוצעו": the push says the numbers by itself.
@@ -99,6 +111,15 @@ export function pushLines(sum, max = EOD.pushPeople) {
   return [headline(sum), ...sum.rows.slice(0, max).map(rowText), ...(rest > 0 ? [`ועוד ${count(rest, 'עובד אחד', 'עובדים')} בטבלה`] : [])];
 }
 // The same day as one WhatsApp text, for when the channel is connected (not sent now).
+// The sentence about work that is late on paper and waits for the client's answer: how many,
+// and the longest wait (the page under the table, and the WhatsApp text).
+export function waitingText(sum, max = 4) {
+  const n = sum.waiting.length;
+  if (!n) return '';
+  const head = `${n === 1 ? 'פריט אחד עבר את היעד ומחכה' : `${n} פריטים עברו את היעד ומחכים`} לתשובת הלקוח, ולכן לא נספר לאף עובד`;
+  const longest = sum.waitingLongest ? ` ההמתנה הארוכה: ${sum.waitingLongest.words} (${sum.waitingLongest.name}).` : '';
+  return `${head}: ${sum.waiting.slice(0, max).map((x) => `${x.name} (${x.what})`).join(', ')}${n > max ? ` ועוד ${n - max}` : ''}.${longest}`;
+}
 export function waText(sum, { link = '' } = {}) {
   if (sum.empty) return ['סיכום היום', EMPTY_DAY].join('\n');
   return [

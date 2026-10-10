@@ -324,7 +324,7 @@ await step('"מוכן לבדיקה" refuses without the Drive link (and with a b
   assert.equal(await text(nadia, 'label[for="ready-link"]'), 'קישור לתיקיית הסרטונים בדרייב');
   assert.equal(await text(nadia, '#ready-link-hint'), 'התיקייה של הלקוח בדרייב, עם כל הסרטונים הסופיים.');
   assert.match(await text(nadia, '#ready-list'), /כל הסרטונים בדרייב של הלקוח ונפתחים/);
-  for (const i of [0, 1, 2, 3, 4]) await nadia.check(`#ready-${i}`);
+  for (const i of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) await nadia.check(`#ready-${i}`); // five, and the five critical mistakes (protocol v10)
   await nadia.click('#ready-submit');
   await nadia.waitForSelector('#ready-link-err:not([hidden])');
   assert.equal(await text(nadia, '#ready-link-err'), 'הדביקו את הקישור לתיקיית הסרטונים בדרייב.');
@@ -371,7 +371,7 @@ await step('with the Drive link "מוכן לבדיקה" goes to Ofir, and the li
   await nadia.waitForSelector('#dlg-ready[open]');
   assert.equal(await text(nadia, '#ready-link-hint'), 'סרטון אחד הועלה למערכת: אפשר גם בלי קישור.');
   await nadia.fill('#ready-link', DRIVE);
-  for (const i of [0, 1, 2, 3, 4]) await nadia.check(`#ready-${i}`);
+  for (const i of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) await nadia.check(`#ready-${i}`); // five, and the five critical mistakes (protocol v10)
   await shots(nadia, 'editor-unlocked');
   await nadia.click('#ready-submit');
   await toastHas(nadia, 'נשלח לאופיר');
@@ -506,7 +506,9 @@ await step('one tap from the graphics card: the client\'s characterization, read
   assert.equal(await ilai.locator('#ik-body :is(input:not([type=file]), textarea, select, button.btn-primary):visible').count(), 0);
   assert.equal(await ilai.locator('#ik-tabs').isHidden(), true);
   await ilai.waitForSelector('#files-block .fl-item');
-  assert.equal(await ilai.locator('#files-block .fl-add:visible').count(), 0, 'Ilai adds no materials');
+  // (Protocol v10: the one material Ilai adds is a logo, the one he makes when the client has none; nothing else.)
+  assert.equal(await ilai.locator('#files-block .fl-add:visible').count(), 1, 'Ilai adds one kind of material: a logo');
+  assert.match(await text(ilai, '#files-block .fl-add:visible'), /לוגו/);
   assert.equal(await ilai.locator('#files-block .fl-del').count(), 0);
   assert.match(await text(ilai, '#files-block'), /תמונות \(1\)/);
   assert.equal(await ilai.getAttribute('#back', 'href'), 'clients.html#mine');

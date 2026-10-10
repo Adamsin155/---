@@ -10,6 +10,8 @@
 //   graphicsCount  "מוכן לבדיקה (לאופיר)" (23): never refused. With fewer graphics up
 //                  than the package it ASKS ("הועלתה 1 מתוך 26. לשלוח בכל זאת?"), where
 //                  the files are uploaded (app/ilai-card.js), which has both numbers.
+//   logoFile       "עילאי הכין לוגו חדש" (5; protocol v10): refused while the client's files hold
+//                  no logo (the kind 'logo' of app/files-logic.js). The first graphics hang on it.
 //   callSummary    the weekly call (31): it is recorded in the call's own dialog
 //                  ("תיעוד שיחה"), which already refuses an empty summary. The pill
 //                  leads there.
@@ -34,6 +36,7 @@ export const REFUSALS = {
   gantt: 'הגאנט עדיין ריק. מוסיפים בו את התכנים, ואז מסמנים.',
   scheduled: 'עוד שום תוכן לא סומן ״תוזמן״ בגאנט. מסמנים שם, ואז כאן.',
   scripts: 'עוד אין תסריט בעמוד התסריטים. כותבים שם, ואז מסמנים.',
+  logoFile: 'עוד אין קובץ לוגו בתיק הלקוח. מעלים אותו שם, ואז מסמנים.',
 };
 // The Gantt's rows that are content (a post), not its frame.
 const POST_STATES = new Set(['scheduled', 'posted']);
@@ -48,6 +51,7 @@ export function guardVerdict(guard, facts) {
   if (guard === 'gantt') return facts.posts === 0 ? { refuse: REFUSALS.gantt } : null;
   if (guard === 'scheduled') return facts.scheduled === 0 ? { refuse: REFUSALS.scheduled } : null;
   if (guard === 'scripts') return facts.scripts === 0 ? { refuse: REFUSALS.scripts } : null;
+  if (guard === 'logoFile') return facts.logos === 0 ? { refuse: REFUSALS.logoFile } : null;
   if (guard === 'graphicsCount') {
     const total = Number(facts.total);
     return Number.isInteger(facts.count) && total > 0 && facts.count < total ? { ask: graphicsAsk(facts.count, total) } : null;
@@ -76,6 +80,11 @@ export async function guardFacts(guard, clientId, key) {
       const { data, error } = await supabase.from('client_scripts').select('n').eq('client_id', clientId).eq('round', roundOfKey(key)).limit(1);
       if (error || !Array.isArray(data)) return null;
       return { scripts: data.length };
+    }
+    if (guard === 'logoFile') {
+      const { data, error } = await supabase.from('client_files').select('id').eq('client_id', clientId).eq('kind', 'logo').is('deleted_at', null).limit(1);
+      if (error || !Array.isArray(data)) return null;
+      return { logos: data.length };
     }
   } catch { /* not known: the mark is taken */ }
   return null;

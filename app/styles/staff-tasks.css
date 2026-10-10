@@ -52,3 +52,12 @@
   .st-acts .btn { flex: 1 1 40%; }
   .st-acts .st-done, .st-acts .st-send { flex-basis: 100%; }
 }
+/* Protocol v10: the mandatory brief of a task for Nirel (the four fields), in the form and on the task. */
+.st-brief-form { margin: 0; padding: 12px; border: 1px solid var(--ds-line, var(--line)); border-radius: var(--ds-r-item); display: grid; gap: 10px; min-width: 0; }
+.st-brief-form[hidden] { display: none; }
+.st-brief-form legend { padding: 0 6px; font-weight: 700; font-size: 15px; }
+.st-form .st-brief-form textarea { min-height: 64px; }
+.st-brief { margin: 0; display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 4px 10px; font-size: 14px; }
+.st-brief dt { color: var(--ds-ink-2); }
+.st-brief dd { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
+@media (max-width: 480px) { .st-brief { grid-template-columns: minmax(0, 1fr); } .st-brief dd { margin-bottom: 4px; } }

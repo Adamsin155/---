@@ -83,7 +83,11 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
   const fix = turn ? openFix(tasks, client.id, turn.key) : null;
   // Notes the office wrote down by hand (27: p27.notes) are a fix request too.
   const notes = turn && baseKey(turn.key) === 'p27.approved' && checks[`${preOf(turn.key)}p27.notes`]?.state === 'done';
-  if (turn && !fix && !notes) return { holders: [], waiters: [], clientTurn: true, fixing: false };
+  // Fixes that remained after the Zoom (13; protocol v10: Lior marked p13.left, so p13.fixes is asked for)
+  // are the office's to make: the scripts are not with the client meanwhile.
+  const own = turn && baseKey(turn.key) === 'p13.approved' && items.some((i) => baseKey(i.key) === 'p13.fixes');
+  // `turnKey`: the approval that waits (the owners' table says how long: app/client-waits.js).
+  if (turn && !fix && !notes && !own) return { holders: [], waiters: [], clientTurn: true, fixing: false, turnKey: turn.key };
   if (turn) items = items.filter((i) => i !== turn);
   const openKeys = new Set(items.map((i) => i.key));
   // Graphics that Ofir returned for fixes (7, 23; protocol v9) are with whoever fixes
@@ -122,7 +126,11 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
 // final versions waiting for "קיבלתי", and `fast`: Ofir's fast ladder of protocol v9);
 // `gap`: process 3 with no meeting date (its own daily ring, section 47). All of them
 // still count as late in the table.
-export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks = [], personOf = () => null, now = new Date(), grace = LATE_LADDER.graceMinutes }) {
+// `meetings`: Ofir's characterization meetings (ofirMeetings in app/office-marks.js): his
+// fast ladder does not count them, so work that reached him while he sits with a client
+// is not late until the meeting ended and his minutes passed (protocol v10). Left out, it
+// is what the page knows (setOfirMeetings in app/fast-ladder.js).
+export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks = [], personOf = () => null, now = new Date(), grace = LATE_LADDER.graceMinutes, meetings = undefined }) {
   const out = [];
   const live = new Map();
   for (const c of clients) {
@@ -138,13 +146,17 @@ export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks 
       let chain = chainOf(s, c, checks, st, tasks, now);
       // On the fast ladder (app/fast-ladder.js) it is that one person's lateness, and the
       // ladder's own rings are the only ones: `fast`, and `ownLadder` below.
-      const fast = !chain.clientTurn && !!fastCaseOf(c, s, st, checks);
+      const fc = chain.clientTurn ? null : (meetings === undefined ? fastCaseOf(c, s, st, checks) : fastCaseOf(c, s, st, checks, meetings));
+      const fast = !!fc;
+      // His minutes did not run out yet (they wait for the end of his meeting): not late.
+      if (fc && now < fc.dueAt) continue;
       if (fast) chain = { ...chain, holders: [FAST_LADDER.who], waiters: real([...chain.holders, ...chain.waiters]).filter((p) => p !== FAST_LADDER.who) };
       const sn = checks[`${s.proc.keyBase || s.proc.id}.snooze`];
+      const dueAt = fc ? fc.dueAt : s.dueAt;
       out.push({
         snooze: sn?.state === 'done' ? parseDate(sn.note) : null,
         kind: 'proc', id: `${s.proc.id}@${s.dueAt.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), what: `${s.proc.num} · ${s.proc.title}`, num: s.proc.num,
-        dueAt: s.dueAt, lateAt: addWorkingMinutes(s.dueAt, grace), ...chain,
+        dueAt, lateAt: addWorkingMinutes(dueAt, grace), ...chain,
         // Only process 3's missing meeting date has a daily ring of its own (section 47). 11
         // without a shoot date (protocol v8) is a late item like any other: it is on the ladder.
         ownLadder: fast || (b === 'p04' && done('p04.ended')) || (b === 'p27' && done('p27.final')), fast, gap: !!s.gap && b === 'p03',
@@ -208,6 +220,7 @@ export const fixTaskOf = (tasks, clientId, itemKey) => openFix(tasks, clientId, 
 // The line under it: the client's own words, who fixes, and when the item is ticked.
 export function fixNote(task, nameOf = (p) => p) {
   const words = String(task?.brief?.problem || '').replace(/\s+/g, ' ').trim();
-  const said = words ? `הלקוח כתב: ״${words.length > 200 ? `${words.slice(0, 199)}…` : words}״. ` : '';
+  // (Written by the client on the status page, or written down by the office: "הלקוח ביקש תיקון", protocol v10.)
+  const said = words ? `${task?.brief?.from === 'office' ? 'הלקוח ביקש' : 'הלקוח כתב'}: ״${words.length > 200 ? `${words.slice(0, 199)}…` : words}״. ` : '';
   return `${said}${task?.owner ? `${nameOf(task.owner)} ${task.brief?.extra ? 'מחליט/ה על סבב נוסף' : 'מתקן/ת'}. ` : ''}מסמנים כאן רק כשהלקוח מאשר אחרי התיקון.`;
 }

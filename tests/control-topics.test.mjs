@@ -187,8 +187,11 @@ test('open tasks, late first; corrections the client asked for; client approvals
   ]);
   assert.deepEqual(t.approvals.items.map((x) => x.hash), ['p07', 'p27']);
   // The client's notes arrived: a correction with the editor, not an approval we wait for.
+  // (Protocol v10: the fix is due from the moment the notes were recorded. They came on Monday at
+  // 11:00, so by that day's close; on Tuesday morning the correction is late. Until v10 it stayed
+  // "day 4 from the assignment", Wednesday.)
   assert.deepEqual(rows(t.fixes), [
-    ['הערות', 'תיקוני הלקוח בסרטונים · יריב', false],
+    ['הערות', 'תיקוני הלקוח בסרטונים · יריב', true],
     ['גרפיקות', 'להחליף צבע בגרפיקה 3 · עילאי', false],
   ]);
   assert.equal(ageText(t.fixes.items[0].since, NOW), 'מאתמול');

@@ -347,7 +347,7 @@ export class Sim {
 }
 // '
 // '
-const KNOWN_INNER = new Set(["/rest/v1/rpc/is_staff", "/rest/v1/rpc/can_use_vault", "/rest/v1/rpc/can_use_client_vault", "/rest/v1/rpc/manager_client_finance", "/rest/v1/rpc/archived_clients", "/rest/v1/rpc/push_status", "/rest/v1/rpc/scripts_client", "/rest/v1/rpc/can_write_scripts", "/rest/v1/rpc/photographer_taken", "/rest/v1/rpc/clients_private", "/functions/v1/client-media"]);
+const KNOWN_INNER = new Set(["/rest/v1/rpc/staff_request_fix", "/rest/v1/rpc/is_staff", "/rest/v1/rpc/can_use_vault", "/rest/v1/rpc/can_use_client_vault", "/rest/v1/rpc/manager_client_finance", "/rest/v1/rpc/archived_clients", "/rest/v1/rpc/push_status", "/rest/v1/rpc/scripts_client", "/rest/v1/rpc/can_write_scripts", "/rest/v1/rpc/photographer_taken", "/rest/v1/rpc/clients_private", "/functions/v1/client-media"]);
 
 export const settle = async (page, ms = 450) => { await page.waitForLoadState("networkidle").catch(() => null); await page.waitForTimeout(ms); };
 // One line per reminder row: when, rule, to whom, level, how it went out, title.
