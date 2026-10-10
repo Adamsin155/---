@@ -40,6 +40,8 @@ function build() {
   const $ = (id) => dlg.querySelector(`#${id}`);
   dlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === dlg) dlg.close(); });
   dlg.addEventListener('close', () => { const t = target; target = null; if (t?.focusId) document.getElementById(t.focusId)?.focus(); });
+  // Once something is written, "כותבים מה הלקוח ביקש" is no longer true: it goes.
+  $('fix-note').addEventListener('input', () => { if ($('fix-note').value.trim()) { $('fix-err').hidden = true; $('fix-note').removeAttribute('aria-invalid'); } });
   $('fix-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const t = target;

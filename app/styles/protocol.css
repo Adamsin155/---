@@ -360,7 +360,7 @@ select.input { appearance: auto; }
 .pr-toast { display: flex; align-items: center; gap: 12px; bottom: calc(16px + env(safe-area-inset-bottom) + var(--tabbar-room, 0px)); transition: opacity .2s, transform .35s var(--ds-ease); }
 .pr-toast:not(.on) { transform: translateY(14px); }
 .pr-toast:not(.on) { opacity: 0; pointer-events: none; }
-.toast-act { border: 0; background: transparent; color: #C9D3F0; font: inherit; font-weight: 600; cursor: pointer; min-height: 32px; padding-inline: 4px; text-decoration: underline; }
+.toast-act { border: 0; background: transparent; color: #C9D3F0; font: inherit; font-weight: 600; cursor: pointer; min-height: 32px; padding-inline: 4px; text-decoration: underline; white-space: nowrap; overflow-wrap: normal; flex: none; }
 .pr-app { padding-bottom: 56px; }
 
 @media print {
@@ -864,14 +864,17 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
 .contract-end .hint { margin: 8px 0 0; }
 .item-acts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 /* The five critical mistakes of editing: their own line in the editor's self-check and in Ofir's dialog. */
-.prod-sub, .of-critical { margin: 14px 0 4px; font-size: 14px; font-weight: 700; color: var(--text); }
+/* (The space above is padding: the lists these lines sit in set the margins of their own lines.) */
+p.prod-sub, p.of-critical { margin: 0 0 4px; padding-top: 12px; font-size: 14px; font-weight: 700; color: var(--text); }
 .of-mistakes { margin: 6px 0 12px; }
 .of-mistakes-h { margin: 0 0 6px; font-size: 14px; color: var(--text-2); }
 .of-mistake-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.of-mistake { min-height: 40px; }
+.of-mistake { min-height: 44px; border: 1px solid var(--ds-edge); background: var(--ds-surface); color: var(--text); }
 /* The raw material and the take per script (the shoot day): a number and two short fields a row. */
 .sh-files > .hint { margin: 6px 0 8px; }
-.sh-file-head, .sh-file-row { display: grid; grid-template-columns: 44px minmax(0, 1.6fr) minmax(0, 1fr); gap: 8px; align-items: center; }
+.sh-file-head, .sh-file-row { display: grid; grid-template-columns: 44px minmax(0, 1.6fr) minmax(0, 1fr); gap: 8px; align-items: center; max-width: 420px; }
+.sh-file-head > span { text-align: center; }
+.sh-files-t { min-width: 0; }
 .sh-file-head { font-size: 13px; color: var(--text-2); padding-bottom: 4px; }
 .sh-file-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .sh-file-n { text-align: center; font-weight: 700; }

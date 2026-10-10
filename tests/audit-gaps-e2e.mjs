@@ -34,7 +34,14 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const errors = [];
 const settle = async (page) => { await page.waitForLoadState('networkidle').catch(() => {}); await page.waitForTimeout(400); };
-const shot = async (target, name) => { if (SHOTS) await target.screenshot({ path: `${OUT}v10-${name}.png` }); };
+// A picture for the eye (SHOTS=1): what it is about is brought to the middle of the screen, and
+// the welcome that fades after the sign-in is over.
+const shot = async (target, name, loc = null) => {
+  if (!SHOTS) return;
+  if (loc) await loc.first().evaluate((el) => el.scrollIntoView({ block: 'center' })).catch(() => {});
+  await target.waitForTimeout(1800);
+  await target.screenshot({ path: `${OUT}v10-${name}.png` });
+};
 const text = async (loc) => (await loc.innerText()).replace(/\s+/g, ' ').trim();
 const at = (hhmm, day = 20) => `2026-10-${String(day).padStart(2, '0')}T${hhmm}:00+03:00`;
 const [FIX, MEET, GFX, END, END2, ZOOM, SHOOT, READ, EDIT, QA, FINAL] = [71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81].map(cid);
@@ -193,7 +200,7 @@ try {
     assert.equal(await text(ask), 'הלקוח ביקש תיקון');
     if (width === 390) await tall(ask, 'the action');
     await inside(page, ask, 'the action');
-    await shot(page, `1-irit-card-${width}`);
+    await shot(page, `1-irit-card-${width}`, c);
     await ask.click();
     await page.waitForSelector('#dlg-fix[open]');
     assert.equal(await text(page.locator('#fix-ctx')), 'קפה דנה · דנה לוי · 9 הגרפיקות הראשונות');
@@ -217,7 +224,7 @@ try {
     assert.match(await text(c.locator('.fix-note')), /הלקוח ביקש: ״להחליף את הטלפון בגרפיקה 4״\. עילאי מתקן\/ת\./);
     assert.equal(await c.locator('.fix-ask').count(), 0);
     await noOverflow(page);
-    await shot(page, `1-irit-after-${width}`);
+    await shot(page, `1-irit-after-${width}`, c);
     await ctx.close();
     // Ilai: the task is on his list.
     const ilai = await signedIn('ilai', db, { width });
@@ -239,12 +246,12 @@ try {
     assert.ok(!(await c.getAttribute('class')).includes('s-overdue'));
     assert.equal(await page.locator('#tab-late:not([hidden])').count(), 0, 'no "באיחור" tab for it');
     await noOverflow(page);
-    await shot(page, `2-ofir-meeting-${width}`);
+    await shot(page, `2-ofir-meeting-${width}`, row);
     await ctx.close();
     const ilai = await signedIn('ilai', db, { width });
     await ilai.page.waitForSelector('.il-with-ofir');
     assert.equal(await text(ilai.page.locator('.il-with-ofir').first()), 'אצל אופיר לבדיקה · אופיר בפגישת אפיון');
-    await shot(ilai.page, `2-ilai-waits-${width}`);
+    await shot(ilai.page, `2-ilai-waits-${width}`, ilai.page.locator('.il-with-ofir'));
     await ilai.ctx.close();
     // He presses "האפיון הסתיים" at 09:58: the ten minutes run from then (eight are left at 10:00).
     db.protocol_checks.push({ client_id: MEET, item_key: 'p04.ended', state: 'done', note: null, by_email: emailOf('ofir'), at: at('09:58') });
@@ -266,7 +273,7 @@ try {
     const [a, b2] = [await renew.boundingBox(), await end.boundingBox()];
     assert.ok(Math.abs(a.y - b2.y) < 2 && Math.abs(a.height - b2.height) < 2, 'the two actions sit on one line, the same height');
     await noOverflow(page);
-    await shot(page, `3-lior-contract-${width}`);
+    await shot(page, `3-lior-contract-${width}`, c);
     assert.equal(db.clients.find((x) => x.id === END).status, 'active');
     // "נרשם חידוש": the dialog offers a year after the old end; a past date is refused.
     await renew.click();
@@ -306,7 +313,7 @@ try {
     assert.match(await text(q), /^נשארו תיקונים אחרי הזום\? נשארו תיקונים אין תיקונים$/);
     for (const b of await q.locator('button').all()) { await inside(page, b, 'an answer'); if (width === 390) await tall(b, 'an answer'); }
     await noOverflow(page);
-    await shot(page, `4-lior-zoom-${width}`);
+    await shot(page, `4-lior-zoom-${width}`, c);
     await q.locator('button', { hasText: 'נשארו תיקונים' }).click();
     await settle(page);
     assert.equal(checkOf(db, ZOOM, 'p13.left')?.state, 'done');
@@ -315,7 +322,7 @@ try {
     assert.match(await text(c), /מחר עד 18:00/);
     await c.locator('button.wc-open, button.wc-more').first().click().catch(() => {});
     assert.match(await text(c), /תיקונים שנשארו אחרי הזום בוצעו ועודכנו בעמוד התסריטים/);
-    await shot(page, `4-lior-zoom-left-${width}`);
+    await shot(page, `4-lior-zoom-left-${width}`, c);
     await ctx.close();
     // "אין תיקונים": the item is "לא נדרש", and nothing more is asked.
     const db2 = office();
@@ -349,7 +356,7 @@ try {
     assert.deepEqual([...filesOf({ 'p18b.files': checkOf(db, SHOOT, 'p18b.files') }, '')], [[1, { raw: '0123', take: '2' }]]);
     assert.equal(await lior.page.evaluate(() => document.activeElement.id), `${sid}-f2-raw`, 'the next row is typed at once');
     await noOverflow(lior.page);
-    await shot(lior.page, `5-lior-files-${width}`);
+    await shot(lior.page, `5-lior-files-${width}`, box);
     await lior.ctx.close();
     // Eli sees Lior's row, and adds his own: both rows are kept.
     const eli = await signedIn('eli', db, { path: `shoot.html?id=${SHOOT}`, width, wait: `#${sid}` });
@@ -363,14 +370,14 @@ try {
     // The hint next to the handoff ("לכל חומר ברור לאיזה מספר סרטון הוא שייך").
     assert.equal(await text(eli.page.locator(`#${sid}-numbered`)), '2 מתוך 6 תסריטים עם קובץ.');
     await noOverflow(eli.page);
-    await shot(eli.page, `5-eli-files-${width}`);
+    await shot(eli.page, `5-eli-files-${width}`, ebox);
     // Tomorrow's shoot day: "קראתי את התסריטים", one tap; Lior's briefing card says so.
     const rid = `s-${READ}`;
     const read = eli.page.locator(`#${rid}-read`);
     assert.equal(await text(read), 'קראתי את התסריטים');
     if (width === 390) await tall(read, 'the tick');
     await read.scrollIntoViewIfNeeded();
-    await shot(eli.page, `5-eli-read-${width}`);
+    await shot(eli.page, `5-eli-read-${width}`, read);
     await read.click();
     await eli.page.waitForSelector(`#${rid}-read-ok`);
     assert.match(await text(eli.page.locator(`#${rid}-read-ok`)), /^קראת את התסריטים .*ליאור רואה\.$/);
@@ -386,7 +393,7 @@ try {
     const c = page.locator(`#c-${EDIT}`);
     assert.match(await text(c.locator('.ed-files')), /חומר גלם וטייק לכל תסריט \(3\) סרטון 1 · קובץ 0123 · טייק 2 סרטון 2 · קובץ 0131 סרטון 4 · טייק 3/);
     assert.equal(await c.locator('.ed-files input').count(), 0, 'to read only');
-    await shot(page, `6-editor-files-${width}`);
+    await shot(page, `6-editor-files-${width}`, c.locator('.ed-files'));
     await page.click(`#c-${EDIT}-go`);
     await page.waitForSelector('#dlg-ready[open]');
     assert.equal(await page.locator('#ready-list .prod-check').count(), 10);
@@ -451,7 +458,7 @@ try {
     await c.waitFor();
     assert.match(await text(c), /אלון צמחים · רותי אלון.*29ב · בדיקה סופית של כל העבודה · 13 פריטים לסימון/);
     assert.match(await text(c.locator('.wc-when')), /מחר עד 18:00/);
-    await shot(page, `8-ilai-card-${width}`);
+    await shot(page, `8-ilai-card-${width}`, c);
     await c.locator('.wc-open').click();
     assert.equal(await c.locator('.wlist .witem').count(), 13);
     const all = c.locator('.bulk-btn');
@@ -459,7 +466,7 @@ try {
     await inside(page, all, 'סימון הכול');
     if (width === 390) await tall(all, 'סימון הכול');
     await noOverflow(page);
-    await shot(page, `8-ilai-open-${width}`);
+    await shot(page, `8-ilai-open-${width}`, c);
     await all.click();
     await settle(page);
     for (const [k] of FINAL_CHECK) assert.equal(checkOf(db, FINAL, `p29b.c.${k}`)?.state, 'done', k);
@@ -468,7 +475,7 @@ try {
     const pill = c.locator('input.cbx.fin');
     assert.equal(await pill.count(), 1);
     assert.equal(await pill.getAttribute('data-word'), 'הושלמה');
-    await shot(page, `8-ilai-last-${width}`);
+    await shot(page, `8-ilai-last-${width}`, c);
     await pill.check();
     await settle(page);
     assert.equal(checkOf(db, FINAL, 'p29b.done')?.state, 'done');
@@ -508,7 +515,7 @@ try {
     const nirel = await signedIn('nirel', db, { width, wait: '.st-item.is-mine' });
     assert.match(await text(nirel.page.locator('.st-item.is-mine .st-brief')), /מה הבעיה המדויקת הלוגו בסגיר ישן מה בדיוק צריך לשנות להחליף ללוגו החדש/);
     await noOverflow(nirel.page);
-    await shot(nirel.page, `9-nirel-task-${width}`);
+    await shot(nirel.page, `9-nirel-task-${width}`, nirel.page.locator('.st-item.is-mine'));
     await nirel.ctx.close();
   });
 

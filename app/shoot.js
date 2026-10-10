@@ -142,7 +142,8 @@ function filesBlock(sc) {
     class: 'ed-more sh-files', id: `${id}-files`, open: filesOpen.has(id),
     ontoggle: (e) => { if (e.currentTarget.open) filesOpen.add(id); else filesOpen.delete(id); },
   },
-  leadIcon(h('summary', {}, 'חומר גלם וטייק לכל תסריט', h('span', { class: 'muted sh-files-n', id: `${id}-files-n` }, ` · ${P.filesHint(files, target)}`)), 'drive'),
+  // (One run of text next to the icon: on a phone the count wraps under the title, not beside it.)
+  leadIcon(h('summary', {}, h('span', { class: 'sh-files-t' }, 'חומר גלם וטייק לכל תסריט', h('span', { class: 'muted sh-files-n', id: `${id}-files-n` }, ` · ${P.filesHint(files, target)}`))), 'drive'),
   h('p', { class: 'hint' }, 'ליד כל סרטון: מספר הקובץ והטייק שנבחר. לא חובה. נשמר לבד, והעורך רואה את זה בעמוד שלו.'),
   h('div', { class: 'sh-file-head', 'aria-hidden': 'true' }, h('span', {}, 'סרטון'), h('span', {}, 'קובץ'), h('span', {}, 'טייק')),
   h('ol', { class: 'sh-file-rows' }, ...rows.map((r) => h('li', { class: 'sh-file-row' },
