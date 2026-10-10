@@ -323,13 +323,13 @@ await shot(page, 'phone-month');
 console.log('ok  month totals match the engine');
 
 // Extra income and one-off expense.
-await page.getByRole('button', { name: 'הוספה' }).first().click();
+await page.getByRole('button', { name: 'הוספת הכנסה' }).click();
 await dlg.getByLabel('תיאור').fill('שיקים של לקוח ישן');
 await dlg.getByLabel('סכום (₪, לפני מע״מ)').fill('1,234.50');
 await dlg.getByRole('button', { name: 'שמירה' }).click();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 assert.equal(tables.payout_incomes[0].amount_agorot, 123450);
-await page.getByRole('button', { name: 'הוספה' }).nth(1).click();
+await page.getByRole('button', { name: 'הוספת הוצאה' }).click();
 await dlg.getByLabel('סוג').selectOption('other');
 await dlg.getByLabel('למי').fill('ספק בדיקה');
 await dlg.getByLabel('תיאור').fill('אירוע לקוחות');
@@ -338,7 +338,7 @@ await dlg.getByRole('button', { name: 'שמירה' }).dblclick();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 assert.equal(tables.payout_expenses.length, 1, 'double click saves once');
 assert.equal(tables.payout_expenses[0].amount_agorot, 75000);
-await page.getByRole('button', { name: 'הוספה' }).nth(1).click();
+await page.getByRole('button', { name: 'הוספת הוצאה' }).click();
 await dlg.getByLabel('סוג').selectOption('meetings');
 assert.equal(await dlg.getByLabel('למי').inputValue(), 'מוכרת בדיקה', 'meetings default payee');
 await dlg.getByLabel('מספר פגישות שתואמו').fill('5');
@@ -347,13 +347,60 @@ await page.getByRole('dialog').waitFor({ state: 'hidden' });
 const meet = tables.payout_expenses.find((e) => e.kind === 'meetings');
 assert.equal(meet.qty, 5);
 assert.equal(meet.amount_agorot, ils(200));
-await page.getByRole('button', { name: 'הוספה' }).nth(1).click();
+await page.getByRole('button', { name: 'הוספת הוצאה' }).click();
 await dlg.getByLabel('למי').fill('עובד בדיקה');
 await dlg.getByLabel('סכום (₪)').fill('320');
 await dlg.getByRole('button', { name: 'שמירה' }).click();
 await page.getByRole('dialog').waitFor({ state: 'hidden' });
 assert.equal(tables.payout_expenses.find((e) => e.payee === 'עובד בדיקה').kind, 'fuel');
 console.log('ok  extra income and one-off expense');
+
+// What can be edited says so, and editing it from its row changes the month (docs/ops.md, section 56).
+// The expected figures are the engine's own, from what the fake database now holds.
+const reportNow = () => computeMonth({
+  month: '2026-09',
+  deals: tables.payout_deals.map((d) => ({ id: d.id, date: d.deal_date, client: d.client, selection: d.selection, perks: d.perks, seller: d.seller })),
+  expenses: tables.payout_expenses.map((e) => ({ id: e.id, month: e.month, kind: e.kind, label: e.label, payee: e.payee, qty: e.qty, amount: e.amount_agorot })),
+  incomes: tables.payout_incomes.map((e) => ({ id: e.id, date: e.income_date, label: e.label, family: e.family, amount: e.amount_agorot })),
+  versions: [{ effectiveFrom: '2026-01-01', data: SETTINGS }],
+});
+{
+  const before = reportNow().totals;
+  for (const b of await page.locator('#view .list-btn').all()) assert.ok((await b.innerText()).includes('עריכה'), 'every income and expense row shows "עריכה"');
+  assert.equal(await page.locator('#view .list-btn').count(), 4, 'one income and three expenses');
+  await page.locator('#view .list-btn', { hasText: 'ספק בדיקה' }).click();
+  await dlg.getByRole('heading', { name: 'עריכת הוצאה' }).waitFor();
+  assert.equal(await dlg.getByLabel('סכום (₪)').inputValue(), '750');
+  assert.equal(await dlg.getByLabel('סכום (₪)').getAttribute('dir'), 'ltr', 'an amount is typed left to right');
+  await shot(page, 'phone-edit-expense');
+  await dlg.getByLabel('סכום (₪)').fill('900');
+  await dlg.getByRole('button', { name: 'שמירה' }).click();
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
+  assert.equal(tables.payout_expenses.length, 3, 'the expense was changed, not added');
+  assert.equal(tables.payout_expenses.find((e) => e.payee === 'ספק בדיקה').amount_agorot, 90000);
+  const mid = reportNow().totals;
+  assert.notEqual(mid.profit, before.profit);
+  await page.getByText(fmt(mid.profit)).first().waitFor();
+  assert.ok((await page.locator('#view').innerText()).includes(fmt(mid.variable + mid.fixed)), 'the expenses tile follows the edit');
+  await page.locator('#view .list-btn', { hasText: 'שיקים של לקוח ישן' }).click();
+  await dlg.getByRole('heading', { name: 'עריכת הכנסה נוספת' }).waitFor();
+  await dlg.getByLabel('סכום (₪, לפני מע״מ)').fill('2,000');
+  await dlg.getByRole('button', { name: 'שמירה' }).click();
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
+  assert.equal(tables.payout_incomes.length, 1);
+  assert.equal(tables.payout_incomes[0].amount_agorot, 200000);
+  const after = reportNow().totals;
+  assert.notEqual(after.revenue, mid.revenue);
+  await page.getByText(fmt(after.revenue)).first().waitFor();
+  assert.ok((await page.locator('#view').innerText()).includes(fmt(after.profit)), 'the profit follows the edit');
+  await shot(page, 'phone-month-lists');
+  // Back to the amounts the rest of this suite was written with.
+  tables.payout_expenses.find((e) => e.payee === 'ספק בדיקה').amount_agorot = 75000;
+  tables.payout_incomes[0].amount_agorot = 123450;
+  await page.reload();
+  await page.getByRole('heading', { name: 'חלוקה לשותפים' }).waitFor();
+  console.log('ok  an expense and an income are edited from their rows, and the month follows');
+}
 
 // Payouts and the commission statement.
 await page.goto(`${BASE}payouts/#/pay/2026-09`);
@@ -560,6 +607,19 @@ await page.getByRole('button', { name: 'סגירת החודש' }).click();
 await dlg.getByRole('button', { name: 'כן, לסגור את החודש' }).click();
 await page.getByText('החודש נעול.').first().waitFor();
 assert.equal(tables.payout_locks.length, 1);
+// A locked month: the editing controls are there, disabled, with one sentence why and the way to open it.
+await page.getByText('החודש נעול. פותחים את הנעילה כדי לערוך').first().waitFor();
+assert.equal(await page.getByRole('button', { name: 'הוספת הכנסה' }).isDisabled(), true);
+assert.equal(await page.getByRole('button', { name: 'הוספת הוצאה' }).isDisabled(), true);
+for (const b of await page.locator('#view .list-btn').all()) assert.equal(await b.isDisabled(), true, 'a row of a locked month does not open');
+assert.ok(await page.locator('.lock-note').getByRole('button', { name: 'פתיחת החודש' }).first().isVisible(), 'the way to unlock is next to the sentence');
+await shot(page, 'phone-month-locked');
+await page.goto(`${BASE}payouts/#/deals/2026-09`);
+await page.getByText('החודש נעול. פותחים את הנעילה כדי לערוך').first().waitFor();
+assert.equal(await page.getByRole('button', { name: 'הוספת עסקה' }).isDisabled(), true);
+for (const b of await page.locator('#view button.deal').all()) assert.equal(await b.isDisabled(), true, 'a deal of a locked month does not open');
+await page.goto(`${BASE}payouts/#/month/2026-09`);
+await page.getByText('החודש נעול.').first().waitFor();
 await page.locator('#nav-add').click();
 await page.getByText('החודש נעול. פתחו אותו כדי להוסיף עסקאות.').waitFor();
 await page.goto(`${BASE}payouts/#/settings/2026-09`);
@@ -567,7 +627,7 @@ await page.getByLabel('בתוקף מתאריך').fill('2026-09-25');
 await page.getByRole('button', { name: 'שמירת גרסה חדשה של ההגדרות' }).click();
 await page.getByText(/התאריך חייב להיות 2026-10-01/).first().waitFor();
 await page.goto(`${BASE}payouts/#/month/2026-09`);
-await page.getByRole('button', { name: 'פתיחת החודש' }).click();
+await page.getByRole('button', { name: 'פתיחת החודש' }).last().click();
 await dlg.getByRole('button', { name: 'כן, לפתוח' }).click();
 await page.getByText('החודש נפתח.').waitFor();
 assert.equal(tables.payout_locks.length, 0);

@@ -11,7 +11,7 @@ import {
 } from './engine.js';
 import * as db from './data.js';
 // The look (docs/ops.md, section 56): the shared kit's pieces, and the sign-in card.
-import { iconSquare, sectionHead, emptyState, emptyRow } from '../kit.js';
+import { icon, iconSquare, sectionHead, emptyState, emptyRow, addTile } from '../kit.js';
 import { door, brandRow, floatField, doorButton, statusLine } from './door.js';
 
 const $ = (id) => document.getElementById(id);
@@ -82,6 +82,21 @@ function stat(name, tone, label, value, sub, cls = '') {
     h('div', { class: 'kpi' }, h('div', { class: 'kpi-k' }, label), h('div', { class: 'kpi-v' }, value), sub ? h('div', { class: 'kpi-s' }, sub) : null));
 }
 
+// What can be edited says so: the row is the button that opens its dialog, and this mark
+// (the kit's pencil and the word) stands at its end. In a locked month it is greyed with the row.
+const editMark = () => h('span', { class: 'p-edit' }, icon('edit', { size: 16 }), 'עריכה');
+// The way to add to a list, at its top: the kit's "add" tile. Disabled in a locked month.
+function addTo(label, onclick, locked) {
+  const tile = addTile({ label, onclick });
+  tile.classList.add('p-addtile');
+  if (locked) tile.disabled = true;
+  return tile;
+}
+// A locked month, said once in every list that cannot be edited, with the way to open it.
+const LOCKED_TEXT = 'החודש נעול. פותחים את הנעילה כדי לערוך';
+const lockNote = () => h('p', { class: 'lock-note' }, icon('lock', { size: 16 }), h('span', {}, LOCKED_TEXT, '. '),
+  h('button', { type: 'button', class: 'btn-text', onclick: () => confirmUnlock() }, 'פתיחת החודש'));
+
 let toastTimer;
 // The message stands in the browser's top layer (a popover), so it is seen over an open dialog too.
 function toast(msg) {
@@ -97,7 +112,9 @@ const setState = (msg) => { $('state').textContent = msg || ''; };
 // ---------- dialog ----------
 
 let onDialogClose = null;
-function openSheet({ title, body, foot, wide = false, onClose }) {
+// `ico`: [icon, tone] of the kit: the square at the head of the dialog.
+function openSheet({ title, body, foot, wide = false, onClose, ico = null }) {
+  put($('dlg-ico'), ico ? iconSquare(ico[0], ico[1]) : null);
   $('dlg-title').textContent = title;
   put($('dlg-body'), ...[].concat(body).filter(Boolean));
   put($('dlg-foot'), ...[].concat(foot || []).filter(Boolean));
@@ -476,7 +493,7 @@ $('btn-account').addEventListener('click', () => {
     },
   });
   openSheet({
-    title: 'חשבון',
+    title: 'חשבון', ico: ['user', 'navy'],
     body: [
       h('p', {}, 'מחובר בתור ', h('bdi', { dir: 'ltr' }, state.session?.user?.email || '')),
       h('h3', {}, 'שינוי סיסמה'),
@@ -617,12 +634,14 @@ function viewMonth() {
 function incomeSection(r) {
   const list = state.data.incomes;
   return h('section', { class: 'card', 'aria-labelledby': 'h-inc' },
-    head('coins', 'green', 'הכנסה נוספת', { id: 'h-inc', action: isLocked() ? null : btn('הוספה', { class: 'btn btn-sm', onclick: () => openIncome() }) }),
+    head('coins', 'green', 'הכנסה נוספת', { id: 'h-inc' }),
     h('p', { class: 'muted small' }, 'כסף שלא שייך לעסקה חדשה, למשל שיקים של עסקה קיימת. חלים עליו פיימנט ועמלות.'),
+    addTo('הוספת הכנסה', () => openIncome(), isLocked()),
+    isLocked() ? lockNote() : null,
     list.length ? h('ul', { class: 'list' }, list.map((e) => h('li', {},
       h('button', { type: 'button', class: 'list-btn', disabled: isLocked(), onclick: () => openIncome(e) },
         h('span', {}, h('bdi', {}, e.label), h('small', {}, `${dateLabel(e.date)} · ${INFLUENCERS[e.family].name}`)),
-        money(e.amount))))) : emptyRow({ icon: 'inbox', text: 'אין הכנסה נוספת בחודש הזה.', cls: 'empty' }),
+        money(e.amount), editMark())))) : emptyRow({ icon: 'inbox', text: 'אין הכנסה נוספת בחודש הזה.', cls: 'empty' }),
   );
 }
 
@@ -630,12 +649,14 @@ function expenseSection() {
   const list = state.report.oneOff || [];
   const byId = new Map(state.data.expenses.map((e) => [e.id, e]));
   return h('section', { class: 'card', 'aria-labelledby': 'h-exp' },
-    head('wallet', 'orange', 'הוצאות משתנות של החודש', { id: 'h-exp', action: isLocked() ? null : btn('הוספה', { class: 'btn btn-sm', onclick: () => openExpense() }) }),
+    head('wallet', 'orange', 'הוצאות משתנות של החודש', { id: 'h-exp' }),
     h('p', { class: 'muted small' }, 'דלק, פחת רכב, תיאום פגישות וכל הוצאה שחלה רק על החודש הזה. הוצאות שחוזרות כל חודש מוגדרות במסך ההגדרות.'),
+    addTo('הוספת הוצאה', () => openExpense(), isLocked()),
+    isLocked() ? lockNote() : null,
     list.length ? h('ul', { class: 'list' }, list.map((e) => h('li', {},
       h('button', { type: 'button', class: 'list-btn', disabled: isLocked() || !byId.has(e.id), onclick: () => openExpense(byId.get(e.id)) },
         h('span', {}, h('bdi', {}, e.payee), h('small', {}, h('bdi', {}, monthItemLabel(e, currentSettings(state.month)?.data)))),
-        money(e.amount))))) : emptyRow({ icon: 'inbox', text: 'אין הוצאות משתנות בחודש הזה.', cls: 'empty' }),
+        money(e.amount), editMark())))) : emptyRow({ icon: 'inbox', text: 'אין הוצאות משתנות בחודש הזה.', cls: 'empty' }),
   );
 }
 
@@ -670,7 +691,7 @@ function lockSection() {
 function confirmLock() {
   const t = state.report.totals;
   openSheet({
-    title: `לסגור את ${monthLabel(state.month)}?`,
+    title: `לסגור את ${monthLabel(state.month)}?`, ico: ['lock', 'navy'],
     body: [
       h('p', {}, 'אחרי הסגירה לא אפשר להוסיף, לשנות או למחוק עסקאות, הכנסות והוצאות בחודש הזה, ולא לקבוע הגדרות שמתחילות בו או לפניו.'),
       h('div', { class: 'row' }, h('span', {}, 'עסקאות'), h('span', { class: 'num' }, String(state.report.counts.deals))),
@@ -698,7 +719,7 @@ function confirmLock() {
 
 function confirmUnlock() {
   openSheet({
-    title: `לפתוח את ${monthLabel(state.month)}?`,
+    title: `לפתוח את ${monthLabel(state.month)}?`, ico: ['lock', 'orange'],
     body: [h('p', {}, 'הדוח השמור יימחק, והחודש יחושב מחדש לפי הנתונים וההגדרות הנוכחיים. אם כבר שילמתם לפי הדוח, ייתכן שהסכומים ישתנו.')],
     foot: [
       btn('כן, לפתוח', {
@@ -748,10 +769,10 @@ function viewDeals() {
     notices(r),
     h('div', { class: 'card-head page-head' },
       h('h2', {}, `${lines.length} עסקאות`),
-      isLocked() ? null : h('div', { class: 'head-btns' },
-        btn('ביטול עסקה', { class: 'btn btn-sm', onclick: () => openCancel() }),
-        // The pink one is the new deal of the menu; this is the same action, in navy.
-        btn('עסקה חדשה', { class: 'btn btn-sm k-btn-navy', onclick: () => openDeal() }))),
+      h('div', { class: 'head-btns' }, btn('ביטול עסקה', { class: 'btn btn-sm', disabled: isLocked(), onclick: () => openCancel() }))),
+    // The way to add, at the top of the list (the pink one stays the new deal of the menu).
+    addTo('הוספת עסקה', () => openDeal(), isLocked()),
+    isLocked() ? lockNote() : null,
     lines.length ? h('ul', { class: 'deals' }, lines.map((l) => h('li', {},
       h('button', {
         type: 'button', class: 'deal', disabled: isLocked() || !dealById.has(l.id),
@@ -769,9 +790,9 @@ function viewDeals() {
         h('span', {}, h('small', {}, 'בסיס עמלה'), money(l.base)),
         h('span', { class: 'profit' }, h('small', {}, l.cancelledOn ? 'רווח אחרי הביטול' : 'רווח מהעסקה'), signed(l.dealProfit),
           l.dealMarginBp === null ? null : h('small', { class: `margin${l.dealProfit < 0 ? ' neg' : ''}` }, `${pct(l.dealMarginBp)} רווח`))),
+      h('span', { class: 'deal-foot' }, editMark()),
       )))) : h('div', { class: 'card' }, emptyState({
       icon: 'briefcase', tone: 'purple', text: `עוד אין עסקאות ב${monthLabel(state.month)}.`, cls: '',
-      action: isLocked() ? null : btn('הוספת עסקה ראשונה', { class: 'btn k-btn-navy', onclick: () => openDeal() }),
     })),
     lines.length ? (() => {
       const v = lines.reduce((s, l) => s + (l.full ? l.full.value : l.value), 0);
@@ -799,7 +820,7 @@ function viewDeals() {
           h('span', { class: 'list-main' }, h('bdi', {}, l.client), h('small', {}, `נסגרה ${dateLabel(l.dealDate)} · הלקוח שילם ${monthsText(l.paidMonths)} מתוך ${l.termMonths}`)),
           h('span', { class: 'deal-nums two' },
             h('span', {}, h('small', {}, 'הכנסה שיורדת'), money(-l.value)),
-            h('span', {}, h('small', {}, 'קיזוז עמלות'), money(-(l.commissionTotal + (l.closerTotal || 0)))))))))) : null,
+            h('span', {}, h('small', {}, 'קיזוז עמלות'), money(-(l.commissionTotal + (l.closerTotal || 0))))), editMark()))))) : null,
   );
 }
 
@@ -894,7 +915,7 @@ async function openCancel(preset) {
     },
   });
   openSheet({
-    title: 'ביטול עסקה',
+    title: 'ביטול עסקה', ico: ['alert', 'pink'],
     body: [errBox,
       field('העסקה', dealIn, { hint: 'עסקאות מ־12 החודשים האחרונים.' }),
       h('div', { class: 'two-col' },
@@ -1208,7 +1229,7 @@ async function openDeal(existing) {
   }) : null;
 
   openSheet({
-    title: existing ? 'עריכת עסקה' : 'עסקה חדשה',
+    title: existing ? 'עריכת עסקה' : 'עסקה חדשה', ico: ['briefcase', 'purple'],
     wide: true,
     body: [
       errBox,
@@ -1260,9 +1281,10 @@ function openIncome(existing) {
     },
   });
   openSheet({
-    title: existing ? 'עריכת הכנסה נוספת' : 'הכנסה נוספת',
-    body: [errBox, field('תיאור', labelIn, { hint: 'למשל: שיקים של לקוח קיים' }), field('סכום (₪, לפני מע״מ)', amountIn),
-      field('אחוזי העמלה לפי', famIn), field('תאריך', dateIn)],
+    title: existing ? 'עריכת הכנסה נוספת' : 'הכנסה נוספת', ico: ['coins', 'green'],
+    body: [errBox, field('תיאור', labelIn, { hint: 'למשל: שיקים של לקוח קיים' }),
+      h('div', { class: 'two-col' }, field('סכום (₪, לפני מע״מ)', amountIn), field('תאריך', dateIn)),
+      field('אחוזי העמלה לפי', famIn)],
     foot: [save, btn('ביטול', { class: 'btn btn-ghost', 'data-close': true }),
       existing ? btn('מחיקה', { class: 'btn btn-danger', onclick: async () => { if (!confirm('למחוק?')) return; try { await db.deleteRow('payout_incomes', existing.id); closeSheet(); await refresh(); } catch (err) { toast(db.explain(err)); } } }) : null],
   });
@@ -1319,8 +1341,8 @@ function openExpense(existing) {
     },
   });
   openSheet({
-    title: existing ? 'עריכת הוצאה' : `הוצאה משתנה · ${monthLabel(state.month)}`,
-    body: [errBox, field('סוג', kindIn), field('למי', payeeIn, { hint: 'עובד, מקבל עמלה או ספק.' }), people, amountField, qtyField, labelField],
+    title: existing ? 'עריכת הוצאה' : `הוצאה משתנה · ${monthLabel(state.month)}`, ico: ['wallet', 'orange'],
+    body: [errBox, h('div', { class: 'two-col' }, field('סוג', kindIn), field('למי', payeeIn, { hint: 'עובד, מקבל עמלה או ספק.' })), people, amountField, qtyField, labelField],
     foot: [save, btn('ביטול', { class: 'btn btn-ghost', 'data-close': true }),
       existing ? btn('מחיקה', { class: 'btn btn-danger', onclick: async () => { if (!confirm('למחוק?')) return; try { await db.deleteRow('payout_expenses', existing.id); closeSheet(); await refresh(); } catch (err) { toast(db.explain(err)); } } }) : null],
   });
@@ -1459,7 +1481,7 @@ function openStatement(who) {
     h('div', { class: 'row total' }, h('span', {}, 'סה״כ לחודש'), offset(st.total)),
   );
   openSheet({
-    title: `דוח עמלה · ${st.name}`,
+    title: `דוח עמלה · ${st.name}`, ico: ['file', 'navy'],
     body: [h('p', { class: 'muted small no-print' }, 'זה מה שמקבל העמלה רואה: הניכויים לחישוב העמלה בלבד, בלי עלויות אמיתיות, משכורות של אחרים, רווח או עמלות של אחרים.'), doc],
     foot: [
       btn('הדפסה או שמירה כ־PDF', { class: 'btn btn-primary', onclick: () => {

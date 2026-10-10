@@ -542,7 +542,14 @@ async function sweep(worldKey, sizeKey) {
     await a.ctx.close();
     const b = await open();
     await step('no-access', async () => {
-      await signIn(b.page, OTHER.email);
+      // With the motion on (it is off under automation): the green button, then the night lifting.
+      await b.page.goto(`${BASE}payouts/`);
+      await b.page.evaluate(() => { globalThis.__astrategMotion = true; });
+      await b.page.locator('input[type=email]').fill(OTHER.email);
+      await b.page.locator('input[type=password]').fill('correct-horse');
+      await b.page.locator('button[type=submit]').click();
+      await b.page.waitForTimeout(650);
+      await b.page.screenshot({ path: path.join(dir, '08-walked-in.png') });
       await b.page.getByRole('heading', { name: 'אין לך גישה לאסטרטג פיימנט' }).waitFor();
       await rec(b.page, '07-no-access', { wait: 1500 });
     });
@@ -593,11 +600,11 @@ async function sweep(worldKey, sizeKey) {
       await step('cancel', async () => { await page.getByRole('button', { name: 'ביטול עסקה' }).click(); await dlg(page).waitFor(); await rec(page, '75-cancel', { scope: 'dialog[open]' }); await closeDlg(page); });
     }
     if (worldKey !== 'locked') {
-      await step('income', async () => { await goTo(page, 'month'); await page.getByRole('button', { name: 'הוספה' }).first().click(); await dlg(page).waitFor(); await rec(page, '76-income', { scope: 'dialog[open]' }); await dlg(page).getByRole('button', { name: 'שמירה' }).click(); await rec(page, '77-income-errors', { scope: 'dialog[open]' }); await closeDlg(page); });
-      await step('expense', async () => { await page.getByRole('button', { name: 'הוספה' }).nth(1).click(); await dlg(page).waitFor(); await rec(page, '78-expense', { scope: 'dialog[open]' }); await closeDlg(page); });
+      await step('income', async () => { await goTo(page, 'month'); await page.getByRole('button', { name: 'הוספת הכנסה' }).click(); await dlg(page).waitFor(); await rec(page, '76-income', { scope: 'dialog[open]' }); await dlg(page).getByRole('button', { name: 'שמירה' }).click(); await rec(page, '77-income-errors', { scope: 'dialog[open]' }); await closeDlg(page); });
+      await step('expense', async () => { await page.getByRole('button', { name: 'הוספת הוצאה' }).click(); await dlg(page).waitFor(); await rec(page, '78-expense', { scope: 'dialog[open]' }); await closeDlg(page); });
       await step('lock', async () => { await page.getByRole('button', { name: 'סגירת החודש' }).click(); await dlg(page).waitFor(); await rec(page, '79-lock-confirm', { scope: 'dialog[open]' }); await closeDlg(page); });
     } else {
-      await step('unlock', async () => { await goTo(page, 'month'); await page.getByRole('button', { name: 'פתיחת החודש' }).click(); await dlg(page).waitFor(); await rec(page, '79-unlock-confirm', { scope: 'dialog[open]' }); await closeDlg(page); });
+      await step('unlock', async () => { await goTo(page, 'month'); await page.getByRole('button', { name: 'פתיחת החודש' }).last().click(); await dlg(page).waitFor(); await rec(page, '79-unlock-confirm', { scope: 'dialog[open]' }); await closeDlg(page); });
     }
     await step('account', async () => { await page.locator('#btn-account').click(); await dlg(page).waitFor(); await rec(page, '80-account', { scope: 'dialog[open]' }); await closeDlg(page); });
     if (worldKey !== 'empty') {
