@@ -408,12 +408,20 @@ export const RULES = [
   {
     id: 'access', event: 'גישות התקבלו (5→6)', procs: ['p05', 'p06'],
     instances(env) {
-      return casesOf(env, 'p06', (i) => !i.pre && !i.resolved('p06.verified') && !i.s.wait && !!i.doneAt('p05.access'))
-        .map((i) => ({ ...i, id: 'p06', anchors: { event: i.doneAt('p05.access') } }));
+      return casesOf(env, 'p06', (i) => !i.pre && !i.s.complete && !i.s.wait && !!i.doneAt('p05.access') && (!i.resolved('p06.verified') || openOf(i, 'ilai').length > 0))
+        .map((i) => ({ ...i, id: 'p06', unchecked: !i.resolved('p06.verified'), left: openOf(i, 'ilai').length, anchors: { event: i.doneAt('p05.access') } }));
     },
     steps: [
-      { id: 'now', to: 'ilai', level: 'ring', exempt: 'clock', title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
-      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', title: (i) => `גישות לא נבדקו: ${i.name}`, body: () => 'עברו 30 דקות מקבלת הגישות ועילאי עוד לא סימן שבדק.' },
+      { id: 'now', to: 'ilai', level: 'ring', exempt: 'clock', when: (i) => i.unchecked, title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
+      // v10: Ilai hears at his own deadline too (the deadline of 6: these same 30 office minutes).
+      // Until now only Lior was rung then, and Ilai heard nothing until the next morning's
+      // reminder (6 is in OWN_LATE: no "באיחור" of `lateOwn`). Nothing is added for Lior.
+      {
+        id: 'ilai30', officeMinutes: 30, to: 'ilai', level: 'ring', exempt: 'clock', overdue: true, when: (i) => i.left > 0,
+        title: (i) => `באיחור: ${i.unchecked ? 'לבדוק את הגישות של' : 'לסיים את סידור הרשתות של'} ${i.name}`,
+        body: (i) => (i.unchecked ? `עברו 30 דקות מקבלת הגישות. לבדוק אותן מהכספת ולסמן. ${personName('lior')} קיבל הודעה.` : `עברו 30 דקות מקבלת הגישות. ${i.left === 1 ? 'נשאר פריט אחד' : `נשארו ${i.left} פריטים`} בתהליך 6.`),
+      },
+      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', when: (i) => i.unchecked, title: (i) => `גישות לא נבדקו: ${i.name}`, body: () => 'עברו 30 דקות מקבלת הגישות ועילאי עוד לא סימן שבדק.' },
     ],
   },
 

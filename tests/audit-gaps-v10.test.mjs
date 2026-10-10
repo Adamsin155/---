@@ -170,3 +170,40 @@ test('1. the clock of "עכשיו" during the meeting: paused, with what he will
   assert.ok(mine(w, c, 'ofir', IL(2026, 10, 6, 11)).includes('p07.r.spelling'));
   assert.ok(proc(w, c, 'p07', IL(2026, 10, 6, 11)));
 });
+
+// ── 11. Ilai's 30-minute access check: his own ring at the deadline ───────────
+test('11. the access check (6): when its 30 minutes pass Ilai is rung himself, at the deadline, and Lior gets nothing new', () => {
+  const { w, c } = afterMeeting();
+  for (const k of PROCESSES.find((p) => p.id === 'p06').items.map((i) => i.key)) delete w.checks[c.id][k];
+  mark(w, c, 'p05.access', IL(2026, 10, 5, 12, 30)); // a real mark, not history
+  const rows = walk(w, IL(2026, 10, 5, 12, 30), IL(2026, 10, 5, 13, 40));
+  assert.deepEqual(of(rows, 'access'), ['5.10 12:30 now@ilai', '5.10 13:00 ilai30@ilai', '5.10 13:00 lior@lior']);
+  const own = rows.find((r) => r.step === 'ilai30');
+  assert.deepEqual([own.level, own.title], ['ring', 'באיחור: לבדוק את הגישות של אלפא']);
+  assert.match(own.body, /עברו 30 דקות מקבלת הגישות.*ליאור קיבל הודעה/);
+  // No second "באיחור" ring to Ilai from the ladder of a late item that day (6 keeps its own ladder),
+  // and to Lior exactly what he got before: his ring, and the note of every late item.
+  assert.deepEqual(rows.filter((r) => r.person === 'ilai' && r.rule === 'lateOwn'), []);
+  assert.deepEqual(rows.filter((r) => r.person === 'lior' && /6 · בדיקת הגישות|גישות לא נבדקו/.test(r.title)).map((r) => `${r.at} ${r.rule}.${r.step}`), ['5.10 13:00 access.lior', '5.10 13:15 late.lior']);
+  // He checked the logins and left the pages: the ring names what is left, and Lior is not rung.
+  const w2 = world();
+  const { c: c2 } = afterMeeting(w2);
+  for (const k of ['p06.name', 'p06.bio']) delete w2.checks[c2.id][k];
+  mark(w2, c2, 'p05.access', IL(2026, 10, 5, 12, 30));
+  const rows2 = walk(w2, IL(2026, 10, 5, 12, 31), IL(2026, 10, 5, 13, 5));
+  assert.deepEqual(of(rows2, 'access'), ['5.10 13:00 ilai30@ilai']);
+  assert.deepEqual([rows2.find((r) => r.step === 'ilai30').title, rows2.find((r) => r.step === 'ilai30').body], ['באיחור: לסיים את סידור הרשתות של אלפא', 'עברו 30 דקות מקבלת הגישות. נשארו 2 פריטים בתהליך 6.']);
+  // Done in time: nobody hears. A client in landing and imported access: nothing at all.
+  const w3 = world();
+  const { c: c3 } = afterMeeting(w3);
+  mark(w3, c3, 'p05.access', IL(2026, 10, 5, 12, 30));
+  assert.deepEqual(of(walk(w3, IL(2026, 10, 5, 12, 31), IL(2026, 10, 5, 13, 5)), 'access'), []);
+  // (A client in landing is not loaded by the reminders function at all: supabase/functions/reminders/index.ts.)
+  const w5 = world();
+  const { c: c5 } = afterMeeting(w5);
+  for (const k of PROCESSES.find((p) => p.id === 'p06').items.map((i) => i.key)) delete w5.checks[c5.id][k];
+  mark(w5, c5, 'p05.access', IL(2026, 10, 5, 12, 30), IMPORT_NOTE);
+  assert.deepEqual(of(walk(w5, IL(2026, 10, 5, 12, 30), IL(2026, 10, 5, 13, 5)), 'access'), []);
+});
+
+// ── (more items are added above this line) ──
