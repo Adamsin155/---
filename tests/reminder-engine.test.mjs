@@ -549,7 +549,7 @@ test('Ofir approved (25): Irit rings "send now", Lior quietly "campaign"; the re
   none(due(w, IL(2026, 10, 21, 12, 30)), 'approved', 'irit');
   // p23: Ilai marks ready → Ofir (his fast ladder, protocol v9); Ofir approves → Irit.
   mark(w, c, 'p23.made', IL(2026, 10, 21, 13));
-  assert.equal(one(due(w, IL(2026, 10, 21, 13)), 'fast', 'now', 'ofir').title, `יתרת הגרפיקות מוכנות לבדיקה: ${c.name}`);
+  assert.equal(one(due(w, IL(2026, 10, 21, 13)), 'fast', 'now', 'ofir').title, `יתרת הגרפיקות מוכנה לבדיקה: ${c.name}`);
   none(due(w, IL(2026, 10, 21, 13)), 'graphicsRest');
   mark(w, c, 'p23.ofir', IL(2026, 10, 21, 13, 8));
   const g = due(w, IL(2026, 10, 21, 13, 8));

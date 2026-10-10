@@ -24,7 +24,7 @@ import { PROCESSES } from '../app/protocol.js';
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const SHOTS = process.env.SHOTS === '1';
 // SHOTS_OUT=<folder>: the screenshots go there instead of over the recorded ones (as SIM_OUT does for the simulation).
-const OUT = process.env.SHOTS_OUT ? `${process.env.SHOTS_OUT.replace(/[\/]+$/, '')}/` : fileURLToPath(new URL('../docs/design/full-flow/', import.meta.url));
+const OUT = process.env.SHOTS_OUT ? `${process.env.SHOTS_OUT.replace(/[\\/]+$/, '')}/` : fileURLToPath(new URL('../docs/design/full-flow/', import.meta.url));
 const PHONE = { width: 390, height: 844 };
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*', 'access-control-expose-headers': '*' };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });

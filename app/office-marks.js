@@ -116,7 +116,8 @@ export function qaState(checks, pre, kind) {
   const base = { kind, pre, rounds, returns: rounds.length, open: null, readyAt: null, round: rounds.length + 1 };
   if (ap && (ap.state === 'done' || ap.state === 'na')) return { ...base, stage: 'approved', approvedAt: new Date(ap.at) };
   if (last?.open) return { ...base, stage: 'fixing', open: last, round: rounds.length };
-  if (readyAt && (!last || readyAt > last.at)) return { ...base, stage: 'ofir', readyAt };
+  // (At or after the last return: a return that was fixed in the very instant it was written is fixed.)
+  if (readyAt && (!last || readyAt >= last.at)) return { ...base, stage: 'ofir', readyAt };
   return { ...base, stage: 'none' };
 }
 

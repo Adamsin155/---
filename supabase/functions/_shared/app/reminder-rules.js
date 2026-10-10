@@ -2299,7 +2299,7 @@ for (const r of LADDER_RULES) RULE_BY_ID.set(r.id, r);
 const clockOf = (d) => clock(d);
 const FAST_WORDS = {
   review: {
-    now: (i) => (i.f.round > 1 ? `התיקונים מוכנים לבדיקה (סבב ${i.f.round - 1}): ${i.f.what} · ${i.name}` : `${i.f.what} מוכנות לבדיקה: ${i.name}`),
+    now: (i) => (i.f.round > 1 ? `התיקונים מוכנים לבדיקה (סבב ${i.f.round - 1}): ${i.f.what} · ${i.name}` : `${i.f.what} ${i.f.qa === 'graphics' ? 'מוכנה' : 'מוכנות'} לבדיקה: ${i.name}`),
     nowBody: (i) => `${i.f.spec.minutes} דקות לעבור עליהן ולאשר (או להחזיר לעילאי לתיקון), עד ${clockOf(i.f.dueAt)}.`,
     late: (i) => `באיחור: לעבור על הגרפיקות של ${i.name} ולאשר — עוד ${i.f.spec.more} דקות`,
     told: (i) => `אופיר באיחור בבדיקת הגרפיקות: ${i.name}`,

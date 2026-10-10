@@ -240,7 +240,7 @@ test('the rest of the graphics (23) are on the same ladder; returned for fixes i
   mark(w, c, 'p23.made', IL(2026, 10, 18, 11, 0)); // Sunday 11:00
   const first = walk(w, IL(2026, 10, 18, 11, 0), IL(2026, 10, 18, 11, 16)).filter((r) => r.rule === 'fast');
   assert.deepEqual(first.map((r) => `${r.at} ${r.step}@${r.person}`), ['18.10 11:00 now@ofir', '18.10 11:10 late@ofir', '18.10 11:15 lior@lior']);
-  assert.equal(first[0].title, 'יתרת הגרפיקות מוכנות לבדיקה: בטא');
+  assert.equal(first[0].title, 'יתרת הגרפיקות מוכנה לבדיקה: בטא');
   assert.equal(first[2].title, 'אופיר באיחור בבדיקת הגרפיקות: בטא');
   assert.match(first[2].body, /^יתרת הגרפיקות · מחכה מ־היום 11:00 \(15 דקות\)\./);
   // He returns it at 11:18 with one thing to fix: his ladder stops, Ilai is rung, and the deadline is the fix's own.

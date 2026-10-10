@@ -162,7 +162,8 @@ function qaCard(x, ms, now) {
       inMeeting ? h('span', { class: 'muted' }, ' · השעון עצור בזמן האפיון') : null),
     x.landing ? null : h('span', { class: `of-meter${x.late ? ' is-late' : ''}`, role: 'img', 'aria-label': `זמן המתנה: ${x.waited} מתוך ${x.target} דקות` },
       h('span', { style: `inline-size:${pct}%` })),
-    h('div', { class: 'of-acts' },
+    // The graphics are checked by Ofir alone (protocol v9). Lior supervises here: he sees them, without the button.
+    me === 'lior' && x.kind !== 'videos' ? h('p', { class: 'of-line muted qa-ofir-only' }, 'אופיר בודק את הגרפיקות.') : h('div', { class: 'of-acts' },
       h('button', {
         type: 'button', class: 'btn k-btn-navy btn-sm', id: `qa-open-${x.key.replace(/\W/g, '_')}`,
         'aria-label': `לבדיקה: ${x.client.name}, ${k.title}`, onclick: () => openQa(x),
@@ -649,6 +650,6 @@ mountSession(async (staff) => {
   const r = /^#review-([\w-]+)-((?:r\d+-)?p\d+[a-z]?)$/.exec(location.hash);
   if (r) {
     const x = qaQueue({ clients, stateOf, checks, meetings: meetings(), now: new Date() }).find((q) => q.key === `${r[1]}:${r[2]}`);
-    if (x) openQa(x); else goToSection('#qa-h');
+    if (x && me !== 'lior') openQa(x); else goToSection('#qa-h');
   }
 });
