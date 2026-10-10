@@ -10,7 +10,8 @@
 // same answers. Each queue is counted with the function its own page counts with, so
 // the number here and the number there cannot differ.
 //
-// A line: { id, bucket, n, text, cta, href, rule }.
+// A line: { id, bucket, n, text, cta, href, rule } (and `tone: 'plain'`, `waiting`: a line
+// that only says where work stands, with nothing for this person to do yet).
 //   bucket  where it sits in the list: 'urgent', 'escalation', 'overdue', 'today',
 //           'tomorrow', 'week', 'later' (the groups of the list), or 'landing': a client
 //           from the old system, no clock and no colour, next to the landing line;
@@ -21,6 +22,7 @@
 import { PEOPLE } from './protocol.js';
 import { inLanding, isBusinessDay } from './protocol-logic.js';
 import { qaQueue, awaitingEditor } from './qa-logic.js';
+import { fastCases, ladderWords } from './fast-ladder.js';
 import { ofirMeetings } from './office-marks.js';
 import { pausedSinceYesterday, campaignCheck, urgentState } from './decisions-logic.js';
 import { editingCases, editorState } from './production.js';
@@ -73,7 +75,7 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
   const live = clients.filter(inWork);
   const clientOf = new Map(live.map((c) => [c.id, c]));
   const landed = live.filter(inLanding);
-  const assigns = me === 'ofir' || me === 'lior'; // 22א is theirs: Ofir's, and Lior's when Ofir cannot
+  const assigns = me === 'ofir'; // 22א is Ofir's alone (protocol v9)
 
   // ── Ofir's queue (qa.html) ──────────────────
   // With a clock these are cards of the list (22א, 25, 23); in landing the list leaves them out.
@@ -91,6 +93,17 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
       const n2 = tasks.filter((t) => t.source === 'escalation' && !t.done_at && clientOf.has(t.client_id)).length;
       add({ id: 'exceptions', bucket: 'escalation', n: n2, rule: 'exception', href: QUEUE_PAGES.exceptions, cta: 'להחלטות',
         text: `ליאור ביום צילום: ${words(n2, 'חריגה אחת עוברת', 'חריגות עוברות')} אליך` });
+    }
+  }
+
+  // ── Irit: the first 9 graphics that are with Ofir for his check (protocol v9) ──
+  // Nothing for her to do yet, and nothing reminds her of it: one plain line per client,
+  // so she knows where they are until he approves and "לשלוח ללקוח" comes to her.
+  if (me === 'irit') {
+    for (const f of fastCases({ clients: live, checksOf: (c) => checks[c.id] || {}, stateOf })) {
+      if (f.kind !== 'review' || f.qa !== 'graphics9') continue;
+      add({ id: `waiting-ofir-${f.cid}`, bucket: 'today', tone: 'plain', n: 1, rule: null, href: `client.html?id=${encodeURIComponent(f.cid)}#p07`, cta: 'לכרטיס',
+        text: `9 הגרפיקות של ${f.client.name}: מחכה לאישור של אופיר (${ladderWords(f, now, { waiting: true }).replace(/^אצל אופיר לבדיקה · /, '')})`, waiting: true });
     }
   }
 

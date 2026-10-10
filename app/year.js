@@ -20,6 +20,8 @@ import { itemRow, saveMark, worksCycle } from './month-ui.js';
 import { PROTOCOL_HISTORY, versionOf } from './protocol-versions.js';
 import { officeLinks } from './office-ui.js';
 import { dayKeyIL } from './tz.js';
+// How many items a protocol version added: the gated ones and the ones added for every client.
+const newItems = (v) => (v.items?.length || 0) + (v.always?.length || 0);
 
 let viewer = null;
 let me = null;
@@ -224,7 +226,8 @@ function renderVersions() {
     h('ol', { class: 'yr-versions', reversed: true },
       ...[...PROTOCOL_HISTORY].reverse().map((v) => h('li', { value: String(v.version) },
         h('p', { class: 'yr-vh' }, h('strong', {}, `גרסה ${v.version} · ${v.title}`), h('span', { class: 'muted' }, ` · ${formatDay(v.date)}`),
-          v.items?.length ? h('span', { class: 'tag' }, v.items.length === 1 ? 'פריט חדש אחד' : `${v.items.length} פריטים חדשים`) : null),
+          // (`always`: an item added for every client, whatever version it started under; protocol v9.)
+          newItems(v) ? h('span', { class: 'tag' }, newItems(v) === 1 ? 'פריט חדש אחד' : `${newItems(v)} פריטים חדשים`) : null),
         h('ul', {}, ...v.changes.map((t) => h('li', {}, t)))))));
 }
 

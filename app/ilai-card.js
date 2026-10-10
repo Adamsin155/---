@@ -24,6 +24,8 @@ import { mountWorkFiles, workFilesState } from './files-ui.js';
 import { graphicsWindow, videoWindow, uploadGate, videosLinkOf } from './files-logic.js';
 import { checkMark, guardVerdict } from './mark-guards.js';
 import { charViewHref } from './intake-ui.js';
+import { qaState } from './office-marks.js';
+import { fastCaseOf, ladderWords } from './fast-ladder.js';
 // The look of the cards (docs/ops.md, sections 50 and 54): an icon square per kind of card,
 // a filled navy button for the card's one action, a quiet line for why it is locked.
 import { iconSquare, icon, leadIcon } from './kit.js';
@@ -75,6 +77,35 @@ const gfxFiles = (ctx, c, cs, batch, idp) => mountWorkFiles({
 function readyButton(id, label, gate, onclick) {
   return [h('div', { class: 'of-acts il-go' }, h('button', { type: 'button', class: 'btn btn-sm k-btn-navy il-ready', id, disabled: !gate.ok, 'aria-describedby': gate.ok ? null : `${id}-lock`, onclick }, label)),
     gate.ok ? null : h('p', { class: 'hint fl-lock il-lock', id: `${id}-lock` }, icon('lock', { size: 16 }), h('span', {}, gate.reason))];
+}
+// What stands under a batch of graphics, by where it is (protocol v9: Ofir checks both
+// batches): the button that hands it to him, the list of what he returned, or, while it
+// is with him, one line that says so and how long he has (app/fast-ladder.js).
+const BATCH = {
+  first: { kind: 'graphics9', key: 'p07.made', proc: 'p07', sent: '9 הגרפיקות עברו לבדיקה של אופיר.' },
+  rest: { kind: 'graphics', key: 'p23.made', proc: 'p23', sent: 'יתרת הגרפיקות עברה לבדיקה של אופיר.' },
+};
+function withOfirLine(ctx, c, cs, batch, id) {
+  const st = ctx.stateOf(c).states;
+  const s = st.find((x) => x.proc.id === BATCH[batch].proc);
+  const fast = s ? fastCaseOf(c, s, st, cs) : null;
+  return h('p', { class: 'ps-seen il-with-ofir', id }, fast ? ladderWords(fast, new Date(), { waiting: true }) : 'אצל אופיר לבדיקה');
+}
+function gfxStep(ctx, c, cs, batch, btnId) {
+  const b = BATCH[batch];
+  const q = qaState(cs, '', b.kind);
+  if (q.stage === 'fixing') return fixList({ client: c, checks: cs, kind: b.kind, pre: '', fixer: 'ilai', me: ctx.me, viewer: ctx.viewer, onChange: ctx.refresh });
+  if (q.stage === 'ofir') return withOfirLine(ctx, c, cs, batch, `${btnId}-with`);
+  if (q.stage === 'approved') return h('p', { class: 'ps-seen' }, 'אופיר אישר');
+  if (isDone(cs, b.key)) return h('p', { class: 'ps-seen' }, 'נמסרו לבדיקה');
+  return readyButton(btnId, 'מוכן לבדיקה (לאופיר)', gfxGate(c, cs, batch),
+    (e) => {
+      // Fewer up than the package holds: asked, never refused (protocol v8).
+      const ask = batch === 'rest' ? guardVerdict('graphicsCount', { count: gfxGate(c, cs, 'rest').count, total: restTotal(c) })?.ask : null;
+      if (ask && !window.confirm(ask)) return;
+      e.currentTarget.disabled = true;
+      mark(ctx, c, [b.key], true, b.sent, { handoff: b.key });
+    });
 }
 // The head of a card: the square of its kind, the client, "בקליטה", what the card is, and until when.
 const KIND_ICON = { first: ['palette', 'pink'], rest: ['palette', 'pink'], final: ['play', 'orange'], gantt: ['calendar', 'teal'] };
@@ -254,9 +285,7 @@ function dayCard(x, ctx) {
         h('h4', {}, '9 גרפיקות', gfx.done ? null : until(gfx.due, now)),
         h('div', { class: 'of-acts' }, charLink(c)),
         gfxFiles(ctx, c, cs, 'first', `${idp}-g9`),
-        gfx.done ? h('p', { class: 'ps-seen' }, 'נשלחו לבדיקה של עירית')
-          : readyButton(`${idp}-gfx`, 'מוכן לבדיקה (לעירית)', gfxGate(c, cs, 'first'),
-            (e) => { e.currentTarget.disabled = true; mark(ctx, c, ['p07.made'], true, '9 הגרפיקות עברו לבדיקה של עירית.', { handoff: 'p07.made' }); })),
+        gfxStep(ctx, c, cs, 'first', `${idp}-gfx`)),
       h('div', { class: 'il-part' },
         h('h4', {}, 'שלד גאנט', gantt.done ? null : until(gantt.due, now)),
         h('label', { class: 'wrow', for: `${idp}-gantt` },
@@ -299,8 +328,7 @@ function firstCard(x, ctx) {
     cardHead('first', c, 'p07', '9 גרפיקות ראשונות', until(x.state.dueAt)),
     h('div', { class: 'of-acts il-links' }, charLink(c)),
     gfxFiles(ctx, c, cs, 'first', `${idp}-g`),
-    readyButton(`${idp}-ready`, 'מוכן לבדיקה (לעירית)', gfxGate(c, cs, 'first'),
-      (e) => { e.currentTarget.disabled = true; mark(ctx, c, ['p07.made'], true, '9 הגרפיקות עברו לבדיקה של עירית.', { handoff: 'p07.made' }); }));
+    gfxStep(ctx, c, cs, 'first', `${idp}-ready`));
 }
 
 function restCard(x, ctx) {
@@ -311,16 +339,7 @@ function restCard(x, ctx) {
     cardHead('rest', c, 'p23', 'יתרת הגרפיקות', until(x.state.dueAt)),
     h('div', { class: 'of-acts il-links' }, charLink(c)),
     gfxFiles(ctx, c, cs, 'rest', `${idp}-g`),
-    x.qa.stage === 'fixing'
-      ? fixList({ client: c, checks: cs, kind: 'graphics', pre: '', fixer: 'ilai', me: ctx.me, viewer: ctx.viewer, onChange: ctx.refresh })
-      : readyButton(`${idp}-ready`, 'מוכן לבדיקה (לאופיר)', gfxGate(c, cs, 'rest'),
-        (e) => {
-          // Fewer up than the package holds: asked, never refused (protocol v8).
-          const ask = guardVerdict('graphicsCount', { count: gfxGate(c, cs, 'rest').count, total: restTotal(c) })?.ask;
-          if (ask && !window.confirm(ask)) return;
-          e.currentTarget.disabled = true;
-          mark(ctx, c, ['p23.made'], true, 'יתרת הגרפיקות עברה לבדיקה של אופיר (יעד: שעה).', { handoff: 'p23.made' });
-        }));
+    gfxStep(ctx, c, cs, 'rest', `${idp}-ready`));
 }
 
 function finalDrive(c, cs, x) {

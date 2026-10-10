@@ -34,6 +34,7 @@ import { shootDayHint, confirmShootDay } from './availability-ui.js';
 // Stage 3, part 2: Ofir's returns for fixes, the office's marks in the history, "התחלתי".
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
+import { fastCaseOf } from './fast-ladder.js';
 import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { dayBeforeText, readFollowup, followupText } from './shoot-prep.js';
 import { checkMark } from './mark-guards.js';
@@ -294,7 +295,7 @@ function renderQa(s) {
   const parts = [];
   for (const x of s.states) {
     const pid = x.proc.id.replace(/^r\d+-/, '');
-    const kind = { p24: 'videos', p23: 'graphics' }[pid];
+    const kind = { p24: 'videos', p23: 'graphics', p07: 'graphics9' }[pid];
     if (!kind) continue;
     const pre = x.proc.keyBase.slice(0, -pid.length);
     const ctx = x.proc.ctx || client;
@@ -303,7 +304,7 @@ function renderQa(s) {
     if (own() && QA_KINDS[kind].fixer(ctx) !== me) continue;
     parts.push(h('div', { class: 'qa-part' },
       h('h3', { class: 'qa-part-h' }, `${QA_KINDS[kind].title}${ctx.round ? ` · סבב צילום ${ctx.round}` : ''}`),
-      qaLine({ client, checks, kind, pre, ctx, me, viewer: { me, scope, error: viewerError }, meetings: ofirMeetings, onChange: () => { renderKeepingFocus(); loadHistory(); } })));
+      qaLine({ client, checks, kind, pre, ctx, me, viewer: { me, scope, error: viewerError }, meetings: ofirMeetings, fast: fastCaseOf(client, x, s.states, checks), onChange: () => { renderKeepingFocus(); loadHistory(); } })));
   }
   box.hidden = !parts.length || printing;
   fill(box, parts.length ? h('h2', { class: 'qa-block-h', id: 'qa-block-h' }, 'בקרת האיכות של אופיר') : null, ...parts);

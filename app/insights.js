@@ -9,7 +9,8 @@
 //     editing stopped for someone else's task are not the person's time; imported
 //     history and processes closed entirely as "not relevant" are left out).
 //   - Returns from quality control: Ofir's marks p25.return.N (videos, the editor of
-//     that shoot) and p23.return.N (graphics, Ilai), by the month of the return and
+//     that shoot) and p23.return.N, p07.return.N (graphics, Ilai; the first 9 since
+//     protocol v9), by the month of the return and
 //     by N (first return, second, third or more), against the videos he approved.
 //   - From the shoot to the first delivery (p26.sent) in business days, and closed
 //     with the client's approval (p27.approved) within the promise ה8: 5 business
@@ -122,7 +123,7 @@ export function onTimeReport(rows, months) {
 }
 
 // ── Returns from quality control ───────────
-const RETURN = /^(?:r(\d+)\.)?p(25|23)\.return\.(\d+)$/;
+const RETURN = /^(?:r(\d+)\.)?p(25|23|07)\.return\.(\d+)$/;
 export function qaReport(clients, checksByClient, logBy, month) {
   const editors = new Map();
   const row = (key) => editors.get(key) || editors.set(key, { key, name: PEOPLE[key]?.name || 'לא שויך', approved: 0, returns: 0, byRound: [0, 0, 0] }).get(key);

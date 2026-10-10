@@ -58,7 +58,7 @@ function historyKeys(clients) {
     for (const x of contextsOf(c)) {
       for (const s of STAGES) out.add(`${x.pre}${s.item}`);
       out.add(`${x.pre}p26.sent`);
-      for (let n = 1; n <= 6; n += 1) { out.add(`${x.pre}p25.return.${n}`); if (!x.pre) out.add(`p23.return.${n}`); }
+      for (let n = 1; n <= 6; n += 1) { out.add(`${x.pre}p25.return.${n}`); if (!x.pre) { out.add(`p23.return.${n}`); out.add(`p07.return.${n}`); } }
     }
   }
   return [...out].sort();

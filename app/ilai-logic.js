@@ -4,7 +4,7 @@
 // statuses in the vault mark it), the page setup (6 quick checks; pasting the
 // Metricool link marks "Metricool מחובר"), the first 9 graphics (2 hours), the
 // Gantt skeleton and a new logo when there is none. Also his "מוכן לבדיקה" routing
-// (the first 9 to Irit, the rest to Ofir), "הגאנט מלא" and "קיבלתי" on the
+// (to Ofir, the first 9 as the rest: protocol v9), "הגאנט מלא" and "קיבלתי" on the
 // editor's final versions. Pure, no DOM, Israel time.
 import { PROCESSES } from './protocol.js';
 import { IMPORT_NOTE } from './protocol-logic.js';
@@ -40,7 +40,8 @@ function lines(c, st, cs, access) {
   const out = [
     { key: 'access', title: 'בדיקת גישות', due: p06?.dueAt || null, done: done(cs, 'p06.verified'), waiting: !accessAt, auto: accessChecked(access, accessAt) },
     { key: 'page', title: 'סידור העמוד', due: p06?.dueAt || null, done: PAGE_KEYS.every((k) => done(cs, k)) && done(cs, 'p06.metricool'), count: PAGE_KEYS.filter((k) => done(cs, k)).length },
-    { key: 'graphics', title: '9 גרפיקות', due: p07?.dueAt || null, done: done(cs, 'p07.made') },
+    // Returned by Ofir for fixes (protocol v9): the line is open again, with the fix's own deadline.
+    { key: 'graphics', title: '9 גרפיקות', due: p07?.dueAt || null, done: done(cs, 'p07.made') && qaState(cs, '', 'graphics9').stage !== 'fixing' },
     { key: 'gantt', title: 'שלד גאנט', due: p09?.dueAt || null, done: !!p09?.complete },
   ];
   if (c.has_logo === false && p05?.proc.items.some((i) => i.key === 'p05.newlogo')) {
@@ -74,8 +75,11 @@ export function charDay({ clients, stateOf, checks, access = {}, now = new Date(
 
 // After the characterization day: the first 9 graphics when they are still open
 // (`first`: the day's card is gone after 24 hours, the upload and its lock stay), the
-// rest of the graphics (ready for Ofir, or returned with fixes), the final versions
-// to receive ("קיבלתי"), and the Gantt to fill ("הגאנט מלא", which tells Irit by itself).
+// rest of the graphics, the final versions to receive ("קיבלתי"), and the Gantt to fill
+// ("הגאנט מלא", which tells Irit by itself). Each batch of graphics keeps its card from
+// the upload until Ofir approved (protocol v9): to make and hand over (`qa.stage`
+// 'none'), with Ofir for his check ('ofir': nothing to press, the card says where it
+// is and how long he has), or back with fixes ('fixing').
 export function ilaiWork({ clients, stateOf, checks, now = new Date() }) {
   const day = new Set(charDay({ clients, stateOf, checks, now }).map((x) => x.client.id));
   const first = [];
@@ -87,11 +91,15 @@ export function ilaiWork({ clients, stateOf, checks, now = new Date() }) {
     const st = stateOf(c);
     const cs = checks[c.id] || {};
     const p07 = st.states.find((s) => s.proc.id === 'p07');
-    if (p07 && p07.ready && !done(cs, 'p07.made') && !day.has(c.id)) first.push({ client: c, state: p07 });
+    if (p07 && p07.ready && !p07.complete && !day.has(c.id)) {
+      const q = qaState(cs, '', 'graphics9');
+      // Made and handed over as history (an import), or already approved: nothing of his.
+      if (q.stage === 'fixing' || q.stage === 'ofir' || (q.stage === 'none' && !done(cs, 'p07.made'))) first.push({ client: c, state: p07, qa: q });
+    }
     const p23 = st.states.find((s) => s.proc.id === 'p23');
     if (p23 && p23.ready && !p23.complete) {
       const q = qaState(cs, '', 'graphics');
-      if (q.stage === 'none' || q.stage === 'fixing') rest.push({ client: c, state: p23, qa: q });
+      if (q.stage === 'fixing' || q.stage === 'ofir' || (q.stage === 'none' && !done(cs, 'p23.made'))) rest.push({ client: c, state: p23, qa: q });
     }
     for (const s of st.states) {
       const base = s.proc.id.replace(/^r\d+-/, '');

@@ -1169,7 +1169,7 @@ function renderLanding(flow = []) {
 const FLOW_TONE = { urgent: 'late', escalation: 'late', overdue: 'late', today: 'today' };
 function flowCard(f) {
   return h('li', { class: 'wproc flow-card', 'data-flow': f.id },
-    countedLine({ id: `flow-${f.id}`, n: f.n, text: f.text, cta: f.cta, href: f.href, tone: FLOW_TONE[f.bucket] || 'plain', cls: 'flow-line' }));
+    countedLine({ id: `flow-${f.id}`, n: f.n, text: f.text, cta: f.cta, href: f.href, tone: f.tone || FLOW_TONE[f.bucket] || 'plain', cls: 'flow-line' }));
 }
 
 // ── The kit on the cards of "המשימות שלי" (docs/ops.md, section 50) ──
