@@ -4,7 +4,7 @@
 // can also run in an edge function.
 // Every date is computed in Israel time (tz.js), whatever the zone of the device
 // or the server: office hours, business days, "today" and the day before a shoot.
-import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS } from './protocol.js';
+import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER } from './protocol.js';
 import { SPECS, TERM_MONTHS, PACKAGES } from './catalog.js';
 import { holidayOn as closedOn, erevOn } from './holidays.js';
 import { adjustForVersion, laterDue } from './protocol-versions.js';
@@ -61,6 +61,80 @@ export function officeMsBetween(from, to) {
 }
 // Minutes of office time between two moments (the employee's clock).
 export const workingMinutesBetween = (from, to) => Math.round(officeMsBetween(from, to) / 6e4);
+
+// ── The fast ladder's own clock (protocol v9; FAST_LADDER in app/protocol.js) ──
+// Ofir's check of the graphics and his assignment of the editor are counted, and rung,
+// in a window of their own: working days from FAST_LADDER.window.from until
+// FAST_LADDER.window.until (21:00), and on erev chag until the office closes. The same
+// three answers as the office clock above, on that window: a T0 at 20:55 has five
+// minutes that evening and the rest the next working morning.
+const hmOf = (s) => String(s).split(':').map(Number);
+const fastOpenAt = (d) => atTimeIL(d, ...hmOf(FAST_LADDER.window.from));
+const fastCloseAt = (d) => (erevOn(d) ? atTimeIL(d, WORK_HOURS.erevEnd) : atTimeIL(d, ...hmOf(FAST_LADDER.window.until)));
+// Whether the window is open at `d`.
+export const fastOpen = (d) => isBusinessDay(d) && d >= fastOpenAt(d) && d < fastCloseAt(d);
+// The next moment inside the window (the moment itself when it already is).
+export function nextFastMoment(date) {
+  const d = new Date(date);
+  if (isBusinessDay(d) && d < fastCloseAt(d)) return d < fastOpenAt(d) ? fastOpenAt(d) : d;
+  let n = d;
+  do n = nextDay(n); while (!isBusinessDay(n));
+  return fastOpenAt(n);
+}
+// Adds minutes of the window's time: the count stops at 21:00, on weekends and holidays.
+export function addFastMinutes(date, minutes) {
+  let d = nextFastMoment(date);
+  let left = minutes * 6e4;
+  for (let i = 0; i < 400 && left > 0; i += 1) {
+    const room = fastCloseAt(d) - d;
+    // A moment that would fall exactly on the close is the next opening: nothing is due at 21:00.
+    if (left < room) return new Date(d.getTime() + left);
+    left -= room;
+    d = nextFastMoment(fastCloseAt(d));
+  }
+  return d;
+}
+// The window's time between two moments, in milliseconds.
+export function fastMsBetween(from, to) {
+  const end = new Date(to);
+  let d = nextFastMoment(from);
+  let total = 0;
+  for (let i = 0; i < 400 && d < end; i += 1) {
+    const close = fastCloseAt(d);
+    total += Math.min(close, end) - d;
+    d = nextFastMoment(close);
+  }
+  return total;
+}
+
+// Where a piece of work that is checked and may come back for fixes stands (the graphics
+// of 7 and 23; the marks are app/office-marks.js: `<base>.return.N`, `<base>.fixed.N`):
+//   t0      the moment it last reached whoever checks it: handed over (`readyKey`), handed
+//           again after a fix, or moved to him when the protocol changed (`<base>.moved`,
+//           written once by the migration of v9 for a check that was under way);
+//   fixing  { due } while it is back with whoever fixes (the last return is still open).
+// Read by the deadline (resolveTime) and by the fast ladder, so both count from one moment.
+export function reviewClock(checks, readyKey, base, pre = '') {
+  const done = (k) => { const c = checks[`${pre}${k}`]; return c && c.state === 'done' && c.at ? c : null; };
+  const ready = done(readyKey);
+  let t0 = ready ? new Date(ready.at) : null;
+  let fixing = null;
+  for (let n = 1; n < 100; n += 1) {
+    const r = done(`${base}.return.${n}`);
+    if (!r) break;
+    const at = new Date(r.at);
+    const fx = done(`${base}.fixed.${n}`);
+    // Marked ready again after the return counts as fixed (as qaRounds reads it).
+    const fixedAt = fx ? new Date(fx.at) : ready && new Date(ready.at) > at ? new Date(ready.at) : null;
+    if (fixedAt) { fixing = null; if (!t0 || fixedAt > t0) t0 = fixedAt; continue; }
+    let due = null;
+    try { due = parseDate(JSON.parse(r.note)?.due); } catch { /* not JSON */ }
+    fixing = { at, due };
+  }
+  const moved = done(`${base}.moved`);
+  if (moved && t0 && new Date(moved.at) > t0) t0 = new Date(moved.at);
+  return { t0, fixing };
+}
 // Anchors that are office events run on office time; a meeting or a shoot runs on the real clock.
 const onOfficeClock = (from) => from === 'deal' || from === 'group' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
 // Whether resolveTime counts a due spec in office minutes (and so a clock of it stops at night).
@@ -82,7 +156,7 @@ export const onOfficeTime = (spec) => !!spec && !spec.businessDays && onOfficeCl
 // the moment the task appeared). Deadlines with their own time (5, 10, 30 minutes,
 // hours, days) and anything hanging on a meeting or a shoot are untouched.
 export const IMMEDIATE_MINUTES = 15;
-const bare = (spec) => !!spec && !spec.hours && !spec.minutes && !spec.at && !spec.afterMark && !spec.businessDays && spec.days === undefined && !spec.prevBusinessDay;
+const bare = (spec) => !!spec && !spec.hours && !spec.minutes && !spec.at && !spec.afterMark && !spec.fast && !spec.businessDays && spec.days === undefined && !spec.prevBusinessDay;
 export const isImmediate = (proc) => !!proc?.due && !!proc.start && proc.start.from === proc.due.from && onOfficeTime(proc.due) && bare(proc.due) && bare(proc.start);
 const dueSpec = (proc) => (isImmediate(proc) ? { ...proc.due, minutes: IMMEDIATE_MINUTES } : proc.due);
 
@@ -292,6 +366,16 @@ function shiftDays(from, checks) {
   return Number.isInteger(days) && days > 0 && days <= 30 ? days : 0;
 }
 
+// Whether a deadline is, right now, one of the fast ladder (FAST_LADDER): the due itself
+// (22א), or the stage the work is in (Ofir's check of the graphics, not the fix).
+export function onFastLadder(spec, checks) {
+  if (!spec) return false;
+  let last = null;
+  for (const st of stagesOf(spec)) { const c = checks[st.key]; if (c && c.state === 'done' && c.at) last = st; }
+  if (last) return !!last.fast && !reviewClock(checks, last.key, last.qa).fixing;
+  return !!spec.fast;
+}
+
 export function resolveTime(spec, client, procs, checks, now = new Date()) {
   if (!spec) return null;
   // The stages of the deadline: the last one whose mark is done sets it, counted from
@@ -304,10 +388,19 @@ export function resolveTime(spec, client, procs, checks, now = new Date()) {
   if (stage) {
     const { st, at } = stage;
     if (st.businessDays) return addBusinessDays(at, st.businessDays);
+    if (st.fast) {
+      // Ofir's check on the fast ladder: from the moment the work last reached him; while
+      // it is back for fixes, the deadline is the fix's own.
+      const rc = reviewClock(checks, st.key, st.qa);
+      if (rc.fixing) return rc.fixing.due || addBusinessDays(rc.fixing.at, 1);
+      return addFastMinutes(rc.t0 || at, FAST_LADDER[st.fast].minutes);
+    }
     return st.office ? addWorkingMinutes(at, st.minutes) : new Date(at.getTime() + st.minutes * 6e4);
   }
   const base = anchor(spec.from, client, procs, checks, now);
   if (!base) return null;
+  // The fast ladder's own minutes from the anchor (22א: from the closing of the shoot day).
+  if (spec.fast) return addFastMinutes(base, FAST_LADDER[spec.fast].minutes);
   if (spec.businessDays) return addBusinessDays(base, spec.businessDays + shiftDays(spec.from, checks));
   if (onOfficeTime(spec)) {
     return addWorkingMinutes(base, (spec.hours || 0) * 60 + (spec.minutes || 0));
@@ -523,11 +616,16 @@ function afterImport(proc, procs, checks) {
   const p = procs.find((x) => x.id === id);
   return !!p && isImported(p, checks);
 }
+// The same holds for a new item that stands before a step the client already took (v9:
+// "אופיר אישר את הגרפיקות" before "נשלחו ללקוח"): where the step that needs it was done
+// before the item existed, nobody is asked for it now.
+const passedBefore = (p, i, checks) => p.items.some((j) => (j.requires || []).includes(i.key) && ['done', 'na'].includes(checks[j.key]?.state)) && !checks[i.key];
 function withoutFreshAfterImport(procs, checks) {
   return procs.map((p) => {
     if (!p.items.some((i) => i.fresh && !i.optional)) return p;
-    if (!afterImport(p, procs, checks)) return p;
-    return { ...p, items: p.items.map((i) => (i.fresh && !i.optional ? { ...i, optional: true, history: true } : i)) };
+    const all = afterImport(p, procs, checks);
+    if (!all && !p.items.some((i) => i.fresh && !i.optional && passedBefore(p, i, checks))) return p;
+    return { ...p, items: p.items.map((i) => (i.fresh && !i.optional && (all || passedBefore(p, i, checks)) ? { ...i, optional: true, history: true } : i)) };
   });
 }
 
@@ -558,7 +656,8 @@ export function clientState(client, checks = {}, now = new Date()) {
     const complete = p.recurring ? false : resolved === required.length && !gap;
     const startAt = resolveTime(p.start, ctx, procs, checks, now);
     // A deadline a later protocol version shortened keeps the one the client started under.
-    const baseDueAt = p.recurring || quiet ? null : laterDue(due(dueSpec(p)), p.dueBefore && due(p.dueBefore));
+    // Not while the work is on the fast ladder (v9): that one is the same for every client.
+    const baseDueAt = p.recurring || quiet ? null : laterDue(due(dueSpec(p)), !onFastLadder(p.due, checks) && p.dueBefore && due(p.dueBefore));
     const doneAt = complete ? completedAt(p, checks, now) : null;
     // Waiting on the client (office minutes): `waited` in all, `extended` the part
     // that moved the deadline on.

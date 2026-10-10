@@ -120,6 +120,19 @@ export const PROTOCOL_HISTORY = [
       p34: { from: 'contractEnd', days: -60, at: '23:59' },
     },
   },
+  {
+    version: 9, date: '2026-10-10', title: 'אופיר לבדו בודק את הגרפיקות ומשייך עורך, עם סולם מהיר',
+    changes: [
+      'בדיקת הגרפיקות היא של אופיר בלבד: 9 הראשונות (7) והיתרה (23). נוסף "אופיר אישר את הגרפיקות" בתהליך 7; עירית שולחת ללקוח רק אחרי האישור שלו, והקישור לדף הסטטוס (7א) נפתח אז.',
+      'טעות ב־9 הגרפיקות חוזרת לעילאי כהחזרה לתיקון, כמו ביתרה.',
+      'שיוך העורך (22א) הוא של אופיר בלבד. המערכת כבר לא משייכת לבד: היא מציעה עורך לפי העומס, ואופיר מחליט.',
+      'סולם מהיר לשני הדברים: 10 דקות מהרגע שהעבודה הגיעה לאופיר, עוד 5 דקות באיחור, ואז הודעה לליאור; אחר כך תזכורת לאופיר כל 10 דקות. נספר ומצלצל בימי עבודה עד 21:00.',
+    ],
+    // The one new item. Who owns what, the ladders and their minutes are not gated by the
+    // version: the owner wants one way of working, so they hold for every client (and no
+    // `due` is listed here, so nobody keeps the hour the check had before).
+    items: ['p07.ofir'],
+  },
 ];
 
 export const LATEST = PROTOCOL_HISTORY.at(-1).version;

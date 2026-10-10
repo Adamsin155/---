@@ -15,11 +15,6 @@ import { partsIL, daysBetweenIL, atTimeIL, addDaysIL } from './tz.js';
 // The next person, from the client and its marks. `ctx` is the client, or the
 // round's view of it (a second shoot day has its own editor).
 const editorOf = (ctx) => ctx.editor || 'editor';
-// Whoever took the editor assignment (Ofir or Lior, process 22א); Ofir by default.
-const assigner = (ctx, checks, pre) => {
-  const c = checks[`${pre}p22a.claim`];
-  return c?.state === 'done' && ['ofir', 'lior'].includes(c.note) ? c.note : 'ofir';
-};
 
 // The handoff points, in protocol order (the reminder matrix, section 5 of the plan).
 //   on:    an item key (offered when it is checked), or a process id (offered when
@@ -52,20 +47,30 @@ export const HANDOFFS = [
     }],
   },
   {
+    // Protocol v9: Ofir alone checks the graphics; Irit sends them once he approved.
     id: 'graphics9', on: 'p07.made', label: '9 גרפיקות מוכנות לבדיקה',
     to: [{
-      id: 'irit', person: 'irit', proc: 'p07', until: 'p07.sent',
-      text: '9 הגרפיקות הראשונות של {client} מוכנות לבדיקה שלך, ואחריה לשליחה ללקוח.',
+      id: 'ofir', person: 'ofir', proc: 'p07', until: 'p07.ofir',
+      text: '9 הגרפיקות הראשונות של {client} מוכנות לבדיקה שלך.',
+      due: [{ label: 'יעד', proc: 'p07' }],
+    }],
+  },
+  {
+    id: 'graphics9Ok', on: 'p07.ofir', label: 'אופיר אישר את 9 הגרפיקות',
+    to: [{
+      // Not 'irit': until protocol v9 that record meant "ready for Irit's check" (RETIRED below).
+      id: 'send', person: 'irit', proc: 'p07', until: 'p07.sent',
+      text: 'אופיר אישר את 9 הגרפיקות הראשונות של {client}. אפשר לשלוח אותן ללקוח.',
       due: [{ label: 'יעד', proc: 'p07' }],
     }],
   },
   {
     id: 'shootDone', on: 'p19', label: 'יום הצילום הסתיים',
     to: [{
-      id: 'assigner', person: assigner, who: 'מי שמשייך את העורך', proc: 'p22a', until: 'p22a.assigned',
+      // Protocol v9: Ofir alone assigns, within the fast ladder's minutes (the process's own deadline).
+      id: 'assigner', person: 'ofir', proc: 'p22a', until: 'p22a.assigned',
       text: 'יום הצילום של {client} הסתיים. צריך לשייך עורך ולהעביר אליו את הכונן.',
-      // ה8: the assignment is due by 12:00 on the next business day (a hard stop).
-      due: [{ label: 'יעד', nextBusinessDayAt: '12:00' }],
+      due: [{ label: 'יעד', proc: 'p22a' }],
     }],
   },
   {
@@ -81,8 +86,8 @@ export const HANDOFFS = [
     to: [{
       id: 'ofir', person: 'ofir', proc: 'p23', until: 'p23.ofir',
       text: 'יתרת הגרפיקות של {client} מוכנה לבדיקה שלך.',
-      // Decision 16: Ofir checks within an hour.
-      due: [{ label: 'יעד', minutes: 60 }],
+      // Protocol v9: within the fast ladder's minutes (the process's own deadline).
+      due: [{ label: 'יעד', proc: 'p23' }],
     }],
   },
   {
@@ -153,9 +158,12 @@ export const toName = (person) => (nameOf(person) ? `ל${nameOf(person)}` : 'ל�
 // A record key in words, for the card's history: "גישות התקבלו ← עילאי". `note` is
 // the record's note: the person WhatsApp was opened for (Lior, when he took the
 // editor assignment; the editor by name). Null when the key is not a handoff record.
+// Records of hand-offs that no longer exist, so a client's history keeps its words.
+const RETIRED = { 'p07.handoff.irit': '9 גרפיקות מוכנות לבדיקה ← עירית' };
 export function describeMark(key, note = null) {
   const m = /^(?:r\d+\.)?(p\d+[a-z]?)\.handoff\.([a-z0-9]+)$/.exec(String(key || ''));
   if (!m) return null;
+  if (RETIRED[`${m[1]}.handoff.${m[2]}`]) return RETIRED[`${m[1]}.handoff.${m[2]}`];
   for (const point of HANDOFFS) {
     const target = procOfPoint(point) === m[1] && point.to.find((t) => t.id === m[2]);
     if (target) return `${point.label} ← ${nameOf(note) || nameOf(typeof target.person === 'string' ? target.person : null) || target.who}`;

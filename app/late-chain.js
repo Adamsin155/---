@@ -21,10 +21,13 @@
 //             holds it and nobody is reminded. (A process marked "ממתין ללקוח" is not
 //             'overdue' at all, and a paused editing is left out here.)
 // Not asked of a client in landing (docs/ops.md, section 41).
-import { PROCESSES } from './protocol.js';
+import { PROCESSES, FAST_LADDER } from './protocol.js';
 import { isResolved, blockers, pauseOf, clientLabel, inLanding, addWorkingMinutes, businessDaysBetween, officeMsBetween, parseDate, endOfBusinessDay } from './protocol-logic.js';
 import { HANDOFFS } from './handoffs.js';
 import { ANSWER_CLOCKS } from './clocks.js';
+import { QA_KINDS, GRAPHICS_KINDS, kindOfProc, qaState } from './office-marks.js';
+import { fastCaseOf } from './fast-ladder.js';
+
 import { dayFromKeyIL, endOfDayIL, dayKeyIL } from './tz.js';
 
 // The numbers of the ladder: each is a one-line change.
@@ -83,6 +86,13 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
   if (turn && !fix && !notes) return { holders: [], waiters: [], clientTurn: true, fixing: false };
   if (turn) items = items.filter((i) => i !== turn);
   const openKeys = new Set(items.map((i) => i.key));
+  // Graphics that Ofir returned for fixes (7, 23; protocol v9) are with whoever fixes
+  // them, and he is the one who waits: his checks are not his lateness meanwhile.
+  const qa = kindOfProc(s.proc.id);
+  if (qa && GRAPHICS_KINDS.includes(qa) && qaState(checks, preOf(s.proc.keyBase || s.proc.id), qa).stage === 'fixing') {
+    const holders = real([QA_KINDS[qa].fixer(ctx)]);
+    return { holders, waiters: real(items.flatMap(owned)).filter((p) => !holders.includes(p)), clientTurn: false, fixing: false };
+  }
   const after = handoffTargets(s, client, checks, openKeys, { inside: true });
   const isAfter = (i) => after.some((a) => a.on !== i.key && i.owners.includes(a.person));
   const free = items.filter((i) => !blockers(i, ctx, checks) || (s.gap && s.gap.item.key === i.key));
@@ -109,8 +119,9 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
 // `snooze`: "לדחות עד…" on the process (the mark `pNN.snooze`): its reminders wait until then.
 // `lateAt`: the moment it counts as late (the deadline and the grace, in office time).
 // `ownLadder`: another rule already follows this one (the characterization's form, the
-// final versions waiting for "קיבלתי"); `gap`: process 3 with no meeting date (its own
-// daily ring, section 47). Both still count as late in the table.
+// final versions waiting for "קיבלתי", and `fast`: Ofir's fast ladder of protocol v9);
+// `gap`: process 3 with no meeting date (its own daily ring, section 47). All of them
+// still count as late in the table.
 export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks = [], personOf = () => null, now = new Date(), grace = LATE_LADDER.graceMinutes }) {
   const out = [];
   const live = new Map();
@@ -124,7 +135,11 @@ export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks 
       const b = baseProc(s.proc.id);
       const pre = preOf(s.proc.keyBase || s.proc.id);
       const done = (k) => ['done', 'na'].includes(checks[pre + k]?.state);
-      const chain = chainOf(s, c, checks, st, tasks, now);
+      let chain = chainOf(s, c, checks, st, tasks, now);
+      // On the fast ladder (app/fast-ladder.js) it is that one person's lateness, and the
+      // ladder's own rings are the only ones: `fast`, and `ownLadder` below.
+      const fast = !chain.clientTurn && !!fastCaseOf(c, s, st, checks);
+      if (fast) chain = { ...chain, holders: [FAST_LADDER.who], waiters: real([...chain.holders, ...chain.waiters]).filter((p) => p !== FAST_LADDER.who) };
       const sn = checks[`${s.proc.keyBase || s.proc.id}.snooze`];
       out.push({
         snooze: sn?.state === 'done' ? parseDate(sn.note) : null,
@@ -132,7 +147,7 @@ export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks 
         dueAt: s.dueAt, lateAt: addWorkingMinutes(s.dueAt, grace), ...chain,
         // Only process 3's missing meeting date has a daily ring of its own (section 47). 11
         // without a shoot date (protocol v8) is a late item like any other: it is on the ladder.
-        ownLadder: (b === 'p04' && done('p04.ended')) || (b === 'p27' && done('p27.final')), gap: !!s.gap && b === 'p03',
+        ownLadder: fast || (b === 'p04' && done('p04.ended')) || (b === 'p27' && done('p27.final')), fast, gap: !!s.gap && b === 'p03',
         ref: s.proc.keyBase || s.proc.id, procId: s.proc.id, task: null,
       });
     }
@@ -149,7 +164,7 @@ export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks 
       kind: 'task', id: `t${t.id}@${t.due_on}`, cid: c.id, client: c, name: clientLabel(c), what: t.title, num: null,
       dueAt, lateAt: addWorkingMinutes(dueAt, grace), holders, clientTurn: false, fixing: false,
       waiters: real([personOf(t.created_by_email), ...asked]).filter((p) => !holders.includes(p) && p !== 'owner'),
-      ownLadder: false, gap: false, snooze: null, ref: null, procId: null, task: t,
+      ownLadder: false, fast: false, gap: false, snooze: null, ref: null, procId: null, task: t,
     });
   }
   return out.sort((a, b) => a.dueAt - b.dueAt);

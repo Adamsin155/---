@@ -43,8 +43,19 @@
 //   - 11 stays open while the shoot day has no date (`setHere` on p11.calendar).
 //   - "The end of a business day" is the office's close (18:00; erev chag 13:00)
 //     everywhere (addBusinessDays in protocol-logic.js), and 34 is due at 18:00.
+// v9 (the owner's decision of 10.10.2026; docs/ops.md, section 57):
+//   - The graphics are checked by Ofir alone, the first 9 (7) as the rest (23): the
+//     seven checks of 7 are his, and a new item, p07.ofir, is his approval. Irit only
+//     sends them to the client once he approved (p07.sent needs p07.ofir), and her link
+//     to the status page (7א) opens then. A mistake goes back to Ilai as in 23
+//     (p07.return.N, p07.fixed.N: QA_KINDS in app/office-marks.js). Lior has no item.
+//   - The editor is assigned by Ofir alone (22א): Lior keeps only "the drive came back".
+//     The server no longer assigns by itself; the load is a suggestion in Ofir's dialog.
+//   - Both have a fast ladder of their own (FAST_LADDER below): 10 minutes from the
+//     moment the work reaches Ofir, 5 more, then Lior is told, then Ofir every 10
+//     minutes; counted and rung on working days until 21:00.
 
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 // Office hours, in Israel time (decisions 1–2 in docs/plan/decisions.md).
 // Deadlines of minutes or hours that start from an office event (a deal coming
@@ -52,6 +63,25 @@ export const PROTOCOL_VERSION = 8;
 // night is due the next working morning. On erev chag (EREV in holidays.js) the
 // office closes at erevEnd; Chol HaMoed is a normal day.
 export const WORK_HOURS = { start: 9, end: 18, erevEnd: 13 };
+
+// The fast ladder of the two things only Ofir does (protocol v9, the owner's decision of
+// 10.10.2026; docs/ops.md, section 57): checking the graphics Ilai handed over (7, 23)
+// and assigning the editor once the shoot day is closed (22א). Every number is here, a
+// one-line change each:
+//   minutes  from the moment the work reaches him (T0) until it is late;
+//   more     the extra minutes he then has before the manager is told;
+//   every    from then on he is rung again every so many minutes, until it is done.
+// `window`: these two ladders count and ring on working days (Sunday–Thursday, not on
+// holidays) between `from` and `until`, Israel time; on erev chag the day ends when the
+// office closes (WORK_HOURS.erevEnd). It is theirs alone: the office hours above and the
+// sending hours of every other reminder (08:30–19:00) are not changed by it.
+export const FAST_LADDER = {
+  who: 'ofir', // whose ladder it is
+  manager: 'lior', // who is told when he is late (the owners instead, while Lior is on a shoot day)
+  window: { from: '08:30', until: '21:00' },
+  review: { minutes: 10, more: 5, every: 10 }, // the graphics: the first 9 (7) and the rest (23)
+  assign: { minutes: 10, more: 5, every: 10 }, // the editor's assignment (22א)
+};
 
 // People named in the protocol. `key` is stored in the database (staff.person).
 export const PEOPLE = {
@@ -197,6 +227,11 @@ const isDms = (c) => c.shoot_type === 'dms';
 //     checked, then sent) gives each person a clock that starts when the work reaches
 //     them. `office: true` counts the minutes in office time; `businessDays` instead of
 //     minutes is the end of that business day after the mark.
+//     `fast: 'review'` (v9): Ofir's check of the work that mark hands him, on the fast
+//     ladder's own minutes and window (FAST_LADDER). `qa` names the process whose
+//     returns for fixes count: handed again after a fix, the minutes start again; while
+//     it is back with whoever fixes, the deadline is the fix's own.
+//   fast: 'assign' (v9, on the due itself): FAST_LADDER's minutes from the anchor.
 // `sla` is the protocol's own wording and is always shown.
 // `round: true`: the process repeats for every extra shoot round (a second shoot day).
 // Item `noBulk`: a confirmation by the client or someone outside the office; never marked in bulk.
@@ -405,26 +440,31 @@ export const PROCESSES = [
   {
     id: 'p07', num: '7', phase: 'parallel', title: 'הכנת 9 גרפיקות ראשונות', owners: ['ilai'],
     sla: 'עד שעתיים לאחר האפיון',
-    // v8: Irit's check has its own clock from the moment the graphics reach her. The
-    // written protocol gives it no time, so it keeps the two hours the process had.
-    start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2, afterMark: [{ key: 'p07.made', minutes: 120, office: true }] },
-    what: 'עילאי מכין 9 גרפיקות לפי האפיון והשפה של העסק. עירית בודקת, ואז הן נשלחות ללקוח לאישור. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת אליו.',
+    // v9: Ofir alone checks them, on the fast ladder, from the moment Ilai hands them over
+    // (and again after each fix). Irit's sending keeps the two office hours the process
+    // had (the written protocol gives it no time), now counted from Ofir's approval.
+    start: { from: 'charEnd' },
+    due: { from: 'charEnd', hours: 2, afterMark: [{ key: 'p07.made', fast: 'review', qa: 'p07' }, { key: 'p07.ofir', minutes: 120, office: true }] },
+    what: 'עילאי מכין 9 גרפיקות לפי האפיון והשפה של העסק. אופיר בודק ומאשר; רק אחרי האישור שלו עירית שולחת אותן ללקוח לאישור. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת אליו.',
     items: [
       // noBulk on the marks that hand finished files on (7, 23, 24, 27): each is pressed
       // where the files are uploaded, never with "mark the whole process".
       { key: 'p07.made', label: '9 גרפיקות הוכנו לפי האפיון ושפת העסק', noBulk: true },
       ...[['spelling', 'כתיב'], ['phone', 'טלפון'], ['address', 'כתובת'], ['logo', 'לוגו'], ['details', 'פרטי העסק'], ['wording', 'ניסוחים'], ['design', 'עיצוב']]
-        .map(([k, l]) => ({ key: `p07.r.${k}`, label: `נבדק: ${l}`, owners: ['irit'], requires: ['p07.made'] })),
-      { key: 'p07.sent', label: 'נשלחו ללקוח לאישור', owners: ['irit'], requires: ['p07.r.spelling', 'p07.r.phone', 'p07.r.address', 'p07.r.logo', 'p07.r.details', 'p07.r.wording', 'p07.r.design'] },
+        .map(([k, l]) => ({ key: `p07.r.${k}`, label: `אופיר בדק: ${l}`, owners: ['ofir'], requires: ['p07.made'] })),
+      // v9: his approval, as 23 has (p23.ofir). Nothing is sent to the client before it.
+      { key: 'p07.ofir', label: 'אופיר אישר את הגרפיקות (תיקון: משימה לעילאי)', owners: ['ofir'], requires: ['p07.r.spelling', 'p07.r.phone', 'p07.r.address', 'p07.r.logo', 'p07.r.details', 'p07.r.wording', 'p07.r.design'] },
+      { key: 'p07.sent', label: 'נשלחו ללקוח לאישור', owners: ['irit'], requires: ['p07.ofir'] },
       { key: 'p07.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
       { key: 'p07.approved', label: 'הלקוח אישר את הגרפיקות', owners: ['irit'], requires: ['p07.sent'], noBulk: true },
     ],
   },
   {
     id: 'p07a', num: '7א', phase: 'parallel', title: 'קישור ללקוח לדף הסטטוס', owners: ['irit'],
-    sla: 'עד 30 דקות עבודה מרגע ש־9 הגרפיקות מוכנות',
+    sla: 'עד 30 דקות עבודה מרגע שאופיר אישר את 9 הגרפיקות',
     // v8: without this link the client cannot approve graphics, scripts or videos.
-    start: { from: 'item:p07.made' }, due: { from: 'item:p07.made', minutes: 30 },
+    // v9: it opens with Ofir's approval, when there is something to show the client.
+    start: { from: 'item:p07.ofir' }, due: { from: 'item:p07.ofir', minutes: 30 },
     link: 'status',
     what: 'שולחים ללקוח את הקישור לדף הסטטוס שלו. שם הוא רואה איפה הדברים עומדים ומאשר גרפיקות, תסריטים וסרטונים.',
     items: [
@@ -684,10 +724,11 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p22a', round: true, num: '22א', phase: 'post', title: 'העברה לעריכה ושיוך לעורך', owners: ['ofir', 'lior'],
-    sla: 'מיד לאחר יום הצילום וקבלת חומרי הצילום',
-    start: { from: 'p19' }, due: { from: 'p19' },
-    what: 'ליאור מחזיר את הכונן. אופיר (או ליאור) בודק את עומס העורכים (מי פנוי, מי מחזיק הרבה לקוחות, אילו משימות פתוחות, מי יעמוד בזמן) ומשייך את הלקוח. מכאן מתחילה ספירת זמני העריכה.',
+    id: 'p22a', round: true, num: '22א', phase: 'post', title: 'העברה לעריכה ושיוך לעורך', owners: ['ofir'],
+    sla: 'תוך 10 דקות מסגירת יום הצילום',
+    // v9: Ofir alone assigns, on the fast ladder, from the moment the shoot day is closed.
+    start: { from: 'p19' }, due: { from: 'p19', fast: 'assign' },
+    what: 'ליאור מחזיר את הכונן. אופיר בודק את עומס העורכים (מי פנוי, מי מחזיק הרבה לקוחות, אילו משימות פתוחות, מי יעמוד בזמן) ומשייך את הלקוח. מכאן מתחילה ספירת זמני העריכה.',
     needs: ['editor'],
     items: [
       { key: 'p22a.drive', label: 'ליאור החזיר את הכונן', owners: ['lior'] },
@@ -719,11 +760,11 @@ export const PROCESSES = [
   {
     id: 'p23', num: '23', phase: 'post', title: 'הכנת יתרת הגרפיקות', owners: ['ilai'],
     sla: 'עד יום עסקים אחד, במקביל לעריכת הסרטונים',
-    // v8: each one's clock starts when the work reaches them. Ofir checks "מיד" (his
-    // protocol), within the hour of his quality control (decision 11); Irit's sending has
-    // no time in the written protocol, so it keeps the business day the process had.
+    // v8: each one's clock starts when the work reaches them. Irit's sending has no time
+    // in the written protocol, so it keeps the business day the process had.
+    // v9: Ofir's check is on the fast ladder (it was an office hour), as in 7.
     start: { from: 'shoot' },
-    due: { from: 'shoot', businessDays: 1, afterMark: [{ key: 'p23.made', minutes: 60, office: true }, { key: 'p23.ofir', businessDays: 1 }] },
+    due: { from: 'shoot', businessDays: 1, afterMark: [{ key: 'p23.made', fast: 'review', qa: 'p23' }, { key: 'p23.ofir', businessDays: 1 }] },
     what: 'משלימים את כל הגרפיקות לפי החבילה (היתרה אחרי 9 הגרפיקות הראשונות). אופיר בודק; אחרי אישורו נשלחות ללקוח. אם הלקוח לא מגיב תוך 10 דקות, עירית מתקשרת.',
     items: [
       { key: 'p23.made', label: 'כל הגרפיקות לפי החבילה הושלמו (היתרה אחרי 9 הראשונות)', noBulk: true, guard: 'graphicsCount' },
