@@ -63,22 +63,22 @@ before(async () => {
   }
 });
 
-test('the migration is the newest one, after the migration of version 8, and has none of the words the production deploy tool refuses', () => {
+test('the migration comes right after the migration of version 8, and has none of the words the production deploy tool refuses', () => {
   const files = migrationFiles();
-  assert.equal(files.at(-1), MIGRATION);
-  assert.ok(files.indexOf('20261022100000_flow_fixes_v8.sql') === files.length - 2);
+  // (The newest one is version 10's since 10.10.2026: tests/sql/audit-gaps.test.mjs; this database stops at the migration of 9.)
+  assert.equal(files.indexOf(MIGRATION), files.indexOf('20261022100000_flow_fixes_v8.sql') + 1);
   const sql = readFileSync(new URL(`../../supabase/migrations/${MIGRATION}`, import.meta.url), 'utf8');
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   // Every UPDATE in it has a WHERE (tests/safeupdate.test.mjs reads the function bodies; this is the whole file).
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
   // A key that spells one of those words is still written in two halves and reads the same.
   assert.match(sql, /'p24\.d' \|\| 'ropbox'/);
-  // The block in the file is exactly what the script generates from app/protocol.js now.
-  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], [MIGRATION, true]);
+  // (The block that equals app/protocol.js now is in the latest migration: tests/sql/audit-gaps.test.mjs.)
+  assert.ok(latestBlock().file >= MIGRATION);
 });
 
 test('version 9: the function, the column default, a new client; a client that started before keeps its version', async () => {
-  assert.equal(PROTOCOL_VERSION, 9);
+  assert.ok(PROTOCOL_VERSION >= 9);
   assert.equal((await db.query('select private.protocol_version_current() as v')).rows[0].v, 9);
   const d = await db.query("select column_default from information_schema.columns where table_schema = 'public' and table_name = 'clients' and column_name = 'protocol_version'");
   assert.equal(d.rows[0].column_default, '9');
@@ -128,14 +128,17 @@ test('the migration runs again safely: nothing doubled, and a check that is real
 });
 
 test('the writers table: exactly three rows differ from version 8, and the database agrees with the app on who marks what', async () => {
-  assert.equal((await db.query('select count(*)::int as n from private.protocol_writers')).rows[0].n, writerRows().length);
+  // The table as this migration left it: 87 rows (protocol v10 added 23: tests/sql/audit-gaps.test.mjs).
+  assert.equal((await db.query('select count(*)::int as n from private.protocol_writers')).rows[0].n, 87);
+  assert.ok(writerRows().length >= 87);
   const p07 = (await db.query("select key, persons from private.protocol_writers where proc = 'p07' order by key")).rows;
   assert.deepEqual(p07.map((r) => [r.key, r.persons]), [['p07.@part', ['ilai', 'irit', 'ofir']], ['p07.@qafixed', ['ilai']], ['p07.@wait', ['ilai', 'irit', 'ofir']], ['p07.made', ['ilai']]]);
   // Against the block of version 8: the three rows of process 7, and nothing else.
   const v8 = migrationSql('20261022100000_flow_fixes_v8.sql');
   const rowsOf = (sql) => new Map(sql.split('\n').filter((l) => l.startsWith('  (')).map((l) => [l.slice(3, l.indexOf(', ')), l.trim().replace(/,$/, '')]));
   const a = rowsOf(v8.slice(v8.indexOf('-- protocol-writers:begin'), v8.indexOf('-- protocol-writers:end')));
-  const b = rowsOf(sqlBlock());
+  const v9 = migrationSql(MIGRATION);
+  const b = rowsOf(v9.slice(v9.indexOf('-- protocol-writers:begin'), v9.indexOf('-- protocol-writers:end')));
   assert.deepEqual([...b].filter(([k, v]) => a.get(k) !== v).map(([k]) => k).sort(), ["'p07.@part'", "'p07.@qafixed'", "'p07.@wait'"]);
   assert.deepEqual([...a.keys()].filter((k) => !b.has(k)), []);
   // No row was needed for the checks moving from Irit to Ofir or for Lior leaving 22א: the office writes every key.
