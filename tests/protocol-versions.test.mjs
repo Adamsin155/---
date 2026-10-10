@@ -30,13 +30,16 @@ test('the history covers the protocol: one entry per version up to PROTOCOL_VERS
   assert.equal(LATEST, PROTOCOL_VERSION, 'add the new version to PROTOCOL_HISTORY in app/protocol-versions.js');
   for (const v of PROTOCOL_HISTORY) {
     assert.ok(v.title && v.changes.length && /^\d{4}-\d{2}-\d{2}$/.test(v.date), `v${v.version}`);
-    for (const k of v.items || []) assert.ok(KEYS.includes(k), `v${v.version}: ${k} is not in the protocol`);
+    for (const k of [...(v.items || []), ...(v.always || [])]) assert.ok(KEYS.includes(k), `v${v.version}: ${k} is not in the protocol`);
     for (const id of Object.keys(v.due || {})) assert.ok(PROCESSES.some((p) => p.id === id), `v${v.version}: ${id}`);
   }
   // Every item the first protocol did not have is recorded with the version that added it:
   // 139 items of version 1 are still in the protocol. A new item not recorded fails here.
-  const recorded = new Set(PROTOCOL_HISTORY.flatMap((v) => v.items || []));
-  assert.equal(KEYS.filter((k) => !recorded.has(k)).length, 139, 'record the new items in PROTOCOL_HISTORY (items) with the version that added them');
+  // (`always`: an item a version added for every client, whatever version it started under. Version 9's
+  // one new item, Ofir's approval of the first graphics, is recorded so, and is not "חדש בפרוטוקול".)
+  const recorded = new Set(PROTOCOL_HISTORY.flatMap((v) => [...(v.items || []), ...(v.always || [])]));
+  assert.equal(KEYS.filter((k) => !recorded.has(k)).length, 139, 'record the new items in PROTOCOL_HISTORY (items, or always) with the version that added them');
+  assert.deepEqual(PROTOCOL_HISTORY.at(-1).always, ['p07.ofir']);
 });
 
 test('the database stamps the same current version (the latest migration that sets it)', () => {

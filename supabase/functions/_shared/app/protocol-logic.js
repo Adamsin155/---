@@ -624,21 +624,29 @@ function afterImport(proc, procs, checks) {
   const p = procs.find((x) => x.id === id);
   return !!p && isImported(p, checks);
 }
-// The same holds for a new item that stands before a step the client already took (v9:
-// "אופיר אישר את הגרפיקות" before "נשלחו ללקוח"): where the step that needs it was done
-// before the item existed, nobody is asked for it now.
-const passedBefore = (p, i, checks) => p.items.some((j) => (j.requires || []).includes(i.key) && ['done', 'na'].includes(checks[j.key]?.state)) && !checks[i.key];
 function withoutFreshAfterImport(procs, checks) {
   return procs.map((p) => {
     if (!p.items.some((i) => i.fresh && !i.optional)) return p;
-    const all = afterImport(p, procs, checks);
-    if (!all && !p.items.some((i) => i.fresh && !i.optional && passedBefore(p, i, checks))) return p;
-    return { ...p, items: p.items.map((i) => (i.fresh && !i.optional && (all || passedBefore(p, i, checks)) ? { ...i, optional: true, history: true } : i)) };
+    if (!afterImport(p, procs, checks)) return p;
+    return { ...p, items: p.items.map((i) => (i.fresh && !i.optional ? { ...i, optional: true, history: true } : i)) };
+  });
+}
+// An item that was put before a step clients had already taken (`passedIf`; protocol v9:
+// "אופיר אישר את הגרפיקות" before "נשלחו ללקוח"). Where that step is done and the item has
+// no mark of its own, the client passed it before it existed: it is history ("אם
+// רלוונטי" in the card), in nobody's list, and it holds nothing open. Whatever the
+// client's version, and with or without the migration's own mark.
+function withoutPassed(procs, checks) {
+  const passed = (i, round) => !!i.passedIf && !checks[i.key] && ['done', 'na'].includes(checks[`${round}${i.passedIf}`]?.state);
+  return procs.map((p) => {
+    const round = /^(r\d+\.)/.exec(p.keyBase || '')?.[1] || '';
+    if (!p.items.some((i) => !i.optional && passed(i, round))) return p;
+    return { ...p, items: p.items.map((i) => (!i.optional && passed(i, round) ? { ...i, optional: true, history: true } : i)) };
   });
 }
 
 export function clientState(client, checks = {}, now = new Date()) {
-  const procs = withoutFreshAfterImport(applicableProcesses(client), checks);
+  const procs = withoutPassed(withoutFreshAfterImport(applicableProcesses(client), checks), checks);
   const phaseList = phasesFor(client);
   const phaseIndex = (key) => phaseList.findIndex((p) => p.key === key);
   // In landing nothing has a deadline; after it, deadlines are counted from landed_at.

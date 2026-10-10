@@ -25,8 +25,7 @@ import { HANDOFFS } from '../app/handoffs.js';
 import { DEAL_MINUTES } from '../app/deal-logic.js';
 import { videoWindow, graphicsWindow, workFiles, uploadGate, uploadedText, uploadStepOf, videosLinkOf, videosGate, driveLinkProblem } from '../app/files-logic.js';
 import { ilaiWork } from '../app/ilai-logic.js';
-import { planAutoAssign } from '../app/auto-assign.js';
-import { folderTitle } from '../app/qa-logic.js';
+import { folderTitle, folderItemOf, folderDueOn } from '../app/qa-logic.js';
 import { MISSING_WHAT, selfCheck } from '../app/production.js';
 import { CHAR_READERS, readsChar } from '../app/intake-ui.js';
 
@@ -149,8 +148,18 @@ test('Ilai keeps a card for the first 9 graphics after the characterization day'
   assert.deepEqual(ilaiWork({ clients: [c], stateOf: stateAt(day), checks, now: day }).first, [], 'on the day itself the day\'s card holds them');
   const later = at('2026-10-07T10:00:00+03:00');
   assert.deepEqual(ilaiWork({ clients: [c], stateOf: stateAt(later), checks, now: later }).first.map((x) => [x.client.id, x.state.proc.id]), [['c', 'p07']]);
+  // Handed over: the card stays while the graphics are with Ofir for his check (protocol v9: it says where
+  // they are and how long he has), comes back as a list of fixes if he returns them, and goes when he approved.
   checks.c['p07.made'] = { state: 'done', at: '2026-10-07T11:00:00+03:00' };
-  assert.deepEqual(ilaiWork({ clients: [c], stateOf: stateAt(at('2026-10-07T12:00:00+03:00')), checks, now: at('2026-10-07T12:00:00+03:00') }).first, []);
+  const noon = at('2026-10-07T12:00:00+03:00');
+  const firstAt = () => ilaiWork({ clients: [c], stateOf: stateAt(noon), checks, now: noon }).first.map((x) => x.qa.stage);
+  assert.deepEqual(firstAt(), ['ofir']);
+  checks.c['p07.return.1'] = { state: 'done', at: '2026-10-07T11:05:00+03:00', note: JSON.stringify({ v: 1, issues: [{ ref: '3', text: 'טלפון שגוי' }], due: '2026-10-07T15:00:00.000Z' }) };
+  assert.deepEqual(firstAt(), ['fixing']);
+  checks.c['p07.fixed.1'] = { state: 'done', at: '2026-10-07T11:40:00+03:00' };
+  assert.deepEqual(firstAt(), ['ofir']);
+  checks.c['p07.ofir'] = { state: 'done', at: '2026-10-07T11:45:00+03:00' };
+  assert.deepEqual(firstAt(), []);
 });
 
 // ── The words follow the owner's decisions ──
@@ -219,8 +228,8 @@ test('the bar: a new deal is two rows, the group and the meeting date at 5 minut
 });
 
 test('p24.folder is Ofir\'s item as before (the videos are in Drive), and the version did not move', () => {
-  assert.equal(PROTOCOL_VERSION, 8); // 8 since 8.10.2026 (docs/ops.md, section 49); this feature itself did not move it
-  assert.equal(LATEST, 8);
+  assert.equal(PROTOCOL_VERSION, 9); // 9 since 10.10.2026 (docs/ops.md, section 57); this feature itself did not move it
+  assert.equal(LATEST, 9);
   const c = { id: 'c', status: 'active', editor: 'nadia', shoot_type: 'dms', rounds: [{ n: 2, editor: 'yariv', shoot_at: '2026-11-01T10:00:00+02:00', start_at: '2026-10-20T10:00:00+03:00' }], deal_at: '2026-09-01T09:00:00+03:00', char_at: '2026-09-02T10:00:00+03:00', shoot_at: '2026-10-01T10:00:00+03:00' };
   const items = applicableProcesses(c).flatMap((p) => p.items);
   assert.deepEqual(items.filter((i) => /p24\./.test(i.key)).map((i) => i.key), ['p24.folder', 'p24.drive', 'p24.dropbox', 'p24.notify', 'r2.p24.folder', 'r2.p24.drive', 'r2.p24.dropbox', 'r2.p24.notify']);
@@ -232,14 +241,13 @@ test('p24.folder is Ofir\'s item as before (the videos are in Drive), and the ve
   assert.equal(p24({ ...checks, ...done(['p24.folder'], '2026-10-05T13:00:00+03:00') }).complete, true);
 });
 
-test('the automatic assignment opens Ofir\'s Drive folder task, as before', () => {
-  const c = { id: 'c', name: 'קפה', status: 'active', shoot_type: 'dms', rounds: [], deal_at: '2026-09-01T09:00:00+03:00', char_at: '2026-09-02T10:00:00+03:00', shoot_at: '2026-10-01T10:00:00+03:00', created_at: '2026-09-01T09:00:00+03:00' };
-  const checks = { c: done(PROCESSES.filter((p) => ['p17', 'p18', 'p19', 'p21'].includes(p.id)).flatMap((p) => p.items.map((i) => i.key)), '2026-10-01T16:00:00+03:00') };
-  const now = at('2026-10-01T16:05:00+03:00');
-  const plan = planAutoAssign({ clients: [c], stateOf: (x) => clientState(x, checks[x.id], now), checks, tasks: [], now });
-  assert.equal(plan.length, 1);
-  assert.deepEqual([plan[0].task.title, plan[0].task.owner], [folderTitle(), 'ofir']);
+test('the assignment opens Ofir\'s Drive folder task, as before (since protocol v9 from his own dialog, not by the server)', () => {
+  // The task Ofir's dialog opens when he assigns (app/qa.js): its title is what ties it to the item 24 asks of him.
   assert.equal(folderTitle(), 'פתיחת תיקייה מסודרת בדרייב לעריכה (24)');
+  assert.equal(folderItemOf({ title: folderTitle() }), 'p24.folder');
+  assert.equal(folderItemOf({ title: folderTitle(2) }), 'r2.p24.folder');
+  // Due at the close of editing day 1 (the assignment day is not counted).
+  assert.equal(folderDueOn(at('2026-10-01T16:05:00+03:00')), '2026-10-04');
 });
 
 test('a failed upload (optional now) can still be reported with "חסר…"', () => {

@@ -175,11 +175,15 @@ test('the QA queue: first due first, with the round, the waiting time and the ro
   mark(w, b, returnKey('', 'graphics', 1), IL(2026, 10, 20, 10, 10), returnNote([{ ref: '4', text: 'לוגו' }], IL(2026, 10, 20, 18)));
   mark(w, b, fixedKey('', 'graphics', 1), IL(2026, 10, 20, 10, 50));
   const q = qaQueue({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, now });
-  assert.deepEqual(q.map((x) => [x.client.name, x.kind, x.pre, x.round]), [['ב', 'videos', 'r2.', 1], ['א', 'videos', '', 1], ['ב', 'graphics', '', 2]]);
+  // The graphics came back from the fix at 10:50 and are on Ofir's fast ladder (protocol v9): ten
+  // minutes, due 11:00, so they stand before the videos that are due at 11:30.
+  assert.deepEqual(q.map((x) => [x.client.name, x.kind, x.pre, x.round]), [['ב', 'videos', 'r2.', 1], ['ב', 'graphics', '', 2], ['א', 'videos', '', 1]]);
   assert.equal(q[0].waited, 90);
   assert.equal(q[0].late, true);
-  assert.equal(q[1].late, false);
-  assert.equal(q[2].rounds.length, 1);
+  assert.deepEqual([q[0].target, q[0].fast], [60, null]);
+  assert.deepEqual([q[1].target, q[1].waited, !!q[1].fast, q[1].dueAt.toISOString()], [10, 10, true, IL(2026, 10, 20, 11).toISOString()]);
+  assert.equal(q[2].late, false);
+  assert.equal(q[1].rounds.length, 1);
   // Returned work leaves the queue and shows as "at the fixer".
   mark(w, a, returnKey('', 'videos', 1), IL(2026, 10, 20, 10, 45), returnNote([{ ref: '1', text: 'x' }], null));
   const f = qaFixing({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks });
@@ -315,17 +319,19 @@ test('pass due: at least every other business day, always on Thursday; the previ
   assert.equal(thursdayTarget(IL(2026, 10, 21, 12)), null);
 });
 
-test('data health: a shared process nobody took, a task without a due date, a shoot without an editor', () => {
+test('data health: a task without a due date, a shoot without an editor; 22א is Ofir\'s alone, so it is no longer "a shared process nobody took"', () => {
   const w = world();
   const now = IL(2026, 10, 20, 16);
-  // Shot yesterday, an editor chosen in the card but the assignment (22א, Ofir's or Lior's) not taken by anyone.
+  // Shot yesterday, an editor chosen in the card but not assigned yet. Until protocol v9 the assignment
+  // (22א) was Ofir's or Lior's, and this was "a shared process nobody took"; now it has one owner.
   const c = client(w, { editor: 'nadia', shoot_at: IL(2026, 10, 18, 10).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
   for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21']) marks(w, c, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
   w.tasks.push({ id: 't1', client_id: c.id, owner: 'irit', title: 'בלי מועד', done_at: null, due_on: null });
   const d = client(w, { shoot_at: IL(2026, 10, 18, 10).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
   for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21']) marks(w, d, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
   const h = dataHealth({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, tasks: w.tasks, now });
-  assert.deepEqual(h.unowned.map((x) => [x.client.id, x.state.proc.id, x.owner]), [[c.id, 'p22a', 'ofir']]);
+  assert.deepEqual(h.unowned.map((x) => [x.client.id, x.state.proc.id, x.owner]), []);
+  assert.deepEqual(PROCESSES.find((p) => p.id === 'p22a').owners, ['ofir']);
   assert.deepEqual(h.noDue.map((x) => x.task.id), ['t1']);
   assert.deepEqual(h.noEditor.map((x) => x.client.id), [d.id]);
   assert.equal(h.dueFix, '2026-10-21');
@@ -463,14 +469,16 @@ test('QA ladder: the fixes ready start a new check for Ofir; a return rings the 
   none(list, 'qaReturn', 'late'); // no due date given
   // Graphics: returned to Ilai, fixed, back to Ofir.
   const g = editingClient(w, { name: 'גרפיקות' });
+  // (Since protocol v9 Ofir's check of the graphics is on his fast ladder, the rule `fast`.)
   mark(w, g, 'p23.made', IL(2026, 10, 20, 9));
-  one(due(w, IL(2026, 10, 20, 9)), 'graphicsRest', 'ofir', 'ofir');
-  mark(w, g, returnKey('', 'graphics', 1), IL(2026, 10, 20, 9, 30), returnNote([{ ref: '5', text: 'לוגו ישן' }], IL(2026, 10, 20, 18)));
+  one(due(w, IL(2026, 10, 20, 9)), 'fast', 'now', 'ofir');
+  mark(w, g, returnKey('', 'graphics', 1), IL(2026, 10, 20, 9, 5), returnNote([{ ref: '5', text: 'לוגו ישן' }], IL(2026, 10, 20, 18)));
   list = due(w, IL(2026, 10, 20, 9, 31)).filter((r) => r.clientId === g.id);
+  none(list, 'fast'); // returned in time: his ladder stops, nothing was late
   none(list, 'graphicsRest');
   one(list, 'qaReturn', 'now', 'ilai');
   mark(w, g, fixedKey('', 'graphics', 1), IL(2026, 10, 20, 11));
-  const back = one(due(w, IL(2026, 10, 20, 11, 1)).filter((r) => r.clientId === g.id), 'graphicsRest', 'ofir', 'ofir');
+  const back = one(due(w, IL(2026, 10, 20, 11, 1)).filter((r) => r.clientId === g.id), 'fast', 'now', 'ofir');
   assert.match(back.title, /^התיקונים מוכנים לבדיקה \(סבב 1\)/);
 });
 

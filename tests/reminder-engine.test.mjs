@@ -261,18 +261,26 @@ test('broken access: editing the row while it is still broken does not start the
   assert.ok(candidates(buildEnv({ ...w, now: IL(2026, 10, 7, 16) })).some((r) => r.key === first.key));
 });
 
-test('9 graphics ready: Irit at once, with her own two office hours; Lior is not rung to do it himself (protocol v8); waiting on the client or sending stops it', () => {
+test('9 graphics ready: Ofir alone is rung to check them (protocol v9); Irit is rung the moment he approved, with her own two office hours; waiting on the client or sending stops it', () => {
   const w = world();
   const c = client(w);
   importTo(w, c, 'char');
   mark(w, c, 'p07.made', IL(2026, 10, 7, 11));
-  const ring = one(due(w, IL(2026, 10, 7, 11)), 'graphics9', 'now', 'irit');
-  assert.match(ring.body, /יעד היום 13:00/);
+  // The check itself: Ofir's fast ladder (tests/fast-ladder.test.mjs). Irit and Lior hear nothing of it.
+  const ready = due(w, IL(2026, 10, 7, 11));
+  one(ready, 'fast', 'now', 'ofir');
+  none(ready, 'graphics9');
+  assert.deepEqual(ready.filter((r) => ['irit', 'lior'].includes(r.person) && /גרפיקות/.test(r.title)), []);
+  // He approves at 11:08: Irit rings at once, "לשלוח ללקוח", due two office hours later.
+  for (const i of PROCESSES.find((p) => p.id === 'p07').items.filter((x) => x.key.startsWith('p07.r.') || x.key === 'p07.ofir')) mark(w, c, i.key, IL(2026, 10, 7, 11, 8));
+  const ring = one(due(w, IL(2026, 10, 7, 11, 8)), 'graphics9', 'irit', 'irit');
+  assert.equal(ring.title, `לשלוח ללקוח: 9 הגרפיקות · ${c.name}`);
+  assert.match(ring.body, /^אופיר אישר\. יעד היום 13:08\.$/);
+  none(due(w, IL(2026, 10, 7, 11, 8)), 'fast');
   none(due(w, IL(2026, 10, 7, 11, 30)), 'graphics9', 'lior');
-  none(due(w, IL(2026, 10, 7, 13, 30)), 'graphics9', 'lior');
-  // He hears when she is late, as of every late item (the rule `late`, 15 office minutes past her deadline).
-  assert.ok(due(w, IL(2026, 10, 7, 13, 15)).some((r) => r.rule === 'late' && r.person === 'lior' && /7 · הכנת 9 גרפיקות ראשונות/.test(r.title)));
-  mark(w, c, 'p07.wait', IL(2026, 10, 7, 11, 5), JSON.stringify({ reason: 'הלקוח ביקש לחכות' }));
+  // Lior hears when she is late with the sending, as of every late item (the rule `late`, 15 office minutes past her deadline).
+  assert.ok(due(w, IL(2026, 10, 7, 13, 23)).some((r) => r.rule === 'late' && r.person === 'lior' && /7 · הכנת 9 גרפיקות ראשונות/.test(r.title)));
+  mark(w, c, 'p07.wait', IL(2026, 10, 7, 11, 9), JSON.stringify({ reason: 'הלקוח ביקש לחכות' }));
   none(due(w, IL(2026, 10, 7, 11, 30)), 'graphics9');
   delete w.checks[c.id]['p07.wait'];
   mark(w, c, 'p07.sent', IL(2026, 10, 7, 11, 20));
@@ -458,23 +466,26 @@ test('shoot day: Eli 2 hours and 15 minutes before; Lior if Eli did not arrive; 
   one(due(w2, IL(2026, 10, 15, 14)), 'shoot', 'endLior', 'lior');
 });
 
-test('assign an editor (22א): Ofir at once and next morning; Lior at 12:00 next business day even when taken', () => {
+test('assign an editor (22א): Ofir alone, on his fast ladder (protocol v9): at once, late after 10 minutes, Lior after 15; the old rule is gone', () => {
   const w = world();
   const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString() });
   importTo(w, c, 'post');
   for (const k of itemsOf('p22a')) delete w.checks[c.id][k];
   marks(w, c, itemsOf('p19'), IL(2026, 10, 15, 17));
-  one(due(w, IL(2026, 10, 15, 17)), 'assign', 'now', 'ofir');
-  assert.equal(one(due(w, IL(2026, 10, 18, 8, 30)), 'assign', 'morning', 'ofir').level, 'digest');
-  none(due(w, IL(2026, 10, 18, 11, 59)), 'assign', 'stop12');
-  one(due(w, IL(2026, 10, 18, 12)), 'assign', 'stop12', 'lior');
-  // "אני על זה" by Ofir: no more nudges to him, but the hard stop still fires.
-  mark(w, c, 'p22a.claim', IL(2026, 10, 15, 17, 5), 'ofir');
-  const later = due(w, IL(2026, 10, 18, 12));
-  none(later, 'assign', 'now');
-  one(later, 'assign', 'stop12', 'lior');
+  assert.ok(!RULES.some((r) => r.id === 'assign' || r.id === 'autoAssigned'));
+  assert.equal(one(due(w, IL(2026, 10, 15, 17)), 'fast', 'now', 'ofir').title, `לשייך עורך: ${c.name}`);
+  none(due(w, IL(2026, 10, 15, 17, 9)), 'fast', 'late');
+  one(due(w, IL(2026, 10, 15, 17, 10)), 'fast', 'late', 'ofir');
+  none(due(w, IL(2026, 10, 15, 17, 14)), 'fast', 'lior');
+  assert.equal(one(due(w, IL(2026, 10, 15, 17, 15)), 'fast', 'lior', 'lior').title, `אופיר באיחור בשיוך עורך: ${c.name}`);
+  // An "אני על זה" from before the change means nothing now: the ladder is Ofir's whatever was claimed.
+  mark(w, c, 'p22a.claim', IL(2026, 10, 15, 17, 5), 'lior');
+  one(due(w, IL(2026, 10, 15, 17, 15)), 'fast', 'lior', 'lior');
+  one(due(w, IL(2026, 10, 15, 17, 25)), 'fast', 'again.1', 'ofir');
+  // No digest line the next morning and no "hard stop" at 12:00: the ladder is all there is.
+  assert.deepEqual(due(w, IL(2026, 10, 18, 12)).filter((r) => r.clientId === c.id && /עורך/.test(r.title) && r.rule !== 'fast'), []);
   mark(w, c, 'p22a.assigned', IL(2026, 10, 18, 11));
-  none(due(w, IL(2026, 10, 18, 12)), 'assign');
+  none(due(w, IL(2026, 10, 18, 12)), 'fast');
 });
 
 test('editing (22, 24): assigned, not started after 2 office hours (Lior after 4), days 2 and 3, day 3 at 15:00', () => {
@@ -536,12 +547,13 @@ test('Ofir approved (25): Irit rings "send now", Lior quietly "campaign"; the re
   assert.equal(one(at, 'approved', 'lior', 'lior').level, 'quiet');
   mark(w, c, 'p26.sent', IL(2026, 10, 21, 12, 10));
   none(due(w, IL(2026, 10, 21, 12, 30)), 'approved', 'irit');
-  // p23: Ilai marks ready → Ofir; Ofir approves → Irit.
+  // p23: Ilai marks ready → Ofir (his fast ladder, protocol v9); Ofir approves → Irit.
   mark(w, c, 'p23.made', IL(2026, 10, 21, 13));
-  one(due(w, IL(2026, 10, 21, 13)), 'graphicsRest', 'ofir', 'ofir');
-  mark(w, c, 'p23.ofir', IL(2026, 10, 21, 13, 30));
-  const g = due(w, IL(2026, 10, 21, 13, 30));
-  none(g, 'graphicsRest', 'ofir');
+  assert.equal(one(due(w, IL(2026, 10, 21, 13)), 'fast', 'now', 'ofir').title, `יתרת הגרפיקות מוכנות לבדיקה: ${c.name}`);
+  none(due(w, IL(2026, 10, 21, 13)), 'graphicsRest');
+  mark(w, c, 'p23.ofir', IL(2026, 10, 21, 13, 8));
+  const g = due(w, IL(2026, 10, 21, 13, 8));
+  none(g, 'fast');
   one(g, 'graphicsRest', 'irit', 'irit');
 });
 
@@ -784,11 +796,13 @@ test('"לדחות עד…": what came due meanwhile waits for that moment, as on
   const w = world();
   const c = client(w);
   importTo(w, c, 'char');
-  mark(w, c, 'p07.made', IL(2026, 10, 7, 11));
+  // (Since protocol v9 the rule `graphics9` is Irit's "send them", from Ofir's approval.)
+  mark(w, c, 'p07.made', IL(2026, 10, 7, 10, 55));
+  mark(w, c, 'p07.ofir', IL(2026, 10, 7, 11));
   mark(w, c, SNOOZE('p07'), IL(2026, 10, 7, 11, 1), IL(2026, 10, 7, 13).toISOString());
   none(due(w, IL(2026, 10, 7, 12, 59)), 'graphics9');
   const at13 = due(w, IL(2026, 10, 7, 13)).filter((r) => r.rule === 'graphics9');
-  assert.deepEqual(at13.map((r) => r.step), ['now']);
+  assert.deepEqual(at13.map((r) => r.step), ['irit']);
   assert.equal(hhmm(at13[0].at), '7.10 13:00');
 });
 

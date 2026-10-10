@@ -22,7 +22,7 @@ import { stuckOf, dataHealth } from '../app/pass-logic.js';
 import { qaQueue, editorLoad } from '../app/qa-logic.js';
 import { shootHistory } from '../app/shoot-table.js';
 import { handoffsFor } from '../app/handoffs.js';
-import { planAutoAssign } from '../app/auto-assign.js';
+import { fastCases } from '../app/fast-ladder.js';
 import { cycleFrom, openMonthItems, monthStart, termOf, monthOf, yearOf, renewalsDue } from '../app/year-logic.js';
 import { contractSummary, renewalWindow } from '../app/contract-summary.js';
 import { monthRange, contractEndKey, calendarMonths, generatePlan } from '../app/gantt-logic.js';
@@ -97,7 +97,8 @@ test('in landing: the weekly call, the monthly cycle, the QA hour, hand-overs an
   const shot = { ...imported('shoot'), 'p19.done': { state: 'done', at: '2026-10-19T07:00:00Z' } };
   const closed = Object.fromEntries(clientState(noEditor, shot, NOW).states.find((x) => x.proc.id === 'p19').proc.items.map((i) => [i.key, { state: 'done', at: '2026-10-19T07:00:00Z' }]));
   const all = { ...imported('shoot'), ...closed };
-  assert.deepEqual(planAutoAssign({ clients: [noEditor], stateOf: (x) => clientState(x, all, NOW), checks: { c1: all }, now: NOW }), []);
+  // A shoot day closed on a client in landing: nothing is put on Ofir's ten-minute clock (protocol v9).
+  assert.deepEqual(fastCases({ clients: [noEditor], stateOf: (x) => clientState(x, all, NOW), checksOf: () => all }), []);
 });
 
 test('taking in: each person sees only their own items, and the answers are kept apart from the protocol', () => {

@@ -524,7 +524,11 @@ export const RULES = [
   {
     id: 'clientLink', event: 'קישור ללקוח: טופס פרטי הכניסה (5ב), דף הסטטוס (7א)', procs: ['p05b', 'p07a'],
     instances(env) {
-      return ['p05b', 'p07a'].flatMap((b) => casesOf(env, b, (i) => !!i.s.ready && !!i.s.startAt && !!i.s.dueAt && !halted(i) && openOf(i, i.proc.owners[0]).length > 0)
+      // (7א opens with Ofir's approval of the graphics, protocol v9. An approval that is imported history,
+      // as the migration of v9 writes for graphics checked before it, is not an event: the step stays on
+      // Irit's list, and no ring says it has just opened.)
+      const fromHistory = (i) => { const from = String(i.proc.start?.from || ''); return from.startsWith('item:') && i.checks[from.slice(5)]?.note === IMPORT_NOTE; };
+      return ['p05b', 'p07a'].flatMap((b) => casesOf(env, b, (i) => !!i.s.ready && !!i.s.startAt && !!i.s.dueAt && !halted(i) && !fromHistory(i) && openOf(i, i.proc.owners[0]).length > 0)
         .map((i) => ({ ...i, id: `${i.proc.id}@${i.s.startAt.toISOString()}`, url: MINE_URL, anchors: { event: i.s.startAt, due: i.s.dueAt } })));
     },
     steps: [

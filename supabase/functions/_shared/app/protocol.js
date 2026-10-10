@@ -251,6 +251,8 @@ const isDms = (c) => c.shoot_type === 'dms';
 // Item `guard`: what the system looks at before the mark is taken (app/mark-guards.js):
 //   it is refused only when the system knows there is nothing behind it.
 // Item `word`: the word on its "סיימתי" pill when it is a one-tap answer.
+// Item `passedIf: key`: an item that was put before a step clients had already taken. Where
+//   that step is done and this item has no mark, it is history: not asked, and it holds nothing.
 
 export const PHASES = [
   { key: 'onboarding', title: 'קליטת לקוח ואפיון' },
@@ -454,7 +456,10 @@ export const PROCESSES = [
       ...[['spelling', 'כתיב'], ['phone', 'טלפון'], ['address', 'כתובת'], ['logo', 'לוגו'], ['details', 'פרטי העסק'], ['wording', 'ניסוחים'], ['design', 'עיצוב']]
         .map(([k, l]) => ({ key: `p07.r.${k}`, label: `אופיר בדק: ${l}`, owners: ['ofir'], requires: ['p07.made'] })),
       // v9: his approval, as 23 has (p23.ofir). Nothing is sent to the client before it.
-      { key: 'p07.ofir', label: 'אופיר אישר את הגרפיקות (תיקון: משימה לעילאי)', owners: ['ofir'], requires: ['p07.r.spelling', 'p07.r.phone', 'p07.r.address', 'p07.r.logo', 'p07.r.details', 'p07.r.wording', 'p07.r.design'] },
+      // `passedIf`: for every client, of whatever version (the owner wants one way of working), so
+      // it is not a "new in the protocol" item. Where the graphics were already sent before
+      // it existed, nobody is asked for it (clientState: withoutPassed).
+      { key: 'p07.ofir', label: 'אופיר אישר את הגרפיקות (תיקון: משימה לעילאי)', owners: ['ofir'], passedIf: 'p07.sent', requires: ['p07.r.spelling', 'p07.r.phone', 'p07.r.address', 'p07.r.logo', 'p07.r.details', 'p07.r.wording', 'p07.r.design'] },
       { key: 'p07.sent', label: 'נשלחו ללקוח לאישור', owners: ['irit'], requires: ['p07.ofir'] },
       { key: 'p07.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
       { key: 'p07.approved', label: 'הלקוח אישר את הגרפיקות', owners: ['irit'], requires: ['p07.sent'], noBulk: true },

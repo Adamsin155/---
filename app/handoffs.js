@@ -26,7 +26,7 @@ const editorOf = (ctx) => ctx.editor || 'editor';
 //     person  a person key, or (ctx, checks, roundPrefix) → person key,
 //     who     for a person resolved from the client: who that is, in words,
 //     proc    the process the next person works on (the link opens it; its due date),
-//     until   (optional) the item that shows the next person has done their part;
+//     until   (optional) the item (or items: any of them) that shows the next person has done their part;
 //             by default, their process being complete. After that the handoff is
 //             no longer offered,
 //     text    the message; {client} is the client's name,
@@ -50,7 +50,8 @@ export const HANDOFFS = [
     // Protocol v9: Ofir alone checks the graphics; Irit sends them once he approved.
     id: 'graphics9', on: 'p07.made', label: '9 גרפיקות מוכנות לבדיקה',
     to: [{
-      id: 'ofir', person: 'ofir', proc: 'p07', until: 'p07.ofir',
+      // Sent already (a client of before v9, whose graphics went out with no approval of his): nothing to hand over.
+      id: 'ofir', person: 'ofir', proc: 'p07', until: ['p07.ofir', 'p07.sent'],
       text: '9 הגרפיקות הראשונות של {client} מוכנות לבדיקה שלך.',
       due: [{ label: 'יעד', proc: 'p07' }],
     }],
@@ -236,7 +237,7 @@ function offersOf(point, { client, checks, state, n, triggerKey, triggerAt, now 
     const person = typeof target.person === 'function' ? target.person(ctx, checks, pre) : target.person;
     const markKey = markKeyOf(pre, point, target);
     const sent = checks[markKey]?.state === 'done' ? checks[markKey] : null;
-    const handled = (!!target.until && ['done', 'na'].includes(checks[keyIn(target.until)]?.state)) || !!stateOf(target.proc)?.complete;
+    const handled = [target.until || []].flat().some((k) => ['done', 'na'].includes(checks[keyIn(k)]?.state)) || !!stateOf(target.proc)?.complete;
     return {
       point, target, person, name: nameOf(person), toName: toName(person), known: !!nameOf(person),
       clientId: client.id, clientName: `${client.name}${roundName}`, round: n,

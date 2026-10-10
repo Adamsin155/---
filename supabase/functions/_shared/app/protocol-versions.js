@@ -11,6 +11,8 @@
 //    date is the later of the one it started under and the current one;
 //  - a process whose timing a later version replaced as a whole (`replace`: v6 moved
 //    the shoot day to right after the group) keeps the start and due it started under.
+//  - an item a version added for every client, whatever it started under (`always`: v9,
+//    Ofir's approval of the first graphics), is an item like any other: it can be late.
 // Nothing else changes for it: what needs what, who owns it and completion are as
 // in the current protocol.
 //
@@ -128,10 +130,14 @@ export const PROTOCOL_HISTORY = [
       'שיוך העורך (22א) הוא של אופיר בלבד. המערכת כבר לא משייכת לבד: היא מציעה עורך לפי העומס, ואופיר מחליט.',
       'סולם מהיר לשני הדברים: 10 דקות מהרגע שהעבודה הגיעה לאופיר, עוד 5 דקות באיחור, ואז הודעה לליאור; אחר כך תזכורת לאופיר כל 10 דקות. נספר ומצלצל בימי עבודה עד 21:00.',
     ],
-    // The one new item. Who owns what, the ladders and their minutes are not gated by the
-    // version: the owner wants one way of working, so they hold for every client (and no
-    // `due` is listed here, so nobody keeps the hour the check had before).
-    items: ['p07.ofir'],
+    // Nothing here is gated by the version: the owner wants one way of working, so who
+    // owns what, Ofir's approval of the first graphics (p07.ofir), the ladders and their
+    // minutes hold for every client. So no `items` (the approval is not "חדש בפרוטוקול" for
+    // anybody: it is asked of every client that has not sent its graphics yet, and never of
+    // one that has; `passedIf` in app/protocol.js) and no `due` (nobody keeps the hour the
+    // check had before). The new item is recorded as `always`: added in this version, for
+    // every client.
+    always: ['p07.ofir'],
   },
 ];
 

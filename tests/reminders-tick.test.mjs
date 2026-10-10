@@ -329,9 +329,10 @@ test('a pending ring taken again after 19:00 waits for the morning digest instea
   assert.deepEqual([row.status, row.channel, row.reason], ['queued', 'digest', 'quiet_hours']);
 });
 
-// The owner's decision of 3.10.2026 (app/auto-assign.js): a shoot day closed with no
-// editor gets one in the tick itself, and this minute's ladders already see it.
-test('a tick assigns an editor when the shoot day was closed: written once, Ofir is not asked to assign', async () => {
+// Until protocol v9 a shoot day closed with no editor got one in the tick itself (the
+// owner's decision of 3.10.2026). The owner's decision of 10.10.2026: Ofir assigns. The
+// tick writes nothing to the client, also when the database still offers the old door.
+test('a tick no longer assigns an editor when the shoot day was closed: nothing is written, and Ofir is rung to assign', async () => {
   const items = (id) => PROCESSES.find((p) => p.id === id).items.filter((i) => !i.optional).map((i) => i.key);
   const shoot = IL(2026, 10, 18, 10);
   const c = { ...deal(IL(2026, 9, 1, 10), 'צולם'), id: 'c9', shoot_at: shoot.toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() };
@@ -351,19 +352,18 @@ test('a tick assigns an editor when the shoot day was closed: written once, Ofir
   const { push } = fakePush();
   const t = IL(2026, 10, 18, 17, 1);
   const stats = await runTick({ db: db.at(t), push, now: t });
-  assert.equal(stats.assigned, 1);
-  assert.deepEqual(writes.map((a) => [a.clientId, a.editor]), [['c9', 'nadia']]);
-  assert.equal(c.editor, 'nadia');
-  assert.ok(!db.log.some((r) => r.rule === 'assign'), 'Ofir is not asked to assign');
-  assert.ok(db.log.some((r) => r.rule === 'autoAssigned' && r.person === 'ofir' && r.level === 'quiet'));
-  // The next minute: nothing to assign again.
+  assert.equal(stats.assigned, undefined);
+  assert.deepEqual(writes, []);
+  assert.equal(c.editor ?? null, null);
+  assert.ok(!checks.some((r) => r.item_key === 'p22a.assigned'));
+  assert.ok(!db.log.some((r) => r.rule === 'assign' || r.rule === 'autoAssigned'));
+  const ring = db.log.find((r) => r.rule === 'fast' && r.person === 'ofir');
+  assert.deepEqual([ring.level, ring.title, ring.url], ['ring', 'לשייך עורך: צולם', 'qa.html#assign-c9']);
+  // The next minute: the same ring is not sent again.
   const t2 = IL(2026, 10, 18, 17, 2);
-  assert.equal((await runTick({ db: db.at(t2), push, now: t2 })).assigned, 0);
-  assert.equal(writes.length, 1);
-  // A database without the writer (an older deploy): the tick still runs, and Ofir is asked as before.
-  const plain = fakeDb({ clients: [{ ...c, id: 'c10', editor: null }], checks: checks.filter((r) => !/^p22a\./.test(r.item_key)).map((r) => ({ ...r, client_id: 'c10' })) });
-  assert.equal((await runTick({ db: plain.at(t), push, now: t })).assigned, 0);
-  assert.ok(plain.log.some((r) => r.rule === 'assign' && r.person === 'ofir'));
+  await runTick({ db: db.at(t2), push, now: t2 });
+  assert.equal(db.log.filter((r) => r.rule === 'fast').length, 1);
+  assert.deepEqual(writes, []);
 });
 
 // ── The owner's rule of 7.10.2026: "אין הודעות שקטות, הכל מקבל התראה לפלאפון" ──
