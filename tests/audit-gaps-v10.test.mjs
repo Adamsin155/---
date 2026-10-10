@@ -185,14 +185,12 @@ test('11. the access check (6): when its 30 minutes pass Ilai is rung himself, a
   // and to Lior exactly what he got before: his ring, and the note of every late item.
   assert.deepEqual(rows.filter((r) => r.person === 'ilai' && r.rule === 'lateOwn'), []);
   assert.deepEqual(rows.filter((r) => r.person === 'lior' && /6 · בדיקת הגישות|גישות לא נבדקו/.test(r.title)).map((r) => `${r.at} ${r.rule}.${r.step}`), ['5.10 13:00 access.lior', '5.10 13:15 late.lior']);
-  // He checked the logins and left the pages: the ring names what is left, and Lior is not rung.
+  // He checked the logins in time (what the ring is about): nobody is rung at the deadline, as before.
   const w2 = world();
   const { c: c2 } = afterMeeting(w2);
   for (const k of ['p06.name', 'p06.bio']) delete w2.checks[c2.id][k];
   mark(w2, c2, 'p05.access', IL(2026, 10, 5, 12, 30));
-  const rows2 = walk(w2, IL(2026, 10, 5, 12, 31), IL(2026, 10, 5, 13, 5));
-  assert.deepEqual(of(rows2, 'access'), ['5.10 13:00 ilai30@ilai']);
-  assert.deepEqual([rows2.find((r) => r.step === 'ilai30').title, rows2.find((r) => r.step === 'ilai30').body], ['באיחור: לסיים את סידור הרשתות של אלפא', 'עברו 30 דקות מקבלת הגישות. נשארו 2 פריטים בתהליך 6.']);
+  assert.deepEqual(of(walk(w2, IL(2026, 10, 5, 12, 31), IL(2026, 10, 5, 13, 5)), 'access'), []);
   // Done in time: nobody hears. A client in landing and imported access: nothing at all.
   const w3 = world();
   const { c: c3 } = afterMeeting(w3);

@@ -371,8 +371,8 @@ test('the client filled the form: Irit hears quietly; Ilai\'s "קיבלת גיש
   assert.equal(ilai.title, 'קיבלת גישות: קפה דנה · דנה');
   assert.match(ilai.body, /יעד היום 10:30/);
   assert.deepEqual(of(now, 'broken'), ['now@lior:ring']);
-  // 30 office minutes later and not checked: Lior, by the existing rule.
-  assert.deepEqual(of(due(w, IL(2026, 10, 12, 10, 31)), 'access'), ['lior@lior:ring', 'now@ilai:ring']);
+  // 30 office minutes later and not checked: Lior, by the existing rule; and Ilai himself, at his own deadline (protocol v10).
+  assert.deepEqual(of(due(w, IL(2026, 10, 12, 10, 31)), 'access'), ['ilai30@ilai:ring', 'lior@lior:ring', 'now@ilai:ring']);
   // Each once.
   assert.deepEqual(due(w, IL(2026, 10, 12, 10, 40), now.map((r) => ({ key: r.key }))).filter((r) => r.rule === 'accessForm'), []);
   // Nothing of the reminders holds a secret or the link.

@@ -123,7 +123,7 @@ test('version 9 as data: the numbers and the window in one place; the graphics a
   // The history: nothing of version 9 is gated by the version. The approval is not "חדש בפרוטוקול" for
   // anybody (it is asked of every client that has not sent its graphics yet), and no deadline is listed
   // (so no client keeps the hour the check had).
-  const v9 = PROTOCOL_HISTORY.at(-1);
+  const v9 = PROTOCOL_HISTORY.find((v) => v.version === 9);
   assert.deepEqual([v9.version, v9.items, v9.due, itemSince('p07.ofir')], [9, undefined, undefined, 1]);
   assert.equal(byId.p07.items.find((i) => i.key === 'p07.ofir').passedIf, 'p07.sent');
   // The first graphics return for fixes as the rest do.

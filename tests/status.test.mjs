@@ -277,9 +277,10 @@ test('a date in another year, or about nine months away, carries its year; near 
   assert.equal(needsYear(IL(2026, 9, 20, 10), null), false);
 });
 
+// (Protocol v10: that day is when 34 opens; its deadline is 14 days later. The page shows the opening day, as before.)
 test('the renewal talk: one date for the client card (34) and the status page, 60 days before the end, on a business day', () => {
   const now = IL(2026, 10, 6, 10);
-  const p34 = (end) => clientState({ id: 'c', name: 'x', status: 'active', shoot_type: 'dms', characterizer: 'ofir', has_logo: true, rounds: [], contract_end: end, deal_at: IL(2026, 10, 5, 10).toISOString() }, {}, now).states.find((s) => s.proc.id === 'p34').dueAt;
+  const p34 = (end) => clientState({ id: 'c', name: 'x', status: 'active', shoot_type: 'dms', characterizer: 'ofir', has_logo: true, rounds: [], contract_end: end, deal_at: IL(2026, 10, 5, 10).toISOString() }, {}, now).states.find((s) => s.proc.id === 'p34').startAt;
   const key = (d) => { const p = partsIL(d); return `${p.day}.${p.month}.${p.year}`; };
   // The live case: the contract ends Tuesday 5.10.2027; 60 days before is Friday 6.8, so the talk is by Thursday 5.8.
   assert.equal(key(renewalDay('2027-10-05')), '5.8.2027');

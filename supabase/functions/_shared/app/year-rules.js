@@ -108,7 +108,9 @@ export const YEAR_RULES = [
         out.push({
           id: `p34@${c.contract_end}`, cid: c.id, client: c, name: clientLabel(c), ref: 'p34', url: `${YEAR_URL}#renewals`,
           started: s.proc.items.some((it) => resolved(it.key)), talked: resolved('p34.talk'), waiting: !!s.wait,
-          anchors: { event: end, start: s.dueAt ? atTimeIL(s.dueAt, 0) : null },
+          // The day 34 opens (60 days before the end, on a business day). Until protocol v10 that was also
+          // its deadline; now the deadline is RENEWAL_DAYS later, and the ring stays on the opening day.
+          dueAt: s.dueAt, anchors: { event: end, start: s.startAt ? atTimeIL(s.startAt, 0) : null },
         });
       }
       return out;
@@ -119,7 +121,7 @@ export const YEAR_RULES = [
       // Lior's 60-day line comes from rule `renewal` (75/60/45).
       { id: 'd60', days: -60, at: '08:30', to: OWNER, level: 'digest', title: (i) => `חידוש בעוד 60 יום: ${i.name}`, body: (i) => (i.started ? 'ליאור התחיל את תהליך 34.' : 'תהליך 34 עוד לא התחיל.') },
       // Process 34 not started on its day: one ring to Lior.
-      { id: 'start', from: 'start', at: '12:00', to: 'lior', level: 'ring', when: (i) => !i.started && !i.waiting, title: (i) => `החידוש לא התחיל, 60 יום לפני הסיום: ${i.name}`, body: () => 'לפתוח את תהליך 34: מצב ותוצאות, שביעות רצון, ולהתחיל לדבר על ההמשך. הסיכום והצעת החידוש בשנת החבילה.' },
+      { id: 'start', from: 'start', at: '12:00', to: 'lior', level: 'ring', when: (i) => !i.started && !i.waiting, title: (i) => `החידוש לא התחיל, 60 יום לפני הסיום: ${i.name}`, body: (i) => `לפתוח את תהליך 34: מצב ותוצאות, שביעות רצון, ולהתחיל לדבר על ההמשך${i.dueAt ? `, עד ${dmy(i.dueAt)}` : ''}. הסיכום והצעת החידוש בשנת החבילה.` },
       { id: 'd30', days: -30, at: '08:30', to: 'lior', level: 'digest', title: (i) => `חידוש בעוד 30 יום: ${i.name}`, body: (i) => (i.talked ? 'נרשמה שיחת חידוש.' : 'עוד לא נרשמה שיחת חידוש.') },
       // Without a renewal call the owner gets rule `renewal`'s immediate ring instead.
       { id: 'd30', days: -30, at: '08:30', to: OWNER, level: 'digest', when: (i) => i.talked, title: (i) => `חידוש בעוד 30 יום: ${i.name}`, body: () => 'נרשמה שיחת חידוש.' },

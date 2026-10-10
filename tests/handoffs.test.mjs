@@ -165,7 +165,7 @@ test('due times: the fast ladder\'s ten minutes, office hours, right away, alrea
   assert.deepEqual(offer(c, approved, 'p27.final', '2026-10-29T10:01:00+02:00'), []);
   assert.ok(got);
   const [gantt] = offer(c, { ...approved, 'p29.filled': done('2026-10-29T11:00:00+02:00') }, 'p29.filled', '2026-10-29T11:01:00+02:00');
-  assert.match(msg(gantt, '2026-10-29T11:01:00+02:00'), /^היי עירית,\nהגאנט של מספרת רון מלא ותואם לתזמון\. לשלוח אותו ללקוח\.\nיעד: היום 12:00\n/);
+  assert.match(msg(gantt, '2026-10-29T11:01:00+02:00'), /^היי עירית,\nהגאנט של מספרת רון מלא ותואם לתזמון\. לשלוח אותו ללקוח\.\nיעד: היום 11:30\n/); // protocol v10: her 30 office minutes, from "הגאנט מלא" (11:00)
 });
 
 test('nothing to offer: another item, an unchecked one, a mark, or a message to oneself', () => {

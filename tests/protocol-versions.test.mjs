@@ -39,7 +39,7 @@ test('the history covers the protocol: one entry per version up to PROTOCOL_VERS
   // one new item, Ofir's approval of the first graphics, is recorded so, and is not "חדש בפרוטוקול".)
   const recorded = new Set(PROTOCOL_HISTORY.flatMap((v) => [...(v.items || []), ...(v.always || [])]));
   assert.equal(KEYS.filter((k) => !recorded.has(k)).length, 139, 'record the new items in PROTOCOL_HISTORY (items, or always) with the version that added them');
-  assert.deepEqual(PROTOCOL_HISTORY.at(-1).always, ['p07.ofir']);
+  assert.deepEqual(PROTOCOL_HISTORY.find((v) => v.version === 9).always, ['p07.ofir']);
 });
 
 test('the database stamps the same current version (the latest migration that sets it)', () => {

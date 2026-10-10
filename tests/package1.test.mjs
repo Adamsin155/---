@@ -177,7 +177,8 @@ const OUTSIDE = /דרייב|Drive|Google Docs|Excel|גיליון|בירוק/i;
 test('the protocol: the system for the Gantt and the scripts (no Excel, no Google Docs); Drive only for the videos and the archive', () => {
   const hits = protocolTexts().filter(([, text]) => OUTSIDE.test(text)).map(([k]) => k);
   // 24 and 27: the finished videos are in the client's Drive (the owner's decision of 7.10.2026). 35: the archive.
-  assert.deepEqual(hits, ['p24.title', 'p24.folder', 'p24.drive', 'p27.sla', 'p27.final', 'p35.drive']);
+  // (29ב, protocol v10: one of the 13 points of Ilai's final check is that the videos are in the client's Drive.)
+  assert.deepEqual(hits, ['p24.title', 'p24.folder', 'p24.drive', 'p27.sla', 'p27.final', 'p29b.c.vfiles', 'p35.drive']);
   assert.ok(!protocolTexts().some(([, text]) => /Google Docs|Excel|גיליון|בירוק/i.test(text)));
   const text = (key) => protocolTexts().find(([k]) => k === key)[1];
   assert.match(text('p09.file'), /גאנט התוכן של הלקוח במערכת/);
@@ -228,8 +229,8 @@ test('the bar: a new deal is two rows, the group and the meeting date at 5 minut
 });
 
 test('p24.folder is Ofir\'s item as before (the videos are in Drive), and the version did not move', () => {
-  assert.equal(PROTOCOL_VERSION, 9); // 9 since 10.10.2026 (docs/ops.md, section 57); this feature itself did not move it
-  assert.equal(LATEST, 9);
+  assert.equal(PROTOCOL_VERSION, 10); // 10 since 10.10.2026 (docs/ops.md, section 58); this feature itself did not move it
+  assert.equal(LATEST, 10);
   const c = { id: 'c', status: 'active', editor: 'nadia', shoot_type: 'dms', rounds: [{ n: 2, editor: 'yariv', shoot_at: '2026-11-01T10:00:00+02:00', start_at: '2026-10-20T10:00:00+03:00' }], deal_at: '2026-09-01T09:00:00+03:00', char_at: '2026-09-02T10:00:00+03:00', shoot_at: '2026-10-01T10:00:00+03:00' };
   const items = applicableProcesses(c).flatMap((p) => p.items);
   assert.deepEqual(items.filter((i) => /p24\./.test(i.key)).map((i) => i.key), ['p24.folder', 'p24.drive', 'p24.dropbox', 'p24.notify', 'r2.p24.folder', 'r2.p24.drive', 'r2.p24.dropbox', 'r2.p24.notify']);

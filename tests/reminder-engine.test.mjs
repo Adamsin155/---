@@ -427,7 +427,7 @@ test('photographer briefing (16): 17:00 Lior and Eli; 20:00 Lior if Eli did not 
   mark(w, c, 'p16.brief', IL(2026, 10, 14, 17, 20), JSON.stringify({ label: 'כונן 3', notes: '' }));
   none(due(w, IL(2026, 10, 14, 17, 20)), 'briefing', 'lior');
   const eli = one(due(w, IL(2026, 10, 14, 17, 20)), 'briefing', 'eli', 'eli');
-  assert.equal(eli.body, 'ההגעה שלך ב־10:00, שעה לפני הצילום (11:00) · רחוב הים 3 · כונן 3. ללחוץ "קיבלתי".');
+  assert.equal(eli.body, 'ההגעה שלך ב־10:00, שעה לפני הצילום (11:00) · רחוב הים 3 · כונן 3. ללחוץ "קיבלתי", לקרוא את התסריטים ולסמן "קראתי את התסריטים".');
   assert.doesNotMatch(eli.body, /סוללות/); // the gear list is on Eli's page only
   assert.equal(eli.url, `shoot.html?id=${c.id}`);
   // Sent earlier in the day: it reaches Eli at 17:00.
@@ -436,8 +436,15 @@ test('photographer briefing (16): 17:00 Lior and Eli; 20:00 Lior if Eli did not 
   assert.equal(hhmm(one(due(w, IL(2026, 10, 14, 17)), 'briefing', 'eli').at), '14.10 17:00');
   const r20 = one(due(w, IL(2026, 10, 14, 20)), 'briefing', '2000', 'lior');
   assert.equal(r20.shoot, true);
+  assert.equal(r20.title, `אלי עוד לא אישר את התדריך: ${c.name}`);
+  // He pressed "קיבלתי" and did not tick "קראתי את התסריטים" (protocol v10): the same line says so.
   mark(w, c, 'p16.photographer', IL(2026, 10, 14, 17, 30));
+  const read = one(due(w, IL(2026, 10, 14, 20)), 'briefing', '2000', 'lior');
+  assert.deepEqual([read.title, read.body], [`אלי עוד לא סימן שקרא את התסריטים: ${c.name}`, 'אלי אישר את התדריך, ועוד לא סימן "קראתי את התסריטים".']);
+  mark(w, c, 'p16.read', IL(2026, 10, 14, 18));
   none(due(w, IL(2026, 10, 14, 20)), 'briefing', '2000');
+  // No ring of its own to Eli about it: only the briefing's.
+  assert.deepEqual(due(w, IL(2026, 10, 14, 20)).filter((r) => r.person === 'eli' && r.rule === 'briefing').map((r) => r.step), ['eli']);
 });
 
 test('shoot day: Eli 2 hours and 15 minutes before; Lior if Eli did not arrive; time management; the end', () => {

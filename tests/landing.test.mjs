@@ -269,12 +269,15 @@ test('activation never moves the contract: its end, the package year, the renewa
     assert.deepEqual([cs.month, cs.renewal], [ps.month, ps.renewal]);
     assert.deepEqual(renewalsDue([c], new Date('2027-03-01T08:00:00Z')).map((x) => x.daysLeft), renewalsDue([plain], new Date('2027-03-01T08:00:00Z')).map((x) => x.daysLeft));
   }
-  // Process 34 is due 60 days before the real end, activated or not, and is quiet only in landing.
+  // Process 34 opens 60 days before the real end, activated or not, and is quiet only in landing.
+  // (Protocol v10: it is due 14 days after it opens, and late only after that.)
   const p34 = (c, now) => clientState(c, checks, now).states.find((s) => s.proc.id === 'p34');
   const day = new Date('2027-03-20T08:00:00Z');
   assert.equal(+p34(active, day).dueAt, +p34(plain, day).dueAt);
-  assert.equal(dayKeyIL(p34(active, day).dueAt), dayKeyIL(renewalDay(plain.contract_end)));
-  assert.equal(p34(active, day).status, 'overdue');
+  assert.equal(dayKeyIL(p34(active, day).startAt), dayKeyIL(renewalDay(plain.contract_end)));
+  assert.deepEqual([dayKeyIL(renewalDay(plain.contract_end)), dayKeyIL(p34(active, day).dueAt)], ['2027-03-11', '2027-03-25']);
+  assert.equal(p34(active, day).status, 'open');
+  assert.equal(p34(active, new Date('2027-03-26T08:00:00Z')).status, 'overdue');
   assert.equal(p34(quiet, day).dueAt, null);
   // A client activated inside the renewal window is told the truth: the renewal is late.
   const lateEnd = base({ contract_end: '2026-11-15', landing: false, landed_at: '2026-10-20T08:00:00Z' });

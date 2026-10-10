@@ -232,10 +232,13 @@ test('open items per person follow owners and readiness', () => {
   assert.ok(!openItemsFor('ofir', c, {}, s, now).some((x) => x.item.key === 'p04.address'));
 });
 
-test('renewal talk is late once the 60-day mark passes', () => {
+test('renewal talk opens at the 60-day mark and is late 14 days after it (protocol v10)', () => {
   const c = { ...base, contract_end: '2026-12-31' };
-  const s = clientState(c, {}, at('2026-11-15T10:00:00+02:00'));
-  assert.equal(s.states.find((x) => x.proc.id === 'p34').status, 'overdue');
+  const p34 = (now) => clientState(c, {}, at(now)).states.find((x) => x.proc.id === 'p34');
+  // 60 days before the end is Sunday 1.11; until v10 that same evening was the deadline.
+  assert.deepEqual([p34('2026-11-02T10:00:00+02:00').ready, p34('2026-11-02T10:00:00+02:00').status], [true, 'open']);
+  assert.equal(p34('2026-11-15T10:00:00+02:00').status, 'today');
+  assert.equal(p34('2026-11-16T10:00:00+02:00').status, 'overdue');
 });
 
 test('a not-relevant weekly call is not a call', () => {

@@ -48,7 +48,7 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, RENEWAL_DAYS } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER } from './protocol.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
   businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel, clientState, blockers,
@@ -302,8 +302,6 @@ export const LATE_GRACE_MINUTES = 15;
 // A late process whose own ladder already rings one of the watchers at the deadline
 // (8ב: Ofir, `highlightsUpload`): `late` does not tell that watcher again; the other still hears.
 export const LATE_RUNG = { p08b: 'ofir' };
-// The hour of the ring that tells Lior a renewal (34) opened (v10).
-export const RENEWAL_RING_AT = '10:00';
 
 export const RULES = [
   // 1–3: a new deal. Irit at once; again at 5 office minutes if the group (with its
@@ -410,20 +408,16 @@ export const RULES = [
   {
     id: 'access', event: 'גישות התקבלו (5→6)', procs: ['p05', 'p06'],
     instances(env) {
-      return casesOf(env, 'p06', (i) => !i.pre && !i.s.complete && !i.s.wait && !!i.doneAt('p05.access') && (!i.resolved('p06.verified') || openOf(i, 'ilai').length > 0))
-        .map((i) => ({ ...i, id: 'p06', unchecked: !i.resolved('p06.verified'), left: openOf(i, 'ilai').length, anchors: { event: i.doneAt('p05.access') } }));
+      return casesOf(env, 'p06', (i) => !i.pre && !i.resolved('p06.verified') && !i.s.wait && !!i.doneAt('p05.access'))
+        .map((i) => ({ ...i, id: 'p06', anchors: { event: i.doneAt('p05.access') } }));
     },
     steps: [
-      { id: 'now', to: 'ilai', level: 'ring', exempt: 'clock', when: (i) => i.unchecked, title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
+      { id: 'now', to: 'ilai', level: 'ring', exempt: 'clock', title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
       // v10: Ilai hears at his own deadline too (the deadline of 6: these same 30 office minutes).
       // Until now only Lior was rung then, and Ilai heard nothing until the next morning's
       // reminder (6 is in OWN_LATE: no "באיחור" of `lateOwn`). Nothing is added for Lior.
-      {
-        id: 'ilai30', officeMinutes: 30, to: 'ilai', level: 'ring', exempt: 'clock', overdue: true, when: (i) => i.left > 0,
-        title: (i) => `באיחור: ${i.unchecked ? 'לבדוק את הגישות של' : 'לסיים את סידור הרשתות של'} ${i.name}`,
-        body: (i) => (i.unchecked ? `עברו 30 דקות מקבלת הגישות. לבדוק אותן מהכספת ולסמן. ${personName('lior')} קיבל הודעה.` : `עברו 30 דקות מקבלת הגישות. ${i.left === 1 ? 'נשאר פריט אחד' : `נשארו ${i.left} פריטים`} בתהליך 6.`),
-      },
-      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', when: (i) => i.unchecked, title: (i) => `גישות לא נבדקו: ${i.name}`, body: () => 'עברו 30 דקות מקבלת הגישות ועילאי עוד לא סימן שבדק.' },
+      { id: 'ilai30', officeMinutes: 30, to: 'ilai', level: 'ring', exempt: 'clock', overdue: true, title: (i) => `באיחור: לבדוק את הגישות של ${i.name}`, body: () => `עברו 30 דקות מקבלת הגישות. לבדוק אותן מהכספת ולסמן. ${personName('lior')} קיבל הודעה.` },
+      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', title: (i) => `גישות לא נבדקו: ${i.name}`, body: () => 'עברו 30 דקות מקבלת הגישות ועילאי עוד לא סימן שבדק.' },
     ],
   },
 
@@ -1007,11 +1001,11 @@ export const RULES = [
     id: 'renewal', event: 'חידוש (34)', procs: ['p34'],
     instances(env) {
       return casesOf(env, 'p34', (i) => i.client.status === 'active' && !!parseDate(i.client.contract_end) && !i.s.complete && !i.resolved('p34.talk'))
-        // v10: a ring to Lior the morning it opens, with its deadline (RENEWAL_DAYS after the opening).
-        .map((i) => ({ ...i, id: `p34@${i.client.contract_end}`, anchors: { event: parseDate(i.client.contract_end), open: i.s.startAt ? nextSendMoment(atIL(i.s.startAt, RENEWAL_RING_AT)) : null } }));
+        .map((i) => ({ ...i, id: `p34@${i.client.contract_end}`, anchors: { event: parseDate(i.client.contract_end) } }));
     },
+    // (The ring to Lior on the day it opens is `renewalList.start` in app/year-rules.js. Since protocol
+    // v10 the process is due RENEWAL_DAYS after that day, and from then on it is a late item like any other.)
     steps: [
-      { id: 'open', from: 'open', to: 'lior', level: 'ring', title: (i) => `חידוש חוזה נפתח: ${i.name}`, body: (i, env) => `החוזה מסתיים ב־${dayText(i.anchors.event)}. לבדוק מצב, תוצאות ושביעות רצון ולהתחיל לדבר עם הלקוח על ההמשך${i.s.dueAt ? `, עד ${whenText(i.s.dueAt, env.now)}` : ''}.` },
       ...[75, 60, 45].flatMap((n) => ['lior', 'irit'].map((p) => ({
         id: `d${n}`, days: -n, at: '08:30', to: p, level: 'digest', title: (i) => `חידוש בעוד ${n} יום: ${i.name}`, body: () => '',
       }))),

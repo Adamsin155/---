@@ -433,8 +433,11 @@ test('the client\'s turn: work that was sent and waits for the client is nobody\
   assert.equal(fixTaskOf(w.tasks, c.id, 'p27.approved').id, 'fix1');
   assert.equal(fixTaskOf(w.tasks, c.id, 'p07.approved'), null);
   assert.equal(fixNote(w.tasks[0], () => 'נדיה'), 'הלקוח כתב: ״סרטון 3: להחליף מוזיקה״. נדיה מתקן/ת. מסמנים כאן רק כשהלקוח מאשר אחרי התיקון.');
-  // The fix has its own due day: the old deadline of 27 is not rung on the editor meanwhile…
-  const p27b = lateOf(w, IL(2026, 10, 20, 14)).find((x) => x.num === '27');
+  // The fix has its own due day. Since protocol v10 it is also the deadline of 27 itself, counted
+  // from the moment the notes were recorded (10:00, so that day's close): 27 is not late meanwhile…
+  assert.equal(lateOf(w, IL(2026, 10, 20, 14)).find((x) => x.num === '27'), undefined);
+  // …and past it, the old deadline is not rung on the editor: the fix's task carries the lateness.
+  const p27b = lateOf(w, IL(2026, 10, 21, 9)).find((x) => x.num === '27');
   assert.deepEqual([p27b.clientTurn, p27b.holders, p27b.fixing], [false, [], true]);
   // …and when the fix is late (Wednesday 09:15), Nadia rings and Irit, who waits for it, is told.
   const wed = due(w, IL(2026, 10, 21, 9, 15), at10.map((r) => ({ key: r.key }))).filter((r) => r.rule === 'lateOwn');
