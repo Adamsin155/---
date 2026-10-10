@@ -7,6 +7,7 @@
 import { lateItems, chainOf, lateWords, dueAtCloseToday } from './late-chain.js';
 import { PEOPLE } from './protocol.js';
 import { clientLabel, inLanding, pauseOf } from './protocol-logic.js';
+import { ofirMeetings } from './office-marks.js';
 import { dayKeyIL, dayFromKeyIL, endOfDayIL } from './tz.js';
 
 // The numbers: each is a one-line change.
@@ -27,9 +28,11 @@ const count = (n, one, many) => (n === 1 ? one : `${n} ${many}`);
 // what was due today and is still open (a deadline at the end of the day, a task for
 // today). An item two people hold counts for each of them and once in the totals.
 // `waiting`: late on paper, but it is the client's turn; counted for nobody.
-export function daySummary({ clients = [], checksOf = () => ({}), stateOf, tasks = [], personOf = () => null, now = new Date() }) {
+export function daySummary({ clients = [], checksOf = () => ({}), stateOf, tasks = [], personOf = () => null, now = new Date(), meetings = null }) {
   const live = clients.filter((c) => !inLanding(c) && (c.status === 'active' || c.status === 'ending'));
-  const all = lateItems({ clients: live, checksOf, stateOf, tasks, personOf, now });
+  // Ofir's meetings (his fast ladder does not count them): from the same clients, so the
+  // page and the push agree.
+  const all = lateItems({ clients: live, checksOf, stateOf, tasks, personOf, now, meetings: meetings || ofirMeetings(clients.filter((c) => c.status === 'active' || c.status === 'ending'), checksOf) });
   const items = [];
   const waiting = [];
   for (const x of all) {

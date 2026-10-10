@@ -74,6 +74,9 @@ import { accessGapQuestion } from './access-logic.js';
 import { canManageAccessLinks } from './access-data.js';
 import { PARTIES } from './shoot-prep.js';
 import { loadFlowExtra } from './mine-flow-data.js';
+import { setOfirMeetings, fastCaseOf, ladderAt, MEETING_WORDS } from './fast-ladder.js';
+import { ofirMeetings } from './office-marks.js';
+import { loadOfirMeetings } from './office-data.js';
 
 let clients = [];
 let checks = {};
@@ -201,6 +204,7 @@ async function load() {
     lastLog = new Map();
     for (const r of lg.value) if (!lastLog.has(r.client_id) || r.at > lastLog.get(r.client_id)) lastLog.set(r.client_id, r.at);
   }
+  if (scope !== 'office') setOfirMeetings(await loadOfirMeetings(new Date(now.getTime() - 864e5).toISOString()).catch(() => null));
   if (clients.some((c) => c.landing === true)) intake = await loadIntake();
   flowExtra = await flowAsked;
   states.clear();
@@ -899,6 +903,14 @@ function viewToggle() {
 }
 // The deadline in words: "באיחור 3 ימי עסקים", "היום עד 14:00", "מחר", "עד יום ה׳, 22.10".
 function whenWords(g, now = new Date()) {
+  // Ofir's fast ladder while he is in a characterization meeting (protocol v10): the count waits.
+  if (g.proc && !g.task && !g.late) {
+    const st = stateOf(g.client);
+    const s = st.states.find((x) => x.proc.id === g.proc.id);
+    const f = s ? fastCaseOf(g.client, s, st.states, checks[g.client.id] || {}) : null;
+    const t = f ? ladderAt(f, now) : null;
+    if (t?.meeting && t.phase !== 'told') return MEETING_WORDS;
+  }
   // "באיחור" is said only of what counts as late (section 50): a deadline that passed while
   // the client has the work is the client's turn, and one at today's close is still today's.
   if (g.status === 'overdue' && g.dueAt) return g.late ? `באיחור ${lateBy(g.dueAt, now)}` : g.turn ? 'מחכה לתשובת הלקוח' : 'היעד עבר';
@@ -1581,6 +1593,10 @@ let clockSeen = new Map(); // clock id -> 'running' | 'expired' at the last seco
 const clockPerson = () => me || (scope === 'office' && !viewerError ? null : undefined);
 function rebuildClocks(now = new Date()) {
   const person = clockPerson();
+  // Ofir's characterization meetings: his fast ladder waits for their end (protocol v10).
+  // The office reads them from the clients it sees; whoever sees only their own clients
+  // keeps what the server answered at the last load (times only).
+  if (scope === 'office' && !viewerError) setOfirMeetings(ofirMeetings(clients.filter((c) => c.status === 'active' || c.status === 'ending'), (c) => checks[c.id] || {}));
   clocks = person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf, tasks });
 }
 function paintNowBar() {

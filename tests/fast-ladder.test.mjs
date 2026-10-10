@@ -95,8 +95,9 @@ const closeDay = (w, c, at) => marks(w, c, itemsOf('p19'), at);
 
 // ── 1. The data and the window ──────────────────────────────────────────────
 test('version 9 as data: the numbers and the window in one place; the graphics and the assignment are Ofir\'s alone', () => {
-  assert.equal(PROTOCOL_VERSION, 9);
-  assert.deepEqual(FAST_LADDER, { who: 'ofir', manager: 'lior', window: { from: '08:30', until: '21:00' }, review: { minutes: 10, more: 5, every: 10 }, assign: { minutes: 10, more: 5, every: 10 } });
+  assert.ok(PROTOCOL_VERSION >= 9);
+  // (`meeting`: version 10, the count waits while Ofir is in a characterization meeting; tests/audit-gaps-v10.test.mjs.)
+  assert.deepEqual(FAST_LADDER, { who: 'ofir', manager: 'lior', window: { from: '08:30', until: '21:00' }, review: { minutes: 10, more: 5, every: 10 }, assign: { minutes: 10, more: 5, every: 10 }, meeting: { pause: true, capHours: 2 } });
   const byId = Object.fromEntries(PROCESSES.map((p) => [p.id, p]));
   const own = (id, key) => { const p = byId[id]; return p.items.find((i) => i.key === key).owners || p.owners; };
   // 7: Ilai makes; the seven checks and the approval are Ofir's; the sending and the client's answer are Irit's.

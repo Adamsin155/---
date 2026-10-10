@@ -57,7 +57,7 @@ import {
 import { DEAL_MINUTES, contractTitle, dealSummary, dealUrl } from './deal-logic.js';
 import { stationChange } from './messages-logic.js';
 // Protocol v9: Ofir's fast ladder for the graphics and the editor's assignment.
-import { fastCases, ladderAt, fastWaited, fastOpen } from './fast-ladder.js';
+import { fastCases, fastCaseOf, ladderAt, fastWaited, fastOpen, pauseNow } from './fast-ladder.js';
 import { shootPrep, reportedOf, TELL, requestOf, followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
 import { BLOCKING_TITLE } from './characterization.js';
 import { ANSWER_CLOCKS, fixAnswered } from './clocks.js';
@@ -1394,7 +1394,8 @@ export const RULES = [
           const chain = allLate(env).find((x) => x.cid === c.id && x.procId === s.proc.id);
           if (chain && (chain.clientTurn || (chain.fixing && !chain.holders.length))) continue;
           // On Ofir's fast ladder (protocol v9): Lior is told by the ladder itself, once, at its own moment.
-          if (chain?.fast) continue;
+          // (Also while its minutes wait for the end of his meeting, v10: then it is not in the late list at all.)
+          if (chain?.fast || fastCaseOf(c, s, env.stateOf(c).states, i.checks, env.ofirMeetings || [])) continue;
           const owners = s.claim ? [s.claim.person] : s.proc.owners;
           out.push({ ...i, id: `${s.proc.id}@${s.dueAt.toISOString()}`, owners, anchors: { event: s.dueAt } });
         }
@@ -2180,7 +2181,7 @@ export const VOID_WHEN_GONE = new Set(RULES.filter((r) => r.voidWhenGone).map((r
 // is rung "באיחור" in the middle of the shoot day about the shoot day.
 // The sending hours, erev chag, Lior's shoot day and the bursts apply as to every rule,
 // and so does "לדחות עד…" on a process (its reminders wait until that moment).
-function allLate(env) { return (env.lateAll ||= lateItems({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: env.tasks, personOf: env.personOf, now: env.now })); }
+function allLate(env) { return (env.lateAll ||= lateItems({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, tasks: env.tasks, personOf: env.personOf, now: env.now, meetings: env.ofirMeetings || [] })); }
 const lateOf = (env) => (env.lateItems ||= allLate(env)
   .filter((x) => !x.clientTurn && !x.gap && !x.ownLadder && x.holders.length)
   .map((x) => ({ ...x, rung: x.kind === 'proc' && (OWN_LATE.has(baseId(x.procId)) || !!LATE_RUNG[baseId(x.procId)]) })));
@@ -2210,7 +2211,7 @@ function heldAt(env, slot) {
   const checksAt = (c) => { if (!then.has(c.id)) then.set(c.id, Object.fromEntries(Object.entries(env.checksOf(c)).filter(([, v]) => !v.at || new Date(v.at) <= slot.at))); return then.get(c.id); };
   const states = new Map();
   const items = lateItems({
-    clients: env.clients.filter((c) => ids.has(c.id)), checksOf: checksAt, tasks: env.tasks.filter((t) => !t.created_at || new Date(t.created_at) <= slot.at), personOf: env.personOf, now: slot.at,
+    clients: env.clients.filter((c) => ids.has(c.id)), checksOf: checksAt, tasks: env.tasks.filter((t) => !t.created_at || new Date(t.created_at) <= slot.at), personOf: env.personOf, now: slot.at, meetings: env.ofirMeetings || [],
     stateOf: (c) => { if (!states.has(c.id)) states.set(c.id, clientState(c, checksAt(c), slot.at)); return states.get(c.id); },
   });
   const by = new Map(items.map((x) => [lateKey(x), new Set(x.holders)]));
@@ -2318,7 +2319,7 @@ const fastWhat = (i) => (i.f.kind === 'assign' ? i.f.what : `${i.f.what}${i.f.ro
 const FAST_RULE = {
   id: 'fast', event: 'הסולם המהיר של אופיר: בדיקת הגרפיקות (7, 23) ושיוך עורך (22א)', procs: ['p07', 'p23', 'p22a'],
   instances(env) {
-    return fastCases({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf }).map((f) => {
+    return fastCases({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, meetings: env.ofirMeetings || [] }).map((f) => {
       const i = procCase(env, f.client, f.state);
       const at = ladderAt(f, env.now);
       // The telling of the manager is not lost to a tick that was missed the evening before.
@@ -2332,7 +2333,9 @@ const FAST_RULE = {
     const base = { level: 'ring', exempt: 'clock', ownHours: true, noFold: true, when: () => fastOpen(env.now) };
     const waited = `${fastWaited(i.f, env.now)} דקות`;
     return [
-      { ...base, id: 'now', to: who, title: () => w.now(i), body: () => w.nowBody(i) },
+      // The work reached him while he sits in a characterization meeting (v10): the ring
+      // goes out all the same, and says that the minutes start when the meeting ends.
+      { ...base, id: 'now', to: who, title: () => w.now(i), body: () => (pauseNow(i.f.pauses, i.f.startAt) ? `הספירה ממתינה לסוף פגישת האפיון: ${i.f.spec.minutes} דקות מרגע ״האפיון הסתיים״ (לכל המאוחר עד ${clockOf(i.f.dueAt)}).` : w.nowBody(i)) },
       { ...base, id: 'late', from: 'due', to: who, overdue: true, title: () => w.late(i), body: () => `${fastWhat(i)}. היעד היה ${clockOf(i.f.dueAt)}. אם זה לא נסגר עד ${clockOf(i.f.tellAt)}, ${personName(FAST_LADDER.manager)} מקבל הודעה.` },
       {
         ...base, id: FAST_LADDER.manager, from: 'tell', overdue: true,

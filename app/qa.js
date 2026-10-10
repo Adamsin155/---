@@ -23,7 +23,7 @@ import {
   swapClock, swapReasonNeeded, swapNote, suggestEditor, SUGGESTED_TAG,
 } from './qa-logic.js';
 import { autoReasonOf, AUTO_DRIVE_NOTE } from './auto-assign.js';
-import { ladderWords } from './fast-ladder.js';
+import { ladderWords, setOfirMeetings } from './fast-ladder.js';
 import {
   QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, REASON_KEY, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
 } from './office-marks.js';
@@ -104,6 +104,7 @@ function render() {
   const now = new Date();
   states.clear();
   const ms = meetings();
+  setOfirMeetings(ms); // the fast ladder waits for the end of his meeting (protocol v10)
   const queue = qaQueue({ clients, stateOf, checks, meetings: ms, now });
   const fixing = qaFixing({ clients, stateOf, checks });
   const chars = charsToday({ clients, stateOf, now });
@@ -147,7 +148,7 @@ function renderBanners(ms, now) {
 function qaCard(x, ms, now) {
   const k = QA_KINDS[x.kind];
   const pct = Math.min(100, Math.round((x.waited / x.target) * 100));
-  // The graphics are on Ofir's fast ladder (protocol v9): its own minutes, and no stop for a meeting.
+  // The graphics are on Ofir's fast ladder (protocol v9): its own minutes, and its own words while he is in a meeting (v10).
   const inMeeting = !x.fast && !!meetingNow(ms, now);
   return h('li', { class: `of-card${x.late ? ' is-late' : ''}`, 'data-key': x.key },
     h('div', { class: 'of-head' },

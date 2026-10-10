@@ -81,6 +81,10 @@ export const FAST_LADDER = {
   window: { from: '08:30', until: '21:00' },
   review: { minutes: 10, more: 5, every: 10 }, // the graphics: the first 9 (7) and the rest (23)
   assign: { minutes: 10, more: 5, every: 10 }, // the editor's assignment (22א)
+  // v10: while Ofir is the characterizer of a meeting in progress (from its time until
+  // "האפיון הסתיים", at most `capHours`, the window the protocol gives a meeting) neither
+  // ladder counts. The first ring still goes out; the minutes start when the meeting ends.
+  meeting: { pause: true, capHours: 2 },
 };
 
 // People named in the protocol. `key` is stored in the database (staff.person).

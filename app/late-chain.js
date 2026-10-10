@@ -122,7 +122,11 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
 // final versions waiting for "קיבלתי", and `fast`: Ofir's fast ladder of protocol v9);
 // `gap`: process 3 with no meeting date (its own daily ring, section 47). All of them
 // still count as late in the table.
-export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks = [], personOf = () => null, now = new Date(), grace = LATE_LADDER.graceMinutes }) {
+// `meetings`: Ofir's characterization meetings (ofirMeetings in app/office-marks.js): his
+// fast ladder does not count them, so work that reached him while he sits with a client
+// is not late until the meeting ended and his minutes passed (protocol v10). Left out, it
+// is what the page knows (setOfirMeetings in app/fast-ladder.js).
+export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks = [], personOf = () => null, now = new Date(), grace = LATE_LADDER.graceMinutes, meetings = undefined }) {
   const out = [];
   const live = new Map();
   for (const c of clients) {
@@ -138,13 +142,17 @@ export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks 
       let chain = chainOf(s, c, checks, st, tasks, now);
       // On the fast ladder (app/fast-ladder.js) it is that one person's lateness, and the
       // ladder's own rings are the only ones: `fast`, and `ownLadder` below.
-      const fast = !chain.clientTurn && !!fastCaseOf(c, s, st, checks);
+      const fc = chain.clientTurn ? null : (meetings === undefined ? fastCaseOf(c, s, st, checks) : fastCaseOf(c, s, st, checks, meetings));
+      const fast = !!fc;
+      // His minutes did not run out yet (they wait for the end of his meeting): not late.
+      if (fc && now < fc.dueAt) continue;
       if (fast) chain = { ...chain, holders: [FAST_LADDER.who], waiters: real([...chain.holders, ...chain.waiters]).filter((p) => p !== FAST_LADDER.who) };
       const sn = checks[`${s.proc.keyBase || s.proc.id}.snooze`];
+      const dueAt = fc ? fc.dueAt : s.dueAt;
       out.push({
         snooze: sn?.state === 'done' ? parseDate(sn.note) : null,
         kind: 'proc', id: `${s.proc.id}@${s.dueAt.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), what: `${s.proc.num} · ${s.proc.title}`, num: s.proc.num,
-        dueAt: s.dueAt, lateAt: addWorkingMinutes(s.dueAt, grace), ...chain,
+        dueAt, lateAt: addWorkingMinutes(dueAt, grace), ...chain,
         // Only process 3's missing meeting date has a daily ring of its own (section 47). 11
         // without a shoot date (protocol v8) is a late item like any other: it is on the ladder.
         ownLadder: fast || (b === 'p04' && done('p04.ended')) || (b === 'p27' && done('p27.final')), fast, gap: !!s.gap && b === 'p03',

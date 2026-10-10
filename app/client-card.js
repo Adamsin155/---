@@ -34,7 +34,7 @@ import { shootDayHint, confirmShootDay } from './availability-ui.js';
 // Stage 3, part 2: Ofir's returns for fixes, the office's marks in the history, "התחלתי".
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
-import { fastCaseOf } from './fast-ladder.js';
+import { fastCaseOf, setOfirMeetings } from './fast-ladder.js';
 import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
 import { dayBeforeText, readFollowup, followupText } from './shoot-prep.js';
 import { checkMark } from './mark-guards.js';
@@ -157,6 +157,7 @@ async function load() {
       own() ? null : loadDeliverableFiles(id),
     ]);
     statusNote = statusNotes?.[0] || null;
+    setOfirMeetings(ofirMeetings); // the fast ladder waits for the end of his meeting (protocol v10)
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
