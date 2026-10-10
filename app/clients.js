@@ -389,7 +389,7 @@ const fixLine = (e) => { const t = fixOf(e); return t ? h('p', { class: 'hint fi
 function fixAsk(e) {
   if (e.task || !fixSpecOf(e.item.key) || !mayRecordFix({ me, scope, error: viewerError })) return null;
   if (!awaitsClient(e.item.key, checks[e.client.id] || {}, tasks, e.client.id)) return null;
-  const id = `fx-${e.client.id}-${e.item.key}`.replace(/[^w-]/g, '_');
+  const id = `fx-${e.client.id}-${e.item.key}`.replace(/[^\w-]/g, '_');
   return h('p', { class: 'fix-ask-line' }, fixButton({ id, onclick: () => openFixRequest({ client: e.client, key: e.item.key, name: clientLabel(e.client), focusId: id, onDone: () => load() }) }));
 }
 // The Zoom took place (13): were fixes left? "נשארו תיקונים" opens the item p13.fixes with its
@@ -400,7 +400,7 @@ function zoomFixesLine(g) {
   const pre = roundPre(g.proc);
   const cs = checks[g.client.id] || {};
   if (cs[`${pre}p13.zoom`]?.state !== 'done' || cs[`${pre}p13.left`] || ['done', 'na'].includes(cs[`${pre}p13.fixes`]?.state)) return null;
-  const id = `zf-${g.key}`.replace(/[^w-]/g, '_');
+  const id = `zf-${g.key}`.replace(/[^\w-]/g, '_');
   const answer = async (left, btn) => {
     btn.disabled = true;
     const key = left ? `${pre}p13.left` : `${pre}p13.fixes`;

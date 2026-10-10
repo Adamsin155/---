@@ -84,7 +84,7 @@ export function pauseNow(pauses, now = new Date()) {
 }
 export const MEETING_WORDS = 'ממתין לסוף פגישת האפיון';
 
-const baseId =(id) => String(id).replace(/^r\d+-/, '');
+const baseId = (id) => String(id).replace(/^r\d+-/, '');
 const preOf = (proc) => { const kb = proc.keyBase || proc.id; return kb.slice(0, kb.length - baseId(proc.id).length); };
 const live = (c) => c?.status === 'active' || c?.status === 'ending';
 const settled = (c) => !!c && (c.state === 'done' || c.state === 'na');

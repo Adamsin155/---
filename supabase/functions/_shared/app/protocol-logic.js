@@ -666,7 +666,7 @@ function withoutPassed(procs, checks) {
 // the item is required like any other; 'na' ("אין תיקונים") or no mark leave it optional.
 function withNeeded(procs, checks) {
   return procs.map((p) => {
-    const round = /^(rd+.)/.exec(p.keyBase || '')?.[1] || '';
+    const round = /^(r\d+\.)/.exec(p.keyBase || '')?.[1] || '';
     const needed = (i) => !!i.neededIf && i.optional && checks[`${round}${i.neededIf}`]?.state === 'done';
     if (!p.items.some(needed)) return p;
     return { ...p, items: p.items.map((i) => (needed(i) ? { ...i, optional: false, needed: true } : i)) };
