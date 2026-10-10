@@ -10,6 +10,9 @@ import {
   monthBounds, shiftMonth, packageName, monthItemLabel,
 } from './engine.js';
 import * as db from './data.js';
+// The look (docs/ops.md, section 56): the shared kit's pieces, and the sign-in card.
+import { iconSquare, sectionHead, emptyState, emptyRow } from '../kit.js';
+import { door, brandRow, floatField, doorButton, statusLine } from './door.js';
 
 const $ = (id) => document.getElementById(id);
 const state = { session: null, owner: false, month: null, route: 'month', versions: [], data: null, report: null, lastLocked: null };
@@ -62,12 +65,32 @@ function parsePct(v) {
   return bp <= 10000 ? bp : NaN;
 }
 
+// ---------- the look: small pieces of the kit, with this app's classes ----------
+
+// The head of a block: the icon square, the title, and what sits at its far end.
+const head = (name, tone, title, { id = null, action = null } = {}) => sectionHead({ icon: name, tone, title, id, action });
+// A notice strip of the kit around words that already exist (`kind`: 'warn', 'late', 'info').
+// An error and a warning differ by their icon too, not only by their colour.
+const STRIP = { warn: ['info', 'orange'], late: ['alert', 'pink'], lock: ['lock', 'orange'], info: ['info', 'navy'] };
+const strip = (tag, kind, cls, ...words) => h(tag, { class: `k-notice k-notice-${kind === 'lock' ? 'warn' : kind}${cls ? ` ${cls}` : ''}` },
+  iconSquare(STRIP[kind][0], STRIP[kind][1], { size: 'sm' }), h('span', { class: 'k-notice-t' }, words));
+// A key figure: a tile with its icon square, the label, and the number right under it.
+// A long number takes the whole row on a phone (`is-wide`), so it never leaves its tile.
+function stat(name, tone, label, value, sub, cls = '') {
+  const long = String(value?.textContent ?? value ?? '').length >= 14;
+  return h('div', { class: `p-stat${cls ? ` ${cls}` : ''}${long ? ' is-wide' : ''}` }, iconSquare(name, tone),
+    h('div', { class: 'kpi' }, h('div', { class: 'kpi-k' }, label), h('div', { class: 'kpi-v' }, value), sub ? h('div', { class: 'kpi-s' }, sub) : null));
+}
+
 let toastTimer;
+// The message stands in the browser's top layer (a popover), so it is seen over an open dialog too.
 function toast(msg) {
-  $('toast').textContent = msg;
-  $('toast').hidden = false;
+  const t = $('toast');
+  t.textContent = msg;
+  t.hidden = false;
+  try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch { /* an older browser: a fixed box */ }
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { $('toast').hidden = true; }, 3600);
+  toastTimer = setTimeout(() => { try { t.hidePopover(); } catch { /* not a popover */ } t.hidden = true; }, 3600);
 }
 const setState = (msg) => { $('state').textContent = msg || ''; };
 
@@ -144,6 +167,58 @@ function go(route, month = state.month) {
 }
 window.addEventListener('hashchange', () => { route(); });
 
+// ---------- the menu ----------
+// The markup and the class names of the staff shell (app/shell.js; the styles are
+// shell.css, unchanged): one list on a wide screen with the new deal under the logo;
+// on a phone a floating bar (החודש, עסקאות, the new deal, תשלומים, "עוד") and the rest
+// of the screens in a sheet above it.
+const WIDE = '(min-width: 1024px)';
+const menu = { side: $('nav'), nav: $('side-nav'), list: $('side-list'), sheet: $('side-sheet'), more: $('side-more'), add: $('nav-add'), rail: $('side-rail') };
+const menuLinks = [...menu.list.querySelectorAll('a[data-route]')];
+function setSheet(open) {
+  menu.sheet.hidden = !open;
+  menu.more.setAttribute('aria-expanded', String(open));
+}
+function markMenu() {
+  menu.more.classList.toggle('is-on', !!menu.sheet.querySelector('[aria-current]'));
+  const cur = menu.list.querySelector('[aria-current]');
+  if (!cur || !matchMedia(WIDE).matches) { menu.rail.style.opacity = '0'; return; }
+  menu.rail.style.opacity = '1';
+  menu.rail.style.transform = `translateY(${Math.round(cur.offsetTop + (cur.offsetHeight - menu.rail.offsetHeight) / 2)}px)`;
+}
+function arrangeMenu() {
+  const wide = matchMedia(WIDE).matches;
+  setSheet(false);
+  const first = menuLinks.filter((a) => !a.hasAttribute('data-more'));
+  if (wide) {
+    menu.side.insertBefore(menu.add, menu.nav);
+    menu.list.replaceChildren(...menuLinks);
+    menu.sheet.replaceChildren();
+  } else {
+    menu.list.replaceChildren(...first.slice(0, 2), menu.add, ...first.slice(2), menu.more);
+    menu.sheet.replaceChildren(...menuLinks.filter((a) => a.hasAttribute('data-more')));
+  }
+  menu.side.style.setProperty('--bar-n', wide ? '1' : String(first.length + 2));
+  markMenu();
+}
+menu.more.addEventListener('click', () => {
+  const open = menu.more.getAttribute('aria-expanded') !== 'true';
+  setSheet(open);
+  if (open) menu.sheet.querySelector('a')?.focus();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.sheet.hidden) { setSheet(false); menu.more.focus(); } });
+document.addEventListener('click', (e) => { if (!menu.sheet.hidden && (!menu.side.contains(e.target) || e.target.closest('a'))) setSheet(false); });
+matchMedia(WIDE).addEventListener('change', arrangeMenu);
+window.addEventListener('resize', markMenu);
+document.fonts?.ready.then(markMenu).catch(() => {});
+// The app's frame: the menu and the room it takes (the body classes of shell.css).
+function frame(on) {
+  $('nav').hidden = !on;
+  $('monthbar').hidden = !on;
+  for (const c of ['signed-in', 'has-shell', 'has-tabbar']) document.body.classList.toggle(c, on);
+  if (on) arrangeMenu();
+}
+
 async function route() {
   const p = parseHash();
   const monthChanged = p.month && p.month !== state.month;
@@ -151,11 +226,13 @@ async function route() {
   if (p.month) state.month = p.month;
   if (!state.month) state.month = today().slice(0, 7);
   if (!state.owner) return;
-  for (const a of document.querySelectorAll('#nav a')) {
+  for (const a of document.querySelectorAll('#nav a[data-route]')) {
     a.href = `#/${a.dataset.route}/${state.month}`;
     if (a.dataset.route === state.route) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   }
+  for (const a of document.querySelectorAll('#nav .side-logo, .topbar .brand')) a.href = `#/month/${state.month}`;
+  markMenu();
   if (INFLUENCER_ROUTES.includes(state.route)) return loadInfluencerTab();
   if (monthChanged || !state.data || state.data.month !== state.month) await loadMonth();
   else render();
@@ -205,7 +282,7 @@ function viewInfluencer(family) {
       fig('סכום', x.amount === null ? h('span', {}, 'לפי יום הקלטה') : money(x.amount)),
       h('span', { class: 'task-act' }, d,
         btn('סימון כבוצע', {
-          class: 'btn btn-sm btn-primary', 'aria-label': `סימון כבוצע · ${x.client} · ${x.label}`,
+          class: 'btn btn-sm k-btn-navy', 'aria-label': `סימון כבוצע · ${x.client} · ${x.label}`,
           onclick: (e) => {
             if (!d.value) { toast('בחרו תאריך ביצוע.'); d.focus(); return; }
             act(e.currentTarget, () => db.markPerformed(x.dealId, x.key, d.value), `סומן כבוצע ב־${dateLabel(d.value)}.`);
@@ -214,12 +291,12 @@ function viewInfluencer(family) {
   };
   return h('div', { class: 'stack cols' },
     h('section', { class: 'kpis', 'aria-label': `סיכום ${name}` },
-      h('div', { class: 'kpi' }, h('div', { class: 'kpi-k' }, `מגיע ל${name} ב${monthLabel(state.month)}`), h('div', { class: 'kpi-v' }, money(r.total))),
-      h('div', { class: 'kpi' }, h('div', { class: 'kpi-k' }, 'ממתין לביצוע'), h('div', { class: 'kpi-v' }, String(r.open.length)), h('div', { class: 'kpi-s' }, 'ימי צילום ופרסומים'))),
+      stat('coins', 'purple', `מגיע ל${name} ב${monthLabel(state.month)}`, money(r.total), null, 'is-hero'),
+      stat('hourglass', 'orange', 'ממתין לביצוע', String(r.open.length), 'ימי צילום ופרסומים')),
     h('p', { class: 'muted small' }, 'המשפיענים מקבלים על יום צילום או פרסום רק אחרי שסומן כבוצע, בחודש של תאריך הביצוע. בעסקה עם כמה ימי צילום הסכום מתחלק ביניהם. המסך הזה נפרד ואינו משנה את מסכי החודש והתשלומים.'),
-    r.errors.length ? h('ul', { class: 'notices' }, r.errors.map((t) => h('li', { class: 'error' }, t))) : null,
+    r.errors.length ? h('ul', { class: 'notices' }, r.errors.map((t) => strip('li', 'late', 'error', t))) : null,
     h('section', { class: 'card', 'aria-labelledby': 'h-due' },
-      h('h2', { id: 'h-due' }, `בוצע ב${monthLabel(state.month)}`),
+      head('check-circle', 'green', `בוצע ב${monthLabel(state.month)}`, { id: 'h-due' }),
       r.recordings.length ? h('ul', { class: 'list' }, r.recordings.map((g) => h('li', { class: 'task done' },
         h('span', { class: 'task-main' },
           h('span', { class: 'task-title' }, `יום הקלטת פודקאסט · ${dateLabel(g.date)}`),
@@ -228,12 +305,12 @@ function viewInfluencer(family) {
         h('span', { class: 'task-act' }, g.clients.map((c) => btn(`ביטול סימון · ${c.client}`, { class: 'btn btn-sm btn-ghost', onclick: (e) => act(e.currentTarget, () => db.unmarkPerformed(c.dealId, c.key), 'הסימון בוטל.') })))))) : null,
       r.due.length ? h('ul', { class: 'list' }, r.due.map(doneRow)) : null,
       r.voided.length ? h('ul', { class: 'list' }, r.voided.map((x) => doneRow({ ...x, void: true }))) : null,
-      !r.due.length && !r.recordings.length && !r.voided.length ? h('p', { class: 'empty' }, 'עוד לא סומן ביצוע בחודש הזה.') : null,
+      !r.due.length && !r.recordings.length && !r.voided.length ? emptyRow({ icon: 'calendar', text: 'עוד לא סומן ביצוע בחודש הזה.', cls: 'empty' }) : null,
       h('div', { class: 'row total' }, h('span', {}, 'סה״כ לתשלום החודש'), money(r.total))),
     h('section', { class: 'card', 'aria-labelledby': 'h-open' },
-      h('h2', { id: 'h-open' }, 'ממתין לביצוע'),
+      head('hourglass', 'orange', 'ממתין לביצוע', { id: 'h-open' }),
       h('p', { class: 'muted small' }, 'מכל העסקאות, מכל חודש. עסקאות שבוטלו לא מופיעות כאן.'),
-      r.open.length ? h('ul', { class: 'list' }, r.open.map(openRow)) : h('p', { class: 'empty' }, 'אין ימי צילום או פרסומים פתוחים.')),
+      r.open.length ? h('ul', { class: 'list' }, r.open.map(openRow)) : emptyRow({ icon: 'check-circle', text: 'אין ימי צילום או פרסומים פתוחים.', cls: 'empty' })),
   );
 }
 
@@ -244,11 +321,15 @@ function viewInfluencer(family) {
 const appHome = () => new URL('./', window.location.href.split('#')[0]).href;
 
 function showSetPassword() {
+  frame(false);
+  $('btn-account').hidden = true;
   const pass = h('input', { class: 'input', type: 'password', dir: 'ltr', autocomplete: 'new-password', minlength: '10', required: true });
   const again = h('input', { class: 'input', type: 'password', dir: 'ltr', autocomplete: 'new-password', required: true });
-  const err = h('div', { class: 'form-err', role: 'alert', hidden: true });
+  const err = h('div', { class: 'err', role: 'alert', hidden: true });
   const submit = h('button', { type: 'submit', class: 'btn btn-primary btn-block' }, 'שמירת הסיסמה');
-  const form = h('form', { class: 'login card', novalidate: true },
+  // The same card as the sign-in (login.css draws the form of a new password too).
+  const form = h('form', { class: 'login', novalidate: true },
+    brandRow(),
     h('h1', {}, 'בחירת סיסמה חדשה'),
     field('סיסמה חדשה', pass, { hint: 'לפחות 10 תווים.' }),
     field('אימות הסיסמה', again),
@@ -266,7 +347,9 @@ function showSetPassword() {
     state.session = await db.session();
     await enter();
   });
-  put($('view'), form);
+  $('view').replaceChildren();
+  setState('');
+  door.open(form);
   pass.focus();
 }
 
@@ -278,8 +361,8 @@ async function boot() {
   }
   state.session = await db.session();
   if (recovery === 'expired' && !state.session) {
-    showLogin();
-    setState('קישור האיפוס פג תוקף או כבר נוצל. בקשו קישור חדש ב״שכחתי סיסמה״.');
+    // Said on the sign-in card itself (the page behind it is under the night).
+    showLogin('קישור האיפוס פג תוקף או כבר נוצל. בקשו קישור חדש ב״שכחתי סיסמה״.');
     return;
   }
   supabase.auth.onAuthStateChange((event, session) => {
@@ -290,7 +373,12 @@ async function boot() {
   await enter();
 }
 
+// The page behind the sign-in card is decided and drawn (or has something to say): the night lifts.
 async function enter() {
+  try { await enterApp(); } finally { door.lift(); }
+}
+
+async function enterApp() {
   try {
     state.owner = await db.isOwner(state.session.user.id);
   } catch (e) {
@@ -299,9 +387,7 @@ async function enter() {
   }
   $('btn-account').hidden = false;
   if (!state.owner) return showNotOwner();
-  $('nav').hidden = false;
-  $('monthbar').hidden = false;
-  document.body.classList.add('signed-in');
+  frame(true);
   try {
     [state.versions, state.lastLocked] = await Promise.all([db.loadSettings(), db.lastLockedMonth()]);
   } catch (e) {
@@ -314,23 +400,24 @@ async function enter() {
   await route();
 }
 
-function showLogin() {
-  document.body.classList.remove('signed-in');
-  $('nav').hidden = true;
-  $('monthbar').hidden = true;
+// The sign-in card: the screen of the staff sign-in (app/styles/login.css, built by
+// door.js), with this app's own words and its own sign-in. `note`: something to say on it.
+function showLogin(note = '') {
+  frame(false);
   $('btn-account').hidden = true;
-  const email = h('input', { class: 'input', type: 'email', dir: 'ltr', autocomplete: 'username', required: true });
-  const pass = h('input', { class: 'input', type: 'password', dir: 'ltr', autocomplete: 'current-password', required: true });
-  const err = h('div', { class: 'form-err', role: 'alert', hidden: true });
-  const msg = h('div', { class: 'form-ok', role: 'status', hidden: true });
-  const submit = h('button', { type: 'submit', class: 'btn btn-primary btn-block' }, 'כניסה');
-  const form = h('form', { class: 'login card', novalidate: true },
+  const email = h('input', { class: 'input', id: 'lg-email', type: 'email', dir: 'ltr', autocomplete: 'username', required: true });
+  const pass = h('input', { class: 'input', id: 'lg-pass', type: 'password', dir: 'ltr', autocomplete: 'current-password', required: true });
+  const err = h('div', { class: 'err', id: 'lg-err', role: 'alert', hidden: !note }, note);
+  const msg = h('div', { class: 'note-ok', id: 'lg-msg', role: 'status', hidden: true });
+  const submit = doorButton('כניסה');
+  const line = statusLine();
+  const form = h('form', { class: 'login', novalidate: true },
+    brandRow(),
     h('h1', {}, 'כניסה לאסטרטג פיימנט'),
-    h('p', { class: 'muted' }, 'למנהלי החברה בלבד. אנשי מכירות מקבלים דוח עמלה נפרד.'),
-    field('אימייל', email),
-    field('סיסמה', pass),
-    err, msg, submit,
-    h('button', {
+    h('p', { class: 'lg-hint' }, 'למנהלי החברה בלבד. אנשי מכירות מקבלים דוח עמלה נפרד.'),
+    floatField('אימייל', email),
+    floatField('סיסמה', pass, { eye: true }),
+    h('div', { class: 'lg-row' }, h('button', {
       type: 'button', class: 'btn-text',
       onclick: async () => {
         err.hidden = true; msg.hidden = true;
@@ -338,27 +425,31 @@ function showLogin() {
         if (!looksLikeEmail(v)) { err.textContent = RESET_NEEDS_EMAIL; err.hidden = false; email.focus(); return; }
         try { await sendPasswordReset(v, appHome()); msg.textContent = RESET_SENT; msg.hidden = false; } catch (e) { err.textContent = db.explain(e); err.hidden = false; }
       },
-    }, 'שכחתי סיסמה'),
+    }, 'שכחתי סיסמה')),
+    err, msg, submit, line,
   );
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     err.hidden = true;
     if (!cleanEmail(email.value) || !pass.value) { err.textContent = 'יש למלא אימייל וסיסמה.'; err.hidden = false; return; }
     submit.disabled = true;
+    door.signing();
     const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail(email.value), password: pass.value });
     submit.disabled = false;
-    if (error) { err.textContent = db.explain(error); err.hidden = false; return; }
+    if (error) { door.failed(); err.textContent = db.explain(error); err.hidden = false; return; }
+    door.won();
     state.session = data.session;
     await enter();
   });
-  put($('view'), form);
+  $('view').replaceChildren();
   setState('');
+  door.open(form, { go: submit, line });
 }
 
 function showNotOwner() {
-  $('nav').hidden = true;
-  $('monthbar').hidden = true;
+  frame(false);
   put($('view'), h('section', { class: 'card narrow' },
+    iconSquare('lock', 'pink', { size: 'lg' }),
     h('h1', {}, 'אין לך גישה לאסטרטג פיימנט'),
     h('p', {}, `המשתמש ${state.session.user.email} מחובר, אבל אינו מוגדר כמנהל במערכת הזו.`),
     h('p', { class: 'muted' }, 'מנהל קיים מוסיף גישה ב־Supabase (SQL Editor) לפי ההוראות ב־README.'),
@@ -461,7 +552,7 @@ async function refresh() {
 
 function lockedBanner() {
   if (!isLocked()) return null;
-  return h('div', { class: 'banner' },
+  return strip('div', 'lock', 'banner',
     h('strong', {}, 'החודש נעול. '),
     'המספרים מוצגים כפי שהיו בזמן הסגירה, ואי אפשר לשנות עסקאות, הכנסות או הוצאות בחודש הזה.');
 }
@@ -470,7 +561,7 @@ function notices(r) {
   const items = [...(r.errors || []).map((t) => ['error', t]), ...(r.warnings || []).map((t) => ['warn', t])];
   if (!items.length) return null;
   return h('ul', { class: 'notices', 'aria-label': 'הערות לחודש' },
-    items.map(([k, t]) => h('li', { class: k }, h('span', { class: 'sr-only' }, k === 'error' ? 'שגיאה: ' : 'אזהרה: '), t)));
+    items.map(([k, t]) => strip('li', k === 'error' ? 'late' : 'warn', k, h('span', { class: 'sr-only' }, k === 'error' ? 'שגיאה: ' : 'אזהרה: '), t)));
 }
 
 // ---------- view: month ----------
@@ -478,29 +569,30 @@ function notices(r) {
 function viewMonth() {
   const r = state.report;
   if (r.empty) {
-    return h('div', { class: 'stack' }, notices(r), h('div', { class: 'card' },
-      h('p', {}, 'עוד אין הגדרות שחלות על החודש הזה.'),
-      btn('למסך ההגדרות', { class: 'btn btn-primary', onclick: () => go('settings') })));
+    return h('div', { class: 'stack' }, notices(r), emptyState({
+      icon: 'sliders', tone: 'navy', text: 'עוד אין הגדרות שחלות על החודש הזה.', cls: '',
+      action: btn('למסך ההגדרות', { class: 'btn k-btn-navy', onclick: () => go('settings') }),
+    }));
   }
   const t = r.totals;
-  const kpi = (label, value, sub) => h('div', { class: 'kpi' }, h('div', { class: 'kpi-k' }, label), h('div', { class: 'kpi-v' }, value), sub ? h('div', { class: 'kpi-s' }, sub) : null);
   const row = (label, value, strong) => h('div', { class: `row${strong ? ' strong' : ''}` }, h('span', {}, label), value);
   return h('div', { class: 'stack cols' },
     lockedBanner(),
     notices(r),
     h('section', { class: 'kpis', 'aria-label': 'סיכום החודש' },
-      kpi('הכנסות', money(t.revenue), `${r.counts.deals} עסקאות${t.incomeRevenue ? ` + הכנסה נוספת` : ''}`),
-      kpi('הוצאות', money(t.variable + t.fixed)),
-      kpi('רווח', signed(t.profit), t.marginBp === null ? '' : `${pct(t.marginBp)} מההכנסות`),
-      t.incomeRevenue ? kpi('רווח בלי הכנסה נוספת', signed(t.profitExcludingIncome)) : null,
+      stat('trend', 'green', 'הכנסות', money(t.revenue), `${r.counts.deals} עסקאות${t.incomeRevenue ? ` + הכנסה נוספת` : ''}`),
+      stat('wallet', 'orange', 'הוצאות', money(t.variable + t.fixed)),
+      stat('coins', t.profit < 0 ? 'pink' : 'navy', 'רווח', signed(t.profit), t.marginBp === null ? '' : `${pct(t.marginBp)} מההכנסות`, t.profit < 0 ? 'is-loss' : 'is-hero'),
+      t.incomeRevenue ? stat('chart', 'purple', 'רווח בלי הכנסה נוספת', signed(t.profitExcludingIncome), null, 'is-wide') : null,
     ),
     h('section', { class: 'card', 'aria-labelledby': 'h-partners' },
-      h('h2', { id: 'h-partners' }, 'חלוקה לשותפים'),
-      r.partners.map((p) => row(`${p.name} · ${pct(p.shareBp)}`, signed(p.amount))),
+      head('handshake', 'purple', 'חלוקה לשותפים', { id: 'h-partners' }),
+      h('div', { class: 'rows-box' }, r.partners.map((p) => row(`${p.name} · ${pct(p.shareBp)}`, signed(p.amount)))),
       t.incomeRevenue ? h('p', { class: 'muted small' }, 'בלי ההכנסה הנוספת: ', r.partners.map((p, i) => [i ? ' · ' : '', `${p.name} `, money(p.amountExcludingIncome)])) : null,
     ),
     h('section', { class: 'card', 'aria-labelledby': 'h-break' },
-      h('h2', { id: 'h-break' }, 'מאיפה זה מגיע'),
+      head('chart', 'teal', 'מאיפה זה מגיע', { id: 'h-break' }),
+      h('div', { class: 'rows-box' },
       row('הכנסות מעסקאות', money(t.dealsRevenue)),
       t.incomeRevenue ? row('הכנסה נוספת', money(t.incomeRevenue)) : null,
       t.deferredRevenue ? row(`יתרות צ׳קים מעסקאות של לפני ${DEFER_MONTHS} חודשים`, money(t.deferredRevenue)) : null,
@@ -514,7 +606,7 @@ function viewMonth() {
       row(t.employerCost ? 'משכורות, כולל עלות מעסיק' : 'משכורות', money(t.employees)),
       row('הוצאות קבועות', money(t.recurring)),
       t.oneOff ? row('הוצאות משתנות של החודש', money(t.oneOff)) : null,
-      row('רווח', signed(t.profit), true),
+      row('רווח', signed(t.profit), true)),
     ),
     incomeSection(r),
     expenseSection(r),
@@ -525,14 +617,12 @@ function viewMonth() {
 function incomeSection(r) {
   const list = state.data.incomes;
   return h('section', { class: 'card', 'aria-labelledby': 'h-inc' },
-    h('div', { class: 'card-head' },
-      h('h2', { id: 'h-inc' }, 'הכנסה נוספת'),
-      isLocked() ? null : btn('הוספה', { class: 'btn btn-sm', onclick: () => openIncome() })),
+    head('coins', 'green', 'הכנסה נוספת', { id: 'h-inc', action: isLocked() ? null : btn('הוספה', { class: 'btn btn-sm', onclick: () => openIncome() }) }),
     h('p', { class: 'muted small' }, 'כסף שלא שייך לעסקה חדשה, למשל שיקים של עסקה קיימת. חלים עליו פיימנט ועמלות.'),
     list.length ? h('ul', { class: 'list' }, list.map((e) => h('li', {},
       h('button', { type: 'button', class: 'list-btn', disabled: isLocked(), onclick: () => openIncome(e) },
         h('span', {}, h('bdi', {}, e.label), h('small', {}, `${dateLabel(e.date)} · ${INFLUENCERS[e.family].name}`)),
-        money(e.amount))))) : h('p', { class: 'empty' }, 'אין הכנסה נוספת בחודש הזה.'),
+        money(e.amount))))) : emptyRow({ icon: 'inbox', text: 'אין הכנסה נוספת בחודש הזה.', cls: 'empty' }),
   );
 }
 
@@ -540,14 +630,12 @@ function expenseSection() {
   const list = state.report.oneOff || [];
   const byId = new Map(state.data.expenses.map((e) => [e.id, e]));
   return h('section', { class: 'card', 'aria-labelledby': 'h-exp' },
-    h('div', { class: 'card-head' },
-      h('h2', { id: 'h-exp' }, 'הוצאות משתנות של החודש'),
-      isLocked() ? null : btn('הוספה', { class: 'btn btn-sm', onclick: () => openExpense() })),
+    head('wallet', 'orange', 'הוצאות משתנות של החודש', { id: 'h-exp', action: isLocked() ? null : btn('הוספה', { class: 'btn btn-sm', onclick: () => openExpense() }) }),
     h('p', { class: 'muted small' }, 'דלק, פחת רכב, תיאום פגישות וכל הוצאה שחלה רק על החודש הזה. הוצאות שחוזרות כל חודש מוגדרות במסך ההגדרות.'),
     list.length ? h('ul', { class: 'list' }, list.map((e) => h('li', {},
       h('button', { type: 'button', class: 'list-btn', disabled: isLocked() || !byId.has(e.id), onclick: () => openExpense(byId.get(e.id)) },
         h('span', {}, h('bdi', {}, e.payee), h('small', {}, h('bdi', {}, monthItemLabel(e, currentSettings(state.month)?.data)))),
-        money(e.amount))))) : h('p', { class: 'empty' }, 'אין הוצאות משתנות בחודש הזה.'),
+        money(e.amount))))) : emptyRow({ icon: 'inbox', text: 'אין הוצאות משתנות בחודש הזה.', cls: 'empty' }),
   );
 }
 
@@ -568,14 +656,14 @@ function knownPeople(data) {
 function lockSection() {
   if (isLocked()) {
     return h('section', { class: 'card' },
-      h('h2', {}, 'החודש נסגר'),
-      h('p', { class: 'muted' }, 'נסגר ב־', new Date(state.data.lock.locked_at).toLocaleString('he-IL'), '. פתיחה מחדש תחשב את החודש לפי הנתונים וההגדרות הנוכחיים.'),
+      head('lock', 'orange', 'החודש נסגר'),
+      h('p', { class: 'muted' }, 'נסגר ב־', h('bdi', {}, new Date(state.data.lock.locked_at).toLocaleString('he-IL')), '. פתיחה מחדש תחשב את החודש לפי הנתונים וההגדרות הנוכחיים.'),
       btn('פתיחת החודש', { class: 'btn', onclick: confirmUnlock }));
   }
   return h('section', { class: 'card' },
-    h('h2', {}, 'סגירת חודש'),
+    head('lock', 'navy', 'סגירת חודש'),
     h('p', { class: 'muted' }, 'אחרי ששילמתם, סגרו את החודש. הדוח נשמר כפי שהוא, ושינוי אחוזים או עלויות לא ישנה אותו.'),
-    btn('סגירת החודש', { class: 'btn', disabled: !!state.report.errors?.length, onclick: confirmLock }),
+    btn('סגירת החודש', { class: 'btn k-btn-navy', disabled: !!state.report.errors?.length, onclick: confirmLock }),
     state.report.errors?.length ? h('p', { class: 'small warn-text' }, 'אי אפשר לסגור חודש שיש בו שגיאות.') : null);
 }
 
@@ -662,7 +750,8 @@ function viewDeals() {
       h('h2', {}, `${lines.length} עסקאות`),
       isLocked() ? null : h('div', { class: 'head-btns' },
         btn('ביטול עסקה', { class: 'btn btn-sm', onclick: () => openCancel() }),
-        btn('עסקה חדשה', { class: 'btn btn-primary btn-sm', onclick: () => openDeal() }))),
+        // The pink one is the new deal of the menu; this is the same action, in navy.
+        btn('עסקה חדשה', { class: 'btn btn-sm k-btn-navy', onclick: () => openDeal() }))),
     lines.length ? h('ul', { class: 'deals' }, lines.map((l) => h('li', {},
       h('button', {
         type: 'button', class: 'deal', disabled: isLocked() || !dealById.has(l.id),
@@ -670,8 +759,8 @@ function viewDeals() {
       },
       h('span', { class: 'deal-main' },
         h('span', { class: 'deal-client' }, h('bdi', {}, l.client),
-          l.cancelledOn ? h('span', { class: 'tag-cancel' }, `בוטלה ${dateLabel(l.cancelledOn)}`) : null,
-          l.payMethod === 'checks' ? h('span', { class: 'tag-cheques' }, `צ׳קים ×${l.installments}`) : null),
+          l.cancelledOn ? h('span', { class: 'k-pill k-pill-late tag-cancel' }, `בוטלה ${dateLabel(l.cancelledOn)}`) : null,
+          l.payMethod === 'checks' ? h('span', { class: 'k-pill tag-cheques' }, `צ׳קים ×${l.installments}`) : null),
         h('span', { class: 'deal-pkg' }, h('bdi', { dir: 'auto' }, l.packageName)),
         h('span', { class: 'deal-meta' }, dateLabel(l.date), l.seller ? [' · סגר: ', h('bdi', {}, l.seller)] : null,
           l.items.length ? ` · ${l.items.length === 1 ? 'רכיב אחד' : `${l.items.length} רכיבים`}` : null)),
@@ -680,15 +769,16 @@ function viewDeals() {
         h('span', {}, h('small', {}, 'בסיס עמלה'), money(l.base)),
         h('span', { class: 'profit' }, h('small', {}, l.cancelledOn ? 'רווח אחרי הביטול' : 'רווח מהעסקה'), signed(l.dealProfit),
           l.dealMarginBp === null ? null : h('small', { class: `margin${l.dealProfit < 0 ? ' neg' : ''}` }, `${pct(l.dealMarginBp)} רווח`))),
-      )))) : h('div', { class: 'card empty-state' },
-      h('p', {}, `עוד אין עסקאות ב${monthLabel(state.month)}.`),
-      isLocked() ? null : btn('הוספת עסקה ראשונה', { class: 'btn btn-primary', onclick: () => openDeal() })),
+      )))) : h('div', { class: 'card' }, emptyState({
+      icon: 'briefcase', tone: 'purple', text: `עוד אין עסקאות ב${monthLabel(state.month)}.`, cls: '',
+      action: isLocked() ? null : btn('הוספת עסקה ראשונה', { class: 'btn k-btn-navy', onclick: () => openDeal() }),
+    })),
     lines.length ? (() => {
       const v = lines.reduce((s, l) => s + (l.full ? l.full.value : l.value), 0);
       const p = lines.reduce((s, l) => s + l.dealProfit, 0);
       const tile = (label, value) => h('div', { class: 'tile' }, h('small', {}, label), value);
       return h('section', { class: 'card', 'aria-labelledby': 'h-dsum' },
-        h('h2', { id: 'h-dsum' }, 'סיכום העסקאות'),
+        head('chart', 'navy', 'סיכום העסקאות', { id: 'h-dsum' }),
         h('div', { class: 'tiles' },
           tile('שווי העסקאות', money(v)),
           tile('עמלות', money(lines.reduce((s, l) => s + (l.full ? l.full.commissions.reduce((a, c) => a + c.amount, 0) : l.commissionTotal) + l.closerTotal, 0))),
@@ -696,13 +786,13 @@ function viewDeals() {
           tile('אחוז רווח', h('span', { class: p < 0 ? 'neg' : '' }, v ? pct(Math.round((p * 10000) / v)) : '—'))));
     })() : null,
     deferred.length ? h('section', { class: 'card', 'aria-labelledby': 'h-def' },
-      h('h2', { id: 'h-def' }, 'יתרות צ׳קים שנכנסות החודש'),
+      head('calendar-check', 'teal', 'יתרות צ׳קים שנכנסות החודש', { id: 'h-def' }),
       h('p', { class: 'muted small' }, `עסקאות בצ׳קים מלפני ${DEFER_MONTHS} חודשים: יתרת ההכנסה והעמלות.`),
       h('ul', { class: 'list' }, deferred.map((l) => h('li', { class: 'list-row' },
         h('span', {}, h('bdi', {}, l.client), h('small', {}, `נסגרה ${dateLabel(l.dealDate)} · ${l.installments - CHECKS_UPFRONT} מתוך ${l.installments} צ׳קים · עמלות `, money(l.commissions.reduce((a, c) => a + c.amount, 0)))),
         money(l.value))))) : null,
     clawbacks.length ? h('section', { class: 'card', 'aria-labelledby': 'h-claw' },
-      h('h2', { id: 'h-claw' }, 'עסקאות שבוטלו החודש'),
+      head('alert', 'pink', 'עסקאות שבוטלו החודש', { id: 'h-claw' }),
       h('p', { class: 'muted small' }, 'ההכנסה של החודשים שהלקוח לא ישלם יורדת, והעמלות (אחוזים ועמלת סגירה) מתקזזות באותו יחס.'),
       h('ul', { class: 'list' }, clawbacks.map((l) => h('li', {},
         h('button', { type: 'button', class: 'list-btn', disabled: isLocked() || !dealById.has(l.id), onclick: () => openCancel(dealById.get(l.id)) },
@@ -1242,10 +1332,21 @@ const KIND_LABEL = {
   commission: 'עמלות', influencer: 'משפיענים', supplier: 'הפקה וספקים', employee: 'משכורות', expense: 'הוצאות',
   payment: 'פיימנט וצ׳קים', partner: 'שותפים',
 };
+// The icon square of each group (the kit's tones; colour lives only in these squares).
+const KIND_ICON = {
+  commission: ['coins', 'purple'], influencer: ['star', 'pink'], supplier: ['camera', 'teal'], employee: ['users', 'green'],
+  expense: ['wallet', 'orange'], payment: ['loop', 'navy'], partner: ['handshake', 'purple'],
+};
 
 function viewPay() {
   const r = state.report;
-  if (r.empty) return h('div', { class: 'stack' }, notices(r));
+  // Nothing to pay by yet: the same sentence, and the same way on, as the month's screen.
+  if (r.empty) {
+    return h('div', { class: 'stack' }, notices(r), emptyState({
+      icon: 'sliders', tone: 'navy', text: 'עוד אין הגדרות שחלות על החודש הזה.', cls: '',
+      action: btn('למסך ההגדרות', { class: 'btn k-btn-navy', onclick: () => go('settings') }),
+    }));
+  }
   const groups = {};
   for (const p of r.payees) (groups[p.kind] ||= []).push(p);
   const toPay = r.payees.filter((p) => p.kind !== 'partner' && p.kind !== 'payment').reduce((s, p) => s + p.total, 0);
@@ -1253,9 +1354,10 @@ function viewPay() {
     lockedBanner(),
     notices(r),
     Object.entries(KIND_LABEL).filter(([k]) => groups[k]).map(([k, label]) => h('section', { class: 'pay-group', 'aria-labelledby': `h-${k}` },
-      h('div', { class: 'group-head' },
-        h('h2', { id: `h-${k}` }, label),
-        h('span', { class: 'group-total' }, h('span', { class: 'lbl' }, 'סה״כ'), money(groups[k].reduce((s, p) => s + p.total, 0)))),
+      head(KIND_ICON[k][0], KIND_ICON[k][1], label, {
+        id: `h-${k}`,
+        action: h('span', { class: 'group-total' }, h('span', { class: 'lbl' }, 'סה״כ'), money(groups[k].reduce((s, p) => s + p.total, 0))),
+      }),
       k === 'payment' ? h('p', { class: 'hint' }, 'מנוכים אוטומטית מהתשלום של הלקוח. לא מעבירים אותם ידנית.') : null,
       groups[k].map((p) => h('details', { class: 'payee' },
         h('summary', {}, h('span', { class: 'payee-name' }, h('bdi', {}, p.name)), p.total < 0 ? (k === 'partner' ? signed(p.total) : offset(p.total)) : money(p.total, 'payee-amt')),
@@ -1373,10 +1475,17 @@ function openStatement(who) {
 
 // ---------- view: settings ----------
 
+// The icon square of each section, by its title.
+const SET_ICON = {
+  'פיימנט וצ׳קים': ['loop', 'navy'], 'מקבלי עמלה': ['coins', 'purple'], 'רכיבים שמעבר לחבילת הבסיס': ['box', 'orange'],
+  'עלויות הפקה לעסקה': ['camera', 'teal'], 'עלות מעסיק': ['briefcase', 'navy'], 'עובדים': ['users', 'green'],
+  'תשלום לכל עסקה שסגר': ['handshake', 'purple'], 'תיאום פגישות': ['calendar', 'orange'], 'הוצאות קבועות': ['wallet', 'pink'], 'שותפים': ['users', 'navy'],
+};
+
 function viewSettings() {
   const versions = state.versions;
   const current = settingsOn(versions, today()) || versions[versions.length - 1];
-  if (!current) return h('div', { class: 'card' }, h('p', {}, 'עוד אין הגדרות. פנו למפתח כדי לטעון הגדרות התחלתיות.'));
+  if (!current) return emptyState({ icon: 'sliders', tone: 'navy', text: 'עוד אין הגדרות. פנו למפתח כדי לטעון הגדרות התחלתיות.', cls: '' });
   const s = structuredClone(current.data);
   const minDate = state.lastLocked ? monthBounds(shiftMonth(state.lastLocked, 1)).first : null;
   const defaultFrom = [today(), minDate].filter(Boolean).sort().pop();
@@ -1420,7 +1529,7 @@ function viewSettings() {
     class: 'card set-sec', open: openSections.has(title),
     ontoggle: (e) => { if (e.currentTarget.open) openSections.add(title); else openSections.delete(title); },
   },
-    h('summary', {}, h('h2', {}, title)), hint ? h('p', { class: 'muted small' }, hint) : null, ...children);
+    h('summary', {}, iconSquare(...(SET_ICON[title] || ['sliders', 'navy'])), h('h2', {}, title)), hint ? h('p', { class: 'muted small' }, hint) : null, ...children);
   const listSection = (title, hint, arr, make, blank) => {
     const box = h('div', { class: 'rows' });
     const draw = () => {
@@ -1441,7 +1550,7 @@ function viewSettings() {
 
   const build = () => h('div', { class: 'stack settings' },
     h('section', { class: 'card' },
-      h('h2', {}, 'הגדרות בתוקף'),
+      head('sliders', 'navy', 'הגדרות בתוקף'),
       h('p', { class: 'muted' }, `ההגדרות שמוצגות כאן בתוקף מ־${current.effectiveFrom}. שמירה יוצרת גרסה חדשה מהתאריך שתבחרו: עסקאות מהתאריך הזה והלאה, ומשכורות והוצאות של החודש שבו הוא נופל, יחושבו לפיה. עסקאות לפני התאריך וחודשים נעולים לא משתנים.`),
       h('div', { class: 'two-col' }, field('בתוקף מתאריך', fromIn, { hint: minDate ? `לא לפני ${minDate} (אחרי החודש הנעול האחרון).` : null }), field('הערה לגרסה', noteIn, { hint: 'לא חובה. למשל: עדכון אחוזי עמלה' }))),
     section('פיימנט וצ׳קים', 'אחוז מההכנסה שיורד ראשון. ״מוצג למקבלי עמלה״ משמש לחישוב העמלה ומופיע בדוח שלהם, גם בעסקאות צ׳קים. העלות האמיתית (פיימנט או צ׳קים) משמשת לחישוב הרווח.',
@@ -1528,8 +1637,8 @@ function viewSettings() {
         intField('חלקים', () => p.weight ?? 1, (v) => { p.weight = v; }, { context: p.name || ctx })),
       () => ({ id: `s${Date.now().toString(36)}`, name: '', weight: 1 })),
     errBox,
-    h('div', { class: 'save-bar' }, btn('שמירת גרסה חדשה של ההגדרות', { class: 'btn btn-primary', onclick: saveSettings })),
-    h('section', { class: 'card' }, h('h2', {}, 'היסטוריית גרסאות'),
+    h('div', { class: 'save-bar' }, btn('שמירת גרסה חדשה של ההגדרות', { class: 'btn k-btn-navy', onclick: saveSettings })),
+    h('section', { class: 'card' }, head('history', 'navy', 'היסטוריית גרסאות'),
       h('ul', { class: 'list' }, [...versions].reverse().map((v) => h('li', { class: 'hist' },
         h('span', {}, `מ־${v.effectiveFrom}`), v.note ? h('small', {}, h('bdi', {}, v.note)) : null)))),
   );
@@ -1568,4 +1677,4 @@ function viewSettings() {
   return root;
 }
 
-boot().catch((e) => setState(db.explain(e)));
+boot().catch((e) => { setState(db.explain(e)); door.lift(); });
