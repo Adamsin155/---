@@ -198,6 +198,12 @@ body > main {
 .deal-foot { display: flex; justify-content: flex-end; }
 .list-btn > .p-edit { margin-inline-start: 2px; }
 .list-btn:has(.deal-nums) > .p-edit { align-self: flex-end; }
+/* A phone: the name takes the row; its amount stands right under it, the mark at the far end. */
+@media (max-width: 480px) {
+  .list-btn:has(> .p-edit):not(:has(.deal-nums)) { flex-wrap: wrap; gap: 4px 12px; }
+  .list-btn:has(> .p-edit):not(:has(.deal-nums)) > :first-child { flex: 1 1 100%; }
+  .list-btn:has(> .p-edit):not(:has(.deal-nums)) > .p-edit { margin-inline-start: auto; }
+}
 /* The way to add, at the top of a list: the kit's tile, the whole row wide on a phone. */
 .k-add.p-addtile { inline-size: 100%; min-height: 52px; }
 .k-add.p-addtile:disabled { cursor: not-allowed; color: var(--ds-muted); border-color: var(--ds-line-strong); background: transparent; }
@@ -498,6 +504,9 @@ dialog.wide .sheet-head { padding-block-start: calc(12px + env(safe-area-inset-t
   body > main { border-radius: var(--ds-r-card); margin-top: 10px; }
   .monthbar { inline-size: 100%; margin-block-end: 16px; }
   .card, .pay-group, .p-stat { padding: 14px; }
+  .sheet-head { gap: 10px; }
+  .sheet-head h2 { font-size: 18px; }
+  .sheet-ico > .k-ico { inline-size: 36px; block-size: 36px; border-radius: 12px; }
   .k-head { gap: 10px; }
   .k-title { font-size: 17px; }
   .deals { padding: 8px; }
