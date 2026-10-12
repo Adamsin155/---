@@ -22,7 +22,7 @@ import {
 } from './health.js';
 import { healthBadge, reasonText, nextText, stationBar, markOwnerLanded } from './health-ui.js';
 import {
-  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN, progressBar, capList
+  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, leafOf, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN, progressBar, capList
 } from './protocol-ui.js';
 import { canManageTeam, isOwnerView } from './team-rules.js';
 import { mountLandingControl } from './landing-control.js';
@@ -43,7 +43,7 @@ import { countUp, growOnce, glide } from './shell.js';
 import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeClient } from './manager-data.js';
 // The owners' end of the day (docs/ops.md, section 48): the same numbers as the 19:00 message.
 import { daySummary, headline, waitingText } from './day-summary.js';
-import { icon as kIcon, iconSquare, headIcon, besideIcon, leadIcon } from './kit.js';
+import { icon as kIcon, iconSquare, headIcon, besideIcon, leadIcon, dateLeaf } from './kit.js';
 
 let viewer = null;
 let landingCtl = null;  // the owners' control of the clients in landing
@@ -502,7 +502,8 @@ function clientItem(e, now) {
       h('span', { class: 'ga-l1' }, healthBadge(e.health.color), h('strong', { class: 'ga-name' }, clientLabel(c)),
         c.landing === true ? h('span', { class: 'tag tag-landing' }, 'בקליטה') : null,
         h('span', { class: 'ga-why' }, c.landing === true ? 'בלי שעונים עד ההפעלה' : top ? `${reasonText(top)} · ${personName(top.who)}` : 'לפי התוכנית')),
-      h('span', { class: 'ga-l2' }, nextText(st.next, now))),
+      // "הבא: …" on a soft strip with a small clock: the next step is seen, not grey under grey.
+      h('span', { class: 'ga-l2' }, kIcon('clock', { size: 16 }), nextText(st.next, now))),
     h('div', { class: 'ga-more', id: more, hidden: !open },
       h('p', { class: 'ga-pkg' }, [c.package_name || 'חבילה לא הוזנה', st.month?.text, c.status === 'ending' ? 'מסיים התקשרות' : null].filter(Boolean).join(' · ')),
       stationBar(st.index),
@@ -545,7 +546,11 @@ function renderBoard(now) {
   fill($('board-sum'), Object.entries(KIND).flatMap(([k, label], i) => [i ? ' · ' : null, h('span', { class: 'board-n' }, `${label}: ${events.filter((e) => e.kind === k).length}`)]));
   if (!events.length) { fill($('board'), h('p', { class: 'muted' }, 'אין אירועים בתקופה הזו.')); return; }
   const days = groupBy(events.map((e) => ({ ...e, day: dayKeyIL(e.at) })), 'day');
-  fill($('board'), [...days.entries()].map(([, list]) => h('section', { class: 'board-day', 'aria-label': dayHead(list[0].at, now) },
+  // Each day opens with its leaf of the calendar (docs/ops.md, section 62): navy today, blue
+  // tomorrow, purple later. The heading keeps its words; the leaf is decoration beside it.
+  const dayLeaf = (d) => { const n = daysBetweenIL(now, d); const leaf = dateLeaf({ ...leafOf(d, now), sub: null, label: null, tone: n === 0 ? 'navy' : n === 1 ? 'blue' : 'purple' }); leaf.setAttribute('aria-hidden', 'true'); return leaf; };
+  fill($('board'), [...days.entries()].map(([, list]) => h('section', { class: 'board-day has-leaf', 'aria-label': dayHead(list[0].at, now) },
+    dayLeaf(list[0].at),
     h('h3', { class: 'board-dh' }, dayHead(list[0].at, now)),
     h('ul', { class: 'board-list' }, ...list.map((e) => h('li', { class: `board-ev k-${e.kind}${e.done ? ' is-done' : ''}` },
       iconSquare(KIND_ICON[e.kind]?.[0] || 'calendar', KIND_ICON[e.kind]?.[1] || 'navy', { size: 'sm' }),
@@ -633,8 +638,15 @@ $('mt-csv').addEventListener('click', () => {
 const PHONE = '(max-width: 760px)';
 const SD_CAP = 12;
 const sdCell = (c, ...kids) => h('td', { class: c.num ? 'is-num num' : null, 'data-label': c.label }, ...kids);
+function sdLeaf(r) {
+  if (!r.last) return h('span', { class: 'sd-leaf is-none', 'aria-hidden': 'true' }, kIcon('camera', { size: 24 }));
+  // The day with its month ("30.09"): a last shoot day is often months back.
+  return h('span', { class: 'sd-leaf', 'aria-hidden': 'true', 'data-top': leafOf(new Date(r.last)).top, 'data-day': dmy(r.last).split('.').slice(0, 2).join('.') });
+}
 const SD_CELLS = {
-  name: (r, c) => sdCell(c, h('a', { class: 'mt-name', href: clientUrl(r.id) }, r.name), r.contact ? h('span', { class: 'sub' }, r.contact) : null),
+  // On a phone the card opens with the leaf of the last shoot day (a camera while there was none).
+  // It is drawn by the stylesheet from data attributes and hidden on a desktop, so the cell's text stays the name.
+  name: (r, c) => sdCell(c, sdLeaf(r), h('a', { class: 'mt-name', href: clientUrl(r.id) }, r.name), r.contact ? h('span', { class: 'sub' }, r.contact) : null),
   type: (r, c) => sdCell(c, dash(r.shootType || r.package)),
   last: (r, c) => sdCell(c,
     r.last ? [h('span', { class: 'num' }, dmy(r.last)), h('span', { class: 'sub' }, agoText(r.lastDays))]

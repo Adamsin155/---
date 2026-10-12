@@ -9,6 +9,9 @@ import { clientLabel } from './protocol-logic.js';
 import { fill, h, errorText, progressBar, formatDay } from './protocol-ui.js';
 import { loadIntake, activate, finishFor } from './landing-data.js';
 import { landingBoard, waitingPeople, shootSoon, SHOOT_SOON_DAYS } from './landing-logic.js';
+// The kit's icon square at the start of each row (docs/ops.md, section 62). The page that
+// mounts this card (owner.html) already loads the kit: no request is added.
+import { iconSquare } from './kit.js';
 
 const names = (list, max = 3) => {
   const all = list.map((c) => clientLabel(c));
@@ -67,6 +70,7 @@ export function mountLandingControl(el, { clients, checks, reload, toast }) {
         'כשמפעילים לקוח, מה שנשאר בו פתוח מקבל מועד חדש שנספר מרגע ההפעלה.'),
       h('ul', { class: 'land-ctl-rows' },
         ...b.people.map((r) => h('li', { class: 'land-ctl-row', 'data-person': r.key },
+          iconSquare(r.left.length ? 'user' : 'check-circle', r.left.length ? 'navy' : 'green', { size: 'sm' }),
           h('span', { class: 'land-ctl-text' }, h('strong', {}, PEOPLE[r.key].name), ` · עבר/ה על ${r.finished} מתוך ${r.total}`,
             r.alone.length ? ` · ${clientsWord(r.alone.length)} מחכים רק לו/ה` : ''),
           progressBar(r.finished, r.total, `${PEOPLE[r.key].name}: לקוחות שנקלטו`),
@@ -74,14 +78,17 @@ export function mountLandingControl(el, { clients, checks, reload, toast }) {
       h('p', { class: 'land-ctl-note' }, '״מפעילים את…״ סוגר את החלק של אותו עובד בלקוחות שעוד לא עבר עליהם (מה שלא סימן נשאר פתוח). לקוח יוצא מקליטה כשאף אחד כבר לא צריך לעבור עליו.'),
       h('ul', { class: 'land-ctl-rows' },
         b.ready.length ? h('li', { class: 'land-ctl-row' },
+          iconSquare('check-circle', 'green', { size: 'sm' }),
           h('span', { class: 'land-ctl-text' }, h('strong', {}, `מוכנים להפעלה: ${b.ready.length}`), ` · אין בהם מה לקלוט, או שכולם סיימו · ${names(b.ready)}`),
           button('ready', `מפעילים ${clientsWord(b.ready.length)}`, 'בטוח? מפעילים', () => run('מוכנים להפעלה', () => activate(b.ready.map((c) => c.id))))) : null,
         b.soon.length ? h('li', { class: 'land-ctl-row' },
+          iconSquare('camera', 'teal', { size: 'sm' }),
           h('span', { class: 'land-ctl-text' }, h('strong', {}, `יום צילום ב־${SHOOT_SOON_DAYS} הימים הקרובים: ${b.soon.length}`),
             ` · ${b.soon.slice(0, 3).map((c) => `${clientLabel(c)} (${formatDay(shootSoon(c, now))})`).join(', ')}${b.soon.length > 3 ? ` ועוד ${b.soon.length - 3}` : ''}`,
             ' · הם מופיעים במסכי ימי הצילום כרגיל, אבל התזכורות שלהם כבויות עד ההפעלה.'),
           button('soon', 'מפעילים אותם', 'בטוח? מפעילים', () => run('ימי צילום קרובים', () => activate(b.soon.map((c) => c.id))))) : null,
         h('li', { class: 'land-ctl-row' },
+          iconSquare('users', 'navy', { size: 'sm' }),
           h('span', { class: 'land-ctl-text' }, h('strong', {}, 'כל הלקוחות שבקליטה'), ` · ${b.total}`),
           button('all', 'מפעילים את כולם', `בטוח? ${clientsWord(b.total)}`, () => run('מפעילים את כולם', () => activate(b.clients.map((c) => c.id)))))),
       intake.ready ? null : h('p', { class: 'land-ctl-note' }, 'מסך הקליטה של העובדים עוד לא זמין (המיגרציה של הקליטה לא הוחלה).'));

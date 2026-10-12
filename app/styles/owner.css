@@ -341,3 +341,46 @@
   :is(main, .ow-page):has(> #landing) { display: flex; flex-direction: column; }
   :is(main, .ow-page) > #landing { order: 99; margin-block-start: 16px; }
 }
+
+/* ── No pale rows (the owner, 13.10.2026; docs/ops.md, section 62) ── */
+/* "כל הלקוחות במבט": the name is bold, the reason is ink (pink when the client is red, amber
+   when yellow: the badge and the words already say it), and "הבא: …" is a soft strip with a clock. */
+.ga-name { font-weight: 700; }
+.ga-why { color: var(--ds-ink-2); font-weight: 500; }
+.ga-item.h-red .ga-why { color: var(--ds-hot-text); font-weight: 600; }
+.ga-item.h-yellow .ga-why { color: var(--ds-amber); font-weight: 600; }
+.ga-l2 { display: flex; align-items: flex-start; gap: 7px; margin-block-start: 4px; margin-inline-start: 24px; padding: 7px 10px; border-radius: 12px; background: var(--ds-ground); color: var(--ds-ink-2); font-weight: 500; text-align: start; }
+.ga-l2 > .k-svg { flex: none; margin-block-start: 1px; color: var(--k-navy); }
+.ga-row:hover .ga-l2, .ga-row[aria-expanded='true'] .ga-l2 { background: var(--ds-surface); }
+@media (max-width: 720px) { .ga-l2 { margin-inline-start: 0; padding: 7px 10px; } }
+/* "מה יתבצע אצל הלקוחות": each day opens with its leaf; the hour and the kind are bold. */
+.board-day.has-leaf { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 12px; }
+.board-day.has-leaf + .board-day.has-leaf { margin-top: 16px; }
+.board-day.has-leaf > .k-leaf { inline-size: 54px; }
+.board-day.has-leaf > .k-leaf .k-leaf-day { font-size: 21px; line-height: 1.5; }
+.board-day.has-leaf > .board-dh { margin: 0; font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; color: var(--ds-ink); }
+.board-day.has-leaf > .board-list { grid-column: 1 / -1; gap: 6px; }
+.board-ev { box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: var(--ds-r-item); }
+.board-t { color: var(--ds-navy-text); font-weight: 700; }
+.board-what { font-weight: 700; }
+.board-ev.is-done .board-what, .board-ev.is-done .board-t { color: var(--ds-ink-2); }
+/* The 19:00 table stays a table: a clear head, zebra rows, a bold first column, the late count large and pink. */
+.eod-wrap { border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
+.eod th, .eod td { border-bottom: 0; }
+.eod thead th { padding-block: 9px; background: var(--ds-navy); color: var(--ds-on-navy); font-weight: 600; }
+.eod thead th:first-child { border-start-start-radius: var(--ds-r-item); }
+.eod thead th:last-child { border-start-end-radius: var(--ds-r-item); }
+.eod tbody tr:nth-child(even) > * { background: var(--ds-ground); }
+.eod tbody th { font-weight: 700; }
+.eod td.is-num { font-size: 16px; font-weight: 600; }
+.eod td.is-late { font-size: 17px; font-weight: 700; }
+.eod tfoot th, .eod tfoot td { border-top: 0; background: var(--k-navy-soft); font-weight: 700; }
+.eod tfoot th:first-child { border-end-start-radius: var(--ds-r-item); }
+.eod tfoot td:last-child { border-end-end-radius: var(--ds-r-item); }
+@media (min-width: 761px) { .eod th, .eod td { padding-inline: 14px; } }
+/* The items under it: the name bold, the lateness a pink pill. */
+.eod-item .wclient { font-weight: 700; }
+.eod-item .eod-who { align-items: flex-start; align-self: start; }
+.eod-item .eod-how { align-self: start; }
+.eod-item .eod-how.is-late { justify-self: end; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-hot-soft); }
+.eod-item .eod-how:not(.is-late) { justify-self: end; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-amber-soft); color: var(--ds-amber); font-weight: 600; }
