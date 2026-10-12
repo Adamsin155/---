@@ -176,7 +176,7 @@ dialog .dlg-foot .btn { min-height: 46px; }
    17.96; the pills as in kit.css (late 5.15, today 5.9, ok 5.72, plain 9.2). */
 
 /* ── The protocol: a process's deadline and state as pills, its items as soft rows ── */
-#phases .proc-meta .due { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; }
+#phases .proc-meta .due { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: 12px; background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; }
 #phases .proc.s-overdue .proc-meta .due { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
 #phases .proc.s-today .proc-meta .due, #phases .proc.s-due .proc-meta .due { background: var(--ds-amber-soft); color: var(--ds-amber); }
 #phases .proc-status > .sbadge { min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-weight: 700; }
@@ -184,6 +184,8 @@ dialog .dlg-foot .btn { min-height: 46px; }
 #phases .proc-status > .sbadge.s-today, #phases .proc-status > .sbadge.s-due, #phases .proc-status > .sbadge.s-client { background: var(--ds-amber-soft); color: var(--ds-amber); }
 #phases .proc-status > .sbadge.s-done { background: var(--ds-ok-soft); color: var(--ds-ok); }
 #phases .proc-status > .sbadge.s-waiting .sicon { opacity: 1; }
+/* The state, the count and "ממתין ללקוח" break to a second line on a narrow phone instead of widening the card. */
+@media (max-width: 760px) { #phases .proc-status { flex-wrap: wrap; row-gap: 2px; } }
 #phases .proc .items, #mc-slot .items { display: grid; gap: 6px; }
 #phases .items > .item, #mc-slot .items > .item { border-top: 0; padding: 2px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
 /* On a process that has no card of its own (done, or somebody else's) the rows are the white ones. */

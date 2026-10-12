@@ -52,6 +52,7 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
    ink on the ground 15.9; the pills as in kit.css (late 5.15, today 5.9, plain 9.2). */
 #mine-list .wprocs { display: grid; gap: 8px; padding-top: 4px; }
 #mine-list .wprocs > .more-row { border-top: 0; padding: 2px 0 0; }
+#mine-list .wprocs.il-list { padding-top: 0; }
 .wproc.pc { padding: 12px; border: 0; }
 .pc.is-urgent { border-inline-start: 0; padding-inline-start: 12px; box-shadow: inset 0 0 0 1.5px var(--ds-hot); }
 /* Who: the client, small and navy. What: the title, the boldest line of the card. */
@@ -101,7 +102,7 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
 .pc-full .pc-due { font-weight: 600; color: var(--ds-ink-2); }
 .pc-full > .wproc-acts { padding-top: 0; }
 /* The headings of the groups: a clear line with its count as a bold number. */
-#mine-list .wgroup-h { margin: 16px 0 6px; font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; color: var(--ds-ink); }
+#mine-list .wgroup-h { margin: 12px 0 4px; line-height: 1.3; font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; color: var(--ds-ink); }
 #mine-list .wgroup-h .n {
   display: inline-grid; place-items: center; min-inline-size: 24px; block-size: 24px; padding: 0 7px; border-radius: var(--ds-r-pill);
   background: var(--ds-soft); color: var(--ds-ink-2); font-family: var(--ds-font-b); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
@@ -115,6 +116,14 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
   /* The client's name is still a 44px target: its padding reaches, its line does not grow. */
   .pc .wc-head .wclient, .pc-full .wproc-h .wclient { min-height: 0; padding-block: 13px; margin-block: -13px; }
   .pc .wc-title, .pc-full .wtitle { font-size: 15.5px; }
+  /* A card stays short on a phone (at most 230px with one action): tighter air between its parts. */
+  .wproc.pc { gap: 8px; padding: 10px; }
+  .pc .k-pc-body { gap: 2px; }
+  .pc .wc-head { row-gap: 0; }
+  .pc .wc-when { padding-block: 2px; }
+  .pc .wc-title { line-height: 1.3; }
+  /* "בקרוב": the client's name is a 44px target too (it was 23px high since the leaves came). */
+  #mine-list .soon-card .wclient { padding-block: 11px; margin-block: -11px; }
 }
 @media print { .pc .is-echo { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; } }
 
@@ -274,7 +283,7 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
 /* ══ "לקוחות" / "הלקוחות שלי": what a row says about lateness, waiting and the shoot day is a pill ══ */
 #client-list .cphase > span:not(.k), #client-list .cnext > span:not(.k, .muted) { font-weight: 600; color: var(--ds-ink); }
 #client-list .cflags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-#client-list .cflags .flag { display: inline-flex; align-items: center; min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); font-size: 13px; font-weight: 700; white-space: pre; }
+#client-list .cflags .flag { display: inline-block; padding: 3px 10px; line-height: 20px; border-radius: var(--ds-r-pill); background: var(--ds-soft); font-size: 13px; font-weight: 700; white-space: pre; }
 #client-list .cflags .flag:has(.s-overdue) { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
 #client-list .cflags .flag:has(.s-client) { background: var(--ds-amber-soft); color: var(--ds-amber); }
 #client-list .cflags .flag .sbadge { font-weight: 700; color: inherit; }
