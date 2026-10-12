@@ -14,7 +14,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // secret 'whatsapp_jako_hook_secret', through public.whatsapp_jako_hook()), and get
 // a sentence back for the person (./jako-hook.js has the whole contract).
 import { verifySignature, verifyChallenge, parseEvents, handleEvents } from './webhook.js';
-import { HOOK_HEADER, HOOK_MAX_BODY, hookGate, jakoReply } from './jako-hook.js';
+import { HOOK_HEADER, HOOK_MAX_BODY, hookGate, hookSecretOf, jakoReply } from './jako-hook.js';
 import { hookAnswer } from '../_shared/app/wa-logic.js';
 import { graphSend } from '../_shared/wa-graph.js';
 import { makeJako } from '../_shared/wa-jako.js';
@@ -132,18 +132,23 @@ Deno.serve(async (req) => {
   const secrets = conf.secrets ?? {};
 
   // Jako's sub flows (a call that carries their header, or any call while the provider is Jako).
-  const given = req.headers.get(HOOK_HEADER);
-  if (given !== null || conf.hook?.provider === 'jako') {
-    const stop = hookGate({ provider: conf.hook?.provider, secret: conf.hook?.hook_secret, given, method: req.method });
+  const header = req.headers.get(HOOK_HEADER);
+  if (header !== null || conf.hook?.provider === 'jako') {
+    // Jako's editor offers no place for a header of our own (seen 13.10.2026: only
+    // Content-Type), so the secret may come in the body instead ("secret"); the body is
+    // therefore read, bounded, before the door.
+    let body = null;
+    if (req.method === 'POST') {
+      if (Number(req.headers.get('content-length') || 0) > HOOK_MAX_BODY) return text(413);
+      const raw = new Uint8Array(await req.arrayBuffer());
+      if (raw.length > HOOK_MAX_BODY) return text(413);
+      try { body = JSON.parse(new TextDecoder().decode(raw)); } catch { /* answered as not understood */ }
+    }
+    const stop = hookGate({ provider: conf.hook?.provider, secret: conf.hook?.hook_secret, given: hookSecretOf(header, body), method: req.method });
     if (stop) return text(stop.status, stop.body);
     const answer = (out: { ok: boolean; text: string }) => new Response(JSON.stringify({ ok: out.ok, text: out.text }), {
       status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
     });
-    if (Number(req.headers.get('content-length') || 0) > HOOK_MAX_BODY) return text(413);
-    const raw = new Uint8Array(await req.arrayBuffer());
-    if (raw.length > HOOK_MAX_BODY) return text(413);
-    let body = null;
-    try { body = JSON.parse(new TextDecoder().decode(raw)); } catch { /* answered as not understood */ }
     try {
       // The person's chat at Jako, to find the press itself (and so the exact message it answers).
       const key = conf.hook?.jako_api_key;

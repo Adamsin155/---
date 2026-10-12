@@ -38,6 +38,11 @@ export const HOOK_MAX_BODY = 4096;
 export const HOOK_WINDOW = 24 * 3600e3;
 export const PRESS_WINDOW = 10 * 6e4;
 
+// The secret a call carries: the header, or (Jako's editor has no place for a header of
+// our own) the body's "secret". The header wins when both are there.
+export const hookSecretOf = (header, body) => (typeof header === 'string' && header ? header
+  : body && typeof body === 'object' && !Array.isArray(body) && typeof body.secret === 'string' ? body.secret.trim() : null);
+
 // Whether the call may be answered at all. → null (go on) or { status, body }.
 export function hookGate({ provider, secret, given, method }) {
   if (provider !== 'jako' || !secret || String(secret).length < 16) return { status: 503, body: 'not ready' };

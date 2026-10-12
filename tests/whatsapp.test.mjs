@@ -18,7 +18,7 @@ import {
   waRecipients, waPlan, replyPlan, isStop, ackText, ownsProcess,
   hookPhone, hookAction, hookAnswer, jakoOpen, jakoReplyPlan, jakoTitle, nagIdOf, MINE_LINK,
 } from '../app/wa-logic.js';
-import { hookGate, parseHook, jakoReply, HOOK_HEADER, HOOK_MAX_BODY, PRESS_WINDOW } from '../supabase/functions/whatsapp-webhook/jako-hook.js';
+import { hookGate, hookSecretOf, parseHook, jakoReply, HOOK_HEADER, HOOK_MAX_BODY, PRESS_WINDOW } from '../supabase/functions/whatsapp-webhook/jako-hook.js';
 import { graphSend, graphUrl, GRAPH_VERSION } from '../supabase/functions/_shared/wa-graph.js';
 import { makeJako, JAKO_BASE, JAKO_TIMEOUT, JAKO_BUDGET, LIST_AGAIN, LEARN_PAUSE } from '../supabase/functions/_shared/wa-jako.js';
 import { applyPress, applyReply } from '../supabase/functions/_shared/wa-jako-reply.js';
@@ -820,6 +820,14 @@ test('the reply endpoint\'s door: 503 unless the provider is Jako with a secret 
   assert.deepEqual(gate({ given: HOOK.toUpperCase() }), { status: 401, body: '' });
   assert.equal(gate({ method: 'GET' }).status, 405);
   assert.deepEqual([HOOK_HEADER, HOOK_MAX_BODY <= 8192], ['x-astrateg-hook', true]);
+  // Jako's editor has no place for a header of our own: the secret may come in the body.
+  assert.equal(hookSecretOf(HOOK, { secret: 'other' }), HOOK, 'the header wins');
+  assert.equal(hookSecretOf(null, { action: 'done', secret: ` ${HOOK} ` }), HOOK);
+  assert.deepEqual([hookSecretOf(null, null), hookSecretOf(null, { secret: 5 }), hookSecretOf('', []), hookSecretOf(null, { action: 'done' })], [null, null, null, null]);
+  assert.equal(gate({ given: hookSecretOf(null, { secret: HOOK }) }), null);
+  assert.deepEqual(gate({ given: hookSecretOf(null, { secret: 'wrong-wrong-wrong-wrong' }) }), { status: 401, body: '' });
+  // The secret is not taken for anything else in the body.
+  assert.deepEqual(parseHook({ action: 'done', user_id: '972501111111', secret: HOOK }), { action: 'done', phones: ['972501111111'] });
 });
 
 test('the reply\'s body: the button as a word or as its text, the number from user_id or phone in any spelling, other fields ignored', () => {
