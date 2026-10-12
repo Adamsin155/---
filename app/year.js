@@ -11,8 +11,8 @@
 import { PROTOCOL_VERSION } from './protocol.js';
 import { clientState, clientLabel } from './protocol-logic.js';
 import { loadClients, loadChecks, loadDirectory } from './protocol-data.js';
-import { $, fill, h, toast, errorText, mountSession, directory, viewerOf, formatDay } from './protocol-ui.js';
-import { emptyItem, dress } from './kit.js';
+import { $, fill, h, toast, errorText, mountSession, directory, viewerOf, formatDay, leafOf } from './protocol-ui.js';
+import { emptyItem, dress, dateLeaf } from './kit.js';
 import { DRAFT_LABEL, yearOf, renewalsDue, marksByKey, groupMarks, RENEWAL_DAYS } from './year-logic.js';
 import { resultsSummary, renewalStage, renewalDraft, packageText, QUOTE_DRAFT_KEY, BUILDER_URL } from './renewals.js';
 import { loadMonthMarks, loadAgreements, loadSurveys } from './year-data.js';
@@ -119,7 +119,9 @@ function renewalCard({ client: c, endAt, daysLeft }, cmarks, now) {
   const pkg = packageText(c, ag);
   const hid = `rn-${c.id}`;
   return h('li', { class: `of-card yr-renew${daysLeft <= 30 ? ' is-soon' : ''}`, 'data-id': c.id, 'aria-labelledby': `${hid}-h` },
-    h('div', { class: 'of-head' },
+    // The day the package ends as a leaf of the calendar (docs/ops.md, section 62): amber in its last 30 days.
+    h('div', { class: 'of-head has-leaf' },
+      dateLeaf({ ...leafOf(endAt, now), day: dayKeyIL(endAt).split('-').slice(1).reverse().map(Number).join('.'), sub: null, tone: daysLeft <= 30 ? 'orange' : 'purple', label: `מסתיים ${formatDay(dayKeyIL(endAt))}` }),
       h('a', { class: 'wclient', href: cardUrl(c.id), id: `${hid}-h` }, clientLabel(c)),
       pkg ? h('span', { class: 'wtitle' }, pkg) : null),
     h('p', { class: 'of-line yr-end' }, h('strong', {}, `מסתיים ${formatDay(dayKeyIL(endAt))}`), ` · ${daysText(daysLeft)}`,
@@ -247,7 +249,7 @@ window.addEventListener('hashchange', () => {
 
 // The kit (docs/ops.md, section 52): the three sections and their cards take an icon square.
 dress($('app'), [['#rn-h', 'loop', 'green', 'md'], ['#mo-h', 'calendar', 'blue', 'md'], ['#vr-h', 'list', 'navy', 'md'], ['#na-h', 'lock', 'navy'],
-  ['.yr-renew > .of-head', 'loop', 'green', 'md'], ['.yr-row.is-late > .of-head', 'calendar', 'pink', 'md'], ['.yr-row > .of-head', 'calendar', 'blue', 'md']]);
+['.yr-row.is-late > .of-head', 'calendar', 'pink', 'md'], ['.yr-row > .of-head', 'calendar', 'blue', 'md']]);
 
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);

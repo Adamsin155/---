@@ -13,6 +13,7 @@ import { clientSummary, bySummary, weekAgenda, weekOf, addDays, timeText, STATUS
 import { clientLabel } from './protocol-logic.js';
 import { dayKeyIL } from './tz.js';
 import { paintLine, indexLine } from './gantt-brand.js';
+import { dateLeaf } from './kit.js'; // already loaded by app/gantt.js: no request is added
 
 const $ = (id) => document.getElementById(id);
 const enc = encodeURIComponent;
@@ -72,7 +73,15 @@ function renderWeek(now) {
   const n = days.reduce((a, d) => a + d.items.length, 0);
   $('gxw-sub').textContent = `${dm(week.from)}–${dm(week.to)} · ${n === 1 ? 'פרסום אחד' : `${n} פרסומים`} בכל הלקוחות`;
   if (!days.length) { $('gxw-body').replaceChildren(h('p', { class: 'gt-none' }, 'אין פרסומים מתוכננים השבוע.')); return; }
-  $('gxw-body').replaceChildren(h('ol', { class: 'gt-agenda gx-days' }, ...days.map((d) => h('li', { class: `gt-aday${d.day === today ? ' is-today' : ''}`, 'data-day': d.day },
+  // Each day of the week opens with its leaf of the calendar (docs/ops.md, section 62).
+  const dayLeaf = (key) => {
+    const dt = new Date(`${key}T12:00:00Z`);
+    const leaf = dateLeaf({ top: key === today ? 'היום' : `יום ${WEEKDAY_NAMES[dt.getUTCDay()]}`, day: dt.getUTCDate(), tone: key < today ? 'teal' : key === today ? 'navy' : key === addDays(today, 1) ? 'blue' : 'purple' });
+    leaf.setAttribute('aria-hidden', 'true');
+    return leaf;
+  };
+  $('gxw-body').replaceChildren(h('ol', { class: 'gt-agenda gx-days' }, ...days.map((d) => h('li', { class: `gt-aday has-leaf${d.day === today ? ' is-today' : ''}`, 'data-day': d.day },
+    dayLeaf(d.day),
     h('h3', { class: 'gt-aday-h' }, dayLine(d.day), d.day === today ? h('span', { class: 'k-pill k-pill-navy' }, 'היום') : null),
     h('ul', { class: 'gt-rows' }, ...d.items.map(({ entry: e, client, status }) => {
       const k = GANTT_KINDS[e.kind] || GANTT_KINDS.custom;

@@ -28,7 +28,7 @@ import {
   $, fill, h, toast, errorText, mountSession, viewerOf, directory, formatStamp, formatWhen, briefDetails, taskBadge,
   isUrgentTask, hasBrief, VIEWER_UNKNOWN,
 } from './protocol-ui.js';
-import { emptyState, noteIcon, dress, headIcon } from './kit.js';
+import { emptyState, noteIcon, dress, headIcon, facts, pill } from './kit.js';
 import { mountPush } from './push.js';
 import { offerHandoff } from './handoff-ui.js';
 import { closedProcesses } from './health.js';
@@ -152,7 +152,8 @@ function datesLine(job, st) {
   const parts = [];
   if (['waiting', 'editing', 'fixes'].includes(st.key) && ofir) parts.push(`אצל אופיר עד ${P.dueWords(ofir, now)}`);
   if (close && st.key !== 'ilai') parts.push(`סגירה עד ${P.dayWords(close, now)}`);
-  return parts.length ? h('p', { class: 'ed-dates' }, parts.join(' · ')) : null;
+  // Each date is a small fact with a clock (docs/ops.md, section 62); read as text it is the same sentence.
+  return parts.length ? h('div', { class: 'ed-dates' }, facts(parts.map((p) => ['clock', p]))) : null;
 }
 
 function sheetBlock(job) {
@@ -687,7 +688,9 @@ function renderBriefs() {
       return h('li', { class: `prod-task${isUrgentTask(t) ? ' is-urgent' : ''}`, id: `t-${t.id}` },
         h('div', { class: 'prod-task-h' },
           h('strong', {}, c?.name || 'לקוח'), taskBadge(t),
-          t.due_on && dayFromKeyIL(t.due_on) ? h('span', { class: 'num muted' }, `עד ${formatWhen(endOfDayIL(dayFromKeyIL(t.due_on)))}`) : null),
+          // The day it is due as a pill: pink once it has passed, amber on the day itself.
+          t.due_on && dayFromKeyIL(t.due_on) ? pill(h('span', { class: 'num' }, `עד ${formatWhen(endOfDayIL(dayFromKeyIL(t.due_on)))}`),
+            endOfDayIL(dayFromKeyIL(t.due_on)) < new Date() ? 'late' : dayFromKeyIL(t.due_on) <= new Date() ? 'today' : 'plain') : null),
         h('p', { class: 'prod-task-t' }, t.title),
         from ? h('p', { class: 'muted' }, `ביקש/ה: ${PEOPLE[from]?.name || from}`) : null,
         briefDetails(t, isNirel()),
