@@ -25,7 +25,6 @@
 
 export const CACHE_KEY = 'astrateg.cache';
 export const MAX_AGE = 10 * 60e3;     // older than this is never shown
-export const FRESH_FOR = 5e3;         // an answer the server gave this long ago needs no second asking
 export const MAX_ENTRY = 400_000;     // characters of one answer
 export const MAX_TOTAL = 1_500_000;   // characters of all of them
 
@@ -110,8 +109,8 @@ const idOf = (key) => {
 // The store of one tab. `storage` is the tab's sessionStorage (or anything with its
 // methods); with none, nothing is kept and every question goes to the server.
 export function sessionCache(storage, { now = () => Date.now() } = {}) {
-  let index = null; // { uid, wrote, e: { id: [at, size, identity] }, ns: { page: [shape] } }
-  const blank = (uid) => ({ uid, wrote: 0, e: {}, ns: {} });
+  let index = null; // { uid, e: { id: [at, size, identity] }, ns: { page: [shape] } }
+  const blank = (uid) => ({ uid, e: {}, ns: {} });
   const save = () => { try { storage.setItem(CACHE_KEY, JSON.stringify(index)); return true; } catch { return false; } };
   const drop = (id) => { try { storage.removeItem(`${CACHE_KEY}.${id}`); } catch { /* no storage */ } delete index?.e[id]; };
   function clear() {
@@ -172,7 +171,6 @@ export function sessionCache(storage, { now = () => Date.now() } = {}) {
     if (!open(uid)) return;
     const all = path === 'staff' || path === 'functions';
     for (const [id, meta] of Object.entries(index.e)) if (all || !meta[2]) drop(id);
-    index.wrote = now();
     save();
   }
   const forget = (uid, key) => { if (open(uid)) { drop(idOf(key)); save(); } };
@@ -184,7 +182,6 @@ export function sessionCache(storage, { now = () => Date.now() } = {}) {
     index.ns[page] = [...new Set([...(index.ns[page] || []), ...shapes])].slice(-80);
     save();
   }
-  const wroteAt = (uid) => (open(uid) ? index.wrote || 0 : 0);
   const keys = () => { try { return Array.from({ length: storage.length }, (_, i) => storage.key(i)).filter((k) => k === CACHE_KEY || String(k).startsWith(`${CACHE_KEY}.`)); } catch { return []; } };
-  return { get, put, wrote, wroteAt, forget, clear, unsteady, markUnsteady, keys, isIdentity: IDENTITY };
+  return { get, put, wrote, forget, clear, unsteady, markUnsteady, keys, isIdentity: IDENTITY };
 }

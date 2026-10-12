@@ -234,7 +234,10 @@ function holdParts() {
 // browser did keep whole needs none of this; the tab of a page is in its address.)
 const SCROLL = 'astrateg.scroll';
 const entryKey = () => { try { return globalThis.navigation.currentEntry.key || placeKey(); } catch { return placeKey(); } };
-const cameBack = () => { try { return performance.getEntriesByType('navigation')[0]?.type === 'back_forward'; } catch { return false; } };
+const cameBack = () => {
+  try { const how = globalThis.navigation?.activation?.navigationType; if (how) return how === 'traverse'; } catch { /* no Navigation API */ }
+  try { return performance.getEntriesByType('navigation')[0]?.type === 'back_forward'; } catch { return false; }
+};
 function keepScroll() {
   try {
     const all = JSON.parse(sessionStorage.getItem(SCROLL) || '{}') || {};

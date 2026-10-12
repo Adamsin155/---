@@ -368,7 +368,18 @@ test('the staff pages are built out of sight and shown whole; the phone gets its
   assert.match(css, /touch-action: manipulation/);
   assert.match(css, /-webkit-tap-highlight-color: transparent/);
   assert.match(css, /:active:not\(:disabled, \[aria-disabled='true'\]\) \{ opacity: [.\d]+; \}/);
-  assert.match(css, /@view-transition \{ navigation: auto; \}\s*@media \(prefers-reduced-motion: reduce\) \{ @view-transition \{ navigation: none; \} \}/);
+  // The rule that lets a page take part in the move from the screen before it is a file of
+  // its own, loaded before the first script of every page that has the shell: anywhere
+  // later, the browser reads it too late and drops the move (docs/ops.md, section 60).
+  assert.match(read('app/styles/nav.css'), /@view-transition \{ navigation: auto; \}\s*@media \(prefers-reduced-motion: reduce\) \{ @view-transition \{ navigation: none; \} \}/);
+  assert.ok(!/@view-transition/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')), 'and nowhere else');
+  for (const page of PAGES) {
+    const html = read(page);
+    assert.equal(html.includes('app/styles/nav.css'), html.includes('app/styles/shell.css'), `${page}: nav.css`);
+    if (!html.includes('app/styles/nav.css')) continue;
+    const first = html.search(/<script\b|<link rel="stylesheet"/);
+    assert.equal(html.indexOf('<link rel="stylesheet" href="app/styles/nav.css">'), first, `${page}: nav.css comes before every script and style sheet`);
+  }
   assert.match(css, /dialog, \.dlg-body, \.side-sheet \{ overscroll-behavior: contain; \}/);
   // The installed app opens on the page's own ground, not on the old dark one.
   const manifest = JSON.parse(read('clients.webmanifest'));

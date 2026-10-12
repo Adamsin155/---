@@ -1,7 +1,7 @@
 // Supabase connection. The publishable key is safe to ship in the browser:
 // access is enforced by row level security and the create-quote function.
 import { createClient } from './vendor/supabase.js';
-import { sessionCache, planOf, tokenUser, FRESH_FOR, CACHE_KEY } from './data-cache.js';
+import { sessionCache, planOf, tokenUser, CACHE_KEY } from './data-cache.js';
 import { quietPage } from './feel.js';
 
 export const SUPABASE_URL = 'https://czncjzziqrqtezpwxxpz.supabase.co';
@@ -80,7 +80,7 @@ export async function requestsIdle() {
 const kept = sessionCache((() => { try { return globalThis.sessionStorage || null; } catch { return null; } })());
 const PAGE = typeof location === 'undefined' ? '' : (location.pathname.split('/').pop() || 'index.html');
 const flying = new Map();  // key -> the server's answer on its way
-const shown = new Map();   // key -> what this page was shown from the store: { shape, body, identity, differs, done }
+const shown = new Map();   // key -> what this page was shown from the store: { shape, identity, differs, done, now: the server's answer }
 const redraws = new Set(); // how the page reads and draws again (onFresh)
 const reasked = new Set();
 const askedOnce = new Set();
@@ -114,26 +114,29 @@ function fromStore(plan, uid, input, init) {
   // five-minute reload, a read after a save) is the server's.
   const first = !askedOnce.has(plan.key);
   askedOnce.add(plan.key);
-  if (!first && !redrawing) return null;
+  if (!first) {
+    // Reading again because the server's answer differed: that answer, which just arrived.
+    const again = redrawing ? shown.get(plan.key)?.now : null;
+    return again ? answerOf(again) : null;
+  }
   const entry = kept.get(uid, plan.key);
   if (!entry) return null;
-  // The server said this a moment ago and nothing was written since: it is the answer.
-  const fresh = Date.now() - entry.at <= FRESH_FOR && entry.at > kept.wroteAt(uid);
-  if (!fresh) {
-    if (!first) return null;
-    const identity = kept.isIdentity(plan.path);
-    if (!identity && (!redraws.size || kept.unsteady(uid, PAGE).includes(plan.shape))) return null;
-    shown.set(plan.key, { shape: plan.shape, body: entry.body, identity, differs: null, done: false });
-    checking += 1;
-    setStale(true);
-    askServer(plan, uid, input, init).then((res) => (res.status === 200 || res.status === 206 ? res.text() : null), () => undefined).then((body) => {
-      // The server was not reached: what is on the screen stays, like a page left open with no network.
-      shown.get(plan.key).differs = body === undefined ? false : body !== entry.body;
-      checking -= 1;
-      if (checking === 0) nextTurn().then(confirmShown);
-    });
-  }
-  if (!kept.isIdentity(plan.path)) drawn = true;
+  const identity = kept.isIdentity(plan.path);
+  if (!identity && (!redraws.size || kept.unsteady(uid, PAGE).includes(plan.shape))) return null;
+  const mark = { shape: plan.shape, identity, differs: null, done: false, now: null };
+  shown.set(plan.key, mark);
+  checking += 1;
+  setStale(true);
+  askServer(plan, uid, input, init).then(async (res) => ({
+    ok: res.status === 200 || res.status === 206, status: res.status, type: res.headers.get('content-type'), range: res.headers.get('content-range'), body: await res.text(),
+  })).catch(() => null).then((got) => {
+    // The server was not reached: what is on the screen stays, like a page left open with no network.
+    mark.differs = !!got && (!got.ok || got.body !== entry.body);
+    mark.now = got?.ok ? got : null;
+    checking -= 1;
+    if (checking === 0) nextTurn().then(confirmShown);
+  });
+  if (!identity) drawn = true;
   return answerOf(entry);
 }
 let confirming = false;
@@ -151,6 +154,7 @@ async function confirmShown() {
         await Promise.allSettled([...redraws].map(async (draw) => draw()));
         await Promise.race([requestsIdle(), new Promise((done) => { setTimeout(done, 3000); })]);
         redrawing = false;
+        for (const [, s] of batch) s.now = null;
         orphans = batch.filter(([key]) => !reasked.has(key));
         if (lastUser) kept.markUnsteady(lastUser, PAGE, orphans.filter(([, s]) => !s.identity).map(([, s]) => s.shape));
       }
@@ -203,6 +207,7 @@ function countedFetch(input, init) {
   if (uid) lastUser = uid;
   if (uid && plan.kind === 'write') {
     kept.wrote(uid, plan.path);
+    flying.clear(); // a read after this one is not handed an answer that left before it
     const after = () => kept.wrote(uid, plan.path); // and what was read while it was on its way
     return counted(() => fetch(input, init).then((res) => { after(); return res; }, (err) => { after(); throw err; }), method);
   }

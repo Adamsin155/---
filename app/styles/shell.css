@@ -218,10 +218,10 @@ html[data-boot] main:has(> #login-block[hidden])::after {
   html[data-boot] main::before, html[data-boot] main::after, html[data-boot] body::after { content: none !important; }
 }
 
-/* From screen to screen: the old page fades into the new one instead of a white flash
-   (a browser without cross-document view transitions simply loads the page). */
-@view-transition { navigation: auto; }
-@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+/* From screen to screen: the old page changes into the new one instead of a white flash
+   (a browser without cross-document view transitions simply loads the page). The rule
+   that turns this on is app/styles/nav.css, the first thing in the <head> of every
+   staff page: in this file, the last one, it was read too late (docs/ops.md, section 60). */
 /* The app's frame stays where it is from screen to screen (docs/ops.md, section 60):
    the menu and the top bar are in the first paint of the next page (app/shell-gate.js),
    and are named here, so the browser carries them across as they are (only the marked
