@@ -27,7 +27,7 @@ import {
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { warm, taken } from './supa.js';
-import { pacer } from './turns.js';
+import { pacer, nextTurn } from './turns.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys, openedBySigning } from './client-open.js';
@@ -135,12 +135,22 @@ const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${
 // is worked out once per turn of the page: it is dropped when the turn ends and whenever
 // a row changes, so no answer outlives the rows it was read from.
 const derived = new Map();
+let held = 0; // a reload works its answers out in one turn and draws in the next: they stay for it
+const endOfTurn = () => { if (!held) derived.clear(); };
 function once(key, make) {
   if (derived.has(key)) return derived.get(key);
-  if (!derived.size) queueMicrotask(() => derived.clear());
+  if (!derived.size) queueMicrotask(endOfTurn);
   const value = make();
   derived.set(key, value);
   return value;
+}
+// The answers the last draw was made from. While a built view still stands (`fresh`), no
+// row has changed since, so a tab that is opened for the first time starts from them.
+let answers = null;
+function startFromAnswers() {
+  if (!answers || !fresh.size) return;
+  if (!derived.size) queueMicrotask(endOfTurn);
+  for (const [k, v] of answers) if (!derived.has(k)) derived.set(k, v);
 }
 // A view that was built stays on the page as it is while nothing it shows has changed:
 // going back to its tab shows it at once, with nothing built again. `fresh`: the views
@@ -151,7 +161,7 @@ const kept = new Map();
 let switching = false; // setView is showing a view: that draw is not a change of the rows
 // A draw that an action, a reload or the minute asked for: whatever else was built is old.
 function drawn(v, { keep = switching } = {}) {
-  if (!keep) { fresh.clear(); kept.clear(); }
+  if (!keep) { fresh.clear(); kept.clear(); answers = null; }
   fresh.add(v);
 }
 // A row changed (a mark, a task, a reload, the minute): nothing worked out or built stays.
@@ -161,6 +171,7 @@ function changed() {
   derived.clear();
   fresh.clear();
   kept.clear();
+  answers = null;
 }
 // The state of each client, worked out once and kept until its rows change. Every change
 // of a mark in this file drops its client from here, which is what tells the rest.
@@ -269,12 +280,32 @@ async function load() {
   lastLoad = Date.now();
   $('state').textContent = '';
   await warmStates();
-  rebuildClocks();
-  watchNewClients();
-  checkLate();
-  if (!document.hidden) renderKeepingFocus();
+  // What the screen is made from is worked out in one turn and the screen is built in the
+  // next, so neither holds the page for long; the answers stay for the build (`held`).
+  held += 1;
+  try {
+    rebuildClocks();
+    watchNewClients();
+    checkLate();
+    if (!document.hidden) {
+      warmAnswers();
+      await nextTurn();
+      renderKeepingFocus();
+    }
+  } finally {
+    held -= 1;
+    if (!held) derived.clear();
+  }
   refreshQuestions($('my-questions'), me, clients);
   refreshDeals();
+}
+// What the open view will ask for when it is built (each is kept by `once`).
+function warmAnswers() {
+  lateState();
+  if (me) { workFor(me); flowOfMe(); }
+  // The team's list counts every person's work for its chips.
+  if (view === 'mine' && scope === 'office' && !personal) for (const p of STAFF_PEOPLE()) workFor(p.key);
+  if (view !== 'clients' && (!me || view === 'control')) workFor(null);
 }
 
 // Re-rendering replaces elements; keep keyboard focus and scroll where they were.
@@ -388,7 +419,7 @@ function setView(v, focus = false) {
   window.dispatchEvent(new Event('hashchange'));
   if (showKept(view)) return;
   switching = true;
-  try { render(); } finally { switching = false; }
+  try { startFromAnswers(); render(); } finally { switching = false; }
 }
 for (const t of TABS) $(`tab-${t}`).addEventListener('click', () => setView(t));
 document.querySelector('.tabs').addEventListener('keydown', (e) => {
@@ -409,6 +440,8 @@ function render() {
   if (view === 'clients') { drawn('clients'); renderClients(); }
   if (view === 'control') renderControl();
   if (view === 'performance') { drawn('performance'); renderPerformance(); }
+  // What this draw was made from, for the next tab opened while it stands (startFromAnswers).
+  answers = new Map([...(switching && answers ? answers : []), ...derived]);
 }
 
 // ── My work ─────────────────────────────────
@@ -536,6 +569,7 @@ async function toggleEntry(e, input) {
     if (e.task) {
       await setTaskDone(e.task.id, true);
       tasks = tasks.filter((t) => t.id !== e.task.id);
+      changed();
       // Ofir's folder task (24) is the item "יש תיקייה מסודרת": done together.
       const folder = folderItemOf(e.task);
       if (folder) try { (checks[e.client.id] ||= {})[folder] = await setCheck(e.client.id, folder, 'done'); states.delete(e.client.id); } catch { /* the item stays for the card */ }
@@ -570,6 +604,7 @@ async function undo(e) {
     if (e.task) {
       const row = await setTaskDone(e.task.id, false);
       tasks = [row, ...tasks];
+      changed();
       const folder = folderItemOf(e.task);
       if (folder && checks[e.client.id]?.[folder]) try { await clearCheck(e.client.id, folder); delete checks[e.client.id][folder]; states.delete(e.client.id); } catch { /* the item stays */ }
     } else {
@@ -1208,6 +1243,7 @@ async function startTask(t, btn) {
   btn.disabled = true;
   try {
     Object.assign(t, await setTaskStarted(t.id, true));
+    changed();
   } catch (err) {
     btn.disabled = false;
     toast(`הסימון לא נשמר. ${errorText(err)}`);
@@ -2003,6 +2039,7 @@ async function doMarkReview(r, input) {
   try {
     const row = await markReview(day, reviewKind(r), note);
     reviews = [row, ...(reviews || []).filter((x) => !(x.day === row.day && x.kind === row.kind))];
+    changed();
   } catch (err) {
     if (input) { input.checked = false; input.disabled = false; }
     toast(`הסימון לא נשמר. ${errorText(err)}`);
@@ -2303,6 +2340,7 @@ $('notes-form').addEventListener('submit', async (e) => {
   try {
     const row = await markReview(dayIso(new Date()), reviewKind(r), note);
     reviews = [row, ...(reviews || []).filter((x) => !(x.day === row.day && x.kind === row.kind))];
+    changed();
     notesDlg.close();
     renderKeepingFocus();
     toast('ההערות נשמרו.');
@@ -2401,6 +2439,7 @@ async function taskFromNote(c, note, btn) {
   try {
     const row = await addTask({ client_id: c.id, title: noteTitle(note), owner: note.owner, due_on: note.due_on, source: 'status' });
     tasks = [row, ...tasks];
+    changed();
   } catch (err) {
     btn.disabled = false;
     toast(`המשימה לא נפתחה. ${errorText(err)}`);
@@ -2553,6 +2592,7 @@ $('status-form').addEventListener('submit', async (e) => {
   try {
     const saved = await saveStatusNote(row);
     statusNotes = [saved, ...(statusNotes || []).filter((n) => !(n.client_id === saved.client_id && n.week === saved.week))];
+    changed();
   } catch (err) {
     $('status-err').textContent = `הסיכום לא נשמר. ${errorText(err)}`;
     $('status-err').hidden = false;
