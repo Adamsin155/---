@@ -457,7 +457,7 @@ const nagRow = (over = {}) => log({ id: 91, key: `nag:-:${TASK}:s3@irit`, rule: 
 
 test('Jako\'s three templates follow Meta\'s rules: variables inside the text, short buttons and footer, an example for each variable', () => {
   assert.deepEqual(Object.keys(JAKO_TEMPLATES), ['nodnik', 'reminder', 'summary']);
-  assert.deepEqual(jakoNames, ['astrateg_nodnik', 'astrateg_reminder', 'astrateg_summary']);
+  assert.deepEqual(jakoNames, ['astrateg_nodnik', 'astrateg_task_update', 'astrateg_tasks_summary']);
   for (const [key, t] of Object.entries(JAKO_TEMPLATES)) {
     assert.match(t.name, /^[a-z_]{1,60}$/, key);
     const vars = [...t.body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1]));
@@ -486,8 +486,8 @@ test('Jako\'s three templates follow Meta\'s rules: variables inside the text, s
   assert.deepEqual([n.name, !!n.byHand, n.footer, n.link, n.replies], ['astrateg_nodnik', false, FOOTER, false, ['done', 'onit']]);
   assert.deepEqual(jakoDefinition('nodnik').components.at(-1).buttons, [{ type: 'QUICK_REPLY', text: 'המשימה בוצעה' }, { type: 'QUICK_REPLY', text: 'אני על זה' }]);
   // The two to create: the exact wording.
-  assert.equal(JAKO_TEMPLATES.reminder.body, 'היי {{1}}, תזכורת מהמערכת של אסטרטג ⏰\n\n{{2}}\n\n{{3}}\n\nאפשר לענות כאן ״אני על זה״, או לפתוח במערכת ולסמן שם.');
-  assert.equal(JAKO_TEMPLATES.summary.body, 'היי {{1}}, זה התקציר שלך מהמערכת של אסטרטג.\n\n{{2}}\n\n{{3}}\n\nהפירוט המלא מחכה לך במערכת, בכפתור למטה.');
+  assert.equal(JAKO_TEMPLATES.reminder.body, 'היי {{1}}, יש עדכון על משימה פתוחה שלך במערכת העבודה של אסטרטג.\n\nהמשימה: {{2}}\nפרטים: {{3}}\n\nאפשר לעדכן כאן שאת/ה על זה, או לפתוח את המשימה במערכת.');
+  assert.equal(JAKO_TEMPLATES.summary.body, 'היי {{1}}, זה סיכום המשימות שלך במערכת העבודה של אסטרטג.\n\n{{2}}:\n{{3}}\n\nהרשימה המלאה מחכה לך במערכת, בכפתור למטה.');
   assert.deepEqual([JAKO_TEMPLATES.reminder.footer, JAKO_TEMPLATES.summary.footer], [FOOTER, FOOTER]);
   assert.deepEqual([JAKO_TEMPLATES.reminder.replies, JAKO_TEMPLATES.summary.replies], [['onit'], []]);
   assert.ok(!JAKO_TEMPLATES.reminder.byHand && !JAKO_TEMPLATES.summary.byHand);
@@ -525,7 +525,7 @@ test('Jako\'s message for each template: the number as user_id, the first name, 
   const m = jakoMessage({ template: 'reminder', to: '972501234567', row: log({ body: 'חסר חוזה\nלבדוק' }), flows: FLOWS });
   assert.deepEqual(m, {
     user_id: '972501234567', create_if_not_found: 'yes',
-    content: { name: 'astrateg_reminder', lang: 'he', params: { 'BODY_{{1}}': 'עירית', 'BODY_{{2}}': 'עסקה חדשה: פיצה', 'BODY_{{3}}': 'חסר חוזה · לבדוק', QUICK_REPLY_1: 'f100s201', URL_2: 'client.html?id=c1' } },
+    content: { name: 'astrateg_task_update', lang: 'he', params: { 'BODY_{{1}}': 'עירית', 'BODY_{{2}}': 'עסקה חדשה: פיצה', 'BODY_{{3}}': 'חסר חוזה · לבדוק', QUICK_REPLY_1: 'f100s201', URL_2: 'client.html?id=c1' } },
     contact: { first_name: 'עירית' },
   });
   // The nodnik: the task on one line (the title, and the details when they fit), both buttons, no link.
@@ -559,13 +559,13 @@ test('the Jako sender: the namespace from Jako\'s list (read once), the key in t
   const [sent] = api.sends();
   assert.equal(sent.method, 'POST');
   assert.equal(sent.headers.Authorization, `Bearer ${KEY}`);
-  assert.deepEqual(sent.body, { ...message, content: { namespace: 'ns_astrateg_reminder', ...message.content } });
+  assert.deepEqual(sent.body, { ...message, content: { namespace: 'ns_astrateg_task_update', ...message.content } });
   assert.equal(sent.body.user_id, '972501234567');
   assert.ok(!JSON.stringify(sent.body).includes(KEY) && !JSON.stringify(sent.query).includes(KEY));
   // The next sends do not ask for the list again (the instance remembers it).
   await jako.send(jakoMessage({ template: 'summary', to: '972501234567', row: log({ rule: 'digest' }), flows: FLOWS }));
   await jako.send(jakoMessage({ template: 'nodnik', to: '972501234567', row: nagRow(), flows: FLOWS }));
-  assert.deepEqual([api.lists().length, api.sends().map((c) => c.body.content.namespace)], [1, ['ns_astrateg_reminder', 'ns_astrateg_summary', 'ns_astrateg_nodnik']]);
+  assert.deepEqual([api.lists().length, api.sends().map((c) => c.body.content.namespace)], [1, ['ns_astrateg_task_update', 'ns_astrateg_tasks_summary', 'ns_astrateg_nodnik']]);
   assert.equal(JAKO_BASE, 'https://my.jako.co.il/api');
   // Not configured: no key, or a number that is not one. Nothing is asked of Jako.
   const none = fakeJakoApi();
@@ -582,8 +582,8 @@ test('the Jako sender: a template that is missing or not approved fails that mes
   const row = (name, over = {}) => ({ name, language: 'he', status: 'APPROVED', namespace: `ns_${name}`, ...over });
   let listed = [
     row('astrateg_nodnik', { status: 'PENDING' }),
-    row('astrateg_summary', { namespace: undefined }),
-    row('astrateg_reminder', { language: 'en' }),
+    row('astrateg_tasks_summary', { namespace: undefined }),
+    row('astrateg_task_update', { language: 'en' }),
   ];
   const api = fakeJakoApi({ list: () => ({ status: 200, body: { data: listed } }) });
   let now = 1_000_000;
@@ -594,7 +594,7 @@ test('the Jako sender: a template that is missing or not approved fails that mes
   assert.deepEqual(await jako.send(m('reminder')), { ok: false, status: 0, error: 'jako no_template' }, 'another language is another template');
   assert.deepEqual([api.lists().length, api.sends().length], [1, 0], 'one list for all of them, and nothing was sent blind');
   // Approved meanwhile: found once the list is read again (not before LIST_AGAIN).
-  listed = [row('astrateg_nodnik'), row('astrateg_reminder', { status: 'REJECTED' })];
+  listed = [row('astrateg_nodnik'), row('astrateg_task_update', { status: 'REJECTED' })];
   assert.equal((await jako.send(m('nodnik', nagRow()))).error, 'jako not_approved');
   now += LIST_AGAIN;
   assert.deepEqual(await jako.send(m('nodnik', nagRow())), { ok: true });
@@ -607,7 +607,7 @@ test('the Jako sender: a template that is missing or not approved fails that mes
   assert.equal(down.sends().length, 0);
   // More templates than one page: the next page is read.
   const many = Array.from({ length: 100 }, (_, i) => row(`other_${i}`));
-  const paged = fakeJakoApi({ list: (c) => ({ status: 200, body: { data: c.query.page === '1' ? many : [row('astrateg_reminder', { namespace: 'ns_p2' })] } }) });
+  const paged = fakeJakoApi({ list: (c) => ({ status: 200, body: { data: c.query.page === '1' ? many : [row('astrateg_task_update', { namespace: 'ns_p2' })] } }) });
   assert.deepEqual(await makeJako({ fetch: paged.fetch, apiKey: KEY, wait: noWait }).send(m('reminder')), { ok: true });
   assert.equal(paged.sends()[0].body.content.namespace, 'ns_p2');
 });
@@ -696,7 +696,7 @@ test('with Jako a ring goes by push and once by WhatsApp, as "sent" with no mess
   const stats = await runTick({ db: db.at(t0), push, wa, now: t0 });
   assert.deepEqual([stats.pushed, stats.waSent, stats.waFailed], [1, 1, 0]);
   const [sent] = api.sends();
-  assert.deepEqual([sent.body.user_id, sent.body.content.name, sent.body.content.namespace], ['972501111111', 'astrateg_reminder', 'ns_astrateg_reminder']);
+  assert.deepEqual([sent.body.user_id, sent.body.content.name, sent.body.content.namespace], ['972501111111', 'astrateg_task_update', 'ns_astrateg_task_update']);
   assert.deepEqual([sent.body.content.params['BODY_{{1}}'], sent.body.content.params['BODY_{{2}}'], sent.body.content.params.QUICK_REPLY_1], ['עירית', 'עסקה חדשה: פיצה', 'f100s201']);
   const logRow = db.log.find((r) => r.key === 'deal:c1:deal:now@irit');
   // The row keeps which of the three it went out with: a reply is matched by it.

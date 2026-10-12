@@ -200,14 +200,14 @@ export const JAKO_TEMPLATES = {
     footer: FOOTER, replies: ['done', 'onit'], link: false,
   },
   reminder: {
-    name: 'astrateg_reminder', label: 'תזכורת',
-    body: 'היי {{1}}, תזכורת מהמערכת של אסטרטג ⏰\n\n{{2}}\n\n{{3}}\n\nאפשר לענות כאן ״אני על זה״, או לפתוח במערכת ולסמן שם.',
+    name: 'astrateg_task_update', label: 'תזכורת',
+    body: 'היי {{1}}, יש עדכון על משימה פתוחה שלך במערכת העבודה של אסטרטג.\n\nהמשימה: {{2}}\nפרטים: {{3}}\n\nאפשר לעדכן כאן שאת/ה על זה, או לפתוח את המשימה במערכת.',
     example: ['עירית', 'לשייך עורך: פיצה', 'יום הצילום הסתיים. לשייך עורך עד מחר 12:00.'],
     footer: FOOTER, replies: ['onit'], link: true,
   },
   summary: {
-    name: 'astrateg_summary', label: 'תקציר',
-    body: 'היי {{1}}, זה התקציר שלך מהמערכת של אסטרטג.\n\n{{2}}\n\n{{3}}\n\nהפירוט המלא מחכה לך במערכת, בכפתור למטה.',
+    name: 'astrateg_tasks_summary', label: 'תקציר',
+    body: 'היי {{1}}, זה סיכום המשימות שלך במערכת העבודה של אסטרטג.\n\n{{2}}:\n{{3}}\n\nהרשימה המלאה מחכה לך במערכת, בכפתור למטה.',
     example: ['עירית', 'תקציר בוקר', 'באיחור: פיצה · תסריטים · היום (2): בורגר, סושי'],
     footer: FOOTER, replies: [], link: true,
   },

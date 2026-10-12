@@ -1,8 +1,8 @@
 // The staff WhatsApp templates at Jako (my.jako.co.il; app/wa-templates.js
 // JAKO_TEMPLATES; docs/ops.md, section 63). Three templates:
 //   nodnik             the owner's own, made by hand in Jako: never created from here
-//   astrateg_reminder  every other ring           } their definitions are printed here,
-//   astrateg_summary   the digests                } for whoever creates them at Jako
+//   astrateg_task_update  every other ring           } their definitions are printed here,
+//   astrateg_tasks_summary   the digests                } for whoever creates them at Jako
 // Run by hand, by whoever sets the channel up; nothing in the app or in the tests
 // calls Jako through it.
 //
