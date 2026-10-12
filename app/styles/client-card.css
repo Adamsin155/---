@@ -172,7 +172,7 @@ dialog .dlg-foot .btn { min-height: 46px; }
    A row of the card is never small grey text between thin lines: the timeline and the
    history start with the leaf of their moment, a task and an item are soft rows inside
    their card, a deadline and a state are pills (hot once late). Look only; the words stay.
-   Contrast: an item's label ink on the ground 15.9; the history's sentence ink on white
+   Contrast: an item's label ink on the ground 15.74; the history's sentence ink on white
    17.96; the pills as in kit.css (late 5.15, today 5.9, ok 5.72, plain 9.2). */
 
 /* ── The protocol: a process's deadline and state as pills, its items as soft rows ── */
@@ -193,6 +193,12 @@ dialog .dlg-foot .btn { min-height: 46px; }
 #phases .items > .item:not(.is-done, .is-na, .is-blocked) .ilabel, #mc-slot .items > .item:not(.is-done, .is-na, .is-blocked) .ilabel { font-weight: 600; color: var(--ds-ink); }
 #phases .imeta, #mc-slot .imeta { color: var(--ds-ink-2); }
 #phases .proc-meta .sla { color: var(--ds-ink-2); }
+
+/* The contract's month, its end and the renewal window: pills beside the heading. */
+#cc-head .cs-when { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: 12px; background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 600; }
+#cc-head .cs-when:has(.is-open) { background: var(--ds-amber-soft); }
+#cc-head .cs-when .is-open { color: var(--ds-amber); }
+#mc-slot .mc-count { font-weight: 700; color: var(--ds-ink); }
 
 /* ── Tasks: each a white row with its deadline as a pill ── */
 #tasks .tlist { display: grid; gap: 8px; }

@@ -299,7 +299,8 @@ a.k-row:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; 
 /* ── "No pale rows" (the owner, 13.10.2026; docs/ops.md, section 61; helpers at the end of
    app/kit.js). Appended only. A row of a list is a card with a mark at its start (a leaf of
    its moment, or the icon square of its kind), one bold title, a state as a pill, counts as
-   bold numbers. */
+   bold numbers. White on the band of a leaf (4.5:1 needed): navy 18.15, blue 7.34, purple 7.11,
+   pink 5.92, green 6.58, orange 5.72, teal 6.31. */
 /* The leaf whose words are drawn from its data (leafMark): the row's own text says the date. */
 .k-leaf-mark > [data-t]::before { content: attr(data-t); }
 .k-leaf-sm { inline-size: 52px; border-radius: 12px; }
@@ -323,19 +324,11 @@ a.k-row:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; 
 .k-inset { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 0; list-style: none; }
 .k-inset > li, .k-inset-row { min-width: 0; padding: 6px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
 
-/* Counts as bold tabular numbers, each with its word (stat). */
-.k-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; min-width: 0; margin: 0; padding: 0; list-style: none; }
-.k-stat { display: grid; gap: 1px; justify-items: center; align-content: center; min-width: 0; padding: 8px 6px; border-radius: var(--ds-r-sm); background: var(--ds-ground); color: var(--ds-ink); text-align: center; }
-.k-stat-n { font-family: var(--ds-font-h); font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.k-stat-l { font-size: 12.5px; line-height: 1.3; color: var(--ds-ink-2); overflow-wrap: anywhere; }
-.k-stat-late { background: var(--ds-hot-soft); } .k-stat-late .k-stat-n { color: var(--ds-hot-text); }
-.k-stat-today { background: var(--ds-amber-soft); } .k-stat-today .k-stat-n { color: var(--ds-amber); }
-.k-stat-ok { background: var(--ds-ok-soft); } .k-stat-ok .k-stat-n { color: var(--ds-ok); }
 @media (max-width: 480px) {
   .k-pc { padding: 10px; }
   .k-pc-top { gap: 10px; }
   .k-pc-mark, .k-pc-mark > .k-leaf { inline-size: 54px; }
   .k-pc-mark > .k-leaf .k-leaf-day { font-size: 21px; }
 }
-@media print { .k-pc, .k-stat, .k-inset > li, .k-inset-row { background: #fff; box-shadow: none; border: 1px solid #999; } }
+@media print { .k-pc, .k-inset > li, .k-inset-row { background: #fff; box-shadow: none; border: 1px solid #999; } }
 /* end: section 61 */

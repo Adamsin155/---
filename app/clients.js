@@ -64,7 +64,7 @@ import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageT
 import { loadDeals } from './deal-data.js';
 import { fixTaskOf, fixNote, FIX_ITEM_LABEL, lateItems, countsLate, lateKey } from './late-chain.js';
 // The shared look (docs/ops.md, section 50): icon squares, the counted line, the empty state.
-import { headIcon, sectionHead, emptyState, countedLine, dateLeaf, leafRow, cardMark, iconSquare, pill, stat } from './kit.js';
+import { headIcon, sectionHead, emptyState, countedLine, dateLeaf, leafRow, cardMark, iconSquare } from './kit.js';
 import { canSeeDeals, canSeeQuoteList } from './manager-rules.js';
 // Everything that waits for me on another page, as counted lines (docs/ops.md, section 46).
 import { flowLines, flowNeeds } from './mine-flow.js';
@@ -1144,8 +1144,7 @@ function whenWords(g, now = new Date()) {
 // drawn from data (app/kit.js leafMark), so the words of the card are what they were.
 function markOf(g, now = new Date()) {
   if (g.dueAt && g.status !== 'client') {
-    const w = leafFar(g.dueAt, now);
-    return cardMark({ ...w, tone: g.late ? 'pink' : g.dueAt < now ? 'orange' : w.tone });
+    return cardMark(leafFar(g.dueAt, now, { late: !!g.late }));
   }
   return cardMark(null, ...(g.status === 'client' ? ['hourglass', 'orange'] : g.urgent ? ['bolt', 'pink'] : g.escalation ? ['flag', 'pink'] : g.task ? ['check-circle', 'navy'] : ['list', 'navy']));
 }

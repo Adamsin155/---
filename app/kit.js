@@ -374,9 +374,4 @@ export function cardMark(words, name = 'list', tone = 'navy') {
   return el('span', { class: 'k-pc-mark', 'aria-hidden': 'true' }, words ? leafMark(words) : iconSquare(name, tone, { size: 'lg' }));
 }
 
-// A count with its word: the number bold and tabular, the word small under it.
-//   tone: 'plain' | 'late' | 'today' | 'ok' (the colour never stands alone: the word says it).
-export function stat(n, label, tone = 'plain', { cls = '' } = {}) {
-  return el('span', { class: `k-stat k-stat-${tone}${cls ? ` ${cls}` : ''}` }, el('b', { class: 'k-stat-n' }, String(n)), el('span', { class: 'k-stat-l' }, label));
-}
 /* end: section 61 */

@@ -48,8 +48,8 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
    in a clear head, the state as a pill (late in the hot colour), and its items inside it as
    soft rows. The short list and the full one share the head. Held to `.pc` (the cards
    app/clients.js builds) and to #mine-list, so no other page changes.
-   Contrast: the client's name #0E2260 on white 14.5; the title ink on white 17.96; the item
-   ink on the ground 15.9; the pills as in kit.css (late 5.15, today 5.9, plain 9.2). */
+   Contrast: the client's name #0E2260 on white 14.83; the title ink on white 17.96; the item
+   ink on the ground 15.74; the pills as in kit.css (late 5.15, today 5.9, plain 9.2). */
 #mine-list .wprocs { display: grid; gap: 8px; padding-top: 4px; }
 #mine-list .wprocs > .more-row { border-top: 0; padding: 2px 0 0; }
 #mine-list .wprocs.il-list { padding-top: 0; }
@@ -273,6 +273,18 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
   #view-performance .ctable td { flex: 1 1 28%; }
   #view-performance .ctable td:not(.num, :first-child, .sla) { flex: 1 1 100%; }
 }
+
+/* "המחזור החודשי": a card per client, its items of the month as soft rows, until when as a pill. */
+#my-months .mc-list { display: grid; gap: 8px; }
+#my-months .mc-list > .more-row { border-top: 0; padding: 2px 0 0; }
+#my-months .mc-client { display: grid; gap: 8px; padding: 12px; border-top: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
+#my-months .mc-head .wclient { font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+#my-months .mc-head .muted { color: var(--ds-ink-2); font-weight: 600; }
+#my-months .items, #mc-slot .items { display: grid; gap: 6px; }
+#my-months .items > .item { border-top: 0; padding: 2px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+#my-months .items > .item:not(.is-done, .is-na) .ilabel { font-weight: 600; color: var(--ds-ink); }
+#my-months .imeta > span:not(.tag, .pchip, .by, .inote), #mc-slot .imeta > span:not(.tag, .pchip, .by, .inote) { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: 12px; background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; }
+#my-months .imeta > span.late, #mc-slot .imeta > span.late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
 
 /* Ilai's cards: until when is a pill, hot once it passed (the words say it: "עד אתמול 16:00"). */
 #mine-list .il-until { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; white-space: nowrap; }
