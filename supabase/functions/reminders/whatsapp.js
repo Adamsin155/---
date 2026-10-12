@@ -9,6 +9,11 @@
 // reminder_log row, claimed before sending (a row a later tick takes again finds
 // its claim). A claim whose send never finished (the tick died) is marked failed
 // after WA_LOST, never sent twice.
+//
+// Two providers send (public.whatsapp_provider; docs/ops.md, section 63): Meta's Cloud
+// API directly, the default, and Jako (./wa-poll.js), which takes its own message
+// (`message`) and returns no message id: its rows are 'sent' or 'failed', no more,
+// and are marked with the provider.
 import { waPlan } from '../_shared/app/wa-logic.js';
 import { templateMessage, taskIdOf } from '../_shared/app/wa-templates.js';
 
@@ -18,9 +23,10 @@ const PARALLEL = 5;
 /**
  * @param {{ db: { claim: (row: object) => Promise<object | null>, update: (id: number, patch: object) => Promise<void>, expire: (before: Date) => Promise<number> },
  *   send: (message: object) => Promise<{ ok: boolean, id?: string, status?: number, error?: string }>,
- *   recipients: Map<string, { email: string, phone: string }> }} args
+ *   recipients: Map<string, { email: string, phone: string }>,
+ *   message?: (args: { template: string, to: string, row: object }) => object, provider?: string | null }} args
  */
-export function makeWhatsapp({ db, send, recipients }) {
+export function makeWhatsapp({ db, send, recipients, message = templateMessage, provider = null }) {
   async function one({ row, kind }, { tasks, now, stats }) {
     const recipient = recipients.get(row.person);
     const plan = waPlan({ row, kind, now, recipient, task: tasks.get(taskIdOf(row)) || null });
@@ -29,9 +35,9 @@ export function makeWhatsapp({ db, send, recipients }) {
       return;
     }
     try {
-      const claimed = await db.claim({ log_id: row.id, person: row.person, email: recipient.email, phone: plan.to, template: plan.template, status: 'pending' });
+      const claimed = await db.claim({ log_id: row.id, person: row.person, email: recipient.email, phone: plan.to, template: plan.template, status: 'pending', ...(provider ? { provider } : {}) });
       if (!claimed) return; // this reminder already went out on WhatsApp
-      const res = await send(templateMessage({ template: plan.template, to: plan.to, row })).catch(() => ({ ok: false, status: 0, error: 'error' }));
+      const res = await send(message({ template: plan.template, to: plan.to, row })).catch(() => ({ ok: false, status: 0, error: 'error' }));
       if (res.ok) {
         await db.update(claimed.id, { status: 'sent', wa_message_id: res.id, sent_at: now.toISOString() });
         stats.waSent += 1;

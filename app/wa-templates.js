@@ -10,7 +10,7 @@
 // thing in the body; a variable holds no line breaks, tabs or more than four
 // spaces in a row, and the body is at most 1024 characters; a button's text is at
 // most 25 characters, a footer at most 60; quick replies come before the link.
-import { RULE_BY_ID, stepOfKey } from './reminder-rules.js';
+import { RULE_BY_ID, stepOfKey, personName } from './reminder-rules.js';
 
 export const WA_LANG = 'he';
 // The site the "פתיחה במערכת" button opens (the variable is the page, e.g.
@@ -23,6 +23,17 @@ export const FOOTER = 'אסטרטג · הודעת עבודה. להפסקה: הש
 // approvals and quality control always open the app).
 export const BUTTONS = { onit: 'אני על זה', help: 'צריך עזרה', done: 'בוצע' };
 const ANSWER = 'אפשר לענות כאן בכפתור, או לפתוח במערכת.';
+
+// ── The providers ──────────────────────────
+// 'meta': Meta's Cloud API directly (the templates below, as they are).
+// 'jako': the owner's provider (my.jako.co.il; docs/ops.md, section 63). Its API cannot
+// tell us which quick reply was pressed (a button there only starts a flow built in
+// Jako's own editor), so its templates have no quick replies, and the sentence that
+// promises one says where the work is marked instead. A template's body is part of
+// what Meta approves, so Jako's set has its own names (the suffix) and both can exist.
+export const WA_PROVIDERS = ['meta', 'jako'];
+export const JAKO_SUFFIX = '_j';
+export const JAKO_ANSWER = 'לפתיחה ולסימון: הכפתור למטה.';
 
 // {{1}} is the reminder's title (it names the client), {{2}} its details.
 export const TEMPLATES = {
@@ -82,6 +93,15 @@ export const TEMPLATES = {
     replies: [],
   },
 };
+
+// A template as one provider sends it: { name, body, replies, example }.
+export function templateOf(key, provider = 'meta') {
+  const t = TEMPLATES[key];
+  if (!t) throw new Error(`unknown template ${key}`);
+  if (!WA_PROVIDERS.includes(provider)) throw new Error(`unknown provider ${provider}`);
+  if (provider !== 'jako') return { name: t.name, body: t.body, replies: t.replies, example: t.example };
+  return { name: `${t.name}${JAKO_SUFFIX}`, body: t.body.replace(ANSWER, JAKO_ANSWER), replies: [], example: t.example };
+}
 
 // ── Which template ─────────────────────────
 // Rules whose case is a task (the key's case id is the task's id).
@@ -164,10 +184,36 @@ export function templateMessage({ template, to, row }) {
 // A reply inside the 24 hours after the person wrote (Meta's service window): plain text.
 export const textMessage = ({ to, text }) => ({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { body: String(text).slice(0, 1000) } });
 
-// What to submit to Meta for approval (WhatsApp Manager, or POST
-// /{whatsapp-business-account-id}/message_templates with this body).
-export function metaDefinition(key) {
-  const t = TEMPLATES[key];
+// ── Jako ───────────────────────────────────
+// Jako's `user_id` of a WhatsApp contact: the number in international digits, as the
+// database keeps it (972 5X XXX XXXX). One place, should Jako want another form.
+export const jakoUserId = (phone) => String(phone || '').replace(/\D/g, '');
+// The value of the link button's variable. Meta takes only the part after the approved
+// base (SITE_URL), and Jako is assumed to pass it on as it is; if it turns out to want
+// the whole address, this is the one line to change.
+export const jakoUrlParam = (url) => pagePath(url);
+
+// Jako's body (POST /subscriber/send-whatsapp-template-by-user-id) for one log row,
+// without the template's `namespace`: the sender adds it from Jako's own list
+// (supabase/functions/_shared/wa-jako.js). Jako makes the contact on a first message;
+// it gets the first name only.
+export function jakoMessage({ template, to, row }) {
+  const t = templateOf(template, 'jako');
+  const [title, details] = paramsOf(row);
+  const name = row?.person ? personName(row.person) : '';
+  return {
+    user_id: jakoUserId(to), create_if_not_found: 'yes',
+    content: { name: t.name, lang: WA_LANG, params: { 'BODY_{{1}}': title, 'BODY_{{2}}': details, URL_1: jakoUrlParam(row.url) } },
+    ...(name ? { contact: { first_name: name } } : {}),
+  };
+}
+
+// What to submit for approval: to Meta (WhatsApp Manager, or POST
+// /{whatsapp-business-account-id}/message_templates with this body), or, with
+// { provider: 'jako' }, to Jako (POST /whatsapp-template/create takes the same shape;
+// scripts/jako-templates.mjs).
+export function metaDefinition(key, { provider = 'meta' } = {}) {
+  const t = templateOf(key, provider);
   return {
     name: t.name, language: WA_LANG, category: 'UTILITY',
     components: [
