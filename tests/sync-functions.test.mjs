@@ -54,9 +54,9 @@ test('create-quote imports only the shared copy, never the repository', () => {
 });
 
 test('the reminders function imports only its own files and the shared copy', () => {
-  const files = new Set(['index.ts', 'tick.js', 'webpush.js', 'http.js', 'wa-server.ts', 'whatsapp.js'].flatMap((f) => [...localImports('reminders', f)]));
+  const files = new Set(['index.ts', 'tick.js', 'webpush.js', 'http.js', 'wa-server.ts', 'whatsapp.js', 'wa-poll.js'].flatMap((f) => [...localImports('reminders', f)]));
   assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), [
-    '_shared/wa-graph.js', 'reminders/http.js', 'reminders/tick.js', 'reminders/wa-server.ts', 'reminders/webpush.js', 'reminders/whatsapp.js',
+    '_shared/wa-graph.js', '_shared/wa-jako.js', 'reminders/http.js', 'reminders/tick.js', 'reminders/wa-poll.js', 'reminders/wa-server.ts', 'reminders/webpush.js', 'reminders/whatsapp.js',
   ]);
   for (const f of files) if (f.startsWith('_shared/app/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
 });
@@ -100,9 +100,11 @@ const DEPLOY = {
   reminders: [
     ...APP('access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
+    '_shared/wa-jako.js',
     'reminders/http.js',
     'reminders/index.ts',
     'reminders/tick.js',
+    'reminders/wa-poll.js',
     'reminders/wa-server.ts',
     'reminders/webpush.js',
     'reminders/whatsapp.js',
@@ -131,8 +133,8 @@ test('every function, and every file it deploys (the shared copies it reaches ar
   // The copies are exactly what the functions reach: nothing generated for nobody.
   for (const rel of reached) assert.ok(modules().includes(rel), rel);
   for (const rel of modules()) assert.ok(reached.has(rel), `${rel} is copied but no function reaches it`);
-  // The hand-written shared file is not in the generated folder.
-  assert.ok(!readFileSync(join(FUNCTIONS, '_shared/wa-graph.js'), 'utf8').startsWith(MARK));
+  // The hand-written shared files are not in the generated folder.
+  for (const f of ['_shared/wa-graph.js', '_shared/wa-jako.js']) assert.ok(!readFileSync(join(FUNCTIONS, f), 'utf8').startsWith(MARK), f);
 });
 
 test('verify_jwt: off for the functions that check their caller themselves', () => {

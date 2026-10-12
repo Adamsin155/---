@@ -3354,3 +3354,108 @@ select name, business, contract_end from public.clients where status = 'active' 
 
 1. ב"כל הלקוחות במבט" הסיבה של לקוח אדום כתובה עכשיו בוורוד. עם 15 אדומים זה הרבה ורוד; אפשר להשאיר ורוד רק לתג ולהחזיר את המשפט לדיו.
 2. ב"ימי הצילום הבאים" נוספו שעת ההגעה והכתובת לכל יום (נתונים שכבר מופיעים בתדריך). אם זה מיותר, מורידים שורה.
+
+## 63. וואטסאפ לצוות דרך Jako: ספק שני, לפי הגדרה (החלטת הבעלים, 12.10.2026)
+
+*המשך של סעיף 14. שם הערוץ בנוי מול ה־Cloud API של Meta ישירות, וכבוי. הבעלים החליט להתחבר דרך הספק שלו, **Jako** (`my.jako.co.il`), שכבר מחובר אצלו מספר WhatsApp Cloud: מפתח API אחד במקום חשבון מפתחים ב־Meta, System User, App secret ו־webhook. הדרך של Meta נשארה בדיוק כמו שהייתה, והיא ברירת המחדל. הכול נבנה ונבדק מקומית מול זיופים בלבד: **שום קריאה ל־API האמיתי של Jako לא נעשתה**, ולכן יש בסוף הסעיף רשימה של מה שצריך לאמת מולו לפני ההדלקה.*
+
+**מה לא משתנה:** ההסכמה ומסך ההסכמה, מי מקבל, השעות (א׳–ה׳ 08:30–19:00, ערב חג עד 13:00), אילו שורות יוצאות (מה שהפוש כבר שולח, ולא יותר), ושורה אחת ב־`whatsapp_messages` לכל שורת יומן (`log_id` ייחודי, כך שהודעה לא יוצאת פעמיים).
+
+**מה שונה מהדרך של Meta:**
+
+| | Meta (סעיף 14) | Jako |
+|---|---|---|
+| סודות ב־Vault | ארבעה | אחד: `whatsapp_jako_api_key` |
+| כפתורי תשובה ("אני על זה", "צריך עזרה", "בוצע") | יש | **אין.** ב־API של Jako כפתור תשובה רק מפעיל "sub flow" שנבנה בעורך של Jako; אין דרך לקבל אצלנו איזה כפתור נלחץ. נשאר הכפתור "פתיחה במערכת" |
+| תבניות | 9, `astrateg_…` | אותן 9 בשם עם הסיומת `_j` (למשל `astrateg_due_j`), בלי כפתורי תשובה |
+| המשפט בגוף | "אפשר לענות כאן בכפתור, או לפתוח במערכת." | "לפתיחה ולסימון: הכפתור למטה." (בחמש התבניות שבהן הוא מופיע: משימה חדשה, מועד, איחור, יום צילום, עורך שויך) |
+| מה יודעים על הודעה | נשלחה, נמסרה, נקראה, נכשלה | **נשלחה או נכשלה בלבד.** Jako לא מחזיר מזהה הודעה ולא סטטוס מסירה. "נקרא בוואטסאפ מסמן נקרא במערכת" לא קורה |
+| "הסר" | ה־webhook שומע מיד | אין webhook לרשום. `reminders` **שואלת** את Jako מה כל מי שהסכים כתב (עד פעם ב־5 דקות לאדם, עד 5 אנשים בדקה), לפני שההודעות של אותה דקה יוצאות |
+| שורת אישור אחרי "הסר" | נשלחת בוואטסאפ | לא נשלחת (גרסה 1). הביטול נרשם, והכרטיס ב"המשימות שלי" מראה אותו |
+| `whatsapp-webhook` | פעיל | עונה 503 "not ready" לכל קריאה, ולא מחיל כלום (אותו קוד; המסד לא נותן לו סודות כשהספק Jako) |
+
+**מה נבנה, ואיפה:**
+- **ההגדרה:** טבלה של שורה אחת, `public.whatsapp_provider` (`meta` או `jako`). לא מפתח ב־`app_settings`, כי רשימת המפתחות שם היא אילוץ check, והרחבה שלו מחייבת להסיר אותו קודם, והמיגרציה הזו רק מוסיפה. `whatsapp_set_provider` הוא של הבעלים בלבד, ורק כשהמתג כבוי (כיבוי ← ספק ← הדלקה), כדי שההודעות לא יעברו מספק לספק בלחיצה אחת באמצע יום. אין לזה כפתור במסך: זו פעולה של פעם אחת, והיא שורת SQL למטה.
+- **הסודות לפי הספק:** `whatsapp_settings()` מחזירה עכשיו גם `provider` ו־`ready`, ו־`secrets` הם של הספק שנבחר. `whatsapp_set_enabled` לא מדליק כשהסוד של הספק חסר. `whatsapp_config_v2()` (שם חדש, כי נוספו עמודות) נותנת ל־`reminders` רק את הסודות של הספק שנבחר. `whatsapp_config()` הישנה ו־`whatsapp_webhook_secrets()` לא מחזירות כלום כשהספק Jako, כך שפונקציה שנפרסה לפני המיגרציה לא תשלח דרך Meta בטעות.
+- **השולח:** `supabase/functions/_shared/wa-jako.js` (`makeJako`): `POST /subscriber/send-whatsapp-template-by-user-id`, עם ה־`namespace` של התבנית מתוך `POST /whatsapp-template/list` (נקרא פעם אחת ונשמר בזיכרון כל עוד המופע חי; תבנית שחסרה או לא אושרה נבדקת שוב רק אחרי 5 דקות). כל קריאה מחכה עד 8 שניות; שגיאת רשת או 5xx מנסים פעם אחת נוספת, 4xx ו־timeout אף פעם (ב־timeout ייתכן שההודעה יצאה). לכל דקה יש תקציב של 40 שניות לכל הקריאות ל־Jako יחד; אחריו שורה נכשלת מיד (`jako budget`) במקום לחכות.
+- **הערוץ:** `supabase/functions/reminders/wa-poll.js` (`makeJakoWhatsapp`): אותו `runTick({ wa })`, אותן שורות. `reminders/wa-server.ts` בוחר ספק לפי `whatsapp_config_v2`. `tick.js` לא השתנה.
+- **התבניות:** `app/wa-templates.js`: `templateOf(key, 'jako')`, `metaDefinition(key, { provider: 'jako' })` (ההגדרה המדויקת להגשה) ו־`jakoMessage` (גוף הבקשה). `templateFor` לא השתנה. `user_id` הוא מספר הטלפון בספרות בינלאומיות (`jakoUserId`, מקום אחד).
+- **"הסר":** `public.whatsapp_poll` (מתי נשאל לאחרונה, ועד איזה רגע נקרא) ו־`whatsapp_poll_due` / `whatsapp_poll_done`. מילת עצירה מבטלת את ההסכמה באותה פונקציה של ה־webhook (`whatsapp_apply`, ‏`withdrawn_via = 'whatsapp'`). הקריאה מתחילה תמיד אחרי רגע ההסכמה, כך ש"הסר" ישן לא מבטל הסכמה חדשה. **שום תוכן של הודעה נכנסת לא נשמר**: רק מזהה ההודעה והתוצאה ב־`whatsapp_inbound`.
+- **עמוד הצוות** (`app/wa-team.js`): כשהספק Jako כתוב "ההודעות יוצאות דרך Jako.", בשורה של כל אחד "השבוע: N נשלחו" (בלי "נמסרו" ו"נקראו"), ולמטה "דרך Jako ידוע רק שהודעה נשלחה, לא אם נמסרה או נקראה." הסוד החסר שמוצג הוא `whatsapp_jako_api_key`.
+- **`whatsapp_messages.provider`:** דרך איזה ספק יצאה כל הודעה (`meta` כברירת מחדל).
+
+**להפעלה, לפי הסדר** (שום סוד לא בקובץ במאגר, לא בצ'אט ולא בארגומנט של פקודה):
+1. **מיגרציה** `20261025100000_whatsapp_jako.sql`, אחרי כל הקודמות. רק מוסיפה, בטוחה להרצה חוזרת, לא נוגעת במתג ולא בספק שכבר נבחר. אחריה הספק עדיין `meta`.
+2. **המפתח ב־Vault** (SQL Editor). מפתח API של סביבת העבודה ב־Jako, עם ההרשאה "Manage Flow".
+   ```sql
+   select vault.create_secret('<מפתח ה-API של Jako>', 'whatsapp_jako_api_key', 'whatsapp: Jako API key');
+   -- החלפה: select vault.update_secret(id, '<מפתח חדש>') from vault.secrets where name = 'whatsapp_jako_api_key';
+   ```
+3. **הספק** (כשהמתג כבוי):
+   ```sql
+   insert into public.whatsapp_provider (id, provider) values (true, 'jako')
+   on conflict (id) do update set provider = excluded.provider, updated_at = now();
+   select provider from public.whatsapp_provider;   -- jako
+   ```
+4. **התבניות.** קודם לקרוא מה יוגש: `node scripts/jako-templates.mjs` (מדפיס את 9 ההגדרות, לא קורא לאף אחד). אחר כך, עם המפתח בקובץ מחוץ למאגר (או במשתנה הסביבה `JAKO_API_KEY`):
+   ```bash
+   node scripts/jako-templates.mjs --submit --yes --key-file <נתיב לקובץ עם המפתח>
+   node scripts/jako-templates.mjs --status --key-file <נתיב>      # עד "9 of 9 approved"
+   ```
+   `--submit` שולח ל־`/whatsapp-template/create` ואז `/whatsapp-template/sync`. האישור של Meta לוקח בדרך כלל דקות עד יום. תבנית שנדחתה: מתקנים ב־`app/wa-templates.js` ומגישים שוב. הקישור בכפתור הוא `https://app.astrateg.tech/{{1}}` (`SITE_URL`), והוא חלק מהתבנית המאושרת.
+5. **פריסה:** `node scripts/sync-functions.mjs` (ואז `--check`), קומיט ו־push, ופריסה של **`reminders` בלבד** (סעיפים 10 ו־17). הקבצים החדשים בה: `reminders/wa-poll.js` ו־`_shared/wa-jako.js`; השתנו `reminders/wa-server.ts`, `reminders/whatsapp.js` והעותק `_shared/app/wa-templates.js`. את `whatsapp-webhook` לא צריך לפרוס. אחרי הפריסה: `select * from public.reminder_runs order by id desc limit 3;`, ‏`ok = true`.
+6. **פרסום האתר** (סעיף 2): השתנה `app/wa-team.js`.
+7. **מספרי הטלפון של הצוות** בעמוד הצוות (מי שאין לו מספר לא מתבקש לבחור).
+8. **עורך הדין:** אישור לנוסח ההסכמה ולדף הפרטיות (סעיף 14). שני דברים שכדאי להראות לו בגלל Jako: (א) המספר והשם הפרטי של העובד עוברים ל־Jako (שם נוצר איש קשר בהודעה הראשונה), כך ש־Jako הוא מעבד מידע נוסף; (ב) בנוסח כתוב "והאם כל הודעה נמסרה ונקראה", ועם Jako נשמר רק אם נשלחה. זה פחות ממה שכתוב, לא יותר.
+9. **המתג:** הבעלים, בעמוד הצוות ← "הפעלת הודעות WhatsApp". הבעלים מסכים ראשון ובודק שההודעה הבאה הגיעה לטלפון שלו, **ושהכפתור "פתיחה במערכת" פותח את העמוד הנכון** (ר' "לא אומת" למטה). אחר כך שולח "הסר" ורואה שתוך כמה דקות הכרטיס ב"המשימות שלי" אומר שההודעות הופסקו.
+
+**בדיקה ותפעול:**
+```sql
+-- הספק, המתג, והאם הסוד במקום (בלי הערך)
+select provider, updated_at, updated_by_email from public.whatsapp_provider;
+select enabled, provider, jako_api_key is not null as has_key from public.whatsapp_config_v2();
+-- מה יצא השבוע, דרך מי, ומה קרה לו
+select m.created_at at time zone 'Asia/Jerusalem' as at, m.person, m.provider, m.template, m.status, m.error
+from public.whatsapp_messages m where m.created_at > now() - interval '7 days' order by m.id desc;
+-- מתי כל אחד נשאל לאחרונה על תשובות, ועד מתי נקרא
+select email, checked_at, read_until from public.whatsapp_poll order by email;
+-- "הסר" שהתקבל דרך Jako (בלי תוכן)
+select received_at, id, result from public.whatsapp_inbound where id like 'jako:%' order by received_at desc limit 20;
+```
+- ב־`reminder_runs.stats`, בנוסף למה שבסעיף 14: `waPolled` (כמה אנשים נשאלו בהרצה), `waStops` (כמה "הסר"), `waPollErrors` (שאילתה שלא נענתה; נשאלת שוב מאותו רגע).
+- **קודי השגיאה** ב־`whatsapp_messages.error` (קוד קצר בלבד; ההודעה של Jako לא נשמרת כי היא עלולה לכלול מספר טלפון):
+
+  | קוד | פירוש |
+  |---|---|
+  | `jako no_template` | התבנית לא ברשימה של Jako (לא הוגשה, או לא בעברית) |
+  | `jako not_approved` | הוגשה ועוד לא אושרה, או נדחתה |
+  | `jako no_namespace` | ברשימה אין `namespace` לתבנית (ר' "לא אומת") |
+  | `jako list 401` וכו׳ | הרשימה עצמה לא נקראה. 401/403: המפתח שגוי או בלי הרשאה |
+  | `jako 400`, ‏`jako 400 #131026` | Jako דחה את השליחה; המספר אחרי # הוא הקוד של Meta כש־Jako מצטט אותו |
+  | `jako 5xx`, ‏`jako network`, `jako timeout` | Jako לא ענה (אחרי ניסיון נוסף אחד, חוץ מ־timeout) |
+  | `jako budget` | עבר תקציב הזמן של הדקה; השורה לא נוסתה |
+  | `jako 200 not_ok` | תשובה 200 שלא אומרת `status: ok` |
+- שורה שנכשלה **לא נשלחת שוב** (כמו ב־Meta): הפוש כבר יצא, וההודעה הבאה תצא כרגיל.
+- **"הסר" נשמע תוך כ־5 דקות**, לא מיד. עם יותר מ־25 אנשים שהסכימו הסבב מתארך (5 בדקה).
+- **הבוט של Jako:** מי שעונה למספר מגיע גם לתיבה ולזרימות של Jako. כדאי לוודא שם שאין תשובה אוטומטית שמבלבלת (Default reply).
+
+**כיבוי:** אותו כפתור בעמוד הצוות, או מיד: `update public.app_settings set value = 'false' where key = 'whatsapp_enabled';`. ההסכמות נשמרות, והפוש ממשיך. כיבוי עוצר גם את השאילתות ל־Jako.
+
+**חזרה ל־Meta:** כיבוי המתג ← `update public.whatsapp_provider set provider = 'meta', updated_at = now() where id;` ← ארבעת הסודות של Meta ב־Vault, התבניות המקוריות (בלי `_j`) מאושרות וה־webhook רשום (סעיף 14) ← הדלקה. המפתח של Jako יכול להישאר ב־Vault; הוא לא נקרא. אין צורך בפריסה: אותה פונקציה משרתת את שני הספקים. (ה־webhook שומר את ההגדרות שלו 5 דקות, אז הוא חוזר לענות עד 5 דקות אחרי ההחלפה.)
+
+**אבטחה:**
+- המפתח רק ב־Vault. רק `whatsapp_config_v2` (של `service_role`) קוראת אותו, ורק כשהמתג דולק והספק Jako. הוא נכנס רק לכותרת `Authorization`, לא נרשם ביומן ולא מוחזר בשגיאה (הבדיקות מוודאות).
+- `scripts/jako-templates.mjs` קורא את המפתח ממשתנה סביבה או מקובץ, מסרב לקבל אותו כארגומנט, ולא מדפיס אותו.
+- `whatsapp_provider` ו־`whatsapp_poll`: RLS דולק, בלי הרשאה לדפדפן. המשרד רואה את הספק דרך `whatsapp_settings()` בלבד.
+
+**לא אומת מול ה־API האמיתי** (הכול לפי קובץ ה־OpenAPI בלבד; לבדוק בקריאות קריאה־בלבד לפני ההדלקה):
+1. **צורת התשובה של `/whatsapp-template/list`.** המפרט מתאר רק `name, language, category, components`. הקוד מצפה ל־`namespace`, ל־`lang` (או `language`) שערכו `he`, ול־`status` שערכו `APPROVED`. אם השדות נקראים אחרת, כל השליחות ייכשלו עם `jako no_namespace`, `jako no_template` או `jako not_approved` (ולא יישלח כלום בטעות). התיקון: `readList` ב־`_shared/wa-jako.js`.
+2. **`user_id`** הוא המספר בספרות בינלאומיות בלי `+` (`972501234567`). המפרט אומר רק "WhatsApp user id". התיקון: `jakoUserId`.
+3. **`URL_1`**: נשלח רק החלק שאחרי הכתובת הקבועה (`client.html?id=…`), כמו ש־Meta מצפה. הדוגמה במפרט היא כתובת מלאה. אם הכפתור נפתח לכתובת כפולה או שבורה: `jakoUrlParam`, שורה אחת.
+4. **`status: "ok"`** פירושו שההודעה התקבלה לשליחה. לא ידוע אם Jako מחזיר ok גם כש־Meta דוחה אחר כך; אם כן, הודעה כזו תיראה "נשלחה".
+5. **`/subscriber/chat-messages`**: שהוא מקבל `user_id` של מספר, מכבד `start_time`/`end_time`, מחזיר `type: "in"` עם `content` לטקסט ו־`ts` בשניות, ועונה 400 לאיש קשר שלא קיים (כך זה מטופל: "אין מה לקרוא"). אם 400 חוזר לכולם, `waPolled` ייראה תקין אבל "הסר" לא יישמע: **לבדוק את שלב 9 בפועל.** יותר מ־100 הודעות נכנסות מאדם אחד בין שתי שאילתות לא נקראות עד הסוף.
+6. **`/whatsapp-template/create`** מקבל את הצורה של Meta כולל `example` ו־`BUTTONS`, ושם עם `_j` חוקי.
+7. **מגבלת קצב** של ה־API לא כתובה במפרט. העומס שלנו: עד 5 שאילתות בדקה ועוד ההודעות עצמן.
+8. `create_if_not_found: "yes"` יוצר איש קשר חדש ב־Jako בלי להפעיל עליו זרימת פתיחה.
+
+**בדיקות:** `tests/whatsapp.test.mjs` (התבניות של Jako מול הכללים של Meta, גוף הבקשה, השולח מול `fetch` מזויף: רשימה, תבנית חסרה, 4xx בלי ניסיון חוזר, 5xx ורשת עם אחד, timeout, תקציב, המפתח והמספר לא בשגיאות; ההרצה דרך Jako; "הסר" בשאילתה), `tests/sql/whatsapp-jako.test.mjs` (המיגרציה רק מוסיפה ורצה פעמיים, ברירת המחדל Meta, רק הבעלים קובע ספק ורק כשכבוי, אין הדלקה בלי המפתח, הסודות לפי הספק, מי נשאל ומאיזה רגע, "הסר"), `tests/jako-templates.test.mjs` (הסקריפט מול `fetch` מזויף) ו־`tests/whatsapp-e2e.mjs` (עמוד הצוות עם Jako).
