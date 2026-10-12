@@ -28,7 +28,7 @@ import { termOf } from './year-logic.js';
 import { dayKeyIL } from './tz.js';
 import { glide } from './shell.js'; // a day or a month chosen: the calendar changes softly
 import { tokenFrom } from './link-token.js';
-import { iconSquare as kSquare, headIcon as kHeadIcon, dressHead as kDressHead } from './kit.js'; // the client's public view only (bootShare)
+import { iconSquare as kSquare, headIcon as kHeadIcon, dressHead as kDressHead, dateLeaf as kLeaf } from './kit.js'; // the client's public view only (bootShare); the leaf: the office only
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -64,6 +64,13 @@ const dmy = (key) => { const [y, m, d] = String(key || '').split('-').map(Number
 const dm = (key) => { const [, m, d] = String(key).split('-').map(Number); return `${d}.${m}`; };
 const dayLine = (key) => `יום ${WEEKDAY_NAMES[new Date(`${key}T12:00:00Z`).getUTCDay()]}, ${dmy(key)}`;
 const todayKey = () => dayKeyIL(new Date());
+// A day of the list as a leaf of the calendar: navy today, blue tomorrow, purple later, teal for a day that passed (decoration: the heading says the day).
+function dayLeaf(key, today) {
+  const dt = new Date(`${key}T12:00:00Z`);
+  const leaf = kLeaf({ top: key === today ? 'היום' : `יום ${WEEKDAY_NAMES[dt.getUTCDay()]}`, day: dt.getUTCDate(), tone: key < today ? 'teal' : key === today ? 'navy' : key === addDays(today, 1) ? 'blue' : 'purple' });
+  leaf.setAttribute('aria-hidden', 'true');
+  return leaf;
+}
 const kindOf = (e) => GANTT_KINDS[e.kind] || GANTT_KINDS.custom;
 const kindStyle = (kind) => `--k:${(GANTT_KINDS[kind] || GANTT_KINDS.custom).color};--ks:${(GANTT_KINDS[kind] || GANTT_KINDS.custom).soft}`;
 const fileOf = (e) => (e.file_id && files ? files.get(e.file_id) || null : null);
@@ -484,7 +491,10 @@ function renderList(visible) {
   const today = todayKey();
   $('gm-list').replaceChildren(h('ol', { class: 'gt-agenda' }, ...[...byDay].map(([key, list]) => {
     const hol = holidayName(key);
-    return h('li', { class: `gt-aday${key === today ? ' is-today' : ''}`, 'data-day': key },
+    // For the office each day opens with its leaf of the calendar (docs/ops.md, section 62);
+    // the heading keeps its words, and the client's link stays as it was.
+    return h('li', { class: `gt-aday${key === today ? ' is-today' : ''}${SHARE ? '' : ' has-leaf'}`, 'data-day': key },
+      SHARE ? null : dayLeaf(key, today),
       h('h3', { class: 'gt-aday-h' }, dayLine(key), key === today ? h('span', { class: 'k-pill k-pill-navy' }, 'היום') : null, hol ? h('span', { class: 'gt-hol' }, hol) : null),
       h('ul', { class: 'gt-rows' }, ...list.map(entryRow)));
   })));

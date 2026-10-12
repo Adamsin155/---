@@ -168,7 +168,6 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
 .prod-h.k-h > .k-ico { margin-block: 0; }
 .prod-task-h.k-h { flex-wrap: wrap; }
 .sh-later .k-sep { font-size: 0; }
-.sh-later .num { font-family: var(--ds-font-h); font-size: 16.5px; }
 .prod-list .k-empty { margin: 0; }
 .prod-noaccess h2.k-h { margin-bottom: 6px; }
 
@@ -264,3 +263,16 @@ dialog.ed-dlg .dlg-foot .btn { min-height: 44px; white-space: normal; }
 .prod-page .k-note { overflow-wrap: anywhere; }
 .prod-checks legend.k-with-ico, details.ed-more > summary.k-with-ico { gap: 8px; }
 .prod-checks legend.k-with-ico > .k-svg, details.ed-more > summary.k-with-ico > .k-svg { color: var(--k-teal); }
+
+/* ── No pale rows (the owner, 13.10.2026; docs/ops.md, section 62) ──
+   A shoot day opens with the leaf of its day; the coming days are leaves in a column. */
+.sh-later .k-leafrow { background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
+.sh-later-addr { display: flex; align-items: flex-start; gap: 6px; }
+.sh-later-addr > .k-svg { flex: none; margin-block-start: 2px; color: var(--k-blue); }
+/* candidate for the kit: a card's head that starts with a leaf (the leaf, the heading, a state at the end) */
+.ed-head.sh-leafhead { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 12px; }
+.ed-head.sh-leafhead > .ed-state { grid-column: 2; justify-self: start; }
+.ed-head.sh-leafhead > .k-leaf { grid-row: 1 / span 2; align-self: start; }
+.ed-head.sh-leafhead:not(:has(> .ed-state)) > .k-leaf { grid-row: 1; }
+/* The facts of a day: the label is a small bold word, not grey on grey. */
+.sh-card .sh-facts dt { font-weight: 700; color: var(--ds-navy-text); }

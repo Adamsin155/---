@@ -296,3 +296,36 @@ details.ps-sum { min-width: 0; }
 .il-card .fl-work-empty { display: none; }
 .il-card .fl-work { padding: 10px; gap: 8px; }
 .il-list > .il-card { padding: 12px; gap: 8px; }
+
+/* ── No pale rows (the owner, 13.10.2026; docs/ops.md, section 62) ──
+   What is about a day or an hour opens with a leaf of the calendar; a name is bold; a
+   date that passed is a pink pill and not grey words. */
+/* candidate for the kit: a card's head that starts with a leaf (the leaf, then the name, what it is and its state, one under the other) */
+.of-head.has-leaf { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; justify-items: start; gap: 2px 12px; }
+.of-head.has-leaf > .k-leaf { grid-column: 1; grid-row: 1 / span 4; align-self: start; }
+.of-head.has-leaf > :not(.k-leaf) { grid-column: 2; }
+.of-head .wclient { font-weight: 700; }
+/* A finished card is drawn at 85%: the leaf's hour is ink there, so it stays above 4.5:1. */
+.of-card.is-done .k-leaf-sub { color: var(--ds-ink); }
+.of-card:not(.is-late) .k-leaf { box-shadow: 0 3px 8px color-mix(in srgb, var(--ds-ink) 12%, transparent); }
+/* An editor's jobs: the client's name leads its row, on a white card. */
+.of-editor .of-jobs > li { padding: 8px 12px; background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: var(--ds-r-item); color: var(--ds-ink-2); }
+.of-editor .of-jobs > li > a:first-child { font-weight: 700; color: var(--ds-ink); }
+.of-editor .of-jobs > li > .muted.late { color: var(--ds-hot-text); font-weight: 600; }
+.of-editor > .of-head > .of-line { font-weight: 600; color: var(--ds-ink); }
+/* The Thursday summary (pass.html): the client's name leads, the state is a pill (amber
+   while it waits, green once it is written), and a chevron says the row opens. */
+#th-body .ps-sum > summary { position: relative; padding-inline-end: 28px; }
+#th-body .ps-sum > summary::after { content: ''; position: absolute; inset-inline-end: 6px; inset-block-start: 16px; inline-size: 8px; block-size: 8px; border-inline-end: 2px solid var(--ds-ink-2); border-block-end: 2px solid var(--ds-ink-2); transform: rotate(45deg); transition: transform var(--ds-t-fast, .15s); }
+#th-body .ps-sum[open] > summary::after { transform: rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) { #th-body .ps-sum > summary::after { transition: none; } }
+#th-body .ps-sum > summary > strong { font-size: 15.5px; font-weight: 700; }
+#th-body .ps-sum > summary > .sbadge { padding: 0 10px; border-radius: var(--ds-r-pill); font-size: 13px; font-weight: 600; }
+#th-body .ps-sum > summary > .sbadge.s-waiting { background: var(--ds-amber-soft); color: var(--ds-amber); }
+#th-body .ps-sum > summary > .sbadge.s-done { background: var(--ds-ok-soft); color: var(--ds-ok); }
+#th-body .ps-preview { color: var(--ds-ink-2); }
+#th-body .ps-sum > summary { gap: 4px 8px; }
+#th-body .of-list { gap: 8px; }
+#th-body .of-card { background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
+/* The lists' own items (decisions.html): the words under the title are ink, not grey. */
+#ls-list .of-line { color: var(--ds-ink-2); font-weight: 500; }

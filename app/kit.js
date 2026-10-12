@@ -325,3 +325,53 @@ export function dress(root, table) {
   run();
   new MutationObserver(run).observe(root, { childList: true, subtree: true });
 }
+
+// A leaf of a calendar for a moment that is coming (the owner's choice of 13.10.2026, for
+// "בקרוב" and for every list of things with a date): the day's name on a coloured band,
+// the day of the month large, the hour small. Plain words in, so the kit stays without
+// dependencies; app/protocol-ui.js `leafOf` makes them from a Date. The tone says how near:
+// navy today, blue tomorrow, purple later, pink for what is already late.
+// Decoration is not the only carrier: `label` is read out, and the row keeps its words.
+export function dateLeaf({ top, day, sub = null, tone = 'purple', label = null }) {
+  return el('span', { class: `k-leaf k-leaf-${TONES.includes(tone) ? tone : 'purple'}`, role: label ? 'img' : null, 'aria-label': label },
+    el('span', { class: 'k-leaf-top', 'aria-hidden': label ? 'true' : null }, top),
+    el('b', { class: 'k-leaf-day', 'aria-hidden': label ? 'true' : null }, String(day)),
+    sub ? el('small', { class: 'k-leaf-sub', 'aria-hidden': label ? 'true' : null }, sub) : null);
+}
+// A row that starts with a leaf: the leaf, then the row's own content (`body`: nodes).
+export function leafRow(leaf, body, { tag = 'div', cls = '', id = null, data = {} } = {}) {
+  const row = el(tag, { class: `k-leafrow${cls ? ` ${cls}` : ''}`, id }, leaf, el('div', { class: 'k-leafrow-b' }, body));
+  for (const [k, v] of Object.entries(data)) row.dataset[k] = v;
+  return row;
+}
+
+/* section 61: no pale rows */
+// ── "No pale rows" (the owner, 13.10.2026; docs/ops.md, section 61). Appended only. ──
+// A row of a list is never small grey text between thin lines: it is a card with a mark at
+// its start (the leaf of its moment, or the icon square of its kind), one bold title, a
+// state as a pill, and its counts as bold numbers.
+Object.assign(ICONS, {
+  undo: ['M8.5 5 4 9.5 8.5 14', 'M4 9.5h10.5a5.5 5.5 0 0 1 0 11H10'],
+  note: ['M5 4.5h14A1.5 1.5 0 0 1 20.5 6v9l-5 5H5a1.5 1.5 0 0 1-1.5-1.5V6A1.5 1.5 0 0 1 5 4.5z', 'M20.5 15H17a1.5 1.5 0 0 0-1.5 1.5V20', 'M7.5 9h9', 'M7.5 12.5h5'],
+});
+
+// The leaf beside words that already say the moment ("יעד: יום ה׳, 15.10 12:00", "באיחור 3
+// ימי עסקים"): the same leaf as `dateLeaf`, drawn by the stylesheet from its data, so the
+// text of the row is exactly what it was, and nothing is read out twice.
+//   words: what app/protocol-ui.js `leafOf` gives ({ top, day, sub, tone }); size: 'md' | 'sm'
+export function leafMark(words, { size = 'md' } = {}) {
+  if (!words) return null;
+  const tone = TONES.includes(words.tone) ? words.tone : 'purple';
+  return el('span', { class: `k-leaf k-leaf-mark k-leaf-${tone}${size === 'sm' ? ' k-leaf-sm' : ''}`, 'aria-hidden': 'true' },
+    el('span', { class: 'k-leaf-top', 'data-t': words.top }),
+    el('b', { class: 'k-leaf-day', 'data-t': String(words.day) }),
+    words.sub ? el('small', { class: 'k-leaf-sub', 'data-t': words.sub }) : null);
+}
+
+// The mark at the start of a card (`.k-pc-mark`): the leaf of its moment when it has one,
+// else the icon square of its kind. One width, so the titles of a list start on one line.
+export function cardMark(words, name = 'list', tone = 'navy') {
+  return el('span', { class: 'k-pc-mark', 'aria-hidden': 'true' }, words ? leafMark(words) : iconSquare(name, tone, { size: 'lg' }));
+}
+
+/* end: section 61 */

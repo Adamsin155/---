@@ -15,9 +15,9 @@ import {
   computeInsights, monthRange, monthsUpTo, monthKeyIL, canSeeInsights, canSeePayouts, pct, STAGES, contextsOf, PROMISE_DAYS, URGENT_MIN,
 } from './insights.js';
 import {
-  $, fill, h, errorText, mountSession, directory, viewerOf, VIEWER_UNKNOWN, officeMinutes, personChip,
+  $, fill, h, errorText, mountSession, directory, viewerOf, VIEWER_UNKNOWN, officeMinutes, personChip, leafOf,
 } from './protocol-ui.js';
-import { emptyItem, dress } from './kit.js';
+import { emptyItem, dress, dateLeaf } from './kit.js';
 import { canManageTeam } from './team-rules.js';
 import { officeLinks } from './office-ui.js';
 import { SURVEY_TABLE, SURVEY_REPORT_COLS } from './surveys.js';
@@ -207,7 +207,9 @@ function renderNa() {
 function renderPipeline() {
   const list = data.pipeline;
   fill($('in-pipe'), list.length ? list.map((p) => h('li', { class: 'pipe', id: `pipe-${p.client.id}-${p.n}` },
-    h('p', { class: 'pipe-h' },
+    // The shoot day as a leaf of the calendar (docs/ops.md, section 62): a day that passed, in the camera's colour.
+    h('p', { class: 'pipe-h has-leaf' },
+      p.shootAt ? ((leaf) => { leaf.setAttribute('aria-hidden', 'true'); return leaf; })(dateLeaf({ ...leafOf(new Date(p.shootAt)), sub: null, label: null, tone: 'teal' })) : null,
       h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(p.client.id)}` }, clientLabel(p.client)),
       h('span', { class: 'muted' }, [p.n > 1 ? `סבב ${p.n}` : null, `צילום ${dayText(p.shootAt)}`, p.shootType || null].filter(Boolean).join(' · ')),
       p.editor ? personChip(p.editor) : null),

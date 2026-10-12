@@ -20,7 +20,7 @@ import { loadChecks, loadCheck, setCheck, clearCheck, setChecksBulk, loadDirecto
 import { loadWorkClients, loadShootScripts } from './production-data.js';
 import { STATUS, scriptLabel, linkName } from './scripts-logic.js';
 import {
-  $, fill, h, toast, errorText, mountSession, viewerOf, directory, formatWhen, progressBar, store, VIEWER_UNKNOWN,
+  $, fill, h, toast, errorText, mountSession, viewerOf, directory, formatWhen, leafOf, progressBar, store, VIEWER_UNKNOWN,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { mountPush } from './push.js';
@@ -28,7 +28,7 @@ import { offerHandoff } from './handoff-ui.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import * as P from './production.js';
 import { mountAvailability } from './availability-ui.js';
-import { headIcon, leadIcon, icon, iconSquare, sectionHead, emptyState, noteIcon, row, facts, dress } from './kit.js';
+import { headIcon, leadIcon, icon, iconSquare, sectionHead, emptyState, noteIcon, facts, dress, dateLeaf, leafRow } from './kit.js';
 
 let me = null;
 let mode = null; // 'eli' | 'lior'
@@ -115,6 +115,9 @@ function say(text, kind = 'info', name = 'camera') {
 }
 // A card's heading with its icon square.
 const cardHead = (id, text, name, tone) => headIcon(h('h2', { id: `${id}-h`, tabindex: '-1' }, text), name, tone, { size: 'md' });
+// A shoot day's card opens with the leaf of its day (docs/ops.md, section 62): the day and
+// the hour are seen before a word is read; the heading keeps its words.
+const leafHead = (id, text, at, now) => [dateLeaf(leafOf(at, now)), h('h2', { id: `${id}-h`, tabindex: '-1' }, text)];
 
 // ── The raw material and the chosen take, per script (protocol v10; docs/ops.md, section 58) ──
 // Next to every script of the day: the number of its file (or clip) and the take that was
@@ -213,8 +216,8 @@ function eliCard(sc, now) {
   const n = scriptsCount(sc);
   const eveOrDay = now >= P.briefingDay(sc.shootAt) || today || !!b;
   return h('article', { class: `sh-card${today ? ' is-today' : ''}`, id, 'aria-labelledby': `${id}-h` },
-    h('header', { class: 'ed-head' },
-      cardHead(id, `${P.dayWords(sc.shootAt, now) === 'היום' ? 'היום' : P.dateWords(sc.shootAt)} · ${scName(sc)}`, 'camera', today ? 'pink' : 'teal'),
+    h('header', { class: 'ed-head sh-leafhead' },
+      leafHead(id, `${P.dayWords(sc.shootAt, now) === 'היום' ? 'היום' : P.dateWords(sc.shootAt)} · ${scName(sc)}`, sc.shootAt, now),
       today ? h('span', { class: 'ed-state s-editing' }, 'יום צילום היום') : null),
     h('dl', { class: 'sh-facts' },
       h('dt', {}, 'ההגעה שלך'), h('dd', { class: 'num' }, `${P.clockText(P.arrivalOf(sc.shootAt))} · שעה לפני המשפיענים (${P.clockText(sc.shootAt)})`),
@@ -393,10 +396,12 @@ function renderLior() {
     ...briefs.map((sc) => briefingForm(sc, now)),
     later.length ? h('section', { class: 'prod-sec k-sec', 'aria-labelledby': 'later-h' },
       sectionHead({ icon: 'calendar', tone: 'blue', id: 'later-h', title: 'ימי הצילום הבאים', hint: 'מה שכבר נקבע, לפי הסדר.', count: later.length }),
-      // Each day is a row: the date and the hour first, the client under them.
-      h('ul', { class: 'sh-later k-rows' }, ...later.map((sc) => row({ tag: 'li', icon: 'camera', tone: 'teal',
-        title: h('span', { class: 'num' }, `${P.dateWords(sc.shootAt)} ${P.clockText(sc.shootAt)}`),
-        sub: [h('i', { class: 'k-sep' }, ' · '), scName(sc)] })))) : null,
+      // Each day is a leaf of the calendar (the day, the hour), then whose it is and when to arrive.
+      h('ul', { class: 'sh-later k-rows' }, ...later.map((sc) => leafRow(dateLeaf(leafOf(sc.shootAt, now)), [
+        h('strong', { class: 'k-row-title' }, scName(sc)),
+        h('span', { class: 'k-row-sub num' }, `הגעה ${P.clockText(P.arrivalOf(sc.shootAt))} (המשפיענים ${P.clockText(sc.shootAt)})`),
+        sc.client.address ? h('span', { class: 'k-row-sub sh-later-addr' }, icon('pin', { size: 16 }), sc.client.address) : null,
+      ], { tag: 'li' })))) : null,
     !today.length && !briefs.length && !later.length ? emptyState({ icon: 'calendar', tone: 'blue', text: 'אין ימי צילום קרובים.' }) : null);
 }
 

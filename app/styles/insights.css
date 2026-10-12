@@ -105,3 +105,46 @@
 .in-trend[open] summary::before, .in-late[open] summary::before { transform: translateY(-2px) rotate(-45deg); }
 @media (prefers-reduced-motion: reduce) { .in-trend summary::before, .in-late summary::before { transition: none; } }
 .pipe-h a.wclient { padding-block: 10px; margin-block: -10px; }
+
+/* ── No pale rows (the owner, 13.10.2026; docs/ops.md, section 62) ──
+   Bars: the name and the number are bold. Facts: each on its own white tile with a bold
+   label. "Not relevant": cards. The pipeline: the shoot day as a leaf, the name bold, and
+   each stage a small tile (green once done, navy for the next one; the word under it says it). */
+.bar-label { font-weight: 600; }
+.bar-sub { font-weight: 400; color: var(--ds-ink-2); }
+.bar-val { font-weight: 700; color: var(--ds-navy-text); }
+.bar-row.is-empty .bar-val { font-weight: 500; color: var(--ds-muted); }
+.bar-fill { background: var(--ds-navy); }
+.in-h3 { color: var(--ds-ink); font-weight: 700; }
+.in-fact { padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); }
+.in-facts { grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); gap: 8px; }
+.in-facts > div { padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); }
+.in-facts dt { font-weight: 700; color: var(--ds-navy-text); }
+.in-facts dd { font-size: 17px; font-weight: 700; }
+.in-table thead th { background: var(--k-navy-soft); color: var(--ds-navy-text); font-weight: 700; }
+.in-table tbody tr:nth-child(even) > * { background: var(--ds-surface); }
+.in-table tbody th { font-weight: 700; }
+.in-table th, .in-table td { border-bottom: 0; }
+.in-table .is-total th, .in-table .is-total td { font-weight: 700; border-top: 2px solid var(--ds-line-strong); }
+.na-row, .na-row.is-suggest { padding: 10px 12px; border-top: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); }
+.na-row.is-suggest { border-inline-start: 4px solid var(--ds-amber-line); }
+.na-item { font-weight: 600; }
+.na-meta .num { font-weight: 700; color: var(--ds-navy-text); }
+.pipe { padding: 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); }
+.pipe-h.has-leaf { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; justify-items: start; gap: 2px 12px; margin-bottom: 10px; }
+.pipe-h.has-leaf > .k-leaf { grid-column: 1; grid-row: 1 / span 3; inline-size: 56px; align-self: start; }
+.pipe-h.has-leaf > .k-leaf .k-leaf-day { font-size: 21px; line-height: 1.5; }
+.pipe-h.has-leaf > :not(.k-leaf) { grid-column: 2; }
+.pipe-h .wclient { font-weight: 700; font-size: 15.5px; }
+.pipe-h > .muted { color: var(--ds-ink-2); font-size: 14px; }
+.pipe-stages { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+.pipe-st { padding: 7px 9px; border-radius: 12px; background: var(--ds-ground); }
+.pipe-label { font-weight: 600; }
+.pipe-st.is-open .pipe-label { font-weight: 500; color: var(--ds-ink-2); }
+.pipe-st.is-done { background: var(--ds-ok-soft); }
+.pipe-st.is-done .pipe-when { color: var(--ds-ok); font-weight: 600; }
+.pipe-st.is-next { background: var(--k-navy-soft); }
+.pipe-st.is-next .pipe-when { color: var(--ds-navy-text); font-weight: 700; }
+.pipe-st.is-next .pipe-icon { box-shadow: inset 0 0 0 2px var(--ds-navy); }
+.pipe-st.is-next .pipe-icon::before { background: var(--ds-navy); }
+.pipe-total { padding: 6px 10px; border-radius: var(--ds-r-pill); background: var(--ds-ground); color: var(--ds-ink-2); font-weight: 600; display: inline-block; }

@@ -161,3 +161,30 @@
 .purge-name { font-weight: 700; color: var(--text); }
 .purge-check { display: flex; gap: 10px; align-items: flex-start; min-height: 44px; font-size: 14px; color: var(--text); }
 .purge-check input { inline-size: 20px; block-size: 20px; flex: none; margin-top: 2px; accent-color: var(--danger); }
+
+/* ── No pale rows (the owner, 13.10.2026; docs/ops.md, section 62) ──
+   The shoot-day table on a phone: each client's card opens with the leaf of its last shoot
+   day (a camera on amber while there was none), the labels are small bold words and the
+   values are ink. On a desktop it stays the table it was.
+   candidate for the kit: a leaf drawn from data attributes, for a table cell whose text is read as it is. */
+.sd-leaf { display: none; }
+@media (max-width: 760px) {
+  .sd tbody tr:not(.sd-group, .more-row, .sd-none) { padding-block-start: 12px; box-shadow: inset 0 0 0 1px var(--ds-line); }
+  .sd tbody td:first-child { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: center; padding-block-end: 8px; border-block-end: 1px solid var(--ds-line); }
+  .sd tbody tr.sd-group td:first-child, .sd tbody tr.more-row td:first-child, .sd tbody tr.sd-none td:first-child { display: block; padding: 0; border: 0; }
+  .sd-leaf {
+    display: grid; grid-column: 1; grid-row: 1 / span 2; align-self: start; inline-size: 58px; overflow: hidden; text-align: center;
+    border-radius: 14px; background: var(--ds-surface); box-shadow: 0 3px 9px color-mix(in srgb, var(--ds-ink) 14%, transparent);
+  }
+  .sd-leaf::before { content: attr(data-top); background: var(--k-teal); color: #fff; font-size: 11.5px; font-weight: 500; line-height: 1.9; white-space: nowrap; }
+  .sd-leaf::after { content: attr(data-day); font-family: var(--ds-font-h); font-size: 17px; line-height: 1.9; color: var(--ds-ink); font-variant-numeric: tabular-nums; }
+  .sd-leaf.is-none { place-items: center; block-size: 54px; background: var(--k-orange-soft); color: var(--k-orange); box-shadow: none; }
+  .sd-leaf.is-none::before, .sd-leaf.is-none::after { content: none; }
+  .sd tbody td:first-child > :not(.sd-leaf) { grid-column: 2; }
+  .sd .mt-name { font-size: 16px; font-weight: 700; }
+  .sd tbody td::before { font-weight: 700; color: var(--ds-navy-text); }
+  .sd tbody td { font-weight: 500; color: var(--ds-ink); }
+  .sd tbody td .sub, .sd tbody td .muted { font-weight: 400; }
+  .sd .sd-group th { font-size: 16px; }
+}
+@media print { .sd-leaf { display: none; } }

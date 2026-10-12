@@ -235,7 +235,8 @@ const check = (ctx, c, key, label, idp) => {
     h('input', { type: 'checkbox', class: 'cbx fin', id, checked: isDone(cs, key), onchange: (e) => mark(ctx, c, [key], e.currentTarget.checked, null) }),
     h('span', { class: 'wlabel' }, label));
 };
-const until = (d, now = new Date()) => (d ? h('span', { class: `muted${d < now ? ' late' : ''}` }, ` · עד ${formatWhen(d, now)}`) : null);
+// Until when, as a pill (hot once it passed; docs/ops.md, section 61). The " · " stays in the text and is not drawn.
+const until = (d, now = new Date()) => (d ? h('span', { class: `muted il-until${d < now ? ' late' : ''}` }, h('i', { class: 'k-sep' }, ' · '), `עד ${formatWhen(d, now)}`) : null);
 
 function dayCard(x, ctx) {
   const c = x.client;
@@ -356,7 +357,7 @@ function finalCard(x, ctx) {
   const c = x.client;
   const key = `${x.pre}p27.toilai`;
   return h('li', { class: 'wproc il-card', 'data-key': `il-final:${c.id}:${x.pre}` },
-    cardHead('final', c, x.state.proc.id, `גרסאות סופיות בדרייב${x.n ? ` · סבב ${x.n}` : ''}`, h('span', { class: 'muted' }, ` · מ־${formatWhen(x.at)}`)),
+    cardHead('final', c, x.state.proc.id, `גרסאות סופיות בדרייב${x.n ? ` · סבב ${x.n}` : ''}`, h('span', { class: 'muted il-until' }, h('i', { class: 'k-sep' }, ' · '), `מ־${formatWhen(x.at)}`)),
     // Where they are: the client's Drive (the editor's link); any uploaded into the system are listed.
     finalDrive(c, ctx.checks[c.id] || {}, x),
     mountWorkFiles({

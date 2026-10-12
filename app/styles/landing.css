@@ -75,3 +75,14 @@
 .land-progress p.k-h { margin: 0; }
 .land-head h2.k-h { gap: 10px; min-width: 0; }
 .land-head h2.k-h > .k-ico { margin-block: 0; }
+
+/* ── No pale rows (the owner, 13.10.2026; docs/ops.md, section 62) ──
+   The owners' control: each person and each action on its own soft card with an icon
+   square, instead of lines under lines. */
+.land-ctl-rows { gap: 8px; }
+.land-ctl-row { gap: 8px 12px; padding: 10px 12px; border-top: 0; border-radius: var(--ds-r-item); background: var(--ds-ground); }
+.land-ctl-row > .k-ico { flex: none; background: var(--ds-surface); }
+.land-ctl-row .land-ctl-text { flex: 1 1 180px; color: var(--ds-ink-2); }
+.land-ctl-row .land-ctl-text > strong { font-size: 15.5px; color: var(--ds-ink); }
+.land-ctl-row .pbar { background: var(--ds-surface); }
+.land-ctl-row > .muted { font-weight: 600; color: var(--ds-ok); }

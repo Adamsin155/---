@@ -76,7 +76,8 @@ import { fixTaskOf, FIX_ITEM_LABEL } from './late-chain.js';
 // Protocol v10 (docs/ops.md, section 58): a fix the client asked for outside the status page.
 import { fixSpecOf, mayRecordFix, awaitsClient } from './fix-request.js';
 import { openFixRequest, fixButton } from './fix-request-ui.js';
-import { icon as kIcon, iconSquare, headIcon, dressHeads, emptyState } from './kit.js';
+import { icon as kIcon, iconSquare, headIcon, dressHeads, emptyState, leafMark } from './kit.js';
+import { leafFar } from './protocol-ui.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -342,9 +343,28 @@ function renderTimeline(s) {
   const slot = $('tl-slot');
   if (!client) { fill(slot); return; }
   const now = new Date();
-  fill(slot, own() ? null : timelineBlock(timeline(client, s, checks, now), {
+  const tl = own() ? null : timeline(client, s, checks, now);
+  const block = tl ? timelineBlock(tl, {
     now, showAll: tlAll, link: goTo, onToggle: () => { tlAll = !tlAll; renderKeepingFocus('tl-toggle'); },
-  }), questionsBlock(questions));
+  }) : null;
+  if (block) leafTimeline(block, tl, now);
+  fill(slot, block, questionsBlock(questions));
+}
+// Every row of the timeline starts with the leaf of its moment (the owner, 13.10.2026;
+// docs/ops.md, section 61): done in green, open now in navy (pink once late, amber while it
+// waits for the client), planned in purple (blue for tomorrow); a step with no date yet has
+// a quiet clock. The block itself is app/health-ui.js's, and its words stay as they are: the leaf
+// is drawn from data and hidden from a screen reader, which hears the row's own sentence.
+function leafTimeline(block, tl, now) {
+  const rows = (cls) => [...block.querySelectorAll(`.${cls} > .tl-item`)];
+  const put = (li, words, tone) => {
+    li.querySelector('.tl-dot')?.replaceWith(words ? leafMark({ ...words, tone }, { size: 'sm' }) : iconSquare('clock', 'navy'));
+    li.classList.add('has-leaf');
+  };
+  const done = rows('tl-done');
+  tl.done.slice(-done.length || tl.done.length).forEach((x, i) => { if (done[i]) put(done[i], x.at ? leafFar(new Date(x.at), now) : null, 'green'); });
+  rows('tl-now').forEach((li, i) => { const x = tl.current[i]; if (x) put(li, x.until ? leafFar(x.until, now) : null, x.status === 'overdue' ? 'pink' : x.status === 'client' ? 'orange' : 'navy'); });
+  rows('tl-planned').forEach((li, i) => { const x = tl.planned[i]; if (x) put(li, x.when ? leafFar(x.when, now) : null, x.when && leafFar(x.when, now).tone === 'blue' ? 'blue' : 'purple'); });
 }
 
 // Periodic and background refreshes must not move keyboard focus or scroll.
@@ -572,8 +592,11 @@ async function refreshAccessLog() {
   try {
     const rows = await loadAccessLog(id);
     const verb = { create: 'הוסיף/ה', update: 'עדכן/ה', reveal: 'צפה/תה בסיסמה של', delete: 'מחק/ה' };
-    fill($('access-log'), ...(rows.length ? rows.map((r) => h('li', {}, h('span', { class: 'num muted' }, formatStamp(r.at)), ' ',
-      h('strong', {}, who(r.by_email)), ` ${verb[r.action]} ${networkName(r.network)}`)) : [emptyLi('אין עדיין פעולות.', 'history')]));
+    const ico = { create: ['plus', 'green'], update: ['edit', 'blue'], reveal: ['eye', 'orange'], delete: ['archive', 'pink'] };
+    fill($('access-log'), ...(rows.length ? rows.map((r) => h('li', { class: 'hrow' },
+      iconSquare(...(ico[r.action] || ['key', 'navy']), { size: 'sm' }),
+      h('div', { class: 'hrow-b' }, h('span', { class: 'num muted' }, formatStamp(r.at)), ' ',
+        h('strong', {}, who(r.by_email)), ` ${verb[r.action]} ${networkName(r.network)}`))) : [emptyLi('אין עדיין פעולות.', 'history')]));
   } catch { /* the log is informational */ }
 }
 const revealTimers = {};
@@ -1078,7 +1101,7 @@ function procCard(x, now, s) {
         h('div', { class: 'proc-meta' },
           peopleChips(x.claim ? [x.claim.person] : p.owners),
           compact ? null : h('span', { class: 'sla' }, p.sla),
-          dueText(x, now) ? h('span', { class: 'due num' }, dueText(x, now)) : null,
+          dueText(x, now) ? h('span', { class: 'due num' }, dueText(x, now)) : null, // a pill (client-card.css): hot once the process is late
           pkgQty && !compact ? h('span', { class: 'muted pkg-qty' }, `בחבילה של הלקוח: ${pkgQty} ${pkgUnit}`) : null,
           claimLine(x))),
       h('div', { class: 'proc-status' },
@@ -1792,7 +1815,7 @@ function renderTasks() {
             t.source === 'pause' ? h('span', { class: 'tag' }, 'עריכה נעצרה') : null,
             t.source === 'followup' ? h('span', { class: 'tag' }, 'אחרי השיחה השבועית') : null,
             t.source === 'status' ? h('span', { class: 'tag' }, 'מסיכום המצב') : null,
-            t.due_on ? h('span', { class: `num${late ? ' late' : ''}` }, `${late ? 'באיחור · ' : ''}עד ${formatDay(t.due_on)}`) : null,
+            t.due_on ? h('span', { class: `num tdue${late ? ' late' : ''}` }, `${late ? 'באיחור · ' : ''}עד ${formatDay(t.due_on)}`) : null,
             t.done_at ? h('span', { class: 'by' }, `בוצע · ${who(t.done_by_email)} · ${formatStamp(t.done_at)}`) : h('span', { class: 'by' }, `נפתח ע״י ${who(t.created_by_email)} · ${formatStamp(t.created_at)}`)))),
       t.brief ? h('details', { class: 'call-show task-brief-show' }, h('summary', {}, 'בריף'),
         h('dl', { class: 'call-sum' }, ...BRIEF_FIELDS.filter(([k]) => t.brief[k]).flatMap(([k, l]) => [h('dt', {}, l), h('dd', {}, t.brief[k])]))) : null,
@@ -1900,12 +1923,17 @@ async function loadHistory() {
     const ref = ITEM_INDEX.get(baseKey(r.item_key));
     const round = roundOfKey(r.item_key);
     const procId = round > 1 ? `r${round}-${ref?.proc.id}` : ref?.proc.id;
-    return h('li', {},
-      h('span', { class: 'num muted' }, formatStamp(r.at)), ' ',
-      h('strong', {}, who(r.by_email)), ` ${special || `${ACTION[r.action]}: `}`,
-      !special && ref ? h('a', { href: `#${procId}`, onclick: (e) => { e.preventDefault(); goTo(procId); } }, `${round > 1 ? `סבב ${round} · ` : ''}${ref.proc.num} · ${ref.item.label}`) : null,
-      !special && !ref ? r.item_key : null,
-      r.note && !special && r.note !== 'בסימון כל התהליך' && noteWords(r.item_key, r.note) ? h('div', { class: 'inote' }, noteWords(r.item_key, r.note)) : null);
+    // A row of the history: the leaf of its moment (green for a mark, navy for "not relevant",
+    // amber for a mark taken back), then who and what (docs/ops.md, section 61). The stamp
+    // stays in the row's text; the leaf beside it is what is drawn.
+    return h('li', { class: 'hrow' },
+      leafMark({ ...leafFar(new Date(r.at)), tone: r.action === 'clear' ? 'orange' : r.action === 'na' ? 'navy' : 'green' }, { size: 'sm' }),
+      h('div', { class: 'hrow-b' },
+        h('span', { class: 'num muted hrow-at' }, formatStamp(r.at)), ' ',
+        h('strong', {}, who(r.by_email)), ` ${special || `${ACTION[r.action]}: `}`,
+        !special && ref ? h('a', { href: `#${procId}`, onclick: (e) => { e.preventDefault(); goTo(procId); } }, `${round > 1 ? `סבב ${round} · ` : ''}${ref.proc.num} · ${ref.item.label}`) : null,
+        !special && !ref ? r.item_key : null,
+        r.note && !special && r.note !== 'בסימון כל התהליך' && noteWords(r.item_key, r.note) ? h('div', { class: 'inote' }, noteWords(r.item_key, r.note)) : null));
   }) : [emptyLi('עוד לא סומן דבר.', 'history')]));
   // The last call summary may have changed.
   if (!pending.size && drawn && !loading) renderKeepingFocus();

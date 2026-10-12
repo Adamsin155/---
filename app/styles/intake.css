@@ -293,3 +293,19 @@ details.pp-sub > summary.pp-sum .pp-status.is-ok { color: var(--ds-ink); font-we
 details.pp-sub > summary.pp-sum::after { content: ''; flex: none; margin-inline-start: auto; inline-size: 8px; block-size: 8px; border-inline-end: 2px solid var(--ds-ink-2); border-block-end: 2px solid var(--ds-ink-2); transform: rotate(45deg); transition: transform var(--ds-t-fast, .15s); }
 details.pp-sub[open] > summary.pp-sum::after { transform: rotate(-135deg); }
 @media (prefers-reduced-motion: reduce) { details.pp-sub > summary.pp-sum::after { transition: none; } }
+
+/* ── No pale rows (the owner, 13.10.2026; docs/ops.md, section 62) ──
+   A shoot day and a follow-up row open with the leaf of the shoot's day; the client's name
+   is bold beside it and what it is sits under the name. */
+/* candidate for the kit: a head that starts with a leaf (the leaf, then its lines one under the other) */
+.pp-head.has-leaf, .pp-follow-h.has-leaf { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; justify-items: start; justify-content: stretch; gap: 3px 12px; }
+.pp-head.has-leaf > :is(.k-leaf, .k-ico), .pp-follow-h.has-leaf > :is(.k-leaf, .k-ico) { grid-column: 1; grid-row: 1 / span 3; align-self: start; }
+.pp-head.has-leaf > :not(.k-leaf, .k-ico), .pp-follow-h.has-leaf > :not(.k-leaf, .k-ico) { grid-column: 2; }
+.pp-follow-h.has-leaf > .k-ico-lg { inline-size: 62px; block-size: 62px; border-radius: 14px; }
+.pp-follow-h > strong { font-size: 15.5px; }
+.pp-follow-h > strong > a { color: var(--ds-ink); }
+.pp-follow-h > .muted, .pp-head.has-leaf > .pp-when { font-size: 14px; font-weight: 500; color: var(--ds-navy-text); }
+.pp-follow-row:not(.is-done) { box-shadow: inset 0 0 0 1px var(--ds-line); }
+/* The day-before items: each on its own soft card, not a line under a line. */
+.pp-checks { gap: 8px; }
+.pp-check, .pp-check:last-child { padding: 10px 12px; border-bottom: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }

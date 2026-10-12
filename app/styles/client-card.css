@@ -167,3 +167,78 @@ dialog .dlg-foot .btn { min-height: 46px; }
 #tasks .task-form > .field { display: grid; grid-template-rows: 20px 46px; row-gap: 6px; align-content: end; margin: 0; }
 #tasks .task-form > .field > label { margin: 0; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #tasks .task-form > .field > .input { block-size: 46px; min-block-size: 46px; margin: 0; }
+
+/* ══ "No pale rows" on the client's card (the owner, 13.10.2026; docs/ops.md, section 61) ══
+   A row of the card is never small grey text between thin lines: the timeline and the
+   history start with the leaf of their moment, a task and an item are soft rows inside
+   their card, a deadline and a state are pills (hot once late). Look only; the words stay.
+   Contrast: an item's label ink on the ground 15.74; the history's sentence ink on white
+   17.96; the pills as in kit.css (late 5.15, today 5.9, ok 5.72, plain 9.2). */
+
+/* ── The protocol: a process's deadline and state as pills, its items as soft rows ── */
+#phases .proc-meta .due { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: 12px; background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; }
+#phases .proc.s-overdue .proc-meta .due { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#phases .proc.s-today .proc-meta .due, #phases .proc.s-due .proc-meta .due { background: var(--ds-amber-soft); color: var(--ds-amber); }
+#phases .proc-status > .sbadge { min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-weight: 700; }
+#phases .proc-status > .sbadge.s-overdue { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#phases .proc-status > .sbadge.s-today, #phases .proc-status > .sbadge.s-due, #phases .proc-status > .sbadge.s-client { background: var(--ds-amber-soft); color: var(--ds-amber); }
+#phases .proc-status > .sbadge.s-done { background: var(--ds-ok-soft); color: var(--ds-ok); }
+#phases .proc-status > .sbadge.s-waiting .sicon { opacity: 1; }
+/* The state, the count and "ממתין ללקוח" break to a second line on a narrow phone instead of widening the card. */
+@media (max-width: 760px) { #phases .proc-status { flex-wrap: wrap; row-gap: 2px; } }
+#phases .proc .items, #mc-slot .items { display: grid; gap: 6px; }
+#phases .items > .item, #mc-slot .items > .item { border-top: 0; padding: 2px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+/* On a process that has no card of its own (done, or somebody else's) the rows are the white ones. */
+#phases .proc.s-done .items > .item, #phases .proc.is-dim .items > .item { background: var(--ds-surface); }
+#phases .items > .item:not(.is-done, .is-na, .is-blocked) .ilabel, #mc-slot .items > .item:not(.is-done, .is-na, .is-blocked) .ilabel { font-weight: 600; color: var(--ds-ink); }
+#phases .imeta, #mc-slot .imeta { color: var(--ds-ink-2); }
+#phases .proc-meta .sla { color: var(--ds-ink-2); }
+
+/* The contract's month, its end and the renewal window: pills beside the heading. */
+#cc-head .cs-when { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: 12px; background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 600; }
+#cc-head .cs-when:has(.is-open) { background: var(--ds-amber-soft); }
+#cc-head .cs-when .is-open { color: var(--ds-amber); }
+#mc-slot .mc-count { font-weight: 700; color: var(--ds-ink); }
+
+/* ── Tasks: each a white row with its deadline as a pill ── */
+#tasks .tlist { display: grid; gap: 8px; }
+#tasks .tlist > li.item { border-top: 0; padding: 4px 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
+#tasks .tlist > li.item:has(.tdue.late) { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-hot) 32%, transparent); }
+#tasks .tlist > li.item:not(.is-done) .ilabel { font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+#tasks .tlist .imeta { margin-top: 4px; color: var(--ds-ink-2); }
+#tasks .tdue { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; }
+#tasks .tdue.late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+
+/* ── History, and who saw a password: a leaf (or the icon of the action), then who and what ── */
+#hist-list, #access-log { display: grid; gap: 6px; }
+.hrow { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; padding: 8px 10px; border-radius: var(--ds-r-item); background: var(--ds-surface); color: var(--ds-ink); font-size: 14px; line-height: 1.45; }
+.hrow-b { min-width: 0; overflow-wrap: anywhere; }
+.hrow-b > strong { font-weight: 700; }
+.hrow-b > a { font-weight: 600; }
+.hrow-b > .inote { margin-top: 2px; color: var(--ds-ink-2); }
+/* The stamp is what the leaf beside it shows: kept in the text, not drawn twice. */
+#hist-list .hrow-at { position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#access-log .hrow-b > .num { display: block; font-size: 12.5px; color: var(--ds-ink-2); }
+
+/* ── The timeline: each step a row that starts with its leaf ── */
+#tl-slot .tl .tl-h { margin: 16px 0 6px; font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+#tl-slot .tl .tl-h .n {
+  display: inline-grid; place-items: center; min-inline-size: 24px; block-size: 24px; padding: 0 7px; border-radius: var(--ds-r-pill);
+  background: var(--ds-soft); color: var(--ds-ink-2); font-family: var(--ds-font-b); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+#tl-slot .tl-list { gap: 6px; }
+#tl-slot .tl-item.has-leaf { grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--ds-r-item); background: var(--ds-surface); }
+#tl-slot .tl-item.has-leaf > .k-ico { justify-self: center; }
+#tl-slot .tl-item.is-now.s-overdue { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-hot) 32%, transparent); }
+#tl-slot .tl-body > a, #tl-slot .tl-body > span:first-child { font-weight: 700; color: var(--ds-ink); }
+#tl-slot .tl-meta { color: var(--ds-ink-2); }
+#tl-slot .tl-item.is-unset .tl-meta { color: var(--ds-amber); }
+/* The questions asked about the client: a card each. */
+#tl-slot .cq-item, #tl-slot .cq-item:first-child { padding: 10px 12px; border-top: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); }
+#tl-slot .cq-meta { color: var(--ds-ink-2); }
+#tl-slot .cq-text { font-weight: 600; color: var(--ds-ink); }
+
+@media print {
+  .hrow, #tl-slot .tl-item.has-leaf, #tasks .tlist > li.item { background: #fff; box-shadow: none; border: 1px solid #999; }
+  #hist-list .hrow-at { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; }
+}
