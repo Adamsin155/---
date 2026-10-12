@@ -64,7 +64,7 @@ import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageT
 import { loadDeals } from './deal-data.js';
 import { fixTaskOf, fixNote, FIX_ITEM_LABEL, lateItems, countsLate, lateKey } from './late-chain.js';
 // The shared look (docs/ops.md, section 50): icon squares, the counted line, the empty state.
-import { headIcon, sectionHead, emptyState, countedLine, dateLeaf, leafRow } from './kit.js';
+import { headIcon, sectionHead, emptyState, countedLine, dateLeaf, leafRow, cardMark, iconSquare, pill, stat } from './kit.js';
 import { canSeeDeals, canSeeQuoteList } from './manager-rules.js';
 // Everything that waits for me on another page, as counted lines (docs/ops.md, section 46).
 import { flowLines, flowNeeds } from './mine-flow.js';
@@ -1137,6 +1137,23 @@ function whenWords(g, now = new Date()) {
   return /^(היום|מחר)$/.test(w) ? w : /^(היום|מחר) /.test(w) ? w.replace(' ', ' עד ') : `עד ${w}`;
 }
 
+// ── A process as one card (the owner, 13.10.2026: "no pale rows"; docs/ops.md, section 61) ──
+// Every card of the list starts with a mark: the leaf of its deadline (pink once it counts
+// as late, amber when the deadline passed and it is not this person's lateness; today navy,
+// tomorrow blue, later purple), or the icon of its kind when it has no deadline. The leaf is
+// drawn from data (app/kit.js leafMark), so the words of the card are what they were.
+function markOf(g, now = new Date()) {
+  if (g.dueAt && g.status !== 'client') {
+    const w = leafOf(g.dueAt, now);
+    return cardMark({ ...w, tone: g.late ? 'pink' : g.dueAt < now ? 'orange' : w.tone });
+  }
+  return cardMark(null, ...(g.status === 'client' ? ['hourglass', 'orange'] : g.urgent ? ['bolt', 'pink'] : g.escalation ? ['flag', 'pink'] : g.task ? ['check-circle', 'navy'] : ['list', 'navy']));
+}
+// The deadline in words only repeats the leaf beside it ("היום עד 14:00", "מחר", "עד יום ה׳,
+// 22.10"): it stays in the card for whoever does not see the leaf, and is not drawn twice.
+// What the leaf does not say stays a pill: how late, whose turn, "ממתין ללקוח", a meeting.
+const echoesLeaf = (g, when) => !!g.dueAt && g.status !== 'overdue' && g.status !== 'client' && when !== MEETING_WORDS;
+
 function compactCard(g, person) {
   const href = clientUrl(g.client.id, g.proc ? `#${g.proc.id}` : '#tasks');
   const owners = g.task ? [g.task.owner] : [...new Set(g.entries.flatMap((e) => e.item.owners))];
@@ -1204,15 +1221,18 @@ function compactCard(g, person) {
   const when = whenWords(g);
   // Whoever may not make the link (a viewer of somebody else's list) keeps the plain row.
   const link = linkLine(g, single ? ticks[0] : null);
-  return h('li', { class: `wproc wc s-${shownStatus(g)}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
-    h('div', { class: 'wc-head', 'aria-describedby': g.wait ? waitId : null },
-      h('a', { class: 'wclient', href }, clientLabel(g.client)),
-      isAuto(g.client) ? h('span', { class: 'auto-tag' }, 'חדש') : null,
-      g.task ? taskBadge(g.task) : null,
-      when ? h('span', { class: `wc-when s-${g.turn ? 'client' : shownStatus(g)}` }, when) : null),
-    h('div', { class: 'wc-what' },
-      // A single task is named by its own check below; its kind is the line here.
-      h('p', { class: 'wc-title' }, single && g.task ? h('span', { class: 'wc-sub' }, sub || 'משימה') : [what, sub ? h('span', { class: 'wc-sub' }, ` · ${sub}`) : null]),
+  return h('li', { class: `wproc wc k-pc pc${g.late ? ' k-pc-late' : ''} s-${shownStatus(g)}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
+    h('div', { class: 'k-pc-top' },
+      markOf(g),
+      h('div', { class: 'k-pc-body' },
+        h('div', { class: 'wc-head', 'aria-describedby': g.wait ? waitId : null },
+          h('a', { class: 'wclient', href }, clientLabel(g.client)),
+          isAuto(g.client) ? h('span', { class: 'auto-tag' }, 'חדש') : null,
+          g.task ? taskBadge(g.task) : null),
+        h('div', { class: 'wc-what' },
+          // A single task is named by its own check below; its kind is the line here.
+          h('p', { class: 'wc-title' }, single && g.task ? h('span', { class: 'wc-sub' }, sub || 'משימה') : [what, sub ? h('span', { class: 'wc-sub' }, ` · ${sub}`) : null])),
+        when ? h('span', { class: `wc-when s-${g.turn ? 'client' : shownStatus(g)}${echoesLeaf(g, when) ? ' is-echo' : ''}` }, when) : null),
       panel && !listIsAction ? toggle('פירוט', 'btn-text wc-more') : null),
     need, // a detail of the client that is still missing, set from here
     zoomFixesLine(g), // 13: were fixes left after the Zoom?
@@ -1234,16 +1254,21 @@ function groupCard(g, person) {
   const waitId = `wl-${g.key}`.replace(/[^\w-]/g, '_');
   // 'own' roles mark a wait only where the client is part of their work (approvals, corrections).
   const canWait = !g.task && !g.proc.recurring && (scope === 'office' || CLIENT_PROCS.has(baseId(g.proc)));
-  return h('li', { class: `wproc s-${shownStatus(g)}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
-    h('div', { class: 'wproc-h', 'aria-describedby': g.wait ? waitId : null },
-      h('a', { class: 'wclient', href }, clientLabel(g.client)),
-      isAuto(g.client) ? h('span', { class: 'auto-tag' }, 'חדש') : null,
-      g.task ? taskBadge(g.task) : null,
-      title ? h('span', { class: 'wtitle' }, title) : null,
-      person ? null : peopleChips(owners),
-      g.dueAt ? h('span', { class: 'num' }, `יעד: ${formatWhen(g.dueAt)}`) : null,
-      g.status === 'overdue' && !g.late ? h('span', { class: 'sbadge s-today' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), whenWords(g)) : statusBadge(g.status, g.dueAt),
-      claimControl(g, person)),
+  // The whole card of the full list: the same head as the short one (the leaf, who, what,
+  // the state), and under it everything the short card folds.
+  return h('li', { class: `wproc k-pc pc pc-full${g.late ? ' k-pc-late' : ''} s-${shownStatus(g)}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },
+    h('div', { class: 'k-pc-top' },
+      markOf(g),
+      h('div', { class: 'wproc-h k-pc-body', 'aria-describedby': g.wait ? waitId : null },
+        h('a', { class: 'wclient', href }, clientLabel(g.client)),
+        isAuto(g.client) ? h('span', { class: 'auto-tag' }, 'חדש') : null,
+        g.task ? taskBadge(g.task) : null,
+        title ? h('span', { class: 'wtitle' }, title) : null,
+        person ? null : peopleChips(owners),
+        // The leaf beside it shows this moment: the sentence stays for whoever does not see it.
+        g.dueAt ? h('span', { class: `num pc-due${g.status !== 'client' ? ' is-echo' : ''}` }, `יעד: ${formatWhen(g.dueAt)}`) : null,
+        g.status === 'overdue' && !g.late ? h('span', { class: 'sbadge s-today' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), whenWords(g)) : statusBadge(g.status, g.dueAt),
+        claimControl(g, person))),
     g.task ? taskMeta(g.task) : null,
     g.task && g.urgent ? taskStart(g.task) : null,
     needLine(g),
@@ -1462,11 +1487,13 @@ function syncLateTab() {
 // A late item with no card in this person's list (they hold the process, and its open
 // item is another's to tick): a plain row to the place, so the count is what is listed.
 function lateRow(x) {
-  return h('li', { class: 'wproc wc s-overdue late-row', 'data-key': lateKey(x) },
-    h('div', { class: 'wc-head' },
-      h('a', { class: 'wclient', href: clientUrl(x.cid, x.procId ? `#${x.procId}` : '#tasks') }, x.name),
-      h('span', { class: 'wc-when s-overdue' }, `באיחור ${lateBy(x.dueAt, new Date())}`)),
-    h('div', { class: 'wc-what' }, h('p', { class: 'wc-title' }, x.what)),
+  return h('li', { class: 'wproc wc k-pc k-pc-late pc s-overdue late-row', 'data-key': lateKey(x) },
+    h('div', { class: 'k-pc-top' },
+      cardMark(x.dueAt ? { ...leafOf(x.dueAt), tone: 'pink' } : null, 'alert', 'pink'),
+      h('div', { class: 'k-pc-body' },
+        h('div', { class: 'wc-head' }, h('a', { class: 'wclient', href: clientUrl(x.cid, x.procId ? `#${x.procId}` : '#tasks') }, x.name)),
+        h('div', { class: 'wc-what' }, h('p', { class: 'wc-title' }, x.what)),
+        h('span', { class: 'wc-when s-overdue' }, `באיחור ${lateBy(x.dueAt, new Date())}`))),
     h('a', { class: 'btn btn-sm wc-go', href: clientUrl(x.cid, x.procId ? `#${x.procId}` : '#tasks') }, 'לכרטיס הלקוח'));
 }
 function renderLate(flow) {
@@ -2116,11 +2143,13 @@ function reviewMarkControl(r, idPrefix) {
 
 // The fixed card in Irit's / Ofir's "today" group, until the review is marked.
 function reviewCard(r) {
-  return h('li', { class: 'wproc rv-card' },
-    h('div', { class: 'wproc-h' },
-      h('span', { class: 'wtitle' }, `בקרה יומית · תהליך ${r.num} · ${r.title}`),
-      h('a', { class: 'btn-text', href: '#control' }, 'מעבר לבקרה')),
-    reviewMarkControl(r, 'rvm'));
+  return h('li', { class: 'wproc rv-card k-pc pc pc-full' },
+    h('div', { class: 'k-pc-top' },
+      cardMark(null, 'check-circle', 'blue'),
+      h('div', { class: 'wproc-h k-pc-body' },
+        h('span', { class: 'wtitle' }, `בקרה יומית · תהליך ${r.num} · ${r.title}`),
+        h('a', { class: 'btn-text', href: '#control' }, 'מעבר לבקרה'))),
+    h('div', { class: 'k-inset-row pc-one' }, reviewMarkControl(r, 'rvm')));
 }
 
 function reviewDone(rec, r) {
@@ -2468,10 +2497,12 @@ function goToStatus() {
 function thursdayCard() {
   const w = thursdayPass();
   if (!w) return null;
-  return h('li', { class: 'wproc rv-card thu-card' },
-    h('div', { class: 'wproc-h' },
-      h('span', { class: 'wtitle' }, `מעבר חובה של יום חמישי: סיכום מצב לכל הלקוחות (${w.done}/${w.total})`),
-      h('a', { class: 'btn-text', href: '#control', onclick: (ev) => { ev.preventDefault(); goToStatus(); } }, 'מעבר לסיכום המצב')),
+  return h('li', { class: 'wproc rv-card thu-card k-pc pc pc-full' },
+    h('div', { class: 'k-pc-top' },
+      cardMark(null, 'file', 'purple'),
+      h('div', { class: 'wproc-h k-pc-body' },
+        h('span', { class: 'wtitle' }, `מעבר חובה של יום חמישי: סיכום מצב לכל הלקוחות (${w.done}/${w.total})`),
+        h('a', { class: 'btn-text', href: '#control', onclick: (ev) => { ev.preventDefault(); goToStatus(); } }, 'מעבר לסיכום המצב'))),
     h('p', { class: 'task-meta' }, 'על כל לקוח: מצב נוכחי, מה חסר, פעולה הבאה, אחראי ומועד יעד.'),
     progressBar(w.done, w.total, 'לקוחות שסוכמו השבוע'));
 }

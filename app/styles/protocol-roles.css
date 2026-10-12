@@ -42,3 +42,78 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
 @media (max-width: 760px) {
   .view-toggle { min-height: 44px; }
 }
+
+/* ══ "No pale rows" on "המשימות שלי" (the owner, 13.10.2026; docs/ops.md, section 61) ══
+   A process is ONE card: the leaf of its deadline (or the icon of its kind), who and what
+   in a clear head, the state as a pill (late in the hot colour), and its items inside it as
+   soft rows. The short list and the full one share the head. Held to `.pc` (the cards
+   app/clients.js builds) and to #mine-list, so no other page changes.
+   Contrast: the client's name #0E2260 on white 14.5; the title ink on white 17.96; the item
+   ink on the ground 15.9; the pills as in kit.css (late 5.15, today 5.9, plain 9.2). */
+#mine-list .wprocs { display: grid; gap: 8px; padding-top: 4px; }
+#mine-list .wprocs > .more-row { border-top: 0; padding: 2px 0 0; }
+.wproc.pc { padding: 12px; border: 0; }
+.pc.is-urgent { border-inline-start: 0; padding-inline-start: 12px; box-shadow: inset 0 0 0 1.5px var(--ds-hot); }
+/* Who: the client, small and navy. What: the title, the boldest line of the card. */
+.pc .wc-head { gap: 2px 8px; min-width: 0; }
+.pc .wc-head .wclient, .pc-full .wproc-h .wclient {
+  min-height: 0; padding-block: 6px; margin-block: -6px; font-size: 13.5px; font-weight: 600; color: var(--ds-navy-text); overflow-wrap: anywhere;
+}
+.pc .wc-what { min-width: 0; }
+.pc .wc-title, .pc-full .wtitle { font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--ds-ink); overflow-wrap: anywhere; }
+.pc .wc-title .wc-sub { font-size: 13.5px; font-weight: 400; color: var(--ds-muted); }
+/* A single item is named by its own row below: the process is its context line. */
+.wc.pc:has(> .wlist) .wc-title, .wc.pc:has(> .wlink) .wc-title { font-size: 14px; font-weight: 500; color: var(--ds-ink-2); }
+.pc .wc-when { justify-self: start; margin-inline-start: 0; }
+/* Words that only repeat the leaf beside them: kept for whoever does not see it. */
+.pc .is-echo { position: absolute; inline-size: 1px; block-size: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.pc .wc-more { align-self: start; margin-block: -6px; }
+.pc > .wc-go, .pc > .ik-go { margin-top: 0; }
+.pc > .need, .pc > .wlink, .pc > .task-start, .pc > .task-meta, .pc > .wait-line, .pc > .wproc-acts, .pc > .contract-acts, .pc > .hint { margin-top: 0; }
+.pc > [hidden] { display: none; }
+/* The items of the process, inside its card: each a soft row with its "סיימתי" at the end. */
+.pc .wlist { display: grid; gap: 6px; min-width: 0; }
+.pc .wlist > .witem { min-width: 0; padding: 4px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+.pc .wlist .wrow { padding: 4px 0; align-items: center; }
+.pc .wlist .wrow > .fin ~ .wlabel, .pc .wlist .wrow > .wlabel { font-size: 15px; font-weight: 600; line-height: 1.35; color: var(--ds-ink); }
+.pc > .wlist .wrow > .fin ~ .wlabel { font-size: 15.5px; font-weight: 700; }
+.pc .wlist > .witem > .hint, .pc .wlist > .witem > .fix-ask-line { margin-block: 0 4px; }
+.pc-one { padding-block: 4px; }
+.pc-one > .wrow { padding: 4px 0; align-items: center; }
+.pc-one > .wrow > .wlabel { font-size: 15.5px; font-weight: 700; }
+/* What the short card folds: a soft panel, with its items as white rows. */
+.pc .wc-panel { display: grid; gap: 8px; margin-top: 0; padding: 10px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+.pc .wc-panel[hidden] { display: none; }
+.pc .wc-panel > * { margin-block: 0; }
+.pc .wc-panel .wlist > .witem { background: var(--ds-surface); }
+.pc .wc-panel .wc-due { font-size: 13.5px; font-weight: 600; color: var(--ds-ink-2); }
+.pc .wc-panel .wproc-acts { padding-top: 0; }
+/* The full list: the head wraps (who, what, whose, the state), and the state is a pill. */
+.pc-full .wproc-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; font-size: 13.5px; color: var(--ds-ink-2); }
+.pc-full .wproc-h > .wclient, .pc-full .wproc-h > .wtitle { flex: 1 1 100%; min-width: 0; }
+.pc-full .wproc-h > .wclient:has(+ .auto-tag), .pc-full .wproc-h > .wclient:has(+ .sbadge) { flex: 0 1 auto; }
+.pc-full .wproc-h > .btn-text { min-height: 44px; display: inline-flex; align-items: center; }
+.pc-full .wproc-h .sbadge { margin-inline-start: 0; }
+.pc-full .wproc-h > .sbadge:not(.s-urgent, .s-escalation) { min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-weight: 700; }
+.pc-full .wproc-h > .sbadge.s-overdue { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+.pc-full .wproc-h > .sbadge.s-today, .pc-full .wproc-h > .sbadge.s-due { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.pc-full .wproc-h > .sbadge.s-client { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.pc-full .pc-due { font-weight: 600; color: var(--ds-ink-2); }
+.pc-full > .wproc-acts { padding-top: 0; }
+/* The headings of the groups: a clear line with its count as a bold number. */
+#mine-list .wgroup-h { margin: 16px 0 6px; font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; color: var(--ds-ink); }
+#mine-list .wgroup-h .n {
+  display: inline-grid; place-items: center; min-inline-size: 24px; block-size: 24px; padding: 0 7px; border-radius: var(--ds-r-pill);
+  background: var(--ds-soft); color: var(--ds-ink-2); font-family: var(--ds-font-b); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+#mine-list .g-overdue .wgroup-h, #mine-list .g-urgent .wgroup-h, #mine-list .g-escalation .wgroup-h { color: var(--ds-hot-text); }
+#mine-list .g-overdue .wgroup-h .n, #mine-list .g-urgent .wgroup-h .n, #mine-list .g-escalation .wgroup-h .n { background: var(--ds-hot); color: var(--ds-on-hot); }
+#mine-list .g-today .wgroup-h .n { background: var(--ds-amber-soft); color: var(--ds-amber); }
+#mine-list .g-client .wgroup-h { color: var(--ds-amber); }
+#view-mine.is-late #mine-list .wgroup-h { margin-top: 4px; }
+@media (max-width: 760px) {
+  /* The client's name is still a 44px target: its padding reaches, its line does not grow. */
+  .pc .wc-head .wclient, .pc-full .wproc-h .wclient { min-height: 0; padding-block: 13px; margin-block: -13px; }
+  .pc .wc-title, .pc-full .wtitle { font-size: 15.5px; }
+}
+@media print { .pc .is-echo { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; } }

@@ -344,3 +344,39 @@ export function leafRow(leaf, body, { tag = 'div', cls = '', id = null, data = {
   for (const [k, v] of Object.entries(data)) row.dataset[k] = v;
   return row;
 }
+
+/* section 61: no pale rows */
+// ── "No pale rows" (the owner, 13.10.2026; docs/ops.md, section 61). Appended only. ──
+// A row of a list is never small grey text between thin lines: it is a card with a mark at
+// its start (the leaf of its moment, or the icon square of its kind), one bold title, a
+// state as a pill, and its counts as bold numbers.
+Object.assign(ICONS, {
+  undo: ['M8.5 5 4 9.5 8.5 14', 'M4 9.5h10.5a5.5 5.5 0 0 1 0 11H10'],
+  note: ['M5 4.5h14A1.5 1.5 0 0 1 20.5 6v9l-5 5H5a1.5 1.5 0 0 1-1.5-1.5V6A1.5 1.5 0 0 1 5 4.5z', 'M20.5 15H17a1.5 1.5 0 0 0-1.5 1.5V20', 'M7.5 9h9', 'M7.5 12.5h5'],
+});
+
+// The leaf beside words that already say the moment ("יעד: יום ה׳, 15.10 12:00", "באיחור 3
+// ימי עסקים"): the same leaf as `dateLeaf`, drawn by the stylesheet from its data, so the
+// text of the row is exactly what it was, and nothing is read out twice.
+//   words: what app/protocol-ui.js `leafOf` gives ({ top, day, sub, tone }); size: 'md' | 'sm'
+export function leafMark(words, { size = 'md' } = {}) {
+  if (!words) return null;
+  const tone = TONES.includes(words.tone) ? words.tone : 'purple';
+  return el('span', { class: `k-leaf k-leaf-mark k-leaf-${tone}${size === 'sm' ? ' k-leaf-sm' : ''}`, 'aria-hidden': 'true' },
+    el('span', { class: 'k-leaf-top', 'data-t': words.top }),
+    el('b', { class: 'k-leaf-day', 'data-t': String(words.day) }),
+    words.sub ? el('small', { class: 'k-leaf-sub', 'data-t': words.sub }) : null);
+}
+
+// The mark at the start of a card (`.k-pc-mark`): the leaf of its moment when it has one,
+// else the icon square of its kind. One width, so the titles of a list start on one line.
+export function cardMark(words, name = 'list', tone = 'navy') {
+  return el('span', { class: 'k-pc-mark', 'aria-hidden': 'true' }, words ? leafMark(words) : iconSquare(name, tone, { size: 'lg' }));
+}
+
+// A count with its word: the number bold and tabular, the word small under it.
+//   tone: 'plain' | 'late' | 'today' | 'ok' (the colour never stands alone: the word says it).
+export function stat(n, label, tone = 'plain', { cls = '' } = {}) {
+  return el('span', { class: `k-stat k-stat-${tone}${cls ? ` ${cls}` : ''}` }, el('b', { class: 'k-stat-n' }, String(n)), el('span', { class: 'k-stat-l' }, label));
+}
+/* end: section 61 */
