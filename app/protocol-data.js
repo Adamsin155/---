@@ -6,12 +6,33 @@
 import { supabase } from './supa.js';
 import { withLanding } from './landing-data.js';
 
+// Every row of a query, a thousand at a time (the most the database gives in one answer).
+// `build(COUNTED)` may pass its argument on to select(): the first answer then says how
+// many rows there are, and the remaining pages are asked for together instead of one
+// after the other. The marks of forty clients are seven pages: seven round trips in a
+// row were most of a second of every first screen (docs/ops.md, section 59). An answer
+// without the count (a query that does not pass the argument on) goes page after page,
+// as before; so does whatever was added while the pages were on their way.
 const PAGE = 1000;
+const COUNTED = { count: 'exact' };
 async function all(build) {
-  let out = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await build().range(from, from + PAGE - 1);
+  const page = async (from, opts) => {
+    const { data, error, count } = await build(opts).range(from, from + PAGE - 1);
     if (error) throw error;
+    return { data, count };
+  };
+  const first = await page(0, COUNTED);
+  let out = first.data;
+  if (out.length < PAGE) return out;
+  if (Number.isInteger(first.count) && first.count > PAGE) {
+    const starts = [];
+    for (let from = PAGE; from < first.count; from += PAGE) starts.push(from);
+    const rest = await Promise.all(starts.map((from) => page(from)));
+    for (const r of rest) out = out.concat(r.data);
+    if (rest.at(-1).data.length < PAGE) return out;
+  }
+  for (let from = out.length; ; from += PAGE) {
+    const { data } = await page(from);
     out = out.concat(data);
     if (data.length < PAGE) return out;
   }
@@ -76,8 +97,8 @@ export async function loadClient(id) {
 
 // Checks grouped by client: { clientId: { itemKey: check } }.
 export async function loadChecks(clientId = null) {
-  const rows = await all(() => {
-    const q = supabase.from('protocol_checks').select(CHECK_COLS).order('client_id').order('item_key');
+  const rows = await all((counted) => {
+    const q = supabase.from('protocol_checks').select(CHECK_COLS, counted).order('client_id').order('item_key');
     return clientId ? q.eq('client_id', clientId) : q;
   });
   const out = {};
@@ -280,7 +301,7 @@ export async function loadQuoteSummary(id) {
 
 // All checks with their times, for the performance report.
 export async function loadAllLog(sinceIso) {
-  return all(() => supabase.from('protocol_log').select('client_id, item_key, action, note, by_email, at')
+  return all((counted) => supabase.from('protocol_log').select('client_id, item_key, action, note, by_email, at', counted)
     .gte('at', sinceIso).order('at'));
 }
 

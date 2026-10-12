@@ -23,13 +23,13 @@ function settle() {
   if (inFlight > 0) return;
   for (const w of [...idleWaiters]) w();
 }
-async function countedFetch(input, init) {
+// `ask` is what answers: the server, or what the staff pages put in front of it (below).
+async function counted(ask, method) {
   inFlight += 1;
   let open = true;
   const close = () => { if (!open) return; open = false; nextTurn().then(settle); };
   try {
-    const res = await fetch(input, init);
-    const method = String(init?.method || input?.method || 'GET').toUpperCase();
+    const res = await ask();
     if (!res.body || method === 'HEAD' || [204, 205, 304].includes(res.status)) close();
     else {
       // Counted until the answer is read; an answer nobody reads is let go after a moment.
@@ -54,16 +54,49 @@ export async function requestsIdle() {
   }
 }
 
+// ── The staff pages' layer over every request (docs/ops.md, section 60) ───
+// The staff pages put the session's data cache between themselves and the server
+// (app/session-store.js calls useFetchLayer). This file knows nothing of it and loads
+// nothing for it: it is also the client's passwords form and the payments app, whose
+// requests are never kept. With no layer, every request is a plain fetch, as before.
+let layer = null;
+export function useFetchLayer(over) { layer = over; }
+// A page says how it reads and draws again; from then on it may be shown what the
+// store remembers (called at the top of the page's script, before its first request).
+export const redraws = new Set();
+export function onFresh(draw) { redraws.add(draw); }
+// Signing out: nothing of the account stays in the tab (also app/visit.js forgetPlace).
+export function clearKept() {
+  try {
+    const gone = ['astrateg.shell'];
+    for (let i = 0; i < sessionStorage.length; i += 1) { const k = sessionStorage.key(i) || ''; if (k === 'astrateg.cache' || k.startsWith('astrateg.cache.')) gone.push(k); }
+    for (const k of gone) sessionStorage.removeItem(k);
+  } catch { /* no storage */ }
+}
+function countedFetch(input, init) {
+  const method = String(init?.method || input?.method || 'GET').toUpperCase();
+  let over = null;
+  try { over = layer ? layer(input, init, method) : null; } catch { over = null; }
+  return counted(over || (() => fetch(input, init)), method);
+}
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
   global: { fetch: countedFetch },
 });
 
+// The sign-in form asks "is this one of the staff" the moment the server says yes to the
+// password (warmStaff), together with everything else the page needs; currentStaff() then
+// takes that answer instead of asking after the rest.
+let staffAsked = null;
+export function warmStaff() { staffAsked = supabase.rpc('is_staff').then((answer) => answer, () => ({ data: null, error: new Error('no answer') })); }
 export async function currentStaff() {
   const { data } = await supabase.auth.getSession();
   const session = data?.session;
   if (!session) return null;
-  const { data: ok, error } = await supabase.rpc('is_staff');
+  const asked = staffAsked;
+  staffAsked = null;
+  const { data: ok, error } = await (asked || supabase.rpc('is_staff'));
   if (error) return null;
   return { email: session.user.email, isStaff: ok === true };
 }
@@ -74,24 +107,42 @@ export async function currentStaff() {
 export async function sessionEmail() {
   try { return (await supabase.auth.getSession()).data?.session?.user?.email || null; } catch { return null; }
 }
+// The account of that session: { id, email }, or null. What a tab keeps for a person
+// (the app's frame, the session's data cache) is kept under this id.
+export async function sessionUser() {
+  try {
+    const user = (await supabase.auth.getSession()).data?.session?.user;
+    return user?.id ? { id: user.id, email: user.email || null } : null;
+  } catch { return null; }
+}
 
 // What a page needs first, asked for as soon as its script runs (when someone is signed
 // in on this device) instead of after the session is confirmed and the person looked up:
 // the same requests, started earlier and side by side. warm() starts one under a name;
 // taken() hands it over once (or starts it now when nothing was warmed), so every later
 // load asks again. What a person may read is decided by the database either way.
+// Nobody was signed in when the page's script ran (the sign-in screen): the same
+// requests start the moment the server says yes to the form (warmNow), side by side with
+// "who is this", instead of one after the other (docs/ops.md, section 60).
 const warmed = new Map();
+const unwarmed = new Map();
+const begin = (name, start) => {
+  if (warmed.has(name)) return;
+  const asked = start();
+  asked.catch(() => {});
+  warmed.set(name, asked);
+};
 export function warm(name, start) {
-  sessionEmail().then((email) => {
-    if (!email || warmed.has(name)) return;
-    const asked = start();
-    asked.catch(() => {});
-    warmed.set(name, asked);
-  });
+  sessionEmail().then((email) => { if (email) begin(name, start); else if (!warmed.has(name)) unwarmed.set(name, start); });
+}
+export function warmNow() {
+  for (const [name, start] of unwarmed) { try { begin(name, start); } catch { /* the page asks again itself */ } }
+  unwarmed.clear();
 }
 export function taken(name, start) {
   const asked = warmed.get(name);
   warmed.set(name, null); // too late to warm it now
+  unwarmed.delete(name);
   return asked || start();
 }
 
@@ -223,6 +274,9 @@ export async function consumeRecoveryLink() {
 //  - where that person stood (the profile, "תצוגה מלאה", the filters): forgotten by the
 //    pages' own sign-out buttons (forgetPlace in app/visit.js; the owner's rule of 9.10.2026).
 //    Not from here: this file is also loaded by the client's passwords form (section 36).
+//  - what the tab kept so that the next screen opens at once (section 60): the answers
+//    of the session's data cache and the app's frame (clearKept, here; forgetPlace
+//    removes them too, with where the tab was and its scroll places).
 // Other preferences of the device stay (the notifications switch, what was seen). Each
 // step is best effort and none holds the sign-out for long.
 export const DRAFT_PREFIXES = ['astrateg.charform.', 'astrateg.brief.', 'astrateg.scripts.'];
@@ -245,7 +299,9 @@ async function forgetPushDevice() {
 export async function signOutHere() {
   await Promise.race([forgetPushDevice().catch(() => {}), new Promise((done) => { setTimeout(done, 3000); })]);
   clearDeviceDrafts();
+  clearKept(); // what this tab kept of the account's lists, and its menu (docs/ops.md, section 60)
   await supabase.auth.signOut();
+  clearKept(); // and whatever an answer on its way put back meanwhile
 }
 
 export function quoteLink(token) {

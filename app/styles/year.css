@@ -64,6 +64,8 @@
 .yr-sum dd.late { font-weight: 500; }
 .yr-quote { min-height: 44px; display: inline-flex; align-items: center; }
 
+.yr-vd > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 500; color: var(--text-2); }
+.yr-vd[open] > summary { margin-bottom: 4px; }
 .yr-versions { margin: 8px 0 0; padding-inline-start: 22px; display: grid; gap: 10px; font-size: 14px; }
 .yr-vh { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .yr-vh .tag { margin: 0; }
