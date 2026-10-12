@@ -125,6 +125,7 @@ const hashOfView = (v) => (v === 'mine' && managing ? 'team' : v);
 const managerTab = (t) => personal && managerTabs({ me, scope, error: viewerError }).includes(t);
 let clientFilter = 'active';
 let lastLoad = 0;
+let loads = 0;
 const laterOpen = new Set();   // the folded "this week" and "later" groups a person opened
 let waitGroupOpen = null;   // the collapsed "waiting on client" group keeps its state across renders
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash}`;
@@ -240,43 +241,62 @@ warm('clients', firstRows);
 async function load() {
   $('state').textContent = clients.length ? '' : 'טוען…';
   const now = new Date();
+  const first = !loads; // the page is opening (the cards have just read their own rows)
+  loads += 1;
+  const office = scope === 'office';
+  const viewer = { me, scope, error: viewerError };
+  // What does not wait for the clients is asked for together with them, and not in a
+  // round of its own after they arrive (docs/ops.md, section 59). Reviews, summaries and
+  // the history are extras: the page works without them. They serve the office screens
+  // only, so an 'own' view does not load them (it reads Ofir's meetings instead).
+  const none = Promise.reject(null); // eslint-disable-line prefer-promise-reject-errors
+  const early = Promise.allSettled([
+    office ? loadReviews(dayIso(lastBusinessDays(7, now).at(-1))) : none,
+    office ? loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }) : none,
+    office ? loadAllLog(new Date(now.getTime() - 21 * 864e5).toISOString()) : none,
+    // The deals answer only Irit and the owners (the database decides; canSeeDeals mirrors it).
+    office ? (canSeeDeals(viewer) ? loadDeals() : null) : none,
+    office ? none : loadOfirMeetings(new Date(now.getTime() - 864e5).toISOString()).catch(() => null),
+  ]);
   try {
     [clients, checks, tasks] = await taken('clients', firstRows);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
   }
+  // The rows are new: no state worked out from the old ones is read from here on.
+  states.clear();
+  // The cards that read their own rows ask now, side by side with the rest. (The deals'
+  // card has just read its rows when the page opens: mountDeals.)
+  refreshQuestions($('my-questions'), me, clients);
+  if (!first) refreshDeals();
   // The counted lines of "המשימות שלי" ask for their own rows meanwhile (app/mine-flow-data.js).
-  const flowWants = flowNeeds({ me, scope, error: viewerError }, now);
+  const flowWants = flowNeeds(viewer, now);
   // The owners have no list of their own: they read the contracts still out for signature
   // for the control's "חתימות" (the database answers only whoever may read the quotes).
-  if (!flowWants.includes('unsigned') && canSeeQuoteList({ me, scope, error: viewerError })) flowWants.push('unsigned');
-  const flowAsked = loadFlowExtra(flowWants, { now, clients, checks, stateOf: (c) => clientState(c, checks[c.id] || {}, now) });
-  // Reviews and agreement numbers are extras: the page works without them.
-  // They serve the office screens only, so an 'own' view does not load them.
-  const none = { status: 'rejected', reason: null };
-  const [rv, qi, sn, lg, dl] = scope === 'office' ? await Promise.allSettled([
-    loadReviews(dayIso(lastBusinessDays(7, now).at(-1))),
-    loadQuoteNumbers(clients.filter(isAuto).map((c) => c.quote_id)),
-    loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }),
-    loadAllLog(new Date(now.getTime() - 21 * 864e5).toISOString()),
-    // The deals answer only Irit and the owners (the database decides; canSeeDeals mirrors it).
-    canSeeDeals({ me, scope, error: viewerError }) ? loadDeals() : Promise.resolve(null),
-  ]) : [none, none, none, none, none];
+  if (!flowWants.includes('unsigned') && canSeeQuoteList(viewer)) flowWants.push('unsigned');
+  const flowAsked = loadFlowExtra(flowWants, { now, clients, checks, stateOf });
+  // What does wait for the clients: the agreement numbers of the new ones (an extra too),
+  // and what was said about the clients still in landing.
+  const [qi, landed, [rv, sn, lg, dl, om]] = await Promise.all([
+    office ? loadQuoteNumbers(clients.filter(isAuto).map((c) => c.quote_id)).then((value) => ({ value }), () => null) : null,
+    clients.some((c) => c.landing === true) ? loadIntake() : null,
+    early,
+  ]);
+  if (landed) intake = landed;
   deals = dl.status === 'fulfilled' ? dl.value : null;
   reviews = rv.status === 'fulfilled' ? rv.value : null;
   reviewsError = rv.status === 'rejected' ? rv.reason : null;
-  if (qi.status === 'fulfilled') quoteInfo = qi.value;
+  if (qi) quoteInfo = qi.value;
   statusNotes = sn.status === 'fulfilled' ? sn.value : null;
   statusError = sn.status === 'rejected' ? sn.reason : null;
   if (lg.status === 'fulfilled') {
     lastLog = new Map();
     for (const r of lg.value) if (!lastLog.has(r.client_id) || r.at > lastLog.get(r.client_id)) lastLog.set(r.client_id, r.at);
   }
-  if (scope !== 'office') setOfirMeetings(await loadOfirMeetings(new Date(now.getTime() - 864e5).toISOString()).catch(() => null));
-  if (clients.some((c) => c.landing === true)) intake = await loadIntake();
+  if (!office) setOfirMeetings(om.value);
   flowExtra = await flowAsked;
-  states.clear();
+  changed();
   lastLoad = Date.now();
   $('state').textContent = '';
   await warmStates();
@@ -296,8 +316,6 @@ async function load() {
     held -= 1;
     if (!held) derived.clear();
   }
-  refreshQuestions($('my-questions'), me, clients);
-  refreshDeals();
 }
 // What the open view will ask for when it is built (each is kept by `once`).
 function warmAnswers() {
