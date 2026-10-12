@@ -254,7 +254,7 @@ function audit(o) {
   for (const el of all) { if (el.tagName !== "LI") continue; const s = cs(el); if (s.display === "list-item" && s.listStyleType !== "none") lists.set(el.parentElement, [(lists.get(el.parentElement) || [0])[0] + 1, s.listStyleType]); }
   for (const [ul, [n, type]] of lists) add("08-plain-bullet-list", "low", ul, "a plain bullet list of items", `${n} items, ${type}`);
   const heads = all.filter((el) => el.matches("h2, h3"));
-  const hasIco = (h) => !!(h.querySelector(".k-ico") || (h.previousElementSibling && h.previousElementSibling.matches(".k-ico")) || (h.parentElement && h.parentElement.matches(".k-head, .k-sidehead, .k-cardhead, .k-with-ico, .k-beside, .k-sec, .k-row, .k-notice, .k-head-t") && (h.parentElement.querySelector(".k-ico") || (h.parentElement.parentElement && h.parentElement.parentElement.querySelector(":scope > .k-ico")))));
+  const hasIco = (h) => !!(h.querySelector(".k-ico") || (h.previousElementSibling && h.previousElementSibling.matches(".k-ico, .k-leaf")) || (h.parentElement && h.parentElement.matches(".k-head, .k-sidehead, .k-cardhead, .k-with-ico, .k-beside, .k-sec, .k-row, .k-notice, .k-head-t") && (h.parentElement.querySelector(".k-ico") || (h.parentElement.parentElement && h.parentElement.parentElement.querySelector(":scope > .k-ico")))));
   for (const tag of ["H2", "H3"]) {
     const g = heads.filter((h) => h.tagName === tag); const bare = g.filter((h) => !hasIco(h));
     if (bare.length && bare.length < g.length) for (const h of bare) add("08-heading-without-icon", "medium", h, `a ${tag.toLowerCase()} without the icon square, on a screen where ${g.length - bare.length} of ${g.length} have it`, "");
@@ -306,7 +306,7 @@ function audit(o) {
     const kids = [...p.children].filter((k) => visSet.has(k));
     if (kids.length < 3 || !kids.every((k) => k.tagName === kids[0].tagName && k.classList[0] === kids[0].classList[0])) continue;
     const sizes = [];
-    for (const k of kids) { const ic = k.querySelector(".k-ico, svg, img"); if (ic && visSet.has(ic)) { const r = R(ic); sizes.push(`${Math.round(r.width)}×${Math.round(r.height)}`); } }
+    for (const k of kids) { const ic = k.querySelector(".k-leaf, .k-ico, svg, img"); if (ic && !ic.matches(".k-leaf") && visSet.has(ic)) { const r = R(ic); sizes.push(`${Math.round(r.width)}×${Math.round(r.height)}`); } }
     const u = [...new Set(sizes)];
     if (sizes.length >= 3 && u.length > 1) add("09-icons-of-one-list-differ", "low", p, "the leading icons of one list have different sizes", u.join(" / "));
   }

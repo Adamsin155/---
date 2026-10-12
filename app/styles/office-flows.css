@@ -305,6 +305,8 @@ details.ps-sum { min-width: 0; }
 .of-head.has-leaf > .k-leaf { grid-column: 1; grid-row: 1 / span 4; align-self: start; }
 .of-head.has-leaf > :not(.k-leaf) { grid-column: 2; }
 .of-head .wclient { font-weight: 700; }
+/* A finished card is drawn at 85%: the leaf's hour is ink there, so it stays above 4.5:1. */
+.of-card.is-done .k-leaf-sub { color: var(--ds-ink); }
 .of-card:not(.is-late) .k-leaf { box-shadow: 0 3px 8px color-mix(in srgb, var(--ds-ink) 12%, transparent); }
 /* An editor's jobs: the client's name leads its row, on a white card. */
 .of-editor .of-jobs > li { padding: 8px 12px; background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: var(--ds-r-item); color: var(--ds-ink-2); }
