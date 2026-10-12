@@ -15,6 +15,8 @@ import { platformOf, pushState, keyBytes, sameKey, inboxRows, unreadCount, deliv
 import { businessDayFrom, atIL, SNOOZE } from './reminder-rules.js';
 import { atTimeIL } from './tz.js';
 import { $, fill, h, toast, errorText, formatStamp } from './protocol-ui.js';
+// The kit's icon square and empty state for the list of the bell (every page with the bell already loads the kit).
+import { iconSquare, emptyItem } from './kit.js';
 
 // ── The service worker ────────────────────
 // The one registration of the site's worker is in app/feel.js (every staff page makes it).
@@ -255,9 +257,12 @@ async function snooze(r, choice) {
 function rowView(r) {
   const id = `inbox-${r.id}`;
   const open = sitePage(r.url, new URL('../', import.meta.url).href); // a page of this site only
+  // The row opens with an icon square (docs/ops.md, section 62): a blue bell while it is new,
+  // a list for a digest, a quiet navy bell once it was read. The hour is a small bold pill.
   return h('li', { class: `inbox-row${r.read_at ? '' : ' is-new'}`, id },
+    iconSquare(r.level === 'digest' ? 'list' : 'bell', r.read_at ? 'navy' : 'blue'),
     h('div', { class: 'inbox-top' },
-      h('span', { class: 'num muted' }, formatStamp(r.created_at).split(' ').at(-1)),
+      h('span', { class: 'num inbox-time' }, formatStamp(r.created_at).split(' ').at(-1)),
       r.read_at ? null : h('span', { class: 'tag inbox-new' }, 'חדש'),
       h('strong', { class: 'inbox-title' }, r.title)),
     r.body ? h('p', { class: 'inbox-body' }, r.body) : null,
@@ -289,7 +294,7 @@ function paintInbox({ again = true } = {}) {
   const n = unreadCount(rows);
   fill(dialogEl.querySelector('#inbox-sum'), rows.length ? `${rows.length} היום${n ? `, ${n} חדשות` : ''}.` : '');
   dialogEl.querySelector('#inbox-read').hidden = !n;
-  fill(list, rows.length ? rows.map(rowView) : h('li', { class: 'empty' }, 'אין התראות היום.'));
+  fill(list, rows.length ? rows.map(rowView) : emptyItem('אין התראות היום.', { icon: 'bell', tone: 'blue' }));
 }
 
 // The list opens at once, with the rows the page already holds (read when it opened and

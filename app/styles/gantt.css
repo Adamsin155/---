@@ -496,3 +496,20 @@ a.gt-row-main { text-decoration: none; }
   .gt-row-time { inline-size: 46px; }
 }
 @media print { .gt-chip-t { -webkit-line-clamp: 3; } }
+
+/* ── No pale rows (the owner, 13.10.2026; docs/ops.md, section 62) ──
+   The office only (`.has-leaf` is not set on the client's link, and the rest is under
+   body:not(.is-share)): a day of the list opens with its leaf of the calendar, the hour
+   of a row is bold navy, and a client's name in the list of clients is bold. */
+.gt-aday.has-leaf { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 12px; }
+.gt-aday.has-leaf > .k-leaf { inline-size: 56px; }
+.gt-aday.has-leaf > .k-leaf .k-leaf-day { font-size: 21px; line-height: 1.5; }
+.gt-aday.has-leaf > .gt-aday-h { margin: 0; font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; color: var(--ds-ink); }
+.gt-aday.has-leaf > .gt-rows { grid-column: 1 / -1; }
+body:not(.is-share) .gt-row-time { color: var(--ds-navy-text); font-weight: 700; font-size: 13.5px; }
+body:not(.is-share) .gt-row-title { font-weight: 700; }
+body:not(.is-share) .gt-row-meta { color: var(--ds-ink-2); }
+body:not(.is-share) .gx-name { font-weight: 700; }
+body:not(.is-share) .gx-next { color: var(--ds-navy-text); font-weight: 500; }
+body:not(.is-share) .gx-client.no-gantt .gx-name { color: var(--ds-ink); }
+@media print { .gt-aday.has-leaf > .k-leaf { display: none; } }
