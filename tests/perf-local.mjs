@@ -18,9 +18,19 @@
 // The repository as it is (no preloads, the worker keeps nothing) runs the same way:
 //      npx http-server -p 8097 -s -c600 . &
 // LATENCY (ms per answer of the fake database, 150) and CPU (slowdown, 4): the throttling.
+// Section 59 (the first screen and the taps) added:
+//   WORLD=big   the office at the size of the live one (tests/perf-world.mjs; CLIENTS=45);
+//   "sign-in"   from the tap on "כניסה" until the first screen can be used: the time, what
+//               the main thread was held for on the way, and every request with its time
+//               (the "signIn.calls" of the JSON: what was asked one after the other);
+//   the taps    also `done` (until what the tap asked for is on the page: the tab's panel,
+//               the open list of notifications) and `blocked` (how long the main thread was
+//               held, past 50 ms a task, in the 1.5 s after the tap: a second tap waits that long);
+//   FAST=1      without the "device that has not kept the site yet" opens.
 import { chromium } from 'playwright';
 import { writeFileSync } from 'node:fs';
 import { NOW, SUPA, emailOf, buildWorld, makeFake } from './roles-world.mjs';
+import { buildBigWorld } from './perf-world.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -28,6 +38,8 @@ const ONLY = process.argv[3] ? process.argv[3].split(',') : ['irit', 'lior', 'of
 const LATENCY = Number(process.env.LATENCY || 150);
 const CPU = Number(process.env.CPU || 4);
 const CARD = 'c0000000-0000-4000-8000-000000000012';
+const BIG = process.env.WORLD === 'big';
+const FAST = !!process.env.FAST;
 
 const observe = () => {
   window.__p = { long: [], cls: 0, shifts: [], events: [] };
@@ -51,22 +63,38 @@ const stats = (page) => page.evaluate(() => {
   };
 });
 // A tap: `paint` is the time until the browser drew the answer (the longest Event Timing
-// entry of the tap; 0 when under 16 ms), `last` the last change of the page within 1.5 s.
-const tap = async (page, locator) => {
+// entry of the tap; 0 when under 16 ms), `last` the last change of the page within 1.5 s,
+// `done` the time from the finger to the moment the tap's answer is on the page (-1: never;
+// `want` says which: { tab: n } the n-th tab is pressed and its panel has its text,
+// { inbox: true } the list of notifications is open with its rows), and `long` / `blocked`
+// the long tasks of those 1.5 s (the longest; the sum of what each held past 50 ms).
+const tap = async (page, locator, want = null) => {
   const el = page.locator(locator).first();
   if (!(await el.count()) || !(await el.isVisible().catch(() => false))) return null;
   await el.scrollIntoViewIfNeeded().catch(() => {});
   await page.waitForTimeout(150);
-  await page.evaluate(() => {
+  await page.evaluate((w) => {
     window.__p.events = [];
-    window.__t = { last: 0, n: 0 };
-    window.__mo = new MutationObserver(() => { window.__t.last = performance.now(); window.__t.n += 1; });
-    window.__mo.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
+    window.__p.long = [];
+    window.__t = { last: 0, n: 0, t0: 0, done: -1 };
+    const isDone = !w ? null : w.inbox ? () => { const d = document.querySelector('#dlg-inbox'); return !!d && d.open && d.querySelector('#inbox-list').children.length > 0; }
+      : () => { const t = document.querySelectorAll('.tabs [role="tab"]:not([hidden])')[w.tab - 1]; const pn = t && document.getElementById(t.getAttribute('aria-controls')); return !!t && t.getAttribute('aria-selected') === 'true' && !!pn && !pn.hidden && pn.innerText.trim().length > 20; };
+    const check = () => { if (isDone && window.__t.t0 && window.__t.done < 0 && isDone()) window.__t.done = Math.round(performance.now() - window.__t.t0); };
+    // The finger itself starts the count (what Playwright does before it is not the app's time).
+    const start = () => { if (!window.__t.t0) window.__t.t0 = performance.now(); };
+    for (const ev of ['touchstart', 'pointerdown', 'mousedown']) window.addEventListener(ev, start, { capture: true, once: true });
+    window.__mo = new MutationObserver(() => { window.__t.last = performance.now(); window.__t.n += 1; check(); });
+    window.__mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });
     window.__t0 = performance.now();
-  });
+  }, want);
   await el.tap().catch(() => el.click());
   await page.waitForTimeout(1500);
-  return page.evaluate(() => { window.__mo.disconnect(); return { paint: Math.max(0, ...window.__p.events), last: window.__t.n ? Math.max(0, Math.round(window.__t.last - window.__t0)) : -1 }; });
+  return page.evaluate(() => {
+    window.__mo.disconnect();
+    const t0 = window.__t.t0 || window.__t0;
+    const long = window.__p.long;
+    return { paint: Math.max(0, ...window.__p.events), last: window.__t.n ? Math.max(0, Math.round(window.__t.last - t0)) : -1, done: window.__t.done, long: Math.max(0, ...long), blocked: long.reduce((n, d) => n + Math.max(0, d - 50), 0) };
+  });
 };
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
@@ -109,16 +137,29 @@ async function phone(fake, options = {}) {
   return { ctx, page, errors, content, idle, open };
 }
 for (const role of ONLY) {
-  const fake = makeFake(buildWorld());
+  const fake = makeFake(BIG ? buildBigWorld() : buildWorld());
   const { ctx, page, errors, content, idle, open } = await phone(fake);
   const r = { errors };
   try {
     await page.goto(`${BASE}clients.html`, { waitUntil: 'domcontentloaded' });
     await page.fill('#lg-email', emailOf(role));
     await page.fill('#lg-pass', 'correct-horse');
+    // Sign-in, from the tap until the first screen is shown and nothing more is asked for.
+    const calls = [];
+    const t0 = Date.now();
+    const site = new URL(BASE).origin;
+    const seen = (q) => {
+      const u = new URL(q.url());
+      if (/\.(js|css|woff2?|png|svg|ico|webmanifest)$/.test(u.pathname)) return;
+      calls.push({ at: Date.now() - t0, what: u.origin === site ? `${q.method()} ${u.pathname}` : `${q.method()} db:${u.pathname.replace('/rest/v1/', '').replace('/auth/v1/', 'auth/')}` });
+    };
+    page.on('request', seen);
     await page.click('#lg-submit');
     await content(40);
+    const signInContent = Date.now() - t0;
     await idle();
+    page.off('request', seen);
+    r.signIn = { toContent: signInContent, toIdle: Date.now() - t0 - 500, api: calls.filter((c) => c.what.includes('db:')).length, pages: calls.filter((c) => !c.what.includes('db:')).map((c) => `${c.at} ${c.what}`), calls, ...(await stats(page)) };
     // The published site: the worker completes its store after the first page is shown.
     for (let i = 0; i < 120; i += 1) {
       const whole = await page.evaluate(async () => {
@@ -135,10 +176,17 @@ for (const role of ONLY) {
     r.mine = await open(`${BASE}clients.html#mine`, 40);
     r.mineAgain = await open(`${BASE}clients.html#mine`, 40);
     r.taps = {};
-    r.taps.tab2 = await tap(page, '.tabs [role="tab"]:not([hidden]):nth-child(2)');
-    r.taps.tab1 = await tap(page, '.tabs [role="tab"]:not([hidden]):nth-child(1)');
+    // The second tab on the screen ("באיחור" for whoever is late, "לקוחות" otherwise), and back to the first.
+    r.tabs = await page.evaluate(() => [...document.querySelectorAll('.tabs [role="tab"]:not([hidden])')].map((t) => t.id.replace('tab-', '')));
+    r.taps.tab2 = await tap(page, `#tab-${r.tabs[1]}`, { tab: 2 });
+    r.taps.tab1 = await tap(page, `#tab-${r.tabs[0]}`, { tab: 1 });
+    // "לקוחות" (the long list) and back, when it was not the second tab already.
+    if (r.tabs[1] !== 'clients' && r.tabs.includes('clients')) {
+      r.taps.clients = await tap(page, '#tab-clients', { tab: r.tabs.indexOf('clients') + 1 });
+      r.taps.back = await tap(page, `#tab-${r.tabs[0]}`, { tab: 1 });
+    }
     r.taps.expand = await tap(page, 'main details:not([open]) > summary, main button[aria-expanded="false"]');
-    r.taps.inbox = await tap(page, '#btn-inbox');
+    r.taps.inbox = await tap(page, '#btn-inbox', { inbox: true });
     await page.keyboard.press('Escape').catch(() => {});
     await page.evaluate(() => document.querySelector('dialog[open]')?.close());
     // The bottom bar: a move to another screen.
@@ -157,18 +205,22 @@ for (const role of ONLY) {
     r.taps.cardPhase = await tap(page, 'main details.phase:not([open]) > summary');
     r.taps.cardExpand = await tap(page, 'main details:not([open]) > summary, main button[aria-expanded="false"]');
     // A device that has not kept the site yet: the session only.
-    const first = await phone(fake, { storageState: await ctx.storageState() });
-    r.firstMine = await first.open(`${BASE}clients.html#mine`, 40, { waitIdle: false });
-    await first.ctx.close();
-    const firstCard = await phone(fake, { storageState: await ctx.storageState() });
-    r.firstCard = await firstCard.open(`${BASE}client.html?id=${CARD}`, 200, { waitIdle: false });
-    await firstCard.ctx.close();
+    if (!FAST) {
+      const first = await phone(fake, { storageState: await ctx.storageState() });
+      r.firstMine = await first.open(`${BASE}clients.html#mine`, 40, { waitIdle: false });
+      await first.ctx.close();
+      const firstCard = await phone(fake, { storageState: await ctx.storageState() });
+      r.firstCard = await firstCard.open(`${BASE}client.html?id=${CARD}`, 200, { waitIdle: false });
+      await firstCard.ctx.close();
+    }
   } catch (e) { r.error = String(e).slice(0, 300); }
   out[role] = r;
   await ctx.close();
   const line = (s) => (s ? `req ${s.requests} (site ${s.site}, of them from the network ${s.siteNet}; js ${s.jsFiles}, css ${s.cssFiles}; api ${s.api}) content ${s.toContent} idle ${s.toIdle ?? '-'} long ${s.longTasks}/${s.longest}ms blocked ${s.blocked} CLS ${s.cls}` : '-');
   const t = (x) => (x ? `${x.paint}/${x.last}` : '-');
+  const t2 = (x) => (x ? `paint ${x.paint} done ${x.done} long ${x.long} blocked ${x.blocked}` : '-');
   console.log(`\n${role} (landed ${r.landed})${r.error ? ` ERROR ${r.error}` : ''}${r.errors.length ? ` pageerrors ${r.errors.length}: ${r.errors[0]}` : ''}`);
+  if (r.signIn) console.log(`  sign-in     content ${r.signIn.toContent} idle ${r.signIn.toIdle} api ${r.signIn.api} long ${r.signIn.longTasks}/${r.signIn.longest}ms blocked ${r.signIn.blocked} pages: ${r.signIn.pages.join(' | ')}`);
   console.log(`  mine        ${line(r.mine)}`);
   console.log(`  mine again  ${line(r.mineAgain)}`);
   console.log(`  card        ${line(r.card)}`);
@@ -176,6 +228,7 @@ for (const role of ONLY) {
   console.log(`  first mine  ${line(r.firstMine)}`);
   console.log(`  first card  ${line(r.firstCard)}`);
   console.log(`  taps paint/last ms: tab2 ${t(r.taps?.tab2)} tab1 ${t(r.taps?.tab1)} expand ${t(r.taps?.expand)} inbox ${t(r.taps?.inbox)} cardItems ${t(r.taps?.cardItems)} cardPhase ${t(r.taps?.cardPhase)} cardExpand ${t(r.taps?.cardExpand)} barNav ${r.barNav ? `${r.barNav.to} ${r.barNav.toContent}` : '-'}`);
+  console.log(`  tabs ${(r.tabs || []).join(',')}: second [${t2(r.taps?.tab2)}] first [${t2(r.taps?.tab1)}] clients [${t2(r.taps?.clients)}] back [${t2(r.taps?.back)}] bell [${t2(r.taps?.inbox)}]`);
   for (const [k, s] of [['mine', r.mine], ['card', r.card]]) for (const sh of (s?.shifts || []).slice(0, 8)) console.log(`    shift ${k} ${sh.v} ${sh.who.join(', ')}`);
 }
 await browser.close();

@@ -335,9 +335,14 @@ function renderTimeline(s) {
 
 // Periodic and background refreshes must not move keyboard focus or scroll.
 function renderKeepingFocus(focusId = document.activeElement?.id) {
-  const y = window.scrollY;
+  // While the card is still being built out of sight it stands at its top: there is no
+  // place to keep, and asking for it lays the whole card out each time (it is drawn a few
+  // times while it opens). Not when the address names a block: the card moves to it while
+  // it opens. And at the top of a card that is shown there is nothing to put back: it
+  // stays there by itself (docs/ops.md, section 59).
+  const y = 'boot' in document.documentElement.dataset && !location.hash ? 0 : window.scrollY;
   render();
-  window.scrollTo({ top: y });
+  if (y) window.scrollTo({ top: y });
   const el = focusId && document.getElementById(focusId);
   if (el && !el.disabled) el.focus({ preventScroll: true });
   else if (focusId) document.getElementById(focusId.replace(/-(na|bulk)$/, ''))?.focus({ preventScroll: true });
