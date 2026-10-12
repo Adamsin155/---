@@ -26,7 +26,8 @@
 //   the taps    also `done` (until what the tap asked for is on the page: the tab's panel,
 //               the open list of notifications) and `blocked` (how long the main thread was
 //               held, past 50 ms a task, in the 1.5 s after the tap: a second tap waits that long);
-//   FAST=1      without the "device that has not kept the site yet" opens.
+//   FAST=1      without the "device that has not kept the site yet" opens;
+//   TEAM=1      also the manager profile's list (clients.html#team) of whoever has one.
 import { chromium } from 'playwright';
 import { writeFileSync } from 'node:fs';
 import { NOW, SUPA, emailOf, buildWorld, makeFake } from './roles-world.mjs';
@@ -66,7 +67,8 @@ const stats = (page) => page.evaluate(() => {
 // entry of the tap; 0 when under 16 ms), `last` the last change of the page within 1.5 s,
 // `done` the time from the finger to the moment the tap's answer is on the page (-1: never;
 // `want` says which: { tab: n } the n-th tab is pressed and its panel has its text,
-// { inbox: true } the list of notifications is open with its rows), and `long` / `blocked`
+// { inbox: true } the list of notifications is open with its rows), `seen` the frame after
+// that (the answer is on the screen), and `long` / `blocked`
 // the long tasks of those 1.5 s (the longest; the sum of what each held past 50 ms).
 const tap = async (page, locator, want = null) => {
   const el = page.locator(locator).first();
@@ -76,10 +78,15 @@ const tap = async (page, locator, want = null) => {
   await page.evaluate((w) => {
     window.__p.events = [];
     window.__p.long = [];
-    window.__t = { last: 0, n: 0, t0: 0, done: -1 };
+    window.__t = { last: 0, n: 0, t0: 0, done: -1, seen: -1 };
     const isDone = !w ? null : w.inbox ? () => { const d = document.querySelector('#dlg-inbox'); return !!d && d.open && d.querySelector('#inbox-list').children.length > 0; }
       : () => { const t = document.querySelectorAll('.tabs [role="tab"]:not([hidden])')[w.tab - 1]; const pn = t && document.getElementById(t.getAttribute('aria-controls')); return !!t && t.getAttribute('aria-selected') === 'true' && !!pn && !pn.hidden && pn.innerText.trim().length > 20; };
-    const check = () => { if (isDone && window.__t.t0 && window.__t.done < 0 && isDone()) window.__t.done = Math.round(performance.now() - window.__t.t0); };
+    const check = () => {
+      if (!isDone || !window.__t.t0 || window.__t.done >= 0 || !isDone()) return;
+      window.__t.done = Math.round(performance.now() - window.__t.t0);
+      // The frame that shows it, and one turn more: it has been drawn.
+      requestAnimationFrame(() => { const ch = new MessageChannel(); ch.port1.onmessage = () => { window.__t.seen = Math.round(performance.now() - window.__t.t0); }; ch.port2.postMessage(0); });
+    };
     // The finger itself starts the count (what Playwright does before it is not the app's time).
     const start = () => { if (!window.__t.t0) window.__t.t0 = performance.now(); };
     for (const ev of ['touchstart', 'pointerdown', 'mousedown']) window.addEventListener(ev, start, { capture: true, once: true });
@@ -93,7 +100,7 @@ const tap = async (page, locator, want = null) => {
     window.__mo.disconnect();
     const t0 = window.__t.t0 || window.__t0;
     const long = window.__p.long;
-    return { paint: Math.max(0, ...window.__p.events), last: window.__t.n ? Math.max(0, Math.round(window.__t.last - t0)) : -1, done: window.__t.done, long: Math.max(0, ...long), blocked: long.reduce((n, d) => n + Math.max(0, d - 50), 0) };
+    return { paint: Math.max(0, ...window.__p.events), last: window.__t.n ? Math.max(0, Math.round(window.__t.last - t0)) : -1, done: window.__t.done, seen: window.__t.seen, long: Math.max(0, ...long), blocked: long.reduce((n, d) => n + Math.max(0, d - 50), 0) };
   });
 };
 
@@ -186,6 +193,9 @@ for (const role of ONLY) {
       r.taps.back = await tap(page, `#tab-${r.tabs[0]}`, { tab: 1 });
     }
     r.taps.expand = await tap(page, 'main details:not([open]) > summary, main button[aria-expanded="false"]');
+    // A second visit to a tab that was already opened ("לקוחות", or the second tab).
+    r.taps.again = await tap(page, `#tab-${r.tabs.includes('clients') ? 'clients' : r.tabs[1]}`, { tab: (r.tabs.includes('clients') ? r.tabs.indexOf('clients') : 1) + 1 });
+    r.taps.home = await tap(page, `#tab-${r.tabs[0]}`, { tab: 1 });
     r.taps.inbox = await tap(page, '#btn-inbox', { inbox: true });
     await page.keyboard.press('Escape').catch(() => {});
     await page.evaluate(() => document.querySelector('dialog[open]')?.close());
@@ -197,6 +207,12 @@ for (const role of ONLY) {
       await content(40);
       r.barNav = { to: await page.evaluate(() => `${location.pathname.split('/').pop()}${location.hash}`), toContent: Date.now() - t };
       await idle();
+    }
+    // The manager profile of whoever has one: the team's list (a chip per person, each with its count).
+    if (process.env.TEAM && ['owner', 'irit', 'ofir', 'lior'].includes(role)) {
+      r.team = await open(`${BASE}clients.html#team`, 40);
+      r.taps.teamClients = await tap(page, '#tab-clients', { tab: 2 });
+      r.taps.teamBack = await tap(page, '#tab-mine', { tab: 1 });
     }
     // A client card.
     r.card = await open(`${BASE}client.html?id=${CARD}`, 200);
@@ -218,7 +234,7 @@ for (const role of ONLY) {
   await ctx.close();
   const line = (s) => (s ? `req ${s.requests} (site ${s.site}, of them from the network ${s.siteNet}; js ${s.jsFiles}, css ${s.cssFiles}; api ${s.api}) content ${s.toContent} idle ${s.toIdle ?? '-'} long ${s.longTasks}/${s.longest}ms blocked ${s.blocked} CLS ${s.cls}` : '-');
   const t = (x) => (x ? `${x.paint}/${x.last}` : '-');
-  const t2 = (x) => (x ? `paint ${x.paint} done ${x.done} long ${x.long} blocked ${x.blocked}` : '-');
+  const t2 = (x) => (x ? `paint ${x.paint} done ${x.done} seen ${x.seen} long ${x.long} blocked ${x.blocked}` : '-');
   console.log(`\n${role} (landed ${r.landed})${r.error ? ` ERROR ${r.error}` : ''}${r.errors.length ? ` pageerrors ${r.errors.length}: ${r.errors[0]}` : ''}`);
   if (r.signIn) console.log(`  sign-in     content ${r.signIn.toContent} idle ${r.signIn.toIdle} api ${r.signIn.api} long ${r.signIn.longTasks}/${r.signIn.longest}ms blocked ${r.signIn.blocked} pages: ${r.signIn.pages.join(' | ')}`);
   console.log(`  mine        ${line(r.mine)}`);
@@ -228,7 +244,8 @@ for (const role of ONLY) {
   console.log(`  first mine  ${line(r.firstMine)}`);
   console.log(`  first card  ${line(r.firstCard)}`);
   console.log(`  taps paint/last ms: tab2 ${t(r.taps?.tab2)} tab1 ${t(r.taps?.tab1)} expand ${t(r.taps?.expand)} inbox ${t(r.taps?.inbox)} cardItems ${t(r.taps?.cardItems)} cardPhase ${t(r.taps?.cardPhase)} cardExpand ${t(r.taps?.cardExpand)} barNav ${r.barNav ? `${r.barNav.to} ${r.barNav.toContent}` : '-'}`);
-  console.log(`  tabs ${(r.tabs || []).join(',')}: second [${t2(r.taps?.tab2)}] first [${t2(r.taps?.tab1)}] clients [${t2(r.taps?.clients)}] back [${t2(r.taps?.back)}] bell [${t2(r.taps?.inbox)}]`);
+  console.log(`  tabs ${(r.tabs || []).join(',')}: second [${t2(r.taps?.tab2)}] first [${t2(r.taps?.tab1)}] clients [${t2(r.taps?.clients)}] back [${t2(r.taps?.back)}] again [${t2(r.taps?.again)}] home [${t2(r.taps?.home)}] bell [${t2(r.taps?.inbox)}]`);
+  if (r.team) console.log(`  team        ${line(r.team)} | clients [${t2(r.taps?.teamClients)}] back [${t2(r.taps?.teamBack)}]`);
   for (const [k, s] of [['mine', r.mine], ['card', r.card]]) for (const sh of (s?.shifts || []).slice(0, 8)) console.log(`    shift ${k} ${sh.v} ${sh.who.join(', ')}`);
 }
 await browser.close();

@@ -27,7 +27,7 @@ import {
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { warm, taken } from './supa.js';
-import { pacer, nextTurn } from './turns.js';
+import { pacer } from './turns.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys, openedBySigning } from './client-open.js';
@@ -299,18 +299,26 @@ async function load() {
   changed();
   lastLoad = Date.now();
   $('state').textContent = '';
-  await warmStates();
-  // What the screen is made from is worked out in one turn and the screen is built in the
-  // next, so neither holds the page for long; the answers stay for the build (`held`).
+  watchNewClients();
+  await drawFromRows(() => !document.hidden);
+}
+// The rows (or the minute) changed: the clocks, what turned late, and the open view. In
+// three parts with a turn of the page between them, so none holds a phone for long: the
+// state of every client (a few at a time), then what the screen is made from, then the
+// screen itself. The answers of the second part stay for the third (`held`).
+async function drawFromRows(shown) {
+  if (!document.hidden) await warmStates();
   held += 1;
   try {
+    // (A turn is given only when the part before it took its time: a short list is one piece.)
+    const pause = pacer(8);
     rebuildClocks();
-    watchNewClients();
     checkLate();
-    if (!document.hidden) {
+    if (shown()) {
       warmAnswers();
-      await nextTurn();
-      renderKeepingFocus();
+      const p = pause();
+      if (p) await p;
+      if (shown()) renderKeepingFocus();
     }
   } finally {
     held -= 1;
@@ -3202,12 +3210,9 @@ async function tick() {
   states.clear();
   // Fresh data every 5 minutes: a screen left open all day shows other people's checks.
   if (Date.now() - lastLoad > 5 * 60e3 && (document.hidden ? notifyState() === 'on' : !busy())) { load(); return; }
-  // On a screen that is being used, the minute's work is done a few clients at a time
-  // (a tap in the middle of it is answered).
-  if (!document.hidden) await warmStates();
-  rebuildClocks();
-  checkLate();
-  if (!document.hidden && !busy()) renderKeepingFocus();
+  // On a screen that is being used, the minute's work is done in parts (drawFromRows): a
+  // tap in the middle of it is answered.
+  await drawFromRows(() => !document.hidden && !busy());
 }
 setInterval(tick, 60e3);
 
