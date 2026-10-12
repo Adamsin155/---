@@ -7,8 +7,9 @@
 // (20260930180000) nothing here shows.
 //
 // The provider (public.whatsapp_settings().provider; docs/ops.md, section 63): with
-// Jako the one secret is its API key, and all that is known of a message is that it
-// was sent, so the lines say "נשלחו" and nothing of delivered or read.
+// Jako the secrets are its API key and the one its reply flows call with, the two
+// flows of the reply buttons must be set too, and all that is known of a message is
+// that it was sent, so the lines say "נשלחו" and nothing of delivered or read.
 import { supabase } from './supa.js';
 import { h, fill, toast, errorText } from './protocol-ui.js';
 
@@ -23,8 +24,11 @@ export async function loadWaTeam() {
   return { settings: s.data, byEmail: new Map((t.data || []).map((r) => [r.email, r])) };
 }
 
-export const JAKO_SECRET_NAMES = { jako_api_key: 'whatsapp_jako_api_key' };
+export const JAKO_SECRET_NAMES = { jako_api_key: 'whatsapp_jako_api_key', jako_hook_secret: 'whatsapp_jako_hook_secret' };
 const isJako = (settings) => settings?.provider === 'jako';
+// Jako's reply flows that are not set yet, by the button each belongs to.
+const FLOW_BUTTONS = { done: 'המשימה בוצעה', onit: 'אני על זה' };
+export const missingFlows = (settings) => (isJako(settings) ? Object.entries(FLOW_BUTTONS).filter(([k]) => !settings?.flows?.[k]).map(([, text]) => `״${text}״`) : []);
 
 // The Vault secrets the chosen provider still lacks, by name.
 export const missingSecrets = (settings) => Object.entries(isJako(settings) ? JAKO_SECRET_NAMES : SECRET_NAMES).filter(([k]) => !settings?.secrets?.[k]).map(([, name]) => name);
@@ -52,7 +56,9 @@ async function toggle(wa, reload) {
   if (!confirm(ask)) return;
   const { error } = await supabase.rpc('whatsapp_set_enabled', { p_on: on });
   if (error) {
-    toast(/not_ready/.test(error.message || '') ? `חסרים סודות ב־Vault: ${missingSecrets(wa.settings).join(', ')}.` : `לא נשמר. ${errorText(error)}`);
+    const lacks = missingSecrets(wa.settings);
+    toast(!/not_ready/.test(error.message || '') ? `לא נשמר. ${errorText(error)}`
+      : lacks.length ? `חסרים סודות ב־Vault: ${lacks.join(', ')}.` : 'חסרה הגדרה של הזרימות ב־Jako. ההוראות במסמך התפעול, סעיף 63.');
     return;
   }
   toast(on ? 'הודעות ה־WhatsApp הופעלו. כל אחד יתבקש לבחור בכניסה הבאה.' : 'הודעות ה־WhatsApp כובו.');
@@ -71,6 +77,7 @@ export function paintWaPanel(wa, before, reload) {
   el.hidden = false;
   const { settings } = wa;
   const missing = missingSecrets(settings);
+  const flows = missingFlows(settings);
   const rows = [...wa.byEmail.values()];
   const agreed = rows.filter((r) => r.active).length;
   fill(el,
@@ -80,9 +87,10 @@ export function paintWaPanel(wa, before, reload) {
       : 'כבוי. ההתראות יוצאות באפליקציה בלבד (Push).'),
     isJako(settings) ? h('p', { class: 'muted', id: 'wa-provider' }, 'ההודעות יוצאות דרך Jako.') : null,
     missing.length ? h('p', { class: 'muted', id: 'wa-missing' }, `חסר ב־Vault: ${missing.join(', ')}. ההוראות במסמך התפעול.`) : null,
+    flows.length ? h('p', { class: 'muted', id: 'wa-flows' }, `חסרה ההגדרה של הזרימה ב־Jako לכפתור ${flows.join(' ולכפתור ')}. ההוראות במסמך התפעול, סעיף 63.`) : null,
     settings.owner ? h('div', { class: 'tm-wa-acts' }, h('button', {
       type: 'button', class: `btn btn-sm${settings.enabled ? '' : ' btn-primary'}`, id: 'wa-toggle', 'aria-pressed': String(!!settings.enabled),
-      disabled: !settings.enabled && missing.length > 0, onclick: () => toggle(wa, reload),
+      disabled: !settings.enabled && (missing.length > 0 || flows.length > 0), onclick: () => toggle(wa, reload),
     }, settings.enabled ? 'כיבוי הודעות WhatsApp' : 'הפעלת הודעות WhatsApp')) : null,
     h('p', { class: 'muted', id: 'wa-note' }, isJako(settings)
       ? 'דרך Jako ידוע רק שהודעה נשלחה, לא אם נמסרה או נקראה. המספרים לתכנון העבודה בלבד, לא להערכה ולא למשמעת.'

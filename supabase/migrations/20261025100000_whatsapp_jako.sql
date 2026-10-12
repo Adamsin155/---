@@ -4,10 +4,12 @@
 -- was and stays the default. Additive and safe to run again: nothing is removed, and
 -- a function whose answer had to grow got a new name beside the old one.
 --
---   whatsapp_provider         one row: 'meta' (default) or 'jako'. Set by the owner
---                             only, and only while the switch is off. (Not a key of
---                             app_settings: its list of keys is a check constraint,
---                             and widening one means removing it first.)
+--   whatsapp_provider         one row: 'meta' (default) or 'jako', and Jako's two
+--                             reply flows (the ns of the sub flow each quick reply
+--                             starts: workspace data, not secrets). Set by the owner
+--                             only; the provider only while the switch is off. (Not
+--                             keys of app_settings: its list of keys is a check
+--                             constraint, and widening one means removing it first.)
 --   whatsapp_messages.provider  which provider a message went through. Jako returns
 --                             no message id and no delivery updates: its rows are
 --                             'sent' or 'failed', never 'delivered' or 'read'.
@@ -16,13 +18,23 @@
 --                             webhook, so "הסר" is heard by asking (the reminders
 --                             function, every few minutes). No message text is kept.
 --
--- The secret (Vault, added by the owner; the name only here): whatsapp_jako_api_key.
--- With provider 'jako' it is the only one needed, and none of Meta's four.
+-- Reply buttons with Jako: a quick reply there starts a sub flow, and the sub flow
+-- calls the whatsapp-webhook function with a shared secret, who pressed and which
+-- button. public.whatsapp_jako_hook() gives the function that secret (while the
+-- provider is Jako), and public.whatsapp_jako_reply() applies the reply.
+--
+-- The secrets (Vault, added by the owner himself; the names only here, and nothing
+-- in this file creates or changes them): whatsapp_jako_api_key (sending) and
+-- whatsapp_jako_hook_secret (the sub flows' calls). With provider 'jako' these two
+-- are needed, and none of Meta's four.
 
 -- ── The provider ───────────────────────────
 create table if not exists public.whatsapp_provider (
   id boolean primary key default true check (id),   -- one row
   provider text not null default 'meta' check (provider in ('meta', 'jako')),
+  -- The sub flows of the buttons "המשימה בוצעה" and "אני על זה" (Jako's ns of each).
+  jako_flow_done text check (jako_flow_done is null or jako_flow_done ~ '^[A-Za-z0-9_.-]{3,100}$'),
+  jako_flow_onit text check (jako_flow_onit is null or jako_flow_onit ~ '^[A-Za-z0-9_.-]{3,100}$'),
   updated_at timestamptz not null default now(),
   updated_by_email text
 );
@@ -42,12 +54,21 @@ language sql stable security definer set search_path = '' as $$
   select exists (select 1 from vault.decrypted_secrets where name = 'whatsapp_jako_api_key' and length(decrypted_secret) >= 20);
 $$;
 
--- Whether the secrets of the chosen provider are all in Vault: Meta's four, or
--- Jako's one. (private.whatsapp_secrets_present() stays Meta's four, as it was.)
+-- Whether the secret the sub flows call with is in Vault (never its value).
+create or replace function private.whatsapp_jako_hook_present() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from vault.decrypted_secrets where name = 'whatsapp_jako_hook_secret' and length(decrypted_secret) >= 16);
+$$;
+
+-- Whether everything the chosen provider needs is in place: Meta's four secrets, or
+-- Jako's two and its two reply flows (a template with a button cannot go out without
+-- its flow, and a button nobody hears must not go out at all).
+-- (private.whatsapp_secrets_present() stays Meta's four, as it was.)
 create or replace function private.whatsapp_ready() returns boolean
 language sql stable security definer set search_path = '' as $$
   select case private.whatsapp_provider()
-    when 'jako' then private.whatsapp_jako_key_present()
+    when 'jako' then private.whatsapp_jako_key_present() and private.whatsapp_jako_hook_present()
+      and coalesce((select p.jako_flow_done is not null and p.jako_flow_onit is not null from public.whatsapp_provider p where p.id), false)
     else (select s.access_token and s.phone_number_id and s.app_secret and s.verify_token from private.whatsapp_secrets_present() s)
   end;
 $$;
@@ -62,8 +83,12 @@ language sql stable security definer set search_path = '' as $$
     'provider', private.whatsapp_provider(),
     'ready', private.whatsapp_ready(),
     'secrets', case private.whatsapp_provider()
-      when 'jako' then jsonb_build_object('jako_api_key', private.whatsapp_jako_key_present())
+      when 'jako' then jsonb_build_object('jako_api_key', private.whatsapp_jako_key_present(), 'jako_hook_secret', private.whatsapp_jako_hook_present())
       else (select to_jsonb(s) from private.whatsapp_secrets_present() s) end)
+    -- Jako's reply flows: set or not (the screen says which is missing).
+    || case private.whatsapp_provider() when 'jako' then jsonb_build_object('flows',
+         (select jsonb_build_object('done', p.jako_flow_done is not null, 'onit', p.jako_flow_onit is not null) from public.whatsapp_provider p where p.id))
+       else '{}'::jsonb end
   end;
 $$;
 
@@ -73,7 +98,7 @@ language plpgsql security definer set search_path = '' as $$
 begin
   if not private.is_owner() then raise exception 'not allowed: owner only' using errcode = '42501'; end if;
   if p_on and not private.whatsapp_ready() then
-    raise exception 'not_ready: WhatsApp secrets are missing in Vault' using errcode = 'P0001';
+    raise exception 'not_ready: WhatsApp secrets (or, with Jako, its reply flows) are missing' using errcode = 'P0001';
   end if;
   insert into public.app_settings (key, value, updated_at, updated_by_email)
   values ('whatsapp_enabled', to_jsonb(coalesce(p_on, false)), now(), lower(coalesce(auth.jwt() ->> 'email', '')))
@@ -98,20 +123,95 @@ begin
   return public.whatsapp_settings();
 end $$;
 
+-- Jako's two reply flows, by the owner only (at any time: they change nothing but
+-- which sub flow a button starts). An empty value clears one, and the switch then
+-- cannot be turned on until it is set again.
+create or replace function public.whatsapp_set_jako_flows(p_done text, p_onit text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_done text := nullif(btrim(coalesce(p_done, '')), '');
+  v_onit text := nullif(btrim(coalesce(p_onit, '')), '');
+begin
+  if not private.is_owner() then raise exception 'not allowed: owner only' using errcode = '42501'; end if;
+  if v_done !~ '^[A-Za-z0-9_.-]{3,100}$' or v_onit !~ '^[A-Za-z0-9_.-]{3,100}$' then raise exception 'bad_flow' using errcode = '22023'; end if;
+  insert into public.whatsapp_provider (id, jako_flow_done, jako_flow_onit, updated_at, updated_by_email)
+  values (true, v_done, v_onit, now(), lower(coalesce(auth.jwt() ->> 'email', '')))
+  on conflict (id) do update set jako_flow_done = excluded.jako_flow_done, jako_flow_onit = excluded.jako_flow_onit, updated_at = excluded.updated_at, updated_by_email = excluded.updated_by_email;
+  return public.whatsapp_settings();
+end $$;
+
 -- ── The functions' own helpers (service role only) ──
--- The sender's settings, with the provider: on only when that provider's secrets are
--- all there, and only that provider's secrets are returned. (A new name: the answer
--- has more columns than public.whatsapp_config().)
+-- The sender's settings, with the provider: on only when everything that provider
+-- needs is there, and only that provider's secrets are returned. (A new name: the
+-- answer has more columns than public.whatsapp_config().)
 create or replace function public.whatsapp_config_v2()
-returns table (enabled boolean, provider text, access_token text, phone_number_id text, jako_api_key text)
+returns table (enabled boolean, provider text, access_token text, phone_number_id text, jako_api_key text, jako_flow_done text, jako_flow_onit text)
 language sql stable security definer set search_path = '' as $$
   select private.whatsapp_enabled() and private.whatsapp_ready(),
          p.provider,
          case when private.whatsapp_enabled() and p.provider = 'meta' then (select decrypted_secret from vault.decrypted_secrets where name = 'whatsapp_access_token' limit 1) end,
          case when private.whatsapp_enabled() and p.provider = 'meta' then (select decrypted_secret from vault.decrypted_secrets where name = 'whatsapp_phone_number_id' limit 1) end,
-         case when private.whatsapp_enabled() and p.provider = 'jako' then (select decrypted_secret from vault.decrypted_secrets where name = 'whatsapp_jako_api_key' limit 1) end
+         case when private.whatsapp_enabled() and p.provider = 'jako' then (select decrypted_secret from vault.decrypted_secrets where name = 'whatsapp_jako_api_key' limit 1) end,
+         case when p.provider = 'jako' then (select w.jako_flow_done from public.whatsapp_provider w where w.id) end,
+         case when p.provider = 'jako' then (select w.jako_flow_onit from public.whatsapp_provider w where w.id) end
   from (select private.whatsapp_provider() as provider) p;
 $$;
+
+-- The secret the sub flows call the whatsapp-webhook function with, and the provider.
+-- Only while the provider is Jako (also while the switch is off: a reply to a message
+-- that already went out is still the person's to give). Read from Vault, never set here.
+create or replace function public.whatsapp_jako_hook()
+returns table (provider text, hook_secret text)
+language sql stable security definer set search_path = '' as $$
+  select p.provider,
+         case when p.provider = 'jako' then (select decrypted_secret from vault.decrypted_secrets where name = 'whatsapp_jako_hook_secret' and length(decrypted_secret) >= 16 limit 1) end
+  from (select private.whatsapp_provider() as provider) p;
+$$;
+
+-- A reply that came through Jako, applied once (p_inbound names the button and the
+-- message it was matched to). p_plan comes from app/wa-logic.js jakoReplyPlan:
+--   { op: 'nag_done', task }   "המשימה בוצעה" on a nagging task: closed by its
+--                               assignee, through the function the app itself calls
+--                               (public.staff_task_done), in that person's name
+--   anything else               as with Meta: public.whatsapp_apply (task_start, claim,
+--                               task_done on a simple task, none)
+-- The message must be one that went through Jako to the number the reply came from.
+create or replace function public.whatsapp_jako_reply(p_inbound text, p_message bigint, p_from text, p_plan jsonb)
+returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  m public.whatsapp_messages;
+  l public.reminder_log;
+  v_task uuid;
+  v_result text;
+begin
+  select * into m from public.whatsapp_messages where id = p_message;
+  if m.id is null or m.provider <> 'jako' or m.phone is distinct from p_from then
+    insert into public.whatsapp_inbound (id, message_id, op, result) values (p_inbound, null, 'none', 'unknown') on conflict (id) do nothing;
+    return 'unknown';
+  end if;
+  if coalesce(p_plan ->> 'op', 'none') <> 'nag_done' then
+    return public.whatsapp_apply(p_inbound, p_message, p_from, p_plan);
+  end if;
+
+  insert into public.whatsapp_inbound (id, message_id, op) values (p_inbound, p_message, 'nag_done') on conflict (id) do nothing;
+  if not found then return 'duplicate'; end if;
+  select * into l from public.reminder_log where id = m.log_id;
+  -- The task is the one this reminder is about, whatever the plan says.
+  if l.rule = 'nag' and pg_input_is_valid(split_part(l.key, ':', 3), 'uuid') and split_part(l.key, ':', 3) = p_plan ->> 'task' then
+    v_task := split_part(l.key, ':', 3)::uuid;
+  end if;
+  if v_task is null or not exists (select 1 from public.staff_tasks t where t.id = v_task and t.status = 'open' and t.assignee = l.person) then
+    v_result := 'not_open';
+  else
+    -- As that person, for the function's own checks and its stamp of who marked it.
+    perform set_config('request.jwt.claims', jsonb_build_object('email', m.email, 'role', 'service_role')::text, true);
+    perform public.staff_task_done(v_task);
+    v_result := 'done';
+  end if;
+  update public.whatsapp_inbound set result = v_result where id = p_inbound;
+  return v_result;
+end $$;
 
 -- Meta's settings, as before, and nothing at all while the provider is Jako: a
 -- function that still asks this way (one deployed before this migration, or the
@@ -191,6 +291,13 @@ $$;
 revoke execute on function private.whatsapp_provider() from public, anon, authenticated;
 revoke execute on function private.whatsapp_jako_key_present() from public, anon, authenticated;
 revoke execute on function private.whatsapp_ready() from public, anon, authenticated;
+revoke execute on function private.whatsapp_jako_hook_present() from public, anon, authenticated;
+revoke execute on function public.whatsapp_set_jako_flows(text, text) from public, anon;
+grant execute on function public.whatsapp_set_jako_flows(text, text) to authenticated;
+revoke execute on function public.whatsapp_jako_hook() from public, anon, authenticated;
+revoke execute on function public.whatsapp_jako_reply(text, bigint, text, jsonb) from public, anon, authenticated;
+grant execute on function public.whatsapp_jako_hook() to service_role;
+grant execute on function public.whatsapp_jako_reply(text, bigint, text, jsonb) to service_role;
 revoke execute on function public.whatsapp_settings() from public, anon;
 revoke execute on function public.whatsapp_set_enabled(boolean) from public, anon;
 revoke execute on function public.whatsapp_set_provider(text) from public, anon;

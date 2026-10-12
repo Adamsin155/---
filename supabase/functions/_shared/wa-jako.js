@@ -11,6 +11,8 @@
 //        (the send needs it) and whether Meta approved it.
 //   GET  /subscriber/chat-messages                       what a contact wrote: the
 //        only way to hear "הסר" (there is no webhook to register).
+// A quick reply is a sub flow in Jako that calls us back (the whatsapp-webhook
+// function, jako-hook.js); here it is only the flow's ns in the message's params.
 //
 // The API key goes only into the Authorization header: it is never logged and never
 // part of a returned error. An error is a short code ('jako 400', 'jako timeout',
@@ -129,6 +131,8 @@ export function makeJako({ fetch, apiKey, base = JAKO_BASE, timeoutMs = JAKO_TIM
     async send(message) {
       const name = message?.content?.name;
       if (!/^\d{8,15}$/.test(String(message?.user_id || '')) || typeof name !== 'string') return { ok: false, status: 0, error: 'not_configured' };
+      // A quick reply goes out with the sub flow it starts: without it the button would do nothing.
+      if (Object.entries(message.content.params || {}).some(([k, v]) => /^QUICK_REPLY_\d+$/.test(k) && !v)) return { ok: false, status: 0, error: 'jako no_flow' };
       const t = await namespaceOf(name);
       if (!t.namespace) return { ok: false, status: 0, error: t.error };
       const res = await call('POST', '/subscriber/send-whatsapp-template-by-user-id', { body: { ...message, content: { namespace: t.namespace, ...message.content } } });

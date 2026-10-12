@@ -8,7 +8,14 @@
 // only) and never logged. Replies are applied by public.whatsapp_apply (once per
 // incoming message id); delivery updates by public.whatsapp_status.
 import { createClient } from 'npm:@supabase/supabase-js@2';
+//
+// When the provider is Jako (docs/ops.md, section 63) Meta does not call here: the
+// sub flows of Jako's reply buttons do, with the header x-astrateg-hook (the Vault
+// secret 'whatsapp_jako_hook_secret', through public.whatsapp_jako_hook()), and get
+// a sentence back for the person (./jako-hook.js has the whole contract).
 import { verifySignature, verifyChallenge, parseEvents, handleEvents } from './webhook.js';
+import { HOOK_HEADER, HOOK_MAX_BODY, hookGate, jakoReply } from './jako-hook.js';
+import { hookAnswer } from '../_shared/app/wa-logic.js';
 import { graphSend } from '../_shared/wa-graph.js';
 
 function serviceKey(): string {
@@ -27,14 +34,16 @@ const codeOf = (e: unknown) => (e as { code?: string })?.code ?? (e as Error)?.n
 const MAX_BODY = 1_000_000;
 
 // Secrets, read from Vault once in a while (never logged).
-let cache: { at: number; secrets: Row | null; config: Row | null } | null = null;
+let cache: { at: number; secrets: Row | null; config: Row | null; hook: Row | null } | null = null;
 async function settings() {
   if (cache && Date.now() - cache.at < 5 * 60e3) return cache;
-  const [s, c] = await Promise.all([admin.rpc('whatsapp_webhook_secrets'), admin.rpc('whatsapp_config')]);
+  const [s, c, h] = await Promise.all([admin.rpc('whatsapp_webhook_secrets'), admin.rpc('whatsapp_config'), admin.rpc('whatsapp_jako_hook')]);
   if (s.error) throw s.error;
   if (c.error) throw c.error;
+  // Before migration 20261025100000 there is no second provider: Meta only.
+  if (h.error && h.error.code !== 'PGRST202') throw h.error;
   const one = (d: unknown) => (Array.isArray(d) ? d[0] : d) as Row | null;
-  cache = { at: Date.now(), secrets: one(s.data), config: one(c.data) };
+  cache = { at: Date.now(), secrets: one(s.data), config: one(c.data), hook: h.error ? null : one(h.data) };
   return cache;
 }
 
@@ -74,6 +83,37 @@ const db = {
   },
 };
 
+// A reply through Jako (./jako-hook.js): the last message with that button, its
+// reminder and item, and the database function that applies it once.
+const hookDb = {
+  async last({ phones, templates, since }: Row) {
+    const { data, error } = await admin.from('whatsapp_messages').select('id, log_id, person, email, phone, template')
+      .eq('provider', 'jako').eq('status', 'sent').in('phone', phones).in('template', templates).gte('sent_at', since.toISOString())
+      .order('id', { ascending: false }).limit(1);
+    if (error) throw error;
+    return data?.[0] ?? null;
+  },
+  logRow: db.logRow,
+  task: db.task,
+  client: db.client,
+  async nag(id: string) {
+    if (!UUID.test(id)) return null;
+    const { data, error } = await admin.from('staff_tasks').select('id, assignee, status, body').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  async answered(inbound: string) {
+    const { data, error } = await admin.from('whatsapp_inbound').select('id').eq('id', inbound).maybeSingle();
+    if (error) throw error;
+    return !!data;
+  },
+  async apply({ inbound, message, from, plan }: Row) {
+    const { data, error } = await admin.rpc('whatsapp_jako_reply', { p_inbound: inbound, p_message: message, p_from: from, p_plan: plan });
+    if (error) throw error;
+    return data as string;
+  },
+};
+
 Deno.serve(async (req) => {
   const text = (status: number, body = '') => new Response(body, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
   let conf;
@@ -84,6 +124,27 @@ Deno.serve(async (req) => {
     return text(500);
   }
   const secrets = conf.secrets ?? {};
+
+  // Jako's sub flows (a call that carries their header, or any call while the provider is Jako).
+  const given = req.headers.get(HOOK_HEADER);
+  if (given !== null || conf.hook?.provider === 'jako') {
+    const stop = hookGate({ provider: conf.hook?.provider, secret: conf.hook?.hook_secret, given, method: req.method });
+    if (stop) return text(stop.status, stop.body);
+    const answer = (out: { ok: boolean; text: string }) => new Response(JSON.stringify({ ok: out.ok, text: out.text }), {
+      status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+    });
+    if (Number(req.headers.get('content-length') || 0) > HOOK_MAX_BODY) return text(413);
+    const raw = new Uint8Array(await req.arrayBuffer());
+    if (raw.length > HOOK_MAX_BODY) return text(413);
+    let body = null;
+    try { body = JSON.parse(new TextDecoder().decode(raw)); } catch { /* answered as not understood */ }
+    try {
+      return answer(await jakoReply({ db: hookDb, body }));
+    } catch (e) {
+      console.error('whatsapp-webhook: a reply was not applied', codeOf(e));
+      return answer(hookAnswer('error'));
+    }
+  }
 
   if (req.method === 'GET') {
     if (!secrets.verify_token) return text(503, 'not ready');

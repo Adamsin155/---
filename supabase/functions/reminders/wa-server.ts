@@ -79,7 +79,7 @@ export async function whatsappChannel(admin: any) {
         return out as string;
       },
     };
-    return makeJakoWhatsapp({ db, pollDb, jako: jakoClient(cfg.jako_api_key), recipients });
+    return makeJakoWhatsapp({ db, pollDb, jako: jakoClient(cfg.jako_api_key), recipients, flows: { done: cfg.jako_flow_done, onit: cfg.jako_flow_onit } });
   }
   const send = (message: Row) => graphSend({ fetch, token: cfg.access_token, phoneNumberId: cfg.phone_number_id, message });
   return makeWhatsapp({ db, send, recipients });

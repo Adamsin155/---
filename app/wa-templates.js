@@ -10,7 +10,7 @@
 // thing in the body; a variable holds no line breaks, tabs or more than four
 // spaces in a row, and the body is at most 1024 characters; a button's text is at
 // most 25 characters, a footer at most 60; quick replies come before the link.
-import { RULE_BY_ID, stepOfKey, personName } from './reminder-rules.js';
+import { RULE_BY_ID, stepOfKey, personName, OWNER, NAG } from './reminder-rules.js';
 
 export const WA_LANG = 'he';
 // The site the "פתיחה במערכת" button opens (the variable is the page, e.g.
@@ -25,15 +25,10 @@ export const BUTTONS = { onit: 'אני על זה', help: 'צריך עזרה', do
 const ANSWER = 'אפשר לענות כאן בכפתור, או לפתוח במערכת.';
 
 // ── The providers ──────────────────────────
-// 'meta': Meta's Cloud API directly (the templates below, as they are).
-// 'jako': the owner's provider (my.jako.co.il; docs/ops.md, section 63). Its API cannot
-// tell us which quick reply was pressed (a button there only starts a flow built in
-// Jako's own editor), so its templates have no quick replies, and the sentence that
-// promises one says where the work is marked instead. A template's body is part of
-// what Meta approves, so Jako's set has its own names (the suffix) and both can exist.
+// 'meta': Meta's Cloud API directly (TEMPLATES below, as they are).
+// 'jako': the owner's provider (my.jako.co.il; docs/ops.md, section 63), with its own
+// three templates (JAKO_TEMPLATES, further down).
 export const WA_PROVIDERS = ['meta', 'jako'];
-export const JAKO_SUFFIX = '_j';
-export const JAKO_ANSWER = 'לפתיחה ולסימון: הכפתור למטה.';
 
 // {{1}} is the reminder's title (it names the client), {{2}} its details.
 export const TEMPLATES = {
@@ -93,15 +88,6 @@ export const TEMPLATES = {
     replies: [],
   },
 };
-
-// A template as one provider sends it: { name, body, replies, example }.
-export function templateOf(key, provider = 'meta') {
-  const t = TEMPLATES[key];
-  if (!t) throw new Error(`unknown template ${key}`);
-  if (!WA_PROVIDERS.includes(provider)) throw new Error(`unknown provider ${provider}`);
-  if (provider !== 'jako') return { name: t.name, body: t.body, replies: t.replies, example: t.example };
-  return { name: `${t.name}${JAKO_SUFFIX}`, body: t.body.replace(ANSWER, JAKO_ANSWER), replies: [], example: t.example };
-}
 
 // ── Which template ─────────────────────────
 // Rules whose case is a task (the key's case id is the task's id).
@@ -193,27 +179,104 @@ export const jakoUserId = (phone) => String(phone || '').replace(/\D/g, '');
 // the whole address, this is the one line to change.
 export const jakoUrlParam = (url) => pagePath(url);
 
+// Jako's three templates. A quick reply there is not a payload that comes back: each
+// button starts a "sub flow" built in Jako's own editor, and the flow calls our
+// endpoint with who pressed and which button (supabase/functions/whatsapp-webhook,
+// ./jako-hook.js). So a reply does not name its message, and the buttons are few:
+//   nodnik    the owner's own template, made by hand in Jako (`byHand`: its text here
+//             is a copy of what Meta has, for the tests and the length of a variable;
+//             it is not submitted from here). For what a reply may close: a nagging
+//             task (rule `nag`) and a simple task. {{1}} the first name, {{2}} the task.
+//   reminder  every other ring. {{1}} the first name, {{2}} the title, {{3}} the details.
+//   summary   the digests. The same three variables, the link only.
+export const JAKO_BUTTONS = { done: 'המשימה בוצעה', onit: 'אני על זה' };
+export const JAKO_TEMPLATES = {
+  nodnik: {
+    name: 'nodnik', label: 'נודניק', byHand: true,
+    body: 'היי {{1}}\n\nכאן הנודניק של אסטרטג ⏰.\nמה עם המשימה הזו ?\n\n{{2}}\n\nהאם המשימה כבר בוצעה?\nבמידה ולא נא לבצע בהקדם תודה .',
+    example: ['עירית', 'משימה מליאור: להתקשר ללקוח פיצה ולתאם יום צילום'],
+    footer: null, replies: ['done', 'onit'], link: false,
+  },
+  reminder: {
+    name: 'astrateg_reminder', label: 'תזכורת',
+    body: 'היי {{1}}, תזכורת מהמערכת של אסטרטג ⏰\n\n{{2}}\n\n{{3}}\n\nאפשר לענות כאן ״אני על זה״, או לפתוח במערכת ולסמן שם.',
+    example: ['עירית', 'לשייך עורך: פיצה', 'יום הצילום הסתיים. לשייך עורך עד מחר 12:00.'],
+    footer: FOOTER, replies: ['onit'], link: true,
+  },
+  summary: {
+    name: 'astrateg_summary', label: 'תקציר',
+    body: 'היי {{1}}, זה התקציר שלך מהמערכת של אסטרטג.\n\n{{2}}\n\n{{3}}\n\nהפירוט המלא מחכה לך במערכת, בכפתור למטה.',
+    example: ['עירית', 'תקציר בוקר', 'באיחור: פיצה · תסריטים · היום (2): בורגר, סושי'],
+    footer: FOOTER, replies: [], link: true,
+  },
+};
+// The longest a variable may be, so that a filled body stays under Meta's 1024.
+export const JAKO_MAX = { name: 30, title: 200, details: 600, task: 700 };
+
+// Which of the three a log row goes out with (row: reminder_log; task: its task, if any).
+export function jakoTemplateFor(row, task = null) {
+  const t = templateFor(row, task);
+  if (t === 'digest' || t === 'owner_digest') return 'summary';
+  if (row.rule === NAG || t === 'new_task') return 'nodnik';
+  return 'reminder';
+}
+
+// The name the message opens with: the person's first name. The owners have none in
+// the system (their rows on the staff list have no person): "היי שלום".
+export const jakoFirstName = (person) => (person && person !== OWNER ? cleanParam(personName(person), JAKO_MAX.name, 'שלום') : 'שלום');
+
 // Jako's body (POST /subscriber/send-whatsapp-template-by-user-id) for one log row,
 // without the template's `namespace`: the sender adds it from Jako's own list
-// (supabase/functions/_shared/wa-jako.js). Jako makes the contact on a first message;
-// it gets the first name only.
-export function jakoMessage({ template, to, row }) {
-  const t = templateOf(template, 'jako');
-  const [title, details] = paramsOf(row);
-  const name = row?.person ? personName(row.person) : '';
+// (supabase/functions/_shared/wa-jako.js). `flows`: { done, onit }, the ns of the
+// sub flow each button starts (workspace data, kept in the database; a missing one
+// goes out empty and the sender refuses the message). Jako makes the contact on a
+// first message; it gets the first name only.
+export function jakoMessage({ template, to, row, flows = {} }) {
+  const t = JAKO_TEMPLATES[template];
+  if (!t) throw new Error(`unknown template ${template}`);
+  const first = jakoFirstName(row?.person);
+  const title = cleanParam(row.title, JAKO_MAX.title, 'תזכורת');
+  const params = { 'BODY_{{1}}': first };
+  if (template === 'nodnik') {
+    // One variable for the task: the title, and the details with it when both fit.
+    const details = cleanParam(row.body, JAKO_MAX.task, '');
+    params['BODY_{{2}}'] = details && title.length + details.length + 3 <= JAKO_MAX.task ? `${title} · ${details}` : title;
+  } else {
+    params['BODY_{{2}}'] = title;
+    params['BODY_{{3}}'] = cleanParam(row.body, JAKO_MAX.details);
+  }
+  t.replies.forEach((r, i) => { params[`QUICK_REPLY_${i + 1}`] = String(flows?.[r] || ''); });
+  if (t.link) params.URL_1 = jakoUrlParam(row.url);
   return {
     user_id: jakoUserId(to), create_if_not_found: 'yes',
-    content: { name: t.name, lang: WA_LANG, params: { 'BODY_{{1}}': title, 'BODY_{{2}}': details, URL_1: jakoUrlParam(row.url) } },
-    ...(name ? { contact: { first_name: name } } : {}),
+    content: { name: t.name, lang: WA_LANG, params },
+    ...(first !== 'שלום' ? { contact: { first_name: first } } : {}),
   };
 }
 
-// What to submit for approval: to Meta (WhatsApp Manager, or POST
-// /{whatsapp-business-account-id}/message_templates with this body), or, with
-// { provider: 'jako' }, to Jako (POST /whatsapp-template/create takes the same shape;
-// scripts/jako-templates.mjs).
-export function metaDefinition(key, { provider = 'meta' } = {}) {
-  const t = templateOf(key, provider);
+// A Jako template in Meta's shape (POST /whatsapp-template/create takes it, and it is
+// what whoever makes the template by hand copies; scripts/jako-templates.mjs).
+export function jakoDefinition(key) {
+  const t = JAKO_TEMPLATES[key];
+  if (!t) throw new Error(`unknown template ${key}`);
+  const buttons = [
+    ...t.replies.map((r) => ({ type: 'QUICK_REPLY', text: JAKO_BUTTONS[r] })),
+    ...(t.link ? [{ type: 'URL', text: OPEN_BUTTON, url: `${SITE_URL}{{1}}`, example: [`${SITE_URL}clients.html`] }] : []),
+  ];
+  return {
+    name: t.name, language: WA_LANG, category: 'UTILITY',
+    components: [
+      { type: 'BODY', text: t.body, example: { body_text: [t.example] } },
+      ...(t.footer ? [{ type: 'FOOTER', text: t.footer }] : []),
+      { type: 'BUTTONS', buttons },
+    ],
+  };
+}
+
+// What to submit to Meta for approval (WhatsApp Manager, or POST
+// /{whatsapp-business-account-id}/message_templates with this body).
+export function metaDefinition(key) {
+  const t = TEMPLATES[key];
   return {
     name: t.name, language: WA_LANG, category: 'UTILITY',
     components: [

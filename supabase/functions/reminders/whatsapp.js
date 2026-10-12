@@ -11,9 +11,9 @@
 // after WA_LOST, never sent twice.
 //
 // Two providers send (public.whatsapp_provider; docs/ops.md, section 63): Meta's Cloud
-// API directly, the default, and Jako (./wa-poll.js), which takes its own message
-// (`message`) and returns no message id: its rows are 'sent' or 'failed', no more,
-// and are marked with the provider.
+// API directly, the default, and Jako (./wa-poll.js), which has its own three
+// templates (`pick`) and message (`message`) and returns no message id: its rows are
+// 'sent' or 'failed', no more, and are marked with the provider.
 import { waPlan } from '../_shared/app/wa-logic.js';
 import { templateMessage, taskIdOf } from '../_shared/app/wa-templates.js';
 
@@ -24,12 +24,13 @@ const PARALLEL = 5;
  * @param {{ db: { claim: (row: object) => Promise<object | null>, update: (id: number, patch: object) => Promise<void>, expire: (before: Date) => Promise<number> },
  *   send: (message: object) => Promise<{ ok: boolean, id?: string, status?: number, error?: string }>,
  *   recipients: Map<string, { email: string, phone: string }>,
- *   message?: (args: { template: string, to: string, row: object }) => object, provider?: string | null }} args
+ *   message?: (args: { template: string, to: string, row: object }) => object, provider?: string | null,
+ *   pick?: (row: object, task: object | null) => string }} args
  */
-export function makeWhatsapp({ db, send, recipients, message = templateMessage, provider = null }) {
+export function makeWhatsapp({ db, send, recipients, message = templateMessage, provider = null, pick = undefined }) {
   async function one({ row, kind }, { tasks, now, stats }) {
     const recipient = recipients.get(row.person);
-    const plan = waPlan({ row, kind, now, recipient, task: tasks.get(taskIdOf(row)) || null });
+    const plan = waPlan({ row, kind, now, recipient, task: tasks.get(taskIdOf(row)) || null, pick });
     if (plan.skip) {
       if (plan.skip === 'quiet_hours') stats.waQuiet += 1;
       return;

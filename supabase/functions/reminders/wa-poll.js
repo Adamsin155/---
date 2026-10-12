@@ -12,7 +12,7 @@
 // 'withdraw': withdrawn_via = 'whatsapp'). Nothing of what people write is stored.
 import { makeWhatsapp } from './whatsapp.js';
 import { isStop } from '../_shared/app/wa-logic.js';
-import { jakoMessage, jakoUserId } from '../_shared/app/wa-templates.js';
+import { jakoMessage, jakoTemplateFor, jakoUserId } from '../_shared/app/wa-templates.js';
 
 export const POLL_EVERY = 5 * 6e4;
 export const POLL_MAX = 5;
@@ -62,12 +62,13 @@ export function makeStopPoll({ db, incoming, recipients }) {
 
 /**
  * The channel `runTick({ wa })` takes, for provider 'jako': the replies first, then
- * the same rows as with Meta, sent as Jako's templates.
+ * the same rows as with Meta, sent as Jako's three templates. `flows`: { done, onit },
+ * the ns of the sub flow each quick reply starts (public.whatsapp_provider).
  * @param {{ db: any, pollDb: any, jako: { begin: () => void, send: (m: object) => Promise<any>, incoming: (a: any) => Promise<any> },
- *   recipients: Map<string, { email: string, phone: string }> }} args
+ *   recipients: Map<string, { email: string, phone: string }>, flows?: { done?: string | null, onit?: string | null } }} args
  */
-export function makeJakoWhatsapp({ db, pollDb, jako, recipients }) {
-  const channel = makeWhatsapp({ db, send: jako.send, recipients, message: jakoMessage, provider: 'jako' });
+export function makeJakoWhatsapp({ db, pollDb, jako, recipients, flows = {} }) {
+  const channel = makeWhatsapp({ db, send: jako.send, recipients, message: (args) => jakoMessage({ ...args, flows }), provider: 'jako', pick: jakoTemplateFor });
   const poll = makeStopPoll({ db: pollDb, incoming: jako.incoming, recipients });
   return {
     async deliver(args) {
