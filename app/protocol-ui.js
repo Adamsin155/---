@@ -90,13 +90,26 @@ export function formatWhen(d, now = new Date()) {
 // name ("היום", "מחר", "יום א׳"), the day of the month, the hour (none at the end of a day),
 // and how near it is as a tone: navy today, blue tomorrow, purple later, pink once it passed.
 const weekdayFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, weekday: 'short' });
-export function leafOf(d, now = new Date()) {
+// `late: false`: a moment that passed and is not anybody's lateness (the client's turn, a
+// deadline at today's close) is amber, not pink. The default is as it always was.
+export function leafOf(d, now = new Date(), { late = true } = {}) {
   if (!d) return null;
   const days = daysBetweenIL(now, d);
   const top = days === 0 ? 'היום' : days === 1 ? 'מחר' : days === -1 ? 'אתמול' : weekdayFmt.format(d);
-  const tone = d < now ? 'pink' : days === 0 ? 'navy' : days === 1 ? 'blue' : 'purple';
+  const tone = d < now ? (late ? 'pink' : 'orange') : days === 0 ? 'navy' : days === 1 ? 'blue' : 'purple';
   const p = partsIL(d);
   return { top, day: needsYear(d, now) ? `${p.day}.${p.month}` : String(p.day), sub: isEndOfDay(d) ? null : timeFmt.format(d), tone, label: formatWhen(d, now) };
+}
+// The leaf of ANY moment (a history that goes back months, a deadline of last month;
+// docs/ops.md, section 61): the month is said once the day is not of this month, and the
+// year takes the place of the day's name once it is another year.
+export function leafFar(d, now = new Date(), opts = {}) {
+  const w = leafOf(d, now, opts);
+  if (!w) return null;
+  const a = partsIL(d);
+  const b = partsIL(now);
+  if (a.year !== b.year) return { ...w, top: String(a.year), day: `${a.day}.${a.month}` };
+  return a.month !== b.month ? { ...w, day: `${a.day}.${a.month}` } : w;
 }
 // A bare day ('2026-10-01': a recheck date, a contract end) is that Israel day.
 export const formatDay = (d) => (d ? fullFmt.format(dayFromKeyIL(d) || new Date(d)) : '');

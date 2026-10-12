@@ -294,3 +294,41 @@ a.k-row:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; 
 .k-leafrow { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px; border-radius: var(--ds-r-item); background: var(--ds-ground); }
 .k-leafrow-b { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
 @media print { .k-leaf { box-shadow: none; border: 1px solid #999; } .k-leaf-top { color: #000; background: #fff; border-bottom: 1px solid #999; } .k-leafrow { background: #fff; } }
+
+/* section 61: no pale rows */
+/* ── "No pale rows" (the owner, 13.10.2026; docs/ops.md, section 61; helpers at the end of
+   app/kit.js). Appended only. A row of a list is a card with a mark at its start (a leaf of
+   its moment, or the icon square of its kind), one bold title, a state as a pill, counts as
+   bold numbers. White on the band of a leaf (4.5:1 needed): navy 18.15, blue 7.34, purple 7.11,
+   pink 5.92, green 6.58, orange 5.72, teal 6.31. */
+/* The leaf whose words are drawn from its data (leafMark): the row's own text says the date. */
+.k-leaf-mark > [data-t]::before { content: attr(data-t); }
+.k-leaf-sm { inline-size: 52px; border-radius: 12px; }
+.k-leaf-sm .k-leaf-top { font-size: 11px; line-height: 1.75; }
+.k-leaf-sm .k-leaf-day { font-size: 20px; line-height: 1.2; }
+.k-leaf-sm .k-leaf-sub { font-size: 11px; padding-block-end: 4px; }
+/* A day said with its month ("16.10") is drawn a little smaller, so it stays inside the leaf. */
+.k-leaf-mark > .k-leaf-day[data-t*='.'] { font-size: 19px; line-height: 1.55; letter-spacing: -.02em; }
+.k-leaf-sm > .k-leaf-day[data-t*='.'] { font-size: 16.5px; line-height: 1.45; }
+/* A leaf with no hour keeps a little air under its number. */
+.k-leaf > .k-leaf-day:last-child { padding-block-end: 4px; }
+
+/* A card of a list: a white surface on the tinted list, a mark at its start, its content,
+   and what sits at its far end. `.k-pc-late`: the hot edge of what is late (the words say it). */
+.k-pc { display: grid; gap: 10px; min-width: 0; padding: 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
+.k-pc-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 12px; min-width: 0; }
+.k-pc-mark { display: grid; justify-items: center; align-content: start; inline-size: 62px; flex: none; }
+.k-pc-body { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.k-pc-late { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-hot) 32%, transparent); }
+/* The items of a card, inside it: each a soft inset row. */
+.k-inset { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.k-inset > li, .k-inset-row { min-width: 0; padding: 6px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+
+@media (max-width: 480px) {
+  .k-pc { padding: 10px; }
+  .k-pc-top { gap: 10px; }
+  .k-pc-mark, .k-pc-mark > .k-leaf { inline-size: 54px; }
+  .k-pc-mark > .k-leaf .k-leaf-day { font-size: 21px; }
+}
+@media print { .k-pc, .k-inset > li, .k-inset-row { background: #fff; box-shadow: none; border: 1px solid #999; } }
+/* end: section 61 */

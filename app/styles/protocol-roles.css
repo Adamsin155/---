@@ -42,3 +42,264 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
 @media (max-width: 760px) {
   .view-toggle { min-height: 44px; }
 }
+
+/* ══ "No pale rows" on "המשימות שלי" (the owner, 13.10.2026; docs/ops.md, section 61) ══
+   A process is ONE card: the leaf of its deadline (or the icon of its kind), who and what
+   in a clear head, the state as a pill (late in the hot colour), and its items inside it as
+   soft rows. The short list and the full one share the head. Held to `.pc` (the cards
+   app/clients.js builds) and to #mine-list, so no other page changes.
+   Contrast: the client's name #0E2260 on white 14.83; the title ink on white 17.96; the item
+   ink on the ground 15.74; the pills as in kit.css (late 5.15, today 5.9, plain 9.2). */
+#mine-list .wprocs { display: grid; gap: 8px; padding-top: 4px; }
+#mine-list .wprocs > .more-row { border-top: 0; padding: 2px 0 0; }
+#mine-list .wprocs.il-list { padding-top: 0; }
+.wproc.pc { padding: 12px; border: 0; }
+.pc.is-urgent { border-inline-start: 0; padding-inline-start: 12px; box-shadow: inset 0 0 0 1.5px var(--ds-hot); }
+/* Who: the client, small and navy. What: the title, the boldest line of the card. */
+.pc .wc-head { gap: 2px 8px; min-width: 0; }
+.pc .wc-head .wclient, .pc-full .wproc-h .wclient {
+  min-height: 0; padding-block: 6px; margin-block: -6px; font-size: 13.5px; font-weight: 600; color: var(--ds-navy-text); overflow-wrap: anywhere;
+}
+.pc .wc-what { min-width: 0; }
+.pc .wc-title, .pc-full .wtitle { font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--ds-ink); overflow-wrap: anywhere; }
+.pc .wc-title .wc-sub { font-size: 13.5px; font-weight: 400; color: var(--ds-muted); }
+/* A single item is named by its own row below: the process is its context line. */
+.wc.pc:has(> .wlist) .wc-title, .wc.pc:has(> .wlink) .wc-title { font-size: 14px; font-weight: 500; color: var(--ds-ink-2); }
+.pc .wc-when { justify-self: start; margin-inline-start: 0; }
+/* Words that only repeat the leaf beside them: kept for whoever does not see it. */
+.pc .is-echo { position: absolute; inline-size: 1px; block-size: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.pc .wc-more { align-self: start; margin-block: -6px; }
+.pc > .wc-go, .pc > .ik-go { margin-top: 0; }
+.pc > .need, .pc > .wlink, .pc > .task-start, .pc > .task-meta, .pc > .wait-line, .pc > .wproc-acts, .pc > .contract-acts, .pc > .hint { margin-top: 0; }
+.pc > [hidden] { display: none; }
+/* The items of the process, inside its card: each a soft row with its "סיימתי" at the end. */
+.pc .wlist { display: grid; gap: 6px; min-width: 0; }
+.pc .wlist > .witem { min-width: 0; padding: 4px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+.pc .wlist .wrow { padding: 4px 0; align-items: center; }
+.pc .wlist .wrow > .fin ~ .wlabel, .pc .wlist .wrow > .wlabel { font-size: 15px; font-weight: 600; line-height: 1.35; color: var(--ds-ink); }
+.pc > .wlist .wrow > .fin ~ .wlabel { font-size: 15.5px; font-weight: 700; }
+.pc .wlist > .witem > .hint, .pc .wlist > .witem > .fix-ask-line { margin-block: 0 4px; }
+.pc-one { padding-block: 4px; }
+.pc-one > .wrow { padding: 4px 0; align-items: center; }
+.pc-one > .wrow > .wlabel { font-size: 15.5px; font-weight: 700; }
+/* What the short card folds: a soft panel, with its items as white rows. */
+.pc .wc-panel { display: grid; gap: 8px; margin-top: 0; padding: 10px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+.pc .wc-panel[hidden] { display: none; }
+.pc .wc-panel > * { margin-block: 0; }
+.pc .wc-panel .wlist > .witem { background: var(--ds-surface); }
+.pc .wc-panel .wc-due { font-size: 13.5px; font-weight: 600; color: var(--ds-ink-2); }
+.pc .wc-panel .wproc-acts { padding-top: 0; }
+/* The full list: the head wraps (who, what, whose, the state), and the state is a pill. */
+.pc-full .wproc-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; font-size: 13.5px; color: var(--ds-ink-2); }
+.pc-full .wproc-h > .wclient, .pc-full .wproc-h > .wtitle { flex: 1 1 100%; min-width: 0; }
+.pc-full .wproc-h > .wclient:has(+ .auto-tag), .pc-full .wproc-h > .wclient:has(+ .sbadge) { flex: 0 1 auto; }
+.pc-full .wproc-h > .btn-text { min-height: 44px; display: inline-flex; align-items: center; }
+.pc-full .wproc-h .sbadge { margin-inline-start: 0; }
+.pc-full .wproc-h > .sbadge:not(.s-urgent, .s-escalation) { min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-weight: 700; }
+.pc-full .wproc-h > .sbadge.s-overdue { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+.pc-full .wproc-h > .sbadge.s-today, .pc-full .wproc-h > .sbadge.s-due { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.pc-full .wproc-h > .sbadge.s-client { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.pc-full .pc-due { font-weight: 600; color: var(--ds-ink-2); }
+.pc-full > .wproc-acts { padding-top: 0; }
+/* The headings of the groups: a clear line with its count as a bold number. */
+#mine-list .wgroup-h { margin: 12px 0 4px; line-height: 1.3; font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; color: var(--ds-ink); }
+#mine-list .wgroup-h .n {
+  display: inline-grid; place-items: center; min-inline-size: 24px; block-size: 24px; padding: 0 7px; border-radius: var(--ds-r-pill);
+  background: var(--ds-soft); color: var(--ds-ink-2); font-family: var(--ds-font-b); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+#mine-list .g-overdue .wgroup-h, #mine-list .g-urgent .wgroup-h, #mine-list .g-escalation .wgroup-h { color: var(--ds-hot-text); }
+#mine-list .g-overdue .wgroup-h .n, #mine-list .g-urgent .wgroup-h .n, #mine-list .g-escalation .wgroup-h .n { background: var(--ds-hot); color: var(--ds-on-hot); }
+#mine-list .g-today .wgroup-h .n { background: var(--ds-amber-soft); color: var(--ds-amber); }
+#mine-list .g-client .wgroup-h { color: var(--ds-amber); }
+#view-mine.is-late #mine-list .wgroup-h { margin-top: 4px; }
+@media (max-width: 760px) {
+  /* The client's name is still a 44px target: its padding reaches, its line does not grow. */
+  .pc .wc-head .wclient, .pc-full .wproc-h .wclient { min-height: 0; padding-block: 13px; margin-block: -13px; }
+  .pc .wc-title, .pc-full .wtitle { font-size: 15.5px; }
+  /* A card stays short on a phone (at most 230px with one action): tighter air between its parts. */
+  .wproc.pc { gap: 8px; padding: 10px; }
+  .pc .k-pc-body { gap: 2px; }
+  .pc .wc-head { row-gap: 0; }
+  .pc .wc-when { padding-block: 2px; }
+  .pc .wc-title { line-height: 1.3; }
+  /* "בקרוב": the client's name is a 44px target too (it was 23px high since the leaves came). */
+  #mine-list .soon-card .wclient { padding-block: 11px; margin-block: -11px; }
+}
+@media print { .pc .is-echo { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; } }
+
+/* The owner's own profile: the team's work in one line, with its count said bold. */
+#mine-list .team-fold { background: var(--ds-surface); color: var(--ds-ink); box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: var(--ds-r-item); padding: 12px; gap: 10px 12px; }
+#mine-list .team-fold-t { flex: 1 1 160px; min-width: 0; font-size: 15.5px; font-weight: 700; line-height: 1.35; }
+/* "בקליטה · בלי שעון": a card per client, its open items inside. Quiet (navy), not grey. */
+#land-quiet .land-quiet-list > .k-pc .wclient { min-height: 0; padding-block: 12px; margin-block: -12px; font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+#land-quiet .land-quiet-list .k-inset { padding-inline-start: 0; margin-top: 4px; }
+#land-quiet .land-quiet-list .k-inset > li { font-size: 14.5px; font-weight: 500; color: var(--ds-ink); }
+#land-quiet .land-quiet-list .k-pc-mark { inline-size: 48px; }
+/* A client the signing opened: a notice with its mark, not a tinted paragraph. */
+#mine-list .auto-banner { gap: 6px; padding: 12px; border: 0; border-radius: var(--ds-r-item); background: var(--k-blue-soft); font-size: 14.5px; font-weight: 600; color: var(--ds-ink); }
+#mine-list .auto-banner a { color: var(--ds-navy-text); font-weight: 700; }
+/* A deal from the field: its clock is a pill (hot once the ten minutes passed), its package a tag. */
+#deals-card .deal-clock { display: inline-flex; align-items: center; min-height: 28px; padding: 2px 12px; border-radius: var(--ds-r-pill); background: var(--k-navy-soft); color: var(--k-navy); font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#deals-card .deal-clock.is-late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#deals-card .deal-task-head + .deal-task-meta { justify-self: start; inline-size: fit-content; padding: 2px 10px; border-radius: var(--ds-r-sm); background: var(--ds-ground); color: var(--ds-ink-2); font-weight: 600; }
+
+/* ══ "No pale rows" on "בקרה יומית" (docs/ops.md, section 61) ══
+   Every list of the control is cards: a mark, a bold name, what is inside as soft rows, a
+   deadline as a pill. The per-person table is a card per person with its five counts as bold
+   numbers (at every width: as a table its last columns fell to a second line). Held to
+   #view-control. Contrast: a count's label ink-2 on the ground 10.0; a late count #C4124F on
+   #FEEAF1 5.15; the pills as in kit.css. */
+#view-control .wgroup-h .n, #view-control .health-h .n {
+  display: inline-grid; place-items: center; min-inline-size: 24px; block-size: 24px; padding: 0 7px; border-radius: var(--ds-r-pill);
+  background: var(--ds-soft); color: var(--ds-ink-2); font-family: var(--ds-font-b); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+#view-control .ctl-urgent > .wgroup-h .n, #view-control #ctl-late .n { background: var(--ds-hot); color: var(--ds-on-hot); }
+#view-control .task-list, #view-control .ctl-cards, #view-control .status-list, #view-control .health-list { display: grid; gap: 8px; min-width: 0; }
+#view-control .ctl-cards > .more-row, #view-control .health-list > .more-row { border-top: 0; padding: 2px 0 0; }
+/* An urgent task, a reported exception. */
+#view-control .task-row.k-pc { border-top: 0; padding: 12px; }
+#view-control .task-head { gap: 4px 8px; min-width: 0; }
+#view-control .task-head .wclient { flex: 0 1 auto; min-height: 0; padding-block: 6px; margin-block: -6px; font-size: 13.5px; font-weight: 600; color: var(--ds-navy-text); }
+#view-control .task-title { flex: 1 1 100%; min-width: 0; font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--ds-ink); overflow-wrap: anywhere; }
+#view-control .task-row .task-meta { margin: 0; font-size: 13.5px; color: var(--ds-ink-2); }
+#view-control .task-row .task-start { margin: 4px 0 0; }
+/* Late by client, waiting for a client: the client's card, each process a soft row. */
+#view-control .ctl-cards > li.k-pc { border-top: 0; padding: 12px; }
+#view-control .ctl-card-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+#view-control .ctl-card-h > .wclient { flex: 1 1 140px; min-width: 0; font-size: 16px; font-weight: 700; color: var(--ds-ink); overflow-wrap: anywhere; }
+#view-control .ctl-cards .k-inset { margin: 0; padding: 0; gap: 6px; font-size: 14.5px; }
+#view-control .ctl-cards .k-inset > li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 12px; overflow-wrap: anywhere; }
+#view-control .ctl-cards .k-inset > li > a:first-child { flex: 1 1 220px; min-width: 0; font-weight: 600; color: var(--ds-ink); }
+#view-control .ctl-cards .k-inset .tag { margin-inline-start: 0; }
+#view-control .ctl-when { display: inline-flex; align-items: center; }
+#view-control .ctl-cards .rv-cnote { margin: 0; }
+/* The weekly status summary: a card per client, the state as a pill. */
+#view-control .status-row.k-pc { border-top: 0; padding: 12px; gap: 8px; }
+#view-control .status-head { gap: 6px 10px; min-width: 0; }
+#view-control .status-head .wclient { flex: 1 1 140px; min-width: 0; font-size: 16px; font-weight: 700; color: var(--ds-ink); overflow-wrap: anywhere; }
+#view-control .status-phase:empty { display: none; }
+#view-control .status-head > .sbadge { min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); font-weight: 700; }
+#view-control .status-head > .sbadge.s-waiting { background: var(--ds-amber-soft); color: var(--ds-amber); }
+#view-control .status-head > .sbadge.s-waiting .sicon { opacity: 1; }
+#view-control .status-head > .sbadge.s-done { background: var(--ds-ok-soft); color: var(--ds-ok); }
+#view-control .status-sum { padding: 8px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); font-size: 14px; }
+#view-control .status-sum dt { font-weight: 600; color: var(--ds-ink-2); }
+/* The editors' load. */
+#view-control .editor-card { background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: var(--ds-r-item); }
+#view-control .editor-count { flex: 1 1 100%; font-size: 14.5px; font-weight: 700; color: var(--ds-ink); }
+#view-control .edit-jobs { gap: 6px; }
+#view-control .edit-jobs > li { padding: 6px 12px 8px; border-top: 0; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+#view-control .edit-jobs .wclient { font-weight: 700; }
+#view-control .edit-k { color: var(--ds-ink); font-weight: 500; }
+#view-control .edit-steps li > .muted { color: var(--ds-ink-2); font-weight: 600; }
+#view-control .await-editor .stuck { display: grid; gap: 6px; }
+#view-control .await-editor .stuck > li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 6px 12px; border-top: 0; border-radius: var(--ds-r-sm); background: var(--ds-amber-soft); }
+/* The system's integrity. */
+#view-control .health-group { gap: 6px; }
+#view-control .health-h { margin-top: 10px; font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+#view-control .health-list > li:not(.more-row) { padding: 8px 12px; border-top: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); font-size: 14.5px; overflow-wrap: anywhere; }
+#view-control .health-list .wclient { font-weight: 700; }
+#view-control .health-list .muted { color: var(--ds-ink-2); }
+#view-control .late-procs { margin: 6px 0 2px; padding: 0; gap: 6px; }
+#view-control .late-procs > li { padding: 4px 10px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+#view-control .late-procs .muted { color: var(--ds-hot-text); font-weight: 600; }
+/* The review of today: the second process reads as a card with its words dark. */
+#view-control .rv-row { background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: var(--ds-r-item); }
+#view-control .rv-meta { font-size: 13.5px; color: var(--ds-ink-2); font-weight: 500; }
+#view-control .rv-sum, #view-control .rv-narrow summary { color: var(--ds-ink-2); font-weight: 600; }
+/* By person: a card each, the five counts as bold numbers with their words. */
+#view-control .table-wrap { overflow: visible; }
+#view-control .ctable, #view-control .ctable tbody { display: grid; gap: 8px; min-width: 0; inline-size: 100%; }
+#view-control .ctable thead { position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#view-control .ctable tbody tr:not(.group-row) {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; align-items: stretch; inline-size: auto; padding: 12px;
+  border: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line);
+}
+#view-control .ctable td { display: block; inline-size: auto; min-width: 0; padding: 0; border: 0; white-space: normal; overflow-wrap: anywhere; }
+#view-control .ctable td:first-child { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding-block-end: 4px; }
+#view-control .ctable td:first-child::before { content: none; }
+#view-control .ctable td:first-child .by { display: inline; font-size: 13.5px; color: var(--ds-ink-2); }
+#view-control .ctable td.num {
+  display: grid; justify-items: center; align-content: center; gap: 1px; padding: 8px 4px; border-radius: var(--ds-r-sm); background: var(--ds-ground); color: var(--ds-ink);
+  font-family: var(--ds-font-h); font-size: 22px; font-weight: 700; line-height: 1.1; letter-spacing: 0; text-align: center; font-variant-numeric: tabular-nums;
+}
+#view-control .ctable td.num::before { content: attr(data-label); display: block; order: 2; font-family: var(--ds-font-b); font-size: 12px; font-weight: 400; line-height: 1.3; color: var(--ds-ink-2); }
+#view-control .ctable td.num.late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#view-control .ctable td.client { grid-column: 1 / -1; font-size: 14px; line-height: 1.5; color: var(--ds-ink); }
+#view-control .ctable td.client::before { content: attr(data-label) ': '; display: inline; font-size: 14px; font-weight: 600; color: var(--ds-ink-2); }
+#view-control .ctable td.acts-cell { grid-column: 1 / -1; padding: 0; }
+#view-control .ctable .row-acts { justify-content: flex-start; }
+#view-control .ctable .group-row { display: block; padding: 8px 2px 0; border: 0; background: transparent; }
+#view-control .ctable .group-row th { display: block; padding: 0; border: 0; font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+@media (max-width: 760px) {
+  #view-control .task-head .wclient { min-height: 0; padding-block: 13px; margin-block: -13px; }
+  #view-control .ctable td.num { font-size: 20px; padding-inline: 2px; }
+  #view-control .ctable td.num::before { font-size: 11.5px; }
+}
+@media print { #view-control .ctable thead { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; } }
+
+/* ══ "No pale rows" on "הנתונים שלי" / "ביצועים" (docs/ops.md, section 61) ══
+   A card per person and per process: each figure a box with its number bold and its word
+   under it (the two tables were wider than their panel on a computer, and plain grey rows on
+   a phone). Held to #view-performance. */
+#view-performance .table-wrap { overflow: visible; }
+#view-performance .ctable, #view-performance .ctable tbody { display: grid; gap: 8px; min-width: 0; inline-size: 100%; }
+#view-performance .ctable thead { position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#view-performance .ctable tbody tr:not(.group-row) {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; inline-size: auto; padding: 12px;
+  border: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line);
+}
+#view-performance .ctable td {
+  flex: 1 1 104px; display: grid; justify-items: center; align-content: center; gap: 2px; inline-size: auto; min-width: 0; max-inline-size: none; padding: 8px 6px; border: 0; border-radius: var(--ds-r-sm);
+  background: var(--ds-ground); color: var(--ds-ink); font-size: 14.5px; font-weight: 700; line-height: 1.3; text-align: center; white-space: normal; overflow-wrap: anywhere;
+}
+#view-performance .ctable td[data-label]::before { content: attr(data-label); display: block; order: 2; font-family: var(--ds-font-b); font-size: 12px; font-weight: 400; line-height: 1.3; letter-spacing: 0; color: var(--ds-ink-2); }
+#view-performance .ctable td.num { font-family: var(--ds-font-h); font-size: 22px; line-height: 1.1; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+#view-performance .ctable td.num.late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#view-performance .ctable td .rate { justify-content: center; }
+#view-performance .ctable td .tag { margin: 0; }
+/* The first cell says who or which process: the head of the card, not a box. */
+#view-performance .ctable td:first-child { flex: 1 1 100%; justify-items: start; padding: 0 0 2px; background: transparent; font-size: 16px; text-align: start; }
+#view-performance .ctable td:first-child::before { content: none; }
+#view-performance .perf-proc summary { font-weight: 700; }
+#view-performance .perf-proc ul { font-weight: 400; color: var(--ds-ink-2); }
+#view-performance .perf-table td.sla { flex: 1 1 100%; justify-items: start; padding: 6px 12px; font-size: 14px; font-weight: 500; text-align: start; color: var(--ds-ink); }
+#view-performance .perf-table td.sla::before { order: 0; font-weight: 600; }
+#view-performance .ctable .group-row { display: block; padding: 8px 2px 0; border: 0; background: transparent; }
+#view-performance .ctable .group-row th { display: block; padding: 0; border: 0; font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+#view-performance .perf-calls { padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); font-weight: 600; color: var(--ds-ink); }
+@media (max-width: 480px) {
+  /* Three counts a line; a figure in words takes a line of its own. */
+  #view-performance .ctable td { flex: 1 1 28%; }
+  #view-performance .ctable td:not(.num, :first-child, .sla) { flex: 1 1 100%; }
+}
+
+/* "המחזור החודשי": a card per client, its items of the month as soft rows, until when as a pill. */
+#my-months .mc-list { display: grid; gap: 8px; }
+#my-months .mc-list > .more-row { border-top: 0; padding: 2px 0 0; }
+#my-months .mc-client { display: grid; gap: 8px; padding: 12px; border-top: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
+#my-months .mc-head .wclient { font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+#my-months .mc-head .muted { color: var(--ds-ink-2); font-weight: 600; }
+#my-months .items, #mc-slot .items { display: grid; gap: 6px; }
+#my-months .items > .item { border-top: 0; padding: 2px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+#my-months .items > .item:not(.is-done, .is-na) .ilabel { font-weight: 600; color: var(--ds-ink); }
+#my-months .imeta > span:not(.tag, .pchip, .by, .inote), #mc-slot .imeta > span:not(.tag, .pchip, .by, .inote) { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: 12px; background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; }
+#my-months .imeta > span.late, #mc-slot .imeta > span.late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+
+/* Ilai's cards: until when is a pill, hot once it passed (the words say it: "עד אתמול 16:00"). */
+#mine-list .il-until { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; white-space: nowrap; }
+#mine-list .il-until.late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#mine-list .il-part { border-top: 0; padding: 8px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+#mine-list .il-part > h4 { font-weight: 700; color: var(--ds-ink); }
+
+/* ══ "לקוחות" / "הלקוחות שלי": what a row says about lateness, waiting and the shoot day is a pill ══ */
+#client-list .cphase > span:not(.k), #client-list .cnext > span:not(.k, .muted) { font-weight: 600; color: var(--ds-ink); }
+#client-list .cflags { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+#client-list .crow > .cname, #client-list .crow > .cname > strong { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) { #client-list .crow > .cflags { grid-column: 1 / -1; } }
+#client-list .cflags .flag { display: inline-block; padding: 3px 10px; line-height: 20px; border-radius: var(--ds-r-pill); background: var(--ds-soft); font-size: 13px; font-weight: 700; white-space: pre; }
+#client-list .cflags .flag:has(.s-overdue) { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#client-list .cflags .flag:has(.s-client) { background: var(--ds-amber-soft); color: var(--ds-amber); }
+#client-list .cflags .flag .sbadge { font-weight: 700; color: inherit; }
+#client-list .cflags > .muted { display: inline-flex; align-items: center; min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-ground); color: var(--ds-ink-2); font-size: 13px; font-weight: 600; }
+@media print { #view-performance .ctable thead { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; } }
