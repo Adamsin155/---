@@ -66,7 +66,7 @@ export async function run({ args, env = {}, fetch = globalThis.fetch, readFile =
   if (opt.error) { out(opt.error); return 2; }
   if (opt.mode === 'print') {
     // The note is one line that is not JSON; the definitions are everything from the '['.
-    out(`# ${byHand().join(', ')}: exists, made by hand at Jako (not created from here). To create: the ${definitions().length} below.`);
+    out(byHand().length ? `# ${byHand().join(', ')}: exists, made by hand at Jako (not created from here). To create: the ${definitions().length} below.` : `# To create at Jako: the ${definitions().length} below.`);
     out(JSON.stringify(definitions(), null, 2));
     return 0;
   }

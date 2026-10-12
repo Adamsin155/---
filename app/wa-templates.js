@@ -183,19 +183,20 @@ export const jakoUrlParam = (url) => pagePath(url);
 // button starts a "sub flow" built in Jako's own editor, and the flow calls our
 // endpoint with who pressed and which button (supabase/functions/whatsapp-webhook,
 // ./jako-hook.js). So a reply does not name its message, and the buttons are few:
-//   nodnik    the owner's own template, made by hand in Jako (`byHand`: its text here
-//             is a copy of what Meta has, for the tests and the length of a variable;
-//             it is not submitted from here). For what a reply may close: a nagging
-//             task (rule `nag`) and a simple task. {{1}} the first name, {{2}} the task.
+//   nodnik    for what a reply may close: a nagging task (rule `nag`) and a simple task.
+//             {{1}} the first name, {{2}} the task. Named astrateg_nodnik: the owner's first
+//             own template "nodnik" (made by hand, 12.10.2026) was put by Meta in the
+//             MARKETING category, which costs more and is capped per person; this one says
+//             the same in plain service words (13.10.2026). The old one is not used.
 //   reminder  every other ring. {{1}} the first name, {{2}} the title, {{3}} the details.
 //   summary   the digests. The same three variables, the link only.
 export const JAKO_BUTTONS = { done: 'המשימה בוצעה', onit: 'אני על זה' };
 export const JAKO_TEMPLATES = {
   nodnik: {
-    name: 'nodnik', label: 'נודניק', byHand: true,
-    body: 'היי {{1}}\n\nכאן הנודניק של אסטרטג ⏰.\nמה עם המשימה הזו ?\n\n{{2}}\n\nהאם המשימה כבר בוצעה?\nבמידה ולא נא לבצע בהקדם תודה .',
+    name: 'astrateg_nodnik', label: 'נודניק',
+    body: 'היי {{1}}, תזכורת על משימה שממתינה לך במערכת של אסטרטג:\n\n{{2}}\n\nאפשר לסמן כאן שהמשימה בוצעה, או לעדכן שאת/ה על זה.',
     example: ['עירית', 'משימה מליאור: להתקשר ללקוח פיצה ולתאם יום צילום'],
-    footer: null, replies: ['done', 'onit'], link: false,
+    footer: FOOTER, replies: ['done', 'onit'], link: false,
   },
   reminder: {
     name: 'astrateg_reminder', label: 'תזכורת',

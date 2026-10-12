@@ -457,7 +457,7 @@ const nagRow = (over = {}) => log({ id: 91, key: `nag:-:${TASK}:s3@irit`, rule: 
 
 test('Jako\'s three templates follow Meta\'s rules: variables inside the text, short buttons and footer, an example for each variable', () => {
   assert.deepEqual(Object.keys(JAKO_TEMPLATES), ['nodnik', 'reminder', 'summary']);
-  assert.deepEqual(jakoNames, ['nodnik', 'astrateg_reminder', 'astrateg_summary']);
+  assert.deepEqual(jakoNames, ['astrateg_nodnik', 'astrateg_reminder', 'astrateg_summary']);
   for (const [key, t] of Object.entries(JAKO_TEMPLATES)) {
     assert.match(t.name, /^[a-z_]{1,60}$/, key);
     const vars = [...t.body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1]));
@@ -480,10 +480,10 @@ test('Jako\'s three templates follow Meta\'s rules: variables inside the text, s
     assert.ok(buttons.length >= 1 && buttons.every((b) => b.text.length <= 25));
     if (t.link) assert.deepEqual(buttons.at(-1), { type: 'URL', text: OPEN_BUTTON, url: `${SITE_URL}{{1}}`, example: [`${SITE_URL}clients.html`] });
   }
-  // The owner's own template, exactly as it stands at Jako, and never created from here.
+  // The nudnik in plain service words (the owner's first, hand-made "nodnik" was put in MARKETING by Meta).
   const n = JAKO_TEMPLATES.nodnik;
-  assert.equal(n.body, 'היי {{1}}\n\nכאן הנודניק של אסטרטג ⏰.\nמה עם המשימה הזו ?\n\n{{2}}\n\nהאם המשימה כבר בוצעה?\nבמידה ולא נא לבצע בהקדם תודה .');
-  assert.deepEqual([n.byHand, n.footer, n.link, n.replies], [true, null, false, ['done', 'onit']]);
+  assert.equal(n.body, 'היי {{1}}, תזכורת על משימה שממתינה לך במערכת של אסטרטג:\n\n{{2}}\n\nאפשר לסמן כאן שהמשימה בוצעה, או לעדכן שאת/ה על זה.');
+  assert.deepEqual([n.name, !!n.byHand, n.footer, n.link, n.replies], ['astrateg_nodnik', false, FOOTER, false, ['done', 'onit']]);
   assert.deepEqual(jakoDefinition('nodnik').components.at(-1).buttons, [{ type: 'QUICK_REPLY', text: 'המשימה בוצעה' }, { type: 'QUICK_REPLY', text: 'אני על זה' }]);
   // The two to create: the exact wording.
   assert.equal(JAKO_TEMPLATES.reminder.body, 'היי {{1}}, תזכורת מהמערכת של אסטרטג ⏰\n\n{{2}}\n\n{{3}}\n\nאפשר לענות כאן ״אני על זה״, או לפתוח במערכת ולסמן שם.');
@@ -530,7 +530,7 @@ test('Jako\'s message for each template: the number as user_id, the first name, 
   });
   // The nodnik: the task on one line (the title, and the details when they fit), both buttons, no link.
   const n = jakoMessage({ template: 'nodnik', to: '972501234567', row: nagRow(), flows: FLOWS });
-  assert.deepEqual(n.content, { name: 'nodnik', lang: 'he', params: { 'BODY_{{1}}': 'עירית', 'BODY_{{2}}': 'עוד לא סומן ״בוצע״: להתקשר לפיצה · מליאור, היום 10:00 · תזכורת כל 10 דקות', QUICK_REPLY_1: 'f100s200', QUICK_REPLY_2: 'f100s201' } });
+  assert.deepEqual(n.content, { name: 'astrateg_nodnik', lang: 'he', params: { 'BODY_{{1}}': 'עירית', 'BODY_{{2}}': 'עוד לא סומן ״בוצע״: להתקשר לפיצה · מליאור, היום 10:00 · תזכורת כל 10 דקות', QUICK_REPLY_1: 'f100s200', QUICK_REPLY_2: 'f100s201' } });
   const long = jakoMessage({ template: 'nodnik', to: '972501234567', row: nagRow({ body: 'x'.repeat(690) }), flows: FLOWS }).content.params['BODY_{{2}}'];
   assert.equal(long, 'עוד לא סומן ״בוצע״: להתקשר לפיצה', 'details that do not fit are left out, not cut');
   // The summary: the link only. The owner has no name in the system.
@@ -565,7 +565,7 @@ test('the Jako sender: the namespace from Jako\'s list (read once), the key in t
   // The next sends do not ask for the list again (the instance remembers it).
   await jako.send(jakoMessage({ template: 'summary', to: '972501234567', row: log({ rule: 'digest' }), flows: FLOWS }));
   await jako.send(jakoMessage({ template: 'nodnik', to: '972501234567', row: nagRow(), flows: FLOWS }));
-  assert.deepEqual([api.lists().length, api.sends().map((c) => c.body.content.namespace)], [1, ['ns_astrateg_reminder', 'ns_astrateg_summary', 'ns_nodnik']]);
+  assert.deepEqual([api.lists().length, api.sends().map((c) => c.body.content.namespace)], [1, ['ns_astrateg_reminder', 'ns_astrateg_summary', 'ns_astrateg_nodnik']]);
   assert.equal(JAKO_BASE, 'https://my.jako.co.il/api');
   // Not configured: no key, or a number that is not one. Nothing is asked of Jako.
   const none = fakeJakoApi();
@@ -581,7 +581,7 @@ test('the Jako sender: the namespace from Jako\'s list (read once), the key in t
 test('the Jako sender: a template that is missing or not approved fails that message with a clear code, and is looked for again later', async () => {
   const row = (name, over = {}) => ({ name, language: 'he', status: 'APPROVED', namespace: `ns_${name}`, ...over });
   let listed = [
-    row('nodnik', { status: 'PENDING' }),
+    row('astrateg_nodnik', { status: 'PENDING' }),
     row('astrateg_summary', { namespace: undefined }),
     row('astrateg_reminder', { language: 'en' }),
   ];
@@ -594,7 +594,7 @@ test('the Jako sender: a template that is missing or not approved fails that mes
   assert.deepEqual(await jako.send(m('reminder')), { ok: false, status: 0, error: 'jako no_template' }, 'another language is another template');
   assert.deepEqual([api.lists().length, api.sends().length], [1, 0], 'one list for all of them, and nothing was sent blind');
   // Approved meanwhile: found once the list is read again (not before LIST_AGAIN).
-  listed = [row('nodnik'), row('astrateg_reminder', { status: 'REJECTED' })];
+  listed = [row('astrateg_nodnik'), row('astrateg_reminder', { status: 'REJECTED' })];
   assert.equal((await jako.send(m('nodnik', nagRow()))).error, 'jako not_approved');
   now += LIST_AGAIN;
   assert.deepEqual(await jako.send(m('nodnik', nagRow())), { ok: true });
@@ -720,7 +720,7 @@ test('with Jako a ring goes by push and once by WhatsApp, as "sent" with no mess
   ], env: { tasks: [simple] }, now: t0, stats: {} });
   assert.deepEqual(mix.rows.map((r) => [r.log_id, r.template]).sort(), [[91, 'nodnik'], [92, 'nodnik'], [93, 'summary']]);
   const nod = mix.api.sends().find((c) => c.body.content.params['BODY_{{2}}'].startsWith('עוד לא סומן'));
-  assert.deepEqual([nod.body.content.name, nod.body.content.params.QUICK_REPLY_1, nod.body.content.params.QUICK_REPLY_2], ['nodnik', 'f100s200', 'f100s201']);
+  assert.deepEqual([nod.body.content.name, nod.body.content.params.QUICK_REPLY_1, nod.body.content.params.QUICK_REPLY_2], ['astrateg_nodnik', 'f100s200', 'f100s201']);
 
   // 20:00: push only. 08:30: the digest, with Jako refusing it → failed, with the code; the next message still goes.
   const night = fakeJakoWa();
