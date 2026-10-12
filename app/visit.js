@@ -37,9 +37,24 @@ export function beginVisit(loc = globalThis.location, s = session()) {
     return was !== OUT && was === here;
   } catch { return false; } // no storage: nothing is known to be on purpose, so home
 }
+// What the tab keeps of the signed-in person so that the next screen opens at once
+// (docs/ops.md, section 60): the app's frame as it was last drawn (app/shell-gate.js),
+// where the tab was last (for the way a page comes in), and the session's data cache with
+// everything under its name (app/data-cache.js).
+export const KEPT_KEYS = ['astrateg.shell', 'astrateg.nav', 'astrateg.rail', 'astrateg.scroll'];
+export const KEPT_PREFIX = 'astrateg.cache';
+export function forgetKept(s = session()) {
+  try {
+    if (!s) return;
+    const gone = [...KEPT_KEYS];
+    for (let i = 0; i < s.length; i += 1) { const k = s.key(i) || ''; if (k === KEPT_PREFIX || k.startsWith(`${KEPT_PREFIX}.`)) gone.push(k); }
+    for (const k of gone) s.removeItem(k);
+  } catch { /* no storage */ }
+}
 // The person signed out (or someone else signed in): no page of this visit is "theirs on
-// purpose" any more, and the choices of the place are forgotten.
+// purpose" any more, and the choices of the place are forgotten, with what the tab kept.
 export function forgetPlace(s = session(), l = local()) {
+  forgetKept(s);
   try { if (s) { s.setItem(VISIT, OUT); for (const k of PLACE_KEYS) s.removeItem(`astrateg.${k}`); } } catch { /* no storage */ }
   try { if (l) for (const k of OLD_LOCAL) l.removeItem(k); } catch { /* no storage */ }
 }

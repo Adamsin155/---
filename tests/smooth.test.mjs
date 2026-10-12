@@ -361,7 +361,8 @@ test('the staff pages are built out of sight and shown whole; the phone gets its
   }
   const ui = read('app/protocol-ui.js');
   assert.match(ui, /if \(ok\) bootStart\(\); else bootEnd\(\);/);
-  assert.match(ui, /finally \{[\s\S]{0,400}?bootEnd\(\);\s*\}/, 'the wait ends even when the page fails');
+  assert.match(ui, /finally \{[\s\S]{0,400}?await reveal\(shell\);\s*\}/, 'the wait ends even when the page fails');
+  assert.match(ui, /async function reveal\(shell\) \{[\s\S]{0,500}?bootEnd\(\);/, 'and showing the page is what ends it (docs/ops.md, section 60)');
   const css = read('app/styles/shell.css');
   assert.match(css, /html\[data-boot\] #app \{ opacity: 0; pointer-events: none; \}/);
   assert.match(css, /touch-action: manipulation/);

@@ -244,6 +244,18 @@ html:is([data-nav='forward'], [data-nav='back'])::view-transition-new(root) { an
 html:is([data-nav='forward'], [data-nav='back'])::view-transition-old(root) { animation: ds-page-out .2s ease-out both; }
 @media print { .side, header.topbar { view-transition-name: none; } }
 
+/* A page that opened with what it showed last time (the session's store, app/supa.js;
+   docs/ops.md, section 60). Until the server has confirmed what is on the screen, its
+   buttons and fields wait: a tap acts on what the server said, not on what was
+   remembered. Links, tabs and what only opens or folds work at once. */
+html[data-stale] #app :is(button:not([role='tab'], [aria-expanded]), input, select, textarea, label, [contenteditable]) { pointer-events: none; }
+/* The room of a part of the page that is not there yet (holdParts in app/protocol-ui.js). */
+.ds-hold { border-radius: var(--ds-r-card); background: var(--ds-ground); animation: ds-wait 1.4s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .ds-hold { animation: none; } }
+@media print { .ds-hold { display: none; } }
+/* A page the browser kept from another account's visit: nothing of it is drawn while it loads again. */
+html[data-left] body { visibility: hidden; }
+
 /* ── The phone bugs of 9.10.2026 (docs/ops.md, section 54) ─────────────── */
 /* The top safe area. An installed app draws under the phone's status bar
    (viewport-fit=cover): the page keeps clear of it at rest (the padding), and while it

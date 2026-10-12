@@ -89,8 +89,9 @@ const tap = async (page, locator) => {
   return page.evaluate(() => { window.__mo.disconnect(); return { paint: Math.max(0, ...window.__p.events), last: window.__t.n ? Math.max(0, Math.round(window.__t.last - window.__t0)) : -1 }; });
 };
 
-// Playwright turns the back-forward cache off; a phone has it, so it is on here.
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, ignoreDefaultArgs: ['--disable-back-forward-cache'] });
+// Playwright turns the back-forward cache off; a phone has it, so it is on here. The
+// headless shell still refuses it; CHANNEL=chromium (the full browser, headless) keeps pages.
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, channel: process.env.CHANNEL || undefined, ignoreDefaultArgs: ['--disable-back-forward-cache'] });
 const out = {};
 const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'he-IL', timezoneId: 'Asia/Jerusalem' };
 // A phone on the throttled network and CPU, and how a page of it is opened and measured.
@@ -115,6 +116,7 @@ async function phone(fake, options = {}) {
   // toIdle: until the page asks for nothing more (null when the worker is still fetching its store in the background).
   const open = async (url, min, { waitIdle = true } = {}) => {
     await page.goto('about:blank'); // a change of the #part alone would not load the page again
+    await ctx.clock.fastForward(60000); // a minute later: what the tab remembers is no longer "just read"
     net = [];
     const t = Date.now();
     await page.goto(url, { waitUntil: 'domcontentloaded' });

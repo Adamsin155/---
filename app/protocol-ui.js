@@ -1,7 +1,7 @@
 // Shared view helpers for the client protocol pages: login, people, dates, statuses.
 import {
   supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT,
-  sessionEmail, staffPerson, requestsIdle,
+  sessionEmail, staffPerson, requestsIdle, shownFromStore, warmStaff, warmNow,
 } from './supa.js';
 import { warmDirectory } from './protocol-data.js';
 import { h } from './quote-doc.js';
@@ -177,6 +177,98 @@ export const KEEP_BOOT = new Promise(() => {});
 const bootStart = () => { if (!('boot' in document.documentElement.dataset)) document.documentElement.dataset.boot = ''; };
 export const bootEnd = () => { delete document.documentElement.dataset.boot; };
 
+// A page that opens with what it showed last time (the session's store, app/supa.js) is
+// shown as soon as that is drawn, without waiting for the few answers that are never
+// kept (the vault's, the deals', a part of the page that reads by itself). Those parts
+// arrive a moment later, and a part that arrives above a list would push it down under
+// the finger. So the page remembers how tall each of its parts was when it last
+// settled (numbers only, with the session's store and removed with it), and holds that
+// room until the part is there: a part that is still hidden gets a quiet placeholder of
+// its size, a part that is still short keeps its height (docs/ops.md, section 60).
+// A page seen for the first time in this tab has no sizes, and waits as before.
+const SIZES = 'astrateg.cache.sizes';
+const PARTS = '#app section[id], #app [id$="-card"], #app [id$="-slot"]';
+const placeKey = () => `${location.pathname.split('/').pop() || 'index.html'}${location.search}${location.hash}`;
+const readSizes = () => { try { return JSON.parse(sessionStorage.getItem(SIZES) || '{}') || {}; } catch { return {}; } };
+function rememberSizes() {
+  if ('boot' in document.documentElement.dataset || $('app')?.hidden !== false) return;
+  const mine = {};
+  for (const el of document.querySelectorAll(PARTS)) {
+    const height = el.closest('[hidden]') ? 0 : Math.round(el.getBoundingClientRect().height);
+    if (height > 0) mine[el.id] = height;
+  }
+  try {
+    const all = readSizes();
+    delete all[placeKey()];
+    all[placeKey()] = mine;
+    const places = Object.keys(all);
+    for (const old of places.slice(0, Math.max(0, places.length - 40))) delete all[old]; // the places seen longest ago go
+    sessionStorage.setItem(SIZES, JSON.stringify(all));
+  } catch { /* no storage: the next opening waits for every answer, as before */ }
+}
+const knowsSizes = () => !!readSizes()[placeKey()];
+// Holds the room of the parts that are not there yet; returns how to let go.
+function holdParts() {
+  const sizes = readSizes()[placeKey()] || {};
+  const undo = [];
+  const parts = Object.entries(sizes).map(([id, height]) => [document.getElementById(id), height]).filter(([el]) => el && el.closest('#app') && !el.parentElement.closest('[hidden]'));
+  for (const [el, height] of parts) {
+    if (!el.hidden) continue;
+    const room = h('div', { class: 'ds-hold', 'aria-hidden': 'true', style: `block-size:${height}px` });
+    el.before(room);
+    const seen = new MutationObserver(() => { if (!el.hidden) { seen.disconnect(); room.remove(); } });
+    seen.observe(el, { attributes: true, attributeFilter: ['hidden'] });
+    undo.push(() => { seen.disconnect(); room.remove(); });
+  }
+  for (const [el, height] of parts) {
+    if (el.hidden || el.getBoundingClientRect().height >= height - 1) continue;
+    el.style.minBlockSize = `${height}px`;
+    undo.push(() => { el.style.minBlockSize = ''; });
+  }
+  return () => { for (const back of undo) back(); };
+}
+// "Back" to a page the browser did not keep whole, so that it loaded again: it is put
+// back where the person left it. The browser tries by itself when the page loads, but
+// the page is not built yet then; so the place of every entry of the tab's history is
+// noted when the page is left, and taken again once the page is shown. (A page the
+// browser did keep whole needs none of this; the tab of a page is in its address.)
+const SCROLL = 'astrateg.scroll';
+const entryKey = () => { try { return globalThis.navigation.currentEntry.key || placeKey(); } catch { return placeKey(); } };
+const cameBack = () => { try { return performance.getEntriesByType('navigation')[0]?.type === 'back_forward'; } catch { return false; } };
+function keepScroll() {
+  try {
+    const all = JSON.parse(sessionStorage.getItem(SCROLL) || '{}') || {};
+    delete all[entryKey()];
+    all[entryKey()] = Math.round(window.scrollY);
+    const keys = Object.keys(all);
+    for (const old of keys.slice(0, Math.max(0, keys.length - 30))) delete all[old];
+    sessionStorage.setItem(SCROLL, JSON.stringify(all));
+  } catch { /* no storage: "back" opens at the top, as before */ }
+}
+function restoreScroll() {
+  if (!cameBack()) return;
+  try {
+    const y = Number((JSON.parse(sessionStorage.getItem(SCROLL) || '{}') || {})[entryKey()]);
+    if (y > 0 && Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);
+  } catch { /* no storage */ }
+}
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') window.addEventListener('pagehide', keepScroll);
+
+// Shows the page: at once when it was drawn from the store and the room of its late
+// parts is known, otherwise when no request is on its way (never held for long).
+async function reveal(shell) {
+  const early = shownFromStore() && knowsSizes();
+  await Promise.race([Promise.all([shell, early ? null : requestsIdle()]), new Promise((done) => { setTimeout(done, 1500); })]);
+  const letGo = early ? holdParts() : null;
+  bootEnd();
+  restoreScroll();
+  Promise.race([requestsIdle(), new Promise((done) => { setTimeout(done, 4000); })]).then(() => {
+    letGo?.();
+    // Measured once the page has settled, for its next opening.
+    requestsIdle().then(() => requestAnimationFrame(rememberSizes));
+  });
+}
+
 // Session bar + login form. Calls onReady(staff) once a staff member is signed in.
 // A personal sign-in link in the address bar first asks for a password (set-password.js).
 export function mountSession(onReady) {
@@ -214,8 +306,7 @@ export function mountSession(onReady) {
       } finally {
         // Shown together with the page: the menu (it hides the head's links to screens it
         // already offers) and what the page's cards asked for on their own. Never held for long.
-        await Promise.race([Promise.all([shell, requestsIdle()]), new Promise((done) => { setTimeout(done, 1500); })]);
-        bootEnd();
+        await reveal(shell);
       }
     }
     if (staff && !staff.isStaff) {
@@ -236,6 +327,12 @@ export function mountSession(onReady) {
     $('lg-submit').disabled = false;
     if (error) { $('lg-err').textContent = explainError(error); $('lg-err').hidden = false; loginDoor.failed(); return; }
     resetMode(); // a fresh sign-in starts in the personal profile (app/manager-rules.js)
+    // The server said yes. Everything the first screen needs is asked for now, together:
+    // whether this is one of the staff, the team's names, and the page's own first rows
+    // (they used to follow one another: who, then the staff check, then the rows).
+    warmStaff();
+    warmDirectory();
+    warmNow();
     // Their home, whatever page the form happened to be on (the owner's rule, 9.10.2026):
     // only a page opened on purpose in this visit keeps them, if it is theirs to open.
     const plan = await signInPlan(data?.user?.email || cleanEmail($('lg-email').value));

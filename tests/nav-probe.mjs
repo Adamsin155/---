@@ -83,14 +83,22 @@ for (let i = 0; i < 120; i += 1) {
 await page.waitForTimeout(500);
 show('sign-in');
 
-if (WHAT === 'mine') {
-  await page.goto('about:blank');
-  t0 = Date.now();
-  await page.goto(`${BASE}clients.html#mine`, { waitUntil: 'commit' });
-  await content(40);
-  log.push(`${at()}          CONTENT`);
-  await idle();
-  show('open clients.html#mine');
+if (WHAT === 'mine' || WHAT === 'again') {
+  // "again": a client's card, opened a second time in this tab (the session's store answers).
+  const url = WHAT === 'mine' ? 'clients.html#mine' : `client.html?id=${CARD}`;
+  for (const turn of WHAT === 'mine' ? ['open'] : ['open', 'open again']) {
+    await page.goto('about:blank');
+    await ctx.clock.fastForward(60000); // a minute later: what the tab remembers is no longer "just read"
+    await page.waitForTimeout(300);
+    log.splice(0);
+    t0 = Date.now();
+    await page.goto(`${BASE}${url}`, { waitUntil: 'commit' });
+    await content(40);
+    log.push(`${at()}          CONTENT`);
+    await idle();
+    await page.waitForTimeout(700);
+    show(`${turn} ${url}`);
+  }
 } else {
   await page.goto('about:blank');
   await page.goto(`${BASE}clients.html#clients`, { waitUntil: 'domcontentloaded' });

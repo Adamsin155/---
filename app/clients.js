@@ -26,7 +26,7 @@ import {
   isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
-import { warm, taken } from './supa.js';
+import { warm, taken, onFresh } from './supa.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys, openedBySigning } from './client-open.js';
@@ -174,6 +174,8 @@ const editorPeople = () => STAFF_PEOPLE().filter((p) => p.editor);
 // The first rows of the page, asked for while the session is being confirmed (app/supa.js warm).
 const firstRows = () => Promise.all([loadClients({ includeEnded: true }), loadChecks(), loadTasks({ openOnly: true })]);
 warm('clients', firstRows);
+// Opened with what this tab remembers; when the server's answers differ, read and draw again (app/supa.js onFresh).
+onFresh(() => load());
 async function load() {
   $('state').textContent = clients.length ? '' : 'טוען…';
   const now = new Date();
