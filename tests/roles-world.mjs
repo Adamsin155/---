@@ -274,7 +274,13 @@ export function makeFake(db, { now = () => NOW.toISOString() } = {}) {
       if (['client_messages', 'client_access'].includes(table) && !isOffice(me)) rows = [];
       const off = Number(url.searchParams.get('offset') || 0);
       const lim = Number(url.searchParams.get('limit') || 1e9);
-      return reply(rows.slice(off, off + lim));
+      const page = rows.slice(off, off + lim);
+      // Asked with `Prefer: count=exact`, the database says how many rows there are in all
+      // (Content-Range: 0-999/6240): the pages after the first are then asked for together.
+      if (!single && /count=exact/.test(headers.prefer || '')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(page), headers: { ...CORS, 'content-range': `${page.length ? `${off}-${off + page.length - 1}` : '*'}/${rows.length}` } });
+      }
+      return reply(page);
     }
     calls.push({ method: req.method(), table, body, by: me.email });
     if (req.method() === 'POST') {

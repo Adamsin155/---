@@ -27,6 +27,7 @@ import {
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { warm, taken } from './supa.js';
+import { pacer } from './turns.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys, openedBySigning } from './client-open.js';
@@ -124,14 +125,76 @@ const hashOfView = (v) => (v === 'mine' && managing ? 'team' : v);
 const managerTab = (t) => personal && managerTabs({ me, scope, error: viewerError }).includes(t);
 let clientFilter = 'active';
 let lastLoad = 0;
+let loads = 0;
 const laterOpen = new Set();   // the folded "this week" and "later" groups a person opened
 let waitGroupOpen = null;   // the collapsed "waiting on client" group keeps its state across renders
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash}`;
 
-const states = new Map();
+// ── What is worked out from the rows, and what is on the page (docs/ops.md, section 59) ──
+// One draw of a screen asks the same question many times ("what is late now" five times
+// for one list, every person's work twice for the chips of the team's list). Each answer
+// is worked out once per turn of the page: it is dropped when the turn ends and whenever
+// a row changes, so no answer outlives the rows it was read from.
+const derived = new Map();
+let held = 0; // a reload works its answers out in one turn and draws in the next: they stay for it
+const endOfTurn = () => { if (!held) derived.clear(); };
+function once(key, make) {
+  if (derived.has(key)) return derived.get(key);
+  if (!derived.size) queueMicrotask(endOfTurn);
+  const value = make();
+  derived.set(key, value);
+  return value;
+}
+// The answers the last draw was made from. While a built view still stands (`fresh`), no
+// row has changed since, so a tab that is opened for the first time starts from them.
+let answers = null;
+function startFromAnswers() {
+  if (!answers || !fresh.size) return;
+  if (!derived.size) queueMicrotask(endOfTurn);
+  for (const [k, v] of answers) if (!derived.has(k)) derived.set(k, v);
+}
+// A view that was built stays on the page as it is while nothing it shows has changed:
+// going back to its tab shows it at once, with nothing built again. `fresh`: the views
+// that are built from the rows as they are now. `kept`: "המשימות שלי" and "באיחור" share
+// one panel, so the one that is left is put aside whole (its own nodes) and put back.
+const fresh = new Set();
+const kept = new Map();
+let switching = false; // setView is showing a view: that draw is not a change of the rows
+// A draw that an action, a reload or the minute asked for: whatever else was built is old.
+function drawn(v, { keep = switching } = {}) {
+  if (!keep) { fresh.clear(); kept.clear(); answers = null; }
+  fresh.add(v);
+}
+// A row changed (a mark, a task, a reload, the minute): nothing worked out or built stays.
+function changed() {
+  derived.clear();
+  fresh.clear();
+  kept.clear();
+  answers = null;
+}
+// The state of each client, worked out once and kept until its rows change. Every change
+// of a mark in this file drops its client from here, which is what tells the rest.
+let stateRev = 0; // counts the changes of the states themselves (warmStates stops at one)
+class StateMap extends Map {
+  delete(k) { stateRev += 1; changed(); return super.delete(k); }
+  clear() { stateRev += 1; changed(); super.clear(); }
+}
+const states = new StateMap();
 function stateOf(c) {
   if (!states.has(c.id)) states.set(c.id, clientState(c, checks[c.id] || {}, new Date()));
   return states.get(c.id);
+}
+// Every client's state, a few at a time with a turn of the page between (app/turns.js):
+// forty clients in one go hold a phone for most of a second. It stops when a row changes
+// meanwhile (whoever changed it draws; a state that is missing is worked out when asked for).
+async function warmStates() {
+  const rev = stateRev;
+  const pause = pacer();
+  for (const c of clients) {
+    stateOf(c);
+    const p = pause();
+    if (p) { await p; if (rev !== stateRev) return; }
+  }
 }
 
 // ── Small helpers ───────────────────────────
@@ -174,62 +237,126 @@ const editorPeople = () => STAFF_PEOPLE().filter((p) => p.editor);
 // The first rows of the page, asked for while the session is being confirmed (app/supa.js warm).
 const firstRows = () => Promise.all([loadClients({ includeEnded: true }), loadChecks(), loadTasks({ openOnly: true })]);
 warm('clients', firstRows);
+// A reload ends by drawing the open view. A card that asks for a draw while one is on its
+// way (the notifications' card when its state is known, Ilai's files) does not draw the
+// list by itself: the list would be built twice, the first time from rows that are still
+// arriving (docs/ops.md, section 59). The reload draws; if it could not, the draw is owed.
+let loading = 0;
+let owed = false;
 async function load() {
+  loading += 1;
+  try {
+    await loadRows();
+  } finally {
+    loading -= 1;
+    if (!loading && owed) cardsChanged();
+  }
+}
+async function loadRows() {
   $('state').textContent = clients.length ? '' : 'טוען…';
   const now = new Date();
+  const first = !loads; // the page is opening (the cards have just read their own rows)
+  loads += 1;
+  const office = scope === 'office';
+  const viewer = { me, scope, error: viewerError };
+  // What does not wait for the clients is asked for together with them, and not in a
+  // round of its own after they arrive (docs/ops.md, section 59). Reviews, summaries and
+  // the history are extras: the page works without them. They serve the office screens
+  // only, so an 'own' view does not load them (it reads Ofir's meetings instead).
+  const none = Promise.reject(null); // eslint-disable-line prefer-promise-reject-errors
+  const early = Promise.allSettled([
+    office ? loadReviews(dayIso(lastBusinessDays(7, now).at(-1))) : none,
+    office ? loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }) : none,
+    office ? loadAllLog(new Date(now.getTime() - 21 * 864e5).toISOString()) : none,
+    // The deals answer only Irit and the owners (the database decides; canSeeDeals mirrors it).
+    office ? (canSeeDeals(viewer) ? loadDeals() : null) : none,
+    office ? none : loadOfirMeetings(new Date(now.getTime() - 864e5).toISOString()).catch(() => null),
+  ]);
   try {
     [clients, checks, tasks] = await taken('clients', firstRows);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
   }
+  // The rows are new: no state worked out from the old ones is read from here on.
+  states.clear();
+  // The cards that read their own rows ask now, side by side with the rest. (The deals'
+  // card has just read its rows when the page opens: mountDeals.)
+  refreshQuestions($('my-questions'), me, clients);
+  if (!first) refreshDeals();
   // The counted lines of "המשימות שלי" ask for their own rows meanwhile (app/mine-flow-data.js).
-  const flowWants = flowNeeds({ me, scope, error: viewerError }, now);
+  const flowWants = flowNeeds(viewer, now);
   // The owners have no list of their own: they read the contracts still out for signature
   // for the control's "חתימות" (the database answers only whoever may read the quotes).
-  if (!flowWants.includes('unsigned') && canSeeQuoteList({ me, scope, error: viewerError })) flowWants.push('unsigned');
-  const flowAsked = loadFlowExtra(flowWants, { now, clients, checks, stateOf: (c) => clientState(c, checks[c.id] || {}, now) });
-  // Reviews and agreement numbers are extras: the page works without them.
-  // They serve the office screens only, so an 'own' view does not load them.
-  const none = { status: 'rejected', reason: null };
-  const [rv, qi, sn, lg, dl] = scope === 'office' ? await Promise.allSettled([
-    loadReviews(dayIso(lastBusinessDays(7, now).at(-1))),
-    loadQuoteNumbers(clients.filter(isAuto).map((c) => c.quote_id)),
-    loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }),
-    loadAllLog(new Date(now.getTime() - 21 * 864e5).toISOString()),
-    // The deals answer only Irit and the owners (the database decides; canSeeDeals mirrors it).
-    canSeeDeals({ me, scope, error: viewerError }) ? loadDeals() : Promise.resolve(null),
-  ]) : [none, none, none, none, none];
+  if (!flowWants.includes('unsigned') && canSeeQuoteList(viewer)) flowWants.push('unsigned');
+  const flowAsked = loadFlowExtra(flowWants, { now, clients, checks, stateOf });
+  // What does wait for the clients: the agreement numbers of the new ones (an extra too),
+  // and what was said about the clients still in landing.
+  const [qi, landed, [rv, sn, lg, dl, om]] = await Promise.all([
+    office ? loadQuoteNumbers(clients.filter(isAuto).map((c) => c.quote_id)).then((value) => ({ value }), () => null) : null,
+    clients.some((c) => c.landing === true) ? loadIntake() : null,
+    early,
+  ]);
+  if (landed) intake = landed;
   deals = dl.status === 'fulfilled' ? dl.value : null;
   reviews = rv.status === 'fulfilled' ? rv.value : null;
   reviewsError = rv.status === 'rejected' ? rv.reason : null;
-  if (qi.status === 'fulfilled') quoteInfo = qi.value;
+  if (qi) quoteInfo = qi.value;
   statusNotes = sn.status === 'fulfilled' ? sn.value : null;
   statusError = sn.status === 'rejected' ? sn.reason : null;
   if (lg.status === 'fulfilled') {
     lastLog = new Map();
     for (const r of lg.value) if (!lastLog.has(r.client_id) || r.at > lastLog.get(r.client_id)) lastLog.set(r.client_id, r.at);
   }
-  if (scope !== 'office') setOfirMeetings(await loadOfirMeetings(new Date(now.getTime() - 864e5).toISOString()).catch(() => null));
-  if (clients.some((c) => c.landing === true)) intake = await loadIntake();
+  if (!office) setOfirMeetings(om.value);
   flowExtra = await flowAsked;
-  states.clear();
+  changed();
   lastLoad = Date.now();
   $('state').textContent = '';
-  rebuildClocks();
   watchNewClients();
-  checkLate();
-  if (!document.hidden) renderKeepingFocus();
-  refreshQuestions($('my-questions'), me, clients);
-  refreshDeals();
+  await drawFromRows(() => !document.hidden);
+}
+// The rows (or the minute) changed: the clocks, what turned late, and the open view. In
+// three parts with a turn of the page between them, so none holds a phone for long: the
+// state of every client (a few at a time), then what the screen is made from, then the
+// screen itself. The answers of the second part stay for the third (`held`).
+async function drawFromRows(shown) {
+  if (!document.hidden) await warmStates();
+  held += 1;
+  try {
+    // (A turn is given only when the part before it took its time: a short list is one piece.)
+    const pause = pacer(8);
+    rebuildClocks();
+    checkLate();
+    if (shown()) {
+      warmAnswers();
+      const p = pause();
+      if (p) await p;
+      if (shown()) renderKeepingFocus();
+    }
+  } finally {
+    held -= 1;
+    if (!held) derived.clear();
+  }
+}
+// What the open view will ask for when it is built (each is kept by `once`).
+function warmAnswers() {
+  lateState();
+  if (me) { workFor(me); flowOfMe(); }
+  // The team's list counts every person's work for its chips.
+  if (view === 'mine' && scope === 'office' && !personal) for (const p of STAFF_PEOPLE()) workFor(p.key);
+  if (view !== 'clients' && (!me || view === 'control')) workFor(null);
 }
 
 // Re-rendering replaces elements; keep keyboard focus and scroll where they were.
 function renderKeepingFocus() {
   const focusId = document.activeElement?.id;
-  const y = window.scrollY;
+  // While the page is still being built out of sight it stands at its top: there is no
+  // place to keep, and asking for it would lay the whole page out for nothing. The same
+  // at the top of a page that is shown: it stays there by itself.
+  const y = 'boot' in document.documentElement.dataset ? 0 : window.scrollY;
   render();
-  window.scrollTo({ top: y });
+  if (y) window.scrollTo({ top: y });
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
 }
 
@@ -278,10 +405,48 @@ const TABS = ['mine', 'late', 'clients', 'control', 'performance'];
 const tabsShown = () => TABS.filter((t) => !$(`tab-${t}`).hidden);
 // "באיחור" has no panel of its own: it is the list of "המשימות שלי" with the late items alone.
 const panelOf = (t) => (t === 'late' ? 'mine' : t);
+// What the one panel of "המשימות שלי" and "באיחור" holds, to put aside and to put back:
+// the parts either of them fills, and what either of them hides.
+const MINE_PARTS = ['mine-people', 'mine-tools', 'mine-foot', 'mine-list'];
+const MINE_HIDES = ['mine-people', 'my-months', 'land-line', 'land-quiet'];
+let mineShown = null;  // which of the two the panel holds now ('mine' | 'late')
+let mineFor = '';      // whose list, and in which profile, it was built for
+let mineShares = false; // its cards hold nodes that the next draw takes over (Ilai's file blocks): not kept
+const mineKey = () => `${minePerson ?? ''}|${personal}|${managing}`;
+function keepMine(v) {
+  if (panelOf(v) !== 'mine' || !fresh.has(v) || mineShown !== v) return;
+  kept.set(v, {
+    for: mineFor, kids: mineShares ? null : MINE_PARTS.map((id) => [...$(id).childNodes]), hidden: MINE_HIDES.map((id) => $(id).hidden),
+    short: $('mine-list').classList.contains('is-short'),
+  });
+}
+// Shows `v` as it was built, when it still is as the rows are: true, and nothing is built.
+function showKept(v) {
+  if (!fresh.has(v)) return false;
+  if (panelOf(v) === 'mine') {
+    const k = kept.get(v);
+    if (!k || k.for !== mineKey() || (mineShown !== v && !k.kids)) return false;
+    if (mineShown !== v) MINE_PARTS.forEach((id, i) => $(id).replaceChildren(...k.kids[i]));
+    MINE_HIDES.forEach((id, i) => { $(id).hidden = k.hidden[i]; });
+    $('mine-list').classList.toggle('is-short', k.short);
+    $('view-mine').classList.toggle('is-late', v === 'late');
+    mineShown = v;
+  }
+  // As render() and syncLateTab() leave them: the landing line belongs to "המשימות שלי"
+  // alone, and the "באיחור" tab that stayed for its last item goes when it is left.
+  if (v !== 'mine') { $('land-line').hidden = true; $('land-quiet').hidden = true; }
+  if (v !== 'late') { lateStays = false; $('tab-late').hidden = !(hasLateTab() && lateN > 0); }
+  if (v === 'mine') clockTick(); // the countdowns stood still while the bar was out of sight
+  return true;
+}
 function setView(v, focus = false) {
-  syncLateTab();
+  // Nothing is built from the rows as they are now: the number of "באיחור" first, as it
+  // decides whether that tab is there to open. (While a built view stands, it is up to date.)
+  if (!fresh.size) syncLateTab();
+  keepMine(view);
   view = tabsShown().includes(v) ? v : 'mine';
   if (view === 'late') lateStays = true;
+  // The pressed tab and its panel first: the tap is answered before anything is built.
   for (const t of TABS) {
     $(`tab-${t}`).setAttribute('aria-selected', String(t === view));
     $(`tab-${t}`).tabIndex = t === view ? 0 : -1;
@@ -292,7 +457,9 @@ function setView(v, focus = false) {
   history.replaceState(null, '', `#${hashOfView(view)}`);
   // The address changed without an event: the app menu marks the screen by it (app/shell.js).
   window.dispatchEvent(new Event('hashchange'));
-  render();
+  if (showKept(view)) return;
+  switching = true;
+  try { startFromAnswers(); render(); } finally { switching = false; }
 }
 for (const t of TABS) $(`tab-${t}`).addEventListener('click', () => setView(t));
 document.querySelector('.tabs').addEventListener('keydown', (e) => {
@@ -305,18 +472,25 @@ document.querySelector('.tabs').addEventListener('keydown', (e) => {
 });
 
 function render() {
+  owed = false;
   // The landing line and list belong to "המשימות שלי" alone.
   if (view !== 'mine') { $('land-line').hidden = true; $('land-quiet').hidden = true; }
   if (onMine()) renderMine(); else syncLateTab();
-  if (view === 'clients') renderClients();
+  // Each of these marks itself built (`drawn`); a draw that was not asked for by a tab
+  // (an action, a reload, the minute) leaves no other view standing as built.
+  if (view === 'clients') { drawn('clients'); renderClients(); }
   if (view === 'control') renderControl();
-  if (view === 'performance') renderPerformance();
+  if (view === 'performance') { drawn('performance'); renderPerformance(); }
+  // What this draw was made from, for the next tab opened while it stands (startFromAnswers).
+  answers = new Map([...(switching && answers ? answers : []), ...derived]);
 }
 
 // ── My work ─────────────────────────────────
 // Open work grouped by client and process (tasks are groups of one).
 // Cancelled clients have no open work (openItemsFor), and their tasks are left out too.
-function workFor(person) {
+// (The list is worked out once per turn, see `once`: nobody sorts or changes it in place.)
+const workFor = (person) => once(`work:${person ?? ''}`, () => workOf(person));
+function workOf(person) {
   const now = new Date();
   const groups = new Map();
   for (const c of clients) {
@@ -343,7 +517,7 @@ function workFor(person) {
   return [...groups.values()].sort(byUrgency);
 }
 // Every late item of the office now, as the reminders and the owners' table read it.
-function lateState(now = new Date()) {
+const lateState = (now = new Date()) => once('late', () => {
   const items = lateItems({ clients, checksOf: (c) => checks[c.id] || {}, stateOf, tasks, now });
   const counted = items.filter((x) => countsLate(x, now));
   return {
@@ -351,7 +525,7 @@ function lateState(now = new Date()) {
     held: (person) => new Set(counted.filter((x) => !person || x.holders.includes(person)).map(lateKey)),
     turn: new Set(items.filter((x) => x.clientTurn).map(lateKey)),
   };
-}
+});
 
 // What is late comes first by its own count: the "באיחור" group holds exactly what the
 // "באיחור" tab counts, an urgent task past its day too (it keeps its mark, first in the
@@ -436,6 +610,7 @@ async function toggleEntry(e, input) {
     if (e.task) {
       await setTaskDone(e.task.id, true);
       tasks = tasks.filter((t) => t.id !== e.task.id);
+      changed();
       // Ofir's folder task (24) is the item "יש תיקייה מסודרת": done together.
       const folder = folderItemOf(e.task);
       if (folder) try { (checks[e.client.id] ||= {})[folder] = await setCheck(e.client.id, folder, 'done'); states.delete(e.client.id); } catch { /* the item stays for the card */ }
@@ -470,6 +645,7 @@ async function undo(e) {
     if (e.task) {
       const row = await setTaskDone(e.task.id, false);
       tasks = [row, ...tasks];
+      changed();
       const folder = folderItemOf(e.task);
       if (folder && checks[e.client.id]?.[folder]) try { await clearCheck(e.client.id, folder); delete checks[e.client.id][folder]; states.delete(e.client.id); } catch { /* the item stays */ }
     } else {
@@ -1108,6 +1284,7 @@ async function startTask(t, btn) {
   btn.disabled = true;
   try {
     Object.assign(t, await setTaskStarted(t.id, true));
+    changed();
   } catch (err) {
     btn.disabled = false;
     toast(`הסימון לא נשמר. ${errorText(err)}`);
@@ -1256,7 +1433,7 @@ new MutationObserver(() => dressCards()).observe($('app'), { childList: true, su
 // this person holds past its deadline (app/late-chain.js: the same answer as the
 // reminders and the owners' table), and each counted line that sits in "באיחור" (a line
 // is one thing to do, so it counts once, whatever its own number).
-const flowOfMe = (now = new Date()) => (me && !viewerError ? flowLines({ viewer: { me, scope, error: viewerError }, clients, checks, stateOf, tasks, reviews, extra: flowExtra, now }) : []);
+const flowOfMe = (now = new Date()) => (me && !viewerError ? once('flow', () => flowLines({ viewer: { me, scope, error: viewerError }, clients, checks, stateOf, tasks, reviews, extra: flowExtra, now })) : []);
 const hasLateTab = () => !!me && !viewerError && !managing;
 function lateOfMe(flow = flowOfMe()) {
   const lines = flow.filter((f) => f.bucket === 'overdue');
@@ -1265,9 +1442,11 @@ function lateOfMe(flow = flowOfMe()) {
 }
 // The tab stays while it is the open view (the last item was just closed there), and goes when it is left.
 let lateStays = false;
+let lateN = 0; // the number the tab was last given
 function syncLateTab() {
   const tab = $('tab-late');
   const n = hasLateTab() ? lateOfMe().n : 0;
+  lateN = n;
   if (view !== 'late') lateStays = false;
   tab.hidden = !(hasLateTab() && (n > 0 || lateStays));
   $('tab-late-n').textContent = n ? String(n) : '';
@@ -1299,7 +1478,8 @@ function renderLate(flow) {
   const work = workFor(me);
   const byKey = new Map(work.map((g) => [g.key, g]));
   // Ilai's own cards (the graphics, the Gantt, the final versions) hold his late work: the same cards, the late ones alone.
-  const ilaiCtx = me === 'ilai' ? { clients, checks, stateOf, me, viewer: { me, scope, error: viewerError }, refresh: () => { if (onMine() && !busy()) renderKeepingFocus(); } } : null;
+  const ilaiCtx = me === 'ilai' ? { clients, checks, stateOf, me, viewer: { me, scope, error: viewerError }, refresh: cardsChanged } : null;
+  mineShares = !!ilaiCtx;
   const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
   const ilai = ilaiCtx ? ilaiSection(ilaiCtx, new Set(items.map(lateKey))) : null;
   // Worst first: urgent, then the longest lateness (lateItems is sorted by its deadline).
@@ -1312,7 +1492,22 @@ function renderLate(flow) {
     h('ul', { class: 'wprocs late-list', 'aria-labelledby': 'late-h' }, ...lines.map(flowCard), ...cards.map((g) => (g.key ? groupCard(g, me) : lateRow(g)))));
 }
 
+// A card read or wrote something of its own that the list stands on (the notifications'
+// card: on or off; Ilai's cards: the files, the access, a mark): the list is drawn again.
+// When another view is open, it is only no longer kept as built; while a reload is on
+// its way, the reload draws (see `load`).
+function cardsChanged() {
+  changed();
+  if (loading) { owed = true; return; }
+  owed = false;
+  if (onMine() && !$('app').hidden && !busy()) renderKeepingFocus();
+}
+
 function renderMine() {
+  drawn(view === 'late' ? 'late' : 'mine');
+  mineShown = view === 'late' ? 'late' : 'mine';
+  mineFor = mineKey();
+  mineShares = false;
   syncLateTab(); // every redraw of the list (a tick, a refresh) keeps the tab's number with it
   const wrap = $('mine-list');
   const own = scope === 'own';
@@ -1386,7 +1581,8 @@ function renderMine() {
   }
   // Ilai: the characterization day's card (and the rest of his graphics, the final
   // versions, the Gantt) comes first and replaces the process groups it covers.
-  const ilaiCtx = person === 'ilai' ? { clients, checks, stateOf, me, viewer: { me, scope, error: viewerError }, refresh: () => { if (onMine() && !busy()) renderKeepingFocus(); } } : null;
+  const ilaiCtx = person === 'ilai' ? { clients, checks, stateOf, me, viewer: { me, scope, error: viewerError }, refresh: cardsChanged } : null;
+  mineShares = !!ilaiCtx;
   const ilai = ilaiCtx ? ilaiSection(ilaiCtx) : null;
   const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
   if (ilai && !full) capList(ilai.querySelector('.il-list'), MINE_CAP, 'mine:ilai');
@@ -1527,6 +1723,7 @@ function summaryActions(person, where) {
     onclick: (ev) => {
       ev.currentTarget.href = whatsappLink('', text()); // fresh at the moment of the click
       store.set(openedKey(person), new Date().toISOString());
+      changed(); // the daily control shows when each summary was opened
       toast('WhatsApp נפתח עם הסיכום. השליחה עצמה נעשית שם.');
       if (view === 'control') setTimeout(() => { if (!busy()) renderKeepingFocus(); }, 0);
     },
@@ -1639,11 +1836,14 @@ let clockSeen = new Map(); // clock id -> 'running' | 'expired' at the last seco
 const clockPerson = () => me || (scope === 'office' && !viewerError ? null : undefined);
 function rebuildClocks(now = new Date()) {
   const person = clockPerson();
-  // Ofir's characterization meetings: his fast ladder waits for their end (protocol v10).
-  // The office reads them from the clients it sees; whoever sees only their own clients
-  // keeps what the server answered at the last load (times only).
-  if (scope === 'office' && !viewerError) setOfirMeetings(ofirMeetings(clients.filter((c) => c.status === 'active' || c.status === 'ending'), (c) => checks[c.id] || {}));
-  clocks = person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf, tasks });
+  // Once per turn (see `once`): a reload and the draw that follows it ask one after the other.
+  clocks = once('clocks', () => {
+    // Ofir's characterization meetings: his fast ladder waits for their end (protocol v10).
+    // The office reads them from the clients it sees; whoever sees only their own clients
+    // keeps what the server answered at the last load (times only).
+    if (scope === 'office' && !viewerError) setOfirMeetings(ofirMeetings(clients.filter((c) => c.status === 'active' || c.status === 'ending'), (c) => checks[c.id] || {}));
+    return person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf, tasks });
+  });
 }
 function paintNowBar() {
   renderNowBar($('now-bar'), clocks, { everyone: !me, onAnswered: markAnswered });
@@ -1883,6 +2083,7 @@ async function doMarkReview(r, input) {
   try {
     const row = await markReview(day, reviewKind(r), note);
     reviews = [row, ...(reviews || []).filter((x) => !(x.day === row.day && x.kind === row.kind))];
+    changed();
   } catch (err) {
     if (input) { input.checked = false; input.disabled = false; }
     toast(`הסימון לא נשמר. ${errorText(err)}`);
@@ -2183,6 +2384,7 @@ $('notes-form').addEventListener('submit', async (e) => {
   try {
     const row = await markReview(dayIso(new Date()), reviewKind(r), note);
     reviews = [row, ...(reviews || []).filter((x) => !(x.day === row.day && x.kind === row.kind))];
+    changed();
     notesDlg.close();
     renderKeepingFocus();
     toast('ההערות נשמרו.');
@@ -2281,6 +2483,7 @@ async function taskFromNote(c, note, btn) {
   try {
     const row = await addTask({ client_id: c.id, title: noteTitle(note), owner: note.owner, due_on: note.due_on, source: 'status' });
     tasks = [row, ...tasks];
+    changed();
   } catch (err) {
     btn.disabled = false;
     toast(`המשימה לא נפתחה. ${errorText(err)}`);
@@ -2433,6 +2636,7 @@ $('status-form').addEventListener('submit', async (e) => {
   try {
     const saved = await saveStatusNote(row);
     statusNotes = [saved, ...(statusNotes || []).filter((n) => !(n.client_id === saved.client_id && n.week === saved.week))];
+    changed();
   } catch (err) {
     $('status-err').textContent = `הסיכום לא נשמר. ${errorText(err)}`;
     $('status-err').hidden = false;
@@ -2614,6 +2818,7 @@ function jumpLinks(items) {
 }
 
 function renderControl() {
+  drawn('control');
   const now = new Date();
   const rows = personRows();
   const { late: stuck, waiting } = controlLists(now);
@@ -3010,7 +3215,7 @@ window.addEventListener('hashchange', () => {
   if ($('app').hidden) return;
   // The address may belong to the other profile (the button at the top, a link): the tabs follow it.
   const moved = syncProfile();
-  if (moved) { applyScope(); renderMe(); syncMetricoolConnect(); }
+  if (moved) { changed(); applyScope(); renderMe(); syncMetricoolConnect(); }
   const v = viewOfHash();
   if (tabsShown().includes(v) && (v !== view || moved)) setView(v);
 });
@@ -3018,14 +3223,14 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && !$
 // Statuses depend on the clock: every minute, even in a background tab, check
 // for processes that turned overdue (for the notification); render only when visible.
 // With notifications on, a background tab also reloads the data every 5 minutes.
-function tick() {
+async function tick() {
   if ($('app').hidden) return;
   states.clear();
   // Fresh data every 5 minutes: a screen left open all day shows other people's checks.
   if (Date.now() - lastLoad > 5 * 60e3 && (document.hidden ? notifyState() === 'on' : !busy())) { load(); return; }
-  rebuildClocks();
-  checkLate();
-  if (!document.hidden && !busy()) renderKeepingFocus();
+  // On a screen that is being used, the minute's work is done in parts (drawFromRows): a
+  // tap in the middle of it is answered.
+  await drawFromRows(() => !document.hidden && !busy());
 }
 setInterval(tick, 60e3);
 
@@ -3069,7 +3274,7 @@ mountSession(async (staff) => {
   // answered, so none lands above a list that is already on the screen: bootEnd in protocol-ui.js.)
   mountPush({
     who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
-    changed: () => { if (onMine() && !$('app').hidden && !busy()) renderKeepingFocus(); },
+    changed: cardsChanged,
   });
   mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
   // "היומן שלי": the personal calendar link (app/calendar-card.js).

@@ -138,9 +138,18 @@ const names = (keys) => keys.map((k) => PEOPLE[k]?.name || k).join(', ');
 // The client's first rows, asked for while the session is being confirmed (app/supa.js warm).
 const firstRows = () => Promise.all([loadClient(id), loadChecks(id), loadTasks({ clientId: id })]);
 if (id) { warm('card', firstRows); warm('card-vault', () => canUseVault(id)); }
+let loading = 0; // a load is on its way: it draws the card when it ends
 async function load() {
   if (!id) { $('state').textContent = 'לא נבחר לקוח.'; return; }
   if (!client) $('state').textContent = 'טוען…';
+  loading += 1;
+  try {
+    await loadCard();
+  } finally {
+    loading -= 1;
+  }
+}
+async function loadCard() {
   try {
     const [c, ch, t] = await taken('card', firstRows);
     if (!c) { showMissing(); return; }
@@ -149,6 +158,10 @@ async function load() {
     checks = ch[id] || {};
     tasks = t;
     primeBlocks();
+    // The history is asked for with the rest of the card, and not in a round of its own
+    // after the first drawing (docs/ops.md, section 59). It fills its own list when it
+    // arrives; the card is drawn again for it only when no load is about to draw it.
+    loadHistory();
     // The agreement and the rest are asked for side by side (they do not depend on each other).
     [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles] = await Promise.all([
       c.quote_id && (!quote || quote.id !== c.quote_id) ? loadQuoteSummary(c.quote_id) : quote,
@@ -169,7 +182,6 @@ async function load() {
   document.title = `${client.name} · כרטיס לקוח · astrateg`;
   renderKeepingFocus();
   drawn = true;
-  loadHistory();
 }
 
 // The blocks that read their own rows (the characterization, the status page, the
@@ -335,9 +347,14 @@ function renderTimeline(s) {
 
 // Periodic and background refreshes must not move keyboard focus or scroll.
 function renderKeepingFocus(focusId = document.activeElement?.id) {
-  const y = window.scrollY;
+  // While the card is still being built out of sight it stands at its top: there is no
+  // place to keep, and asking for it lays the whole card out each time (it is drawn a few
+  // times while it opens). Not when the address names a block: the card moves to it while
+  // it opens. And at the top of a card that is shown there is nothing to put back: it
+  // stays there by itself (docs/ops.md, section 59).
+  const y = 'boot' in document.documentElement.dataset && !location.hash ? 0 : window.scrollY;
   render();
-  window.scrollTo({ top: y });
+  if (y) window.scrollTo({ top: y });
   const el = focusId && document.getElementById(focusId);
   if (el && !el.disabled) el.focus({ preventScroll: true });
   else if (focusId) document.getElementById(focusId.replace(/-(na|bulk)$/, ''))?.focus({ preventScroll: true });
@@ -1889,7 +1906,7 @@ async function loadHistory() {
       r.note && !special && r.note !== 'בסימון כל התהליך' && noteWords(r.item_key, r.note) ? h('div', { class: 'inote' }, noteWords(r.item_key, r.note)) : null);
   }) : [emptyLi('עוד לא סומן דבר.', 'history')]));
   // The last call summary may have changed.
-  if (!pending.size) renderKeepingFocus();
+  if (!pending.size && drawn && !loading) renderKeepingFocus();
 }
 
 // ── Edit client ─────────────────────────────
@@ -2059,11 +2076,14 @@ mountSession(async (staff) => {
   focusPerson = saved !== null && !own() ? saved : me || '';
   if (focusPerson && !PEOPLE[focusPerson]) focusPerson = '';
   applyScope();
+  // The team's WhatsApp numbers, for the handoff buttons in the card: asked for with the
+  // card. When they arrive after it was drawn, it is drawn again with them.
+  ensurePhones().then(() => { if (drawn && client && !busy()) renderKeepingFocus(); });
   await load();
-  refreshAccess();
+  // The vault's list was read with the card a moment ago: only what follows it (the
+  // check that closes by itself, then the log), without reading the list a second time.
+  if (vaultOk) autoAccessCheck().then(refreshAccessLog);
   if (vaultOk) mountVaultHint($('vault-open'), { locked: hideSecrets });
-  // The team's WhatsApp numbers, for the handoff buttons in the card.
-  ensurePhones().then(() => { if (client && !busy()) renderKeepingFocus(); });
   const target = location.hash && document.getElementById(location.hash.slice(1));
   if (target) target.scrollIntoView({ block: 'start' });
   // "תיעוד שיחה" pressed on "המשימות שלי" (the weekly call's row): its dialog opens here.
