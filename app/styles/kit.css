@@ -306,6 +306,9 @@ a.k-row:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; 
 .k-leaf-sm .k-leaf-top { font-size: 11px; line-height: 1.75; }
 .k-leaf-sm .k-leaf-day { font-size: 20px; line-height: 1.2; }
 .k-leaf-sm .k-leaf-sub { font-size: 11px; padding-block-end: 4px; }
+/* A day said with its month ("16.10") is drawn a little smaller, so it stays inside the leaf. */
+.k-leaf-mark > .k-leaf-day[data-t*='.'] { font-size: 19px; line-height: 1.55; letter-spacing: -.02em; }
+.k-leaf-sm > .k-leaf-day[data-t*='.'] { font-size: 16.5px; line-height: 1.45; }
 /* A leaf with no hour keeps a little air under its number. */
 .k-leaf > .k-leaf-day:last-child { padding-block-end: 4px; }
 

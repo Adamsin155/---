@@ -78,6 +78,17 @@ async function slices(page, name, w, { cap = 6, step = w < 600 ? 1500 : 1300, fr
   }
   console.log(`  ${name}-${w} (${i})`);
 }
+// One block of a page, in at most `cap` slices.
+async function part(page, sel, name, w, cap = 2, step = w < 600 ? 1500 : 1300) {
+  const box = await page.evaluate((s) => { const e = document.querySelector(s); if (!e || !e.checkVisibility()) return null; const r = e.getBoundingClientRect(); return { y: Math.max(0, r.top + scrollY - 8), h: r.height + 16 }; }, sel);
+  if (!box || box.h < 24) return;
+  let i = 0;
+  for (let y = box.y; y < box.y + box.h && i < cap; y += step) {
+    i += 1;
+    await page.screenshot({ path: path.join(OUT, `${name}-${w}-${i}.png`), fullPage: true, clip: { x: 0, y, width: w, height: Math.min(step, box.y + box.h - y) } });
+  }
+  console.log(`  ${name}-${w} (${i})`);
+}
 const openAll = (page) => page.evaluate(() => {
   for (const d of document.querySelectorAll('main details:not([open])')) if (d.checkVisibility()) d.open = true;
   for (const b of document.querySelectorAll('main [aria-expanded=false]')) if (b.checkVisibility() && !b.getAttribute('aria-haspopup') && !b.closest('dialog')) b.click();
@@ -122,9 +133,24 @@ for (const w of WIDTHS) {
       const { ctx, page } = await open(role, w, `client.html?id=${cid(CARD[role])}`);
       await page.waitForSelector('#fl-slot .fl-block', { timeout: 5000 }).catch(() => {});
       await settle(page);
-      await slices(page, `${role}-card`, w, { cap: 8 });
-      if (want('open')) { await openAll(page); await settle(page, 300); await slices(page, `${role}-card-open`, w, { cap: 10 }); }
+      // The card is long: each block by itself (the protocol in two slices), so that every one is seen.
+      for (const sel of ['#cc-head', '#ik-slot', '#st-slot', '#fl-slot', '#access', '#qa-block', '#phases', '#mc-slot', '#tl-slot', '#tasks', '#history']) await part(page, sel, `${role}-card-${sel.slice(1)}`, w, sel === '#phases' ? 3 : 2);
+      if (want('open')) {
+        await openAll(page); await settle(page, 300);
+        for (const sel of ['#phases', '#mc-slot', '#tl-slot', '#access']) await part(page, sel, `${role}-card-open-${sel.slice(1)}`, w, sel === '#phases' ? 4 : 2);
+      }
       await ctx.close();
+      // The history has rows on client 22 of the invented office; the access list on 17.
+      if (role === 'owner') {
+        for (const [n, sels] of [[22, ['#history', '#tasks', '#tl-slot']], [17, ['#access']]]) {
+          const more = await open(role, w, `client.html?id=${cid(n)}`);
+          await more.page.waitForSelector('#fl-slot .fl-block', { timeout: 5000 }).catch(() => {});
+          await settle(more.page);
+          await openAll(more.page); await settle(more.page, 300);
+          for (const sel of sels) await part(more.page, sel, `${role}-card${n}-${sel.slice(1)}`, w, 1);
+          await more.ctx.close();
+        }
+      }
     }
   }
 }

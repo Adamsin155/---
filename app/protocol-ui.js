@@ -98,6 +98,17 @@ export function leafOf(d, now = new Date()) {
   const p = partsIL(d);
   return { top, day: needsYear(d, now) ? `${p.day}.${p.month}` : String(p.day), sub: isEndOfDay(d) ? null : timeFmt.format(d), tone, label: formatWhen(d, now) };
 }
+// The leaf of ANY moment (a history that goes back months, a deadline of last month;
+// docs/ops.md, section 61): the month is said once the day is not of this month, and the
+// year takes the place of the day's name once it is another year.
+export function leafFar(d, now = new Date()) {
+  const w = leafOf(d, now);
+  if (!w) return null;
+  const a = partsIL(d);
+  const b = partsIL(now);
+  if (a.year !== b.year) return { ...w, top: String(a.year), day: `${a.day}.${a.month}` };
+  return a.month !== b.month ? { ...w, day: `${a.day}.${a.month}` } : w;
+}
 // A bare day ('2026-10-01': a recheck date, a contract end) is that Israel day.
 export const formatDay = (d) => (d ? fullFmt.format(dayFromKeyIL(d) || new Date(d)) : '');
 // A stamp from another year carries the year ("יום ב׳, 5.10.2025 14:00").

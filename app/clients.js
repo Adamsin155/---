@@ -21,7 +21,7 @@ import {
   loadStatusNotes, saveStatusNote, setTaskStarted, updateClient,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, leafOf, statusBadge, progressBar, capList,
+  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, leafOf, leafFar, statusBadge, progressBar, capList,
   KEEP_BOOT, mountSession, store, visitStore, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
   isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
@@ -1144,7 +1144,7 @@ function whenWords(g, now = new Date()) {
 // drawn from data (app/kit.js leafMark), so the words of the card are what they were.
 function markOf(g, now = new Date()) {
   if (g.dueAt && g.status !== 'client') {
-    const w = leafOf(g.dueAt, now);
+    const w = leafFar(g.dueAt, now);
     return cardMark({ ...w, tone: g.late ? 'pink' : g.dueAt < now ? 'orange' : w.tone });
   }
   return cardMark(null, ...(g.status === 'client' ? ['hourglass', 'orange'] : g.urgent ? ['bolt', 'pink'] : g.escalation ? ['flag', 'pink'] : g.task ? ['check-circle', 'navy'] : ['list', 'navy']));
@@ -1492,7 +1492,7 @@ function syncLateTab() {
 function lateRow(x) {
   return h('li', { class: 'wproc wc k-pc k-pc-late pc s-overdue late-row', 'data-key': lateKey(x) },
     h('div', { class: 'k-pc-top' },
-      cardMark(x.dueAt ? { ...leafOf(x.dueAt), tone: 'pink' } : null, 'alert', 'pink'),
+      cardMark(x.dueAt ? { ...leafFar(x.dueAt), tone: 'pink' } : null, 'alert', 'pink'),
       h('div', { class: 'k-pc-body' },
         h('div', { class: 'wc-head' }, h('a', { class: 'wclient', href: clientUrl(x.cid, x.procId ? `#${x.procId}` : '#tasks') }, x.name)),
         h('div', { class: 'wc-what' }, h('p', { class: 'wc-title' }, x.what)),
