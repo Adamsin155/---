@@ -222,6 +222,27 @@ html[data-boot] main:has(> #login-block[hidden])::after {
    (a browser without cross-document view transitions simply loads the page). */
 @view-transition { navigation: auto; }
 @media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+/* The app's frame stays where it is from screen to screen (docs/ops.md, section 60):
+   the menu and the top bar are in the first paint of the next page (app/shell-gate.js),
+   and are named here, so the browser carries them across as they are (only the marked
+   item changes) while what is between them changes. A step in to a client's page
+   arrives from the side and "back" leaves the way it came (<html data-nav>, set by the
+   gate; the page reads right to left, so "in" is from the left); a screen of the menu
+   fades. Where the frame was not drawn early, and in a browser without these
+   transitions, the page loads as before. */
+.side { view-transition-name: app-menu; }
+header.topbar { view-transition-name: app-top; }
+::view-transition-group(app-menu), ::view-transition-group(app-top) { animation: none; }
+::view-transition-old(app-menu), ::view-transition-new(app-menu), ::view-transition-old(app-top), ::view-transition-new(app-top) { animation-duration: .16s; }
+@keyframes ds-page-in { from { opacity: 0; transform: translateX(calc(var(--ds-way, 0) * 26%)); } }
+@keyframes ds-page-out { to { opacity: 0; transform: translateX(calc(var(--ds-way, 0) * -9%)); } }
+html[data-nav='forward'] { --ds-way: -1; }
+html[data-nav='back'] { --ds-way: 1; }
+html[dir='ltr'][data-nav='forward'] { --ds-way: 1; }
+html[dir='ltr'][data-nav='back'] { --ds-way: -1; }
+html:is([data-nav='forward'], [data-nav='back'])::view-transition-new(root) { animation: ds-page-in .32s cubic-bezier(.2, .8, .2, 1) both; }
+html:is([data-nav='forward'], [data-nav='back'])::view-transition-old(root) { animation: ds-page-out .2s ease-out both; }
+@media print { .side, header.topbar { view-transition-name: none; } }
 
 /* ── The phone bugs of 9.10.2026 (docs/ops.md, section 54) ─────────────── */
 /* The top safe area. An installed app draws under the phone's status bar

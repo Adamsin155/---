@@ -12,8 +12,9 @@
 // from the manager's. It is the only switch (Irit's two menu entries are gone, 7.10.2026).
 // Also here: the small motion helpers (page entrance, numbers that count up once,
 // view transitions for a filter), all off under prefers-reduced-motion.
-import { staffPerson } from './supa.js';
+import { staffPerson, sessionUser } from './supa.js';
 import { startFeel } from './feel.js';
+import { shellState, SHELL_KEY } from './shell-state.js';
 import { h } from './quote-doc.js';
 import { PEOPLE, scopeOf } from './protocol.js';
 import { setMode, modeOf } from './manager-rules.js';
@@ -261,15 +262,15 @@ function build(viewer, email) {
 // The one button between the two profiles, in the top bar of every page, before the
 // person's name: the same place on a phone and on a wide screen. Choosing is remembered
 // (setMode), and the link itself opens the other profile's first screen.
+const switched = new WeakSet();
 function mountSwitch(sw) {
   const session = document.querySelector('.topbar .session');
   let a = document.getElementById('profile-switch');
   if (!sw || !session) { a?.remove(); return; }
-  if (!a) {
-    a = h('a', { class: 'profile-switch', id: 'profile-switch' });
-    a.addEventListener('click', () => setMode(a.dataset.to));
-    session.before(a);
-  }
+  // The button may be there already, drawn before the modules ran (app/shell-gate.js).
+  if (!a) { a = h('a', { class: 'profile-switch', id: 'profile-switch' }); session.before(a); }
+  if (!switched.has(a)) { switched.add(a); a.addEventListener('click', () => setMode(a.dataset.to)); }
+  a.removeAttribute('data-early');
   a.href = sw.href;
   a.dataset.to = sw.to;
   a.textContent = sw.label;
@@ -297,6 +298,8 @@ function moveRail(nav, rail) {
 // The top bar: the person's name and avatar next to the sign-in state.
 function mountUser(viewer, email) {
   const session = document.querySelector('.topbar .session');
+  // What was drawn before the modules ran (app/shell-gate.js) is replaced in the same frame.
+  for (const early of session?.querySelectorAll('[data-early]') || []) early.remove();
   if (!session || session.querySelector('.ds-av')) return;
   const name = nameOf(viewer, email);
   session.append(h('span', { class: 'who-name', id: 'who-name' }, name), avatar(viewer?.me || null, { name }));
@@ -328,13 +331,32 @@ function hideRepeats(items) {
 // Mounts the shell for a signed-in member of staff. The frame (the room for the menu)
 // is there at once, so the page does not jump when the answer about who it is arrives.
 export async function mountShell(email) {
-  if (document.getElementById('app-side')) return;
-  const side = h('aside', { class: 'side', id: 'app-side' });
-  (document.querySelector('header.topbar') || document.body.firstElementChild).before(side);
+  // The frame may be there already, as it was last drawn for this person in this tab
+  // (app/shell-gate.js put it into the first paint): it is taken over, and drawn again
+  // from the server's answer.
+  let side = document.getElementById('app-side');
+  if (side && !('early' in side.dataset)) return;
+  if (!side) {
+    side = h('aside', { class: 'side', id: 'app-side' });
+    (document.querySelector('header.topbar') || document.body.firstElementChild).before(side);
+  }
+  delete side.dataset.early;
   document.body.classList.add('has-shell');
   startFeel(); // the worker that keeps the site's files, the next page fetched early (app/feel.js)
   // The entrance starts when the page is shown (it is built out of sight: data-boot, protocol-ui.js).
   whenShown(() => enterPage());
   const viewer = await viewerFor(email);
   build(viewer, email);
+  remember(viewer, email);
+}
+
+// The frame of the next page: kept for this tab under the account's id, so that
+// app/shell-gate.js can draw it before that page's modules run (docs/ops.md, section 60).
+// Nobody identified: nothing is kept, and the next page draws its menu when it knows.
+async function remember(viewer, email) {
+  try {
+    const user = await sessionUser();
+    if (!user?.id || !viewer || viewer.error || String(user.email || '').toLowerCase() !== String(email || '').toLowerCase()) { sessionStorage.removeItem(SHELL_KEY); return; }
+    sessionStorage.setItem(SHELL_KEY, JSON.stringify(shellState(viewer, { email, uid: user.id })));
+  } catch { /* no storage */ }
 }

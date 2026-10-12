@@ -74,6 +74,14 @@ export async function currentStaff() {
 export async function sessionEmail() {
   try { return (await supabase.auth.getSession()).data?.session?.user?.email || null; } catch { return null; }
 }
+// The account of that session: { id, email }, or null. What a tab keeps for a person
+// (the app's frame, the session's data cache) is kept under this id.
+export async function sessionUser() {
+  try {
+    const user = (await supabase.auth.getSession()).data?.session?.user;
+    return user?.id ? { id: user.id, email: user.email || null } : null;
+  } catch { return null; }
+}
 
 // What a page needs first, asked for as soon as its script runs (when someone is signed
 // in on this device) instead of after the session is confirmed and the person looked up:
