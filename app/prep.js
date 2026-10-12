@@ -19,7 +19,7 @@ import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, setTaskDone, updateClient, loadDirectory,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, formatDay, landingTag,
+  $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, formatDay, leafOf, landingTag,
 } from './protocol-ui.js';
 import { noteDateChange } from './owner-data.js';
 import {
@@ -35,7 +35,7 @@ import { googleCalendarUrl } from './calendar.js';
 import { inputValueIL, fromInputIL, dayKeyIL, dayFromKeyIL } from './tz.js';
 // The photographer's monthly availability (docs/ops.md, section 39): the line next to the date, and the reason for a day he did not mark free.
 import { mountAvailability, shootDayHint, confirmShootDay, photographerNote } from './availability-ui.js';
-import { headIcon, iconSquare, emptyState, noteIcon, dress } from './kit.js';
+import { headIcon, iconSquare, emptyState, noteIcon, dress, dateLeaf } from './kit.js';
 
 const only = new URLSearchParams(location.search).get('id');
 let clients = [];
@@ -154,8 +154,12 @@ function shootCard(e) {
   const k = `${safeId(c.id)}-${x.n}`;
   const blocked = !!prep?.blockers.length;
   return h('li', { class: `pp-card${coord.fullyClosed && !blocked ? ' is-closed' : ''}${blocked ? ' has-block' : ''}`, id: `shoot-${k}` },
-    h('div', { class: 'pp-head' },
-      headIcon(h('h2', {}, h('a', { href: cardUrl(c.id, `#${x.pid}p11`) }, c.name), round, c.landing === true ? [' ', landingTag(c)] : null), 'camera', blocked ? 'pink' : coord.fullyClosed ? 'green' : 'teal', { size: 'md' }),
+    // The day of the shoot as a leaf of the calendar (docs/ops.md, section 62), in the colour the
+    // camera had: pink while something blocks, green once it is closed with everyone. No date yet: the camera stays.
+    h('div', { class: `pp-head${e.shoot ? ' has-leaf' : ''}` },
+      e.shoot ? dateLeaf({ ...leafOf(e.shoot), ...(blocked ? { tone: 'pink' } : coord.fullyClosed ? { tone: 'green' } : {}) }) : null,
+      ((h2) => (e.shoot ? h2 : headIcon(h2, 'camera', blocked ? 'pink' : coord.fullyClosed ? 'green' : 'teal', { size: 'md' })))(
+        h('h2', {}, h('a', { href: cardUrl(c.id, `#${x.pid}p11`) }, c.name), round, c.landing === true ? [' ', landingTag(c)] : null)),
       h('span', { class: 'pp-when' }, [e.shoot ? `יום צילום ${formatStamp(e.shoot)}` : 'יום הצילום טרם נקבע', coord.shootType ? SHOOT_TYPES[coord.shootType]?.name : null].filter(Boolean).join(' · '))),
     coordinatorBlock(e, k),
     prep ? blockersBlock(e, k) : null,
@@ -185,7 +189,9 @@ function followRow(r, list, now) {
   const when = r.shootAt ? `צילום ${dayText(r.shootAt)}` : 'יום הצילום טרם נקבע';
   const open = stuckOpen === key;
   const draft = stuckDraft.get(key) || { stuck: [], note: '' };
-  const head = h('div', { class: 'pp-follow-h' },
+  // The row opens with the leaf of the shoot's day; with no date yet, an amber calendar (it waits to be set).
+  const head = h('div', { class: 'pp-follow-h has-leaf' },
+    r.shootAt ? dateLeaf(leafOf(r.shootAt, now)) : iconSquare('calendar', 'orange', { size: 'lg' }),
     h('strong', {}, h('a', { href: `#shoot-${k}` }, c.name), r.n > 1 ? ` · סבב ${r.n}` : ''),
     h('span', { class: 'muted' }, when),
     found ? h('a', { class: 'pp-follow-found', href: `#bl-${k}` }, `המערכת מצאה ${found === 1 ? 'חוסם אחד' : `${found} חוסמים`}`) : null);

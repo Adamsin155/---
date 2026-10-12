@@ -15,7 +15,7 @@ import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory, setTaskDone,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, mountSession, directory, viewerOf, officeMinutes, landingTag,
+  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, leafOf, mountSession, directory, viewerOf, officeMinutes, landingTag,
 } from './protocol-ui.js';
 import {
   qaQueue, qaFixing, charsToday, awaitingEditor, editorLoad, loadText, dayText, preselected, reasonNeeded, reasonHint,
@@ -34,7 +34,7 @@ import { offerHandoff } from './handoff-ui.js';
 import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, navLink } from './office-ui.js';
 import { mountApprovals } from './approvals-ui.js';
-import { emptyItem, dress } from './kit.js';
+import { emptyItem, dress, dateLeaf } from './kit.js';
 import { canSeeOfficeQueues } from './manager-rules.js';
 import { inputValueIL, fromInputIL, dayFromKeyIL, endOfDayIL, TZ } from './tz.js';
 import { mountWorkFiles, forgetFiles } from './files-ui.js';
@@ -175,8 +175,9 @@ function charCard(x, now) {
   const c = x.client;
   const nav = navLink(c.address);
   return h('li', { class: `of-card${x.done ? ' is-done' : ''}` },
-    h('div', { class: 'of-head' },
-      h('span', { class: 'of-time num' }, hm(x.at)),
+    // The hour as a leaf of today's calendar (docs/ops.md, section 62): green once it is over.
+    h('div', { class: 'of-head has-leaf' },
+      dateLeaf({ ...leafOf(x.at, now), tone: x.done ? 'green' : 'navy' }),
       h('a', { class: 'wclient', href: clientUrl(c.id, 'p04') }, clientLabel(c)),
       x.done ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'הסתיים') : x.at <= now ? h('span', { class: 'tag' }, 'עכשיו') : null),
     h('p', { class: 'of-line' }, c.address ? `כתובת: ${c.address}` : 'אין כתובת בכרטיס', c.business ? ` · ${c.business}` : ''),
@@ -191,8 +192,11 @@ function assignCard(a, load, now) {
   const joint = jointFromSelection(selections.get(a.client.quote_id));
   const pre = preselected(type, joint);
   const sug = suggestEditor(load, type, joint);
+  // The day of the shoot as a leaf (a day that has passed is not "late": the camera's colour).
+  const shot = a.ctx.shoot_at ? new Date(a.ctx.shoot_at) : null;
   return h('li', { class: 'of-card', 'data-key': a.key },
-    h('div', { class: 'of-head' },
+    h('div', { class: `of-head${shot ? ' has-leaf' : ''}` },
+      shot ? dateLeaf({ ...leafOf(shot, now), tone: 'teal' }) : null,
       h('a', { class: 'wclient', href: clientUrl(a.client.id, a.proc.id) }, clientLabel(a.client)), landingTag(a.client),
       h('span', { class: 'wtitle' }, `${SHOOT_TYPES[type]?.name || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
       a.state.status === 'overdue' && a.client.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
@@ -650,7 +654,7 @@ setInterval(() => {
 // The kit (docs/ops.md, section 52): each section's heading and each card take an icon square.
 dress($('app'), [['#qa-h', 'shield', 'purple', 'md'], ['#char-h', 'target', 'orange', 'md'], ['#assign-h', 'scissors', 'blue', 'md'], ['#load-h', 'chart', 'teal', 'md'],
   ['#approvals-h', 'file', 'blue'], ['#myq-h', 'question', 'purple'], ['#na-h', 'lock', 'navy'],
-  ['#qa-list .of-head, #qa-fixing .of-head', 'video', 'purple', 'md'], ['#char-list .of-head', 'target', 'orange', 'md'], ['#assign-list .of-head', 'scissors', 'blue', 'md'], ['#load-list .of-head', 'user', 'teal', 'md']]);
+  ['#qa-list .of-head, #qa-fixing .of-head', 'video', 'purple', 'md'], ['#assign-list .of-head:not(.has-leaf)', 'scissors', 'blue', 'md'], ['#load-list .of-head', 'user', 'teal', 'md']]);
 
 // The two dialogs' heads (their titles are rewritten on every opening).
 dress($('dlg-qa'), [['.dlg-head h2', 'shield', 'purple', 'md']]);
