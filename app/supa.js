@@ -86,7 +86,7 @@ const reasked = new Set();
 const askedOnce = new Set();
 let redrawing = false;
 let checking = 0;
-let lastUser = null;
+let pageUser = null; // the account this page was opened as: the first request that carried a token
 const setStale = (on) => { try { document.documentElement.toggleAttribute('data-stale', on); } catch { /* no page */ } };
 const answerOf = (entry) => new Response(entry.body, {
   status: entry.status, headers: { 'content-type': entry.type || 'application/json', ...(entry.range ? { 'content-range': entry.range } : {}) },
@@ -156,7 +156,7 @@ async function confirmShown() {
         redrawing = false;
         for (const [, s] of batch) s.now = null;
         orphans = batch.filter(([key]) => !reasked.has(key));
-        if (lastUser) kept.markUnsteady(lastUser, PAGE, orphans.filter(([, s]) => !s.identity).map(([, s]) => s.shape));
+        if (pageUser) kept.markUnsteady(pageUser, PAGE, orphans.filter(([, s]) => !s.identity).map(([, s]) => s.shape));
       }
       if (orphans.some(([, s]) => s.differs)) loadAgain();
     }
@@ -204,7 +204,17 @@ function countedFetch(input, init) {
     plan = planOf(SUPABASE_URL, { url: typeof input === 'string' ? input : input?.url || String(input), method, headers, body: init?.body ?? null });
     if (plan.kind !== 'other') uid = tokenUser(headers?.get?.('authorization'));
   } catch { plan = { kind: 'other' }; }
-  if (uid) lastUser = uid;
+  if (uid && !pageUser) pageUser = uid;
+  // Another account signed in on this device while the page stood open (or was kept for
+  // "back"): nothing more is asked or shown in its name; the page loads again.
+  // (While the sign-in form is up the page shows nothing of anyone: whoever signs in on
+  // it is the page's person from then on, and the form's own code sends them home.)
+  if (uid && uid !== pageUser) {
+    let form = null;
+    try { form = document.getElementById('login-form'); } catch { form = null; }
+    if (form && form.offsetParent !== null) pageUser = uid;
+    else { leavePage(); return new Promise(() => {}); }
+  }
   if (uid && plan.kind === 'write') {
     kept.wrote(uid, plan.path);
     flying.clear(); // a read after this one is not handed an answer that left before it
@@ -236,6 +246,15 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 //    account is no longer the one signed in on this device, nothing of it is shown:
 //    the page is hidden and loads again (and then asks who is signed in, as always).
 //  - A page that is shown again reads again, quietly (its onFresh), from the server.
+// Nothing of the page is drawn any more (shell.css, <html data-left>), and it loads again:
+// it then asks who is signed in, as every page does.
+let leaving = false;
+function leavePage() {
+  if (leaving) return;
+  leaving = true;
+  try { document.documentElement.dataset.left = ''; } catch { /* no page */ }
+  try { location.reload(); } catch { /* no page */ }
+}
 function deviceUser() {
   try { return JSON.parse(localStorage.getItem(supabase.auth.storageKey) || 'null')?.user?.id || null; } catch { return null; }
 }
@@ -248,12 +267,7 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
   });
   window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;
-    if (lastUser && deviceUser() !== lastUser) {
-      document.documentElement.dataset.boot = '';
-      document.documentElement.dataset.left = ''; // shell.css: nothing of the page is drawn
-      location.reload();
-      return;
-    }
+    if (pageUser && deviceUser() !== pageUser) { leavePage(); return; }
     if (closed && typeof BroadcastChannel === 'function' && auth.storageKey) {
       closed = false;
       try {

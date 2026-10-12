@@ -109,6 +109,9 @@
     });
     window.addEventListener('pagereveal', function (e) {
       if (!e.viewTransition) return;
+      // Under automation nothing moves (as in app/shell.js): a suite reads the page right
+      // after it opens. tests/navigation-e2e.mjs turns the motion on and checks it.
+      if (window.navigator.webdriver === true && !window.__astrategMotion) { e.viewTransition.skipTransition(); return; }
       var way = 'fade';
       try { way = restored ? wayBack() : wayIn(); } catch (err) { way = 'fade'; }
       restored = false;

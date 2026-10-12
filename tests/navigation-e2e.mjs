@@ -348,6 +348,7 @@ await step('someone who is no longer one of the staff is taken off the remembere
 // loads again; the full browser (when this machine has it) keeps it.
 async function backAndForth(on, label) {
   const recorder = () => {
+    window.__astrategMotion = true; // under automation the pages do not move unless asked (app/shell-gate.js)
     window.addEventListener('pageshow', (e) => { window.__kept = e.persisted; });
     // Every time the gate says which way a page comes in (<html data-nav>).
     new MutationObserver(() => {
@@ -376,13 +377,17 @@ async function backAndForth(on, label) {
   assert.ok(Math.abs(now.y - was.y) <= 4, `${label}: back at the same place (${was.y} → ${now.y})`);
   assert.equal(now.hash, was.hash, `${label}: the same tab`);
   assert.equal(await page.getAttribute('#tab-clients', 'aria-selected'), 'true');
-  // The way the pages came in, where the browser moves between pages at all.
-  if (now.way) assert.equal(now.way, 'forward,back,', `${label}: in from the side, and back the way it came`);
+  // The way the pages came in: the browser really moved them (the move was being dropped
+  // on every followed link until the rule that turns it on came first in the <head>).
+  assert.equal(now.way, 'forward,back,', `${label}: in from the side, and back the way it came`);
   await confirmed(page);
-  // A screen of the bar is not a step in or out.
+  // A screen of the bar is not a step in or out: it fades.
   await page.evaluate(() => sessionStorage.removeItem('test.way'));
-  await Promise.all([page.waitForURL(/clients\.html#mine/), page.click('#side-mine')]);
+  await Promise.all([page.waitForURL(/prep\.html/), page.click('#side-prep')]);
   await settle(page);
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('test.way')), 'fade,', `${label}: a screen of the bar`);
+  // And the frame was there, drawn, from the first frame of each of them (the first step holds the modules back to prove it).
+  assert.equal(await page.locator('#app-side .side-link[aria-current]').innerText(), 'לפני צילום');
   await ctx.close();
   return now;
 }
@@ -399,13 +404,14 @@ if (full) {
     assert.equal(now.kept, true, 'the browser kept the page (nothing in it stops that)');
     // Irit leaves a list behind, signs out on the card; Nadia signs in; "back" must not show Irit's list.
     const { page, ctx } = await open('irit', { on: full, init: () => {
-      // Every frame of every page: is a client list on the screen, and whose?
+      // When a kept page is shown again: is a client list about to be drawn, and how long is it?
+      // (Looked at when the browser is about to draw, after every listener of the page has run.)
       const look = () => {
         const rows = document.querySelectorAll('#client-list a[href*="client.html?id="]').length;
-        const visible = rows && !('boot' in document.documentElement.dataset) && !('left' in document.documentElement.dataset) && !document.getElementById('app')?.hidden;
-        if (visible) { try { sessionStorage.setItem('test.rows', `${sessionStorage.getItem('test.rows') || ''}${rows},`); } catch { /* no storage */ } }
+        const drawn = rows && getComputedStyle(document.body).visibility !== 'hidden' && !('boot' in document.documentElement.dataset) && !document.getElementById('app')?.hidden;
+        if (drawn) { try { sessionStorage.setItem('test.rows', `${sessionStorage.getItem('test.rows') || ''}${rows},`); } catch { /* no storage */ } }
       };
-      window.addEventListener('pageshow', (e) => { if (e.persisted) { look(); requestAnimationFrame(look); } });
+      window.addEventListener('pageshow', (e) => { if (e.persisted) { Promise.resolve().then(look); setTimeout(look, 0); setTimeout(look, 60); } });
     } });
     await settle(page);
     await page.goto(`${BASE}clients.html#clients`);
