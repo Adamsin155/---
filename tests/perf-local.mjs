@@ -11,6 +11,13 @@
 // own Event Timing, what "did it answer" means) and to the last change of the page.
 // "first": the same person on a device that has not kept the site yet (a new browser
 // profile with the session only): every file comes from the network.
+// Between screens (docs/ops.md, section 60), per role: "signIn" (the tap on "כניסה" until
+// the first screen shows its content), "rowNav" (the tap on a client's row until the card
+// shows content; `first` is what the first frame of the new page held: the bottom bar
+// with its items, the name in the top bar, real content or the placeholder) and "back"
+// (until the list is usable again, whether the browser kept the page whole (bfcache),
+// and whether the scroll position and the tab came back). "mine again" / "card again"
+// are an open with a warm session.
 // Run against the PUBLISHED site (the preloads and the worker's store exist only there),
 // served as GitHub Pages serves it (files kept by the browser for ten minutes):
 //      node scripts/build-pages.mjs <dir>; npx http-server -p 8098 -s -c600 <dir> &
@@ -44,6 +51,19 @@ const FAST = !!process.env.FAST;
 
 const observe = () => {
   window.__p = { long: [], cls: 0, shifts: [], events: [] };
+  // The first frame of this document: what is in it when the browser first draws.
+  requestAnimationFrame(() => {
+    const side = document.querySelector('#app-side');
+    const links = side ? side.querySelectorAll('.side-link').length : 0;
+    const main = document.querySelector('main');
+    window.__first = {
+      bar: links, barShown: !!side && links > 0 && side.getBoundingClientRect().height > 0,
+      who: !!document.querySelector('.topbar .ds-av'),
+      boot: 'boot' in document.documentElement.dataset,
+      text: main && !('boot' in document.documentElement.dataset) ? main.innerText.trim().length : 0,
+    };
+  });
+  window.addEventListener('pageshow', (e) => { window.__persisted = e.persisted; });
   const watch = (type, fn, extra = {}) => { try { new PerformanceObserver((l) => { for (const e of l.getEntries()) fn(e); }).observe({ type, buffered: true, ...extra }); } catch { /* not supported */ } };
   watch('longtask', (e) => window.__p.long.push(Math.round(e.duration)));
   watch('event', (e) => { if (/^(pointerdown|pointerup|touchstart|touchend|mousedown|mouseup|click)$/.test(e.name)) window.__p.events.push(Math.round(e.duration)); }, { durationThreshold: 16 });
@@ -104,7 +124,9 @@ const tap = async (page, locator, want = null) => {
   });
 };
 
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+// Playwright turns the back-forward cache off; a phone has it, so it is on here. The
+// headless shell still refuses it; CHANNEL=chromium (the full browser, headless) keeps pages.
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, channel: process.env.CHANNEL || undefined, ignoreDefaultArgs: ['--disable-back-forward-cache'] });
 const out = {};
 const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'he-IL', timezoneId: 'Asia/Jerusalem' };
 // A phone on the throttled network and CPU, and how a page of it is opened and measured.
@@ -129,6 +151,7 @@ async function phone(fake, options = {}) {
   // toIdle: until the page asks for nothing more (null when the worker is still fetching its store in the background).
   const open = async (url, min, { waitIdle = true } = {}) => {
     await page.goto('about:blank'); // a change of the #part alone would not load the page again
+    await ctx.clock.fastForward(60000); // a minute later: what the tab remembers is no longer "just read"
     net = [];
     const t = Date.now();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
@@ -208,6 +231,36 @@ for (const role of ONLY) {
       r.barNav = { to: await page.evaluate(() => `${location.pathname.split('/').pop()}${location.hash}`), toContent: Date.now() - t };
       await idle();
     }
+    // From a row of the list to the client's card, and back.
+    await page.goto('about:blank');
+    await page.goto(`${BASE}clients.html#clients`, { waitUntil: 'domcontentloaded' });
+    await content(40);
+    await idle();
+    const row = page.locator('main a[href*="client.html?id="]:visible').nth(6);
+    if (await row.count()) {
+      await row.scrollIntoViewIfNeeded().catch(() => {});
+      await page.evaluate(() => window.scrollBy(0, 120));
+      await page.waitForTimeout(400);
+      const was = await page.evaluate(() => ({ y: Math.round(window.scrollY), hash: location.hash }));
+      let t = Date.now();
+      await Promise.all([page.waitForURL(/client\.html/, { waitUntil: 'commit', timeout: 30000 }).catch(() => {}), row.tap().catch(() => row.click())]);
+      await page.waitForFunction(() => window.__first, null, { timeout: 30000 }).catch(() => {});
+      const firstFrame = Date.now() - t;
+      const first = await page.evaluate(() => window.__first).catch(() => null);
+      await content(200);
+      r.rowNav = { toFirstFrame: firstFrame, toContent: Date.now() - t, first };
+      await idle();
+      await page.waitForTimeout(300);
+      t = Date.now();
+      await page.goBack({ waitUntil: 'commit' }).catch(() => {});
+      await content(40);
+      await page.waitForFunction(() => document.querySelectorAll('main a[href*="client.html?id="]').length > 3, null, { timeout: 30000 }).catch(() => {});
+      const toContent = Date.now() - t;
+      await page.waitForTimeout(700);
+      const now = await page.evaluate(() => ({ y: Math.round(window.scrollY), hash: location.hash, kept: window.__persisted === true })).catch(() => null);
+      r.back = { toContent, kept: !!now?.kept, scroll: !!now && Math.abs(now.y - was.y) <= 4, tab: now?.hash === was.hash, y: [was.y, now?.y] };
+      await idle();
+    }
     // The manager profile of whoever has one: the team's list (a chip per person, each with its count).
     if (process.env.TEAM && ['owner', 'irit', 'ofir', 'lior'].includes(role)) {
       r.team = await open(`${BASE}clients.html#team`, 40);
@@ -243,6 +296,8 @@ for (const role of ONLY) {
   console.log(`  card again  ${line(r.cardAgain)}`);
   console.log(`  first mine  ${line(r.firstMine)}`);
   console.log(`  first card  ${line(r.firstCard)}`);
+  const f = r.rowNav?.first;
+  console.log(`  sign-in to first screen ${r.signIn?.toContent ?? "-"} (${r.signIn?.api ?? "-"} requests); row to card: first frame ${r.rowNav?.toFirstFrame ?? '-'} content ${r.rowNav?.toContent ?? '-'} (first frame: bar ${f ? (f.barShown ? `${f.bar} items` : 'no') : '-'}, name ${f?.who ? 'yes' : 'no'}, ${f?.boot ? 'placeholder' : `content ${f?.text}`}); back: ${r.back ? `${r.back.toContent} ms, ${r.back.kept ? 'kept whole' : 'loaded again'}, scroll ${r.back.scroll ? 'restored' : `lost ${r.back.y}`}, tab ${r.back.tab ? 'kept' : 'lost'}` : '-'}`);
   console.log(`  taps paint/last ms: tab2 ${t(r.taps?.tab2)} tab1 ${t(r.taps?.tab1)} expand ${t(r.taps?.expand)} inbox ${t(r.taps?.inbox)} cardItems ${t(r.taps?.cardItems)} cardPhase ${t(r.taps?.cardPhase)} cardExpand ${t(r.taps?.cardExpand)} barNav ${r.barNav ? `${r.barNav.to} ${r.barNav.toContent}` : '-'}`);
   console.log(`  tabs ${(r.tabs || []).join(',')}: second [${t2(r.taps?.tab2)}] first [${t2(r.taps?.tab1)}] clients [${t2(r.taps?.clients)}] back [${t2(r.taps?.back)}] again [${t2(r.taps?.again)}] home [${t2(r.taps?.home)}] bell [${t2(r.taps?.inbox)}]`);
   if (r.team) console.log(`  team        ${line(r.team)} | clients [${t2(r.taps?.teamClients)}] back [${t2(r.taps?.teamBack)}]`);

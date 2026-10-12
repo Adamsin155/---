@@ -218,10 +218,43 @@ html[data-boot] main:has(> #login-block[hidden])::after {
   html[data-boot] main::before, html[data-boot] main::after, html[data-boot] body::after { content: none !important; }
 }
 
-/* From screen to screen: the old page fades into the new one instead of a white flash
-   (a browser without cross-document view transitions simply loads the page). */
-@view-transition { navigation: auto; }
-@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+/* From screen to screen: the old page changes into the new one instead of a white flash
+   (a browser without cross-document view transitions simply loads the page). The rule
+   that turns this on is app/styles/nav.css, the first thing in the <head> of every
+   staff page: in this file, the last one, it was read too late (docs/ops.md, section 60). */
+/* The app's frame stays where it is from screen to screen (docs/ops.md, section 60):
+   the menu and the top bar are in the first paint of the next page (app/shell-gate.js),
+   and are named here, so the browser carries them across as they are (only the marked
+   item changes) while what is between them changes. A step in to a client's page
+   arrives from the side and "back" leaves the way it came (<html data-nav>, set by the
+   gate; the page reads right to left, so "in" is from the left); a screen of the menu
+   fades. Where the frame was not drawn early, and in a browser without these
+   transitions, the page loads as before. */
+.side { view-transition-name: app-menu; }
+header.topbar { view-transition-name: app-top; }
+::view-transition-group(app-menu), ::view-transition-group(app-top) { animation: none; }
+::view-transition-old(app-menu), ::view-transition-new(app-menu), ::view-transition-old(app-top), ::view-transition-new(app-top) { animation-duration: .16s; }
+@keyframes ds-page-in { from { opacity: 0; transform: translateX(calc(var(--ds-way, 0) * 26%)); } }
+@keyframes ds-page-out { to { opacity: 0; transform: translateX(calc(var(--ds-way, 0) * -9%)); } }
+html[data-nav='forward'] { --ds-way: -1; }
+html[data-nav='back'] { --ds-way: 1; }
+html[dir='ltr'][data-nav='forward'] { --ds-way: 1; }
+html[dir='ltr'][data-nav='back'] { --ds-way: -1; }
+html:is([data-nav='forward'], [data-nav='back'])::view-transition-new(root) { animation: ds-page-in .32s cubic-bezier(.2, .8, .2, 1) both; }
+html:is([data-nav='forward'], [data-nav='back'])::view-transition-old(root) { animation: ds-page-out .2s ease-out both; }
+@media print { .side, header.topbar { view-transition-name: none; } }
+
+/* A page that opened with what it showed last time (the session's store, app/supa.js;
+   docs/ops.md, section 60). Until the server has confirmed what is on the screen, its
+   buttons and fields wait: a tap acts on what the server said, not on what was
+   remembered. Links, tabs and what only opens or folds work at once. */
+html[data-stale] #app :is(button:not([role='tab'], [aria-expanded]), input, select, textarea, label, [contenteditable]) { pointer-events: none; }
+/* The room of a part of the page that is not there yet (holdParts in app/protocol-ui.js). */
+.ds-hold { border-radius: var(--ds-r-card); background: var(--ds-ground); animation: ds-wait 1.4s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .ds-hold { animation: none; } }
+@media print { .ds-hold { display: none; } }
+/* A page the browser kept from another account's visit: nothing of it is drawn while it loads again. */
+html[data-left] body { visibility: hidden; }
 
 /* ── The phone bugs of 9.10.2026 (docs/ops.md, section 54) ─────────────── */
 /* The top safe area. An installed app draws under the phone's status bar

@@ -84,7 +84,10 @@ test('the frame guard is the first script of every page, and no Referer leaves a
     const src = page.startsWith('payouts/') ? '../app/frame-guard.js' : 'app/frame-guard.js';
     assert.equal(first?.[1].trim(), `src="${src}"`, `${page}: the first script (not a module, not deferred)`);
     assert.ok(html.indexOf(first[0]) < html.indexOf('</head>'), `${page}: in the head`);
-    assert.ok(html.indexOf(first[0]) < html.indexOf('rel="stylesheet"') || !html.includes('rel="stylesheet"'), `${page}: before the styles`);
+    // (One rule stands before it on the staff pages, app/styles/nav.css: it has to be read
+    // before any script, docs/ops.md section 60. It draws nothing.)
+    const styled = html.replace('<link rel="stylesheet" href="app/styles/nav.css">', '');
+    assert.ok(styled.indexOf(first[0]) < styled.indexOf('rel="stylesheet"') || !styled.includes('rel="stylesheet"'), `${page}: before the styles`);
     assert.match(html, /<meta name="referrer" content="no-referrer">/, `${page}: referrer`);
     // The policy stands before anything the page loads.
     assert.ok(html.indexOf('Content-Security-Policy') < html.indexOf('rel="stylesheet"'), `${page}: the policy before the styles`);

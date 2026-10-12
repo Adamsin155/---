@@ -1,0 +1,13 @@
+/* From screen to screen: the old page changes into the new one instead of being cut
+   (a browser without cross-document view transitions simply loads the page; off when
+   the device asks for less motion). How the page moves is app/styles/shell.css.
+   This rule is a file of its own, and the FIRST thing in the <head> of every staff page,
+   before the scripts there, for a reason that was measured (docs/ops.md, section 60):
+   the browser decides whether the incoming page takes part the first time it works out
+   the page's styles. While the rule stood in shell.css, the last of twenty style sheets,
+   that first time came before shell.css had arrived on every page that has a script,
+   the answer was "no", and the move was dropped: the fade of section 42 never ran when
+   a link was followed. A plain script waits for the style sheets before it, so with the
+   rule in front of the first script nothing is worked out before it is known. */
+@view-transition { navigation: auto; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }

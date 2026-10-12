@@ -71,7 +71,7 @@ import { contractSummary, fileCounts } from './contract-summary.js';
 import { loadDeliverableFiles, archiveClient } from './manager-data.js';
 import { canArchive } from './manager-rules.js';
 import { openedBySigning } from './client-open.js';
-import { warm, taken } from './supa.js';
+import { warm, taken, onFresh } from './supa.js';
 import { fixTaskOf, FIX_ITEM_LABEL } from './late-chain.js';
 // Protocol v10 (docs/ops.md, section 58): a fix the client asked for outside the status page.
 import { fixSpecOf, mayRecordFix, awaitsClient } from './fix-request.js';
@@ -138,6 +138,8 @@ const names = (keys) => keys.map((k) => PEOPLE[k]?.name || k).join(', ');
 // The client's first rows, asked for while the session is being confirmed (app/supa.js warm).
 const firstRows = () => Promise.all([loadClient(id), loadChecks(id), loadTasks({ clientId: id })]);
 if (id) { warm('card', firstRows); warm('card-vault', () => canUseVault(id)); }
+// Opened with what this tab remembers; when the server's answers differ, read and draw again (app/supa.js onFresh).
+onFresh(() => load());
 let loading = 0; // a load is on its way: it draws the card when it ends
 async function load() {
   if (!id) { $('state').textContent = 'לא נבחר לקוח.'; return; }

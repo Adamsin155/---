@@ -8,6 +8,11 @@ import { STATIONS } from '../app/protocol.js';
 import { clientState } from '../app/protocol-logic.js';
 import { importKeys } from '../app/client-open.js';
 import { withClientColumns } from './fake-clients.mjs';
+// These steps turn the one signed-in account into another person of the team while its
+// tab stays open. In the office a role changes with a new sign-in; here the tab forgets
+// what it kept for the role before (the session's store and the frame; docs/ops.md,
+// section 60), so that each step opens as that person from its first paint.
+const newRole = (p) => p.evaluate(() => { for (const k of Object.keys(sessionStorage)) if (k === 'astrateg.shell' || k.startsWith('astrateg.cache')) sessionStorage.removeItem(k); }).catch(() => {});
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -611,7 +616,7 @@ await page.waitForFunction(() => document.querySelector('#i-p06-verified').check
 
 // A video editor ('own'): only her processes, none of the office's controls, no vault;
 // a paused edit tells Lior and Ofir.
-db.staff[0].person = 'nadia';
+db.staff[0].person = 'nadia'; await newRole(page);
 db.staff[0].vault = false;
 seeded.editor = 'nadia';
 seeded.links = { drive: 'https://drive.google.com/drive/folders/ron' };
@@ -681,7 +686,7 @@ db.client_tasks = db.client_tasks.filter((t) => t.owner !== 'nadia');
 
 // The photographer ('own'): the coming shoot day is in his list before it starts,
 // and the card shows only his three shoot-day processes.
-db.staff[0].person = 'eli';
+db.staff[0].person = 'eli'; await newRole(page);
 await page.goto('about:blank'); // a fresh load, not a jump within the page
 await page.goto(`${BASE}clients.html#mine`); // Eli's first screen is shoot.html
 await page.waitForSelector('#view-mine:not([hidden]) .g-soon');
@@ -706,7 +711,7 @@ assert.equal(await page.locator('#i-p19b-handed').count(), 1);
 await shot('12-photographer-card');
 db.protocol_checks = db.protocol_checks.filter((c) => !(c.client_id === seeded.id && c.item_key === 'p17b.arrived'));
 
-db.staff[0].person = 'irit';
+db.staff[0].person = 'irit'; await newRole(page);
 db.staff[0].vault = true;
 seeded.editor = null;
 

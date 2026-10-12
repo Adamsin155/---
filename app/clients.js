@@ -26,7 +26,7 @@ import {
   isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
-import { warm, taken } from './supa.js';
+import { warm, taken, onFresh } from './supa.js';
 import { pacer } from './turns.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
@@ -237,6 +237,8 @@ const editorPeople = () => STAFF_PEOPLE().filter((p) => p.editor);
 // The first rows of the page, asked for while the session is being confirmed (app/supa.js warm).
 const firstRows = () => Promise.all([loadClients({ includeEnded: true }), loadChecks(), loadTasks({ openOnly: true })]);
 warm('clients', firstRows);
+// Opened with what this tab remembers; when the server's answers differ, read and draw again (app/supa.js onFresh).
+onFresh(() => load());
 // A reload ends by drawing the open view. A card that asks for a draw while one is on its
 // way (the notifications' card when its state is known, Ilai's files) does not draw the
 // list by itself: the list would be built twice, the first time from rows that are still

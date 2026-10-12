@@ -59,7 +59,9 @@ test('every page with the form takes the stylesheet; the gate is a plain script 
     assert.equal(html.split(GATE).length, 2, page);
     // In the head, after the frame guard and before anything is drawn (not a module, not deferred).
     assert.ok(head.indexOf('app/frame-guard.js') < head.indexOf(GATE) && head.indexOf(GATE) > 0, page);
-    assert.ok(head.indexOf(GATE) < head.indexOf('rel="stylesheet"'), `${page}: before the styles`);
+    // (app/styles/nav.css alone stands before the scripts: one rule that draws nothing; docs/ops.md, section 60.)
+    const styled = head.replace('<link rel="stylesheet" href="app/styles/nav.css">', '');
+    assert.ok(styled.indexOf(GATE) < styled.indexOf('rel="stylesheet"'), `${page}: before the styles`);
   }
   // The client's pages know nothing of it.
   for (const page of ['q.html', 'status.html', 'gallery.html', 'scripts-view.html', 'access.html']) assert.doesNotMatch(read(page), /login-gate|login\.css/, page);
