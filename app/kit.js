@@ -325,3 +325,22 @@ export function dress(root, table) {
   run();
   new MutationObserver(run).observe(root, { childList: true, subtree: true });
 }
+
+// A leaf of a calendar for a moment that is coming (the owner's choice of 13.10.2026, for
+// "בקרוב" and for every list of things with a date): the day's name on a coloured band,
+// the day of the month large, the hour small. Plain words in, so the kit stays without
+// dependencies; app/protocol-ui.js `leafOf` makes them from a Date. The tone says how near:
+// navy today, blue tomorrow, purple later, pink for what is already late.
+// Decoration is not the only carrier: `label` is read out, and the row keeps its words.
+export function dateLeaf({ top, day, sub = null, tone = 'purple', label = null }) {
+  return el('span', { class: `k-leaf k-leaf-${TONES.includes(tone) ? tone : 'purple'}`, role: label ? 'img' : null, 'aria-label': label },
+    el('span', { class: 'k-leaf-top', 'aria-hidden': label ? 'true' : null }, top),
+    el('b', { class: 'k-leaf-day', 'aria-hidden': label ? 'true' : null }, String(day)),
+    sub ? el('small', { class: 'k-leaf-sub', 'aria-hidden': label ? 'true' : null }, sub) : null);
+}
+// A row that starts with a leaf: the leaf, then the row's own content (`body`: nodes).
+export function leafRow(leaf, body, { tag = 'div', cls = '', id = null, data = {} } = {}) {
+  const row = el(tag, { class: `k-leafrow${cls ? ` ${cls}` : ''}`, id }, leaf, el('div', { class: 'k-leafrow-b' }, body));
+  for (const [k, v] of Object.entries(data)) row.dataset[k] = v;
+  return row;
+}

@@ -21,7 +21,7 @@ import {
   loadStatusNotes, saveStatusNote, setTaskStarted, updateClient,
 } from './protocol-data.js';
 import {
-  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, statusBadge, progressBar, capList,
+  $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, leafOf, statusBadge, progressBar, capList,
   KEEP_BOOT, mountSession, store, visitStore, directory, who, lateBy, formatStamp, loadQuoteNumbers, briefDetails, taskBadge,
   isUrgentTask, isEscalation, TASK_SOURCES, viewerOf, VIEWER_UNKNOWN, CLIENT_PROCS, officeMinutes, endWaitText,
 } from './protocol-ui.js';
@@ -64,7 +64,7 @@ import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageT
 import { loadDeals } from './deal-data.js';
 import { fixTaskOf, fixNote, FIX_ITEM_LABEL, lateItems, countsLate, lateKey } from './late-chain.js';
 // The shared look (docs/ops.md, section 50): icon squares, the counted line, the empty state.
-import { headIcon, sectionHead, emptyState, countedLine } from './kit.js';
+import { headIcon, sectionHead, emptyState, countedLine, dateLeaf, leafRow } from './kit.js';
 import { canSeeDeals, canSeeQuoteList } from './manager-rules.js';
 // Everything that waits for me on another page, as counted lines (docs/ops.md, section 46).
 import { flowLines, flowNeeds } from './mine-flow.js';
@@ -1344,14 +1344,18 @@ function upcomingGroups(person, now = new Date()) {
 }
 
 function upcomingCard(g) {
-  return h('li', { class: 'wproc s-waiting soon-card', 'data-key': `soon:${g.key}` },
-    h('div', { class: 'wproc-h' },
-      h('a', { class: 'wclient', href: clientUrl(g.client.id, `#${g.list[0].proc.id}`) }, clientLabel(g.client)),
-      h('span', { class: 'wtitle' }, [g.shootAt ? 'יום צילום' : null, g.round > 1 ? `סבב ${g.round}` : null].filter(Boolean).join(' · ') || 'מתחיל בקרוב'),
-      h('span', { class: 'num' }, g.shootAt ? `הגעת המשפיענים: ${formatWhen(g.shootAt)}` : `מתחיל: ${formatWhen(g.startAt)}`)),
-    g.shootAt && g.client.address ? h('p', { class: 'task-meta' }, `כתובת: ${g.client.address}`) : null,
+  // A leaf of the calendar says when; the row says whose and what (the owner, 13.10.2026).
+  const at = g.shootAt || g.startAt;
+  const kind = [g.shootAt ? 'יום צילום · הגעת המשפיענים' : null, g.round > 1 ? `סבב ${g.round}` : null].filter(Boolean).join(' · ');
+  return leafRow(dateLeaf(leafOf(at)), [
+    h('a', { class: 'wclient', href: clientUrl(g.client.id, `#${g.list[0].proc.id}`) }, clientLabel(g.client)),
+    kind ? h('span', { class: 'soon-kind' }, kind) : null,
+    g.shootAt && g.client.address ? h('span', { class: 'soon-what' }, `כתובת: ${g.client.address}`) : null,
     h('ul', { class: 'soon-list' }, ...g.list.map((s) => h('li', {},
-      h('span', {}, `${s.proc.num} · ${s.proc.title}`), ' ', h('span', { class: 'muted num' }, `· מתחיל ${formatWhen(s.startAt)}`)))));
+      h('span', {}, `${s.proc.num} · ${s.proc.title}`),
+      // Said only when this item starts at another moment than the leaf shows.
+      +s.startAt !== +at ? h('span', { class: 'num soon-at' }, ` · ${formatWhen(s.startAt)}`) : null))),
+  ], { tag: 'li', cls: 'soon-card', data: { key: `soon:${g.key}` } });
 }
 
 // Open for 'own' views (it is often all they have this week); folded in the office.

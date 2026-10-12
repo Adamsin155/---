@@ -280,3 +280,17 @@ a.k-row:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; 
 
 /* Leftover of the visual pass of 9.10.2026: a long unbroken name wraps inside a note or a notice. */
 .k-note, .k-notice-t, .k-note > :not(.k-ico) { overflow-wrap: anywhere; min-inline-size: 0; }
+
+/* A leaf of a calendar (dateLeaf) and the row that starts with one (leafRow): section 61. */
+.k-leaf {
+  --k-fg: var(--k-purple); flex: none; display: grid; inline-size: 62px; overflow: hidden; text-align: center;
+  border-radius: 14px; background: var(--ds-surface); box-shadow: 0 4px 10px color-mix(in srgb, var(--ds-ink) 9%, transparent);
+}
+.k-leaf-top { background: var(--k-fg); color: #fff; font-size: 11.5px; font-weight: 500; line-height: 1.9; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+.k-leaf-day { font-family: var(--ds-font-h); font-size: 24px; font-weight: 400; line-height: 1.25; color: var(--ds-ink); font-variant-numeric: tabular-nums; }
+.k-leaf-sub { padding-block-end: 5px; font-size: 11.5px; line-height: 1.3; color: var(--ds-muted); font-variant-numeric: tabular-nums; }
+.k-leaf-navy { --k-fg: var(--ds-navy); } .k-leaf-blue { --k-fg: var(--k-blue); } .k-leaf-purple { --k-fg: var(--k-purple); }
+.k-leaf-pink { --k-fg: var(--k-pink); } .k-leaf-green { --k-fg: var(--k-green); } .k-leaf-orange { --k-fg: var(--k-orange); } .k-leaf-teal { --k-fg: var(--k-teal); }
+.k-leafrow { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px; border-radius: var(--ds-r-item); background: var(--ds-ground); }
+.k-leafrow-b { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+@media print { .k-leaf { box-shadow: none; border: 1px solid #999; } .k-leaf-top { color: #000; background: #fff; border-bottom: 1px solid #999; } .k-leafrow { background: #fff; } }

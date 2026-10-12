@@ -9,8 +9,14 @@ details.g-soon > summary::after {
   transform: rotate(45deg); margin-inline-start: 4px; transition: transform .15s;
 }
 details.g-soon[open] > summary::after { transform: rotate(-135deg); }
-.soon-card .wproc-h .num { margin-inline-start: auto; color: var(--text); font-weight: 500; }
-.soon-list { list-style: none; margin: 6px 0 8px; padding: 0; display: grid; gap: 4px; font-size: 14px; color: var(--text-2); }
+/* A row of "בקרוב": a leaf of the calendar, then whose and what (section 61). */
+.g-soon > .wprocs { display: grid; gap: 8px; }
+.g-soon .k-leafrow { background: var(--ds-surface); }
+.g-soon .soon-card + .soon-card, .g-soon .soon-card { border-top: 0; }
+.soon-card .wclient { font-weight: 700; font-size: 15.5px; color: var(--text); min-height: 0; }
+.soon-kind { font-size: 13.5px; font-weight: 500; color: var(--ds-navy-text); }
+.soon-what, .soon-at { font-size: 13.5px; color: var(--text-2); }
+.soon-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; color: var(--text-2); }
 .soon-list li { padding-inline-start: 14px; position: relative; }
 .soon-list li::before { content: ''; position: absolute; inset-inline-start: 2px; top: .6em; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
 

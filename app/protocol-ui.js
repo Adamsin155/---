@@ -86,6 +86,18 @@ export function formatWhen(d, now = new Date()) {
   if (days === -1) return `אתמול${t}`;
   return `${dayFmt.format(d)}${needsYear(d, now) ? `.${partsIL(d).year}` : ''}${t}`;
 }
+// The words of a calendar leaf for a moment (app/kit.js dateLeaf; section 61): the day's
+// name ("היום", "מחר", "יום א׳"), the day of the month, the hour (none at the end of a day),
+// and how near it is as a tone: navy today, blue tomorrow, purple later, pink once it passed.
+const weekdayFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, weekday: 'short' });
+export function leafOf(d, now = new Date()) {
+  if (!d) return null;
+  const days = daysBetweenIL(now, d);
+  const top = days === 0 ? 'היום' : days === 1 ? 'מחר' : days === -1 ? 'אתמול' : weekdayFmt.format(d);
+  const tone = d < now ? 'pink' : days === 0 ? 'navy' : days === 1 ? 'blue' : 'purple';
+  const p = partsIL(d);
+  return { top, day: needsYear(d, now) ? `${p.day}.${p.month}` : String(p.day), sub: isEndOfDay(d) ? null : timeFmt.format(d), tone, label: formatWhen(d, now) };
+}
 // A bare day ('2026-10-01': a recheck date, a contract end) is that Israel day.
 export const formatDay = (d) => (d ? fullFmt.format(dayFromKeyIL(d) || new Date(d)) : '');
 // A stamp from another year carries the year ("יום ב׳, 5.10.2025 14:00").

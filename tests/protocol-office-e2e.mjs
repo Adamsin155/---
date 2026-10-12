@@ -810,7 +810,8 @@ for (const t of ilaiTitles) {
 assert.match(await page.locator('.g-overdue .wproc:has(.wclient:text("מספרת רון")):has-text("בדיקת הגישות וסידור הרשתות")').innerText(), /באיחור/);
 // His graphics start on the shoot day: coming up, not called his shoot day.
 const ilaiSoon = page.locator('.g-soon .soon-card:has(.wclient:text("מספרת רון"))');
-assert.match(await ilaiSoon.innerText(), /23 · הכנת יתרת הגרפיקות · מתחיל/);
+assert.match(await ilaiSoon.innerText(), /23 · הכנת יתרת הגרפיקות/);
+assert.equal(await ilaiSoon.locator(".k-leaf").count(), 1); // when: a leaf of the calendar (section 61)
 assert.doesNotMatch(await ilaiSoon.innerText(), /יום צילום|הגעת המשפיענים/);
 await shot('16-ilai-mine');
 // Only the clients he works on: not the fresh ones yet, never the cancelled or ended.
