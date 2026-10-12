@@ -2223,7 +2223,7 @@ function topicItem(t, x, now) {
     h('span', { class: 'tp-text' }, x.text,
       x.when ? h('span', { class: 'num' }, ` · ${formatWhen(x.when, now)}`) : null,
       x.since ? h('span', { class: 'muted num' }, ` · ${ageText(x.since, now)}`) : null),
-    word ? h('span', { class: 'tag tag-warn' }, word) : null,
+    word ? h('span', { class: 'k-pill k-pill-warn' }, word) : null,
     // "עובדים שטרם סיימו": the person's own list, as in the table below.
     t.key === 'staff' ? h('button', {
       type: 'button', class: 'btn-text', onclick: () => { minePerson = x.person; if (personal) location.hash = '#team'; else setView('mine'); },
@@ -2347,7 +2347,7 @@ function reviewStale(r, now) {
   if (kind !== 'p33' || reviews === null || !isBusinessDay(now) || reviewOn(dayIso(now), kind)) return null;
   const last = reviews.filter((x) => x.kind === kind).map((x) => x.day).sort().at(-1) || null;
   if (last && businessDaysBetween(parseDate(last), now) <= 2) return null;
-  return h('p', { class: 'rv-stale' }, h('span', { class: 'tag tag-warn' }, 'עבר יותר מיומיים מהבקרה האחרונה'),
+  return h('p', { class: 'rv-stale' }, h('span', { class: 'k-pill k-pill-warn' }, 'עבר יותר מיומיים מהבקרה האחרונה'),
     h('span', {}, last ? `הבקרה האחרונה: ${dayShort(last)}` : 'אין בקרה ב־7 ימי העבודה האחרונים'));
 }
 
@@ -2735,7 +2735,7 @@ function editorSection(now) {
       return h('li', { class: 'editor-card' },
         h('div', { class: 'editor-head' },
           personChip(key),
-          key === 'nirel' ? h('span', { class: 'tag' }, 'נטלי בלבד') : null,
+          key === 'nirel' ? h('span', { class: 'k-pill' }, 'נטלי בלבד') : null,
           h('span', { class: 'editor-count' }, `${mine.length} ${mine.length === 1 ? 'לקוח' : 'לקוחות'} בעריכה · ${openTasks} ${openTasks === 1 ? 'משימה פתוחה' : 'משימות פתוחות'}`)),
         mine.length ? h('ul', { class: 'edit-jobs' }, ...mine.map((j) => h('li', {},
           h('a', { class: 'wclient', href: clientUrl(j.c.id, `#${j.steps[0]?.s.proc.id || ''}`) }, clientLabel(j.c), j.round ? ` · סבב ${j.round}` : ''),
@@ -2908,7 +2908,7 @@ function renderControl() {
           ...lateProcs.map((x) => h('li', {},
             h('a', { href: clientUrl(c.id, `#${x.proc.id}`) }, procLabel(x.proc)), ' ',
             peopleChips(peopleOf(x)),
-            x.proc.owners.length > 1 && !x.claim ? h('span', { class: 'tag' }, 'לא נלקח') : null,
+            x.proc.owners.length > 1 && !x.claim ? h('span', { class: 'k-pill' }, 'לא נלקח') : null,
             h('span', { class: 'ctl-when num' }, h('i', { class: 'k-sep' }, ' · '), h('span', { class: 'k-pill k-pill-late' }, `יעד ${formatWhen(x.dueAt)}`)))),
           ...lateTasks.map((t) => h('li', {},
             h('a', { href: clientUrl(c.id, '#tasks') }, `משימה: ${t.title}`), ' ', personChip(t.owner), taskBadge(t),
@@ -2924,8 +2924,8 @@ function renderControl() {
           h('span', { class: 'muted' }, ` · מאז ${formatStamp(x.wait.at)}`),
           x.wait.reason ? h('span', {}, ` · ״${x.wait.reason}״`) : null,
           x.wait.recheck ? h('span', { class: 'muted' }, ` · לבדוק שוב: ${dayShort(x.wait.recheck)}`) : null,
-          recheckDue(x.wait) ? h('span', { class: 'tag tag-warn' }, 'הגיע מועד הבדיקה') : null,
-          businessDaysBetween(new Date(x.wait.at), now) > 2 ? h('span', { class: 'tag' }, 'ממתין יותר מיומיים') : null)))))), 6, 'ctl:wait')
+          recheckDue(x.wait) ? h('span', { class: 'k-pill k-pill-warn' }, 'הגיע מועד הבדיקה') : null,
+          businessDaysBetween(new Date(x.wait.at), now) > 2 ? h('span', { class: 'k-pill' }, 'ממתין יותר מיומיים') : null)))))), 6, 'ctl:wait')
       : emptyState({ text: 'אין לקוחות שממתינים להם.' }),
     statusSection(now),
     editorSection(now),

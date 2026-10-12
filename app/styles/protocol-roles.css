@@ -294,7 +294,9 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
 
 /* ══ "לקוחות" / "הלקוחות שלי": what a row says about lateness, waiting and the shoot day is a pill ══ */
 #client-list .cphase > span:not(.k), #client-list .cnext > span:not(.k, .muted) { font-weight: 600; color: var(--ds-ink); }
-#client-list .cflags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#client-list .cflags { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+#client-list .crow > .cname, #client-list .crow > .cname > strong { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) { #client-list .crow > .cflags { grid-column: 1 / -1; } }
 #client-list .cflags .flag { display: inline-block; padding: 3px 10px; line-height: 20px; border-radius: var(--ds-r-pill); background: var(--ds-soft); font-size: 13px; font-weight: 700; white-space: pre; }
 #client-list .cflags .flag:has(.s-overdue) { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
 #client-list .cflags .flag:has(.s-client) { background: var(--ds-amber-soft); color: var(--ds-amber); }
