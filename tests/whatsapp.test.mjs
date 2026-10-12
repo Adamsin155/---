@@ -2,17 +2,22 @@
 // template a reminder takes, the channel choice (agreed, the same number, the
 // sending hours), the sender against a fake fetch, the reminders tick with the
 // second channel (each reminder once, never outside the hours), the webhook's
-// signature and subscription checks, and what a reply button does.
+// signature and subscription checks, and what a reply button does. Then the second
+// provider, Jako: its templates, its sender against a fake fetch (retries, timeouts,
+// the key never in an error), the tick through it, and "הסר" heard by asking.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import {
   TEMPLATES, FOOTER, BUTTONS, OPEN_BUTTON, SITE_URL, metaDefinition, templateFor, templateMessage, cleanParam, pagePath,
   payloadOf, parsePayload, actionOfText, taskIdOf, simpleTask,
+  WA_PROVIDERS, JAKO_SUFFIX, JAKO_ANSWER, templateOf, jakoMessage, jakoUserId, jakoUrlParam,
 } from '../app/wa-templates.js';
 import { waRecipients, waPlan, replyPlan, isStop, ackText, ownsProcess } from '../app/wa-logic.js';
 import { graphSend, graphUrl, GRAPH_VERSION } from '../supabase/functions/_shared/wa-graph.js';
+import { makeJako, JAKO_BASE, JAKO_TIMEOUT, JAKO_BUDGET, LIST_AGAIN } from '../supabase/functions/_shared/wa-jako.js';
 import { makeWhatsapp } from '../supabase/functions/reminders/whatsapp.js';
+import { makeJakoWhatsapp, POLL_EVERY, POLL_MAX } from '../supabase/functions/reminders/wa-poll.js';
 import { runTick } from '../supabase/functions/reminders/tick.js';
 import {
   verifySignature, verifyChallenge, timingSafeEqual, parseEvents, handleEvents,
@@ -402,4 +407,315 @@ test('replies are applied through the database once, with a short answer; a repl
   // While WhatsApp is off (no sender), replies are still applied, silently.
   await handleEvents({ db, events: parseEvents(change({ messages: [{ id: 'in.9', from: '972501111111', type: 'text', text: { body: 'stop' } }] }), '1234567890'), send: null });
   assert.equal(applied.at(-1).plan.op, 'withdraw');
+});
+
+// ── The second provider: Jako ───────────────
+// docs/ops.md, section 63. Jako's API as a fake fetch: the templates' list (the
+// namespaces), the send (no message id comes back) and a contact's chat messages.
+const KEY = 'JAKO-KEY-0123456789-abcdefghij';
+const jakoNames = Object.keys(TEMPLATES).map((k) => templateOf(k, 'jako').name);
+function fakeJakoApi({ listed = jakoNames.map((name) => ({ name, namespace: `ns_${name}`, lang: 'he', status: 'APPROVED' })), chat = () => ({ status: 200, body: { data: [] } }), send = () => ({ status: 200, body: { status: 'ok' } }), list = null } = {}) {
+  const calls = [];
+  const fetch = async (url, init) => {
+    const u = new URL(url);
+    const call = { method: init.method, path: u.pathname.replace(/^\/api/, ''), query: Object.fromEntries(u.searchParams), headers: init.headers, body: init.body ? JSON.parse(init.body) : null };
+    calls.push(call);
+    let a;
+    if (call.path === '/whatsapp-template/list') a = list ? list(call) : { status: 200, body: { data: listed } };
+    else if (call.path === '/subscriber/send-whatsapp-template-by-user-id') a = send(call);
+    else if (call.path === '/subscriber/chat-messages') a = chat(call);
+    else a = { status: 404, body: { message: 'no such path' } };
+    if (a.throw) throw a.throw;
+    return { ok: a.status < 300, status: a.status, json: async () => a.body };
+  };
+  const of = (path) => calls.filter((c) => c.path === path);
+  return { fetch, calls, sends: () => of('/subscriber/send-whatsapp-template-by-user-id'), lists: () => of('/whatsapp-template/list'), chats: () => of('/subscriber/chat-messages') };
+}
+const noWait = async () => {};
+// console.error, kept for the length of `fn` (nothing a sender logs may name the key or a number).
+async function quietly(fn) {
+  const lines = [];
+  const real = console.error;
+  console.error = (...a) => lines.push(a.map(String).join(' '));
+  try { await fn(); } finally { console.error = real; }
+  return lines.join('\n');
+}
+
+test('Jako\'s templates: the same nine under their own names, no quick replies, and no sentence that promises one', () => {
+  const answer = 'אפשר לענות כאן בכפתור, או לפתוח במערכת.';
+  const changed = [];
+  for (const [key, t] of Object.entries(TEMPLATES)) {
+    const def = metaDefinition(key, { provider: 'jako' });
+    const meta = metaDefinition(key);
+    // Meta's own definition is what it was, quick replies and all.
+    assert.deepEqual(meta, metaDefinition(key, { provider: 'meta' }));
+    assert.equal(meta.name, t.name);
+    assert.deepEqual(meta.components.find((c) => c.type === 'BUTTONS').buttons.map((b) => b.type), [...t.replies.map(() => 'QUICK_REPLY'), 'URL']);
+    // Jako's: Meta's rules for a template, as for the others above.
+    assert.equal(def.name, `${t.name}${JAKO_SUFFIX}`);
+    assert.match(def.name, /^astrateg_[a-z_]+_j$/, key);
+    assert.ok(def.name.length <= 60, key);
+    assert.deepEqual([def.category, def.language], ['UTILITY', 'he']);
+    assert.deepEqual(def.components.map((c) => c.type), ['BODY', 'FOOTER', 'BUTTONS']);
+    const body = def.components[0];
+    assert.deepEqual([...body.text.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])), [1, 2], key);
+    assert.ok(!/^\s*\{\{/.test(body.text) && !/\}\}\s*$/.test(body.text), `${key}: a variable at the start or the end`);
+    assert.ok(body.text.length + 200 + 700 < 1024, key);
+    assert.deepEqual(body.example, { body_text: [t.example] });
+    assert.ok(!body.text.includes(answer) && !/בכפתור/.test(body.text), `${key}: promises a reply button`);
+    assert.equal(def.components[1].text, FOOTER);
+    // One button: the link to the app.
+    assert.deepEqual(def.components[2].buttons, [{ type: 'URL', text: OPEN_BUTTON, url: `${SITE_URL}{{1}}`, example: [`${SITE_URL}clients.html`] }]);
+    if (t.body.includes(answer)) {
+      changed.push(key);
+      assert.equal(body.text, t.body.replace(answer, JAKO_ANSWER));
+    } else assert.equal(body.text, t.body, key);
+  }
+  assert.deepEqual(changed, ['new_task', 'due', 'late', 'shoot_day', 'editor_assigned']);
+  assert.equal(JAKO_ANSWER, 'לפתיחה ולסימון: הכפתור למטה.');
+  // Both sets can exist side by side, and which template a reminder takes is the same.
+  assert.equal(new Set([...jakoNames, ...Object.values(TEMPLATES).map((t) => t.name)]).size, 18);
+  assert.deepEqual(WA_PROVIDERS, ['meta', 'jako']);
+  assert.throws(() => templateOf('due', 'twilio'), /unknown provider/);
+  assert.throws(() => templateOf('nope', 'jako'), /unknown template/);
+});
+
+test('Jako\'s message: the number as user_id, the two variables and the page, the first name only, no namespace yet', () => {
+  const m = jakoMessage({ template: 'due', to: '972501234567', row: log({ body: 'חסר חוזה\nלבדוק' }) });
+  assert.deepEqual(m, {
+    user_id: '972501234567', create_if_not_found: 'yes',
+    content: { name: 'astrateg_due_j', lang: 'he', params: { 'BODY_{{1}}': 'עסקה חדשה: פיצה', 'BODY_{{2}}': 'חסר חוזה · לבדוק', URL_1: 'client.html?id=c1' } },
+    contact: { first_name: 'עירית' },
+  });
+  assert.equal(jakoUserId('+972 50-123-4567'), '972501234567');
+  assert.equal(jakoUrlParam('https://evil.test/x'), 'clients.html');
+  // No quick reply parameters for any template, also the one with three buttons at Meta.
+  assert.deepEqual(Object.keys(jakoMessage({ template: 'new_task', to: '972501234567', row: log() }).content.params), ['BODY_{{1}}', 'BODY_{{2}}', 'URL_1']);
+});
+
+test('the Jako sender: the namespace from Jako\'s list (read once), the key in the header only, "sent" on ok', async () => {
+  const api = fakeJakoApi();
+  const jako = makeJako({ fetch: api.fetch, apiKey: KEY, wait: noWait });
+  const message = jakoMessage({ template: 'due', to: '972501234567', row: log() });
+  assert.deepEqual(await jako.send(message), { ok: true });
+  const [list] = api.lists();
+  assert.deepEqual([list.method, list.query], ['POST', { limit: '100', page: '1' }]);
+  const [sent] = api.sends();
+  assert.equal(sent.method, 'POST');
+  assert.equal(sent.headers.Authorization, `Bearer ${KEY}`);
+  assert.deepEqual(sent.body, { ...message, content: { namespace: 'ns_astrateg_due_j', ...message.content } });
+  assert.equal(sent.body.user_id, '972501234567');
+  assert.ok(!JSON.stringify(sent.body).includes(KEY) && !JSON.stringify(sent.query).includes(KEY));
+  // The next sends do not ask for the list again (the instance remembers it).
+  await jako.send(jakoMessage({ template: 'digest', to: '972501234567', row: log({ rule: 'digest' }) }));
+  await jako.send(message);
+  assert.deepEqual([api.lists().length, api.sends().length], [1, 3]);
+  assert.equal(JAKO_BASE, 'https://my.jako.co.il/api');
+  // Not configured: no key, or a number that is not one. Nothing is asked of Jako.
+  const none = fakeJakoApi();
+  assert.equal((await makeJako({ fetch: none.fetch, apiKey: '' }).send(message)).error, 'not_configured');
+  assert.equal((await makeJako({ fetch: none.fetch, apiKey: KEY }).send({ ...message, user_id: '../x' })).error, 'not_configured');
+  assert.equal(none.calls.length, 0);
+});
+
+test('the Jako sender: a template that is missing or not approved fails that message with a clear code, and is looked for again later', async () => {
+  let listed = [
+    { name: 'astrateg_due_j', namespace: 'ns_due', lang: 'he', status: 'PENDING' },
+    { name: 'astrateg_late_j', namespace: 'ns_late', lang: 'he', status: 'approved' },
+    { name: 'astrateg_review_j', lang: 'he', status: 'APPROVED' },
+    { name: 'astrateg_digest_j', namespace: 'ns_en', lang: 'en', status: 'APPROVED' },
+  ];
+  const api = fakeJakoApi({ list: () => ({ status: 200, body: { data: listed } }) });
+  let now = 1_000_000;
+  const jako = makeJako({ fetch: api.fetch, apiKey: KEY, wait: noWait, clock: () => now });
+  const m = (template) => jakoMessage({ template, to: '972501234567', row: log() });
+  assert.deepEqual(await jako.send(m('due')), { ok: false, status: 0, error: 'jako not_approved' });
+  assert.deepEqual(await jako.send(m('exception')), { ok: false, status: 0, error: 'jako no_template' });
+  assert.deepEqual(await jako.send(m('review')), { ok: false, status: 0, error: 'jako no_namespace' });
+  assert.equal((await jako.send(m('digest'))).error, 'jako no_template', 'another language is another template');
+  assert.deepEqual(await jako.send(m('late')), { ok: true });
+  assert.deepEqual([api.lists().length, api.sends().length], [1, 1], 'one list for all of them, and only the approved one was sent');
+  // Approved meanwhile: found once the list is read again (not before LIST_AGAIN).
+  listed = [{ name: 'astrateg_due_j', namespace: 'ns_due', lang: 'he', status: 'APPROVED' }];
+  assert.equal((await jako.send(m('due'))).error, 'jako not_approved');
+  now += LIST_AGAIN;
+  assert.deepEqual(await jako.send(m('due')), { ok: true });
+  assert.equal(api.lists().length, 2);
+  // The list itself fails: the messages fail with its code, and nothing is sent blind.
+  const down = fakeJakoApi({ list: () => ({ status: 401, body: { message: `bad key ${KEY}` } }) });
+  const out = await makeJako({ fetch: down.fetch, apiKey: KEY, wait: noWait }).send(m('due'));
+  assert.deepEqual(out, { ok: false, status: 0, error: 'jako list 401' });
+  assert.equal(down.sends().length, 0);
+  // More templates than one page: the next page is read.
+  const many = Array.from({ length: 100 }, (_, i) => ({ name: `other_${i}`, namespace: 'x', lang: 'he', status: 'APPROVED' }));
+  const paged = fakeJakoApi({ list: (c) => ({ status: 200, body: { data: c.query.page === '1' ? many : [{ name: 'astrateg_due_j', namespace: 'ns_p2', lang: 'he', status: 'APPROVED' }] } }) });
+  assert.deepEqual(await makeJako({ fetch: paged.fetch, apiKey: KEY, wait: noWait }).send(m('due')), { ok: true });
+  assert.equal(paged.sends()[0].body.content.namespace, 'ns_p2');
+});
+
+test('the Jako sender: a 4xx is not tried again, a 5xx or a network error once, a timeout never; no error names the key or the number', async () => {
+  const message = jakoMessage({ template: 'due', to: '972501234567', row: log() });
+  const run = async (answers, opts = {}) => {
+    let i = 0;
+    const api = fakeJakoApi({ send: () => answers[Math.min(i++, answers.length - 1)] });
+    const waits = [];
+    let res;
+    const logged = await quietly(async () => { res = await makeJako({ fetch: api.fetch, apiKey: KEY, wait: async (ms) => { waits.push(ms); }, ...opts }).send(message); });
+    assert.doesNotMatch(JSON.stringify(res) + logged, /JAKO-KEY|9725/);
+    return { res, tries: api.sends().length, waits };
+  };
+  const refused = { status: 400, body: { message: `(#131026) Message undeliverable to 972501234567, key ${KEY}` } };
+  const ok = { status: 200, body: { status: 'ok' } };
+  // 4xx: once, with Meta's number when Jako quotes one, and nothing else of its message.
+  assert.deepEqual(await run([refused, ok]), { res: { ok: false, status: 400, error: 'jako 400 #131026' }, tries: 1, waits: [] });
+  assert.deepEqual((await run([{ status: 400, body: { message: 'user 972501234567 not found' } }])).res, { ok: false, status: 400, error: 'jako 400' });
+  assert.deepEqual([(await run([{ status: 401, body: {} }, ok])).tries, (await run([{ status: 429, body: {} }, ok])).tries], [1, 1]);
+  // 5xx: once more, after a short pause.
+  assert.deepEqual(await run([{ status: 503, body: {} }, ok]), { res: { ok: true }, tries: 2, waits: [300] });
+  assert.deepEqual(await run([{ status: 502, body: {} }, { status: 500, body: null }, ok]), { res: { ok: false, status: 500, error: 'jako 500' }, tries: 2, waits: [300] });
+  // A network error: once more.
+  const net = { throw: new TypeError(`fetch failed for ${KEY}`) };
+  assert.deepEqual(await run([net, ok]), { res: { ok: true }, tries: 2, waits: [300] });
+  assert.deepEqual((await run([net, net, ok])), { res: { ok: false, status: 0, error: 'jako network' }, tries: 2, waits: [300] });
+  // A timeout: not again (the message may have gone out).
+  const late = { throw: Object.assign(new Error('The operation timed out'), { name: 'TimeoutError' }) };
+  assert.deepEqual(await run([late, ok]), { res: { ok: false, status: 0, error: 'jako timeout' }, tries: 1, waits: [] });
+  // A 200 that does not say ok is not "sent".
+  assert.deepEqual((await run([{ status: 200, body: { status: 'queued?' } }])).res, { ok: false, status: 200, error: 'jako 200 not_ok' });
+});
+
+test('the Jako sender is bounded: a call that hangs is cut, and past the tick\'s budget nothing more is asked', async () => {
+  const message = jakoMessage({ template: 'due', to: '972501234567', row: log() });
+  // A provider that never answers: the request is aborted after timeoutMs.
+  const api = fakeJakoApi();
+  const hang = (url, init) => (new URL(url).pathname.endsWith('/list') ? api.fetch(url, init) : new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason))));
+  const t0 = Date.now();
+  assert.deepEqual(await makeJako({ fetch: hang, apiKey: KEY, timeoutMs: 40 }).send(message), { ok: false, status: 0, error: 'jako timeout' });
+  assert.ok(Date.now() - t0 < 2000);
+  // The budget: begin() starts it; once it is used up a send fails at once, without a request.
+  let now = 0;
+  const slow = fakeJakoApi({ send: () => { now += 30000; return { status: 503, body: {} }; } });
+  const jako = makeJako({ fetch: slow.fetch, apiKey: KEY, wait: noWait, clock: () => now });
+  jako.begin();
+  assert.equal((await jako.send(message)).error, 'jako 503');
+  assert.equal(slow.sends().length, 2, 'the second try fit in the budget');
+  assert.deepEqual(await jako.send(message), { ok: false, status: 0, error: 'jako budget' });
+  assert.equal(slow.sends().length, 2);
+  jako.begin(); // the next tick
+  await jako.send(message);
+  assert.equal(slow.sends().length, 4);
+  assert.ok(JAKO_TIMEOUT <= 10000 && JAKO_BUDGET <= 60000);
+});
+
+// The tick with Jako as the second channel: the same rows, the same hours, once each.
+function fakeJakoWa({ recipients = IRIT_OK, api = fakeJakoApi(), due = [], stop = async () => 'withdrawn' } = {}) {
+  const rows = [];
+  const db = {
+    async claim(row) { if (rows.some((r) => r.log_id === row.log_id)) return null; const r = { id: rows.length + 1, created_at: new Date().toISOString(), ...row }; rows.push(r); return { id: r.id }; },
+    async update(id, patch) { Object.assign(rows.find((r) => r.id === id), patch); },
+    async expire() { return 0; },
+  };
+  const poll = { asked: [], done: [], stops: [] };
+  const pollDb = {
+    async due(max, everyMs) { poll.asked.push([max, everyMs]); return typeof due === 'function' ? due() : due; },
+    async done(email, until) { poll.done.push([email, until.toISOString()]); },
+    async stop(args) { poll.stops.push(args); return stop(args); },
+  };
+  const list = waRecipients(recipients);
+  const wa = makeJakoWhatsapp({ db, pollDb, jako: makeJako({ fetch: api.fetch, apiKey: KEY, wait: noWait }), recipients: list });
+  return { wa, rows, api, poll, list };
+}
+
+test('with Jako a ring goes by push and once by WhatsApp, as "sent" with no message id; outside the hours nothing; a failed send is recorded and the tick goes on', async () => {
+  const db = fakeDb({ clients: [deal(IL(2026, 10, 5, 10))], subs: [{ id: 's1', email: 'irit@x', endpoint: 'https://push.test/p', p256dh: 'x', auth: 'y', fail_count: 0 }] });
+  const { wa, rows, api } = fakeJakoWa();
+  const t0 = IL(2026, 10, 5, 10);
+  const stats = await runTick({ db: db.at(t0), push, wa, now: t0 });
+  assert.deepEqual([stats.pushed, stats.waSent, stats.waFailed], [1, 1, 0]);
+  const [sent] = api.sends();
+  assert.deepEqual([sent.body.user_id, sent.body.content.name, sent.body.content.namespace], ['972501111111', 'astrateg_due_j', 'ns_astrateg_due_j']);
+  assert.equal(sent.body.content.params['BODY_{{1}}'], 'עסקה חדשה: פיצה');
+  const logRow = db.log.find((r) => r.key === 'deal:c1:deal:now@irit');
+  assert.deepEqual([rows[0].log_id, rows[0].status, rows[0].template, rows[0].person, rows[0].provider, rows[0].wa_message_id], [logRow.id, 'sent', 'due', 'irit', 'jako', undefined]);
+  // The same reminder taken again finds its claim: not sent twice.
+  await wa.deliver({ sends: [{ row: logRow, kind: 'ring' }], env: { tasks: [] }, now: t0, stats: {} });
+  assert.equal(api.sends().length, 1);
+  // Meta's channel does not mark its rows (the column's default says 'meta').
+  const meta = fakeWa({ recipients: IRIT_OK });
+  await meta.wa.deliver({ sends: [{ row: log({ id: 77 }), kind: 'ring' }], env: { tasks: [] }, now: t0, stats: {} });
+  assert.ok(!('provider' in meta.rows[0]) && meta.sent[0].messaging_product === 'whatsapp');
+
+  // 20:00: push only. 08:30: the digest, with Jako refusing it → failed, with the code; the next message still goes.
+  const night = fakeJakoWa();
+  await night.wa.deliver({ sends: [{ row: log({ id: 61 }), kind: 'ring' }], env: { tasks: [] }, now: IL(2026, 10, 5, 20), stats: {} });
+  assert.equal(night.api.sends().length, 0);
+  let n = 0;
+  const bad = fakeJakoWa({ api: fakeJakoApi({ send: () => ((n += 1) === 1 ? { status: 400, body: { message: '(#132001) Template name does not exist for 972501111111' } } : { status: 200, body: { status: 'ok' } }) }) });
+  const s = {};
+  const text = await quietly(() => bad.wa.deliver({ sends: [{ row: log({ id: 71, rule: 'digest', level: 'digest', title: 'תקציר בוקר', body: 'א\nב' }), kind: 'digest' }, { row: log({ id: 72 }), kind: 'ring' }], env: { tasks: [] }, now: IL(2026, 10, 5, 8, 30), stats: s }));
+  assert.deepEqual([s.waSent, s.waFailed, s.waErrors], [1, 1, 0]);
+  assert.deepEqual(bad.rows.map((r) => [r.status, r.error || null]).sort(), [['failed', 'jako 400 #132001'], ['sent', null]]);
+  assert.doesNotMatch(JSON.stringify(bad.rows.map((r) => r.error)) + text, /JAKO-KEY|9725/);
+});
+
+test('"הסר" with Jako: the tick asks what each person wrote since the last time, a stop word withdraws the consent before this tick\'s messages, and nothing written is kept', async () => {
+  const now = IL(2026, 10, 5, 10);
+  const since = new Date(now.getTime() - 5 * 6e4);
+  const ts = (d) => Math.floor(d.getTime() / 1000);
+  const two = [...IRIT_OK, { email: 'ofir@x', person: 'ofir', status: 'granted', consent_phone: '972503333333', staff_phone: '972503333333' }];
+  const due = [{ email: 'irit@x', person: 'irit', phone: '972501111111', since: since.toISOString() }, { email: 'ofir@x', person: 'ofir', phone: '972503333333', since: since.toISOString() }];
+  const chat = (c) => ({ status: 200, body: { data: c.query.user_id === '972501111111' ? [
+    { id: 900, type: 'out', msg_type: 'text', content: 'הסר', ts: ts(now) - 30 }, // ours, not hers
+    { id: 901, type: 'in', msg_type: 'text', content: 'הסר', ts: ts(since) - 3600 }, // before the window (written before she agreed again)
+    { id: 902, type: 'in', msg_type: 'image', content: 'הסר', ts: ts(now) - 60 },
+    { id: 903, type: 'in', msg_type: 'text', content: 'תודה, ראיתי', ts: ts(now) - 50 },
+    { id: 904, type: 'in', msg_type: 'text', content: ' הסר. ', ts: ts(now) - 40 },
+  ] : [{ id: 11, type: 'in', msg_type: 'text', content: 'הסרט מוכן', ts: ts(now) - 10 }] } });
+  const f = fakeJakoWa({ recipients: two, api: fakeJakoApi({ chat }), due });
+  const stats = {};
+  const sends = [{ row: log({ id: 81 }), kind: 'ring' }, { row: log({ id: 82, person: 'ofir', key: 'deal:c1:deal:now@ofir' }), kind: 'ring' }];
+  await f.wa.deliver({ sends, env: { tasks: [] }, now, stats });
+  assert.deepEqual(f.poll.asked, [[POLL_MAX, POLL_EVERY]]);
+  assert.deepEqual([POLL_MAX, POLL_EVERY], [5, 5 * 6e4]);
+  const asked = f.api.chats().find((c) => c.query.user_id === '972501111111');
+  assert.deepEqual([asked.method, asked.query], ['GET', { user_id: '972501111111', start_time: String(ts(since)), end_time: String(ts(now)), limit: '100' }]);
+  assert.equal(asked.headers.Authorization, `Bearer ${KEY}`);
+  // Her stop: applied once by its id, from her number; she is out of this tick's messages, Ofir is not.
+  assert.deepEqual(f.poll.stops, [{ inbound: 'jako:irit:904', from: '972501111111' }]);
+  assert.deepEqual([stats.waPolled, stats.waStops, stats.waPollErrors, stats.waSent], [2, 1, 0, 1]);
+  assert.deepEqual(f.api.sends().map((c) => c.body.user_id), ['972503333333']);
+  assert.deepEqual([...f.list.keys()], ['ofir']);
+  assert.deepEqual(f.poll.done.sort(), [['irit@x', now.toISOString()], ['ofir@x', now.toISOString()]]);
+  // Nothing anyone wrote reaches the database.
+  assert.doesNotMatch(JSON.stringify([f.poll, f.rows.map((r) => ({ ...r, phone: '' }))]), /תודה|הסרט|הסר/);
+
+  // A stop the database already applied (or whose consent is gone) removes nobody.
+  const dup = fakeJakoWa({ api: fakeJakoApi({ chat }), due: [due[0]], stop: async () => 'duplicate' });
+  const s2 = {};
+  await dup.wa.deliver({ sends: [sends[0]], env: { tasks: [] }, now, stats: s2 });
+  assert.deepEqual([s2.waStops, s2.waSent], [0, 1]);
+
+  // Jako does not answer: counted, not marked as read (the next poll asks from the same moment), and the messages still go.
+  const down = fakeJakoWa({ api: fakeJakoApi({ chat: () => ({ status: 503, body: {} }) }), due: [due[0]] });
+  const s3 = {};
+  await down.wa.deliver({ sends: [sends[0]], env: { tasks: [] }, now, stats: s3 });
+  assert.deepEqual([s3.waPolled, s3.waPollErrors, s3.waSent, down.poll.done.length, down.api.chats().length], [0, 1, 1, 0, 1]);
+  // A contact Jako does not know yet (nobody wrote, nothing was sent): nothing to read.
+  const fresh = fakeJakoWa({ api: fakeJakoApi({ chat: () => ({ status: 400, body: { message: 'user not found' } }) }), due: [due[0]] });
+  const s4 = {};
+  await fresh.wa.deliver({ sends: [], env: { tasks: [] }, now, stats: s4 });
+  assert.deepEqual([s4.waPolled, s4.waPollErrors, fresh.poll.done.length], [1, 0, 1]);
+  // Nobody is due: Jako is not asked at all. The database failing to say who is due does not stop the messages.
+  const idle = fakeJakoWa();
+  await idle.wa.deliver({ sends: [sends[0]], env: { tasks: [] }, now, stats: {} });
+  assert.deepEqual([idle.api.chats().length, idle.api.sends().length], [0, 1]);
+  const broken = fakeJakoWa({ due: () => { throw Object.assign(new Error('boom 972501111111'), { code: '42P01' }); } });
+  const s5 = {};
+  const logged = await quietly(() => broken.wa.deliver({ sends: [sends[0]], env: { tasks: [] }, now, stats: s5 }));
+  assert.deepEqual([s5.waPollErrors, s5.waSent], [1, 1]);
+  assert.doesNotMatch(logged, /9725|JAKO-KEY/);
+  // The window never reaches back more than Jako keeps (a month), whatever the database says.
+  const old = fakeJakoWa({ due: [{ ...due[0], since: '2026-01-01T00:00:00Z' }] });
+  await old.wa.deliver({ sends: [], env: { tasks: [] }, now, stats: {} });
+  assert.equal(Number(old.api.chats()[0].query.start_time), ts(now) - 29 * 86400);
 });

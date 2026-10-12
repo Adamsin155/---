@@ -5,6 +5,10 @@
 // the four Vault secrets in place: public.whatsapp_set_enabled checks, and the
 // reminders function checks again before sending). Before the migration
 // (20260930180000) nothing here shows.
+//
+// The provider (public.whatsapp_settings().provider; docs/ops.md, section 63): with
+// Jako the one secret is its API key, and all that is known of a message is that it
+// was sent, so the lines say "נשלחו" and nothing of delivered or read.
 import { supabase } from './supa.js';
 import { h, fill, toast, errorText } from './protocol-ui.js';
 
@@ -19,7 +23,11 @@ export async function loadWaTeam() {
   return { settings: s.data, byEmail: new Map((t.data || []).map((r) => [r.email, r])) };
 }
 
-export const missingSecrets = (settings) => Object.entries(SECRET_NAMES).filter(([k]) => !settings?.secrets?.[k]).map(([, name]) => name);
+export const JAKO_SECRET_NAMES = { jako_api_key: 'whatsapp_jako_api_key' };
+const isJako = (settings) => settings?.provider === 'jako';
+
+// The Vault secrets the chosen provider still lacks, by name.
+export const missingSecrets = (settings) => Object.entries(isJako(settings) ? JAKO_SECRET_NAMES : SECRET_NAMES).filter(([k]) => !settings?.secrets?.[k]).map(([, name]) => name);
 
 // One person's line in their row: the choice, a number yes or no, and this week.
 export function waStatusView(wa, row) {
@@ -29,7 +37,10 @@ export function waStatusView(wa, row) {
     : r.status === 'granted' ? (r.active ? 'הסכים/ה' : 'הסכים/ה למספר קודם, מחכה לאישור')
       : r.status === 'declined' ? 'בחר/ה באפליקציה בלבד' : 'הפסיק/ה';
   const parts = [choice, r.phone_set ? 'יש מספר' : 'אין מספר'];
-  if (r.sent || r.failed) parts.push(`השבוע: ${r.delivered || 0} נמסרו, ${r.read || 0} נקראו${r.failed ? `, ${r.failed} נכשלו` : ''}`);
+  const failed = r.failed ? `, ${r.failed} נכשלו` : '';
+  // Jako reports nothing after the send: "sent" is all there is to count.
+  const week = isJako(wa.settings) ? `${r.sent || 0} נשלחו` : `${r.delivered || 0} נמסרו, ${r.read || 0} נקראו`;
+  if (r.sent || r.failed) parts.push(`השבוע: ${week}${failed}`);
   return h('span', { class: 'tm-push tm-wa-status' }, h('bdi', {}, 'WhatsApp'), `: ${parts.join(' · ')}`);
 }
 
@@ -67,10 +78,13 @@ export function paintWaPanel(wa, before, reload) {
     h('p', { id: 'wa-state' }, settings.enabled
       ? `פועל. הצלצולים והתקצירים מגיעים גם ב־WhatsApp למי שנתנו הסכמה (${agreed} מתוך ${rows.length}).`
       : 'כבוי. ההתראות יוצאות באפליקציה בלבד (Push).'),
+    isJako(settings) ? h('p', { class: 'muted', id: 'wa-provider' }, 'ההודעות יוצאות דרך Jako.') : null,
     missing.length ? h('p', { class: 'muted', id: 'wa-missing' }, `חסר ב־Vault: ${missing.join(', ')}. ההוראות במסמך התפעול.`) : null,
     settings.owner ? h('div', { class: 'tm-wa-acts' }, h('button', {
       type: 'button', class: `btn btn-sm${settings.enabled ? '' : ' btn-primary'}`, id: 'wa-toggle', 'aria-pressed': String(!!settings.enabled),
       disabled: !settings.enabled && missing.length > 0, onclick: () => toggle(wa, reload),
     }, settings.enabled ? 'כיבוי הודעות WhatsApp' : 'הפעלת הודעות WhatsApp')) : null,
-    h('p', { class: 'muted' }, 'נמסר ונקרא מוצגים לתכנון העבודה בלבד, לא להערכה ולא למשמעת.'));
+    h('p', { class: 'muted', id: 'wa-note' }, isJako(settings)
+      ? 'דרך Jako ידוע רק שהודעה נשלחה, לא אם נמסרה או נקראה. המספרים לתכנון העבודה בלבד, לא להערכה ולא למשמעת.'
+      : 'נמסר ונקרא מוצגים לתכנון העבודה בלבד, לא להערכה ולא למשמעת.'));
 }
