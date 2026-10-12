@@ -228,3 +228,55 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
   #view-control .ctable td.num::before { font-size: 11.5px; }
 }
 @media print { #view-control .ctable thead { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; } }
+
+/* ══ "No pale rows" on "הנתונים שלי" / "ביצועים" (docs/ops.md, section 61) ══
+   A card per person and per process: each figure a box with its number bold and its word
+   under it (the two tables were wider than their panel on a computer, and plain grey rows on
+   a phone). Held to #view-performance. */
+#view-performance .table-wrap { overflow: visible; }
+#view-performance .ctable, #view-performance .ctable tbody { display: grid; gap: 8px; min-width: 0; inline-size: 100%; }
+#view-performance .ctable thead { position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#view-performance .ctable tbody tr:not(.group-row) {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; inline-size: auto; padding: 12px;
+  border: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line);
+}
+#view-performance .ctable td {
+  flex: 1 1 104px; display: grid; justify-items: center; align-content: center; gap: 2px; inline-size: auto; min-width: 0; max-inline-size: none; padding: 8px 6px; border: 0; border-radius: var(--ds-r-sm);
+  background: var(--ds-ground); color: var(--ds-ink); font-size: 14.5px; font-weight: 700; line-height: 1.3; text-align: center; white-space: normal; overflow-wrap: anywhere;
+}
+#view-performance .ctable td[data-label]::before { content: attr(data-label); display: block; order: 2; font-family: var(--ds-font-b); font-size: 12px; font-weight: 400; line-height: 1.3; letter-spacing: 0; color: var(--ds-ink-2); }
+#view-performance .ctable td.num { font-family: var(--ds-font-h); font-size: 22px; line-height: 1.1; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+#view-performance .ctable td.num.late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#view-performance .ctable td .rate { justify-content: center; }
+#view-performance .ctable td .tag { margin: 0; }
+/* The first cell says who or which process: the head of the card, not a box. */
+#view-performance .ctable td:first-child { flex: 1 1 100%; justify-items: start; padding: 0 0 2px; background: transparent; font-size: 16px; text-align: start; }
+#view-performance .ctable td:first-child::before { content: none; }
+#view-performance .perf-proc summary { font-weight: 700; }
+#view-performance .perf-proc ul { font-weight: 400; color: var(--ds-ink-2); }
+#view-performance .perf-table td.sla { flex: 1 1 100%; justify-items: start; padding: 6px 12px; font-size: 14px; font-weight: 500; text-align: start; color: var(--ds-ink); }
+#view-performance .perf-table td.sla::before { order: 0; font-weight: 600; }
+#view-performance .ctable .group-row { display: block; padding: 8px 2px 0; border: 0; background: transparent; }
+#view-performance .ctable .group-row th { display: block; padding: 0; border: 0; font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+#view-performance .perf-calls { padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); font-weight: 600; color: var(--ds-ink); }
+@media (max-width: 480px) {
+  /* Three counts a line; a figure in words takes a line of its own. */
+  #view-performance .ctable td { flex: 1 1 28%; }
+  #view-performance .ctable td:not(.num, :first-child, .sla) { flex: 1 1 100%; }
+}
+
+/* Ilai's cards: until when is a pill, hot once it passed (the words say it: "עד אתמול 16:00"). */
+#mine-list .il-until { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; white-space: nowrap; }
+#mine-list .il-until.late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#mine-list .il-part { border-top: 0; padding: 8px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+#mine-list .il-part > h4 { font-weight: 700; color: var(--ds-ink); }
+
+/* ══ "לקוחות" / "הלקוחות שלי": what a row says about lateness, waiting and the shoot day is a pill ══ */
+#client-list .cphase > span:not(.k), #client-list .cnext > span:not(.k, .muted) { font-weight: 600; color: var(--ds-ink); }
+#client-list .cflags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#client-list .cflags .flag { display: inline-flex; align-items: center; min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); font-size: 13px; font-weight: 700; white-space: pre; }
+#client-list .cflags .flag:has(.s-overdue) { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#client-list .cflags .flag:has(.s-client) { background: var(--ds-amber-soft); color: var(--ds-amber); }
+#client-list .cflags .flag .sbadge { font-weight: 700; color: inherit; }
+#client-list .cflags > .muted { display: inline-flex; align-items: center; min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-ground); color: var(--ds-ink-2); font-size: 13px; font-weight: 600; }
+@media print { #view-performance .ctable thead { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; } }

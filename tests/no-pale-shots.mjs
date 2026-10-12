@@ -109,6 +109,13 @@ for (const w of WIDTHS) {
     if (want('team') && PROFILED.includes(role)) {
       const { ctx, page } = await open(role, w, 'clients.html#team', { profile: 'manager' });
       await slices(page, `${role}-team`, w, { cap: 4 });
+      // The other tabs of the manager profile (the numbers of the whole team are here).
+      const tabs = await page.evaluate(() => [...document.querySelectorAll('[role=tab]')].filter((x) => x.checkVisibility() && x.id && x.getAttribute('aria-selected') !== 'true').map((x) => x.id));
+      for (const id of tabs.filter((t) => t === 'tab-performance' || (role === 'owner' && t === 'tab-control'))) {
+        await page.click(`#${id}`).catch(() => {});
+        await settle(page, 900);
+        await slices(page, `${role}-team-${id}`, w, { cap: 5 });
+      }
       await ctx.close();
     }
     if (want('card') && CARD[role]) {
