@@ -117,3 +117,114 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
   .pc .wc-title, .pc-full .wtitle { font-size: 15.5px; }
 }
 @media print { .pc .is-echo { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; } }
+
+/* The owner's own profile: the team's work in one line, with its count said bold. */
+#mine-list .team-fold { background: var(--ds-surface); color: var(--ds-ink); box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: var(--ds-r-item); padding: 12px; gap: 10px 12px; }
+#mine-list .team-fold-t { flex: 1 1 160px; min-width: 0; font-size: 15.5px; font-weight: 700; line-height: 1.35; }
+/* "בקליטה · בלי שעון": a card per client, its open items inside. Quiet (navy), not grey. */
+#land-quiet .land-quiet-list > .k-pc .wclient { min-height: 0; padding-block: 12px; margin-block: -12px; font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+#land-quiet .land-quiet-list .k-inset { padding-inline-start: 0; margin-top: 4px; }
+#land-quiet .land-quiet-list .k-inset > li { font-size: 14.5px; font-weight: 500; color: var(--ds-ink); }
+#land-quiet .land-quiet-list .k-pc-mark { inline-size: 48px; }
+/* A client the signing opened: a notice with its mark, not a tinted paragraph. */
+#mine-list .auto-banner { gap: 6px; padding: 12px; border: 0; border-radius: var(--ds-r-item); background: var(--k-blue-soft); font-size: 14.5px; font-weight: 600; color: var(--ds-ink); }
+#mine-list .auto-banner a { color: var(--ds-navy-text); font-weight: 700; }
+/* A deal from the field: its clock is a pill (hot once the ten minutes passed), its package a tag. */
+#deals-card .deal-clock { display: inline-flex; align-items: center; min-height: 28px; padding: 2px 12px; border-radius: var(--ds-r-pill); background: var(--k-navy-soft); color: var(--k-navy); font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#deals-card .deal-clock.is-late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#deals-card .deal-task-head + .deal-task-meta { justify-self: start; inline-size: fit-content; padding: 2px 10px; border-radius: var(--ds-r-sm); background: var(--ds-ground); color: var(--ds-ink-2); font-weight: 600; }
+
+/* ══ "No pale rows" on "בקרה יומית" (docs/ops.md, section 61) ══
+   Every list of the control is cards: a mark, a bold name, what is inside as soft rows, a
+   deadline as a pill. The per-person table is a card per person with its five counts as bold
+   numbers (at every width: as a table its last columns fell to a second line). Held to
+   #view-control. Contrast: a count's label ink-2 on the ground 10.0; a late count #C4124F on
+   #FEEAF1 5.15; the pills as in kit.css. */
+#view-control .wgroup-h .n, #view-control .health-h .n {
+  display: inline-grid; place-items: center; min-inline-size: 24px; block-size: 24px; padding: 0 7px; border-radius: var(--ds-r-pill);
+  background: var(--ds-soft); color: var(--ds-ink-2); font-family: var(--ds-font-b); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+#view-control .ctl-urgent > .wgroup-h .n, #view-control #ctl-late .n { background: var(--ds-hot); color: var(--ds-on-hot); }
+#view-control .task-list, #view-control .ctl-cards, #view-control .status-list, #view-control .health-list { display: grid; gap: 8px; min-width: 0; }
+#view-control .ctl-cards > .more-row, #view-control .health-list > .more-row { border-top: 0; padding: 2px 0 0; }
+/* An urgent task, a reported exception. */
+#view-control .task-row.k-pc { border-top: 0; padding: 12px; }
+#view-control .task-head { gap: 4px 8px; min-width: 0; }
+#view-control .task-head .wclient { flex: 0 1 auto; min-height: 0; padding-block: 6px; margin-block: -6px; font-size: 13.5px; font-weight: 600; color: var(--ds-navy-text); }
+#view-control .task-title { flex: 1 1 100%; min-width: 0; font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--ds-ink); overflow-wrap: anywhere; }
+#view-control .task-row .task-meta { margin: 0; font-size: 13.5px; color: var(--ds-ink-2); }
+#view-control .task-row .task-start { margin: 4px 0 0; }
+/* Late by client, waiting for a client: the client's card, each process a soft row. */
+#view-control .ctl-cards > li.k-pc { border-top: 0; padding: 12px; }
+#view-control .ctl-card-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+#view-control .ctl-card-h > .wclient { flex: 1 1 140px; min-width: 0; font-size: 16px; font-weight: 700; color: var(--ds-ink); overflow-wrap: anywhere; }
+#view-control .ctl-cards .k-inset { margin: 0; padding: 0; gap: 6px; font-size: 14.5px; }
+#view-control .ctl-cards .k-inset > li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 12px; overflow-wrap: anywhere; }
+#view-control .ctl-cards .k-inset > li > a:first-child { flex: 1 1 220px; min-width: 0; font-weight: 600; color: var(--ds-ink); }
+#view-control .ctl-cards .k-inset .tag { margin-inline-start: 0; }
+#view-control .ctl-when { display: inline-flex; align-items: center; }
+#view-control .ctl-cards .rv-cnote { margin: 0; }
+/* The weekly status summary: a card per client, the state as a pill. */
+#view-control .status-row.k-pc { border-top: 0; padding: 12px; gap: 8px; }
+#view-control .status-head { gap: 6px 10px; min-width: 0; }
+#view-control .status-head .wclient { flex: 1 1 140px; min-width: 0; font-size: 16px; font-weight: 700; color: var(--ds-ink); overflow-wrap: anywhere; }
+#view-control .status-phase:empty { display: none; }
+#view-control .status-head > .sbadge { min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); font-weight: 700; }
+#view-control .status-head > .sbadge.s-waiting { background: var(--ds-amber-soft); color: var(--ds-amber); }
+#view-control .status-head > .sbadge.s-waiting .sicon { opacity: 1; }
+#view-control .status-head > .sbadge.s-done { background: var(--ds-ok-soft); color: var(--ds-ok); }
+#view-control .status-sum { padding: 8px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); font-size: 14px; }
+#view-control .status-sum dt { font-weight: 600; color: var(--ds-ink-2); }
+/* The editors' load. */
+#view-control .editor-card { background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: var(--ds-r-item); }
+#view-control .editor-count { flex: 1 1 100%; font-size: 14.5px; font-weight: 700; color: var(--ds-ink); }
+#view-control .edit-jobs { gap: 6px; }
+#view-control .edit-jobs > li { padding: 6px 12px 8px; border-top: 0; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+#view-control .edit-jobs .wclient { font-weight: 700; }
+#view-control .edit-k { color: var(--ds-ink); font-weight: 500; }
+#view-control .edit-steps li > .muted { color: var(--ds-ink-2); font-weight: 600; }
+#view-control .await-editor .stuck { display: grid; gap: 6px; }
+#view-control .await-editor .stuck > li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 6px 12px; border-top: 0; border-radius: var(--ds-r-sm); background: var(--ds-amber-soft); }
+/* The system's integrity. */
+#view-control .health-group { gap: 6px; }
+#view-control .health-h { margin-top: 10px; font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+#view-control .health-list > li:not(.more-row) { padding: 8px 12px; border-top: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); font-size: 14.5px; overflow-wrap: anywhere; }
+#view-control .health-list .wclient { font-weight: 700; }
+#view-control .health-list .muted { color: var(--ds-ink-2); }
+#view-control .late-procs { margin: 6px 0 2px; padding: 0; gap: 6px; }
+#view-control .late-procs > li { padding: 4px 10px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+#view-control .late-procs .muted { color: var(--ds-hot-text); font-weight: 600; }
+/* The review of today: the second process reads as a card with its words dark. */
+#view-control .rv-row { background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); border-radius: var(--ds-r-item); }
+#view-control .rv-meta { font-size: 13.5px; color: var(--ds-ink-2); font-weight: 500; }
+#view-control .rv-sum, #view-control .rv-narrow summary { color: var(--ds-ink-2); font-weight: 600; }
+/* By person: a card each, the five counts as bold numbers with their words. */
+#view-control .table-wrap { overflow: visible; }
+#view-control .ctable, #view-control .ctable tbody { display: grid; gap: 8px; min-width: 0; inline-size: 100%; }
+#view-control .ctable thead { position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#view-control .ctable tbody tr:not(.group-row) {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; align-items: stretch; inline-size: auto; padding: 12px;
+  border: 0; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line);
+}
+#view-control .ctable td { display: block; inline-size: auto; min-width: 0; padding: 0; border: 0; white-space: normal; overflow-wrap: anywhere; }
+#view-control .ctable td:first-child { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding-block-end: 4px; }
+#view-control .ctable td:first-child::before { content: none; }
+#view-control .ctable td:first-child .by { display: inline; font-size: 13.5px; color: var(--ds-ink-2); }
+#view-control .ctable td.num {
+  display: grid; justify-items: center; align-content: center; gap: 1px; padding: 8px 4px; border-radius: var(--ds-r-sm); background: var(--ds-ground); color: var(--ds-ink);
+  font-family: var(--ds-font-h); font-size: 22px; font-weight: 700; line-height: 1.1; letter-spacing: 0; text-align: center; font-variant-numeric: tabular-nums;
+}
+#view-control .ctable td.num::before { content: attr(data-label); display: block; order: 2; font-family: var(--ds-font-b); font-size: 12px; font-weight: 400; line-height: 1.3; color: var(--ds-ink-2); }
+#view-control .ctable td.num.late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+#view-control .ctable td.client { grid-column: 1 / -1; font-size: 14px; line-height: 1.5; color: var(--ds-ink); }
+#view-control .ctable td.client::before { content: attr(data-label) ': '; display: inline; font-size: 14px; font-weight: 600; color: var(--ds-ink-2); }
+#view-control .ctable td.acts-cell { grid-column: 1 / -1; padding: 0; }
+#view-control .ctable .row-acts { justify-content: flex-start; }
+#view-control .ctable .group-row { display: block; padding: 8px 2px 0; border: 0; background: transparent; }
+#view-control .ctable .group-row th { display: block; padding: 0; border: 0; font-size: 15.5px; font-weight: 700; color: var(--ds-ink); }
+@media (max-width: 760px) {
+  #view-control .task-head .wclient { min-height: 0; padding-block: 13px; margin-block: -13px; }
+  #view-control .ctable td.num { font-size: 20px; padding-inline: 2px; }
+  #view-control .ctable td.num::before { font-size: 11.5px; }
+}
+@media print { #view-control .ctable thead { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; } }

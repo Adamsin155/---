@@ -1421,9 +1421,12 @@ function renderLanding(flow = []) {
   fill(quiet, n ? h('details', { class: 'wgroup g-landing' },
     h('summary', { class: 'wgroup-h' }, 'בקליטה · בלי שעון', h('span', { class: 'n' }, String(n))),
     h('p', { class: 'hint' }, 'פריטים שאמרת שעדיין פתוחים, בלקוחות שעוד לא הופעלו. אפשר לעבוד עליהם ולסמן בכרטיס הלקוח; המועד יתחיל ביום ההפעלה.'),
-    h('ul', { class: 'land-quiet-list' }, ...rest.map((x) => h('li', {},
-      h('a', { class: 'wclient', href: clientUrl(x.client.id) }, clientLabel(x.client)),
-      h('ul', {}, ...x.items.map((i) => h('li', {}, i.label))))))) : null);
+    h('ul', { class: 'land-quiet-list' }, ...rest.map((x) => h('li', { class: 'k-pc' },
+      h('div', { class: 'k-pc-top' },
+        cardMark(null, 'inbox', 'navy'),
+        h('div', { class: 'k-pc-body' },
+          h('a', { class: 'wclient', href: clientUrl(x.client.id) }, clientLabel(x.client)),
+          h('ul', { class: 'k-inset' }, ...x.items.map((i) => h('li', {}, i.label))))))))) : null);
 }
 
 // One counted line of work that is done on another page: what waits and how many. The
@@ -1572,7 +1575,8 @@ function renderMine() {
     $('my-months').hidden = true;
     const n = workFor(null).length;
     fill(wrap, h('p', { class: 'team-fold', id: 'team-fold' },
-      h('span', {}, n ? `עבודת הצוות: ${n} פתוחים.` : 'עבודת הצוות: אין כרגע פריטים פתוחים.'),
+      iconSquare('users', 'teal'),
+      h('span', { class: 'team-fold-t' }, n ? `עבודת הצוות: ${n} פתוחים.` : 'עבודת הצוות: אין כרגע פריטים פתוחים.'),
       h('a', { class: 'btn btn-sm', id: 'team-open', href: '#team' }, 'הצגת עבודת הצוות')));
     return;
   }
@@ -2440,16 +2444,20 @@ const openEscalations = () => withClient(tasks.filter(isEscalation));
 const openUrgent = () => withClient(tasks.filter((t) => t.urgent && !isEscalation(t)));
 
 function taskRow({ t, c }, now) {
-  return h('li', { class: 'task-row' },
-    h('div', { class: 'task-head' },
-      h('a', { class: 'wclient', href: clientUrl(c.id, '#tasks') }, clientLabel(c)),
-      taskBadge(t),
-      h('span', { class: 'task-title' }, t.title),
-      personChip(t.owner),
-      t.due_on ? h('span', { class: 'muted num' }, `עד ${dayShort(t.due_on)}`) : null),
-    taskMeta(t, now),
-    t.urgent ? taskStart(t) : null,
-    briefDetails(t));
+  // A card with the mark of its kind (section 61): who, the task bold, whose it is, until when.
+  return h('li', { class: 'task-row k-pc' },
+    h('div', { class: 'k-pc-top' },
+      cardMark(null, ...(isEscalation(t) ? ['flag', 'orange'] : ['bolt', 'pink'])),
+      h('div', { class: 'k-pc-body' },
+        h('div', { class: 'task-head' },
+          h('a', { class: 'wclient', href: clientUrl(c.id, '#tasks') }, clientLabel(c)),
+          taskBadge(t),
+          h('span', { class: 'task-title' }, t.title),
+          personChip(t.owner),
+          t.due_on ? h('span', { class: 'k-pill num' }, `עד ${dayShort(t.due_on)}`) : null),
+        taskMeta(t, now),
+        t.urgent ? taskStart(t) : null,
+        briefDetails(t))));
 }
 
 // Section heading that the jump links at the top of the control view can focus.
@@ -2549,10 +2557,11 @@ function noteTaskControl(c, note) {
 }
 
 function statusRow(c, note) {
-  return h('li', { class: `status-row${note ? ' is-done' : ''}`, id: `st-${c.id}` },
+  return h('li', { class: `status-row k-pc${note ? ' is-done' : ''}`, id: `st-${c.id}` },
     h('div', { class: 'status-head' },
+      iconSquare(note ? 'check-circle' : 'note', note ? 'green' : 'purple'),
       h('a', { class: 'wclient', href: clientUrl(c.id) }, clientLabel(c)),
-      h('span', { class: 'muted small' }, phaseTitle(c)),
+      h('span', { class: 'k-pill status-phase' }, phaseTitle(c)),
       note ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'סוכם')
         : h('span', { class: 'sbadge s-waiting' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'טרם סוכם'),
       h('button', {
@@ -2892,25 +2901,26 @@ function renderControl() {
         ...rows.filter((r) => r.p.editor).map(personRow)))),
     h('h2', { class: 'wgroup-h', id: 'ctl-late', tabindex: '-1' }, 'באיחור אצלנו', h('span', { class: 'n' }, String(stuck.length))),
     stuck.length
-      ? capList(h('ul', { class: 'stuck' }, ...stuck.map(({ c, lateProcs, lateTasks }) => h('li', {},
-        h('a', { href: clientUrl(c.id), class: 'wclient' }, clientLabel(c)),
+      // A card per client; each late process a soft row inside it, its deadline a hot pill (section 61).
+      ? capList(h('ul', { class: 'stuck ctl-cards' }, ...stuck.map(({ c, lateProcs, lateTasks }) => h('li', { class: 'k-pc k-pc-late' },
+        h('div', { class: 'ctl-card-h' }, iconSquare('alert', 'pink'), h('a', { href: clientUrl(c.id), class: 'wclient' }, clientLabel(c))),
         clientNotes(c, now),
-        h('ul', {},
+        h('ul', { class: 'k-inset' },
           ...lateProcs.map((x) => h('li', {},
             h('a', { href: clientUrl(c.id, `#${x.proc.id}`) }, procLabel(x.proc)), ' ',
             peopleChips(peopleOf(x)),
             x.proc.owners.length > 1 && !x.claim ? h('span', { class: 'tag' }, 'לא נלקח') : null,
-            h('span', { class: 'muted num' }, ` · יעד ${formatWhen(x.dueAt)}`))),
+            h('span', { class: 'ctl-when num' }, h('i', { class: 'k-sep' }, ' · '), h('span', { class: 'k-pill k-pill-late' }, `יעד ${formatWhen(x.dueAt)}`)))),
           ...lateTasks.map((t) => h('li', {},
             h('a', { href: clientUrl(c.id, '#tasks') }, `משימה: ${t.title}`), ' ', personChip(t.owner), taskBadge(t),
-            h('span', { class: 'muted num' }, ` · עד ${formatDay(t.due_on)}`))))))), 6, 'ctl:late')
+            h('span', { class: 'ctl-when num' }, h('i', { class: 'k-sep' }, ' · '), h('span', { class: 'k-pill k-pill-late' }, `עד ${formatDay(t.due_on)}`)))))))), 6, 'ctl:late')
       : emptyState({ text: 'אין לקוחות עם תהליכים או משימות באיחור.' }),
     h('h2', { class: 'wgroup-h', id: 'ctl-wait', tabindex: '-1' }, 'ממתין ללקוח · צריך ליצור קשר', h('span', { class: 'n' }, String(byClient.size))),
     byClient.size
-      ? capList(h('ul', { class: 'stuck waiting-list' }, ...[...byClient.values()].map(({ c, list }) => h('li', {},
-        h('div', { class: 'wait-head' }, h('a', { href: clientUrl(c.id), class: 'wclient' }, clientLabel(c)), contactLinks(c)),
+      ? capList(h('ul', { class: 'stuck waiting-list ctl-cards' }, ...[...byClient.values()].map(({ c, list }) => h('li', { class: 'k-pc' },
+        h('div', { class: 'wait-head ctl-card-h' }, iconSquare('hourglass', 'orange'), h('a', { href: clientUrl(c.id), class: 'wclient' }, clientLabel(c)), contactLinks(c)),
         clientNotes(c, now),
-        h('ul', {}, ...list.map((x) => h('li', {},
+        h('ul', { class: 'k-inset' }, ...list.map((x) => h('li', {},
           h('a', { href: clientUrl(c.id, `#${x.proc.id}`) }, procLabel(x.proc)),
           h('span', { class: 'muted' }, ` · מאז ${formatStamp(x.wait.at)}`),
           x.wait.reason ? h('span', {}, ` · ״${x.wait.reason}״`) : null,
