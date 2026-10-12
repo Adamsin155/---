@@ -181,8 +181,7 @@
   .sd-leaf.is-none { place-items: center; block-size: 54px; background: var(--k-orange-soft); color: var(--k-orange); box-shadow: none; }
   .sd-leaf.is-none::before, .sd-leaf.is-none::after { content: none; }
   .sd tbody td:first-child > :not(.sd-leaf) { grid-column: 2; }
-  .sd .mt-name { min-height: 0; padding-block: 6px; font-size: 16px; font-weight: 700; }
-  .sd tbody td:first-child .sub { margin-block-start: 0; }
+  .sd .mt-name { font-size: 16px; font-weight: 700; }
   .sd tbody td::before { font-weight: 700; color: var(--ds-navy-text); }
   .sd tbody td { font-weight: 500; color: var(--ds-ink); }
   .sd tbody td .sub, .sd tbody td .muted { font-weight: 400; }
