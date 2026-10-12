@@ -246,7 +246,10 @@ export function jakoMessage({ template, to, row, flows = {} }) {
     params['BODY_{{3}}'] = cleanParam(row.body, JAKO_MAX.details);
   }
   t.replies.forEach((r, i) => { params[`QUICK_REPLY_${i + 1}`] = String(flows?.[r] || ''); });
-  if (t.link) params.URL_1 = jakoUrlParam(row.url);
+  // Jako numbers a button's variable by the button's place among all the buttons, not
+  // among the links (seen in the workspace, 13.10.2026: `URL_2` after one quick reply,
+  // `URL_1` when the link is the only button).
+  if (t.link) params[`URL_${t.replies.length + 1}`] = jakoUrlParam(row.url);
   return {
     user_id: jakoUserId(to), create_if_not_found: 'yes',
     content: { name: t.name, lang: WA_LANG, params },

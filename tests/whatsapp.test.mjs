@@ -525,7 +525,7 @@ test('Jako\'s message for each template: the number as user_id, the first name, 
   const m = jakoMessage({ template: 'reminder', to: '972501234567', row: log({ body: 'חסר חוזה\nלבדוק' }), flows: FLOWS });
   assert.deepEqual(m, {
     user_id: '972501234567', create_if_not_found: 'yes',
-    content: { name: 'astrateg_reminder', lang: 'he', params: { 'BODY_{{1}}': 'עירית', 'BODY_{{2}}': 'עסקה חדשה: פיצה', 'BODY_{{3}}': 'חסר חוזה · לבדוק', QUICK_REPLY_1: 'f100s201', URL_1: 'client.html?id=c1' } },
+    content: { name: 'astrateg_reminder', lang: 'he', params: { 'BODY_{{1}}': 'עירית', 'BODY_{{2}}': 'עסקה חדשה: פיצה', 'BODY_{{3}}': 'חסר חוזה · לבדוק', QUICK_REPLY_1: 'f100s201', URL_2: 'client.html?id=c1' } },
     contact: { first_name: 'עירית' },
   });
   // The nodnik: the task on one line (the title, and the details when they fit), both buttons, no link.
