@@ -7,7 +7,7 @@
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { freshDatabase, as, migrationSql } from './pg.mjs';
+import { freshDatabase, as, migrationSql, migrationFiles } from './pg.mjs';
 
 const FILE = '20261025100000_whatsapp_jako.sql';
 let db;
@@ -66,10 +66,13 @@ before(async () => {
 });
 
 test('the migration only adds: no statement removes anything, and running it again changes nothing', async () => {
-  const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8').replace(/--[^\n]*/g, '');
-  assert.doesNotMatch(sql, /\b(drop|truncate)\b/i);
-  assert.doesNotMatch(sql, /\bdelete\s+from\b/i);
-  assert.doesNotMatch(sql, /^\s*delete\b/im);
+  const whole = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
+  // None of the words the production deploy tool refuses, anywhere in the file (comments too).
+  assert.deepEqual(whole.match(/drop|delete|truncate/gi), null);
+  const sql = whole.replace(/--[^\n]*/g, '');
+  // Every UPDATE in it has a WHERE (an upsert's "do update set" is not one).
+  for (const m of sql.matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
+  assert.equal(migrationFiles().at(-1), FILE, 'the newest migration');
   // Nothing of a secret in the file: the name of the Vault secret only.
   assert.match(sql, /whatsapp_jako_api_key/);
   await db.query("update public.whatsapp_provider set provider = 'jako' where id");

@@ -141,8 +141,10 @@ $$;
 alter table public.whatsapp_messages add column if not exists provider text not null default 'meta' check (provider in ('meta', 'jako'));
 
 -- ── "הסר" without a webhook ────────────────
+-- (No foreign key to public.staff: a row of someone who left is never read again, as
+-- whatsapp_poll_due starts from the consents, and it holds two times and no more.)
 create table if not exists public.whatsapp_poll (
-  email text primary key references public.staff (email) on delete cascade,
+  email text primary key,
   checked_at timestamptz,   -- when the provider was last asked (the pace)
   read_until timestamptz    -- incoming messages were read up to here
 );
