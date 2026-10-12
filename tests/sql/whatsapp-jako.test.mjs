@@ -98,7 +98,7 @@ test('Meta is the default, and with it everything answers as before', async () =
   const [v2] = await svc('select * from public.whatsapp_config_v2()');
   assert.deepEqual(v2, { enabled: true, provider: 'meta', access_token: META[0][1], phone_number_id: '1234567890', jako_api_key: null, jako_flow_done: null, jako_flow_onit: null });
   // Meta's webhook is Meta's: the sub flows' door stays shut.
-  assert.deepEqual((await svc('select * from public.whatsapp_jako_hook()'))[0], { provider: 'meta', hook_secret: null });
+  assert.deepEqual((await svc('select * from public.whatsapp_jako_hook()'))[0], { provider: 'meta', hook_secret: null, jako_api_key: null });
   assert.ok(!('flows' in s));
   assert.deepEqual((await svc('select * from public.whatsapp_config()'))[0], { enabled: true, access_token: META[0][1], phone_number_id: '1234567890' });
   assert.deepEqual((await svc('select * from public.whatsapp_webhook_secrets()'))[0], { app_secret: META[2][1], verify_token: META[3][1], phone_number_id: '1234567890' });
@@ -163,7 +163,7 @@ test('with Jako the switch needs Jako\'s two secrets and its two reply flows, an
   assert.ok(!JSON.stringify(s).includes(JAKO_KEY) && !JSON.stringify(s).includes(HOOK), 'the screen never gets a secret');
   assert.deepEqual((await svc('select * from public.whatsapp_config_v2()'))[0], { ...off, enabled: true, jako_api_key: JAKO_KEY });
   // The secret of the buttons' calls, for the whatsapp-webhook function only.
-  assert.deepEqual((await svc('select * from public.whatsapp_jako_hook()'))[0], { provider: 'jako', hook_secret: HOOK });
+  assert.deepEqual((await svc('select * from public.whatsapp_jako_hook()'))[0], { provider: 'jako', hook_secret: HOOK, jako_api_key: JAKO_KEY });
   // Whoever still asks the old way (a function deployed before, Meta's webhook) sends nothing through Meta.
   assert.deepEqual((await svc('select * from public.whatsapp_config()'))[0], { enabled: false, access_token: null, phone_number_id: null });
   assert.deepEqual((await svc('select * from public.whatsapp_webhook_secrets()'))[0], { app_secret: null, verify_token: null, phone_number_id: null });
@@ -214,8 +214,18 @@ test('a reply through Jako: "המשימה בוצעה" closes a nagging task as i
   assert.equal((await open(t3)).status, 'open');
   // "אני על זה" on a nagging task: recorded as noted, the task stays open (it keeps ringing).
   const m2 = await message({ key: `nag:-:${t2}:s0@irit`, rule: 'nag', template: 'nodnik' });
-  assert.equal(await reply(`jako:onit:${m2}`, m2, { op: 'none', why: 'noted' }), 'noted');
+  assert.equal(await reply('wamid.PRESS-ONIT', m2, { op: 'none', why: 'noted' }), 'noted');
   assert.equal((await open(t2)).status, 'open');
+  // The key is the id of the press itself, as Jako's chat shows it: the same press again changes nothing.
+  assert.equal(await reply('wamid.PRESS-DONE', m2, { op: 'nag_done', task: t2 }), 'done');
+  assert.equal(await reply('wamid.PRESS-DONE', m2, { op: 'nag_done', task: t2 }), 'duplicate');
+  // A reply whose message was only assumed (the last one with that button) says so in what is kept.
+  const t5 = await nag();
+  const m5 = await message({ key: `nag:-:${t5}:s0@irit`, rule: 'nag', template: 'nodnik' });
+  assert.equal(await reply(`jako:onit:${m5}`, m5, { op: 'none', why: 'noted', match: 'last' }), 'noted');
+  assert.equal(await reply(`jako:done:${m5}`, m5, { op: 'nag_done', task: t5, match: 'last' }), 'done');
+  assert.deepEqual((await db.query('select id, result from public.whatsapp_inbound where message_id = $1 order by id', [m5])).rows,
+    [{ id: `jako:done:${m5}`, result: 'done (last message)' }, { id: `jako:onit:${m5}`, result: 'noted (last message)' }]);
   // A simple client task and a process: exactly what Meta's replies do (public.whatsapp_apply).
   const { rows: [ct] } = await db.query("insert into public.client_tasks (client_id, title, owner, urgent, created_by_email) values ($1, 'להחליף לוגו', 'irit', true, 'lior@astrateg.test') returning id", [c.id]);
   const m4 = await message({ key: `urgent:c:${ct.id}:now@irit`, rule: 'urgent', template: 'nodnik', client: c.id });
@@ -223,8 +233,11 @@ test('a reply through Jako: "המשימה בוצעה" closes a nagging task as i
   assert.equal(await reply(`jako:done:${m4}`, m4, { op: 'task_done', task: ct.id }), 'done');
   assert.deepEqual((await db.query('select started_by_email, done_by_email from public.client_tasks where id = $1', [ct.id])).rows[0], { started_by_email: 'irit@astrateg.test', done_by_email: 'irit@astrateg.test' });
   // What is kept of a reply: the button and message it names, the operation and the result. No text.
-  const kept = (await db.query("select id, op, result from public.whatsapp_inbound where id like 'jako:%' order by received_at, id")).rows;
-  assert.deepEqual(kept.map((r) => [r.op, r.result]).sort(), [['nag_done', 'done'], ['nag_done', 'not_open'], ['nag_done', 'not_open'], ['nag_done', 'not_open'], ['none', 'noted'], ['none', 'unknown'], ['none', 'unknown'], ['task_done', 'done'], ['task_start', 'started']]);
+  const kept = (await db.query("select id, op, result from public.whatsapp_inbound where id like 'jako:%' or id like 'wamid.PRESS%' order by received_at, id")).rows;
+  assert.deepEqual(kept.map((r) => `${r.op} ${r.result}`).sort(), [
+    'nag_done done', 'nag_done done', 'nag_done done (last message)', 'nag_done not_open', 'nag_done not_open', 'nag_done not_open',
+    'none noted', 'none noted (last message)', 'none unknown', 'none unknown', 'task_done done', 'task_start started',
+  ]);
 });
 
 test('a message is marked with its provider; Meta\'s rows are what they were', async () => {
@@ -239,8 +252,8 @@ test('a message is marked with its provider; Meta\'s rows are what they were', a
   assert.equal((await add('deal:c:deal:now@irit', ', provider', ", 'jako'")).rows[0].provider, 'jako');
   await assert.rejects(add('deal:d:deal:now@irit', ', provider', ", 'twilio'"), /check/);
   const team = await q('owner', 'select person, sent, delivered, read from public.whatsapp_team_status()');
-  // (Three here, and the six of the replies' test above.)
-  assert.deepEqual(team.find((r) => r.person === 'irit'), { person: 'irit', sent: 9, delivered: 0, read: 0 });
+  // (Three here, and the seven of the replies' test above.)
+  assert.deepEqual(team.find((r) => r.person === 'irit'), { person: 'irit', sent: 10, delivered: 0, read: 0 });
 });
 
 test('who is asked for replies: whoever agreed for the number they have, each at most once in five minutes, from where the last reading ended', async () => {
@@ -313,7 +326,7 @@ test('back to Meta: off, the provider, on; Meta\'s secrets are asked for again a
   assert.deepEqual((await svc('select * from public.whatsapp_config_v2()'))[0], { enabled: true, provider: 'meta', access_token: META[0][1], phone_number_id: '1234567890', jako_api_key: null, jako_flow_done: null, jako_flow_onit: null });
   assert.equal((await svc('select app_secret from public.whatsapp_webhook_secrets()'))[0].app_secret, META[2][1]);
   // The sub flows' secret is in Vault and is not given out: their calls get 503.
-  assert.deepEqual((await svc('select * from public.whatsapp_jako_hook()'))[0], { provider: 'meta', hook_secret: null });
+  assert.deepEqual((await svc('select * from public.whatsapp_jako_hook()'))[0], { provider: 'meta', hook_secret: null, jako_api_key: null });
   // The flows are kept for the day Jako is chosen again.
   assert.deepEqual((await db.query('select jako_flow_done, jako_flow_onit from public.whatsapp_provider')).rows[0], { jako_flow_done: 'f100s200', jako_flow_onit: 'f100s201' });
 });

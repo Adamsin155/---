@@ -79,7 +79,36 @@ export async function whatsappChannel(admin: any) {
         return out as string;
       },
     };
-    return makeJakoWhatsapp({ db, pollDb, jako: jakoClient(cfg.jako_api_key), recipients, flows: { done: cfg.jako_flow_done, onit: cfg.jako_flow_onit } });
+    // A button press read from the chat (../_shared/wa-jako-reply.js): its message, the item, and the function that applies it once.
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const row = async (table: string, cols: string, col: string, value: unknown) => {
+      const { data: out, error: e } = await admin.from(table).select(cols).eq(col, value).maybeSingle();
+      if (e) throw e;
+      return out;
+    };
+    const replyDb = {
+      async byWaId(mid: string) {
+        const { data: out, error: e } = await admin.from('whatsapp_messages').select('id, log_id, person, email, phone, template').eq('wa_message_id', mid).eq('provider', 'jako').maybeSingle();
+        if (e) throw e;
+        return out;
+      },
+      logRow: (id: number) => row('reminder_log', 'id, key, rule, person, level, client_id, ref, title', 'id', id),
+      task: (id: string) => (UUID.test(id) ? row('client_tasks', 'id, owner, done_at, started_at, source, brief, result', 'id', id) : null),
+      nag: (id: string) => (UUID.test(id) ? row('staff_tasks', 'id, assignee, status, body', 'id', id) : null),
+      async client(id: string) {
+        if (!UUID.test(id)) return null;
+        const { data: out, error: e } = await admin.from('clients').select('id, editor, rounds, shoot_type, shoot_at, char_at').eq('id', id).is('archived_at', null).maybeSingle();
+        if (e) throw e;
+        return out;
+      },
+      answered: async (inbound: string) => !!(await row('whatsapp_inbound', 'id', 'id', inbound)),
+      async apply({ inbound, message, from, plan }: Row) {
+        const { data: out, error: e } = await admin.rpc('whatsapp_jako_reply', { p_inbound: inbound, p_message: message, p_from: from, p_plan: plan });
+        if (e) throw e;
+        return out as string;
+      },
+    };
+    return makeJakoWhatsapp({ db, pollDb, jako: jakoClient(cfg.jako_api_key), recipients, flows: { done: cfg.jako_flow_done, onit: cfg.jako_flow_onit }, replyDb });
   }
   const send = (message: Row) => graphSend({ fetch, token: cfg.access_token, phoneNumberId: cfg.phone_number_id, message });
   return makeWhatsapp({ db, send, recipients });

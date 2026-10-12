@@ -17,6 +17,7 @@ import { verifySignature, verifyChallenge, parseEvents, handleEvents } from './w
 import { HOOK_HEADER, HOOK_MAX_BODY, hookGate, jakoReply } from './jako-hook.js';
 import { hookAnswer } from '../_shared/app/wa-logic.js';
 import { graphSend } from '../_shared/wa-graph.js';
+import { makeJako } from '../_shared/wa-jako.js';
 
 function serviceKey(): string {
   try {
@@ -93,6 +94,11 @@ const hookDb = {
     if (error) throw error;
     return data?.[0] ?? null;
   },
+  async byWaId(mid: string) {
+    const { data, error } = await admin.from('whatsapp_messages').select('id, log_id, person, email, phone, template').eq('wa_message_id', mid).eq('provider', 'jako').maybeSingle();
+    if (error) throw error;
+    return data;
+  },
   logRow: db.logRow,
   task: db.task,
   client: db.client,
@@ -139,7 +145,10 @@ Deno.serve(async (req) => {
     let body = null;
     try { body = JSON.parse(new TextDecoder().decode(raw)); } catch { /* answered as not understood */ }
     try {
-      return answer(await jakoReply({ db: hookDb, body }));
+      // The person's chat at Jako, to find the press itself (and so the exact message it answers).
+      const key = conf.hook?.jako_api_key;
+      const chat = key ? makeJako({ fetch, apiKey: key, timeoutMs: 4000 }).incoming : null;
+      return answer(await jakoReply({ db: hookDb, chat, body }));
     } catch (e) {
       console.error('whatsapp-webhook: a reply was not applied', codeOf(e));
       return answer(hookAnswer('error'));

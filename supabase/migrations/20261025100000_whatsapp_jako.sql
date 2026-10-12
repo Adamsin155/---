@@ -11,8 +11,10 @@
 --                             keys of app_settings: its list of keys is a check
 --                             constraint, and widening one means removing it first.)
 --   whatsapp_messages.provider  which provider a message went through. Jako returns
---                             no message id and no delivery updates: its rows are
---                             'sent' or 'failed', never 'delivered' or 'read'.
+--                             no delivery updates: its rows are 'sent' or 'failed',
+--                             never 'delivered' or 'read'. Its send returns no message
+--                             id either; wa_message_id is read back from the person's
+--                             chat at Jako after the send, when it can be.
 --   whatsapp_poll             per person who agreed: when Jako was last asked what
 --                             they wrote, and up to when it was read. Jako has no
 --                             webhook, so "הסר" is heard by asking (the reminders
@@ -21,7 +23,8 @@
 -- Reply buttons with Jako: a quick reply there starts a sub flow, and the sub flow
 -- calls the whatsapp-webhook function with a shared secret, who pressed and which
 -- button. public.whatsapp_jako_hook() gives the function that secret (while the
--- provider is Jako), and public.whatsapp_jako_reply() applies the reply.
+-- provider is Jako), and public.whatsapp_jako_reply() applies the reply, once: the
+-- key in whatsapp_inbound is the id of the press itself, as Jako's chat shows it.
 --
 -- The secrets (Vault, added by the owner himself; the names only here, and nothing
 -- in this file creates or changes them): whatsapp_jako_api_key (sending) and
@@ -157,14 +160,17 @@ language sql stable security definer set search_path = '' as $$
   from (select private.whatsapp_provider() as provider) p;
 $$;
 
--- The secret the sub flows call the whatsapp-webhook function with, and the provider.
--- Only while the provider is Jako (also while the switch is off: a reply to a message
--- that already went out is still the person's to give). Read from Vault, never set here.
+-- The secret the sub flows call the whatsapp-webhook function with, the provider, and
+-- Jako's API key (the function reads the person's chat to find the press itself, and
+-- so the exact message it answers). Only while the provider is Jako (also while the
+-- switch is off: a reply to a message that already went out is still the person's to
+-- give). Read from Vault, never set here.
 create or replace function public.whatsapp_jako_hook()
-returns table (provider text, hook_secret text)
+returns table (provider text, hook_secret text, jako_api_key text)
 language sql stable security definer set search_path = '' as $$
   select p.provider,
-         case when p.provider = 'jako' then (select decrypted_secret from vault.decrypted_secrets where name = 'whatsapp_jako_hook_secret' and length(decrypted_secret) >= 16 limit 1) end
+         case when p.provider = 'jako' then (select decrypted_secret from vault.decrypted_secrets where name = 'whatsapp_jako_hook_secret' and length(decrypted_secret) >= 16 limit 1) end,
+         case when p.provider = 'jako' then (select decrypted_secret from vault.decrypted_secrets where name = 'whatsapp_jako_api_key' and length(decrypted_secret) >= 20 limit 1) end
   from (select private.whatsapp_provider() as provider) p;
 $$;
 
@@ -185,6 +191,8 @@ declare
   v_task uuid;
   v_user uuid;
   v_result text;
+  -- The message was not named by the press but assumed (the last one with that button).
+  v_last boolean := coalesce(p_plan ->> 'match', '') = 'last';
 begin
   select * into m from public.whatsapp_messages where id = p_message;
   if m.id is null or m.provider <> 'jako' or m.phone is distinct from p_from then
@@ -192,7 +200,11 @@ begin
     return 'unknown';
   end if;
   if coalesce(p_plan ->> 'op', 'none') <> 'nag_done' then
-    return public.whatsapp_apply(p_inbound, p_message, p_from, p_plan);
+    v_result := public.whatsapp_apply(p_inbound, p_message, p_from, p_plan);
+    if v_last and v_result <> 'duplicate' then
+      update public.whatsapp_inbound set result = left(result || ' (last message)', 100) where id = p_inbound;
+    end if;
+    return v_result;
   end if;
 
   insert into public.whatsapp_inbound (id, message_id, op) values (p_inbound, p_message, 'nag_done') on conflict (id) do nothing;
@@ -214,7 +226,7 @@ begin
     perform public.staff_task_done(v_task);
     v_result := 'done';
   end if;
-  update public.whatsapp_inbound set result = v_result where id = p_inbound;
+  update public.whatsapp_inbound set result = v_result || case when v_last then ' (last message)' else '' end where id = p_inbound;
   return v_result;
 end $$;
 

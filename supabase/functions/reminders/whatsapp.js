@@ -40,7 +40,9 @@ export function makeWhatsapp({ db, send, recipients, message = templateMessage, 
       if (!claimed) return; // this reminder already went out on WhatsApp
       const res = await send(message({ template: plan.template, to: plan.to, row })).catch(() => ({ ok: false, status: 0, error: 'error' }));
       if (res.ok) {
-        await db.update(claimed.id, { status: 'sent', wa_message_id: res.id, sent_at: now.toISOString() });
+        const sent = { status: 'sent', sent_at: now.toISOString() };
+        // (An id the database refuses, as one another row holds, must not leave a sent message unrecorded.)
+        await db.update(claimed.id, { ...sent, wa_message_id: res.id }).catch((err) => { if (!res.id) throw err; return db.update(claimed.id, sent); });
         stats.waSent += 1;
       } else {
         await db.update(claimed.id, { status: 'failed', error: String(res.error || 'error').slice(0, 200), failed_at: now.toISOString() });
