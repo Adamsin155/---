@@ -38,8 +38,9 @@ const TEXT = {
 const wa = {
   enabled: true,
   secrets: { access_token: true, phone_number_id: true, app_secret: true, verify_token: true },
-  // The provider (20261025100000_whatsapp_jako.sql): Meta by default; with Jako the one secret is its key.
-  provider: 'meta', jakoSecrets: { jako_api_key: true },
+  // The provider (20261025100000_whatsapp_jako.sql): Meta by default; with Jako the secrets are
+  // its key and the reply flows' secret, and the two reply flows must be set.
+  provider: 'meta', jakoSecrets: { jako_api_key: true, jako_hook_secret: true }, jakoFlows: { done: true, onit: true },
   consents: new Map(), // email -> { status, phone }
   week: { 'irit@astrateg.test': { sent: 6, delivered: 5, read: 3, failed: 1 } },
 };
@@ -118,7 +119,8 @@ async function fakeSupabase(route) {
   }
   // public.whatsapp_settings: the secrets it names are the chosen provider's.
   const waSecrets = () => (wa.provider === 'jako' ? wa.jakoSecrets : wa.secrets);
-  const waSettings = () => ({ enabled: wa.enabled, owner: row.person === null, provider: wa.provider, ready: Object.values(waSecrets()).every(Boolean), secrets: waSecrets() });
+  const waReady = () => Object.values(waSecrets()).every(Boolean) && (wa.provider !== 'jako' || Object.values(wa.jakoFlows).every(Boolean));
+  const waSettings = () => ({ enabled: wa.enabled, owner: row.person === null, provider: wa.provider, ready: waReady(), secrets: waSecrets(), ...(wa.provider === 'jako' ? { flows: wa.jakoFlows } : {}) });
   if (p === '/rest/v1/rpc/whatsapp_settings') return json(200, isOffice(row) ? waSettings() : null);
   if (p === '/rest/v1/rpc/whatsapp_team_status') {
     if (!isOffice(row)) return json(200, []);
@@ -130,7 +132,7 @@ async function fakeSupabase(route) {
   }
   if (p === '/rest/v1/rpc/whatsapp_set_enabled') {
     if (row.person !== null) return json(403, { code: '42501', message: 'not allowed: owner only' });
-    if (body.p_on && !Object.values(waSecrets()).every(Boolean)) return json(400, { code: 'P0001', message: 'not_ready: WhatsApp secrets are missing in Vault' });
+    if (body.p_on && !waReady()) return json(400, { code: 'P0001', message: 'not_ready: WhatsApp secrets are missing in Vault' });
     wa.enabled = !!body.p_on;
     return json(200, waSettings());
   }
@@ -448,8 +450,22 @@ await step('the team screen with Jako: says so, counts only "נשלחו" (nothin
   if (OUT) await p.locator('#wa-panel').screenshot({ path: `${OUT}/wa-07-team-jako-phone.png` });
   await p.setViewportSize({ width: 1280, height: 900 });
   wa.jakoSecrets.jako_api_key = true;
+  // The secret of the reply buttons' calls, and the flow of a button, are asked for the same way.
+  wa.jakoSecrets.jako_hook_secret = false;
+  wa.jakoFlows.onit = false;
+  await p.click('#btn-refresh');
+  await p.waitForSelector('#wa-flows');
+  assert.equal(await p.locator('#wa-missing').innerText(), 'חסר ב־Vault: whatsapp_jako_hook_secret. ההוראות במסמך התפעול.');
+  assert.equal(await p.locator('#wa-flows').innerText(), 'חסרה ההגדרה של הזרימה ב־Jako לכפתור ״אני על זה״. ההוראות במסמך התפעול, סעיף 63.');
+  assert.equal(await p.locator('#wa-toggle').isDisabled(), true);
+  wa.jakoSecrets.jako_hook_secret = true;
+  await p.click('#btn-refresh');
+  await p.waitForFunction(() => !document.getElementById('wa-missing'));
+  assert.equal(await p.locator('#wa-toggle').isDisabled(), true, 'a flow is still missing');
+  wa.jakoFlows.onit = true;
   await p.click('#btn-refresh');
   await p.waitForSelector('#wa-toggle:not([disabled])');
+  assert.equal(await p.locator('#wa-flows').count(), 0);
   await p.click('#wa-toggle');
   await toastHas(p, 'הופעלו');
   assert.deepEqual(lastCall('whatsapp_set_enabled').body, { p_on: true });

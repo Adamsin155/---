@@ -62,8 +62,8 @@ test('the reminders function imports only its own files and the shared copy', ()
 });
 
 test('the whatsapp-webhook function imports only its own files and the shared copies', () => {
-  const files = new Set(['index.ts', 'webhook.js'].flatMap((f) => [...localImports('whatsapp-webhook', f)]));
-  assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), ['_shared/wa-graph.js', 'whatsapp-webhook/webhook.js']);
+  const files = new Set(['index.ts', 'webhook.js', 'jako-hook.js'].flatMap((f) => [...localImports('whatsapp-webhook', f)]));
+  assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), ['_shared/wa-graph.js', 'whatsapp-webhook/jako-hook.js', 'whatsapp-webhook/webhook.js']);
   for (const f of files) if (f.startsWith('_shared/app/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
 });
 
@@ -117,6 +117,7 @@ const DEPLOY = {
     ...APP('access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'reminder-rules.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
     'whatsapp-webhook/index.ts',
+    'whatsapp-webhook/jako-hook.js',
     'whatsapp-webhook/webhook.js',
   ],
 };

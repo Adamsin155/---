@@ -16,6 +16,7 @@ const PEOPLE = { owner: null, irit: 'irit', lior: 'lior', ofir: 'ofir', nadia: '
 const PHONES = { irit: '972501111111', ofir: '972503333333', nadia: '972504444444' };
 const META = [['whatsapp_access_token', 'EAAG-token-for-tests-0123456789'], ['whatsapp_phone_number_id', '1234567890'], ['whatsapp_app_secret', 'app-secret-0123456789'], ['whatsapp_verify_token', 'verify-token-0123456789']];
 const JAKO_KEY = 'jako-key-for-tests-0123456789';
+const HOOK = 'hook-secret-for-tests-0123456789';
 
 async function asRole(role, fn) {
   let out;
@@ -73,8 +74,12 @@ test('the migration only adds: no statement removes anything, and running it aga
   // Every UPDATE in it has a WHERE (an upsert's "do update set" is not one).
   for (const m of sql.matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
   assert.equal(migrationFiles().at(-1), FILE, 'the newest migration');
-  // Nothing of a secret in the file: the name of the Vault secret only.
+  // Nothing of a secret in the file: the names of the Vault secrets only, read and never
+  // written (the owner creates them himself).
   assert.match(sql, /whatsapp_jako_api_key/);
+  assert.match(sql, /whatsapp_jako_hook_secret/);
+  assert.doesNotMatch(sql, /vault\.(create_secret|update_secret)|insert\s+into\s+vault|update\s+vault/i);
+  assert.equal((await db.query("select count(*)::int n from vault.secrets where name like 'whatsapp_jako%'")).rows[0].n, 0);
   await db.query("update public.whatsapp_provider set provider = 'jako' where id");
   await db.exec(migrationSql(FILE));
   assert.deepEqual((await db.query('select provider from public.whatsapp_provider')).rows, [{ provider: 'jako' }], 'a second run keeps the choice');
@@ -91,7 +96,10 @@ test('Meta is the default, and with it everything answers as before', async () =
   // Jako's key alone would not do for Meta, and Meta's four do.
   assert.equal((await keep('owner', 'select public.whatsapp_set_enabled(true) s')).s.enabled, true);
   const [v2] = await svc('select * from public.whatsapp_config_v2()');
-  assert.deepEqual(v2, { enabled: true, provider: 'meta', access_token: META[0][1], phone_number_id: '1234567890', jako_api_key: null });
+  assert.deepEqual(v2, { enabled: true, provider: 'meta', access_token: META[0][1], phone_number_id: '1234567890', jako_api_key: null, jako_flow_done: null, jako_flow_onit: null });
+  // Meta's webhook is Meta's: the sub flows' door stays shut.
+  assert.deepEqual((await svc('select * from public.whatsapp_jako_hook()'))[0], { provider: 'meta', hook_secret: null });
+  assert.ok(!('flows' in s));
   assert.deepEqual((await svc('select * from public.whatsapp_config()'))[0], { enabled: true, access_token: META[0][1], phone_number_id: '1234567890' });
   assert.deepEqual((await svc('select * from public.whatsapp_webhook_secrets()'))[0], { app_secret: META[2][1], verify_token: META[3][1], phone_number_id: '1234567890' });
 });
@@ -111,42 +119,112 @@ test('only the owner sets the provider, and only while the switch is off', async
   await keep('owner', 'select public.whatsapp_set_enabled(false)');
   const s = (await keep('owner', "select public.whatsapp_set_provider('jako') s")).s;
   assert.deepEqual([s.provider, s.enabled, s.ready], ['jako', false, false]);
-  assert.deepEqual(s.secrets, { jako_api_key: false }, 'the secrets asked for are the provider\'s');
+  assert.deepEqual(s.secrets, { jako_api_key: false, jako_hook_secret: false }, 'the secrets asked for are the provider\'s');
+  assert.deepEqual(s.flows, { done: false, onit: false });
   const { rows: [row] } = await db.query('select provider, updated_by_email from public.whatsapp_provider');
   assert.deepEqual(row, { provider: 'jako', updated_by_email: 'owner@astrateg.test' });
   assert.equal((await settings('irit')).provider, 'jako', 'the office sees which');
 });
 
-test('with Jako the switch needs Jako\'s key and none of Meta\'s; the functions get that key only, and Meta\'s webhook nothing', async () => {
+test('with Jako the switch needs Jako\'s two secrets and its two reply flows, and none of Meta\'s; the functions get Jako\'s only, and Meta\'s webhook nothing', async () => {
+  const on = () => keep('owner', 'select public.whatsapp_set_enabled(true) s');
   // Meta's four are all in Vault, and still: not ready.
-  assert.match((await keep('owner', 'select public.whatsapp_set_enabled(true)')).error, /not_ready/);
+  assert.match((await on()).error, /not_ready/);
   assert.match((await keep('irit', 'select public.whatsapp_set_enabled(true)')).error, /owner only/);
-  // The owner adds it in the SQL editor (vault.create_secret), never from the app.
+  // The owner adds the secrets himself in the SQL editor (vault.create_secret), never from the app.
   assert.match((await q('owner', "select vault.create_secret('x', 'whatsapp_jako_api_key')")).error || '', /permission denied/);
   await db.query("select vault.create_secret('too-short', 'whatsapp_jako_api_key')");
-  assert.match((await keep('owner', 'select public.whatsapp_set_enabled(true)')).error, /not_ready/);
+  assert.match((await on()).error, /not_ready/);
   await db.query("update vault.secrets set secret = $1 where name = 'whatsapp_jako_api_key'", [JAKO_KEY]);
-  // While it is off no secret leaves Vault, for either provider.
-  assert.deepEqual((await svc('select * from public.whatsapp_config_v2()'))[0], { enabled: false, provider: 'jako', access_token: null, phone_number_id: null, jako_api_key: null });
-  await db.query("update vault.secrets set name = name || '_away' where name like 'whatsapp_%' and name <> 'whatsapp_jako_api_key'");
-  const s = (await keep('owner', 'select public.whatsapp_set_enabled(true) s')).s;
-  assert.deepEqual([s.enabled, s.provider, s.ready, s.secrets], [true, 'jako', true, { jako_api_key: true }]);
+  // The key alone is not enough: the buttons' calls need their secret…
+  assert.match((await on()).error, /not_ready/);
+  assert.deepEqual((await settings()).secrets, { jako_api_key: true, jako_hook_secret: false });
+  await db.query("select vault.create_secret('short', 'whatsapp_jako_hook_secret')");
+  assert.equal((await settings()).secrets.jako_hook_secret, false);
+  await db.query("update vault.secrets set secret = $1 where name = 'whatsapp_jako_hook_secret'", [HOOK]);
+  // … and each button its flow. Only the owner sets them.
+  assert.match((await on()).error, /not_ready/);
+  for (const who of ['irit', 'lior', 'nadia']) assert.match((await keep(who, "select public.whatsapp_set_jako_flows('f100s200', 'f100s201')")).error, /owner only/, who);
+  assert.match((await q(null, "select public.whatsapp_set_jako_flows('f100s200', 'f100s201')")).error, /permission denied/);
+  assert.match((await keep('owner', "select public.whatsapp_set_jako_flows('a b; c', 'f100s201')")).error, /bad_flow/);
+  assert.match((await q('owner', "update public.whatsapp_provider set jako_flow_done = 'x1234' where id")).error, /permission denied/);
+  let s = (await keep('owner', "select public.whatsapp_set_jako_flows(' f100s200 ', null) s")).s;
+  assert.deepEqual([s.flows, s.ready], [{ done: true, onit: false }, false]);
+  assert.match((await on()).error, /not_ready/);
+  s = (await keep('owner', "select public.whatsapp_set_jako_flows('f100s200', 'f100s201') s")).s;
+  assert.deepEqual([s.flows, s.ready, s.provider], [{ done: true, onit: true }, true, 'jako'], 'the provider is not touched');
+  // While it is off no secret leaves Vault, for either provider (the flows are not secrets).
+  const off = { enabled: false, provider: 'jako', access_token: null, phone_number_id: null, jako_api_key: null, jako_flow_done: 'f100s200', jako_flow_onit: 'f100s201' };
+  assert.deepEqual((await svc('select * from public.whatsapp_config_v2()'))[0], off);
+  await db.query("update vault.secrets set name = name || '_away' where name like 'whatsapp_%' and name not like 'whatsapp_jako_%'");
+  s = (await on()).s;
+  assert.deepEqual([s.enabled, s.provider, s.ready, s.secrets], [true, 'jako', true, { jako_api_key: true, jako_hook_secret: true }]);
   await db.query("update vault.secrets set name = replace(name, '_away', '') where name like '%_away'");
-  assert.ok(!JSON.stringify(s).includes(JAKO_KEY), 'the screen never gets a secret');
-  assert.deepEqual((await svc('select * from public.whatsapp_config_v2()'))[0], { enabled: true, provider: 'jako', access_token: null, phone_number_id: null, jako_api_key: JAKO_KEY });
-  // Whoever still asks the old way (a function deployed before, the webhook) sends nothing through Meta.
+  assert.ok(!JSON.stringify(s).includes(JAKO_KEY) && !JSON.stringify(s).includes(HOOK), 'the screen never gets a secret');
+  assert.deepEqual((await svc('select * from public.whatsapp_config_v2()'))[0], { ...off, enabled: true, jako_api_key: JAKO_KEY });
+  // The secret of the buttons' calls, for the whatsapp-webhook function only.
+  assert.deepEqual((await svc('select * from public.whatsapp_jako_hook()'))[0], { provider: 'jako', hook_secret: HOOK });
+  // Whoever still asks the old way (a function deployed before, Meta's webhook) sends nothing through Meta.
   assert.deepEqual((await svc('select * from public.whatsapp_config()'))[0], { enabled: false, access_token: null, phone_number_id: null });
   assert.deepEqual((await svc('select * from public.whatsapp_webhook_secrets()'))[0], { app_secret: null, verify_token: null, phone_number_id: null });
   // The helpers are the service role's.
-  for (const sql of ['select * from public.whatsapp_config_v2()', 'select * from public.whatsapp_poll_due(5, 300)', "select public.whatsapp_poll_done('irit@astrateg.test', now())"]) {
+  for (const sql of ['select * from public.whatsapp_config_v2()', 'select * from public.whatsapp_jako_hook()', 'select * from public.whatsapp_poll_due(5, 300)',
+    "select public.whatsapp_poll_done('irit@astrateg.test', now())", "select public.whatsapp_jako_reply('x', 1, '972501111111', '{\"op\":\"none\"}')"]) {
     assert.match((await q('owner', sql)).error || '', /permission denied/, sql);
     assert.match((await q(null, sql)).error || '', /permission denied/, sql);
   }
   // The key removed from Vault: the tick's own check turns the channel off, whatever the switch says.
   await db.query("update vault.secrets set name = 'parked' where name = 'whatsapp_jako_api_key'");
   assert.deepEqual((await svc('select enabled, jako_api_key from public.whatsapp_config_v2()'))[0], { enabled: false, jako_api_key: null });
-  assert.deepEqual((await settings()).secrets, { jako_api_key: false });
+  assert.deepEqual((await settings()).secrets, { jako_api_key: false, jako_hook_secret: true });
   await db.query("update vault.secrets set name = 'whatsapp_jako_api_key' where name = 'parked'");
+});
+
+test('a reply through Jako: "המשימה בוצעה" closes a nagging task as its assignee, once, only for a message that went through Jako to that number; the rest is applied as with Meta', async () => {
+  const { rows: [c] } = await db.query("insert into public.clients (name, shoot_type) values ('סושי', 'dms') returning id");
+  const nag = async (assignee = 'irit') => (await db.query("insert into public.staff_tasks (created_by, created_by_email, assignee, body) values ('lior', 'lior@astrateg.test', $1, 'להתקשר ללקוח') returning id", [assignee])).rows[0].id;
+  const message = async ({ key, rule, template, provider = 'jako', client = null }) => {
+    const { rows: [l] } = await db.query("insert into public.reminder_log (key, rule, person, level, channel, status, title, client_id) values ($1, $2, 'irit', 'ring', 'push', 'sent', 'כותרת', $3) returning id", [key, rule, client]);
+    const { rows: [m] } = await db.query("insert into public.whatsapp_messages (log_id, person, email, phone, template, status, sent_at, provider) values ($1, 'irit', 'irit@astrateg.test', '972501111111', $2, 'sent', now(), $3) returning id", [l.id, template, provider]);
+    return m.id;
+  };
+  const reply = (inbound, msg, plan, from = '972501111111') => keepSvc('select public.whatsapp_jako_reply($1, $2, $3, $4) r', [inbound, msg, from, JSON.stringify(plan)]).then((r) => r[0].r);
+  const t1 = await nag();
+  const m1 = await message({ key: `nag:-:${t1}:s0@irit`, rule: 'nag', template: 'nodnik' });
+  // Not from her number, not a Jako message, not this reminder's task: nothing changes.
+  assert.equal(await reply('jako:done:x1', m1, { op: 'nag_done', task: t1 }, '972509999999'), 'unknown');
+  const meta = await message({ key: `nag:-:${t1}:s1@irit`, rule: 'nag', template: 'due', provider: 'meta' });
+  assert.equal(await reply('jako:done:x2', meta, { op: 'nag_done', task: t1 }), 'unknown');
+  const t2 = await nag();
+  assert.equal(await reply('jako:done:x3', m1, { op: 'nag_done', task: t2 }), 'not_open', 'the task is the reminder\'s own, whatever the plan names');
+  const open = async (id) => (await db.query('select status, done_by_email from public.staff_tasks where id = $1', [id])).rows[0];
+  assert.deepEqual([await open(t1), await open(t2)], [{ status: 'open', done_by_email: null }, { status: 'open', done_by_email: null }]);
+  // Done: by her, in her name, through the function the app calls (the reminders of the task are marked read with it).
+  assert.equal(await reply(`jako:done:${m1}`, m1, { op: 'nag_done', task: t1 }), 'done');
+  assert.deepEqual(await open(t1), { status: 'done', done_by_email: 'irit@astrateg.test' });
+  assert.equal((await db.query('select read_at is not null r from public.reminder_log where key = $1', [`nag:-:${t1}:s0@irit`])).rows[0].r, true);
+  assert.equal(await reply(`jako:done:${m1}`, m1, { op: 'nag_done', task: t1 }), 'duplicate');
+  // Another message of a task that is closed by now.
+  const m1b = await message({ key: `nag:-:${t1}:s2@irit`, rule: 'nag', template: 'nodnik' });
+  assert.equal(await reply(`jako:done:${m1b}`, m1b, { op: 'nag_done', task: t1 }), 'not_open');
+  // A nagging task of someone else is not hers to close, even with a message to her.
+  const t3 = await nag('ofir');
+  const m3 = await message({ key: `nag:-:${t3}:s0@irit`, rule: 'nag', template: 'nodnik' });
+  assert.equal(await reply(`jako:done:${m3}`, m3, { op: 'nag_done', task: t3 }), 'not_open');
+  assert.equal((await open(t3)).status, 'open');
+  // "אני על זה" on a nagging task: recorded as noted, the task stays open (it keeps ringing).
+  const m2 = await message({ key: `nag:-:${t2}:s0@irit`, rule: 'nag', template: 'nodnik' });
+  assert.equal(await reply(`jako:onit:${m2}`, m2, { op: 'none', why: 'noted' }), 'noted');
+  assert.equal((await open(t2)).status, 'open');
+  // A simple client task and a process: exactly what Meta's replies do (public.whatsapp_apply).
+  const { rows: [ct] } = await db.query("insert into public.client_tasks (client_id, title, owner, urgent, created_by_email) values ($1, 'להחליף לוגו', 'irit', true, 'lior@astrateg.test') returning id", [c.id]);
+  const m4 = await message({ key: `urgent:c:${ct.id}:now@irit`, rule: 'urgent', template: 'nodnik', client: c.id });
+  assert.equal(await reply(`jako:onit:${m4}`, m4, { op: 'task_start', task: ct.id }), 'started');
+  assert.equal(await reply(`jako:done:${m4}`, m4, { op: 'task_done', task: ct.id }), 'done');
+  assert.deepEqual((await db.query('select started_by_email, done_by_email from public.client_tasks where id = $1', [ct.id])).rows[0], { started_by_email: 'irit@astrateg.test', done_by_email: 'irit@astrateg.test' });
+  // What is kept of a reply: the button and message it names, the operation and the result. No text.
+  const kept = (await db.query("select id, op, result from public.whatsapp_inbound where id like 'jako:%' order by received_at, id")).rows;
+  assert.deepEqual(kept.map((r) => [r.op, r.result]).sort(), [['nag_done', 'done'], ['nag_done', 'not_open'], ['nag_done', 'not_open'], ['nag_done', 'not_open'], ['none', 'noted'], ['none', 'unknown'], ['none', 'unknown'], ['task_done', 'done'], ['task_start', 'started']]);
 });
 
 test('a message is marked with its provider; Meta\'s rows are what they were', async () => {
@@ -161,7 +239,8 @@ test('a message is marked with its provider; Meta\'s rows are what they were', a
   assert.equal((await add('deal:c:deal:now@irit', ', provider', ", 'jako'")).rows[0].provider, 'jako');
   await assert.rejects(add('deal:d:deal:now@irit', ', provider', ", 'twilio'"), /check/);
   const team = await q('owner', 'select person, sent, delivered, read from public.whatsapp_team_status()');
-  assert.deepEqual(team.find((r) => r.person === 'irit'), { person: 'irit', sent: 3, delivered: 0, read: 0 });
+  // (Three here, and the six of the replies' test above.)
+  assert.deepEqual(team.find((r) => r.person === 'irit'), { person: 'irit', sent: 9, delivered: 0, read: 0 });
 });
 
 test('who is asked for replies: whoever agreed for the number they have, each at most once in five minutes, from where the last reading ended', async () => {
@@ -217,7 +296,7 @@ test('"הסר" read from Jako withdraws the consent as the webhook does, once, a
   const { rows: [l] } = await db.query("select action, via from public.whatsapp_consent_log where email = 'irit@astrateg.test' order by id desc limit 1");
   assert.deepEqual(l, { action: 'withdrawn', via: 'whatsapp' });
   // No text of the message anywhere: only its id, the operation and the result.
-  assert.deepEqual((await db.query("select id, op, result from public.whatsapp_inbound where id like 'jako:%' order by id")).rows, [
+  assert.deepEqual((await db.query("select id, op, result from public.whatsapp_inbound where id like 'jako:irit:%' order by id")).rows, [
     { id: 'jako:irit:904', op: 'withdraw', result: 'withdrawn' }, { id: 'jako:irit:905', op: 'withdraw', result: 'not_found' },
   ]);
   await db.query("update public.whatsapp_poll set checked_at = now() - interval '6 minutes'");
@@ -231,12 +310,16 @@ test('back to Meta: off, the provider, on; Meta\'s secrets are asked for again a
   assert.deepEqual([s.provider, s.ready], ['meta', true]);
   assert.deepEqual(s.secrets, { access_token: true, phone_number_id: true, app_secret: true, verify_token: true });
   assert.equal((await keep('owner', 'select public.whatsapp_set_enabled(true) s')).s.enabled, true);
-  assert.deepEqual((await svc('select * from public.whatsapp_config_v2()'))[0], { enabled: true, provider: 'meta', access_token: META[0][1], phone_number_id: '1234567890', jako_api_key: null });
+  assert.deepEqual((await svc('select * from public.whatsapp_config_v2()'))[0], { enabled: true, provider: 'meta', access_token: META[0][1], phone_number_id: '1234567890', jako_api_key: null, jako_flow_done: null, jako_flow_onit: null });
   assert.equal((await svc('select app_secret from public.whatsapp_webhook_secrets()'))[0].app_secret, META[2][1]);
+  // The sub flows' secret is in Vault and is not given out: their calls get 503.
+  assert.deepEqual((await svc('select * from public.whatsapp_jako_hook()'))[0], { provider: 'meta', hook_secret: null });
+  // The flows are kept for the day Jako is chosen again.
+  assert.deepEqual((await db.query('select jako_flow_done, jako_flow_onit from public.whatsapp_provider')).rows[0], { jako_flow_done: 'f100s200', jako_flow_onit: 'f100s201' });
 });
 
 test('every new function pins its search path, and none is open to anon', async () => {
-  const names = ['whatsapp_provider', 'whatsapp_jako_key_present', 'whatsapp_ready', 'whatsapp_set_provider', 'whatsapp_config_v2', 'whatsapp_poll_due', 'whatsapp_poll_done'];
+  const names = ['whatsapp_provider', 'whatsapp_jako_key_present', 'whatsapp_jako_hook_present', 'whatsapp_ready', 'whatsapp_set_provider', 'whatsapp_set_jako_flows', 'whatsapp_config_v2', 'whatsapp_jako_hook', 'whatsapp_jako_reply', 'whatsapp_poll_due', 'whatsapp_poll_done'];
   const { rows } = await db.query(`select p.proname, coalesce(array_to_string(p.proconfig, ','), '') cfg, has_function_privilege('anon', p.oid, 'execute') anon
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public', 'private') and p.proname = any($1) order by 1`, [names]);
   assert.deepEqual(rows.map((r) => r.proname), [...names].sort());

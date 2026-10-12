@@ -183,6 +183,7 @@ declare
   m public.whatsapp_messages;
   l public.reminder_log;
   v_task uuid;
+  v_user uuid;
   v_result text;
 begin
   select * into m from public.whatsapp_messages where id = p_message;
@@ -201,11 +202,15 @@ begin
   if l.rule = 'nag' and pg_input_is_valid(split_part(l.key, ':', 3), 'uuid') and split_part(l.key, ':', 3) = p_plan ->> 'task' then
     v_task := split_part(l.key, ':', 3)::uuid;
   end if;
-  if v_task is null or not exists (select 1 from public.staff_tasks t where t.id = v_task and t.status = 'open' and t.assignee = l.person) then
+  -- The person's own confirmed login: the app's function checks it (public.is_staff()).
+  select u.id into v_user from auth.users u where lower(u.email) = m.email and u.email_confirmed_at is not null limit 1;
+  if v_task is null or v_user is null
+     or not exists (select 1 from public.staff_tasks t where t.id = v_task and t.status = 'open' and t.assignee = l.person) then
     v_result := 'not_open';
   else
-    -- As that person, for the function's own checks and its stamp of who marked it.
-    perform set_config('request.jwt.claims', jsonb_build_object('email', m.email, 'role', 'service_role')::text, true);
+    -- As that person, for this transaction only: the function's own checks (only the
+    -- assignee marks a task done) and its stamp of who marked it.
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', v_user, 'email', m.email, 'role', 'service_role')::text, true);
     perform public.staff_task_done(v_task);
     v_result := 'done';
   end if;
