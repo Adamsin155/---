@@ -13,6 +13,11 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { clockDigits } from '../app/clocks.js';
 import { withClientColumns } from './fake-clients.mjs';
+// These steps turn the one signed-in account into another person of the team while its
+// tab stays open. In the office a role changes with a new sign-in; here the tab forgets
+// what it kept for the role before (the session's store and the frame; docs/ops.md,
+// section 60), so that each step opens as that person from its first paint.
+const newRole = (p) => p.evaluate(() => { for (const k of Object.keys(sessionStorage)) if (k === 'astrateg.shell' || k.startsWith('astrateg.cache')) sessionStorage.removeItem(k); }).catch(() => {});
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -355,14 +360,14 @@ await shot('03-phone', mob);
 await mob.close();
 
 // ── Whose clocks: the owner sees everyone's, with their names; Ilai only his ──
-db.staff[0].person = null;
+db.staff[0].person = null; await newRole(page);
 await page.goto(`${BASE}clients.html#mine`); // the owner's own landing is owner.html
 await page.waitForSelector('#now-bar .now-clock');
 assert.match(await page.locator('.now-hint').innerText(), /אצל הצוות/);
 assert.match(await page.locator(clockSel('answer', ron, 'p26')).locator('.pchips').innerText(), /עירית/);
 assert.match(await page.locator(clockSel('deal', deal, 'p02')).locator('.pchips').innerText(), /עירית[^]*ליאור/); // Lior has items in process 2
 assert.ok(await page.locator('#now-bar .now-clock').count() >= 3);
-db.staff[0].person = 'ilai';
+db.staff[0].person = 'ilai'; await newRole(page);
 await page.goto('about:blank');
 await page.goto(`${BASE}clients.html`);
 await page.waitForSelector('#view-mine:not([hidden]) .wproc');
@@ -375,14 +380,14 @@ await page.reload();
 await page.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.equal(await page.isHidden('#now-bar'), true);
 sea.status = 'active';
-db.staff[0].person = 'irit';
+db.staff[0].person = 'irit'; await newRole(page);
 
 // ── A deadline that is not a clock still alerts when it turns overdue ──
 // Lior's shoot day is due by the end of the day (never a clock in the bar).
 // The page is open from 23:57:30 in the background, notifications on; once the
 // day is over, the overdue check alerts it, once.
 const shootDay = onboarded({ name: 'בית קפה צילום', shoot_at: '2026-10-05T07:00:00Z' });
-db.staff[0].person = 'lior';
+db.staff[0].person = 'lior'; await newRole(page);
 const nightCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
 // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
 await nightCtx.addInitScript(() => { try { sessionStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
@@ -406,7 +411,7 @@ assert.equal(p18.length, 1, JSON.stringify(nightNotes));
 assert.match(p18[0].body, /^תהליך 18 · ניהול יום הצילום והתסריטים\. היעד היה /);
 assert.equal(new Set(nightNotes.map((n) => `${n.title}|${n.body}`)).size, nightNotes.length, 'no notification twice');
 await nightCtx.close();
-db.staff[0].person = 'irit';
+db.staff[0].person = 'irit'; await newRole(page);
 shootDay.status = 'ended';
 
 // ── Chrome on Android: `new Notification` throws; a service worker shows it ──

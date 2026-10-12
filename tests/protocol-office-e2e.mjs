@@ -10,6 +10,11 @@ import { randomUUID } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
 import { PROCESSES } from '../app/protocol.js';
 import { withClientColumns } from './fake-clients.mjs';
+// These steps turn the one signed-in account into another person of the team while its
+// tab stays open. In the office a role changes with a new sign-in; here the tab forgets
+// what it kept for the role before (the session's store and the frame; docs/ops.md,
+// section 60), so that each step opens as that person from its first paint.
+const newRole = (p) => p.evaluate(() => { for (const k of Object.keys(sessionStorage)) if (k === 'astrateg.shell' || k.startsWith('astrateg.cache')) sessionStorage.removeItem(k); }).catch(() => {});
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -520,7 +525,7 @@ assert.ok(soon);
 // ── Lior: the whole team (decision 22), his own row first ──
 // (Since 6.10.2026 the performance and the others' lists are Lior's manager profile: its
 // address opens it, and "עבודת הצוות" there is the list with the choice of whose.)
-db.staff[0].person = 'lior';
+db.staff[0].person = 'lior'; await newRole(page);
 await page.reload();
 await page.waitForSelector('#app:not([hidden])');
 await page.waitForSelector('#profile-switch');
@@ -538,7 +543,7 @@ await page.waitForSelector('.wproc:has(.wclient:text("פיצה נאפולי"))')
 // (Process 3 has no items of Lior's; in process 2 he has his own two, p02.intro and p02.deal.)
 assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון") .bulk-btn').count(), 0);
 assert.equal(await page.locator('.auto-banner').count(), 1); // Irit's view shows the banner
-db.staff[0].person = 'irit';
+db.staff[0].person = 'irit'; await newRole(page);
 
 // ── Batch 3: new people, urgent tasks, escalations, briefs, Ofir's control ──
 // Every required item of the processes in these phases, closed at `when`.
@@ -564,7 +569,7 @@ task({ client_id: waiting.id, title: 'לקוח מתלונן: הגרפיקות ל
 task({ client_id: natali.id, title: 'תיקון כתובית בסרטון 3', owner: 'nirel', due_on: '2026-09-23', created_by_email: 'lior@astrateg.test', created_at: hoursAgo(3),
   brief: { problem: 'שגיאת כתיב בכתובית של סרטון 3', change: 'לתקן את המילה ״מספרה״', keep: 'הקצב והמוזיקה', result: 'סרטון מתוקן בדרייב', materials: '' } });
 db.staff.push({ email: 'nirel@astrateg.test', person: 'nirel' });
-db.staff[0].person = 'irit';
+db.staff[0].person = 'irit'; await newRole(page);
 await page.reload();
 await page.waitForSelector('#view-mine:not([hidden]) .witem');
 
@@ -783,7 +788,7 @@ assert.match(await mob.locator('.rv-walk .rv-record').innerText(), /בזמן ה�
 
 // ── Role views: everyone lands on their own work ──
 // Ilai ('own'): his list only. No picker, no one else's list, no office screens, not even by link.
-db.staff[0].person = 'ilai';
+db.staff[0].person = 'ilai'; await newRole(page);
 await page.goto('about:blank'); // a real load (the same address with another hash would not reload)
 await page.goto(`${BASE}clients.html#control`);
 await page.waitForSelector('#view-mine:not([hidden]) .wproc');
@@ -857,7 +862,7 @@ await mobIlai.close();
 // The owner (no person): the office, the whole team first, anyone's list on request.
 // (Since 6.10.2026 he lands on "המשימות שלי", where the team's work is closed in one line;
 // the team's work itself is the manager profile's, at #team.)
-db.staff[0].person = null;
+db.staff[0].person = null; await newRole(page);
 await page.goto(`${BASE}clients.html#mine`);
 await page.waitForSelector('#team-fold');
 assert.match(await page.locator('#me-bar').innerText(), /המשימות שלי/);
@@ -883,7 +888,7 @@ assert.equal(await page.locator('#view-toggle').count(), 0);
 assert.ok(await page.locator('.viewbar .chip').count() >= 10, 'highlight anyone');
 
 // Irit (office): her card opens on hers; a link to someone else's process shows the whole protocol.
-db.staff[0].person = 'irit';
+db.staff[0].person = 'irit'; await newRole(page);
 await page.goto(`${BASE}client.html?id=${fresh.id}`);
 await page.waitForSelector('#view-toggle');
 assert.equal(await page.innerText('#view-toggle'), 'הצגת כל הפרוטוקול');
@@ -897,7 +902,7 @@ assert.equal(await page.innerText('#view-toggle'), 'רק התהליכים שלי
 // ── Thursday, as Ofir: the mandatory pass over every client ──
 // No review of process 33 since Sunday: three business days.
 db.office_reviews = db.office_reviews.filter((r) => !(r.kind === 'p33' && r.day === '2026-09-22'));
-db.staff[0].person = 'ofir';
+db.staff[0].person = 'ofir'; await newRole(page);
 const THU = new Date('2026-09-24T06:30:00Z'); // 09:30 in Jerusalem
 const thuCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
 // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
@@ -966,7 +971,7 @@ await thuCtx.close();
 // ── Completing a process from "my work" ends its wait on the client (decision 3) ──
 // Two new clients wait on the client in process 2 since 09:23 (due 09:25). Irit closes
 // the last item of one with a single check, and the last two of the other in bulk.
-db.staff[0].person = 'irit';
+db.staff[0].person = 'irit'; await newRole(page);
 skew = (await page.evaluate(() => Date.now())) - Date.now(); // the server follows Tuesday's page clock again
 const P2_ALL = [...P2, 'p02.team'];
 const waitingIn2 = (name, open) => {

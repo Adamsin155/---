@@ -29,7 +29,7 @@
 //  - a page belongs to the account it was opened as. A request in another account's
 //    name (someone else signed in on this device meanwhile) is not sent: the page is
 //    hidden and loads again.
-import { supabase, SUPABASE_URL, useFetchLayer, requestsIdle, redraws } from './supa.js';
+import { supabase, SUPABASE_URL, useFetchLayer, requestsIdle, redraws, clearKept } from './supa.js';
 import { sessionCache, planOf, tokenUser, CACHE_KEY } from './data-cache.js';
 import { quietPage } from './feel.js';
 
@@ -119,6 +119,9 @@ async function confirmShown() {
         orphans = batch.filter(([key]) => !reasked.has(key));
         if (pageUser) kept.markUnsteady(pageUser, PAGE, orphans.filter(([, s]) => !s.identity).map(([, s]) => s.shape));
       }
+      // Who the person is has changed (their role, or they left the team): nothing that was
+      // kept for who they were is shown again, not the lists and not the frame.
+      if (orphans.some(([, s]) => s.differs && s.identity)) clearKept();
       if (orphans.some(([, s]) => s.differs)) loadAgain();
     }
   } finally {
@@ -132,11 +135,13 @@ async function confirmShown() {
 const AGAIN = `${CACHE_KEY}.again`;
 function loadAgain() {
   try {
-    const [page, at] = String(sessionStorage.getItem(AGAIN) || '').split('|');
-    if (page === PAGE && Date.now() - Number(at) < 15e3) return; // it just did
+    // Never in a circle: an answer that is different every time it is asked would load the page for ever.
+    const [page, at, times] = String(sessionStorage.getItem(AGAIN) || '').split('|');
+    const recent = page === PAGE && Math.abs(Date.now() - Number(at)) < 15e3 ? Number(times) || 0 : 0;
+    if (recent >= 3) return;
     const go = () => {
       if (!quietPage()) return false;
-      sessionStorage.setItem(AGAIN, `${PAGE}|${Date.now()}`);
+      sessionStorage.setItem(AGAIN, `${PAGE}|${Date.now()}|${recent + 1}`);
       location.reload();
       return true;
     };
