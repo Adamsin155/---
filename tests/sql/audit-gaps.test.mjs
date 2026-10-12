@@ -85,8 +85,10 @@ before(async () => {
 
 test('the migration is the newest one, right after the migration of version 9, and has none of the words the production deploy tool refuses', () => {
   const files = migrationFiles();
-  assert.equal(files.at(-1), MIGRATION);
-  assert.equal(files.at(-2), '20261023100000_ofir_fast_ladder_v9.sql');
+  // The newest of the protocol's migrations (latestBlock below). What came after it is not the
+  // protocol's: 20261025100000_whatsapp_jako.sql, the second WhatsApp provider.
+  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261025100000_whatsapp_jako.sql']);
+  assert.equal(files[files.indexOf(MIGRATION) - 1], '20261023100000_ofir_fast_ladder_v9.sql');
   const sql = readFileSync(new URL(`../../supabase/migrations/${MIGRATION}`, import.meta.url), 'utf8');
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   // Every UPDATE in it has a WHERE (tests/safeupdate.test.mjs reads the function bodies; this is the whole file).

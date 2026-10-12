@@ -38,6 +38,9 @@ const TEXT = {
 const wa = {
   enabled: true,
   secrets: { access_token: true, phone_number_id: true, app_secret: true, verify_token: true },
+  // The provider (20261025100000_whatsapp_jako.sql): Meta by default; with Jako the secrets are
+  // its key and the reply flows' secret, and the two reply flows must be set.
+  provider: 'meta', jakoSecrets: { jako_api_key: true, jako_hook_secret: true }, jakoFlows: { done: true, onit: true },
   consents: new Map(), // email -> { status, phone }
   week: { 'irit@astrateg.test': { sent: 6, delivered: 5, read: 3, failed: 1 } },
 };
@@ -114,7 +117,11 @@ async function fakeSupabase(route) {
     if (c?.status === 'granted') c.status = 'withdrawn';
     return json(200, myConsent(row));
   }
-  if (p === '/rest/v1/rpc/whatsapp_settings') return json(200, isOffice(row) ? { enabled: wa.enabled, owner: row.person === null, secrets: wa.secrets } : null);
+  // public.whatsapp_settings: the secrets it names are the chosen provider's.
+  const waSecrets = () => (wa.provider === 'jako' ? wa.jakoSecrets : wa.secrets);
+  const waReady = () => Object.values(waSecrets()).every(Boolean) && (wa.provider !== 'jako' || Object.values(wa.jakoFlows).every(Boolean));
+  const waSettings = () => ({ enabled: wa.enabled, owner: row.person === null, provider: wa.provider, ready: waReady(), secrets: waSecrets(), ...(wa.provider === 'jako' ? { flows: wa.jakoFlows } : {}) });
+  if (p === '/rest/v1/rpc/whatsapp_settings') return json(200, isOffice(row) ? waSettings() : null);
   if (p === '/rest/v1/rpc/whatsapp_team_status') {
     if (!isOffice(row)) return json(200, []);
     return json(200, db.staff.map((s) => {
@@ -125,9 +132,9 @@ async function fakeSupabase(route) {
   }
   if (p === '/rest/v1/rpc/whatsapp_set_enabled') {
     if (row.person !== null) return json(403, { code: '42501', message: 'not allowed: owner only' });
-    if (body.p_on && !Object.values(wa.secrets).every(Boolean)) return json(400, { code: 'P0001', message: 'not_ready: WhatsApp secrets are missing in Vault' });
+    if (body.p_on && !waReady()) return json(400, { code: 'P0001', message: 'not_ready: WhatsApp secrets are missing in Vault' });
     wa.enabled = !!body.p_on;
-    return json(200, { enabled: wa.enabled, owner: true, secrets: wa.secrets });
+    return json(200, waSettings());
   }
   // "חיבור Metricool" (app/metricool-team.js; 20261007100100_metricool.sql): the settings for the
   // office, the switch for the owner, and the connection check through the edge function.
@@ -404,6 +411,73 @@ await step('Irit on the team screen sees the same lines, but no switch', async (
   await p.setViewportSize({ width: 360, height: 740 });
   assert.ok(await noHScroll(p), 'the team screen on a phone');
   await ctx.close();
+});
+
+// ── The provider is Jako (docs/ops.md, section 63) ──
+await step('the team screen with Jako: says so, counts only "נשלחו" (nothing of delivered or read), and the missing secret is Jako\'s key', async () => {
+  const { ctx, page: p } = await open('owner', 'team.html');
+  await p.waitForSelector('#wa-panel');
+  // With Meta, as it always was: no provider line, delivered and read.
+  assert.equal(await p.locator('#wa-provider').count(), 0);
+  assert.equal(await p.locator('#wa-note').innerText(), 'נמסר ונקרא מוצגים לתכנון העבודה בלבד, לא להערכה ולא למשמעת.');
+  assert.match(await p.locator('#row-irit').innerText(), /השבוע: 5 נמסרו, 3 נקראו, 1 נכשלו/);
+  wa.provider = 'jako';
+  await p.click('#btn-refresh');
+  await p.waitForSelector('#wa-provider');
+  assert.equal(await p.locator('#wa-provider').innerText(), 'ההודעות יוצאות דרך Jako.');
+  assert.match(await p.locator('#wa-state').innerText(), /^פועל\. /);
+  assert.match(await p.locator('#row-irit').innerText(), /WhatsApp: הסכים\/ה · יש מספר · השבוע: 6 נשלחו, 1 נכשלו/);
+  assert.match(await p.locator('#row-lior').innerText(), /WhatsApp: עוד לא בחר\/ה · אין מספר$/m);
+  assert.equal(await p.locator('#wa-note').innerText(), 'דרך Jako ידוע רק שהודעה נשלחה, לא אם נמסרה או נקראה. המספרים לתכנון העבודה בלבד, לא להערכה ולא למשמעת.');
+  // No line claims a message was delivered or read.
+  const lines = await p.locator('.tm-wa-status').allInnerTexts();
+  assert.equal(lines.length, 4);
+  assert.ok(lines.every((l) => !/נמסרו|נקראו/.test(l)), JSON.stringify(lines));
+  assert.equal(await p.locator('#wa-missing').count(), 0);
+  // (Opened again for the picture: the page clock stands still, so the sign-in screen's exit never ends.)
+  if (OUT) { await p.reload(); await p.waitForSelector('#wa-provider'); await p.locator('#wa-panel').screenshot({ path: `${OUT}/wa-06-team-jako.png` }); }
+  // Off, and Jako's key gone from Vault: named, none of Meta's secrets asked for, and no switching on.
+  await p.click('#wa-toggle');
+  await toastHas(p, 'כובו');
+  wa.jakoSecrets.jako_api_key = false;
+  await p.click('#btn-refresh');
+  await p.waitForSelector('#wa-missing');
+  assert.equal(await p.locator('#wa-missing').innerText(), 'חסר ב־Vault: whatsapp_jako_api_key. ההוראות במסמך התפעול.');
+  assert.equal(await p.locator('#wa-toggle').isDisabled(), true);
+  assert.equal(await p.locator('#wa-provider').innerText(), 'ההודעות יוצאות דרך Jako.');
+  await p.setViewportSize({ width: 360, height: 740 });
+  assert.ok(await noHScroll(p), 'the panel on a phone');
+  if (OUT) await p.locator('#wa-panel').screenshot({ path: `${OUT}/wa-07-team-jako-phone.png` });
+  await p.setViewportSize({ width: 1280, height: 900 });
+  wa.jakoSecrets.jako_api_key = true;
+  // The secret of the reply buttons' calls, and the flow of a button, are asked for the same way.
+  wa.jakoSecrets.jako_hook_secret = false;
+  wa.jakoFlows.onit = false;
+  await p.click('#btn-refresh');
+  await p.waitForSelector('#wa-flows');
+  assert.equal(await p.locator('#wa-missing').innerText(), 'חסר ב־Vault: whatsapp_jako_hook_secret. ההוראות במסמך התפעול.');
+  assert.equal(await p.locator('#wa-flows').innerText(), 'חסרה ההגדרה של הזרימה ב־Jako לכפתור ״אני על זה״. ההוראות במסמך התפעול, סעיף 63.');
+  assert.equal(await p.locator('#wa-toggle').isDisabled(), true);
+  wa.jakoSecrets.jako_hook_secret = true;
+  await p.click('#btn-refresh');
+  await p.waitForFunction(() => !document.getElementById('wa-missing'));
+  assert.equal(await p.locator('#wa-toggle').isDisabled(), true, 'a flow is still missing');
+  wa.jakoFlows.onit = true;
+  await p.click('#btn-refresh');
+  await p.waitForSelector('#wa-toggle:not([disabled])');
+  assert.equal(await p.locator('#wa-flows').count(), 0);
+  await p.click('#wa-toggle');
+  await toastHas(p, 'הופעלו');
+  assert.deepEqual(lastCall('whatsapp_set_enabled').body, { p_on: true });
+  assert.equal(wa.enabled, true);
+  await ctx.close();
+  // Irit sees the same wording, and no switch.
+  const irit = await open('irit', 'team.html');
+  await irit.page.waitForSelector('#wa-provider');
+  assert.equal(await irit.page.locator('#wa-toggle').count(), 0);
+  assert.match(await irit.page.locator('#row-irit').innerText(), /השבוע: 6 נשלחו, 1 נכשלו/);
+  await irit.ctx.close();
+  wa.provider = 'meta';
 });
 
 await step('while WhatsApp is off nobody is asked and "המשימות שלי" shows nothing about it', async () => {
