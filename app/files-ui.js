@@ -454,6 +454,21 @@ export function forgetFiles(clientId) {
   const st = data.get(clientId);
   if (st && !st.loading) st.loaded = false;
 }
+// A page that mounts many of these together (Ilai's cards in "המשימות שלי": one for each
+// client) hears of the files once, when the last of the reads asked for together has
+// answered, and not once per client: each time it hears, it draws its whole list again,
+// and twenty clients were twenty lists (docs/ops.md, section 59). Each block shows its
+// own files as they arrive, as before.
+let reading = 0;
+const read = new Set();
+function readDone(root) {
+  read.add(root);
+  reading -= 1;
+  if (reading > 0) return;
+  const tell = new Set([...read].map((r) => r.__opts.onChange).filter(Boolean));
+  read.clear();
+  for (const fn of tell) fn();
+}
 export function mountWorkFiles(opts) {
   const { client, idp } = opts;
   if (!data.has(client.id)) data.set(client.id, { files: [], loaded: false, error: null, gallery: null, loading: null });
@@ -467,7 +482,8 @@ export function mountWorkFiles(opts) {
   // uploadOne and tile read these: no "עלה לרשתות" fields here, and the page hears a change.
   root.__opts = { ...opts, plain: true, onUploaded: () => root.__opts.onChange?.() };
   if (!st.loaded && !st.loading) {
-    st.loading = loadFiles(client.id).then(() => { st.loading = null; refreshAll(client.id); root.__opts.onChange?.(); });
+    reading += 1;
+    st.loading = loadFiles(client.id).then(() => { st.loading = null; refreshAll(client.id); readDone(root); });
   }
   root.__draw();
   return root;

@@ -43,6 +43,8 @@ const cardUrl = (id, hash = '') => `client.html?id=${enc(id)}${hash ? `#${hash}`
 // The renewals are the owner's, Lior's and Irit's (station 8).
 const seesRenewals = () => !viewer?.error && (viewer?.scope === 'office' && (!me || me === 'lior' || me === 'irit'));
 const office = () => worksCycle(viewer);
+// The protocol's versions are the owners' (the owner, 12.10.2026: long and technical, not a worker's daily need).
+const seesVersions = () => !viewer?.error && viewer?.scope === 'office' && !me;
 
 // ── Data ────────────────────────────────────
 let inflight = null;
@@ -81,11 +83,12 @@ function render() {
   $('renewals').hidden = !renew;
   if (renew) renderRenewals(now);
   renderMonths(now);
-  renderVersions();
+  $('versions').hidden = !seesVersions();
+  if (seesVersions()) renderVersions();
   fill($('yr-jump'), h('ul', { class: 'chips-row' },
     renew ? h('li', {}, h('a', { class: 'chip', href: '#renewals' }, 'חידושים')) : null,
     h('li', {}, h('a', { class: 'chip', href: '#months' }, 'החודש של כל לקוח')),
-    h('li', {}, h('a', { class: 'chip', href: '#versions' }, 'גרסאות הפרוטוקול'))));
+    seesVersions() ? h('li', {}, h('a', { class: 'chip', href: '#versions' }, 'גרסאות הפרוטוקול')) : null));
 }
 function keepFocus(fn) {
   const id = document.activeElement?.id;
@@ -220,7 +223,10 @@ function renderVersions() {
   const counts = new Map();
   for (const c of clients) if (c.status === 'active' || c.status === 'ending') counts.set(versionOf(c), (counts.get(versionOf(c)) || 0) + 1);
   const byVersion = [...counts].sort((a, b) => b[0] - a[0]).map(([v, n]) => `גרסה ${v}: ${n === 1 ? 'לקוח אחד' : `${n} לקוחות`}`).join(' · ');
-  fill($('vr-body'),
+  // Closed until asked for: one line with the current version.
+  const open = $('vr-body').querySelector('details')?.open || location.hash === '#versions';
+  fill($('vr-body'), h('details', { class: 'yr-vd', open: open || null },
+    h('summary', {}, `גרסה ${PROTOCOL_VERSION} · הצגת כל הגרסאות`),
     h('p', { class: 'hint' }, `הגרסה הנוכחית: ${PROTOCOL_VERSION}. לקוח שהתחיל בגרסה קודמת: פריט שנוסף אחר כך מסומן ״חדש בפרוטוקול״ ולא נספר באיחור, ומועד שהתקצר נשאר כמו שהתחיל.`),
     byVersion ? h('p', { class: 'of-line' }, `הלקוחות הפעילים לפי הגרסה שבה התחילו: ${byVersion}`) : null,
     h('ol', { class: 'yr-versions', reversed: true },
@@ -228,13 +234,16 @@ function renderVersions() {
         h('p', { class: 'yr-vh' }, h('strong', {}, `גרסה ${v.version} · ${v.title}`), h('span', { class: 'muted' }, ` · ${formatDay(v.date)}`),
           // (`always`: an item added for every client, whatever version it started under; protocol v9.)
           newItems(v) ? h('span', { class: 'tag' }, newItems(v) === 1 ? 'פריט חדש אחד' : `${newItems(v)} פריטים חדשים`) : null),
-        h('ul', {}, ...v.changes.map((t) => h('li', {}, t)))))));
+        h('ul', {}, ...v.changes.map((t) => h('li', {}, t))))))));
 }
 
 // ── Boot ────────────────────────────────────
 $('btn-refresh').addEventListener('click', () => load());
 document.addEventListener('visibilitychange', () => { if (!document.hidden && viewer && Date.now() - lastLoad > 60e3) load(); });
-window.addEventListener('hashchange', () => document.getElementById(location.hash.slice(1))?.focus());
+window.addEventListener('hashchange', () => {
+  if (location.hash === '#versions') $('vr-body').querySelector('details')?.setAttribute('open', '');
+  document.getElementById(location.hash.slice(1))?.focus();
+});
 
 // The kit (docs/ops.md, section 52): the three sections and their cards take an icon square.
 dress($('app'), [['#rn-h', 'loop', 'green', 'md'], ['#mo-h', 'calendar', 'blue', 'md'], ['#vr-h', 'list', 'navy', 'md'], ['#na-h', 'lock', 'navy'],

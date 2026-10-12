@@ -431,8 +431,19 @@ await step('the month grid: which month each client is in, this month\'s items, 
   await shot(lior, 'year-06-months');
 });
 
-await step('the protocol\'s versions: what changed in each, and how many clients started under which', async () => {
-  const v = lior.locator('#versions');
+await step('the protocol\'s versions: the owners only, closed until asked for; what changed in each, and how many clients started under which', async () => {
+  // (The owner, 12.10.2026: a worker does not see the list at all.)
+  assert.equal(await lior.locator('#versions').isVisible(), false);
+  assert.equal(await lior.locator('#yr-jump a[href="#versions"]').count(), 0);
+  const octx = await newContext();
+  const owner = await newPage(octx);
+  await signIn(owner, 'year.html', 'owner@astrateg.test');
+  const v = owner.locator('#versions');
+  await v.locator('summary').waitFor();
+  assert.match(await v.locator('summary').innerText(), /גרסה 10 · הצגת כל הגרסאות/);
+  assert.equal(await v.locator('.yr-versions').isVisible(), false);
+  await shot(owner, 'year-06a-versions-closed');
+  await v.locator('summary').click();
   assert.equal(await v.locator('.yr-versions > li').count(), 10); // versions 1 to 10
   assert.match(await v.locator('.yr-versions > li').first().innerText(), /גרסה 10 · אחרי הבדיקה מול הפרוטוקולים הכתובים[^]*24 פריטים חדשים[^]*חמש הטעויות הקריטיות/);
   assert.match(await v.locator('.yr-versions > li').nth(1).innerText(), /גרסה 9 · אופיר לבדו בודק את הגרפיקות ומשייך עורך, עם סולם מהיר[^]*פריט חדש אחד[^]*בדיקת הגרפיקות היא של אופיר בלבד[^]*עד 21:00/);
@@ -442,6 +453,8 @@ await step('the protocol\'s versions: what changed in each, and how many clients
   assert.match(await v.innerText(), /גרסה 5 · זרימות המשרד והאפיון[^]*התסריטים עד סוף יום העסקים השני/);
   assert.match(await v.innerText(), /גרסה 4 · הפרוטוקול של הצלם[^]*15 פריטים חדשים/);
   assert.match(await v.innerText(), /גרסה 5: לקוח אחד · גרסה 4: 4 לקוחות · גרסה 1: לקוח אחד/);
+  await shot(owner, 'year-06b-versions');
+  await octx.close();
 });
 
 await step('the client card: the month block, a draft, marked in place', async () => {

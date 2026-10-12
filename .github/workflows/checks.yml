@@ -45,6 +45,7 @@ jobs:
           node tests/owner-e2e.mjs
           node tests/rls-e2e.mjs
           node tests/push-e2e.mjs
+          node tests/first-screen-e2e.mjs
           node tests/production-e2e.mjs
           node tests/office-flows-e2e.mjs
           node tests/intake-e2e.mjs

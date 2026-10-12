@@ -229,8 +229,11 @@ function paintButton() {
   try { if (n) navigator.setAppBadge?.(n); else navigator.clearAppBadge?.(); } catch { /* not supported */ }
 }
 
+let marked = 0; // how many times something was marked read here (openInbox reads again past one)
 async function markRead(ids) {
+  marked += 1;
   const { error } = await supabase.rpc('reminders_mark_read', { p_ids: ids });
+  marked += 1;
   if (error) { toast(`לא נשמר. ${errorText(error)}`); return false; }
   const at = new Date().toISOString();
   for (const r of rows) if (!ids || ids.includes(r.id)) r.read_at ||= at;
@@ -273,8 +276,15 @@ function rowView(r) {
         }, h('option', { value: '' }, 'לדחות…'), ...SNOOZE_CHOICES.map(([v, label]) => h('option', { value: v }, label)))) : null));
 }
 
-function paintInbox() {
+// The list as it is drawn now: a refresh that brings the same rows leaves it alone (the
+// row under the finger is not replaced, and a "לדחות…" that is open stays open).
+let inboxShown = null;
+const inboxKey = () => rows.map((r) => `${r.id}:${r.read_at || ''}:${r.status}:${r.sent_at || ''}`).join('|');
+function paintInbox({ again = true } = {}) {
   if (!dialogEl?.open) return;
+  const key = inboxKey();
+  if (!again && key === inboxShown) return;
+  inboxShown = key;
   const list = dialogEl.querySelector('#inbox-list');
   const n = unreadCount(rows);
   fill(dialogEl.querySelector('#inbox-sum'), rows.length ? `${rows.length} היום${n ? `, ${n} חדשות` : ''}.` : '');
@@ -282,12 +292,25 @@ function paintInbox() {
   fill(list, rows.length ? rows.map(rowView) : h('li', { class: 'empty' }, 'אין התראות היום.'));
 }
 
+// The list opens at once, with the rows the page already holds (read when it opened and
+// every minute since), and is read again behind it: the tap does not wait for the
+// database (docs/ops.md, section 59). What the fresh read adds or changes is drawn then.
 async function openInbox() {
-  try { await loadRows(); } catch (err) { toast(`ההתראות לא נטענו. ${errorText(err)}`); return; }
   dialogEl.showModal();
   paintInbox();
   paintButton();
   dialogEl.querySelector('#inbox-h')?.focus();
+  const before = marked;
+  try {
+    await loadRows();
+    // "סימון כנקרא" was pressed while the read was on its way: its answer is older than the mark.
+    if (before !== marked) await loadRows();
+  } catch (err) { toast(`ההתראות לא נטענו. ${errorText(err)}`); return; }
+  // Whoever is already inside a row keeps their place when the list is drawn again.
+  const at = dialogEl.contains(document.activeElement) ? document.activeElement.closest('.inbox-row')?.id : null;
+  paintInbox({ again: false });
+  paintButton();
+  if (at && !dialogEl.querySelector(`#${CSS.escape(at)}`)?.contains(document.activeElement)) dialogEl.querySelector(`#${CSS.escape(at)} a, #${CSS.escape(at)} button`)?.focus();
 }
 
 // ── Start ─────────────────────────────────
@@ -295,7 +318,7 @@ export async function refreshPush() {
   if (!live) return;
   try { await loadRows(); } catch { /* keep the last list */ }
   paintButton();
-  paintInbox();
+  paintInbox({ again: false });
 }
 
 // Mounts the card, the button and the list for the signed-in person
