@@ -1,8 +1,10 @@
 // Shared view helpers for the client protocol pages: login, people, dates, statuses.
 import {
   supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT,
-  sessionEmail, staffPerson, requestsIdle, shownFromStore, warmStaff, warmNow,
+  sessionEmail, staffPerson, requestsIdle, warmStaff, warmNow,
 } from './supa.js';
+// The session's data cache between the staff pages and the server (docs/ops.md, section 60).
+import { shownFromStore } from './session-store.js';
 import { warmDirectory } from './protocol-data.js';
 import { h } from './quote-doc.js';
 import { PEOPLE, PROCESSES, scopeOf } from './protocol.js';

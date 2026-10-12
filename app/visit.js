@@ -39,8 +39,9 @@ export function beginVisit(loc = globalThis.location, s = session()) {
 }
 // What the tab keeps of the signed-in person so that the next screen opens at once
 // (docs/ops.md, section 60): the app's frame as it was last drawn (app/shell-gate.js),
-// where the tab was last (for the way a page comes in), and the session's data cache with
-// everything under its name (app/data-cache.js).
+// where the tab was last (for the way a page comes in) and where each page was scrolled
+// to (for "back"), and the session's data cache with everything under its name
+// (app/data-cache.js).
 export const KEPT_KEYS = ['astrateg.shell', 'astrateg.nav', 'astrateg.rail', 'astrateg.scroll'];
 export const KEPT_PREFIX = 'astrateg.cache';
 export function forgetKept(s = session()) {

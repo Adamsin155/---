@@ -1,8 +1,6 @@
 // Supabase connection. The publishable key is safe to ship in the browser:
 // access is enforced by row level security and the create-quote function.
 import { createClient } from './vendor/supabase.js';
-import { sessionCache, planOf, tokenUser, CACHE_KEY } from './data-cache.js';
-import { quietPage } from './feel.js';
 
 export const SUPABASE_URL = 'https://czncjzziqrqtezpwxxpz.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_kf4V_lkjM658wkDiPVukWA_HoB5AH_e';
@@ -25,7 +23,7 @@ function settle() {
   if (inFlight > 0) return;
   for (const w of [...idleWaiters]) w();
 }
-// `ask` is what answers: the server, or the session's store (below).
+// `ask` is what answers: the server, or what the staff pages put in front of it (below).
 async function counted(ask, method) {
   inFlight += 1;
   let open = true;
@@ -56,233 +54,36 @@ export async function requestsIdle() {
   }
 }
 
-// ── The session's data cache (docs/ops.md, section 60) ───────────────────
-// A screen opens at once with what it showed last time in this tab, and is brought up
-// to date behind that. The rules of what may be kept, where and for how long are
-// app/data-cache.js (an explicit list of reads; this tab's sessionStorage; under the
-// account's id; minutes). Here: every request of the page passes countedFetch, and
-//  - a read on the list is answered from the store when the store has it, and asked of
-//    the server at the same moment. When the server's answer is not what was shown,
-//    the page is told (onFresh) and reads again; this time it is handed the server's
-//    answers, with no second request;
-//  - a page is shown what may be old only if it said how to draw again (onFresh). The
-//    answers about who the person is are the exception: if one of those turns out to
-//    have changed, the page loads again. So does a page that was shown something old
-//    in a part its onFresh does not read again, once; from then on that kind of
-//    question is asked of the server on that page (the store learns it);
-//  - until the server has confirmed what is on the screen, <html data-stale> holds the
-//    page's buttons and fields (shell.css): a tap acts on what the server said, never
-//    on what was remembered. Links work. What anyone may read or change is decided by
-//    the database, as always; the store only repeats what it already answered this
-//    account in this tab;
-//  - two identical reads at the same moment share one request;
-//  - anything that may change the database empties the store (data-cache.js `wrote`).
-const kept = sessionCache((() => { try { return globalThis.sessionStorage || null; } catch { return null; } })());
-const PAGE = typeof location === 'undefined' ? '' : (location.pathname.split('/').pop() || 'index.html');
-const flying = new Map();  // key -> the server's answer on its way
-const shown = new Map();   // key -> what this page was shown from the store: { shape, identity, differs, done, now: the server's answer }
-const redraws = new Set(); // how the page reads and draws again (onFresh)
-const reasked = new Set();
-const askedOnce = new Set();
-let redrawing = false;
-let checking = 0;
-let pageUser = null; // the account this page was opened as: the first request that carried a token
-const setStale = (on) => { try { document.documentElement.toggleAttribute('data-stale', on); } catch { /* no page */ } };
-const answerOf = (entry) => new Response(entry.body, {
-  status: entry.status, headers: { 'content-type': entry.type || 'application/json', ...(entry.range ? { 'content-range': entry.range } : {}) },
-});
-// The server's answer to a question on the list: kept when it is a plain yes, and
-// shared by whoever asks the same thing while it is on its way.
-function askServer(plan, uid, input, init) {
-  let asked = flying.get(plan.key);
-  if (!asked) {
-    asked = fetch(input, init).then((res) => {
-      if (res.status === 200 || res.status === 206) {
-        res.clone().text().then((body) => kept.put(uid, plan, { status: res.status, type: res.headers.get('content-type'), range: res.headers.get('content-range'), body })).catch(() => {});
-      } else kept.forget(uid, plan.key);
-      return res;
-    });
-    flying.set(plan.key, asked);
-    const landed = () => { if (flying.get(plan.key) === asked) flying.delete(plan.key); };
-    asked.then(landed, landed);
-  }
-  return asked.then((res) => res.clone());
-}
-function fromStore(plan, uid, input, init) {
-  // Only the first time a page asks a question (its opening), and when it reads again
-  // because it was told to (onFresh). Every later read of the page (a refresh, the
-  // five-minute reload, a read after a save) is the server's.
-  const first = !askedOnce.has(plan.key);
-  askedOnce.add(plan.key);
-  if (!first) {
-    // Reading again because the server's answer differed: that answer, which just arrived.
-    const again = redrawing ? shown.get(plan.key)?.now : null;
-    return again ? answerOf(again) : null;
-  }
-  const entry = kept.get(uid, plan.key);
-  if (!entry) return null;
-  const identity = kept.isIdentity(plan.path);
-  if (!identity && (!redraws.size || kept.unsteady(uid, PAGE).includes(plan.shape))) return null;
-  const mark = { shape: plan.shape, identity, differs: null, done: false, now: null };
-  shown.set(plan.key, mark);
-  checking += 1;
-  setStale(true);
-  askServer(plan, uid, input, init).then(async (res) => ({
-    ok: res.status === 200 || res.status === 206, status: res.status, type: res.headers.get('content-type'), range: res.headers.get('content-range'), body: await res.text(),
-  })).catch(() => null).then((got) => {
-    // The server was not reached: what is on the screen stays, like a page left open with no network.
-    mark.differs = !!got && (!got.ok || got.body !== entry.body);
-    mark.now = got?.ok ? got : null;
-    checking -= 1;
-    if (checking === 0) nextTurn().then(confirmShown);
-  });
-  if (!identity) drawn = true;
-  return answerOf(entry);
-}
-let confirming = false;
-async function confirmShown() {
-  if (confirming || checking > 0) return;
-  confirming = true;
-  try {
-    const batch = [...shown].filter(([, s]) => s.differs !== null && !s.done);
-    for (const [, s] of batch) s.done = true;
-    if (batch.some(([, s]) => s.differs)) {
-      let orphans = batch; // with no way to draw again, all of them
-      if (redraws.size) {
-        reasked.clear();
-        redrawing = true;
-        await Promise.allSettled([...redraws].map(async (draw) => draw()));
-        await Promise.race([requestsIdle(), new Promise((done) => { setTimeout(done, 3000); })]);
-        redrawing = false;
-        for (const [, s] of batch) s.now = null;
-        orphans = batch.filter(([key]) => !reasked.has(key));
-        if (pageUser) kept.markUnsteady(pageUser, PAGE, orphans.filter(([, s]) => !s.identity).map(([, s]) => s.shape));
-      }
-      if (orphans.some(([, s]) => s.differs)) loadAgain();
-    }
-  } finally {
-    confirming = false;
-    if (checking === 0 && [...shown.values()].every((s) => s.done)) setStale(false);
-    else if (checking === 0) nextTurn().then(confirmShown);
-  }
-}
-// The page shows something old that it cannot draw again by itself: it loads again
-// (the store now holds the server's answers), once, and when that loses nobody's typing.
-const AGAIN = `${CACHE_KEY}.again`;
-function loadAgain() {
-  try {
-    const [page, at] = String(sessionStorage.getItem(AGAIN) || '').split('|');
-    if (page === PAGE && Date.now() - Number(at) < 15e3) return; // it just did
-    const go = () => {
-      if (!quietPage()) return false;
-      sessionStorage.setItem(AGAIN, `${PAGE}|${Date.now()}`);
-      location.reload();
-      return true;
-    };
-    if (go()) return;
-    const retry = setInterval(() => { if (go()) clearInterval(retry); }, 3000);
-    setTimeout(() => clearInterval(retry), 120e3);
-  } catch { /* no storage: the page stays as it is until it is opened again */ }
-}
+// ── The staff pages' layer over every request (docs/ops.md, section 60) ───
+// The staff pages put the session's data cache between themselves and the server
+// (app/session-store.js calls useFetchLayer). This file knows nothing of it and loads
+// nothing for it: it is also the client's passwords form and the payments app, whose
+// requests are never kept. With no layer, every request is a plain fetch, as before.
+let layer = null;
+export function useFetchLayer(over) { layer = over; }
 // A page says how it reads and draws again; from then on it may be shown what the
 // store remembers (called at the top of the page's script, before its first request).
+export const redraws = new Set();
 export function onFresh(draw) { redraws.add(draw); }
-// Whether anything this page drew came from the store (and not only who the person is).
-let drawn = false;
-export const shownFromStore = () => drawn;
-// Signing out: nothing of this account stays in the tab (also app/visit.js forgetPlace).
-export function clearKept() { kept.clear(); try { sessionStorage.removeItem('astrateg.shell'); } catch { /* no storage */ } }
-
-let asks = 0;
-function countedFetch(input, init) {
-  asks += 1;
-  const method = String(init?.method || input?.method || 'GET').toUpperCase();
-  let plan = { kind: 'other' };
-  let uid = null;
+// Signing out: nothing of the account stays in the tab (also app/visit.js forgetPlace).
+export function clearKept() {
   try {
-    const headers = init?.headers ? new Headers(init.headers) : input?.headers || null;
-    plan = planOf(SUPABASE_URL, { url: typeof input === 'string' ? input : input?.url || String(input), method, headers, body: init?.body ?? null });
-    if (plan.kind !== 'other') uid = tokenUser(headers?.get?.('authorization'));
-  } catch { plan = { kind: 'other' }; }
-  if (uid && !pageUser) pageUser = uid;
-  // Another account signed in on this device while the page stood open (or was kept for
-  // "back"): nothing more is asked or shown in its name; the page loads again.
-  // (While the sign-in form is up the page shows nothing of anyone: whoever signs in on
-  // it is the page's person from then on, and the form's own code sends them home.)
-  if (uid && uid !== pageUser) {
-    let form = null;
-    try { form = document.getElementById('login-form'); } catch { form = null; }
-    if (form && form.offsetParent !== null) pageUser = uid;
-    else { leavePage(); return new Promise(() => {}); }
-  }
-  if (uid && plan.kind === 'write') {
-    kept.wrote(uid, plan.path);
-    flying.clear(); // a read after this one is not handed an answer that left before it
-    const after = () => kept.wrote(uid, plan.path); // and what was read while it was on its way
-    return counted(() => fetch(input, init).then((res) => { after(); return res; }, (err) => { after(); throw err; }), method);
-  }
-  if (uid && plan.kind === 'keep') {
-    if (redrawing) reasked.add(plan.key);
-    const hit = fromStore(plan, uid, input, init);
-    if (hit) return counted(() => Promise.resolve(hit), method);
-    return counted(() => askServer(plan, uid, input, init), method);
-  }
-  return counted(() => fetch(input, init), method);
+    const gone = ['astrateg.shell'];
+    for (let i = 0; i < sessionStorage.length; i += 1) { const k = sessionStorage.key(i) || ''; if (k === 'astrateg.cache' || k.startsWith('astrateg.cache.')) gone.push(k); }
+    for (const k of gone) sessionStorage.removeItem(k);
+  } catch { /* no storage */ }
+}
+function countedFetch(input, init) {
+  const method = String(init?.method || input?.method || 'GET').toUpperCase();
+  let over = null;
+  try { over = layer ? layer(input, init, method) : null; } catch { over = null; }
+  return counted(over || (() => fetch(input, init)), method);
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
   global: { fetch: countedFetch },
 });
-
-// ── "Back" to a page the browser kept whole (docs/ops.md, section 60) ─────
-// A browser keeps the page it leaves as it is (the back-forward cache) and shows it
-// again on "back" without loading it: the list is where it was, at the same scroll.
-//  - What stopped it here: the sign-in client listens to its other tabs on a
-//    BroadcastChannel, and every page that opens says "signed in" on it; Chrome throws
-//    a kept page away when a message reaches it. So the channel is closed while the
-//    page is kept, and opened again when it is shown.
-//  - A kept page is a picture of what one account saw. When it is shown again and that
-//    account is no longer the one signed in on this device, nothing of it is shown:
-//    the page is hidden and loads again (and then asks who is signed in, as always).
-//  - A page that is shown again reads again, quietly (its onFresh), from the server.
-// Nothing of the page is drawn any more (shell.css, <html data-left>), and it loads again:
-// it then asks who is signed in, as every page does.
-let leaving = false;
-function leavePage() {
-  if (leaving) return;
-  leaving = true;
-  try { document.documentElement.dataset.left = ''; } catch { /* no page */ }
-  try { location.reload(); } catch { /* no page */ }
-}
-function deviceUser() {
-  try { return JSON.parse(localStorage.getItem(supabase.auth.storageKey) || 'null')?.user?.id || null; } catch { return null; }
-}
-if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-  const auth = supabase.auth;
-  let closed = false;
-  window.addEventListener('pagehide', (e) => {
-    if (!e.persisted || !auth.broadcastChannel) return;
-    try { auth.broadcastChannel.close(); auth.broadcastChannel = null; closed = true; } catch { /* the page is then simply not kept */ }
-  });
-  window.addEventListener('pageshow', (e) => {
-    if (!e.persisted) return;
-    if (pageUser && deviceUser() !== pageUser) { leavePage(); return; }
-    if (closed && typeof BroadcastChannel === 'function' && auth.storageKey) {
-      closed = false;
-      try {
-        const channel = new BroadcastChannel(auth.storageKey);
-        channel.addEventListener('message', (m) => { Promise.resolve(auth._notifyAllSubscribers?.(m.data?.event, m.data?.session, false)).catch(() => {}); });
-        auth.broadcastChannel = channel;
-      } catch { /* other tabs are then not heard, as in a browser without the channel */ }
-    }
-    // The pages read again by themselves when they become visible; where a browser does
-    // not say so for a kept page (nothing was asked for a moment later), it is done here.
-    // Not under an open dialog or over typed text: the page's own five-minute reload follows there.
-    const before = asks;
-    setTimeout(() => { if (asks === before && quietPage()) for (const draw of redraws) Promise.resolve().then(draw).catch(() => {}); }, 400);
-  });
-}
 
 // The sign-in form asks "is this one of the staff" the moment the server says yes to the
 // password (warmStaff), together with everything else the page needs; currentStaff() then
@@ -473,6 +274,9 @@ export async function consumeRecoveryLink() {
 //  - where that person stood (the profile, "תצוגה מלאה", the filters): forgotten by the
 //    pages' own sign-out buttons (forgetPlace in app/visit.js; the owner's rule of 9.10.2026).
 //    Not from here: this file is also loaded by the client's passwords form (section 36).
+//  - what the tab kept so that the next screen opens at once (section 60): the answers
+//    of the session's data cache and the app's frame (clearKept, here; forgetPlace
+//    removes them too, with where the tab was and its scroll places).
 // Other preferences of the device stay (the notifications switch, what was seen). Each
 // step is best effort and none holds the sign-out for long.
 export const DRAFT_PREFIXES = ['astrateg.charform.', 'astrateg.brief.', 'astrateg.scripts.'];

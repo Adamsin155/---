@@ -15,6 +15,7 @@
 import { staffPerson, sessionUser } from './supa.js';
 import { startFeel } from './feel.js';
 import { shellState, SHELL_KEY } from './shell-state.js';
+import './session-store.js'; // every page with the shell: a kept page belongs to one account (docs/ops.md, section 60)
 import { h } from './quote-doc.js';
 import { PEOPLE, scopeOf } from './protocol.js';
 import { setMode, modeOf } from './manager-rules.js';

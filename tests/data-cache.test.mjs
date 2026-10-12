@@ -188,13 +188,19 @@ test('a write empties the store, except who the person is; a write to the team e
 test('the store is the tab\'s sessionStorage and nothing else; signing out and the gate remove it', () => {
   const supa = readFileSync(new URL('../app/supa.js', import.meta.url), 'utf8');
   const rules = readFileSync(new URL('../app/data-cache.js', import.meta.url), 'utf8');
-  assert.match(supa, /sessionCache\(\(\(\) => \{ try \{ return globalThis\.sessionStorage \|\| null; \} catch \{ return null; \} \}\)\(\)\)/);
-  // The part of supa.js that keeps and hands out answers, and the rules: nowhere but the tab.
-  const part = supa.slice(supa.indexOf('// ── The session\'s data cache'), supa.indexOf('export const supabase = createClient'));
-  assert.ok(part.length > 2000, 'the cache part of supa.js was found');
-  for (const [name, src] of [['supa.js', part], ['data-cache.js', rules]]) {
+  const layer = readFileSync(new URL('../app/session-store.js', import.meta.url), 'utf8');
+  assert.match(layer, /sessionCache\(\(\(\) => \{ try \{ return globalThis\.sessionStorage \|\| null; \} catch \{ return null; \} \}\)\(\)\)/);
+  // What keeps and hands out answers, and the rules: nowhere but the tab. (The one read of
+  // localStorage is of the sign-in client's own session: whose device this is now.)
+  for (const [name, src] of [['session-store.js', layer.replace('localStorage.getItem(supabase.auth.storageKey)', '')], ['data-cache.js', rules]]) {
     const code = src.replace(/\/\/.*$/gm, '');
     assert.ok(!/localStorage|indexedDB|caches\.|CacheStorage|document\.cookie/.test(code), `${name}: nowhere but the tab`);
+  }
+  // The shared connection module loads nothing for it: the client's passwords form and the
+  // payments app load that module too, and nothing of theirs passes through the cache.
+  assert.deepEqual(supa.match(/^import .*$/gm), ["import { createClient } from './vendor/supabase.js';"]);
+  for (const other of ['app/access-form.js', 'app/payouts/app.js', 'app/client.js', 'app/status.js', 'app/gallery.js']) {
+    assert.ok(!/session-store|data-cache|protocol-ui|shell\.js/.test(readFileSync(new URL(`../${other}`, import.meta.url), 'utf8').replace(/\/\/.*$/gm, '')), other);
   }
   assert.match(supa, /clearKept\(\);[^\n]*\n\s*await supabase\.auth\.signOut\(\);\n\s*clearKept\(\);/, 'signing out empties it, before and after');
   // The service worker still keeps the site's own files only (tests/smooth.test.mjs holds the rest).
