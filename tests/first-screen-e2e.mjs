@@ -140,7 +140,8 @@ try {
     const reads = log.filter((r) => r.table === 'client_files').length;
     assert.ok(blocks >= 8 && reads >= 8, `the world gives Ilai many file blocks (${blocks} blocks, ${reads} reads)`);
     const draws = await page.evaluate(() => window.__draws);
-    assert.ok(draws <= 7, `the list was built ${draws} times while the page opened (it was once per client: ${reads} and more)`);
+    console.log(`   (built ${draws} times; ${blocks} file blocks, ${reads} reads of files)`);
+    assert.ok(draws <= 5, `the list was built ${draws} times while the page opened (it was once per client: ${reads} and more)`);
     // Each block shows its own files (none is left "loading").
     assert.equal(await page.locator('#mine-list .fl-work .fl-status:not([hidden])').count(), 0);
     await ctx.close();

@@ -166,9 +166,7 @@ function drawn(v, { keep = switching } = {}) {
   fresh.add(v);
 }
 // A row changed (a mark, a task, a reload, the minute): nothing worked out or built stays.
-let stateRev = 0;
 function changed() {
-  stateRev += 1;
   derived.clear();
   fresh.clear();
   kept.clear();
@@ -176,9 +174,10 @@ function changed() {
 }
 // The state of each client, worked out once and kept until its rows change. Every change
 // of a mark in this file drops its client from here, which is what tells the rest.
+let stateRev = 0; // counts the changes of the states themselves (warmStates stops at one)
 class StateMap extends Map {
-  delete(k) { changed(); return super.delete(k); }
-  clear() { changed(); super.clear(); }
+  delete(k) { stateRev += 1; changed(); return super.delete(k); }
+  clear() { stateRev += 1; changed(); super.clear(); }
 }
 const states = new StateMap();
 function stateOf(c) {
@@ -238,7 +237,22 @@ const editorPeople = () => STAFF_PEOPLE().filter((p) => p.editor);
 // The first rows of the page, asked for while the session is being confirmed (app/supa.js warm).
 const firstRows = () => Promise.all([loadClients({ includeEnded: true }), loadChecks(), loadTasks({ openOnly: true })]);
 warm('clients', firstRows);
+// A reload ends by drawing the open view. A card that asks for a draw while one is on its
+// way (the notifications' card when its state is known, Ilai's files) does not draw the
+// list by itself: the list would be built twice, the first time from rows that are still
+// arriving (docs/ops.md, section 59). The reload draws; if it could not, the draw is owed.
+let loading = 0;
+let owed = false;
 async function load() {
+  loading += 1;
+  try {
+    await loadRows();
+  } finally {
+    loading -= 1;
+    if (!loading && owed) cardsChanged();
+  }
+}
+async function loadRows() {
   $('state').textContent = clients.length ? '' : 'טוען…';
   const now = new Date();
   const first = !loads; // the page is opening (the cards have just read their own rows)
@@ -458,6 +472,7 @@ document.querySelector('.tabs').addEventListener('keydown', (e) => {
 });
 
 function render() {
+  owed = false;
   // The landing line and list belong to "המשימות שלי" alone.
   if (view !== 'mine') { $('land-line').hidden = true; $('land-quiet').hidden = true; }
   if (onMine()) renderMine(); else syncLateTab();
@@ -1482,7 +1497,9 @@ function renderLate(flow) {
 // view is open, it is only no longer kept as built.
 function cardsChanged() {
   changed();
-  if (onMine() && !busy()) renderKeepingFocus();
+  if (loading) { owed = true; return; }
+  owed = false;
+  if (onMine() && !$('app').hidden && !busy()) renderKeepingFocus();
 }
 
 function renderMine() {
@@ -3256,7 +3273,7 @@ mountSession(async (staff) => {
   // answered, so none lands above a list that is already on the screen: bootEnd in protocol-ui.js.)
   mountPush({
     who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
-    changed: () => { changed(); if (onMine() && !$('app').hidden && !busy()) renderKeepingFocus(); },
+    changed: cardsChanged,
   });
   mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
   // "היומן שלי": the personal calendar link (app/calendar-card.js).
