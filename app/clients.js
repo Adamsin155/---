@@ -1492,9 +1492,10 @@ function renderLate(flow) {
     h('ul', { class: 'wprocs late-list', 'aria-labelledby': 'late-h' }, ...lines.map(flowCard), ...cards.map((g) => (g.key ? groupCard(g, me) : lateRow(g)))));
 }
 
-// A card of the list read or wrote something of its own (Ilai's cards: the files, the
-// access, a mark): what it stands on changed, so the list is drawn again; when another
-// view is open, it is only no longer kept as built.
+// A card read or wrote something of its own that the list stands on (the notifications'
+// card: on or off; Ilai's cards: the files, the access, a mark): the list is drawn again.
+// When another view is open, it is only no longer kept as built; while a reload is on
+// its way, the reload draws (see `load`).
 function cardsChanged() {
   changed();
   if (loading) { owed = true; return; }
