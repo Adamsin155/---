@@ -80,3 +80,14 @@
 /* 44px targets */
 .mitem .irow { min-height: 44px; box-sizing: border-box; }
 .yr-renew .of-acts .btn, .yr-row .btn { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* ── No pale rows (the owner, 13.10.2026; docs/ops.md, section 62) ──
+   A renewal opens with the leaf of the day the package ends; what the year gave sits on
+   a white panel with bold labels instead of grey on grey. */
+.yr-end > strong { font-size: 15px; color: var(--ds-ink); }
+.yr-renew .of-head.has-leaf > .k-leaf .k-leaf-day { font-size: 19px; line-height: 1.6; }
+.yr-sum { padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); gap: 6px 14px; }
+.yr-sum dt { font-size: 13px; font-weight: 700; color: var(--ds-navy-text); }
+.yr-sum dd { font-weight: 500; color: var(--ds-ink); }
+.yr-sum dd.late { font-weight: 700; color: var(--ds-hot-text); }
+@media (max-width: 760px) { .yr-sum { gap: 0; } .yr-sum dd { margin-bottom: 8px; } .yr-sum dd:last-child { margin-bottom: 0; } }
