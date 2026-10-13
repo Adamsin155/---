@@ -211,8 +211,7 @@ function disarm(draw = true) {
 }
 function arm(a, editor) {
   clearTimeout(armTimer);
-  armed = { key: a.key, editor, at: Date.now() };
-  armTimer = setTimeout(() => disarm(), ARM_MS);
+  armed = { key: a.key, editor, at: Date.now() };  armTimer = setTimeout(() => disarm(), ARM_MS);
   renderKeepingFocus();
 }
 async function quickAssign(a, editor, joint) {
@@ -275,7 +274,7 @@ function assignCard(a, load, now) {
       }, sure ? `בטוח? שיוך ל${name}` : `שיוך ל${name}`) : null,
       h('button', {
         type: 'button', class: `btn btn-sm${oneTap ? '' : ' k-btn-navy'}`, id: `as-open-${id}`, disabled: quickBusy,
-        'aria-label': `${oneTap ? 'עורך אחר' : 'שיוך עורך'}: ${label}`, onclick: () => { disarm(false); openAssign(a); },
+        'aria-label': `${oneTap ? 'עורך אחר' : 'שיוך עורך'}: ${label}`, onclick: () => { disarm(); openAssign(a); },
       }, oneTap ? 'עורך אחר' : 'שיוך עורך'),
       sure ? h('span', { class: 'sr-only', role: 'status' }, `לחיצה נוספת משייכת את ${a.client.name} ל${name}.`) : null));
 }

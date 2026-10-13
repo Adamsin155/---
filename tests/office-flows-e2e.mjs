@@ -411,7 +411,10 @@ await step('the re-check: back in the queue as check 2 with what was returned; a
 });
 
 await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the folder task and the WhatsApp to the editor', async () => {
-  await ofir.click('#assign-list button');
+  // The card suggests the rule's own choice, one confirmation away; "עורך אחר" opens the dialog.
+  assert.match(await ofir.locator('#assign-list .as-sug').innerText(), /מומלץ: ניראל[^]*צילום של נטלי: ניראל מסומנת מראש/);
+  assert.equal((await ofir.locator('#assign-list .as-go').innerText()).trim(), 'שיוך לניראל');
+  await ofir.click('#assign-list [id^="as-open-"]');
   await ofir.waitForSelector('#dlg-assign[open]');
   assert.equal(await ofir.isChecked('#as-e-nirel'), true);
   assert.equal(await ofir.isVisible('#as-joint'), true);

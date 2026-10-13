@@ -23,7 +23,7 @@ import { PROCESSES } from '../app/protocol.js';
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const SHOTS = process.env.SHOTS === '1' && !!process.env.SHOTS_OUT;
 const OUT = `${String(process.env.SHOTS_OUT || '').replace(/[\\/]+$/, '')}/`;
-const SIZES = { 390: { width: 390, height: 844 }, 1280: { width: 1280, height: 900 } };
+const SIZES = { 360: { width: 360, height: 740 }, 390: { width: 390, height: 844 }, 1280: { width: 1280, height: 900 } };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const errors = [];
 const settle = async (page) => { await page.waitForLoadState('networkidle').catch(() => {}); await page.waitForTimeout(400); };
@@ -155,6 +155,114 @@ try {
     });
   }
 
+  // The suggested editor on the card (the owner's choice of 13.10.2026: the system suggests, Ofir confirms).
+  const sugCard = (page) => page.locator(`#assign-list [data-key="${SHOT}:p22a"]`);
+  const untouched = (db) => assert.deepEqual([db.clients.find((c) => c.id === SHOT).editor, checkOf(db, SHOT, 'p22a.assigned'), checkOf(db, SHOT, 'p22a.load')], [null, null, null], 'nothing is assigned yet');
+  for (const width of [360, 390, 1280]) {
+    await step(`${width}px · the card says whom the system suggests and why; "עורך אחר" opens the dialog with that editor chosen, and another editor can be picked`, async () => {
+      const { page, ctx, db } = await signedIn('ofir', office(), { path: 'qa.html#assign-h', width });
+      const row = sugCard(page);
+      await row.waitFor();
+      assert.equal(await page.locator('#dlg-assign[open]').count(), 0);
+      const sug = row.locator('.as-sug');
+      assert.equal(await text(sug), 'מומלץ: אנה · העומס הנמוך ביותר: אין לקוחות בעריכה');
+      assert.deepEqual([await sug.getAttribute('data-editor'), await sug.getAttribute('data-why')], ['anna', 'load']);
+      assert.equal(await sug.locator('.k-ico').count(), 1, 'the kit\'s icon square');
+      // The same number the load list next to it shows.
+      assert.match(await text(page.locator('#load-list .of-editor').filter({ hasText: 'אנה' })), /אין לקוחות בעריכה/);
+      const go = row.locator('.as-go');
+      const other = row.locator('[id^="as-open-"]');
+      assert.deepEqual([await text(go), await text(other)], ['שיוך לאנה', 'עורך אחר']);
+      for (const b of [go, other]) { if (width < 600) assert.ok((await b.boundingBox()).height >= 44, 'a 44px target'); await inside(page, b); }
+      await inside(page, sug);
+      await noOverflow(page);
+      if (SHOTS) await page.waitForTimeout(900); // the sign-in screen has faded out
+      await shot(row, `suggest-card-${width}`);
+      // The first tap only asks.
+      await go.click();
+      assert.equal(await text(row.locator('.as-go')), 'בטוח? שיוך לאנה');
+      await inside(page, row.locator('.as-go'));
+      await noOverflow(page);
+      await shot(row, `suggest-card-sure-${width}`);
+      untouched(db);
+      // "עורך אחר": the dialog as before, the suggested editor chosen and marked; the question is gone.
+      await other.click();
+      await page.waitForSelector('#dlg-assign[open]');
+      assert.equal(await page.isChecked('#as-e-anna'), true);
+      assert.equal(await text(page.locator('#as-suggested')), 'מומלץ לפי עומס');
+      await page.check('#as-e-yariv');
+      await page.click('#as-submit');
+      await page.waitForSelector('#dlg-assign:not([open])', { state: 'attached' });
+      await settle(page);
+      assert.equal(db.clients.find((c) => c.id === SHOT).editor, 'yariv');
+      assert.equal(checkOf(db, SHOT, 'p22a.assigned')?.state, 'done');
+      assert.equal(await sugCard(page).count(), 0);
+      await ctx.close();
+    });
+
+    await step(`${width}px · "שיוך לאנה" then "בטוח?": the second tap assigns to the suggested editor with the dialog's own write, and her screen shows the client; a double tap or a pause assigns nothing`, async () => {
+      const { page, ctx, db } = await signedIn('ofir', office(), { path: 'qa.html#assign-h', width });
+      const row = sugCard(page);
+      await row.waitFor();
+      // A double tap is one answer, not two.
+      await row.locator('.as-go').dblclick();
+      assert.equal(await text(row.locator('.as-go')), 'בטוח? שיוך לאנה');
+      untouched(db);
+      // Left alone, the question goes away by itself.
+      await page.clock.fastForward(7000);
+      await page.waitForFunction(() => document.querySelector('#assign-list .as-go')?.textContent === 'שיוך לאנה');
+      untouched(db);
+      // Backing out through the dialog's "ביטול" leaves nothing armed.
+      await row.locator('.as-go').click();
+      await row.locator('[id^="as-open-"]').click();
+      await page.waitForSelector('#dlg-assign[open]');
+      await page.click('#dlg-assign .dlg-foot [data-close]');
+      await page.waitForSelector('#dlg-assign:not([open])', { state: 'attached' });
+      assert.equal(await text(row.locator('.as-go')), 'שיוך לאנה');
+      untouched(db);
+      // Two taps.
+      await row.locator('.as-go').click();
+      await page.waitForTimeout(450);
+      await row.locator('.as-go').click();
+      await page.waitForFunction(() => /שויך לאנה/.test(document.getElementById('toast')?.textContent || ''));
+      await settle(page);
+      assert.match(await text(page.locator('#toast')), /נועם פרץ שויך לאנה\. נפתחה לאופיר משימת תיקייה \(24\)/);
+      assert.equal(db.clients.find((c) => c.id === SHOT).editor, 'anna');
+      for (const k of ['p22a.load', 'p22a.assigned', 'p22a.irit']) assert.equal(checkOf(db, SHOT, k)?.state, 'done', k);
+      assert.equal(checkOf(db, SHOT, 'p22a.assigned').by_email, emailOf('ofir'));
+      assert.equal(checkOf(db, SHOT, 'p22a.drive')?.note, 'נסגר לבד: ליאור אישר בסגירת יום הצילום שהכונן חזר');
+      assert.equal(checkOf(db, SHOT, 'p22a.reason'), null, 'the suggested editor needs no written reason');
+      assert.equal(db.client_tasks.filter((t) => t.client_id === SHOT && t.owner === 'ofir' && /פתיחת תיקייה מסודרת בדרייב לעריכה \(24\)/.test(t.title)).length, 1);
+      // The same hand-off offer as the dialog's: a ready WhatsApp to the editor.
+      await page.waitForSelector('#handoff:not([hidden])');
+      assert.match(await text(page.locator('#handoff')), /עורך שויך · אנה/);
+      assert.equal(await sugCard(page).count(), 0);
+      assert.match(await text(page.locator('#load-list .of-editor').filter({ hasText: 'אנה' })), /לקוח אחד בעריכה/);
+      await noOverflow(page);
+      await ctx.close();
+      // Anna's own screen: the client is there.
+      const anna = await signedIn('anna', db, { path: 'editor.html', width });
+      await anna.page.waitForFunction(() => /פרץ נדל״ן/.test(document.querySelector('main')?.innerText || ''));
+      await anna.ctx.close();
+      // And not on Yariv's.
+      const yariv = await signedIn('yariv', db, { path: 'editor.html', width });
+      assert.ok(!/פרץ נדל״ן/.test(await yariv.page.locator('main').innerText()));
+      await yariv.ctx.close();
+    });
+  }
+
+  await step('Irit has no way to assign: qa.html is closed to her, with no card and no button', async () => {
+    const { page, ctx, db } = await signedIn('irit', office());
+    await page.goto(`${BASE}qa.html#assign-${SHOT}`);
+    await page.waitForSelector('#no-access:not([hidden])');
+    await settle(page);
+    assert.equal(await page.locator('#of-page').isHidden(), true);
+    assert.equal(await page.locator('#assign-list button, .as-go, .as-sug, [id^="as-open-"]').count(), 0);
+    assert.equal(await page.locator('#dlg-assign[open]').count(), 0);
+    untouched(db);
+    await ctx.close();
+  });
+
   await step('Lior: no clock, no line and no button of the assignment; of 22א only "ליאור החזיר את הכונן"; qa.html is his to look at', async () => {
     const { page, ctx } = await signedIn('lior', office());
     assert.equal(await page.locator('#now-bar .now-clock.k-fast').count(), 0);
@@ -173,6 +281,8 @@ try {
     const row = page.locator(`#assign-list [data-key="${SHOT}:p22a"]`);
     assert.match(await text(row), /נשארו 6 דק׳ · לשייך עד היום 10:06 אופיר משייך את העורך\.$/);
     assert.equal(await row.locator('button').count(), 0);
+    // He sees whom the system suggests (he supervises), and still has nothing to press.
+    assert.equal(await text(row.locator('.as-sug')), 'מומלץ: אנה · העומס הנמוך ביותר: אין לקוחות בעריכה');
     // The graphics waiting for Ofir's check are there for him to see, without "לבדיקה"; and the ring's address opens no dialog.
     const gfx = page.locator(`#qa-list [data-key="${GFX}:p07"]`);
     assert.match(await text(gfx), /9 הגרפיקות הראשונות נשארו 7 דק׳ .*אופיר בודק את הגרפיקות\.$/);
