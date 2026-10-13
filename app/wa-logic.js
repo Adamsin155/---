@@ -27,10 +27,12 @@ export function waRecipients(rows = []) {
   return out;
 }
 
-// Whether a log row the tick is sending goes out on WhatsApp too, now: a ring, an
-// update (level 'quiet': since the owner's rule of 7.10.2026 it is pushed like a
-// ring, so it is copied like one, with the templates rings already use) or a digest
-// (a batch of lateness notes is one; never a test), within the sending hours only
+// Whether a log row the tick is sending goes out on WhatsApp too, now: a ring (what
+// asks for an action) or a digest (a batch of lateness notes is one; never a test).
+// An update (level 'quiet') is pushed to the phone like a ring since the owner's rule
+// of 7.10.2026, but it is NOT copied to WhatsApp (the owner, 13.10.2026: "what asks
+// for an action, and the digest"): every WhatsApp message costs money, and tens of
+// "the client approved" a day would bury the ones that matter. Within the sending hours only
 // (the consent says Sunday–Thursday 08:30–19:00, erev chag until 13:00: a shoot-day
 // ring outside them goes by push alone), to someone who agreed. The sending hours and
 // the dedupe of the push channel already chose the rows; WhatsApp adds none.
@@ -39,7 +41,7 @@ export function waRecipients(rows = []) {
 // jakoTemplateFor (the choice of rows is the same for both).
 export function waPlan({ row, kind, now, recipient, task = null, pick = templateFor }) {
   if (kind !== 'ring' && kind !== 'digest') return { skip: 'kind' };
-  if (kind === 'ring' && row.level !== 'ring' && row.level !== 'quiet') return { skip: 'kind' };
+  if (kind === 'ring' && row.level !== 'ring') return { skip: 'kind' };
   if (kind === 'digest' && row.rule !== 'digest') return { skip: 'kind' };
   if (!recipient) return { skip: 'no_consent' };
   if (!inSendHours(now)) return { skip: 'quiet_hours' };
