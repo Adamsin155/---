@@ -7,7 +7,7 @@ import { EDITORS, editorsFor, PEOPLE } from './protocol.js';
 import {
   businessDaysBetween, addBusinessDays, pauseOf, roundsOf, parseDate, inLanding, workFloor,
 } from './protocol-logic.js';
-import { dayKeyIL, daysBetweenIL } from './tz.js';
+import { dayKeyIL, daysBetweenIL, weekdayIL, addDaysIL, endOfDayIL } from './tz.js';
 import {
   QA_KINDS, qaState, qaDue, qaWaited, meetingNow, kindOfProc, readJson, REASON_KEY,
 } from './office-marks.js';
@@ -226,22 +226,79 @@ export function proposeEditor(load, shootType, exclude = []) {
     .sort((a, b) => (active(load[a]) - active(load[b])) || (load[a].tasks - load[b].tasks) || EDITORS.indexOf(a) - EDITORS.indexOf(b))[0] || null;
 }
 
-// What the assignment dialog marks for Ofir (protocol v9: he assigns, the system only
-// suggests): the rule's own choice where there is one (Nirel for Natali's shoot), else
-// the least loaded editor who may take this shoot. { editor, why: 'rule' | 'load' } or null.
-export function suggestEditor(load, shootType, joint = false, exclude = []) {
+// What the assignment dialog marked for Ofir until 13.10.2026 (protocol v9: he assigns,
+// the system only suggests). Kept for its callers; the screen now asks suggestAssignment
+// below, and this answers in the same order. { editor, why: 'rule' | 'load' } or null.
+export function suggestEditor(load, shootType, joint = false, exclude = [], now = new Date()) {
   const pre = preselected(shootType, joint);
   if (pre && !exclude.includes(pre)) return { editor: pre, why: 'rule' };
-  const editor = proposeEditor(load, shootType === 'natali' ? 'natali' : 'dms', exclude);
+  const editor = rankEditors(load, shootType === 'natali' ? 'natali' : 'dms', exclude, now)[0]?.editor || null;
   return editor ? { editor, why: 'load' } : null;
 }
 export const SUGGESTED_TAG = 'מומלץ לפי עומס';
+export const CONTINUITY_TAG = 'מומלץ: ערך/ה בסבב הקודם';
+
+// ── The suggestion (the owner's choice of 13.10.2026: "the system suggests, Ofir confirms") ──
+// Nothing is assigned without Ofir's tap (protocol v9 as it is); this only says whom his
+// tap would assign. Pure: the same load the list next to it shows.
+//
+// "Open work" is the number the load list shows for the editor: the clients in editing
+// (`jobs.length` of editorLoad, the paused ones too), so the suggestion never contradicts
+// the list. A tie goes to the one with fewer editing deadlines until the end of this week
+// (Sunday to Saturday, Israel; a deadline already missed counts, a client in landing has
+// none), then to the team's order (EDITORS in app/protocol.js).
+const clientsInEditing = (n) => (n ? `${n === 1 ? 'לקוח אחד' : `${n} לקוחות`} בעריכה` : 'אין לקוחות בעריכה');
+export const endOfWeekIL = (now = new Date()) => endOfDayIL(addDaysIL(now, 6 - weekdayIL(now)));
+export function dueThisWeek(l, now = new Date()) {
+  const end = endOfWeekIL(now);
+  return l.jobs.filter((j) => j.dueAt && !j.landing && j.dueAt <= end).length;
+}
+// The editors who may take this shoot, the least loaded first: [{ editor, open, week }].
+export function rankEditors(load, shootType, exclude = [], now = new Date()) {
+  if (!load) return [];
+  return eligibleEditors(shootType).filter((e) => !exclude.includes(e) && load[e])
+    .map((e) => ({ editor: e, open: load[e].jobs.length, week: dueThisWeek(load[e], now) }))
+    .sort((a, b) => (a.open - b.open) || (a.week - b.week) || EDITORS.indexOf(a.editor) - EDITORS.indexOf(b.editor));
+}
+// Who edited this client's latest earlier shoot (the client's own before round 2, round 2
+// before round 3…): only a shoot that was really assigned (its 22א "שויך" is marked), not a
+// name the office wrote in the card ahead of time. null for the client's first shoot.
+export function earlierEditor(client, n, checks = {}) {
+  if (!n) return null;
+  const units = [{ editor: client.editor, pre: '', n: 1 }, ...roundsOf(client).filter((r) => r.n < n).map((r) => ({ editor: r.editor, pre: `r${r.n}.`, n: r.n }))]
+    .sort((a, b) => b.n - a.n);
+  return units.find((u) => u.editor && checks[`${u.pre}p22a.assigned`]?.state === 'done')?.editor || null;
+}
+// The suggested editor of one waiting shoot:
+//   { editor, why, reason, load }   why: 'rule' | 'card' | 'continuity' | 'load'
+//   { editor: null, why: 'none', reason, load: null }   nobody to suggest, and why in one line
+// The order: an editor the office already wrote in the card and the rule's own choice
+// (Nirel for Natali's shoot), both as the dialog already did; the editor of the client's earlier round when still on
+// the team and allowed for this shoot (continuity beats load), else the least loaded.
+//   n: the round (null for the client's own shoot); inCard: the editor written in the card.
+export function suggestAssignment({ client, n = null, shootType, joint = false, inCard = null, load, checks = {}, exclude = [], now = new Date() }) {
+  const none = (reason) => ({ editor: null, why: 'none', reason, load: null });
+  const may = eligibleEditors(shootType).filter((e) => !exclude.includes(e));
+  if (!may.length) return none('אין עורך שאפשר לשייך אליו');
+  if (!load || may.some((e) => !load[e])) return none('העומס של העורכים לא ידוע כרגע');
+  const pick = (editor, why, reason) => ({ editor, why, reason, load: load[editor] });
+  if (inCard && may.includes(inCard)) return pick(inCard, 'card', 'רשום בכרטיס הלקוח');
+  const pre = preselected(shootType, joint);
+  if (pre && may.includes(pre)) return pick(pre, 'rule', `צילום של נטלי: ${editorName(pre)} מסומנת מראש`);
+  const before = earlierEditor(client, n, checks);
+  if (before && may.includes(before)) return pick(before, 'continuity', 'ערך/ה ללקוח הזה בסבב הקודם');
+  const [first, second] = rankEditors(load, shootType, exclude, now);
+  const open = clientsInEditing(first.open);
+  const reason = !second || first.open < second.open ? `העומס הנמוך ביותר: ${open}`
+    : first.week < second.week ? `${open}, ופחות יעדים השבוע`
+      : `${open} · עומס שווה, לפי סדר הצוות`;
+  return pick(first.editor, 'load', reason);
+}
 
 // "נדיה: 2 לקוחות בעריכה · 1 עצורה · 3 משימות"
 export function loadText(l) {
-  const n = l.jobs.length;
   return [
-    n ? `${n === 1 ? 'לקוח אחד' : `${n} לקוחות`} בעריכה` : 'אין לקוחות בעריכה',
+    clientsInEditing(l.jobs.length),
     l.paused ? `${l.paused === 1 ? 'אחת עצורה' : `${l.paused} עצורות`}` : null,
     l.tasks ? `${l.tasks === 1 ? 'משימה פתוחה' : `${l.tasks} משימות פתוחות`}` : null,
   ].filter(Boolean).join(' · ');

@@ -329,3 +329,11 @@ details.ps-sum { min-width: 0; }
 #th-body .of-card { background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
 /* The lists' own items (decisions.html): the words under the title are ink, not grey. */
 #ls-list .of-line { color: var(--ds-ink-2); font-weight: 500; }
+/* The suggested editor on an assignment card (qa.html; the owner's choice of 13.10.2026):
+   a notice strip with the editor's name leading, and "שיוך ל<שם>" beside "עורך אחר".
+   The question of the second tap ("בטוח? שיוך ל…") is the pink of a primary action. */
+.of-card > .as-sug { margin: 0; color: var(--ds-ink); }
+.as-sug > .as-sug-t { flex: 1 1 auto; min-inline-size: 0; overflow-wrap: anywhere; }
+.as-sug strong { font-weight: 700; }
+.as-acts > .as-go { font-weight: 700; }
+@media (max-width: 760px) { .as-acts > .as-go { flex: 2 1 auto; } }
