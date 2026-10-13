@@ -575,3 +575,109 @@ test('the folder task stands for item 24 of its shoot', async () => {
   assert.equal(folderItemOf({ title: folderTitle(2) }), 'r2.p24.folder');
   assert.equal(folderItemOf({ title: 'משהו אחר' }), null);
 });
+
+// ── The suggested editor (the owner's choice of 13.10.2026: the system suggests, Ofir confirms) ──
+// A client in editing, assigned at `at` (so its 3 business days end where the test wants them).
+function editingAt(w, editor, at, o = {}) {
+  const c = editingClient(w, { editor, ...o });
+  marks(w, c, itemsOf('p22a'), at);
+  return c;
+}
+const loadAt = (w, now) => editorLoad({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, tasks: w.tasks, now });
+
+test('the suggestion: the editor with the least open work, by the number the load list shows', async () => {
+  const { suggestAssignment } = await import('../app/qa-logic.js');
+  const w = world();
+  const now = IL(2026, 10, 21, 10);
+  editingClient(w, { editor: 'nadia' });
+  const paused = editingClient(w, { editor: 'yariv' });
+  mark(w, paused, 'p22.pause', IL(2026, 10, 20, 10), JSON.stringify({ stage: 'חצי', left: '5' }));
+  editingClient(w, { editor: 'yariv' });
+  editingClient(w, { editor: 'nirel', shoot_type: 'natali' });
+  const load = loadAt(w, now);
+  const waiting = client(w, { name: 'מחכה' });
+  const s = suggestAssignment({ client: waiting, shootType: 'dms', load, checks: {}, now });
+  assert.deepEqual([s.editor, s.why, s.reason], ['anna', 'load', 'העומס הנמוך ביותר: אין לקוחות בעריכה']);
+  assert.equal(s.load, load.anna);
+  // The reason says the number the list next to it says (a paused editing is still open work).
+  assert.match(loadText(load.yariv), /^2 לקוחות בעריכה/);
+  const s2 = suggestAssignment({ client: waiting, shootType: 'dms', load, checks: {}, exclude: ['anna'], now });
+  assert.deepEqual([s2.editor, s2.reason], ['nadia', 'העומס הנמוך ביותר: לקוח אחד בעריכה']);
+  assert.ok(loadText(s2.load).startsWith('לקוח אחד בעריכה'));
+  // Nirel takes Natali's shoots only: never suggested for another shoot, however free.
+  const free = loadAt(world(), now);
+  assert.equal(suggestAssignment({ client: waiting, shootType: 'dms', load: free, now }).editor, 'nadia');
+});
+
+test('the suggestion, ties: fewer deadlines this week first, then the team\'s order', async () => {
+  const { suggestAssignment, rankEditors, dueThisWeek, endOfWeekIL } = await import('../app/qa-logic.js');
+  const w = world();
+  const now = IL(2026, 10, 22, 10); // Thursday
+  assert.equal(hhmm(endOfWeekIL(now)), '24.10 23:59'); // Saturday night, Israel
+  editingAt(w, 'nadia', IL(2026, 10, 19, 10)); // due Thursday 22.10: this week
+  editingAt(w, 'yariv', IL(2026, 10, 19, 10));
+  editingAt(w, 'anna', IL(2026, 10, 21, 10)); // due Monday 26.10: next week
+  const load = loadAt(w, now);
+  assert.deepEqual(['nadia', 'yariv', 'anna'].map((e) => [load[e].jobs.length, dueThisWeek(load[e], now)]), [[1, 1], [1, 1], [1, 0]]);
+  assert.deepEqual(rankEditors(load, 'dms', [], now).map((r) => r.editor), ['anna', 'nadia', 'yariv']);
+  const waiting = client(w, { name: 'מחכה' });
+  const s = suggestAssignment({ client: waiting, shootType: 'dms', load, now });
+  assert.deepEqual([s.editor, s.reason], ['anna', 'לקוח אחד בעריכה, ופחות יעדים השבוע']);
+  // Equal in both: the team's order (EDITORS: Nadia, Yariv, Anna, Nirel), and the line says so.
+  const t = suggestAssignment({ client: waiting, shootType: 'dms', load, exclude: ['anna'], now });
+  assert.deepEqual([t.editor, t.reason], ['nadia', 'לקוח אחד בעריכה · עומס שווה, לפי סדר הצוות']);
+  // A deadline already missed still counts for this week; a client in landing has none.
+  const late = editingAt(w, 'anna', IL(2026, 10, 12, 10));
+  const old = editingAt(w, 'anna', IL(2026, 10, 12, 10), { landing: true });
+  assert.equal(dueThisWeek(loadAt(w, now).anna, now), 1, `${late.name} counts, ${old.name} does not`);
+});
+
+test('the suggestion, continuity: the editor of the client\'s earlier round beats the load, while still on the team', async () => {
+  const { suggestAssignment, earlierEditor } = await import('../app/qa-logic.js');
+  const w = world();
+  const now = IL(2026, 10, 21, 10);
+  editingClient(w, { editor: 'yariv' });
+  editingClient(w, { editor: 'yariv' });
+  const load = loadAt(w, now);
+  const round = { n: 2, shoot_type: 'dms', shoot_at: IL(2026, 10, 20, 10).toISOString(), editor: null };
+  const c = client(w, { name: 'חוזר', editor: 'yariv', rounds: [round] });
+  const cs = { 'p22a.assigned': { state: 'done', at: IL(2026, 9, 1, 10).toISOString() } };
+  assert.equal(earlierEditor(c, 2, cs), 'yariv');
+  const s = suggestAssignment({ client: c, n: 2, shootType: 'dms', load, checks: cs, now });
+  assert.deepEqual([s.editor, s.why, s.reason], ['yariv', 'continuity', 'ערך/ה ללקוח הזה בסבב הקודם']);
+  assert.equal(s.load.jobs.length, 2, 'the busiest of the three, and still the one');
+  // The client's first shoot has no earlier round.
+  assert.equal(earlierEditor(c, null, cs), null);
+  assert.equal(suggestAssignment({ client: c, shootType: 'dms', load, checks: cs, now }).why, 'load');
+  // A name written in the card ahead of time is not an editing: the round was never assigned.
+  assert.equal(suggestAssignment({ client: c, n: 2, shootType: 'dms', load, checks: {}, now }).editor, 'nadia');
+  // Round 3 follows round 2, not the first shoot.
+  const c3 = client(w, { name: 'שלישי', editor: 'yariv', rounds: [{ ...round, editor: 'anna' }, { ...round, n: 3 }] });
+  const cs3 = { ...cs, 'r2.p22a.assigned': { state: 'done', at: IL(2026, 10, 1, 10).toISOString() } };
+  assert.equal(suggestAssignment({ client: c3, n: 3, shootType: 'dms', load, checks: cs3, now }).editor, 'anna');
+  // An editor who is no longer on the team: the least loaded instead.
+  const gone = client(w, { name: 'עזב', editor: 'dana', rounds: [round] });
+  const g = suggestAssignment({ client: gone, n: 2, shootType: 'dms', load, checks: cs, now });
+  assert.deepEqual([g.editor, g.why], ['nadia', 'load']);
+  // Nirel edited the first shoot (Natali's); the next round is not Natali's, so she may not take it.
+  const mixed = client(w, { name: 'מעורב', shoot_type: 'natali', editor: 'nirel', rounds: [round] });
+  assert.equal(suggestAssignment({ client: mixed, n: 2, shootType: 'dms', load, checks: cs, now }).why, 'load');
+});
+
+test('the suggestion: what the dialog already chose stays first; nobody to suggest says why', async () => {
+  const { suggestAssignment } = await import('../app/qa-logic.js');
+  const w = world();
+  const now = IL(2026, 10, 21, 10);
+  editingClient(w, { editor: 'nirel', shoot_type: 'natali' });
+  const load = loadAt(w, now);
+  const c = client(w, { name: 'נטלי', shoot_type: 'natali' });
+  // Natali's shoot: Nirel by the rule, whatever her load; a joint day has no rule.
+  assert.deepEqual((({ editor, why, reason }) => [editor, why, reason])(suggestAssignment({ client: c, shootType: 'natali', load, now })), ['nirel', 'rule', 'צילום של נטלי: ניראל מסומנת מראש']);
+  assert.equal(suggestAssignment({ client: c, shootType: 'natali', joint: true, load, now }).why, 'load');
+  // An editor the office wrote in the card.
+  assert.deepEqual((({ editor, why }) => [editor, why])(suggestAssignment({ client: c, shootType: 'dms', inCard: 'anna', load, now })), ['anna', 'card']);
+  // Nobody: the load is unknown, or no editor may take it. One short line, no editor.
+  assert.deepEqual(suggestAssignment({ client: c, shootType: 'dms', load: null, now }), { editor: null, why: 'none', reason: 'העומס של העורכים לא ידוע כרגע', load: null });
+  assert.deepEqual(suggestAssignment({ client: c, shootType: 'dms', load: { nadia: load.nadia }, now }).reason, 'העומס של העורכים לא ידוע כרגע');
+  assert.deepEqual(suggestAssignment({ client: c, shootType: 'dms', load, exclude: ['nadia', 'yariv', 'anna'], now }), { editor: null, why: 'none', reason: 'אין עורך שאפשר לשייך אליו', load: null });
+});

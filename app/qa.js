@@ -20,7 +20,7 @@ import {
 import {
   qaQueue, qaFixing, charsToday, awaitingEditor, editorLoad, loadText, dayText, preselected, reasonNeeded, reasonHint,
   eligibleEditors, jointFromSelection, reasonNote, folderTitle, folderDueOn,
-  swapClock, swapReasonNeeded, swapNote, suggestEditor, SUGGESTED_TAG,
+  swapClock, swapReasonNeeded, swapNote, suggestAssignment, SUGGESTED_TAG, CONTINUITY_TAG,
 } from './qa-logic.js';
 import { autoReasonOf, AUTO_DRIVE_NOTE } from './auto-assign.js';
 import { ladderWords, setOfirMeetings } from './fast-ladder.js';
@@ -34,7 +34,7 @@ import { offerHandoff } from './handoff-ui.js';
 import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, navLink } from './office-ui.js';
 import { mountApprovals } from './approvals-ui.js';
-import { emptyItem, dress, dateLeaf } from './kit.js';
+import { emptyItem, dress, dateLeaf, iconSquare } from './kit.js';
 import { canSeeOfficeQueues } from './manager-rules.js';
 import { inputValueIL, fromInputIL, dayFromKeyIL, endOfDayIL, TZ } from './tz.js';
 import { mountWorkFiles, forgetFiles } from './files-ui.js';
@@ -187,11 +187,66 @@ function charCard(x, now) {
       h('a', { class: 'btn btn-sm btn-ghost', href: clientUrl(c.id, 'p04') }, 'לכרטיס', h('span', { class: 'sr-only' }, ` של ${c.name}`))));
 }
 
+// The suggestion of one waiting shoot (the owner's choice of 13.10.2026; app/qa-logic.js
+// suggestAssignment): the card and the dialog ask the same question, so they never disagree.
+const inCardOf = (a) => (!a.swap && a.ctx.editor && eligibleEditors(a.ctx.shoot_type).includes(a.ctx.editor) ? a.ctx.editor : null);
+const suggestionOf = (a, load, joint, now = new Date()) => suggestAssignment({
+  client: a.client, n: a.n, shootType: a.ctx.shoot_type, joint, inCard: inCardOf(a), load, checks: checksOf(a.client), now,
+});
+// "שיוך ל<שם>" on the card: two taps on the same button, the first asks ("בטוח? שיוך ל…"),
+// the second assigns (the pattern of the owner's "מפעילים" buttons, app/landing-control.js).
+// Not a toast with "ביטול": an assignment cannot be taken back cleanly (the editor is rung
+// within the minute, the editing days start, the folder task opens). The question goes
+// away by itself, and a second tap that comes with the first (a double tap) is not an answer.
+const ARM_MS = 6000;
+const ARM_GUARD_MS = 350;
+let armed = null; // { key, editor, at }
+let armTimer = null;
+let quickBusy = false;
+function disarm(draw = true) {
+  clearTimeout(armTimer);
+  if (!armed) return;
+  armed = null;
+  if (draw && !busy()) renderKeepingFocus();
+}
+function arm(a, editor) {
+  clearTimeout(armTimer);
+  armed = { key: a.key, editor, at: Date.now() };
+  armTimer = setTimeout(() => disarm(), ARM_MS);
+  renderKeepingFocus();
+}
+async function quickAssign(a, editor, joint) {
+  if (quickBusy) return;
+  quickBusy = true;
+  disarm(false);
+  renderKeepingFocus();
+  let saved;
+  try {
+    saved = await saveAssign(a, editor, joint, '');
+  } catch (err) {
+    quickBusy = false;
+    toast(`השיוך לא נשמר. ${errorText(err)}`);
+    renderKeepingFocus();
+    return;
+  }
+  quickBusy = false;
+  renderKeepingFocus();
+  $('assign-h').focus({ preventScroll: true });
+  toast(`${a.client.name} שויך ל${PEOPLE[editor].name}.${saved.folder}`);
+  offerHandoff({ client: saved.client, key: `${a.pre}p22a.assigned`, checks: () => checks[a.client.id], me });
+}
+
 function assignCard(a, load, now) {
   const type = a.ctx.shoot_type;
   const joint = jointFromSelection(selections.get(a.client.quote_id));
-  const pre = preselected(type, joint);
-  const sug = suggestEditor(load, type, joint);
+  const sug = suggestionOf(a, load, joint, now);
+  // One tap needs no written reason: a joint day (decision 31) always goes through the dialog.
+  const oneTap = !!sug.editor && !reasonNeeded({ shootType: type, joint, editor: sug.editor });
+  const name = sug.editor ? PEOPLE[sug.editor].name : null;
+  const id = a.key.replace(/\W/g, '_');
+  if (armed?.key === a.key && (!oneTap || armed.editor !== sug.editor)) { clearTimeout(armTimer); armed = null; } // the suggestion changed under the question
+  const sure = armed?.key === a.key;
+  const label = `${a.client.name}${roundText(a.ctx)}`;
   // The day of the shoot as a leaf (a day that has passed is not "late": the camera's colour).
   const shot = a.ctx.shoot_at ? new Date(a.ctx.shoot_at) : null;
   return h('li', { class: 'of-card', 'data-key': a.key },
@@ -200,12 +255,29 @@ function assignCard(a, load, now) {
       h('a', { class: 'wclient', href: clientUrl(a.client.id, a.proc.id) }, clientLabel(a.client)), landingTag(a.client),
       h('span', { class: 'wtitle' }, `${SHOOT_TYPES[type]?.name || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
       a.state.status === 'overdue' && a.client.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
-    h('p', { class: 'of-line' }, a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : '',
-      joint ? ' · יום משותף לנטלי ולסמיון' : pre ? ` · ${PEOPLE[pre].name} מסומנת מראש (${loadText(load[pre])})` : sug ? ` · ${SUGGESTED_TAG}: ${PEOPLE[sug.editor].name} (${loadText(load[sug.editor])})` : ''),
+    a.ctx.shoot_at || joint ? h('p', { class: 'of-line' }, [a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : null, joint ? 'יום משותף לנטלי ולסמיון' : null].filter(Boolean).join(' · ')) : null,
+    // Whom the system suggests, and why (the same number the load list below shows).
+    h('p', { class: `k-note as-sug${sug.editor ? '' : ' k-note-warn'}`, id: `as-sug-${id}`, 'data-editor': sug.editor || '', 'data-why': sug.why },
+      iconSquare(sug.editor ? 'user' : 'question', sug.editor ? 'teal' : 'orange', { size: 'sm' }),
+      h('span', { class: 'as-sug-t' }, h('strong', {}, sug.editor ? `מומלץ: ${name}` : 'אין המלצה'), ` · ${sug.reason}`,
+        sug.editor && !oneTap ? ' · ביום משותף בוחרים עורך עם סיבה' : '')),
     a.fast ? h('p', { class: 'of-line as-fast' }, ladderWords(a.fast, now), ` · לשייך עד ${formatWhen(a.fast.dueAt, now)}`) : null,
-    // The assignment is Ofir's alone (protocol v9). Lior supervises here: he sees it, without the button.
-    me === 'lior' ? h('p', { class: 'of-line muted as-ofir-only' }, 'אופיר משייך את העורך.') : h('div', { class: 'of-acts' },
-      h('button', { type: 'button', class: 'btn k-btn-navy btn-sm', id: `as-open-${a.key.replace(/\W/g, '_')}`, 'aria-label': `שיוך עורך: ${a.client.name}${roundText(a.ctx)}`, onclick: () => openAssign(a) }, 'שיוך עורך')));
+    // The assignment is Ofir's alone (protocol v9). Lior supervises here: he sees it, without the buttons.
+    me === 'lior' ? h('p', { class: 'of-line muted as-ofir-only' }, 'אופיר משייך את העורך.') : h('div', { class: 'of-acts as-acts' },
+      oneTap ? h('button', {
+        type: 'button', class: `btn btn-sm as-go ${sure ? 'btn-primary is-sure' : 'k-btn-navy'}`, id: `as-go-${id}`, disabled: quickBusy,
+        'aria-label': sure ? `בטוח? שיוך של ${label} ל${name}. לחיצה נוספת משייכת` : `שיוך של ${label} ל${name}`,
+        onclick: () => {
+          if (!sure) { arm(a, sug.editor); return; }
+          if (Date.now() - armed.at < ARM_GUARD_MS) return;
+          quickAssign(a, sug.editor, joint);
+        },
+      }, sure ? `בטוח? שיוך ל${name}` : `שיוך ל${name}`) : null,
+      h('button', {
+        type: 'button', class: `btn btn-sm${oneTap ? '' : ' k-btn-navy'}`, id: `as-open-${id}`, disabled: quickBusy,
+        'aria-label': `${oneTap ? 'עורך אחר' : 'שיוך עורך'}: ${label}`, onclick: () => { disarm(false); openAssign(a); },
+      }, oneTap ? 'עורך אחר' : 'שיוך עורך'),
+      sure ? h('span', { class: 'sr-only', role: 'status' }, `לחיצה נוספת משייכת את ${a.client.name} ל${name}.`) : null));
 }
 
 // Each job can change hands from here ("החלפת עורך"): the notice of an automatic
@@ -491,15 +563,17 @@ function renderEditors(preselect = false) {
   // choice (Nirel for Natali), else the least loaded editor who may take this shoot. It is
   // marked and already chosen, so the usual case is one tap on "שיוך".
   // A swap preselects nobody but the rule's own, never the one who has it now.
-  const sug = suggestEditor(load, type, joint, from ? [from] : []);
-  // An editor the office already wrote in the card is the one proposed.
-  const inCard = !a.swap && a.ctx.editor && eligibleEditors(type).includes(a.ctx.editor) ? a.ctx.editor : null;
-  const first = a.swap ? (pre && pre !== from ? pre : null) : inCard || sug?.editor || null;
+  // The same answer as the card's line (suggestAssignment): an editor the office already
+  // wrote in the card, the editor of the client's earlier round, else the least loaded.
+  const sug = a.swap ? null : suggestionOf(a, load, joint);
+  const inCard = inCardOf(a);
+  const first = a.swap ? (pre && pre !== from ? pre : null) : sug.editor;
   const chosen = preselect ? first : $('as-editors').querySelector('input:checked')?.value || null;
   fill($('as-editors'), ...eligibleEditors(type).map((k) => h('label', { class: 'wrow as-editor', for: `as-e-${k}` },
     h('input', { type: 'radio', class: 'radio', name: 'as-editor', id: `as-e-${k}`, value: k, checked: chosen === k, disabled: k === from, onchange: syncReason }),
     h('span', { class: 'wlabel' }, h('strong', {}, PEOPLE[k].name), pre === k ? h('span', { class: 'tag' }, 'מסומנת מראש') : null,
-      !a.swap && pre !== k && sug?.editor === k ? h('span', { class: 'tag as-suggested', id: 'as-suggested' }, SUGGESTED_TAG) : null,
+      sug?.editor === k && sug.why === 'load' ? h('span', { class: 'tag as-suggested', id: 'as-suggested' }, SUGGESTED_TAG) : null,
+      sug?.editor === k && sug.why === 'continuity' ? h('span', { class: 'tag as-suggested', id: 'as-suggested' }, CONTINUITY_TAG) : null,
       inCard === k ? h('span', { class: 'tag' }, 'רשום בכרטיס') : null,
       k === from ? h('span', { class: 'tag' }, 'העורך הנוכחי') : null,
       h('span', { class: 'muted small as-load' }, loadText(load[k]))))));
@@ -580,7 +654,6 @@ $('as-form').addEventListener('submit', async (e) => {
   $('as-reason').removeAttribute('aria-invalid');
   $('as-submit').disabled = true;
   const c = a.client;
-  let client = c;
   if (a.swap) {
     let saved;
     try {
@@ -597,25 +670,40 @@ $('as-form').addEventListener('submit', async (e) => {
     offerHandoff({ client: saved.client, key: `${a.pre}p22a.assigned`, checks: () => checks[c.id], me });
     return;
   }
+  let saved;
   try {
-    client = await updateClient(c.id, withEditor(c, a.n, editor));
-    clients = clients.map((x) => (x.id === c.id ? client : x));
-    const keys = ['p22a.load', 'p22a.assigned'].map((k) => `${a.pre}${k}`);
-    for (const row of await setChecksBulk(c.id, keys, 'done')) (checks[c.id] ||= {})[row.item_key] = row;
-    // Irit's check that the client moved to editing closes by itself (section 4, 5א).
-    const irit = `${a.pre}p22a.irit`;
-    if (checks[c.id][irit]?.state !== 'done') checks[c.id][irit] = await setCheck(c.id, irit, 'done', 'נסגר לבד: השיוך נרשם במערכת');
-    // Lior's "the drive came back" (22א) is what he confirmed when he closed the shoot day
-    // (19, "הכונן חזר אליי"): it closes with the assignment, so 22א does not stay open on it.
-    const drive = `${a.pre}p22a.drive`;
-    if (checks[c.id][`${a.pre}p19.took`]?.state === 'done' && !['done', 'na'].includes(checks[c.id][drive]?.state)) checks[c.id][drive] = await setCheck(c.id, drive, 'done', AUTO_DRIVE_NOTE);
-    if (reason || reasonNeeded({ shootType: a.ctx.shoot_type, joint, editor })) {
-      checks[c.id][REASON_KEY(a.pre)] = await setCheck(c.id, REASON_KEY(a.pre), 'done', reasonNote({ editor, reason, preselected: preselected(a.ctx.shoot_type, joint), joint }));
-    }
+    saved = await saveAssign(a, editor, joint, reason);
   } catch (err) {
     showErr('as-err', `השיוך לא נשמר. ${errorText(err)}`);
     $('as-submit').disabled = false;
     return;
+  }
+  $('as-submit').disabled = false;
+  asDlg.close();
+  toast(`${c.name} שויך ל${PEOPLE[editor].name}.${saved.folder}`);
+  // Until stage 4, a ready WhatsApp to the editor with both dates and the link.
+  offerHandoff({ client: saved.client, key: `${a.pre}p22a.assigned`, checks: () => checks[c.id], me });
+});
+
+// The first assignment's write, the same for the dialog's "שיוך" and for the card's
+// "שיוך ל<שם>": the editor in the card, 22א's "נבדק העומס" and "שויך", Irit's and Lior's
+// items that close with it, the reason when there is one, and Ofir's folder task (24).
+// Throws when the assignment itself was not saved. → { client, folder (a sentence for the toast) }
+async function saveAssign(a, editor, joint, reason) {
+  const c = a.client;
+  const client = await updateClient(c.id, withEditor(c, a.n, editor));
+  clients = clients.map((x) => (x.id === c.id ? client : x));
+  const keys = ['p22a.load', 'p22a.assigned'].map((k) => `${a.pre}${k}`);
+  for (const row of await setChecksBulk(c.id, keys, 'done')) (checks[c.id] ||= {})[row.item_key] = row;
+  // Irit's check that the client moved to editing closes by itself (section 4, 5א).
+  const irit = `${a.pre}p22a.irit`;
+  if (checks[c.id][irit]?.state !== 'done') checks[c.id][irit] = await setCheck(c.id, irit, 'done', 'נסגר לבד: השיוך נרשם במערכת');
+  // Lior's "the drive came back" (22א) is what he confirmed when he closed the shoot day
+  // (19, "הכונן חזר אליי"): it closes with the assignment, so 22א does not stay open on it.
+  const drive = `${a.pre}p22a.drive`;
+  if (checks[c.id][`${a.pre}p19.took`]?.state === 'done' && !['done', 'na'].includes(checks[c.id][drive]?.state)) checks[c.id][drive] = await setCheck(c.id, drive, 'done', AUTO_DRIVE_NOTE);
+  if (reason || reasonNeeded({ shootType: a.ctx.shoot_type, joint, editor })) {
+    checks[c.id][REASON_KEY(a.pre)] = await setCheck(c.id, REASON_KEY(a.pre), 'done', reasonNote({ editor, reason, preselected: preselected(a.ctx.shoot_type, joint), joint }));
   }
   // Ofir's folder task (24), due at the end of editing day 1 (once: a swap opens none).
   let folder = '';
@@ -627,13 +715,9 @@ $('as-form').addEventListener('submit', async (e) => {
       folder = ` נפתחה לאופיר משימת תיקייה (24) עד ${formatWhen(endOfDayIL(dayFromKeyIL(t.due_on)))}.`;
     } catch { folder = ' משימת התיקייה (24) לא נפתחה: לפתוח אותה בכרטיס.'; }
   }
-  $('as-submit').disabled = false;
   states.clear();
-  asDlg.close();
-  toast(`${c.name} שויך ל${PEOPLE[editor].name}.${folder}`);
-  // Until stage 4, a ready WhatsApp to the editor with both dates and the link.
-  offerHandoff({ client, key: `${a.pre}p22a.assigned`, checks: () => checks[c.id], me });
-});
+  return { client, folder };
+}
 
 // ── Boot ────────────────────────────────────
 function goToSection(hash) {
