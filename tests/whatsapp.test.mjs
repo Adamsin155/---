@@ -455,7 +455,7 @@ async function quietly(fn) {
   try { await fn(); } finally { console.error = real; }
   return lines.join('\n');
 }
-const nagRow = (over = {}) => log({ id: 91, key: `nag:-:${TASK}:s3@irit`, rule: 'nag', client_id: null, ref: null, title: 'עוד לא סומן ״בוצע״: להתקשר לפיצה', body: 'מליאור, היום 10:00 · תזכורת כל 10 דקות', url: 'clients.html#mine', ...over });
+const nagRow = (over = {}) => log({ id: 91, key: `nag:-:${TASK}:s3@irit`, rule: 'nag', client_id: null, ref: null, title: 'עוד לא סומן ״בוצע״: להתקשר לפיצה', body: 'מליאור, היום 10:00 · תזכורת כל 30 דקות', url: 'clients.html#mine', ...over });
 
 test('Jako\'s three templates follow Meta\'s rules: variables inside the text, short buttons and footer, an example for each variable', () => {
   assert.deepEqual(Object.keys(JAKO_TEMPLATES), ['nodnik', 'reminder', 'summary']);
@@ -532,7 +532,7 @@ test('Jako\'s message for each template: the number as user_id, the first name, 
   });
   // The nodnik: the task on one line (the title, and the details when they fit), both buttons, no link.
   const n = jakoMessage({ template: 'nodnik', to: '972501234567', row: nagRow(), flows: FLOWS });
-  assert.deepEqual(n.content, { name: 'astrateg_nodnik', lang: 'he', params: { 'BODY_{{1}}': 'עירית', 'BODY_{{2}}': 'עוד לא סומן ״בוצע״: להתקשר לפיצה · מליאור, היום 10:00 · תזכורת כל 10 דקות', QUICK_REPLY_1: 'f100s200', QUICK_REPLY_2: 'f100s201' } });
+  assert.deepEqual(n.content, { name: 'astrateg_nodnik', lang: 'he', params: { 'BODY_{{1}}': 'עירית', 'BODY_{{2}}': 'עוד לא סומן ״בוצע״: להתקשר לפיצה · מליאור, היום 10:00 · תזכורת כל 30 דקות', QUICK_REPLY_1: 'f100s200', QUICK_REPLY_2: 'f100s201' } });
   const long = jakoMessage({ template: 'nodnik', to: '972501234567', row: nagRow({ body: 'x'.repeat(690) }), flows: FLOWS }).content.params['BODY_{{2}}'];
   assert.equal(long, 'עוד לא סומן ״בוצע״: להתקשר לפיצה', 'details that do not fit are left out, not cut');
   // The summary: the link only. The owner has no name in the system.

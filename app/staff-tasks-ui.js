@@ -4,7 +4,7 @@
 // (the sales agents have no other screen). The ids and the code names kept "task".
 //   - Whoever got one: "תזכורות שקיבלת (N)", each with what to do, who sent it and
 //     when, when the next reminder comes, and "בוצע". Only that stops the reminders
-//     (every 10 minutes, 09:00–20:00 on working days).
+//     (every 30 minutes, 09:00–20:00 on working days).
 //   - Whoever sends them (Irit, the owner): "שליחת נודניק" (to whom, what, an optional
 //     client), and "נודניקים ששלחת": the open ones with "ביטול הנודניק", and the ones
 //     done or cancelled in the last week, by whom and when.

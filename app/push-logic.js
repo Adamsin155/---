@@ -47,7 +47,7 @@ export function sameKey(buffer, base64url) {
 
 // The notifications list: today's rows of the log (Israel day), newest first.
 // Queued digest lines are not rows of their own (they arrive inside a digest), and
-// suppressed ones were never sent. A task given on the spot rings every 10 minutes
+// suppressed ones were never sent. A task given on the spot rings every 30 minutes
 // (rule `nag`, app/staff-tasks-logic.js): the list shows one row for it, the latest.
 // The lateness notes go to the phone in batches (one push for several, since
 // 7.10.2026): the list shows each note as its own row, not the batch's row too.

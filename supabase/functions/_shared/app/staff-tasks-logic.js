@@ -1,7 +1,7 @@
 // generated — edit app/ instead. Source: app/staff-tasks-logic.js. Regenerate: node scripts/sync-functions.mjs
 // "משימה מיידית" (the owner's request of 6.10.2026): Irit (and the owner) gives a
 // task to anyone on the team, on the spot. From that moment the assignee is rung
-// every 10 minutes until they mark "בוצע" themselves, between 09:00 and 20:00 Israel
+// every 30 minutes (10 until 13.10.2026) until they mark "בוצע" themselves, between 09:00 and 20:00 Israel
 // time on working days; a task still open at 20:00 resumes at 09:00 of the next
 // working day. Cancelling (the giver or the owner) stops the reminders.
 // Pure, no DOM and no network: the card (app/staff-tasks-ui.js), the reminder rules
@@ -78,7 +78,7 @@ export const shortBody = (text, max = 90) => {
 // belongs to these tasks only: WORK_HOURS (09:00–18:00) and the sending hours of the
 // other reminders (08:30–19:00) are not changed by it.
 export const NAG_HOURS = { start: 9, end: 20 };
-export const NAG_EVERY = 10; // minutes
+export const NAG_EVERY = 30; // minutes (10 until 13.10.2026; the owner: "every half hour, so that people do not go mad")
 const openAt = (d) => atTimeIL(d, NAG_HOURS.start);
 const closeAt = (d) => atTimeIL(d, erevOn(d) ? WORK_HOURS.erevEnd : NAG_HOURS.end);
 export const nagOpen = (d) => isBusinessDay(d) && d >= openAt(d) && d < closeAt(d);

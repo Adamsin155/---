@@ -1,7 +1,7 @@
 // End-to-end check of the tasks given on the spot in the browser (the owner's request
 // of 6.10.2026), against an in-memory fake of Supabase that answers as the database
 // does (who may give, mark done, cancel and read: tests/sql/staff-tasks.test.mjs holds
-// the real rules; the 10-minute reminders themselves: tests/staff-tasks.test.mjs):
+// the real rules; the 30-minute reminders themselves: tests/staff-tasks.test.mjs):
 //   - Irit has "נודניק תזכורת לעובד" (it was "משימות מיידיות") right under the "now" bar: "שליחת נודניק" (to whom, what,
 //     an optional client), the checks of the form, and what the database is asked;
 //   - Nadia, on a 360px phone, sees "תזכורות שקיבלת (1)" with "בוצע", when the next
@@ -221,7 +221,7 @@ try {
     assert.deepEqual(await texts(irit, '#st-assignee option'), ['בחירת עובד/ת', 'עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה', 'אלי', 'סתיו', 'עמוס', 'הבעלים']);
     assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'פיצה רון · רון כהן', 'קפה דנה']);
     assert.equal(await irit.getAttribute('#st-body', 'maxlength'), String(BODY_MAX));
-    assert.match(await text(irit, '#st-form .hint'), /התראה מיד, ואז כל 10 דקות עד ״בוצע״, בימי עבודה 09:00–20:00/);
+    assert.match(await text(irit, '#st-form .hint'), /התראה מיד, ואז כל 30 דקות עד ״בוצע״, בימי עבודה 09:00–20:00/);
     const before = calls.length;
     await irit.click('#st-send');
     assert.equal(await text(irit, '#st-assignee-err'), 'בוחרים למי המשימה.');
@@ -246,7 +246,7 @@ try {
     await irit.click('#st-send');
     await irit.locator(`${CARD} .st-item`).waitFor();
     assert.deepEqual(lastCall('staff_task_create').staff_task_create, { p_assignee: 'nadia', p_body: 'להעלות את הסרטון של פיצה רון לדרייב', p_client: tables.clients[0].id });
-    assert.equal(await toastOf(irit), 'הנודניק נשלח לנדיה. תזכורת כל 10 דקות עד ״בוצע״.');
+    assert.equal(await toastOf(irit), 'הנודניק נשלח לנדיה. תזכורת כל 30 דקות עד ״בוצע״.');
     first = tasks.at(-1);
     assert.deepEqual([first.created_by, first.assignee, first.status, first.client_name], ['irit', 'nadia', 'open', 'פיצה רון · רון כהן']);
     assert.ok(await irit.locator('#st-form').count() === 0);
@@ -288,7 +288,7 @@ try {
     await nadia.locator(`${CARD}:not([hidden])`).waitFor();
     assert.equal(await text(nadia, `${CARD} h2`), 'תזכורות שקיבלת (1)');
     const item = nadia.locator(`${CARD} .st-item.is-mine`);
-    assert.match(await item.innerText(), /להעלות את הסרטון של פיצה רון לדרייב\s*נשלח מעירית · היום 10:0\d · לקוח: פיצה רון · רון כהן\s*תזכורת כל 10 דקות עד שמסמנים ״בוצע״\. הבאה: היום 10:1\d\.\s*בוצע/);
+    assert.match(await item.innerText(), /להעלות את הסרטון של פיצה רון לדרייב\s*נשלח מעירית · היום 10:0\d · לקוח: פיצה רון · רון כהן\s*תזכורת כל 30 דקות עד שמסמנים ״בוצע״\. הבאה: היום 10:3\d\.\s*בוצע/);
     // Not her client to open: its name is text, not a link.
     assert.equal(await item.locator('a').count(), 0);
     // She gives no tasks: no form, no list of given ones.

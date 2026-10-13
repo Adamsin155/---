@@ -230,7 +230,7 @@ async function loadUnsigned(now: Date): Promise<Row[]> {
 }
 
 // The tasks given on the spot (6.10.2026, app/staff-tasks-logic.js): the open ones
-// (rule `nag` rings them every 10 minutes) and those finished in the last two days
+// (rule `nag` rings them every 30 minutes) and those finished in the last two days
 // (whoever gave them hears, rule `nagDone`). Until migration
 // 20261011100000_staff_tasks.sql adds the table, none.
 async function loadStaffTasks(now: Date): Promise<Row[]> {
@@ -290,7 +290,7 @@ const db = {
       all(() => admin.from('client_messages').select('client_id, sent_at').gte('sent_at', today.toISOString()).order('sent_at')),
       all(() => admin.from('push_subscriptions').select('id, email, endpoint, p256dh, auth, fail_count').order('id')),
       all(() => admin.from('reminder_log').select(LOG_COLS).eq('status', 'queued').order('id')),
-      // Not the repeats of the tasks given on the spot (a row every 10 minutes for each
+      // Not the repeats of the tasks given on the spot (a row every 30 minutes for each
       // open task): nothing reads them here (the reports skip them; their
       // dedupe is `known`), and a week of them would be loaded every minute.
       all(() => admin.from('reminder_log').select(LOG_COLS).gte('created_at', since.toISOString()).neq('rule', 'nag').order('id')),

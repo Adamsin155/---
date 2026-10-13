@@ -1701,7 +1701,7 @@ RULES.push(
 // ── Tasks given on the spot (the owner's request of 6.10.2026) ──
 // One self-contained block (its import included). `env.staffTasks`: public.staff_tasks
 // rows, the open ones and those finished in the last two days (app/staff-tasks-logic.js).
-//   nag      an open task rings its assignee at once and then every 10 minutes, with
+//   nag      an open task rings its assignee at once and then every 30 minutes, with
 //     no end, until they mark "בוצע" (or it is cancelled): the case is then not
 //     returned. One step at a time, the slot `now` falls in; its id names the slot, so
 //     the log's unique key lets each slot out once and never twice, and a slot the
@@ -1716,7 +1716,7 @@ export const NAG = 'nag';
 const nagFrom = (t) => `מ${personName(t.created_by)}`;
 RULES.push(
   {
-    id: NAG, event: 'משימה מיידית: כל 10 דקות עד ״בוצע״', procs: [],
+    id: NAG, event: 'משימה מיידית: כל 30 דקות עד ״בוצע״', procs: [],
     instances(env) {
       return (env.staffTasks || []).filter((t) => t.status === 'open' && REMINDER_PEOPLE.has(t.assignee) && !(t.assignee === 'lior' && env.liorShoot?.active)).flatMap((t) => {
         const slot = nagSlot(parseDate(t.created_at), env.now);
