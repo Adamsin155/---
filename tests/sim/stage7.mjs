@@ -57,7 +57,7 @@ await sim.until(IL(2026, 10, 28, 9, 40));
 await proto(sim, { id: "p30", step: "ליאור בונה את הקמפיינים (יום אחרי היעד)", proc: "p30", role: "lior", shot: "p30-campaigns", keys: ["p30.picked", "p30.live"], peek: ["irit"], next: ["lior", "irit", "ofir", "ilai"] });
 sim.save("s7a");
 
-// A nudnik task: Irit asks Nadia for something on the spot; it rings every 10 minutes until "בוצע".
+// A nudnik task: Irit asks Nadia for something on the spot; it rings every 30 minutes until "בוצע".
 {
   await sim.until(IL(2026, 10, 28, 10, 30));
   const { page, ctx } = await sim.open("irit");

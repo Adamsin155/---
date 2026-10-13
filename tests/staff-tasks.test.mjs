@@ -1,7 +1,7 @@
 // Tasks given on the spot (the owner's request of 6.10.2026), at fixed Israel times
 // (npm test runs this under UTC, New York and Jerusalem):
 //   - who gives them and to whom, and the form (app/staff-tasks-logic.js);
-//   - the reminders' own window, 09:00–20:00 on working days, and the 10-minute slots:
+//   - the reminders' own window, 09:00–20:00 on working days, and the 30-minute slots:
 //     across midnight, the weekend, a holiday, erev chag and the change of the clock;
 //   - the rules (app/reminder-rules.js `nag`, `nagDone`) through the engine, minute by
 //     minute: one ring per slot and never two, nothing outside the window, no cap, no
@@ -93,7 +93,7 @@ test('the form: someone to give it to, what to do (up to 500 characters), an opt
 
 test('the window is 09:00–20:00 on working days, and it is the tasks\' own: no other clock moved', () => {
   assert.deepEqual(NAG_HOURS, { start: 9, end: 20 });
-  assert.equal(NAG_EVERY, 10);
+  assert.equal(NAG_EVERY, 30); // 10 until 13.10.2026 (the owner's decision)
   // The office's hours and the other reminders' sending hours are as they were.
   assert.deepEqual(WORK_HOURS, { start: 9, end: 18, erevEnd: 13 });
   assert.deepEqual(SEND_HOURS, { from: 8 * 60 + 30, to: 19 * 60, erevTo: 13 * 60 });
@@ -128,21 +128,24 @@ test('the next moment the window is open: tonight → tomorrow 09:00; Thursday n
   assert.equal(hhmm(nextNagMoment(IL(2027, 4, 21, 13, 0))), '25.4 09:00');
 });
 
-test('slots: from the moment it was given on that day, from 09:00 on every later day, 10 minutes each', () => {
+test('slots: from the moment it was given on that day, from 09:00 on every later day, 30 minutes each', () => {
   const at = IL(2026, 10, 6, 14, 3);
   const s0 = nagSlot(at, at);
   assert.deepEqual([s0.id, hhmm(s0.at), s0.n, s0.first], ['2026-10-06.0', '6.10 14:03', 0, true]);
-  assert.equal(nagSlot(at, IL(2026, 10, 6, 14, 12, 59)).id, '2026-10-06.0');
-  const s1 = nagSlot(at, IL(2026, 10, 6, 14, 13));
-  assert.deepEqual([s1.id, hhmm(s1.at), s1.first], ['2026-10-06.1', '6.10 14:13', false]);
-  // The last one of the day starts at 19:53; at 20:00 there is none.
-  assert.equal(hhmm(nagSlot(at, IL(2026, 10, 6, 19, 59)).at), '6.10 19:53');
+  assert.equal(nagSlot(at, IL(2026, 10, 6, 14, 13)).id, '2026-10-06.0', 'ten minutes later (the rule until 13.10.2026): still the first slot');
+  assert.equal(nagSlot(at, IL(2026, 10, 6, 14, 32, 59)).id, '2026-10-06.0');
+  const s1 = nagSlot(at, IL(2026, 10, 6, 14, 33));
+  assert.deepEqual([s1.id, hhmm(s1.at), s1.first], ['2026-10-06.1', '6.10 14:33', false]);
+  // The last one of the day starts at 19:33 (the twelfth); at 20:00 there is none.
+  const last = nagSlot(at, IL(2026, 10, 6, 19, 59));
+  assert.deepEqual([last.id, hhmm(last.at)], ['2026-10-06.11', '6.10 19:33']);
   assert.equal(nagSlot(at, IL(2026, 10, 6, 20, 0)), null);
   assert.equal(nagSlot(at, IL(2026, 10, 7, 3, 0)), null);
   // The next working day: from 09:00 sharp, a new day in the slot's name.
   const next = nagSlot(at, IL(2026, 10, 7, 9, 0));
   assert.deepEqual([next.id, hhmm(next.at), next.first], ['2026-10-07.0', '7.10 09:00', false]);
-  assert.equal(nagSlot(at, IL(2026, 10, 7, 9, 10)).id, '2026-10-07.1');
+  assert.equal(nagSlot(at, IL(2026, 10, 7, 9, 29, 59)).id, '2026-10-07.0');
+  assert.equal(nagSlot(at, IL(2026, 10, 7, 9, 30)).id, '2026-10-07.1');
   // Given at night: nothing until 09:00, and that one is its first.
   const night = IL(2026, 10, 6, 21, 30);
   assert.equal(nagSlot(night, night), null);
@@ -161,7 +164,7 @@ test('slots: from the moment it was given on that day, from 09:00 on every later
   assert.equal(nagSlot(at, IL(2026, 10, 6, 14, 2)), null);
 });
 
-test('a whole day has 66 slots, also on the day the clock changes (Sunday 25.10.2026)', () => {
+test('a whole day has 22 slots (09:00, 09:30 … 19:30), also on the day the clock changes (Sunday 25.10.2026)', () => {
   for (const [y, m, d] of [[2026, 10, 7], [2026, 10, 25], [2027, 3, 28]]) {
     const given = IL(y, m, d - 1 > 0 ? d - 1 : d, 8, 0); // the day before, in the morning
     const ids = new Set();
@@ -170,50 +173,58 @@ test('a whole day has 66 slots, also on the day the clock changes (Sunday 25.10.
       const s = nagSlot(given, new Date(t));
       if (s && !ids.has(s.id)) { ids.add(s.id); starts.push(hhmm(s.at).split(' ')[1]); }
     }
-    assert.equal(ids.size, 66, `${d}.${m}.${y}`);
-    assert.deepEqual([starts[0], starts[1], starts.at(-1)], ['09:00', '09:10', '19:50'], `${d}.${m}.${y}`);
+    assert.equal(ids.size, 22, `${d}.${m}.${y}`);
+    assert.deepEqual(starts, [
+      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00',
+      '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30',
+    ], `${d}.${m}.${y}`);
   }
 });
 
 test('the card says when the next reminder comes', () => {
   const at = IL(2026, 10, 6, 14, 3);
-  assert.equal(hhmm(nextNagAt(at, IL(2026, 10, 6, 14, 5))), '6.10 14:13');
+  assert.equal(hhmm(nextNagAt(at, IL(2026, 10, 6, 14, 5))), '6.10 14:33');
+  assert.equal(hhmm(nextNagAt(at, IL(2026, 10, 6, 14, 33))), '6.10 15:03');
+  assert.equal(hhmm(nextNagAt(at, IL(2026, 10, 6, 19, 32))), '6.10 19:33');
+  // After the last one of the day (19:33): the next would be 20:03, so tomorrow at 09:00.
+  assert.equal(hhmm(nextNagAt(at, IL(2026, 10, 6, 19, 33))), '7.10 09:00');
   assert.equal(hhmm(nextNagAt(at, IL(2026, 10, 6, 19, 55))), '7.10 09:00');
   assert.equal(hhmm(nextNagAt(at, IL(2026, 10, 6, 22, 0))), '7.10 09:00');
   assert.equal(hhmm(nextNagAt(IL(2026, 10, 8, 19, 55), IL(2026, 10, 8, 19, 56))), '11.10 09:00');
 });
 
-test('the assignee rings at once and then every 10 minutes until 20:00, each slot once', () => {
+test('the assignee rings at once and then every 30 minutes until 20:00, each slot once', () => {
   const w = world([task()]);
   const sent = run(w, IL(2026, 10, 6, 14, 0), IL(2026, 10, 6, 21, 0));
   const mine = nags(sent);
   assert.equal(mine.length, sent.length, 'no other step of its own');
-  // 14:03, 14:13 … 19:53: 36 rings, each on its minute, all to Nadia, all rings.
-  assert.equal(mine.length, 36);
-  assert.deepEqual(mine.slice(0, 3).map((r) => hhmm(r.now)), ['6.10 14:03', '6.10 14:13', '6.10 14:23']);
-  assert.equal(hhmm(mine.at(-1).now), '6.10 19:53');
+  // 14:03, 14:33 … 19:33: 12 rings, each on its minute, all to Nadia, all rings.
+  assert.equal(mine.length, 12);
+  assert.deepEqual(mine.map((r) => hhmm(r.now).split(' ')[1]), ['14:03', '14:33', '15:03', '15:33', '16:03', '16:33', '17:03', '17:33', '18:03', '18:33', '19:03', '19:33']);
   assert.ok(mine.every((r) => r.person === 'nadia' && r.level === 'ring' && r.ownHours && r.exempt === NAG && r.url === 'clients.html#mine' && r.clientId === null && r.ref === null));
-  assert.equal(new Set(mine.map((r) => r.key)).size, 36);
+  assert.equal(new Set(mine.map((r) => r.key)).size, 12);
   assert.equal(mine[0].key, 'nag:-:11111111-1111-4111-8111-111111111111:2026-10-06.0@nadia');
   assert.equal(mine[0].title, 'משימה מעירית: להעלות את הסרטון של פיצה רון לדרייב');
-  assert.match(mine[0].body, /^מעירית, היום 14:03 · תזכורת כל 10 דקות עד שמסמנים ״בוצע״ ב״המשימות שלי״\.$/);
+  assert.match(mine[0].body, /^מעירית, היום 14:03 · תזכורת כל 30 דקות עד שמסמנים ״בוצע״ ב״המשימות שלי״\.$/);
   assert.equal(mine[1].title, 'עוד לא סומן ״בוצע״: להעלות את הסרטון של פיצה רון לדרייב');
-  // The gaps are exactly 10 minutes.
-  for (let i = 1; i < mine.length; i += 1) assert.equal(mine[i].now - mine[i - 1].now, 10 * MIN);
+  // The gaps are exactly 30 minutes.
+  for (let i = 1; i < mine.length; i += 1) assert.equal(mine[i].now - mine[i - 1].now, 30 * MIN);
   // Asked again in the same minute, or anywhere in the same slot: nothing new.
   const log = new Set(mine.map((r) => r.key));
   assert.deepEqual(ours(computeReminders({ ...w, now: IL(2026, 10, 6, 14, 3, 30), log })), []);
-  assert.deepEqual(ours(computeReminders({ ...w, now: IL(2026, 10, 6, 14, 12), log })), []);
+  assert.deepEqual(ours(computeReminders({ ...w, now: IL(2026, 10, 6, 14, 13), log })), [], 'nothing after 10 minutes');
+  assert.deepEqual(ours(computeReminders({ ...w, now: IL(2026, 10, 6, 14, 32), log })), []);
 });
 
 test('a task still open at 20:00 is silent through the night and resumes at 09:00 of the next working day', () => {
-  const w = world([task({ created_at: IL(2026, 10, 8, 19, 45).toISOString() })]); // Thursday evening
-  const sent = nags(run(w, IL(2026, 10, 8, 19, 40), IL(2026, 10, 11, 9, 25)));
-  assert.deepEqual(sent.map((r) => hhmm(r.now)), ['8.10 19:45', '8.10 19:55', '11.10 09:00', '11.10 09:10', '11.10 09:20']);
-  assert.match(sent[2].body, /^מעירית, ה׳ 8\.10 19:45/);
+  const w = world([task({ created_at: IL(2026, 10, 8, 19, 15).toISOString() })]); // Thursday evening
+  const sent = nags(run(w, IL(2026, 10, 8, 19, 10), IL(2026, 10, 11, 10, 25)));
+  // 19:15 and 19:45; the next would be 20:15. Sunday starts again from 09:00 sharp, not from :15.
+  assert.deepEqual(sent.map((r) => hhmm(r.now)), ['8.10 19:15', '8.10 19:45', '11.10 09:00', '11.10 09:30', '11.10 10:00']);
+  assert.match(sent[2].body, /^מעירית, ה׳ 8\.10 19:15/);
   // Given at night: the first ring is 09:00, worded as the first.
-  const night = nags(run(world([task({ created_at: IL(2026, 10, 6, 22, 10).toISOString() })]), IL(2026, 10, 6, 22, 0), IL(2026, 10, 7, 9, 12)));
-  assert.deepEqual(night.map((r) => [hhmm(r.now), r.title.split(':')[0]]), [['7.10 09:00', 'משימה מעירית'], ['7.10 09:10', 'עוד לא סומן ״בוצע״']]);
+  const night = nags(run(world([task({ created_at: IL(2026, 10, 6, 22, 10).toISOString() })]), IL(2026, 10, 6, 22, 0), IL(2026, 10, 7, 9, 32)));
+  assert.deepEqual(night.map((r) => [hhmm(r.now), r.title.split(':')[0]]), [['7.10 09:00', 'משימה מעירית'], ['7.10 09:30', 'עוד לא סומן ״בוצע״']]);
 });
 
 test('a slot the engine missed is not sent late: the next one goes out on time', () => {
@@ -221,22 +232,24 @@ test('a slot the engine missed is not sent late: the next one goes out on time',
   const log = new Set();
   const first = run(w, IL(2026, 10, 6, 14, 3), IL(2026, 10, 6, 14, 5), log);
   assert.equal(first.length, 1);
-  // The engine was down from 14:06 to 14:47.
-  const back = run(w, IL(2026, 10, 6, 14, 48), IL(2026, 10, 6, 14, 55), log);
-  assert.deepEqual(back.map((r) => [hhmm(r.now), hhmm(r.at)]), [['6.10 14:48', '6.10 14:43'], ['6.10 14:53', '6.10 14:53']]);
+  // The engine was down from 14:06 to 15:47: the slots of 14:33 and 15:03 passed and are gone.
+  // Back at 15:48 it sends the slot it is in (15:33), and the next one on its minute.
+  const back = run(w, IL(2026, 10, 6, 15, 48), IL(2026, 10, 6, 16, 10), log);
+  assert.deepEqual(back.map((r) => [hhmm(r.now), hhmm(r.at), r.key.split(':').at(-1)]), [['6.10 15:48', '6.10 15:33', '2026-10-06.3@nadia'], ['6.10 16:03', '6.10 16:03', '2026-10-06.4@nadia']]);
 });
 
 test('"בוצע" stops it and tells the giver quietly, once; a cancellation stops it and tells nobody', () => {
   const t = task();
   const w = world([t]);
   const log = new Set();
-  assert.equal(nags(run(w, IL(2026, 10, 6, 14, 3), IL(2026, 10, 6, 14, 30), log)).length, 3);
-  // 14:31: Nadia marks it done.
-  w.staffTasks[0] = { ...t, status: 'done', done_at: IL(2026, 10, 6, 14, 31).toISOString() };
-  const after = run(w, IL(2026, 10, 6, 14, 31), IL(2026, 10, 7, 12, 0), log);
-  assert.deepEqual(after.map((r) => [r.rule, r.person, r.level, r.title, hhmm(r.now)]), [['nagDone', 'irit', 'quiet', 'נדיה סימן/ה ״בוצע״: להעלות את הסרטון של פיצה רון לדרייב', '6.10 14:31']]);
+  // 14:03, 14:33, 15:03.
+  assert.equal(nags(run(w, IL(2026, 10, 6, 14, 3), IL(2026, 10, 6, 15, 30), log)).length, 3);
+  // 15:31: Nadia marks it done.
+  w.staffTasks[0] = { ...t, status: 'done', done_at: IL(2026, 10, 6, 15, 31).toISOString() };
+  const after = run(w, IL(2026, 10, 6, 15, 31), IL(2026, 10, 7, 12, 0), log);
+  assert.deepEqual(after.map((r) => [r.rule, r.person, r.level, r.title, hhmm(r.now)]), [['nagDone', 'irit', 'quiet', 'נדיה סימן/ה ״בוצע״: להעלות את הסרטון של פיצה רון לדרייב', '6.10 15:31']]);
   assert.equal(after[0].key, 'nagDone:-:11111111-1111-4111-8111-111111111111:done@irit');
-  const [plan] = planDelivery({ reminders: after, now: IL(2026, 10, 6, 14, 31) });
+  const [plan] = planDelivery({ reminders: after, now: IL(2026, 10, 6, 15, 31) });
   // Since 7.10.2026 an update goes to the phone like a ring (and is not counted as one).
   assert.deepEqual([plan.channel, plan.status], ['push', 'sent']);
   // Cancelled: silence.
@@ -254,10 +267,10 @@ test('it goes to the phone at 19:30 whatever went out before (there is no daily 
   const now = IL(2026, 10, 6, 19, 30);
   const due = ours(computeReminders({ ...w, now }));
   assert.equal(due.length, 1);
-  // Six ordinary rings already went to Nadia today, and 60 of this task's own.
+  // Six ordinary rings already went to Nadia today, and 21 of this task's own (09:00 … 19:00).
   const log = [
     ...Array.from({ length: 6 }, (_, i) => ({ id: i + 1, key: `x:${i}`, rule: 'task', person: 'nadia', level: 'ring', channel: 'push', status: 'sent', exempt: false, sent_at: IL(2026, 10, 6, 10, i).toISOString() })),
-    ...Array.from({ length: 60 }, (_, i) => ({ id: 100 + i, key: `nag:-:t:2026-10-06.${i}@nadia`, rule: NAG, person: 'nadia', level: 'ring', channel: 'push', status: 'sent', exempt: true, sent_at: IL(2026, 10, 6, 9, 0).toISOString() })),
+    ...Array.from({ length: 21 }, (_, i) => ({ id: 100 + i, key: `nag:-:t:2026-10-06.${i}@nadia`, rule: NAG, person: 'nadia', level: 'ring', channel: 'push', status: 'sent', exempt: true, sent_at: IL(2026, 10, 6, 9, 0).toISOString() })),
   ];
   const [plan] = planDelivery({ reminders: due, now, log });
   assert.deepEqual([plan.channel, plan.status, plan.reason], ['push', 'sent', null]);
@@ -352,28 +365,28 @@ function fakePush() {
   return { sent, push: async (sub, payload, opts) => { sent.push({ endpoint: sub.endpoint, payload: JSON.parse(payload), opts }); return { ok: true, status: 201 }; } };
 }
 
-test('a tick every minute: one push per 10 minutes to every device, two overlapping ticks never send a slot twice', async () => {
+test('a tick every minute: one push per 30 minutes to every device, two overlapping ticks never send a slot twice', async () => {
   const db = fakeDb({ staffTasks: [task()], subs: [{ email: 'nadia@x', endpoint: 'https://push.test/phone' }, { email: 'nadia@x', endpoint: 'https://push.test/tablet' }, { email: 'irit@x', endpoint: 'https://push.test/irit' }] });
   const { push, sent } = fakePush();
-  for (let t = IL(2026, 10, 6, 14, 3).getTime(); t <= IL(2026, 10, 6, 14, 34).getTime(); t += MIN) {
+  for (let t = IL(2026, 10, 6, 14, 3).getTime(); t <= IL(2026, 10, 6, 15, 34).getTime(); t += MIN) {
     const now = new Date(t);
     // Two ticks in the same minute (the second started before the first finished).
     await Promise.all([runTick({ db: db.at(now), push, now }), runTick({ db: db.at(now), push, now })]);
   }
-  // 14:03, 14:13, 14:23, 14:33: four rows, each pushed once to each of Nadia's two devices.
+  // 14:03, 14:33, 15:03, 15:33: four rows, each pushed once to each of Nadia's two devices.
   const rows = db.log.filter((r) => r.rule === NAG);
   assert.deepEqual(rows.map((r) => [r.key.split(':').at(-1), r.status, r.channel, r.exempt, hhmm(new Date(r.created_at))]), [
-    ['2026-10-06.0@nadia', 'sent', 'push', true, '6.10 14:03'], ['2026-10-06.1@nadia', 'sent', 'push', true, '6.10 14:13'],
-    ['2026-10-06.2@nadia', 'sent', 'push', true, '6.10 14:23'], ['2026-10-06.3@nadia', 'sent', 'push', true, '6.10 14:33'],
+    ['2026-10-06.0@nadia', 'sent', 'push', true, '6.10 14:03'], ['2026-10-06.1@nadia', 'sent', 'push', true, '6.10 14:33'],
+    ['2026-10-06.2@nadia', 'sent', 'push', true, '6.10 15:03'], ['2026-10-06.3@nadia', 'sent', 'push', true, '6.10 15:33'],
   ]);
   assert.equal(sent.length, 8);
   assert.ok(sent.every((s) => s.endpoint !== 'https://push.test/irit' && s.opts.urgency === 'high'));
   // On the phone the repeats replace each other and sound again.
   assert.deepEqual([...new Set(sent.map((s) => s.payload.tag))], ['nag:-:11111111-1111-4111-8111-111111111111']);
   assert.ok(sent.every((s) => s.payload.renotify === true && s.payload.url === 'clients.html#mine'));
-  // Done at 14:40: Irit hears on her phone too (7.10.2026: no quiet messages), once, and nothing more goes to Nadia.
-  db.staffTasks[0] = { ...db.staffTasks[0], status: 'done', done_at: IL(2026, 10, 6, 14, 40).toISOString() };
-  for (let t = IL(2026, 10, 6, 14, 40).getTime(); t <= IL(2026, 10, 6, 15, 10).getTime(); t += MIN) await runTick({ db: db.at(new Date(t)), push, now: new Date(t) });
+  // Done at 15:40: Irit hears on her phone too (7.10.2026: no quiet messages), once, and nothing more goes to Nadia.
+  db.staffTasks[0] = { ...db.staffTasks[0], status: 'done', done_at: IL(2026, 10, 6, 15, 40).toISOString() };
+  for (let t = IL(2026, 10, 6, 15, 40).getTime(); t <= IL(2026, 10, 6, 16, 40).getTime(); t += MIN) await runTick({ db: db.at(new Date(t)), push, now: new Date(t) });
   assert.equal(sent.length, 9);
   assert.deepEqual([sent[8].endpoint, sent[8].payload.title], ['https://push.test/irit', 'נדיה סימן/ה ״בוצע״: להעלות את הסרטון של פיצה רון לדרייב']);
   assert.deepEqual(db.log.filter((r) => r.rule === 'nagDone').map((r) => [r.person, r.level, r.channel, r.status]), [['irit', 'quiet', 'push', 'sent']]);
@@ -416,7 +429,7 @@ test('the notifications list shows one row for a task, the latest, next to every
 });
 
 test('WhatsApp: the existing "due" template, no new one; within the consent\'s hours only', () => {
-  const row = { key: 'nag:-:t1:2026-10-06.3@nadia', rule: NAG, level: 'ring', person: 'nadia' };
+  const row = { key: 'nag:-:t1:2026-10-06.1@nadia', rule: NAG, level: 'ring', person: 'nadia' };
   assert.equal(templateFor(row), 'due');
   assert.equal(taskIdOf(row), null, 'not a client task: no "בוצע" button is wired to it');
   assert.deepEqual(Object.keys(TEMPLATES), ['digest', 'new_task', 'due', 'late', 'exception', 'shoot_day', 'editor_assigned', 'owner_digest', 'review']);

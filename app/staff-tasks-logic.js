@@ -1,6 +1,6 @@
 // "משימה מיידית" (the owner's request of 6.10.2026): Irit (and the owner) gives a
 // task to anyone on the team, on the spot. From that moment the assignee is rung
-// every 10 minutes until they mark "בוצע" themselves, between 09:00 and 20:00 Israel
+// every 30 minutes (10 until 13.10.2026) until they mark "בוצע" themselves, between 09:00 and 20:00 Israel
 // time on working days; a task still open at 20:00 resumes at 09:00 of the next
 // working day. Cancelling (the giver or the owner) stops the reminders.
 // Pure, no DOM and no network: the card (app/staff-tasks-ui.js), the reminder rules
