@@ -191,7 +191,8 @@ try {
     assert.ok(await lateMarks(page.locator('#assign-list li.of-card:not(:has(.tag-landing))')) > 0, 'the clients with a clock keep it');
     for (const n of [31, 32, 33]) assert.equal(await page.locator(`#assign-list li[data-key^="${cid(n)}:"] .tag-landing`).count(), 1, `client ${n}`);
     // The dialog says the same, and names no hour.
-    await page.click(`#assign-list li[data-key^="${cid(31)}:"] button`);
+    // (Since 13.10.2026 the card's first button is "שיוך ל<שם>"; the dialog is behind "עורך אחר".)
+    await page.click(`#assign-list li[data-key^="${cid(31)}:"] [id^="as-open-"]`);
     await page.waitForSelector('#dlg-assign[open]');
     assert.match(await page.innerText('#as-meta'), /בקליטה · בלי שעון עד שהלקוח יופעל/);
     assert.doesNotMatch(await page.innerText('#as-meta'), /לשייך עד/);
