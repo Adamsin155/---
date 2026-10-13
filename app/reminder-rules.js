@@ -1715,7 +1715,7 @@ export const NAG = 'nag';
 const nagFrom = (t) => `מ${personName(t.created_by)}`;
 RULES.push(
   {
-    id: NAG, event: 'משימה מיידית: כל 10 דקות עד ״בוצע״', procs: [],
+    id: NAG, event: 'משימה מיידית: כל 30 דקות עד ״בוצע״', procs: [],
     instances(env) {
       return (env.staffTasks || []).filter((t) => t.status === 'open' && REMINDER_PEOPLE.has(t.assignee) && !(t.assignee === 'lior' && env.liorShoot?.active)).flatMap((t) => {
         const slot = nagSlot(parseDate(t.created_at), env.now);
