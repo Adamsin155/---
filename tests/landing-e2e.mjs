@@ -659,6 +659,17 @@ try {
     await irit.screenshot({ path: join(SHOTS, 'editor-page-1280.png'), fullPage: true });
     await irit.setViewportSize(PHONE);
     await ofir.context().close();
+    // The owners take in nothing, so the client comes under its own heading for them, with the block.
+    const own = await newPage(PHONE);
+    await signIn(own, 'landing.html', 'owner');
+    await own.locator('.land-ed-sec').waitFor();
+    assert.deepEqual(await own.locator('.land-ed-sec .land-card').evaluateAll((els) => els.map((e) => e.dataset.id)), [MAYA().id]);
+    assert.equal(await own.locator(`.land-ed-sec .land-ed-chip.is-on[data-editor="nadia"]`).count(), 1);
+    assert.deepEqual(await smallTargets(own, '.land-ed button'), []);
+    assert.ok(await noSideScroll(own));
+    await own.waitForTimeout(1500); // the sign-in screen's own exit
+    await own.screenshot({ path: join(SHOTS, 'editor-owner-390.png'), fullPage: true });
+    await own.context().close();
   });
 
   await step('the last person to finish activates the client: what stayed open is live, with a fresh deadline and not late', async () => {

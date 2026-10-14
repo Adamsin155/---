@@ -102,6 +102,8 @@
 }
 .land-ed-chip[data-editor=""] { font-weight: 500; color: var(--ds-ink-2); }
 .land-ed-chip.is-on { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); }
+/* "עוד לא ידוע" chosen is the resting state, not an answer to look at: outlined, not filled. */
+.land-ed-chip[data-editor=""].is-on { background: var(--ds-surface); border: 2px solid var(--ds-navy); color: var(--ds-navy-text); font-weight: 600; }
 .land-ed-chip.is-notes { border-style: dashed; border-color: var(--ds-navy-text); color: var(--ds-navy-text); }
 .land-ed-chip:disabled { opacity: .6; cursor: default; }
 .land-ed-tag { font-size: 12px; font-weight: 500; }

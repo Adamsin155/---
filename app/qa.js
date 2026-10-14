@@ -264,14 +264,14 @@ function assignCard(a, load, now) {
       h('span', { class: 'wtitle' }, `${SHOOT_TYPES[type]?.name || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
       a.state.status === 'overdue' && a.client.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
     a.ctx.shoot_at || joint ? h('p', { class: 'of-line' }, [a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : null, joint ? 'יום משותף לנטלי ולסמיון' : null].filter(Boolean).join(' · ')) : null,
+    // An old client already in editing: its real editor is known in the office, not guessed here.
+    a.client.landing === true ? h('p', { class: 'of-line muted as-landing' }, LANDING_EDITOR_LINE) : null,
     // Whom the system suggests, and why (the same number the load list below shows).
     h('p', { class: `k-note as-sug${sug.editor ? '' : ' k-note-warn'}`, id: `as-sug-${id}`, 'data-editor': sug.editor || '', 'data-why': sug.why },
       iconSquare(sug.editor ? 'user' : 'question', sug.editor ? 'teal' : 'orange', { size: 'sm' }),
       h('span', { class: 'as-sug-t' }, h('strong', {}, sug.editor ? `מומלץ: ${name}` : 'אין המלצה'), ` · ${sug.reason}`,
         sug.editor && !oneTap ? ' · ביום משותף בוחרים עורך עם סיבה' : '')),
     a.fast ? h('p', { class: 'of-line as-fast' }, ladderWords(a.fast, now), ` · לשייך עד ${formatWhen(a.fast.dueAt, now)}`) : null,
-    // An old client already in editing: its real editor is known in the office, not guessed here.
-    a.client.landing === true ? h('p', { class: 'of-line muted as-landing' }, LANDING_EDITOR_LINE) : null,
     // The assignment is Ofir's alone (protocol v9). Lior supervises here: he sees it, without the buttons.
     me === 'lior' ? h('p', { class: 'of-line muted as-ofir-only' }, 'אופיר משייך את העורך.') : h('div', { class: 'of-acts as-acts' },
       oneTap ? h('button', {
