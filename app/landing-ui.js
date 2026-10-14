@@ -224,7 +224,7 @@ function clientCard(x, now) {
     return h('li', { class: 'land-card is-finished', id, 'data-id': c.id },
       h('div', { class: 'land-fin' },
         h('span', { class: 'land-fin-name' }, h('span', { class: 'land-tick', 'aria-hidden': 'true' }, '✓'), clientLabel(c)),
-        h('span', { class: 'muted' }, open ? `נקלט · ${open === 1 ? 'פריט אחד נשאר פתוח' : `${open} פריטים נשארו פתוחים`}` : 'נקלט · הכול כבר בוצע'),
+        h('span', { class: 'muted' }, open ? `נקלט · ${open === 1 ? 'פריט אחד נשאר פתוח' : `${open} פריטים נשארו פתוחים`}` : 'נקלט · הכול כבר נעשה'),
         h('button', { type: 'button', class: 'btn-text land-undo', disabled: off, 'data-act': 'undo', onclick: () => { openItems.add(c.id); reopen(c); } }, 'ביטול')),
       editorBlock(c));
   }
@@ -238,21 +238,23 @@ function clientCard(x, now) {
     editorBlock(c),
     office() && stationOff(c, now) ? stationRow(x, now) : null,
     p ? h('div', { class: 'land-proposal' },
-      h('p', {}, h('strong', {}, 'ההצעה: '), `${p.why}, ולכן ${p.done.length === 1 ? 'פריט אחד כבר בוצע' : `${p.done.length} פריטים כבר בוצעו`}${p.open.length ? ` ו${p.open.length === 1 ? 'אחד עדיין פתוח' : `־${p.open.length} עדיין פתוחים`}` : ''}.`),
+      h('p', {}, h('strong', {}, 'ההצעה: '), `${p.why}, ולכן ${p.done.length === 1 ? 'פריט אחד כבר נעשה' : `${p.done.length} פריטים כבר נעשו`}${p.open.length ? ` ו${p.open.length === 1 ? 'אחד עדיין פתוח' : `־${p.open.length} עדיין פתוחים`}` : ''}.`),
       h('button', {
         type: 'button', class: 'btn k-btn-navy', disabled: off, 'data-act': 'accept',
         onclick: () => finish(x, { ...Object.fromEntries(p.done.map((k) => [k, 'done'])), ...Object.fromEntries(p.open.map((k) => [k, 'open'])) }, `${clientLabel(c)}: ההצעה התקבלה.`),
       }, 'לקבל את ההצעה ולסיים')) : null,
-    // The two quick ways first; the items one by one are a tap away (a client can have dozens).
+    // The question the buttons answer, said once (the owner, 14.10.2026: "הכול עדיין פתוח · סיימתי" was not understood);
+    // then the two quick answers; the items one by one are a tap away (a client can have dozens).
+    h('p', { class: 'land-question' }, 'מה מהעבודה שלך בלקוח הזה כבר נעשה?'),
     h('div', { class: 'land-actions' },
-      h('button', { type: 'button', class: 'btn', disabled: off, 'data-act': 'all', onclick: () => finish(x, all, `${clientLabel(c)}: הכול סומן ״כבר בוצע״.`) }, 'הכול כבר בוצע אצלי בלקוח הזה'),
-      h('button', { type: 'button', class: p ? 'btn' : 'btn k-btn-navy', disabled: off, 'data-act': 'finish', onclick: () => finish(x, {}, `${clientLabel(c)} נקלט.`) }, answered(x) ? 'סיימתי עם הלקוח הזה' : 'הכול עדיין פתוח · סיימתי')),
+      h('button', { type: 'button', class: 'btn', disabled: off, 'data-act': 'all', onclick: () => finish(x, all, `${clientLabel(c)}: הכול סומן ״כבר נעשה״.`) }, 'הכול כבר נעשה'),
+      h('button', { type: 'button', class: p ? 'btn' : 'btn k-btn-navy', disabled: off, 'data-act': 'finish', onclick: () => finish(x, {}, `${clientLabel(c)} נקלט. מה שלא נעשה יופיע לך כמשימה ביום ההפעלה.`) }, answered(x) ? 'שמרתי, סיימתי עם הלקוח' : 'עוד כלום לא נעשה')),
     h('details', { class: 'land-more', open: openItems.has(c.id), ontoggle: (e) => { if (e.currentTarget.open) openItems.add(c.id); else openItems.delete(c.id); } },
-      h('summary', { 'data-act': 'items' }, `פריט־פריט (${x.items.length})`, answered(x) ? h('span', { class: 'muted' }, ` · נענו ${answered(x)}`) : null),
+      h('summary', { 'data-act': 'items' }, `חלק נעשה וחלק לא · לסמן פריט־פריט (${x.items.length})`, answered(x) ? h('span', { class: 'muted' }, ` · נענו ${answered(x)}`) : null),
       office() && !stationOff(c, now) ? stationRow(x, now) : null,
       h('ul', { class: 'land-items' }, ...x.items.map((i) => h('li', { class: `land-item${p?.done.includes(i.key) && !i.choice ? ' is-proposed' : ''}` },
         h('div', { class: 'land-item-text' }, h('span', { class: 'land-label' }, i.label), h('small', { class: 'muted' }, procText(i.proc),
-          p?.done.includes(i.key) && !i.choice ? ' · ההצעה: כבר בוצע' : '')),
+          p?.done.includes(i.key) && !i.choice ? ' · ההצעה: כבר נעשה' : '')),
         choiceButtons(x, i))))));
 }
 

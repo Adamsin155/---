@@ -112,3 +112,6 @@
 .land-ed-sec > h2 { margin: 0; font-size: 18px; }
 .land-ed-sec > p { margin: 0; }
 .land-card.is-finished .land-ed { margin-block: 4px 8px; }
+
+/* The question above the two quick answers (14.10.2026). */
+.land-question { margin: 4px 0 0; font-size: 15px; font-weight: 700; color: var(--ds-ink); }

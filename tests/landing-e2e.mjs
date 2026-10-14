@@ -369,17 +369,17 @@ try {
     }
     // Each card opens short: the quick buttons, and "פריט־פריט" one tap away.
     assert.equal(await irit.locator('.land-choice:visible').count(), 0);
-    assert.match((await cardOf(irit, 'פיצה רון').locator('details.land-more > summary').innerText()).trim(), /^פריט־פריט \(\d+\)$/);
-    assert.deepEqual(await cardOf(irit, 'פיצה רון').locator('.land-actions button').allInnerTexts(), ['הכול כבר בוצע אצלי בלקוח הזה', 'הכול עדיין פתוח · סיימתי']);
+    assert.match((await cardOf(irit, 'פיצה רון').locator('details.land-more > summary').innerText()).trim(), /^חלק נעשה וחלק לא · לסמן פריט־פריט \(\d+\)$/);
+    assert.deepEqual(await cardOf(irit, 'פיצה רון').locator('.land-actions button').allInnerTexts(), ['הכול כבר נעשה', 'עוד כלום לא נעשה']);
     await showItems(irit, 'פיצה רון');
-    assert.deepEqual(await cardOf(irit, 'פיצה רון').locator('.land-item').first().locator('.land-choice').allInnerTexts(), ['כבר בוצע', 'עדיין פתוח', 'לא רלוונטי']);
+    assert.deepEqual(await cardOf(irit, 'פיצה רון').locator('.land-item').first().locator('.land-choice').allInnerTexts(), ['כבר נעשה', 'עוד לא נעשה', 'לא רלוונטי']);
     assert.equal(await lateMarks(irit, '#app'), 0);
     assert.ok(!/באיחור|יעד:|נגמר|דק׳/.test(await irit.locator('#app').innerText()));
     assert.ok(await noSideScroll(irit));
     assert.deepEqual(await smallTargets(irit, '.land-app button, .land-app select, .land-app a'), []);
     // The office corrects the station here; the proposal is shown, not applied.
     assert.equal(await irit.locator('.land-station').count(), iritAtStart.length);
-    assert.match(await cardOf(irit, 'קפה דנה').locator('.land-proposal p').innerText(), /ההצעה: יום הצילום כבר היה \(20\.6\), ולכן \d+ פריטים כבר בוצעו/);
+    assert.match(await cardOf(irit, 'קפה דנה').locator('.land-proposal p').innerText(), /ההצעה: יום הצילום כבר היה \(20\.6\), ולכן \d+ פריטים כבר נעשו/);
     assert.equal(await cardOf(irit, 'פיצה רון').locator('.land-proposal').count(), 0);
     assert.equal(await irit.locator('.land-choice.is-on').count(), 0);
     assert.equal(db.client_landing_marks.length, 0);
@@ -400,7 +400,7 @@ try {
     assert.equal(db.protocol_checks.length, checksBefore);
     assert.equal(C('קפה דנה').landing, true, 'others have not finished: still in landing');
     // Her answers opened the next items in the protocol (sending the videos…): not answered, so open.
-    assert.match(await cardOf(irit, 'קפה דנה').locator('.land-fin').innerText(), /קפה דנה · דנה\s*נקלט · (הכול כבר בוצע|\d+ פריטים נשארו פתוחים|פריט אחד נשאר פתוח)\s*ביטול/);
+    assert.match(await cardOf(irit, 'קפה דנה').locator('.land-fin').innerText(), /קפה דנה · דנה\s*נקלט · (הכול כבר נעשה|\d+ פריטים נשארו פתוחים|פריט אחד נשאר פתוח)\s*ביטול/);
     assert.equal((await irit.locator('#land-progress .land-count').innerText()).trim(), `נשארו ${iritAtStart.length - 1} מתוך ${iritAtStart.length} לקוחות`);
     assert.equal(await toastOf(irit), 'קפה דנה · דנה: ההצעה התקבלה.');
     assert.equal(db.client_landing_marks.filter((m) => m.client_id === C('קפה דנה').id).every((m) => m.person === 'irit' && m.by_email === 'irit@astrateg.test' && m.at), true);
@@ -412,7 +412,7 @@ try {
     assert.deepEqual([lastTake().body.p_done, lastTake().body.p_marks], [false, {}]);
     assert.equal(db.client_landing_done.find((d) => d.client_id === C('קפה דנה').id && d.person === 'irit').done, false);
     const first = cardOf(irit, 'קפה דנה').locator('.land-item').first();
-    assert.equal(await first.locator('.land-choice.is-on').innerText(), 'כבר בוצע');
+    assert.equal(await first.locator('.land-choice.is-on').innerText(), 'כבר נעשה');
     await first.locator('.land-choice[data-choice="open"]').click();
     await first.locator('.land-choice[data-choice="open"].is-on').waitFor();
     assert.deepEqual(Object.values(lastTake().body.p_marks), ['open']);
