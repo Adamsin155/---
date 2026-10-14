@@ -16,7 +16,7 @@ import { loadClients, loadChecks, loadDirectory, setChecksBulk, clearChecksBulk 
 import { $, fill, h, toast, errorText, mountSession, directory, viewerOf, VIEWER_UNKNOWN, progressBar } from './protocol-ui.js';
 import { loadIntake, takeIn, setLandingEditor } from './landing-data.js';
 import {
-  CHOICES, CHOICE_TEXT, intakeFor, intakeLeft, waitingPeople, stationNow, evidentStation, stationPlan, canSetEditor, editorSlots,
+  intakeFor, intakeLeft, waitingPeople, stationNow, evidentStation, stationPlan, canSetEditor, editorSlots,
 } from './landing-logic.js';
 import { IMPORT_NOTE } from './client-open.js';
 import { inLanding } from './protocol-logic.js';
@@ -187,13 +187,21 @@ function renderEditorOnly(shown, now) {
 }
 
 // ── Render ──────────────────────────────────
-function choiceButtons(x, item) {
+// One item as a line of a checklist (the owner, 14.10.2026: "make it clear that part of it can be marked"):
+// a tick says "already done"; no tick is "not done yet" (that is what "שמירה וסיום" records for it); "לא רלוונטי"
+// is a small link beside it. The answers are the same three as before (CHOICES), only asked as one tick.
+function checkLine(x, item) {
   const disabled = busy.has(x.client.id);
-  return h('div', { class: 'land-choices', role: 'group', 'aria-label': item.label },
-    ...CHOICES.filter((c) => !(c === 'na' && item.approval)).map((c) => h('button', {
-      type: 'button', class: `land-choice c-${c}${item.choice === c ? ' is-on' : ''}`, 'aria-pressed': String(item.choice === c), disabled,
-      'data-key': item.key, 'data-choice': c, onclick: () => choose(x.client, item.key, c),
-    }, CHOICE_TEXT[c])));
+  const on = item.choice === 'done', na = item.choice === 'na';
+  return h('div', { class: `land-check${on ? ' is-on' : ''}${na ? ' is-na' : ''}` },
+    h('button', {
+      type: 'button', class: `land-choice c-done${on ? ' is-on' : ''}`, role: 'checkbox', 'aria-checked': String(on), 'aria-pressed': String(on), disabled,
+      'data-key': item.key, 'data-choice': 'done', onclick: () => choose(x.client, item.key, on ? 'open' : 'done'),
+    }, h('span', { class: 'land-box', 'aria-hidden': 'true' }, on ? '✓' : ''), h('span', { class: 'land-label' }, item.label)),
+    item.approval ? null : h('button', {
+      type: 'button', class: `land-choice c-na btn-text${na ? ' is-on' : ''}`, 'aria-pressed': String(na), disabled,
+      'data-key': item.key, 'data-choice': 'na', onclick: () => choose(x.client, item.key, na ? 'open' : 'na'),
+    }, na ? 'לא רלוונטי ✓' : 'לא רלוונטי'));
 }
 
 // Whether the data itself says the client is further than the system has it.
@@ -224,7 +232,7 @@ function clientCard(x, now) {
     return h('li', { class: 'land-card is-finished', id, 'data-id': c.id },
       h('div', { class: 'land-fin' },
         h('span', { class: 'land-fin-name' }, h('span', { class: 'land-tick', 'aria-hidden': 'true' }, '✓'), clientLabel(c)),
-        h('span', { class: 'muted' }, open ? `נקלט · ${open === 1 ? 'פריט אחד נשאר פתוח' : `${open} פריטים נשארו פתוחים`}` : 'נקלט · הכול כבר בוצע'),
+        h('span', { class: 'muted' }, open ? `נקלט · ${open === 1 ? 'פריט אחד נשאר פתוח' : `${open} פריטים נשארו פתוחים`}` : 'נקלט · הכול כבר נעשה'),
         h('button', { type: 'button', class: 'btn-text land-undo', disabled: off, 'data-act': 'undo', onclick: () => { openItems.add(c.id); reopen(c); } }, 'ביטול')),
       editorBlock(c));
   }
@@ -238,22 +246,30 @@ function clientCard(x, now) {
     editorBlock(c),
     office() && stationOff(c, now) ? stationRow(x, now) : null,
     p ? h('div', { class: 'land-proposal' },
-      h('p', {}, h('strong', {}, 'ההצעה: '), `${p.why}, ולכן ${p.done.length === 1 ? 'פריט אחד כבר בוצע' : `${p.done.length} פריטים כבר בוצעו`}${p.open.length ? ` ו${p.open.length === 1 ? 'אחד עדיין פתוח' : `־${p.open.length} עדיין פתוחים`}` : ''}.`),
+      h('p', {}, h('strong', {}, 'ההצעה: '), `${p.why}, ולכן ${p.done.length === 1 ? 'פריט אחד כבר נעשה' : `${p.done.length} פריטים כבר נעשו`}${p.open.length ? ` ו${p.open.length === 1 ? 'אחד עדיין פתוח' : `־${p.open.length} עדיין פתוחים`}` : ''}.`),
       h('button', {
         type: 'button', class: 'btn k-btn-navy', disabled: off, 'data-act': 'accept',
         onclick: () => finish(x, { ...Object.fromEntries(p.done.map((k) => [k, 'done'])), ...Object.fromEntries(p.open.map((k) => [k, 'open'])) }, `${clientLabel(c)}: ההצעה התקבלה.`),
       }, 'לקבל את ההצעה ולסיים')) : null,
-    // The two quick ways first; the items one by one are a tap away (a client can have dozens).
+    // Two ways (the owner, 14.10.2026): everything is done, or tick what is done (a checklist; what stays
+    // unticked is "not done yet" and becomes a task at the activation). The list opens in place.
     h('div', { class: 'land-actions' },
-      h('button', { type: 'button', class: 'btn', disabled: off, 'data-act': 'all', onclick: () => finish(x, all, `${clientLabel(c)}: הכול סומן ״כבר בוצע״.`) }, 'הכול כבר בוצע אצלי בלקוח הזה'),
-      h('button', { type: 'button', class: p ? 'btn' : 'btn k-btn-navy', disabled: off, 'data-act': 'finish', onclick: () => finish(x, {}, `${clientLabel(c)} נקלט.`) }, answered(x) ? 'סיימתי עם הלקוח הזה' : 'הכול עדיין פתוח · סיימתי')),
-    h('details', { class: 'land-more', open: openItems.has(c.id), ontoggle: (e) => { if (e.currentTarget.open) openItems.add(c.id); else openItems.delete(c.id); } },
-      h('summary', { 'data-act': 'items' }, `פריט־פריט (${x.items.length})`, answered(x) ? h('span', { class: 'muted' }, ` · נענו ${answered(x)}`) : null),
+      h('button', { type: 'button', class: 'btn', disabled: off, 'data-act': 'all', onclick: () => finish(x, all, `${clientLabel(c)}: הכול סומן ״כבר נעשה״.`) }, 'הכול כבר נעשה'),
+      h('button', {
+        type: 'button', class: p ? 'btn' : 'btn k-btn-navy', disabled: off, 'data-act': 'items', 'aria-expanded': String(openItems.has(c.id)),
+        onclick: () => { if (openItems.has(c.id)) openItems.delete(c.id); else openItems.add(c.id); render(); },
+      }, openItems.has(c.id) ? 'סגירת הרשימה' : `לסמן מה נעשה (${x.items.length})`)),
+    // Always in the page (hidden while closed), so what the card holds can be read and found.
+    h('div', { class: 'land-more', hidden: !openItems.has(c.id) },
+      h('p', { class: 'land-question' }, 'סמנו מה כבר נעשה. מה שלא מסומן יופיע לכם כמשימה ביום ההפעלה.'),
       office() && !stationOff(c, now) ? stationRow(x, now) : null,
       h('ul', { class: 'land-items' }, ...x.items.map((i) => h('li', { class: `land-item${p?.done.includes(i.key) && !i.choice ? ' is-proposed' : ''}` },
-        h('div', { class: 'land-item-text' }, h('span', { class: 'land-label' }, i.label), h('small', { class: 'muted' }, procText(i.proc),
-          p?.done.includes(i.key) && !i.choice ? ' · ההצעה: כבר בוצע' : '')),
-        choiceButtons(x, i))))));
+        checkLine(x, i),
+        h('small', { class: 'muted land-item-proc' }, procText(i.proc), p?.done.includes(i.key) && !i.choice ? ' · ההצעה: כבר נעשה' : '')))),
+      h('button', {
+        type: 'button', class: 'btn k-btn-navy land-save', disabled: off, 'data-act': 'finish',
+        onclick: () => { openItems.delete(c.id); finish(x, {}, `${clientLabel(c)} נקלט. ${answered(x) ? 'מה שלא סומן' : 'הכול'} יופיע לך כמשימה ביום ההפעלה.`); },
+      }, 'שמירה וסיום')));
 }
 
 function render() {

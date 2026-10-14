@@ -18,7 +18,7 @@ import { importKeys, stationIndex } from './client-open.js';
 import { dayKeyIL, daysBetweenIL, partsIL } from './tz.js';
 
 export const CHOICES = ['done', 'open', 'na'];
-export const CHOICE_TEXT = { done: 'כבר בוצע', open: 'עדיין פתוח', na: 'לא רלוונטי' };
+export const CHOICE_TEXT = { done: 'כבר נעשה', open: 'עוד לא נעשה', na: 'לא רלוונטי' }; // ("כבר בוצע" / "עדיין פתוח" until 14.10.2026: the owner did not understand the card)
 // The owners' one tap: clients in landing whose shoot day is this close.
 export const SHOOT_SOON_DAYS = 14;
 

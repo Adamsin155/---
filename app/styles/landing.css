@@ -112,3 +112,32 @@
 .land-ed-sec > h2 { margin: 0; font-size: 18px; }
 .land-ed-sec > p { margin: 0; }
 .land-card.is-finished .land-ed { margin-block: 4px 8px; }
+
+/* The question above the two quick answers (14.10.2026). */
+.land-question { margin: 4px 0 0; font-size: 15px; font-weight: 700; color: var(--ds-ink); }
+
+/* The items as a checklist (the owner, 14.10.2026): one tick per item; "לא רלוונטי" a small link beside it.
+   These rules come after the older button-grid ones and win over them. */
+.land-more { display: grid; gap: 8px; margin-top: 4px; padding: 12px; border-radius: var(--ds-r-item); background: var(--ds-ground); }
+.land-items { gap: 6px; }
+.land-item { display: grid; grid-template-columns: none; gap: 2px; padding: 0; border-top: 0; }
+.land-check { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.land-check .land-choice.c-done {
+  flex: 1 1 auto; min-width: 0; min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; text-align: start;
+  background: var(--ds-surface); color: var(--ds-ink); border: 1px solid var(--ds-line); border-radius: var(--ds-r-ctl); font-weight: 500;
+}
+.land-check .land-choice.c-done.is-on { background: var(--ds-ok-soft); border-color: var(--ds-ok); color: var(--ds-ink); font-weight: 600; }
+.land-box {
+  flex: none; display: inline-grid; place-items: center; inline-size: 26px; block-size: 26px; border-radius: 8px;
+  border: 2px solid var(--ds-edge); background: var(--ds-surface); color: var(--ds-surface); font-weight: 700; line-height: 1;
+}
+.land-check .is-on .land-box { background: var(--ds-ok); border-color: var(--ds-ok); }
+.land-check .land-label { min-width: 0; overflow-wrap: anywhere; }
+.land-check .land-choice.c-na { flex: none; min-height: 44px; padding: 0 6px; font-size: 13.5px; color: var(--ds-muted); background: none; border: 0; text-decoration: underline; }
+.land-check .land-choice.c-na.is-on { color: var(--ds-ink); font-weight: 600; text-decoration: none; }
+.land-check.is-na .land-choice.c-done { opacity: .55; }
+.land-check.is-na .land-label { text-decoration: line-through; }
+.land-item-proc { padding-inline-start: 50px; font-size: 12.5px; }
+.land-item.is-proposed .land-choice.c-done:not(.is-on) { border-style: dashed; border-color: var(--ds-navy-text); }
+.land-save { justify-self: stretch; min-height: 48px; }
+@media (min-width: 720px) { .land-item { grid-template-columns: none; } .land-save { justify-self: start; min-width: 260px; } }
