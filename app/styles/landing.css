@@ -86,3 +86,27 @@
 .land-ctl-row .land-ctl-text > strong { font-size: 15.5px; color: var(--ds-ink); }
 .land-ctl-row .pbar { background: var(--ds-surface); }
 .land-ctl-row > .muted { font-weight: 600; color: var(--ds-ok); }
+
+/* ── The real editor of a client already in editing (the owner, 14.10.2026) ──
+   One short block on the card: the editors as chips, "עוד לא ידוע", one tap saves.
+   Quiet like the rest of the page: navy for the chosen one, a dashed edge for the
+   name the owner's sheet gives. Phone first: the chips wrap, 44px each. */
+.land-ed { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--ds-r-sm); background: var(--k-navy-soft, var(--ds-soft)); min-width: 0; }
+.land-ed-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; }
+.land-ed-h > .k-ico { margin-block: 0; background: var(--ds-surface); }
+.land-ed-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.land-ed-chip {
+  display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 6px;
+  min-height: 44px; padding: 6px 8px; border-radius: var(--ds-r-ctl); border: 1px solid var(--ds-edge);
+  background: var(--ds-surface); color: var(--ds-ink); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; min-width: 0;
+}
+.land-ed-chip[data-editor=""] { font-weight: 500; color: var(--ds-ink-2); }
+.land-ed-chip.is-on { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); }
+.land-ed-chip.is-notes { border-style: dashed; border-color: var(--ds-navy-text); color: var(--ds-navy-text); }
+.land-ed-chip:disabled { opacity: .6; cursor: default; }
+.land-ed-tag { font-size: 12px; font-weight: 500; }
+.land-ed-note { margin: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.land-ed-sec { display: grid; gap: 8px; margin-top: 18px; }
+.land-ed-sec > h2 { margin: 0; font-size: 18px; }
+.land-ed-sec > p { margin: 0; }
+.land-card.is-finished .land-ed { margin-block: 4px 8px; }
