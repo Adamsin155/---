@@ -620,7 +620,8 @@ try {
     // Ofir: not offered for assignment, and in Nadia's load.
     assert.ok(!(await assignIds()).includes(MAYA().id));
     const nadiaLoad = ofir.locator('#load-list .of-editor', { hasText: 'נדיה' });
-    assert.ok((await nadiaLoad.innerText()).includes('סטודיו מאיה'));
+    assert.equal(await nadiaLoad.locator(`a[href*="${MAYA().id}"]`).count(), 1);
+    assert.match(await nadiaLoad.innerText(), /לקוח אחד בעריכה|\d+ לקוחות בעריכה/);
   });
 
   await step('Nadia has the client on editor.html (no day counted in landing), and never the block', async () => {
@@ -690,7 +691,8 @@ try {
     await irit.goto(`${BASE}clients.html#mine`);
     await irit.locator('#mine-list').waitFor();
     await settle(irit);
-    assert.ok((await irit.locator('#mine-list').innerText()).includes('פיצה רון'));
+    // The page may first show what it showed last time (docs/ops.md, section 60), then the fresh list.
+    await irit.locator('#mine-list', { hasText: 'פיצה רון' }).waitFor();
     assert.equal(await irit.locator('#mine-list .g-overdue', { hasText: 'פיצה רון' }).count(), 0);
     assert.ok(!(await irit.locator('#now-bar').innerText().catch(() => '')).includes('פיצה רון'), 'no five-minute clock from months ago');
     if (!(await irit.locator('#land-quiet').isHidden())) assert.ok(!(await irit.locator('#land-quiet').innerText()).includes('פיצה רון'));
