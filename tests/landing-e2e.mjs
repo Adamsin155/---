@@ -12,7 +12,11 @@
 //     fresh deadline, not late;
 //   - the owners' control on owner.html: who took in how many, and "מפעילים" for the
 //     ready clients, the coming shoot days, one person and everyone; nobody else has it;
-//   - the client card says "בקליטה"; before the migrations nothing breaks.
+//   - the client card says "בקליטה"; before the migrations nothing breaks;
+//   - the real editor of a client already in editing (the owner, 14.10.2026): Irit records
+//     it on the card (390 and 360, and 1280), Ofir is no longer offered the client, the
+//     editor has it on editor.html, "עוד לא ידוע" takes it back, an editor never sees the
+//     block, and after the activation nothing rings for the editor.
 // Run: npx http-server -p 8501 -s -c-1 . &  then
 //      BASE_URL=http://localhost:8501/ node tests/landing-e2e.mjs [outDir]
 import { chromium } from 'playwright';
@@ -25,10 +29,16 @@ import { mayWrite } from '../scripts/protocol-writers.mjs';
 import { importKeys, IMPORT_NOTE } from '../app/client-open.js';
 import { clientState, clientLabel, freshDeadline } from '../app/protocol-logic.js';
 import { intakeFor, intakeLeft, intakeItems, waitingPeople, proposalFor, landingBoard } from '../app/landing-logic.js';
+import { computeReminders } from '../app/reminder-engine.js';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
 if (OUT) mkdirSync(OUT, { recursive: true });
+// The screenshots of the editor's block are always taken, outside the repository.
+const SHOTS = process.env.SHOTS_DIR || join(tmpdir(), 'landing-editor-shots');
+mkdirSync(SHOTS, { recursive: true });
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 // Tuesday 20.10.2026, 11:00 in Jerusalem: an office day.
 const NOW = new Date('2026-10-20T08:00:00Z');
@@ -77,6 +87,8 @@ const db = {
     client('יעל', 'מספרת יעל', { char_at: '2026-05-14T08:00:00Z', shoot_at: '2026-06-01T06:00:00Z', editor: 'nadia' }),
     // In editing, with Nadia.
     client('נועה', 'סטודיו נועה', { char_at: '2026-08-14T08:00:00Z', shoot_at: '2026-10-01T06:00:00Z', editor: 'nadia' }),
+    // In editing with a real editor nobody told the system about; the owner's sheet names her.
+    client('מאיה', 'סטודיו מאיה', { char_at: '2026-08-20T08:00:00Z', shoot_at: '2026-10-05T06:00:00Z', editor: null, notes: 'לקוח ותיק\nהעורך: נדיה' }),
     // Signed two minutes ago: never in landing.
     client('גיל', 'לקוח חדש', { deal_at: minutesAgo(2), created_at: minutesAgo(2), landing: false, quote_id: null, created_by_email: 'irit@astrateg.test', verified_at: minutesAgo(1) }),
   ],
@@ -92,6 +104,7 @@ const seed = (business, station, extra = []) => {
 seed('מוסך הצפון', 'char');
 seed('מספרת יעל', 'ongoing');
 seed('סטודיו נועה', 'post', clientState(C('סטודיו נועה'), {}, NOW).states.find((s) => s.proc.id === 'p22a').proc.items.map((i) => i.key));
+seed('סטודיו מאיה', 'post');
 
 // The fake's own view of the data, in the shapes the logic reads.
 const checksBy = () => { const o = {}; for (const r of db.protocol_checks) (o[r.client_id] ||= {})[r.item_key] = r; return o; };
@@ -146,6 +159,33 @@ function rpc(name, body, me, json) {
       }
     }
     return json(200, { landing: !released });
+  }
+  // As public.landing_set_editor (tests/sql/landing-editor.test.mjs has the real one).
+  if (name === 'landing_set_editor') {
+    const person = personOf(me);
+    if (!(isOwner(me) || ['irit', 'lior', 'ofir'].includes(person))) return json(403, { code: '42501', message: 'not allowed' });
+    const c = db.clients.find((x) => x.id === body.p_client);
+    if (!c) return json(400, { code: '22023', message: 'client not found' });
+    if (!c.landing) return json(400, { code: 'P0001', message: 'not in landing: this client is already active' });
+    const ed = body.p_editor ?? null;
+    if (ed && (!['nadia', 'yariv', 'anna', 'nirel'].includes(ed) || (ed === 'nirel' && c.shoot_type !== 'natali'))) return json(400, { code: '22023', message: 'editor not allowed for this shoot' });
+    if (db.protocol_checks.some((x) => x.client_id === c.id && x.item_key === 'p22a.assigned')) return json(400, { code: 'P0001', message: 'already assigned' });
+    const mk = (k) => db.client_landing_marks.find((x) => x.client_id === c.id && x.item_key === k);
+    const prev = mk('p22a.assigned');
+    const ours = (m) => !!prev && m.at === prev.at && m.by_email === prev.by_email;
+    const at = serverNow();
+    const put = (k, choice) => { db.client_landing_marks = db.client_landing_marks.filter((x) => !(x.client_id === c.id && x.item_key === k)); db.client_landing_marks.push({ client_id: c.id, item_key: k, choice, person: person || 'owner', by_email: me.email, at }); };
+    if (!ed) {
+      if (prev?.choice !== 'done') return json(200, { editor: null, round: null, changed: false });
+      for (const k of ['p22a.irit', 'p22a.drive']) if (mk(k) && ours(mk(k))) put(k, 'open');
+      for (const k of ['p22a.load', 'p22a.assigned']) put(k, 'open');
+    } else {
+      const took = db.protocol_checks.some((x) => x.client_id === c.id && x.item_key === 'p19.took');
+      for (const k of ['p22a.irit', ...(took ? ['p22a.drive'] : [])]) if (!db.protocol_checks.some((x) => x.client_id === c.id && x.item_key === k) && (!mk(k) || ours(mk(k)))) put(k, 'done');
+      for (const k of ['p22a.load', 'p22a.assigned']) put(k, 'done');
+    }
+    c.editor = ed;
+    return json(200, { editor: ed, round: null, changed: true });
   }
   if (name === 'landing_done_for' || name === 'landing_activate') {
     if (!isOwner(me)) return json(403, { code: '42501', message: 'not allowed' });
@@ -274,7 +314,7 @@ const smallTargets = (page, sel) => page.evaluate((s) => [...document.querySelec
 const cardOf = (page, business) => page.locator('.land-card', { hasText: business });
 // The items one by one are folded under the two quick buttons.
 const showItems = async (page, business) => { const d = cardOf(page, business).locator('details.land-more'); if (!(await d.evaluate((e) => e.open))) await d.locator('summary').click(); };
-const cards = (page) => page.locator('.land-card').evaluateAll((els) => els.map((e) => e.dataset.id));
+const cards = (page) => page.locator('#land-list .land-card').evaluateAll((els) => els.map((e) => e.dataset.id));
 const toastOf = (page) => page.locator('#toast.on > span').innerText();
 // The landing line itself; the counted lines of work on those clients sit under it (docs/ops.md, section 46).
 const LAND = '#land-line a.land-line:not(.flow-line)';
@@ -461,7 +501,7 @@ try {
     await irit.goto(`${BASE}clients.html#clients`);
     await irit.locator('#client-list .crow').first().waitFor();
     const rows = await irit.locator('#client-list .crow').evaluateAll((els) => els.map((e) => [e.querySelector('strong').textContent, !!e.querySelector('.tag-landing')]));
-    assert.deepEqual(Object.fromEntries(rows), { 'קפה דנה · דנה': true, 'מוסך הצפון · משה': true, 'פיצה רון · רון': true, 'מספרת יעל · יעל': true, 'סטודיו נועה · נועה': true, 'לקוח חדש · גיל': false });
+    assert.deepEqual(Object.fromEntries(rows), { 'קפה דנה · דנה': true, 'מוסך הצפון · משה': true, 'פיצה רון · רון': true, 'מספרת יעל · יעל': true, 'סטודיו נועה · נועה': true, 'סטודיו מאיה · מאיה': true, 'לקוח חדש · גיל': false });
     assert.equal(await lateMarks(irit, '#client-list li:has(.tag-landing)'), 0);
     await irit.goto(`${BASE}client.html?id=${C('קפה דנה').id}`);
     await irit.locator('#land-note').waitFor();
@@ -508,6 +548,115 @@ try {
     assert.match(await anna.locator('#land-progress').innerText(), /אין לקוחות קיימים שמחכים לך/);
     assert.equal(await anna.locator('.land-card').count(), 0);
     await anna.context().close();
+  });
+
+  // ── The real editor of a client already in editing (the owner, 14.10.2026) ──
+  const MAYA = () => C('סטודיו מאיה');
+  const blockOf = (page) => page.locator(`.land-card[data-id="${MAYA().id}"] .land-ed`);
+  const chipOf = (page, editor) => blockOf(page).locator(`.land-ed-chip[data-editor="${editor}"]`);
+  const pressed = (page, editor) => page.locator(`.land-card[data-id="${MAYA().id}"] .land-ed-chip.is-on[data-editor="${editor}"]`);
+  const mayaMarks = () => Object.fromEntries(db.client_landing_marks.filter((m) => m.client_id === MAYA().id && m.item_key.startsWith('p22a.')).map((m) => [m.item_key, m.choice]));
+  const lastSet = () => calls.filter((c) => c.fn === 'landing_set_editor').at(-1);
+  const ofir = await newPage(PHONE);
+  await signIn(ofir, 'qa.html', 'ofir');
+  const assignIds = async () => {
+    await ofir.reload();
+    await ofir.locator('#assign-list > li').first().waitFor();
+    await settle(ofir);
+    return ofir.locator('#assign-list > li[data-key]').evaluateAll((els) => els.map((e) => e.dataset.key.split(':')[0]));
+  };
+
+  await step('the editor block, Irit at 390 and 360: the dialog\'s editors, the name from the owner\'s sheet, nothing saved by itself', async () => {
+    await irit.goto(`${BASE}landing.html`);
+    await blockOf(irit).waitFor();
+    assert.equal(await blockOf(irit).count(), 1);
+    assert.deepEqual(await blockOf(irit).locator('.land-ed-chip').evaluateAll((els) => els.map((e) => e.dataset.editor)), ['nadia', 'yariv', 'anna', '']);
+    assert.match(await blockOf(irit).locator('.land-ed-h').innerText(), /העורך של הלקוח/);
+    assert.match(await chipOf(irit, 'nadia').innerText(), /נדיה\s*מתוך הטבלה/);
+    assert.ok(await chipOf(irit, 'nadia').evaluate((e) => e.classList.contains('is-notes')));
+    assert.equal(await chipOf(irit, '').getAttribute('aria-pressed'), 'true');
+    assert.equal(await blockOf(irit).locator('.land-ed-chip[aria-pressed="true"]').count(), 1);
+    assert.match(await blockOf(irit).locator('.land-ed-note').innerText(), /בטבלה של הבעלים כתוב נדיה\. לחיצה על השם שומרת\./);
+    assert.deepEqual(mayaMarks(), {});
+    assert.equal(MAYA().editor, null);
+    assert.deepEqual(await smallTargets(irit, '.land-ed button'), []);
+    assert.ok(await noSideScroll(irit));
+    await blockOf(irit).scrollIntoViewIfNeeded();
+    await irit.locator(`.land-card[data-id="${MAYA().id}"]`).screenshot({ path: join(SHOTS, 'editor-block-390.png') });
+    await irit.screenshot({ path: join(SHOTS, 'editor-page-390.png'), fullPage: true });
+    await irit.setViewportSize({ width: 360, height: 800 });
+    await settle(irit);
+    assert.deepEqual(await smallTargets(irit, '.land-ed button'), []);
+    assert.ok(await noSideScroll(irit));
+    await irit.locator(`.land-card[data-id="${MAYA().id}"]`).screenshot({ path: join(SHOTS, 'editor-block-360.png') });
+    await irit.setViewportSize(PHONE);
+  });
+
+  await step('Ofir before: the client waits for assignment, with the quiet line that Irit can record the real editor', async () => {
+    assert.ok((await assignIds()).includes(MAYA().id));
+    const card = ofir.locator(`#assign-list > li[data-key^="${MAYA().id}:"]`);
+    assert.equal((await card.locator('.as-landing').innerText()).trim(), 'בקליטה: עירית יכולה לרשום את העורך האמיתי');
+    assert.ok(await noSideScroll(ofir));
+    await card.screenshot({ path: join(SHOTS, 'qa-assign-card-390.png') });
+  });
+
+  await step('one tap saves it quietly: the answers of 22א and the editor, no protocol mark, no task; Ofir no longer offers it', async () => {
+    const checksBefore = db.protocol_checks.length;
+    const tasksBefore = db.client_tasks.length;
+    await chipOf(irit, 'nadia').click();
+    await pressed(irit, 'nadia').waitFor();
+    assert.deepEqual([lastSet().by, lastSet().body], ['irit@astrateg.test', { p_client: MAYA().id, p_editor: 'nadia', p_round: null }]);
+    assert.equal(MAYA().editor, 'nadia');
+    assert.deepEqual(mayaMarks(), { 'p22a.irit': 'done', 'p22a.drive': 'done', 'p22a.load': 'done', 'p22a.assigned': 'done' });
+    assert.equal(db.protocol_checks.length, checksBefore, 'no protocol mark: nothing rings, no clock');
+    assert.equal(db.client_tasks.length, tasksBefore, 'no folder task');
+    assert.equal(await toastOf(irit), 'סטודיו מאיה · מאיה: העורך נרשם, נדיה. בלי הודעה ובלי שעון.');
+    assert.equal(await chipOf(irit, 'nadia').getAttribute('aria-pressed'), 'true');
+    assert.equal(await chipOf(irit, 'nadia').locator('.land-ed-tag').count(), 0, 'once saved it is simply the chosen one');
+    assert.match(await blockOf(irit).locator('.land-ed-note').innerText(), /נרשם: נדיה\. בלי הודעה לעורך ובלי שעון/);
+    assert.equal(MAYA().landing, true);
+    await irit.locator(`.land-card[data-id="${MAYA().id}"]`).screenshot({ path: join(SHOTS, 'editor-block-saved-390.png') });
+    // Ofir: not offered for assignment, and in Nadia's load.
+    assert.ok(!(await assignIds()).includes(MAYA().id));
+    const nadiaLoad = ofir.locator('#load-list .of-editor', { hasText: 'נדיה' });
+    assert.ok((await nadiaLoad.innerText()).includes('סטודיו מאיה'));
+  });
+
+  await step('Nadia has the client on editor.html (no day counted in landing), and never the block', async () => {
+    const nadia = await newPage(PHONE);
+    await signIn(nadia, 'editor.html', 'nadia');
+    await nadia.locator('#ed-list').waitFor();
+    await settle(nadia);
+    const list = await nadia.locator('#ed-list').innerText();
+    assert.ok(list.includes('מאיה'), list.slice(0, 300));
+    assert.match(list, /בקליטה · הימים עוד לא נספרים/);
+    await nadia.goto(`${BASE}landing.html`);
+    await nadia.locator('.land-card').first().waitFor();
+    assert.ok((await cards(nadia)).includes(MAYA().id), 'her items there are hers to go over now');
+    assert.equal(await nadia.locator('.land-ed').count(), 0, 'an editor never sees the block');
+    assert.equal(await nadia.locator('.land-ed-sec').count(), 0);
+    await nadia.context().close();
+  });
+
+  await step('"עוד לא ידוע" takes it back while in landing: open answers, no editor, Ofir is offered it again', async () => {
+    await chipOf(irit, '').click();
+    await pressed(irit, '').waitFor();
+    assert.deepEqual(lastSet().body, { p_client: MAYA().id, p_editor: null, p_round: null });
+    assert.equal(MAYA().editor, null);
+    assert.deepEqual(mayaMarks(), { 'p22a.irit': 'open', 'p22a.drive': 'open', 'p22a.load': 'open', 'p22a.assigned': 'open' });
+    assert.equal(await toastOf(irit), 'סטודיו מאיה · מאיה: העורך הוסר. עוד לא ידוע.');
+    assert.ok((await assignIds()).includes(MAYA().id));
+    // Set again (the real one), at 1280 this time.
+    await irit.setViewportSize({ width: 1280, height: 900 });
+    await settle(irit);
+    await chipOf(irit, 'nadia').click();
+    await pressed(irit, 'nadia').waitFor();
+    assert.deepEqual(mayaMarks(), { 'p22a.irit': 'done', 'p22a.drive': 'done', 'p22a.load': 'done', 'p22a.assigned': 'done' });
+    assert.ok(await noSideScroll(irit));
+    await irit.locator(`.land-card[data-id="${MAYA().id}"]`).screenshot({ path: join(SHOTS, 'editor-block-1280.png') });
+    await irit.screenshot({ path: join(SHOTS, 'editor-page-1280.png'), fullPage: true });
+    await irit.setViewportSize(PHONE);
+    await ofir.context().close();
   });
 
   await step('the last person to finish activates the client: what stayed open is live, with a fresh deadline and not late', async () => {
@@ -637,6 +786,20 @@ try {
     for (const c of db.clients.filter((x) => x.landed_at)) {
       const s = clientState(c, checksBy()[c.id] || {}, new Date(serverNow()));
       assert.deepEqual(s.states.filter((x) => x.status === 'overdue' && x.proc.due?.from !== 'contractEnd').map((x) => x.proc.id), [], c.business);
+    }
+  });
+
+  await step('activated with the editor Irit recorded: 22א is imported history, and nothing rings for the editor', async () => {
+    const c = MAYA();
+    assert.equal(c.landing, false);
+    assert.equal(c.editor, 'nadia');
+    const rows = db.protocol_checks.filter((r) => r.client_id === c.id);
+    assert.deepEqual(Object.fromEntries(rows.filter((r) => r.item_key.startsWith('p22a.')).map((r) => [r.item_key, `${r.state}:${r.note}`])),
+      { 'p22a.irit': `done:${IMPORT_NOTE}`, 'p22a.drive': `done:${IMPORT_NOTE}`, 'p22a.load': `done:${IMPORT_NOTE}`, 'p22a.assigned': `done:${IMPORT_NOTE}` });
+    for (const at of [new Date(c.landed_at), new Date(new Date(c.landed_at).getTime() + 3 * 3600e3)]) {
+      const got = computeReminders({ clients: [c], checks: rows, staff, now: at, log: [] });
+      assert.deepEqual(got.filter((r) => r.rule === 'editing' || r.rule === 'fast'), [], at.toISOString());
+      assert.deepEqual(got.filter((r) => r.person === 'nadia' && r.level === 'ring'), [], at.toISOString());
     }
   });
 
