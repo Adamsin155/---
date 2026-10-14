@@ -313,7 +313,9 @@ const smallTargets = (page, sel) => page.evaluate((s) => [...document.querySelec
   .map((el) => `${el.textContent.trim().slice(0, 24)}:${Math.round(el.getBoundingClientRect().height)}`), sel);
 const cardOf = (page, business) => page.locator('.land-card', { hasText: business });
 // The items one by one are folded under the two quick buttons.
-const showItems = async (page, business) => { const d = cardOf(page, business).locator('details.land-more'); if (!(await d.evaluate((e) => e.open))) await d.locator('summary').click(); };
+// The checklist opens in place ("לסמן מה נעשה"); "שמירה וסיום" sits at its end (the owner, 14.10.2026).
+const showItems = async (page, business) => { const card = cardOf(page, business); if (await card.locator('.land-more').evaluate((e) => e.hidden)) await card.locator('[data-act="items"]').click(); await card.locator('.land-more:not([hidden])').waitFor(); };
+const finishCard = async (card) => { if (await card.locator('.land-more').evaluate((e) => e.hidden)) await card.locator('[data-act="items"]').click(); await card.locator('[data-act="finish"]').click(); };
 const cards = (page) => page.locator('#land-list .land-card').evaluateAll((els) => els.map((e) => e.dataset.id));
 const toastOf = (page) => page.locator('#toast.on > span').innerText();
 // The landing line itself; the counted lines of work on those clients sit under it (docs/ops.md, section 46).
@@ -369,10 +371,14 @@ try {
     }
     // Each card opens short: the quick buttons, and "פריט־פריט" one tap away.
     assert.equal(await irit.locator('.land-choice:visible').count(), 0);
-    assert.match((await cardOf(irit, 'פיצה רון').locator('details.land-more > summary').innerText()).trim(), /^חלק נעשה וחלק לא · לסמן פריט־פריט \(\d+\)$/);
-    assert.deepEqual(await cardOf(irit, 'פיצה רון').locator('.land-actions button').allInnerTexts(), ['הכול כבר נעשה', 'עוד כלום לא נעשה']);
+    const itemsBtn = (await cardOf(irit, 'פיצה רון').locator('[data-act="items"]').innerText()).trim();
+    assert.match(itemsBtn, /^לסמן מה נעשה \(\d+\)$/);
+    assert.deepEqual(await cardOf(irit, 'פיצה רון').locator('.land-actions button').allInnerTexts(), ['הכול כבר נעשה', itemsBtn]);
     await showItems(irit, 'פיצה רון');
-    assert.deepEqual(await cardOf(irit, 'פיצה רון').locator('.land-item').first().locator('.land-choice').allInnerTexts(), ['כבר נעשה', 'עוד לא נעשה', 'לא רלוונטי']);
+    const firstLine = cardOf(irit, 'פיצה רון').locator('.land-item').first();
+    assert.equal(await firstLine.locator('.land-choice.c-done').getAttribute('aria-checked'), 'false'); // a tick, not three buttons
+    assert.equal((await firstLine.locator('.land-choice.c-na').innerText()).trim(), 'לא רלוונטי');
+    assert.match(await cardOf(irit, 'פיצה רון').locator('.land-question').innerText(), /סמנו מה כבר נעשה/);
     assert.equal(await lateMarks(irit, '#app'), 0);
     assert.ok(!/באיחור|יעד:|נגמר|דק׳/.test(await irit.locator('#app').innerText()));
     assert.ok(await noSideScroll(irit));
@@ -412,12 +418,11 @@ try {
     assert.deepEqual([lastTake().body.p_done, lastTake().body.p_marks], [false, {}]);
     assert.equal(db.client_landing_done.find((d) => d.client_id === C('קפה דנה').id && d.person === 'irit').done, false);
     const first = cardOf(irit, 'קפה דנה').locator('.land-item').first();
-    assert.equal(await first.locator('.land-choice.is-on').innerText(), 'כבר נעשה');
-    await first.locator('.land-choice[data-choice="open"]').click();
-    await first.locator('.land-choice[data-choice="open"].is-on').waitFor();
+    assert.equal(await first.locator('.land-choice.c-done').getAttribute('aria-checked'), 'true');
+    await first.locator('.land-choice.c-done').click(); // the tick taken off: "not done yet"
+    await first.locator('.land-choice.c-done[aria-checked="false"]').waitFor();
     assert.deepEqual(Object.values(lastTake().body.p_marks), ['open']);
     assert.equal(lastTake().body.p_done, null);
-    assert.equal(await first.locator('.land-choice[data-choice="open"]').getAttribute('aria-pressed'), 'true');
     // "Everything of mine here was done", in one tap.
     await cardOf(irit, 'קפה דנה').locator('[data-act="all"]').click();
     await cardOf(irit, 'קפה דנה').locator('.land-fin').waitFor();
@@ -431,13 +436,12 @@ try {
     const items = intakeItems('irit', C('פיצה רון'), {}, {}, NOW);
     ronOpen = items[0];
     await showItems(irit, 'פיצה רון');
-    await card.locator(`.land-choice[data-key="${items[0].key}"][data-choice="open"]`).click();
-    await card.locator(`.land-choice[data-key="${items[0].key}"].is-on`).waitFor();
+    // The first is left unticked: "שמירה וסיום" records it as not done yet.
     await card.locator(`.land-choice[data-key="${items[1].key}"][data-choice="na"]`).click();
     await card.locator(`.land-choice[data-key="${items[1].key}"].is-on`).waitFor();
     await card.locator(`.land-choice[data-key="${items[2].key}"][data-choice="done"]`).click();
     await card.locator(`.land-choice[data-key="${items[2].key}"].is-on`).waitFor();
-    await card.locator('[data-act="finish"]').click();
+    await finishCard(card);
     await card.locator('.land-fin').waitFor();
     const mine = Object.fromEntries(db.client_landing_marks.filter((m) => m.client_id === C('פיצה רון').id).map((m) => [m.item_key, m.choice]));
     assert.equal(mine[items[0].key], 'open');
@@ -474,7 +478,7 @@ try {
   await step('when she is done the line disappears; what she left open waits under the list with no clock', async () => {
     // Whatever is still unanswered: "סיימתי" on each.
     for (let i = 0; i < 6 && intakeLeft(listOf('irit')) > 0; i += 1) {
-      await irit.locator('.land-card:not(.is-finished) [data-act="finish"]').first().click();
+      await finishCard(irit.locator('.land-card:not(.is-finished)').first());
       await settle(irit);
     }
     assert.equal(intakeLeft(listOf('irit')), 0);
@@ -682,7 +686,7 @@ try {
     await lior.locator('.land-card').first().waitFor();
     await shot(lior, '06-lior-intake-1366');
     assert.ok(await noSideScroll(lior));
-    await cardOf(lior, 'פיצה רון').locator('[data-act="finish"]').click();
+    await finishCard(cardOf(lior, 'פיצה רון'));
     await lior.locator('#toast.on').waitFor();
     assert.equal(await toastOf(lior), 'פיצה רון · רון הופעל: כולם סיימו לעבור עליו.');
     assert.deepEqual(lastTake().body.p_waiting, []);
