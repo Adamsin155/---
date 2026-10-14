@@ -35,6 +35,8 @@ import { closedProcesses } from './health.js';
 import * as P from './production.js';
 import { mountWorkFiles, workFilesState, forgetFiles, readFiles } from './files-ui.js';
 import { charViewHref } from './intake-ui.js';
+import { loadIntake } from './landing-data.js';
+import { withLandingEditors } from './landing-logic.js';
 import { videoWindow, videosGate as gateOf, videosLinkOf, driveLinkProblem } from './files-logic.js';
 
 let me = null;
@@ -68,6 +70,9 @@ async function load() {
     $('state').textContent = errorText(err);
     return;
   }
+  // An old client whose real editor the office recorded while it is in landing (docs/ops.md,
+  // the bullets of 14.10.2026): it is that editor's, as it will be once activated.
+  if (clients.some((c) => c.landing === true)) checks = withLandingEditors(clients, checks, (await loadIntake()).marks);
   states.clear();
   const ids = [...new Set(allJobs().map((j) => j.client.id))];
   for (const cid of ids) forgetFiles(cid);

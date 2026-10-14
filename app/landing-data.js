@@ -61,6 +61,15 @@ export async function takeIn(clientId, marks = {}, done = null, waiting = null) 
   return data || { landing: true };
 }
 
+// The office and the owners record the real editor of a shoot of a client in landing
+// (null clears it; round null: the client's own shoot). Quiet: no ring, no clock, no
+// folder task; the activation makes it imported history (landing-logic.js, editorSlots).
+export async function setLandingEditor(clientId, editor = null, round = null) {
+  const { data, error } = await supabase.rpc('landing_set_editor', { p_client: clientId, p_editor: editor, p_round: round });
+  if (error) throw error;
+  return data;
+}
+
 // The owners: close a person's part on these clients; activate these clients now.
 export async function finishFor(person, ids) {
   const { data, error } = await supabase.rpc('landing_done_for', { p_person: person, p_clients: ids });

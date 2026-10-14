@@ -14,12 +14,13 @@ import { homeLink } from './shell-rules.js';
 import { clientLabel } from './protocol-logic.js';
 import { loadClients, loadChecks, loadDirectory, setChecksBulk, clearChecksBulk } from './protocol-data.js';
 import { $, fill, h, toast, errorText, mountSession, directory, viewerOf, VIEWER_UNKNOWN, progressBar } from './protocol-ui.js';
-import { loadIntake, takeIn } from './landing-data.js';
+import { loadIntake, takeIn, setLandingEditor } from './landing-data.js';
 import {
-  CHOICES, CHOICE_TEXT, intakeFor, intakeLeft, waitingPeople, stationNow, evidentStation, stationPlan,
+  CHOICES, CHOICE_TEXT, intakeFor, intakeLeft, waitingPeople, stationNow, evidentStation, stationPlan, canSetEditor, editorSlots,
 } from './landing-logic.js';
 import { IMPORT_NOTE } from './client-open.js';
-import { dress } from './kit.js';
+import { inLanding } from './protocol-logic.js';
+import { dress, iconSquare } from './kit.js';
 
 let viewer = null;
 let me = null;
@@ -112,6 +113,79 @@ async function fixStation(client, key) {
   await load();
 }
 
+// The real editor of a client already in editing (the owner, 14.10.2026): recorded here,
+// quietly, by the office and the owners. One tap saves; "עוד לא ידוע" takes it back.
+const EDITOR_ERRORS = [
+  [/not in landing/i, 'הלקוח כבר הופעל. החלפת עורך מעכשיו דרך אופיר.'],
+  [/already assigned/i, 'ללקוח הזה כבר רשום שיוך. החלפת עורך דרך אופיר.'],
+  [/editor not allowed/i, 'העורך הזה לא עורך את סוג הצילום הזה.'],
+];
+async function setEditor(client, slot, editor) {
+  if (busy.has(client.id)) return;
+  busy.add(client.id);
+  render();
+  let refused = false;
+  try {
+    await setLandingEditor(client.id, editor, slot.n);
+    const round = slot.n ? ` (סבב ${slot.n})` : '';
+    toast(editor ? `${clientLabel(client)}${round}: העורך נרשם, ${PEOPLE[editor].name}. בלי הודעה ובלי שעון.` : `${clientLabel(client)}${round}: העורך הוסר. עוד לא ידוע.`);
+  } catch (err) {
+    refused = true;
+    const known = EDITOR_ERRORS.find(([re]) => re.test(String(err?.message)));
+    toast(known ? known[1] : `לא נשמר: ${errorText(err)}`);
+  }
+  busy.delete(client.id);
+  await load();
+  if (!refused) document.querySelector(`[data-ed="${client.id}:${slot.pre}"] .is-on`)?.focus({ preventScroll: true });
+}
+
+function editorBlock(c) {
+  if (!canSetEditor(viewer)) return null;
+  const slots = editorSlots(c, checks[c.id] || {}, marksOf(c.id));
+  if (!slots.length) return null;
+  const off = busy.has(c.id);
+  return slots.map((s) => {
+    const hid = `land-ed-${c.id}-${s.pre || 'base'}`.replace(/\W/g, '_');
+    const chip = (editor, label, extra = null) => h('button', {
+      type: 'button', class: `land-ed-chip${s.editor === editor ? ' is-on' : ''}${!s.editor && editor && s.notes === editor ? ' is-notes' : ''}`,
+      'aria-pressed': String(s.editor === editor), disabled: off, 'data-editor': editor || '',
+      onclick: () => { if (s.editor !== editor) setEditor(c, s, editor); },
+    }, label, extra);
+    const note = s.editor ? `נרשם: ${PEOPLE[s.editor].name}. בלי הודעה לעורך ובלי שעון; כשהלקוח יופעל השיוך ייחשב כבר בוצע.`
+      : s.notes ? `בטבלה של הבעלים כתוב ${PEOPLE[s.notes].name}. לחיצה על השם שומרת.`
+        : 'מי עורך את הלקוח עכשיו? לחיצה על השם שומרת. לא ידוע: אופיר ישייך אחרי ההפעלה.';
+    return h('div', { class: 'land-ed', role: 'group', 'aria-labelledby': hid, 'data-ed': `${c.id}:${s.pre}` },
+      h('p', { class: 'land-ed-h', id: hid }, iconSquare('scissors', 'navy', { size: 'sm' }),
+        h('strong', {}, 'העורך של הלקוח'), s.n ? h('span', { class: 'muted' }, ` · סבב ${s.n}`) : null),
+      h('div', { class: 'land-ed-chips' },
+        ...s.editors.map((e) => chip(e, PEOPLE[e].name, !s.editor && s.notes === e ? h('span', { class: 'land-ed-tag' }, 'מתוך הטבלה') : null)),
+        chip(null, 'עוד לא ידוע')),
+      h('p', { class: 'land-ed-note muted' }, note));
+  });
+}
+// The clients whose editor can be recorded and that have no card of mine above (nothing of
+// mine to take in there, or the owners, who take in nothing).
+function editorOnly(shown) {
+  if (!canSetEditor(viewer)) return [];
+  return clients.filter((c) => inLanding(c) && !shown.has(c.id) && editorSlots(c, checks[c.id] || {}, marksOf(c.id)).length)
+    .sort((a, b) => String(a.business || a.name || '').localeCompare(String(b.business || b.name || ''), 'he'));
+}
+function editorCard(c, now) {
+  const cur = STATIONS[stationNow(c, checks[c.id] || {}, now)];
+  return h('li', { class: 'land-card land-ed-only', id: `land-${c.id}`, 'data-id': c.id },
+    h('div', { class: 'land-head' },
+      h('h2', {}, h('a', { href: clientUrl(c.id) }, clientLabel(c))),
+      h('span', { class: 'tag' }, `לפי המערכת: ${cur.title}`)),
+    editorBlock(c));
+}
+function renderEditorOnly(shown, now) {
+  const list = editorOnly(shown);
+  fill($('land-done'), list.length ? h('section', { class: 'land-ed-sec', 'aria-labelledby': 'land-ed-sec-h' },
+    h('h2', { class: 'land-ed-sec-h', id: 'land-ed-sec-h' }, 'לקוחות בעריכה: מי העורך?'),
+    h('p', { class: 'muted' }, 'לקוחות שכבר בעריכה ואין בהם פריטים שלך לקלוט. רושמים כאן את העורך שעובד עליהם, כדי שאופיר לא ינחש.'),
+    h('ul', { class: 'land-list' }, ...list.map((c) => editorCard(c, now)))) : null);
+}
+
 // ── Render ──────────────────────────────────
 function choiceButtons(x, item) {
   const disabled = busy.has(x.client.id);
@@ -151,7 +225,8 @@ function clientCard(x, now) {
       h('div', { class: 'land-fin' },
         h('span', { class: 'land-fin-name' }, h('span', { class: 'land-tick', 'aria-hidden': 'true' }, '✓'), clientLabel(c)),
         h('span', { class: 'muted' }, open ? `נקלט · ${open === 1 ? 'פריט אחד נשאר פתוח' : `${open} פריטים נשארו פתוחים`}` : 'נקלט · הכול כבר בוצע'),
-        h('button', { type: 'button', class: 'btn-text land-undo', disabled: off, 'data-act': 'undo', onclick: () => { openItems.add(c.id); reopen(c); } }, 'ביטול')));
+        h('button', { type: 'button', class: 'btn-text land-undo', disabled: off, 'data-act': 'undo', onclick: () => { openItems.add(c.id); reopen(c); } }, 'ביטול')),
+      editorBlock(c));
   }
   const p = x.proposal;
   const all = Object.fromEntries(x.items.map((i) => [i.key, 'done']));
@@ -160,6 +235,7 @@ function clientCard(x, now) {
       h('h2', {}, h('a', { href: clientUrl(c.id) }, clientLabel(c))),
       h('span', { class: 'tag' }, `לפי המערכת: ${cur.title}`),
       h('span', { class: 'muted' }, x.items.length === 1 ? 'פריט אחד שלך' : `${x.items.length} פריטים שלך`)),
+    editorBlock(c),
     office() && stationOff(c, now) ? stationRow(x, now) : null,
     p ? h('div', { class: 'land-proposal' },
       h('p', {}, h('strong', {}, 'ההצעה: '), `${p.why}, ולכן ${p.done.length === 1 ? 'פריט אחד כבר בוצע' : `${p.done.length} פריטים כבר בוצעו`}${p.open.length ? ` ו${p.open.length === 1 ? 'אחד עדיין פתוח' : `־${p.open.length} עדיין פתוחים`}` : ''}.`),
@@ -188,6 +264,7 @@ function render() {
   if (!me && isOwnerView(viewer)) {
     fill($('land-progress'), h('p', {}, 'לבעלים אין פריטים לקלוט. מי סיים לקלוט וההפעלה נמצאים ב״מבט מנהל״. ', h('a', { href: 'owner.html#landing' }, 'למבט מנהל')));
     fill($('land-list'));
+    renderEditorOnly(new Set(), now);
     return;
   }
   const list = intakeFor(me, clients, checks, intake.marks, intake.done, now);
@@ -196,7 +273,7 @@ function render() {
   if (!total) {
     fill($('land-progress'), h('p', { class: 'land-empty' }, 'אין לקוחות קיימים שמחכים לך. ', h('a', { href: 'clients.html#mine' }, 'חזרה להמשימות שלי')));
     fill($('land-list'));
-    fill($('land-done'));
+    renderEditorOnly(new Set(), now);
     return;
   }
   fill($('land-progress'),
@@ -204,7 +281,7 @@ function render() {
     left ? null : h('p', { class: 'muted' }, 'לקוח יוצא מקליטה כשכל מי שיש לו בו עבודה סיים לעבור עליו, או כשהבעלים מפעילים. מה שנשאר פתוח יקבל אז מועד חדש, מיום ההפעלה. ',
       h('a', { href: 'clients.html#mine' }, 'חזרה להמשימות שלי')));
   fill($('land-list'), ...list.map((x) => clientCard(x, now)));
-  fill($('land-done'));
+  renderEditorOnly(new Set(list.map((x) => x.client.id)), now);
 }
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && viewer && !busy.size && $('no-access').hidden) load(); });
