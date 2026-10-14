@@ -15,7 +15,8 @@
 --       clients.rounds), and the landing's own answers, exactly as an assignment marks
 --       22א: "נבדק העומס" and "שויך" done, and the two items that close with an
 --       assignment, Irit's check (p22a.irit) and, once Lior took the drive back
---       (p19.took), "ליאור החזיר את הכונן" (p22a.drive), when nobody answered them yet.
+--       (p19.took), "ליאור החזיר את הכונן" (p22a.drive), unless somebody already
+--       answered them done or not relevant.
 --       The editor must be one the assignment dialog offers for that shoot: Nadia, Yariv
 --       or Anna, and Nirel only for a shoot of Natali.
 --       p_editor null takes it back: the answers it wrote become 'open' again (the
@@ -107,7 +108,8 @@ begin
     on conflict (client_id, item_key) do update
       set choice = 'done', person = excluded.person, by_email = excluded.by_email, at = excluded.at;
     -- What closes with an assignment (app/qa.js saveAssign): Irit's check, and Lior's drive
-    -- once he took it back. Only where nobody answered, or where the answer is this function's own.
+    -- once he took it back, as the dialog closes them: unless somebody already answered
+    -- "כבר בוצע" or "לא רלוונטי" (an answer "עדיין פתוח" is closed, as a real assignment would).
     v_took := exists (select 1 from public.protocol_checks x where x.client_id = p_client and x.item_key = v_pre || 'p19.took' and x.state in ('done', 'na'))
       or exists (select 1 from public.client_landing_marks x where x.client_id = p_client and x.item_key = v_pre || 'p19.took' and x.choice in ('done', 'na'));
     foreach k in array case when v_took then array[v_pre || 'p22a.irit', v_pre || 'p22a.drive'] else array[v_pre || 'p22a.irit'] end loop
@@ -116,7 +118,7 @@ begin
       values (p_client, k, 'done', v_who, v_email, now())
       on conflict (client_id, item_key) do update
         set choice = 'done', person = excluded.person, by_email = excluded.by_email, at = excluded.at
-        where m.at = v_prev_at and m.by_email = v_prev_by;
+        where m.choice = 'open' or (m.at = v_prev_at and m.by_email = v_prev_by);
     end loop;
   end if;
 

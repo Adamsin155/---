@@ -181,7 +181,7 @@ function rpc(name, body, me, json) {
       for (const k of ['p22a.load', 'p22a.assigned']) put(k, 'open');
     } else {
       const took = db.protocol_checks.some((x) => x.client_id === c.id && x.item_key === 'p19.took');
-      for (const k of ['p22a.irit', ...(took ? ['p22a.drive'] : [])]) if (!db.protocol_checks.some((x) => x.client_id === c.id && x.item_key === k) && (!mk(k) || ours(mk(k)))) put(k, 'done');
+      for (const k of ['p22a.irit', ...(took ? ['p22a.drive'] : [])]) if (!db.protocol_checks.some((x) => x.client_id === c.id && x.item_key === k) && (!mk(k) || mk(k).choice === 'open' || ours(mk(k)))) put(k, 'done');
       for (const k of ['p22a.load', 'p22a.assigned']) put(k, 'done');
     }
     c.editor = ed;
@@ -577,7 +577,8 @@ try {
     assert.equal(await chipOf(irit, '').getAttribute('aria-pressed'), 'true');
     assert.equal(await blockOf(irit).locator('.land-ed-chip[aria-pressed="true"]').count(), 1);
     assert.match(await blockOf(irit).locator('.land-ed-note').innerText(), /בטבלה של הבעלים כתוב נדיה\. לחיצה על השם שומרת\./);
-    assert.deepEqual(mayaMarks(), {});
+    // Irit's "סיימתי" before recorded her own check of 22א as still open; nothing else is said yet.
+    assert.deepEqual(mayaMarks(), listOf('irit').some((x) => x.client.id === MAYA().id) ? { 'p22a.irit': 'open' } : {});
     assert.equal(MAYA().editor, null);
     assert.deepEqual(await smallTargets(irit, '.land-ed button'), []);
     assert.ok(await noSideScroll(irit));

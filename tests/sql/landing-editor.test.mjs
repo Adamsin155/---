@@ -143,6 +143,14 @@ test('clear: its own answers become "open" again, the editor goes, no row is rem
   await setKeep('irit', ids.a, 'yariv');
   assert.equal((await marks(ids.a))['p22a.drive'], 'na:lior');
   assert.equal((await marks(ids.a))['p22a.irit'], 'done:irit');
+  // An answer "עדיין פתוח" (Irit's "סיימתי" records what she did not answer so) is closed
+  // by the assignment, as the dialog closes it; cleared, it is open again.
+  await setKeep('irit', ids.natali, null);
+  await keep('irit', 'select public.landing_take($1, $2::jsonb)', [ids.natali, JSON.stringify({ 'p22a.irit': 'open' })]);
+  await setKeep('irit', ids.natali, 'nirel');
+  assert.equal((await marks(ids.natali))['p22a.irit'], 'done:irit');
+  await setKeep('irit', ids.natali, null);
+  assert.equal((await marks(ids.natali))['p22a.irit'], 'open:irit');
 });
 
 test('a round: the round\'s editor in clients.rounds, its own keys; the client\'s own shoot is untouched', async () => {
