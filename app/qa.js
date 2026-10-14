@@ -38,6 +38,8 @@ import { emptyItem, dress, dateLeaf, iconSquare } from './kit.js';
 import { canSeeOfficeQueues } from './manager-rules.js';
 import { inputValueIL, fromInputIL, dayFromKeyIL, endOfDayIL, TZ } from './tz.js';
 import { mountWorkFiles, forgetFiles } from './files-ui.js';
+import { loadIntake } from './landing-data.js';
+import { withLandingEditors } from './landing-logic.js';
 import { videoWindow, graphicsWindow, videosLinkOf } from './files-logic.js';
 
 let viewer = null;
@@ -62,6 +64,7 @@ const roundText = (ctx) => (ctx?.round ? ` · סבב צילום ${ctx.round}` : 
 const waitWords = (min) => (min === 60 ? 'שעה' : officeMinutes(min));
 // What stands in place of a clock on work of a client that came from the old system (docs/ops.md, sections 41 and 46).
 const LANDING_LINE = 'בקליטה · בלי שעון עד שהלקוח יופעל';
+const LANDING_EDITOR_LINE = 'בקליטה: עירית יכולה לרשום את העורך האמיתי';
 const meetings = () => ofirMeetings(clients.filter((c) => c.status === 'active' || c.status === 'ending'), checksOf);
 
 // ── Data ────────────────────────────────────
@@ -77,6 +80,12 @@ async function doLoad() {
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
+  }
+  // A client in landing whose real editor the office recorded on the intake screen
+  // (docs/ops.md, the bullets of 14.10.2026): assigned, as it will be once activated.
+  if (clients.some((c) => c.landing === true)) {
+    const intake = await loadIntake();
+    checks = withLandingEditors(clients, checks, intake.marks);
   }
   states.clear();
   // Natali's shoots waiting for an editor, and the ones in editing (an editor can be changed): was it a joint day.
@@ -255,6 +264,8 @@ function assignCard(a, load, now) {
       h('span', { class: 'wtitle' }, `${SHOOT_TYPES[type]?.name || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
       a.state.status === 'overdue' && a.client.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
     a.ctx.shoot_at || joint ? h('p', { class: 'of-line' }, [a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : null, joint ? 'יום משותף לנטלי ולסמיון' : null].filter(Boolean).join(' · ')) : null,
+    // An old client already in editing: its real editor is known in the office, not guessed here.
+    a.client.landing === true ? h('p', { class: 'of-line muted as-landing' }, LANDING_EDITOR_LINE) : null,
     // Whom the system suggests, and why (the same number the load list below shows).
     h('p', { class: `k-note as-sug${sug.editor ? '' : ' k-note-warn'}`, id: `as-sug-${id}`, 'data-editor': sug.editor || '', 'data-why': sug.why },
       iconSquare(sug.editor ? 'user' : 'question', sug.editor ? 'teal' : 'orange', { size: 'sm' }),

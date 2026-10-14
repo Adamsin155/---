@@ -12,7 +12,7 @@
 //
 //   marks  { itemKey: { choice: 'done' | 'open' | 'na', person, by_email, at } }  of one client
 //   done   { person: { done: true, by_email, at } }                                of one client
-import { STATIONS, PROCESSES, PEOPLE, APPROVALS } from './protocol.js';
+import { STATIONS, PROCESSES, PEOPLE, APPROVALS, editorsFor } from './protocol.js';
 import { clientState, itemsOf, inLanding, IMPORT_NOTE, parseDate, roundsOf } from './protocol-logic.js';
 import { importKeys, stationIndex } from './client-open.js';
 import { dayKeyIL, daysBetweenIL, partsIL } from './tz.js';
@@ -176,6 +176,68 @@ export function stationPlan(client, checks = {}, stationKey) {
     set: keys.filter((k) => !checks[k]),
     clear: Object.keys(checks).filter((k) => importable.has(k) && !want.has(k) && checks[k]?.note === IMPORT_NOTE),
   };
+}
+
+// ── The real editor of a client already in editing (the owner, 14.10.2026) ──
+// Clients imported in the middle of their editing have a real editor working on them, but
+// the system does not know who, so 22א waits for Ofir. While the client is in landing the
+// office (Irit, Lior, Ofir) and the owners record that editor on the intake screen. It is
+// kept as the landing's own answers (client_landing_marks: "נבדק העומס" and "שויך" done,
+// and Irit's and Lior's items that close with an assignment), so it can be changed or
+// cleared until the activation, and the activation makes it imported history ('ייבוא'):
+// no ring, no clock, no folder task. The write: public.landing_set_editor
+// (supabase/migrations/20261026100000_landing_editor.sql).
+export const EDITOR_SETTERS = ['irit', 'lior', 'ofir'];
+// The same people who fix a station here, and the owners (a staff row with no person).
+export function canSetEditor(viewer) {
+  if (!viewer || viewer.error || viewer.scope !== 'office') return false;
+  return viewer.me ? EDITOR_SETTERS.includes(viewer.me) : true;
+}
+const ASSIGNED = 'p22a.assigned';
+const EDITOR_KEY = /^(r\d+\.)?p22a\./;
+// "העורך: יריב" in the office's notes (a line of the owner's sheet): the editor it names,
+// when it is one of `allowed`; else null.
+export function editorFromNotes(notes, allowed = []) {
+  const m = /העורך\s*[:：־-]\s*([^\n\r,;.()]+)/.exec(String(notes || ''));
+  if (!m) return null;
+  const said = m[1].trim();
+  return allowed.find((e) => PEOPLE[e] && (said === PEOPLE[e].name || said.startsWith(`${PEOPLE[e].name} `))) || null;
+}
+// The shoots of a client in landing whose editor can be recorded here: 22א is ready (the
+// shoot day is behind it) and not really marked. Each: { n (null for the client's own
+// shoot, else the round), pre ('' or 'r2.'), procId, editors (the dialog's list for that
+// shoot), editor (the one recorded here, or null), notes (the editor the notes name) }.
+export function editorSlots(client, checks = {}, marks = {}, now = new Date()) {
+  if (!inLanding(client) || !inWork(client)) return [];
+  const state = clientState(client, withIntake(checks, marks), now);
+  const out = [];
+  for (const s of state.states) {
+    if (baseId(s.proc.id) !== 'p22a' || !s.ready) continue;
+    const pre = s.proc.keyBase.slice(0, s.proc.keyBase.length - 'p22a'.length);
+    if (checks[`${pre}${ASSIGNED}`]) continue; // a real assignment (or imported history): Ofir's, as always
+    const ctx = s.proc.ctx || client;
+    const editors = editorsFor(ctx.shoot_type);
+    const set = marks?.[`${pre}${ASSIGNED}`]?.choice === 'done';
+    out.push({
+      n: ctx.round || null, pre, procId: s.proc.id, editors,
+      editor: set && editors.includes(ctx.editor) ? ctx.editor : null,
+      notes: editorFromNotes(client.notes, editors),
+    });
+  }
+  return out;
+}
+// The checks as Ofir's and the editor's screens read them while the client is in landing:
+// an editor recorded here counts as assigned (as it will be once the client is activated).
+// Only the marks of 22א; the other answers stay apart until the activation.
+//   checksBy { clientId: checks }, marksBy { clientId: marks }; returns a new checksBy.
+export function withLandingEditors(clients, checksBy = {}, marksBy = {}) {
+  const out = { ...checksBy };
+  for (const c of clients || []) {
+    if (!inLanding(c) || !marksBy?.[c.id]) continue;
+    const mine = Object.fromEntries(Object.entries(marksBy[c.id]).filter(([k]) => EDITOR_KEY.test(k)));
+    if (Object.keys(mine).length) out[c.id] = withIntake(checksBy[c.id] || {}, mine);
+  }
+  return out;
 }
 
 const shootDays = (client) => [client.shoot_at, ...roundsOf(client).map((r) => r.shoot_at)].map(parseDate).filter(Boolean);
