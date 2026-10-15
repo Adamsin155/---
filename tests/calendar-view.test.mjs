@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   seesCalendar, sendsInvites, calendarEvents, byDay, weekDays, weekStart, monthWeeks, rangeOf, shift, titleOf, addDays,
-  dayOf, timeText, inviteFor, emailsOf, clientEmails, guestNames, KINDS,
+  dayOf, timeText, inviteFor, emailsOf, clientEmails, guestNames, wordsOf, KINDS,
 } from '../app/calendar-view.js';
 import { googleCalendarUrl, cleanGuests } from '../app/calendar.js';
 import { buildWorld, NOW, emailOf, ROLES } from './roles-world.mjs';
@@ -209,4 +209,17 @@ test('the client\'s email comes from its agreement; none without one', () => {
   assert.deepEqual(clientEmails(clients, facts), { a: 'owner@shop.co.il' });
   assert.deepEqual(clientEmails(clients, null), {});
   assert.ok(Object.keys(ROLES).length);
+});
+
+test('the words of an event: what and whose, then the time and who', () => {
+  const db = world();
+  const evs = of(v('irit'), db);
+  const c = (n) => db.clients.find((x) => x.id === cid(n));
+  assert.deepEqual(wordsOf(evs.find((e) => e.kind === 'shoot' && e.client === cid(7)), c(7)),
+    { title: 'יום צילום · עומר דיין', short: 'צילום · עומר דיין', sub: '09:00 עד 15:30 · דניס, מישל וסמיון' });
+  assert.deepEqual(wordsOf(evs.find((e) => e.kind === 'char' && e.client === cid(6)), c(6)),
+    { title: 'פגישת אפיון · שירה כץ', short: 'אפיון · שירה כץ', sub: '13:00 עד 15:00 · עם אופיר' });
+  const task = evs.find((e) => e.kind === 'task');
+  assert.deepEqual(wordsOf(task, c(13)), { title: task.title, short: task.title, sub: 'כל היום' });
+  assert.equal(wordsOf({ ...evs.find((e) => e.kind === 'shoot' && e.client === cid(7)), round: 2, shootType: 'natali' }, c(7)).title, 'יום צילום 2 · עומר דיין');
 });

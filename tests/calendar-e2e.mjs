@@ -89,7 +89,14 @@ const tall = async (loc, who) => {
     assert.ok(box.height >= 44 && box.width >= 44, `${who}: ${Math.round(box.width)}x${Math.round(box.height)}`);
   }
 };
-const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true }); };
+// Once the sign-in screen has gone (its door closes in a moment) and the mouse is off the page.
+const shot = async (page, name) => {
+  if (!SHOTS) return;
+  await page.waitForSelector('#login-block', { state: 'hidden' }).catch(() => {});
+  await page.mouse.move(1, 1);
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true });
+};
 const kinds = async (page, kind) => page.locator(`#cp-view .cp-ev[data-kind="${kind}"]`).count();
 const guestsOf = async (loc) => new URL(await loc.getAttribute('href')).searchParams.get('add');
 
@@ -176,7 +183,7 @@ try {
     assert.equal(await page.locator('.cp-chosen .cp-ev').count(), 2);
     assert.match(await text(page.locator('#cp-chosen-h')), /21\.10/);
     // Every meeting and shoot day of the month is in the grid (a dot each).
-    const counted = await page.locator('.cp-cell:not(.is-out)').evaluateAll((cells) => cells.reduce((n, c) => n + Number((/(\d+) אירועים/.exec(c.getAttribute('aria-label')) || [0, 0])[1]), 0));
+    const counted = await page.locator('.cp-cell:not(.is-out)').evaluateAll((cells) => cells.reduce((n, c) => { const l = c.getAttribute('aria-label'); return n + (/אירוע אחד/.test(l) ? 1 : Number((/(\d+) אירועים/.exec(l) || [0, 0])[1])); }, 0));
     assert.ok(counted >= 15, `the month has ${counted} events`);
     await noSideScroll(page, 'irit 390 month');
     await tall(page.locator('.cp-cell:not(.is-out)'), 'irit 390 month');

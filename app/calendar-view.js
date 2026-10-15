@@ -18,7 +18,7 @@
 // A later stage may add the office's own Google Calendar beside these (not built): it
 // would come in as more events of the same shape ({ uid, kind, title, start, minutes |
 // end | allDay }) through `extra` below.
-import { PEOPLE, isSales } from './protocol.js';
+import { PEOPLE, SHOOT_TYPES, isSales } from './protocol.js';
 import { feedEvents, OWNER, shootMinutes } from './calendar-feed.js';
 import { googleCalendarUrl, cleanGuests } from './calendar.js';
 import { TZ, dayKeyIL, dayFromKeyIL, dateIL, partsIL, weekdayIL } from './tz.js';
@@ -30,13 +30,14 @@ export const seesCalendar = (v) => known(v) && v.scope !== 'sales' && !isSales(v
 export const sendsInvites = (v) => known(v) && v.scope === 'office';
 
 // How each kind of event looks: its word, its icon and its tone (app/kit.js).
+// `short`: its word in a day of the month, where the room is small.
 export const KINDS = {
-  char: { label: 'פגישת אפיון', icon: 'handshake', tone: 'purple' },
-  shoot: { label: 'יום צילום', icon: 'camera', tone: 'pink' },
-  zoom: { label: 'זום תסריטים', icon: 'video', tone: 'blue' },
-  due: { label: 'יעד', icon: 'flag', tone: 'orange' },
-  task: { label: 'משימה', icon: 'check-circle', tone: 'green' },
-  weekly: { label: 'קבוע', icon: 'loop', tone: 'teal' },
+  char: { label: 'פגישת אפיון', short: 'אפיון', icon: 'handshake', tone: 'purple' },
+  shoot: { label: 'יום צילום', short: 'צילום', icon: 'camera', tone: 'pink' },
+  zoom: { label: 'זום תסריטים', short: 'זום', icon: 'video', tone: 'blue' },
+  due: { label: 'יעד', short: 'יעד', icon: 'flag', tone: 'orange' },
+  task: { label: 'משימה', short: 'משימה', icon: 'check-circle', tone: 'green' },
+  weekly: { label: 'קבוע', short: 'קבוע', icon: 'loop', tone: 'teal' },
 };
 export const kindOf = (e) => KINDS[e?.kind] || KINDS.task;
 
@@ -94,6 +95,19 @@ const hm = (d) => { const p = partsIL(d); return `${pad(p.hour)}:${pad(p.minute)
 // "10:00 עד 12:00", or "כל היום" (a task or a deadline at a day's end).
 export const timeText = (e) => (e.allDay ? 'כל היום' : `${hm(startOf(e))} עד ${hm(endOf(e))}`);
 export const startText = (e) => (e.allDay ? null : hm(startOf(e)));
+
+// The words of an event on the page: { title, short, sub }. A meeting and a shoot day say
+// what and whose ("יום צילום · עומר דיין"); the time, and who meets or who shoots, are the
+// second line. Anything else keeps the feed's own title, which names the client.
+export function wordsOf(e, client = null) {
+  const k = kindOf(e);
+  const round = Number(e.round) > 1 ? ` ${e.round}` : '';
+  const named = client && (e.kind === 'char' || e.kind === 'shoot');
+  const title = named ? `${k.label}${round} · ${client.name}` : e.title;
+  const extra = e.kind === 'char' && client ? `עם ${PEOPLE[client.characterizer || 'ofir']?.name || ''}`
+    : e.kind === 'shoot' ? SHOOT_TYPES[e.shootType || client?.shoot_type]?.name || null : null;
+  return { title, short: named ? `${k.short} · ${client.name}` : e.title, sub: [timeText(e), extra].filter(Boolean).join(' · ') };
+}
 
 // Every event this viewer sees between `from` and `until`. `extra`: events from elsewhere
 // (none yet), kept to the same range.
