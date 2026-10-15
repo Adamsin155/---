@@ -91,10 +91,11 @@ await step('a wide screen: the side menu, the rail on the current screen, the na
     assert.ok(rail.y >= cur.y - 1 && rail.y + rail.height <= cur.y + cur.height + 1, `the rail is not on ${sel}: ${JSON.stringify([rail, cur])}`);
   };
   await railOn('#side-mine');
-  // Irit's personal profile (7.10.2026): her six daily screens in one list, no switch inside the menu.
+  // Irit's personal profile (7.10.2026): her daily screens in one list, no switch inside the menu;
+  // seven since the calendar she invites from (calendar.html, 15.10.2026).
   assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#side-list .side-link, #side-list .side-k')].map((e) => e.textContent.trim())),
-    ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
-  assert.equal(await page.locator('#side-list .side-link:visible').count(), 6);
+    ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+  assert.equal(await page.locator('#side-list .side-link:visible').count(), 7);
   assert.equal(await page.locator('#mode-bar, .mode-opt').count(), 0);
   assert.equal(await page.innerText('#profile-switch'), 'מבט מנהל');
   // The lists of clients.html are the "לקוחות" entry: the rail slides there without a page load.
