@@ -104,10 +104,12 @@ const SKIP_DEADLINE = new Set(['p04', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b
 
 // Every event of `person` ('owner' for the owner). `checks`: { clientId: { key: check } };
 // `tasks`: client_tasks rows (at least the person's open ones and those finished in
-// the last 30 days, for who sees what).
-export function feedEvents({ person, clients = [], checks = {}, tasks = [], now = new Date(), site = SITE }) {
-  const from = now.getTime() - PAST_DAYS * DAY;
-  const until = now.getTime() + AHEAD_DAYS * DAY;
+// the last 30 days, for who sees what). `range`: { from, until } (Dates) in place of the
+// feed's window, for the calendar page (calendar.html), which shows any week or month;
+// Eli's own window still applies. Every event of a client carries `client` (its id).
+export function feedEvents({ person, clients = [], checks = {}, tasks = [], now = new Date(), site = SITE, range = null }) {
+  const from = range?.from ? new Date(range.from).getTime() : now.getTime() - PAST_DAYS * DAY;
+  const until = range?.until ? new Date(range.until).getTime() : now.getTime() + AHEAD_DAYS * DAY;
   const inRange = (d) => !!d && d.getTime() >= from && d.getTime() <= until;
   const out = [];
   const isOwner = person === OWNER;
@@ -120,7 +122,7 @@ export function feedEvents({ person, clients = [], checks = {}, tasks = [], now 
     const characterizer = c.characterizer || 'ofir';
     if (inRange(charAt) && (isOwner || person === characterizer)) {
       out.push({
-        uid: `char-${c.id}@astrateg`, kind: 'char', title: `פגישת אפיון · ${c.name}`, start: charAt, minutes: 120,
+        uid: `char-${c.id}@astrateg`, kind: 'char', client: c.id, title: `פגישת אפיון · ${c.name}`, start: charAt, minutes: 120,
         location: ADDRESS_ON_MEETING.has(person) ? c.address || '' : '',
         description: [`מבצע/ת האפיון: ${PEOPLE[characterizer]?.name || ''}`, `כרטיס הלקוח: ${cardUrl(site, c.id, '#p04')}`].join('\n'),
         changedAt: c.updated_at || c.created_at,
@@ -135,7 +137,7 @@ export function feedEvents({ person, clients = [], checks = {}, tasks = [], now 
       if (shootAt && shootOk && inRange(shootAt)) {
         const type = x.ctx.shoot_type;
         out.push({
-          uid: `shoot-${c.id}-${x.n}@astrateg`, kind: 'shoot',
+          uid: `shoot-${c.id}-${x.n}@astrateg`, kind: 'shoot', client: c.id, round: x.n, shootType: type,
           title: `יום צילום${round} · ${c.name}${SHOOT_TYPES[type] ? ` · ${SHOOT_TYPES[type].name}` : ''}`,
           start: new Date(shootAt.getTime() - 36e5), minutes: shootMinutes(type),
           location: ADDRESS_ON_SHOOT.has(person) ? c.address || '' : '',
@@ -157,7 +159,7 @@ export function feedEvents({ person, clients = [], checks = {}, tasks = [], now 
       const zoomAt = zoom?.state === 'done' && cs[`${x.pre}p13.zoom`]?.state !== 'na' ? parseDate(zoom.note) : null;
       if (person === 'lior' && inRange(zoomAt)) {
         out.push({
-          uid: `zoom-${c.id}-${x.n}@astrateg`, kind: 'zoom', title: `זום לאישור התסריטים${round} · ${c.name}`, start: zoomAt, minutes: 60,
+          uid: `zoom-${c.id}-${x.n}@astrateg`, kind: 'zoom', client: c.id, title: `זום לאישור התסריטים${round} · ${c.name}`, start: zoomAt, minutes: 60,
           description: `כרטיס הלקוח: ${cardUrl(site, c.id, `#${x.pid}p13`)}`, changedAt: zoom.at,
         });
       }
@@ -179,8 +181,8 @@ export function feedEvents({ person, clients = [], checks = {}, tasks = [], now 
         if (mine.length > 5) list.push(`ועוד ${mine.length - 5}`);
         const description = [...list, `כרטיס הלקוח: ${cardUrl(site, c.id, `#${st.proc.id}`)}`].join('\n');
         const uid = `due-${c.id}-${st.proc.id}-${person}@astrateg`;
-        if (isEndOfDay(st.dueAt)) out.push({ uid, kind: 'due', title, allDay: dayKeyIL(st.dueAt), description, changedAt });
-        else out.push({ uid, kind: 'due', title, start: new Date(st.dueAt.getTime() - DEADLINE_MIN * 6e4), end: st.dueAt, description, changedAt });
+        if (isEndOfDay(st.dueAt)) out.push({ uid, kind: 'due', client: c.id, title, allDay: dayKeyIL(st.dueAt), description, changedAt });
+        else out.push({ uid, kind: 'due', client: c.id, title, start: new Date(st.dueAt.getTime() - DEADLINE_MIN * 6e4), end: st.dueAt, description, changedAt });
       }
     }
   }
@@ -193,7 +195,7 @@ export function feedEvents({ person, clients = [], checks = {}, tasks = [], now 
     const day = dayFromKeyIL(t.due_on);
     if (!inRange(day)) continue;
     out.push({
-      uid: `task-${t.id}@astrateg`, kind: 'task', title: `${t.urgent ? 'דחוף: ' : 'משימה: '}${t.title} · ${c.name}`, allDay: t.due_on,
+      uid: `task-${t.id}@astrateg`, kind: 'task', client: c.id, title: `${t.urgent ? 'דחוף: ' : 'משימה: '}${t.title} · ${c.name}`, allDay: t.due_on,
       description: `כרטיס הלקוח: ${cardUrl(site, c.id, '#tasks')}`, changedAt: latest(t.created_at, t.started_at),
     });
   }
