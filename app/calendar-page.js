@@ -89,7 +89,7 @@ function eventNode(e) {
         class: 'btn btn-sm cp-invite', href: inv.url, target: '_blank', rel: 'noopener', 'data-guests': inv.guests.join(','),
         'aria-label': `שליחת זימון: ${words.title}`, onclick: () => writeKey(HINT_KEY, '1'),
       }, icon('send', { size: 16 }), 'שליחת זימון'),
-      h('span', { class: 'cp-inv-who' }, `מוזמנים: ${guestNames(inv) || 'אין עדיין כתובות מייל'}`),
+      h('span', { class: 'cp-inv-who' }, inv.guests.length ? `מוזמנים: ${guestNames(inv)}` : 'אין כתובות מייל: מוסיפים מוזמנים ב־Google'),
       showHint ? h('p', { class: 'cp-hint' }, 'ב־Google לוחצים ״שמירה״, והזימון נשלח לכולם.') : null);
   }
   return h('li', { class: 'cp-ev', 'data-kind': e.kind, 'data-uid': e.uid }, main, invite);

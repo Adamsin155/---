@@ -179,6 +179,12 @@ test('the invitation of a meeting: the client and the characterizer, the place, 
   assert.equal(guestNames(byLior), 'ליאור');
   // No email for the client: the invitation goes to the staff alone, and says so.
   assert.equal(guestNames(inviteFor(meet, { client: { ...client, characterizer: 'ofir' }, emails })), 'אופיר');
+  // A staff member with no email in the staff list is neither invited nor named.
+  const noEli = inviteFor({ kind: 'shoot', start: new Date('2026-10-21T09:00:00+03:00'), round: 1 }, { client, emails: { lior: emails.lior } });
+  assert.deepEqual(noEli.guests, [emailOf('lior')]);
+  assert.equal(guestNames(noEli), 'ליאור');
+  assert.deepEqual(inviteFor(meet, { client, emails: {} }).guests, []);
+  assert.match(new URL(inviteFor(meet, { client, emails: {} }).url).searchParams.get('details'), /מבצע\/ת האפיון: ליאור/);
 });
 
 test('the invitation of a shoot day: the client, Lior and Eli, from the team\'s arrival; none for a task or a deadline', () => {

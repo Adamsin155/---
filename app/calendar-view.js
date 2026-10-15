@@ -156,7 +156,9 @@ export function inviteFor(event, { client, emails = {}, clientEmail = null, site
   if (!staff || !client) return null;
   const name = client.business || client.name || '';
   const card = `${site}client.html?id=${encodeURIComponent(client.id)}`;
-  const people = staff(client);
+  const staffOf = staff(client);
+  // Only whoever has an email in the staff list is invited (and named on the button).
+  const people = staffOf.filter((p) => cleanGuests([emails[p]]).length);
   const guests = cleanGuests([clientEmail, ...people.map((p) => emails[p])]);
   const withClient = cleanGuests([clientEmail]).length > 0;
   let title;
@@ -165,7 +167,7 @@ export function inviteFor(event, { client, emails = {}, clientEmail = null, site
   if (event.kind === 'char') {
     title = `פגישת אפיון · ${name}`;
     minutes = 120;
-    details = ['פגישת אפיון עם אסטרטג.', `מבצע/ת האפיון: ${PEOPLE[people[0]]?.name || ''}`, `כרטיס הלקוח במערכת: ${card}`];
+    details = ['פגישת אפיון עם אסטרטג.', `מבצע/ת האפיון: ${PEOPLE[staffOf[0]]?.name || ''}`, `כרטיס הלקוח במערכת: ${card}`];
   } else {
     const n = Number(event.round) || 1;
     title = `יום צילום${n > 1 ? ` ${n}` : ''} · ${name}`;
