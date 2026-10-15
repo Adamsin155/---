@@ -98,13 +98,13 @@ const PERSONAL = {
   owner: ['המשימות שלי', 'לקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
   // The calendar (calendar.html, 15.10.2026): in Lior's and Irit's personal profile, the owner's and Ofir's manager profile.
   lior: ['המשימות שלי', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'ימי צילום', 'יומן'],
-  ofir: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות'],
+  ofir: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות', 'יומן'], // his meetings in his own menu (15.10.2026)
   irit: ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
 };
 const MANAGER = {
   owner: ['מבט מנהל', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'יומן', 'טבלת ימי צילום', 'צוות', 'אסטרטג פיימנט'],
   lior: ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'צוות'],
-  ofir: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'החלטות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'יומן', 'טבלת ימי צילום'],
+  ofir: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'החלטות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'טבלת ימי צילום'],
   irit: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'ימי צילום', 'צוות'],
 };
 const HOME = { owner: 'owner.html#now', lior: 'owner.html#all', ofir: 'owner.html#now', irit: 'owner.html#now' };
@@ -503,10 +503,10 @@ await step('a phone: the button is 44px high and in the same place on every page
     assert.ok(a.x >= 0 && a.x + a.width <= NARROW.width, `${role}: the button is inside the screen (${JSON.stringify(a)})`);
     assert.ok(a.y < 80, `${role}: the button is at the top`);
     await noSideScroll(page, `${role} personal`);
-    // The bar: the personal screens; the owners and Ofir need no "עוד".
+    // The bar: the personal screens; the owners need no "עוד" (Ofir's pass and calendar are behind it since 15.10.2026).
     const bar = await page.locator('#side-list > .side-link:visible').allInnerTexts();
     // The builder's long name is short in the bar ("הצעה וחוזה"); the link keeps the full name for a screen reader.
-    const BAR = { owner: ['המשימות שלי', 'לקוחות', 'הצעה וחוזה', 'הצעות שנשלחו'], lior: ['המשימות שלי', 'לקוחות', 'החלטות', 'עוד'], ofir: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר'], irit: ['המשימות שלי', 'לקוחות', 'לפני צילום', 'עוד'] };
+    const BAR = { owner: ['המשימות שלי', 'לקוחות', 'הצעה וחוזה', 'הצעות שנשלחו'], lior: ['המשימות שלי', 'לקוחות', 'החלטות', 'עוד'], ofir: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'עוד'], irit: ['המשימות שלי', 'לקוחות', 'לפני צילום', 'עוד'] };
     assert.deepEqual(bar.map((t) => t.trim()), BAR[role], role);
     if (role === 'owner') assert.equal(await page.getAttribute('#side-quote', 'aria-label'), 'הצעה חדשה והכנת חוזה');
     for (const lines of await page.locator('#side-list > .side-link:visible .side-t').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight))))) assert.ok(lines <= 2, `${role}: a bar entry runs ${lines} lines`);

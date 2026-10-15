@@ -342,7 +342,8 @@ await step('Ofir lands on "המשימות שלי"; the quality-control queue is 
   await page.waitForSelector('#profile-switch[data-to="manager"]');
   await page.waitForSelector('#mine-list .wproc.wc');
   assert.match(page.url(), /clients\.html(#mine)?$/);
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר']);
+  // Five in his own menu since the calendar (15.10.2026): his pass and the calendar are behind "עוד".
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'עוד']);
   await page.click('#side-qa');
   await page.waitForURL(/qa\.html/);
   await page.waitForSelector('#profile-switch');

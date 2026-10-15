@@ -131,7 +131,7 @@ export function afterSignIn(viewer, { pathname = '', hash = '', search = '', ent
 export const PERSONAL = {
   owner: ['mine', 'clients', 'quote', 'quotes'],                 // their tasks and approvals, a client, a contract
   lior: ['mine', 'clients', 'decisions', 'messages', 'shoot', 'calendar'], // his decisions, the clients' messages, the shoot day, the calendar
-  ofir: ['mine', 'clients', 'qa', 'pass'],                       // his queue and his pass over the clients
+  ofir: ['mine', 'clients', 'qa', 'pass', 'calendar'],           // his queue, his pass over the clients, and his meetings (the owner, 15.10.2026)
   // Irit: her tasks, a client, her part before a shoot day and the clients' requests,
   // the daily messages to clients, the calendar she invites from (15.10.2026), and
   // building and following a contract.

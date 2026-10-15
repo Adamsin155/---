@@ -141,8 +141,8 @@ test('the two profiles of the owners, Ofir and Lior: a short personal menu, the 
   // The calendar (15.10.2026): in the personal profile of Lior (his shoot days) and Irit (she invites from it).
   assert.deepEqual(of(v('lior'), 'mine'), ['mine', 'clients', 'decisions', 'messages', 'shoot', 'calendar']);
   assert.deepEqual(of(v('lior'), 'manager'), ['overview', 'clients', 'gantt', 'qa', 'insights', 'year', 'prep', 'shoot-table', 'quote', 'team']);
-  assert.deepEqual(of(v('ofir'), 'mine'), ['mine', 'clients', 'qa', 'pass']);
-  assert.deepEqual(of(v('ofir'), 'manager'), ['manager', 'clients', 'gantt', 'decisions', 'year', 'prep', 'shoot', 'calendar', 'shoot-table']);
+  assert.deepEqual(of(v('ofir'), 'mine'), ['mine', 'clients', 'qa', 'pass', 'calendar']); // his meetings too (the owner, 15.10.2026)
+  assert.deepEqual(of(v('ofir'), 'manager'), ['manager', 'clients', 'gantt', 'decisions', 'year', 'prep', 'shoot', 'shoot-table']);
   // Irit (7.10.2026): her daily screens; the manager view, the Gantt, the year, the shoot days and the team behind the button.
   assert.deepEqual(of(v('irit'), 'mine'), ['mine', 'clients', 'prep', 'messages', 'calendar', 'quote', 'quotes']);
   assert.deepEqual(of(v('irit'), 'manager'), ['manager', 'clients', 'gantt', 'year', 'shoot', 'team']);
@@ -168,10 +168,11 @@ test('the two profiles of the owners, Ofir and Lior: a short personal menu, the 
     // No profile ever shows a default: an unknown profile is the personal one.
     assert.deepEqual(of(viewer, null), mine, who);
   }
-  // On a phone the personal profile needs no "עוד" for the owners and Ofir; Lior's fifth and fourth screens are behind it.
+  // On a phone the personal profile needs no "עוד" for the owners; Ofir's, Lior's and Irit's later screens are behind it.
   const bar = (viewer, p) => { const b = barOf(profileMenu(viewer, p), viewer); return [b.bar.map((it) => it.id), b.more.map((it) => it.id)]; };
   assert.deepEqual(bar(OWNER, 'mine'), [['mine', 'clients', 'quote', 'quotes'], []]);
-  assert.deepEqual(bar(v('ofir'), 'mine'), [['mine', 'clients', 'qa', 'pass'], []]);
+  // Five in his own menu since the calendar (15.10.2026): the bar keeps three and "עוד" holds the pass and the calendar.
+  assert.deepEqual(bar(v('ofir'), 'mine'), [['mine', 'clients', 'qa'], ['pass', 'calendar']]);
   assert.deepEqual(bar(v('lior'), 'mine'), [['mine', 'clients', 'decisions'], ['messages', 'shoot', 'calendar']]);
   assert.deepEqual(bar(v('irit'), 'mine'), [['mine', 'clients', 'prep'], ['messages', 'calendar', 'quote', 'quotes']]);
   assert.deepEqual(bar(v('irit'), 'manager'), [['manager', 'clients', 'gantt'], ['year', 'shoot', 'team']]);
@@ -184,7 +185,7 @@ test('the two profiles of the owners, Ofir and Lior: a short personal menu, the 
   assert.equal(parts(v('irit'), 'manager')[1], 0); // six screens: one list
   assert.deepEqual(parts(OWNER, 'manager'), [['manager', 'clients', 'decisions', 'messages'], 11]);
   assert.deepEqual(parts(v('lior'), 'manager'), [['overview', 'clients'], 8]);
-  assert.deepEqual(parts(v('ofir'), 'manager'), [['manager', 'clients'], 7]);
+  assert.deepEqual(parts(v('ofir'), 'manager'), [['manager', 'clients'], 6]); // the calendar moved to his own menu (15.10.2026)
 });
 
 test('the office screens: the same list the page heads had', () => {
