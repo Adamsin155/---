@@ -770,6 +770,10 @@ try {
 
   const owner = await newPage({ width: 1366, height: 900 });
   await step('the owners: a line on their tasks, and on "מבט מנהל" who took in how many, with the "מפעילים" actions', async () => {
+    // A client with only recurring work still asks Ofir about its Highlights (asked again, the owner
+    // 15.10.2026): it waits for him alone, and is ready once he went over it.
+    assert.deepEqual(waitingOn('מספרת יעל'), ['ofir']);
+    db.client_landing_done.push({ client_id: C('מספרת יעל').id, person: 'ofir', done: true, by_email: 'ofir@astrateg.test', at: serverNow() });
     await signIn(owner, 'clients.html#mine', 'owner');
     const b = board();
     assert.equal(await lineOf(owner), `${b.total} לקוחות קיימים עדיין בקליטה להפעלה`);

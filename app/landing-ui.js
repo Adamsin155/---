@@ -275,7 +275,8 @@ function clientCard(x, now) {
       office() && !stationOff(c, now) ? stationRow(x, now) : null,
       h('ul', { class: 'land-items' }, ...x.items.map((i) => h('li', { class: `land-item${p?.done.includes(i.key) && !i.choice ? ' is-proposed' : ''}` },
         checkLine(x, i),
-        h('small', { class: 'muted land-item-proc' }, procText(i.proc), p?.done.includes(i.key) && !i.choice ? ' · ההצעה: כבר נעשה' : '')))),
+        h('small', { class: 'muted land-item-proc' }, procText(i.proc), p?.done.includes(i.key) && !i.choice ? ' · ההצעה: כבר נעשה' : '',
+          i.assumed ? ' · סומן לפי השלב של הלקוח. לא נעשה? מורידים את הווי' : '')))),
       h('button', {
         type: 'button', class: 'btn k-btn-navy land-save', disabled: off, 'data-act': 'finish',
         onclick: () => { openItems.delete(c.id); finish(x, {}, `${clientLabel(c)} נקלט. ${answered(x) ? 'מה שלא סומן' : 'הכול'} יופיע לך כמשימה ביום ההפעלה.`); },

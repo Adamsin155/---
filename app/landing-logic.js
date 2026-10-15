@@ -55,6 +55,13 @@ export function canTake(person, client, now = new Date()) {
   return false;
 }
 
+// Steps the import marked done by the station that are asked again all the same (the owner,
+// 15.10.2026: "a tick line for Ofir whether the Highlights were done"): they are shown ticked
+// (choice 'done', assumed), and taking the tick off answers 'open'; the owners' activation then
+// takes the imported mark back so the step becomes a task (landing-data.js, activate).
+export const ASK_AGAIN = new Set(['p08', 'p08b']);
+const askAgain = (proc, real) => ASK_AGAIN.has(proc.id) && real?.note === IMPORT_NOTE && real.state === 'done';
+
 // The items the system shows as open for `person` on a client in landing: theirs,
 // required, in a process that has started, with no real mark. An item they already
 // answered stays in the list with its answer (so it can be changed). The weekly call
@@ -72,8 +79,12 @@ export function intakeItems(person, client, checks = {}, marks = {}, now = new D
       // client from the old system is not asked about a step that did not exist then.
       if (i.fresh) continue;
       const real = checks[i.key];
-      if (real && (real.state === 'done' || real.state === 'na')) continue;
       const m = marks?.[i.key] || null;
+      if (askAgain(s.proc, real)) {
+        out.push({ key: i.key, label: i.label, proc: s.proc, choice: m?.choice || 'done', by: m?.person || null, approval: false, assumed: !m });
+        continue;
+      }
+      if (real && (real.state === 'done' || real.state === 'na')) continue;
       if (!s.ready && !m) continue;
       out.push({ key: i.key, label: i.label, proc: s.proc, choice: m?.choice || null, by: m?.person || null, approval: APPROVALS.has(baseKey(i.key)) });
     }

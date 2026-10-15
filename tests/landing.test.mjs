@@ -110,7 +110,9 @@ test('taking in: each person sees only their own items, and the answers are kept
     for (const i of by[p]) {
       const owners = i.proc.items.find((x) => x.key === i.key).owners;
       assert.ok(owners.includes(p), `${p} was shown ${i.key}`);
-      assert.equal(checks[i.key], undefined);
+      // The Highlights are asked again although the import marked them (the owner, 15.10.2026): Ofir's, shown ticked.
+      if (i.assumed) assert.deepEqual([p, /^p08b?./.test(i.key), checks[i.key].note, i.choice], ['ofir', true, IMPORT_NOTE, 'done']);
+      else assert.equal(checks[i.key], undefined);
     }
   }
   // The weekly call is never asked about; sales, the owner and a made-up person get nothing.
@@ -197,9 +199,12 @@ test('who still has to go over a client, the line of each person, and what stays
   // Everyone finished c1: it is ready for the one tap.
   const everyone = { c1: Object.fromEntries(TEAM.map((p) => [p, { done: true }])) };
   assert.deepEqual(landingBoard([c, other], checksBy, marks, everyone, NOW).ready.map((x) => x.id), ['c1']);
-  // A client with only recurring work has nothing to take in and is ready at once.
+  // A client with only recurring work has nothing to take in but Ofir's Highlights line (asked again,
+  // the owner 15.10.2026): ready once Ofir went over it.
   const ongoing = base({ id: 'c4', landing: true });
-  assert.deepEqual(landingBoard([ongoing], { c4: { ...imported('ongoing') } }, {}, {}, NOW).ready.map((x) => x.id), ['c4']);
+  assert.deepEqual(intakeItems('ofir', ongoing, imported('ongoing'), {}, NOW).map((i) => [i.key.split('.')[0], i.choice, i.assumed]).filter((x) => x[0] === 'p08')[0], ['p08', 'done', true]);
+  assert.deepEqual(waitingPeople(ongoing, imported('ongoing'), {}, {}, NOW), ['ofir']);
+  assert.deepEqual(landingBoard([ongoing], { c4: { ...imported('ongoing') } }, {}, { c4: { ofir: { done: true } } }, NOW).ready.map((x) => x.id), ['c4']);
 });
 
 test('correcting the station marks what is before it as imported, and takes back imported marks from it on', () => {

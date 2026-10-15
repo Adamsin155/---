@@ -70,6 +70,28 @@ export async function setLandingEditor(clientId, editor = null, round = null) {
   return data;
 }
 
+// A step asked again although the import marked it done (landing-logic.js, ASK_AGAIN: the
+// Highlights) and answered "not done yet": before the activation the owner's own sign-in takes
+// the imported mark back, so the step becomes a task with a fresh deadline. Only imported marks
+// ('ייבוא'), only those keys; a real mark is never touched.
+const ASKED = /^p08b?\./;
+async function reopenAskedAgain(ids) {
+  if (!ids?.length) return;
+  const { data: open, error } = await supabase.from('client_landing_marks').select('client_id, item_key').in('client_id', ids).eq('choice', 'open');
+  if (error || !open?.length) return;
+  const asked = open.filter((m) => ASKED.test(m.item_key));
+  if (!asked.length) return;
+  const { data: imported } = await supabase.from('protocol_checks').select('client_id, item_key').in('client_id', [...new Set(asked.map((m) => m.client_id))])
+    .in('item_key', [...new Set(asked.map((m) => m.item_key))]).eq('note', 'ייבוא');
+  const by = {};
+  for (const r of imported || []) if (asked.some((m) => m.client_id === r.client_id && m.item_key === r.item_key)) (by[r.client_id] ||= []).push(r.item_key);
+  // As protocol-data.js clearChecksBulk (not imported: that module reads this one).
+  for (const [id, keys] of Object.entries(by)) {
+    const { error: e } = await supabase.from('protocol_checks').delete().eq('client_id', id).in('item_key', keys).eq('note', 'ייבוא');
+    if (e) throw e;
+  }
+}
+
 // The owners: close a person's part on these clients; activate these clients now.
 export async function finishFor(person, ids) {
   const { data, error } = await supabase.rpc('landing_done_for', { p_person: person, p_clients: ids });
@@ -77,6 +99,7 @@ export async function finishFor(person, ids) {
   return data;
 }
 export async function activate(ids) {
+  await reopenAskedAgain(ids);
   const { data, error } = await supabase.rpc('landing_activate', { p_clients: ids });
   if (error) throw error;
   return data;
