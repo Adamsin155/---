@@ -21,6 +21,9 @@ const officeOf = (v) => known(v) && v.scope === 'office';
 const sendsMessages = (v) => known(v) && ((!v.me && v.scope === 'office') || ['irit', 'lior'].includes(v.me));
 const seesInsights = (v) => known(v) && ((!v.me && v.scope === 'office') || v.me === 'lior');
 const seesAllClients = (v) => canSeeTable(v);
+// The calendar page ("יומן", calendar.html; 15.10.2026): everyone with client work, not the
+// field sales (as seesCalendar in calendar-view.js).
+const seesCalendar = (v) => known(v) && v.scope !== 'sales' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
 // The index of the content Gantt: the office and Ilai (as worksCycle in month-ui.js).
 export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai');
 // Who changes a Gantt: Ilai and the owner (public.can_edit_gantt() decides).
@@ -65,6 +68,9 @@ export function menuOf(viewer) {
   if (sendsMessages(viewer)) list.push({ id: 'messages', href: 'messages.html', label: 'הודעות ללקוחות' });
   if (PEOPLE[me]?.editor) list.push({ id: 'editor', href: 'editor.html', label: 'הלקוחות שלי בעריכה', short: 'בעריכה' });
   if (me === 'eli' || office) list.push({ id: 'shoot', href: 'shoot.html', label: 'ימי צילום' });
+  // The meetings and shoot days in a week or a month (15.10.2026): the office sees every
+  // client's, everyone else their own (app/calendar-view.js).
+  if (seesCalendar(viewer)) list.push({ id: 'calendar', href: 'calendar.html', label: 'יומן' });
   // Every client by its last shoot day, the oldest first (6.10.2026): Lior, Ofir and the owner.
   if (canSeeShootTable(viewer)) list.push({ id: 'shoot-table', href: 'owner.html#shoots', label: 'טבלת ימי צילום' });
   // The builder of a quote and of the contract (the owner's wording, 7.10.2026). `short` is
@@ -124,11 +130,12 @@ export function afterSignIn(viewer, { pathname = '', hash = '', search = '', ent
 // top of every screen. The clients list is in both (a client is looked up from either).
 export const PERSONAL = {
   owner: ['mine', 'clients', 'quote', 'quotes'],                 // their tasks and approvals, a client, a contract
-  lior: ['mine', 'clients', 'decisions', 'messages', 'shoot'],   // his decisions, the clients' messages, the shoot day
+  lior: ['mine', 'clients', 'decisions', 'messages', 'shoot', 'calendar'], // his decisions, the clients' messages, the shoot day, the calendar
   ofir: ['mine', 'clients', 'qa', 'pass'],                       // his queue and his pass over the clients
   // Irit: her tasks, a client, her part before a shoot day and the clients' requests,
-  // the daily messages to clients, and building and following a contract.
-  irit: ['mine', 'clients', 'prep', 'messages', 'quote', 'quotes'],
+  // the daily messages to clients, the calendar she invites from (15.10.2026), and
+  // building and following a contract.
+  irit: ['mine', 'clients', 'prep', 'messages', 'calendar', 'quote', 'quotes'],
 };
 const IN_BOTH = ['clients'];
 const profileKey = (viewer) => (hasProfiles(viewer) ? viewer.me || 'owner' : null);

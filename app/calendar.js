@@ -5,11 +5,18 @@ import { buildCalendar } from './ics.js';
 
 const utc = (d) => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
-export function googleCalendarUrl({ title, start, minutes = 120, details = '', location = '' }) {
+// `guests`: emails Google puts in the event's guest list ("add"); the person presses
+// Save in Google, and Google sends them the invitation (calendar.html, "שליחת זימון").
+// Anything that is not one plain email is left out, and each email once.
+const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
+export const cleanGuests = (list = []) => [...new Set(list.map((e) => String(e ?? '').trim().toLowerCase()).filter((e) => EMAIL.test(e)))];
+export function googleCalendarUrl({ title, start, minutes = 120, details = '', location = '', guests = [] }) {
   const end = new Date(new Date(start).getTime() + minutes * 6e4);
   const q = new URLSearchParams({
     action: 'TEMPLATE', text: title, dates: `${utc(start)}/${utc(end)}`, details, location, ctz: 'Asia/Jerusalem',
   });
+  const add = cleanGuests(guests);
+  if (add.length) q.set('add', add.join(','));
   return `https://calendar.google.com/calendar/render?${q}`;
 }
 

@@ -11,7 +11,7 @@ import {
 } from './protocol-logic.js';
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
-  addTask, setTaskDone, updateClient, loadDirectory, loadQuoteSummary, loadCalls,
+  addTask, setTaskDone, updateClient, loadDirectory, loadQuoteSummary, loadCalls, quoteFacts,
   loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes, setPasswordGate, GATE_CANCELLED,
 } from './protocol-data.js';
 import {
@@ -21,6 +21,8 @@ import {
 import { whatsappLink } from './quote-doc.js';
 import { safeLink } from './gantt-logic.js';
 import { googleCalendarUrl, downloadIcs } from './calendar.js';
+// "שליחת זימון" (the calendar page's invitation, app/calendar-view.js): the office's.
+import { inviteFor, emailsOf, clientEmails, guestNames } from './calendar-view.js';
 import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
 import { describeMark } from './handoffs.js';
 import { markHistory, filesOf, fileLine, filesHint } from './production.js';
@@ -409,6 +411,19 @@ function shootEvent(n = 1) {
       client.links?.scripts ? `תסריטים: ${client.links.scripts}` : null, `כרטיס הלקוח: ${cardUrl()}`].filter(Boolean).join('\n'),
   };
 }
+// The office invites the people of the event from here too (calendar.html does the same):
+// Google Calendar opens with the guests filled in, and Google sends the invitations on Save.
+let clientMail = null; // the client's email from their agreement (public.quote_facts), the office only
+function inviteLink(kind, n = 1) {
+  if (scope !== 'office' || viewerError) return null;
+  const r = n === 1 ? { shoot_at: client.shoot_at, shoot_type: client.shoot_type } : roundsOf(client).find((x) => x.n === n) || {};
+  const at = kind === 'char' ? client.char_at : r.shoot_at;
+  if (!at) return null;
+  const start = kind === 'char' ? new Date(at) : new Date(new Date(at).getTime() - 36e5);
+  const inv = inviteFor({ kind, start, round: n, shootType: r.shoot_type || client.shoot_type }, { client, emails: emailsOf(directory), clientEmail: clientMail, site: new URL('.', location.href).href });
+  if (!inv) return null;
+  return h('a', { class: 'btn btn-sm', href: inv.url, target: '_blank', rel: 'noopener', title: `מוזמנים: ${guestNames(inv)}`, 'data-guests': inv.guests.join(',') }, 'שליחת זימון');
+}
 function calendarMenu(kind, n = 1) {
   const has = kind === 'char' ? client.char_at : (n === 1 ? client.shoot_at : roundsOf(client).find((x) => x.n === n)?.shoot_at);
   if (!has) return null;
@@ -421,6 +436,7 @@ function calendarMenu(kind, n = 1) {
       client.address ? null : h('p', { class: 'hint' }, 'אין כתובת עסק בכרטיס, והאירוע ייווצר בלי מקום. ',
         own() ? null : h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit('ed-address') }, 'הוספת כתובת')),
       h('a', { class: 'btn btn-sm btn-ghost', href: googleCalendarUrl(ev()), target: '_blank', rel: 'noopener' }, 'Google Calendar'),
+      inviteLink(kind, n),
       h('button', {
         type: 'button', class: 'btn btn-sm btn-ghost',
         onclick: () => {
@@ -2110,6 +2126,13 @@ mountSession(async (staff) => {
   // card. When they arrive after it was drawn, it is drawn again with them.
   ensurePhones().then(() => { if (drawn && client && !busy()) renderKeepingFocus(); });
   await load();
+  // The client's email for "שליחת זימון", from the agreement (the office reads its facts).
+  if (scope === 'office' && client?.quote_id) {
+    quoteFacts([client.quote_id]).then((facts) => {
+      clientMail = clientEmails([client], facts)[client.id] || null;
+      if (clientMail && drawn && !busy()) renderKeepingFocus();
+    });
+  }
   // The vault's list was read with the card a moment ago: only what follows it (the
   // check that closes by itself, then the log), without reading the list a second time.
   if (vaultOk) autoAccessCheck().then(refreshAccessLog);

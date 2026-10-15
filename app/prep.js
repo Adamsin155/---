@@ -16,7 +16,7 @@
 import { PEOPLE, STAFF_PEOPLE, SHOOT_TYPES } from './protocol.js';
 import { clientState, parseDate } from './protocol-logic.js';
 import {
-  loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, setTaskDone, updateClient, loadDirectory,
+  loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, setTaskDone, updateClient, loadDirectory, quoteFacts,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, who, formatStamp, formatWhen, formatDay, leafOf, landingTag,
@@ -31,7 +31,8 @@ import {
 import { MISSING_TITLE, missingMessage } from './characterization.js';
 import { materialsOf, waLink, dayText } from './messages-logic.js';
 import { loadRequestTasks, insertTask, loadAccessStatuses } from './intake-data.js';
-import { googleCalendarUrl } from './calendar.js';
+// "שליחת זימון": the shoot day in Google Calendar with its guests (app/calendar-view.js, as on calendar.html).
+import { inviteFor, emailsOf, clientEmails, guestNames } from './calendar-view.js';
 import { inputValueIL, fromInputIL, dayKeyIL, dayFromKeyIL } from './tz.js';
 // The photographer's monthly availability (docs/ops.md, section 39): the line next to the date, and the reason for a day he did not mark free.
 import { mountAvailability, shootDayHint, confirmShootDay, photographerNote } from './availability-ui.js';
@@ -43,6 +44,7 @@ let checks = {};
 let tasks = [];          // open tasks of every client
 let requests = [];       // request and "tell" tasks, open or finished lately
 let access = [];         // broken or missing logins
+let clientMail = {};     // client id → email, from the agreements (for "שליחת זימון")
 let me = null;
 let busy = false;
 const answers = new Map();   // day-before answers being given, by `${client}:${pre}`
@@ -66,7 +68,10 @@ async function load() {
   try {
     [clients, checks, tasks] = await Promise.all([loadClients(), loadChecks(), loadTasks({ openOnly: true })]);
   } catch (err) { $('state').textContent = errorText(err); return; }
-  [requests, access] = await Promise.all([loadRequestTasks().catch(() => []), loadAccessStatuses()]);
+  const quoteIds = [...new Set(clients.map((c) => c.quote_id).filter(Boolean))];
+  let facts;
+  [requests, access, facts] = await Promise.all([loadRequestTasks().catch(() => []), loadAccessStatuses(), quoteIds.length ? quoteFacts(quoteIds) : null]);
+  clientMail = clientEmails(clients, facts);
   $('state').textContent = '';
   render();
   if (!arrived && location.hash === '#followup' && !$('followup').hidden) {
@@ -257,11 +262,13 @@ function coordinatorBlock(e, k) {
     }, h('span', {}, a.label, a.done && a.check ? h('small', {}, `אושר ${formatWhen(new Date(a.check.at))}`) : note ? h('small', {}, note) : null)));
   const edit = x.n === 1 && (!coord.shootAt || !coord.shootType);
   const dt = shootDraft.get(c.id) ?? (coord.shootAt ? inputValueIL(coord.shootAt) : '');
-  const cal = coord.shootAt ? googleCalendarUrl({
-    title: `יום צילום · ${c.name}${coord.shootType ? ` · ${SHOOT_TYPES[coord.shootType].name}` : ''}`,
-    start: new Date(coord.shootAt.getTime() - 36e5), minutes: 60 + (coord.shootType === 'dms' ? 330 : 180), location: c.address || '',
-    details: `הגעת המשפיענים: ${formatStamp(coord.shootAt)}. הצוות מגיע שעה לפני.`,
-  }) : null;
+  // Into everyone's calendar in one step (15.10.2026): Google Calendar opens with the day
+  // and its guests (the client when the agreement has their email, Lior and Eli), and
+  // Google sends the invitations when she presses Save.
+  const invite = coord.shootAt ? inviteFor(
+    { kind: 'shoot', start: new Date(coord.shootAt.getTime() - 36e5), round: x.n, shootType: coord.shootType },
+    { client: c, emails: emailsOf(directory), clientEmail: clientMail[c.id] || null, site: new URL('.', location.href).href },
+  ) : null;
   // Closed with everyone: one line, the approvals folded under it.
   const Wrap = coord.fullyClosed ? 'details' : 'section';
   return h(Wrap, { class: 'pp-sub', 'aria-labelledby': coord.fullyClosed ? null : `co-${k}` },
@@ -280,7 +287,8 @@ function coordinatorBlock(e, k) {
     h('ul', { class: 'pp-parties', 'aria-label': 'אישורים' },
       ...coord.approvals.map((a) => party(a, a.key === `${x.pre}p11.ok.photographer` ? eliNotes.get(coord.shootAt?.toISOString()) || null : null)), party(coord.contract)),
     h('div', { class: 'ik-row' },
-      cal ? h('a', { class: 'btn btn-ghost', href: cal, target: '_blank', rel: 'noopener' }, 'Google Calendar', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')) : null,
+      invite ? h('a', { class: 'btn btn-ghost', id: `inv-${k}`, href: invite.url, target: '_blank', rel: 'noopener', title: `מוזמנים: ${guestNames(invite)}`, 'data-guests': invite.guests.join(',') },
+        'שליחת זימון', h('span', { class: 'sr-only' }, ` (מוזמנים: ${guestNames(invite)}. Google Calendar נפתח בחלון חדש)`)) : null,
       h('button', {
         type: 'button', class: 'btn', id: `cal-${k}`, 'aria-pressed': String(coord.calendar.done), disabled: busy || !coord.shootAt || !coord.shootType,
         onclick: (ev) => toggleCheck(c.id, coord.calendar.key, !coord.calendar.done, ev.currentTarget.id),
