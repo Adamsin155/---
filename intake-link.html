@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- The intake screen in its link mode (app/landing-ui.js reads it). -->
+  <meta name="astrateg-page" content="intake-link">
+  <!-- Only this site's own files, and the office's database (docs/ops.md, section 36). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
+  <script src="app/frame-guard.js"></script>
+  <title>הקליטה שלי · astrateg</title>
+  <meta name="robots" content="noindex">
+  <!-- The token is in the address: it is never sent on to another site. -->
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <meta name="theme-color" content="#EEF0F4">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/tokens.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-office.css">
+  <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/owner.css">
+  <link rel="stylesheet" href="app/styles/office-flows.css">
+  <link rel="stylesheet" href="app/styles/landing.css">
+  <link rel="stylesheet" href="app/styles/kit.css">
+  <!-- Written at publish (scripts/build-pages.mjs): what this page will load, asked for together. -->
+  <link rel="modulepreload" href="app/protocol.js">
+  <link rel="modulepreload" href="app/protocol-ui.js">
+  <link rel="modulepreload" href="app/landing-data.js">
+  <link rel="modulepreload" href="app/landing-ui.js">
+  <link rel="modulepreload" href="app/supa.js">
+  <link rel="modulepreload" href="app/session-store.js">
+  <link rel="modulepreload" href="app/protocol-data.js">
+  <link rel="modulepreload" href="app/quote-doc.js">
+  <link rel="modulepreload" href="app/protocol-logic.js">
+  <link rel="modulepreload" href="app/tz.js">
+  <link rel="modulepreload" href="app/shoot-prep.js">
+  <link rel="modulepreload" href="app/set-password.js">
+  <link rel="modulepreload" href="app/login-ui.js">
+  <link rel="modulepreload" href="app/manager-rules.js">
+  <link rel="modulepreload" href="app/visit.js">
+  <link rel="modulepreload" href="app/access-logic.js">
+  <link rel="modulepreload" href="app/whatsapp.js">
+  <link rel="modulepreload" href="app/shell.js">
+  <link rel="modulepreload" href="app/team-rules.js">
+  <link rel="modulepreload" href="app/shell-rules.js">
+  <link rel="modulepreload" href="app/landing-logic.js">
+  <link rel="modulepreload" href="app/client-open.js">
+  <link rel="modulepreload" href="app/kit.js">
+  <link rel="modulepreload" href="app/vendor/supabase.js">
+  <link rel="modulepreload" href="app/data-cache.js">
+  <link rel="modulepreload" href="app/feel.js">
+  <link rel="modulepreload" href="app/pricing.js">
+  <link rel="modulepreload" href="app/catalog.js">
+  <link rel="modulepreload" href="app/holidays.js">
+  <link rel="modulepreload" href="app/protocol-versions.js">
+  <link rel="modulepreload" href="app/messages-logic.js">
+  <link rel="modulepreload" href="app/shell-state.js">
+  <link rel="modulepreload" href="app/legal.js">
+  <link rel="modulepreload" href="app/access-nudge.js">
+</head>
+<body>
+  <!-- A personal link to the taking-in, with no sign-in (the owner, 15.10.2026): this screen
+       alone, no menu and no way into the rest of the system (app/landing-link.js). -->
+  <header class="topbar">
+    <span class="brand" aria-label="astrateg">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">הקליטה שלי</span>
+    </span>
+  </header>
+
+  <main class="list-shell" id="main">
+    <div id="app" class="pr-app of-app land-app" hidden>
+      <div id="land-page">
+      <div class="page-head">
+        <div>
+          <h1 id="land-h">קליטת לקוחות קיימים</h1>
+          <p id="land-hello"></p>
+          <p>אלה לקוחות שעבדנו איתם עוד לפני המערכת. מסמנים וי על מה שכבר נעשה; מה שלא מסומן יחכה לכם כמשימה ביום ההפעלה. כל סימון נשמר מיד.</p>
+        </div>
+      </div>
+      <div class="land-progress" id="land-progress" role="status" aria-live="polite"></div>
+      <ul class="land-list" id="land-list" aria-labelledby="land-h"></ul>
+      <div id="land-done"></div>
+      </div>
+      <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">הקישור לא פעיל</h2>
+        <p id="na-text">הקישור לא שלם, פג תוקפו או שהוחלף בקישור חדש. בקשו קישור חדש ממי ששלח לכם אותו.</p>
+        <a id="na-home" hidden href="#"></a>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status">טוען…</p>
+  </main>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/landing-link.js"></script>
+</body>
+</html>
