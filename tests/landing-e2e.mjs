@@ -126,7 +126,61 @@ function release(c, by) {
   Object.assign(c, { landing: false, landed_at: serverNow(), landed_by: by, landing_slot: db.clients.filter((x) => x.landed_at).length % 10 });
 }
 
+// The personal links (as 20261027100000_landing_links.sql; tests/sql/landing-links.test.mjs has the real one).
+const LINKS = new Map(); // token → person (live ones only)
+const linkClients = (person) => db.clients.filter((c) => c.landing && ['active', 'ending'].includes(c.status) && !c.archived_at
+  && (['irit', 'lior', 'ofir', 'ilai', 'eli'].includes(person) || c.editor === person || (c.rounds || []).some((r) => r.editor === person) || (person === 'nirel' && c.shoot_type === 'natali')));
+function linkRpc(name, body, me, json) {
+  calls.push({ fn: name, body, by: me?.email || null });
+  if (name === 'landing_link_make' || name === 'landing_link_revoke' || name === 'landing_links') {
+    if (!isOwner(me)) return json(403, { code: '42501', message: 'not allowed: owner only' });
+    if (name === 'landing_links') return json(200, [...new Set(LINKS.values())].map((person) => ({ person, created_at: serverNow(), expires_at: '2026-10-19T21:00:00Z', last_used_at: null, uses: 0 })));
+    for (const [t, p] of [...LINKS]) if (p === body.p_person) LINKS.delete(t);
+    if (name === 'landing_link_revoke') return json(200, 1);
+    const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '');
+    LINKS.set(token, body.p_person);
+    return json(200, token);
+  }
+  const person = LINKS.get(body.p_token);
+  if (!person) return json(403, { code: '42501', message: 'link not valid' });
+  const mine = linkClients(person);
+  const ids = new Set(mine.map((c) => c.id));
+  if (name === 'landing_link_read') {
+    return json(200, {
+      person, expires_at: '2026-10-19T21:00:00Z',
+      clients: mine.map(({ phone, notes, address, links, quote_id, created_by_email, closed_reason, ...c }) => c),
+      checks: db.protocol_checks.filter((k) => ids.has(k.client_id)).map(({ by_email, ...k }) => k),
+      marks: db.client_landing_marks.filter((m) => ids.has(m.client_id)).map(({ by_email, ...m }) => m),
+      done: db.client_landing_done.filter((d) => ids.has(d.client_id)).map(({ by_email, ...d }) => d),
+    });
+  }
+  const c = db.clients.find((x) => x.id === body.p_client);
+  if (c && !c.landing) return json(400, { code: 'P0001', message: 'not in landing: this client is already active' });
+  if (!c || !ids.has(c.id)) return json(403, { code: '42501', message: 'not allowed' });
+  for (const [k, v] of Object.entries(body.p_marks || {})) {
+    if (!['done', 'open', 'na'].includes(v)) return json(400, { code: '22023', message: 'bad choice' });
+    if (!mayWrite({ person, client: c, key: k })) return json(403, { code: '42501', message: 'not allowed: not your item' });
+  }
+  const email = `${person}@astrateg.test`;
+  for (const [k, v] of Object.entries(body.p_marks || {})) {
+    db.client_landing_marks = db.client_landing_marks.filter((x) => !(x.client_id === c.id && x.item_key === k));
+    db.client_landing_marks.push({ client_id: c.id, item_key: k, choice: v, person, by_email: email, at: serverNow() });
+  }
+  let released = false;
+  if (body.p_done !== null && body.p_done !== undefined) {
+    db.client_landing_done = db.client_landing_done.filter((x) => !(x.client_id === c.id && x.person === person));
+    db.client_landing_done.push({ client_id: c.id, person, done: body.p_done, by_email: email, at: serverNow() });
+    if (body.p_done && Array.isArray(body.p_waiting)
+      && body.p_waiting.every((p) => p === person || db.client_landing_done.some((x) => x.client_id === c.id && x.person === p && x.done))) {
+      release(c, email);
+      released = true;
+    }
+  }
+  return json(200, { landing: !released });
+}
+
 function rpc(name, body, me, json) {
+  if (/^landing_link/.test(name)) return linkRpc(name, body, me, json);
   if (name === 'is_staff') return json(200, !!rowOf(me));
   if (name === 'is_office') return json(200, isOffice(me));
   if (/^can_/.test(name)) return json(200, false);
@@ -734,6 +788,54 @@ try {
     assert.match(await owner.locator('#landing').innerText(), /התזכורות שלהם כבויות עד ההפעלה/);
     assert.equal(await lateMarks(owner, '#landing'), 0);
     await shot(owner, '08-owner-control-1366');
+  });
+
+  // The personal link (the owner, 15.10.2026): no sign-in, the intake screen alone.
+  let liorLink = null;
+  await step('the owners make a personal link for someone who has not finished; it is shown once with a copy button', async () => {
+    const row = owner.locator('#landing [data-person="lior"]');
+    await row.locator('[data-act="link:lior"]').click();
+    assert.equal(await row.locator('[data-act="link:lior"]').innerText(), 'יוצרים קישור'); // the second tap makes it
+    await row.locator('[data-act="link:lior"]').click();
+    await row.locator('.land-ctl-url').waitFor();
+    liorLink = await row.locator('.land-ctl-url').inputValue();
+    assert.match(liorLink, /intake-link\.html#t=[0-9a-f]{64}$/);
+    assert.equal(calls.filter((c) => c.fn === 'landing_link_make').at(-1).body.p_person, 'lior');
+    assert.equal(await row.locator('[data-act="copy:lior"]').count(), 1);
+    assert.equal(await owner.locator('#landing [data-person="irit"] [data-act^="link:"]').count(), 0, 'Irit finished: no link');
+  });
+
+  await step('the link opens his screen with no sign-in, no menu and no way out; one tap is saved as him', async () => {
+    const page = await newPage(PHONE);
+    await page.goto(liorLink.replace(/^https?:\/\/[^/]+\//, BASE));
+    await page.locator('#land-list .land-card').first().waitFor();
+    assert.equal(await page.locator('#lg-email, nav, .navlink, a[href*="clients.html"], a[href*="client.html"]').count(), 0, 'nothing leads into the system');
+    assert.match(await page.locator('#land-hello').innerText(), /שלום ליאור/);
+    const expected = listOf('lior');
+    assert.equal(await page.locator('#land-list .land-card').count(), expected.length);
+    assert.ok(await noSideScroll(page));
+    await shot(page, '09-lior-link-390');
+    const first = expected.find((x) => !x.finished);
+    const card = cardOf(page, first.client.business);
+    await card.locator('[data-act="all"]').click();
+    await card.locator('.land-fin').waitFor();
+    const call = calls.filter((c) => c.fn === 'landing_link_take').at(-1);
+    assert.equal(call.body.p_token, liorLink.split('#t=')[1]);
+    assert.equal(call.body.p_done, true);
+    assert.equal(call.by, null, 'no sign-in');
+    assert.ok(db.client_landing_marks.filter((m) => m.client_id === first.client.id && m.person === 'lior').every((m) => m.by_email === 'lior@astrateg.test'));
+    await page.context().close();
+  });
+
+  await step('a link that is not valid (made again, or wrong) opens nothing', async () => {
+    const page = await newPage(PHONE);
+    await page.goto(`${BASE}intake-link.html#t=${'0'.repeat(64)}`);
+    await page.locator('#no-access:not([hidden])').waitFor();
+    assert.equal(await page.locator('#land-list .land-card').count(), 0);
+    await page.goto(`${BASE}intake-link.html`);
+    await page.reload();
+    await page.locator('#no-access:not([hidden])').waitFor();
+    await page.context().close();
   });
 
   await step('"מפעילים" asks once more, then activates: the ready clients, and the ones with a shoot day ahead', async () => {

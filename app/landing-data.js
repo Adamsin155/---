@@ -81,3 +81,45 @@ export async function activate(ids) {
   if (error) throw error;
   return data;
 }
+
+// ── The personal link to the taking-in, with no sign-in (the owner, 15.10.2026;
+// supabase/migrations/20261027100000_landing_links.sql). The token rides in the address's
+// '#', so it never reaches a server log; the database keeps only its hash.
+export const linkUrl = (base, token) => `${new URL('intake-link.html', base).href}#t=${encodeURIComponent(token)}`;
+export const tokenOf = (hash) => { const m = /(?:^#|&)t=([0-9a-f]{64})(?:&|$)/.exec(String(hash || '')); return m ? m[1] : null; };
+
+// The owners: a new link for one person (an older one stops working), take it back, list them.
+export async function makeLink(person) {
+  const { data, error } = await supabase.rpc('landing_link_make', { p_person: person });
+  if (error) throw error;
+  return data;
+}
+export async function revokeLink(person) {
+  const { error } = await supabase.rpc('landing_link_revoke', { p_person: person });
+  if (error) throw error;
+}
+export async function listLinks() {
+  try {
+    const { data, error } = await supabase.rpc('landing_links');
+    return error || !Array.isArray(data) ? null : data;
+  } catch { return null; }
+}
+
+// The link's screen: { person, expires_at, clients, checks, intake } in the shapes the
+// signed-in screen loads (loadClients, loadChecks, loadIntake).
+export async function linkRead(token) {
+  const { data, error } = await supabase.rpc('landing_link_read', { p_token: token });
+  if (error) throw error;
+  const checks = {}, marks = {}, done = {};
+  for (const r of data.checks || []) (checks[r.client_id] ||= {})[r.item_key] = r;
+  for (const r of data.marks || []) (marks[r.client_id] ||= {})[r.item_key] = r;
+  for (const r of data.done || []) (done[r.client_id] ||= {})[r.person] = r;
+  const clients = (data.clients || []).map((c) => ({ ...c, landing: c.landing === true }))
+    .sort((a, b) => String(b.deal_at || '').localeCompare(String(a.deal_at || '')));
+  return { person: data.person, expires_at: data.expires_at, clients, checks, intake: { marks, done, ready: true } };
+}
+export async function linkTake(token, clientId, marks = {}, done = null, waiting = null) {
+  const { data, error } = await supabase.rpc('landing_link_take', { p_token: token, p_client: clientId, p_marks: marks, p_done: done, p_waiting: waiting });
+  if (error) throw error;
+  return data || { landing: true };
+}

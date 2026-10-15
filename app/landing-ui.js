@@ -32,6 +32,16 @@ const openDone = new Set(); // finished clients whose items are shown again
 const openItems = new Set(); // clients whose items are shown one by one
 
 const clientUrl = (id) => `client.html?id=${encodeURIComponent(id)}`;
+// The personal link (intake-link.html; the owner, 15.10.2026): the same screen with no sign-in,
+// no menu and no way into the rest of the system. The page says so in a meta tag; app/landing-link.js
+// starts it (startLink) with the link's own reads and writes.
+const LINK = typeof document !== 'undefined' && !!document.querySelector('meta[name="astrateg-page"][content="intake-link"]');
+const nameOf = (c) => (LINK ? h('span', {}, clientLabel(c)) : h('a', { href: clientUrl(c.id) }, clientLabel(c)));
+const backLink = () => (LINK ? null : h('a', { href: 'clients.html#mine' }, 'חזרה להמשימות שלי'));
+let source = {
+  load: async () => { const [c, k, i] = await Promise.all([loadClients(), loadChecks(), loadIntake()]); return { clients: c, checks: k, intake: i }; },
+  take: takeIn,
+};
 const office = () => viewer?.scope === 'office' && !!me;
 const marksOf = (id) => (intake.marks[id] ||= {});
 const doneOf = (id) => (intake.done[id] ||= {});
@@ -40,7 +50,7 @@ const procText = (proc) => `${/^r(\d+)-/.test(proc.id) ? `סבב ${/^r(\d+)-/.ex
 async function load() {
   if (!clients.length) $('state').textContent = 'טוען…';
   try {
-    [clients, checks, intake] = await Promise.all([loadClients(), loadChecks(), loadIntake()]);
+    ({ clients, checks, intake } = await source.load());
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
@@ -62,7 +72,7 @@ async function save(client, marks, done = null) {
   if (done !== null) doneOf(client.id)[me] = { done, at: new Date().toISOString() };
   render();
   try {
-    const res = await takeIn(client.id, marks, done, done ? othersWaiting(client) : null);
+    const res = await source.take(client.id, marks, done, done ? othersWaiting(client) : null);
     busy.delete(client.id);
     if (res?.landing === false) {
       toast(`${clientLabel(client)} הופעל: כולם סיימו לעבור עליו.`);
@@ -174,7 +184,7 @@ function editorCard(c, now) {
   const cur = STATIONS[stationNow(c, checks[c.id] || {}, now)];
   return h('li', { class: 'land-card land-ed-only', id: `land-${c.id}`, 'data-id': c.id },
     h('div', { class: 'land-head' },
-      h('h2', {}, h('a', { href: clientUrl(c.id) }, clientLabel(c))),
+      h('h2', {}, nameOf(c)),
       h('span', { class: 'tag' }, `לפי המערכת: ${cur.title}`)),
     editorBlock(c));
 }
@@ -240,7 +250,7 @@ function clientCard(x, now) {
   const all = Object.fromEntries(x.items.map((i) => [i.key, 'done']));
   return h('li', { class: 'land-card', id, 'data-id': c.id },
     h('div', { class: 'land-head' },
-      h('h2', {}, h('a', { href: clientUrl(c.id) }, clientLabel(c))),
+      h('h2', {}, nameOf(c)),
       h('span', { class: 'tag' }, `לפי המערכת: ${cur.title}`),
       h('span', { class: 'muted' }, x.items.length === 1 ? 'פריט אחד שלך' : `${x.items.length} פריטים שלך`)),
     editorBlock(c),
@@ -287,7 +297,7 @@ function render() {
   const left = intakeLeft(list);
   const total = list.length;
   if (!total) {
-    fill($('land-progress'), h('p', { class: 'land-empty' }, 'אין לקוחות קיימים שמחכים לך. ', h('a', { href: 'clients.html#mine' }, 'חזרה להמשימות שלי')));
+    fill($('land-progress'), h('p', { class: 'land-empty' }, 'אין לקוחות קיימים שמחכים לך. ', backLink()));
     fill($('land-list'));
     renderEditorOnly(new Set(), now);
     return;
@@ -295,17 +305,24 @@ function render() {
   fill($('land-progress'),
     h('p', { class: 'land-count' }, left ? `נשארו ${left} מתוך ${total} לקוחות` : `סיימת: ${total} לקוחות נקלטו`, progressBar(total - left, total, 'לקוחות שנקלטו')),
     left ? null : h('p', { class: 'muted' }, 'לקוח יוצא מקליטה כשכל מי שיש לו בו עבודה סיים לעבור עליו, או כשהבעלים מפעילים. מה שנשאר פתוח יקבל אז מועד חדש, מיום ההפעלה. ',
-      h('a', { href: 'clients.html#mine' }, 'חזרה להמשימות שלי')));
+      backLink()));
   fill($('land-list'), ...list.map((x) => clientCard(x, now)));
   renderEditorOnly(new Set(list.map((x) => x.client.id)), now);
 }
 
-document.addEventListener('visibilitychange', () => { if (!document.hidden && viewer && !busy.size && $('no-access').hidden) load(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && (viewer || (LINK && me)) && !busy.size && $('no-access').hidden) load(); });
 
 // The kit (docs/ops.md, section 52): quiet here too, so every square is the navy one.
 dress($('app'), [['.land-count', 'inbox', 'navy', 'md'], ['.land-empty', 'check-circle', 'green', 'md'], ['.land-card:not(.is-finished) .land-head h2', 'user', 'navy', 'md'], ['#na-h', 'lock', 'navy']]);
 
-mountSession(async (staff) => {
+// The link's screen: the person the link stands for, and the link's own reads and writes.
+export function startLink(person, src) {
+  me = person;
+  source = src;
+  return load();
+}
+
+if (!LINK) mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
   Object.assign(directory, dir);
   viewer = v;

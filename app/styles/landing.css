@@ -141,3 +141,9 @@
 .land-item.is-proposed .land-choice.c-done:not(.is-on) { border-style: dashed; border-color: var(--ds-navy-text); }
 .land-save { justify-self: stretch; min-height: 48px; }
 @media (min-width: 720px) { .land-item { grid-template-columns: none; } .land-save { justify-self: start; min-width: 260px; } }
+
+/* The personal link to the taking-in, in the owners' control (the owner, 15.10.2026). */
+.land-ctl-link { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.land-ctl-url { flex: 1 1 220px; min-width: 0; font-size: 13px; }
+/* intake-link.html: no menu, so the brand is not a link. */
+.topbar span.brand { cursor: default; }
