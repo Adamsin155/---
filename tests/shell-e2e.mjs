@@ -247,7 +247,7 @@ await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and 
   assert.equal(await page.locator('#side-promo, .side-logo').first().isVisible(), false);
   await page.click('#side-more');
   assert.equal(await page.evaluate(() => document.activeElement.closest('#side-sheet') !== null), true);
-  assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(), ['הודעות ללקוחות', 'ימי צילום']);
+  assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(), ['הודעות ללקוחות', 'ימי צילום', 'יומן']); // "יומן": 15.10.2026
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'side-more');
   // The manager profile's bar: the manager view first, and the rest behind "עוד".
