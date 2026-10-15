@@ -212,6 +212,26 @@ try {
     await ctx.close();
   });
 
+  await step('the client card has "שליחת זימון" beside "הוספה ליומן", for the office only', async () => {
+    const { page, ctx } = await signedIn('irit', { path: `client.html?id=${cid(6)}` });
+    await page.waitForSelector('details.cal');
+    await settle(page);
+    const meet = page.locator('details.cal').first();
+    await meet.locator('summary').click();
+    const link = meet.locator('a[data-guests]');
+    assert.equal(await text(link), 'שליחת זימון');
+    assert.equal(await guestsOf(link), `shira@example.co.il,${emailOf('ofir')}`);
+    assert.equal(await link.getAttribute('target'), '_blank');
+    await tall(link, 'the invite on the card');
+    await noSideScroll(page, 'the card with the calendar menu open');
+    if (SHOTS) { await meet.scrollIntoViewIfNeeded(); await page.waitForTimeout(600); await page.screenshot({ path: join(SHOTS, 'irit-390-card-invite.png') }); }
+    await ctx.close();
+    const nadia = await signedIn('nadia', { path: `client.html?id=${cid(12)}` });
+    await nadia.page.waitForSelector('details.cal');
+    assert.equal(await nadia.page.locator('details.cal a[data-guests]').count(), 0);
+    await nadia.ctx.close();
+  });
+
   await step('Irit and the owner on a wide screen: the month first, with the events\' names in it', async () => {
     for (const role of ['irit', 'owner']) {
       const { page, ctx } = await signedIn(role, { viewport: DESK });
