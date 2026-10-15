@@ -513,7 +513,7 @@ await step('a phone: the button is 44px high and in the same place on every page
     for (const h of await page.locator('#side-list > .side-link:visible').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) assert.ok(h >= 44, `${role}: a bar entry is ${h}px`);
     if (role === 'lior') {
       await page.click('#side-more');
-      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['הודעות ללקוחות', 'ימי צילום']);
+      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['הודעות ללקוחות', 'ימי צילום', 'יומן']); // "יומן": 15.10.2026
       await page.keyboard.press('Escape');
     }
     if (role === 'irit') {

@@ -414,8 +414,8 @@ for (const [role, title] of [['nadia', 'הלקוחות שלי בעריכה'], ['
     assert.deepEqual(await page.locator('.tabs [role=tab]:visible:not(#tab-late)').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הנתונים שלי']);
     // Her screens are the bar; the head does not repeat them.
     assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
-    // (Her three screens: "הצעות שנשלחו" left on 6.10.2026 and the builder on 8.10.2026, so there is no "עוד".)
-    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'בעריכה']);
+    // (Her screens: "הצעות שנשלחו" left on 6.10.2026 and the builder on 8.10.2026; "יומן" came on 15.10.2026: four, so there is no "עוד".)
+    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'בעריכה', 'יומן']);
     assert.equal(await page.locator('#side-more, #side-quotes, #side-quote').count(), 0);
     assert.ok(await heightOf(page) < 1500);
   });
@@ -439,8 +439,8 @@ await step('Eli lands on "ימי הצילום שלי", with tomorrow\'s shoots',
   await settle(page);
   await tidy(page, 'eli mine');
   assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
-  // (His three screens: no "הצעות שנשלחו" since 6.10.2026 and no builder since 8.10.2026, so no "עוד".)
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום']);
+  // (His screens: no "הצעות שנשלחו" since 6.10.2026, no builder since 8.10.2026, "יומן" since 15.10.2026: four, so no "עוד".)
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'יומן']);
 });
 
 // ── Stav ──────────────────────────────────
@@ -561,8 +561,8 @@ await step('on a wide screen the screens are the side menu, with a rail on the c
   await settle(page);
   assert.equal(await page.locator('#side-more').isVisible(), false);
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(),
-    // Her personal profile: her six daily screens (PERSONAL in app/shell-rules.js, 7.10.2026).
-    ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+    // Her personal profile: her daily screens (PERSONAL in app/shell-rules.js, 7.10.2026; "יומן" since 15.10.2026).
+    ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
   assert.equal(await page.locator('#mine-people').isVisible(), false);
   for (const id of ['cta-messages', 'cta-prep', 'cta-year']) assert.equal(await page.locator(`#${id}`).isVisible(), false, `${id} is in the menu, not in the head`);
   // The side menu floats beside the page (on the right, RTL), and the rail marks "המשימות שלי".
