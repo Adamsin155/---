@@ -523,7 +523,7 @@ await step('a phone: the button is 44px high and in the same place on every page
       assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
       for (const h of await page.locator('.tabs [role=tab]:visible').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) assert.ok(h >= 44, `a tab is ${h}px`);
       await page.click('#side-more');
-      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['הודעות ללקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']); // "יומן": 15.10.2026
       await page.keyboard.press('Escape');
       await page.click('#tab-control');
       await page.waitForSelector('#view-control:not([hidden])');
