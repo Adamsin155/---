@@ -232,6 +232,17 @@ try {
     await nadia.ctx.close();
   });
 
+  await step('"לפני יום צילום": the shoot day goes into everyone\'s calendar as an invitation', async () => {
+    const { page, ctx } = await signedIn('irit', { path: `prep.html?id=${cid(7)}` });
+    const link = page.locator('a[id^="inv-"][data-guests]').first();
+    await link.waitFor({ state: 'attached' }); // under the coordination's fold once it is closed with everyone
+    assert.equal((await link.textContent()).replace(/\s+/g, ' ').trim(), 'שליחת זימון (מוזמנים: הלקוח, ליאור ואלי. Google Calendar נפתח בחלון חדש)');
+    assert.equal(await guestsOf(link), `omer@dayan.co.il,${emailOf('lior')},${emailOf('eli')}`);
+    assert.equal(new URL(await link.getAttribute('href')).searchParams.get('dates'), '20261021T060000Z/20261021T123000Z');
+    await noSideScroll(page, 'prep with the invitation');
+    await ctx.close();
+  });
+
   await step('Irit and the owner on a wide screen: the month first, with the events\' names in it', async () => {
     for (const role of ['irit', 'owner']) {
       const { page, ctx } = await signedIn(role, { viewport: DESK });
