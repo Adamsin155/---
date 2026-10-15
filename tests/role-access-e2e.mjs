@@ -72,10 +72,11 @@ async function step(name, fn) {
 }
 
 // ── 1. The builder: the menus ───────────────
+// "יומן" (calendar.html, 15.10.2026): everyone with client work, not the field sales.
 const MENU = {
-  ilai: ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'שנת החבילה'],
-  ...Object.fromEntries(EDITORS.map((e) => [e, ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה']])),
-  eli: ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום'],
+  ilai: ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'שנת החבילה', 'יומן'],
+  ...Object.fromEntries(EDITORS.map((e) => [e, ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה', 'יומן']])),
+  eli: ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'יומן'],
   stav: ['עסקה חדשה'],
   amos: ['עסקה חדשה'],
 };
@@ -90,8 +91,8 @@ await step('the menus of Ilai, Nirel, the editors, Eli and the field sales have 
       assert.equal(await page.locator('#app-side, #side-sheet').locator(`text=${QUOTE}`).count(), 0, what);
       assert.equal(await page.locator('#app-side, #side-sheet').locator('text=הצעה וחוזה').count(), 0, what);
       assert.equal(await page.locator('#app-side a.side-link[href="index.html"], #app-side a.side-link[href="./"]').count(), 0, what);
-      // Three or four screens: all in the bar, no "עוד".
-      if (viewport === NARROW) assert.equal(await page.locator('#side-more').count(), 0, what);
+      // Four screens or fewer: all in the bar, no "עוד". Ilai has five since the calendar: three and "עוד".
+      if (viewport === NARROW) assert.equal(await page.locator('#side-more').count(), MENU[role].length > 4 ? 1 : 0, what);
       await ctx.close();
     }
   }

@@ -544,7 +544,8 @@ await page.waitForTimeout(1200);
 assert.equal(db.clients.find((c) => c.id === created.id).deliverables.done.videos, 2);
 
 // Calendar: Google link with the team arriving an hour before the influencers.
-const gcal = await page.locator('.cc-facts details.cal a').nth(1).getAttribute('href');
+// (The office's "שליחת זימון" sits beside each Google link since 15.10.2026: tests/calendar-e2e.mjs.)
+const gcal = await page.locator('.cc-facts details.cal a:not([data-guests])').nth(1).getAttribute('href');
 assert.match(gcal, /dates=20261011T060000Z%2F20261011T100000Z/); // Natali: 09:00–13:00 Israel time
 
 // Extra shoot round beyond the package asks for a purchased day.

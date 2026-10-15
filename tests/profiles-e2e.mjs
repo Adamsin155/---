@@ -96,14 +96,15 @@ async function step(name, fn) {
 
 const PERSONAL = {
   owner: ['המשימות שלי', 'לקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
-  lior: ['המשימות שלי', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'ימי צילום'],
+  // The calendar (calendar.html, 15.10.2026): in Lior's and Irit's personal profile, the owner's and Ofir's manager profile.
+  lior: ['המשימות שלי', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'ימי צילום', 'יומן'],
   ofir: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות'],
-  irit: ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
+  irit: ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
 };
 const MANAGER = {
-  owner: ['מבט מנהל', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'טבלת ימי צילום', 'צוות', 'אסטרטג פיימנט'],
+  owner: ['מבט מנהל', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'יומן', 'טבלת ימי צילום', 'צוות', 'אסטרטג פיימנט'],
   lior: ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'צוות'],
-  ofir: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'החלטות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'טבלת ימי צילום'],
+  ofir: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'החלטות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'יומן', 'טבלת ימי צילום'],
   irit: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'ימי צילום', 'צוות'],
 };
 const HOME = { owner: 'owner.html#now', lior: 'owner.html#all', ofir: 'owner.html#now', irit: 'owner.html#now' };
@@ -512,7 +513,7 @@ await step('a phone: the button is 44px high and in the same place on every page
     for (const h of await page.locator('#side-list > .side-link:visible').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) assert.ok(h >= 44, `${role}: a bar entry is ${h}px`);
     if (role === 'lior') {
       await page.click('#side-more');
-      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['הודעות ללקוחות', 'ימי צילום']);
+      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['הודעות ללקוחות', 'ימי צילום', 'יומן']); // "יומן": 15.10.2026
       await page.keyboard.press('Escape');
     }
     if (role === 'irit') {
@@ -522,7 +523,7 @@ await step('a phone: the button is 44px high and in the same place on every page
       assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
       for (const h of await page.locator('.tabs [role=tab]:visible').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) assert.ok(h >= 44, `a tab is ${h}px`);
       await page.click('#side-more');
-      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['הודעות ללקוחות', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']); // "יומן": 15.10.2026
       await page.keyboard.press('Escape');
       await page.click('#tab-control');
       await page.waitForSelector('#view-control:not([hidden])');

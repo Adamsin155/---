@@ -19,8 +19,9 @@ const GATED = SCREENS.filter((p) => p !== 'gantt.html');
 const GATE = '<script src="app/login-gate.js"></script>';
 const SHEET = '<link rel="stylesheet" href="app/styles/login.css">';
 
-test('the twenty pages keep one small form shell; the rest is built in one place', () => {
-  assert.equal(WITH_FORM.length, 20);
+test('the twenty-one pages keep one small form shell; the rest is built in one place', () => {
+  // 21 since the calendar page (calendar.html, 15.10.2026).
+  assert.equal(WITH_FORM.length, 21);
   const shells = new Set();
   for (const page of SCREENS) {
     const html = read(page);

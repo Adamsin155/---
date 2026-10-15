@@ -29,7 +29,7 @@ const PHONE = { width: 390, height: 844 };
 const SMALL = { width: 360, height: 740 };
 const WIDE = { width: 1280, height: 800 };
 const STAFF_PAGES = ['client.html', 'clients.html', 'deal.html', 'decisions.html', 'editor.html', 'insights.html', 'intake.html', 'landing.html', 'messages.html',
-  'owner.html', 'pass.html', 'prep.html', 'qa.html', 'quotes.html', 'scripts.html', 'shoot.html', 'team.html', 'year.html'];
+  'owner.html', 'pass.html', 'prep.html', 'qa.html', 'quotes.html', 'scripts.html', 'shoot.html', 'team.html', 'year.html', 'calendar.html'];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const errors = [];
 
