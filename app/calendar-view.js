@@ -5,9 +5,10 @@
 //
 // What is on it is what the personal calendar feed already decides (app/calendar-feed.js
 // feedEvents), so the page and "היומן שלי" never disagree:
-//   - the office (the owners, Irit, Lior, Ofir) sees every client's characterization
-//     meeting and shoot day (the owner's overview of the feed), and their own Zoom, tasks
-//     and weekly work; their own deadlines stay on "המשימות שלי", so the week is meetings;
+//   - the owners and Irit see every client's characterization meeting and shoot day (the
+//     owner's overview of the feed); Lior and Ofir only what they take part in (the owner,
+//     16.10.2026); the office's own Zoom, tasks and weekly work too, but their own deadlines
+//     stay on "המשימות שלי", so the week is meetings;
 //   - everyone else sees their own feed: Eli his shoot days (in his window), an editor
 //     the deadlines of her work and her tasks, Ilai his;
 //   - the field sales have no client work: no page (seesCalendar).
@@ -109,6 +110,7 @@ export function wordsOf(e, client = null) {
   return { title, short: named ? `${k.short} · ${client.name}` : e.title, sub: [timeText(e), extra].filter(Boolean).join(' · ') };
 }
 
+export const OVERVIEW = new Set(['irit']);
 // Every event this viewer sees between `from` and `until`. `extra`: events from elsewhere
 // (none yet), kept to the same range.
 export function calendarEvents({ viewer, clients = [], checks = {}, tasks = [], now = new Date(), from, until, site, extra = [] }) {
@@ -117,7 +119,9 @@ export function calendarEvents({ viewer, clients = [], checks = {}, tasks = [], 
   const office = viewer.scope === 'office';
   const args = { clients, checks, tasks, now, range, ...(site ? { site } : {}) };
   const lists = [];
-  if (office) lists.push(feedEvents({ person: OWNER, ...args }));
+  // The whole overview: the owners and Irit (she invites everyone). Lior and Ofir, like everyone else, see
+  // only what they take part in (the owner, 16.10.2026: "Ofir sees Eli's and Lior's things too").
+  if (office && (!viewer.me || OVERVIEW.has(viewer.me))) lists.push(feedEvents({ person: OWNER, ...args }));
   if (viewer.me) lists.push(feedEvents({ person: viewer.me, ...args }).filter((e) => !(office && e.kind === 'due')));
   const inRange = (e) => { const t = startOf(e).getTime(); return t >= new Date(from).getTime() && t <= new Date(until).getTime(); };
   lists.push(extra.filter(inRange));

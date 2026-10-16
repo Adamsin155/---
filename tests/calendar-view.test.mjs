@@ -45,11 +45,19 @@ test('the office sees every meeting and shoot day of the week; an ended client i
   assert.ok(evs.every((e) => e.client !== cid(22)), 'the ended client');
   // No event twice (the owner's overview and her own feed share the shoot days).
   assert.equal(new Set(evs.map((e) => e.uid)).size, evs.length);
-  // The owners and Ofir see the same meetings and shoot days.
-  for (const who of [OWNER, v('ofir'), v('lior')]) {
-    const e2 = of(who);
-    assert.deepEqual(e2.filter((e) => e.kind === 'char' || e.kind === 'shoot').map((e) => e.uid).sort(), evs.filter((e) => e.kind === 'char' || e.kind === 'shoot').map((e) => e.uid).sort(), who.me || 'owner');
-  }
+  // The owners see the same meetings and shoot days as Irit.
+  const both = (list) => list.filter((e) => e.kind === 'char' || e.kind === 'shoot').map((e) => e.uid).sort();
+  assert.deepEqual(both(of(OWNER)), both(evs), 'owner');
+  // Lior and Ofir only what they take part in (the owner, 16.10.2026): Ofir his own characterization
+  // meetings and no shoot day; Lior the shoot days and the meetings he characterizes.
+  const db = world();
+  const clientOf = (e) => db.clients.find((c) => c.id === e.client);
+  const ofir = of(v('ofir'), db).filter((e) => e.kind === 'char' || e.kind === 'shoot');
+  assert.deepEqual(ofir.map((e) => e.kind), ['char', 'char']);
+  assert.ok(ofir.every((e) => (clientOf(e).characterizer || 'ofir') === 'ofir'));
+  const lior = of(v('lior'), db).filter((e) => e.kind === 'char' || e.kind === 'shoot');
+  assert.deepEqual(lior.map((e) => e.client).sort(), [cid(7), cid(10), cid(11), cid(16)].sort());
+  assert.ok(lior.every((e) => e.kind === 'shoot' || clientOf(e).characterizer === 'lior'));
   // Sorted by the moment.
   const t = evs.map((e) => (e.allDay ? Date.parse(`${e.allDay}T00:00:00+03:00`) : new Date(e.start).getTime()));
   assert.deepEqual(t, [...t].sort((a, b) => a - b));

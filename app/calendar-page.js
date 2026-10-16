@@ -9,8 +9,7 @@ import { loadClients, loadChecks, loadTasks, loadDirectory, quoteFacts } from '.
 import { $, fill, h, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, landingTag } from './protocol-ui.js';
 import {
   seesCalendar, sendsInvites, calendarEvents, byDay, weekDays, monthWeeks, rangeOf, shift, titleOf, todayKey, kindOf, wordsOf,
-  inviteFor, emailsOf, clientEmails, guestNames, dayOf, WEEKDAYS,
-} from './calendar-view.js';
+  inviteFor, emailsOf, clientEmails, guestNames, dayOf, WEEKDAYS, OVERVIEW } from './calendar-view.js';
 import { homeLink } from './shell-rules.js';
 import { TZ, dayFromKeyIL } from './tz.js';
 import { icon, iconSquare, dateLeaf, emptyRow } from './kit.js';
@@ -194,9 +193,9 @@ mountSession(async (staff) => {
   // The phone opens on the week; a wide screen on the month; a choice made here is kept.
   const saved = readKey(VIEW_KEY);
   view = saved === 'week' || saved === 'month' ? saved : (window.matchMedia?.('(min-width: 900px)').matches ? 'month' : 'week');
-  $('cp-lede').textContent = v.scope === 'office'
+  $('cp-lede').textContent = v.scope === 'office' && (!v.me || OVERVIEW.has(v.me))
     ? 'פגישות האפיון וימי הצילום של כל הלקוחות. לחיצה על אירוע פותחת את כרטיס הלקוח.'
-    : 'האירועים שלך. לחיצה על אירוע פותחת את כרטיס הלקוח.';
+    : 'הפגישות והאירועים שלך. לחיצה על אירוע פותחת את כרטיס הלקוח.';
   await load();
   setInterval(() => { if (!document.hidden) load(); }, 120e3);
 });

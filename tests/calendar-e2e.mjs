@@ -260,15 +260,20 @@ try {
     }
   });
 
-  await step('Lior and Ofir invite too; the client\'s email reaches them through the agreement facts', async () => {
-    for (const role of ['lior', 'ofir']) {
-      const { page, ctx } = await signedIn(role);
-      await page.waitForSelector('.cp-week');
-      assert.equal(await kinds(page, 'char'), 2, role);
-      assert.equal(await kinds(page, 'shoot'), 4, role);
-      assert.equal(await guestsOf(page.locator('.cp-ev[data-kind="shoot"]').filter({ hasText: 'עומר דיין' }).locator('.cp-invite')), `omer@dayan.co.il,${emailOf('lior')},${emailOf('eli')}`, role);
-      await ctx.close();
-    }
+  // Lior and Ofir see only what they take part in (the owner, 16.10.2026), and invite to it.
+  await step('Lior sees the shoot days and Ofir his own meetings; both invite, the client\'s email from the agreement facts', async () => {
+    const lior = await signedIn('lior');
+    await lior.page.waitForSelector('.cp-week');
+    assert.equal(await kinds(lior.page, 'char'), 0, 'lior: the meetings are Ofir\'s');
+    assert.equal(await kinds(lior.page, 'shoot'), 4, 'lior');
+    assert.equal(await guestsOf(lior.page.locator('.cp-ev[data-kind="shoot"]').filter({ hasText: 'עומר דיין' }).locator('.cp-invite')), `omer@dayan.co.il,${emailOf('lior')},${emailOf('eli')}`, 'lior');
+    await lior.ctx.close();
+    const ofir = await signedIn('ofir');
+    await ofir.page.waitForSelector('.cp-week');
+    assert.equal(await kinds(ofir.page, 'char'), 2, 'ofir');
+    assert.equal(await kinds(ofir.page, 'shoot'), 0, 'ofir: the shoot days are Lior\'s and Eli\'s');
+    assert.equal(await ofir.page.locator('.cp-ev[data-kind="char"] .cp-invite').count(), 2, 'ofir invites to his meetings');
+    await ofir.ctx.close();
   });
 
   await step('an editor sees only her own work, with no invitation; Eli his shoot days', async () => {
