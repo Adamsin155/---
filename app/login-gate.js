@@ -25,6 +25,15 @@
       if (/^sb-.+-auth-token$/.test(window.localStorage.key(i) || '')) session = true;
     }
   } catch (e) { /* no storage: no session is kept either */ }
+  // The demo link (app/demo/flag.js): the guest is "signed in" in this tab, with no form.
+  try {
+    if (/[?&]demo=/.test(window.location.search)) session = true;
+  } catch (e) { /* no address */ }
+  try {
+    for (var j = 0; j < window.sessionStorage.length; j += 1) {
+      if (window.sessionStorage.key(j) === 'astrateg.demo') session = true;
+    }
+  } catch (e) { /* no storage: no demo */ }
   if (!session) root.setAttribute('data-door', 'in');
   else if (through) root.setAttribute('data-door', 'through');
 }());

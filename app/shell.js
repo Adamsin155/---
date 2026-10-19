@@ -12,7 +12,7 @@
 // from the manager's. It is the only switch (Irit's two menu entries are gone, 7.10.2026).
 // Also here: the small motion helpers (page entrance, numbers that count up once,
 // view transitions for a filter), all off under prefers-reduced-motion.
-import { staffPerson, sessionUser } from './supa.js';
+import { staffPerson, sessionUser, isDemo } from './supa.js';
 import { startFeel } from './feel.js';
 import { shellState, SHELL_KEY } from './shell-state.js';
 import './session-store.js'; // every page with the shell: a kept page belongs to one account (docs/ops.md, section 60)
@@ -346,6 +346,8 @@ export async function mountShell(email) {
   startFeel(); // the worker that keeps the site's files, the next page fetched early (app/feel.js)
   // The entrance starts when the page is shown (it is built out of sight: data-boot, protocol-ui.js).
   whenShown(() => enterPage());
+  // The demo link: its strip at the top of every screen (app/demo/banner.js).
+  if (isDemo()) import('./demo/banner.js').then((m) => m.mountDemoBanner(m.roleOfEmail(email))).catch(() => {});
   const viewer = await viewerFor(email);
   build(viewer, email);
   remember(viewer, email);

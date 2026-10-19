@@ -192,13 +192,16 @@ test('the store is the tab\'s sessionStorage and nothing else; signing out and t
   assert.match(layer, /sessionCache\(\(\(\) => \{ try \{ return globalThis\.sessionStorage \|\| null; \} catch \{ return null; \} \}\)\(\)\)/);
   // What keeps and hands out answers, and the rules: nowhere but the tab. (The one read of
   // localStorage is of the sign-in client's own session: whose device this is now.)
-  for (const [name, src] of [['session-store.js', layer.replace('localStorage.getItem(supabase.auth.storageKey)', '')], ['data-cache.js', rules]]) {
+  for (const [name, src] of [['session-store.js', layer.replace('authStore.getItem(supabase.auth.storageKey)', '')], ['data-cache.js', rules]]) {
     const code = src.replace(/\/\/.*$/gm, '');
     assert.ok(!/localStorage|indexedDB|caches\.|CacheStorage|document\.cookie/.test(code), `${name}: nowhere but the tab`);
   }
   // The shared connection module loads nothing for it: the client's passwords form and the
   // payments app load that module too, and nothing of theirs passes through the cache.
-  assert.deepEqual(supa.match(/^import .*$/gm), ["import { createClient } from './vendor/supabase.js';"]);
+  // (The demo link's switch, app/demo/flag.js, is a few lines with no import and no store
+  // of answers: the demo's own server is loaded only in a demo, app/demo/fake.js.)
+  assert.deepEqual(supa.match(/^import .*$/gm), ["import { createClient } from './vendor/supabase.js';", "import { demoRole, plantDemoSession, leaveDemo, DEMO_AUTH_KEY } from './demo/flag.js';"]);
+  assert.doesNotMatch(readFileSync(new URL('../app/demo/flag.js', import.meta.url), 'utf8'), /^import /m, 'the demo switch imports nothing');
   for (const other of ['app/access-form.js', 'app/payouts/app.js', 'app/client.js', 'app/status.js', 'app/gallery.js']) {
     assert.ok(!/session-store|data-cache|protocol-ui|shell\.js/.test(readFileSync(new URL(`../${other}`, import.meta.url), 'utf8').replace(/\/\/.*$/gm, '')), other);
   }

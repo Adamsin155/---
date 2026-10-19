@@ -80,7 +80,7 @@ test('every page with the form takes the stylesheet; the gate is a plain script 
 });
 
 // The gate, run as the browser runs it: a plain script with the page's storage.
-function gate({ local = {}, session = {}, broken = false } = {}) {
+function gate({ local = {}, session = {}, broken = false, search = '' } = {}) {
   const attrs = {};
   const storage = (data) => ({
     get length() { if (broken) throw new Error('denied'); return Object.keys(data).length; },
@@ -88,7 +88,7 @@ function gate({ local = {}, session = {}, broken = false } = {}) {
     getItem: (k) => { if (broken) throw new Error('denied'); return k in data ? data[k] : null; },
     removeItem: (k) => { delete data[k]; },
   });
-  const window = { localStorage: storage(local), sessionStorage: storage(session) };
+  const window = { localStorage: storage(local), sessionStorage: storage(session), location: { search } };
   vm.runInNewContext(read('app/login-gate.js'), { window, document: { documentElement: { setAttribute: (k, v) => { attrs[k] = v; } } } });
   return { attrs, session };
 }
@@ -107,6 +107,10 @@ test('the gate: the night for a device with no session, nothing for someone sign
   assert.deepEqual(gate({ session: { 'astrateg.door': '1' } }).attrs, { 'data-door': 'in' });
   // A browser that refuses storage keeps no session either.
   assert.deepEqual(gate({ broken: true }).attrs, { 'data-door': 'in' });
+  // The demo link (app/demo/flag.js): the guest is in, from the link or from this tab.
+  assert.deepEqual(gate({ search: '?demo=1' }).attrs, {});
+  assert.deepEqual(gate({ session: { 'astrateg.demo': 'owner' } }).attrs, {});
+  assert.deepEqual(gate({ search: '?id=5' }).attrs, { 'data-door': 'in' });
   // It reads whether a session is kept, and nothing of it.
   const src = read('app/login-gate.js');
   assert.doesNotMatch(src.replace(/\/\/.*$/gm, ''), /getItem\([^N]|JSON\.parse|fetch|XMLHttpRequest|import/);

@@ -29,7 +29,7 @@
 //  - a page belongs to the account it was opened as. A request in another account's
 //    name (someone else signed in on this device meanwhile) is not sent: the page is
 //    hidden and loads again.
-import { supabase, SUPABASE_URL, useFetchLayer, requestsIdle, redraws, clearKept } from './supa.js';
+import { supabase, SUPABASE_URL, useFetchLayer, requestsIdle, redraws, clearKept, authStore } from './supa.js';
 import { sessionCache, planOf, tokenUser, CACHE_KEY } from './data-cache.js';
 import { quietPage } from './feel.js';
 
@@ -210,7 +210,7 @@ useFetchLayer(layer);
 //    the page is hidden and loads again.
 //  - A page that is shown again reads again, quietly, from the server.
 function deviceUser() {
-  try { return JSON.parse(localStorage.getItem(supabase.auth.storageKey) || 'null')?.user?.id || null; } catch { return null; }
+  try { return JSON.parse(authStore.getItem(supabase.auth.storageKey) || 'null')?.user?.id || null; } catch { return null; }
 }
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   const auth = supabase.auth;

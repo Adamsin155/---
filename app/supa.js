@@ -1,6 +1,7 @@
 // Supabase connection. The publishable key is safe to ship in the browser:
 // access is enforced by row level security and the create-quote function.
 import { createClient } from './vendor/supabase.js';
+import { demoRole, plantDemoSession, leaveDemo, DEMO_AUTH_KEY } from './demo/flag.js';
 
 export const SUPABASE_URL = 'https://czncjzziqrqtezpwxxpz.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_kf4V_lkjM658wkDiPVukWA_HoB5AH_e';
@@ -73,15 +74,24 @@ export function clearKept() {
     for (const k of gone) sessionStorage.removeItem(k);
   } catch { /* no storage */ }
 }
+// The demo link (app/demo/flag.js): every request is answered in the browser, by the
+// made-up office of app/demo/fake.js, and none reaches the server; no layer is asked.
+const DEMO = demoRole();
+if (DEMO) plantDemoSession(DEMO);
+export const isDemo = () => !!DEMO;
 function countedFetch(input, init) {
   const method = String(init?.method || input?.method || 'GET').toUpperCase();
+  if (DEMO) return counted(() => import('./demo/fake.js').then((m) => m.answer(input, init, method)), method);
   let over = null;
   try { over = layer ? layer(input, init, method) : null; } catch { over = null; }
   return counted(over || (() => fetch(input, init)), method);
 }
 
+// Where the sign-in session is kept: this device (localStorage), or, in the demo, this
+// tab (sessionStorage, under its own key), so a demo never replaces a real account.
+export const authStore = (() => { try { return DEMO ? globalThis.sessionStorage : globalThis.localStorage; } catch { return undefined; } })();
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+  auth: { persistSession: true, autoRefreshToken: !DEMO, detectSessionInUrl: false, ...(DEMO ? { storageKey: DEMO_AUTH_KEY, storage: authStore } : {}) },
   global: { fetch: countedFetch },
 });
 
@@ -297,6 +307,7 @@ async function forgetPushDevice() {
   await sub.unsubscribe().catch(() => {});
 }
 export async function signOutHere() {
+  if (DEMO) { leaveDemo(); return; } // the demo ends: the page opens on the sign-in screen
   await Promise.race([forgetPushDevice().catch(() => {}), new Promise((done) => { setTimeout(done, 3000); })]);
   clearDeviceDrafts();
   clearKept(); // what this tab kept of the account's lists, and its menu (docs/ops.md, section 60)

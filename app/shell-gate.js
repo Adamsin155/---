@@ -37,6 +37,14 @@
       if (kept && kept.user && typeof kept.user.id === 'string') uid = kept.user.id;
     }
   } catch (e) { uid = null; }
+  // The demo link (app/demo/flag.js): its session is kept in this tab, under its own key,
+  // and is the one this tab is in (a real account on the device is not this tab's).
+  try {
+    if (/[?&]demo=/.test(window.location.search) || window.sessionStorage.getItem('astrateg.demo')) {
+      var demo = JSON.parse(window.sessionStorage.getItem('sb-demo-auth-token') || 'null');
+      uid = demo && demo.user && typeof demo.user.id === 'string' ? demo.user.id : null;
+    }
+  } catch (e) { /* no storage: no demo */ }
 
   // What this tab kept for someone else (or for nobody) goes before anything is drawn.
   function forget() {
