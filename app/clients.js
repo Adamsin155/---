@@ -534,7 +534,9 @@ const lateState = (now = new Date()) => once('late', () => {
 // group). Then "urgent" (an urgent task is done at that moment, Lior's protocol), then
 // the exceptions reported to Lior. A deadline that passed and is not this person's
 // lateness (the client's turn; due at today's close) is work for today.
-const bucketFor = (g, now = new Date()) => (g.late ? 'overdue' : g.urgent ? 'urgent' : g.escalation ? 'escalation'
+// The owner, 20.10.2026: what is urgent comes first of all, a late one too (it keeps its
+// pink leaf and its "באיחור" pill); the "באיחור" tab still counts it.
+const bucketFor = (g, now = new Date()) => (g.urgent ? 'urgent' : g.escalation ? 'escalation' : g.late ? 'overdue'
   : g.status === 'overdue' ? 'today' : bucketOf(g.status, g.dueAt, now));
 // How a card is coloured: red only for what counts as late.
 const shownStatus = (g) => (g.status === 'overdue' && !g.late ? 'today' : g.status);
@@ -1325,7 +1327,12 @@ const GROUP_ICON = {
   urgent: ['bolt', 'pink'], escalation: ['flag', 'pink'], overdue: ['alert', 'pink'], today: ['sun', 'orange'], tomorrow: ['calendar', 'blue'],
   week: ['calendar', 'navy'], later: ['calendar', 'navy'], client: ['hourglass', 'purple'], soon: ['clock', 'teal'],
 };
-const BUCKETS = [['urgent', 'דחוף'], ['escalation', 'חריגות שדווחו'], ['overdue', 'באיחור'], ['today', 'היום'], ['tomorrow', 'מחר'], ['week', 'השבוע'], ['later', 'בהמשך'], ['client', 'ממתין ללקוח']];
+// The order of the list (the owner, 20.10.2026): urgent first of all, then what is due
+// today, and only then what is late; today's meeting no longer sits under five late cards.
+const BUCKETS = [['urgent', 'דחוף'], ['escalation', 'חריגות שדווחו'], ['today', 'היום'], ['overdue', 'באיחור'], ['tomorrow', 'מחר'], ['week', 'השבוע'], ['later', 'בהמשך'], ['client', 'ממתין ללקוח']];
+// On my own list, more late things than this are one counted line to the "באיחור" tab
+// instead of their cards (the owner, 20.10.2026); this many or fewer stay cards.
+const LATE_INLINE = 3;
 
 // Clients the signing trigger opened, shown to Irit and to the whole-team view (spec §10).
 function autoBanner() {
@@ -1622,8 +1629,13 @@ function renderMine() {
   const ilai = ilaiCtx ? ilaiSection(ilaiCtx) : null;
   const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
   if (ilai && !full) capList(ilai.querySelector('.il-list'), MINE_CAP, 'mine:ilai');
-  const list = workFor(person).filter((g) => !covered(g));
-  const soon = person ? upcomingSection(upcomingGroups(person), own) : null;
+  // No duplicates (the owner, 20.10.2026): a process whose clock runs in "עכשיו" above is
+  // not a card again below, and what has a card is not repeated in "בקרוב".
+  const nowKeys = nowKeysOf(person);
+  const list = workFor(person).filter((g) => !covered(g) && !nowKeys.has(g.key));
+  const shownKeys = new Set([...nowKeys, ...list.map((g) => g.key)]);
+  const soonGroups = person ? upcomingGroups(person).map((g) => ({ ...g, list: g.list.filter((s) => !shownKeys.has(`${g.client.id}:${s.proc.id}`) && !covered({ client: g.client, proc: s.proc })) })).filter((g) => g.list.length) : [];
+  const soon = person ? upcomingSection(soonGroups, own) : null;
   const review = person ? OFFICE_REVIEWS.find((r) => r.owner === person && reviewPending(r)) : null;
   const thursday = person === 'ofir' ? thursdayCard() : null;
   const banner = !person || person === 'irit' ? autoBanner() : null;
@@ -1641,7 +1653,10 @@ function renderMine() {
   // here is a plain row of the group; Ilai's, inside his cards above, are said in one line.
   const listKeys = new Set(list.map((g) => g.key));
   const inCards = heldItems.filter((x) => covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).length;
-  const lateRows = heldItems.filter((x) => !listKeys.has(lateKey(x)) && !covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).map(lateRow);
+  const lateRows = heldItems.filter((x) => !listKeys.has(lateKey(x)) && !nowKeys.has(lateKey(x)) && !covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).map(lateRow);
+  // My own long "באיחור": one counted line to its tab, which lists them all (the owner, 20.10.2026).
+  const lateTotal = person === me && hasLateTab() ? lateOfMe(flow).n : 0;
+  const lateFolded = lateTotal > LATE_INLINE;
   const lateNote = inCards ? h('li', { class: 'wproc late-note' }, h('p', { class: 'hint' },
     inCards === 1 ? 'אחד מהם נמצא בכרטיסים שלך למעלה.' : `${inCards} מהם נמצאים בכרטיסים שלך למעלה.`, ' ',
     person === me && hasLateTab() ? h('a', { href: '#late' }, 'הצגת כל האיחורים') : null)) : null;
@@ -1650,10 +1665,15 @@ function renderMine() {
   const cap = (ul, k) => (full ? ul : capList(ul, MINE_CAP, `mine:${person || 'all'}:${k}`));
   // Thursday's pass is a fixed card of its own, right after urgent work.
   const thuGroup = thursday ? h('section', { class: 'wgroup g-thu', 'aria-label': 'מעבר חובה של יום חמישי' }, h('ul', { class: 'wprocs' }, thursday)) : null;
-  fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, k === 'client' ? soon : null, (() => {
+  fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'today' ? thuGroup : null, k === 'client' ? soon : null, (() => {
     let g = list.filter((x) => bucketFor(x) === k);
     if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
     if (k === 'overdue') g = g.sort(worstFirst);
+    if (k === 'overdue' && lateFolded) {
+      return h('section', { class: 'wgroup g-overdue g-late-line', 'aria-label': title },
+        h('ul', { class: 'wprocs' }, h('li', { class: 'wproc flow-card late-fold' },
+          countedLine({ id: 'late-line', n: lateTotal, text: `${lateTotal} דברים באיחור אצלך`, cta: 'לשונית באיחור', href: '#late', tone: 'late', cls: 'flow-line' }))));
+    }
     const extra = [...(k === 'today' ? endedCards : []), ...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : []), ...(k === 'overdue' ? lateRows : [])];
     if (!g.length && !extra.length && !(k === 'overdue' && inCards)) return null;
     // The number of "באיחור" is the number of the tab: Ilai's late work inside his cards is part of it.
@@ -1881,8 +1901,22 @@ function rebuildClocks(now = new Date()) {
     return person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf, tasks });
   });
 }
+// What "עכשיו" shows: the clocks, less those of Ilai's own cards (the card is where that
+// work is done, with its deadline; the owner, 20.10.2026: one place for each thing).
+// The alerts still run on every clock.
+function shownClocks() {
+  if (me !== 'ilai' || viewerError) return clocks;
+  const covered = coveredByCard({ clients, checks, stateOf, me, viewer: { me, scope, error: viewerError } });
+  return clocks.filter((c) => !covered({ client: c.client, proc: c.proc }));
+}
+// The processes (`client:process`) that have a clock in "עכשיו" on this list: the list
+// does not repeat them. A "the client did not answer" clock is about the client, not a card.
+function nowKeysOf(person) {
+  if (person !== clockPerson()) return new Set();
+  return new Set(shownClocks().filter((c) => c.kind !== 'answer' && c.client && c.proc).map((c) => `${c.client.id}:${c.proc.id}`));
+}
 function paintNowBar() {
-  renderNowBar($('now-bar'), clocks, { everyone: !me, onAnswered: markAnswered });
+  renderNowBar($('now-bar'), shownClocks(), { everyone: !me, onAnswered: markAnswered });
 }
 
 // Once a second: the countdowns, without rebuilding anything else. Only a clock
@@ -1900,7 +1934,7 @@ function clockTick() {
   clockSeen = seen;
   if (ranOut.length) clocksRanOut(ranOut);
   const bar = $('now-bar');
-  if (!document.hidden && view === 'mine' && !bar.hidden) updateNowBar(bar, clocks, { now, onAnswered: markAnswered });
+  if (!document.hidden && view === 'mine' && !bar.hidden) updateNowBar(bar, shownClocks(), { now, onAnswered: markAnswered });
 }
 setInterval(clockTick, 1000);
 
