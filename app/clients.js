@@ -1329,7 +1329,74 @@ function joinedCard(m, person) {
         h('div', { class: 'wc-what' }, h('p', { class: 'wc-title' }, `${m.joined.length} תהליכים פתוחים`, h('span', { class: 'wc-sub' }, ` · ${nums}`))))),
     h('ul', { class: 'wprocs wc-subs' }, ...m.joined.map((s) => groupCard(s, person))));
 }
-const cardOf = (g, person) => (g.joined ? joinedCard(g, person) : groupCard(g, person));
+const cardOf = (g, person) => (g.drives ? driveCard(g) : g.joined ? joinedCard(g, person) : groupCard(g, person));
+
+// ── Lior: the drive back from a shoot day, for all its clients at once (the owner, 20.10.2026) ──
+// "ליאור החזיר את הכונן" (22א) is one drive for every client of that shoot day: their
+// cards are one, "החזרת כונן: N לקוחות", with a tick per client and one for all of them.
+const isDriveOnly = (g) => !g.task && baseId(g.proc) === 'p22a' && checkable(g).length > 0 && checkable(g).every((e) => baseKeyOf(e.item.key) === 'p22a.drive');
+const shootDayOf = (g) => { const d = parseDate((g.proc.ctx || g.client).shoot_at); return d ? dayIso(d) : null; };
+function joinDrives(list) {
+  const days = new Map();
+  for (const g of list) {
+    const day = isDriveOnly(g) ? shootDayOf(g) : null;
+    if (day) { if (!days.has(day)) days.set(day, []); days.get(day).push(g); }
+  }
+  const out = [];
+  const done = new Set();
+  for (const g of list) {
+    const day = isDriveOnly(g) ? shootDayOf(g) : null;
+    const subs = day ? days.get(day) : null;
+    if (!subs || subs.length < 2) { out.push(g); continue; }
+    if (done.has(day)) continue;
+    done.add(day);
+    out.push({ ...subs[0], key: `drive:${day}`, drives: subs, day, late: subs.some((s) => s.late), entries: subs.flatMap((s) => checkable(s)) });
+  }
+  return out;
+}
+function driveCard(m) {
+  const n = m.drives.length;
+  return h('li', { class: `wproc wc k-pc pc wc-drives${m.late ? ' k-pc-late' : ''} s-${shownStatus(m)}`, 'data-key': m.key },
+    h('div', { class: 'k-pc-top' },
+      markOf(m),
+      h('div', { class: 'k-pc-body' },
+        h('div', { class: 'wc-what' }, h('p', { class: 'wc-title' }, `החזרת כונן: ${n} לקוחות`,
+          h('span', { class: 'wc-sub' }, ` · יום הצילום ${dayShort(m.day)}`))),
+        whenWords(m) ? h('span', { class: `wc-when s-${shownStatus(m)}${echoesLeaf(m, whenWords(m)) ? ' is-echo' : ''}` }, whenWords(m)) : null)),
+    h('ul', { class: 'wlist' }, ...m.entries.map((e) => {
+      const id = `w-${e.client.id}-${e.item.key}`.replace(/[^\w-]/g, '_');
+      return h('li', { class: 'witem' }, h('label', { class: 'wrow', for: id }, tickOf(e, id), h('span', { class: 'wlabel' }, clientLabel(e.client))));
+    })),
+    me ? h('div', { class: 'wproc-acts' }, h('button', {
+      type: 'button', class: 'btn btn-sm wc-go drive-all', onclick: (ev) => driveAll(m, ev.currentTarget),
+    }, `הכונן הוחזר לכל ה־${n}`)) : null);
+}
+async function driveAll(m, btn) {
+  btn.disabled = true;
+  const marked = [];
+  try {
+    for (const e of m.entries) {
+      const row = await setCheck(e.client.id, e.item.key, 'done');
+      (checks[e.client.id] ||= {})[e.item.key] = row;
+      states.delete(e.client.id);
+      marked.push(e);
+    }
+  } catch (err) {
+    toast(`${marked.length ? `סומנו ${marked.length}, ` : ''}השאר לא נשמרו. ${errorText(err)}`);
+  }
+  changed();
+  renderMine();
+  if (marked.length) {
+    toast(`סומן: הכונן הוחזר (${marked.length} לקוחות).`, { label: 'ביטול', run: async () => {
+      try {
+        for (const e of marked) { await clearCheck(e.client.id, e.item.key); delete checks[e.client.id][e.item.key]; states.delete(e.client.id); }
+        toast('הסימון בוטל.');
+      } catch (err) { toast(`הביטול לא נשמר. ${errorText(err)}`); }
+      changed();
+      renderMine();
+    } });
+  }
+}
 
 // An urgent task: "התחלתי" within 30 office minutes, or it goes back to Lior
 // (decision 9; the reminder engine watches started_at, stamped by the database).
@@ -1574,7 +1641,7 @@ function renderLate(flow) {
     sectionHead({ icon: 'alert', tone: 'pink', id: 'late-h', title: n === 1 ? 'דבר אחד באיחור אצלך' : `${n} דברים באיחור אצלך`,
       hint: 'מהמאוחר ביותר. מסמנים כאן בדיוק כמו ב״המשימות שלי״, והם נשארים גם שם.' }),
     ilai,
-    h('ul', { class: 'wprocs late-list', 'aria-labelledby': 'late-h' }, ...lines.map(flowCard), ...(joinsByClient(me) ? [...joinByClient(cards.filter((g) => g.key)), ...cards.filter((g) => !g.key)] : cards).map((g) => (g.key ? cardOf(g, me) : lateRow(g)))));
+    h('ul', { class: 'wprocs late-list', 'aria-labelledby': 'late-h' }, ...lines.map(flowCard), ...(joinsByClient(me) || me === 'lior' ? [...(me === 'lior' ? joinDrives : joinByClient)(cards.filter((g) => g.key)), ...cards.filter((g) => !g.key)] : cards).map((g) => (g.key ? cardOf(g, me) : lateRow(g)))));
 }
 
 // A card read or wrote something of its own that the list stands on (the notifications'
@@ -1715,6 +1782,7 @@ function renderMine() {
     if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
     if (k === 'overdue') g = g.sort(worstFirst);
     if (joinsByClient(person) && k !== 'client') g = joinByClient(g);
+    if (person === 'lior' && k !== 'client') g = joinDrives(g);
     if (k === 'overdue' && lateFolded) {
       return h('section', { class: 'wgroup g-overdue g-late-line', 'aria-label': title },
         h('ul', { class: 'wprocs' }, h('li', { class: 'wproc flow-card late-fold' },
