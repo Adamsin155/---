@@ -19,7 +19,7 @@ import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { dateIL } from '../app/tz.js';
-import { generatePlan } from '../app/gantt-logic.js';
+import { generatePlan, entryStatus } from '../app/gantt-logic.js';
 import { importKeys } from '../app/client-open.js';
 import { withClientColumns } from './fake-clients.mjs';
 import { planSync, parsePosts, windowOf, applyOps } from '../app/metricool-logic.js';
@@ -373,6 +373,16 @@ async function step(name, fn) {
   passed += 1;
   console.log(`ok - ${name}`);
 }
+// Since 20.10.2026 (the owner's review) the office's Gantt opens on the month's list at
+// today, with "השנה במבט אחד" and "עוד" (the client's link, the rules) folded.
+async function toGrid(page) {
+  if (!(await page.isVisible('#gm-grid'))) await page.click('#view-grid');
+  await page.waitForSelector('#gt-cal:not([hidden]) .gt-grid');
+}
+async function openFold(page, id) {
+  await page.waitForSelector(`#${id}:not([hidden])`);
+  if (!(await page.evaluate((x) => document.getElementById(x).open, id))) await page.click(`#${id} > summary`);
+}
 const gantt = (c) => db.client_gantt.filter((r) => r.client_id === c.id);
 const row = (c, key) => gantt(c).find((r) => r.key === key);
 
@@ -400,7 +410,11 @@ await step('Ilai: no Gantt yet; the template\'s preview; he creates it, and it o
   assert.equal(gantt(A).length, plan.length);
   assert.equal(gantt(A).every((r) => r.by_email === 'ilai@astrateg.test' && r.edited === false), true);
   assert.equal(row(A, 'plan.9').internal, true);
-  await ilai.waitForSelector('#gt-cal:not([hidden]) .gt-grid');
+  // The list first, this month's days (the owner, 20.10.2026), and the year at a glance folded.
+  await ilai.waitForSelector('#gm-list:not([hidden]) .gt-aday');
+  assert.equal(await ilai.evaluate(() => document.getElementById('gt-glance').open), false);
+  assert.equal(await ilai.isVisible('#gg-table'), false);
+  await toGrid(ilai);
   assert.equal(await ilai.innerText('#gm-h'), 'נובמבר 2026');
   assert.equal(await ilai.innerText('#gm-pkg'), 'חודשים 8–9 בחבילה');
   assert.equal(await ilai.locator('#gm-pills .gt-pill').count(), 13);
@@ -412,6 +426,7 @@ await step('Ilai: no Gantt yet; the template\'s preview; he creates it, and it o
   const more = await ilai.locator('#gm-grid .gt-more').count();
   assert.ok(chips >= novCount - more * 3 && chips <= novCount, `${chips} chips of ${novCount}`);
   // Glance: a row per kind, 12 months, the current one marked.
+  await openFold(ilai, 'gt-glance');
   assert.equal(await ilai.locator('#gg-table thead th').count(), 13);
   assert.equal(await ilai.locator('#gg-table thead th.is-now').innerText(), '8\nאוק׳'); // month 8 starts 15.10
   assert.match(await ilai.innerText('#gg-table tbody'), /סרטונים[^]*גרפיקות/);
@@ -506,7 +521,8 @@ await step('"סימון כתוזמנו" for the chosen day, its week or the whol
   // Back to a clean month for the next steps.
   for (const r of gantt(A)) { r.state = 'planned'; r.posted_on = null; }
   await ilai.reload();
-  await ilai.waitForSelector('#gt-cal:not([hidden]) .gt-grid');
+  await ilai.waitForSelector('#gm-list:not([hidden]) .gt-aday');
+  await toGrid(ilai);
 });
 
 await step('he marks a video as posted, with its link and the client\'s file; it shows a tick', async () => {
@@ -605,12 +621,14 @@ await step('"עדכון מהתבנית" after the package grew: 2 more videos, t
 
 let shareLink = null;
 await step('the client\'s link: created, copied again after a reload', async () => {
+  await openFold(ilai, 'gt-more');
   await ilai.waitForSelector('#gs-create');
   await ilai.click('#gs-create');
   await toastHas(ilai, 'נוצר קישור ללקוח');
   shareLink = await ilai.inputValue('#gs-url');
   assert.match(shareLink, /gantt\.html#t=[A-Za-z0-9_-]{43}$/); // after #: it reaches no log of the host (ops.md 36)
   await ilai.reload();
+  await openFold(ilai, 'gt-more');
   await ilai.waitForSelector('#gs-url');
   assert.equal(await ilai.inputValue('#gs-url'), shareLink);
   await shot(ilai, 'gantt-05-desktop-full');
@@ -622,6 +640,7 @@ await step('the list view and the year at a glance take you to a month', async (
   const first = ilai.locator(`#gm-list .gt-row[data-key="${posted.key}"]`);
   assert.match(await first.innerText(), /עלה/);
   assert.equal(await first.locator('a.gt-open').getAttribute('href'), 'https://www.instagram.com/reel/ron29');
+  await openFold(ilai, 'gt-glance');
   await ilai.click('#gg-table thead th:nth-child(3) .gg-month'); // month 2
   await ilai.waitForFunction(() => document.getElementById('gm-h').textContent === 'אפריל 2026');
   await ilai.click('#view-grid');
@@ -689,7 +708,8 @@ await step('the client\'s editor reads the Gantt and nothing more; an editor wit
   const nctx = await newContext();
   const nadia = await newPage(nctx);
   await signIn(nadia, `gantt.html?id=${A.id}`, 'nadia@astrateg.test');
-  await nadia.waitForSelector('#gt-cal:not([hidden]) .gt-grid');
+  await nadia.waitForSelector('#gm-list:not([hidden]) .gt-aday');
+  await toGrid(nadia);
   assert.equal(await nadia.locator('#btn-regen, #btn-add').count(), 0);
   assert.equal(await nadia.isVisible('#gt-share'), false);
   assert.equal(await nadia.locator('.gt-chip[draggable="true"]').count(), 0);
@@ -722,7 +742,10 @@ await step('Irit, Lior and Ofir read the Gantt and nothing more: no editing cont
     const ctx = await newContext();
     const page = await newPage(ctx);
     await signIn(page, `gantt.html?id=${A.id}`, `${who}@astrateg.test`);
-    await page.waitForSelector('#gt-cal:not([hidden]) .gt-grid');
+    await page.waitForSelector('#gm-list:not([hidden]) .gt-aday');
+    // The failed post is the strip at the top, for the office too.
+    assert.match(await page.innerText('#gt-alerts'), /נכשל: .+, \d+\.11 \d\d:\d\d · Media not valid/, who);
+    await toGrid(page);
     assert.equal(await page.innerText('#gt-title'), 'גאנט התוכן · מספרת רון · רון כהן', who);
     assert.equal(await page.locator('#btn-regen, #btn-add, .gt-state-btn, #btn-brand, .gt-chip[draggable="true"]').count(), 0, who);
     assert.equal(await page.isVisible('#btn-bulk'), false, who);
@@ -740,7 +763,8 @@ await step('Irit, Lior and Ofir read the Gantt and nothing more: no editing cont
     await page.click('td[data-day="2026-11-24"] .gt-daynum');
     await page.waitForSelector('#gm-day:not([hidden])');
     assert.equal(await page.locator('#gm-day button:has-text("הוספת פריט")').count(), 0, who);
-    // The client's link: theirs to copy, renew and revoke; it is their one pink action.
+    // The client's link: theirs to copy, renew and revoke, under "עוד"; it is their one pink action.
+    await openFold(page, 'gt-more');
     await page.waitForSelector('#gs-url');
     assert.equal(await page.inputValue('#gs-url'), shareLink, who);
     assert.deepEqual(await page.locator('#app .btn-primary:visible').allInnerTexts(), ['העתקה'], who);
@@ -760,6 +784,7 @@ await step('Irit, Lior and Ofir read the Gantt and nothing more: no editing cont
 
 // ── The index ─────────────────────────────
 await step('"גאנט תוכן" in the menu opens the index: the week across clients and every active client, also when nobody has open work', async () => {
+  B.metricool_blog_id = '102'; B.metricool_brand = 'Cafe Nadia'; // connected, for this step only
   // Nothing open for Ilai anywhere: his clients list would be empty, the menu still takes him in.
   const ctx = await newContext({ width: 1440, height: 900 });
   const page = await newPage(ctx);
@@ -774,25 +799,60 @@ await step('"גאנט תוכן" in the menu opens the index: the week across cli
   assert.equal(await page.getAttribute('#side-gantt', 'aria-current'), 'page');
   assert.equal(await page.innerText('#gx-h'), 'גאנט תוכן');
   assert.equal(await page.innerText('#gx-sub'), '3 לקוחות פעילים · ל־1 יש גאנט');
-  // The clients: Ron first (things are missing), with his package month, counts and next post; the others have no Gantt yet.
+  // Problems first (the owner, 20.10.2026). Ron: a post failed (set for the client's view above),
+  // others missing, not connected; Nadia: connected (for this step) with nothing scheduled in the
+  // next 7 days and no Gantt yet; Dana: no Gantt yet, not connected.
   const cards = page.locator('#gx-list .gx-client');
   assert.equal(await cards.count(), 3);
-  const first = await cards.first().innerText();
-  assert.match(first, /מספרת רון · רון כהן[^]*חודש 8 מתוך 12[^]*עלו[^]*תוזמנו[^]*חסרים[^]*הבא: \d+\.11/);
-  assert.equal(await cards.first().getAttribute('class'), 'gx-client has-missing');
+  assert.deepEqual(await page.locator('#gx-list .gx-name').allInnerTexts(), ['מספרת רון · רון כהן', 'קפה נדיה', 'סטודיו דנה · דנה לוי']);
+  assert.match(await cards.nth(0).innerText(), /מספרת רון · רון כהן\s*✗ לא מחובר[^]*פרסום אחד נכשל[^]*חסרים[^]*הבא: \d+\.11/);
+  assert.match(await cards.nth(0).getAttribute('class'), /is-problem/);
+  assert.match(await cards.nth(1).innerText(), /קפה נדיה\s*✓ מחובר[^]*אין מתוזמן ב־7 הימים הקרובים[^]*עוד אין גאנט/);
+  assert.match(await cards.nth(2).innerText(), /סטודיו דנה · דנה לוי\s*✗ לא מחובר[^]*עוד אין גאנט/);
   assert.doesNotMatch(await page.innerText('#gx'), /עסק שהסתיים|\bnull\b|undefined/);
+  // The three filters, with their counts.
+  assert.match(await page.innerText('#gx-f-failed'), /נכשלו\s*1/);
+  assert.match(await page.innerText('#gx-f-nothing-ahead'), /אין מתוזמן קדימה\s*1/);
+  assert.match(await page.innerText('#gx-f-not-connected'), /לא מחוברים ל־Metricool\s*2/);
   // Ilai (and the owner) can start a Gantt from here; the way in is the client's own page.
   const make = page.locator(`#gx-list .gx-client[data-client="${C.id}"] .gx-create`);
   assert.match(await make.innerText(), /^יצירת הגאנט מהתבנית/);
   assert.equal(await make.getAttribute('href'), `gantt.html?id=${C.id}`);
   assert.equal(await page.locator('#gx .btn-primary:visible').count(), 0);
-  // The week (Sunday 8.11 to Saturday 14.11): Ron's posts by day, each with its time, client, kind and state.
+  // The week (Sunday 8.11 to Saturday 14.11): only what needs someone (failed, missing, today's
+  // posts not scheduled), and "כל השבוע" for every post, each with its time, client, kind and state.
   const inWeek = gantt(A).filter((r) => r.day >= '2026-11-08' && r.day <= '2026-11-14' && !['report', 'plan', 'shoot', 'renewal', 'end', 'photo'].includes(r.kind) && r.state !== 'skipped');
+  const weekBad = inWeek.filter((r) => ['error', 'missing', 'today'].includes(entryStatus(r, NOW)));
+  assert.ok(weekBad.length > 0, `${weekBad.length} of ${inWeek.length}`);
+  assert.equal(await page.locator('#gxw-body .gx-row').count(), weekBad.length);
+  assert.match(await page.innerText('#gxw-sub'), new RegExp(`8\.11–14\.11 · ${weekBad.length === 1 ? 'בעיה אחת' : `${weekBad.length} בעיות`} מתוך ${inWeek.length} פרסומים`));
+  await page.click('#gx-allweek');
   assert.equal(await page.locator('#gxw-body .gx-row').count(), inWeek.length);
-  assert.match(await page.innerText('#gxw-sub'), new RegExp(`8\\.11–14\\.11 · ${inWeek.length} פרסומים בכל הלקוחות`));
+  assert.match(await page.innerText('#gxw-sub'), new RegExp(`8\.11–14\.11 · ${inWeek.length} פרסומים בכל הלקוחות`));
   const row0 = page.locator('#gxw-body .gx-row').first();
-  assert.match(await row0.innerText(), /\d\d:\d\d[^]*מספרת רון · רון כהן[^]*(סרטון|גרפיקה)[^]*(חסר|עלה|תוזמן|מתוכנן|שגיאה|היום)/);
+  assert.match(await row0.innerText(), /\d\d:\d\d[^]*מספרת רון · רון כהן[^]*(סרטון|גרפיקה)[^]*(חסר|עלה|תוזמן|מתוכנן|שגיאה|לא תוזמן)/);
   assert.equal(await page.locator('#gxw-body .gt-aday.is-today').count() <= 1, true);
+  // A filter: one question, the week waits; the hash follows, and the page opens by it.
+  await page.click('#gx-f-failed');
+  assert.equal(await page.getAttribute('#gx-f-failed', 'aria-pressed'), 'true');
+  assert.match(page.url(), /gantt\.html#failed$/);
+  assert.equal(await page.isVisible('#gx-week'), false);
+  assert.deepEqual(await page.locator('#gx-list .gx-name').allInnerTexts(), ['מספרת רון · רון כהן']);
+  await page.click('#gx-f-failed');
+  assert.equal(await page.locator('#gx-list .gx-client').count(), 3);
+  await page.goto(`${BASE}gantt.html#nothing-ahead`);
+  await page.waitForSelector('#gx:not([hidden]) #gx-list .gx-client');
+  assert.deepEqual(await page.locator('#gx-list .gx-name').allInnerTexts(), ['קפה נדיה']);
+  // "לא מחוברים": for Ilai the card of section 33 itself, open (it left "המשימות שלי").
+  await page.click('#gx-f-not-connected');
+  await page.waitForSelector('#metricool-card:not([hidden]) .mcn-row');
+  assert.match(await page.innerText('#metricool-h'), /לקוחות שלא מחוברים ל־Metricool \(2\)/);
+  assert.equal(await page.locator('#metricool-card .mcn-row').count(), 2);
+  assert.equal(await page.isVisible('#gx-clients'), false);
+  await shot(page, 'gantt-14b-index-not-connected');
+  await page.click('#gx-clear');
+  await page.waitForSelector('#gx-week:not([hidden])');
+  assert.equal(await page.isVisible('#metricool-card'), false);
   // Search and sort.
   await page.fill('#gx-q', 'דנה');
   assert.deepEqual(await page.locator('#gx-list .gx-name').allInnerTexts(), ['סטודיו דנה · דנה לוי']);
@@ -807,10 +867,11 @@ await step('"גאנט תוכן" in the menu opens the index: the week across cli
   if (OUT) await page.screenshot({ path: `${OUT}/index-ilai-desktop.png`, fullPage: true });
   // A row of the week opens that client's Gantt on that day.
   const target = inWeek.sort((a, b) => a.day.localeCompare(b.day))[0];
+  if (!(await page.isVisible(`#gxw-body a.gt-row-main[data-key="${target.key}"]`))) await page.click('#gx-allweek');
   await page.click(`#gxw-body a.gt-row-main[data-key="${target.key}"]`);
-  await page.waitForSelector('#gt-cal:not([hidden]) .gt-grid');
+  // The list of that month, at that day (20.10.2026: the list first).
+  await page.waitForSelector(`#gm-list:not([hidden]) .gt-aday[data-day="${target.day}"] .gt-row[data-key="${target.key}"]`);
   assert.match(page.url(), new RegExp(`gantt\\.html\\?id=${A.id}&m=2026-11&d=${target.day}$`));
-  await page.waitForSelector(`#gm-day:not([hidden]) .gt-row[data-key="${target.key}"]`);
   assert.equal(await page.getAttribute('#side-gantt', 'aria-current'), 'true'); // a page under the index
   // And back.
   await page.click('#to-index');
@@ -819,6 +880,7 @@ await step('"גאנט תוכן" in the menu opens the index: the week across cli
   await page.click(`#gx-list .gx-client[data-client="${C.id}"] .gx-create`);
   await page.waitForSelector('#btn-create');
   await ctx.close();
+  B.metricool_blog_id = null; B.metricool_brand = null;
 });
 
 await step('the index for the owner, Irit, Lior and Ofir (reading; no "יצירת הגאנט" but for the owner); an editor has no index; on a phone it is in Ilai\'s bar', async () => {
@@ -830,6 +892,13 @@ await step('the index for the owner, Irit, Lior and Ofir (reading; no "יציר�
     assert.equal(await page.locator('#side-gantt').count(), 1, who);
     assert.equal(await page.locator('#gx-list .gx-client').count(), 3, who);
     assert.equal(await page.locator('#gx-list .gx-create').count(), who === 'owner' ? 2 : 0, who);
+    // "לא מחוברים" for those who do not connect: the clients themselves, filtered (no card).
+    if (who !== 'owner') {
+      await page.click('#gx-f-not-connected');
+      assert.equal(await page.locator('#gx-list .gx-client').count(), 3, who);
+      assert.equal(await page.isVisible('#metricool-card'), false, who);
+      await page.click('#gx-f-not-connected');
+    }
     if (who === 'irit' && OUT) {
       for (const [name, viewport] of SHOTS) { await page.setViewportSize(viewport); await page.waitForTimeout(150); await page.screenshot({ path: `${OUT}/index-irit-${name}.png`, fullPage: true }); }
     }
@@ -847,7 +916,8 @@ await step('the index for the owner, Irit, Lior and Ofir (reading; no "יציר�
   const ph = await newPage(pctx);
   await signIn(ph, 'clients.html#mine', 'ilai@astrateg.test');
   await ph.waitForSelector('#side-list #side-gantt');
-  assert.deepEqual(await ph.locator('#side-list > a, #side-list > button').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'שנת החבילה']);
+  // The fourth place is the menu's (since the calendar, 15.10.2026, it is "עוד"): not this suite's to fix.
+  assert.deepEqual((await ph.locator('#side-list > a, #side-list > button').allInnerTexts()).slice(0, 3), ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן']);
   await ph.click('#side-gantt');
   await ph.waitForSelector('#gx:not([hidden]) #gx-list .gx-client');
   assert.equal(await noHScroll(ph), true);
@@ -866,7 +936,8 @@ await step('Metricool, while the switch is off: a line says so; Ilai connects th
   page.on('request', (r) => { if (/metricool\.com/.test(r.url())) direct.push(r.url()); });
   await signIn(page, `gantt.html?id=${A.id}`, 'ilai@astrateg.test');
   await page.waitForSelector('#gt-mc:not([hidden])');
-  assert.match(await page.innerText('#gt-mc'), /הלקוח לא מחובר למותג ב־Metricool\. הסימון ידני\./);
+  // Not connected: one short line and its one action for Ilai (the owner, 20.10.2026).
+  assert.match(await page.innerText('#gt-mc'), /^לא מחובר ל־Metricool\.\s*חיבור למותג$/);
   assert.equal(metricool.calls.length, 0, 'opening a Gantt calls nothing');
   await page.click('#btn-brand');
   await page.waitForSelector('#brand-dlg[open] #bd-list .gt-brand');
@@ -897,11 +968,11 @@ await step('Metricool, while the switch is off: a line says so; Ilai connects th
   C.metricool_none = true;
   await page.reload();
   await page.waitForSelector('#btn-brand-back');
-  assert.match(await page.innerText('#gt-mc'), /סומן שללקוח אין מותג ב־Metricool\. הסימון ידני\.\s*ביטול הסימון\s*חיבור למותג ב־Metricool/);
+  assert.match(await page.innerText('#gt-mc'), /סומן שללקוח אין מותג ב־Metricool\. הסימון ידני\.\s*ביטול הסימון\s*חיבור למותג/);
   await page.click('#btn-brand-back');
   await toastHas(page, 'הלקוח חזר לרשימת ״לקוחות שלא מחוברים ל־Metricool״.');
   assert.equal(C.metricool_none, false);
-  assert.match(await page.innerText('#gt-mc'), /הלקוח לא מחובר למותג ב־Metricool\. הסימון ידני\./);
+  assert.match(await page.innerText('#gt-mc'), /^לא מחובר ל־Metricool\./);
   assert.equal(await page.locator('#btn-brand-back').count(), 0);
   // When Metricool does not answer, the dialog says so in Hebrew.
   metricool.down = true;
@@ -940,6 +1011,12 @@ await step('with the switch on, a sync marks the Gantt: scheduled with a clock, 
   await signIn(page, `gantt.html?id=${A.id}`, 'ilai@astrateg.test');
   await page.waitForSelector('#gt-mc.is-ok');
   assert.match(await page.innerText('#gt-mc'), /סונכרן מ־Metricool לפני 4 דקות/);
+  // The failure is the strip at the top: the post, its day and Metricool's words, and the way to Metricool.
+  const strip = page.locator(`#gt-alerts .gt-alert.is-failed[data-key="${bad.key}"]`);
+  assert.match(await strip.innerText(), new RegExp(`נכשל: ${bad.title}, \\d+\\.11 19:00 · Token expired`));
+  assert.equal(await strip.locator('a.gt-alert-go').getAttribute('href'), 'https://app.metricool.com/planner?blogId=101');
+  assert.equal(await page.evaluate(() => window.scrollY), 0, 'with a failure the page stays at its top');
+  await toGrid(page);
   await page.waitForSelector(`#gm-grid .gt-chip.s-scheduled[data-key="${future.key}"] .gt-clock`);
   await page.waitForSelector(`#gm-grid .gt-chip.s-posted[data-key="${past.key}"] .gt-tick`);
   await page.waitForSelector(`#gm-grid .gt-chip.s-error[data-key="${bad.key}"] .gt-warn`);
@@ -1035,6 +1112,36 @@ await step('a 360px phone: the list first, the grid with dots, a tapped day belo
   await shot(ph, 'gantt-11-phone-dialog', false);
   await pctx.close();
 });
+
+// ── Pictures for the review (20.10.2026): 390x844 at 2x and 1366x900, Ilai and Irit ──
+if (OUT) {
+  await step('pictures: the index (and its "לא מחוברים"), and the Gantt of a client, on a phone and a desktop', async () => {
+    Object.assign(failed(), { state: 'error', source: 'metricool', mc_status: 'error', mc_error: 'Media not valid' }); // the strip at the top
+    for (const [name, viewport, scale] of [['390', { width: 390, height: 844 }, 2], ['1366', { width: 1366, height: 900 }, 1]]) {
+      for (const who of ['ilai', 'irit']) {
+        const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, deviceScaleFactor: scale });
+        await ctx.clock.install({ time: NOW });
+        await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
+        const page = await newPage(ctx);
+        await signIn(page, 'gantt.html', `${who}@astrateg.test`);
+        await page.waitForSelector('#gx:not([hidden]) #gx-list .gx-client');
+        await page.waitForTimeout(2500); // the sign-in screen's way out is over
+        await page.screenshot({ path: `${OUT}/review-index-${who}-${name}.png`, fullPage: true });
+        if (who === 'ilai') {
+          await page.click('#gx-f-not-connected');
+          await page.waitForSelector('#metricool-card:not([hidden]) .mcn-row');
+          await page.screenshot({ path: `${OUT}/review-index-not-connected-${name}.png`, fullPage: true });
+        }
+        await page.goto(`${BASE}gantt.html?id=${A.id}`);
+        await page.waitForSelector('#gm-list:not([hidden]) .gt-aday');
+        await page.waitForTimeout(300);
+        await page.screenshot({ path: `${OUT}/review-client-${who}-${name}.png`, fullPage: true });
+        await page.screenshot({ path: `${OUT}/review-client-${who}-${name}-view.png` });
+        await ctx.close();
+      }
+    }
+  });
+}
 
 await browser.close();
 noCspViolations();

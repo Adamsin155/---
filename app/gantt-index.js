@@ -126,7 +126,7 @@ function renderFilters(all) {
       'aria-pressed': String(state.filter === k), onclick: () => setFilter(k),
     }, words, h('span', { class: 'n' }, String(n))));
   })),
-  state.filter ? h('button', { type: 'button', class: 'btn-text gx-clear', id: 'gx-clear', onclick: () => setFilter(state.filter) }, 'הצגת כל הלקוחות') : null);
+  ...(state.filter ? [h('button', { type: 'button', class: 'btn-text gx-clear', id: 'gx-clear', onclick: () => setFilter(state.filter) }, 'הצגת כל הלקוחות')] : []));
 }
 
 // "לקוחות שלא מחוברים ל־Metricool": the card of section 33, open, for Ilai and the owner.
@@ -171,7 +171,7 @@ function renderWeek(now) {
     onclick: () => { state.allWeek = !state.allWeek; renderWeek(new Date()); $('gx-allweek')?.focus(); },
   }, state.allWeek ? 'רק מה שדורש טיפול' : 'כל השבוע') : null;
   if (!days.length) {
-    $('gxw-body').replaceChildren(h('p', { class: 'gt-none' }, n ? 'אין השבוע פרסום שנכשל, חסר או שעוד לא תוזמן להיום.' : 'אין פרסומים מתוכננים השבוע.'), toggle || '');
+    $('gxw-body').replaceChildren(h('p', { class: 'gt-none' }, n ? 'אין השבוע פרסום שנכשל, חסר או שעוד לא תוזמן להיום.' : 'אין פרסומים מתוכננים השבוע.'), ...(toggle ? [toggle] : []));
     return;
   }
   // Each day of the week opens with its leaf of the calendar (docs/ops.md, section 62).
@@ -195,7 +195,7 @@ function renderWeek(now) {
             h('span', { class: 'gt-row-title' }, clientLabel(client)),
             h('span', { class: 'gt-row-meta' }, h('span', { class: 'gt-kind-chip' }, h('span', { class: 'gt-swatch', 'aria-hidden': 'true' }), k.label), e.title)),
           h('span', { class: `gt-state s-${status}` }, stateMark(status), words)));
-    }))))), toggle || '');
+    }))))), ...(toggle ? [toggle] : []));
 }
 
 // ── The clients ─────────────────────────────

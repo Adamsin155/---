@@ -36,6 +36,7 @@ let mountedFor = null;         // the viewer the card was mounted for
 let inPersonal = () => false; // whether the page is in the personal profile now (the owners: no card there)
 let expanded = false;    // the card is one quiet line until asked for: the person's own work comes first
 let onChanged = null;    // told after a connect or a mark (the Gantt's index recounts)
+let pinned = false;      // open for good (the Gantt's index): no "סגירה"
 
 // ── Data ────────────────────────────────────
 // Every client this login reads, with its brand. null: the brand columns are not there
@@ -186,7 +187,7 @@ function render() {
     onclick: () => { expanded = !expanded; if (!expanded) openId = null; render(); box.querySelector('#mcn-toggle')?.focus(); },
   }, expanded ? 'סגירה' : 'הצגת הרשימה');
   fill(box,
-    h('div', { class: 'mcn-head' }, h('h2', { id: 'metricool-h', tabindex: '-1' }, cardTitle(list.length)), toggle),
+    h('div', { class: 'mcn-head' }, h('h2', { id: 'metricool-h', tabindex: '-1' }, cardTitle(list.length)), pinned ? null : toggle),
     expanded ? h('div', { id: 'mcn-body' },
       h('p', { class: 'hint' }, 'בוחרים לכל לקוח את המותג שלו ב־Metricool. לקוח שחובר יורד מהרשימה.'),
       ul,
@@ -203,6 +204,7 @@ function render() {
 export async function mountMetricoolConnect(el, viewer, { personal = () => false, open = false, changed = null } = {}) {
   box = el;
   expanded = open;
+  pinned = open;
   onChanged = changed;
   mountedFor = viewer;
   inPersonal = personal;

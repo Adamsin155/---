@@ -50,8 +50,9 @@ let brandUi = null;     // app/gantt-brand.js (staff only)
 let mc = { settings: undefined, brand: undefined, sync: null }; // Metricool: the switch, this client's brand, its last sync
 let missing = false;    // the table is not there yet
 let shown = null;       // { year, month }
-// The list first, everywhere (the owner's review, 20.10.2026): this month's days, at today.
-let view = 'list';
+// The office: the list first, everywhere (the owner's review, 20.10.2026), this month's
+// days, at today. The client's link as it was: the grid, and the list on a phone.
+let view = SHARE && !matchMedia('(max-width: 640px)').matches ? 'grid' : 'list';
 let selectedDay = null;
 let share;              // the client's link (undefined: none yet / no table)
 let preview = false;

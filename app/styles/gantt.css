@@ -518,6 +518,7 @@ body:not(.is-share) .gx-client.no-gantt .gx-name { color: var(--ds-ink); }
 .gx-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .gx-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .gx-chip { min-height: 44px; box-shadow: inset 0 0 0 1px var(--ds-line); color: var(--ds-ink-2); font-weight: 600; }
+.gx-chip .n { unicode-bidi: isolate; display: inline-block; }
 .gx-chip.has-n .n { color: var(--ds-ink); font-weight: 700; }
 .gx-chip.is-hot { box-shadow: inset 0 0 0 1.5px var(--ds-hot); color: var(--ds-hot-text); }
 .gx-chip.is-hot .n { color: var(--ds-hot-text); }
@@ -574,3 +575,9 @@ button.gt-alert-t { cursor: pointer; }
   .gt-row-main + .gt-state + .gt-open, .gt-row-main + .gt-open { margin-inline-start: 56px; }
 }
 @media print { .gt-more, .gt-alerts { display: none !important; } }
+@media (min-width: 761px) {
+  /* The state right after the title (20.10.2026); a thumbnail and "לתוכן" stay at the end. */
+  body:not(.is-share) .gt-row:not(.gx-row) > .gt-row-main { flex: 0 1 auto; }
+  body:not(.is-share) .gt-row:not(.gx-row) > .gt-state { margin-inline-end: auto; }
+}
+.gt-more > summary { font-size: 15.5px; color: var(--ds-ink); }
