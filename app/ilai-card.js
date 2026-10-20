@@ -98,6 +98,9 @@ function gfxStep(ctx, c, cs, batch, btnId) {
   if (q.stage === 'ofir') return withOfirLine(ctx, c, cs, batch, `${btnId}-with`);
   if (q.stage === 'approved') return h('p', { class: 'ps-seen' }, 'אופיר אישר');
   if (isDone(cs, b.key)) return h('p', { class: 'ps-seen' }, 'נמסרו לבדיקה');
+  // Nothing up yet: no locked button and no lock line (the owner, 20.10.2026); the button
+  // appears with the first graphic of the batch.
+  if (!gfxGate(c, cs, batch).ok) return null;
   return readyButton(btnId, 'מוכן לבדיקה (לאופיר)', gfxGate(c, cs, batch),
     (e) => {
       // Fewer up than the package holds: asked, never refused (protocol v8).
@@ -324,27 +327,37 @@ async function saveMetricool(e, ctx, c, inputId) {
 
 // The first 9 graphics after the characterization day (its card is gone): the same
 // upload and the same lock.
-function firstCard(x, ctx) {
+// A batch of graphics is one line until it is opened (the owner, 20.10.2026): the client,
+// the batch, until when, how many are up ("0/9 הועלו", or where the batch stands), and
+// "העלאה"; the tap opens the upload, the characterization and "מוכן לבדיקה".
+function gfxCard(x, ctx, batch) {
   const c = x.client;
   const cs = ctx.checks[c.id] || {};
-  const idp = `il-9-${c.id}`;
-  return h('li', { class: 'wproc il-card', 'data-key': `il-first:${c.id}` },
-    cardHead('first', c, 'p07', '9 גרפיקות ראשונות', until(x.state.dueAt)),
+  const idp = batch === 'first' ? `il-9-${c.id}` : `il-r-${c.id}`;
+  const q = qaState(cs, '', BATCH[batch].kind);
+  const total = batch === 'first' ? 9 : restTotal(c);
+  const gate = gfxGate(c, cs, batch);
+  const files = workFilesState(c.id);
+  const where = q.stage === 'fixing' ? 'חזר לתיקונים' : q.stage === 'ofir' ? 'אצל אופיר' : isDone(cs, BATCH[batch].key) ? 'נמסרו לבדיקה'
+    : files.loaded && !files.error ? [h('bdi', { class: 'num', dir: 'ltr' }, `${gate.count}${total ? `/${total}` : ''}`), ' הועלו'] : null;
+  const key = `${batch}:${c.id}`;
+  return h('li', { class: 'wproc il-card il-gfx', 'data-key': `il-${batch}:${c.id}` },
+    h('details', {
+      class: 'il-gfx-fold', id: `${idp}-d`, open: openCards.has(key),
+      ontoggle: (e) => { if (e.currentTarget.open) openCards.add(key); else openCards.delete(key); },
+    },
+    h('summary', { class: 'il-gfx-s', id: `${idp}-s` },
+      cardHead(batch, c, BATCH[batch].proc, batch === 'first' ? '9 גרפיקות ראשונות' : 'יתרת הגרפיקות', until(x.state.dueAt)),
+      h('span', { class: 'il-gfx-line' },
+        where ? h('span', { class: `il-gfx-n${q.stage === 'fixing' ? ' late' : ''}` }, where) : null,
+        h('span', { class: 'btn btn-sm k-btn-navy il-gfx-go', 'aria-hidden': 'true' },
+          h('span', { class: 'il-fold-open' }, q.stage === 'none' && !isDone(cs, BATCH[batch].key) ? 'העלאה' : 'פתיחה'), h('span', { class: 'il-fold-close' }, 'סגירה')))),
     h('div', { class: 'of-acts il-links' }, charLink(c)),
-    gfxFiles(ctx, c, cs, 'first', `${idp}-g`),
-    gfxStep(ctx, c, cs, 'first', `${idp}-ready`));
+    gfxFiles(ctx, c, cs, batch, `${idp}-g`),
+    gfxStep(ctx, c, cs, batch, `${idp}-ready`)));
 }
-
-function restCard(x, ctx) {
-  const c = x.client;
-  const cs = ctx.checks[c.id] || {};
-  const idp = `il-r-${c.id}`;
-  return h('li', { class: 'wproc il-card', 'data-key': `il-rest:${c.id}` },
-    cardHead('rest', c, 'p23', 'יתרת הגרפיקות', until(x.state.dueAt)),
-    h('div', { class: 'of-acts il-links' }, charLink(c)),
-    gfxFiles(ctx, c, cs, 'rest', `${idp}-g`),
-    gfxStep(ctx, c, cs, 'rest', `${idp}-ready`));
-}
+const firstCard = (x, ctx) => gfxCard(x, ctx, 'first');
+const restCard = (x, ctx) => gfxCard(x, ctx, 'rest');
 
 function finalDrive(c, cs, x) {
   const link = videosLinkOf(c, cs, x.pre);

@@ -337,3 +337,14 @@ details.ps-sum { min-width: 0; }
 .as-sug strong { font-weight: 700; }
 .as-acts > .as-go { font-weight: 700; }
 @media (max-width: 760px) { .as-acts > .as-go { flex: 2 1 auto; } }
+
+/* A batch of graphics is one line until opened (the owner, 20.10.2026). */
+.il-gfx-fold > summary { list-style: none; cursor: pointer; display: grid; gap: 8px; }
+.il-gfx-fold > summary::-webkit-details-marker { display: none; }
+.il-gfx-line { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.il-gfx-n { font-weight: 600; color: var(--text-2); }
+.il-gfx-n.late { color: var(--late, #c2185b); }
+.il-gfx-go { pointer-events: none; margin-inline-start: auto; }
+.il-gfx-fold[open] .il-fold-open, .il-gfx-fold:not([open]) .il-fold-close { display: none; }
+.il-gfx-fold[open] > summary { margin-bottom: 10px; }
+.il-gfx-fold > :not(summary) + :not(summary) { margin-top: 10px; }
