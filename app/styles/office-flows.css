@@ -337,3 +337,15 @@ details.ps-sum { min-width: 0; }
 .as-sug strong { font-weight: 700; }
 .as-acts > .as-go { font-weight: 700; }
 @media (max-width: 760px) { .as-acts > .as-go { flex: 2 1 auto; } }
+
+/* The pass, simplified (the owner, 20.10.2026): one line per row, a group per person,
+   "שלך", the folded Thursday summary on other days, and the two small buttons to Lior. */
+.ps-line { margin: 0; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: center; gap: 0 2px; }
+.ps-what { font-weight: 600; }
+.ps-mine { background: var(--ds-navy, #1b2559); color: #fff; }
+.ps-group .ps-group-t { font-size: 15px; }
+.ps-subs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ps-sub { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--ds-r-item, 12px); background: var(--ds-ground, #f4f5f8); min-width: 0; }
+.ps-group { display: grid; gap: 10px; }
+.ps-th-fold > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--ds-muted); font-weight: 600; }
+.ps-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
