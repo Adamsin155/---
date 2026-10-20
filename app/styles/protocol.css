@@ -819,6 +819,11 @@ details.mc-fold > summary::-webkit-details-marker { display: none; }
 /* ── The "באיחור" tab, the solid counted lines and the kit on "המשימות שלי" (docs/ops.md, section 50) ── */
 #land-line { display: grid; gap: 8px; margin-bottom: 12px; }
 #land-line[hidden] { display: none; }
+/* The landing lines folded into one (the owner, 20.10.2026): the summary is a counted line. */
+.land-fold > summary { list-style: none; cursor: pointer; }
+.land-fold > summary::-webkit-details-marker { display: none; }
+.land-fold[open] .il-fold-open, .land-fold:not([open]) .il-fold-close { display: none; }
+.land-fold-list { display: grid; gap: 8px; margin-top: 8px; }
 .wproc.flow-card { border: 0; padding: 0; background: transparent; }
 .wprocs:not(:has(> .wc)) > .flow-card { padding: 6px 0; }
 /* The icon square of a group heading: added after the words, drawn before them. */

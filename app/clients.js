@@ -128,6 +128,7 @@ let lastLoad = 0;
 let loads = 0;
 const laterOpen = new Set();   // the folded "this week" and "later" groups a person opened
 let waitGroupOpen = null;   // the collapsed "waiting on client" group keeps its state across renders
+let landFoldOpen = false; // the folded landing lines ("בקליטה"), as the person left them
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash}`;
 
 // ── What is worked out from the rows, and what is on the page (docs/ops.md, section 59) ──
@@ -1416,11 +1417,21 @@ function renderLanding(flow = []) {
   const quietLines = flow.filter((f) => f.bucket === 'landing');
   line.hidden = !left && !total && !quietLines.length;
   // Each is a solid counted line (app/kit.js; section 50): a big number, one sentence, a button.
-  fill(line, left ? countedLine({ n: left, tone: 'landing', cls: 'land-line', href: 'landing.html', cta: 'לקליטה',
+  const lines = [left ? countedLine({ n: left, tone: 'landing', cls: 'land-line', href: 'landing.html', cta: 'לקליטה',
     text: left === 1 ? 'יש לקוח קיים אחד לקלוט' : `יש ${left} לקוחות קיימים לקלוט` })
     : total ? countedLine({ n: total, tone: 'landing', cls: 'land-line', href: 'owner.html#landing', cta: 'להפעלה',
       text: total === 1 ? 'לקוח קיים אחד עדיין בקליטה' : `${total} לקוחות קיימים עדיין בקליטה` }) : null,
-    ...quietLines.map((f) => countedLine({ id: `flow-${f.id}`, n: f.n, text: f.text, cta: f.cta, href: f.href, tone: 'landing', cls: 'land-line flow-line is-landing', data: { flow: f.id } })));
+  ...quietLines.map((f) => countedLine({ id: `flow-${f.id}`, n: f.n, text: f.text, cta: f.cta, href: f.href, tone: 'landing', cls: 'land-line flow-line is-landing', data: { flow: f.id } }))].filter(Boolean);
+  // Two lines or more fold into one, "בקליטה (N)", that opens onto the same lines (the
+  // owner, 20.10.2026): N is how many things wait, each line counted once.
+  fill(line, lines.length < 2 ? lines : h('details', {
+    class: 'land-fold', id: 'land-fold', open: landFoldOpen, ontoggle: (ev) => { landFoldOpen = ev.currentTarget.open; },
+  },
+  h('summary', { class: 'k-line k-line-landing land-fold-s' },
+    h('b', { class: 'k-num', 'data-n': String(lines.length), 'aria-hidden': 'true' }),
+    h('strong', { class: 'k-line-t' }, h('b', { class: 'sr-only' }, `${lines.length} `), 'דברים בקליטה', h('small', { class: 'k-line-sub' }, h('i', { class: 'k-sep' }, ' · '), 'בלי שעון')),
+    h('span', { class: 'k-go il-fold-go' }, h('span', { class: 'il-fold-open' }, 'הצגה'), h('span', { class: 'il-fold-close' }, 'הסתרה'))),
+  h('div', { class: 'land-fold-list' }, ...lines)));
   const rest = mine ? quietWork(me, clients, checks, intake.marks, intake.done, now) : [];
   const n = rest.reduce((sum, x) => sum + x.items.length, 0);
   quiet.hidden = !n;
