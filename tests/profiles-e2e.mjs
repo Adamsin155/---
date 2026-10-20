@@ -182,11 +182,15 @@ await step('a manager screen opened by its address opens in the manager profile;
   await page.waitForSelector('#profile-switch[data-to="manager"]');
   await page.waitForSelector('#side-qa[aria-current="page"]');
   assert.deepEqual(await menu(page), PERSONAL.ofir);
-  // The daily review is his own work too (process 33): its address keeps the profile he is in.
+  // The daily review (Irit's process 32) left his personal profile on 20.10.2026 (the owner):
+  // his own process 33 is pass.html. Its address opens the manager profile.
+  await page.goto(`${BASE}clients.html#mine`);
+  await page.waitForSelector('#profile-switch[data-to="manager"]');
+  assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות']);
   await page.goto(`${BASE}clients.html#control`);
   await page.waitForSelector('#view-control:not([hidden])');
-  await page.waitForSelector('#profile-switch[data-to="manager"]');
-  assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
+  await page.waitForSelector('#profile-switch[data-to="mine"]');
+  assert.deepEqual(await tabs(page), ['עבודת הצוות', 'לקוחות', 'בקרה יומית', 'ביצועים']);
   // The performance by its address: the manager profile, with its tabs.
   await page.goto(`${BASE}clients.html#performance`);
   await page.waitForSelector('#view-performance:not([hidden])');
