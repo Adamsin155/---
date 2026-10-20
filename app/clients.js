@@ -59,6 +59,7 @@ const ARRIVED_WITH = location.hash;
 import { intakeShortcut } from './intake-ui.js';
 // Stage 5: the monthly cycle (a draft) in "המשימות שלי", and the way to the package year.
 import { showMonths, worksCycle } from './month-ui.js';
+import { renewalsDue } from './year-logic.js'; // Lior's renewals line (the owner, 20.10.2026)
 // Irit's daily control (process 32): her eleven topics, each with what is open now.
 import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageText } from './control-topics.js';
 import { loadDeals } from './deal-data.js';
@@ -1744,9 +1745,17 @@ function renderMine() {
   // No duplicates (the owner, 20.10.2026): a process whose clock runs in "עכשיו" above is
   // not a card again below, and what has a card is not repeated in "בקרוב".
   const nowKeys = nowKeysOf(person);
-  const list = workFor(person).filter((g) => !covered(g) && !nowKeys.has(g.key));
+  // Lior's renewals (the owner, 20.10.2026): one line, "חידושים ב־90 יום: N", to the
+  // renewals list (year.html#renewals, where each has its quote and process 34); the
+  // cards of 34 are not laid out here one by one.
+  const renewing = (procId) => person === 'lior' && /^(r\d+-)?p34$/.test(String(procId || ''));
+  const renewOpen = workFor(person).filter((g) => !g.task && renewing(g.proc.id));
+  const renewN = person === 'lior' ? renewalsDue(clients, new Date()).length : 0;
+  const renewLine = renewN || renewOpen.length ? flowCard({ id: 'renewals', n: renewN || renewOpen.length, href: 'year.html#renewals', cta: 'לחידושים', tone: renewOpen.length ? 'today' : 'plain',
+    text: `חידושים ב־90 יום: ${renewN || renewOpen.length}` }) : null;
+  const list = workFor(person).filter((g) => !covered(g) && !nowKeys.has(g.key) && !renewing(g.proc?.id));
   const shownKeys = new Set([...nowKeys, ...list.map((g) => g.key)]);
-  const soonGroups = person ? upcomingGroups(person).map((g) => ({ ...g, list: g.list.filter((s) => !shownKeys.has(`${g.client.id}:${s.proc.id}`) && !covered({ client: g.client, proc: s.proc })) })).filter((g) => g.list.length) : [];
+  const soonGroups = person ? upcomingGroups(person).map((g) => ({ ...g, list: g.list.filter((s) => !shownKeys.has(`${g.client.id}:${s.proc.id}`) && !renewing(s.proc.id) && !covered({ client: g.client, proc: s.proc })) })).filter((g) => g.list.length) : [];
   const soon = person ? upcomingSection(soonGroups, own) : null;
   const review = person ? OFFICE_REVIEWS.find((r) => r.owner === person && reviewPending(r)) : null;
   const thursday = person === 'ofir' ? thursdayCard() : null;
@@ -1757,7 +1766,7 @@ function renderMine() {
   // A contract that ended while the client is still active: Lior's to decide (and the owners see it).
   const ended = person === 'lior' || (!person && !me) ? contractsEnded(clients, new Date()) : [];
   const endedCards = ended.map((x) => contractCard(x, { viewer: { me, scope, error: viewerError }, href: clientUrl(x.cid, '#p34'), onDone: () => load() }));
-  if (!list.length && !review && !thursday && !heldItems.length && !ended.length && !flow.some((f) => f.bucket !== 'landing')) {
+  if (!list.length && !review && !thursday && !renewLine && !heldItems.length && !ended.length && !flow.some((f) => f.bucket !== 'landing')) {
     fill(wrap, banner, ilai, ilai ? null : emptyState({ text: nothing }), soon);
     return;
   }
@@ -1765,7 +1774,7 @@ function renderMine() {
   // here is a plain row of the group; Ilai's, inside his cards above, are said in one line.
   const listKeys = new Set(list.map((g) => g.key));
   const inCards = heldItems.filter((x) => covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).length;
-  const lateRows = heldItems.filter((x) => !listKeys.has(lateKey(x)) && !nowKeys.has(lateKey(x)) && !covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).map(lateRow);
+  const lateRows = heldItems.filter((x) => !renewing(x.procId) && !listKeys.has(lateKey(x)) && !nowKeys.has(lateKey(x)) && !covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).map(lateRow);
   // My own long "באיחור": one counted line to its tab, which lists them all (the owner, 20.10.2026).
   const lateTotal = person === me && hasLateTab() ? lateOfMe(flow).n : 0;
   const lateFolded = lateTotal > LATE_INLINE;
@@ -1788,7 +1797,7 @@ function renderMine() {
         h('ul', { class: 'wprocs' }, h('li', { class: 'wproc flow-card late-fold' },
           countedLine({ id: 'late-line', n: lateTotal, text: `${lateTotal} דברים באיחור אצלך`, cta: 'לשונית באיחור', href: '#late', tone: 'late', cls: 'flow-line' }))));
     }
-    const extra = [...(k === 'today' ? endedCards : []), ...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : []), ...(k === 'overdue' ? lateRows : [])];
+    const extra = [...(k === 'today' ? endedCards : []), ...(renewLine && k === (renewOpen.length ? 'today' : 'later') ? [renewLine] : []), ...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : []), ...(k === 'overdue' ? lateRows : [])];
     if (!g.length && !extra.length && !(k === 'overdue' && inCards)) return null;
     // The number of "באיחור" is the number of the tab: Ilai's late work inside his cards is part of it.
     const more = k === 'overdue' ? inCards : 0;
