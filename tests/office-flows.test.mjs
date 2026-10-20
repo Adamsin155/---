@@ -681,3 +681,21 @@ test('the suggestion: what the dialog already chose stays first; nobody to sugge
   assert.deepEqual(suggestAssignment({ client: c, shootType: 'dms', load: { nadia: load.nadia }, now }).reason, 'העומס של העורכים לא ידוע כרגע');
   assert.deepEqual(suggestAssignment({ client: c, shootType: 'dms', load, exclude: ['nadia', 'yariv', 'anna'], now }), { editor: null, why: 'none', reason: 'אין עורך שאפשר לשייך אליו', load: null });
 });
+
+// The owner's page review of 20.10.2026: Lior's lists on "החלטות" keep only what waits for his decision.
+test('"החלטות": his own late items and others\' queues leave the cards; the rest stay', async () => {
+  const { splitLists, lateProc } = await import('../app/decisions-logic.js');
+  assert.equal(lateProc('late:c1:r2-p12@2026-10-20T15:00:00.000Z:lior@lior'), 'r2-p12');
+  assert.equal(lateProc('qa:c1:p25@x:lior@lior'), null);
+  const list = [
+    { rule: 'late', key: 'late:c1:p12@2026-10-20T15:00:00.000Z:lior@lior', title: 'באיחור: א · תסריטים · ליאור' },
+    { rule: 'late', key: 'late:c2:p23@2026-10-20T15:00:00.000Z:lior@lior', title: 'באיחור: ב · גרפיקות · עילאי' },
+    { rule: 'qa', key: 'qa:c3:p25@x:lior@lior', title: 'בקרת איכות לא בוצעה תוך שעה: ג' },
+    { rule: 'contractUnsigned', key: 'k', title: 'חוזה לא נחתם יום עסקים: ד' },
+  ];
+  const owners = { p12: ['lior'], p23: ['ilai'] };
+  const s = splitLists(list, (r) => owners[lateProc(r.key)]);
+  assert.deepEqual(s.mine.map((r) => r.title), ['באיחור: א · תסריטים · ליאור']);
+  assert.deepEqual(s.others.map((r) => r.title), ['באיחור: ב · גרפיקות · עילאי', 'בקרת איכות לא בוצעה תוך שעה: ג']);
+  assert.deepEqual(s.decide.map((r) => r.title), ['חוזה לא נחתם יום עסקים: ד']);
+});

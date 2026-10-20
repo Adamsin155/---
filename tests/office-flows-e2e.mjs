@@ -23,6 +23,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
 import { buildEnv, candidates } from '../app/reminder-engine.js';
+import { splitLists } from '../app/decisions-logic.js';
 import { withClientColumns } from './fake-clients.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
@@ -616,12 +617,23 @@ await step('the Tuesday campaign check, and the lists: the same items the remind
   for (const r of db.protocol_checks) (byClient[r.client_id] ||= {})[r.item_key] = r;
   const at = new Date(await lior.evaluate(() => Date.now()));
   const env = buildEnv({ clients: db.clients, checks: byClient, tasks: db.client_tasks.filter((t) => !t.done_at), staff: db.staff, access: db.client_access.filter((x) => x.status === 'broken'), reviews: db.office_reviews, statusNotes: db.client_status_notes, now: at });
-  const expected = [...new Set(candidates(env).filter((r) => r.person === 'lior' && r.list && !['exception', 'paused'].includes(r.rule)).map((r) => r.title))];
+  // Since the owner's page review of 20.10.2026 the cards are only what waits for his decision: late
+  // items (his own, or others') and Ofir's quality-check queue are folded under them (splitLists).
+  const listed = candidates(env).filter((r) => r.person === 'lior' && r.list && !['exception', 'paused'].includes(r.rule));
+  const expected = [...new Set(splitLists(listed).decide.map((r) => r.title))];
   await lior.click('#btn-refresh');
   await lior.waitForFunction((n) => document.querySelectorAll('#ls-list .of-card').length === n, expected.length);
   const shown = await lior.locator('#ls-list .wclient').allInnerTexts();
   assert.deepEqual([...shown].sort(), [...expected].sort());
-  assert.ok(expected.length >= 1, 'something should be on the lists');
+  // His own late items are one line with a link to his "באיחור" tab; the others' are one folded, counted line.
+  const mine = listed.filter((r) => r.rule === 'late' && / · ליאור$/.test(r.title));
+  const others = listed.filter((r) => ['late', 'qa'].includes(r.rule) && !mine.includes(r));
+  assert.ok(mine.length >= 1 && others.length >= 1, 'something should be on the lists');
+  assert.equal(await lior.innerText('#ls-mine'), `${mine.length === 1 ? 'פריט אחד שלך באיחור' : `${mine.length} פריטים שלך באיחור`}, בלשונית ״באיחור״`);
+  assert.equal(await lior.getAttribute('#ls-mine a', 'href'), 'clients.html#late');
+  assert.equal(await lior.innerText('#ls-others > summary .n'), String(others.length));
+  await lior.click('#ls-others > summary');
+  assert.deepEqual((await lior.locator('#ls-others li').allInnerTexts()).sort(), others.map((r) => r.title).sort());
   await shot(lior, 'office-04-decisions');
   await globalThis.lctx.close();
 });

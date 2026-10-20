@@ -337,3 +337,16 @@ details.ps-sum { min-width: 0; }
 .as-sug strong { font-weight: 700; }
 .as-acts > .as-go { font-weight: 700; }
 @media (max-width: 760px) { .as-acts > .as-go { flex: 2 1 auto; } }
+
+/* "החלטות", under the lists' cards (the owner's page review, 20.10.2026): others' late items and
+   Ofir's quality-check queue as one folded, counted line; Lior's own late items as a line with a link. */
+.ls-rest { display: grid; gap: 8px; margin-top: 10px; }
+.ls-rest[hidden] { display: none; }
+.ls-rest > * { margin: 0; }
+.ls-others { border: 1px solid var(--ds-line, var(--line)); border-radius: var(--ds-r-item, 12px); background: var(--ds-ground, var(--panel-2)); padding: 0 14px; }
+.ls-others > summary { min-height: 44px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 15px; color: var(--ds-ink-2, var(--text-2)); }
+.ls-others > summary .n { font-variant-numeric: tabular-nums; font-weight: 600; padding: 0 8px; border-radius: 999px; background: var(--ds-surface, var(--panel)); }
+.ls-mini { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 2px; }
+.ls-mini a { display: flex; align-items: center; min-height: 40px; overflow-wrap: anywhere; font-size: 14.5px; }
+.ls-mine { font-size: 15px; color: var(--ds-ink-2, var(--text-2)); }
+.ls-mine a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
