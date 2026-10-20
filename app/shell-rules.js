@@ -145,10 +145,14 @@ const IN_BOTH = ['clients'];
 // them stays hidden too (app/shell.js hideRepeats) and profileOf still places them.
 //   lior  "בקרה ושיוך" (Ofir's), "לפני יום צילום" (Irit's), and "טבלת ימי צילום",
 //         which is a tab of "כל הלקוחות במבט" already;
-//   ilai  "שנת החבילה" and "יומן": both only repeat his "המשימות שלי".
+//   ilai  "שנת החבילה" and "יומן": both only repeat his "המשימות שלי";
+//   ofir  his manager profile without "גאנט תוכן", "שנת החבילה" and "לפני יום צילום"
+//         (Ilai's and Irit's work). "החלטות" (as Lior's backup) and "ימי צילום" stay
+//         until the owner decides (one line here to take back).
 export const NOT_IN_MENU = {
   lior: ['qa', 'prep', 'shoot-table'],
   ilai: ['year', 'calendar'],
+  ofir: ['gantt', 'year', 'prep'],
 };
 const shownIn = (viewer) => { const out = NOT_IN_MENU[known(viewer) ? viewer.me : null] || []; return (it) => !out.includes(it.id); };
 const profileKey = (viewer) => (hasProfiles(viewer) ? viewer.me || 'owner' : null);
