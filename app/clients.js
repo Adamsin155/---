@@ -2195,6 +2195,17 @@ function reviewMarkControl(r, idPrefix) {
 
 // The fixed card in Irit's / Ofir's "today" group, until the review is marked.
 function reviewCard(r) {
+  // Ofir's own 33 (the owner, 20.10.2026): it is done on pass.html and finishing the pass
+  // marks it there (app/pass.js), so his card is the way in, with no tick of its own.
+  if (r.num === '33' && me === r.owner) {
+    return h('li', { class: 'wproc rv-card k-pc pc pc-full rv-pass' },
+      h('div', { class: 'k-pc-top' },
+        cardMark(null, 'check-circle', 'blue'),
+        h('div', { class: 'wproc-h k-pc-body' },
+          h('span', { class: 'wtitle' }, `מעבר על הלקוחות · תהליך ${r.num}`),
+          h('p', { class: 'task-meta' }, 'סיום המעבר מסמן את הבקרה של היום.'))),
+      h('a', { class: 'btn btn-sm wc-go', id: 'rv-pass-go', href: 'pass.html' }, 'למעבר על הלקוחות'));
+  }
   return h('li', { class: 'wproc rv-card k-pc pc pc-full' },
     h('div', { class: 'k-pc-top' },
       cardMark(null, 'check-circle', 'blue'),
@@ -2558,7 +2569,9 @@ function thursdayCard() {
       cardMark(null, 'file', 'purple'),
       h('div', { class: 'wproc-h k-pc-body' },
         h('span', { class: 'wtitle' }, `מעבר חובה של יום חמישי: סיכום מצב לכל הלקוחות (${w.done}/${w.total})`),
-        h('a', { class: 'btn-text', href: '#control', onclick: (ev) => { ev.preventDefault(); goToStatus(); } }, 'מעבר לסיכום המצב'))),
+        // Ofir writes the Thursday summaries in his pass (pass.html, "סיכום חמישי"); the others in the control.
+        me === 'ofir' ? h('a', { class: 'btn-text', href: 'pass.html#th-h' }, 'מעבר לסיכום המצב')
+          : h('a', { class: 'btn-text', href: '#control', onclick: (ev) => { ev.preventDefault(); goToStatus(); } }, 'מעבר לסיכום המצב'))),
     h('p', { class: 'task-meta' }, 'על כל לקוח: מצב נוכחי, מה חסר, פעולה הבאה, אחראי ומועד יעד.'),
     progressBar(w.done, w.total, 'לקוחות שסוכמו השבוע'));
 }
