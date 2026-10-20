@@ -15,7 +15,7 @@ import { firstScreenOf } from '../app/office-ui.js';
 import { worksCycle } from '../app/month-ui.js';
 import { seesCalendar } from '../app/calendar-view.js';
 import {
-  menuOf, profileMenu, PERSONAL, homeLink, barOf, groupsOf, GROUP_FROM, currentOf, inMenu, officeScreens, pageOf, initialsOf, nameOf, avatarFill, AVATAR_FILL, seesGantt, editsGantt, NOT_IN_MENU,
+  menuOf, profileMenu, PERSONAL, homeLink, barOf, groupsOf, GROUP_FROM, currentOf, inMenu, officeScreens, pageOf, initialsOf, nameOf, avatarFill, AVATAR_FILL, seesGantt, editsGantt, NOT_IN_MENU, opensClients,
 } from '../app/shell-rules.js';
 
 const v = (me) => ({ me, scope: scopeOf(me), error: null });
@@ -323,4 +323,11 @@ test('a long menu is two parts: the daily screens, then the rest under "עוד";
     if (first && g.rest.length) assert.ok(g.daily.some((it) => it.href.split('#')[0] === first.split('#')[0]), `${who}: the first screen is daily`);
   }
   for (const who of ['ilai', 'nadia', 'eli', 'stav']) assert.deepEqual(groupsOf(menuOf(v(who)), v(who)).rest, [], who);
+});
+
+// The owner, 20.10.2026: the pink "לקוח חדש" only for whoever opens clients.
+test('"לקוח חדש": the owners and Irit only', () => {
+  assert.equal(opensClients(OWNER), true);
+  for (const who of ROLES) assert.equal(opensClients(v(who)), who === 'irit', who);
+  assert.equal(opensClients({ me: null, scope: 'office', error: new Error('x') }), false);
 });
