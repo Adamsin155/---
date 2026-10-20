@@ -226,3 +226,25 @@ export function flowNeeds(viewer, now = new Date()) {
   if (PHOTOGRAPHERS.includes(me) || (AVAILABILITY_MANAGERS.includes(me) && missingForManagers(now))) needs.push('availability');
   return needs;
 }
+
+// ── Lior's decisions as one line (the owner, 20.10.2026) ──
+// The counters that only point to "החלטות" (an urgent task that came back to him, an
+// editing paused, a broken login, a change request, the weekly campaign check) are one
+// line, "N החלטות מחכות", in the group of the most pressing of them; one alone stays as
+// it is, in its own words. N is what waits there, added up.
+export const DECISION_LINES = ['urgent-back', 'paused', 'access', 'changes', 'campaigns'];
+const BUCKET_ORDER = ['urgent', 'escalation', 'overdue', 'today', 'tomorrow', 'week', 'later'];
+export function joinDecisions(lines) {
+  const parts = lines.filter((l) => DECISION_LINES.includes(l.id));
+  if (parts.length < 2) return lines;
+  const bucket = BUCKET_ORDER.find((b) => parts.some((l) => l.bucket === b)) || 'today';
+  const n = parts.reduce((sum, l) => sum + l.n, 0);
+  const line = {
+    id: 'decisions', bucket, n, rule: parts.find((l) => l.bucket === bucket).rule, href: 'decisions.html', cta: 'להחלטות',
+    text: n === 1 ? 'החלטה אחת מחכה לך' : `${n} החלטות מחכות לך`, parts: parts.map((l) => l.id),
+  };
+  const at = lines.indexOf(parts[0]);
+  const rest = lines.filter((l) => !parts.includes(l));
+  rest.splice(Math.min(at, rest.length), 0, line);
+  return rest;
+}

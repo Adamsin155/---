@@ -67,7 +67,7 @@ import { fixTaskOf, fixNote, FIX_ITEM_LABEL, lateItems, countsLate, lateKey } fr
 import { headIcon, sectionHead, emptyState, countedLine, dateLeaf, leafRow, cardMark, iconSquare } from './kit.js';
 import { canSeeDeals, canSeeQuoteList } from './manager-rules.js';
 // Everything that waits for me on another page, as counted lines (docs/ops.md, section 46).
-import { flowLines, flowNeeds } from './mine-flow.js';
+import { flowLines, flowNeeds, joinDecisions } from './mine-flow.js';
 // Protocol v8 (docs/ops.md, section 49): a mark the system looks into before it is
 // taken, the question of process 5, and the links Irit sends from her own list.
 import { checkMark } from './mark-guards.js';
@@ -1516,7 +1516,7 @@ new MutationObserver(() => dressCards()).observe($('app'), { childList: true, su
 // this person holds past its deadline (app/late-chain.js: the same answer as the
 // reminders and the owners' table), and each counted line that sits in "באיחור" (a line
 // is one thing to do, so it counts once, whatever its own number).
-const flowOfMe = (now = new Date()) => (me && !viewerError ? once('flow', () => flowLines({ viewer: { me, scope, error: viewerError }, clients, checks, stateOf, tasks, reviews, extra: flowExtra, now })) : []);
+const flowOfMe = (now = new Date()) => (me && !viewerError ? once('flow', () => joinDecisions(flowLines({ viewer: { me, scope, error: viewerError }, clients, checks, stateOf, tasks, reviews, extra: flowExtra, now }))) : []);
 const hasLateTab = () => !!me && !viewerError && !managing;
 function lateOfMe(flow = flowOfMe()) {
   const lines = flow.filter((f) => f.bucket === 'overdue');
