@@ -34,6 +34,7 @@ import { dayKeyIL, daysBetweenIL } from './tz.js';
 import { unsignedLine, UNSIGNED_URL } from './unsigned-logic.js';
 import { followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
 import { QUOTE_LIST_VIEWERS } from './manager-rules.js';
+import { problemsText, FAILED_URL, NOTHING_AHEAD_URL } from './mine-metricool.js';
 
 // The words every line of a client in landing ends with.
 export const LANDING_WORDS = 'בקליטה, בלי שעון';
@@ -194,6 +195,17 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
       text: landingText(words(soon, `לקוח אחד מצטלם ב־${SHOOT_SOON_DAYS} הימים הקרובים`, `לקוחות מצטלמים ב־${SHOOT_SOON_DAYS} הימים הקרובים`)) });
   }
 
+
+  // ── Ilai: the Metricool problems (the owner, 20.10.2026; app/mine-metricool.js) ──
+  // One line to the Gantt index: what failed to publish, and who has nothing scheduled
+  // for next week. The bigger number leads only when nothing failed.
+  if (me === 'ilai' && extra.metricool) {
+    const p = extra.metricool;
+    const text = problemsText(p);
+    if (text) {
+      add({ id: 'metricool', bucket: 'today', n: p.failed || p.nothingAhead, rule: null, href: p.failed ? FAILED_URL : NOTHING_AHEAD_URL, cta: 'לגאנט', text });
+    }
+  }
   // ── The photographer's free dates of next month (section 39) ──
   if (extra.availability && Array.isArray(extra.availability.months)) {
     const ask = askOf(now);
@@ -223,6 +235,7 @@ export function flowNeeds(viewer, now = new Date()) {
   if (me === 'irit') needs.push('messages');
   if (QUOTE_LIST_VIEWERS.includes(me)) needs.push('unsigned');
   if (me === 'ofir') needs.push('liorShoot');
+  if (me === 'ilai') needs.push('metricool');
   if (PHOTOGRAPHERS.includes(me) || (AVAILABILITY_MANAGERS.includes(me) && missingForManagers(now))) needs.push('availability');
   return needs;
 }
