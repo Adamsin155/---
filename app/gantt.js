@@ -50,7 +50,8 @@ let brandUi = null;     // app/gantt-brand.js (staff only)
 let mc = { settings: undefined, brand: undefined, sync: null }; // Metricool: the switch, this client's brand, its last sync
 let missing = false;    // the table is not there yet
 let shown = null;       // { year, month }
-let view = matchMedia('(max-width: 640px)').matches ? 'list' : 'grid';
+// The list first, everywhere (the owner's review, 20.10.2026): this month's days, at today.
+let view = 'list';
 let selectedDay = null;
 let share;              // the client's link (undefined: none yet / no table)
 let preview = false;
@@ -113,7 +114,7 @@ async function boot() {
   // The kit, for the office only (docs/ops.md, section 52): the client's link stays as it is.
   const { dress } = await import('./kit.js');
   dress($('app'), [['#gxw-h', 'calendar', 'blue', 'md'], ['#gxc-h', 'users', 'teal', 'md'], ['#ge-h', 'calendar', 'purple', 'md'], ['#gg-h', 'chart', 'teal', 'md'], ['#gs-h', 'link', 'blue', 'md'], ['#na-h', 'lock', 'navy'],
-    ['#gt-rules > summary', 'list', 'navy'], ['.gx .gt-none', 'calendar', 'blue'],
+    ['#gt-more > summary', 'list', 'navy'], ['#gr-h', 'list', 'navy'], ['.gx .gt-none', 'calendar', 'blue'],
     ['.gx-client.is-problem > .gx-main', 'alert', 'pink'], ['.gx-client.no-gantt > .gx-main', 'calendar', 'navy'], ['.gx-client > .gx-main', 'calendar-check', 'green']]);
   ui.mountSession(async (staff) => {
     const id = params.get('id');
@@ -152,6 +153,7 @@ async function boot() {
     document.title = `גאנט התוכן · ${nameOfClient()} · astrateg`;
     pickMonth();
     render();
+    toToday();
   });
 }
 
@@ -217,6 +219,10 @@ function render() {
   for (const id of ['gt-stats', 'gt-glance', 'gt-cal']) $(id).hidden = !has || !shown;
   $('gt-rules').hidden = SHARE;
   $('gt-share').hidden = SHARE || !canShare || missing || !has;
+  // "עוד": the client's link and the template's rules, folded (20.10.2026).
+  $('gt-more').hidden = $('gt-rules').hidden && $('gt-share').hidden;
+  $('gt-more-sum').textContent = $('gt-share').hidden ? 'עוד: איך התבנית בונה את הגאנט' : 'עוד: קישור ללקוח ואיך התבנית בונה את הגאנט';
+  renderAlerts();
   // The office that only reads is told so (and why there is nothing to press).
   $('gt-readonly').hidden = SHARE || canEdit || !canShare || !has;
   $('btn-bulk').hidden = !canEdit || !has || !shown;
@@ -232,8 +238,10 @@ function renderMetricool() {
   if (SHARE || !brandUi || !mc.settings || mc.brand === undefined || missing) { $('gt-mc').hidden = true; return; }
   // Marked "ללקוח אין מותג" in the card of "המשימות שלי" (section 33): said here, with the way back.
   const none = !!mc.none && !mc.brand.blogId;
+  // Not connected: for Ilai and the owner one short line and its one action (20.10.2026).
   const line = none ? { tone: 'off', text: 'סומן שללקוח אין מותג ב־Metricool. הסימון ידני.' }
-    : brandUi.clientLine({ enabled: !!mc.settings.enabled, blogId: mc.brand.blogId, brand: mc.brand.brand, sync: mc.sync });
+    : !mc.brand.blogId && canEdit ? { tone: 'off', text: 'לא מחובר ל־Metricool.' }
+      : brandUi.clientLine({ enabled: !!mc.settings.enabled, blogId: mc.brand.blogId, brand: mc.brand.brand, sync: mc.sync });
   const act = canEdit ? h('button', {
     type: 'button', class: 'btn btn-sm btn-ghost gt-mc-act', id: 'btn-brand',
     onclick: () => brandUi.openBrandDialog({
@@ -241,7 +249,7 @@ function renderMetricool() {
       // The line says it at once, with the message; the entries are read again after it.
       onSaved: async (saved) => { mc.brand = saved; mc.sync = null; if (saved.blogId) mc.none = false; render(); rows = (await data.loadGantt(client.id).catch(() => rows)) || rows; render(); },
     }),
-  }, mc.brand.blogId ? 'החלפת מותג' : 'חיבור למותג ב־Metricool') : null;
+  }, mc.brand.blogId ? 'החלפת מותג' : 'חיבור למותג') : null;
   const back = canEdit && none ? h('button', {
     type: 'button', class: 'btn btn-sm btn-ghost gt-mc-act', id: 'btn-brand-back',
     onclick: async (e) => {
@@ -251,6 +259,40 @@ function renderMetricool() {
     },
   }, 'ביטול הסימון') : null;
   brandUi.paintLine($('gt-mc'), line, act && back ? h('span', { class: 'gt-mc-acts' }, back, act) : act);
+}
+
+// The top of the client's Gantt (20.10.2026): every post that failed in Metricool, one
+// line each ("נכשל: <title>, <date> · <error>") with the way to it; and, when what is
+// here came from Metricool alone, that the Gantt itself is not made yet.
+const MC_PLANNER = 'https://app.metricool.com/planner'; // assumed: Metricool's planner page (blogId picks the brand)
+function renderAlerts() {
+  const box = $('gt-alerts');
+  if (SHARE || missing || !rows.length) { box.hidden = true; box.replaceChildren(); return; }
+  const failed = rows.filter((e) => e.state === 'error').sort(byWhen);
+  const plan = rows.some((e) => !isCustom(e));
+  const lines = failed.map((e) => {
+    const link = safeLink(e.link) || (mc.brand?.blogId ? `${MC_PLANNER}?blogId=${enc(mc.brand.blogId)}` : null);
+    return h('li', { class: 'gt-alert is-failed', 'data-key': e.key },
+      h('span', { class: 'gt-warn', 'aria-hidden': 'true' }, '!'),
+      h('button', { type: 'button', class: 'gt-alert-t', onclick: () => openEntry(e) },
+        h('strong', {}, 'נכשל: '), `${e.title}, ${dm(e.day)}${e.time_il ? ` ${timeText(e.time_il)}` : ''}`, e.mc_error ? ` · ${e.mc_error}` : ''),
+      link ? h('a', { class: 'btn btn-sm btn-ghost gt-alert-go', href: link, target: '_blank', rel: 'noopener noreferrer' }, safeLink(e.link) ? 'לפוסט' : 'פתיחה ב־Metricool', h('span', { class: 'sr-only' }, ` (${e.title}, נפתח בחלון חדש)`)) : null);
+  });
+  if (!plan) {
+    lines.push(h('li', { class: 'gt-alert is-noplan' },
+      h('span', { class: 'gt-alert-t' }, h('strong', {}, 'עוד אין גאנט מהתבנית. '), 'מה שכאן הגיע מ־Metricool בלבד.'),
+      canEdit ? h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-create-plan', onclick: regenerate }, 'יצירת הגאנט מהתבנית') : null));
+  }
+  box.hidden = !lines.length;
+  box.replaceChildren(...(lines.length ? [h('ul', { class: 'gt-alerts-list' }, ...lines)] : []));
+}
+// The page opens at today: the list's day of today, or the next day that has anything.
+function toToday() {
+  // Something failed: the strip at the top is what to see first, so the page stays there.
+  if (view !== 'list' || selectedDay || params.get('d') || !$('gt-alerts').hidden) return;
+  const t = todayKey();
+  const day = [...document.querySelectorAll('#gm-list .gt-aday[data-day]')].find((el) => el.dataset.day >= t);
+  if (day) setTimeout(() => day.scrollIntoView?.({ block: 'start' }), 0);
 }
 
 function renderHero() {

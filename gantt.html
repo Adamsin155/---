@@ -109,6 +109,8 @@
       </div>
 
       <p class="gt-mc" id="gt-mc" hidden></p>
+      <!-- What failed in Metricool, and a Gantt with no plan yet (20.10.2026). -->
+      <section class="gt-alerts" id="gt-alerts" hidden aria-label="דורש טיפול"></section>
       <p class="gt-readonly" id="gt-readonly" hidden>צפייה בלבד: את הגאנט מעדכנים עילאי ובעל המשרד. אפשר להדפיס חודש ולשלוח ללקוח את קישור הצפייה.</p>
 
       <section class="gt-stats" id="gt-stats" aria-label="סיכום" hidden></section>
@@ -119,15 +121,14 @@
         <div class="gt-empty-acts" id="ge-acts"></div>
       </section>
 
-      <section class="block gt-glance" id="gt-glance" hidden aria-labelledby="gg-h">
-        <div class="gt-sec-head">
-          <h2 id="gg-h">השנה במבט אחד</h2>
-          <p class="hint" id="gg-hint">כמה מכל סוג בכל חודש בחבילה. מלא: עלה. מקווקו: תוזמן. לחיצה על חודש פותחת אותו בלוח.</p>
-        </div>
+      <!-- Folded (20.10.2026): the page opens on this month's list, at today. -->
+      <details class="block gt-glance" id="gt-glance" hidden>
+        <summary class="gt-glance-sum"><h2 id="gg-h">השנה במבט אחד</h2></summary>
+        <p class="hint" id="gg-hint">כמה מכל סוג בכל חודש בחבילה. מלא: עלה. מקווקו: תוזמן. לחיצה על חודש פותחת אותו בלוח.</p>
         <div class="gt-glance-scroll" tabindex="0" role="region" aria-label="השנה במבט אחד, גלילה לצדדים">
           <table class="gt-glance-table" id="gg-table"></table>
         </div>
-      </section>
+      </details>
 
       <section class="block gt-cal" id="gt-cal" hidden aria-labelledby="gm-h">
         <div class="gt-monthbar">
@@ -156,15 +157,18 @@
         <div id="gm-day" class="gt-day" hidden aria-live="polite"></div>
       </section>
 
-      <section class="block gt-share" id="gt-share" hidden aria-labelledby="gs-h">
-        <h2 id="gs-h">קישור ללקוח</h2>
-        <p class="hint">קישור לצפייה בלבד: הלקוח רואה את התאריכים, מה עלה והקישורים לתוכן. בלי תכנון פנימי, בלי הערות ובלי שיחת החידוש.</p>
-        <div id="gs-body"></div>
-      </section>
-
-      <details class="block gt-rules" id="gt-rules" hidden>
-        <summary>איך התבנית בונה את הגאנט</summary>
-        <ul id="gt-rules-list"></ul>
+      <!-- "עוד" (20.10.2026): the client's link (Irit sends it) and the template's rules, folded. -->
+      <details class="block gt-more" id="gt-more" hidden>
+        <summary id="gt-more-sum">עוד: קישור ללקוח ואיך התבנית בונה את הגאנט</summary>
+        <section class="gt-share" id="gt-share" hidden aria-labelledby="gs-h">
+          <h2 id="gs-h">קישור ללקוח</h2>
+          <p class="hint">קישור לצפייה בלבד: הלקוח רואה את התאריכים, מה עלה והקישורים לתוכן. בלי תכנון פנימי, בלי הערות ובלי שיחת החידוש.</p>
+          <div id="gs-body"></div>
+        </section>
+        <section class="gt-rules" id="gt-rules" hidden aria-labelledby="gr-h">
+          <h2 id="gr-h">איך התבנית בונה את הגאנט</h2>
+          <ul id="gt-rules-list"></ul>
+        </section>
       </details>
 
       <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">

@@ -337,3 +337,15 @@ details.ps-sum { min-width: 0; }
 .as-sug strong { font-weight: 700; }
 .as-acts > .as-go { font-weight: 700; }
 @media (max-width: 760px) { .as-acts > .as-go { flex: 2 1 auto; } }
+
+/* qa.html, the owner's review of 20.10.2026: "עומס עורכים" is one line per editor (its
+   clients open under it), and the clients in landing wait in one folded line. */
+.of-load-fold > summary { cursor: pointer; list-style: none; min-height: 44px; }
+.of-load-fold > summary::-webkit-details-marker, .of-landing-fold summary::-webkit-details-marker { display: none; }
+.of-load-fold > summary::after, .of-landing-fold summary::after { content: '▾'; margin-inline-start: auto; color: var(--muted); transition: transform .2s; }
+.of-load-fold[open] > summary::after, .of-landing-fold details[open] > summary::after { transform: rotate(180deg); }
+.of-load-fold[open] > summary { margin-bottom: 8px; }
+.of-load-late { font-weight: 600; font-size: 14px; }
+.of-landing-fold { list-style: none; }
+.of-landing-fold summary { cursor: pointer; list-style: none; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 14px; border-radius: var(--ds-r-item); background: var(--ds-surface); }
+.of-landing-fold details[open] > summary { margin-bottom: 10px; }
