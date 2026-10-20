@@ -565,9 +565,13 @@ export function nextMilestone(client, state, checks = {}, now = new Date()) {
   const byId = new Map(state.states.map((s) => [s.proc.id, s]));
   const make = (s, what) => {
     const when = EVENT.has(baseId(s.proc.id)) ? s.startAt : s.dueAt;
+    const who = EVENT.has(baseId(s.proc.id)) && baseId(s.proc.id) === 'p19' ? 'lior' : responsibleOf(s, checks, client, now);
+    // 22א: assigning the editor is Ofir's alone (since 10.10.2026); while the drive is not back,
+    // the step is Lior's, and it is named as what he does (the owner's page review, 20.10.2026).
+    if (baseId(s.proc.id) === 'p22a') what = who === 'lior' ? 'החזרת הכונן לשיוך עורך' : what;
     return {
       procId: s.proc.id, what: `${what}${roundOf(s.proc.id) ? ` (סבב ${roundOf(s.proc.id)})` : ''}`,
-      who: EVENT.has(baseId(s.proc.id)) && baseId(s.proc.id) === 'p19' ? 'lior' : responsibleOf(s, checks, client, now),
+      who,
       when: when || null, mustSetBy: when ? null : mustSetBy(s, byId), status: s.status,
     };
   };
