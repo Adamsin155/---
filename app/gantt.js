@@ -114,7 +114,7 @@ async function boot() {
   const { dress } = await import('./kit.js');
   dress($('app'), [['#gxw-h', 'calendar', 'blue', 'md'], ['#gxc-h', 'users', 'teal', 'md'], ['#ge-h', 'calendar', 'purple', 'md'], ['#gg-h', 'chart', 'teal', 'md'], ['#gs-h', 'link', 'blue', 'md'], ['#na-h', 'lock', 'navy'],
     ['#gt-rules > summary', 'list', 'navy'], ['.gx .gt-none', 'calendar', 'blue'],
-    ['.gx-client.has-missing > .gx-main', 'alert', 'pink', 'md'], ['.gx-client.no-gantt > .gx-main', 'calendar', 'navy', 'md'], ['.gx-client > .gx-main', 'calendar-check', 'green', 'md']]);
+    ['.gx-client.is-problem > .gx-main', 'alert', 'pink'], ['.gx-client.no-gantt > .gx-main', 'calendar', 'navy'], ['.gx-client > .gx-main', 'calendar-check', 'green']]);
   ui.mountSession(async (staff) => {
     const id = params.get('id');
     const [dir, viewer] = await Promise.all([loadDirectory().catch(() => ({})), ui.viewerOf(staff.email)]);
@@ -126,7 +126,7 @@ async function boot() {
     if (!id) {
       if (!canShare) { $('state').textContent = 'לא נבחר לקוח. פתחו את הגאנט מכרטיס הלקוח.'; return; }
       const [{ mountIndex }, { loadClients }] = await Promise.all([import('./gantt-index.js'), import('./protocol-data.js')]);
-      await mountIndex({ ui, data, loadClients, canEdit });
+      await mountIndex({ ui, data, loadClients, canEdit, viewer });
       return;
     }
     $('state').textContent = 'טוען…';

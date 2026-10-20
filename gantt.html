@@ -26,6 +26,7 @@
   <link rel="stylesheet" href="app/styles/quotes.css">
   <link rel="stylesheet" href="app/styles/protocol.css">
   <link rel="stylesheet" href="app/styles/gantt.css">
+  <link rel="stylesheet" href="app/styles/metricool-connect.css">
   <link rel="stylesheet" href="app/styles/kit.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
@@ -68,14 +69,18 @@
           </div>
         </div>
         <p class="gt-mc" id="gx-mc" hidden></p>
-        <section class="block gx-week" aria-labelledby="gxw-h">
+        <!-- The three problems, with counts; #failed, #nothing-ahead, #not-connected open them (20.10.2026). -->
+        <nav class="gx-filters" id="gx-filters" aria-label="סינון לפי בעיה"></nav>
+        <!-- "לקוחות שלא מחוברים ל־Metricool" (app/metricool-connect-ui.js): Ilai and the owner, under its filter. -->
+        <section id="metricool-card" class="gx-card" hidden></section>
+        <section class="block gx-week" id="gx-week" aria-labelledby="gxw-h">
           <div class="gt-sec-head">
             <h2 id="gxw-h">השבוע</h2>
             <p class="hint" id="gxw-sub"></p>
           </div>
           <div id="gxw-body"></div>
         </section>
-        <section class="block gx-clients" aria-labelledby="gxc-h">
+        <section class="block gx-clients" id="gx-clients" aria-labelledby="gxc-h">
           <div class="gt-sec-head gx-head">
             <h2 id="gxc-h">הלקוחות</h2>
             <div class="gx-tools">

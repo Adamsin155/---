@@ -353,25 +353,65 @@ export function nextPost(entries, now = new Date()) {
 // ── The index (gantt.html without a client) ─
 // One line per client: its package month, the posts of that package month (up,
 // scheduled, missing, failed) and the next post. `entries` are the client's rows of
-// about a month around today (null: the client has no Gantt yet).
-export function clientSummary(client, entries, now = new Date()) {
+// about a month around today (null: the client has no row at all).
+// Since 20.10.2026 (the owner's review; the Metricool sync is on) also:
+//   failed        the rows in a failed state ('error'), any day loaded;
+//   ahead         the posts scheduled in the next AHEAD_DAYS days;
+//   plan          the client has a plan from the template (false: no Gantt yet, even
+//                 when Metricool's posts are on it; creating it is Ilai's, process 9);
+//   connected     the client has a Metricool brand (undefined: not known);
+//   none          marked "ללקוח אין מותג";
+//   nothingAhead  connected, and nothing scheduled in the next AHEAD_DAYS days;
+//   notConnected  no brand, and not marked "no brand needed".
+// opts: { plan (default: has rows), blogId, none } (connection unknown when blogId is undefined).
+export const AHEAD_DAYS = 7;
+export function clientSummary(client, entries, now = new Date(), opts = {}) {
   const today = dayKeyIL(now);
   const of = termOf(client);
   const n = parseDate(client?.deal_at) ? packageMonthOf(client, today) : 0;
   const range = n >= 1 && n <= of ? monthRange(client, n) : null;
   const rows = entries || [];
   const inMonth = range ? rows.filter((e) => e.day >= range.from && e.day < range.to) : [];
-  return { client, has: entries !== null, month: n, of, range, ...totals(inMonth, now), next: nextPost(rows, now) };
+  const until = addDays(today, AHEAD_DAYS);
+  const ahead = rows.filter((e) => GANTT_KINDS[e.kind]?.post && e.day <= until && entryStatus(e, now) === 'scheduled').length;
+  const failed = rows.filter((e) => e.state === 'error').length;
+  const known = opts.blogId !== undefined;
+  const connected = known ? !!opts.blogId : undefined;
+  const none = !!opts.none;
+  return {
+    client, has: entries !== null, plan: opts.plan ?? entries !== null, month: n, of, range, ...totals(inMonth, now), next: nextPost(rows, now),
+    failed, ahead, connected, none, nothingAhead: connected === true && ahead === 0, notConnected: known && !connected && !none,
+  };
 }
-// "Missing first": the missing and the failed, then clients with a Gantt, then by the
-// next post, then by name. 'name': by the business name only.
+// How urgent a client's line is: 0 something failed or is missing, 1 nothing scheduled
+// ahead, 2 no Gantt yet, 3 the rest. Everything under 3 is a problem: it sorts first and
+// never waits behind "הצג עוד".
+export function problemRank(s) {
+  if (s.failed || s.missing || s.errors) return 0;
+  if (s.nothingAhead) return 1;
+  if (!s.plan) return 2;
+  return 3;
+}
+export const isProblem = (s) => problemRank(s) < 3;
+// The three filters at the top of the index (and their hashes: #failed, #nothing-ahead, #not-connected).
+export const INDEX_FILTERS = {
+  failed: (s) => s.failed > 0,
+  'nothing-ahead': (s) => s.nothingAhead,
+  'not-connected': (s) => s.notConnected,
+};
+// "Problems first" (20.10.2026): by problemRank, then by the next post with nothing
+// ahead first, then by name. 'name': by the business name only.
 export function bySummary(a, b, sort = 'missing') {
   const label = (s) => String(s.client.business || s.client.name || '');
   const name = label(a).localeCompare(label(b), 'he');
   if (sort === 'name') return name;
-  const when = (s) => (s.next ? `${s.next.day} ${s.next.time_il || '99'}` : '9999');
-  return (b.missing + b.errors) - (a.missing + a.errors) || Number(b.has) - Number(a.has) || when(a).localeCompare(when(b)) || name;
+  const when = (s) => (s.next ? `${s.next.day} ${s.next.time_il || '99'}` : '0000');
+  return problemRank(a) - problemRank(b) || (b.failed + b.missing + b.errors) - (a.failed + a.missing + a.errors) || when(a).localeCompare(when(b)) || name;
 }
+// The week's problems only (20.10.2026): failed, missing, and today's posts that are
+// still not scheduled. days: weekAgenda's answer; the same shape back.
+export const WEEK_PROBLEMS = new Set(['error', 'missing', 'today']);
+export const weekProblems = (days) => days.map((d) => ({ ...d, items: d.items.filter((x) => WEEK_PROBLEMS.has(x.status)) })).filter((d) => d.items.length);
 // "השבוע": the posts of the Israel week of `now` across clients, by day:
 // [{ day, items: [{ entry, client, status }] }] for the days that have any.
 // entriesByClient: Map client id -> rows.

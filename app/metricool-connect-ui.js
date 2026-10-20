@@ -35,6 +35,7 @@ let showNone = false;
 let mountedFor = null;         // the viewer the card was mounted for
 let inPersonal = () => false; // whether the page is in the personal profile now (the owners: no card there)
 let expanded = false;    // the card is one quiet line until asked for: the person's own work comes first
+let onChanged = null;    // told after a connect or a mark (the Gantt's index recounts)
 
 // ── Data ────────────────────────────────────
 // Every client this login reads, with its brand. null: the brand columns are not there
@@ -71,6 +72,7 @@ function nextAfter(id) {
 const held = (c) => clients.find((x) => x.id === c.id) || c;
 function leave(c, fields, next) {
   Object.assign(held(c), fields);
+  onChanged?.(c.id, fields);
   openId = brands && next ? next.id : null;
   render();
   (box?.querySelector('#mcn-brand') || box?.querySelector('h2'))?.focus();
@@ -113,6 +115,7 @@ async function setNone(c, on, btn) {
   } else {
     toast(`${clientLabel(c)} חזר לרשימה.`);
     held(c).metricool_none = false;
+    onChanged?.(c.id, { metricool_none: false });
     render();
     if (btn) (box?.querySelector('#mcn-none-toggle') || box?.querySelector('h2'))?.focus();
   }
@@ -195,9 +198,12 @@ function render() {
 }
 
 // Mounts the card for Ilai and the owner; hidden for everyone else, and until the
-// brand columns are there.
-export async function mountMetricoolConnect(el, viewer, { personal = () => false } = {}) {
+// brand columns are there. `open`: the list shown at once (the content Gantt's index,
+// where the card lives since 20.10.2026; `changed` hears every connect or mark).
+export async function mountMetricoolConnect(el, viewer, { personal = () => false, open = false, changed = null } = {}) {
   box = el;
+  expanded = open;
+  onChanged = changed;
   mountedFor = viewer;
   inPersonal = personal;
   if (!el || !canConnect(viewer)) { if (el) el.hidden = true; return; }
