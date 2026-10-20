@@ -80,6 +80,11 @@ import { fixSpecOf, mayRecordFix, awaitsClient } from './fix-request.js';
 import { openFixRequest, fixButton } from './fix-request-ui.js';
 import { icon as kIcon, iconSquare, headIcon, dressHeads, emptyState, leafMark } from './kit.js';
 import { leafFar } from './protocol-ui.js';
+// 12א's topics, ticked by the focus-call form (app/briefs.js briefChecks): folded behind it.
+import { FOCUS_TOPICS } from './briefs.js';
+// The Metricool line near the Gantt (the owner, 20.10.2026).
+import { seesMetricool, connectsMetricool, metricoolWords, loadMetricool } from './card-metricool.js';
+import { ganttUrl } from './metricool-connect-logic.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -98,6 +103,7 @@ let tlAll = false;           // the timeline shows everything done, not only the
 let questions = null;        // questions to the one responsible about this client (null: none or not loaded)
 let ofirMeetings = null;     // Ofir's meetings today (times only), for "אופיר באפיון, בקרה עד…" (null: not known)
 let delivFiles = null;     // deliverables uploaded as files (null: no such table, or not readable)
+let mcLine = null;         // the Metricool line's data (null: not loaded, or not for this viewer)
 let viewerInfo = null;     // viewerOf(): for archiving
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
@@ -168,7 +174,7 @@ async function loadCard() {
     // arrives; the card is drawn again for it only when no load is about to draw it.
     loadHistory();
     // The agreement and the rest are asked for side by side (they do not depend on each other).
-    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles] = await Promise.all([
+    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine] = await Promise.all([
       c.quote_id && (!quote || quote.id !== c.quote_id) ? loadQuoteSummary(c.quote_id) : quote,
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
@@ -176,6 +182,7 @@ async function loadCard() {
       loadQuestions({ clientId: id }).catch(() => null),
       loadOfirMeetings(new Date().toISOString()).catch(() => null),
       own() ? null : loadDeliverableFiles(id),
+      seesMetricool({ me, scope, error: viewerError }) ? loadMetricool(id).catch(() => null) : null,
     ]);
     statusNote = statusNotes?.[0] || null;
     setOfirMeetings(ofirMeetings); // the fast ladder waits for the end of his meeting (protocol v10)
@@ -201,8 +208,8 @@ function primeBlocks() {
   const later = () => { if (drawn) renderKeepingFocus(); };
   const who = viewerError ? undefined : me;
   mountClientIntake($('ik-slot'), { client, scope, toast, rerender: later, scripts: false, me: who });
-  mountClientStatus($('st-slot'), { client, scope, me, toast });
-  mountClientFiles($('fl-slot'), { client, me: who, myEmail, toast });
+  mountClientStatus($('st-slot'), statusOpts());
+  mountClientFiles($('fl-slot'), filesOpts());
   mountClientMonth($('mc-slot'), { client, state: clientState(client, checks, new Date()), me, scope, office: worksCycle({ me, scope, error: viewerError }), rerender: later });
 }
 
@@ -277,6 +284,38 @@ function dressCard() {
 }
 for (const slot of ['mc-slot', 'tl-slot', 'ik-slot', 'qa-block', 'al-slot']) if ($(slot)) new MutationObserver(() => dressCard()).observe($(slot), { childList: true });
 
+// ── The reference blocks, folded (the owner, 20.10.2026) ──
+// The status page, the gallery, the files, the logins and the history are each one closed
+// row with what is inside in a few words, opened on a tap. Each block stays as it was
+// inside its row; a block that is other people's work for this viewer is not shown.
+const FOLD_LOOK = { status: ['phone', 'blue'], gallery: ['image', 'teal'], files: ['folder', 'navy'], access: ['key', 'purple'], history: ['history', 'navy'], contract: ['file', 'teal'] };
+// sum: { text } (null: the block is not shown).
+function setFold(name, title, sum) {
+  const d = $(`fold-${name}`);
+  if (!d) return;
+  d.hidden = !sum || (name === 'history' && own());
+  fill(d.querySelector(':scope > summary'), iconSquare(...FOLD_LOOK[name], { size: 'sm' }),
+    h('span', { class: 'cf-t' }, title), sum?.text ? h('span', { class: 'cf-n' }, sum.text) : null);
+}
+// The folds drawn with the head (the contract and the package) keep their state across drawings.
+const foldsOpen = new Set();
+function fold(name, title, sum, ...body) {
+  const d = h('details', { class: 'cc-fold cc-fold-in', id: `fold-${name}`, open: printing || foldsOpen.has(name) },
+    h('summary', { class: 'cf-sum' }, iconSquare(...FOLD_LOOK[name], { size: 'sm' }), h('span', { class: 'cf-t' }, title), sum ? h('span', { class: 'cf-n' }, sum) : null),
+    h('div', { class: 'cf-body' }, ...body));
+  d.addEventListener('toggle', () => { if (printing) return; if (d.open) foldsOpen.add(name); else foldsOpen.delete(name); });
+  return d;
+}
+// The status page: managed by Irit, Lior and the owner, read by the office; not Ofir's work.
+const statusOpts = () => ({
+  client, scope: scope === 'office' && me !== 'ofir' ? scope : 'own', me, toast,
+  onDraw: (sum) => setFold('status', 'דף המצב ללקוח', sum),
+});
+const filesOpts = () => ({
+  client, me: viewerError ? undefined : me, myEmail, toast, gallerySlot: $('gal-slot'),
+  onDraw: ({ files, gallery }) => { setFold('files', 'תיק לקוח', files); setFold('gallery', 'גלריה ללקוח', gallery); },
+});
+
 function render() {
   const s = clientState(client, checks, new Date());
   resolved = new Map(s.states.flatMap((x) => x.proc.items.map((i) => [i.key, { proc: x.proc, item: i }])));
@@ -292,9 +331,10 @@ function render() {
     if (tp) openPhases.add(tp.proc.phase);
   }
   renderHead(s);
+  renderMyNext(s);
   mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus(), scripts: scriptsOk(), me: viewerError ? undefined : me });
-  mountClientStatus($('st-slot'), { client, scope, me, toast });
-  mountClientFiles($('fl-slot'), { client, me: viewerError ? undefined : me, myEmail, toast });
+  mountClientStatus($('st-slot'), statusOpts());
+  mountClientFiles($('fl-slot'), filesOpts());
   renderAccess();
   renderQa(s);
   renderViewbar();
@@ -474,10 +514,11 @@ function nextFor(s) {
 // With nothing of mine to check now: my next process and what it waits for, or a plain "nothing".
 function nothingNext(s) {
   const x = client.status === 'cancelled' ? null : s.states.find((y) => !y.complete && !y.proc.recurring && hasPart(y.proc, me));
-  if (!x) return h('p', { class: 'cc-next is-none' }, h('span', { class: 'k' }, 'הצעד הבא שלך'), h('span', {}, 'אין כרגע משהו פתוח אצלך בלקוח הזה.'));
+  if (!x) return h('p', { class: 'mn-none' }, 'אין כרגע משהו פתוח אצלך בלקוח הזה.');
   const why = dueText(x, new Date()) || 'ממתין לפריטים קודמים בפרוטוקול';
-  return h('a', { class: 'cc-next s-waiting', href: `#${x.proc.id}`, onclick: (e) => { e.preventDefault(); goTo(x.proc.id); } },
-    h('span', { class: 'k' }, 'התהליך הבא שלך'), h('span', {}, `${x.proc.num} · ${x.proc.title}`), h('span', { class: 'muted' }, why));
+  return h('div', { class: 'mn-none' }, h('p', {}, 'אין כרגע משהו פתוח אצלך.'),
+    h('a', { class: 'cc-next s-waiting', href: `#${x.proc.id}`, onclick: (e) => { e.preventDefault(); goTo(x.proc.id); } },
+      h('span', { class: 'k' }, 'התהליך הבא שלך'), h('span', {}, `${x.proc.num} · ${x.proc.title}`), h('span', { class: 'muted' }, why)));
 }
 
 // A client from the old system that was not taken in yet: said once, at the top.
@@ -564,6 +605,11 @@ function renderAccess() {
     const linked = !!$('al-slot').firstChild;
     $('access').hidden = !vaultOk && !linked;
     $('access-novault').hidden = vaultOk || !linked;
+    // The closed row: how many logins, and how many need a look.
+    const loose = access.filter((a) => a.status !== 'ok').length;
+    setFold('access', 'גישות לרשתות', $('access').hidden ? null : {
+      text: !vaultOk ? 'הקישור לטופס הגישות' : access.length ? `${access.length === 1 ? 'גישה אחת' : `${access.length} גישות`}${loose ? ` · ${loose} לבדיקה` : ''}` : 'אין גישות עדיין',
+    });
   };
   mountAccessLink($('al-slot'), {
     client, viewer: { me, scope, error: viewerError }, toast, onDraw: show,
@@ -587,7 +633,7 @@ function renderAccess() {
       a.has_secret ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => reveal(a) }, 'הצגת סיסמה') : h('span', { class: 'muted' }, 'אין סיסמה'),
       h('button', { type: 'button', class: 'btn-text', onclick: () => openAccess(a) }, 'עריכה'),
       h('button', { type: 'button', class: 'btn-text danger', onclick: () => removeAccess(a) }, 'מחיקה'))))
-    : [emptyLi('עוד לא הוכנסו גישות. כל גישה תקינה נכנסת לכאן מיד, לא נשארת בוואטסאפ.', 'key')]));
+    : [h('li', { class: 'empty muted cf-none' }, 'עוד אין גישות. כל גישה תקינה נכנסת לכאן מיד, לא נשארת בוואטסאפ.')]));
 }
 async function refreshAccess() {
   if (!vaultOk) return;
@@ -758,10 +804,10 @@ function renderHead(s) {
         h('h1', {}, ...breakable(c.name)),
         h('p', { class: 'muted' }, [c.business, c.package_name].filter(Boolean).join(' · ') || ' ')),
       h('div', { class: 'head-actions' },
-        h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-escalate', onclick: () => openEscalate() }, 'דיווח חריגה לליאור'),
+        // Lior does not report to himself (the owner, 20.10.2026).
+        me === 'lior' ? null : h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-escalate', onclick: () => openEscalate() }, 'דיווח חריגה לליאור'),
         h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => window.print() }, 'הדפסה'),
-        own() ? null : h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'),
-        canArchive(viewerInfo) ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost btn-danger', id: 'btn-archive', onclick: () => archiveThis() }, 'העברה לארכיון') : null)),
+        own() ? null : h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-edit', onclick: () => openEdit() }, 'עריכת פרטים'))),
     // Office: the colour and why, now (station, who, until when), next (and what the client owes).
     own() || c.status === 'cancelled' || c.status === 'ended' ? null : (() => { const x = healthNow(s); return healthHead(x.health, x.st, x.now); })(),
     h('div', { class: 'cc-progress' },
@@ -772,11 +818,14 @@ function renderHead(s) {
       prog.overdue ? h('span', { class: 'num' }, `${prog.overdue} תהליכים`) : null,
       prog.waiting ? statusBadge('client', null) : null,
       prog.waiting ? h('span', { class: 'num' }, `${prog.waiting} תהליכים`) : null),
-    next ? h('a', { class: `cc-next s-${next.status}`, href: `#${next.proc.id}`, onclick: (e) => { e.preventDefault(); goTo(next.proc.id); } },
-      h('span', { class: 'k' }, vp === me && me ? 'הצעד הבא שלך' : vp ? `הצעד הבא אצל ${PEOPLE[vp].name}` : 'הצעד הבא'),
-      h('span', {}, nextLabel),
-      next.status === 'client' ? null : statusBadge(next.status, next.dueAt, new Date()))
-      : mineOnly() ? nothingNext(s) : null,
+    // Whoever has a person sees their own next step in its block under the head (renderMyNext);
+    // the line stays for the owners, and for someone else highlighted in the whole protocol.
+    me && (!vp || vp === me) ? null
+      : next ? h('a', { class: `cc-next s-${next.status}`, href: `#${next.proc.id}`, onclick: (e) => { e.preventDefault(); goTo(next.proc.id); } },
+        h('span', { class: 'k' }, vp ? `הצעד הבא אצל ${PEOPLE[vp].name}` : 'הצעד הבא'),
+        h('span', {}, nextLabel),
+        next.status === 'client' ? null : statusBadge(next.status, next.dueAt, new Date()))
+        : null,
     // 'own': only the details that serve the work (where, when, who edits).
     own() ? h('dl', { class: 'facts cc-facts' }, fact('כתובת העסק', c.address), shootFact, editorFact)
       : h('dl', { class: 'facts cc-facts' },
@@ -788,12 +837,17 @@ function renderHead(s) {
         fact('לוגו', c.has_logo === true ? 'יש' : c.has_logo === false ? 'אין, עילאי מכין' : null),
         editorFact,
         fact('סיום החוזה', c.contract_end ? formatDay(c.contract_end) : null)),
-    own() ? null : contractBlock(s),
     statusNoteBlock(),
     linksRow(),
-    own() ? null : deliverablesBlock(s),
+    metricoolLine(),
+    // The contract and the package's counters: one closed row with the month (the owner, 20.10.2026).
+    own() ? null : fold('contract', 'החוזה והחבילה', contractWords(s), contractBlock(s), deliverablesBlock(s)),
     c.notes ? h('p', { class: 'cc-notes' }, c.notes) : null,
   );
+  // "העברה לארכיון": rare and final, at the foot of the card (the owner, 20.10.2026), still asked first.
+  const foot = $('cc-foot');
+  foot.hidden = !canArchive(viewerInfo);
+  fill(foot, foot.hidden ? null : h('button', { type: 'button', class: 'btn btn-sm btn-ghost btn-danger', id: 'btn-archive', onclick: () => archiveThis() }, 'העברה לארכיון'));
   fill($('cc-sticky'),
     h('span', { class: 'sticky-name' }, c.name),
     h('strong', { class: 'num', dir: 'ltr' }, `${prog.done}/${prog.total}`),
@@ -821,6 +875,24 @@ function contractBlock(s) {
         progressBar(Math.min(x.done, x.total), x.total, `${x.short} שבוצעו`)))),
     sum.flags.length ? h('p', { class: 'cs-flags' }, `כלול גם: ${sum.flags.join(' · ')}`) : null,
     sum.empty ? null : h('p', { class: 'hint' }, `בוצע: הגבוה מבין מה שסומן בפרוטוקול, המונה ״נמסרו״ בכרטיס${delivFiles ? ' והקבצים שהועלו' : ''}.`));
+}
+
+// The contract's row in a few words: the month of the contract, and the renewal once its window is open.
+function contractWords(s) {
+  const sum = contractSummary(client, s, checks, { files: delivFiles ? fileCounts(delivFiles, client.id) : null, now: new Date() });
+  return [sum.month?.text, sum.renewal?.state === 'open' ? sum.renewal.text : null, sum.empty ? 'לא הוזן מה כלול' : null].filter(Boolean).join(' · ') || null;
+}
+
+// ── Metricool, near the Gantt (the owner, 20.10.2026; app/card-metricool.js) ──
+function metricoolLine() {
+  const viewer = { me, scope, error: viewerError };
+  const w = mcLine && seesMetricool(viewer) ? metricoolWords(mcLine) : null;
+  if (!w) return null;
+  return h('p', { class: `cc-mc is-${w.tone}`, id: 'cc-mc' },
+    h('span', { class: 'cc-mc-dot', 'aria-hidden': 'true' }),
+    h('span', {}, 'Metricool: ', w.text),
+    w.failed ? h('a', { class: 'cc-mc-fail', href: ganttUrl(client.id) }, w.failed) : null,
+    w.connect && connectsMetricool(viewer) ? h('a', { class: 'btn-text', id: 'cc-mc-connect', href: ganttUrl(client.id) }, 'חיבור למותג בגאנט') : null);
 }
 
 // ── Archive (the owner and Ofir; the database checks) ──
@@ -1109,6 +1181,9 @@ function procCard(x, now, s) {
   const canWait = !x.complete && !p.recurring && (own() ? CLIENT_PROCS.has(pid) : x.ready || CLIENT_PROCS.has(pid));
   // Handoffs out of this process: who the work went to, and a WhatsApp button.
   const handoffs = printing ? null : handoffLine({ client, checks: () => checks, state: s, x, me, canTeam: canTeam(), onSent: afterHandoff });
+  // Not started yet ("ממתין ל…", "טרם התחיל"): its items are one line, opened on a tap,
+  // with no "סיימתי" and no "לא רלוונטי" in sight (the owner, 20.10.2026).
+  const notYet = !x.ready && !x.complete && !p.recurring && !printing;
   return h('article', { class: `proc s-${x.status}${mine ? ' is-mine' : ''}${dim ? ' is-dim' : ''}`, id: p.id, 'aria-labelledby': `${p.id}-h`, 'aria-describedby': x.wait ? `${p.id}-wait` : null },
     h('header', { class: 'proc-head' },
       h('span', { class: 'pnum num' }, p.num),
@@ -1142,13 +1217,105 @@ function procCard(x, now, s) {
       printing ? null : intakeShortcut(p.id, client.id, { checks, scope, complete: x.complete, me }),
       ...guidance.map((g) => h('p', { class: 'proc-guide' }, g)),
       p.rule ? h('p', { class: 'proc-rule' }, h('strong', {}, 'חובה: '), p.rule) : null,
-      h('ul', { class: 'items' }, ...items.map((i) => itemRow(p, i))),
+      notYet ? waitFold(`${p.id}:all`, waitWords(items.length, ['ייפתחו כשהתהליך יתחיל', dueText(x, now) || 'ממתין לשלבים קודמים בפרוטוקול'].join(' · ')), items.map((i) => itemRow(p, i)))
+        : h('ul', { class: 'items' }, ...itemRows(x, items)),
       handoffs,
       hidden.length ? h('p', { class: 'others-note' },
         `ועוד ${hidden.length === 1 ? 'פריט אחד' : `${hidden.length} פריטים`} בתהליך הזה אצל ${names([...new Set(hidden.flatMap((i) => i.owners))].filter((o) => o !== me))}.`) : null,
-      bulkButton(x),
+      notYet ? null : bulkButton(x),
     ],
   );
+}
+
+// ── Rows that wait, in one line (the owner, 20.10.2026) ──
+// "7 בדיקות ייפתחו כשעילאי יסיים" instead of seven grey rows: the items that wait for an
+// earlier mark are one closed line; opened, they are the same rows as before. 12א's ten
+// topics, which the focus-call form ticks by itself (app/briefs.js briefChecks), are one
+// line under the form's button. Folds keep their state while the card is drawn again.
+const waitsOpen = new Set();
+const TOPIC_KEYS = new Set(FOCUS_TOPICS.map(([, , key]) => key));
+const waitWords = (n, why) => `${n === 1 ? 'פריט אחד' : `${n} פריטים`} · ${why}`;
+function waitFold(key, words, rows, cls = '') {
+  const d = h('details', { class: `cc-wait${cls ? ` ${cls}` : ''}`, open: printing || waitsOpen.has(key) },
+    h('summary', {}, h('span', { class: 'cc-wait-t' }, words)),
+    h('ul', { class: 'items' }, ...rows));
+  d.addEventListener('toggle', () => { if (printing) return; if (d.open) waitsOpen.add(key); else waitsOpen.delete(key); });
+  return h('li', { class: 'item wait-row' }, d);
+}
+// The rows of `items` in process `x`, with the waiting ones and 12א's topics folded. `idp`: as itemRow's.
+function itemRows(x, items, idp = '') {
+  const p = x.proc;
+  const ctx = p.ctx || client;
+  const open = (i) => !(checks[i.key] && isResolved(i, checks[i.key]));
+  const topics = p.id.replace(/^r\d+-/, '') === 'p12a' && !printing ? items.filter((i) => TOPIC_KEYS.has(baseKey(i.key))) : [];
+  const waiting = printing ? [] : items.filter((i) => !topics.includes(i) && !i.recurring && open(i) && blockers(i, ctx, checks));
+  const folded = waiting.length > 1 ? waiting : [];
+  const rows = [];
+  let placed = false;
+  let topicsPlaced = false;
+  for (const i of items) {
+    if (topics.includes(i)) {
+      if (topicsPlaced) continue;
+      topicsPlaced = true;
+      const done = topics.filter((t) => !open(t)).length;
+      rows.push(waitFold(`${idp}${p.id}:topics`, `${topics.length} נושאי השיחה · ${done ? `${done} סומנו · ` : ''}מסומנים מטופס שיחת הדגשים`, topics.map((t) => itemRow(p, t, idp)), 'cc-topics'));
+      continue;
+    }
+    if (folded.includes(i)) {
+      if (placed) continue;
+      placed = true;
+      rows.push(waitFold(`${idp}${p.id}:wait`, waitWords(folded.length, waitWhy(folded, ctx)), folded.map((t) => itemRow(p, t, idp))));
+      continue;
+    }
+    rows.push(itemRow(p, i, idp));
+  }
+  return rows;
+}
+// What the folded rows wait for, in a few words: whose marks (not mine), the details, or the rows above.
+function waitWhy(items, ctx) {
+  const keys = [...new Set(items.flatMap((i) => blockers(i, ctx, checks)?.items || []))];
+  const fields = [...new Set(items.flatMap((i) => blockers(i, ctx, checks)?.fields || []))];
+  const ref = (k) => resolved.get(k)?.item || ITEM_INDEX.get(baseKey(k))?.item;
+  const people = [...new Set(keys.flatMap((k) => ref(k)?.owners || []))].filter((o) => o !== me && PEOPLE[o]);
+  if (people.length) return `ייפתחו אחרי הסימון של ${names(people)}`;
+  if (fields.length && !keys.length) return `ממתינים לפרטים: ${fields.map((f) => FIELD_NAMES[f]).join(', ')}`;
+  return 'ייפתחו אחרי הפריטים שלפניהם';
+}
+
+// ── "הצעד הבא שלך" (the owner, 20.10.2026) ──
+// Under the card's head, for whoever has a person (Lior, Ofir, Ilai, an editor, Irit…): their
+// open items on this client, by process, with the same rows and buttons as the protocol
+// below (itemRow), which stays the source of truth. The owners look at everything: none.
+function renderMyNext(s) {
+  const box = $('my-next');
+  if (!me || viewerError || printing || client.status === 'cancelled') { box.hidden = true; fill(box); return; }
+  const now = new Date();
+  const open = openItemsFor(me, client, checks, s, now).sort(byUrgency);
+  const byProc = new Map();
+  for (const o of open) byProc.set(o.proc.id, [...(byProc.get(o.proc.id) || []), o.item]);
+  const states = new Map(s.states.map((x) => [x.proc.id, x]));
+  const mine = tasks.filter((t) => t.owner === me && !t.done_at).length;
+  box.hidden = false;
+  fill(box,
+    h('div', { class: 'side-head mn-head' }, iconSquare('target', 'pink'), h('h2', { id: 'my-next-h' }, 'הצעד הבא שלך')),
+    byProc.size ? h('div', { class: 'mn-list' }, ...[...byProc].map(([pid, items]) => myProc(states.get(pid), items, now)))
+      : nothingNext(s),
+    mine ? h('a', { class: 'btn-text mn-tasks', href: '#tasks' }, mine === 1 ? 'ועוד משימה פתוחה שלך, למטה' : `ועוד ${mine} משימות פתוחות שלך, למטה`) : null);
+}
+function myProc(x, items, now) {
+  const p = x.proc;
+  const pid = p.id.replace(/^r\d+-/, '');
+  const link = PROC_LINK[pid] && safeLink(client.links?.[PROC_LINK[pid]]);
+  const go = intakeShortcut(p.id, client.id, { checks, scope, complete: x.complete, me });
+  return h('article', { class: `mn-proc s-${x.status}` },
+    h('header', { class: 'mn-phead' },
+      h('a', { class: 'mn-title', href: `#${p.id}`, onclick: (e) => { e.preventDefault(); goTo(p.id); } },
+        h('span', { class: 'pnum num' }, p.num), h('span', {}, `${p.ctx?.round ? `סבב ${p.ctx.round} · ` : ''}${p.title}`)),
+      statusBadge(x.status, x.dueAt, now)),
+    claimLine(x),
+    link || go ? h('div', { class: 'mn-acts' }, go,
+      link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${LINKS.find((l) => l.key === PROC_LINK[pid]).label}`) : null) : null,
+    h('ul', { class: 'items' }, ...itemRows(x, items, 'mn-')));
 }
 
 // The raw material and the chosen take per script, as written on the shoot day (protocol v10;
@@ -1162,10 +1329,11 @@ function rawFilesNote(p) {
     h('ul', { class: 'proc-file-list' }, ...[...files].map(([n, x]) => h('li', { class: 'num' }, fileLine(n, x)))));
 }
 
-function itemRow(p, i) {
+// `idp`: a prefix for the row's ids, when the same row is drawn twice ("הצעד הבא שלך").
+function itemRow(p, i, idp = '') {
   const c = checks[i.key];
   const state = c && isResolved(i, c) ? c.state : null;
-  const cid = `i-${i.key.replace(/\./g, '-')}`;
+  const cid = `${idp}i-${i.key.replace(/\./g, '-')}`;
   const busy = pending.has(i.key);
   const block = state ? null : blockers(i, p.ctx || client, checks);
   // Outside the office, a mark that hands finished files on is pressed on the page
@@ -1807,11 +1975,20 @@ function syncBrief() {
   if (need) $('task-brief-box').open = true;
 }
 $('task-owner').addEventListener('change', syncBrief);
+function showTaskForm(on) {
+  $('task-form').hidden = !on;
+  $('task-new').setAttribute('aria-expanded', String(on));
+  $('task-new').textContent = on ? 'סגירת הטופס' : 'משימה חדשה';
+  if (on) $('task-title').focus();
+}
+$('task-new').addEventListener('click', () => showTaskForm($('task-form').hidden));
 function renderTasks() {
   // 'own': only the tasks given to me; the section is gone when there are none.
   const list = own() ? tasks.filter((t) => t.owner === me) : tasks;
   $('tasks').hidden = own() && !list.length;
-  $('task-form').hidden = !canAddTask();
+  // The form waits behind "משימה חדשה" (the owner, 20.10.2026).
+  $('task-new').hidden = !canAddTask();
+  if (!canAddTask()) $('task-form').hidden = true;
   const open = list.filter((t) => !t.done_at);
   const done = list.filter((t) => t.done_at).slice(0, 20);
   const today = dayKeyIL(new Date());
@@ -1839,7 +2016,7 @@ function renderTasks() {
       t.urgent && !t.done_at ? startControl(t, me, () => renderTasks()) : null);
   };
   open.sort((a, b) => Number(b.urgent) - Number(a.urgent));
-  if (!list.length) fill($('task-list'), emptyLi('אין משימות פתוחות.', 'check-circle'));
+  if (!list.length) fill($('task-list'), h('li', { class: 'empty muted cf-none' }, 'אין משימות.'));
   else fill($('task-list'), ...open.map(row), ...done.map(row));
 }
 async function toggleTask(t, input) {
@@ -1950,7 +2127,9 @@ async function loadHistory() {
         !special && ref ? h('a', { href: `#${procId}`, onclick: (e) => { e.preventDefault(); goTo(procId); } }, `${round > 1 ? `סבב ${round} · ` : ''}${ref.proc.num} · ${ref.item.label}`) : null,
         !special && !ref ? r.item_key : null,
         r.note && !special && r.note !== 'בסימון כל התהליך' && noteWords(r.item_key, r.note) ? h('div', { class: 'inote' }, noteWords(r.item_key, r.note)) : null));
-  }) : [emptyLi('עוד לא סומן דבר.', 'history')]));
+  }) : []));
+  // The closed row says it: nothing marked yet takes no space inside (the owner, 20.10.2026).
+  setFold('history', 'היסטוריה', { text: log.length ? `${log.length} סימונים` : 'עוד לא סומן דבר' });
   // The last call summary may have changed.
   if (!pending.size && drawn && !loading) renderKeepingFocus();
 }
@@ -2083,12 +2262,24 @@ $('ed-form').addEventListener('submit', async (e) => {
 });
 
 // Print the whole protocol, with every phase and item.
-window.addEventListener('beforeprint', () => { if (client) { printing = true; render(); } });
-window.addEventListener('afterprint', () => { if (client) { printing = false; render(); } });
+// The closed rows open for the paper and close again after it.
+let foldedForPrint = [];
+window.addEventListener('beforeprint', () => {
+  if (!client) return;
+  foldedForPrint = [...document.querySelectorAll('#app details.cc-fold:not([open])')].map((d) => d.id);
+  for (const fid of foldedForPrint) $(fid).open = true;
+  printing = true; render();
+});
+window.addEventListener('afterprint', () => {
+  if (!client) return;
+  printing = false; render();
+  for (const fid of foldedForPrint) if ($(fid)) $(fid).open = false;
+  foldedForPrint = [];
+});
 
 // No refresh while something is being saved or typed in a dialog.
 const busy = () => pending.size || Object.keys(saveTimers).length || dialogs.some((d) => d.open)
-  || !!document.querySelector('#app details:not(.phase)[open]');
+  || !!document.querySelector('#app details:not(.phase, .cc-fold, .cc-wait)[open]');
 document.addEventListener('visibilitychange', () => { if (!document.hidden && client && !busy()) load(); });
 setInterval(() => { if (!document.hidden && client && !busy()) renderKeepingFocus(); }, 60e3);
 
@@ -2099,12 +2290,13 @@ function applyScope() {
   const back = document.querySelector('#app > a.back');
   if (back) { back.href = 'clients.html#mine'; back.textContent = '→ המשימות שלי'; }
   $('history').hidden = true;
+  $('fold-history').hidden = true;
   $('tasks-h').textContent = 'המשימות שלי';
   const sub = document.querySelector('#tasks .side-head p');
   if (sub) sub.textContent = 'משימות שנפתחו לך בלקוח הזה.';
   // My work first; the vault (when mine to use) after it.
-  $('phases').after($('access'));
-  $('access').after($('fl-slot'));
+  $('phases').after($('fold-access'));
+  $('fold-access').after($('fold-files'));
 }
 
 mountSession(async (staff) => {
@@ -2137,7 +2329,9 @@ mountSession(async (staff) => {
   // check that closes by itself, then the log), without reading the list a second time.
   if (vaultOk) autoAccessCheck().then(refreshAccessLog);
   if (vaultOk) mountVaultHint($('vault-open'), { locked: hideSecrets });
-  const target = location.hash && document.getElementById(location.hash.slice(1));
+  const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+  const shut = target?.closest('details.cc-fold:not([open])');
+  if (shut) shut.open = true;
   if (target) target.scrollIntoView({ block: 'start' });
   // "תיעוד שיחה" pressed on "המשימות שלי" (the weekly call's row): its dialog opens here.
   const call = new URLSearchParams(location.search).get('call');
