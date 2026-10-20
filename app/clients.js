@@ -1111,7 +1111,9 @@ function taskMeta(t, now = new Date()) {
 // shows its first MINE_CAP cards and "הצג עוד". "תצוגה מלאה" (kept per browser) gives
 // the whole list, as it was. Nothing is removed, only folded.
 const MINE_CAP = 5;
-const fullView = () => visitStore.get('mine.full') === 'on';
+// The owner, 20.10.2026: a person's own list has one view, the short one; "תצוגה מלאה"
+// stays on the team's list (#team, and the office looking at someone else's).
+const fullView = () => !(scope === 'own' || personal) && visitStore.get('mine.full') === 'on';
 const openCards = new Set();   // cards whose details are open: kept across rebuilds
 function viewToggle() {
   const full = fullView();
@@ -1622,7 +1624,9 @@ function renderMine() {
   const tools = [!own && person ? summaryActions(person, 'mine') : null, person && person === me && !pushActive() ? notifyRow() : null].filter(Boolean);
   fill($('mine-tools'), full ? tools : null);
   // Under the list: the length of the list, and on a short one the tools.
-  fill($('mine-foot'), tools.length && !full ? h('details', { class: 'mine-more' }, h('summary', {}, 'סיכום בוקר והתראות'), ...tools) : null, viewToggle(),
+  // On my own list neither adds anything (the owner, 20.10.2026): the notifications have
+  // their card above, and there is one view; both stay on the team's list.
+  fill($('mine-foot'), tools.length && !full && !mineOnly ? h('details', { class: 'mine-more' }, h('summary', {}, 'סיכום בוקר והתראות'), ...tools) : null, mineOnly ? null : viewToggle(),
     mineOnly && !own ? h('a', { class: 'btn-text', id: 'team-open', href: '#team' }, 'הרשימה של עובד אחר') : null);
   showMonths($('my-months'), { person, me, office: worksCycle({ me, scope, error: viewerError }), clients, stateOf, checks, short: !full });
 
