@@ -1158,6 +1158,13 @@ function markOf(g, now = new Date()) {
 // What the leaf does not say stays a pill: how late, whose turn, "ממתין ללקוח", a meeting.
 const echoesLeaf = (g, when) => !!g.dueAt && g.status !== 'overdue' && g.status !== 'client' && when !== MEETING_WORDS;
 
+// Ilai's new logo is his only item in process 5 (the owner, 20.10.2026): a card of 5 that
+// holds only it is named "לוגו חדש" and opens the client's files, where the logo goes up,
+// not the characterization (that is what the rest of 5, the access, is done from).
+const logoOnly = (g) => !g.task && checkable(g).length > 0 && checkable(g).every((e) => baseKeyOf(e.item.key) === 'p05.newlogo');
+const procTitle = (g) => (logoOnly(g) ? `${g.proc.num} · לוגו חדש` : procLabel(g.proc));
+const shortcutOf = (g) => (!g.proc ? null : logoOnly(g) ? h('a', { class: 'btn btn-sm ik-go files-go', href: clientUrl(g.client.id, '#fl-slot') }, 'תיק הלקוח')
+  : intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }));
 function compactCard(g, person) {
   const href = clientUrl(g.client.id, g.proc ? `#${g.proc.id}` : '#tasks');
   const owners = g.task ? [g.task.owner] : [...new Set(g.entries.flatMap((e) => e.item.owners))];
@@ -1171,11 +1178,11 @@ function compactCard(g, person) {
   const need = needLine(g);
   const n = ticks.length;
   const one = n === 1 && !need;
-  const shortcut = g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null;
+  const shortcut = shortcutOf(g);
   const start = g.task && g.urgent ? taskStart(g.task) : null;
   const needsStart = !!start?.querySelector('button');
   // The action in words: the task, or the process (a single item is named by its own check).
-  const what = g.task ? g.task.title : procLabel(g.proc);
+  const what = g.task ? g.task.title : procTitle(g);
   const sub = g.task ? [isEscalation(g.task) ? null : 'משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ') : one || !n ? '' : n === 1 ? 'פריט אחד לסימון' : `${n} פריטים לסימון`;
   const rows = () => h('ul', { class: 'wlist' }, ...ticks.map((e) => {
     const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
@@ -1251,7 +1258,7 @@ function compactCard(g, person) {
 function groupCard(g, person) {
   if (!fullView()) return compactCard(g, person);
   // A reported exception is named by its badge; its reason is the task's own title below.
-  const title = g.task ? (isEscalation(g.task) ? null : ['משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ')) : procLabel(g.proc);
+  const title = g.task ? (isEscalation(g.task) ? null : ['משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ')) : procTitle(g);
   const href = clientUrl(g.client.id, g.proc ? `#${g.proc.id}` : '#tasks');
   const owners = g.task ? [g.task.owner] : [...new Set(g.entries.flatMap((e) => e.item.owners))];
   const bulk = bulkFor(g);
@@ -1278,7 +1285,7 @@ function groupCard(g, person) {
     needLine(g),
     zoomFixesLine(g),
     linkLine(g),
-    g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null,
+    shortcutOf(g),
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
       bulk ? h('button', {
