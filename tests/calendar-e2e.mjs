@@ -108,11 +108,19 @@ async function step(name, fn) {
 try {
   await step('Irit, on a phone: the week of every meeting and shoot day, in Israel days', async () => {
     const { page, ctx } = await signedIn('irit');
-    await page.waitForSelector('#cp-view .cp-week');
+    await page.waitForSelector('#cp-view .cp-weekwrap');
     assert.equal(await page.getAttribute('#cp-week', 'aria-pressed'), 'true', 'the phone opens on the week');
     assert.equal(await text(page.locator('#cp-title')), '18–24 באוקטובר 2026');
-    assert.equal(await page.locator('.cp-day').count(), 7);
+    // Only the days with events, from today on; the days that passed this week are folded
+    // above (the owner, 20.10.2026). It was seven days, empty ones too.
+    const shownDays = await page.locator('#cp-view > .cp-weekwrap > .cp-week > .cp-day').evaluateAll((els) => els.map((e) => e.dataset.day));
+    assert.ok(shownDays.length >= 2 && shownDays.length < 7, JSON.stringify(shownDays));
+    assert.ok(shownDays.every((d) => d >= '2026-10-20'), JSON.stringify(shownDays));
+    assert.equal(await page.locator('.cp-day:not(:has(.cp-ev))').count(), 0, 'no empty day');
     assert.equal(await page.locator('.cp-day.is-today').getAttribute('data-day'), '2026-10-20');
+    const pastDays = await page.locator('.cp-past .cp-day').evaluateAll((els) => els.map((e) => e.dataset.day));
+    assert.ok(pastDays.every((d) => d < '2026-10-20'), JSON.stringify(pastDays));
+    if (pastDays.length) assert.equal(await page.locator('.cp-past').getAttribute('open'), null, 'the days that passed are folded');
     assert.equal(await kinds(page, 'char'), 2);
     assert.equal(await kinds(page, 'shoot'), 4);
     // Wednesday: the two shoot days, the earlier one first.
@@ -134,7 +142,9 @@ try {
 
   await step('Irit: "שליחת זימון" has the guests of the event; the line about Google is under the first one only', async () => {
     const { page, ctx } = await signedIn('irit');
-    await page.waitForSelector('.cp-invite');
+    await page.waitForSelector('.cp-invite >> visible=true');
+    // The line about Google is under the first invitation in sight, not in the folded days that passed.
+    assert.equal(await page.locator('.cp-hint').isVisible(), true);
     const meet = page.locator('.cp-ev[data-kind="char"]').filter({ hasText: 'שירה כץ' }).locator('.cp-invite');
     assert.equal(await guestsOf(meet), `shira@example.co.il,${emailOf('ofir')}`);
     assert.equal(await meet.getAttribute('target'), '_blank');
@@ -253,32 +263,35 @@ try {
       await noSideScroll(page, `${role} 1366 month`);
       await shot(page, `${role}-1366-month`);
       await page.click('#cp-week');
-      await page.waitForSelector('.cp-week');
+      await page.waitForSelector('.cp-weekwrap');
       await noSideScroll(page, `${role} 1366 week`);
       await shot(page, `${role}-1366-week`);
       await ctx.close();
     }
   });
 
-  // Lior and Ofir see only what they take part in (the owner, 16.10.2026), and invite to it.
-  await step('Lior sees the shoot days and Ofir his own meetings; both invite, the client\'s email from the agreement facts', async () => {
+  // Lior and Ofir see only what they take part in (the owner, 16.10.2026). Since 20.10.2026
+  // (the owner) only Irit and the owners send invitations: Lior and Ofir read their week.
+  await step('Lior sees the shoot days and Ofir his own meetings; neither has "שליחת זימון"', async () => {
     const lior = await signedIn('lior');
-    await lior.page.waitForSelector('.cp-week');
+    await lior.page.waitForSelector('.cp-weekwrap');
     assert.equal(await kinds(lior.page, 'char'), 0, 'lior: the meetings are Ofir\'s');
     assert.equal(await kinds(lior.page, 'shoot'), 4, 'lior');
-    assert.equal(await guestsOf(lior.page.locator('.cp-ev[data-kind="shoot"]').filter({ hasText: 'עומר דיין' }).locator('.cp-invite')), `omer@dayan.co.il,${emailOf('lior')},${emailOf('eli')}`, 'lior');
+    assert.equal(await lior.page.locator('.cp-invite').count(), 0, 'lior');
+    await shot(lior.page, 'lior-390-week');
     await lior.ctx.close();
     const ofir = await signedIn('ofir');
-    await ofir.page.waitForSelector('.cp-week');
+    await ofir.page.waitForSelector('.cp-weekwrap');
     assert.equal(await kinds(ofir.page, 'char'), 2, 'ofir');
     assert.equal(await kinds(ofir.page, 'shoot'), 0, 'ofir: the shoot days are Lior\'s and Eli\'s');
-    assert.equal(await ofir.page.locator('.cp-ev[data-kind="char"] .cp-invite').count(), 2, 'ofir invites to his meetings');
+    assert.equal(await ofir.page.locator('.cp-invite').count(), 0, 'ofir');
+    await shot(ofir.page, 'ofir-390-week');
     await ofir.ctx.close();
   });
 
   await step('an editor sees only her own work, with no invitation; Eli his shoot days', async () => {
     const { page, ctx } = await signedIn('nadia');
-    await page.waitForSelector('.cp-week');
+    await page.waitForSelector('.cp-weekwrap');
     const evs = page.locator('#cp-view .cp-ev');
     assert.ok((await evs.count()) >= 1, 'her task of today');
     assert.equal(await kinds(page, 'char'), 0);
@@ -296,7 +309,7 @@ try {
     await shot(page, 'nadia-1366-month');
     await ctx.close();
     const eli = await signedIn('eli');
-    await eli.page.waitForSelector('.cp-week');
+    await eli.page.waitForSelector('.cp-weekwrap');
     assert.equal(await kinds(eli.page, 'shoot'), 4);
     assert.equal(await kinds(eli.page, 'char'), 0);
     assert.equal(await eli.page.locator('.cp-invite').count(), 0);
