@@ -890,3 +890,9 @@ p.prod-sub, p.of-critical { margin: 0 0 4px; padding-top: 12px; font-size: 14px;
 .ed-file-list, .proc-file-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
 .proc-files { margin: 8px 0; font-size: 14px; }
 .proc-files > summary { cursor: pointer; min-height: 32px; }
+
+/* Ofir: one card per client (the owner, 20.10.2026). The processes inside are the same
+   cards, flat: no frame of their own, the client said once above. */
+.wc-joined > .wc-subs { margin-top: 10px; display: grid; gap: 0; }
+.wc-joined > .wc-subs > .wproc { border: 0; border-top: 1px solid var(--line, #e3e6ef); border-radius: 0; box-shadow: none; background: transparent; padding: 10px 0 4px; margin: 0; }
+.wc-joined > .wc-subs > .wproc .wc-head { display: none; }

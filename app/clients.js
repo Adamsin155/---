@@ -1301,6 +1301,36 @@ function groupCard(g, person) {
     })));
 }
 
+// ── One card per client (Ofir; the owner, 20.10.2026) ──
+// Several open processes of his in one client (4, 5 and 8 after a characterization) are
+// one card: the client once, and under it each process as it was, with its own action.
+// Joined within one group of the list only, so nothing moves to another heading.
+const joinsByClient = (person) => person === 'ofir';
+function joinByClient(list) {
+  const by = new Map();
+  for (const g of list) {
+    const k = g.task ? g.key : `client:${g.client.id}`;
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(g);
+  }
+  return [...by.values()].map((subs) => (subs.length < 2 ? subs[0] : {
+    ...subs[0], key: `client:${subs[0].client.id}:${subs.map((s) => s.proc.id).join('+')}`, joined: subs,
+    late: subs.some((s) => s.late), entries: subs.flatMap((s) => s.entries),
+  }));
+}
+function joinedCard(m, person) {
+  const nums = m.joined.map((s) => s.proc.num).join(', ');
+  return h('li', { class: `wproc wc k-pc pc wc-joined${m.late ? ' k-pc-late' : ''} s-${shownStatus(m)}`, 'data-key': m.key },
+    h('div', { class: 'k-pc-top' },
+      markOf(m),
+      h('div', { class: 'k-pc-body' },
+        h('div', { class: 'wc-head' }, h('a', { class: 'wclient', href: clientUrl(m.client.id) }, clientLabel(m.client)),
+          isAuto(m.client) ? h('span', { class: 'auto-tag' }, 'חדש') : null),
+        h('div', { class: 'wc-what' }, h('p', { class: 'wc-title' }, `${m.joined.length} תהליכים פתוחים`, h('span', { class: 'wc-sub' }, ` · ${nums}`))))),
+    h('ul', { class: 'wprocs wc-subs' }, ...m.joined.map((s) => groupCard(s, person))));
+}
+const cardOf = (g, person) => (g.joined ? joinedCard(g, person) : groupCard(g, person));
+
 // An urgent task: "התחלתי" within 30 office minutes, or it goes back to Lior
 // (decision 9; the reminder engine watches started_at, stamped by the database).
 function taskStart(t) {
@@ -1544,7 +1574,7 @@ function renderLate(flow) {
     sectionHead({ icon: 'alert', tone: 'pink', id: 'late-h', title: n === 1 ? 'דבר אחד באיחור אצלך' : `${n} דברים באיחור אצלך`,
       hint: 'מהמאוחר ביותר. מסמנים כאן בדיוק כמו ב״המשימות שלי״, והם נשארים גם שם.' }),
     ilai,
-    h('ul', { class: 'wprocs late-list', 'aria-labelledby': 'late-h' }, ...lines.map(flowCard), ...cards.map((g) => (g.key ? groupCard(g, me) : lateRow(g)))));
+    h('ul', { class: 'wprocs late-list', 'aria-labelledby': 'late-h' }, ...lines.map(flowCard), ...(joinsByClient(me) ? [...joinByClient(cards.filter((g) => g.key)), ...cards.filter((g) => !g.key)] : cards).map((g) => (g.key ? cardOf(g, me) : lateRow(g)))));
 }
 
 // A card read or wrote something of its own that the list stands on (the notifications'
@@ -1684,6 +1714,7 @@ function renderMine() {
     let g = list.filter((x) => bucketFor(x) === k);
     if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
     if (k === 'overdue') g = g.sort(worstFirst);
+    if (joinsByClient(person) && k !== 'client') g = joinByClient(g);
     if (k === 'overdue' && lateFolded) {
       return h('section', { class: 'wgroup g-overdue g-late-line', 'aria-label': title },
         h('ul', { class: 'wprocs' }, h('li', { class: 'wproc flow-card late-fold' },
@@ -1704,17 +1735,17 @@ function renderMine() {
         ontoggle: (ev) => { waitGroupOpen = ev.currentTarget.open; },
       },
       head('summary', g.length),
-      cap(h('ul', { class: 'wprocs' }, ...g.map((x) => groupCard(x, person))), k));
+      cap(h('ul', { class: 'wprocs' }, ...g.map((x) => cardOf(x, person))), k));
     }
     // On a short list what is not for today or tomorrow waits folded, one tap away.
     if (!full && (k === 'week' || k === 'later')) {
       return h('details', { class: `wgroup g-${k}`, open: laterOpen.has(k), ontoggle: (ev) => { if (ev.currentTarget.open) laterOpen.add(k); else laterOpen.delete(k); } },
         head('summary', g.length + extra.length),
-        cap(h('ul', { class: 'wprocs' }, ...extra, ...g.map((x) => groupCard(x, person))), k));
+        cap(h('ul', { class: 'wprocs' }, ...extra, ...g.map((x) => cardOf(x, person))), k));
     }
     return h('section', { class: `wgroup g-${k}`, 'aria-label': title },
       head('h2', g.length + extra.length),
-      cap(h('ul', { class: 'wprocs' }, k === 'overdue' ? lateNote : null, ...extra, ...g.map((x) => groupCard(x, person))), k));
+      cap(h('ul', { class: 'wprocs' }, k === 'overdue' ? lateNote : null, ...extra, ...g.map((x) => cardOf(x, person))), k));
   })()]));
 }
 
