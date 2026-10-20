@@ -85,7 +85,10 @@ const legend = (withOff) => h('p', { class: 'av-legend', 'aria-hidden': 'true' }
   h('span', { class: 'av-key is-free' }, 'פנוי'), h('span', { class: 'av-key is-taken' }, 'קבוע יום צילום'), withOff ? h('span', { class: 'av-key is-off' }, 'ירד בבלת״ם') : null);
 
 // ── The mount point ────────────────────────
-export async function mountAvailability(el, { me, clock = () => new Date() } = {}) {
+// `compact` (shoot.html, the owner's page review of 20.10.2026): the office's folded line says
+// only what was handed in; "not handed in yet" is already a line in "המשימות שלי", and it
+// stays inside the card when it is opened.
+export async function mountAvailability(el, { me, clock = () => new Date(), compact = false } = {}) {
   if (!el || !canSee(me)) return;
   const self = isPhotographer(me);
   let data = null;
@@ -282,7 +285,7 @@ export async function mountAvailability(el, { me, clock = () => new Date() } = {
     const canEnter = A.ON_BEHALF.includes(me ?? 'owner');
     const changes = data.changes.filter((c) => c.person === person && (c.days || []).some((d) => months.includes(A.monthOfDay(d))));
     return h('details', { class: 'av-card av-office', open, ontoggle: (e) => { open = e.currentTarget.open; } },
-      h('summary', { class: 'av-line', id: person === A.PHOTOGRAPHERS[0] ? 'av-h' : null }, h('strong', {}, `הזמינות של ${name}`), ...months.map(line)),
+      h('summary', { class: 'av-line', id: person === A.PHOTOGRAPHERS[0] ? 'av-h' : null }, h('strong', {}, `הזמינות של ${name}`), ...(compact ? months.filter((m) => A.monthRow(data.months, person, m)) : months).map(line)),
       ...months.map((m) => {
         const row = A.monthRow(data.months, person, m);
         const entering = view === m;
