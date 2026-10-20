@@ -1,7 +1,7 @@
 // "הודעות ללקוחות" (messages.html): the day's queue of proactive messages to
 // clients (docs/plan/system-plan.md, section 7 and Irit's day). For each open
-// client, the message that fits today, editable; "שליחה ומעבר לבא" opens
-// WhatsApp with it (a link only, never automation) and records that it was
+// client one row (since 20.10.2026): the message that fits today, editable under
+// "עריכה"; "שליחה" opens WhatsApp with it (a link only, never automation) and records that it was
 // sent. What to suggest is decided in messages-logic.js; the database stamps
 // who sent and when, and keeps to one message per client per Israel day.
 // A record made by mistake (WhatsApp closed without sending) can be undone by
@@ -267,6 +267,13 @@ function optionLabel(o) {
   return `${MESSAGE_KINDS[o.kind]}: ${o.kind === 'delay' ? o.vars['מה'] : title}${round ? ` (סבב צילום ${round})` : ''}`;
 }
 
+// On the row, next to the kind's pill: the label without the kind said again.
+function shortLabel(o) {
+  const label = optionLabel(o);
+  const kind = `${MESSAGE_KINDS[o.kind]}: `;
+  return label.startsWith(kind) ? label.slice(kind.length) : label;
+}
+
 function kindBadge(kind) {
   return h('span', { class: `mk mk-${kind}` }, MESSAGE_KINDS[kind]);
 }
@@ -278,6 +285,13 @@ function head(e) {
       h('a', { href: `client.html?id=${encodeURIComponent(c.id)}` }, c.name),
       c.business && c.business !== c.name ? h('small', {}, c.business) : null),
     h('span', { class: 'tag msg-station' }, `תחנה: ${STATIONS[e.station].title}`));
+}
+
+// Who sent this client's last message, and when. The queue is shared by Irit and Lior: the
+// row says who handled the client before (who may send is unchanged).
+function lastBy(id) {
+  const m = messages.find((x) => x.client_id === id);
+  return m ? h('p', { class: 'msg-by', id: `msg-by-${id}` }, `הודעה קודמת: ${who(m.sent_by_email) || '—'} · ${formatStamp(m.sent_at)}`) : null;
 }
 
 function history(e) {
@@ -298,14 +312,15 @@ function history(e) {
 const undoable = (m) => !!m && !!myEmail && m.sent_by_email === myEmail
   && Date.now() - new Date(m.sent_at).getTime() < UNDO_MINUTES * 60e3;
 
+// Sent today: one row, with who sent it.
 function sentCard(e) {
   const m = e.sent;
   const id = e.client.id;
-  return h('li', { class: 'msg-card is-sent', id: `msg-${id}`, tabindex: '-1', 'aria-labelledby': `msg-h-${id}` },
+  return h('li', { class: 'msg-card msg-row is-sent', id: `msg-${id}`, tabindex: '-1', 'aria-labelledby': `msg-h-${id}` },
     head(e),
     h('p', { class: 'msg-why' },
       h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'כבר נשלח היום'),
-      h('span', {}, `${timeText(new Date(m.sent_at))} · ${who(m.sent_by_email)} · ${templates.get(m.template_key)?.title || MESSAGE_KINDS[m.kind] || ''}`)),
+      h('span', { class: 'msg-sentby' }, `${timeText(new Date(m.sent_at))} · ${who(m.sent_by_email)} · ${templates.get(m.template_key)?.title || MESSAGE_KINDS[m.kind] || ''}`)),
     undoable(m) ? h('div', { class: 'msg-undo' },
       h('span', { id: `msg-undo-note-${id}` }, 'לא נשלח בפועל בוואטסאפ? אפשר לבטל את הרישום בדקות הקרובות.'),
       h('button', {
@@ -313,6 +328,16 @@ function sentCard(e) {
         'aria-describedby': `msg-h-${id} msg-undo-note-${id}`, onclick: () => undo(m),
       }, 'ביטול הרישום')) : null,
     history(e));
+}
+
+// One row per client (the owner's page review, 20.10.2026): the name, the kind of message, who
+// sent the last one, and "שליחה"; the text, the choice of message, the group and the history
+// open on "עריכה" (and by themselves when something must be filled in before sending).
+const editing = new Set();
+function toggleEdit(id, open = !editing.has(id)) {
+  if (open) editing.add(id); else editing.delete(id);
+  renderKeepingFocus();
+  if (open) $(`msg-text-${id}`)?.focus({ preventScroll: true });
 }
 
 function card(e) {
@@ -325,48 +350,55 @@ function card(e) {
   const miss = failed.get(id);
   const problem = errors.get(id) || (miss ? `וואטסאפ נפתח, אבל השליחה לא נרשמה (${explain(miss.error)}). אחרי ששלחתם בוואטסאפ, לחצו ״סימון כנשלח״.` : '');
   const fillIn = unfilledIn(text);
+  const open = editing.has(id) || errors.has(id);
   const sendLink = (group) => h('a', {
     class: group ? 'btn msg-group' : 'btn btn-primary msg-send', id: `msg-${group ? 'group' : 'send'}-${id}`,
     href: group ? groupLink(text) : waLink(c.phone, text), target: '_blank', rel: 'noopener noreferrer',
     'aria-describedby': `msg-h-${id}`, 'aria-disabled': busy ? 'true' : null,
     onclick: (ev) => onSend(ev, e, group),
-  }, group ? 'שליחה לקבוצה' : 'שליחה ומעבר לבא', h('span', { class: 'sr-only' }, ' (נפתח בוואטסאפ)'));
+  }, group ? 'שליחה לקבוצה' : 'שליחה', h('span', { class: 'sr-only' }, ' (נפתח בוואטסאפ)'));
 
-  // A promise at risk that is not today's suggestion: said on the card, one choice away.
+  // A promise at risk that is not today's suggestion: said in the editor, one choice away.
   const risk = e.options.find((x) => x.kind === 'delay' && optId(x) !== optId(o));
 
-  return h('li', { class: `msg-card k-${o.kind}${busy ? ' is-busy' : ''}`, id: `msg-${id}`, tabindex: '-1', 'aria-labelledby': `msg-h-${id}` },
+  return h('li', { class: `msg-card msg-row k-${o.kind}${busy ? ' is-busy' : ''}${open ? ' is-open' : ''}`, id: `msg-${id}`, tabindex: '-1', 'aria-labelledby': `msg-h-${id}` },
     head(e),
-    h('p', { class: 'msg-why' }, kindBadge(o.kind), h('span', {}, o.reason)),
-    risk ? h('p', { class: 'msg-risk' }, `${risk.reason}. אם זה יתעכב, בוחרים ״הודעה על עיכוב״ ב״איזו הודעה״.`) : null,
-    e.options.length > 1 ? h('div', { class: 'field msg-pick' },
-      h('label', { for: `msg-opt-${id}` }, 'איזו הודעה'),
-      h('select', {
-        class: 'input', id: `msg-opt-${id}`,
-        onchange: (ev) => { drafts.set(id, { opt: ev.target.value, text: null }); errors.delete(id); renderKeepingFocus(); },
-      }, ...e.options.map((x) => h('option', { value: optId(x), selected: optId(x) === optId(o) }, optionLabel(x))))) : null,
-    h('label', { class: 'sr-only', for: `msg-text-${id}` }, `נוסח ההודעה ל${c.name}`),
-    h('textarea', {
-      class: 'input msg-text', id: `msg-text-${id}`, rows: rowsFor(text), maxlength: 4000,
-      'aria-describedby': `msg-note-${id}${fillIn.length ? ` msg-fill-${id}` : ''}${problem ? ` msg-err-${id}` : ''}`,
-      'aria-invalid': errors.has(id) ? 'true' : null,
-      oninput: (ev) => onEdit(e, ev.target),
-    }, text),
+    h('p', { class: 'msg-why' }, kindBadge(o.kind), h('span', { class: 'msg-what' }, shortLabel(o)),
+      hasPhone(c) ? null : h('span', { class: 'tag tag-warn' }, 'אין טלפון בכרטיס'),
+      risk ? h('span', { class: 'tag tag-warn' }, 'יש הבטחה בסיכון') : null),
+    lastBy(id),
     h('p', { class: 'msg-fill', id: `msg-fill-${id}`, hidden: !fillIn.length }, fillIn.length ? `לפני השליחה ממלאים: ${fillIn.join(' ')}` : ''),
-    accessRow(e, o),
+    o.access === 'none' ? accessRow(e, o) : null,
     h('p', { class: 'err msg-err', id: `msg-err-${id}`, role: 'alert', hidden: !problem }, problem),
     h('div', { class: 'msg-acts' },
       sendLink(false),
-      hasPhone(c) ? sendLink(true) : null,
       miss ? h('button', {
         type: 'button', class: 'btn', id: `msg-mark-${id}`, disabled: busy,
         onclick: () => { if (!recording.has(id)) record(e, miss); },
       }, 'סימון כנשלח') : null,
-      h('button', { type: 'button', class: 'btn-text msg-skip', id: `msg-skip-${id}`, onclick: () => focusCard(nextAfter(id)) }, 'דילוג')),
-    h('p', { class: 'msg-note', id: `msg-note-${id}` }, hasPhone(c)
-      ? 'השליחה פותחת צ׳אט עם הטלפון שבכרטיס. להודעה בקבוצת הלקוח: ״שליחה לקבוצה״.'
-      : 'אין טלפון בכרטיס: וואטסאפ ייפתח בלי נמען, ובוחרים את קבוצת הלקוח.'),
-    history(e));
+      h('button', {
+        type: 'button', class: 'btn msg-edit-btn', id: `msg-edit-${id}`, 'aria-expanded': String(open), 'aria-controls': `msg-ed-${id}`,
+        'aria-describedby': `msg-h-${id}`, onclick: () => toggleEdit(id),
+      }, open ? 'סגירת העריכה' : 'עריכה')),
+    h('div', { class: 'msg-edit', id: `msg-ed-${id}`, hidden: !open },
+      h('p', { class: 'msg-reason' }, o.reason),
+      risk ? h('p', { class: 'msg-risk' }, `${risk.reason}. אם זה יתעכב, בוחרים ״הודעה על עיכוב״ ב״איזו הודעה״.`) : null,
+      e.options.length > 1 ? h('div', { class: 'field msg-pick' },
+        h('label', { for: `msg-opt-${id}` }, 'איזו הודעה'),
+        h('select', {
+          class: 'input', id: `msg-opt-${id}`,
+          onchange: (ev) => { drafts.set(id, { opt: ev.target.value, text: null }); errors.delete(id); renderKeepingFocus(); },
+        }, ...e.options.map((x) => h('option', { value: optId(x), selected: optId(x) === optId(o) }, optionLabel(x))))) : null,
+      h('label', { class: 'sr-only', for: `msg-text-${id}` }, `נוסח ההודעה ל${c.name}`),
+      h('textarea', {
+        class: 'input msg-text', id: `msg-text-${id}`, rows: rowsFor(text), maxlength: 4000,
+        'aria-describedby': `msg-help${fillIn.length ? ` msg-fill-${id}` : ''}${problem ? ` msg-err-${id}` : ''}`,
+        'aria-invalid': errors.has(id) ? 'true' : null,
+        oninput: (ev) => onEdit(e, ev.target),
+      }, text),
+      o.access === 'none' ? null : accessRow(e, o),
+      hasPhone(c) ? h('div', { class: 'msg-acts' }, sendLink(true)) : null,
+      history(e)));
 }
 
 // Typing keeps the text as a draft and refreshes the links and the hint in place.
@@ -389,22 +421,18 @@ function onEdit(e, ta) {
 }
 
 // The link opens WhatsApp by itself (its default action); then the send is recorded.
-// A message with places left to fill, or an empty one, does not go out.
+// A message with places left to fill, or an empty one, does not go out: its editor opens.
 function onSend(ev, e, group) {
   const id = e.client.id;
   if (recording.has(id)) { ev.preventDefault(); return; }
-  const ta = $(`msg-text-${id}`);
-  const text = ta.value.trim();
+  const text = $(`msg-text-${id}`).value.trim();
   const fillIn = unfilledIn(text);
   if (!text || fillIn.length) {
     ev.preventDefault();
-    const msg = text ? `יש בהודעה מקומות שעוד לא מולאו: ${fillIn.join(' ')}. ממלאים אותם ואז שולחים.` : 'ההודעה ריקה. כתבו אותה ואז שולחים.';
-    errors.set(id, msg);
-    const err = $(`msg-err-${id}`);
-    err.textContent = msg;
-    err.hidden = false;
-    ta.setAttribute('aria-invalid', 'true');
-    ta.setAttribute('aria-describedby', `msg-note-${id} msg-err-${id}`);
+    errors.set(id, text ? `יש בהודעה מקומות שעוד לא מולאו: ${fillIn.join(' ')}. ממלאים אותם ואז שולחים.` : 'ההודעה ריקה. כתבו אותה ואז שולחים.');
+    editing.add(id);
+    renderKeepingFocus();
+    const ta = $(`msg-text-${id}`);
     ta.focus();
     const at = fillIn.length ? ta.value.indexOf(fillIn[0]) : -1;
     if (at >= 0) ta.setSelectionRange(at, at + fillIn[0].length);
@@ -467,6 +495,7 @@ async function record(e, { option, text }) {
   }
   messages.unshift(data);
   drafts.delete(c.id);
+  editing.delete(c.id);
   build();
   render();
   toast(`נרשם: נשלחה הודעה ל${c.name}.`, { label: 'ביטול', run: () => undo(data) });

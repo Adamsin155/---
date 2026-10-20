@@ -154,3 +154,21 @@ details.msg-history[open] > summary::after { transform: rotate(-135deg); }
 
 #dlg-templates .tpl-body .field label { margin-bottom: 0; }
 #msg-page .k-note { overflow-wrap: anywhere; }
+
+/* One row per client (the owner's page review, 20.10.2026): the name, the kind of message, who
+   sent the last one and "שליחה"; the editor opens under it on "עריכה". The help is said once. */
+.msg-help { margin: 0; font-size: 13.5px; color: var(--ds-ink-2, var(--text-2)); }
+.msg-row { gap: 6px; padding-block: 12px; }
+.msg-row .msg-head { gap: 2px 10px; }
+.msg-row .msg-name { font-size: 17px; }
+.msg-what { font-weight: 600; color: var(--ds-ink, var(--text)); }
+.msg-by, .msg-sentby { margin: 0; font-size: 13px; color: var(--muted); }
+.msg-row .msg-acts .btn { min-height: 44px; }
+.msg-edit { display: grid; gap: 10px; padding-top: 10px; border-top: 1px solid var(--ds-line, var(--line)); }
+.msg-edit[hidden] { display: none; }
+.msg-edit > * { margin: 0; min-width: 0; }
+.msg-reason { font-size: 14px; color: var(--text-2); }
+@media (max-width: 760px) {
+  .msg-row .msg-acts .btn { flex: 1 1 0; }
+  .msg-edit .msg-acts .btn { flex: 1 1 100%; }
+}
