@@ -827,7 +827,8 @@ await step('the index for the owner, Irit, Lior and Ofir (reading; no "יציר�
     const page = await newPage(ctx);
     await signIn(page, 'gantt.html', `${who}@astrateg.test`);
     await page.waitForSelector('#gx:not([hidden]) #gx-list .gx-client');
-    assert.equal(await page.locator('#side-gantt').count(), 1, who);
+    // Ofir reads it by its address; it left his menu on 20.10.2026 (the owner).
+    assert.equal(await page.locator('#side-gantt').count(), who === 'ofir' ? 0 : 1, who);
     assert.equal(await page.locator('#gx-list .gx-client').count(), 3, who);
     assert.equal(await page.locator('#gx-list .gx-create').count(), who === 'owner' ? 2 : 0, who);
     if (who === 'irit' && OUT) {

@@ -110,7 +110,7 @@ const MANAGER = {
 };
 const HOME = { owner: 'owner.html#now', lior: 'owner.html#all', ofir: 'owner.html#now', irit: 'owner.html#now' };
 // The daily review stays with Ofir (process 33) and with Irit (process 32): their own work.
-const MY_TABS = { owner: ['המשימות שלי', 'לקוחות'], lior: ['המשימות שלי', 'לקוחות'], ofir: ['המשימות שלי', 'לקוחות', 'בקרה יומית'], irit: ['המשימות שלי', 'לקוחות', 'בקרה יומית'] };
+const MY_TABS = { owner: ['המשימות שלי', 'לקוחות'], lior: ['המשימות שלי', 'לקוחות'], ofir: ['המשימות שלי', 'לקוחות'] /* the daily review left his personal profile, 20.10.2026 */, irit: ['המשימות שלי', 'לקוחות', 'בקרה יומית'] };
 
 for (const role of ['owner', 'lior', 'ofir', 'irit']) {
   await step(`${role}: lands on "המשימות שלי" with the short menu; the button opens the manager profile and leads back`, async () => {
