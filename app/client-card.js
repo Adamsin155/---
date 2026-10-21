@@ -329,6 +329,8 @@ function render() {
     openPhases.add(cur || s.current);
     for (const x of shown) if (x.status === 'overdue') openPhases.add(x.proc.phase);
     if (tp) openPhases.add(tp.proc.phase);
+    // A link to a process that has not started opens its items too (its one line, below).
+    if (tp) waitsOpen.add(`${tp.proc.id}:all`);
   }
   renderHead(s);
   renderMyNext(s);
