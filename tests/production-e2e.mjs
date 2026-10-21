@@ -327,11 +327,13 @@ await step('an editor lands on "המשימות שלי"; "הלקוחות שלי �
   await page.waitForSelector(card);
   assert.equal(await text(page, 'h1'), 'הלקוחות שלי בעריכה');
   assert.equal(await page.locator('.ed-card').count(), 1); // not Yariv's client
-  assert.match(await text(page, `${card} .ed-day`), /^יום 1 מתוך 3$/);
-  assert.equal(await text(page, `${card} .ed-dates`), 'אצל אופיר עד רביעי 18:00 · סגירה עד חמישי');
+  assert.match(await text(page, `${card} .ed-day`), /^יום 1 מתוך 2$/);
+  assert.equal(await text(page, `${card} .ed-dates`), 'אצל אופיר עד מחר 18:00 · סגירה עד חמישי');
   assert.match(await text(page, `${card} .ed-facts`), /4 סרטונים לפי החבילה/);
   assert.match(await text(page, `${card} .ed-facts`), /צריך גם Dropbox/);
-  assert.equal(await page.locator(`${card} .ed-links a`).count(), 3);
+  // Drive and Dropbox; the scripts' link stands on its own, prominent (21.10.2026).
+  assert.equal(await page.locator(`${card} .ed-links a`).count(), 2);
+  assert.equal(await page.locator(`${card} a.ed-scripts-open`).count(), 1);
   assert.equal(await page.locator(`${card} a:has-text("לוגו להורדה")`).getAttribute('href'), 'https://drive.google.com/logo-a');
   assert.match(await text(page, `${card} .ed-phone`), /03-5551234/);
   assert.match(await text(page, `${card} .ed-closing`), /לפרטים נוספים התקשרו: 03-5551234/);
@@ -521,8 +523,8 @@ await step('Nirel: an urgent brief while editing asks to pause, prefilled; the p
   await page.click(`#t-${t.id}-start`);
   await page.waitForSelector('#dlg-urgent[open]');
   assert.match(await text(page, '#urg-ctx'), /לעצור את העריכה של סטודיו נטלי\?/);
-  assert.equal(await page.inputValue('#urg-0-stage'), 'בעריכה · יום 1 מתוך 3');
-  assert.equal(await page.inputValue('#urg-0-left'), '4 סרטונים, אצל אופיר עד רביעי 18:00');
+  assert.equal(await page.inputValue('#urg-0-stage'), 'בעריכה · יום 1 מתוך 2');
+  assert.equal(await page.inputValue('#urg-0-left'), '4 סרטונים, אצל אופיר עד מחר 18:00');
   await shot(page, 'nirel-urgent');
   await page.click('#urg-submit');
   await toastHas(page, 'העריכה נעצרה לבקשת ליאור');

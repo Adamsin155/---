@@ -348,7 +348,7 @@ await step('Ofir\'s queue, one tap from "המשימות שלי": what waits for 
   // Nadia: Ron's videos are with Ofir (day 2 of 4, closing); Shemesh is late (day 6 of 4). Yariv's paused job.
   await openQaFolds(ofir);
   assert.match(await ofir.locator('#load-list').innerText(), /נדיה\s*2 לקוחות בעריכה[^]*גלידה שמש · יום 6 מתוך 4[^]*מספרת רון · יום 2 מתוך 4 · תיקונים וסגירה/);
-  assert.match(await ofir.locator('#load-list').innerText(), /יריב\s*לקוח אחד בעריכה · אחת עצורה\s*סטודיו פז · יום 2 מתוך 3 עצורה/);
+  assert.match(await ofir.locator('#load-list').innerText(), /יריב\s*לקוח אחד בעריכה · אחת עצורה\s*סטודיו פז · יום 2 מתוך 2 עצורה/);
   await shot(ofir, 'office-01-qa');
 });
 
@@ -895,7 +895,9 @@ await step('a 390px phone: the stuck row (three ways out, the reason field) and 
 // ── Two editors on one client (the owner's request of 21.10.2026) ──
 await step('"עורך/ת נוסף/ת": Ofir assigns two editors; both get the WhatsApp; the second finds the client on her editing page', async () => {
   // A shoot day yesterday, waiting for an editor (added here, so the steps above count as before).
-  const T = client({ name: 'סטודיו טל', shoot_at: IL('2026-10-21T10:00:00') });
+  // Lior's scripts are a Google Docs link in the card, with the office's number beside it (21.10.2026).
+  const T = client({ name: 'סטודיו טל', shoot_at: IL('2026-10-21T10:00:00'), links: { scripts: 'https://docs.google.com/document/d/tal-scripts' },
+    deliverables: { videos: 25, graphics: 35, shoot_days: 1, scripts: 12 } });
   db.clients.push(T);
   for (const k of keysOf(T, [...UPTO_SHOOT, 'p19'])) db.protocol_checks.push({ client_id: T.id, item_key: k, state: 'done', note: 'ייבוא', by_email: 'irit@astrateg.test', at: IL('2026-10-21T09:00:00') });
   const pctx = await newContext(THU, { width: 390, height: 844 });
@@ -933,7 +935,7 @@ await step('"עורך/ת נוסף/ת": Ofir assigns two editors; both get the Wh
   await page.click('#handoff-close');
   // The load: the client is with each of them, "יחד עם".
   await openQaFolds(page);
-  assert.match(await page.locator('#load-list .of-editor:has(summary .p-yariv)').innerText(), /סטודיו טל[^]*יחד עם נדיה/);
+  assert.match(await page.locator('#load-list .of-editor:has(summary .p-yariv)').innerText(), /סטודיו טל[^]*12 תסריטים[^]*יחד עם נדיה/);
   assert.match(await page.locator('#load-list .of-editor:has(summary .p-nadia)').innerText(), /סטודיו טל[^]*יחד עם יריב/);
   // Both hear "לקוח חדש בעריכה אצלך".
   const byClient = {};
@@ -951,8 +953,11 @@ await step('"עורך/ת נוסף/ת": Ofir assigns two editors; both get the Wh
   await nadia.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
   await card.scrollIntoViewIfNeeded();
   assert.match(await card.locator('.ed-pair').innerText(), /עורכים יחד: יריב \+ נדיה/);
-  // Her own share of the videos.
+  // Her own share of the videos, how many scripts, and the scripts themselves one tap away.
   assert.equal(await card.locator('.ed-share').innerText(), '10 מתוך 25 סרטונים — השאר אצל יריב');
+  assert.equal(await card.locator('.ed-scount').innerText(), '12 תסריטים');
+  assert.equal(await card.locator('.ed-scripts-open').innerText(), 'פתיחת התסריטים (12)');
+  assert.equal(await card.locator('.ed-scripts-open').getAttribute('href'), 'https://docs.google.com/document/d/tal-scripts');
   assert.ok(await noHScroll(nadia), 'the editing page scrolls sideways at 390px');
   if (OUT) await card.screenshot({ path: `${OUT}/office-11-editor2-page-390.png` });
   await nctx.close();

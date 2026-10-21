@@ -147,3 +147,12 @@ test("the split of the videos: even by default (the main editor takes the odd on
   assert.deepEqual(shareOf(roundContext(c, { n: 2, editor: 'anna', editor2: 'nirel', editor_split: { anna: 2, nirel: 1 } }), 'nirel'), { mine: 1, total: 3, other: 'anna' });
   assert.equal(shareOf(roundContext(c, { n: 2, editor: 'anna' }), 'nadia'), null);
 });
+
+test('how many scripts: the office\'s number beside the Google Docs link, else the system\'s count, else unknown', async () => {
+  const { scriptsCountOf } = await import('../app/production.js');
+  assert.equal(scriptsCountOf({ deliverables: { scripts: 12 } }, 3), 12);
+  assert.equal(scriptsCountOf({ deliverables: { scripts: 0 } }, 3), 0);
+  assert.equal(scriptsCountOf({ deliverables: {} }, 3), 3);
+  assert.equal(scriptsCountOf({ deliverables: { videos: 10 } }, 0), null);
+  assert.equal(scriptsCountOf({}), null);
+});

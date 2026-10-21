@@ -103,6 +103,15 @@ export function videosPerDay(client) {
   return Math.ceil(videos / days);
 }
 
+// How many scripts a client has (21.10.2026). Lior writes them in Google Docs (links.scripts);
+// the office writes the number beside the link ("כמה תסריטים": deliverables.scripts). Without
+// a number, the scripts written in the system count (systemN); null when nothing is known.
+export function scriptsCountOf(client, systemN = 0) {
+  const v = client?.deliverables?.scripts;
+  if (v !== undefined && v !== null && v !== '' && Number.isInteger(Number(v)) && Number(v) >= 0) return Number(v);
+  return systemN > 0 ? systemN : null;
+}
+
 // ── Reading marks ──────────────────────────
 // The words a person wrote on a check (Eli's notes, the drive label, a 12א point),
 // never the notes the system writes (imported history, a whole process marked at once).

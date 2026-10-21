@@ -352,6 +352,8 @@ function jobCard(job) {
   const videos = P.videosPerDay(job.ctx);
   const share = shareOf(job.ctx, me);
   const mine = scriptsOf(job);
+  // The scripts: Lior's Google Docs link (links.scripts), and how many (the office's number, else the system's).
+  const nScripts = job.round > 1 ? (mine.length || null) : P.scriptsCountOf(c, mine.length);
   const links = c.links || {};
   const dropbox = P.needsDropbox(c);
   return h('article', { class: `ed-card s-${st.key}${st.blocked ? ' is-blocked' : ''}${st.paused ? ' is-paused' : ''}`, id, 'aria-labelledby': `${id}-h` },
@@ -373,10 +375,13 @@ function jobCard(job) {
       // Two editors with a split: this editor's own share.
       share ? h('span', { class: 'ed-share' }, `${share.mine} מתוך ${share.total} סרטונים — השאר אצל ${PEOPLE[share.other]?.name || share.other}`)
         : videos ? h('span', {}, `${videos} סרטונים לפי החבילה`) : h('span', { class: 'muted' }, 'כמות הסרטונים לא הוזנה'),
-      h('span', { class: mine.length ? 'ed-scount' : 'ed-scount muted', id: `${id}-scount` }, mine.length ? scriptsWords(mine.length) : 'אין עדיין תסריטים במערכת'),
+      h('span', { class: nScripts ? 'ed-scount' : 'ed-scount muted', id: `${id}-scount` }, nScripts ? scriptsWords(nScripts) : 'מספר התסריטים לא הוזן'),
       dropbox ? h('span', { class: 'tag tag-warn' }, 'צריך גם Dropbox') : null),
+    // The scripts first, and prominent: the editor works from them from the assignment on.
+    links.scripts ? h('a', { class: 'btn ed-scripts-open', id: `${id}-scripts-link`, href: links.scripts, target: '_blank', rel: 'noopener noreferrer' },
+      `פתיחת התסריטים${nScripts ? ` (${nScripts})` : ''}`) : null,
     h('div', { class: 'ed-links' },
-      link(links.drive, 'דרייב'), link(links.scripts, 'תסריטים'), dropbox ? link(links.dropbox, 'Dropbox') : null,
+      link(links.drive, 'דרייב'), dropbox ? link(links.dropbox, 'Dropbox') : null,
       !links.drive && !links.scripts && !mine.length ? h('span', { class: 'muted' }, 'אין עדיין קישור לדרייב ולתסריטים בכרטיס.') : null),
     scriptsBlock(job, mine),
     sheetBlock(job),

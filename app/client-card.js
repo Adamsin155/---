@@ -2164,10 +2164,14 @@ const fromLocal = (v) => fromInputIL(v)?.toISOString() || null;
 const DELIV_FIELDS = [...DELIVERABLES.map((x) => [x.key, x.label]), ['shoot_days', 'ימי צילום']];
 fill($('ed-deliv'), ...DELIV_FIELDS.map(([k, l]) => h('div', { class: 'field' },
   h('label', { for: `ed-deliv-${k}` }, l), h('input', { class: 'input', id: `ed-deliv-${k}`, type: 'number', min: '0', max: '999', inputmode: 'numeric', dir: 'ltr' }))));
-fill($('ed-links'), ...LINKS.map((l) => h('div', { class: 'field' },
+fill($('ed-links'), ...LINKS.flatMap((l) => [h('div', { class: 'field' },
   h('label', { for: `ed-link-${l.key}` }, l.label),
   h('input', { class: 'input', id: `ed-link-${l.key}`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: l.hint ? `https://${l.hint}/…` : l.placeholder || 'https://', 'aria-describedby': `ed-link-${l.key}-h` }),
-  h('div', { class: 'hint', id: `ed-link-${l.key}-h` }))));
+  h('div', { class: 'hint', id: `ed-link-${l.key}-h` })),
+  // Beside the scripts' link: how many there are (the editors see "N תסריטים"; 21.10.2026).
+  l.key === 'scripts' ? h('div', { class: 'field' },
+    h('label', { for: 'ed-scripts-n' }, 'כמה תסריטים'),
+    h('input', { class: 'input', id: 'ed-scripts-n', type: 'number', min: '0', max: '999', inputmode: 'numeric', dir: 'ltr' })) : null].filter(Boolean)));
 
 function openEdit(focusId = 'ed-name') {
   const c = client;
@@ -2189,6 +2193,7 @@ function openEdit(focusId = 'ed-name') {
   $('ed-contract-end').value = c.contract_end || '';
   $('ed-notes').value = c.notes || '';
   for (const [k] of DELIV_FIELDS) $(`ed-deliv-${k}`).value = c.deliverables?.[k] ?? '';
+  $('ed-scripts-n').value = c.deliverables?.scripts ?? '';
   for (const l of LINKS) { $(`ed-link-${l.key}`).value = c.links?.[l.key] || ''; $(`ed-link-${l.key}-h`).textContent = ''; $(`ed-link-${l.key}`).removeAttribute('aria-invalid'); }
   edDlg.showModal();
   $(focusId).focus();
@@ -2250,6 +2255,8 @@ $('ed-form').addEventListener('submit', async (e) => {
     const v = $(`ed-deliv-${k}`).value;
     if (v === '') delete deliverables[k]; else deliverables[k] = Math.max(0, Math.round(Number(v)));
   }
+  const sn = $('ed-scripts-n').value;
+  if (sn === '') delete deliverables.scripts; else deliverables.scripts = Math.max(0, Math.round(Number(sn)));
   const val = (i) => $(i).value.trim() || null;
   // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
   const newShoot = fromLocal($('ed-shoot-at').value);
