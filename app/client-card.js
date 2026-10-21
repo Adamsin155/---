@@ -1157,6 +1157,12 @@ function redrawPhases(focusId = null) {
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
 }
 
+// The outside link a process works with (only an https:// address, safeLink).
+function procLinkOf(pid) {
+  const link = PROC_LINK[pid] && safeLink(client.links?.[PROC_LINK[pid]]);
+  return link;
+}
+
 function procCard(x, now, s) {
   const p = x.proc;
   const pid = p.id.replace(/^r\d+-/, '');
@@ -1173,7 +1179,7 @@ function procCard(x, now, s) {
   const missing = missingFields(p, ctx);
   const guidance = p.guidance ? (ctx.shoot_type ? [p.guidance[ctx.shoot_type]] : Object.values(p.guidance)) : [];
   const compact = x.complete && !printing && !shownProcs.has(p.id);
-  const link = PROC_LINK[pid] && safeLink(client.links?.[PROC_LINK[pid]]);
+  const link = procLinkOf(pid);
   const linkDef = LINKS.find((l) => l.key === PROC_LINK[pid]);
   const pkgQty = PKG_QTY[pid] ? client.deliverables?.[PKG_QTY[pid]] : null;
   const pkgUnit = DELIVERABLES.find((d) => d.key === PKG_QTY[pid])?.label;
@@ -1305,7 +1311,7 @@ function renderMyNext(s) {
 function myProc(x, items, now) {
   const p = x.proc;
   const pid = p.id.replace(/^r\d+-/, '');
-  const link = PROC_LINK[pid] && safeLink(client.links?.[PROC_LINK[pid]]);
+  const link = procLinkOf(pid);
   const go = intakeShortcut(p.id, client.id, { checks, scope, complete: x.complete, me });
   return h('article', { class: `mn-proc s-${x.status}` },
     h('header', { class: 'mn-phead' },
