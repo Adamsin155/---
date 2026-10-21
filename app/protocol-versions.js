@@ -167,6 +167,14 @@ export const PROTOCOL_HISTORY = [
       p34: { from: 'contractEnd', days: -60, at: '18:00' },
     },
   },
+  {
+    version: 11, date: '2026-10-21', title: 'אופיר מחבר ל־Metricool, ו״ממתין ללקוח״ מזכיר כל שעה',
+    changes: [
+      'החיבור של הלקוח ל־Metricool עבר מעילאי לאופיר: כשאופיר לוקח את הגישות לרשתות (5), הוא גם מחבר את הלקוח ל־Metricool (הסעיף ״כל הרשתות חוברו ל־Metricool״, 30 דקות מקבלת הגישות). עילאי רואה את מצב החיבור בגאנט ובבדיקה הסופית.',
+      'תהליך שסומן ״ממתין ללקוח״ מזכיר למי שסימן אותו בכל שעה, בשעות העבודה, עד שמסירים את הסימון. התזכורת לעובד בלבד, לא ללקוח.',
+    ],
+    // Nothing is added or moved: the same item with another owner, for every client (as v9).
+  },
 ];
 
 export const LATEST = PROTOCOL_HISTORY.at(-1).version;

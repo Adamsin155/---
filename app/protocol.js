@@ -69,8 +69,15 @@
 //   - p05.newlogo is not ticked while the client's files hold no logo (`guard: 'logoFile'`).
 //   Marks that are not items (they hold nothing open): p13.left, p16.read (the photographer
 //   read the scripts), p18b.files (the raw material and the chosen take per script).
+// v11 (the owner's decisions of 21.10.2026, after the staff training):
+//   - Ofir connects the client to Metricool when he takes the accesses (5): the item
+//     p06.metricool is his (it opens with process 6, the moment the accesses came in, and
+//     keeps its 30 minutes). Ilai no longer has it; his final check (p29b.c.metricool) and
+//     his Gantt still show the connection. Same key: nothing is reopened or moved.
+//   - A process marked "ממתין ללקוח" reminds whoever marked it every hour, in the working
+//     hours, until the wait is cleared (the reminder rule `waitNag`). No item changes.
 
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 // The five critical mistakes of editing, in the order and the words of the editors' written
 // protocol ("נקודות חשובות: טעויות קריטיות", docs/protocols/editors.md and nirel.md):
@@ -490,7 +497,8 @@ export const PROCESSES = [
       { key: 'p06.phone', label: 'הטלפון נבדק' },
       { key: 'p06.address', label: 'הכתובת נבדקה' },
       { key: 'p06.look', label: 'נראות העמוד סודרה' },
-      { key: 'p06.metricool', label: 'כל הרשתות חוברו ל־Metricool' },
+      // v11: Ofir's, right after he took the accesses (5); not Ilai's any more.
+      { key: 'p06.metricool', label: 'כל הרשתות חוברו ל־Metricool', owners: ['ofir'] },
     ],
   },
   {

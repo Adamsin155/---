@@ -1,4 +1,4 @@
-// "לקוחות שלא מחוברים ל-Metricool": one card in "המשימות שלי" of Ilai and the owner
+// "לקוחות שלא מחוברים ל-Metricool": one card for whoever connects (Ofir since v11, Ilai, the owner)
 // (the owner's request of 6.10.2026; docs/ops.md, section 33), under the exceptional
 // contracts. A row per active client with no Metricool brand, the oldest deal first,
 // the first 8 and "הצג עוד".
@@ -10,8 +10,8 @@
 //     comes back from "סומנו ״אין מותג״" at the foot of the card.
 //   - Nothing to connect: no card at all.
 // The list reads only the clients' own columns; the sync and its switch play no part.
-// The database decides who may write (public.gantt_set_brand, public.metricool_set_none:
-// Ilai and the owner). The rules are app/metricool-connect-logic.js; the styles
+// The database decides who may write (public.metricool_connect, public.metricool_set_none:
+// Ofir, Ilai and the owner). The rules are app/metricool-connect-logic.js; the styles
 // app/styles/metricool-connect.css.
 import { supabase } from './supa.js';
 import { fill, h, toast, capList } from './protocol-ui.js';
@@ -198,7 +198,7 @@ function render() {
       showNone && none.length ? h('ul', { class: 'mcn-list', id: 'mcn-none-list' }, ...none.map(noneRow)) : null) : null);
 }
 
-// Mounts the card for Ilai and the owner; hidden for everyone else, and until the
+// Mounts the card for Ofir, Ilai and the owner; hidden for everyone else, and until the
 // brand columns are there. `open`: the list shown at once (the content Gantt's index,
 // where the card lives since 20.10.2026; `changed` hears every connect or mark).
 export async function mountMetricoolConnect(el, viewer, { personal = () => false, open = false, changed = null } = {}) {

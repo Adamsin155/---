@@ -45,6 +45,7 @@ let client = null;
 let rows = [];          // the plan's entries
 let files = null;       // Map id -> file (null: no files table yet)
 let canEdit = false;    // Ilai and the owner: everything
+let canConnect = false; // Metricool's brand: Ilai, the owner and Ofir (v11: connecting is his step)
 let canShare = false;   // the office (and Ilai): the client's read-only link, and the index
 let brandUi = null;     // app/gantt-brand.js (staff only)
 let mc = { settings: undefined, brand: undefined, sync: null }; // Metricool: the switch, this client's brand, its last sync
@@ -112,6 +113,7 @@ async function boot() {
   ui = await import('./protocol-ui.js');
   const { loadClient, loadDirectory } = await import('./protocol-data.js');
   const { worksCycle } = await import('./month-ui.js');
+  const { canConnect: canConnectMetricool } = await import('./metricool-connect-logic.js');
   // The kit, for the office only (docs/ops.md, section 52): the client's link stays as it is.
   const { dress } = await import('./kit.js');
   dress($('app'), [['#gxw-h', 'calendar', 'blue', 'md'], ['#gxc-h', 'users', 'teal', 'md'], ['#ge-h', 'calendar', 'purple', 'md'], ['#gg-h', 'chart', 'teal', 'md'], ['#gs-h', 'link', 'blue', 'md'], ['#na-h', 'lock', 'navy'],
@@ -124,11 +126,12 @@ async function boot() {
     // Ilai and the owner change the Gantt; the office (Irit, Lior, Ofir) reads and shares the client's link.
     canShare = worksCycle(viewer);
     canEdit = !viewer.error && (viewer.me === 'ilai' || isOwnerView(viewer));
+    canConnect = canConnectMetricool(viewer);
     $('nav-year').hidden = !canShare;
     if (!id) {
       if (!canShare) { $('state').textContent = 'לא נבחר לקוח. פתחו את הגאנט מכרטיס הלקוח.'; return; }
       const [{ mountIndex }, { loadClients }] = await Promise.all([import('./gantt-index.js'), import('./protocol-data.js')]);
-      await mountIndex({ ui, data, loadClients, canEdit, viewer });
+      await mountIndex({ ui, data, loadClients, canEdit, canConnect, viewer });
       return;
     }
     $('state').textContent = 'טוען…';
@@ -233,17 +236,17 @@ function render() {
   if (!$('gt-share').hidden) renderShare();
 }
 
-// The line about Metricool, with "חיבור למותג" for Ilai and the owner. Nothing before
+// The line about Metricool, with "חיבור למותג" for Ofir, Ilai and the owner (v11). Nothing before
 // the migration (settings undefined), and nothing for whoever is not the office.
 function renderMetricool() {
   if (SHARE || !brandUi || !mc.settings || mc.brand === undefined || missing) { $('gt-mc').hidden = true; return; }
   // Marked "ללקוח אין מותג" in the card of "המשימות שלי" (section 33): said here, with the way back.
   const none = !!mc.none && !mc.brand.blogId;
-  // Not connected: for Ilai and the owner one short line and its one action (20.10.2026).
+  // Not connected: for whoever connects one short line and its one action (20.10.2026).
   const line = none ? { tone: 'off', text: 'סומן שללקוח אין מותג ב־Metricool. הסימון ידני.' }
-    : !mc.brand.blogId && canEdit ? { tone: 'off', text: 'לא מחובר ל־Metricool.' }
+    : !mc.brand.blogId && canConnect ? { tone: 'off', text: 'לא מחובר ל־Metricool.' }
       : brandUi.clientLine({ enabled: !!mc.settings.enabled, blogId: mc.brand.blogId, brand: mc.brand.brand, sync: mc.sync });
-  const act = canEdit ? h('button', {
+  const act = canConnect ? h('button', {
     type: 'button', class: 'btn btn-sm btn-ghost gt-mc-act', id: 'btn-brand',
     onclick: () => brandUi.openBrandDialog({
       client, current: mc.brand, toast,
@@ -251,7 +254,7 @@ function renderMetricool() {
       onSaved: async (saved) => { mc.brand = saved; mc.sync = null; if (saved.blogId) mc.none = false; render(); rows = (await data.loadGantt(client.id).catch(() => rows)) || rows; render(); },
     }),
   }, mc.brand.blogId ? 'החלפת מותג' : 'חיבור למותג') : null;
-  const back = canEdit && none ? h('button', {
+  const back = canConnect && none ? h('button', {
     type: 'button', class: 'btn btn-sm btn-ghost gt-mc-act', id: 'btn-brand-back',
     onclick: async (e) => {
       e.currentTarget.disabled = true;

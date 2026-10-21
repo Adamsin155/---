@@ -5,7 +5,7 @@
 //  - three filters with counts: "נכשלו" (a failed post), "אין מתוזמן קדימה" (a connected
 //    client with nothing scheduled in the next 7 days) and "לא מחוברים ל־Metricool".
 //    They open by hash too (#failed, #nothing-ahead, #not-connected: "המשימות שלי"
-//    links to them). Under "לא מחוברים" Ilai and the owner get the card
+//    links to them). Under "לא מחוברים" Ofir, Ilai and the owner get the card
 //    "לקוחות שלא מחוברים ל־Metricool" (app/metricool-connect-ui.js), open, in place of
 //    the list: they connect the clients right there (docs/ops.md, section 33);
 //  - "השבוע": only what needs someone (failed, missing, today's posts not scheduled),
@@ -40,11 +40,11 @@ const SHOW = 12;
 // The filters, in the order of the chips: [hash, words].
 const FILTERS = [['failed', 'נכשלו'], ['nothing-ahead', 'אין מתוזמן קדימה'], ['not-connected', 'לא מחוברים ל־Metricool']];
 const NOTHING_AHEAD = `אין מתוזמן ב־${AHEAD_DAYS} הימים הקרובים`;
-let state = null; // { clients, byClient, has, plans, conns, canEdit, viewer, ui, sort, q, more, filter, allWeek }
+let state = null; // { clients, byClient, has, plans, conns, canEdit, canConnect, viewer, ui, sort, q, more, filter, allWeek }
 
 const filterOfHash = () => { const k = location.hash.slice(1); return INDEX_FILTERS[k] ? k : null; };
 
-// ctx: { ui, data, loadClients, canEdit, viewer }.
+// ctx: { ui, data, loadClients, canEdit, canConnect (Metricool's brand: Ofir too, v11), viewer }.
 export async function mountIndex(ctx) {
   const now = new Date();
   const today = dayKeyIL(now);
@@ -72,7 +72,7 @@ export async function mountIndex(ctx) {
   const byClient = new Map();
   for (const r of index.rows) { if (!byClient.has(r.client_id)) byClient.set(r.client_id, []); byClient.get(r.client_id).push(r); }
   state = {
-    clients: active, byClient, has: index.has, plans: index.plans || index.has, conns, canEdit: ctx.canEdit, viewer: ctx.viewer, ui: ctx.ui,
+    clients: active, byClient, has: index.has, plans: index.plans || index.has, conns, canEdit: ctx.canEdit, canConnect: ctx.canConnect ?? ctx.canEdit, viewer: ctx.viewer, ui: ctx.ui,
     sort: 'missing', q: '', more: false, filter: filterOfHash(), allWeek: false, card: null,
   };
   const withGantt = active.filter((c) => state.plans.has(c.id)).length;
@@ -100,7 +100,7 @@ function renderAll() {
   renderFilters(all);
   const f = state.filter;
   // A filter is one question: the week waits, and "not connected" is the card itself for those who connect.
-  const card = f === 'not-connected' && state.canEdit;
+  const card = f === 'not-connected' && state.canConnect;
   $('gx-week').hidden = !!f;
   $('gx-clients').hidden = card;
   renderCard(card);
@@ -129,7 +129,7 @@ function renderFilters(all) {
   ...(state.filter ? [h('button', { type: 'button', class: 'btn-text gx-clear', id: 'gx-clear', onclick: () => setFilter(state.filter) }, 'הצגת כל הלקוחות')] : []));
 }
 
-// "לקוחות שלא מחוברים ל־Metricool": the card of section 33, open, for Ilai and the owner.
+// "לקוחות שלא מחוברים ל־Metricool": the card of section 33, open, for whoever connects (Ofir, Ilai, the owner).
 async function renderCard(show) {
   const box = $('metricool-card');
   if (!show) { box.hidden = true; return; }
