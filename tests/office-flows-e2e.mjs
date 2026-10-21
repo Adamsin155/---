@@ -667,7 +667,7 @@ await step('Ilai: the characterization day card; the vault statuses check the ac
   await ilai.waitForFunction(() => true);
   // Protocol v11 (21.10.2026): connecting to Metricool is Ofir's, with the accesses. Ilai's card only says it.
   assert.equal(await card.locator('input[type=url]').count(), 0);
-  assert.match(await card.innerText(), /Metricool: אופיר מחבר את הלקוח/);
+  assert.match(await card.innerText(), /את החיבור ל־Metricool עושה אופיר/);
   for (let i = 0; i < 50 && !checkOf(I, 'p06.name'); i += 1) await ilai.waitForTimeout(100);
   assert.ok(checkOf(I, 'p06.name'));
   assert.equal(checkOf(I, 'p06.metricool'), null);

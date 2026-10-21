@@ -323,7 +323,8 @@ try {
         assert.equal(r.wide, false, `${r.id}: nothing is cut at 360px`);
         // The whole sentence is still there for whoever reads without eyes; the number is not said twice.
         assert.ok(r.words.length > 8);
-        const tone = r.group === 'landing' ? 'k-line-landing' : ['overdue', 'urgent', 'escalation'].includes(r.group) ? 'k-line-late' : r.group === 'today' ? 'k-line-today' : 'k-line-plain';
+        // A quiet line (`tone: 'plain'` in app/mine-flow.js: Ofir's clients with no Metricool brand, v11) keeps its plain tone.
+        const tone = r.id === 'flow-metricool-connect' ? 'k-line-plain' : r.group === 'landing' ? 'k-line-landing' : ['overdue', 'urgent', 'escalation'].includes(r.group) ? 'k-line-late' : r.group === 'today' ? 'k-line-today' : 'k-line-plain';
         assert.ok(r.cls.split(' ').includes(tone), `${r.id} in ${r.group}: ${r.cls}`);
         if (r.group === 'landing' && r.cls.includes('flow-line')) assert.match(r.words, /· בקליטה, בלי שעון$/);
       }

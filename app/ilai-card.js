@@ -280,7 +280,7 @@ function dayCard(x, ctx) {
         h('h4', {}, `סידור העמוד (${page.count}/6)`, page.done ? null : until(page.due, now)),
         h('div', { class: 'il-checks' }, ...PAGE_KEYS.map((k) => check(ctx, c, k, PAGE_LABELS[k], idp))),
         // v11: connecting the client to Metricool is Ofir's (with the accesses); here only its state.
-        h('p', { class: isDone(cs, 'p06.metricool') ? 'ps-seen' : 'hint', id: `${idp}-mc` }, isDone(cs, 'p06.metricool') ? 'Metricool מחובר' : 'Metricool: אופיר מחבר את הלקוח')),
+        h('p', { class: isDone(cs, 'p06.metricool') ? 'ps-seen' : 'hint', id: `${idp}-mc` }, isDone(cs, 'p06.metricool') ? 'Metricool מחובר' : 'את החיבור ל־Metricool עושה אופיר')),
       h('div', { class: 'il-part' },
         h('h4', {}, '9 גרפיקות', gfx.done ? null : until(gfx.due, now)),
         h('div', { class: 'of-acts' }, charLink(c)),

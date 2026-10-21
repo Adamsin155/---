@@ -849,7 +849,9 @@ assert.equal(await page.isHidden('#access'), true); // the vault is not his in t
 assert.equal(await page.isHidden('#history'), true);
 // Lior's optional item in process 6 is summed up, not listed.
 assert.equal(await page.locator('#i-p06-recovered').count(), 0);
-assert.match(await page.locator('#p06 .others-note').innerText(), /ועוד פריט אחד בתהליך הזה אצל ליאור/);
+// Lior's optional item and, since v11, Ofir's Metricool are summed up, not listed.
+assert.match(await page.locator('#p06 .others-note').innerText(), /ועוד 2 פריטים בתהליך הזה אצל ליאור, אופיר/);
+assert.equal(await page.locator('#i-p06-metricool').count(), 0);
 await page.check('#i-p06-verified');
 await page.waitForFunction(() => document.querySelector('#i-p06-verified')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
 assert.ok(db.protocol_checks.some((c) => c.client_id === seeded.id && c.item_key === 'p06.verified'));
