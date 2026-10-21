@@ -371,3 +371,18 @@ test('the new rules are data like the others: one of each, every step with a lev
   const env = buildEnv({ ...world({ questions: [question()] }), now: IL(2026, 10, 8, 14, 3) });
   assert.equal(candidates(env).filter((r) => r.rule === 'question').length, 1);
 });
+
+// WhatsApp is a required work channel (the owner, 21.10.2026): "הסר" on WhatsApp stops the
+// messages (Meta's policy), and the owners hear it at once, once per reply, and at 08:30
+// when it was written at night.
+test('"הסר" on WhatsApp: the owners hear "<name> ניתק/ה את WhatsApp", once, within the sending hours', () => {
+  const removed = [{ id: 7, email: 'irit@x', person: 'irit', at: IL(2026, 10, 8, 14, 3).toISOString() }, { id: 8, email: 'ofir@x', person: 'ofir', at: IL(2026, 10, 8, 22, 15).toISOString() }];
+  const sent = run(world({ waRemoved: removed }), IL(2026, 10, 8, 14), IL(2026, 10, 11, 9), new Set(), (r) => r.rule === 'waRemoved');
+  assert.deepEqual(sent.map((r) => [r.person, r.level, r.title, hhmm(r.now), r.url]), [
+    ['owner', 'quiet', 'עירית ניתק/ה את WhatsApp', '8.10 14:03', 'team.html'],
+    ['owner', 'quiet', 'אופיר ניתק/ה את WhatsApp', '11.10 08:30', 'team.html'],
+  ]);
+  assert.match(sent[0].body, /״הסר״[\s\S]*לחבר שוב/);
+  // Before the migration (no rows): nothing.
+  assert.deepEqual(run(world(), IL(2026, 10, 8, 14), IL(2026, 10, 8, 15), new Set(), (r) => r.rule === 'waRemoved'), []);
+});

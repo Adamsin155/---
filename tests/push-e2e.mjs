@@ -261,7 +261,7 @@ await step('"לא הגיעה" sends again with tips; "קיבלתי" confirms and
   await page.waitForSelector('#push-card[data-state="on"]');
   await toastHas(page, 'ההתראות פעילות בטלפון הזה');
   assert.ok(calls.some((c) => c.path === '/rest/v1/rpc/push_confirm' && c.body.p_endpoint === 'https://push.test/device-1'));
-  assert.match(await page.locator('#push-card').innerText(), /ההתראות פעילות בטלפון הזה\.[\s\S]*שליחת ניסיון[\s\S]*כיבוי/);
+  assert.match(await page.locator('#push-card').innerText(), /ההתראות פעילות בטלפון הזה\.[\s\S]*שליחת ניסיון/);
   // With push on, the stage-1 in-page alert switch is not offered again.
   assert.equal(await page.locator('.notify-row').count(), 0);
   await page.reload();
@@ -309,11 +309,12 @@ await step('"לדחות…": the reminder comes back later (a snooze mark on the
   await page.waitForFunction(() => !document.getElementById('dlg-inbox').open);
 });
 
-await step('switching off removes this device only', async () => {
-  await page.click('#push-card button:has-text("כיבוי")');
-  await page.waitForSelector('#push-card[data-state="ready"]');
-  assert.ok(calls.some((c) => c.path === '/rest/v1/rpc/push_unsubscribe'));
-  assert.equal(db.push_subscriptions.length, 0);
+// The app's notifications are a required work channel since 21.10.2026 (with WhatsApp):
+// no "כיבוי" on the card. Signing out still takes the device off (below).
+await step('no "off": the notifications stay on this device', async () => {
+  assert.equal(await page.locator('#push-card button:has-text("כיבוי")').count(), 0);
+  assert.equal(calls.some((c) => c.path === '/rest/v1/rpc/push_unsubscribe'), false);
+  assert.equal(db.push_subscriptions.length, 1);
 });
 await iritCtx.close();
 

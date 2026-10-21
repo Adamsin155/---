@@ -121,3 +121,7 @@
 .tm-push { display: inline-block; padding: 3px 10px; line-height: 1.4; border-radius: var(--ds-r-pill); background: var(--ds-ok-soft); color: var(--ds-ok); font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
 .tm-push.muted { background: var(--ds-soft); color: var(--ds-ink-2); }
 .tm-last { color: var(--ds-ink-2); }
+/* The required channels (WhatsApp and the app's notifications, 21.10.2026): ✓ or ✗ on each line. */
+.tm-mark { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 700; color: #fff; background: var(--danger); vertical-align: -3px; }
+.tm-mark.is-ok { background: var(--ok); }
+.tm-push.is-off, .tm-wa-who.is-off { color: var(--danger); font-weight: 500; }

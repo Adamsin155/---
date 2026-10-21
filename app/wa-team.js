@@ -1,5 +1,7 @@
 // WhatsApp on the team screen (team.html, stage 4): for the office, each person's
-// choice (agreed or not), whether a number is set (never the number itself here:
+// state (connected ✓ or not ✗: both WhatsApp and the app's notifications are a
+// required work channel since 21.10.2026, and the panel names who is not connected
+// yet), whether a number is set (never the number itself here:
 // public.whatsapp_team_status returns yes or no), and this week's messages
 // delivered and read; for the owner, the switch that turns WhatsApp on (only with
 // the four Vault secrets in place: public.whatsapp_set_enabled checks, and the
@@ -33,25 +35,29 @@ export const missingFlows = (settings) => (isJako(settings) ? Object.entries(FLO
 // The Vault secrets the chosen provider still lacks, by name.
 export const missingSecrets = (settings) => Object.entries(isJako(settings) ? JAKO_SECRET_NAMES : SECRET_NAMES).filter(([k]) => !settings?.secrets?.[k]).map(([, name]) => name);
 
-// One person's line in their row: the choice, a number yes or no, and this week.
+// A ✓ or ✗ before a line of the row (the required channels: WhatsApp, notifications).
+export const mark = (ok) => h('span', { class: `tm-mark${ok ? ' is-ok' : ''}`, 'aria-hidden': 'true' }, ok ? '✓' : '✗');
+
+// One person's line in their row: connected or not (and why), a number yes or no, and this week.
 export function waStatusView(wa, row) {
   if (!wa || !row) return null;
   const r = wa.byEmail.get(row.email) || {};
-  const choice = !r.status ? 'עוד לא בחר/ה'
-    : r.status === 'granted' ? (r.active ? 'הסכים/ה' : 'הסכים/ה למספר קודם, מחכה לאישור')
-      : r.status === 'declined' ? 'בחר/ה באפליקציה בלבד' : 'הפסיק/ה';
-  const parts = [choice, r.phone_set ? 'יש מספר' : 'אין מספר'];
+  const state = r.active ? 'מחובר/ת'
+    : r.status === 'granted' ? 'לא מחובר/ת: המספר השתנה, מחכה לאישור'
+      : r.status === 'withdrawn' ? 'לא מחובר/ת: ניתק/ה'
+        : r.status === 'declined' ? 'לא מחובר/ת: בחר/ה בעבר באפליקציה בלבד' : 'לא מחובר/ת';
+  const parts = [state, r.phone_set ? 'יש מספר' : 'אין מספר'];
   const failed = r.failed ? `, ${r.failed} נכשלו` : '';
   // Jako reports nothing after the send: "sent" is all there is to count.
   const week = isJako(wa.settings) ? `${r.sent || 0} נשלחו` : `${r.delivered || 0} נמסרו, ${r.read || 0} נקראו`;
   if (r.sent || r.failed) parts.push(`השבוע: ${week}${failed}`);
-  return h('span', { class: 'tm-push tm-wa-status' }, h('bdi', {}, 'WhatsApp'), `: ${parts.join(' · ')}`);
+  return h('span', { class: `tm-push tm-wa-status${r.active ? '' : ' is-off'}` }, mark(!!r.active), ' ', h('bdi', {}, 'WhatsApp'), `: ${parts.join(' · ')}`);
 }
 
 async function toggle(wa, reload) {
   const on = !wa.settings.enabled;
   const ask = on
-    ? 'להפעיל הודעות עבודה ב־WhatsApp? כל אחד בצוות יתבקש לבחור אם לקבל אותן, והפוש ממשיך כרגיל.'
+    ? 'להפעיל הודעות עבודה ב־WhatsApp? כל אחד בצוות יתבקש לחבר WhatsApp והתראות באפליקציה (חובה), והפוש ממשיך כרגיל.'
     : 'לכבות את הודעות ה־WhatsApp לכל הצוות? ההתראות באפליקציה ממשיכות, וההסכמות נשמרות.';
   if (!confirm(ask)) return;
   const { error } = await supabase.rpc('whatsapp_set_enabled', { p_on: on });
@@ -61,13 +67,26 @@ async function toggle(wa, reload) {
       : lacks.length ? `חסרים סודות ב־Vault: ${lacks.join(', ')}.` : 'חסרה הגדרה של הזרימות ב־Jako. ההוראות במסמך התפעול, סעיף 63.');
     return;
   }
-  toast(on ? 'הודעות ה־WhatsApp הופעלו. כל אחד יתבקש לבחור בכניסה הבאה.' : 'הודעות ה־WhatsApp כובו.');
+  toast(on ? 'הודעות ה־WhatsApp הופעלו. כל אחד יתבקש לחבר בכניסה הבאה.' : 'הודעות ה־WhatsApp כובו.');
   await reload();
   document.getElementById('wa-toggle')?.focus();
 }
 
-// The panel above the list (created before `before` on first use).
-export function paintWaPanel(wa, before, reload) {
+// Who is not connected yet, by name, and what each one lacks: WhatsApp, the app's
+// notifications (`push`: public.push_status by email; null when not known), or both.
+export function notConnected(wa, push, nameOf) {
+  if (!wa) return [];
+  return [...wa.byEmail.values()].map((r) => {
+    const lacks = [];
+    if (!r.active) lacks.push('WhatsApp');
+    if (push && !(push.get(r.email)?.devices > 0)) lacks.push('התראות');
+    return lacks.length ? `${nameOf(r.email)} (${lacks.join(', ')})` : null;
+  }).filter(Boolean);
+}
+
+// The panel above the list (created before `before` on first use). `people`: the
+// notifications by email and the names, for the line of who is not connected.
+export function paintWaPanel(wa, before, reload, { push = null, nameOf = (e) => String(e).split('@')[0] } = {}) {
   let el = document.getElementById('wa-panel');
   if (!wa) { if (el) el.hidden = true; return; }
   if (!el) {
@@ -80,11 +99,14 @@ export function paintWaPanel(wa, before, reload) {
   const flows = missingFlows(settings);
   const rows = [...wa.byEmail.values()];
   const agreed = rows.filter((r) => r.active).length;
+  const missingPeople = notConnected(wa, push, nameOf);
   fill(el,
     h('h2', { id: 'wa-panel-h' }, 'הודעות עבודה ב־WhatsApp'),
     h('p', { id: 'wa-state' }, settings.enabled
-      ? `פועל. הצלצולים והתקצירים מגיעים גם ב־WhatsApp למי שנתנו הסכמה (${agreed} מתוך ${rows.length}).`
+      ? `פועל. חובה לכולם: WhatsApp והתראות באפליקציה. ב־WhatsApp מחוברים ${agreed} מתוך ${rows.length}.`
       : 'כבוי. ההתראות יוצאות באפליקציה בלבד (Push).'),
+    h('p', { class: `tm-wa-who${missingPeople.length ? ' is-off' : ''}`, id: 'wa-not-connected' }, missingPeople.length
+      ? [mark(false), ` לא מחוברים עדיין: ${missingPeople.join(' · ')}`] : [mark(true), ' כולם מחוברים.']),
     isJako(settings) ? h('p', { class: 'muted', id: 'wa-provider' }, 'ההודעות יוצאות דרך Jako.') : null,
     missing.length ? h('p', { class: 'muted', id: 'wa-missing' }, `חסר ב־Vault: ${missing.join(', ')}. ההוראות במסמך התפעול.`) : null,
     flows.length ? h('p', { class: 'muted', id: 'wa-flows' }, `חסרה ההגדרה של הזרימה ב־Jako לכפתור ${flows.join(' ולכפתור ')}. ההוראות במסמך התפעול, סעיף 63.`) : null,
