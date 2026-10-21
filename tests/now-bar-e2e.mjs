@@ -338,6 +338,8 @@ assert.deepEqual(await page.evaluate(() => window.__notes), []);
 assert.equal(await page.locator('#now-live').innerText(), '');
 // The answer mark is in the client's history, in words.
 await page.goto(`${BASE}client.html?id=${gallia.id}`);
+// (The history is a closed row: opened as a person taps it; the owner, 20.10.2026.)
+await page.click('#fold-history > summary');
 await page.waitForSelector('#hist-list li');
 assert.match(await page.locator('#hist-list').innerText(), /סימן\/ה שהלקוח ענה \(תהליך 7\)/);
 

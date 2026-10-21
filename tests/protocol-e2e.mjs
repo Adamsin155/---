@@ -269,7 +269,8 @@ assert.equal(await page.locator('#i-p07-r-spelling').count(), 0);
 assert.equal(await page.locator('#i-p07-ofir').count(), 0);
 assert.equal(await page.locator('#i-p07-sent').count(), 1);
 assert.match(await page.locator('#p07 .others-note').textContent(), /ועוד 9 פריטים בתהליך הזה אצל עילאי.*אופיר/);
-assert.match(await page.locator('.cc-next .k').innerText(), /הצעד הבא שלך/);
+// The owner, 20.10.2026: her own open items in a block of their own, under the head.
+assert.match(await page.locator('#my-next-h').innerText(), /הצעד הבא שלך/);
 assert.match(await page.locator('#p02 .others-note').textContent(), /ועוד 2 פריטים בתהליך הזה אצל ליאור/); // p02.deal, p02.team
 assert.equal(await page.locator('#i-p02-deal').count(), 0);
 await shot('04a-client-card-mine');
@@ -314,7 +315,9 @@ await page.click('#na-submit');
 await page.waitForFunction(() => document.querySelector('#i-p02-intro')?.closest('.item').classList.contains('is-na'));
 assert.equal(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p02.intro').note, 'הלקוח ביקש הודעה מליאור בלבד');
 
-// Not relevant, then back
+// Not relevant, then back. Process 5 has not started yet: its items are one closed line (the owner, 20.10.2026).
+const openWaits = (sel) => page.evaluate((q) => { const d = document.querySelector(q)?.closest('details.cc-wait'); if (d) d.open = true; }, sel);
+await openWaits('#i-p05-menu');
 await page.click('#i-p05-menu-na'); // optional: no reason needed
 await page.waitForFunction(() => document.querySelector('#i-p05-menu')?.closest('.item').classList.contains('is-na'));
 assert.equal(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p05.menu').state, 'na');
@@ -330,7 +333,8 @@ assert.ok(!db.protocol_checks.some((c) => c.client_id === created.id && c.item_k
 // Uncheck is recorded in history
 await page.uncheck('#i-p02-opened');
 await page.waitForFunction(() => !document.querySelector('.is-busy') && !document.querySelector('#i-p02-opened').checked);
-await page.waitForFunction(() => /ביטל\/ה סימון/.test(document.querySelector('#hist-list').innerText));
+// (The history is a closed row: its text, not its drawn text; the owner, 20.10.2026.)
+await page.waitForFunction(() => /ביטל\/ה סימון/.test(document.querySelector('#hist-list').textContent));
 
 // Edit details: Lior characterizes, so he takes the access too; no logo adds Ilai's logo item.
 await page.click('#btn-edit');
@@ -391,7 +395,8 @@ await page.click('#p29 .claim .btn');
 await page.waitForFunction(() => /עירית לקח/.test(document.querySelector('#p29 .claim')?.textContent || ''));
 assert.equal(db.protocol_checks.find((c) => c.client_id === created.id && c.item_key === 'p29.claim').note, 'irit');
 
-// Tasks
+// Tasks: the form waits behind "משימה חדשה" (the owner, 20.10.2026).
+await page.click('#task-new');
 await page.fill('#task-title', 'להזמין מאפרת לנטלי');
 await page.selectOption('#task-owner', 'lior');
 await page.click('#task-submit');
@@ -439,6 +444,8 @@ assert.deepEqual([esc.owner, esc.source, esc.urgent], ['lior', 'escalation', tru
 assert.match(esc.title, /הלקוח לא מאשר את הסקריפט/);
 
 // Access vault: a working login needs a user name; the password is stored apart and shown on request only.
+// (A closed row until opened: the owner, 20.10.2026.)
+await page.click('#fold-access > summary');
 await page.click('#access-add');
 await page.waitForSelector('#dlg-access[open]');
 await page.selectOption('#acc-network', 'instagram');
@@ -534,7 +541,8 @@ await page.click('#ed-submit');
 assert.match(await page.locator('#ed-err').innerText(), /נטלי/);
 await page.click('#dlg-edit [data-close]');
 
-// Package quantities: + saves after a short pause.
+// Package quantities: + saves after a short pause (in the closed row "החוזה והחבילה": the owner, 20.10.2026).
+await page.click('#fold-contract > summary');
 assert.match(await page.locator('#deliv-videos-v').innerText(), /נמסרו 0 מתוך 25/);
 await page.click('#deliv-videos-plus');
 await page.click('#deliv-videos-plus');
@@ -637,7 +645,7 @@ assert.doesNotMatch(await page.locator('.cc-facts').innerText(), /טלפון|ס�
 assert.match(await page.locator('.cc-progress').innerText(), /התהליכים שלי שהושלמו/);
 assert.equal(await page.locator('#app > a.back').innerText(), '→ המשימות שלי');
 // Why her editing waits, in one line.
-assert.match(await page.locator('.cc-next').innerText(), /התהליך הבא שלך[^]*22 · עריכת הסרטונים[^]*ממתין ל: הלקוח שויך לעורך והכונן הועבר אליו \(תהליך 22א\)/);
+assert.match(await page.locator('#my-next .cc-next').innerText(), /התהליך הבא שלך[^]*22 · עריכת הסרטונים[^]*ממתין ל: הלקוח שויך לעורך והכונן הועבר אליו \(תהליך 22א\)/);
 await page.evaluate(() => { document.querySelector('#p22')?.closest('details').setAttribute('open', ''); });
 await page.click('#p22 button:has-text("עצירת העריכה")');
 await page.waitForSelector('#dlg-pause[open]');

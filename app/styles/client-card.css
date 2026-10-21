@@ -242,3 +242,92 @@ dialog .dlg-foot .btn { min-height: 46px; }
   .hrow, #tl-slot .tl-item.has-leaf, #tasks .tlist > li.item { background: #fff; box-shadow: none; border: 1px solid #999; }
   #hist-list .hrow-at { position: static; inline-size: auto; block-size: auto; margin: 0; clip: auto; }
 }
+
+/* ══ The card made shorter (the owner, 20.10.2026) ══
+   "הצעד הבא שלך" under the head; the reference blocks as closed rows with a count; the rows
+   that wait in one line; item rows less tall. Look only: the blocks inside are as they were. */
+
+/* ── "הצעד הבא שלך": the viewer's own open items, the same rows as the protocol ── */
+.my-next .mn-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.my-next .mn-head h2 { margin: 0; }
+.my-next .mn-list { display: grid; gap: 10px; }
+.my-next .mn-proc { display: grid; gap: 6px; min-width: 0; padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--ds-ground); }
+.my-next .mn-proc.s-overdue { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ds-hot) 40%, transparent); }
+.my-next .mn-phead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.my-next .mn-title { display: inline-flex; align-items: baseline; gap: 8px; flex: 1 1 200px; min-width: 0; font-weight: 700; color: var(--ds-ink); text-decoration: none; overflow-wrap: anywhere; }
+.my-next .mn-title:hover span:last-child { text-decoration: underline; }
+.my-next .mn-phead > .sbadge { min-height: 26px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-surface); color: var(--ds-ink-2); font-weight: 700; }
+.my-next .mn-phead > .sbadge.s-overdue { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
+.my-next .mn-phead > .sbadge.s-today, .my-next .mn-phead > .sbadge.s-due, .my-next .mn-phead > .sbadge.s-client { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.my-next .mn-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.my-next .items { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.my-next .items > .item { border-top: 0; padding: 2px 12px; border-radius: var(--ds-r-sm); background: var(--ds-surface); }
+.my-next .items > .item:not(.is-done, .is-na, .is-blocked) .ilabel { font-weight: 600; color: var(--ds-ink); }
+.my-next .mn-none { margin: 0; color: var(--ds-ink-2); }
+.my-next .mn-none > p { margin: 0 0 8px; }
+.my-next .mn-tasks { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; }
+
+/* ── A reference block as one closed row: its icon, its name and what is inside ── */
+.cc-fold { padding: 0; }
+.cc-fold > .cf-sum { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 16px; cursor: pointer; list-style: none; border-radius: inherit; }
+.cc-fold > .cf-sum::-webkit-details-marker { display: none; }
+.cc-fold > .cf-sum::after { content: ''; flex: none; inline-size: 8px; block-size: 8px; margin-inline-start: auto; border: solid var(--ds-ink-2); border-width: 0 0 2px 2px; transform: rotate(-45deg) translateY(-2px); transition: transform .15s; }
+.cc-fold[open] > .cf-sum::after { transform: rotate(135deg) translate(-2px, 0); }
+.cc-fold > .cf-sum:hover { background: var(--ds-soft); }
+.cc-fold > .cf-sum:focus-visible { outline: 2px solid var(--ds-navy-mid, var(--accent)); outline-offset: -2px; }
+.cc-fold .cf-t { font-family: var(--ds-font-h); font-size: 17px; color: var(--ds-ink); min-width: 0; }
+.cc-fold .cf-n { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.cc-fold > .cf-body { padding: 0 16px 16px; min-width: 0; }
+/* Inside its row the block is not a card of its own, and its title is the row's. */
+.cc-fold > .cf-body > .block, .cc-fold > .cf-body > div > .block, .cc-fold > .cf-body > div > div > .block { padding: 0; margin: 0; background: transparent; box-shadow: none; border: 0; }
+.cc-fold > .cf-body .block > .side-head > h2, .cc-fold > .cf-body .block > .side-head > .k-ico,
+.cc-fold > .cf-body .block > .side-head > div > h2 { position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cc-fold > .cf-body .block > .side-head.k-sidehead > :is(h2, div, p) { grid-column: 1 / 3; }
+.cc-fold > .cf-body #gal-slot > .fl-gallery > h3 { position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cc-fold .cf-none, .cc-fold .fl-none, .st-none, #tasks .cf-none { margin: 0; padding: 4px 0; color: var(--ds-ink-2); font-size: 14px; list-style: none; background: none; box-shadow: none; }
+/* Inside the head: the contract and the package, a quiet bordered row. */
+#cc-head .cc-fold-in { border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-surface); }
+#cc-head .cc-fold-in > .cf-sum { min-height: 48px; padding: 6px 12px; }
+#cc-head .cc-fold-in > .cf-body { padding: 0 12px 12px; display: grid; gap: 12px; }
+@media (max-width: 760px) {
+  .cc-fold > .cf-sum { padding: 8px 12px; flex-wrap: wrap; row-gap: 4px; }
+  .cc-fold > .cf-body { padding: 0 12px 12px; }
+}
+
+/* ── The rows that wait, in one line (opened: the same rows) ── */
+.items > .item.wait-row { display: block; padding: 0; background: transparent; }
+.cc-wait > summary { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px; border-radius: var(--ds-r-sm); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 14px; cursor: pointer; list-style: none; }
+.cc-wait > summary::-webkit-details-marker { display: none; }
+.cc-wait > summary::before { content: ''; flex: none; inline-size: 7px; block-size: 7px; border: solid currentColor; border-width: 0 0 2px 2px; transform: rotate(45deg); transition: transform .15s; }
+.cc-wait[open] > summary::before { transform: rotate(-45deg); }
+.cc-wait > .items { margin-top: 6px; }
+.cc-wait-t { min-width: 0; overflow-wrap: anywhere; }
+
+/* ── Item rows, less tall: no empty band under the text (the "סיימתי" row was ~110px on a phone) ── */
+#phases .fin-row > .irow, .my-next .fin-row > .irow, #mc-slot .fin-row > .irow { padding-block: 6px; }
+@media (max-width: 760px) {
+  #phases .fin-row > .na-btn, .my-next .fin-row > .na-btn, #mc-slot .fin-row > .na-btn { min-height: 28px; margin: -6px 0 4px; padding-block: 0; font-size: 13px; align-self: start; }
+  #phases .fin-row > .irow, .my-next .fin-row > .irow, #mc-slot .fin-row > .irow { padding-bottom: 2px; }
+}
+
+/* ── Metricool, beside the Gantt's chip ── */
+.cc-mc { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; padding: 6px 12px; border-radius: var(--ds-r-item); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 14px; }
+.cc-mc-dot { inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--ds-ink-2); flex: none; }
+.cc-mc.is-ok .cc-mc-dot { background: var(--ds-ok); }
+.cc-mc.is-warn { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.cc-mc.is-warn .cc-mc-dot { background: var(--ds-amber); }
+.cc-mc-fail { font-weight: 700; color: var(--ds-hot-text); }
+.cc-mc .btn-text { min-height: 36px; display: inline-flex; align-items: center; }
+
+/* ── The tasks: "משימה חדשה" beside the title; the form only when asked for ── */
+#tasks .side-head > #task-new { min-height: 40px; }
+#tasks .task-form[hidden] { display: none; }
+
+/* ── "העברה לארכיון" at the foot of the card ── */
+.cc-foot { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--ds-line); }
+.cc-foot[hidden] { display: none; }
+
+@media print {
+  .my-next, .cc-foot, .cc-mc .btn-text { display: none !important; }
+  .cc-fold > .cf-sum::after { display: none; }
+}

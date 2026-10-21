@@ -358,8 +358,9 @@ try {
   });
   await step('D: the client-file blocks of the client card took the kit too (section 53): a tile per kind, the same controls', async () => {
     const { page, ctx } = await signedIn('irit', { path: `client.html?id=${cid(4)}`, width: 1280 });
-    await page.waitForSelector('#fl-slot .fl-block');
-    await page.waitForSelector('#st-slot .k-ico');
+    // Inside the card's closed rows (the owner, 20.10.2026): there, not drawn until opened.
+    await page.waitForSelector('#fl-slot .fl-block', { state: 'attached' });
+    await page.waitForSelector('#st-slot .k-ico', { state: 'attached' });
     assert.ok(await page.locator('#fl-slot .fl-add .k-ico').count() >= 4);
     assert.ok(await page.locator('#fl-slot .fl-add').count() >= 4);
     await ctx.close();

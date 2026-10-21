@@ -463,7 +463,10 @@ await step('the client card: the month block, a draft, marked in place', async (
   await lior.waitForSelector('#month .mitem');
   const box = lior.locator('#month');
   assert.match(await box.locator('#mc-card-h').innerText(), /המחזור החודשי · חודש 8 מתוך 10\s*טיוטה/);
-  assert.match(await box.innerText(), /4 מתוך 5 בוצעו · 1 באיחור/);
+  // A draft is never "באיחור" in the card: the card's "הצעד הבא שלך" counts only the protocol,
+  // and the two must agree (the owner, 20.10.2026).
+  assert.match(await box.innerText(), /4 מתוך 5 בוצעו/);
+  assert.doesNotMatch(await box.innerText(), /באיחור/);
   assert.equal(await box.locator('.mitem').count(), 5);
   assert.equal(await lior.evaluate(() => document.activeElement?.id), 'month');
   const photo = box.locator('.mitem', { hasText: 'הצלם החודשי צילם' });

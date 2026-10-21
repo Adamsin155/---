@@ -15,6 +15,7 @@
 //    list, restore, and the permanent deletion with the business name typed again.
 //  - 360px phones: no sideways page scroll, 44px targets.
 // Run: npx http-server -p 8080 -s . &  then  node tests/manager-e2e.mjs [outDir]
+import { openCardFolds } from './open-folds.mjs';
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
@@ -202,6 +203,7 @@ const errors = [];
 async function newContext(viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, acceptDownloads: true });
   await ctx.clock.install({ time: NOW });
+  await openCardFolds(ctx); // the card's closed rows, opened (the owner, 20.10.2026)
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   return ctx;
 }
