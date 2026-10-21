@@ -340,13 +340,15 @@ function gfxCard(x, ctx, batch) {
   const files = workFilesState(c.id);
   const where = q.stage === 'fixing' ? 'חזר לתיקונים' : q.stage === 'ofir' ? 'אצל אופיר' : isDone(cs, BATCH[batch].key) ? 'נמסרו לבדיקה'
     : files.loaded && !files.error ? [h('bdi', { class: 'num', dir: 'ltr' }, `${gate.count}${total ? `/${total}` : ''}`), ' הועלו'] : null;
-  const key = `${batch}:${c.id}`;
+  // The first 9 share the open state of the characterization day's card of the same client: it
+  // turns into this card when the day ends (or after a fix), and stays as it was left.
+  const key = batch === 'first' ? c.id : `${batch}:${c.id}`;
   return h('li', { class: 'wproc il-card il-gfx', 'data-key': `il-${batch}:${c.id}` },
     h('details', {
       class: 'il-gfx-fold', id: `${idp}-d`, open: openCards.has(key),
-      ontoggle: (e) => { if (e.currentTarget.open) openCards.add(key); else openCards.delete(key); },
     },
-    h('summary', { class: 'il-gfx-s', id: `${idp}-s` },
+    // Kept from the tap itself (not the toggle event, which a redraw between the two can lose).
+    h('summary', { class: 'il-gfx-s', id: `${idp}-s`, onclick: (e) => { if (e.currentTarget.parentElement.open) openCards.delete(key); else openCards.add(key); } },
       cardHead(batch, c, BATCH[batch].proc, batch === 'first' ? '9 גרפיקות ראשונות' : 'יתרת הגרפיקות', until(x.state.dueAt)),
       h('span', { class: 'il-gfx-line' },
         where ? h('span', { class: `il-gfx-n${q.stage === 'fixing' ? ' late' : ''}` }, where) : null,

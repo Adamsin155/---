@@ -157,10 +157,12 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   const list = await shortList(page, 'irit');
   // Protocol v8: what was her one card of "מחר" (the eight follow-up topics of the client that shoots
   // tomorrow) is now part of the one counted line of the daily follow-up, in "היום".
-  assert.deepEqual(list.groups.filter((g) => /g-(overdue|today|tomorrow)/.test(g.cls)).map((g) => g.title), ['באיחור', 'היום']);
+  // The owner, 20.10.2026: "היום" before "באיחור", and her long "באיחור" is one line to its tab
+  // (the late cards, "באיחור N ימי עסקים", are there).
+  assert.deepEqual(list.groups.filter((g) => /g-(overdue|today|tomorrow)/.test(g.cls)).map((g) => (/g-late-line/.test(g.cls) ? 'line' : g.title)), ['היום', 'line']);
+  assert.equal(await page.getAttribute('#late-line', 'href'), '#late');
   assert.match(await page.locator('#mine-list a[href="prep.html#followup"]').innerText(), /מעקב לפני צילום: \d+ לקוחות/);
   assert.equal(await page.locator('#mine-list .wproc[data-key$=":p14"]').count(), 0);
-  assert.ok(list.cards.some((c) => /^באיחור \d+ ימי עסקים$/.test(c.when)), 'the deadline in words');
   assert.ok(list.cards.some((c) => /^היום עד \d\d:\d\d$/.test(c.when)));
   const h = await heightOf(page);
   assert.ok(h < 4500, `Irit's first screen is ${h}px tall (it was about 11,900)`);

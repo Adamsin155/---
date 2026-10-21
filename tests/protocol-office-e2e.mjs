@@ -576,7 +576,9 @@ await page.waitForSelector('#view-mine:not([hidden]) .witem');
 // Urgent first, above "overdue", with a text badge; who opened it and when.
 const order3 = await page.locator('#mine-list .wgroup').evaluateAll((els) => els.map((e) => e.className));
 assert.match(order3[0], /g-urgent/);
-assert.match(order3[1], /g-overdue/);
+// Then today, then late (the owner, 20.10.2026: today's work before the late cards).
+assert.match(order3[1], /g-today/);
+assert.ok(order3.findIndex((c) => /g-overdue/.test(c)) > 1);
 const urgentCard = page.locator('.g-urgent .wproc');
 assert.equal(await urgentCard.count(), 1);
 assert.match(await page.locator('.g-urgent .wgroup-h').innerText(), /^דחוף/);
