@@ -660,9 +660,9 @@ test('the suggestion, continuity: the editor of the client\'s earlier round beat
   const gone = client(w, { name: 'עזב', editor: 'dana', rounds: [round] });
   const g = suggestAssignment({ client: gone, n: 2, shootType: 'dms', load, checks: cs, now });
   assert.deepEqual([g.editor, g.why], ['nadia', 'load']);
-  // Nirel edited the first shoot (Natali's); the next round is not Natali's, so she may not take it.
+  // Nirel edited the first shoot (Natali's); since 21.10.2026 she may edit any shoot, so she follows into the next round.
   const mixed = client(w, { name: 'מעורב', shoot_type: 'natali', editor: 'nirel', rounds: [round] });
-  assert.equal(suggestAssignment({ client: mixed, n: 2, shootType: 'dms', load, checks: cs, now }).why, 'load');
+  assert.deepEqual(['editor', 'why'].map((k) => suggestAssignment({ client: mixed, n: 2, shootType: 'dms', load, checks: cs, now })[k]), ['nirel', 'continuity']);
 });
 
 test('the suggestion: what the dialog already chose stays first; nobody to suggest says why', async () => {

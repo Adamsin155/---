@@ -174,9 +174,10 @@ export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 
 // Everyone on the team, sales too: the team screen (team.html) and who has reminders.
 export const TEAM_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor');
 
-// Editors a client can be assigned to. Nirel edits only Natali Dadon's videos.
+// Editors a client can be assigned to: every editor, any shoot (since 21.10.2026 Nirel too;
+// she stays the one preselected for Natali Dadon's shoots, app/qa-logic.js preselected).
 export const EDITORS = ['nadia', 'yariv', 'anna', 'nirel'];
-export const editorsFor = (shootType) => (shootType === 'natali' ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));
+export const editorsFor = () => EDITORS;
 // The editors of a shoot (the client, or a round's view of it): the main one (`editor`)
 // and, when two work together, the second (`editor2`; the owner's request of 21.10.2026).
 // The second one sees the client, gets the same notices and marks the editing steps.
@@ -842,7 +843,7 @@ export const PROCESSES = [
   },
   {
     id: 'p22', round: true, num: '22', phase: 'post', title: 'עריכת הסרטונים', owners: editorOf,
-    ownerNote: 'העורך שאופיר שייך. ניראל עורכת רק סרטוני נטלי דדון.',
+    ownerNote: 'העורך שאופיר שייך. בצילום של נטלי דדון ניראל מסומנת מראש.',
     sla: 'עד סוף יום העסקים השני מהשיוך: כל הסרטונים ערוכים, בדוקים ואצל אופיר',
     start: { from: 'item:p22a.assigned' }, due: { from: 'item:p22a.assigned', businessDays: 2 },
     what: 'עורכים לפי התסריטים ולפי מה שצולם, בלי לשנות את משמעות הסרטון. יוצרים גיוון בקצב, ב־B-Roll, במעברים, במבנה ובהצגת הטקסטים.',

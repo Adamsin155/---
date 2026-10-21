@@ -64,7 +64,8 @@ test('the block: a client in landing at editing, 22א ready and not really marke
   const c = client();
   const [slot, ...more] = editorSlots(c, imported(), {}, NOW);
   assert.deepEqual(more, []);
-  assert.deepEqual(slot, { n: null, pre: '', procId: 'p22a', editors: ['nadia', 'yariv', 'anna'], editor: null, notes: 'yariv' });
+  assert.deepEqual(slot, { n: null, pre: '', procId: 'p22a', editors: ['nadia', 'yariv', 'anna', 'nirel'], editor: null, notes: 'yariv' });
+  // Every editor for every shoot since 21.10.2026 (Nirel too).
   assert.deepEqual(editorSlots(client({ shoot_type: 'natali' }), imported(), {}, NOW)[0].editors, ['nadia', 'yariv', 'anna', 'nirel']);
   // Not in landing, not at editing yet, or already really assigned: no block.
   assert.deepEqual(editorSlots(client({ landing: false, landed_at: IMPORTED }), imported(), {}, NOW), []);

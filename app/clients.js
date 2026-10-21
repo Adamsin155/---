@@ -2926,7 +2926,6 @@ function editorSection(now) {
       return h('li', { class: 'editor-card' },
         h('div', { class: 'editor-head' },
           personChip(key),
-          key === 'nirel' ? h('span', { class: 'k-pill' }, 'נטלי בלבד') : null,
           h('span', { class: 'editor-count' }, `${mine.length} ${mine.length === 1 ? 'לקוח' : 'לקוחות'} בעריכה · ${openTasks} ${openTasks === 1 ? 'משימה פתוחה' : 'משימות פתוחות'}`)),
         mine.length ? h('ul', { class: 'edit-jobs' }, ...mine.map((j) => h('li', {},
           h('a', { class: 'wclient', href: clientUrl(j.c.id, `#${j.steps[0]?.s.proc.id || ''}`) }, clientLabel(j.c), j.round ? ` · סבב ${j.round}` : ''),

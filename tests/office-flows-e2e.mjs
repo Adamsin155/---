@@ -520,7 +520,7 @@ await step('a swap never resets a late job silently: the deadlines stay unless O
   assert.match(await ofir.innerText('#as-clock-late'), /העריכה כבר באיחור\. ההחלפה לא מאפסת את האיחור/);
   assert.match(await ofir.innerText('#as-clock-keep-label'), /\(באיחור\)$/);
   assert.equal(await ofir.isHidden('#as-joint-wrap'), true);
-  assert.deepEqual(await ofir.locator('#as-editors input').evaluateAll((els) => els.map((e) => e.value)), ['nadia', 'yariv', 'anna']); // Nirel edits Natali only
+  assert.deepEqual(await ofir.locator('#as-editors input').evaluateAll((els) => els.map((e) => e.value)), ['nadia', 'yariv', 'anna', 'nirel']); // every editor, any shoot (21.10.2026)
   await ofir.check('#as-e-anna');
   assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (לא חובה)');
   // Counting again is his explicit choice, with a reason.
@@ -911,7 +911,7 @@ await step('"עורך/ת נוסף/ת": Ofir assigns two editors; both get the Wh
   await page.check('#as-e-yariv');
   assert.ok(await page.locator('#as-editor2-wrap').isHidden());
   await page.click('#as-editor2-add');
-  assert.deepEqual(await page.locator('#as-editor2 option').evaluateAll((els) => els.map((e) => e.value)), ['nadia', 'anna']);
+  assert.deepEqual(await page.locator('#as-editor2 option').evaluateAll((els) => els.map((e) => e.value)), ['nadia', 'anna', 'nirel']);
   await page.selectOption('#as-editor2', 'nadia');
   // 25 videos in the package: even, the main editor takes the odd one.
   assert.equal(await page.innerText('#as-split-h'), 'חלוקת הסרטונים (25 לפי החבילה)');

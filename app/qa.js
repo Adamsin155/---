@@ -318,7 +318,7 @@ const keepFold = (key, open) => { if (open) openFolds.add(key); else openFolds.d
 // the clients (and "החלפת עורך") open under it. The assign window keeps its recommendation.
 function loadCard(l, now) {
   const late = l.jobs.filter((j) => j.dueAt && !j.landing && j.dueAt < now).length;
-  const head = [personChip(l.editor), l.editor === 'nirel' ? h('span', { class: 'tag' }, 'נטלי בלבד') : null,
+  const head = [personChip(l.editor),
     h('span', { class: 'of-line' }, loadText(l)), late ? h('span', { class: 'late of-load-late' }, ` · ${late === 1 ? 'אחת באיחור' : `${late} באיחור`}`) : null];
   if (!l.jobs.length) return h('li', { class: 'of-card of-editor' }, h('div', { class: 'of-head' }, ...head));
   return h('li', { class: 'of-card of-editor' }, h('details', { class: 'of-load-fold', open: openFolds.has(l.editor) ? true : null, ontoggle: (e) => keepFold(l.editor, e.currentTarget.open) },

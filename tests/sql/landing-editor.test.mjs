@@ -84,7 +84,8 @@ test('who may: Irit, Lior, Ofir and the owners; nobody else', async () => {
 
 test('only in landing, only an editor the dialog offers, only a round that exists, never over a real assignment', async () => {
   assert.match((await set('irit', ids.active, 'nadia')).error, /not in landing/);
-  assert.match((await set('irit', ids.a, 'nirel')).error, /editor not allowed/, 'Nirel only for Natali');
+  // Nirel may edit any shoot since 20261031120000_nirel_any_shoot.sql (21.10.2026).
+  assert.equal((await set('irit', ids.a, 'nirel'))[0].r.editor, 'nirel');
   assert.match((await set('irit', ids.a, 'lior')).error, /editor not allowed/);
   assert.match((await set('irit', ids.a, 'editor')).error, /editor not allowed/);
   assert.deepEqual((await set('irit', ids.natali, 'nirel'))[0].r.editor, 'nirel');
@@ -94,7 +95,7 @@ test('only in landing, only an editor the dialog offers, only a round that exist
   assert.match((await set('irit', crypto.randomUUID(), 'nadia')).error, /client not found|not allowed/);
   // The round's own shoot type: round 2 is Natali's, the client's own is not.
   assert.deepEqual((await set('irit', ids.round, 'nirel', 2))[0].r, { editor: 'nirel', round: 2, changed: true });
-  assert.match((await set('irit', ids.round, 'nirel')).error, /editor not allowed/);
+  assert.equal((await set('irit', ids.round, 'nirel'))[0].r.editor, 'nirel');
 });
 
 test('set: the editor and the landing answers of 22א; nothing of the protocol, no task; changed with another tap', async () => {

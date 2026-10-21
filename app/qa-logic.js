@@ -145,7 +145,7 @@ export const reasonOf = (checks, pre = '') => readJson(checks[REASON_KEY(pre)]);
 
 // ── Changing an assigned editor ("החלפת עורך") ──
 // The automatic assignment tells Ofir he can change it; he does it from the load
-// list of his own screen, with the same rules as the first assignment (Nirel only
+// list of his own screen, with the same rules as the first assignment (Nirel preselected
 // for Natali, another editor for Natali with a reason, if he writes one).
 //
 // The editing clocks: the deadlines of 22, 24 and 27 count from the moment 22א
@@ -240,7 +240,7 @@ export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Dat
 // jobs, then open tasks), other than the ones excluded (the paused editor).
 export function proposeEditor(load, shootType, exclude = []) {
   const active = (l) => l.jobs.filter((j) => !j.paused).length;
-  return eligibleEditors(shootType).filter((e) => !exclude.includes(e) && load[e])
+  return suggestPool(shootType).filter((e) => !exclude.includes(e) && load[e])
     .sort((a, b) => (active(load[a]) - active(load[b])) || (load[a].tasks - load[b].tasks) || EDITORS.indexOf(a) - EDITORS.indexOf(b))[0] || null;
 }
 
@@ -272,9 +272,12 @@ export function dueThisWeek(l, now = new Date()) {
   return l.jobs.filter((j) => j.dueAt && !j.landing && j.dueAt <= end).length;
 }
 // The editors who may take this shoot, the least loaded first: [{ editor, open, week }].
+// Whom the load may suggest: Nirel may edit any shoot since 21.10.2026, and is offered in the
+// dialog for every shoot, but she is suggested by the load only for Natali's (her own work).
+const suggestPool = (shootType) => (shootType === 'natali' ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));
 export function rankEditors(load, shootType, exclude = [], now = new Date()) {
   if (!load) return [];
-  return eligibleEditors(shootType).filter((e) => !exclude.includes(e) && load[e])
+  return suggestPool(shootType).filter((e) => !exclude.includes(e) && load[e])
     .map((e) => ({ editor: e, open: load[e].jobs.length, week: dueThisWeek(load[e], now) }))
     .sort((a, b) => (a.open - b.open) || (a.week - b.week) || EDITORS.indexOf(a.editor) - EDITORS.indexOf(b.editor));
 }

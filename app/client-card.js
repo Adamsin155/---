@@ -2199,14 +2199,14 @@ function openEdit(focusId = 'ed-name') {
   $(focusId).focus();
 }
 
-// Editors a shoot type allows (Nirel edits only Natali's clients). A stored
+// Editors a shoot type allows (every editor since 21.10.2026). A stored
 // editor the type no longer allows stays listed and marked, so saving never
 // drops it silently; the save refuses it instead.
 function fillEditors(selId, shootType, current) {
   const keys = editorsFor(shootType);
   const extra = current && !keys.includes(current) ? [current] : [];
   fill($(selId), h('option', { value: '' }, 'טרם שויך'),
-    ...keys.map((k) => h('option', { value: k }, `${PEOPLE[k].name}${k === 'nirel' ? ' (נטלי בלבד)' : ''}`)),
+    ...keys.map((k) => h('option', { value: k }, PEOPLE[k].name)),
     ...extra.map((k) => h('option', { value: k }, `${PEOPLE[k]?.name || k} (לא מתאים לסוג יום הצילום)`)));
   $(selId).value = current || '';
 }
