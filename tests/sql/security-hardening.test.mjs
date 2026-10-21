@@ -180,9 +180,19 @@ test('the migration file: nothing in it removes an object or a row, and there is
   // So no later file may define again a function this one defines.
   const defined = (text) => [...text.matchAll(/create\s+or\s+replace\s+function\s+([a-z_.]+)/gi)].map((m) => m[1].toLowerCase());
   const hardened = new Set(defined(sql));
+  // One exception, on purpose: "שויך" (20261031100000_access_and_editors.sql, 21.10.2026) adds a
+  // fourth choice to the client's form, so it defines the form's two functions again, as the
+  // hardening wrote them plus that choice. It must keep every protection of the hardening.
+  const AGAIN = { '20261031100000_access_and_editors.sql': ['private.access_form_problem', 'public.access_form_submit'] };
   for (const f of migrationFiles().filter((x) => x > MIGRATION)) {
-    const again = defined(readFileSync(new URL(`../../supabase/migrations/${f}`, import.meta.url), 'utf8')).filter((n) => hardened.has(n));
-    assert.deepEqual(again, [], `${f} defines again what the hardening defined`);
+    const text = readFileSync(new URL(`../../supabase/migrations/${f}`, import.meta.url), 'utf8');
+    const again = defined(text).filter((n) => hardened.has(n));
+    assert.deepEqual(again, AGAIN[f] || [], `${f} defines again what the hardening defined`);
+    if (AGAIN[f]) {
+      for (const kept of ["staff cannot send the form for the client", "'notes too long'", "char_length(coalesce(p ->> 'notes', '')) > 300", 'v_beside', 'client_note_private', 'vault.update_secret(a.secret_id, v_pass)']) {
+        assert.ok(text.includes(kept), `${f} keeps the hardening: ${kept}`);
+      }
+    }
   }
 });
 

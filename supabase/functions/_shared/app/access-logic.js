@@ -15,6 +15,8 @@
 //   'have'   "יש לי פרטי כניסה"         → status 'new'     (received from the client, not checked yet)
 //   'none'   "אין כיום, צריך לפתוח"      → status 'missing' (Ilai opens the page, as today)
 //   'reset'  "יש, וצריך לחדש סיסמה"      → status 'broken'  (Lior restores it with the client, as today)
+//   'linked' "שייכתי את העמוד לאסטרטג"   → status 'linked'  (Facebook and Instagram only: the page is
+//            linked to Astrateg in Meta Business, with no user name and no password; 21.10.2026)
 import { partsIL } from './tz.js';
 
 // ── The link ────────────────────────────────
@@ -92,15 +94,31 @@ export const CHOICES = [
   ['have', 'יש לי פרטי כניסה'],
   ['none', 'אין כיום, צריך לפתוח'],
   ['reset', 'יש, וצריך לחדש סיסמה'],
+  ['linked', 'שייכתי את העמוד לאסטרטג (בלי סיסמה)'],
 ];
 export const CHOICE_LABEL = Object.fromEntries(CHOICES);
 // What the office reads for each choice (the card, Ofir's form, Irit's note).
-export const CHOICE_OFFICE = { have: 'התקבלו פרטי כניסה', none: 'אין כיום, צריך לפתוח', reset: 'צריך לחדש סיסמה' };
-export const STATUS_OF = { have: 'new', none: 'missing', reset: 'broken' };
+export const CHOICE_OFFICE = { have: 'התקבלו פרטי כניסה', none: 'אין כיום, צריך לפתוח', reset: 'צריך לחדש סיסמה', linked: 'שויך דרך מנהל העסקים' };
+export const STATUS_OF = { have: 'new', none: 'missing', reset: 'broken', linked: 'linked' };
 
-// The vault's statuses, with the one this form adds ('new').
+// ── "שויך" (the owner's request of 21.10.2026) ──
+// A Facebook or Instagram page is often linked to Astrateg through Meta Business: no
+// user name and no password are needed. Only these two networks (the database holds
+// to the same: client_access_linked_check, 20261031100000_access_and_editors.sql).
+// It is a working access everywhere, like 'ok': no gap, no task.
+export const LINKED_STATUS = 'linked';
+export const LINKABLE = ['facebook', 'instagram'];
+export const canLink = (network) => LINKABLE.includes(network);
+export const accessWorks = (status) => status === 'ok' || status === LINKED_STATUS;
+// The choices of one network on the client's page ('linked' only where it can be).
+export const choicesFor = (network) => CHOICES.filter(([k]) => k !== 'linked' || canLink(network));
+// A vault row as the screens read it. The table keeps a linked page as status 'ok' with
+// `linked` on (its old status check stays as it was); the functions already answer 'linked'.
+export const accessRow = (r) => (r && r.linked === true ? { ...r, status: LINKED_STATUS } : r);
+
+// The vault's statuses, with the one this form adds ('new') and the linked page.
 export const NEW_STATUS = 'new';
-export const ACCESS_STATUS_LABEL = { ok: 'תקינה', broken: 'לא עובדת', missing: 'אין רשת', new: 'התקבל מהלקוח, עוד לא נבדק' };
+export const ACCESS_STATUS_LABEL = { ok: 'תקינה', linked: 'שויך (דרך מנהל העסקים)', broken: 'לא עובדת', missing: 'אין רשת', new: 'התקבל מהלקוח, עוד לא נבדק' };
 export const accessStatusLabel = (s) => ACCESS_STATUS_LABEL[s] || s || '';
 // Who set a row or a log line when it was the client's form (client_access.updated_by,
 // client_access_log.by_email): never an email.
@@ -155,7 +173,7 @@ function loginProblems(v, { user = true, pass = true } = {}) {
 
 // The problems of one mandatory card ({} when it is complete).
 export function mainProblems(v) {
-  if (!CHOICE_LABEL[v?.choice]) return { choice: 'בחרו אחת משלוש האפשרויות.' };
+  if (!CHOICE_LABEL[v?.choice] || (v.choice === 'linked' && !canLink(v.network))) return { choice: 'בחרו אחת מהאפשרויות.' };
   if (v.choice === 'have') return loginProblems(v);
   if (v.choice === 'reset') return loginProblems(v, { user: false, pass: false });
   return {};
@@ -186,7 +204,7 @@ export function formProblems(form) {
   const errors = {};
   const missing = [];
   for (const n of REQUIRED) {
-    const p = mainProblems(form.main[n]);
+    const p = mainProblems({ ...form.main[n], network: n });
     for (const [k, msg] of Object.entries(p)) errors[`${n}.${k}`] = msg;
     if (Object.keys(p).length) missing.push(NETWORK_NAMES[n]);
   }
@@ -238,7 +256,7 @@ export function payloadProblem(p) {
     if (e.network === 'other') {
       if (!label || label.length > LABEL_MAX || CONTROL.test(label)) return 'label';
     } else if (label) return 'label';
-    if (!CHOICE_LABEL[e.choice] || (!main && e.choice !== 'have')) return 'choice';
+    if (!CHOICE_LABEL[e.choice] || (!main && e.choice !== 'have') || (e.choice === 'linked' && !canLink(e.network))) return 'choice';
     const user = clean(e.username);
     const pass = String(e.password ?? '');
     if (user.length > USER_MAX || CONTROL.test(user)) return 'username';
@@ -247,7 +265,7 @@ export function payloadProblem(p) {
       if (!pass.trim() || pass.length > PASS_MAX || CONTROL.test(pass)) return 'password';
     } else {
       if (pass) return 'password';
-      if (e.choice === 'none' && user) return 'username';
+      if ((e.choice === 'none' || e.choice === 'linked') && user) return 'username';
     }
     const key = entryKey(e.network, label);
     if (seen.has(key)) return 'duplicate';
@@ -266,7 +284,7 @@ export function confirmLines(payload) {
   return (payload?.entries || []).map((e) => ({
     platform: platformName(e.network, e.label),
     choice: CHOICE_LABEL[e.choice] || e.choice,
-    username: e.choice === 'none' ? null : (clean(e.username) || null),
+    username: e.choice === 'none' || e.choice === 'linked' ? null : (clean(e.username) || null),
     password: e.choice === 'have',
   }));
 }

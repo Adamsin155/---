@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import {
   endedProblems, endedNote, endedChecks, endedClientFields, validPhone, validUrl, formChecks, isComplete, missingFields,
   missingMaterials, missingTask, blockingTask, missingMessage, AUTO_NOTE, FORM_FIELDS, readDraft, draftText, draftWins,
-  businessPhoneOf, logoUrlOf, closingLine, BLOCKING_TITLE,
+  businessPhoneOf, logoUrlOf, closingLine, BLOCKING_TITLE, accessStatusesFor,
 } from '../app/characterization.js';
 import { FOCUS_TOPICS, briefChecks, highlightsOf, emptyTopics, NOT_RAISED } from '../app/briefs.js';
 import {
@@ -63,6 +63,12 @@ test('"the characterization ended": 4 required short fields, in plain Hebrew', (
   assert.ok(endedProblems({ ...ok, networks: [{ network: 'instagram', status: null }] }).networks);
   // "No network" is an answer too.
   assert.deepEqual(endedProblems({ ...ok, networks: [{ network: 'facebook', status: 'missing' }] }), {});
+  // "שויך" (linked through Meta Business, 21.10.2026): Facebook and Instagram only, an answer like any other.
+  assert.deepEqual(accessStatusesFor('facebook').map(([k]) => k), ['ok', 'linked', 'broken', 'missing']);
+  assert.deepEqual(accessStatusesFor('instagram').map(([k]) => k), ['ok', 'linked', 'broken', 'missing']);
+  assert.deepEqual(accessStatusesFor('tiktok').map(([k]) => k), ['ok', 'broken', 'missing']);
+  assert.deepEqual(endedProblems({ ...ok, networks: [{ network: 'facebook', status: 'linked' }] }), {});
+  assert.match(endedNote({ ...ok, networks: [{ network: 'facebook', status: 'linked' }] }), /Facebook: שויך \(דרך מנהל העסקים\)/);
   for (const p of ['050-1234567', '03-1234567', '+972 50 123 4567', '1-700-500-500', '*2345', '0771234567']) assert.ok(validPhone(p), p);
   for (const p of ['', '123', '050-123', 'abc', '+1 555 123 4567']) assert.ok(!validPhone(p), p);
   assert.ok(validUrl('https://drive.google.com/x'));

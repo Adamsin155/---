@@ -3,8 +3,8 @@
 // it has waited against the one-hour target (stopped while he is in a
 // characterization, decision 11); "אישור" or "החזרה לתיקון" with the issues, a due
 // time and a round counter. Below it today's characterizations, the shoots waiting
-// for an editor with the assignment (22א: Nirel preselected for Natali, a reason
-// for anyone else; a joint day always with a reason), and each editor's load.
+// for an editor with the assignment (22א: Nirel preselected for Natali, an optional
+// reason for anyone else and on a joint day), and each editor's load.
 // The quality-control dialog shows what is being checked: the round's videos by their
 // Drive link (and any uploaded into the system, played in place), or the rest of the
 // graphics from the client's files.
@@ -254,7 +254,8 @@ function assignCard(a, load, now) {
   const type = a.ctx.shoot_type;
   const joint = jointFromSelection(selections.get(a.client.quote_id));
   const sug = suggestionOf(a, load, joint, now);
-  // One tap needs no written reason: a joint day (decision 31) always goes through the dialog.
+  // One tap for the usual case: a joint day (decision 31) or another editor for Natali goes
+  // through the dialog, where a reason can be written (not required).
   const oneTap = !!sug.editor && !reasonNeeded({ shootType: type, joint, editor: sug.editor });
   const name = sug.editor ? PEOPLE[sug.editor].name : null;
   const id = a.key.replace(/\W/g, '_');
@@ -276,7 +277,7 @@ function assignCard(a, load, now) {
     h('p', { class: `k-note as-sug${sug.editor ? '' : ' k-note-warn'}`, id: `as-sug-${id}`, 'data-editor': sug.editor || '', 'data-why': sug.why },
       iconSquare(sug.editor ? 'user' : 'question', sug.editor ? 'teal' : 'orange', { size: 'sm' }),
       h('span', { class: 'as-sug-t' }, h('strong', {}, sug.editor ? `מומלץ: ${name}` : 'אין המלצה'), ` · ${sug.reason}`,
-        sug.editor && !oneTap ? ' · ביום משותף בוחרים עורך עם סיבה' : '')),
+        sug.editor && !oneTap ? ' · ביום משותף בוחרים עורך בחלון' : '')),
     a.fast ? h('p', { class: 'of-line as-fast' }, ladderWords(a.fast, now), ` · לשייך עד ${formatWhen(a.fast.dueAt, now)}`) : null,
     // The assignment is Ofir's alone (protocol v9). Lior supervises here: he sees it, without the buttons.
     me === 'lior' ? h('p', { class: 'of-line muted as-ofir-only' }, 'אופיר משייך את העורך.') : h('div', { class: 'of-acts as-acts' },
@@ -609,14 +610,15 @@ function swapChoice() {
   if (!sw) return { late: false, restart: false };
   return { late: swapClock(sw.job, new Date()).late, restart: $('as-clock-restart').checked };
 }
-function needsReason(editor, joint) {
-  return swapReasonNeeded({ shootType: asItem.ctx.shoot_type, joint, editor, ...swapChoice() });
+// The editor's reason itself is optional (21.10.2026): only a late job counted again needs one.
+function needsReason(editor) {
+  return swapReasonNeeded({ editor, ...swapChoice() });
 }
 function syncReason() {
   const a = asItem;
   const editor = $('as-editors').querySelector('input:checked')?.value || null;
   const joint = $('as-joint').checked;
-  const need = needsReason(editor, joint);
+  const need = needsReason(editor);
   $('as-reason-label').textContent = need ? 'סיבה (חובה)' : 'סיבה (לא חובה)';
   $('as-reason').required = need;
   $('as-reason-hint').textContent = reasonHint({ shootType: a.ctx.shoot_type, joint }) || 'הסיבה נשמרת בהיסטוריה של הלקוח.';
@@ -668,10 +670,9 @@ $('as-form').addEventListener('submit', async (e) => {
   const joint = $('as-joint').checked && a.ctx.shoot_type === 'natali';
   const reason = $('as-reason').value.trim();
   if (!editor) { showErr('as-err', a.swap ? 'בחרו את העורך החדש.' : 'בחרו עורך.'); $('as-editors').querySelector('input:not(:disabled)')?.focus(); return; }
-  if (needsReason(editor, joint) && !reason) {
+  if (needsReason(editor) && !reason) {
     $('as-reason').setAttribute('aria-invalid', 'true');
-    showErr('as-err', !reasonNeeded({ shootType: a.ctx.shoot_type, joint, editor }) ? 'העריכה כבר באיחור. כדי לספור את המועדים מחדש כתבו למה.'
-      : joint ? 'ביום צילום משותף רושמים למה נבחר העורך.' : `ניראל מסומנת מראש בצילום של נטלי. כתבו למה ${PEOPLE[editor].name}.`);
+    showErr('as-err', 'העריכה כבר באיחור. כדי לספור את המועדים מחדש כתבו למה.');
     $('as-reason').focus();
     return;
   }
@@ -711,7 +712,7 @@ $('as-form').addEventListener('submit', async (e) => {
 
 // The first assignment's write, the same for the dialog's "שיוך" and for the card's
 // "שיוך ל<שם>": the editor in the card, 22א's "נבדק העומס" and "שויך", Irit's and Lior's
-// items that close with it, the reason when there is one, and Ofir's folder task (24).
+// items that close with it, the reason when he wrote one, and Ofir's folder task (24).
 // Throws when the assignment itself was not saved. → { client, folder (a sentence for the toast) }
 async function saveAssign(a, editor, joint, reason) {
   const c = a.client;
@@ -726,7 +727,8 @@ async function saveAssign(a, editor, joint, reason) {
   // (19, "הכונן חזר אליי"): it closes with the assignment, so 22א does not stay open on it.
   const drive = `${a.pre}p22a.drive`;
   if (checks[c.id][`${a.pre}p19.took`]?.state === 'done' && !['done', 'na'].includes(checks[c.id][drive]?.state)) checks[c.id][drive] = await setCheck(c.id, drive, 'done', AUTO_DRIVE_NOTE);
-  if (reason || reasonNeeded({ shootType: a.ctx.shoot_type, joint, editor })) {
+  // The reason is optional: kept when Ofir wrote one.
+  if (reason) {
     checks[c.id][REASON_KEY(a.pre)] = await setCheck(c.id, REASON_KEY(a.pre), 'done', reasonNote({ editor, reason, preselected: preselected(a.ctx.shoot_type, joint), joint }));
   }
   // Ofir's folder task (24), due at the end of editing day 1 (once: a swap opens none).

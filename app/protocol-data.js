@@ -5,6 +5,7 @@
 // checked an item and when are stamped by the database.
 import { supabase } from './supa.js';
 import { withLanding } from './landing-data.js';
+import { accessRow } from './access-logic.js';
 
 // Every row of a query, a thousand at a time (the most the database gives in one answer).
 // `build(COUNTED)` may pass its argument on to select(): the first answer then says how
@@ -313,12 +314,18 @@ export async function loadTasksDoneSince(sinceIso) {
 // ── Access vault ─────────────────────────────
 // The list never contains passwords; a password is read only through
 // access_reveal(), which logs who viewed it and when.
+// A page linked through Meta Business ("שויך", 20261031100000_access_and_editors.sql) is
+// the column `linked`; before that migration the column is missing and the list is read
+// without it, as before.
+export const noLinkedColumn = (err) => err?.code === '42703' || /linked/.test(String(err?.message || ''));
 export async function loadAccess(clientId) {
-  const { data, error } = await supabase.from('client_access')
-    .select('id, network, label, username, status, note, updated_by, updated_at, has_secret:secret_id')
+  const read = (cols) => supabase.from('client_access')
+    .select(`id, network, label, username, status, note, updated_by, updated_at, has_secret:secret_id${cols}`)
     .eq('client_id', clientId).order('created_at');
+  let { data, error } = await read(', linked');
+  if (error && noLinkedColumn(error)) ({ data, error } = await read(''));
   if (error) throw error;
-  return data.map((r) => ({ ...r, has_secret: !!r.has_secret }));
+  return data.map((r) => accessRow({ ...r, has_secret: !!r.has_secret }));
 }
 
 export async function saveAccess(clientId, a) {

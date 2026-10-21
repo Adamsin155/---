@@ -25,7 +25,7 @@ import {
 import { dress } from './kit.js';
 import { checkMark } from './mark-guards.js';
 import {
-  ACCESS_STATUS, MAIN_NETWORKS, networkName, FORM_FIELDS, MATERIALS, MATERIAL_STATES, endedProblems, endedNote, endedChecks,
+  accessStatusesFor, MAIN_NETWORKS, networkName, FORM_FIELDS, MATERIALS, MATERIAL_STATES, endedProblems, endedNote, endedChecks,
   endedClientFields, formProblems, isComplete, missingFields, filledCount, missingMaterials, formChecks, missingTask, blockingTask,
   MISSING_TITLE, BLOCKING_TITLE, DRAFT_KEY, readDraft, draftText, draftWins, validUrl,
 } from './characterization.js';
@@ -263,7 +263,7 @@ function renderEnd() {
           'לשנות', h('span', { class: 'sr-only' }, ` את ${networkName(n)}`)));
     }
     return h('div', { class: 'ik-net' },
-      radios(name, [['', v.fromClient ? 'בלי שינוי' : 'לא נבדק'], ...ACCESS_STATUS], v.status || '', (s) => { v.status = s; renderEndKeep(`${name}-${s || 'none'}`); },
+      radios(name, [['', v.fromClient ? 'בלי שינוי' : 'לא נבדק'], ...accessStatusesFor(n)], v.status || '', (s) => { v.status = s; renderEndKeep(`${name}-${s || 'none'}`); },
         [networkName(n), v.fromClient ? h('span', { class: 'tag' }, `מהלקוח: ${accessStatusLabel(v.fromClient)}`)
           : v.existing || v.known ? h('span', { class: 'tag' }, v.known ? `כבר בכספת: ${accessStatusLabel(v.known)}` : 'כבר בכספת') : null]),
       showLogin ? h('div', { class: 'ik-login' },

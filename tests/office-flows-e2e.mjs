@@ -5,7 +5,7 @@
 //    target; he returns the videos with two issues, the editor marks them fixed in
 //    the client card ("תוקן"), they come back as a second check, he approves, and
 //    the handoff to Irit is offered.
-//  - The assignment: Nirel preselected for Natali; Nadia only with a reason; the
+//  - The assignment: Nirel preselected for Natali; Nadia with or without a reason; the
 //    folder task (24) and the WhatsApp to the editor.
 //  - Thursday: the pass over the clients ("עברתי", "עברתי על כל השאר", recorded as
 //    the day's control), a data-health fix in one tap, the summary prefilled.
@@ -416,7 +416,7 @@ await step('the re-check: back in the queue as check 2 with what was returned; a
   await ofir.click('#handoff-close');
 });
 
-await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the folder task and the WhatsApp to the editor', async () => {
+await step('assignment: Nirel preselected for Natali; Nadia with no reason (optional since 21.10.2026); the folder task and the WhatsApp to the editor', async () => {
   // The card suggests the rule's own choice, one confirmation away; "עורך אחר" opens the dialog.
   assert.match(await ofir.locator('#assign-list .as-sug').innerText(), /מומלץ: ניראל[^]*צילום של נטלי: ניראל מסומנת מראש/);
   assert.equal((await ofir.locator('#assign-list .as-go').innerText()).trim(), 'שיוך לניראל');
@@ -426,17 +426,16 @@ await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the 
   assert.equal(await ofir.isVisible('#as-joint'), true);
   assert.deepEqual(await ofir.locator('#as-editors input').evaluateAll((els) => els.map((e) => e.value)), ['nadia', 'yariv', 'anna', 'nirel']);
   await ofir.check('#as-e-nadia');
-  assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (חובה)');
-  await ofir.click('#as-submit');
-  assert.match(await ofir.innerText('#as-err'), /ניראל מסומנת מראש בצילום של נטלי\. כתבו למה נדיה/);
-  assert.equal(await ofir.evaluate(() => document.activeElement.id), 'as-reason');
-  await ofir.fill('#as-reason', 'ניראל עמוסה השבוע בבריפים');
+  // The reason is asked for, never required: the hint stays, the assignment goes through without it.
+  assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (לא חובה)');
+  assert.equal(await ofir.innerText('#as-reason-hint'), 'בצילום של נטלי ניראל מסומנת מראש. בשיוך לעורך אחר כדאי לרשום למה.');
   await ofir.click('#as-submit');
   await toastHas(ofir, 'סטודיו נטלי שויך לנדיה');
   assert.equal(db.clients.find((c) => c.id === N.id).editor, 'nadia');
   assert.ok(checkOf(N, 'p22a.assigned') && checkOf(N, 'p22a.load'));
   assert.equal(checkOf(N, 'p22a.irit').note, 'נסגר לבד: השיוך נרשם במערכת');
-  assert.deepEqual(JSON.parse(checkOf(N, 'p22a.reason').note), { editor: 'nadia', reason: 'ניראל עמוסה השבוע בבריפים', preselected: 'nirel', joint: false });
+  // No reason written: no reason mark (a written one is kept, as the swap below shows).
+  assert.equal(checkOf(N, 'p22a.reason'), null);
   // The videos stay in the client's Drive (the owner's decision of 7.10.2026): Ofir's folder task is opened, as before.
   const folder = db.client_tasks.find((t) => t.client_id === N.id && t.owner === 'ofir');
   assert.equal(folder.title, 'פתיחת תיקייה מסודרת בדרייב לעריכה (24)');
@@ -482,13 +481,12 @@ await step('"החלפת עורך" from the load list: the same dialog and rules;
   assert.equal(await ofir.isHidden('#as-clock-late'), true);
   assert.match(await ofir.innerText('#as-clock-restart-label'), /^לספור מחדש מהיום: יעד /);
   assert.match(await ofir.innerText('#as-clock-keep-label'), /^להשאיר את המועד: יעד /);
-  // Another editor for Natali still needs the written reason.
+  // Another editor for Natali: a reason is asked for, not required.
   await ofir.check('#as-e-yariv');
-  assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (חובה)');
-  await ofir.click('#as-submit');
-  assert.match(await ofir.innerText('#as-err'), /ניראל מסומנת מראש בצילום של נטלי\. כתבו למה יריב/);
+  assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (לא חובה)');
   await ofir.check('#as-e-nirel');
   assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (לא חובה)');
+  await ofir.fill('#as-reason', 'נדיה עמוסה השבוע');
   await ofir.waitForTimeout(1100); // a later second, so the new stamp differs
   await ofir.click('#as-submit');
   await toastHas(ofir, 'סטודיו נטלי עבר מנדיה לניראל. מועדי העריכה נספרים מהיום');
@@ -496,7 +494,7 @@ await step('"החלפת עורך" from the load list: the same dialog and rules;
   assert.ok(checkOf(N, 'p22a.assigned').at > before, 'the assignment is stamped again');
   const why = JSON.parse(checkOf(N, 'p22a.reason').note);
   assert.deepEqual([why.editor, why.from, why.swap, why.restart, why.late, why.prev], ['nirel', 'nadia', true, true, false, before]);
-  assert.equal(why.reason, 'החלפת עורך: מנדיה לניראל · מועדי העריכה נספרים מחדש מהיום');
+  assert.equal(why.reason, 'החלפת עורך: מנדיה לניראל · נדיה עמוסה השבוע · מועדי העריכה נספרים מחדש מהיום');
   // As after the first assignment: the WhatsApp to the (new) editor. No second folder task: the one of the first assignment (done above) is the client's folder.
   await ofir.waitForSelector('#handoff:not([hidden])');
   assert.match(await ofir.locator('#handoff').innerText(), /עורך שויך · ניראל[^]*לשלוח לניראל בוואטסאפ/);

@@ -121,8 +121,10 @@ export function awaitingEditor({ clients, stateOf, checks }) {
   return out.sort(byClock);
 }
 
-// Natali's shoot: Nirel is preselected, and anyone else needs a recorded reason. A
-// joint Natali and Semyon day: no preselection, Ofir chooses with a reason (decision 31).
+// Natali's shoot: Nirel is preselected, and for anyone else a reason is asked for. A
+// joint Natali and Semyon day: no preselection, Ofir chooses, a reason asked for (decision 31).
+// The reason is optional (the owner, 21.10.2026): the field and its hint stay, the
+// assignment is never held back without it, and a reason given is kept (REASON_KEY).
 export const preselected = (shootType, joint = false) => (shootType === 'natali' && !joint ? 'nirel' : null);
 export function reasonNeeded({ shootType, joint = false, editor }) {
   if (!editor) return false;
@@ -130,8 +132,8 @@ export function reasonNeeded({ shootType, joint = false, editor }) {
   return shootType === 'natali' && editor !== 'nirel';
 }
 export function reasonHint({ shootType, joint = false }) {
-  if (joint) return 'יום צילום משותף לנטלי ולסמיון: בוחרים עורך עם סיבה (החלטה 31).';
-  if (shootType === 'natali') return 'בצילום של נטלי ניראל מסומנת מראש. שיוך לעורך אחר דורש סיבה שנרשמת.';
+  if (joint) return 'יום צילום משותף לנטלי ולסמיון: בוחרים עורך, וכדאי לרשום למה (החלטה 31).';
+  if (shootType === 'natali') return 'בצילום של נטלי ניראל מסומנת מראש. בשיוך לעורך אחר כדאי לרשום למה.';
   return '';
 }
 export const eligibleEditors = (shootType) => editorsFor(shootType);
@@ -143,7 +145,7 @@ export const reasonOf = (checks, pre = '') => readJson(checks[REASON_KEY(pre)]);
 // ── Changing an assigned editor ("החלפת עורך") ──
 // The automatic assignment tells Ofir he can change it; he does it from the load
 // list of his own screen, with the same rules as the first assignment (Nirel only
-// for Natali, another editor for Natali with a written reason).
+// for Natali, another editor for Natali with a reason, if he writes one).
 //
 // The editing clocks: the deadlines of 22, 24 and 27 count from the moment 22א
 // "שויך" was marked (3 and 4 business days). Marking it again, as the first
@@ -156,8 +158,9 @@ export function swapClock(job, now = new Date()) {
   const late = !!job?.dueAt && job.dueAt < now;
   return { late, keepDue: job?.dueAt || null, restartDue: addBusinessDays(now, job?.of || 3), choice: late ? 'keep' : 'restart' };
 }
-export function swapReasonNeeded({ shootType, joint = false, editor, late = false, restart = false }) {
-  return reasonNeeded({ shootType, joint, editor }) || (!!editor && late && restart);
+// The one reason that is still required: counting a late job's deadlines again.
+export function swapReasonNeeded({ editor, late = false, restart = false }) {
+  return !!editor && late && restart;
 }
 // The reason mark of a swap: the usual { editor, reason, preselected, joint } and
 // { swap: true, from, restart, prev (the earlier assignment time), late }. It

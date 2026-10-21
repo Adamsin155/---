@@ -18,7 +18,7 @@ import { NETWORKS, PEOPLE } from './protocol.js';
 import { CHAR_ENDED, addBusinessDays } from './protocol-logic.js';
 import { dayKeyIL } from './tz.js';
 import { fillTemplate, listText, DEFAULT_TEMPLATES } from './messages-logic.js';
-import { accessStatusLabel } from './access-logic.js';
+import { accessStatusLabel, canLink } from './access-logic.js';
 
 export { CHAR_ENDED };
 
@@ -27,9 +27,12 @@ export const AUTO_NOTE = 'נסגר אוטומטית מטופס האפיון';
 export const ENDED_NOTE_PREFIX = 'האפיון הסתיים';
 
 // The vault's statuses, as Ofir picks them per network at the end of the meeting.
+// "שויך" (Facebook and Instagram only): the page is linked to Astrateg through Meta
+// Business, with no user name and no password (app/access-logic.js LINKABLE).
 export const ACCESS_STATUS = [
-  ['ok', 'יש גישה תקינה'], ['broken', 'יש גישה, לא עובדת'], ['missing', 'אין רשת'],
+  ['ok', 'יש גישה תקינה'], ['linked', 'שויך (דרך מנהל העסקים)'], ['broken', 'יש גישה, לא עובדת'], ['missing', 'אין רשת'],
 ];
+export const accessStatusesFor = (network) => ACCESS_STATUS.filter(([k]) => k !== 'linked' || canLink(network));
 // The networks offered first; the rest of NETWORKS behind "עוד רשת".
 export const MAIN_NETWORKS = ['instagram', 'facebook', 'tiktok'];
 export const networkName = (k) => NETWORKS.find(([n]) => n === k)?.[1] || k;

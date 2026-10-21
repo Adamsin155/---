@@ -61,7 +61,7 @@ import { mountClientStatus } from './status-link-ui.js';
 import { mountAccessLink } from './access-link-ui.js';
 import { seesAccessLinks } from './access-data.js';
 import { askVaultCode, mountVaultHint } from './vault-gate.js';
-import { ACCESS_STATUS_LABEL, NEW_STATUS, accessGapQuestion } from './access-logic.js';
+import { ACCESS_STATUS_LABEL, NEW_STATUS, LINKED_STATUS, accessGapQuestion, accessWorks, canLink } from './access-logic.js';
 // Stage 5: the monthly cycle (a draft), and items newer than the client's protocol version.
 import { mountClientMonth, worksCycle } from './month-ui.js';
 import { freshText } from './protocol-versions.js';
@@ -608,7 +608,7 @@ function renderAccess() {
     $('access').hidden = !vaultOk && !linked;
     $('access-novault').hidden = vaultOk || !linked;
     // The closed row: how many logins, and how many need a look.
-    const loose = access.filter((a) => a.status !== 'ok').length;
+    const loose = access.filter((a) => !accessWorks(a.status)).length;
     setFold('access', 'גישות לרשתות', $('access').hidden ? null : {
       text: !vaultOk ? 'הקישור לטופס הגישות' : access.length ? `${access.length === 1 ? 'גישה אחת' : `${access.length} גישות`}${loose ? ` · ${loose} לבדיקה` : ''}` : 'אין גישות עדיין',
     });
@@ -621,18 +621,18 @@ function renderAccess() {
   show();
   if (!vaultOk) return;
   fill($('access-list'), ...(access.length ? access.map((a) => h('li', { class: `access-row a-${a.status}` },
-    iconSquare(a.status === 'ok' ? 'key' : 'alert', a.status === 'ok' ? 'green' : a.status === 'new' ? 'blue' : 'orange'),
+    iconSquare(accessWorks(a.status) ? 'key' : 'alert', accessWorks(a.status) ? 'green' : a.status === 'new' ? 'blue' : 'orange'),
     h('div', { class: 'access-main' },
       // 'other' is shown by its own name (LinkedIn, the site…), as the client or the office wrote it.
       h('strong', {}, a.network === 'other' && a.label ? a.label : networkName(a.network)), a.label && a.network !== 'other' ? h('span', { class: 'muted' }, ` · ${a.label}`) : null,
       h('div', { class: 'imeta' },
-        a.username ? h('span', { dir: 'ltr', class: 'num' }, a.username) : h('span', { class: 'muted' }, 'אין שם משתמש'),
-        h('span', { class: `tag${a.status === 'ok' ? '' : ' tag-warn'}` }, STATUS_LABEL[a.status]),
+        a.username ? h('span', { dir: 'ltr', class: 'num' }, a.username) : a.status === LINKED_STATUS ? null : h('span', { class: 'muted' }, 'אין שם משתמש'),
+        h('span', { class: `tag${accessWorks(a.status) ? '' : ' tag-warn'}` }, STATUS_LABEL[a.status]),
         h('span', { class: 'by' }, `עודכן · ${who(a.updated_by)} · ${formatStamp(a.updated_at)}`),
         a.note ? h('span', { class: 'inote' }, a.note) : null),
       h('div', { class: 'secret', id: `sec-${a.id}` })),
     h('div', { class: 'access-acts' },
-      a.has_secret ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => reveal(a) }, 'הצגת סיסמה') : h('span', { class: 'muted' }, 'אין סיסמה'),
+      a.has_secret ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => reveal(a) }, 'הצגת סיסמה') : a.status === LINKED_STATUS ? null : h('span', { class: 'muted' }, 'אין סיסמה'),
       h('button', { type: 'button', class: 'btn-text', onclick: () => openAccess(a) }, 'עריכה'),
       h('button', { type: 'button', class: 'btn-text danger', onclick: () => removeAccess(a) }, 'מחיקה'))))
     : [h('li', { class: 'empty muted cf-none' }, 'עוד אין גישות. כל גישה תקינה נכנסת לכאן מיד, לא נשארת בוואטסאפ.')]));
@@ -1758,11 +1758,21 @@ const accDlg = dialog('dlg-access', () => { $('acc-password').value = ''; });
 let accEditing = null;
 fill($('acc-network'), ...NETWORKS.map(([k, l]) => h('option', { value: k }, l)));
 function syncAccTask() {
+  // "שויך" is offered for Facebook and Instagram only; it needs no user name and no password.
+  const linkable = canLink($('acc-network').value);
+  $('acc-status-linked').hidden = !linkable;
+  $('acc-status-linked').disabled = !linkable;
+  if (!linkable && $('acc-status').value === LINKED_STATUS) $('acc-status').value = 'ok';
   const st = $('acc-status').value;
-  $('acc-task-wrap').hidden = st === 'ok' || st === NEW_STATUS || accEditing?.status === st;
+  const linked = st === LINKED_STATUS;
+  $('acc-linked-h').hidden = !linked;
+  $('acc-username-wrap').hidden = linked;
+  $('acc-password-wrap').hidden = linked;
+  $('acc-task-wrap').hidden = accessWorks(st) || st === NEW_STATUS || accEditing?.status === st;
   $('acc-task-text').textContent = st === 'broken' ? 'לפתוח משימה לליאור: לשחזר את הגישה עם הלקוח' : 'לפתוח משימה לעילאי: לפתוח את הרשת ללקוח';
 }
 $('acc-status').addEventListener('change', syncAccTask);
+$('acc-network').addEventListener('change', syncAccTask);
 function openAccess(a = null) {
   accEditing = a;
   $('acc-form').reset();
@@ -1774,7 +1784,7 @@ function openAccess(a = null) {
   $('acc-status-new').hidden = !fromClient;
   $('acc-status-new').disabled = !fromClient;
   if (a) {
-    $('acc-network').value = a.network; $('acc-status').value = a.status; $('acc-label').value = a.label || '';
+    $('acc-network').value = a.network; syncAccTask(); $('acc-status').value = a.status; $('acc-label').value = a.label || '';
     $('acc-username').value = a.username || ''; $('acc-note').value = a.note || '';
   }
   syncAccTask();
@@ -1787,14 +1797,14 @@ $('acc-form').addEventListener('submit', async (e) => {
   const st = $('acc-status').value;
   const a = {
     id: accEditing?.id, network: $('acc-network').value, status: st, label: $('acc-label').value.trim(),
-    username: $('acc-username').value.trim(), password: $('acc-password').value, note: $('acc-note').value.trim(),
+    username: $('acc-username').value.trim(), password: st === LINKED_STATUS ? '' : $('acc-password').value, note: $('acc-note').value.trim(),
   };
   if (st === 'ok' && !a.username) { showErr('acc-err', 'לגישה תקינה צריך שם משתמש.'); $('acc-username').focus(); return; }
   $('acc-submit').disabled = true;
   try {
     await saveAccess(id, a);
     $('acc-password').value = '';
-    if (st !== 'ok' && accEditing?.status !== st && $('acc-task').checked) {
+    if (!accessWorks(st) && accEditing?.status !== st && $('acc-task').checked) {
       const owner = st === 'broken' ? 'lior' : 'ilai';
       const title = st === 'broken' ? `לשחזר עם הלקוח את הגישה ל־${networkName(a.network)} ולהכניס לכספת` : `לפתוח ללקוח ${networkName(a.network)} ולהכניס את הגישה לכספת`;
       const t = await addTask({ client_id: id, title, owner, urgent: true });

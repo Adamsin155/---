@@ -8,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   TOKEN, LINK_DAYS, accessUrl, tokenFrom, insecure, secureUrl, redactAccessLinks, hasRedactedLink, linkState, linkStateText, currentLink, waitingLink,
-  REQUIRED, EXTRA_PLATFORMS, CHOICES, STATUS_OF, ACCESS_STATUS_LABEL, CLIENT_BY, CLIENT_BY_NAME, byClient, MAX_ENTRIES, emptyForm, canAddExtra,
+  REQUIRED, EXTRA_PLATFORMS, CHOICES, choicesFor, STATUS_OF, ACCESS_STATUS_LABEL, CLIENT_BY, CLIENT_BY_NAME, byClient, MAX_ENTRIES, emptyForm, canAddExtra,
   mainProblems, extraProblems, formProblems, waitingText, buildPayload, payloadProblem, summaryOf, confirmLines, summaryText, sentFor,
   PAGE_TEXT, CLOSED_TEXT, accessLinkMessage, accessLine, ACCESS_FALLBACK, withAccessVar, accessVars,
 } from '../app/access-logic.js';
@@ -84,13 +84,17 @@ test('where a link stands: none, waiting, filled, expired, revoked, locked; and 
 // ── The form ────────────────────────────────
 test('the three mandatory cards: a login, "אין כיום, צריך לפתוח", or "יש, וצריך לחדש סיסמה"', () => {
   assert.deepEqual(REQUIRED, ['instagram', 'facebook', 'tiktok']);
-  assert.deepEqual(CHOICES.map(([, l]) => l), ['יש לי פרטי כניסה', 'אין כיום, צריך לפתוח', 'יש, וצריך לחדש סיסמה']);
-  assert.deepEqual(mainProblems({ choice: '' }), { choice: 'בחרו אחת משלוש האפשרויות.' });
+  assert.deepEqual(CHOICES.map(([, l]) => l), ['יש לי פרטי כניסה', 'אין כיום, צריך לפתוח', 'יש, וצריך לחדש סיסמה', 'שייכתי את העמוד לאסטרטג (בלי סיסמה)']);
+  // "שייכתי" only for Facebook and Instagram.
+  assert.deepEqual(REQUIRED.map((n) => choicesFor(n).length), [4, 4, 3]);
+  assert.deepEqual(mainProblems({ choice: '' }), { choice: 'בחרו אחת מהאפשרויות.' });
   assert.deepEqual(mainProblems({ choice: 'have', username: '', password: '' }), { username: 'חסר שם משתמש.', password: 'חסרה סיסמה.' });
   assert.deepEqual(mainProblems({ choice: 'have', username: 'dana', password: '   ' }), { password: 'חסרה סיסמה.' });
   assert.deepEqual(mainProblems({ choice: 'have', username: 'dana', password: 'x' }), {});
   assert.deepEqual(mainProblems({ choice: 'none', username: '', password: '' }), {});
   assert.deepEqual(mainProblems({ choice: 'reset', username: '', password: '' }), {}); // the user name is optional
+  assert.deepEqual(mainProblems({ choice: 'linked', network: 'facebook' }), {});
+  assert.deepEqual(mainProblems({ choice: 'linked', network: 'tiktok' }), { choice: 'בחרו אחת מהאפשרויות.' });
   assert.match(mainProblems({ choice: 'have', username: 'u'.repeat(201), password: 'x' }).username, /ארוך מדי/);
   assert.match(mainProblems({ choice: 'have', username: 'a\nb', password: 'x' }).username, /בשורה אחת/);
   assert.match(mainProblems({ choice: 'have', username: 'a', password: 'p'.repeat(201) }).password, /ארוכה מדי/);
@@ -198,9 +202,9 @@ test('the words of the page: reassuring, and a plain message for every dead link
 
 // ── The vault ───────────────────────────────
 test('the statuses: a login from the client is "new", and Ilai\'s check is not done by it', () => {
-  assert.deepEqual(STATUS_OF, { have: 'new', none: 'missing', reset: 'broken' });
+  assert.deepEqual(STATUS_OF, { have: 'new', none: 'missing', reset: 'broken', linked: 'linked' });
   assert.equal(ACCESS_STATUS_LABEL.new, 'התקבל מהלקוח, עוד לא נבדק');
-  assert.deepEqual(Object.keys(ACCESS_STATUS_LABEL).sort(), ['broken', 'missing', 'new', 'ok']);
+  assert.deepEqual(Object.keys(ACCESS_STATUS_LABEL).sort(), ['broken', 'linked', 'missing', 'new', 'ok']);
   assert.deepEqual([CLIENT_BY, CLIENT_BY_NAME], ['client-form', 'הלקוח (בטופס)']);
   const at = IL(2026, 10, 20, 12);
   const later = IL(2026, 10, 20, 12, 5).toISOString();

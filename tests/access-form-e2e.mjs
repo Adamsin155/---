@@ -124,23 +124,26 @@ function formSubmit(token, payload) {
   for (const e of payload.entries) {
     const label = String(e.label ?? '').trim() || null;
     const user = String(e.username ?? '').trim() || null;
-    const status = STATUS_OF[e.choice];
+    // "שויך" is kept as 'ok' with linked on (20261031100000_access_and_editors.sql).
+    const linked = e.choice === 'linked';
+    const status = linked ? 'ok' : STATUS_OF[e.choice];
     const same = (x) => x.client_id === c.id && x.network === e.network && (e.network !== 'other' || String(x.label || '').trim().toLowerCase() === label.toLowerCase());
     let a = db.client_access.find(same);
     // A login the office saved or checked is never touched (20261014100000_security_hardening.sql):
     // the client's goes into a row of its own beside it, "מהלקוח, <date>".
     const beside = !!a && !!a.has_secret && (a.status === 'ok' || a.updated_by !== CLIENT_BY);
-    if (beside) { const office = a; a = db.client_access.find((x) => same(x) && x !== office && x.updated_by === CLIENT_BY && x.status !== 'ok'); }
+    if (beside) { const office = a; a = db.client_access.find((x) => same(x) && x !== office && x.updated_by === CLIENT_BY && (x.status !== 'ok' || x.linked)); }
     const fresh = !a;
     const was = a?.status;
-    const note = (e.choice === 'have' ? 'מהלקוח, בטופס פרטי הכניסה. עוד לא נבדק.' : e.choice === 'none' ? 'מהלקוח, בטופס פרטי הכניסה: אין כיום, צריך לפתוח.' : 'מהלקוח, בטופס פרטי הכניסה: יש, וצריך לחדש סיסמה.')
+    const note = (e.choice === 'have' ? 'מהלקוח, בטופס פרטי הכניסה. עוד לא נבדק.' : e.choice === 'none' ? 'מהלקוח, בטופס פרטי הכניסה: אין כיום, צריך לפתוח.'
+      : linked ? 'מהלקוח, בטופס פרטי הכניסה: העמוד שויך לאסטרטג דרך מנהל העסקים.' : 'מהלקוח, בטופס פרטי הכניסה: יש, וצריך לחדש סיסמה.')
       + (beside ? ' הפרטים שכבר היו בכספת נשארו בשורה נפרדת: לבדוק איזו נכונה.' : '');
     const rowLabel = beside && e.network !== 'other' ? `מהלקוח, ${ilDate()}` : label;
     if (fresh) {
-      a = { id: randomUUID(), client_id: c.id, network: e.network, label: rowLabel, username: user, has_secret: null, status, note, updated_by: CLIENT_BY, updated_at: iso(), created_at: iso(), broken_since: null };
+      a = { id: randomUUID(), client_id: c.id, network: e.network, label: rowLabel, username: user, has_secret: null, status, linked, note, updated_by: CLIENT_BY, updated_at: iso(), created_at: iso(), broken_since: null };
       db.client_access.push(a);
     } else {
-      Object.assign(a, { username: e.choice === 'have' || (e.choice === 'reset' && user) ? user : a.username, label: beside ? rowLabel : a.label, status, note, updated_by: CLIENT_BY, updated_at: iso() });
+      Object.assign(a, { username: e.choice === 'have' || (e.choice === 'reset' && user) ? user : a.username, label: beside ? rowLabel : a.label, status, linked, note, updated_by: CLIENT_BY, updated_at: iso() });
     }
     a.broken_since = status === 'broken' ? (a.broken_since || iso()) : null;
     if (e.choice === 'have') {
@@ -175,7 +178,7 @@ function makeLink(clientId, by, at = iso()) {
   return { id, token, expiresAt: expires };
 }
 const workStatuses = (ids) => db.client_access.filter((a) => !ids || ids.includes(a.client_id))
-  .map((a) => ({ client_id: a.client_id, network: a.network, label: a.label, status: a.status, updated_at: a.updated_at, by_client: a.updated_by === CLIENT_BY }));
+  .map((a) => ({ client_id: a.client_id, network: a.network, label: a.label, status: a.linked ? 'linked' : a.status, updated_at: a.updated_at, by_client: a.updated_by === CLIENT_BY }));
 
 function matches(r, k, v) {
   if (v.startsWith('eq.')) return String(r[k]) === v.slice(3);
@@ -262,7 +265,9 @@ async function fakeSupabase(route) {
     if (rpc === 'access_save') {
       if (!hasVault(me)) return json(400, { message: 'not allowed' });
       let a = db.client_access.find((x) => x.id === body.p_id);
-      const fields = { network: body.p_network, label: body.p_label || null, username: body.p_username || null, status: body.p_status || 'ok', note: body.p_note || null, updated_by: me.email, updated_at: iso() };
+      const want = body.p_status || (a?.linked ? 'linked' : a?.status) || 'ok';
+      if (want === 'linked' && !['facebook', 'instagram'].includes(body.p_network)) return json(400, { message: 'linked is for facebook or instagram only' });
+      const fields = { network: body.p_network, label: body.p_label || null, username: body.p_username || null, status: want === 'linked' ? 'ok' : want, linked: want === 'linked', note: body.p_note || null, updated_by: me.email, updated_at: iso() };
       const fresh = !a;
       if (a) Object.assign(a, fields); else { a = { id: randomUUID(), client_id: body.p_client, has_secret: null, created_at: fields.updated_at, broken_since: null, ...fields }; db.client_access.push(a); }
       if (body.p_password) { a.has_secret ||= randomUUID(); secrets.set(a.has_secret, body.p_password); }
@@ -480,7 +485,10 @@ await step('the link opens on a 360px phone: the business, why, how it is kept; 
     'הפרטים נשמרים מוצפנים.', 'רק אנשי הצוות שמטפלים בחשבון שלכם יכולים לפתוח אותם, וכל פתיחה נרשמת.', 'אחרי השליחה אי אפשר לקרוא את הפרטים מהדף הזה, גם לא עם הקישור.',
   ]);
   assert.deepEqual(await cl.locator('#cards .scard h2').evaluateAll((hs) => hs.map((h) => h.firstChild.textContent)), ['Instagram', 'Facebook', 'TikTok']);
-  assert.deepEqual(await cl.locator('#card-instagram .schoice').allInnerTexts(), ['יש לי פרטי כניסה', 'אין כיום, צריך לפתוח', 'יש, וצריך לחדש סיסמה']);
+  assert.deepEqual(await cl.locator('#card-instagram .schoice').allInnerTexts(), ['יש לי פרטי כניסה', 'אין כיום, צריך לפתוח', 'יש, וצריך לחדש סיסמה', 'שייכתי את העמוד לאסטרטג (בלי סיסמה)']);
+  // "שייכתי" is for Facebook and Instagram only.
+  assert.equal(await cl.locator('#card-facebook .schoice').count(), 4);
+  assert.equal(await cl.locator('#card-tiktok .schoice').count(), 3);
   assert.equal(await cl.locator('#next').isDisabled(), true);
   assert.equal(await text(cl, '#wait'), 'כדי להמשיך חסר: Instagram, Facebook, TikTok.');
   assert.ok(await cl.locator('#preview').isHidden());
@@ -1016,6 +1024,81 @@ await step('the client\'s page on a 375px phone and on a desktop', async () => {
   await page.waitForSelector('#confirm:not([hidden])');
   assert.equal(await page.locator('#send').isDisabled(), true);
   assert.match(await text(page, '#send-err'), /אתם מחוברים כאנשי צוות/);
+  await ctx.close();
+});
+
+// ── "שויך" (the owner's request of 21.10.2026) ──
+await step('"שייכתי את העמוד לאסטרטג": Facebook and Instagram with no login; the vault says "שויך", and nothing is opened for Ilai', async () => {
+  const l = makeLink(E.id, 'irit@astrateg.test');
+  const ctx = await newContext({ width: 390, height: 844 });
+  const page = await newPage(ctx);
+  await page.goto(`${BASE}access.html#t=${l.token}`);
+  await page.waitForSelector('#page:not([hidden])');
+  assert.equal(await page.locator('#tiktok-choice-linked').count(), 0);
+  for (const n of ['instagram', 'facebook']) await page.locator(`label.schoice:has(#${n}-choice-linked)`).click();
+  await page.locator('label.schoice:has(#tiktok-choice-none)').click();
+  // No user name and no password to fill: a short line instead.
+  assert.equal(await page.locator('#card-instagram input.sinput').count(), 0);
+  assert.equal(await text(page, '#facebook-detail'), 'מעולה, אין צורך בסיסמה. נבדוק שהשיוך הגיע אלינו.');
+  assert.ok(await noHScroll(page));
+  assert.deepEqual(await smallTargets(page), []);
+  if (OUT) {
+    await page.evaluate(() => document.querySelector('#card-instagram').scrollIntoView({ block: 'center' }));
+    await page.screenshot({ path: `${OUT}/30-form-linked-390.png` });
+  }
+  await page.click('#next');
+  await page.waitForSelector('#confirm:not([hidden])');
+  assert.match(await text(page, '#review'), /Instagram\s*שייכתי את העמוד לאסטרטג \(בלי סיסמה\)/);
+  await page.click('#send');
+  await page.waitForSelector('#thanks:not([hidden])');
+  const rows = db.client_access.filter((a) => a.client_id === E.id);
+  assert.deepEqual(rows.map((a) => [a.network, a.status, !!a.linked, a.username, a.has_secret]).sort(),
+    [['facebook', 'ok', true, null, null], ['instagram', 'ok', true, null, null], ['tiktok', 'missing', false, null, null]]);
+  const ilai = db.client_tasks.filter((t) => t.client_id === E.id && t.owner === 'ilai');
+  assert.equal(ilai.length, 1);
+  assert.doesNotMatch(ilai[0].title, /Instagram|Facebook/);
+  await ctx.close();
+});
+
+await step('the staff\'s vault dialog: "שויך (דרך מנהל העסקים)" for Facebook and Instagram only, without a user name and a password', async () => {
+  const ctx = await newContext({ width: 390, height: 844 });
+  const page = await newPage(ctx);
+  await signIn(page, `client.html?id=${E.id}`, 'lior@astrateg.test');
+  await page.waitForSelector('#access-list .access-row');
+  const rows = (await page.locator('#access-list .access-row').allInnerTexts()).map((t) => t.replace(/\s+/g, ' '));
+  assert.match(rows.find((r) => r.startsWith('Instagram')), /שויך \(דרך מנהל העסקים\)/);
+  assert.doesNotMatch(rows.find((r) => r.startsWith('Instagram')), /אין שם משתמש|אין סיסמה/);
+  // A working access: green, and not counted "לבדיקה" (TikTok is).
+  assert.equal(await page.locator('#access-list .access-row.a-linked .tag-warn').count(), 0);
+  // Editing it: the user name and the password are not asked.
+  await page.locator('#access-list .access-row.a-linked').first().getByRole('button', { name: 'עריכה' }).click();
+  await page.waitForSelector('#dlg-access[open]');
+  assert.equal(await page.inputValue('#acc-status'), 'linked');
+  assert.ok(await page.locator('#acc-username').isHidden());
+  assert.ok(await page.locator('#acc-password').isHidden());
+  assert.ok(await page.locator('#acc-linked-h').isVisible());
+  assert.ok(await page.locator('#acc-task-wrap').isHidden());
+  if (OUT) await page.locator('#dlg-access').screenshot({ path: `${OUT}/31-staff-dialog-linked-390.png` });
+  await page.click('#acc-submit');
+  await toastHas(page, 'הגישה נשמרה בכספת');
+  // A new TikTok login cannot be "שויך": the choice is not offered, and the fields come back.
+  await page.click('#access-add');
+  await page.selectOption('#acc-network', 'facebook');
+  await page.selectOption('#acc-status', 'linked');
+  assert.ok(await page.locator('#acc-username').isHidden());
+  await page.selectOption('#acc-network', 'tiktok');
+  assert.equal(await page.inputValue('#acc-status'), 'ok');
+  assert.ok(await page.locator('#acc-status-linked').isDisabled());
+  assert.ok(await page.locator('#acc-username').isVisible());
+  // A new Facebook page linked, saved with no user name.
+  await page.selectOption('#acc-network', 'facebook');
+  await page.selectOption('#acc-status', 'linked');
+  await page.fill('#acc-label', 'עמוד שני');
+  await page.click('#acc-submit');
+  await toastHas(page, 'הגישה נשמרה בכספת');
+  const fb2 = db.client_access.find((a) => a.client_id === E.id && a.label === 'עמוד שני');
+  assert.deepEqual([fb2.network, fb2.status, fb2.linked, fb2.username], ['facebook', 'ok', true, null]);
+  assert.ok(await noHScroll(page));
   await ctx.close();
 });
 

@@ -13,8 +13,8 @@
 //                       last issue fixed). Marking the videos ready again (p24.notify)
 //                       after the return counts the same.
 //   p23.return.N, p23.fixed.N(.I)   the same for the rest of the graphics (Ilai fixes).
-//   p22a.reason         why the editor was chosen, when a reason is needed (the
-//                       Natali preselection, a joint day). Note JSON { editor, reason, preselected, joint }.
+//   p22a.reason         why the editor was chosen, when Ofir wrote a reason (optional
+//                       since 21.10.2026: the Natali preselection, a joint day). Note JSON { editor, reason, preselected, joint }.
 //   p22a.shift          Lior moved the editing deadlines (app/protocol-logic.js SHIFT).
 //   p22.decision        Lior's decision on editing still paused the next morning.
 //                       Note JSON { choice: 'move' | 'reassign', days, editor, proposal }.

@@ -5,7 +5,8 @@
 // Who and when are stamped by the database. Until that migration is applied, the
 // new tables are missing: each loader then returns null and its screen says so.
 import { supabase } from './supa.js';
-import { quoteFacts } from './protocol-data.js';
+import { quoteFacts, noLinkedColumn } from './protocol-data.js';
+import { accessRow } from './access-logic.js';
 
 const PAGE = 1000;
 async function all(build) {
@@ -82,11 +83,14 @@ export async function loadSelections(quoteIds) {
 // The logins of the clients (network, status, when; never a password), for Ilai's
 // check and Lior's broken logins. Vault users only (the database decides).
 export async function loadAccessRows(clientIds = null) {
-  return all(() => {
-    let q = supabase.from('client_access').select('id, client_id, network, label, username, status, note, updated_by, updated_at').order('client_id');
+  const read = (cols) => all(() => {
+    let q = supabase.from('client_access').select(`id, client_id, network, label, username, status, note, updated_by, updated_at${cols}`).order('client_id');
     if (clientIds) q = q.in('client_id', clientIds);
     return q;
   });
+  // `linked` ("שויך", 20261031100000_access_and_editors.sql): read as its own status; before it, without.
+  try { return (await read(', linked')).map(accessRow); } catch (err) { if (!noLinkedColumn(err)) throw err; }
+  return read('');
 }
 
 // The status of each login for the office's own work (Ilai's access check, process 6):
