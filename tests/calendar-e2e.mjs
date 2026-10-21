@@ -495,7 +495,7 @@ try {
     assert.equal(await page.locator('.gc-sug').count(), 0);
     await ctx.close();
     const before = await signedIn('irit');
-    await before.page.waitForSelector('.cp-week');
+    await before.page.waitForSelector('.cp-weekwrap');
     assert.equal(await before.page.locator('#cp-google').isHidden(), true);
     assert.equal(await before.page.locator('.gc-ev').count(), 0);
     await before.ctx.close();
@@ -516,7 +516,7 @@ try {
   await step('"פגישה חדשה": the office and the owners only', async () => {
     for (const role of ['nadia', 'ilai', 'eli']) {
       const { page, ctx } = await signedIn(role);
-      await page.waitForSelector('.cp-week');
+      await page.waitForSelector('.cp-weekwrap');
       assert.equal(await page.locator('#cp-new').isHidden(), true, role);
       await ctx.close();
     }
@@ -528,7 +528,7 @@ try {
 
   await step('"פגישה חדשה", a characterization meeting: a client found by a word, saved on the client, Google opened with the guests', async () => {
     const { page, ctx, fake } = await signedIn('irit');
-    await page.waitForSelector('.cp-week');
+    await page.waitForSelector('.cp-weekwrap');
     await page.click('#cp-new');
     await page.waitForSelector('#dlg-new-meeting[open]');
     await page.fill('#nm-client', 'שיר');
@@ -560,7 +560,7 @@ try {
 
   await step('"פגישה חדשה", a shoot day: with whom, the questions of a shoot day, saved, Lior and Eli invited', async () => {
     const { page, ctx, fake } = await signedIn('lior');
-    await page.waitForSelector('.cp-week');
+    await page.waitForSelector('.cp-weekwrap');
     await page.click('#cp-new');
     await page.waitForSelector('#dlg-new-meeting[open]');
     await page.check('input[name="nm-kind"][value="shoot"]');
