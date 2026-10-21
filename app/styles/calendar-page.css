@@ -50,6 +50,15 @@
 .cp-day.is-past .k-leaf { --k-fg: var(--ds-muted); }
 .cp-day-b { min-width: 0; align-self: center; }
 .cp-free { margin: 0; color: var(--ds-muted); font-size: 14px; }
+/* Only the days with events (20.10.2026); on a phone the days that passed this week fold above. */
+.cp-weekwrap { display: grid; gap: 10px; min-width: 0; }
+.cp-past > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-card); background: var(--ds-surface); color: var(--ds-muted); font-size: 14px; font-weight: 600; cursor: pointer; list-style: none; }
+.cp-past > summary::-webkit-details-marker { display: none; }
+.cp-past > summary::after { content: ''; flex: none; width: 8px; height: 8px; margin-top: -4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform var(--ds-t-fast, .15s); }
+.cp-past[open] > summary::after { transform: rotate(-135deg); margin-top: 4px; }
+.cp-past[open] > summary { margin-bottom: 10px; }
+@media (prefers-reduced-motion: reduce) { .cp-past > summary::after { transition: none; } }
+.cp-rest { padding: 12px 14px; border-radius: var(--ds-r-card); background: var(--ds-surface); }
 
 /* The month: a grid of days; the chosen day's events under it. */
 .cp-month { display: grid; gap: 14px; min-width: 0; }

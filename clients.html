@@ -82,10 +82,10 @@
   <link rel="modulepreload" href="app/deal-ui.js">
   <link rel="modulepreload" href="app/approvals-ui.js">
   <link rel="modulepreload" href="app/staff-tasks-ui.js">
-  <link rel="modulepreload" href="app/metricool-connect-ui.js">
   <link rel="modulepreload" href="app/deal-logic.js">
   <link rel="modulepreload" href="app/intake-ui.js">
   <link rel="modulepreload" href="app/month-ui.js">
+  <link rel="modulepreload" href="app/year-logic.js">
   <link rel="modulepreload" href="app/control-topics.js">
   <link rel="modulepreload" href="app/deal-data.js">
   <link rel="modulepreload" href="app/late-chain.js">
@@ -124,17 +124,14 @@
   <link rel="modulepreload" href="app/files-ui.js">
   <link rel="modulepreload" href="app/approvals-logic.js">
   <link rel="modulepreload" href="app/staff-tasks-logic.js">
-  <link rel="modulepreload" href="app/metricool-logic.js">
-  <link rel="modulepreload" href="app/gantt-data.js">
-  <link rel="modulepreload" href="app/metricool-connect-logic.js">
   <link rel="modulepreload" href="app/briefs.js">
   <link rel="modulepreload" href="app/intake-data.js">
-  <link rel="modulepreload" href="app/year-logic.js">
   <link rel="modulepreload" href="app/year-data.js">
   <link rel="modulepreload" href="app/unsigned-logic.js">
   <link rel="modulepreload" href="app/decisions-logic.js">
   <link rel="modulepreload" href="app/production.js">
   <link rel="modulepreload" href="app/availability-logic.js">
+  <link rel="modulepreload" href="app/mine-metricool.js">
   <link rel="modulepreload" href="app/data-cache.js">
   <link rel="modulepreload" href="app/legal.js">
   <link rel="modulepreload" href="app/status-rules.js">
@@ -143,6 +140,8 @@
   <link rel="modulepreload" href="app/client-waits.js">
   <link rel="modulepreload" href="app/upload.js">
   <link rel="modulepreload" href="app/surveys.js">
+  <link rel="modulepreload" href="app/gantt-template.js">
+  <link rel="modulepreload" href="app/gantt-logic.js">
 </head>
 <body>
   <header class="topbar">
@@ -230,8 +229,9 @@
         <section class="myq" id="my-questions" aria-labelledby="myq-h" hidden></section>
         <div class="filters" role="group" aria-label="של מי" id="mine-people"></div>
         <div class="mine-tools" id="mine-tools"></div>
-        <section class="mc-box" id="my-months" aria-labelledby="mc-h" hidden></section>
         <div id="mine-list" class="mine-list"></div>
+        <!-- The monthly cycle (a draft) waits folded under the list: the protocol's own work first (the owner, 20.10.2026). -->
+        <section class="mc-box" id="my-months" aria-labelledby="mc-h" hidden></section>
         <div class="mine-foot" id="mine-foot"></div>
       </section>
       <!-- "המשימות שלי": what I left open on clients still in landing, listed with no clock. -->

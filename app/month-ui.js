@@ -22,21 +22,27 @@ export const worksCycle = ({ me = null, scope = 'own', error = null } = {}) => !
 
 // ── One item ──────────────────────────────
 const STATUS_TEXT = { overdue: 'באיחור', today: 'היום' };
-// ctx: { client, me, office, pending: Set, onMark(item, state) }
+// ctx: { client, me, office, pending: Set, onMark(item, state), draft }
+// `draft`: the client card says no "באיחור" on a draft's item: its "הצעד הבא שלך" counts only
+// the protocol, and the two must agree (the owner, 20.10.2026). The date stays.
 export function itemRow(item, ctx) {
   const id = `mi-${String(ctx.client.id).replace(/\W/g, '')}-${item.month}-${item.key.replace(/\W/g, '_')}`;
   const can = mayMark(item, ctx.me, ctx.office) && !item.auto;
   const busy = ctx.pending?.has(`${ctx.client.id}:${markKey(item.month, item.key)}`);
   const mark = item.mark;
   const now = new Date();
+  const status = ctx.draft && item.status === 'overdue' ? 'open' : item.status;
   const meta = [h('span', { class: 'tag tag-draft' }, 'טיוטה'), personChip(item.owner)];
   if (item.status === 'done' && mark) meta.push(h('span', { class: 'by' }, `בוצע · ${who(mark.by_email)} · ${formatStamp(mark.at)}`));
   else if (item.status === 'na' && mark) meta.push(h('span', { class: 'by' }, `לא רלוונטי החודש · ${who(mark.by_email)}`));
   else if (item.status === 'auto') meta.push(h('span', { class: 'by' }, 'בוצע: הסבב נפתח בכרטיס'));
-  else meta.push(h('span', { class: item.status === 'overdue' ? 'late' : '' }, `${STATUS_TEXT[item.status] ? `${STATUS_TEXT[item.status]} · ` : ''}עד ${formatWhen(item.dueAt, now)}`));
+  // In "המשימות שלי" a draft is not counted as late (the owner, 20.10.2026): a date that
+  // passed is said plainly, with no pink "באיחור" (ctx.quiet).
+  else if (ctx.quiet && status === 'overdue') meta.push(h('span', {}, `היעד היה ${formatWhen(item.dueAt, now)}`));
+  else meta.push(h('span', { class: status === 'overdue' ? 'late' : '' }, `${STATUS_TEXT[status] ? `${STATUS_TEXT[status]} · ` : ''}עד ${formatWhen(item.dueAt, now)}`));
   if (mark?.note && item.status !== 'auto') meta.push(h('span', { class: 'inote' }, mark.note));
   const checked = item.status === 'done' || item.status === 'auto';
-  return h('li', { class: `item fin-row mitem s-${item.status}${checked ? ' is-done' : ''}${item.status === 'na' ? ' is-na' : ''}${busy ? ' is-busy' : ''}` },
+  return h('li', { class: `item fin-row mitem s-${ctx.quiet && status === 'overdue' ? 'open' : status}${checked ? ' is-done' : ''}${item.status === 'na' ? ' is-na' : ''}${busy ? ' is-busy' : ''}` },
     h('label', { class: 'irow', for: id },
       h('input', {
         type: 'checkbox', id, class: 'cbx fin', checked, disabled: !can || busy || item.status === 'na',
@@ -129,7 +135,7 @@ export function showMonths(el, ctx) {
     draftHint(),
     capList(h('ul', { class: 'wprocs mc-list', 'aria-labelledby': 'mc-h' }, ...byClient.map(({ c, items, m }) => h('li', { class: 'wproc mc-client' },
       h('p', { class: 'mc-head' }, h('a', { class: 'wclient', href: cardUrl(c.id) }, clientLabel(c)), m ? h('span', { class: 'muted' }, ` · חודש ${m.n} מתוך ${m.of}`) : null),
-      h('ul', { class: 'items' }, ...items.map((i) => itemRow(i, { client: c, me: ctx.me, office: ctx.office, pending, onMark: onMark(c) })))))),
+      h('ul', { class: 'items' }, ...items.map((i) => itemRow(i, { client: c, me: ctx.me, office: ctx.office, pending, onMark: onMark(c), quiet: true })))))),
     ctx.short ? 2 : Infinity, 'months'),
   ));
 }
@@ -177,8 +183,9 @@ export function mountClientMonth(slot, ctx) {
       document.getElementById(focusId)?.focus();
     };
     body = [
-      h('p', { class: 'mc-count' }, `${s.done} מתוך ${s.total} בוצעו${s.late ? ` · ${s.late} באיחור` : ''}`),
-      items.length ? h('ul', { class: 'items' }, ...items.map((i) => itemRow(i, { client: c, me: ctx.me, office: ctx.office, pending, onMark })))
+      // A draft: no "באיחור" here (see itemRow's `draft`).
+      h('p', { class: 'mc-count' }, `${s.done} מתוך ${s.total} בוצעו`),
+      items.length ? h('ul', { class: 'items' }, ...items.map((i) => itemRow(i, { client: c, me: ctx.me, office: ctx.office, pending, onMark, draft: true })))
         : h('p', { class: 'muted' }, 'אין לך פריטים החודש.'),
     ];
   }

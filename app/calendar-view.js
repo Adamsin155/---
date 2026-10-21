@@ -16,9 +16,9 @@
 // them to what this person may see; the feed's own rule (visibleTo) agrees with it.
 // Dates are Israel days (app/tz.js), whatever the device's zone; the week starts on Sunday.
 //
-// A later stage may add the office's own Google Calendar beside these (not built): it
-// would come in as more events of the same shape ({ uid, kind, title, start, minutes |
-// end | allDay }) through `extra` below.
+// The person's own Google Calendar comes in beside these (app/gcal-page.js; the owner,
+// 21.10.2026) as more events of the same shape ({ uid, kind: 'google', title, start,
+// minutes | end | allDay }) through `extra` below.
 import { PEOPLE, SHOOT_TYPES, isSales } from './protocol.js';
 import { feedEvents, OWNER, shootMinutes } from './calendar-feed.js';
 import { googleCalendarUrl, cleanGuests } from './calendar.js';
@@ -27,8 +27,9 @@ import { TZ, dayKeyIL, dayFromKeyIL, dateIL, partsIL, weekdayIL } from './tz.js'
 const known = (v) => !!v && !v.error;
 // The page is everyone's but the field sales' (and whoever the app could not identify).
 export const seesCalendar = (v) => known(v) && v.scope !== 'sales' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
-// "שליחת זימון": the office and the owners only.
-export const sendsInvites = (v) => known(v) && v.scope === 'office';
+// "שליחת זימון": Irit, who invites, and the owners (the owner, 20.10.2026; until then
+// Lior and Ofir too). The client card's and prep.html's own links are not decided here.
+export const sendsInvites = (v) => known(v) && v.scope === 'office' && (!v.me || v.me === 'irit');
 
 // How each kind of event looks: its word, its icon and its tone (app/kit.js).
 // `short`: its word in a day of the month, where the room is small.
@@ -39,6 +40,8 @@ export const KINDS = {
   due: { label: 'יעד', short: 'יעד', icon: 'flag', tone: 'orange' },
   task: { label: 'משימה', short: 'משימה', icon: 'check-circle', tone: 'green' },
   weekly: { label: 'קבוע', short: 'קבוע', icon: 'loop', tone: 'teal' },
+  // The person's own Google Calendar (app/gcal-page.js; the owner, 21.10.2026): a quiet grey.
+  google: { label: 'Google', short: 'Google', icon: 'calendar', tone: 'gray' },
 };
 export const kindOf = (e) => KINDS[e?.kind] || KINDS.task;
 
@@ -112,7 +115,7 @@ export function wordsOf(e, client = null) {
 
 export const OVERVIEW = new Set(['irit']);
 // Every event this viewer sees between `from` and `until`. `extra`: events from elsewhere
-// (none yet), kept to the same range.
+// (their own Google Calendar), kept to the same range.
 export function calendarEvents({ viewer, clients = [], checks = {}, tasks = [], now = new Date(), from, until, site, extra = [] }) {
   if (!seesCalendar(viewer)) return [];
   const range = { from, until };
@@ -133,6 +136,22 @@ export function calendarEvents({ viewer, clients = [], checks = {}, tasks = [], 
     out.push(e);
   }
   return out.sort((a, b) => startOf(a) - startOf(b) || (b.allDay ? 1 : 0) - (a.allDay ? 1 : 0) || a.uid.localeCompare(b.uid));
+}
+
+// The days a week shows (the owner, 20.10.2026): only days with events; on a phone, in the
+// week of today, from today on, with the days that passed folded (`past`). `rest`: the line
+// for a week of today with nothing more in it, when earlier days of it had something
+// (a week with nothing at all says so in its count already).
+//   days   byDay(...) of the week; keys  weekDays(...); today  todayKey()
+export function weekPlan(days, keys, today, { phone = false } = {}) {
+  const has = (k) => (days[k] || []).length > 0;
+  const current = keys.includes(today);
+  const fold = phone && current;
+  const past = fold ? keys.filter((k) => k < today && has(k)) : [];
+  const shown = keys.filter((k) => has(k) && !(fold && k < today));
+  const left = keys.filter((k) => k >= today && has(k));
+  const any = keys.some(has);
+  return { past, shown, rest: current && any && !left.length ? 'אין אירועים בשאר השבוע' : null };
 }
 
 // The events of each day: { 'YYYY-MM-DD': [events] }, a whole day's first, then by the hour.

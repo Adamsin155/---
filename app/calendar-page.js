@@ -1,7 +1,7 @@
 // "יומן" (calendar.html; the owner's request of 15.10.2026, for Irit): the meetings and
 // the shoot days in a week (the phone's first view) or a month, prev / next / today, in
-// Israel time. A tap on an event opens the client's card. The office (the owners, Irit,
-// Lior, Ofir) has "שליחת זימון" on each meeting and shoot day: Google Calendar opens with
+// Israel time. A tap on an event opens the client's card. Irit and the owners (since
+// 20.10.2026; the office before) have "שליחת זימון" on each meeting and shoot day: Google Calendar opens with
 // the event filled in and its guests in it (the client when the system has their email,
 // the characterizer; Lior and Eli on a shoot day), and Google sends the invitations when
 // Save is pressed. What is shown and to whom: app/calendar-view.js.
@@ -9,10 +9,14 @@ import { loadClients, loadChecks, loadTasks, loadDirectory, quoteFacts } from '.
 import { $, fill, h, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, landingTag } from './protocol-ui.js';
 import {
   seesCalendar, sendsInvites, calendarEvents, byDay, weekDays, monthWeeks, rangeOf, shift, titleOf, todayKey, kindOf, wordsOf,
-  inviteFor, emailsOf, clientEmails, guestNames, dayOf, WEEKDAYS, OVERVIEW } from './calendar-view.js';
+  inviteFor, emailsOf, clientEmails, guestNames, dayOf, WEEKDAYS, OVERVIEW, weekPlan } from './calendar-view.js';
 import { homeLink } from './shell-rules.js';
 import { TZ, dayFromKeyIL } from './tz.js';
 import { icon, iconSquare, dateLeaf, emptyRow } from './kit.js';
+// The person's own Google Calendar beside the system's dates (the owner, 21.10.2026).
+import { initGoogle, loadGoogle, googleEvents, googleNode, mountGoogleCard } from './gcal-page.js';
+// "פגישה חדשה" (the owner, 21.10.2026): the office and the owners add a meeting from here.
+import { addsMeetings } from './new-meeting-logic.js';
 
 let viewer = null;
 let clients = [];
@@ -51,6 +55,7 @@ async function load() {
       const ids = [...new Set(clients.map((c) => c.quote_id).filter(Boolean))];
       clientMail = ids.length ? clientEmails(clients, await quoteFacts(ids)) : {};
     }
+    await loadGoogle();
     $('state').textContent = '';
   } catch (err) {
     $('state').textContent = errorText(err);
@@ -66,6 +71,7 @@ function inviteOf(e) {
 }
 let hintShown = false; // once per drawing: under the first invitation only
 function eventNode(e) {
+  if (e.kind === 'google') return googleNode(e);
   const k = kindOf(e);
   const client = clientOf(e.client);
   const words = wordsOf(e, client);
@@ -100,14 +106,25 @@ function leafOfDay(key, today) {
   const top = key === today ? 'היום' : shortDay.format(dayFromKeyIL(key));
   return dateLeaf({ top, day: dayNum(key), tone: key === today ? 'navy' : 'purple', label: dayFmt.format(dayFromKeyIL(key)) });
 }
+// The week (the owner, 20.10.2026): only the days with events; on a phone, in this week,
+// from today on, and the days that passed folded above (calendar-view.js weekPlan).
+const PHONE = '(max-width: 899.98px)';
+const isPhone = () => !!window.matchMedia?.(PHONE).matches;
+let pastOpen = false; // the folded days that passed, opened in this visit
 function weekView(days) {
   const today = todayKey();
-  return h('ol', { class: 'cp-week' }, weekDays(anchor).map((key) => {
-    const list = days[key] || [];
-    return h('li', { class: `cp-day${key === today ? ' is-today' : ''}${key < today ? ' is-past' : ''}`, 'data-day': key },
-      leafOfDay(key, today),
-      h('div', { class: 'cp-day-b' }, list.length ? eventList(list) : h('p', { class: 'cp-free' }, 'אין אירועים')));
-  }));
+  const plan = weekPlan(days, weekDays(anchor), today, { phone: isPhone() });
+  const dayNode = (key) => h('li', { class: `cp-day${key === today ? ' is-today' : ''}${key < today ? ' is-past' : ''}`, 'data-day': key },
+    leafOfDay(key, today), h('div', { class: 'cp-day-b' }, eventList(days[key])));
+  const n = plan.past.reduce((sum, k) => sum + days[k].length, 0);
+  // The days ahead are drawn first: the one line about Google goes under the first invitation in sight.
+  const ahead = plan.shown.map(dayNode);
+  return h('div', { class: 'cp-weekwrap' },
+    plan.past.length ? h('details', { class: 'cp-past', open: pastOpen, ontoggle: (e) => { pastOpen = e.currentTarget.open; } },
+      h('summary', {}, `ימים שעברו השבוע · ${countWords(n)}`),
+      h('ol', { class: 'cp-week' }, plan.past.map(dayNode))) : null,
+    ahead.length ? h('ol', { class: 'cp-week' }, ahead) : null,
+    plan.rest ? h('p', { class: 'cp-free cp-rest' }, plan.rest) : null);
 }
 function monthView(days) {
   const today = todayKey();
@@ -141,7 +158,7 @@ function monthView(days) {
 
 function render() {
   const { from, until } = rangeOf(view, anchor);
-  const list = calendarEvents({ viewer, clients, checks, tasks, from, until, site: site() });
+  const list = calendarEvents({ viewer, clients, checks, tasks, from, until, site: site(), extra: googleEvents() });
   const days = byDay(list);
   hintShown = false;
   $('cp-title').textContent = titleOf(view, anchor);
@@ -177,6 +194,8 @@ $('cp-month').addEventListener('click', () => setView('month'));
 $('cp-prev').addEventListener('click', () => go(shift(view, anchor, -1)));
 $('cp-next').addEventListener('click', () => go(shift(view, anchor, 1)));
 $('cp-today').addEventListener('click', () => { const t = todayKey(); anchor = t; selected = t; render(); });
+// A phone turned or a window made narrow: the week is drawn for the width it has now.
+window.matchMedia?.(PHONE).addEventListener?.('change', () => { if (viewer && view === 'week') render(); });
 
 mountSession(async (staff) => {
   const v = await viewerOf(staff.email);
@@ -189,6 +208,26 @@ mountSession(async (staff) => {
     $('state').classList.add('no-access');
     fill($('state'), h('strong', {}, 'אין לך גישה לעמוד הזה.'), h('a', { class: 'btn', href: home.href }, home.label));
     return;
+  }
+  // A date set from here (a Google suggestion, "פגישה חדשה"): the client as saved, and
+  // "נקבעה פגישה" when it was marked.
+  const keepSaved = (row, mark) => {
+    clients = clients.map((c) => (c.id === row.id ? { ...c, ...row } : c));
+    if (mark) (checks[row.id] ||= {})[mark.item_key] = mark;
+  };
+  initGoogle({ viewer: v, email: String(staff.email || '').toLowerCase(), clientOf, checksOf: (id) => checks[id] || {}, redraw: render, onSaved: keepSaved });
+  mountGoogleCard($('cp-google'));
+  if (addsMeetings(v)) {
+    $('cp-new').hidden = false;
+    $('cp-new').prepend(icon('plus', { size: 18 }));
+    $('cp-new').addEventListener('click', async () => {
+      const m = await import('./new-meeting.js');
+      m.initNewMeeting({
+        viewer: v, clients: () => clients, emails: () => emails, clientMail: () => clientMail, site, checksOf: (id) => checks[id] || {},
+        onSaved: (row, mark) => { keepSaved(row, mark); render(); },
+      });
+      m.openNewMeeting();
+    });
   }
   // The phone opens on the week; a wide screen on the month; a choice made here is kept.
   const saved = readKey(VIEW_KEY);

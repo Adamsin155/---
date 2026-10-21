@@ -68,6 +68,9 @@ function render() {
   // the simplicity pass of 6.10.2026): the rest opens with a tap, and by itself right
   // after a link is made.
   if (fresh) unfolded = true;
+  // Once connected the card is not shown at all (the owner, 20.10.2026: a one-time setup
+  // shows only while it is not done). A link made on this page stays until it is left.
+  card.hidden = connected && !fresh;
   fill(card, h('details', { class: 'cal-fold', open: unfolded, ontoggle: (e) => { unfolded = e.currentTarget.open; } },
     h('summary', {},
       h('h2', { class: 'cal-h', id: 'cal-h', tabindex: '-1' }, 'היומן שלי'),
@@ -140,6 +143,5 @@ export async function mountCalendar(el) {
     card.hidden = true;
     return;
   }
-  card.hidden = false;
   render();
 }

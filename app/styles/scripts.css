@@ -177,3 +177,42 @@
 .sc-linklist a { flex: 1 1 auto; }
 .sc-nolinks { padding: 10px 14px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-ground); }
 .sc-link-add .btn { padding-inline: 18px; }
+
+/* ── The list of rows and the one open script (the owner's page review, 20.10.2026) ──
+   A row per script: its number, its title, its status. The open script takes its row's place;
+   "שמירה ומעבר לבא" closes it and opens the next. The client's focus points sit at the top of
+   the open script on a phone (beside it on a wide screen, where the side panel already is). */
+.sc-list { gap: 8px; }
+.sc-slot[hidden], .sc-row[hidden] { display: none; }
+.sc-row {
+  display: flex; align-items: center; gap: 12px; inline-size: 100%; min-block-size: 56px; padding: 8px 14px;
+  border: 0; border-radius: var(--ds-r-item, 12px); background: var(--ds-surface, var(--panel)); box-shadow: inset 0 0 0 1px var(--ds-line, var(--line));
+  font: inherit; color: var(--ds-ink, var(--text)); text-align: start; cursor: pointer;
+}
+.sc-row:hover { box-shadow: inset 0 0 0 1.5px var(--ds-edge, var(--line-strong)); }
+.sc-row:focus-visible { outline: 2px solid var(--ds-navy-2, var(--accent)); outline-offset: 2px; }
+.sc-row-n {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; inline-size: 34px; block-size: 34px; border-radius: 10px;
+  background: var(--ds-ground, var(--panel-2)); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums;
+}
+.sc-row.is-ready .sc-row-n { background: var(--accent-soft); color: var(--accent-deep); }
+.sc-row.is-approved .sc-row-n { background: var(--ok-soft); color: var(--ok); }
+.sc-row-t { flex: 1 1 auto; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15.5px; }
+.sc-row:not(.has-text) .sc-row-t { color: var(--muted); }
+.sc-row .sc-chip { flex: none; }
+.sc-row-bad { flex: none; font-size: 13px; font-weight: 600; color: var(--danger); }
+.sc-row.is-bad { box-shadow: inset 0 0 0 1.5px var(--danger); }
+.sc-slot-h .sc-close { min-height: 44px; }
+.sc-slot-h .sc-print-one { margin-inline-start: auto; }
+.sc-cbrief { border-radius: var(--ds-r-item, 12px); background: var(--accent-soft); padding: 0 12px; }
+.sc-cbrief > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; color: var(--accent-deep); }
+.sc-cbrief[open] { padding-bottom: 10px; max-block-size: 45vh; overflow: auto; }
+.sc-cbrief .brief-view h2 { font-size: 15px; }
+.sc-next-row { display: flex; justify-content: flex-end; padding-top: 6px; border-top: 1px solid var(--line); }
+.sc-next { min-height: 48px; }
+@media (max-width: 760px) {
+  .sc-next { flex: 1 1 auto; }
+}
+@media (min-width: 1000px) {
+  .sc-cbrief { display: none; }
+}

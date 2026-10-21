@@ -337,3 +337,51 @@ details.ps-sum { min-width: 0; }
 .as-sug strong { font-weight: 700; }
 .as-acts > .as-go { font-weight: 700; }
 @media (max-width: 760px) { .as-acts > .as-go { flex: 2 1 auto; } }
+
+/* The pass, simplified (the owner, 20.10.2026): one line per row, a group per person,
+   "שלך", the folded Thursday summary on other days, and the two small buttons to Lior. */
+.ps-line { margin: 0; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: center; gap: 0 2px; }
+.ps-what { font-weight: 600; }
+.ps-mine { background: var(--ds-navy, #1b2559); color: #fff; }
+.ps-group .ps-group-t { font-size: 15px; }
+.ps-subs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ps-sub { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--ds-r-item, 12px); background: var(--ds-ground, #f4f5f8); min-width: 0; }
+.ps-group { display: grid; gap: 10px; }
+.ps-th-fold > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; color: var(--ds-muted); font-weight: 600; list-style: none; }
+.ps-th-fold > summary::-webkit-details-marker { display: none; }
+.ps-th-fold > summary::after { content: ''; flex: none; width: 8px; height: 8px; margin-top: -4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
+.ps-th-fold[open] > summary::after { transform: rotate(-135deg); margin-top: 4px; }
+.ps-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+/* qa.html, the owner's review of 20.10.2026: "עומס עורכים" is one line per editor (its
+   clients open under it), and the clients in landing wait in one folded line. */
+.of-load-fold > summary { cursor: pointer; list-style: none; min-height: 44px; }
+.of-load-fold > summary::-webkit-details-marker, .of-landing-fold summary::-webkit-details-marker { display: none; }
+.of-load-fold > summary::after, .of-landing-fold summary::after { content: '▾'; margin-inline-start: auto; color: var(--muted); transition: transform .2s; }
+.of-load-fold[open] > summary::after, .of-landing-fold details[open] > summary::after { transform: rotate(180deg); }
+.of-load-fold[open] > summary { margin-bottom: 8px; }
+.of-load-late { font-weight: 600; font-size: 14px; }
+.of-landing-fold { list-style: none; }
+.of-landing-fold summary { cursor: pointer; list-style: none; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 14px; border-radius: var(--ds-r-item); background: var(--ds-surface); }
+.of-landing-fold details[open] > summary { margin-bottom: 10px; }
+/* "החלטות", under the lists' cards (the owner's page review, 20.10.2026): others' late items and
+   Ofir's quality-check queue as one folded, counted line; Lior's own late items as a line with a link. */
+.ls-rest { display: grid; gap: 8px; margin-top: 10px; }
+.ls-rest[hidden] { display: none; }
+.ls-rest > * { margin: 0; }
+.ls-others { border: 1px solid var(--ds-line, var(--line)); border-radius: var(--ds-r-item, 12px); background: var(--ds-ground, var(--panel-2)); padding: 0 14px; }
+.ls-others > summary { min-height: 44px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 15px; color: var(--ds-ink-2, var(--text-2)); }
+.ls-others > summary .n { font-variant-numeric: tabular-nums; font-weight: 600; padding: 0 8px; border-radius: 999px; background: var(--ds-surface, var(--panel)); }
+.ls-mini { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 2px; }
+.ls-mini a { display: flex; align-items: center; min-height: 40px; overflow-wrap: anywhere; font-size: 14.5px; }
+.ls-mine { font-size: 15px; color: var(--ds-ink-2, var(--text-2)); }
+.ls-mine a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+/* A batch of graphics is one line until opened (the owner, 20.10.2026). */
+.il-gfx-fold > summary { list-style: none; cursor: pointer; display: grid; gap: 8px; }
+.il-gfx-fold > summary::-webkit-details-marker { display: none; }
+.il-gfx-line { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.il-gfx-n { font-weight: 600; color: var(--text-2); }
+.il-gfx-n.late { color: var(--late, #c2185b); }
+.il-gfx-go { pointer-events: none; margin-inline-start: auto; }
+.il-gfx-fold[open] .il-fold-open, .il-gfx-fold:not([open]) .il-fold-close { display: none; }
+.il-gfx-fold[open] > summary { margin-bottom: 10px; }
+.il-gfx-fold > :not(summary) + :not(summary) { margin-top: 10px; }

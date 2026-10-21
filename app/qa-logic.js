@@ -51,7 +51,15 @@ export function qaQueue({ clients, stateOf, checks, meetings = [], now = new Dat
       });
     }
   }
-  return out.sort((a, b) => a.dueAt - b.dueAt);
+  return out.sort(byClock);
+}
+// The order of Ofir's lists (the owner's review, 20.10.2026): what has a clock first, the
+// late before the rest, then by its due time; work of a client in landing ("בקליטה", no
+// clock until it is activated) last.
+const dueOf = (x) => +(x.fast?.dueAt || x.dueAt || Infinity);
+const isLate = (x) => (x.late ?? (x.state?.status === 'overdue')) ? 1 : 0;
+export function byClock(a, b) {
+  return Number(!!a.landing) - Number(!!b.landing) || isLate(b) - isLate(a) || dueOf(a) - dueOf(b);
 }
 
 // Work returned for fixes and not back yet: { client, kind, pre, proc, ctx, open (the round), who }.
@@ -104,10 +112,13 @@ export function awaitingEditor({ clients, stateOf, checks }) {
       const pre = preOf(s.proc);
       if (cs[`${pre}p22a.assigned`]?.state === 'done') continue;
       const ctx = s.proc.ctx || c;
-      out.push({ key: `${c.id}:${s.proc.id}`, client: c, pre, n: ctx.round || null, proc: s.proc, ctx, state: s, dueAt: s.dueAt, fast: fastCaseOf(c, s, stateOf(c).states, cs) });
+      out.push({
+        key: `${c.id}:${s.proc.id}`, client: c, pre, n: ctx.round || null, proc: s.proc, ctx, state: s, dueAt: s.dueAt, fast: fastCaseOf(c, s, stateOf(c).states, cs),
+        landing: c.landing === true, late: c.landing !== true && s.status === 'overdue',
+      });
     }
   }
-  return out;
+  return out.sort(byClock);
 }
 
 // Natali's shoot: Nirel is preselected, and anyone else needs a recorded reason. A

@@ -57,7 +57,8 @@ export function changesOf(prev, e, hadPass = true) {
 // business days: the late process open the longest (since it could start, and how
 // much of that is past its deadline, and with whom), or the wait on the client.
 const daysWord = (n) => (n === 1 ? 'יום עסקים אחד' : `${n} ימי עסקים`);
-const holders = (s) => (s.claim ? [s.claim.person] : s.proc.owners || []).map((k) => (k === 'editor' ? 'עורך' : personName(k))).filter(Boolean).join(', ');
+const holderKeys = (s) => (s.claim ? [s.claim.person] : s.proc.owners || []);
+const holders = (s) => holderKeys(s).map((k) => (k === 'editor' ? 'עורך' : personName(k))).filter(Boolean).join(', ');
 export function stuckOf(client, state, extras = {}, now = new Date()) {
   const out = [];
   if (inLanding(client)) return out; // never "stuck" before it was taken in
@@ -68,21 +69,27 @@ export function stuckOf(client, state, extras = {}, now = new Date()) {
     const open = businessDaysBetween(openSince(oldest), now);
     const over = businessDaysBetween(oldest.dueAt, now);
     const who = holders(oldest);
+    const when = open > over ? `פתוח ${daysWord(open)}, מהם ${over} באיחור` : `באיחור ${daysWord(over)}`;
     out.push({
       code: 'late', text: `באיחור של יותר מיומיים: ${late.slice(0, 2).map((s) => procName(s.proc)).join(', ')}${late.length > 2 ? ` ועוד ${late.length - 2}` : ''}`,
-      age: `${procName(oldest.proc)}: ${open > over ? `פתוח ${daysWord(open)}, מהם ${over} באיחור` : `באיחור ${daysWord(over)}`}${who ? ` · אצל ${who}` : ''}`,
+      age: `${procName(oldest.proc)}: ${when}${who ? ` · אצל ${who}` : ''}`,
       days: open, lateDays: over,
+      // The one line of the pass (20.10.2026): what, whose (a person's key, or null), how late.
+      what: procName(oldest.proc), who: holderKeys(oldest).find((k) => k !== 'editor' && PEOPLE[k]) || null, when, procId: oldest.proc.id,
     });
   }
   const last = lastActivity(client, extras);
   const idle = last ? businessDaysBetween(last, now) - (isBusinessDay(now) ? 1 : 0) : 0;
-  if (idle >= STUCK_IDLE_DAYS) out.push({ code: 'idle', text: `אין פעילות ${idle} ימי עסקים`, age: null, days: idle });
+  if (idle >= STUCK_IDLE_DAYS) out.push({ code: 'idle', text: `אין פעילות ${idle} ימי עסקים`, age: null, days: idle, what: null, who: null, when: `אין פעילות ${idle} ימי עסקים` });
   const today = dayKeyIL(now);
   const past = state.states.filter((s) => s.status === 'client' && s.wait?.recheck && s.wait.recheck < today);
   if (past.length) {
     const since = past.map((s) => new Date(s.wait.at)).sort((a, b) => a - b)[0];
     const days = businessDaysBetween(since, now);
-    out.push({ code: 'recheck', text: `עבר מועד הבדיקה החוזרת: ${past.map((s) => procName(s.proc)).join(', ')}`, age: `ממתין ללקוח ${daysWord(days)}`, days });
+    out.push({
+      code: 'recheck', text: `עבר מועד הבדיקה החוזרת: ${past.map((s) => procName(s.proc)).join(', ')}`, age: `ממתין ללקוח ${daysWord(days)}`, days,
+      what: past.map((s) => procName(s.proc)).join(', '), who: null, when: `ממתין ללקוח ${daysWord(days)}, עבר מועד הבדיקה החוזרת`,
+    });
   }
   return out;
 }
@@ -92,7 +99,9 @@ export function stuckOf(client, state, extras = {}, now = new Date()) {
 // opened ('task'), Lior was updated ('lior', an exception task for him), or a short
 // written reason why nothing is needed ('reason'). The pass keeps it with the
 // client in its record (office_passes.seen: { how, at, task | reason }).
-export const STUCK_HOWS = ['task', 'lior', 'reason'];
+// A fourth since 20.10.2026 (the owner), on Ofir's own late work only ("שלך", rowLine
+// below): 'own', "בטיפול שלי": it is on his own task list already, nobody to update.
+export const STUCK_HOWS = ['task', 'lior', 'reason', 'own'];
 export const REASON_MIN = 5;      // characters: a word or two, not a dot
 export const REASON_MAX = 200;
 export const cleanReason = (text) => String(text || '').replace(/\s+/g, ' ').trim().slice(0, REASON_MAX);
@@ -114,6 +123,7 @@ export function seenText(seen) {
   if (seen.how === 'task') return 'נפתחה משימה';
   if (seen.how === 'lior') return 'עודכן ליאור';
   if (seen.how === 'reason') return `עברת · אין צורך בפעולה: ״${cleanReason(seen.reason)}״`;
+  if (seen.how === 'own') return 'בטיפול שלך';
   return 'עברת';
 }
 
@@ -136,6 +146,46 @@ export function passRows(entries, { prev = null, stuck = () => [] } = {}) {
     return a.client.name.localeCompare(b.client.name, 'he');
   });
 }
+
+// ── One line per row, and the rows stuck at one person together (the owner, 20.10.2026) ──
+// A row said the same thing three times (the late text, "תקוע: …", "…: באיחור … · אצל …").
+// Now one line: what, whose, how late. `mine`: the viewer's own work ("שלך"), already on
+// their task list. `more`: how many other reasons the client has (its card has them all).
+export function rowLine(row, me = null) {
+  const late = row.stuck.find((x) => x.code === 'late');
+  const top = row.reasons[0] || null;
+  const first = late || (top ? { what: top.what || null, who: top.who || null, when: top.text } : row.stuck[0] || null);
+  if (!first) return null;
+  const who = first.who && PEOPLE[first.who] ? first.who : null;
+  const more = Math.max(0, row.reasons.length - 1) + (late ? 0 : Math.max(0, row.stuck.length - (top ? 0 : 1)));
+  return { what: first.what || null, who, mine: !!me && who === me, when: first.when, more };
+}
+// The attention rows in order, with the stuck rows late at one person (not the viewer)
+// together: [{ rows: [row] }] or [{ who, what, rows }] (two or more; `what` when all are
+// late on the same process). A group stands where its first row stood.
+export function passGroups(rows, me = null) {
+  const keyOf = (r) => { const l = r.stuck.find((x) => x.code === 'late'); return l?.who && PEOPLE[l.who] && l.who !== me ? l.who : null; };
+  const by = new Map();
+  for (const r of rows) { const k = keyOf(r); if (k) (by.get(k) || by.set(k, []).get(k)).push(r); }
+  const out = [];
+  const placed = new Set();
+  for (const r of rows) {
+    const k = keyOf(r);
+    if (k && by.get(k).length > 1) {
+      if (placed.has(k)) continue;
+      placed.add(k);
+      const list = by.get(k);
+      const whats = new Set(list.map((x) => x.stuck.find((y) => y.code === 'late').what));
+      out.push({ who: k, what: whats.size === 1 ? [...whats][0] : null, rows: list });
+    } else out.push({ rows: [r] });
+  }
+  return out;
+}
+// The one update to Lior about a group: every client, what and how late.
+export const groupTitle = (group) => `לקוחות תקועים אצל ${ownerName(group.who)}: ${group.rows.map((r) => {
+  const l = r.stuck.find((x) => x.code === 'late');
+  return `${r.client.name} (${[l?.what, l?.when].filter(Boolean).join(', ')})`;
+}).join(' · ')}`.slice(0, 500);
 
 // How far this pass got: `seen` is the pass's record { clientId: { how, at } }.
 export function passProgress(rows, seen = {}) {
@@ -172,7 +222,12 @@ export function previousPass(passes, now = new Date()) {
 // Each one fixable in one tap: a shared process nobody took (it goes to its
 // default owner, decision 7), an open task with no due date (the next business
 // day), a shoot waiting for an editor (the assignment).
-export function dataHealth({ clients, stateOf, checks, tasks = [], now = new Date() }) {
+// Since 20.10.2026 (the owner) the pass shows only what Ofir fixes himself: `total` counts
+// the shared processes and the tasks without a date, but not another person's urgent task
+// (it is urgent, not undated) or exception to Lior (his "החלטות" decides it), nor a shoot
+// without an editor (qa.html assigns it).
+// `noEditor` is still worked out for whoever reads it.
+export function dataHealth({ clients, stateOf, checks, tasks = [], now = new Date(), me = null }) {
   const live = clients.filter((c) => (c.status === 'active' || c.status === 'ending') && !inLanding(c));
   const byId = new Map(live.map((c) => [c.id, c]));
   const unowned = [];
@@ -191,8 +246,9 @@ export function dataHealth({ clients, stateOf, checks, tasks = [], now = new Dat
       }
     }
   }
-  const noDue = tasks.filter((t) => !t.done_at && !t.due_on && byId.has(t.client_id)).map((t) => ({ client: byId.get(t.client_id), task: t }));
-  return { unowned, noDue, noEditor, total: unowned.length + noDue.length + noEditor.length, dueFix: dayKeyIL(addBusinessDays(now, 1)) };
+  const noDue = tasks.filter((t) => !t.done_at && !t.due_on && byId.has(t.client_id) && !((t.urgent || t.source === 'escalation') && t.owner !== me))
+    .map((t) => ({ client: byId.get(t.client_id), task: t }));
+  return { unowned, noDue, noEditor, total: unowned.length + noDue.length, dueFix: dayKeyIL(addBusinessDays(now, 1)) };
 }
 
 // ── The Thursday summary, prefilled ──────────

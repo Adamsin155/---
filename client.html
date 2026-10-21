@@ -92,6 +92,9 @@
   <link rel="modulepreload" href="app/fix-request.js">
   <link rel="modulepreload" href="app/fix-request-ui.js">
   <link rel="modulepreload" href="app/kit.js">
+  <link rel="modulepreload" href="app/briefs.js">
+  <link rel="modulepreload" href="app/card-metricool.js">
+  <link rel="modulepreload" href="app/metricool-connect-logic.js">
   <link rel="modulepreload" href="app/catalog.js">
   <link rel="modulepreload" href="app/holidays.js">
   <link rel="modulepreload" href="app/session-store.js">
@@ -109,7 +112,6 @@
   <link rel="modulepreload" href="app/availability-logic.js">
   <link rel="modulepreload" href="app/shell-rules.js">
   <link rel="modulepreload" href="app/access-nudge.js">
-  <link rel="modulepreload" href="app/briefs.js">
   <link rel="modulepreload" href="app/intake-data.js">
   <link rel="modulepreload" href="app/status-logic.js">
   <link rel="modulepreload" href="app/vault-code.js">
@@ -117,6 +119,8 @@
   <link rel="modulepreload" href="app/upload.js">
   <link rel="modulepreload" href="app/vendor/supabase.js">
   <link rel="modulepreload" href="app/clocks.js">
+  <link rel="modulepreload" href="app/gantt-data.js">
+  <link rel="modulepreload" href="app/metricool-logic.js">
   <link rel="modulepreload" href="app/data-cache.js">
   <link rel="modulepreload" href="app/feel.js">
   <link rel="modulepreload" href="app/shell-state.js">
@@ -156,9 +160,14 @@
       <a class="back" href="clients.html#clients">→ כל הלקוחות</a>
       <header class="block cc-head" id="cc-head"></header>
       <div class="cc-sticky" id="cc-sticky" aria-hidden="true"></div>
+      <!-- "הצעד הבא שלך" (the owner, 20.10.2026): the viewer's own open items on this client, first. -->
+      <section class="block cc-side my-next" id="my-next" aria-labelledby="my-next-h" hidden></section>
       <div id="ik-slot"></div>
-      <div id="st-slot"></div>
-      <div id="fl-slot"></div>
+      <!-- The reference blocks, each a closed row with its count until opened (the owner, 20.10.2026). -->
+      <details class="block cc-fold" id="fold-status" hidden><summary class="cf-sum"></summary><div class="cf-body"><div id="st-slot"></div></div></details>
+      <details class="block cc-fold" id="fold-gallery" hidden><summary class="cf-sum"></summary><div class="cf-body"><div id="gal-slot"></div></div></details>
+      <details class="block cc-fold" id="fold-files" hidden><summary class="cf-sum"></summary><div class="cf-body"><div id="fl-slot"></div></div></details>
+      <details class="block cc-fold" id="fold-access" hidden><summary class="cf-sum"></summary><div class="cf-body">
       <section class="block cc-side" id="access" aria-labelledby="access-h">
         <div class="side-head access-head">
           <div><h2 id="access-h">גישות לרשתות</h2><p class="muted">כל גישה תקינה נכנסת לכאן מיד. הסיסמאות מוצפנות, וכל צפייה נרשמת.</p></div>
@@ -170,14 +179,16 @@
         <ul class="access-list" id="access-list"></ul>
         <details class="access-log" id="access-log-box"><summary>מי צפה ושינה ומתי</summary><ol class="hlist" id="access-log"></ol></details>
       </section>
+      </div></details>
       <section class="block qa-block" id="qa-block" aria-labelledby="qa-block-h" hidden></section>
       <div class="viewbar" id="viewbar"></div>
       <div id="phases" class="phases"></div>
       <div id="mc-slot"></div>
       <div id="tl-slot"></div>
       <section class="block cc-side" id="tasks" aria-labelledby="tasks-h">
-        <div class="side-head"><h2 id="tasks-h">משימות</h2><p class="muted">משימות שנפתחו בשיחה השבועית או בבקרה, עם מבצע אחראי.</p></div>
-        <form class="task-form" id="task-form" novalidate>
+        <div class="side-head"><h2 id="tasks-h">משימות</h2><p class="muted">משימות שנפתחו בשיחה השבועית או בבקרה, עם מבצע אחראי.</p>
+          <button type="button" class="btn btn-sm" id="task-new" aria-expanded="false" aria-controls="task-form">משימה חדשה</button></div>
+        <form class="task-form" id="task-form" novalidate hidden>
           <div class="field grow"><label for="task-title">משימה חדשה</label><input class="input" id="task-title" autocomplete="off"></div>
           <div class="field"><label for="task-owner">מי מבצע</label><select class="input" id="task-owner"></select></div>
           <div class="field"><label for="task-due">עד תאריך</label><input class="input" id="task-due" type="date" dir="ltr"></div>
@@ -191,10 +202,14 @@
         </form>
         <ul class="tlist" id="task-list"></ul>
       </section>
+      <details class="block cc-fold" id="fold-history"><summary class="cf-sum"></summary><div class="cf-body">
       <section class="block cc-side" id="history" aria-labelledby="hist-h">
         <div class="side-head"><h2 id="hist-h">היסטוריה</h2><p class="muted">כל סימון וביטול סימון, מי ומתי.</p></div>
         <ol class="hlist" id="hist-list"></ol>
       </section>
+      </div></details>
+      <!-- Rare and final: at the foot of the card, not next to "עריכת פרטים" (the owner, 20.10.2026). -->
+      <div class="cc-foot" id="cc-foot" hidden></div>
     </div>
 
     <p class="state" id="state" role="status"></p>

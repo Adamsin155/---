@@ -51,13 +51,15 @@ export const loadGantt = (clientId) => orNull(() => withCols(() => all(() => sup
 
 // The index: every client's entries from `from` to `to` (day keys), and which clients
 // have a Gantt at all (the template's last entry, 'end', is in every plan).
-// { rows, has: Set of client ids } or null when the table is not there yet.
+// { rows, has: Set of client ids, plans: Set of the ones with a plan from the template
+// (rows that came from Metricool alone are not a plan) } or null when the table is not there yet.
 export async function loadIndex(from, to) {
   const rows = await orNull(() => withCols(() => all(() => supabase.from('client_gantt').select(cols)
     .gte('day', from).lte('day', to).order('day').order('id'))));
   if (rows === null) return null;
   const ends = await all(() => supabase.from('client_gantt').select('client_id').eq('key', 'end').order('client_id'));
-  return { rows, has: new Set([...ends.map((r) => r.client_id), ...rows.map((r) => r.client_id)]) };
+  const plans = new Set(ends.map((r) => r.client_id));
+  return { rows, has: new Set([...plans, ...rows.map((r) => r.client_id)]), plans };
 }
 
 // Applies a planDiff (app/gantt-logic.js): one upsert for what is new or changed
@@ -174,6 +176,15 @@ export async function loadBrands(clientId = null) {
   const { data, error } = await q;
   if (error) return undefined;
   return Object.fromEntries((data || []).map((r) => [r.id, { blogId: r.metricool_blog_id || null, brand: r.metricool_brand || null }]));
+}
+// Every client's connection, for the index's filters: Map id -> { blogId, none }.
+// "none" is false before 20261012100000; null before the brand columns are there at all.
+export async function loadConnections() {
+  const read = (cols) => supabase.from('clients').select(cols);
+  let { data, error } = await read('id, metricool_blog_id, metricool_none');
+  if (error && missingColumn(error)) ({ data, error } = await read('id, metricool_blog_id'));
+  if (error) return null;
+  return new Map((data || []).map((r) => [r.id, { blogId: r.metricool_blog_id || null, none: !!r.metricool_none }]));
 }
 // The last sync of the clients ({ id: { at, ok, error, stats } }; {} when none or not built).
 export async function loadSyncs(clientId = null) {

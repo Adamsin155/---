@@ -20,7 +20,7 @@ import { who, formatStamp, formatDay } from './protocol-ui.js';
 import { dayText, timeText, waLink, groupLink } from './messages-logic.js';
 import {
   BUCKET, KINDS, GROUPS, kindsOf, fileProblem, objectPath, fileNameOf, formatSize, isImage, isVideo, validLink,
-  uploadKinds, canDelete, canEdit, counts, isManager, canManageGallery, galleryUrl, galleryMessage, uploadError, contentProblem,
+  uploadKinds, canDelete, canEdit, counts, canManageGallery, galleryUrl, galleryMessage, uploadError, contentProblem,
   workFiles, uploadedText,
 } from './files-logic.js';
 import { uploadFile } from './upload.js';
@@ -33,11 +33,13 @@ const KIND_LOOK = {
   deliverable_site: ['globe', 'blue'], deliverable_other: ['grid', 'navy'],
 };
 const filesText = (n) => (n === 1 ? 'קובץ אחד' : `${n} קבצים`);
+// A tile's own count: nothing while there is none (nine "0 קבצים" said nothing; the owner, 20.10.2026).
+const tileText = (n) => (n ? filesText(n) : '');
 // The "add" control of one kind: a tile in the client card, the plain button elsewhere.
 function addControl(kind, { compact, tag = 'button', onclick = null }) {
   const k = KINDS[kind];
   const [name, tone] = KIND_LOOK[kind] || ['file', 'navy'];
-  const node = kTile({ icon: name, tone, label: k.plural, count: filesText(0), id: `fl-add-${kind}`, cls: 'fl-add fl-tile', tag, onclick, lead: 'הוספה: ' });
+  const node = kTile({ icon: name, tone, label: k.plural, count: tileText(0), id: `fl-add-${kind}`, cls: 'fl-add fl-tile', tag, onclick, lead: 'הוספה: ' });
   node.querySelector('.k-tile-n').dataset.tileCount = kind;
   return node;
 }
@@ -134,7 +136,10 @@ function lazy(img) {
 
 // ── Mount ─────────────────────────────────
 // opts: { client, me (staff.person; null: the owner; undefined: not known), myEmail,
-//         toast, only: 'materials' | 'deliverables' | null, compact, onUploaded(kind) }
+//         toast, only: 'materials' | 'deliverables' | null, compact, onUploaded(kind),
+//         gallerySlot (the client card: the gallery's link in a place of its own),
+//         onDraw({ files, gallery }) (the card's closed rows say in a few words what is inside:
+//         { text } each, or null for a part not shown to this viewer) }
 export function mountClientFiles(slot, opts) {
   if (!slot || !opts.client) return;
   const { client, only = null } = opts;
@@ -148,11 +153,13 @@ export function mountClientFiles(slot, opts) {
   }
   root.__opts = opts;
   if (root.parentNode !== slot) slot.replaceChildren(root);
+  if (opts.gallerySlot && root.__gallery.parentNode !== opts.gallerySlot) opts.gallerySlot.replaceChildren(root.__gallery);
   if (!st.loaded && !st.loading) {
-    st.loading = Promise.all([loadFiles(client.id), !only && opts.me !== undefined && (isManager(opts.me) || opts.me === 'ilai') ? loadGallery(client.id, opts.me) : null])
+    st.loading = Promise.all([loadFiles(client.id), !only && seesGallery(opts.me) ? loadGallery(client.id, opts.me) : null])
       .then(() => { st.loading = null; refreshAll(client.id); });
   }
   if (st.loaded) root.__draw();
+  else opts.onDraw?.({ files: { text: 'טוען…' }, gallery: seesGallery(opts.me) ? { text: 'טוען…' } : null });
 }
 function refreshAll(clientId) {
   for (const [k, r] of roots) if (k.startsWith(`${clientId}:`)) r.__draw();
@@ -182,7 +189,11 @@ function buildRoot(opts) {
       compact ? null : h('p', { class: 'muted fl-hint' }, GROUPS[g].hint),
       uploadBar(g, { progress, err, compact }),
       parts[g].body)),
-    only ? null : galleryPart);
+    only || opts.gallerySlot ? null : galleryPart);
+  root.__gallery = galleryPart;
+  // Nothing in the folder yet: said once for the whole block, not under every group.
+  const none = h('p', { class: 'muted fl-none', hidden: true }, 'אין קבצים.');
+  if (!compact) root.querySelector('.fl-head').after(none);
   dressHead(root.querySelector('.fl-head'), compact ? 'upload' : 'folder', compact ? 'green' : 'navy');
   // The upload bars need the root's current options (the viewer may change after a refresh).
   root.__draw = () => {
@@ -192,13 +203,22 @@ function buildRoot(opts) {
     status.hidden = st.loaded && !st.error;
     const may = uploadKinds(o.me, o.client);
     for (const bar of root.querySelectorAll('[data-kind-btn]')) bar.hidden = !may.includes(bar.dataset.kindBtn) || !!st.error;
+    const c = counts(st.files);
     for (const g of groups) {
-      const c = counts(st.files);
-      parts[g].counts.replaceChildren(...kindsOf(g).flatMap((k, i) => [i ? ' · ' : '', h('span', { 'data-count': k }, `${KINDS[k].plural} ${c[k]}`)]));
-      for (const n of root.querySelectorAll('[data-tile-count]')) n.textContent = filesText(c[n.dataset.tileCount] || 0);
+      // The client card: only the kinds that have files (the compact form keeps every kind).
+      const kinds = compact ? kindsOf(g) : kindsOf(g).filter((k) => c[k]);
+      parts[g].counts.replaceChildren(...kinds.flatMap((k, i) => [i ? ' · ' : '', h('span', { 'data-count': k }, `${KINDS[k].plural} ${c[k]}`)]));
+      parts[g].counts.hidden = !kinds.length;
+      for (const n of root.querySelectorAll('[data-tile-count]')) n.textContent = tileText(c[n.dataset.tileCount] || 0);
       parts[g].body.replaceChildren(...(st.loaded && !st.error ? listOf(g, o) : []));
     }
+    const total = st.loaded && !st.error ? st.files.length : 0;
+    none.hidden = compact || !st.loaded || !!st.error || total > 0;
     if (!only) galleryPart.replaceChildren(...galleryBlock(o));
+    o.onDraw?.({
+      files: { text: !st.loaded ? 'טוען…' : st.error ? 'לא זמין' : total ? filesText(total) : 'אין קבצים' },
+      gallery: !only && seesGallery(o.me) ? { text: gallerySummary(st.gallery) } : null,
+    });
   };
   return root;
 }
@@ -333,7 +353,7 @@ function listOf(group, o) {
       h('h4', {}, `${KINDS[kind].plural} (${files.length})`),
       h('ul', { class: 'fl-grid' }, files.map((f) => tile(f, o)))));
   }
-  if (!out.length) {
+  if (!out.length && o.compact) {
     const words = group === 'materials' ? 'עוד לא הועלו חומרים.' : 'עוד לא הועלו תוצרים.';
     const may = uploadKinds(o.me, o.client).some((k) => KINDS[k].group === group);
     out.push(emptyRow({ icon: 'upload', text: may ? `${words} ${group === 'materials' ? 'בחרו סוג קובץ למעלה כדי להתחיל.' : 'בחרו סוג תוצר למעלה כדי להתחיל.'}` : words }));
@@ -529,9 +549,18 @@ function buildWork(opts) {
 }
 
 // ── The client's gallery link ─────────────
+// Who sees the gallery's block: whoever makes its link (Irit, Lior and the owner). Ofir and
+// Ilai saw only "עירית, ליאור או הבעלים יוצרים את הקישור": other people's work (the owner, 20.10.2026).
+export const seesGallery = (me) => me !== undefined && canManageGallery(me);
+function gallerySummary(g) {
+  if (!g) return 'טוען…';
+  if (g.error) return 'לא זמין';
+  if (g.active) return g.active.open_count ? `קישור פעיל · נפתח ${g.active.open_count === 1 ? 'פעם אחת' : `${g.active.open_count} פעמים`}` : 'קישור פעיל';
+  return g.links?.[0] ? (g.links[0].revoked_at ? 'הקישור בוטל' : 'תוקף הקישור הסתיים') : 'אין קישור';
+}
 function galleryBlock(o) {
   const st = data.get(o.client.id);
-  if (o.me === undefined || !(isManager(o.me) || o.me === 'ilai')) return [];
+  if (!seesGallery(o.me)) return [];
   const head = [headIcon(h('h3', { id: 'fl-gal-h' }, 'גלריה ללקוח (צפייה בלבד)'), 'image', 'teal'),
     h('p', { class: 'muted' }, 'קישור שאפשר לשלוח ללקוח או לצוות שלו: הגרפיקות, הסרטונים, ה־Highlights והאתר. בלי שמות עובדים, בלי מועדים פנימיים, בלי אפשרות לשנות.')];
   const g = st.gallery;

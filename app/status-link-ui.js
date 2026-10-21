@@ -9,7 +9,7 @@ import { h } from './quote-doc.js';
 import { supabase } from './supa.js';
 import { dayText, timeText, waLink, groupLink } from './messages-logic.js';
 import { statusUrl, statusLinkMessage, itemText, SURVEY_TITLES, scaleOf, lowScore, severeScore, cleanName, nameOk } from './status-logic.js';
-import { icon, iconSquare, dressHead, pill, emptyRow, cardHead, noticeAround } from './kit.js';
+import { icon, iconSquare, dressHead, pill, cardHead, noticeAround } from './kit.js';
 
 const LINK_COLS = 'id, created_at, created_by, expires_at, revoked_at, revoked_by';
 const APPROVAL_COLS = 'id, item, item_key, shoot_round, decision, round, signer_name, note, wording, at';
@@ -55,15 +55,19 @@ async function loadFor(client, { manage }) {
 // Fills `slot` for the office (`scope` 'office'); `me` is the viewer's person (null: the owner).
 // Re-rendering the card calls it again: nothing is rebuilt unless the data changed,
 // so a form being filled here is never wiped by the card's refresh.
-export function mountClientStatus(slot, { client, scope = 'office', me = null, toast = null }) {
+// `onDraw(summary)`: told what the block holds in a few words after every call (the
+// card's closed row shows them; the owner, 20.10.2026): { text }, or null when nothing is shown.
+export function mountClientStatus(slot, { client, scope = 'office', me = null, toast = null, onDraw = null }) {
   if (!slot) return;
-  if (!client || scope !== 'office') { slot.replaceChildren(); shown = { id: null, version: -1 }; return; }
+  const told = () => onDraw?.(slot.firstChild ? statusSummary() : null);
+  if (!client || scope !== 'office') { slot.replaceChildren(); shown = { id: null, version: -1 }; told(); return; }
   const manage = me === null || MANAGERS.includes(me);
-  const redraw = () => mountClientStatus(slot, { client, scope, me, toast });
+  const redraw = () => mountClientStatus(slot, { client, scope, me, toast, onDraw });
   if (cache.id !== client.id) {
     cache = { id: client.id, loaded: false, version: 0, error: null };
     slot.replaceChildren();
     loadFor(client, { manage }).then(redraw);
+    onDraw?.({ text: 'טוען…' });
     return;
   }
   // What the client did on the page since: fetched again with the card's refresh, at
@@ -73,10 +77,27 @@ export function mountClientStatus(slot, { client, scope = 'office', me = null, t
     cache.reloading = true;
     loadFor(client, { manage }).then(() => { cache.reloading = false; if (!slot.contains(document.activeElement)) redraw(); });
   }
-  if (!cache.loaded || (shown.id === client.id && shown.version === cache.version && slot.firstChild)) return;
+  if (!cache.loaded) { onDraw?.({ text: 'טוען…' }); return; }
+  if (shown.id === client.id && shown.version === cache.version && slot.firstChild) { told(); return; }
   shown = { id: client.id, version: cache.version };
   const reload = async () => { await loadFor(client, { manage }); redraw(); };
   slot.replaceChildren(block(client, { manage, toast, reload }));
+  told();
+}
+
+// The block in a few words, for the card's closed row: the link's state, then what the
+// client sent from the page (approvals, fix requests, answers), only when there is any.
+export function statusSummary() {
+  const c = cache;
+  if (!c.loaded) return { text: 'טוען…' };
+  if (c.error) return { text: 'לא זמין' };
+  const last = c.links?.[0];
+  const link = c.active ? 'קישור פעיל' : last ? (last.revoked_at ? 'הקישור בוטל' : 'תוקף הקישור הסתיים') : 'טרם פורסם';
+  const sent = [
+    c.approvals?.length ? `${c.approvals.length} אישורים ובקשות` : null,
+    c.surveys?.length ? `${c.surveys.length} תשובות משוב` : null,
+  ].filter(Boolean);
+  return { text: [link, ...sent].join(' · ') };
 }
 
 function block(client, { manage, toast, reload }) {
@@ -95,7 +116,10 @@ function block(client, { manage, toast, reload }) {
     head,
     linkPart(client, { manage, toast, reload }),
     consentPart(client, { toast, reload }),
-    h('div', { class: 'k-cards-2' }, approvalsPart(), surveysPart(client, { toast, reload })));
+    // Nothing came from the client yet: one quiet line, and the way to record an answer (the owner, 20.10.2026).
+    !c.approvals.length && !c.surveys.length
+      ? h('div', { class: 'st-quiet' }, h('p', { class: 'muted st-none', id: 'st-none' }, 'עוד אין אישורים, בקשות תיקון או תשובות משוב מהלקוח.'), recordPart(client, { toast, reload }))
+      : h('div', { class: 'k-cards-2' }, approvalsPart(), surveysPart(client, { toast, reload })));
 }
 
 // ── The link ──────────────────────────────
@@ -169,20 +193,32 @@ function consentPart(client, { toast, reload }) {
 function approvalsPart() {
   const list = cache.approvals;
   return h('div', { class: 'st-approvals k-card' },
-    cardHead({ icon: 'check-circle', tone: 'green', title: 'אישורים ובקשות תיקון מהדף', count: list.length }),
+    cardHead({ icon: 'check-circle', tone: 'green', title: 'אישורים ובקשות תיקון מהדף', count: list.length || null }),
     list.length ? h('ol', { class: 'hlist st-list' }, list.map((a) => h('li', {},
       h('span', { class: a.decision === 'approve' ? 'st-ok' : 'st-fix' }, a.decision === 'approve' ? 'אישר/ה' : 'ביקש/ה תיקון'),
       ` · ${itemText(a.item, a.shoot_round)} · סבב ${a.round} · ${a.signer_name} · ${when(a.at)}`,
       a.note ? h('span', { class: 'st-note' }, a.note) : null,
       h('details', {}, h('summary', {}, 'הנוסח שהלקוח ראה'), h('p', { class: 'st-note' }, a.wording)))))
-      : emptyRow({ text: 'עוד אין אישורים או בקשות.' }));
+      : h('p', { class: 'muted st-none' }, 'עוד אין.'));
 }
 
 // ── Satisfaction (decision 28) ────────────
 function surveysPart(client, { toast, reload }) {
   const list = cache.surveys;
-  const answered = new Set(list.map((s) => s.kind));
+  return h('div', { class: 'st-surveys k-card' },
+    cardHead({ icon: 'smile', tone: 'orange', title: 'שביעות רצון', count: list.length || null }),
+    list.length ? h('ul', { class: 'st-list' }, list.map((s) => h('li', {},
+      h('strong', {}, `${SURVEY_TITLES[s.kind]}: ${s.score} מתוך ${s.kind === 'nps' ? 10 : 5}`),
+      severeScore(s.kind, s.score) ? h('span', { class: 'st-low' }, ' · נמוך מאוד: ליאור והבעלים') : lowScore(s.kind, s.score) ? h('span', { class: 'st-low' }, ' · נמוך: ליאור מתקשר') : null,
+      ` · ${s.respondent} · ${when(s.at)} · ${s.source === 'page' ? 'בדף המצב' : 'מהקבוצה'}`)))
+      : h('p', { class: 'muted st-none' }, 'עוד אין תשובות.'),
+    recordPart(client, { toast, reload }));
+}
+// Recording an answer the client gave in the group (null when every question was answered).
+function recordPart(client, { toast, reload }) {
+  const answered = new Set(cache.surveys.map((s) => s.kind));
   const open = Object.keys(SURVEY_TITLES).filter((k) => !answered.has(k));
+  if (!open.length) return null;
   const kindSel = h('select', { class: 'input', id: 'st-sv-kind' }, open.map((k) => h('option', { value: k }, SURVEY_TITLES[k])));
   const score = h('input', { class: 'input', id: 'st-sv-score', type: 'number', inputmode: 'numeric', min: '0', max: '10', required: true });
   const who = h('input', { class: 'input', id: 'st-sv-name', autocomplete: 'off', value: client.name || '', maxlength: '120' });
@@ -199,18 +235,11 @@ function surveysPart(client, { toast, reload }) {
     toast?.(lowScore(kind, n) ? 'נרשם. נפתחה לליאור משימה להתקשר ללקוח.' : 'נרשם. תודה!');
     await reload();
   };
-  return h('div', { class: 'st-surveys k-card' },
-    cardHead({ icon: 'smile', tone: 'orange', title: 'שביעות רצון', count: list.length }),
-    list.length ? h('ul', { class: 'st-list' }, list.map((s) => h('li', {},
-      h('strong', {}, `${SURVEY_TITLES[s.kind]}: ${s.score} מתוך ${s.kind === 'nps' ? 10 : 5}`),
-      severeScore(s.kind, s.score) ? h('span', { class: 'st-low' }, ' · נמוך מאוד: ליאור והבעלים') : lowScore(s.kind, s.score) ? h('span', { class: 'st-low' }, ' · נמוך: ליאור מתקשר') : null,
-      ` · ${s.respondent} · ${when(s.at)} · ${s.source === 'page' ? 'בדף המצב' : 'מהקבוצה'}`)))
-      : emptyRow({ icon: 'chat', text: 'עוד אין תשובות.' }),
-    open.length ? h('details', { class: 'st-record' }, h('summary', { class: 'k-with-ico' }, icon('chat', { size: 16 }), 'רישום תשובה שהלקוח נתן בקבוצה'),
-      h('form', { class: 'st-form', novalidate: true, onsubmit: record },
-        h('div', { class: 'field' }, h('label', { for: 'st-sv-kind' }, 'השאלה'), kindSel),
-        h('div', { class: 'field' }, h('label', { for: 'st-sv-score' }, 'הציון'), score),
-        h('div', { class: 'field' }, h('label', { for: 'st-sv-name' }, 'מי ענה'), who),
-        err,
-        h('button', { type: 'submit', class: 'btn btn-sm' }, 'רישום'))) : null);
+  return h('details', { class: 'st-record' }, h('summary', { class: 'k-with-ico' }, icon('chat', { size: 16 }), 'רישום תשובה שהלקוח נתן בקבוצה'),
+    h('form', { class: 'st-form', novalidate: true, onsubmit: record },
+      h('div', { class: 'field' }, h('label', { for: 'st-sv-kind' }, 'השאלה'), kindSel),
+      h('div', { class: 'field' }, h('label', { for: 'st-sv-score' }, 'הציון'), score),
+      h('div', { class: 'field' }, h('label', { for: 'st-sv-name' }, 'מי ענה'), who),
+      err,
+      h('button', { type: 'submit', class: 'btn btn-sm' }, 'רישום')));
 }

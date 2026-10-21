@@ -30,6 +30,8 @@
   <link rel="stylesheet" href="app/styles/protocol.css">
   <link rel="stylesheet" href="app/styles/kit.css">
   <link rel="stylesheet" href="app/styles/calendar-page.css">
+  <link rel="stylesheet" href="app/styles/gcal.css">
+  <link rel="stylesheet" href="app/styles/availability.css">
   <link rel="stylesheet" href="app/styles/shell.css">
   <!-- Written at publish (scripts/build-pages.mjs): what this page will load, asked for together. -->
   <link rel="preload" as="font" type="font/woff2" href="app/fonts/heebo-hebrew.woff2" crossorigin>
@@ -42,6 +44,8 @@
   <link rel="modulepreload" href="app/shell-rules.js">
   <link rel="modulepreload" href="app/tz.js">
   <link rel="modulepreload" href="app/kit.js">
+  <link rel="modulepreload" href="app/gcal-page.js">
+  <link rel="modulepreload" href="app/new-meeting-logic.js">
   <link rel="modulepreload" href="app/supa.js">
   <link rel="modulepreload" href="app/landing-data.js">
   <link rel="modulepreload" href="app/session-store.js">
@@ -59,6 +63,8 @@
   <link rel="modulepreload" href="app/calendar-feed.js">
   <link rel="modulepreload" href="app/calendar.js">
   <link rel="modulepreload" href="app/team-rules.js">
+  <link rel="modulepreload" href="app/gcal-logic.js">
+  <link rel="modulepreload" href="app/date-set.js">
   <link rel="modulepreload" href="app/vendor/supabase.js">
   <link rel="modulepreload" href="app/data-cache.js">
   <link rel="modulepreload" href="app/feel.js">
@@ -69,6 +75,8 @@
   <link rel="modulepreload" href="app/messages-logic.js">
   <link rel="modulepreload" href="app/shell-state.js">
   <link rel="modulepreload" href="app/ics.js">
+  <link rel="modulepreload" href="app/metricool-logic.js">
+  <link rel="modulepreload" href="app/owner-data.js">
   <link rel="modulepreload" href="app/legal.js">
   <link rel="modulepreload" href="app/access-nudge.js">
 </head>
@@ -107,6 +115,8 @@
           <h1>יומן</h1>
           <p id="cp-lede">פגישות האפיון וימי הצילום.</p>
         </div>
+        <!-- "פגישה חדשה": the office and the owners (app/new-meeting.js). -->
+        <button type="button" class="btn btn-primary cp-new" id="cp-new" hidden>פגישה חדשה</button>
       </div>
       <!-- The view (week / month) and the way through it (app/calendar-page.js). -->
       <div class="cp-bar" id="cp-bar">
@@ -122,6 +132,8 @@
         </div>
       </div>
       <section aria-labelledby="cp-title" id="cp-view"></section>
+      <!-- "היומן שלי ב־Google": the person's own Google Calendar on this page (app/gcal-page.js). -->
+      <section class="gc-card" id="cp-google" aria-label="היומן שלי ב־Google" hidden></section>
     </div>
 
     <p class="state" id="state" role="status"></p>

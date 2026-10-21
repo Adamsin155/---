@@ -218,3 +218,14 @@ export const LINK_DAYS = 180;
 export const shareUrl = (base, token) => `${new URL('scripts-view.html', base).href}#t=${encodeURIComponent(token)}`;
 export const shareMessage = (client, url) =>
   `היי, אלה התסריטים ליום הצילום של ${client?.business || client?.name || ''}:\n${url}\nאפשר לפתוח מהטלפון, עם קישורי ההשראה לכל תסריט.`;
+
+// ── The list of rows (the owner's page review, 20.10.2026) ──
+// One short row per script: its title, else the first words of its text, else "עוד לא נכתב".
+export function rowTitle(s, max = 60) {
+  const t = clean(s?.title) || clean(String(s?.body || '').split('\n').find((l) => clean(l)));
+  if (!t) return 'עוד לא נכתב';
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+// "סימון כל הכתובים כמוכן": the drafts that have words in them. An empty script stays a
+// draft, and "אושר" is never touched.
+export const readyTargets = (slots) => slots.filter((s) => (s.status || 'draft') === 'draft' && hasText(s));

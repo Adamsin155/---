@@ -22,6 +22,7 @@ import {
 } from './protocol-ui.js';
 import {
   urgentState, parseReport, exceptionPath, PATH, decisionRow, linkedTitle, pausedSinceYesterday, decisionNote, withEditor, campaignCheck,
+  splitLists, lateProc,
 } from './decisions-logic.js';
 import { editorLoad, proposeEditor, loadText, eligibleEditors } from './qa-logic.js';
 import { SHIFT_KEY, shiftNote, readShift, DECISION_KEY, accessFixedKey, accessFixNote, readAccessFix, readJson } from './office-marks.js';
@@ -121,7 +122,8 @@ function render() {
   const broken = (access || []).filter((a) => a.status === 'broken' && clientOf(a.client_id) && live(clientOf(a.client_id)));
   const paused = pausedSinceYesterday({ clients, stateOf, checks, now });
   const cc = campaignCheck(reviews, now);
-  const list = listItems(now);
+  const lists = splitLists(listItems(now), lateOwnersOf);
+  const list = lists.decide;
   const openReq = (requests || []).filter((r) => !r.decided_at);
   const env = { now, clients: clients.filter(live), checksOf: (c) => checks[c.id] || {}, stateOf };
   const shoot = liorShoot(env);
@@ -130,8 +132,8 @@ function render() {
       ' עד מסירת הכונן החריגות עוברות לאופיר, ושאר ההודעות מחכות לסיכום אחרי היום (החלטה 8).') : null,
     decisions === null ? h('p', { class: 'of-banner is-warn', role: 'status' }, 'שמירת ההחלטות עוד לא זמינה במסד הנתונים (מיגרציה 20260930150000). אפשר לסגור חריגות, בלי המסלול.') : null);
   fill($('dc-jump'), h('ul', { class: 'chips-row' },
-    ...[['ex-h', 'חריגות', exceptions.length], ['ur-h', 'דחוף', urgent.length], access !== null ? ['ac-h', 'גישות', broken.length] : null, ['pz-h', 'עריכה עצורה', paused.length],
-      cc.show ? ['cp-h', 'קמפיינים', cc.done ? 0 : 1] : null, ['ls-h', 'רשימות', list.length], ['cq-h', 'בקשות שינוי', openReq.length]].filter(Boolean)
+    ...[['ex-h', 'חריגות', exceptions.length], ['cq-h', 'בקשות שינוי', openReq.length], ['ur-h', 'דחוף', urgent.length], access !== null ? ['ac-h', 'גישות', broken.length] : null, ['pz-h', 'עריכה עצורה', paused.length],
+      cc.show ? ['cp-h', 'קמפיינים', cc.done ? 0 : 1] : null, ['ls-h', 'רשימות', list.length]].filter(Boolean)
       .map(([id, label, n]) => h('li', {}, h('button', {
         type: 'button', class: 'chip', onclick: () => { const el = $(id); el.scrollIntoView({ block: 'start' }); el.focus({ preventScroll: true }); },
       }, label, h('span', { class: 'n' }, String(n)))))));
@@ -150,7 +152,8 @@ function render() {
   $('ls-n').textContent = String(list.length);
   fill($('ls-list'), ...(list.length ? list.map((r) => h('li', { class: 'of-card' },
     h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: r.url }, r.title), landingTag(clientOf(r.clientId)), r.overdue && clientOf(r.clientId)?.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
-    r.body ? h('p', { class: 'of-line' }, r.body) : null)) : [emptyItem('אין כרגע הסלמות ברשימות.')]));
+    r.body ? h('p', { class: 'of-line' }, r.body) : null)) : [emptyItem('אין כרגע הסלמות שמחכות להחלטה שלך.')]));
+  renderListRest(lists);
   // Long queues are short on the screen: the first five and "הצג עוד" (the count stays whole).
   for (const id of ['ex-list', 'ur-list', 'ac-list', 'pz-list', 'ls-list']) capList($(id), 5, `dc:${id}`);
   $('cq-n').textContent = String(openReq.length);
@@ -167,6 +170,27 @@ function listItems(now) {
   return candidates(env).filter((r) => r.person === 'lior' && r.list && !['exception', 'paused'].includes(r.rule))
     .sort((a, b) => a.at - b.at)
     .filter((r) => { const k = `${r.rule}:${r.clientId}:${r.title}`; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+// The owners of a late item of the lists (its process, as the engine saw it), for splitLists.
+function lateOwnersOf(r) {
+  const c = clientOf(r.clientId);
+  const procId = lateProc(r.key);
+  const s = c && procId ? stateOf(c).states.find((x) => x.proc.id === procId) : null;
+  return s ? (s.claim ? [s.claim.person] : s.proc.owners) : null;
+}
+// Under the cards (the owner's page review, 20.10.2026): Lior's own late items are a line with a
+// link to his "באיחור" tab; other people's late items and Ofir's quality-check queue are one
+// folded, counted line. Nothing is lost: it opens to the same items.
+function renderListRest({ mine, others }) {
+  fill($('ls-rest'),
+    others.length ? h('details', { class: 'ls-others', id: 'ls-others' },
+      h('summary', {}, h('span', {}, `באיחור אצל אחרים ובבקרת האיכות של אופיר`), h('span', { class: 'n' }, String(others.length))),
+      h('ul', { class: 'ls-mini' }, ...others.map((r) => h('li', {}, h('a', { href: r.url }, r.title))))) : null,
+    mine.length ? h('p', { class: 'of-line ls-mine', id: 'ls-mine' },
+      mine.length === 1 ? 'פריט אחד שלך באיחור, ' : `${mine.length} פריטים שלך באיחור, `,
+      h('a', { href: 'clients.html#late' }, 'בלשונית ״באיחור״')) : null);
+  $('ls-rest').hidden = !others.length && !mine.length;
 }
 
 // ── Exceptions: the fixed path ──────────────

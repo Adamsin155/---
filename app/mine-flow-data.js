@@ -9,6 +9,7 @@ import { loadAccessRows, loadChangeRequests } from './office-data.js';
 import { loadMessagesSince } from './owner-data.js';
 import { askOf } from './availability-logic.js';
 import { atTimeIL } from './tz.js';
+import { problemWindow, metricoolProblems } from './mine-metricool.js';
 
 const LOADERS = {
   // Lior: the logins (status only is used) and Ofir's change requests.
@@ -34,6 +35,8 @@ const LOADERS = {
     return { months: data || [] };
   },
   // Ofir: is Lior on a shoot day now (the engine's own rule; loaded only for him).
+  // Ilai: the Metricool problems (app/mine-metricool.js).
+  metricool: ({ now }) => loadMetricoolProblems(now),
   liorShoot: async ({ now, clients, checks, stateOf }) => {
     const { liorShoot } = await import('./reminder-engine.js');
     const live = clients.filter((c) => c.status === 'active' || c.status === 'ending');
@@ -45,4 +48,27 @@ const LOADERS = {
 export async function loadFlowExtra(needs, ctx) {
   const got = await Promise.allSettled(needs.map((n) => LOADERS[n](ctx)));
   return Object.fromEntries(needs.map((n, i) => [n, got[i].status === 'fulfilled' ? got[i].value : null]));
+}
+
+// Ilai's Metricool line (app/mine-metricool.js; the owner, 20.10.2026): the connected
+// clients and the Gantt's posts from two weeks back to the end of next week. null when it
+// cannot be read (before the Metricool columns, or not allowed): no line then.
+export async function loadMetricoolProblems(now = new Date()) {
+  try {
+    const win = problemWindow(now);
+    const [cl, gt] = await Promise.all([
+      readClients(),
+      supabase.from('client_gantt').select('client_id, kind, day, time_il, state').gte('day', win.from).lte('day', win.to).limit(10000),
+    ]);
+    if (cl.error || gt.error) return null;
+    return metricoolProblems({ clients: cl.data || [], rows: gt.data || [], now });
+  } catch {
+    return null;
+  }
+}
+// Every client with its brand columns; without "metricool_none" before its migration.
+async function readClients() {
+  const read = (cols) => supabase.from('clients').select(cols).neq('status', 'ended').limit(5000);
+  const r = await read('id, status, archived_at, metricool_blog_id, metricool_none');
+  return r.error ? read('id, status, archived_at, metricool_blog_id') : r;
 }
