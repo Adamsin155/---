@@ -16,8 +16,12 @@
 // Run: npx http-server -p 8080 -s -c-1 . &  then  node tests/all-in-mine-e2e.mjs
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
+
 import { NOW, SUPA, emailOf, flowWorld, makeFlowFake, COUNTS, FOLLOWUP_CLIENTS, cid } from './flow-world.mjs';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
+
+// qa.html since 20.10.2026 (the owner's review): each editor's load and the clients in landing waiting for an editor are folds; opened here to read them.
+const openQaFolds = (p) => p.evaluate(() => { for (const d of document.querySelectorAll('#load-list details, #assign-list details')) d.open = true; });
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const PHONE = { width: 390, height: 844 };
@@ -184,6 +188,9 @@ try {
     await page.goto(`${BASE}qa.html#assign-h`);
     await page.waitForSelector('#of-page:not([hidden]) #assign-list li.of-card');
     await settle(page);
+    await openQaFolds(page);
+    // The ones in landing wait in one folded line "בקליטה (N)", after the ones with a clock (20.10.2026).
+    assert.match(await page.locator('#as-landing-fold > summary').innerText(), new RegExp(`בקליטה \\(${COUNTS.assign.landing}\\)`));
     assert.equal(await page.locator('#assign-list li.of-card').count(), COUNTS.assign.clock + COUNTS.assign.landing);
     const old = page.locator('#assign-list li.of-card:has(.tag-landing)');
     assert.equal(await old.count(), COUNTS.assign.landing);

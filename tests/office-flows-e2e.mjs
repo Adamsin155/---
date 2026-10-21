@@ -20,10 +20,14 @@
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
+
 import { randomUUID } from 'node:crypto';
 import { applicableProcesses } from '../app/protocol-logic.js';
 import { buildEnv, candidates } from '../app/reminder-engine.js';
 import { withClientColumns } from './fake-clients.mjs';
+
+// qa.html since 20.10.2026 (the owner's review): each editor's load and the clients in landing waiting for an editor are folds; opened here to read them.
+const openQaFolds = (p) => p.evaluate(() => { for (const d of document.querySelectorAll('#load-list details, #assign-list details')) d.open = true; });
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -341,6 +345,7 @@ await step('Ofir\'s queue, one tap from "המשימות שלי": what waits for 
   assert.match(await ofir.getAttribute('#char-list a[href^="https://waze.com"]', 'href'), /waze\.com\/ul\?q=/);
   assert.match(await ofir.locator('#assign-list').innerText(), /סטודיו נטלי[^]*ניראל מסומנת מראש/);
   // Nadia: Ron's videos are with Ofir (day 2 of 4, closing); Shemesh is late (day 6 of 4). Yariv's paused job.
+  await openQaFolds(ofir);
   assert.match(await ofir.locator('#load-list').innerText(), /נדיה\s*2 לקוחות בעריכה[^]*גלידה שמש · יום 6 מתוך 4[^]*מספרת רון · יום 2 מתוך 4 · תיקונים וסגירה/);
   assert.match(await ofir.locator('#load-list').innerText(), /יריב\s*לקוח אחד בעריכה · אחת עצורה\s*סטודיו פז · יום 2 מתוך 3 עצורה/);
   await shot(ofir, 'office-01-qa');
@@ -457,6 +462,7 @@ await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the 
 await step('"החלפת עורך" from the load list: the same dialog and rules; on time the editing days start over, and the new editor is told', async () => {
   // Natali's shoot, assigned to Nadia a moment ago: back to Nirel.
   const before = checkOf(N, 'p22a.assigned').at;
+  await openQaFolds(ofir);
   const nadiaCard = ofir.locator('#load-list .of-editor', { hasText: 'נדיה' });
   assert.match(await nadiaCard.innerText(), /סטודיו נטלי · שויך היום[^]*החלפת עורך/);
   await ofir.click(`#sw-${N.id}`);
@@ -495,6 +501,7 @@ await step('"החלפת עורך" from the load list: the same dialog and rules;
   assert.match(await ofir.locator('#handoff').innerText(), /עורך שויך · ניראל[^]*לשלוח לניראל בוואטסאפ/);
   await ofir.click('#handoff-close');
   assert.equal(db.client_tasks.filter((t) => t.client_id === N.id && t.title.startsWith('פתיחת תיקייה')).length, 1);
+  await openQaFolds(ofir);
   assert.match(await ofir.locator('#load-list .of-editor', { hasText: 'ניראל' }).innerText(), /סטודיו נטלי · שויך היום/);
   // The reminder engine: the notice "לקוח חדש בעריכה אצלך" is now Nirel's, not Nadia's.
   const byClient = {};
@@ -535,8 +542,9 @@ await step('a swap never resets a late job silently: the deadlines stay unless O
   // No WhatsApp is offered here: the handoff of an assignment (app/handoffs.js) is for an editing that has not reached Ofir yet.
   await ofir.waitForFunction(() => !document.querySelector('dialog[open]'));
   assert.equal(await ofir.isHidden('#handoff'), true);
+  await openQaFolds(ofir);
   assert.match(await ofir.locator('#load-list .of-editor', { hasText: 'אנה' }).innerText(), /גלידה שמש · יום 6 מתוך 4/);
-  assert.equal(await ofir.locator('#load-list .of-editor', { hasText: 'אנה' }).locator('.late').count(), 1);
+  assert.equal(await ofir.locator('#load-list .of-editor', { hasText: 'אנה' }).locator('.of-jobs .late').count(), 1); // the job's own line (the head says "אחת באיחור" too, 20.10.2026)
   await shot(ofir, 'office-03c-swapped');
 });
 
@@ -862,6 +870,8 @@ await step('a 390px phone: the stuck row (three ways out, the reason field) and 
   assert.deepEqual(await unlabeled(page, `#${id}`), []);
   if (OUT) await row.screenshot({ path: `${OUT}/office-08-phone-390-stuck-row.png` });
   await page.goto(`${BASE}qa.html`);
+  await page.waitForSelector('#load-list .of-editor');
+  await openQaFolds(page);
   await page.waitForSelector('#load-list .sw-btn');
   await page.locator('#load-list .sw-btn').first().click();
   await page.waitForSelector('#dlg-assign[open]');

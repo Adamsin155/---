@@ -12,7 +12,7 @@ import { CYCLE_FROM, monthItems, SPREAD_ITEMS, spreadMonth } from '../app/year-l
 import { HOLIDAYS, EREV } from '../app/holidays.js';
 import { dateIL } from '../app/tz.js';
 import {
-  fileTitle, STATUS_TEXT, CLIENT_STATUS_TEXT, clientStatus, nextState, STATES, toSchedule, weekOf, clientSummary, bySummary, weekAgenda, nextPost,
+  fileTitle, STATUS_TEXT, CLIENT_STATUS_TEXT, clientStatus, nextState, STATES, toSchedule, weekOf, clientSummary, bySummary, weekAgenda, nextPost, problemRank, isProblem, INDEX_FILTERS, weekProblems,
 } from '../app/gantt-logic.js';
 
 const IL = (y, m, d, h = 10, mi = 0) => dateIL(y, m, d, h, mi).toISOString();
@@ -320,8 +320,9 @@ test('the index: a client\'s line (package month, the month\'s counts, the next 
   const sz = clientSummary(z, null, now);
   assert.deepEqual([sz.has, sz.month, sz.posts, sz.next], [false, 1, 0, null]);
   assert.equal(clientSummary({ id: 'n', name: 'x', deal_at: null }, null, now).month, 0);
-  // Missing first, then the ones with a Gantt by their next post, then the ones without.
-  assert.deepEqual([sz, sb, sa].sort((p, q) => bySummary(p, q)).map((s) => s.client.id), ['a', 'b', 'z']);
+  // Problems first (the owner's request of 20.10.2026): missing, then a client with no
+  // Gantt yet (creating it is Ilai's, process 9), then the rest by their next post.
+  assert.deepEqual([sz, sb, sa].sort((p, q) => bySummary(p, q)).map((s) => s.client.id), ['a', 'z', 'b']);
   assert.deepEqual([sz, sb, sa].sort((p, q) => bySummary(p, q, 'name')).map((s) => s.client.id), ['b', 'z', 'a']);
   // The week (Sunday 3.5 to Saturday 9.5): posts only, by day and time, with their status.
   const week = weekAgenda([a, b, z], new Map([['a', rowsA], ['b', [e('x', '2026-05-06', '19:00', 'video', 'scheduled')]]]), now);
@@ -332,6 +333,43 @@ test('the index: a client\'s line (package month, the month\'s counts, the next 
     ['2026-05-07', ['a:v4:scheduled']],
   ]);
   assert.equal(nextPost(rowsA, now).key, 'g1');
+});
+
+test('the index, problems first (20.10.2026): failed, nothing scheduled ahead, not connected, and the problems of the week', () => {
+  const now = new Date(IL(2026, 5, 5, 10, 0)); // Tuesday
+  const e = (key, day, time_il, kind = 'video', state = 'planned') => ({ key, day, time_il, kind, state });
+  const mk = (id, business) => ({ id, name: id, business, deal_at: IL(2026, 3, 15), contract_end: '2027-03-15', deliverables: FULL });
+  // Connected, scheduled on 9.5 (inside the 7 days): fine.
+  const ok = clientSummary(mk('ok', 'א'), [e('s', '2026-05-09', '19:00', 'video', 'scheduled')], now, { plan: true, blogId: 7 });
+  assert.deepEqual([ok.ahead, ok.nothingAhead, ok.notConnected, ok.failed], [1, false, false, 0]);
+  // Connected, the next scheduled post only on 20.5: nothing ahead, and it sorts before the fine one.
+  const far = clientSummary(mk('far', 'ב'), [e('s', '2026-05-20', '19:00', 'video', 'scheduled')], now, { plan: true, blogId: 8 });
+  assert.deepEqual([far.ahead, far.nothingAhead], [0, true]);
+  // A failed post (any day loaded): first of all.
+  const bad = clientSummary(mk('bad', 'ג'), [e('f', '2026-05-09', '19:00', 'video', 'error'), e('s', '2026-05-08', '19:00', 'video', 'scheduled')], now, { plan: true, blogId: 9 });
+  assert.equal(bad.failed, 1);
+  // Not connected, not marked: the filter; marked "no brand": not; unknown (no columns): neither.
+  const off = clientSummary(mk('off', 'ד'), [], now, { plan: true, blogId: null });
+  const none = clientSummary(mk('none', 'ה'), [], now, { plan: true, blogId: null, none: true });
+  const unknown = clientSummary(mk('u', 'ו'), [], now, { plan: true });
+  assert.deepEqual([off.notConnected, none.notConnected, unknown.notConnected, off.nothingAhead, unknown.connected], [true, false, false, false, undefined]);
+  // Metricool's posts alone are not a Gantt: no plan.
+  const mc = clientSummary(mk('mc', 'ז'), [{ ...e('mc.1', '2026-05-09', '19:00', 'custom', 'scheduled'), key: 'mc.1' }], now, { plan: false, blogId: 10 });
+  assert.deepEqual([mc.has, mc.plan, problemRank(mc)], [true, false, 2]);
+  const sorted = [ok, off, mc, far, bad].sort((p, q) => bySummary(p, q)).map((s) => s.client.id);
+  assert.deepEqual(sorted.slice(0, 3), ['bad', 'far', 'mc']);
+  assert.deepEqual([ok, off].map(isProblem), [false, false]);
+  // Nothing ahead sorts first among the quiet ones too (it used to be '9999', last).
+  assert.deepEqual(sorted.slice(3), ['off', 'ok']);
+  assert.deepEqual(Object.keys(INDEX_FILTERS), ['failed', 'nothing-ahead', 'not-connected']);
+  assert.deepEqual([ok, far, bad, off, none].filter(INDEX_FILTERS.failed).map((s) => s.client.id), ['bad']);
+  assert.deepEqual([ok, far, bad, off, none].filter(INDEX_FILTERS['nothing-ahead']).map((s) => s.client.id), ['far']);
+  assert.deepEqual([ok, far, bad, off, none].filter(INDEX_FILTERS['not-connected']).map((s) => s.client.id), ['off']);
+  // The week: only what needs someone (failed, missing, today's post not scheduled).
+  const rows = [e('m', '2026-05-04', '19:00'), e('t', '2026-05-05', '19:00'), e('ts', '2026-05-05', '20:00', 'video', 'scheduled'), e('x', '2026-05-06', '19:00', 'video', 'error'), e('p', '2026-05-07', '19:00')];
+  const week = weekAgenda([mk('a', 'א')], new Map([['a', rows]]), now);
+  assert.deepEqual(weekProblems(week).map((d) => [d.day, d.items.map((i) => `${i.entry.key}:${i.status}`)]), [
+    ['2026-05-04', ['m:missing']], ['2026-05-05', ['t:today']], ['2026-05-06', ['x:error']]]);
 });
 
 test('links: only https is shown or opened', () => {

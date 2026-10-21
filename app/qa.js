@@ -118,10 +118,13 @@ function render() {
   const fixing = qaFixing({ clients, stateOf, checks });
   const chars = charsToday({ clients, stateOf, now });
   const waiting = awaitingEditor({ clients, stateOf, checks });
+  // Clients still in landing wait for Irit to record the real editor: one folded line (20.10.2026).
+  const timed = waiting.filter((a) => !a.landing);
+  const landing = waiting.filter((a) => a.landing);
   const load = editorLoad({ clients, stateOf, checks, tasks, now });
   renderBanners(ms, now);
   fill($('of-jump'), h('ul', { class: 'chips-row' },
-    ...[['qa-h', 'בקרה', queue.length], ['char-h', 'אפיונים', chars.length], ['assign-h', 'שיוך עורך', waiting.length], ['load-h', 'עומס', null]]
+    ...[['qa-h', 'בקרה', queue.length], ['char-h', 'אפיונים', chars.length], ['assign-h', 'שיוך עורך', timed.length], ['load-h', 'עומס', null]]
       .map(([id, label, n]) => h('li', {}, h('button', {
         type: 'button', class: 'chip', onclick: () => { const el = $(id); el.scrollIntoView({ block: 'start' }); el.focus({ preventScroll: true }); },
       }, label, n === null ? null : h('span', { class: 'n' }, String(n)))))));
@@ -138,8 +141,11 @@ function render() {
         x.open.due ? h('span', { class: x.open.due < now && x.client.landing !== true ? 'late' : '' }, ` · עד ${formatWhen(x.open.due, now)}`) : null))))) : null);
   $('char-n').textContent = String(chars.length);
   fill($('char-list'), ...(chars.length ? chars.map((x) => charCard(x, now)) : [emptyItem('אין היום אפיונים שלך.', { icon: 'target', tone: 'orange' })]));
-  $('assign-n').textContent = String(waiting.length);
-  fill($('assign-list'), ...(waiting.length ? waiting.map((a) => assignCard(a, load, now)) : [emptyItem('אין לקוחות שמחכים לשיוך עורך.', { icon: 'scissors', tone: 'blue' })]));
+  $('assign-n').textContent = String(timed.length);
+  fill($('assign-list'), ...(timed.length ? timed.map((a) => assignCard(a, load, now)) : landing.length ? [] : [emptyItem('אין לקוחות שמחכים לשיוך עורך.', { icon: 'scissors', tone: 'blue' })]),
+    landing.length ? h('li', { class: 'of-landing-fold' }, h('details', { id: 'as-landing-fold', open: openFolds.has('landing') ? true : null, ontoggle: (e) => keepFold('landing', e.currentTarget.open) },
+      h('summary', {}, h('strong', {}, `בקליטה (${landing.length})`), h('span', { class: 'muted' }, ' · עירית רושמת את העורך האמיתי')),
+      h('ul', { class: 'of-list' }, ...landing.map((a) => assignCard(a, load, now))))) : null);
   fill($('load-list'), ...EDITORS.map((k) => loadCard(load[k], now)));
 }
 
@@ -293,11 +299,19 @@ function assignCard(a, load, now) {
 // Each job can change hands from here ("החלפת עורך"): the notice of an automatic
 // assignment says so, and this is where Ofir looks for it.
 const swapId = (j) => `sw-${j.client.id}${j.n ? `-r${j.n}` : ''}`;
+// Folds the reader opened stay open across the page's refresh (the load per editor, "בקליטה").
+const openFolds = new Set();
+const keepFold = (key, open) => { if (open) openFolds.add(key); else openFolds.delete(key); };
+// "עומס עורכים" is one line per editor (20.10.2026): the name, the load and what is late;
+// the clients (and "החלפת עורך") open under it. The assign window keeps its recommendation.
 function loadCard(l, now) {
-  return h('li', { class: 'of-card of-editor' },
-    h('div', { class: 'of-head' }, personChip(l.editor), l.editor === 'nirel' ? h('span', { class: 'tag' }, 'נטלי בלבד') : null,
-      h('span', { class: 'of-line' }, loadText(l))),
-    l.jobs.length ? h('ul', { class: 'of-jobs' }, ...l.jobs.map((j) => h('li', {},
+  const late = l.jobs.filter((j) => j.dueAt && !j.landing && j.dueAt < now).length;
+  const head = [personChip(l.editor), l.editor === 'nirel' ? h('span', { class: 'tag' }, 'נטלי בלבד') : null,
+    h('span', { class: 'of-line' }, loadText(l)), late ? h('span', { class: 'late of-load-late' }, ` · ${late === 1 ? 'אחת באיחור' : `${late} באיחור`}`) : null];
+  if (!l.jobs.length) return h('li', { class: 'of-card of-editor' }, h('div', { class: 'of-head' }, ...head));
+  return h('li', { class: 'of-card of-editor' }, h('details', { class: 'of-load-fold', open: openFolds.has(l.editor) ? true : null, ontoggle: (e) => keepFold(l.editor, e.currentTarget.open) },
+    h('summary', { class: 'of-head' }, ...head),
+    h('ul', { class: 'of-jobs' }, ...l.jobs.map((j) => h('li', {},
       h('a', { href: clientUrl(j.client.id, `${j.pre ? j.pre.replace('.', '-') : ''}p22`) }, j.client.name, j.n ? ` · סבב ${j.n}` : ''),
       j.landing ? [' ', landingTag(j.client)] : ` · ${j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
       j.stage === 'closing' ? ' · תיקונים וסגירה' : '',
@@ -307,7 +321,7 @@ function loadCard(l, now) {
       h('button', {
         type: 'button', class: 'btn-text sw-btn', id: swapId(j),
         'aria-label': `החלפת עורך: ${j.client.name}${j.n ? `, סבב ${j.n}` : ''} (עכשיו ${PEOPLE[l.editor].name})`, onclick: () => openSwap(l.editor, j),
-      }, 'החלפת עורך')))) : null);
+      }, 'החלפת עורך'))))));
 }
 
 // ── Dialogs ─────────────────────────────────
@@ -748,7 +762,7 @@ setInterval(() => {
 // The kit (docs/ops.md, section 52): each section's heading and each card take an icon square.
 dress($('app'), [['#qa-h', 'shield', 'purple', 'md'], ['#char-h', 'target', 'orange', 'md'], ['#assign-h', 'scissors', 'blue', 'md'], ['#load-h', 'chart', 'teal', 'md'],
   ['#approvals-h', 'file', 'blue'], ['#myq-h', 'question', 'purple'], ['#na-h', 'lock', 'navy'],
-  ['#qa-list .of-head, #qa-fixing .of-head', 'video', 'purple', 'md'], ['#assign-list .of-head:not(.has-leaf)', 'scissors', 'blue', 'md'], ['#load-list .of-head', 'user', 'teal', 'md']]);
+  ['#qa-list .of-head, #qa-fixing .of-head', 'video', 'purple', 'md'], ['#assign-list .of-head:not(.has-leaf)', 'scissors', 'blue', 'md'], ['#load-list .of-head', 'user', 'teal']]);
 
 // The two dialogs' heads (their titles are rewritten on every opening).
 dress($('dlg-qa'), [['.dlg-head h2', 'shield', 'purple', 'md']]);
