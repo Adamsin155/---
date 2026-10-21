@@ -328,7 +328,8 @@ await step('Lior lands on "המשימות שלי"; "החלטות" is in his bar:
 await step('Ofir lands on "המשימות שלי"; the quality-control queue is in his bar; nothing is repeated in the head; his pass is short', async () => {
   const { page } = await open('ofir');
   await page.waitForSelector('#profile-switch[data-to="manager"]');
-  await page.waitForSelector('#mine-list .wproc.wc');
+  // His late cards are behind the "באיחור" line (the owner, 20.10.2026): the list is drawn.
+  await page.waitForSelector('#mine-list .wgroup');
   assert.match(page.url(), /clients\.html(#mine)?$/);
   // Five in his own menu since the calendar (15.10.2026): his pass and the calendar are behind "עוד".
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'עוד']);
@@ -350,10 +351,11 @@ await step('Ofir lands on "המשימות שלי"; the quality-control queue is 
   // (9.10.2026: each of the six sections opens with an icon square, docs/ops.md section 52: 8,400 became 8,600.)
   assert.ok(ph < 8600, `the pass is ${ph}px tall (it was about 10,300)`);
   await page.goto(`${BASE}clients.html#mine`);
-  await page.waitForSelector('#mine-list .wproc.wc');
+  await page.waitForSelector('#mine-list .wgroup');
   await settle(page);
   await tidy(page, 'ofir mine');
-  await shortList(page, 'ofir mine');
+  // All his cards are late here: one line to the "באיחור" tab (the owner, 20.10.2026), which has them.
+  assert.equal(await page.getAttribute('#late-line', 'href'), '#late');
   assert.ok(await heightOf(page) < 4000);
   await shot(page, 'ofir-02-mine-short');
 });
@@ -372,11 +374,10 @@ await step('Ilai stays on "המשימות שלי": his cards first, the draft mo
   // The draft monthly cycle waits folded; his cards are the first thing in the list.
   assert.equal(await page.locator('#my-months details.mc-fold').getAttribute('open'), null);
   assert.ok(await page.locator('#mine-list .g-ilai .il-list > li:visible').count() <= 6);
-  // "לקוחות שלא מחוברים ל־Metricool" (section 33): none of this office's 21 clients has a brand
-  // yet, so the card shows its first eight (about 650px, gone once they are connected).
-  // One line until opened: the rows are not on the page, and his work stays first.
-  assert.equal(await page.locator('#metricool-card .mcn-row').count(), 0);
-  assert.equal(await page.getAttribute('#mcn-toggle', 'aria-expanded'), 'false');
+  // "לקוחות שלא מחוברים ל־Metricool" moved to the Gantt index (the owner, 20.10.2026): here one
+  // quiet line to it.
+  assert.equal(await page.locator('#metricool-card:visible').count(), 0);
+  assert.equal(await page.getAttribute('#flow-metricool-connect', 'href'), 'gantt.html#not-connected');
   const tall = await heightOf(page);
   // 4,300 until 9.10.2026: his cards wear the kit now (a head row with a square, the upload tile; docs/ops.md, section 54).
   assert.ok(tall < 4500, `Ilai's page is ${tall}px tall (3,500 before the Metricool card)`);
@@ -507,7 +508,8 @@ await step('Ilai and an editor: the first card of work is on the first screen of
   await settle(ilai.page);
   const top = await firstTop(ilai.page, '#mine-list .il-list > li');
   assert.ok(top !== null && top < 560, `Ilai's first card starts at ${top}px (it was about 690)`);
-  assert.match(await ilai.page.innerText('#mine-list .il-list > li >> nth=0'), /מוכן לבדיקה/);
+  // One line until opened (the owner, 20.10.2026): the client, the batch, how many are up, "העלאה".
+  assert.match(await ilai.page.innerText('#mine-list .il-list > li >> nth=0'), /הועלו[^]*העלאה/);
   const nadia = await open('nadia', { viewport: { width: 390, height: 844 }, calendar: true });
   await nadia.page.goto(`${BASE}clients.html#mine`);
   await nadia.page.waitForSelector('#mine-list .wproc');
@@ -525,7 +527,8 @@ await step('Lior, Ofir and the owner: the same heading rule, and a list of sever
     const { page } = await open(role);
     await page.goto(`${BASE}clients.html#mine`);
     // (The owner's "המשימות שלי" holds the team's work closed in one line since 6.10.2026.)
-    await page.waitForSelector(role === 'owner' ? '#team-fold' : '#mine-list .wproc.wc');
+    // (Ofir's late cards are behind the "באיחור" line since the owner's 20.10.2026: the list is drawn.)
+    await page.waitForSelector(role === 'owner' ? '#team-fold' : role === 'ofir' ? '#mine-list .wgroup' : '#mine-list .wproc.wc');
     await settle(page);
     assert.equal(await page.innerText('h1'), title, role);
     assert.doesNotMatch(await page.innerText('#view-mine'), /פתיחת הרשימה|עוד לא לסימון/, role);
