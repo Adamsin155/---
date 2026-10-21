@@ -8,6 +8,7 @@
 // rows simply do not come back, and writes on them are refused as Postgres refuses them. (The rule itself is tested in a real Postgres:
 // tests/sql/rls.test.mjs.) The page clock is Tuesday 20.10.2026 10:00 in Jerusalem.
 // Run: npx http-server -p 8080 -s . &  then  node tests/rls-e2e.mjs [outDir]
+import { openCardFolds } from './open-folds.mjs';
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
@@ -213,6 +214,7 @@ async function newPage({ viewport = { width: 1280, height: 900 } } = {}) {
   // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
   await ctx.addInitScript(() => { try { sessionStorage.setItem('astrateg.mine.full', 'on'); } catch { /* no storage */ } });
   await ctx.clock.install({ time: NOW });
+  await openCardFolds(ctx); // the card's closed rows, opened (the owner, 20.10.2026)
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
