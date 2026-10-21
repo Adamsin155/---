@@ -17,6 +17,7 @@
 //     the client's files and the form marks the photos as received;
 //   - Irit revokes the gallery link and the client gets a friendly message.
 // Run: npx http-server -p 8095 -s -c-1 . &  then  BASE_URL=http://localhost:8095/ node tests/files-e2e.mjs [outDir]
+import { openCardFolds } from './open-folds.mjs';
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
@@ -334,6 +335,7 @@ const PHONE = { width: 360, height: 740 };
 async function newContext(viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, hasTouch: viewport.width < 500, isMobile: viewport.width < 500 });
   await ctx.clock.setFixedTime(NOW);
+  await openCardFolds(ctx); // the card's closed rows, opened (the owner, 20.10.2026)
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
   await ctx.route(`${SUPA}/**`, withClientColumns(fakeSupabase, CLIENT_SHAPE));
   await ctx.route('https://wa.me/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>wa</title>' }));
@@ -377,11 +379,13 @@ let galleryToken = null;
 
 await step('the card has "תיק לקוח": two parts, counts per kind, nothing uploaded yet', async () => {
   await signIn(irit, `client.html?id=${D.id}`, 'irit@astrateg.test');
-  await irit.waitForSelector('#files-block .fl-counts span[data-count="logo"]');
+  await irit.waitForSelector('#files-block [data-kind-btn="logo"]');
   assert.equal(await text(irit, '#files-block h2'), 'תיק לקוח');
   assert.deepEqual(await irit.locator('#files-block .fl-group > h3').allInnerTexts(), ['חומרים מהלקוח', 'תוצרים']);
-  assert.equal(await text(irit, '#fl-materials .fl-counts'), 'לוגו 0 · תמונות 0 · סרטונים קיימים 0 · תוספת מותאמת אישית 0');
-  assert.match(await text(irit, '#fl-materials'), /עוד לא הועלו חומרים/);
+  // Nothing yet: said once for the block, and the row says it closed; no "0" per kind (the owner, 20.10.2026).
+  assert.equal(await irit.locator('#fl-materials .fl-counts').isHidden(), true);
+  assert.equal(await text(irit, '#files-block .fl-none'), 'אין קבצים.');
+  assert.equal(await text(irit, '#fold-files .cf-n'), 'אין קבצים');
   // Irit uploads every kind.
   for (const k of Object.keys(KINDS)) assert.ok(await irit.locator(`#files-block [data-kind-btn="${k}"]`).isVisible(), k);
 });
@@ -473,7 +477,8 @@ await step('graphics and the landing page (a link); "עלה לרשתות בתא�
   await item.locator('input[type=date]').fill('2026-10-12');
   await toastHas(irit, 'נשמר: עלה לרשתות');
   assert.equal(g.posted_on, '2026-10-12');
-  assert.equal(await text(irit, '#fl-deliverables .fl-counts'), 'גרפיקות 3 · סרטונים 1 · Highlights 0 · אתר / דף נחיתה 1 · אחר 0');
+  // Only the kinds that have files (the owner, 20.10.2026).
+  assert.equal(await text(irit, '#fl-deliverables .fl-counts'), 'גרפיקות 3 · סרטונים 1 · אתר / דף נחיתה 1');
   assert.deepEqual(await unlabeled(irit, '#files-block'), []);
 });
 
