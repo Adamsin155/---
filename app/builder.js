@@ -893,9 +893,18 @@ async function createLink(btn) {
   busy(btn, true, 'יוצר קישור…');
   try {
     const s = await getSupa();
-    const { data, error } = await s.supabase.functions.invoke('create-quote', {
+    const send = () => s.supabase.functions.invoke('create-quote', {
       body: { selection: selectionToSend(), client: readClient(), ...(reviseId ? { revise: reviseId } : {}) },
     });
+    let { data, error } = await send();
+    // A sign-in that went stale on this device (the owner, 21.10.2026: "יש להתחבר מחדש" while the
+    // page showed him signed in): renew it once and send again; if it can't be renewed, ask for the
+    // password here and send again, instead of a message that leaves him stuck.
+    if (error && error.context?.status === 401) {
+      const { error: refreshError } = await s.supabase.auth.refreshSession();
+      if (refreshError && !(await askLogin())) throw new Error('not signed in');
+      ({ data, error } = await send());
+    }
     if (error) {
       let detail = error;
       try { detail = new Error((await error.context.json()).error); } catch { /* keep original */ }
