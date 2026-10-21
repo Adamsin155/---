@@ -475,8 +475,9 @@ await step('asking for a fix on the videos: the note is required; the editor get
   await mine.close();
   await irit.reload();
   await irit.waitForSelector('#status-block');
-  assert.equal(await irit.locator('.ilabel', { hasText: 'הלקוח ביקש תיקונים: לברר ולתעד' }).count(), 1);
-  assert.equal(await irit.locator('.ilabel', { hasText: 'הלקוח אישר את הסרטונים' }).count(), 0);
+  // In the protocol (her own items are also in "הצעד הבא שלך" above it: the owner, 20.10.2026).
+  assert.equal(await irit.locator('#phases .ilabel', { hasText: 'הלקוח ביקש תיקונים: לברר ולתעד' }).count(), 1);
+  assert.equal(await irit.locator('#phases .ilabel', { hasText: 'הלקוח אישר את הסרטונים' }).count(), 0);
 });
 
 await step('the shoot-day question: 2 → a task for Lior to call, and the owner hears (rings once each)', async () => {
@@ -556,13 +557,16 @@ await step('an expired link and a malformed one: friendly messages', async () =>
   await shot(cl, '05-invalid-360');
 });
 
-await step('Ofir sees the block but cannot make links; an editor sees none of it', async () => {
+// The owner, 20.10.2026: the status page is Irit's, Lior's and the owner's work; Ofir, who
+// could only read "עירית, ליאור או הבעלים יוצרים את הקישור", no longer gets the block.
+await step('Ofir and an editor do not get the status page block', async () => {
   const ctx = await newContext(PHONE);
   const o = await newPage(ctx);
   await signIn(o, `client.html?id=${D.id}`, 'ofir@astrateg.test');
-  await o.waitForSelector('#status-block');
-  assert.equal(await o.locator('#st-create').count(), 0);
-  assert.match(await text(o, '#status-block'), /עירית, ליאור או הבעלים יוצרים את הקישור|קישור פעיל/);
+  await o.waitForSelector('#phases .phase');
+  await o.waitForTimeout(300);
+  assert.equal(await o.locator('#status-block').count(), 0);
+  assert.equal(await o.isHidden('#fold-status'), true);
   assert.ok(await noHScroll(o));
   await ctx.close();
   const ctx2 = await newContext();

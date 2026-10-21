@@ -264,6 +264,7 @@ await step('a copied password leaves the clipboard 30 seconds later; leaving the
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
   await ctx.clock.install({ time: NOW }); // this page's timers move with the test
+  await openCardFolds(ctx); // the card's closed rows, opened (the owner, 20.10.2026)
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   const p = await newPage(ctx);
   await signIn(p, `client.html?id=${D.id}`, 'ilai@astrateg.test');
