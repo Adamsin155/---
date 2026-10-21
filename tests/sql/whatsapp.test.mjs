@@ -5,6 +5,9 @@
 // agreed but no numbers; the functions' helpers are for the service role; delivery
 // only moves forward; a reply is applied once, as the person, and only from the
 // number the message went to.
+// Against the database as it stood before WhatsApp became a required channel (the free
+// choice of version 1); what 20261030100000_whatsapp_mandatory.sql changes is in
+// tests/sql/whatsapp-mandatory.test.mjs.
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { freshDatabase, as } from './pg.mjs';
@@ -42,7 +45,7 @@ async function keep(who, sql, params = []) {
 const SECRETS = [['whatsapp_access_token', 'EAAG-token-for-tests-0123456789'], ['whatsapp_phone_number_id', '1234567890'], ['whatsapp_app_secret', 'app-secret-0123456789'], ['whatsapp_verify_token', 'verify-token-0123456789']];
 
 before(async () => {
-  db = await freshDatabase();
+  db = await freshDatabase({ upTo: '20261030100000_whatsapp_mandatory.sql' });
   for (const [key, person] of Object.entries(PEOPLE)) {
     const email = `${key}@astrateg.test`;
     const { rows } = await db.query('insert into auth.users (email, email_confirmed_at) values ($1, now()) returning id', [email]);

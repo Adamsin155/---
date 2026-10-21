@@ -4,12 +4,15 @@
 // only while the switch is off; the switch needs the chosen provider's secrets (Jako's
 // one key, none of Meta's); the functions get only that provider's secrets, and Meta's
 // webhook none while the provider is Jako; who is asked for replies ("הסר"), and from when.
+// Against the database as it stood before WhatsApp became a required channel
+// (20261030100000_whatsapp_mandatory.sql changes the consent: tests/sql/whatsapp-mandatory.test.mjs).
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { freshDatabase, as, migrationSql, migrationFiles } from './pg.mjs';
 
 const FILE = '20261025100000_whatsapp_jako.sql';
+const MANDATORY = '20261030100000_whatsapp_mandatory.sql';
 let db;
 const users = {};
 const PEOPLE = { owner: null, irit: 'irit', lior: 'lior', ofir: 'ofir', nadia: 'nadia' };
@@ -57,7 +60,7 @@ async function keepSvc(sql, params = []) {
 const settings = async (who = 'owner') => (await one(who, 'select public.whatsapp_settings() s')).s;
 
 before(async () => {
-  db = await freshDatabase();
+  db = await freshDatabase({ upTo: MANDATORY });
   for (const [key, person] of Object.entries(PEOPLE)) {
     const email = `${key}@astrateg.test`;
     const { rows } = await db.query('insert into auth.users (email, email_confirmed_at) values ($1, now()) returning id', [email]);
@@ -74,7 +77,7 @@ test('the migration only adds: no statement removes anything, and running it aga
   // Every UPDATE in it has a WHERE (an upsert's "do update set" is not one).
   for (const m of sql.matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
   // The newest migration but the landing's editor of 14.10.2026 and what came after it, which are not WhatsApp's.
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql', '20261029100000_google_calendar_sync.sql'], 'the newest migration');
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql', '20261029100000_google_calendar_sync.sql', '20261030100000_whatsapp_mandatory.sql'], 'the newest migration');
   // Nothing of a secret in the file: the names of the Vault secrets only, read and never
   // written (the owner creates them himself).
   assert.match(sql, /whatsapp_jako_api_key/);
