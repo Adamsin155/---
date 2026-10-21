@@ -15,6 +15,8 @@ const USER = { id: randomUUID(), email: 'seller@astrateg.test', aud: 'authentica
 const JWT = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: USER.id, email: USER.email, role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 })}.sig`;
 const db = new Map();
 let seq = 0;
+let staleOnce = false; // the next create-quote answers 401 once: a sign-in gone stale on the device (21.10.2026)
+let refreshes = 0;
 
 function view(q) {
   return {
@@ -36,6 +38,7 @@ async function fakeSupabase(route) {
   if (req.method() === 'OPTIONS') return json(200, {});
   const p = url.pathname;
   if (p === '/auth/v1/token') {
+    if (url.searchParams.get('grant_type') === 'refresh_token') { refreshes++; return json(200, { access_token: JWT, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user: USER }); }
     if (body.password !== 'correct-horse') return json(400, { error: 'invalid_grant', error_description: 'Invalid login credentials', msg: 'Invalid login credentials', code: 'invalid_credentials' });
     return json(200, { access_token: JWT, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user: USER });
   }
@@ -50,6 +53,7 @@ async function fakeSupabase(route) {
   if (p === '/rest/v1/staff') return json(200, { person: null });
   if (p === '/functions/v1/create-quote') {
     if (!(req.headers().authorization || '').includes(JWT)) return json(401, { error: 'not signed in' });
+    if (staleOnce) { staleOnce = false; return json(401, { error: 'not signed in' }); }
     try { validateSelection(body.selection); } catch (e) { return json(400, { error: e.message }); }
     if (!body.client?.name?.trim()) return json(400, { error: 'client name required' });
     const q = {
@@ -278,6 +282,7 @@ await step('create link: wrong password shows error, then login + share dialog',
   assert.match(await text(page, '#session-who'), /seller@astrateg\.test/);
   await shot(page, '04-share', false);
 });
+
 const link = await page.locator('#sh-link').inputValue();
 assert.ok(page.errors.length === 0, `builder console errors: ${page.errors.join(' | ')}`);
 
@@ -529,6 +534,19 @@ await step('mobile builder: price bar visible, no horizontal scroll', async () =
   await m.locator('label[for="paid-photographer"]').click();
   assert.equal(await text(m, '#mb-total'), '6,962 ₪');
   await shot(m, '08-mobile-builder');
+});
+
+// The owner, 21.10.2026: "יש להתחבר מחדש" on "יצירת קישור לחתימה" while the page showed him signed in.
+await step('a sign-in gone stale: the page renews it by itself and the link is made, no error', async () => {
+  await page.locator('#dlg-share .close').first().click().catch(() => {});
+  await page.keyboard.press('Escape').catch(() => {});
+  const before = db.size; const r0 = refreshes;
+  staleOnce = true;
+  await page.locator('#btn-link').click();
+  await page.locator('#dlg-share').waitFor();
+  assert.equal(db.size, before + 1, 'the quote was created on the second try');
+  assert.ok(refreshes > r0, 'the sign-in was renewed');
+  await page.keyboard.press('Escape').catch(() => {});
 });
 
 await browser.close();
