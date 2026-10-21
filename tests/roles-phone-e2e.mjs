@@ -240,28 +240,15 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   await shot(page, 'irit-03-screens-open');
 });
 
-await step('"תצוגה מלאה" gives the whole list, is remembered, and "תצוגה קצרה" folds it again', async () => {
+// The owner, 20.10.2026: a person's own list has one view, the short one, and nothing folded
+// under it ("סיכום בוקר והתראות" added nothing there). The team's list keeps "תצוגה מלאה".
+await step('Irit\'s own list has one short view: no "תצוגה מלאה" and no folded tools under it', async () => {
   const { page } = await open('irit');
   await page.waitForSelector('#mine-list .wproc.wc');
-  const short = await heightOf(page);
-  await page.click('#mine-view-on');
-  await page.waitForSelector('#mine-list .wproc:not(.wc)');
-  assert.equal(await page.locator('#mine-list .wproc.wc').count(), 0);
-  assert.equal(await page.locator('#mine-list .more-btn').count(), 0);
-  assert.ok(await page.locator('#mine-list .bulk-btn').first().isVisible());
-  assert.ok(await page.locator('#mine-tools .wa-link').isVisible(), 'the morning summary is back in its place');
-  const full = await heightOf(page);
-  assert.ok(full > short * 2, `full ${full}px, short ${short}px`);
+  await settle(page);
+  assert.equal(await page.locator('#mine-view-on, #mine-view-off').count(), 0);
+  assert.equal(await page.locator('#mine-foot .mine-more, #mine-tools .wa-link').count(), 0);
   assert.ok(await noHScroll(page));
-  await page.reload();
-  await page.waitForSelector('#mine-list .wproc:not(.wc)');
-  assert.equal(await page.getAttribute('#mine-view-on', 'aria-pressed'), 'true');
-  await page.click('#mine-view-off');
-  await page.waitForSelector('#mine-list .wproc.wc');
-  assert.equal(await page.locator('#mine-tools .wa-link').count(), 0);
-  // The morning summary and the notifications are under the list, folded.
-  await page.click('.mine-more > summary');
-  assert.ok(await page.locator('#mine-foot .wa-link').isVisible());
 });
 
 // ── The owner ─────────────────────────────

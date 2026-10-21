@@ -57,7 +57,7 @@ function office() {
   ];
   return db;
 }
-async function signedIn(role, db, path = 'clients.html#mine') {
+async function signedIn(role, db, path = 'clients.html#mine', { late = false } = {}) {
   const fake = makeFlowFake(db);
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: PHONE, isMobile: true, hasTouch: true });
   await ctx.clock.install({ time: NOW });
@@ -71,6 +71,9 @@ async function signedIn(role, db, path = 'clients.html#mine') {
   await page.fill('#lg-pass', 'correct-horse');
   await page.click('#lg-submit');
   if (path.endsWith('#mine')) await page.waitForSelector('#view-mine:not([hidden])');
+  // Irit's late cards are behind the "באיחור" line when there are more than three (the owner,
+  // 20.10.2026): the tab lists the same cards, with the same controls.
+  if (late && await page.locator('#late-line').count()) { await page.click('#late-line'); await page.waitForSelector('#late-h'); }
   await settle(page);
   return { page, ctx, db, calls: fake.calls };
 }
@@ -85,7 +88,7 @@ async function step(name, fn) {
 try {
   // ── A ──
   await step('A: process 3 says what is missing; ticking what can be ticked does not make it leave', async () => {
-    const { page, ctx, db } = await signedIn('irit', office());
+    const { page, ctx, db } = await signedIn('irit', office(), undefined, { late: true });
     const c = card(page, NEW);
     await c.waitFor();
     assert.equal(await text(c.locator('.wneed span')), 'עוד לא נקבע מועד לפגישת האפיון.');
@@ -112,7 +115,7 @@ try {
   await step('A: the date is set from the card in three taps, through the client\'s own fields; then the card leaves', async () => {
     const db = office();
     for (const k of ['p03.who', 'p03.available', 'p03.calendar']) db.protocol_checks.push({ client_id: NEW, item_key: k, state: 'done', note: null, by_email: emailOf('irit'), at: '2026-10-20T09:44:00+03:00' });
-    const { page, ctx, calls } = await signedIn('irit', db);
+    const { page, ctx, calls } = await signedIn('irit', db, undefined, { late: true });
     await card(page, NEW).locator('.wneed button').click();          // tap 1
     await page.waitForSelector('#dlg-meet[open]');
     assert.equal(await page.locator('#meet-who').inputValue(), 'ofir', 'the default is Ofir');
@@ -137,7 +140,7 @@ try {
   });
 
   await step('A: a client in landing and imported history ask for no date', async () => {
-    const { page, ctx } = await signedIn('irit', office());
+    const { page, ctx } = await signedIn('irit', office(), undefined, { late: true });
     await card(page, NEW).waitFor();
     assert.equal(await page.locator('#mine-list .wneed').count(), 1, 'only the new deal asks for a date');
     assert.equal(await card(page, LANDING).count(), 0);
@@ -182,7 +185,7 @@ try {
     const none = office();
     none.quotes = none.quotes.filter((q) => !['AST-2026-0001', 'AST-2026-0002'].includes(q.number));
     const b = await signedIn('irit', none);
-    await card(b.page, NEW).waitFor();
+    await b.page.waitForSelector('#mine-list .wgroup'); // the list is drawn (its late card is behind the "באיחור" line)
     assert.equal(await b.page.locator('#flow-unsigned').count(), 0);
     await b.ctx.close();
     for (const role of ['lior', 'ofir', 'ilai']) {
