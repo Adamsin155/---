@@ -164,6 +164,11 @@ test('C: the column takes an editor of the team, or nothing', async () => {
   await db.query("update public.clients set editor2 = 'yariv', rounds = $2::jsonb where id = $1",
     [ids.dana, JSON.stringify([{ n: 2, shoot_type: 'dms', editor: 'yariv', editor2: 'anna' }])]);
   assert.equal((await one('select editor2 from public.clients where id = $1', [ids.dana])).editor2, 'yariv');
+  // The office writes it with a plain update, as it writes `editor`; the editors read it.
+  const up = await as(db, users.irit, (tx) => tx.query("update public.clients set editor2 = 'anna' where id = $1 returning editor2", [ids.gil]));
+  assert.equal(up.error, undefined);
+  assert.equal((await run('yariv', 'select editor2 from public.clients where id = $1', [ids.dana]))[0].editor2, 'yariv');
+  await db.query('update public.clients set editor2 = null where id = $1', [ids.gil]);
 });
 
 test('C: the second editor sees the client like the main one; another editor does not', async () => {

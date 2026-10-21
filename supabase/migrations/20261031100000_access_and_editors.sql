@@ -352,6 +352,8 @@ begin
       check (editor2 is null or editor2 in ('nadia', 'yariv', 'anna', 'nirel'));
   end if;
 end $$;
+-- Read like `editor` (the table's columns are granted one by one since 20260930210000_hardening.sql).
+grant select (editor2) on public.clients to authenticated;
 
 -- ── C2. Who sees the client: the second editor too ──
 create or replace function private.my_assigned_clients() returns setof uuid
@@ -424,7 +426,7 @@ begin
               else (select r ->> 'editor2' from jsonb_array_elements(c.rounds) r where r ->> 'n' = m[1] limit 1) end
     into v_editor, v_editor2
   from public.clients c where c.id = p_client;
-  return ('@editor' = any (w.persons) and v_editor is not null and (v_editor = me or v_editor2 = me))
+  return ('@editor' = any (w.persons) and v_editor is not null and (v_editor = me or v_editor2 is not distinct from me))
     or ('@editor-free' = any (w.persons) and v_editor is null
         and me = any (coalesce((select w1.persons from private.protocol_writers w1 where w1.key = '@editors'), '{}')));
 end $$;
@@ -461,7 +463,7 @@ begin
               else (select r ->> 'editor2' from jsonb_array_elements(c.rounds) r where r ->> 'n' = m[1] limit 1) end
     into v_editor, v_editor2
   from public.clients c where c.id = p_client;
-  return ('@editor' = any (w.persons) and v_editor is not null and (v_editor = p_person or v_editor2 = p_person))
+  return ('@editor' = any (w.persons) and v_editor is not null and (v_editor = p_person or v_editor2 is not distinct from p_person))
     or ('@editor-free' = any (w.persons) and v_editor is null
         and p_person = any (coalesce((select w1.persons from private.protocol_writers w1 where w1.key = '@editors'), '{}')));
 end $$;
