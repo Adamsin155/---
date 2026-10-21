@@ -168,7 +168,10 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.ok(h < 4500, `Irit's first screen is ${h}px tall (it was about 11,900)`);
   await shot(page, 'irit-01-mine-short');
 
-  // One tap marks a single-item card.
+  // One tap marks a single-item card. Her cards are late ones, behind the "באיחור" line since
+  // the owner's 20.10.2026: the tab has the same cards, with the same controls.
+  await page.click('#late-line');
+  await page.waitForSelector('#late-h');
   const single = page.locator('#mine-list .wproc.wc > .wlist .cbx').first();
   const key = (await single.getAttribute('id'));
   const before = db.protocol_checks.length;
@@ -196,15 +199,11 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.ok(await page.locator(`${sel} .wc-panel .cbx`).first().isVisible());
   await shot(page, 'irit-02-card-open');
 
-  // "הצג עוד" shows the rest of the group, and a rebuild of the list keeps it.
-  const more = page.locator('#mine-list .g-overdue .more-btn');
-  const n = Number(/\((\d+)\)/.exec(await more.innerText())[1]);
-  await more.click();
-  assert.equal(await page.locator('#mine-list .g-overdue > .wprocs > .wproc:visible').count(), 5 + n);
-  await page.click('#btn-refresh');
-  await settle(page);
-  assert.equal(await page.locator('#mine-list .g-overdue .more-btn').count(), 0);
+  // (The late group's "הצג עוד" is gone with its cards: a long "באיחור" is one line to the tab,
+  // which lists them all; the owner, 20.10.2026.)
   assert.ok(await noHScroll(page));
+  await page.click('#tab-mine');
+  await settle(page);
 
   // Her personal profile (7.10.2026): no chooser of whose list, the daily control (process 32) one tap away, no "ביצועים".
   assert.equal(await page.locator('#mine-people').isVisible(), false);

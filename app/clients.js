@@ -1748,8 +1748,8 @@ function renderMine() {
   const ilai = ilaiCtx ? ilaiSection(ilaiCtx) : null;
   const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
   if (ilai && !full) capList(ilai.querySelector('.il-list'), MINE_CAP, 'mine:ilai');
-  // No duplicates (the owner, 20.10.2026): what has a card is not repeated in "בקרוב" (nor in
-  // "עכשיו": shownClocks).
+  // No duplicates (the owner, 20.10.2026): what has a card is not repeated in "בקרוב" (Ilai's
+  // cards are not repeated in "עכשיו" either: shownClocks).
   // Lior's renewals (the owner, 20.10.2026): one line, "חידושים ב־90 יום: N", to the
   // renewals list (year.html#renewals, where each has its quote and process 34); the
   // cards of 34 are not laid out here one by one.
@@ -2030,17 +2030,14 @@ function rebuildClocks(now = new Date()) {
     return person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf, tasks });
   });
 }
-// What "עכשיו" shows (the owner, 20.10.2026: one place for each thing). A "due within the
-// hour" clock of a process that has its card in the list below is not a row of its own: the
-// card holds the ticks and the action, and its leaf says the hour. So are the clocks of
-// Ilai's own cards. The new deal's clocks, the client's answer and Ofir's fast ladder stay.
-// The alerts still run on every clock.
+// What "עכשיו" shows: the clocks, less those of Ilai's own cards (the card is where that work
+// is done, with its deadline; the owner, 20.10.2026: one place for each thing). Other clocks
+// stay beside their card: the row is the countdown (the Highlights' 30 minutes, the new deal),
+// the card holds the ticks. The alerts still run on every clock.
 function shownClocks() {
-  if (viewerError) return clocks;
-  const person = clockPerson();
-  const listed = person === undefined ? new Set() : new Set(workFor(person).map((g) => g.key));
-  const covered = me === 'ilai' ? coveredByCard({ clients, checks, stateOf, me, viewer: { me, scope, error: viewerError } }) : () => false;
-  return clocks.filter((c) => !(c.client && c.proc && ((c.kind === 'soon' && listed.has(`${c.client.id}:${c.proc.id}`)) || covered({ client: c.client, proc: c.proc }))));
+  if (me !== 'ilai' || viewerError) return clocks;
+  const covered = coveredByCard({ clients, checks, stateOf, me, viewer: { me, scope, error: viewerError } });
+  return clocks.filter((c) => !(c.client && c.proc && covered({ client: c.client, proc: c.proc })));
 }
 let nowShown = []; // the clocks "עכשיו" shows, as of its last draw (the countdowns update these)
 function paintNowBar() {

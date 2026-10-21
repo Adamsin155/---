@@ -420,6 +420,8 @@ try {
     assert.match(await toastText(page), /^הגאנט עדיין ריק\./);
     assert.equal(checkOf(db, PUBLISH, 'p29.filled'), null);
     await shot(page, 'ilai-gantt-empty-refused');
+    // A late card is behind the "באיחור" line when there are more than three (the owner, 20.10.2026).
+    if (!(await card(page, PUBLISH, 'p28').count())) { await page.click('#late-line'); await page.waitForSelector('#late-h'); await showAll(page); }
     await tick(card(page, PUBLISH, 'p28'));
     await settle(page);
     assert.match(await toastText(page), /^עוד שום תוכן לא סומן ״תוזמן״ בגאנט\./);
@@ -430,6 +432,7 @@ try {
     await tick(card(page, PUBLISH, 'p28'));
     await settle(page);
     assert.equal(checkOf(db, PUBLISH, 'p28.scheduled')?.state, 'done');
+    if (await page.locator('#late-h').count()) { await page.click('#tab-mine'); await settle(page); }
     await page.locator(`#mine-list .wproc[data-key="il-gantt:${PUBLISH}:"] button`, { hasText: 'הגאנט מלא' }).click();
     await settle(page);
     assert.equal(checkOf(db, PUBLISH, 'p29.filled')?.state, 'done');
