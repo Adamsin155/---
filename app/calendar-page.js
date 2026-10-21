@@ -13,6 +13,10 @@ import {
 import { homeLink } from './shell-rules.js';
 import { TZ, dayFromKeyIL } from './tz.js';
 import { icon, iconSquare, dateLeaf, emptyRow } from './kit.js';
+// The person's own Google Calendar beside the system's dates (the owner, 21.10.2026).
+import { initGoogle, loadGoogle, googleEvents, googleNode, mountGoogleCard } from './gcal-page.js';
+// "פגישה חדשה" (the owner, 21.10.2026): the office and the owners add a meeting from here.
+import { addsMeetings } from './new-meeting-logic.js';
 
 let viewer = null;
 let clients = [];
@@ -51,6 +55,7 @@ async function load() {
       const ids = [...new Set(clients.map((c) => c.quote_id).filter(Boolean))];
       clientMail = ids.length ? clientEmails(clients, await quoteFacts(ids)) : {};
     }
+    await loadGoogle();
     $('state').textContent = '';
   } catch (err) {
     $('state').textContent = errorText(err);
@@ -66,6 +71,7 @@ function inviteOf(e) {
 }
 let hintShown = false; // once per drawing: under the first invitation only
 function eventNode(e) {
+  if (e.kind === 'google') return googleNode(e);
   const k = kindOf(e);
   const client = clientOf(e.client);
   const words = wordsOf(e, client);
@@ -152,7 +158,7 @@ function monthView(days) {
 
 function render() {
   const { from, until } = rangeOf(view, anchor);
-  const list = calendarEvents({ viewer, clients, checks, tasks, from, until, site: site() });
+  const list = calendarEvents({ viewer, clients, checks, tasks, from, until, site: site(), extra: googleEvents() });
   const days = byDay(list);
   hintShown = false;
   $('cp-title').textContent = titleOf(view, anchor);
@@ -202,6 +208,26 @@ mountSession(async (staff) => {
     $('state').classList.add('no-access');
     fill($('state'), h('strong', {}, 'אין לך גישה לעמוד הזה.'), h('a', { class: 'btn', href: home.href }, home.label));
     return;
+  }
+  // A date set from here (a Google suggestion, "פגישה חדשה"): the client as saved, and
+  // "נקבעה פגישה" when it was marked.
+  const keepSaved = (row, mark) => {
+    clients = clients.map((c) => (c.id === row.id ? { ...c, ...row } : c));
+    if (mark) (checks[row.id] ||= {})[mark.item_key] = mark;
+  };
+  initGoogle({ viewer: v, email: String(staff.email || '').toLowerCase(), clientOf, checksOf: (id) => checks[id] || {}, redraw: render, onSaved: keepSaved });
+  mountGoogleCard($('cp-google'));
+  if (addsMeetings(v)) {
+    $('cp-new').hidden = false;
+    $('cp-new').prepend(icon('plus', { size: 18 }));
+    $('cp-new').addEventListener('click', async () => {
+      const m = await import('./new-meeting.js');
+      m.initNewMeeting({
+        viewer: v, clients: () => clients, emails: () => emails, clientMail: () => clientMail, site, checksOf: (id) => checks[id] || {},
+        onSaved: (row, mark) => { keepSaved(row, mark); render(); },
+      });
+      m.openNewMeeting();
+    });
   }
   // The phone opens on the week; a wide screen on the month; a choice made here is kept.
   const saved = readKey(VIEW_KEY);

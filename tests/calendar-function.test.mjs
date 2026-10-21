@@ -45,6 +45,9 @@ export function createClient() {
       state.calls.push('rpc:' + name);
       if (state.fail) return { data: null, error: { code: 'XX000', message: 'secret detail' } };
       if (name === 'calendar_feed_check') return { data: args.p_token === state.token ? [{ email: 'x@astrateg.test', person: state.owner }] : [], error: null };
+      if (name === 'reminders_check_secret') return { data: args.p_secret === 'cron-secret', error: null };
+      if (name === 'google_calendar_feeds') return { data: state.feeds || [], error: null };
+      if (name === 'google_calendar_apply') { (state.applied ||= []).push(args); return { data: { ok: true }, error: null }; }
       return { data: null, error: { message: 'unknown' } };
     },
   };
@@ -57,7 +60,8 @@ before(async () => {
   writeFileSync(join(dir, 'supabase-mock.mjs'), mock);
   const shared = new URL('../supabase/functions/_shared/app/', import.meta.url).href;
   let src = nodeModule.stripTypeScriptTypes(readFileSync(new URL('../supabase/functions/calendar/index.ts', import.meta.url), 'utf8'));
-  src = src.replace("'npm:@supabase/supabase-js@2'", `'${pathToFileURL(join(dir, 'supabase-mock.mjs')).href}'`).replaceAll("'../_shared/app/", `'${shared}`);
+  src = src.replace("'npm:@supabase/supabase-js@2'", `'${pathToFileURL(join(dir, 'supabase-mock.mjs')).href}'`).replaceAll("'../_shared/app/", `'${shared}`)
+    .replace("'./google.js'", `'${new URL('../supabase/functions/calendar/google.js', import.meta.url).href}'`);
   writeFileSync(join(dir, 'index.mjs'), src);
   globalThis.__calState = Object.assign(state, {
     token: TOKEN,
@@ -75,6 +79,7 @@ before(async () => {
 });
 after(() => { rmSync(dir, { recursive: true, force: true }); delete globalThis.Deno; });
 
+const post = (body, headers = {}) => handler(new Request('https://example.supabase.co/functions/v1/calendar', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) }));
 const get = (path, method = 'GET') => handler(new Request(`https://example.supabase.co/functions/v1/calendar${path}`, { method }));
 
 test('a current token: that person\'s iCalendar, cached briefly, no client phone', async () => {
@@ -124,4 +129,31 @@ test('the owner\'s feed: the overview, without the address', async () => {
   assert.match(body, /X-WR-CALNAME:אסטרטג · הבעלים/);
   assert.match(body, /SUMMARY:יום צילום · מספרת רון/);
   assert.ok(!body.includes('LOCATION:הרצל'));
+});
+
+test('POST { action: google } with the cron secret reads the connected Google calendars; anything else is refused', async () => {
+  const URL_OK = 'https://calendar.google.com/calendar/ical/irit%40gmail.com/private-0123456789abcdef0123456789abcdef/basic.ics';
+  const start = new Date(Date.now() + 2 * 864e5).toISOString().replace(/[-:]|\.\d{3}/g, '');
+  const ics = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:g1', `DTSTART:${start}`, 'SUMMARY:יום צילום מספרת רון', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const origFetch = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = async (url) => { fetched.push(String(url)); return new Response(ics); };
+  state.feeds = [{ email: 'irit@astrateg.test', url: URL_OK }];
+  state.applied = [];
+  try {
+    assert.equal((await post({ action: 'google' }, { 'x-cron-secret': 'wrong' })).status, 401);
+    assert.equal((await post({ action: 'other' }, { 'x-cron-secret': 'cron-secret' })).status, 405);
+    assert.equal((await post({ action: 'google' })).status, 405, 'without the header it is not the clock');
+    assert.deepEqual(fetched, []);
+    const res = await post({ action: 'google' }, { 'x-cron-secret': 'cron-secret' });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.deepEqual(body, { people: 1, ok: 1, failed: 0, events: 1 });
+    assert.deepEqual(fetched, [URL_OK]);
+    assert.equal(state.applied[0].p_email, 'irit@astrateg.test');
+    assert.deepEqual(state.applied[0].p_rows.map((r) => [r.uid, r.client_id, r.kind_guess]), [['g1', client.id, 'shoot']]);
+  } finally {
+    globalThis.fetch = origFetch;
+    state.feeds = [];
+  }
 });

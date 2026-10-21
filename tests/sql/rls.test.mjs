@@ -511,6 +511,9 @@ test('every client table has row level security, and no policy on it lets every 
     // to one person; only the assignee, whoever gave it and the owner read it. The client
     // is an optional note on the task (tests/sql/staff-tasks.test.mjs).
     staff_tasks: /assignee = reminder_person\(\)/,
+    // The events read from a person's own Google calendar (20261029100000_google_calendar_sync.sql):
+    // each row is that person's alone; the client is only the system's guess of whose meeting it is.
+    calendar_external_events: /^\(\(email = lower\(COALESCE\(\(\( SELECT auth\.jwt\(\) AS jwt\) ->> 'email'::text\), ''::text\)\)\) AND /,
   };
   for (const p of policies) {
     assert.match(p.expr, OWN_RULE[p.tablename] || RULES, `${p.tablename} / "${p.policyname}" does not check who the client belongs to: ${p.expr}`);

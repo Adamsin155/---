@@ -16,9 +16,9 @@
 // them to what this person may see; the feed's own rule (visibleTo) agrees with it.
 // Dates are Israel days (app/tz.js), whatever the device's zone; the week starts on Sunday.
 //
-// A later stage may add the office's own Google Calendar beside these (not built): it
-// would come in as more events of the same shape ({ uid, kind, title, start, minutes |
-// end | allDay }) through `extra` below.
+// The person's own Google Calendar comes in beside these (app/gcal-page.js; the owner,
+// 21.10.2026) as more events of the same shape ({ uid, kind: 'google', title, start,
+// minutes | end | allDay }) through `extra` below.
 import { PEOPLE, SHOOT_TYPES, isSales } from './protocol.js';
 import { feedEvents, OWNER, shootMinutes } from './calendar-feed.js';
 import { googleCalendarUrl, cleanGuests } from './calendar.js';
@@ -40,6 +40,8 @@ export const KINDS = {
   due: { label: 'יעד', short: 'יעד', icon: 'flag', tone: 'orange' },
   task: { label: 'משימה', short: 'משימה', icon: 'check-circle', tone: 'green' },
   weekly: { label: 'קבוע', short: 'קבוע', icon: 'loop', tone: 'teal' },
+  // The person's own Google Calendar (app/gcal-page.js; the owner, 21.10.2026): a quiet grey.
+  google: { label: 'Google', short: 'Google', icon: 'calendar', tone: 'gray' },
 };
 export const kindOf = (e) => KINDS[e?.kind] || KINDS.task;
 
@@ -113,7 +115,7 @@ export function wordsOf(e, client = null) {
 
 export const OVERVIEW = new Set(['irit']);
 // Every event this viewer sees between `from` and `until`. `extra`: events from elsewhere
-// (none yet), kept to the same range.
+// (their own Google Calendar), kept to the same range.
 export function calendarEvents({ viewer, clients = [], checks = {}, tasks = [], now = new Date(), from, until, site, extra = [] }) {
   if (!seesCalendar(viewer)) return [];
   const range = { from, until };

@@ -10,9 +10,20 @@
 // is app/ics.js (copies in ../_shared/app, made by scripts/sync-functions.mjs).
 // An unknown, replaced or malformed token gets 404, the same answer as a wrong path.
 // Nothing about the request or the data is logged, only a short error code.
+//
+// The other direction (the owner's request of 21.10.2026; docs/ops.md, section 65):
+//   POST { action: 'google' }  header x-cron-secret: the Vault secret 'reminders_cron_secret',
+//        compared inside the database (public.reminders_check_secret), as the Metricool
+//        sync does. pg_cron sends it every 15 minutes (public.google_calendar_tick,
+//        migration 20261028100000_google_calendar_sync.sql). Reads each connected person's
+//        own Google calendar into public.calendar_external_events (./google.js). It lives
+//        here, not in a function of its own: this one already reads the clients with the
+//        service role and is deployed without a JWT check, and it is the calendar's.
+// Anything else that is not GET or HEAD gets 405.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { feedEvents, feedName, tokenFrom, OWNER, SITE } from '../_shared/app/calendar-feed.js';
 import { buildCalendar } from '../_shared/app/ics.js';
+import { runGoogle } from './google.js';
 
 // The new secret key when the project has one, else the legacy service-role key.
 function serviceKey(): string {
@@ -75,7 +86,45 @@ const plain = (status: number, text: string) => new Response(text, {
 });
 const codeOf = (e: unknown) => (e as { code?: string })?.code ?? (e as Error)?.name ?? 'error';
 
+// The database as ./google.js sees it (service role: row level security does not apply).
+const googleDb = {
+  async feeds() {
+    const { data, error } = await admin.rpc('google_calendar_feeds');
+    if (error) throw error;
+    return data ?? [];
+  },
+  // The names a meeting's title is matched against: open clients only.
+  async clients() {
+    return all(() => admin.from('clients').select('id, name, business').in('status', ['active', 'ending']).is('archived_at', null).order('id'));
+  },
+  async apply(email: string, rows: Row[] | null, ok: boolean, error: string | null) {
+    const { error: e } = await admin.rpc('google_calendar_apply', { p_email: email, p_rows: rows ?? [], p_ok: ok, p_error: error });
+    if (e) throw e;
+  },
+};
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
+  status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+});
+
+async function google(req: Request): Promise<Response> {
+  let body: Row | null = null;
+  try { body = await req.json(); } catch { body = null; }
+  if (body?.action !== 'google') return plain(405, 'method not allowed');
+  const secret = req.headers.get('x-cron-secret') ?? '';
+  const { data: ok, error } = await admin.rpc('reminders_check_secret', { p_secret: secret });
+  if (error) { console.error('calendar: secret check failed', codeOf(error)); return json(500, { error: 'server_error' }); }
+  if (ok !== true) return json(401, { error: 'not_allowed' });
+  try {
+    return json(200, await runGoogle({ db: googleDb, fetch, now: new Date() }));
+  } catch (e) {
+    // Only a short code: no address, nothing of anyone's calendar.
+    console.error('calendar: google failed', codeOf(e));
+    return json(500, { error: 'server_error' });
+  }
+}
+
 Deno.serve(async (req) => {
+  if (req.method === 'POST' && req.headers.has('x-cron-secret')) return google(req);
   if (req.method !== 'GET' && req.method !== 'HEAD') return plain(405, 'method not allowed');
   const token = tokenFrom(req.url);
   if (!token) return plain(404, 'not found');
