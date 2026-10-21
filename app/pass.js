@@ -374,6 +374,7 @@ $('tk-form').addEventListener('submit', async (e) => {
 // ── Data health: each one fixed in one tap ──
 function renderHealth(hl, now) {
   $('hl-n').textContent = String(hl.total);
+  $('hl-sec').hidden = !hl.total; // only when there is something to fix (20.10.2026)
   const group = (title, list, row) => (list.length ? h('div', { class: 'ps-health-group' }, h('h3', {}, title, ' ', h('span', { class: 'n' }, String(list.length))),
     h('ul', { class: 'of-list' }, ...list.map(row))) : null);
   const dueWords = formatWhen(endOfDayIL(dayFromKeyIL(hl.dueFix)), now);

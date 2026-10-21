@@ -224,7 +224,8 @@ export function previousPass(passes, now = new Date()) {
 // day), a shoot waiting for an editor (the assignment).
 // Since 20.10.2026 (the owner) the pass shows only what Ofir fixes himself: `total` counts
 // the shared processes and the tasks without a date, but not another person's urgent task
-// (it is urgent, not undated) nor a shoot without an editor (qa.html assigns it).
+// (it is urgent, not undated) or exception to Lior (his "החלטות" decides it), nor a shoot
+// without an editor (qa.html assigns it).
 // `noEditor` is still worked out for whoever reads it.
 export function dataHealth({ clients, stateOf, checks, tasks = [], now = new Date(), me = null }) {
   const live = clients.filter((c) => (c.status === 'active' || c.status === 'ending') && !inLanding(c));
@@ -245,7 +246,7 @@ export function dataHealth({ clients, stateOf, checks, tasks = [], now = new Dat
       }
     }
   }
-  const noDue = tasks.filter((t) => !t.done_at && !t.due_on && byId.has(t.client_id) && !(t.urgent && t.owner !== me))
+  const noDue = tasks.filter((t) => !t.done_at && !t.due_on && byId.has(t.client_id) && !((t.urgent || t.source === 'escalation') && t.owner !== me))
     .map((t) => ({ client: byId.get(t.client_id), task: t }));
   return { unowned, noDue, noEditor, total: unowned.length + noDue.length, dueFix: dayKeyIL(addBusinessDays(now, 1)) };
 }

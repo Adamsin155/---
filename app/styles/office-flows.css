@@ -347,5 +347,8 @@ details.ps-sum { min-width: 0; }
 .ps-subs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .ps-sub { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--ds-r-item, 12px); background: var(--ds-ground, #f4f5f8); min-width: 0; }
 .ps-group { display: grid; gap: 10px; }
-.ps-th-fold > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--ds-muted); font-weight: 600; }
+.ps-th-fold > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; color: var(--ds-muted); font-weight: 600; list-style: none; }
+.ps-th-fold > summary::-webkit-details-marker { display: none; }
+.ps-th-fold > summary::after { content: ''; flex: none; width: 8px; height: 8px; margin-top: -4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
+.ps-th-fold[open] > summary::after { transform: rotate(-135deg); margin-top: 4px; }
 .ps-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }

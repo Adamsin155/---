@@ -2496,6 +2496,9 @@ function thursdayPass(now = new Date()) {
   return w.total && w.done < w.total ? w : null;
 }
 function goToStatus() {
+  // Not a tab of this profile (Ofir's personal one since 20.10.2026): the address moves to the
+  // manager profile (the hashchange handler), then the summary takes the focus.
+  if (!tabsShown().includes('control')) { window.addEventListener('hashchange', goToStatus, { once: true }); location.hash = '#control'; return; }
   setView('control');
   const el = document.getElementById('ctl-status');
   el?.scrollIntoView({ block: 'start' });

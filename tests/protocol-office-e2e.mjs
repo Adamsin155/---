@@ -932,9 +932,9 @@ assert.equal(await thu.evaluate(() => document.activeElement.id), 'ctl-status');
 const p33row = thu.locator('.rv-row').nth(1);
 assert.match(await p33row.innerText(), /עבר יותר מיומיים מהבקרה האחרונה[^]*הבקרה האחרונה: א׳ 20\.9/);
 assert.equal(await thu.locator('.rv-row').first().locator('.rv-stale').count(), 0); // process 32 is daily, flagged elsewhere
-// Irit's eleven topics are hers: in Ofir's personal profile her process keeps its one short line.
-assert.equal(await thu.locator('.tp-list, .tp-row').count(), 0);
-assert.equal(await thu.locator('.rv-row').first().locator('.rv-topics').count(), 1);
+// Since 20.10.2026 (the owner) the daily review is in Ofir's manager profile only: the card's
+// link moves him there (the button at the top leads back), where Irit's process is shown whole.
+await thu.waitForSelector('#profile-switch[data-to="mine"]');
 await shot('14-thursday-control', thu);
 
 // The office day is Israel's on any device: at 01:30 on Thursday in Jerusalem a

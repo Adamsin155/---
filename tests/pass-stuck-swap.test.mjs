@@ -212,6 +212,7 @@ test('data health in the pass: only what Ofir fixes himself (20.10.2026)', () =>
     { id: 't1', client_id: 'c1', owner: 'irit', title: 'בלי מועד', done_at: null, due_on: null },
     { id: 't2', client_id: 'c1', owner: 'lior', title: 'דחוף', urgent: true, done_at: null, due_on: null },
     { id: 't3', client_id: 'c1', owner: 'ofir', title: 'דחוף שלי', urgent: true, done_at: null, due_on: null },
+    { id: 't4', client_id: 'c1', owner: 'lior', title: 'חריגה', source: 'escalation', done_at: null, due_on: null },
   ];
   const h = dataHealth({ clients: [c], stateOf: () => ({ states: [] }), checks: {}, tasks, now: IL(2026, 10, 20, 10), me: 'ofir' });
   assert.deepEqual(h.noDue.map((x) => x.task.id), ['t1', 't3']);
