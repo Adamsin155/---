@@ -18,11 +18,21 @@
 // Errors: { error: code } with the codes in ERR. Links and tokens are never logged.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
+
+// The new secret key when the project has one, else the legacy service-role key (as the other
+// functions do; the owner, 21.10.2026: create-quote failed the same way with the legacy key).
+function serviceKey(): string {
+  try {
+    const keys = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}');
+    if (keys?.default) return keys.default;
+  } catch { /* not set */ }
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+}
   ERR, normEmail, roleOf, bearer, corsHeaders, planUpsert, planRemove, planLink, planPhone, linkTypeFor,
   buildLoginLink, summarize, linkErrorCode,
 } from './rules.js';
 
-const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+const admin = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey(), {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 

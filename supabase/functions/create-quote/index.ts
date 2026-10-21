@@ -16,6 +16,16 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateSelection, buildQuoteModel, normalizeSelection, exceptionOf } from '../_shared/app/pricing.js';
 import { corsHeaders, callerIsOffice } from './http.js';
 
+// The new secret key when the project has one, else the legacy service-role key (as the other
+// functions do; the owner, 21.10.2026: with the legacy key the insert failed, "הפעולה לא הושלמה").
+function serviceKey(): string {
+  try {
+    const keys = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}');
+    if (keys?.default) return keys.default;
+  } catch { /* not set */ }
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LIMITS = { name: 120, company: 120, companyId: 20, phone: 40, email: 160, notes: 2000 };
 
@@ -91,7 +101,7 @@ Deno.serve(async (req) => {
   const exceptions = exceptionOf(selection);
 
   const model = buildQuoteModel(selection, client);
-  const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const admin = createClient(url, serviceKey());
   if (revise) {
     const { data: revised, error: reviseError } = await admin.rpc('quote_revise', {
       p_id: revise, p_model: model, p_client_name: client.name,
