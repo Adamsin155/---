@@ -313,7 +313,7 @@ function slotCard(s) {
     linksPart(s),
     statusPart(s),
     h('div', { class: 'sc-next-row' },
-      h('button', { type: 'button', class: 'btn btn-primary sc-next', id: `${sid}-next`, onclick: () => saveAndNext(s) }, last ? 'שמירה וחזרה לרשימה' : 'שמירה ומעבר לבא')));
+      h('button', { type: 'button', class: 'btn k-btn-navy sc-next', id: `${sid}-next`, onclick: () => saveAndNext(s) }, last ? 'שמירה וחזרה לרשימה' : 'שמירה ומעבר לבא')));
 }
 // The client's focus points above the script being written (on a phone; on a wide screen they
 // sit beside it). Opened once, they stay open from one script to the next.
