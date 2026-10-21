@@ -462,6 +462,7 @@ await step('assignment: Nirel preselected for Natali; Nadia needs a reason; the 
 await step('"החלפת עורך" from the load list: the same dialog and rules; on time the editing days start over, and the new editor is told', async () => {
   // Natali's shoot, assigned to Nadia a moment ago: back to Nirel.
   const before = checkOf(N, 'p22a.assigned').at;
+  await openQaFolds(ofir);
   const nadiaCard = ofir.locator('#load-list .of-editor', { hasText: 'נדיה' });
   assert.match(await nadiaCard.innerText(), /סטודיו נטלי · שויך היום[^]*החלפת עורך/);
   await ofir.click(`#sw-${N.id}`);
@@ -500,6 +501,7 @@ await step('"החלפת עורך" from the load list: the same dialog and rules;
   assert.match(await ofir.locator('#handoff').innerText(), /עורך שויך · ניראל[^]*לשלוח לניראל בוואטסאפ/);
   await ofir.click('#handoff-close');
   assert.equal(db.client_tasks.filter((t) => t.client_id === N.id && t.title.startsWith('פתיחת תיקייה')).length, 1);
+  await openQaFolds(ofir);
   assert.match(await ofir.locator('#load-list .of-editor', { hasText: 'ניראל' }).innerText(), /סטודיו נטלי · שויך היום/);
   // The reminder engine: the notice "לקוח חדש בעריכה אצלך" is now Nirel's, not Nadia's.
   const byClient = {};
@@ -540,8 +542,9 @@ await step('a swap never resets a late job silently: the deadlines stay unless O
   // No WhatsApp is offered here: the handoff of an assignment (app/handoffs.js) is for an editing that has not reached Ofir yet.
   await ofir.waitForFunction(() => !document.querySelector('dialog[open]'));
   assert.equal(await ofir.isHidden('#handoff'), true);
+  await openQaFolds(ofir);
   assert.match(await ofir.locator('#load-list .of-editor', { hasText: 'אנה' }).innerText(), /גלידה שמש · יום 6 מתוך 4/);
-  assert.equal(await ofir.locator('#load-list .of-editor', { hasText: 'אנה' }).locator('.late').count(), 1);
+  assert.equal(await ofir.locator('#load-list .of-editor', { hasText: 'אנה' }).locator('.of-jobs .late').count(), 1); // the job's own line (the head says "אחת באיחור" too, 20.10.2026)
   await shot(ofir, 'office-03c-swapped');
 });
 
