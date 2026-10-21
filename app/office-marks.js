@@ -19,7 +19,7 @@
 //                       Note JSON { choice: 'move' | 'reassign', days, editor, proposal }.
 //   p06.fixed.<network> Lior closed a broken login: fixed, or partly (Irit and Ilai
 //                       are told). Note JSON { partial, missing, access }.
-import { PROCESSES, PEOPLE } from './protocol.js';
+import { PROCESSES, PEOPLE, editorsOf } from './protocol.js';
 import {
   addWorkingMinutes, officeMsBetween, IMPORT_NOTE, parseDate, SHIFT, fixDue, FIX_CUTOFF_HOUR,
 } from './protocol-logic.js';
@@ -36,6 +36,8 @@ export const QA_KINDS = {
   videos: {
     kind: 'videos', base: 'p25', proc: 'p25', ready: 'p24.notify', approved: 'p25.approved', checks: itemsOf('p25', 'p25.q.'),
     unit: 'סרטון', units: 'סרטונים', title: 'סרטונים', fixer: (ctx) => ctx?.editor || 'editor',
+    // Everyone who fixes: both editors when two work together (editor2).
+    fixers: (ctx) => (ctx?.editor ? editorsOf(ctx) : ['editor']),
   },
   graphics: {
     kind: 'graphics', base: 'p23', proc: 'p23', ready: 'p23.made', approved: 'p23.ofir', checks: itemsOf('p23', 'p23.q.'),

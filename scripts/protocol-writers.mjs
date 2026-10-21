@@ -115,7 +115,7 @@ export function ruleKey(base) {
 }
 
 // The same decision as private.protocol_write_ok (the SQL tests compare the two).
-// person: the signed-in person (null: the owner); client: its row (editor, rounds);
+// person: the signed-in person (null: the owner); client: its row (editor, editor2, rounds);
 // note: the note written (null when clearing).
 export function mayWrite({ person, client, key, note = null }, rows = writerRows()) {
   const byKey = new Map(rows.map((r) => [r.key, r]));
@@ -129,8 +129,11 @@ export function mayWrite({ person, client, key, note = null }, rows = writerRows
   const w = byKey.get(base) || byKey.get(ruleKey(base));
   if (!w || (n && !w.round)) return false;
   if (w.persons.includes(person)) return true;
-  const editor = n ? ((client?.rounds || []).find((r) => String(r.n) === n)?.editor || null) : (client?.editor || null);
-  if (w.persons.includes(EDITOR) && editor && editor === person) return true;
+  // The editor of that shoot, and the second one when two work together (editor2).
+  const shoot = n ? ((client?.rounds || []).find((r) => String(r.n) === n) || null) : client;
+  const editor = shoot?.editor || null;
+  const editor2 = (editor && shoot?.editor2) || null;
+  if (w.persons.includes(EDITOR) && editor && (editor === person || editor2 === person)) return true;
   return w.persons.includes(EDITOR_FREE) && !editor && byKey.get('@editors').persons.includes(person);
 }
 

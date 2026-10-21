@@ -4,7 +4,7 @@
 // The price columns exist only for a viewer who sees the money (seesFinance in
 // app/manager-rules.js: the owner, Irit and Ofir, never Lior); for anyone else they
 // are not built at all, so they cannot reach the screen or the CSV.
-import { PEOPLE, SHOOT_TYPES, CLIENT_STATUS, STATIONS } from './protocol.js';
+import { PEOPLE, SHOOT_TYPES, CLIENT_STATUS, STATIONS, editorNames } from './protocol.js';
 import { COLORS, shootContexts } from './health.js';
 import { contractSummary, ratio } from './contract-summary.js';
 import { parseDate } from './protocol-logic.js';
@@ -51,8 +51,8 @@ export function tableRow(entry, { checks = {}, finance = null, files = null, now
     reason: entry.health?.reasons?.[0]?.text || '',
     step: step ? `${step.what}${step.waiting ? ' · ממתין ללקוח' : ''}` : '',
     stepWho: step?.who || '',
-    editor: c.editor || (c.editor_name ? 'other' : ''),
-    editorName: c.editor ? nameOf(c.editor) : c.editor_name || '',
+    editor: c.editor || (c.editor_name ? 'other' : ''), editor2: (c.editor && c.editor2) || '',
+    editorName: c.editor ? editorNames(c) : c.editor_name || '',
     shootAt: shootOf(c, now),
     videos: summary.items.find((x) => x.key === 'videos') || null,
     graphics: summary.items.find((x) => x.key === 'graphics') || null,
@@ -96,7 +96,7 @@ export function filterRows(rows, f = DEFAULT_FILTERS) {
   const q = norm(f.q);
   return rows.filter((r) => (!f.station || r.stationKey === f.station)
     && (!f.color || r.color === f.color)
-    && (!f.editor || r.editor === f.editor)
+    && (!f.editor || r.editor === f.editor || (!!f.editor && r.editor2 === f.editor))
     && (f.status === 'all' || (f.status === 'open' || !f.status ? r.status === 'active' || r.status === 'ending' : r.status === f.status))
     && (!q || [r.name, r.contact, r.package, r.editorName, r.station, r.quote].some((x) => norm(x).includes(q))));
 }

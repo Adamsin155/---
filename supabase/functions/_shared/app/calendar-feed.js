@@ -23,7 +23,7 @@
 // and the characterizer at the meeting (Ofir or Lior). No phone number of a client
 // is ever written into a feed, and no internal note: a title, a time, a place for
 // those who need it, and a link to the card (which asks to sign in).
-import { SHOOT_TYPES, PEOPLE } from './protocol.js';
+import { SHOOT_TYPES, PEOPLE, isEditorOf } from './protocol.js';
 import { clientState, itemsOf, isResolved, roundsOf, roundContext, parseDate, isImported, isBusinessDay, weekKey, isDayEnd } from './protocol-logic.js';
 import { dayKeyIL, addDaysIL, atTimeIL, weekdayIL, partsIL, startOfDayIL, dayFromKeyIL, TZ } from './tz.js';
 
@@ -81,7 +81,7 @@ function inEliWindow(at, now) {
 export function visibleTo(person, client, tasks = [], now = new Date()) {
   if (OFFICE.has(person)) return true;
   if (!PEOPLE[person] || person === 'editor') return false;
-  if (client.editor === person || roundsOf(client).some((r) => r.editor === person)) return true;
+  if (isEditorOf(client, person) || roundsOf(client).some((r) => isEditorOf(r, person))) return true;
   const recent = now.getTime() - 30 * DAY;
   if (tasks.some((t) => t.client_id === client.id && t.owner === person && (!t.done_at || new Date(t.done_at).getTime() > recent))) return true;
   if (person === 'nirel' && client.shoot_type === 'natali') return true;

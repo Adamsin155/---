@@ -2,7 +2,7 @@
 // processes 32 and 33) and the performance report.
 import {
   PEOPLE, STAFF_PEOPLE, EDITORS, PHASES, PROCESSES, CLIENT_STATUS, OFFICE_REVIEWS, REVIEW_TOPICS,
-  STATUS_FIELDS, BRIEF_REQUIRED, STATIONS, DELIVERABLES,
+  STATUS_FIELDS, BRIEF_REQUIRED, STATIONS, DELIVERABLES, editorsOf,
 } from './protocol.js';
 import {
   clientState, openItemsFor, byUrgency, bucketOf, CLAIM, WAIT, waitNote, bulkEligible, isResolved,
@@ -2896,10 +2896,11 @@ function editingJobs() {
   for (const c of clients.filter(inWork)) {
     const s = stateOf(c);
     const st = (id) => s.states.find((x) => x.proc.id === id) || null;
-    for (const u of [{ editor: c.editor, pre: '', round: null }, ...roundsOf(c).map((r) => ({ editor: r.editor, pre: `r${r.n}-`, round: r.n }))]) {
+    // A shoot with two editors is in the load of each of them.
+    for (const u of [{ x: c, pre: '', round: null }, ...roundsOf(c).map((r) => ({ x: r, pre: `r${r.n}-`, round: r.n }))]) {
       const end = st(`${u.pre}p27`);
-      if (!u.editor || !end || end.complete) continue;
-      out.push({ c, editor: u.editor, round: u.round, steps: EDIT_STEPS.map(([id, label]) => ({ label, s: st(`${u.pre}${id}`) })).filter((x) => x.s) });
+      if (!u.x.editor || !end || end.complete) continue;
+      for (const editor of editorsOf(u.x)) out.push({ c, editor, round: u.round, steps: EDIT_STEPS.map(([id, label]) => ({ label, s: st(`${u.pre}${id}`) })).filter((x) => x.s) });
     }
   }
   return out;

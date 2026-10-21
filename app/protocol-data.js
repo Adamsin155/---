@@ -47,6 +47,22 @@ async function all(build) {
 export const CLIENT_PRIVATE = ['phone', 'notes', 'closed_reason'];
 const CLIENT_COLS = 'id, name, business, address, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, editor, protocol_version';
 const LEGACY_COLS = `${CLIENT_COLS}, ${CLIENT_PRIVATE.join(', ')}`;
+// The second editor (`editor2`, 20261031100000_access_and_editors.sql) is read with the
+// rest. Before that migration the column is missing: the rows are read without it from
+// then on, and the screens offer no second editor (editor2Ready()).
+let hasEditor2 = true;
+export const editor2Ready = () => hasEditor2;
+const noEditor2 = (err) => (err?.code === '42703' || err?.code === 'PGRST204') && /editor2/.test(String(err?.message || ''));
+export const withE2 = (cols) => (hasEditor2 ? `${cols}, editor2` : cols);
+// A read that throws (all()), or one that answers { data, error }: once more without the column.
+export async function e2Throws(run) {
+  try { return await run(); } catch (err) { if (!hasEditor2 || !noEditor2(err)) throw err; hasEditor2 = false; return run(); }
+}
+async function e2Result(run) {
+  const r = await run();
+  if (r?.error && hasEditor2 && noEditor2(r.error)) { hasEditor2 = false; return run(); }
+  return r;
+}
 const CHECK_COLS = 'client_id, item_key, state, note, by_email, at';
 const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, created_by_email, created_at, source, brief, urgent, started_at';
 
@@ -69,7 +85,7 @@ async function complete(row) {
   if (!row) return row;
   const priv = await privateFields([row.id]);
   if (priv) return withPrivate(row, priv);
-  const { data, error } = await supabase.from('clients').select(LEGACY_COLS).eq('id', row.id).maybeSingle();
+  const { data, error } = await e2Result(() => supabase.from('clients').select(withE2(LEGACY_COLS)).eq('id', row.id).maybeSingle());
   if (error) throw error;
   return data;
 }
@@ -80,15 +96,15 @@ export async function loadClients({ includeEnded = false } = {}) {
     if (!includeEnded) q = q.neq('status', 'ended');
     return q;
   });
-  const [rows, priv] = await Promise.all([read(CLIENT_COLS), privateFields()]);
+  const [rows, priv] = await Promise.all([e2Throws(() => read(withE2(CLIENT_COLS))), privateFields()]);
   // Every row carries its landing columns (docs/ops.md, section 41): the deadlines,
   // the lists and the clocks of every page read them through clientState.
-  return withLanding(priv ? rows.map((r) => withPrivate(r, priv)) : await read(LEGACY_COLS));
+  return withLanding(priv ? rows.map((r) => withPrivate(r, priv)) : await e2Throws(() => read(withE2(LEGACY_COLS))));
 }
 
 export async function loadClient(id) {
   const [{ data, error }, priv] = await Promise.all([
-    supabase.from('clients').select(CLIENT_COLS).eq('id', id).maybeSingle(),
+    e2Result(() => supabase.from('clients').select(withE2(CLIENT_COLS)).eq('id', id).maybeSingle()),
     privateFields([id]),
   ]);
   if (error) throw error;
@@ -197,13 +213,13 @@ export async function setTaskStarted(id, started) {
 }
 
 export async function createClient(fields) {
-  const { data, error } = await supabase.from('clients').insert(fields).select(CLIENT_COLS).single();
+  const { data, error } = await e2Result(() => supabase.from('clients').insert(fields).select(withE2(CLIENT_COLS)).single());
   if (error) throw error;
   return complete(data);
 }
 
 export async function updateClient(id, fields) {
-  const { data, error } = await supabase.from('clients').update(fields).eq('id', id).select(CLIENT_COLS).single();
+  const { data, error } = await e2Result(() => supabase.from('clients').update(fields).eq('id', id).select(withE2(CLIENT_COLS)).single());
   if (error) throw error;
   return withLanding(await complete(data));
 }

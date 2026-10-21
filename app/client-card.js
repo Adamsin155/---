@@ -3,7 +3,7 @@
 // call and a full history of who checked what and when.
 import {
   PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
-  STAFF_PEOPLE, editorsFor, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
+  STAFF_PEOPLE, editorsFor, editorNames, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
 } from './protocol.js';
 import {
   clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
@@ -12,7 +12,7 @@ import {
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
   addTask, setTaskDone, updateClient, loadDirectory, loadQuoteSummary, loadCalls, quoteFacts,
-  loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes, setPasswordGate, GATE_CANCELLED,
+  loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes, setPasswordGate, GATE_CANCELLED, editor2Ready,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, peopleChips, formatWhen, formatDay, formatStamp, who,
@@ -364,7 +364,7 @@ function renderQa(s) {
     const ctx = x.proc.ctx || client;
     const q = qaState(checks, pre, kind);
     if (q.stage !== 'ofir' && q.stage !== 'fixing') continue;
-    if (own() && QA_KINDS[kind].fixer(ctx) !== me) continue;
+    if (own() && ![QA_KINDS[kind].fixers ? QA_KINDS[kind].fixers(ctx) : QA_KINDS[kind].fixer(ctx)].flat().includes(me)) continue;
     parts.push(h('div', { class: 'qa-part' },
       h('h3', { class: 'qa-part-h' }, `${QA_KINDS[kind].title}${ctx.round ? ` · סבב צילום ${ctx.round}` : ''}`),
       qaLine({ client, checks, kind, pre, ctx, me, viewer: { me, scope, error: viewerError }, meetings: ofirMeetings, fast: fastCaseOf(client, x, s.states, checks), onChange: () => { renderKeepingFocus(); loadHistory(); } })));
@@ -794,7 +794,7 @@ function renderHead(s) {
     ? { done: counted.filter((x) => x.complete).length, total: counted.length, label: 'התהליכים שלי שהושלמו', overdue: counted.filter((x) => x.status === 'overdue').length, waiting: counted.filter((x) => x.status === 'client').length }
     : { done: s.procsDone, total: s.procsTotal, label: 'תהליכים שהושלמו', overdue: s.overdue, waiting: s.waitingOnClient };
   const shootFact = fact('יום צילום', [c.shoot_type ? SHOOT_TYPES[c.shoot_type].name : null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot'));
-  const editorFact = fact('עורך', c.editor ? PEOPLE[c.editor]?.name : c.editor_name);
+  const editorFact = fact(c.editor && c.editor2 ? 'עורכים' : 'עורך', c.editor ? editorNames(c) : c.editor_name);
   fill($('cc-head'),
     landingNote(),
     autoBanner(),
@@ -1926,6 +1926,7 @@ function openRound(n = null) {
   headText('round-h', `סבב צילום ${nextN}`);
   $('round-type').value = r?.shoot_type || client.shoot_type || 'natali';
   fillEditors('round-editor', $('round-type').value, r?.editor);
+  fillEditor2('round-editor2', $('round-type').value, r?.editor, r?.editor2);
   $('round-at').value = inputValueIL(r?.shoot_at);
   roundAtHint.refresh();
   $('round-note').hidden = !!n;
@@ -1943,16 +1944,21 @@ $('round-form').addEventListener('submit', async (e) => {
     $('round-extra').focus();
     return;
   }
-  if (!editorFits($('round-editor').value, $('round-type').value)) {
-    showErr('round-err', `${PEOPLE[$('round-editor').value]?.name || 'העורך'} עורכת רק ימי צילום של נטלי דדון. בחרו עורך אחר.`);
-    $('round-editor').focus();
+  for (const sel of ['round-editor', 'round-editor2']) {
+    if (editorFits($(sel).value, $('round-type').value)) continue;
+    showErr('round-err', `${PEOPLE[$(sel).value]?.name || 'העורך'} עורכת רק ימי צילום של נטלי דדון. בחרו עורך אחר.`);
+    $(sel).focus();
     return;
   }
   const rounds = roundsOf(client);
   const at = fromInputIL($('round-at').value)?.toISOString() || null;
+  // The second editor of the round (editor2): only beside a main one, never the same.
+  const ed = $('round-editor').value || null;
+  const ed2 = !$('round-editor2-wrap').hidden && ed && $('round-editor2').value !== ed ? $('round-editor2').value || null : null;
+  const eds = editor2Ready() ? { editor: ed, editor2: ed2 } : { editor: ed };
   const next = roundEditing
-    ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null } : r))
-    : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null, start_at: new Date().toISOString() }];
+    ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at, ...eds } : r))
+    : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, ...eds, start_at: new Date().toISOString() }];
   const before = roundEditing ? rounds.find((r) => r.n === roundEditing)?.shoot_at : null;
   const asked = at && +new Date(at) !== +new Date(before || 0) ? await confirmShootDay({ shootAt: at, own: before, me }) : { ok: true, note: null };
   if (!asked.ok) { $('round-at').focus(); return; }
@@ -2186,6 +2192,7 @@ function openEdit(focusId = 'ed-name') {
   $('ed-shoot-at').value = toLocal(c.shoot_at);
   shootAtHint.refresh();
   fillEditors('ed-editor', c.shoot_type, c.editor);
+  fillEditor2('ed-editor2', c.shoot_type, c.editor, c.editor2);
   $('ed-contract-end').value = c.contract_end || '';
   $('ed-notes').value = c.notes || '';
   for (const [k] of DELIV_FIELDS) $(`ed-deliv-${k}`).value = c.deliverables?.[k] ?? '';
@@ -2206,8 +2213,22 @@ function fillEditors(selId, shootType, current) {
   $(selId).value = current || '';
 }
 const editorFits = (editor, shootType) => !editor || editorsFor(shootType).includes(editor);
-$('ed-shoot-type').addEventListener('change', () => fillEditors('ed-editor', $('ed-shoot-type').value || null, $('ed-editor').value || null));
-$('round-type').addEventListener('change', () => fillEditors('round-editor', $('round-type').value, $('round-editor').value || null));
+// "עורך/ת נוסף/ת" (the owner's request of 21.10.2026): a second editor beside the main
+// one, or nobody. Shown once a main editor is chosen, and once the database has the column.
+function fillEditor2(selId, shootType, main, current) {
+  $(`${selId}-wrap`).hidden = !editor2Ready() || !main;
+  const keys = editorsFor(shootType).filter((k) => k !== main);
+  const extra = current && current !== main && !keys.includes(current) ? [current] : [];
+  fill($(selId), h('option', { value: '' }, 'בלי עורך נוסף'),
+    ...keys.map((k) => h('option', { value: k }, `${PEOPLE[k].name}${k === 'nirel' ? ' (נטלי בלבד)' : ''}`)),
+    ...extra.map((k) => h('option', { value: k }, `${PEOPLE[k]?.name || k} (לא מתאים לסוג יום הצילום)`)));
+  $(selId).value = current && current !== main ? current : '';
+}
+const syncEditor2 = (pre, typeSel) => fillEditor2(`${pre}-editor2`, $(typeSel).value || null, $(`${pre}-editor`).value || null, $(`${pre}-editor2`).value || null);
+$('ed-shoot-type').addEventListener('change', () => { fillEditors('ed-editor', $('ed-shoot-type').value || null, $('ed-editor').value || null); syncEditor2('ed', 'ed-shoot-type'); });
+$('round-type').addEventListener('change', () => { fillEditors('round-editor', $('round-type').value, $('round-editor').value || null); syncEditor2('round', 'round-type'); });
+$('ed-editor').addEventListener('change', () => syncEditor2('ed', 'ed-shoot-type'));
+$('round-editor').addEventListener('change', () => syncEditor2('round', 'round-type'));
 
 // Links only: a password, token or code in the address is refused.
 const SECRET = /\/\/[^/?#@\s]+:[^/?#@\s]*@|[?&#;]([a-z_]*(password|passwd|pass|pwd|token|secret|apikey|api_key|key|auth|sig|signature)|code)=/i;
@@ -2242,8 +2263,10 @@ $('ed-form').addEventListener('submit', async (e) => {
   }
   const { links, error, input } = readLinks();
   if (error) return fail(error, input);
-  if (!editorFits($('ed-editor').value, $('ed-shoot-type').value || null)) {
-    return fail(`${PEOPLE[$('ed-editor').value]?.name || 'העורך'} עורכת רק לקוחות של נטלי דדון. בחרו עורך אחר.`, $('ed-editor'));
+  for (const sel of ['ed-editor', 'ed-editor2']) {
+    if (!editorFits($(sel).value, $('ed-shoot-type').value || null)) {
+      return fail(`${PEOPLE[$(sel).value]?.name || 'העורך'} עורכת רק לקוחות של נטלי דדון. בחרו עורך אחר.`, $(sel));
+    }
   }
   const deliverables = { ...(client.deliverables || {}) };
   for (const [k] of DELIV_FIELDS) {
@@ -2251,6 +2274,8 @@ $('ed-form').addEventListener('submit', async (e) => {
     if (v === '') delete deliverables[k]; else deliverables[k] = Math.max(0, Math.round(Number(v)));
   }
   const val = (i) => $(i).value.trim() || null;
+  // The second editor: only beside a main one (the database holds to the same).
+  const ed2 = val('ed-editor') && !$('ed-editor2-wrap').hidden && $('ed-editor2').value !== val('ed-editor') ? val('ed-editor2') : null;
   // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
   const newShoot = fromLocal($('ed-shoot-at').value);
   const shootMoved = !!newShoot && +new Date(newShoot) !== +new Date(client.shoot_at || 0);
@@ -2266,7 +2291,7 @@ $('ed-form').addEventListener('submit', async (e) => {
       deal_at: fromLocal($('ed-deal').value) || client.deal_at, status,
       char_at: fromLocal($('ed-char-at').value), characterizer: val('ed-characterizer'),
       has_logo: $('ed-logo').value === '' ? null : $('ed-logo').value === 'true',
-      shoot_type: val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor: val('ed-editor'),
+      shoot_type: val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor: val('ed-editor'), ...(editor2Ready() ? { editor2: ed2 } : {}),
       contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables,
     });
     if (asked.note) await noteDateChange(id, 'shoot_at', null, newShoot, asked.note);

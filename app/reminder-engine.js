@@ -161,7 +161,7 @@ export function candidates(env, { until = env.now } = {}) {
         for (const person of d.persons) {
           out.push({
             key: `${rule.id}:${inst.cid || '-'}:${inst.id}:${d.step.id}@${person}`,
-            rule: rule.id, step: d.step.id, person, level: d.step.level,
+            rule: rule.id, step: d.step.id, person, holders: d.persons, level: d.step.level,
             exempt: d.step.exempt || null, shoot: !!d.step.shoot, ownHours: !!d.step.ownHours, exception: !!d.step.exception,
             list: !!d.step.list, overdue: !!d.step.overdue, batch: !!d.step.batch, noFold: !!d.step.noFold, escalation: d.escalation,
             at: d.at, clientId: inst.cid || null, ref: inst.ref || null, url: (d.step.url ? d.step.url(inst, env) : inst.url) || MINE_URL,
@@ -224,7 +224,8 @@ export function planHandover({ reminders, siblings = [], now }) {
     if (!others.length) { out.push(r); continue; }
     const last = others.reduce((a, b) => ((Number(b.id) || 0) > (Number(a.id) || 0) ? b : a));
     out.push({ ...r, at: now, passed: true });
-    if (!r.handover.title || last.person === r.person) continue;
+    // A second editor added beside the first: the first still holds the work, and is not told it passed on.
+    if (!r.handover.title || last.person === r.person || (r.holders || []).includes(last.person)) continue;
     const base = beforeAt(r.key).split(':').slice(0, -1).join(':'); // rule:client:case
     out.push({
       ...r, key: `${base}#${last.id}:${OFF}@${last.person}`, step: OFF, person: last.person, level: 'quiet', exempt: null, shoot: false, ownHours: false,

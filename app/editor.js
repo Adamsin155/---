@@ -293,7 +293,7 @@ function stateBlock(job, st) {
 function qaFixes(job) {
   const c = job.client;
   return h('div', { class: 'ed-fixes' }, fixList({
-    client: c, checks: cs(c), kind: 'videos', pre: job.pre, fixer: QA_KINDS.videos.fixer(job.ctx), me, viewer,
+    client: c, checks: cs(c), kind: 'videos', pre: job.pre, fixer: QA_KINDS.videos.fixers(job.ctx), me, viewer,
     onChange: () => {
       states.delete(c.id);
       renderKeepingFocus(`${cardId(job)}-h`);

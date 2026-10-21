@@ -170,6 +170,13 @@ export const TEAM_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== '
 // Editors a client can be assigned to. Nirel edits only Natali Dadon's videos.
 export const EDITORS = ['nadia', 'yariv', 'anna', 'nirel'];
 export const editorsFor = (shootType) => (shootType === 'natali' ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));
+// The editors of a shoot (the client, or a round's view of it): the main one (`editor`)
+// and, when two work together, the second (`editor2`; the owner's request of 21.10.2026).
+// The second one sees the client, gets the same notices and marks the editing steps.
+export const editorsOf = (x) => [x?.editor, x?.editor2].filter((e, i, a) => e && e !== 'editor' && a.indexOf(e) === i);
+export const isEditorOf = (x, person) => !!person && editorsOf(x).includes(person);
+// "נדיה + יריב" (a name not in PEOPLE stays as it is).
+export const editorNames = (x) => editorsOf(x).map((e) => PEOPLE[e]?.name || e).join(' + ');
 
 // Who can run the characterization meeting. Lior goes only when Ofir and Shirel cannot.
 export const CHARACTERIZERS = ['ofir', 'lior'];
@@ -263,7 +270,7 @@ export const CALL_TOPICS = [
 const characterizer = (c) => (c.characterizer ? [c.characterizer] : ['ofir']);
 // Whoever characterizes takes the access in the meeting; otherwise Irit gets it from the client.
 const accessOwners = (c) => (c.characterizer === 'ofir' || c.characterizer === 'lior' ? [c.characterizer] : ['irit']);
-const editorOf = (c) => (c.editor ? [c.editor] : ['editor']);
+const editorOf = (c) => (c.editor ? editorsOf(c) : ['editor']);
 const isNatali = (c) => c.shoot_type === 'natali';
 const isDms = (c) => c.shoot_type === 'dms';
 

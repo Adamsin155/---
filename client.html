@@ -161,6 +161,7 @@
               <select class="input" id="ed-shoot-type"><option value="">טרם נקבע</option><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
             <div class="field"><label for="ed-shoot-at">מועד הגעת המשפיענים</label><input class="input" id="ed-shoot-at" type="datetime-local" dir="ltr"></div>
             <div class="field"><label for="ed-editor">עורך (אופיר משייך)</label><select class="input" id="ed-editor"></select></div>
+            <div class="field" id="ed-editor2-wrap" hidden><label for="ed-editor2">עורך/ת נוסף/ת (לא חובה)</label><select class="input" id="ed-editor2"></select></div>
           </div>
         </fieldset>
         <fieldset class="span-2 fs" id="ed-deliv-fs">
@@ -281,6 +282,7 @@
         <div class="field"><label for="round-type">סוג יום הצילום</label>
           <select class="input" id="round-type"><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
         <div class="field" style="margin-top:12px"><label for="round-editor">עורך לסבב (אופיר משייך)</label><select class="input" id="round-editor"></select></div>
+        <div class="field" id="round-editor2-wrap" style="margin-top:12px" hidden><label for="round-editor2">עורך/ת נוסף/ת לסבב (לא חובה)</label><select class="input" id="round-editor2"></select></div>
         <div class="field" style="margin-top:12px"><label for="round-at">מועד הגעת המשפיענים</label><input class="input" id="round-at" type="datetime-local" dir="ltr" aria-describedby="round-at-hint">
           <div class="hint" id="round-at-hint">אפשר להזין אחר כך. בלי מועד, תהליכי יום הצילום יבקשו אותו.</div></div>
         <p class="hint" id="round-note">תהליכים 11–30 (חוץ מ־23, הגרפיקות השנתיות) ייפתחו מחדש לסבב הזה. זמני הביצוע שנספרים ״מהאפיון״ ייספרו מרגע הוספת הסבב.</p>

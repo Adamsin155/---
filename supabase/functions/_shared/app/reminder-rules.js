@@ -49,7 +49,7 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, editorsOf, editorNames } from './protocol.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
   businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel, clientState, blockers,
@@ -208,7 +208,8 @@ export function inTimeWords(target, now) {
 // its usual words; later it is worded by the time really left.
 export const LATE_SLACK = 5;
 export const sentOnTime = (target, now, minutesBefore) => (target - now) / MIN >= minutesBefore - LATE_SLACK;
-export const personName = (key) => (key === OWNER ? 'הבעלים' : PEOPLE[key]?.name || key);
+// A list of people (the two editors of a shoot) reads "נדיה + יריב".
+export const personName = (key) => (Array.isArray(key) ? key.map(personName).join(' + ') : key === OWNER ? 'הבעלים' : PEOPLE[key]?.name || key);
 const names = (list, max = 4) => (list.length > max ? `${list.slice(0, max).join(', ')} ועוד ${list.length - max}` : list.join(', '));
 const procName = (proc) => `${proc.num} · ${proc.title}`;
 export const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash ? `#${hash}` : ''}`;
@@ -708,7 +709,7 @@ export const RULES = [
           // Lior moved the deadlines (editing paused): days 2 and 3 move with them.
           const shift = readShift(i.checks[SHIFT_KEY(i.pre)]);
           return {
-            ...i, id: i.proc.id, who: i.ctx.editor, url: EDITOR_URL(i.cid), ready: !!p24 && (p24.complete || i.resolved('p24.notify')), p24due: p24?.dueAt, p27due: i.same('p27')?.dueAt,
+            ...i, id: i.proc.id, who: editorsOf(i.ctx), url: EDITOR_URL(i.cid), ready: !!p24 && (p24.complete || i.resolved('p24.notify')), p24due: p24?.dueAt, p27due: i.same('p27')?.dueAt,
             anchors: { event: assigned, days: shift ? businessDayFrom(assigned, shift) : assigned },
           };
         })
@@ -1171,12 +1172,12 @@ export const RULES = [
       return casesOf(env, 'p22', (i) => !!pauseOf(i.proc, i.checks) && !i.s.complete).map((i) => {
         const p = pauseOf(i.proc, i.checks);
         const at = new Date(p.at);
-        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, who: i.ctx.editor, why: p.for ? pauseText(p) : 'עריכה נעצרה', anchors: { event: at } };
+        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, who: editorsOf(i.ctx), why: p.for ? pauseText(p) : 'עריכה נעצרה', anchors: { event: at } };
       });
     },
     steps: [
-      { id: 'ofir', to: 'ofir', level: 'quiet', title: (i) => `${i.why}: ${i.name}${i.who ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
-      { id: 'lior', to: 'lior', level: 'digest', list: true, title: (i) => `${i.why}: ${i.name}${i.who ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
+      { id: 'ofir', to: 'ofir', level: 'quiet', title: (i) => `${i.why}: ${i.name}${i.who.length ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
+      { id: 'lior', to: 'lior', level: 'digest', list: true, title: (i) => `${i.why}: ${i.name}${i.who.length ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
       { id: 'morning', businessDays: 1, at: '08:30', to: 'lior', level: 'digest', overdue: true, title: (i) => `העריכה עדיין עצורה: ${i.name} · להחליט`, body: () => 'להזיז מועדים או להעביר לעורך אחר.' },
     ],
   },
@@ -1265,12 +1266,12 @@ export const RULES = [
     instances(env) {
       return casesOf(env, 'p22', (i) => !!missingOf(i.checks, i.pre)).map((i) => {
         const m = missingOf(i.checks, i.pre);
-        return { ...i, id: `${i.proc.id}@${m.at.toISOString()}`, who: i.ctx.editor, missing: m, anchors: { event: m.at } };
+        return { ...i, id: `${i.proc.id}@${m.at.toISOString()}`, who: editorNames(i.ctx), missing: m, anchors: { event: m.at } };
       });
     },
     steps: [
-      { id: 'irit', to: 'irit', level: 'ring', title: (i) => `חסר לעורך: ${i.name}`, body: (i) => `${i.who ? `${personName(i.who)}: ` : ''}חסר ${missingText(i.missing.what) || 'חומר'}${i.missing.note ? ` (${i.missing.note})` : ''}. העריכה חסומה עד שזה מגיע.` },
-      { id: 'lior', officeMinutes: 180, to: 'lior', level: 'ring', exception: true, title: (i) => `עריכה חסומה 3 שעות: ${i.name}`, body: (i) => `חסר ${missingText(i.missing.what) || 'חומר'}${i.who ? ` אצל ${personName(i.who)}` : ''}. עירית עוד לא סגרה את זה.` },
+      { id: 'irit', to: 'irit', level: 'ring', title: (i) => `חסר לעורך: ${i.name}`, body: (i) => `${i.who ? `${i.who}: ` : ''}חסר ${missingText(i.missing.what) || 'חומר'}${i.missing.note ? ` (${i.missing.note})` : ''}. העריכה חסומה עד שזה מגיע.` },
+      { id: 'lior', officeMinutes: 180, to: 'lior', level: 'ring', exception: true, title: (i) => `עריכה חסומה 3 שעות: ${i.name}`, body: (i) => `חסר ${missingText(i.missing.what) || 'חומר'}${i.who ? ` אצל ${i.who}` : ''}. עירית עוד לא סגרה את זה.` },
     ],
   },
 
@@ -1280,7 +1281,7 @@ export const RULES = [
     id: 'clientFixes', event: 'הערות לקוח (27)', procs: ['p27'],
     instances(env) {
       return casesOf(env, 'p27', (i) => !!i.doneAt('p27.notes') && !i.resolved('p27.fixes') && !i.resolved('p27.approved') && !i.resolved('p27.final'))
-        .map((i) => ({ ...i, id: `${i.proc.id}@${i.doneAt('p27.notes').toISOString()}`, who: i.ctx.editor, url: EDITOR_URL(i.cid), anchors: { event: i.doneAt('p27.notes') } }));
+        .map((i) => ({ ...i, id: `${i.proc.id}@${i.doneAt('p27.notes').toISOString()}`, who: editorsOf(i.ctx), url: EDITOR_URL(i.cid), anchors: { event: i.doneAt('p27.notes') } }));
     },
     steps: [
       { id: 'editor', to: (i) => i.who, level: 'ring', title: (i) => `הערות הלקוח הגיעו: ${i.name}`, body: () => 'לתקן, להחליף בדרייב ולסמן. התיקונים עוברים ישר לעילאי.' },
@@ -2101,7 +2102,7 @@ const PEOPLE_RULES = [
         const d = readMark(mark);
         const at = d && parseDate(mark.at);
         if (!at || d.choice !== 'move' || !(Number(d.days) > 0)) return [];
-        return [{ ...i, id: `${i.proc.id}@${at.toISOString()}`, who: i.ctx.editor, days: Number(d.days), p24due: i.same('p24')?.dueAt, url: EDITOR_URL(i.cid), anchors: { event: nextSendMoment(at) } }];
+        return [{ ...i, id: `${i.proc.id}@${at.toISOString()}`, who: editorsOf(i.ctx), days: Number(d.days), p24due: i.same('p24')?.dueAt, url: EDITOR_URL(i.cid), anchors: { event: nextSendMoment(at) } }];
       });
     },
     steps: [
@@ -2118,7 +2119,7 @@ const PEOPLE_RULES = [
       return APPROVED_ITEMS.flatMap(([b, what]) => casesOf(env, b, (i) => !!i.doneAt(`${b}.approved`)).map((i) => {
         const at = i.doneAt(`${b}.approved`);
         const note = String(i.check(`${b}.approved`).note || '');
-        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, b, what: `${what}${i.pre ? ` (סבב ${i.pre.slice(1, -1)})` : ''}`, page: note.startsWith(VIA_PAGE), note: said(note, 200), editor: i.ctx.editor || null, anchors: { event: nextSendMoment(at) } };
+        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, b, what: `${what}${i.pre ? ` (סבב ${i.pre.slice(1, -1)})` : ''}`, page: note.startsWith(VIA_PAGE), note: said(note, 200), editor: editorsOf(i.ctx), anchors: { event: nextSendMoment(at) } };
       }));
     },
     steps: [
@@ -2127,7 +2128,7 @@ const PEOPLE_RULES = [
       { id: 'lior', to: 'lior', level: 'quiet', when: (i) => i.page && i.b === 'p13', title: (i) => `הלקוח אישר בדף המצב: ${i.what} · ${i.name}`, body: (i) => `${i.note}.` },
       // The videos: the editor waits for notes, and hears there are none (Ilai's ladder starts when 27 closes).
       {
-        id: 'editor', to: (i) => i.editor, level: 'quiet', when: (i) => i.b === 'p27' && !!i.editor && !i.resolved('p27.final'), url: (i) => EDITOR_URL(i.cid),
+        id: 'editor', to: (i) => i.editor, level: 'quiet', when: (i) => i.b === 'p27' && i.editor.length > 0 && !i.resolved('p27.final'), url: (i) => EDITOR_URL(i.cid),
         title: (i) => `הלקוח אישר את הסרטונים: ${i.name}`, body: () => 'מה שנשאר פתוח אצלך בתהליך 27 מופיע בעמוד העריכה.',
       },
     ],

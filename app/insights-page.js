@@ -212,7 +212,7 @@ function renderPipeline() {
       p.shootAt ? ((leaf) => { leaf.setAttribute('aria-hidden', 'true'); return leaf; })(dateLeaf({ ...leafOf(new Date(p.shootAt)), sub: null, label: null, tone: 'teal' })) : null,
       h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(p.client.id)}` }, clientLabel(p.client)),
       h('span', { class: 'muted' }, [p.n > 1 ? `סבב ${p.n}` : null, `צילום ${dayText(p.shootAt)}`, p.shootType || null].filter(Boolean).join(' · ')),
-      p.editor ? personChip(p.editor) : null),
+      p.editor ? personChip(p.editor) : null, p.editor2 ? personChip(p.editor2) : null),
     h('ol', { class: 'pipe-stages' }, ...p.stages.map((s) => {
       const state = s.at ? 'done' : s.imported ? 'imported' : p.next?.key === s.key ? 'next' : 'open';
       const word = { done: dayText(s.at), imported: 'ייבוא', next: 'הבא', open: 'טרם' }[state];

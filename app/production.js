@@ -32,7 +32,7 @@
 // p19b.notes (Eli's notes for the editor, in its note), p19.testimonial / p19.took
 // (Lior's side of the handoff) and p22.pause (note JSON { stage, left, why, for,
 // task }: `for` is whoever asked for the urgent task, "עצירה לבקשת <שם>").
-import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES } from './protocol.js';
+import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES, isEditorOf, editorNames } from './protocol.js';
 import {
   roundsOf, roundContext, businessDaysBetween, parseDate, erevOn, IMPORT_NOTE, addBusinessDays, isBusinessDay, nextWorkMoment,
   inLanding, workFloor,
@@ -170,14 +170,15 @@ export const pauseNote = ({ stage, left, why = '', for: forWhom = null, task = n
 
 // ── The editor's cases ─────────────────────
 // Each editing job of `person`: the client's main editing and every shoot round
-// that is theirs, once assigned (22א). `state` is clientState() of the client.
+// that is theirs, once assigned (22א), as the main editor or the second one.
+// `state` is clientState() of the client.
 export function editingCases(client, checks, person, state) {
   if (!person || !client || !(client.status === 'active' || client.status === 'ending')) return [];
-  const jobs = [{ n: 1, pre: '', editor: client.editor, ctx: client },
-    ...roundsOf(client).map((r) => ({ n: r.n, pre: `r${r.n}.`, editor: r.editor, ctx: roundContext(client, r) }))];
+  const jobs = [{ n: 1, pre: '', ctx: client },
+    ...roundsOf(client).map((r) => ({ n: r.n, pre: `r${r.n}.`, ctx: roundContext(client, r) }))];
   const out = [];
   for (const j of jobs) {
-    if (j.editor !== person || !done(checks, `${j.pre}p22a.assigned`)) continue;
+    if (!isEditorOf(j.ctx, person) || !done(checks, `${j.pre}p22a.assigned`)) continue;
     const pid = (b) => (j.pre ? `r${j.n}-${b}` : b);
     const st = (b) => state?.states.find((s) => s.proc.id === pid(b)) || null;
     out.push({
@@ -510,7 +511,7 @@ export function closeLock(checks, pre = '', target = null, { startAt = null, now
 // rung at that moment and has ten minutes: the rule `fast`); an editor that is already
 // in the card is what his dialog proposes.
 export function afterCloseText(checks, pre = '', ctx = null) {
-  const editor = ctx?.editor && PEOPLE[ctx.editor] ? PEOPLE[ctx.editor].name : null;
+  const editor = ctx?.editor && PEOPLE[ctx.editor] ? editorNames(ctx) : null;
   if (done(checks, `${pre}p22a.assigned`) && editor) return `העריכה אצל ${editor}.`;
   if (editor) return `בכרטיס רשום ${editor} כעורך. אופיר קיבל הודעה לשייך.`;
   return 'אופיר קיבל הודעה לשייך עורך.';

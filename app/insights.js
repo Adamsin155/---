@@ -295,7 +295,7 @@ export function pipelineReport(clients, checksByClient, logBy, month, now = new 
         if (s.at) prev = s.at;
       }
       out.push({
-        client: c, n: x.n, shootAt, shootType: SHOOT_TYPES[x.ctx.shoot_type]?.name || '', editor: x.ctx.editor || null,
+        client: c, n: x.n, shootAt, shootType: SHOOT_TYPES[x.ctx.shoot_type]?.name || '', editor: x.ctx.editor || null, editor2: (x.ctx.editor && x.ctx.editor2) || null,
         stages, done, next, total: shootAt <= now && stages.at(-1).at ? businessDaysBetween(shootAt, stages.at(-1).at) : null,
       });
     }

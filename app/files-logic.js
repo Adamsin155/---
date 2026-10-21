@@ -197,7 +197,9 @@ export const EDITORS = ['nadia', 'yariv', 'anna', 'nirel'];
 // (The logo: protocol v10. "עילאי הכין לוגו חדש" is ticked only once a logo is in the client's files,
 // so he uploads the one he made; public.can_upload_client_file agrees, migration 20261024100000.)
 export const ILAI_KINDS = ['deliverable_graphic', 'deliverable_highlight', 'deliverable_site', 'logo'];
-export const assignedTo = (client, me) => !!me && (client?.editor === me || (client?.rounds || []).some((r) => r?.editor === me));
+// The main editor or the second one (editor2), of the client or of a round.
+const edits = (x, me) => x?.editor === me || x?.editor2 === me;
+export const assignedTo = (client, me) => !!me && (edits(client, me) || (client?.rounds || []).some((r) => edits(r, me)));
 
 export function uploadKinds(me, client) {
   if (me === undefined) return [];

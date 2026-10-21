@@ -97,7 +97,7 @@ export async function whatsappChannel(admin: any) {
       nag: (id: string) => (UUID.test(id) ? row('staff_tasks', 'id, assignee, status, body', 'id', id) : null),
       async client(id: string) {
         if (!UUID.test(id)) return null;
-        const { data: out, error: e } = await admin.from('clients').select('id, editor, rounds, shoot_type, shoot_at, char_at').eq('id', id).is('archived_at', null).maybeSingle();
+        const { data: out, error: e } = await admin.from('clients').select('id, editor, editor2, rounds, shoot_type, shoot_at, char_at').eq('id', id).is('archived_at', null).maybeSingle();
         if (e) throw e;
         return out;
       },

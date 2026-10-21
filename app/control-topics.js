@@ -5,7 +5,7 @@
 // Pure, no DOM, Israel time. Everything is computed from what the tab already loads:
 // the clients with their marks and states, the open tasks, each person's work, and
 // (for Irit and the owners, who may read them) Stav's deals.
-import { REVIEW_TOPICS, PEOPLE } from './protocol.js';
+import { REVIEW_TOPICS, PEOPLE, editorNames } from './protocol.js';
 import { businessDaysBetween, addBusinessDays, parseDate, IMPORT_NOTE, inLanding, workFloor } from './protocol-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import { dealUrl, dealDue } from './deal-logic.js';
@@ -236,7 +236,7 @@ function fixes({ live, cs, st, tasks, now }) {
       if (baseId(s.proc.id) !== 'p27' || s.complete) continue;
       const pre = preOf(s.proc);
       if (!isDone(k, `${pre}p27.notes`) || isResolved(k, `${pre}p27.fixes`) || isResolved(k, `${pre}p27.approved`) || isResolved(k, `${pre}p27.final`)) continue;
-      const editor = nameOf((s.proc.ctx || c).editor);
+      const editor = editorNames(s.proc.ctx || c);
       out.push(item({
         id: `${c.id}:${s.proc.id}`, client: c, hash: s.proc.id, since: atOf(k, `${pre}p27.notes`), late: s.status === 'overdue',
         text: `תיקוני הלקוח בסרטונים${roundText(s.proc)}${editor ? ` · ${editor}` : ''}`,

@@ -3,7 +3,7 @@
 // can also run in an edge function.
 // Every date is computed in Israel time (tz.js), whatever the zone of the device
 // or the server: office hours, business days, "today" and the day before a shoot.
-import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER } from './protocol.js';
+import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER, isEditorOf } from './protocol.js';
 import { SPECS, TERM_MONTHS, PACKAGES } from './catalog.js';
 import { holidayOn as closedOn, erevOn } from './holidays.js';
 import { adjustForVersion, laterDue } from './protocol-versions.js';
@@ -231,7 +231,7 @@ export function roundContext(client, r) {
   return {
     ...client, round: r.n,
     shoot_type: r.shoot_type || client.shoot_type, shoot_at: r.shoot_at || null,
-    char_at: r.start_at || null, editor: r.editor || null,
+    char_at: r.start_at || null, editor: r.editor || null, editor2: (r.editor && r.editor2) || null,
   };
 }
 
@@ -847,7 +847,7 @@ export function upcomingFor(person, client, state, now = new Date(), days = 30) 
 export function involves(person, client, checks, state, now = new Date()) {
   if (!person || client.status === 'cancelled') return false;
   const inWork = client.status === 'active' || client.status === 'ending';
-  if (inWork && (client.editor === person || roundsOf(client).some((r) => r.editor === person))) return true;
+  if (inWork && (isEditorOf(client, person) || roundsOf(client).some((r) => isEditorOf(r, person)))) return true;
   return state.states.some((s) => (s.ready || s.startAt) && (client.status !== 'ended' || s.proc.id === 'p35')
     && itemsOf(person, s).some((i) => !i.optional && !isResolved(i, checks[i.key], now)));
 }

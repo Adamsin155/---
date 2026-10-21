@@ -196,14 +196,16 @@ export function editingDay(assignedAt, now = new Date()) {
 export const dayText = (day, of) => (day === 0 ? 'שויך היום' : `יום ${day} מתוך ${of}`);
 
 // Each editor's load: the editing jobs (the client's and each round's) not closed
-// yet, which day of the editing each is on, which are paused, and open tasks.
+// yet, which day of the editing each is on, which are paused, and open tasks. A job
+// with two editors counts for each of them (`second`: this editor is the second one).
 export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Date() }) {
   const load = Object.fromEntries(EDITORS.map((e) => [e, { editor: e, jobs: [], paused: 0, tasks: 0 }]));
   for (const c of clients) {
     if (!inWork(c)) continue;
     const cs = checks[c.id] || {};
     const st = stateOf(c).states;
-    const units = [{ editor: c.editor, pre: '', pid: '', n: null }, ...roundsOf(c).map((r) => ({ editor: r.editor, pre: `r${r.n}.`, pid: `r${r.n}-`, n: r.n }))];
+    const units = [{ x: c, pre: '', pid: '', n: null }, ...roundsOf(c).map((r) => ({ x: r, pre: `r${r.n}.`, pid: `r${r.n}-`, n: r.n }))]
+      .flatMap((u) => [{ ...u, editor: u.x.editor }, ...(u.x.editor && u.x.editor2 && u.x.editor2 !== u.x.editor ? [{ ...u, editor: u.x.editor2, second: true }] : [])]);
     for (const u of units) {
       if (!u.editor || !load[u.editor]) continue;
       const p27 = st.find((s) => s.proc.id === `${u.pid}p27`);
@@ -218,7 +220,8 @@ export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Dat
       const withOfir = !!p24?.complete || cs[`${u.pre}p24.notify`]?.state === 'done';
       const pause = p22 ? pauseOf(p22.proc, cs) : null;
       const job = {
-        client: c, n: u.n, pre: u.pre, assignedAt, of: withOfir ? 4 : 3,
+        client: c, n: u.n, pre: u.pre, assignedAt, of: withOfir ? 4 : 3, second: !!u.second,
+        partner: (u.second ? u.x.editor : u.x.editor2) || null,
         day: editingDay(assignedAt, now), paused: pause, stage: withOfir ? 'closing' : 'editing', landing: inLanding(c),
         dueAt: (withOfir ? p27 : p24)?.dueAt || null,
       };

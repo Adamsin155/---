@@ -327,3 +327,178 @@ begin
 end $$;
 revoke all on function public.access_form_submit(text, jsonb) from public;
 grant execute on function public.access_form_submit(text, jsonb) to anon, authenticated;
+
+-- ══ C. A second editor for a client (the owner's request of 21.10.2026) ══
+-- Sometimes two editors edit one client together. `clients.editor` stays the main editor
+-- (Ofir's assignment, 22א, as before); `clients.editor2` is an optional second one, and a
+-- shoot round may carry its own pair in `rounds` ({ n, editor, editor2, … }). The second
+-- editor sees the client and its card like the main one, gets the same editor notices
+-- (app/reminder-rules.js reads both), and may mark the editing steps ('@editor' in the
+-- writers' table now means either of them). Everything else is as it was with one.
+-- The functions below are those of 20261014100000_security_hardening.sql,
+-- 20260930210000_hardening.sql and 20261027100000_landing_links.sql, each with editor2
+-- beside editor and nothing else changed.
+
+-- ── C1. The column ───────────────────────────
+-- An editor of the team, as `editor` is (20260929180000_protocol_batch3.sql). Being the
+-- same as the main one, or set with none, is harmless: the app reads the pair without
+-- repeats and offers the second only beside a main one.
+alter table public.clients add column if not exists editor2 text;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'clients_editor2_check'
+                   and conrelid = 'public.clients'::regclass) then
+    alter table public.clients add constraint clients_editor2_check
+      check (editor2 is null or editor2 in ('nadia', 'yariv', 'anna', 'nirel'));
+  end if;
+end $$;
+
+-- ── C2. Who sees the client: the second editor too ──
+create or replace function private.my_assigned_clients() returns setof uuid
+language sql stable security definer set search_path = '' as $$
+  with me as (select public.my_person() as p)
+  select c.id from public.clients c, me
+  where me.p is not null and (
+    c.editor = me.p or c.editor2 = me.p
+    or exists (select 1 from jsonb_array_elements(c.rounds) r where r ->> 'editor' = me.p or r ->> 'editor2' = me.p))
+  union
+  select t.client_id from public.client_tasks t, me
+  where t.owner = me.p and private.task_gives_access(t.created_by_email)
+    and (t.done_at is null or t.done_at > now() - interval '30 days');
+$$;
+
+create or replace function private.is_assigned(p_client uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  with me as (select public.my_person() as p)
+  select me.p is not null and (
+    exists (select 1 from public.clients c where c.id = p_client
+      and (c.editor = me.p or c.editor2 = me.p
+        or exists (select 1 from jsonb_array_elements(c.rounds) r where r ->> 'editor' = me.p or r ->> 'editor2' = me.p)))
+    or exists (select 1 from public.client_tasks t where t.client_id = p_client and t.owner = me.p
+      and private.task_gives_access(t.created_by_email)
+      and (t.done_at is null or t.done_at > now() - interval '30 days')))
+  from me;
+$$;
+
+-- ── C3. Who marks the editing steps: either editor of that shoot ──
+create or replace function private.protocol_write_ok(p_client uuid, p_key text, p_note text)
+returns boolean
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  me text;
+  m text[];
+  w private.protocol_writers;
+  v_rule text;
+  v_editor text;
+  v_editor2 text;
+begin
+  if not public.is_staff() then return false; end if;
+  me := public.my_person();
+  -- The owner (a staff login without a person), Irit, Lior and Ofir: everything.
+  if me is null then return public.is_office(); end if;
+  if me = any (coalesce((select w0.persons from private.protocol_writers w0 where w0.key = '@office'), '{}')) then return true; end if;
+  -- Imported history is written when the office opens a client.
+  if p_note = 'ייבוא' then return false; end if;
+  m := regexp_match(coalesce(p_key, ''), '^(?:r([0-9]+)\.)?((p[0-9]+[ab]?)\.(.+))$');
+  if m is null then return false; end if;
+  -- "לדחות…" on a reminder: on any client one sees, as before.
+  if m[4] = 'snooze' then return true; end if;
+  select * into w from private.protocol_writers x where x.key = m[2];
+  if not found then
+    v_rule := case
+      when m[4] = 'claim' then m[3] || '.@claim'
+      when m[4] in ('wait', 'waited') then m[3] || '.@wait'
+      when m[4] = 'pause' then m[3] || '.@pause'
+      when m[4] ~ '^handoff\.[a-z0-9]+$' then m[3] || '.@part'
+      when m[4] ~ '^fixed\.[0-9]+(\.[0-9]+)?$' then m[3] || '.@qafixed' end;
+    select * into w from private.protocol_writers x where x.key = v_rule;
+  end if;
+  if w.key is null or (m[1] is not null and not w.round) then return false; end if;
+  if me = any (w.persons) then return true; end if;
+  if not (w.persons && array['@editor', '@editor-free']) then return false; end if;
+  -- The editor of that shoot: the client's, or the round's (no fallback, as in the app);
+  -- and the second editor beside it (editor2).
+  select case when m[1] is null then c.editor
+              else (select r ->> 'editor' from jsonb_array_elements(c.rounds) r where r ->> 'n' = m[1] limit 1) end,
+         case when m[1] is null then c.editor2
+              else (select r ->> 'editor2' from jsonb_array_elements(c.rounds) r where r ->> 'n' = m[1] limit 1) end
+    into v_editor, v_editor2
+  from public.clients c where c.id = p_client;
+  return ('@editor' = any (w.persons) and v_editor is not null and (v_editor = me or v_editor2 = me))
+    or ('@editor-free' = any (w.persons) and v_editor is null
+        and me = any (coalesce((select w1.persons from private.protocol_writers w1 where w1.key = '@editors'), '{}')));
+end $$;
+
+create or replace function private.protocol_write_as(p_person text, p_client uuid, p_key text) returns boolean
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  m text[];
+  w private.protocol_writers;
+  v_rule text;
+  v_editor text;
+  v_editor2 text;
+begin
+  if p_person is null then return false; end if;
+  if p_person = any (coalesce((select w0.persons from private.protocol_writers w0 where w0.key = '@office'), '{}')) then return true; end if;
+  m := regexp_match(coalesce(p_key, ''), '^(?:r([0-9]+)\.)?((p[0-9]+[ab]?)\.(.+))$');
+  if m is null then return false; end if;
+  select * into w from private.protocol_writers x where x.key = m[2];
+  if not found then
+    v_rule := case
+      when m[4] = 'claim' then m[3] || '.@claim'
+      when m[4] in ('wait', 'waited') then m[3] || '.@wait'
+      when m[4] = 'pause' then m[3] || '.@pause'
+      when m[4] ~ '^handoff\.[a-z0-9]+$' then m[3] || '.@part'
+      when m[4] ~ '^fixed\.[0-9]+(\.[0-9]+)?$' then m[3] || '.@qafixed' end;
+    select * into w from private.protocol_writers x where x.key = v_rule;
+  end if;
+  if w.key is null or (m[1] is not null and not w.round) then return false; end if;
+  if p_person = any (w.persons) then return true; end if;
+  if not (w.persons && array['@editor', '@editor-free']) then return false; end if;
+  select case when m[1] is null then c.editor
+              else (select r ->> 'editor' from jsonb_array_elements(c.rounds) r where r ->> 'n' = m[1] limit 1) end,
+         case when m[1] is null then c.editor2
+              else (select r ->> 'editor2' from jsonb_array_elements(c.rounds) r where r ->> 'n' = m[1] limit 1) end
+    into v_editor, v_editor2
+  from public.clients c where c.id = p_client;
+  return ('@editor' = any (w.persons) and v_editor is not null and (v_editor = p_person or v_editor2 = p_person))
+    or ('@editor-free' = any (w.persons) and v_editor is null
+        and p_person = any (coalesce((select w1.persons from private.protocol_writers w1 where w1.key = '@editors'), '{}')));
+end $$;
+
+-- ── C4. The landing's personal link: the clients the second editor edits too ──
+create or replace function private.landing_link_clients(p_person text) returns setof uuid
+language sql stable security definer set search_path = '' as $$
+  select c.id from public.clients c
+  where c.landing and c.status in ('active', 'ending')
+    and (p_person in ('irit', 'lior', 'ofir', 'ilai', 'eli')
+      or c.editor = p_person or c.editor2 = p_person
+      or exists (select 1 from jsonb_array_elements(coalesce(c.rounds, '[]'::jsonb)) r where r ->> 'editor' = p_person or r ->> 'editor2' = p_person)
+      or (p_person = 'nirel' and c.shoot_type = 'natali'));
+$$;
+
+create or replace function public.landing_link_read(p_token text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_person text := private.landing_link_who(p_token);
+begin
+  if v_person is null then raise exception 'link not valid' using errcode = '42501'; end if;
+  update private.landing_links set last_used_at = now(), uses = uses + 1
+  where token_hash = private.landing_link_hash(p_token);
+  return jsonb_build_object(
+    'person', v_person,
+    'expires_at', (select l.expires_at from private.landing_links l where l.token_hash = private.landing_link_hash(p_token)),
+    'clients', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', c.id, 'name', c.name, 'business', c.business, 'package_name', c.package_name, 'shoot_type', c.shoot_type,
+        'characterizer', c.characterizer, 'has_logo', c.has_logo, 'editor_name', c.editor_name, 'deal_at', c.deal_at,
+        'char_at', c.char_at, 'shoot_at', c.shoot_at, 'contract_end', c.contract_end, 'status', c.status,
+        'created_at', c.created_at, 'deliverables', c.deliverables, 'rounds', c.rounds, 'editor', c.editor, 'editor2', c.editor2,
+        'protocol_version', c.protocol_version, 'landing', c.landing, 'landed_at', c.landed_at, 'landing_slot', c.landing_slot))
+      from public.clients c where c.id in (select private.landing_link_clients(v_person))), '[]'::jsonb),
+    'checks', coalesce((select jsonb_agg(jsonb_build_object('client_id', k.client_id, 'item_key', k.item_key, 'state', k.state, 'note', k.note, 'at', k.at))
+      from public.protocol_checks k where k.client_id in (select private.landing_link_clients(v_person))), '[]'::jsonb),
+    'marks', coalesce((select jsonb_agg(jsonb_build_object('client_id', m.client_id, 'item_key', m.item_key, 'choice', m.choice, 'person', m.person, 'at', m.at))
+      from public.client_landing_marks m where m.client_id in (select private.landing_link_clients(v_person))), '[]'::jsonb),
+    'done', coalesce((select jsonb_agg(jsonb_build_object('client_id', d.client_id, 'person', d.person, 'done', d.done, 'at', d.at))
+      from public.client_landing_done d where d.client_id in (select private.landing_link_clients(v_person))), '[]'::jsonb));
+end $$;

@@ -5,12 +5,17 @@
 //      these two networks only (the database refuses any other); access_save() takes it
 //      as a status, the office's functions answer it as 'linked', and the client's form
 //      has it as a fourth choice, with no user name and no password and no task.
+//   C. A second editor (clients.editor2, and editor2 in a round): sees the client, may mark
+//      the editing steps (the database decides as the app's mayWrite does), and is on the
+//      landing link's list; the main editor's rights are unchanged, nobody else gains any.
 //   - the file has none of the three words the production tool refuses, and runs twice.
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { freshDatabase, as, migrationSql } from './pg.mjs';
 import { payloadProblem, buildPayload, emptyForm } from '../../app/access-logic.js';
+import { PROCESSES } from '../../app/protocol.js';
+import { mayWrite } from '../../scripts/protocol-writers.mjs';
 
 const FILE = '20261031100000_access_and_editors.sql';
 let db;
@@ -151,4 +156,65 @@ test('A: a second form updates the client\'s own linked row, never a second one'
   const rows = await all('select network, status, linked, username from public.client_access where client_id = $1 order by network', [ids.gil]);
   assert.deepEqual(rows.map((x) => [x.network, x.status, x.linked, x.username]),
     [['facebook', 'ok', true, null], ['instagram', 'new', false, 'gil_ig'], ['tiktok', 'missing', false, null]]);
+});
+
+// ── C. The second editor ──
+test('C: the column takes an editor of the team, or nothing', async () => {
+  await assert.rejects(db.query("update public.clients set editor2 = 'lior' where id = $1", [ids.dana]), /clients_editor2_check/);
+  await db.query("update public.clients set editor2 = 'yariv', rounds = $2::jsonb where id = $1",
+    [ids.dana, JSON.stringify([{ n: 2, shoot_type: 'dms', editor: 'yariv', editor2: 'anna' }])]);
+  assert.equal((await one('select editor2 from public.clients where id = $1', [ids.dana])).editor2, 'yariv');
+});
+
+test('C: the second editor sees the client like the main one; another editor does not', async () => {
+  const sees = async (who) => (await run(who, 'select id from public.clients where id = $1', [ids.dana])).length === 1;
+  assert.equal(await sees('nadia'), true, 'the main editor, as before');
+  assert.equal(await sees('yariv'), true, 'the second editor');
+  assert.equal(await sees('anna'), true, 'the second editor of round 2');
+  assert.equal(await sees('ilai'), true, 'the office');
+  // Gil has no editor: none of them.
+  for (const who of ['nadia', 'yariv', 'anna']) assert.equal((await run(who, 'select id from public.clients where id = $1', [ids.gil])).length, 0, who);
+  // The card's rows follow (protocol checks of a client one sees).
+  assert.equal((await run('yariv', 'select private.is_assigned($1) as a', [ids.dana]))[0].a, true);
+  assert.equal((await run('anna', 'select private.is_assigned($1) as a', [ids.gil]))[0].a, false);
+});
+
+test('C: the database decides who marks as the app does, with two editors, for every key', async () => {
+  const client = (await one('select editor, editor2, rounds from public.clients where id = $1', [ids.dana]));
+  const keys = PROCESSES.flatMap((p) => p.items.map((i) => i.key));
+  const all = [...keys, ...keys.map((k) => `r2.${k}`), 'p22.pause', 'r2.p22.pause', 'p25.fixed.1', 'r2.p25.fixed.1.0'];
+  const cases = [];
+  for (const who of ['nadia', 'yariv', 'anna', 'ilai']) {
+    const got = await run(who, 'select k, private.protocol_write_ok($1, k, null) as ok from unnest($2::text[]) k', [ids.dana, all]);
+    for (const r of got) {
+      const want = mayWrite({ person: who, client, key: r.k });
+      if (r.ok !== want) cases.push(`${who} ${r.k}: db ${r.ok}, app ${want}`);
+    }
+  }
+  assert.deepEqual(cases, []);
+  const ok = async (who, key) => (await run(who, 'select private.protocol_write_ok($1, $2, null) as ok', [ids.dana, key]))[0].ok;
+  // The editing steps: both editors of that shoot; never another editor.
+  assert.equal(await ok('nadia', 'p22.received'), true);
+  assert.equal(await ok('yariv', 'p22.received'), true);
+  assert.equal(await ok('anna', 'p22.received'), false);
+  assert.equal(await ok('anna', 'r2.p22.received'), true);
+  assert.equal(await ok('yariv', 'r2.p22.received'), true);
+  assert.equal(await ok('nadia', 'r2.p22.received'), false);
+  // A mark itself, through the table's policy.
+  const r = await as(db, users.yariv, (tx) => tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.received', 'done')", [ids.dana]));
+  assert.equal(r.error, undefined);
+  const no = await as(db, users.anna, (tx) => tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, 'p22.received', 'done')", [ids.dana]));
+  assert.match(no.error || '', /row-level security|permission denied/);
+  // In someone's name (the landing link, WhatsApp): the same rule.
+  assert.equal((await one("select private.protocol_write_as('yariv', $1, 'p22.received') as ok", [ids.dana])).ok, true);
+  assert.equal((await one("select private.protocol_write_as('anna', $1, 'p22.received') as ok", [ids.dana])).ok, false);
+});
+
+test('C: the landing link lists a client in landing for its second editor too', async () => {
+  await db.query('update public.clients set landing = true where id = $1', [ids.dana]);
+  const of = async (p) => (await all('select private.landing_link_clients($1) as id', [p])).map((x) => x.id);
+  assert.ok((await of('yariv')).includes(ids.dana));
+  assert.ok((await of('anna')).includes(ids.dana));
+  assert.ok(!(await of('anna')).includes(ids.gil));
+  await db.query('update public.clients set landing = false where id = $1', [ids.dana]);
 });

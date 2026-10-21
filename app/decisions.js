@@ -366,7 +366,7 @@ function pausedCard(p, load, now) {
   const days = Math.max(1, businessDaysBetween(new Date(p.pause.at), now) - shift);
   return h('li', { class: 'of-card' },
     h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(c.id, p.state.proc.id) }, clientLabel(c)), landingTag(c), p.n ? h('span', { class: 'wtitle' }, `סבב ${p.n}`) : null,
-      p.editor ? personChip(p.editor) : null, h('span', { class: 'tag tag-warn' }, 'עצורה')),
+      p.editor ? personChip(p.editor) : null, p.editor2 ? personChip(p.editor2) : null, h('span', { class: 'tag tag-warn' }, 'עצורה')),
     h('p', { class: 'of-line' }, `עצורה מאז ${formatStamp(p.pause.at)}${p.pause.stage ? ` · שלב: ${p.pause.stage}` : ''}${p.pause.left ? ` · נשאר: ${p.pause.left}` : ''}${p.pause.why ? ` · ${p.pause.why}` : ''}`),
     proposal ? h('p', { class: 'of-line' }, h('strong', {}, 'הצעת אופיר לפי העומס: '), `${PEOPLE[proposal].name} (${loadText(load[proposal])})`) : null,
     p.decidedToday ? h('p', { class: 'ps-seen' }, decided?.choice === 'reassign' ? `הוחלט היום: הועבר ל${PEOPLE[decided.editor]?.name}` : `הוחלט היום: המועדים הוזזו ב־${decided?.days || shift} ימי עסקים`) : null,
