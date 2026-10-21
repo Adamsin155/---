@@ -56,9 +56,9 @@ const ours = (list) => list.filter((r) => OURS.has(r.rule));
 const nags = (list) => list.filter((r) => r.rule === NAG);
 
 test('who gives a task (the owner and Irit, one list) and to whom (everyone on the team, and the owner)', () => {
-  assert.deepEqual(GIVERS, ['owner', 'irit']);
-  for (const k of ['owner', 'irit']) assert.equal(canGive(VIEW[k]), true, k);
-  for (const k of ['lior', 'ofir', 'nadia', 'stav', 'unknown', 'legacy']) assert.equal(canGive(VIEW[k]), false, k);
+  assert.deepEqual(GIVERS, ['owner', 'irit', 'lior', 'ofir']);
+  for (const k of ['owner', 'irit', 'lior', 'ofir']) assert.equal(canGive(VIEW[k]), true, k);
+  for (const k of ['nadia', 'stav', 'unknown', 'legacy']) assert.equal(canGive(VIEW[k]), false, k);
   assert.equal(canGive(null), false);
   assert.equal(personOfViewer(VIEW.owner), 'owner');
   assert.equal(personOfViewer(VIEW.legacy), null);
@@ -457,6 +457,6 @@ test('the card\'s lists: mine (oldest first), what I gave (the owner: everyone\'
   const owner = taskLists(all, VIEW.owner, now);
   assert.deepEqual([owner.mine, owner.given.open.map((t) => t.id), owner.given.closed.map((t) => t.id)], [[], ['a', 'c', 'b'], ['e', 'd']]);
   assert.deepEqual(taskLists(all, VIEW.unknown, now), { mine: [], given: { open: [], closed: [] } });
-  // Lior gives none (until he is added to GIVERS): he sees only what he got.
-  assert.deepEqual(taskLists([task({ id: 'g', created_by: 'lior', assignee: 'eli' })], VIEW.lior, now).given.open, []);
+  // Lior gives too since 21.10.2026: he sees what he gave, not what someone else gave.
+  assert.deepEqual(taskLists([task({ id: 'g', created_by: 'lior', assignee: 'eli' }), task({ id: 'h', created_by: 'irit', assignee: 'eli' })], VIEW.lior, now).given.open.map((t) => t.id), ['g']);
 });

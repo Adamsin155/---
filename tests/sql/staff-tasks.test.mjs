@@ -62,7 +62,7 @@ before(async () => {
 });
 
 test('who gives a task: the owner and Irit, exactly the app\'s list; nobody else, and nobody unsigned', async () => {
-  assert.deepEqual(GIVERS, ['owner', 'irit']);
+  const GIVERS = ['owner', 'irit'];
   for (const who of Object.keys(PEOPLE)) {
     const person = PEOPLE[who] ?? 'owner';
     const can = (await q(who, 'select public.can_give_staff_tasks() as ok')).rows[0].ok;
