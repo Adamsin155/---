@@ -311,6 +311,15 @@ await step('"המשימות שלי": Lior\'s task for process 12 opens the scrip
 await step('the top: the package\'s 25 scripts, the progress, the focus summary one tap away; a phone fits', async () => {
   assert.equal(await lior.locator('#sc-count').innerText(), '25 תסריטים לפי החבילה (25 סרטונים)');
   assert.equal(await lior.locator('.sc-slot').count(), 25);
+  // The owner's page review of 20.10.2026: a list of short rows; no script is open until one is tapped.
+  assert.equal(await lior.locator('.sc-row:visible').count(), 25);
+  assert.equal(await lior.locator('.sc-slot:visible').count(), 0);
+  assert.match(await lior.locator('#r-1').innerText(), /^1\s*תסריט 1:\s*עוד לא נכתב\s*טיוטה$/);
+  const rowsH = await lior.locator('#sc-list').evaluate((e) => e.getBoundingClientRect().height);
+  assert.ok(rowsH < 25 * 72, `the list is ${rowsH}px tall`);
+  await lior.click('#r-1');
+  assert.equal(await lior.locator('.sc-slot:visible').count(), 1);
+  assert.equal(await lior.locator('#r-1').isHidden(), true, 'the open script takes its row\'s place');
   assert.deepEqual(await lior.locator('.sc-slot-h h2').evaluateAll((els) => els.slice(0, 3).map((e) => e.textContent)), ['תסריט 1', 'תסריט 2', 'תסריט 3']);
   assert.equal(await lior.locator('#sc-progress').innerText(), 'מוכנים 22 מתוך 25');
   assert.match(await lior.getAttribute('#sc-focus-form', 'href'), /intake\.html\?id=.*&from=scripts#focus$/);
@@ -360,12 +369,16 @@ await step('status: "מוכן" right away, in the chip, the jump list and the pr
   await savedLine(lior, 1);
   assert.equal(scriptRow(1).status, 'ready');
   assert.equal(await lior.locator('#sc-progress').innerText(), 'מוכנים 23 מתוך 25');
-  assert.match(await lior.getAttribute('#j-1', 'class'), /is-ready/);
+  assert.match(await lior.getAttribute('#r-1', 'class'), /is-ready/);
   await shot(lior, '02-script-saved-360');
 });
 
 await step('the network drops: the text stays on the phone, the page says so, and it saves when the network is back', async () => {
   failScriptWrites = true;
+  // "שמירה ומעבר לבא": script 1 closes, script 2 opens with its title focused.
+  await lior.click('#s-1-next');
+  assert.equal(await lior.locator('#s-1').isHidden(), true);
+  assert.equal(await lior.evaluate(() => document.activeElement.id), 's-2-title');
   await lior.fill('#s-2-title', 'טעימות');
   await lior.locator('#s-2-body').pressSequentially('מישל טועמת שלוש עוגות.');
   await lior.waitForFunction(() => document.getElementById('s-2-save').classList.contains('is-offline'));
@@ -383,6 +396,7 @@ await step('the network drops: the text stays on the phone, the page says so, an
 
 await step('leaving mid-sentence while offline: the draft comes back and is saved', async () => {
   failScriptWrites = true;
+  await lior.click('#s-2-next');
   await lior.locator('#s-3-body').pressSequentially('דניס מגיש קפה הפוך');
   await lior.waitForFunction(() => document.getElementById('s-3-save').classList.contains('is-offline'));
   lior.removeAllListeners('dialog');
@@ -390,9 +404,9 @@ await step('leaving mid-sentence while offline: the draft comes back and is save
   failScriptWrites = false;
   lior = await newPage(liorCtx);
   await lior.goto(`${BASE}scripts.html?id=${B.id}`);
-  await lior.waitForSelector('#s-3-body');
+  await lior.waitForSelector('#s-3-body', { state: 'attached' });
   assert.equal(await lior.inputValue('#s-3-body'), 'דניס מגיש קפה הפוך');
-  await lior.waitForSelector('#s-3 .ik-draft');
+  await lior.waitForSelector('#s-3 .ik-draft', { state: 'attached' });
   await savedLine(lior, 3);
   assert.equal(scriptRow(3).body, 'דניס מגיש קפה הפוך');
 });
@@ -400,6 +414,7 @@ await step('leaving mid-sentence while offline: the draft comes back and is save
 await step('another device saved meanwhile: nothing is overwritten without asking', async () => {
   const row = scriptRow(3);
   Object.assign(row, { body: 'דניס מגיש קפה הפוך (מהמחשב)', version: row.version + 1, by_email: 'owner@astrateg.test' });
+  await lior.click('#r-3');
   await lior.locator('#s-3-body').pressSequentially(' עם עוגה');
   await lior.waitForSelector('#s-3-conflict:not([hidden])');
   assert.match(await lior.locator('#s-3-conflict').innerText(), /התסריט נשמר בינתיים ממקום אחר/);
@@ -412,11 +427,14 @@ await step('another device saved meanwhile: nothing is overwritten without askin
 });
 
 await step('all 25 ready: process 12 is marked from the page', async () => {
-  await lior.check('#s-2-status-ready');
-  await savedLine(lior, 2);
+  // "סימון כל הכתובים כמוכן" (the owner's page review, 20.10.2026): scripts 2 and 3 are written drafts.
   assert.equal(await lior.locator('#sc-offer').count(), 0);
-  await lior.check('#s-3-status-ready');
+  assert.equal(await lior.innerText('#sc-all-ready'), 'סימון כל 2 הכתובים כמוכן');
+  await lior.click('#sc-all-ready');
   await lior.waitForSelector('#sc-mark12');
+  await savedLine(lior, 2);
+  assert.equal(scriptRow(2).status, 'ready');
+  assert.equal(await lior.locator('#sc-all-ready').count(), 0, 'nothing left to mark');
   assert.match(await lior.locator('#sc-offer').innerText(), /כל 25 התסריטים מוכנים/);
   await savedLine(lior, 3);
   await lior.click('#sc-mark12');
@@ -428,6 +446,8 @@ await step('all 25 ready: process 12 is marked from the page', async () => {
 
 await step('print: one script, and all of them, on a clean page', async () => {
   await lior.evaluate(() => { window.print = () => { window.__printed = document.getElementById('sc-print').innerText; }; });
+  await lior.click('#s-3-close');
+  await lior.click('#r-1');
   await lior.click('#s-1-print');
   const one = await lior.evaluate(() => window.__printed);
   assert.match(one, /קפה גולן בע״מ/);
@@ -515,6 +535,14 @@ await step('the focus summary from the page\'s header: filled during the Zoom, b
   await lior.waitForSelector('#sc-focus');
   await lior.click('#sc-focus > summary');
   assert.match(await lior.locator('#sc-focus').innerText(), /סיכום דגשים[\s\S]*ארוחות הבוקר ואת החניה/);
+  // On the phone the focus points also sit on top of the script being written, and stay open
+  // from one script to the next (the owner's page review, 20.10.2026).
+  await lior.click('#r-4');
+  await lior.click('#s-4-focus > summary');
+  assert.match(await lior.locator('#s-4-focus').innerText(), /סיכום דגשים[\s\S]*ארוחות הבוקר ואת החניה/);
+  await lior.click('#s-4-next');
+  assert.equal(await lior.getAttribute('#s-5-focus', 'open'), '');
+  await shotTop(lior, '09-open-script-with-brief-360');
 });
 await liorCtx.close();
 
@@ -531,6 +559,7 @@ await step('Nadia (granted) writes but does not approve; her client card links t
   assert.equal(await page.locator('#sc-share').count(), 0);
   assert.equal(await page.locator('#sc-access').count(), 0);
   assert.equal(await page.isDisabled('#s-5-status-approved'), true);
+  await page.click('#r-5');
   await page.fill('#s-5-title', 'רעיון 5 · גרסה של נדיה');
   await savedLine(page, 5);
   assert.equal(scriptRow(5).by_email, 'nadia@astrateg.test');

@@ -3,6 +3,9 @@
 //   - the top: how many scripts the package needs (its video count; slot n is
 //     "תסריט n"), the progress, and the client's focus points (12א and the Zoom's
 //     "סיכום דגשים") next to the writing, with the form one tap away;
+//   - the scripts as a list of short rows (number, title, status; the owner's page review,
+//     20.10.2026): a tap opens that one script, "שמירה ומעבר לבא" goes on to the next,
+//     the client's focus points sit on top of it, and "סימון כל הכתובים כמוכן" is one tap;
 //   - each script: a title, the text (saved by itself as it is typed; a draft stays
 //     on the phone until the database confirms, and is saved again when the network
 //     is back), the inspiration links, and its status: טיוטה / מוכן / אושר;
@@ -23,7 +26,7 @@ import { waLink, groupLink, dayText } from './messages-logic.js';
 import {
   STATUS, STATUS_ORDER, MAX_SLOTS, MAX_LINKS, TITLE_MAX, BODY_MAX, videosOf, slotCount, slotsOf, hasText, scriptLabel,
   progressOf, progressText, parseLinks, linkName, p12Offer, draftKey, draftText, readDraft, draftWins, contentOf, sameContent,
-  createSaver, saveStateText, shareUrl, shareMessage,
+  createSaver, saveStateText, shareUrl, shareMessage, rowTitle, readyTargets,
 } from './scripts-logic.js';
 import {
   loadScriptsClient, loadScripts, saveScript, loadGrants, setGrant, loadShare, createShare, revokeShare, missingSetup,
@@ -44,6 +47,8 @@ let grants = [];
 let phones = {};
 let me = null;
 let scope = 'own';
+let openN = null;           // the one script open for writing (null: the list of rows)
+let briefOpen = false;      // the focus points above the open script: kept open from one script to the next
 const savers = new Map();   // n -> the autosave queue
 const states = new Map();   // n -> the saver's last state
 const enc = encodeURIComponent;
@@ -104,6 +109,7 @@ function setRows(rows) {
   for (const s of savers.values()) s.flush();
   savers.clear();
   states.clear();
+  openN = null;
   const mine = rows.filter((r) => r.round === round);
   const count = slotCount(round === 1 ? videosOf(info) : null, mine, extra);
   slots = slotsOf(mine, count).map((s) => {
@@ -143,6 +149,7 @@ function renderHead() {
     h('div', { class: 'sc-tools' },
       scope === 'office' ? h('a', { class: 'btn btn-sm', id: 'sc-focus-form', href: focusHref() }, 'סיכום דגשים לקוח') : null,
       h('button', { type: 'button', class: 'btn btn-sm', id: 'sc-print-all', onclick: () => printScripts(null) }, 'הדפסת כל התסריטים'),
+      allReadyButton(),
       manage() ? h('a', { class: 'btn btn-sm', href: '#sc-share' }, 'קישור לשיתוף') : null,
       manage() ? h('a', { class: 'btn btn-sm btn-ghost', href: '#sc-access' }, 'גישה לעובדים') : null),
     offerBlock());
@@ -186,35 +193,97 @@ async function markP12(keys) {
   document.getElementById('sc-marked')?.focus();
 }
 
-// ── The side: focus points and the jump list ──
+// ── The side: the focus points (the rows replaced the jump list, 20.10.2026) ──
 function renderSide() {
   const block = brief ? briefBlock(brief, { id: 'sc-brief', heading: `משיחת הדגשים ומהזום${round > 1 ? ` · סבב ${round}` : ''}` }) : null;
   fill($('sc-side'),
     h('details', { class: 'sc-panel sc-focus', id: 'sc-focus', open: matchMedia('(min-width: 1000px)').matches },
       h('summary', {}, 'דגשי הלקוח'),
       block || h('p', { class: 'muted' }, briefOk ? 'עוד לא נשמרו דגשים משיחת הדגשים או מהזום.' : 'הדגשים פתוחים למי שעובד על הלקוח.'),
-      scope === 'office' ? h('a', { class: 'btn btn-sm', id: 'sc-focus-edit', href: focusHref() }, block ? 'עדכון סיכום הדגשים' : 'מילוי סיכום הדגשים') : null),
-    h('details', { class: 'sc-panel sc-jump', id: 'sc-jump-box', open: matchMedia('(min-width: 1000px)').matches },
-      h('summary', {}, 'מעבר לתסריט'),
-      h('nav', { 'aria-label': 'מעבר לתסריט' }, h('ol', { id: 'sc-jump' }, ...slots.map((s) => jumpItem(s))))));
-}
-const jumpItem = (s) => h('li', {}, h('a', {
-  href: `#s-${s.n}`, class: `sc-jumpl is-${s.status}${hasText(s) ? ' has-text' : ''}`, id: `j-${s.n}`,
-  'aria-label': `${scriptLabel(s.n)}: ${STATUS[s.status]}${hasText(s) ? '' : ', ריק'}`,
-}, String(s.n)));
-function refreshJump(s) {
-  const old = document.getElementById(`j-${s.n}`)?.parentElement;
-  if (old) old.replaceWith(jumpItem(s));
+      scope === 'office' ? h('a', { class: 'btn btn-sm', id: 'sc-focus-edit', href: focusHref() }, block ? 'עדכון סיכום הדגשים' : 'מילוי סיכום הדגשים') : null));
 }
 
 // ── The scripts ───────────────────────────
 function renderMain() {
   fill($('sc-main'),
     slots.length ? null : h('p', { class: 'ik-note' }, 'עוד אין תסריטים. מוסיפים את הראשון:'),
-    h('ol', { class: 'sc-list', id: 'sc-list' }, ...slots.map((s) => h('li', {}, slotCard(s)))),
+    h('ol', { class: 'sc-list', id: 'sc-list', 'aria-label': 'התסריטים' }, ...slots.map(slotItem)),
     slots.length < MAX_SLOTS ? h('button', { type: 'button', class: 'btn sc-add', id: 'sc-add', onclick: addSlot }, 'הוספת תסריט') : null,
     manage() ? sharePart() : null,
     manage() ? accessPart() : null);
+}
+
+// ── The rows, and the one open script ──────
+// Every script is a row; the open one shows its card in place of its row. The cards are all in
+// the page (hidden but the open one), so what was typed, its save line and its conflict stay.
+function slotItem(s) {
+  return h('li', { class: 'sc-item', id: `i-${s.n}` }, rowOf(s), slotCard(s));
+}
+function rowOf(s) {
+  const st = states.get(s.n);
+  const bad = st === 'conflict' || st === 'error';
+  return h('button', {
+    type: 'button', class: `sc-row is-${s.status}${hasText(s) ? ' has-text' : ''}${bad ? ' is-bad' : ''}`, id: `r-${s.n}`,
+    hidden: openN === s.n, 'aria-controls': `s-${s.n}`, 'aria-expanded': 'false', onclick: () => openScript(s.n),
+  },
+  h('span', { class: 'sc-row-n num', 'aria-hidden': 'true' }, String(s.n)),
+  h('span', { class: 'sc-row-t' }, h('span', { class: 'sr-only' }, `${scriptLabel(s.n)}: `), rowTitle(s)),
+  bad ? h('span', { class: 'sc-row-bad' }, 'לא נשמר') : null,
+  h('span', { class: `sc-chip is-${s.status}` }, STATUS[s.status]));
+}
+function refreshRow(s) {
+  document.getElementById(`r-${s.n}`)?.replaceWith(rowOf(s));
+}
+// Open one script (or none: back to the list). What was typed in the one before is saved now.
+function openScript(n, { focus = 'title' } = {}) {
+  const prev = openN;
+  if (prev != null) { savers.get(prev)?.flush(); }
+  openN = n;
+  for (const s of slots) {
+    const card = document.getElementById(`s-${s.n}`);
+    if (card) card.hidden = s.n !== n;
+    const row = document.getElementById(`r-${s.n}`);
+    if (row) row.hidden = s.n === n;
+  }
+  if (n == null) {
+    const row = prev != null && document.getElementById(`r-${prev}`);
+    if (row) { row.scrollIntoView({ block: 'center' }); row.focus({ preventScroll: true }); }
+    return;
+  }
+  const card = $(`s-${n}`);
+  const focusBox = $(`s-${n}-focus`);
+  if (focusBox) focusBox.open = briefOpen;
+  requestAnimationFrame(() => grow($(`s-${n}-body`)));
+  card.scrollIntoView({ block: 'start' });
+  const s = slotOf(n);
+  (focus === 'card' ? card : $(hasText(s) && focus === 'title' ? `s-${n}-body` : `s-${n}-title`))?.focus({ preventScroll: true });
+}
+function saveAndNext(s) {
+  const i = slots.indexOf(s);
+  const next = slots[i + 1];
+  if (next) openScript(next.n); else openScript(null);
+}
+// "סימון כל הכתובים כמוכן" (the owner's page review, 20.10.2026): every draft with words in it
+// becomes "מוכן", each saved as if its own "מוכן" was tapped. Empty scripts stay drafts.
+function allReadyButton() {
+  const list = readyTargets(slots);
+  if (!list.length) return null;
+  return h('button', { type: 'button', class: 'btn btn-sm', id: 'sc-all-ready', onclick: markAllReady },
+    list.length === 1 ? 'סימון התסריט הכתוב כמוכן' : `סימון כל ${list.length} הכתובים כמוכן`);
+}
+function markAllReady() {
+  const list = readyTargets(slots);
+  if (!list.length) return;
+  const empty = slots.filter((s) => !hasText(s) && s.status === 'draft').length;
+  if (!confirm(`לסמן ${list.length === 1 ? 'תסריט אחד' : `${list.length} תסריטים`} כ״מוכן״?${empty ? ` ${empty === 1 ? 'תסריט אחד ריק נשאר' : `${empty} ריקים נשארים`} טיוטה.` : ''}`)) return;
+  for (const s of list) {
+    const radio = document.getElementById(`s-${s.n}-status-ready`);
+    if (radio) radio.checked = true;
+    setStatus(s, 'ready');
+  }
+  toast(`${list.length === 1 ? 'תסריט אחד סומן' : `${list.length} תסריטים סומנו`} כמוכן.`);
+  renderHead();
+  $('sc-progress')?.focus?.();
 }
 
 function slotCard(s) {
@@ -228,18 +297,34 @@ function slotCard(s) {
   body.addEventListener('input', () => { grow(body); s.body = body.value; changed(s); });
   requestAnimationFrame(() => grow(body));
   const st = states.get(n) || (s.restored ? 'dirty' : s.version != null ? 'saved' : null);
-  return h('article', { class: `sc-slot is-${s.status}`, id: sid, 'aria-labelledby': `${sid}-h`, tabindex: '-1' },
+  const last = slots.indexOf(s) === slots.length - 1;
+  return h('article', { class: `sc-slot is-${s.status}`, id: sid, 'aria-labelledby': `${sid}-h`, tabindex: '-1', hidden: openN !== n },
     h('header', { class: 'sc-slot-h' },
       h('h2', { id: `${sid}-h` }, scriptLabel(n)),
       h('span', { class: `sc-chip is-${s.status}`, id: `${sid}-chip` }, STATUS[s.status]),
-      h('button', { type: 'button', class: 'btn btn-sm btn-ghost sc-print-one', id: `${sid}-print`, 'aria-label': `הדפסת ${scriptLabel(n)}`, onclick: () => printScripts([n]) }, 'הדפסה')),
+      h('button', { type: 'button', class: 'btn btn-sm btn-ghost sc-print-one', id: `${sid}-print`, 'aria-label': `הדפסת ${scriptLabel(n)}`, onclick: () => printScripts([n]) }, 'הדפסה'),
+      h('button', { type: 'button', class: 'btn btn-sm btn-ghost sc-close', id: `${sid}-close`, onclick: () => openScript(null) }, 'לכל התסריטים')),
+    cardBrief(s),
     s.restored ? h('p', { class: 'ik-draft', role: 'status' }, `שוחזרה טיוטה מהטלפון מ־${formatStamp(s.restored)}.`) : null,
     h('div', { class: 'field sc-field' }, h('label', { for: `${sid}-title` }, 'כותרת'), title),
     h('div', { class: 'field sc-field' }, h('label', { for: `${sid}-body` }, 'התסריט'), body),
     h('p', { class: `sc-save is-${st || 'none'}`, id: `${sid}-save` }, saveLine(s, st)),
     h('div', { class: 'sc-conflict', id: `${sid}-conflict`, hidden: true, role: 'alert' }),
     linksPart(s),
-    statusPart(s));
+    statusPart(s),
+    h('div', { class: 'sc-next-row' },
+      h('button', { type: 'button', class: 'btn btn-primary sc-next', id: `${sid}-next`, onclick: () => saveAndNext(s) }, last ? 'שמירה וחזרה לרשימה' : 'שמירה ומעבר לבא')));
+}
+// The client's focus points above the script being written (on a phone; on a wide screen they
+// sit beside it). Opened once, they stay open from one script to the next.
+function cardBrief(s) {
+  const block = brief ? briefBlock(brief, { id: `s-${s.n}-brief`, heading: `משיחת הדגשים ומהזום${round > 1 ? ` · סבב ${round}` : ''}` }) : null;
+  return h('details', {
+    class: 'sc-cbrief', id: `s-${s.n}-focus`, open: briefOpen,
+    ontoggle: (e) => { briefOpen = e.currentTarget.open; },
+  },
+  h('summary', {}, 'דגשי הלקוח'),
+  block || h('p', { class: 'muted' }, briefOk ? 'עוד לא נשמרו דגשים משיחת הדגשים או מהזום.' : 'הדגשים פתוחים למי שעובד על הלקוח.'));
 }
 const grow = (el) => { el.style.height = 'auto'; el.style.height = `${Math.max(el.scrollHeight + 2, 140)}px`; };
 const saveLine = (s, st) => (st ? saveStateText(st, st === 'saved' && s.at ? new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(s.at)) : null) : 'עוד לא נכתב');
@@ -331,7 +416,7 @@ function changed(s, now = false) {
   const saver = saverOf(s);
   saver.touch();
   if (now) saver.flush();
-  refreshJump(s);
+  refreshRow(s);
 }
 function saverOf(s) {
   if (savers.has(s.n)) return savers.get(s.n);
@@ -358,6 +443,7 @@ function onState(s, st, err) {
   const box = $(`s-${s.n}-conflict`);
   if (box && st !== 'conflict' && st !== 'error') { box.hidden = true; box.replaceChildren(); }
   if (st === 'conflict') showConflict(s, err.current);
+  if (st === 'conflict' || st === 'error' || st === 'saved') refreshRow(s);
   if (st === 'error' && box) {
     box.hidden = false;
     fill(box, h('p', {}, err?.refused ? 'אין לך הרשאה לשמור את התסריט הזה (ייתכן שהגישה הוסרה, או שרק ליאור מסמן "אושר"). מה שכתבת נשמר בטלפון.' : `לא נשמר. ${errorText(err)} מה שכתבת נשמר בטלפון.`),
@@ -383,8 +469,8 @@ function takeSaved(s, current) {
   store.set(draftKey(id, round, s.n), '');
   states.set(s.n, 'saved');
   savers.delete(s.n);
-  $(`s-${s.n}`).parentElement.replaceChildren(slotCard(s));
-  refreshJump(s);
+  $(`i-${s.n}`).replaceWith(slotItem(s));
+  refreshRow(s);
   refreshProgress();
   renderSync();
   $(`s-${s.n}-body`)?.focus();
@@ -408,10 +494,12 @@ function addSlot() {
   const n = slots.length + 1;
   const s = { ...slotsOf([], n)[n - 1], saved: contentOf({}) };
   slots.push(s);
-  $('sc-list').append(h('li', {}, slotCard(s)));
-  $('sc-jump').append(jumpItem(s));
+  $('sc-list').append(slotItem(s));
   renderHead();
-  $(`s-${n}-title`).focus();
+  // The card before it: its "next" button now goes on to this one.
+  const prev = slots[slots.length - 2];
+  if (prev) $(`i-${prev.n}`)?.replaceWith(slotItem(prev));
+  openScript(n);
 }
 // Back online, leaving the page, or the phone switching apps: save now.
 const flushAll = () => { for (const s of savers.values()) if (s.dirty) s.flush(); };
@@ -538,7 +626,7 @@ async function grant(person, on) {
 // ── Start ─────────────────────────────────
 // The kit (docs/ops.md, section 52): each script, each side panel and the two blocks under them open with an icon square.
 dress($('app'), [['.sc-slot > .sc-slot-h > h2', 'file', 'purple', 'md'], ['.sc-slot h3[id$="-links-h"]', 'link', 'blue'], ['#sh-h', 'link', 'blue', 'md'], ['#ac-h', 'users', 'teal', 'md'],
-  ['#sc-side details:first-of-type > summary', 'star', 'orange'], ['#sc-side details:last-of-type > summary', 'list', 'navy']]);
+  ['#sc-side details:first-of-type > summary', 'star', 'orange'], ['.sc-cbrief > summary', 'star', 'orange']]);
 
 mountSession(async (staff) => {
   const v = await viewerOf(staff.email);
@@ -546,5 +634,8 @@ mountSession(async (staff) => {
   scope = v.error ? 'own' : v.scope;
   Object.assign(directory, await loadDirectory());
   await load();
-  if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
+  // A link to one script (#s-3) opens it; any other part of the page is scrolled to.
+  const m = /^#s-(\d+)$/.exec(location.hash);
+  if (m && slotOf(Number(m[1]))) openScript(Number(m[1]), { focus: 'card' });
+  else if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
 });

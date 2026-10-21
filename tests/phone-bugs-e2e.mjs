@@ -581,6 +581,8 @@ await step('every upload block wears the kit: the editor\'s batch, the short for
     const ctx = await context();
     const page = await tab(ctx);
     await signIn(page, `scripts.html?id=${cid(4)}`, 'lior');
+    // A list of rows since the owner's page review of 20.10.2026: the first script opens on a tap.
+    await page.click('#r-1');
     await page.waitForSelector('.sc-links');
     assert.ok(await page.locator('.sc-link-add .btn.k-btn-navy').count() >= 1);
     assert.equal(await page.locator('.sc-link-add .btn:not(.k-btn-navy)').count(), 0);
