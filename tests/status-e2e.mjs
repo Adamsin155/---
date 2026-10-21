@@ -13,6 +13,7 @@
 //   - the card shows the views, the approvals and the score; Irit revokes the link and
 //     the client gets a friendly message; so do an expired and a malformed link.
 // Run: npx http-server -p 8131 -s . &  then  BASE_URL=http://localhost:8131/ node tests/status-e2e.mjs [outDir]
+import { openCardFolds } from './open-folds.mjs';
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
@@ -291,6 +292,7 @@ const errors = [];
 const PHONE = { width: 360, height: 740 };
 async function newContext(viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, hasTouch: viewport.width < 500, isMobile: viewport.width < 500 });
+  await openCardFolds(ctx); // the card's closed rows, opened (the owner, 20.10.2026)
   await ctx.clock.setFixedTime(NOW);
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));

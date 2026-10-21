@@ -14,6 +14,7 @@
 //   - the owner sees who typed a wrong code and who was locked; changing the code ends
 //     everyone's unlocks; Irit (who manages the team, not the owner) has no such card.
 // Run: npx http-server -p 8107 -s -c-1 . &  then  BASE_URL=http://localhost:8107/ node tests/vault-code-e2e.mjs [outDir]
+import { openCardFolds } from './open-folds.mjs';
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
@@ -206,6 +207,7 @@ const PHONE = { width: 360, height: 740 };
 const contexts = [];
 async function newContext(viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, hasTouch: viewport.width < 500, isMobile: viewport.width < 500 });
+  await openCardFolds(ctx); // the card's closed rows, opened (the owner, 20.10.2026)
   await ctx.clock.setFixedTime(NOW);
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   contexts.push(ctx);
