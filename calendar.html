@@ -30,6 +30,7 @@
   <link rel="stylesheet" href="app/styles/protocol.css">
   <link rel="stylesheet" href="app/styles/kit.css">
   <link rel="stylesheet" href="app/styles/calendar-page.css">
+  <link rel="stylesheet" href="app/styles/gcal.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -82,6 +83,8 @@
         </div>
       </div>
       <section aria-labelledby="cp-title" id="cp-view"></section>
+      <!-- "היומן שלי ב־Google": the person's own Google Calendar on this page (app/gcal-page.js). -->
+      <section class="gc-card" id="cp-google" aria-label="היומן שלי ב־Google" hidden></section>
     </div>
 
     <p class="state" id="state" role="status"></p>

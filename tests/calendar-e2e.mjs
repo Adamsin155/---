@@ -8,7 +8,11 @@
 //    agreement has their email, the characterizer; Lior and Eli on a shoot day), the one
 //    line about Google under the first one only, and only for the office;
 //  - an editor sees only her own work, Eli his shoot days, the field sales no page;
-//  - 390px and 1366px, no side scroll, 44px targets.
+//  - 390px and 1366px, no side scroll, 44px targets;
+//  - her own Google Calendar (the owner, 21.10.2026): its events in grey with a "Google"
+//    tag, "לקבוע במערכת…?" under a matched meeting or shoot day (saved as the "קביעת מועד"
+//    dialogs save), "לא קשור" remembered; connecting with the secret address (checked,
+//    never shown back); an editor gets her events but no question.
 // Run: npx http-server -p 8080 -s -c-1 . &  then  BASE_URL=http://localhost:8080/ node tests/calendar-e2e.mjs [screenshot dir]
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
@@ -44,11 +48,56 @@ function office() {
   Object.assign(db.clients.find((c) => c.id === cid(10)), { landing: true, landed_at: null });
   return db;
 }
+// Irit's Google Calendar, as the server read it (20261028100000_google_calendar_sync.sql).
+const GURL = 'https://calendar.google.com/calendar/ical/irit.astrateg%40gmail.com/private-0123456789abcdef0123456789abcdef/basic.ics';
+function withGoogle(db) {
+  const ev = (uid, starts_at, ends_at, summary, client_id = null, kind_guess = null, extra = {}) => ({
+    email: emailOf('irit'), uid, starts_at, ends_at, all_day: false, summary, location: '', client_id, kind_guess, dismissed_at: null, gone_at: null, ...extra });
+  db.calendar_external_events = [
+    ev('m1@google.com', '2026-10-22T08:00:00.000Z', '2026-10-22T10:00:00.000Z', 'פגישת אפיון - פיצה נאפולי', cid(1), 'char'),
+    ev('s1@google.com', '2026-10-23T06:00:00.000Z', '2026-10-23T12:00:00.000Z', 'יום צילום מוסך אדרי', cid(3), 'shoot', { location: 'החרושת 4, חולון' }),
+    ev('d1@google.com', '2026-10-21T14:00:00.000Z', '2026-10-21T14:30:00.000Z', 'רופא שיניים'),
+    ev('h1@google.com', '2026-10-23T21:00:00.000Z', '2026-10-24T21:00:00.000Z', 'יום חופש', null, null, { all_day: true }),
+    ev('x1@google.com', '2026-10-22T13:00:00.000Z', null, 'זום עם קליניקת שחר', cid(2), null),
+    ev('n1@google.com', '2026-11-03T08:00:00.000Z', '2026-11-03T10:00:00.000Z', 'אפיון קליניקת שחר', cid(2), 'char'),
+    ev('gone@google.com', '2026-10-22T05:00:00.000Z', null, 'נמחק ביומן', null, null, { gone_at: '2026-10-20T06:00:00Z' }),
+    { ...ev('nd1@google.com', '2026-10-21T09:00:00.000Z', '2026-10-21T10:00:00.000Z', 'צילום חן קוסמטיקה', cid(12), 'shoot'), email: emailOf('nadia') },
+  ];
+  db.google = {
+    [emailOf('irit')]: { connected: true, since: '2026-10-19T08:00:00Z', readAt: '2026-10-20T06:52:00Z', error: null, events: 6 },
+    [emailOf('nadia')]: { connected: true, since: '2026-10-19T08:00:00Z', readAt: '2026-10-20T06:52:00Z', error: null, events: 1 },
+  };
+  db.googleCalls = [];
+  return db;
+}
+const GOOGLE_RPC = /^\/rest\/v1\/rpc\/(google_calendar_status|google_calendar_connect|google_calendar_disconnect|google_calendar_dismiss)$/;
+function googleRpc(db, route, name, email, body) {
+  const json = (status, data) => route.fulfill({ status, contentType: 'application/json', headers: CORS, body: JSON.stringify(data) });
+  if (!db.google) return json(404, { code: 'PGRST202', message: 'not found' });
+  db.googleCalls.push({ name, email, body });
+  if (name === 'google_calendar_status') return json(200, db.google[email] || { connected: false });
+  if (name === 'google_calendar_connect') {
+    if (!/^https:\/\/calendar\.google\.com\/calendar\/ical\/[^/]+\/private-[A-Za-z0-9]+\/basic\.ics$/.test(body.p_url)) return json(400, { code: '22023', message: 'bad_url: the secret iCal address of a Google calendar is expected' });
+    db.google[email] = { connected: true, since: '2026-10-20T07:00:00Z', readAt: null, error: null, events: 0 };
+    return json(200, db.google[email]);
+  }
+  if (name === 'google_calendar_disconnect') { db.google[email] = { connected: false }; return json(200, db.google[email]); }
+  const row = db.calendar_external_events.find((r) => r.email === email && r.uid === body.p_uid);
+  if (row) row.dismissed_at = '2026-10-20T07:00:00Z';
+  return json(200, !!row);
+}
+const emailInToken = (req) => {
+  const token = /^Bearer (.+)$/.exec(req.headers().authorization || '')?.[1] || '';
+  try { return JSON.parse(Buffer.from(token.split('.')[1] || '', 'base64url').toString('utf8')).email; } catch { return null; }
+};
 // public.quote_facts(p_ids): the office reads the agreements' client part (20261013100000).
 function withFacts(db, fake) {
   return async (route) => {
     const req = route.request();
     const p = new URL(req.url()).pathname;
+    const g = GOOGLE_RPC.exec(p);
+    if (req.method() !== 'OPTIONS' && g) return googleRpc(db, route, g[1], emailInToken(req), JSON.parse(req.postData() || '{}'));
+
     if (req.method() !== 'OPTIONS' && p === '/rest/v1/rpc/quote_facts') {
       const token = /^Bearer (.+)$/.exec(req.headers().authorization || '')?.[1] || '';
       let email = null;
@@ -69,13 +118,14 @@ async function signedIn(role, { viewport = PHONE, db = office(), path = 'calenda
   const page = await ctx.newPage();
   watchCsp(page);
   page.on('pageerror', (e) => errors.push(`${role}: ${e}`));
+  page.on('dialog', (d) => d.accept()); // "a shoot day before the meeting?" and "לנתק?": yes
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(`${role}: ${msg.text()}`); });
   await page.goto(`${BASE}${path}`);
   await page.fill('#lg-email', emailOf(role));
   await page.fill('#lg-pass', 'correct-horse');
   await page.click('#lg-submit');
   await settle(page);
-  return { page, ctx, db };
+  return { page, ctx, db, fake };
 }
 const text = async (loc) => (await loc.innerText()).replace(/\s+/g, ' ').trim();
 const noSideScroll = async (page, who) => {
@@ -321,6 +371,118 @@ try {
     const item = page.locator('a[href="calendar.html"][aria-current="page"]:visible');
     assert.ok((await item.count()) >= 1, 'the side menu marks it');
     await ctx.close();
+  });
+
+  await step('Irit\'s own Google Calendar: grey events with a "Google" tag, and the question under a matched meeting', async () => {
+    const { page, ctx, fake } = await signedIn('irit', { db: withGoogle(office()) });
+    await page.waitForSelector('.gc-ev');
+    assert.equal(await kinds(page, 'google'), 5, 'the week\'s five (not the one that left the calendar, not November\'s)');
+    const thu = page.locator('.cp-day[data-day="2026-10-22"]');
+    const meet = thu.locator('.gc-ev').filter({ hasText: 'פיצה נאפולי' });
+    assert.match(await text(meet), /Google פגישת אפיון - פיצה נאפולי/);
+    assert.match(await text(meet), /11:00 עד 13:00 · פיצה נאפולי/);
+    assert.equal(await meet.locator('a.cp-ev-main').getAttribute('href'), `client.html?id=${cid(1)}`);
+    assert.match(await text(meet.locator('.gc-q')), /^לקבוע במערכת כפגישת אפיון של פיצה נאפולי\? עם אופיר$/);
+    // A Google event of no client: no link, no question; a whole day; a Zoom with a client: no question.
+    const dent = page.locator('.cp-day[data-day="2026-10-21"] .gc-ev').filter({ hasText: 'רופא שיניים' });
+    assert.equal(await dent.locator('a').count(), 0);
+    assert.equal(await dent.locator('.gc-sug').count(), 0);
+    assert.match(await text(page.locator('.cp-day[data-day="2026-10-24"] .gc-ev')), /יום חופש.*כל היום/);
+    assert.equal(await thu.locator('.gc-ev').filter({ hasText: 'זום' }).locator('.gc-sug').count(), 0);
+    // The shoot day: with whom, the client's own team chosen already.
+    const shoot = page.locator('.cp-day[data-day="2026-10-23"] .gc-ev').filter({ hasText: 'מוסך אדרי' });
+    assert.match(await text(shoot.locator('.gc-q')), /לקבוע במערכת כיום צילום של מוסך אדרי\?/);
+    assert.equal(await shoot.locator('.chip[aria-pressed="true"]').getAttribute('data-type'), 'dms');
+    assert.match(await text(page.locator('#cp-google')), /מחובר/);
+    await noSideScroll(page, 'irit 390 google');
+    await tall(page.locator('.gc-yes, .gc-no, .gc-types .chip'), 'irit 390 google');
+    if (SHOTS) { await meet.scrollIntoViewIfNeeded(); await page.waitForTimeout(800); await page.screenshot({ path: join(SHOTS, 'irit-390-google-week.png') }); }
+    await shot(page, 'irit-390-google-week-full');
+    // "לקבוע": the meeting is the client's now, written as the dialog writes it, and "נקבעה פגישה" is marked.
+    await meet.locator('.gc-yes').click();
+    await page.waitForSelector('.cp-day[data-day="2026-10-22"] .cp-ev[data-kind="char"]');
+    const patch = fake.calls.find((c) => c.method === 'PATCH' && c.table === 'clients');
+    assert.deepEqual(patch.body, { char_at: '2026-10-22T08:00:00.000Z', characterizer: 'ofir' });
+    assert.ok(fake.calls.some((c) => c.table === 'protocol_checks' && JSON.stringify(c.body).includes('p03.scheduled')), 'נקבעה פגישה');
+    assert.equal(await meet.locator('.gc-sug').count(), 0, 'asked once');
+    assert.match(await text(page.locator('#toast')), /פגישת האפיון של פיצה נאפולי נקבע/);
+    // The shoot day: another team chosen, then saved with it.
+    await shoot.locator('.chip[data-type="natali"]').click();
+    await shoot.locator('.gc-yes').click();
+    await page.waitForFunction(() => !document.querySelector('.cp-day[data-day="2026-10-23"] .gc-sug'));
+    const patch2 = fake.calls.filter((c) => c.method === 'PATCH' && c.table === 'clients').at(-1);
+    assert.deepEqual(patch2.body, { shoot_at: '2026-10-23T06:00:00.000Z', shoot_type: 'natali' });
+    await ctx.close();
+  });
+
+  await step('"לא קשור" is remembered; the month and a wide screen show the Google events too', async () => {
+    const { page, ctx, db } = await signedIn('irit', { db: withGoogle(office()), viewport: DESK });
+    await page.waitForSelector('.cp-grid');
+    await page.click('#cp-next');
+    await page.click('.cp-cell[data-day="2026-11-03"]');
+    const nov = page.locator('.cp-chosen .gc-ev');
+    assert.match(await text(nov), /אפיון קליניקת שחר/);
+    assert.match(await text(nov.locator('.gc-q')), /כפגישת אפיון של קליניקת שחר/);
+    await noSideScroll(page, 'irit 1366 google month');
+    await shot(page, 'irit-1366-google-month');
+    await nov.locator('.gc-no').click();
+    await page.waitForFunction(() => !document.querySelector('.cp-chosen .gc-sug'));
+    assert.deepEqual(db.googleCalls.filter((c) => c.name === 'google_calendar_dismiss').map((c) => c.body), [{ p_uid: 'n1@google.com' }]);
+    await page.click('#cp-today');
+    await page.click('#cp-week');
+    await page.waitForSelector('.cp-week .gc-ev');
+    await noSideScroll(page, 'irit 1366 google week');
+    await shot(page, 'irit-1366-google-week');
+    await page.reload();
+    await page.waitForSelector('.gc-ev');
+    await page.click('#cp-month');
+    await page.click('#cp-next');
+    await page.click('.cp-cell[data-day="2026-11-03"]');
+    assert.equal(await page.locator('.cp-chosen .gc-sug').count(), 0, 'not asked again');
+    await ctx.close();
+  });
+
+  await step('connecting: the secret address is checked, sent once and never shown back; disconnecting', async () => {
+    const { page, ctx, db } = await signedIn('ofir', { db: withGoogle(office()) });
+    await page.waitForSelector('#cp-google:not([hidden])');
+    const card = page.locator('#cp-google');
+    assert.match(await text(card.locator('summary')), /היומן שלי ב־Google\s*לא מחובר/);
+    assert.equal(await card.locator('details').getAttribute('open'), '', 'open while not connected');
+    assert.match(await text(card), /כתובת סודית בפורמט iCal/);
+    await card.scrollIntoViewIfNeeded();
+    await shot(page, 'ofir-390-google-connect');
+    await page.fill('#gc-url', 'https://calendar.google.com/calendar/embed?src=ofir%40gmail.com');
+    await page.click('#gc-save');
+    assert.match(await text(page.locator('#gc-err')), /זו לא הכתובת הסודית של Google/);
+    assert.equal(db.googleCalls.filter((c) => c.name === 'google_calendar_connect').length, 0, 'nothing sent');
+    const url = GURL.replace('irit.astrateg', 'ofir');
+    await page.fill('#gc-url', ` ${url} `);
+    await page.click('#gc-save');
+    await page.waitForSelector('#gc-replace');
+    assert.deepEqual(db.googleCalls.filter((c) => c.name === 'google_calendar_connect').map((c) => [c.email, c.body.p_url]), [[emailOf('ofir'), url]]);
+    assert.match(await text(card), /מחובר מאז .* · הקריאה הראשונה תוך רבע שעה/);
+    assert.equal(await page.locator('#gc-url').count(), 0);
+    { const html = await page.content(); const at = html.indexOf('private-0123456789abcdef'); assert.ok(at < 0, `the address is nowhere on the page: ${html.slice(Math.max(0, at - 300), at + 50)}`); }
+    await tall(page.locator('#gc-replace, #gc-off'), 'the card');
+    await noSideScroll(page, 'ofir 390 google card');
+    await shot(page, 'ofir-390-google-connected');
+    await page.click('#gc-off');
+    await page.waitForSelector('#gc-url');
+    assert.deepEqual(db.google[emailOf('ofir')], { connected: false });
+    await ctx.close();
+  });
+
+  await step('an editor sees her Google events but is asked nothing; before the migration there is no card', async () => {
+    const { page, ctx } = await signedIn('nadia', { db: withGoogle(office()) });
+    await page.waitForSelector('.gc-ev');
+    assert.equal(await page.locator('.gc-ev').count(), 1, 'hers only');
+    assert.equal(await page.locator('.gc-sug').count(), 0);
+    await ctx.close();
+    const before = await signedIn('irit');
+    await before.page.waitForSelector('.cp-week');
+    assert.equal(await before.page.locator('#cp-google').isHidden(), true);
+    assert.equal(await before.page.locator('.gc-ev').count(), 0);
+    await before.ctx.close();
   });
 
   noCspViolations();
