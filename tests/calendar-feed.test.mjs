@@ -181,10 +181,10 @@ test('feed: the meeting for its characterizer (with the address) and the owner; 
 test('feed: deadlines of one\'s own open processes: the editor\'s editing, never someone else\'s client', () => {
   const yariv = feed('yariv').filter((e) => e.kind === 'due');
   const ids = yariv.map((e) => e.uid.replace(`due-${B.id}-`, '').replace('-yariv@astrateg', ''));
-  // Editing (22) and handing to Ofir (24): 3 business days from the assignment (Thursday
-  // 22.10, end of day: all day); closing (27) on day 4.
+  // Editing (22) and handing to Ofir (24): 2 business days from the assignment since protocol
+  // v11 (Wednesday 21.10, end of day: all day); closing (27) on day 4.
   assert.deepEqual(ids, ['p22', 'p24', 'p27']);
-  assert.equal(yariv[0].allDay, '2026-10-22');
+  assert.equal(yariv[0].allDay, '2026-10-21');
   assert.match(yariv[0].title, /^יעד: 22 עריכת הסרטונים · קפה גליה$/);
   assert.match(yariv[0].description, /• התקבל הכונן/);
   assert.match(yariv[0].description, new RegExp(`client\\.html\\?id=${B.id}#p22`));

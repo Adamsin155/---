@@ -28,6 +28,7 @@ import {
   QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, REASON_KEY, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
 } from './office-marks.js';
 import { withEditor, swapEditor } from './decisions-logic.js';
+import { loadScriptCounts, scriptsWords } from './production-data.js';
 import { liorShoot } from './reminder-engine.js';
 import { loadSelections } from './office-data.js';
 import { offerHandoff } from './handoff-ui.js';
@@ -69,6 +70,9 @@ const meetings = () => ofirMeetings(clients.filter((c) => c.status === 'active' 
 
 // ── Data ────────────────────────────────────
 let inflight = null;
+// How many scripts each shoot has ('<client>:<round>' → n; 21.10.2026), next to its editor.
+let scriptN = {};
+const scriptsLine = (clientId, n) => scriptsWords(scriptN[`${clientId}:${n || 1}`] || 0);
 function load() {
   inflight ||= doLoad().finally(() => { inflight = null; });
   return inflight;
@@ -93,7 +97,7 @@ async function doLoad() {
     ...awaitingEditor({ clients, stateOf, checks }).filter((a) => a.ctx.shoot_type === 'natali').map((a) => a.client.quote_id),
     ...Object.values(editorLoad({ clients, stateOf, checks, tasks })).flatMap((l) => l.jobs).filter((j) => j.client.shoot_type === 'natali').map((j) => j.client.quote_id),
   ];
-  selections = await loadSelections([...new Set(natali.filter(Boolean))]).catch(() => new Map());
+  [selections, scriptN] = await Promise.all([loadSelections([...new Set(natali.filter(Boolean))]).catch(() => new Map()), loadScriptCounts()]);
   lastLoad = Date.now();
   $('state').textContent = '';
   if (!busy()) renderKeepingFocus();
@@ -270,7 +274,7 @@ function assignCard(a, load, now) {
       h('a', { class: 'wclient', href: clientUrl(a.client.id, a.proc.id) }, clientLabel(a.client)), landingTag(a.client),
       h('span', { class: 'wtitle' }, `${SHOOT_TYPES[type]?.name || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
       a.state.status === 'overdue' && a.client.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
-    a.ctx.shoot_at || joint ? h('p', { class: 'of-line' }, [a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : null, joint ? 'יום משותף לנטלי ולסמיון' : null].filter(Boolean).join(' · ')) : null,
+    h('p', { class: 'of-line as-shot' }, [a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : null, joint ? 'יום משותף לנטלי ולסמיון' : null, scriptsLine(a.client.id, a.n)].filter(Boolean).join(' · ')),
     // An old client already in editing: its real editor is known in the office, not guessed here.
     a.client.landing === true ? h('p', { class: 'of-line muted as-landing' }, LANDING_EDITOR_LINE) : null,
     // Whom the system suggests, and why (the same number the load list below shows).
@@ -316,6 +320,7 @@ function loadCard(l, now) {
       h('a', { href: clientUrl(j.client.id, `${j.pre ? j.pre.replace('.', '-') : ''}p22`) }, j.client.name, j.n ? ` · סבב ${j.n}` : ''),
       j.landing ? [' ', landingTag(j.client)] : ` · ${j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
       j.stage === 'closing' ? ' · תיקונים וסגירה' : '',
+      ` · ${scriptsLine(j.client.id, j.n)}`,
       j.paused ? [' ', h('span', { class: 'tag tag-warn' }, 'עצורה')] : null,
       // Two editors on the shoot: with whom.
       j.partner && PEOPLE[j.partner] ? [' ', h('span', { class: 'tag as-partner' }, `יחד עם ${PEOPLE[j.partner].name}`)] : null,

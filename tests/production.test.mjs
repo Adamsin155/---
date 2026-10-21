@@ -157,7 +157,7 @@ test('editor states: the client approved without notes opens button 4; a text-on
   const jobs = P.editingCases(r, rc, 'nadia', clientState(r, rc, IL(2026, 11, 6, 12)));
   assert.deepEqual(jobs.map((j) => [j.round, j.pre]), [[2, 'r2.']]);
   assert.equal(P.editorState(jobs[0], rc).key, 'waiting');
-  assert.equal(hhmm(jobs[0].p24.dueAt), '10.11 18:00'); // assigned on a Friday: Sunday is day 1
+  assert.equal(hhmm(jobs[0].p24.dueAt), '9.11 18:00'); // assigned on a Friday: Sunday is day 1, Monday day 2
 });
 
 test('the self-check and the start checks are existing items; "מוכן לבדיקה" marks the notice to Ofir last', () => {
@@ -210,8 +210,8 @@ test('pause for someone else\'s urgent task: labelled "עצירה לבקשת", p
   const now = IL(2026, 10, 20, 10);
   const [job] = P.editingCases(c, checks, 'nirel', clientState(c, checks, now));
   const pre = P.pausePrefill(job, P.editorState(job, checks), now);
-  assert.equal(pre.stage, 'בעריכה · יום 2 מתוך 3');
-  assert.equal(pre.left, '4 סרטונים, אצל אופיר עד מחר 18:00');
+  assert.equal(pre.stage, 'בעריכה · יום 2 מתוך 2');
+  assert.equal(pre.left, '4 סרטונים, אצל אופיר עד היום 18:00');
 });
 
 test('first pass: the videos Ofir did not return the first time; on time: the editing steps met', () => {

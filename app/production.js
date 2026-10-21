@@ -33,6 +33,7 @@
 // (Lior's side of the handoff) and p22.pause (note JSON { stage, left, why, for,
 // task }: `for` is whoever asked for the urgent task, "עצירה לבקשת <שם>").
 import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES, isEditorOf, editorNames } from './protocol.js';
+import { editingDaysOf } from './protocol-versions.js';
 import {
   roundsOf, roundContext, businessDaysBetween, parseDate, erevOn, IMPORT_NOTE, addBusinessDays, isBusinessDay, nextWorkMoment,
   inLanding, workFloor,
@@ -81,13 +82,14 @@ export const dateWords = (d) => { const p = partsIL(d); return `יום ${WEEKDAY
 // The editing day: business days since the assignment, the assignment day itself not
 // counted (the count starts the next business day). 0 on the assignment day.
 export const editingDay = (assignedAt, now = new Date()) => (assignedAt ? businessDaysBetween(assignedAt, now) : 0);
-export function editingDayText(n, now = new Date(), assignedAt = null) {
+// `of`: the editing days of the client (editingDaysOf: 2 since protocol v11, 3 before).
+export function editingDayText(n, now = new Date(), assignedAt = null, of = 3) {
   if (n <= 0) {
     const first = assignedAt ? addBusinessDays(assignedAt, 1) : null;
-    return `יום השיוך · יום 1 מתוך 3 מתחיל ${first ? dayWords(first, now) : 'ביום העסקים הבא'}`;
+    return `יום השיוך · יום 1 מתוך ${of} מתחיל ${first ? dayWords(first, now) : 'ביום העסקים הבא'}`;
   }
-  if (n <= 3) return `יום ${n} מתוך 3`;
-  if (n === 4) return 'יום 4 · תיקוני הלקוח';
+  if (n <= of) return `יום ${n} מתוך ${of}`;
+  if (n <= 4) return `יום ${n} · תיקוני הלקוח`;
   return `יום ${n} · אחרי יום 4`;
 }
 
@@ -352,7 +354,7 @@ export function briefFollowups(task, result, requester, now = new Date()) {
 // Prefilled pause for an urgent task taken while editing: the stage and what is left.
 export function pausePrefill(job, st, now = new Date()) {
   const day = editingDay(job.assignedAt, now);
-  const stage = `${STATE_TEXT[st?.key] || 'בעריכה'}${day > 0 ? ` · ${editingDayText(day, now)}` : ''}`;
+  const stage = `${STATE_TEXT[st?.key] || 'בעריכה'}${day > 0 ? ` · ${editingDayText(day, now, null, editingDaysOf(job.client))}` : ''}`;
   const videos = videosPerDay(job.ctx);
   const due = job.p24?.dueAt;
   const open = st?.key === 'fixes' ? (st.ret?.issues?.length || 0) - (st.ret?.fixed?.size || 0) : 0;

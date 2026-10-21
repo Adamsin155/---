@@ -106,7 +106,8 @@ test('the migration is the newest one, right after the migration of version 9, a
 });
 
 test('version 10: the function, the column default, a new client; a client that started before keeps its version', async () => {
-  assert.equal(PROTOCOL_VERSION, 10);
+  // (This database stops at that migration; 11 came with 20261031100000_access_and_editors.sql, tests/sql/access-and-editors.test.mjs.)
+  assert.ok(PROTOCOL_VERSION >= 10);
   assert.equal((await db.query('select private.protocol_version_current() as v')).rows[0].v, 10);
   const d = await db.query("select column_default from information_schema.columns where table_schema = 'public' and table_name = 'clients' and column_name = 'protocol_version'");
   assert.equal(d.rows[0].column_default, '10');

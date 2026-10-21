@@ -287,3 +287,11 @@ dialog.ed-dlg .dlg-foot .btn { min-height: 44px; white-space: normal; }
 .sh-blabel { margin: 0; }
 .sh-blabel .hint { margin: 4px 0 0; }
 .sh-later-sec .sh-later-all { justify-self: start; min-height: 44px; }
+
+/* The client's scripts from the system, on the editing page (21.10.2026). */
+.ed-scount { font-weight: 600; }
+.ed-scripts { margin-top: 8px; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 0 12px; }
+.ed-scripts > summary { min-height: 44px; display: flex; align-items: center; font-weight: 600; cursor: pointer; }
+.ed-script-list { margin: 0 0 12px; padding-inline-start: 20px; display: grid; gap: 10px; }
+.ed-script-body { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ed-script-link { display: inline-block; margin-inline-end: 12px; min-height: 44px; line-height: 44px; }

@@ -159,11 +159,11 @@ test('due dates follow the protocol anchors', () => {
   const sp = applicableProcesses(sun);
   assert.equal(iso(resolveTime(sp.find((p) => p.id === 'p15').due, sun, sp, {})), iso(at('2026-10-08T11:00:00+03:00')));
   assert.equal(due('p22'), null); // editing counts from the editor assignment, not the shoot
-  // Assigned on Wednesday: videos with Ofir by Monday (3 business days), client closed by Tuesday (4).
+  // Assigned on Wednesday: videos with Ofir by Sunday (2 business days, protocol v11), client closed by Tuesday (4).
   const assigned = { 'p22a.assigned': { state: 'done', at: '2026-10-07T15:00:00+03:00' } };
   const due2 = (id) => resolveTime(procs.find((p) => p.id === id).due, c, procs, assigned, at('2026-10-07T16:00:00+03:00'));
-  assert.equal(day(due2('p22')), '2026-10-12');
-  assert.equal(day(due2('p24')), '2026-10-12');
+  assert.equal(day(due2('p22')), '2026-10-11');
+  assert.equal(day(due2('p24')), '2026-10-11');
   assert.equal(day(due2('p27')), '2026-10-13');
   const p34 = procs.find((p) => p.id === 'p34');
   assert.equal(day(resolveTime(p34.start, c, procs, {})), '2027-08-02');
@@ -277,7 +277,7 @@ test('an extra shoot round repeats the shoot processes with their own keys and d
   const s = clientState(c, {}, at('2027-03-02T10:00:00+02:00'));
   const sa = clientState(c, { 'r2.p22a.assigned': { state: 'done', at: '2027-03-10T15:00:00+02:00' } }, at('2027-03-11T10:00:00+02:00'));
   const r2p22 = sa.states.find((x) => x.proc.id === 'r2-p22');
-  assert.equal(day(r2p22.dueAt), '2027-03-15'); // 3 business days from the round's own assignment
+  assert.equal(day(r2p22.dueAt), '2027-03-14'); // 2 business days from the round's own assignment
   assert.equal(sa.states.find((x) => x.proc.id === 'p22').dueAt, null); // round 1 is not assigned yet
   const r2p12 = s.states.find((x) => x.proc.id === 'r2-p12');
   assert.equal(day(r2p12.dueAt), '2027-03-03'); // 2 business days from the round start (decision 14)

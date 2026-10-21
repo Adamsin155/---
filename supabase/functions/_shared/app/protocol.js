@@ -71,7 +71,7 @@
 //   Marks that are not items (they hold nothing open): p13.left, p16.read (the photographer
 //   read the scripts), p18b.files (the raw material and the chosen take per script).
 
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 // The five critical mistakes of editing, in the order and the words of the editors' written
 // protocol ("נקודות חשובות: טעויות קריטיות", docs/protocols/editors.md and nirel.md):
@@ -835,8 +835,8 @@ export const PROCESSES = [
   {
     id: 'p22', round: true, num: '22', phase: 'post', title: 'עריכת הסרטונים', owners: editorOf,
     ownerNote: 'העורך שאופיר שייך. ניראל עורכת רק סרטוני נטלי דדון.',
-    sla: 'עד סוף יום העסקים השלישי מקבלת הלקוח: כל הסרטונים ערוכים, בדוקים ואצל אופיר',
-    start: { from: 'item:p22a.assigned' }, due: { from: 'item:p22a.assigned', businessDays: 3 },
+    sla: 'עד סוף יום העסקים השני מהשיוך: כל הסרטונים ערוכים, בדוקים ואצל אופיר',
+    start: { from: 'item:p22a.assigned' }, due: { from: 'item:p22a.assigned', businessDays: 2 },
     what: 'עורכים לפי התסריטים ולפי מה שצולם, בלי לשנות את משמעות הסרטון. יוצרים גיוון בקצב, ב־B-Roll, במעברים, במבנה ובהצגת הטקסטים.',
     rule: 'חסר לוגו או מספר טלפון: מדווחים מיד לליאור או לעירית, לא מגלים בסוף העריכה. אופיר לא אמור למצוא טעויות בסיסיות.',
     items: [
@@ -887,8 +887,8 @@ export const PROCESSES = [
   },
   {
     id: 'p24', round: true, num: '24', phase: 'post', title: 'העלאה לדרייב והעברה לאופיר', owners: editorOf,
-    sla: 'עד סוף יום העסקים השלישי',
-    start: { from: 'p22' }, due: { from: 'item:p22a.assigned', businessDays: 3 },
+    sla: 'עד סוף יום העסקים השני מהשיוך ("מוכן לבדיקה")',
+    start: { from: 'p22' }, due: { from: 'item:p22a.assigned', businessDays: 2 },
     items: [
       { key: 'p24.folder', label: 'יש תיקייה מסודרת בדרייב עם שם הלקוח', owners: ['ofir'] },
       { key: 'p24.drive', label: 'כל הסרטונים הועלו לדרייב של הלקוח, וכל הקבצים נפתחים' },

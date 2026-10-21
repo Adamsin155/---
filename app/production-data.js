@@ -24,6 +24,22 @@ async function all(build) {
   }
 }
 
+// The scripts Lior wrote for the clients (public.work_scripts, 20261031100000_access_and_editors.sql):
+// an editor gets those of the shoots they edit, the office every client's. Read only.
+// [] before that migration, or on any error (the page works without them).
+export async function loadWorkScripts(clientIds = null) {
+  if (Array.isArray(clientIds) && !clientIds.length) return [];
+  const { data, error } = await supabase.rpc('work_scripts', { p_clients: clientIds });
+  return !error && Array.isArray(data) ? data : [];
+}
+// How many scripts each shoot has (public.work_script_counts): { '<client id>:<round>': n }; {} before the migration.
+export async function loadScriptCounts(clientIds = null) {
+  const { data, error } = await supabase.rpc('work_script_counts', { p_clients: clientIds });
+  return !error && Array.isArray(data) ? Object.fromEntries(data.map((r) => [`${r.client_id}:${r.round}`, r.scripts])) : {};
+}
+// "12 תסריטים" (or nothing to say).
+export const scriptsWords = (n) => (n ? `${n} ${n === 1 ? 'תסריט' : 'תסריטים'}` : 'אין תסריטים');
+
 export async function loadWorkClients() {
   // With the second editor (editor2), once that migration is in.
   return withLanding(await e2Throws(() => all(() => supabase.from('clients').select(withE2(WORK_COLS))

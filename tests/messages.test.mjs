@@ -207,7 +207,8 @@ test('Thursday: the update in three lines from the system\'s data replaces the d
 test('a notice of delay: on the promised date, or a business day before it when the office is behind; never after it', () => {
   // Shot on Tuesday 6.10 and handed to the editor on Wednesday 7.10: the videos
   // are promised closed by Tuesday 13.10 (ה8); editing is due Monday 12.10.
-  const c = { ...base, shoot_at: '2026-10-06T11:00:00+03:00' };
+  // (A client from before protocol v11: its editing has 3 business days.)
+  const c = { ...base, protocol_version: 10, shoot_at: '2026-10-06T11:00:00+03:00' };
   const checks = { ...imported(c, 'post'), ...done(c, ['p22a'], '2026-10-07T10:00:00+03:00') };
   const msgs = [sent('thanks', '2026-10-07T10:00:00+03:00')];
   // Monday, the day before, with editing on time: an option after the daily message, with a word on the card's reason.

@@ -219,10 +219,11 @@ test('waiting for an editor: the client\'s shoot and a round\'s, once the shoot 
 test('editor load: "יום X מתוך 3", 4 once the videos are with Ofir; paused jobs; tasks; Ofir\'s proposal', () => {
   const w = world();
   const now = IL(2026, 10, 21, 10); // Wednesday: day 3 of an assignment on Sunday
-  const a = editingClient(w, { name: 'א' });
-  const b = editingClient(w, { name: 'ב', editor: 'yariv' });
+  // Clients from before protocol v11 (3 editing days; tests/two-editors.test.mjs and production.test.mjs have the 2).
+  const a = editingClient(w, { name: 'א', protocol_version: 10 });
+  const b = editingClient(w, { name: 'ב', editor: 'yariv', protocol_version: 10 });
   mark(w, b, 'p24.notify', IL(2026, 10, 20, 17));
-  const c = editingClient(w, { name: 'ג', editor: 'yariv' });
+  const c = editingClient(w, { name: 'ג', editor: 'yariv', protocol_version: 10 });
   mark(w, c, 'p22.pause', IL(2026, 10, 20, 10), JSON.stringify({ stage: 'חצי', left: '5' }));
   w.tasks.push({ id: 't1', client_id: a.id, owner: 'anna', title: 'x', done_at: null });
   const load = editorLoad({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, tasks: w.tasks, now });
@@ -257,11 +258,11 @@ test('a shift mark moves the editing deadlines (22, 24, 27) by business days', (
   const c = editingClient(w);
   const now = IL(2026, 10, 20, 10);
   const due = (id) => hhmm(clientState(c, w.checks[c.id], now).states.find((s) => s.proc.id === id).dueAt);
-  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['21.10 18:00', '21.10 18:00', '22.10 18:00']);
+  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['20.10 18:00', '20.10 18:00', '22.10 18:00']);
   mark(w, c, SHIFT_KEY(''), IL(2026, 10, 20, 9), shiftNote(2, 'עצירה'));
-  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['25.10 18:00', '25.10 18:00', '26.10 18:00']);
+  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['22.10 18:00', '22.10 18:00', '26.10 18:00']);
   mark(w, c, SHIFT_KEY(''), IL(2026, 10, 20, 9), JSON.stringify({ days: 99 }));
-  assert.equal(due('p24'), '21.10 18:00');
+  assert.equal(due('p24'), '20.10 18:00');
 });
 
 // ── The pass over the clients (33) ──────────
@@ -348,7 +349,7 @@ test('the Thursday summary, prefilled from the system: state, what is missing, o
   assert.match(d.current, /^עריכה ובקרה · 22 · עריכת הסרטונים/);
   assert.match(d.missing, /באיחור: 22 · עריכת הסרטונים/);
   assert.equal(d.owner, 'nadia');
-  assert.equal(d.due_on, '2026-10-21');
+  assert.equal(d.due_on, '2026-10-20');
   assert.equal(d.next, '22 · עריכת הסרטונים');
 });
 
@@ -534,7 +535,7 @@ test('the final versions: Ilai (quiet) at once; Lior\'s list if no "קיבלתי
 
 test('editing reminders follow the deadlines Lior moved', () => {
   const w = world();
-  const c = editingClient(w, { name: 'הוזז' });
+  const c = editingClient(w, { name: 'הוזז', protocol_version: 10 }); // from before v11: its last editing day is day 3
   one(due(w, IL(2026, 10, 21, 15)), 'editing', 'day3pm', 'nadia');
   mark(w, c, SHIFT_KEY(''), IL(2026, 10, 20, 9), shiftNote(1));
   none(due(w, IL(2026, 10, 21, 15)), 'editing', 'day3pm');

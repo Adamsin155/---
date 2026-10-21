@@ -49,6 +49,7 @@
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
 import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, editorsOf, editorNames } from './protocol.js';
+import { editingDaysOf } from './protocol-versions.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
   businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel, clientState, blockers,
@@ -708,7 +709,7 @@ export const RULES = [
           // Lior moved the deadlines (editing paused): days 2 and 3 move with them.
           const shift = readShift(i.checks[SHIFT_KEY(i.pre)]);
           return {
-            ...i, id: i.proc.id, who: editorsOf(i.ctx), url: EDITOR_URL(i.cid), ready: !!p24 && (p24.complete || i.resolved('p24.notify')), p24due: p24?.dueAt, p27due: i.same('p27')?.dueAt,
+            ...i, id: i.proc.id, who: editorsOf(i.ctx), days: editingDaysOf(i.client), url: EDITOR_URL(i.cid), ready: !!p24 && (p24.complete || i.resolved('p24.notify')), p24due: p24?.dueAt, p27due: i.same('p27')?.dueAt,
             anchors: { event: assigned, days: shift ? businessDayFrom(assigned, shift) : assigned },
           };
         })
@@ -724,9 +725,11 @@ export const RULES = [
       { id: 'nostart', officeMinutes: 120, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved('p22.received'), title: (i) => `עוד לא התחלת: ${i.name}`, body: () => 'עברו שעתיים עבודה מאז שהכונן נמסר. ללחוץ "קיבלתי את הכונן והתחלתי".' },
       { id: 'nostartLior', officeMinutes: 240, to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עברו 4 שעות עבודה מהשיוך.' },
       { id: 'ofir', officeMinutes: 240, to: 'ofir', level: 'quiet', when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עותק לידיעה: עברו 4 שעות עבודה מהשיוך.' },
-      { id: 'day2', from: 'days', businessDays: 2, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 2 מתוך 3: ${i.name}`, body: () => '' },
-      { id: 'day3', from: 'days', businessDays: 3, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 3 מתוך 3: ${i.name}`, body: () => 'עד סוף היום: הכול בדרייב ואצל אופיר.' },
-      { id: 'day3pm', from: 'days', businessDays: 3, at: '15:00', to: (i) => i.who, level: 'ring', title: (i) => `היום יום 3: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
+      // The last editing day: day 2 since protocol v11 (the owner, 21.10.2026), day 3 for a client from before.
+      { id: 'day2', from: 'days', businessDays: 2, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 2 מתוך ${i.days}: ${i.name}`, body: (i) => (i.days === 2 ? 'עד סוף היום: הכול בדרייב ואצל אופיר.' : '') },
+      { id: 'day2pm', from: 'days', businessDays: 2, at: '15:00', when: (i) => i.days === 2, to: (i) => i.who, level: 'ring', title: (i) => `היום יום 2: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
+      { id: 'day3', from: 'days', businessDays: 3, at: '08:30', when: (i) => i.days === 3, to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 3 מתוך 3: ${i.name}`, body: () => 'עד סוף היום: הכול בדרייב ואצל אופיר.' },
+      { id: 'day3pm', from: 'days', businessDays: 3, at: '15:00', when: (i) => i.days === 3, to: (i) => i.who, level: 'ring', title: (i) => `היום יום 3: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
     ],
   },
 

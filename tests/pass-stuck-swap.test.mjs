@@ -37,7 +37,7 @@ const UPTO_SHOOT = ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p0
 test('stuck: how long what blocks the client has been open, and with whom', () => {
   const now = IL(2026, 10, 22, 10); // Thursday
   const w = world();
-  // Editing assigned to Nadia on Sunday 11.10: due Wednesday 14.10, six business days ago.
+  // Editing assigned to Nadia on Sunday 11.10: due Tuesday 13.10 (two business days), seven business days ago.
   const c = client(w, { editor: 'nadia', char_at: IL(2026, 10, 1, 10).toISOString(), shoot_at: IL(2026, 10, 8, 10).toISOString() });
   all(w, c, UPTO_SHOOT, IL(2026, 10, 8, 18), IMPORT_NOTE);
   all(w, c, ['p22a'], IL(2026, 10, 11, 12));
@@ -45,10 +45,10 @@ test('stuck: how long what blocks the client has been open, and with whom', () =
   const s = clientState(c, w.checks[c.id], now);
   const late = stuckOf(c, s, { checks: w.checks[c.id] }, now).find((x) => x.code === 'late');
   assert.match(late.text, /^באיחור של יותר מיומיים: /);
-  assert.equal(late.age, '22 · עריכת הסרטונים: פתוח 9 ימי עסקים, מהם 6 באיחור · אצל נדיה');
+  assert.equal(late.age, '22 · עריכת הסרטונים: פתוח 9 ימי עסקים, מהם 7 באיחור · אצל נדיה');
   // The same, in the parts of the pass's one line (20.10.2026).
-  assert.deepEqual([late.what, late.who, late.when], ['22 · עריכת הסרטונים', 'nadia', 'פתוח 9 ימי עסקים, מהם 6 באיחור']);
-  assert.deepEqual([late.days, late.lateDays], [9, 6]);
+  assert.deepEqual([late.what, late.who, late.when], ['22 · עריכת הסרטונים', 'nadia', 'פתוח 9 ימי עסקים, מהם 7 באיחור']);
+  assert.deepEqual([late.days, late.lateDays], [9, 7]);
   // A wait on the client past its recheck date: how long we have been waiting.
   const w2 = world();
   const d = client(w2, { deal_at: IL(2026, 10, 14, 9).toISOString(), created_at: IL(2026, 10, 14, 9).toISOString() });
@@ -126,24 +126,24 @@ const jobOf = (w, c, now) => Object.values(editorLoad({ clients: w.clients, stat
 test('a swap and the editing clocks: on time the days start over, a late job keeps its deadlines unless Ofir says otherwise', () => {
   const now = IL(2026, 10, 20, 10); // Tuesday
   const w = world();
-  // Assigned on Sunday: due Wednesday.
+  // Assigned on Sunday: due Tuesday (two business days, protocol v11).
   const c = editing(w);
   const job = jobOf(w, c, now);
   assert.equal(job.editor, 'nadia');
-  assert.equal(hhmm(job.dueAt), '21.10 18:00');
+  assert.equal(hhmm(job.dueAt), '20.10 18:00');
   let k = swapClock(job, now);
-  assert.deepEqual([k.late, k.choice, hhmm(k.keepDue), hhmm(k.restartDue)], [false, 'restart', '21.10 18:00', '25.10 18:00']);
+  assert.deepEqual([k.late, k.choice, hhmm(k.keepDue), hhmm(k.restartDue)], [false, 'restart', '20.10 18:00', '22.10 18:00']);
   // Marking 22א again (what "restart" does) moves the three deadlines; leaving it keeps them.
   const due = (id) => hhmm(clientState(c, w.checks[c.id], now).states.find((s) => s.proc.id === id).dueAt);
-  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['21.10 18:00', '21.10 18:00', '22.10 18:00']);
+  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['20.10 18:00', '20.10 18:00', '22.10 18:00']);
   mark(w, c, 'p22a.assigned', now);
-  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['25.10 18:00', '25.10 18:00', '26.10 18:00']);
+  assert.deepEqual(['p22', 'p24', 'p27'].map(due), ['22.10 18:00', '22.10 18:00', '26.10 18:00']);
   // A job assigned a week ago is late: the default keeps it late.
   const w2 = world();
   const l = editing(w2, {}, IL(2026, 10, 11, 12));
   const lateJob = jobOf(w2, l, now);
   k = swapClock(lateJob, now);
-  assert.deepEqual([k.late, k.choice, hhmm(k.keepDue)], [true, 'keep', '14.10 18:00']);
+  assert.deepEqual([k.late, k.choice, hhmm(k.keepDue)], [true, 'keep', '13.10 18:00']);
   // The reason is required only for a late job restarted (the editor's reason is optional since 21.10.2026).
   assert.equal(swapReasonNeeded({ shootType: 'dms', editor: 'yariv', late: true, restart: false }), false);
   assert.equal(swapReasonNeeded({ shootType: 'dms', editor: 'yariv', late: true, restart: true }), true);

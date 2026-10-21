@@ -516,3 +516,67 @@ begin
     'done', coalesce((select jsonb_agg(jsonb_build_object('client_id', d.client_id, 'person', d.person, 'done', d.done, 'at', d.at))
       from public.client_landing_done d where d.client_id in (select private.landing_link_clients(v_person))), '[]'::jsonb));
 end $$;
+
+-- ══ D. Editing in two business days; the editors read their clients' scripts ══
+-- The owner's decisions of 21.10.2026:
+--   1. From the moment Ofir assigns the editor, the editor has 2 business days to
+--      "מוכן לבדיקה" (it was 3): protocol version 11 (app/protocol.js, p22 and p24; the
+--      history in app/protocol-versions.js). A client that started under an earlier
+--      version keeps the later of its two deadlines, as with every version, so nothing
+--      that is on time today turns late by itself.
+--   2. The scripts Lior writes in the system belong to the client: its assigned editor
+--      (the main one or the second, of the client or of that shoot round) reads them on
+--      the editing page, without a grant and without writing. The office reads them too
+--      (the counts on Ofir's screens). No policy on public.client_scripts changes:
+--      writing stays Lior's, the owner's and the granted.
+
+-- ── D1. Protocol version 11 ──────────────────
+create or replace function private.protocol_version_current() returns integer
+language sql immutable set search_path = '' as $$ select 11 $$;
+revoke all on function private.protocol_version_current() from public, anon, authenticated;
+alter table public.clients alter column protocol_version set default 11;
+
+-- ── D2. The scripts for the editing ──────────
+-- The scripts (title, text, inspiration links, status) of the clients in p_clients
+-- (null: all) that the caller may read here: the office every client in work; an editor
+-- the shoot rounds they edit (round 1 is the client's own editor, a round its own pair).
+-- Only scripts with a title or a text. Nobody else gets a row.
+create or replace function public.work_scripts(p_clients uuid[] default null)
+returns table (client_id uuid, round integer, n integer, title text, body text, links jsonb, status text)
+language sql stable security definer set search_path = '' as $$
+  with me as (select public.my_person() as p, public.is_office() as office),
+  c as (
+    select cl.id, cl.editor, cl.editor2, cl.rounds
+    from public.clients cl
+    where cl.status in ('active', 'ending') and cl.archived_at is null
+      and (p_clients is null or cl.id = any (p_clients))
+  ),
+  mine as (
+    select c.id, 1 as round from c, me
+    where public.is_staff() and (me.office or (me.p is not null and (c.editor = me.p or c.editor2 = me.p)))
+    union
+    select c.id, (r ->> 'n')::int from c, me, jsonb_array_elements(coalesce(c.rounds, '[]'::jsonb)) r
+    where public.is_staff() and (r ->> 'n') ~ '^[0-9]{1,2}$' and (r ->> 'n')::int between 2 and 50
+      and (me.office or (me.p is not null and (r ->> 'editor' = me.p or r ->> 'editor2' = me.p)))
+  )
+  select s.client_id, s.round, s.n, s.title, s.body,
+    (select coalesce(jsonb_agg(x.value), '[]'::jsonb) from jsonb_array_elements(s.links) x
+     where jsonb_typeof(x.value) = 'string' and (x.value #>> '{}') ~ '^https?://[^\s"<>]+$'),
+    s.status
+  from public.client_scripts s
+  join mine m on m.id = s.client_id and m.round = s.round
+  where btrim(s.title) <> '' or btrim(s.body) <> ''
+  order by s.client_id, s.round, s.n;
+$$;
+revoke all on function public.work_scripts(uuid[]) from public, anon;
+grant execute on function public.work_scripts(uuid[]) to authenticated;
+
+-- How many scripts each shoot has (Ofir's screens and the editors' page), for the same
+-- people as work_scripts() and the same scripts; just the numbers.
+create or replace function public.work_script_counts(p_clients uuid[] default null)
+returns table (client_id uuid, round integer, scripts integer)
+language sql stable security definer set search_path = '' as $$
+  select w.client_id, w.round, count(*)::int from public.work_scripts(p_clients) w group by w.client_id, w.round;
+$$;
+revoke all on function public.work_script_counts(uuid[]) from public, anon;
+grant execute on function public.work_script_counts(uuid[]) to authenticated;

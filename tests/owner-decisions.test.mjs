@@ -286,8 +286,8 @@ test('the shoot day closed: Ofir is rung to assign; once he does, the editor\'s 
   const after = due(w, IL(2026, 10, 18, 17, 5));
   none(after, 'fast');
   one(after, 'editing', 'assigned', 'anna');
-  // The editing clock starts at the assignment, as before: three business days from 17:04 on Sunday.
-  assert.equal(hhmm(clientState(c, w.checks[c.id], IL(2026, 10, 18, 17, 5)).states.find((s) => s.proc.id === 'p24').dueAt), '21.10 18:00');
+  // The editing clock starts at the assignment, as before: two business days from 17:04 on Sunday (protocol v11).
+  assert.equal(hhmm(clientState(c, w.checks[c.id], IL(2026, 10, 18, 17, 5)).states.find((s) => s.proc.id === 'p24').dueAt), '20.10 18:00');
   // Assigned by the server before protocol v9: the mark still reads as automatic (the tag on Ofir's load
   // list), nothing is sent about it again, and nothing reopens.
   const old = shotClient(w, { name: 'ותיק', editor: 'nadia' });

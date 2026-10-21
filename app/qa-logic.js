@@ -4,6 +4,7 @@
 // (22א) with each editor's load. Pure, no DOM, Israel time; the marks are in
 // app/office-marks.js.
 import { EDITORS, editorsFor, PEOPLE } from './protocol.js';
+import { editingDaysOf } from './protocol-versions.js';
 import {
   businessDaysBetween, addBusinessDays, pauseOf, roundsOf, parseDate, inLanding, workFloor,
 } from './protocol-logic.js';
@@ -187,7 +188,7 @@ export function folderItemOf(task) {
   return m ? `${m[1] ? `r${m[1]}.` : ''}p24.folder` : null;
 }
 
-// "יום X מתוך 3" (or 4 once the videos are with Ofir: closing with the client's
+// "יום X מתוך 2" (3 for a client from before protocol v11; or 4 once the videos are with Ofir: closing with the client's
 // fixes). The count starts the business day after the assignment (0: the
 // assignment day itself).
 export function editingDay(assignedAt, now = new Date()) {
@@ -220,7 +221,7 @@ export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Dat
       const withOfir = !!p24?.complete || cs[`${u.pre}p24.notify`]?.state === 'done';
       const pause = p22 ? pauseOf(p22.proc, cs) : null;
       const job = {
-        client: c, n: u.n, pre: u.pre, assignedAt, of: withOfir ? 4 : 3, second: !!u.second,
+        client: c, n: u.n, pre: u.pre, assignedAt, of: withOfir ? 4 : editingDaysOf(c), second: !!u.second,
         partner: (u.second ? u.x.editor : u.x.editor2) || null,
         day: editingDay(assignedAt, now), paused: pause, stage: withOfir ? 'closing' : 'editing', landing: inLanding(c),
         dueAt: (withOfir ? p27 : p24)?.dueAt || null,

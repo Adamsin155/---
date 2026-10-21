@@ -9,7 +9,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { PROCESSES, PROTOCOL_VERSION } from '../app/protocol.js';
 import { clientState, openItemsFor, applicableProcesses } from '../app/protocol-logic.js';
 import {
-  PROTOCOL_HISTORY, LATEST, itemSince, versionOf, adjustForVersion, dueStartedUnder, laterDue, freshText,
+  PROTOCOL_HISTORY, LATEST, itemSince, versionOf, adjustForVersion, dueStartedUnder, laterDue, freshText, editingDaysOf,
 } from '../app/protocol-versions.js';
 import { importKeys } from '../app/client-open.js';
 import { dateIL, partsIL } from '../app/tz.js';
@@ -76,7 +76,14 @@ test('which version an item came in, and which version a client started under', 
   assert.equal(dueStartedUnder('p12', 4).businessDays, 3);
   assert.equal(dueStartedUnder('p12', 5), null);
   assert.equal(dueStartedUnder('p22', 1).businessDays, 5);
-  assert.equal(dueStartedUnder('p22', 2), null);
+  assert.equal(dueStartedUnder('p22', 2).businessDays, 3);
+  // Version 11 (21.10.2026): editing in 2 business days; a client from before keeps 3, a new one has 2.
+  assert.equal(dueStartedUnder('p22', 10).businessDays, 3);
+  assert.equal(dueStartedUnder('p24', 10).businessDays, 3);
+  assert.equal(dueStartedUnder('p22', 11), null);
+  assert.equal(editingDaysOf({ protocol_version: 10 }), 3);
+  assert.equal(editingDaysOf({ protocol_version: 11 }), 2);
+  assert.equal(editingDaysOf({}), 2);
   assert.equal(laterDue(null, null), null);
   assert.equal(laterDue(IL(2026, 1, 1), null).getTime(), IL(2026, 1, 1).getTime());
   assert.equal(laterDue(IL(2026, 1, 1), IL(2026, 1, 2)).getTime(), IL(2026, 1, 2).getTime());

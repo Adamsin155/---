@@ -304,12 +304,12 @@ test('"the end of a business day" is 18:00 everywhere (13:00 on erev chag): the 
   for (const id of ['p01', 'p02', 'p03']) marks(w, c, itemsOf(id), IL(2026, 10, 4, 9, 3));
   assert.equal(hhmm(proc(w, c, 'p11', IL(2026, 10, 4, 10)).dueAt), '5.10 18:00');
   assert.deepEqual([proc(w, c, 'p11', IL(2026, 10, 5, 17, 59)).status, proc(w, c, 'p11', IL(2026, 10, 5, 18, 1)).status], ['today', 'overdue']);
-  // The editing: three business days from the assignment, at 18:00 (what the editor's page always said).
+  // The editing: two business days from the assignment (protocol v11), at 18:00 (what the editor's page says).
   const e = client(w, { editor: 'nadia', shoot_at: IL(2026, 10, 13, 10).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
   importTo(w, e, 'post');
   for (const k of itemsOf('p22a')) mark(w, e, k, IL(2026, 10, 18, 10));
   for (const k of [...itemsOf('p22'), ...itemsOf('p24')]) delete w.checks[e.id][k];
-  assert.equal(hhmm(proc(w, e, 'p22', IL(2026, 10, 18, 11)).dueAt), '21.10 18:00');
+  assert.equal(hhmm(proc(w, e, 'p22', IL(2026, 10, 18, 11)).dueAt), '20.10 18:00');
   // A shoot day still ends with the day (23:59): it is not an office day.
   assert.equal(PROCESSES.find((p) => p.id === 'p18').due.at, '23:59');
   assert.equal(PROCESSES.find((p) => p.id === 'p34').due.at, '18:00');

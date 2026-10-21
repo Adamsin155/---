@@ -118,8 +118,8 @@ test('version 9 as data: the numbers and the window in one place; the graphics a
   assert.deepEqual(byId.p22a.owners, ['ofir']);
   assert.deepEqual(byId.p22a.items.map((i) => [i.key, i.owners || byId.p22a.owners]), [['p22a.drive', ['lior']], ['p22a.load', ['ofir']], ['p22a.assigned', ['ofir']], ['p22a.irit', ['irit']]]);
   assert.deepEqual(byId.p22a.due, { from: 'p19', fast: 'assign' });
-  // The editing clock still starts at the assignment.
-  assert.deepEqual(byId.p22.due, { from: 'item:p22a.assigned', businessDays: 3 });
+  // The editing clock still starts at the assignment (2 business days since version 11).
+  assert.deepEqual(byId.p22.due, { from: 'item:p22a.assigned', businessDays: 2 });
   // The history: nothing of version 9 is gated by the version. The approval is not "חדש בפרוטוקול" for
   // anybody (it is asked of every client that has not sent its graphics yet), and no deadline is listed
   // (so no client keeps the hour the check had).
@@ -323,11 +323,11 @@ test('the editor\'s assignment, ignored: a ring when the shoot day is closed, la
   for (const r of rows) assert.equal(r.url, `qa.html#assign-${c.id}`);
   // Nothing else about the assignment, to anybody: no digest line, no 12:00 "hard stop", no note of the rule `late`.
   assert.deepEqual(all.filter((r) => r.rule !== 'fast' && (/עורך/.test(r.title) || /22א/.test(r.title))), []);
-  // He assigns at 17:50: the ladder stops, and the editing clock starts from that minute (three business days).
+  // He assigns at 17:50: the ladder stops, and the editing clock starts from that minute (two business days, protocol v11).
   c.editor = 'anna';
   for (const k of ['p22a.drive', 'p22a.load', 'p22a.assigned', 'p22a.irit']) mark(w, c, k, IL(2026, 10, 15, 17, 50));
   assert.deepEqual(fastOf(due(w, IL(2026, 10, 15, 17, 55))), []);
-  assert.equal(hhmm(proc(w, c, 'p24', IL(2026, 10, 15, 17, 55)).dueAt), '20.10 18:00');
+  assert.equal(hhmm(proc(w, c, 'p24', IL(2026, 10, 15, 17, 55)).dueAt), '19.10 18:00');
   assert.ok(due(w, IL(2026, 10, 15, 17, 50)).some((r) => r.rule === 'editing' && r.step === 'assigned' && r.person === 'anna'));
 });
 

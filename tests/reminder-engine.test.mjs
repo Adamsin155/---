@@ -495,9 +495,9 @@ test('assign an editor (22א): Ofir alone, on his fast ladder (protocol v9): at 
   none(due(w, IL(2026, 10, 18, 12)), 'fast');
 });
 
-test('editing (22, 24): assigned, not started after 2 office hours (Lior after 4), days 2 and 3, day 3 at 15:00', () => {
+test('editing (22, 24), a client from before protocol v11: assigned, not started after 2 office hours (Lior after 4), days 2 and 3, day 3 at 15:00', () => {
   const w = world();
-  const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString(), editor: 'nadia' });
+  const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString(), editor: 'nadia', protocol_version: 10 });
   importTo(w, c, 'post');
   for (const k of [...itemsOf('p22'), ...itemsOf('p24'), ...itemsOf('p22a')]) delete w.checks[c.id][k];
   mark(w, c, 'p22a.assigned', IL(2026, 10, 18, 10));
@@ -520,6 +520,23 @@ test('editing (22, 24): assigned, not started after 2 office hours (Lior after 4
   delete w.checks[c.id]['p22.pause'];
   mark(w, c, 'p24.notify', IL(2026, 10, 21, 12));
   none(due(w, IL(2026, 10, 21, 15)), 'editing');
+});
+
+test('editing since protocol v11: two business days; day 2 is the last, with its ring at 15:00 and no day 3', () => {
+  const w = world();
+  const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString(), editor: 'nadia' });
+  importTo(w, c, 'post');
+  for (const k of [...itemsOf('p22'), ...itemsOf('p24'), ...itemsOf('p22a')]) delete w.checks[c.id][k];
+  mark(w, c, 'p22a.assigned', IL(2026, 10, 18, 10));
+  const now = one(due(w, IL(2026, 10, 18, 10)), 'editing', 'assigned', 'nadia');
+  assert.match(now.body, /בדרייב ואצל אופיר עד ג׳ 20\.10 18:00 · סגירה עד ה׳ 22\.10 18:00/);
+  const d2 = one(due(w, IL(2026, 10, 20, 8, 30)), 'editing', 'day2', 'nadia');
+  assert.match(d2.title, /^עריכה, יום 2 מתוך 2: /);
+  assert.equal(d2.body, 'עד סוף היום: הכול בדרייב ואצל אופיר.');
+  none(due(w, IL(2026, 10, 20, 14, 59)), 'editing', 'day2pm');
+  assert.equal(one(due(w, IL(2026, 10, 20, 15)), 'editing', 'day2pm', 'nadia').level, 'ring');
+  none(due(w, IL(2026, 10, 21, 15)), 'editing', 'day3');
+  none(due(w, IL(2026, 10, 21, 15)), 'editing', 'day3pm');
 });
 
 test('ready for QA (24→25): Ofir at once and after 40 office minutes, paused while he is in a characterization; Lior after an hour', () => {

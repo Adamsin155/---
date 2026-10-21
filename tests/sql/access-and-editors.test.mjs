@@ -228,3 +228,34 @@ test('C: the landing link lists a client in landing for its second editor too', 
   assert.ok(!(await of('anna')).includes(ids.gil));
   await db.query('update public.clients set landing = false where id = $1', [ids.dana]);
 });
+
+// ── D. Editing in two business days; the editors read their clients' scripts ──
+test('D: protocol version 11 (editing in two business days) is the database\'s current one', async () => {
+  assert.equal((await one('select private.protocol_version_current() as v')).v, 11);
+  const { rows } = await db.query("insert into public.clients (name) values ('חדש') returning protocol_version");
+  assert.equal(rows[0].protocol_version, 11);
+});
+
+test('D: the scripts of a shoot, for its editors (main and second) and the office; nobody else; read only', async () => {
+  await db.query(`insert into public.client_scripts (client_id, round, n, title, body) values
+    ($1, 1, 1, 'פתיח', 'שלום'), ($1, 1, 2, 'מוצר', 'טקסט'), ($1, 1, 3, '', ''), ($1, 2, 1, 'סבב 2', 'טקסט'),
+    ($2, 1, 1, 'של גיל', 'טקסט')`, [ids.dana, ids.gil]);
+  const got = async (who) => (await run(who, 'select client_id, round, n from public.work_scripts(null) order by client_id, round, n'))
+    .map((r) => `${r.client_id === ids.dana ? 'dana' : 'gil'}:${r.round}.${r.n}`).sort();
+  // Nadia edits Dana's own shoot (round 1); Yariv is its second editor and round 2's main one; Anna is round 2's second.
+  assert.deepEqual(await got('nadia'), ['dana:1.1', 'dana:1.2']);
+  assert.deepEqual(await got('yariv'), ['dana:1.1', 'dana:1.2', 'dana:2.1']);
+  assert.deepEqual(await got('anna'), ['dana:2.1']);
+  // The office: every client in work (the empty script is never sent).
+  assert.deepEqual(await got('ofir'), ['dana:1.1', 'dana:1.2', 'dana:2.1', 'gil:1.1']);
+  // The counts, for the same people.
+  const counts = await run('yariv', 'select round, scripts from public.work_script_counts($1) order by round', [[ids.dana]]);
+  assert.deepEqual(counts.map((r) => [r.round, r.scripts]), [[1, 2], [2, 1]]);
+  // The table itself stays closed to the editors (no grant): reading and writing.
+  assert.deepEqual(await run('nadia', 'select 1 from public.client_scripts'), []);
+  await as(db, users.nadia, (tx) => tx.query("update public.client_scripts set body = 'x' where client_id = $1", [ids.dana]));
+  assert.equal((await one("select count(*)::int as n from public.client_scripts where body = 'x'")).n, 0);
+  // Anon: nothing at all.
+  const a = await as(db, null, (tx) => tx.query('select * from public.work_scripts(null)'));
+  assert.match(a.error || '', /permission denied/);
+});

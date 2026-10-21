@@ -168,6 +168,18 @@ export const PROTOCOL_HISTORY = [
       p34: { from: 'contractEnd', days: -60, at: '18:00' },
     },
   },
+  {
+    version: 11, date: '2026-10-21', title: 'עריכה ביומיים, ושני עורכים ללקוח',
+    changes: [
+      'מהרגע שאופיר משייך עורך יש לו 2 ימי עסקים עד "מוכן לבדיקה" (היו 3). אחרי זה העריכה באיחור.',
+      'אופיר יכול להוסיף עורך/ת נוסף/ת ולחלק ביניהם את הסרטונים; לשניהם אותו מועד.',
+    ],
+    // The due dates before version 11 (a client that started before keeps the later of the two).
+    due: {
+      p22: { from: 'item:p22a.assigned', businessDays: 3 },
+      p24: { from: 'item:p22a.assigned', businessDays: 3 },
+    },
+  },
 ];
 
 export const LATEST = PROTOCOL_HISTORY.at(-1).version;
@@ -199,6 +211,9 @@ export function versionOf(client) {
   return v === 1 && client.created_at ? versionAt(client.created_at) : v;
 }
 export const isOlderClient = (client) => versionOf(client) < PROTOCOL_VERSION;
+// The editing days to "מוכן לבדיקה" (22, 24): 2 business days from the assignment since
+// version 11 (the owner, 21.10.2026); a client that started before keeps its 3.
+export const editingDaysOf = (client) => (versionOf(client) >= 11 ? 2 : 3);
 
 // The timing a later version replaced as a whole ({ start, due }) for base process
 // `id`, as the client started under it (null: not replaced since).
