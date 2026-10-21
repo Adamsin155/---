@@ -261,8 +261,9 @@ await step('Ilai: his items of the monthly cycle in "המשימות שלי", lab
   assert.doesNotMatch(await box.innerText(), /קפה גליה|חנות ישנה|דוח חודשי|צלם/);
   // Right after the tools, before the list (and the list's foot: its length, the short list's tools).
   assert.deepEqual(await ilai.evaluate(() => [...document.querySelectorAll('#view-mine > *')].map((e) => e.id).slice(-3)), ['my-months', 'mine-list', 'mine-foot']);
-  await ilai.waitForSelector('#side-year');
-  assert.equal(await ilai.getAttribute('#side-year', 'href'), 'year.html');
+  // The year left Ilai's menu on 20.10.2026 (the owner): it repeats his task list; it opens by its address.
+  await ilai.waitForSelector('#side-gantt');
+  assert.equal(await ilai.locator('#side-year').count(), 0);
   await shot(ilai, 'year-01-ilai-mine');
 });
 

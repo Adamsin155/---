@@ -847,7 +847,7 @@ await step('the index for the owner, Irit, Lior and Ofir (reading; no "יציר�
   const ph = await newPage(pctx);
   await signIn(ph, 'clients.html#mine', 'ilai@astrateg.test');
   await ph.waitForSelector('#side-list #side-gantt');
-  assert.deepEqual(await ph.locator('#side-list > a, #side-list > button').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'שנת החבילה']);
+  assert.deepEqual(await ph.locator('#side-list > a, #side-list > button').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן']); // no year in his menu since 20.10.2026
   await ph.click('#side-gantt');
   await ph.waitForSelector('#gx:not([hidden]) #gx-list .gx-client');
   assert.equal(await noHScroll(ph), true);

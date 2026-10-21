@@ -103,8 +103,9 @@ const PERSONAL = {
 };
 const MANAGER = {
   owner: ['מבט מנהל', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'יומן', 'טבלת ימי צילום', 'צוות', 'אסטרטג פיימנט'],
-  lior: ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'צוות'],
-  ofir: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'החלטות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'טבלת ימי צילום'],
+  // 20.10.2026 (the owner): Lior without qa, prep and the second shoot-day table; Ofir without the Gantt, the year and prep.
+  lior: ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'תובנות', 'שנת החבילה', 'הצעה חדשה והכנת חוזה', 'צוות'],
+  ofir: ['מבט מנהל', 'לקוחות', 'החלטות', 'ימי צילום', 'טבלת ימי צילום'],
   irit: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'ימי צילום', 'צוות'],
 };
 const HOME = { owner: 'owner.html#now', lior: 'owner.html#all', ofir: 'owner.html#now', irit: 'owner.html#now' };
@@ -210,7 +211,9 @@ await step('a manager screen opened by its address opens in the manager profile;
   assert.deepEqual(await menu(l.page), MANAGER.lior);
   await l.page.goto(`${BASE}owner.html#shoots`);
   await l.page.waitForSelector('#view-shoots:not([hidden])');
-  await l.page.waitForSelector('#side-shoot-table[aria-current="page"]');
+  // The table is a tab of "כל הלקוחות במבט" (its own menu entry left on 20.10.2026).
+  await l.page.waitForSelector('#side-overview[aria-current="page"]');
+  assert.equal(await l.page.locator('#side-shoot-table').count(), 0);
   await l.page.goto(`${BASE}decisions.html`);
   await l.page.waitForSelector('#side-decisions[aria-current="page"]');
   assert.deepEqual(await sw(l.page), ['מבט מנהל', 'owner.html#all', 'manager']);
