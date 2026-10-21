@@ -19,9 +19,10 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 //   reminder-engine.js, push-config.js reminders (the engine, its rules and the protocol)
 //   wa-logic.js (and wa-templates.js)  reminders and whatsapp-webhook (the WhatsApp channel)
 //   calendar-feed.js, ics.js           calendar (the personal calendar feed)
+//   gcal-logic.js                      calendar (reading the staff's own Google calendars)
 //   files-logic.js                     client-media (the client's gallery and graphics)
 //   metricool-logic.js                 metricool (Metricool's planner onto the content Gantt)
-export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'files-logic.js', 'metricool-logic.js'];
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js'];
 
 // Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
 // the folder has no other, and what each one deploys).

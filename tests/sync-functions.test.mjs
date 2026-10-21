@@ -16,7 +16,7 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'files-logic.js', 'handoffs.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'metricool-logic.js', 'office-marks.js', 'pricing.js',
+    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'files-logic.js', 'gcal-logic.js', 'handoffs.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'metricool-logic.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
     'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
@@ -67,10 +67,10 @@ test('the whatsapp-webhook function imports only its own files and the shared co
   for (const f of files) if (f.startsWith('_shared/app/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
 });
 
-test('the calendar function imports only the shared copy', () => {
-  const files = [...localImports('calendar', 'index.ts')];
-  assert.deepEqual(files.sort(), ['_shared/app/calendar-feed.js', '_shared/app/ics.js']);
-  for (const f of files) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
+test('the calendar function imports only its own reader of Google calendars and the shared copy', () => {
+  const files = new Set(['index.ts', 'google.js'].flatMap((f) => [...localImports('calendar', f)]));
+  assert.deepEqual([...files].sort(), ['_shared/app/calendar-feed.js', '_shared/app/gcal-logic.js', '_shared/app/ics.js', 'calendar/google.js']);
+  for (const f of files) if (f.startsWith('_shared/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
   const config = readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8');
   assert.match(config, /\[functions\.calendar\]\s*\nverify_jwt = false/);
 });
@@ -79,7 +79,8 @@ test('the calendar function imports only the shared copy', () => {
 const APP = (...xs) => xs.map((x) => `_shared/app/${x}`);
 const DEPLOY = {
   calendar: [
-    ...APP('calendar-feed.js', 'catalog.js', 'holidays.js', 'ics.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'tz.js'),
+    ...APP('calendar-feed.js', 'catalog.js', 'gcal-logic.js', 'holidays.js', 'ics.js', 'metricool-logic.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'tz.js'),
+    'calendar/google.js',
     'calendar/index.ts',
   ],
   'client-media': [
