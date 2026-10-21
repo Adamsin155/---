@@ -133,6 +133,8 @@ async function fakeSupabase(route) {
   if (p === '/auth/v1/logout') return route.fulfill({ status: 204 });
   const authed = (headers.authorization || '').includes(JWT);
   if (p === '/rest/v1/rpc/is_staff') return json(200, authed);
+  // The logins' statuses (no secret): every open client has one, but קפה גליה ("בלי גישות", 21.10.2026).
+  if (p === '/rest/v1/rpc/access_status_overview') return json(200, db.clients.filter((c) => c.business !== 'קפה גליה' && c.name !== 'קפה גליה').map((c) => ({ client_id: c.id, network: 'instagram', status: 'new' })));
   const m = /^\/rest\/v1\/(\w+)$/.exec(p);
   if (!m || !db[m[1]]) return json(404, { message: 'not found' });
   if (!authed) return json(401, { message: 'permission denied' });
@@ -325,6 +327,11 @@ const lateNames = await page.locator('.crow strong').allInnerTexts();
 assert.ok(lateNames.includes('פיצה נאפולי') && !lateNames.includes('מאפיית כהן'), lateNames.join());
 await page.click('#client-filters .chip:text("בוטלו")');
 assert.deepEqual(await page.locator('.crow strong').allInnerTexts(), ['מאפיית כהן']);
+// "בלי גישות" (the owner, 21.10.2026): the open clients with no login in the vault.
+await page.locator('#client-filters .chip:has-text("בלי גישות")').waitFor();
+assert.equal((await page.locator('#client-filters .chip:has-text("בלי גישות")').innerText()).trim(), 'בלי גישות (1)');
+await page.click('#client-filters .chip:has-text("בלי גישות")');
+assert.deepEqual(await page.locator('.crow strong').allInnerTexts(), ['קפה גליה']);
 await page.click('#client-filters .chip:text("פעילים")');
 await shot('02-clients');
 

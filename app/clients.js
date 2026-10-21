@@ -35,7 +35,7 @@ import { canManageTeam } from './team-rules.js';
 import { canSendMessages, stationTitle } from './messages-logic.js';
 import { offerHandoff, dropHandoff } from './handoff-ui.js';
 import { canSeeAllClients, canSeeOwnerScreen, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
-import { loadDateChanges, loadLogFor, noteDateChange } from './owner-data.js';
+import { loadDateChanges, loadLogFor, noteDateChange, loadAccessStatus } from './owner-data.js';
 import { refreshQuestions } from './questions-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
 import { mountWhatsappCard } from './whatsapp.js';
@@ -124,6 +124,15 @@ const hashOfView = (v) => (v === 'mine' && managing ? 'team' : v);
 // A tab of the manager profile is not offered in the personal one.
 const managerTab = (t) => personal && managerTabs({ me, scope, error: viewerError }).includes(t);
 let clientFilter = 'active';
+// "בלי גישות" (the owner, 21.10.2026): the clients with no login in the vault at all. The set of clients
+// that have one, read once for the office (statuses only, never a secret); null until read or when not readable.
+let withLogins = null;
+let withLoginsAsked = false;
+function askLogins() {
+  if (withLoginsAsked) return;
+  withLoginsAsked = true;
+  loadAccessStatus().then((rows) => { withLogins = Array.isArray(rows) ? new Set(rows.map((r) => r.client_id)) : null; if (withLogins) renderClients(); }).catch(() => {});
+}
 let lastLoad = 0;
 let loads = 0;
 const laterOpen = new Set();   // the folded "this week" and "later" groups a person opened
@@ -2008,7 +2017,11 @@ function myNextIn(c, work, soon) {
 
 function renderClients() {
   const own = scope === 'own';
-  const FILTERS = [['active', 'פעילים'], ['late', 'עם איחור'], ['client', 'ממתין ללקוח'], ['ending', 'מסיימים'], ['ended', 'הסתיימו'], ['cancelled', 'בוטלו']];
+  if (!own && scope === 'office') askLogins();
+  const noLogins = (c) => (c.status === 'active' || c.status === 'ending') && withLogins && !withLogins.has(c.id);
+  const FILTERS = [['active', 'פעילים'], ['late', 'עם איחור'], ['client', 'ממתין ללקוח'],
+    ...(withLogins ? [['nologins', `בלי גישות (${clients.filter(noLogins).length})`]] : []),
+    ['ending', 'מסיימים'], ['ended', 'הסתיימו'], ['cancelled', 'בוטלו']];
   fill($('client-filters'), own ? h('p', { class: 'muted mine-hint' }, 'לקוחות שיש לך בהם עבודה פתוחה או מתוכננת, או שהעריכה שלהם אצלך.')
     : FILTERS.map(([k, label]) => h('button', {
       type: 'button', class: 'chip', 'aria-pressed': String(clientFilter === k),
@@ -2024,6 +2037,7 @@ function renderClients() {
     if (clientFilter === 'active') return c.status === 'active';
     if (clientFilter === 'late') return open(c) && stateOf(c).overdue > 0;
     if (clientFilter === 'client') return open(c) && stateOf(c).waitingOnClient > 0;
+    if (clientFilter === 'nologins') return noLogins(c);
     return c.status === clientFilter;
   }).sort((a, b) => (isAuto(b) - isAuto(a)) || (stateOf(b).overdue - stateOf(a).overdue) || (new Date(b.deal_at) - new Date(a.deal_at)));
 
