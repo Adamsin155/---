@@ -195,6 +195,8 @@ async function signIn(page, path, email) {
 }
 const shot = async (page, name) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true }); };
 const text = (page, sel) => page.locator(sel).innerText();
+// Why this message today: under "עריכה" since the owner's page review of 20.10.2026 (one row per client).
+const reason = (page, id) => page.locator(`#msg-ed-${id} .msg-reason`).textContent();
 const toastHas = (page, s) => page.waitForFunction((x) => document.querySelector('#toast.on')?.textContent.includes(x), s);
 const activeId = (page) => page.evaluate(() => document.activeElement?.id || '');
 const checkOf = (c, key) => db.protocol_checks.find((x) => x.client_id === c.id && x.item_key === key) || null;
@@ -237,16 +239,24 @@ await step('Irit sees today\'s queue: the most important first, closed clients o
   assert.equal(await irit.locator('#no-access').isHidden(), true);
   assert.deepEqual(await cardIds(irit), [F.id, A.id, B.id, C.id, D.id]);
   assert.equal(await text(irit, '#msg-summary'), 'יום ג׳ 13.10 · 4 הודעות לשליחה · לקוח אחד כבר קיבל הודעה היום');
-  assert.match(await text(irit, `#msg-${F.id}`), /הודעה על עיכוב[\s\S]*הבטחנו את סגירת הסרטונים עד יום ג׳ 13\.10/);
-  assert.match(await text(irit, `#msg-${A.id}`), /אבן דרך[\s\S]*הקבוצה נפתחה היום/);
+  assert.match(await text(irit, `#msg-${F.id}`), /הודעה על עיכוב/);
+  assert.match(await reason(irit, F.id), /הבטחנו את סגירת הסרטונים עד יום ג׳ 13\.10/);
+  assert.match(await text(irit, `#msg-${A.id}`), /אבן דרך/);
+  assert.match(await reason(irit, A.id), /הקבוצה נפתחה היום/);
+  // One row per client: the editor is closed until "עריכה", and who sent the last message is said.
+  assert.equal(await irit.locator(`#msg-ed-${A.id}`).isHidden(), true);
+  assert.equal(await irit.getAttribute(`#msg-edit-${A.id}`, 'aria-expanded'), 'false');
   assert.match(await irit.inputValue(`#msg-text-${A.id}`), /^היי פיצה נאפולי, ברוכים הבאים לאסטרטג![\s\S]*ליאור: מנהל הלקוח/);
-  assert.match(await text(irit, `#msg-${B.id}`), /יום הצילום מחר, יום ד׳ 14\.10 ב־11:00/);
+  assert.match(await reason(irit, B.id), /יום הצילום מחר, יום ד׳ 14\.10 ב־11:00/);
   assert.match(await irit.inputValue(`#msg-text-${B.id}`), /איפה: הרצל 10, תל אביב/);
-  assert.match(await text(irit, `#msg-${C.id}`), /הודעה יומית · תחנה: שוטף/);
+  assert.match(await text(irit, `#msg-${C.id}`), /הודעה יומית/);
+  assert.match(await reason(irit, C.id), /הודעה יומית · תחנה: שוטף/);
   assert.match(await text(irit, `#msg-${D.id}`), /כבר נשלח היום[\s\S]*08:30 · ליאור/);
   assert.equal(await irit.locator(`#msg-send-${D.id}`).count(), 0, 'no sending twice in a day');
   assert.equal(await irit.locator(`#msg-undo-${D.id}`).count(), 0, 'only the sender may undo, and only a fresh record');
-  assert.equal(await text(irit, `#msg-note-${A.id}`), 'השליחה פותחת צ׳אט עם הטלפון שבכרטיס. להודעה בקבוצת הלקוח: ״שליחה לקבוצה״.');
+  // The help is said once, at the top (it was under every card).
+  assert.match(await text(irit, '#msg-help'), /^״שליחה״ פותחת צ׳אט בוואטסאפ עם הטלפון שבכרטיס/);
+  assert.equal(await irit.locator('[id^="msg-note-"]').count(), 0);
   assert.equal(await irit.locator(`#msg-${E.id}`).count(), 0, 'an ended client is not in the queue');
   // The other options of the day stay one choice away.
   assert.deepEqual(await irit.locator(`#msg-opt-${A.id} option`).allInnerTexts(), ['אבן דרך: ברוכים הבאים', 'הודעה יומית: הצטרפות']);
@@ -291,9 +301,9 @@ await step('a message with a place left to fill does not go out; filled in, it o
 
 await step('Irit edits the welcome and sends it: the link carries the edited text to the client\'s number', async () => {
   const extra = '\nנשמח לראות אתכם בפגישה!';
-  await irit.keyboard.press('Tab'); // from the card into it: the client's name, then the choice of message, then the text
-  await irit.keyboard.press('Tab');
-  await irit.keyboard.press('Tab');
+  // "עריכה" opens the editor under the row, with the text focused.
+  await irit.click(`#msg-edit-${A.id}`);
+  assert.equal(await irit.getAttribute(`#msg-edit-${A.id}`, 'aria-expanded'), 'true');
   assert.equal(await activeId(irit), `msg-text-${A.id}`);
   await irit.keyboard.press('Control+End');
   await irit.keyboard.type(extra);
@@ -340,7 +350,7 @@ await step('a record made by mistake is undone by its sender: back in the queue 
 
 await step('a client without a phone: WhatsApp opens with no number; if the record fails, "סימון כנשלח" records it', async () => {
   assert.equal(await irit.locator(`#msg-group-${B.id}`).count(), 0);
-  assert.match(await text(irit, `#msg-note-${B.id}`), /אין טלפון בכרטיס/);
+  assert.match(await text(irit, `#msg-${B.id} .msg-why`), /אין טלפון בכרטיס/);
   const before = db.client_messages.length;
   failNextSend = true;
   const url = await sendVia(irit, iritCtx, `#msg-send-${B.id}`);
@@ -390,6 +400,7 @@ await step('the templates editor: an unknown placeholder is refused; a saved tem
 });
 
 await step('the last message goes to the group; the queue says everything went out', async () => {
+  await irit.click(`#msg-edit-${C.id}`);
   const url = await sendVia(irit, iritCtx, `#msg-group-${C.id}`);
   assert.equal(url, `https://wa.me/?text=${encodeURIComponent('היי קפה גולן, השבוע עולים אצלכם תכנים חדשים לפי הגאנט.')}`);
   await irit.waitForSelector(`#msg-${C.id}.is-sent`);
@@ -472,9 +483,12 @@ await step('on a 360px phone (the next day, a new queue): it fits, no sideways s
   assert.equal(await text(page, '#msg-summary'), 'יום ד׳ 14.10 · 5 הודעות לשליחה · עוד לא נשלחו הודעות היום');
   // The promised date passed yesterday: editing's message without a date, nothing to fill.
   assert.equal(await page.inputValue(`#msg-text-${F.id}`), 'היי מאפיית שי, הסרטונים שלכם בעריכה ואנחנו על זה. נעדכן אתכם ברגע שהם מוכנים.');
+  // The queue is shared (Irit and Lior): each row says who sent this client's last message.
+  assert.match(await text(page, `#msg-by-${D.id}`), /^הודעה קודמת: (עירית|ליאור) · /);
   assert.ok(await noHScroll(page), 'no sideways scroll');
-  const heights = await page.locator('.msg-acts .btn, .msg-acts .btn-text, .msg-filters .chip, .msg-pick .input').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  const heights = await page.locator('.msg-acts .btn, .msg-acts .btn-text, .msg-filters .chip, .msg-pick .input').evaluateAll((els) => els.filter((e) => e.offsetParent).map((e) => e.getBoundingClientRect().height));
   assert.ok(heights.length > 10 && heights.every((x) => x >= 44), JSON.stringify(heights));
+  await page.click(`#msg-edit-${D.id}`);
   await page.click(`#msg-hist-${D.id} summary`);
   await page.click('#btn-templates');
   await page.waitForSelector('#dlg-templates[open]');
@@ -522,7 +536,10 @@ await step('a promise at risk but not due until tomorrow: the card says so, and 
   const page = await newPage(ctx);
   await signIn(page, 'messages.html', 'irit@astrateg.test');
   await page.waitForSelector(`#msg-${G.id}`);
-  assert.match(await text(page, `#msg-${G.id} .msg-why`), /הודעה יומית · תחנה: תוכן ואישור/);
+  // The promise at risk is said on the row; the notice and the choice are under "עריכה".
+  assert.match(await text(page, `#msg-${G.id} .msg-why`), /יש הבטחה בסיכון/);
+  await page.click(`#msg-edit-${G.id}`);
+  assert.match(await reason(page, G.id), /הודעה יומית · תחנה: תוכן ואישור/);
   assert.equal(await text(page, `#msg-${G.id} .msg-risk`), 'הבטחנו את קביעת יום הצילום עד יום ד׳ 14.10, וזה עוד לא הושלם. אם זה יתעכב, בוחרים ״הודעה על עיכוב״ ב״איזו הודעה״.');
   assert.deepEqual(await page.locator(`#msg-opt-${G.id} option`).allInnerTexts(),
     ['הודעה יומית: תוכן ואישור', 'הודעה על עיכוב: קביעת יום הצילום', 'הודעה על עיכוב: התסריטים ליום הצילום']);

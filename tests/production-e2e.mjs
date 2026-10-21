@@ -612,20 +612,25 @@ const S_ID = 's-eeeeeeee-0000-4000-8000-000000000005';
 await step('Lior sends the 17:00 briefing to Eli with the drive label', async () => {
   const { page, ctx } = await scene('2026-10-21T16:50:00');
   await signIn(page, 'shoot.html', 'lior');
+  // One briefing per shoot day, with every client of the day in it (the owner's page review, 20.10.2026).
+  const d = '#bd-2026-10-22';
   const b = '#b-eeeeeeee-0000-4000-8000-000000000005';
   await page.waitForSelector(b);
   assert.equal(await text(page, 'h1'), 'מצב יום צילום');
-  assert.match(await text(page, b), /יום חמישי 22\.10: מאפיית שי · הגעה 10:00 \(המשפיענים 11:00\) · הנביאים 5, חיפה · 4 תסריטים/);
-  await page.click(`${b}-send`);
-  assert.match(await text(page, `${b}-err`), /תווית הכונן/);
+  assert.match(await text(page, `${d}-h`), /תדריך לאלי · יום חמישי 22\.10$/);
+  assert.match(await text(page, b), /מאפיית שי[\s\S]*הגעה 10:00 \(המשפיענים 11:00\) · הנביאים 5, חיפה · 4 תסריטים/);
+  // No banner when there is no shoot today.
+  assert.equal(await text(page, '#sh-summary'), '');
+  await page.click(`${d}-send`);
+  assert.match(await text(page, `${d}-err`), /תווית הכונן/);
   await page.fill(`${b}-label`, 'כונן 3');
-  await page.fill(`${b}-notes`, 'חניה מאחורי המאפייה');
-  await page.click(`${b}-send`);
+  await page.fill(`${d}-notes`, 'חניה מאחורי המאפייה');
+  await page.click(`${d}-send`);
   await toastHas(page, 'התדריך נשלח לאלי');
   assert.deepEqual(JSON.parse(checkOf(S, 'p16.brief').note), { label: 'כונן 3', notes: 'חניה מאחורי המאפייה' });
   assert.ok(checkOf(S, 'p16.drive') && checkOf(S, 'p16.early'));
   assert.match(await text(page, b), /אלי עוד לא אישר/);
-  assert.match(await page.locator(`${b} a:has-text("גם בוואטסאפ")`).getAttribute('href'), /^https:\/\/wa\.me\/972500000009\?text=/);
+  assert.match(await page.locator(`${d} a:has-text("גם בוואטסאפ")`).getAttribute('href'), /^https:\/\/wa\.me\/972500000009\?text=/);
   assert.ok(await noHScroll(page));
   assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await ctx.close();

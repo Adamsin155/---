@@ -507,3 +507,18 @@ test('27: the editor\'s time ends at the final versions (p27.final), not at Ilai
   // Not marked "final": nothing is counted for 27 until it closes.
   assert.deepEqual(rowsAt(before, now), []);
 });
+
+// The owner's page review of 20.10.2026: "הבא: שיוך עורך · ליאור" was wrong. Assigning the
+// editor is Ofir's alone; while the drive is not back the next step is Lior's, named as his.
+test('the next step at 22א: Lior returns the drive, then Ofir assigns the editor', () => {
+  const c = { ...base, shoot_at: '2026-10-14T10:00:00+03:00' };
+  const upTo = ['p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21'];
+  const checks = { ...done(c, JOIN, '2026-10-11T09:03:00+03:00'), ...done(c, upTo, '2026-10-14T16:00:00+03:00') };
+  const now = at('2026-10-15T10:00:00+03:00');
+  const next = (ch) => station(c, clientState(c, ch, now), { checks: ch, now }).next;
+  const before = next(checks);
+  assert.deepEqual([before.procId, before.what, before.who], ['p22a', 'החזרת הכונן לשיוך עורך', 'lior']);
+  const back = { ...checks, ...item('p22a.drive', '2026-10-15T09:00:00+03:00', null, 'lior@x.test') };
+  const after = next(back);
+  assert.deepEqual([after.procId, after.what, after.who], ['p22a', 'שיוך עורך', 'ofir']);
+});

@@ -173,3 +173,15 @@ test('the share link and its message', () => {
   const msg = shareMessage({ name: 'דנה', business: 'קפה דנה' }, url);
   assert.ok(msg.includes('קפה דנה') && msg.includes(url));
 });
+
+// The owner's page review of 20.10.2026: a list of short rows, and "סימון כל הכתובים כמוכן".
+test('the rows: a title, else the first line of the text, else "עוד לא נכתב"; mark all ready takes only written drafts', async () => {
+  const { rowTitle, readyTargets } = await import('../app/scripts-logic.js');
+  assert.equal(rowTitle({ title: '  פתיחה ', body: 'x' }), 'פתיחה');
+  assert.equal(rowTitle({ title: '', body: '\n  סמיון נכנס לבית הקפה\nועוד' }), 'סמיון נכנס לבית הקפה');
+  assert.equal(rowTitle({ title: '', body: '  ' }), 'עוד לא נכתב');
+  assert.equal(rowTitle({ title: 'א'.repeat(80) }).length, 60);
+  const slots = [{ n: 1, status: 'draft', title: 'א', body: '' }, { n: 2, status: 'draft', title: '', body: '' },
+    { n: 3, status: 'ready', title: 'ג', body: '' }, { n: 4, status: 'approved', title: 'ד', body: '' }, { n: 5, status: 'draft', title: '', body: 'טקסט' }];
+  assert.deepEqual(readyTargets(slots).map((s) => s.n), [1, 5]);
+});

@@ -317,9 +317,12 @@ await step('Lior lands on "המשימות שלי"; "החלטות" is in his bar:
   await tidy(page, 'lior');
   assert.equal(await page.locator('#mode-bar').count(), 0); // his switch is the button at the top
   assert.equal(await page.innerText('#profile-switch'), 'מבט מנהל');
-  assert.equal(await page.locator('#ls-list > li:not(.more-row):visible').count(), 5);
-  assert.match(await page.innerText('#ls-list .more-btn'), /^הצג עוד \(\d+\)$/);
-  assert.ok(Number(await page.innerText('#ls-n')) > 6, 'the count stays whole');
+  // The owner's page review of 20.10.2026: the lists keep as cards only what waits for his decision;
+  // his own late items are a line to his "באיחור" tab, and others' queues one folded, counted line.
+  const decide = Number(await page.innerText('#ls-n'));
+  assert.equal(await page.locator('#ls-list > li.of-card:not(.more-row):visible').count(), Math.min(decide, 5));
+  assert.equal(await page.locator('#ls-others').getAttribute('open'), null, 'folded');
+  assert.ok(Number(await page.innerText('#ls-others > summary .n')) > 6, 'the folded count stays whole');
   const h = await heightOf(page);
   assert.ok(h < 4500, `"החלטות" is ${h}px tall (it was about 9,900)`);
   await shot(page, 'lior-01-decisions');

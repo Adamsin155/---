@@ -96,3 +96,20 @@ export function campaignCheck(reviews, now = new Date()) {
 }
 
 export const personName = (k) => (k === 'owner' ? 'הבעלים' : PEOPLE[k]?.name || k || '');
+
+// "מהרשימות של 12:00 ו־16:00" on Lior's "החלטות" (the owner's page review, 20.10.2026): only the
+// escalations that wait for his decision stay as cards. His own late items are on his task
+// list and in the "באיחור" tab; other people's late items and Ofir's quality-check queue are
+// folded into one counted line. `lateOwners(r)` gives the owners of a late item (or null).
+export const OTHERS_QUEUES = new Set(['late', 'qa']);
+export function splitLists(list, lateOwners = () => null) {
+  const out = { decide: [], mine: [], others: [] };
+  for (const r of list) {
+    if (r.rule === 'late' && (lateOwners(r) || []).includes('lior')) out.mine.push(r);
+    else if (OTHERS_QUEUES.has(r.rule)) out.others.push(r);
+    else out.decide.push(r);
+  }
+  return out;
+}
+// The process of a late item, from its key (`late:<client>:<process>@<due>:<step>@<person>`).
+export const lateProc = (key) => /^late:[^:]+:([^@]+)@/.exec(String(key || ''))?.[1] || null;

@@ -12,7 +12,8 @@
 //    timeline, the counter "צולמו X מתוך Y" with +1 per numbered video (decision 13),
 //    the quiet mode (decision 8; the reminder engine reads the same marks), the
 //    drive coming back and the closing lock; and the 17:00 briefing to Eli with the
-//    drive label, for the next shoot day (for a Sunday shoot, on Thursday).
+//    drive label, for the next shoot day (for a Sunday shoot, on Thursday): one per
+//    shoot day with all its clients (since 20.10.2026).
 // Every mark is a protocol check; the keys are in app/production.js.
 import { SHOOT_TYPES } from './protocol.js';
 import { clientState, clientLabel } from './protocol-logic.js';
@@ -389,19 +390,22 @@ function renderLior() {
   // The briefing to Eli: from its day (17:00 of the business day before) until the shoot.
   const briefs = all.filter((sc) => sc.shootAt > now && dayKeyIL(P.briefingDay(sc.shootAt)) <= dayKeyIL(now) && dayKeyIL(sc.shootAt) !== dayKeyIL(now))
     .sort((a, b) => a.shootAt - b.shootAt);
-  const later = all.filter((sc) => sc.shootAt > now && !today.includes(sc) && !briefs.includes(sc)).sort((a, b) => a.shootAt - b.shootAt).slice(0, 8);
-  say(today.length ? `יום צילום היום: ${today.map(scName).join(', ')}` : 'אין היום יום צילום.', today.length ? 'late' : 'info', today.length ? 'video' : 'sun');
+  // The shoot days after those, one short row a day (the owner's page review, 20.10.2026: the
+  // calendar and the shoot table hold the rest; this is only what comes next).
+  const later = byDay(all.filter((sc) => sc.shootAt > now && !today.includes(sc) && !briefs.includes(sc))).sort((a, b) => a.scs[0].shootAt - b.scs[0].shootAt).slice(0, 6);
+  // No banner when there is no shoot today (the owner's page review, 20.10.2026).
+  say(today.length ? `יום צילום היום: ${today.map(scName).join(', ')}` : '', today.length ? 'late' : 'info', 'video');
   fill($('sh-list'),
     ...today.map((sc) => shootMode(sc, now)),
-    ...briefs.map((sc) => briefingForm(sc, now)),
-    later.length ? h('section', { class: 'prod-sec k-sec', 'aria-labelledby': 'later-h' },
-      sectionHead({ icon: 'calendar', tone: 'blue', id: 'later-h', title: 'ימי הצילום הבאים', hint: 'מה שכבר נקבע, לפי הסדר.', count: later.length }),
-      // Each day is a leaf of the calendar (the day, the hour), then whose it is and when to arrive.
-      h('ul', { class: 'sh-later k-rows' }, ...later.map((sc) => leafRow(dateLeaf(leafOf(sc.shootAt, now)), [
-        h('strong', { class: 'k-row-title' }, scName(sc)),
-        h('span', { class: 'k-row-sub num' }, `הגעה ${P.clockText(P.arrivalOf(sc.shootAt))} (המשפיענים ${P.clockText(sc.shootAt)})`),
-        sc.client.address ? h('span', { class: 'k-row-sub sh-later-addr' }, icon('pin', { size: 16 }), sc.client.address) : null,
-      ], { tag: 'li' })))) : null,
+    ...byDay(briefs).map((d) => briefingForm(d, now)),
+    later.length ? h('section', { class: 'prod-sec k-sec sh-later-sec', 'aria-labelledby': 'later-h' },
+      sectionHead({ icon: 'calendar', tone: 'blue', id: 'later-h', title: 'ימי הצילום הבאים', count: later.length }),
+      // Each day is a leaf of the calendar (the day, the hour), then whose it is.
+      h('ul', { class: 'sh-later k-rows' }, ...later.map(({ scs }) => leafRow(dateLeaf(leafOf(scs[0].shootAt, now)), [
+        h('strong', { class: 'k-row-title' }, scs.map(scName).join(' · ')),
+        h('span', { class: 'k-row-sub num' }, `הגעה ${P.clockText(P.arrivalOf(scs[0].shootAt))}`),
+      ], { tag: 'li' }))),
+      h('a', { class: 'btn btn-sm btn-ghost sh-later-all', href: 'calendar.html' }, 'הכול ביומן')) : null,
     !today.length && !briefs.length && !later.length ? emptyState({ icon: 'calendar', tone: 'blue', text: 'אין ימי צילום קרובים.' }) : null);
 }
 
@@ -480,43 +484,70 @@ async function closeDay(sc) {
   offerHandoff({ client: sc.client, keys: keys.map((k) => sc.pre + k), checks: () => cs(sc.client), me });
 }
 
-// The briefing to Eli, the evening before: the drive label and anything else.
-function briefingForm(sc, now) {
-  const id = `b-${sc.client.id}${sc.n > 1 ? `-r${sc.n}` : ''}`;
-  const b = P.briefingOf(cs(sc.client), sc.pre);
-  const n = scriptsCount(sc);
-  const summary = [`${P.dateWords(sc.shootAt)}: ${scName(sc)}`, `הגעה ${P.clockText(P.arrivalOf(sc.shootAt))} (המשפיענים ${P.clockText(sc.shootAt)})`,
-    sc.client.address || null, n ? `${n} תסריטים` : null].filter(Boolean);
-  const waText = (label, notes) => [`תדריך ליום צילום · ${summary.join(' · ')}`, label ? P.driveName(label) : null, notes || null, `ללחוץ "קיבלתי" בעמוד ימי הצילום.`].filter(Boolean).join('\n');
+// The briefing to Eli, the evening before: one per SHOOT DAY with every client of that day
+// (the owner's page review, 20.10.2026; it was one form per client). Each client keeps its
+// own facts and its own drive label (one label fills the rest); the note to Eli is the
+// day's, and one button sends it all. Each client still gets its own mark (p16.brief).
+const byDay = (list) => {
+  const days = new Map();
+  for (const sc of list) { const k = dayKeyIL(sc.shootAt); if (!days.has(k)) days.set(k, []); days.get(k).push(sc); }
+  return [...days.entries()].map(([day, scs]) => ({ day, scs: scs.sort((a, b) => a.shootAt - b.shootAt) }));
+};
+const briefId = (sc) => `b-${sc.client.id}${sc.n > 1 ? `-r${sc.n}` : ''}`;
+function briefingForm({ day, scs }, now) {
+  const id = `bd-${day}`;
+  const bs = scs.map((sc) => P.briefingOf(cs(sc.client), sc.pre));
+  const sent = bs.filter(Boolean).length;
+  const acked = bs.filter((b) => b?.ack).length;
+  const many = scs.length > 1;
+  const notes = [...new Set(bs.map((b) => b?.notes).filter(Boolean))].join('\n');
+  const line = (sc) => [`${scName(sc)} · הגעה ${P.clockText(P.arrivalOf(sc.shootAt))} (המשפיענים ${P.clockText(sc.shootAt)})`,
+    sc.client.address || null, scriptsCount(sc) ? `${scriptsCount(sc)} תסריטים` : null].filter(Boolean).join(' · ');
+  const waText = (labels, text) => [`תדריך ליום צילום · ${P.dateWords(scs[0].shootAt)}`,
+    ...scs.map((sc, i) => `${line(sc)}${labels[i] ? ` · ${P.driveName(labels[i])}` : ''}`), text || null, `ללחוץ "קיבלתי" בעמוד ימי הצילום.`].filter(Boolean).join('\n');
+  const state = acked === scs.length ? ['s-done', 'אלי אישר'] : sent === scs.length ? ['s-qa', 'נשלח'] : sent ? ['s-qa', `נשלח ל־${sent} מתוך ${scs.length}`] : ['s-waiting', 'עוד לא נשלח'];
+  const client = (sc, i) => {
+    const b = bs[i];
+    const cid = briefId(sc);
+    const n = scriptsCount(sc);
+    const read = atOf(sc, 'p16.read');
+    return h('li', { class: 'sh-bclient', id: cid },
+      h('p', { class: 'sh-bname' }, h('strong', {}, scName(sc))),
+      facts([['clock', `הגעה ${P.clockText(P.arrivalOf(sc.shootAt))} (המשפיענים ${P.clockText(sc.shootAt)})`], sc.client.address ? ['pin', sc.client.address] : null, n ? ['file', `${n} תסריטים`] : null]),
+      b ? h('p', { class: b.ack ? 'note-ok' : 'ed-wait' }, `נשלח ${formatWhen(b.at, now)}${b.label ? ` · ${P.driveName(b.label)}` : ''}. ${b.ack ? `אלי אישר ${formatWhen(b.ack, now)}.` : 'אלי עוד לא אישר (ב־20:00 תקבל תזכורת).'}`) : null,
+      // v10: whether he read the scripts of this day (his own tick).
+      h('p', { class: read ? 'note-ok' : 'ed-wait', id: `${cid}-read` }, read ? `אלי קרא את התסריטים ${formatWhen(read, now)}.` : 'אלי עוד לא סימן שקרא את התסריטים.'),
+      canAct ? h('div', { class: 'field sh-blabel' }, h('label', { for: `${cid}-label` }, many ? `תווית הכונן · ${sc.client.name}` : 'תווית הכונן'),
+        h('input', { class: 'input', id: `${cid}-label`, maxlength: 60, autocomplete: 'off', value: b?.label || '', 'aria-describedby': `${id}-err${many && i === 0 ? ` ${id}-same` : ''}` }),
+        many && i === 0 ? h('p', { class: 'hint', id: `${id}-same` }, 'אותו כונן לכל היום? מספיק למלא כאן.') : null) : null);
+  };
+  const send = async (e) => {
+    e.preventDefault();
+    const typed = scs.map((sc) => $(`${briefId(sc)}-label`).value.trim());
+    const first = typed.find(Boolean);
+    const err = $(`${id}-err`);
+    if (!first) { err.textContent = 'כתבו את תווית הכונן.'; err.hidden = false; const el = $(`${briefId(scs[0])}-label`); el.setAttribute('aria-invalid', 'true'); el.focus(); return; }
+    const labels = typed.map((x) => x || first);
+    const text = $(`${id}-notes`).value.trim();
+    for (const [i, sc] of scs.entries()) {
+      const keys = notYet(sc, ['p16.drive', 'p16.early']);
+      if (keys.length && !await mark(sc, keys, 'בתדריך לאלי')) return;
+      if (!await mark(sc, 'p16.brief', P.briefNote(labels[i], text), i === scs.length - 1 ? `${id}-h` : null)) return;
+    }
+    toast(`התדריך נשלח לאלי${many ? ` (${scs.length} לקוחות)` : ''}. הוא יקבל אותו ב־17:00, ותראה כאן כשיאשר.`);
+  };
   return h('article', { class: 'sh-card sh-briefing', id, 'aria-labelledby': `${id}-h` },
     h('header', { class: 'ed-head' },
-      cardHead(id, `תדריך לאלי · ${scName(sc)}`, 'megaphone', 'orange'),
-      h('span', { class: `ed-state ${b?.ack ? 's-done' : b ? 's-qa' : 's-waiting'}` }, b?.ack ? 'אלי אישר' : b ? 'נשלח' : 'עוד לא נשלח')),
-    // The same facts, each with its own small icon.
-    facts([['calendar', summary[0]], ['clock', summary[1]], sc.client.address ? ['pin', sc.client.address] : null, n ? ['file', `${n} תסריטים`] : null]),
-    b ? h('p', { class: b.ack ? 'note-ok' : 'ed-wait' }, `נשלח ${formatWhen(b.at, now)}${b.label ? ` · ${P.driveName(b.label)}` : ''}. ${b.ack ? `אלי אישר ${formatWhen(b.ack, now)}.` : 'אלי עוד לא אישר (ב־20:00 תקבל תזכורת).'}`) : null,
-    // v10: whether he read the scripts of this day (his own tick).
-    h('p', { class: atOf(sc, 'p16.read') ? 'note-ok' : 'ed-wait', id: `${id}-read` }, atOf(sc, 'p16.read') ? `אלי קרא את התסריטים ${formatWhen(atOf(sc, 'p16.read'), now)}.` : 'אלי עוד לא סימן שקרא את התסריטים.'),
-    canAct ? h('form', {
-      class: 'sh-brief-form', novalidate: true,
-      onsubmit: async (e) => {
-        e.preventDefault();
-        const label = $(`${id}-label`).value.trim();
-        const notes = $(`${id}-notes`).value.trim();
-        if (!label) { $(`${id}-err`).textContent = 'כתבו את תווית הכונן.'; $(`${id}-err`).hidden = false; $(`${id}-label`).setAttribute('aria-invalid', 'true'); $(`${id}-label`).focus(); return; }
-        const keys = [...notYet(sc, ['p16.drive', 'p16.early'])];
-        if (keys.length && !await mark(sc, keys, 'בתדריך לאלי')) return;
-        if (await mark(sc, 'p16.brief', P.briefNote(label, notes), `${id}-h`)) toast('התדריך נשלח לאלי. הוא יקבל אותו ב־17:00, ותראה כאן כשיאשר.');
-      },
-    },
-    h('div', { class: 'field' }, h('label', { for: `${id}-label` }, 'תווית הכונן'),
-      h('input', { class: 'input', id: `${id}-label`, maxlength: 60, autocomplete: 'off', value: b?.label || '', required: true, 'aria-describedby': `${id}-err` })),
-    h('div', { class: 'field' }, h('label', { for: `${id}-notes` }, 'עוד לאלי (לא חובה)'),
-      h('textarea', { class: 'input', id: `${id}-notes`, rows: 2, maxlength: 1000 }, b?.notes || '')),
-    h('p', { class: 'err', id: `${id}-err`, role: 'alert', hidden: true }),
-    h('div', { class: 'ed-act' },
-      h('button', { type: 'submit', class: 'btn k-btn-navy', id: `${id}-send` }, b ? 'עדכון התדריך' : 'שליחת התדריך לאלי'),
-      phones.eli ? h('a', { class: 'btn btn-sm btn-ghost', href: whatsappLink(phones.eli, waText(b?.label, b?.notes)), target: '_blank', rel: 'noopener noreferrer' }, 'גם בוואטסאפ') : null)) : null);
+      cardHead(id, `תדריך לאלי · ${P.dateWords(scs[0].shootAt)}${many ? ` · ${scs.length} לקוחות` : ''}`, 'megaphone', 'orange'),
+      h('span', { class: `ed-state ${state[0]}` }, state[1])),
+    h(canAct ? 'form' : 'div', canAct ? { class: 'sh-brief-form', novalidate: true, onsubmit: send } : { class: 'sh-brief-form' },
+      h('ol', { class: 'sh-bclients' }, ...scs.map(client)),
+      canAct ? h('div', { class: 'field' }, h('label', { for: `${id}-notes` }, 'עוד לאלי (לא חובה)'),
+        h('textarea', { class: 'input', id: `${id}-notes`, rows: 2, maxlength: 1000 }, notes)) : null,
+      canAct ? h('p', { class: 'err', id: `${id}-err`, role: 'alert', hidden: true }) : null,
+      canAct ? h('div', { class: 'ed-act' },
+        h('button', { type: 'submit', class: 'btn k-btn-navy', id: `${id}-send` }, sent ? 'עדכון התדריך' : 'שליחת התדריך לאלי'),
+        phones.eli ? h('a', { class: 'btn btn-sm btn-ghost', id: `${id}-wa`, href: whatsappLink(phones.eli, waText(bs.map((b) => b?.label), notes)), target: '_blank', rel: 'noopener noreferrer' }, 'גם בוואטסאפ') : null) : null));
 }
 
 // ── Start ───────────────────────────────────
@@ -554,7 +585,7 @@ mountSession(async (staff) => {
   if (mode === 'lior') phones = await loadStaffPhones().catch(() => ({}));
   mountPush({ who: me || 'owner', card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'), changed: () => {} });
   // The photographer's monthly availability (docs/ops.md, section 39): its own mount point, above the shoot days.
-  mountAvailability($('availability'), { me });
+  mountAvailability($('availability'), { me, compact: mode === 'lior' });
   // The cards other modules draw on this page take their icon square (app/kit.js).
   dress($('app'), [['#availability h2#av-h', 'calendar-check', 'teal'], ['#availability summary#av-h > strong', 'calendar-check', 'teal'], ['#na-h', 'lock', 'navy']]);
   await load();

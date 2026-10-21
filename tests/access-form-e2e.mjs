@@ -417,7 +417,7 @@ await step('Irit creates the link and copies a ready WhatsApp message with it: 1
 
 await step('the welcome message in Irit\'s queue carries the link by itself, in one line', async () => {
   await irit.goto(`${BASE}messages.html`);
-  await irit.waitForSelector(`#msg-text-${D.id}`);
+  await irit.waitForSelector(`#msg-text-${D.id}`, { state: 'attached' }); // under "עריכה" since 20.10.2026
   await irit.waitForFunction((id) => document.getElementById(`msg-text-${id}`).value.includes('access.html#t='), D.id);
   const body = await irit.inputValue(`#msg-text-${D.id}`);
   assert.ok(body.includes(`את הגישות לרשתות לא שולחים בהודעה.\n${accessLine(`${BASE}access.html#t=${token}`)}\n\nבכל יום חמישי`), body);
@@ -951,12 +951,13 @@ await step('a link still waiting two days later: Irit is reminded quietly, and t
   const ctx = await newContext();
   const page = await newPage(ctx);
   await signIn(page, 'messages.html', 'irit@astrateg.test');
-  await page.waitForSelector(`#msg-text-${E.id}`);
+  await page.waitForSelector(`#msg-text-${E.id}`, { state: 'attached' });
   await page.waitForFunction((id) => document.getElementById(`msg-text-${id}`).value.includes('access.html#t='), E.id);
   const body = await page.inputValue(`#msg-text-${E.id}`);
   assert.match(body, /^היי רון כהן, תזכורת קטנה: כדי שנוכל להתחיל לעבוד על הרשתות שלכם חסרים לנו פרטי הכניסה\./);
   assert.ok(body.includes(`${BASE}access.html#t=${etoken}`));
-  assert.match(await text(page, `#msg-${E.id} .msg-why`), /הלקוח עוד לא מילא את פרטי הכניסה לרשתות/);
+  assert.match(await text(page, `#msg-${E.id} .msg-why`), /תזכורת: פרטי הכניסה לרשתות/);
+  assert.match(await page.locator(`#msg-ed-${E.id} .msg-reason`).textContent(), /הלקוח עוד לא מילא את פרטי הכניסה לרשתות/); // the reason is under "עריכה" since 20.10.2026
   await shotOf(page, `#msg-${E.id}`, '14-queue-nudge-desktop');
   const [popup] = await Promise.all([ctx.waitForEvent('page'), page.click(`#msg-send-${E.id}`)]);
   await popup.close();

@@ -276,3 +276,13 @@ dialog.ed-dlg .dlg-foot .btn { min-height: 44px; white-space: normal; }
 .ed-head.sh-leafhead:not(:has(> .ed-state)) > .k-leaf { grid-row: 1; }
 /* The facts of a day: the label is a small bold word, not grey on grey. */
 .sh-card .sh-facts dt { font-weight: 700; color: var(--ds-navy-text); }
+
+/* The briefing to Eli, one per shoot day (the owner's page review, 20.10.2026): each client of
+   the day a short block with its facts and its drive label; one note and one button for the day. */
+.sh-bclients { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.sh-bclient { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--ds-r-item, 12px); background: var(--ds-ground, var(--panel-2)); min-width: 0; overflow-wrap: anywhere; }
+.sh-bclient > * { margin: 0; min-width: 0; }
+.sh-bname { font-size: 16px; }
+.sh-blabel { margin: 0; }
+.sh-blabel .hint { margin: 4px 0 0; }
+.sh-later-sec .sh-later-all { justify-self: start; min-height: 44px; }
