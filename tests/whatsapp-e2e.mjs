@@ -321,7 +321,7 @@ await step('closing the screen: nothing recorded, and it comes back on the next 
   await p.waitForSelector('#wa-card[data-state="off"]');
   assert.match(await p.locator('#wa-card').innerText(), /WhatsApp: עוד לא מחובר\.[\s\S]*התראות באפליקציה: עוד לא פעילות/);
   assert.equal(await p.locator('#wa-card-on').innerText(), 'חיבור WhatsApp');
-  assert.equal(await p.locator('#wa-card-push').innerText(), 'הפעלת התראות');
+  assert.equal(await p.locator('#wa-card-push-on').innerText(), 'הפעלת התראות');
   await p.locator('#wa-card').scrollIntoViewIfNeeded();
   if (OUT) await p.locator('#wa-card').screenshot({ path: `${OUT}/wa-mandatory-card-390.png` });
   // The next page load (the same tab): back.
@@ -331,9 +331,9 @@ await step('closing the screen: nothing recorded, and it comes back on the next 
   await p.click('#wa-later');
   assert.equal(await p.locator('#dlg-wa[open]').count(), 0);
   // From the card: the notifications here, then WhatsApp from the screen it opens.
-  await p.click('#wa-card-push');
+  await p.click('#wa-card-push-on');
   await p.waitForSelector('#wa-card[data-push="confirm"]');
-  assert.equal(await p.locator('#wa-card-push').count(), 0);
+  assert.equal(await p.locator('#wa-card-push-on').count(), 0);
   await p.click('#wa-card-on');
   await p.waitForSelector('#dlg-wa[open]');
   assert.equal(await p.locator('#wa-dlg-push.is-done').count(), 1);

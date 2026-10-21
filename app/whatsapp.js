@@ -89,7 +89,7 @@ function pushLine(where) {
   if (pushDone()) return done(id, 'ההתראות באפליקציה פעילות בטלפון הזה.');
   const hint = pushHint ? h('p', { class: 'wa-hint', role: 'status' }, pushHint) : null;
   switch (push) {
-    case 'ready': return todo(id, 'התראות באפליקציה: עוד לא פעילות בטלפון הזה.', button(where === 'wa-card' ? 'wa-card-push' : 'wa-push-on', busy ? 'מפעילים…' : 'הפעלת התראות', enablePush), hint);
+    case 'ready': return todo(id, 'התראות באפליקציה: עוד לא פעילות בטלפון הזה.', button(where === 'wa-card' ? 'wa-card-push-on' : 'wa-push-on', busy ? 'מפעילים…' : 'הפעלת התראות', enablePush), hint);
     case 'blocked': return todo(id, 'התראות באפליקציה: חסומות בטלפון הזה.', h('p', { class: 'wa-hint' }, pushMod?.UNBLOCK || ''));
     case 'ios-install': return todo(id, 'התראות באייפון: פותחים את המערכת מהמסך הראשי.', h('p', { class: 'wa-hint' }, 'ב־Safari: כפתור השיתוף ← ״הוספה למסך הבית״. אחר כך נכנסים מהאייקון ולוחצים ״הפעלת התראות״.'));
     case 'ios-update': return todo(id, 'התראות באייפון: צריך iOS 16.4 ומעלה. עדכנו את האייפון וחזרו לכאן.');
@@ -185,11 +185,13 @@ async function enablePush() {
   if (busy || !pushMod) return;
   busy = true; pushHint = '';
   repaint();
+  const wasOpen = !!dialogEl?.open;
   const out = await pushMod.enablePushHere().catch((err) => ({ state: push, hint: errorText(err) }));
   busy = false;
   push = out.state;
   pushHint = pushDone() ? '' : out.hint || '';
-  if (dialogEl?.open && allSet()) { paintCard(); return; }
+  // Both on: the screen closed by itself (with its own word) on the way, or closes now.
+  if (wasOpen && (!dialogEl.open || allSet())) { paintCard(); return; }
   repaint();
   if (pushDone()) toast('ההתראות באפליקציה פעילות.');
 }
