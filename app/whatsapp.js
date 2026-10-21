@@ -1,27 +1,23 @@
-// Work messages on WhatsApp AND the app's notifications, for each staff member: both
-// are a required work channel (the owner, 21.10.2026; until then WhatsApp was a free
-// choice, stage 4).
-//  - the screen (promptWhatsapp, from mountSession in protocol-ui.js on every staff
-//    page): the exact words come from the database (public.whatsapp_my_consent, by
-//    version), one line per channel, each done ✓ or a button: "חיבור WhatsApp" and
-//    "הפעלת התראות" on this device (app/push.js), and a link to the employee privacy
-//    notice (staff-privacy.html). Shown only while the owner's WhatsApp switch is on,
-//    on every page load until both are on (closing it is "later", not a choice);
-//  - the card in "המשימות שלי" (mountWhatsappCard): the same two lines, a button for
-//    whichever is missing, and no "stop".
-// Connecting is recorded server-side with the time, the wording and the number
-// (public.whatsapp_decide). "הסר" on WhatsApp still stops the messages (Meta's
-// policy): the owners are told (rule `waRemoved`), and the screen comes back. Nothing
-// here shows anyone else's number: the database returns the caller's own only.
+// Work messages on WhatsApp (stage 4), for each staff member:
+//  - the one-time consent screen (promptWhatsapp, from mountSession in
+//    protocol-ui.js on every staff page): the exact words come from the database
+//    (public.whatsapp_my_consent, by version), two equal buttons, push as the
+//    alternative, and a link to the employee privacy notice (staff-privacy.html).
+//    Shown only when the owner turned WhatsApp on, until the person chose (or again
+//    when the number they agreed to was changed);
+//  - the card in "המשימות שלי" (mountWhatsappCard): on or off, stop at any time, or
+//    agree later.
+// The choice is recorded server-side with the time, the wording and the number
+// (public.whatsapp_decide / whatsapp_withdraw). Nothing here shows anyone else's
+// number: the database returns the caller's own only. Until the migration
+// (20260930180000) or while WhatsApp is off, nothing here shows.
 import { supabase } from './supa.js';
 import { h, fill, toast, errorText } from './protocol-ui.js';
 import { formatPhone, normPhone } from './team-rules.js';
 
 const PRIVACY_URL = new URL('../staff-privacy.html', import.meta.url).href;
+const LATER = 'wa-consent-later'; // the screen was closed without a choice: not again in this tab
 let state = null;                 // the last whatsapp_my_consent()
-let push = null;                  // this device's notifications (app/push.js pushHere), null before it answered
-let pushHint = '';                // a line after a failed "הפעלת התראות"
-let pushMod = null;
 let cardEl = null;
 let cardAnchor = null;
 let dialogEl = null;
@@ -39,22 +35,10 @@ async function load() {
   return state;
 }
 
-// This device's notifications, and every change after (the push card connects too).
-async function loadPush() {
-  try {
-    pushMod ||= await import('./push.js');
-    push = await pushMod.pushHere((s) => { push = s; repaint(); });
-  } catch { push = null; }
-  return push;
-}
+const later = () => { try { return sessionStorage.getItem(LATER) === '1'; } catch { return false; } };
+const setLater = () => { try { sessionStorage.setItem(LATER, '1'); } catch { /* private mode */ } };
 
-const pushDone = () => push === 'on' || push === 'confirm';
-// Missing AND something can be done about it on this device (an old iPhone or a browser
-// without notifications is said on the screen, but does not bring it back by itself).
-const pushMissing = () => !!push && !pushDone() && ['ready', 'blocked', 'ios-install'].includes(push);
-const waMissing = () => !!state?.enabled && !state.active && (state.owner || !!state.phone);
-
-// A paragraph of the consent text, its lead-in ("מה יישלח:", "מתי:") in bold.
+// A paragraph of the consent text, its lead-in ("מה יישלח:", "זו בחירה שלך.") in bold.
 function paragraph(text) {
   const m = /^([^:.]{2,14}[:.])\s(.+)$/s.exec(text);
   return m ? h('p', {}, h('strong', {}, m[1]), ' ', m[2]) : h('p', {}, text);
@@ -63,45 +47,15 @@ function paragraph(text) {
 const ERRORS = [
   [/no_phone/, 'צריך מספר נייד ישראלי, למשל 050-1234567.'],
   [/stale_text/, 'הנוסח עודכן בינתיים. הנה הנוסח החדש.'],
-  [/bad_choice|required/, 'לא נקלט. נסו שוב.'],
+  [/bad_choice/, 'הבחירה לא נקלטה. נסו שוב.'],
 ];
 const explain = (err) => ERRORS.find(([re]) => re.test(err?.message || ''))?.[1] || errorText(err);
 
-// ── The two channels, as lines (the screen and the card) ──
-const done = (id, text) => h('li', { class: 'wa-req is-done', id }, h('span', { class: 'wa-mark', 'aria-hidden': 'true' }, '✓'), h('span', {}, text));
-const todo = (id, text, ...rest) => h('li', { class: 'wa-req', id }, h('span', { class: 'wa-mark', 'aria-hidden': 'true' }, '!'), h('div', { class: 'wa-req-t' }, h('span', {}, text), ...rest));
-const button = (id, label, onclick) => h('button', { type: 'button', class: 'btn btn-primary wa-act', id, disabled: busy, onclick }, label);
-
-function waLine(where) {
-  const s = state;
-  if (s.active) return done(`${where}-wa`, h('span', {}, 'WhatsApp מחובר, למספר ', h('bdi', { dir: 'ltr' }, formatPhone(s.phone)), '.'));
-  if (!s.owner && !s.phone) return todo(`${where}-wa`, 'WhatsApp: אין מספר נייד שמור במערכת. עירית או ליאור מוסיפים אותו בעמוד הצוות.');
-  const changed = s.status === 'granted';
-  const label = changed ? 'אישור המספר החדש' : 'חיבור WhatsApp';
-  const text = changed ? 'WhatsApp: המספר שלך השתנה. צריך לאשר את החדש.'
-    : s.status === 'withdrawn' && s.via === 'whatsapp' ? 'WhatsApp: נותק בתשובה ״הסר״. צריך לחבר שוב.' : 'WhatsApp: עוד לא מחובר.';
-  if (where === 'wa-card') return todo(`${where}-wa`, text, button('wa-card-on', label, () => openDialog()));
-  return todo(`${where}-wa`, text, button('wa-whatsapp', label, connect));
-}
-
-function pushLine(where) {
-  const id = `${where}-push`;
-  if (pushDone()) return done(id, 'ההתראות באפליקציה פעילות בטלפון הזה.');
-  const hint = pushHint ? h('p', { class: 'wa-hint', role: 'status' }, pushHint) : null;
-  switch (push) {
-    case 'ready': return todo(id, 'התראות באפליקציה: עוד לא פעילות בטלפון הזה.', button(where === 'wa-card' ? 'wa-card-push-on' : 'wa-push-on', busy ? 'מפעילים…' : 'הפעלת התראות', enablePush), hint);
-    case 'blocked': return todo(id, 'התראות באפליקציה: חסומות בטלפון הזה.', h('p', { class: 'wa-hint' }, pushMod?.UNBLOCK || ''));
-    case 'ios-install': return todo(id, 'התראות באייפון: פותחים את המערכת מהמסך הראשי.', h('p', { class: 'wa-hint' }, 'ב־Safari: כפתור השיתוף ← ״הוספה למסך הבית״. אחר כך נכנסים מהאייקון ולוחצים ״הפעלת התראות״.'));
-    case 'ios-update': return todo(id, 'התראות באייפון: צריך iOS 16.4 ומעלה. עדכנו את האייפון וחזרו לכאן.');
-    case 'unsupported': return todo(id, 'התראות: הדפדפן הזה לא מקבל אותן. בטלפון: Chrome באנדרואיד, או Safari ומסך הבית באייפון.');
-    default: return null;
-  }
-}
-
-// ── The screen ─────────────────────────────
+// ── The consent screen ─────────────────────
 function dialog() {
   if (dialogEl) return dialogEl;
   dialogEl = h('dialog', { class: 'wa-dlg', id: 'dlg-wa', 'aria-labelledby': 'wa-h', 'aria-describedby': 'wa-text' });
+  dialogEl.addEventListener('cancel', () => setLater());
   document.body.append(dialogEl);
   return dialogEl;
 }
@@ -109,21 +63,21 @@ function dialog() {
 function paintDialog(note = '') {
   const s = state;
   const t = s.text;
-  const ownerPhone = s.owner && !s.active ? h('div', { class: 'field wa-phone' },
+  const ownerPhone = s.owner ? h('div', { class: 'field wa-phone' },
     h('label', { for: 'wa-phone' }, 'המספר שלך'),
     h('input', { class: 'input', id: 'wa-phone', type: 'tel', dir: 'ltr', inputmode: 'tel', autocomplete: 'tel', placeholder: '050-1234567', value: draftPhone ?? formatPhone(s.phone), 'aria-describedby': 'wa-phone-h', 'aria-invalid': note && draftPhone !== null && !normPhone(draftPhone) ? 'true' : null }),
     h('span', { class: 'hint', id: 'wa-phone-h' }, 'נייד ישראלי. נשמר רק אצלך ובמערכת, לא ברשימת הצוות.')) : null;
+  const choice = (label, value) => h('button', { type: 'button', class: 'btn wa-choice', id: `wa-${value}`, disabled: busy, onclick: () => decide(value) }, label);
   fill(dialogEl,
     h('div', { class: 'dlg-head' }, h('h2', { id: 'wa-h', tabindex: '-1' }, t.title),
-      // Closing is "later": the screen comes back on the next page until both are on.
-      h('button', { type: 'button', class: 'close', id: 'wa-later', 'aria-label': 'סגירה: אחר כך', onclick: () => dialogEl.close() }, '×')),
+      // Closing is "later" (asked again in the next tab), not a choice.
+      h('button', { type: 'button', class: 'close', id: 'wa-later', 'aria-label': 'סגירה: להחליט אחר כך', onclick: () => { setLater(); dialogEl.close(); } }, '×')),
     h('div', { class: 'dlg-body' },
       h('div', { class: 'wa-text', id: 'wa-text' }, ...String(t.body).split(/\n{2,}/).map(paragraph)),
-      h('ul', { class: 'wa-reqs', 'aria-label': 'מה צריך לחבר' }, waLine('wa-dlg'), pushLine('wa-dlg')),
-      ownerPhone,
-      !s.owner && s.phone && !s.active ? h('p', { class: 'hint wa-fix' }, 'המספר לא נכון? עירית או ליאור מתקנים אותו בעמוד הצוות.') : null,
+      s.owner ? ownerPhone : h('p', { class: 'hint wa-fix' }, 'המספר לא נכון? עירית או ליאור מתקנים אותו בעמוד הצוות.'),
       h('p', { class: 'wa-privacy' }, h('a', { href: PRIVACY_URL, target: '_blank', rel: 'noopener' }, 'הודעת הפרטיות לעובדים')),
-      note ? h('p', { class: 'wa-note', role: 'alert' }, note) : null));
+      note ? h('p', { class: 'wa-note', role: 'alert' }, note) : null),
+    h('div', { class: 'dlg-foot wa-choices' }, choice(t.yes, 'whatsapp'), choice(t.no, 'push')));
 }
 
 async function openDialog(note = '') {
@@ -134,26 +88,13 @@ async function openDialog(note = '') {
   dialogEl.querySelector('#wa-h')?.focus();
 }
 
-// Both on: the screen closes by itself.
-function allSet() {
-  if (!dialogEl?.open || waMissing() || pushMissing()) return false;
-  dialogEl.close();
-  toast(state.active ? 'הכול מחובר: הודעות העבודה יגיעו ב־WhatsApp ובאפליקציה.' : 'ההתראות באפליקציה פעילות.');
-  return true;
-}
-
-function repaint() {
-  if (dialogEl?.open && state && !allSet()) paintDialog();
-  paintCard();
-}
-
-async function connect() {
+async function decide(choice) {
   if (busy || !state) return;
   let phone = null;
   if (state.owner) {
     draftPhone = dialogEl.querySelector('#wa-phone')?.value.trim() || '';
     phone = draftPhone ? normPhone(draftPhone) : null;
-    if (!phone) {
+    if (choice === 'whatsapp' && !phone) {
       // Said inside the screen (a toast would sit behind it).
       paintDialog('צריך מספר נייד ישראלי, למשל 050-1234567.');
       dialogEl.querySelector('#wa-phone')?.focus();
@@ -163,50 +104,44 @@ async function connect() {
   busy = true;
   paintDialog();
   const { data, error } = await supabase.rpc('whatsapp_decide', {
-    p_choice: 'whatsapp', p_version: state.text.version, p_phone: phone, p_user_agent: navigator.userAgent.slice(0, 300),
+    p_choice: choice, p_version: state.text.version, p_phone: phone, p_user_agent: navigator.userAgent.slice(0, 300),
   });
   busy = false;
   if (error) {
     if (/stale_text/.test(error.message || '')) await load();
     paintDialog(explain(error));
-    document.getElementById('wa-whatsapp')?.focus();
+    document.getElementById(`wa-${choice}`)?.focus();
     return;
   }
   state = data?.text ? data : state;
   draftPhone = null;
+  dialogEl.close();
+  toast(choice === 'whatsapp' ? 'נרשם. הודעות העבודה יגיעו גם ב־WhatsApp.' : 'נרשם. ההתראות ימשיכו להגיע באפליקציה בלבד.');
   paintCard();
-  if (allSet()) return;
-  toast('WhatsApp מחובר. נשארו ההתראות באפליקציה.');
-  paintDialog();
-  (dialogEl.querySelector('#wa-push-on') || dialogEl.querySelector('#wa-h'))?.focus();
 }
 
-async function enablePush() {
-  if (busy || !pushMod) return;
-  busy = true; pushHint = '';
-  repaint();
-  const wasOpen = !!dialogEl?.open;
-  const out = await pushMod.enablePushHere().catch((err) => ({ state: push, hint: errorText(err) }));
-  busy = false;
-  push = out.state;
-  pushHint = pushDone() ? '' : out.hint || '';
-  // Both on: the screen closed by itself (with its own word) on the way, or closes now.
-  if (wasOpen && (!dialogEl.open || allSet())) { paintCard(); return; }
-  repaint();
-  if (pushDone()) toast('ההתראות באפליקציה פעילות.');
-}
-
-// On every staff page: while WhatsApp is on and either channel is still missing.
+// Once, on any staff page: when WhatsApp is on and this person has not chosen yet.
 export async function promptWhatsapp() {
-  if (document.querySelector('dialog[open]')) return;
-  if (!(await load())?.enabled) return;
-  await loadPush();
-  if (!waMissing() && !pushMissing()) return;
+  if (later() || document.querySelector('dialog[open]')) return;
+  if (!(await load())?.prompt) return;
   if (document.querySelector('dialog[open]')) return; // another screen opened meanwhile
   await openDialog();
 }
 
 // ── "המשימות שלי" ──────────────────────────────
+async function withdraw() {
+  if (busy || !confirm('להפסיק את הודעות העבודה ב־WhatsApp? ההתראות באפליקציה ימשיכו כרגיל.')) return;
+  busy = true;
+  paintCard();
+  const { data, error } = await supabase.rpc('whatsapp_withdraw', { p_user_agent: navigator.userAgent.slice(0, 300) });
+  busy = false;
+  if (error) { toast(`לא נשמר. ${explain(error)}`); paintCard(); return; }
+  state = data?.text ? data : state;
+  toast('הודעות ה־WhatsApp הופסקו. ההתראות באפליקציה ממשיכות.');
+  paintCard();
+  cardEl?.querySelector('#wa-card-on')?.focus();
+}
+
 function paintCard() {
   if (!cardEl) return;
   const s = state;
@@ -214,12 +149,23 @@ function paintCard() {
   styles();
   if (!cardEl.isConnected) cardAnchor?.after(cardEl); // a page without its own place for it
   cardEl.hidden = false;
-  cardEl.dataset.state = s.active ? 'on' : !s.owner && !s.phone ? 'none' : 'off';
-  cardEl.dataset.push = push || '';
-  cardEl.classList.toggle('is-done', !waMissing() && !pushMissing() && s.active);
-  fill(cardEl,
-    h('h2', { class: 'push-h', id: 'wa-card-h', tabindex: '-1' }, 'חובה: גם WhatsApp וגם התראות באפליקציה'),
-    h('ul', { class: 'wa-reqs' }, waLine('wa-card'), pushLine('wa-card')));
+  const head = h('h2', { class: 'push-h', id: 'wa-card-h', tabindex: '-1' }, 'הודעות ב־WhatsApp');
+  const act = (id, label, onclick) => h('button', { type: 'button', class: 'btn-text', id, disabled: busy, onclick }, label);
+  let body;
+  if (s.active) {
+    cardEl.dataset.state = 'on';
+    body = [h('p', {}, 'הודעות העבודה מגיעות גם ב־WhatsApp, למספר ', h('bdi', { dir: 'ltr' }, formatPhone(s.phone)), '.'),
+      h('div', { class: 'push-acts' }, act('wa-card-off', 'הפסקת הודעות ב־WhatsApp', withdraw))];
+  } else if (!s.owner && !s.phone) {
+    cardEl.dataset.state = 'none';
+    body = [h('p', {}, 'אין מספר נייד שמור במערכת, ולכן ההתראות מגיעות באפליקציה בלבד. עירית או ליאור מוסיפים אותו בעמוד הצוות.')];
+  } else {
+    cardEl.dataset.state = 'off';
+    const changed = s.status === 'granted';
+    body = [h('p', {}, changed ? 'המספר שלך השתנה. כדי לקבל הודעות ב־WhatsApp צריך לאשר את המספר החדש.' : 'ההתראות מגיעות באפליקציה בלבד. אפשר לקבל אותן גם ב־WhatsApp.'),
+      h('div', { class: 'push-acts' }, act('wa-card-on', changed ? 'אישור המספר החדש' : 'קבלת הודעות ב־WhatsApp', () => openDialog()))];
+  }
+  fill(cardEl, head, ...body);
 }
 
 // The card: the page's own #wa-card (clients.html keeps its place in "המשימות שלי"),
@@ -229,6 +175,5 @@ export async function mountWhatsappCard(anchor) {
   cardAnchor = anchor;
   cardEl = document.getElementById('wa-card') || h('section', { class: 'push-card wa-card', id: 'wa-card', 'aria-labelledby': 'wa-card-h', hidden: true });
   if (!state) await load().catch(() => null);
-  if (state?.enabled && !push) await loadPush();
   paintCard();
 }

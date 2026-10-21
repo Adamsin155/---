@@ -273,25 +273,12 @@ async function loadShootTold(now: Date): Promise<Row[]> {
   return all(() => admin.from('reminder_log').select('id, key, title, created_at').eq('rule', 'shootSet').gte('created_at', since).order('id'));
 }
 
-// Who replied "הסר" on WhatsApp in the last two days (WhatsApp is a required work
-// channel, 21.10.2026): the owners hear it (rule `waRemoved`). Until migration
-// 20261030100000_whatsapp_mandatory.sql adds the function, none.
-async function loadWaRemoved(now: Date): Promise<Row[]> {
-  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
-  const { data, error } = await admin.rpc('whatsapp_removed_since', { p_since: since });
-  if (error) {
-    if (error.code === 'PGRST202' || error.code === '42883') return [];
-    throw error;
-  }
-  return (data ?? []) as Row[];
-}
-
 // The database as tick.js sees it (service role: row level security does not apply).
 const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned, waRemoved] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).eq('landing', false).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -319,11 +306,10 @@ const db = {
       loadChangeRequests(now),
       loadDecisions(now),
       loadUnsigned(now),
-      loadWaRemoved(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, waRemoved, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, log: [...log.values()] };
   },
   async known(keys: string[]) {
     const out = new Set<string>();

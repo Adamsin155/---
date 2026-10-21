@@ -324,7 +324,7 @@ export function mountSession(onReady) {
     $('app').hidden = !ok;
     if (ok) {
       markTabSeen();
-      // WhatsApp and the app's notifications, both required: the screen until both are on, only while the owner's WhatsApp switch is on (app/whatsapp.js).
+      // Stage 4: the one-time WhatsApp consent screen, only when the owner turned WhatsApp on (app/whatsapp.js).
       import('./whatsapp.js').then((m) => m.promptWhatsapp()).catch(() => {});
       // The app shell: the menu of this person's screens (the side menu, or the bottom bar on a
       // phone) with the managers' switch, "המשימות שלי" / "מבט מנהל", as its first entries (app/shell.js).
