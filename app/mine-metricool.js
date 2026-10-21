@@ -15,6 +15,7 @@ export const FAILED_DAYS = 14;
 // The Gantt index opened on each problem (its filter chips read these hashes).
 export const FAILED_URL = 'gantt.html#failed';
 export const NOTHING_AHEAD_URL = 'gantt.html#nothing-ahead';
+export const NOT_CONNECTED_URL = 'gantt.html#not-connected';
 
 const inWork = (c) => c.status === 'active' || c.status === 'ending';
 const isPost = (r) => !!GANTT_KINDS[r.kind]?.post && r.state !== 'skipped';
@@ -38,6 +39,8 @@ export function metricoolProblems({ clients = [], rows = [], now = new Date() })
     failedClients: new Set(failed.map((r) => r.client_id)).size,
     nothingAhead: [...connected].filter((id) => !ahead.has(id)).length,
     connected: connected.size,
+    // In work, with no brand and not marked "no brand needed": the Gantt index lists them (#not-connected).
+    notConnected: clients.filter((c) => inWork(c) && !c.metricool_blog_id && !c.metricool_none && !c.archived_at).length,
   };
 }
 

@@ -34,7 +34,7 @@ import { dayKeyIL, daysBetweenIL } from './tz.js';
 import { unsignedLine, UNSIGNED_URL } from './unsigned-logic.js';
 import { followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
 import { QUOTE_LIST_VIEWERS } from './manager-rules.js';
-import { problemsText, FAILED_URL, NOTHING_AHEAD_URL } from './mine-metricool.js';
+import { problemsText, FAILED_URL, NOTHING_AHEAD_URL, NOT_CONNECTED_URL } from './mine-metricool.js';
 
 // The words every line of a client in landing ends with.
 export const LANDING_WORDS = 'בקליטה, בלי שעון';
@@ -204,6 +204,11 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
     const text = problemsText(p);
     if (text) {
       add({ id: 'metricool', bucket: 'today', n: p.failed || p.nothingAhead, rule: null, href: p.failed ? FAILED_URL : NOTHING_AHEAD_URL, cta: 'לגאנט', text });
+    }
+    // The clients not connected to a brand: the card is on the Gantt index; here a quiet line to it.
+    if (p.notConnected) {
+      add({ id: 'metricool-connect', bucket: 'today', tone: 'plain', n: p.notConnected, rule: null, href: NOT_CONNECTED_URL, cta: 'לחיבור',
+        text: p.notConnected === 1 ? 'לקוח אחד לא מחובר ל־Metricool' : `${p.notConnected} לקוחות לא מחוברים ל־Metricool` });
     }
   }
   // ── The photographer's free dates of next month (section 39) ──

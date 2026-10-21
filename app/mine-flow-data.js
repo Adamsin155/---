@@ -57,7 +57,7 @@ export async function loadMetricoolProblems(now = new Date()) {
   try {
     const win = problemWindow(now);
     const [cl, gt] = await Promise.all([
-      supabase.from('clients').select('id, status, metricool_blog_id').not('metricool_blog_id', 'is', null),
+      readClients(),
       supabase.from('client_gantt').select('client_id, kind, day, time_il, state').gte('day', win.from).lte('day', win.to).limit(10000),
     ]);
     if (cl.error || gt.error) return null;
@@ -65,4 +65,10 @@ export async function loadMetricoolProblems(now = new Date()) {
   } catch {
     return null;
   }
+}
+// Every client with its brand columns; without "metricool_none" before its migration.
+async function readClients() {
+  const read = (cols) => supabase.from('clients').select(cols).neq('status', 'ended').limit(5000);
+  const r = await read('id, status, archived_at, metricool_blog_id, metricool_none');
+  return r.error ? read('id, status, archived_at, metricool_blog_id') : r;
 }

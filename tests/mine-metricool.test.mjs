@@ -25,6 +25,7 @@ test('failed posts and connected clients with nothing scheduled next week', () =
   assert.equal(p.failedClients, 2);
   assert.equal(p.nothingAhead, 1);    // b: only planned next week
   assert.equal(p.connected, 3);
+  assert.equal(p.notConnected, 1);  // d: in work, no brand
   assert.equal(problemsText(p), '2 פרסומים נכשלו · לקוח אחד בלי שום דבר מתוזמן לשבוע הבא');
   assert.equal(problemsText({ failed: 0, nothingAhead: 0 }), null);
 });
@@ -41,4 +42,14 @@ test("the line is Ilai's, to the Gantt index, and only when there is a problem",
   assert.equal(lines({ failed: 0, nothingAhead: 2 }).find((x) => x.id === 'metricool').href, 'gantt.html#nothing-ahead');
   assert.equal(lines({ failed: 0, nothingAhead: 0 }).find((x) => x.id === 'metricool'), undefined);
   assert.equal(lines(null).find((x) => x.id === 'metricool'), undefined);
+});
+
+test('the clients with no brand: a quiet line to the Gantt index, opened on them', () => {
+  const viewer = { me: 'ilai', scope: 'own', error: null };
+  const lines = (metricool) => flowLines({ viewer, clients: [], checks: {}, stateOf: () => ({ states: [] }), extra: { metricool }, now: NOW });
+  const l = lines({ failed: 0, nothingAhead: 0, notConnected: 4 }).find((x) => x.id === 'metricool-connect');
+  assert.deepEqual([l.n, l.href, l.text, l.tone], [4, 'gantt.html#not-connected', '4 לקוחות לא מחוברים ל־Metricool', 'plain']);
+  assert.equal(lines({ failed: 0, nothingAhead: 0, notConnected: 0 }).find((x) => x.id === 'metricool-connect'), undefined);
+  const c = (id, fields) => ({ id, status: 'active', metricool_blog_id: null, ...fields });
+  assert.equal(metricoolProblems({ clients: [c('a'), c('b', { metricool_none: true }), c('c', { archived_at: '2026-10-01' }), c('d', { metricool_blog_id: 'x' })], rows: [], now: NOW }).notConnected, 1);
 });
