@@ -330,8 +330,9 @@ grant execute on function public.access_form_submit(text, jsonb) to anon, authen
 
 -- ══ C. A second editor for a client (the owner's request of 21.10.2026) ══
 -- Sometimes two editors edit one client together. `clients.editor` stays the main editor
--- (Ofir's assignment, 22א, as before); `clients.editor2` is an optional second one, and a
--- shoot round may carry its own pair in `rounds` ({ n, editor, editor2, … }). The second
+-- (Ofir's assignment, 22א, as before); `clients.editor2` is an optional second one, with
+-- `clients.editor_split` the split of the videos between them, and a shoot round may carry
+-- its own in `rounds` ({ n, editor, editor2, editor_split, … }). The second
 -- editor sees the client and its card like the main one, gets the same editor notices
 -- (app/reminder-rules.js reads both), and may mark the editing steps ('@editor' in the
 -- writers' table now means either of them). Everything else is as it was with one.
@@ -352,8 +353,19 @@ begin
       check (editor2 is null or editor2 in ('nadia', 'yariv', 'anna', 'nirel'));
   end if;
 end $$;
+-- How the package's videos are split between the two ({ "nadia": 8, "yariv": 4 }), kept with
+-- the assignment; a round keeps its own in `rounds` (editor_split). The app checks the sum.
+alter table public.clients add column if not exists editor_split jsonb;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'clients_editor_split_check'
+                   and conrelid = 'public.clients'::regclass) then
+    alter table public.clients add constraint clients_editor_split_check
+      check (editor_split is null or (jsonb_typeof(editor_split) = 'object' and octet_length(editor_split::text) <= 200));
+  end if;
+end $$;
 -- Read like `editor` (the table's columns are granted one by one since 20260930210000_hardening.sql).
-grant select (editor2) on public.clients to authenticated;
+grant select (editor2, editor_split) on public.clients to authenticated;
 
 -- ── C2. Who sees the client: the second editor too ──
 create or replace function private.my_assigned_clients() returns setof uuid

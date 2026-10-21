@@ -232,7 +232,7 @@ export function roundContext(client, r) {
   return {
     ...client, round: r.n,
     shoot_type: r.shoot_type || client.shoot_type, shoot_at: r.shoot_at || null,
-    char_at: r.start_at || null, editor: r.editor || null, editor2: (r.editor && r.editor2) || null,
+    char_at: r.start_at || null, editor: r.editor || null, editor2: (r.editor && r.editor2) || null, editor_split: (r.editor && r.editor2 && r.editor_split) || null,
   };
 }
 

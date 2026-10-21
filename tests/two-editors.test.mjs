@@ -5,7 +5,7 @@
 // read "נדיה + יריב"; with one editor nothing changes.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { editorsOf, isEditorOf, editorNames } from '../app/protocol.js';
+import { editorsOf, isEditorOf, editorNames, evenSplit, splitProblem, shareOf } from '../app/protocol.js';
 import { clientState, roundContext } from '../app/protocol-logic.js';
 import { editingCases } from '../app/production.js';
 import { editorLoad } from '../app/qa-logic.js';
@@ -75,19 +75,21 @@ test('the load: the job counts for each editor, with whom', () => {
 });
 
 test('writing the pair: the second stays unless given; it is never the main one; a swap takes its own place', () => {
-  assert.deepEqual(withEditor(client(), null, 'anna'), { editor: 'anna', editor2: 'yariv' });
-  assert.deepEqual(withEditor(client(), null, 'yariv'), { editor: 'yariv', editor2: null });
-  assert.deepEqual(withEditor(client(), null, 'anna', null), { editor: 'anna', editor2: null });
-  assert.deepEqual(withEditor(client({ editor2: null }), null, 'nadia', 'anna'), { editor: 'nadia', editor2: 'anna' });
+  assert.deepEqual(withEditor(client(), null, 'anna'), { editor: 'anna', editor2: 'yariv', editor_split: null });
+  assert.deepEqual(withEditor(client(), null, 'yariv'), { editor: 'yariv', editor2: null, editor_split: null });
+  assert.deepEqual(withEditor(client(), null, 'anna', null), { editor: 'anna', editor2: null, editor_split: null });
+  assert.deepEqual(withEditor(client({ editor2: null }), null, 'nadia', 'anna', { nadia: 7, anna: 5 }), { editor: 'nadia', editor2: 'anna', editor_split: { nadia: 7, anna: 5 } });
+  // The same pair kept (a note, a swap of nothing): its split stays.
+  assert.deepEqual(withEditor(client({ editor_split: { nadia: 8, yariv: 4 } }), null, 'nadia'), { editor: 'nadia', editor2: 'yariv', editor_split: { nadia: 8, yariv: 4 } });
   // A row read before the column existed gets no editor2 at all, unless one is chosen.
   assert.deepEqual(withEditor({ editor: 'nadia' }, null, 'anna'), { editor: 'anna' });
   // A round.
   const r = client({ rounds: [{ n: 2, editor: 'anna', editor2: 'nirel' }] });
-  assert.deepEqual(withEditor(r, 2, 'nadia').rounds, [{ n: 2, editor: 'nadia', editor2: 'nirel' }]);
+  assert.deepEqual(withEditor(r, 2, 'nadia').rounds, [{ n: 2, editor: 'nadia', editor2: 'nirel', editor_split: null }]);
   // Swapping the second editor keeps the main one; swapping the main one keeps the second.
-  assert.deepEqual(swapEditor(client(), null, 'yariv', 'anna'), { editor: 'nadia', editor2: 'anna' });
-  assert.deepEqual(swapEditor(client(), null, 'nadia', 'anna'), { editor: 'anna', editor2: 'yariv' });
-  assert.deepEqual(swapEditor(r, 2, 'nirel', 'yariv').rounds, [{ n: 2, editor: 'anna', editor2: 'yariv' }]);
+  assert.deepEqual(swapEditor(client(), null, 'yariv', 'anna'), { editor: 'nadia', editor2: 'anna', editor_split: null });
+  assert.deepEqual(swapEditor(client(), null, 'nadia', 'anna'), { editor: 'anna', editor2: 'yariv', editor_split: null });
+  assert.deepEqual(swapEditor(r, 2, 'nirel', 'yariv').rounds, [{ n: 2, editor: 'anna', editor2: 'yariv', editor_split: null }]);
 });
 
 test('the WhatsApp after the assignment: one for each editor; none for a second that is not there', () => {
@@ -122,4 +124,26 @@ test('the fixes Ofir returned: either editor may mark them', () => {
   assert.ok(!mayFix(fixers, 'anna', null));
   assert.ok(mayFix('nadia', 'nadia', null), 'one fixer, as before');
   assert.ok(!mayFix(fixers, null, null));
+});
+
+test("the split of the videos: even by default (the main editor takes the odd one), adds up to the package; each editor's share", () => {
+  assert.deepEqual(evenSplit(12, 'nadia', 'yariv'), { nadia: 6, yariv: 6 });
+  assert.deepEqual(evenSplit(25, 'nadia', 'yariv'), { nadia: 13, yariv: 12 });
+  assert.equal(evenSplit(0, 'nadia', 'yariv'), null);
+  assert.equal(splitProblem({ nadia: 8, yariv: 4 }, 12, 'nadia', 'yariv'), null);
+  assert.match(splitProblem({ nadia: 8, yariv: 5 }, 12, 'nadia', 'yariv'), /ביחד 13, ובחבילה 12/);
+  assert.match(splitProblem({ nadia: 8, yariv: null }, 12, 'nadia', 'yariv'), /מספר שלם/);
+  assert.match(splitProblem({ nadia: -1, yariv: 13 }, 12, 'nadia', 'yariv'), /מספר שלם/);
+  assert.match(splitProblem(null, 12, 'nadia', 'yariv'), /מספר שלם/, 'with a count, the split is required');
+  // No count in the package: optional, any whole numbers.
+  assert.equal(splitProblem(null, 0, 'nadia', 'yariv'), null);
+  assert.equal(splitProblem({ nadia: 3, yariv: 9 }, 0, 'nadia', 'yariv'), null);
+  const c = client({ editor_split: { nadia: 8, yariv: 4 } });
+  assert.deepEqual(shareOf(c, 'nadia'), { mine: 8, total: 12, other: 'yariv' });
+  assert.deepEqual(shareOf(c, 'yariv'), { mine: 4, total: 12, other: 'nadia' });
+  assert.equal(shareOf(c, 'anna'), null);
+  assert.equal(shareOf(client({ editor2: null, editor_split: { nadia: 8 } }), 'nadia'), null, 'one editor: no share line');
+  // A round keeps its own.
+  assert.deepEqual(shareOf(roundContext(c, { n: 2, editor: 'anna', editor2: 'nirel', editor_split: { anna: 2, nirel: 1 } }), 'nirel'), { mine: 1, total: 3, other: 'anna' });
+  assert.equal(shareOf(roundContext(c, { n: 2, editor: 'anna' }), 'nadia'), null);
 });

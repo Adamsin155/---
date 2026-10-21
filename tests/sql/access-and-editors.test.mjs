@@ -5,7 +5,8 @@
 //      these two networks only (the database refuses any other); access_save() takes it
 //      as a status, the office's functions answer it as 'linked', and the client's form
 //      has it as a fourth choice, with no user name and no password and no task.
-//   C. A second editor (clients.editor2, and editor2 in a round): sees the client, may mark
+//   C. A second editor (clients.editor2, and editor2 in a round; editor_split, how the videos
+//      are split between the two): sees the client, may mark
 //      the editing steps (the database decides as the app's mayWrite does), and is on the
 //      landing link's list; the main editor's rights are unchanged, nobody else gains any.
 //   - the file has none of the three words the production tool refuses, and runs twice.
@@ -169,6 +170,10 @@ test('C: the column takes an editor of the team, or nothing', async () => {
   assert.equal(up.error, undefined);
   assert.equal((await run('yariv', 'select editor2 from public.clients where id = $1', [ids.dana]))[0].editor2, 'yariv');
   await db.query('update public.clients set editor2 = null where id = $1', [ids.gil]);
+  // The split of the videos: an object, kept as given; readable by the editors.
+  await db.query(`update public.clients set editor_split = '{"nadia": 8, "yariv": 4}' where id = $1`, [ids.dana]);
+  assert.deepEqual((await run('yariv', 'select editor_split from public.clients where id = $1', [ids.dana]))[0].editor_split, { nadia: 8, yariv: 4 });
+  await assert.rejects(db.query(`update public.clients set editor_split = '[1, 2]' where id = $1`, [ids.dana]), /clients_editor_split_check/);
 });
 
 test('C: the second editor sees the client like the main one; another editor does not', async () => {

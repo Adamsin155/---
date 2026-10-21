@@ -177,6 +177,31 @@ export const editorsOf = (x) => [x?.editor, x?.editor2].filter((e, i, a) => e &&
 export const isEditorOf = (x, person) => !!person && editorsOf(x).includes(person);
 // "נדיה + יריב" (a name not in PEOPLE stays as it is).
 export const editorNames = (x) => editorsOf(x).map((e) => PEOPLE[e]?.name || e).join(' + ');
+// How the package's videos are split between the two (`editor_split`: { nadia: 8, yariv: 4 },
+// kept with the assignment). Even by default, the main editor taking the odd one.
+export const evenSplit = (total, main, second) => {
+  const n = Number(total) || 0;
+  return n > 0 ? { [main]: Math.ceil(n / 2), [second]: Math.floor(n / 2) } : null;
+};
+// Why a split cannot be saved (null: it can). With a known count it must add up to it;
+// without one it is optional, and any whole numbers do.
+export function splitProblem(split, total, main, second) {
+  const a = split?.[main];
+  const b = split?.[second];
+  const n = Number(total) || 0;
+  if (a == null && b == null && !n) return null;
+  if (![a, b].every((v) => Number.isInteger(v) && v >= 0 && v <= 500)) return 'כמה סרטונים לכל אחד? מספר שלם.';
+  if (n && a + b !== n) return `ביחד ${a + b}, ובחבילה ${n}. צריך שיסתכם ב־${n}.`;
+  return null;
+}
+// One editor's share of the shoot: { mine, total, other } (other: the partner's key), or null.
+export function shareOf(x, person) {
+  const s = x?.editor_split;
+  const pair = editorsOf(x);
+  if (!s || pair.length < 2 || !pair.includes(person) || !Number.isInteger(s[person])) return null;
+  const other = pair.find((e) => e !== person);
+  return { mine: s[person], total: s[person] + (Number(s[other]) || 0), other };
+}
 
 // Who can run the characterization meeting. Lior goes only when Ofir and Shirel cannot.
 export const CHARACTERIZERS = ['ofir', 'lior'];

@@ -168,10 +168,19 @@
           <legend>העורך</legend>
           <div id="as-editors"></div>
         </fieldset>
-        <div class="field" id="as-editor2-wrap" hidden>
-          <label for="as-editor2">עורך/ת נוסף/ת (לא חובה)</label>
-          <select class="input" id="as-editor2" aria-describedby="as-editor2-hint"></select>
-          <p class="hint" id="as-editor2-hint">כששני עורכים עובדים יחד: שניהם רואים את הלקוח, מקבלים את ההודעות ומסמנים את שלבי העריכה.</p>
+        <button type="button" class="btn btn-sm btn-ghost as-add2" id="as-editor2-add" hidden>+ עורך/ת נוסף/ת</button>
+        <div class="field as-pair" id="as-editor2-wrap" hidden>
+          <label for="as-editor2">עורך/ת נוסף/ת</label>
+          <select class="input" id="as-editor2"></select>
+          <fieldset class="as-split" id="as-split">
+            <legend id="as-split-h">חלוקת הסרטונים</legend>
+            <div class="as-split-row">
+              <label for="as-split-1" id="as-split-1-name"></label><input class="input num" id="as-split-1" type="number" min="0" max="500" inputmode="numeric" dir="ltr">
+              <span aria-hidden="true">·</span>
+              <label for="as-split-2" id="as-split-2-name"></label><input class="input num" id="as-split-2" type="number" min="0" max="500" inputmode="numeric" dir="ltr">
+            </div>
+          </fieldset>
+          <button type="button" class="btn-text" id="as-editor2-remove">בלי עורך נוסף</button>
         </div>
         <fieldset class="as-clock" id="as-clock-wrap" hidden>
           <legend>מועדי העריכה</legend>

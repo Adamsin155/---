@@ -904,11 +904,21 @@ await step('"עורך/ת נוסף/ת": Ofir assigns two editors; both get the Wh
   await page.waitForSelector(`#assign-list [data-key^="${T.id}"]`);
   await page.click(`#assign-list [data-key^="${T.id}"] [id^="as-open-"]`);
   await page.waitForSelector('#dlg-assign[open]');
-  // The second editor is offered beside the main one, never the same one.
-  assert.ok(await page.locator('#as-editor2-wrap').isVisible());
+  // "+ עורך/ת נוסף/ת": a second editor beside the main one, never the same one, and the split of the videos.
   await page.check('#as-e-yariv');
-  assert.deepEqual(await page.locator('#as-editor2 option').evaluateAll((els) => els.map((e) => e.value)), ['', 'nadia', 'anna']);
+  assert.ok(await page.locator('#as-editor2-wrap').isHidden());
+  await page.click('#as-editor2-add');
+  assert.deepEqual(await page.locator('#as-editor2 option').evaluateAll((els) => els.map((e) => e.value)), ['nadia', 'anna']);
   await page.selectOption('#as-editor2', 'nadia');
+  // 25 videos in the package: even, the main editor takes the odd one.
+  assert.equal(await page.innerText('#as-split-h'), 'חלוקת הסרטונים (25 לפי החבילה)');
+  assert.deepEqual([await page.inputValue('#as-split-1'), await page.inputValue('#as-split-2')], ['13', '12']);
+  assert.deepEqual([await page.innerText('#as-split-1-name'), await page.innerText('#as-split-2-name')], ['יריב', 'נדיה']);
+  // A split that does not add up is not saved.
+  await page.fill('#as-split-2', '10');
+  await page.click('#as-submit');
+  assert.match(await page.innerText('#as-err'), /ביחד 23, ובחבילה 25/);
+  await page.fill('#as-split-1', '15');
   assert.equal(await page.innerText('#as-reason-label'), 'סיבה (לא חובה)');
   assert.ok(await noHScroll(page), 'the assignment dialog scrolls sideways at 390px');
   assert.deepEqual(await unlabeled(page, '#dlg-assign'), []);
@@ -916,7 +926,7 @@ await step('"עורך/ת נוסף/ת": Ofir assigns two editors; both get the Wh
   await page.click('#as-submit');
   await toastHas(page, 'סטודיו טל שויך ליריב ולנדיה');
   const saved = db.clients.find((c) => c.id === T.id);
-  assert.deepEqual([saved.editor, saved.editor2], ['yariv', 'nadia']);
+  assert.deepEqual([saved.editor, saved.editor2, saved.editor_split], ['yariv', 'nadia', { yariv: 15, nadia: 10 }]);
   // The WhatsApp to each of them.
   await page.waitForSelector('#handoff:not([hidden])');
   assert.match(await page.locator('#handoff').innerText(), /לשלוח ליריב בוואטסאפ[^]*לשלוח לנדיה בוואטסאפ/);
@@ -941,6 +951,8 @@ await step('"עורך/ת נוסף/ת": Ofir assigns two editors; both get the Wh
   await nadia.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
   await card.scrollIntoViewIfNeeded();
   assert.match(await card.locator('.ed-pair').innerText(), /עורכים יחד: יריב \+ נדיה/);
+  // Her own share of the videos.
+  assert.equal(await card.locator('.ed-share').innerText(), '10 מתוך 25 סרטונים — השאר אצל יריב');
   assert.ok(await noHScroll(nadia), 'the editing page scrolls sideways at 390px');
   if (OUT) await card.screenshot({ path: `${OUT}/office-11-editor2-page-390.png` });
   await nctx.close();

@@ -13,7 +13,7 @@
 // highlights from the focus call (app/intake-data.js, app/briefs.js).
 // Nirel also gets her "בריפים" inbox here. Each editor sees their own on-time and
 // first-pass numbers, never anyone else's.
-import { PEOPLE, CRITICAL_TITLE, editorsOf, editorNames } from './protocol.js';
+import { PEOPLE, CRITICAL_TITLE, editorsOf, editorNames, shareOf } from './protocol.js';
 import { clientState, WAIT, WAITED, waitNote, endWaitNote } from './protocol-logic.js';
 import { dayFromKeyIL, endOfDayIL } from './tz.js';
 import {
@@ -346,6 +346,7 @@ function jobCard(job) {
   const c = job.client;
   const day = P.editingDay(job.assignedAt, now);
   const videos = P.videosPerDay(job.ctx);
+  const share = shareOf(job.ctx, me);
   const links = c.links || {};
   const dropbox = P.needsDropbox(c);
   return h('article', { class: `ed-card s-${st.key}${st.blocked ? ' is-blocked' : ''}${st.paused ? ' is-paused' : ''}`, id, 'aria-labelledby': `${id}-h` },
@@ -364,7 +365,9 @@ function jobCard(job) {
     videosBlock(job, st),
     pauseBlock(job, st),
     h('p', { class: 'ed-facts' },
-      videos ? h('span', {}, `${videos} סרטונים לפי החבילה`) : h('span', { class: 'muted' }, 'כמות הסרטונים לא הוזנה'),
+      // Two editors with a split: this editor's own share.
+      share ? h('span', { class: 'ed-share' }, `${share.mine} מתוך ${share.total} סרטונים — השאר אצל ${PEOPLE[share.other]?.name || share.other}`)
+        : videos ? h('span', {}, `${videos} סרטונים לפי החבילה`) : h('span', { class: 'muted' }, 'כמות הסרטונים לא הוזנה'),
       dropbox ? h('span', { class: 'tag tag-warn' }, 'צריך גם Dropbox') : null),
     h('div', { class: 'ed-links' },
       link(links.drive, 'דרייב'), link(links.scripts, 'תסריטים'), dropbox ? link(links.dropbox, 'Dropbox') : null,

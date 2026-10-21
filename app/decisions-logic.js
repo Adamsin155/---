@@ -81,15 +81,21 @@ export function pausedSinceYesterday({ clients, stateOf, checks, now = new Date(
 export const decisionNote = ({ choice, days = 0, editor = null, proposal = null }) => JSON.stringify({ choice, days, editor, proposal });
 
 // The round's editor changes in `rounds`; the client's own in `clients.editor`. The second
-// editor (`editor2`, 21.10.2026): given, it is set (null: none); left out, it stays,
-// unless it is now the main editor, or there is no main editor any more.
-export function withEditor(client, n, editor, editor2) {
+// editor (`editor2`, 21.10.2026) and how the videos are split (`editor_split`): given, they
+// are set (null: none); left out, they stay, unless the second is now the main editor, or
+// there is no main editor any more (then there is no split either).
+export function withEditor(client, n, editor, editor2, split) {
   const second = (was) => {
     const v = editor2 === undefined ? was || null : editor2 || null;
     return v && editor && v !== editor ? v : null;
   };
-  // The column is written only when the row has it (it came with 20261031100000_access_and_editors.sql).
-  const set = (x) => { const e2 = second(x?.editor2); return e2 || (x && 'editor2' in x) ? { editor, editor2: e2 } : { editor }; };
+  // The columns are written only when the row has them (they came with 20261031100000_access_and_editors.sql).
+  const set = (x) => {
+    const e2 = second(x?.editor2);
+    if (!e2 && !(x && 'editor2' in x)) return { editor };
+    const sp = !e2 ? null : split === undefined ? (e2 === x?.editor2 && editor === x?.editor ? x?.editor_split || null : null) : split || null;
+    return { editor, editor2: e2, editor_split: sp };
+  };
   if (!n) return set(client);
   return { rounds: roundsOf(client).map((r) => (r.n === n ? { ...r, ...set(r) } : r)) };
 }

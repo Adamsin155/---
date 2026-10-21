@@ -9,7 +9,7 @@
 // Drive link (and any uploaded into the system, played in place), or the rest of the
 // graphics from the client's files.
 // The logic: app/qa-logic.js and app/office-marks.js.
-import { PEOPLE, SHOOT_TYPES, EDITORS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue } from './protocol.js';
+import { PEOPLE, SHOOT_TYPES, EDITORS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue, evenSplit, splitProblem } from './protocol.js';
 import { clientState, clientLabel } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory, setTaskDone, editor2Ready,
@@ -607,23 +607,51 @@ function renderEditors(preselect = false) {
       k === from ? h('span', { class: 'tag' }, 'העורך הנוכחי') : null,
       k === partner ? h('span', { class: 'tag' }, a.swap.job.second ? 'העורך הראשי' : 'העורך הנוסף') : null,
       h('span', { class: 'muted small as-load' }, loadText(load[k]))))));
-  if (preselect) $('as-editor2').value = '';
+  if (preselect) pairOpen = false;
   fillEditor2();
   syncReason();
 }
-// "עורך/ת נוסף/ת" (the owner's request of 21.10.2026): a second editor who works with the
-// chosen one, or nobody. Offered on the first assignment, once the database has the column.
+// "+ עורך/ת נוסף/ת" (the owner's request of 21.10.2026): a second editor beside the chosen
+// one, and how the package's videos are split between them ("נדיה 8 · יריב 4"). Offered on
+// the first assignment, once the database has the column.
+let pairOpen = false;
+const videosOf = (ctx) => Number(ctx?.deliverables?.videos) || 0;
 function fillEditor2() {
   const a = asItem;
-  const show = !a.swap && editor2Ready();
-  $('as-editor2-wrap').hidden = !show;
-  if (!show) return;
+  const can = !a.swap && editor2Ready();
   const main = $('as-editors').querySelector('input:checked')?.value || null;
+  $('as-editor2-add').hidden = !can || pairOpen || !main;
+  $('as-editor2-wrap').hidden = !can || !pairOpen || !main;
+  if ($('as-editor2-wrap').hidden) return;
+  const keys = eligibleEditors(a.ctx.shoot_type).filter((k) => k !== main);
   const was = $('as-editor2').value;
-  fill($('as-editor2'), h('option', { value: '' }, 'בלי עורך נוסף'),
-    ...eligibleEditors(a.ctx.shoot_type).filter((k) => k !== main).map((k) => h('option', { value: k }, PEOPLE[k].name)));
-  $('as-editor2').value = was && was !== main ? was : '';
+  fill($('as-editor2'), ...keys.map((k) => h('option', { value: k }, PEOPLE[k].name)));
+  $('as-editor2').value = keys.includes(was) ? was : keys[0];
+  fillSplit();
 }
+// The two numbers, even by default (the main editor takes the odd one).
+function fillSplit() {
+  const main = $('as-editors').querySelector('input:checked')?.value;
+  const second = $('as-editor2').value;
+  const total = videosOf(asItem.ctx);
+  $('as-split-h').textContent = total ? `חלוקת הסרטונים (${total} לפי החבילה)` : 'חלוקת הסרטונים (לא חובה: מספר הסרטונים לא הוזן)';
+  $('as-split-1-name').textContent = PEOPLE[main].name;
+  $('as-split-2-name').textContent = PEOPLE[second].name;
+  const even = evenSplit(total, main, second);
+  $('as-split-1').value = even ? String(even[main]) : '';
+  $('as-split-2').value = even ? String(even[second]) : '';
+}
+// The split as typed: null when both are empty (only allowed without a count).
+function splitValue(main, second) {
+  const v = (id) => ($(id).value.trim() === '' ? null : Number($(id).value));
+  const a = v('as-split-1');
+  const b = v('as-split-2');
+  return a === null && b === null ? null : { [main]: a, [second]: b };
+}
+$('as-editor2-add').addEventListener('click', () => { pairOpen = true; fillEditor2(); $('as-editor2').focus(); });
+$('as-editor2-remove').addEventListener('click', () => { pairOpen = false; fillEditor2(); $('as-editor2-add').focus(); });
+$('as-editor2').addEventListener('change', fillSplit);
+for (const id of ['as-split-1', 'as-split-2']) $(id).addEventListener('input', () => { $('as-err').hidden = true; });
 // A swap that restarts the clocks of a late job needs its reason too.
 function swapChoice() {
   const sw = asItem?.swap;
@@ -689,7 +717,13 @@ $('as-form').addEventListener('submit', async (e) => {
   const editor = $('as-editors').querySelector('input:checked')?.value || null;
   const joint = $('as-joint').checked && a.ctx.shoot_type === 'natali';
   const reason = $('as-reason').value.trim();
-  const editor2 = !a.swap && !$('as-editor2-wrap').hidden ? $('as-editor2').value || null : undefined;
+  const pair = !a.swap && !$('as-editor2-wrap').hidden;
+  const editor2 = pair ? $('as-editor2').value || null : undefined;
+  const split = pair && editor2 ? splitValue(editor, editor2) : pair ? null : undefined;
+  if (pair && editor2) {
+    const bad = splitProblem(split, videosOf(a.ctx), editor, editor2);
+    if (bad) { showErr('as-err', bad); $('as-split-1').focus(); return; }
+  }
   if (!editor) { showErr('as-err', a.swap ? 'בחרו את העורך החדש.' : 'בחרו עורך.'); $('as-editors').querySelector('input:not(:disabled)')?.focus(); return; }
   if (needsReason(editor) && !reason) {
     $('as-reason').setAttribute('aria-invalid', 'true');
@@ -718,7 +752,7 @@ $('as-form').addEventListener('submit', async (e) => {
   }
   let saved;
   try {
-    saved = await saveAssign(a, editor, joint, reason, editor2);
+    saved = await saveAssign(a, editor, joint, reason, editor2, split);
   } catch (err) {
     showErr('as-err', `השיוך לא נשמר. ${errorText(err)}`);
     $('as-submit').disabled = false;
@@ -735,9 +769,9 @@ $('as-form').addEventListener('submit', async (e) => {
 // "שיוך ל<שם>": the editor in the card, 22א's "נבדק העומס" and "שויך", Irit's and Lior's
 // items that close with it, the reason when he wrote one, and Ofir's folder task (24).
 // Throws when the assignment itself was not saved. → { client, folder (a sentence for the toast) }
-async function saveAssign(a, editor, joint, reason, editor2 = undefined) {
+async function saveAssign(a, editor, joint, reason, editor2 = undefined, split = undefined) {
   const c = a.client;
-  const client = await updateClient(c.id, withEditor(c, a.n, editor, editor2));
+  const client = await updateClient(c.id, withEditor(c, a.n, editor, editor2, split));
   clients = clients.map((x) => (x.id === c.id ? client : x));
   const keys = ['p22a.load', 'p22a.assigned'].map((k) => `${a.pre}${k}`);
   for (const row of await setChecksBulk(c.id, keys, 'done')) (checks[c.id] ||= {})[row.item_key] = row;

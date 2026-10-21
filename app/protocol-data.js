@@ -52,8 +52,8 @@ const LEGACY_COLS = `${CLIENT_COLS}, ${CLIENT_PRIVATE.join(', ')}`;
 // then on, and the screens offer no second editor (editor2Ready()).
 let hasEditor2 = true;
 export const editor2Ready = () => hasEditor2;
-const noEditor2 = (err) => (err?.code === '42703' || err?.code === 'PGRST204') && /editor2/.test(String(err?.message || ''));
-export const withE2 = (cols) => (hasEditor2 ? `${cols}, editor2` : cols);
+const noEditor2 = (err) => (err?.code === '42703' || err?.code === 'PGRST204') && /editor2|editor_split/.test(String(err?.message || ''));
+export const withE2 = (cols) => (hasEditor2 ? `${cols}, editor2, editor_split` : cols);
 // A read that throws (all()), or one that answers { data, error }: once more without the column.
 export async function e2Throws(run) {
   try { return await run(); } catch (err) { if (!hasEditor2 || !noEditor2(err)) throw err; hasEditor2 = false; return run(); }
