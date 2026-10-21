@@ -43,7 +43,7 @@ test('every quote is for the office: is_office decides, a staff login alone is n
   assert.doesNotMatch(SRC, /rpc\('is_staff'\)/);
   const gate = SRC.indexOf('callerIsOffice((fn: string) => userClient.rpc(fn))');
   assert.ok(gate > 0 && gate < SRC.indexOf('await req.json()'), 'the gate comes before the body is read');
-  assert.ok(gate < SRC.indexOf("createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)"), 'and before the service client exists');
+  assert.ok(gate < SRC.indexOf('createClient(url, serviceKey())'), 'and before the service client exists'); // the project's secret key (21.10.2026)
   // The builder shows its Hebrew message for the refusal (explainError in app/supa.js).
   assert.match(SRC, /json\(403, \{ error: 'not staff: /);
 });
