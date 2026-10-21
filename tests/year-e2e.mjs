@@ -302,8 +302,9 @@ await step('Ofir sees his late report (and no one else\'s items); an editor sees
   await ofir.waitForSelector('#my-months:not([hidden]) .mitem');
   const items = ofir.locator('#my-months .mitem');
   assert.equal(await items.count(), 1);
-  assert.match(await items.nth(0).innerText(), /דוח חודשי על חודש 7 נשלח ללקוח[^]*אופיר[^]*באיחור · עד/);
-  assert.equal(await items.nth(0).evaluate((el) => el.classList.contains('s-overdue')), true);
+  // In "המשימות שלי" a draft is not said to be late (the owner, 20.10.2026): the date that passed, plainly.
+  assert.match(await items.nth(0).innerText(), /דוח חודשי על חודש 7 נשלח ללקוח[^]*אופיר[^]*היעד היה /);
+  assert.equal(await items.nth(0).evaluate((el) => el.classList.contains('s-overdue')), false);
   await octx.close();
   const nctx = await newContext();
   const nadia = await newPage(nctx);
