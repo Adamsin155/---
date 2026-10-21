@@ -177,7 +177,8 @@ try {
 
   await step('the lines are of the person\'s own list only: not on the team\'s work, and not on another person\'s list', async () => {
     const { page, ctx } = await signedIn('lior');
-    assert.ok(Object.keys(await lines(page)).length >= 6);
+    // Four since the owner's simplifications of 20.10.2026 (the decisions are one line, the renewals one more).
+    assert.ok(Object.keys(await lines(page)).length >= 4);
     await page.goto(`${BASE}clients.html#team`);
     await settle(page);
     await page.selectOption('#mine-select', 'ofir');
@@ -228,8 +229,11 @@ try {
     const { page, ctx } = await signedIn('lior', { db });
     const mine = await lines(page);
     assert.equal(mine['landing-paused'].text, `עריכה אחת עצורה ומחכה להחלטה שלך · ${NO_CLOCK}`);
-    assert.equal(mine.paused.text, 'עריכה אחת עצורה מאתמול ומחכה להחלטה שלך');
-    assert.equal(mine.access.text, '2 גישות שבורות מחכות לתיקון');
+    // The paused editing and the broken logins are in the one decisions line (the owner, 20.10.2026).
+    assert.match(mine.decisions.text, /^\d+ החלטות מחכות לך$/);
+    assert.equal(mine.paused, undefined);
+    assert.equal(mine.access, undefined);
+    await page.evaluate(() => { const d = document.getElementById('land-fold'); if (d) d.open = true; });
     await page.click('#flow-landing-paused');
     await page.waitForSelector('#dc-page:not([hidden]) #pz-list li.of-card');
     await settle(page);

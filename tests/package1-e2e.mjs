@@ -455,15 +455,16 @@ await step('Ilai\'s card: the graphics upload, "מוכן לבדיקה (לאופ�
   await ilai.locator(`${day}-s`).click();
   await ilai.waitForFunction((s) => /עוד לא הועלה כלום/.test(document.querySelector(s)?.textContent || ''), `${day}-g9-files .fl-work-h`);
   assert.equal(await text(ilai, `${day}-g9-files .fl-work-h`), '9 הגרפיקות הראשונות · עוד לא הועלה כלום');
-  assert.equal(await ilai.locator(`${day}-gfx`).isDisabled(), true);
-  assert.equal(await text(ilai, `${day}-gfx-lock`), 'נפתח אחרי שמעלים כאן לפחות גרפיקה אחת.');
+  // Nothing up yet: no locked button and no lock line at all (the owner, 20.10.2026); it appears with the first graphic.
+  assert.equal(await ilai.locator(`${day}-gfx`).count(), 0);
+  assert.equal(await ilai.locator(`${day}-gfx-lock`).count(), 0);
   assert.match(await text(ilai, `${day}-g9-add`), /^העלאת גרפיקות\s+0 מתוך 9$/);
   // The Gantt is the system's, not a yearly file.
   assert.match(await text(ilai, `${day}-d`), /גאנט התוכן נפתח במערכת, עם כל העמודות/);
   assert.doesNotMatch(await text(ilai, `${day}-d`), /הקובץ השנתי|דרייב/);
   await ilai.locator(`${day}-g9-in`).setInputFiles([{ name: 'post-1.png', mimeType: 'image/png', buffer: png() }, { name: 'post-2.png', mimeType: 'image/png', buffer: png(2500) }]);
   await ilai.waitForFunction((s) => /הועלו 2 מתוך 9/.test(document.querySelector(s)?.textContent || ''), `${day}-g9-files .fl-work-h`);
-  await ilai.waitForFunction((s) => !document.querySelector(s).disabled, `${day}-gfx`);
+  await ilai.waitForFunction((s) => { const b = document.querySelector(s); return !!b && !b.disabled; }, `${day}-gfx`);
   // A preview loads when it comes on screen, from a signed URL.
   await ilai.locator(`${day}-g9-files .fl-item`).first().scrollIntoViewIfNeeded();
   await ilai.waitForSelector(`${day}-g9-files .fl-item img[src]`);
@@ -478,8 +479,13 @@ await step('Ilai\'s card: the graphics upload, "מוכן לבדיקה (לאופ�
 
 await step('the rest of the graphics is locked the same way; the final versions card opens the videos in Drive', async () => {
   const rest = `#il-r-${D.id}`;
-  await ilai.waitForSelector(`${rest}-ready`);
-  assert.equal(await ilai.locator(`${rest}-ready`).isDisabled(), true);
+  // The batch is one line until opened (the owner, 20.10.2026): the client, the batch, "0/N הועלו", "העלאה".
+  await ilai.waitForSelector(`${rest}-s`);
+  assert.match(await text(ilai, `${rest}-s`), /יתרת הגרפיקות[^]*0\/\d+ הועלו[^]*העלאה/);
+  assert.equal(await ilai.locator(`${rest}-d`).getAttribute('open'), null);
+  await ilai.locator(`${rest}-s`).click();
+  await ilai.waitForSelector(`${rest}-g-files .fl-work-h`);
+  assert.equal(await ilai.locator(`${rest}-ready`).count(), 0, 'no locked button before a graphic is up');
   assert.equal(await text(ilai, `${rest}-g-files .fl-work-h`), 'יתרת הגרפיקות · עוד לא הועלה כלום');
   // The final versions: the Drive link, prominent; no list, since nothing is uploaded now.
   const fin = ilai.locator(`.il-card[data-key="il-final:${D.id}:"]`);

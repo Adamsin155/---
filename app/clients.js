@@ -1111,9 +1111,9 @@ function taskMeta(t, now = new Date()) {
 // shows its first MINE_CAP cards and "הצג עוד". "תצוגה מלאה" (kept per browser) gives
 // the whole list, as it was. Nothing is removed, only folded.
 const MINE_CAP = 5;
-// The owner, 20.10.2026: a person's own list has one view, the short one; "תצוגה מלאה"
-// stays on the team's list (#team, and the office looking at someone else's).
-const fullView = () => !(scope === 'own' || personal) && visitStore.get('mine.full') === 'on';
+// The owner, 20.10.2026: a person's own list offers one view, the short one (no toggle
+// there); "תצוגה מלאה" is offered on the team's list. The choice is kept for the tab only.
+const fullView = () => visitStore.get('mine.full') === 'on';
 const openCards = new Set();   // cards whose details are open: kept across rebuilds
 function viewToggle() {
   const full = fullView();
@@ -1748,9 +1748,8 @@ function renderMine() {
   const ilai = ilaiCtx ? ilaiSection(ilaiCtx) : null;
   const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
   if (ilai && !full) capList(ilai.querySelector('.il-list'), MINE_CAP, 'mine:ilai');
-  // No duplicates (the owner, 20.10.2026): a process whose clock runs in "עכשיו" above is
-  // not a card again below, and what has a card is not repeated in "בקרוב".
-  const nowKeys = nowKeysOf(person);
+  // No duplicates (the owner, 20.10.2026): what has a card is not repeated in "בקרוב" (nor in
+  // "עכשיו": shownClocks).
   // Lior's renewals (the owner, 20.10.2026): one line, "חידושים ב־90 יום: N", to the
   // renewals list (year.html#renewals, where each has its quote and process 34); the
   // cards of 34 are not laid out here one by one.
@@ -1759,8 +1758,8 @@ function renderMine() {
   const renewN = person === 'lior' ? renewalsDue(clients, new Date()).length : 0;
   const renewLine = renewN || renewOpen.length ? flowCard({ id: 'renewals', n: renewN || renewOpen.length, href: 'year.html#renewals', cta: 'לחידושים', tone: renewOpen.length ? 'today' : 'plain',
     text: `חידושים ב־90 יום: ${renewN || renewOpen.length}` }) : null;
-  const list = workFor(person).filter((g) => !covered(g) && !nowKeys.has(g.key) && !renewing(g.proc?.id));
-  const shownKeys = new Set([...nowKeys, ...list.map((g) => g.key)]);
+  const list = workFor(person).filter((g) => !covered(g) && !renewing(g.proc?.id));
+  const shownKeys = new Set(list.map((g) => g.key));
   const soonGroups = person ? upcomingGroups(person).map((g) => ({ ...g, list: g.list.filter((s) => !shownKeys.has(`${g.client.id}:${s.proc.id}`) && !renewing(s.proc.id) && !covered({ client: g.client, proc: s.proc })) })).filter((g) => g.list.length) : [];
   const soon = person ? upcomingSection(soonGroups, own) : null;
   const review = person ? OFFICE_REVIEWS.find((r) => r.owner === person && reviewPending(r)) : null;
@@ -1780,10 +1779,10 @@ function renderMine() {
   // here is a plain row of the group; Ilai's, inside his cards above, are said in one line.
   const listKeys = new Set(list.map((g) => g.key));
   const inCards = heldItems.filter((x) => covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).length;
-  const lateRows = heldItems.filter((x) => !renewing(x.procId) && !listKeys.has(lateKey(x)) && !nowKeys.has(lateKey(x)) && !covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).map(lateRow);
+  const lateRows = heldItems.filter((x) => !renewing(x.procId) && !listKeys.has(lateKey(x)) && !covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).map(lateRow);
   // My own long "באיחור": one counted line to its tab, which lists them all (the owner, 20.10.2026).
   const lateTotal = person === me && hasLateTab() ? lateOfMe(flow).n : 0;
-  const lateFolded = lateTotal > LATE_INLINE;
+  const lateFolded = !full && lateTotal > LATE_INLINE; // the full view is the whole list, as it was
   const lateNote = inCards ? h('li', { class: 'wproc late-note' }, h('p', { class: 'hint' },
     inCards === 1 ? 'אחד מהם נמצא בכרטיסים שלך למעלה.' : `${inCards} מהם נמצאים בכרטיסים שלך למעלה.`, ' ',
     person === me && hasLateTab() ? h('a', { href: '#late' }, 'הצגת כל האיחורים') : null)) : null;
@@ -2031,22 +2030,22 @@ function rebuildClocks(now = new Date()) {
     return person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf, tasks });
   });
 }
-// What "עכשיו" shows: the clocks, less those of Ilai's own cards (the card is where that
-// work is done, with its deadline; the owner, 20.10.2026: one place for each thing).
+// What "עכשיו" shows (the owner, 20.10.2026: one place for each thing). A "due within the
+// hour" clock of a process that has its card in the list below is not a row of its own: the
+// card holds the ticks and the action, and its leaf says the hour. So are the clocks of
+// Ilai's own cards. The new deal's clocks, the client's answer and Ofir's fast ladder stay.
 // The alerts still run on every clock.
 function shownClocks() {
-  if (me !== 'ilai' || viewerError) return clocks;
-  const covered = coveredByCard({ clients, checks, stateOf, me, viewer: { me, scope, error: viewerError } });
-  return clocks.filter((c) => !covered({ client: c.client, proc: c.proc }));
+  if (viewerError) return clocks;
+  const person = clockPerson();
+  const listed = person === undefined ? new Set() : new Set(workFor(person).map((g) => g.key));
+  const covered = me === 'ilai' ? coveredByCard({ clients, checks, stateOf, me, viewer: { me, scope, error: viewerError } }) : () => false;
+  return clocks.filter((c) => !(c.client && c.proc && ((c.kind === 'soon' && listed.has(`${c.client.id}:${c.proc.id}`)) || covered({ client: c.client, proc: c.proc }))));
 }
-// The processes (`client:process`) that have a clock in "עכשיו" on this list: the list
-// does not repeat them. A "the client did not answer" clock is about the client, not a card.
-function nowKeysOf(person) {
-  if (person !== clockPerson()) return new Set();
-  return new Set(shownClocks().filter((c) => c.kind !== 'answer' && c.client && c.proc).map((c) => `${c.client.id}:${c.proc.id}`));
-}
+let nowShown = []; // the clocks "עכשיו" shows, as of its last draw (the countdowns update these)
 function paintNowBar() {
-  renderNowBar($('now-bar'), shownClocks(), { everyone: !me, onAnswered: markAnswered });
+  nowShown = shownClocks();
+  renderNowBar($('now-bar'), nowShown, { everyone: !me, onAnswered: markAnswered });
 }
 
 // Once a second: the countdowns, without rebuilding anything else. Only a clock
@@ -2064,7 +2063,7 @@ function clockTick() {
   clockSeen = seen;
   if (ranOut.length) clocksRanOut(ranOut);
   const bar = $('now-bar');
-  if (!document.hidden && view === 'mine' && !bar.hidden) updateNowBar(bar, shownClocks(), { now, onAnswered: markAnswered });
+  if (!document.hidden && view === 'mine' && !bar.hidden) updateNowBar(bar, nowShown, { now, onAnswered: markAnswered });
 }
 setInterval(clockTick, 1000);
 

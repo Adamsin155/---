@@ -298,7 +298,7 @@ try {
   for (const role of ['ofir', 'irit', 'lior', 'eli', 'yariv']) {
     await step(`C: ${role}: every counted line is solid, with its number, one sentence and a button`, async () => {
       const { page, ctx } = await signedIn(role, { width: 360 });
-      await page.evaluate(() => { for (const d of document.querySelectorAll('#mine-list details')) d.open = true; });
+      await page.evaluate(() => { for (const d of document.querySelectorAll('#mine-list details, #land-line details')) d.open = true; });
       const rows = await page.evaluate(() => [...document.querySelectorAll('#land-line a, #mine-list a.flow-line')].filter((a) => a.getClientRects().length).map((a) => {
         const cs = getComputedStyle(a);
         const go = a.querySelector('.k-go');

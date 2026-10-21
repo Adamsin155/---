@@ -206,7 +206,10 @@ try {
     assert.equal(await page.locator(`#${id}`).count(), 0, 'the list that was put aside before the mark did not come back with the marked item');
     const after = await page.locator('#tab-late-n').innerText();
     assert.ok(Number(after || 0) <= before, 'the number on the tab did not go back up');
-    assert.equal(await page.locator('#mine-list .g-overdue .wgroup-h .n').count() ? await page.locator('#mine-list .g-overdue .wgroup-h .n').innerText() : '', after, 'and the group says the tab\'s number');
+    // The group's heading, or (more than three, the owner's 20.10.2026) the one line to the tab.
+    const groupN = await page.locator('#late-line').count() ? await page.locator('#late-line .k-num').getAttribute('data-n')
+      : await page.locator('#mine-list .g-overdue .wgroup-h .n').count() ? await page.locator('#mine-list .g-overdue .wgroup-h .n').innerText() : '';
+    assert.equal(groupN, after, "and the group says the tab's number");
     // The clients, built now, show the mark as well; and going back builds nothing stale.
     await tabTo(page, 'clients');
     await tabTo(page, 'mine');
