@@ -138,7 +138,7 @@ async function openDialog(note = '') {
 function allSet() {
   if (!dialogEl?.open || waMissing() || pushMissing()) return false;
   dialogEl.close();
-  toast('הכול מחובר: הודעות העבודה יגיעו ב־WhatsApp ובאפליקציה.');
+  toast(state.active ? 'הכול מחובר: הודעות העבודה יגיעו ב־WhatsApp ובאפליקציה.' : 'ההתראות באפליקציה פעילות.');
   return true;
 }
 
