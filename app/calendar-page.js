@@ -15,6 +15,8 @@ import { TZ, dayFromKeyIL } from './tz.js';
 import { icon, iconSquare, dateLeaf, emptyRow } from './kit.js';
 // The person's own Google Calendar beside the system's dates (the owner, 21.10.2026).
 import { initGoogle, loadGoogle, googleEvents, googleNode, mountGoogleCard } from './gcal-page.js';
+// "פגישה חדשה" (the owner, 21.10.2026): the office and the owners add a meeting from here.
+import { addsMeetings } from './new-meeting-logic.js';
 
 let viewer = null;
 let clients = [];
@@ -194,15 +196,26 @@ mountSession(async (staff) => {
     fill($('state'), h('strong', {}, 'אין לך גישה לעמוד הזה.'), h('a', { class: 'btn', href: home.href }, home.label));
     return;
   }
-  initGoogle({
-    viewer: v, email: String(staff.email || '').toLowerCase(), clientOf, checksOf: (id) => checks[id] || {}, redraw: render,
-    // A date set from a Google suggestion: the client as saved, and "נקבעה פגישה" when it was marked.
-    onSaved: (row, mark) => {
-      clients = clients.map((c) => (c.id === row.id ? { ...c, ...row } : c));
-      if (mark) (checks[row.id] ||= {})[mark.item_key] = mark;
-    },
-  });
+  // A date set from here (a Google suggestion, "פגישה חדשה"): the client as saved, and
+  // "נקבעה פגישה" when it was marked.
+  const keepSaved = (row, mark) => {
+    clients = clients.map((c) => (c.id === row.id ? { ...c, ...row } : c));
+    if (mark) (checks[row.id] ||= {})[mark.item_key] = mark;
+  };
+  initGoogle({ viewer: v, email: String(staff.email || '').toLowerCase(), clientOf, checksOf: (id) => checks[id] || {}, redraw: render, onSaved: keepSaved });
   mountGoogleCard($('cp-google'));
+  if (addsMeetings(v)) {
+    $('cp-new').hidden = false;
+    $('cp-new').prepend(icon('plus', { size: 18 }));
+    $('cp-new').addEventListener('click', async () => {
+      const m = await import('./new-meeting.js');
+      m.initNewMeeting({
+        viewer: v, clients: () => clients, emails: () => emails, clientMail: () => clientMail, site, checksOf: (id) => checks[id] || {},
+        onSaved: (row, mark) => { keepSaved(row, mark); render(); },
+      });
+      m.openNewMeeting();
+    });
+  }
   // The phone opens on the week; a wide screen on the month; a choice made here is kept.
   const saved = readKey(VIEW_KEY);
   view = saved === 'week' || saved === 'month' ? saved : (window.matchMedia?.('(min-width: 900px)').matches ? 'month' : 'week');

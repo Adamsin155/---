@@ -12,7 +12,10 @@
 //  - her own Google Calendar (the owner, 21.10.2026): its events in grey with a "Google"
 //    tag, "לקבוע במערכת…?" under a matched meeting or shoot day (saved as the "קביעת מועד"
 //    dialogs save), "לא קשור" remembered; connecting with the secret address (checked,
-//    never shown back); an editor gets her events but no question.
+//    never shown back); an editor gets her events but no question;
+//  - "פגישה חדשה" (the owner, 21.10.2026): the office and the owners; a meeting or a shoot
+//    day saved on the client as "קביעת מועד" saves it, then Google opens with the invitation;
+//    "פגישה אחרת" only opens the invitation; a held-back tab gets a link to tap.
 // Run: npx http-server -p 8080 -s -c-1 . &  then  BASE_URL=http://localhost:8080/ node tests/calendar-e2e.mjs [screenshot dir]
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
@@ -483,6 +486,121 @@ try {
     assert.equal(await before.page.locator('#cp-google').isHidden(), true);
     assert.equal(await before.page.locator('.gc-ev').count(), 0);
     await before.ctx.close();
+  });
+
+  // "פגישה חדשה" (the owner, 21.10.2026): from inside the app, saved as "קביעת מועד" saves, then the invitation.
+  const googleTab = async (page, ctx, click) => {
+    await ctx.route('https://calendar.google.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<p>google</p>' }));
+    const popup = page.waitForEvent('popup', { timeout: 10000 });
+    await click();
+    const tab = await popup;
+    const url = new URL(tab.url());
+    await tab.close();
+    return url.searchParams;
+  };
+  const patches = (fake) => fake.calls.filter((c) => c.method === 'PATCH' && c.table === 'clients').map((c) => c.body);
+
+  await step('"פגישה חדשה": the office and the owners only', async () => {
+    for (const role of ['nadia', 'ilai', 'eli']) {
+      const { page, ctx } = await signedIn(role);
+      await page.waitForSelector('.cp-week');
+      assert.equal(await page.locator('#cp-new').isHidden(), true, role);
+      await ctx.close();
+    }
+    const { page, ctx } = await signedIn('owner', { viewport: DESK });
+    await page.waitForSelector('.cp-grid');
+    assert.equal(await page.locator('#cp-new').isVisible(), true, 'owner');
+    await ctx.close();
+  });
+
+  await step('"פגישה חדשה", a characterization meeting: a client found by a word, saved on the client, Google opened with the guests', async () => {
+    const { page, ctx, fake } = await signedIn('irit');
+    await page.waitForSelector('.cp-week');
+    await page.click('#cp-new');
+    await page.waitForSelector('#dlg-new-meeting[open]');
+    await page.fill('#nm-client', 'שיר');
+    assert.match(await text(page.locator('#nm-results')), /שירה קונדיטוריה · שירה כץ/);
+    await page.fill('#nm-client', 'נאפ');
+    await page.click('.nm-pick');
+    assert.match(await text(page.locator('#nm-picked')), /פיצה נאפולי · אבי לוי/);
+    assert.equal(await page.inputValue('#nm-who'), 'ofir');
+    await page.click('#nm-save');
+    assert.equal(await text(page.locator('#nm-err')), 'בוחרים יום ושעה לפגישה.');
+    await page.fill('#nm-at', '2026-10-26T11:00');
+    assert.match(await text(page.locator('#nm-guests')), /בזימון: אופיר/);
+    await noSideScroll(page, 'irit 390 new meeting');
+    await tall(page.locator('#dlg-new-meeting .nm-kind span, #nm-save, #nm-change'), 'the new meeting dialog');
+    if (SHOTS) { await page.waitForTimeout(500); await page.screenshot({ path: join(SHOTS, 'irit-390-new-meeting.png') }); }
+    const q = await googleTab(page, ctx, () => page.click('#nm-save'));
+    assert.equal(q.get('text'), 'פגישת אפיון · פיצה נאפולי');
+    assert.equal(q.get('dates'), '20261026T090000Z/20261026T110000Z', 'winter time, two hours');
+    assert.equal(q.get('add'), emailOf('ofir'));
+    assert.deepEqual(patches(fake), [{ char_at: '2026-10-26T09:00:00.000Z', characterizer: 'ofir' }]);
+    assert.ok(fake.calls.some((c) => c.table === 'protocol_checks' && JSON.stringify(c.body).includes('p03.scheduled')), 'נקבעה פגישה');
+    await page.waitForSelector('#dlg-new-meeting:not([open])', { state: 'attached' });
+    assert.match(await text(page.locator('#toast')), /פגישת אפיון של פיצה נאפולי נשמר/);
+    // It is on the calendar now.
+    await page.click('#cp-next');
+    assert.match(await text(page.locator('.cp-day[data-day="2026-10-26"]')), /פגישת אפיון · אבי לוי/);
+    await ctx.close();
+  });
+
+  await step('"פגישה חדשה", a shoot day: with whom, the questions of a shoot day, saved, Lior and Eli invited', async () => {
+    const { page, ctx, fake } = await signedIn('lior');
+    await page.waitForSelector('.cp-week');
+    await page.click('#cp-new');
+    await page.waitForSelector('#dlg-new-meeting[open]');
+    await page.check('input[name="nm-kind"][value="shoot"]');
+    assert.equal(await text(page.locator('label[for="nm-at"]')), 'מתי מגיעים המשפיענים?');
+    await page.fill('#nm-client', 'אדרי');
+    await page.click('.nm-pick');
+    assert.equal(await page.inputValue('#nm-type'), 'dms', 'the client\'s own team');
+    await page.fill('#nm-at', '2026-10-29T10:00');
+    // A day the photographer did not hand over: asked, with a reason (app/availability-ui.js), when known here.
+    const reason = page.locator('#av-reason');
+    const q = await googleTab(page, ctx, async () => {
+      await page.click('#nm-save');
+      if (await reason.isVisible({ timeout: 1500 }).catch(() => false)) { await reason.fill('הלקוח ביקש'); await page.click('#av-reason-ok'); }
+    });
+    assert.equal(q.get('text'), 'יום צילום · מוסך אדרי');
+    assert.equal(q.get('dates').slice(0, 16), '20261029T070000Z', 'the team an hour before 10:00');
+    assert.equal(q.get('add'), `${emailOf('lior')},${emailOf('eli')}`);
+    assert.deepEqual(patches(fake), [{ shoot_at: '2026-10-29T08:00:00.000Z', shoot_type: 'dms' }]);
+    await ctx.close();
+  });
+
+  await step('"פגישה אחרת": nothing is saved, only the invitation; a held-back tab gets a link to tap', async () => {
+    const { page, ctx, fake } = await signedIn('irit', { viewport: DESK });
+    await page.waitForSelector('.cp-grid');
+    await page.click('#cp-new');
+    await page.waitForSelector('#dlg-new-meeting[open]');
+    await page.check('input[name="nm-kind"][value="other"]');
+    assert.equal(await text(page.locator('#nm-save')), 'פתיחת הזימון ב־Google');
+    await page.fill('#nm-title', 'ישיבת צוות');
+    await page.fill('#nm-at', '2026-10-27T09:30');
+    if (SHOTS) { await page.waitForTimeout(500); await page.screenshot({ path: join(SHOTS, 'irit-1366-new-meeting-other.png') }); }
+    const q = await googleTab(page, ctx, () => page.click('#nm-save'));
+    assert.equal(q.get('text'), 'ישיבת צוות');
+    assert.equal(q.get('dates'), '20261027T073000Z/20261027T083000Z');
+    assert.deepEqual(patches(fake), []);
+    // The browser holds the tab back: the dialog offers the link.
+    await page.evaluate(() => { window.open = () => null; });
+    await page.click('#cp-new');
+    await page.waitForSelector('#dlg-new-meeting[open]');
+    await page.check('input[name="nm-kind"][value="other"]');
+    await page.fill('#nm-client', 'שחר');
+    await page.click('.nm-pick');
+    await page.fill('#nm-title', 'שיחת היכרות');
+    await page.fill('#nm-at', '2026-10-28T12:00');
+    await page.click('#nm-save');
+    const link = page.locator('#nm-open');
+    await link.waitFor();
+    const href = new URL(await link.getAttribute('href')).searchParams;
+    assert.equal(href.get('text'), 'שיחת היכרות · קליניקת שחר');
+    assert.equal(await link.getAttribute('target'), '_blank');
+    await noSideScroll(page, 'irit 1366 new meeting link');
+    if (SHOTS) { await page.waitForTimeout(500); await page.screenshot({ path: join(SHOTS, 'irit-1366-new-meeting-link.png') }); }
+    await ctx.close();
   });
 
   noCspViolations();

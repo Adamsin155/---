@@ -44,3 +44,31 @@
   .gc-sug { margin-inline-start: 38px; max-inline-size: 640px; }
 }
 @media print { .gc-sug, .gc-card { display: none; } }
+
+/* "פגישה חדשה" (app/new-meeting.js): the button by the heading, and its dialog. */
+.cp-new { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; flex: none; align-self: flex-end; }
+.nm-body { display: grid; gap: 12px; }
+.nm-kinds { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.nm-kinds legend { padding: 0; margin-bottom: 6px; font-weight: 600; color: var(--ds-ink); }
+.nm-kind { position: relative; display: inline-flex; }
+.nm-kind input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.nm-kind span {
+  min-height: 44px; display: inline-flex; align-items: center; padding: 8px 16px; border-radius: var(--ds-r-pill);
+  border: 1px solid var(--ds-edge, #cfd5de); background: var(--ds-surface); color: var(--ds-ink); font-weight: 500;
+}
+.nm-kind input:checked + span { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); font-weight: 600; }
+.nm-kind input:focus-visible + span { outline: 2px solid var(--ds-navy); outline-offset: 2px; }
+.nm-client .input, .nm-row .input { min-height: 44px; width: 100%; }
+.nm-results { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.nm-results:empty { display: none; }
+.nm-pick { inline-size: 100%; min-height: 44px; padding: 8px 12px; border: 0; border-radius: var(--ds-r-sm); background: var(--ds-ground); color: var(--ds-ink); text-align: start; font: inherit; cursor: pointer; }
+@media (hover: hover) { .nm-pick:hover { background: var(--ds-soft); } }
+.nm-none { padding: 6px 2px; }
+.nm-picked { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; padding: 4px 4px 4px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
+.nm-picked[hidden] { display: none; }
+.nm-picked .btn-text { min-height: 44px; padding-inline: 8px; }
+.nm-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.nm-body .hint, .nm-body .err { margin: 0; }
+.nm-done { font-weight: 600; color: var(--ds-ink); }
+#nm-open { justify-self: start; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+.dlg-foot .btn { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
