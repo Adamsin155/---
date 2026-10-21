@@ -275,9 +275,9 @@ export function dueThisWeek(l, now = new Date()) {
 // Whom the load may suggest: Nirel may edit any shoot since 21.10.2026, and is offered in the
 // dialog for every shoot, but she is suggested by the load only for Natali's (her own work).
 const suggestPool = (shootType) => (shootType === 'natali' ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));
-export function rankEditors(load, shootType, exclude = [], now = new Date()) {
+export function rankEditors(load, shootType, exclude = [], now = new Date(), pool = suggestPool(shootType)) {
   if (!load) return [];
-  return suggestPool(shootType).filter((e) => !exclude.includes(e) && load[e])
+  return pool.filter((e) => !exclude.includes(e) && load[e])
     .map((e) => ({ editor: e, open: load[e].jobs.length, week: dueThisWeek(load[e], now) }))
     .sort((a, b) => (a.open - b.open) || (a.week - b.week) || EDITORS.indexOf(a.editor) - EDITORS.indexOf(b.editor));
 }
@@ -308,7 +308,9 @@ export function suggestAssignment({ client, n = null, shootType, joint = false, 
   if (pre && may.includes(pre)) return pick(pre, 'rule', `צילום של נטלי: ${editorName(pre)} מסומנת מראש`);
   const before = earlierEditor(client, n, checks);
   if (before && may.includes(before)) return pick(before, 'continuity', 'ערך/ה ללקוח הזה בסבב הקודם');
-  const [first, second] = rankEditors(load, shootType, exclude, now);
+  // Nobody of the usual ones left (all excluded): whoever may still take it, Nirel too.
+  const ranked = rankEditors(load, shootType, exclude, now);
+  const [first, second] = ranked.length ? ranked : rankEditors(load, shootType, exclude, now, may);
   const open = clientsInEditing(first.open);
   const reason = !second || first.open < second.open ? `העומס הנמוך ביותר: ${open}`
     : first.week < second.week ? `${open}, ופחות יעדים השבוע`

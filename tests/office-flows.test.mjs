@@ -680,7 +680,9 @@ test('the suggestion: what the dialog already chose stays first; nobody to sugge
   // Nobody: the load is unknown, or no editor may take it. One short line, no editor.
   assert.deepEqual(suggestAssignment({ client: c, shootType: 'dms', load: null, now }), { editor: null, why: 'none', reason: 'העומס של העורכים לא ידוע כרגע', load: null });
   assert.deepEqual(suggestAssignment({ client: c, shootType: 'dms', load: { nadia: load.nadia }, now }).reason, 'העומס של העורכים לא ידוע כרגע');
-  assert.deepEqual(suggestAssignment({ client: c, shootType: 'dms', load, exclude: ['nadia', 'yariv', 'anna'], now }), { editor: null, why: 'none', reason: 'אין עורך שאפשר לשייך אליו', load: null });
+  assert.deepEqual(suggestAssignment({ client: c, shootType: 'dms', load, exclude: ['nadia', 'yariv', 'anna', 'nirel'], now }), { editor: null, why: 'none', reason: 'אין עורך שאפשר לשייך אליו', load: null });
+  // The usual three all excluded: Nirel may take any shoot since 21.10.2026, so she is the one left.
+  assert.equal(suggestAssignment({ client: c, shootType: 'dms', load, exclude: ['nadia', 'yariv', 'anna'], now }).editor, 'nirel');
 });
 
 // The owner's page review of 20.10.2026: Lior's lists on "החלטות" keep only what waits for his decision.
