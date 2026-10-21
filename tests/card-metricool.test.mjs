@@ -12,10 +12,11 @@ test('the office and Ilai see the line; the editors and the photographer do not'
   assert.equal(seesMetricool({ me: 'irit', scope: 'office', error: 'x' }), false);
 });
 
-test('only Ilai and the owner are offered the way to connect', () => {
+test('only Ofir (v11), Ilai and the owner are offered the way to connect', () => {
   assert.equal(connectsMetricool({ me: 'ilai', scope: 'own' }), true);
+  assert.equal(connectsMetricool({ me: 'ofir', scope: 'office' }), true);
   assert.equal(connectsMetricool({ me: null, scope: 'office' }), true);
-  for (const me of ['irit', 'lior', 'ofir']) assert.equal(connectsMetricool({ me, scope: 'office' }), false, me);
+  for (const me of ['irit', 'lior']) assert.equal(connectsMetricool({ me, scope: 'office' }), false, me);
   assert.equal(connectsMetricool({ me: null, scope: 'own' }), false); // a person the protocol does not know
 });
 

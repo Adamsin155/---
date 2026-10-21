@@ -17,27 +17,29 @@ const mk = (id, fields = {}) => ({
 });
 const ids = (list) => list.map((c) => c.id);
 
-test('who has the card: Ilai and the owner, nobody else', () => {
-  assert.deepEqual(CONNECTORS, ['owner', 'ilai']);
+test('who has the card: Ofir (v11), Ilai and the owner, nobody else', () => {
+  assert.deepEqual(CONNECTORS, ['owner', 'ofir', 'ilai']);
   const viewer = (me, scope = 'office') => ({ me, scope, error: null });
-  assert.equal(canConnect(viewer('ilai')), true);
+  assert.equal(canConnect(viewer('ilai', 'own')), true);
+  assert.equal(canConnect(viewer('ofir')), true);
   assert.equal(canConnect(viewer(null)), true, 'the owner: an office login with no person');
-  for (const me of ['irit', 'lior', 'ofir']) assert.equal(canConnect(viewer(me)), false, me);
+  for (const me of ['irit', 'lior']) assert.equal(canConnect(viewer(me)), false, me);
   for (const me of ['nadia', 'nirel', 'eli', 'stav', 'amos']) assert.equal(canConnect(viewer(me, 'own')), false, me);
   assert.equal(canConnect(viewer(null, 'own')), false, 'a login with no role');
   assert.equal(canConnect({ me: 'ilai', scope: 'office', error: 'x' }), false, 'an unknown viewer');
   assert.equal(canConnect(null), false);
 });
 
-// 8.10.2026: connecting the clients is Ilai's task. The owners may connect too, but the
-// card is not among their own tasks: only in the manager profile's "עבודת הצוות".
-test('where the card is shown: always for Ilai; for the owners not in the personal profile', () => {
+// 8.10.2026: connecting the clients was Ilai's task; since v11 (21.10.2026) Ofir's. The owners
+// may connect too, but the card is not among their own tasks: only in the manager profile.
+test('where the card is shown: always for Ofir and Ilai; for the owners not in the personal profile', () => {
   const viewer = (me, scope = 'office') => ({ me, scope, error: null });
   for (const personal of [false, true]) assert.equal(showsCard(viewer('ilai'), personal), true, `Ilai, personal=${personal}`);
+  for (const personal of [false, true]) assert.equal(showsCard(viewer('ofir'), personal), true, `Ofir, personal=${personal}`);
   assert.equal(showsCard(viewer(null), true), false, 'the owner, in "המשימות שלי"');
   assert.equal(showsCard(viewer(null), false), true, 'the owner, in the manager profile');
   assert.equal(showsCard(viewer(null)), true);
-  for (const me of ['irit', 'lior', 'ofir']) for (const personal of [false, true]) assert.equal(showsCard(viewer(me), personal), false, me);
+  for (const me of ['irit', 'lior']) for (const personal of [false, true]) assert.equal(showsCard(viewer(me), personal), false, me);
   for (const me of ['nadia', 'nirel', 'eli', 'stav', 'amos']) assert.equal(showsCard(viewer(me, 'own'), false), false, me);
   assert.equal(showsCard(null, false), false);
 });
@@ -118,7 +120,7 @@ test('the words', () => {
   assert.equal(sinceText('not a date'), '');
   assert.equal(explainConnect({ message: 'brand_taken: this brand is connected to another client', code: 'P0001' }), 'המותג הזה כבר מחובר ללקוח אחר.');
   assert.equal(explainConnect({ message: 'connected: this client is connected to a brand' }), 'הלקוח כבר מחובר למותג. הרשימה רועננה.');
-  assert.equal(explainConnect({ message: 'not allowed', code: '42501' }), 'רק עילאי והבעלים מחברים לקוח למותג.');
+  assert.equal(explainConnect({ message: 'not allowed', code: '42501' }), 'רק אופיר, עילאי והבעלים מחברים לקוח למותג.');
   assert.equal(explainConnect({ message: 'client not found' }), 'הלקוח לא נמצא. הרשימה רועננה.');
   assert.equal(explainConnect(new Error('boom')), 'לא נשמר. נסו שוב.');
 });
@@ -133,5 +135,5 @@ test('the migration as the deploy tool reads it: nothing is removed, and it can 
 });
 
 test('the protocol did not change: the card is not a protocol item', () => {
-  assert.equal(PROTOCOL_VERSION, 10); // 10 since 10.10.2026 (docs/ops.md, section 58); this feature itself did not move it
+  assert.equal(PROTOCOL_VERSION, 11); // 11 since 21.10.2026 (Ofir connects to Metricool: an item's owner, not this card); this feature itself did not move it
 });

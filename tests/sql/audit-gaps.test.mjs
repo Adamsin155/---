@@ -90,7 +90,7 @@ test('the migration is the newest one, right after the migration of version 9, a
   // landing's own write of a real editor (20261026100000_landing_editor.sql, 14.10.2026), and the
   // personal intake link (20261027100000_landing_links.sql, 15.10.2026), and the reading of
   // the staff's own Google calendars (20261029100000_google_calendar_sync.sql, 21.10.2026).
-  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261025100000_whatsapp_jako.sql', '20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql', '20261029100000_google_calendar_sync.sql', '20261031090000_nudnik_givers.sql']);
+  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261025100000_whatsapp_jako.sql', '20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql', '20261029100000_google_calendar_sync.sql', '20261031090000_nudnik_givers.sql', '20261031110000_protocol_2110.sql']);
   assert.equal(files[files.indexOf(MIGRATION) - 1], '20261023100000_ofir_fast_ladder_v9.sql');
   const sql = readFileSync(new URL(`../../supabase/migrations/${MIGRATION}`, import.meta.url), 'utf8');
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
@@ -98,14 +98,16 @@ test('the migration is the newest one, right after the migration of version 9, a
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
   // A key that spells one of those words is still written in two halves and reads the same.
   assert.match(sql, /'p24\.d' \|\| 'ropbox'/);
-  // The block in the file is exactly what the script generates from app/protocol.js now.
-  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], [MIGRATION, true]);
+  // The writers' block: since protocol v11 (20261031110000_protocol_2110.sql, 21.10.2026) the newest
+  // block is that file's (tests/sql/protocol-2110.test.mjs checks it against app/protocol.js).
+  assert.match(sql, /-- protocol-writers:begin/);
+  assert.equal(latestBlock().file, '20261031110000_protocol_2110.sql');
   // No table, no policy, no trigger is created, and no index: one column, functions, marks and the writers' rows.
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);
 });
 
 test('version 10: the function, the column default, a new client; a client that started before keeps its version', async () => {
-  assert.equal(PROTOCOL_VERSION, 10);
+  assert.ok(PROTOCOL_VERSION >= 10); // 11 since 20261031110000_protocol_2110.sql; this database is the one of version 10
   assert.equal((await db.query('select private.protocol_version_current() as v')).rows[0].v, 10);
   const d = await db.query("select column_default from information_schema.columns where table_schema = 'public' and table_name = 'clients' and column_name = 'protocol_version'");
   assert.equal(d.rows[0].column_default, '10');
@@ -241,11 +243,17 @@ test('a task on the spot for Nirel is refused without her brief, by either funct
 });
 
 test('the writers table: 23 new rows against version 9, and the database agrees with the app on who marks what', async () => {
-  assert.equal((await db.query('select count(*)::int as n from private.protocol_writers')).rows[0].n, writerRows().length);
   const v9 = migrationSql('20261023100000_ofir_fast_ladder_v9.sql');
   const rowsOf = (sql) => new Map(sql.split('\n').filter((l) => l.startsWith('  (')).map((l) => [l.slice(3, l.indexOf(', ')), l.trim().replace(/,$/, '')]));
   const a = rowsOf(v9.slice(v9.indexOf('-- protocol-writers:begin'), v9.indexOf('-- protocol-writers:end')));
-  const b = rowsOf(sqlBlock());
+  // This database is the one of version 10, with its own block. Version 11 made p06.metricool the
+  // office's (Ofir's; 20261031110000_protocol_2110.sql, tests/sql/protocol-2110.test.mjs): the app's
+  // rows now are the same but that one.
+  const v10 = migrationSql(MIGRATION);
+  const b = rowsOf(v10.slice(v10.indexOf('-- protocol-writers:begin'), v10.indexOf('-- protocol-writers:end')));
+  assert.equal((await db.query('select count(*)::int as n from private.protocol_writers')).rows[0].n, b.size);
+  const now = new Set(writerRows().map((r) => `'${r.key}'`));
+  assert.deepEqual([...b.keys()].filter((k) => !now.has(k) && !k.includes(' || ')), ["'p06.metricool'"]);
   const added = [...b].filter(([k, v]) => a.get(k) !== v).map(([k]) => k.replace(/'/g, '')).sort();
   assert.deepEqual(added, [...FIVE, ...FINAL, 'p29b.@part', 'p16.photographer', 'p16.read', 'p18b.files'].sort());
   assert.equal(added.length, 23);

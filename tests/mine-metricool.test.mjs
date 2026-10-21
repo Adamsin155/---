@@ -33,6 +33,7 @@ test('failed posts and connected clients with nothing scheduled next week', () =
 test("the line is Ilai's, to the Gantt index, and only when there is a problem", () => {
   const viewer = { me: 'ilai', scope: 'own', error: null };
   assert.ok(flowNeeds(viewer, NOW).includes('metricool'));
+  assert.ok(flowNeeds({ me: 'ofir', scope: 'office', error: null }, NOW).includes('metricool'), 'Ofir: the clients not connected (v11)');
   assert.ok(!flowNeeds({ me: 'lior', scope: 'office', error: null }, NOW).includes('metricool'));
   const lines = (metricool) => flowLines({ viewer, clients: [], checks: {}, stateOf: () => ({ states: [] }), extra: { metricool }, now: NOW });
   const l = lines({ failed: 3, nothingAhead: 5 }).find((x) => x.id === 'metricool');
@@ -44,11 +45,15 @@ test("the line is Ilai's, to the Gantt index, and only when there is a problem",
   assert.equal(lines(null).find((x) => x.id === 'metricool'), undefined);
 });
 
-test('the clients with no brand: a quiet line to the Gantt index, opened on them', () => {
-  const viewer = { me: 'ilai', scope: 'own', error: null };
-  const lines = (metricool) => flowLines({ viewer, clients: [], checks: {}, stateOf: () => ({ states: [] }), extra: { metricool }, now: NOW });
+test("the clients with no brand: Ofir's quiet line to the Gantt index, opened on them (v11; Ilai's until 21.10.2026)", () => {
+  const viewer = { me: 'ofir', scope: 'office', error: null };
+  const linesOf = (v) => (metricool) => flowLines({ viewer: v, clients: [], checks: {}, stateOf: () => ({ states: [] }), extra: { metricool }, now: NOW });
+  const lines = linesOf(viewer);
   const l = lines({ failed: 0, nothingAhead: 0, notConnected: 4 }).find((x) => x.id === 'metricool-connect');
   assert.deepEqual([l.n, l.href, l.text, l.tone], [4, 'gantt.html#not-connected', '4 לקוחות לא מחוברים ל־Metricool', 'plain']);
+  // Ofir has no line about the posts (Ilai's), and Ilai none about connecting.
+  assert.equal(lines({ failed: 3, nothingAhead: 5, notConnected: 0 }).find((x) => x.id === 'metricool'), undefined);
+  assert.equal(linesOf({ me: 'ilai', scope: 'own', error: null })({ failed: 0, nothingAhead: 0, notConnected: 4 }).find((x) => x.id === 'metricool-connect'), undefined);
   assert.equal(lines({ failed: 0, nothingAhead: 0, notConnected: 0 }).find((x) => x.id === 'metricool-connect'), undefined);
   const c = (id, fields) => ({ id, status: 'active', metricool_blog_id: null, ...fields });
   assert.equal(metricoolProblems({ clients: [c('a'), c('b', { metricool_none: true }), c('c', { archived_at: '2026-10-01' }), c('d', { metricool_blog_id: 'x' })], rows: [], now: NOW }).notConnected, 1);

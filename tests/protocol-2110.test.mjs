@@ -8,7 +8,10 @@ import assert from 'node:assert/strict';
 import { computeReminders } from '../app/reminder-engine.js';
 import { RULES, WAIT_NAG, WAIT_NAG_EVERY, waitSlot } from '../app/reminder-rules.js';
 import { PROCESSES, PROTOCOL_VERSION } from '../app/protocol.js';
-import { IMPORT_NOTE } from '../app/protocol-logic.js';
+import { IMPORT_NOTE, clientState, openItemsFor } from '../app/protocol-logic.js';
+import { PROTOCOL_HISTORY, itemSince } from '../app/protocol-versions.js';
+import { charDay } from '../app/ilai-logic.js';
+import { mayWrite } from '../scripts/protocol-writers.mjs';
 import { importKeys } from '../app/client-open.js';
 import { inboxRows } from '../app/push-logic.js';
 import { dateIL, partsIL } from '../app/tz.js';
@@ -100,4 +103,43 @@ test('1. who: the employee who marked the wait; the owner\'s mark goes to the pr
     { id: 2, rule: WAIT_NAG, key: `${WAIT_NAG}:${a.id}:p07:2026-10-06.2@irit`, created_at: IL(2026, 10, 6, 12).toISOString(), status: 'sent', level: 'ring', channel: 'push' },
   ];
   assert.deepEqual(inboxRows(rows, IL(2026, 10, 6, 13)).map((r) => r.id), [2]);
+});
+
+test("2. version 11: 'כל הרשתות חוברו ל־Metricool' is Ofir's, right after he took the accesses; Ilai no longer has it", () => {
+  assert.equal(PROTOCOL_VERSION, 11);
+  const v11 = PROTOCOL_HISTORY.at(-1);
+  assert.equal(v11.version, 11);
+  assert.equal(v11.items, undefined, 'nothing added: the same key, another owner');
+  assert.match(v11.changes.join(' '), /אופיר.*Metricool/);
+  assert.match(v11.changes.join(' '), /ממתין ללקוח.*בכל שעה/);
+  assert.equal(itemSince('p06.metricool'), 1);
+  const p06 = PROCESSES.find((p) => p.id === 'p06');
+  assert.deepEqual(p06.items.find((i) => i.key === 'p06.metricool').owners, ['ofir']);
+  assert.deepEqual(p06.owners, ['ilai'], "the rest of 6 stays Ilai's");
+  // Ofir took the accesses at the characterization (Monday 5.10 12:30): the item is on his list, not on Ilai's.
+  const w = world();
+  const c = afterMeeting(w, { name: 'גמא' });
+  for (const k of [...itemsOf('p06')]) delete w.checks[c.id][k];
+  const now = IL(2026, 10, 5, 12, 40);
+  const st = clientState(c, w.checks[c.id], now);
+  const open = (who) => openItemsFor(who, c, w.checks[c.id], st, now).map((e) => e.item.key);
+  assert.ok(open('ofir').includes('p06.metricool'));
+  assert.ok(!open('ilai').includes('p06.metricool'));
+  assert.ok(open('ilai').includes('p06.verified'));
+  // Its deadline is 6's: 30 minutes from the accesses.
+  assert.equal(hhmm(st.states.find((s) => s.proc.id === 'p06').dueAt), '5.10 13:00');
+  // Who may write it: the office (Ofir among them); Ilai no more.
+  assert.equal(mayWrite({ person: 'ofir', client: c, key: 'p06.metricool' }), true);
+  assert.equal(mayWrite({ person: 'ilai', client: c, key: 'p06.metricool' }), false);
+  assert.equal(mayWrite({ person: 'ilai', client: c, key: 'p06.name' }), true);
+});
+
+test("2. Ilai's characterization card: the page setup is done without Metricool, which is only said", () => {
+  const w = world();
+  const c = afterMeeting(w, { name: 'דלתא' });
+  for (const k of [...itemsOf('p06'), ...itemsOf('p07'), ...itemsOf('p09')]) delete w.checks[c.id][k];
+  for (const k of ['p06.name', 'p06.bio', 'p06.details', 'p06.phone', 'p06.address', 'p06.look']) mark(w, c, k, IL(2026, 10, 5, 12, 20));
+  const now = IL(2026, 10, 5, 12, 30);
+  const [card] = charDay({ clients: [c], stateOf: (x) => clientState(x, w.checks[x.id], now), checks: w.checks, now });
+  assert.equal(card.lines.find((l) => l.key === 'page').done, true);
 });

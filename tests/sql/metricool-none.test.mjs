@@ -1,6 +1,6 @@
 // "ללקוח אין מותג" (20261012100000_metricool_none.sql; docs/ops.md, section 33) in a real
 // Postgres (PGlite, every migration applied):
-//   - Ilai and the owner mark a client as one with no Metricool brand, and undo it;
+//   - Ilai and the owner (and Ofir, since 20261031110000_protocol_2110.sql) mark a client as one with no Metricool brand, and undo it;
 //     nobody else does, and a direct write of the three columns from a browser changes
 //     nothing, whoever sends it;
 //   - who and when are stamped by the database; connecting the client to a brand
@@ -61,9 +61,9 @@ test('a new client carries no mark, and everyone who sees it reads the three col
   assert.match((await run(null, 'select metricool_none from public.clients')).error, /permission denied/);
 });
 
-test('only Ilai and the owner mark and undo: the same two who connect a client to its brand', async () => {
+test('only Ofir (since v11, 20261031110000), Ilai and the owner mark and undo: the same three who connect a client to its brand', async () => {
   for (const [who, person] of Object.entries(PEOPLE)) {
-    const can = (await run(who, 'select public.can_edit_gantt() as ok')).rows[0].ok;
+    const can = (await run(who, 'select public.can_connect_metricool() as ok')).rows[0].ok;
     assert.equal(can, CONNECTORS.includes(person ?? 'owner'), who);
     const r = await run(who, 'select public.metricool_set_none($1, true) as r', [ids.a]);
     if (can) assert.deepEqual(r.rows[0].r, { none: true }, who);
