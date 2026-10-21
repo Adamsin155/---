@@ -596,7 +596,7 @@ function renderEditors(preselect = false) {
   const inCard = inCardOf(a);
   const first = a.swap ? (pre && pre !== from ? pre : null) : sug.editor;
   const chosen = preselect ? first : $('as-editors').querySelector('input:checked')?.value || null;
-  // A swap of the second editor keeps the main one: he is not offered in its place.
+  // A swap keeps the other editor of the pair: they are not offered in the place being swapped.
   const partner = a.swap?.job?.partner || null;
   fill($('as-editors'), ...eligibleEditors(type).map((k) => h('label', { class: 'wrow as-editor', for: `as-e-${k}` },
     h('input', { type: 'radio', class: 'radio', name: 'as-editor', id: `as-e-${k}`, value: k, checked: chosen === k, disabled: k === from || k === partner, onchange: () => { fillEditor2(); syncReason(); } }),
@@ -605,7 +605,7 @@ function renderEditors(preselect = false) {
       sug?.editor === k && sug.why === 'continuity' ? h('span', { class: 'tag as-suggested', id: 'as-suggested' }, CONTINUITY_TAG) : null,
       inCard === k ? h('span', { class: 'tag' }, 'רשום בכרטיס') : null,
       k === from ? h('span', { class: 'tag' }, 'העורך הנוכחי') : null,
-      k === partner ? h('span', { class: 'tag' }, 'העורך הראשי') : null,
+      k === partner ? h('span', { class: 'tag' }, a.swap.job.second ? 'העורך הראשי' : 'העורך הנוסף') : null,
       h('span', { class: 'muted small as-load' }, loadText(load[k]))))));
   if (preselect) $('as-editor2').value = '';
   fillEditor2();
