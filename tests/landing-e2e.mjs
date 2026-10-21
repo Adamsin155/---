@@ -22,6 +22,7 @@
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
+
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { withClientColumns } from './fake-clients.mjs';
@@ -32,6 +33,9 @@ import { intakeFor, intakeLeft, intakeItems, waitingPeople, proposalFor, landing
 import { computeReminders } from '../app/reminder-engine.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+// qa.html since 20.10.2026 (the owner's review): each editor's load and the clients in landing waiting for an editor are folds; opened here to read them.
+const openQaFolds = (p) => p.evaluate(() => { for (const d of document.querySelectorAll('#load-list details, #assign-list details')) d.open = true; });
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
@@ -621,7 +625,8 @@ try {
     await ofir.reload();
     await ofir.locator('#assign-list > li').first().waitFor();
     await settle(ofir);
-    return ofir.locator('#assign-list > li[data-key]').evaluateAll((els) => els.map((e) => e.dataset.key.split(':')[0]));
+    await openQaFolds(ofir);
+    return ofir.locator('#assign-list li[data-key]').evaluateAll((els) => els.map((e) => e.dataset.key.split(':')[0]));
   };
 
   await step('the editor block, Irit at 390 and 360: the dialog\'s editors, the name from the owner\'s sheet, nothing saved by itself', async () => {
@@ -653,7 +658,7 @@ try {
 
   await step('Ofir before: the client waits for assignment, with the quiet line that Irit can record the real editor', async () => {
     assert.ok((await assignIds()).includes(MAYA().id));
-    const card = ofir.locator(`#assign-list > li[data-key^="${MAYA().id}:"]`);
+    const card = ofir.locator(`#assign-list li[data-key^="${MAYA().id}:"]`);
     assert.equal((await card.locator('.as-landing').innerText()).trim(), 'בקליטה: עירית יכולה לרשום את העורך האמיתי');
     assert.ok(await noSideScroll(ofir));
     await card.screenshot({ path: join(SHOTS, 'qa-assign-card-390.png') });
