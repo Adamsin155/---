@@ -146,7 +146,9 @@ async function renderCard(show) {
       renderFilters(summaries(new Date()));
     },
   });
-  if (box.hidden) {
+  // Before the Metricool columns are in the database (no connections read) there is no
+  // card, and nothing to claim about who is connected.
+  if (box.hidden && state.conns) {
     // Nothing to connect: the card says nothing, so the page does.
     box.hidden = false;
     box.replaceChildren(h('p', { class: 'gt-none', id: 'gx-card-none' }, 'כל הלקוחות הפעילים מחוברים ל־Metricool, או סומנו שאין להם מותג.'));

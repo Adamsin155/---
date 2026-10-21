@@ -324,17 +324,17 @@ await step('connect: the link once, copy puts it on the clipboard, Apple and Goo
   for (const line of feed.body.split('\r\n')) assert.ok(Buffer.byteLength(line) <= 75, line);
 });
 
-await step('"קישור חדש" replaces the link (the old one answers 404); the calendar\'s last read shows', async () => {
-  await lior.reload();
-  await lior.waitForSelector('#cal-card:not([hidden]) summary');
-  assert.match(await text(lior, '#cal-card summary'), /היומן שלי\s*מחובר/);
-  await lior.click('#cal-card summary');
-  await lior.waitForSelector('#cal-card:not([hidden]) #cal-rotate');
-  // After a reload the link is not shown again (only its hash exists); the card says when it was read.
-  assert.equal(await lior.locator('#cal-url').count(), 0);
-  assert.match(await text(lior, '#cal-meta'), /מחובר מאז היום[^]*היומן התעדכן לאחרונה היום/);
+await step('a connected calendar is not shown on "המשימות שלי" (the owner, 20.10.2026); "קישור חדש" replaces the link (the old one answers 404)', async () => {
+  // Another visit of Lior's: once connected, the one-time setup is gone from his list.
+  const again = await newPage(lctx);
+  await again.goto(`${BASE}clients.html#mine`);
+  await again.waitForFunction(() => document.querySelector('#cal-card')?.dataset.state === 'on');
+  assert.equal(await again.locator('#cal-card').isHidden(), true);
+  assert.equal(await again.locator('#cal-url').count(), 0);
+  await again.close();
+  // On the page where the link was just made, the card stays until it is left.
   await lior.click('#cal-rotate');
-  await lior.waitForSelector('#cal-url');
+  await lior.waitForFunction((u) => { const i = document.querySelector('#cal-url'); return i && i.value && i.value !== u; }, firstUrl);
   const second = await lior.inputValue('#cal-url');
   assert.notEqual(second, firstUrl);
   assert.equal((await fetchIn(lior, firstUrl)).status, 404);

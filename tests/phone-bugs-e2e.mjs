@@ -472,11 +472,11 @@ await step('Ilai: nothing is clipped from 360 to 1440, the cards wear the kit, a
     assert.equal(await fold.count(), 1);
     const n = await fold.locator('.il-card').count();
     assert.ok(n >= 1);
-    assert.match((await fold.locator('summary').innerText()).replace(/\s+/g, ' '), new RegExp(`^${n === 1 ? 'לקוח אחד' : `${n} לקוחות`} עם יתרת גרפיקות · ?בקליטה, בלי שעון`));
-    assert.equal(await fold.locator('summary .k-num').getAttribute('data-n'), String(n));
+    assert.match((await fold.locator(':scope > summary').innerText()).replace(/\s+/g, ' '), new RegExp(`^${n === 1 ? 'לקוח אחד' : `${n} לקוחות`} עם יתרת גרפיקות · ?בקליטה, בלי שעון`));
+    assert.equal(await fold.locator(':scope > summary .k-num').getAttribute('data-n'), String(n));
     assert.equal(await fold.locator('.il-card').first().isVisible(), false, 'folded');
-    assert.ok((await fold.locator('summary').boundingBox()).height >= 48);
-    await fold.locator('summary').click();
+    assert.ok((await fold.locator(':scope > summary').boundingBox()).height >= 48);
+    await fold.locator(':scope > summary').click();
     assert.equal(await fold.locator('.il-card').first().isVisible(), true, 'the same cards under the line');
     assert.equal(await fold.locator('.il-card .tag-landing').count(), n);
     assert.equal(await fold.locator('.il-card .fl-work-add').count(), n, 'the work can still be done there');
@@ -573,7 +573,7 @@ await step('every upload block wears the kit: the editor\'s batch, the short for
     const ctx = await context();
     const page = await tab(ctx);
     await signIn(page, `client.html?id=${cid(4)}`, 'irit');
-    await page.waitForSelector('#fl-gal-create');
+    await page.waitForSelector('#fl-gal-create', { state: 'attached' }); // the gallery sits in a folded row of the card (20.10.2026)
     assert.equal(await page.locator('#fl-gal-create.k-btn-navy').count(), 1);
     const g = await page.evaluate(() => { const cs = getComputedStyle(document.querySelector('.fl-gallery')); return { bg: cs.backgroundColor, r: parseFloat(cs.borderTopLeftRadius) }; });
     assert.ok(g.r >= 10 && !/rgba\(0, 0, 0, 0\)/.test(g.bg));

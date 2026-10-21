@@ -3,9 +3,10 @@
 // that answers as the database does (who may connect and mark:
 // tests/sql/metricool-none.test.mjs holds the real rules; the list's own rules:
 // tests/metricool-connect.test.mjs):
-//   - Ilai has the card under the exceptional contracts: every active client with no
-//     brand, the oldest deal first, the first 8 and "הצג עוד"; nothing is asked of
-//     Metricool until he opens a row;
+//   - the card is on the content Gantt's index, gantt.html#not-connected, open (the
+//     owner, 20.10.2026; item 12); Ilai's "המשימות שלי" has one quiet line to it. Every
+//     active client with no brand, the oldest deal first, the first 8 and "הצג עוד";
+//     nothing is asked of Metricool until he opens a row;
 //   - "בחירת מותג" opens the row in place with the account's brands (one request),
 //     the suggestion by name chosen, a brand another client uses not choosable;
 //     "חיבור" asks the database, the row goes and the next one opens;
@@ -14,7 +15,8 @@
 //   - a brand someone else took in the meantime, and Metricool not answering (a way
 //     to the client's Gantt instead);
 //   - the owner has the card; Irit, Lior, an editor and a sales agent do not;
-//   - a 360px phone; nothing to connect: no card; before the migrations.
+//   - a 360px phone; nothing to connect: no list, the index says so in words; before
+//     the migrations.
 // Run: npx http-server -p 8163 -s -c-1 . &  then
 //      BASE_URL=http://localhost:8163/ node tests/metricool-connect-e2e.mjs [outDir]
 import { chromium } from 'playwright';
@@ -211,17 +213,15 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
 const smallTargets = (page, sel) => page.evaluate((s) => [...document.querySelectorAll(s)].filter((el) => el.offsetParent && el.getBoundingClientRect().height < 43.5)
   .map((el) => `${el.textContent.trim().slice(0, 20)}:${Math.round(el.getBoundingClientRect().height)}`), sel);
 const lastCall = (name) => calls.filter((c) => c[name]).at(-1);
-// The card is one line until asked for (the person's own work comes first): the title with its count and "הצגת הרשימה".
+// Where the card lives since 20.10.2026: the Gantt's index, the "not connected" filter.
+const PAGE = 'gantt.html#not-connected';
+// There the card is pinned open: the list at once, no "הצגת הרשימה" / "סגירה" toggle.
 const openCard = async (page) => {
-  const t = page.locator('#mcn-toggle');
-  await t.waitFor();
-  if ((await t.getAttribute('aria-expanded')) === 'false') {
-    assert.equal(await page.locator(`${CARD} .mcn-row`).count(), 0);
-    assert.equal((await t.innerText()).trim(), 'הצגת הרשימה');
-    await t.click();
-  }
+  await page.locator(`${CARD}:not([hidden]) h2`).waitFor();
+  assert.equal(await page.locator('#mcn-toggle').count(), 0);
 };
 const settled = async (page) => { await page.locator('#mine-list').waitFor(); await page.waitForLoadState('networkidle'); };
+const settledIndex = async (page) => { await page.locator('#gx-filters .chip').first().waitFor(); await page.waitForLoadState('networkidle'); };
 let passed = 0;
 async function step(name, fn2) {
   try { await fn2(); } catch (err) {
@@ -237,10 +237,17 @@ try {
   const ilai = await newPage();
   await signIn(ilai, 'clients.html#mine', 'ilai');
 
-  await step('Ilai: the card under the exceptional contracts, every active client with no brand, the oldest deal first, 8 and "הצג עוד"', async () => {
-    await ilai.locator(`${CARD}:not([hidden])`).waitFor();
+  await step('Ilai: a quiet line on his list leads to the card on the Gantt\'s index: every active client with no brand, the oldest deal first, 8 and "הצג עוד"', async () => {
+    // "המשימות שלי": no card, one line with the count, to gantt.html#not-connected (the owner, 20.10.2026).
+    await settled(ilai);
+    const line = ilai.locator('#mine-list a[href="gantt.html#not-connected"]');
+    await line.first().waitFor();
+    assert.match(await ilai.locator('#mine-list').innerText(), /11\s*לקוחות לא מחוברים ל־Metricool/);
+    assert.equal(await ilai.locator(CARD).isVisible(), false);
+    await line.first().click();
+    await ilai.waitForURL(/gantt\.html#not-connected$/);
     await openCard(ilai);
-    assert.deepEqual(await ilai.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 6).map((e) => e.id)), ['now-bar', 'staff-tasks-card', 'deals-card', 'approvals-card', 'metricool-card', 'push-card']);
+    assert.equal(await ilai.getAttribute('#gx-f-not-connected', 'aria-pressed'), 'true');
     assert.equal(await text(ilai, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (11)');
     assert.equal(await text(ilai, `${CARD} .hint`), 'בוחרים לכל לקוח את המותג שלו ב־Metricool. לקוח שחובר יורד מהרשימה.');
     // The connected, the ended and the archived client are not in it.
@@ -380,7 +387,7 @@ try {
   await step('Metricool does not answer: said in Hebrew, with a way to the client\'s Gantt and "ללקוח אין מותג"; asked again on the next open', async () => {
     fn.down = true;
     const page = await newPage();
-    await signIn(page, 'clients.html#mine', 'ilai');
+    await signIn(page, PAGE, 'ilai');
     await page.locator(`${CARD}:not([hidden])`).waitFor();
     await openCard(page);
     const before2 = fn.calls.length;
@@ -401,11 +408,11 @@ try {
   await step('the owner has the card and connects too; Irit, Lior and an editor have none; a sales agent lands on his own page', async () => {
     const owner = await newPage();
     await signIn(owner, 'clients.html#mine', 'owner');
-    // Not among the owners' own tasks (8.10.2026; docs/ops.md, section 43): the card is in the
-    // manager profile's "עבודת הצוות" (#team), where the owner connects as before.
+    // Not among the owners' own tasks (8.10.2026; docs/ops.md, section 43): since 20.10.2026 the
+    // card is on the Gantt's index, where the owner connects as before.
     await settled(owner);
     assert.equal(await owner.locator(CARD).isVisible(), false, 'the card is on the personal tasks of the owners');
-    await owner.goto(`${BASE}clients.html#team`);
+    await owner.goto(`${BASE}${PAGE}`);
     await owner.locator(`${CARD}:not([hidden])`).waitFor();
     await openCard(owner);
     assert.equal(await text(owner, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (8)');
@@ -424,6 +431,14 @@ try {
       await settled(page);
       assert.ok(await page.locator(CARD).isHidden(), who);
       assert.equal(await page.locator(`${CARD} *`).count(), 0, who);
+      assert.equal(await page.locator('#mine-list a[href="gantt.html#not-connected"]').count(), 0, who);
+      if (who !== 'nadia') {
+        // The Gantt's index, the same filter: the clients, not the card (they do not connect).
+        await page.goto(`${BASE}${PAGE}`);
+        await settledIndex(page);
+        assert.ok(await page.locator(CARD).isHidden(), who);
+        assert.equal(await page.locator(`${CARD} *`).count(), 0, who);
+      }
       await page.context().close();
     }
     const stav = await newPage({ width: 390, height: 844 });
@@ -438,7 +453,7 @@ try {
 
   const phone = await newPage({ width: 360, height: 760 });
   await step('a 360px phone: one column, no sideways scroll, every target at least 44px, also with a row open', async () => {
-    await signIn(phone, 'clients.html#mine', 'ilai');
+    await signIn(phone, PAGE, 'ilai');
     await phone.locator(`${CARD}:not([hidden])`).waitFor();
     await openCard(phone);
     assert.equal(await text(phone, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (7)');
@@ -456,7 +471,7 @@ try {
     await shot(phone, '06-ilai-phone-360-open');
   });
 
-  await step('the last clients: the card counts down, and with nothing left to connect it is not there at all', async () => {
+  await step('the last clients: the card counts down; with nothing left to connect the list is gone, and the index says so', async () => {
     const left = tables.clients.filter((c) => ['active', 'ending'].includes(c.status) && !c.archived_at && !c.metricool_blog_id);
     assert.equal(left.length, 7);
     // All but one get a brand elsewhere; the last one has none and needs none.
@@ -473,8 +488,9 @@ try {
     assert.equal(await phone.locator(`${CARD} *`).count(), 0);
     assert.equal(left[0].metricool_none, true);
     await phone.reload();
-    await settled(phone);
-    assert.ok(await phone.locator(CARD).isHidden());
+    await phone.locator('#gx-card-none').waitFor();
+    assert.equal(await text(phone, '#gx-card-none'), 'כל הלקוחות הפעילים מחוברים ל־Metricool, או סומנו שאין להם מותג.');
+    assert.equal(await phone.locator(`${CARD} .mcn-row`).count(), 0);
     assert.equal(await noSideScroll(phone), true);
     await shot(phone, '07-ilai-phone-nothing-left');
     await phone.context().close();
@@ -484,7 +500,7 @@ try {
     Object.assign(byBusiness('ליה אופנה'), { metricool_blog_id: null, metricool_brand: null });
     before.none = true;
     const early = await newPage();
-    await signIn(early, 'clients.html#mine', 'ilai');
+    await signIn(early, PAGE, 'ilai');
     await early.locator(`${CARD}:not([hidden])`).waitFor();
     await openCard(early);
     // The client marked "אין מותג" is read without the mark, so it is listed again.
@@ -500,8 +516,8 @@ try {
     await early.context().close();
     before.brand = true;
     const earlier = await newPage();
-    await signIn(earlier, 'clients.html#mine', 'ilai');
-    await settled(earlier);
+    await signIn(earlier, PAGE, 'ilai');
+    await settledIndex(earlier);
     assert.ok(await earlier.locator(CARD).isHidden());
     assert.equal(await earlier.locator(`${CARD} *`).count(), 0);
     await earlier.context().close();
