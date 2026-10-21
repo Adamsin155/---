@@ -2157,6 +2157,22 @@ const PEOPLE_RULES = [
       { id: 'seller', to: (i) => i.seller, level: 'quiet', title: (i) => `העסקה של ${i.name} סומנה ״בוטל״`, body: (i) => (i.by ? `סימן/ה: ${personName(i.by)}.` : '') },
     ],
   },
+  // WhatsApp is a required work channel (the owner, 21.10.2026): whoever replied "הסר"
+  // stops the messages (Meta's policy), and the owners hear it at once. One per reply
+  // (public.whatsapp_removed_since: the consent log row's id). That person is asked to
+  // connect again on their next visit (app/whatsapp.js).
+  {
+    id: 'waRemoved', event: 'WhatsApp נותק בתשובה ״הסר״', procs: [],
+    instances(env) {
+      return (env.waRemoved || []).filter((r) => parseDate(r.at)).map((r) => ({
+        id: String(r.id), cid: null, who: r.person, name: personName(r.person), url: 'team.html',
+        anchors: { event: nextSendMoment(parseDate(r.at)) },
+      }));
+    },
+    steps: [
+      { id: 'owner', to: () => OWNER, level: 'quiet', title: (i) => `${i.name} ניתק/ה את WhatsApp`, body: () => 'ענה/תה ״הסר״ ב־WhatsApp. בכניסה הבאה למערכת תופיע בקשה לחבר שוב.' },
+    ],
+  },
 ];
 RULES.push(...PEOPLE_RULES);
 for (const r of PEOPLE_RULES) RULE_BY_ID.set(r.id, r);

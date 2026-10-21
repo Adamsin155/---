@@ -47,6 +47,7 @@ let onChange = () => {};  // the page re-renders what depends on pushActive()
 let painted = null;
 
 export const pushActive = () => state === 'on' || state === 'confirm';
+const listeners = new Set(); // app/whatsapp.js: the required channels follow this device's state
 
 async function loadDevices() {
   const { data, error } = await supabase.from('push_subscriptions').select('endpoint, confirmed_at, last_ok_at, created_at');
@@ -69,6 +70,7 @@ async function readDevice() {
     ...platformOf({ userAgent: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints, standalone: standalone() }),
     hasPush: hasPush(), permission: hasPush() ? Notification.permission : 'default', subscribed: !!row, confirmed: !!row?.confirmed_at,
   });
+  for (const fn of listeners) fn(state);
 }
 
 async function save(sub) {
@@ -116,7 +118,7 @@ async function enable() {
     busy = false;
     await readDevice().catch(() => {});
     paint();
-    cardEl.querySelector('button')?.focus();
+    cardEl?.querySelector('button')?.focus();
   }
 }
 
@@ -145,25 +147,11 @@ async function testAgain() {
   paint();
 }
 
-async function disable() {
-  if (!confirm('לכבות את ההתראות בטלפון הזה? התזכורות ימשיכו להופיע ב״התראות״ בתוך המערכת.')) return;
-  busy = true; paint();
-  try {
-    if (current) {
-      await supabase.rpc('push_unsubscribe', { p_endpoint: current.endpoint });
-      await current.unsubscribe().catch(() => {});
-    }
-    await loadDevices();
-    await readDevice();
-    toast('ההתראות כובו בטלפון הזה.');
-  } catch (err) {
-    toast(`לא כובו. ${errorText(err)}`);
-  }
-  busy = false;
-  paint();
-}
+// (No "כיבוי" since 21.10.2026: the app's notifications are a required work channel,
+// with WhatsApp. Signing out still takes this device off: app/protocol-ui.js.)
 
 // ── The card ──────────────────────────────
+export const UNBLOCK = 'ההתראות של האתר נחסמו בטלפון הזה. כדי לפתוח: בהגדרות הדפדפן ← הגדרות אתרים ← התראות ← לאפשר. באייפון: הגדרות ← התראות ← אסטרטג לקוחות.';
 const btn = (label, onclick, primary = false) => h('button', { type: 'button', class: `btn ${primary ? 'btn-primary' : ''}`.trim(), disabled: busy, onclick }, label);
 function cardBody() {
   const head = (text) => h('h2', { class: 'push-h', id: 'push-h', tabindex: '-1' }, text);
@@ -184,15 +172,14 @@ function cardBody() {
     case 'unsupported':
       return quiet('הדפדפן הזה לא מקבל התראות', 'בטלפון אנדרואיד או במחשב פתחו את המערכת ב־Chrome. באייפון: Safari, ואז הוספה למסך הבית.');
     case 'blocked':
-      return quiet('ההתראות חסומות', 'ההתראות של האתר נחסמו בטלפון הזה. כדי לפתוח: בהגדרות הדפדפן ← הגדרות אתרים ← התראות ← לאפשר. באייפון: הגדרות ← התראות ← אסטרטג לקוחות.');
+      return quiet('ההתראות חסומות', UNBLOCK);
     case 'confirm':
       return [head('הגיעה התראת ניסיון?'),
         h('p', {}, 'שלחנו התראת ניסיון לטלפון הזה. אם הגיעה, לחצו ״קיבלתי״.'),
         h('div', { class: 'push-acts' }, btn('קיבלתי', confirmReceived, true), btn('לא הגיעה, לשלוח שוב', testAgain))];
     case 'on':
       return [h('p', { class: 'push-on' }, h('span', { class: 'push-h', id: 'push-h', tabindex: '-1' }, 'ההתראות פעילות בטלפון הזה.'), ' ',
-        h('button', { type: 'button', class: 'btn-text', disabled: busy, onclick: testAgain }, 'שליחת ניסיון'),
-        h('button', { type: 'button', class: 'btn-text', disabled: busy, onclick: disable }, 'כיבוי'))];
+        h('button', { type: 'button', class: 'btn-text', disabled: busy, onclick: testAgain }, 'שליחת ניסיון'))];
     default: // ready
       return [head('הפעלת התראות'),
         h('p', {}, 'תזכורות לפי הפרוטוקול יגיעו לטלפון, גם כשהמערכת סגורה. מחוץ לשעות העבודה הן נאספות לתקציר של 08:30.'),
@@ -324,6 +311,25 @@ export async function refreshPush() {
   try { await loadRows(); } catch { /* keep the last list */ }
   paintButton();
   paintInbox({ again: false });
+}
+
+// ── The required channels (app/whatsapp.js) ──
+// This device's state on any staff page, without the card: 'on' or 'confirm' (done),
+// 'ready', 'blocked', 'ios-install', 'ios-update', 'unsupported'; null before the
+// push tables. `changed(state)` hears every change after.
+export async function pushHere(changed = null) {
+  if (changed) listeners.add(changed);
+  if (!state) {
+    try { await loadDevices(); live = true; } catch { return null; }
+    await readDevice().catch(() => { state = 'unsupported'; });
+  }
+  return state;
+}
+// "הפעלת התראות" from the required screen or card: the same steps as the card's
+// button (permission from the tap, subscribe, record, a test notification).
+export async function enablePushHere() {
+  await enable();
+  return { state, hint };
 }
 
 // Mounts the card, the button and the list for the signed-in person

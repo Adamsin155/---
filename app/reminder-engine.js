@@ -59,6 +59,7 @@ export function buildEnv({
   questions = [], // public.client_questions rows: the open ones and those answered lately
   changeRequests = [], // public.change_requests rows: the open ones and those decided lately
   decisions = [], // public.task_decisions rows of the last days (Lior's decisions on exceptions)
+  waRemoved = [], // 21.10.2026: who replied "הסר" on WhatsApp lately (public.whatsapp_removed_since; rule `waRemoved`)
 }) {
   const byClient = groupChecks(checks);
   const liveClients = clients.filter(live);
@@ -82,7 +83,7 @@ export function buildEnv({
     tasks: tasks.filter((t) => !t.done_at),
     // Tasks finished lately (the server loads the last two days): "the requester hears".
     doneTasks: tasks.filter((t) => t.done_at),
-    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions,
+    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, waRemoved,
     personOf: (email) => people.get(String(email || '').toLowerCase()) || null,
     emailsOf: (person) => [...people].filter(([, p]) => p === person).map(([e]) => e),
     hasStaff: (person) => [...people.values()].includes(person),

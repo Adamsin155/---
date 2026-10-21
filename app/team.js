@@ -11,7 +11,7 @@ import { whatsappLink } from './quote-doc.js';
 import {
   canManageTeam, loginState, linkMessage, LINK_VALID_FOR, TEAM_MANAGERS, normPhone, formatPhone, canEditPhone, hasPhone, linkOnlyByOwner,
 } from './team-rules.js';
-import { loadWaTeam, paintWaPanel, waStatusView } from './wa-team.js';
+import { loadWaTeam, paintWaPanel, waStatusView, mark } from './wa-team.js';
 import { avatar } from './shell.js';
 import { loadMetricoolCard, paintMetricoolCard } from './metricool-team.js';
 import { loadVaultCodeCard, paintVaultCodeCard } from './vault-code-team.js';
@@ -130,7 +130,7 @@ function render() {
   const focusId = document.activeElement?.id;
   const typed = [...document.querySelectorAll('.tm-add .input, .tm-phone-form .input')].map((i) => [i.id, i.value]);
   fill($('team-list'), entries().map(rowView));
-  paintWaPanel(wa, document.querySelector('.tm-block'), load);
+  paintWaPanel(wa, document.querySelector('.tm-block'), load, { push: pushByEmail, nameOf: nameOfEmail });
   // "חיבור Metricool" (the owner only), under the WhatsApp switch.
   paintMetricoolCard(metricool, document.querySelector('.tm-block'), load);
   // "קוד הכספת" (the owner only): the shared code that opens the vault's passwords.
@@ -151,12 +151,13 @@ function statusView(row) {
 function pushView(row) {
   if (!row || !pushByEmail) return null;
   const p = pushByEmail.get(row.email);
-  if (!p?.devices) return h('span', { class: 'tm-push muted' }, 'התראות: לא מחובר/ה');
+  // A required work channel since 21.10.2026 (with WhatsApp): ✓ or ✗ first.
+  if (!p?.devices) return h('span', { class: 'tm-push is-off' }, mark(false), ' התראות: לא מחובר/ה');
   const parts = [p.devices === 1 ? 'מכשיר אחד' : `${p.devices} מכשירים`];
   if (p.last_ok_at) parts.push(`התקבלה לאחרונה ${formatWhen(new Date(p.last_ok_at))}`);
   else if (!p.confirmed) parts.push('התראת הניסיון עוד לא אושרה');
   if (p.failing) parts.push(p.failing === 1 ? 'מכשיר אחד בתקלה' : `${p.failing} מכשירים בתקלה`);
-  return h('span', { class: 'tm-push' }, `התראות: ${parts.join(' · ')}`);
+  return h('span', { class: 'tm-push' }, mark(true), ` התראות: ${parts.join(' · ')}`);
 }
 
 function calView(row) {
