@@ -49,6 +49,7 @@
 .is-blocked .ed-state { background: var(--warn-soft); color: var(--warn); }
 
 .ed-day { font-size: 16px; font-weight: 600; color: var(--text); }
+.ed-pair { margin: 2px 0 0; font-size: 15px; color: var(--text-2); }
 .ed-dates { font-size: 15px; color: var(--text-2); }
 .ed-dates.is-blocked { color: var(--warn); }
 .ed-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 14.5px; color: var(--text-2); }

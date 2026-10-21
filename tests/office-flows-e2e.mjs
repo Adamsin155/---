@@ -892,6 +892,60 @@ await step('a 390px phone: the stuck row (three ways out, the reason field) and 
   await pctx.close();
 });
 
+// ── Two editors on one client (the owner's request of 21.10.2026) ──
+await step('"עורך/ת נוסף/ת": Ofir assigns two editors; both get the WhatsApp; the second finds the client on her editing page', async () => {
+  // A shoot day yesterday, waiting for an editor (added here, so the steps above count as before).
+  const T = client({ name: 'סטודיו טל', shoot_at: IL('2026-10-21T10:00:00') });
+  db.clients.push(T);
+  for (const k of keysOf(T, [...UPTO_SHOOT, 'p19'])) db.protocol_checks.push({ client_id: T.id, item_key: k, state: 'done', note: 'ייבוא', by_email: 'irit@astrateg.test', at: IL('2026-10-21T09:00:00') });
+  const pctx = await newContext(THU, { width: 390, height: 844 });
+  const page = await newPage(pctx);
+  await signIn(page, 'qa.html', 'ofir');
+  await page.waitForSelector(`#assign-list [data-key^="${T.id}"]`);
+  await page.click(`#assign-list [data-key^="${T.id}"] [id^="as-open-"]`);
+  await page.waitForSelector('#dlg-assign[open]');
+  // The second editor is offered beside the main one, never the same one.
+  assert.ok(await page.locator('#as-editor2-wrap').isVisible());
+  await page.check('#as-e-yariv');
+  assert.deepEqual(await page.locator('#as-editor2 option').evaluateAll((els) => els.map((e) => e.value)), ['', 'nadia', 'anna']);
+  await page.selectOption('#as-editor2', 'nadia');
+  assert.equal(await page.innerText('#as-reason-label'), 'סיבה (לא חובה)');
+  assert.ok(await noHScroll(page), 'the assignment dialog scrolls sideways at 390px');
+  assert.deepEqual(await unlabeled(page, '#dlg-assign'), []);
+  if (OUT) await page.screenshot({ path: `${OUT}/office-10-assign-two-editors-390.png` });
+  await page.click('#as-submit');
+  await toastHas(page, 'סטודיו טל שויך ליריב ולנדיה');
+  const saved = db.clients.find((c) => c.id === T.id);
+  assert.deepEqual([saved.editor, saved.editor2], ['yariv', 'nadia']);
+  // The WhatsApp to each of them.
+  await page.waitForSelector('#handoff:not([hidden])');
+  assert.match(await page.locator('#handoff').innerText(), /לשלוח ליריב בוואטסאפ[^]*לשלוח לנדיה בוואטסאפ/);
+  await page.click('#handoff-close');
+  // The load: the client is with each of them, "יחד עם".
+  await openQaFolds(page);
+  assert.match(await page.locator('#load-list .of-editor:has(summary .p-yariv)').innerText(), /סטודיו טל[^]*יחד עם נדיה/);
+  assert.match(await page.locator('#load-list .of-editor:has(summary .p-nadia)').innerText(), /סטודיו טל[^]*יחד עם יריב/);
+  // Both hear "לקוח חדש בעריכה אצלך".
+  const byClient = {};
+  for (const r of db.protocol_checks) (byClient[r.client_id] ||= {})[r.item_key] = r;
+  const env = buildEnv({ clients: db.clients, checks: byClient, tasks: db.client_tasks.filter((t) => !t.done_at), staff: db.staff, access: [], reviews: db.office_reviews, statusNotes: [], now: new Date(new Date(serverNow()).getTime() + 60e3) });
+  assert.deepEqual(candidates(env).filter((r) => r.rule === 'editing' && r.step === 'assigned' && r.clientId === T.id).map((r) => r.person).sort(), ['nadia', 'yariv']);
+  await pctx.close();
+  // Nadia, the second editor: the client is on her editing page, with whom.
+  const nctx = await newContext(THU, { width: 390, height: 844 });
+  const nadia = await newPage(nctx);
+  await signIn(nadia, 'editor.html', 'nadia');
+  await nadia.waitForSelector('#app:not([hidden])');
+  const card = nadia.locator('.ed-card', { hasText: 'סטודיו טל' });
+  await card.waitFor();
+  await nadia.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+  await card.scrollIntoViewIfNeeded();
+  assert.match(await card.locator('.ed-pair').innerText(), /עורכים יחד: יריב \+ נדיה/);
+  assert.ok(await noHScroll(nadia), 'the editing page scrolls sideways at 390px');
+  if (OUT) await card.screenshot({ path: `${OUT}/office-11-editor2-page-390.png` });
+  await nctx.close();
+});
+
 assert.deepEqual(errors, []);
 await browser.close();
 noCspViolations();

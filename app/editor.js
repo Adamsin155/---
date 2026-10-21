@@ -13,7 +13,7 @@
 // highlights from the focus call (app/intake-data.js, app/briefs.js).
 // Nirel also gets her "בריפים" inbox here. Each editor sees their own on-time and
 // first-pass numbers, never anyone else's.
-import { PEOPLE, CRITICAL_TITLE } from './protocol.js';
+import { PEOPLE, CRITICAL_TITLE, editorsOf, editorNames } from './protocol.js';
 import { clientState, WAIT, WAITED, waitNote, endWaitNote } from './protocol-logic.js';
 import { dayFromKeyIL, endOfDayIL } from './tz.js';
 import {
@@ -353,6 +353,8 @@ function jobCard(job) {
       h('h2', { id: `${id}-h`, tabindex: '-1' }, jobName(job), c.business && c.business !== c.name ? h('small', {}, c.business) : null),
       h('span', { class: `ed-state s-${st.key}` }, st.blocked ? 'חסום' : st.paused ? P.pauseText(st.paused) : P.STATE_TEXT[st.key])),
     h('p', { class: 'ed-day' }, c.landing === true ? 'בקליטה · הימים עוד לא נספרים' : P.editingDayText(day, now, job.assignedAt)),
+    // Two editors on this shoot (editor2): with whom.
+    editorsOf(job.ctx).length > 1 ? h('p', { class: 'ed-pair', id: `${id}-pair` }, `עורכים יחד: ${editorNames(job.ctx)}`) : null,
     datesLine(job, st),
     // The one next step comes first; what the work needs follows.
     st.blocked ? h('div', { class: 'ed-blocked', role: 'note' },
