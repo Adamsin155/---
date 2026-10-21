@@ -288,14 +288,16 @@ await step('"הפעלת התראות" connects this device (permission, subscrib
   assert.equal(await page.locator('#push-card button:has-text("כיבוי")').count(), 0, 'and no "off" on the notifications card');
   // Right after the notifications card.
   assert.equal(await page.evaluate(() => document.getElementById('push-card').nextElementSibling?.id), 'wa-card');
-  await page.locator('#wa-card').scrollIntoViewIfNeeded();
-  if (OUT) await page.locator('#wa-card').screenshot({ path: `${OUT}/wa-mandatory-card-done-390.png` });
 });
 
 await step('once both are on the screen does not come back; "הסר" on WhatsApp brings it back with the reason, and connecting again closes it', async () => {
   await page.reload();
   await page.waitForSelector('#wa-card[data-state="on"]');
   await page.waitForTimeout(300);
+  // (The page clock stands still: moved on, so the sign-in screen's exit ends before the picture.)
+  await page.clock.runFor(3000);
+  await page.locator('#wa-card').scrollIntoViewIfNeeded();
+  if (OUT) await page.locator('#wa-card').screenshot({ path: `${OUT}/wa-mandatory-card-done-390.png` });
   assert.equal(await page.locator('#dlg-wa[open]').count(), 0);
   // She replied "הסר" on WhatsApp (public.whatsapp_apply: withdrawn, via WhatsApp).
   Object.assign(wa.consents.get('irit@astrateg.test'), { status: 'withdrawn', via: 'whatsapp' });
@@ -322,14 +324,14 @@ await step('closing the screen: nothing recorded, and it comes back on the next 
   assert.match(await p.locator('#wa-card').innerText(), /WhatsApp: עוד לא מחובר\.[\s\S]*התראות באפליקציה: עוד לא פעילות/);
   assert.equal(await p.locator('#wa-card-on').innerText(), 'חיבור WhatsApp');
   assert.equal(await p.locator('#wa-card-push-on').innerText(), 'הפעלת התראות');
-  await p.locator('#wa-card').scrollIntoViewIfNeeded();
-  if (OUT) await p.locator('#wa-card').screenshot({ path: `${OUT}/wa-mandatory-card-390.png` });
   // The next page load (the same tab): back.
   await p.reload();
   await p.waitForSelector('#dlg-wa[open]');
   // A phone has no Escape key: the × does the same.
   await p.click('#wa-later');
   assert.equal(await p.locator('#dlg-wa[open]').count(), 0);
+  await p.locator('#wa-card').scrollIntoViewIfNeeded();
+  if (OUT) await p.locator('#wa-card').screenshot({ path: `${OUT}/wa-mandatory-card-390.png` });
   // From the card: the notifications here, then WhatsApp from the screen it opens.
   await p.click('#wa-card-push-on');
   await p.waitForSelector('#wa-card[data-push="confirm"]');
@@ -413,7 +415,7 @@ await step('the team screen (owner): the switch, who is not connected yet, and p
   assert.match(await p.locator('#row-ilai').innerText(), /✗ WhatsApp: לא מחובר\/ת · יש מספר/);
   assert.match(await p.locator('#row-ilai').innerText(), /✗ התראות: לא מחובר\/ה/);
   assert.match(await p.locator('#row-owner').innerText(), /✓ WhatsApp: מחובר\/ת · יש מספר/);
-  if (OUT) await p.locator('#wa-panel').screenshot({ path: `${OUT}/wa-mandatory-team-panel.png` });
+  if (OUT) { await p.reload(); await p.waitForSelector('#wa-not-connected'); await p.clock.runFor(3000); await p.locator('#wa-panel').screenshot({ path: `${OUT}/wa-mandatory-team-panel.png` }); }
   // No phone number in any WhatsApp line (the owner's is not on the staff list at all).
   const lines = await p.locator('.tm-wa-status').allInnerTexts();
   assert.equal(lines.length, 4);
