@@ -24,6 +24,11 @@ const seesAllClients = (v) => canSeeTable(v);
 // The calendar page ("יומן", calendar.html; 15.10.2026): everyone with client work, not the
 // field sales (as seesCalendar in calendar-view.js).
 const seesCalendar = (v) => known(v) && v.scope !== 'sales' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
+// The pink "לקוח חדש" on clients.html (the owner, 20.10.2026): whoever opens clients, the
+// owners and Irit (processes 2–3 are hers; a signed agreement opens its client by itself,
+// app/client-open.js, and the field sales have no clients list). Hidden for Ofir, Lior,
+// Ilai, the editors and Eli. A screen only: the database decides who may write a client.
+export const opensClients = (v) => known(v) && v.scope === 'office' && (!v.me || v.me === 'irit');
 // The index of the content Gantt: the office and Ilai (as worksCycle in month-ui.js).
 export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai');
 // Who changes a Gantt: Ilai and the owner (public.can_edit_gantt() decides).
@@ -138,18 +143,36 @@ export const PERSONAL = {
   irit: ['mine', 'clients', 'prep', 'messages', 'calendar', 'quote', 'quotes'],
 };
 const IN_BOTH = ['clients'];
+// Screens a person may open that are not in their menu (the page review of Ofir, Lior and
+// Ilai, approved by the owner on 20.10.2026): another person's work, or a repeat of what
+// another screen of theirs already holds. Nothing is closed: the pages open by their
+// address and from the links in the work, and menuOf keeps them, so a page head's link to
+// them stays hidden too (app/shell.js hideRepeats) and profileOf still places them.
+//   lior  "בקרה ושיוך" (Ofir's), "לפני יום צילום" (Irit's), and "טבלת ימי צילום",
+//         which is a tab of "כל הלקוחות במבט" already;
+//   ilai  "שנת החבילה" and "יומן": both only repeat his "המשימות שלי";
+//   ofir  his manager profile without "גאנט תוכן", "שנת החבילה" and "לפני יום צילום"
+//         (Ilai's and Irit's work). "החלטות" (as Lior's backup) and "ימי צילום" stay
+//         until the owner decides (one line here to take back).
+export const NOT_IN_MENU = {
+  lior: ['qa', 'prep', 'shoot-table'],
+  ilai: ['year', 'calendar'],
+  ofir: ['gantt', 'year', 'prep'],
+};
+const shownIn = (viewer) => { const out = NOT_IN_MENU[known(viewer) ? viewer.me : null] || []; return (it) => !out.includes(it.id); };
 const profileKey = (viewer) => (hasProfiles(viewer) ? viewer.me || 'owner' : null);
 // The tabs of clients.html that are the manager profile's, for whoever has profiles: the
 // whole team's work (#team: the list of "המשימות שלי" with the choice of whose), the
-// office's daily review and the performance. The daily review stays in Ofir's personal
-// profile too: process 33 and Thursday's summary are his own work, done on that tab.
-// And in Irit's: the daily control over every task (process 32) is her own process.
+// office's daily review and the performance. The daily review stays in Irit's personal
+// profile: the daily control over every task (process 32) is her own process. Ofir's
+// own pass (process 33) is pass.html, so since 20.10.2026 (the owner) the daily review
+// is in his manager profile only.
 export const MANAGER_TABS = ['team', 'control', 'performance'];
-const OWN_TABS = { ofir: ['control'], irit: ['control'] };
+const OWN_TABS = { irit: ['control'] };
 export const managerTabs = (viewer) => (hasProfiles(viewer) ? MANAGER_TABS.filter((t) => !(OWN_TABS[profileKey(viewer)] || []).includes(t)) : []);
 // The menu of one profile ('mine' or 'manager'); for anyone without profiles, the whole menu.
 export function profileMenu(viewer, profile) {
-  const items = menuOf(viewer);
+  const items = menuOf(viewer).filter(shownIn(viewer));
   const mine = PERSONAL[profileKey(viewer)];
   if (!mine) return items;
   if (profile !== 'manager') return items.filter((it) => mine.includes(it.id));
@@ -185,6 +208,9 @@ export function profileOf(viewer, pathname, hash = '', search = '', saved = null
 // The role's own first screen (app/office-ui.js firstScreenOf), as a menu id; for Ilai,
 // who stays on "המשימות שלי", his own screen is the Gantt.
 const HOME = { ofir: 'qa', lior: 'decisions', eli: 'shoot', ilai: 'gantt' };
+// The next one in the bar when the role's own screen is not in this profile: Lior's
+// manager profile keeps the package year (the renewals) there, not the Gantt (20.10.2026).
+const BAR_NEXT = { lior: 'year' };
 const homeOf = (viewer) => {
   const me = viewer?.me || null;
   if (PEOPLE[me]?.editor) return 'editor';
@@ -197,7 +223,7 @@ const homeOf = (viewer) => {
 export function barOf(items, viewer) {
   if (items.length < 2) return { bar: [], more: [] };
   if (items.length <= 4) return { bar: items, more: [] };
-  const first = ['mine', 'manager', 'overview', homeOf(viewer), 'clients'].filter(Boolean);
+  const first = ['mine', 'manager', 'overview', homeOf(viewer), 'clients', BAR_NEXT[viewer?.me]].filter(Boolean);
   const rank = (it) => { const i = first.indexOf(it.id); return i < 0 ? first.length : i; };
   const picked = new Set([...items].sort((a, b) => rank(a) - rank(b)).slice(0, 3).map((it) => it.id));
   return { bar: items.filter((it) => picked.has(it.id)), more: items.filter((it) => !picked.has(it.id)) };

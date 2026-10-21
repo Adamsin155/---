@@ -694,17 +694,29 @@ await step('Thursday: the pass (עברתי, one tap for the rest, the day\'s con
   assert.ok(stuckIds.length >= 2, `stuck rows: ${stuckIds.length}`);
   // (One of them is סטודיו נטלי: its 22א is still open on Lior's "the drive came back", see the fixture.)
   assert.equal(checkOf(N, 'p22a.drive'), null);
+  // The simplification of 20.10.2026 (the owner): each row says it once (what, whose, how
+  // late; no "תקוע: …" again under it); the clients stuck at one person stand together with
+  // one update to Lior; Ofir's own late work says "שלך", with "בטיפול שלי" and no Lior.
+  const kindOf = async (id) => o.locator(`#${id}`).evaluate((el) => (el.closest('.ps-group') ? 'group' : el.querySelector('[id$="-own"]') ? 'own' : 'alone'));
+  const kinds = {};
   for (const id of stuckIds) {
     const row = o.locator(`#${id}`);
+    kinds[id] = await kindOf(id);
     assert.equal(await row.locator('button', { hasText: /^עברתי$/ }).count(), 0, 'no bare "עברתי" on a stuck client');
-    assert.deepEqual(await row.locator('.of-acts button').allInnerTexts(), ['פתח משימה', 'עדכון לליאור', 'אין צורך בפעולה']);
-    assert.match(await row.innerText(), /לקוח תקוע[^]*תקוע: /);
+    assert.deepEqual(await row.locator('.of-acts button').allInnerTexts(), {
+      alone: ['פתח משימה', 'עדכון לליאור', 'אין צורך בפעולה'], group: ['פתח משימה', 'אין צורך בפעולה'], own: ['בטיפול שלי', 'פתח משימה'],
+    }[kinds[id]], `${id}: ${kinds[id]}`);
+    assert.doesNotMatch(await row.innerText(), /תקוע: /, 'said once');
+    assert.equal(await row.locator('.ps-line').count(), 1, 'one line');
+    if (kinds[id] === 'own') assert.match(await row.locator('.ps-line').innerText(), /שלך/);
   }
+  const groups = await o.locator('#ps-list .ps-group').evaluateAll((els) => els.map((e) => e.id));
+  for (const g of groups) assert.match(await o.innerText(`#${g} .of-head`), /^לקוחות תקועים\s*אצל \S+/);
   assert.ok(await o.locator('#ps-list .ps-age').count() >= 1);
-  assert.match(await o.locator('#ps-list .ps-age').first().innerText(), /(פתוח|באיחור|ממתין ללקוח) .*ימי עסקים|יום עסקים אחד/);
+  assert.match(await o.locator('#ps-list .ps-age').first().innerText(), /(פתוח|באיחור|ממתין ללקוח) .*ימי עסקים|יום עסקים אחד|אין פעילות/);
   await shot(o, 'office-06a-pass-stuck');
   // (1) A written reason: a dot is not one.
-  const [s1, s2, ...sRest] = stuckIds;
+  const s1 = stuckIds.find((id) => kinds[id] !== 'own');
   await o.click(`#${s1}-why-open`);
   await o.waitForSelector(`#${s1}-why-text`);
   assert.equal(await o.evaluate(() => document.activeElement.id), `${s1}-why-text`);
@@ -719,21 +731,38 @@ await step('Thursday: the pass (עברתי, one tap for the rest, the day\'s con
   const kept = db.office_passes.find((x) => x.day === '2026-10-22').seen[s1.slice(3)];
   assert.deepEqual([kept.how, kept.reason], ['reason', 'הלקוח בחו״ל עד יום ראשון, סוכם איתו']);
   // (2) An update to Lior: the existing exception path (a task for him, source 'escalation').
-  await o.click(`#${s2}-lior`);
+  // For a group, one task about all its open clients, each recorded as "עודכן ליאור".
+  const grp = groups[0] || null;
+  const s2 = grp ? null : stuckIds.find((id) => kinds[id] === 'alone' && id !== s1);
+  const toLior = grp ? await o.locator(`#${grp} .ps-row:not(.is-seen)`).evaluateAll((els) => els.map((e) => e.id)) : [s2];
+  await o.click(grp ? `#${grp}-lior` : `#${s2}-lior`);
   await o.waitForSelector('#dlg-task[open]');
-  assert.match(await o.innerText('#tk-h'), /^עדכון לליאור · /);
-  assert.match(await o.inputValue('#tk-title'), /^לקוח תקוע: /);
+  assert.match(await o.innerText('#tk-h'), grp ? /^עדכון לליאור · \d+ לקוחות תקועים אצל / : /^עדכון לליאור · /);
+  const lead = grp ? 'לקוחות תקועים אצל ' : 'לקוח תקוע: ';
+  assert.ok((await o.inputValue('#tk-title')).startsWith(lead), await o.inputValue('#tk-title'));
   assert.equal(await o.inputValue('#tk-owner'), 'lior');
   assert.equal(await o.isDisabled('#tk-owner'), true);
   assert.equal(await o.innerText('#tk-submit'), 'שליחה לליאור');
   await o.click('#tk-submit');
-  await toastHas(o, 'נשלח לליאור: לקוח תקוע: ');
-  const esc = db.client_tasks.find((t) => t.client_id === s2.slice(3) && t.source === 'escalation' && t.title.startsWith('לקוח תקוע: '));
-  assert.deepEqual([esc.owner, esc.due_on], ['lior', '2026-10-25']);
-  assert.match(await o.locator(`#${s2} .ps-seen`).innerText(), /^עודכן ליאור · /);
-  assert.deepEqual(db.office_passes.find((x) => x.day === '2026-10-22').seen[s2.slice(3)].task, esc.id);
-  // The task dialog is back to itself for the next ordinary task.
-  for (const id of sRest) {
+  await toastHas(o, `נשלח לליאור: ${lead}`);
+  const escs = db.client_tasks.filter((t) => t.source === 'escalation' && t.title.startsWith(lead));
+  assert.equal(escs.length, 1, 'one update to Lior');
+  const esc = escs[0];
+  assert.deepEqual([esc.owner, esc.due_on, esc.client_id], ['lior', '2026-10-25', toLior[0].slice(3)]);
+  for (const id of toLior) {
+    await o.waitForSelector(`#${id}.is-seen`);
+    assert.match(await o.locator(`#${id} .ps-seen`).innerText(), /^עודכן ליאור · /);
+    assert.deepEqual(db.office_passes.find((x) => x.day === '2026-10-22').seen[id.slice(3)].task, esc.id);
+  }
+  // The rest of the stuck clients: a reason, or "בטיפול שלי" on Ofir's own.
+  for (const id of stuckIds.filter((x) => x !== s1 && !toLior.includes(x))) {
+    if (await o.locator(`#${id}.is-seen`).count()) continue;
+    if (kinds[id] === 'own') {
+      await o.click(`#${id}-own`);
+      await o.waitForSelector(`#${id}.is-seen`);
+      assert.match(await o.locator(`#${id} .ps-seen`).innerText(), /^בטיפול שלך · /);
+      continue;
+    }
     await o.click(`#${id}-why-open`);
     await o.fill(`#${id}-why-text`, 'נבדק מול העורך, מסתדר היום');
     await o.click(`#${id}-why-save`);
@@ -768,14 +797,19 @@ await step('Thursday: the pass (עברתי, one tap for the rest, the day\'s con
   const note = db.client_status_notes.find((n) => n.client_id === V.id);
   assert.equal(note.week, '2026-10-18');
   assert.match(note.current, /^עריכה ובקרה/);
-  // "בקשת שינוי": three fields, to Lior.
+  // "בקשת שינוי": three fields, to Lior, behind its small button (20.10.2026).
+  assert.equal(await o.isVisible('#cr-problem'), false);
+  await o.click('#cr-open');
+  assert.equal(await o.evaluate(() => document.activeElement.id), 'cr-problem');
   await o.fill('#cr-problem', 'אין מקום לרשום את מספר הסרטון בתיקון');
   await o.fill('#cr-why', 'העורך מנחש איזה סרטון');
   await o.fill('#cr-proposal', 'שדה מספר בכל שורה');
   await o.click('#cr-submit');
   await toastHas(o, 'בקשת השינוי נשלחה לליאור');
   assert.equal(db.change_requests.length, 1);
-  // "אין מי שייצא לאפיון": a structured message to Lior.
+  // "אין מי שייצא לאפיון": a structured message to Lior, behind its small button.
+  assert.equal(await o.isVisible('#nb-client'), false);
+  await o.click('#nb-open');
   await o.selectOption('#nb-client', C.id);
   await o.fill('#nb-info', 'הלקוח מבקש פגישה בבוקר');
   await o.click('#nb-submit');

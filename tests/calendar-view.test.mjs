@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  seesCalendar, sendsInvites, calendarEvents, byDay, weekDays, weekStart, monthWeeks, rangeOf, shift, titleOf, addDays,
+  seesCalendar, sendsInvites, weekPlan, calendarEvents, byDay, weekDays, weekStart, monthWeeks, rangeOf, shift, titleOf, addDays,
   dayOf, timeText, inviteFor, emailsOf, clientEmails, guestNames, wordsOf, KINDS,
 } from '../app/calendar-view.js';
 import { googleCalendarUrl, cleanGuests } from '../app/calendar.js';
@@ -25,7 +25,8 @@ const of = (viewer, db = world(), range = week) => calendarEvents({
 });
 
 test('who has the page, and who sends invitations', () => {
-  for (const who of [OWNER, v('irit'), v('lior'), v('ofir')]) { assert.equal(seesCalendar(who), true); assert.equal(sendsInvites(who), true, who.me || 'owner'); }
+  // "שליחת זימון": Irit and the owners only since 20.10.2026 (the owner); Lior and Ofir read their week.
+  for (const who of [OWNER, v('irit'), v('lior'), v('ofir')]) { assert.equal(seesCalendar(who), true); assert.equal(sendsInvites(who), ['owner', 'irit'].includes(who.me || 'owner'), who.me || 'owner'); }
   for (const who of ['ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli'].map((p) => v(p))) { assert.equal(seesCalendar(who), true, who.me); assert.equal(sendsInvites(who), false, who.me); }
   for (const who of ['stav', 'amos'].map((p) => v(p))) { assert.equal(seesCalendar(who), false, who.me); assert.equal(sendsInvites(who), false); }
   assert.equal(seesCalendar({ me: null, scope: 'own', error: new Error('x') }), false);
@@ -236,4 +237,22 @@ test('the words of an event: what and whose, then the time and who', () => {
   const task = evs.find((e) => e.kind === 'task');
   assert.deepEqual(wordsOf(task, c(13)), { title: task.title, short: task.title, sub: 'כל היום' });
   assert.equal(wordsOf({ ...evs.find((e) => e.kind === 'shoot' && e.client === cid(7)), round: 2, shootType: 'natali' }, c(7)).title, 'יום צילום 2 · עומר דיין');
+});
+
+// The owner, 20.10.2026: the week shows only days with events; on a phone, this week from today on.
+test('the week: only days with events; on a phone the days that passed fold, and an empty rest says so', () => {
+  const keys = weekDays('2026-10-20'); // Sunday 18 to Saturday 24; today Tuesday 20
+  const ev = (n) => Array.from({ length: n }, (_, i) => ({ uid: String(i) }));
+  const days = { '2026-10-18': ev(1), '2026-10-19': ev(2), '2026-10-22': ev(1) };
+  assert.deepEqual(weekPlan(days, keys, '2026-10-20', { phone: true }), { past: ['2026-10-18', '2026-10-19'], shown: ['2026-10-22'], rest: null });
+  // A wide screen: every day with events, the past ones too, nothing folded.
+  assert.deepEqual(weekPlan(days, keys, '2026-10-20'), { past: [], shown: ['2026-10-18', '2026-10-19', '2026-10-22'], rest: null });
+  // Nothing from today on: one line.
+  const early = { '2026-10-19': ev(1) };
+  assert.deepEqual(weekPlan(early, keys, '2026-10-20', { phone: true }), { past: ['2026-10-19'], shown: [], rest: 'אין אירועים בשאר השבוע' });
+  // A week with nothing at all: its count says so; no second line.
+  assert.deepEqual(weekPlan({}, keys, '2026-10-20', { phone: true }), { past: [], shown: [], rest: null });
+  // Another week: nothing folds, whatever the screen.
+  assert.deepEqual(weekPlan(days, keys, '2026-10-27', { phone: true }), { past: [], shown: ['2026-10-18', '2026-10-19', '2026-10-22'], rest: null });
+  assert.deepEqual(weekPlan(days, keys, '2026-10-01', { phone: true }).shown, ['2026-10-18', '2026-10-19', '2026-10-22']);
 });

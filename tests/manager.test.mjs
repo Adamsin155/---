@@ -78,13 +78,13 @@ test('which profile a page is shown in: a manager screen by its address opens th
   const p = (viewer, path, hash = '', saved = null, search = '') => profileOf(viewer, path, hash, search, saved);
   for (const viewer of [OWNER, v('ofir'), v('lior'), v('irit')]) {
     const who = viewer.me || 'owner';
-    const ownControl = ['ofir', 'irit'].includes(who);
+    // Ofir's daily review left his personal profile on 20.10.2026 (the owner): his process 33 is pass.html.
+    const ownControl = who === 'irit';
     // The manager view and the manager's tabs of clients.html, whatever was chosen before.
     assert.equal(p(viewer, '/---/owner.html', '#table', 'mine'), 'manager', who);
     assert.equal(p(viewer, '/owner.html', '#shoots', null), 'manager', who);
     // The team's work and the performance are the manager's; the daily review too, except for
-    // Ofir (process 33) and Irit (process 32, 7.10.2026), whose own work it is: there it
-    // keeps the profile they are in.
+    // Irit (process 32, 7.10.2026), whose own work it is: there it keeps the profile she is in.
     assert.equal(p(viewer, '/clients.html', '#team', 'mine'), 'manager', who);
     assert.equal(p(viewer, '/clients.html', '#performance', 'mine'), 'manager', who);
     assert.equal(p(viewer, '/clients.html', '#control', 'mine'), ownControl ? 'mine' : 'manager', who);

@@ -103,13 +103,14 @@ const PERSONAL = {
 };
 const MANAGER = {
   owner: ['מבט מנהל', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'יומן', 'טבלת ימי צילום', 'צוות', 'אסטרטג פיימנט'],
-  lior: ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'צוות'],
-  ofir: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'החלטות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'טבלת ימי צילום'],
+  // 20.10.2026 (the owner): Lior without qa, prep and the second shoot-day table; Ofir without the Gantt, the year and prep.
+  lior: ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'תובנות', 'שנת החבילה', 'הצעה חדשה והכנת חוזה', 'צוות'],
+  ofir: ['מבט מנהל', 'לקוחות', 'החלטות', 'ימי צילום', 'טבלת ימי צילום'],
   irit: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'ימי צילום', 'צוות'],
 };
 const HOME = { owner: 'owner.html#now', lior: 'owner.html#all', ofir: 'owner.html#now', irit: 'owner.html#now' };
 // The daily review stays with Ofir (process 33) and with Irit (process 32): their own work.
-const MY_TABS = { owner: ['המשימות שלי', 'לקוחות'], lior: ['המשימות שלי', 'לקוחות'], ofir: ['המשימות שלי', 'לקוחות', 'בקרה יומית'], irit: ['המשימות שלי', 'לקוחות', 'בקרה יומית'] };
+const MY_TABS = { owner: ['המשימות שלי', 'לקוחות'], lior: ['המשימות שלי', 'לקוחות'], ofir: ['המשימות שלי', 'לקוחות'] /* the daily review left his personal profile, 20.10.2026 */, irit: ['המשימות שלי', 'לקוחות', 'בקרה יומית'] };
 
 for (const role of ['owner', 'lior', 'ofir', 'irit']) {
   await step(`${role}: lands on "המשימות שלי" with the short menu; the button opens the manager profile and leads back`, async () => {
@@ -182,11 +183,15 @@ await step('a manager screen opened by its address opens in the manager profile;
   await page.waitForSelector('#profile-switch[data-to="manager"]');
   await page.waitForSelector('#side-qa[aria-current="page"]');
   assert.deepEqual(await menu(page), PERSONAL.ofir);
-  // The daily review is his own work too (process 33): its address keeps the profile he is in.
+  // The daily review (Irit's process 32) left his personal profile on 20.10.2026 (the owner):
+  // his own process 33 is pass.html. Its address opens the manager profile.
+  await page.goto(`${BASE}clients.html#mine`);
+  await page.waitForSelector('#profile-switch[data-to="manager"]');
+  assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות']);
   await page.goto(`${BASE}clients.html#control`);
   await page.waitForSelector('#view-control:not([hidden])');
-  await page.waitForSelector('#profile-switch[data-to="manager"]');
-  assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
+  await page.waitForSelector('#profile-switch[data-to="mine"]');
+  assert.deepEqual(await tabs(page), ['עבודת הצוות', 'לקוחות', 'בקרה יומית', 'ביצועים']);
   // The performance by its address: the manager profile, with its tabs.
   await page.goto(`${BASE}clients.html#performance`);
   await page.waitForSelector('#view-performance:not([hidden])');
@@ -206,7 +211,9 @@ await step('a manager screen opened by its address opens in the manager profile;
   assert.deepEqual(await menu(l.page), MANAGER.lior);
   await l.page.goto(`${BASE}owner.html#shoots`);
   await l.page.waitForSelector('#view-shoots:not([hidden])');
-  await l.page.waitForSelector('#side-shoot-table[aria-current="page"]');
+  // The table is a tab of "כל הלקוחות במבט" (its own menu entry left on 20.10.2026).
+  await l.page.waitForSelector('#side-overview[aria-current="page"]');
+  assert.equal(await l.page.locator('#side-shoot-table').count(), 0);
   await l.page.goto(`${BASE}decisions.html`);
   await l.page.waitForSelector('#side-decisions[aria-current="page"]');
   assert.deepEqual(await sw(l.page), ['מבט מנהל', 'owner.html#all', 'manager']);

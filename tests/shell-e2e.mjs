@@ -254,13 +254,15 @@ await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and 
   await page.click('#profile-switch');
   await page.waitForSelector('#profile-switch[data-to="mine"]');
   await page.waitForSelector('#view-all:not([hidden])');
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['במבט', 'לקוחות', 'גאנט תוכן', 'עוד']);
+  // (20.10.2026, the owner: the package year, with the renewals, in the bar instead of the Gantt;
+  // no qa, prep or second shoot-day table in his menu.)
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['במבט', 'לקוחות', 'שנת החבילה', 'עוד']);
   await page.click('#side-more');
   assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(),
-    ['בקרה ושיוך', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'צוות']);
+    ['גאנט תוכן', 'תובנות', 'הצעה חדשה והכנת חוזה', 'צוות']);
   // A screen behind "עוד" marks "עוד" as where you are.
-  await page.click('#side-year');
-  await page.waitForURL(/year\.html$/);
+  await page.click('#side-insights');
+  await page.waitForURL(/insights\.html$/);
   await page.waitForSelector('#side-more.is-on');
   assert.equal(await page.innerText('#profile-switch'), 'חזרה למשימות שלי');
   // The page's last content clears the bar.

@@ -6,6 +6,10 @@
 // day's control (office_reviews p33). Under it: the data health checks, each fixed
 // in one tap; the Thursday summary prefilled from the system (decision 20: by
 // 13:00); "משימות שפתחתי"; "אין מי שייצא לאפיון" to Lior; and "בקשת שינוי".
+// The simplification of 20.10.2026 (the owner): each row is one line (what, whose, how
+// late); the rows stuck at one person stand together with one update to Lior; Ofir's own
+// late work says "שלך"; the summary is open on Thursday only (folded on other days);
+// "משימות שפתחתי" only when there are any; the two forms to Lior open from two small buttons.
 // The logic: app/pass-logic.js.
 import { PEOPLE, STAFF_PEOPLE, STATUS_FIELDS, BRIEF_REQUIRED } from './protocol.js';
 import { clientState, weekKey, parseDate, CLAIM, addBusinessDays, clientLabel } from './protocol-logic.js';
@@ -20,12 +24,12 @@ import { clientHealth, station, procName } from './health.js';
 import { healthBadge } from './health-ui.js';
 import {
   passRows, passProgress, passDue, previousPass, snapshotOf, stuckOf, dataHealth, summaryDraft, thursdayTarget,
-  closesRow, seenText, stuckTitle, cleanReason, reasonOk, REASON_MAX,
+  closesRow, seenText, stuckTitle, cleanReason, reasonOk, REASON_MAX, rowLine, passGroups, groupTitle, ownerName,
 } from './pass-logic.js';
 import { loadPasses, savePass, loadTasksBy, updateTask, addChangeRequest, loadChangeRequests } from './office-data.js';
 import { officeLinks, markFirstLanded, startControl } from './office-ui.js';
 import { emptyItem, dress } from './kit.js';
-import { dayKeyIL, dayFromKeyIL, endOfDayIL, inputValueIL, fromInputIL, TZ } from './tz.js';
+import { dayKeyIL, dayFromKeyIL, endOfDayIL, inputValueIL, fromInputIL, weekdayIL, TZ } from './tz.js';
 
 let viewer = null;
 let me = null;
@@ -136,10 +140,12 @@ function render() {
   const seen = pass?.seen || {};
   const prog = passProgress(rows, seen);
   const due = passDue(extras.reviews, now);
-  const health = dataHealth({ clients, stateOf, checks, tasks, now });
+  const health = dataHealth({ clients, stateOf, checks, tasks, now, me });
+  // Two or three chips (20.10.2026): the pass, the data health when something is open, the summary on Thursday.
+  const thursday = weekdayIL(now) === 4;
   fill($('ps-jump'), h('ul', { class: 'chips-row' },
-    ...[['ps-h', 'המעבר', `${prog.handled}/${prog.total}`], ['hl-h', 'תקינות', health.total], ['th-h', 'סיכום חמישי', null], ['my-h', 'שפתחתי', mine.filter((t) => !t.done_at).length], ['nb-h', 'אין מי שייצא', null], ['cr-h', 'בקשת שינוי', null]]
-      .map(([id, label, n]) => h('li', {}, h('button', {
+    ...[['ps-h', 'המעבר', `${prog.handled}/${prog.total}`], health.total ? ['hl-h', 'תקינות', health.total] : null, thursday ? ['th-h', 'סיכום חמישי', null] : null]
+      .filter(Boolean).map(([id, label, n]) => h('li', {}, h('button', {
         type: 'button', class: 'chip', onclick: () => { const el = $(id); el.scrollIntoView({ block: 'start' }); el.focus({ preventScroll: true }); },
       }, label, n === null ? null : h('span', { class: 'n' }, String(n)))))));
   fill($('ps-banners'), passes === null ? h('p', { class: 'of-banner is-warn', role: 'status' }, 'שמירת המעבר עוד לא זמינה במסד הנתונים (מיגרציה 20260930150000). אפשר לעבור על הרשימה, והבקרה של היום עדיין נרשמת.') : null);
@@ -150,7 +156,10 @@ function render() {
       progressBar(prog.handled, prog.total, 'לקוחות שעברת עליהם היום'),
       h('span', { class: 'muted' }, prev ? `המעבר הקודם: ${formatDay(prev.day)}${prev.by_email ? ` · ${who(prev.by_email)}` : ''}` : 'אין מעבר קודם להשוואה')));
   const attention = rows.filter((r) => r.attention);
-  fill($('ps-list'), ...(attention.length ? attention.map((r) => passRow(r, closesRow(r, seen[r.client.id]) ? seen[r.client.id] : null, now)) : [emptyItem('אין לקוחות באדום, בצהוב, שהשתנו או תקועים.')]));
+  const seenOf = (r) => (closesRow(r, seen[r.client.id]) ? seen[r.client.id] : null);
+  // The rows stuck at one person stand together (pass-logic.js passGroups).
+  fill($('ps-list'), ...(attention.length ? passGroups(attention, me).map((g) => (g.who ? groupRow(g, seenOf) : passRow(g.rows[0], seenOf(g.rows[0]))))
+    : [emptyItem('אין לקוחות באדום, בצהוב, שהשתנו או תקועים.')]));
   capList($('ps-list'), 6, 'ps:list');
   const rest = rows.filter((r) => !r.attention);
   const restOpen = rest.filter((r) => !seen[r.client.id]);
@@ -166,23 +175,33 @@ function render() {
   renderForms();
 }
 
-function passRow(r, seen, now) {
+// One line (20.10.2026): what, whose, how late (stage 11's "כמה זמן המשימה פתוחה" is its
+// last part). `group`: a row inside its person's group, which already names the person.
+function lineOf(r, { group = false } = {}) {
+  const l = rowLine(r, me);
+  if (!l) return null;
+  const whose = l.mine ? h('span', { class: 'tag ps-mine' }, 'שלך') : l.who && !group ? personChip(l.who) : null;
+  return h('p', { class: 'ps-line' },
+    l.what ? h('span', { class: 'ps-what' }, l.what) : null,
+    whose ? [l.what ? ' · ' : '', whose] : null,
+    h('span', { class: 'ps-age' }, `${l.what || whose ? ' · ' : ''}${l.when}`),
+    l.more ? h('span', { class: 'muted' }, ` · ועוד ${l.more}`) : null);
+}
+function passRow(r, seen, { group = false } = {}) {
   const c = r.client;
-  const top = r.reasons.slice(0, 2);
   const id = `ps-${c.id}`;
-  return h('li', { class: `of-card ps-row${seen ? ' is-seen' : ''}`, id },
+  const own = r.stuck.length > 0 && !!rowLine(r, me)?.mine;
+  return h('li', { class: `${group ? 'ps-sub' : 'of-card'} ps-row${seen ? ' is-seen' : ''}`, id },
     h('div', { class: 'of-head' },
       healthBadge(r.color),
       h('a', { class: 'wclient', href: clientUrl(c.id) }, clientLabel(c)),
       c.landing === true ? h('span', { class: 'tag tag-landing' }, 'בקליטה') : null,
-      r.entry.station ? h('span', { class: 'wtitle' }, r.entry.station.title) : null,
-      r.stuck.length ? h('span', { class: 'tag tag-warn' }, 'לקוח תקוע') : null),
-    top.length ? h('ul', { class: 'ps-reasons' }, ...top.map((x) => h('li', {}, [x.text, x.what].filter(Boolean).join(' · '), x.who && PEOPLE[x.who] ? [' · ', personChip(x.who)] : null))) : null,
-    // How long what blocks the client has been open (stage 11: "כמה זמן המשימה פתוחה").
-    r.stuck.length ? h('ul', { class: 'ps-reasons' }, ...r.stuck.map((x) => h('li', {}, `תקוע: ${x.text}`, x.age ? h('span', { class: 'ps-age' }, ` · ${x.age}`) : null))) : null,
+      r.entry.station && !group ? h('span', { class: 'wtitle' }, r.entry.station.title) : null,
+      r.stuck.length && !group ? h('span', { class: 'tag tag-warn' }, 'לקוח תקוע') : null),
+    lineOf(r, { group }),
     r.changes.texts.length ? h('ul', { class: 'ps-changes', 'aria-label': 'מה השתנה מאז המעבר הקודם' }, ...r.changes.texts.map((t) => h('li', {}, t))) : null,
     seen ? h('p', { class: 'ps-seen' }, `${seenText(seen)} · ${hm(seen.at)}`)
-      : r.stuck.length ? stuckActs(r, id)
+      : r.stuck.length ? stuckActs(r, id, { own, group })
         : h('div', { class: 'of-acts' },
           h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-seen`, 'aria-label': `עברתי: ${c.name}`, onclick: (e) => markSeen([c], 'seen', e.currentTarget) }, 'עברתי'),
           h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה')));
@@ -191,15 +210,38 @@ function passRow(r, seen, now) {
 // A stuck client leaves the check with a clear action (Ofir's protocol, stage 11):
 // a task, an update to Lior, or a short written reason why nothing is needed.
 // "עברתי" alone is not offered (app/pass-logic.js closesRow).
+// The clients stuck at one person (20.10.2026): one card and one update to Lior for all of
+// them; each client keeps its own way out (a task, or a written reason).
+function groupRow(g, seenOf) {
+  const open = g.rows.filter((r) => !seenOf(r));
+  const id = `ps-g-${g.who}`;
+  const n = g.rows.length;
+  return h('li', { class: 'of-card ps-group', id },
+    h('div', { class: 'of-head' },
+      h('span', { class: 'tag tag-warn' }, 'לקוחות תקועים'),
+      h('strong', { class: 'ps-group-t' }, `אצל ${ownerName(g.who)}${g.what ? ` · ${g.what}` : ''}`),
+      h('span', { class: 'muted' }, `${n} לקוחות`)),
+    open.length ? h('div', { class: 'of-acts' },
+      h('button', {
+        type: 'button', class: 'btn btn-sm', id: `${id}-lior`, 'aria-label': `עדכון לליאור על ${open.length} הלקוחות התקועים אצל ${ownerName(g.who)}`,
+        onclick: () => openGroupUpdate({ ...g, rows: open }),
+      }, open.length === n ? `עדכון לליאור על כולם (${n})` : `עדכון לליאור על ${open.length} שנשארו`)) : null,
+    h('ul', { class: 'ps-subs' }, ...g.rows.map((r) => passRow(r, seenOf(r), { group: true }))));
+}
+
+// A stuck client leaves the check with a clear action. Ofir's own late work ("שלך",
+// 20.10.2026) is on his task list already: no update to Lior, and "בטיפול שלי" closes it.
+// In a group, the update to Lior is the group's.
 const whyOpen = new Set();
-function stuckActs(r, id) {
+function stuckActs(r, id, { own = false, group = false } = {}) {
   const c = r.client;
   const open = whyOpen.has(c.id);
   return h('div', { class: 'ps-stuck-acts' },
     h('div', { class: 'of-acts', role: 'group', 'aria-label': `לקוח תקוע יוצא מהבדיקה עם פעולה ברורה: ${c.name}` },
-      h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה'),
-      h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-lior`, 'aria-label': `עדכון לליאור: ${c.name}`, onclick: () => openTask(r, 'lior') }, 'עדכון לליאור'),
-      h('button', {
+      own ? h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${id}-own`, 'aria-label': `בטיפול שלי: ${c.name}`, onclick: (e) => markSeen([c], 'own', e.currentTarget) }, 'בטיפול שלי') : null,
+      h('button', { type: 'button', class: `btn btn-sm${own ? '' : ' k-btn-navy'}`, id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה'),
+      own || group ? null : h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-lior`, 'aria-label': `עדכון לליאור: ${c.name}`, onclick: () => openTask(r, 'lior') }, 'עדכון לליאור'),
+      own ? null : h('button', {
         type: 'button', class: 'btn btn-sm btn-ghost', id: `${id}-why-open`, 'aria-expanded': String(open), 'aria-controls': `${id}-why`,
         onclick: () => { if (whyOpen.has(c.id)) whyOpen.delete(c.id); else whyOpen.add(c.id); renderKeepingFocus(); if (whyOpen.has(c.id)) $(`${id}-why-text`)?.focus(); },
       }, 'אין צורך בפעולה')),
@@ -271,9 +313,19 @@ tkDlg.addEventListener('close', () => { if (tkReturn && document.getElementById(
 // exception task for him (source 'escalation', as "אין מי שייצא לאפיון" below and the
 // card's "דיווח חריגה לליאור"), so it lands in his "החלטות".
 let tkMode = null;
+// One person's stuck clients (20.10.2026): one update to Lior about all of them.
+let tkGroup = null;
+function openGroupUpdate(g) {
+  openTask(g.rows[0], 'lior');
+  tkGroup = g;
+  $('tk-h').textContent = `עדכון לליאור · ${g.rows.length} לקוחות תקועים אצל ${ownerName(g.who)}`;
+  $('tk-meta').textContent = 'ליאור מקבל עדכון אחד ב״החלטות״ על כל הלקוחות, וכל אחד מהם נרשם במעבר כ״עודכן ליאור״.';
+  $('tk-title').value = groupTitle(g);
+}
 function openTask(r, mode = null) {
   tkFor = r;
   tkMode = mode;
+  tkGroup = null;
   tkReturn = document.activeElement?.id || null;
   const top = r.reasons[0];
   const step = r.entry.station?.current;
@@ -304,11 +356,13 @@ $('tk-form').addEventListener('submit', async (e) => {
   $('tk-submit').disabled = true;
   try {
     const lior = tkMode === 'lior';
+    // A group's update is one task, on its first client; its title names every client.
+    const group = lior ? tkGroup : null;
     const t = await addTask({ client_id: r.client.id, title, owner, due_on: due, source: lior ? 'escalation' : 'p33' });
     tasks = [t, ...tasks];
     mine = [t, ...mine];
     tkDlg.close();
-    await markSeen([r.client], lior ? 'lior' : 'task', null, t.id);
+    await markSeen(group ? group.rows.map((x) => x.client) : [r.client], lior ? 'lior' : 'task', null, t.id);
     toast(lior ? `נשלח לליאור: ${title}` : `נפתחה משימה ל${PEOPLE[owner].name}: ${title}`);
   } catch (err) {
     $('tk-err').textContent = `המשימה לא נפתחה. ${errorText(err)}`;
@@ -320,6 +374,7 @@ $('tk-form').addEventListener('submit', async (e) => {
 // ── Data health: each one fixed in one tap ──
 function renderHealth(hl, now) {
   $('hl-n').textContent = String(hl.total);
+  $('hl-sec').hidden = !hl.total; // only when there is something to fix (20.10.2026)
   const group = (title, list, row) => (list.length ? h('div', { class: 'ps-health-group' }, h('h3', {}, title, ' ', h('span', { class: 'n' }, String(list.length))),
     h('ul', { class: 'of-list' }, ...list.map(row))) : null);
   const dueWords = formatWhen(endOfDayIL(dayFromKeyIL(hl.dueFix)), now);
@@ -336,10 +391,9 @@ function renderHealth(hl, now) {
       h('div', { class: 'of-acts' }, h('button', {
         type: 'button', class: 'btn btn-sm', id: `hl-due-${x.task.id}`, onclick: (e) => fixDue(x, hl.dueFix, e.currentTarget),
       }, `לקבוע יעד: ${dueWords}`)))),
-    group('לקוח בלי עורך', hl.noEditor, (x) => h('li', { class: 'of-card' },
-      h('div', { class: 'of-head' }, h('a', { class: 'wclient', href: clientUrl(x.client.id, x.state.proc.id) }, clientLabel(x.client)), x.n ? h('span', { class: 'wtitle' }, `סבב צילום ${x.n}`) : null),
-      h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm k-btn-navy', href: `qa.html#assign-${x.client.id}${x.n ? `-r${x.n}` : ''}` }, 'שיוך עורך')))),
-  ] : h('p', { class: 'muted' }, 'לא נמצאו חוסרים: לכל תהליך אחראי, לכל משימה מועד, לכל צילום עורך.'));
+    // (A shoot without an editor is assigned on qa.html, and another person's urgent task
+    // is not "undated": both left the pass on 20.10.2026, pass-logic.js dataHealth.)
+  ] : h('p', { class: 'muted' }, 'לא נמצאו חוסרים: לכל תהליך אחראי ולכל משימה מועד.'));
 }
 async function fixClaim(x, btn) {
   btn.disabled = true;
@@ -364,18 +418,25 @@ async function fixDue(x, due, btn) {
 }
 
 // ── The Thursday summary, prefilled ─────────
+// Open on Thursday only (the owner, 20.10.2026; the Israel day); on other days one folded
+// line that still opens, for whoever starts early.
+let thOpen = false;
 function renderThursday(now) {
+  const thursday = weekdayIL(now) === 4;
+  $('th-h').hidden = !thursday;
   const target = thursdayTarget(now);
   const wk = weekKey(now);
   const notes = new Map((extras.statusNotes || []).filter((n) => n.week === wk).map((n) => [n.client_id, n]));
   // No weekly summary is asked for a client that was not taken in yet.
   const list = entries.filter((e) => e.client.landing !== true).sort((a, b) => notes.has(a.client.id) - notes.has(b.client.id));
   const done = list.filter((e) => notes.has(e.client.id)).length;
-  fill($('th-body'),
+  const body = [
     h('p', { class: 'ps-progress' },
       target ? h('span', { class: `ps-target${target.late && done < list.length ? ' late' : ''}` }, target.late ? `היעד 13:00 עבר` : 'יעד: היום 13:00, כדי שעירית תשלח לקוחות אחר הצהריים') : h('span', {}, 'סיכום לכל לקוח בכל יום חמישי. אפשר להתחיל מוקדם.'),
       h('span', {}, `סוכמו ${done} מתוך ${list.length}`), progressBar(done, list.length, 'לקוחות שסוכמו השבוע')),
-    extras.statusNotes === null ? h('p', { class: 'muted' }, 'סיכומי המצב לא נטענו.') : h('ul', { class: 'of-list' }, ...list.map((e) => summaryRow(e, notes.get(e.client.id), now))));
+    extras.statusNotes === null ? h('p', { class: 'muted' }, 'סיכומי המצב לא נטענו.') : h('ul', { class: 'of-list' }, ...list.map((e) => summaryRow(e, notes.get(e.client.id), now)))];
+  fill($('th-body'), thursday ? body : h('details', { class: 'ps-th-fold', id: 'th-fold', open: thOpen, ontoggle: (e) => { thOpen = e.currentTarget.open; } },
+    h('summary', {}, 'סיכום חמישי · הסיכום נפתח ביום חמישי'), ...body));
 }
 function summaryRow(e, note, now) {
   const c = e.client;
@@ -434,6 +495,7 @@ function renderMine(now) {
   const open = mine.filter((t) => !t.done_at).sort((a, b) => (a.due_on || '9') < (b.due_on || '9') ? -1 : 1);
   const done = mine.filter((t) => t.done_at).slice(0, 10);
   $('my-n').textContent = String(open.length);
+  $('my-sec').hidden = !open.length && !done.length; // only when there are any (20.10.2026)
   const byId = new Map(clients.map((c) => [c.id, c]));
   const row = (t) => {
     const c = byId.get(t.client_id);
@@ -444,7 +506,7 @@ function renderMine(now) {
       h('p', { class: 'of-line' }, t.done_at ? `בוצע · ${who(t.done_by_email)} · ${formatStamp(t.done_at)}` : [t.due_on ? `${late ? 'באיחור · ' : ''}עד ${formatDay(t.due_on)}` : 'בלי מועד', ` · נפתחה ${formatStamp(t.created_at)}`]),
       t.urgent && !t.done_at ? startControl(t, me, () => renderKeepingFocus()) : null);
   };
-  fill($('my-list'), ...(open.length || done.length ? [...open.map(row), ...done.map(row)] : [emptyItem('לא פתחת משימות בשבועיים האחרונים.')]));
+  fill($('my-list'), ...open.map(row), ...done.map(row));
 }
 
 // ── To Lior: nobody to go; a change request ──
@@ -458,6 +520,15 @@ function renderForms() {
   fill($('cr-list'), ...(requests || []).slice(0, 5).map((r) => h('li', { class: 'of-card' },
     h('p', { class: 'of-line' }, h('strong', {}, r.problem)),
     h('p', { class: 'of-line' }, r.decision ? `ליאור: ${r.decision} · ${formatStamp(r.decided_at)}` : `נשלח ${formatStamp(r.created_at)} · מחכה להחלטה של ליאור`))));
+}
+// The two forms to Lior open from two small buttons at the bottom (20.10.2026).
+for (const [btn, sec, first] of [['nb-open', 'nb-sec', 'nb-client'], ['cr-open', 'cr-sec', 'cr-problem']]) {
+  $(btn).addEventListener('click', () => {
+    const show = $(sec).hidden;
+    $(sec).hidden = !show;
+    $(btn).setAttribute('aria-expanded', String(show));
+    if (show) { $(sec).scrollIntoView({ block: 'start' }); $(first).focus({ preventScroll: true }); }
+  });
 }
 $('nb-client').addEventListener('change', () => {
   const c = clients.find((x) => x.id === $('nb-client').value);

@@ -9,6 +9,7 @@ import { PROCESSES } from '../app/protocol.js';
 import { clientState, IMPORT_NOTE } from '../app/protocol-logic.js';
 import {
   stuckOf, passRows, passProgress, closesRow, closeHows, cleanReason, reasonOk, seenText, stuckTitle, STUCK_HOWS, REASON_MIN, REASON_MAX,
+  rowLine, passGroups, groupTitle, dataHealth,
 } from '../app/pass-logic.js';
 import { editorLoad, swapClock, swapReasonNeeded, swapNote, reasonOf } from '../app/qa-logic.js';
 import { autoReasonOf } from '../app/auto-assign.js';
@@ -45,6 +46,8 @@ test('stuck: how long what blocks the client has been open, and with whom', () =
   const late = stuckOf(c, s, { checks: w.checks[c.id] }, now).find((x) => x.code === 'late');
   assert.match(late.text, /^באיחור של יותר מיומיים: /);
   assert.equal(late.age, '22 · עריכת הסרטונים: פתוח 9 ימי עסקים, מהם 6 באיחור · אצל נדיה');
+  // The same, in the parts of the pass's one line (20.10.2026).
+  assert.deepEqual([late.what, late.who, late.when], ['22 · עריכת הסרטונים', 'nadia', 'פתוח 9 ימי עסקים, מהם 6 באיחור']);
   assert.deepEqual([late.days, late.lateDays], [9, 6]);
   // A wait on the client past its recheck date: how long we have been waiting.
   const w2 = world();
@@ -66,8 +69,9 @@ test('stuck: how long what blocks the client has been open, and with whom', () =
 test('a stuck client is not closed by "עברתי" alone: a task, an update to Lior, or a written reason', () => {
   const stuck = { client: { id: 's' }, stuck: [{ code: 'late', text: 'באיחור של יותר מיומיים: 22 · עריכת הסרטונים', age: 'פתוח 9 ימי עסקים' }] };
   const calm = { client: { id: 'g' }, stuck: [] };
-  assert.deepEqual(STUCK_HOWS, ['task', 'lior', 'reason']);
-  assert.deepEqual(closeHows(stuck), ['task', 'lior', 'reason']);
+  // 'own' (20.10.2026): "בטיפול שלי", offered on Ofir's own late work only.
+  assert.deepEqual(STUCK_HOWS, ['task', 'lior', 'reason', 'own']);
+  assert.deepEqual(closeHows(stuck), ['task', 'lior', 'reason', 'own']);
   assert.deepEqual(closeHows(calm), ['seen', 'task']);
   // A client that is not stuck: anything recorded closes it, as before.
   for (const how of ['seen', 'rest', 'task']) assert.equal(closesRow(calm, { how }), true);
@@ -91,6 +95,8 @@ test('a stuck client is not closed by "עברתי" alone: a task, an update to L
   assert.equal(seenText({ how: 'lior' }), 'עודכן ליאור');
   assert.equal(seenText({ how: 'reason', reason: 'הלקוח בחו״ל עד יום ראשון' }), 'עברת · אין צורך בפעולה: ״הלקוח בחו״ל עד יום ראשון״');
   assert.equal(seenText({ how: 'seen' }), 'עברת');
+  assert.equal(seenText({ how: 'own' }), 'בטיפול שלך');
+  assert.equal(closesRow(stuck, { how: 'own' }), true);
   assert.equal(stuckTitle(stuck), 'לקוח תקוע: באיחור של יותר מיומיים: 22 · עריכת הסרטונים · פתוח 9 ימי עסקים');
 });
 
@@ -166,4 +172,49 @@ test('the reason mark of a swap: who, from whom, what happened to the clocks; it
   // Without a reason, and a late job left late.
   assert.equal(JSON.parse(swapNote({ editor: 'anna', from: 'yariv', late: true })).reason, 'החלפת עורך: מיריב לאנה · המועדים לא השתנו, העריכה נשארת באיחור');
   assert.equal(JSON.parse(swapNote({ editor: 'anna', from: 'yariv' })).reason, 'החלפת עורך: מיריב לאנה · המועדים לא השתנו');
+});
+
+// ── One line, and the rows stuck at one person together (the owner, 20.10.2026) ──
+const lateAt = (who, what = '12א · משהו', when = 'באיחור 4 ימי עסקים') => ({ code: 'late', text: 'באיחור של יותר מיומיים: x', age: 'x', what, who, when });
+const row = (id, { stuck = [], reasons = [] } = {}) => ({ client: { id, name: `לקוח ${id}` }, stuck, reasons, color: 'red', changes: { texts: [] }, attention: true });
+
+test('a row in one line: what, whose, how late; the viewer’s own work is "שלך"', () => {
+  const lateReason = { code: 'late', text: 'באיחור 4 ימי עסקים', what: '12א · משהו', who: 'lior' };
+  const r = row('a', { stuck: [lateAt('lior')], reasons: [lateReason, { code: 'access', text: 'גישה שבורה', what: 'Instagram', who: 'lior' }] });
+  assert.deepEqual(rowLine(r, 'ofir'), { what: '12א · משהו', who: 'lior', mine: false, when: 'באיחור 4 ימי עסקים', more: 1 });
+  assert.equal(rowLine(row('b', { stuck: [lateAt('ofir')] }), 'ofir').mine, true);
+  // Not stuck: the first reason.
+  assert.deepEqual(rowLine(row('c', { reasons: [{ code: 'shoot-risk', text: 'צילום בסיכון', what: 'אין אישור', who: 'lior' }] }), 'ofir'),
+    { what: 'אין אישור', who: 'lior', mine: false, when: 'צילום בסיכון', more: 0 });
+  // Only idle: its words.
+  assert.deepEqual(rowLine(row('d', { stuck: [{ code: 'idle', text: 'אין פעילות 6 ימי עסקים', what: null, who: null, when: 'אין פעילות 6 ימי עסקים' }] })),
+    { what: null, who: null, mine: false, when: 'אין פעילות 6 ימי עסקים', more: 0 });
+  assert.equal(rowLine(row('e')), null);
+});
+
+test('rows stuck at one person stand together, with one update to Lior; the viewer’s own stay apart', () => {
+  const rows = [row('1', { stuck: [lateAt('lior')] }), row('2', { reasons: [{ code: 'late', text: 'x' }] }), row('3', { stuck: [lateAt('lior')] }),
+    row('4', { stuck: [lateAt('ofir')] }), row('5', { stuck: [lateAt('ofir')] }), row('6', { stuck: [lateAt('ilai', '7 · גרפיקות')] }), row('7', { stuck: [lateAt('lior', '13 · אחר')] })];
+  const g = passGroups(rows, 'ofir');
+  assert.deepEqual(g.map((x) => [x.who || null, x.what || null, x.rows.map((r) => r.client.id)]), [
+    ['lior', null, ['1', '3', '7']], [null, null, ['2']], [null, null, ['4']], [null, null, ['5']], [null, null, ['6']],
+  ]);
+  // The same process for all: the group says it once.
+  assert.equal(passGroups(rows.slice(0, 3), 'ofir')[0].what, '12א · משהו');
+  assert.equal(groupTitle(g[0]), 'לקוחות תקועים אצל ליאור: לקוח 1 (12א · משהו, באיחור 4 ימי עסקים) · לקוח 3 (12א · משהו, באיחור 4 ימי עסקים) · לקוח 7 (13 · אחר, באיחור 4 ימי עסקים)');
+  // The owner has no "own": Ofir's rows are a group too.
+  assert.deepEqual(passGroups(rows, null).filter((x) => x.who).map((x) => x.who), ['lior', 'ofir']);
+});
+
+test('data health in the pass: only what Ofir fixes himself (20.10.2026)', () => {
+  const c = { id: 'c1', name: 'x', status: 'active', landing: false };
+  const tasks = [
+    { id: 't1', client_id: 'c1', owner: 'irit', title: 'בלי מועד', done_at: null, due_on: null },
+    { id: 't2', client_id: 'c1', owner: 'lior', title: 'דחוף', urgent: true, done_at: null, due_on: null },
+    { id: 't3', client_id: 'c1', owner: 'ofir', title: 'דחוף שלי', urgent: true, done_at: null, due_on: null },
+    { id: 't4', client_id: 'c1', owner: 'lior', title: 'חריגה', source: 'escalation', done_at: null, due_on: null },
+  ];
+  const h = dataHealth({ clients: [c], stateOf: () => ({ states: [] }), checks: {}, tasks, now: IL(2026, 10, 20, 10), me: 'ofir' });
+  assert.deepEqual(h.noDue.map((x) => x.task.id), ['t1', 't3']);
+  assert.equal(h.total, 2);
 });

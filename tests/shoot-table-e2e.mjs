@@ -233,10 +233,10 @@ await step('Lior: "טבלת ימי צילום" in the menu and as a tab; every a
   // The ended client and the archived one are not in it.
   assert.doesNotMatch(await text(lior, '#sd'), /גן אירועים|בארכיון/);
   assert.equal(await text(lior, '#sd-count'), '16 לקוחות · 14 צולמו · 2 טרם צולמו');
-  // The menu: its own entry, marked as the page; "כל הלקוחות במבט" is not.
-  await lior.waitForSelector('#side-shoot-table[aria-current="page"]');
-  assert.equal(await text(lior, '#side-shoot-table'), 'טבלת ימי צילום');
-  assert.equal(await lior.getAttribute('#side-overview', 'aria-current'), null);
+  // The menu (20.10.2026, the owner): no entry of its own for Lior any more, the table is a
+  // tab of "כל הלקוחות במבט", which the menu marks.
+  await lior.waitForSelector('#side-overview[aria-current="page"]');
+  assert.equal(await lior.locator('#side-shoot-table').count(), 0);
   assert.equal(await lior.getAttribute('#tab-shoots', 'aria-selected'), 'true');
   assert.equal(await lior.isHidden('#tab-now'), true);
   await shot(lior, 'shoot-table-01-desktop-lior');
@@ -315,9 +315,8 @@ await step('the search by client name; the order survives the minute\'s refresh'
   // The other tabs of owner.html are "כל הלקוחות במבט" in the menu, as before.
   await lior.click('#tab-all');
   await lior.waitForSelector('#side-overview[aria-current="page"]');
-  assert.equal(await lior.getAttribute('#side-shoot-table', 'aria-current'), null);
   await lior.click('#tab-shoots');
-  await lior.waitForSelector('#side-shoot-table[aria-current="page"]');
+  await lior.waitForSelector('#side-overview[aria-current="page"]');
   await lctx.close();
 });
 
@@ -395,7 +394,7 @@ await step('who does not get it: Irit (no entry, no tab), an editor and a sales 
   assert.deepEqual(writes, []);
 });
 
-await step('360px phones: a card per client, no sideways scroll anywhere, 44px targets, the first 12 and "הצג עוד", the entry behind "עוד"', async () => {
+await step('360px phones: a card per client, no sideways scroll anywhere, 44px targets, the first 12 and "הצג עוד", the tab of "במבט" in the bar', async () => {
   const pctx = await newContext({ width: 360, height: 780 });
   const phone = await newPage(pctx);
   await signIn(phone, 'owner.html#shoots', 'lior@astrateg.test');
@@ -424,10 +423,11 @@ await step('360px phones: a card per client, no sideways scroll anywhere, 44px t
   assert.equal(await phone.getAttribute('#sd-head th:nth-child(1)', 'aria-sort'), 'ascending');
   assert.ok(await noHScroll(phone), 'the page scrolls sideways at 360px after a sort');
   await phone.click('#sd-sort-last');
-  // The bottom bar: the table is behind "עוד", and "עוד" is marked while it is open.
-  await phone.waitForSelector('#side-more.is-on');
+  // The bottom bar (20.10.2026, the owner): the table is a tab of "כל הלקוחות במבט", which is
+  // in Lior's bar and marked; it has no entry of its own behind "עוד" any more.
+  await phone.waitForSelector('#side-overview[aria-current="page"]');
   await phone.click('#side-more');
-  assert.ok((await phone.locator('#side-sheet .side-link').allInnerTexts()).includes('טבלת ימי צילום'));
+  assert.ok(!(await phone.locator('#side-sheet .side-link').allInnerTexts()).includes('טבלת ימי צילום'));
   await shot(phone, 'shoot-table-04-phone-menu');
   await pctx.close();
 });

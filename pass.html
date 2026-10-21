@@ -70,7 +70,7 @@
           <div>
             <div class="kicker latin">CLIENT PASS · 33</div>
             <h1>מעבר על הלקוחות</h1>
-            <p>לפחות פעם ביומיים, ומעבר מלא בחמישי. פעולה רק על אדום, צהוב, מה שהשתנה ומה שתקוע; על כל השאר לחיצה אחת.</p>
+            <p>פעם ביומיים, ובחמישי מעבר מלא. פועלים רק על מה שדורש; כל השאר בלחיצה אחת.</p>
           </div>
           <div class="head-actions" id="head-actions">
             <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
@@ -85,7 +85,7 @@
           <ul class="of-list" id="ps-list"></ul>
           <div class="ps-rest" id="ps-rest"></div>
         </section>
-        <section class="block of-sec" aria-labelledby="hl-h">
+        <section class="block of-sec" id="hl-sec" aria-labelledby="hl-h">
           <h2 class="wgroup-h" id="hl-h" tabindex="-1">תקינות הנתונים <span class="n" id="hl-n">0</span></h2>
           <div id="hl-body"></div>
         </section>
@@ -93,11 +93,16 @@
           <h2 class="wgroup-h" id="th-h" tabindex="-1">סיכום חמישי</h2>
           <div id="th-body"></div>
         </section>
-        <section class="block of-sec" aria-labelledby="my-h">
+        <section class="block of-sec" id="my-sec" aria-labelledby="my-h" hidden>
           <h2 class="wgroup-h" id="my-h" tabindex="-1">משימות שפתחתי <span class="n" id="my-n">0</span></h2>
           <ul class="of-list" id="my-list"></ul>
         </section>
-        <section class="block of-sec" aria-labelledby="nb-h">
+        <!-- The two forms to Lior, each behind a small button (the owner, 20.10.2026). -->
+        <div class="ps-tools" id="ps-tools">
+          <button type="button" class="btn btn-sm btn-ghost" id="nb-open" aria-expanded="false" aria-controls="nb-sec">אין מי שייצא לאפיון</button>
+          <button type="button" class="btn btn-sm btn-ghost" id="cr-open" aria-expanded="false" aria-controls="cr-sec">בקשת שינוי</button>
+        </div>
+        <section class="block of-sec" id="nb-sec" aria-labelledby="nb-h" hidden>
           <h2 class="wgroup-h" id="nb-h" tabindex="-1">אין מי שייצא לאפיון</h2>
           <form class="ps-form" id="nb-form" novalidate>
             <p class="hint">הודעה מובנית לליאור, מצלצלת אצלו מיד; עירית מקבלת עדכון.</p>
@@ -111,7 +116,7 @@
             <div class="of-acts"><button type="submit" class="btn k-btn-navy btn-sm" id="nb-submit">שליחה לליאור</button></div>
           </form>
         </section>
-        <section class="block of-sec" aria-labelledby="cr-h">
+        <section class="block of-sec" id="cr-sec" aria-labelledby="cr-h" hidden>
           <h2 class="wgroup-h" id="cr-h" tabindex="-1">בקשת שינוי</h2>
           <form class="ps-form" id="cr-form" novalidate>
             <p class="hint">כשמשהו במערכת או בדרך העבודה מקשה על המעקב: מה הבעיה, למה היא מפריעה ומה להציע. ליאור מחליט.</p>

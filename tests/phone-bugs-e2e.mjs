@@ -391,7 +391,8 @@ await step('the four tabs of "המשימות שלי" still share the row with no
   }
 });
 await step('the phone\'s bar: a long name is shown short on one line, and its full name is what is read', async () => {
-  for (const [role, path, id, short, full] of [['lior', 'owner.html', 'side-overview', 'במבט', 'כל הלקוחות במבט'], ['ofir', 'clients.html', 'side-pass', 'מעבר', 'מעבר על הלקוחות'],
+  // (Ofir's pass has been behind "עוד" since the calendar of 15.10.2026, so it is not one of these any more.)
+  for (const [role, path, id, short, full] of [['lior', 'owner.html', 'side-overview', 'במבט', 'כל הלקוחות במבט'],
     ['irit', 'clients.html', 'side-prep', 'לפני צילום', 'לפני יום צילום'], ['nadia', 'clients.html', 'side-editor', 'בעריכה', 'הלקוחות שלי בעריכה']]) {
     for (const viewport of [SMALL, IPHONE]) {
       const ctx = await context({ viewport });

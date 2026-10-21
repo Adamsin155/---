@@ -44,7 +44,7 @@ import { mountCalendar } from './calendar-card.js';
 import { ilaiSection, coveredByCard } from './ilai-card.js';
 import { landingNow, officeLinks } from './office-ui.js';
 import { hasProfiles, modeOf } from './manager-rules.js';
-import { profileOf, managerTabs } from './shell-rules.js';
+import { profileOf, managerTabs, opensClients } from './shell-rules.js';
 import { folderItemOf } from './qa-logic.js';
 import { uploadStepOf } from './files-logic.js';
 // 3.10.2026: Stav's deals waiting for a contract (the office), and Stav's own page.
@@ -386,7 +386,7 @@ function applyScope() {
   // Everyone sees their own row of screen 4 (decision 22); 'own' roles only that.
   $('tab-performance').hidden = (own && !me) || managerTab('performance');
   $('tab-performance').textContent = own ? 'הנתונים שלי' : 'ביצועים';
-  $('btn-new').hidden = own;
+  $('btn-new').hidden = !opensClients({ me, scope, error: viewerError }); // the owners and Irit (20.10.2026)
   $('tab-clients').textContent = own ? 'הלקוחות שלי' : 'לקוחות';
   $('tab-mine').textContent = managing || (!me && !personal) ? 'עבודת הצוות' : 'המשימות שלי';
   // One plain heading for everyone who is a person in the protocol: "שלום <name>" (it
@@ -2496,6 +2496,9 @@ function thursdayPass(now = new Date()) {
   return w.total && w.done < w.total ? w : null;
 }
 function goToStatus() {
+  // Not a tab of this profile (Ofir's personal one since 20.10.2026): the address moves to the
+  // manager profile (the hashchange handler), then the summary takes the focus.
+  if (!tabsShown().includes('control')) { window.addEventListener('hashchange', goToStatus, { once: true }); location.hash = '#control'; return; }
   setView('control');
   const el = document.getElementById('ctl-status');
   el?.scrollIntoView({ block: 'start' });
