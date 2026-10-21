@@ -89,7 +89,7 @@ test('the migration is the newest one, right after the migration of version 9, a
   // protocol's: 20261025100000_whatsapp_jako.sql, the second WhatsApp provider; and the
   // landing's own write of a real editor (20261026100000_landing_editor.sql, 14.10.2026), and the
   // personal intake link (20261027100000_landing_links.sql, 15.10.2026).
-  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261025100000_whatsapp_jako.sql', '20261026100000_landing_editor.sql', '20261027100000_landing_links.sql']);
+  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261025100000_whatsapp_jako.sql', '20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql']);
   assert.equal(files[files.indexOf(MIGRATION) - 1], '20261023100000_ofir_fast_ladder_v9.sql');
   const sql = readFileSync(new URL(`../../supabase/migrations/${MIGRATION}`, import.meta.url), 'utf8');
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);

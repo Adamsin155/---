@@ -129,7 +129,9 @@ Deno.serve(async (req) => {
     .select(exceptions.length ? 'id, token, number, created_at, approval' : 'id, token, number, created_at')
     .single();
 
-  if (error) return json(500, { error: 'could not save quote' });
+  // The database's own code and words go back to the office (the caller passed is_office above), so a
+  // failure can be read instead of guessed (21.10.2026). Never the model or the client's details.
+  if (error) return json(500, { error: 'could not save quote', code: error.code ?? null, detail: String(error.message ?? '').slice(0, 300) });
   if (!exceptions.length) return json(200, data);
   // Waiting for a manager: there is no link to send yet.
   const row = data as unknown as { id: string; number: string; created_at: string; approval: string };
