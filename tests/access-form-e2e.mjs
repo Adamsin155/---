@@ -21,6 +21,7 @@
 //     not touch what it did not fill;
 //   - two days later, with a link still waiting: the nudge is in Irit's queue.
 // Run: npx http-server -p 8107 -s -c-1 . &  then  BASE_URL=http://localhost:8107/ node tests/access-form-e2e.mjs [outDir]
+import { openCardFolds } from './open-folds.mjs';
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
@@ -338,6 +339,7 @@ const PHONE = { width: 360, height: 740 };
 async function newContext(viewport = { width: 1280, height: 900 }, b = browser) {
   const ctx = await b.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, hasTouch: viewport.width < 500, isMobile: viewport.width < 500 });
   await ctx.clock.setFixedTime(NOW);
+  await openCardFolds(ctx); // the card's closed rows, opened (the owner, 20.10.2026)
   if (b === browser) await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
   await ctx.route('https://wa.me/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>wa</title>' }));
