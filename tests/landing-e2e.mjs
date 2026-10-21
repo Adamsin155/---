@@ -635,7 +635,7 @@ try {
     await irit.goto(`${BASE}landing.html`);
     await blockOf(irit).waitFor();
     assert.equal(await blockOf(irit).count(), 1);
-    assert.deepEqual(await blockOf(irit).locator('.land-ed-chip').evaluateAll((els) => els.map((e) => e.dataset.editor)), ['nadia', 'yariv', 'anna', '']);
+    assert.deepEqual(await blockOf(irit).locator('.land-ed-chip').evaluateAll((els) => els.map((e) => e.dataset.editor)), ['nadia', 'yariv', 'anna', 'nirel', '']);
     assert.match(await blockOf(irit).locator('.land-ed-h').innerText(), /העורך של הלקוח/);
     assert.match(await chipOf(irit, 'nadia').innerText(), /נדיה\s*מתוך הטבלה/);
     assert.ok(await chipOf(irit, 'nadia').evaluate((e) => e.classList.contains('is-notes')));

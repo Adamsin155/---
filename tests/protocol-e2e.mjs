@@ -533,13 +533,18 @@ await page.waitForSelector('.cc-links a.link-chip');
 assert.equal(db.clients.find((c) => c.id === created.id).links.drive, 'https://drive.google.com/drive/folders/abc');
 assert.equal(db.clients.find((c) => c.id === created.id).editor, 'nirel');
 assert.match(await page.locator('#p22 .proc-meta').textContent(), /ניראל/);
-// Nirel edits only Natali's clients: a different shoot type refuses her instead of dropping her silently.
+// Since 21.10.2026 Nirel may edit any shoot: another shoot type keeps her, and it saves.
 await page.click('#btn-edit');
 await page.selectOption('#ed-shoot-type', 'dms');
 assert.equal(await page.inputValue('#ed-editor'), 'nirel');
 await page.click('#ed-submit');
-assert.match(await page.locator('#ed-err').innerText(), /נטלי/);
-await page.click('#dlg-edit [data-close]');
+await page.waitForSelector('#dlg-edit', { state: 'hidden' });
+assert.deepEqual(['shoot_type', 'editor'].map((k) => db.clients.find((c) => c.id === created.id)[k]), ['dms', 'nirel']);
+// Back to Natali's, as the rest of this run expects.
+await page.click('#btn-edit');
+await page.selectOption('#ed-shoot-type', 'natali');
+await page.click('#ed-submit');
+await page.waitForSelector('#dlg-edit', { state: 'hidden' });
 
 // Package quantities: + saves after a short pause (in the closed row "החוזה והחבילה": the owner, 20.10.2026).
 await page.click('#fold-contract > summary');
