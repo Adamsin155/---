@@ -51,7 +51,6 @@ import { uploadStepOf } from './files-logic.js';
 import { mountDeals, refreshDeals } from './deal-ui.js';
 import { mountApprovals } from './approvals-ui.js';
 import { mountStaffTasks } from './staff-tasks-ui.js';
-import { mountMetricoolConnect, syncMetricoolConnect } from './metricool-connect-ui.js';
 import { landingOf } from './deal-logic.js';
 // A link to a part of this page (#mine, #control, a sign-in link) opens that part:
 // nobody is sent to their first screen then.
@@ -59,6 +58,7 @@ const ARRIVED_WITH = location.hash;
 import { intakeShortcut } from './intake-ui.js';
 // Stage 5: the monthly cycle (a draft) in "המשימות שלי", and the way to the package year.
 import { showMonths, worksCycle } from './month-ui.js';
+import { renewalsDue } from './year-logic.js'; // Lior's renewals line (the owner, 20.10.2026)
 // Irit's daily control (process 32): her eleven topics, each with what is open now.
 import { controlTopics, unseenTopics, topicsRecord, recordText, topicLabel, ageText } from './control-topics.js';
 import { loadDeals } from './deal-data.js';
@@ -67,7 +67,7 @@ import { fixTaskOf, fixNote, FIX_ITEM_LABEL, lateItems, countsLate, lateKey } fr
 import { headIcon, sectionHead, emptyState, countedLine, dateLeaf, leafRow, cardMark, iconSquare } from './kit.js';
 import { canSeeDeals, canSeeQuoteList } from './manager-rules.js';
 // Everything that waits for me on another page, as counted lines (docs/ops.md, section 46).
-import { flowLines, flowNeeds } from './mine-flow.js';
+import { flowLines, flowNeeds, joinDecisions } from './mine-flow.js';
 // Protocol v8 (docs/ops.md, section 49): a mark the system looks into before it is
 // taken, the question of process 5, and the links Irit sends from her own list.
 import { checkMark } from './mark-guards.js';
@@ -137,6 +137,7 @@ let lastLoad = 0;
 let loads = 0;
 const laterOpen = new Set();   // the folded "this week" and "later" groups a person opened
 let waitGroupOpen = null;   // the collapsed "waiting on client" group keeps its state across renders
+let landFoldOpen = false; // the folded landing lines ("בקליטה"), as the person left them
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash}`;
 
 // ── What is worked out from the rows, and what is on the page (docs/ops.md, section 59) ──
@@ -543,7 +544,9 @@ const lateState = (now = new Date()) => once('late', () => {
 // group). Then "urgent" (an urgent task is done at that moment, Lior's protocol), then
 // the exceptions reported to Lior. A deadline that passed and is not this person's
 // lateness (the client's turn; due at today's close) is work for today.
-const bucketFor = (g, now = new Date()) => (g.late ? 'overdue' : g.urgent ? 'urgent' : g.escalation ? 'escalation'
+// The owner, 20.10.2026: what is urgent comes first of all, a late one too (it keeps its
+// pink leaf and its "באיחור" pill); the "באיחור" tab still counts it.
+const bucketFor = (g, now = new Date()) => (g.urgent ? 'urgent' : g.escalation ? 'escalation' : g.late ? 'overdue'
   : g.status === 'overdue' ? 'today' : bucketOf(g.status, g.dueAt, now));
 // How a card is coloured: red only for what counts as late.
 const shownStatus = (g) => (g.status === 'overdue' && !g.late ? 'today' : g.status);
@@ -1117,6 +1120,8 @@ function taskMeta(t, now = new Date()) {
 // shows its first MINE_CAP cards and "הצג עוד". "תצוגה מלאה" (kept per browser) gives
 // the whole list, as it was. Nothing is removed, only folded.
 const MINE_CAP = 5;
+// The owner, 20.10.2026: a person's own list offers one view, the short one (no toggle
+// there); "תצוגה מלאה" is offered on the team's list. The choice is kept for the tab only.
 const fullView = () => visitStore.get('mine.full') === 'on';
 const openCards = new Set();   // cards whose details are open: kept across rebuilds
 function viewToggle() {
@@ -1162,6 +1167,13 @@ function markOf(g, now = new Date()) {
 // What the leaf does not say stays a pill: how late, whose turn, "ממתין ללקוח", a meeting.
 const echoesLeaf = (g, when) => !!g.dueAt && g.status !== 'overdue' && g.status !== 'client' && when !== MEETING_WORDS;
 
+// Ilai's new logo is his only item in process 5 (the owner, 20.10.2026): a card of 5 that
+// holds only it is named "לוגו חדש" and opens the client's files, where the logo goes up,
+// not the characterization (that is what the rest of 5, the access, is done from).
+const logoOnly = (g) => !g.task && checkable(g).length > 0 && checkable(g).every((e) => baseKeyOf(e.item.key) === 'p05.newlogo');
+const procTitle = (g) => (logoOnly(g) ? `${g.proc.num} · לוגו חדש` : procLabel(g.proc));
+const shortcutOf = (g) => (!g.proc ? null : logoOnly(g) ? h('a', { class: 'btn btn-sm ik-go files-go', href: clientUrl(g.client.id, '#fl-slot') }, 'תיק הלקוח')
+  : intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }));
 function compactCard(g, person) {
   const href = clientUrl(g.client.id, g.proc ? `#${g.proc.id}` : '#tasks');
   const owners = g.task ? [g.task.owner] : [...new Set(g.entries.flatMap((e) => e.item.owners))];
@@ -1175,11 +1187,11 @@ function compactCard(g, person) {
   const need = needLine(g);
   const n = ticks.length;
   const one = n === 1 && !need;
-  const shortcut = g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null;
+  const shortcut = shortcutOf(g);
   const start = g.task && g.urgent ? taskStart(g.task) : null;
   const needsStart = !!start?.querySelector('button');
   // The action in words: the task, or the process (a single item is named by its own check).
-  const what = g.task ? g.task.title : procLabel(g.proc);
+  const what = g.task ? g.task.title : procTitle(g);
   const sub = g.task ? [isEscalation(g.task) ? null : 'משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ') : one || !n ? '' : n === 1 ? 'פריט אחד לסימון' : `${n} פריטים לסימון`;
   const rows = () => h('ul', { class: 'wlist' }, ...ticks.map((e) => {
     const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
@@ -1255,7 +1267,7 @@ function compactCard(g, person) {
 function groupCard(g, person) {
   if (!fullView()) return compactCard(g, person);
   // A reported exception is named by its badge; its reason is the task's own title below.
-  const title = g.task ? (isEscalation(g.task) ? null : ['משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ')) : procLabel(g.proc);
+  const title = g.task ? (isEscalation(g.task) ? null : ['משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ')) : procTitle(g);
   const href = clientUrl(g.client.id, g.proc ? `#${g.proc.id}` : '#tasks');
   const owners = g.task ? [g.task.owner] : [...new Set(g.entries.flatMap((e) => e.item.owners))];
   const bulk = bulkFor(g);
@@ -1282,7 +1294,7 @@ function groupCard(g, person) {
     needLine(g),
     zoomFixesLine(g),
     linkLine(g),
-    g.proc ? intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }) : null,
+    shortcutOf(g),
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
       bulk ? h('button', {
@@ -1303,6 +1315,103 @@ function groupCard(g, person) {
         fixAsk(e),
         e.task ? briefDetails(e.task) : null);
     })));
+}
+
+// ── One card per client (Ofir; the owner, 20.10.2026) ──
+// Several open processes of his in one client (4, 5 and 8 after a characterization) are
+// one card: the client once, and under it each process as it was, with its own action.
+// Joined within one group of the list only, so nothing moves to another heading.
+const joinsByClient = (person) => person === 'ofir';
+function joinByClient(list) {
+  const by = new Map();
+  for (const g of list) {
+    const k = g.task ? g.key : `client:${g.client.id}`;
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(g);
+  }
+  return [...by.values()].map((subs) => (subs.length < 2 ? subs[0] : {
+    ...subs[0], key: `client:${subs[0].client.id}:${subs.map((s) => s.proc.id).join('+')}`, joined: subs,
+    late: subs.some((s) => s.late), entries: subs.flatMap((s) => s.entries),
+  }));
+}
+function joinedCard(m, person) {
+  const nums = m.joined.map((s) => s.proc.num).join(', ');
+  return h('li', { class: `wproc wc k-pc pc wc-joined${m.late ? ' k-pc-late' : ''} s-${shownStatus(m)}`, 'data-key': m.key },
+    h('div', { class: 'k-pc-top' },
+      markOf(m),
+      h('div', { class: 'k-pc-body' },
+        h('div', { class: 'wc-head' }, h('a', { class: 'wclient', href: clientUrl(m.client.id) }, clientLabel(m.client)),
+          isAuto(m.client) ? h('span', { class: 'auto-tag' }, 'חדש') : null),
+        h('div', { class: 'wc-what' }, h('p', { class: 'wc-title' }, `${m.joined.length} תהליכים פתוחים`, h('span', { class: 'wc-sub' }, ` · ${nums}`))))),
+    h('ul', { class: 'wprocs wc-subs' }, ...m.joined.map((s) => groupCard(s, person))));
+}
+const cardOf = (g, person) => (g.drives ? driveCard(g) : g.joined ? joinedCard(g, person) : groupCard(g, person));
+
+// ── Lior: the drive back from a shoot day, for all its clients at once (the owner, 20.10.2026) ──
+// "ליאור החזיר את הכונן" (22א) is one drive for every client of that shoot day: their
+// cards are one, "החזרת כונן: N לקוחות", with a tick per client and one for all of them.
+const isDriveOnly = (g) => !g.task && baseId(g.proc) === 'p22a' && checkable(g).length > 0 && checkable(g).every((e) => baseKeyOf(e.item.key) === 'p22a.drive');
+const shootDayOf = (g) => { const d = parseDate((g.proc.ctx || g.client).shoot_at); return d ? dayIso(d) : null; };
+function joinDrives(list) {
+  const days = new Map();
+  for (const g of list) {
+    const day = isDriveOnly(g) ? shootDayOf(g) : null;
+    if (day) { if (!days.has(day)) days.set(day, []); days.get(day).push(g); }
+  }
+  const out = [];
+  const done = new Set();
+  for (const g of list) {
+    const day = isDriveOnly(g) ? shootDayOf(g) : null;
+    const subs = day ? days.get(day) : null;
+    if (!subs || subs.length < 2) { out.push(g); continue; }
+    if (done.has(day)) continue;
+    done.add(day);
+    out.push({ ...subs[0], key: `drive:${day}`, drives: subs, day, late: subs.some((s) => s.late), entries: subs.flatMap((s) => checkable(s)) });
+  }
+  return out;
+}
+function driveCard(m) {
+  const n = m.drives.length;
+  return h('li', { class: `wproc wc k-pc pc wc-drives${m.late ? ' k-pc-late' : ''} s-${shownStatus(m)}`, 'data-key': m.key },
+    h('div', { class: 'k-pc-top' },
+      markOf(m),
+      h('div', { class: 'k-pc-body' },
+        h('div', { class: 'wc-what' }, h('p', { class: 'wc-title' }, `החזרת כונן: ${n} לקוחות`,
+          h('span', { class: 'wc-sub' }, ` · יום הצילום ${dayShort(m.day)}`))),
+        whenWords(m) ? h('span', { class: `wc-when s-${shownStatus(m)}${echoesLeaf(m, whenWords(m)) ? ' is-echo' : ''}` }, whenWords(m)) : null)),
+    h('ul', { class: 'wlist' }, ...m.entries.map((e) => {
+      const id = `w-${e.client.id}-${e.item.key}`.replace(/[^\w-]/g, '_');
+      return h('li', { class: 'witem' }, h('label', { class: 'wrow', for: id }, tickOf(e, id), h('span', { class: 'wlabel' }, clientLabel(e.client))));
+    })),
+    me ? h('div', { class: 'wproc-acts' }, h('button', {
+      type: 'button', class: 'btn btn-sm wc-go drive-all', onclick: (ev) => driveAll(m, ev.currentTarget),
+    }, `הכונן הוחזר לכל ה־${n}`)) : null);
+}
+async function driveAll(m, btn) {
+  btn.disabled = true;
+  const marked = [];
+  try {
+    for (const e of m.entries) {
+      const row = await setCheck(e.client.id, e.item.key, 'done');
+      (checks[e.client.id] ||= {})[e.item.key] = row;
+      states.delete(e.client.id);
+      marked.push(e);
+    }
+  } catch (err) {
+    toast(`${marked.length ? `סומנו ${marked.length}, ` : ''}השאר לא נשמרו. ${errorText(err)}`);
+  }
+  changed();
+  renderMine();
+  if (marked.length) {
+    toast(`סומן: הכונן הוחזר (${marked.length} לקוחות).`, { label: 'ביטול', run: async () => {
+      try {
+        for (const e of marked) { await clearCheck(e.client.id, e.item.key); delete checks[e.client.id][e.item.key]; states.delete(e.client.id); }
+        toast('הסימון בוטל.');
+      } catch (err) { toast(`הביטול לא נשמר. ${errorText(err)}`); }
+      changed();
+      renderMine();
+    } });
+  }
 }
 
 // An urgent task: "התחלתי" within 30 office minutes, or it goes back to Lior
@@ -1334,7 +1443,12 @@ const GROUP_ICON = {
   urgent: ['bolt', 'pink'], escalation: ['flag', 'pink'], overdue: ['alert', 'pink'], today: ['sun', 'orange'], tomorrow: ['calendar', 'blue'],
   week: ['calendar', 'navy'], later: ['calendar', 'navy'], client: ['hourglass', 'purple'], soon: ['clock', 'teal'],
 };
-const BUCKETS = [['urgent', 'דחוף'], ['escalation', 'חריגות שדווחו'], ['overdue', 'באיחור'], ['today', 'היום'], ['tomorrow', 'מחר'], ['week', 'השבוע'], ['later', 'בהמשך'], ['client', 'ממתין ללקוח']];
+// The order of the list (the owner, 20.10.2026): urgent first of all, then what is due
+// today, and only then what is late; today's meeting no longer sits under five late cards.
+const BUCKETS = [['urgent', 'דחוף'], ['escalation', 'חריגות שדווחו'], ['today', 'היום'], ['overdue', 'באיחור'], ['tomorrow', 'מחר'], ['week', 'השבוע'], ['later', 'בהמשך'], ['client', 'ממתין ללקוח']];
+// On my own list, more late things than this are one counted line to the "באיחור" tab
+// instead of their cards (the owner, 20.10.2026); this many or fewer stay cards.
+const LATE_INLINE = 3;
 
 // Clients the signing trigger opened, shown to Irit and to the whole-team view (spec §10).
 function autoBanner() {
@@ -1418,11 +1532,21 @@ function renderLanding(flow = []) {
   const quietLines = flow.filter((f) => f.bucket === 'landing');
   line.hidden = !left && !total && !quietLines.length;
   // Each is a solid counted line (app/kit.js; section 50): a big number, one sentence, a button.
-  fill(line, left ? countedLine({ n: left, tone: 'landing', cls: 'land-line', href: 'landing.html', cta: 'לקליטה',
+  const lines = [left ? countedLine({ n: left, tone: 'landing', cls: 'land-line', href: 'landing.html', cta: 'לקליטה',
     text: left === 1 ? 'יש לקוח קיים אחד לקלוט' : `יש ${left} לקוחות קיימים לקלוט` })
     : total ? countedLine({ n: total, tone: 'landing', cls: 'land-line', href: 'owner.html#landing', cta: 'להפעלה',
       text: total === 1 ? 'לקוח קיים אחד עדיין בקליטה' : `${total} לקוחות קיימים עדיין בקליטה` }) : null,
-    ...quietLines.map((f) => countedLine({ id: `flow-${f.id}`, n: f.n, text: f.text, cta: f.cta, href: f.href, tone: 'landing', cls: 'land-line flow-line is-landing', data: { flow: f.id } })));
+  ...quietLines.map((f) => countedLine({ id: `flow-${f.id}`, n: f.n, text: f.text, cta: f.cta, href: f.href, tone: 'landing', cls: 'land-line flow-line is-landing', data: { flow: f.id } }))].filter(Boolean);
+  // Two lines or more fold into one, "בקליטה (N)", that opens onto the same lines (the
+  // owner, 20.10.2026): N is how many things wait, each line counted once.
+  fill(line, lines.length < 2 ? lines : h('details', {
+    class: 'land-fold', id: 'land-fold', open: landFoldOpen, ontoggle: (ev) => { landFoldOpen = ev.currentTarget.open; },
+  },
+  h('summary', { class: 'k-line k-line-landing land-fold-s' },
+    h('b', { class: 'k-num', 'data-n': String(lines.length), 'aria-hidden': 'true' }),
+    h('strong', { class: 'k-line-t' }, h('b', { class: 'sr-only' }, `${lines.length} `), 'דברים בקליטה', h('small', { class: 'k-line-sub' }, h('i', { class: 'k-sep' }, ' · '), 'בלי שעון')),
+    h('span', { class: 'k-go il-fold-go' }, h('span', { class: 'il-fold-open' }, 'הצגה'), h('span', { class: 'il-fold-close' }, 'הסתרה'))),
+  h('div', { class: 'land-fold-list' }, ...lines)));
   const rest = mine ? quietWork(me, clients, checks, intake.marks, intake.done, now) : [];
   const n = rest.reduce((sum, x) => sum + x.items.length, 0);
   quiet.hidden = !n;
@@ -1475,7 +1599,7 @@ new MutationObserver(() => dressCards()).observe($('app'), { childList: true, su
 // this person holds past its deadline (app/late-chain.js: the same answer as the
 // reminders and the owners' table), and each counted line that sits in "באיחור" (a line
 // is one thing to do, so it counts once, whatever its own number).
-const flowOfMe = (now = new Date()) => (me && !viewerError ? once('flow', () => flowLines({ viewer: { me, scope, error: viewerError }, clients, checks, stateOf, tasks, reviews, extra: flowExtra, now })) : []);
+const flowOfMe = (now = new Date()) => (me && !viewerError ? once('flow', () => joinDecisions(flowLines({ viewer: { me, scope, error: viewerError }, clients, checks, stateOf, tasks, reviews, extra: flowExtra, now }))) : []);
 const hasLateTab = () => !!me && !viewerError && !managing;
 function lateOfMe(flow = flowOfMe()) {
   const lines = flow.filter((f) => f.bucket === 'overdue');
@@ -1533,7 +1657,7 @@ function renderLate(flow) {
     sectionHead({ icon: 'alert', tone: 'pink', id: 'late-h', title: n === 1 ? 'דבר אחד באיחור אצלך' : `${n} דברים באיחור אצלך`,
       hint: 'מהמאוחר ביותר. מסמנים כאן בדיוק כמו ב״המשימות שלי״, והם נשארים גם שם.' }),
     ilai,
-    h('ul', { class: 'wprocs late-list', 'aria-labelledby': 'late-h' }, ...lines.map(flowCard), ...cards.map((g) => (g.key ? groupCard(g, me) : lateRow(g)))));
+    h('ul', { class: 'wprocs late-list', 'aria-labelledby': 'late-h' }, ...lines.map(flowCard), ...(joinsByClient(me) || me === 'lior' ? [...(me === 'lior' ? joinDrives : joinByClient)(cards.filter((g) => g.key)), ...cards.filter((g) => !g.key)] : cards).map((g) => (g.key ? cardOf(g, me) : lateRow(g)))));
 }
 
 // A card read or wrote something of its own that the list stands on (the notifications'
@@ -1613,7 +1737,9 @@ function renderMine() {
   const tools = [!own && person ? summaryActions(person, 'mine') : null, person && person === me && !pushActive() ? notifyRow() : null].filter(Boolean);
   fill($('mine-tools'), full ? tools : null);
   // Under the list: the length of the list, and on a short one the tools.
-  fill($('mine-foot'), tools.length && !full ? h('details', { class: 'mine-more' }, h('summary', {}, 'סיכום בוקר והתראות'), ...tools) : null, viewToggle(),
+  // On my own list neither adds anything (the owner, 20.10.2026): the notifications have
+  // their card above, and there is one view; both stay on the team's list.
+  fill($('mine-foot'), tools.length && !full && !mineOnly ? h('details', { class: 'mine-more' }, h('summary', {}, 'סיכום בוקר והתראות'), ...tools) : null, mineOnly ? null : viewToggle(),
     mineOnly && !own ? h('a', { class: 'btn-text', id: 'team-open', href: '#team' }, 'הרשימה של עובד אחר') : null);
   showMonths($('my-months'), { person, me, office: worksCycle({ me, scope, error: viewerError }), clients, stateOf, checks, short: !full });
 
@@ -1631,8 +1757,20 @@ function renderMine() {
   const ilai = ilaiCtx ? ilaiSection(ilaiCtx) : null;
   const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
   if (ilai && !full) capList(ilai.querySelector('.il-list'), MINE_CAP, 'mine:ilai');
-  const list = workFor(person).filter((g) => !covered(g));
-  const soon = person ? upcomingSection(upcomingGroups(person), own) : null;
+  // No duplicates (the owner, 20.10.2026): what has a card is not repeated in "בקרוב" (Ilai's
+  // cards are not repeated in "עכשיו" either: shownClocks).
+  // Lior's renewals (the owner, 20.10.2026): one line, "חידושים ב־90 יום: N", to the
+  // renewals list (year.html#renewals, where each has its quote and process 34); the
+  // cards of 34 are not laid out here one by one.
+  const renewing = (procId) => person === 'lior' && /^(r\d+-)?p34$/.test(String(procId || ''));
+  const renewOpen = workFor(person).filter((g) => !g.task && renewing(g.proc.id));
+  const renewN = person === 'lior' ? renewalsDue(clients, new Date()).length : 0;
+  const renewLine = renewN || renewOpen.length ? flowCard({ id: 'renewals', n: renewN || renewOpen.length, href: 'year.html#renewals', cta: 'לחידושים', tone: renewOpen.length ? 'today' : 'plain',
+    text: `חידושים ב־90 יום: ${renewN || renewOpen.length}` }) : null;
+  const list = workFor(person).filter((g) => !covered(g) && !renewing(g.proc?.id));
+  const shownKeys = new Set(list.map((g) => g.key));
+  const soonGroups = person ? upcomingGroups(person).map((g) => ({ ...g, list: g.list.filter((s) => !shownKeys.has(`${g.client.id}:${s.proc.id}`) && !renewing(s.proc.id) && !covered({ client: g.client, proc: s.proc })) })).filter((g) => g.list.length) : [];
+  const soon = person ? upcomingSection(soonGroups, own) : null;
   const review = person ? OFFICE_REVIEWS.find((r) => r.owner === person && reviewPending(r)) : null;
   const thursday = person === 'ofir' ? thursdayCard() : null;
   const banner = !person || person === 'irit' ? autoBanner() : null;
@@ -1642,7 +1780,7 @@ function renderMine() {
   // A contract that ended while the client is still active: Lior's to decide (and the owners see it).
   const ended = person === 'lior' || (!person && !me) ? contractsEnded(clients, new Date()) : [];
   const endedCards = ended.map((x) => contractCard(x, { viewer: { me, scope, error: viewerError }, href: clientUrl(x.cid, '#p34'), onDone: () => load() }));
-  if (!list.length && !review && !thursday && !heldItems.length && !ended.length && !flow.some((f) => f.bucket !== 'landing')) {
+  if (!list.length && !review && !thursday && !renewLine && !heldItems.length && !ended.length && !flow.some((f) => f.bucket !== 'landing')) {
     fill(wrap, banner, ilai, ilai ? null : emptyState({ text: nothing }), soon);
     return;
   }
@@ -1650,7 +1788,10 @@ function renderMine() {
   // here is a plain row of the group; Ilai's, inside his cards above, are said in one line.
   const listKeys = new Set(list.map((g) => g.key));
   const inCards = heldItems.filter((x) => covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).length;
-  const lateRows = heldItems.filter((x) => !listKeys.has(lateKey(x)) && !covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).map(lateRow);
+  const lateRows = heldItems.filter((x) => !renewing(x.procId) && !listKeys.has(lateKey(x)) && !covered({ client: { id: x.cid }, proc: x.procId ? { id: x.procId } : null, task: x.task })).map(lateRow);
+  // My own long "באיחור": one counted line to its tab, which lists them all (the owner, 20.10.2026).
+  const lateTotal = person === me && hasLateTab() ? lateOfMe(flow).n : 0;
+  const lateFolded = !full && lateTotal > LATE_INLINE; // the full view is the whole list, as it was
   const lateNote = inCards ? h('li', { class: 'wproc late-note' }, h('p', { class: 'hint' },
     inCards === 1 ? 'אחד מהם נמצא בכרטיסים שלך למעלה.' : `${inCards} מהם נמצאים בכרטיסים שלך למעלה.`, ' ',
     person === me && hasLateTab() ? h('a', { href: '#late' }, 'הצגת כל האיחורים') : null)) : null;
@@ -1659,11 +1800,19 @@ function renderMine() {
   const cap = (ul, k) => (full ? ul : capList(ul, MINE_CAP, `mine:${person || 'all'}:${k}`));
   // Thursday's pass is a fixed card of its own, right after urgent work.
   const thuGroup = thursday ? h('section', { class: 'wgroup g-thu', 'aria-label': 'מעבר חובה של יום חמישי' }, h('ul', { class: 'wprocs' }, thursday)) : null;
-  fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'overdue' ? thuGroup : null, k === 'client' ? soon : null, (() => {
+  fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'today' ? thuGroup : null, k === 'client' ? soon : null, (() => {
     let g = list.filter((x) => bucketFor(x) === k);
     if (k === 'urgent' || k === 'escalation') g = g.sort(byReported);
     if (k === 'overdue') g = g.sort(worstFirst);
-    const extra = [...(k === 'today' ? endedCards : []), ...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : []), ...(k === 'overdue' ? lateRows : [])];
+    if (joinsByClient(person) && k !== 'client') g = joinByClient(g);
+    if (person === 'lior' && k !== 'client') g = joinDrives(g);
+    if (k === 'overdue' && lateFolded) {
+      return h('section', { class: 'wgroup g-overdue g-late-line', 'aria-label': title },
+        // What waits on another page stays its own line (it is one thing to do there); the cards are behind the line.
+        h('ul', { class: 'wprocs' }, ...flowIn('overdue'), h('li', { class: 'wproc flow-card late-fold' },
+          countedLine({ id: 'late-line', n: lateTotal, text: `${lateTotal} דברים באיחור אצלך`, cta: 'לשונית באיחור', href: '#late', tone: 'late', cls: 'late-line' }))));
+    }
+    const extra = [...(k === 'today' ? endedCards : []), ...(renewLine && k === (renewOpen.length ? 'today' : 'later') ? [renewLine] : []), ...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : []), ...(k === 'overdue' ? lateRows : [])];
     if (!g.length && !extra.length && !(k === 'overdue' && inCards)) return null;
     // The number of "באיחור" is the number of the tab: Ilai's late work inside his cards is part of it.
     const more = k === 'overdue' ? inCards : 0;
@@ -1678,17 +1827,17 @@ function renderMine() {
         ontoggle: (ev) => { waitGroupOpen = ev.currentTarget.open; },
       },
       head('summary', g.length),
-      cap(h('ul', { class: 'wprocs' }, ...g.map((x) => groupCard(x, person))), k));
+      cap(h('ul', { class: 'wprocs' }, ...g.map((x) => cardOf(x, person))), k));
     }
     // On a short list what is not for today or tomorrow waits folded, one tap away.
     if (!full && (k === 'week' || k === 'later')) {
       return h('details', { class: `wgroup g-${k}`, open: laterOpen.has(k), ontoggle: (ev) => { if (ev.currentTarget.open) laterOpen.add(k); else laterOpen.delete(k); } },
         head('summary', g.length + extra.length),
-        cap(h('ul', { class: 'wprocs' }, ...extra, ...g.map((x) => groupCard(x, person))), k));
+        cap(h('ul', { class: 'wprocs' }, ...extra, ...g.map((x) => cardOf(x, person))), k));
     }
     return h('section', { class: `wgroup g-${k}`, 'aria-label': title },
       head('h2', g.length + extra.length),
-      cap(h('ul', { class: 'wprocs' }, k === 'overdue' ? lateNote : null, ...extra, ...g.map((x) => groupCard(x, person))), k));
+      cap(h('ul', { class: 'wprocs' }, k === 'overdue' ? lateNote : null, ...extra, ...g.map((x) => cardOf(x, person))), k));
   })()]));
 }
 
@@ -1890,8 +2039,19 @@ function rebuildClocks(now = new Date()) {
     return person === undefined || !clients.length ? [] : clocksFor(person, clients, checks, { now, stateOf, tasks });
   });
 }
+// What "עכשיו" shows: the clocks, less those of Ilai's own cards (the card is where that work
+// is done, with its deadline; the owner, 20.10.2026: one place for each thing). Other clocks
+// stay beside their card: the row is the countdown (the Highlights' 30 minutes, the new deal),
+// the card holds the ticks. The alerts still run on every clock.
+function shownClocks() {
+  if (me !== 'ilai' || viewerError) return clocks;
+  const covered = coveredByCard({ clients, checks, stateOf, me, viewer: { me, scope, error: viewerError } });
+  return clocks.filter((c) => !(c.client && c.proc && covered({ client: c.client, proc: c.proc })));
+}
+let nowShown = []; // the clocks "עכשיו" shows, as of its last draw (the countdowns update these)
 function paintNowBar() {
-  renderNowBar($('now-bar'), clocks, { everyone: !me, onAnswered: markAnswered });
+  nowShown = shownClocks();
+  renderNowBar($('now-bar'), nowShown, { everyone: !me, onAnswered: markAnswered });
 }
 
 // Once a second: the countdowns, without rebuilding anything else. Only a clock
@@ -1909,7 +2069,7 @@ function clockTick() {
   clockSeen = seen;
   if (ranOut.length) clocksRanOut(ranOut);
   const bar = $('now-bar');
-  if (!document.hidden && view === 'mine' && !bar.hidden) updateNowBar(bar, clocks, { now, onAnswered: markAnswered });
+  if (!document.hidden && view === 'mine' && !bar.hidden) updateNowBar(bar, nowShown, { now, onAnswered: markAnswered });
 }
 setInterval(clockTick, 1000);
 
@@ -2160,6 +2320,17 @@ function reviewMarkControl(r, idPrefix) {
 
 // The fixed card in Irit's / Ofir's "today" group, until the review is marked.
 function reviewCard(r) {
+  // Ofir's own 33 (the owner, 20.10.2026): it is done on pass.html and finishing the pass
+  // marks it there (app/pass.js), so his card is the way in, with no tick of its own.
+  if (r.num === '33' && me === r.owner) {
+    return h('li', { class: 'wproc rv-card k-pc pc pc-full rv-pass' },
+      h('div', { class: 'k-pc-top' },
+        cardMark(null, 'check-circle', 'blue'),
+        h('div', { class: 'wproc-h k-pc-body' },
+          h('span', { class: 'wtitle' }, `מעבר על הלקוחות · תהליך ${r.num}`),
+          h('p', { class: 'task-meta' }, 'סיום המעבר מסמן את הבקרה של היום.'))),
+      h('a', { class: 'btn btn-sm wc-go', id: 'rv-pass-go', href: 'pass.html' }, 'למעבר על הלקוחות'));
+  }
   return h('li', { class: 'wproc rv-card k-pc pc pc-full' },
     h('div', { class: 'k-pc-top' },
       cardMark(null, 'check-circle', 'blue'),
@@ -2526,7 +2697,9 @@ function thursdayCard() {
       cardMark(null, 'file', 'purple'),
       h('div', { class: 'wproc-h k-pc-body' },
         h('span', { class: 'wtitle' }, `מעבר חובה של יום חמישי: סיכום מצב לכל הלקוחות (${w.done}/${w.total})`),
-        h('a', { class: 'btn-text', href: '#control', onclick: (ev) => { ev.preventDefault(); goToStatus(); } }, 'מעבר לסיכום המצב'))),
+        // Ofir writes the Thursday summaries in his pass (pass.html, "סיכום חמישי"); the others in the control.
+        me === 'ofir' ? h('a', { class: 'btn-text', href: 'pass.html#th-h' }, 'מעבר לסיכום המצב')
+          : h('a', { class: 'btn-text', href: '#control', onclick: (ev) => { ev.preventDefault(); goToStatus(); } }, 'מעבר לסיכום המצב'))),
     h('p', { class: 'task-meta' }, 'על כל לקוח: מצב נוכחי, מה חסר, פעולה הבאה, אחראי ומועד יעד.'),
     progressBar(w.done, w.total, 'לקוחות שסוכמו השבוע'));
 }
@@ -3278,7 +3451,7 @@ window.addEventListener('hashchange', () => {
   if ($('app').hidden) return;
   // The address may belong to the other profile (the button at the top, a link): the tabs follow it.
   const moved = syncProfile();
-  if (moved) { changed(); applyScope(); renderMe(); syncMetricoolConnect(); }
+  if (moved) { changed(); applyScope(); renderMe(); }
   const v = viewOfHash();
   if (tabsShown().includes(v) && (v !== view || moved)) setView(v);
 });
@@ -3348,9 +3521,8 @@ mountSession(async (staff) => {
   mountDeals($('deals-card'), { me, scope, error: viewerError });
   // Exceptional contracts: the approvers decide here; Irit sees "ממתין לאישור", "אושר — אפשר לשלוח", "לא אושר".
   mountApprovals($('approvals-card'), { me, scope, error: viewerError }, { mail: staff.email, toast, changed: refreshDeals });
-  // Ilai: the active clients that are not connected to a Metricool brand yet. The owners
-  // have the card in the manager profile only ("עבודת הצוות"), not among their own tasks.
-  mountMetricoolConnect($('metricool-card'), { me, scope, error: viewerError }, { personal: () => personal });
+  // "לקוחות שלא מחוברים ל־Metricool" moved to the Gantt index (gantt.html; the owner,
+  // 20.10.2026): Ilai's own list keeps one line of Metricool problems (app/mine-metricool.js).
   const fromHash = viewOfHash();
   view = tabsShown().includes(fromHash) ? fromHash : 'mine';
   await load();

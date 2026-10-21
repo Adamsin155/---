@@ -294,8 +294,8 @@ await step('nothing that needs action is lost in the personal profile: the cards
   assert.ok(mine > 0);
   // His queue is one tap away in the personal menu.
   assert.equal(await o.page.getAttribute('#side-qa', 'href'), 'qa.html');
-  // His morning summary is still next to his own list.
-  assert.ok(await o.page.locator('#mine-tools .wa-link, #mine-foot .wa-link').count() >= 1, 'the morning summary');
+  // No morning summary under his own list any more (the owner, 20.10.2026: it added nothing there).
+  assert.equal(await o.page.locator('#mine-tools .wa-link, #mine-foot .wa-link').count(), 0, 'the morning summary');
   await o.page.click('#team-open');
   await o.page.waitForSelector('#mine-people:visible');
   assert.ok(await o.page.locator('#mine-people .chip').count() > 3);
@@ -337,7 +337,8 @@ await step('Irit, personal profile: only her own work, no chip or list of anyone
   assert.equal(await page.locator('#staff-tasks-card').isVisible(), true, 'giving a task on the spot');
   assert.equal(await page.locator('#btn-inbox').count(), 1);
   assert.equal(await page.locator('#btn-new').isVisible(), true);
-  assert.ok(await page.locator('#mine-tools .wa-link, #mine-foot .wa-link').count() >= 1, 'her morning summary');
+  // No morning summary under her own list any more (the owner, 20.10.2026).
+  assert.equal(await page.locator('#mine-tools .wa-link, #mine-foot .wa-link').count(), 0, 'her morning summary');
   await shot(page, 'irit-personal-1366');
   // The daily control (process 32, her own): one tap, still the personal profile.
   await page.click('#tab-control');

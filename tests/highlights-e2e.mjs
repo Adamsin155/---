@@ -126,7 +126,8 @@ const shot = async (name) => { if (OUT) await page.screenshot({ path: `${OUT}/${
 const step = async (name, fn) => { await fn(); console.log(`ok - ${name}`); };
 const clockSel = (c) => `#now-bar .now-clock[data-clock^="soon:${c.id}:p08b"]`;
 const TITLE = '8ב · העלאת ה־Highlights לרשתות';
-const mineCard = (c) => page.locator(`#mine-list .wproc:has(.wclient:text("${c.business || c.name}")):has-text("${TITLE}")`);
+// The outer card: Ofir's processes of one client are one card listing them (the owner, 20.10.2026).
+const mineCard = (c) => page.locator(`#mine-list .wproc:not(.wc-subs > .wproc):has(.wclient:text("${c.business || c.name}")):has-text("${TITLE}")`);
 
 await page.goto(`${BASE}clients.html#mine`);
 await page.fill('#lg-email', USER.email);
@@ -168,8 +169,9 @@ await step('the 30 minutes pass: the clock is red; the older client\'s process i
   assert.match(await page.locator(clockSel(ron)).innerText(), /נגמר לפני/);
   await page.reload();
   await page.waitForSelector('#view-mine:not([hidden]) #mine-list .wproc');
-  assert.equal(await page.locator(`#mine-list .g-overdue .wproc:has(.wclient:text("פיצה רון")):has-text("${TITLE}")`).count(), 1);
-  assert.equal(await page.locator(`#mine-list .g-overdue .wproc:has(.wclient:text("קפה גליה")):has-text("${TITLE}")`).count(), 0, 'new in the protocol for it: never late');
+  // One card (Ofir's processes of one client are one card since the owner's 20.10.2026).
+  assert.equal(await page.locator(`#mine-list .g-overdue > .wprocs > .wproc:has(.wclient:text("פיצה רון")):has-text("${TITLE}")`).count(), 1);
+  assert.equal(await page.locator(`#mine-list .g-overdue > .wprocs > .wproc:has(.wclient:text("קפה גליה")):has-text("${TITLE}")`).count(), 0, 'new in the protocol for it: never late');
   assert.equal(await mineCard(old).count(), 1, 'still work to do');
   await shot('02-ofir-late');
 });

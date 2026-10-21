@@ -36,10 +36,13 @@ export function itemRow(item, ctx) {
   if (item.status === 'done' && mark) meta.push(h('span', { class: 'by' }, `בוצע · ${who(mark.by_email)} · ${formatStamp(mark.at)}`));
   else if (item.status === 'na' && mark) meta.push(h('span', { class: 'by' }, `לא רלוונטי החודש · ${who(mark.by_email)}`));
   else if (item.status === 'auto') meta.push(h('span', { class: 'by' }, 'בוצע: הסבב נפתח בכרטיס'));
+  // In "המשימות שלי" a draft is not counted as late (the owner, 20.10.2026): a date that
+  // passed is said plainly, with no pink "באיחור" (ctx.quiet).
+  else if (ctx.quiet && status === 'overdue') meta.push(h('span', {}, `היעד היה ${formatWhen(item.dueAt, now)}`));
   else meta.push(h('span', { class: status === 'overdue' ? 'late' : '' }, `${STATUS_TEXT[status] ? `${STATUS_TEXT[status]} · ` : ''}עד ${formatWhen(item.dueAt, now)}`));
   if (mark?.note && item.status !== 'auto') meta.push(h('span', { class: 'inote' }, mark.note));
   const checked = item.status === 'done' || item.status === 'auto';
-  return h('li', { class: `item fin-row mitem s-${status}${checked ? ' is-done' : ''}${item.status === 'na' ? ' is-na' : ''}${busy ? ' is-busy' : ''}` },
+  return h('li', { class: `item fin-row mitem s-${ctx.quiet && status === 'overdue' ? 'open' : status}${checked ? ' is-done' : ''}${item.status === 'na' ? ' is-na' : ''}${busy ? ' is-busy' : ''}` },
     h('label', { class: 'irow', for: id },
       h('input', {
         type: 'checkbox', id, class: 'cbx fin', checked, disabled: !can || busy || item.status === 'na',
@@ -132,7 +135,7 @@ export function showMonths(el, ctx) {
     draftHint(),
     capList(h('ul', { class: 'wprocs mc-list', 'aria-labelledby': 'mc-h' }, ...byClient.map(({ c, items, m }) => h('li', { class: 'wproc mc-client' },
       h('p', { class: 'mc-head' }, h('a', { class: 'wclient', href: cardUrl(c.id) }, clientLabel(c)), m ? h('span', { class: 'muted' }, ` · חודש ${m.n} מתוך ${m.of}`) : null),
-      h('ul', { class: 'items' }, ...items.map((i) => itemRow(i, { client: c, me: ctx.me, office: ctx.office, pending, onMark: onMark(c) })))))),
+      h('ul', { class: 'items' }, ...items.map((i) => itemRow(i, { client: c, me: ctx.me, office: ctx.office, pending, onMark: onMark(c), quiet: true })))))),
     ctx.short ? 2 : Infinity, 'months'),
   ));
 }

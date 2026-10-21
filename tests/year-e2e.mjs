@@ -259,8 +259,8 @@ await step('Ilai: his items of the monthly cycle in "המשימות שלי", lab
   assert.equal(await box.locator('.mc-head a').getAttribute('href'), `client.html?id=${A.id}#month`);
   // Nothing of Galia (all done) or of the old shop (its cycle starts next month); nothing of others.
   assert.doesNotMatch(await box.innerText(), /קפה גליה|חנות ישנה|דוח חודשי|צלם/);
-  // Right after the tools, before the list (and the list's foot: its length, the short list's tools).
-  assert.deepEqual(await ilai.evaluate(() => [...document.querySelectorAll('#view-mine > *')].map((e) => e.id).slice(-3)), ['my-months', 'mine-list', 'mine-foot']);
+  // Under the list, folded (the owner, 20.10.2026: the protocol's own work first; it was above the list until then).
+  assert.deepEqual(await ilai.evaluate(() => [...document.querySelectorAll('#view-mine > *')].map((e) => e.id).slice(-3)), ['mine-list', 'my-months', 'mine-foot']);
   // The year left Ilai's menu on 20.10.2026 (the owner): it repeats his task list; it opens by its address.
   await ilai.waitForSelector('#side-gantt');
   assert.equal(await ilai.locator('#side-year').count(), 0);
@@ -303,8 +303,9 @@ await step('Ofir sees his late report (and no one else\'s items); an editor sees
   await ofir.waitForSelector('#my-months:not([hidden]) .mitem');
   const items = ofir.locator('#my-months .mitem');
   assert.equal(await items.count(), 1);
-  assert.match(await items.nth(0).innerText(), /דוח חודשי על חודש 7 נשלח ללקוח[^]*אופיר[^]*באיחור · עד/);
-  assert.equal(await items.nth(0).evaluate((el) => el.classList.contains('s-overdue')), true);
+  // In "המשימות שלי" a draft is not said to be late (the owner, 20.10.2026): the date that passed, plainly.
+  assert.match(await items.nth(0).innerText(), /דוח חודשי על חודש 7 נשלח ללקוח[^]*אופיר[^]*היעד היה /);
+  assert.equal(await items.nth(0).evaluate((el) => el.classList.contains('s-overdue')), false);
   await octx.close();
   const nctx = await newContext();
   const nadia = await newPage(nctx);

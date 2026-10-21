@@ -34,6 +34,7 @@ import { dayKeyIL, daysBetweenIL } from './tz.js';
 import { unsignedLine, UNSIGNED_URL } from './unsigned-logic.js';
 import { followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
 import { QUOTE_LIST_VIEWERS } from './manager-rules.js';
+import { problemsText, FAILED_URL, NOTHING_AHEAD_URL, NOT_CONNECTED_URL } from './mine-metricool.js';
 
 // The words every line of a client in landing ends with.
 export const LANDING_WORDS = 'בקליטה, בלי שעון';
@@ -194,6 +195,22 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
       text: landingText(words(soon, `לקוח אחד מצטלם ב־${SHOOT_SOON_DAYS} הימים הקרובים`, `לקוחות מצטלמים ב־${SHOOT_SOON_DAYS} הימים הקרובים`)) });
   }
 
+
+  // ── Ilai: the Metricool problems (the owner, 20.10.2026; app/mine-metricool.js) ──
+  // One line to the Gantt index: what failed to publish, and who has nothing scheduled
+  // for next week. The bigger number leads only when nothing failed.
+  if (me === 'ilai' && extra.metricool) {
+    const p = extra.metricool;
+    const text = problemsText(p);
+    if (text) {
+      add({ id: 'metricool', bucket: 'today', n: p.failed || p.nothingAhead, rule: null, href: p.failed ? FAILED_URL : NOTHING_AHEAD_URL, cta: 'לגאנט', text });
+    }
+    // The clients not connected to a brand: the card is on the Gantt index; here a quiet line to it.
+    if (p.notConnected) {
+      add({ id: 'metricool-connect', bucket: 'today', tone: 'plain', n: p.notConnected, rule: null, href: NOT_CONNECTED_URL, cta: 'לחיבור',
+        text: p.notConnected === 1 ? 'לקוח אחד לא מחובר ל־Metricool' : `${p.notConnected} לקוחות לא מחוברים ל־Metricool` });
+    }
+  }
   // ── The photographer's free dates of next month (section 39) ──
   if (extra.availability && Array.isArray(extra.availability.months)) {
     const ask = askOf(now);
@@ -223,6 +240,29 @@ export function flowNeeds(viewer, now = new Date()) {
   if (me === 'irit') needs.push('messages');
   if (QUOTE_LIST_VIEWERS.includes(me)) needs.push('unsigned');
   if (me === 'ofir') needs.push('liorShoot');
+  if (me === 'ilai') needs.push('metricool');
   if (PHOTOGRAPHERS.includes(me) || (AVAILABILITY_MANAGERS.includes(me) && missingForManagers(now))) needs.push('availability');
   return needs;
+}
+
+// ── Lior's decisions as one line (the owner, 20.10.2026) ──
+// The counters that only point to "החלטות" (an urgent task that came back to him, an
+// editing paused, a broken login, a change request, the weekly campaign check) are one
+// line, "N החלטות מחכות", in the group of the most pressing of them; one alone stays as
+// it is, in its own words. N is what waits there, added up.
+export const DECISION_LINES = ['urgent-back', 'paused', 'access', 'changes', 'campaigns'];
+const BUCKET_ORDER = ['urgent', 'escalation', 'overdue', 'today', 'tomorrow', 'week', 'later'];
+export function joinDecisions(lines) {
+  const parts = lines.filter((l) => DECISION_LINES.includes(l.id));
+  if (parts.length < 2) return lines;
+  const bucket = BUCKET_ORDER.find((b) => parts.some((l) => l.bucket === b)) || 'today';
+  const n = parts.reduce((sum, l) => sum + l.n, 0);
+  const line = {
+    id: 'decisions', bucket, n, rule: parts.find((l) => l.bucket === bucket).rule, href: 'decisions.html', cta: 'להחלטות',
+    text: n === 1 ? 'החלטה אחת מחכה לך' : `${n} החלטות מחכות לך`, parts: parts.map((l) => l.id),
+  };
+  const at = lines.indexOf(parts[0]);
+  const rest = lines.filter((l) => !parts.includes(l));
+  rest.splice(Math.min(at, rest.length), 0, line);
+  return rest;
 }

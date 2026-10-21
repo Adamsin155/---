@@ -249,6 +249,9 @@ try {
     await shot(page, `2-ofir-meeting-${width}`, row);
     await ctx.close();
     const ilai = await signedIn('ilai', db, { width });
+    // The batch is one line until opened (the owner, 20.10.2026): opened to read where it is.
+    await ilai.page.waitForSelector('.il-gfx-fold');
+    for (let k = 0; k < 10 && await ilai.page.locator('.il-gfx-fold:not([open]) > summary .il-gfx-n').count(); k += 1) await ilai.page.locator('.il-gfx-fold:not([open]) > summary .il-gfx-n').first().click();
     await ilai.page.waitForSelector('.il-with-ofir');
     assert.equal(await text(ilai.page.locator('.il-with-ofir').first()), 'אצל אופיר לבדיקה · אופיר בפגישת אפיון');
     await shot(ilai.page, `2-ilai-waits-${width}`, ilai.page.locator('.il-with-ofir'));

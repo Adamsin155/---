@@ -464,8 +464,9 @@ await step('Ilai: nothing is clipped from 360 to 1440, the cards wear the kit, a
     assert.ok(await page.locator('.g-ilai > .il-list > .il-card .il-head > .k-ico').count() >= 2);
     assert.ok(await page.locator('.g-ilai > .il-list > .il-card .fl-work-add.k-tile .k-ico').count() >= 2);
     assert.equal(await page.locator('.g-ilai .il-card .il-ready:not(.k-btn-navy)').count(), 0);
-    const lock = page.locator('.g-ilai .il-card .il-lock').first();
-    assert.match(await lock.evaluate((e) => e.textContent), /נפתח אחרי שמעלים כאן לפחות גרפיקה אחת/);
+    // No lock line before a graphic is up, and each batch is one line until opened (the owner, 20.10.2026).
+    assert.equal(await page.locator('.g-ilai .il-card .il-lock').count(), 0);
+    assert.match(await page.locator('.g-ilai .il-gfx-s').first().innerText(), /הועלו/);
     // The clients in landing: a counted line a kind, with the words of every landing line.
     const fold = page.locator('#il-fold-rest');
     assert.equal(await fold.count(), 1);

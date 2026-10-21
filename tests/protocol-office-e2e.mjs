@@ -583,7 +583,9 @@ await page.waitForSelector('#view-mine:not([hidden]) .witem');
 // Urgent first, above "overdue", with a text badge; who opened it and when.
 const order3 = await page.locator('#mine-list .wgroup').evaluateAll((els) => els.map((e) => e.className));
 assert.match(order3[0], /g-urgent/);
-assert.match(order3[1], /g-overdue/);
+// Then today, then late (the owner, 20.10.2026: today's work before the late cards).
+assert.match(order3[1], /g-today/);
+assert.ok(order3.findIndex((c) => /g-overdue/.test(c)) > 1);
 const urgentCard = page.locator('.g-urgent .wproc');
 assert.equal(await urgentCard.count(), 1);
 assert.match(await page.locator('.g-urgent .wgroup-h').innerText(), /^דחוף/);
@@ -933,9 +935,10 @@ assert.ok(thuGroups.findIndex((c) => /g-thu/.test(c)) < thuGroups.findIndex((c) 
 assert.match(await thuCard.innerText(), new RegExp(`מעבר חובה של יום חמישי: סיכום מצב לכל הלקוחות \\(2/${inWorkN}\\)`));
 assert.match(await waText('#mine-tools .wa-link', thu), new RegExp(`מעבר חובה של יום חמישי \\(1\\):\\n- סיכום מצב לכל הלקוחות: סוכמו 2 מתוך ${inWorkN}`));
 await shot('13-thursday-ofir', thu);
-await thuCard.locator('a:text("מעבר לסיכום המצב")').click();
+// Ofir writes the summaries in his pass (the owner, 20.10.2026): the card leads there.
+assert.equal(await thuCard.locator('a:text("מעבר לסיכום המצב")').getAttribute('href'), 'pass.html#th-h');
+await thu.locator('#tab-control').click();
 await thu.waitForSelector('#view-control:not([hidden]) .status-sec');
-assert.equal(await thu.evaluate(() => document.activeElement.id), 'ctl-status');
 const p33row = thu.locator('.rv-row').nth(1);
 assert.match(await p33row.innerText(), /עבר יותר מיומיים מהבקרה האחרונה[^]*הבקרה האחרונה: א׳ 20\.9/);
 assert.equal(await thu.locator('.rv-row').first().locator('.rv-stale').count(), 0); // process 32 is daily, flagged elsewhere

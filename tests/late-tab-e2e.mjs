@@ -185,7 +185,14 @@ try {
       assert.equal(await page.isVisible('#tab-late'), true);
       assert.equal(await text(page.locator('#tab-late')), `באיחור ${want}`);
       assert.equal(await page.getAttribute('#tab-late', 'aria-selected'), 'false');
-      assert.equal(Number(await page.locator('#mine-list .g-overdue .wgroup-h .n').innerText()), want, 'the heading of the group says the same number');
+      // More than three late things are one line to the tab instead of their cards (the
+      // owner, 20.10.2026): the line carries the number then; three or fewer keep the heading.
+      if (await page.locator('#late-line').count()) {
+        assert.equal(Number(await page.locator('#late-line .k-num').getAttribute('data-n')), want, 'the late line says the same number');
+        assert.ok(want > 3);
+      } else {
+        assert.equal(Number(await page.locator('#mine-list .g-overdue .wgroup-h .n').innerText()), want, 'the heading of the group says the same number');
+      }
       // Late items stay at the top of "המשימות שלי": the group is still there.
       assert.ok(await page.locator('#mine-list .g-overdue').count() === 1);
       // Opened: only the late ones, with the same controls.
@@ -198,7 +205,8 @@ try {
       assert.match(await text(page.locator('#late-h')), new RegExp(`^${want === 1 ? 'דבר אחד' : `${want} דברים`} באיחור אצלך`));
       for (const sel of ['#now-bar', '#push-card', '#mine-foot', '#my-months', '#land-line', '#staff-tasks-card']) assert.equal(await page.isVisible(sel), false, `${sel} is not part of the late view`);
       if (role !== 'ilai') {
-        const rows = await page.locator('#mine-list .late-list > li:not(.more-row)').count();
+        // One row for each late thing; Ofir's processes of one client and Lior's drives of one shoot day are one card listing them (the owner, 20.10.2026).
+        const rows = await page.locator('#mine-list .late-list > li:not(.more-row)').evaluateAll((els) => els.reduce((n, el) => n + (el.matches('.wc-joined') ? el.querySelectorAll(':scope > .wc-subs > li').length : el.matches('.wc-drives') ? el.querySelectorAll('.wlist > li').length : 1), 0));
         assert.equal(rows, want, 'one row for each late thing');
         assert.equal(await page.locator('#mine-list .late-list .wc-when:not(.s-overdue)').count(), 0, 'every card there is late');
         assert.ok(await page.locator('#mine-list .late-list .cbx, #mine-list .late-list .wc-go, #mine-list .late-list a.k-line').count() >= 1, 'the same controls');
@@ -290,7 +298,7 @@ try {
   for (const role of ['ofir', 'irit', 'lior', 'eli', 'yariv']) {
     await step(`C: ${role}: every counted line is solid, with its number, one sentence and a button`, async () => {
       const { page, ctx } = await signedIn(role, { width: 360 });
-      await page.evaluate(() => { for (const d of document.querySelectorAll('#mine-list details')) d.open = true; });
+      await page.evaluate(() => { for (const d of document.querySelectorAll('#mine-list details, #land-line details')) d.open = true; });
       const rows = await page.evaluate(() => [...document.querySelectorAll('#land-line a, #mine-list a.flow-line')].filter((a) => a.getClientRects().length).map((a) => {
         const cs = getComputedStyle(a);
         const go = a.querySelector('.k-go');

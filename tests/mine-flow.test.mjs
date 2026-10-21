@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PEOPLE } from '../app/protocol.js';
 import { clientState } from '../app/protocol-logic.js';
-import { flowLines, flowNeeds, LANDING_WORDS } from '../app/mine-flow.js';
+import { flowLines, flowNeeds, LANDING_WORDS, joinDecisions } from '../app/mine-flow.js';
 import { menuOf } from '../app/shell-rules.js';
 import { RULE_BY_ID } from '../app/reminder-rules.js';
 import { qaQueue, awaitingEditor } from '../app/qa-logic.js';
@@ -193,4 +193,23 @@ test('landing means no clock: its lines say so, sit apart, and name no reminder;
   const irit = byId(linesOf(db, 'irit'));
   assert.equal(irit.messages, undefined);
   assert.equal(irit['landing-messages'].bucket, 'landing');
+});
+
+// The owner, 20.10.2026: Lior's counters that only point to "החלטות" are one line.
+test("Lior's decision counters join into one line, in the group of the most pressing", () => {
+  const l = (id, bucket, n) => ({ id, bucket, n, rule: id, href: `decisions.html#${id}`, cta: 'x', text: id });
+  const other = l('landing-shoot', 'landing', 2);
+  const joined = joinDecisions([l('urgent-back', 'urgent', 1), l('paused', 'today', 2), other, l('changes', 'today', 3), l('campaigns', 'overdue', 1)]);
+  assert.equal(joined.length, 2);
+  const d = joined.find((x) => x.id === 'decisions');
+  assert.equal(d.n, 7);
+  assert.equal(d.bucket, 'urgent');
+  assert.equal(d.href, 'decisions.html');
+  assert.equal(d.text, '7 החלטות מחכות לך');
+  assert.deepEqual(d.parts, ['urgent-back', 'paused', 'changes', 'campaigns']);
+  assert.ok(joined.includes(other));
+  // One alone keeps its own words; nothing else is touched.
+  const one = [l('paused', 'today', 1), other];
+  assert.deepEqual(joinDecisions(one), one);
+  assert.equal(joinDecisions([l('access', 'today', 1), l('campaigns', 'overdue', 1)]).find((x) => x.id === 'decisions').bucket, 'overdue');
 });

@@ -300,45 +300,21 @@ await step('landing.html refuses the field sales; the owners\' line is shown to 
 // ── 5. "לקוחות שלא מחוברים ל־Metricool" ────
 const CARD = '#metricool-card';
 
-await step('the Metricool card: not on the owners\' personal "המשימות שלי"; Ilai has it; the owners find it in "עבודת הצוות"', async () => {
-  const ilai = await signedIn('ilai');
-  await ilai.page.goto(`${BASE}clients.html#mine`);
-  await ilai.page.waitForSelector(`${CARD}:not([hidden]) h2`);
-  assert.match(await ilai.page.innerText(`${CARD} h2`), /^לקוחות שלא מחוברים ל־Metricool \(\d+\)$/);
-  assert.equal(await visible(ilai.page, '#mcn-toggle'), true);
-  await ilai.ctx.close();
-
-  for (const viewport of [WIDE, NARROW]) {
-    const { page, ctx } = await signedIn('owner', { viewport });
-    await page.goto(`${BASE}clients.html#mine`);
-    await page.waitForSelector('#view-mine:not([hidden])');
-    await page.waitForSelector('#team-fold');
-    await settle(page);
-    assert.equal(await page.evaluate(() => document.documentElement.dataset.profile), 'mine');
-    assert.equal(await visible(page, CARD), false, 'the owners\' personal tasks show the Metricool card');
-    assert.equal(/Metricool/.test(await page.innerText('#view-mine')), false);
-    // What is theirs stays: the clocks, the sellers' deals, giving a task on the spot.
-    assert.equal(await visible(page, '#deals-card'), true);
-    assert.equal(await visible(page, '#staff-tasks-card'), true);
-    // The manager profile's "עבודת הצוות": the card, as it was.
-    await page.click('#team-open');
-    await page.waitForSelector('#profile-switch[data-to="mine"]');
-    await page.waitForSelector(`${CARD}:not([hidden]) h2`);
-    assert.match(await page.innerText(`${CARD} h2`), /^לקוחות שלא מחוברים ל־Metricool \(\d+\)$/);
-    // Back to the personal profile with the button, without a page load: gone again.
-    await page.click('#profile-switch');
-    await page.waitForSelector('#profile-switch[data-to="manager"]');
-    await page.waitForSelector(`${CARD}`, { state: 'hidden' });
-    assert.equal(await visible(page, CARD), false);
-    await ctx.close();
-  }
-  // Nobody else has it, in either profile.
-  for (const role of ['irit', 'lior', 'ofir', 'nadia']) {
+// The owner, 20.10.2026: the card left "המשימות שלי" for the Gantt index (gantt.html);
+// Ilai's own list keeps one line of Metricool problems (app/mine-metricool.js).
+await step('the Metricool card is on no one\'s "המשימות שלי" any more, in either profile', async () => {
+  for (const role of ['ilai', 'owner', 'irit', 'lior', 'ofir', 'nadia']) {
     const { page, ctx } = await signedIn(role);
     await page.goto(`${BASE}clients.html#mine`);
     await page.waitForSelector('#view-mine:not([hidden])');
     await settle(page);
     assert.equal(await visible(page, CARD), false, role);
+    if (role === 'owner') {
+      await page.click('#team-open');
+      await page.waitForSelector('#profile-switch[data-to="mine"]');
+      await settle(page);
+      assert.equal(await visible(page, CARD), false, 'the owners\' "עבודת הצוות"');
+    }
     await ctx.close();
   }
 });

@@ -157,16 +157,21 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   const list = await shortList(page, 'irit');
   // Protocol v8: what was her one card of "מחר" (the eight follow-up topics of the client that shoots
   // tomorrow) is now part of the one counted line of the daily follow-up, in "היום".
-  assert.deepEqual(list.groups.filter((g) => /g-(overdue|today|tomorrow)/.test(g.cls)).map((g) => g.title), ['באיחור', 'היום']);
+  // The owner, 20.10.2026: "היום" before "באיחור", and her long "באיחור" is one line to its tab
+  // (the late cards, "באיחור N ימי עסקים", are there).
+  assert.deepEqual(list.groups.filter((g) => /g-(overdue|today|tomorrow)/.test(g.cls)).map((g) => (/g-late-line/.test(g.cls) ? 'line' : g.title)), ['היום', 'line']);
+  assert.equal(await page.getAttribute('#late-line', 'href'), '#late');
   assert.match(await page.locator('#mine-list a[href="prep.html#followup"]').innerText(), /מעקב לפני צילום: \d+ לקוחות/);
   assert.equal(await page.locator('#mine-list .wproc[data-key$=":p14"]').count(), 0);
-  assert.ok(list.cards.some((c) => /^באיחור \d+ ימי עסקים$/.test(c.when)), 'the deadline in words');
   assert.ok(list.cards.some((c) => /^היום עד \d\d:\d\d$/.test(c.when)));
   const h = await heightOf(page);
   assert.ok(h < 4500, `Irit's first screen is ${h}px tall (it was about 11,900)`);
   await shot(page, 'irit-01-mine-short');
 
-  // One tap marks a single-item card.
+  // One tap marks a single-item card. Her cards are late ones, behind the "באיחור" line since
+  // the owner's 20.10.2026: the tab has the same cards, with the same controls.
+  await page.click('#late-line');
+  await page.waitForSelector('#late-h');
   const single = page.locator('#mine-list .wproc.wc > .wlist .cbx').first();
   const key = (await single.getAttribute('id'));
   const before = db.protocol_checks.length;
@@ -194,15 +199,11 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.ok(await page.locator(`${sel} .wc-panel .cbx`).first().isVisible());
   await shot(page, 'irit-02-card-open');
 
-  // "הצג עוד" shows the rest of the group, and a rebuild of the list keeps it.
-  const more = page.locator('#mine-list .g-overdue .more-btn');
-  const n = Number(/\((\d+)\)/.exec(await more.innerText())[1]);
-  await more.click();
-  assert.equal(await page.locator('#mine-list .g-overdue > .wprocs > .wproc:visible').count(), 5 + n);
-  await page.click('#btn-refresh');
-  await settle(page);
-  assert.equal(await page.locator('#mine-list .g-overdue .more-btn').count(), 0);
+  // (The late group's "הצג עוד" is gone with its cards: a long "באיחור" is one line to the tab,
+  // which lists them all; the owner, 20.10.2026.)
   assert.ok(await noHScroll(page));
+  await page.click('#tab-mine');
+  await settle(page);
 
   // Her personal profile (7.10.2026): no chooser of whose list, the daily control (process 32) one tap away, no "ביצועים".
   assert.equal(await page.locator('#mine-people').isVisible(), false);
@@ -239,28 +240,15 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   await shot(page, 'irit-03-screens-open');
 });
 
-await step('"תצוגה מלאה" gives the whole list, is remembered, and "תצוגה קצרה" folds it again', async () => {
+// The owner, 20.10.2026: a person's own list has one view, the short one, and nothing folded
+// under it ("סיכום בוקר והתראות" added nothing there). The team's list keeps "תצוגה מלאה".
+await step('Irit\'s own list has one short view: no "תצוגה מלאה" and no folded tools under it', async () => {
   const { page } = await open('irit');
   await page.waitForSelector('#mine-list .wproc.wc');
-  const short = await heightOf(page);
-  await page.click('#mine-view-on');
-  await page.waitForSelector('#mine-list .wproc:not(.wc)');
-  assert.equal(await page.locator('#mine-list .wproc.wc').count(), 0);
-  assert.equal(await page.locator('#mine-list .more-btn').count(), 0);
-  assert.ok(await page.locator('#mine-list .bulk-btn').first().isVisible());
-  assert.ok(await page.locator('#mine-tools .wa-link').isVisible(), 'the morning summary is back in its place');
-  const full = await heightOf(page);
-  assert.ok(full > short * 2, `full ${full}px, short ${short}px`);
+  await settle(page);
+  assert.equal(await page.locator('#mine-view-on, #mine-view-off').count(), 0);
+  assert.equal(await page.locator('#mine-foot .mine-more, #mine-tools .wa-link').count(), 0);
   assert.ok(await noHScroll(page));
-  await page.reload();
-  await page.waitForSelector('#mine-list .wproc:not(.wc)');
-  assert.equal(await page.getAttribute('#mine-view-on', 'aria-pressed'), 'true');
-  await page.click('#mine-view-off');
-  await page.waitForSelector('#mine-list .wproc.wc');
-  assert.equal(await page.locator('#mine-tools .wa-link').count(), 0);
-  // The morning summary and the notifications are under the list, folded.
-  await page.click('.mine-more > summary');
-  assert.ok(await page.locator('#mine-foot .wa-link').isVisible());
 });
 
 // ── The owner ─────────────────────────────
@@ -343,7 +331,8 @@ await step('Lior lands on "המשימות שלי"; "החלטות" is in his bar:
 await step('Ofir lands on "המשימות שלי"; the quality-control queue is in his bar; nothing is repeated in the head; his pass is short', async () => {
   const { page } = await open('ofir');
   await page.waitForSelector('#profile-switch[data-to="manager"]');
-  await page.waitForSelector('#mine-list .wproc.wc');
+  // His late cards are behind the "באיחור" line (the owner, 20.10.2026): the list is drawn.
+  await page.waitForSelector('#mine-list .wgroup');
   assert.match(page.url(), /clients\.html(#mine)?$/);
   // Five in his own menu since the calendar (15.10.2026): his pass and the calendar are behind "עוד".
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'עוד']);
@@ -365,10 +354,11 @@ await step('Ofir lands on "המשימות שלי"; the quality-control queue is 
   // (9.10.2026: each of the six sections opens with an icon square, docs/ops.md section 52: 8,400 became 8,600.)
   assert.ok(ph < 8600, `the pass is ${ph}px tall (it was about 10,300)`);
   await page.goto(`${BASE}clients.html#mine`);
-  await page.waitForSelector('#mine-list .wproc.wc');
+  await page.waitForSelector('#mine-list .wgroup');
   await settle(page);
   await tidy(page, 'ofir mine');
-  await shortList(page, 'ofir mine');
+  // All his cards are late here: one line to the "באיחור" tab (the owner, 20.10.2026), which has them.
+  assert.equal(await page.getAttribute('#late-line', 'href'), '#late');
   assert.ok(await heightOf(page) < 4000);
   await shot(page, 'ofir-02-mine-short');
 });
@@ -387,11 +377,10 @@ await step('Ilai stays on "המשימות שלי": his cards first, the draft mo
   // The draft monthly cycle waits folded; his cards are the first thing in the list.
   assert.equal(await page.locator('#my-months details.mc-fold').getAttribute('open'), null);
   assert.ok(await page.locator('#mine-list .g-ilai .il-list > li:visible').count() <= 6);
-  // "לקוחות שלא מחוברים ל־Metricool" (section 33): none of this office's 21 clients has a brand
-  // yet, so the card shows its first eight (about 650px, gone once they are connected).
-  // One line until opened: the rows are not on the page, and his work stays first.
-  assert.equal(await page.locator('#metricool-card .mcn-row').count(), 0);
-  assert.equal(await page.getAttribute('#mcn-toggle', 'aria-expanded'), 'false');
+  // "לקוחות שלא מחוברים ל־Metricool" moved to the Gantt index (the owner, 20.10.2026): here one
+  // quiet line to it.
+  assert.equal(await page.locator('#metricool-card:visible').count(), 0);
+  assert.equal(await page.getAttribute('#flow-metricool-connect', 'href'), 'gantt.html#not-connected');
   const tall = await heightOf(page);
   // 4,300 until 9.10.2026: his cards wear the kit now (a head row with a square, the upload tile; docs/ops.md, section 54).
   assert.ok(tall < 4500, `Ilai's page is ${tall}px tall (3,500 before the Metricool card)`);
@@ -522,7 +511,8 @@ await step('Ilai and an editor: the first card of work is on the first screen of
   await settle(ilai.page);
   const top = await firstTop(ilai.page, '#mine-list .il-list > li');
   assert.ok(top !== null && top < 560, `Ilai's first card starts at ${top}px (it was about 690)`);
-  assert.match(await ilai.page.innerText('#mine-list .il-list > li >> nth=0'), /מוכן לבדיקה/);
+  // One line until opened (the owner, 20.10.2026): the client, the batch, how many are up, "העלאה".
+  assert.match(await ilai.page.innerText('#mine-list .il-list > li >> nth=0'), /הועלו[^]*העלאה/);
   const nadia = await open('nadia', { viewport: { width: 390, height: 844 }, calendar: true });
   await nadia.page.goto(`${BASE}clients.html#mine`);
   await nadia.page.waitForSelector('#mine-list .wproc');
@@ -540,7 +530,8 @@ await step('Lior, Ofir and the owner: the same heading rule, and a list of sever
     const { page } = await open(role);
     await page.goto(`${BASE}clients.html#mine`);
     // (The owner's "המשימות שלי" holds the team's work closed in one line since 6.10.2026.)
-    await page.waitForSelector(role === 'owner' ? '#team-fold' : '#mine-list .wproc.wc');
+    // (Ofir's late cards are behind the "באיחור" line since the owner's 20.10.2026: the list is drawn.)
+    await page.waitForSelector(role === 'owner' ? '#team-fold' : role === 'ofir' ? '#mine-list .wgroup' : '#mine-list .wproc.wc');
     await settle(page);
     assert.equal(await page.innerText('h1'), title, role);
     assert.doesNotMatch(await page.innerText('#view-mine'), /פתיחת הרשימה|עוד לא לסימון/, role);

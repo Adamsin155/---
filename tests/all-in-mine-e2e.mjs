@@ -73,14 +73,14 @@ const EXPECTED = {
     'landing-qa': [`עבודה אחת מחכה לבקרת האיכות שלך · ${NO_CLOCK}`, 'landing', 'qa.html#qa-h'],
   },
   // (Protocol v9: the editor's assignment is Ofir's alone, so "מחכים לשיוך עורך" is no longer a line of Lior's.)
+  // The owner, 20.10.2026: the counters that only point to החלטות are one line; the renewals
+  // are one line to year.html; and a long "באיחור" is one line to its tab, next to the late
+  // lines of other pages ("אלי עוד לא מסר זמינות").
   lior: {
     'landing-shoot': [`לקוח אחד מצטלם ב־14 הימים הקרובים · ${NO_CLOCK}`, 'landing', 'shoot.html'],
-    'urgent-back': ['משימה דחופה אחת לא התחילה תוך 30 דקות', 'urgent', 'decisions.html#ur-h'],
+    decisions: ['5 החלטות מחכות לך', 'urgent', 'decisions.html'],
+    renewals: ['חידושים ב־90 יום: 1', 'today', 'year.html#renewals'],
     'availability-missing': ['אלי עוד לא מסר זמינות לנובמבר', 'overdue', 'prep.html#availability'],
-    paused: ['עריכה אחת עצורה מאתמול ומחכה להחלטה שלך', 'today', 'decisions.html#pz-h'],
-    access: ['גישה שבורה אחת מחכה לתיקון', 'today', 'decisions.html#ac-h'],
-    changes: ['בקשת שינוי אחת מחכה להחלטה שלך', 'today', 'decisions.html#cq-h'],
-    campaigns: ['בדיקת הקמפיינים השבועית עוד לא סומנה', 'today', 'decisions.html#cp-h'],
   },
   irit: {
     'landing-shoot': [`לקוח אחד מצטלם ב־14 הימים הקרובים · ${NO_CLOCK}`, 'landing', 'prep.html'],
@@ -102,14 +102,18 @@ try {
     for (const [role, want] of Object.entries(EXPECTED)) {
       const { page, ctx } = await signedIn(role);
       const got = await lines(page);
+      // Ilai: the clients with no Metricool brand are one quiet line to the Gantt index (the owner, 20.10.2026).
+      if (role === 'ilai') { assert.equal(got['metricool-connect']?.href, 'gantt.html#not-connected'); delete got['metricool-connect']; }
       assert.deepEqual(Object.keys(got).sort(), Object.keys(want).sort(), `${role}: the lines are ${JSON.stringify(got)}`);
       for (const [id, [text, group, href]] of Object.entries(want)) {
         assert.deepEqual([got[id].text, got[id].group, got[id].href], [text, group, href], `${role}: ${id}`);
         assert.ok(got[id].cta.length > 2, `${role}: ${id} has no name for its link`);
         // A group of "this week" or "later" is folded on a short list; everything else is on the screen.
         if (got[id].shown) assert.ok(got[id].height >= 44, `${role}: ${id} is ${got[id].height}px high`);
-        else assert.ok(['week', 'later'].includes(group), `${role}: ${id} is not shown`);
+        // Two landing lines or more fold into one "דברים בקליטה" (the owner, 20.10.2026).
+        else assert.ok(['week', 'later', 'landing'].includes(group), `${role}: ${id} is not shown`);
       }
+      if (role === 'lior' || role === 'irit') assert.equal(await page.getAttribute('#late-line', 'href'), '#late', `${role}: the long 'באיחור' is one line to its tab`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${role}: the page scrolls sideways`);
       await ctx.close();
     }
@@ -119,6 +123,8 @@ try {
     for (const [role, want] of Object.entries(EXPECTED)) {
       for (const [id, [, , href]] of Object.entries(want)) {
         const { page, ctx } = await signedIn(role);
+        // A line inside a closed fold ("דברים בקליטה", a folded group) is opened first.
+        await page.evaluate((i) => { const d = document.getElementById(`flow-${i}`)?.closest('details'); if (d) d.open = true; }, id);
         await page.locator(`#flow-${id}`).scrollIntoViewIfNeeded();
         await page.click(`#flow-${id}`);
         await page.waitForURL((u) => u.pathname.endsWith(href.split('#')[0]));
@@ -147,7 +153,11 @@ try {
       // Today's follow-up before the shoot day was answered for every client it is asked of.
       for (const n of FOLLOWUP_CLIENTS) db.protocol_checks.push({ client_id: cid(n), item_key: 'p14.day', state: 'done', note: JSON.stringify({ ok: true }), by_email: emailOf('irit'), at: '2026-10-20T09:00:00+03:00' });
       const { page, ctx } = await signedIn(role, { db });
-      assert.deepEqual(await lines(page), {}, role);
+      // Lior's renewals line (the owner, 20.10.2026) follows the contracts that end within 90 days, not a queue.
+      const got = await lines(page);
+      delete got['metricool-connect']; // Ilai's line to the unconnected clients follows the clients' brands, not a queue
+      if (role === 'lior') delete got.renewals;
+      assert.deepEqual(got, {}, role);
       assert.equal(await page.locator('#land-line:not([hidden])').count(), 0, `${role}: a landing line with no client in landing`);
       await ctx.close();
     }
@@ -174,7 +184,8 @@ try {
 
   await step('the lines are of the person\'s own list only: not on the team\'s work, and not on another person\'s list', async () => {
     const { page, ctx } = await signedIn('lior');
-    assert.ok(Object.keys(await lines(page)).length >= 6);
+    // Four since the owner's simplifications of 20.10.2026 (the decisions are one line, the renewals one more).
+    assert.ok(Object.keys(await lines(page)).length >= 4);
     await page.goto(`${BASE}clients.html#team`);
     await settle(page);
     await page.selectOption('#mine-select', 'ofir');
@@ -228,8 +239,11 @@ try {
     const { page, ctx } = await signedIn('lior', { db });
     const mine = await lines(page);
     assert.equal(mine['landing-paused'].text, `עריכה אחת עצורה ומחכה להחלטה שלך · ${NO_CLOCK}`);
-    assert.equal(mine.paused.text, 'עריכה אחת עצורה מאתמול ומחכה להחלטה שלך');
-    assert.equal(mine.access.text, '2 גישות שבורות מחכות לתיקון');
+    // The paused editing and the broken logins are in the one decisions line (the owner, 20.10.2026).
+    assert.match(mine.decisions.text, /^\d+ החלטות מחכות לך$/);
+    assert.equal(mine.paused, undefined);
+    assert.equal(mine.access, undefined);
+    await page.evaluate(() => { const d = document.getElementById('land-fold'); if (d) d.open = true; });
     await page.click('#flow-landing-paused');
     await page.waitForSelector('#dc-page:not([hidden]) #pz-list li.of-card');
     await settle(page);
