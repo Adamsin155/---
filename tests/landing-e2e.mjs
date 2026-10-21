@@ -374,7 +374,9 @@ const cards = (page) => page.locator('#land-list .land-card').evaluateAll((els) 
 const toastOf = (page) => page.locator('#toast.on > span').innerText();
 // The landing line itself; the counted lines of work on those clients sit under it (docs/ops.md, section 46).
 const LAND = '#land-line a.land-line:not(.flow-line)';
-const lineOf = async (page) => ((await page.locator(LAND).count()) && !(await page.locator(LAND).isHidden()) ? (await page.locator(LAND).innerText()).replace(/\s+/g, ' ').trim() : null);
+// Two landing lines or more are one "דברים בקליטה" that opens onto them (the owner, 20.10.2026): opened first.
+const openFold = (page) => page.evaluate(() => { const d = document.getElementById('land-fold'); if (d) d.open = true; });
+const lineOf = async (page) => { await openFold(page); return (await page.locator(LAND).count()) && !(await page.locator(LAND).isHidden()) ? (await page.locator(LAND).innerText()).replace(/\s+/g, ' ').trim() : null; };
 const lateMarks = (page, root) => page.evaluate((r) => [...document.querySelectorAll(`${r} .s-overdue, ${r} .is-late, ${r} .late, ${r} .tag-warn, ${r} .tag-urgent`)].filter((e) => e.offsetParent).length, root);
 const lastTake = () => calls.filter((c) => c.fn === 'landing_take').at(-1);
 const settle = async (page) => { await page.waitForLoadState('networkidle'); await page.waitForTimeout(80); };

@@ -1800,8 +1800,9 @@ function renderMine() {
     if (person === 'lior' && k !== 'client') g = joinDrives(g);
     if (k === 'overdue' && lateFolded) {
       return h('section', { class: 'wgroup g-overdue g-late-line', 'aria-label': title },
-        h('ul', { class: 'wprocs' }, h('li', { class: 'wproc flow-card late-fold' },
-          countedLine({ id: 'late-line', n: lateTotal, text: `${lateTotal} דברים באיחור אצלך`, cta: 'לשונית באיחור', href: '#late', tone: 'late', cls: 'flow-line' }))));
+        // What waits on another page stays its own line (it is one thing to do there); the cards are behind the line.
+        h('ul', { class: 'wprocs' }, ...flowIn('overdue'), h('li', { class: 'wproc flow-card late-fold' },
+          countedLine({ id: 'late-line', n: lateTotal, text: `${lateTotal} דברים באיחור אצלך`, cta: 'לשונית באיחור', href: '#late', tone: 'late', cls: 'late-line' }))));
     }
     const extra = [...(k === 'today' ? endedCards : []), ...(renewLine && k === (renewOpen.length ? 'today' : 'later') ? [renewLine] : []), ...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : []), ...(k === 'overdue' ? lateRows : [])];
     if (!g.length && !extra.length && !(k === 'overdue' && inCards)) return null;

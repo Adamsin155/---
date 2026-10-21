@@ -155,10 +155,14 @@ try {
       const n = Number(atShow.late);
       assert.ok(n > 0, `something is late in this world (${atShow.late})`);
       assert.equal(await page.locator('#tab-late-n').innerText(), String(n), 'it did not change after the page was shown');
-      assert.equal(await page.locator('#mine-list .g-overdue .wgroup-h .n').innerText(), String(n), 'the group of the list says the same number');
+      // More than three: one line to the tab carries the number (the owner, 20.10.2026); else the group's heading.
+      if (n > 3) assert.equal(await page.locator('#late-line .k-num').getAttribute('data-n'), String(n), 'the late line says the same number');
+      else assert.equal(await page.locator('#mine-list .g-overdue .wgroup-h .n').innerText(), String(n), 'the group of the list says the same number');
       await tabTo(page, 'late');
       assert.match(await page.locator('#late-h').innerText(), new RegExp(n === 1 ? 'דבר אחד באיחור' : `^${n} דברים באיחור`));
-      assert.equal(await page.locator('#mine-list .late-list > li').count(), n, 'and the opened tab lists that many');
+      // Ofir's processes of one client, Lior's drives of one shoot day: one card listing them (the owner, 20.10.2026).
+      const listed = await page.locator('#mine-list .late-list > li').evaluateAll((els) => els.reduce((k, el) => k + (el.matches('.wc-joined') ? el.querySelectorAll(':scope > .wc-subs > li').length : el.matches('.wc-drives') ? el.querySelectorAll('.wlist > li').length : 1), 0));
+      assert.equal(listed, n, 'and the opened tab lists that many');
       await ctx.close();
     });
   }
