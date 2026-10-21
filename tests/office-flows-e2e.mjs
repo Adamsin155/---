@@ -14,7 +14,7 @@
 //    closed as partly fixed; paused editing moved; the Tuesday campaign check; the
 //    lists match the reminder engine.
 //  - Ilai: the characterization day's card (the vault statuses check the access,
-//    the page checks, Metricool, "מוכן לבדיקה" to Irit, the Gantt), and "קיבלתי".
+//    the page checks, Metricool's state (Ofir connects it since v11), "מוכן לבדיקה" to Irit, the Gantt), and "קיבלתי".
 //  - A 360px phone: no sideways scrolling, 44px targets.
 // Run: npx http-server -p 8080 -s . &  then  node tests/office-flows-e2e.mjs [outDir]
 import { chromium } from 'playwright';
@@ -644,7 +644,7 @@ await step('the Tuesday campaign check, and the lists: the same items the remind
   await globalThis.lctx.close();
 });
 
-await step('Ilai: the characterization day card; the vault statuses check the access; page, Metricool, graphics to Irit, the Gantt; "קיבלתי"', async () => {
+await step('Ilai: the characterization day card; the vault statuses check the access; page, the state of Metricool, graphics to Irit, the Gantt; "קיבלתי"', async () => {
   const ictx = await newContext();
   const ilai = await newPage(ictx);
   await signIn(ilai, 'clients.html#mine', 'ilai');
@@ -663,11 +663,12 @@ await step('Ilai: the characterization day card; the vault statuses check the ac
   assert.equal(await card.locator('a', { hasText: 'לכספת' }).count(), 0);
   await card.locator('label', { hasText: 'שם העמוד' }).locator('input').check();
   await ilai.waitForFunction(() => true);
-  await card.locator('input[type=url]').fill('https://app.metricool.com/shahar');
-  await card.locator('form button').click();
-  await toastHas(ilai, 'Metricool סומן כמחובר');
-  assert.equal(db.clients.find((c) => c.id === I.id).links.metricool, 'https://app.metricool.com/shahar');
-  assert.ok(checkOf(I, 'p06.metricool') && checkOf(I, 'p06.name'));
+  // Protocol v11 (21.10.2026): connecting to Metricool is Ofir's, with the accesses. Ilai's card only says it.
+  assert.equal(await card.locator('input[type=url]').count(), 0);
+  assert.match(await card.innerText(), /את החיבור ל־Metricool עושה אופיר/);
+  for (let i = 0; i < 50 && !checkOf(I, 'p06.name'); i += 1) await ilai.waitForTimeout(100);
+  assert.ok(checkOf(I, 'p06.name'));
+  assert.equal(checkOf(I, 'p06.metricool'), null);
   await ilai.locator('.il-card', { hasText: 'מאפיית שחר' }).locator('button', { hasText: 'מוכן לבדיקה (לאופיר)' }).click();
   await toastHas(ilai, '9 הגרפיקות עברו לבדיקה של אופיר.');
   assert.ok(checkOf(I, 'p07.made'));

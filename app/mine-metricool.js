@@ -40,6 +40,7 @@ export function metricoolProblems({ clients = [], rows = [], now = new Date() })
     nothingAhead: [...connected].filter((id) => !ahead.has(id)).length,
     connected: connected.size,
     // In work, with no brand and not marked "no brand needed": the Gantt index lists them (#not-connected).
+    // Ofir's line since v11 (connecting is his step); Ilai's two lines are the two above.
     notConnected: clients.filter((c) => inWork(c) && !c.metricool_blog_id && !c.metricool_none && !c.archived_at).length,
   };
 }

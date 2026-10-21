@@ -23,7 +23,7 @@
 //     batches of lateness notes.
 import {
   RULES, OWNER, timeOf, inSendHours, atIL, STALE_MINUTES, FOLD, DIGESTS, RING_TARGETS, personName, MINE_URL,
-  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, NAG, BATCH, LATE_BATCH_MINUTES, BURST, BURST_MAX, OFF, ownerDigestAt,
+  baseId, RULE_BY_ID, ruleOfKey, FACTS, stepOfKey, SHOOT_COPY, NAG, WAIT_NAG, BATCH, LATE_BATCH_MINUTES, BURST, BURST_MAX, OFF, ownerDigestAt,
 } from './reminder-rules.js';
 import { daySummary, pushLines, EOD } from './day-summary.js';
 import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf, clientLabel } from './protocol-logic.js';
@@ -515,8 +515,8 @@ function lastBusinessDayOfWeek(now) {
 }
 
 // The owner's Thursday report inside the 18:00 digest: rings this week against
-// each person's target (the repeats of a task given on the spot are not counted:
-// they would bury the figure), who is not connected, and how much is late now.
+// each person's target (the repeats of a task given on the spot, and the hourly
+// "ממתין ללקוח" reminder, are not counted: they would bury the figure), who is not connected, and how much is late now.
 function weeklyReport(env, log, now) {
   const sunday = atTimeIL(addDaysIL(now, -weekdayIL(now)), 0);
   const rings = {};
@@ -525,7 +525,7 @@ function weeklyReport(env, log, now) {
   // its targets mean the same; everything that reached each phone is a line of its own.
   const pushes = {};
   for (const r of log) {
-    if (r.person === OWNER || r.rule === NAG || asDate(r.sent_at || r.created_at) < sunday) continue;
+    if (r.person === OWNER || r.rule === NAG || r.rule === WAIT_NAG || asDate(r.sent_at || r.created_at) < sunday) continue;
     if (r.channel === 'push' && (r.status === 'sent' || r.status === 'pending')) pushes[r.person] = (pushes[r.person] || 0) + 1;
     if (!isPushRing(r)) continue;
     rings[r.person] = (rings[r.person] || 0) + 1;

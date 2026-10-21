@@ -102,8 +102,10 @@ try {
     for (const [role, want] of Object.entries(EXPECTED)) {
       const { page, ctx } = await signedIn(role);
       const got = await lines(page);
-      // Ilai: the clients with no Metricool brand are one quiet line to the Gantt index (the owner, 20.10.2026).
-      if (role === 'ilai') { assert.equal(got['metricool-connect']?.href, 'gantt.html#not-connected'); delete got['metricool-connect']; }
+      // The clients with no Metricool brand are one quiet line to the Gantt index (the owner, 20.10.2026):
+      // Ofir's since protocol v11 (21.10.2026: he connects them, with the accesses); Ilai has none.
+      if (role === 'ilai') assert.equal(got['metricool-connect'], undefined);
+      if (role === 'ofir') { assert.equal(got['metricool-connect']?.href, 'gantt.html#not-connected'); delete got['metricool-connect']; }
       assert.deepEqual(Object.keys(got).sort(), Object.keys(want).sort(), `${role}: the lines are ${JSON.stringify(got)}`);
       for (const [id, [text, group, href]] of Object.entries(want)) {
         assert.deepEqual([got[id].text, got[id].group, got[id].href], [text, group, href], `${role}: ${id}`);
@@ -155,7 +157,7 @@ try {
       const { page, ctx } = await signedIn(role, { db });
       // Lior's renewals line (the owner, 20.10.2026) follows the contracts that end within 90 days, not a queue.
       const got = await lines(page);
-      delete got['metricool-connect']; // Ilai's line to the unconnected clients follows the clients' brands, not a queue
+      delete got['metricool-connect']; // Ofir's (v11; Ilai's before) line to the unconnected clients follows the clients' brands, not a queue
       if (role === 'lior') delete got.renewals;
       assert.deepEqual(got, {}, role);
       assert.equal(await page.locator('#land-line:not([hidden])').count(), 0, `${role}: a landing line with no client in landing`);
@@ -319,7 +321,8 @@ try {
       await page.goto(`${BASE}clients.html#mine`);
       await page.waitForFunction(() => !('boot' in document.documentElement.dataset) && !document.getElementById('app')?.hidden, null, { timeout: 20000 });
       // The moment the page is shown, its lines are in it.
-      assert.deepEqual(Object.keys(await lines(page)).sort(), Object.keys(EXPECTED[role]).sort(), `${role}: the lines came after the page was shown`);
+      // (Ofir's quiet line to the clients with no Metricool brand, v11, is checked in the first step.)
+      assert.deepEqual(Object.keys(await lines(page)).filter((k) => k !== 'metricool-connect').sort(), Object.keys(EXPECTED[role]).sort(), `${role}: the lines came after the page was shown`);
       await page.waitForLoadState('networkidle').catch(() => {});
       await page.waitForTimeout(700);
       const cls = await page.evaluate(() => Math.round(window.__cls * 1000) / 1000);

@@ -11,7 +11,7 @@
 // (the first 9 keep a card of their own after the day's card is gone); each graphics
 // card opens the client's characterization, read-only; the final versions card opens
 // the videos' Drive folder (the videos stay in Drive: the owner's decision of 7.10.2026).
-import { setCheck, clearCheck, setChecksBulk, updateClient, canUseVault } from './protocol-data.js';
+import { setCheck, clearCheck, setChecksBulk, canUseVault } from './protocol-data.js';
 import { clientLabel } from './protocol-logic.js';
 import { h, toast, errorText, formatWhen, landingTag } from './protocol-ui.js';
 import { offerHandoff } from './handoff-ui.js';
@@ -279,12 +279,8 @@ function dayCard(x, ctx) {
       h('div', { class: 'il-part' },
         h('h4', {}, `סידור העמוד (${page.count}/6)`, page.done ? null : until(page.due, now)),
         h('div', { class: 'il-checks' }, ...PAGE_KEYS.map((k) => check(ctx, c, k, PAGE_LABELS[k], idp))),
-        isDone(cs, 'p06.metricool') ? h('p', { class: 'ps-seen' }, 'Metricool מחובר') : h('form', {
-          class: 'dc-inline', novalidate: true, onsubmit: (e) => saveMetricool(e, ctx, c, `${idp}-mc`),
-        },
-        h('div', { class: 'field grow' }, h('label', { for: `${idp}-mc` }, 'קישור Metricool'),
-          h('input', { class: 'input', id: `${idp}-mc`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: 'https://app.metricool.com/…', value: drafts.get(`${idp}-mc`) ?? (c.links?.metricool || ''), oninput: (e) => drafts.set(`${idp}-mc`, e.currentTarget.value) })),
-        h('button', { type: 'submit', class: 'btn btn-sm' }, 'שמירה'))),
+        // v11: connecting the client to Metricool is Ofir's (with the accesses); here only its state.
+        h('p', { class: isDone(cs, 'p06.metricool') ? 'ps-seen' : 'hint', id: `${idp}-mc` }, isDone(cs, 'p06.metricool') ? 'Metricool מחובר' : 'את החיבור ל־Metricool עושה אופיר')),
       h('div', { class: 'il-part' },
         h('h4', {}, '9 גרפיקות', gfx.done ? null : until(gfx.due, now)),
         h('div', { class: 'of-acts' }, charLink(c)),
@@ -300,29 +296,6 @@ function dayCard(x, ctx) {
       logo ? h('div', { class: 'il-part' }, h('h4', {}, 'לוגו חדש', logo.done ? null : until(logo.due, now)),
         logo.done ? null : mountWorkFiles({ client: c, kind: 'logo', me: ctx.viewer?.error ? undefined : ctx.me, myEmail, idp: `${idp}-logo`, toast, title: 'הלוגו החדש', onChange: ctx.refresh }),
         check(ctx, c, 'p05.newlogo', 'הכנתי לוגו חדש (אין ללקוח לוגו)', idp)) : null));
-}
-
-// What is typed in a link field and not saved yet: the list is rebuilt after every mark,
-// and a rebuild must not wipe a link someone is in the middle of typing.
-const drafts = new Map();
-
-async function saveMetricool(e, ctx, c, inputId) {
-  e.preventDefault();
-  const el = document.getElementById(inputId);
-  const v = el.value.trim();
-  let ok = false;
-  try {
-    const u = new URL(v);
-    ok = u.protocol === 'https:' && !u.username && !u.password && (u.hostname === 'metricool.com' || u.hostname.endsWith('.metricool.com'));
-  } catch { ok = false; }
-  if (!ok) { el.setAttribute('aria-invalid', 'true'); toast('הדביקו קישור של Metricool (https://…metricool.com/…).'); el.focus(); return; }
-  el.removeAttribute('aria-invalid');
-  try {
-    const updated = await updateClient(c.id, { links: { ...(c.links || {}), metricool: v } });
-    Object.assign(c, updated);
-  } catch (err) { toast(`הקישור לא נשמר. ${errorText(err)}`); return; }
-  drafts.delete(inputId);
-  await mark(ctx, c, ['p06.metricool'], true, 'הקישור נשמר, ו־Metricool סומן כמחובר.');
 }
 
 // The first 9 graphics after the characterization day (its card is gone): the same

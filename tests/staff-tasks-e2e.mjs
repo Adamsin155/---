@@ -9,7 +9,7 @@
 //     by whom and when;
 //   - Stav (sales) gets his on deal.html, with the phone's notifications card;
 //   - Irit cancels a task: shown as cancelled, not done, and gone from the assignee;
-//   - the owner sees everyone's; Lior, who neither gives nor got one, has no card;
+//   - the owner sees everyone's; Lior gives too since 21.10.2026: his card has "שליחת נודניק" and nothing else;
 //   - an assignee with no login is refused in words; before the migration the card
 //     is simply not there.
 // Run: npx http-server -p 8137 -s -c-1 . &  then
@@ -393,7 +393,7 @@ try {
     assert.equal(tasks.at(-1).status, 'cancelled');
   });
 
-  await step('the owner sees everyone\'s and gives too; Lior, who neither gives nor got one, has no card', async () => {
+  await step('the owner sees everyone\'s and gives too; Lior gives too (21.10.2026): the card with "שליחת נודניק", nothing of others', async () => {
     const owner = await newPage();
     await signIn(owner, 'clients.html#mine', 'owner');
     await owner.locator(`${CARD}:not([hidden])`).waitFor();
@@ -419,7 +419,8 @@ try {
     await signIn(lior, 'clients.html#mine', 'lior');
     await lior.locator('#mine-list').waitFor();
     await lior.waitForLoadState('networkidle');
-    assert.ok(await lior.locator(CARD).isHidden());
+    await lior.locator(`${CARD}:not([hidden]) #st-new`).waitFor();
+    assert.equal(await lior.locator(`${CARD} .st-item`).count(), 0);
     await lior.context().close();
   });
 

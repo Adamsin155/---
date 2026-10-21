@@ -229,7 +229,7 @@ test('the bar: a new deal is two rows, the group and the meeting date at 5 minut
 });
 
 test('p24.folder is Ofir\'s item as before (the videos are in Drive), and the version did not move', () => {
-  assert.equal(PROTOCOL_VERSION, 11); // 11 since 21.10.2026 (editing in two business days); this feature itself did not move it
+  assert.equal(PROTOCOL_VERSION, 11); // 11 since 21.10.2026 (Ofir connects to Metricool); this feature itself did not move it
   assert.equal(LATEST, 11);
   const c = { id: 'c', status: 'active', editor: 'nadia', shoot_type: 'dms', rounds: [{ n: 2, editor: 'yariv', shoot_at: '2026-11-01T10:00:00+02:00', start_at: '2026-10-20T10:00:00+03:00' }], deal_at: '2026-09-01T09:00:00+03:00', char_at: '2026-09-02T10:00:00+03:00', shoot_at: '2026-10-01T10:00:00+03:00' };
   const items = applicableProcesses(c).flatMap((p) => p.items);

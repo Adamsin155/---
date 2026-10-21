@@ -208,15 +208,20 @@ async function callMetricool(action) {
 export const fetchBrands = async () => (await callMetricool('brands'))?.brands || [];
 // "בדיקת חיבור" (the owner): { ok, account, brands } or { ok: false, error }.
 export const checkMetricool = () => callMetricool('check');
-// Connects a client to a brand (null: disconnects). Ilai or the owner; the database checks.
+// Connects a client to a brand (null: disconnects). Ofir, Ilai or the owner; the database
+// checks (public.metricool_connect, 20261031110000). Before that migration: the function of
+// before, which lets Ilai and the owner only.
+const noFunction = (error) => ['PGRST202', '42883'].includes(error?.code);
 export async function setBrand(clientId, blogId, brand = null) {
-  const { data, error } = await supabase.rpc('gantt_set_brand', { p_client: clientId, p_blog_id: blogId, p_brand: brand });
+  const args = { p_client: clientId, p_blog_id: blogId, p_brand: brand };
+  let { data, error } = await supabase.rpc('metricool_connect', args);
+  if (error && noFunction(error)) ({ data, error } = await supabase.rpc('gantt_set_brand', args));
   if (error) throw error;
   return { blogId: data?.blogId || null, brand: data?.brand || null };
 }
 // "ללקוח אין מותג" (20261012100000_metricool_none.sql; docs/ops.md, section 33): whether
 // the client is marked as one that has no Metricool brand and needs none (false also
-// before that migration), and the way back. Ilai or the owner; the database checks.
+// before that migration), and the way back. Ofir, Ilai or the owner; the database checks.
 export async function loadNoBrand(clientId) {
   try {
     const { data, error } = await supabase.from('clients').select('metricool_none').eq('id', clientId).maybeSingle();

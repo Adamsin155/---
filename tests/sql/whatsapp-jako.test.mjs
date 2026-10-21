@@ -74,7 +74,7 @@ test('the migration only adds: no statement removes anything, and running it aga
   // Every UPDATE in it has a WHERE (an upsert's "do update set" is not one).
   for (const m of sql.matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
   // The newest migration but the landing's editor of 14.10.2026 and what came after it, which are not WhatsApp's.
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql', '20261029100000_google_calendar_sync.sql', '20261031100000_access_and_editors.sql'], 'the newest migration');
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql', '20261029100000_google_calendar_sync.sql', '20261031090000_nudnik_givers.sql', '20261031100000_access_and_editors.sql', '20261031110000_protocol_2110.sql', '20261031120000_nirel_any_shoot.sql'], 'the newest migration');
   // Nothing of a secret in the file: the names of the Vault secrets only, read and never
   // written (the owner creates them himself).
   assert.match(sql, /whatsapp_jako_api_key/);

@@ -1,7 +1,7 @@
 // Metricool on the content Gantt (gantt.html; docs/ops.md, section 27):
 //  - the small line about the connection ("סונכרן מ-Metricool לפני 4 דקות", or the
 //    error in plain Hebrew), on a client's Gantt and on the index;
-//  - "חיבור למותג ב-Metricool" (Ilai and the owner): the account's brands, fetched
+//  - "חיבור למותג ב-Metricool" (Ofir, Ilai and the owner; Ofir's step since v11): the account's brands, fetched
 //    through the edge function `metricool` (never from the browser to Metricool), with
 //    a suggestion by name; a brand another client uses cannot be chosen.
 // The words and the suggestion: app/metricool-logic.js. All text through text nodes.
@@ -74,7 +74,7 @@ export async function openBrandDialog(ctx) {
       ctx.toast(blogId ? `הלקוח חובר למותג ״${saved.brand || brand?.label || blogId}״.` : 'הלקוח נותק מהמותג. מה ש־Metricool סימן חזר ל״מתוכנן״.');
       ctx.onSaved(saved);
     } catch (e) {
-      const msg = /brand_taken/.test(e?.message || '') ? 'המותג הזה כבר מחובר ללקוח אחר.' : /not allowed|42501/.test(`${e?.message} ${e?.code}`) ? 'רק עילאי והבעלים מחברים לקוח למותג.' : 'החיבור לא נשמר. נסו שוב.';
+      const msg = /brand_taken/.test(e?.message || '') ? 'המותג הזה כבר מחובר ללקוח אחר.' : /not allowed|42501/.test(`${e?.message} ${e?.code}`) ? 'רק אופיר, עילאי והבעלים מחברים לקוח למותג.' : 'החיבור לא נשמר. נסו שוב.';
       if (err) { err.textContent = msg; err.hidden = false; } else ctx.toast(msg);
     }
   }

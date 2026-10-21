@@ -2442,3 +2442,72 @@ const V10_RULES = [
 RULES.push(...V10_RULES);
 for (const r of V10_RULES) RULE_BY_ID.set(r.id, r);
 export { LATE_LADDER };
+
+// ── "ממתין ללקוח": a reminder every hour (the owner's decision of 21.10.2026) ──
+// One self-contained block.
+//   waitNag  a process marked "ממתין ללקוח" (the mark `pNN.wait`, app/protocol-logic.js
+//     waitOf) rings the employee responsible for it EVERY HOUR while the wait lasts:
+//     "<לקוח> עדיין ממתין ללקוח: <מה> · תזכיר/י ללקוח". The employee reminds the client;
+//     nothing goes to the client. Only inside the sending hours (SEND_HOURS: Sunday–Thursday
+//     08:30–19:00, erev chag until 13:00, never on a holiday), as every other ring. It stops
+//     when the wait is cleared (or the process is done: a done process has no wait), and
+//     a "לדחות עד…" holds it until that moment. The date "לבדוק שוב" of the wait does not
+//     hold it (the owner: every hour, while it waits).
+//     Who: whoever marked the wait, when that is an employee; otherwise (the owner marked
+//     it, or the mark has no known writer) whoever took the process ("אני על זה"), else
+//     its owners. One step at a time, the hourly slot `now` falls in (as the nag's repeat):
+//     its id names the slot, so each slot goes out once and a slot the engine missed is
+//     never sent late. On the day the wait was marked the slots run from that moment, so
+//     the first ring is an hour after it; on a later day from 08:30. Like the nag, its
+//     repeats are not counted in the owner's weekly rings and "התראות" shows only the latest.
+export const WAIT_NAG = 'waitNag';
+export const WAIT_NAG_EVERY = 60; // minutes
+// The hourly slot of a wait marked at `since`, at `now` → { id, at, n } or null.
+export function waitSlot(since, now) {
+  const from0 = since ? new Date(since) : null;
+  if (!from0 || Number.isNaN(+from0) || now < from0 || !inSendHours(now)) return null;
+  const open = atIL(now, `${pad(Math.floor(SEND_HOURS.from / 60))}:${pad(SEND_HOURS.from % 60)}`);
+  const sameDay = from0 > open;
+  const from = sameDay ? from0 : open;
+  const n = Math.floor((now - from) / (WAIT_NAG_EVERY * MIN));
+  if (sameDay && n < 1) return null; // they just marked it: the first ring is an hour later
+  return { id: `${dayKeyIL(now)}.${n}`, at: new Date(from.getTime() + n * WAIT_NAG_EVERY * MIN), n };
+}
+// Who is reminded of a wait (see above).
+export function waitNagWho(i, env) {
+  const setter = i.s.wait ? env.personOf?.(i.s.wait.by_email) : null;
+  const ok = (p) => !!p && p !== OWNER && REMINDER_PEOPLE.has(p);
+  if (ok(setter)) return [setter];
+  if (i.s.claim && ok(i.s.claim.person)) return [i.s.claim.person];
+  return i.proc.owners.filter(ok);
+}
+const waitWhat = (i) => String(i.s.wait?.reason || '').replace(/\s+/g, ' ').trim() || i.proc.title;
+RULES.push({
+  id: WAIT_NAG, event: '״ממתין ללקוח״: תזכורת כל שעה לעובד/ת האחראי/ת, עד שההמתנה מוסרת', procs: [],
+  instances(env) {
+    if (!inSendHours(env.now)) return [];
+    const out = [];
+    for (const c of env.clients) {
+      if (!liveClient(c) || c.landing === true) continue;
+      for (const s of env.stateOf(c).states) {
+        if (!s.wait || s.complete) continue;
+        const i = procCase(env, c, s);
+        if (i.snooze && i.snooze > env.now) continue;
+        const slot = waitSlot(parseDate(s.wait.at), env.now);
+        const who = slot ? waitNagWho(i, env) : [];
+        if (who.length) out.push({ ...i, id: i.proc.id, who, slot, anchors: { event: slot.at } });
+      }
+    }
+    return out;
+  },
+  steps: (i) => [{
+    id: i.slot.id, to: () => i.who, level: 'ring', noFold: true,
+    title: () => `${i.name} עדיין ממתין ללקוח: ${said(waitWhat(i), 90)} · תזכיר/י ללקוח`,
+    body: (x, env) => [
+      `תהליך ${i.proc.num} · ${i.proc.title}`,
+      `ממתין מ־${whenText(parseDate(i.s.wait.at), env.now)}`,
+      'תזכורת כל שעה בשעות העבודה, עד שמסירים את ״ממתין ללקוח״.',
+    ].join(' · '),
+  }],
+});
+RULE_BY_ID.set(WAIT_NAG, RULES.at(-1));

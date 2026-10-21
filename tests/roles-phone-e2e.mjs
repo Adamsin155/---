@@ -359,6 +359,8 @@ await step('Ofir lands on "המשימות שלי"; the quality-control queue is 
   await tidy(page, 'ofir mine');
   // All his cards are late here: one line to the "באיחור" tab (the owner, 20.10.2026), which has them.
   assert.equal(await page.getAttribute('#late-line', 'href'), '#late');
+  // Protocol v11: the clients not connected to Metricool are his, one quiet line to the Gantt index.
+  assert.equal(await page.getAttribute('#flow-metricool-connect', 'href'), 'gantt.html#not-connected');
   assert.ok(await heightOf(page) < 4000);
   await shot(page, 'ofir-02-mine-short');
 });
@@ -377,10 +379,10 @@ await step('Ilai stays on "המשימות שלי": his cards first, the draft mo
   // The draft monthly cycle waits folded; his cards are the first thing in the list.
   assert.equal(await page.locator('#my-months details.mc-fold').getAttribute('open'), null);
   assert.ok(await page.locator('#mine-list .g-ilai .il-list > li:visible').count() <= 6);
-  // "לקוחות שלא מחוברים ל־Metricool" moved to the Gantt index (the owner, 20.10.2026): here one
-  // quiet line to it.
+  // "לקוחות שלא מחוברים ל־Metricool" moved to the Gantt index (the owner, 20.10.2026), and since
+  // protocol v11 (21.10.2026) its quiet line is Ofir's (he connects, with the accesses): none here.
   assert.equal(await page.locator('#metricool-card:visible').count(), 0);
-  assert.equal(await page.getAttribute('#flow-metricool-connect', 'href'), 'gantt.html#not-connected');
+  assert.equal(await page.locator('#flow-metricool-connect').count(), 0);
   const tall = await heightOf(page);
   // 4,300 until 9.10.2026: his cards wear the kit now (a head row with a square, the upload tile; docs/ops.md, section 54).
   assert.ok(tall < 4500, `Ilai's page is ${tall}px tall (3,500 before the Metricool card)`);

@@ -51,6 +51,8 @@ const personOf = (u) => staff.find((x) => x.email === u?.email)?.person;
 const isOffice = (u) => { const p = personOf(u); return p === null || ['irit', 'lior', 'ofir', 'ilai'].includes(p); };
 // public.can_edit_gantt() (20261007100000): Ilai and the owner.
 const canEditGantt = (u) => { const p = personOf(u); return p === null || p === 'ilai'; };
+// public.can_connect_metricool() (protocol v11, 20261031110000): Ofir connects too.
+const canConnectMc = (u) => !!u && (canEditGantt(u) || personOf(u) === 'ofir');
 const isOwner = (u) => personOf(u) === null;
 
 // ── Clients ───────────────────────────────
@@ -202,8 +204,8 @@ async function fakeSupabase(route) {
     metricool.enabled = !!body.p_on;
     return json(200, mcSettings(me));
   }
-  if (p === '/rest/v1/rpc/gantt_set_brand') {
-    if (!me || !canEditGantt(me)) return json(403, { code: '42501', message: 'not allowed' });
+  if (p === '/rest/v1/rpc/gantt_set_brand' || p === '/rest/v1/rpc/metricool_connect') {
+    if (!me || !(p.endsWith('metricool_connect') ? canConnectMc(me) : canEditGantt(me))) return json(403, { code: '42501', message: 'not allowed' });
     const c = db.clients.find((x) => x.id === body.p_client);
     if (body.p_blog_id && db.clients.some((x) => x.metricool_blog_id === body.p_blog_id && x.id !== c.id)) return json(400, { code: 'P0001', message: 'brand_taken: this brand is connected to another client' });
     if ((c.metricool_blog_id || null) !== (body.p_blog_id || null)) {
@@ -217,7 +219,7 @@ async function fakeSupabase(route) {
   }
   // "ללקוח אין מותג" (section 33): Ilai and the owner mark it and undo it.
   if (p === '/rest/v1/rpc/metricool_set_none') {
-    if (!canEditGantt(me)) return json(403, { code: '42501', message: 'not allowed' });
+    if (!canConnectMc(me)) return json(403, { code: '42501', message: 'not allowed' });
     const c = db.clients.find((x) => x.id === body.p_client);
     if (!c) return json(400, { code: '22023', message: 'client not found' });
     c.metricool_none = !!body.p_on;
@@ -747,7 +749,9 @@ await step('Irit, Lior and Ofir read the Gantt and nothing more: no editing cont
     assert.match(await page.innerText('#gt-alerts'), /נכשל: .+, \d+\.11 \d\d:\d\d · Media not valid/, who);
     await toGrid(page);
     assert.equal(await page.innerText('#gt-title'), 'גאנט התוכן · מספרת רון · רון כהן', who);
-    assert.equal(await page.locator('#btn-regen, #btn-add, .gt-state-btn, #btn-brand, .gt-chip[draggable="true"]').count(), 0, who);
+    assert.equal(await page.locator('#btn-regen, #btn-add, .gt-state-btn, .gt-chip[draggable="true"]').count(), 0, who);
+    // Protocol v11: Ofir connects the client to Metricool (with the accesses); the brand's button is his too.
+    assert.equal(await page.locator('#btn-brand').count(), who === 'ofir' ? 1 : 0, who);
     assert.equal(await page.isVisible('#btn-bulk'), false, who);
     assert.match(await page.innerText('#gt-readonly'), /צפייה בלבד: את הגאנט מעדכנים עילאי ובעל המשרד/, who);
     assert.deepEqual(await page.locator('#gt-actions .btn').allInnerTexts(), ['כל הגאנטים', 'לכרטיס הלקוח', 'הדפסת החודש'], who);

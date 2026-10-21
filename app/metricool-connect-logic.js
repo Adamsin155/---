@@ -7,22 +7,24 @@
 // here depends on the sync or on its switch.
 // Pure, no DOM and no network: the card (app/metricool-connect-ui.js) and the unit
 // tests read the same rules. The database decides who may write
-// (public.can_edit_gantt(): Ilai and the owner).
+// (public.can_connect_metricool(): Ofir, Ilai and the owner).
 import { suggestBrand } from './metricool-logic.js';
 import { partsIL } from './tz.js';
 
 const OWNER = 'owner';
-// Who connects a client to its brand, and so who has the card. The same two as
-// public.can_edit_gantt(); tests/sql/metricool-none.test.mjs holds the two lists equal.
-export const CONNECTORS = [OWNER, 'ilai'];
+// Who connects a client to its brand, and so who has the card. The same three as
+// public.can_connect_metricool(); tests/sql/protocol-2110.test.mjs holds the two lists equal.
+// v11 (the owner, 21.10.2026): connecting is Ofir's step, right after he takes the accesses;
+// Ilai keeps the right (the Gantt is his) but it is no longer his task.
+export const CONNECTORS = [OWNER, 'ofir', 'ilai'];
 const personOfViewer = (viewer) => {
   if (!viewer || viewer.error) return null;
   if (viewer.me) return viewer.me;
   return viewer.scope === 'office' ? OWNER : null;
 };
 export const canConnect = (viewer) => CONNECTORS.includes(personOfViewer(viewer));
-// Where the card is shown (8.10.2026). Connecting the clients is Ilai's task: his
-// "המשימות שלי" always has the card. The owners may connect too, but it is not their
+// Where the card is shown (8.10.2026). Connecting the clients is Ofir's task since v11
+// (Ilai's before): the card is on the Gantt index, and his "המשימות שלי" has a line to it. The owners may connect too, but it is not their
 // own task: not in their personal "המשימות שלי" (#mine), only in the manager profile's
 // "עבודת הצוות" (#team), where it was.
 export const showsCard = (viewer, personal = false) => canConnect(viewer) && !(personal && personOfViewer(viewer) === OWNER);
@@ -79,6 +81,6 @@ export function explainConnect(err) {
   if (/brand_taken/.test(msg)) return 'המותג הזה כבר מחובר ללקוח אחר.';
   if (/connected:/.test(msg)) return 'הלקוח כבר מחובר למותג. הרשימה רועננה.';
   if (/client not found/.test(msg)) return 'הלקוח לא נמצא. הרשימה רועננה.';
-  if (/not allowed|42501|permission denied/.test(msg)) return 'רק עילאי והבעלים מחברים לקוח למותג.';
+  if (/not allowed|42501|permission denied/.test(msg)) return 'רק אופיר, עילאי והבעלים מחברים לקוח למותג.';
   return 'לא נשמר. נסו שוב.';
 }

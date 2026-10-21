@@ -150,7 +150,12 @@ test('the signed agreements (the phone and the prices in them) are the owners\' 
 
 // ── 2. Who writes which item ─────────────────
 test('private.protocol_writers is what scripts/protocol-writers.mjs makes of app/protocol.js', async () => {
-  const rows = (await db.query('select key, proc, round, persons from private.protocol_writers order by key')).rows;
+  // A row the app no longer makes stays with nobody in it (the migrations never remove a row):
+  // p06.metricool, Ilai's until protocol v11 (20261031110000), now the office's.
+  const all = (await db.query('select key, proc, round, persons from private.protocol_writers order by key')).rows;
+  const made = new Set(writerRows().map((r) => r.key));
+  assert.deepEqual(all.filter((r) => !made.has(r.key)).map((r) => [r.key, r.persons]), [['p06.metricool', []]]);
+  const rows = all.filter((r) => made.has(r.key));
   const want = writerRows().map((r) => ({ key: r.key, proc: r.proc, round: r.round, persons: r.persons })).sort((a, b) => (a.key < b.key ? -1 : 1));
   assert.deepEqual(rows, want);
   assert.match((await q('nadia', 'select 1 from private.protocol_writers')).error, /permission denied/);

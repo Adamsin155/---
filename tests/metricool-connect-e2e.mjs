@@ -4,7 +4,9 @@
 // tests/sql/metricool-none.test.mjs holds the real rules; the list's own rules:
 // tests/metricool-connect.test.mjs):
 //   - the card is on the content Gantt's index, gantt.html#not-connected, open (the
-//     owner, 20.10.2026; item 12); Ilai's "המשימות שלי" has one quiet line to it. Every
+//     owner, 20.10.2026; item 12); Ofir's "המשימות שלי" has one quiet line to it (protocol v11,
+//     21.10.2026: connecting is his step, with the accesses; Ilai's until then, and Ilai has no
+//     line any more, but may still connect from the Gantt). Every
 //     active client with no brand, the oldest deal first, the first 8 and "הצג עוד";
 //     nothing is asked of Metricool until he opens a row;
 //   - "בחירת מותג" opens the row in place with the account's brands (one request),
@@ -38,7 +40,7 @@ const serverNow = () => new Date(Date.now() + skew).toISOString();
 const minutesAgo = (n) => new Date(NOW - n * 6e4).toISOString();
 const daysAgo = (n) => minutesAgo(n * 24 * 60);
 
-const PEOPLE = { owner: null, irit: 'irit', lior: 'lior', ilai: 'ilai', nadia: 'nadia', stav: 'stav' };
+const PEOPLE = { owner: null, irit: 'irit', lior: 'lior', ofir: 'ofir', ilai: 'ilai', nadia: 'nadia', stav: 'stav' };
 const users = new Map();
 const staff = [];
 for (const [k, person] of Object.entries(PEOPLE)) {
@@ -56,7 +58,7 @@ const userOf = (headers) => {
 };
 const personOf = (u) => { const s = staff.find((x) => x.email === u?.email); return s ? s.person ?? 'owner' : null; };
 const isOffice = (u) => !!u && staff.some((s) => s.email === u.email) && OFFICE.has(staff.find((s) => s.email === u.email).person);
-// public.can_edit_gantt(): Ilai and the owner.
+// public.can_connect_metricool() (public.metricool_connect, metricool_set_none): Ofir, Ilai and the owner.
 const canEdit = (u) => CONNECTORS.includes(personOf(u));
 
 const client = (name, business, dealDays, fields = {}) => ({
@@ -101,6 +103,9 @@ const before = { none: false, brand: false }; // the migrations that are not app
 function rpc(name, body, me, json) {
   if (name === 'is_staff') return json(200, !!me && staff.some((s) => s.email === me.email));
   if (name === 'is_office') return json(200, isOffice(me));
+  if (name === 'metricool_connect' && before.brand) return json(404, { code: 'PGRST202', message: 'Could not find the function public.metricool_connect' });
+  if (name === 'gantt_set_brand' && !['ilai', 'owner'].includes(personOf(me))) return json(403, { code: '42501', message: 'not allowed' });
+  if (name === 'metricool_connect') name = 'gantt_set_brand'; // the same answer, for the three
   if (name === 'gantt_set_brand' || name === 'metricool_set_none') {
     calls.push({ [name]: body, by: me?.email });
     if (name === 'metricool_set_none' && before.none) return json(404, { code: 'PGRST202', message: 'Could not find the function public.metricool_set_none' });
@@ -234,10 +239,11 @@ async function step(name, fn2) {
 
 let exitCode = 0;
 try {
+  // Protocol v11: the one who connects is Ofir (the variable keeps its name: the steps below are the same).
   const ilai = await newPage();
-  await signIn(ilai, 'clients.html#mine', 'ilai');
+  await signIn(ilai, 'clients.html#mine', 'ofir');
 
-  await step('Ilai: a quiet line on his list leads to the card on the Gantt\'s index: every active client with no brand, the oldest deal first, 8 and "הצג עוד"', async () => {
+  await step('Ofir: a quiet line on his list leads to the card on the Gantt\'s index: every active client with no brand, the oldest deal first, 8 and "הצג עוד"', async () => {
     // "המשימות שלי": no card, one line with the count, to gantt.html#not-connected (the owner, 20.10.2026).
     await settled(ilai);
     const line = ilai.locator('#mine-list a[href="gantt.html#not-connected"]');
@@ -273,7 +279,7 @@ try {
   await step('"בחירת מותג" opens the row in place: the brands through the function, once; the suggestion chosen; a brand in use not choosable', async () => {
     await rowOf(ilai, 'פיצה רון').locator('[data-act="open"]').click();
     await ilai.locator('#mcn-brand').waitFor();
-    assert.deepEqual(fn.calls, [{ action: 'brands', by: 'ilai@astrateg.test' }]);
+    assert.deepEqual(fn.calls, [{ action: 'brands', by: 'ofir@astrateg.test' }]);
     assert.equal(await ilai.evaluate(() => document.activeElement.id), 'mcn-brand');
     assert.deepEqual(await ilai.locator('#mcn-brand option').allInnerTexts(), ['לא נבחר מותג', 'Cafe Dana', 'פיצה רון (הצעה לפי השם)', 'מספרת יעל (מחובר ללקוח אחר)', 'מוסך הצפון', 'קפה דנה', 'Studio N']);
     assert.equal(await ilai.inputValue('#mcn-brand'), '12');
@@ -289,7 +295,7 @@ try {
     await ilai.click(`${CARD} [data-act="save"]`);
     await ilai.locator(`${CARD} h2`, { hasText: '(10)' }).waitFor();
     const ron = byBusiness('פיצה רון');
-    assert.deepEqual(lastCall('gantt_set_brand'), { gantt_set_brand: { p_client: ron.id, p_blog_id: '12', p_brand: 'פיצה רון' }, by: 'ilai@astrateg.test' });
+    assert.deepEqual(lastCall('gantt_set_brand'), { gantt_set_brand: { p_client: ron.id, p_blog_id: '12', p_brand: 'פיצה רון' }, by: 'ofir@astrateg.test' });
     assert.deepEqual([ron.metricool_blog_id, ron.metricool_brand], ['12', 'פיצה רון']);
     assert.equal(await toastOf(ilai), 'פיצה רון · רון כהן חובר למותג ״פיצה רון״.');
     assert.deepEqual(await names(ilai), ORDER.slice(1));
@@ -328,8 +334,8 @@ try {
     const avi = byBusiness('אבי שיפוצים');
     await ilai.click(`${CARD} [data-act="none"]`);
     await ilai.locator(`${CARD} h2`, { hasText: '(9)' }).waitFor();
-    assert.deepEqual(lastCall('metricool_set_none'), { metricool_set_none: { p_client: avi.id, p_on: true }, by: 'ilai@astrateg.test' });
-    assert.deepEqual([avi.metricool_none, avi.metricool_none_by], [true, 'ilai@astrateg.test']);
+    assert.deepEqual(lastCall('metricool_set_none'), { metricool_set_none: { p_client: avi.id, p_on: true }, by: 'ofir@astrateg.test' });
+    assert.deepEqual([avi.metricool_none, avi.metricool_none_by], [true, 'ofir@astrateg.test']);
     assert.equal(await toastOf(ilai), 'אבי שיפוצים · אבי סומן ״אין מותג״ וירד מהרשימה.');
     assert.ok(!(await names(ilai)).includes('אבי שיפוצים · אבי'));
     assert.equal(await text(ilai, '#mcn-none-toggle'), 'סומנו ״אין מותג״ (1)');
@@ -441,6 +447,12 @@ try {
       }
       await page.context().close();
     }
+    // Protocol v11: Ilai has no line about connecting in his list any more (it is Ofir's step).
+    const il = await newPage();
+    await signIn(il, 'clients.html#mine', 'ilai');
+    await settled(il);
+    assert.equal(await il.locator('#mine-list a[href="gantt.html#not-connected"]').count(), 0, 'ilai');
+    await il.context().close();
     const stav = await newPage({ width: 390, height: 844 });
     await signIn(stav, 'clients.html#mine', 'stav');
     await stav.waitForURL(/deal\.html/);

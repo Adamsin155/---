@@ -1,6 +1,6 @@
 // The Metricool line of the client card (the owner, 20.10.2026), near the content
 // Gantt's chip: "מחובר ל־<מותג>", "לא מחובר" (with the way to connect, on the client's
-// Gantt, for Ilai and the owner: gantt.html's "חיבור למותג ב־Metricool"), and "N פרסומים
+// Gantt, for Ofir, Ilai and the owner: gantt.html's "חיבור למותג ב־Metricool"), and "N פרסומים
 // נכשלו" (the Gantt's entries in the state 'error'). For Ilai, the owners and the office.
 // The brand columns and the Gantt are the Gantt's (app/gantt-data.js, read only here);
 // before their migrations the line is not shown. docs/ops.md, section 27.
@@ -9,8 +9,8 @@ import { loadBrands, loadNoBrand } from './gantt-data.js';
 
 // Who sees the line: the office (the owners, Irit, Lior, Ofir) and Ilai.
 export const seesMetricool = ({ me = null, scope = 'own', error = null } = {}) => !error && (scope === 'office' || me === 'ilai');
-// Who connects a brand (public.gantt_set_brand): Ilai and the owner.
-export const connectsMetricool = ({ me = null, scope = 'own', error = null } = {}) => !error && (me === 'ilai' || (me === null && scope === 'office'));
+// Who connects a brand (public.metricool_connect): Ofir (his step since v11), Ilai and the owner.
+export const connectsMetricool = ({ me = null, scope = 'own', error = null } = {}) => !error && (me === 'ofir' || me === 'ilai' || (me === null && scope === 'office'));
 
 // The words of the line. `brand` undefined: the columns are not there yet (no line).
 // { text, tone ('ok' | 'warn' | 'plain'), failed (words or null), connect (bool) }
