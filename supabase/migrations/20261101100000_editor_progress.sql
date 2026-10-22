@@ -45,6 +45,9 @@ $$;
 revoke all on function private.edits_shoot(uuid, integer, text) from public, anon;
 grant execute on function private.edits_shoot(uuid, integer, text) to authenticated;
 
+-- A client still in landing counts the same: the office records its real editor in
+-- clients.editor (landing_set_editor), and that editor's number is theirs from then on.
+
 -- The office of this table: the owner, Irit, Lior and Ofir.
 create or replace function private.progress_office() returns boolean
 language sql stable security definer set search_path = '' as $$

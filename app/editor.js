@@ -406,8 +406,9 @@ function jobCard(job) {
 const typed = new Map(); // key → the number typed and not saved yet (kept across re-renders)
 const saveTimers = new Map();
 function countLine(job) {
-  // A client still in landing has its editor only in the intake's marks: no number until it is active.
-  if (!progress || job.client.landing === true) return null;
+  // A client in landing counts too (most of the real ones, 22.10.2026): the office records its
+  // editor in clients.editor (landing_set_editor), and the number is that editor's.
+  if (!progress) return null;
   const id = `${cardId(job)}-edited`;
   const key = progressKey(job.client.id, job.round, me);
   const of = editTarget(job.ctx, me);

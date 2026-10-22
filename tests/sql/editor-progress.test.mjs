@@ -109,3 +109,15 @@ test('the office sets a number for an editor of the shoot, never for one who is 
   // The owner has no person: a number is always for a named editor.
   assert.match((await set('owner', ids.dana, 1)).error || '', /not allowed/);
 });
+
+test('a client in landing: its editor (clients.editor, as landing_set_editor records it) counts, and the owner enters numbers for her', async () => {
+  const { rows } = await db.query("insert into public.clients (name, status, landing, editor) values ('ענת עיצובים', 'active', true, 'anna') returning id");
+  const id = rows[0].id;
+  const r = await set('owner', id, 31, null, 'anna');
+  assert.deepEqual([r.editor, r.round, r.edited, r.updated_by], ['anna', 1, 31, 'owner@astrateg.test']);
+  assert.equal((await set('anna', id, 32)).edited, 32);
+  assert.deepEqual((await read('anna')).filter((x) => x.client_id === id).map((x) => x.edited), [32]);
+  // Nobody else's, landing or not.
+  assert.match((await set('nadia', id, 1)).error || '', /not allowed/);
+  assert.match((await set('owner', id, 1, null, 'nadia')).error || '', /not allowed/);
+});

@@ -97,6 +97,7 @@ const db = {
     client('גיל', 'לקוח חדש', { deal_at: minutesAgo(2), created_at: minutesAgo(2), landing: false, quote_id: null, created_by_email: 'irit@astrateg.test', verified_at: minutesAgo(1) }),
   ],
   protocol_checks: [], client_tasks: [], client_landing_marks: [], client_landing_done: [], protocol_log: [],
+  editor_progress: [], // how many videos each editor edited (20261101100000_editor_progress.sql)
 };
 const C = (business) => db.clients.find((c) => c.business === business);
 const seed = (business, station, extra = []) => {
@@ -192,6 +193,16 @@ function rpc(name, body, me, json) {
     calls.push({ fn: name, body, by: me?.email || null });
     if (before.intake) return json(404, { code: 'PGRST202', message: `Could not find the function public.${name}` });
     if (!rowOf(me)) return json(403, { code: '42501', message: 'not allowed' });
+  }
+  // An editor's own number on a client they edit, landing or not; the office for any editor of it.
+  if (name === 'editor_progress_set') {
+    const c = db.clients.find((x) => x.id === body.p_client);
+    const editor = body.p_editor || personOf(me);
+    if (!c || !rowOf(me) || (editor !== personOf(me) && !isOffice(me)) || ![c.editor, c.editor2].includes(editor)) return json(403, { code: '42501', message: 'not allowed' });
+    let row = db.editor_progress.find((x) => x.client_id === c.id && x.editor === editor && x.round === (body.p_round || 1));
+    if (!row) db.editor_progress.push(row = { client_id: c.id, editor, round: body.p_round || 1 });
+    Object.assign(row, { edited: body.p_edited, updated_at: new Date().toISOString(), updated_by: me.email });
+    return json(200, row);
   }
   if (name === 'landing_take') {
     const person = personOf(me);
@@ -305,6 +316,10 @@ async function fakeSupabase(route) {
     if (before.intake && /landing_slot/.test(cols)) return json(400, { code: '42703', message: 'column clients.landing_slot does not exist' });
     const rows = filtered(db.clients.filter((c) => sees(me, c)), url);
     return answer(req, json)(before.landing ? rows.map(({ landing, landed_at, landed_by, landing_slot, ...r }) => r) : rows);
+  }
+  if (table === 'editor_progress') {
+    const rows = db.editor_progress.filter((r) => isOffice(me) || (r.editor === personOf(me) && sees(me, db.clients.find((c) => c.id === r.client_id))));
+    return answer(req, json)(filtered(rows, url));
   }
   if (table === 'client_landing_marks' || table === 'client_landing_done') {
     if (before.intake || before.landing) return json(404, { code: 'PGRST205', message: `Could not find the table public.${table}` });
@@ -697,6 +712,12 @@ try {
     const list = await nadia.locator('#ed-list').innerText();
     assert.ok(list.includes('מאיה'), list.slice(0, 300));
     assert.match(list, /בקליטה · הימים עוד לא נספרים/);
+    // "ערכתי [ N ]" on a client in landing too (22.10.2026): its editor is in clients.editor.
+    const card = nadia.locator('.ed-card', { hasText: 'מאיה' });
+    await card.locator('.ed-count [id$="-plus"]').click();
+    await card.locator('.ed-count-s', { hasText: 'נשמר' }).waitFor();
+    assert.deepEqual(db.editor_progress.map((r) => [r.client_id, r.editor, r.edited]), [[MAYA().id, 'nadia', 1]]);
+    await card.screenshot({ path: join(SHOTS, 'editor-landing-count-390.png') });
     await nadia.goto(`${BASE}landing.html`);
     await nadia.locator('.land-card').first().waitFor();
     assert.ok((await cards(nadia)).includes(MAYA().id), 'her items there are hers to go over now');
