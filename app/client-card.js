@@ -3,7 +3,7 @@
 // call and a full history of who checked what and when.
 import {
   PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
-  STAFF_PEOPLE, editorsFor, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
+  STAFF_PEOPLE, editorsFor, editorNames, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
 } from './protocol.js';
 import {
   clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
@@ -61,7 +61,7 @@ import { mountClientStatus } from './status-link-ui.js';
 import { mountAccessLink } from './access-link-ui.js';
 import { seesAccessLinks } from './access-data.js';
 import { askVaultCode, mountVaultHint } from './vault-gate.js';
-import { ACCESS_STATUS_LABEL, NEW_STATUS, accessGapQuestion } from './access-logic.js';
+import { ACCESS_STATUS_LABEL, NEW_STATUS, LINKED_STATUS, accessGapQuestion, accessWorks, canLink } from './access-logic.js';
 // Stage 5: the monthly cycle (a draft), and items newer than the client's protocol version.
 import { mountClientMonth, worksCycle } from './month-ui.js';
 import { freshText } from './protocol-versions.js';
@@ -364,7 +364,7 @@ function renderQa(s) {
     const ctx = x.proc.ctx || client;
     const q = qaState(checks, pre, kind);
     if (q.stage !== 'ofir' && q.stage !== 'fixing') continue;
-    if (own() && QA_KINDS[kind].fixer(ctx) !== me) continue;
+    if (own() && ![QA_KINDS[kind].fixers ? QA_KINDS[kind].fixers(ctx) : QA_KINDS[kind].fixer(ctx)].flat().includes(me)) continue;
     parts.push(h('div', { class: 'qa-part' },
       h('h3', { class: 'qa-part-h' }, `${QA_KINDS[kind].title}${ctx.round ? ` · סבב צילום ${ctx.round}` : ''}`),
       qaLine({ client, checks, kind, pre, ctx, me, viewer: { me, scope, error: viewerError }, meetings: ofirMeetings, fast: fastCaseOf(client, x, s.states, checks), onChange: () => { renderKeepingFocus(); loadHistory(); } })));
@@ -608,7 +608,7 @@ function renderAccess() {
     $('access').hidden = !vaultOk && !linked;
     $('access-novault').hidden = vaultOk || !linked;
     // The closed row: how many logins, and how many need a look.
-    const loose = access.filter((a) => a.status !== 'ok').length;
+    const loose = access.filter((a) => !accessWorks(a.status)).length;
     setFold('access', 'גישות לרשתות', $('access').hidden ? null : {
       text: !vaultOk ? 'הקישור לטופס הגישות' : access.length ? `${access.length === 1 ? 'גישה אחת' : `${access.length} גישות`}${loose ? ` · ${loose} לבדיקה` : ''}` : 'אין גישות עדיין',
     });
@@ -621,18 +621,18 @@ function renderAccess() {
   show();
   if (!vaultOk) return;
   fill($('access-list'), ...(access.length ? access.map((a) => h('li', { class: `access-row a-${a.status}` },
-    iconSquare(a.status === 'ok' ? 'key' : 'alert', a.status === 'ok' ? 'green' : a.status === 'new' ? 'blue' : 'orange'),
+    iconSquare(accessWorks(a.status) ? 'key' : 'alert', accessWorks(a.status) ? 'green' : a.status === 'new' ? 'blue' : 'orange'),
     h('div', { class: 'access-main' },
       // 'other' is shown by its own name (LinkedIn, the site…), as the client or the office wrote it.
       h('strong', {}, a.network === 'other' && a.label ? a.label : networkName(a.network)), a.label && a.network !== 'other' ? h('span', { class: 'muted' }, ` · ${a.label}`) : null,
       h('div', { class: 'imeta' },
-        a.username ? h('span', { dir: 'ltr', class: 'num' }, a.username) : h('span', { class: 'muted' }, 'אין שם משתמש'),
-        h('span', { class: `tag${a.status === 'ok' ? '' : ' tag-warn'}` }, STATUS_LABEL[a.status]),
+        a.username ? h('span', { dir: 'ltr', class: 'num' }, a.username) : a.status === LINKED_STATUS ? null : h('span', { class: 'muted' }, 'אין שם משתמש'),
+        h('span', { class: `tag${accessWorks(a.status) ? '' : ' tag-warn'}` }, STATUS_LABEL[a.status]),
         h('span', { class: 'by' }, `עודכן · ${who(a.updated_by)} · ${formatStamp(a.updated_at)}`),
         a.note ? h('span', { class: 'inote' }, a.note) : null),
       h('div', { class: 'secret', id: `sec-${a.id}` })),
     h('div', { class: 'access-acts' },
-      a.has_secret ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => reveal(a) }, 'הצגת סיסמה') : h('span', { class: 'muted' }, 'אין סיסמה'),
+      a.has_secret ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => reveal(a) }, 'הצגת סיסמה') : a.status === LINKED_STATUS ? null : h('span', { class: 'muted' }, 'אין סיסמה'),
       h('button', { type: 'button', class: 'btn-text', onclick: () => openAccess(a) }, 'עריכה'),
       h('button', { type: 'button', class: 'btn-text danger', onclick: () => removeAccess(a) }, 'מחיקה'))))
     : [h('li', { class: 'empty muted cf-none' }, 'עוד אין גישות. כל גישה תקינה נכנסת לכאן מיד, לא נשארת בוואטסאפ.')]));
@@ -794,7 +794,7 @@ function renderHead(s) {
     ? { done: counted.filter((x) => x.complete).length, total: counted.length, label: 'התהליכים שלי שהושלמו', overdue: counted.filter((x) => x.status === 'overdue').length, waiting: counted.filter((x) => x.status === 'client').length }
     : { done: s.procsDone, total: s.procsTotal, label: 'תהליכים שהושלמו', overdue: s.overdue, waiting: s.waitingOnClient };
   const shootFact = fact('יום צילום', [c.shoot_type ? SHOOT_TYPES[c.shoot_type].name : null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot'));
-  const editorFact = fact('עורך', c.editor ? PEOPLE[c.editor]?.name : c.editor_name);
+  const editorFact = fact(c.editor && c.editor2 ? 'עורכים' : 'עורך', c.editor ? editorNames(c) : c.editor_name);
   fill($('cc-head'),
     landingNote(),
     autoBanner(),
@@ -1758,11 +1758,21 @@ const accDlg = dialog('dlg-access', () => { $('acc-password').value = ''; });
 let accEditing = null;
 fill($('acc-network'), ...NETWORKS.map(([k, l]) => h('option', { value: k }, l)));
 function syncAccTask() {
+  // "שויך" is offered for Facebook and Instagram only; it needs no user name and no password.
+  const linkable = canLink($('acc-network').value);
+  $('acc-status-linked').hidden = !linkable;
+  $('acc-status-linked').disabled = !linkable;
+  if (!linkable && $('acc-status').value === LINKED_STATUS) $('acc-status').value = 'ok';
   const st = $('acc-status').value;
-  $('acc-task-wrap').hidden = st === 'ok' || st === NEW_STATUS || accEditing?.status === st;
+  const linked = st === LINKED_STATUS;
+  $('acc-linked-h').hidden = !linked;
+  $('acc-username-wrap').hidden = linked;
+  $('acc-password-wrap').hidden = linked;
+  $('acc-task-wrap').hidden = accessWorks(st) || st === NEW_STATUS || accEditing?.status === st;
   $('acc-task-text').textContent = st === 'broken' ? 'לפתוח משימה לליאור: לשחזר את הגישה עם הלקוח' : 'לפתוח משימה לעילאי: לפתוח את הרשת ללקוח';
 }
 $('acc-status').addEventListener('change', syncAccTask);
+$('acc-network').addEventListener('change', syncAccTask);
 function openAccess(a = null) {
   accEditing = a;
   $('acc-form').reset();
@@ -1774,7 +1784,7 @@ function openAccess(a = null) {
   $('acc-status-new').hidden = !fromClient;
   $('acc-status-new').disabled = !fromClient;
   if (a) {
-    $('acc-network').value = a.network; $('acc-status').value = a.status; $('acc-label').value = a.label || '';
+    $('acc-network').value = a.network; syncAccTask(); $('acc-status').value = a.status; $('acc-label').value = a.label || '';
     $('acc-username').value = a.username || ''; $('acc-note').value = a.note || '';
   }
   syncAccTask();
@@ -1787,14 +1797,14 @@ $('acc-form').addEventListener('submit', async (e) => {
   const st = $('acc-status').value;
   const a = {
     id: accEditing?.id, network: $('acc-network').value, status: st, label: $('acc-label').value.trim(),
-    username: $('acc-username').value.trim(), password: $('acc-password').value, note: $('acc-note').value.trim(),
+    username: $('acc-username').value.trim(), password: st === LINKED_STATUS ? '' : $('acc-password').value, note: $('acc-note').value.trim(),
   };
   if (st === 'ok' && !a.username) { showErr('acc-err', 'לגישה תקינה צריך שם משתמש.'); $('acc-username').focus(); return; }
   $('acc-submit').disabled = true;
   try {
     await saveAccess(id, a);
     $('acc-password').value = '';
-    if (st !== 'ok' && accEditing?.status !== st && $('acc-task').checked) {
+    if (!accessWorks(st) && accEditing?.status !== st && $('acc-task').checked) {
       const owner = st === 'broken' ? 'lior' : 'ilai';
       const title = st === 'broken' ? `לשחזר עם הלקוח את הגישה ל־${networkName(a.network)} ולהכניס לכספת` : `לפתוח ללקוח ${networkName(a.network)} ולהכניס את הגישה לכספת`;
       const t = await addTask({ client_id: id, title, owner, urgent: true });
@@ -2154,10 +2164,14 @@ const fromLocal = (v) => fromInputIL(v)?.toISOString() || null;
 const DELIV_FIELDS = [...DELIVERABLES.map((x) => [x.key, x.label]), ['shoot_days', 'ימי צילום']];
 fill($('ed-deliv'), ...DELIV_FIELDS.map(([k, l]) => h('div', { class: 'field' },
   h('label', { for: `ed-deliv-${k}` }, l), h('input', { class: 'input', id: `ed-deliv-${k}`, type: 'number', min: '0', max: '999', inputmode: 'numeric', dir: 'ltr' }))));
-fill($('ed-links'), ...LINKS.map((l) => h('div', { class: 'field' },
+fill($('ed-links'), ...LINKS.flatMap((l) => [h('div', { class: 'field' },
   h('label', { for: `ed-link-${l.key}` }, l.label),
   h('input', { class: 'input', id: `ed-link-${l.key}`, type: 'url', inputmode: 'url', dir: 'ltr', placeholder: l.hint ? `https://${l.hint}/…` : l.placeholder || 'https://', 'aria-describedby': `ed-link-${l.key}-h` }),
-  h('div', { class: 'hint', id: `ed-link-${l.key}-h` }))));
+  h('div', { class: 'hint', id: `ed-link-${l.key}-h` })),
+  // Beside the scripts' link: how many there are (the editors see "N תסריטים"; 21.10.2026).
+  l.key === 'scripts' ? h('div', { class: 'field' },
+    h('label', { for: 'ed-scripts-n' }, 'כמה תסריטים'),
+    h('input', { class: 'input', id: 'ed-scripts-n', type: 'number', min: '0', max: '999', inputmode: 'numeric', dir: 'ltr' })) : null].filter(Boolean)));
 
 function openEdit(focusId = 'ed-name') {
   const c = client;
@@ -2179,19 +2193,20 @@ function openEdit(focusId = 'ed-name') {
   $('ed-contract-end').value = c.contract_end || '';
   $('ed-notes').value = c.notes || '';
   for (const [k] of DELIV_FIELDS) $(`ed-deliv-${k}`).value = c.deliverables?.[k] ?? '';
+  $('ed-scripts-n').value = c.deliverables?.scripts ?? '';
   for (const l of LINKS) { $(`ed-link-${l.key}`).value = c.links?.[l.key] || ''; $(`ed-link-${l.key}-h`).textContent = ''; $(`ed-link-${l.key}`).removeAttribute('aria-invalid'); }
   edDlg.showModal();
   $(focusId).focus();
 }
 
-// Editors a shoot type allows (Nirel edits only Natali's clients). A stored
+// Editors a shoot type allows (every editor since 21.10.2026). A stored
 // editor the type no longer allows stays listed and marked, so saving never
 // drops it silently; the save refuses it instead.
 function fillEditors(selId, shootType, current) {
   const keys = editorsFor(shootType);
   const extra = current && !keys.includes(current) ? [current] : [];
   fill($(selId), h('option', { value: '' }, 'טרם שויך'),
-    ...keys.map((k) => h('option', { value: k }, `${PEOPLE[k].name}${k === 'nirel' ? ' (נטלי בלבד)' : ''}`)),
+    ...keys.map((k) => h('option', { value: k }, PEOPLE[k].name)),
     ...extra.map((k) => h('option', { value: k }, `${PEOPLE[k]?.name || k} (לא מתאים לסוג יום הצילום)`)));
   $(selId).value = current || '';
 }
@@ -2240,6 +2255,8 @@ $('ed-form').addEventListener('submit', async (e) => {
     const v = $(`ed-deliv-${k}`).value;
     if (v === '') delete deliverables[k]; else deliverables[k] = Math.max(0, Math.round(Number(v)));
   }
+  const sn = $('ed-scripts-n').value;
+  if (sn === '') delete deliverables.scripts; else deliverables.scripts = Math.max(0, Math.round(Number(sn)));
   const val = (i) => $(i).value.trim() || null;
   // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
   const newShoot = fromLocal($('ed-shoot-at').value);

@@ -48,7 +48,8 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, editorsOf, editorNames } from './protocol.js';
+import { editingDaysOf } from './protocol-versions.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
   businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel, clientState, blockers,
@@ -207,7 +208,8 @@ export function inTimeWords(target, now) {
 // its usual words; later it is worded by the time really left.
 export const LATE_SLACK = 5;
 export const sentOnTime = (target, now, minutesBefore) => (target - now) / MIN >= minutesBefore - LATE_SLACK;
-export const personName = (key) => (key === OWNER ? 'הבעלים' : PEOPLE[key]?.name || key);
+// A list of people (the two editors of a shoot) reads "נדיה + יריב".
+export const personName = (key) => (Array.isArray(key) ? key.map(personName).join(' + ') : key === OWNER ? 'הבעלים' : PEOPLE[key]?.name || key);
 const names = (list, max = 4) => (list.length > max ? `${list.slice(0, max).join(', ')} ועוד ${list.length - max}` : list.join(', '));
 const procName = (proc) => `${proc.num} · ${proc.title}`;
 export const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash ? `#${hash}` : ''}`;
@@ -707,7 +709,7 @@ export const RULES = [
           // Lior moved the deadlines (editing paused): days 2 and 3 move with them.
           const shift = readShift(i.checks[SHIFT_KEY(i.pre)]);
           return {
-            ...i, id: i.proc.id, who: i.ctx.editor, url: EDITOR_URL(i.cid), ready: !!p24 && (p24.complete || i.resolved('p24.notify')), p24due: p24?.dueAt, p27due: i.same('p27')?.dueAt,
+            ...i, id: i.proc.id, who: editorsOf(i.ctx), days: editingDaysOf(i.client), url: EDITOR_URL(i.cid), ready: !!p24 && (p24.complete || i.resolved('p24.notify')), p24due: p24?.dueAt, p27due: i.same('p27')?.dueAt,
             anchors: { event: assigned, days: shift ? businessDayFrom(assigned, shift) : assigned },
           };
         })
@@ -723,9 +725,11 @@ export const RULES = [
       { id: 'nostart', officeMinutes: 120, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved('p22.received'), title: (i) => `עוד לא התחלת: ${i.name}`, body: () => 'עברו שעתיים עבודה מאז שהכונן נמסר. ללחוץ "קיבלתי את הכונן והתחלתי".' },
       { id: 'nostartLior', officeMinutes: 240, to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עברו 4 שעות עבודה מהשיוך.' },
       { id: 'ofir', officeMinutes: 240, to: 'ofir', level: 'quiet', when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עותק לידיעה: עברו 4 שעות עבודה מהשיוך.' },
-      { id: 'day2', from: 'days', businessDays: 2, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 2 מתוך 3: ${i.name}`, body: () => '' },
-      { id: 'day3', from: 'days', businessDays: 3, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 3 מתוך 3: ${i.name}`, body: () => 'עד סוף היום: הכול בדרייב ואצל אופיר.' },
-      { id: 'day3pm', from: 'days', businessDays: 3, at: '15:00', to: (i) => i.who, level: 'ring', title: (i) => `היום יום 3: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
+      // The last editing day: day 2 since protocol v11 (the owner, 21.10.2026), day 3 for a client from before.
+      { id: 'day2', from: 'days', businessDays: 2, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 2 מתוך ${i.days}: ${i.name}`, body: (i) => (i.days === 2 ? 'עד סוף היום: הכול בדרייב ואצל אופיר.' : '') },
+      { id: 'day2pm', from: 'days', businessDays: 2, at: '15:00', when: (i) => i.days === 2, to: (i) => i.who, level: 'ring', title: (i) => `היום יום 2: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
+      { id: 'day3', from: 'days', businessDays: 3, at: '08:30', when: (i) => i.days === 3, to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 3 מתוך 3: ${i.name}`, body: () => 'עד סוף היום: הכול בדרייב ואצל אופיר.' },
+      { id: 'day3pm', from: 'days', businessDays: 3, at: '15:00', when: (i) => i.days === 3, to: (i) => i.who, level: 'ring', title: (i) => `היום יום 3: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
     ],
   },
 
@@ -1170,12 +1174,12 @@ export const RULES = [
       return casesOf(env, 'p22', (i) => !!pauseOf(i.proc, i.checks) && !i.s.complete).map((i) => {
         const p = pauseOf(i.proc, i.checks);
         const at = new Date(p.at);
-        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, who: i.ctx.editor, why: p.for ? pauseText(p) : 'עריכה נעצרה', anchors: { event: at } };
+        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, who: editorsOf(i.ctx), why: p.for ? pauseText(p) : 'עריכה נעצרה', anchors: { event: at } };
       });
     },
     steps: [
-      { id: 'ofir', to: 'ofir', level: 'quiet', title: (i) => `${i.why}: ${i.name}${i.who ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
-      { id: 'lior', to: 'lior', level: 'digest', list: true, title: (i) => `${i.why}: ${i.name}${i.who ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
+      { id: 'ofir', to: 'ofir', level: 'quiet', title: (i) => `${i.why}: ${i.name}${i.who.length ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
+      { id: 'lior', to: 'lior', level: 'digest', list: true, title: (i) => `${i.why}: ${i.name}${i.who.length ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
       { id: 'morning', businessDays: 1, at: '08:30', to: 'lior', level: 'digest', overdue: true, title: (i) => `העריכה עדיין עצורה: ${i.name} · להחליט`, body: () => 'להזיז מועדים או להעביר לעורך אחר.' },
     ],
   },
@@ -1264,12 +1268,12 @@ export const RULES = [
     instances(env) {
       return casesOf(env, 'p22', (i) => !!missingOf(i.checks, i.pre)).map((i) => {
         const m = missingOf(i.checks, i.pre);
-        return { ...i, id: `${i.proc.id}@${m.at.toISOString()}`, who: i.ctx.editor, missing: m, anchors: { event: m.at } };
+        return { ...i, id: `${i.proc.id}@${m.at.toISOString()}`, who: editorNames(i.ctx), missing: m, anchors: { event: m.at } };
       });
     },
     steps: [
-      { id: 'irit', to: 'irit', level: 'ring', title: (i) => `חסר לעורך: ${i.name}`, body: (i) => `${i.who ? `${personName(i.who)}: ` : ''}חסר ${missingText(i.missing.what) || 'חומר'}${i.missing.note ? ` (${i.missing.note})` : ''}. העריכה חסומה עד שזה מגיע.` },
-      { id: 'lior', officeMinutes: 180, to: 'lior', level: 'ring', exception: true, title: (i) => `עריכה חסומה 3 שעות: ${i.name}`, body: (i) => `חסר ${missingText(i.missing.what) || 'חומר'}${i.who ? ` אצל ${personName(i.who)}` : ''}. עירית עוד לא סגרה את זה.` },
+      { id: 'irit', to: 'irit', level: 'ring', title: (i) => `חסר לעורך: ${i.name}`, body: (i) => `${i.who ? `${i.who}: ` : ''}חסר ${missingText(i.missing.what) || 'חומר'}${i.missing.note ? ` (${i.missing.note})` : ''}. העריכה חסומה עד שזה מגיע.` },
+      { id: 'lior', officeMinutes: 180, to: 'lior', level: 'ring', exception: true, title: (i) => `עריכה חסומה 3 שעות: ${i.name}`, body: (i) => `חסר ${missingText(i.missing.what) || 'חומר'}${i.who ? ` אצל ${i.who}` : ''}. עירית עוד לא סגרה את זה.` },
     ],
   },
 
@@ -1279,7 +1283,7 @@ export const RULES = [
     id: 'clientFixes', event: 'הערות לקוח (27)', procs: ['p27'],
     instances(env) {
       return casesOf(env, 'p27', (i) => !!i.doneAt('p27.notes') && !i.resolved('p27.fixes') && !i.resolved('p27.approved') && !i.resolved('p27.final'))
-        .map((i) => ({ ...i, id: `${i.proc.id}@${i.doneAt('p27.notes').toISOString()}`, who: i.ctx.editor, url: EDITOR_URL(i.cid), anchors: { event: i.doneAt('p27.notes') } }));
+        .map((i) => ({ ...i, id: `${i.proc.id}@${i.doneAt('p27.notes').toISOString()}`, who: editorsOf(i.ctx), url: EDITOR_URL(i.cid), anchors: { event: i.doneAt('p27.notes') } }));
     },
     steps: [
       { id: 'editor', to: (i) => i.who, level: 'ring', title: (i) => `הערות הלקוח הגיעו: ${i.name}`, body: () => 'לתקן, להחליף בדרייב ולסמן. התיקונים עוברים ישר לעילאי.' },
@@ -2100,7 +2104,7 @@ const PEOPLE_RULES = [
         const d = readMark(mark);
         const at = d && parseDate(mark.at);
         if (!at || d.choice !== 'move' || !(Number(d.days) > 0)) return [];
-        return [{ ...i, id: `${i.proc.id}@${at.toISOString()}`, who: i.ctx.editor, days: Number(d.days), p24due: i.same('p24')?.dueAt, url: EDITOR_URL(i.cid), anchors: { event: nextSendMoment(at) } }];
+        return [{ ...i, id: `${i.proc.id}@${at.toISOString()}`, who: editorsOf(i.ctx), days: Number(d.days), p24due: i.same('p24')?.dueAt, url: EDITOR_URL(i.cid), anchors: { event: nextSendMoment(at) } }];
       });
     },
     steps: [
@@ -2117,7 +2121,7 @@ const PEOPLE_RULES = [
       return APPROVED_ITEMS.flatMap(([b, what]) => casesOf(env, b, (i) => !!i.doneAt(`${b}.approved`)).map((i) => {
         const at = i.doneAt(`${b}.approved`);
         const note = String(i.check(`${b}.approved`).note || '');
-        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, b, what: `${what}${i.pre ? ` (סבב ${i.pre.slice(1, -1)})` : ''}`, page: note.startsWith(VIA_PAGE), note: said(note, 200), editor: i.ctx.editor || null, anchors: { event: nextSendMoment(at) } };
+        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, b, what: `${what}${i.pre ? ` (סבב ${i.pre.slice(1, -1)})` : ''}`, page: note.startsWith(VIA_PAGE), note: said(note, 200), editor: editorsOf(i.ctx), anchors: { event: nextSendMoment(at) } };
       }));
     },
     steps: [
@@ -2126,7 +2130,7 @@ const PEOPLE_RULES = [
       { id: 'lior', to: 'lior', level: 'quiet', when: (i) => i.page && i.b === 'p13', title: (i) => `הלקוח אישר בדף המצב: ${i.what} · ${i.name}`, body: (i) => `${i.note}.` },
       // The videos: the editor waits for notes, and hears there are none (Ilai's ladder starts when 27 closes).
       {
-        id: 'editor', to: (i) => i.editor, level: 'quiet', when: (i) => i.b === 'p27' && !!i.editor && !i.resolved('p27.final'), url: (i) => EDITOR_URL(i.cid),
+        id: 'editor', to: (i) => i.editor, level: 'quiet', when: (i) => i.b === 'p27' && i.editor.length > 0 && !i.resolved('p27.final'), url: (i) => EDITOR_URL(i.cid),
         title: (i) => `הלקוח אישר את הסרטונים: ${i.name}`, body: () => 'מה שנשאר פתוח אצלך בתהליך 27 מופיע בעמוד העריכה.',
       },
     ],
@@ -2438,3 +2442,72 @@ const V10_RULES = [
 RULES.push(...V10_RULES);
 for (const r of V10_RULES) RULE_BY_ID.set(r.id, r);
 export { LATE_LADDER };
+
+// ── "ממתין ללקוח": a reminder every hour (the owner's decision of 21.10.2026) ──
+// One self-contained block.
+//   waitNag  a process marked "ממתין ללקוח" (the mark `pNN.wait`, app/protocol-logic.js
+//     waitOf) rings the employee responsible for it EVERY HOUR while the wait lasts:
+//     "<לקוח> עדיין ממתין ללקוח: <מה> · תזכיר/י ללקוח". The employee reminds the client;
+//     nothing goes to the client. Only inside the sending hours (SEND_HOURS: Sunday–Thursday
+//     08:30–19:00, erev chag until 13:00, never on a holiday), as every other ring. It stops
+//     when the wait is cleared (or the process is done: a done process has no wait), and
+//     a "לדחות עד…" holds it until that moment. The date "לבדוק שוב" of the wait does not
+//     hold it (the owner: every hour, while it waits).
+//     Who: whoever marked the wait, when that is an employee; otherwise (the owner marked
+//     it, or the mark has no known writer) whoever took the process ("אני על זה"), else
+//     its owners. One step at a time, the hourly slot `now` falls in (as the nag's repeat):
+//     its id names the slot, so each slot goes out once and a slot the engine missed is
+//     never sent late. On the day the wait was marked the slots run from that moment, so
+//     the first ring is an hour after it; on a later day from 08:30. Like the nag, its
+//     repeats are not counted in the owner's weekly rings and "התראות" shows only the latest.
+export const WAIT_NAG = 'waitNag';
+export const WAIT_NAG_EVERY = 60; // minutes
+// The hourly slot of a wait marked at `since`, at `now` → { id, at, n } or null.
+export function waitSlot(since, now) {
+  const from0 = since ? new Date(since) : null;
+  if (!from0 || Number.isNaN(+from0) || now < from0 || !inSendHours(now)) return null;
+  const open = atIL(now, `${pad(Math.floor(SEND_HOURS.from / 60))}:${pad(SEND_HOURS.from % 60)}`);
+  const sameDay = from0 > open;
+  const from = sameDay ? from0 : open;
+  const n = Math.floor((now - from) / (WAIT_NAG_EVERY * MIN));
+  if (sameDay && n < 1) return null; // they just marked it: the first ring is an hour later
+  return { id: `${dayKeyIL(now)}.${n}`, at: new Date(from.getTime() + n * WAIT_NAG_EVERY * MIN), n };
+}
+// Who is reminded of a wait (see above).
+export function waitNagWho(i, env) {
+  const setter = i.s.wait ? env.personOf?.(i.s.wait.by_email) : null;
+  const ok = (p) => !!p && p !== OWNER && REMINDER_PEOPLE.has(p);
+  if (ok(setter)) return [setter];
+  if (i.s.claim && ok(i.s.claim.person)) return [i.s.claim.person];
+  return i.proc.owners.filter(ok);
+}
+const waitWhat = (i) => String(i.s.wait?.reason || '').replace(/\s+/g, ' ').trim() || i.proc.title;
+RULES.push({
+  id: WAIT_NAG, event: '״ממתין ללקוח״: תזכורת כל שעה לעובד/ת האחראי/ת, עד שההמתנה מוסרת', procs: [],
+  instances(env) {
+    if (!inSendHours(env.now)) return [];
+    const out = [];
+    for (const c of env.clients) {
+      if (!liveClient(c) || c.landing === true) continue;
+      for (const s of env.stateOf(c).states) {
+        if (!s.wait || s.complete) continue;
+        const i = procCase(env, c, s);
+        if (i.snooze && i.snooze > env.now) continue;
+        const slot = waitSlot(parseDate(s.wait.at), env.now);
+        const who = slot ? waitNagWho(i, env) : [];
+        if (who.length) out.push({ ...i, id: i.proc.id, who, slot, anchors: { event: slot.at } });
+      }
+    }
+    return out;
+  },
+  steps: (i) => [{
+    id: i.slot.id, to: () => i.who, level: 'ring', noFold: true,
+    title: () => `${i.name} עדיין ממתין ללקוח: ${said(waitWhat(i), 90)} · תזכיר/י ללקוח`,
+    body: (x, env) => [
+      `תהליך ${i.proc.num} · ${i.proc.title}`,
+      `ממתין מ־${whenText(parseDate(i.s.wait.at), env.now)}`,
+      'תזכורת כל שעה בשעות העבודה, עד שמסירים את ״ממתין ללקוח״.',
+    ].join(' · '),
+  }],
+});
+RULE_BY_ID.set(WAIT_NAG, RULES.at(-1));

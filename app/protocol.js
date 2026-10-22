@@ -69,8 +69,15 @@
 //   - p05.newlogo is not ticked while the client's files hold no logo (`guard: 'logoFile'`).
 //   Marks that are not items (they hold nothing open): p13.left, p16.read (the photographer
 //   read the scripts), p18b.files (the raw material and the chosen take per script).
+// v11 (the owner's decisions of 21.10.2026, after the staff training):
+//   - Ofir connects the client to Metricool when he takes the accesses (5): the item
+//     p06.metricool is his (it opens with process 6, the moment the accesses came in, and
+//     keeps its 30 minutes). Ilai no longer has it; his final check (p29b.c.metricool) and
+//     his Gantt still show the connection. Same key: nothing is reopened or moved.
+//   - A process marked "ממתין ללקוח" reminds whoever marked it every hour, in the working
+//     hours, until the wait is cleared (the reminder rule `waitNag`). No item changes.
 
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 // The five critical mistakes of editing, in the order and the words of the editors' written
 // protocol ("נקודות חשובות: טעויות קריטיות", docs/protocols/editors.md and nirel.md):
@@ -166,9 +173,42 @@ export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 
 // Everyone on the team, sales too: the team screen (team.html) and who has reminders.
 export const TEAM_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor');
 
-// Editors a client can be assigned to. Nirel edits only Natali Dadon's videos.
+// Editors a client can be assigned to: every editor, any shoot (since 21.10.2026 Nirel too;
+// she stays the one preselected for Natali Dadon's shoots, app/qa-logic.js preselected).
 export const EDITORS = ['nadia', 'yariv', 'anna', 'nirel'];
-export const editorsFor = (shootType) => (shootType === 'natali' ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));
+export const editorsFor = () => EDITORS;
+// The editors of a shoot (the client, or a round's view of it): the main one (`editor`)
+// and, when two work together, the second (`editor2`; the owner's request of 21.10.2026).
+// The second one sees the client, gets the same notices and marks the editing steps.
+export const editorsOf = (x) => [x?.editor, x?.editor2].filter((e, i, a) => e && e !== 'editor' && a.indexOf(e) === i);
+export const isEditorOf = (x, person) => !!person && editorsOf(x).includes(person);
+// "נדיה + יריב" (a name not in PEOPLE stays as it is).
+export const editorNames = (x) => editorsOf(x).map((e) => PEOPLE[e]?.name || e).join(' + ');
+// How the package's videos are split between the two (`editor_split`: { nadia: 8, yariv: 4 },
+// kept with the assignment). Even by default, the main editor taking the odd one.
+export const evenSplit = (total, main, second) => {
+  const n = Number(total) || 0;
+  return n > 0 ? { [main]: Math.ceil(n / 2), [second]: Math.floor(n / 2) } : null;
+};
+// Why a split cannot be saved (null: it can). With a known count it must add up to it;
+// without one it is optional, and any whole numbers do.
+export function splitProblem(split, total, main, second) {
+  const a = split?.[main];
+  const b = split?.[second];
+  const n = Number(total) || 0;
+  if (a == null && b == null && !n) return null;
+  if (![a, b].every((v) => Number.isInteger(v) && v >= 0 && v <= 500)) return 'כמה סרטונים לכל אחד? מספר שלם.';
+  if (n && a + b !== n) return `ביחד ${a + b}, ובחבילה ${n}. צריך שיסתכם ב־${n}.`;
+  return null;
+}
+// One editor's share of the shoot: { mine, total, other } (other: the partner's key), or null.
+export function shareOf(x, person) {
+  const s = x?.editor_split;
+  const pair = editorsOf(x);
+  if (!s || pair.length < 2 || !pair.includes(person) || !Number.isInteger(s[person])) return null;
+  const other = pair.find((e) => e !== person);
+  return { mine: s[person], total: s[person] + (Number(s[other]) || 0), other };
+}
 
 // Who can run the characterization meeting. Lior goes only when Ofir and Shirel cannot.
 export const CHARACTERIZERS = ['ofir', 'lior'];
@@ -262,7 +302,7 @@ export const CALL_TOPICS = [
 const characterizer = (c) => (c.characterizer ? [c.characterizer] : ['ofir']);
 // Whoever characterizes takes the access in the meeting; otherwise Irit gets it from the client.
 const accessOwners = (c) => (c.characterizer === 'ofir' || c.characterizer === 'lior' ? [c.characterizer] : ['irit']);
-const editorOf = (c) => (c.editor ? [c.editor] : ['editor']);
+const editorOf = (c) => (c.editor ? editorsOf(c) : ['editor']);
 const isNatali = (c) => c.shoot_type === 'natali';
 const isDms = (c) => c.shoot_type === 'dms';
 
@@ -490,7 +530,8 @@ export const PROCESSES = [
       { key: 'p06.phone', label: 'הטלפון נבדק' },
       { key: 'p06.address', label: 'הכתובת נבדקה' },
       { key: 'p06.look', label: 'נראות העמוד סודרה' },
-      { key: 'p06.metricool', label: 'כל הרשתות חוברו ל־Metricool' },
+      // v11: Ofir's, right after he took the accesses (5); not Ilai's any more.
+      { key: 'p06.metricool', label: 'כל הרשתות חוברו ל־Metricool', owners: ['ofir'] },
     ],
   },
   {
@@ -801,9 +842,9 @@ export const PROCESSES = [
   },
   {
     id: 'p22', round: true, num: '22', phase: 'post', title: 'עריכת הסרטונים', owners: editorOf,
-    ownerNote: 'העורך שאופיר שייך. ניראל עורכת רק סרטוני נטלי דדון.',
-    sla: 'עד סוף יום העסקים השלישי מקבלת הלקוח: כל הסרטונים ערוכים, בדוקים ואצל אופיר',
-    start: { from: 'item:p22a.assigned' }, due: { from: 'item:p22a.assigned', businessDays: 3 },
+    ownerNote: 'העורך שאופיר שייך. בצילום של נטלי דדון ניראל מסומנת מראש.',
+    sla: 'עד סוף יום העסקים השני מהשיוך: כל הסרטונים ערוכים, בדוקים ואצל אופיר',
+    start: { from: 'item:p22a.assigned' }, due: { from: 'item:p22a.assigned', businessDays: 2 },
     what: 'עורכים לפי התסריטים ולפי מה שצולם, בלי לשנות את משמעות הסרטון. יוצרים גיוון בקצב, ב־B-Roll, במעברים, במבנה ובהצגת הטקסטים.',
     rule: 'חסר לוגו או מספר טלפון: מדווחים מיד לליאור או לעירית, לא מגלים בסוף העריכה. אופיר לא אמור למצוא טעויות בסיסיות.',
     items: [
@@ -854,8 +895,8 @@ export const PROCESSES = [
   },
   {
     id: 'p24', round: true, num: '24', phase: 'post', title: 'העלאה לדרייב והעברה לאופיר', owners: editorOf,
-    sla: 'עד סוף יום העסקים השלישי',
-    start: { from: 'p22' }, due: { from: 'item:p22a.assigned', businessDays: 3 },
+    sla: 'עד סוף יום העסקים השני מהשיוך ("מוכן לבדיקה")',
+    start: { from: 'p22' }, due: { from: 'item:p22a.assigned', businessDays: 2 },
     items: [
       { key: 'p24.folder', label: 'יש תיקייה מסודרת בדרייב עם שם הלקוח', owners: ['ofir'] },
       { key: 'p24.drive', label: 'כל הסרטונים הועלו לדרייב של הלקוח, וכל הקבצים נפתחים' },

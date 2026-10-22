@@ -71,7 +71,7 @@ export function pausedSinceYesterday({ clients, stateOf, checks, now = new Date(
       const pre = s.proc.keyBase.slice(0, -3);
       const decided = cs[`${pre}p22.decision`];
       out.push({
-        key: `${c.id}:${s.proc.id}`, client: c, ctx, pre, n: ctx.round || null, state: s, pause, editor: ctx.editor || null,
+        key: `${c.id}:${s.proc.id}`, client: c, ctx, pre, n: ctx.round || null, state: s, pause, editor: ctx.editor || null, editor2: (ctx.editor && ctx.editor2) || null,
         decidedToday: decided?.state === 'done' && dayKeyIL(new Date(decided.at)) === dayKeyIL(now),
       });
     }
@@ -80,10 +80,31 @@ export function pausedSinceYesterday({ clients, stateOf, checks, now = new Date(
 }
 export const decisionNote = ({ choice, days = 0, editor = null, proposal = null }) => JSON.stringify({ choice, days, editor, proposal });
 
-// The round's editor changes in `rounds`; the client's own in `clients.editor`.
-export function withEditor(client, n, editor) {
-  if (!n) return { editor };
-  return { rounds: roundsOf(client).map((r) => (r.n === n ? { ...r, editor } : r)) };
+// The round's editor changes in `rounds`; the client's own in `clients.editor`. The second
+// editor (`editor2`, 21.10.2026) and how the videos are split (`editor_split`): given, they
+// are set (null: none); left out, they stay, unless the second is now the main editor, or
+// there is no main editor any more (then there is no split either).
+export function withEditor(client, n, editor, editor2, split) {
+  const second = (was) => {
+    const v = editor2 === undefined ? was || null : editor2 || null;
+    return v && editor && v !== editor ? v : null;
+  };
+  // The columns are written only when the row has them (they came with 20261031100000_access_and_editors.sql).
+  const set = (x) => {
+    const e2 = second(x?.editor2);
+    if (!e2 && !(x && 'editor2' in x)) return { editor };
+    const sp = !e2 ? null : split === undefined ? (e2 === x?.editor2 && editor === x?.editor ? x?.editor_split || null : null) : split || null;
+    return { editor, editor2: e2, editor_split: sp };
+  };
+  if (!n) return set(client);
+  return { rounds: roundsOf(client).map((r) => (r.n === n ? { ...r, ...set(r) } : r)) };
+}
+// Taking one editor of a shoot off and another on (a swap from that editor's load):
+// the main editor's place, or the second one's.
+export function swapEditor(client, n, from, to) {
+  const x = n ? roundsOf(client).find((r) => r.n === n) || {} : client || {};
+  if (x.editor2 && x.editor2 === from && x.editor) return withEditor(client, n, x.editor, to === x.editor ? null : to);
+  return withEditor(client, n, to);
 }
 
 // ── The weekly campaign check (decision 21: Tuesday) ──

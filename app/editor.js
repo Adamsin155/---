@@ -13,13 +13,14 @@
 // highlights from the focus call (app/intake-data.js, app/briefs.js).
 // Nirel also gets her "בריפים" inbox here. Each editor sees their own on-time and
 // first-pass numbers, never anyone else's.
-import { PEOPLE, CRITICAL_TITLE } from './protocol.js';
+import { PEOPLE, CRITICAL_TITLE, editorsOf, editorNames, shareOf } from './protocol.js';
+import { editingDaysOf } from './protocol-versions.js';
 import { clientState, WAIT, WAITED, waitNote, endWaitNote } from './protocol-logic.js';
 import { dayFromKeyIL, endOfDayIL } from './tz.js';
 import {
   loadChecks, setCheck, clearCheck, setChecksBulk, addTask, setTaskDone, setTaskStarted, loadAllLog, loadDirectory,
 } from './protocol-data.js';
-import { loadWorkClients, loadMyTasks, loadOpenTasksOf, finishTask, loadLogoFiles, signedDownload } from './production-data.js';
+import { loadWorkClients, loadMyTasks, loadOpenTasksOf, finishTask, loadLogoFiles, signedDownload, loadWorkScripts, scriptsWords } from './production-data.js';
 import { loadCharacterizations, loadBriefsOf } from './intake-data.js';
 import { highlightsOf, briefBlock, SUMMARY } from './briefs.js';
 import { fixList } from './office-ui.js';
@@ -57,6 +58,9 @@ const stateOf = (c) => {
 };
 const cs = (c) => (checks[c.id] ||= {});
 const busy = () => !!document.querySelector('dialog[open]');
+// The scripts Lior wrote for the shoots I edit (read only; 21.10.2026).
+let scripts = [];
+const scriptsOf = (job) => scripts.filter((s) => s.client_id === job.client.id && s.round === (job.round || 1));
 const cardId = (job) => `c-${job.client.id}${job.round > 1 ? `-r${job.round}` : ''}`;
 const jobName = (job) => `${job.client.name}${job.round > 1 ? ` · סבב ${job.round}` : ''}`;
 const isNirel = () => me === 'nirel';
@@ -77,7 +81,7 @@ async function load() {
   const ids = [...new Set(allJobs().map((j) => j.client.id))];
   for (const cid of ids) forgetFiles(cid);
   // The files too, before the cards are drawn: "מוכן לבדיקה" is locked or open at once.
-  [chars, briefs, logos] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), ...ids.map(readFiles)]);
+  [chars, briefs, logos, scripts] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), loadWorkScripts(ids), ...ids.map(readFiles)]);
   lastLoad = Date.now();
   $('state').textContent = '';
   await tidyBlocks();
@@ -293,7 +297,7 @@ function stateBlock(job, st) {
 function qaFixes(job) {
   const c = job.client;
   return h('div', { class: 'ed-fixes' }, fixList({
-    client: c, checks: cs(c), kind: 'videos', pre: job.pre, fixer: QA_KINDS.videos.fixer(job.ctx), me, viewer,
+    client: c, checks: cs(c), kind: 'videos', pre: job.pre, fixer: QA_KINDS.videos.fixers(job.ctx), me, viewer,
     onChange: () => {
       states.delete(c.id);
       renderKeepingFocus(`${cardId(job)}-h`);
@@ -346,13 +350,19 @@ function jobCard(job) {
   const c = job.client;
   const day = P.editingDay(job.assignedAt, now);
   const videos = P.videosPerDay(job.ctx);
+  const share = shareOf(job.ctx, me);
+  const mine = scriptsOf(job);
+  // The scripts: Lior's Google Docs link (links.scripts), and how many (the office's number, else the system's).
+  const nScripts = job.round > 1 ? (mine.length || null) : P.scriptsCountOf(c, mine.length);
   const links = c.links || {};
   const dropbox = P.needsDropbox(c);
   return h('article', { class: `ed-card s-${st.key}${st.blocked ? ' is-blocked' : ''}${st.paused ? ' is-paused' : ''}`, id, 'aria-labelledby': `${id}-h` },
     h('header', { class: 'ed-head' },
       h('h2', { id: `${id}-h`, tabindex: '-1' }, jobName(job), c.business && c.business !== c.name ? h('small', {}, c.business) : null),
       h('span', { class: `ed-state s-${st.key}` }, st.blocked ? 'חסום' : st.paused ? P.pauseText(st.paused) : P.STATE_TEXT[st.key])),
-    h('p', { class: 'ed-day' }, c.landing === true ? 'בקליטה · הימים עוד לא נספרים' : P.editingDayText(day, now, job.assignedAt)),
+    h('p', { class: 'ed-day' }, c.landing === true ? 'בקליטה · הימים עוד לא נספרים' : P.editingDayText(day, now, job.assignedAt, editingDaysOf(c))),
+    // Two editors on this shoot (editor2): with whom.
+    editorsOf(job.ctx).length > 1 ? h('p', { class: 'ed-pair', id: `${id}-pair` }, `עורכים יחד: ${editorNames(job.ctx)}`) : null,
     datesLine(job, st),
     // The one next step comes first; what the work needs follows.
     st.blocked ? h('div', { class: 'ed-blocked', role: 'note' },
@@ -362,15 +372,34 @@ function jobCard(job) {
     videosBlock(job, st),
     pauseBlock(job, st),
     h('p', { class: 'ed-facts' },
-      videos ? h('span', {}, `${videos} סרטונים לפי החבילה`) : h('span', { class: 'muted' }, 'כמות הסרטונים לא הוזנה'),
+      // Two editors with a split: this editor's own share.
+      share ? h('span', { class: 'ed-share' }, `${share.mine} מתוך ${share.total} סרטונים — השאר אצל ${PEOPLE[share.other]?.name || share.other}`)
+        : videos ? h('span', {}, `${videos} סרטונים לפי החבילה`) : h('span', { class: 'muted' }, 'כמות הסרטונים לא הוזנה'),
+      h('span', { class: nScripts ? 'ed-scount' : 'ed-scount muted', id: `${id}-scount` }, nScripts ? scriptsWords(nScripts) : 'מספר התסריטים לא הוזן'),
       dropbox ? h('span', { class: 'tag tag-warn' }, 'צריך גם Dropbox') : null),
+    // The scripts first, and prominent: the editor works from them from the assignment on.
+    links.scripts ? h('a', { class: 'btn ed-scripts-open', id: `${id}-scripts-link`, href: links.scripts, target: '_blank', rel: 'noopener noreferrer' },
+      `פתיחת התסריטים${nScripts ? ` (${nScripts})` : ''}`) : null,
     h('div', { class: 'ed-links' },
-      link(links.drive, 'דרייב'), link(links.scripts, 'תסריטים'), dropbox ? link(links.dropbox, 'Dropbox') : null,
-      !links.drive && !links.scripts ? h('span', { class: 'muted' }, 'אין עדיין קישור לדרייב ולתסריטים בכרטיס.') : null),
+      link(links.drive, 'דרייב'), dropbox ? link(links.dropbox, 'Dropbox') : null,
+      !links.drive && !links.scripts && !mine.length ? h('span', { class: 'muted' }, 'אין עדיין קישור לדרייב ולתסריטים בכרטיס.') : null),
+    scriptsBlock(job, mine),
     sheetBlock(job),
     eliNotes(job),
     rawFiles(job),
     highlightsBlock(job));
+}
+
+// The client's scripts from the system (Lior writes them; scripts.html), read only, folded.
+function scriptsBlock(job, list) {
+  if (!list.length) return null;
+  const id = `${cardId(job)}-scripts`;
+  return h('details', { class: 'ed-scripts', id },
+    h('summary', {}, `תסריטים (${list.length})`),
+    h('ol', { class: 'ed-script-list' }, ...list.map((s) => h('li', { class: 'ed-script' },
+      h('strong', {}, s.title || `תסריט ${s.n}`), s.status === 'approved' ? h('span', { class: 'tag' }, 'אושר') : null,
+      s.body ? h('p', { class: 'ed-script-body' }, s.body) : null,
+      ...(s.links || []).map((u, i) => h('a', { class: 'ed-script-link', href: u, target: '_blank', rel: 'noopener noreferrer' }, `השראה ${i + 1}`))))));
 }
 
 // ── (1) The drive arrived ───────────────────

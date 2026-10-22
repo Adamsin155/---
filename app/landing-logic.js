@@ -12,7 +12,7 @@
 //
 //   marks  { itemKey: { choice: 'done' | 'open' | 'na', person, by_email, at } }  of one client
 //   done   { person: { done: true, by_email, at } }                                of one client
-import { STATIONS, PROCESSES, PEOPLE, APPROVALS, editorsFor } from './protocol.js';
+import { STATIONS, PROCESSES, PEOPLE, APPROVALS, editorsFor, isEditorOf } from './protocol.js';
 import { clientState, itemsOf, inLanding, IMPORT_NOTE, parseDate, roundsOf } from './protocol-logic.js';
 import { importKeys, stationIndex } from './client-open.js';
 import { dayKeyIL, daysBetweenIL, partsIL } from './tz.js';
@@ -46,7 +46,7 @@ export function withIntake(checks = {}, marks = {}) {
 export function canTake(person, client, now = new Date()) {
   if (!person || !PEOPLE[person] || PEOPLE[person].sales || person === 'editor') return false;
   if (['irit', 'lior', 'ofir', 'ilai'].includes(person)) return true;
-  if (client.editor === person || roundsOf(client).some((r) => r.editor === person)) return true;
+  if (isEditorOf(client, person) || roundsOf(client).some((r) => isEditorOf(r, person))) return true;
   if (person === 'nirel') return client.shoot_type === 'natali';
   if (person === 'eli') {
     return [client.shoot_at, ...roundsOf(client).map((r) => r.shoot_at)].map(parseDate).filter(Boolean)

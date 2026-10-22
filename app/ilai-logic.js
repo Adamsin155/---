@@ -1,8 +1,8 @@
 // Ilai's part of "המשימות שלי" (system-plan section 3, "עילאי"): when a
 // characterization ends, the card "יום אפיון: שעתיים" with one line per client
 // showing only the nearest due, and inside it the access check (30 minutes; the
-// statuses in the vault mark it), the page setup (6 quick checks; pasting the
-// Metricool link marks "Metricool מחובר"), the first 9 graphics (2 hours), the
+// statuses in the vault mark it), the page setup (6 quick checks; Metricool is Ofir's
+// since v11, and the card only says whether it is connected), the first 9 graphics (2 hours), the
 // Gantt skeleton and a new logo when there is none. Also his "מוכן לבדיקה" routing
 // (to Ofir, the first 9 as the rest: protocol v9), "הגאנט מלא" and "קיבלתי" on the
 // editor's final versions. Pure, no DOM, Israel time.
@@ -39,7 +39,7 @@ function lines(c, st, cs, access) {
   const accessAt = cs['p05.access']?.state === 'done' ? new Date(cs['p05.access'].at) : null;
   const out = [
     { key: 'access', title: 'בדיקת גישות', due: p06?.dueAt || null, done: done(cs, 'p06.verified'), waiting: !accessAt, auto: accessChecked(access, accessAt) },
-    { key: 'page', title: 'סידור העמוד', due: p06?.dueAt || null, done: PAGE_KEYS.every((k) => done(cs, k)) && done(cs, 'p06.metricool'), count: PAGE_KEYS.filter((k) => done(cs, k)).length },
+    { key: 'page', title: 'סידור העמוד', due: p06?.dueAt || null, done: PAGE_KEYS.every((k) => done(cs, k)), count: PAGE_KEYS.filter((k) => done(cs, k)).length },
     // Returned by Ofir for fixes (protocol v9): the line is open again, with the fix's own deadline.
     { key: 'graphics', title: '9 גרפיקות', due: p07?.dueAt || null, done: done(cs, 'p07.made') && qaState(cs, '', 'graphics9').stage !== 'fixing' },
     { key: 'gantt', title: 'שלד גאנט', due: p09?.dueAt || null, done: !!p09?.complete },

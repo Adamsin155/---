@@ -15,6 +15,8 @@ import { partsIL, daysBetweenIL, atTimeIL, addDaysIL } from './tz.js';
 // The next person, from the client and its marks. `ctx` is the client, or the
 // round's view of it (a second shoot day has its own editor).
 const editorOf = (ctx) => ctx.editor || 'editor';
+// The second editor, when two work on the shoot together (editor2): a handoff of their own.
+const editor2Of = (ctx) => (ctx.editor && ctx.editor2 && ctx.editor2 !== ctx.editor ? ctx.editor2 : null);
 
 // The handoff points, in protocol order (the reminder matrix, section 5 of the plan).
 //   on:    an item key (offered when it is checked), or a process id (offered when
@@ -79,6 +81,11 @@ export const HANDOFFS = [
     to: [{
       id: 'editor', person: editorOf, who: 'העורך המשויך', proc: 'p22', until: 'p22.received',
       text: 'הלקוח {client} עובר לעריכה אצלך. הכונן, התסריטים והלוגו בכרטיס הלקוח.',
+      due: [{ label: 'בדרייב של הלקוח ואצל אופיר לבקרה', proc: 'p24' }, { label: 'סגירה, כולל תיקוני הלקוח', proc: 'p27' }],
+    }, {
+      // `optional`: no offer at all while the shoot has no second editor.
+      id: 'editor2', person: editor2Of, optional: true, who: 'העורך הנוסף', proc: 'p22', until: 'p22.received',
+      text: 'הלקוח {client} עובר לעריכה אצלך, יחד עם עורך נוסף. הכונן, התסריטים והלוגו בכרטיס הלקוח.',
       due: [{ label: 'בדרייב של הלקוח ואצל אופיר לבקרה', proc: 'p24' }, { label: 'סגירה, כולל תיקוני הלקוח', proc: 'p27' }],
     }],
   },
@@ -233,8 +240,9 @@ function offersOf(point, { client, checks, state, n, triggerKey, triggerAt, now 
   const trig = stateOf(procOfPoint(point));
   const ctx = trig?.proc.ctx || client;
   const roundName = n ? ` (סבב צילום ${n})` : '';
-  return point.to.map((target) => {
+  return point.to.flatMap((target) => {
     const person = typeof target.person === 'function' ? target.person(ctx, checks, pre) : target.person;
+    if (target.optional && !person) return [];
     const markKey = markKeyOf(pre, point, target);
     const sent = checks[markKey]?.state === 'done' ? checks[markKey] : null;
     const handled = [target.until || []].flat().some((k) => ['done', 'na'].includes(checks[keyIn(k)]?.state)) || !!stateOf(target.proc)?.complete;

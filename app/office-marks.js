@@ -12,14 +12,14 @@
 //                       last issue fixed). Marking the videos ready again (p24.notify)
 //                       after the return counts the same.
 //   p23.return.N, p23.fixed.N(.I)   the same for the rest of the graphics (Ilai fixes).
-//   p22a.reason         why the editor was chosen, when a reason is needed (the
-//                       Natali preselection, a joint day). Note JSON { editor, reason, preselected, joint }.
+//   p22a.reason         why the editor was chosen, when Ofir wrote a reason (optional
+//                       since 21.10.2026: the Natali preselection, a joint day). Note JSON { editor, reason, preselected, joint }.
 //   p22a.shift          Lior moved the editing deadlines (app/protocol-logic.js SHIFT).
 //   p22.decision        Lior's decision on editing still paused the next morning.
 //                       Note JSON { choice: 'move' | 'reassign', days, editor, proposal }.
 //   p06.fixed.<network> Lior closed a broken login: fixed, or partly (Irit and Ilai
 //                       are told). Note JSON { partial, missing, access }.
-import { PROCESSES, PEOPLE } from './protocol.js';
+import { PROCESSES, PEOPLE, editorsOf } from './protocol.js';
 import {
   addWorkingMinutes, officeMsBetween, IMPORT_NOTE, parseDate, SHIFT, fixDue, FIX_CUTOFF_HOUR,
 } from './protocol-logic.js';
@@ -36,6 +36,8 @@ export const QA_KINDS = {
   videos: {
     kind: 'videos', base: 'p25', proc: 'p25', ready: 'p24.notify', approved: 'p25.approved', checks: itemsOf('p25', 'p25.q.'),
     unit: 'סרטון', units: 'סרטונים', title: 'סרטונים', fixer: (ctx) => ctx?.editor || 'editor',
+    // Everyone who fixes: both editors when two work together (editor2).
+    fixers: (ctx) => (ctx?.editor ? editorsOf(ctx) : ['editor']),
   },
   graphics: {
     kind: 'graphics', base: 'p23', proc: 'p23', ready: 'p23.made', approved: 'p23.ofir', checks: itemsOf('p23', 'p23.q.'),

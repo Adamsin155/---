@@ -389,10 +389,11 @@
       <div class="dlg-body form-grid">
         <div class="field"><label for="acc-network">רשת</label><select class="input" id="acc-network"></select></div>
         <div class="field"><label for="acc-status">מצב הגישה</label>
-          <select class="input" id="acc-status"><option value="ok">תקינה</option><option value="broken">לא עובדת: ליאור משחזר עם הלקוח</option><option value="missing">אין רשת: עילאי פותח</option><option value="new" id="acc-status-new" hidden disabled>התקבל מהלקוח, עוד לא נבדק</option></select></div>
+          <select class="input" id="acc-status"><option value="ok">תקינה</option><option value="linked" id="acc-status-linked">שויך (דרך מנהל העסקים)</option><option value="broken">לא עובדת: ליאור משחזר עם הלקוח</option><option value="missing">אין רשת: עילאי פותח</option><option value="new" id="acc-status-new" hidden disabled>התקבל מהלקוח, עוד לא נבדק</option></select></div>
         <div class="field"><label for="acc-label">שם החשבון או העמוד (לא חובה)</label><input class="input" id="acc-label"></div>
-        <div class="field"><label for="acc-username">שם משתמש / מייל / טלפון</label><input class="input" id="acc-username" dir="ltr" autocomplete="off"></div>
-        <div class="field span-2"><label for="acc-password">סיסמה</label><input class="input" id="acc-password" type="password" dir="ltr" autocomplete="new-password" aria-describedby="acc-password-h">
+        <p class="hint span-2" id="acc-linked-h" hidden>העמוד משויך לאסטרטג במנהל העסקים של Meta: אין צורך בשם משתמש ובסיסמה.</p>
+        <div class="field" id="acc-username-wrap"><label for="acc-username">שם משתמש / מייל / טלפון</label><input class="input" id="acc-username" dir="ltr" autocomplete="off"></div>
+        <div class="field span-2" id="acc-password-wrap"><label for="acc-password">סיסמה</label><input class="input" id="acc-password" type="password" dir="ltr" autocomplete="new-password" aria-describedby="acc-password-h">
           <div class="hint" id="acc-password-h">נשמרת מוצפנת. בעריכה, שדה ריק משאיר את הסיסמה הקיימת.</div></div>
         <div class="field span-2"><label for="acc-note">הערה (לא חובה)</label><input class="input" id="acc-note" maxlength="500"></div>
         <label class="only span-2" id="acc-task-wrap" hidden><input type="checkbox" id="acc-task" checked> <span id="acc-task-text"></span></label>

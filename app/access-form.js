@@ -10,7 +10,7 @@
 // the Supabase client beside it) and talks only to the database: see the
 // Content-Security-Policy in access.html.
 import {
-  TOKEN, tokenFrom, insecure, secureUrl, REQUIRED, EXTRA_PLATFORMS, CHOICES, NETWORK_NAMES, emptyForm, canAddExtra, formProblems, waitingText,
+  TOKEN, tokenFrom, insecure, secureUrl, REQUIRED, EXTRA_PLATFORMS, choicesFor, NETWORK_NAMES, emptyForm, canAddExtra, formProblems, waitingText,
   buildPayload, confirmLines, PAGE_TEXT, CLOSED_TEXT, SEND_ERRORS, USER_MAX, PASS_MAX, LABEL_MAX,
 } from './access-logic.js';
 
@@ -161,6 +161,7 @@ function mainDetail(n) {
         { wide: true, hint: 'נחזור אליכם כדי לחדש את הסיסמה יחד.' }));
   }
   if (v.choice === 'none') return h('p', { class: 'shint' }, `נפתח עבורכם עמוד ${name} חדש.`);
+  if (v.choice === 'linked') return h('p', { class: 'shint' }, 'מעולה, אין צורך בסיסמה. נבדוק שהשיוך הגיע אלינו.');
   return null;
 }
 
@@ -172,7 +173,7 @@ function mainCard(n) {
     h('h2', { id: `${n}-h` }, name, h('span', { class: 'sneed', id: `${n}-need` }, 'חובה')),
     h('fieldset', { class: 'schoices', id: `${n}-choice`, 'aria-describedby': errId(`${n}.choice`) },
       h('legend', {}, `מה המצב ב־${name}?`),
-      CHOICES.map(([key, label]) => h('label', { class: 'schoice' },
+      choicesFor(n).map(([key, label]) => h('label', { class: 'schoice' },
         h('input', {
           type: 'radio', name: `${n}-choice`, id: `${n}-choice-${key}`, value: key, checked: v.choice === key,
           onchange: () => { v.choice = key; touched.add(`${n}.choice`); fill(detail, mainDetail(n)); refresh(); },

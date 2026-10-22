@@ -35,7 +35,7 @@ const LOADERS = {
     return { months: data || [] };
   },
   // Ofir: is Lior on a shoot day now (the engine's own rule; loaded only for him).
-  // Ilai: the Metricool problems (app/mine-metricool.js).
+  // Ilai: the Metricool problems; Ofir: the clients not connected (app/mine-metricool.js).
   metricool: ({ now }) => loadMetricoolProblems(now),
   liorShoot: async ({ now, clients, checks, stateOf }) => {
     const { liorShoot } = await import('./reminder-engine.js');

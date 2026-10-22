@@ -4,6 +4,7 @@
 // (22א) with each editor's load. Pure, no DOM, Israel time; the marks are in
 // app/office-marks.js.
 import { EDITORS, editorsFor, PEOPLE } from './protocol.js';
+import { editingDaysOf } from './protocol-versions.js';
 import {
   businessDaysBetween, addBusinessDays, pauseOf, roundsOf, parseDate, inLanding, workFloor,
 } from './protocol-logic.js';
@@ -121,8 +122,10 @@ export function awaitingEditor({ clients, stateOf, checks }) {
   return out.sort(byClock);
 }
 
-// Natali's shoot: Nirel is preselected, and anyone else needs a recorded reason. A
-// joint Natali and Semyon day: no preselection, Ofir chooses with a reason (decision 31).
+// Natali's shoot: Nirel is preselected, and for anyone else a reason is asked for. A
+// joint Natali and Semyon day: no preselection, Ofir chooses, a reason asked for (decision 31).
+// The reason is optional (the owner, 21.10.2026): the field and its hint stay, the
+// assignment is never held back without it, and a reason given is kept (REASON_KEY).
 export const preselected = (shootType, joint = false) => (shootType === 'natali' && !joint ? 'nirel' : null);
 export function reasonNeeded({ shootType, joint = false, editor }) {
   if (!editor) return false;
@@ -130,8 +133,8 @@ export function reasonNeeded({ shootType, joint = false, editor }) {
   return shootType === 'natali' && editor !== 'nirel';
 }
 export function reasonHint({ shootType, joint = false }) {
-  if (joint) return 'יום צילום משותף לנטלי ולסמיון: בוחרים עורך עם סיבה (החלטה 31).';
-  if (shootType === 'natali') return 'בצילום של נטלי ניראל מסומנת מראש. שיוך לעורך אחר דורש סיבה שנרשמת.';
+  if (joint) return 'יום צילום משותף לנטלי ולסמיון: בוחרים עורך, וכדאי לרשום למה (החלטה 31).';
+  if (shootType === 'natali') return 'בצילום של נטלי ניראל מסומנת מראש. בשיוך לעורך אחר כדאי לרשום למה.';
   return '';
 }
 export const eligibleEditors = (shootType) => editorsFor(shootType);
@@ -142,8 +145,8 @@ export const reasonOf = (checks, pre = '') => readJson(checks[REASON_KEY(pre)]);
 
 // ── Changing an assigned editor ("החלפת עורך") ──
 // The automatic assignment tells Ofir he can change it; he does it from the load
-// list of his own screen, with the same rules as the first assignment (Nirel only
-// for Natali, another editor for Natali with a written reason).
+// list of his own screen, with the same rules as the first assignment (Nirel preselected
+// for Natali, another editor for Natali with a reason, if he writes one).
 //
 // The editing clocks: the deadlines of 22, 24 and 27 count from the moment 22א
 // "שויך" was marked (3 and 4 business days). Marking it again, as the first
@@ -156,8 +159,9 @@ export function swapClock(job, now = new Date()) {
   const late = !!job?.dueAt && job.dueAt < now;
   return { late, keepDue: job?.dueAt || null, restartDue: addBusinessDays(now, job?.of || 3), choice: late ? 'keep' : 'restart' };
 }
-export function swapReasonNeeded({ shootType, joint = false, editor, late = false, restart = false }) {
-  return reasonNeeded({ shootType, joint, editor }) || (!!editor && late && restart);
+// The one reason that is still required: counting a late job's deadlines again.
+export function swapReasonNeeded({ editor, late = false, restart = false }) {
+  return !!editor && late && restart;
 }
 // The reason mark of a swap: the usual { editor, reason, preselected, joint } and
 // { swap: true, from, restart, prev (the earlier assignment time), late }. It
@@ -184,7 +188,7 @@ export function folderItemOf(task) {
   return m ? `${m[1] ? `r${m[1]}.` : ''}p24.folder` : null;
 }
 
-// "יום X מתוך 3" (or 4 once the videos are with Ofir: closing with the client's
+// "יום X מתוך 2" (3 for a client from before protocol v11; or 4 once the videos are with Ofir: closing with the client's
 // fixes). The count starts the business day after the assignment (0: the
 // assignment day itself).
 export function editingDay(assignedAt, now = new Date()) {
@@ -193,14 +197,16 @@ export function editingDay(assignedAt, now = new Date()) {
 export const dayText = (day, of) => (day === 0 ? 'שויך היום' : `יום ${day} מתוך ${of}`);
 
 // Each editor's load: the editing jobs (the client's and each round's) not closed
-// yet, which day of the editing each is on, which are paused, and open tasks.
+// yet, which day of the editing each is on, which are paused, and open tasks. A job
+// with two editors counts for each of them (`second`: this editor is the second one).
 export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Date() }) {
   const load = Object.fromEntries(EDITORS.map((e) => [e, { editor: e, jobs: [], paused: 0, tasks: 0 }]));
   for (const c of clients) {
     if (!inWork(c)) continue;
     const cs = checks[c.id] || {};
     const st = stateOf(c).states;
-    const units = [{ editor: c.editor, pre: '', pid: '', n: null }, ...roundsOf(c).map((r) => ({ editor: r.editor, pre: `r${r.n}.`, pid: `r${r.n}-`, n: r.n }))];
+    const units = [{ x: c, pre: '', pid: '', n: null }, ...roundsOf(c).map((r) => ({ x: r, pre: `r${r.n}.`, pid: `r${r.n}-`, n: r.n }))]
+      .flatMap((u) => [{ ...u, editor: u.x.editor }, ...(u.x.editor && u.x.editor2 && u.x.editor2 !== u.x.editor ? [{ ...u, editor: u.x.editor2, second: true }] : [])]);
     for (const u of units) {
       if (!u.editor || !load[u.editor]) continue;
       const p27 = st.find((s) => s.proc.id === `${u.pid}p27`);
@@ -215,7 +221,8 @@ export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Dat
       const withOfir = !!p24?.complete || cs[`${u.pre}p24.notify`]?.state === 'done';
       const pause = p22 ? pauseOf(p22.proc, cs) : null;
       const job = {
-        client: c, n: u.n, pre: u.pre, assignedAt, of: withOfir ? 4 : 3,
+        client: c, n: u.n, pre: u.pre, assignedAt, of: withOfir ? 4 : editingDaysOf(c), second: !!u.second,
+        partner: (u.second ? u.x.editor : u.x.editor2) || null,
         day: editingDay(assignedAt, now), paused: pause, stage: withOfir ? 'closing' : 'editing', landing: inLanding(c),
         dueAt: (withOfir ? p27 : p24)?.dueAt || null,
       };
@@ -233,7 +240,7 @@ export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Dat
 // jobs, then open tasks), other than the ones excluded (the paused editor).
 export function proposeEditor(load, shootType, exclude = []) {
   const active = (l) => l.jobs.filter((j) => !j.paused).length;
-  return eligibleEditors(shootType).filter((e) => !exclude.includes(e) && load[e])
+  return suggestPool(shootType).filter((e) => !exclude.includes(e) && load[e])
     .sort((a, b) => (active(load[a]) - active(load[b])) || (load[a].tasks - load[b].tasks) || EDITORS.indexOf(a) - EDITORS.indexOf(b))[0] || null;
 }
 
@@ -265,9 +272,12 @@ export function dueThisWeek(l, now = new Date()) {
   return l.jobs.filter((j) => j.dueAt && !j.landing && j.dueAt <= end).length;
 }
 // The editors who may take this shoot, the least loaded first: [{ editor, open, week }].
-export function rankEditors(load, shootType, exclude = [], now = new Date()) {
+// Whom the load may suggest: Nirel may edit any shoot since 21.10.2026, and is offered in the
+// dialog for every shoot, but she is suggested by the load only for Natali's (her own work).
+const suggestPool = (shootType) => (shootType === 'natali' ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));
+export function rankEditors(load, shootType, exclude = [], now = new Date(), pool = suggestPool(shootType)) {
   if (!load) return [];
-  return eligibleEditors(shootType).filter((e) => !exclude.includes(e) && load[e])
+  return pool.filter((e) => !exclude.includes(e) && load[e])
     .map((e) => ({ editor: e, open: load[e].jobs.length, week: dueThisWeek(load[e], now) }))
     .sort((a, b) => (a.open - b.open) || (a.week - b.week) || EDITORS.indexOf(a.editor) - EDITORS.indexOf(b.editor));
 }
@@ -298,7 +308,9 @@ export function suggestAssignment({ client, n = null, shootType, joint = false, 
   if (pre && may.includes(pre)) return pick(pre, 'rule', `צילום של נטלי: ${editorName(pre)} מסומנת מראש`);
   const before = earlierEditor(client, n, checks);
   if (before && may.includes(before)) return pick(before, 'continuity', 'ערך/ה ללקוח הזה בסבב הקודם');
-  const [first, second] = rankEditors(load, shootType, exclude, now);
+  // Nobody of the usual ones left (all excluded): whoever may still take it, Nirel too.
+  const ranked = rankEditors(load, shootType, exclude, now);
+  const [first, second] = ranked.length ? ranked : rankEditors(load, shootType, exclude, now, may);
   const open = clientsInEditing(first.open);
   const reason = !second || first.open < second.open ? `העומס הנמוך ביותר: ${open}`
     : first.week < second.week ? `${open}, ופחות יעדים השבוע`

@@ -82,7 +82,8 @@ export function startControl(t, me, onStarted) {
 // Who may mark them: the one who fixes (the editor, Ilai), or the office on their
 // behalf (decision 23: the owner, Irit, Lior and Ofir, recorded as theirs).
 const ON_BEHALF = new Set(['irit', 'lior', 'ofir']);
-export const mayFix = (fixer, me, viewer) => me === fixer || ON_BEHALF.has(me) || (!me && viewer?.scope === 'office' && !viewer?.error);
+// `fixer` may be a list (the two editors of a shoot).
+export const mayFix = (fixer, me, viewer) => (!!me && [fixer].flat().includes(me)) || ON_BEHALF.has(me) || (!me && viewer?.scope === 'office' && !viewer?.error);
 
 // The open round's issues with "תוקן" each and "סמן הכול תוקן". The last one
 // fixed sends the work back to Ofir (the round's `fixed` mark).
@@ -156,7 +157,7 @@ export function qaLine({ client, checks, kind, pre, ctx, me, viewer, meetings = 
   } else if (q.stage === 'approved') {
     head = h('p', { class: 'qa-now' }, h('strong', {}, 'אופיר אישר'), q.returns ? ` אחרי ${q.returns === 1 ? 'סבב תיקונים אחד' : `${q.returns} סבבי תיקונים`}` : '');
   }
-  const fixer = k.fixer(ctx || client);
+  const fixer = k.fixers ? k.fixers(ctx || client) : k.fixer(ctx || client);
   const earlier = q.rounds.filter((r) => !r.open);
   return h('div', { class: 'qa-line' },
     head,

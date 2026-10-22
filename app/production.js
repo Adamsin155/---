@@ -32,7 +32,8 @@
 // p19b.notes (Eli's notes for the editor, in its note), p19.testimonial / p19.took
 // (Lior's side of the handoff) and p22.pause (note JSON { stage, left, why, for,
 // task }: `for` is whoever asked for the urgent task, "עצירה לבקשת <שם>").
-import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES } from './protocol.js';
+import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES, isEditorOf, editorNames } from './protocol.js';
+import { editingDaysOf } from './protocol-versions.js';
 import {
   roundsOf, roundContext, businessDaysBetween, parseDate, erevOn, IMPORT_NOTE, addBusinessDays, isBusinessDay, nextWorkMoment,
   inLanding, workFloor,
@@ -81,13 +82,14 @@ export const dateWords = (d) => { const p = partsIL(d); return `יום ${WEEKDAY
 // The editing day: business days since the assignment, the assignment day itself not
 // counted (the count starts the next business day). 0 on the assignment day.
 export const editingDay = (assignedAt, now = new Date()) => (assignedAt ? businessDaysBetween(assignedAt, now) : 0);
-export function editingDayText(n, now = new Date(), assignedAt = null) {
+// `of`: the editing days of the client (editingDaysOf: 2 since protocol v11, 3 before).
+export function editingDayText(n, now = new Date(), assignedAt = null, of = 3) {
   if (n <= 0) {
     const first = assignedAt ? addBusinessDays(assignedAt, 1) : null;
-    return `יום השיוך · יום 1 מתוך 3 מתחיל ${first ? dayWords(first, now) : 'ביום העסקים הבא'}`;
+    return `יום השיוך · יום 1 מתוך ${of} מתחיל ${first ? dayWords(first, now) : 'ביום העסקים הבא'}`;
   }
-  if (n <= 3) return `יום ${n} מתוך 3`;
-  if (n === 4) return 'יום 4 · תיקוני הלקוח';
+  if (n <= of) return `יום ${n} מתוך ${of}`;
+  if (n <= 4) return `יום ${n} · תיקוני הלקוח`;
   return `יום ${n} · אחרי יום 4`;
 }
 
@@ -98,6 +100,15 @@ export function videosPerDay(client) {
   if (!videos) return null;
   const days = Math.max(1, Number(d.shoot_days) || 1);
   return Math.ceil(videos / days);
+}
+
+// How many scripts a client has (21.10.2026). Lior writes them in Google Docs (links.scripts);
+// the office writes the number beside the link ("כמה תסריטים": deliverables.scripts). Without
+// a number, the scripts written in the system count (systemN); null when nothing is known.
+export function scriptsCountOf(client, systemN = 0) {
+  const v = client?.deliverables?.scripts;
+  if (v !== undefined && v !== null && v !== '' && Number.isInteger(Number(v)) && Number(v) >= 0) return Number(v);
+  return systemN > 0 ? systemN : null;
 }
 
 // ── Reading marks ──────────────────────────
@@ -170,14 +181,15 @@ export const pauseNote = ({ stage, left, why = '', for: forWhom = null, task = n
 
 // ── The editor's cases ─────────────────────
 // Each editing job of `person`: the client's main editing and every shoot round
-// that is theirs, once assigned (22א). `state` is clientState() of the client.
+// that is theirs, once assigned (22א), as the main editor or the second one.
+// `state` is clientState() of the client.
 export function editingCases(client, checks, person, state) {
   if (!person || !client || !(client.status === 'active' || client.status === 'ending')) return [];
-  const jobs = [{ n: 1, pre: '', editor: client.editor, ctx: client },
-    ...roundsOf(client).map((r) => ({ n: r.n, pre: `r${r.n}.`, editor: r.editor, ctx: roundContext(client, r) }))];
+  const jobs = [{ n: 1, pre: '', ctx: client },
+    ...roundsOf(client).map((r) => ({ n: r.n, pre: `r${r.n}.`, ctx: roundContext(client, r) }))];
   const out = [];
   for (const j of jobs) {
-    if (j.editor !== person || !done(checks, `${j.pre}p22a.assigned`)) continue;
+    if (!isEditorOf(j.ctx, person) || !done(checks, `${j.pre}p22a.assigned`)) continue;
     const pid = (b) => (j.pre ? `r${j.n}-${b}` : b);
     const st = (b) => state?.states.find((s) => s.proc.id === pid(b)) || null;
     out.push({
@@ -351,7 +363,7 @@ export function briefFollowups(task, result, requester, now = new Date()) {
 // Prefilled pause for an urgent task taken while editing: the stage and what is left.
 export function pausePrefill(job, st, now = new Date()) {
   const day = editingDay(job.assignedAt, now);
-  const stage = `${STATE_TEXT[st?.key] || 'בעריכה'}${day > 0 ? ` · ${editingDayText(day, now)}` : ''}`;
+  const stage = `${STATE_TEXT[st?.key] || 'בעריכה'}${day > 0 ? ` · ${editingDayText(day, now, null, editingDaysOf(job.client))}` : ''}`;
   const videos = videosPerDay(job.ctx);
   const due = job.p24?.dueAt;
   const open = st?.key === 'fixes' ? (st.ret?.issues?.length || 0) - (st.ret?.fixed?.size || 0) : 0;
@@ -510,7 +522,7 @@ export function closeLock(checks, pre = '', target = null, { startAt = null, now
 // rung at that moment and has ten minutes: the rule `fast`); an editor that is already
 // in the card is what his dialog proposes.
 export function afterCloseText(checks, pre = '', ctx = null) {
-  const editor = ctx?.editor && PEOPLE[ctx.editor] ? PEOPLE[ctx.editor].name : null;
+  const editor = ctx?.editor && PEOPLE[ctx.editor] ? editorNames(ctx) : null;
   if (done(checks, `${pre}p22a.assigned`) && editor) return `העריכה אצל ${editor}.`;
   if (editor) return `בכרטיס רשום ${editor} כעורך. אופיר קיבל הודעה לשייך.`;
   return 'אופיר קיבל הודעה לשייך עורך.';

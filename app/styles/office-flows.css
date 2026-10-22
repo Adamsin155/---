@@ -385,3 +385,12 @@ details.ps-sum { min-width: 0; }
 .il-gfx-fold[open] .il-fold-open, .il-gfx-fold:not([open]) .il-fold-close { display: none; }
 .il-gfx-fold[open] > summary { margin-bottom: 10px; }
 .il-gfx-fold > :not(summary) + :not(summary) { margin-top: 10px; }
+
+/* "+ עורך/ת נוסף/ת" in the assignment window (21.10.2026): the second editor and the split of the videos. */
+#dlg-assign .as-add2 { justify-self: start; min-height: 44px; margin-top: 4px; }
+#dlg-assign .as-pair { display: grid; gap: 8px; margin-top: 4px; }
+#dlg-assign .as-split { border: 0; margin: 0; padding: 0; }
+#dlg-assign .as-split legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
+#dlg-assign .as-split-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#dlg-assign .as-split-row .input { width: 72px; min-height: 44px; text-align: center; }
+#dlg-assign .as-pair .btn-text { justify-self: start; min-height: 44px; }

@@ -15,9 +15,9 @@ const OWNER = 'owner';
 const MIN = 6e4;
 
 // ── Who ───────────────────────────────────
-// Who gives these tasks. To let Ofir or Lior give them too, add them here and in
-// private.can_give_staff_tasks() (the migration): one line in each.
-export const GIVERS = [OWNER, 'irit'];
+// Who gives these tasks: the owner, Irit, and since 21.10.2026 Lior and Ofir (the owner).
+// The same list is in public.can_give_staff_tasks() (20261031090000_nudnik_givers.sql).
+export const GIVERS = [OWNER, 'irit', 'lior', 'ofir'];
 // The viewer as a person key ('owner' for the owner's row), or null when unknown.
 export const personOfViewer = (viewer) => {
   if (!viewer || viewer.error) return null;
