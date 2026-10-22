@@ -419,6 +419,11 @@ await step('(1) the drive arrived: "יש" / "חסר" on each line; any mix start
   assert.ok(await noHScroll(page), 'no horizontal scroll at 360px');
   assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await phone390(page, 'editor-start-partial-390');
+  if (OUT) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: `${OUT}/editor-start-partial-1280.png` });
+    await page.setViewportSize({ width: 360, height: 780 });
+  }
   await page.click('#start-submit');
   await toastHas(page, 'וליאור משימה להשלים את החומר');
   for (const k of ['p22.received', 'p22.check.scripts', 'p22.check.logo']) assert.ok(checkOf(A, k), k);
