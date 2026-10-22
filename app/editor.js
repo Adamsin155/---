@@ -571,6 +571,14 @@ $('start-list').addEventListener('change', (e) => {
   showErr('start-err', '');
   startAnswered();
 });
+// A number being corrected: the error about it goes.
+for (const [list, err] of [['start-list', 'start-err'], ['miss-list', 'miss-err']]) {
+  $(list).addEventListener('input', (e) => {
+    if (!e.target.classList.contains('ed-have-n') || e.target.getAttribute('aria-invalid') !== 'true') return;
+    e.target.removeAttribute('aria-invalid');
+    showErr(err, '');
+  });
+}
 $('start-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const job = target;
