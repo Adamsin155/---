@@ -331,6 +331,8 @@ export function planSync({ rows = [], posts = [], window, complete = true }) {
         stats.extras += 1;
         const want = { mc_post_id: p.id, mc_status: p.status, mc_at: p.at, mc_networks: p.networks, mc_error: p.error };
         if (r.source === 'metricool') Object.assign(want, extraFields(p), { title: r.title === extraTitle(p) || !p.text ? r.title : extraTitle(p) });
+        // A link someone pasted (the video in Drive, 22.10.2026) stays: the post's own link only fills an empty one.
+        if (r.link) delete want.link;
         push(r, diff(r, want));
       } else {
         stats.matched += 1;

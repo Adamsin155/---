@@ -268,6 +268,12 @@ test('posts no entry fits become extra rows from Metricool, follow their post, a
   state = after(state, second);
   const extra = state.filter((r) => r.mc_extra);
   assert.deepEqual(extra.map((r) => [r.key, r.time_il, r.state, r.posted_on, r.link]), [['mc.21', '19:00', 'posted', '2026-11-17', 'https://www.instagram.com/reel/21']]);
+  // A link pasted on an extra row (the video in Drive) is kept: the sync neither empties it nor swaps it for the post's.
+  const pasted = state.map((r) => (r.mc_extra ? { ...r, link: 'https://drive.google.com/file/d/abc/view' } : r));
+  const keep = sync(pasted, [reel(21, '2026-11-17T19:00:00', { text: '', ...published('https://www.instagram.com/reel/21b') })]);
+  assert.deepEqual(after(pasted, keep).filter((r) => r.mc_extra).map((r) => r.link), ['https://drive.google.com/file/d/abc/view']);
+  const pending = sync(pasted.map((r) => (r.mc_extra ? { ...r, state: 'scheduled', posted_on: null } : r)), [reel(21, '2026-11-17T19:00:00', { text: '' })]);
+  assert.deepEqual(after(pasted, pending).filter((r) => r.mc_extra).map((r) => r.link), ['https://drive.google.com/file/d/abc/view']);
   // An extra row someone marked by hand stays when its post goes, without the link to it.
   const kept = state.map((r) => (r.mc_extra ? { ...r, state: 'skipped', source: 'manual' } : r));
   const third = sync(kept, []);
