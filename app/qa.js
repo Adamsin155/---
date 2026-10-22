@@ -10,7 +10,7 @@
 // graphics from the client's files.
 // The logic: app/qa-logic.js and app/office-marks.js.
 import { PEOPLE, SHOOT_TYPES, EDITORS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue, evenSplit, splitProblem } from './protocol.js';
-import { clientState, clientLabel } from './protocol-logic.js';
+import { clientState, clientLabel, roundsOf, roundContext } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory, setTaskDone, editor2Ready,
 } from './protocol-data.js';
@@ -28,8 +28,9 @@ import {
   QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, REASON_KEY, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
 } from './office-marks.js';
 import { withEditor, swapEditor } from './decisions-logic.js';
-import { loadScriptCounts, scriptsWords } from './production-data.js';
+import { loadScriptCounts, scriptsWords, loadEditorProgress } from './production-data.js';
 import { scriptsCountOf } from './production.js';
+import { progressMap, progressKey, editTarget, editedShort } from './edit-count.js';
 import { liorShoot } from './reminder-engine.js';
 import { loadSelections } from './office-data.js';
 import { offerHandoff } from './handoff-ui.js';
@@ -80,6 +81,15 @@ const scriptsLine = (clientId, n) => {
   const count = (c ? scriptsCountOf(c, sys) : sys) || 0;
   return count ? scriptsWords(count) : '';
 };
+// How many videos each editor has edited ('<client>:<round>:<editor>' → row; 22.10.2026), on each job of the load.
+let progress = {};
+// "נערכו 8/10": that editor's own number on the shoot, once they wrote one.
+const editedOf = (j, editor) => {
+  const row = progress[progressKey(j.client.id, j.n, editor)];
+  if (!row) return '';
+  const r = j.n ? roundsOf(j.client).find((x) => x.n === j.n) : null;
+  return `נערכו ${editedShort(row.edited, editTarget(r ? roundContext(j.client, r) : j.client, editor))}`;
+};
 function load() {
   inflight ||= doLoad().finally(() => { inflight = null; });
   return inflight;
@@ -104,7 +114,9 @@ async function doLoad() {
     ...awaitingEditor({ clients, stateOf, checks }).filter((a) => a.ctx.shoot_type === 'natali').map((a) => a.client.quote_id),
     ...Object.values(editorLoad({ clients, stateOf, checks, tasks })).flatMap((l) => l.jobs).filter((j) => j.client.shoot_type === 'natali').map((j) => j.client.quote_id),
   ];
-  [selections, scriptN] = await Promise.all([loadSelections([...new Set(natali.filter(Boolean))]).catch(() => new Map()), loadScriptCounts()]);
+  let rows;
+  [selections, scriptN, rows] = await Promise.all([loadSelections([...new Set(natali.filter(Boolean))]).catch(() => new Map()), loadScriptCounts(), loadEditorProgress()]);
+  progress = progressMap(rows);
   lastLoad = Date.now();
   $('state').textContent = '';
   if (!busy()) renderKeepingFocus();
@@ -327,6 +339,7 @@ function loadCard(l, now) {
       h('a', { href: clientUrl(j.client.id, `${j.pre ? j.pre.replace('.', '-') : ''}p22`) }, j.client.name, j.n ? ` · סבב ${j.n}` : ''),
       j.landing ? [' ', landingTag(j.client)] : ` · ${j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
       j.stage === 'closing' ? ' · תיקונים וסגירה' : '',
+      editedOf(j, l.editor) ? h('span', { class: 'of-edited num', id: `${swapId(j)}-edited` }, ` · ${editedOf(j, l.editor)}`) : '',
       scriptsLine(j.client.id, j.n) ? ` · ${scriptsLine(j.client.id, j.n)}` : '',
       j.paused ? [' ', h('span', { class: 'tag tag-warn' }, 'עצורה')] : null,
       // Two editors on the shoot: with whom.

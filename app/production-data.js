@@ -40,6 +40,25 @@ export async function loadScriptCounts(clientIds = null) {
 // "12 תסריטים" (or nothing to say).
 export const scriptsWords = (n) => (n ? `${n} ${n === 1 ? 'תסריט' : 'תסריטים'}` : 'אין תסריטים');
 
+// How many videos each editor has edited (public.editor_progress, 20261101100000_editor_progress.sql):
+// an editor reads their own rows, the office every row. null before that migration or on an
+// error: the pages then show no counter at all (nothing to save into).
+export async function loadEditorProgress(clientIds = null) {
+  let q = supabase.from('editor_progress').select('client_id, editor, round, edited, updated_at');
+  if (clientIds) {
+    if (!clientIds.length) return [];
+    q = q.in('client_id', clientIds);
+  }
+  const { data, error } = await q;
+  return error || !Array.isArray(data) ? null : data;
+}
+// The caller's own number for the shoot (round 1: the client's own). Returns the saved row.
+export async function saveEditorProgress(clientId, edited, round = 1) {
+  const { data, error } = await supabase.rpc('editor_progress_set', { p_client: clientId, p_edited: edited, p_round: round > 1 ? round : null });
+  if (error) throw error;
+  return data;
+}
+
 export async function loadWorkClients() {
   // With the second editor (editor2), once that migration is in.
   return withLanding(await e2Throws(() => all(() => supabase.from('clients').select(withE2(WORK_COLS))

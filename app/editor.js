@@ -20,7 +20,9 @@ import { dayFromKeyIL, endOfDayIL } from './tz.js';
 import {
   loadChecks, setCheck, clearCheck, setChecksBulk, addTask, setTaskDone, setTaskStarted, loadAllLog, loadDirectory,
 } from './protocol-data.js';
-import { loadWorkClients, loadMyTasks, loadOpenTasksOf, finishTask, loadLogoFiles, signedDownload, loadWorkScripts, scriptsWords } from './production-data.js';
+import {
+  loadWorkClients, loadMyTasks, loadOpenTasksOf, finishTask, loadLogoFiles, signedDownload, loadWorkScripts, scriptsWords, loadEditorProgress, saveEditorProgress,
+} from './production-data.js';
 import { loadCharacterizations, loadBriefsOf } from './intake-data.js';
 import { highlightsOf, briefBlock, SUMMARY } from './briefs.js';
 import { fixList } from './office-ui.js';
@@ -34,6 +36,7 @@ import { mountPush } from './push.js';
 import { offerHandoff } from './handoff-ui.js';
 import { closedProcesses } from './health.js';
 import * as P from './production.js';
+import { progressMap, progressKey, editTarget, editedValue } from './edit-count.js';
 import { mountWorkFiles, workFilesState, forgetFiles, readFiles } from './files-ui.js';
 import { charViewHref } from './intake-ui.js';
 import { loadIntake } from './landing-data.js';
@@ -64,6 +67,9 @@ const scriptsOf = (job) => scripts.filter((s) => s.client_id === job.client.id &
 const cardId = (job) => `c-${job.client.id}${job.round > 1 ? `-r${job.round}` : ''}`;
 const jobName = (job) => `${job.client.name}${job.round > 1 ? ` · סבב ${job.round}` : ''}`;
 const isNirel = () => me === 'nirel';
+// How many videos I have edited, per shoot ('<client>:<round>:<me>' → row; 22.10.2026).
+// null: the numbers cannot be read (before their migration): no counter then.
+let progress = null;
 
 // ── Loading ─────────────────────────────────
 async function load() {
@@ -81,7 +87,9 @@ async function load() {
   const ids = [...new Set(allJobs().map((j) => j.client.id))];
   for (const cid of ids) forgetFiles(cid);
   // The files too, before the cards are drawn: "מוכן לבדיקה" is locked or open at once.
-  [chars, briefs, logos, scripts] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), loadWorkScripts(ids), ...ids.map(readFiles)]);
+  let rows;
+  [chars, briefs, logos, scripts, rows] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), loadWorkScripts(ids), loadEditorProgress(ids), ...ids.map(readFiles)]);
+  progress = rows ? progressMap(rows) : null;
   lastLoad = Date.now();
   $('state').textContent = '';
   await tidyBlocks();
@@ -371,6 +379,7 @@ function jobCard(job) {
     st.paused ? null : stateBlock(job, st),
     videosBlock(job, st),
     pauseBlock(job, st),
+    countLine(job),
     h('p', { class: 'ed-facts' },
       // Two editors with a split: this editor's own share.
       share ? h('span', { class: 'ed-share' }, `${share.mine} מתוך ${share.total} סרטונים — השאר אצל ${PEOPLE[share.other]?.name || share.other}`)
@@ -388,6 +397,67 @@ function jobCard(job) {
     eliNotes(job),
     rawFiles(job),
     highlightsBlock(job));
+}
+
+// ── How many I have edited (the owner's request of 22.10.2026) ──
+// One line: "ערכתי [ N ] מתוך M" (M: my share with two editors, else the package's videos;
+// unknown: "ערכתי [ N ] סרטונים"). Saved by itself a moment after the last change, with a
+// quiet "נשמר". Above M is allowed and kept as it is.
+const typed = new Map(); // key → the number typed and not saved yet (kept across re-renders)
+const saveTimers = new Map();
+function countLine(job) {
+  if (!progress) return null;
+  const id = `${cardId(job)}-edited`;
+  const key = progressKey(job.client.id, job.round, me);
+  const of = editTarget(job.ctx, me);
+  const n = typed.has(key) ? typed.get(key) : progress[key]?.edited ?? 0;
+  const status = h('span', { class: 'ed-count-s', id: `${id}-s`, 'aria-live': 'polite' });
+  const input = h('input', {
+    type: 'text', inputmode: 'numeric', pattern: '[0-9]*', maxlength: 3, autocomplete: 'off', class: 'input ed-count-n num', id, value: String(n),
+    'aria-label': `כמה סרטונים ערכתי${of ? ` מתוך ${of}` : ''}: ${jobName(job)}`,
+    oninput: (e) => setCount(job, key, editedValue(e.currentTarget.value), { status }),
+    onblur: (e) => { if (editedValue(e.currentTarget.value) === null) e.currentTarget.value = String(typed.get(key) ?? progress[key]?.edited ?? 0); },
+  });
+  const minus = h('button', { type: 'button', class: 'step', id: `${id}-minus`, 'aria-label': 'אחד פחות', disabled: n <= 0, onclick: () => bumpCount(job, key, -1, input, status) }, '−');
+  const plus = h('button', { type: 'button', class: 'step', id: `${id}-plus`, 'aria-label': 'עוד אחד', disabled: n >= 999, onclick: () => bumpCount(job, key, 1, input, status) }, '+');
+  return h('div', { class: 'ed-count', id: `${id}-row` },
+    h('label', { for: id, class: 'ed-count-k' }, 'ערכתי'),
+    h('span', { class: 'ed-count-ctl' }, minus, input, plus),
+    h('span', { class: 'ed-count-of num' }, of ? `מתוך ${of}` : 'סרטונים'),
+    status);
+}
+function bumpCount(job, key, by, input, status) {
+  const now = editedValue(input.value) ?? (typed.get(key) ?? progress[key]?.edited ?? 0);
+  const n = Math.min(999, Math.max(0, now + by));
+  input.value = String(n);
+  setCount(job, key, n, { status, row: input.closest('.ed-count') });
+}
+function setCount(job, key, n, { status, row = status.closest('.ed-count') }) {
+  if (n === null) return; // half typed (or emptied): saved once it is a number again
+  typed.set(key, n);
+  row.querySelector('[id$="-minus"]').disabled = n <= 0;
+  row.querySelector('[id$="-plus"]').disabled = n >= 999;
+  status.textContent = '';
+  clearTimeout(saveTimers.get(key));
+  saveTimers.set(key, setTimeout(() => saveCount(job, key, n), 700));
+}
+async function saveCount(job, key, n) {
+  saveTimers.delete(key);
+  const status = () => document.getElementById(`${cardId(job)}-edited-s`);
+  try {
+    const row = await saveEditorProgress(job.client.id, n, job.round);
+    if (row && progress) progress[key] = row;
+    if (typed.get(key) === n) typed.delete(key);
+    const s = status();
+    if (s && !saveTimers.has(key)) {
+      s.textContent = 'נשמר';
+      setTimeout(() => { if (s.textContent === 'נשמר') s.textContent = ''; }, 2000);
+    }
+  } catch (err) {
+    const s = status();
+    if (s) s.textContent = 'לא נשמר. נסו שוב.';
+    else toast(`המספר של ${jobName(job)} לא נשמר. ${errorText(err)}`);
+  }
 }
 
 // The client's scripts from the system (Lior writes them; scripts.html), read only, folded.

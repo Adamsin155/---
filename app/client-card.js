@@ -7,7 +7,7 @@ import {
 } from './protocol.js';
 import {
   clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
-  waitNote, parseWaitNote, bulkEligible, roundsOf, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited, clientLabel,
+  waitNote, parseWaitNote, bulkEligible, roundsOf, roundContext, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited, clientLabel,
 } from './protocol-logic.js';
 import {
   loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
@@ -26,6 +26,8 @@ import { inviteFor, emailsOf, clientEmails, guestNames } from './calendar-view.j
 import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
 import { describeMark } from './handoffs.js';
 import { markHistory, filesOf, fileLine, filesHint } from './production.js';
+import { progressMap, editedLine } from './edit-count.js';
+import { loadEditorProgress } from './production-data.js';
 import { canManageTeam, isOwnerView } from './team-rules.js';
 import { activate as activateLanding } from './landing-data.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
@@ -104,6 +106,7 @@ let questions = null;        // questions to the one responsible about this clie
 let ofirMeetings = null;     // Ofir's meetings today (times only), for "אופיר באפיון, בקרה עד…" (null: not known)
 let delivFiles = null;     // deliverables uploaded as files (null: no such table, or not readable)
 let mcLine = null;         // the Metricool line's data (null: not loaded, or not for this viewer)
+let edited = null;         // how many videos each editor edited (office only; null: none readable)
 let viewerInfo = null;     // viewerOf(): for archiving
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
@@ -174,7 +177,7 @@ async function loadCard() {
     // arrives; the card is drawn again for it only when no load is about to draw it.
     loadHistory();
     // The agreement and the rest are asked for side by side (they do not depend on each other).
-    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine] = await Promise.all([
+    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited] = await Promise.all([
       c.quote_id && (!quote || quote.id !== c.quote_id) ? loadQuoteSummary(c.quote_id) : quote,
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
@@ -183,6 +186,7 @@ async function loadCard() {
       loadOfirMeetings(new Date().toISOString()).catch(() => null),
       own() ? null : loadDeliverableFiles(id),
       seesMetricool({ me, scope, error: viewerError }) ? loadMetricool(id).catch(() => null) : null,
+      own() ? null : loadEditorProgress([id]).then((rows) => (rows ? progressMap(rows) : null)),
     ]);
     statusNote = statusNotes?.[0] || null;
     setOfirMeetings(ofirMeetings); // the fast ladder waits for the end of his meeting (protocol v10)
@@ -506,6 +510,15 @@ document.addEventListener('keydown', (e) => {
 const breakable = (text) => String(text || '').split(/(?<=[־/-])/).flatMap((part, i) => (i ? [document.createElement('wbr'), part] : [part]));
 function fact(k, v, extra = null) {
   return h('div', { class: 'fact' }, h('dt', {}, k), h('dd', {}, v || h('span', { class: 'muted' }, 'לא הוזן'), extra));
+}
+
+// How many videos the editors edited (22.10.2026): "27/48", or "נדיה 8/10 · יריב 12/15";
+// a round's after the client's own. Only once an editor wrote a number.
+function editedFact() {
+  if (!edited || !client) return null;
+  const parts = [[client, null], ...roundsOf(client).map((r) => [roundContext(client, r), r.n])]
+    .map(([ctx, n]) => { const t = editedLine(ctx, edited); return t && n ? `סבב ${n}: ${t}` : t; }).filter(Boolean);
+  return parts.length ? h('div', { class: 'fact', id: 'cc-edited' }, h('dt', {}, 'נערכו'), h('dd', { class: 'num' }, parts.join(' · '))) : null;
 }
 
 function nextFor(s) {
@@ -838,6 +851,7 @@ function renderHead(s) {
         shootFact,
         fact('לוגו', c.has_logo === true ? 'יש' : c.has_logo === false ? 'אין, עילאי מכין' : null),
         editorFact,
+        editedFact(),
         fact('סיום החוזה', c.contract_end ? formatDay(c.contract_end) : null)),
     statusNoteBlock(),
     linksRow(),
