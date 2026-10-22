@@ -1,8 +1,9 @@
 // The content Gantt after the owner's decisions of 6.10.2026, in a real Postgres (PGlite,
 // every migration applied): 20261007100000_gantt_roles_statuses.sql,
 // 20261007100100_metricool.sql and 20261007100200_metricool_cron.sql.
-//  A. Ilai and the owner change the Gantt; Irit, Lior and Ofir read it and still make
-//     the client's link; everyone else as before.
+//  A. Ilai and the owner change the Gantt, and Irit too since 20261102100000_gantt_irit.sql
+//     (22.10.2026: the links of the videos); Lior and Ofir read it and still make the
+//     client's link; everyone else as before.
 //  C. The states (scheduled, error), who set them (`source`), and the client's link:
 //     planned / scheduled / posted only.
 //  D. Metricool: the two Vault secrets (read by the service role only), the owner's
@@ -61,14 +62,22 @@ before(async () => {
 });
 
 // ── A ───────────────────────────────────────
-test('A. Ilai and the owner change the Gantt; Irit, Lior and Ofir only read it, and still make the client\'s link', async () => {
+test('A. Ilai, Irit and the owner change the Gantt; Lior and Ofir only read it, and still make the client\'s link', async () => {
   const can = async (who) => (await run(who, 'select public.can_edit_gantt() as ok')).rows[0].ok;
-  assert.deepEqual(await Promise.all(Object.keys(PEOPLE).map(can)), [true, false, false, false, true, false, false, false]);
+  assert.deepEqual(await Promise.all(Object.keys(PEOPLE).map(can)), [true, true, false, false, true, false, false, false]);
   assert.match((await run(null, 'select public.can_edit_gantt()')).error, /permission denied/);
   const INS = "insert into public.client_gantt (client_id, key, kind, title, day, time_il) values ($1, $2, 'video', 'סרטון', '2026-11-15', '19:00') returning key";
   await keep('ilai', INS, [ids.a, 'video.30']);
   await keep('owner', INS, [ids.a, 'video.31']);
-  for (const who of ['irit', 'lior', 'ofir', 'nadia', 'anna', 'stav']) {
+  // Irit: adds a row, pastes "קישור לתוכן" on it and removes it (rolled back: the counts below stay two).
+  const irit = await as(db, users.irit, async (tx) => {
+    await tx.query(INS, [ids.a, 'video.32']);
+    const up = await tx.query("update public.client_gantt set link = 'https://drive.google.com/file/d/x' where key = 'video.32' returning link, by_email");
+    const gone = await tx.query("delete from public.client_gantt where key = 'video.32'");
+    return [up.rows[0], gone.affectedRows];
+  });
+  assert.deepEqual(irit, [{ link: 'https://drive.google.com/file/d/x', by_email: 'irit@astrateg.test' }, 1]);
+  for (const who of ['lior', 'ofir', 'nadia', 'anna', 'stav']) {
     assert.match((await run(who, INS, [ids.a, 'video.99'])).error, DENIED, who);
     assert.equal((await run(who, "update public.client_gantt set state = 'posted'")).affected, 0, who);
     assert.equal((await run(who, 'delete from public.client_gantt')).affected, 0, who);
@@ -131,7 +140,7 @@ test('D. the switch: off by default, the owner\'s, and it cannot go on while a s
   const settings = async (who) => (await run(who, 'select public.metricool_settings() as s')).rows?.[0]?.s;
   const s0 = await settings('owner');
   assert.deepEqual([s0.enabled, s0.owner, s0.canEdit, s0.secrets, s0.mapped], [false, true, true, { user_token: false, user_id: false }, 0]);
-  assert.deepEqual([(await settings('irit')).owner, (await settings('irit')).canEdit, (await settings('ilai')).canEdit], [false, false, true]);
+  assert.deepEqual([(await settings('irit')).owner, (await settings('lior')).canEdit, (await settings('ilai')).canEdit], [false, false, true]);
   for (const who of ['nadia', 'stav']) assert.equal(await settings(who), null, who);
   assert.match((await run(null, 'select public.metricool_settings()')).error, /permission denied/);
   for (const who of ['irit', 'ilai', 'lior', 'nadia']) assert.match((await run(who, 'select public.metricool_set_enabled(true)')).error, /owner only/, who);
@@ -159,7 +168,7 @@ test('D. the switch: off by default, the owner\'s, and it cannot go on while a s
   assert.equal((await svc('select enabled from public.metricool_config()'))[0].enabled, true);
 });
 
-test('D. a client\'s brand: Ilai or the owner connects it; one brand, one client; everyone who sees the client reads it', async () => {
+test('D. a client\'s brand: Ilai or the owner connects it (Irit, who edits the Gantt, does not); one brand, one client; everyone who sees the client reads it', async () => {
   for (const who of ['irit', 'lior', 'ofir', 'nadia', 'stav']) assert.match((await run(who, "select public.gantt_set_brand($1, '101', 'מספרת רון')", [ids.a])).error, DENIED, who);
   assert.match((await run(null, "select public.gantt_set_brand($1, '101', 'x')", [ids.a])).error, /permission denied/);
   for (const bad of ['abc', '12 34', "1'; drop", '1234567890123']) assert.match((await run('ilai', 'select public.gantt_set_brand($1, $2)', [ids.a, bad])).error, /bad brand id/, bad);
@@ -297,4 +306,30 @@ test('anon runs nothing of it; the tables have row level security; the three mig
   assert.equal((await again.query("select count(*)::int as n from pg_policies where tablename = 'client_gantt' and policyname like 'office %'")).rows[0].n, 0);
   assert.ok(migrationFiles().filter((f) => f >= '20261007100000' && f <= '20261007109999').every((f) => FILES.includes(f)));
   await again.close();
+});
+
+// ── Irit edits the Gantt (22.10.2026) ────────
+test('20261102100000_gantt_irit.sql: the newest, none of the refused words, runs twice; Irit edits rows but connects no brand', async () => {
+  const FILE = '20261102100000_gantt_irit.sql';
+  assert.equal(migrationFiles().at(-1), FILE);
+  const sql = migrationSql(FILE);
+  assert.equal(sql.match(/drop|delete|truncate/gi), null);
+  assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);
+  await db.exec(sql);
+  await db.exec(sql);
+  const can = async (who) => (await run(who, 'select public.can_edit_gantt() as ok')).rows[0].ok;
+  assert.deepEqual(await Promise.all(Object.keys(PEOPLE).map(can)), [true, true, false, false, true, false, false, false]);
+  // The brand: not through the Gantt's function, not through the connecting one, not by a plain write.
+  const brand = async () => (await db.query('select metricool_blog_id as b, metricool_brand as n from public.clients where id = $1', [ids.b])).rows[0];
+  const was = await brand();
+  assert.match((await run('irit', "select public.gantt_set_brand($1, '909', 'x')", [ids.b])).error, DENIED);
+  assert.match((await run('irit', 'select public.gantt_set_brand($1, null)', [ids.b])).error, DENIED);
+  assert.match((await run('irit', "select public.metricool_connect($1, '909', 'x')", [ids.b])).error, DENIED);
+  assert.match((await run('irit', 'select public.metricool_set_none($1, true)', [ids.b])).error, DENIED);
+  await run('irit', "update public.clients set metricool_blog_id = '909', metricool_brand = 'x' where id = $1", [ids.b]);
+  assert.deepEqual(await brand(), was);
+  // Ilai, the owner and Ofir (through metricool_connect) still connect; the service role's sync too.
+  for (const who of ['ilai', 'owner']) assert.deepEqual((await run(who, "select public.gantt_set_brand($1, '909', 'x') as b", [ids.b])).rows[0].b, { blogId: '909', brand: 'x' }, who);
+  assert.deepEqual((await run('ofir', "select public.metricool_connect($1, '909', 'x') as b", [ids.b])).rows[0].b, { blogId: '909', brand: 'x' });
+  assert.ok(!(await svc("update public.clients set metricool_brand = 'y' where id = $1 returning id", [ids.b])).error);
 });

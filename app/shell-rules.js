@@ -31,8 +31,8 @@ const seesCalendar = (v) => known(v) && v.scope !== 'sales' && !isSales(v.me) &&
 export const opensClients = (v) => known(v) && v.scope === 'office' && (!v.me || v.me === 'irit');
 // The index of the content Gantt: the office and Ilai (as worksCycle in month-ui.js).
 export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai');
-// Who changes a Gantt: Ilai and the owner (public.can_edit_gantt() decides).
-export const editsGantt = (v) => known(v) && (v.me === 'ilai' || (!v.me && v.scope === 'office'));
+// Who changes a Gantt: Ilai, Irit (22.10.2026) and the owner (public.can_edit_gantt() decides).
+export const editsGantt = (v) => known(v) && (v.me === 'ilai' || v.me === 'irit' || (!v.me && v.scope === 'office'));
 
 // The office screens, one order everywhere: Ofir's two, Lior's decisions (and the
 // assignment, which he takes when Ofir cannot), all three for the owner; the monthly

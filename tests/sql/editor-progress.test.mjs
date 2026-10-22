@@ -53,7 +53,8 @@ const read = (who) => as(db, users[who], async (tx) => (await tx.query('select c
 
 test('the file: the newest, only adds, and runs twice', async () => {
   const files = migrationFiles();
-  assert.equal(files.at(-1), FILE);
+  // After it only Irit's Gantt (20261102100000_gantt_irit.sql, 22.10.2026).
+  assert.deepEqual(files.slice(files.indexOf(FILE) + 1), ['20261102100000_gantt_irit.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   await db.exec(migrationSql(FILE));

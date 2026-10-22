@@ -184,13 +184,18 @@ test('the migration file: nothing in it removes an object or a row, and there is
   // fourth choice to the client's form, so it defines the form's two functions again, as the
   // hardening wrote them plus that choice. It must keep every protection of the hardening.
   // The same file adds a second editor (editor2) to who is assigned a client.
-  const AGAIN = { '20261031100000_access_and_editors.sql': ['private.access_form_problem', 'public.access_form_submit', 'private.my_assigned_clients', 'private.is_assigned'] };
+  // And Irit's Gantt (20261102100000_gantt_irit.sql, 22.10.2026): the guard of the brand's columns,
+  // as the hardening wrote it plus one refusal (Irit edits the Gantt, she does not connect a brand).
+  const AGAIN = { '20261031100000_access_and_editors.sql': ['private.access_form_problem', 'public.access_form_submit', 'private.my_assigned_clients', 'private.is_assigned'],
+    '20261102100000_gantt_irit.sql': ['public.clients_columns_guard'] };
+  const KEEP = { '20261031100000_access_and_editors.sql': ['private.task_gives_access(t.created_by_email)', "staff cannot send the form for the client", "'notes too long'", "char_length(coalesce(p ->> 'notes', '')) > 300", 'v_beside', 'client_note_private', 'vault.update_secret(a.secret_id, v_pass)'],
+    '20261102100000_gantt_irit.sql': ["if current_user = 'authenticated' then", 'new.metricool_blog_id := old.metricool_blog_id;', 'new.metricool_brand := old.metricool_brand;', 'new.quote_id := old.quote_id;', 'new.metricool_blog_id := null;'] };
   for (const f of migrationFiles().filter((x) => x > MIGRATION)) {
     const text = readFileSync(new URL(`../../supabase/migrations/${f}`, import.meta.url), 'utf8');
     const again = defined(text).filter((n) => hardened.has(n));
     assert.deepEqual(again, AGAIN[f] || [], `${f} defines again what the hardening defined`);
     if (AGAIN[f]) {
-      for (const kept of ['private.task_gives_access(t.created_by_email)', "staff cannot send the form for the client", "'notes too long'", "char_length(coalesce(p ->> 'notes', '')) > 300", 'v_beside', 'client_note_private', 'vault.update_secret(a.secret_id, v_pass)']) {
+      for (const kept of KEEP[f]) {
         assert.ok(text.includes(kept), `${f} keeps the hardening: ${kept}`);
       }
     }

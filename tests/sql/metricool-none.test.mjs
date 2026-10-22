@@ -146,7 +146,8 @@ test('the migration runs twice: the marks, the grants and the single trigger sta
   assert.deepEqual(await markOf(ids.a), { none: true, by: 'ilai@astrateg.test', stamped: true, blog: null });
   const trg = (await db.query("select tgname from pg_trigger where tgrelid = 'public.clients'::regclass and not tgisinternal and tgname like '%metricool%'")).rows;
   assert.deepEqual(trg, [{ tgname: 'clients_metricool_none_guard' }]);
-  assert.match((await run('irit', 'select public.metricool_set_none($1, false)', [ids.a])).error, DENIED);
+  // (Lior: the file run again here is the old one, which asks can_edit_gantt, Irit's too since 20261102100000.)
+  assert.match((await run('lior', 'select public.metricool_set_none($1, false)', [ids.a])).error, DENIED);
   assert.deepEqual((await run('nadia', 'select metricool_none from public.clients where id = $1', [ids.a])).rows, [{ metricool_none: true }]);
   // The trigger function is nobody's to call.
   assert.match((await run('ilai', 'select public.clients_metricool_none_guard()')).error, /permission denied|trigger/i);

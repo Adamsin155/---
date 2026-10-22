@@ -92,8 +92,8 @@ test('the migration is the newest one, right after the migration of version 9, a
   // the staff's own Google calendars (20261029100000_google_calendar_sync.sql, 21.10.2026), Lior's and Ofir's
   // nudges (20261031090000_nudnik_givers.sql), the vault's linked pages and the second editor
   // (20261031100000_access_and_editors.sql), protocol v11 (20261031110000_protocol_2110.sql) and Nirel on any
-  // shoot (20261031120000_nirel_any_shoot.sql), 21.10.2026; the editors' edited counts (20261101100000_editor_progress.sql, 22.10.2026).
-  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261025100000_whatsapp_jako.sql', '20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql', '20261029100000_google_calendar_sync.sql', '20261031090000_nudnik_givers.sql', '20261031100000_access_and_editors.sql', '20261031110000_protocol_2110.sql', '20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql']);
+  // shoot (20261031120000_nirel_any_shoot.sql), 21.10.2026; the editors' edited counts (20261101100000_editor_progress.sql, 22.10.2026); Irit edits the Gantt (20261102100000_gantt_irit.sql, 22.10.2026).
+  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261025100000_whatsapp_jako.sql', '20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql', '20261029100000_google_calendar_sync.sql', '20261031090000_nudnik_givers.sql', '20261031100000_access_and_editors.sql', '20261031110000_protocol_2110.sql', '20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql', '20261102100000_gantt_irit.sql']);
   assert.equal(files[files.indexOf(MIGRATION) - 1], '20261023100000_ofir_fast_ladder_v9.sql');
   const sql = readFileSync(new URL(`../../supabase/migrations/${MIGRATION}`, import.meta.url), 'utf8');
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);

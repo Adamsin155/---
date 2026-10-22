@@ -50,14 +50,15 @@ const run = (who, sql, params = []) => as(db, who ? users[who] : null, async (tx
 });
 const INSERT = "insert into public.client_gantt (client_id, key, kind, title, day, time_il, by_email, at) values ($1, $2, $3, $4, '2026-05-03', '19:00', 'x@y', '2000-01-01') returning by_email, at > now() - interval '1 minute' as fresh, internal";
 
-test('Ilai and the owner write the plan, stamped by the session; the rest of the office and an editor read only; nobody else, not anon', async () => {
-  for (const who of ['owner', 'ilai']) {
+test('Ilai, Irit and the owner write the plan, stamped by the session; the rest of the office and an editor read only; nobody else, not anon', async () => {
+  for (const who of ['owner', 'ilai', 'irit']) {
     const r = await run(who, INSERT, [ids.edited, 'video.1', 'video', 'סרטון 1']);
     assert.equal(r.rows?.[0]?.by_email, `${who}@astrateg.test`, who);
     assert.equal(r.rows[0].fresh, true, who);
   }
-  // 6.10.2026 (20261007100000): Irit, Lior and Ofir only read; they still make the client's link (below).
-  for (const who of ['irit', 'lior', 'ofir', 'nadia', 'anna']) assert.match((await run(who, INSERT, [ids.edited, 'video.1', 'video', 'x'])).error, RLS, who);
+  // 6.10.2026 (20261007100000): Lior and Ofir only read; they still make the client's link (below).
+  // Irit writes it too since 22.10.2026 (20261102100000_gantt_irit.sql).
+  for (const who of ['lior', 'ofir', 'nadia', 'anna']) assert.match((await run(who, INSERT, [ids.edited, 'video.1', 'video', 'x'])).error, RLS, who);
   assert.match((await run(null, INSERT, [ids.edited, 'video.1', 'video', 'x'])).error, RLS);
   await db.query("insert into public.client_gantt (client_id, key, kind, title, day) values ($1, 'video.1', 'video', 'סרטון 1', '2026-05-03'), ($2, 'video.1', 'video', 'סרטון 1', '2026-05-03')", [ids.edited, ids.other]);
   // Nadia edits the first client: she reads its plan, and only it; Anna nothing; anon nothing.
@@ -70,7 +71,8 @@ test('Ilai and the owner write the plan, stamped by the session; the rest of the
   assert.equal((await run('nadia', 'delete from public.client_gantt')).affected, 0);
   assert.equal((await run('ilai', "update public.client_gantt set day = '2026-05-04', edited = true where client_id = $1 returning id", [ids.edited])).affected, 1);
   assert.match((await run('irit', 'truncate public.client_gantt')).error, RLS);
-  for (const who of ['irit', 'lior', 'ofir']) {
+  assert.equal((await run('irit', "update public.client_gantt set link = 'https://drive.google.com/file/d/x' where client_id = $1 returning id", [ids.edited])).affected, 1);
+  for (const who of ['lior', 'ofir']) {
     assert.equal((await run(who, 'select * from public.client_gantt')).rows.length, 2, who);
     assert.equal((await run(who, "update public.client_gantt set day = '2026-05-04'")).affected, 0, who);
     assert.equal((await run(who, 'delete from public.client_gantt')).affected, 0, who);

@@ -49,10 +49,12 @@ const userOf = (headers) => {
 };
 const personOf = (u) => staff.find((x) => x.email === u?.email)?.person;
 const isOffice = (u) => { const p = personOf(u); return p === null || ['irit', 'lior', 'ofir', 'ilai'].includes(p); };
-// public.can_edit_gantt() (20261007100000): Ilai and the owner.
-const canEditGantt = (u) => { const p = personOf(u); return p === null || p === 'ilai'; };
+// public.can_edit_gantt() (20261007100000): Ilai and the owner, and Irit since 22.10.2026 (20261102100000_gantt_irit.sql).
+const canEditGantt = (u) => { const p = personOf(u); return p === null || ['ilai', 'irit'].includes(p); };
+// public.gantt_set_brand: the Gantt's editors but Irit (the brand's guard, 20261102100000).
+const canSetBrand = (u) => { const p = personOf(u); return p === null || p === 'ilai'; };
 // public.can_connect_metricool() (protocol v11, 20261031110000): Ofir connects too.
-const canConnectMc = (u) => !!u && (canEditGantt(u) || personOf(u) === 'ofir');
+const canConnectMc = (u) => !!u && (canSetBrand(u) || personOf(u) === 'ofir');
 const isOwner = (u) => personOf(u) === null;
 
 // ── Clients ───────────────────────────────
@@ -205,7 +207,7 @@ async function fakeSupabase(route) {
     return json(200, mcSettings(me));
   }
   if (p === '/rest/v1/rpc/gantt_set_brand' || p === '/rest/v1/rpc/metricool_connect') {
-    if (!me || !(p.endsWith('metricool_connect') ? canConnectMc(me) : canEditGantt(me))) return json(403, { code: '42501', message: 'not allowed' });
+    if (!me || !(p.endsWith('metricool_connect') ? canConnectMc(me) : canSetBrand(me))) return json(403, { code: '42501', message: 'not allowed' });
     const c = db.clients.find((x) => x.id === body.p_client);
     if (body.p_blog_id && db.clients.some((x) => x.metricool_blog_id === body.p_blog_id && x.id !== c.id)) return json(400, { code: 'P0001', message: 'brand_taken: this brand is connected to another client' });
     if ((c.metricool_blog_id || null) !== (body.p_blog_id || null)) {
@@ -737,10 +739,38 @@ await step('the client\'s editor reads the Gantt and nothing more; an editor wit
   await actx.close();
 });
 
-// ── Irit, Lior, Ofir: view only, and the client's link ──
+// ── Irit edits (22.10.2026); Lior, Ofir: view only, and the client's link ──
 const SHOTS = OUT ? [['desktop', { width: 1440, height: 900 }], ['phone', { width: 375, height: 780 }]] : [];
-await step('Irit, Lior and Ofir read the Gantt and nothing more: no editing control, but the client\'s link and the print are theirs', async () => {
-  for (const who of ['irit', 'lior', 'ofir']) {
+await step('Irit edits the Gantt as Ilai does: she pastes "קישור לתוכן" on a row; no brand button for her', async () => {
+  const ctx = await newContext();
+  const page = await newPage(ctx);
+  await signIn(page, `gantt.html?id=${A.id}`, 'irit@astrateg.test');
+  await page.waitForSelector('#gm-list:not([hidden]) .gt-aday');
+  await toGrid(page);
+  assert.equal(await page.isVisible('#gt-readonly'), false);
+  assert.ok(await page.locator('.gt-state-btn, .gt-chip[draggable="true"]').count() > 0);
+  assert.equal(await page.locator('#btn-brand').count(), 0);
+  const key = await page.locator('#gm-grid .gt-chip.s-planned').first().getAttribute('data-key');
+  await page.click(`#gm-grid .gt-chip[data-key="${key}"]`);
+  await page.waitForSelector('#entry-dlg[open]');
+  await page.fill('#ed-link', 'https://drive.google.com/file/d/irit-video/view');
+  await shot(page, 'gantt-13-irit-link', false);
+  await page.click('#ed-save');
+  await page.waitForSelector('#entry-dlg:not([open])', { state: 'attached' });
+  for (let i = 0; i < 50 && !row(A, key).link; i++) await page.waitForTimeout(100); // the save's request
+  assert.equal(row(A, key).link, 'https://drive.google.com/file/d/irit-video/view');
+  if (OUT) {
+    for (const [name, viewport] of SHOTS) {
+      await page.setViewportSize(viewport);
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: `${OUT}/client-irit-${name}.png`, fullPage: true });
+    }
+  }
+  await ctx.close();
+});
+
+await step('Lior and Ofir read the Gantt and nothing more: no editing control, but the client\'s link and the print are theirs', async () => {
+  for (const who of ['lior', 'ofir']) {
     const ctx = await newContext();
     const page = await newPage(ctx);
     await signIn(page, `gantt.html?id=${A.id}`, `${who}@astrateg.test`);
@@ -753,7 +783,7 @@ await step('Irit, Lior and Ofir read the Gantt and nothing more: no editing cont
     // Protocol v11: Ofir connects the client to Metricool (with the accesses); the brand's button is his too.
     assert.equal(await page.locator('#btn-brand').count(), who === 'ofir' ? 1 : 0, who);
     assert.equal(await page.isVisible('#btn-bulk'), false, who);
-    assert.match(await page.innerText('#gt-readonly'), /צפייה בלבד: את הגאנט מעדכנים עילאי ובעל המשרד/, who);
+    assert.match(await page.innerText('#gt-readonly'), /צפייה בלבד: את הגאנט מעדכנים עילאי, עירית ובעל המשרד/, who);
     assert.deepEqual(await page.locator('#gt-actions .btn').allInnerTexts(), ['כל הגאנטים', 'לכרטיס הלקוח', 'הדפסת החודש'], who);
     // The team still sees what needs someone: the failed post and the missing ones.
     assert.match(await page.innerText('.st-missing.is-missing'), /חסרים\s*[1-9]\d*\s*מהם שגיאת פרסום אחת/, who);
@@ -773,14 +803,6 @@ await step('Irit, Lior and Ofir read the Gantt and nothing more: no editing cont
     assert.equal(await page.inputValue('#gs-url'), shareLink, who);
     assert.deepEqual(await page.locator('#app .btn-primary:visible').allInnerTexts(), ['העתקה'], who);
     assert.equal(await page.locator('#gt-share .btn-text').count(), 2, who);
-    if (who === 'irit') {
-      await shot(page, 'gantt-13-irit-view-only');
-      for (const [name, viewport] of SHOTS) {
-        await page.setViewportSize(viewport);
-        await page.waitForTimeout(150);
-        await page.screenshot({ path: `${OUT}/client-irit-${name}.png`, fullPage: true });
-      }
-    }
     await ctx.close();
   }
   assert.deepEqual(refused, [], 'no write was even tried');
@@ -887,7 +909,7 @@ await step('"גאנט תוכן" in the menu opens the index: the week across cli
   B.metricool_blog_id = null; B.metricool_brand = null;
 });
 
-await step('the index for the owner, Irit, Lior and Ofir (reading; no "יצירת הגאנט" but for the owner); an editor has no index; on a phone it is in Ilai\'s bar', async () => {
+await step('the index for the owner, Irit, Lior and Ofir (reading; "יצירת הגאנט" for the owner and Irit only); an editor has no index; on a phone it is in Ilai\'s bar', async () => {
   for (const who of ['owner', 'irit', 'lior', 'ofir']) {
     const ctx = await newContext();
     const page = await newPage(ctx);
@@ -896,7 +918,7 @@ await step('the index for the owner, Irit, Lior and Ofir (reading; no "יציר�
     // Ofir reads it by its address; it left his menu on 20.10.2026 (the owner).
     assert.equal(await page.locator('#side-gantt').count(), who === 'ofir' ? 0 : 1, who);
     assert.equal(await page.locator('#gx-list .gx-client').count(), 3, who);
-    assert.equal(await page.locator('#gx-list .gx-create').count(), who === 'owner' ? 2 : 0, who);
+    assert.equal(await page.locator('#gx-list .gx-create').count(), ['owner', 'irit'].includes(who) ? 2 : 0, who);
     // "לא מחוברים" for those who do not connect: the clients themselves, filtered (no card).
     if (who !== 'owner') {
       await page.click('#gx-f-not-connected');

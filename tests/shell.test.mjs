@@ -67,7 +67,7 @@ test('the menu offers a screen exactly when the page\'s own rule opens it', () =
     assert.equal(has('gantt'), worksCycle(viewer), `${who}: gantt`);
     assert.equal(has('gantt'), seesGantt(viewer), `${who}: gantt`);
     assert.equal(has('gantt'), [null, 'irit', 'lior', 'ofir', 'ilai'].includes(viewer.me), `${who}: gantt, by name`);
-    assert.equal(editsGantt(viewer), [null, 'ilai'].includes(viewer.me), `${who}: edits the gantt`);
+    assert.equal(editsGantt(viewer), [null, 'ilai', 'irit'].includes(viewer.me), `${who}: edits the gantt`);
     assert.equal(has('prep'), viewer.scope === 'office', `${who}: prep`);
     // qa, pass and decisions open for the office only (their pages' gate).
     for (const id of ['qa', 'pass', 'decisions']) if (has(id)) assert.equal(viewer.scope, 'office', `${who}: ${id}`);

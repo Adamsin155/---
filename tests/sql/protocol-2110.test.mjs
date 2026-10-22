@@ -43,8 +43,9 @@ before(async () => {
 test('the file: the newest, none of the refused words, every UPDATE with a WHERE, and the writers block the app generates', () => {
   const files = migrationFiles();
   // After it only Nirel's file (20261031120000_nirel_any_shoot.sql, 21.10.2026) and the editors' counts
-  // (20261101100000_editor_progress.sql, 22.10.2026), which touch nothing of the protocol.
-  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql']);
+  // (20261101100000_editor_progress.sql, 22.10.2026), which touch nothing of the protocol, and
+  // Irit's Gantt (20261102100000_gantt_irit.sql, 22.10.2026), which replaces can_edit_gantt again.
+  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql', '20261102100000_gantt_irit.sql']);
   const sql = migrationSql(MIGRATION);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
@@ -73,7 +74,8 @@ test('who connects to Metricool: Ofir, Ilai and the owner (the app\'s CONNECTORS
     else assert.match(n.error, DENIED, who);
   }
   assert.match((await run(null, "select public.metricool_connect($1, '101')", [ids.a])).error, /permission denied/);
-  // Who edits the Gantt did not change: Ilai and the owner. Ofir cannot call the old function nor write an entry.
+  // Who edits the Gantt did not change here: Ilai and the owner (Irit joins in 20261102100000_gantt_irit.sql,
+  // tests/sql/gantt-metricool.test.mjs; this database stops at version 11's file). Ofir cannot call the old function nor write an entry.
   const edits = async (who) => (await run(who, 'select public.can_edit_gantt() as ok')).rows[0].ok;
   assert.deepEqual(await Promise.all(Object.keys(PEOPLE).map(edits)), [true, false, false, false, true, false, false]);
   assert.match((await run('ofir', "select public.gantt_set_brand($1, '101')", [ids.a])).error, DENIED);
