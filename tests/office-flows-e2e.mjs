@@ -144,6 +144,11 @@ const db = {
   // the lock: tests/package1-e2e.mjs).
   client_files: [{ id: 'f0000000-0000-4000-8000-000000000001', client_id: I.id, kind: 'deliverable_graphic', label: null, storage_path: `${I.id}/deliverable_graphic/f0000000-0000-4000-8000-000000000001-post-1.png`, mime: 'image/png', size_bytes: 2048, posted_on: null, link: null, uploaded_by: 'ilai@astrateg.test', created_at: IL('2026-10-20T09:40:00'), deleted_at: null }],
   office_passes: [],
+  // How many videos each editor edited (public.editor_progress, 22.10.2026): Nadia on Ron's, Yariv on Paz's.
+  editor_progress: [
+    { client_id: V.id, editor: 'nadia', round: 1, edited: 18, updated_at: IL('2026-10-20T09:00:00'), updated_by: 'nadia@astrateg.test' },
+    { client_id: P.id, editor: 'yariv', round: 1, edited: 7, updated_at: IL('2026-10-19T15:00:00'), updated_by: 'yariv@astrateg.test' },
+  ],
   task_decisions: [],
   change_requests: [],
 };
@@ -222,6 +227,17 @@ async function fakeSupabase(route) {
       const saved = db.protocol_checks.find((x) => x.client_id === c.id && x.item_key === 'p04.saved' && x.at > c.char_at);
       return { starts_at: c.char_at, ends_at: saved ? saved.at : new Date(new Date(c.char_at).getTime() + 2 * 36e5).toISOString() };
     }));
+  }
+  // An editor's own number on a shoot they edit (20261101100000_editor_progress.sql).
+  if (p === '/rest/v1/rpc/editor_progress_set') {
+    const person = staff.find((r) => r.email === me?.email)?.person;
+    const c = db.clients.find((x) => x.id === body.p_client);
+    const round = body.p_round || 1;
+    if (!person || !c || round !== 1 || ![c.editor, c.editor2].includes(person)) return json(403, { code: '42501', message: 'not allowed' });
+    let row = db.editor_progress.find((x) => x.client_id === c.id && x.editor === person && x.round === round);
+    if (!row) db.editor_progress.push(row = { client_id: c.id, editor: person, round });
+    Object.assign(row, { edited: body.p_edited, updated_at: now, updated_by: me.email });
+    return json(200, row);
   }
   if (p.startsWith('/rest/v1/rpc/')) return json(404, { code: 'PGRST202', message: 'not found' });
   const m = /^\/rest\/v1\/(\w+)$/.exec(p);
@@ -347,8 +363,10 @@ await step('Ofir\'s queue, one tap from "המשימות שלי": what waits for 
   assert.match(await ofir.locator('#assign-list').innerText(), /סטודיו נטלי[^]*ניראל מסומנת מראש/);
   // Nadia: Ron's videos are with Ofir (day 2 of 4, closing); Shemesh is late (day 6 of 4). Yariv's paused job.
   await openQaFolds(ofir);
-  assert.match(await ofir.locator('#load-list').innerText(), /נדיה\s*2 לקוחות בעריכה[^]*גלידה שמש · יום 6 מתוך 4[^]*מספרת רון · יום 2 מתוך 4 · תיקונים וסגירה/);
-  assert.match(await ofir.locator('#load-list').innerText(), /יריב\s*לקוח אחד בעריכה · אחת עצורה\s*סטודיו פז · יום 2 מתוך 2 עצורה/);
+  assert.match(await ofir.locator('#load-list').innerText(), /נדיה\s*2 לקוחות בעריכה[^]*גלידה שמש · יום 6 מתוך 4[^]*מספרת רון · יום 2 מתוך 4 · תיקונים וסגירה · נערכו 18\/25/);
+  assert.match(await ofir.locator('#load-list').innerText(), /יריב\s*לקוח אחד בעריכה · אחת עצורה\s*סטודיו פז · יום 2 מתוך 2 · נערכו 7\/25 עצורה/);
+  // An editor with no number yet: nothing is said (Shemesh).
+  assert.doesNotMatch(await ofir.locator('#load-list').innerText(), /גלידה שמש[^\n]*נערכו/);
   await shot(ofir, 'office-01-qa');
 });
 
@@ -961,7 +979,65 @@ await step('"עורך/ת נוסף/ת": Ofir assigns two editors; both get the Wh
   assert.equal(await card.locator('.ed-scripts-open').getAttribute('href'), 'https://docs.google.com/document/d/tal-scripts');
   assert.ok(await noHScroll(nadia), 'the editing page scrolls sideways at 390px');
   if (OUT) await card.screenshot({ path: `${OUT}/office-11-editor2-page-390.png` });
+  // "ערכתי [ N ] מתוך M" (22.10.2026): her own share; − / + big enough for a thumb, saved by itself.
+  const row = card.locator('.ed-count');
+  assert.match((await row.innerText()).replace(/\s+/g, ' '), /^ערכתי − \+ מתוך 10/);
+  const input = row.locator('input');
+  const status = async () => `${await input.getAttribute('id')}-s`;
+  assert.equal(await input.inputValue(), '0');
+  assert.ok(await row.locator('[id$="-minus"]').isDisabled());
+  for (const el of [input, row.locator('[id$="-minus"]'), row.locator('[id$="-plus"]')]) assert.ok((await el.boundingBox()).height >= 44, 'a 44px target in the count');
+  for (let i = 0; i < 3; i += 1) await row.locator('[id$="-plus"]').click();
+  await row.locator('.ed-count-s', { hasText: 'נשמר' }).waitFor();
+  const mine = () => db.editor_progress.find((x) => x.client_id === T.id && x.editor === 'nadia');
+  assert.equal(mine().edited, 3);
+  // Typed, and above her share: kept as it is.
+  await input.fill('12');
+  await nadia.waitForFunction((id) => document.getElementById(id)?.textContent === 'נשמר', await status());
+  assert.equal(mine().edited, 12);
+  await input.fill('');
+  await input.blur();
+  assert.equal(await input.inputValue(), '12');
+  await input.fill('3');
+  await nadia.waitForFunction((id) => document.getElementById(id)?.textContent === 'נשמר', await status());
+  assert.equal(mine().edited, 3);
+  assert.equal(db.editor_progress.filter((x) => x.client_id === T.id).length, 1); // Yariv has his own, not written yet
+  assert.deepEqual(await unlabeled(nadia, '.ed-count'), []);
+  assert.ok(await noHScroll(nadia));
+  if (OUT) await card.screenshot({ path: `${OUT}/office-12-editor-count-390.png` });
+  // After a refresh, the number she saved.
+  await nadia.click('#btn-refresh');
+  await nadia.waitForFunction(() => [...document.querySelectorAll('.ed-card')].find((c) => c.textContent.includes('סטודיו טל'))?.querySelector('.ed-count input')?.value === '3');
   await nctx.close();
+});
+
+await step('the office sees each editor\'s number: Ofir\'s load list and the client card, short', async () => {
+  const T = db.clients.find((c) => c.name === 'סטודיו טל');
+  const pctx = await newContext(THU, { width: 390, height: 844 });
+  const page = await newPage(pctx);
+  await signIn(page, 'qa.html', 'ofir');
+  await page.waitForSelector('#load-list .of-editor');
+  await openQaFolds(page);
+  const loadOf = (name) => page.locator('#load-list .of-editor').filter({ has: page.locator('summary', { hasText: name }) });
+  const nadiaLoad = loadOf('נדיה');
+  assert.match(await nadiaLoad.innerText(), /סטודיו טל · [^\n]*נערכו 3\/10/);
+  assert.match(await nadiaLoad.innerText(), /מספרת רון[^\n]*נערכו 18\/25/);
+  // Yariv has not written a number on Tal yet: nothing about it on his line.
+  assert.doesNotMatch(await loadOf('יריב').innerText(), /סטודיו טל[^\n]*נערכו/);
+  assert.ok(await noHScroll(page));
+  await page.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+  if (OUT) await page.locator('#load-list').screenshot({ path: `${OUT}/office-13-ofir-load-counts-390.png` });
+  // The client card's head: both editors, each against their share.
+  await page.goto(`${BASE}client.html?id=${T.id}`);
+  await page.waitForSelector('#cc-edited');
+  assert.equal((await page.innerText('#cc-edited')).replace(/\s+/g, ' ').trim(), 'נערכו יריב 0/15 · נדיה 3/10');
+  await page.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+  if (OUT) await page.locator('.cc-facts').screenshot({ path: `${OUT}/office-14-card-counts-390.png` });
+  await page.goto(`${BASE}client.html?id=${V.id}`);
+  await page.waitForSelector('#cc-edited');
+  assert.equal((await page.innerText('#cc-edited dd')).trim(), '18/25');
+  assert.ok(await noHScroll(page));
+  await pctx.close();
 });
 
 assert.deepEqual(errors, []);
