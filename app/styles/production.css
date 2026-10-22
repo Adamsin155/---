@@ -336,6 +336,8 @@ dialog.ed-dlg .ed-start-foot .hint { margin: 0; text-align: center; font-size: 1
 
 /* The client's scripts from the system, on the editing page (21.10.2026). */
 .ed-scount { font-weight: 600; }
+/* A monthly client's videos, "8 סרטונים בחודש" (22.10.2026). */
+.ed-month { font-weight: 600; color: var(--text); }
 .ed-scripts { margin-top: 8px; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 0 12px; }
 .ed-scripts > summary { min-height: 44px; display: flex; align-items: center; font-weight: 600; cursor: pointer; }
 .ed-script-list { margin: 0 0 12px; padding-inline-start: 20px; display: grid; gap: 10px; }

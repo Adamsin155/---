@@ -28,9 +28,11 @@ import {
   QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, REASON_KEY, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
 } from './office-marks.js';
 import { withEditor, swapEditor } from './decisions-logic.js';
-import { loadScriptCounts, scriptsWords, loadEditorProgress } from './production-data.js';
+import { loadScriptCounts, scriptsWords, loadEditorProgress, loadEditorMonths } from './production-data.js';
 import { scriptsCountOf } from './production.js';
-import { progressMap, progressKey, editTarget, editedShort } from './edit-count.js';
+import {
+  progressMap, progressKey, editTarget, editedShort, isMonthly, monthlyFor, monthTarget, monthKey, monthRowKey, monthMap,
+} from './edit-count.js';
 import { liorShoot } from './reminder-engine.js';
 import { loadSelections } from './office-data.js';
 import { offerHandoff } from './handoff-ui.js';
@@ -83,8 +85,16 @@ const scriptsLine = (clientId, n) => {
 };
 // How many videos each editor has edited ('<client>:<round>:<editor>' → row; 22.10.2026), on each job of the load.
 let progress = {};
-// "נערכו 8/10": that editor's own number on the shoot, once they wrote one.
+// A monthly client's numbers this month ('<client>:<YYYY-MM>:<editor>' → row; app/edit-count.js monthTarget).
+let months = {};
+// "נערכו 8/10": that editor's own number on the shoot, once they wrote one. A monthly client's
+// editor: this month's, "נערכו 5/12 החודש".
 const editedOf = (j, editor) => {
+  if (monthlyFor(j.client, editor)) {
+    const now = new Date();
+    const m = months[monthRowKey(j.client.id, monthKey(now), editor)];
+    return m ? `נערכו ${editedShort(m.edited, monthTarget(j.client, now))} החודש` : '';
+  }
   const row = progress[progressKey(j.client.id, j.n, editor)];
   if (!row) return '';
   const r = j.n ? roundsOf(j.client).find((x) => x.n === j.n) : null;
@@ -115,8 +125,12 @@ async function doLoad() {
     ...Object.values(editorLoad({ clients, stateOf, checks, tasks })).flatMap((l) => l.jobs).filter((j) => j.client.shoot_type === 'natali').map((j) => j.client.quote_id),
   ];
   let rows;
-  [selections, scriptN, rows] = await Promise.all([loadSelections([...new Set(natali.filter(Boolean))]).catch(() => new Map()), loadScriptCounts(), loadEditorProgress()]);
+  let monthRows;
+  const monthly = clients.filter(isMonthly).map((c) => c.id);
+  [selections, scriptN, rows, monthRows] = await Promise.all([loadSelections([...new Set(natali.filter(Boolean))]).catch(() => new Map()), loadScriptCounts(), loadEditorProgress(),
+    monthly.length ? loadEditorMonths(monthly, monthKey()) : null]);
   progress = progressMap(rows);
+  months = monthMap(monthRows);
   lastLoad = Date.now();
   $('state').textContent = '';
   if (!busy()) renderKeepingFocus();

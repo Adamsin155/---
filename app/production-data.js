@@ -58,6 +58,22 @@ export async function saveEditorProgress(clientId, edited, round = 1) {
   if (error) throw error;
   return data;
 }
+// A monthly client's numbers for one month 'YYYY-MM' (public.editor_progress_month,
+// 20261104100000_editor_progress_month.sql; app/edit-count.js monthTarget): the same readers.
+// null before that migration or on an error: no monthly counter then.
+export async function loadEditorMonths(clientIds, month) {
+  if (Array.isArray(clientIds) && !clientIds.length) return [];
+  let q = supabase.from('editor_progress_month').select('client_id, editor, month, edited, updated_at').eq('month', month);
+  if (clientIds) q = q.in('client_id', clientIds);
+  const { data, error } = await q;
+  return error || !Array.isArray(data) ? null : data;
+}
+// The caller's own number for the client in that month (the month the page shows). Returns the saved row.
+export async function saveEditorMonth(clientId, edited, month) {
+  const { data, error } = await supabase.rpc('editor_progress_month_set', { p_client: clientId, p_edited: edited, p_month: month });
+  if (error) throw error;
+  return data;
+}
 
 export async function loadWorkClients() {
   // With the second editor (editor2), once that migration is in.

@@ -26,8 +26,10 @@ import { inviteFor, emailsOf, clientEmails, guestNames } from './calendar-view.j
 import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
 import { describeMark } from './handoffs.js';
 import { markHistory, filesOf, fileLine, filesHint, reportOf, missingWords, CHECK_OF, isMaterialTask } from './production.js';
-import { progressMap, editedLine } from './edit-count.js';
-import { loadEditorProgress } from './production-data.js';
+import {
+  progressMap, editedLine, isMonthly, monthKey, monthMap, monthLine, monthBase, monthExceptions, exceptMonths, monthLabel, withMonthly,
+} from './edit-count.js';
+import { loadEditorProgress, loadEditorMonths } from './production-data.js';
 import { canManageTeam, isOwnerView } from './team-rules.js';
 import { activate as activateLanding } from './landing-data.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
@@ -107,6 +109,7 @@ let ofirMeetings = null;     // Ofir's meetings today (times only), for "אופ�
 let delivFiles = null;     // deliverables uploaded as files (null: no such table, or not readable)
 let mcLine = null;         // the Metricool line's data (null: not loaded, or not for this viewer)
 let edited = null;         // how many videos each editor edited (office only; null: none readable)
+let editedMonth = null;    // a monthly client's numbers this month (office only; null: none readable)
 let viewerInfo = null;     // viewerOf(): for archiving
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
@@ -177,7 +180,7 @@ async function loadCard() {
     // arrives; the card is drawn again for it only when no load is about to draw it.
     loadHistory();
     // The agreement and the rest are asked for side by side (they do not depend on each other).
-    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited] = await Promise.all([
+    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth] = await Promise.all([
       c.quote_id && (!quote || quote.id !== c.quote_id) ? loadQuoteSummary(c.quote_id) : quote,
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
@@ -187,6 +190,7 @@ async function loadCard() {
       own() ? null : loadDeliverableFiles(id),
       seesMetricool({ me, scope, error: viewerError }) ? loadMetricool(id).catch(() => null) : null,
       own() ? null : loadEditorProgress([id]).then((rows) => (rows ? progressMap(rows) : null)),
+      own() || !isMonthly(c) ? null : loadEditorMonths([id], monthKey()).then((rows) => (rows ? monthMap(rows) : null)),
     ]);
     statusNote = statusNotes?.[0] || null;
     setOfirMeetings(ofirMeetings); // the fast ladder waits for the end of his meeting (protocol v10)
@@ -513,11 +517,14 @@ function fact(k, v, extra = null) {
 }
 
 // How many videos the editors edited (22.10.2026): "27/48", or "נדיה 8/10 · יריב 12/15";
-// a round's after the client's own. Only once an editor wrote a number.
+// a round's after the client's own. Only once an editor wrote a number. A monthly client:
+// this month's in place of the client's own shoot, "5/12 החודש" (app/edit-count.js monthLine).
 function editedFact() {
-  if (!edited || !client) return null;
-  const parts = [[client, null], ...roundsOf(client).map((r) => [roundContext(client, r), r.n])]
-    .map(([ctx, n]) => { const t = editedLine(ctx, edited); return t && n ? `סבב ${n}: ${t}` : t; }).filter(Boolean);
+  if (!client) return null;
+  const monthly = isMonthly(client);
+  const shoots = edited ? [[client, null], ...roundsOf(client).map((r) => [roundContext(client, r), r.n])].filter(([, n]) => !monthly || n) : [];
+  const parts = [monthly ? monthLine(client, editedMonth) : null,
+    ...shoots.map(([ctx, n]) => { const t = editedLine(ctx, edited); return t && n ? `סבב ${n}: ${t}` : t; })].filter(Boolean);
   return parts.length ? h('div', { class: 'fact', id: 'cc-edited' }, h('dt', {}, 'נערכו'), h('dd', { class: 'num' }, parts.join(' · '))) : null;
 }
 
@@ -765,10 +772,22 @@ function roundsSummary(s) {
     h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openRound() }, 'הוספת סבב צילום'));
 }
 
+// A monthly client (22.10.2026): "8 סרטונים בכל חודש", and this month and the months after it
+// that differ ("אוקטובר 2026: 12"). The editors count each month from 0.
+function monthlyRow() {
+  if (!isMonthly(client)) return null;
+  const here = monthKey();
+  const differ = Object.entries(monthExceptions(client)).filter(([k]) => k >= here).map(([k, n]) => `${monthLabel(k)}: ${n}`);
+  return h('div', { class: 'deliv-row', id: 'deliv-month' },
+    h('span', { class: 'deliv-k' }, 'לקוח חודשי'),
+    h('span', { class: 'num' }, [`${monthBase(client)} סרטונים בכל חודש`, ...differ].join(' · ')),
+    h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEdit('ed-month-n') }, 'שינוי'));
+}
+
 function deliverablesBlock(s) {
   const d = client.deliverables || {};
   const rows = DELIVERABLES.filter((x) => (d[x.key] || 0) > 0);
-  const hasAny = rows.length || d.shoot_days !== undefined;
+  const hasAny = rows.length || d.shoot_days !== undefined || isMonthly(client);
   return h('section', { class: 'deliv', 'aria-labelledby': 'deliv-h' },
     h('div', { class: 'deliv-head' }, h('h2', { id: 'deliv-h' }, 'מה כלול בחבילה'), h('span', { class: 'hint' }, 'נספר כשהלקוח קיבל ואישר.')),
     hasAny ? null : h('p', { class: 'muted' }, 'הכמויות בחבילה לא הוזנו. ',
@@ -786,6 +805,7 @@ function deliverablesBlock(s) {
           h('button', { type: 'button', class: 'step', id: `deliv-${x.key}-plus`, 'aria-label': `הוספת ${x.one} שנמסר`, onclick: () => bump(x.key, 1) }, '+')),
         h('span', { class: 'hint', id: `deliv-${x.key}-s` }));
     }),
+    monthlyRow(),
     roundsSummary(s),
     d.updated_at ? h('p', { class: 'hint' }, `עודכן · ${who(d.updated_by)} · ${formatStamp(d.updated_at)}`) : null);
 }
@@ -2216,6 +2236,27 @@ fill($('ed-links'), ...LINKS.flatMap((l) => [h('div', { class: 'field' },
   l.key === 'scripts' ? h('div', { class: 'field' },
     h('label', { for: 'ed-scripts-n' }, 'כמה תסריטים'),
     h('input', { class: 'input', id: 'ed-scripts-n', type: 'number', min: '0', max: '999', inputmode: 'numeric', dir: 'ltr' })) : null].filter(Boolean)));
+// A monthly client (22.10.2026): a fixed number of videos every month instead of one package,
+// and a month that differs (app/edit-count.js withMonthly). The editor counts each month from 0.
+const numberInput = (id, min, extra = {}) => h('input', { class: 'input', id, type: 'number', min, max: '999', inputmode: 'numeric', dir: 'ltr', ...extra });
+fill($('ed-month'),
+  h('div', { class: 'field' }, h('label', { for: 'ed-month-n' }, 'סרטונים בחודש (לקוח חודשי)'), numberInput('ed-month-n', '1', { 'aria-describedby': 'ed-month-h' }),
+    h('div', { class: 'hint', id: 'ed-month-h' }, 'ריק: הלקוח נספר לפי החבילה. עם מספר: העורך סופר כל חודש מחדש, מאפס ב־1 לחודש.')),
+  h('div', { class: 'field' }, h('label', { for: 'ed-month-x' }, 'חריג לחודש'), h('select', { class: 'input', id: 'ed-month-x', 'aria-describedby': 'ed-month-xh' })),
+  h('div', { class: 'field' }, h('label', { for: 'ed-month-xn' }, 'סרטונים בחודש החריג'), numberInput('ed-month-xn', '0', { 'aria-describedby': 'ed-month-xh' })),
+  h('p', { class: 'hint span-2', id: 'ed-month-xh' }));
+const monthExceptText = (c) => {
+  const x = Object.entries(monthExceptions(c));
+  return x.length ? `חריגים: ${x.map(([k, n]) => `${monthLabel(k)}: ${n}`).join(' · ')}. מספר ריק מחזיר את החודש לרגיל.` : 'אין חריגים. חודש עם מספר אחר: בוחרים אותו וכותבים את המספר.';
+};
+function fillMonthFields(c) {
+  $('ed-month-n').value = monthBase(c) ?? '';
+  fill($('ed-month-x'), ...exceptMonths(c).map((k) => h('option', { value: k }, monthLabel(k))));
+  $('ed-month-x').value = monthKey();
+  $('ed-month-xn').value = monthExceptions(c)[monthKey()] ?? '';
+  $('ed-month-xh').textContent = monthExceptText(c);
+}
+$('ed-month-x').addEventListener('change', (e) => { $('ed-month-xn').value = monthExceptions(client)[e.currentTarget.value] ?? ''; });
 
 function openEdit(focusId = 'ed-name') {
   const c = client;
@@ -2238,6 +2279,7 @@ function openEdit(focusId = 'ed-name') {
   $('ed-notes').value = c.notes || '';
   for (const [k] of DELIV_FIELDS) $(`ed-deliv-${k}`).value = c.deliverables?.[k] ?? '';
   $('ed-scripts-n').value = c.deliverables?.scripts ?? '';
+  fillMonthFields(c);
   for (const l of LINKS) { $(`ed-link-${l.key}`).value = c.links?.[l.key] || ''; $(`ed-link-${l.key}-h`).textContent = ''; $(`ed-link-${l.key}`).removeAttribute('aria-invalid'); }
   edDlg.showModal();
   $(focusId).focus();
@@ -2301,6 +2343,8 @@ $('ed-form').addEventListener('submit', async (e) => {
   }
   const sn = $('ed-scripts-n').value;
   if (sn === '') delete deliverables.scripts; else deliverables.scripts = Math.max(0, Math.round(Number(sn)));
+  const monthly = withMonthly(deliverables, { base: $('ed-month-n').value, month: $('ed-month-x').value, except: $('ed-month-xn').value });
+  if (monthly.error) return fail(monthly.error, $({ base: 'ed-month-n', month: 'ed-month-x', except: 'ed-month-xn' }[monthly.field]));
   const val = (i) => $(i).value.trim() || null;
   // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
   const newShoot = fromLocal($('ed-shoot-at').value);
@@ -2318,7 +2362,7 @@ $('ed-form').addEventListener('submit', async (e) => {
       char_at: fromLocal($('ed-char-at').value), characterizer: val('ed-characterizer'),
       has_logo: $('ed-logo').value === '' ? null : $('ed-logo').value === 'true',
       shoot_type: val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor: val('ed-editor'),
-      contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables,
+      contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables: monthly.deliverables,
     });
     if (asked.note) await noteDateChange(id, 'shoot_at', null, newShoot, asked.note);
     edDlg.close();
