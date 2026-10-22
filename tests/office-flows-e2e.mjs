@@ -1040,6 +1040,40 @@ await step('the office sees each editor\'s number: Ofir\'s load list and the cli
   await pctx.close();
 });
 
+
+// Anna and Irit, 22.10.2026: an editor started with part of the footage and no phone; the
+// editing goes on. The client card shows it on 22 with her words, and the office closes it.
+await step('the client card shows what the editor reported missing while editing, with her words; "הגיע הכול" closes it and Lior\'s task', async () => {
+  const T = db.clients.find((c) => c.name === 'סטודיו טל');
+  const at = new Date(THU.getTime() - 36e5).toISOString();
+  db.protocol_checks.push(
+    { client_id: T.id, item_key: 'p22.received', state: 'done', note: null, by_email: 'nadia@astrateg.test', at },
+    { client_id: T.id, item_key: 'p22.check.scripts', state: 'done', note: null, by_email: 'nadia@astrateg.test', at },
+    { client_id: T.id, item_key: 'p22.check.logo', state: 'done', note: null, by_email: 'nadia@astrateg.test', at },
+    { client_id: T.id, item_key: 'p22.missing', state: 'done', by_email: 'nadia@astrateg.test', at,
+      note: JSON.stringify({ what: ['footage', 'phone'], note: '', notes: { footage: 'אין צילומי מוצר' }, have: 4, of: 10, going: true }) },
+  );
+  const lior = task(T, { title: 'להשלים חומר: יש ל־4 מתוך 10 (אין צילומי מוצר) — לקבוע השלמה/יום צילום', created_by_email: 'nadia@astrateg.test', created_at: at, due_on: '2026-10-23' });
+  db.client_tasks.push(lior);
+  const pctx = await newContext(THU, { width: 390, height: 844 });
+  const page = await newPage(pctx);
+  await signIn(page, `client.html?id=${T.id}#p22`, 'irit');
+  await page.waitForSelector('#p22-report');
+  assert.match((await page.innerText('#p22-report span')).replace(/\s+/g, ' ').trim(), /^חסר לעורך: טלפון העסק, חומר צילום \(חומר ל־4 מתוך 10, אין צילומי מוצר\) · נדיה · .+ · העריכה ממשיכה$/);
+  assert.equal(await page.locator('#p22 .wait-line:not(.report-line)').count(), 0, 'not a wait');
+  assert.ok(await noHScroll(page));
+  await page.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+  await page.locator('#p22-report').scrollIntoViewIfNeeded();
+  if (OUT) await page.locator('#p22').screenshot({ path: `${OUT}/office-15-card-editor-report-390.png` });
+  await page.click('#p22-arrived');
+  await toastHas(page, 'סומן שהכול הגיע');
+  assert.equal(checkOf(T, 'p22.missing'), null);
+  for (const k of ['p22.check.footage', 'p22.check.phone']) assert.ok(checkOf(T, k), k);
+  assert.ok(lior.done_at, 'Lior\'s task for the footage closed with it');
+  assert.equal(await page.locator('#p22-report').count(), 0);
+  await pctx.close();
+});
+
 assert.deepEqual(errors, []);
 await browser.close();
 noCspViolations();
