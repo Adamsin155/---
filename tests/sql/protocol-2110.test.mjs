@@ -42,8 +42,9 @@ before(async () => {
 
 test('the file: the newest, none of the refused words, every UPDATE with a WHERE, and the writers block the app generates', () => {
   const files = migrationFiles();
-  // After it only Nirel's file (20261031120000_nirel_any_shoot.sql, 21.10.2026), which touches nothing of the protocol.
-  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261031120000_nirel_any_shoot.sql']);
+  // After it only Nirel's file (20261031120000_nirel_any_shoot.sql, 21.10.2026) and the editors' counts
+  // (20261101100000_editor_progress.sql, 22.10.2026), which touch nothing of the protocol.
+  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql']);
   const sql = migrationSql(MIGRATION);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
