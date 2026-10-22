@@ -334,6 +334,56 @@ test('written notes only: imported history and whole-process marks are not Eli\'
   assert.equal(P.driveName('כונן A'), 'כונן A');
 });
 
+// ── Starting with something missing (Anna and Irit, 22.10.2026) ──
+test('a report made while the editing goes on: "חסר" lines with their words, "חומר ל־N מתוך M", no wait', () => {
+  const note = P.missingNote(['logo', 'footage'], '', { notes: { logo: '  הלוגו מטושטש ', footage: 'אין צילומי מוצר', phone: 'לא חסר' }, have: 14, of: 36, going: true });
+  // Words only for what is missing, trimmed; the count only with the footage.
+  assert.deepEqual(JSON.parse(note), { what: ['logo', 'footage'], note: '', notes: { logo: 'הלוגו מטושטש', footage: 'אין צילומי מוצר' }, have: 14, of: 36, going: true });
+  assert.deepEqual(JSON.parse(P.missingNote(['logo'], '', { have: 14, of: 36 })), { what: ['logo'], note: '' });
+  assert.deepEqual(JSON.parse(P.missingNote(['logo'], 'x')), { what: ['logo'], note: 'x' }); // as before
+  const checks = { 'p22.missing': done(IL(2026, 10, 19, 10), note) };
+  const r = P.reportOf(checks);
+  assert.equal(P.missingOf(checks), null, 'not a block');
+  assert.deepEqual([r.what, r.have, r.of, r.going], [['logo', 'footage'], 14, 36, true]);
+  assert.equal(P.missingWords(r), 'לוגו (הלוגו מטושטש), חומר צילום (חומר ל־14 מתוך 36, אין צילומי מוצר)');
+  assert.equal(P.materialText(14, 36), 'חומר ל־14 מתוך 36');
+  assert.equal(P.materialText(14, null), 'חומר ל־14 סרטונים');
+  assert.equal(P.markHistory('p22.missing', { action: 'done', note }), 'דיווח/ה שחסר לעריכה: לוגו (הלוגו מטושטש), חומר צילום (חומר ל־14 מתוך 36, אין צילומי מוצר), והעריכה ממשיכה');
+  // A wait the office put on 22 meanwhile does not make it a block.
+  checks['p22.wait'] = done(IL(2026, 10, 19, 11), JSON.stringify({ reason: 'ממתין ללקוח' }));
+  assert.equal(P.missingOf(checks), null);
+  assert.ok(P.reportOf(checks));
+  // A stop: the same mark without `going`, held by the wait.
+  checks['p22.missing'] = done(IL(2026, 10, 19, 12), P.missingNote(['footage'], '', { have: 0, of: 36 }));
+  assert.equal(P.reportOf(checks), null);
+  assert.deepEqual([P.missingOf(checks).what, P.missingOf(checks).have], [['footage'], 0]);
+  // Each check and what it reports; "מה חסר?" offers the scripts too now.
+  assert.deepEqual(P.START_CHECKS.map(([k]) => P.missingKeyOf(k)), ['footage', 'scripts', 'logo', 'phone']);
+  assert.equal(P.missingText(['scripts', 'logo']), 'לוגו, תסריטים וסדר הסרטונים');
+});
+
+test('Lior\'s task for the rest of the footage: due the next business day, found again per shoot round', () => {
+  const r = { what: ['footage'], have: 14, of: 36, notes: { footage: 'אין צילומי מוצר' } };
+  const t = P.materialTask({ id: 'c1' }, 1, r, IL(2026, 10, 22, 16)); // Thursday
+  assert.deepEqual(t, { client_id: 'c1', owner: 'lior', urgent: false, due_on: '2026-10-25', title: 'להשלים חומר: יש ל־14 מתוך 36 (אין צילומי מוצר) — לקבוע השלמה/יום צילום' });
+  assert.equal(P.materialTask({ id: 'c1' }, 2, { what: ['footage'], have: 3, of: null, notes: {} }, IL(2026, 10, 19, 10)).title, 'להשלים חומר (סבב 2): יש ל־3 סרטונים — לקבוע השלמה/יום צילום');
+  assert.equal(P.isMaterialTask(t, 1), true);
+  assert.equal(P.isMaterialTask(t, 2), false);
+  assert.equal(P.isMaterialTask({ ...t, done_at: '2026-10-23T10:00:00Z' }, 1), false);
+  assert.equal(P.isMaterialTask({ ...t, owner: 'irit' }, 1), false);
+});
+
+test('the editor\'s state carries a report made while editing; it is not a block', () => {
+  const { c, checks } = postWorld();
+  checks['p22a.assigned'] = done(IL(2026, 10, 18, 10));
+  checks['p22.received'] = done(IL(2026, 10, 18, 11));
+  checks['p22.missing'] = done(IL(2026, 10, 18, 11), P.missingNote(['phone'], '', { notes: { phone: 'המספר לא עונה' }, going: true }));
+  const st = stOf(c, checks);
+  assert.equal(st.key, 'editing');
+  assert.equal(st.blocked, null);
+  assert.deepEqual(st.report.notes, { phone: 'המספר לא עונה' });
+});
+
 test('history lines for the new marks', () => {
   assert.equal(P.markHistory('p22.missing', { action: 'done', note: P.missingNote(['logo']) }), 'דיווח/ה שחסר לעריכה: לוגו');
   assert.equal(P.markHistory('p16.brief', { action: 'done', note: P.briefNote('כונן 3') }), 'שלח/ה תדריך לאלי, כונן 3');
@@ -372,6 +422,21 @@ test('missing logo / phone / footage: Irit at once, Lior after 3 office hours; t
   none(due(w, IL(2026, 10, 18, 14)), 'editing'); // "not started" and the day digests wait while blocked
   delete w.cs['p22.wait'];
   none(due(w, IL(2026, 10, 18, 14)), 'editorMissing');
+});
+
+test('missing while the editing goes on: Irit at once with the words; no 3-hour ring to Lior; the editing ladder runs', () => {
+  const w = world();
+  w.cs['p22a.assigned'] = done(IL(2026, 10, 18, 10));
+  w.cs['p22.received'] = done(IL(2026, 10, 18, 10, 30));
+  w.cs['p22.missing'] = done(IL(2026, 10, 18, 10, 30), P.missingNote(['logo', 'footage'], '', { notes: { logo: 'מטושטש' }, have: 2, of: 4, going: true }));
+  const at = one(due(w, IL(2026, 10, 18, 10, 30)), 'editorMissing', 'irit');
+  assert.equal(at.level, 'ring');
+  assert.equal(at.body, 'נדיה: חסר לוגו (מטושטש), חומר צילום (חומר ל־2 מתוך 4). העריכה ממשיכה.');
+  none(due(w, IL(2026, 10, 18, 16)), 'editorMissing', 'lior');
+  // Not a wait: the editor's own day ring comes as on any editing day.
+  assert.ok(pick(due(w, IL(2026, 10, 21, 15)), 'editing').length > 0);
+  delete w.cs['p22.missing'];
+  none(due(w, IL(2026, 10, 18, 16)), 'editorMissing');
 });
 
 test('QA return (the office\'s rule, one per event): the editor at once on their page; the QA clock stops; fixed starts a new one; the owner from round 2', () => {

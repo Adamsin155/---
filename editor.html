@@ -96,7 +96,8 @@
     <p class="state" id="state" role="status"></p>
   </main>
 
-  <!-- (1) The drive arrived: four checks, or "something is missing". -->
+  <!-- (1) The drive arrived: "יש" or "חסר" for each of the four; what is "חסר" goes to
+       Irit and the editing goes on (app/editor.js). -->
   <dialog id="dlg-start" class="ed-dlg" aria-labelledby="start-h">
     <form id="start-form" novalidate>
       <div class="dlg-head">
@@ -105,21 +106,21 @@
       </div>
       <div class="dlg-body">
         <p class="muted" id="start-ctx"></p>
-        <fieldset class="prod-checks">
-          <legend>לפני שמתחילים: יש לך את כל אלה?</legend>
+        <fieldset class="prod-checks ed-qs">
+          <legend>לפני שמתחילים: יש או חסר?</legend>
           <div id="start-list"></div>
         </fieldset>
-        <p class="hint">משהו חסר? ״חסר לוגו / טלפון / חומר״ מודיע לעירית מיד, והמועד שלך מסומן ״חסום״ ולא ״באיחור״ עד שזה מגיע.</p>
         <div class="err" id="start-err" role="alert" hidden></div>
       </div>
-      <div class="dlg-foot">
-        <button type="button" class="btn btn-ghost" id="start-missing">חסר לוגו / טלפון / חומר</button>
-        <button type="submit" class="btn btn-primary" id="start-submit">קיבלתי את הכונן והתחלתי</button>
+      <div class="dlg-foot ed-start-foot">
+        <button type="submit" class="btn btn-primary" id="start-submit" aria-describedby="start-hint">קיבלתי את הכונן והתחלתי</button>
+        <p class="hint" id="start-hint"></p>
+        <button type="button" class="btn btn-ghost" id="start-missing">אי אפשר להתחיל בכלל</button>
       </div>
     </form>
   </dialog>
 
-  <!-- What is missing, to Irit at once. -->
+  <!-- What is missing, to Irit at once: going on, or (when it cannot go on) stopping. -->
   <dialog id="dlg-missing" class="ed-dlg" aria-labelledby="miss-h">
     <form id="miss-form" novalidate>
       <div class="dlg-head">
@@ -128,20 +129,17 @@
       </div>
       <div class="dlg-body">
         <p class="muted" id="miss-ctx"></p>
-        <fieldset class="prod-checks">
+        <fieldset class="prod-checks ed-qs">
           <legend>חסר לי</legend>
           <div id="miss-list"></div>
         </fieldset>
-        <div class="field">
-          <label for="miss-note">פירוט (לא חובה)</label>
-          <textarea class="input" id="miss-note" rows="2" maxlength="500" placeholder="למשל: הלוגו בכרטיס מטושטש"></textarea>
-        </div>
-        <p class="hint">עירית מקבלת הודעה עכשיו. אם זה לא נפתר תוך 3 שעות עבודה, ליאור.</p>
+        <p class="hint" id="miss-hint"></p>
         <div class="err" id="miss-err" role="alert" hidden></div>
       </div>
-      <div class="dlg-foot">
-        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
-        <button type="submit" class="btn btn-primary" id="miss-submit">לדווח לעירית</button>
+      <div class="dlg-foot ed-miss-foot">
+        <button type="button" class="btn btn-primary" id="miss-go">לדווח, והעריכה ממשיכה</button>
+        <button type="button" class="btn" id="miss-submit">אי אפשר להמשיך: לעצור את העריכה</button>
+        <button type="button" class="btn btn-ghost" id="miss-cancel" data-close>ביטול</button>
       </div>
     </form>
   </dialog>

@@ -68,7 +68,7 @@ import {
 } from './office-marks.js';
 import { partsIL, dayKeyIL, atTimeIL, addDaysIL, dayFromKeyIL, daysBetweenIL, weekdayIL } from './tz.js';
 import {
-  missingOf, missingText, briefingOf, pauseText, arrivalOf, driveName, noteOf,
+  missingOf, reportOf, missingWords, missingText, briefingOf, pauseText, arrivalOf, driveName, noteOf,
 } from './production.js';
 // The client's logins form (6.10.2026): filled, or still waiting (rules accessForm, accessLink).
 import { linkState, summaryText, platformName } from './access-logic.js';
@@ -1261,20 +1261,23 @@ export const RULES = [
     ],
   },
 
-  // 22: the editor pressed "חסר לוגו / טלפון / חומר" (p22.missing, while the editing
-  // waits: its deadline is "חסום", not late). Irit at once; Lior after 3 office
-  // hours (decision 7). It stops when the wait ends.
+  // 22: the editor reported something missing (p22.missing). Stopped ("לעצור את העריכה":
+  // the editing waits, its deadline is "חסום", not late): Irit at once; Lior after 3
+  // office hours (decision 7); it stops when the wait ends. Going on ("קיבלתי את הכונן
+  // והתחלתי" with a line answered "חסר", 22.10.2026): Irit at once, with what the editor
+  // wrote under each line; the clock runs, and part of the footage is Lior's own task
+  // (app/production.js materialTask), so no 3-hour ring.
   {
     id: 'editorMissing', event: 'חסר לוגו, טלפון או חומר (22)', procs: ['p22'],
     instances(env) {
-      return casesOf(env, 'p22', (i) => !!missingOf(i.checks, i.pre)).map((i) => {
-        const m = missingOf(i.checks, i.pre);
-        return { ...i, id: `${i.proc.id}@${m.at.toISOString()}`, who: editorNames(i.ctx), missing: m, anchors: { event: m.at } };
+      return casesOf(env, 'p22', (i) => !!(missingOf(i.checks, i.pre) || reportOf(i.checks, i.pre))).map((i) => {
+        const m = missingOf(i.checks, i.pre) || reportOf(i.checks, i.pre);
+        return { ...i, id: `${i.proc.id}@${m.at.toISOString()}`, who: editorNames(i.ctx), missing: m, going: m.going, anchors: { event: m.at } };
       });
     },
     steps: [
-      { id: 'irit', to: 'irit', level: 'ring', title: (i) => `חסר לעורך: ${i.name}`, body: (i) => `${i.who ? `${i.who}: ` : ''}חסר ${missingText(i.missing.what) || 'חומר'}${i.missing.note ? ` (${i.missing.note})` : ''}. העריכה חסומה עד שזה מגיע.` },
-      { id: 'lior', officeMinutes: 180, to: 'lior', level: 'ring', exception: true, title: (i) => `עריכה חסומה 3 שעות: ${i.name}`, body: (i) => `חסר ${missingText(i.missing.what) || 'חומר'}${i.who ? ` אצל ${i.who}` : ''}. עירית עוד לא סגרה את זה.` },
+      { id: 'irit', to: 'irit', level: 'ring', title: (i) => `חסר לעורך: ${i.name}`, body: (i) => `${i.who ? `${i.who}: ` : ''}חסר ${missingWords(i.missing) || 'חומר'}${i.missing.note ? ` (${i.missing.note})` : ''}. ${i.going ? 'העריכה ממשיכה.' : 'העריכה חסומה עד שזה מגיע.'}` },
+      { id: 'lior', officeMinutes: 180, to: 'lior', level: 'ring', exception: true, when: (i) => !i.going, title: (i) => `עריכה חסומה 3 שעות: ${i.name}`, body: (i) => `חסר ${missingText(i.missing.what) || 'חומר'}${i.who ? ` אצל ${i.who}` : ''}. עירית עוד לא סגרה את זה.` },
     ],
   },
 

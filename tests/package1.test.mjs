@@ -252,7 +252,7 @@ test('the assignment opens Ofir\'s Drive folder task, as before (since protocol 
 });
 
 test('a failed upload (optional now) can still be reported with "חסר…"', () => {
-  assert.deepEqual(MISSING_WHAT.map(([k]) => k), ['logo', 'phone', 'footage', 'upload']);
+  assert.deepEqual(MISSING_WHAT.map(([k]) => k), ['logo', 'phone', 'footage', 'scripts', 'upload']);
 });
 
 test('the characterization is read, outside the office, by Ilai and Nirel only', () => {

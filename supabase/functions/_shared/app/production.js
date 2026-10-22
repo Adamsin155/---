@@ -10,10 +10,11 @@
 // are used where they exist; the states between them are process marks, like the
 // existing `pNN.wait` and `pNN.pause`. In a shoot round the keys carry its prefix
 // ('r2.p22.received'). The marks added here:
-//   p22.missing  the editor reported a missing logo / phone / footage (note JSON
-//                { what: ['logo', 'phone', 'footage'], note }); it holds while the
-//                process waits (p22.wait, and p24/p27 with it), so the deadline is
-//                "חסום", not late (decision 3 moves it on by the blocked time)
+//   p22.missing  the editor reported a missing logo / phone / footage / scripts (note
+//                JSON { what, note, notes, have, of, going }; MISSING_WHAT below). A
+//                blocking one holds while the process waits (p22.wait, and p24/p27
+//                with it), so the deadline is "חסום", not late (decision 3 moves it on
+//                by the blocked time); a going one (22.10.2026) leaves the clock running
 //   p27.fixed    the client's fixes done so far (note JSON { videos: [n] }); all of
 //                them = the existing item p27.fixes
 //   p16.brief    Lior's briefing to Eli (note JSON { label, notes }): the drive label
@@ -152,20 +153,81 @@ export function clientFixedOf(checks, pre = '') {
 }
 export const clientFixedNote = (videos) => JSON.stringify({ videos: nums(videos) });
 
-// "חסר לוגו / טלפון / חומר": reported, and still holding the process (its wait).
+// "חסר לוגו / טלפון / חומר": what the editor reported missing (p22.missing, note JSON
+// { what, note, notes, have, of, going }). Two kinds (Anna and Irit, 22.10.2026):
+//   - going: the editing goes on and its clock runs ("קיבלתי את הכונן והתחלתי" with a
+//     line answered "חסר", or "לדווח, והעריכה ממשיכה"); no wait. Irit is rung, and for
+//     part of the footage Lior gets a task (materialTask).
+//   - blocked: "לעצור את העריכה", the real can't-start case; the process waits (its wait
+//     holds the report), so the deadline is "חסום", not late.
+// `notes` is what the editor wrote under each missing thing ({ logo: 'מטושטש' });
+// `have`/`of`: the footage there is for `have` of the editor's `of` videos.
 // 'upload': a video does not go up into the system (uploading there is optional: the
 // videos are handed over in the client's Drive; a failed upload can still be reported).
-export const MISSING_WHAT = [['logo', 'לוגו'], ['phone', 'טלפון העסק'], ['footage', 'חומר צילום'], ['upload', 'העלאה למערכת (לא עובדת)']];
+export const MISSING_WHAT = [['logo', 'לוגו'], ['phone', 'טלפון העסק'], ['footage', 'חומר צילום'], ['scripts', 'תסריטים וסדר הסרטונים'], ['upload', 'העלאה למערכת (לא עובדת)']];
 export const missingText = (what) => MISSING_WHAT.filter(([k]) => (what || []).includes(k)).map(([, l]) => l).join(', ');
+// The start check each missing thing stands for (the four of START_CHECKS).
+export const CHECK_OF = { logo: 'p22.check.logo', phone: 'p22.check.phone', footage: 'p22.check.footage', scripts: 'p22.check.scripts' };
+export const missingKeyOf = (check) => Object.keys(CHECK_OF).find((k) => CHECK_OF[k] === check) || null;
+export const NOTE_MAX = 200; // what is missing, per line
+const cleanNotes = (notes, what) => Object.fromEntries(Object.entries(notes && typeof notes === 'object' ? notes : {})
+  .map(([k, t]) => [k, String(t ?? '').trim().slice(0, NOTE_MAX)]).filter(([k, t]) => t && what.includes(k)));
+const videoCount = (n) => (Number.isInteger(n) && n >= 0 && n <= 999 ? n : null);
+function readReport(m) {
+  const v = json(m.note) || {};
+  const what = Array.isArray(v.what) ? v.what : [];
+  const have = what.includes('footage') ? videoCount(v.have) : null;
+  return {
+    at: new Date(m.at), what, note: String(v.note || ''), notes: cleanNotes(v.notes, what),
+    have, of: have === null ? null : videoCount(v.of) || null, going: v.going === true, by_email: m.by_email,
+  };
+}
+// The blocking report, while its wait holds the process.
 export function missingOf(checks, pre = '') {
   const m = checks?.[`${pre}p22.missing`];
   if (!m || m.state !== 'done' || !done(checks, `${pre}p22.wait`)) return null;
-  const v = json(m.note) || {};
-  return { at: new Date(m.at), what: Array.isArray(v.what) ? v.what : [], note: String(v.note || ''), by_email: m.by_email };
+  const r = readReport(m);
+  return r.going ? null : r;
 }
-export const missingNote = (what, note = '') => JSON.stringify({ what, note: String(note || '').trim() });
+// The report made while the editing goes on, until it is closed ("הגיע הכול", or "מוכן לבדיקה").
+export function reportOf(checks, pre = '') {
+  const m = checks?.[`${pre}p22.missing`];
+  if (!m || m.state !== 'done') return null;
+  const r = readReport(m);
+  return r.going ? r : null;
+}
+export const missingNote = (what, note = '', { notes = null, have = null, of = null, going = false } = {}) => {
+  const n = cleanNotes(notes, what);
+  const h = what.includes('footage') ? videoCount(have) : null;
+  return JSON.stringify({
+    what, note: String(note || '').trim(), ...(Object.keys(n).length ? { notes: n } : {}),
+    ...(h !== null ? { have: h, of: videoCount(of) || null } : {}), ...(going ? { going: true } : {}),
+  });
+};
+// "חומר ל־14 מתוך 36" (or "חומר ל־14 סרטונים" when the editor's part is not known).
+export const materialText = (have, of) => `חומר ל־${have}${of ? ` מתוך ${of}` : ' סרטונים'}`;
+// Each missing thing with the words written under it: "לוגו (מטושטש), חומר צילום (חומר ל־14 מתוך 36)".
+export function missingWords(r) {
+  if (!r) return '';
+  return MISSING_WHAT.filter(([k]) => r.what.includes(k)).map(([k, l]) => {
+    const extra = [k === 'footage' && r.have !== null ? materialText(r.have, r.of) : null, r.notes?.[k] || null].filter(Boolean);
+    return extra.length ? `${l} (${extra.join(', ')})` : l;
+  }).join(', ');
+}
 // The reason written on the processes' wait while blocked.
 export const blockedReason = (what) => `חסר לעורך: ${missingText(what) || 'חומר'}`;
+// Part of the footage is missing: Lior plans the rest (a completion or a shoot day). One open
+// task per shoot round, due the next business day; found again by its title.
+export const MATERIAL_TITLE = 'להשלים חומר';
+export const materialPrefix = (round = 1) => `${MATERIAL_TITLE}${round > 1 ? ` (סבב ${round})` : ''}:`;
+export function materialTask(client, round, r, now = new Date()) {
+  const said = r.notes?.footage ? ` (${r.notes.footage})` : '';
+  return {
+    client_id: client.id, owner: 'lior', urgent: false, due_on: dayKeyIL(addBusinessDays(now, 1)),
+    title: `${materialPrefix(round)} יש ל־${r.have}${r.of ? ` מתוך ${r.of}` : ' סרטונים'}${said} — לקבוע השלמה/יום צילום`.slice(0, 500),
+  };
+}
+export const isMaterialTask = (t, round = 1) => !t.done_at && t.owner === 'lior' && String(t.title || '').startsWith(materialPrefix(round));
 // The editor's processes that stop (and move on) while the editing is blocked.
 export const BLOCKS = ['p22', 'p24', 'p27'];
 
@@ -219,13 +281,14 @@ export const ilaiGot = (checks, pre = '') => ['p27.toilai', 'p28.scheduled', 'p2
 //   final        → (4) "תיקונים הושלמו, הגרסאות הסופיות בדרייב"
 //   ilai         with Ilai until he marks "קיבלתי"
 //   done         closed
-// `blocked` (a missing logo / phone / footage) and `paused` can sit on any open state.
+// `blocked` (a missing logo / phone / footage that stopped the editing), `report` (one
+// reported while the editing goes on) and `paused` can sit on any open state.
 export function editorState(job, checks) {
   const k = (x) => `${job.pre}${x}`;
   const is = (x) => done(checks, k(x));
   const pause = checks?.[k('p22.pause')]?.state === 'done' ? (json(checks[k('p22.pause')].note) || {}) : null;
-  const base = { blocked: missingOf(checks, job.pre), paused: pause ? { ...pause, at: checks[k('p22.pause')].at, by_email: checks[k('p22.pause')].by_email } : null };
-  if (ilaiGot(checks, job.pre)) return { ...base, key: 'done', blocked: null, paused: null };
+  const base = { blocked: missingOf(checks, job.pre), report: reportOf(checks, job.pre), paused: pause ? { ...pause, at: checks[k('p22.pause')].at, by_email: checks[k('p22.pause')].by_email } : null };
+  if (ilaiGot(checks, job.pre)) return { ...base, key: 'done', blocked: null, report: null, paused: null };
   if (is('p27.final')) return { ...base, key: 'ilai' };
   if (!is('p22.received')) return { ...base, key: 'waiting' };
   if (is('p25.approved')) {
@@ -554,7 +617,11 @@ export function markHistory(base, r) {
   const clear = r.action === 'clear';
   const v = json(r.note) || {};
   switch (base) {
-    case 'p22.missing': return clear ? 'סימן/ה שהחוסר אצל העורך טופל' : `דיווח/ה שחסר לעריכה: ${missingText(v.what) || 'חומר'}${v.note ? ` (${v.note})` : ''}`;
+    case 'p22.missing': {
+      if (clear) return 'סימן/ה שהחוסר אצל העורך טופל';
+      const m = readReport(r);
+      return `דיווח/ה שחסר לעריכה: ${missingWords(m) || 'חומר'}${m.note ? ` (${m.note})` : ''}${m.going ? ', והעריכה ממשיכה' : ''}`;
+    }
     case 'p27.fixed': return clear ? null : `סימן/ה תיקוני לקוח: סרטונים ${nums(v.videos).join(', ') || '—'}`;
     case 'p16.brief': return clear ? 'ביטל/ה את התדריך לאלי' : `שלח/ה תדריך לאלי${v.label ? `, ${driveName(v.label)}` : ''}`;
     case 'p17b.brollq': return clear ? null : r.note === 'no' ? 'ענה/תה שהבי־רול לא גמור' : 'ענה/תה שהבי־רול גמור';

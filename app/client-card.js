@@ -25,7 +25,7 @@ import { googleCalendarUrl, downloadIcs } from './calendar.js';
 import { inviteFor, emailsOf, clientEmails, guestNames } from './calendar-view.js';
 import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
 import { describeMark } from './handoffs.js';
-import { markHistory, filesOf, fileLine, filesHint } from './production.js';
+import { markHistory, filesOf, fileLine, filesHint, reportOf, missingWords, CHECK_OF, isMaterialTask } from './production.js';
 import { progressMap, editedLine } from './edit-count.js';
 import { loadEditorProgress } from './production-data.js';
 import { canManageTeam, isOwnerView } from './team-rules.js';
@@ -1086,6 +1086,35 @@ async function endWait(x) {
   });
 }
 
+// What the editor reported missing while the editing goes on (app/editor.js; 22.10.2026):
+// each thing with the editor's words and "חומר ל־14 מתוך 36", and "הגיע הכול" for the office
+// (and the editor). A report that stopped the editing is the process's wait line instead.
+const reportPre = (x) => { const kb = x.proc.keyBase || x.proc.id; return kb.slice(0, kb.length - 'p22'.length); };
+function reportLine(x) {
+  const r = reportOf(checks, reportPre(x));
+  if (!r) return null;
+  const can = !own() || !!PEOPLE[me]?.editor;
+  return h('div', { class: 'wait-line report-line', id: `${x.proc.id}-report` },
+    h('span', {}, `חסר לעורך: ${missingWords(r) || 'חומר'} · ${who(r.by_email)} · ${formatStamp(r.at)} · העריכה ממשיכה${r.note ? ` · ״${r.note}״` : ''}`),
+    can ? h('button', { type: 'button', class: 'btn-text', id: `${x.proc.id}-arrived`, onclick: () => endReport(x) }, 'הגיע הכול') : null);
+}
+// Everything came: the report closes, its checks are marked, and Lior's task for the rest
+// of the footage closes with it.
+async function endReport(x) {
+  const pre = reportPre(x);
+  const r = reportOf(checks, pre);
+  if (!r || !await mark(`${pre}p22.missing`, null, null)) return;
+  for (const k of r.what.map((w) => CHECK_OF[w]).filter(Boolean)) {
+    if (checks[pre + k]?.state !== 'done' && !await mark(pre + k, 'done', null)) return;
+  }
+  const round = pre ? Number(pre.slice(1, -1)) : 1;
+  for (const t of tasks.filter((t2) => isMaterialTask(t2, round))) {
+    try { const row = await setTaskDone(t.id, true); tasks = tasks.map((t2) => (t2.id === t.id ? row : t2)); } catch { /* it stays open */ }
+  }
+  renderTasks();
+  toast('סומן שהכול הגיע לעריכה.');
+}
+
 // Editing paused for another task: who, at what stage, what is left, and for what.
 function pauseLine(x) {
   const p = pauseOf(x.proc, checks);
@@ -1229,6 +1258,7 @@ function procCard(x, now, s) {
     compact ? null : [
       waitLine(x),
       pid === 'p22' || pid === 'p27' ? pauseLine(x) : null,
+      pid === 'p22' ? reportLine(x) : null,
       p.ownerNote ? h('p', { class: 'proc-note' }, p.ownerNote) : null,
       missing.length ? h('div', { class: 'need', role: 'note' },
         h('span', {}, `חסר בפרטי הלקוח: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`, own() ? ' המשרד משלים אותם.' : ''),
