@@ -14,7 +14,8 @@
 //     due day, with a ready "we got it" message; when that task is done, the database
 //     opens "לעדכן את הלקוח" for her, shown here with a ready message.
 import { PEOPLE, STAFF_PEOPLE, SHOOT_TYPES } from './protocol.js';
-import { clientState, parseDate } from './protocol-logic.js';
+// Each client by the business first, then the person: "בוטיק אלאור · ניב" (Irit, 22.10.2026).
+import { clientState, parseDate, clientLabel } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, setTaskDone, updateClient, loadDirectory, quoteFacts,
 } from './protocol-data.js';
@@ -140,7 +141,7 @@ function render(focusId = document.activeElement?.id) {
   const list = entries();
   const blockers = list.reduce((n, e) => n + (e.prep?.blockers.length || 0), 0);
   const open = list.filter((e) => !e.coord.fullyClosed).length;
-  const summary = [only && clientOf(only) ? clientOf(only).name : null,
+  const summary = [only && clientOf(only) ? clientLabel(clientOf(only)) : null,
     list.length ? `${list.length === 1 ? 'יום צילום אחד' : `${list.length} ימי צילום`} בהכנה` : 'אין ימי צילום בהכנה',
     open ? `${open} עוד לא סגורים מול כולם` : null, blockers ? `${blockers === 1 ? 'חוסם אחד' : `${blockers} חוסמים`}` : null].filter(Boolean).join(' · ');
   if ($('pp-summary').textContent !== summary) $('pp-summary').textContent = summary;
@@ -164,7 +165,7 @@ function shootCard(e) {
     h('div', { class: `pp-head${e.shoot ? ' has-leaf' : ''}` },
       e.shoot ? dateLeaf({ ...leafOf(e.shoot), ...(blocked ? { tone: 'pink' } : coord.fullyClosed ? { tone: 'green' } : {}) }) : null,
       ((h2) => (e.shoot ? h2 : headIcon(h2, 'camera', blocked ? 'pink' : coord.fullyClosed ? 'green' : 'teal', { size: 'md' })))(
-        h('h2', {}, h('a', { href: cardUrl(c.id, `#${x.pid}p11`) }, c.name), round, c.landing === true ? [' ', landingTag(c)] : null)),
+        h('h2', {}, h('a', { href: cardUrl(c.id, `#${x.pid}p11`) }, clientLabel(c)), round, c.landing === true ? [' ', landingTag(c)] : null)),
       h('span', { class: 'pp-when' }, [e.shoot ? `יום צילום ${formatStamp(e.shoot)}` : 'יום הצילום טרם נקבע', coord.shootType ? SHOOT_TYPES[coord.shootType]?.name : null].filter(Boolean).join(' · '))),
     coordinatorBlock(e, k),
     prep ? blockersBlock(e, k) : null,
@@ -197,7 +198,7 @@ function followRow(r, list, now) {
   // The row opens with the leaf of the shoot's day; with no date yet, an amber calendar (it waits to be set).
   const head = h('div', { class: 'pp-follow-h has-leaf' },
     r.shootAt ? dateLeaf(leafOf(r.shootAt, now)) : iconSquare('calendar', 'orange', { size: 'lg' }),
-    h('strong', {}, h('a', { href: `#shoot-${k}` }, c.name), r.n > 1 ? ` · סבב ${r.n}` : ''),
+    h('strong', {}, h('a', { href: `#shoot-${k}` }, clientLabel(c)), r.n > 1 ? ` · סבב ${r.n}` : ''),
     h('span', { class: 'muted' }, when),
     found ? h('a', { class: 'pp-follow-found', href: `#bl-${k}` }, `המערכת מצאה ${found === 1 ? 'חוסם אחד' : `${found} חוסמים`}`) : null);
   if (open) {
@@ -243,7 +244,7 @@ async function answerFollowup(r, k, answer) {
     if (!tasks.some((t) => t.client_id === c.id && !t.done_at && t.brief?.blocker === task.brief.blocker)) {
       try { tasks.push(await insertTask(task)); toast('נשמר. ליאור קיבל הודעה.'); } catch (err) { toast(`נשמר, אבל ההודעה לליאור לא נשלחה. ${errorText(err)}`); }
     } else toast('נשמר. ליאור כבר קיבל על זה הודעה היום.');
-  } else if (saved) toast(`${c.name}: הכול תקין להיום.`);
+  } else if (saved) toast(`${clientLabel(c)}: הכול תקין להיום.`);
   if (saved) { stuckOpen = null; stuckDraft.delete(`${c.id}:${r.pre}`); }
   busy = false;
   render(`fu-${k}-stuck`);
@@ -451,7 +452,7 @@ async function submitDayBefore(e, k) {
 const OWNERS = () => STAFF_PEOPLE();
 function requestsBlock() {
   const now = new Date();
-  const liveClients = clients.filter(live).sort((a, b) => a.name.localeCompare(b.name, 'he'));
+  const liveClients = clients.filter(live).sort((a, b) => clientLabel(a).localeCompare(clientLabel(b), 'he'));
   const visible = (t) => !only || t.client_id === only;
   const tells = requests.filter((t) => t.source === TELL && !t.done_at && visible(t));
   const openReq = requests.filter((t) => t.source === REQUEST && !t.done_at && visible(t));
@@ -464,7 +465,7 @@ function requestsBlock() {
     h('form', { class: 'pp-form', id: 'rq-form', novalidate: true, onsubmit: (ev) => { ev.preventDefault(); submitRequest(); } },
       h('div', { class: 'field' }, h('label', { for: 'rq-client' }, 'לקוח'),
         h('select', { class: 'input', id: 'rq-client', ...inv('client'), onchange: (ev) => { reqDraft.client = ev.currentTarget.value; } },
-          h('option', { value: '' }, 'בחירת לקוח…'), ...liveClients.map((c) => h('option', { value: c.id, selected: reqDraft.client === c.id }, c.name))), err('client')),
+          h('option', { value: '' }, 'בחירת לקוח…'), ...liveClients.map((c) => h('option', { value: c.id, selected: reqDraft.client === c.id }, clientLabel(c)))), err('client')),
       h('div', { class: 'field' }, h('label', { for: 'rq-text' }, 'מה הלקוח ביקש'),
         (() => { const t = h('textarea', { class: 'input ik-text', id: 'rq-text', rows: '2', lang: 'he', dir: 'auto', maxlength: '500', ...inv('text'), oninput: (ev) => { reqDraft.text = ev.currentTarget.value; } }); t.value = reqDraft.text; return t; })(), err('text')),
       h('div', { class: 'row2' },
@@ -491,7 +492,7 @@ function requestsBlock() {
         const c = clientOf(t.client_id);
         const late = t.due_on && t.due_on < dayKeyIL(now);
         return h('li', { class: 'pp-request' },
-          h('p', {}, h('a', { href: cardUrl(t.client_id, '#tasks') }, c?.name || 'לקוח'), ` · ${clean(t.title)}`),
+          h('p', {}, h('a', { href: cardUrl(t.client_id, '#tasks') }, c ? clientLabel(c) : 'לקוח'), ` · ${clean(t.title)}`),
           h('p', { class: 'hint' }, [`אצל ${PEOPLE[t.owner]?.name || t.owner}`, t.due_on ? `עד ${formatDay(t.due_on)}` : null, late ? 'באיחור' : null, t.urgent ? 'דחוף' : null,
             `נפתח ${formatStamp(t.created_at)}`].filter(Boolean).join(' · ')));
       })) : emptyState({ icon: 'inbox', tone: 'blue', cls: 'muted', text: 'אין בקשות פתוחות.' })));
@@ -502,7 +503,7 @@ function tellRow(t) {
   const text = tellMessage(c, requestOf(t));
   const rid = `tell-${safeId(t.id)}`;
   return h('li', { class: 'pp-request', id: rid },
-    h('p', {}, h('strong', {}, c.name), ` · ${requestOf(t)}`),
+    h('p', {}, h('strong', {}, clientLabel(c)), ` · ${requestOf(t)}`),
     h('p', { class: 'hint' }, `טופל${t.brief?.done_by ? ` ע״י ${who(t.brief.done_by)}` : ''} · ${formatStamp(t.created_at)}`),
     h('p', { class: 'pp-msg' }, text),
     h('div', { class: 'pp-acts' },
@@ -516,7 +517,7 @@ function missingRow(t) {
   const text = missingMessage(c, m.missing.length ? m.missing : [clean(t.title.slice(MISSING_TITLE.length + 1))], m.got, m.of);
   const rid = `miss-${safeId(t.id)}`;
   return h('li', { class: 'pp-request', id: rid },
-    h('p', {}, h('a', { href: cardUrl(c.id, '#p05') }, c.name), ` · ${clean(t.title.slice(MISSING_TITLE.length + 1))}`),
+    h('p', {}, h('a', { href: cardUrl(c.id, '#p05') }, clientLabel(c)), ` · ${clean(t.title.slice(MISSING_TITLE.length + 1))}`),
     h('p', { class: 'pp-msg' }, text),
     h('div', { class: 'pp-acts' },
       h('a', { class: 'btn', href: waLink(c.phone, text), target: '_blank', rel: 'noopener' }, 'שליחה בוואטסאפ', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')),

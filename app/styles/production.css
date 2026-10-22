@@ -89,6 +89,17 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
 .ed-blocked p, .ed-pause p { margin: 0; flex: 1 1 220px; }
 .ed-blocked .btn, .ed-pause .btn { min-height: 44px; }
 .ed-pause-btn { justify-self: start; min-height: 44px; }
+/* Reported while the editing goes on (22.10.2026): "חומר ל־14 מתוך 36" first, then each
+   missing thing with the editor's words, and "הגיע הכול". */
+.ed-report {
+  display: grid; gap: 6px; padding: 10px 12px; justify-items: start;
+  border-radius: var(--radius-sm); background: var(--warn-soft); border: 1px solid var(--warn-line);
+}
+.ed-report > * { margin: 0; }
+.ed-report-n { font-size: 17px; font-weight: 700; color: var(--warn); }
+.ed-report-list { list-style: none; padding: 0; display: grid; gap: 2px; font-size: 15px; overflow-wrap: anywhere; }
+.ed-report .hint { font-size: 13.5px; }
+.ed-report .btn { min-height: 44px; }
 
 /* Fixes, one row per video. */
 .ed-fixes { display: grid; gap: 8px; }
@@ -214,6 +225,34 @@ dialog.ed-dlg .prod-check .cbx { margin-top: 0; }
 dialog.ed-dlg .prod-check span { min-inline-size: 0; }
 dialog.ed-dlg .dlg-foot { flex: none; align-items: center; padding: 12px 20px 16px; border-top: 1px solid var(--line); }
 dialog.ed-dlg .dlg-foot .btn { min-height: 44px; white-space: normal; }
+/* The start dialog: "יש" / "חסר" for each of the four (two buttons, 44px), and under a
+   "חסר" what exactly is missing; "מה חסר?" opens the same words under each ticked line
+   (the owner, 22.10.2026). The actions stack, the main one first and the line under it. */
+dialog.ed-dlg #start-list, dialog.ed-dlg #miss-list { display: grid; gap: 6px; min-inline-size: 0; }
+.ed-q {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 10px;
+  padding-block: 8px; padding-inline: 12px 8px; border-radius: var(--ds-r-ctl); background: var(--panel);
+}
+.ed-q.is-no, .ed-mq.is-no { background: var(--warn-soft); }
+.ed-q-l { font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
+.ed-yn { display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--ds-surface); border: 1px solid var(--line); }
+.ed-yn-o { position: relative; display: inline-flex; }
+.ed-yn-o input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.ed-yn-o span { display: grid; place-items: center; min-block-size: 44px; min-inline-size: 58px; padding-inline: 12px; border-radius: 999px; font-weight: 600; color: var(--text-2); }
+.ed-yn-o:hover input:not(:checked) + span { background: var(--panel); }
+.ed-yn-o input:checked + span { background: var(--ok); color: #fff; }
+.ed-yn-o.is-no input:checked + span { background: var(--warn); color: #fff; }
+.ed-yn-o input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+.ed-q-more { grid-column: 1 / -1; display: grid; gap: 8px; min-inline-size: 0; }
+dialog.ed-dlg .ed-q-more .field > label { font-size: 14px; font-weight: 500; }
+.ed-have { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-weight: 600; }
+.ed-have-n { inline-size: 72px; min-block-size: 44px; text-align: center; font-size: 18px; font-weight: 600; padding-inline: 6px; }
+.ed-mq { display: grid; border-radius: var(--ds-r-ctl); background: var(--panel); min-inline-size: 0; }
+dialog.ed-dlg .ed-mq .prod-check { background: transparent; }
+.ed-mq .ed-q-more { padding: 0 12px 10px; }
+dialog.ed-dlg .ed-start-foot, dialog.ed-dlg .ed-miss-foot { flex-direction: column; align-items: stretch; gap: 8px; }
+dialog.ed-dlg .ed-start-foot .btn, dialog.ed-dlg .ed-miss-foot .btn { justify-content: center; text-align: center; }
+dialog.ed-dlg .ed-start-foot .hint { margin: 0; text-align: center; font-size: 13.5px; }
 @media (max-width: 480px) {
   dialog.ed-dlg { max-inline-size: calc(100vw - 16px); }
   dialog.ed-dlg .dlg-head { padding: 14px 12px 8px 14px; }

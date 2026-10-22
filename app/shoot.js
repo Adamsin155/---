@@ -309,7 +309,7 @@ function eliDay(sc, now) {
       }), h('span', {}, l))),
     h2.eli
       ? h('p', { class: h2.lior ? 'note-ok' : 'ed-wait' }, h2.lior
-        ? `המסירה אושרה. אפשר לפרמט את הכרטיסים של ${sc.client.name}${label ? `, ${P.driveName(label)}` : ''}.`
+        ? `המסירה אושרה. אפשר לפרמט את הכרטיסים של ${clientLabel(sc.client)}${label ? `, ${P.driveName(label)}` : ''}.`
         : `מסרת ${P.clockText(h2.eli)}. ממתין שליאור יאשר שקיבל.`)
       : h('div', { class: 'ed-act' },
         // The shooting guidance was followed: its items close with the handoff (fixed text, not a checklist).
@@ -517,7 +517,7 @@ function briefingForm({ day, scs }, now) {
       b ? h('p', { class: b.ack ? 'note-ok' : 'ed-wait' }, `נשלח ${formatWhen(b.at, now)}${b.label ? ` · ${P.driveName(b.label)}` : ''}. ${b.ack ? `אלי אישר ${formatWhen(b.ack, now)}.` : 'אלי עוד לא אישר (ב־20:00 תקבל תזכורת).'}`) : null,
       // v10: whether he read the scripts of this day (his own tick).
       h('p', { class: read ? 'note-ok' : 'ed-wait', id: `${cid}-read` }, read ? `אלי קרא את התסריטים ${formatWhen(read, now)}.` : 'אלי עוד לא סימן שקרא את התסריטים.'),
-      canAct ? h('div', { class: 'field sh-blabel' }, h('label', { for: `${cid}-label` }, many ? `תווית הכונן · ${sc.client.name}` : 'תווית הכונן'),
+      canAct ? h('div', { class: 'field sh-blabel' }, h('label', { for: `${cid}-label` }, many ? `תווית הכונן · ${clientLabel(sc.client)}` : 'תווית הכונן'),
         h('input', { class: 'input', id: `${cid}-label`, maxlength: 60, autocomplete: 'off', value: b?.label || '', 'aria-describedby': `${id}-err${many && i === 0 ? ` ${id}-same` : ''}` }),
         many && i === 0 ? h('p', { class: 'hint', id: `${id}-same` }, 'אותו כונן לכל היום? מספיק למלא כאן.') : null) : null);
   };
