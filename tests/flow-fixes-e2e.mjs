@@ -371,6 +371,11 @@ try {
     const rows = page.locator('#pp-followup .pp-follow-row');
     assert.equal(await rows.count(), 4);
     assert.match(await text(rows.first()), /לביא רכב|תומר לביא/, 'the nearest shoot first');
+    // The business first, then the person (Irit, 22.10.2026): on the row, and on the shoot day's card.
+    assert.equal(await text(rows.first().locator('strong a')), 'לביא רכב · תומר לביא');
+    assert.equal(await text(page.locator(`#shoot-${SOON}-1 h2 a`)), 'לביא רכב · תומר לביא');
+    assert.ok((await page.locator('#rq-client option').allInnerTexts()).includes('לביא רכב · תומר לביא'), 'the request form picks a client the same way');
+    await shot(page.locator(`#shoot-${SOON}-1`), 'irit-prep-shoot-card');
     for (const id of [LANDING, OLD, PUBLISH, ONGOING]) assert.equal(await page.locator(`#fu-${id}-1`).count(), 0, id);
     await noOverflow(page);
     await shot(page.locator('#followup'), 'irit-followup-list');

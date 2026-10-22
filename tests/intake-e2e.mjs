@@ -504,6 +504,18 @@ await step('the coordinator (11): a separate approval for each side; the day is 
   await signIn(irit, 'prep.html', 'irit@astrateg.test');
   const card = `#shoot-${B.id.replace(/[^\w-]/g, '_')}-1`;
   await irit.waitForSelector(card);
+  // The business first, then the person (Irit, 22.10.2026); a client with no business name: the name alone.
+  assert.equal((await irit.locator(`${card} h2 a`).innerText()).trim(), 'קפה גולן בע״מ · קפה גולן');
+  assert.equal((await irit.locator(`#shoot-${C.id.replace(/[^\w-]/g, '_')}-1 h2 a`).innerText()).trim(), 'מאפיית שי');
+  assert.ok((await irit.locator('#rq-client option').allInnerTexts()).includes('קפה גולן בע״מ · קפה גולן'));
+  if (OUT) {
+    await irit.setViewportSize({ width: 390, height: 844 });
+    await irit.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+    await irit.waitForTimeout(400);
+    await irit.screenshot({ path: `${OUT}/09-prep-rows-390.png` });
+    await shotOf(irit, `${card} .pp-head`, '09-prep-shoot-card-head-390');
+    await irit.setViewportSize(PHONE);
+  }
   assert.match(await irit.locator(`${card} .pp-status`).first().innerText(), /עוד לא סגור · חסר: אישור לקוח, אישור משפיענים, אישור ליאור, אישור אלי/);
   const btn = (k) => `${card} #pty-${B.id.replace(/[^\w-]/g, '_')}-1-${k.replace(/\./g, '-')}`;
   for (const k of ['p11.ok.client', 'p11.ok.influencers', 'p11.ok.lior', 'p11.ok.photographer', 'p11.influencers']) {
