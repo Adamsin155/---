@@ -1,6 +1,6 @@
 // Data for the content Gantt (gantt.html). Row level security decides who reads and
 // writes (supabase/migrations/20261003130000_content_gantt.sql and, since 6.10.2026,
-// 20261007100000_gantt_roles_statuses.sql): Ilai and the owner write, the rest of the
+// 20261007100000_gantt_roles_statuses.sql): Ilai, Irit (since 22.10.2026, 20261102100000_gantt_irit.sql) and the owner write, the rest of the
 // office and whoever sees the client read. Who and when are stamped by the database.
 // Until the Gantt's migration is applied the plan reads as null ("not there yet")
 // and the page says so. The client's files (public.client_files, the files'

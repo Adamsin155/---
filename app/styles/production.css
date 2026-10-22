@@ -52,6 +52,13 @@
 .ed-pair { margin: 2px 0 0; font-size: 15px; color: var(--text-2); }
 .ed-dates { font-size: 15px; color: var(--text-2); }
 .ed-dates.is-blocked { color: var(--warn); }
+/* "ערכתי [ N ] מתוך M": one line, the steps big enough for a thumb (22.10.2026). */
+.ed-count { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 16px; }
+.ed-count-k { font-weight: 600; color: var(--text); }
+.ed-count-ctl { display: inline-flex; align-items: center; gap: 6px; }
+.ed-count-n { inline-size: 64px; min-height: 44px; text-align: center; font-size: 18px; font-weight: 600; padding-inline: 6px; }
+.ed-count-of { color: var(--text-2); }
+.ed-count-s { font-size: 13.5px; color: var(--muted); min-inline-size: 3em; }
 .ed-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 14.5px; color: var(--text-2); }
 .ed-links, .sh-nav { display: flex; flex-wrap: wrap; gap: 8px; }
 .ed-links .btn, .sh-nav .btn, .ed-sheet .btn { min-height: 44px; display: inline-flex; align-items: center; }

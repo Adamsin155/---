@@ -44,7 +44,7 @@ let h;
 let client = null;
 let rows = [];          // the plan's entries
 let files = null;       // Map id -> file (null: no files table yet)
-let canEdit = false;    // Ilai and the owner: everything
+let canEdit = false;    // Ilai, Irit (22.10.2026: the links of the videos) and the owner: everything
 let canConnect = false; // Metricool's brand: Ilai, the owner and Ofir (v11: connecting is his step)
 let canShare = false;   // the office (and Ilai): the client's read-only link, and the index
 let brandUi = null;     // app/gantt-brand.js (staff only)
@@ -123,9 +123,9 @@ async function boot() {
     const id = params.get('id');
     const [dir, viewer] = await Promise.all([loadDirectory().catch(() => ({})), ui.viewerOf(staff.email)]);
     Object.assign(ui.directory, dir);
-    // Ilai and the owner change the Gantt; the office (Irit, Lior, Ofir) reads and shares the client's link.
+    // Ilai, Irit (22.10.2026) and the owner change the Gantt; the office (Lior, Ofir) reads and shares the client's link.
     canShare = worksCycle(viewer);
-    canEdit = !viewer.error && (viewer.me === 'ilai' || isOwnerView(viewer));
+    canEdit = !viewer.error && (viewer.me === 'ilai' || viewer.me === 'irit' || isOwnerView(viewer));
     canConnect = canConnectMetricool(viewer);
     $('nav-year').hidden = !canShare;
     if (!id) {
@@ -509,7 +509,7 @@ function entryRow(e) {
   const f = fileOf(e);
   const thumb = f && /^image\//.test(f.mime || '') ? h('img', { class: 'gt-thumb', alt: '', 'data-path': f.storage_path, width: '44', height: '44' })
     : f || link ? h('span', { class: 'gt-thumb is-icon', 'aria-hidden': 'true' }, /^video\//.test(f?.mime || '') || ['video', 'monthly', 'story', 'collab', 'ch14'].includes(e.kind) ? '▶' : '↗') : null;
-  // The state: words for everyone; for Ilai and the owner a button, one tap moves it on
+  // The state: words for everyone; for Ilai, Irit and the owner a button, one tap moves it on
   // (planned → scheduled → posted → planned), with an undo.
   const next = nextState(e.state);
   const stateEl = canEdit && k.post
@@ -828,8 +828,8 @@ async function applyRegen(plan, overwrite) {
 // ── The client's link ─────────────────────
 function renderShare() {
   const body = [];
-  // The link is the one thing Irit, Lior and Ofir do here: for them it is the pink action.
-  // For Ilai and the owner the pink one is "סימון כתוזמנו", so this stays plain.
+  // The link is the one thing Lior and Ofir do here: for them it is the pink action.
+  // For Ilai, Irit and the owner the pink one is "סימון כתוזמנו", so this stays plain.
   const main = canEdit ? 'btn' : 'btn btn-primary';
   if (share === undefined) body.push(h('p', { class: 'hint' }, 'הקישור יהיה זמין אחרי שהמיגרציה של הגאנט תוחל.'));
   else if (!share) body.push(h('button', { type: 'button', class: main, id: 'gs-create', onclick: () => makeShare() }, 'יצירת קישור ללקוח'));
