@@ -98,6 +98,7 @@ const db = {
   ],
   protocol_checks: [], client_tasks: [], client_landing_marks: [], client_landing_done: [], protocol_log: [],
   editor_progress: [], // how many videos each editor edited (20261101100000_editor_progress.sql)
+  editor_progress_month: [], // a monthly client's, per month (20261104100000_editor_progress_month.sql)
 };
 const C = (business) => db.clients.find((c) => c.business === business);
 const seed = (business, station, extra = []) => {
@@ -201,6 +202,16 @@ function rpc(name, body, me, json) {
     if (!c || !rowOf(me) || (editor !== personOf(me) && !isOffice(me)) || ![c.editor, c.editor2].includes(editor)) return json(403, { code: '42501', message: 'not allowed' });
     let row = db.editor_progress.find((x) => x.client_id === c.id && x.editor === editor && x.round === (body.p_round || 1));
     if (!row) db.editor_progress.push(row = { client_id: c.id, editor, round: body.p_round || 1 });
+    Object.assign(row, { edited: body.p_edited, updated_at: new Date().toISOString(), updated_by: me.email });
+    return json(200, row);
+  }
+  // A monthly client: the editor's own number in a month, landing or not (20261104100000_editor_progress_month.sql).
+  if (name === 'editor_progress_month_set') {
+    const c = db.clients.find((x) => x.id === body.p_client);
+    const editor = body.p_editor || personOf(me);
+    if (!c || !rowOf(me) || (editor !== personOf(me) && !isOffice(me)) || ![c.editor, c.editor2].includes(editor)) return json(403, { code: '42501', message: 'not allowed' });
+    let row = db.editor_progress_month.find((x) => x.client_id === c.id && x.editor === editor && x.month === body.p_month);
+    if (!row) db.editor_progress_month.push(row = { client_id: c.id, editor, month: body.p_month });
     Object.assign(row, { edited: body.p_edited, updated_at: new Date().toISOString(), updated_by: me.email });
     return json(200, row);
   }
@@ -317,8 +328,8 @@ async function fakeSupabase(route) {
     const rows = filtered(db.clients.filter((c) => sees(me, c)), url);
     return answer(req, json)(before.landing ? rows.map(({ landing, landed_at, landed_by, landing_slot, ...r }) => r) : rows);
   }
-  if (table === 'editor_progress') {
-    const rows = db.editor_progress.filter((r) => isOffice(me) || (r.editor === personOf(me) && sees(me, db.clients.find((c) => c.id === r.client_id))));
+  if (table === 'editor_progress' || table === 'editor_progress_month') {
+    const rows = db[table].filter((r) => isOffice(me) || (r.editor === personOf(me) && sees(me, db.clients.find((c) => c.id === r.client_id))));
     return answer(req, json)(filtered(rows, url));
   }
   if (table === 'client_landing_marks' || table === 'client_landing_done') {
@@ -718,6 +729,21 @@ try {
     await card.locator('.ed-count-s', { hasText: 'נשמר' }).waitFor();
     assert.deepEqual(db.editor_progress.map((r) => [r.client_id, r.editor, r.edited]), [[MAYA().id, 'nadia', 1]]);
     await card.screenshot({ path: join(SHOTS, 'editor-landing-count-390.png') });
+    // A monthly client in landing (the owner, 22.10.2026; app/edit-count.js monthTarget): this month's
+    // count, "ערכתי [ 0 ] מתוך 12" in October 2026, saved per month; then back to its package.
+    const kept = MAYA().deliverables;
+    MAYA().deliverables = { ...kept, videos_month: 8, videos_month_except: { '2026-10': 12 } };
+    await nadia.click('#btn-refresh');
+    await card.locator('.ed-month').waitFor();
+    assert.equal(await card.locator('.ed-month').innerText(), '12 סרטונים החודש');
+    assert.match((await card.locator('.ed-count').innerText()).replace(/\s+/g, ' '), /^ערכתי − \+ מתוך 12/);
+    assert.equal(await card.locator('.ed-count input').inputValue(), '0');
+    await card.locator('.ed-count [id$="-plus"]').click();
+    await card.locator('.ed-count-s', { hasText: 'נשמר' }).waitFor();
+    assert.deepEqual(db.editor_progress_month.map((r) => [r.client_id, r.editor, r.month, r.edited]), [[MAYA().id, 'nadia', '2026-10', 1]]);
+    assert.deepEqual(db.editor_progress.map((r) => [r.client_id, r.editor, r.edited]), [[MAYA().id, 'nadia', 1]], 'the per-shoot number as it was');
+    await card.screenshot({ path: join(SHOTS, 'editor-landing-monthly-count-390.png') });
+    MAYA().deliverables = kept;
     await nadia.goto(`${BASE}landing.html`);
     await nadia.locator('.land-card').first().waitFor();
     assert.ok((await cards(nadia)).includes(MAYA().id), 'her items there are hers to go over now');

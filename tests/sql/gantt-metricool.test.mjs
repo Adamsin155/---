@@ -311,7 +311,8 @@ test('anon runs nothing of it; the tables have row level security; the three mig
 // ── Irit edits the Gantt (22.10.2026) ────────
 test('20261102100000_gantt_irit.sql: the newest, none of the refused words, runs twice; Irit edits rows but connects no brand', async () => {
   const FILE = '20261102100000_gantt_irit.sql';
-  assert.equal(migrationFiles().at(-1), FILE);
+  // After it only the editors' monthly count (20261104100000_editor_progress_month.sql, 22.10.2026), not the Gantt's.
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261104100000_editor_progress_month.sql']);
   const sql = migrationSql(FILE);
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);

@@ -26,6 +26,7 @@ import { applicableProcesses } from '../app/protocol-logic.js';
 import { buildEnv, candidates } from '../app/reminder-engine.js';
 import { splitLists } from '../app/decisions-logic.js';
 import { withClientColumns } from './fake-clients.mjs';
+import { monthKey } from '../app/edit-count.js';
 
 // qa.html since 20.10.2026 (the owner's review): each editor's load and the clients in landing waiting for an editor are folds; opened here to read them.
 const openQaFolds = (p) => p.evaluate(() => { for (const d of document.querySelectorAll('#load-list details, #assign-list details')) d.open = true; });
@@ -149,6 +150,8 @@ const db = {
     { client_id: V.id, editor: 'nadia', round: 1, edited: 18, updated_at: IL('2026-10-20T09:00:00'), updated_by: 'nadia@astrateg.test' },
     { client_id: P.id, editor: 'yariv', round: 1, edited: 7, updated_at: IL('2026-10-19T15:00:00'), updated_by: 'yariv@astrateg.test' },
   ],
+  // A monthly client's numbers per month (public.editor_progress_month, 20261104100000_editor_progress_month.sql).
+  editor_progress_month: [],
   task_decisions: [],
   change_requests: [],
 };
@@ -236,6 +239,17 @@ async function fakeSupabase(route) {
     if (!person || !c || round !== 1 || ![c.editor, c.editor2].includes(person)) return json(403, { code: '42501', message: 'not allowed' });
     let row = db.editor_progress.find((x) => x.client_id === c.id && x.editor === person && x.round === round);
     if (!row) db.editor_progress.push(row = { client_id: c.id, editor: person, round });
+    Object.assign(row, { edited: body.p_edited, updated_at: now, updated_by: me.email });
+    return json(200, row);
+  }
+  // A monthly client: the editor's own number in a month (20261104100000_editor_progress_month.sql).
+  if (p === '/rest/v1/rpc/editor_progress_month_set') {
+    const person = staff.find((r) => r.email === me?.email)?.person;
+    const c = db.clients.find((x) => x.id === body.p_client);
+    const month = body.p_month || monthKey(new Date(now));
+    if (!person || !c || ![c.editor, c.editor2].includes(person)) return json(403, { code: '42501', message: 'not allowed' });
+    let row = db.editor_progress_month.find((x) => x.client_id === c.id && x.editor === person && x.month === month);
+    if (!row) db.editor_progress_month.push(row = { client_id: c.id, editor: person, month });
     Object.assign(row, { edited: body.p_edited, updated_at: now, updated_by: me.email });
     return json(200, row);
   }
@@ -1072,6 +1086,106 @@ await step('the client card shows what the editor reported missing while editing
   assert.ok(lior.done_at, 'Lior\'s task for the footage closed with it');
   assert.equal(await page.locator('#p22-report').count(), 0);
   await pctx.close();
+});
+
+// A monthly client (the owner, 22.10.2026): a fixed number of videos every month instead of one
+// package, 8 a month and 12 in October 2026. A setting of the client (deliverables), off for everyone else.
+await step('a monthly client: Irit sets "סרטונים בחודש" and October\'s exception; Nadia counts "ערכתי [ N ] מתוך 12" this month, from 0 again on the 1st; the office sees "החודש"', async () => {
+  // Irit, in the client's details (390px): 8 a month, October 2026 is 12.
+  const ictx = await newContext(THU, { width: 390, height: 844 });
+  const irit = await newPage(ictx);
+  await signIn(irit, `client.html?id=${V.id}`, 'irit');
+  await irit.waitForSelector('#btn-edit');
+  await irit.click('#btn-edit');
+  await irit.waitForSelector('#dlg-edit[open]');
+  assert.equal(await irit.inputValue('#ed-month-n'), '');
+  assert.equal(await irit.inputValue('#ed-month-x'), '2026-10');
+  assert.equal(await irit.locator('#ed-month-x option:checked').innerText(), 'אוקטובר 2026');
+  // 0 a month is not a monthly client: refused, with the field named.
+  await irit.fill('#ed-month-n', '0');
+  await irit.click('#ed-submit');
+  assert.match(await irit.innerText('#ed-err'), /סרטונים בחודש: מספר שלם מ־1 עד 999/);
+  await irit.fill('#ed-month-n', '8');
+  await irit.fill('#ed-month-xn', '12');
+  assert.deepEqual(await unlabeled(irit, '#dlg-edit'), []);
+  assert.ok(await noHScroll(irit), 'the details dialog scrolls sideways at 390px');
+  await irit.locator('#ed-month').scrollIntoViewIfNeeded();
+  if (OUT) await irit.locator('#ed-deliv-fs').screenshot({ path: `${OUT}/office-16-monthly-fields-390.png` });
+  await irit.setViewportSize({ width: 1280, height: 900 });
+  assert.ok(await noHScroll(irit), 'the details dialog scrolls sideways at 1280px');
+  await irit.locator('#ed-month').scrollIntoViewIfNeeded();
+  if (OUT) await irit.locator('#ed-deliv-fs').screenshot({ path: `${OUT}/office-16-monthly-fields-1280.png` });
+  await irit.click('#ed-submit');
+  await toastHas(irit, 'הפרטים נשמרו');
+  assert.deepEqual([V.deliverables.videos_month, V.deliverables.videos_month_except, V.deliverables.videos], [8, { '2026-10': 12 }, 25]);
+  // The package block says so, with a way to change it.
+  await irit.locator('#deliv-month').waitFor({ state: 'attached' });
+  assert.equal((await irit.locator('#deliv-month').textContent()).replace(/\s+/g, ' ').trim(), 'לקוח חודשי8 סרטונים בכל חודש · אוקטובר 2026: 12שינוי');
+  await irit.setViewportSize({ width: 390, height: 844 });
+  await irit.locator('#fold-contract > summary').click();
+  await irit.locator('#deliv-month').scrollIntoViewIfNeeded();
+  assert.ok(await noHScroll(irit));
+  if (OUT) await irit.locator('section.deliv').screenshot({ path: `${OUT}/office-16-monthly-package-390.png` });
+  await ictx.close();
+
+  // Nadia (390px): "12 סרטונים החודש" and "ערכתי [ 0 ] מתוך 12": the shoot's 18 is not this month's.
+  const nctx = await newContext(THU, { width: 390, height: 844 });
+  const nadia = await newPage(nctx);
+  await signIn(nadia, 'editor.html', 'nadia');
+  const card = nadia.locator('.ed-card', { hasText: 'מספרת רון' });
+  await card.locator('.ed-count').waitFor();
+  await nadia.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+  assert.equal(await card.locator('.ed-month').innerText(), '12 סרטונים החודש');
+  const row = card.locator('.ed-count');
+  assert.match((await row.innerText()).replace(/\s+/g, ' '), /^ערכתי − \+ מתוך 12/);
+  const input = row.locator('input');
+  assert.equal(await input.inputValue(), '0');
+  assert.match(await input.getAttribute('aria-label'), /^כמה סרטונים ערכתי החודש מתוך 12: מספרת רון$/);
+  for (let i = 0; i < 3; i += 1) await row.locator('[id$="-plus"]').click();
+  await row.locator('.ed-count-s', { hasText: 'נשמר' }).waitFor();
+  const oct = () => db.editor_progress_month.find((x) => x.client_id === V.id && x.editor === 'nadia' && x.month === '2026-10');
+  assert.equal(oct().edited, 3);
+  await input.fill('5');
+  await nadia.waitForFunction((id) => document.getElementById(id)?.textContent === 'נשמר', `${await input.getAttribute('id')}-s`);
+  assert.equal(oct().edited, 5);
+  assert.equal(db.editor_progress.find((x) => x.client_id === V.id && x.editor === 'nadia').edited, 18, 'the shoot\'s number is left as it was');
+  assert.deepEqual(await unlabeled(nadia, '.ed-count'), []);
+  assert.ok(await noHScroll(nadia));
+  await card.scrollIntoViewIfNeeded();
+  if (OUT) await card.screenshot({ path: `${OUT}/office-17-monthly-editor-card-390.png` });
+  // After a refresh: this month's number.
+  await nadia.click('#btn-refresh');
+  await nadia.waitForFunction(() => [...document.querySelectorAll('.ed-card')].find((c) => c.textContent.includes('מספרת רון'))?.querySelector('.ed-count input')?.value === '5');
+  await nctx.close();
+
+  // The office: Ofir's load list and the client card, "5/12 החודש".
+  const octx2 = await newContext(THU, { width: 390, height: 844 });
+  const of2 = await newPage(octx2);
+  await signIn(of2, 'qa.html', 'ofir');
+  await of2.waitForSelector('#load-list .of-editor');
+  await openQaFolds(of2);
+  const nadiaLoad = of2.locator('#load-list .of-editor').filter({ has: of2.locator('summary', { hasText: 'נדיה' }) });
+  assert.match(await nadiaLoad.innerText(), /מספרת רון[^\n]*נערכו 5\/12 החודש/);
+  await of2.goto(`${BASE}client.html?id=${V.id}`);
+  await of2.waitForSelector('#cc-edited');
+  assert.equal((await of2.innerText('#cc-edited dd')).trim(), '5/12 החודש');
+  await octx2.close();
+
+  // The 1st of November in Israel, five past midnight (22:05 UTC on 31 October): from 0 again,
+  // "מתוך 8"; the office has no number for November yet.
+  const NOV1 = new Date('2026-11-01T00:05:00+02:00');
+  const n2 = await newContext(NOV1, { width: 390, height: 844 });
+  const nadia2 = await newPage(n2);
+  await signIn(nadia2, 'editor.html', 'nadia');
+  const card2 = nadia2.locator('.ed-card', { hasText: 'מספרת רון' });
+  await card2.locator('.ed-count').waitFor();
+  assert.equal(await card2.locator('.ed-month').innerText(), '8 סרטונים בחודש');
+  assert.match((await card2.locator('.ed-count').innerText()).replace(/\s+/g, ' '), /^ערכתי − \+ מתוך 8/);
+  assert.equal(await card2.locator('.ed-count input').inputValue(), '0');
+  await card2.locator('.ed-count [id$="-plus"]').click();
+  await card2.locator('.ed-count-s', { hasText: 'נשמר' }).waitFor();
+  assert.deepEqual(db.editor_progress_month.filter((x) => x.client_id === V.id).map((x) => [x.month, x.edited]), [['2026-10', 5], ['2026-11', 1]]);
+  await n2.close();
 });
 
 assert.deepEqual(errors, []);

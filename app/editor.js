@@ -22,6 +22,7 @@ import {
 } from './protocol-data.js';
 import {
   loadWorkClients, loadMyTasks, loadOpenTasksOf, finishTask, loadLogoFiles, signedDownload, loadWorkScripts, scriptsWords, loadEditorProgress, saveEditorProgress,
+  loadEditorMonths, saveEditorMonth,
 } from './production-data.js';
 import { loadCharacterizations, loadBriefsOf } from './intake-data.js';
 import { highlightsOf, briefBlock, SUMMARY } from './briefs.js';
@@ -36,7 +37,9 @@ import { mountPush } from './push.js';
 import { offerHandoff } from './handoff-ui.js';
 import { closedProcesses } from './health.js';
 import * as P from './production.js';
-import { progressMap, progressKey, editTarget, editedValue } from './edit-count.js';
+import {
+  progressMap, progressKey, editTarget, editedValue, isMonthly, monthlyFor, monthTarget, monthKey, monthRowKey, monthMap, monthVideosText,
+} from './edit-count.js';
 import { mountWorkFiles, workFilesState, forgetFiles, readFiles } from './files-ui.js';
 import { charViewHref } from './intake-ui.js';
 import { loadIntake } from './landing-data.js';
@@ -70,6 +73,11 @@ const isNirel = () => me === 'nirel';
 // How many videos I have edited, per shoot ('<client>:<round>:<me>' → row; 22.10.2026).
 // null: the numbers cannot be read (before their migration): no counter then.
 let progress = null;
+// A monthly client's number this month ('<client>:<YYYY-MM>:<me>' → row; app/edit-count.js
+// monthTarget). null: no monthly client of mine, or before its migration: no counter on those.
+let months = null;
+// What I count on a job: a monthly client's current Israel month (I am its editor), else the shoot's part.
+const partOf = (job, now = new Date()) => (monthlyFor(job.client, me) ? monthTarget(job.client, now) : editTarget(job.ctx, me));
 
 // ── Loading ─────────────────────────────────
 async function load() {
@@ -88,8 +96,12 @@ async function load() {
   for (const cid of ids) forgetFiles(cid);
   // The files too, before the cards are drawn: "מוכן לבדיקה" is locked or open at once.
   let rows;
-  [chars, briefs, logos, scripts, rows] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), loadWorkScripts(ids), loadEditorProgress(ids), ...ids.map(readFiles)]);
+  let monthRows;
+  const monthly = clients.filter((c) => ids.includes(c.id) && isMonthly(c)).map((c) => c.id);
+  [chars, briefs, logos, scripts, rows, monthRows] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), loadWorkScripts(ids), loadEditorProgress(ids),
+    monthly.length ? loadEditorMonths(monthly, monthKey()) : null, ...ids.map(readFiles)]);
   progress = rows ? progressMap(rows) : null;
+  months = monthRows ? monthMap(monthRows) : null;
   lastLoad = Date.now();
   $('state').textContent = '';
   await tidyBlocks();
@@ -360,6 +372,8 @@ function jobCard(job) {
   const day = P.editingDay(job.assignedAt, now);
   const videos = P.videosPerDay(job.ctx);
   const share = shareOf(job.ctx, me);
+  // A monthly client: "8 סרטונים בחודש", or this month's own number, "12 סרטונים החודש".
+  const perMonth = monthlyFor(c, me) ? monthVideosText(c, now) : null;
   const mine = scriptsOf(job);
   // The scripts: Lior's Google Docs link (links.scripts), and how many (the office's number, else the system's).
   const nScripts = job.round > 1 ? (mine.length || null) : P.scriptsCountOf(c, mine.length);
@@ -384,7 +398,8 @@ function jobCard(job) {
     countLine(job),
     h('p', { class: 'ed-facts' },
       // Two editors with a split: this editor's own share.
-      share ? h('span', { class: 'ed-share' }, `${share.mine} מתוך ${share.total} סרטונים — השאר אצל ${PEOPLE[share.other]?.name || share.other}`)
+      perMonth ? h('span', { class: 'ed-month', id: `${id}-month` }, perMonth)
+        : share ? h('span', { class: 'ed-share' }, `${share.mine} מתוך ${share.total} סרטונים — השאר אצל ${PEOPLE[share.other]?.name || share.other}`)
         : videos ? h('span', {}, `${videos} סרטונים לפי החבילה`) : h('span', { class: 'muted' }, 'כמות הסרטונים לא הוזנה'),
       h('span', { class: nScripts ? 'ed-scount' : 'ed-scount muted', id: `${id}-scount` }, nScripts ? scriptsWords(nScripts) : 'מספר התסריטים לא הוזן'),
       dropbox ? h('span', { class: 'tag tag-warn' }, 'צריך גם Dropbox') : null),
@@ -403,54 +418,81 @@ function jobCard(job) {
 
 // ── How many I have edited (the owner's request of 22.10.2026) ──
 // One line: "ערכתי [ N ] מתוך M" (M: my share with two editors, else the package's videos;
-// unknown: "ערכתי [ N ] סרטונים"). Saved by itself a moment after the last change, with a
-// quiet "נשמר". Above M is allowed and kept as it is.
+// unknown: "ערכתי [ N ] סרטונים"). A monthly client of mine (app/edit-count.js monthTarget)
+// counts the current Israel month instead, from 0 again on the 1st: "ערכתי [ N ] מתוך 8", or
+// the month's own number. Saved by itself a moment after the last change, with a quiet "נשמר".
+// Above M is allowed and kept as it is.
 const typed = new Map(); // key → the number typed and not saved yet (kept across re-renders)
 const saveTimers = new Map();
-function countLine(job) {
+// What a job's counter counts: { key, of, month } (month: a monthly client's 'YYYY-MM', else
+// null), or null when those numbers cannot be read (before their migration): no counter then.
+function counterOf(job, now = new Date()) {
+  if (monthlyFor(job.client, me)) {
+    if (!months) return null;
+    const month = monthKey(now);
+    return { key: monthRowKey(job.client.id, month, me), of: monthTarget(job.client, now), month };
+  }
   // A client in landing counts too (most of the real ones, 22.10.2026): the office records its
   // editor in clients.editor (landing_set_editor), and the number is that editor's.
   if (!progress) return null;
+  return { key: progressKey(job.client.id, job.round, me), of: editTarget(job.ctx, me), month: null };
+}
+const mapOf = (cnt) => (cnt.month ? months : progress);
+const shownOf = (cnt) => (typed.has(cnt.key) ? typed.get(cnt.key) : mapOf(cnt)?.[cnt.key]?.edited ?? 0);
+function countLine(job) {
+  const cnt = counterOf(job);
+  if (!cnt) return null;
+  const { key, of } = cnt;
   const id = `${cardId(job)}-edited`;
-  const key = progressKey(job.client.id, job.round, me);
-  const of = editTarget(job.ctx, me);
-  const n = typed.has(key) ? typed.get(key) : progress[key]?.edited ?? 0;
+  const n = shownOf(cnt);
   const status = h('span', { class: 'ed-count-s', id: `${id}-s`, 'aria-live': 'polite' });
   const input = h('input', {
-    type: 'text', inputmode: 'numeric', pattern: '[0-9]*', maxlength: 3, autocomplete: 'off', class: 'input ed-count-n num', id, value: String(n),
-    'aria-label': `כמה סרטונים ערכתי${of ? ` מתוך ${of}` : ''}: ${jobName(job)}`,
-    oninput: (e) => setCount(job, key, editedValue(e.currentTarget.value), { status }),
-    onblur: (e) => { if (editedValue(e.currentTarget.value) === null) e.currentTarget.value = String(typed.get(key) ?? progress[key]?.edited ?? 0); },
+    type: 'text', inputmode: 'numeric', pattern: '[0-9]*', maxlength: 3, autocomplete: 'off', class: 'input ed-count-n num', id, value: String(n), 'data-count': key,
+    'aria-label': `כמה סרטונים ערכתי${cnt.month ? ' החודש' : ''}${of ? ` מתוך ${of}` : ''}: ${jobName(job)}`,
+    oninput: (e) => setCount(job, cnt, editedValue(e.currentTarget.value), { status }),
+    onblur: (e) => { if (editedValue(e.currentTarget.value) === null) e.currentTarget.value = String(shownOf(cnt)); },
   });
-  const minus = h('button', { type: 'button', class: 'step', id: `${id}-minus`, 'aria-label': 'אחד פחות', disabled: n <= 0, onclick: () => bumpCount(job, key, -1, input, status) }, '−');
-  const plus = h('button', { type: 'button', class: 'step', id: `${id}-plus`, 'aria-label': 'עוד אחד', disabled: n >= 999, onclick: () => bumpCount(job, key, 1, input, status) }, '+');
+  const minus = h('button', { type: 'button', class: 'step', id: `${id}-minus`, 'aria-label': 'אחד פחות', disabled: n <= 0, onclick: () => bumpCount(job, cnt, -1, input, status) }, '−');
+  const plus = h('button', { type: 'button', class: 'step', id: `${id}-plus`, 'aria-label': 'עוד אחד', disabled: n >= 999, onclick: () => bumpCount(job, cnt, 1, input, status) }, '+');
   return h('div', { class: 'ed-count', id: `${id}-row` },
     h('label', { for: id, class: 'ed-count-k' }, 'ערכתי'),
     h('span', { class: 'ed-count-ctl' }, minus, input, plus),
     h('span', { class: 'ed-count-of num' }, of ? `מתוך ${of}` : 'סרטונים'),
     status);
 }
-function bumpCount(job, key, by, input, status) {
-  const now = editedValue(input.value) ?? (typed.get(key) ?? progress[key]?.edited ?? 0);
+function bumpCount(job, cnt, by, input, status) {
+  const now = editedValue(input.value) ?? shownOf(cnt);
   const n = Math.min(999, Math.max(0, now + by));
   input.value = String(n);
-  setCount(job, key, n, { status, row: input.closest('.ed-count') });
+  setCount(job, cnt, n, { status, row: input.closest('.ed-count') });
 }
-function setCount(job, key, n, { status, row = status.closest('.ed-count') }) {
-  if (n === null) return; // half typed (or emptied): saved once it is a number again
-  typed.set(key, n);
+const stepsFor = (row, n) => {
   row.querySelector('[id$="-minus"]').disabled = n <= 0;
   row.querySelector('[id$="-plus"]').disabled = n >= 999;
+};
+function setCount(job, cnt, n, { status, row = status.closest('.ed-count') }) {
+  if (n === null) return; // half typed (or emptied): saved once it is a number again
+  const { key } = cnt;
+  typed.set(key, n);
+  stepsFor(row, n);
+  // The same monthly number on another card of the client (one of its shoot rounds) follows.
+  for (const other of document.querySelectorAll('.ed-count-n')) {
+    if (other.dataset.count !== key || row.contains(other)) continue;
+    other.value = String(n);
+    stepsFor(other.closest('.ed-count'), n);
+  }
   status.textContent = '';
   clearTimeout(saveTimers.get(key));
-  saveTimers.set(key, setTimeout(() => saveCount(job, key, n), 700));
+  saveTimers.set(key, setTimeout(() => saveCount(job, cnt, n), 700));
 }
-async function saveCount(job, key, n) {
+async function saveCount(job, cnt, n) {
+  const { key } = cnt;
   saveTimers.delete(key);
   const status = () => document.getElementById(`${cardId(job)}-edited-s`);
   try {
-    const row = await saveEditorProgress(job.client.id, n, job.round);
-    if (row && progress) progress[key] = row;
+    const row = await (cnt.month ? saveEditorMonth(job.client.id, n, cnt.month) : saveEditorProgress(job.client.id, n, job.round));
+    const map = mapOf(cnt);
+    if (row && map) map[key] = row;
     if (typed.get(key) === n) typed.delete(key);
     const s = status();
     if (s && !saveTimers.has(key)) {
@@ -533,7 +575,7 @@ function openStart(job) {
   target = job;
   $('start-ctx').textContent = jobName(job);
   const c = cs(job.client);
-  const of = editTarget(job.ctx, me);
+  const of = partOf(job);
   // What is known already: a check done is "יש"; what a report or a block names is "חסר".
   const open = job.st?.blocked || job.st?.report || null;
   fill($('start-list'), ...P.START_CHECKS.map(([key, label], i) => {
@@ -585,7 +627,7 @@ $('start-form').addEventListener('submit', async (e) => {
   const lines = startAnswered();
   if (!lines.every((l) => l.answer)) return;
   const missing = lines.filter((l) => l.answer === 'no').map((l) => l.k);
-  const of = editTarget(job.ctx, me);
+  const of = partOf(job);
   let have = null;
   if (missing.includes('footage')) {
     const raw = $('start-footage-have').value;
@@ -663,7 +705,7 @@ function openMissing(job, { what = null, notes = null, have = null, yes = null, 
   const list = P.MISSING_WHAT.filter(([k]) => !confirmed(k) && (k !== 'upload' || !starting)).map(([k]) => k);
   missCtx = { job, received, list };
   $('miss-ctx').textContent = jobName(job);
-  const of = editTarget(job.ctx, me);
+  const of = partOf(job);
   fill($('miss-list'), ...(list.length ? P.MISSING_WHAT.filter(([k]) => list.includes(k)).map(([k, l]) => h('div', { class: `ed-mq${marked.includes(k) ? ' is-no' : ''}` },
     checkRow(`miss-${k}`, l, marked.includes(k)),
     moreBlock(`miss-${k}`, k, { of, open: marked.includes(k), have: k === 'footage' && known !== null ? String(known) : '', note: words[k] || '' })))
@@ -694,7 +736,7 @@ async function sendMissing(stop) {
   const { job, received, list } = missCtx;
   const what = list.filter((k) => $(`miss-${k}`).checked);
   if (!what.length) { showErr('miss-err', 'סמנו מה חסר.'); $(`miss-${list[0]}`)?.focus(); return; }
-  const of = editTarget(job.ctx, me);
+  const of = partOf(job);
   let have = null;
   if (what.includes('footage')) {
     // Going on, Lior needs the number; stopping, it may be unknown.

@@ -145,6 +145,12 @@ dialog:not(.dlg-wide) > form > .dlg-body { padding-bottom: 8px; }
 #dlg-edit .dlg-foot, #dlg-access .dlg-foot { border-top: 1px solid var(--ds-line); padding-top: 14px; }
 /* A date with its hour needs the room of two columns, not three. */
 #dlg-edit .form-grid.inner { grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); }
+/* A monthly client's fields under the package's numbers (22.10.2026). */
+#dlg-edit #ed-month { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--ds-line); }
+#dlg-edit #ed-month .hint { margin: 0; }
+/* The number a month on a row of its own (with its hint); the month that differs and its number side by side. */
+#dlg-edit #ed-month > .field:first-child { grid-column: 1 / -1; }
+#dlg-edit #ed-month-n { inline-size: min(100%, 320px); }
 #dlg-edit .fs, dialog .fs { border-color: var(--ds-line); border-radius: var(--ds-r-item); min-width: 0; }
 #dlg-edit .fs legend.k-h { display: inline-flex; }
 dialog label.only { align-items: flex-start; min-height: 44px; }
