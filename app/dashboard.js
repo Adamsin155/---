@@ -121,6 +121,14 @@ async function cancel(q, btn) {
 // The approval of an exceptional contract: its state, who decided, the note.
 const APPROVER = { owner: 'הבעלים', ofir: 'אופיר', lior: 'ליאור' };
 function approvalCell(q) {
+  // Prepared with "הכנת חוזה עם AI" and reviewed by the office: sent without an approval (the
+  // owner's decision, 25.10.2026), and the owners see what it changed from the package.
+  if (q.prepared_by === 'ai' && (!q.approval || q.approval === 'none')) {
+    const n = Array.isArray(q.exceptions) ? q.exceptions.length : 0;
+    return h('span', { class: 'apv-cell' },
+      h('span', {}, 'בלי אישור · הוכן ע״י AI'),
+      ...(n ? [h('small', {}, `${n === 1 ? 'שינוי אחד' : `${n} שינויים`} מהחבילה`)] : []));
+  }
   if (!q.approval || q.approval === 'none') return h('span', { class: 'apv-cell', title: 'חוזה רגיל, בלי אישור' }, '—');
   const by = APPROVER[q.approval_by] || '';
   return h('span', { class: 'apv-cell' },
@@ -159,7 +167,8 @@ function renderRows() {
     const agreement = q.signable !== 'false';
     const reminder = `שלום ${q.client_name}, רק מזכירים ש${agreement ? 'הסכם ההתקשרות' : 'הצעת המחיר'} מאסטרטג (${q.number}) ממתינ${agreement ? '' : 'ה'} לך כאן${q.expires_at ? `, ${agreement ? 'לחתימה' : 'בתוקף'} עד ${formatDate(q.expires_at, true)}` : ''}:\n${link}`;
     return h('tr', {},
-      h('td', { 'data-label': 'מספר' }, h('span', { class: 'num', dir: 'ltr' }, q.number), h('small', { class: 'doc-type' }, q.doc || 'הצעת מחיר')),
+      h('td', { 'data-label': 'מספר' }, h('span', { class: 'num', dir: 'ltr' }, q.number), h('small', { class: 'doc-type' }, q.doc || 'הצעת מחיר'),
+        ...(q.prepared_by === 'ai' ? [h('span', { class: 'tag tag-ai doc-ai' }, 'הוכן ע״י AI')] : [])),
       h('td', { class: 'client', 'data-label': 'לקוח' }, q.client_name, q.signer_name && s === 'signed' ? h('small', {}, `נחתם ע״י ${q.signer_name}`) : null),
       h('td', { class: 'client', 'data-label': 'חבילה' }, h('span', { dir: 'auto' }, q.tier || ''), h('small', {}, q.influencer || '')),
       showMoney ? h('td', { class: 'amt', dir: 'ltr', 'data-label': 'לחודש' }, formatILS(q.monthly_gross_agorot)) : null,
@@ -188,10 +197,15 @@ async function loadQuotes() {
   $('state').textContent = 'טוען…';
   const BASE = 'id, token, number, client_name, monthly_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer, doc:model->>docTitle, signable:model->>signable, expires_at, phone:model->client->>phone';
   const APPROVAL_COLS = ', approval, approval_by, approval_note, approval_at, term:model->>termMonths, valid:model->>validHours, company:model->client->>company, email:model->client->>email';
+  // Who prepared it ("הכנת חוזה עם AI", 20261106100000_contract_ai.sql) and what it changed.
+  const AI_COLS = ', prepared_by, exceptions';
   const read = (cols) => supabase.from('quotes').select(cols).order('created_at', { ascending: false }).limit(500);
-  let { data, error } = await read(BASE + APPROVAL_COLS);
+  const missing = (e) => e && (e.code === '42703' || e.code === 'PGRST204');
+  let { data, error } = await read(BASE + APPROVAL_COLS + AI_COLS);
+  // Before a migration its columns are not there yet: the list as it was.
+  if (missing(error)) ({ data, error } = await read(BASE + APPROVAL_COLS));
   // Before the custom-contracts migration the approval columns are not there yet.
-  if (error && (error.code === '42703' || error.code === 'PGRST204')) ({ data, error } = await read(BASE));
+  if (missing(error)) ({ data, error } = await read(BASE));
   if (error) { $('state').textContent = explainError(error); return; }
   quotes = data;
   $('state').textContent = '';
