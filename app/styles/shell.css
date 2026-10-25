@@ -81,6 +81,9 @@
     display: block; position: fixed; z-index: 50; inset-inline: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
     max-inline-size: 560px; margin-inline: auto; padding: 6px; border-radius: 22px; box-shadow: var(--ds-shadow-float);
   }
+  /* While a field is being typed in, the floating bar steps aside: with the phone's keyboard open it
+     sat on the field and hid what was typed (25.10.2026). */
+  body.has-tabbar:has(:is(input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"], [type="range"]), textarea):focus) .side { display: none; }
   .side-logo, .side-promo, .side-k, .side-rail { display: none; }
   .side-list { grid-template-columns: repeat(var(--bar-n, 4), minmax(0, 1fr)); gap: 4px; }
   .side-link {

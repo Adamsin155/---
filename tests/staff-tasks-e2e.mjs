@@ -225,7 +225,8 @@ try {
     assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'קפה דנה']);
     assert.equal(await irit.locator('#st-client option:checked').textContent(), 'קפה דנה');
     await irit.fill('#st-client-q', 'zzz');
-    assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'קפה דנה'], 'the chosen one stays');
+    assert.deepEqual(await texts(irit, '#st-client option'), ['אין לקוח בשם הזה'], 'an earlier choice does not stay');
+    assert.equal(await irit.inputValue('#st-client'), '');
     await irit.selectOption('#st-client', '');
     await irit.fill('#st-client-q', 'zzzz');
     assert.deepEqual(await texts(irit, '#st-client option'), ['אין לקוח בשם הזה']);

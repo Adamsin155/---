@@ -198,9 +198,10 @@ function filterClients(q) {
   if (!sel || !clients) return;
   const words = String(q || '').trim().toLowerCase().split(/s+/).filter(Boolean);
   const keep = sel.value;
-  const shown = clients.filter((c) => c.id === keep || words.every((w) => c.label.toLowerCase().includes(w)));
+  // Only what matches what is typed now: a client chosen by an earlier search does not stay (25.10.2026).
+  const shown = clients.filter((c) => words.every((w) => c.label.toLowerCase().includes(w)));
   fill(sel, h('option', { value: '' }, words.length && !shown.length ? 'אין לקוח בשם הזה' : 'בלי לקוח'), ...shown.map((c) => h('option', { value: c.id }, c.label)));
-  sel.value = words.length && shown.length === 1 ? shown[0].id : keep;
+  sel.value = words.length && shown.length === 1 ? shown[0].id : shown.some((c) => c.id === keep) ? keep : '';
 }
 
 function render() {
