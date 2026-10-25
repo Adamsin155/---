@@ -23,7 +23,7 @@
 //  - Clients that ended or were cancelled get nothing, and nobody does on a day
 //    the office is closed (Friday, Saturday, holidays).
 //  - Imported history (checks with the note "ייבוא") is never a milestone.
-import { STATIONS, PEOPLE, SHOOT_TYPES } from './protocol.js';
+import { STATIONS, PEOPLE, SHOOT_TYPES, PHOTOGRAPHERS, isSolo, crewOf } from './protocol.js';
 import {
   clientState, isBusinessDay, addBusinessDays, businessDaysBetween, parseDate, roundsOf, roundContext,
   isImported, IMPORT_NOTE,
@@ -186,6 +186,17 @@ export const DEFAULT_TEMPLATES = [
 {קישור}
 אם משהו לא ברור, כתבו לנו ונעזור.`,
   },
+  // A shoot day without influencers (the owner's decision of 25.10.2026): Lior and one
+  // photographer, at the shoot's own time (seeded by 20261107100000_shoot_crew.sql).
+  {
+    key: 'eve_solo', title: 'יום לפני הצילום (בלי משפיענים)', kind: 'milestone', station: null,
+    body: `היי {לקוח}, מתכוננים ליום הצילום!
+מתי: {תאריך} בשעה {שעה}.
+איפה: {כתובת}
+מי מגיע: {מגיעים}
+מה להכין: העסק מסודר ונקי, מוצרים ושירותים מוכנים לצילום, שילוט ותאורה דולקים, ועובדים שמוכנים להופיע. מתחילים בצילומי העסק עצמו, ואחר כך הסרטונים לפי התסריטים.
+אם משהו השתנה, כתבו לנו עוד היום.`,
+  },
 ];
 
 // What the system fills in each template ({לקוח} and {עסק} everywhere).
@@ -194,6 +205,7 @@ const EXTRA_VARS = {
   [NUDGE_KEY]: ['קישור'],
   access: ['התקבלו', 'מתוך', 'חסר'],
   eve: ['תאריך', 'שעה', 'שעת הצוות', 'כתובת', 'מגיעים'],
+  eve_solo: ['תאריך', 'שעה', 'כתובת', 'מגיעים'],
   thanks: ['תאריך'],
   videos: ['תאריך'],
   renewal: ['תאריך'],
@@ -289,9 +301,9 @@ export const CLIENT_ROLES = [
 ];
 export const teamText = () => CLIENT_ROLES.map(([k, role]) => `${PEOPLE[k].name}: ${role}`).join('\n');
 
-// Who comes to the shoot.
-export function crewText(shootType) {
-  const who = ['ליאור (מנהל יום הצילום)', 'אלי (הצלם)'];
+// Who comes to the shoot. `crew`: the photographer of a day without influencers (25.10.2026).
+export function crewText(shootType, crew = null) {
+  const who = ['ליאור (מנהל יום הצילום)', `${PHOTOGRAPHERS[crew]?.name || 'אלי'} (הצלם)`];
   if (shootType === 'natali') who.push(SHOOT_TYPES.natali.name);
   if (shootType === 'dms') who.push(`המשפיענים ${SHOOT_TYPES.dms.name}`);
   return listText(who);
@@ -477,7 +489,16 @@ const MILESTONES = [
       const shoot = parseDate(x.ctx.shoot_at);
       return shoot && shoot > now && dayKeyIL(eveOf(shoot)) === dayKeyIL(now) && !x.st('p19')?.complete ? startOfDayIL(now) : null;
     },
-    when: (x) => !x.isDone('p15.client'),
+    when: (x) => !isSolo(x.ctx) && !x.isDone('p15.client'),
+  },
+  {
+    // The same, for a day without influencers (25.10.2026): its own words, the same check.
+    key: 'eve_solo', station: 'shoot', urgent: true, fresh: 0,
+    at: (x, now) => {
+      const shoot = parseDate(x.ctx.shoot_at);
+      return shoot && shoot > now && dayKeyIL(eveOf(shoot)) === dayKeyIL(now) && !x.st('p19')?.complete ? startOfDayIL(now) : null;
+    },
+    when: (x) => isSolo(x.ctx) && !x.isDone('p15.client'),
   },
   {
     // From the business day after the shoot ("למחרת").
@@ -517,7 +538,7 @@ export function protocolCheckOf(m) {
   const key = m?.template_key ?? m?.key;
   const pre = /^r\d+\./.exec(m?.ref || '')?.[0] || '';
   if (key === 'welcome' && !pre) return 'p02.intro';
-  if (key === 'eve') return `${pre}p15.client`;
+  if (key === 'eve' || key === 'eve_solo') return `${pre}p15.client`;
   return null;
 }
 
@@ -629,6 +650,14 @@ function milestoneOption(m, x, at, now) {
         'כתובת': x.client.address || null, 'מגיעים': crewText(x.ctx.shoot_type),
       });
       reason = `יום הצילום ${daysBetweenIL(now, shoot) === 1 ? 'מחר, ' : 'ב'}${dayText(shoot)} ב־${timeText(shoot)}`;
+      break;
+    }
+    case 'eve_solo': {
+      const shoot = parseDate(x.ctx.shoot_at);
+      Object.assign(vars, {
+        'תאריך': dayText(shoot), 'שעה': timeText(shoot), 'כתובת': x.client.address || null, 'מגיעים': crewText(null, crewOf(x.ctx)),
+      });
+      reason = `יום הצילום (בלי משפיענים) ${daysBetweenIL(now, shoot) === 1 ? 'מחר, ' : 'ב'}${dayText(shoot)} ב־${timeText(shoot)}`;
       break;
     }
     case 'thanks': case 'videos': {

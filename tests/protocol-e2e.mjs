@@ -540,11 +540,50 @@ assert.equal(await page.inputValue('#ed-editor'), 'nirel');
 await page.click('#ed-submit');
 await page.waitForSelector('#dlg-edit', { state: 'hidden' });
 assert.deepEqual(['shoot_type', 'editor'].map((k) => db.clients.find((c) => c.id === created.id)[k]), ['dms', 'nirel']);
-// Back to Natali's, as the rest of this run expects.
+// A shoot day without influencers (the owner's decision of 25.10.2026): "מי מצלם" →
+// "בלי משפיענים: ליאור + צלם", then which photographer; the time is the shoot's own.
 await page.click('#btn-edit');
+assert.equal(await page.isChecked('#ed-crew-with'), true);
+assert.equal(await page.isVisible('#ed-photographer'), false);
+assert.equal(await page.innerText('#ed-shoot-at-l'), 'מועד הגעת המשפיענים');
+await page.check('#ed-crew-solo');
+assert.equal(await page.isVisible('#ed-shoot-type'), false);
+assert.equal(await page.isVisible('#ed-photographer'), true);
+assert.equal(await page.innerText('#ed-shoot-at-l'), 'מועד הצילום');
+await page.click('#ed-submit');
+assert.match(await page.locator('#ed-err').innerText(), /בחרו איזה צלם: אלי או אליאל/);
+await page.check('#ed-photographer-eliel');
+if (OUT) {
+  // The choice on a phone (390px), as the office sees it.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => document.getElementById('ed-crew').closest('fieldset.fs').scrollIntoView({ block: 'start' }));
+  await page.screenshot({ path: `${OUT}/client-card-crew-390.png` });
+  await page.setViewportSize({ width: 1280, height: 900 });
+}
+await page.click('#ed-submit');
+await page.waitForSelector('#dlg-edit', { state: 'hidden' });
+{
+  const row = db.clients.find((c) => c.id === created.id);
+  assert.deepEqual([row.shoot_type, row.deliverables.shoot_crew, row.deliverables.videos], [null, 'eliel', 25]);
+}
+assert.match(await page.locator('.cc-facts').innerText(), /בלי משפיענים · ליאור \+ אליאל/);
+// No influencers to approve or check in the contract; Eli's steps are not there (Eliel films).
+assert.equal(await page.locator('#p17b, #p18b, #p19b').count(), 0);
+assert.equal(await page.locator('#i-p11-ok-influencers, #i-p11-influencers').count(), 0);
+assert.equal(await page.locator('#i-p11-ok-client').count(), 1);
+// Back to Natali's, as the rest of this run expects: the crew goes with it.
+await page.click('#btn-edit');
+assert.equal(await page.isChecked('#ed-crew-solo'), true);
+assert.equal(await page.isChecked('#ed-photographer-eliel'), true);
+await page.check('#ed-crew-with');
 await page.selectOption('#ed-shoot-type', 'natali');
 await page.click('#ed-submit');
 await page.waitForSelector('#dlg-edit', { state: 'hidden' });
+{
+  const row = db.clients.find((c) => c.id === created.id);
+  assert.deepEqual([row.shoot_type, 'shoot_crew' in row.deliverables, row.deliverables.videos], ['natali', false, 25]);
+}
+assert.equal(await page.locator('#p17b').count(), 1);
 
 // Package quantities: + saves after a short pause (in the closed row "החוזה והחבילה": the owner, 20.10.2026).
 await page.click('#fold-contract > summary');
@@ -572,6 +611,23 @@ await page.click('#round-submit');
 await page.waitForSelector('#r2-p11', { state: 'attached' });
 assert.equal(db.clients.find((c) => c.id === created.id).rounds[0].n, 2);
 assert.equal(await page.locator('#r2-p11b').count(), 1);
+// The round becomes a day without influencers with Eli (25.10.2026): its own crew, Natali's steps gone, Eli's kept.
+await page.click('.round-head .btn-text:has-text("עריכת הסבב")');
+await page.waitForSelector('#dlg-round[open]');
+assert.equal(await page.isChecked('#round-crew-with'), true);
+await page.check('#round-crew-solo');
+assert.equal(await page.isVisible('#round-type'), false);
+assert.equal(await page.innerText('#round-at-l'), 'מועד הצילום');
+await page.check('#round-photographer-eli');
+await page.click('#round-submit');
+await page.waitForSelector('#dlg-round', { state: 'hidden' });
+{
+  const r = db.clients.find((c) => c.id === created.id).rounds[0];
+  assert.deepEqual([r.shoot_type, r.shoot_crew], [null, 'eli']);
+}
+await page.waitForFunction(() => !document.querySelector('#r2-p11b'));
+assert.equal(await page.locator('#r2-p17b').count(), 1);
+assert.match(await page.locator('.round-head').first().innerText(), /בלי משפיענים · ליאור \+ אלי/);
 
 // Structured weekly call with a task.
 await page.evaluate(() => document.querySelectorAll('details.phase').forEach((d) => { d.open = true; }));

@@ -81,8 +81,8 @@ before(async () => {
   }
 });
 
-test('the file: the newest, only adds, and runs twice', async () => {
-  assert.equal(migrationFiles().at(-1), FILE);
+test('the file: newest but one (only the shoot crew after it), only adds, and runs twice', async () => {
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261107100000_shoot_crew.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));

@@ -500,8 +500,46 @@ await step('the editor sees what must and must not be said, and the business pho
 const iritCtx = await newContext(PHONE);
 const irit = await newPage(iritCtx);
 
-await step('the coordinator (11): a separate approval for each side; the day is closed only with all four and the calendar', async () => {
+await step('"עם מי מצלמים" lives in the shoot card: a day without influencers takes their approval and the contract\'s check off at once; saved, and back', async () => {
   await signIn(irit, 'prep.html', 'irit@astrateg.test');
+  const k = `${B.id.replace(/[^\w-]/g, '_')}-1`;
+  const card = `#shoot-${k}`;
+  await irit.waitForSelector(card);
+  assert.match(await irit.locator(`#sh-line-${k}`).innerText(), /^עם מי מצלמים:\s*דניס, מישל וסמיון/);
+  await irit.click(`#sh-edit-${k}`);
+  await irit.waitForSelector(`#sh-type-${k}`);
+  assert.equal(await irit.inputValue(`#sh-type-${k}`), 'dms');
+  assert.equal(await irit.innerText(`#sh-at-${k}-l`), 'הגעת המשפיענים');
+  assert.deepEqual(await irit.locator(`#sh-type-${k} optgroup`).evaluateAll((g) => g.map((x) => x.label)), ['עם משפיענים', 'בלי משפיענים: ליאור + צלם']);
+  await irit.selectOption(`#sh-type-${k}`, 'solo:eliel');
+  // At once, before it is saved: the influencers' approval and the contract's check are off the list.
+  await irit.waitForFunction((sel) => /חסר: אישור לקוח, אישור ליאור, אישור אליאל, הכנסה ליומן/.test(document.querySelector(sel)?.textContent || ''), `${card} .pp-status`);
+  assert.equal(await irit.innerText(`#sh-at-${k}-l`), 'שעת הצילום');
+  assert.equal(await irit.locator(`#pty-${k}-p11-ok-influencers, #pty-${k}-p11-influencers`).count(), 0);
+  assert.match(await irit.locator(`#pty-${k}-p11-ok-photographer`).innerText(), /אליאל הצלם/);
+  if (OUT) {
+    await irit.setViewportSize({ width: 390, height: 844 });
+    await irit.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+    await irit.waitForTimeout(400);
+    await irit.locator(`#sh-form-${k}`).scrollIntoViewIfNeeded();
+    await shotOf(irit, `${card} .pp-sub`, '07a-prep-solo-choice-390');
+    await irit.setViewportSize(PHONE);
+  }
+  await irit.click(`#sh-save-${k}`);
+  await irit.waitForSelector(`#sh-line-${k}`);
+  assert.match(await irit.locator(`#sh-line-${k}`).innerText(), /בלי משפיענים · ליאור \+ אליאל/);
+  assert.deepEqual([B.shoot_type, B.deliverables?.shoot_crew].map((v) => v ?? null), [null, 'eliel']);
+  assert.match(await irit.locator(`${card} .pp-when`).innerText(), /בלי משפיענים · ליאור \+ אליאל/);
+  // Back to the day with influencers, as the rest of this run expects.
+  await irit.click(`#sh-edit-${k}`);
+  await irit.selectOption(`#sh-type-${k}`, 'dms');
+  await irit.click(`#sh-save-${k}`);
+  await irit.waitForSelector(`#sh-line-${k}`);
+  assert.deepEqual([B.shoot_type, 'shoot_crew' in (B.deliverables || {})], ['dms', false]);
+  assert.match(await irit.locator(`${card} .pp-status`).first().innerText(), /אישור משפיענים/);
+});
+
+await step('the coordinator (11): a separate approval for each side; the day is closed only with all four and the calendar', async () => {
   const card = `#shoot-${B.id.replace(/[^\w-]/g, '_')}-1`;
   await irit.waitForSelector(card);
   // The business first, then the person (Irit, 22.10.2026); a client with no business name: the name alone.

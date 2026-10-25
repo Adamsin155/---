@@ -182,7 +182,7 @@
           <select class="input" id="new-package" aria-describedby="new-package-hint"></select>
           <div class="hint" id="new-package-hint"></div></div>
         <div class="field"><label for="new-shoot-type">סוג יום צילום</label>
-          <select class="input" id="new-shoot-type" required aria-describedby="new-shoot-hint"><option value="">בחירה</option><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select>
+          <select class="input" id="new-shoot-type" required aria-describedby="new-shoot-hint"><option value="">בחירה</option><optgroup label="עם משפיענים"><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></optgroup><optgroup label="בלי משפיענים: ליאור + צלם"><option value="solo:eli">ליאור + אלי</option><option value="solo:eliel">ליאור + אליאל</option></optgroup></select>
           <div class="hint" id="new-shoot-hint"></div></div>
         <div class="field"><label for="new-contract-end">סיום החוזה</label><input class="input" id="new-contract-end" type="date" dir="ltr"></div>
         <fieldset class="span-2 fs" id="new-import" hidden>
@@ -255,9 +255,10 @@
       </div>
       <div class="dlg-body form-grid">
         <p class="span-2 wait-ctx" id="shoot-ctx"></p>
-        <div class="field"><label for="shoot-at">מתי מגיעים המשפיענים?</label><input class="input" id="shoot-at" type="datetime-local" dir="ltr" required aria-describedby="shoot-avail"></div>
-        <div class="field"><label for="shoot-type">עם מי מצלמים?</label>
-          <select class="input" id="shoot-type"><option value="">לבחור</option><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
+        <div class="field"><label for="shoot-at" id="shoot-at-l">מתי מגיעים המשפיענים?</label><input class="input" id="shoot-at" type="datetime-local" dir="ltr" required aria-describedby="shoot-avail"></div>
+        <!-- "מי מצלם" (25.10.2026): with influencers, or Lior and one photographer (app/shoot-crew.js). -->
+        <div class="field"><label for="shoot-type">מי מצלם?</label>
+          <select class="input" id="shoot-type"><option value="">לבחור</option><optgroup label="עם משפיענים"><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></optgroup><optgroup label="בלי משפיענים: ליאור + צלם"><option value="solo:eli">ליאור + אלי</option><option value="solo:eliel">ליאור + אליאל</option></optgroup></select></div>
         <div class="span-2" id="shoot-avail-slot"></div>
         <div class="span-2 shoot-free" id="shoot-free" hidden></div>
         <fieldset class="span-2 shoot-oks" id="shoot-oks"><legend>מי כבר אישר? (אפשר גם אחר כך, מהכרטיס)</legend></fieldset>

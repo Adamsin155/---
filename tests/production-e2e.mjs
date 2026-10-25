@@ -19,8 +19,13 @@
 //     briefing's "קיבלתי" and the gear list; on the day: "הגעתי", the drive, the
 //     B-roll "לא", the locked handoff; Lior's shoot-day mode: quiet mode, counter,
 //     the closing lock, and the day closed.
+//   - Days without influencers (the owner's decision of 25.10.2026): Eliel's day is not on Eli's
+//     page and has no briefing to Eli; Eli's solo day is at the shoot's own time; Lior types
+//     "כמה סרטונים מצלמים היום" key by key (Chromium, and WebKit as an iPhone 13), counts to
+//     it, "הכונן אצלי" alone is the drive on Eliel's day, and the day closes without a
+//     testimonial.
 // Run: npx http-server -p 8121 -s . &  then  BASE_URL=http://localhost:8121/ node tests/production-e2e.mjs [outDir]
-import { chromium } from 'playwright';
+import { chromium, webkit, devices } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -66,6 +71,9 @@ const B = client('bbbbbbbb-0000-4000-8000-000000000002', { name: 'קפה גול�
 const N = client('cccccccc-0000-4000-8000-000000000003', { name: 'סטודיו נטלי', shoot_type: 'natali', editor: 'nirel', shoot_at: '2026-10-15T11:00:00+03:00', phone: '053-0000000' });
 const Tc = client('dddddddd-0000-4000-8000-000000000004', { name: 'פיצה נאפולי', phone: '054-1111111' });
 const S = client('eeeeeeee-0000-4000-8000-000000000005', { name: 'מאפיית שי', address: 'הנביאים 5, חיפה', phone: '055-2222222', shoot_at: '2026-10-22T11:00:00+03:00' });
+// Days without influencers on Tuesday 13.10 (25.10.2026): Eliel at 10:00, Eli at 13:00.
+const SL = client('f0f0f0f0-0000-4000-8000-000000000006', { name: 'סלון ליה', address: 'הרצל 20, תל אביב', phone: '056-3333333', shoot_type: null, deliverables: { videos: 12, shoot_days: 12, shoot_crew: 'eliel' }, shoot_at: '2026-10-13T10:00:00+03:00' });
+const SE = client('f1f1f1f1-0000-4000-8000-000000000007', { name: 'מוסך דני', address: 'התעשייה 3, חולון', phone: '057-4444444', shoot_type: null, deliverables: { videos: 12, shoot_days: 12, shoot_crew: 'eli' }, shoot_at: '2026-10-13T13:00:00+03:00' });
 
 const imported = (c, station) => importKeys(station).map((k) => ({ client_id: c.id, item_key: k, state: 'done', note: 'ייבוא', by_email: 'irit@astrateg.test', at: '2026-09-02T09:00:00+03:00' }));
 const itemsOf = (ids) => new Set(PROCESSES.filter((p) => ids.includes(p.id)).flatMap((p) => p.items.map((i) => i.key)));
@@ -74,7 +82,7 @@ const SHOOTDAY = itemsOf(['p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p1
 const check = (c, key, at, note = null, by = 'ofir@astrateg.test') => ({ client_id: c.id, item_key: key, state: 'done', note, by_email: by, at: T(at).toISOString() });
 const db = {
   staff,
-  clients: [A, B, N, Tc, S],
+  clients: [A, B, N, Tc, S, SL, SE],
   protocol_checks: [
     ...imported(A, 'post').filter((r) => !EDITING.has(r.item_key)),
     check(A, 'p22a.assigned', '2026-10-18T10:00:00'),
@@ -85,6 +93,8 @@ const db = {
     ...imported(N, 'post').filter((r) => !EDITING.has(r.item_key)), check(N, 'p22a.assigned', '2026-10-18T10:00:00'),
     ...imported(Tc, 'ongoing'),
     ...imported(S, 'shoot').filter((r) => !SHOOTDAY.has(r.item_key)),
+    ...imported(SL, 'shoot').filter((r) => !SHOOTDAY.has(r.item_key)),
+    ...imported(SE, 'shoot').filter((r) => !SHOOTDAY.has(r.item_key)),
   ],
   client_tasks: [
     { id: randomUUID(), client_id: Tc.id, title: 'תיקון באנר לקמפיין', owner: 'nirel', due_on: '2026-10-19', done_at: null, done_by_email: null, created_by_email: 'lior@astrateg.test', created_at: T('2026-10-19T09:00:00').toISOString(), source: null, urgent: true, started_at: null, result: null, brief: { problem: 'הבאנר לא קריא', change: 'להגדיל כותרת', keep: 'הצבעים', result: 'באנר קריא בטלפון' } },
@@ -956,6 +966,142 @@ await step('who sees what: the office watches the shoot without buttons; an edit
   await eli.page.waitForSelector('#app:not([hidden])');
   assert.match(eli.page.url(), /clients\.html#mine$/);
   await eli.ctx.close();
+});
+
+// ── Days without influencers (the owner's decision of 25.10.2026) ──
+const SL_ID = `s-${SL.id}`;
+const SE_ID = `s-${SE.id}`;
+await step('a day without influencers, the evening before: Eliel\'s day has no briefing to Eli and is not on his page; Eli\'s is at the shoot\'s own time', async () => {
+  const lior = await scene('2026-10-12T17:30:00');
+  await signIn(lior.page, 'shoot.html', 'lior');
+  await lior.page.waitForSelector('#bd-2026-10-13');
+  const brief = await text(lior.page, '#bd-2026-10-13');
+  assert.match(brief, /מוסך דני[^]*הגעה 13:00 \(שעת הצילום, בלי משפיענים\)/);
+  assert.doesNotMatch(brief, /סלון ליה/);
+  await lior.ctx.close();
+  const eli = await scene('2026-10-12T17:30:00');
+  await signIn(eli.page, 'shoot.html', 'eli');
+  await eli.page.waitForSelector(`#${SE_ID}`);
+  assert.equal(await eli.page.locator(`#${SL_ID}`).count(), 0, 'Eliel\'s day is not on Eli\'s page');
+  assert.match(await text(eli.page, `#${SE_ID} .sh-facts`), /ההגעה שלך\s*13:00 · שעת הצילום \(בלי משפיענים: ליאור ואתה\)/);
+  await eli.ctx.close();
+});
+
+await step('Eliel\'s day before it starts: Lior types "כמה סרטונים מצלמים היום" key by key; the counter counts to it; the closing waits', async () => {
+  const { page, ctx } = await scene('2026-10-13T09:30:00', { width: 390, height: 844 });
+  await signIn(page, 'shoot.html', 'lior');
+  await page.waitForSelector(`#${SL_ID}`);
+  assert.equal(await text(page, `#${SL_ID}-crew`), 'בלי משפיענים · ליאור + אליאל');
+  assert.equal(await text(page, `#${SL_ID} .ed-state`), 'מתחיל ב־10:00');
+  assert.equal(await text(page, `label[for="${SL_ID}-daycount"]`), 'כמה סרטונים מצלמים היום');
+  assert.equal(await page.isDisabled(`#${SL_ID}-daycount`), false, 'before the start too');
+  assert.equal(await text(page, `#${SL_ID}-count`), 'צולמו 0');
+  assert.match(await text(page, `#${SL_ID}-lock`), /^עוד חסר: יום הצילום מתחיל ב־10:00 · כמה סרטונים מצלמים היום · לא סימנת שהכונן אצלך$/);
+  // Letters are refused, with the reason beside the field.
+  await page.click(`#${SL_ID}-daycount`);
+  await page.keyboard.type('ab', { delay: 40 });
+  await page.keyboard.press('Enter');
+  assert.equal(await text(page, `#${SL_ID}-daycount-err`), 'רק ספרות.');
+  assert.equal(await page.getAttribute(`#${SL_ID}-daycount`, 'aria-invalid'), 'true');
+  assert.equal(checkOf(SL, 'p18.count'), null);
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('3', { delay: 40 });
+  assert.equal(await page.isHidden(`#${SL_ID}-daycount-err`), true);
+  await page.keyboard.press('Enter');
+  await toastHas(page, 'נשמר: מצלמים היום 3 סרטונים.');
+  assert.deepEqual(JSON.parse(checkOf(SL, 'p18.count').note), { videos: 3 });
+  await page.waitForFunction((id) => document.getElementById(`${id}-count`)?.textContent === 'צולמו 0 מתוך 3', SL_ID);
+  assert.equal(await page.inputValue(`#${SL_ID}-daycount`), '3');
+  assert.equal(await text(page, `#${SL_ID}-daycount-save`), 'עדכון');
+  assert.equal(await page.isDisabled(`#${SL_ID}-plus`), true);
+  assert.match(await text(page, `#${SL_ID}-lock`), /עוד 3 סרטונים \(צולמו 0 מתוך 3\)/);
+  assert.match(await text(page, `#${SL_ID} .sh-timeline`), /10:00\s*ליאור \+ אליאל מגיעים/);
+  assert.doesNotMatch(await text(page, `#${SL_ID}`), /המשפיענים|סרטון המלצה של הלקוח עם/);
+  assert.ok(await noHScroll(page));
+  assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
+  await ctx.close();
+});
+
+await step('Eliel\'s day: the counter to Lior\'s number, no testimonial required, "הכונן אצלי" alone, and the day closes', async () => {
+  const { page, ctx } = await scene('2026-10-13T12:30:00', { width: 390, height: 844 });
+  await signIn(page, 'shoot.html', 'lior');
+  await page.waitForSelector(`#${SL_ID}`);
+  assert.equal(await page.isDisabled(`#${SL_ID}-close`), true);
+  assert.equal(await text(page, `#${SL_ID}-lock`), 'עוד חסר: עוד 3 סרטונים (צולמו 0 מתוך 3) · לא סימנת שהכונן אצלך');
+  assert.equal(await text(page, `label[for="${SL_ID}-testimonial"]`), 'צולם סרטון המלצה של הלקוח (לא חובה היום)');
+  assert.equal(await page.locator(`#${SL_ID}-all`).count(), 0);
+  assert.match(await text(page, `#${SL_ID} .sh-facts`), /אליאל\s*אין לו חשבון במערכת: ליאור מסמן כשהכונן אצלו/);
+  for (let n = 1; n <= 3; n += 1) {
+    await page.click(`#${SL_ID}-plus`);
+    await page.waitForFunction(([id, x]) => document.getElementById(`${id}-count`)?.textContent === `צולמו ${x} מתוך 3`, [SL_ID, n]);
+  }
+  assert.equal(await text(page, `#${SL_ID}-lock`), 'עוד חסר: לא סימנת שהכונן אצלך');
+  assert.equal(await text(page, `#${SL_ID}-took`), 'הכונן אצלי');
+  await page.click(`#${SL_ID}-took`);
+  await page.waitForFunction((id) => !document.getElementById(`${id}-close`)?.disabled, SL_ID);
+  assert.equal(await text(page, `#${SL_ID}-lock`), 'אפשר לסגור.');
+  assert.equal(checkOf(SL, 'p19.took').note, 'ליאור: הכונן אצלי (אליאל)');
+  assert.match(await text(page, `#${SL_ID}-took-ok`), /^סימנת שהכונן אצלך 12:3\d\.$/);
+  assert.ok(await noHScroll(page));
+  // The sign-in screen has gone (its welcome fades out) before the picture is taken.
+  await page.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+  await page.waitForTimeout(400);
+  await page.locator(`#${SL_ID}`).scrollIntoViewIfNeeded();
+  await shot(page, '390-solo-shoot-card');
+  if (OUT) await page.locator(`#${SL_ID}`).screenshot({ path: `${OUT}/390-solo-shoot-card-only.png` });
+  await page.click(`#${SL_ID}-close`);
+  await toastHas(page, 'יום הצילום נסגר. אופיר קיבל הודעה לשייך עורך.');
+  assert.doesNotMatch(await text(page, '#toast'), /אלי קיבל/);
+  for (const k of ['p18.order', 'p18.all', 'p19.all', 'p19.drive', 'p19.took']) assert.ok(checkOf(SL, k), k);
+  assert.equal(checkOf(SL, 'p19.testimonial'), null, 'not required, not marked');
+  for (const k of ['p17b.arrived', 'p19b.handed']) assert.equal(checkOf(SL, k), null, k);
+  await page.waitForFunction((id) => /יום הצילום נסגר/.test(document.getElementById(id)?.textContent || ''), SL_ID);
+  assert.equal(await text(page, `#${SL_ID}-daycount-set`), 'צילמו היום 3 סרטונים (המספר של ליאור).');
+  assert.equal(await page.locator(`#${SL_ID}-plus, #${SL_ID}-daycount`).count(), 0);
+  await ctx.close();
+});
+
+await step('on an iPhone 13 (WebKit): the number typed key by key, without zooming the page, saved with Enter and changed', async () => {
+  const wk = await webkit.launch();
+  clockNow = T('2026-10-13T12:40:00');
+  clockSetAt = Date.now();
+  const ctx = await wk.newContext({ ...devices['iPhone 13'], locale: 'he-IL', timezoneId: 'Asia/Jerusalem' });
+  await ctx.clock.install({ time: clockNow });
+  await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(`webkit: ${e}`));
+  await signIn(page, 'shoot.html', 'lior');
+  await page.waitForSelector(`#${SE_ID}-daycount`);
+  // 16px or more: Safari does not zoom into the field.
+  const fontPx = await page.locator(`#${SE_ID}-daycount`).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  assert.ok(fontPx >= 16, `${fontPx}px`);
+  assert.equal(await page.getAttribute(`#${SE_ID}-daycount`, 'inputmode'), 'numeric');
+  await page.locator(`#${SE_ID}-daycount`).tap();
+  await page.keyboard.type('12', { delay: 60 });
+  assert.equal(await page.inputValue(`#${SE_ID}-daycount`), '12');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => /נשמר: מצלמים היום 12 סרטונים/.test(document.querySelector('#toast')?.textContent || ''));
+  assert.deepEqual(JSON.parse(checkOf(SE, 'p18.count').note), { videos: 12 });
+  await page.waitForFunction((id) => document.getElementById(`${id}-count`)?.textContent === 'צולמו 0 מתוך 12', SE_ID);
+  // Changed: two keys back, one key in, "עדכון".
+  await page.locator(`#${SE_ID}-daycount`).tap();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('5', { delay: 60 });
+  await page.locator(`#${SE_ID}-daycount-save`).tap();
+  await page.waitForFunction((id) => document.getElementById(`${id}-count`)?.textContent === 'צולמו 0 מתוך 5', SE_ID);
+  assert.deepEqual(JSON.parse(checkOf(SE, 'p18.count').note), { videos: 5 });
+  // Eli films this one: his handoff is still asked, and the testimonial is not.
+  assert.match(await text(page, `#${SE_ID}-lock`), /עוד 5 סרטונים[^]*אלי עוד לא סימן שמסר את הכונן · לא אישרת שהכונן חזר אליך$/);
+  assert.doesNotMatch(await text(page, `#${SE_ID}-lock`), /סרטון המלצה/);
+  assert.ok(await noHScroll(page));
+  await page.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+  await page.waitForTimeout(400);
+  if (OUT) await page.locator(`#${SE_ID}`).screenshot({ path: `${OUT}/iphone13-solo-count.png` });
+  await ctx.close();
+  await wk.close();
 });
 
 await browser.close();

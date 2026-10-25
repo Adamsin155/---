@@ -4,7 +4,7 @@
 // The price columns exist only for a viewer who sees the money (seesFinance in
 // app/manager-rules.js: the owner, Irit and Ofir, never Lior); for anyone else they
 // are not built at all, so they cannot reach the screen or the CSV.
-import { PEOPLE, SHOOT_TYPES, CLIENT_STATUS, STATIONS, editorNames } from './protocol.js';
+import { PEOPLE, CLIENT_STATUS, STATIONS, editorNames, shootTypeName } from './protocol.js';
 import { COLORS, shootContexts } from './health.js';
 import { contractSummary, ratio } from './contract-summary.js';
 import { parseDate } from './protocol-logic.js';
@@ -39,7 +39,7 @@ export function tableRow(entry, { checks = {}, finance = null, files = null, now
     name: c.business || c.name || '',
     contact: c.business && c.name && c.name !== c.business ? c.name : '',
     package: c.package_name || '',
-    shootType: c.shoot_type ? SHOOT_TYPES[c.shoot_type]?.name || '' : '',
+    shootType: shootTypeName(c),
     status: c.status,
     statusText: CLIENT_STATUS[c.status] || c.status || '',
     signedAt: parseDate(f?.signed_at) || parseDate(c.deal_at),

@@ -56,7 +56,8 @@ async function all(build: () => any): Promise<Row[]> {
 const chunks = <T>(list: T[], n: number): T[][] => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
 
 // What the protocol logic needs, the name and the address; never the phone or the office's notes.
-const CLIENT_COLS = 'id, name, address, shoot_type, characterizer, editor, editor2, has_logo, deal_at, char_at, shoot_at, contract_end, status, rounds, created_at, updated_at';
+// `deliverables`: the client's own shoot's crew (a day without influencers, 25.10.2026) is kept there.
+const CLIENT_COLS = 'id, name, address, shoot_type, characterizer, editor, editor2, has_logo, deal_at, char_at, shoot_at, contract_end, status, rounds, deliverables, created_at, updated_at';
 const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, created_at, started_at, urgent, source';
 
 async function load(person: string, now: Date) {

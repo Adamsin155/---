@@ -18,7 +18,9 @@ import { h, fill, toast, errorText, formatWhen, landingTag } from './protocol-ui
 import { googleIcsUrl, googleEvent, suggestionOf, suggestionText } from './gcal-logic.js';
 import { saveMeeting, saveShootDay } from './date-set.js';
 import { sendsInvites, timeText } from './calendar-view.js';
-import { PEOPLE, SHOOT_TYPES } from './protocol.js';
+import { PEOPLE } from './protocol.js';
+// "מי מצלם" (25.10.2026): with influencers, or Lior and one photographer.
+import { CREW_GROUPS, choiceOf } from './shoot-crew.js';
 import { icon, iconSquare } from './kit.js';
 
 const COLS = 'uid, starts_at, ends_at, all_day, summary, location, client_id, kind_guess, dismissed_at';
@@ -73,23 +75,23 @@ function suggestionNode(row, client) {
   const s = suggestionOf(row, client, { now: new Date() });
   if (!s) return null;
   const id = `gc-${row.uid}`.replace(/[^\w-]/g, '_');
-  const type = choice.get(row.uid) ?? (SHOOT_TYPES[client.shoot_type] ? client.shoot_type : null);
+  const type = choice.get(row.uid) ?? (choiceOf(client) || null);
   const person = client.characterizer || 'ofir';
   return h('div', { class: 'gc-sug', role: 'group', 'aria-labelledby': `${id}-q` },
     h('p', { class: 'gc-q', id: `${id}-q` }, suggestionText(s, client), s.kind === 'char' ? h('span', { class: 'gc-with' }, ` עם ${PEOPLE[person]?.name || ''}`) : null),
-    s.kind === 'shoot' ? h('div', { class: 'gc-types', role: 'group', 'aria-label': 'עם מי מצלמים?' },
-      h('span', { class: 'gc-types-h' }, 'עם מי מצלמים?'),
-      Object.values(SHOOT_TYPES).map((t) => h('button', {
-        type: 'button', class: 'chip', 'data-type': t.key, 'aria-pressed': String(type === t.key),
-        onclick: () => { choice.set(row.uid, t.key); ctx.redraw(); document.querySelector(`#${id}-acts`)?.closest('.gc-sug')?.querySelector(`.chip[data-type="${t.key}"]`)?.focus(); },
-      }, t.name))) : null,
+    s.kind === 'shoot' ? h('div', { class: 'gc-types', role: 'group', 'aria-label': 'מי מצלם?' },
+      h('span', { class: 'gc-types-h' }, 'מי מצלם?'),
+      CREW_GROUPS.flatMap((g) => g.options.map(([key, name]) => [key, g.key === 'solo' ? `${name} (בלי משפיענים)` : name])).map(([key, name]) => h('button', {
+        type: 'button', class: 'chip', 'data-type': key, 'aria-pressed': String(type === key),
+        onclick: () => { choice.set(row.uid, key); ctx.redraw(); document.querySelector(`#${id}-acts`)?.closest('.gc-sug')?.querySelector(`.chip[data-type="${key}"]`)?.focus(); },
+      }, name))) : null,
     h('div', { class: 'gc-acts', id: `${id}-acts` },
       h('button', { type: 'button', class: 'btn btn-sm btn-primary gc-yes', disabled: busy, onclick: () => accept(row, client, s, type, person) }, 'לקבוע'),
       h('button', { type: 'button', class: 'btn-text gc-no', disabled: busy, onclick: () => dismiss(row) }, 'לא קשור')));
 }
 
 async function accept(row, client, s, type, person) {
-  if (s.kind === 'shoot' && !type) { toast('בוחרים קודם עם מי מצלמים.'); return; }
+  if (s.kind === 'shoot' && !type) { toast('בוחרים קודם מי מצלם.'); return; }
   busy = true;
   ctx.redraw();
   try {

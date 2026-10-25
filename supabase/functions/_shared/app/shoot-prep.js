@@ -21,7 +21,7 @@
 //   requests       her section 17: a client's request opens a task with an owner and
 //                  a due day in one tap; when it is done she gets "לעדכן את הלקוח"
 //                  (a database trigger opens it) with a ready message.
-import { PEOPLE, NETWORKS } from './protocol.js';
+import { PEOPLE, NETWORKS, PHOTOGRAPHERS, isSolo, crewOf, hasShootType, shootTypeName } from './protocol.js';
 import {
   parseDate, roundsOf, roundContext, isBusinessDay, businessDaysBetween, addBusinessDays, isDaily, inLanding,
 } from './protocol-logic.js';
@@ -62,20 +62,29 @@ export const NATALI = [
   { key: 'p11b.makeup', label: 'המאפרת, בבית נטלי שעתיים לפני', short: 'מאפרת' },
   { key: 'p11b.ride', label: 'ההסעה של נטלי, הלוך וחזור', short: 'הסעה' },
 ];
+// A day without influencers (25.10.2026): no influencers to approve or to check in the
+// contract (`contract` is then null), and the photographer is the day's own (Eli or Eliel).
 export function coordinatorOf(client, checks, x) {
   const k = (key) => `${x.pre}${key}`;
   const item = (p) => ({ ...p, key: k(p.key), done: done(checks, k(p.key)), check: checks[k(p.key)] || null });
-  const approvals = PARTIES.map(item);
-  const contract = item({ key: 'p11.influencers', label: 'בדקתי בחוזה אילו משפיענים נרכשו' });
+  const solo = isSolo(x.ctx);
+  const crew = crewOf(x.ctx);
+  const party = (p) => (p.key === 'p11.ok.photographer' && solo ? { ...p, label: `${PHOTOGRAPHERS[crew].name} הצלם`, short: PHOTOGRAPHERS[crew].name } : p);
+  const approvals = PARTIES.filter((p) => !solo || p.key !== 'p11.ok.influencers').map((p) => item(party(p)));
+  const contract = solo ? null : item({ key: 'p11.influencers', label: 'בדקתי בחוזה אילו משפיענים נרכשו' });
   const calendar = item({ key: 'p11.calendar', label: 'יום הצילום ביומן של כולם' });
   const natali = x.ctx.shoot_type === 'natali' ? NATALI.map(item) : [];
   const shootAt = parseDate(x.ctx.shoot_at);
-  const needs = [!x.ctx.shoot_type ? 'עם מי מצלמים' : null, !shootAt ? 'תאריך ושעה' : null].filter(Boolean);
+  const typeSet = hasShootType(x.ctx);
+  const needs = [!typeSet ? 'עם מי מצלמים' : null, !shootAt ? 'תאריך ושעה' : null].filter(Boolean);
   const missing = [...approvals.filter((a) => !a.done).map((a) => `אישור ${a.short}`),
-    ...(contract.done ? [] : ['בדיקת המשפיענים בחוזה']), ...(calendar.done ? [] : ['הכנסה ליומן'])];
+    ...(!contract || contract.done ? [] : ['בדיקת המשפיענים בחוזה']), ...(calendar.done ? [] : ['הכנסה ליומן'])];
   const closed = !missing.length;
   const nataliMissing = natali.filter((a) => !a.done).map((a) => a.short);
-  return { n: x.n, pre: x.pre, shootAt, shootType: x.ctx.shoot_type || null, approvals, contract, calendar, natali, needs, missing, closed, nataliMissing, fullyClosed: closed && !nataliMissing.length };
+  return {
+    n: x.n, pre: x.pre, shootAt, shootType: x.ctx.shoot_type || null, solo, crew, typeSet, typeName: shootTypeName(x.ctx),
+    approvals, contract, calendar, natali, needs, missing, closed, nataliMissing, fullyClosed: closed && !nataliMissing.length,
+  };
 }
 
 // ── 14: shoot-day blockers ────────────────
@@ -323,7 +332,8 @@ export function dayBefore(client, checks, prep, x, now = new Date()) {
   const items = [
     { id: 'content', label: 'הלקוח אישר את התוכן', auto: sys(d('p13.approved')), why: 'אישור התסריטים בתהליך 13' },
     { id: 'client', label: 'הלקוח קיבל תזכורת ליום הצילום', auto: sys(d('p15.client')), why: 'תזכורת ללקוח בתהליך 15' },
-    { id: 'influencers', label: 'המשפיענים עודכנו', auto: sys(d('p15.influencers')), why: 'תזכורת למשפיענים בתהליך 15' },
+    // A day without influencers (25.10.2026): nobody to remind.
+    ...(isSolo(x.ctx) ? [] : [{ id: 'influencers', label: 'המשפיענים עודכנו', auto: sys(d('p15.influencers')), why: 'תזכורת למשפיענים בתהליך 15' }]),
     { id: 'crew', label: 'הצלם והצוות עודכנו', auto: sys(d('p15.crew')), why: 'תזכורת לצוות בתהליך 15' },
     {
       id: 'address', label: 'הכתובת נכונה אצל כולם',

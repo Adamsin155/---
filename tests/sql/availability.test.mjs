@@ -79,7 +79,8 @@ test('the migration has none of the words the production deploy tool refuses, an
 });
 
 test('the lists are the app\'s: who is a photographer, who reads, who enters it in his name', async () => {
-  assert.deepEqual((await db.query('select public.photographer_people() as p')).rows[0].p, PHOTOGRAPHERS);
+  // This migration names Eli; Eliel joins in 20261107100000_shoot_crew.sql (tests/sql/shoot-crew.test.mjs).
+  assert.deepEqual((await db.query('select public.photographer_people() as p')).rows[0].p, PHOTOGRAPHERS.filter((p) => p === 'eli'));
   for (const who of Object.keys(PEOPLE)) {
     const person = PEOPLE[who] ?? 'owner';
     const r = (await q(who, "select public.can_read_availability('eli') as reads, public.can_manage_availability() as manages")).rows[0];

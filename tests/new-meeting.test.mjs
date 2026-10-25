@@ -37,7 +37,10 @@ test('what is missing', () => {
   assert.equal(checkMeeting({ kind: 'char', client: null, at: AT, person: 'ofir' }), 'בוחרים לקוח.');
   assert.equal(checkMeeting({ kind: 'char', client: C[0], at: null, person: 'ofir' }), 'בוחרים יום ושעה לפגישה.');
   assert.equal(checkMeeting({ kind: 'char', client: C[0], at: AT, person: 'irit' }), 'בוחרים מי מבצע את האפיון.');
-  assert.equal(checkMeeting({ kind: 'shoot', client: C[0], at: AT, type: null }), 'בוחרים עם מי מצלמים.');
+  assert.equal(checkMeeting({ kind: 'shoot', client: C[0], at: AT, type: null }), 'בוחרים מי מצלם.');
+  // A day without influencers (25.10.2026) is a choice too; a photographer that is not one is not.
+  assert.equal(checkMeeting({ kind: 'shoot', client: C[0], at: AT, type: 'solo:eliel' }), null);
+  assert.equal(checkMeeting({ kind: 'shoot', client: C[0], at: AT, type: 'solo:nadia' }), 'בוחרים מי מצלם.');
   assert.equal(checkMeeting({ kind: 'shoot', client: C[0], at: null, type: 'dms' }), 'בוחרים יום ושעה ליום הצילום.');
   assert.equal(checkMeeting({ kind: 'other', client: null, at: AT, title: ' ' }), 'כותבים במה מדובר.');
   assert.equal(checkMeeting({ kind: 'other', client: null, at: AT, title: 'שיחת היכרות' }), null, 'no client is needed');
@@ -56,6 +59,15 @@ test('the invitations: a meeting with the characterizer, a shoot day an hour bef
   assert.ok(shoot.get('dates').startsWith('20261022T070000Z/'), 'the team an hour before');
   assert.equal(shoot.get('add'), 'lior@astrateg.test,eli@astrateg.test');
   assert.match(shoot.get('details'), /הגעת המשפיענים: 11:00/);
+  // A day without influencers (25.10.2026): at the shoot's own time; Eli only when he films it.
+  const eliel = new URL(meetingInvite({ kind: 'shoot', client: C[0], at: AT, type: 'solo:eliel', emails: EMAILS, site: 'https://app/' }).url).searchParams;
+  assert.ok(eliel.get('dates').startsWith('20261022T080000Z/20261022T110000Z'), 'at its own time, three hours');
+  assert.equal(eliel.get('add'), 'lior@astrateg.test');
+  assert.match(eliel.get('details'), /שעת הצילום: 11:00\. בלי משפיענים · ליאור \+ אליאל\./);
+  assert.doesNotMatch(eliel.get('details'), /המשפיענים:/);
+  const eli = new URL(meetingInvite({ kind: 'shoot', client: C[0], at: AT, type: 'solo:eli', emails: EMAILS, site: 'https://app/' }).url).searchParams;
+  assert.equal(eli.get('add'), 'lior@astrateg.test,eli@astrateg.test');
+  assert.ok(eli.get('dates').startsWith('20261022T080000Z/'));
   const other = meetingInvite({ kind: 'other', client: C[0], at: AT, title: ' שיחת היכרות ', clientEmail: 'avi@example.com', site: 'https://app/' });
   const o = new URL(other.url).searchParams;
   assert.equal(o.get('text'), 'שיחת היכרות · פיצה נאפולי');

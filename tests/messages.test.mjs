@@ -466,7 +466,7 @@ test('templates: defaults, the table wins, filling, and what is left to fill', (
   assert.equal(map.get('welcome').kind, 'milestone');
   assert.equal(map.get('daily.join').isDefault, true);
   assert.equal(map.has('nope'), false);
-  assert.equal(map.size, 25); // 21 from stage 1, the 2 survey questions of stage 4, the station change (3.10.2026), the logins-form nudge (6.10.2026)
+  assert.equal(map.size, 26); // 21 from stage 1, the 2 survey questions of stage 4, the station change (3.10.2026), the logins-form nudge (6.10.2026), the day before a shoot without influencers (25.10.2026)
   assert.equal(fillTemplate('היי {לקוח}, חסר {חסר}.', { 'לקוח': 'דנה', 'חסר': '' }), 'היי דנה, חסר {חסר}.');
   assert.deepEqual(unfilledIn('היי {לקוח}, עד [מועד חדש] ו[מועד חדש].'), ['{לקוח}', '[מועד חדש]']);
   assert.deepEqual(unfilledIn('היי דנה!'), []);

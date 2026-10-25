@@ -28,7 +28,7 @@ import { pausedSinceYesterday, campaignCheck, urgentState } from './decisions-lo
 import { editingCases, editorState } from './production.js';
 import { shootSoon, SHOOT_SOON_DAYS } from './landing-logic.js';
 import {
-  askOf, monthRow, monthName, missingForManagers, PHOTOGRAPHERS, MANAGERS as AVAILABILITY_MANAGERS, DEADLINE_DAY, AVAILABILITY_URL, OFFICE_URL,
+  askOf, monthRow, monthName, missingForManagers, HANDS_OVER as PHOTOGRAPHERS, MANAGERS as AVAILABILITY_MANAGERS, DEADLINE_DAY, AVAILABILITY_URL, OFFICE_URL,
 } from './availability-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import { unsignedLine, UNSIGNED_URL } from './unsigned-logic.js';
