@@ -667,3 +667,7 @@ dialog.preview[open] { display: flex; flex-direction: column; }
   body:has(main textarea:focus) .mobilebar { opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(12px); }
 }
 @media (max-width: 380px) { .stepnav a:not(.is-active) .n { display: none; } }
+
+/* "חוזה חדש" beside the document switch (25.10.2026): quiet, 44px, red while it asks. */
+.btn-fresh { min-height: 44px; margin-top: 10px; }
+.btn-fresh.is-asking { color: var(--danger, #B42318); border-color: currentColor; }

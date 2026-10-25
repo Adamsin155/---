@@ -385,6 +385,8 @@ try {
     // The run is used: the same contract again would go for approval; the tags are gone.
     assert.equal(await text(irit, '#btn-link'), 'שליחה לאישור');
     assert.equal(await irit.locator('.tag-ai:visible').count(), 0);
+    // Sent: the draft is gone, so a refresh starts a new one (the owner, 25.10.2026).
+    assert.equal(await irit.evaluate(() => sessionStorage.getItem('astrateg-draft')), null);
     // The client's link.
     const anon = await newPage(browser, { viewport: { width: 390, height: 844 } });
     await anon.goto(`${BASE}q.html#t=${sentQuote.token}`);
@@ -436,6 +438,22 @@ try {
     assert.equal(await lior.locator('#cq-videos').inputValue(), '20');
     assert.equal(await text(lior, '#btn-link'), 'שליחה לאישור');
     await lior.context().close();
+  });
+
+  await step('"חוזה חדש": the first tap asks, the second clears the builder, the AI text and the client', async () => {
+    await freshBuilder(irit);
+    await irit.locator('#c-name').click();
+    await irit.keyboard.type('רונית', { delay: 10 });
+    await typeDeal(irit);
+    assert.equal(await text(irit, '#btn-fresh'), 'חוזה חדש');
+    await irit.locator('#btn-fresh').click();
+    assert.equal(await text(irit, '#btn-fresh'), 'בטוח? הכול יימחק');
+    assert.equal(await irit.inputValue('#c-name'), 'רונית', 'nothing cleared on the first tap');
+    await Promise.all([irit.waitForEvent('load'), irit.locator('#btn-fresh').click()]);
+    assert.equal(await irit.evaluate(() => sessionStorage.getItem('astrateg-draft')), null);
+    await irit.locator('#start-agreement').click();
+    await irit.locator('#ai-box').waitFor();
+    assert.deepEqual([await irit.inputValue('#c-name'), await irit.inputValue('#ai-text')], ['', '']);
   });
 
   await step('a phone (390px): the same typing and button, 44px targets, nothing scrolls sideways', async () => {
