@@ -69,7 +69,7 @@ test('the schema is strict: every object closed and fully required, the catalog\
   assert.ok(unions <= 16, `${unions} union-typed parameters`);
   assert.deepEqual(P.addons.items.enum, PAID_IDS);
   assert.ok(!P.removals.items.enum.includes('monthly'), 'the monthly contents are never removed');
-  assert.deepEqual(Object.keys(P).sort(), ['addons', 'discount', 'discountPercent', 'extraLines', 'freeAddons', 'monthlyPrice', 'months', 'notes', 'package', 'priceIncludesVat', 'quantities', 'questions', 'removals', 'specialClauses'].sort());
+  assert.deepEqual(Object.keys(P).sort(), ['addons', 'client', 'discount', 'discountPercent', 'extraLines', 'freeAddons', 'monthlyPrice', 'months', 'notes', 'package', 'priceIncludesVat', 'quantities', 'questions', 'removals', 'specialClauses'].sort());
 });
 
 /* ── Fifteen deals ─────────────────────────── */
@@ -472,4 +472,14 @@ test('create-quote: the run is checked before anything is stored; a corrected ve
   assert.match(src, /if \(problem\) return json\(409, \{ error: `ai run \$\{problem\}` \}\);/);
   // Waiting for a manager: no token; prepared with AI: the token at once.
   assert.match(src, /if \(row\.approval === 'pending'\) return json\(200, \{ id: row\.id, number: row\.number, created_at: row\.created_at, approval: row\.approval \}\);/);
+});
+
+test('the customer\'s details: what the text gave, in the form\'s limits; nothing invented', () => {
+  const ok = validateAiResult({ client: { name: ' דני כהן ', company: 'פיצה דני', companyId: '51-472993-8', phone: '050-1234567', email: 'dani@pizza.co.il' } });
+  assert.deepEqual(ok.result.client, { name: 'דני כהן', company: 'פיצה דני', companyId: '514729938', phone: '050-1234567', email: 'dani@pizza.co.il' });
+  assert.deepEqual(ok.dropped, []);
+  assert.deepEqual(validateAiResult({ client: { name: '', company: '', companyId: '', phone: '', email: '' } }).result.client, {});
+  const bad = validateAiResult({ client: { name: 'דני', company: '', companyId: '12', phone: '05', email: 'dani@' } });
+  assert.deepEqual(bad.result.client, { name: 'דני' });
+  assert.deepEqual(bad.dropped.map((d) => d.field), ['client.companyId', 'client.phone', 'client.email']);
 });

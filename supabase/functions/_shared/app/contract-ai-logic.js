@@ -119,6 +119,7 @@ Fill the settings the way the office would by hand, using only the options above
 - extraLines: things that are sold but are in no package; a monthly price only when the text states one.
 - specialClauses: short Hebrew sentences for the agreement, one per clause.
 - questions: short Hebrew questions to the office about anything unclear, missing or contradictory (a number without what it counts, two possible packages, a price that may include VAT, an add-on the package does not allow). Ask rather than guess.
+- client: the customer's details when the text gives them: name (the person), company (the business), companyId (ח.פ / ע.מ, digits), phone, email. Write "" for anything the text does not give; never invent one.
 - notes: one short Hebrew sentence for the office about the result, or null.
 Write every text for the office in Hebrew.`;
 
@@ -161,6 +162,8 @@ export const RESULT_SCHEMA = object({
   extraLines: { type: 'array', items: object({ label: { type: 'string' }, qty: nullable(INT), monthly: nullable(INT) }) },
   specialClauses: { type: 'array', items: { type: 'string' } },
   questions: { type: 'array', items: { type: 'string' } },
+  // "" when not given: plain strings keep the schema under the API's limit of union-typed parameters.
+  client: object({ name: { type: 'string' }, company: { type: 'string' }, companyId: { type: 'string' }, phone: { type: 'string' }, email: { type: 'string' } }),
   notes: nullable({ type: 'string' }),
 });
 
@@ -189,7 +192,7 @@ export function validateAiResult(raw) {
   const out = {
     package: null, months: null, quantities: {}, removals: [], addons: [], freeAddons: {},
     monthlyPrice: null, priceIncludesVat: false, discount: null, discountPercent: null,
-    extraLines: [], specialClauses: [], questions: [], notes: null,
+    extraLines: [], specialClauses: [], questions: [], notes: null, client: {},
   };
 
   if (given(r.package)) {
@@ -303,6 +306,31 @@ export function validateAiResult(raw) {
   out.questions = [...out.questions, ...texts(r.questions).map((s) => clip(s, AI_LIMITS.question))].slice(0, AI_LIMITS.questions);
   const notes = cleanLine(r.notes);
   out.notes = notes ? clip(notes, AI_LIMITS.notes) : null;
+  // The customer's details (the builder's "פרטי הלקוח"): only what the text gave, in the form's own limits.
+  if (given(r.client)) {
+    const c = isObject(r.client) ? r.client : {};
+    const name = clip(cleanLine(c.name), 120);
+    const company = clip(cleanLine(c.company), 120);
+    const idText = cleanLine(c.companyId);
+    const idDigits = idText.replace(/[^0-9]/g, '');
+    const phoneText = cleanLine(c.phone);
+    const phone = phoneText.replace(/[^0-9+\-\s()]/g, '').trim().slice(0, 40);
+    const email = cleanLine(c.email).slice(0, 160);
+    if (name) out.client.name = name;
+    if (company) out.client.company = company;
+    if (idDigits) {
+      if (idDigits.length >= 8 && idDigits.length <= 9) out.client.companyId = idDigits;
+      else drop('client.companyId', `ח.פ / ע.מ לא תקין: ${idText}`);
+    }
+    if (phoneText) {
+      if (phone.replace(/\D/g, '').length >= 9) out.client.phone = phone;
+      else drop('client.phone', `טלפון לא תקין: ${phoneText}`);
+    }
+    if (email) {
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) out.client.email = email;
+      else drop('client.email', `אימייל לא תקין: ${email}`);
+    }
+  }
   return { result: out, dropped };
 }
 

@@ -63,6 +63,7 @@ const MODEL_ANSWERS = {
     package: 'social-natali', months: 12, quantities: { videos: 20, shootDays: 2 }, monthlyPrice: 350000, discount: 30000,
     specialClauses: ['ללא Highlights'], questions: ['Highlights אינו חלק מהחבילה: נרשם כתנאי מיוחד. לוודא שזה מה שסוכם.'],
     notes: 'המחיר שנכתב נלקח כמחיר החודשי של החבילה לפני מע״מ.',
+    client: { name: 'דנה לוי', company: 'קפה דנה', companyId: '', phone: '050-1234567', email: '' },
   }),
 };
 
@@ -304,7 +305,11 @@ try {
     assert.deepEqual(calls.filter((c) => c.contractAi).at(-1).contractAi, { text: DEAL });
     await checkFilled(irit);
     // What was set, and what to check.
+    // The customer's details from the text fill "פרטי הלקוח" (the owner, 25.10.2026).
+    assert.deepEqual([await irit.inputValue('#c-name'), await irit.inputValue('#c-company'), await irit.inputValue('#c-phone'), await irit.inputValue('#c-email')], ['דנה לוי', 'קפה דנה', '050-1234567', '']);
+    assert.ok(await irit.locator('#c-name-err').isHidden());
     assert.deepEqual(await texts(irit, '#ai-summary li'), [
+      'פרטי הלקוח: שם הלקוח: דנה לוי · שם העסק: קפה דנה · טלפון: 050-1234567',
       'חבילה: Social all in one · נטלי דדון (3,900 ₪ לחודש)',
       'סרטונים: 20 (בחבילה 25)',
       'ימי צילום עם המשפיענים: 2 (בחבילה 1)',
