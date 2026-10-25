@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Only this site's own files, and the office's database and files (docs/ops.md, section 36). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
+  <script src="app/frame-guard.js"></script>
+  <!-- A signed document of the old system (astrateg-crm), read-only, for the office (public.legacy_contracts). -->
+  <title>מסמך מהמערכת הישנה · astrateg</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/tokens.css">
+  <link rel="stylesheet" href="app/styles/quote.css">
+  <link rel="stylesheet" href="app/styles/client.css">
+  <link rel="stylesheet" href="app/styles/legacy-contract.css">
+</head>
+<body>
+  <header class="cbar">
+    <img src="app/assets/logo-mark.png" alt="astrateg" class="cbar-logo">
+    <span class="cbar-title" id="cbar-title">מסמך מהמערכת הישנה</span>
+    <span class="cbar-status" id="lc-kind" hidden></span>
+    <a class="cbtn cbtn-ghost lc-back" id="lc-back" href="clients.html#clients">→ לכרטיס הלקוח</a>
+    <button type="button" class="cbtn cbtn-ghost" id="btn-print" hidden>הדפסה <span class="lc-wide">/ שמירה כ־PDF</span></button>
+  </header>
+  <main class="cmain">
+    <div class="cstate" id="state" role="status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>טוען את המסמך…</p>
+    </div>
+    <div class="paper" id="doc" hidden></div>
+  </main>
+  <script type="module" src="app/legacy-contract.js"></script>
+</body>
+</html>

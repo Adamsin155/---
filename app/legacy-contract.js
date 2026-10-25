@@ -1,0 +1,172 @@
+// legacy-contract.html?id=<old id>: a signed document of the old system (astrateg-crm),
+// read-only and printable (the owner's request of 25.10.2026). The office reads it
+// (public.legacy_contracts: is_office); anyone else gets "not found or not yours". It is
+// drawn in the look of the new system's printed agreement (app/styles/quote.css), with
+// what the old record holds: the package, the money, the bullets and the custom clauses,
+// the termination's details, and the signature block with the name, the time, the picture
+// and the stamps. Every text goes in as text, never as markup; a picture only as a PNG
+// (or a sketch's PNG/JPEG/GIF/WebP) drawn in the page.
+import { supabase } from './supa.js';
+import { h } from './quote-doc.js';
+import {
+  DOC_TITLES, typeOf, typeLabel, stampLine, longDayText, timeText, hashStamp, listOf, packageCounts,
+  paymentFacts, termFacts, signersOf, historyLines, extraFacts, sketchesOf,
+} from './legacy-contract-logic.js';
+
+const $ = (id) => document.getElementById(id);
+const id = new URLSearchParams(location.search).get('id') || '';
+
+const PROVIDER = { name: 'אסטרטג טכנולוגיות בע״מ', companyId: '514729938', email: 'info@astrateg.com' };
+
+function showState(title, words, link) {
+  const st = $('state');
+  st.replaceChildren(h('h1', {}, title), words ? h('p', {}, words) : null, link || null);
+  st.hidden = false;
+  $('doc').hidden = true;
+}
+
+const sectionHead = (title, aside) => h('div', { class: 'qd-sec-head' }, h('h2', {}, title), aside ? h('span', { class: 'qd-aside' }, aside) : null);
+const factsList = (rows, cls = '') => h('dl', { class: `lc-facts ${cls}` }, rows.map(([k, v]) => h('div', {}, h('dt', {}, k), h('dd', {}, v))));
+const section = (title, ...body) => h('section', { class: 'qd-section' }, sectionHead(title), ...body);
+
+function bullets(title, list) {
+  const items = listOf(list);
+  if (!items.length) return null;
+  return section(title, h('ul', { class: 'qd-checks' }, items.map((i) => h('li', {}, i.title ? h('b', {}, `${i.title}${i.text ? ': ' : ''}`) : null, i.text || ''))));
+}
+
+export function renderLegacyDoc(row) {
+  const doc = row.doc || {};
+  const type = typeOf(row.doc_type);
+  const months = Number(doc.months) > 0 && !doc.noMonths ? `${doc.months} חודשים` : null;
+  const valid = longDayText(doc.validUntil);
+
+  const header = h('header', { class: 'qd-top' },
+    h('div', { class: 'qd-titles' },
+      h('span', { class: 'qd-type' }, typeLabel(type)),
+      h('h1', {}, DOC_TITLES[type]),
+      h('div', { class: 'qd-meta' },
+        row.doc_number || doc.docNumber ? h('span', {}, 'מס׳ ', h('b', { class: 'num', dir: 'ltr' }, row.doc_number || String(doc.docNumber))) : null,
+        longDayText(doc.createdAt) ? h('span', {}, longDayText(doc.createdAt)) : null,
+        months ? h('span', {}, months) : null,
+        valid ? h('span', {}, `לחתימה עד ${valid}`) : null,
+      ),
+    ),
+    h('img', { class: 'qd-logo', src: 'app/assets/logo.png', alt: 'astrateg' }),
+  );
+  const stamp = h('p', { class: 'lc-stamp', id: 'lc-stamp' }, stampLine(row, doc));
+
+  const parties = h('section', { class: 'qd-parties' },
+    h('div', { class: 'qd-party' },
+      h('div', { class: 'qd-label' }, 'מאת'),
+      h('div', { class: 'qd-party-name' }, PROVIDER.name),
+      h('div', {}, 'ח.פ ', h('span', { class: 'num', dir: 'ltr' }, PROVIDER.companyId)),
+      h('div', { dir: 'ltr', class: 'qd-ltr' }, PROVIDER.email)),
+    h('div', { class: 'qd-party' },
+      h('div', { class: 'qd-label' }, 'לכבוד'),
+      h('div', { class: 'qd-party-name qd-client' }, doc.clientName || row.signer_name || '—'),
+      doc.business ? h('div', {}, doc.business) : null),
+  );
+
+  const parent = doc.parentContractId !== undefined && doc.parentContractId !== null && /^\d+$/.test(String(doc.parentContractId))
+    ? h('p', { class: 'lc-parent' }, type === 'termination' ? 'סיום ההתקשרות של ' : 'נספח ל', h('a', { href: `legacy-contract.html?id=${doc.parentContractId}` }, 'ההסכם המקורי'), '.')
+    : null;
+
+  // The package: its name, the counts, and the bullets (unless the document had no services).
+  const counts = packageCounts(doc);
+  const inf = typeof doc.influencers === 'string' && doc.influencers.trim() ? doc.influencers.trim() : null;
+  const pkg = doc.packageName || counts.length || inf ? h('section', { class: 'qd-section' },
+    sectionHead(doc.contentHeading || 'החבילה'),
+    doc.packageName || inf ? h('div', { class: 'qd-pkg' }, h('div', {},
+      doc.packageName ? h('div', { class: 'qd-pkg-name', dir: 'auto' }, doc.packageName) : null,
+      inf ? h('div', { class: 'qd-pkg-inf' }, inf) : null)) : null,
+    counts.length ? h('div', { class: 'qd-grid' }, counts.map(([n, label]) => h('div', { class: 'qd-cell' },
+      h('div', { class: 'qd-cell-n num' }, String(n)), h('div', { class: 'qd-cell-l' }, label)))) : null,
+  ) : null;
+  const pkgBullets = doc.noServices ? null : bullets('מה כלול', [...listOf(doc.packageBullets), ...listOf(doc.detailBullets)]);
+  const extraBullets = bullets('תוספות', doc.extraBullets);
+
+  const pay = paymentFacts(doc, row);
+  const money = pay.length || doc.paymentSummary ? section('תנאי תשלום',
+    pay.length ? factsList(pay, 'lc-money') : null,
+    typeof doc.paymentSummary === 'string' && doc.paymentSummary.trim() ? h('p', { class: 'qd-notes' }, doc.paymentSummary.trim()) : null,
+    ...listOf(Array.isArray(doc.paymentSummary) ? doc.paymentSummary : []).map((i) => h('p', { class: 'qd-notes' }, [i.title, i.text].filter(Boolean).join(': '))),
+  ) : null;
+
+  const term = termFacts(doc.termination);
+  const termination = term.length ? section('פרטי סיום ההתקשרות', factsList(term)) : null;
+
+  const clauses = listOf(doc.customClauses);
+  const custom = clauses.length ? section('סעיפים מיוחדים',
+    h('ol', { class: 'lc-clauses' }, clauses.map((c) => h('li', {}, c.title ? h('h3', {}, c.title) : null, c.text ? h('p', {}, c.text) : null)))) : null;
+  const special = typeof doc.specialRequest === 'string' && doc.specialRequest.trim() ? section('בקשה מיוחדת', h('p', { class: 'qd-notes' }, doc.specialRequest.trim())) : null;
+  const notes = typeof doc.notes === 'string' && doc.notes.trim() ? section('הערות', h('p', { class: 'qd-notes' }, doc.notes.trim())) : null;
+  const sk = sketchesOf(doc.sketches);
+  const sketches = sk.pics.length || sk.words.length ? section('סקיצות',
+    sk.words.length ? h('ul', { class: 'qd-checks' }, sk.words.map((w) => h('li', {}, w))) : null,
+    sk.pics.length ? h('div', { class: 'lc-sketches' }, sk.pics.map((src, i) => h('img', { src, alt: `סקיצה ${i + 1}` }))) : null) : null;
+
+  // The signatures: the client's (one or more signers) and the provider's.
+  const signers = signersOf(doc, row);
+  const signature = h('section', { class: 'qd-section qd-sign' },
+    sectionHead('חתימות הצדדים'),
+    h('div', { class: 'qd-sign-grid' },
+      ...(signers.length ? signers : [{ name: null, png: null, at: null }]).map((s) => h('div', { class: `qd-sign-box${s.png ? ' is-signed' : ''}` },
+        h('div', { class: 'qd-label' }, 'הלקוח'),
+        h('div', { class: 'qd-strong' }, s.name || '—'),
+        s.png ? h('img', { src: s.png, alt: `חתימה של ${s.name || 'הלקוח'}` }) : h('p', { class: 'qd-muted' }, 'אין תמונת חתימה במסמך.'),
+        s.at ? h('div', { class: 'qd-muted' }, `נחתם ב־${s.at}`) : null)),
+      h('div', { class: 'qd-sign-box' },
+        h('div', { class: 'qd-label' }, 'הספק'),
+        h('div', { class: 'qd-strong' }, PROVIDER.name),
+        h('div', { class: 'qd-muted' }, 'ח.פ ', h('span', { class: 'num', dir: 'ltr' }, PROVIDER.companyId))),
+    ),
+    typeof doc.consentText === 'string' && doc.consentText.trim() ? h('p', { class: 'qd-consent' }, `החותם אישר: ״${doc.consentText.trim()}״`) : null,
+  );
+
+  const history = historyLines(doc.signHistory);
+  const extras = extraFacts(doc);
+  const more = history.length || extras.length ? h('details', { class: 'lc-more' },
+    h('summary', {}, 'תיעוד החתימה ושדות נוספים'),
+    history.length ? h('div', {}, h('h3', {}, 'היסטוריית החתימה'), h('ol', { class: 'lc-history' }, history.map((l) => h('li', {}, l)))) : null,
+    extras.length ? h('div', {}, h('h3', {}, 'שדות נוספים מהמערכת הישנה'), factsList(extras)) : null,
+  ) : null;
+
+  const docStamp = hashStamp(doc.docHash);
+  const sigStamp = hashStamp(doc.signatureHash);
+  const foot = h('footer', { class: 'qd-foot' },
+    h('span', {}, `${PROVIDER.name} · מסמך מהמערכת הישנה, לקריאה בלבד`),
+    h('span', { class: 'qd-hashes' },
+      docStamp ? h('span', { class: 'num', dir: 'ltr', title: 'טביעת המסמך (SHA-256)' }, `DOC ${docStamp}`) : null,
+      sigStamp ? h('span', { class: 'num', dir: 'ltr', title: 'טביעת החתימה (SHA-256)' }, `SIG ${sigStamp}`) : null),
+  );
+
+  return h('article', { class: `qd qd--agreement lc-doc lc-${type}`, dir: 'rtl', lang: 'he', id: 'lc-doc' },
+    header, stamp, parties, parent, pkg, pkgBullets, extraBullets, money, termination, custom, special, notes, sketches, signature, more, foot);
+}
+
+async function main() {
+  if (!/^\d{1,15}$/.test(id)) { showState('לא נבחר מסמך.', 'פתחו את המסמך מכרטיס הלקוח.', h('a', { class: 'cbtn cbtn-primary', href: 'clients.html#clients' }, 'לרשימת הלקוחות')); return; }
+  const session = (await supabase.auth.getSession()).data?.session;
+  if (!session) { showState('צריך להתחבר.', 'המסמכים מהמערכת הישנה פתוחים למשרד בלבד. התחברו, וחזרו לכאן מכרטיס הלקוח.', h('a', { class: 'cbtn cbtn-primary', href: 'clients.html#clients' }, 'כניסה למערכת')); return; }
+  const { data: row, error } = await supabase.from('legacy_contracts').select('*').eq('id', id).maybeSingle();
+  if (error || !row) { showState('המסמך לא נמצא.', 'ייתכן שהקישור שגוי, או שאין לך הרשאה: המסמכים מהמערכת הישנה פתוחים למשרד בלבד.', h('a', { class: 'cbtn cbtn-primary', href: 'clients.html#clients' }, 'לרשימת הלקוחות')); return; }
+  const name = row.doc?.clientName || '';
+  document.title = `${typeLabel(row.doc_type)}${row.doc_number ? ` ${row.doc_number}` : ''}${name ? ` · ${name}` : ''} · astrateg`;
+  $('lc-back').href = `client.html?id=${encodeURIComponent(row.client_id)}`;
+  const kind = $('lc-kind');
+  kind.textContent = row.signed_at ? `נחתם ${longDayText(row.signed_at)}` : typeLabel(row.doc_type);
+  kind.classList.toggle('is-signed', !!row.signed_at);
+  kind.hidden = false;
+  kind.title = timeText(row.signed_at) || '';
+  $('doc').replaceChildren(renderLegacyDoc(row));
+  $('doc').hidden = false;
+  $('state').hidden = true;
+  const print = $('btn-print');
+  print.hidden = false;
+  print.addEventListener('click', () => window.print());
+  // On paper the signing record is printed open.
+  window.addEventListener('beforeprint', () => { const more = document.querySelector('.lc-more'); if (more) more.open = true; });
+}
+
+main().catch(() => showState('לא הצלחנו לטעון את המסמך.', 'בדקו את החיבור ורעננו את הדף.'));
