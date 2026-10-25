@@ -1936,9 +1936,9 @@ const SHOOT_SET_RULE = {
           const proc = sc.pre ? `r${sc.n}-p17b` : 'p17b';
           // A shoot day that passed is not news (and a day moved back into the past
           // leaves the one he was told of to the loop below: it is off). A day he does not
-          // film (a day without influencers with Eliel, 25.10.2026) is not his either: one
-          // he had been told of is then told as off.
-          if (sc.shootAt <= env.now || (who === 'eli' && !sc.eli)) continue;
+          // film (a day without influencers with the other photographer, 25.10.2026) is not
+          // his either: one he had been told of is then told as off.
+          if (sc.shootAt <= env.now || sc.crew !== who) continue;
           seen.add(`${c.id}:${proc}`);
           const L = last.get(`${c.id}:${proc}`);
           const inst = { cid: c.id, client: c, name: clientLabel(c), who, n: sc.n, at: sc.shootAt, solo: sc.solo, url: SHOOT_URL(c.id), anchors: { event: env.now } };
