@@ -220,6 +220,18 @@ try {
     assert.equal(await irit.evaluate(() => document.activeElement.id), 'st-assignee');
     assert.deepEqual(await texts(irit, '#st-assignee option'), ['בחירת עובד/ת', 'עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה', 'אלי', 'סתיו', 'עמוס', 'הבעלים']);
     assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'פיצה רון · רון כהן', 'קפה דנה']);
+    // The search narrows the list by business or person; one match is chosen (25.10.2026).
+    await irit.fill('#st-client-q', 'דנה');
+    assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'קפה דנה']);
+    assert.equal(await irit.locator('#st-client option:checked').textContent(), 'קפה דנה');
+    await irit.fill('#st-client-q', 'zzz');
+    assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'קפה דנה'], 'the chosen one stays');
+    await irit.selectOption('#st-client', '');
+    await irit.fill('#st-client-q', 'zzzz');
+    assert.deepEqual(await texts(irit, '#st-client option'), ['אין לקוח בשם הזה']);
+    await irit.fill('#st-client-q', '');
+    await irit.selectOption('#st-client', '');
+    assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'פיצה רון · רון כהן', 'קפה דנה']);
     assert.equal(await irit.getAttribute('#st-body', 'maxlength'), String(BODY_MAX));
     assert.match(await text(irit, '#st-form .hint'), /התראה מיד, ואז כל 30 דקות עד ״בוצע״, בימי עבודה 09:00–20:00/);
     const before = calls.length;
