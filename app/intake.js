@@ -13,7 +13,7 @@
 // Whoever makes graphics from the characterization and does not fill these forms
 // (Ilai; Nirel on a client she works on: app/intake-ui.js readsChar) gets it here
 // read-only, on one screen: what the meeting gave and the client's materials.
-import { PEOPLE, NETWORKS, SHOOT_TYPES } from './protocol.js';
+import { PEOPLE, NETWORKS, shootTypeName } from './protocol.js';
 import { clientState, blockers, roundsOf, CHAR_ENDED } from './protocol-logic.js';
 import {
   loadClient, loadChecks, loadTasks, setCheck, clearCheck, updateClient, addTask, loadDirectory,
@@ -136,7 +136,7 @@ function renderHead() {
     h('div', { class: 'kicker' }, 'אפיון ותוכן'),
     h('h1', {}, c.name),
     h('p', { class: 'muted' }, [c.business, c.char_at ? `אפיון ${formatStamp(c.char_at)}${charBy ? ` · ${charBy}` : ''}` : null,
-      c.shoot_type ? SHOOT_TYPES[c.shoot_type]?.name : null].filter(Boolean).join(' · ')),
+      shootTypeName(c) || null].filter(Boolean).join(' · ')),
     roundsOf(c).length && (section === 'focus' || section === 'scripts') ? h('label', { class: 'ik-round' }, h('span', {}, 'סבב צילום:'),
       h('select', { class: 'input', id: 'ik-round', onchange: (e) => { round = Number(e.currentTarget.value); briefV = null; initBrief(); render('ik-round'); } },
         h('option', { value: '1', selected: round === 1 }, 'הצילום הראשון'),

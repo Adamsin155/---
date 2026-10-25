@@ -9,7 +9,7 @@
 // Drive link (and any uploaded into the system, played in place), or the rest of the
 // graphics from the client's files.
 // The logic: app/qa-logic.js and app/office-marks.js.
-import { PEOPLE, SHOOT_TYPES, EDITORS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue, evenSplit, splitProblem } from './protocol.js';
+import { PEOPLE, EDITORS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue, evenSplit, splitProblem, shootTypeName } from './protocol.js';
 import { clientState, clientLabel, roundsOf, roundContext } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory, setTaskDone, editor2Ready,
@@ -305,7 +305,7 @@ function assignCard(a, load, now) {
     h('div', { class: `of-head${shot ? ' has-leaf' : ''}` },
       shot ? dateLeaf({ ...leafOf(shot, now), tone: 'teal' }) : null,
       h('a', { class: 'wclient', href: clientUrl(a.client.id, a.proc.id) }, clientLabel(a.client)), landingTag(a.client),
-      h('span', { class: 'wtitle' }, `${SHOOT_TYPES[type]?.name || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
+      h('span', { class: 'wtitle' }, `${shootTypeName(a.ctx) || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
       a.state.status === 'overdue' && a.client.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
     a.ctx.shoot_at || joint || scriptsLine(a.client.id, a.n) ? h('p', { class: 'of-line' }, [a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : null, joint ? 'יום משותף לנטלי ולסמיון' : null, scriptsLine(a.client.id, a.n)].filter(Boolean).join(' · ')) : null,
     // An old client already in editing: its real editor is known in the office, not guessed here.
@@ -594,8 +594,8 @@ function openAssign(a) {
   const sw = a.swap || null;
   $('as-h').textContent = `${sw ? 'החלפת עורך' : 'שיוך עורך'} · ${a.client.name}${roundText(a.ctx)}`;
   $('as-meta').textContent = sw
-    ? [SHOOT_TYPES[type]?.name, `עכשיו אצל ${PEOPLE[sw.from].name}`, sw.job.day === null ? null : dayText(sw.job.day, sw.job.of), sw.job.paused ? 'העריכה עצורה' : null].filter(Boolean).join(' · ')
-    : [SHOOT_TYPES[type]?.name, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.client.landing === true ? LANDING_LINE : a.fast ? `${ladderWords(a.fast, new Date())} · לשייך עד ${formatWhen(a.fast.dueAt)}` : a.dueAt ? `לשייך עד ${formatWhen(a.dueAt)}` : null].filter(Boolean).join(' · ');
+    ? [shootTypeName(a.ctx) || null, `עכשיו אצל ${PEOPLE[sw.from].name}`, sw.job.day === null ? null : dayText(sw.job.day, sw.job.of), sw.job.paused ? 'העריכה עצורה' : null].filter(Boolean).join(' · ')
+    : [shootTypeName(a.ctx) || null, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.client.landing === true ? LANDING_LINE : a.fast ? `${ladderWords(a.fast, new Date())} · לשייך עד ${formatWhen(a.fast.dueAt)}` : a.dueAt ? `לשייך עד ${formatWhen(a.dueAt)}` : null].filter(Boolean).join(' · ');
   $('as-joint-wrap').hidden = type !== 'natali';
   $('as-joint').checked = joint;
   $('as-reason').value = '';
