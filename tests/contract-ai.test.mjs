@@ -63,7 +63,10 @@ test('the schema is strict: every object closed and fully required, the catalog\
   walk(RESULT_SCHEMA, '$');
   const P = RESULT_SCHEMA.properties;
   assert.deepEqual(P.package.anyOf[0].enum, PACKAGE_KEYS);
-  assert.deepEqual(Object.keys(P.quantities.properties), QTY_KEYS);
+  assert.deepEqual(P.quantities.items.properties.key.enum, QTY_KEYS);
+  // The API refuses a schema with more than 16 union-typed parameters (found live, 25.10.2026).
+  let unions = 0; const count = (o) => { if (o && typeof o === 'object') { if (o.anyOf || Array.isArray(o.type)) unions += 1; Object.values(o).forEach(count); } }; count(RESULT_SCHEMA);
+  assert.ok(unions <= 16, `${unions} union-typed parameters`);
   assert.deepEqual(P.addons.items.enum, PAID_IDS);
   assert.ok(!P.removals.items.enum.includes('monthly'), 'the monthly contents are never removed');
   assert.deepEqual(Object.keys(P).sort(), ['addons', 'discount', 'discountPercent', 'extraLines', 'freeAddons', 'monthlyPrice', 'months', 'notes', 'package', 'priceIncludesVat', 'quantities', 'questions', 'removals', 'specialClauses'].sort());

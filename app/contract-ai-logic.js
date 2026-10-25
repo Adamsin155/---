@@ -110,9 +110,9 @@ const RULES = `# How to answer
 Fill the settings the way the office would by hand, using only the options above. Set only what the text says; leave everything else null or empty, and the builder keeps the package's own values.
 - package: the key of the package the text describes. "N במקום M" means M is the package's own quantity, so use it to tell the packages apart (for example "20 סרטונים במקום 25" points to a package with 25 videos). A price written in the text is not a reason to pick a package. If the package cannot be told, use null and ask.
 - months: only when the text states the term.
-- quantities: only the quantities the text changes, each as the new number for the whole contract ("2 ימי צילום" means shootDays 2). Everything else null.
+- quantities: a list with one item {key, value} for each quantity the text changes, the value being the new number for the whole contract ("2 ימי צילום" means {key: "shootDays", value: 2}). Quantities the text does not change are not in the list.
 - removals: keys of the quantities above that the text leaves out ("בלי קולאב" means collabs). Something that is not one of these quantities goes to specialClauses instead.
-- addons and freeAddons: only what the text asks for.
+- addons and freeAddons: only what the text asks for. freeAddons is a list of {key, value}; for simeonJoin and extraCh14 the value is 1 (yes) or 0 (no).
 - monthlyPrice: only when the text states a price. A price written in the deal is the package's monthly price before VAT, in agorot (3500 means 350000), unless the text says it includes VAT (then priceIncludesVat is true and the number is given as written). If the price may be for the whole term, or may include the add-ons, keep it as written and ask. Never compute, round or guess a price, and never fill in a price the text does not state.
 - discount: a monthly discount before VAT in agorot, only when the text states an amount; discountPercent when it states a percentage.
 - extraLines: things that are sold but are in no package; a monthly price only when the text states one.
@@ -147,10 +147,12 @@ const object = (properties) => ({ type: 'object', additionalProperties: false, r
 export const RESULT_SCHEMA = object({
   package: nullable({ type: 'string', enum: PACKAGE_KEYS }),
   months: nullable(INT),
-  quantities: object(Object.fromEntries(QTY_KEYS.map((k) => [k, nullable(INT)]))),
+  // Lists of {key, value} rather than objects of nullable numbers: the API allows at most 16 union-typed
+  // parameters in a schema (found live, 25.10.2026: "too many parameters with union types").
+  quantities: { type: 'array', items: object({ key: { type: 'string', enum: QTY_KEYS }, value: INT }) },
   removals: { type: 'array', items: { type: 'string', enum: REMOVABLE } },
   addons: { type: 'array', items: { type: 'string', enum: PAID_IDS } },
-  freeAddons: object({ graphics: nullable(INT), simeonStories: nullable(INT), simeonJoin: nullable({ type: 'boolean' }), extraCh14: nullable({ type: 'boolean' }) }),
+  freeAddons: { type: 'array', items: object({ key: { type: 'string', enum: ['graphics', 'simeonStories', 'simeonJoin', 'extraCh14'] }, value: INT }) },
   monthlyPrice: nullable(INT),
   priceIncludesVat: { type: 'boolean' },
   discount: nullable(INT),
@@ -203,8 +205,10 @@ export function validateAiResult(raw) {
     }
   }
 
-  const q = isObject(r.quantities) ? r.quantities : {};
-  if (given(r.quantities) && !isObject(r.quantities)) drop('quantities', 'הכמויות לא בפורמט הנכון');
+  // The schema sends lists of {key, value}; an object (older answers, the tests) is read too.
+  const pairs = (v) => Object.fromEntries(v.filter((x) => isObject(x) && typeof x.key === 'string').map((x) => [x.key, x.value]));
+  const q = Array.isArray(r.quantities) ? pairs(r.quantities) : isObject(r.quantities) ? r.quantities : {};
+  if (given(r.quantities) && !isObject(r.quantities) && !Array.isArray(r.quantities)) drop('quantities', 'הכמויות לא בפורמט הנכון');
   for (const [k, v] of Object.entries(q)) {
     const def = qtyDef(k);
     if (!def) { drop(`quantities.${k}`, `כמות לא מוכרת: ${k}`); continue; }
@@ -230,7 +234,8 @@ export function validateAiResult(raw) {
   // In the catalog's order, as the builder keeps it.
   out.addons = PAID_IDS.filter((id) => out.addons.includes(id));
 
-  const f = isObject(r.freeAddons) ? r.freeAddons : {};
+  const BOOL_FREE = ['simeonJoin', 'extraCh14'];
+  const f = Array.isArray(r.freeAddons) ? Object.fromEntries(Object.entries(pairs(r.freeAddons)).map(([k, v]) => [k, BOOL_FREE.includes(k) ? (typeof v === 'boolean' ? v : Number(v) > 0) : v])) : isObject(r.freeAddons) ? r.freeAddons : {};
   for (const [k, v] of Object.entries(f)) {
     if (!FREE_KEYS.includes(k)) { drop(`freeAddons.${k}`, `תוספת ללא עלות לא מוכרת: ${k}`); continue; }
     if (!given(v)) continue;
