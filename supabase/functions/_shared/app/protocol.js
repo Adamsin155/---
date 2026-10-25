@@ -77,6 +77,15 @@
 //     his Gantt still show the connection. Same key: nothing is reopened or moved.
 //   - A process marked "ממתין ללקוח" reminds whoever marked it every hour, in the working
 //     hours, until the wait is cleared (the reminder rule `waitNag`). No item changes.
+// 25.10.2026, still v11 (the owner's decision: a shoot day without influencers, Lior and one
+// photographer; docs/ops.md, section 68): `when` conditions that are true of every shoot
+// that has no crew (PHOTOGRAPHERS, SOLO below), so nothing changes for a day with influencers
+// or for any client that had one. On a day without influencers: no influencers to check in
+// the contract, to approve, to remind or to arrive before (p11.influencers,
+// p11.ok.influencers, p15.influencers, p16.early, p17.broll, p17b.broll); the testimonial is
+// not required (p19.testimonial, `variant`); Lior sets the day's number of videos (the mark
+// p18.count, app/production.js). With Eliel, who has no account, Eli's processes (17ב, 18ב,
+// 19ב) do not apply and the drive is Lior's confirmation alone (p19.took).
 
 export const PROTOCOL_VERSION = 11;
 
@@ -247,6 +256,37 @@ export const SHOOT_TYPES = {
   dms: { key: 'dms', name: 'דניס, מישל וסמיון' },
 };
 
+// A shoot day WITHOUT influencers (the owner's decision of 25.10.2026): Lior goes with one
+// photographer to film the client (some clients have such a day every month). "מי מצלם" is
+// kept with the shoot itself, as the photographer's key, never in a column of its own: the
+// client's own shoot in clients.deliverables.shoot_crew, a round's in its entry of
+// clients.rounds (shoot_crew). Such a shoot has no shoot_type (nobody is coming). A
+// shoot_type always wins (a day with influencers): a dialog that sets only the type never
+// leaves a stale crew behind. Eliel has no account in the system: he is a name only, so his
+// steps are Lior's (the drive is "הכונן אצלי", Lior's confirmation alone).
+export const PHOTOGRAPHERS = { eli: { key: 'eli', name: 'אלי' }, eliel: { key: 'eliel', name: 'אליאל' } };
+// `minutes`: how long such a day is in the calendars and the shoot-day timeline (the written
+// protocol gives it no window; three hours, as Natali's day). A one-line change.
+export const SOLO = { key: 'solo', name: 'בלי משפיענים', minutes: 180 };
+// The photographer of a solo shoot (the client, or a round's view of it), or null for a day
+// with influencers. A round's view carries its own `shoot_crew` (roundContext).
+export function crewOf(x) {
+  if (!x || x.shoot_type) return null;
+  const v = Object.prototype.hasOwnProperty.call(x, 'shoot_crew') ? x.shoot_crew : x.deliverables?.shoot_crew;
+  return PHOTOGRAPHERS[v] ? v : null;
+}
+export const isSolo = (x) => !!crewOf(x);
+// Who films the day: the solo day's photographer; Eli on every day with influencers.
+export const photographerOf = (x) => crewOf(x) || 'eli';
+export const eliFilms = (x) => photographerOf(x) === 'eli';
+// "ליאור + אליאל" (a solo day), or ''.
+export const crewWords = (x) => (isSolo(x) ? `ליאור + ${PHOTOGRAPHERS[crewOf(x)].name}` : '');
+// The day's name wherever the shoot type's name is shown: "נטלי דדון", or
+// "בלי משפיענים · ליאור + אליאל"; '' while nothing is chosen.
+export const shootTypeName = (x) => (isSolo(x) ? `${SOLO.name} · ${crewWords(x)}` : SHOOT_TYPES[x?.shoot_type]?.name || '');
+// "With whom" is answered: a type, or a solo day's photographer.
+export const hasShootType = (x) => !!(x?.shoot_type || crewOf(x));
+
 export const CLIENT_STATUS = {
   active: 'פעיל',
   ending: 'מסיים התקשרות',
@@ -306,6 +346,11 @@ const accessOwners = (c) => (c.characterizer === 'ofir' || c.characterizer === '
 const editorOf = (c) => (c.editor ? editorsOf(c) : ['editor']);
 const isNatali = (c) => c.shoot_type === 'natali';
 const isDms = (c) => c.shoot_type === 'dms';
+// A day without influencers (25.10.2026): what is the influencers' only does not apply, and
+// what is Eli's applies only when he is the one who films. Both are true of every shoot that
+// has no crew, so nothing changes for a day with influencers.
+const withInfluencers = (c) => !isSolo(c);
+const eliOnDay = (c) => eliFilms(c);
 
 // Anchors for due dates. `start` is when a process can begin; `due` is its deadline.
 //   { from: 'deal' | 'group' | 'char' | 'charEnd' | 'shoot' | 'contractEnd' | 'p05' … , minutes|hours|days|businessDays|at }
@@ -346,6 +391,9 @@ const isDms = (c) => c.shoot_type === 'dms';
 //   that step is done and this item has no mark, it is history: not asked, and it holds nothing.
 // Item `neededIf: key` (v10): an optional item that is asked for once that mark is done
 //   (p13.fixes once Lior said that fixes remained after the Zoom: the mark p13.left).
+// Item `variant: (client) => ({ label, optional } | null)` (25.10.2026): the same item, said
+//   differently for some shoots: on a day without influencers the testimonial video is not
+//   required, and its words do not name the influencers. The key and the owners never change.
 
 export const PHASES = [
   { key: 'onboarding', title: 'קליטת לקוח ואפיון' },
@@ -436,11 +484,12 @@ export const PROCESSES = [
     what: 'מיד אחרי פתיחת הקבוצה קובעים את יום הצילום במועד המוקדם ביותר. בודקים בחוזה אילו משפיענים הלקוח רכש ומתאמים מועד מול כל הצדדים. יום הצילום לא נחשב סגור עד שכולם אישרו והתאריך ביומן של כולם ובמערכת.',
     needs: ['shoot_type', 'shoot_at'],
     items: [
-      { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו' },
+      // A day without influencers (25.10.2026): nobody to check in the contract or to approve.
+      { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו', when: withInfluencers },
       { key: 'p11.ok.client', label: 'הלקוח אישר את המועד', noBulk: true },
-      { key: 'p11.ok.influencers', label: 'המשפיענים אישרו', noBulk: true },
+      { key: 'p11.ok.influencers', label: 'המשפיענים אישרו', noBulk: true, when: withInfluencers },
       { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר', noBulk: true },
-      { key: 'p11.ok.photographer', label: 'הצלם אישר', noBulk: true },
+      { key: 'p11.ok.photographer', label: 'הצלם אישר', noBulk: true, variant: (c) => (isSolo(c) ? { label: `הצלם (${PHOTOGRAPHERS[crewOf(c)].name}) אישר` } : null) },
       // v8: no date, no closed shoot day: 11 stays on Irit's list with "קביעת יום צילום"
       // (the date is asked for until the shoot day is behind the client: 19).
       { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'], setHere: { unless: 'p19', keep: ['shoot_at'] } },
@@ -699,7 +748,7 @@ export const PROCESSES = [
     start: { from: 'shoot', prevBusinessDay: true, at: '00:00' }, due: { from: 'shoot', prevBusinessDay: true, at: '11:00' },
     what: 'שולחים תזכורת ומוודאים שלכולם יש שעה, כתובת, תוכן מאושר ופרטי יום הצילום. בנוסף, שיחת הסבר עם הלקוח על מהלך היום ומה להכין.',
     items: [
-      { key: 'p15.influencers', label: 'נשלחה תזכורת למשפיענים' },
+      { key: 'p15.influencers', label: 'נשלחה תזכורת למשפיענים', when: withInfluencers },
       { key: 'p15.client', label: 'נשלחה תזכורת ללקוח' },
       { key: 'p15.crew', label: 'נשלחה תזכורת לצוות יום הצילום' },
       ...[['time', 'שעה'], ['address', 'כתובת'], ['content', 'תוכן מאושר'], ['details', 'פרטי יום הצילום']]
@@ -717,7 +766,7 @@ export const PROCESSES = [
     items: [
       { key: 'p16.photographer', label: 'הצלם קיבל את פרטי יום הצילום' },
       { key: 'p16.plan', label: 'עברנו עם הצלם על תוכנית היום' },
-      { key: 'p16.early', label: 'הצלם יודע להגיע שעה לפני המשפיענים' },
+      { key: 'p16.early', label: 'הצלם יודע להגיע שעה לפני המשפיענים', when: withInfluencers },
       { key: 'p16.drive', label: 'הכונן מוכן' },
       { key: 'p16.content', label: 'התסריטים הסופיים מוכנים ומאושרים' },
       { key: 'p16.open', label: 'אין משימה פתוחה שעלולה לעצור את יום הצילום' },
@@ -736,21 +785,23 @@ export const PROCESSES = [
       { key: 'p17.order', label: 'עברנו על סדר התסריטים' },
       { key: 'p17.zones', label: 'הוכנו אזורי צילום' },
       { key: 'p17.brief', label: 'הצלם תודרך' },
-      { key: 'p17.broll', label: 'הצלם התחיל מיד לצלם B-Roll; כל ה־B-Roll המרכזי צולם עד הגעת המשפיענים' },
+      { key: 'p17.broll', label: 'הצלם התחיל מיד לצלם B-Roll; כל ה־B-Roll המרכזי צולם עד הגעת המשפיענים', when: withInfluencers },
     ],
   },
   {
     id: 'p17b', round: true, num: '17ב', phase: 'shoot', title: 'הצלם: הגעה, ציוד ובי־רול לפני המשפיענים', owners: ['eli'],
     sla: 'שעה לפני הגעת המשפיענים',
+    // Eli's steps only when he films the day (a day without influencers with Eliel: none).
+    when: eliOnDay,
     start: { from: 'shoot', hours: -1 }, due: { from: 'shoot' },
     what: 'הצלם מגיע שעה לפני המשפיענים בעיקר כדי לסיים את כל הבי־רול של העסק לפני שהם מגיעים, כך שכשהם מגיעים מתחילים מיד בסרטונים. ההתארגנות מהירה, כדי להשאיר את רוב השעה לבי־רול.',
     rule: 'לא משאירים את הבי־רול הכללי של העסק לזמן שבו המשפיענים כבר במקום. בי־רול נקודתי שקשור למשפיען או לסצנה מסוימת אפשר להשלים במהלך היום.',
     items: [
-      { key: 'p17b.arrived', label: 'הגעתי שעה לפני המשפיענים' },
+      { key: 'p17b.arrived', label: 'הגעתי שעה לפני המשפיענים', variant: (c) => (isSolo(c) ? { label: 'הגעתי בשעת הצילום' } : null) },
       { key: 'p17b.drive', label: 'קיבלתי את הכונן מליאור (באחריותי עד סוף היום)' },
       { key: 'p17b.gear', label: 'נבדקו מצלמות, סוללות, כרטיסי זיכרון, מיקרופונים ותאורה' },
       { key: 'p17b.zones', label: 'עברתי עם ליאור על אזורי הצילום: זוויות, תאורה וסאונד, רקע נקי ובלי דברים מיותרים בפריים' },
-      { key: 'p17b.broll', label: 'כל הבי־רול המרכזי של העסק צולם לפני הגעת המשפיענים: המקום, חזית ופנים, מוצרים, שירותים, עובדים, שילוט, אווירה ותהליכי עבודה' },
+      { key: 'p17b.broll', label: 'כל הבי־רול המרכזי של העסק צולם לפני הגעת המשפיענים: המקום, חזית ופנים, מוצרים, שירותים, עובדים, שילוט, אווירה ותהליכי עבודה', when: withInfluencers },
       { key: 'p17b.variety', label: 'הבי־רול מגוון: תקריבים וצילומים רחבים, זוויות ומוצרים שונים, מספיק אפשרויות לעורכים' },
     ],
   },
@@ -768,6 +819,7 @@ export const PROCESSES = [
   {
     id: 'p18b', round: true, num: '18ב', phase: 'shoot', title: 'הצלם: צילום הסרטונים לפי הסדר', owners: ['eli'],
     sla: 'לאורך כל יום הצילום',
+    when: eliOnDay,
     start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
     what: 'ליאור מנהל את יום הצילום. הצלם עובד לפי סדר הסרטונים והתסריטים שליאור מגדיר, ובכל סרטון מוודא: תמונה חדה, פריים נכון, תאורה, סאונד ומיקרופון תקינים, בלי רעשי רקע חריגים, המצולם במקום הנכון והשוט מתאים לסוג הסרטון.',
     rule: 'אם יש תקלה, לא ממשיכים לסרטון הבא בלי לפתור אותה. לא מחכים לסוף היום כדי להבין איזה קובץ שייך לאיזה סרטון.',
@@ -784,14 +836,17 @@ export const PROCESSES = [
     rule: 'ליאור לא עוזב יום צילום בלי הכונן, בלי סרטון המלצה ובלי בדיקה שכל החומרים בכונן.',
     items: [
       { key: 'p19.all', label: 'כל הסרטונים צולמו וסומנו' },
-      { key: 'p19.testimonial', label: 'צולם סרטון המלצה של הלקוח עם המשפיענים (חובה)' },
+      // A day without influencers (25.10.2026): the testimonial can still be marked, and is not required.
+      { key: 'p19.testimonial', label: 'צולם סרטון המלצה של הלקוח עם המשפיענים (חובה)', variant: (c) => (isSolo(c) ? { label: 'צולם סרטון המלצה של הלקוח (לא חובה ביום בלי משפיענים)', optional: true } : null) },
       { key: 'p19.drive', label: 'כל חומרי הצילום נמצאים בכונן, והכונן מסודר' },
-      { key: 'p19.took', label: 'הכונן חזר לליאור מהצלם' },
+      // With Eliel (no account), Lior's own confirmation is the whole handoff: "הכונן אצלי".
+      { key: 'p19.took', label: 'הכונן חזר לליאור מהצלם', variant: (c) => (eliFilms(c) ? null : { label: 'הכונן אצל ליאור (הצלם אליאל, בלי חשבון במערכת)' }) },
     ],
   },
   {
     id: 'p19b', round: true, num: '19ב', phase: 'shoot', title: 'הצלם: סידור הכונן ומסירה לליאור', owners: ['eli'],
     sla: 'מיד בסיום הצילום ולפני עזיבת המקום',
+    when: eliOnDay,
     start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
     what: 'בכונן שתי תיקיות: בי־רול, וסרטונים לפי סדר התסריטים (סרטון 01, סרטון 02 וכן הלאה). העורך לא אמור לפתוח עשרות קבצים ולנחש מה שייך לאיזה סרטון.',
     rule: 'הצלם לא עוזב לפני שכל החומרים בכונן, מסודרים בתיקיות, והכונן בידיים של ליאור. אסור לפרמט או למחוק כרטיס זיכרון לפני שנבדק שכל החומר בכונן תקין.',

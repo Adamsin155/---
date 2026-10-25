@@ -349,12 +349,15 @@ export async function freeDaysAhead({ me, now = new Date(), limit = 6 } = {}) {
 // The line under a datetime-local input (its value is an Israel wall time). `own`: the
 // saved date of the shoot being edited (or a function giving it), which is not "taken".
 // `me` may be a function too (a page that learns who is signed in after it is drawn).
-export function shootDayHint(input, { me, own = null } = {}) {
+// `skip`: a function that says the day is not Eli's (a day without influencers that Eliel
+// films, 25.10.2026): then the line says nothing.
+export function shootDayHint(input, { me, own = null, skip = null } = {}) {
   const el = h('p', { class: 'hint av-hint', role: 'status', hidden: true });
   el.refresh = async () => {
+    if (skip?.()) { el.hidden = true; el.textContent = ''; return; }
     const day = String(input.value || '').slice(0, 10);
     const sts = await dayStatuses(day, { me: typeof me === 'function' ? me() : me, own }).catch(() => null);
-    if (String(input.value || '').slice(0, 10) !== day) return; // typed on meanwhile
+    if (String(input.value || '').slice(0, 10) !== day || skip?.()) return; // typed on (or switched to another photographer) meanwhile
     if (!sts) { el.hidden = true; el.textContent = ''; return; }
     const now = new Date();
     el.textContent = sts.map((st) => A.dayHintText(st, now)).join(' ');
@@ -410,11 +413,12 @@ function askReason(shootAt, concerns) {
 }
 
 // Before a shoot date is saved. Returns { ok, note }: `note` goes to the date-change
-// history (null: nothing was asked).
-export async function confirmShootDay({ shootAt, charAt = null, own = null, me, now = new Date() }) {
+// history (null: nothing was asked). `eli: false`: a day Eli does not film (Eliel's,
+// 25.10.2026): his availability is not asked about, only the usual order.
+export async function confirmShootDay({ shootAt, charAt = null, own = null, me, now = new Date(), eli = true }) {
   const d = shootAt ? parseDate(shootAt) : null;
   let extra = [];
-  if (d && !Number.isNaN(+d) && canSee(me) && !isPhotographer(me)) {
+  if (eli && d && !Number.isNaN(+d) && canSee(me) && !isPhotographer(me)) {
     const day = dayKeyIL(d);
     const data = await monthData(A.monthOfDay(day)).catch(() => null);
     if (data) extra = A.availabilityConcerns({ day, ...data, own: ownDay(own), now });

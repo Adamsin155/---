@@ -17,8 +17,8 @@
 //   months   public.photographer_months  { person, month 'YYYY-MM-01', days ['YYYY-MM-DD'], none, submitted_at, updated_at, by_person }
 //   changes  public.photographer_changes { id, person, reported_at, reported_month, days, shoot_days, note }
 //   taken    { 'YYYY-MM-DD': how many shoot days are set on that day } (public.photographer_taken)
-import { PEOPLE } from './protocol.js';
-import { isBusinessDay, roundsOf, parseDate, clientLabel } from './protocol-logic.js';
+import { PEOPLE, eliFilms } from './protocol.js';
+import { isBusinessDay, roundsOf, roundContext, parseDate, clientLabel } from './protocol-logic.js';
 import { partsIL, dateIL, dayKeyIL, addDaysIL } from './tz.js';
 
 // Who hands availability over. The ONE list (with public.photographer_people() in the
@@ -243,11 +243,14 @@ export function refusalText(err, { changes = [], person = null, now = new Date()
 }
 
 // ── For the reminders ──────────────────────
-// The shoot days set on each Israel day, by client: Map day → [client label].
+// The shoot days set on each Israel day, by client: Map day → [client label]. Only the days
+// Eli films: a day without influencers that Eliel films is not his (25.10.2026; the same
+// rule as private.shoot_days in 20261107100000_shoot_crew.sql).
 export function shootsByDay(clients) {
   const out = new Map();
   for (const c of clients || []) {
-    for (const v of [c.shoot_at, ...roundsOf(c).map((r) => r.shoot_at)]) {
+    const shoots = [c, ...roundsOf(c).map((r) => roundContext(c, r))].filter((x) => eliFilms(x)).map((x) => x.shoot_at);
+    for (const v of shoots) {
       const at = parseDate(v);
       if (!at || Number.isNaN(+at)) continue;
       const day = dayKeyIL(at);

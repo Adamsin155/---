@@ -14,8 +14,13 @@
 //    drive coming back and the closing lock; and the 17:00 briefing to Eli with the
 //    drive label, for the next shoot day (for a Sunday shoot, on Thursday): one per
 //    shoot day with all its clients (since 20.10.2026).
+// A day without influencers (the owner's decision of 25.10.2026): Lior and one photographer.
+// Its time is the shoot's own (no hour before), Lior writes how many videos are shot that day
+// ("כמה סרטונים מצלמים היום", the counter and the lock count to it), the testimonial is not
+// required, and when Eliel films it (he has no account) the day is not on Eli's page, there is
+// no briefing to Eli, and the drive is Lior's "הכונן אצלי" alone.
 // Every mark is a protocol check; the keys are in app/production.js.
-import { SHOOT_TYPES } from './protocol.js';
+import { shootTypeName, crewWords } from './protocol.js';
 import { clientState, clientLabel } from './protocol-logic.js';
 import { loadChecks, loadCheck, setCheck, clearCheck, setChecksBulk, loadDirectory, loadStaffPhones } from './protocol-data.js';
 import { loadWorkClients, loadShootScripts } from './production-data.js';
@@ -107,7 +112,12 @@ function placeBlock(sc) {
       h('a', { class: 'btn btn-sm', href: nav.waze, target: '_blank', rel: 'noopener noreferrer' }, 'ניווט ב־Waze'),
       h('a', { class: 'btn btn-sm btn-ghost', href: nav.maps, target: '_blank', rel: 'noopener noreferrer' }, 'Google Maps')) : null);
 }
-const scriptsCount = (sc) => P.videosPerDay(sc.ctx);
+// The day's number of videos: the package's share, or Lior's own number on a day without influencers.
+const scriptsCount = (sc) => P.dayTarget(sc, cs(sc.client));
+// "10:00 · שעה לפני המשפיענים (11:00)", or the shoot's own time on a day without influencers.
+const arrivalWords = (sc) => (sc.solo
+  ? `${P.clockText(sc.shootAt)} · שעת הצילום (בלי משפיענים: ליאור ואתה)`
+  : `${P.clockText(P.arrivalOf(sc.shootAt))} · שעה לפני המשפיענים (${P.clockText(sc.shootAt)})`);
 // The page's one status sentence, as a notice strip (app/kit.js): the words are the same.
 function say(text, kind = 'info', name = 'camera') {
   const el = $('sh-summary');
@@ -192,8 +202,10 @@ async function saveFileNow(sc, n) {
 
 // ── Eli ─────────────────────────────────────
 // The days to show: from yesterday (while the drive is not handed back) to 30 days ahead.
+// Only the days he films (a day without influencers with Eliel is not his).
 function eliDays(now = new Date()) {
   return clients.flatMap((c) => P.shootCases(c)).filter((sc) => {
+    if (!sc.eli) return false;
     const d = daysBetweenIL(now, sc.shootAt);
     if (d < 0) return d >= -1 && !P.handoffOf(cs(sc.client), sc.pre).done;
     return d <= 30;
@@ -204,7 +216,7 @@ function renderEli() {
   const now = new Date();
   const days = eliDays(now);
   const next = days[0];
-  say(next ? `הקרוב: ${P.dayWords(next.shootAt, now)} · ${scName(next)} · הגעה ${P.clockText(P.arrivalOf(next.shootAt))}` : '', 'info', 'clock');
+  say(next ? `הקרוב: ${P.dayWords(next.shootAt, now)} · ${scName(next)} · הגעה ${P.clockText(P.arrivalOf(next.shootAt, next.solo))}` : '', 'info', 'clock');
   fill($('sh-list'), days.length ? days.map((sc) => eliCard(sc, now))
     : emptyState({ icon: 'calendar', tone: 'blue', text: 'אין ימי צילום בחודש הקרוב. כשיום צילום ייסגר, הוא יופיע כאן.' }));
 }
@@ -221,7 +233,7 @@ function eliCard(sc, now) {
       leafHead(id, `${P.dayWords(sc.shootAt, now) === 'היום' ? 'היום' : P.dateWords(sc.shootAt)} · ${scName(sc)}`, sc.shootAt, now),
       today ? h('span', { class: 'ed-state s-editing' }, 'יום צילום היום') : null),
     h('dl', { class: 'sh-facts' },
-      h('dt', {}, 'ההגעה שלך'), h('dd', { class: 'num' }, `${P.clockText(P.arrivalOf(sc.shootAt))} · שעה לפני המשפיענים (${P.clockText(sc.shootAt)})`),
+      h('dt', {}, 'ההגעה שלך'), h('dd', { class: 'num' }, arrivalWords(sc)),
       h('dt', {}, 'תסריטים'), h('dd', {}, n ? `${n} סרטונים` : 'לפי מה שליאור יביא',
         h('button', { type: 'button', class: 'btn btn-sm sh-scripts-btn', id: `${id}-scripts`, 'aria-haspopup': 'dialog', onclick: () => openScripts(sc) }, 'לקרוא את התסריטים')),
       // From the briefing's hour on (and on the day itself) "will fill it in" is no longer true.
@@ -289,8 +301,9 @@ function eliDay(sc, now) {
       ? h('div', { class: 'ed-act' }, h('p', { class: 'note-ok' }, `הגעת ${P.clockText(arrived)}.`),
         btn(`${id}-drive`, label ? `קיבלתי ${P.driveName(label)}` : 'קיבלתי את הכונן', () => mark(sc, 'p17b.drive', label || null, `${id}-yes`), 'btn btn-primary btn-big'))
       : h('p', { class: 'note-ok' }, `הגעת ${P.clockText(arrived)} · ${P.driveName(label) || 'הכונן'} אצלך.`);
-  // "הבי־רול גמור?" (15 minutes before the influencers; a "לא" reaches Lior).
-  const broll = !arrived ? null : !q
+  // "הבי־רול גמור?" (15 minutes before the influencers; a "לא" reaches Lior). Not on a day
+  // without influencers: nobody arrives after the B-roll.
+  const broll = !arrived || sc.solo ? null : !q
     ? h('div', { class: 'sh-q', role: 'group', 'aria-labelledby': `${id}-q` },
       h('p', { id: `${id}-q` }, h('strong', {}, 'הבי־רול גמור?'), ` המשפיענים מגיעים ב־${P.clockText(sc.shootAt)}.`),
       btn(`${id}-yes`, 'כן', () => mark(sc, ['p17b.brollq', ...notYet(sc, ['p17b.broll', 'p17b.zones', 'p17b.variety'])], null, `${id}-h`), 'btn k-btn-navy'),
@@ -313,7 +326,8 @@ function eliDay(sc, now) {
         : `מסרת ${P.clockText(h2.eli)}. ממתין שליאור יאשר שקיבל.`)
       : h('div', { class: 'ed-act' },
         // The shooting guidance was followed: its items close with the handoff (fixed text, not a checklist).
-        btn(`${id}-handed`, 'מסרתי לליאור', () => mark(sc, ['p19b.handed', ...notYet(sc, ['p18b.order', 'p18b.quality', 'p18b.numbered'])], null, `${id}-h`), 'btn btn-primary', { disabled: !canAct || open.length > 0, 'aria-describedby': `${id}-lock` }),
+        // On a day without influencers the zones and the variety of the B-roll close with it too (there is no "הבי־רול גמור?").
+        btn(`${id}-handed`, 'מסרתי לליאור', () => mark(sc, ['p19b.handed', ...notYet(sc, ['p18b.order', 'p18b.quality', 'p18b.numbered', ...(sc.solo ? ['p17b.zones', 'p17b.variety'] : [])])], null, `${id}-h`), 'btn btn-primary', { disabled: !canAct || open.length > 0, 'aria-describedby': `${id}-lock` }),
         h('p', { class: 'hint', id: `${id}-lock` }, open.length ? `נפתח אחרי ${open.length === 1 ? 'הפריט שנשאר' : `${open.length} הפריטים שנשארו`} ברשימה.` : 'ליאור מאשר מצדו, והמסירה נרשמת פעם אחת.'),
         // "לכל חומר ברור לאיזה מספר סרטון הוא שייך" (p18b.numbered) closes with the handoff: how many scripts have a file by now.
         h('p', { class: 'hint sh-numbered', id: `${id}-numbered` }, `${P.filesHint(P.filesOf(c, sc.pre), scriptsCount(sc))}.`))) : null;
@@ -324,7 +338,7 @@ function eliDay(sc, now) {
     h('details', { class: 'ed-more' }, leadIcon(h('summary', {}, 'הנחיות הצילום'), 'list'),
       h('ul', { class: 'sh-guide' },
         h('li', {}, 'עוברים עם ליאור על אזורי הצילום: זוויות, תאורה, סאונד ורקע נקי.'),
-        h('li', {}, 'בי־רול מגוון לפני המשפיענים: המקום, חזית ופנים, מוצרים, שירותים, עובדים, שילוט ואווירה; תקריבים וצילומים רחבים.'),
+        h('li', {}, `בי־רול מגוון${sc.solo ? ' של העסק' : ' לפני המשפיענים'}: המקום, חזית ופנים, מוצרים, שירותים, עובדים, שילוט ואווירה; תקריבים וצילומים רחבים.`),
         h('li', {}, 'מצלמים לפי סדר התסריטים של ליאור. בכל סרטון: חדות, פריים, תאורה, סאונד ומיקרופון.'),
         h('li', {}, 'לכל חומר ברור לאיזה מספר סרטון הוא שייך. תקלה: פותרים לפני שממשיכים.'))),
     finish,
@@ -388,7 +402,8 @@ function renderLior() {
   const all = clients.flatMap((c) => P.shootCases(c));
   const today = all.filter((sc) => dayKeyIL(sc.shootAt) === dayKeyIL(now)).sort((a, b) => a.shootAt - b.shootAt);
   // The briefing to Eli: from its day (17:00 of the business day before) until the shoot.
-  const briefs = all.filter((sc) => sc.shootAt > now && dayKeyIL(P.briefingDay(sc.shootAt)) <= dayKeyIL(now) && dayKeyIL(sc.shootAt) !== dayKeyIL(now))
+  // Only the days he films (with Eliel, who has no account, Lior briefs him outside the system).
+  const briefs = all.filter((sc) => sc.eli && sc.shootAt > now && dayKeyIL(P.briefingDay(sc.shootAt)) <= dayKeyIL(now) && dayKeyIL(sc.shootAt) !== dayKeyIL(now))
     .sort((a, b) => a.shootAt - b.shootAt);
   // The shoot days after those, one short row a day (the owner's page review, 20.10.2026: the
   // calendar and the shoot table hold the rest; this is only what comes next).
@@ -403,10 +418,52 @@ function renderLior() {
       // Each day is a leaf of the calendar (the day, the hour), then whose it is.
       h('ul', { class: 'sh-later k-rows' }, ...later.map(({ scs }) => leafRow(dateLeaf(leafOf(scs[0].shootAt, now)), [
         h('strong', { class: 'k-row-title' }, scs.map(scName).join(' · ')),
-        h('span', { class: 'k-row-sub num' }, `הגעה ${P.clockText(P.arrivalOf(scs[0].shootAt))}`),
+        h('span', { class: 'k-row-sub num' }, [`הגעה ${P.clockText(P.arrivalOf(scs[0].shootAt, scs[0].solo))}`, ...scs.filter((sc) => sc.solo).map((sc) => shootTypeName(sc.ctx))].join(' · ')),
       ], { tag: 'li' }))),
       h('a', { class: 'btn btn-sm btn-ghost sh-later-all', href: 'calendar.html' }, 'הכול ביומן')) : null,
     !today.length && !briefs.length && !later.length ? emptyState({ icon: 'calendar', tone: 'blue', text: 'אין ימי צילום קרובים.' }) : null);
+}
+
+// ── A day without influencers: "כמה סרטונים מצלמים היום" (25.10.2026) ──
+// Lior writes it before the start or at it; the counter and the closing count to it. Typed
+// key by key into a short text field (digits only), kept across the page's redraws while it
+// is not saved, and saved with Enter or "שמירה".
+const countDrafts = new Map();
+function dayCountBlock(sc, closed) {
+  const id = cardId(sc);
+  const n = P.dayCountOf(cs(sc.client), sc.pre);
+  if (closed) return n ? h('p', { class: 'sh-daycount-set', id: `${id}-daycount-set` }, `צילמו היום ${n} סרטונים (המספר של ליאור).`) : null;
+  const draft = countDrafts.get(id);
+  return h('form', { class: 'sh-daycount', novalidate: true, onsubmit: (e) => { e.preventDefault(); saveDayCount(sc); } },
+    h('label', { for: `${id}-daycount` }, 'כמה סרטונים מצלמים היום'),
+    h('div', { class: 'sh-daycount-row' },
+      h('input', {
+        class: 'input num', id: `${id}-daycount`, type: 'text', inputmode: 'numeric', pattern: '[0-9]*', maxlength: 2, dir: 'ltr',
+        autocomplete: 'off', enterkeyhint: 'done', disabled: !canAct, value: draft ?? (n ? String(n) : ''),
+        'aria-describedby': `${id}-daycount-err ${id}-daycount-h`,
+        oninput: (e) => { countDrafts.set(id, e.currentTarget.value); e.currentTarget.removeAttribute('aria-invalid'); $(`${id}-daycount-err`).hidden = true; },
+      }),
+      btn(`${id}-daycount-save`, n ? 'עדכון' : 'שמירה', null, 'btn k-btn-navy', { type: 'submit' })),
+    h('p', { class: 'err', id: `${id}-daycount-err`, role: 'alert', hidden: true }),
+    h('p', { class: 'hint', id: `${id}-daycount-h` }, n ? `המונה והסגירה סופרים עד ${n}. אפשר לשנות.` : 'יום בלי משפיענים: המונה והסגירה סופרים לפי המספר הזה.'));
+}
+async function saveDayCount(sc) {
+  const id = cardId(sc);
+  const input = $(`${id}-daycount`);
+  const problem = P.dayCountProblem(input.value);
+  if (problem) {
+    const err = $(`${id}-daycount-err`);
+    err.textContent = problem;
+    err.hidden = false;
+    input.setAttribute('aria-invalid', 'true');
+    input.focus();
+    return;
+  }
+  const n = Number(input.value.trim());
+  if (await mark(sc, P.COUNT_KEY, P.dayCountNote(n), `${id}-daycount`)) {
+    countDrafts.delete(id);
+    toast(`נשמר: מצלמים היום ${n} סרטונים.`);
+  }
 }
 
 function shootMode(sc, now) {
@@ -420,8 +477,9 @@ function shootMode(sc, now) {
   const q = P.quietWindow(sc, c, closed ? st.completedAt : null);
   const quietOn = q && now >= q.from && now < q.to;
   const started = P.shootStarted(sc, now);
-  const lock = P.closeLock(c, sc.pre, target, { startAt: sc.shootAt, now });
-  const h2 = P.handoffOf(c, sc.pre);
+  const lock = P.caseLock(sc, c, now);
+  const h2 = P.handoffOf(c, sc.pre, { eli: sc.eli });
+  const who = P.photographerName(sc);
   const arrived = atOf(sc, 'p17b.arrived');
   const brollq = c[`${sc.pre}p17b.brollq`];
   const tl = P.timeline(sc);
@@ -429,14 +487,16 @@ function shootMode(sc, now) {
   return h('article', { class: 'sh-card sh-mode is-today', id, 'aria-labelledby': `${id}-h` },
     h('header', { class: 'ed-head' },
       cardHead(id, `מצב יום צילום · ${scName(sc)}`, 'video', 'pink'),
-      h('span', { class: `ed-state ${closed ? 's-done' : 's-editing'}` }, closed ? 'היום נסגר' : !started ? P.startsText(sc.shootAt) : SHOOT_TYPES[sc.ctx.shoot_type]?.name || '')),
+      h('span', { class: `ed-state ${closed ? 's-done' : 's-editing'}` }, closed ? 'היום נסגר' : !started ? P.startsText(sc.shootAt) : shootTypeName(sc.ctx))),
+    sc.solo ? h('p', { class: 'sh-crew', id: `${id}-crew` }, `בלי משפיענים · ${crewWords(sc.ctx)}`) : null,
     // Quiet mode (decision 8): from Eli's "הגעתי" until the drive is back.
     closed ? null : quietOn
       ? h('p', { class: 'sh-quiet', role: 'note' }, h('strong', {}, 'מצב שקט'), ` מאז ${P.clockText(q.from)}${q.by === 'eli' ? ' (אלי הגיע)' : ''}: חריגות עוברות לאופיר, ושאר ההודעות יגיעו בסיכום אחד אחרי המסירה.`)
-      : !h2.done ? h('div', { class: 'sh-quiet is-off' }, h('p', {}, 'מצב שקט מתחיל כשאלי מסמן ״הגעתי״.'),
+      : !h2.done ? h('div', { class: 'sh-quiet is-off' }, h('p', {}, sc.eli ? 'מצב שקט מתחיל כשאלי מסמן ״הגעתי״.' : 'מצב שקט: להפעיל כשמתחילים לצלם.'),
         btn(`${id}-quiet`, 'להפעיל מצב שקט עכשיו', () => mark(sc, 'p18.quiet', null, `${id}-h`), 'btn btn-sm')) : null,
     // The counter replaces the green marks in Google Docs (decision 13).
     h('section', { class: 'sh-counter', 'aria-labelledby': `${id}-count` },
+      sc.solo ? dayCountBlock(sc, closed) : null,
       h('p', { class: 'sh-count num', id: `${id}-count`, 'aria-live': 'polite' }, P.counterText(shot.length, target)),
       target ? progressBar(Math.min(shot.length, target), target, 'סרטונים שצולמו') : null,
       // Once the day is closed the counter is final: no controls. Before the start it waits.
@@ -448,23 +508,30 @@ function shootMode(sc, now) {
     h('ol', { class: 'sh-timeline' }, ...tl.map((x) => h('li', { class: `${x.at <= now ? 'is-past' : ''}${x === nextPoint ? ' is-next' : ''}${x.prompt ? ' is-prompt' : ''}` },
       h('span', { class: 'num sh-t' }, P.clockText(x.at)), h('span', { class: x.prompt ? 'sh-prompt' : null }, x.prompt ? icon('clock', { size: 16 }) : null, x.label), x === nextPoint ? h('span', { class: 'sr-only' }, ' (הבא)') : null))),
     h('p', { class: 'sh-fixed' }, 'להחזיק את הראיונות על המסר.'),
-    // Eli, at a glance.
-    h('dl', { class: 'sh-facts' },
-      h('dt', {}, 'אלי'), h('dd', {}, arrived ? `הגיע ${P.clockText(arrived)}${h2.lior || closed ? ' · הכונן אצל ליאור' : isDone(sc, 'p17b.drive') ? ' · הכונן אצלו' : ''}` : h2.lior || closed ? 'הכונן אצל ליאור' : `עוד לא סימן הגעה (הגעה ${P.clockText(P.arrivalOf(sc.shootAt))})`),
-      h('dt', {}, 'בי־רול'), h('dd', {}, !brollq ? '—' : brollq.note === 'no' ? (isDone(sc, 'p17b.broll') ? 'הושלם באיחור' : 'לא גמור') : 'גמור'),
-      h('dt', {}, 'סיום'), h('dd', {}, h2.eli ? `מסר את הכונן ${P.clockText(h2.eli)}` : `${P.FINISH.length - P.finishOpen(c, sc.pre).length} מתוך ${P.FINISH.length} ברשימה`)),
+    // The photographer, at a glance (Eliel has no account: only where the drive is).
+    sc.eli ? h('dl', { class: 'sh-facts' },
+      h('dt', {}, 'אלי'), h('dd', {}, arrived ? `הגיע ${P.clockText(arrived)}${h2.lior || closed ? ' · הכונן אצל ליאור' : isDone(sc, 'p17b.drive') ? ' · הכונן אצלו' : ''}` : h2.lior || closed ? 'הכונן אצל ליאור' : `עוד לא סימן הגעה (הגעה ${P.clockText(P.arrivalOf(sc.shootAt, sc.solo))})`),
+      sc.solo ? null : h('dt', {}, 'בי־רול'), sc.solo ? null : h('dd', {}, !brollq ? '—' : brollq.note === 'no' ? (isDone(sc, 'p17b.broll') ? 'הושלם באיחור' : 'לא גמור') : 'גמור'),
+      h('dt', {}, 'סיום'), h('dd', {}, h2.eli ? `מסר את הכונן ${P.clockText(h2.eli)}` : `${P.FINISH.length - P.finishOpen(c, sc.pre).length} מתוך ${P.FINISH.length} ברשימה`))
+      : h('dl', { class: 'sh-facts' },
+        h('dt', {}, who), h('dd', { id: `${id}-who` }, h2.lior || closed ? 'הכונן אצל ליאור' : 'אין לו חשבון במערכת: ליאור מסמן כשהכונן אצלו')),
     // Closing: the lock (testimonial, the full quantity, the drive back and confirmed by both).
     closed ? h('p', { class: 'note-ok' }, `יום הצילום נסגר ${formatWhen(st.completedAt, now)}. ${P.afterCloseText(c, sc.pre, sc.ctx)}`)
       : h('section', { class: 'sh-close', 'aria-labelledby': `${id}-close-h` },
         headIcon(h('h3', { id: `${id}-close-h` }, 'סגירת היום'), 'lock', 'navy'),
         h('label', { class: 'prod-check', for: `${id}-testimonial` },
           h('input', { type: 'checkbox', id: `${id}-testimonial`, class: 'cbx', checked: isDone(sc, 'p19.testimonial'), disabled: !canAct || !started, onchange: (e) => (e.currentTarget.checked ? mark(sc, 'p19.testimonial', null, `${id}-testimonial`) : unmark(sc, 'p19.testimonial', `${id}-testimonial`)) }),
-          h('span', {}, 'צולם סרטון המלצה של הלקוח עם המשפיענים')),
-        target ? null : h('label', { class: 'prod-check', for: `${id}-all` },
+          h('span', {}, sc.solo ? 'צולם סרטון המלצה של הלקוח (לא חובה היום)' : 'צולם סרטון המלצה של הלקוח עם המשפיענים')),
+        // A day without influencers counts to Lior's number (asked for above): no "all of it" tick.
+        target || sc.solo ? null : h('label', { class: 'prod-check', for: `${id}-all` },
           h('input', { type: 'checkbox', id: `${id}-all`, class: 'cbx', checked: isDone(sc, 'p18.all'), disabled: !canAct || !started, onchange: (e) => (e.currentTarget.checked ? mark(sc, 'p18.all', null, `${id}-all`) : unmark(sc, 'p18.all', `${id}-all`)) }),
           h('span', {}, 'צולמה כל הכמות (אין כמות בחבילה בכרטיס)')),
-        h2.lior ? h('p', { class: 'note-ok' }, `אישרת שהכונן חזר ${P.clockText(h2.lior)}.${h2.eli ? '' : ' אלי עוד לא סימן מסירה.'}`)
-          : btn(`${id}-took`, h2.eli ? `אלי מסר את הכונן · קיבלתי` : 'הכונן חזר אליי', () => mark(sc, 'p19.took', h2.eli ? null : 'ליאור אישר לפני אלי', `${id}-close`), 'btn', { disabled: !canAct || !started }),
+        !sc.eli
+          // Eliel has no account: Lior's own "הכונן אצלי" is the whole handoff.
+          ? (h2.lior ? h('p', { class: 'note-ok', id: `${id}-took-ok` }, `סימנת שהכונן אצלך ${P.clockText(h2.lior)}.`)
+            : btn(`${id}-took`, 'הכונן אצלי', () => mark(sc, 'p19.took', `ליאור: הכונן אצלי (${who})`, `${id}-close`), 'btn', { disabled: !canAct || !started }))
+          : h2.lior ? h('p', { class: 'note-ok' }, `אישרת שהכונן חזר ${P.clockText(h2.lior)}.${h2.eli ? '' : ' אלי עוד לא סימן מסירה.'}`)
+            : btn(`${id}-took`, h2.eli ? `אלי מסר את הכונן · קיבלתי` : 'הכונן חזר אליי', () => mark(sc, 'p19.took', h2.eli ? null : 'ליאור אישר לפני אלי', `${id}-close`), 'btn', { disabled: !canAct || !started }),
         h('div', { class: 'ed-act' },
           btn(`${id}-close`, 'סגירת יום הצילום', () => closeDay(sc), 'btn k-btn-navy', { disabled: !canAct || !lock.ok, 'aria-describedby': `${id}-lock` }),
           h('p', { class: lock.ok ? 'hint' : 'ed-miss', id: `${id}-lock` }, lock.ok ? 'אפשר לסגור.' : `עוד חסר: ${lock.missing.join(' · ')}`))));
@@ -475,12 +542,12 @@ async function count(sc, videos, focusId) {
   if (await mark(sc, 'p18.shot', P.shotNote(videos), focusId) && target && videos.length === target) toast(`צולמו כל ${target} הסרטונים.`);
 }
 async function closeDay(sc) {
-  const lock = P.closeLock(cs(sc.client), sc.pre, scriptsCount(sc), { startAt: sc.shootAt, now: new Date() });
+  const lock = P.caseLock(sc, cs(sc.client), new Date());
   if (!lock.ok) { toast(`עוד חסר: ${lock.missing.join(' · ')}`); return; }
   const keys = notYet(sc, P.CLOSE_KEYS);
   if (keys.length && !await mark(sc, keys, 'בסגירת יום הצילום', `${cardId(sc)}-h`)) return;
   // What really happens next: Ofir is rung to assign the editor (protocol v9, the rule `fast`).
-  toast(`יום הצילום נסגר. ${P.afterCloseText(cs(sc.client), sc.pre, sc.ctx)} אלי קיבל ״אפשר לפרמט את הכרטיסים״.`);
+  toast(`יום הצילום נסגר. ${P.afterCloseText(cs(sc.client), sc.pre, sc.ctx)}${sc.eli ? ' אלי קיבל ״אפשר לפרמט את הכרטיסים״.' : ''}`);
   offerHandoff({ client: sc.client, keys: keys.map((k) => sc.pre + k), checks: () => cs(sc.client), me });
 }
 
@@ -501,7 +568,8 @@ function briefingForm({ day, scs }, now) {
   const acked = bs.filter((b) => b?.ack).length;
   const many = scs.length > 1;
   const notes = [...new Set(bs.map((b) => b?.notes).filter(Boolean))].join('\n');
-  const line = (sc) => [`${scName(sc)} · הגעה ${P.clockText(P.arrivalOf(sc.shootAt))} (המשפיענים ${P.clockText(sc.shootAt)})`,
+  const arrive = (sc) => (sc.solo ? `הגעה ${P.clockText(sc.shootAt)} (שעת הצילום, בלי משפיענים)` : `הגעה ${P.clockText(P.arrivalOf(sc.shootAt))} (המשפיענים ${P.clockText(sc.shootAt)})`);
+  const line = (sc) => [`${scName(sc)} · ${arrive(sc)}`,
     sc.client.address || null, scriptsCount(sc) ? `${scriptsCount(sc)} תסריטים` : null].filter(Boolean).join(' · ');
   const waText = (labels, text) => [`תדריך ליום צילום · ${P.dateWords(scs[0].shootAt)}`,
     ...scs.map((sc, i) => `${line(sc)}${labels[i] ? ` · ${P.driveName(labels[i])}` : ''}`), text || null, `ללחוץ "קיבלתי" בעמוד ימי הצילום.`].filter(Boolean).join('\n');
@@ -513,7 +581,7 @@ function briefingForm({ day, scs }, now) {
     const read = atOf(sc, 'p16.read');
     return h('li', { class: 'sh-bclient', id: cid },
       h('p', { class: 'sh-bname' }, h('strong', {}, scName(sc))),
-      facts([['clock', `הגעה ${P.clockText(P.arrivalOf(sc.shootAt))} (המשפיענים ${P.clockText(sc.shootAt)})`], sc.client.address ? ['pin', sc.client.address] : null, n ? ['file', `${n} תסריטים`] : null]),
+      facts([['clock', arrive(sc)], sc.client.address ? ['pin', sc.client.address] : null, n ? ['file', `${n} תסריטים`] : null]),
       b ? h('p', { class: b.ack ? 'note-ok' : 'ed-wait' }, `נשלח ${formatWhen(b.at, now)}${b.label ? ` · ${P.driveName(b.label)}` : ''}. ${b.ack ? `אלי אישר ${formatWhen(b.ack, now)}.` : 'אלי עוד לא אישר (ב־20:00 תקבל תזכורת).'}`) : null,
       // v10: whether he read the scripts of this day (his own tick).
       h('p', { class: read ? 'note-ok' : 'ed-wait', id: `${cid}-read` }, read ? `אלי קרא את התסריטים ${formatWhen(read, now)}.` : 'אלי עוד לא סימן שקרא את התסריטים.'),

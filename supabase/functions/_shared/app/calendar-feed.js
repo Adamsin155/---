@@ -23,7 +23,7 @@
 // and the characterizer at the meeting (Ofir or Lior). No phone number of a client
 // is ever written into a feed, and no internal note: a title, a time, a place for
 // those who need it, and a link to the card (which asks to sign in).
-import { SHOOT_TYPES, PEOPLE, isEditorOf } from './protocol.js';
+import { PEOPLE, SOLO, isEditorOf, isSolo, crewOf, eliFilms, crewWords, shootTypeName } from './protocol.js';
 import { clientState, itemsOf, isResolved, roundsOf, roundContext, parseDate, isImported, isBusinessDay, weekKey, isDayEnd } from './protocol-logic.js';
 import { dayKeyIL, addDaysIL, atTimeIL, weekdayIL, partsIL, startOfDayIL, dayFromKeyIL, TZ } from './tz.js';
 
@@ -96,8 +96,12 @@ const latest = (...ds) => {
 };
 const isEndOfDay = (d) => isDayEnd(d); // the end of a business day (18:00) or of a calendar day
 // Shoot-day length: the team an hour before the influencers, then 3 hours with
-// Natali (process 20) or 5.5 with Denis, Michel and Semion (21).
-export const shootMinutes = (type) => 60 + (type === 'dms' ? 330 : 180);
+// Natali (process 20) or 5.5 with Denis, Michel and Semion (21). A day without
+// influencers (25.10.2026) starts at its own time and lasts SOLO.minutes.
+export const shootMinutes = (type, solo = false) => (solo ? SOLO.minutes : 60 + (type === 'dms' ? 330 : 180));
+// Where a shoot day's entry starts: the team's arrival, an hour before the influencers; a day
+// without influencers at the shoot's own time.
+export const shootStart = (shootAt, solo = false) => new Date(new Date(shootAt).getTime() - (solo ? 0 : 36e5));
 const DEADLINE_MIN = 30;
 // Not a deadline of its own in the feed: the meeting and the shoot day (in every
 // round) are events already.
@@ -134,20 +138,26 @@ export function feedEvents({ person, clients = [], checks = {}, tasks = [], now 
       const round = x.n > 1 ? ` ${x.n}` : '';
       // The shoot day.
       const shootAt = parseDate(x.ctx.shoot_at);
-      const shootOk = SHOOT_PEOPLE.has(person) && (person !== 'eli' || inEliWindow(shootAt, now));
+      const solo = isSolo(x.ctx);
+      // Eli only on the days he films (a day without influencers with Eliel is not his; 25.10.2026).
+      const shootOk = SHOOT_PEOPLE.has(person) && (person !== 'eli' || (inEliWindow(shootAt, now) && eliFilms(x.ctx)));
       if (shootAt && shootOk && inRange(shootAt)) {
         const type = x.ctx.shoot_type;
+        const name = shootTypeName(x.ctx);
         out.push({
-          uid: `shoot-${c.id}-${x.n}@astrateg`, kind: 'shoot', client: c.id, round: x.n, shootType: type,
-          title: `יום צילום${round} · ${c.name}${SHOOT_TYPES[type] ? ` · ${SHOOT_TYPES[type].name}` : ''}`,
-          start: new Date(shootAt.getTime() - 36e5), minutes: shootMinutes(type),
+          uid: `shoot-${c.id}-${x.n}@astrateg`, kind: 'shoot', client: c.id, round: x.n, shootType: type, ...(solo ? { crew: crewOf(x.ctx) } : {}),
+          title: `יום צילום${round} · ${c.name}${name ? ` · ${name}` : ''}`,
+          start: shootStart(shootAt, solo), minutes: shootMinutes(type, solo),
           location: ADDRESS_ON_SHOOT.has(person) ? c.address || '' : '',
           // The entry starts at the team's arrival, an hour before the shoot time; the
-          // photographer's says so in his own words (the owner's rule of 7.10.2026).
+          // photographer's says so in his own words (the owner's rule of 7.10.2026). A day
+          // without influencers starts at its own time: nobody else is coming.
           description: [
-            person === 'eli'
-              ? `ההגעה שלך: ${hm.format(new Date(shootAt.getTime() - 36e5))}, שעה לפני הצילום. המשפיענים מגיעים ב־${hm.format(shootAt)}.`
-              : `הגעת המשפיענים: ${hm.format(shootAt)}. הצוות מגיע שעה לפני.`,
+            solo
+              ? (person === 'eli' ? `ההגעה שלך: ${hm.format(shootAt)}, שעת הצילום. בלי משפיענים: ליאור ואתה.` : `שעת הצילום: ${hm.format(shootAt)}. בלי משפיענים: ${crewWords(x.ctx)}.`)
+              : person === 'eli'
+                ? `ההגעה שלך: ${hm.format(new Date(shootAt.getTime() - 36e5))}, שעה לפני הצילום. המשפיענים מגיעים ב־${hm.format(shootAt)}.`
+                : `הגעת המשפיענים: ${hm.format(shootAt)}. הצוות מגיע שעה לפני.`,
             `כרטיס הלקוח: ${cardUrl(site, c.id)}`,
           ].join('\n'),
           changedAt: c.updated_at || c.created_at,

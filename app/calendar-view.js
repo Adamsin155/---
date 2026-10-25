@@ -19,7 +19,7 @@
 // The person's own Google Calendar comes in beside these (app/gcal-page.js; the owner,
 // 21.10.2026) as more events of the same shape ({ uid, kind: 'google', title, start,
 // minutes | end | allDay }) through `extra` below.
-import { PEOPLE, SHOOT_TYPES, isSales } from './protocol.js';
+import { PEOPLE, SHOOT_TYPES, PHOTOGRAPHERS, isSales, shootTypeName } from './protocol.js';
 import { feedEvents, OWNER, shootMinutes } from './calendar-feed.js';
 import { googleCalendarUrl, cleanGuests } from './calendar.js';
 import { TZ, dayKeyIL, dayFromKeyIL, dateIL, partsIL, weekdayIL } from './tz.js';
@@ -109,7 +109,7 @@ export function wordsOf(e, client = null) {
   const named = client && (e.kind === 'char' || e.kind === 'shoot');
   const title = named ? `${k.label}${round} · ${client.name}` : e.title;
   const extra = e.kind === 'char' && client ? `עם ${PEOPLE[client.characterizer || 'ofir']?.name || ''}`
-    : e.kind === 'shoot' ? SHOOT_TYPES[e.shootType || client?.shoot_type]?.name || null : null;
+    : e.kind === 'shoot' ? (e.crew ? shootTypeName({ shoot_crew: e.crew }) : SHOOT_TYPES[e.shootType || client?.shoot_type]?.name || null) : null;
   return { title, short: named ? `${k.short} · ${client.name}` : e.title, sub: [timeText(e), extra].filter(Boolean).join(' · ') };
 }
 
@@ -171,7 +171,9 @@ export function emailsOf(directory = {}) {
 }
 // Who is invited: the client (when the system has their email and this viewer may read
 // it), and the staff of that event: the characterizer at a meeting; Lior and Eli on a shoot day.
-export const STAFF_GUESTS = { char: (c) => [c.characterizer || 'ofir'], shoot: () => ['lior', 'eli'] };
+// A day without influencers (the event's `crew`, 25.10.2026): Lior, and Eli only when he films it
+// (Eliel has no account and no email in the system: he is not invited from here).
+export const STAFF_GUESTS = { char: (c) => [c.characterizer || 'ofir'], shoot: (c, e) => (e?.crew && e.crew !== 'eli' ? ['lior'] : ['lior', 'eli']) };
 // The invitation of one event as a Google Calendar template, or null (only meetings and shoot days).
 //   { url, guests (emails), people (staff keys), withClient (bool), title }
 export function inviteFor(event, { client, emails = {}, clientEmail = null, site = '' } = {}) {
@@ -179,7 +181,7 @@ export function inviteFor(event, { client, emails = {}, clientEmail = null, site
   if (!staff || !client) return null;
   const name = client.business || client.name || '';
   const card = `${site}client.html?id=${encodeURIComponent(client.id)}`;
-  const staffOf = staff(client);
+  const staffOf = staff(client, event);
   // Only whoever has an email in the staff list is invited (and named on the button).
   const people = staffOf.filter((p) => cleanGuests([emails[p]]).length);
   const guests = cleanGuests([clientEmail, ...people.map((p) => emails[p])]);
@@ -194,9 +196,15 @@ export function inviteFor(event, { client, emails = {}, clientEmail = null, site
   } else {
     const n = Number(event.round) || 1;
     title = `יום צילום${n > 1 ? ` ${n}` : ''} · ${name}`;
-    minutes = shootMinutes(event.shootType || client.shoot_type);
-    const arrive = new Date(new Date(event.start).getTime() + 36e5); // the event starts with the team, an hour before
-    details = [`הגעת המשפיענים: ${hm(arrive)}. הצוות מגיע שעה לפני.`, `כרטיס הלקוח במערכת: ${card}`];
+    const solo = !!PHOTOGRAPHERS[event.crew];
+    minutes = shootMinutes(event.shootType || client.shoot_type, solo);
+    if (solo) {
+      // A day without influencers starts at its own time (shootStart in app/calendar-feed.js).
+      details = [`שעת הצילום: ${hm(new Date(event.start))}. ${shootTypeName({ shoot_crew: event.crew })}.`, `כרטיס הלקוח במערכת: ${card}`];
+    } else {
+      const arrive = new Date(new Date(event.start).getTime() + 36e5); // the event starts with the team, an hour before
+      details = [`הגעת המשפיענים: ${hm(arrive)}. הצוות מגיע שעה לפני.`, `כרטיס הלקוח במערכת: ${card}`];
+    }
   }
   const url = googleCalendarUrl({ title, start: event.start, minutes, details: details.join('\n'), location: client.address || '', guests });
   return { url, guests, people, withClient, title };

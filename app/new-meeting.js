@@ -5,7 +5,8 @@
 // After saving, Google Calendar opens with the invitation (as "שליחת זימון"); where the
 // browser holds the new tab back, the dialog offers the link to tap instead.
 import { h, fill, toast, errorText, formatWhen } from './protocol-ui.js';
-import { SHOOT_TYPES } from './protocol.js';
+// "מי מצלם" (25.10.2026): with influencers, or Lior and one photographer (app/shoot-crew.js).
+import { crewOptions, choiceOf, soloOf, timeLabel } from './shoot-crew.js';
 import { fromInputIL } from './tz.js';
 import { icon } from './kit.js';
 import { guestNames } from './calendar-view.js';
@@ -44,9 +45,8 @@ function build() {
             h('input', { class: 'input', id: 'nm-at', type: 'datetime-local', dir: 'ltr', required: true, onchange: guests })),
           h('div', { class: 'field', id: 'nm-who-f' }, h('label', { for: 'nm-who' }, 'מי מבצע את האפיון?'),
             h('select', { class: 'input', id: 'nm-who', onchange: guests }, MEET_PEOPLE.map((p) => h('option', { value: p }, p === 'lior' ? 'ליאור (רק כשאין אחר)' : personName(p))))),
-          h('div', { class: 'field', id: 'nm-type-f', hidden: true }, h('label', { for: 'nm-type' }, 'עם מי מצלמים?'),
-            h('select', { class: 'input', id: 'nm-type', onchange: guests }, h('option', { value: '' }, 'לבחור'),
-              Object.values(SHOOT_TYPES).map((t) => h('option', { value: t.key }, t.name))))),
+          h('div', { class: 'field', id: 'nm-type-f', hidden: true }, h('label', { for: 'nm-type' }, 'מי מצלם?'),
+            h('select', { class: 'input', id: 'nm-type', onchange: () => { atLabel(); guests(); } }, crewOptions(h, '', { empty: 'לבחור' })))),
         h('div', { id: 'nm-avail' }),
         h('p', { class: 'hint', id: 'nm-guests' }),
         h('p', { class: 'err', id: 'nm-err', role: 'alert', hidden: true })),
@@ -64,7 +64,7 @@ function shape() {
   el('nm-title-f').hidden = kind !== 'other';
   el('nm-who-f').hidden = kind !== 'char';
   el('nm-type-f').hidden = kind !== 'shoot';
-  el('nm-at-l').textContent = kind === 'shoot' ? 'מתי מגיעים המשפיענים?' : kind === 'char' ? 'מתי הפגישה?' : 'מתי?';
+  atLabel(kind);
   el('nm-client-l').textContent = kind === 'other' ? 'לקוח (לא חובה)' : 'לקוח';
   el('nm-save-t').textContent = kind === 'other' ? 'פתיחת הזימון ב־Google' : 'שמירה ושליחת זימון';
   el('nm-avail').hidden = kind !== 'shoot';
@@ -89,7 +89,8 @@ function pick(c) {
     h('button', { type: 'button', class: 'btn-text', id: 'nm-change', onclick: unpick }, 'החלפה'));
   box.hidden = false;
   el('nm-who').value = MEET_PEOPLE.includes(c.characterizer) ? c.characterizer : 'ofir';
-  el('nm-type').value = SHOOT_TYPES[c.shoot_type] ? c.shoot_type : '';
+  el('nm-type').value = choiceOf(c);
+  atLabel();
   guests();
   el('nm-change').focus();
 }
@@ -101,6 +102,11 @@ function unpick() {
   el('nm-client').focus();
 }
 
+// The time's words: a day without influencers asks for the shoot's own time.
+function atLabel(kind = kindNow()) {
+  const solo = !!soloOf(el('nm-type').value);
+  el('nm-at-l').textContent = kind === 'shoot' ? (solo ? `מתי? (${timeLabel(el('nm-type').value)})` : 'מתי מגיעים המשפיענים?') : kind === 'char' ? 'מתי הפגישה?' : 'מתי?';
+}
 const values = () => ({
   kind: kindNow(), client: picked, at: fromInputIL(el('nm-at').value), title: el('nm-title').value,
   type: el('nm-type').value || null, person: el('nm-who').value,
@@ -184,7 +190,7 @@ export async function openNewMeeting() {
   if (!hint) {
     try {
       const A = await import('./availability-ui.js');
-      hint = A.shootDayHint(el('nm-at'), { me: () => ctx.viewer?.me ?? null, own: () => picked?.shoot_at || null });
+      hint = A.shootDayHint(el('nm-at'), { me: () => ctx.viewer?.me ?? null, own: () => picked?.shoot_at || null, skip: () => { const p = soloOf(el('nm-type').value); return !!p && p !== 'eli'; } });
       fill(el('nm-avail'), hint);
     } catch { /* the date can still be chosen */ }
   }

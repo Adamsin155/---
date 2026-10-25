@@ -8,6 +8,9 @@
 // them (tests/new-meeting.test.mjs); the dialog is app/new-meeting.js.
 import { PEOPLE, SHOOT_TYPES } from './protocol.js';
 import { inviteFor } from './calendar-view.js';
+// "מי מצלם" (25.10.2026): `type` is a choice of app/shoot-crew.js ('natali', 'dms', 'solo:eli', 'solo:eliel').
+import { isChoice, soloOf } from './shoot-crew.js';
+import { shootStart } from './calendar-feed.js';
 import { googleCalendarUrl, cleanGuests } from './calendar.js';
 // Who runs a characterization meeting: the meeting dialog's two, as app/date-set.js checks them.
 import { MEET_PEOPLE } from './date-set.js';
@@ -42,18 +45,20 @@ export function checkMeeting({ kind, client, at, title, type, person }) {
   if (kind !== 'other' && !client) return 'בוחרים לקוח.';
   if (kind === 'other' && !String(title || '').trim()) return 'כותבים במה מדובר.';
   if (!(at instanceof Date) || Number.isNaN(+at)) return kind === 'shoot' ? 'בוחרים יום ושעה ליום הצילום.' : 'בוחרים יום ושעה לפגישה.';
-  if (kind === 'shoot' && !SHOOT_TYPES[type]) return 'בוחרים עם מי מצלמים.';
+  if (kind === 'shoot' && !isChoice(type)) return 'בוחרים מי מצלם.';
   if (kind === 'char' && !MEET_PEOPLE.includes(person)) return 'בוחרים מי מבצע את האפיון.';
   return null;
 }
 
 // The invitation: { url, guests, people, withClient, title }. A shoot day's `at` is when the
 // influencers arrive (as on the client's card); the event starts with the team, an hour before.
+// A day without influencers: `at` is the shoot's own time, and the event starts then.
 export function meetingInvite({ kind, client = null, at, title = '', type = null, person = null, emails = {}, clientEmail = null, site = '' }) {
   if (kind === 'char' || kind === 'shoot') {
-    const c = { ...client, ...(kind === 'char' ? { characterizer: person || client.characterizer } : { shoot_type: type || client.shoot_type }) };
-    const start = kind === 'shoot' ? new Date(+at - 36e5) : at;
-    return inviteFor({ kind, start: start.toISOString(), shootType: c.shoot_type }, { client: c, emails, clientEmail, site });
+    const crew = kind === 'shoot' ? soloOf(type) : null;
+    const c = { ...client, ...(kind === 'char' ? { characterizer: person || client.characterizer } : { shoot_type: crew ? null : SHOOT_TYPES[type] ? type : client.shoot_type }) };
+    const start = kind === 'shoot' ? shootStart(at, !!crew) : at;
+    return inviteFor({ kind, start: start.toISOString(), shootType: c.shoot_type, ...(crew ? { crew } : {}) }, { client: c, emails, clientEmail, site });
   }
   const name = client ? client.business || client.name : '';
   const text = [String(title).trim(), name].filter(Boolean).join(' · ');

@@ -46,8 +46,8 @@ test('the file: the newest, none of the refused words, every UPDATE with a WHERE
   // (20261101100000_editor_progress.sql, 22.10.2026), which touch nothing of the protocol, and
   // Irit's Gantt (20261102100000_gantt_irit.sql, 22.10.2026), which replaces can_edit_gantt again, and a
   // monthly client's count (20261104100000_editor_progress_month.sql, 22.10.2026), nothing of the protocol either, and
-  // the old system's signed documents (20261105100000_legacy_contracts.sql, 25.10.2026), a table of their own.
-  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql', '20261102100000_gantt_irit.sql', '20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql']);
+  // the old system's signed documents (20261105100000_legacy_contracts.sql, 25.10.2026); a shoot day without influencers (20261107100000_shoot_crew.sql, 25.10.2026), a table of their own.
+  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql', '20261102100000_gantt_irit.sql', '20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql', '20261107100000_shoot_crew.sql']);
   const sql = migrationSql(MIGRATION);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));

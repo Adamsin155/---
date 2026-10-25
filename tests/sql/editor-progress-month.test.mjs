@@ -59,8 +59,8 @@ const set = (who, client, n, month = null, editor = null) => keep(who, 'select p
 const read = (who) => as(db, users[who], async (tx) => (await tx.query('select client_id, editor, month, edited from public.editor_progress_month order by editor, month')).rows);
 
 test("the file: the newest but one (the old documents' after it), only adds, and runs twice", async () => {
-  // After it only the old system's signed documents (20261105100000_legacy_contracts.sql, 25.10.2026).
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261105100000_legacy_contracts.sql']);
+  // After it only the old system's signed documents (20261105100000_legacy_contracts.sql, 25.10.2026); a shoot day without influencers (20261107100000_shoot_crew.sql, 25.10.2026).
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261105100000_legacy_contracts.sql', '20261107100000_shoot_crew.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   // Every UPDATE in it has a WHERE (an upsert's "do update set" is not one).

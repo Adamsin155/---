@@ -3,7 +3,7 @@
 // can also run in an edge function.
 // Every date is computed in Israel time (tz.js), whatever the zone of the device
 // or the server: office hours, business days, "today" and the day before a shoot.
-import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER, isEditorOf } from './protocol.js';
+import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER, PHOTOGRAPHERS, isEditorOf, crewOf } from './protocol.js';
 import { SPECS, TERM_MONTHS, PACKAGES } from './catalog.js';
 import { holidayOn as closedOn, erevOn } from './holidays.js';
 import { adjustForVersion, laterDue } from './protocol-versions.js';
@@ -216,21 +216,27 @@ const applies = (entry, client) => !entry.when || entry.when(client);
 // Extra shoot rounds (client.rounds) repeat the round processes under their own
 // phase, with ids like `r2-p12` and item keys like `r2.p12.read`.
 const ROUND_IDS = new Set(PROCESSES.filter((p) => p.round).map((p) => p.id));
+// An item's `variant` (protocol.js) is said here, for this client or round: its own words
+// and whether it is required; the key and the owners stay the item's.
+const said = (i, ctx) => { const v = i.variant?.(ctx); return v ? { ...i, ...v } : i; };
 const resolve = (p, ctx) => {
   const owners = ownersOf(p, ctx);
   return {
     ...p, owners, keyBase: p.id,
-    items: p.items.filter((i) => applies(i, ctx)).map((i) => ({ ...i, owners: i.owners ? ownersOf(i, ctx) : owners })),
+    items: p.items.filter((i) => applies(i, ctx)).map((i) => ({ ...said(i, ctx), owners: i.owners ? ownersOf(i, ctx) : owners })),
   };
 };
 
 export const roundsOf = (client) => (Array.isArray(client.rounds) ? client.rounds : []);
 
 // The client as seen from inside a round: its own shoot, and its start as the "characterization".
+// A round without influencers (25.10.2026: its `shoot_crew`, and no shoot_type of its own) does
+// not take the client's shoot type; any other round still does, and never the client's crew.
 export function roundContext(client, r) {
+  const solo = !r.shoot_type && !!PHOTOGRAPHERS[r.shoot_crew];
   return {
     ...client, round: r.n,
-    shoot_type: r.shoot_type || client.shoot_type, shoot_at: r.shoot_at || null,
+    shoot_type: solo ? null : r.shoot_type || client.shoot_type, shoot_crew: solo ? r.shoot_crew : null, shoot_at: r.shoot_at || null,
     char_at: r.start_at || null, editor: r.editor || null, editor2: (r.editor && r.editor2) || null, editor_split: (r.editor && r.editor2 && r.editor_split) || null,
   };
 }
@@ -465,10 +471,13 @@ export function clientLabel(client) {
   return name ? `${business} · ${name}` : business;
 }
 
-// Missing client details a process (or phase) depends on.
+// Missing client details a process (or phase) depends on. "With whom" (shoot_type) is
+// answered by a day without influencers too (its photographer: crewOf in protocol.js).
 const blank = (v) => v === null || v === undefined || v === '';
+const fieldOf = (client, f) => (f === 'shoot_type' ? client.shoot_type || crewOf(client) : client[f]);
+const blankField = (client, f) => blank(fieldOf(client, f));
 export function missingFields(entry, client) {
-  return (entry.needs || []).filter((f) => blank(client[f]));
+  return (entry.needs || []).filter((f) => blankField(client, f));
 }
 
 // Why an item cannot be checked yet: unfinished prerequisite items or missing client details.
@@ -478,7 +487,7 @@ export function blockers(item, client, checks) {
     const st = checks[k]?.state;
     return !(st === 'done' || (st === 'na' && !APPROVALS.has(k.replace(/^r\d+\./, ''))));
   });
-  const fields = (item.requiresFields || []).filter((f) => blank(client[f]));
+  const fields = (item.requiresFields || []).filter((f) => blankField(client, f));
   return items.length || fields.length ? { items, fields } : null;
 }
 
@@ -504,7 +513,7 @@ export function fieldGap(proc, client, checks = {}, procs = [], now = new Date()
     // cannot start without (`keep`: the date; a blank "who" is Ofir, the protocol's
     // default, as on rows from before that default existed).
     const need = isResolved(item, check, now) ? (item.setHere.keep || item.requiresFields) : item.requiresFields;
-    const fields = (need || []).filter((f) => blank(client[f]));
+    const fields = (need || []).filter((f) => blankField(client, f));
     if (!fields.length) continue;
     const round = /^(r\d+-)/.exec(proc.id)?.[1] || '';
     const next = item.setHere.unless && procs.find((p) => p.id === `${round}${item.setHere.unless}`);

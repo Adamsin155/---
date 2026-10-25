@@ -49,7 +49,7 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, editorsOf, editorNames } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, editorsOf, editorNames, isSolo, eliFilms } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
@@ -624,10 +624,10 @@ export const RULES = [
         .map((i) => ({ ...i, id: `${i.proc.id}@${shootAt(i).toISOString()}`, anchors: { event: shootAt(i), shoot: shootAt(i) } }));
     },
     steps: [
-      { id: '1030', prevBusinessDays: 1, at: '10:30', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => openItems(i, EVE_SENT).length > 0, title: (i, env) => `צילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: () => 'הנוסחים מוכנים: ללקוח, למשפיענים ולצוות. לשלוח ולסמן בכרטיס.' },
+      { id: '1030', prevBusinessDays: 1, at: '10:30', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => openItems(i, eveSent(i)).length > 0, title: (i, env) => `צילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: (i) => (isSolo(i.ctx) ? 'הנוסחים מוכנים: ללקוח ולצוות (יום בלי משפיענים). לשלוח ולסמן בכרטיס.' : 'הנוסחים מוכנים: ללקוח, למשפיענים ולצוות. לשלוח ולסמן בכרטיס.') },
       { id: '1115', prevBusinessDays: 1, at: '11:15', to: 'irit', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.resolved('p15.irit'), title: (i) => `בדיקת יום לפני: ${i.name}`, body: () => 'לוודא שהתזכורות נשלחו, שהלקוח זוכר ושאין משימה פתוחה. כל פריט שנכשל: לליאור.' },
       { id: '1200', prevBusinessDays: 1, at: '12:00', to: 'lior', level: 'ring', exempt: 'urgent', shoot: true, expires: 'shoot', when: (i) => openOf(i, 'lior').length > 0, title: (i) => `דחוף: יום לפני הצילום עוד פתוח · ${i.name}`, body: (i) => `עוד פתוח: ${openOf(i, 'lior').length} פריטים בתהליך 15.` },
-      { id: '1500', prevBusinessDays: 1, at: '15:00', to: OWNER, level: 'ring', shoot: true, expires: 'shoot', when: (i) => openItems(i, EVE_SENT).length > 0, title: (i) => `צילום בסיכון: ${i.name}`, body: (i, env) => `התזכורות של יום לפני הצילום עוד לא נשלחו. הצילום ${whenText(i.anchors.shoot, env.now)}.` },
+      { id: '1500', prevBusinessDays: 1, at: '15:00', to: OWNER, level: 'ring', shoot: true, expires: 'shoot', when: (i) => openItems(i, eveSent(i)).length > 0, title: (i) => `צילום בסיכון: ${i.name}`, body: (i, env) => `התזכורות של יום לפני הצילום עוד לא נשלחו. הצילום ${whenText(i.anchors.shoot, env.now)}.` },
     ],
   },
 
@@ -635,11 +635,12 @@ export const RULES = [
   // drive label in his shoot-day screen (p16.brief); Eli gets it at 17:00, or when it
   // is sent if later, and taps "קיבלתי" (p16.photographer); 20:00 to Lior if Eli did
   // not. All may go out after the sending hours (a shoot-day event). The gear list is
-  // on Eli's page only.
+  // on Eli's page only. Only the days Eli films (25.10.2026: a day without influencers
+  // with Eliel, who has no account, is briefed by Lior outside the system).
   {
     id: 'briefing', event: 'תדריך לצלם (16)', procs: ['p16'],
     instances(env) {
-      return casesOf(env, 'p16', (i) => shootAt(i) && shootAt(i) > env.now && !halted(i, { wait: false }))
+      return casesOf(env, 'p16', (i) => shootAt(i) && shootAt(i) > env.now && eliFilms(i.ctx) && !halted(i, { wait: false }))
         .map((i) => {
           const b = briefingOf(i.checks, i.pre);
           const at17 = atIL(businessDayFrom(shootAt(i), -1), '17:00');
@@ -648,7 +649,7 @@ export const RULES = [
     },
     steps: [
       { id: 'lior', prevBusinessDays: 1, at: '17:00', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.brief, title: (i) => `תדריך לאלי: ${i.name}`, body: () => 'לשלוח לאלי את התדריך ואת תווית הכונן, במסך יום הצילום.' },
-      { id: 'eli', from: 'brief', to: 'eli', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', title: (i, env) => `תדריך לצילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: (i) => `${arrivalText(i.anchors.shoot)}${i.client.address ? ` · ${i.client.address}` : ''}${i.brief?.label ? ` · ${driveName(i.brief.label)}` : ''}. ללחוץ "קיבלתי", לקרוא את התסריטים ולסמן "קראתי את התסריטים".` },
+      { id: 'eli', from: 'brief', to: 'eli', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', title: (i, env) => `תדריך לצילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: (i) => `${arrivalText(i.anchors.shoot, isSolo(i.ctx))}${i.client.address ? ` · ${i.client.address}` : ''}${i.brief?.label ? ` · ${driveName(i.brief.label)}` : ''}. ללחוץ "קיבלתי", לקרוא את התסריטים ולסמן "קראתי את התסריטים".` },
       // v10: the same line says so when Eli did not tick "קראתי את התסריטים" (the mark p16.read) by then.
       {
         id: '2000', prevBusinessDays: 1, at: '20:00', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot',
@@ -664,19 +665,35 @@ export const RULES = [
   // names his own, the owner's rule of 7.10.2026) and 15 minutes before the influencers;
   // Lior if Eli did not mark arriving 15 minutes after his time; time management by
   // shoot type; the expected end if the day is not closed.
+  // A day without influencers (25.10.2026): Eli (when he films it) arrives at the shoot's own
+  // time, so his reminder is an hour before it and Lior hears 15 minutes after it; there is no
+  // "הבי־רול גמור?" and no influencers' window, only the expected end (SOLO.minutes). With
+  // Eliel (no account) the case is the day's closing (19) and only Lior's end is left.
   {
     id: 'shoot', event: 'יום הצילום (17–21)', procs: ['p17b', 'p19'],
     instances(env) {
-      return casesOf(env, 'p17b', (i) => !!shootAt(i) && dayKeyIL(shootAt(i)) === dayKeyIL(env.now))
+      const today = (i) => !!shootAt(i) && dayKeyIL(shootAt(i)) === dayKeyIL(env.now);
+      return [...casesOf(env, 'p17b', today), ...casesOf(env, 'p19', (i) => today(i) && !eliFilms(i.ctx))]
         .map((i) => {
           const at = shootAt(i);
-          return { ...i, id: `${i.proc.id}@${at.toISOString()}`, natali: i.ctx.shoot_type === 'natali', url: SHOOT_URL(i.cid), anchors: { event: at, shoot: at, endOfDay: atTimeIL(at, 23, 59) } };
+          return { ...i, id: `${i.proc.id}@${at.toISOString()}`, natali: i.ctx.shoot_type === 'natali', solo: isSolo(i.ctx), eli: eliFilms(i.ctx), url: SHOOT_URL(i.cid), anchors: { event: at, shoot: at, endOfDay: atTimeIL(at, 23, 59) } };
         });
     },
     steps: (i) => {
       const s = { level: 'ring', exempt: 'shoot', shoot: true, expires: 'endOfDay' };
       const dayOpen = (b) => { const x = i.same(b); return !!x && !x.complete; };
-      const endMin = i.natali ? 180 : 330;
+      const endMin = i.solo ? SOLO.minutes : i.natali ? 180 : 330;
+      const endLior = { ...s, id: 'endLior', minutes: endMin, to: 'lior', when: () => dayOpen('p19'), title: () => `סיום יום הצילום: ${i.name}`, body: () => (i.solo ? 'כל הסרטונים של היום, והכונן אצלך.' : 'סרטון המלצה, כל הכמות, והכונן חוזר אליך.') };
+      if (!i.eli) return [endLior];
+      const arrive = arrivalOf(i.anchors.shoot, i.solo);
+      if (i.solo) {
+        return [
+          { ...s, id: 'eli2h', minutes: -60, to: 'eli', expires: 'shoot', title: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 60) ? `בעוד שעה ההגעה שלך לצילום: ${i.name}` : env.now < arrive ? `ההגעה שלך לצילום ${inTimeWords(arrive, env.now)}: ${i.name}` : `שעת ההגעה שלך לצילום עברה: ${i.name}`), body: () => `${arrivalText(i.anchors.shoot, true)}${i.client.address ? ` · ${i.client.address}` : ''}.` },
+          { ...s, id: 'arrived', minutes: 15, to: 'lior', when: () => !i.resolved('p17b.arrived'), title: () => `אלי עוד לא סימן הגעה: ${i.name}`, body: (_, env) => (sentOnTime(i.anchors.shoot, env.now, -15) ? 'עברו 15 דקות משעת הצילום.' : `שעת הצילום הייתה ${clock(i.anchors.shoot)}.`) },
+          endLior,
+          { ...s, id: 'endEli', minutes: endMin, to: 'eli', when: () => dayOpen('p19b'), title: () => `סיום יום הצילום: ${i.name}`, body: () => 'לסדר את הכונן ולמסור לליאור.' },
+        ];
+      }
       return [
         { ...s, id: 'eli2h', minutes: -120, to: 'eli', expires: 'shoot', title: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 120) ? `בעוד שעה ההגעה שלך לצילום: ${i.name}` : env.now < arrivalOf(i.anchors.shoot) ? `ההגעה שלך לצילום ${inTimeWords(arrivalOf(i.anchors.shoot), env.now)}: ${i.name}` : `שעת ההגעה שלך לצילום עברה: ${i.name}`), body: () => `${arrivalText(i.anchors.shoot)}${i.client.address ? ` · ${i.client.address}` : ''}.` },
         { ...s, id: 'eli15', minutes: -15, to: 'eli', expires: 'shoot', when: () => !i.check('p17b.brollq'), title: () => `הבי־רול גמור? ${i.name}`, body: (_, env) => `המשפיענים מגיעים ${sentOnTime(i.anchors.shoot, env.now, 15) ? 'בעוד 15 דקות' : inTimeWords(i.anchors.shoot, env.now)}. לענות כן או לא במסך יום הצילום.` },
@@ -687,7 +704,7 @@ export const RULES = [
             { ...s, id: 'begin', minutes: 30, to: 'lior', when: () => dayOpen('p19'), title: () => `להתחיל לצלם: ${i.name}`, body: () => 'עברה חצי שעה של התארגנות.' },
             { ...s, id: 'progress', minutes: 240, to: 'lior', when: () => dayOpen('p19'), title: () => `בדיקת התקדמות: ${i.name}`, body: () => 'עברו 4 שעות. כמה סרטונים צולמו?' },
           ]),
-        { ...s, id: 'endLior', minutes: endMin, to: 'lior', when: () => dayOpen('p19'), title: () => `סיום יום הצילום: ${i.name}`, body: () => 'סרטון המלצה, כל הכמות, והכונן חוזר אליך.' },
+        endLior,
         { ...s, id: 'endEli', minutes: endMin, to: 'eli', when: () => dayOpen('p19b'), title: () => `סיום יום הצילום: ${i.name}`, body: () => 'לסדר את הכונן ולמסור לליאור.' },
       ];
     },
@@ -1754,13 +1771,18 @@ RULES.push(
 );
 
 // The photographer's time in words: he arrives an hour before the shoot time, always
-// (the owner's rule of 7.10.2026), and every message that tells him a time says so.
-export const arrivalText = (shootAt) => `ההגעה שלך ב־${clock(arrivalOf(shootAt))}, שעה לפני הצילום (${clock(shootAt)})`;
+// (the owner's rule of 7.10.2026), and every message that tells him a time says so. On a day
+// without influencers (25.10.2026) the shoot's own time is his.
+export const arrivalText = (shootAt, solo = false) => (solo
+  ? `ההגעה שלך ב־${clock(shootAt)}, שעת הצילום (יום בלי משפיענים)`
+  : `ההגעה שלך ב־${clock(arrivalOf(shootAt))}, שעה לפני הצילום (${clock(shootAt)})`);
 const NO_CHARACTERIZER = 'אין מי שייצא לאפיון';
 // Exceptions that ring Lior at once instead of waiting for his 12:00 and 16:00 lists.
 const RINGING = [NO_CHARACTERIZER, BLOCKING_TITLE];
 const NETWORK_NAME = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', google: 'Google Business', meta: 'Meta Business', other: 'רשת אחרת' };
 const EVE_SENT = ['p15.influencers', 'p15.client', 'p15.crew'];
+// A day without influencers has nobody to remind but the client and the crew (25.10.2026).
+const eveSent = (i) => (isSolo(i.ctx) ? EVE_SENT.filter((k) => k !== 'p15.influencers') : EVE_SENT);
 const briefBody = (r) => [r?.done && `בוצע: ${r.done}`, r?.left ? `נשאר: ${r.left} (נפתחה משימת המשך)` : 'לא נשאר דבר', r?.client && 'אופיר בודק, ואז עירית שולחת ללקוח'].filter(Boolean).join(' · ');
 
 // One digest line a day from the business day after the start until the due day ("day X of 3").
@@ -1913,11 +1935,13 @@ const SHOOT_SET_RULE = {
         for (const sc of shootCases(c)) {
           const proc = sc.pre ? `r${sc.n}-p17b` : 'p17b';
           // A shoot day that passed is not news (and a day moved back into the past
-          // leaves the one he was told of to the loop below: it is off).
-          if (sc.shootAt <= env.now) continue;
+          // leaves the one he was told of to the loop below: it is off). A day he does not
+          // film (a day without influencers with Eliel, 25.10.2026) is not his either: one
+          // he had been told of is then told as off.
+          if (sc.shootAt <= env.now || (who === 'eli' && !sc.eli)) continue;
           seen.add(`${c.id}:${proc}`);
           const L = last.get(`${c.id}:${proc}`);
-          const inst = { cid: c.id, client: c, name: clientLabel(c), who, n: sc.n, at: sc.shootAt, url: SHOOT_URL(c.id), anchors: { event: env.now } };
+          const inst = { cid: c.id, client: c, name: clientLabel(c), who, n: sc.n, at: sc.shootAt, solo: sc.solo, url: SHOOT_URL(c.id), anchors: { event: env.now } };
           if (L && L.step !== 'cancelled' && +L.at === +sc.shootAt) {
             out.push({ ...inst, id: L.case, step: L.step, from: L.step === 'changed' ? before(L)?.at || null : null, soon: soon(sc.shootAt) });
             continue;
@@ -1955,7 +1979,7 @@ const SHOOT_SET_RULE = {
         ].join(' ');
       }
       return [
-        `${arrivalText(i.at)}${i.client.address ? ` · ${i.client.address}` : ''}.`,
+        `${arrivalText(i.at, !!i.solo)}${i.client.address ? ` · ${i.client.address}` : ''}.`,
         i.step === 'changed' && i.from ? `במקום ${dayText(i.from)}, הגעה ב־${clock(arrivalOf(i.from))}.` : null,
       ].filter(Boolean).join(' ');
     },
