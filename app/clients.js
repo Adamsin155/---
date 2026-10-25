@@ -845,7 +845,7 @@ async function openShoot(g, focusId) {
   try {
     const A = await import('./availability-ui.js');
     if (shootTarget?.g !== g || !shootDlg.open) return;
-    shootHint = A.shootDayHint($('shoot-at'), { me, own: c.shoot_at, skip: () => { const p = soloOf($('shoot-type').value); return !!p && p !== 'eli'; } });
+    shootHint = A.shootDayHint($('shoot-at'), { me, own: c.shoot_at, who: () => soloOf($('shoot-type').value) || 'eli' });
     shootHint.id = 'shoot-avail';
     fill($('shoot-avail-slot'), shootHint);
     if ($('shoot-at').value) shootHint.refresh();
@@ -882,7 +882,7 @@ $('shoot-form').addEventListener('submit', async (ev) => {
   let asked = { ok: true, note: null };
   try {
     const A = await import('./availability-ui.js');
-    asked = await A.confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me, eli: !crew || crew === 'eli' });
+    asked = await A.confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me, who: crew || 'eli' });
   } catch { /* nothing known here: the date is saved as typed */ }
   if (!asked.ok) { $('shoot-at').focus(); return; }
   $('shoot-submit').disabled = true;
@@ -3426,7 +3426,7 @@ $('new-form').addEventListener('submit', async (e) => {
   const shoot = $('new-shoot-type').value;
   const station = importing ? $('new-station').value : '';
   const invalid = !name ? ['חסר שם לקוח.', $('new-name')]
-    : !shoot ? ['חסר מי מצלם: נטלי דדון, דניס, מישל וסמיון, או בלי משפיענים (ליאור + צלם).', $('new-shoot-type')]
+    : !shoot ? ['חסר סוג יום הצילום: נטלי דדון, דניס, מישל וסמיון, או בלי משפיענים (ליאור + צלם).', $('new-shoot-type')]
       : importing && !station ? ['בחרו את התחנה שבה הלקוח נמצא עכשיו.', $('new-station')] : null;
   if (invalid) { $('new-submit').disabled = false; return fail(...invalid); }
   const q = quoteOf();

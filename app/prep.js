@@ -13,12 +13,12 @@
 //   - a client's request (her section 17): one tap opens a task with an owner and a
 //     due day, with a ready "we got it" message; when that task is done, the database
 //     opens "לעדכן את הלקוח" for her, shown here with a ready message.
-import { PEOPLE, STAFF_PEOPLE } from './protocol.js';
-// "מי מצלם" (25.10.2026): with influencers, or Lior and one photographer (app/shoot-crew.js).
-import { crewOptions, choiceOf, soloOf, crewPatch, timeLabel } from './shoot-crew.js';
+import { PEOPLE, STAFF_PEOPLE, SHOOT_TYPES } from './protocol.js';
+// "עם מי מצלמים" (25.10.2026): with influencers, or Lior and one photographer (app/shoot-crew.js).
+import { crewOptions, choiceOf, soloOf, crewPatch, roundWithCrew, timeLabel } from './shoot-crew.js';
 import { shootStart } from './calendar-feed.js';
 // Each client by the business first, then the person: "בוטיק אלאור · ניב" (Irit, 22.10.2026).
-import { clientState, parseDate, clientLabel } from './protocol-logic.js';
+import { clientState, parseDate, clientLabel, roundsOf } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, setTaskDone, updateClient, loadDirectory, quoteFacts,
 } from './protocol-data.js';
@@ -52,7 +52,9 @@ let clientMail = {};     // client id → email, from the agreements (for "של�
 let me = null;
 let busy = false;
 const answers = new Map();   // day-before answers being given, by `${client}:${pre}`
-const shootDraft = new Map(); // a shoot date being typed, by client
+const shootDraft = new Map(); // a shoot date being typed, by shoot (the card's key)
+const crewDraft = new Map();  // "עם מי מצלמים" being chosen, by shoot: the approvals follow it before it is saved
+const editOpen = new Set();   // shoots whose date and crew are being changed here, by the card's key
 const eliNotes = new Map();   // what the photographer handed over for a shoot's day, by its moment (never his approval itself)
 let lastAck = null;           // the request just opened: its ready "we got it" message
 let reqDraft = { client: only || '', text: '', owner: '', due: '', urgent: false };
@@ -88,14 +90,16 @@ async function load() {
 }
 let arrived = false;
 
-// Under "אלי הצלם" in the coordinator: whether he marked that shoot's day free. Read once per date, then drawn.
+// Under "אלי הצלם" (or "אליאל הצלם" on his days without influencers) in the coordinator:
+// whether he marked that shoot's day free. Read once per photographer and date, then drawn.
+const noteKey = (coord) => `${coord.crew || 'eli'}:${coord.shootAt?.toISOString()}`;
 async function primeEliNotes() {
   let fresh = false;
   for (const e of entries()) {
-    const key = e.coord.shootAt?.toISOString();
-    // Not for a day Eli does not film (a day without influencers with Eliel).
-    if (!key || eliNotes.has(key) || (e.coord.solo && e.coord.crew !== 'eli')) continue;
-    eliNotes.set(key, await photographerNote(e.coord.shootAt, { me }));
+    if (!e.coord.shootAt) continue;
+    const key = noteKey(e.coord);
+    if (eliNotes.has(key)) continue;
+    eliNotes.set(key, await photographerNote(e.coord.shootAt, { me, who: e.coord.crew || 'eli' }));
     fresh = fresh || !!eliNotes.get(key);
   }
   if (fresh && !busy && !document.activeElement?.closest('form, .pp-form')) render();
@@ -256,8 +260,20 @@ async function answerFollowup(r, k, answer) {
 }
 
 // ── 11: the coordinator ───────────────────
+// The shoot as a choice being made would make it: with influencers (a type), or without them.
+const ctxWith = (ctx, choice) => {
+  const crew = soloOf(choice);
+  if (crew) return { ...ctx, shoot_type: null, shoot_crew: crew };
+  return { ...ctx, shoot_type: SHOOT_TYPES[choice] ? choice : null, shoot_crew: null };
+};
 function coordinatorBlock(e, k) {
-  const { c, x, coord } = e;
+  const { c, x } = e;
+  // "עם מי מצלמים" lives here (the owner, 25.10.2026): a day without influencers takes the
+  // influencers' approval and the contract's check off the list as soon as it is chosen.
+  const drafted = crewDraft.has(k);
+  const coord = drafted ? coordinatorOf(c, checks[c.id] || {}, { ...x, ctx: ctxWith(x.ctx, crewDraft.get(k)) }) : e.coord;
+  const choice = drafted ? crewDraft.get(k) : choiceOf(x.ctx);
+  const set = !!e.coord.shootAt && e.coord.typeSet;
   const status = coord.closed
     ? (coord.nataliMissing.length ? `סגור מול כולם · חסר עוד לנטלי: ${coord.nataliMissing.join(' ו')}` : 'היום סגור: כולם אישרו והוא ביומן')
     : `עוד לא סגור · חסר: ${coord.missing.join(', ')}`;
@@ -266,9 +282,8 @@ function coordinatorBlock(e, k) {
       type: 'button', class: 'btn', id: `pty-${k}-${a.key.replace(/\./g, '-')}`, 'aria-pressed': String(a.done), disabled: busy,
       onclick: (ev) => toggleCheck(c.id, a.key, !a.done, ev.currentTarget.id),
     }, h('span', {}, a.label, a.done && a.check ? h('small', {}, `אושר ${formatWhen(new Date(a.check.at))}`) : note ? h('small', {}, note) : null)));
-  const edit = x.n === 1 && (!coord.shootAt || !coord.typeSet);
-  const dt = shootDraft.get(c.id) ?? (coord.shootAt ? inputValueIL(coord.shootAt) : '');
-  const choice = choiceOf(x.ctx);
+  const edit = !set || editOpen.has(k);
+  const dt = shootDraft.get(k) ?? (e.coord.shootAt ? inputValueIL(e.coord.shootAt) : '');
   // Into everyone's calendar in one step (15.10.2026): Google Calendar opens with the day
   // and its guests (the client when the agreement has their email, Lior and Eli), and
   // Google sends the invitations when she presses Save. A day without influencers starts at
@@ -283,19 +298,24 @@ function coordinatorBlock(e, k) {
     coord.fullyClosed ? h('summary', { class: 'pp-sum' }, iconSquare('handshake', 'green', { size: 'sm' }), h('span', { id: `co-${k}` }, 'סגירת יום הצילום (11): '), h('span', { class: 'pp-status is-ok' }, status))
       : headIcon(h('h3', { id: `co-${k}` }, 'סגירת יום הצילום (11)'), 'handshake', 'green'),
     coord.fullyClosed ? null : h('p', { class: `pp-status ${coord.closed ? 'is-ok' : 'is-open'}`, role: 'status' }, status),
-    edit ? h('div', { class: 'pp-form' },
+    edit ? h('div', { class: 'pp-form', id: `sh-form-${k}` },
       h('div', { class: 'row2' },
-        h('div', { class: 'field' }, h('label', { for: `sh-type-${k}` }, 'מי מצלם'),
+        h('div', { class: 'field' }, h('label', { for: `sh-type-${k}` }, 'עם מי מצלמים'),
           h('select', {
             class: 'input', id: `sh-type-${k}`,
-            // The time's words follow the choice: the shoot's own time on a day without influencers.
-            onchange: (ev) => { $(`sh-at-${k}-l`).textContent = timeLabel(ev.currentTarget.value); $(`sh-at-${k}-avail`)?.refresh?.(); },
+            // The approvals, the list of what is missing and the time's words follow the choice at once.
+            onchange: (ev) => { crewDraft.set(k, ev.currentTarget.value); render(`sh-type-${k}`); },
           }, crewOptions(h, choice, { empty: 'טרם נקבע' }))),
         h('div', { class: 'field' }, h('label', { for: `sh-at-${k}`, id: `sh-at-${k}-l` }, timeLabel(choice)),
-          shootAtField(c, k, dt))),
-      h('button', { type: 'button', class: 'btn k-btn-navy', id: `sh-save-${k}`, disabled: busy, onclick: () => saveShoot(c, k) }, 'שמירת המועד')) : null,
+          shootAtField(c, x, k, dt))),
+      h('div', { class: 'pp-acts' },
+        h('button', { type: 'button', class: 'btn k-btn-navy', id: `sh-save-${k}`, disabled: busy, onclick: () => saveShoot(c, x, k) }, 'שמירת המועד'),
+        set ? h('button', { type: 'button', class: 'btn btn-ghost', id: `sh-cancel-${k}`, disabled: busy, onclick: () => { editOpen.delete(k); crewDraft.delete(k); shootDraft.delete(k); render(`sh-edit-${k}`); } }, 'ביטול') : null))
+      // Set already: what it is, and "שינוי" (a day that becomes one without influencers, or moves).
+      : h('p', { class: 'pp-shoot-line', id: `sh-line-${k}` }, 'עם מי מצלמים: ', h('strong', {}, coord.typeName), ' ',
+        h('button', { type: 'button', class: 'btn-text', id: `sh-edit-${k}`, disabled: busy, onclick: () => { editOpen.add(k); render(`sh-type-${k}`); } }, 'שינוי')),
     h('ul', { class: 'pp-parties', 'aria-label': 'אישורים' },
-      ...coord.approvals.map((a) => party(a, a.key === `${x.pre}p11.ok.photographer` && (!coord.solo || coord.crew === 'eli') ? eliNotes.get(coord.shootAt?.toISOString()) || null : null)),
+      ...coord.approvals.map((a) => party(a, a.key === `${x.pre}p11.ok.photographer` && coord.shootAt ? eliNotes.get(noteKey(coord)) || null : null)),
       coord.contract ? party(coord.contract) : null),
     h('div', { class: 'ik-row' },
       invite ? h('a', { class: 'btn btn-ghost', id: `inv-${k}`, href: invite.url, target: '_blank', rel: 'noopener', title: `מוזמנים: ${guestNames(invite)}`, 'data-guests': invite.guests.join(',') },
@@ -309,22 +329,23 @@ function coordinatorBlock(e, k) {
       h('ul', { class: 'pp-parties' }, ...coord.natali.map((a) => party(a, me === 'lior' ? null : 'סימון בשם ליאור נרשם בשמך')))) : null);
 }
 // The date with, under it, what the photographer handed over for the day being picked.
-function shootAtField(c, k, dt) {
+function shootAtField(c, x, k, dt) {
   // With no date nothing is saved: the sentence under the field says so (saveShoot), and goes when a date is typed.
   const err = h('p', { class: 'err pp-field-err', id: `sh-at-${k}-err`, role: 'alert', hidden: true });
   const input = h('input', {
     class: 'input', id: `sh-at-${k}`, type: 'datetime-local', dir: 'ltr', value: dt, 'aria-describedby': `sh-at-${k}-err sh-at-${k}-avail`,
-    oninput: (ev) => { shootDraft.set(c.id, ev.currentTarget.value); if (ev.currentTarget.value) { err.hidden = true; ev.currentTarget.removeAttribute('aria-invalid'); } },
+    oninput: (ev) => { shootDraft.set(k, ev.currentTarget.value); if (ev.currentTarget.value) { err.hidden = true; ev.currentTarget.removeAttribute('aria-invalid'); } },
   });
-  // Not on a day Eliel films (a day without influencers): Eli's days say nothing about it.
-  const hint = shootDayHint(input, { me, own: c.shoot_at, skip: () => { const p = soloOf($(`sh-type-${k}`)?.value); return !!p && p !== 'eli'; } });
+  // The day's photographer's: Eliel's on his days without influencers (25.10.2026).
+  const hint = shootDayHint(input, { me, own: x.ctx.shoot_at, who: () => soloOf($(`sh-type-${k}`)?.value) || 'eli' });
   hint.id = `sh-at-${k}-avail`;
   if (dt) hint.refresh();
   return [input, err, hint];
 }
 // What "שמירת המועד" answers when the date field is empty.
 const NO_DATE = 'צריך לבחור תאריך ושעה';
-async function saveShoot(c, k) {
+// The client's own shoot, or a round's (its entry of clients.rounds).
+async function saveShoot(c, x, k) {
   if (busy) return;
   const type = $(`sh-type-${k}`).value || null;
   const crew = soloOf(type);
@@ -341,21 +362,32 @@ async function saveShoot(c, k) {
     field.focus();
     return;
   }
-  // "מי מצלם": the shoot type, or a day without influencers with its photographer (app/shoot-crew.js).
-  const fields = { shoot_at: at.toISOString(), ...(type ? crewPatch(c, type) : {}) };
-  // Against the usual order (in the past, before the characterization, too soon after it): ask, with the reason.
-  const asked = await confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me, eli: !crew || crew === 'eli' });
+  // "עם מי מצלמים": the shoot type, or a day without influencers with its photographer (app/shoot-crew.js).
+  const iso = at.toISOString();
+  const fields = x.n === 1
+    ? { shoot_at: iso, ...(type ? crewPatch(c, type) : {}) }
+    : { rounds: roundsOf(c).map((r) => (r.n === x.n ? { ...(type ? roundWithCrew(r, type) : r), shoot_at: iso } : r)) };
+  // Against the usual order (in the past, before the characterization, too soon after it), or
+  // a day the photographer did not mark free: ask, with the reason. Not when only the crew changed.
+  const own = x.ctx.shoot_at;
+  const moved = +at !== +(parseDate(own) || 0);
+  const asked = moved ? await confirmShootDay({ shootAt: at, charAt: x.n === 1 ? c.char_at : null, own, me, who: crew || 'eli' }) : { ok: true, note: null };
   if (!asked.ok) { field.focus(); return; }
   busy = true;
+  let saved = false;
   try {
     const row = await updateClient(c.id, fields);
-    if (asked.note) await noteDateChange(c.id, 'shoot_at', null, fields.shoot_at, asked.note);
-    clients = clients.map((x) => (x.id === c.id ? row : x));
-    shootDraft.delete(c.id);
-    toast(`המועד נשמר: ${formatStamp(at)}.${type ? '' : ' עוד לא נבחר מי מצלם.'}`);
+    if (asked.note) await (x.n === 1 ? noteDateChange(c.id, 'shoot_at', null, iso, asked.note) : noteDateChange(c.id, 'round_shoot_at', x.n, iso, asked.note));
+    clients = clients.map((y) => (y.id === c.id ? row : y));
+    shootDraft.delete(k);
+    crewDraft.delete(k);
+    editOpen.delete(k);
+    saved = true;
+    toast(`המועד נשמר: ${formatStamp(at)}.${type ? '' : ' עוד לא נבחר עם מי מצלמים.'}`);
   } catch (err) { toast(`לא נשמר. ${errorText(err)}`); }
   busy = false;
-  render(`sh-save-${k}`);
+  render(saved && document.getElementById(`sh-line-${k}`) ? `sh-edit-${k}` : `sh-save-${k}`);
+  if (saved && !document.getElementById(`sh-save-${k}`)) document.getElementById(`sh-edit-${k}`)?.focus({ preventScroll: true });
   primeEliNotes();
 }
 async function toggleCheck(cid, key, on, focusId, note = null) {

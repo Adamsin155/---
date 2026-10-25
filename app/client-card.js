@@ -2001,10 +2001,10 @@ const nextRoundNumber = () => Math.max(1, ...roundsOf(client).map((r) => r.n)) +
 const roundDlg = dialog('dlg-round');
 let roundEditing = null;
 // The photographer's monthly availability (docs/ops.md, section 39): under each shoot date being picked, whether he marked that day free.
-// Not on a day that Eli does not film (Eliel's): his days say nothing about it.
-const shootAtHint = shootDayHint($('ed-shoot-at'), { me: () => me, own: () => client?.shoot_at, skip: () => !crewEli('ed') });
+// The day's photographer's: Eliel's on his days without influencers (25.10.2026).
+const shootAtHint = shootDayHint($('ed-shoot-at'), { me: () => me, own: () => client?.shoot_at, who: () => crewWho('ed') });
 $('ed-shoot-at').after(shootAtHint);
-const roundAtHint = shootDayHint($('round-at'), { me: () => me, own: () => (roundEditing ? roundsOf(client).find((r) => r.n === roundEditing)?.shoot_at : null), skip: () => !crewEli('round') });
+const roundAtHint = shootDayHint($('round-at'), { me: () => me, own: () => (roundEditing ? roundsOf(client).find((r) => r.n === roundEditing)?.shoot_at : null), who: () => crewWho('round') });
 $('round-at').after(roundAtHint);
 function openRound(n = null) {
   roundEditing = n;
@@ -2055,7 +2055,7 @@ $('round-form').addEventListener('submit', async (e) => {
     ? rounds.map((r) => (r.n === roundEditing ? { ...roundWithCrew(r, roundChoice), shoot_at: at, editor: $('round-editor').value || null } : r))
     : [...rounds, { ...roundWithCrew({ n: nextRoundNumber() }, roundChoice), shoot_at: at, editor: $('round-editor').value || null, start_at: new Date().toISOString() }];
   const before = roundEditing ? rounds.find((r) => r.n === roundEditing)?.shoot_at : null;
-  const asked = at && +new Date(at) !== +new Date(before || 0) ? await confirmShootDay({ shootAt: at, own: before, me, eli: crewEli('round') }) : { ok: true, note: null };
+  const asked = at && +new Date(at) !== +new Date(before || 0) ? await confirmShootDay({ shootAt: at, own: before, me, who: crewWho('round') }) : { ok: true, note: null };
   if (!asked.ok) { $('round-at').focus(); return; }
   // The round had a date and the field is empty: clearing is asked about, not saved quietly.
   const clearing = !!roundEditing && !!before && !at;
@@ -2354,10 +2354,12 @@ function crewChoice(f) {
   const p = pickedPhotographer(f);
   return p && PHOTOGRAPHERS[p] ? `${SOLO_PREFIX}${p}` : '';
 }
-// Whether Eli films what the form says (his availability is asked about only then).
-function crewEli(f) {
+// Who films what the form says: the photographer of a day without influencers, else Eli
+// (his availability is the one asked about).
+function crewWho(f) {
   const ui = $(`${f}-crew-solo`);
-  return !ui || !ui.checked || pickedPhotographer(f) === 'eli';
+  const p = ui?.checked ? pickedPhotographer(f) : null;
+  return PHOTOGRAPHERS[p] ? p : 'eli';
 }
 function showCrew(f) {
   const solo = $(`${f}-crew-solo`).checked;
@@ -2433,7 +2435,7 @@ $('ed-form').addEventListener('submit', async (e) => {
   // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
   const newShoot = fromLocal($('ed-shoot-at').value);
   const shootMoved = !!newShoot && +new Date(newShoot) !== +new Date(client.shoot_at || 0);
-  const asked = shootMoved ? await confirmShootDay({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value), own: client.shoot_at, me, eli: crewEli('ed') }) : { ok: true, note: null };
+  const asked = shootMoved ? await confirmShootDay({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value), own: client.shoot_at, me, who: crewWho('ed') }) : { ok: true, note: null };
   if (!asked.ok) { $('ed-shoot-at').focus(); return; }
   // A date that was saved and whose field is now empty: "ניקוי המועד" is asked by name.
   const cleared = CLEARABLE.filter(([f, input]) => client[f] && !$(input).value);

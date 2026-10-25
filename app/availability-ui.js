@@ -5,12 +5,17 @@
 //     The photographer (shoot.html): a compact card above his shoot days. Until next
 //     month is handed over: the month as a grid of big days, "אין לי ימים פנויים בחודש
 //     הזה", and one submit. After it: one line, with "עדכון" and "בלת״ם".
-//     The owner, Irit, Lior and Ofir (prep.html, shoot.html): one folded line with what
-//     he handed over; the owner, Irit and Lior can enter it in his name after a call.
+//     The owner, Irit, Lior and Ofir (prep.html, shoot.html): one folded line per
+//     photographer with what he handed over; the owner, Irit and Lior can mark it in his
+//     name after a call ("סימון זמינות במקומו", stamped "סומן ע״י …"). Eliel, the second
+//     photographer (25.10.2026), has no account: his month is only what the office marks.
 //     Anyone else: nothing.
-//   shootDayHint(input, { me, own })   the line next to a shoot date being picked:
-//     whether he marked that day free, it is taken, not free, or not handed over yet.
-//   confirmShootDay({ shootAt, charAt, own, me })   the confirmation before a shoot date
+//   shootDayHint(input, { me, own, who })   the line next to a shoot date being picked:
+//     whether the day's photographer (`who`: Eli, or Eliel on his days without
+//     influencers) marked that day free, it is taken, not free, or not handed over yet;
+//     with "סימון זמינות במקומו" for whoever may mark it in his name.
+//   openAvailabilityFor({ person, month, me })   that marking, in a dialog over the page.
+//   confirmShootDay({ shootAt, charAt, own, me, who })   the confirmation before a shoot date
 //     is saved. A day he did not mark free (or that already has a shoot day) asks for a
 //     short reason, kept with the date change (public.date_change_note); it is a
 //     warning, never a block. Anything else is asked as before (confirmShootDate).
@@ -32,22 +37,33 @@ if (typeof document !== 'undefined' && !document.querySelector('link[href="app/s
 const MONTH_COLS = 'person, month, days, none, submitted_at, updated_at, by_person';
 const CHANGE_COLS = 'id, person, reported_at, reported_month, days, shoot_days, note';
 const notThere = (err) => ['42P01', '42883', 'PGRST202', 'PGRST205'].includes(err?.code) || /does not exist|Could not find/i.test(String(err?.message || ''));
-// `me`: the person key, null for the owner.
-export const canSee = (me) => A.PHOTOGRAPHERS.includes(me) || A.READERS.includes(me ?? 'owner');
-const isPhotographer = (me) => A.PHOTOGRAPHERS.includes(me);
+// `me`: the person key, null for the owner. The photographer's own card is for the ones
+// with an account (A.HANDS_OVER); Eliel never signs in.
+export const canSee = (me) => A.HANDS_OVER.includes(me) || A.READERS.includes(me ?? 'owner');
+const isPhotographer = (me) => A.HANDS_OVER.includes(me);
+export const canMark = (me) => A.ON_BEHALF.includes(me ?? 'owner');
+const byDay = (rows) => Object.fromEntries((rows || []).map((r) => [String(r.day).slice(0, 10), r.n]));
 
 // The months `from`..`to` ('YYYY-MM'): what was handed over, the unexpected changes
-// and the days a shoot day sits on. null when the tables are not there yet.
+// and the days a shoot day sits on (`taken`: Eli's; `takenBy`: each photographer's, the
+// others' from public.photographer_taken_by, 20261107100000_shoot_crew.sql: before that
+// migration they are left empty). null when the tables are not there yet.
 export async function loadAvailability(from, to = from) {
-  const [m, c, t] = await Promise.all([
+  const range = { p_from: `${from}-01`, p_to: A.monthDays(to).at(-1) };
+  const others = A.PHOTOGRAPHERS.filter((p) => p !== 'eli');
+  const [m, c, t, ...o] = await Promise.all([
     supabase.from('photographer_months').select(MONTH_COLS).gte('month', `${from}-01`).lte('month', `${to}-01`).order('month'),
     supabase.from('photographer_changes').select(CHANGE_COLS).gte('reported_month', `${A.addMonths(from, -3)}-01`).order('reported_at', { ascending: false }),
-    supabase.rpc('photographer_taken', { p_from: `${from}-01`, p_to: A.monthDays(to).at(-1) }),
+    supabase.rpc('photographer_taken', range),
+    ...others.map((p) => Promise.resolve(supabase.rpc('photographer_taken_by', { p_person: p, ...range })).catch((error) => ({ error }))),
   ]);
   const err = m.error || c.error || t.error;
   if (err) { if (notThere(err)) return null; throw err; }
-  return { months: m.data || [], changes: c.data || [], taken: Object.fromEntries((t.data || []).map((r) => [String(r.day).slice(0, 10), r.n])) };
+  const taken = byDay(t.data);
+  const takenBy = { eli: taken, ...Object.fromEntries(others.map((p, i) => [p, o[i]?.error ? {} : byDay(o[i]?.data)])) };
+  return { months: m.data || [], changes: c.data || [], taken, takenBy };
 }
+const takenOf = (data, person) => data?.takenBy?.[person] ?? (person === 'eli' ? data?.taken || {} : {});
 async function rpc(name, args) {
   const { data, error } = await supabase.rpc(name, args);
   if (error) throw error;
@@ -88,24 +104,35 @@ const legend = (withOff) => h('p', { class: 'av-legend', 'aria-hidden': 'true' }
 // `compact` (shoot.html, the owner's page review of 20.10.2026): the office's folded line says
 // only what was handed in; "not handed in yet" is already a line in "המשימות שלי", and it
 // stays inside the card when it is opened.
-export async function mountAvailability(el, { me, clock = () => new Date(), compact = false } = {}) {
+// `only` and `enter` (openAvailabilityFor): one photographer's card, opened on a month being
+// marked in his name; `onSaved(person, month)` once it is saved.
+export async function mountAvailability(el, { me, clock = () => new Date(), compact = false, only = null, enter = null, onSaved = null } = {}) {
   if (!el || !canSee(me)) return;
-  const self = isPhotographer(me);
+  const self = isPhotographer(me) && !only;
+  const people = only ? [only] : A.PHOTOGRAPHERS;
+  let pendingEnter = only && enter && canMark(me) ? enter : null;
   let data = null;
   let view = 'main';        // 'main' | 'edit' | 'change' (the photographer); 'main' | month key being entered in his name (the office)
   let draft = new Set();    // the days being marked
   let none = false;
+  let viewPerson = only;    // whose month is being marked (the office: one card per photographer)
   let picks = [];           // the days of an unexpected change being reported
   let note = '';
   let message = null;       // what stopped the last action, in words
   let busy = false;
-  let open = location.hash === '#availability';
+  let open = location.hash === '#availability' || !!only;
   const draftKey = (person, month) => `avail.draft.${person}.${month}`;
 
   async function refresh() {
     const ask = A.askOf(clock());
-    try { data = await loadAvailability(ask.current, ask.month); } catch { data = null; }
-    render();
+    const last = enter && enter > ask.month ? enter : ask.month;
+    try { data = await loadAvailability(ask.current, last); } catch { data = null; }
+    if (data && pendingEnter) {
+      const row = A.monthRow(data.months, only, pendingEnter);
+      view = pendingEnter; draft = A.freeDays(row); none = !!row?.none; message = null;
+      pendingEnter = null;
+    }
+    render(view !== 'main' && only ? 'av-grid' : null);
   }
   const say = (text) => { message = text; render('av-msg'); };
   const startDraft = (person, month, row) => {
@@ -121,7 +148,7 @@ export async function mountAvailability(el, { me, clock = () => new Date(), comp
     if (!data) { el.hidden = true; fill(el); return; }
     el.hidden = false;
     const now = clock();
-    fill(el, ...(self ? selfView(now) : A.PHOTOGRAPHERS.map((p) => officeView(p, now))));
+    fill(el, ...(self ? selfView(now) : people.map((p) => officeView(p, now))));
     if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
   }
 
@@ -145,7 +172,7 @@ export async function mountAvailability(el, { me, clock = () => new Date(), comp
     const n = draft.size;
     const send = async () => {
       if (busy) return;
-      const problem = A.submitProblem({ month, days: [...draft], none, row, taken: data.taken, now, onBehalf });
+      const problem = A.submitProblem({ month, days: [...draft], none, row, taken: takenOf(data, person), now, onBehalf });
       if (problem) { say(problem.text); return; }
       busy = true; render();
       try {
@@ -156,13 +183,14 @@ export async function mountAvailability(el, { me, clock = () => new Date(), comp
         clearCache();
         await refresh();
         document.getElementById('av-h')?.focus({ preventScroll: true });
+        onSaved?.(person, month);
       } catch (err) {
         busy = false;
         say(A.refusalText(err) || `לא נשמר. ${errorText(err)}`);
       }
     };
     return [
-      monthGrid({ id: 'av-grid', month, picked: draft, taken: data.taken, changed: A.changedDays(data.changes, person), today, onToggle: toggle, held: heldBack }),
+      monthGrid({ id: 'av-grid', month, picked: draft, taken: takenOf(data, person), changed: A.changedDays(data.changes, person), today, onToggle: toggle, held: heldBack }),
       legend(false),
       h('label', { class: 'av-none', for: 'av-none' },
         h('input', {
@@ -275,31 +303,33 @@ export async function mountAvailability(el, { me, clock = () => new Date(), comp
   function officeView(person, now) {
     const ask = A.askOf(now);
     const name = A.personName(person);
-    const months = [ask.current, ask.month];
+    const months = [...new Set([ask.current, ask.month, ...(enter && only === person ? [enter] : [])])].sort();
+    const taken = takenOf(data, person);
     const line = (m) => {
       const row = A.monthRow(data.months, person, m);
       if (row) return h('span', { class: 'av-sum' }, `${A.monthName(m, now)}: ${A.freeSummary(row)}`);
       const late = m === ask.current || ask.phase === 'late';
       return h('span', { class: `av-sum${late ? ' is-late' : ''}` }, `${A.monthName(m, now)}: עוד לא נמסרה${m === ask.month && !late ? ` (עד ${A.dayShort(ask.deadlineDay)})` : ''}`);
     };
-    const canEnter = A.ON_BEHALF.includes(me ?? 'owner');
+    const canEnter = canMark(me);
     const changes = data.changes.filter((c) => c.person === person && (c.days || []).some((d) => months.includes(A.monthOfDay(d))));
     return h('details', { class: 'av-card av-office', open, ontoggle: (e) => { open = e.currentTarget.open; } },
-      h('summary', { class: 'av-line', id: person === A.PHOTOGRAPHERS[0] ? 'av-h' : null }, h('strong', {}, `הזמינות של ${name}`), ...(compact ? months.filter((m) => A.monthRow(data.months, person, m)) : months).map(line)),
+      h('summary', { class: 'av-line', id: only ? null : person === people[0] ? 'av-h' : `av-h-${person}` }, h('strong', {}, `הזמינות של ${name}`), ...(compact ? months.filter((m) => A.monthRow(data.months, person, m)) : months).map(line)),
       ...months.map((m) => {
         const row = A.monthRow(data.months, person, m);
-        const entering = view === m;
+        const entering = view === m && viewPerson === person;
         return h('section', { class: 'av-office-month', 'aria-label': A.monthName(m, now) },
           h('h3', {}, A.monthName(m, now), ' ', h('small', {}, row
-            ? `${row.by_person === person ? 'נמסר' : `הוזן על ידי ${row.by_person === 'owner' ? 'הבעלים' : A.personName(row.by_person)}`} ${formatWhen(new Date(row.updated_at || row.submitted_at), now)}${row.none ? ' · אין ימים פנויים' : ''}`
+            ? `${row.by_person === person ? 'נמסר' : `סומן ע״י ${row.by_person === 'owner' ? 'הבעלים' : A.personName(row.by_person)}`} ${formatWhen(new Date(row.updated_at || row.submitted_at), now)}${row.none ? ' · אין ימים פנויים' : ''}`
             : `${name} עוד לא מסר`)),
           ...(entering
             ? editor({ person, month: m, row, now, onBehalf: true, cancel: true, submitLabel: () => `שמירה בשם ${name}` })
             : [
-              row || Object.keys(data.taken).some((d) => A.monthOfDay(d) === m)
-                ? monthGrid({ id: `av-grid-${m}`, month: m, picked: A.freeDays(row), taken: data.taken, changed: A.changedDays(data.changes, person), today: dayKeyIL(now) }) : null,
-              canEnter ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: `av-enter-${m}`, onclick: () => { view = m; message = null; draft = A.freeDays(row); none = !!row?.none; render('av-submit'); } },
-                row ? `עדכון בשם ${name}` : `הזנה בשם ${name}`) : null,
+              row || Object.keys(taken).some((d) => A.monthOfDay(d) === m)
+                ? monthGrid({ id: `av-grid-${person === 'eli' ? '' : `${person}-`}${m}`, month: m, picked: A.freeDays(row), taken, changed: A.changedDays(data.changes, person), today: dayKeyIL(now) }) : null,
+              // "סימון זמינות במקומו" (the owner, 25.10.2026): the same month grid, saved as his, stamped with who marked it.
+              canEnter ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: `av-enter-${person === 'eli' ? '' : `${person}-`}${m}`, 'aria-label': `${row ? 'עדכון הזמינות' : 'סימון זמינות'} במקומו של ${name} · ${A.monthName(m, now)}`, onclick: () => { view = m; viewPerson = person; message = null; draft = A.freeDays(row); none = !!row?.none; render('av-submit'); } },
+                row ? 'עדכון במקומו' : 'סימון זמינות במקומו') : null,
             ]));
       }),
       legend(changes.length > 0),
@@ -329,11 +359,13 @@ function monthData(month) {
 const ownDay = (own) => { const v = typeof own === 'function' ? own() : own; const d = v ? parseDate(v) : null; return d && !Number.isNaN(+d) ? dayKeyIL(d) : null; };
 const RANK = { taken: 3, busy: 2, unknown: 1, free: 0 };
 
-// The statuses of one day ('YYYY-MM-DD') for every photographer; null when unknown here.
-export async function dayStatuses(day, { me, own = null } = {}) {
+// The statuses of one day ('YYYY-MM-DD') for the photographer `who` (every photographer when
+// null); null when unknown here.
+export async function dayStatuses(day, { me, own = null, who = null } = {}) {
   if (!canSee(me) || isPhotographer(me) || !/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) return null;
   const data = await monthData(A.monthOfDay(day));
-  return data ? A.PHOTOGRAPHERS.map((person) => A.dayStatus({ day, person, ...data, own: ownDay(own) })) : null;
+  const people = who ? [who] : A.PHOTOGRAPHERS;
+  return data ? people.map((person) => A.dayStatus({ day, person, ...data, taken: takenOf(data, person), own: ownDay(own) })) : null;
 }
 // The photographer's next free days (this month and the next), for whoever picks a
 // shoot date: ['YYYY-MM-DD'], or null when nothing is known here.
@@ -349,18 +381,26 @@ export async function freeDaysAhead({ me, now = new Date(), limit = 6 } = {}) {
 // The line under a datetime-local input (its value is an Israel wall time). `own`: the
 // saved date of the shoot being edited (or a function giving it), which is not "taken".
 // `me` may be a function too (a page that learns who is signed in after it is drawn).
-// `skip`: a function that says the day is not Eli's (a day without influencers that Eliel
-// films, 25.10.2026): then the line says nothing.
-export function shootDayHint(input, { me, own = null, skip = null } = {}) {
+// `who`: a function giving the day's photographer ('eli' | 'eliel'; a day without
+// influencers that Eliel films is his, 25.10.2026); Eli when not given. A month he did not
+// hand over yet offers "סימון זמינות במקומו" to whoever may mark it in his name.
+export function shootDayHint(input, { me, own = null, who = null } = {}) {
   const el = h('p', { class: 'hint av-hint', role: 'status', hidden: true });
+  const whoNow = () => (typeof who === 'function' ? who() : who) || 'eli';
+  const meNow = () => (typeof me === 'function' ? me() : me);
   el.refresh = async () => {
-    if (skip?.()) { el.hidden = true; el.textContent = ''; return; }
     const day = String(input.value || '').slice(0, 10);
-    const sts = await dayStatuses(day, { me: typeof me === 'function' ? me() : me, own }).catch(() => null);
-    if (String(input.value || '').slice(0, 10) !== day || skip?.()) return; // typed on (or switched to another photographer) meanwhile
-    if (!sts) { el.hidden = true; el.textContent = ''; return; }
+    const person = whoNow();
+    const sts = await dayStatuses(day, { me: meNow(), own, who: person }).catch(() => null);
+    if (String(input.value || '').slice(0, 10) !== day || whoNow() !== person) return; // typed on (or another photographer chosen) meanwhile
+    if (!sts) { el.hidden = true; fill(el); return; }
     const now = new Date();
-    el.textContent = sts.map((st) => A.dayHintText(st, now)).join(' ');
+    const unknown = sts.find((st) => st.status === 'unknown');
+    fill(el, sts.map((st) => A.dayHintText(st, now)).join(' '),
+      unknown && canMark(meNow()) ? [' ', h('button', {
+        type: 'button', class: 'btn-text av-mark', 'data-person': unknown.person, 'data-month': unknown.month,
+        onclick: () => openAvailabilityFor({ person: unknown.person, month: unknown.month, me: meNow(), onSaved: () => { clearCache(); el.refresh(); } }),
+      }, 'סימון זמינות במקומו')] : null);
     el.className = `hint av-hint is-${sts.map((s) => s.status).sort((a, b) => RANK[b] - RANK[a])[0]}`;
     el.hidden = false;
   };
@@ -369,13 +409,31 @@ export function shootDayHint(input, { me, own = null, skip = null } = {}) {
   return el;
 }
 
-// A few words under "אלי הצלם" where his approval is ticked by hand: what he handed
-// over for that shoot's own day. null until known (or when there is nothing to say).
-export async function photographerNote(shootAt, { me } = {}) {
+// A few words under "אלי הצלם" (or "אליאל הצלם": `who`) where his approval is ticked by hand:
+// what he handed over for that shoot's own day. null until known (or when there is nothing to say).
+export async function photographerNote(shootAt, { me, who = 'eli' } = {}) {
   const d = shootAt ? parseDate(shootAt) : null;
   if (!d || Number.isNaN(+d)) return null;
-  const sts = await dayStatuses(dayKeyIL(d), { me, own: d }).catch(() => null);
+  const sts = await dayStatuses(dayKeyIL(d), { me, own: d, who }).catch(() => null);
   return sts?.length ? A.dayShortNote(sts[0]) : null;
+}
+
+// "סימון זמינות במקומו" (the owner, 25.10.2026): the photographer's month, marked in his name
+// by the owner, Irit or Lior, in a dialog over whatever is open (the same grid as the office's
+// card; saved as his, stamped with who marked it). Eliel has no account: this is his only way.
+export function openAvailabilityFor({ person, month, me, onSaved = null }) {
+  if (!canMark(me) || !A.PHOTOGRAPHERS.includes(person)) return null;
+  const body = h('div', { class: 'dlg-body av-for-body' });
+  const dlg = h('dialog', { class: 'av-dlg av-for', id: 'dlg-avail-for', 'aria-labelledby': 'av-for-h' },
+    h('div', { class: 'dlg-head' },
+      headIcon(h('h2', { id: 'av-for-h', tabindex: '-1' }, `סימון זמינות במקומו של ${A.personName(person)}`), 'calendar-check', 'teal', { size: 'md' }),
+      h('button', { type: 'button', class: 'close', 'aria-label': 'סגירה', onclick: () => dlg.close() }, '×')),
+    body);
+  dlg.addEventListener('close', () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+  mountAvailability(body, { me, only: person, enter: month, onSaved: (p, m) => { dlg.close(); onSaved?.(p, m); } });
+  return dlg;
 }
 
 // The reason, asked in a small dialog over whatever is open. Resolves to the reason,
@@ -413,15 +471,15 @@ function askReason(shootAt, concerns) {
 }
 
 // Before a shoot date is saved. Returns { ok, note }: `note` goes to the date-change
-// history (null: nothing was asked). `eli: false`: a day Eli does not film (Eliel's,
-// 25.10.2026): his availability is not asked about, only the usual order.
-export async function confirmShootDay({ shootAt, charAt = null, own = null, me, now = new Date(), eli = true }) {
+// history (null: nothing was asked). `who`: the day's photographer (Eliel on his days
+// without influencers, 25.10.2026): his availability is the one asked about.
+export async function confirmShootDay({ shootAt, charAt = null, own = null, me, now = new Date(), who = 'eli' }) {
   const d = shootAt ? parseDate(shootAt) : null;
   let extra = [];
-  if (eli && d && !Number.isNaN(+d) && canSee(me) && !isPhotographer(me)) {
+  if (d && !Number.isNaN(+d) && canSee(me) && !isPhotographer(me)) {
     const day = dayKeyIL(d);
     const data = await monthData(A.monthOfDay(day)).catch(() => null);
-    if (data) extra = A.availabilityConcerns({ day, ...data, own: ownDay(own), now });
+    if (data) extra = A.availabilityConcerns({ day, ...data, taken: takenOf(data, who), people: [who], own: ownDay(own), now });
   }
   if (!extra.length) return confirmShootDate({ shootAt, charAt, now });
   const concerns = [...shootDateConcerns({ shootAt, charAt, now }), ...extra];

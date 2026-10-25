@@ -17,13 +17,18 @@
 //   months   public.photographer_months  { person, month 'YYYY-MM-01', days ['YYYY-MM-DD'], none, submitted_at, updated_at, by_person }
 //   changes  public.photographer_changes { id, person, reported_at, reported_month, days, shoot_days, note }
 //   taken    { 'YYYY-MM-DD': how many shoot days are set on that day } (public.photographer_taken)
-import { PEOPLE, eliFilms } from './protocol.js';
+import { PEOPLE, PHOTOGRAPHERS as CREW, photographerOf } from './protocol.js';
 import { isBusinessDay, roundsOf, roundContext, parseDate, clientLabel } from './protocol-logic.js';
 import { partsIL, dateIL, dayKeyIL, addDaysIL } from './tz.js';
 
-// Who hands availability over. The ONE list (with public.photographer_people() in the
-// migration): a second photographer is added here and there, and nothing else changes.
-export const PHOTOGRAPHERS = ['eli'];
+// Whose availability is kept. The ONE list (with public.photographer_people() in the
+// migrations): a photographer is added here and there, and nothing else changes. Since
+// 25.10.2026 (the owner's decision) the second photographer, Eliel, is here too: he has no
+// account, so his month is a record the office fills in his name (ON_BEHALF).
+export const PHOTOGRAPHERS = ['eli', 'eliel'];
+// Who hands it over himself, signed in (his card, his reminders, the managers' "not handed
+// over yet" line): the photographers with an account.
+export const HANDS_OVER = ['eli'];
 // Who reads it besides the photographer himself (public.can_read_availability).
 export const READERS = ['owner', 'irit', 'lior', 'ofir'];
 // Who is told (missing after the 15th, handed over, an unexpected change): the work
@@ -65,7 +70,7 @@ export const dayShort = (dayKey) => `${+dayKey.slice(8, 10)}.${+dayKey.slice(5, 
 export const dayLong = (dayKey) => `יום ${WEEKDAYS[weekdayOfDay(dayKey)]} ${dayShort(dayKey)}`;
 // "12.11" or "12.11–13.11".
 export const daysWords = (days) => { const l = [...days].map(dayOf).sort(); return l.length > 1 ? `${dayShort(l[0])}–${dayShort(l.at(-1))}` : l.length ? dayShort(l[0]) : ''; };
-export const personName = (key) => PEOPLE[key]?.name || key;
+export const personName = (key) => PEOPLE[key]?.name || CREW[key]?.name || key;
 
 // ── Which month is asked for, and when ─────
 // In month M the photographer is asked for M+1: 'open' on the 1st–9th, 'soon' on the
@@ -244,12 +249,12 @@ export function refusalText(err, { changes = [], person = null, now = new Date()
 
 // ── For the reminders ──────────────────────
 // The shoot days set on each Israel day, by client: Map day → [client label]. Only the days
-// Eli films: a day without influencers that Eliel films is not his (25.10.2026; the same
-// rule as private.shoot_days in 20261107100000_shoot_crew.sql).
-export function shootsByDay(clients) {
+// `person` films (Eli unless said): a day without influencers that Eliel films is his, not
+// Eli's (25.10.2026; the same rule as private.shoot_days_by in 20261107100000_shoot_crew.sql).
+export function shootsByDay(clients, person = 'eli') {
   const out = new Map();
   for (const c of clients || []) {
-    const shoots = [c, ...roundsOf(c).map((r) => roundContext(c, r))].filter((x) => eliFilms(x)).map((x) => x.shoot_at);
+    const shoots = [c, ...roundsOf(c).map((r) => roundContext(c, r))].filter((x) => photographerOf(x) === person).map((x) => x.shoot_at);
     for (const v of shoots) {
       const at = parseDate(v);
       if (!at || Number.isNaN(+at)) continue;
@@ -261,4 +266,4 @@ export function shootsByDay(clients) {
   return out;
 }
 // The same as counts, the shape of `taken`.
-export const takenFrom = (clients) => Object.fromEntries([...shootsByDay(clients)].map(([d, l]) => [d, l.length]));
+export const takenFrom = (clients, person = 'eli') => Object.fromEntries([...shootsByDay(clients, person)].map(([d, l]) => [d, l.length]));

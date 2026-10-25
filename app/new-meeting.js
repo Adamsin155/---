@@ -190,7 +190,7 @@ export async function openNewMeeting() {
   if (!hint) {
     try {
       const A = await import('./availability-ui.js');
-      hint = A.shootDayHint(el('nm-at'), { me: () => ctx.viewer?.me ?? null, own: () => picked?.shoot_at || null, skip: () => { const p = soloOf(el('nm-type').value); return !!p && p !== 'eli'; } });
+      hint = A.shootDayHint(el('nm-at'), { me: () => ctx.viewer?.me ?? null, own: () => picked?.shoot_at || null, who: () => soloOf(el('nm-type').value) || 'eli' });
       fill(el('nm-avail'), hint);
     } catch { /* the date can still be chosen */ }
   }

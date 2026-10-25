@@ -42,7 +42,7 @@ export async function saveShootDay(client, { at, type }, { me = null } = {}) {
   try {
     const A = await import('./availability-ui.js');
     const crew = soloOf(type);
-    asked = await A.confirmShootDay({ shootAt: at, charAt: client.char_at, own: client.shoot_at, me, eli: !crew || crew === 'eli' });
+    asked = await A.confirmShootDay({ shootAt: at, charAt: client.char_at, own: client.shoot_at, me, who: crew || 'eli' });
   } catch { /* nothing known here: the date is saved as chosen */ }
   if (!asked.ok) return { ok: false };
   const row = await updateClient(client.id, { shoot_at: at.toISOString(), ...crewPatch(client, type) });

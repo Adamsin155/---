@@ -19,6 +19,8 @@ import { computeReminders } from '../app/reminder-engine.js';
 import { importKeys } from '../app/client-open.js';
 import { suggestFor, messageText, templatesByKey, protocolCheckOf, crewText, unfilledIn } from '../app/messages-logic.js';
 import { takenFrom } from '../app/availability-logic.js';
+import * as A from '../app/availability-logic.js';
+import { flowLines } from '../app/mine-flow.js';
 import { dateIL } from '../app/tz.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
@@ -364,7 +366,24 @@ test('the day before a shoot without influencers: its own message, with who come
   assert.equal(crewText(null, 'eli'), 'ליאור (מנהל יום הצילום) ואלי (הצלם)');
 });
 
-test('Eli\'s taken days: not the days Eliel films', () => {
-  assert.deepEqual(takenFrom([withInf, soloEliel, base({ id: 'c2', shoot_at: '2026-10-20T10:00:00+03:00', shoot_type: null, deliverables: { shoot_crew: 'eli' } })]),
-    { '2026-10-15': 1, '2026-10-20': 1 });
+test('the photographers\' taken days: Eli\'s are not the days Eliel films, and Eliel\'s are only his', () => {
+  const list = [withInf, soloEliel, base({ id: 'c2', shoot_at: '2026-10-20T10:00:00+03:00', shoot_type: null, deliverables: { shoot_crew: 'eli' } })];
+  assert.deepEqual(takenFrom(list), { '2026-10-15': 1, '2026-10-20': 1 });
+  assert.deepEqual(takenFrom([soloEliel, base({ id: 'c3', shoot_at: '2026-10-21T10:00:00+03:00' })], 'eliel'), { '2026-10-15': 1 });
+});
+
+test('Eliel\'s month is kept, marked by the office: no card of his own, no reminder to him, no "not handed over" line', () => {
+  assert.deepEqual([A.PHOTOGRAPHERS, A.HANDS_OVER], [['eli', 'eliel'], ['eli']]);
+  const now = IL(2026, 10, 20, 10); // after the 15th: the managers' line
+  const lines = (me) => flowLines({ viewer: { me, scope: 'office' }, clients: [], checks: {}, stateOf: () => ({ states: [] }), now, extra: { availability: { months: [], changes: [] } } })
+    .filter((x) => String(x.id).startsWith('availability'));
+  const irit = lines('irit');
+  assert.equal(irit.length, 1);
+  assert.match(irit[0].text, /^אלי עוד לא מסר זמינות/);
+  assert.doesNotMatch(irit[0].text, /אליאל/);
+  // The reminders ring only a photographer with an account (Eli), never Eliel.
+  const w = world(withInf, { availability: { months: [], changes: [] } });
+  const rings = computeReminders({ ...w, now: IL(2026, 10, 15, 10), log: [] }).filter((r) => r.rule === 'availability');
+  assert.ok(rings.length > 0);
+  assert.ok(rings.every((r) => r.person === 'eli'));
 });

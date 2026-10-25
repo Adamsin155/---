@@ -142,3 +142,10 @@ dialog.av-dlg { max-width: min(480px, calc(100vw - 32px)); }
 .av-dlg .field { margin: 0; }
 .av-dlg .av-act .btn { min-height: 44px; }
 @media (max-width: 560px) { .av-dlg form { padding: 16px 14px 18px; } .av-dlg .av-act .btn { flex: 1 1 auto; justify-content: center; } }
+
+/* "סימון זמינות במקומו" (the owner, 25.10.2026): the button inside the line under a shoot date,
+   and the photographer's month marked in his name in a dialog over the page. */
+.av-hint .av-mark { font-size: inherit; font-weight: 600; padding: 2px 0; min-height: 32px; }
+dialog.av-for { max-width: min(560px, calc(100vw - 32px)); width: 100%; }
+dialog.av-for .av-for-body { padding: 12px 16px 18px; }
+dialog.av-for .av-card { margin: 0; }

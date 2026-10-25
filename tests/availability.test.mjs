@@ -31,9 +31,13 @@ const ours = (list) => list.filter((r) => OURS.has(r.rule));
 const month = (key, days, o = {}) => ({ person: 'eli', month: `${key}-01`, days, none: false, submitted_at: IL(2026, 10, 7, 9).toISOString(), updated_at: IL(2026, 10, 7, 9).toISOString(), by_person: 'eli', ...o });
 const client = (name, shootAt, o = {}) => ({ id: `c-${name}`, name, business: name, status: 'active', shoot_at: shootAt, rounds: [], deal_at: IL(2026, 6, 1).toISOString(), created_at: IL(2026, 6, 1).toISOString(), ...o });
 
-test('the lists: one photographer, who reads, who is told, who enters it in his name', () => {
-  assert.deepEqual(A.PHOTOGRAPHERS, ['eli']);
-  for (const p of A.PHOTOGRAPHERS) assert.ok(PEOPLE[p], p);
+test('the lists: the photographers, who reads, who is told, who enters it in his name', () => {
+  // Eliel (25.10.2026): his month is kept too, marked by the office; only Eli hands it over himself.
+  assert.deepEqual(A.PHOTOGRAPHERS, ['eli', 'eliel']);
+  assert.deepEqual(A.HANDS_OVER, ['eli']);
+  for (const p of A.HANDS_OVER) assert.ok(PEOPLE[p], p);
+  assert.ok(!PEOPLE.eliel, 'Eliel has no account: not a person of the team');
+  assert.deepEqual(A.PHOTOGRAPHERS.map(A.personName), ['אלי', 'אליאל']);
   assert.deepEqual(A.READERS, ['owner', 'irit', 'lior', 'ofir']);
   assert.deepEqual(A.MANAGERS, ['irit', 'lior']);
   assert.deepEqual(A.ON_BEHALF, ['owner', 'irit', 'lior']);
