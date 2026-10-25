@@ -29,7 +29,7 @@
 //   - Per shoot day, from the scripts to the scheduling: scripts approved (13), shot
 //     (19), edited and handed to Ofir (24), passed quality control (25), approved by
 //     the client (27), scheduled (28). The marks are per shoot day, not per video.
-import { PEOPLE, PROCESSES, APPROVALS, SHOOT_TYPES } from './protocol.js';
+import { PEOPLE, PROCESSES, APPROVALS, shootTypeName } from './protocol.js';
 import {
   clientState, parseDate, businessDaysBetween, workingMinutesBetween, IMPORT_NOTE, roundsOf, roundContext,
   inLanding, workFloor,
@@ -295,7 +295,7 @@ export function pipelineReport(clients, checksByClient, logBy, month, now = new 
         if (s.at) prev = s.at;
       }
       out.push({
-        client: c, n: x.n, shootAt, shootType: SHOOT_TYPES[x.ctx.shoot_type]?.name || '', editor: x.ctx.editor || null, editor2: (x.ctx.editor && x.ctx.editor2) || null,
+        client: c, n: x.n, shootAt, shootType: shootTypeName(x.ctx), editor: x.ctx.editor || null, editor2: (x.ctx.editor && x.ctx.editor2) || null,
         stages, done, next, total: shootAt <= now && stages.at(-1).at ? businessDaysBetween(shootAt, stages.at(-1).at) : null,
       });
     }

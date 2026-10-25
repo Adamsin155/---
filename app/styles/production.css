@@ -164,6 +164,16 @@ details.ed-more > summary { cursor: pointer; min-height: 44px; display: flex; al
 .sh-counter > * { margin: 0; }
 .sh-counter .pbar { width: 100%; }
 .sh-count { font-size: 26px; font-weight: 700; }
+/* A day without influencers (25.10.2026): who goes, and Lior's number for the day above the counter. */
+.sh-crew { margin: 0; font-weight: 600; color: var(--accent-deep, var(--text)); }
+.sh-daycount { display: grid; gap: 6px; width: 100%; margin: 0 0 4px; }
+.sh-daycount > * { margin: 0; }
+.sh-daycount label { font-weight: 600; }
+.sh-daycount-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* 18px: Safari does not zoom into it (and not .num, whose 0.92em would bring it under 16px). */
+.sh-daycount-row .sh-daycount-in { inline-size: 5.5em; text-align: center; font-size: 18px; font-variant-numeric: tabular-nums; min-height: 44px; }
+.sh-daycount-row .btn { min-height: 44px; }
+.sh-daycount-set { margin: 0; font-weight: 600; }
 .sh-later { margin: 0; padding: 0; }
 .sh-brief-form { display: grid; gap: 10px; }
 .sh-brief-form .field { margin: 0; }

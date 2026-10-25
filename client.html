@@ -46,6 +46,8 @@
   <link rel="preload" as="font" type="font/woff2" href="app/fonts/varela-round-hebrew.woff2" crossorigin>
   <link rel="preload" as="font" type="font/woff2" href="app/fonts/varela-round-latin.woff2" crossorigin>
   <link rel="modulepreload" href="app/protocol.js">
+  <link rel="modulepreload" href="app/shoot-crew.js">
+  <link rel="modulepreload" href="app/calendar-feed.js">
   <link rel="modulepreload" href="app/protocol-logic.js">
   <link rel="modulepreload" href="app/protocol-data.js">
   <link rel="modulepreload" href="app/protocol-ui.js">
@@ -111,7 +113,6 @@
   <link rel="modulepreload" href="app/gantt-template.js">
   <link rel="modulepreload" href="app/year-logic.js">
   <link rel="modulepreload" href="app/ics.js">
-  <link rel="modulepreload" href="app/calendar-feed.js">
   <link rel="modulepreload" href="app/characterization.js">
   <link rel="modulepreload" href="app/availability-logic.js">
   <link rel="modulepreload" href="app/shell-rules.js">
@@ -247,9 +248,20 @@
         <fieldset class="span-2 fs">
           <legend>יום צילום</legend>
           <div class="form-grid inner">
-            <div class="field"><label for="ed-shoot-type">עם מי</label>
+            <!-- "מי מצלם" (the owner, 25.10.2026): with influencers (the shoot type), or without them, Lior and one photographer (app/shoot-crew.js). -->
+            <fieldset class="ik-seg span-2 crew-seg" id="ed-crew"><legend>מי מצלם</legend>
+              <div class="ik-seg-opts">
+                <label class="ik-opt"><input type="radio" name="ed-crew" id="ed-crew-with" value="with"><span>עם משפיענים (נטלי / דניס, מישל וסמיון)</span></label>
+                <label class="ik-opt"><input type="radio" name="ed-crew" id="ed-crew-solo" value="solo"><span>בלי משפיענים: ליאור + צלם</span></label>
+              </div></fieldset>
+            <div class="field" id="ed-shoot-type-f"><label for="ed-shoot-type">עם מי</label>
               <select class="input" id="ed-shoot-type"><option value="">טרם נקבע</option><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
-            <div class="field"><label for="ed-shoot-at">מועד הגעת המשפיענים</label><input class="input" id="ed-shoot-at" type="datetime-local" dir="ltr"></div>
+            <fieldset class="ik-seg crew-seg" id="ed-photographer" hidden><legend>איזה צלם</legend>
+              <div class="ik-seg-opts">
+                <label class="ik-opt"><input type="radio" name="ed-photographer" id="ed-photographer-eli" value="eli"><span>אלי</span></label>
+                <label class="ik-opt"><input type="radio" name="ed-photographer" id="ed-photographer-eliel" value="eliel"><span>אליאל</span></label>
+              </div></fieldset>
+            <div class="field"><label for="ed-shoot-at" id="ed-shoot-at-l">מועד הגעת המשפיענים</label><input class="input" id="ed-shoot-at" type="datetime-local" dir="ltr"></div>
             <div class="field"><label for="ed-editor">עורך (אופיר משייך)</label><select class="input" id="ed-editor"></select></div>
           </div>
         </fieldset>
@@ -369,10 +381,20 @@
         <button type="button" class="close" data-close aria-label="סגירה">×</button>
       </div>
       <div class="dlg-body">
-        <div class="field"><label for="round-type">סוג יום הצילום</label>
+        <fieldset class="ik-seg crew-seg" id="round-crew"><legend>מי מצלם</legend>
+          <div class="ik-seg-opts">
+            <label class="ik-opt"><input type="radio" name="round-crew" id="round-crew-with" value="with" checked><span>עם משפיענים (נטלי / דניס, מישל וסמיון)</span></label>
+            <label class="ik-opt"><input type="radio" name="round-crew" id="round-crew-solo" value="solo"><span>בלי משפיענים: ליאור + צלם</span></label>
+          </div></fieldset>
+        <div class="field" id="round-type-f" style="margin-top:12px"><label for="round-type">סוג יום הצילום</label>
           <select class="input" id="round-type"><option value="natali">נטלי דדון</option><option value="dms">דניס, מישל וסמיון</option></select></div>
+        <fieldset class="ik-seg crew-seg" id="round-photographer" style="margin-top:12px" hidden><legend>איזה צלם</legend>
+          <div class="ik-seg-opts">
+            <label class="ik-opt"><input type="radio" name="round-photographer" id="round-photographer-eli" value="eli" checked><span>אלי</span></label>
+            <label class="ik-opt"><input type="radio" name="round-photographer" id="round-photographer-eliel" value="eliel"><span>אליאל</span></label>
+          </div></fieldset>
         <div class="field" style="margin-top:12px"><label for="round-editor">עורך לסבב (אופיר משייך)</label><select class="input" id="round-editor"></select></div>
-        <div class="field" style="margin-top:12px"><label for="round-at">מועד הגעת המשפיענים</label><input class="input" id="round-at" type="datetime-local" dir="ltr" aria-describedby="round-at-hint">
+        <div class="field" style="margin-top:12px"><label for="round-at" id="round-at-l">מועד הגעת המשפיענים</label><input class="input" id="round-at" type="datetime-local" dir="ltr" aria-describedby="round-at-hint">
           <div class="hint" id="round-at-hint">אפשר להזין אחר כך. בלי מועד, תהליכי יום הצילום יבקשו אותו.</div></div>
         <p class="hint" id="round-note">תהליכים 11–30 (חוץ מ־23, הגרפיקות השנתיות) ייפתחו מחדש לסבב הזה. זמני הביצוע שנספרים ״מהאפיון״ ייספרו מרגע הוספת הסבב.</p>
         <label class="only" id="round-extra-wrap" hidden><input type="checkbox" id="round-extra"> <span id="round-extra-text">נרכש יום צילום נוסף</span></label>

@@ -13,7 +13,7 @@
 // mid-way from the old CRM carries the same thing: its past shoot dates in shoot_at and
 // rounds[].shoot_at, and those p19 items checked with the note "ייבוא" (the import by
 // station does it for every station after "יום צילום").
-import { PEOPLE, SHOOT_TYPES, editorNames } from './protocol.js';
+import { PEOPLE, editorNames, shootTypeName } from './protocol.js';
 import { clientState, parseDate, isImported, inLanding } from './protocol-logic.js';
 import { shootContexts } from './health.js';
 import { sortRows, filterRows, dayText } from './manager-table.js';
@@ -79,7 +79,8 @@ export function shootRow(entry, { checks = {}, now = new Date() } = {}) {
     id: c.id,
     name: c.business || c.name || '',
     contact: c.business && c.name && c.name !== c.business ? c.name : '',
-    shootType: c.shoot_type ? SHOOT_TYPES[c.shoot_type]?.name || '' : '',
+    // "נטלי דדון", or "בלי משפיענים · ליאור + אליאל" (25.10.2026).
+    shootType: shootTypeName(c),
     package: c.package_name || '',
     status: c.status,
     group: hist.held > 0 ? 'shot' : 'never',

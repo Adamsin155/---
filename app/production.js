@@ -20,6 +20,8 @@
 //   p17b.brollq  Eli's answer to "הבי־רול גמור?" 15 minutes before (note 'yes' | 'no')
 //   p18.shot     Lior's counter "צולמו X מתוך Y" (note JSON { videos: [1, 2, …] })
 //   p18.quiet    Lior started the shoot's quiet mode himself (Eli had not arrived yet)
+//   p18.count    a day without influencers (25.10.2026): how many videos Lior shoots that
+//                day (note JSON { videos: N }); the counter and the closing lock use it
 // Ofir's returns for fixes and the editor's "תוקן" are the office's marks
 // (app/office-marks.js: p25.return.N, p25.fixed.N.I, p25.fixed.N; marking the
 // videos ready again, p24.notify, after a return counts as fixed too), and Ilai's
@@ -33,7 +35,7 @@
 // p19b.notes (Eli's notes for the editor, in its note), p19.testimonial / p19.took
 // (Lior's side of the handoff) and p22.pause (note JSON { stage, left, why, for,
 // task }: `for` is whoever asked for the urgent task, "עצירה לבקשת <שם>").
-import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES, isEditorOf, editorNames } from './protocol.js';
+import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES, PHOTOGRAPHERS, SOLO, isEditorOf, editorNames, isSolo, eliFilms, photographerOf, crewWords } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   roundsOf, roundContext, businessDaysBetween, parseDate, erevOn, IMPORT_NOTE, addBusinessDays, isBusinessDay, nextWorkMoment,
@@ -441,13 +443,21 @@ export function pausePrefill(job, st, now = new Date()) {
 export function shootCases(client) {
   if (!client || !(client.status === 'active' || client.status === 'ending')) return [];
   const list = [{ n: 1, pre: '', ctx: client }, ...roundsOf(client).map((r) => ({ n: r.n, pre: `r${r.n}.`, ctx: roundContext(client, r) }))];
-  return list.map((x) => ({ ...x, key: `${client.id}:${x.n}`, client, shootAt: parseDate(x.ctx.shoot_at), natali: x.ctx.shoot_type === 'natali' }))
+  // `solo`: a day without influencers (25.10.2026); `crew`: who films it; `eli`: whether it is Eli.
+  return list.map((x) => ({
+    ...x, key: `${client.id}:${x.n}`, client, shootAt: parseDate(x.ctx.shoot_at), natali: x.ctx.shoot_type === 'natali',
+    solo: isSolo(x.ctx), crew: photographerOf(x.ctx), eli: eliFilms(x.ctx),
+  }))
     .filter((x) => x.shootAt);
 }
-// Eli arrives an hour before the influencers (shoot_at is their arrival).
-export const arrivalOf = (shootAt) => new Date(shootAt.getTime() - HOUR);
-// Length of the shooting window: Natali 3 hours; Denis, Michel and Semyon 5.5 hours (20, 21).
-export const windowMinutes = (natali) => (natali ? 180 : 330);
+// Eli arrives an hour before the influencers (shoot_at is their arrival). On a day without
+// influencers shoot_at is the shoot's own time, and the photographer arrives then.
+export const arrivalOf = (shootAt, solo = false) => (solo ? new Date(shootAt.getTime()) : new Date(shootAt.getTime() - HOUR));
+// Length of the shooting window: Natali 3 hours; Denis, Michel and Semyon 5.5 hours (20, 21);
+// a day without influencers SOLO.minutes (protocol.js).
+export const windowMinutes = (natali, solo = false) => (solo ? SOLO.minutes : natali ? 180 : 330);
+// "אליאל" / "אלי": the photographer of a shoot case.
+export const photographerName = (sc) => PHOTOGRAPHERS[sc?.crew || 'eli'].name;
 // Navigation links for an address (Waze, Google Maps).
 export function navLinks(address) {
   const a = String(address || '').trim();
@@ -459,6 +469,13 @@ export function navLinks(address) {
 export function timeline(sc) {
   const t = sc.shootAt.getTime();
   const at = (min) => new Date(t + min * MIN);
+  // A day without influencers: the team arrives at the shoot's time and starts with the business's B-roll.
+  if (sc.solo) {
+    return [
+      { key: 'start', at: at(0), label: `${crewWords(sc.ctx)} מגיעים · בי־רול של העסק ואז הסרטונים` },
+      { key: 'end', at: at(windowMinutes(false, true)), label: 'סוף החלון' },
+    ];
+  }
   const list = [
     ...(sc.natali ? [{ key: 'makeup', at: at(-120), label: 'המאפרת בבית של נטלי' }] : []),
     { key: 'eli', at: at(-60), label: 'אלי מגיע · בי־רול של העסק' },
@@ -475,6 +492,32 @@ export const shotOf = (checks, pre = '') => nums(json(checks?.[`${pre}p18.shot`]
 export const shotNote = (videos) => JSON.stringify({ videos: nums(videos) });
 export const nextVideo = (shot) => (shot.length ? Math.max(...shot) + 1 : 1);
 export const counterText = (n, y) => (y ? `צולמו ${n} מתוך ${y}` : `צולמו ${n}`);
+
+// ── A day without influencers: Lior's number for the day (25.10.2026) ──
+// There is no package share to count against (some clients have such a day every month), so
+// Lior writes how many videos are shot that day, before the start or at it ("כמה סרטונים
+// מצלמים היום", app/shoot.js). The mark p18.count (the round's own key in a round), note JSON
+// { videos: N }. The counter counts against it and the closing lock asks for it.
+export const COUNT_KEY = 'p18.count';
+export const COUNT_MAX = 99;
+export function dayCountOf(checks, pre = '') {
+  const c = checks?.[`${pre}${COUNT_KEY}`];
+  if (!c || c.state !== 'done') return null;
+  const n = Number(json(c.note)?.videos);
+  return Number.isInteger(n) && n >= 1 && n <= COUNT_MAX ? n : null;
+}
+export const dayCountNote = (n) => JSON.stringify({ videos: Number(n) });
+// Why a typed number cannot be saved (null: it can). Digits only, 1 to COUNT_MAX.
+export function dayCountProblem(v) {
+  const t = String(v ?? '').trim();
+  if (!t) return 'כמה סרטונים? מספר.';
+  if (!/^\d+$/.test(t)) return 'רק ספרות.';
+  const n = Number(t);
+  return n >= 1 && n <= COUNT_MAX ? null : `מספר בין 1 ל־${COUNT_MAX}.`;
+}
+// The videos one shoot day counts to: Lior's number on a day without influencers (null until he
+// wrote it), the package's share on any other day (videosPerDay).
+export const dayTarget = (sc, checks) => (sc?.solo ? dayCountOf(checks, sc.pre || '') : videosPerDay(sc?.ctx));
 
 // ── The raw material and the chosen take, per script (protocol v10; docs/ops.md, section 58) ──
 // The photographer's and the editors' protocols: next to every script, during the shoot
@@ -555,9 +598,11 @@ export const FINISH = [
 ];
 export const finishOpen = (checks, pre = '') => FINISH.filter(([k]) => !done(checks, pre + k)).map(([k]) => k);
 // The drive going back to Lior: recorded once, confirmed by both.
-export function handoffOf(checks, pre = '') {
+// `eli: false`: a day Eli does not film (Eliel, who has no account): Lior's "הכונן אצלי" alone.
+export function handoffOf(checks, pre = '', { eli: byEli = true } = {}) {
   const eli = atOf(checks, `${pre}p19b.handed`);
   const lior = atOf(checks, `${pre}p19.took`);
+  if (!byEli) return { eli: null, lior, done: !!lior, at: lior, solo: true };
   return { eli, lior, done: !!(eli && lior), at: eli && lior ? new Date(Math.max(eli, lior)) : null };
 }
 // The shoot day runs from its start (shoot_at, when the influencers arrive): the
@@ -569,18 +614,24 @@ export const startsText = (shootAt) => `מתחיל ב־${clockText(shootAt)}`;
 // The shoot day can be closed only from its start, with the testimonial video, the
 // full quantity (the counter, or Lior's check when the package has no number) and
 // the drive back. `startAt` is the shoot's start; without it only the marks decide.
-export function closeLock(checks, pre = '', target = null, { startAt = null, now = new Date() } = {}) {
+// A day without influencers (`solo`, 25.10.2026): no testimonial is required, and the full
+// quantity is Lior's own number for the day (`target`; asked for while it is not written).
+// `eli: false` (Eliel films): the drive is Lior's confirmation alone.
+export function closeLock(checks, pre = '', target = null, { startAt = null, now = new Date(), solo = false, eli = true } = {}) {
   const missing = [];
   const early = !!startAt && now < startAt;
   if (early) missing.push(`יום הצילום ${startsText(startAt)}`);
   const shot = shotOf(checks, pre).length;
-  if (!done(checks, `${pre}p19.testimonial`)) missing.push('סרטון המלצה');
-  if (target ? shot < target : !done(checks, `${pre}p18.all`)) missing.push(target ? `עוד ${target - shot} סרטונים (${counterText(shot, target)})` : 'סימון שכל הכמות צולמה');
-  const h = handoffOf(checks, pre);
-  if (!h.eli) missing.push('אלי עוד לא סימן שמסר את הכונן');
-  if (!h.lior) missing.push('לא אישרת שהכונן חזר אליך');
+  if (!solo && !done(checks, `${pre}p19.testimonial`)) missing.push('סרטון המלצה');
+  if (solo && !target) missing.push('כמה סרטונים מצלמים היום');
+  else if (target ? shot < target : !done(checks, `${pre}p18.all`)) missing.push(target ? `עוד ${target - shot} סרטונים (${counterText(shot, target)})` : 'סימון שכל הכמות צולמה');
+  const h = handoffOf(checks, pre, { eli });
+  if (eli && !h.eli) missing.push('אלי עוד לא סימן שמסר את הכונן');
+  if (!h.lior) missing.push(eli ? 'לא אישרת שהכונן חזר אליך' : 'לא סימנת שהכונן אצלך');
   return { ok: !missing.length, missing, shot, early };
 }
+// The lock of one shoot case (shootCases), as the shoot-day screen reads it.
+export const caseLock = (sc, checks, now = new Date()) => closeLock(checks, sc.pre, dayTarget(sc, checks), { startAt: sc.shootAt, now, solo: !!sc.solo, eli: sc.eli !== false });
 // After the day is closed: who edits. Since protocol v9 Ofir assigns the editor (he is
 // rung at that moment and has ten minutes: the rule `fast`); an editor that is already
 // in the card is what his dialog proposes.
@@ -605,7 +656,7 @@ export function quietWindow(sc, checks, p19CompletedAt = null) {
   const starts = [onDay('p17b.arrived'), onDay('p18.quiet')].filter(Boolean);
   if (!starts.length) return null;
   const from = new Date(Math.min(...starts));
-  const h = handoffOf(checks, sc.pre);
+  const h = handoffOf(checks, sc.pre, { eli: sc.eli !== false });
   const ends = [endOfDayIL(sc.shootAt), h.done ? h.at : null, p19CompletedAt].filter(Boolean);
   const to = new Date(Math.min(...ends));
   return to > from ? { from, to, by: onDay('p17b.arrived') ? 'eli' : 'lior' } : null;
@@ -626,6 +677,7 @@ export function markHistory(base, r) {
     case 'p17b.brollq': return clear ? null : r.note === 'no' ? 'ענה/תה שהבי־רול לא גמור' : 'ענה/תה שהבי־רול גמור';
     case 'p18.shot': return clear ? 'איפס/ה את מונה הסרטונים' : `מונה יום הצילום: צולמו ${nums(v.videos).length}`;
     case 'p18.quiet': return clear ? 'ביטל/ה מצב שקט' : 'הפעיל/ה מצב שקט ליום הצילום';
+    case 'p18.count': return clear ? 'ניקה/תה את מספר הסרטונים של היום' : `קבע/ה שמצלמים היום ${Number(v.videos) || '—'} סרטונים`;
     default: return null;
   }
 }

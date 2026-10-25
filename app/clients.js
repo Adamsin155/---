@@ -74,6 +74,8 @@ import { checkMark } from './mark-guards.js';
 import { accessGapQuestion } from './access-logic.js';
 import { canManageAccessLinks } from './access-data.js';
 import { PARTIES } from './shoot-prep.js';
+// "מי מצלם" (25.10.2026): with influencers, or Lior and one photographer.
+import { choiceOf, soloOf, crewPatch, isChoice } from './shoot-crew.js';
 import { loadFlowExtra } from './mine-flow-data.js';
 import { setOfirMeetings, fastCaseOf, ladderAt, MEETING_WORDS } from './fast-ladder.js';
 import { ofirMeetings } from './office-marks.js';
@@ -802,6 +804,19 @@ const shootDlg = $('dlg-shoot');
 let shootTarget = null;
 let shootHint = null;
 const SHOOT_TICKS = [...PARTIES, { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו' }, { key: 'p11.calendar', label: 'ביומן של כולם' }];
+// The ticks that are the influencers' (a day without influencers has none of them).
+const INFLUENCER_TICKS = new Set(['p11.ok.influencers', 'p11.influencers']);
+// The dialog follows "מי מצלם": the time's words, the influencers' ticks and the photographer's line.
+function shootCrewShown() {
+  const crew = soloOf($('shoot-type').value);
+  $('shoot-at-l').textContent = crew ? 'מתי הצילום? (שעת הצילום)' : 'מתי מגיעים המשפיענים?';
+  for (const b of $('shoot-oks').querySelectorAll('.chip')) {
+    b.hidden = !!crew && INFLUENCER_TICKS.has(b.dataset.key);
+    if (b.dataset.key === 'p11.ok.photographer') b.textContent = crew ? `${crew === 'eli' ? 'אלי' : 'אליאל'} הצלם` : SHOOT_TICKS.find((p) => p.key === 'p11.ok.photographer').label;
+  }
+  shootHint?.refresh?.();
+}
+$('shoot-type').addEventListener('change', shootCrewShown);
 shootDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === shootDlg) shootDlg.close(); });
 async function openShoot(g, focusId) {
   shootTarget = { g, focusId };
@@ -812,7 +827,7 @@ async function openShoot(g, focusId) {
   $('shoot-at').removeAttribute('aria-invalid');
   $('shoot-ctx').textContent = clientLabel(c);
   $('shoot-at').value = c.shoot_at ? inputValueIL(new Date(c.shoot_at)) : '';
-  $('shoot-type').value = c.shoot_type || '';
+  $('shoot-type').value = choiceOf(c);
   fill($('shoot-oks'), h('legend', {}, 'מי כבר אישר? (אפשר גם אחר כך, מהכרטיס)'), ...SHOOT_TICKS.map((p) => {
     const was = cs[p.key]?.state === 'done';
     return h('button', {
@@ -820,6 +835,7 @@ async function openShoot(g, focusId) {
       onclick: (ev) => ev.currentTarget.setAttribute('aria-pressed', String(ev.currentTarget.getAttribute('aria-pressed') !== 'true')),
     }, p.label);
   }));
+  shootCrewShown();
   fill($('shoot-free'));
   $('shoot-free').hidden = true;
   fill($('shoot-avail-slot'));
@@ -829,7 +845,7 @@ async function openShoot(g, focusId) {
   try {
     const A = await import('./availability-ui.js');
     if (shootTarget?.g !== g || !shootDlg.open) return;
-    shootHint = A.shootDayHint($('shoot-at'), { me, own: c.shoot_at });
+    shootHint = A.shootDayHint($('shoot-at'), { me, own: c.shoot_at, who: () => soloOf($('shoot-type').value) || 'eli' });
     shootHint.id = 'shoot-avail';
     fill($('shoot-avail-slot'), shootHint);
     if ($('shoot-at').value) shootHint.refresh();
@@ -858,19 +874,20 @@ $('shoot-form').addEventListener('submit', async (ev) => {
   const fail = (text, el) => { $('shoot-err').textContent = text; $('shoot-err').hidden = false; el?.focus(); };
   $('shoot-at').setAttribute('aria-invalid', String(!at));
   if (!at) return fail('בחרו יום ושעה ליום הצילום.', $('shoot-at'));
-  if (!type) return fail('בחרו עם מי מצלמים.', $('shoot-type'));
+  if (!isChoice(type)) return fail('בחרו מי מצלם.', $('shoot-type'));
+  const crew = soloOf(type);
   $('shoot-err').hidden = true;
   // A day the photographer did not mark free, a day that is taken, a date against the
   // usual order: asked, with a reason that is kept (as on "לפני יום צילום").
   let asked = { ok: true, note: null };
   try {
     const A = await import('./availability-ui.js');
-    asked = await A.confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me });
+    asked = await A.confirmShootDay({ shootAt: at, charAt: c.char_at, own: c.shoot_at, me, who: crew || 'eli' });
   } catch { /* nothing known here: the date is saved as typed */ }
   if (!asked.ok) { $('shoot-at').focus(); return; }
   $('shoot-submit').disabled = true;
   try {
-    const row = await updateClient(cid, { shoot_at: at.toISOString(), shoot_type: type });
+    const row = await updateClient(cid, { shoot_at: at.toISOString(), ...crewPatch(c, type) });
     if (asked.note) { try { await noteDateChange(cid, 'shoot_at', null, at.toISOString(), asked.note); } catch { /* the date itself is saved */ } }
     clients = clients.map((x) => (x.id === cid ? { ...x, ...row } : x));
     states.delete(cid);
@@ -879,7 +896,7 @@ $('shoot-form').addEventListener('submit', async (ev) => {
     return fail(`המועד לא נשמר. ${errorText(err)}`, $('shoot-at'));
   }
   // The approvals pressed here are ticked with it; one that fails stays on the card.
-  const keys = [...$('shoot-oks').querySelectorAll('.chip[aria-pressed="true"]:not(:disabled)')].map((b) => b.dataset.key);
+  const keys = [...$('shoot-oks').querySelectorAll('.chip[aria-pressed="true"]:not(:disabled):not([hidden])')].map((b) => b.dataset.key);
   let marked = 0;
   if (keys.length) {
     try {
@@ -3409,7 +3426,7 @@ $('new-form').addEventListener('submit', async (e) => {
   const shoot = $('new-shoot-type').value;
   const station = importing ? $('new-station').value : '';
   const invalid = !name ? ['חסר שם לקוח.', $('new-name')]
-    : !shoot ? ['חסר סוג יום הצילום: נטלי דדון, או דניס, מישל וסמיון.', $('new-shoot-type')]
+    : !shoot ? ['חסר סוג יום הצילום: נטלי דדון, דניס, מישל וסמיון, או בלי משפיענים (ליאור + צלם).', $('new-shoot-type')]
       : importing && !station ? ['בחרו את התחנה שבה הלקוח נמצא עכשיו.', $('new-station')] : null;
   if (invalid) { $('new-submit').disabled = false; return fail(...invalid); }
   const q = quoteOf();
@@ -3418,9 +3435,11 @@ $('new-form').addEventListener('submit', async (e) => {
   const fields = {
     name, business: val('new-business'), phone: val('new-phone'),
     package_name: packageName(pkg) || (q ? [q.tier, q.influencer].filter(Boolean).join(' · ') || null : null),
-    shoot_type: shoot, contract_end: val('new-contract-end'), quote_id: q?.id || null,
-    deliverables: dealDeliverables(pkg, selectionFor(pkg, q)),
+    contract_end: val('new-contract-end'), quote_id: q?.id || null,
+    // "מי מצלם": the shoot type, or a day without influencers kept with the package (app/shoot-crew.js).
+    ...crewPatch({ deliverables: dealDeliverables(pkg, selectionFor(pkg, q)) }, shoot),
   };
+  if (!fields.deliverables) fields.deliverables = dealDeliverables(pkg, selectionFor(pkg, q));
   // The deal clock starts at the signature. A new deal without an agreement
   // reaches the office now (the database default); an import may know its dates.
   const typed = importing ? $('new-deal-at').value : '';

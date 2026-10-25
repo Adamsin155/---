@@ -44,6 +44,7 @@ let office = false;
 // by hand; `marks` holds the value each field got, for the "מולא אוטומטית" tags (a field changed
 // by hand loses its tag). Null: a contract filled by hand, with the approval as always.
 let ai = null;
+let freshAsking = false; // "חוזה חדש" asked once: the second tap clears
 let aiLive = new Set();
 const aiTag = () => h('span', { class: 'tag tag-ai' }, 'מולא אוטומטית');
 // A new contract prepared with AI goes without approval; a corrected version stays with the managers.
@@ -342,6 +343,7 @@ function renderDocType() {
   const doc = DOC_TYPES[state.docType];
   const signable = doc.signable;
   $('page-h1').textContent = signable ? 'הסכם התקשרות חדש' : 'הצעת מחיר חדשה';
+  if (!freshAsking) $('btn-fresh').textContent = signable ? 'חוזה חדש' : 'הצעה חדשה';
   document.title = `${signable ? 'הסכם התקשרות' : 'הצעת מחיר'} · astrateg`;
   $('sum-doc').textContent = doc.name;
   // A contract that differs from the built-in rules goes to a manager first: no link yet. Prepared
@@ -699,8 +701,12 @@ function showRemoved(names) {
 /* ── Draft: survives a refresh or a visit to another page in this tab ── */
 const DRAFT_KEY = 'astrateg-draft';
 const CLIENT_FIELDS = ['c-name', 'c-company', 'c-companyid', 'c-phone', 'c-email', 'c-notes'];
+// Once a link was made (or the contract went for approval) the draft is gone: the next one starts
+// clean after a refresh (the owner, 25.10.2026). A refresh in the middle still keeps the work.
+let sentDone = false;
+const dropDraft = () => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* storage unavailable */ } };
 function saveDraft() {
-  if (document.body.classList.contains('is-choosing')) return;
+  if (sentDone || document.body.classList.contains('is-choosing')) return;
   try {
     const client = Object.fromEntries(CLIENT_FIELDS.map((id) => [id, $(id).value]));
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ state, client, dealId, reviseId, ai, aiText: $('ai-text').value }));
@@ -1058,7 +1064,9 @@ async function createLink(btn) {
     }
     // The AI preparation prepared this contract: it is used (one run, one contract). What is on
     // the screen stays; sending it again would be a contract by hand.
-    if (aiSkipsApproval()) { ai = null; render(); saveDraft(); }
+    if (aiSkipsApproval()) { ai = null; render(); }
+    sentDone = true;
+    dropDraft();
     // An exceptional contract: stored, waiting for a manager. There is no link yet.
     if (data.approval === 'pending') {
       if (dealId) {
@@ -1264,3 +1272,19 @@ setupSectionNav();
 if (DEAL_PARAM) openFromDeal(DEAL_PARAM);
 else if (REVISE_PARAM) openForRevise(REVISE_PARAM);
 else refreshSession();
+
+// "חוזה חדש" / "הצעה חדשה" (the owner, 25.10.2026): everything on the builder is cleared, after a
+// second tap ("בטוח?"), and the page starts again as a new one (a deal or a correction is left).
+$('btn-fresh').addEventListener('click', (e) => {
+  const btn = e.currentTarget;
+  if (!freshAsking) {
+    freshAsking = true;
+    btn.textContent = 'בטוח? הכול יימחק';
+    btn.classList.add('is-asking');
+    setTimeout(() => { if (!freshAsking) return; freshAsking = false; btn.classList.remove('is-asking'); render(); }, 5000);
+    return;
+  }
+  sentDone = true;
+  dropDraft();
+  location.assign(location.pathname);
+});

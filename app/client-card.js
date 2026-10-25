@@ -4,7 +4,11 @@
 import {
   PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
   STAFF_PEOPLE, editorsFor, editorNames, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
+  PHOTOGRAPHERS, isSolo, crewOf, crewWords, shootTypeName, eliFilms,
 } from './protocol.js';
+// "מי מצלם" (25.10.2026): a day with influencers, or Lior and one photographer.
+import { SOLO_PREFIX, soloOf, choiceOf, roundWithCrew, timeLabel } from './shoot-crew.js';
+import { shootMinutes, shootStart } from './calendar-feed.js';
 import {
   clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
   waitNote, parseWaitNote, bulkEligible, roundsOf, roundContext, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited, clientLabel,
@@ -450,19 +454,22 @@ function charEvent() {
   };
 }
 // The team arrives an hour before the influencers (process 17); the shoot lasts 3 hours
-// with Natali (process 20) and about 5.5 with Denis, Michel and Semion (process 21).
+// with Natali (process 20) and about 5.5 with Denis, Michel and Semion (process 21). A day
+// without influencers (25.10.2026) starts at its own time, with Lior and its photographer.
+const shootCtx = (n) => (n === 1 ? client : roundContext(client, roundsOf(client).find((x) => x.n === n) || { n }));
 function shootEvent(n = 1) {
-  const r = n === 1 ? { shoot_at: client.shoot_at, shoot_type: client.shoot_type } : roundsOf(client).find((x) => x.n === n) || {};
-  const type = r.shoot_type || client.shoot_type;
-  const arrive = new Date(r.shoot_at);
-  const start = new Date(arrive.getTime() - 36e5);
-  const minutes = 60 + (type === 'dms' ? 330 : 180);
+  const ctx = shootCtx(n);
+  const solo = isSolo(ctx);
+  const arrive = new Date(ctx.shoot_at);
+  const start = shootStart(arrive, solo);
+  const minutes = shootMinutes(ctx.shoot_type, solo);
   const hhmm = arrive.toLocaleTimeString('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+  const name = shootTypeName(ctx);
   return {
     uid: `${client.id}-shoot-${n}@astrateg`,
-    title: `יום צילום${n > 1 ? ` ${n}` : ''} · ${client.name}${type ? ` · ${SHOOT_TYPES[type].name}` : ''}`,
+    title: `יום צילום${n > 1 ? ` ${n}` : ''} · ${client.name}${name ? ` · ${name}` : ''}`,
     start, minutes, location: client.address || '',
-    details: [`הגעת המשפיענים: ${hhmm}. הצוות מגיע שעה לפני.`, 'מנהל יום הצילום: ליאור.',
+    details: [solo ? `שעת הצילום: ${hhmm}. בלי משפיענים: ${crewWords(ctx)}.` : `הגעת המשפיענים: ${hhmm}. הצוות מגיע שעה לפני.`, 'מנהל יום הצילום: ליאור.',
       client.links?.scripts ? `תסריטים: ${client.links.scripts}` : null, `כרטיס הלקוח: ${cardUrl()}`].filter(Boolean).join('\n'),
   };
 }
@@ -471,11 +478,11 @@ function shootEvent(n = 1) {
 let clientMail = null; // the client's email from their agreement (public.quote_facts), the office only
 function inviteLink(kind, n = 1) {
   if (scope !== 'office' || viewerError) return null;
-  const r = n === 1 ? { shoot_at: client.shoot_at, shoot_type: client.shoot_type } : roundsOf(client).find((x) => x.n === n) || {};
-  const at = kind === 'char' ? client.char_at : r.shoot_at;
+  const ctx = shootCtx(n);
+  const at = kind === 'char' ? client.char_at : ctx.shoot_at;
   if (!at) return null;
-  const start = kind === 'char' ? new Date(at) : new Date(new Date(at).getTime() - 36e5);
-  const inv = inviteFor({ kind, start, round: n, shootType: r.shoot_type || client.shoot_type }, { client, emails: emailsOf(directory), clientEmail: clientMail, site: new URL('.', location.href).href });
+  const start = kind === 'char' ? new Date(at) : shootStart(new Date(at), isSolo(ctx));
+  const inv = inviteFor({ kind, start, round: n, shootType: ctx.shoot_type, crew: crewOf(ctx) }, { client, emails: emailsOf(directory), clientEmail: clientMail, site: new URL('.', location.href).href });
   if (!inv) return null;
   return h('a', { class: 'btn btn-sm', href: inv.url, target: '_blank', rel: 'noopener', title: `מוזמנים: ${guestNames(inv)}`, 'data-guests': inv.guests.join(',') }, 'שליחת זימון');
 }
@@ -831,7 +838,7 @@ function renderHead(s) {
   const prog = own()
     ? { done: counted.filter((x) => x.complete).length, total: counted.length, label: 'התהליכים שלי שהושלמו', overdue: counted.filter((x) => x.status === 'overdue').length, waiting: counted.filter((x) => x.status === 'client').length }
     : { done: s.procsDone, total: s.procsTotal, label: 'תהליכים שהושלמו', overdue: s.overdue, waiting: s.waitingOnClient };
-  const shootFact = fact('יום צילום', [c.shoot_type ? SHOOT_TYPES[c.shoot_type].name : null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot'));
+  const shootFact = fact('יום צילום', [shootTypeName(c) || null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot'));
   const editorFact = fact(c.editor && c.editor2 ? 'עורכים' : 'עורך', c.editor ? editorNames(c) : c.editor_name);
   fill($('cc-head'),
     landingNote(),
@@ -1019,7 +1026,7 @@ function roundHeader(ph) {
   const has = Object.keys(checks).some((k) => k.startsWith(`r${r.n}.`));
   return h('div', { class: 'round-head' },
     iconSquare('camera', 'pink', { size: 'sm' }),
-    h('span', {}, [r.shoot_type ? SHOOT_TYPES[r.shoot_type].name : null, r.shoot_at ? `יום צילום ${formatStamp(r.shoot_at)}` : 'מועד יום הצילום טרם נקבע'].filter(Boolean).join(' · ')),
+    h('span', {}, [shootTypeName(roundContext(client, r)) || null, r.shoot_at ? `יום צילום ${formatStamp(r.shoot_at)}` : 'מועד יום הצילום טרם נקבע'].filter(Boolean).join(' · ')),
     own() ? null : h('button', { type: 'button', class: 'btn-text', onclick: () => openRound(r.n) }, 'עריכת הסבב'),
     calendarMenu('shoot', r.n),
     has || own() ? null : h('button', { type: 'button', class: 'btn-text danger', onclick: () => deleteRound(r.n) }, 'מחיקת הסבב'));
@@ -1260,7 +1267,8 @@ function procCard(x, now, s) {
   const count = mineOnly() ? { resolved: req.filter((i) => isResolved(i, checks[i.key])).length, required: req.length } : x;
   const ctx = p.ctx || client;
   const missing = missingFields(p, ctx);
-  const guidance = p.guidance ? (ctx.shoot_type ? [p.guidance[ctx.shoot_type]] : Object.values(p.guidance)) : [];
+  // A day without influencers has no influencers' guidance (25.10.2026).
+  const guidance = !p.guidance || isSolo(ctx) ? [] : ctx.shoot_type ? [p.guidance[ctx.shoot_type]] : Object.values(p.guidance);
   const compact = x.complete && !printing && !shownProcs.has(p.id);
   const link = procLinkOf(pid);
   const linkDef = LINKS.find((l) => l.key === PROC_LINK[pid]);
@@ -1993,9 +2001,10 @@ const nextRoundNumber = () => Math.max(1, ...roundsOf(client).map((r) => r.n)) +
 const roundDlg = dialog('dlg-round');
 let roundEditing = null;
 // The photographer's monthly availability (docs/ops.md, section 39): under each shoot date being picked, whether he marked that day free.
-const shootAtHint = shootDayHint($('ed-shoot-at'), { me: () => me, own: () => client?.shoot_at });
+// The day's photographer's: Eliel's on his days without influencers (25.10.2026).
+const shootAtHint = shootDayHint($('ed-shoot-at'), { me: () => me, own: () => client?.shoot_at, who: () => crewWho('ed') });
 $('ed-shoot-at').after(shootAtHint);
-const roundAtHint = shootDayHint($('round-at'), { me: () => me, own: () => (roundEditing ? roundsOf(client).find((r) => r.n === roundEditing)?.shoot_at : null) });
+const roundAtHint = shootDayHint($('round-at'), { me: () => me, own: () => (roundEditing ? roundsOf(client).find((r) => r.n === roundEditing)?.shoot_at : null), who: () => crewWho('round') });
 $('round-at').after(roundAtHint);
 function openRound(n = null) {
   roundEditing = n;
@@ -2006,7 +2015,11 @@ function openRound(n = null) {
   $('round-form').reset();
   $('round-err').hidden = true;
   headText('round-h', `סבב צילום ${nextN}`);
-  $('round-type').value = r?.shoot_type || client.shoot_type || 'natali';
+  // A new round starts with the client's own choice (a client with a monthly day without
+  // influencers adds the next one as it is); an old round without a type of its own, too.
+  const was = (r && choiceOf(r)) || choiceOf(client) || 'natali';
+  $('round-type').value = SHOOT_TYPES[r?.shoot_type || client.shoot_type] ? (r?.shoot_type || client.shoot_type) : 'natali';
+  setCrew('round', was);
   fillEditors('round-editor', $('round-type').value, r?.editor);
   $('round-at').value = inputValueIL(r?.shoot_at);
   roundAtHint.refresh();
@@ -2016,13 +2029,19 @@ function openRound(n = null) {
   $('round-extra-text').textContent = `בחבילה של הלקוח כלולים ${total} ימי צילום, וזה יהיה הסבב ה־${nextN}. נרכש יום צילום נוסף`;
   $('round-submit').textContent = n ? 'שמירת הסבב' : 'הוספת הסבב';
   roundDlg.showModal();
-  $('round-type').focus();
+  (soloOf(was) ? $('round-crew-solo') : $('round-crew-with')).focus();
 }
 $('round-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!$('round-extra-wrap').hidden && !$('round-extra').checked) {
     showErr('round-err', 'סמנו שנרכש יום צילום נוסף, או בטלו את הוספת הסבב.');
     $('round-extra').focus();
+    return;
+  }
+  const roundChoice = crewChoice('round');
+  if (!roundChoice) {
+    showErr('round-err', 'בחרו איזה צלם: אלי או אליאל.');
+    $('round-photographer-eli').focus();
     return;
   }
   if (!editorFits($('round-editor').value, $('round-type').value)) {
@@ -2033,10 +2052,10 @@ $('round-form').addEventListener('submit', async (e) => {
   const rounds = roundsOf(client);
   const at = fromInputIL($('round-at').value)?.toISOString() || null;
   const next = roundEditing
-    ? rounds.map((r) => (r.n === roundEditing ? { ...r, shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null } : r))
-    : [...rounds, { n: nextRoundNumber(), shoot_type: $('round-type').value, shoot_at: at, editor: $('round-editor').value || null, start_at: new Date().toISOString() }];
+    ? rounds.map((r) => (r.n === roundEditing ? { ...roundWithCrew(r, roundChoice), shoot_at: at, editor: $('round-editor').value || null } : r))
+    : [...rounds, { ...roundWithCrew({ n: nextRoundNumber() }, roundChoice), shoot_at: at, editor: $('round-editor').value || null, start_at: new Date().toISOString() }];
   const before = roundEditing ? rounds.find((r) => r.n === roundEditing)?.shoot_at : null;
-  const asked = at && +new Date(at) !== +new Date(before || 0) ? await confirmShootDay({ shootAt: at, own: before, me }) : { ok: true, note: null };
+  const asked = at && +new Date(at) !== +new Date(before || 0) ? await confirmShootDay({ shootAt: at, own: before, me, who: crewWho('round') }) : { ok: true, note: null };
   if (!asked.ok) { $('round-at').focus(); return; }
   // The round had a date and the field is empty: clearing is asked about, not saved quietly.
   const clearing = !!roundEditing && !!before && !at;
@@ -2290,6 +2309,7 @@ function openEdit(focusId = 'ed-name') {
   $('ed-characterizer').value = c.characterizer || '';
   $('ed-logo').value = c.has_logo === null || c.has_logo === undefined ? '' : String(c.has_logo);
   $('ed-shoot-type').value = c.shoot_type || '';
+  setCrew('ed', choiceOf(c));
   $('ed-shoot-at').value = toLocal(c.shoot_at);
   shootAtHint.refresh();
   fillEditors('ed-editor', c.shoot_type, c.editor);
@@ -2317,6 +2337,48 @@ function fillEditors(selId, shootType, current) {
 const editorFits = (editor, shootType) => !editor || editorsFor(shootType).includes(editor);
 $('ed-shoot-type').addEventListener('change', () => fillEditors('ed-editor', $('ed-shoot-type').value || null, $('ed-editor').value || null));
 $('round-type').addEventListener('change', () => fillEditors('round-editor', $('round-type').value, $('round-editor').value || null));
+
+// ── "מי מצלם" (the owner's decision of 25.10.2026) ──
+// Two steps in the edit form and in the round dialog: with influencers (then "עם מי", the
+// shoot type, as always) or without them, Lior and one photographer (then which one: Eli or
+// Eliel). The time field says what its time is: the influencers' arrival, or the shoot's own.
+const CREW_UI = {
+  ed: { type: 'ed-shoot-type', typeField: 'ed-shoot-type-f', at: 'ed-shoot-at-l', hint: () => shootAtHint },
+  round: { type: 'round-type', typeField: 'round-type-f', at: 'round-at-l', hint: () => roundAtHint },
+};
+const pickedPhotographer = (f) => document.querySelector(`input[name="${f}-photographer"]:checked`)?.value || null;
+// The form's choice (app/shoot-crew.js): 'natali' | 'dms' | 'solo:eli' | 'solo:eliel'; '' while
+// a day without influencers has no photographer yet (or a day with them has no type).
+function crewChoice(f) {
+  if (!$(`${f}-crew-solo`).checked) return $(CREW_UI[f].type).value || '';
+  const p = pickedPhotographer(f);
+  return p && PHOTOGRAPHERS[p] ? `${SOLO_PREFIX}${p}` : '';
+}
+// Who films what the form says: the photographer of a day without influencers, else Eli
+// (his availability is the one asked about).
+function crewWho(f) {
+  const ui = $(`${f}-crew-solo`);
+  const p = ui?.checked ? pickedPhotographer(f) : null;
+  return PHOTOGRAPHERS[p] ? p : 'eli';
+}
+function showCrew(f) {
+  const solo = $(`${f}-crew-solo`).checked;
+  $(CREW_UI[f].typeField).hidden = solo;
+  $(`${f}-photographer`).hidden = !solo;
+  $(CREW_UI[f].at).textContent = timeLabel(solo ? `${SOLO_PREFIX}eli` : '', { long: true });
+  CREW_UI[f].hint()?.refresh();
+}
+function setCrew(f, choice) {
+  const crew = soloOf(choice);
+  $(`${f}-crew-with`).checked = !crew;
+  $(`${f}-crew-solo`).checked = !!crew;
+  for (const r of document.querySelectorAll(`input[name="${f}-photographer"]`)) r.checked = r.value === crew;
+  if (!crew && SHOOT_TYPES[choice]) $(CREW_UI[f].type).value = choice;
+  showCrew(f);
+}
+for (const f of Object.keys(CREW_UI)) {
+  for (const r of document.querySelectorAll(`input[name="${f}-crew"], input[name="${f}-photographer"]`)) r.addEventListener('change', () => showCrew(f));
+}
 
 // Links only: a password, token or code in the address is refused.
 const SECRET = /\/\/[^/?#@\s]+:[^/?#@\s]*@|[?&#;]([a-z_]*(password|passwd|pass|pwd|token|secret|apikey|api_key|key|auth|sig|signature)|code)=/i;
@@ -2354,6 +2416,11 @@ $('ed-form').addEventListener('submit', async (e) => {
   if (!editorFits($('ed-editor').value, $('ed-shoot-type').value || null)) {
     return fail(`${PEOPLE[$('ed-editor').value]?.name || 'העורך'} עורכת רק לקוחות של נטלי דדון. בחרו עורך אחר.`, $('ed-editor'));
   }
+  // "מי מצלם": a day without influencers needs its photographer; it is kept with the package
+  // (deliverables.shoot_crew), and a day with influencers takes it away.
+  const solo = $('ed-crew-solo').checked;
+  const crew = solo ? pickedPhotographer('ed') : null;
+  if (solo && !PHOTOGRAPHERS[crew]) return fail('בחרו איזה צלם: אלי או אליאל.', $('ed-photographer-eli'));
   const deliverables = { ...(client.deliverables || {}) };
   for (const [k] of DELIV_FIELDS) {
     const v = $(`ed-deliv-${k}`).value;
@@ -2361,13 +2428,14 @@ $('ed-form').addEventListener('submit', async (e) => {
   }
   const sn = $('ed-scripts-n').value;
   if (sn === '') delete deliverables.scripts; else deliverables.scripts = Math.max(0, Math.round(Number(sn)));
+  if (crew) deliverables.shoot_crew = crew; else delete deliverables.shoot_crew;
   const monthly = withMonthly(deliverables, { base: $('ed-month-n').value, month: $('ed-month-x').value, except: $('ed-month-xn').value });
   if (monthly.error) return fail(monthly.error, $({ base: 'ed-month-n', month: 'ed-month-x', except: 'ed-month-xn' }[monthly.field]));
   const val = (i) => $(i).value.trim() || null;
   // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
   const newShoot = fromLocal($('ed-shoot-at').value);
   const shootMoved = !!newShoot && +new Date(newShoot) !== +new Date(client.shoot_at || 0);
-  const asked = shootMoved ? await confirmShootDay({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value), own: client.shoot_at, me }) : { ok: true, note: null };
+  const asked = shootMoved ? await confirmShootDay({ shootAt: newShoot, charAt: fromLocal($('ed-char-at').value), own: client.shoot_at, me, who: crewWho('ed') }) : { ok: true, note: null };
   if (!asked.ok) { $('ed-shoot-at').focus(); return; }
   // A date that was saved and whose field is now empty: "ניקוי המועד" is asked by name.
   const cleared = CLEARABLE.filter(([f, input]) => client[f] && !$(input).value);
@@ -2379,7 +2447,7 @@ $('ed-form').addEventListener('submit', async (e) => {
       deal_at: fromLocal($('ed-deal').value) || client.deal_at, status,
       char_at: fromLocal($('ed-char-at').value), characterizer: val('ed-characterizer'),
       has_logo: $('ed-logo').value === '' ? null : $('ed-logo').value === 'true',
-      shoot_type: val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor: val('ed-editor'),
+      shoot_type: solo ? null : val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor: val('ed-editor'),
       contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables: monthly.deliverables,
     });
     if (asked.note) await noteDateChange(id, 'shoot_at', null, newShoot, asked.note);
