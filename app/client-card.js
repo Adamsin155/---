@@ -89,6 +89,9 @@ import { FOCUS_TOPICS } from './briefs.js';
 // The Metricool line near the Gantt (the owner, 20.10.2026).
 import { seesMetricool, connectsMetricool, metricoolWords, loadMetricool } from './card-metricool.js';
 import { ganttUrl } from './metricool-connect-logic.js';
+// The old system's signed documents (the owner, 25.10.2026; 20261105100000_legacy_contracts.sql): the office's.
+import { loadLegacyContracts } from './legacy-contracts-data.js';
+import { legacyRows, legacySum } from './legacy-contract-logic.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -110,6 +113,7 @@ let delivFiles = null;     // deliverables uploaded as files (null: no such tabl
 let mcLine = null;         // the Metricool line's data (null: not loaded, or not for this viewer)
 let edited = null;         // how many videos each editor edited (office only; null: none readable)
 let editedMonth = null;    // a monthly client's numbers this month (office only; null: none readable)
+let legacy = null;         // the old system's signed documents (office only; null: none readable)
 let viewerInfo = null;     // viewerOf(): for archiving
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
@@ -180,7 +184,7 @@ async function loadCard() {
     // arrives; the card is drawn again for it only when no load is about to draw it.
     loadHistory();
     // The agreement and the rest are asked for side by side (they do not depend on each other).
-    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth] = await Promise.all([
+    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth, legacy] = await Promise.all([
       c.quote_id && (!quote || quote.id !== c.quote_id) ? loadQuoteSummary(c.quote_id) : quote,
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
@@ -191,6 +195,7 @@ async function loadCard() {
       seesMetricool({ me, scope, error: viewerError }) ? loadMetricool(id).catch(() => null) : null,
       own() ? null : loadEditorProgress([id]).then((rows) => (rows ? progressMap(rows) : null)),
       own() || !isMonthly(c) ? null : loadEditorMonths([id], monthKey()).then((rows) => (rows ? monthMap(rows) : null)),
+      own() ? null : loadLegacyContracts(id),
     ]);
     statusNote = statusNotes?.[0] || null;
     setOfirMeetings(ofirMeetings); // the fast ladder waits for the end of his meeting (protocol v10)
@@ -296,7 +301,7 @@ for (const slot of ['mc-slot', 'tl-slot', 'ik-slot', 'qa-block', 'al-slot']) if 
 // The status page, the gallery, the files, the logins and the history are each one closed
 // row with what is inside in a few words, opened on a tap. Each block stays as it was
 // inside its row; a block that is other people's work for this viewer is not shown.
-const FOLD_LOOK = { status: ['phone', 'blue'], gallery: ['image', 'teal'], files: ['folder', 'navy'], access: ['key', 'purple'], history: ['history', 'navy'], contract: ['file', 'teal'] };
+const FOLD_LOOK = { status: ['phone', 'blue'], gallery: ['image', 'teal'], files: ['folder', 'navy'], access: ['key', 'purple'], history: ['history', 'navy'], contract: ['file', 'teal'], legacy: ['file', 'purple'] };
 // sum: { text } (null: the block is not shown).
 function setFold(name, title, sum) {
   const d = $(`fold-${name}`);
@@ -878,6 +883,8 @@ function renderHead(s) {
     metricoolLine(),
     // The contract and the package's counters: one closed row with the month (the owner, 20.10.2026).
     own() ? null : fold('contract', 'החוזה והחבילה', contractWords(s), contractBlock(s), deliverablesBlock(s)),
+    // The documents signed in the old system, when there are any (the owner, 25.10.2026).
+    own() || !legacy?.length ? null : fold('legacy', 'חוזים מהמערכת הישנה', legacySum(legacy.length), legacyBlock()),
     c.notes ? h('p', { class: 'cc-notes' }, c.notes) : null,
   );
   // "העברה לארכיון": rare and final, at the foot of the card (the owner, 20.10.2026), still asked first.
@@ -911,6 +918,17 @@ function contractBlock(s) {
         progressBar(Math.min(x.done, x.total), x.total, `${x.short} שבוצעו`)))),
     sum.flags.length ? h('p', { class: 'cs-flags' }, `כלול גם: ${sum.flags.join(' · ')}`) : null,
     sum.empty ? null : h('p', { class: 'hint' }, `בוצע: הגבוה מבין מה שסומן בפרוטוקול, המונה ״נמסרו״ בכרטיס${delivFiles ? ' והקבצים שהועלו' : ''}.`));
+}
+
+// ── The old system's signed documents (legacy-contract.html opens each, read-only) ──
+function legacyBlock() {
+  return h('section', { class: 'lc-list', id: 'legacy-contracts', 'aria-label': 'חוזים מהמערכת הישנה' },
+    h('p', { class: 'hint' }, 'המסמכים שנחתמו במערכת הקודמת. לקריאה ולהדפסה בלבד.'),
+    h('ul', { class: 'lc-rows' }, ...legacyRows(legacy).map((r) => h('li', { class: 'lc-row', id: `lc-${r.id}` },
+      h('div', { class: 'lc-text' },
+        h('div', { class: 'lc-title' }, h('span', { class: 'lc-type' }, r.type), r.number ? h('span', { class: 'lc-num num', dir: 'ltr' }, r.number) : null),
+        h('div', { class: 'lc-sub' }, h('span', {}, r.signed ? `נחתם ${r.signed}` : 'בלי תאריך חתימה'), r.signer ? h('span', {}, r.signer) : null, r.total ? h('span', { class: 'num', dir: 'ltr' }, r.total) : null)),
+      h('a', { class: 'btn btn-sm lc-open', href: r.href, 'aria-label': `פתיחת ה${r.type}${r.number ? ` ${r.number}` : ''}` }, 'פתיחה')))));
 }
 
 // The contract's row in a few words: the month of the contract, and the renewal once its window is open.
