@@ -61,3 +61,4 @@
 .st-brief dt { color: var(--ds-ink-2); }
 .st-brief dd { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
 @media (max-width: 480px) { .st-brief { grid-template-columns: minmax(0, 1fr); } .st-brief dd { margin-bottom: 4px; } }
+.st-client-q { margin-bottom: 6px; }

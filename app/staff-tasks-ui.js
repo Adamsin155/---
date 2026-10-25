@@ -54,7 +54,9 @@ async function loadClients() {
   if (clients) return;
   try {
     const { data, error } = await supabase.from('clients').select('id, name, business').in('status', ['active', 'ending']).order('name');
-    clients = error ? [] : (data || []).map((c) => ({ id: c.id, label: c.business && c.business !== c.name ? `${c.business} · ${c.name}` : c.name }));
+    // By the business, the way the office names a client (25.10.2026: a client looked missing in a list sorted by the contact's name).
+    clients = error ? [] : (data || []).map((c) => ({ id: c.id, label: c.business && c.business !== c.name ? `${c.business} · ${c.name}` : c.name }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'he'));
   } catch { clients = []; }
 }
 
@@ -181,11 +183,24 @@ function newForm() {
     briefBox,
     clients?.length ? h('div', { class: 'field' },
       h('label', { for: 'st-client' }, 'לקוח (לא חובה)'),
+      // Typing narrows the list (by business or person); the chosen one stays in it.
+      h('input', { class: 'input st-client-q', id: 'st-client-q', type: 'search', placeholder: 'חיפוש לקוח…', autocomplete: 'off', 'aria-label': 'חיפוש לקוח', 'aria-controls': 'st-client', oninput: (e) => filterClients(e.currentTarget.value) }),
       h('select', { class: 'input', id: 'st-client', name: 'client' }, h('option', { value: '' }, 'בלי לקוח'), ...clients.map((c) => h('option', { value: c.id }, c.label)))) : null,
     h('p', { class: 'hint' }, `העובד/ת יקבל/ו התראה מיד, ואז כל ${NAG_EVERY} דקות עד ״בוצע״, בימי עבודה 09:00–20:00.`),
     h('div', { class: 'st-acts' },
       h('button', { type: 'submit', class: 'btn st-send', id: 'st-send' }, 'שליחת הנודניק'),
       h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { formOpen = false; render(); box.querySelector('#st-new')?.focus(); } }, 'ביטול')));
+}
+
+// Rebuilds the options (a hidden <option> still shows on an iPhone).
+function filterClients(q) {
+  const sel = box?.querySelector('#st-client');
+  if (!sel || !clients) return;
+  const words = String(q || '').trim().toLowerCase().split(/s+/).filter(Boolean);
+  const keep = sel.value;
+  const shown = clients.filter((c) => c.id === keep || words.every((w) => c.label.toLowerCase().includes(w)));
+  fill(sel, h('option', { value: '' }, words.length && !shown.length ? 'אין לקוח בשם הזה' : 'בלי לקוח'), ...shown.map((c) => h('option', { value: c.id }, c.label)));
+  sel.value = words.length && shown.length === 1 ? shown[0].id : keep;
 }
 
 function render() {
