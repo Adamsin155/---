@@ -128,6 +128,8 @@ test('1. the owner\'s example: "חבילה נטלי 3500, 20 סרטונים במ
 test('2. a price with VAT: "סושיאל עם סמיון, 4602 כולל מע״מ" is the package\'s own price, a regular contract', () => {
   const r = run(answer({ package: 'social-simeon', monthlyPrice: 460200, priceIncludesVat: true }));
   assert.equal(r.result.monthlyPrice, 390000);
+  assert.equal(r.result.priceIncludesVat, false, 'the checked price is before VAT');
+  assert.deepEqual(r.dropped, ['המחיר שנכתב כולל מע״מ (4,602 ₪): הוזן 3,900 ₪ לפני מע״מ']);
   assert.equal(r.selection.custom, undefined);
   assert.deepEqual(r.kinds, []);
   assert.match(r.summary.join('\n'), /מחיר החבילה: 3,900 ₪ לחודש לפני מע״מ \(כמו בחבילה\)/);
@@ -189,6 +191,10 @@ test('9. an extra line with its price: "סושיאל נטלי + אתר תדמי�
   assert.deepEqual(r.selection.custom, { lines: [{ label: 'אתר תדמית', qty: 1, monthly: 50000 }] });
   assert.equal(r.totals.monthlyList, 440000);
   assert.deepEqual(r.kinds, ['line']);
+  // The same price written as shekels (500 instead of 50000 agorot): not set, and said.
+  const s = run(answer({ package: 'social-natali', extraLines: [{ label: 'אתר תדמית', qty: 1, monthly: 500 }] }));
+  assert.deepEqual(s.selection.custom, { lines: [{ label: 'אתר תדמית', qty: 1 }] });
+  assert.deepEqual(s.dropped, ['מחיר של 5 ₪ לחודש ל״אתר תדמית״ נראה שגוי ולא הוזן']);
 });
 
 test('10. a discount in percent is taken from the builder\'s own monthly price: "סושיאל סמיון, 10% הנחה"', () => {
@@ -256,6 +262,26 @@ test('16. a discount larger than the price is the price; long terms are cut to f
   const c = run(answer({ package: 'social-natali', specialClauses: many }));
   assert.ok(c.selection.custom.terms.length <= CUSTOM_LIMITS.terms);
   assert.ok(c.dropped.length >= 1 && c.dropped.every((t) => /^תנאי לא נכנס/.test(t)));
+});
+
+test('checking a checked result again changes nothing (the builder checks what the function already checked)', () => {
+  const answers = [
+    answer({ package: 'social-natali', months: 12, quantities: { videos: 20, shootDays: 2 }, monthlyPrice: 350000, specialClauses: ['ללא Highlights'] }),
+    answer({ package: 'social-simeon', monthlyPrice: 460200, priceIncludesVat: true }),
+    answer({ package: 'social-tv-simeon', monthlyPrice: 413000, priceIncludesVat: true, discount: 50000 }),
+    answer({ package: 'social-tv-natali', quantities: { videos: 300 }, months: 40, removals: ['collabs', 'highlights'] }),
+    answer({ package: 'social-simeon', monthlyPrice: 3500 }),
+    answer({ package: 'social-simeon', discountPercent: 10, addons: ['photographer', 'tiktok'], quantities: { monthly: 12 } }),
+    answer({ package: 'social-natali', extraLines: [{ label: '  אתר   תדמית ', qty: 0, monthly: 50 }], freeAddons: { graphics: 99, simeonJoin: true } }),
+  ];
+  for (const a of answers) {
+    const once = validateAiResult(a).result;
+    const twice = validateAiResult(once);
+    assert.deepEqual(twice.result, once, JSON.stringify(a.package));
+    assert.deepEqual(twice.dropped, [], JSON.stringify(a.package));
+    // And the builder ends in the same place either way.
+    assert.deepEqual(applyAiResult(START, twice.result).selection, applyAiResult(START, once).selection);
+  }
 });
 
 test('the tags follow the fields: a field changed by hand afterwards loses "מולא אוטומטית"', () => {

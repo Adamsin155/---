@@ -34,7 +34,7 @@ import {
 export const AI_TEXT_MAX = 2000;
 // The limits of what the answer may carry (the builder's own limits where it has them).
 export const AI_LIMITS = {
-  clauses: 12, clause: 300, questions: 8, question: 300, notes: 500, minPrice: 10000,
+  clauses: 12, clause: 300, questions: 8, question: 300, notes: 500, minPrice: 10000, minLinePrice: 1000,
 };
 
 export const PACKAGE_KEYS = Object.keys(PACKAGES);
@@ -245,12 +245,17 @@ export function validateAiResult(raw) {
     else drop(`freeAddons.${k}`, `${FREE_ADDONS[k].name}: לא כן/לא`);
   }
 
-  out.priceIncludesVat = r.priceIncludesVat === true;
+  // The checked price is always before VAT (so the result can be checked again, by the builder,
+  // without taking the VAT off twice); a price written with VAT is said under "צריך לבדוק:".
   if (given(r.monthlyPrice)) {
     let p = toInt(r.monthlyPrice);
     if (p === null || p < 0) drop('monthlyPrice', 'מחיר לא מספרי');
     else {
-      if (out.priceIncludesVat) p = Math.round((p * 100) / (100 + VAT_RATE_PERCENT));
+      if (r.priceIncludesVat === true) {
+        const gross = p;
+        p = wholeShekels(Math.round((p * 100) / (100 + VAT_RATE_PERCENT)));
+        drop('priceIncludesVat', `המחיר שנכתב כולל מע״מ (${formatILS(gross)}): הוזן ${formatILS(p)} לפני מע״מ`);
+      }
       p = wholeShekels(p);
       if (p < AI_LIMITS.minPrice) {
         drop('monthlyPrice', `מחיר חודשי של ${formatILS(p)} נראה שגוי ולא הוזן`);
@@ -278,7 +283,8 @@ export function validateAiResult(raw) {
     const qn = toInt(l.qty);
     if (qn !== null && qn >= 1) line.qty = Math.min(qn, CUSTOM_LIMITS.lineQtyMax);
     const mo = toInt(l.monthly);
-    if (mo !== null && mo >= 100) line.monthly = Math.min(wholeShekels(mo), CUSTOM_LIMITS.linePriceMax);
+    if (mo !== null && mo >= AI_LIMITS.minLinePrice) line.monthly = Math.min(wholeShekels(mo), CUSTOM_LIMITS.linePriceMax);
+    else if (mo !== null && mo > 0) drop('extraLines', `מחיר של ${formatILS(mo)} לחודש ל״${clip(label, 40)}״ נראה שגוי ולא הוזן`);
     out.extraLines.push(line);
   }
 
