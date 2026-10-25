@@ -184,13 +184,15 @@ export function makeHandler(deps) {
       const f = failureOf(err, deps.Errors);
       // The status only: never the key, the headers or the office's words.
       log(`contract-ai: ${f.error} (${err?.status ?? err?.name ?? 'error'})`);
-      await keep({ status: 'error', result: { error: f.error } });
+      // What the API said (its status, type and message: never the key or the office's words), for the office to see why.
+      const api = err?.error?.error || {};
+      await keep({ status: 'error', result: { error: f.error, http: err?.status ?? null, type: api.type ?? err?.name ?? null, why: String(api.message ?? err?.message ?? '').slice(0, 300) } });
       return json(f.status, { error: f.error });
     }
     const answer = readAnswer(message);
     if (answer.error) {
       log(`contract-ai: ${answer.error} (${message?.stop_reason ?? 'no stop reason'})`);
-      await keep({ status: 'error', result: { error: answer.error } });
+      await keep({ status: 'error', result: { error: answer.error, stop: message?.stop_reason ?? null, blocks: (message?.content || []).map((x) => x?.type) } });
       return json(502, { error: answer.error });
     }
     const { result, dropped } = validateAiResult(answer.raw);

@@ -413,7 +413,8 @@ test('the function: refusals, cut answers, timeouts and a wrong key answer plain
     const w = world({ reply });
     const r = await call(w, post({ text: TEXT }));
     assert.deepEqual([r.status, r.body], [status, { error }], error);
-    assert.deepEqual(w.inserts.map((i) => [i.row.status, i.row.result]), [['error', { error }]], error);
+    assert.deepEqual(w.inserts.map((i) => [i.row.status, i.row.result.error]), [['error', error]], error);
+    assert.ok(!JSON.stringify(w.inserts[0].row.result).includes('sk-'), 'no key kept');
     // The log has the kind of failure only: never the words or the key.
     assert.equal(w.logs.length, 1);
     assert.doesNotMatch(w.logs[0], /סרטונים|sk-ant/);
