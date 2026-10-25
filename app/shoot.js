@@ -438,7 +438,7 @@ function dayCountBlock(sc, closed) {
     h('label', { for: `${id}-daycount` }, 'כמה סרטונים מצלמים היום'),
     h('div', { class: 'sh-daycount-row' },
       h('input', {
-        class: 'input num', id: `${id}-daycount`, type: 'text', inputmode: 'numeric', pattern: '[0-9]*', maxlength: 2, dir: 'ltr',
+        class: 'input sh-daycount-in', id: `${id}-daycount`, type: 'text', inputmode: 'numeric', pattern: '[0-9]*', maxlength: 2, dir: 'ltr',
         autocomplete: 'off', enterkeyhint: 'done', disabled: !canAct, value: draft ?? (n ? String(n) : ''),
         'aria-describedby': `${id}-daycount-err ${id}-daycount-h`,
         oninput: (e) => { countDrafts.set(id, e.currentTarget.value); e.currentTarget.removeAttribute('aria-invalid'); $(`${id}-daycount-err`).hidden = true; },
@@ -487,7 +487,7 @@ function shootMode(sc, now) {
   return h('article', { class: 'sh-card sh-mode is-today', id, 'aria-labelledby': `${id}-h` },
     h('header', { class: 'ed-head' },
       cardHead(id, `מצב יום צילום · ${scName(sc)}`, 'video', 'pink'),
-      h('span', { class: `ed-state ${closed ? 's-done' : 's-editing'}` }, closed ? 'היום נסגר' : !started ? P.startsText(sc.shootAt) : shootTypeName(sc.ctx))),
+      h('span', { class: `ed-state ${closed ? 's-done' : 's-editing'}` }, closed ? 'היום נסגר' : !started ? P.startsText(sc.shootAt) : sc.solo ? 'בצילום' : shootTypeName(sc.ctx))),
     sc.solo ? h('p', { class: 'sh-crew', id: `${id}-crew` }, `בלי משפיענים · ${crewWords(sc.ctx)}`) : null,
     // Quiet mode (decision 8): from Eli's "הגעתי" until the drive is back.
     closed ? null : quietOn

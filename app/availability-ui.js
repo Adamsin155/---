@@ -48,9 +48,10 @@ const byDay = (rows) => Object.fromEntries((rows || []).map((r) => [String(r.day
 // and the days a shoot day sits on (`taken`: Eli's; `takenBy`: each photographer's, the
 // others' from public.photographer_taken_by, 20261107100000_shoot_crew.sql: before that
 // migration they are left empty). null when the tables are not there yet.
-export async function loadAvailability(from, to = from) {
+// `others: false` (the photographer's own card): Eli's days only.
+export async function loadAvailability(from, to = from, { others: withOthers = true } = {}) {
   const range = { p_from: `${from}-01`, p_to: A.monthDays(to).at(-1) };
-  const others = A.PHOTOGRAPHERS.filter((p) => p !== 'eli');
+  const others = withOthers ? A.PHOTOGRAPHERS.filter((p) => p !== 'eli') : [];
   const [m, c, t, ...o] = await Promise.all([
     supabase.from('photographer_months').select(MONTH_COLS).gte('month', `${from}-01`).lte('month', `${to}-01`).order('month'),
     supabase.from('photographer_changes').select(CHANGE_COLS).gte('reported_month', `${A.addMonths(from, -3)}-01`).order('reported_at', { ascending: false }),
@@ -106,7 +107,7 @@ const legend = (withOff) => h('p', { class: 'av-legend', 'aria-hidden': 'true' }
 // stays inside the card when it is opened.
 // `only` and `enter` (openAvailabilityFor): one photographer's card, opened on a month being
 // marked in his name; `onSaved(person, month)` once it is saved.
-export async function mountAvailability(el, { me, clock = () => new Date(), compact = false, only = null, enter = null, onSaved = null } = {}) {
+export async function mountAvailability(el, { me, clock = () => new Date(), compact = false, only = null, enter = null, onSaved = null, onCancel = null } = {}) {
   if (!el || !canSee(me)) return;
   const self = isPhotographer(me) && !only;
   const people = only ? [only] : A.PHOTOGRAPHERS;
@@ -120,13 +121,13 @@ export async function mountAvailability(el, { me, clock = () => new Date(), comp
   let note = '';
   let message = null;       // what stopped the last action, in words
   let busy = false;
-  let open = location.hash === '#availability' || !!only;
+  const opened = new Set(location.hash === '#availability' || only ? people : []); // the office's cards that are open, by photographer
   const draftKey = (person, month) => `avail.draft.${person}.${month}`;
 
   async function refresh() {
     const ask = A.askOf(clock());
     const last = enter && enter > ask.month ? enter : ask.month;
-    try { data = await loadAvailability(ask.current, last); } catch { data = null; }
+    try { data = await loadAvailability(ask.current, last, { others: !self }); } catch { data = null; }
     if (data && pendingEnter) {
       const row = A.monthRow(data.months, only, pendingEnter);
       view = pendingEnter; draft = A.freeDays(row); none = !!row?.none; message = null;
@@ -203,7 +204,7 @@ export async function mountAvailability(el, { me, clock = () => new Date(), comp
       h('div', { class: 'av-act' },
         h('button', { type: 'button', class: 'btn av-go', id: 'av-submit', disabled: busy, onclick: send },
           submitLabel(n, none)),
-        cancel ? h('button', { type: 'button', class: 'btn btn-ghost', id: 'av-cancel', disabled: busy, onclick: () => { view = 'main'; message = null; render('av-h'); } }, 'ביטול') : null),
+        cancel ? h('button', { type: 'button', class: 'btn btn-ghost', id: 'av-cancel', disabled: busy, onclick: () => { if (onCancel) { onCancel(); return; } view = 'main'; message = null; render('av-h'); } }, 'ביטול') : null),
     ];
   }
   const countWords = (n) => (n === 1 ? 'יום אחד' : `${n} ימים`);
@@ -303,7 +304,8 @@ export async function mountAvailability(el, { me, clock = () => new Date(), comp
   function officeView(person, now) {
     const ask = A.askOf(now);
     const name = A.personName(person);
-    const months = [...new Set([ask.current, ask.month, ...(enter && only === person ? [enter] : [])])].sort();
+    // In the dialog (openAvailabilityFor): only the month being marked.
+    const months = only && enter ? [enter] : [ask.current, ask.month];
     const taken = takenOf(data, person);
     const line = (m) => {
       const row = A.monthRow(data.months, person, m);
@@ -313,8 +315,8 @@ export async function mountAvailability(el, { me, clock = () => new Date(), comp
     };
     const canEnter = canMark(me);
     const changes = data.changes.filter((c) => c.person === person && (c.days || []).some((d) => months.includes(A.monthOfDay(d))));
-    return h('details', { class: 'av-card av-office', open, ontoggle: (e) => { open = e.currentTarget.open; } },
-      h('summary', { class: 'av-line', id: only ? null : person === people[0] ? 'av-h' : `av-h-${person}` }, h('strong', {}, `הזמינות של ${name}`), ...(compact ? months.filter((m) => A.monthRow(data.months, person, m)) : months).map(line)),
+    return h(only ? 'section' : 'details', only ? { class: 'av-card av-office av-for-card', 'data-person': person } : { class: 'av-card av-office', 'data-person': person, open: opened.has(person), ontoggle: (e) => { if (e.currentTarget.open) opened.add(person); else opened.delete(person); } },
+      only ? null : h('summary', { class: 'av-line', id: person === people[0] ? 'av-h' : `av-h-${person}` }, h('strong', {}, `הזמינות של ${name}`), ...(compact ? months.filter((m) => A.monthRow(data.months, person, m)) : months).map(line)),
       ...months.map((m) => {
         const row = A.monthRow(data.months, person, m);
         const entering = view === m && viewPerson === person;
@@ -332,7 +334,7 @@ export async function mountAvailability(el, { me, clock = () => new Date(), comp
                 row ? 'עדכון במקומו' : 'סימון זמינות במקומו') : null,
             ]));
       }),
-      legend(changes.length > 0),
+      only ? null : legend(changes.length > 0),
       changes.length ? h('ul', { class: 'av-changes' }, ...changes.map((c) => h('li', {},
         `בלת״ם: ${A.daysWords(c.days)} · דווח ${formatWhen(new Date(c.reported_at), now)}${c.note ? ` · ${c.note}` : ''}`))) : null);
   }
@@ -432,7 +434,7 @@ export function openAvailabilityFor({ person, month, me, onSaved = null }) {
   dlg.addEventListener('close', () => dlg.remove());
   document.body.append(dlg);
   dlg.showModal();
-  mountAvailability(body, { me, only: person, enter: month, onSaved: (p, m) => { dlg.close(); onSaved?.(p, m); } });
+  mountAvailability(body, { me, only: person, enter: month, onSaved: (p, m) => { dlg.close(); onSaved?.(p, m); }, onCancel: () => dlg.close() });
   return dlg;
 }
 
