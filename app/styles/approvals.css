@@ -116,14 +116,14 @@ dialog.apv-share { max-width: min(560px, calc(100vw - 32px)); }
 .ai-quiet { margin: 0; font-size: 14px; color: var(--ds-muted); }
 .ai-result { display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--ds-r-item); background: var(--ds-ground); outline: none; min-width: 0; }
 .ai-result:focus-visible { box-shadow: 0 0 0 2px var(--ds-navy-mid); }
-.ai-result h4 { margin: 0; font-size: 15px; color: var(--ds-ink); }
+.ai-result h4 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ds-ink); }
 .ai-result ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 3px; font-size: 14.5px; overflow-wrap: anywhere; }
 .ai-result .ai-check-h { margin-top: 6px; color: var(--ds-amber); }
 .ai-result #ai-check { padding: 8px 12px; padding-inline-start: 28px; border-radius: var(--ds-r-sm); background: var(--ds-amber-soft); }
 .ai-notes, .ai-flag { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ds-ink-2); }
 .ai-flag { font-weight: 600; color: var(--ds-ink); }
 /* "מולא אוטומטית": a quiet navy tag on every field the AI filled, and a ring on its tile. */
-.tag-ai { color: var(--ds-navy-text); background: var(--ds-soft); font-weight: 600; }
+.tag-ai { color: var(--ds-navy-text); background: var(--ds-soft); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-navy-mid) 40%, transparent); }
 label .tag-ai, legend .tag-ai, h3 .tag-ai, .tile-title .tag-ai { margin-inline-start: 6px; vertical-align: 1px; }
 .inf-text .tag-ai { justify-self: start; margin-top: 4px; }
 .tier-top > .tag-ai { margin-top: 8px; grid-column: 1 / -1; justify-self: start; }
@@ -156,4 +156,4 @@ label .tag-ai, legend .tag-ai, h3 .tag-ai, .tile-title .tag-ai { margin-inline-s
 
 /* quotes.html: a contract prepared with "הכנת חוזה עם AI" (docs/ops.md, section 68). */
 .qtable .doc-ai { display: inline-flex; margin-top: 4px; }
-.apv-cell .tag-ai { justify-self: start; }
+

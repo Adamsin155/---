@@ -126,8 +126,8 @@ function approvalCell(q) {
   if (q.prepared_by === 'ai' && (!q.approval || q.approval === 'none')) {
     const n = Array.isArray(q.exceptions) ? q.exceptions.length : 0;
     return h('span', { class: 'apv-cell' },
-      h('span', { class: 'tag tag-ai' }, 'הוכן ע״י AI'),
-      h('small', {}, n ? `בלי אישור מנהל · ${n === 1 ? 'שינוי אחד' : `${n} שינויים`} מהחבילה` : 'בלי אישור מנהל'));
+      h('span', {}, 'בלי אישור · הוכן ע״י AI'),
+      ...(n ? [h('small', {}, `${n === 1 ? 'שינוי אחד' : `${n} שינויים`} מהחבילה`)] : []));
   }
   if (!q.approval || q.approval === 'none') return h('span', { class: 'apv-cell', title: 'חוזה רגיל, בלי אישור' }, '—');
   const by = APPROVER[q.approval_by] || '';
