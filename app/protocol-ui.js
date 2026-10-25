@@ -1,7 +1,7 @@
 // Shared view helpers for the client protocol pages: login, people, dates, statuses.
 import {
   supabase, currentStaff, explainError, sendPasswordReset, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT,
-  sessionEmail, staffPerson, requestsIdle, warmStaff, warmNow,
+  sessionEmail, staffPerson, requestsIdle, warmStaff, warmNow, AUTH_LOST,
 } from './supa.js';
 // The session's data cache between the staff pages and the server (docs/ops.md, section 60).
 import { shownFromStore } from './session-store.js';
@@ -301,6 +301,18 @@ async function reveal(shell) {
 
 // Session bar + login form. Calls onReady(staff) once a staff member is signed in.
 // A personal sign-in link in the address bar first asks for a password (set-password.js).
+// A session that could not be renewed (app/supa.js, AUTH_LOST): said once, with the way back in,
+// instead of a save that failed quietly (the owner, 25.10.2026).
+let authLostSaid = false;
+if (typeof window !== 'undefined') window.addEventListener(AUTH_LOST, () => {
+  if (authLostSaid) return;
+  authLostSaid = true;
+  toast('החיבור למערכת פג, ולכן זה לא נשמר. נכנסים מחדש ומנסים שוב.', {
+    label: 'כניסה מחדש',
+    run: async () => { try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* already out */ } location.reload(); },
+  });
+  setTimeout(() => { authLostSaid = false; }, 30000);
+});
 export function mountSession(onReady) {
   const setSession = (staff) => {
     $('session-dot').classList.toggle('on', !!staff?.isStaff);

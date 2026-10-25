@@ -73,11 +73,50 @@ export function clearKept() {
     for (const k of gone) sessionStorage.removeItem(k);
   } catch { /* no storage */ }
 }
-function countedFetch(input, init) {
-  const method = String(init?.method || input?.method || 'GET').toUpperCase();
+function plainFetch(input, init, method) {
   let over = null;
   try { over = layer ? layer(input, init, method) : null; } catch { over = null; }
   return counted(over || (() => fetch(input, init)), method);
+}
+
+// ── A sign-in gone stale on the device (the owner, 25.10.2026) ───
+// A phone that slept for hours can come back with an expired session: the page still shows the
+// data it had, but the server answers 401 and the person's "בוצע" or "שמירה" is refused (Ilai's
+// nudniks stayed open, Irit's contract link, Ilai's Gantt link). Every request that the server
+// refuses with 401 renews the session once and is sent again with the new token; when it cannot
+// be renewed, the pages are told (AUTH_LOST), so the person is asked to sign in instead of the
+// refusal passing quietly. The sign-in calls themselves are never retried.
+export const AUTH_LOST = 'astrateg:auth-lost';
+let renewing = null;
+async function renewedToken() {
+  if (!renewing) {
+    renewing = supabase.auth.refreshSession().then(({ data, error }) => (error ? null : data?.session?.access_token || null), () => null);
+    renewing.finally(() => setTimeout(() => { renewing = null; }, 1000));
+  }
+  return renewing;
+}
+const urlOf = (input) => (typeof input === 'string' ? input : input?.url || String(input || ''));
+const bearerOf = (init, input) => {
+  try { return new Headers(init?.headers || input?.headers || undefined).get('Authorization') || ''; } catch { return ''; }
+};
+async function countedFetch(input, init) {
+  const method = String(init?.method || input?.method || 'GET').toUpperCase();
+  const res = await plainFetch(input, init, method);
+  if (res?.status !== 401 || /\/auth\/v1\//.test(urlOf(input))) return res;
+  // Only a request made as someone (not the public key alone: a client's page has no session).
+  const bearer = bearerOf(init, input);
+  if (!bearer || bearer === `Bearer ${SUPABASE_KEY}`) {
+    const { data } = await supabase.auth.getSession().catch(() => ({ data: null }));
+    if (!data?.session) return res;
+  }
+  const token = await renewedToken();
+  if (!token) {
+    try { window.dispatchEvent(new CustomEvent(AUTH_LOST)); } catch { /* not a browser */ }
+    return res;
+  }
+  const headers = new Headers(init?.headers || input?.headers || undefined);
+  headers.set('Authorization', `Bearer ${token}`);
+  return plainFetch(input, { ...init, headers }, method);
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {

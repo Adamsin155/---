@@ -62,6 +62,10 @@ const client = (name, business) => ({
 const tables = { clients: [client('רון כהן', 'פיצה רון'), client('קפה דנה', 'קפה דנה')], protocol_checks: [], client_tasks: [], office_reviews: [], client_status_notes: [], protocol_log: [] };
 const tasks = [];
 const calls = [];
+// A session gone stale on the phone (25.10.2026): the next "בוצע" is refused once with 401, as
+// the server does with an expired token; the page renews the session and sends it again.
+let expireOnce = false;
+let refreshes = 0;
 let tableMissing = false;
 
 const visible = (t, me) => { const p = personOf(me); return !!p && (t.assignee === p || t.created_by === p || p === 'owner'); };
@@ -91,6 +95,7 @@ function rpc(name, body, me, json) {
     }
     const t = tasks.find((x) => x.id === body.p_id);
     if (!t || !visible(t, me)) return json(404, { code: 'P0002', message: 'task not found' });
+    if (name === 'staff_task_done' && expireOnce) { expireOnce = false; return json(401, { code: 'PGRST301', message: 'JWT expired' }); }
     if (name === 'staff_task_done') {
       if (t.assignee !== p) return json(403, { code: '42501', message: 'only the assignee marks a task done' });
       if (t.status !== 'open') return json(400, { code: '22023', message: 'this task is not open' });
@@ -126,6 +131,12 @@ async function fakeSupabase(route) {
   if (req.method() === 'OPTIONS') return json(200, {});
   const p = url.pathname;
   const me = userOf(req.headers());
+  if (p === '/auth/v1/token' && url.searchParams.get('grant_type') === 'refresh_token') {
+    const u = [...users.values()].find((x) => `r-${x.id}` === body.refresh_token);
+    if (!u) return json(400, { error: 'invalid_grant', msg: 'Invalid Refresh Token' });
+    refreshes += 1;
+    return json(200, sessionFor(u));
+  }
   if (p === '/auth/v1/token') {
     const u = users.get(String(body.email || '').toLowerCase());
     if (!u || body.password !== 'correct-horse') return json(400, { error: 'invalid_grant', msg: 'Invalid login credentials' });
@@ -315,10 +326,14 @@ try {
   });
 
   await step('"בוצע": only this stops it; the card goes, and Irit sees it done, by whom and when', async () => {
+    // Her session went stale meanwhile: the first try is refused, the page renews it and it is saved.
+    expireOnce = true;
+    const before = refreshes;
     await nadia.click(`${CARD} [data-act="done"]`);
     await nadia.locator(CARD).waitFor({ state: 'hidden' });
     assert.deepEqual(lastCall('staff_task_done'), { staff_task_done: { p_id: first.id }, by: 'nadia@astrateg.test' });
     assert.equal(await toastOf(nadia), 'סומן ״בוצע״. התזכורות נעצרו.');
+    assert.equal(refreshes, before + 1, 'the session was renewed once');
     assert.deepEqual([first.status, first.done_by_email], ['done', 'nadia@astrateg.test']);
     await irit.reload();
     await irit.locator('#st-closed-toggle').waitFor();
