@@ -47,7 +47,10 @@ let ai = null;
 let aiLive = new Set();
 const aiTag = () => h('span', { class: 'tag tag-ai' }, 'מולא אוטומטית');
 // A new contract prepared with AI goes without approval; a corrected version stays with the managers.
-const aiSkipsApproval = () => !!ai?.runId && !reviseId;
+// Only the owners, Irit and Ofir send an AI-prepared contract without approval (the owner, 25.10.2026);
+// create-quote decides the same on the server.
+const AI_FREE = ['irit', 'ofir'];
+const aiSkipsApproval = () => !!ai?.runId && !reviseId && ai.free === true;
 // The builder is for whoever builds a contract (canBuildQuote in app/manager-rules.js: the
 // owners, Irit, Lior, Ofir). A signed-in member of staff who is not one of them gets
 // "אין לך גישה לעמוד הזה" with the way back to their own screen, and nothing of the builder.
@@ -572,11 +575,11 @@ function renderAiResult({ summary, check, notes, kept }) {
   $('ai-result').hidden = false;
 }
 
-function applyAi(data) {
+function applyAi(data, free = false) {
   // Checked again here: the builder takes only what its own controls could set.
   const { result, dropped: here } = validateAiResult(data?.result);
   const { selection, marks, summary, skipped } = applyAiResult(state, result);
-  ai = { runId: typeof data?.runId === 'string' ? data.runId : null, marks };
+  ai = { runId: typeof data?.runId === 'string' ? data.runId : null, marks, free };
   state = selection;
   $('discount').value = String((state.discount || 0) / 100);
   syncCustomInputs();
@@ -627,7 +630,8 @@ $('ai-go').addEventListener('click', async (e) => {
       return;
     }
     if (!data?.result || typeof data.result !== 'object') { aiQuiet(AI_FAILED); return; }
-    applyAi(data);
+    const { data: me, error: meError } = await s.supabase.rpc('my_person');
+    applyAi(data, !meError && (me === null || AI_FREE.includes(me)));
     done = true;
   } catch (err) {
     const s = await getSupa().catch(() => null);
@@ -715,7 +719,7 @@ function restoreDraft(forDeal = null, forRevise = null) {
     if (state.custom === null || typeof state.custom !== 'object') delete state.custom;
     const a = draft.ai;
     ai = a && typeof a === 'object' && a.marks && typeof a.marks === 'object'
-      ? { runId: typeof a.runId === 'string' ? a.runId : null, marks: a.marks } : null;
+      ? { runId: typeof a.runId === 'string' ? a.runId : null, marks: a.marks, free: a.free === true } : null;
     $('ai-text').value = typeof draft.aiText === 'string' ? draft.aiText : '';
     for (const id of CLIENT_FIELDS) if (typeof draft.client?.[id] === 'string') $(id).value = draft.client[id];
     $('discount').value = String((state.discount || 0) / 100);

@@ -109,6 +109,13 @@ Deno.serve(async (req) => {
     return json(400, { error: String((e as Error).message ?? e) });
   }
 
+  // Only the owners (no person), Irit and Ofir send an AI-prepared contract without approval (the owner,
+  // 25.10.2026); anyone else's goes to approval as if filled by hand.
+  if (aiRun) {
+    const { data: me, error: meError } = await userClient.rpc('my_person');
+    if (meError || !(me === null || ['irit', 'ofir'].includes(me))) aiRun = null;
+  }
+
   const exceptions = exceptionOf(selection);
 
   const model = buildQuoteModel(selection, client);

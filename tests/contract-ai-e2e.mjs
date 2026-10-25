@@ -95,6 +95,9 @@ function createQuote(body, me, json) {
   try { validateSelection(body.selection); selection = normalizeSelection(body.selection); } catch (e) { return json(400, { error: e.message }); }
   const exceptions = exceptionOf(selection);
   let ai = false;
+  // Only the owners, Irit and Ofir skip the approval through AI (the owner, 25.10.2026).
+  const person = staff.find((x) => x.email === me.email)?.person ?? null;
+  if (body.aiRun && !(person === null || ['irit', 'ofir'].includes(person))) body = { ...body, aiRun: null };
   if (body.aiRun) {
     const problem = aiRunProblem(runs.find((r) => r.id === body.aiRun), me.id, quotes.filter((q) => q.ai_run_id === body.aiRun).length, Date.parse(serverNow()));
     if (problem) return json(409, { error: `ai run ${problem}` });
@@ -147,6 +150,7 @@ async function fakeSupabase(route) {
   if (p.startsWith('/rest/v1/rpc/')) {
     const name = p.slice('/rest/v1/rpc/'.length);
     if (name === 'is_staff' || name === 'is_office') return json(200, isOffice(me));
+    if (name === 'my_person') return json(200, staff.find((x) => x.email === me?.email)?.person ?? null);
     if (name === 'get_quote') {
       const q = quotes.find((x) => x.token === body.p_token);
       if (!q || q.approval === 'pending') return json(200, null);
@@ -414,6 +418,24 @@ try {
     assert.equal(quotes.length, n);
     assert.equal(await text(irit, '#btn-link'), 'שליחה לאישור');
     assert.equal(await irit.locator('#cq-videos').inputValue(), '20');
+  });
+
+  await step('Lior prepares with AI: the builder fills, but his contract goes for approval (only the owners, Irit and Ofir skip it)', async () => {
+    const lior = await newPage(browser);
+    // Lior has no quotes list: signed in once the sign-in form is gone.
+    await lior.goto(`${BASE}quotes.html`);
+    await lior.fill('#lg-email', 'lior@astrateg.test');
+    await lior.fill('#lg-pass', 'correct-horse');
+    await lior.click('#lg-submit');
+    await lior.waitForFunction(() => !document.querySelector('#lg-email')?.offsetParent);
+    await freshBuilder(lior);
+    await lior.locator('#c-name').fill('רונית');
+    await typeDeal(lior);
+    await lior.locator('#ai-go').click();
+    await lior.locator('#ai-result:not([hidden])').waitFor();
+    assert.equal(await lior.locator('#cq-videos').inputValue(), '20');
+    assert.equal(await text(lior, '#btn-link'), 'שליחה לאישור');
+    await lior.context().close();
   });
 
   await step('a phone (390px): the same typing and button, 44px targets, nothing scrolls sideways', async () => {
