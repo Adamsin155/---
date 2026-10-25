@@ -16,6 +16,9 @@
 //  - Ilai: the characterization day's card (the vault statuses check the access,
 //    the page checks, Metricool's state (Ofir connects it since v11), "מוכן לבדיקה" to Irit, the Gantt), and "קיבלתי".
 //  - A 360px phone: no sideways scrolling, 44px targets.
+//  - The old system's signed documents (25.10.2026): the owner imports two through the page
+//    (scripts/legacy-contracts-import.mjs importInPage), the card lists them, "פתיחה" shows one;
+//    an editor reads none.
 // Run: npx http-server -p 8080 -s . &  then  node tests/office-flows-e2e.mjs [outDir]
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
@@ -27,6 +30,7 @@ import { buildEnv, candidates } from '../app/reminder-engine.js';
 import { splitLists } from '../app/decisions-logic.js';
 import { withClientColumns } from './fake-clients.mjs';
 import { monthKey } from '../app/edit-count.js';
+import { importInPage } from '../scripts/legacy-contracts-import.mjs';
 
 // qa.html since 20.10.2026 (the owner's review): each editor's load and the clients in landing waiting for an editor are folds; opened here to read them.
 const openQaFolds = (p) => p.evaluate(() => { for (const d of document.querySelectorAll('#load-list details, #assign-list details')) d.open = true; });
@@ -154,6 +158,8 @@ const db = {
   editor_progress_month: [],
   task_decisions: [],
   change_requests: [],
+  // The old system's signed documents (public.legacy_contracts, 20261105100000_legacy_contracts.sql): imported in the last step.
+  legacy_contracts: [],
 };
 
 // ── Fake PostgREST ─────────────────────────
@@ -253,6 +259,20 @@ async function fakeSupabase(route) {
     Object.assign(row, { edited: body.p_edited, updated_at: now, updated_by: me.email });
     return json(200, row);
   }
+  // The old system's documents: the owner only; again on the same old id changes the row; no IP, browser, phone or company number kept.
+  if (p === '/rest/v1/rpc/legacy_contract_import') {
+    const person = staff.find((r) => r.email === me?.email);
+    if (!person || person.person !== null) return json(403, { code: '42501', message: 'not allowed' });
+    if (!db.clients.some((c) => c.id === body.p_client)) return json(400, { code: '22023', message: 'no such client' });
+    const d = body.p_doc;
+    const scrub = (v) => (Array.isArray(v) ? v.map(scrub) : v && typeof v === 'object'
+      ? Object.fromEntries(Object.entries(v).filter(([k]) => !['signedip', 'signeduseragent', 'ip', 'useragent', 'ua', 'phone', 'hp'].includes(k.toLowerCase())).map(([k, x]) => [k, scrub(x)])) : v);
+    const row = { id: Number(d.id), client_id: body.p_client, doc_type: d.docType || 'contract', doc_number: d.docNumber || null, signer_name: d.signerName || d.signers?.[0]?.name || null,
+      signed_at: d.signedAt || null, total_amount: d.totalAmount ?? null, retainer: d.retainer ?? null, signature: d.signature || null, doc: scrub(d), imported_at: now, imported_by: me.email };
+    const i = db.legacy_contracts.findIndex((x) => x.id === row.id);
+    if (i >= 0) db.legacy_contracts[i] = row; else db.legacy_contracts.push(row);
+    return json(200, { id: row.id, client_id: row.client_id, doc_type: row.doc_type });
+  }
   if (p.startsWith('/rest/v1/rpc/')) return json(404, { code: 'PGRST202', message: 'not found' });
   const m = /^\/rest\/v1\/(\w+)$/.exec(p);
   if (!m || !db[m[1]]) return json(404, { code: '42P01', message: 'relation does not exist' });
@@ -264,6 +284,7 @@ async function fakeSupabase(route) {
     let rows = applyFilters(db[table], url.searchParams);
     if (table === 'quotes') rows = rows.map((q) => ({ id: q.id, number: q.number, selection: q.model.selection }));
     if (table === 'client_access') rows = vault ? rows : [];
+    if (table === 'legacy_contracts') { const pr = staff.find((r) => r.email === me.email); rows = pr && (pr.person === null || ['irit', 'lior', 'ofir', 'ilai'].includes(pr.person)) ? rows : []; }
     const off = Number(url.searchParams.get('offset') || 0);
     const lim = Number(url.searchParams.get('limit') || 1e9);
     return reply(rows.slice(off, off + lim));
@@ -1186,6 +1207,109 @@ await step('a monthly client: Irit sets "סרטונים בחודש" and October\
   await card2.locator('.ed-count-s', { hasText: 'נשמר' }).waitFor();
   assert.deepEqual(db.editor_progress_month.filter((x) => x.client_id === V.id).map((x) => [x.month, x.edited]), [['2026-10', 5], ['2026-11', 1]]);
   await n2.close();
+});
+
+await step('the old system\'s signed documents: the owner imports through the page, the card lists them (390px), "פתיחה" shows the document read-only; an editor reads none', async () => {
+  const wctx = await newContext(THU, { width: 390, height: 844 });
+  const owner = await newPage(wctx);
+  await signIn(owner, `client.html?id=${V.id}`, 'owner');
+  await owner.waitForSelector('#cc-head h1');
+  await owner.waitForSelector('#fold-contract');
+  assert.equal(await owner.locator('#fold-legacy').count(), 0, 'no block while there are none');
+  // A fake signature, drawn in the page as the old system's pad did.
+  const signature = await owner.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 360; c.height = 120;
+    const x = c.getContext('2d');
+    x.lineWidth = 3; x.strokeStyle = '#031432'; x.lineCap = 'round';
+    x.beginPath(); x.moveTo(20, 80);
+    for (let i = 0; i <= 32; i += 1) x.lineTo(20 + i * 10, 70 + Math.sin(i / 2) * 30 - (i % 5) * 4);
+    x.stroke();
+    return c.toDataURL('image/png');
+  });
+  const hash = 'abcdef0123456789'.repeat(4);
+  const contract = {
+    id: 501, clientId: 44, clientName: 'רון לוי', business: 'מספרת רון', hp: '512345678', phone: '050-1234567', packageName: 'חבילת פרימיום',
+    influencers: 2, months: 12, shootDays: 1, contentTotal: 40, reels: 25, graphics: 15, totalAmount: 60000, retainer: 5000, paymentMethod: 'הוראת קבע',
+    notes: 'הצילום בבוקר, לפני פתיחת המספרה.', createdAt: '2025-03-01T08:00:00.000Z', docNumber: 'AST-2025-017', validUntil: '2025-03-04T08:00:00.000Z',
+    docHash: hash, docHashAt: '2025-03-01T08:00:00.000Z', signHistory: [{ at: '2025-03-02T09:00:00.000Z', event: 'signed', ip: '1.2.3.4', userAgent: 'Mozilla/5.0' }],
+    signerName: 'רון לוי', signature, signedAt: '2025-03-02T09:00:00.000Z', signedIp: '1.2.3.4', signedUserAgent: 'Mozilla/5.0', firstViewedAt: '2025-03-01T10:00:00.000Z',
+    customClauses: ['הלקוח מאשר שימוש בתכנים בתיק העבודות של אסטרטג.', { title: 'בלעדיות', text: 'אסטרטג לא תעבוד עם מספרה אחרת ברדיוס 2 ק״מ.' }],
+    specialRequest: 'סרטון אחד באנגלית', packageBullets: ['ניהול אינסטגרם וטיקטוק', 'דוח חודשי'], extraBullets: ['קמפיין ממומן'], checksCount: 12,
+    paymentSummary: '12 תשלומים של ₪5,000 + מע״מ', docType: '', status: 'נחתם', consentText: 'קראתי ואני מאשר את ההסכם', signatureHash: 'f'.repeat(64), catalog: { tiers: 3 },
+  };
+  const termination = {
+    id: 502, clientId: 44, clientName: 'רון לוי', business: 'מספרת רון', docType: 'termination', parentContractId: 501, docNumber: 'AST-2025-090',
+    termination: { endDate: '2025-09-30', reason: 'סגירת הסניף' }, signers: [{ name: 'רון לוי', signature, signedAt: '2025-09-01T10:00:00.000Z', ip: '1.2.3.4' }],
+    signedAt: '2025-09-01T10:00:00.000Z', docHash: 'b'.repeat(64), status: 'נחתם',
+  };
+  const list = [contract, termination, { id: 503, clientId: 44, status: 'נשלח' }, { id: 504, clientId: 77, clientName: 'לקוח שלא יובא', status: 'נחתם' }];
+  const result = await importInPage(owner, list, (old) => (old === 44 ? V.id : null));
+  assert.deepEqual(result, { ok: [501, 502], skipped: [{ id: 504, clientId: 77, clientName: 'לקוח שלא יובא' }], failed: [] });
+  assert.deepEqual(db.legacy_contracts.map((r) => [r.id, r.client_id, r.doc_type]), [[501, V.id, 'contract'], [502, V.id, 'termination']]);
+  assert.doesNotMatch(JSON.stringify(db.legacy_contracts), /1\.2\.3\.4|Mozilla|050-1234567|512345678/);
+  // Again: the same two rows.
+  await importInPage(owner, [contract, termination], (old) => (old === 44 ? V.id : null));
+  assert.equal(db.legacy_contracts.length, 2);
+
+  // The card: one closed row with the count; opened, the newest signed first.
+  await owner.reload();
+  await owner.waitForSelector('#fold-legacy');
+  assert.equal((await owner.locator('#fold-legacy > summary').innerText()).replace(/\s+/g, ' ').trim(), 'חוזים מהמערכת הישנה 2 מסמכים');
+  await owner.locator('#fold-legacy > summary').click();
+  const rows = await owner.locator('#legacy-contracts .lc-row').evaluateAll((els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
+  assert.deepEqual(rows, ['סיום התקשרות AST-2025-090 נחתם 1.9.2025 רון לוי פתיחה', 'חוזה AST-2025-017 נחתם 2.3.2025 רון לוי ₪60,000 פתיחה']);
+  assert.ok(await noHScroll(owner));
+  const tooSmall = await owner.locator('#legacy-contracts a, #fold-legacy > summary').evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height < 44).length);
+  assert.equal(tooSmall, 0, '44px targets');
+  await owner.locator('#fold-legacy').scrollIntoViewIfNeeded();
+  if (OUT) await owner.locator('#fold-legacy').screenshot({ path: `${OUT}/office-18-legacy-card-390.png` });
+
+  // "פתיחה": the document, read-only, printable.
+  await owner.locator('#lc-501 .lc-open').click();
+  await owner.waitForURL(/legacy-contract\.html\?id=501$/);
+  await owner.waitForSelector('#lc-doc');
+  assert.equal(await owner.innerText('#lc-stamp'), 'מסמך מהמערכת הישנה · נחתם 2.3.2025 · חותמת abcdef012345');
+  const text = await owner.innerText('#lc-doc');
+  for (const want of ['הסכם התקשרות', 'AST-2025-017', 'רון לוי', 'מספרת רון', 'חבילת פרימיום', 'ניהול אינסטגרם וטיקטוק', 'קמפיין ממומן', '₪60,000', '₪5,000', 'הוראת קבע',
+    '12 תשלומים של ₪5,000 + מע״מ', 'בלעדיות', 'סרטון אחד באנגלית', 'הצילום בבוקר', 'החותם אישר: ״קראתי ואני מאשר את ההסכם״', 'DOC abcdef012345', 'SIG ffffffffffff']) assert.ok(text.includes(want), want);
+  assert.doesNotMatch(text, /1\.2\.3\.4|Mozilla|050-1234567|512345678/);
+  assert.match(await owner.getAttribute('.qd-sign-box.is-signed img', 'src'), /^data:image\/png;base64,/);
+  assert.equal(await owner.getAttribute('#lc-back', 'href'), `client.html?id=${V.id}`);
+  assert.equal(await owner.isVisible('#btn-print'), true);
+  assert.ok(await noHScroll(owner));
+  await shot(owner, 'office-19-legacy-doc-390');
+  await owner.emulateMedia({ media: 'print' });
+  assert.equal(await owner.isVisible('.cbar'), false, 'the bar is not printed');
+  await shot(owner, 'office-20-legacy-doc-print');
+  await owner.emulateMedia({ media: 'screen' });
+  // The termination: its details and the link to the contract it ends.
+  await owner.goto(`${BASE}legacy-contract.html?id=502`);
+  await owner.waitForSelector('#lc-doc');
+  assert.match(await owner.innerText('#lc-doc'), /סיום התקשרות[^]*פרטי סיום ההתקשרות[^]*30 בספטמבר 2025[^]*סגירת הסניף/);
+  assert.equal(await owner.getAttribute('.lc-parent a', 'href'), 'legacy-contract.html?id=501');
+  await shot(owner, 'office-21-legacy-termination-390');
+  // On the phone the bar keeps the way back and "הדפסה"; on a computer, the signing day too.
+  assert.equal((await owner.innerText('#btn-print')).trim(), 'הדפסה');
+  assert.equal(await owner.isVisible('#lc-kind'), false);
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  assert.equal((await owner.innerText('#btn-print')).replace(/\s+/g, ' ').trim(), 'הדפסה / שמירה כ־PDF');
+  assert.equal((await owner.innerText('#lc-kind')).trim(), 'נחתם 1 בספטמבר 2025');
+  await owner.goto(`${BASE}legacy-contract.html?id=501`);
+  await owner.waitForSelector('#lc-doc');
+  await shot(owner, 'office-22-legacy-doc-1280');
+  await wctx.close();
+
+  // An editor: no document, and no block.
+  const ectx = await newContext(THU, { width: 390, height: 844 });
+  const nadia = await newPage(ectx);
+  await signIn(nadia, `client.html?id=${V.id}`, 'nadia');
+  await nadia.waitForSelector('#cc-head h1');
+  assert.equal(await nadia.locator('#fold-legacy').count(), 0);
+  await nadia.goto(`${BASE}legacy-contract.html?id=501`);
+  await nadia.waitForFunction(() => /המסמך לא נמצא/.test(document.getElementById('state')?.textContent || ''));
+  assert.equal(await nadia.isVisible('#lc-doc'), false);
+  await ectx.close();
 });
 
 assert.deepEqual(errors, []);
