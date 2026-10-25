@@ -580,8 +580,21 @@ function applyAi(data) {
   state = selection;
   $('discount').value = String((state.discount || 0) / 100);
   syncCustomInputs();
+  // The customer's details from the text fill "פרטי הלקוח" (25.10.2026); a field already written is kept.
+  const cl = result.client || {};
+  const clientLines = [];
+  const clientChecks = [];
+  for (const [fid, key, label] of [['c-name', 'name', 'שם הלקוח'], ['c-company', 'company', 'שם העסק'], ['c-companyid', 'companyId', 'ח.פ / ע.מ'], ['c-phone', 'phone', 'טלפון'], ['c-email', 'email', 'אימייל']]) {
+    if (!cl[key]) continue;
+    const el = $(fid);
+    const now = el.value.trim();
+    if (now && now !== cl[key]) { clientChecks.push(`${label}: כבר כתוב ״${now}״, והטקסט אומר ״${cl[key]}״. לא שונה.`); continue; }
+    el.value = cl[key];
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    clientLines.push(`${label}: ${cl[key]}`);
+  }
   const dropped = [...(Array.isArray(data?.dropped) ? data.dropped : []), ...here].map((d) => d?.text).filter((t) => typeof t === 'string' && t);
-  renderAiResult({ summary, check: [...result.questions, ...skipped, ...dropped], notes: result.notes, kept: !!ai.runId });
+  renderAiResult({ summary: [...(clientLines.length ? [`פרטי הלקוח: ${clientLines.join(' · ')}`] : []), ...summary], check: [...result.questions, ...clientChecks, ...skipped, ...dropped], notes: result.notes, kept: !!ai.runId });
   update({});
 }
 
