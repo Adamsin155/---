@@ -12,9 +12,15 @@
 //
 // Who may call: the office only (public.is_office()), for every kind of quote, and
 // only from the office's own site (./http.js; security audit of 6.10.2026, ops.md 36).
+//
+// "הכנת חוזה עם AI" (25.10.2026, docs/ops.md, section 68): `aiRun: <run id>` from the contract-ai
+// function marks a new contract as prepared with AI, and it goes to the client without a manager's
+// approval (the owner's decision). The run must be the caller's own, successful, from the last
+// 24 hours and not used yet (aiRunProblem; the database checks it again): otherwise 409
+// 'ai run <problem>' and nothing is created. A corrected version (`revise`) keeps the approval.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateSelection, buildQuoteModel, normalizeSelection, exceptionOf } from '../_shared/app/pricing.js';
-import { corsHeaders, callerIsOffice } from './http.js';
+import { corsHeaders, callerIsOffice, aiRunProblem } from './http.js';
 
 // The new secret key when the project has one, else the legacy service-role key (as the other
 // functions do; the owner, 21.10.2026: with the legacy key the insert failed, "הפעולה לא הושלמה").
@@ -85,7 +91,7 @@ Deno.serve(async (req) => {
   // (explainError in app/supa.js), also in a page published before this change.
   if (!(await callerIsOffice((fn: string) => userClient.rpc(fn)))) return json(403, { error: 'not staff: quotes are prepared by the office' });
 
-  let selection, client, revise: string | null = null;
+  let selection, client, revise: string | null = null, aiRun: string | null = null;
   try {
     const body = await req.json();
     selection = cleanSelection(body.selection);
@@ -93,6 +99,11 @@ Deno.serve(async (req) => {
     if (body.revise !== undefined && body.revise !== null) {
       if (typeof body.revise !== 'string' || !UUID.test(body.revise)) throw new Error('invalid quote id');
       revise = body.revise;
+    }
+    if (body.aiRun !== undefined && body.aiRun !== null) {
+      if (typeof body.aiRun !== 'string' || !UUID.test(body.aiRun)) throw new Error('invalid ai run');
+      // A corrected version stays with the managers.
+      if (!revise) aiRun = body.aiRun;
     }
   } catch (e) {
     return json(400, { error: String((e as Error).message ?? e) });
@@ -115,6 +126,14 @@ Deno.serve(async (req) => {
     // { id, number, created_at, approval, version, token (only when it became a regular quote) }
     return json(200, revised.token ? revised : { ...revised, token: undefined });
   }
+  if (aiRun) {
+    const [{ data: run }, { count: usedBy }] = await Promise.all([
+      admin.from('contract_ai_runs').select('id, user_id, status, created_at').eq('id', aiRun).maybeSingle(),
+      admin.from('quotes').select('id', { count: 'exact', head: true }).eq('ai_run_id', aiRun),
+    ]);
+    const problem = aiRunProblem(run, user.id, usedBy ?? 0);
+    if (problem) return json(409, { error: `ai run ${problem}` });
+  }
   const { data, error } = await admin
     .from('quotes')
     .insert({
@@ -125,15 +144,22 @@ Deno.serve(async (req) => {
       created_by: user.id,
       created_by_email: user.email,
       ...(exceptions.length ? { exceptions } : {}),
+      ...(aiRun ? { prepared_by: 'ai', ai_run_id: aiRun } : {}),
     })
-    .select(exceptions.length ? 'id, token, number, created_at, approval' : 'id, token, number, created_at')
+    .select(exceptions.length || aiRun ? 'id, token, number, created_at, approval, prepared_by' : 'id, token, number, created_at')
     .single();
 
   // The database's own code and words go back to the office (the caller passed is_office above), so a
   // failure can be read instead of guessed (21.10.2026). Never the model or the client's details.
-  if (error) return json(500, { error: 'could not save quote', code: error.code ?? null, detail: String(error.message ?? '').slice(0, 300) });
-  if (!exceptions.length) return json(200, data);
+  if (error) {
+    // The same run sent twice at once: the database keeps one contract per run.
+    if (aiRun && error.code === '23505') return json(409, { error: 'ai run used' });
+    return json(500, { error: 'could not save quote', code: error.code ?? null, detail: String(error.message ?? '').slice(0, 300) });
+  }
+  if (!exceptions.length && !aiRun) return json(200, data);
+  const row = data as unknown as { id: string; token: string; number: string; created_at: string; approval: string; prepared_by: string | null };
   // Waiting for a manager: there is no link to send yet.
-  const row = data as unknown as { id: string; number: string; created_at: string; approval: string };
-  return json(200, { id: row.id, number: row.number, created_at: row.created_at, approval: row.approval });
+  if (row.approval === 'pending') return json(200, { id: row.id, number: row.number, created_at: row.created_at, approval: row.approval });
+  // Prepared with AI: the link at once, as a regular quote.
+  return json(200, { id: row.id, token: row.token, number: row.number, created_at: row.created_at, approval: row.approval, prepared_by: row.prepared_by });
 });

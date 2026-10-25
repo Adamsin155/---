@@ -10,6 +10,8 @@ import {
 } from './pricing.js';
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
 import { iconSquare, headIcon, noteIcon } from './kit.js';
+// "הכנת חוזה עם AI" (docs/ops.md, section 68): the result set on the builder, and its tags.
+import { validateAiResult, applyAiResult, aiMarksOf, AI_TEXT_MAX } from './contract-ai-logic.js';
 // The sign-in form's look and its button with the door (docs/ops.md, section 51).
 import { loginDoor } from './login-ui.js';
 
@@ -36,6 +38,16 @@ const REVISE_PARAM = new URLSearchParams(location.search).get('revise');
 let reviseId = null;
 // "חוזה מותאם אישית" is the office's (the server refuses it from anyone else).
 let office = false;
+// "הכנת חוזה עם AI" (the owner, 25.10.2026): the preparation that filled this contract,
+// { runId, marks }. `runId` (the contract-ai function's record) is what sends the contract to
+// the client without a manager's approval, the owner's decision, also after Irit changed things
+// by hand; `marks` holds the value each field got, for the "מולא אוטומטית" tags (a field changed
+// by hand loses its tag). Null: a contract filled by hand, with the approval as always.
+let ai = null;
+let aiLive = new Set();
+const aiTag = () => h('span', { class: 'tag tag-ai' }, 'מולא אוטומטית');
+// A new contract prepared with AI goes without approval; a corrected version stays with the managers.
+const aiSkipsApproval = () => !!ai?.runId && !reviseId;
 // The builder is for whoever builds a contract (canBuildQuote in app/manager-rules.js: the
 // owners, Irit, Lior, Ofir). A signed-in member of staff who is not one of them gets
 // "אין לך גישה לעמוד הזה" with the way back to their own screen, and nothing of the builder.
@@ -80,6 +92,7 @@ function renderInfluencers() {
         h('span', { class: 'inf-text' },
           h('span', { class: 'inf-name' }, inf.name),
           h('span', { class: 'inf-sub' }, '3 חבילות זמינות'),
+          on && aiLive.has('package') ? aiTag() : null,
         ),
         h('span', { class: 'radio-dot', 'aria-hidden': 'true' }),
       ),
@@ -120,6 +133,7 @@ function renderTiers() {
             h('span', { class: 'per' }, 'לחודש · לפני מע״מ'),
           ),
           h('div', { class: 'tier-term', dir: 'rtl' }, h('span', { dir: 'ltr' }, formatILS(pkg.price * TERM_MONTHS)), ' ל־12 חודשים'),
+          state.tier === tier.id && aiLive.has('package') ? aiTag() : null,
         ),
         h('ul', { class: 'specs' }, SPEC_ROWS.map((r) => specRow(r, specs[r.key]))),
       ),
@@ -156,9 +170,10 @@ function renderPaid() {
   $('paid').replaceChildren(...available.map((a) => {
     const on = state.paid.includes(a.id);
     const id = `paid-${a.id}`;
-    return h('label', { class: 'tile' + (on ? ' is-on' : ''), for: id },
+    const byAi = aiLive.has(`paid:${a.id}`);
+    return h('label', { class: 'tile' + (on ? ' is-on' : '') + (byAi ? ' is-ai' : ''), for: id },
       h('span', { class: 'tile-head' },
-        h('span', { class: 'tile-title' }, a.name),
+        h('span', { class: 'tile-title' }, a.name, byAi ? aiTag() : null),
         h('input', {
           type: 'checkbox', class: 'cbox', id, checked: on,
           onchange: (e) => togglePaid(a.id, e.target.checked),
@@ -204,9 +219,10 @@ function stepper(key, def) {
 function toggleTile(key, def, badge) {
   const id = `free-${key}`;
   const on = state.free[key];
-  return h('label', { class: 'tile' + (on ? ' is-on' : ''), for: id },
+  const byAi = aiLive.has(`free:${key}`);
+  return h('label', { class: 'tile' + (on ? ' is-on' : '') + (byAi ? ' is-ai' : ''), for: id },
     h('span', { class: 'tile-head' },
-      h('span', { class: 'tile-title' }, def.name, badge ? h('span', { class: 'tag tag-warn' }, badge) : null),
+      h('span', { class: 'tile-title' }, def.name, badge ? h('span', { class: 'tag tag-warn' }, badge) : null, byAi ? aiTag() : null),
       h('span', { class: 'switch' },
         h('input', {
           type: 'checkbox', role: 'switch', id, checked: on,
@@ -224,9 +240,10 @@ function toggleTile(key, def, badge) {
 }
 
 function quantityTile(key, def, detail) {
-  return h('div', { class: 'tile' + (state.free[key] > 0 ? ' is-on' : '') },
+  const byAi = aiLive.has(`free:${key}`);
+  return h('div', { class: 'tile' + (state.free[key] > 0 ? ' is-on' : '') + (byAi ? ' is-ai' : '') },
     h('span', { class: 'tile-head' },
-      h('label', { class: 'tile-title', for: `free-${key}` }, def.name),
+      h('label', { class: 'tile-title', for: `free-${key}` }, def.name, byAi ? aiTag() : null),
       h('span', { class: 'tag tag-free' }, 'ללא עלות'),
     ),
     h('span', { class: 'tile-detail' }, detail),
@@ -305,7 +322,9 @@ function renderSummary() {
   }
   const diff = exceptionOf(model.selection);
   $('sum-diff').hidden = !diff.length;
-  $('sum-diff').replaceChildren(...(diff.length ? [h('strong', {}, 'חוזה חריג'), ` · ${diff.length === 1 ? 'שינוי אחד' : `${diff.length} שינויים`} מהחבילה · נשלח לאישור מנהל לפני הלקוח`] : []));
+  $('sum-diff').classList.toggle('is-ai', diff.length > 0 && aiSkipsApproval());
+  $('sum-diff').replaceChildren(...(diff.length ? [h('strong', {}, 'חוזה חריג'), ` · ${diff.length === 1 ? 'שינוי אחד' : `${diff.length} שינויים`} מהחבילה · `
+    + (aiSkipsApproval() ? 'הוכן עם AI: נשלח ללקוח בלי אישור מנהל' : 'נשלח לאישור מנהל לפני הלקוח')] : []));
   return t;
 }
 
@@ -322,14 +341,18 @@ function renderDocType() {
   $('page-h1').textContent = signable ? 'הסכם התקשרות חדש' : 'הצעת מחיר חדשה';
   document.title = `${signable ? 'הסכם התקשרות' : 'הצעת מחיר'} · astrateg`;
   $('sum-doc').textContent = doc.name;
-  // A contract that differs from the built-in rules goes to a manager first: no link yet.
-  const exceptional = exceptionOf(selectionToSend()).length > 0;
+  // A contract that differs from the built-in rules goes to a manager first: no link yet. Prepared
+  // with AI and reviewed here, it goes to the client at once (the owner's decision, 25.10.2026).
+  const differs = exceptionOf(selectionToSend()).length > 0;
+  const exceptional = differs && !aiSkipsApproval();
   $('btn-link').textContent = exceptional ? 'שליחה לאישור' : signable ? 'יצירת קישור לחתימה' : 'יצירת קישור לצפייה';
   $('act-hint').textContent = exceptional
     ? 'חוזה חריג: נשלח לאישור של אדם, אופיר או ליאור · הקישור ללקוח נוצר אחרי האישור'
-    : signable
-      ? 'הלקוח קורא את ההסכם וחותם אונליין · נשמר ב״הצעות שנשלחו״'
-      : 'הלקוח צופה בהצעה, בלי חתימה · נשמר ב״הצעות שנשלחו״';
+    : differs
+      ? 'הוכן עם AI: אחרי שבדקת, הקישור נוצר מיד, בלי אישור מנהל · נשמר ב״הצעות שנשלחו״'
+      : signable
+        ? 'הלקוח קורא את ההסכם וחותם אונליין · נשמר ב״הצעות שנשלחו״'
+        : 'הלקוח צופה בהצעה, בלי חתימה · נשמר ב״הצעות שנשלחו״';
   document.querySelectorAll('#doc-switch [data-doc]').forEach((b) => {
     b.setAttribute('aria-checked', String(b.dataset.doc === state.docType));
   });
@@ -383,8 +406,9 @@ function customStepper(q, base) {
     if (v === base) delete qty[q.key]; else qty[q.key] = v;
     update({ custom: { ...state.custom, qty } }, { focus });
   };
-  return h('div', { class: 'custom-q' + (value !== base ? ' is-changed' : '') },
-    h('label', { for: id }, q.name),
+  const byAi = aiLive.has(`q:${q.key}`);
+  return h('div', { class: 'custom-q' + (value !== base ? ' is-changed' : '') + (byAi ? ' is-ai' : '') },
+    h('label', { for: id }, q.name, byAi ? aiTag() : null),
     h('span', { class: 'stepper', dir: 'ltr' },
       h('button', { type: 'button', id: `${id}-dec`, 'aria-label': `הפחתת ${q.name}`, disabled: value <= min, onclick: () => set(value - 1, `${id}-dec`) }, '−'),
       h('input', {
@@ -435,6 +459,12 @@ function syncCustomInputs() {
 function renderCustom() {
   const group = $('custom-group');
   group.hidden = !office;
+  // "הכנת חוזה עם AI" is for a new contract (a corrected version stays as it was sent for approval).
+  $('ai-box').hidden = !!reviseId;
+  $('disc-ai').hidden = !aiLive.has('discount');
+  $('discount').closest('.discount-input')?.classList.toggle('is-ai', aiLive.has('discount'));
+  for (const [key, tag] of [['price', 'custom-price-ai'], ['term', 'custom-term-ai'], ['lines', 'custom-lines-ai'], ['terms', 'custom-terms-ai']]) $(tag).hidden = !aiLive.has(key);
+  $('custom-terms').classList.toggle('is-ai', aiLive.has('terms'));
   const on = customOn();
   group.classList.toggle('is-on', on);
   $('custom-on').checked = on;
@@ -463,7 +493,9 @@ function renderCustom() {
       ? h('ul', { id: 'custom-diff-list' }, diff.map((d) => h('li', {}, d.text)))
       : h('p', {}, 'אין שינוי מהחבילה: זה חוזה רגיל, והוא נשלח ללקוח בלי אישור.'),
     // (replaceChildren would print a null as the word 'null'.)
-    ...(diff.length ? [h('p', { class: 'needs' }, 'נדרש אישור של אדם, אופיר או ליאור לפני שהלקוח מקבל את החוזה.')] : []),
+    ...(diff.length ? [aiSkipsApproval()
+      ? h('p', { class: 'needs is-ai' }, 'הוכן עם AI: אחרי שבדקת, החוזה נשלח ללקוח בלי אישור מנהל.')
+      : h('p', { class: 'needs' }, 'נדרש אישור של אדם, אופיר או ליאור לפני שהלקוח מקבל את החוזה.')] : []),
   );
 }
 
@@ -504,7 +536,99 @@ $('custom-add-line').addEventListener('click', () => {
   $(`cl-label-${lines.length - 1}`).focus();
 });
 
+/* ── "הכנת חוזה עם AI" (the owner, 25.10.2026; docs/ops.md, section 68) ──
+   Irit writes the deal in her own words and presses the button; the contract-ai function answers
+   with the builder's own settings (checked against the catalog). They are set on the builder the
+   way its controls set them, through update() (the package, the add-ons, then the custom
+   contract's quantities, price, term, lines, special terms and the discount): the totals and the
+   rules stay the pricing engine's. Each field that was filled carries "מולא אוטומטית", the panel
+   says what was set and what to check ("צריך לבדוק:"), and nothing is sent anywhere: she reviews,
+   previews and creates the link as always. */
+const AI_ERRORS = {
+  ai_not_configured: 'החיבור ל־AI עוד לא הוגדר',
+  rate_limited: 'היו הרבה בקשות בדקה האחרונה. אפשר לנסות שוב בעוד דקה.',
+  ai_timeout: 'ה־AI לא ענה בזמן. אפשר לנסות שוב, או למלא ידנית.',
+  ai_busy: 'ה־AI עמוס כרגע. אפשר לנסות שוב בעוד רגע, או למלא ידנית.',
+  text_too_long: `הטקסט ארוך מדי: עד ${AI_TEXT_MAX} תווים.`,
+  text_required: 'רשמו קודם את פרטי העסקה.',
+};
+const AI_FAILED = 'לא הצלחנו להכין את החוזה. אפשר לנסות שוב, או למלא ידנית.';
+function aiQuiet(text) {
+  $('ai-quiet').textContent = text || '';
+  $('ai-quiet').hidden = !text;
+}
+
+function renderAiResult({ summary, check, notes, kept }) {
+  $('ai-result').replaceChildren(
+    h('h4', {}, 'מה מולא'),
+    h('ul', { id: 'ai-summary' }, summary.map((s) => h('li', {}, s))),
+    // (replaceChildren would print a null as the word 'null'.)
+    ...(notes ? [h('p', { class: 'ai-notes' }, notes)] : []),
+    ...(check.length ? [h('h4', { class: 'ai-check-h' }, 'צריך לבדוק:'), h('ul', { id: 'ai-check' }, check.map((s) => h('li', {}, s)))] : []),
+    h('p', { class: 'ai-flag' }, kept
+      ? 'השדות שמולאו מסומנים ״מולא אוטומטית״. אחרי שבדקת, החוזה נשלח ללקוח בלי אישור מנהל.'
+      : 'השדות שמולאו מסומנים ״מולא אוטומטית״. ההכנה לא נשמרה במערכת, ולכן חוזה ששונה מהחבילה יישלח לאישור מנהל.'),
+  );
+  $('ai-result').hidden = false;
+}
+
+function applyAi(data) {
+  // Checked again here: the builder takes only what its own controls could set.
+  const { result, dropped: here } = validateAiResult(data?.result);
+  const { selection, marks, summary, skipped } = applyAiResult(state, result);
+  ai = { runId: typeof data?.runId === 'string' ? data.runId : null, marks };
+  state = selection;
+  $('discount').value = String((state.discount || 0) / 100);
+  syncCustomInputs();
+  const dropped = [...(Array.isArray(data?.dropped) ? data.dropped : []), ...here].map((d) => d?.text).filter((t) => typeof t === 'string' && t);
+  renderAiResult({ summary, check: [...result.questions, ...skipped, ...dropped], notes: result.notes, kept: !!ai.runId });
+  update({});
+}
+
+let aiAsking = false;
+$('ai-text').addEventListener('input', () => { aiQuiet(''); saveDraft(); });
+$('ai-go').addEventListener('click', async (e) => {
+  if (aiAsking) return;
+  const btn = e.currentTarget;
+  const text = $('ai-text').value.trim();
+  aiQuiet('');
+  if (!text) { aiQuiet(AI_ERRORS.text_required); $('ai-text').focus(); return; }
+  if (text.length > AI_TEXT_MAX) { aiQuiet(AI_ERRORS.text_too_long); $('ai-text').focus(); return; }
+  aiAsking = true;
+  busy(btn, true, 'מכין את החוזה…');
+  let done = false;
+  try {
+    const s = await getSupa();
+    const ask = () => s.supabase.functions.invoke('contract-ai', { body: { text } });
+    let { data, error } = await ask();
+    // A sign-in that went stale on this device: renew it once, as the link does.
+    if (error && error.context?.status === 401) {
+      const { error: refreshError } = await s.supabase.auth.refreshSession();
+      if (refreshError && !(await askLogin())) throw new Error('not signed in');
+      ({ data, error } = await ask());
+    }
+    if (error) {
+      let code = '';
+      try { code = String((await error.context.json()).error || ''); } catch { /* no body */ }
+      aiQuiet(AI_ERRORS[code] || (/not staff/.test(code) ? 'הכנת חוזה עם AI זמינה למשרד בלבד.' : AI_FAILED));
+      return;
+    }
+    if (!data?.result || typeof data.result !== 'object') { aiQuiet(AI_FAILED); return; }
+    applyAi(data);
+    done = true;
+  } catch (err) {
+    const s = await getSupa().catch(() => null);
+    aiQuiet(s ? s.explainError(err) : 'אין חיבור לשרת.');
+  } finally {
+    aiAsking = false;
+    busy(btn, false);
+    // What was set is read first (the panel takes the focus, the page stays where it is).
+    if (done) $('ai-result').focus({ preventScroll: true });
+  }
+});
+
 function render({ focus } = {}) {
+  aiLive = ai ? aiMarksOf(state, ai.marks) : new Set();
   renderDocType();
   renderInfluencers();
   renderTiers();
@@ -562,7 +686,7 @@ function saveDraft() {
   if (document.body.classList.contains('is-choosing')) return;
   try {
     const client = Object.fromEntries(CLIENT_FIELDS.map((id) => [id, $(id).value]));
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ state, client, dealId, reviseId }));
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ state, client, dealId, reviseId, ai, aiText: $('ai-text').value }));
   } catch { /* storage unavailable */ }
 }
 function restoreDraft(forDeal = null, forRevise = null) {
@@ -576,6 +700,10 @@ function restoreDraft(forDeal = null, forRevise = null) {
     const { selection } = reconcile({ ...emptySelection(), ...draft.state, free: { ...emptySelection().free, ...draft.state.free } });
     state = selection;
     if (state.custom === null || typeof state.custom !== 'object') delete state.custom;
+    const a = draft.ai;
+    ai = a && typeof a === 'object' && a.marks && typeof a.marks === 'object'
+      ? { runId: typeof a.runId === 'string' ? a.runId : null, marks: a.marks } : null;
+    $('ai-text').value = typeof draft.aiText === 'string' ? draft.aiText : '';
     for (const id of CLIENT_FIELDS) if (typeof draft.client?.[id] === 'string') $(id).value = draft.client[id];
     $('discount').value = String((state.discount || 0) / 100);
     syncCustomInputs();
@@ -893,8 +1021,9 @@ async function createLink(btn) {
   busy(btn, true, 'יוצר קישור…');
   try {
     const s = await getSupa();
+    // Prepared with AI: the run goes with it, and the contract goes without a manager's approval.
     const send = () => s.supabase.functions.invoke('create-quote', {
-      body: { selection: selectionToSend(), client: readClient(), ...(reviseId ? { revise: reviseId } : {}) },
+      body: { selection: selectionToSend(), client: readClient(), ...(reviseId ? { revise: reviseId } : {}), ...(aiSkipsApproval() ? { aiRun: ai.runId } : {}) },
     });
     let { data, error } = await send();
     // A sign-in that went stale on this device (the owner, 21.10.2026: "יש להתחבר מחדש" while the
@@ -910,6 +1039,9 @@ async function createLink(btn) {
       try { detail = new Error((await error.context.json()).error); } catch { /* keep original */ }
       throw detail;
     }
+    // The AI preparation prepared this contract: it is used (one run, one contract). What is on
+    // the screen stays; sending it again would be a contract by hand.
+    if (aiSkipsApproval()) { ai = null; render(); saveDraft(); }
     // An exceptional contract: stored, waiting for a manager. There is no link yet.
     if (data.approval === 'pending') {
       if (dealId) {
@@ -960,6 +1092,15 @@ async function createLink(btn) {
   } catch (err) {
     const s = await getSupa().catch(() => null);
     const msg = String(err?.message || err || '');
+    // The AI preparation is no longer good (older than 24 hours, or already sent): the contract
+    // stays as it is, now as one by hand.
+    if (/^ai run (expired|used|not found)$/.test(msg) && ai) {
+      ai = { ...ai, runId: null };
+      render();
+      saveDraft();
+      toast('ההכנה עם AI כבר לא בתוקף (עברו 24 שעות, או שכבר נשלח ממנה חוזה). החוזה נשאר כמו שהוא: אפשר ללחוץ שוב על ״הכנת חוזה עם AI״, או לשלוח לאישור מנהל.');
+      return;
+    }
     toast(/custom contracts are prepared by the office/.test(msg) ? 'חוזה מותאם אישית מכינים במשרד בלבד.'
       : /can no longer be changed/.test(msg) ? 'אי אפשר לשנות את החוזה הזה יותר (נחתם או בוטל).'
         : s ? s.explainError(err) : 'אין חיבור לשרת.');

@@ -16,7 +16,7 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'files-logic.js', 'gcal-logic.js', 'handoffs.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'metricool-logic.js', 'office-marks.js', 'pricing.js',
+    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'files-logic.js', 'gcal-logic.js', 'handoffs.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'metricool-logic.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
     'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
@@ -53,6 +53,20 @@ test('create-quote imports only the shared copy, never the repository', () => {
   assert.deepEqual([...localImports('create-quote', 'http.js')], []);
 });
 
+test('contract-ai imports only its handler and the shared copy; the key never leaves the environment', () => {
+  const files = new Set(['index.ts', 'handler.js'].flatMap((f) => [...localImports('contract-ai', f)]));
+  assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')), ['contract-ai/handler.js']);
+  for (const f of files) if (f.startsWith('_shared/app/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
+  const src = readFileSync(join(FUNCTIONS, 'contract-ai/index.ts'), 'utf8') + readFileSync(join(FUNCTIONS, 'contract-ai/handler.js'), 'utf8');
+  // The SDK pinned to an exact release; the key read once, never logged or answered.
+  assert.match(src, /from 'npm:@anthropic-ai\/sdk@\d+\.\d+\.\d+'/);
+  assert.equal(src.match(/ANTHROPIC_API_KEY'\)/g).length, 1);
+  assert.doesNotMatch(src, /log\([^)]*apiKey/);
+  assert.doesNotMatch(src, /json\([^)]*apiKey/);
+  // The gateway checks the caller's token too (verify_jwt stays on, as create-quote).
+  assert.doesNotMatch(readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8'), /\[functions\.contract-ai\]/);
+});
+
 test('the reminders function imports only its own files and the shared copy', () => {
   const files = new Set(['index.ts', 'tick.js', 'webpush.js', 'http.js', 'wa-server.ts', 'whatsapp.js', 'wa-poll.js'].flatMap((f) => [...localImports('reminders', f)]));
   assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), [
@@ -87,6 +101,12 @@ const DEPLOY = {
     ...APP('files-logic.js'),
     'client-media/index.ts',
     'client-media/media.js',
+  ],
+  // "הכנת חוזה עם AI" (docs/ops.md, section 68): the prompt and the check of the answer, from app/.
+  'contract-ai': [
+    ...APP('catalog.js', 'contract-ai-logic.js', 'legal.js', 'pricing.js'),
+    'contract-ai/handler.js',
+    'contract-ai/index.ts',
   ],
   'create-quote': [
     ...APP('catalog.js', 'legal.js', 'pricing.js'),

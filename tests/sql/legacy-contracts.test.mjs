@@ -1,7 +1,7 @@
 // supabase/migrations/20261105100000_legacy_contracts.sql in a real Postgres with every
 // migration (tests/sql/pg.mjs): the signed documents of the old system (astrateg-crm), each
 // in its client's card (the owner's request of 25.10.2026).
-//   - the file is the newest, only adds (none of the three words the production tool refuses)
+//   - the file only adds (none of the three words the production tool refuses)
 //     and runs twice;
 //   - only the owner imports, through public.legacy_contract_import(); again on the same old
 //     id changes the same row; the client must be there; the type and the signature are checked;
@@ -71,8 +71,9 @@ const imp = (who, client, doc) => keep(who, 'select public.legacy_contract_impor
 const read = (who) => as(db, who ? users[who] : null, async (tx) => (await tx.query('select id, client_id, doc_type, doc_number, signer_name from public.legacy_contracts order by id')).rows);
 const stored = async (id) => (await db.query('select * from public.legacy_contracts where id = $1', [id])).rows[0];
 
-test('the file: the newest, only adds, and runs twice', async () => {
-  assert.equal(migrationFiles().at(-1), FILE);
+test('the file: only adds, and runs twice', async () => {
+  // After it only "הכנת חוזה עם AI" (20261106100000_contract_ai.sql, 25.10.2026), which does not touch these documents.
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261106100000_contract_ai.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));

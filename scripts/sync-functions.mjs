@@ -22,11 +22,12 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 //   gcal-logic.js                      calendar (reading the staff's own Google calendars)
 //   files-logic.js                     client-media (the client's gallery and graphics)
 //   metricool-logic.js                 metricool (Metricool's planner onto the content Gantt)
-export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js'];
+//   contract-ai-logic.js               contract-ai ("הכנת חוזה עם AI": the prompt, the check of the answer)
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js'];
 
 // Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
 // the folder has no other, and what each one deploys).
-export const FUNCTIONS = ['calendar', 'client-media', 'create-quote', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook'];
+export const FUNCTIONS = ['calendar', 'client-media', 'contract-ai', 'create-quote', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook'];
 export const FUNCTIONS_DIR = join(ROOT, 'supabase/functions');
 
 export const MARK = '// generated — edit app/ instead.';

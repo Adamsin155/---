@@ -312,7 +312,7 @@ test('anon runs nothing of it; the tables have row level security; the three mig
 test('20261102100000_gantt_irit.sql: the newest, none of the refused words, runs twice; Irit edits rows but connects no brand', async () => {
   const FILE = '20261102100000_gantt_irit.sql';
   // After it only the editors' monthly count (20261104100000_editor_progress_month.sql, 22.10.2026) and the old system's signed documents (20261105100000_legacy_contracts.sql, 25.10.2026), not the Gantt's.
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql']);
   const sql = migrationSql(FILE);
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);

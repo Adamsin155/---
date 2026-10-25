@@ -1,0 +1,432 @@
+// generated — edit app/ instead. Source: app/contract-ai-logic.js. Regenerate: node scripts/sync-functions.mjs
+// "הכנת חוזה עם AI" (the owner's request, 25.10.2026; docs/ops.md, section 68). Irit writes the
+// deal in her own words, e.g. "חבילה נטלי 3500, 20 סרטונים במקום 25, בלי Highlights, 12 חודשים,
+// 2 ימי צילום"; the contract-ai edge function asks Claude for the builder's own settings as strict
+// JSON, and the builder fills itself as if she had set it by hand. This module is the pure part
+// that the builder and the edge function share (a copy runs on the server:
+// supabase/functions/_shared/app/, node scripts/sync-functions.mjs):
+//   systemPrompt()      what the builder offers, generated from app/catalog.js (the packages with
+//                       their keys, prices and quantities, the add-ons, the quantities that change
+//                       by hand with their limits, the term, the discount rules), and how to answer:
+//                       never a price that was not written, a question for anything unclear;
+//   RESULT_SCHEMA       the JSON the model must answer with (structured outputs);
+//   validateAiResult()  the answer checked against the catalog: unknown keys dropped, numbers
+//                       clamped to the limits, with the list of what was dropped or changed;
+//   applyAiResult()     the builder's selection with the result set the way the builder's own
+//                       controls set it (the package, the add-ons, then "חוזה מותאם אישית": the
+//                       quantities, the price, the term, added lines, special terms, the discount),
+//                       with a line per setting for the summary and the values behind the
+//                       "מולא אוטומטית" tags;
+//   aiMarksOf()         which of those tags still hold (a field Irit changed afterwards loses it).
+// The totals and the approval rules stay the pricing engine's (app/pricing.js). Nothing here
+// talks to the network, and nothing here decides a price: a price is either the one written in
+// the text or the package's own.
+import {
+  VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS,
+  MAX_DISCOUNT, CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS, packageId,
+} from './catalog.js';
+import {
+  emptySelection, reconcile, baseQuantities, computeTotals, normalizeSelection,
+  paidAddonAvailable, freeAddonAvailable, formatILS,
+} from './pricing.js';
+
+// The longest text the office may send (the database keeps it with the run).
+export const AI_TEXT_MAX = 2000;
+// The limits of what the answer may carry (the builder's own limits where it has them).
+export const AI_LIMITS = {
+  clauses: 12, clause: 300, questions: 8, question: 300, notes: 500, minPrice: 10000,
+};
+
+export const PACKAGE_KEYS = Object.keys(PACKAGES);
+export const QTY_KEYS = CUSTOM_QTY.map((q) => q.key);
+export const PAID_IDS = PAID_ADDONS.map((a) => a.id);
+export const FREE_KEYS = ['graphics', 'simeonStories', 'simeonJoin', 'extraCh14'];
+const FREE_NUMBERS = { graphics: FREE_ADDONS.graphics.max, simeonStories: FREE_ADDONS.simeonStories.max };
+// What the model may name in `removals`: a quantity of the contract that goes to 0 (the monthly
+// photographer's contents cannot be 0: that add-on is simply not chosen).
+const REMOVABLE = CUSTOM_QTY.filter((q) => !q.min).map((q) => q.key);
+
+const tierOf = (id) => TIERS.find((t) => t.id === id);
+const qtyDef = (key) => CUSTOM_QTY.find((q) => q.key === key);
+const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const BIDI = /[‎‏‪-‮⁦-⁩]/g;
+const cleanLine = (v) => String(v ?? '').replace(BIDI, '').replace(/\s+/g, ' ').trim();
+// Shekels with a thousands comma, the same in every runtime (the prompt must never change by itself).
+const ils = (agorot) => `${String(Math.round(agorot / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} ₪`;
+const wholeShekels = (agorot) => Math.round(agorot / 100) * 100;
+
+/* ── The prompt ─────────────────────────────── */
+
+const ELIGIBILITY = {
+  all: 'any package',
+  natali: `only packages with ${INFLUENCERS.natali.name}`,
+  'simeon-social': `only the Social and Social + TV packages with ${INFLUENCERS.simeon.name}`,
+};
+
+// What the builder offers, from the catalog itself (a change in app/catalog.js changes the prompt).
+export function catalogText() {
+  const packages = PACKAGE_KEYS.map((key) => {
+    const p = PACKAGES[key];
+    const tier = tierOf(p.tier);
+    const q = baseQuantities({ tier: p.tier, influencer: p.influencer, paid: [] });
+    const lines = p.includes.map((i) => (i.qty === null ? `- ${i.label}` : `- ${i.qty} ${i.label}`)).join('\n');
+    return [
+      `### \`${key}\`: ${tier.name} (${tier.short}) with ${INFLUENCERS[p.influencer].name}, ${ils(p.price)} a month`,
+      lines,
+      `Quantities: ${QTY_KEYS.filter((k) => k !== 'monthly').map((k) => `${k} ${q[k]}`).join(', ')}`,
+    ].join('\n');
+  }).join('\n\n');
+  const paid = PAID_ADDONS.map((a) => `- \`${a.id}\`: ${a.name}, ${ils(a.price)} a month, ${ELIGIBILITY[a.eligibility]}. ${a.detail}`).join('\n');
+  const free = [
+    `- \`graphics\`: ${FREE_ADDONS.graphics.name}, a number 0–${FREE_ADDONS.graphics.max} on top of the package's graphics.`,
+    `- \`simeonStories\`: ${FREE_ADDONS.simeonStories.name}, a number 0–${FREE_ADDONS.simeonStories.max}; only Social and Social + TV with ${INFLUENCERS.simeon.name}, or a ${INFLUENCERS.natali.name} package with simeonJoin.`,
+    `- \`simeonJoin\`: ${FREE_ADDONS.simeonJoin.name}, true or false; only ${INFLUENCERS.natali.name} packages. ${FREE_ADDONS.simeonJoin.detail}`,
+    `- \`extraCh14\`: ${FREE_ADDONS.extraCh14.name}, true or false (${FREE_ADDONS.extraCh14.detail}).`,
+  ].join('\n');
+  const qty = CUSTOM_QTY.map((q) => `- \`${q.key}\`: ${q.name}, ${q.min || 0}–${q.max}`
+    + (q.addon ? ` (only with the \`${q.addon}\` add-on; ${MONTHLY_CONTENTS} by default)` : '')).join('\n');
+  return [
+    '## Packages',
+    `A package is a tier with an influencer. Prices are monthly, in shekels, before VAT (${VAT_RATE_PERCENT}%). Quantities are for the whole contract.`,
+    packages,
+    '## Paid add-ons (on top of the package price)',
+    paid,
+    '## Free add-ons (no price)',
+    free,
+    '## Quantities of the package that can be changed (key: name, allowed range, for the whole contract)',
+    qty,
+    '## Term',
+    `${TERM_MONTHS} months unless the deal says otherwise; ${CUSTOM_LIMITS.termMin}–${CUSTOM_LIMITS.termMax} months.`,
+    '## Price and discount',
+    `- The package's monthly price before VAT can be set by hand, up to ${ils(CUSTOM_LIMITS.priceMax)}.`,
+    `- A monthly discount before VAT: up to ${ils(MAX_DISCOUNT)} is regular; a larger one is allowed in a custom contract. It can never be more than the monthly price.`,
+    '## Extra lines',
+    `Things that are sold but are in no package (for example "אתר תדמית"): up to ${CUSTOM_LIMITS.lines} lines, each a label of up to ${CUSTOM_LIMITS.lineLabel} characters, an optional quantity and an optional monthly price.`,
+    '## Special terms',
+    'Short clauses in Hebrew printed at the end of the agreement, for anything agreed that has no setting of its own: something left out that is not a quantity above (for example "ללא Highlights"), payment, exit or exclusivity terms.',
+  ].join('\n\n');
+}
+
+const RULES = `# How to answer
+Fill the settings the way the office would by hand, using only the options above. Set only what the text says; leave everything else null or empty, and the builder keeps the package's own values.
+- package: the key of the package the text describes. "N במקום M" means M is the package's own quantity, so use it to tell the packages apart (for example "20 סרטונים במקום 25" points to a package with 25 videos). A price written in the text is not a reason to pick a package. If the package cannot be told, use null and ask.
+- months: only when the text states the term.
+- quantities: only the quantities the text changes, each as the new number for the whole contract ("2 ימי צילום" means shootDays 2). Everything else null.
+- removals: keys of the quantities above that the text leaves out ("בלי קולאב" means collabs). Something that is not one of these quantities goes to specialClauses instead.
+- addons and freeAddons: only what the text asks for.
+- monthlyPrice: only when the text states a price. A price written in the deal is the package's monthly price before VAT, in agorot (3500 means 350000), unless the text says it includes VAT (then priceIncludesVat is true and the number is given as written). If the price may be for the whole term, or may include the add-ons, keep it as written and ask. Never compute, round or guess a price, and never fill in a price the text does not state.
+- discount: a monthly discount before VAT in agorot, only when the text states an amount; discountPercent when it states a percentage.
+- extraLines: things that are sold but are in no package; a monthly price only when the text states one.
+- specialClauses: short Hebrew sentences for the agreement, one per clause.
+- questions: short Hebrew questions to the office about anything unclear, missing or contradictory (a number without what it counts, two possible packages, a price that may include VAT, an add-on the package does not allow). Ask rather than guess.
+- notes: one short Hebrew sentence for the office about the result, or null.
+Write every text for the office in Hebrew.`;
+
+let PROMPT = null;
+// The system prompt: the same text on every call (no date, nothing per request), so it is cached.
+export function systemPrompt() {
+  PROMPT ??= [
+    'You turn a deal that the office of Astrateg, an Israeli social media agency, wrote in free Hebrew into the settings of its contract builder. You never invent anything the text does not say.',
+    '# The builder\'s options',
+    catalogText(),
+    RULES,
+  ].join('\n\n');
+  return PROMPT;
+}
+
+// The user turn: the office's words, marked as data.
+export function userMessage(text) {
+  return `פרטי העסקה כפי שנרשמו במשרד:\n<deal>\n${String(text ?? '')}\n</deal>`;
+}
+
+/* ── The answer's shape (structured outputs) ── */
+
+const nullable = (schema) => ({ anyOf: [schema, { type: 'null' }] });
+const INT = { type: 'integer' };
+const object = (properties) => ({ type: 'object', additionalProperties: false, required: Object.keys(properties), properties });
+
+export const RESULT_SCHEMA = object({
+  package: nullable({ type: 'string', enum: PACKAGE_KEYS }),
+  months: nullable(INT),
+  quantities: object(Object.fromEntries(QTY_KEYS.map((k) => [k, nullable(INT)]))),
+  removals: { type: 'array', items: { type: 'string', enum: REMOVABLE } },
+  addons: { type: 'array', items: { type: 'string', enum: PAID_IDS } },
+  freeAddons: object({ graphics: nullable(INT), simeonStories: nullable(INT), simeonJoin: nullable({ type: 'boolean' }), extraCh14: nullable({ type: 'boolean' }) }),
+  monthlyPrice: nullable(INT),
+  priceIncludesVat: { type: 'boolean' },
+  discount: nullable(INT),
+  discountPercent: nullable({ type: 'number' }),
+  extraLines: { type: 'array', items: object({ label: { type: 'string' }, qty: nullable(INT), monthly: nullable(INT) }) },
+  specialClauses: { type: 'array', items: { type: 'string' } },
+  questions: { type: 'array', items: { type: 'string' } },
+  notes: nullable({ type: 'string' }),
+});
+
+/* ── Checking the answer against the catalog ── */
+
+// A whole number from what the model wrote (a number, or digits), or null.
+function toInt(v) {
+  if (typeof v === 'number' && Number.isFinite(v)) return Math.round(v);
+  if (typeof v === 'string' && /^\s*-?\d+(\.\d+)?\s*$/.test(v)) return Math.round(Number(v));
+  return null;
+}
+const given = (v) => v !== undefined && v !== null;
+const clip = (s, max) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
+const texts = (v) => (Array.isArray(v) ? v : []).map(cleanLine).filter(Boolean);
+const KNOWN = Object.keys(RESULT_SCHEMA.properties);
+
+// The model's answer, checked: { result, dropped }. `result` holds only known keys with values the
+// builder accepts; `dropped` lists, in Hebrew, everything that was left out or brought into range
+// ({ field, text }), for the office to see. Never throws.
+export function validateAiResult(raw) {
+  const dropped = [];
+  const drop = (field, text) => dropped.push({ field, text });
+  const r = isObject(raw) ? raw : {};
+  if (!isObject(raw)) drop('', 'התשובה לא הייתה בפורמט הנכון');
+  for (const k of Object.keys(r)) if (!KNOWN.includes(k)) drop(k, `שדה לא מוכר: ${k}`);
+  const out = {
+    package: null, months: null, quantities: {}, removals: [], addons: [], freeAddons: {},
+    monthlyPrice: null, priceIncludesVat: false, discount: null, discountPercent: null,
+    extraLines: [], specialClauses: [], questions: [], notes: null,
+  };
+
+  if (given(r.package)) {
+    if (typeof r.package === 'string' && PACKAGES[r.package]) out.package = r.package;
+    else drop('package', `חבילה לא מוכרת: ${cleanLine(r.package)}`);
+  }
+
+  if (given(r.months)) {
+    const m = toInt(r.months);
+    if (m === null) drop('months', 'תקופה לא מספרית');
+    else {
+      out.months = Math.max(CUSTOM_LIMITS.termMin, Math.min(CUSTOM_LIMITS.termMax, m));
+      if (out.months !== m) drop('months', `תקופה של ${m} חודשים מחוץ לטווח (${CUSTOM_LIMITS.termMin}–${CUSTOM_LIMITS.termMax}): הוזנו ${out.months}`);
+    }
+  }
+
+  const q = isObject(r.quantities) ? r.quantities : {};
+  if (given(r.quantities) && !isObject(r.quantities)) drop('quantities', 'הכמויות לא בפורמט הנכון');
+  for (const [k, v] of Object.entries(q)) {
+    const def = qtyDef(k);
+    if (!def) { drop(`quantities.${k}`, `כמות לא מוכרת: ${k}`); continue; }
+    if (!given(v)) continue;
+    const n = toInt(v);
+    if (n === null) { drop(`quantities.${k}`, `${def.name}: לא מספר`); continue; }
+    const lo = def.min || 0;
+    const c = Math.max(lo, Math.min(def.max, n));
+    if (c !== n) drop(`quantities.${k}`, `${def.name}: ${n} מחוץ לטווח (${lo}–${def.max}), הוזן ${c}`);
+    out.quantities[k] = c;
+  }
+
+  for (const k of Array.isArray(r.removals) ? r.removals : []) {
+    if (REMOVABLE.includes(k)) {
+      if (!out.removals.includes(k) && !given(out.quantities[k])) out.removals.push(k);
+    } else drop('removals', `אין בחוזה פריט בשם ״${cleanLine(k)}״ להסרה`);
+  }
+
+  for (const id of Array.isArray(r.addons) ? r.addons : []) {
+    if (!PAID_IDS.includes(id)) drop('addons', `תוספת לא מוכרת: ${cleanLine(id)}`);
+    else if (!out.addons.includes(id)) out.addons.push(id);
+  }
+  // In the catalog's order, as the builder keeps it.
+  out.addons = PAID_IDS.filter((id) => out.addons.includes(id));
+
+  const f = isObject(r.freeAddons) ? r.freeAddons : {};
+  for (const [k, v] of Object.entries(f)) {
+    if (!FREE_KEYS.includes(k)) { drop(`freeAddons.${k}`, `תוספת ללא עלות לא מוכרת: ${k}`); continue; }
+    if (!given(v)) continue;
+    if (k in FREE_NUMBERS) {
+      const n = toInt(v);
+      if (n === null) { drop(`freeAddons.${k}`, `${FREE_ADDONS[k].name}: לא מספר`); continue; }
+      const c = Math.max(0, Math.min(FREE_NUMBERS[k], n));
+      if (c !== n) drop(`freeAddons.${k}`, `${FREE_ADDONS[k].name}: ${n} מחוץ לטווח (0–${FREE_NUMBERS[k]}), הוזן ${c}`);
+      out.freeAddons[k] = c;
+    } else if (typeof v === 'boolean') out.freeAddons[k] = v;
+    else drop(`freeAddons.${k}`, `${FREE_ADDONS[k].name}: לא כן/לא`);
+  }
+
+  out.priceIncludesVat = r.priceIncludesVat === true;
+  if (given(r.monthlyPrice)) {
+    let p = toInt(r.monthlyPrice);
+    if (p === null || p < 0) drop('monthlyPrice', 'מחיר לא מספרי');
+    else {
+      if (out.priceIncludesVat) p = Math.round((p * 100) / (100 + VAT_RATE_PERCENT));
+      p = wholeShekels(p);
+      if (p < AI_LIMITS.minPrice) {
+        drop('monthlyPrice', `מחיר חודשי של ${formatILS(p)} נראה שגוי ולא הוזן`);
+        out.questions.push('מה המחיר החודשי של החבילה לפני מע״מ?');
+      } else if (p > CUSTOM_LIMITS.priceMax) drop('monthlyPrice', `מחיר חודשי מעל ${formatILS(CUSTOM_LIMITS.priceMax)} לא הוזן`);
+      else out.monthlyPrice = p;
+    }
+  }
+
+  if (given(r.discount)) {
+    const d = toInt(r.discount);
+    if (d === null || d < 0) drop('discount', 'הנחה לא מספרית');
+    else out.discount = Math.min(wholeShekels(d), CUSTOM_LIMITS.priceMax);
+  } else if (given(r.discountPercent)) {
+    const pct = Number(r.discountPercent);
+    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) drop('discountPercent', 'אחוז ההנחה מחוץ לטווח');
+    else out.discountPercent = pct;
+  }
+
+  for (const l of Array.isArray(r.extraLines) ? r.extraLines : []) {
+    const label = cleanLine(isObject(l) ? l.label : '');
+    if (!label) { drop('extraLines', 'שורה נוספת בלי שם'); continue; }
+    if (out.extraLines.length >= CUSTOM_LIMITS.lines) { drop('extraLines', `יותר מ־${CUSTOM_LIMITS.lines} שורות נוספות: ״${clip(label, 40)}״ לא הוזנה`); continue; }
+    const line = { label: clip(label, CUSTOM_LIMITS.lineLabel) };
+    const qn = toInt(l.qty);
+    if (qn !== null && qn >= 1) line.qty = Math.min(qn, CUSTOM_LIMITS.lineQtyMax);
+    const mo = toInt(l.monthly);
+    if (mo !== null && mo >= 100) line.monthly = Math.min(wholeShekels(mo), CUSTOM_LIMITS.linePriceMax);
+    out.extraLines.push(line);
+  }
+
+  let room = CUSTOM_LIMITS.terms;
+  for (const c of texts(r.specialClauses)) {
+    const clause = clip(c, AI_LIMITS.clause);
+    if (out.specialClauses.length >= AI_LIMITS.clauses || clause.length + 1 > room) { drop('specialClauses', `תנאי לא נכנס (ארוך מדי): ״${clip(c, 40)}״`); continue; }
+    out.specialClauses.push(clause);
+    room -= clause.length + 1;
+  }
+  out.questions = [...out.questions, ...texts(r.questions).map((s) => clip(s, AI_LIMITS.question))].slice(0, AI_LIMITS.questions);
+  const notes = cleanLine(r.notes);
+  out.notes = notes ? clip(notes, AI_LIMITS.notes) : null;
+  return { result: out, dropped };
+}
+
+/* ── Filling the builder ─────────────────────── */
+
+const pkgName = (sel) => `${tierOf(sel.tier).name} · ${INFLUENCERS[sel.influencer].name}`;
+const paidName = (id) => PAID_ADDONS.find((a) => a.id === id)?.name || id;
+
+// The builder's selection with the result set on it, as the builder's own controls set it:
+// { selection, marks, summary, skipped }. The text describes the whole deal, so it starts from
+// the package itself (the document type stays as chosen); `selection.custom` is there only when
+// something differs from what a regular contract allows (as the "חוזה מותאם אישית" switch).
+// `marks`: the value each field got ('package', 'paid:<id>', 'free:<key>', 'q:<key>', 'price',
+// 'term', 'discount', 'lines', 'terms'), for the tags. `summary`: a Hebrew line per setting.
+// `skipped`: what could not be set in this package, in Hebrew.
+export function applyAiResult(current, result) {
+  const r = result || validateAiResult({}).result;
+  const docType = current?.docType || 'agreement';
+  const marks = {};
+  const summary = [];
+  const skipped = [];
+  let sel = { ...emptySelection(), docType, tier: current?.tier || 'social', influencer: current?.influencer || 'simeon' };
+  if (r.package && PACKAGES[r.package]) {
+    sel.tier = PACKAGES[r.package].tier;
+    sel.influencer = PACKAGES[r.package].influencer;
+    marks.package = r.package;
+    summary.push(`חבילה: ${pkgName(sel)} (${formatILS(PACKAGES[r.package].price)} לחודש)`);
+  } else {
+    summary.push(`חבילה: לא זוהתה בטקסט, נשארה ${pkgName(sel)}`);
+  }
+  const pkg = PACKAGES[packageId(sel.tier, sel.influencer)];
+
+  // Paid add-ons, only those the package allows.
+  for (const id of r.addons || []) {
+    const addon = PAID_ADDONS.find((a) => a.id === id);
+    if (!addon) continue;
+    if (!paidAddonAvailable(addon, sel)) { skipped.push(`${addon.name}: לא זמינה בחבילה שנבחרה`); continue; }
+    sel.paid = PAID_IDS.filter((x) => x === id || sel.paid.includes(x));
+    marks[`paid:${id}`] = true;
+    summary.push(`תוספת: ${addon.name} (+${formatILS(addon.price)} לחודש)`);
+  }
+
+  // Free add-ons (simeonJoin first: it opens Simeon's stories in a Natali package).
+  const free = r.freeAddons || {};
+  for (const key of ['simeonJoin', 'extraCh14', 'graphics', 'simeonStories']) {
+    const v = free[key];
+    if (!given(v) || v === false || v === 0) continue;
+    if (!freeAddonAvailable(key, sel)) { skipped.push(`${FREE_ADDONS[key].name}: לא זמינה בחבילה שנבחרה`); continue; }
+    sel.free = { ...sel.free, [key]: v };
+    marks[`free:${key}`] = v;
+    summary.push(typeof v === 'number' ? `ללא עלות: ${FREE_ADDONS[key].name} × ${v}` : `ללא עלות: ${FREE_ADDONS[key].name}`);
+  }
+
+  // The custom contract: what differs from the package (as its steppers and fields keep it).
+  const custom = {};
+  const base = baseQuantities(sel);
+  const qty = {};
+  const wanted = { ...Object.fromEntries((r.removals || []).map((k) => [k, 0])), ...(r.quantities || {}) };
+  for (const def of CUSTOM_QTY) {
+    const v = wanted[def.key];
+    if (!given(v)) continue;
+    if (def.addon && !sel.paid.includes(def.addon)) { skipped.push(`${def.name}: רק עם ${paidName(def.addon)}`); continue; }
+    if (v === base[def.key]) { summary.push(`${def.name}: ${v} (כמו בחבילה)`); continue; }
+    qty[def.key] = v;
+    marks[`q:${def.key}`] = v;
+    summary.push(v === 0 ? `${def.name}: בלי (בחבילה ${base[def.key]})` : `${def.name}: ${v} (בחבילה ${base[def.key]})`);
+  }
+  if (Object.keys(qty).length) custom.qty = qty;
+  if (given(r.monthlyPrice)) {
+    if (r.monthlyPrice === pkg.price) summary.push(`מחיר החבילה: ${formatILS(r.monthlyPrice)} לחודש לפני מע״מ (כמו בחבילה)`);
+    else {
+      custom.price = r.monthlyPrice;
+      marks.price = r.monthlyPrice;
+      summary.push(`מחיר החבילה: ${formatILS(r.monthlyPrice)} לחודש לפני מע״מ (בחבילה ${formatILS(pkg.price)})`);
+    }
+  }
+  if (given(r.months)) {
+    const words = r.months === 1 ? 'חודש אחד' : `${r.months} חודשים`;
+    if (r.months === TERM_MONTHS) summary.push(`תקופה: ${words} (כמו בחבילה)`);
+    else {
+      custom.termMonths = r.months;
+      marks.term = r.months;
+      summary.push(`תקופה: ${words} (בחבילה ${TERM_MONTHS})`);
+    }
+  }
+  if ((r.extraLines || []).length) {
+    custom.lines = r.extraLines.map((l) => ({ label: l.label, ...(given(l.qty) ? { qty: l.qty } : {}), ...(given(l.monthly) ? { monthly: l.monthly } : {}) }));
+    marks.lines = JSON.stringify(custom.lines);
+    for (const l of custom.lines) summary.push(`שורה נוספת: ${l.label}${l.qty ? ` × ${l.qty}` : ''}${l.monthly ? ` · ${formatILS(l.monthly)} לחודש` : ''}`);
+  }
+  if ((r.specialClauses || []).length) {
+    custom.terms = r.specialClauses.join('\n');
+    marks.terms = custom.terms;
+    for (const c of r.specialClauses) summary.push(`תנאי מיוחד: ${c}`);
+  }
+
+  // The discount last: it is taken from the monthly price with everything above.
+  let discount = null;
+  const list = computeTotals(normalizeSelection({ ...sel, discount: 0, custom: { ...custom } })).monthlyList;
+  if (given(r.discount)) discount = r.discount;
+  else if (given(r.discountPercent)) {
+    discount = wholeShekels((list * r.discountPercent) / 100);
+    summary.push(`הנחה של ${r.discountPercent}% מ־${formatILS(list)}`);
+  }
+  if (given(discount)) {
+    if (discount > list) { skipped.push(`הנחה של ${formatILS(discount)} גדולה מהמחיר החודשי: הוזנה ${formatILS(list)}`); discount = list; }
+    sel.discount = discount;
+    marks.discount = discount;
+    summary.push(`הנחה: ${formatILS(discount)} לחודש לפני מע״מ`);
+  }
+
+  const customOn = Object.keys(custom).length > 0 || (sel.discount || 0) > MAX_DISCOUNT;
+  const next = reconcile(customOn ? { ...sel, custom } : sel).selection;
+  return { selection: next, marks, summary, skipped };
+}
+
+// Which "מולא אוטומטית" tags still hold: the keys of `marks` whose field still has the value the
+// result gave it (a field Irit changed by hand afterwards is hers).
+export function aiMarksOf(sel, marks) {
+  const out = new Set();
+  if (!sel || !isObject(marks)) return out;
+  const c = sel.custom || {};
+  for (const [key, v] of Object.entries(marks)) {
+    const [kind, k] = key.split(':');
+    const holds = kind === 'package' ? packageId(sel.tier, sel.influencer) === v
+      : kind === 'paid' ? (sel.paid || []).includes(k)
+        : kind === 'free' ? sel.free?.[k] === v
+          : kind === 'q' ? c.qty?.[k] === v
+            : kind === 'price' ? c.price === v
+              : kind === 'term' ? c.termMonths === v
+                : kind === 'discount' ? (sel.discount || 0) === v
+                  : kind === 'lines' ? JSON.stringify((c.lines || []).map((l) => ({ label: l.label, ...(given(l.qty) ? { qty: l.qty } : {}), ...(given(l.monthly) ? { monthly: l.monthly } : {}) }))) === v
+                    : kind === 'terms' ? c.terms === v
+                      : false;
+    if (holds) out.add(key);
+  }
+  return out;
+}
