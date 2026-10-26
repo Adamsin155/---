@@ -360,21 +360,10 @@ export const RULES = [
     ],
   },
 
-  // 4: the full form after "the characterization ended" (decision 12): the
-  // characterizer 60 minutes after the tap, then Irit (her follow-up, section 5 of
-  // her protocol), then Lior's list. Saving the complete form stops it.
-  {
-    id: 'charForm', event: 'טופס האפיון המלא לא נשמר (4)', procs: ['p04'],
-    instances(env) {
-      return casesOf(env, 'p04', (i) => !i.pre && !!i.doneAt(CHAR_ENDED) && !i.resolved('p04.saved') && !halted(i, { claim: false }))
-        .map((i) => ({ ...i, id: `p04@${i.doneAt(CHAR_ENDED).toISOString()}`, who: characterizer(i.client), url: `intake.html?id=${encodeURIComponent(i.cid)}#form`, anchors: { event: i.doneAt(CHAR_ENDED) } }));
-    },
-    steps: [
-      { id: 'form', minutes: 60, to: (i) => i.who, level: 'ring', title: (i) => `טופס האפיון עוד לא נשמר: ${i.name}`, body: () => 'עברה שעה מ"האפיון הסתיים". להשלים את 11 השדות (אפשר להקליד בקול).' },
-      { id: 'irit', minutes: 90, to: 'irit', level: 'ring', title: (i) => `טופס האפיון חסר: ${i.name}`, body: (i) => `${personName(i.who)} עוד לא השלים/ה את טופס האפיון. לבדוק ולהשלים את המידע.` },
-      { id: 'lior', minutes: 120, to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `טופס אפיון לא נשמר: ${i.name} · ${personName(i.who)}`, body: () => 'עברו שעתיים מסוף האפיון.' },
-    ],
-  },
+  // 4: the full form after "the characterization ended" had a ladder of its own here
+  // (`charForm`: the characterizer at 60 minutes, Irit, then Lior's list). Since 26.10.2026
+  // the form is filled in the meeting (the owner): after the mark nothing of process 4 rings
+  // (clockStopped in app/protocol-logic.js), and the form stays open to fill in.
 
   // 6–10: the clocks that start when the characterization is marked done. One
   // message each ("your clock started") and one 30 minutes before the two-hour target.
@@ -1421,7 +1410,7 @@ export const RULES = [
           const i = procCase(env, c, s);
           // A claim ("אני על זה") stops the reminders, not the report that it is late.
           if (pauseOf(i.proc, i.checks)) continue;
-          // After "the characterization ended", the form has its own ladder (charForm).
+          // After "the characterization ended" process 4 has no clock (26.10.2026); never late here either.
           if (baseId(s.proc.id) === 'p04' && i.resolved(CHAR_ENDED)) continue;
           // The final versions are in the Drive: only Ilai's "קיבלתי" (p27.toilai) keeps
           // 27 open, and finalReady follows it; not a second line, nor the editor's lateness.

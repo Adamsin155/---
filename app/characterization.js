@@ -8,8 +8,10 @@
 //      It is recorded as the mark p04.ended (protocol-logic.js, CHAR_ENDED), which
 //      starts the clocks of Ilai (6, 7, 9), Ofir (8, highlights) and Lior (10,
 //      Meta) at once; access given marks 5's "access received" (Ilai's 30 minutes).
-//   2. The full form, within 60 minutes (p04's deadline moves to the mark + 60):
-//      11 fields, plus the logo link, the brand colors and the materials. Stored
+//   2. The full form, filled in the meeting itself (the owner, 26.10.2026; until then
+//      "within 60 minutes" of the mark): from the mark on, process 4 has no clock, no
+//      ring and is never late (clockStopped in protocol-logic.js), and the form stays
+//      open to fill in. 11 fields, plus the logo link, the brand colors and the materials. Stored
 //      as content (public.characterizations); when all 11 are filled it checks
 //      process 4's items and closes Irit's follow-up (her section 5) by itself.
 //      Missing material opens one task for Irit with a ready message to the client;

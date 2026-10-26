@@ -139,12 +139,21 @@ const onOfficeClock = (from) => from === 'deal' || from === 'group' || from === 
 // Whether resolveTime counts a due spec in office minutes (and so a clock of it stops at night).
 // "The characterization ended" (decision 12): a mark with the 4 short fields in its
 // note, tapped at the end of the meeting. It starts the clocks of processes 5–10
-// (their anchor charEnd) before the full form is typed; the form is due 60 minutes later.
+// (their anchor charEnd) before the full form is typed. The form is filled in the meeting
+// (the owner, 26.10.2026): from the mark on, process 4 itself has no clock (clockStopped).
 export const CHAR_ENDED = 'p04.ended';
 export function charEndedAt(checks) {
   const c = checks?.[CHAR_ENDED];
   return c && c.state === 'done' && c.at ? new Date(c.at) : null;
 }
+// A deadline that stops for good at a mark (`due.stopsAt`; process 4 at "האפיון הסתיים"):
+// once that mark is done the process has no deadline at all, whatever version the client
+// started under, so it never rings, is never late and never runs in "עכשיו". Its items
+// stay open, to be filled in with no clock.
+export const clockStopped = (proc, checks) => {
+  const key = proc?.due?.stopsAt;
+  return !!key && checks?.[key]?.state === 'done';
+};
 export const onOfficeTime = (spec) => !!spec && !spec.businessDays && onOfficeClock(spec.from) && spec.days === undefined && !spec.prevBusinessDay;
 // A deadline of "immediately" (מיד): due at the very office event that starts the work,
 // with no time of its own (22א right when the shoot day is closed, 26 right when Ofir
@@ -253,8 +262,11 @@ export function applicableProcesses(client) {
       if (item && ROUND_IDS.has(item[1])) return { ...spec, from: `item:${pre(spec.from.slice(5))}` };
       return spec;
     };
-    // The stages of a deadline (afterMark) are marks of the round's own items.
-    const staged = (spec) => (spec?.afterMark ? { ...spec, afterMark: stagesOf(spec).map((st) => ({ ...st, key: pre(st.key) })) } : spec);
+    // The stages of a deadline (afterMark), and the mark it stops at, are marks of the round's own items.
+    const staged = (spec) => {
+      const s = spec?.afterMark ? { ...spec, afterMark: stagesOf(spec).map((st) => ({ ...st, key: pre(st.key) })) } : spec;
+      return s?.stopsAt ? { ...s, stopsAt: pre(s.stopsAt) } : s;
+    };
     return PROCESSES.filter((p) => p.round && applies(p, ctx)).map((p) => {
       const x = resolve(p, ctx);
       return {
@@ -709,7 +721,8 @@ export function clientState(client, checks = {}, now = new Date()) {
     const startAt = resolveTime(p.start, ctx, procs, checks, now);
     // A deadline a later protocol version shortened keeps the one the client started under.
     // Not while the work is on the fast ladder (v9): that one is the same for every client.
-    const baseDueAt = p.recurring || quiet ? null : laterDue(due(dueSpec(p)), !onFastLadder(p.due, checks) && p.dueBefore && due(p.dueBefore));
+    // A clock that stopped for good at its mark (process 4 after "האפיון הסתיים") has none.
+    const baseDueAt = p.recurring || quiet || clockStopped(p, checks) ? null : laterDue(due(dueSpec(p)), !onFastLadder(p.due, checks) && p.dueBefore && due(p.dueBefore));
     const doneAt = complete ? completedAt(p, checks, now) : null;
     // Waiting on the client (office minutes): `waited` in all, `extended` the part
     // that moved the deadline on.
