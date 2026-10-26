@@ -2,7 +2,7 @@
 // (tests/sql/pg.mjs): a shoot day without influencers (the owner's decision of 25.10.2026),
 // Lior and one photographer, kept with the shoot (clients.deliverables.shoot_crew, or a
 // round's shoot_crew).
-//   - the file is the newest, only adds or replaces (none of the three words the production
+//   - the file is the newest but one (the old system's characterizations after it, 26.10.2026), only adds or replaces (none of the three words the production
 //     tool refuses) and runs twice;
 //   - a day that Eliel films is not "taken" in Eli's month (public.photographer_taken), and
 //     Eli may take that day off; every other shoot day counts as before (a shoot type always
@@ -72,8 +72,9 @@ before(async () => {
   }
 });
 
-test('the file: the newest, only adds or replaces, and runs twice', async () => {
-  assert.equal(migrationFiles().at(-1), FILE);
+test('the file: the newest but one, only adds or replaces, and runs twice', async () => {
+  // After it only the old system's characterizations (20261109100000_legacy_characterizations.sql, 26.10.2026).
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261109100000_legacy_characterizations.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   await db.exec(migrationSql(FILE));

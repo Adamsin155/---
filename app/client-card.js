@@ -96,6 +96,10 @@ import { ganttUrl } from './metricool-connect-logic.js';
 // The old system's signed documents (the owner, 25.10.2026; 20261105100000_legacy_contracts.sql): the office's.
 import { loadLegacyContracts } from './legacy-contracts-data.js';
 import { legacyRows, legacySum } from './legacy-contract-logic.js';
+// The old system's characterization (the owner, 26.10.2026; 20261109100000_legacy_characterizations.sql): every member of staff's.
+import { loadLegacyChar } from './legacy-char-data.js';
+import { legacyCharView, legacyCharSum } from './legacy-char-logic.js';
+import { legacyCharBlock } from './legacy-char-ui.js';
 
 const id = new URLSearchParams(location.search).get('id');
 let client = null;
@@ -118,6 +122,7 @@ let mcLine = null;         // the Metricool line's data (null: not loaded, or no
 let edited = null;         // how many videos each editor edited (office only; null: none readable)
 let editedMonth = null;    // a monthly client's numbers this month (office only; null: none readable)
 let legacy = null;         // the old system's signed documents (office only; null: none readable)
+let legacyChar = null;     // the old system's characterization (null: none, or not readable)
 let viewerInfo = null;     // viewerOf(): for archiving
 let myEmail = '';
 let me = null;               // this user's person key (staff.person; null for the owner)
@@ -188,7 +193,7 @@ async function loadCard() {
     // arrives; the card is drawn again for it only when no load is about to draw it.
     loadHistory();
     // The agreement and the rest are asked for side by side (they do not depend on each other).
-    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth, legacy] = await Promise.all([
+    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth, legacy, legacyChar] = await Promise.all([
       c.quote_id && (!quote || quote.id !== c.quote_id) ? loadQuoteSummary(c.quote_id) : quote,
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
@@ -200,6 +205,7 @@ async function loadCard() {
       own() ? null : loadEditorProgress([id]).then((rows) => (rows ? progressMap(rows) : null)),
       own() || !isMonthly(c) ? null : loadEditorMonths([id], monthKey()).then((rows) => (rows ? monthMap(rows) : null)),
       own() ? null : loadLegacyContracts(id),
+      loadLegacyChar(id),
     ]);
     statusNote = statusNotes?.[0] || null;
     setOfirMeetings(ofirMeetings); // the fast ladder waits for the end of his meeting (protocol v10)
@@ -305,7 +311,7 @@ for (const slot of ['mc-slot', 'tl-slot', 'ik-slot', 'qa-block', 'al-slot']) if 
 // The status page, the gallery, the files, the logins and the history are each one closed
 // row with what is inside in a few words, opened on a tap. Each block stays as it was
 // inside its row; a block that is other people's work for this viewer is not shown.
-const FOLD_LOOK = { status: ['phone', 'blue'], gallery: ['image', 'teal'], files: ['folder', 'navy'], access: ['key', 'purple'], history: ['history', 'navy'], contract: ['file', 'teal'], legacy: ['file', 'purple'] };
+const FOLD_LOOK = { status: ['phone', 'blue'], gallery: ['image', 'teal'], files: ['folder', 'navy'], access: ['key', 'purple'], history: ['history', 'navy'], contract: ['file', 'teal'], legacy: ['file', 'purple'], legacychar: ['note', 'purple'] };
 // sum: { text } (null: the block is not shown).
 function setFold(name, title, sum) {
   const d = $(`fold-${name}`);
@@ -352,6 +358,7 @@ function render() {
   renderHead(s);
   renderMyNext(s);
   mountClientIntake($('ik-slot'), { client, scope, toast, rerender: () => renderKeepingFocus(), scripts: scriptsOk(), me: viewerError ? undefined : me });
+  renderLegacyChar();
   mountClientStatus($('st-slot'), statusOpts());
   mountClientFiles($('fl-slot'), filesOpts());
   renderAccess();
@@ -936,6 +943,16 @@ function legacyBlock() {
         h('div', { class: 'lc-title' }, h('span', { class: 'lc-type' }, r.type), r.number ? h('span', { class: 'lc-num num', dir: 'ltr' }, r.number) : null),
         h('div', { class: 'lc-sub' }, h('span', {}, r.signed ? `נחתם ${r.signed}` : 'בלי תאריך חתימה'), r.signer ? h('span', {}, r.signer) : null, r.total ? h('span', { class: 'num', dir: 'ltr' }, r.total) : null)),
       h('a', { class: 'btn btn-sm lc-open', href: r.href, 'aria-label': `פתיחת ה${r.type}${r.number ? ` ${r.number}` : ''}` }, 'פתיחה')))));
+}
+
+// ── The characterization filled in the old system (the owner, 26.10.2026; app/legacy-char-ui.js) ──
+// One closed row under "מהאפיון ומשיחת הדגשים", only when there is one; whoever opens the
+// client reads it (an editor too). The parts opened inside it stay open across drawings.
+const legacyCharOpen = new Set();
+function renderLegacyChar() {
+  const view = legacyCharView(legacyChar);
+  setFold('legacychar', 'אפיון מהמערכת הישנה', view ? { text: legacyCharSum(view) } : null);
+  fill($('lch-slot'), view ? legacyCharBlock(legacyChar, { open: legacyCharOpen, printing }) : null);
 }
 
 // The contract's row in a few words: the month of the contract, and the renewal once its window is open.
@@ -2478,7 +2495,7 @@ window.addEventListener('afterprint', () => {
 
 // No refresh while something is being saved or typed in a dialog.
 const busy = () => pending.size || Object.keys(saveTimers).length || dialogs.some((d) => d.open)
-  || !!document.querySelector('#app details:not(.phase, .cc-fold, .cc-wait)[open]');
+  || !!document.querySelector('#app details:not(.phase, .cc-fold, .cc-wait, .lch-fold)[open]');
 document.addEventListener('visibilitychange', () => { if (!document.hidden && client && !busy()) load(); });
 setInterval(() => { if (!document.hidden && client && !busy()) renderKeepingFocus(); }, 60e3);
 
