@@ -756,7 +756,12 @@ await step('the pass over the clients is Irit\'s (26.10.2026): the owner and Ofi
     assert.equal(await page.locator('#ps-rest-btn').count(), 0, who);
     assert.doesNotMatch(await page.innerText('#ps-rest'), /עברתי על כל השאר/);
     assert.ok(await noHScroll(page), `${who}: the pass scrolls sideways at 390px`);
-    if (who === 'owner' && OUT) { await page.waitForTimeout(600); await page.evaluate(() => window.scrollTo(0, 0)); await page.screenshot({ path: `${OUT}/office-06b-pass-owner-view-390.png` }); }
+    if (who === 'owner' && OUT) {
+      await page.waitForSelector('#login-block', { state: 'hidden' });
+      await page.waitForTimeout(1200); // the sign-in screen fades out
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: `${OUT}/office-06b-pass-owner-view-390.png` });
+    }
     // Nothing of the pass is a task of theirs: no card, no Thursday summary, no line.
     await page.goto(`${BASE}clients.html#mine`);
     await page.waitForSelector('#view-mine:not([hidden])');
@@ -776,7 +781,11 @@ await step('the pass over the clients is Irit\'s (26.10.2026): the owner and Ofi
   await ir.waitForSelector('#ps-list .ps-row');
   assert.equal(await ir.locator('#ps-view').count(), 0);
   assert.ok(await ir.locator('#ps-list button', { hasText: /^עברתי$|פתח משימה/ }).count() > 0);
-  if (OUT) { await ir.waitForTimeout(600); await ir.evaluate(() => window.scrollTo(0, 0)); await ir.screenshot({ path: `${OUT}/office-06c-pass-irit-390.png` }); }
+  if (OUT) {
+    await ir.waitForTimeout(1200);
+    await ir.evaluate(() => window.scrollTo(0, 0));
+    await ir.screenshot({ path: `${OUT}/office-06c-pass-irit-390.png` });
+  }
   await ictx2.close();
 });
 
