@@ -328,9 +328,9 @@ await step('the one asked sees it at the top of "המשימות שלי", answers
   assert.equal(new URL(lior.url()).pathname.endsWith('/clients.html'), true);
   const box = lior.locator('#my-questions');
   assert.match(await box.innerText(), /שאלה אליך\s*1[^]*מספרת רון · הבעלים · [^]*על: צילום בסיכון[^]*״הלקוח יאשר את התסריטים עד מחר\?״/);
-  // At the top of "המשימות שלי": after the "now" bar and how he hears (notifications, WhatsApp,
-  // his calendar), before the list; the hidden cards keep their place.
-  assert.deepEqual(await lior.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 9).map((e) => e.id)), ['now-bar', 'staff-tasks-card', 'deals-card', 'approvals-card', 'metricool-card', 'push-card', 'wa-card', 'cal-card', 'my-questions']);
+  // At the top of "המשימות שלי": after the "now" bar and his calendar, before the list; the hidden
+  // cards keep their place. (The notifications and WhatsApp cards left the list on 26.10.2026.)
+  assert.deepEqual(await lior.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 7).map((e) => e.id)), ['now-bar', 'staff-tasks-card', 'deals-card', 'approvals-card', 'metricool-card', 'cal-card', 'my-questions']);
   // His top bar links screen 2, never screen 1.
   assert.equal(await lior.getAttribute('#nav-owner', 'href'), 'owner.html#all');
   assert.equal(await text(lior, '#nav-owner'), 'כל הלקוחות במבט');
