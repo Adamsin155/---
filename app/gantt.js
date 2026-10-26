@@ -243,7 +243,7 @@ function renderMetricool() {
   // Marked "ללקוח אין מותג" in the card of "המשימות שלי" (section 33): said here, with the way back.
   const none = !!mc.none && !mc.brand.blogId;
   // Not connected: for whoever connects one short line and its one action (20.10.2026).
-  const line = none ? { tone: 'off', text: 'סומן שללקוח אין מותג ב־Metricool. הסימון ידני.' }
+  const line = none ? { tone: 'off', text: 'לא מחובר ל־Metricool: סומן ״לא רלוונטי״. הסימון ידני.' }
     : !mc.brand.blogId && canConnect ? { tone: 'off', text: 'לא מחובר ל־Metricool.' }
       : brandUi.clientLine({ enabled: !!mc.settings.enabled, blogId: mc.brand.blogId, brand: mc.brand.brand, sync: mc.sync });
   const act = canConnect ? h('button', {
@@ -258,7 +258,7 @@ function renderMetricool() {
     type: 'button', class: 'btn btn-sm btn-ghost gt-mc-act', id: 'btn-brand-back',
     onclick: async (e) => {
       e.currentTarget.disabled = true;
-      try { await data.setNoBrand(client.id, false); mc.none = false; toast('הלקוח חזר לרשימת ״לקוחות שלא מחוברים ל־Metricool״.'); } catch { toast('לא נשמר. נסו שוב.'); }
+      try { await data.setNoBrand(client.id, false); mc.none = false; toast('הלקוח חזר לרשימת הלקוחות לחיבור ל־Metricool.'); } catch { toast('לא נשמר. נסו שוב.'); }
       render();
     },
   }, 'ביטול הסימון') : null;

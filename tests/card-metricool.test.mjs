@@ -24,7 +24,8 @@ test('the words: connected, not connected, marked without a brand, and the faile
   assert.equal(metricoolWords({ brand: undefined }), null); // before the migration: no line
   assert.deepEqual(metricoolWords({ brand: { blogId: '12', brand: 'וולף פילאטיס' } }), { text: 'מחובר ל־וולף פילאטיס', tone: 'ok', failed: null, connect: false });
   assert.deepEqual(metricoolWords({ brand: { blogId: null, brand: null } }), { text: 'לא מחובר', tone: 'warn', failed: null, connect: true });
-  assert.equal(metricoolWords({ brand: { blogId: null }, none: true }).text, 'סומן שאין ללקוח מותג');
+  // Marked "ללקוח אין מותג": not connected all the same (26.10.2026).
+  assert.equal(metricoolWords({ brand: { blogId: null }, none: true }).text, 'לא מחובר · לא רלוונטי ל־Metricool');
   assert.equal(metricoolWords({ brand: { blogId: null }, none: true }).connect, false);
   assert.equal(metricoolWords({ brand: { blogId: '1', brand: 'x' }, failed: 1 }).failed, 'פרסום אחד נכשל');
   const three = metricoolWords({ brand: { blogId: '1', brand: 'x' }, failed: 3 });

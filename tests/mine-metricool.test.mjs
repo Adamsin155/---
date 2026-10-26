@@ -50,7 +50,9 @@ test("the clients with no brand: Ofir's quiet line to the Gantt index, opened on
   const linesOf = (v) => (metricool) => flowLines({ viewer: v, clients: [], checks: {}, stateOf: () => ({ states: [] }), extra: { metricool }, now: NOW });
   const lines = linesOf(viewer);
   const l = lines({ failed: 0, nothingAhead: 0, notConnected: 4 }).find((x) => x.id === 'metricool-connect');
-  assert.deepEqual([l.n, l.href, l.text, l.tone], [4, 'gantt.html#not-connected', '4 לקוחות לא מחוברים ל־Metricool', 'plain']);
+  // The clients waiting to be connected; the ones marked "not relevant" are not his work, and not "connected" either (26.10.2026).
+  assert.deepEqual([l.n, l.href, l.text, l.tone], [4, 'gantt.html#not-connected', '4 לקוחות מחכים לחיבור ל־Metricool', 'plain']);
+  assert.equal(lines({ failed: 0, nothingAhead: 0, notConnected: 1 }).find((x) => x.id === 'metricool-connect').text, 'לקוח אחד מחכה לחיבור ל־Metricool');
   // Ofir has no line about the posts (Ilai's), and Ilai none about connecting.
   assert.equal(lines({ failed: 3, nothingAhead: 5, notConnected: 0 }).find((x) => x.id === 'metricool'), undefined);
   assert.equal(linesOf({ me: 'ilai', scope: 'own', error: null })({ failed: 0, nothingAhead: 0, notConnected: 4 }).find((x) => x.id === 'metricool-connect'), undefined);

@@ -151,7 +151,7 @@ async function renderCard(show) {
   if (box.hidden && state.conns) {
     // Nothing to connect: the card says nothing, so the page does.
     box.hidden = false;
-    box.replaceChildren(h('p', { class: 'gt-none', id: 'gx-card-none' }, 'כל הלקוחות הפעילים מחוברים ל־Metricool, או סומנו שאין להם מותג.'));
+    box.replaceChildren(h('p', { class: 'gt-none', id: 'gx-card-none' }, 'כל הלקוחות הפעילים מחוברים ל־Metricool.'));
   }
 }
 
@@ -203,8 +203,9 @@ function renderWeek(now) {
 // ── The clients ─────────────────────────────
 function connMark(s) {
   if (s.connected === true) return h('span', { class: 'gx-conn is-on', title: 'מחובר ל־Metricool' }, h('span', { 'aria-hidden': 'true' }, '✓'), ' מחובר');
+  // Marked "ללקוח אין מותג": not connected, and said so (26.10.2026), before the plain "לא מחובר".
+  if (s.none && !s.connected) return h('span', { class: 'gx-conn is-none', title: 'לא מחובר ל־Metricool: סומן לא רלוונטי' }, 'לא רלוונטי ל־Metricool');
   if (s.notConnected) return h('span', { class: 'gx-conn is-off', title: 'לא מחובר ל־Metricool' }, h('span', { 'aria-hidden': 'true' }, '✗'), ' לא מחובר');
-  if (s.none) return h('span', { class: 'gx-conn is-none' }, 'בלי Metricool');
   return null;
 }
 function renderClients(all) {

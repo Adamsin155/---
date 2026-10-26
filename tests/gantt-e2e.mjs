@@ -994,9 +994,10 @@ await step('Metricool, while the switch is off: a line says so; Ilai connects th
   C.metricool_none = true;
   await page.reload();
   await page.waitForSelector('#btn-brand-back');
-  assert.match(await page.innerText('#gt-mc'), /סומן שללקוח אין מותג ב־Metricool\. הסימון ידני\.\s*ביטול הסימון\s*חיבור למותג/);
+  // Not connected all the same (26.10.2026): the line says so first.
+  assert.match(await page.innerText('#gt-mc'), /לא מחובר ל־Metricool: סומן ״לא רלוונטי״\. הסימון ידני\.\s*ביטול הסימון\s*חיבור למותג/);
   await page.click('#btn-brand-back');
-  await toastHas(page, 'הלקוח חזר לרשימת ״לקוחות שלא מחוברים ל־Metricool״.');
+  await toastHas(page, 'הלקוח חזר לרשימת הלקוחות לחיבור ל־Metricool.');
   assert.equal(C.metricool_none, false);
   assert.match(await page.innerText('#gt-mc'), /^לא מחובר ל־Metricool\./);
   assert.equal(await page.locator('#btn-brand-back').count(), 0);

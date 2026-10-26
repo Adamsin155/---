@@ -213,7 +213,7 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
     const p = extra.metricool;
     if (p.notConnected) {
       add({ id: 'metricool-connect', bucket: 'today', tone: 'plain', n: p.notConnected, rule: null, href: NOT_CONNECTED_URL, cta: 'לחיבור',
-        text: p.notConnected === 1 ? 'לקוח אחד לא מחובר ל־Metricool' : `${p.notConnected} לקוחות לא מחוברים ל־Metricool` });
+        text: p.notConnected === 1 ? 'לקוח אחד מחכה לחיבור ל־Metricool' : `${p.notConnected} לקוחות מחכים לחיבור ל־Metricool` });
     }
   }
   // ── The photographer's free dates of next month (section 39) ──
