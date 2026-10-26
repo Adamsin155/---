@@ -189,6 +189,16 @@ const shot = async (page, name) => { if (OUT) await page.screenshot({ path: `${O
 const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const toastHas = (page, t) => page.waitForFunction((x) => document.querySelector('#toast.on')?.textContent.includes(x), t);
 const lastCall = (name) => calls.filter((c) => c.path === name).at(-1);
+// Since 26.10.2026 the WhatsApp card is in the window "ההתראות שלך" (from the bell's list), not in
+// "המשימות שלי"; the list says at its very bottom, in one quiet line, when WhatsApp is not connected.
+const ATTACHED = { state: 'attached' };
+const viaBell = async (page) => {
+  await page.click('#btn-inbox');
+  await page.waitForSelector('#dlg-inbox[open]');
+  await page.click('#inbox-settings');
+  await page.waitForSelector('#dlg-connect[open] #wa-card:not([hidden])');
+};
+const lineText = (page) => page.evaluate(() => { const el = document.getElementById('mine-connect'); return el.hidden ? '' : el.textContent; });
 let passed = 0;
 async function step(name, fn) {
   try { await fn(); } catch (err) { console.error(`not ok - ${name}\n  errors: ${JSON.stringify(errors)}\n  calls: ${JSON.stringify(calls.slice(-4))}`); throw err; }
@@ -215,24 +225,30 @@ await step('the consent screen opens by itself: the words from the database with
   await shot(page, 'wa-01-consent');
 });
 
-await step('agreeing records the choice with the text version (the number is the office\'s); the card in "המשימות שלי" says where messages go', async () => {
+await step('agreeing records the choice with the text version (the number is the office\'s); the card in "ההתראות שלך" says where messages go; "המשימות שלי" says nothing of it', async () => {
   await page.click('#wa-whatsapp');
   await toastHas(page, 'הודעות העבודה יגיעו גם ב־WhatsApp');
   assert.equal(await page.locator('#dlg-wa[open]').count(), 0);
   assert.deepEqual(lastCall('whatsapp_decide').body.p_choice, 'whatsapp');
   assert.equal(lastCall('whatsapp_decide').body.p_version, 1);
   assert.equal(lastCall('whatsapp_decide').body.p_phone, null);
-  await page.waitForSelector('#wa-card[data-state="on"]');
+  await page.waitForSelector('#wa-card[data-state="on"]', ATTACHED);
+  // Not in "המשימות שלי" (tasks only), and the quiet line has nothing to say of WhatsApp.
+  assert.equal(await page.locator('#view-mine #wa-card, #view-mine #push-card').count(), 0);
+  assert.doesNotMatch(await lineText(page), /WhatsApp/);
+  await viaBell(page);
   assert.match(await page.locator('#wa-card').innerText(), /הודעות ב־WhatsApp[\s\S]*למספר 050-111-1111/);
   // Right after the notifications card.
   assert.equal(await page.evaluate(() => document.getElementById('push-card').nextElementSibling?.id), 'wa-card');
+  await page.keyboard.press('Escape');
 });
 
-await step('the screen does not come back once chosen; stopping from "המשימות שלי", and choosing again from there', async () => {
+await step('the screen does not come back once chosen; stopping from "ההתראות שלך"; the quiet line of "המשימות שלי" says so, and "לחבר" asks again', async () => {
   await page.reload();
-  await page.waitForSelector('#wa-card[data-state="on"]');
+  await page.waitForSelector('#wa-card[data-state="on"]', ATTACHED);
   await page.waitForTimeout(300);
   assert.equal(await page.locator('#dlg-wa[open]').count(), 0);
+  await viaBell(page);
   await page.click('#wa-card-off');
   await toastHas(page, 'הודעות ה־WhatsApp הופסקו');
   assert.ok(lastCall('whatsapp_withdraw'));
@@ -246,10 +262,16 @@ await step('the screen does not come back once chosen; stopping from "המשימ
   assert.equal(wa.consents.get('irit@astrateg.test').status, 'declined');
   await page.waitForSelector('#wa-card[data-state="off"]');
   await shot(page, 'wa-02-card-off');
-  // Agree again, for the team screen below.
-  await page.click('#wa-card-on');
+  await page.keyboard.press('Escape');
+  // "המשימות שלי": one quiet line at its very bottom, and "לחבר" opens the consent screen.
+  await page.waitForFunction(() => /WhatsApp לא מחובר · לחבר/.test(document.getElementById('mine-connect').textContent));
+  assert.ok((await page.locator('#connect-wa').boundingBox()).height >= 44);
+  // Agree again from the line, for the team screen below.
+  await page.click('#connect-wa');
+  await page.waitForSelector('#dlg-wa[open]');
   await page.click('#wa-whatsapp');
-  await page.waitForSelector('#wa-card[data-state="on"]');
+  await page.waitForSelector('#wa-card[data-state="on"]', ATTACHED);
+  await page.waitForFunction(() => !/WhatsApp/.test(document.getElementById('mine-connect').textContent));
 });
 await iritCtx.close();
 
@@ -262,9 +284,11 @@ await step('closing the screen without choosing: not again in this tab, again in
   assert.equal(await p.getAttribute('#wa-later', 'aria-label'), 'סגירה: להחליט אחר כך');
   assert.equal(calls.filter((c) => c.by === 'ilai@astrateg.test' && c.path === 'whatsapp_decide').length, 0, 'nothing recorded');
   await p.reload();
-  await p.waitForSelector('#wa-card[data-state="off"]');
+  await p.waitForSelector('#wa-card[data-state="off"]', ATTACHED);
   await p.waitForTimeout(300);
   assert.equal(await p.locator('#dlg-wa[open]').count(), 0);
+  // Not chosen: the quiet line says so (no screen of its own).
+  assert.match(await lineText(p), /WhatsApp לא מחובר · לחבר/);
   await ctx.close();
   // A phone has no Escape key: the × does the same.
   const again = await open('ilai');
@@ -276,9 +300,13 @@ await step('closing the screen without choosing: not again in this tab, again in
 });
 
 // ── Lior: no number, nothing to agree to ──
-await step('without a number: no screen, and the card says who adds one', async () => {
+await step('without a number: no screen; the quiet line says there is none, with nothing to press; the card says who adds one', async () => {
   const { ctx, page: p } = await open('lior');
-  await p.waitForSelector('#wa-card[data-state="none"]');
+  await p.waitForSelector('#wa-card[data-state="none"]', ATTACHED);
+  await p.waitForFunction(() => /WhatsApp/.test(document.getElementById('mine-connect').textContent));
+  assert.match(await lineText(p), /WhatsApp לא מחובר: אין מספר נייד במערכת/);
+  assert.equal(await p.locator('#connect-wa').count(), 0);
+  await viaBell(p);
   assert.match(await p.locator('#wa-card').innerText(), /אין מספר נייד שמור במערכת[\s\S]*עירית או ליאור מוסיפים אותו/);
   assert.equal(await p.locator('#dlg-wa').count(), 0);
   await ctx.close();
@@ -304,7 +332,7 @@ await step('the owner keeps no number on the staff list: types one on the screen
   await p.click('#wa-whatsapp');
   await toastHas(p, 'הודעות העבודה יגיעו גם ב־WhatsApp');
   assert.equal(lastCall('whatsapp_decide').body.p_phone, '972502222222');
-  await p.waitForSelector('#wa-card[data-state="on"]');
+  await p.waitForSelector('#wa-card[data-state="on"]', ATTACHED);
   await ctx.close();
 });
 
@@ -487,6 +515,7 @@ await step('while WhatsApp is off nobody is asked and "המשימות שלי" sh
   await p.waitForTimeout(400);
   assert.equal(await p.locator('#dlg-wa[open]').count(), 0);
   assert.equal(await p.locator('#wa-card').isHidden(), true);
+  assert.doesNotMatch(await lineText(p), /WhatsApp/);
   await ctx.close();
   wa.enabled = true;
 });

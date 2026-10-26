@@ -40,6 +40,7 @@ import { loadDateChanges, loadLogFor, noteDateChange, loadAccessStatus } from '.
 import { refreshQuestions } from './questions-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
 import { mountWhatsappCard } from './whatsapp.js';
+import { mountConnect, openConnect, paintConnectLine } from './mine-connect.js';
 import { mountCalendar } from './calendar-card.js';
 // Stage 3, part 2 (the office's flows): Ilai's day in "המשימות שלי", the first screens of Ofir and Lior.
 import { ilaiSection, coveredByCard } from './ilai-card.js';
@@ -1689,6 +1690,14 @@ function cardsChanged() {
   if (onMine() && !$('app').hidden && !busy()) renderKeepingFocus();
 }
 
+// The quiet line at the very bottom of "המשימות שלי" (26.10.2026; app/mine-connect.js): on
+// the person's own list only (not the team's, not another person's; "באיחור" and the other
+// tabs hide it in app/styles/push.css, as the line stands after the panel).
+function paintConnect() {
+  const ownList = scope === 'own' || personal || (!!me && (minePerson || null) === me);
+  paintConnectLine($('mine-connect'), { own: ownList && !viewerError });
+}
+
 function renderMine() {
   drawn(view === 'late' ? 'late' : 'mine');
   mineShown = view === 'late' ? 'late' : 'mine';
@@ -1697,6 +1706,7 @@ function renderMine() {
   syncLateTab(); // every redraw of the list (a tick, a refresh) keeps the tab's number with it
   const wrap = $('mine-list');
   const own = scope === 'own';
+  paintConnect();
   rebuildClocks();
   paintNowBar();
   // What waits for me on another page (app/mine-flow.js): on my own list only.
@@ -3534,11 +3544,15 @@ mountSession(async (staff) => {
   // Notifications on the phone and today's list (app/push.js); the owner's list is 'owner'.
   // (The cards here each ask for their own rows; the page is shown when they have
   // answered, so none lands above a list that is already on the screen: bootEnd in protocol-ui.js.)
+  // Since 26.10.2026 both cards are in the window "ההתראות שלך" (#dlg-connect), not in the list:
+  // "המשימות שלי" holds tasks only, and says at its bottom what is not connected (paintConnect).
+  mountConnect($('dlg-connect'), { closed: cardsChanged });
+  $('inbox-settings').addEventListener('click', () => { $('dlg-inbox').close(); openConnect('btn-inbox'); });
   mountPush({
     who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
-    changed: cardsChanged,
+    changed: () => { paintConnect(); cardsChanged(); },
   });
-  mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
+  mountWhatsappCard($('push-card'), { changed: paintConnect }); // stage 4: WhatsApp on or off, under the notifications card
   // "היומן שלי": the personal calendar link (app/calendar-card.js).
   if (!viewerError) mountCalendar($('cal-card'));
   // Tasks given on the spot: the ones this person got ("בוצע"), and giving them (Irit, the owner).

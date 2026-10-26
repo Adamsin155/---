@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { platformOf, pushState, keyBytes, sameKey, inboxRows, unreadCount, deliveryText } from '../app/push-logic.js';
+import { platformOf, pushState, keyBytes, sameKey, inboxRows, unreadCount, deliveryText, connectGaps, isPhone } from '../app/push-logic.js';
 import { VAPID_PUBLIC_KEY } from '../app/push-config.js';
 import { dateIL } from '../app/tz.js';
 
@@ -142,4 +142,34 @@ test('sw.js: a tap focuses the window already on the page, or opens it; never an
   const c = worker();
   await c.fire('notificationclick', note('https://evil.example/'));
   assert.deepEqual(c.opened, []);
+});
+
+// The owner, 26.10.2026: "המשימות שלי" holds tasks only. What is not connected is one quiet
+// line at its very bottom, each part with "לחבר"; when everything is connected, nothing.
+test('the quiet line of "המשימות שלי": only what is not connected, and nothing when all is', () => {
+  const wa = (o = {}) => ({ enabled: true, active: false, phone: '0501234567', owner: false, ...o });
+  // All connected (or WhatsApp switched off by the owner): nothing.
+  assert.deepEqual(connectGaps({ push: 'on', wa: wa({ active: true }) }), []);
+  assert.deepEqual(connectGaps({ push: 'on', wa: null }), []);
+  assert.deepEqual(connectGaps({ push: 'on', wa: wa({ enabled: false }) }), []);
+  // The push tables are not there (push unknown): nothing is said about them.
+  assert.deepEqual(connectGaps({ push: null, wa: null }), []);
+  // Not connected on this device: every state but "on", with the words of the phone or of a computer.
+  for (const st of ['ready', 'blocked', 'ios-install', 'ios-update', 'unsupported', 'confirm']) {
+    assert.deepEqual(connectGaps({ push: st, phone: true }), [{ key: 'push', text: 'ההתראות לא מחוברות בטלפון הזה', cta: 'לחבר' }], st);
+  }
+  assert.equal(connectGaps({ push: 'ready', phone: false })[0].text, 'ההתראות לא מחוברות במכשיר הזה');
+  // WhatsApp on (the owner's switch) and not chosen: "לחבר" opens the consent screen.
+  assert.deepEqual(connectGaps({ push: 'on', wa: wa() }), [{ key: 'wa', text: 'WhatsApp לא מחובר', cta: 'לחבר' }]);
+  assert.deepEqual(connectGaps({ push: 'on', wa: wa({ phone: null, owner: true }) }).map((g) => g.cta), ['לחבר'], 'the owner types a number there');
+  // No number on record: said, with nothing to press (Irit or Lior add it on the team page).
+  assert.deepEqual(connectGaps({ push: 'on', wa: wa({ phone: null }) }), [{ key: 'wa', text: 'WhatsApp לא מחובר: אין מספר נייד במערכת', cta: null }]);
+  // Both: the notifications first.
+  assert.deepEqual(connectGaps({ push: 'ready', wa: wa() }).map((g) => g.key), ['push', 'wa']);
+  // A phone: Android, iPhone, an iPad (it says "Macintosh" but has touch); a computer is not.
+  assert.equal(isPhone({ userAgent: IPHONE_17 }), true);
+  assert.equal(isPhone({ userAgent: IPAD, maxTouchPoints: 5 }), true);
+  assert.equal(isPhone({ userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Mobile Safari/537.36' }), true);
+  assert.equal(isPhone({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36' }), false);
+  assert.equal(isPhone({ userAgent: IPAD, maxTouchPoints: 0 }), false, 'a Mac');
 });

@@ -5,8 +5,10 @@
 //    alternative, and a link to the employee privacy notice (staff-privacy.html).
 //    Shown only when the owner turned WhatsApp on, until the person chose (or again
 //    when the number they agreed to was changed);
-//  - the card in "המשימות שלי" (mountWhatsappCard): on or off, stop at any time, or
-//    agree later.
+//  - the card (mountWhatsappCard): on or off, stop at any time, or agree later. Since
+//    26.10.2026 it is in the window "ההתראות שלך" of clients.html, not in "המשימות שלי" (which
+//    holds tasks only; a quiet line at its bottom says when WhatsApp is not connected and opens
+//    the consent screen, openWhatsappConsent; app/mine-connect.js).
 // The choice is recorded server-side with the time, the wording and the number
 // (public.whatsapp_decide / whatsapp_withdraw). Nothing here shows anyone else's
 // number: the database returns the caller's own only. Until the migration
@@ -23,6 +25,7 @@ let cardAnchor = null;
 let dialogEl = null;
 let busy = false;
 let draftPhone = null;           // what the owner typed, kept across repaints
+let onChange = () => {};          // told when the choice changed (the quiet line of "המשימות שלי")
 
 function styles() {
   if (document.querySelector('link[data-wa-css]')) return;
@@ -118,6 +121,7 @@ async function decide(choice) {
   dialogEl.close();
   toast(choice === 'whatsapp' ? 'נרשם. הודעות העבודה יגיעו גם ב־WhatsApp.' : 'נרשם. ההתראות ימשיכו להגיע באפליקציה בלבד.');
   paintCard();
+  onChange();
 }
 
 // Once, on any staff page: when WhatsApp is on and this person has not chosen yet.
@@ -139,6 +143,7 @@ async function withdraw() {
   state = data?.text ? data : state;
   toast('הודעות ה־WhatsApp הופסקו. ההתראות באפליקציה ממשיכות.');
   paintCard();
+  onChange();
   cardEl?.querySelector('#wa-card-on')?.focus();
 }
 
@@ -168,12 +173,23 @@ function paintCard() {
   fill(cardEl, head, ...body);
 }
 
-// The card: the page's own #wa-card (clients.html keeps its place in "המשימות שלי"),
+// The card: the page's own #wa-card (clients.html keeps it in the window "ההתראות שלך"),
 // else right after `anchor` (the notifications card). Shown only while WhatsApp is on.
-export async function mountWhatsappCard(anchor) {
+// `changed`: told once the state is read, and after every choice.
+export async function mountWhatsappCard(anchor, { changed = () => {} } = {}) {
   if (!anchor) return;
   cardAnchor = anchor;
+  onChange = changed;
   cardEl = document.getElementById('wa-card') || h('section', { class: 'push-card wa-card', id: 'wa-card', 'aria-labelledby': 'wa-card-h', hidden: true });
   if (!state) await load().catch(() => null);
   paintCard();
+  onChange();
+}
+
+// The person's WhatsApp state as last read (whatsapp_my_consent), or null.
+export const waNow = () => state;
+// The consent screen, from a tap ("לחבר" in the quiet line of "המשימות שלי").
+export async function openWhatsappConsent() {
+  if (!state) await load().catch(() => null);
+  if (state) await openDialog();
 }
