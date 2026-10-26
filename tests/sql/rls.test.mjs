@@ -514,6 +514,9 @@ test('every client table has row level security, and no policy on it lets every 
     // The events read from a person's own Google calendar (20261029100000_google_calendar_sync.sql):
     // each row is that person's alone; the client is only the system's guess of whose meeting it is.
     calendar_external_events: /^\(\(email = lower\(COALESCE\(\(\( SELECT auth\.jwt\(\) AS jwt\) ->> 'email'::text\), ''::text\)\)\) AND /,
+    // The old system's characterizations (20261109100000_legacy_characterizations.sql): the owner,
+    // 26.10.2026, "כולם יכולים לראות את האיפיון": every member of staff but the field sales agents.
+    legacy_characterizations: /^\(\( SELECT is_staff\(\) AS is_staff\) AND \(NOT \( SELECT private\.is_sales\(\) AS is_sales\)\)\)\s*$/,
   };
   for (const p of policies) {
     assert.match(p.expr, OWN_RULE[p.tablename] || RULES, `${p.tablename} / "${p.policyname}" does not check who the client belongs to: ${p.expr}`);
