@@ -7,8 +7,9 @@
 .lch-none { margin: 0; }
 .lch-doc { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-surface); min-width: 0; }
 .lch-stamp { margin: 0; font-size: 13px; font-weight: 600; color: var(--ds-muted); }
-.lch-h { margin: 8px 0 0; font-family: var(--ds-font-h); font-size: 16px; line-height: 1.4; color: var(--ds-ink); overflow-wrap: anywhere; }
-.lch-doc > .lch-h:first-child, .lch-stamp + .lch-h, .lch-fb > .lch-h:first-child { margin-top: 0; }
+/* A heading of the old text: bold, navy, a thin line above it when something came before. */
+.lch-h { margin: 6px 0 0; padding-top: 12px; border-top: 1px solid var(--ds-line); font-family: var(--ds-font-b); font-size: 17px; font-weight: 700; line-height: 1.4; color: var(--ds-navy-text); overflow-wrap: anywhere; }
+.lch-doc > .lch-h:first-child, .lch-stamp + .lch-h, .lch-fb > .lch-h:first-child, .lch-fb > .hint + .lch-h { margin-top: 0; padding-top: 0; border-top: 0; }
 .lch-dl { display: grid; grid-template-columns: minmax(8em, max-content) minmax(0, 1fr); gap: 8px 16px; margin: 0; }
 .lch-dl > dt { font-weight: 600; color: var(--ds-ink-2); overflow-wrap: anywhere; }
 .lch-dl > dd { margin: 0; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.6; min-width: 0; }
@@ -29,7 +30,8 @@
 .lch-answers > dt { font-variant-numeric: tabular-nums; }
 
 /* The editors' page: the block inside the client's card, under "מה חייבים להגיד ומה אסור". */
-details.ed-lch > summary .lch-fs { margin-inline-start: 8px; }
+details.ed-lch > summary { flex-wrap: wrap; align-content: center; column-gap: 8px; }
+details.ed-lch > summary .lch-fs { flex-basis: 100%; }
 details.ed-lch > .lch { margin-top: 4px; }
 
 @media (max-width: 560px) {

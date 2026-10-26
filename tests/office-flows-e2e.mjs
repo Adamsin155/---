@@ -19,6 +19,10 @@
 //  - The old system's signed documents (25.10.2026): the owner imports two through the page
 //    (scripts/legacy-contracts-import.mjs importInPage), the card lists them, "פתיחה" shows one;
 //    an editor reads none.
+//  - The old system's characterization (26.10.2026): the owner imports one through the page
+//    (scripts/legacy-characterizations-import.mjs importInPage), the card shows the closed row
+//    "אפיון מהמערכת הישנה" (390px), opened: the filled text readable, the brief and the raw
+//    answers in their own rows; the editor reads it on the card and on her page.
 // Run: npx http-server -p 8080 -s . &  then  node tests/office-flows-e2e.mjs [outDir]
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
@@ -31,6 +35,7 @@ import { splitLists } from '../app/decisions-logic.js';
 import { withClientColumns } from './fake-clients.mjs';
 import { monthKey } from '../app/edit-count.js';
 import { importInPage } from '../scripts/legacy-contracts-import.mjs';
+import { importInPage as importCharsInPage } from '../scripts/legacy-characterizations-import.mjs';
 
 // qa.html since 20.10.2026 (the owner's review): each editor's load and the clients in landing waiting for an editor are folds; opened here to read them.
 const openQaFolds = (p) => p.evaluate(() => { for (const d of document.querySelectorAll('#load-list details, #assign-list details')) d.open = true; });
@@ -160,6 +165,8 @@ const db = {
   change_requests: [],
   // The old system's signed documents (public.legacy_contracts, 20261105100000_legacy_contracts.sql): imported in the last step.
   legacy_contracts: [],
+  // The old system's characterizations (public.legacy_characterizations, 20261109100000_legacy_characterizations.sql): imported in the last step.
+  legacy_characterizations: [],
 };
 
 // ── Fake PostgREST ─────────────────────────
@@ -273,6 +280,23 @@ async function fakeSupabase(route) {
     if (i >= 0) db.legacy_contracts[i] = row; else db.legacy_contracts.push(row);
     return json(200, { id: row.id, client_id: row.client_id, doc_type: row.doc_type });
   }
+  // The old system's characterization: the owner only; again on the same client changes the row; no phone or e-mail kept.
+  if (p === '/rest/v1/rpc/legacy_characterization_import') {
+    const person = staff.find((r) => r.email === me?.email);
+    if (!person || person.person !== null) return json(403, { code: '42501', message: 'not allowed' });
+    if (!db.clients.some((c) => c.id === body.p_client)) return json(400, { code: '22023', message: 'no such client' });
+    const d = body.p_doc;
+    const strip = (t) => (typeof t === 'string' && t.trim() ? t.replace(/\r\n?/g, '\n').trim()
+      .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g, '[הוסר]')
+      .replace(/(?<![0-9])(?:(?:\+|00)?972[ .-]{0,3}(?:\(0\)[ .-]{0,3})?|\(?0)[0-9]{1,2}\)?[ .-]{0,3}[0-9]{3}[ .-]{0,3}[0-9]{3,4}(?![0-9])/g, '[הוסר]') : null);
+    const answers = d.charterAnswers && typeof d.charterAnswers === 'object'
+      ? Object.fromEntries(Object.entries(d.charterAnswers).map(([k, v]) => [k, strip(v)]).filter(([, v]) => v)) : null;
+    const row = { client_id: body.p_client, filled_text: strip(d.charterFilledText), filled_at: d.charterFilledAt || null, brief_text: strip(d.briefText), brief_at: d.briefUpdatedAt || null,
+      script_text: strip(d.charterScript), script_at: d.charterScriptAt || null, summary_text: strip(d.charterSummary), answers: answers && Object.keys(answers).length ? answers : null, imported_at: now, imported_by: me.email };
+    const i = db.legacy_characterizations.findIndex((x) => x.client_id === row.client_id);
+    if (i >= 0) db.legacy_characterizations[i] = row; else db.legacy_characterizations.push(row);
+    return json(200, { client_id: row.client_id });
+  }
   if (p.startsWith('/rest/v1/rpc/')) return json(404, { code: 'PGRST202', message: 'not found' });
   const m = /^\/rest\/v1\/(\w+)$/.exec(p);
   if (!m || !db[m[1]]) return json(404, { code: '42P01', message: 'relation does not exist' });
@@ -284,6 +308,8 @@ async function fakeSupabase(route) {
     let rows = applyFilters(db[table], url.searchParams);
     if (table === 'quotes') rows = rows.map((q) => ({ id: q.id, number: q.number, selection: q.model.selection }));
     if (table === 'client_access') rows = vault ? rows : [];
+    // Every member of staff but the field sales agents (20261109100000_legacy_characterizations.sql).
+    if (table === 'legacy_characterizations') { const pr = staff.find((r) => r.email === me.email); rows = pr && !['stav', 'amos'].includes(pr.person) ? rows : []; }
     if (table === 'legacy_contracts') { const pr = staff.find((r) => r.email === me.email); rows = pr && (pr.person === null || ['irit', 'lior', 'ofir', 'ilai'].includes(pr.person)) ? rows : []; }
     const off = Number(url.searchParams.get('offset') || 0);
     const lim = Number(url.searchParams.get('limit') || 1e9);
@@ -1309,6 +1335,126 @@ await step('the old system\'s signed documents: the owner imports through the pa
   await nadia.goto(`${BASE}legacy-contract.html?id=501`);
   await nadia.waitForFunction(() => /המסמך לא נמצא/.test(document.getElementById('state')?.textContent || ''));
   assert.equal(await nadia.isVisible('#lc-doc'), false);
+  await ectx.close();
+});
+
+await step('the old system\'s characterization: the owner imports through the page; the card\'s closed row (390px), opened: the filled text readable, the brief and the raw answers in their rows; the editor reads it on the card and on her page', async () => {
+  const wctx = await newContext(THU, { width: 390, height: 844 });
+  const owner = await newPage(wctx);
+  await signIn(owner, `client.html?id=${V.id}`, 'owner');
+  await owner.waitForSelector('#cc-head h1');
+  await owner.waitForSelector('#fold-contract');
+  assert.equal(await owner.isVisible('#fold-legacychar'), false, 'no row while there is none');
+  const old = {
+    id: 44, name: 'רון לוי', phone: '050-1234567', email: 'ron@example.com', notes: 'לא נשלח',
+    charterFilledText: [
+      'רקע על העסק', 'שם העסק: מספרת רון', 'תחום: תספורת גברים ועיצוב זקן', 'שעות פתיחה: 10:00-20:00', 'טלפון לתיאום: 050-1234567', 'מייל: ron.levi@gmail.com', '',
+      'קהל יעד', 'גיל: 25–45', 'אזור: תל אביב והמרכז', '',
+      'מה הלקוח מספר על עצמו', 'רון פתח את המספרה ב־2015. הוא אוהב לדבר עם הלקוחות ומאמין בשירות אישי, בלי למהר.', '',
+      'שירותים:', '- תספורת', '- צבע', '- עיצוב זקן', '',
+      'מטרות', 'מטרה עיקרית: יותר לקוחות צעירים בימי חול', 'מה לא לעשות: לא לצלם לקוחות בלי אישור',
+    ].join('\r\n'),
+    charterFilledAt: '2025-03-01T08:00:00.000Z',
+    briefText: 'דגשים לסרטונים: לצלם בבוקר, לפני הפתיחה.\nלהזכיר את המבצע של יום שלישי.\nלחזור לרון ב־+972-52-765-4321.',
+    briefUpdatedAt: '2025-03-05T08:00:00.000Z',
+    charterScript: 'תסריט 1 – לפני ואחרי\nהוק: ככה נראה זקן אחרי שבוע בלי מספרה\nסצנה: רון מעצב זקן, מצלמה מעל הכתף\n\nתסריט 2 – יום במספרה\nהוק: 6:30 בבוקר, המספרה עוד סגורה',
+    charterScriptAt: '2025-03-07T08:00:00.000Z',
+    charterSummary: 'לקוח שקט ונעים. אוהב סרטונים קצרים עם מוזיקה.',
+    charterAnswers: { 1: 'מספרה', 2: '', 3: 'לחייג 0549876543', 12: 'לא' },
+  };
+  const list = [old, { id: 77, name: 'לקוח שלא יובא', charterSummary: 'משהו' }, { id: 78, name: 'ריק', charterFilledText: '  ' }];
+  const result = await importCharsInPage(owner, list, (o) => (o === 44 ? V.id : null));
+  assert.deepEqual(result, { ok: [44], skipped: [{ id: 77, clientName: 'לקוח שלא יובא' }], failed: [] });
+  assert.equal(db.legacy_characterizations.length, 1);
+  assert.doesNotMatch(JSON.stringify(db.legacy_characterizations), /050-1234567|ron\.levi@|765-4321|0549876543|לא נשלח|ron@example/);
+  // Again: the same row.
+  await importCharsInPage(owner, [old], (o) => (o === 44 ? V.id : null));
+  assert.equal(db.legacy_characterizations.length, 1);
+
+  // The card: one closed row right under the characterization's block, with the day it was filled.
+  await owner.reload();
+  await owner.waitForSelector('#fold-legacychar:not([hidden])');
+  assert.equal((await owner.locator('#fold-legacychar > summary').innerText()).replace(/\s+/g, ' ').trim(), 'אפיון מהמערכת הישנה מולא ב־1.3.2025 · בריף · תסריטים');
+  assert.ok(await owner.evaluate(() => document.getElementById('ik-slot').nextElementSibling?.id === 'fold-legacychar'), 'right under the characterization');
+  await owner.locator('#fold-legacychar > summary').click();
+  await owner.waitForSelector('#legacy-char-filled');
+  assert.equal(await owner.innerText('#legacy-char-filled .lch-stamp'), 'מולא ב־1.3.2025');
+  assert.deepEqual(await owner.locator('#legacy-char-filled .lch-h').allInnerTexts(), ['רקע על העסק', 'קהל יעד', 'מה הלקוח מספר על עצמו', 'מטרות']);
+  const pairs = await owner.locator('#legacy-char-filled dl').first().evaluate((dl) => [...dl.querySelectorAll('dt')].map((dt) => [dt.textContent, dt.nextElementSibling.textContent]));
+  assert.deepEqual(pairs, [['שם העסק', 'מספרת רון'], ['תחום', 'תספורת גברים ועיצוב זקן'], ['שעות פתיחה', '10:00-20:00'], ['טלפון לתיאום', '[הוסר]'], ['מייל', '[הוסר]']]);
+  assert.match(await owner.innerText('#legacy-char-filled'), /רון פתח את המספרה ב־2015[^]*שירותים[^]*- תספורת\n- צבע\n- עיצוב זקן[^]*מטרה עיקרית[^]*יותר לקוחות צעירים/);
+  // The parts after it are closed rows, each with its day.
+  assert.deepEqual((await owner.locator('#legacy-char .lch-fold > summary').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim()),
+    ['בריף מהמערכת הישנה עודכן ב־5.3.2025', 'תסריטים מהמערכת הישנה נכתבו ב־7.3.2025', 'סיכום', 'תשובות גולמיות (3)']);
+  assert.equal(await owner.locator('#legacy-char .lch-fold[open]').count(), 0);
+  assert.ok(await noHScroll(owner));
+  const tooSmall = await owner.locator('#fold-legacychar > summary, #legacy-char .lch-fold > summary').evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height < 44).length);
+  assert.equal(tooSmall, 0, '44px targets');
+  // On a phone the key sits over its value.
+  const [dtBottom, ddTop] = await owner.locator('#legacy-char-filled dl').first().evaluate((dl) => [dl.querySelector('dt').getBoundingClientRect().bottom, dl.querySelector('dd').getBoundingClientRect().top]);
+  assert.ok(ddTop >= dtBottom - 1, 'the value under its key');
+  // A range of numbers reads left to right in the Hebrew line ("25–45", not "45–25").
+  assert.deepEqual(await owner.locator('#legacy-char-filled bdi[dir="ltr"]').allInnerTexts(), ['25–45']);
+  await owner.locator('#fold-legacychar').scrollIntoViewIfNeeded();
+  if (OUT) await owner.locator('#fold-legacychar').screenshot({ path: `${OUT}/office-23-legacy-char-390.png` });
+  // The brief and the raw answers, opened.
+  await owner.locator('#legacy-char-brief > summary').click();
+  assert.match(await owner.innerText('#legacy-char-brief'), /לצלם בבוקר[^]*המבצע של יום שלישי[^]*לחזור לרון ב־\[הוסר\]/);
+  await owner.locator('#legacy-char-answers > summary').click();
+  const answers = await owner.locator('#legacy-char-answers dl').evaluate((dl) => [...dl.querySelectorAll('dt')].map((x) => [x.textContent, x.nextElementSibling.textContent]));
+  assert.deepEqual(answers, [['שאלה 1', 'מספרה'], ['שאלה 3', 'לחייג [הוסר]'], ['שאלה 12', 'לא']]);
+  await owner.locator('#legacy-char-brief').scrollIntoViewIfNeeded();
+  if (OUT) await owner.locator('#legacy-char-brief').screenshot({ path: `${OUT}/office-24-legacy-char-brief-390.png` });
+  // What is open stays open when the card is drawn again (the minute's refresh).
+  await owner.clock.runFor(61e3);
+  assert.equal(await owner.locator('#fold-legacychar[open] #legacy-char-brief[open]').count(), 1);
+  // On paper: everything open, without the hint.
+  await owner.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  await owner.emulateMedia({ media: 'print' });
+  assert.equal(await owner.locator('#legacy-char .lch-fold:not([open])').count(), 0);
+  assert.equal(await owner.isVisible('#legacy-char .lch-note'), false);
+  if (OUT) await owner.locator('#fold-legacychar').screenshot({ path: `${OUT}/office-25-legacy-char-print.png` });
+  await owner.emulateMedia({ media: 'screen' });
+  await owner.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  // On a computer: the key beside its value.
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  const [dtTop, ddTop2] = await owner.locator('#legacy-char-filled dl').first().evaluate((dl) => [dl.querySelector('dt').getBoundingClientRect().top, dl.querySelector('dd').getBoundingClientRect().top]);
+  assert.ok(Math.abs(dtTop - ddTop2) < 4, 'the value beside its key');
+  assert.ok(await noHScroll(owner));
+  await owner.locator('#fold-legacychar').scrollIntoViewIfNeeded();
+  if (OUT) await owner.locator('#fold-legacychar').screenshot({ path: `${OUT}/office-27-legacy-char-1280.png` });
+  await owner.setViewportSize({ width: 390, height: 844 });
+  // A link straight to it opens the row.
+  await owner.goto(`${BASE}client.html?id=${V.id}#legacy-char`);
+  await owner.waitForSelector('#fold-legacychar[open] #legacy-char-filled');
+  // A client with none: no row.
+  await owner.goto(`${BASE}client.html?id=${G.id}`);
+  await owner.waitForSelector('#cc-head h1');
+  await owner.waitForSelector('#fold-contract');
+  assert.equal(await owner.isVisible('#fold-legacychar'), false);
+  await wctx.close();
+
+  // The editor: on the card she opens, and on her page under the highlights.
+  const ectx = await newContext(THU, { width: 390, height: 844 });
+  const nadia = await newPage(ectx);
+  await signIn(nadia, `client.html?id=${V.id}`, 'nadia');
+  await nadia.waitForSelector('#fold-legacychar:not([hidden])');
+  await nadia.locator('#fold-legacychar > summary').click();
+  assert.match(await nadia.innerText('#legacy-char-filled'), /שם העסק[^]*מספרת רון/);
+  assert.ok(await noHScroll(nadia));
+  await nadia.goto(`${BASE}editor.html`);
+  const card = nadia.locator('.ed-card', { hasText: 'מספרת רון' });
+  await card.locator('details.ed-lch').waitFor();
+  assert.equal((await card.locator('details.ed-lch > summary').innerText()).replace(/\s+/g, ' ').trim(), 'אפיון מהמערכת הישנה מולא ב־1.3.2025 · בריף · תסריטים');
+  assert.equal(await card.locator('details.ed-lch[open]').count(), 0, 'closed until opened');
+  await card.locator('details.ed-lch > summary').click();
+  assert.match(await card.locator('details.ed-lch .lch-doc').innerText(), /רקע על העסק[^]*שם העסק[^]*מספרת רון/);
+  assert.ok(await noHScroll(nadia));
+  if (OUT) await card.locator('details.ed-lch').screenshot({ path: `${OUT}/office-26-legacy-char-editor-390.png` });
+  await card.locator('details.ed-lch > summary').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+  await shot(nadia, 'office-26b-legacy-char-editor-page-390');
+  // Another client of hers has none: no row there.
+  assert.equal(await nadia.locator('.ed-card', { hasText: 'גלידה שמש' }).locator('details.ed-lch').count(), 0);
   await ectx.close();
 });
 
