@@ -184,7 +184,8 @@ await step('the client card: 8ב right after 8, with its words and a checkbox Of
   // (the finished process 8 is folded away); the whole protocol has it between 7ב and 9.
   const mine = await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id));
   // (Since protocol v9 process 7 is among his too: the check of the first graphics is Ofir's.)
-  assert.deepEqual(mine.slice(0, 4), ['p04', 'p05', 'p07', 'p08b'], mine.join(','));
+  // (Since protocol v11 process 6 is his as well: he connects Metricool, 21.10.2026.)
+  assert.deepEqual(mine.slice(0, 5), ['p04', 'p05', 'p06', 'p07', 'p08b'], mine.join(','));
   await page.click('#view-toggle');
   await page.waitForSelector('#p07b', { state: 'attached' });
   const ids = await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id));
