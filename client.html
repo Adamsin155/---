@@ -39,6 +39,7 @@
   <link rel="stylesheet" href="app/styles/files.css">
   <link rel="stylesheet" href="app/styles/kit.css">
   <link rel="stylesheet" href="app/styles/client-card.css">
+  <link rel="stylesheet" href="app/styles/legacy-char.css">
   <link rel="stylesheet" href="app/styles/shell.css">
 </head>
 <body>
@@ -77,6 +78,8 @@
       <!-- "הצעד הבא שלך" (the owner, 20.10.2026): the viewer's own open items on this client, first. -->
       <section class="block cc-side my-next" id="my-next" aria-labelledby="my-next-h" hidden></section>
       <div id="ik-slot"></div>
+      <!-- The characterization filled in the old system (the owner, 26.10.2026): a closed row, only when there is one. -->
+      <details class="block cc-fold" id="fold-legacychar" hidden><summary class="cf-sum"></summary><div class="cf-body"><div id="lch-slot"></div></div></details>
       <!-- The reference blocks, each a closed row with its count until opened (the owner, 20.10.2026). -->
       <details class="block cc-fold" id="fold-status" hidden><summary class="cf-sum"></summary><div class="cf-body"><div id="st-slot"></div></div></details>
       <details class="block cc-fold" id="fold-gallery" hidden><summary class="cf-sum"></summary><div class="cf-body"><div id="gal-slot"></div></div></details>
