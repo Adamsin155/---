@@ -235,6 +235,9 @@ try {
     await irit.fill('#st-client-q', 'דנה');
     assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'קפה דנה']);
     assert.equal(await irit.locator('#st-client option:checked').textContent(), 'קפה דנה');
+    // Two words, each anywhere, in any order: the business and the person ("רון" and "כהן").
+    await irit.fill('#st-client-q', 'כהן רון');
+    assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'פיצה רון · רון כהן']);
     await irit.fill('#st-client-q', 'zzz');
     assert.deepEqual(await texts(irit, '#st-client option'), ['אין לקוח בשם הזה'], 'an earlier choice does not stay');
     assert.equal(await irit.inputValue('#st-client'), '');

@@ -196,7 +196,7 @@ function newForm() {
 function filterClients(q) {
   const sel = box?.querySelector('#st-client');
   if (!sel || !clients) return;
-  const words = String(q || '').trim().toLowerCase().split(/s+/).filter(Boolean);
+  const words = String(q || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
   const keep = sel.value;
   // Only what matches what is typed now: a client chosen by an earlier search does not stay (25.10.2026).
   const shown = clients.filter((c) => words.every((w) => c.label.toLowerCase().includes(w)));
