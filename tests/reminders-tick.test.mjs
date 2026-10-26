@@ -161,13 +161,16 @@ test('overnight: a deal at 22:00 waits; the 08:30 digest carries it and the 09:0
   assert.ok(db.log.filter((r) => r.key.includes(':2026-10-04:')).every((r) => r.status === 'suppressed'));
   const morning = IL(2026, 10, 5, 8, 30);
   const stats = await runTick({ db: db.at(morning), push, now: morning });
-  assert.ok(stats.digests >= 1); // Irit's, and Ofir's and Lior's own lines (control 33)
+  assert.ok(stats.digests >= 1); // Irit's (with her pass over the clients, control 33, since 26.10.2026), and Lior's
   const digest = sent.find((s) => s.payload.tag === 'digest:morning:irit:2026-10-05');
   assert.ok(digest, JSON.stringify(sent.map((s) => s.payload.tag)));
   assert.equal(digest.payload.title, 'תקציר בוקר');
   // Both steps of the deal are in it, as one line (the latest says it).
   assert.match(digest.payload.body, /^עברו 10 דקות בלי חוזה: לילה$/m);
-  assert.match(digest.payload.body, /^היום: לילה \(3\)$/m);
+  // Her pass over the clients (33) is due that day too (hers since 26.10.2026); the day's work is
+  // the last line, or behind "ועוד" when the digest is full (five lines at most).
+  assert.match(digest.payload.body, /^מעבר על הלקוחות \(33\) היום$/m);
+  assert.match(digest.payload.body, /^(היום: לילה \(3\)|ועוד \d נושאים ב״המשימות שלי״)$/m);
   assert.equal(digest.opts.urgency, 'normal');
   const queued = db.log.find((r) => r.key === 'deal:c1:deal:now@irit');
   assert.deepEqual([queued.status, queued.channel, queued.digest_key], ['sent', 'digest', 'digest:morning:irit:2026-10-05']);

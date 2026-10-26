@@ -107,7 +107,9 @@ test('which profile a page is shown in: a manager screen by its address opens th
   }
   // A person's own daily screens are the personal profile, also from a notification while in the manager's.
   assert.equal(p(v('ofir'), '/qa.html', '', 'manager'), 'mine');
-  assert.equal(p(v('ofir'), '/pass.html', '', 'manager'), 'mine');
+  // The pass over the clients is Irit's own since 26.10.2026; Ofir looks at it from the manager profile.
+  assert.equal(p(v('irit'), '/pass.html', '', 'manager'), 'mine');
+  assert.equal(p(v('ofir'), '/pass.html', '', 'mine'), 'manager');
   assert.equal(p(v('lior'), '/decisions.html', '', 'manager'), 'mine');
   assert.equal(p(v('lior'), '/messages.html', '', 'manager'), 'mine');
   assert.equal(p(v('lior'), '/shoot.html', '', 'manager'), 'mine');

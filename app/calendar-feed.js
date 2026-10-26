@@ -22,7 +22,7 @@
 // and the characterizer at the meeting (Ofir or Lior). No phone number of a client
 // is ever written into a feed, and no internal note: a title, a time, a place for
 // those who need it, and a link to the card (which asks to sign in).
-import { PEOPLE, SOLO, isEditorOf, isSolo, crewOf, eliFilms, crewWords, shootTypeName } from './protocol.js';
+import { PEOPLE, SOLO, PASS_OWNER, isEditorOf, isSolo, crewOf, eliFilms, crewWords, shootTypeName } from './protocol.js';
 import { clientState, itemsOf, isResolved, roundsOf, roundContext, parseDate, isImported, isBusinessDay, weekKey, isDayEnd } from './protocol-logic.js';
 import { dayKeyIL, addDaysIL, atTimeIL, weekdayIL, partsIL, startOfDayIL, dayFromKeyIL, TZ } from './tz.js';
 
@@ -214,12 +214,13 @@ export function feedEvents({ person, clients = [], checks = {}, tasks = [], now 
   const sunday = startOfDayIL(addDaysIL(atTimeIL(now, 12), -weekdayIL(now)));
   for (let w = 0; w < 8; w += 1) {
     const week = addDaysIL(atTimeIL(sunday, 12), 7 * w);
-    if (person === 'ofir') {
+    // The Thursday summary: part of the pass over the clients (33), Irit's since 26.10.2026 (Ofir's until then).
+    if (person === PASS_OWNER) {
       const thu = addDaysIL(week, 4);
       if (isBusinessDay(thu)) {
         const due = atTimeIL(thu, 13);
         out.push({
-          uid: `thursday-${weekKey(thu)}-ofir@astrateg`, kind: 'weekly', title: 'סיכום חמישי: יעד 13:00',
+          uid: `thursday-${weekKey(thu)}-${PASS_OWNER}@astrateg`, kind: 'weekly', title: 'סיכום חמישי: יעד 13:00',
           start: new Date(due.getTime() - DEADLINE_MIN * 6e4), end: due, description: `הסיכום: ${site}pass.html`,
         });
       }

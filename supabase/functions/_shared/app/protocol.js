@@ -1096,7 +1096,13 @@ export const PROCESSES = [
 ];
 
 // Processes 32 and 33 are office-wide daily reviews, served by the control view.
+// 33, the pass over the clients (pass.html), is Irit's since 26.10.2026 (the owner: she goes
+// over the clients, checks that all is well, updates them and opens tasks for the team; it was
+// Ofir's). It is a task, a ring and a lateness for her alone: the owners, Lior and Ofir may look
+// at it, and are never asked for it (PASS_OWNER below; app/reminder-rules.js control33, thursday).
 export const OFFICE_REVIEWS = [
   { num: '32', title: 'בקרה על ביצוע המשימות', owner: 'irit', sla: 'בכל יום עבודה, כולל הודעות יומיות ללקוחות' },
-  { num: '33', title: 'בקרה על כל רשימת הלקוחות', owner: 'ofir', sla: 'לפחות פעם ביומיים; ביום חמישי מעבר מלא עם סיכום מצב לכל לקוח' },
+  { num: '33', title: 'בקרה על כל רשימת הלקוחות', owner: 'irit', sla: 'לפחות פעם ביומיים; ביום חמישי מעבר מלא עם סיכום מצב לכל לקוח' },
 ];
+// Whose the pass over the clients (33) and its Thursday summaries are.
+export const PASS_OWNER = OFFICE_REVIEWS.find((r) => r.num === '33').owner;

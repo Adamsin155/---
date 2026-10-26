@@ -49,7 +49,7 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, editorsOf, editorNames, isSolo, eliFilms } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
@@ -119,7 +119,9 @@ export const RING_TARGETS = { irit: 8, lior: 6, ofir: 5, ilai: 5, nirel: 3, nadi
 export const STALE_MINUTES = { ring: 6 * 60, quiet: 6 * 60, board: 24 * 60, digest: 60 };
 // Steps that report something that happened (a missed call, a missed review): once
 // queued, they stay in the next digest even though the day that produced them is over.
-export const FACTS = new Set(['control32.lior', 'control33.lior', 'thursday.lior', 'thursday.board', 'weekly.missed', 'editing.off']);
+// (Since 26.10.2026 the pass over the clients, 33, and its Thursday summaries are Irit's, and
+// late for her alone: `control33.late` replaced Lior's line and the owner's board.)
+export const FACTS = new Set(['control32.lior', 'control33.late', 'weekly.missed', 'editing.off']);
 // The step that tells whoever had the work before that it passed on (`handover`).
 export const OFF = 'off';
 // The end of the key of Lior's copy of an exception that went to Ofir on his shoot
@@ -305,6 +307,10 @@ export const LATE_GRACE_MINUTES = 15;
 // A late process whose own ladder already rings one of the watchers at the deadline
 // (8ב: Ofir, `highlightsUpload`): `late` does not tell that watcher again; the other still hears.
 export const LATE_RUNG = { p08b: 'ofir' };
+
+// The pass over the clients (33) is late from the third business day without one (and
+// "never" is 99: due today, not late by 99 days).
+const lateGap = (gap) => gap >= 3 && gap < 99;
 
 export const RULES = [
   // 1–3: a new deal. Irit at once; again at 5 office minutes if the group (with its
@@ -887,10 +893,12 @@ export const RULES = [
     ],
   },
 
-  // 33: Ofir's pass over all clients, at least every other business day: in his
-  // digest on the day it is due; Lior's list on the third day.
+  // 33: the pass over all clients, at least every other business day. Irit's since
+  // 26.10.2026 (the owner; Ofir's until then): in her digest on the day it is due, and from
+  // the third business day as late, in her digest. It is nobody else's task: the owner, Lior
+  // and Ofir may look at pass.html, and are not told (Lior's list had it until then).
   {
-    id: 'control33', event: 'בקרת לקוחות (33)', procs: [],
+    id: 'control33', event: 'מעבר על הלקוחות (33)', procs: [],
     instances(env) {
       if (!isBusinessDay(env.now) || !env.clients.length) return [];
       const days = env.reviews.filter((r) => r.kind === 'p33').map((r) => r.day).sort();
@@ -900,14 +908,15 @@ export const RULES = [
       return [{ id: dayKeyIL(env.now), cid: null, name: '', gap, url: 'pass.html', anchors: { event: atTimeIL(env.now, 0) } }];
     },
     steps: [
-      { id: 'ofir', at: '08:30', to: 'ofir', level: 'digest', title: () => 'בקרת לקוחות (33) היום', body: () => '' },
-      { id: 'lior', at: '08:30', to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => i.gap >= 3, title: () => 'בקרת הלקוחות של אופיר לא בוצעה 3 ימי עסקים', body: () => '' },
+      { id: 'due', at: '08:30', to: PASS_OWNER, level: 'digest', when: (i) => !lateGap(i.gap), title: () => 'מעבר על הלקוחות (33) היום', body: () => '' },
+      { id: 'late', at: '08:30', to: PASS_OWNER, level: 'digest', overdue: true, when: (i) => lateGap(i.gap), title: (i) => `המעבר על הלקוחות (33) באיחור: ${i.gap} ימי עסקים בלי מעבר`, body: () => '' },
     ],
   },
 
-  // Thursday: Ofir's status summaries. One message at 09:00 (it falls in 09:00–09:30,
-  // so it arrives in the 08:30 digest), the 13:00 target, Lior's 16:00 list and the
-  // owner's 18:00 digest if some are still missing.
+  // Thursday: the status summaries of the full pass (33), Irit's since 26.10.2026 (the
+  // owner; Ofir's until then). One message at 09:00 (it falls in 09:00–09:30, so it arrives
+  // in the 08:30 digest) and the 13:00 target, to her alone: Lior's list and the owner's
+  // board no longer hear of it (the pass is a task for nobody else).
   {
     id: 'thursday', event: 'סיכום חמישי', procs: [],
     instances(env) {
@@ -919,10 +928,8 @@ export const RULES = [
       return [{ id: week, cid: null, name: '', missing, url: 'pass.html#th-h', anchors: { event: atTimeIL(env.now, 0) } }];
     },
     steps: [
-      { id: '0900', at: '09:00', to: 'ofir', level: 'ring', title: (i) => `סיכומי מצב לחמישי: ${i.missing.length} לקוחות`, body: () => 'היעד: 13:00, כדי שעירית תשלח עדכונים היום.' },
-      { id: '1300', at: '13:00', to: 'ofir', level: 'quiet', title: (i) => `יעד 13:00: חסרים ${i.missing.length} סיכומים`, body: (i) => names(i.missing.map((c) => c.name)) },
-      { id: 'lior', at: '13:00', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `סיכומי חמישי חסרים: ${i.missing.length}`, body: () => '' },
-      { id: 'board', at: '18:00', to: OWNER, level: 'board', overdue: true, title: (i) => `סיכומי חמישי חסרים: ${i.missing.length}`, body: () => 'באחריות אופיר.' },
+      { id: '0900', at: '09:00', to: PASS_OWNER, level: 'ring', title: (i) => `סיכומי מצב לחמישי: ${i.missing.length} לקוחות`, body: () => 'היעד: 13:00, ואז שולחים ללקוחות את העדכון של חמישי.' },
+      { id: '1300', at: '13:00', to: PASS_OWNER, level: 'quiet', overdue: true, title: (i) => `יעד 13:00: חסרים ${i.missing.length} סיכומים`, body: (i) => names(i.missing.map((c) => c.name)) },
     ],
   },
 

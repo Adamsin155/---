@@ -298,8 +298,12 @@ test('several things that became late at the same moment are ONE ring with the l
   // Each item is still a row of its own in "התראות", marked as sent with that batch.
   const mine = db.log.filter((r) => r.rule === 'lateOwn' && r.person === 'irit');
   assert.deepEqual([mine.length, new Set(mine.map((r) => r.digest_key)).size, mine.every((r) => r.status === 'sent' && r.level === 'ring')], [5, 1, true]);
-  // Ofir and Lior: one batch each with the 15 notes (as before), nothing per item.
-  assert.deepEqual(['ofir', 'lior'].map((p) => sent.filter((s) => s.to === p && s.title !== 'תקציר בוקר').map((s) => s.title)), [['15 איחורים חדשים'], ['15 איחורים חדשים']]);
+  // Lior: one batch with the 15 notes (as before), nothing per item. Ofir has no line of his own
+  // in the 08:30 digest any more (the pass over the clients is Irit's since 26.10.2026): his
+  // morning digest goes out with the notes in it, at 09:15, one message.
+  assert.deepEqual(sent.filter((s) => s.to === 'lior' && s.title !== 'תקציר בוקר').map((s) => s.title), ['15 איחורים חדשים']);
+  assert.deepEqual(sent.filter((s) => s.to === 'ofir').map((s) => `${s.at} ${s.title}`), ['6.10 09:15 תקציר בוקר']);
+  assert.match(sent.find((s) => s.to === 'ofir').body, /^באיחור: גמא/);
   assert.equal(LATE_BATCH_MINUTES, 30);
 });
 
@@ -314,7 +318,8 @@ test('the volume of a day: with 5 late items each, a person gets the two daily r
   const d1 = await day(6);
   // The late person: the morning digest (as every day), "באיחור" once at 09:15, the 14:00 reminder.
   for (const p of ['irit', 'ilai', 'nadia']) assert.deepEqual(about(d1, p), ['08:30 תקציר בוקר', '09:15 5 איחורים חדשים', '14:00 5 דברים באיחור אצלך'], p);
-  assert.deepEqual(about(d1, 'ofir'), ['08:30 תקציר בוקר', '09:15 15 איחורים חדשים']);
+  // Ofir: no 08:30 line of his own since the pass went to Irit (26.10.2026); the notes are his morning digest.
+  assert.deepEqual(about(d1, 'ofir'), ['09:15 תקציר בוקר']);
   assert.deepEqual(about(d1, 'owner'), ['19:00 סיכום היום']);
   assert.equal(d1.filter((s) => s.to === 'owner2').length, 1); // both owners
   assert.match(d1.find((s) => s.to === 'owner').body, /^היום: 15 באיחור אצל 3 עובדים, כל מה שהיה להיום בוצע\n/);

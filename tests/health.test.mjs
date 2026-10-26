@@ -248,10 +248,10 @@ test('yellow: no activity for 5 business days; a missing Thursday summary; the c
   assert.equal(find(health(c, checks, '2026-10-18T10:00:00+03:00'), 'quiet'), undefined);
   const q = find(health(c, checks, '2026-10-19T08:00:00+03:00'), 'quiet');
   assert.deepEqual([q.color, q.text], ['yellow', 'אין פעילות 5 ימי עסקים']);
-  // Thursday from 13:00: Ofir's summary of the week is missing.
+  // Thursday from 13:00: the summary of the week is missing (Irit's, with her pass over the clients, since 26.10.2026).
   const thu = (now, notes) => find(health(c, checks, now, { statusNotes: notes }), 'thursday');
   assert.equal(thu('2026-10-15T12:59:00+03:00', []), undefined);
-  assert.deepEqual([thu('2026-10-15T13:00:00+03:00', []).who, thu('2026-10-15T13:00:00+03:00', []).color], ['ofir', 'yellow']);
+  assert.deepEqual([thu('2026-10-15T13:00:00+03:00', []).who, thu('2026-10-15T13:00:00+03:00', []).color], ['irit', 'yellow']);
   assert.equal(thu('2026-10-16T10:00:00+03:00', [{ client_id: 'c1', week: '2026-10-11' }]), undefined);
   assert.equal(thu('2026-10-15T14:00:00+03:00', null), undefined); // not loaded: no claim
   assert.equal(thu('2026-10-18T10:00:00+03:00', []), undefined); // a new week
@@ -365,7 +365,8 @@ test('screen 1: one row per client, the Thursday summary as one row, office rows
     ...Array.from({ length: 10 }, (_, i) => mk(`e${i}`, [r('yellow', 'quiet', 5 + i)])),
   ];
   const office = officeReasons([], at('2026-10-13T10:00:00+03:00'));
-  assert.deepEqual(office.map((x) => [x.code, x.who]), [['review32', 'irit'], ['review33', 'ofir']]);
+  // The pass over the clients (33) is Irit's since 26.10.2026: its lateness is hers.
+  assert.deepEqual(office.map((x) => [x.code, x.who]), [['review32', 'irit'], ['review33', 'irit']]);
   const { rows, more, total } = ownerRows(entries, { office });
   assert.equal(rows.length, 10);
   assert.equal(total, 2 + 1 + 10 + 2); // a, b, the Thursday row, ten quiet clients, two reviews

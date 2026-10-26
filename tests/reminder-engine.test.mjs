@@ -630,26 +630,38 @@ test('daily messages, daily control (32) and the clients review (33)', () => {
   assert.equal(one(due(w, IL(2026, 10, 5, 18)), 'control32', 'lior', 'lior').list, true);
   w.reviews.push({ day: '2026-10-05', kind: 'p32' });
   none(due(w, IL(2026, 10, 5, 14)), 'control32');
-  // Ofir's review, last on Thursday 1.10: due Monday (2 business days), Lior on Tuesday.
+  // The pass over the clients (33), Irit's since 26.10.2026 (the owner; Ofir's until then), last
+  // on Thursday 1.10: due Monday (2 business days), late on Tuesday, for her alone: nobody else
+  // hears of it (Lior's list had it), and nobody else's list counts it.
   w.reviews.push({ day: '2026-10-01', kind: 'p33' });
-  one(due(w, IL(2026, 10, 5, 8, 30)), 'control33', 'ofir', 'ofir');
-  none(due(w, IL(2026, 10, 5, 8, 30)), 'control33', 'lior');
-  one(due(w, IL(2026, 10, 6, 8, 30)), 'control33', 'lior', 'lior');
+  one(due(w, IL(2026, 10, 5, 8, 30)), 'control33', 'due', 'irit');
+  none(due(w, IL(2026, 10, 5, 8, 30)), 'control33', 'late');
+  const late33 = one(due(w, IL(2026, 10, 6, 8, 30)), 'control33', 'late', 'irit');
+  assert.equal(late33.overdue, true);
+  assert.equal(late33.list, false);
+  for (const at of [IL(2026, 10, 5, 8, 30), IL(2026, 10, 6, 8, 30), IL(2026, 10, 6, 16)]) {
+    assert.deepEqual(due(w, at).filter((r) => r.rule === 'control33' && r.person !== 'irit').map((r) => r.key), []);
+  }
   w.reviews.push({ day: '2026-10-05', kind: 'p33' });
   none(due(w, IL(2026, 10, 6, 8, 30)), 'control33');
   // Not on a Friday.
   none(due(w, IL(2026, 10, 9, 14)), 'dailyMessages');
 });
 
-test('Thursday summaries: 09:00 Ofir, 13:00 target (quiet) and Lior\'s list, 18:00 the owner', () => {
+// The Thursday summaries are part of the pass (33): Irit's since 26.10.2026 (Ofir's until then),
+// and nobody else's (Lior's list and the owner's board had them).
+test('Thursday summaries: 09:00 Irit, 13:00 her target (quiet, late); nobody else is told', () => {
   const w = world();
   const a = client(w);
   importTo(w, a, 'ongoing');
-  one(due(w, IL(2026, 10, 8, 9)), 'thursday', '0900', 'ofir');
+  one(due(w, IL(2026, 10, 8, 9)), 'thursday', '0900', 'irit');
   const at13 = due(w, IL(2026, 10, 8, 13));
-  assert.equal(one(at13, 'thursday', '1300', 'ofir').level, 'quiet');
-  one(at13, 'thursday', 'lior', 'lior');
-  one(due(w, IL(2026, 10, 8, 18)), 'thursday', 'board', 'owner');
+  const t13 = one(at13, 'thursday', '1300', 'irit');
+  assert.equal(t13.level, 'quiet');
+  assert.equal(t13.overdue, true);
+  for (const at of [IL(2026, 10, 8, 9), IL(2026, 10, 8, 13), IL(2026, 10, 8, 16), IL(2026, 10, 8, 18)]) {
+    assert.deepEqual(due(w, at).filter((r) => r.rule === 'thursday' && r.person !== 'irit').map((r) => r.key), []);
+  }
   w.statusNotes.push({ client_id: a.id, week: '2026-10-04' });
   none(due(w, IL(2026, 10, 8, 18)), 'thursday');
   none(due(w, IL(2026, 10, 7, 13)), 'thursday');

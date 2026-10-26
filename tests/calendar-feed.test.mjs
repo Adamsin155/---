@@ -204,8 +204,10 @@ test('feed: deadlines of one\'s own open processes: the editor\'s editing, never
 test('feed: open tasks with a due day, all day; recurring office work; nothing of an ended client; no phone', () => {
   assert.deepEqual(feed('nadia').filter((e) => e.kind === 'task').map((e) => [e.title, e.allDay]), [['משימה: לוגו חדש, בגרסה לבנה · מספרת רון', '2026-10-22']]);
   assert.deepEqual(feed('lior').filter((e) => e.kind === 'task').map((e) => e.title), ['דחוף: להתקשר ללקוח · מספרת רון']);
-  // Ofir's Thursday summary (13:00) for 8 weeks, skipping days off; Lior's Tuesday campaigns check.
-  const thu = feed('ofir').filter((e) => e.kind === 'weekly');
+  // The Thursday summary (13:00) for 8 weeks, skipping days off: Irit's since 26.10.2026, with her
+  // pass over the clients (Ofir has none any more); Lior's Tuesday campaigns check.
+  assert.equal(feed('ofir').filter((e) => e.kind === 'weekly').length, 0);
+  const thu = feed('irit').filter((e) => e.kind === 'weekly');
   assert.ok(thu.length >= 7 && thu.length <= 8);
   assert.equal(thu[0].end.toISOString(), '2026-10-22T10:00:00.000Z');
   assert.equal(thu[0].title, 'סיכום חמישי: יעד 13:00');
