@@ -49,7 +49,7 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, editorsOf, editorNames, isSolo, eliFilms } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
@@ -119,7 +119,9 @@ export const RING_TARGETS = { irit: 8, lior: 6, ofir: 5, ilai: 5, nirel: 3, nadi
 export const STALE_MINUTES = { ring: 6 * 60, quiet: 6 * 60, board: 24 * 60, digest: 60 };
 // Steps that report something that happened (a missed call, a missed review): once
 // queued, they stay in the next digest even though the day that produced them is over.
-export const FACTS = new Set(['control32.lior', 'control33.lior', 'thursday.lior', 'thursday.board', 'weekly.missed', 'editing.off']);
+// (Since 26.10.2026 the pass over the clients, 33, and its Thursday summaries are Irit's, and
+// late for her alone: `control33.late` replaced Lior's line and the owner's board.)
+export const FACTS = new Set(['control32.lior', 'control33.late', 'weekly.missed', 'editing.off']);
 // The step that tells whoever had the work before that it passed on (`handover`).
 export const OFF = 'off';
 // The end of the key of Lior's copy of an exception that went to Ofir on his shoot
@@ -306,6 +308,10 @@ export const LATE_GRACE_MINUTES = 15;
 // (8ב: Ofir, `highlightsUpload`): `late` does not tell that watcher again; the other still hears.
 export const LATE_RUNG = { p08b: 'ofir' };
 
+// The pass over the clients (33) is late from the third business day without one (and
+// "never" is 99: due today, not late by 99 days).
+const lateGap = (gap) => gap >= 3 && gap < 99;
+
 export const RULES = [
   // 1–3: a new deal. Irit at once; again at 5 office minutes if the group (with its
   // members) or the meeting date is missing, and at 10 if the contract is (the
@@ -360,21 +366,10 @@ export const RULES = [
     ],
   },
 
-  // 4: the full form after "the characterization ended" (decision 12): the
-  // characterizer 60 minutes after the tap, then Irit (her follow-up, section 5 of
-  // her protocol), then Lior's list. Saving the complete form stops it.
-  {
-    id: 'charForm', event: 'טופס האפיון המלא לא נשמר (4)', procs: ['p04'],
-    instances(env) {
-      return casesOf(env, 'p04', (i) => !i.pre && !!i.doneAt(CHAR_ENDED) && !i.resolved('p04.saved') && !halted(i, { claim: false }))
-        .map((i) => ({ ...i, id: `p04@${i.doneAt(CHAR_ENDED).toISOString()}`, who: characterizer(i.client), url: `intake.html?id=${encodeURIComponent(i.cid)}#form`, anchors: { event: i.doneAt(CHAR_ENDED) } }));
-    },
-    steps: [
-      { id: 'form', minutes: 60, to: (i) => i.who, level: 'ring', title: (i) => `טופס האפיון עוד לא נשמר: ${i.name}`, body: () => 'עברה שעה מ"האפיון הסתיים". להשלים את 11 השדות (אפשר להקליד בקול).' },
-      { id: 'irit', minutes: 90, to: 'irit', level: 'ring', title: (i) => `טופס האפיון חסר: ${i.name}`, body: (i) => `${personName(i.who)} עוד לא השלים/ה את טופס האפיון. לבדוק ולהשלים את המידע.` },
-      { id: 'lior', minutes: 120, to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `טופס אפיון לא נשמר: ${i.name} · ${personName(i.who)}`, body: () => 'עברו שעתיים מסוף האפיון.' },
-    ],
-  },
+  // 4: the full form after "the characterization ended" had a ladder of its own here
+  // (`charForm`: the characterizer at 60 minutes, Irit, then Lior's list). Since 26.10.2026
+  // the form is filled in the meeting (the owner): after the mark nothing of process 4 rings
+  // (clockStopped in app/protocol-logic.js), and the form stays open to fill in.
 
   // 6–10: the clocks that start when the characterization is marked done. One
   // message each ("your clock started") and one 30 minutes before the two-hour target.
@@ -898,10 +893,12 @@ export const RULES = [
     ],
   },
 
-  // 33: Ofir's pass over all clients, at least every other business day: in his
-  // digest on the day it is due; Lior's list on the third day.
+  // 33: the pass over all clients, at least every other business day. Irit's since
+  // 26.10.2026 (the owner; Ofir's until then): in her digest on the day it is due, and from
+  // the third business day as late, in her digest. It is nobody else's task: the owner, Lior
+  // and Ofir may look at pass.html, and are not told (Lior's list had it until then).
   {
-    id: 'control33', event: 'בקרת לקוחות (33)', procs: [],
+    id: 'control33', event: 'מעבר על הלקוחות (33)', procs: [],
     instances(env) {
       if (!isBusinessDay(env.now) || !env.clients.length) return [];
       const days = env.reviews.filter((r) => r.kind === 'p33').map((r) => r.day).sort();
@@ -911,14 +908,15 @@ export const RULES = [
       return [{ id: dayKeyIL(env.now), cid: null, name: '', gap, url: 'pass.html', anchors: { event: atTimeIL(env.now, 0) } }];
     },
     steps: [
-      { id: 'ofir', at: '08:30', to: 'ofir', level: 'digest', title: () => 'בקרת לקוחות (33) היום', body: () => '' },
-      { id: 'lior', at: '08:30', to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => i.gap >= 3, title: () => 'בקרת הלקוחות של אופיר לא בוצעה 3 ימי עסקים', body: () => '' },
+      { id: 'due', at: '08:30', to: PASS_OWNER, level: 'digest', when: (i) => !lateGap(i.gap), title: () => 'מעבר על הלקוחות (33) היום', body: () => '' },
+      { id: 'late', at: '08:30', to: PASS_OWNER, level: 'digest', overdue: true, when: (i) => lateGap(i.gap), title: (i) => `המעבר על הלקוחות (33) באיחור: ${i.gap} ימי עסקים בלי מעבר`, body: () => '' },
     ],
   },
 
-  // Thursday: Ofir's status summaries. One message at 09:00 (it falls in 09:00–09:30,
-  // so it arrives in the 08:30 digest), the 13:00 target, Lior's 16:00 list and the
-  // owner's 18:00 digest if some are still missing.
+  // Thursday: the status summaries of the full pass (33), Irit's since 26.10.2026 (the
+  // owner; Ofir's until then). One message at 09:00 (it falls in 09:00–09:30, so it arrives
+  // in the 08:30 digest) and the 13:00 target, to her alone: Lior's list and the owner's
+  // board no longer hear of it (the pass is a task for nobody else).
   {
     id: 'thursday', event: 'סיכום חמישי', procs: [],
     instances(env) {
@@ -930,10 +928,8 @@ export const RULES = [
       return [{ id: week, cid: null, name: '', missing, url: 'pass.html#th-h', anchors: { event: atTimeIL(env.now, 0) } }];
     },
     steps: [
-      { id: '0900', at: '09:00', to: 'ofir', level: 'ring', title: (i) => `סיכומי מצב לחמישי: ${i.missing.length} לקוחות`, body: () => 'היעד: 13:00, כדי שעירית תשלח עדכונים היום.' },
-      { id: '1300', at: '13:00', to: 'ofir', level: 'quiet', title: (i) => `יעד 13:00: חסרים ${i.missing.length} סיכומים`, body: (i) => names(i.missing.map((c) => c.name)) },
-      { id: 'lior', at: '13:00', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `סיכומי חמישי חסרים: ${i.missing.length}`, body: () => '' },
-      { id: 'board', at: '18:00', to: OWNER, level: 'board', overdue: true, title: (i) => `סיכומי חמישי חסרים: ${i.missing.length}`, body: () => 'באחריות אופיר.' },
+      { id: '0900', at: '09:00', to: PASS_OWNER, level: 'ring', title: (i) => `סיכומי מצב לחמישי: ${i.missing.length} לקוחות`, body: () => 'היעד: 13:00, ואז שולחים ללקוחות את העדכון של חמישי.' },
+      { id: '1300', at: '13:00', to: PASS_OWNER, level: 'quiet', overdue: true, title: (i) => `יעד 13:00: חסרים ${i.missing.length} סיכומים`, body: (i) => names(i.missing.map((c) => c.name)) },
     ],
   },
 
@@ -1421,7 +1417,7 @@ export const RULES = [
           const i = procCase(env, c, s);
           // A claim ("אני על זה") stops the reminders, not the report that it is late.
           if (pauseOf(i.proc, i.checks)) continue;
-          // After "the characterization ended", the form has its own ladder (charForm).
+          // After "the characterization ended" process 4 has no clock (26.10.2026); never late here either.
           if (baseId(s.proc.id) === 'p04' && i.resolved(CHAR_ENDED)) continue;
           // The final versions are in the Drive: only Ilai's "קיבלתי" (p27.toilai) keeps
           // 27 open, and finalReady follows it; not a second line, nor the editor's lateness.

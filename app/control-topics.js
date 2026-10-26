@@ -6,7 +6,7 @@
 // the clients with their marks and states, the open tasks, each person's work, and
 // (for Irit and the owners, who may read them) Stav's deals.
 import { REVIEW_TOPICS, PEOPLE, editorNames } from './protocol.js';
-import { businessDaysBetween, addBusinessDays, parseDate, IMPORT_NOTE, inLanding, workFloor } from './protocol-logic.js';
+import { businessDaysBetween, addBusinessDays, parseDate, IMPORT_NOTE, inLanding, workFloor, charEndedAt } from './protocol-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import { dealUrl, dealDue } from './deal-logic.js';
 import { unsignedList, UNSIGNED_URL } from './unsigned-logic.js';
@@ -121,6 +121,8 @@ function intro({ live, cs, st }) {
 // ── 5: characterization meetings ────────────
 // Today's and the next business day's meetings (to know about), a client with no
 // meeting set, and a meeting that passed without the characterization being saved.
+// A meeting marked "האפיון הסתיים" is over: its form is filled in the meeting, with no
+// clock after it (the owner, 26.10.2026), so it is not a topic here any more.
 function chars({ live, cs, st, now }) {
   const out = [];
   const today = dayKeyIL(now);
@@ -128,7 +130,7 @@ function chars({ live, cs, st, now }) {
   for (const c of live) {
     const states = st(c);
     const p4 = states.find((x) => x.proc.id === 'p04');
-    if (!p4 || p4.complete || isResolved(cs(c), 'p04.saved')) continue;
+    if (!p4 || p4.complete || isResolved(cs(c), 'p04.saved') || charEndedAt(cs(c))) continue;
     const p3 = states.find((x) => x.proc.id === 'p03');
     const at = parseDate(c.char_at);
     const who = nameOf(c.characterizer || 'ofir');

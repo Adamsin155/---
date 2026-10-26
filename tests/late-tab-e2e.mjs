@@ -203,7 +203,7 @@ try {
       assert.equal(await page.evaluate(() => location.hash), '#late');
       assert.equal(await page.getAttribute('#view-mine', 'aria-labelledby'), 'tab-late');
       assert.match(await text(page.locator('#late-h')), new RegExp(`^${want === 1 ? 'דבר אחד' : `${want} דברים`} באיחור אצלך`));
-      for (const sel of ['#now-bar', '#push-card', '#mine-foot', '#my-months', '#land-line', '#staff-tasks-card']) assert.equal(await page.isVisible(sel), false, `${sel} is not part of the late view`);
+      for (const sel of ['#now-bar', '#push-card', '#mine-connect', '#mine-foot', '#my-months', '#land-line', '#staff-tasks-card']) assert.equal(await page.isVisible(sel), false, `${sel} is not part of the late view`);
       if (role !== 'ilai') {
         // One row for each late thing; Ofir's processes of one client and Lior's drives of one shoot day are one card listing them (the owner, 20.10.2026).
         const rows = await page.locator('#mine-list .late-list > li:not(.more-row)').evaluateAll((els) => els.reduce((n, el) => n + (el.matches('.wc-joined') ? el.querySelectorAll(':scope > .wc-subs > li').length : el.matches('.wc-drives') ? el.querySelectorAll('.wlist > li').length : 1), 0));

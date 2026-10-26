@@ -1,5 +1,8 @@
-// Notifications on the phone (stage 3), in "המשימות שלי" (clients.html):
-//  - the "הפעלת התראות" card: on an iPhone first "הוספה למסך הבית" (iOS 16.4+),
+// Notifications on the phone (stage 3):
+//  - the "הפעלת התראות" card. On clients.html it is in the window "ההתראות שלך" (since
+//    26.10.2026 "המשימות שלי" holds tasks only: a quiet line at its bottom opens the window
+//    while this device is not connected, app/mine-connect.js; the bell's list opens it too);
+//    on the other pages it stays where it was. On an iPhone first "הוספה למסך הבית" (iOS 16.4+),
 //    and permission is asked only from a button in the installed app; after
 //    connecting, a test notification that the person confirms ("קיבלתי");
 //  - "התראות": today's reminders of the signed-in person (public.reminder_log),
@@ -47,6 +50,8 @@ let onChange = () => {};  // the page re-renders what depends on pushActive()
 let painted = null;
 
 export const pushActive = () => state === 'on' || state === 'confirm';
+// Where this device stands (pushState), or null while it is not known (no push tables, not mounted).
+export const pushNow = () => (live ? state : null);
 
 async function loadDevices() {
   const { data, error } = await supabase.from('push_subscriptions').select('endpoint, confirmed_at, last_ok_at, created_at');

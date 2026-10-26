@@ -219,13 +219,14 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.equal(await page.locator('#side-messages').isVisible(), false);
   await toggle.click();
   assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
-  // "יומן" (calendar.html, 15.10.2026) is one of her daily screens, behind "עוד" on a phone.
-  assert.deepEqual(await page.locator('#side-sheet .side-link:visible').allInnerTexts(), ['הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
-  for (const id of ['side-prep', 'side-messages', 'side-quote', 'side-quotes']) {
+  // "יומן" (calendar.html, 15.10.2026) is one of her daily screens, behind "עוד" on a phone; so is her
+  // pass over the clients (pass.html, hers since 26.10.2026).
+  assert.deepEqual(await page.locator('#side-sheet .side-link:visible').allInnerTexts(), ['מעבר על הלקוחות', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+  for (const id of ['side-prep', 'side-pass', 'side-messages', 'side-quote', 'side-quotes']) {
     assert.ok(await page.locator(`#${id}`).isVisible(), id);
     assert.ok((await page.locator(`#${id}`).boundingBox()).height >= 44, id);
   }
-  assert.equal(await page.locator('#side-insights, #side-qa, #side-pass, #side-decisions').count(), 0, 'screens that are not Irit\'s');
+  assert.equal(await page.locator('#side-insights, #side-qa, #side-decisions').count(), 0, 'screens that are not Irit\'s');
   assert.equal(await page.locator('#side-manager, #side-year, #side-shoot, #side-team, #side-gantt').count(), 0, 'the manager profile\'s screens wait behind the button');
   // Nothing of it is repeated in the page head; Escape closes the sheet.
   assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
@@ -334,8 +335,8 @@ await step('Ofir lands on "המשימות שלי"; the quality-control queue is 
   // His late cards are behind the "באיחור" line (the owner, 20.10.2026): the list is drawn.
   await page.waitForSelector('#mine-list .wgroup');
   assert.match(page.url(), /clients\.html(#mine)?$/);
-  // Five in his own menu since the calendar (15.10.2026): his pass and the calendar are behind "עוד".
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'עוד']);
+  // Four in his own menu since the pass over the clients went to Irit (26.10.2026): all in the bar.
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'יומן']);
   await page.click('#side-qa');
   await page.waitForURL(/qa\.html/);
   await page.waitForSelector('#profile-switch');
@@ -343,9 +344,12 @@ await step('Ofir lands on "המשימות שלי"; the quality-control queue is 
   assert.equal(await page.innerText('h1'), 'בקרה ושיוך');
   await tidy(page, 'ofir');
   await shot(page, 'ofir-01-qa');
+  // The pass over the clients is Irit's since 26.10.2026: he looks at it, with no button of the pass.
   await page.goto(`${BASE}pass.html`);
   await page.waitForSelector('#ps-list > li');
   await settle(page);
+  assert.match(await page.innerText('#ps-view'), /המעבר על הלקוחות הוא של עירית/);
+  assert.equal(await page.locator('#ps-list button:not(.more-btn), #ps-rest-btn').count(), 0);
   await tidy(page, 'ofir pass');
   assert.equal(await page.locator('#ps-list > li:not(.more-row):visible').count(), 6);
   const ph = await heightOf(page);
@@ -479,22 +483,29 @@ await step('Irit: imported clients are not news, the setup cards are one line ea
   assert.ok(await boxOf(page, '#staff-tasks-card') <= 84, `the giver's card is ${await boxOf(page, '#staff-tasks-card')}px`);
   assert.equal(await page.innerText('#st-new'), 'שליחת נודניק');
   assert.equal(await page.locator('#st-form').count(), 0);
-  // Blocked notifications (the test browser blocks them) and the calendar: a line each, the text a tap away.
+  // Blocked notifications (the test browser blocks them): no card in "המשימות שלי" since 26.10.2026
+  // (tasks only), one quiet line at its very bottom with "לחבר" to the card, in "ההתראות שלך".
   assert.equal(await page.getAttribute('#push-card', 'data-state'), 'blocked');
-  assert.ok(await boxOf(page, '#push-card') <= 56, `the notifications card is ${await boxOf(page, '#push-card')}px`);
-  assert.ok(await boxOf(page, '#cal-card') <= 56, `the calendar card is ${await boxOf(page, '#cal-card')}px`);
-  assert.equal(await page.locator('#push-card p:visible, #cal-card p:visible, #cal-make:visible').count(), 0);
-  for (const sel of ['#push-card summary', '#cal-card summary']) assert.ok(await boxOf(page, sel) >= 44, sel);
+  assert.equal(await page.locator('#view-mine #push-card, #view-mine #wa-card').count(), 0);
+  assert.match(await page.innerText('#mine-connect'), /^ההתראות לא מחוברות (בטלפון|במכשיר) הזה · לחבר$/);
+  assert.ok(await boxOf(page, '#connect-push') >= 44);
+  await page.click('#connect-push');
+  await page.waitForSelector('#dlg-connect[open]');
+  assert.ok(await boxOf(page, '#push-card summary') >= 44);
   await page.click('#push-card summary');
   assert.match(await page.innerText('#push-card'), /ההתראות חסומות[^]*לאפשר/);
+  await page.keyboard.press('Escape');
+  // The calendar: a line, the text a tap away.
+  assert.ok(await boxOf(page, '#cal-card') <= 56, `the calendar card is ${await boxOf(page, '#cal-card')}px`);
+  assert.equal(await page.locator('#cal-card p:visible, #cal-make:visible').count(), 0);
+  assert.ok(await boxOf(page, '#cal-card summary') >= 44, '#cal-card summary');
   await page.click('#cal-card summary');
   assert.ok(await page.locator('#cal-make').isVisible());
   assert.ok((await page.locator('#cal-make').boundingBox()).height >= 44);
-  await page.click('#push-card summary');
   await page.click('#cal-card summary');
-  // The three cards together take less room than one of them did.
-  const used = await boxOf(page, '#staff-tasks-card') + await boxOf(page, '#push-card') + await boxOf(page, '#cal-card');
-  assert.ok(used <= 190, `the giver's row and the two setup lines take ${used}px`);
+  // The cards together take less room than one of them did.
+  const used = await boxOf(page, '#staff-tasks-card') + await boxOf(page, '#cal-card');
+  assert.ok(used <= 140, `the giver's row and the calendar line take ${used}px`);
   await tidy(page, 'irit first screen');
   assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#view-mine a, #view-mine button, #view-mine summary, #view-mine select')]
     .filter((el) => { const b = el.getBoundingClientRect(); return b.height > 0 && b.height < 43.5; }).map((el) => `${el.innerText.trim().slice(0, 20)}:${Math.round(el.getBoundingClientRect().height)}`)), [], 'targets under 44px in "המשימות שלי"');
@@ -558,8 +569,9 @@ await step('on a wide screen the screens are the side menu, with a rail on the c
   await settle(page);
   assert.equal(await page.locator('#side-more').isVisible(), false);
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(),
-    // Her personal profile: her daily screens (PERSONAL in app/shell-rules.js, 7.10.2026; "יומן" since 15.10.2026).
-    ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+    // Her personal profile: her daily screens (PERSONAL in app/shell-rules.js, 7.10.2026; "יומן" since 15.10.2026;
+    // her pass over the clients since 26.10.2026).
+    ['המשימות שלי', 'לקוחות', 'מעבר על הלקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
   assert.equal(await page.locator('#mine-people').isVisible(), false);
   for (const id of ['cta-messages', 'cta-prep', 'cta-year']) assert.equal(await page.locator(`#${id}`).isVisible(), false, `${id} is in the menu, not in the head`);
   // The side menu floats beside the page (on the right, RTL), and the rail marks "המשימות שלי".

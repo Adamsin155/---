@@ -23,7 +23,7 @@
 // Time waiting on the client never counts against the staff: a process that waits
 // on the client is not late (its deadline moved on by the wait, decision 3), it is
 // never "not started", and deliverables the client is holding are not behind.
-import { STATIONS, PEOPLE, PROCESSES, WORK_HOURS, DELIVERABLES, NETWORKS } from './protocol.js';
+import { STATIONS, PEOPLE, PROCESSES, WORK_HOURS, DELIVERABLES, NETWORKS, PASS_OWNER } from './protocol.js';
 import {
   isResolved, blockers, businessDaysBetween, isBusinessDay, parseDate, roundsOf, roundContext, IMPORT_NOTE,
   isImported, workingMinutesBetween, addWorkingMinutes, workedMinutes, targetMinutes, durationStart, weekKey,
@@ -55,7 +55,7 @@ export const seesWholeTeam = (v) => isOwnerView(v) || (!!v && !v.error && v.me =
 // Defaults waiting for the office's decision (docs/protocols/README.md).
 export const EDITOR_CAP = 2;          // editing jobs an editor holds at once
 export const SHOOT_MOVED_DAYS = 3;    // a moved shoot day stays red this many business days
-export const THURSDAY_AT = 13;        // Ofir's Thursday summary is due at 13:00 (decision 20)
+export const THURSDAY_AT = 13;        // the Thursday summary is due at 13:00 (decision 20; Irit's since 26.10.2026)
 // How many whole business days a client may stay in a station before it is
 // "stuck" (screen 1). The ongoing work and the renewal have no norm. A station
 // that waits for a date already set (the meeting, the shoot day) is not stuck.
@@ -513,12 +513,12 @@ export function clientHealth(client, state, extras = {}) {
     }
   }
 
-  // Ofir's Thursday summary.
+  // The Thursday summary: part of the pass over the clients (33), Irit's since 26.10.2026.
   const thu = thursdayDue(now);
   const deal = parseDate(client.deal_at);
   if (thu && Array.isArray(extras.statusNotes) && deal && deal < thu.at
     && !extras.statusNotes.some((n) => (!n.client_id || n.client_id === client.id) && n.week === thu.week)) {
-    add('yellow', 'thursday', { who: 'ofir', text: 'חסר סיכום חמישי', what: 'סיכום המצב של השבוע', procId: null });
+    add('yellow', 'thursday', { who: PASS_OWNER, text: 'חסר סיכום חמישי', what: 'סיכום המצב של השבוע', procId: null });
   }
 
   reasons.sort(bySeverity);
@@ -746,7 +746,7 @@ export function officeReasons(reviews, now = new Date()) {
     const days = last ? businessDaysBetween(dayFromKeyIL(last), now) : null;
     if (days === null || days > 2) {
       out.push({
-        color: 'yellow', code: 'review33', rank: RANK.review33, key: 'review33', client: null, who: 'ofir', text: 'בקרת הלקוחות לא בוצעה',
+        color: 'yellow', code: 'review33', rank: RANK.review33, key: 'review33', client: null, who: PASS_OWNER, text: 'המעבר על הלקוחות לא בוצע',
         what: last ? `תהליך 33 · לאחרונה ב־${dayText(dayFromKeyIL(last))}` : 'תהליך 33 · לא בוצעה בשבוע האחרון', days: days ?? 7,
       });
     }

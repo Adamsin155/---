@@ -418,7 +418,8 @@ if (OUT) {
   await page.locator('.rv-walk').screenshot({ path: `${OUT}/03b-1366-topics-only.png` });
   await page.setViewportSize({ width: 1280, height: 900 });
 }
-// Irit marks her review; Ofir's she marks on his behalf.
+// Irit marks her reviews: 32, and 33, the pass over the clients (hers since 26.10.2026; she
+// marked Ofir's on his behalf until then).
 // A click, not check(): once the mark is saved the tick is replaced by "בוצעה · …", and check() then
 // looks for the tick again to read its state (it timed out whenever the save won that race).
 await page.click('#rv-p32');
@@ -431,9 +432,11 @@ assert.match(await p32.locator('.rv-record').innerText(), /^בזמן הסימו�
 assert.equal(await page.locator('#tp-left').count(), 0);
 assert.match(await p32.innerText(), /בוצעה · עירית · 10:0\d/);
 assert.match(await p32.locator('.rv-sum').innerText(), /בוצעה ב־3 מתוך 7/);
-await page.locator('.rv-row').nth(1).locator('button:text("סימון בשם אופיר")').click();
-await page.waitForFunction(() => /\(בשם אופיר\)/.test(document.querySelectorAll('.rv-row')[1]?.innerText || ''));
-assert.match(await page.locator('.rv-row').nth(1).innerText(), /בוצעה · עירית · 10:0\d \(בשם אופיר\)/);
+assert.equal(await page.locator('.rv-row').nth(1).locator('button:text("סימון בשם אופיר")').count(), 0);
+await page.click('#rv-p33');
+await page.waitForFunction(() => /בוצעה · עירית/.test(document.querySelectorAll('.rv-row')[1]?.innerText || ''));
+assert.match(await page.locator('.rv-row').nth(1).innerText(), /בוצעה · עירית · 10:0\d/);
+assert.doesNotMatch(await page.locator('.rv-row').nth(1).innerText(), /בשם/);
 // Notes for today's review, shown next to the client.
 await p32.locator('button:text("הוספת הערות")').click();
 await page.waitForSelector('#dlg-notes[open]');
@@ -653,7 +656,7 @@ assert.match(team3, /חריגות פתוחות אצל ליאור \(1\):\n- קפ�
 assert.deepEqual(await page.locator('.editor-card .editor-head .pchip').allInnerTexts(), ['נדיה', 'יריב', 'אנה', 'ניראל']);
 const nirelCard = page.locator('.editor-card:has(.pchip:text("ניראל"))');
 const nirelText = await nirelCard.innerText();
-assert.match(nirelText, /נטלי בלבד/);
+assert.doesNotMatch(nirelText, /נטלי בלבד/); // she may edit any shoot since 21.10.2026 (the owner)
 assert.match(nirelText, /1 לקוח בעריכה · 1 משימה פתוחה/);
 assert.match(nirelText, /סטודיו נטלי[^]*22 · עריכה[^]*יעד[^]*24 · העלאה לדרייב והעברה לאופיר[^]*27 · תיקונים וסגירה/);
 assert.match(await page.locator('.editor-card:has(.pchip:text("נדיה"))').innerText(), /0 לקוחות בעריכה · 0 משימות פתוחות[^]*אין כרגע לקוחות בעריכה/);
@@ -911,10 +914,11 @@ await page.goto(`${BASE}client.html?id=${seeded.id}#p06`);
 await page.waitForSelector('#p06');
 assert.equal(await page.innerText('#view-toggle'), 'רק התהליכים שלי');
 
-// ── Thursday, as Ofir: the mandatory pass over every client ──
+// ── Thursday, as Irit: the mandatory pass over every client ──
+// (The pass, process 33, and its Thursday summaries are Irit's since 26.10.2026; Ofir's until then.)
 // No review of process 33 since Sunday: three business days.
 db.office_reviews = db.office_reviews.filter((r) => !(r.kind === 'p33' && r.day === '2026-09-22'));
-db.staff[0].person = 'ofir'; await newRole(page);
+db.staff[0].person = 'irit'; await newRole(page);
 const THU = new Date('2026-09-24T06:30:00Z'); // 09:30 in Jerusalem
 const thuCtx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1280, height: 900 } });
 // These checks walk the whole list of "המשימות שלי" ("תצוגה מלאה"); the short one is tests/roles-phone-e2e.mjs.
@@ -925,7 +929,6 @@ await thuCtx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColu
 await thuCtx.addInitScript(fakeNotifications);
 const thu = await thuCtx.newPage();
 watch(thu);
-// Ofir's first screen is the quality-control queue (qa.html); "המשימות שלי" is one link away.
 await thu.goto(`${BASE}clients.html#mine`);
 await thu.fill('#lg-email', USER.email);
 await thu.fill('#lg-pass', 'correct-horse');
@@ -936,17 +939,18 @@ const thuGroups = await thu.locator('#mine-list .wgroup').evaluateAll((els) => e
 assert.ok(thuGroups.findIndex((c) => /g-thu/.test(c)) < thuGroups.findIndex((c) => /g-overdue/.test(c)), thuGroups.join('|'));
 assert.match(await thuCard.innerText(), new RegExp(`מעבר חובה של יום חמישי: סיכום מצב לכל הלקוחות \\(2/${inWorkN}\\)`));
 assert.match(await waText('#mine-tools .wa-link', thu), new RegExp(`מעבר חובה של יום חמישי \\(1\\):\\n- סיכום מצב לכל הלקוחות: סוכמו 2 מתוך ${inWorkN}`));
-await shot('13-thursday-ofir', thu);
-// Ofir writes the summaries in his pass (the owner, 20.10.2026): the card leads there.
+await shot('13-thursday-irit', thu);
+// Irit writes the summaries in her pass (Ofir's until 26.10.2026): the card leads there.
 assert.equal(await thuCard.locator('a:text("מעבר לסיכום המצב")').getAttribute('href'), 'pass.html#th-h');
+// Her pass is due (no pass since Sunday): its card leads to pass.html, with no tick of its own.
+assert.equal(await thu.locator('#rv-pass-go').getAttribute('href'), 'pass.html');
 await thu.locator('#tab-control').click();
 await thu.waitForSelector('#view-control:not([hidden]) .status-sec');
 const p33row = thu.locator('.rv-row').nth(1);
 assert.match(await p33row.innerText(), /עבר יותר מיומיים מהבקרה האחרונה[^]*הבקרה האחרונה: א׳ 20\.9/);
 assert.equal(await thu.locator('.rv-row').first().locator('.rv-stale').count(), 0); // process 32 is daily, flagged elsewhere
-// Since 20.10.2026 (the owner) the daily review is in Ofir's manager profile only: the card's
-// link moves him there (the button at the top leads back), where Irit's process is shown whole.
-await thu.waitForSelector('#profile-switch[data-to="mine"]');
+// The daily review is in Irit's own profile (processes 32 and, since 26.10.2026, 33 are hers).
+await thu.waitForSelector('#profile-switch[data-to="manager"]');
 await shot('14-thursday-control', thu);
 
 // The office day is Israel's on any device: at 01:30 on Thursday in Jerusalem a
@@ -970,7 +974,7 @@ assert.equal(await ny.locator('.g-thu .thu-card').count(), 1);
 assert.match(await waText('#mine-tools .wa-link', ny), /הסיכום שלך ליום חמישי 24\.9:/);
 await nyCtx.close();
 
-// Once every client is summarised, the card leaves Ofir's list.
+// Once every client is summarised, the card leaves Irit's list.
 for (const c of db.clients.filter((x) => x.status === 'active' || x.status === 'ending')) {
   if (!db.client_status_notes.some((n) => n.client_id === c.id)) db.client_status_notes.push({ client_id: c.id, week: '2026-09-20', current: 'בבדיקה', missing: null, next: null, owner: null, due_on: null, by_email: 'ofir@astrateg.test', at: THU.toISOString() });
 }

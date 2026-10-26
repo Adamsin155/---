@@ -98,3 +98,25 @@ export function deliveryText(r) {
 
 // "לדחות עד…": in an hour, or 09:00 on the next business day (Israel time).
 export const SNOOZE_CHOICES = [['hour', 'בעוד שעה'], ['morning', 'ביום העבודה הבא ב־09:00']];
+
+// ── What "המשימות שלי" says about this device (the owner, 26.10.2026) ──
+// "המשימות שלי" holds tasks only: the cards of the notifications and of WhatsApp left it (they
+// are in "ההתראות שלך", from the bell). What is NOT connected is said in one quiet line at the
+// very bottom, each part with "לחבר" to its own flow; when everything is connected, nothing.
+//   push   pushState() of this device; null when it is not known (no push tables): nothing said
+//   phone  whether this device is a phone ("בטלפון הזה"; a computer is "במכשיר הזה")
+//   wa     the person's whatsapp_my_consent(): { enabled (the owner's switch), active, phone,
+//          owner }; null when WhatsApp is off or not there
+// → [{ key: 'push' | 'wa', text, cta (null: nothing to press here) }]
+export function connectGaps({ push = null, phone = true, wa = null } = {}) {
+  const out = [];
+  if (push && push !== 'on') out.push({ key: 'push', text: `ההתראות לא מחוברות ${phone ? 'בטלפון הזה' : 'במכשיר הזה'}`, cta: 'לחבר' });
+  if (wa?.enabled && !wa.active) {
+    // No number on record (and not the owner, who types one): only Irit or Lior can add it.
+    const can = !!(wa.owner || wa.phone);
+    out.push({ key: 'wa', text: can ? 'WhatsApp לא מחובר' : 'WhatsApp לא מחובר: אין מספר נייד במערכת', cta: can ? 'לחבר' : null });
+  }
+  return out;
+}
+// A phone, from what the browser tells about itself (an iPad counts: it is carried around).
+export const isPhone = ({ userAgent = '', maxTouchPoints = 0 } = {}) => /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent) || platformOf({ userAgent, maxTouchPoints }).ios;

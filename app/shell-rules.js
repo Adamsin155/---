@@ -34,8 +34,9 @@ export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'i
 // Who changes a Gantt: Ilai, Irit (22.10.2026) and the owner (public.can_edit_gantt() decides).
 export const editsGantt = (v) => known(v) && (v.me === 'ilai' || v.me === 'irit' || (!v.me && v.scope === 'office'));
 
-// The office screens, one order everywhere: Ofir's two, Lior's decisions (and the
-// assignment, which he takes when Ofir cannot), all three for the owner; the monthly
+// The office screens, one order everywhere: Ofir's queue, the pass over the clients (Irit's
+// since 26.10.2026; Ofir, who did it until then, and the owner look at it), Lior's decisions
+// (and the assignment, which he takes when Ofir cannot), all three for the owner; the monthly
 // insights for the owner and Lior; the package year for the office and Ilai.
 export function officeScreens(viewer) {
   const me = viewer?.me || null;
@@ -43,7 +44,7 @@ export function officeScreens(viewer) {
   const owner = ok && !me && viewer.scope === 'office';
   return [
     ['qa', 'qa.html', 'בקרה ושיוך', me === 'ofir' || me === 'lior' || owner],
-    ['pass', 'pass.html', 'מעבר על הלקוחות', me === 'ofir' || owner, 'מעבר'],
+    ['pass', 'pass.html', 'מעבר על הלקוחות', me === 'irit' || me === 'ofir' || owner, 'מעבר'],
     ['decisions', 'decisions.html', 'החלטות', me === 'lior' || me === 'ofir' || owner],
     ['insights', 'insights.html', 'תובנות', seesInsights(viewer)],
     ['year', 'year.html', 'שנת החבילה', ok && (viewer.scope === 'office' || me === 'ilai')],
@@ -136,11 +137,11 @@ export function afterSignIn(viewer, { pathname = '', hash = '', search = '', ent
 export const PERSONAL = {
   owner: ['mine', 'clients', 'quote', 'quotes'],                 // their tasks and approvals, a client, a contract
   lior: ['mine', 'clients', 'decisions', 'messages', 'shoot', 'calendar'], // his decisions, the clients' messages, the shoot day, the calendar
-  ofir: ['mine', 'clients', 'qa', 'pass', 'calendar'],           // his queue, his pass over the clients, and his meetings (the owner, 15.10.2026)
-  // Irit: her tasks, a client, her part before a shoot day and the clients' requests,
-  // the daily messages to clients, the calendar she invites from (15.10.2026), and
-  // building and following a contract.
-  irit: ['mine', 'clients', 'prep', 'messages', 'calendar', 'quote', 'quotes'],
+  ofir: ['mine', 'clients', 'qa', 'calendar'],                   // his queue and his meetings (the owner, 15.10.2026); the pass is Irit's since 26.10.2026
+  // Irit: her tasks, a client, her pass over the clients (26.10.2026), her part before a
+  // shoot day and the clients' requests, the daily messages to clients, the calendar she
+  // invites from (15.10.2026), and building and following a contract.
+  irit: ['mine', 'clients', 'pass', 'prep', 'messages', 'calendar', 'quote', 'quotes'],
 };
 const IN_BOTH = ['clients'];
 // Screens a person may open that are not in their menu (the page review of Ofir, Lior and
@@ -164,9 +165,8 @@ const profileKey = (viewer) => (hasProfiles(viewer) ? viewer.me || 'owner' : nul
 // The tabs of clients.html that are the manager profile's, for whoever has profiles: the
 // whole team's work (#team: the list of "המשימות שלי" with the choice of whose), the
 // office's daily review and the performance. The daily review stays in Irit's personal
-// profile: the daily control over every task (process 32) is her own process. Ofir's
-// own pass (process 33) is pass.html, so since 20.10.2026 (the owner) the daily review
-// is in his manager profile only.
+// profile: the daily control over every task (process 32) is her own process, and since
+// 26.10.2026 the pass over the clients (process 33, pass.html) too.
 export const MANAGER_TABS = ['team', 'control', 'performance'];
 const OWN_TABS = { irit: ['control'] };
 export const managerTabs = (viewer) => (hasProfiles(viewer) ? MANAGER_TABS.filter((t) => !(OWN_TABS[profileKey(viewer)] || []).includes(t)) : []);
@@ -209,8 +209,10 @@ export function profileOf(viewer, pathname, hash = '', search = '', saved = null
 // who stays on "המשימות שלי", his own screen is the Gantt.
 const HOME = { ofir: 'qa', lior: 'decisions', eli: 'shoot', ilai: 'gantt' };
 // The next one in the bar when the role's own screen is not in this profile: Lior's
-// manager profile keeps the package year (the renewals) there, not the Gantt (20.10.2026).
-const BAR_NEXT = { lior: 'year' };
+// manager profile keeps the package year (the renewals) there, not the Gantt (20.10.2026);
+// Irit's phone keeps "לפני יום צילום" there, before her pass over the clients (26.10.2026).
+// Ofir's manager profile keeps "החלטות" there, before the pass he may look at (26.10.2026).
+const BAR_NEXT = { lior: 'year', irit: 'prep', ofir: 'decisions' };
 const homeOf = (viewer) => {
   const me = viewer?.me || null;
   if (PEOPLE[me]?.editor) return 'editor';
@@ -232,15 +234,16 @@ export function barOf(items, viewer) {
 // A long menu in two parts (the simplicity pass of 6.10.2026; the office's menus had
 // 11 to 16 entries in one run): the screens this role opens every day, in the menu's
 // order, and the rest under a quiet "עוד" heading. Nothing is hidden and no entry
-// changes: only where it stands. A menu of up to GROUP_FROM entries stays one list.
+// changes: only where it stands. A menu of up to GROUP_FROM entries stays one list (8 since
+// 26.10.2026: Irit's own menu, with her pass over the clients, is eight, and stays one list).
 // The phone's bar is always part of the daily ones (tests/shell.test.mjs).
 const DAILY = {
   owner: ['mine', 'manager', 'clients', 'decisions', 'messages'],
   irit: ['mine', 'manager', 'clients', 'messages', 'quote', 'quotes'],
   lior: ['mine', 'overview', 'clients', 'decisions', 'messages'],
-  ofir: ['mine', 'manager', 'clients', 'qa', 'pass'],
+  ofir: ['mine', 'manager', 'clients', 'qa'],
 };
-export const GROUP_FROM = 7;
+export const GROUP_FROM = 8;
 export function groupsOf(items, viewer) {
   const key = known(viewer) ? (viewer.me || (viewer.scope === 'office' ? 'owner' : null)) : null;
   const daily = DAILY[key];

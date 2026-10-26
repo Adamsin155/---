@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   CONNECTORS, canConnect, showsCard, CONNECT_CAP, clientLabel, unconnected, withoutBrand, takenBy, brandChoices, optionText, sinceText, cardTitle, withoutTitle, ganttUrl, explainConnect,
+  matchesQuery, notConnectedCount,
 } from '../app/metricool-connect-logic.js';
 import { PROTOCOL_VERSION } from '../app/protocol.js';
 
@@ -84,6 +85,38 @@ test('a client leaves the list when it gets a brand or is marked "אין מות�
   assert.deepEqual(withoutBrand([early]), []);
 });
 
+// The owner, 26.10.2026: "ללקוח אין מותג" is not "connected". The client stays in the card, in
+// its own group at the end, and is counted with the clients that are not connected.
+test('a client marked "אין מותג" is never counted as connected: its own group, in the count of the not connected', () => {
+  const clients = [mk('a'), mk('b', { metricool_none: true }), mk('c', { metricool_blog_id: '9' }), mk('d', { metricool_none: true, status: 'ended' })];
+  assert.deepEqual(ids(unconnected(clients)), ['a']);
+  assert.deepEqual(ids(withoutBrand(clients)), ['b']);
+  assert.equal(notConnectedCount(clients), 2);
+  assert.equal(notConnectedCount([mk('x', { metricool_blog_id: '1' })]), 0);
+  assert.equal(notConnectedCount(null), 0);
+});
+
+test('the search: by the business or the person, every word, any order; an empty search keeps everyone', () => {
+  const ron = mk('ron', { name: 'רון כהן', business: 'פיצה רון' });
+  const gil = mk('gil', { name: 'גיל', business: 'גיל נדל״ן' });
+  const dana = mk('dana', { name: 'דנה', business: 'Cafe Dana' });
+  const all = [ron, gil, dana];
+  const find = (q) => all.filter((c) => matchesQuery(c, q)).map((c) => c.id);
+  assert.deepEqual(find(''), ['ron', 'gil', 'dana']);
+  assert.deepEqual(find('   '), ['ron', 'gil', 'dana']);
+  assert.deepEqual(find('פיצה'), ['ron']);
+  assert.deepEqual(find('כהן'), ['ron'], 'the person');
+  assert.deepEqual(find('כהן רון'), ['ron'], 'words in any order');
+  assert.deepEqual(find('רו'), ['ron'], 'part of a word, as it is typed');
+  assert.deepEqual(find('נדלן'), ['gil'], 'the gershayim are not needed');
+  assert.deepEqual(find('נדל״ן'), ['gil']);
+  assert.deepEqual(find('CAFE'), ['dana'], 'any case');
+  assert.deepEqual(find('דנה'), ['dana']);
+  assert.deepEqual(find('פיצה גיל'), [], 'every word must match');
+  assert.deepEqual(find('xyz'), []);
+  assert.equal(matchesQuery({ name: null, business: null }, 'a'), false);
+});
+
 test('the select of one client: the suggestion by name is chosen in advance, a brand another client uses cannot be', () => {
   const brands = [{ id: '1', label: 'Cafe Dana', networks: [] }, { id: '2', label: 'פיצה רון', networks: ['instagram'] }, { id: '3', label: 'מספרת יעל', networks: [] }];
   const ron = mk('ron', { name: 'רון כהן', business: 'פיצה רון' });
@@ -107,7 +140,7 @@ test('the select of one client: the suggestion by name is chosen in advance, a b
 
 test('the words', () => {
   assert.equal(cardTitle(52), 'לקוחות שלא מחוברים ל־Metricool (52)');
-  assert.equal(withoutTitle(3), 'סומנו ״אין מותג״ (3)');
+  assert.equal(withoutTitle(3), 'לא רלוונטי ל־Metricool (3)');
   assert.equal(clientLabel({ name: 'רון כהן', business: 'פיצה רון' }), 'פיצה רון · רון כהן');
   assert.equal(clientLabel({ name: 'קפה דנה', business: 'קפה דנה' }), 'קפה דנה');
   assert.equal(clientLabel({ name: 'רון כהן', business: null }), 'רון כהן');

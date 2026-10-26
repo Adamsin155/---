@@ -39,8 +39,10 @@ export function metricoolProblems({ clients = [], rows = [], now = new Date() })
     failedClients: new Set(failed.map((r) => r.client_id)).size,
     nothingAhead: [...connected].filter((id) => !ahead.has(id)).length,
     connected: connected.size,
-    // In work, with no brand and not marked "no brand needed": the Gantt index lists them (#not-connected).
-    // Ofir's line since v11 (connecting is his step); Ilai's two lines are the two above.
+    // In work, with no brand and not marked "no brand needed": the clients TO CONNECT, Ofir's line
+    // since v11 (connecting is his step); Ilai's two lines are the two above. The ones marked "not
+    // relevant" are not his work, and are not connected either (26.10.2026): the line says "מחכים לחיבור",
+    // and the Gantt index (#not-connected) lists both.
     notConnected: clients.filter((c) => inWork(c) && !c.metricool_blog_id && !c.metricool_none && !c.archived_at).length,
   };
 }

@@ -453,7 +453,7 @@ function requestCard(r) {
       try { const row = await decideChangeRequest(r.id, v); requests = requests.map((x) => (x.id === r.id ? row : x)); } catch (err) { $(`${id}-go`).disabled = false; toast(`לא נשמר. ${errorText(err)}`); return; }
       clean(e.currentTarget);
       renderKeepingState();
-      toast('ההחלטה נשמרה. אופיר רואה אותה בעמוד המעבר.');
+      toast('ההחלטה נשמרה. היא מופיעה בעמוד המעבר על הלקוחות.');
       $('cq-h').focus();
     } },
     h('div', { class: 'field grow' }, h('label', { for: `${id}-dec` }, 'ההחלטה'), h('input', { class: 'input', id: `${id}-dec`, maxlength: '1000', autocomplete: 'off' })),

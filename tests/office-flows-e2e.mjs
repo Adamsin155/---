@@ -7,8 +7,9 @@
 //    the handoff to Irit is offered.
 //  - The assignment: Nirel preselected for Natali; Nadia with or without a reason; the
 //    folder task (24) and the WhatsApp to the editor.
-//  - Thursday: the pass over the clients ("עברתי", "עברתי על כל השאר", recorded as
-//    the day's control), a data-health fix in one tap, the summary prefilled.
+//  - Thursday: the pass over the clients, Irit's since 26.10.2026 ("עברתי", "עברתי על כל
+//    השאר", recorded as the day's control), a data-health fix in one tap, the summary
+//    prefilled; the owner and Ofir look at it, with no button of the pass and no task.
 //  - Lior lands on "החלטות": an exception through reason → decision → next action
 //    (a linked task) → close; "התחלתי"; an urgent task back with him; a login
 //    closed as partly fixed; paused editing moved; the Tuesday campaign check; the
@@ -741,11 +742,58 @@ await step('Ilai: the characterization day card; the vault statuses check the ac
   globalThis.ictx = ictx;
 });
 
-await step('Thursday: the pass (עברתי, one tap for the rest, the day\'s control), a data fix in one tap, the summary prefilled', async () => {
+await step('the pass over the clients is Irit\'s (26.10.2026): the owner and Ofir look at it, with no button of the pass; nothing of it in their "המשימות שלי"', async () => {
+  clockNow = THU;
+  for (const who of ['owner', 'ofir']) {
+    const vctx = await newContext(THU, { width: 390, height: 844 });
+    const page = await newPage(vctx);
+    await signIn(page, 'pass.html', who);
+    await page.waitForSelector('#ps-list .ps-row');
+    assert.equal(await page.innerText('#ps-view'), 'המעבר על הלקוחות הוא של עירית. כאן רואים איפה הוא עומד.');
+    assert.match(await page.innerText('#ps-status'), /עירית עברה על 0 מתוך \d+ לקוחות/);
+    // No button of the pass: not "עברתי", not "פתח משימה", not an update to Lior, not the rest.
+    assert.equal(await page.locator('#ps-list button:not(.more-btn)').count(), 0, who);
+    assert.equal(await page.locator('#ps-rest-btn').count(), 0, who);
+    assert.doesNotMatch(await page.innerText('#ps-rest'), /עברתי על כל השאר/);
+    assert.ok(await noHScroll(page), `${who}: the pass scrolls sideways at 390px`);
+    if (who === 'owner' && OUT) {
+      await page.waitForSelector('#login-block', { state: 'hidden' });
+      await page.waitForTimeout(1200); // the sign-in screen fades out
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: `${OUT}/office-06b-pass-owner-view-390.png` });
+    }
+    // Nothing of the pass is a task of theirs: no card, no Thursday summary, no line.
+    await page.goto(`${BASE}clients.html#mine`);
+    await page.waitForSelector('#view-mine:not([hidden])');
+    await page.waitForLoadState('networkidle');
+    assert.equal(await page.locator('#rv-pass-go, .thu-card').count(), 0, who);
+    assert.doesNotMatch(await page.innerText('#view-mine'), /מעבר על הלקוחות|מעבר חובה של יום חמישי/, who);
+    await vctx.close();
+  }
+  // Irit's own "המשימות שלי": the pass is due (none since Sunday), a card that leads to it.
+  const ictx2 = await newContext(THU, { width: 390, height: 844 });
+  const ir = await newPage(ictx2);
+  await signIn(ir, 'clients.html#mine', 'irit');
+  await ir.waitForSelector('#rv-pass-go');
+  assert.equal(await ir.getAttribute('#rv-pass-go', 'href'), 'pass.html');
+  assert.match(await ir.innerText('#mine-list'), /מעבר על הלקוחות · תהליך 33/);
+  await ir.click('#rv-pass-go');
+  await ir.waitForSelector('#ps-list .ps-row');
+  assert.equal(await ir.locator('#ps-view').count(), 0);
+  assert.ok(await ir.locator('#ps-list button', { hasText: /^עברתי$|פתח משימה/ }).count() > 0);
+  if (OUT) {
+    await ir.waitForTimeout(1200);
+    await ir.evaluate(() => window.scrollTo(0, 0));
+    await ir.screenshot({ path: `${OUT}/office-06c-pass-irit-390.png` });
+  }
+  await ictx2.close();
+});
+
+await step('Thursday: the pass (Irit: עברתי, one tap for the rest, the day\'s control), a data fix in one tap, the summary prefilled', async () => {
   clockNow = THU;
   const tctx = await newContext(THU);
   const o = await newPage(tctx);
-  await signIn(o, 'pass.html', 'ofir');
+  await signIn(o, 'pass.html', 'irit');
   await o.waitForSelector('#ps-list .ps-row');
   assert.match(await o.innerText('#ps-status'), /היום חמישי: מעבר מלא, והוא נחשב גם כבקרה של היום/);
   const attention = await o.locator('#ps-list .ps-row .wclient').allInnerTexts();
@@ -895,7 +943,7 @@ await step('Thursday: the pass (עברתי, one tap for the rest, the day\'s con
 
 await step('a 360px phone: no sideways scrolling and 44px targets on the three screens and Ilai\'s card', async () => {
   // Ilai's card on Tuesday, the day of the characterization (a day later it is gone).
-  for (const [path, who, sel, root, time] of [['qa.html', 'ofir', '#qa-h', '#app', THU], ['pass.html', 'ofir', '#ps-list', '#app', THU], ['decisions.html', 'lior', '#ex-h', '#app', THU], ['clients.html#mine', 'ilai', '.g-ilai summary', '.g-ilai', TUE]]) {
+  for (const [path, who, sel, root, time] of [['qa.html', 'ofir', '#qa-h', '#app', THU], ['pass.html', 'irit', '#ps-list', '#app', THU], ['decisions.html', 'lior', '#ex-h', '#app', THU], ['clients.html#mine', 'ilai', '.g-ilai summary', '.g-ilai', TUE]]) {
     const pctx = await newContext(time, { width: 360, height: 780 });
     const page = await newPage(pctx);
     await signIn(page, path, who);
@@ -920,9 +968,9 @@ await step('a 360px phone: no sideways scrolling and 44px targets on the three s
 
 await step('a 390px phone: the stuck row (three ways out, the reason field) and "החלפת עורך" fit, with 44px targets', async () => {
   db.office_passes = db.office_passes.filter((x) => x.day !== '2026-10-22'); // Thursday's pass is open again
-  const pctx = await newContext(THU, { width: 390, height: 844 });
-  const page = await newPage(pctx);
-  await signIn(page, 'pass.html', 'ofir');
+  let pctx = await newContext(THU, { width: 390, height: 844 });
+  let page = await newPage(pctx);
+  await signIn(page, 'pass.html', 'irit');
   await page.waitForSelector('#ps-list .ps-row');
   if (await page.locator('#ps-list .more-btn').count()) await page.click('#ps-list .more-btn');
   const row = page.locator('#ps-list .ps-row:has(.ps-stuck-acts)').first();
@@ -933,7 +981,11 @@ await step('a 390px phone: the stuck row (three ways out, the reason field) and 
   for (const el of await row.locator('button, input').all()) assert.ok((await el.boundingBox()).height >= 44, 'a 44px target in the stuck row');
   assert.deepEqual(await unlabeled(page, `#${id}`), []);
   if (OUT) await row.screenshot({ path: `${OUT}/office-08-phone-390-stuck-row.png` });
-  await page.goto(`${BASE}qa.html`);
+  // "החלפת עורך" is Ofir's (qa.html); the pass above is Irit's since 26.10.2026.
+  await pctx.close();
+  pctx = await newContext(THU, { width: 390, height: 844 });
+  page = await newPage(pctx);
+  await signIn(page, 'qa.html', 'ofir');
   await page.waitForSelector('#load-list .of-editor');
   await openQaFolds(page);
   await page.waitForSelector('#load-list .sw-btn');

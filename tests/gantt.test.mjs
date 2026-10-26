@@ -348,11 +348,13 @@ test('the index, problems first (20.10.2026): failed, nothing scheduled ahead, n
   // A failed post (any day loaded): first of all.
   const bad = clientSummary(mk('bad', 'ג'), [e('f', '2026-05-09', '19:00', 'video', 'error'), e('s', '2026-05-08', '19:00', 'video', 'scheduled')], now, { plan: true, blogId: 9 });
   assert.equal(bad.failed, 1);
-  // Not connected, not marked: the filter; marked "no brand": not; unknown (no columns): neither.
+  // Not connected, marked "no brand" or not: both in the filter (a mark is never "connected", 26.10.2026);
+  // unknown (no columns): neither.
   const off = clientSummary(mk('off', 'ד'), [], now, { plan: true, blogId: null });
   const none = clientSummary(mk('none', 'ה'), [], now, { plan: true, blogId: null, none: true });
   const unknown = clientSummary(mk('u', 'ו'), [], now, { plan: true });
-  assert.deepEqual([off.notConnected, none.notConnected, unknown.notConnected, off.nothingAhead, unknown.connected], [true, false, false, false, undefined]);
+  assert.deepEqual([off.notConnected, none.notConnected, unknown.notConnected, off.nothingAhead, unknown.connected], [true, true, false, false, undefined]);
+  assert.deepEqual([none.connected, none.none, none.nothingAhead], [false, true, false]);
   // Metricool's posts alone are not a Gantt: no plan.
   const mc = clientSummary(mk('mc', 'ז'), [{ ...e('mc.1', '2026-05-09', '19:00', 'custom', 'scheduled'), key: 'mc.1' }], now, { plan: false, blogId: 10 });
   assert.deepEqual([mc.has, mc.plan, problemRank(mc)], [true, false, 2]);
@@ -364,7 +366,8 @@ test('the index, problems first (20.10.2026): failed, nothing scheduled ahead, n
   assert.deepEqual(Object.keys(INDEX_FILTERS), ['failed', 'nothing-ahead', 'not-connected']);
   assert.deepEqual([ok, far, bad, off, none].filter(INDEX_FILTERS.failed).map((s) => s.client.id), ['bad']);
   assert.deepEqual([ok, far, bad, off, none].filter(INDEX_FILTERS['nothing-ahead']).map((s) => s.client.id), ['far']);
-  assert.deepEqual([ok, far, bad, off, none].filter(INDEX_FILTERS['not-connected']).map((s) => s.client.id), ['off']);
+  // "לא מחוברים ל־Metricool": the one marked "no brand" too (it is not connected, 26.10.2026).
+  assert.deepEqual([ok, far, bad, off, none].filter(INDEX_FILTERS['not-connected']).map((s) => s.client.id), ['off', 'none']);
   // The week: only what needs someone (failed, missing, today's post not scheduled).
   const rows = [e('m', '2026-05-04', '19:00'), e('t', '2026-05-05', '19:00'), e('ts', '2026-05-05', '20:00', 'video', 'scheduled'), e('x', '2026-05-06', '19:00', 'video', 'error'), e('p', '2026-05-07', '19:00')];
   const week = weekAgenda([mk('a', 'א')], new Map([['a', rows]]), now);

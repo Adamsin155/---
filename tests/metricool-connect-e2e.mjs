@@ -12,16 +12,20 @@
 //   - "בחירת מותג" opens the row in place with the account's brands (one request),
 //     the suggestion by name chosen, a brand another client uses not choosable;
 //     "חיבור" asks the database, the row goes and the next one opens;
-//   - "ללקוח אין מותג" takes a client off the list; it comes back from the toast's
-//     "ביטול" and from "סומנו ״אין מותג״";
+//   - "ללקוח אין מותג" does not make the client "connected" (the owner, 26.10.2026): it moves to
+//     the end of the card, in the folded group "לא רלוונטי ל־Metricool (N)", still counted in the
+//     title; it comes back from the toast's "ביטול" and from "החזרה לרשימה" in that group;
+//   - the search at the top (26.10.2026): typed key by key (and deleted) on Chromium and on an
+//     iPhone 13 (WebKit), it narrows both groups by the business or the person, and keeps its
+//     focus and its text through the minute's refresh;
 //   - a brand someone else took in the meantime, and Metricool not answering (a way
 //     to the client's Gantt instead);
 //   - the owner has the card; Irit, Lior, an editor and a sales agent do not;
-//   - a 360px phone; nothing to connect: no list, the index says so in words; before
-//     the migrations.
+//   - a 360px phone; only "not relevant" clients left: the card stays with them; every client
+//     connected: no card, the index says so in words; before the migrations.
 // Run: npx http-server -p 8163 -s -c-1 . &  then
 //      BASE_URL=http://localhost:8163/ node tests/metricool-connect-e2e.mjs [outDir]
-import { chromium } from 'playwright';
+import { chromium, webkit, devices } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -188,8 +192,8 @@ async function fakeSupabase(route) {
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const errors = [];
-async function newPage(viewport = { width: 1440, height: 900 }) {
-  const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
+async function newPage(viewport = { width: 1440, height: 900 }, { on = browser, device = null } = {}) {
+  const ctx = await on.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', ...(device || { viewport }) });
   await ctx.clock.install({ time: new Date(serverNow()) });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, { clients: () => tables.clients, staff: () => staff }));
   const page = await ctx.newPage();
@@ -248,7 +252,8 @@ try {
     await settled(ilai);
     const line = ilai.locator('#mine-list a[href="gantt.html#not-connected"]');
     await line.first().waitFor();
-    assert.match(await ilai.locator('#mine-list').innerText(), /11\s*לקוחות לא מחוברים ל־Metricool/);
+    // The clients waiting to be connected (one marked "not relevant" is not his work, nor "connected"; 26.10.2026).
+    assert.match(await ilai.locator('#mine-list').innerText(), /11\s*לקוחות מחכים לחיבור ל־Metricool/);
     assert.equal(await ilai.locator(CARD).isVisible(), false);
     await line.first().click();
     await ilai.waitForURL(/gantt\.html#not-connected$/);
@@ -330,42 +335,103 @@ try {
     assert.equal(fn.calls.length, 1);
   });
 
-  await step('"ללקוח אין מותג": the client leaves the list; the toast\'s "ביטול" brings it back', async () => {
+  await step('"ללקוח אין מותג": the client moves to "לא רלוונטי ל־Metricool" at the end, still not connected; the toast\'s "ביטול" brings it back', async () => {
     const avi = byBusiness('אבי שיפוצים');
     await ilai.click(`${CARD} [data-act="none"]`);
-    await ilai.locator(`${CARD} h2`, { hasText: '(9)' }).waitFor();
+    await ilai.locator('#mcn-none-toggle').waitFor();
     assert.deepEqual(lastCall('metricool_set_none'), { metricool_set_none: { p_client: avi.id, p_on: true }, by: 'ofir@astrateg.test' });
     assert.deepEqual([avi.metricool_none, avi.metricool_none_by], [true, 'ofir@astrateg.test']);
-    assert.equal(await toastOf(ilai), 'אבי שיפוצים · אבי סומן ״אין מותג״ וירד מהרשימה.');
+    assert.equal(await toastOf(ilai), 'אבי שיפוצים · אבי סומן ״לא רלוונטי ל־Metricool״ ועבר לסוף הרשימה.');
+    // Not connected: still counted in the title, out of the rows to connect, in its own folded group at the end.
+    assert.equal(await text(ilai, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (10)');
     assert.ok(!(await names(ilai)).includes('אבי שיפוצים · אבי'));
-    assert.equal(await text(ilai, '#mcn-none-toggle'), 'סומנו ״אין מותג״ (1)');
+    assert.equal(await text(ilai, '#mcn-none-toggle'), 'לא רלוונטי ל־Metricool (1)');
+    assert.equal(await ilai.getAttribute('#mcn-none-toggle', 'aria-expanded'), 'false');
+    assert.equal(await ilai.evaluate(() => {
+      const t = document.querySelector('#mcn-none-toggle');
+      return [...document.querySelectorAll('#mcn-rows .mcn-row')].every((r) => r.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING);
+    }), true, 'the group is at the end');
     await ilai.click('#toast .toast-act');
-    await ilai.locator(`${CARD} h2`, { hasText: '(10)' }).waitFor();
+    await ilai.locator('#mcn-none-toggle').waitFor({ state: 'detached' });
     assert.deepEqual(lastCall('metricool_set_none').metricool_set_none, { p_client: avi.id, p_on: false });
     assert.equal(avi.metricool_none, false);
+    assert.equal(await text(ilai, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (10)');
     assert.deepEqual(await names(ilai), ORDER.slice(1));
-    assert.equal(await ilai.locator('#mcn-none-toggle').count(), 0);
   });
 
-  await step('"סומנו ״אין מותג״": the marked clients, folded at the foot of the card, each with "החזרה לרשימה"', async () => {
+  await step('"לא רלוונטי ל־Metricool": the marked clients, folded at the end of the card, each with "החזרה לרשימה"; the index counts them as not connected', async () => {
     await ilai.click(`${CARD} [data-act="close"]`).catch(() => {});
     await rowOf(ilai, 'גיל נדל״ן').locator('[data-act="open"]').click();
     await ilai.locator('#mcn-brand').waitFor();
     await ilai.click(`${CARD} [data-act="none"]`);
     await ilai.locator('#mcn-none-toggle').waitFor();
-    assert.equal(await text(ilai, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (9)');
+    assert.equal(await text(ilai, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (10)');
     assert.equal(await ilai.getAttribute('#mcn-none-toggle', 'aria-expanded'), 'false');
     assert.equal(await ilai.locator('#mcn-none-list').count(), 0);
     await ilai.click('#mcn-none-toggle');
     assert.equal(await ilai.getAttribute('#mcn-none-toggle', 'aria-expanded'), 'true');
     assert.match(await text(ilai, '#mcn-none-list .mcn-row'), /גיל נדל״ן · גיל\s*עסקה מ־\d+\.\d+\.2026\s*החזרה לרשימה/);
-    await shot(ilai, '03-ilai-no-brand-list', true);
+    await ilai.locator('#mcn-none-list').scrollIntoViewIfNeeded();
+    await shot(ilai, '03-ilai-not-relevant-group', true);
+    // The Gantt's index counts it with the clients that are not connected (the chip of this filter).
+    assert.match(await ilai.innerText('#gx-f-not-connected'), /לא מחוברים ל־Metricool\s*10/);
     await ilai.click('#mcn-none-list [data-act="back"]');
-    await ilai.locator(`${CARD} h2`, { hasText: '(10)' }).waitFor();
+    await ilai.locator('#mcn-none-toggle').waitFor({ state: 'detached' });
     assert.equal(byBusiness('גיל נדל״ן').metricool_none, false);
     assert.equal(await toastOf(ilai), 'גיל נדל״ן · גיל חזר לרשימה.');
-    assert.equal(await ilai.locator('#mcn-none-toggle').count(), 0);
+    assert.equal(await text(ilai, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (10)');
     // Back in its place by the deal date.
+    assert.deepEqual(await names(ilai), ORDER.slice(1));
+  });
+
+  await step('the search: typed key by key, it narrows both groups by the business or the person; deleting brings them back; a refresh keeps it', async () => {
+    await ilai.click(`${CARD} [data-act="close"]`).catch(() => {});
+    // One client marked "not relevant", for the search to find there too.
+    await rowOf(ilai, 'שיר פרחים').locator('[data-act="open"]').click();
+    await ilai.locator('#mcn-brand').waitFor();
+    await ilai.click(`${CARD} [data-act="none"]`);
+    await ilai.locator('#mcn-none-toggle').waitFor();
+    const q = ilai.locator('#mcn-q');
+    assert.equal(await q.getAttribute('type'), 'search');
+    assert.equal(await q.getAttribute('placeholder'), 'חיפוש לפי עסק או שם');
+    assert.ok((await q.boundingBox()).height >= 44);
+    // Real typing, one key at a time.
+    await q.click();
+    await ilai.keyboard.type('מוסך', { delay: 40 });
+    assert.equal(await q.inputValue(), 'מוסך');
+    assert.deepEqual(await names(ilai), ['מוסך הצפון · משה']);
+    assert.equal(await ilai.locator('#mcn-none-toggle').count(), 0, 'nothing marked matches');
+    assert.equal(await ilai.locator(`${CARD} [data-more]`).count(), 0);
+    // The minute's refresh redraws the rows only: the box keeps its focus and its text.
+    await ilai.clock.fastForward('01:05');
+    await ilai.waitForLoadState('networkidle');
+    assert.equal(await ilai.evaluate(() => document.activeElement?.id), 'mcn-q');
+    assert.equal(await q.inputValue(), 'מוסך');
+    // Deleting, key by key: everyone is back.
+    for (let i = 0; i < 4; i += 1) await ilai.keyboard.press('Backspace');
+    assert.equal(await q.inputValue(), '');
+    assert.deepEqual(await names(ilai), ORDER.slice(1).filter((n) => n !== 'שיר פרחים · שיר'));
+    assert.equal(await text(ilai, '#mcn-none-toggle'), 'לא רלוונטי ל־Metricool (1)');
+    assert.equal(await ilai.getAttribute('#mcn-none-toggle', 'aria-expanded'), 'false');
+    // The person's name finds the one marked "not relevant", in its group, opened.
+    await ilai.keyboard.type('שיר', { delay: 40 });
+    assert.deepEqual(await names(ilai), []);
+    assert.equal(await text(ilai, '#mcn-empty'), 'אין לקוח לחבר בשם הזה.');
+    assert.equal(await ilai.getAttribute('#mcn-none-toggle', 'aria-expanded'), 'true');
+    assert.match(await text(ilai, '#mcn-none-list'), /שיר פרחים · שיר/);
+    await shot(ilai, '03b-ilai-search-not-relevant', true);
+    for (let i = 0; i < 3; i += 1) await ilai.keyboard.press('Backspace');
+    // The person's family name: the business does not have it.
+    await ilai.keyboard.type('לוי', { delay: 40 });
+    assert.deepEqual(await names(ilai), ['קפה דנה · דנה לוי']);
+    await ilai.keyboard.type('x');
+    assert.equal(await text(ilai, '#mcn-empty'), 'אין לקוח בשם הזה.');
+    for (let i = 0; i < 4; i += 1) await ilai.keyboard.press('Backspace');
+    assert.equal(await q.inputValue(), '');
+    await ilai.click('#mcn-none-toggle');
+    await ilai.click('#mcn-none-list [data-act="back"]');
+    await ilai.locator('#mcn-none-toggle').waitFor({ state: 'detached' });
+    assert.equal(byBusiness('שיר פרחים').metricool_none, false);
     assert.deepEqual(await names(ilai), ORDER.slice(1));
   });
 
@@ -483,7 +549,7 @@ try {
     await shot(phone, '06-ilai-phone-360-open');
   });
 
-  await step('the last clients: the card counts down; with nothing left to connect the list is gone, and the index says so', async () => {
+  await step('the last clients: the card counts down; the "not relevant" ones keep it; with every client connected it is gone, and the index says so', async () => {
     const left = tables.clients.filter((c) => ['active', 'ending'].includes(c.status) && !c.archived_at && !c.metricool_blog_id);
     assert.equal(left.length, 7);
     // All but one get a brand elsewhere; the last one has none and needs none.
@@ -496,16 +562,33 @@ try {
     await phone.click(`${CARD} [data-act="open"]`);
     await phone.locator('#mcn-brand').waitFor();
     await phone.click(`${CARD} [data-act="none"]`);
-    await phone.locator(CARD).waitFor({ state: 'hidden' });
-    assert.equal(await phone.locator(`${CARD} *`).count(), 0);
+    // Not connected: the card stays, with nothing to connect and the client in its group.
+    await phone.locator('#mcn-none-toggle').waitFor();
     assert.equal(left[0].metricool_none, true);
+    assert.equal(await text(phone, `${CARD} h2`), 'לקוחות שלא מחוברים ל־Metricool (1)');
+    assert.equal(await text(phone, '#mcn-empty'), 'אין כרגע לקוח לחבר.');
+    await phone.reload();
+    await phone.locator(`${CARD}:not([hidden])`).waitFor();
+    await phone.locator('#mcn-none-toggle').waitFor();
+    assert.equal(await phone.locator('#gx-card-none').count(), 0);
+    assert.equal(await text(phone, '#mcn-none-toggle'), 'לא רלוונטי ל־Metricool (1)');
+    assert.match(await phone.innerText('#gx-f-not-connected'), /לא מחוברים ל־Metricool\s*1/);
+    await phone.click('#mcn-none-toggle');
+    assert.equal(await noSideScroll(phone), true);
+    assert.deepEqual(await smallTargets(phone, `${CARD} .btn, ${CARD} .btn-text, ${CARD} select, ${CARD} input`), []);
+    await phone.locator(CARD).scrollIntoViewIfNeeded();
+    await shot(phone, '07-ilai-phone-only-not-relevant');
+    // Every client connected: no card, and the index says so in words.
+    Object.assign(left[0], { metricool_blog_id: '599', metricool_brand: 'מותג אחרון', metricool_none: false });
     await phone.reload();
     await phone.locator('#gx-card-none').waitFor();
-    assert.equal(await text(phone, '#gx-card-none'), 'כל הלקוחות הפעילים מחוברים ל־Metricool, או סומנו שאין להם מותג.');
+    assert.equal(await text(phone, '#gx-card-none'), 'כל הלקוחות הפעילים מחוברים ל־Metricool.');
     assert.equal(await phone.locator(`${CARD} .mcn-row`).count(), 0);
     assert.equal(await noSideScroll(phone), true);
-    await shot(phone, '07-ilai-phone-nothing-left');
+    await shot(phone, '07b-ilai-phone-nothing-left');
     await phone.context().close();
+    // As the next step expects: the last one marked "no brand" again.
+    Object.assign(left[0], { metricool_blog_id: null, metricool_brand: null, metricool_none: true });
   });
 
   await step('before the mark\'s migration: the list and "חיבור" work, with no "ללקוח אין מותג"; before Metricool\'s: no card', async () => {
@@ -534,6 +617,38 @@ try {
     assert.equal(await earlier.locator(`${CARD} *`).count(), 0);
     await earlier.context().close();
     before.none = before.brand = false;
+  });
+
+  await step('an iPhone 13 (WebKit): the search typed key by key and deleted, 16px and 44px, no sideways scroll', async () => {
+    const safari = await webkit.launch();
+    try {
+      // Two clients to connect, so the search has something to narrow.
+      Object.assign(byBusiness('אבי שיפוצים'), { metricool_blog_id: null, metricool_brand: null, metricool_none: false });
+      Object.assign(byBusiness('גיל נדל״ן'), { metricool_blog_id: null, metricool_brand: null, metricool_none: false });
+      const page = await newPage(undefined, { on: safari, device: devices['iPhone 13'] });
+      await signIn(page, PAGE, 'ofir');
+      await page.locator(`${CARD}:not([hidden])`).waitFor();
+      await openCard(page);
+      const q = page.locator('#mcn-q');
+      assert.equal(await q.evaluate((el) => getComputedStyle(el).fontSize), '16px');
+      assert.ok((await q.boundingBox()).height >= 44);
+      await q.tap();
+      await page.keyboard.type('גיל', { delay: 60 });
+      assert.equal(await q.inputValue(), 'גיל');
+      assert.deepEqual(await names(page), ['גיל נדל״ן · גיל']);
+      for (let i = 0; i < 3; i += 1) await page.keyboard.press('Backspace');
+      assert.equal(await q.inputValue(), '');
+      assert.deepEqual(await names(page), ['אבי שיפוצים · אבי', 'גיל נדל״ן · גיל']);
+      await page.keyboard.type('שיפוצים', { delay: 60 });
+      assert.deepEqual(await names(page), ['אבי שיפוצים · אבי']);
+      assert.equal(await page.evaluate(() => document.activeElement?.id), 'mcn-q');
+      assert.equal(await noSideScroll(page), true);
+      await page.locator(CARD).scrollIntoViewIfNeeded();
+      await shot(page, '08-ofir-iphone13-webkit-search');
+      await page.context().close();
+    } finally {
+      await safari.close();
+    }
   });
 
   assert.equal(calls.filter((c) => c.directWrite).length, 0, 'the card never writes the clients table directly');

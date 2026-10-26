@@ -360,9 +360,11 @@ export function nextPost(entries, now = new Date()) {
 //   plan          the client has a plan from the template (false: no Gantt yet, even
 //                 when Metricool's posts are on it; creating it is Ilai's, process 9);
 //   connected     the client has a Metricool brand (undefined: not known);
-//   none          marked "ללקוח אין מותג";
+//   none          marked "ללקוח אין מותג" ("לא רלוונטי ל־Metricool");
 //   nothingAhead  connected, and nothing scheduled in the next AHEAD_DAYS days;
-//   notConnected  no brand, and not marked "no brand needed".
+//   notConnected  no brand, whether or not marked "no brand needed": a client marked so is
+//                 never counted as connected (the owner, 26.10.2026), so it is in the chip
+//                 "לא מחוברים ל־Metricool" too, said as "לא רלוונטי ל־Metricool" on its line.
 // opts: { plan (default: has rows), blogId, none } (connection unknown when blogId is undefined).
 export const AHEAD_DAYS = 7;
 export function clientSummary(client, entries, now = new Date(), opts = {}) {
@@ -380,7 +382,7 @@ export function clientSummary(client, entries, now = new Date(), opts = {}) {
   const none = !!opts.none;
   return {
     client, has: entries !== null, plan: opts.plan ?? entries !== null, month: n, of, range, ...totals(inMonth, now), next: nextPost(rows, now),
-    failed, ahead, connected, none, nothingAhead: connected === true && ahead === 0, notConnected: known && !connected && !none,
+    failed, ahead, connected, none, nothingAhead: connected === true && ahead === 0, notConnected: known && !connected,
   };
 }
 // How urgent a client's line is: 0 something failed or is missing, 1 nothing scheduled

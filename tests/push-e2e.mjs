@@ -1,4 +1,7 @@
 // End-to-end check of notifications on the phone (clients.html, app/push.js, sw.js):
+// since 26.10.2026 "המשימות שלי" holds tasks only: no card there, one quiet line at its very
+// bottom while this device is not connected ("לחבר" opens the window "ההתראות שלך", also
+// from the bell's list), and nothing once it is;
 // the "הפעלת התראות" card (connect, test notification, "קיבלתי", on), the iPhone
 // path (iOS 16.4+, install to the home screen first, then a button), blocked and
 // unsupported browsers, today's "התראות" list (unread count, mark read, "לדחות"),
@@ -214,6 +217,18 @@ async function open(who, { viewport = { width: 1280, height: 900 }, push = {}, m
 const shot = async (page, name) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true }); };
 const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const toastHas = (page, t) => page.waitForFunction((x) => document.querySelector('#toast.on')?.textContent.includes(x), t);
+// The card lives in the window "ההתראות שלך"; the quiet line's "לחבר" opens it.
+const viaLine = async (page) => {
+  await page.locator('#connect-push').click();
+  await page.waitForSelector('#dlg-connect[open] #push-card:not([hidden])');
+};
+const viaBell = async (page) => {
+  await page.click('#btn-inbox');
+  await page.waitForSelector('#dlg-inbox[open]');
+  await page.click('#inbox-settings');
+  await page.waitForSelector('#dlg-connect[open] #push-card:not([hidden])');
+};
+const ATTACHED = { state: 'attached' };
 let passed = 0;
 async function step(name, fn) {
   try { await fn(); } catch (err) { console.error(`not ok - ${name}\n  errors: ${JSON.stringify(errors)}\n  calls: ${JSON.stringify(calls.slice(-4))}`); throw err; }
@@ -223,14 +238,25 @@ async function step(name, fn) {
 
 // ── Irit on her computer: connect, test, confirm ──
 const { ctx: iritCtx, page } = await open('irit');
-await step('the card offers "הפעלת התראות"; permission is asked only from the button', async () => {
-  await page.waitForSelector('#push-card:not([hidden])');
+await step('"המשימות שלי" holds no card: one quiet line at its very bottom, and "לחבר" opens the card; permission is asked only from its button', async () => {
+  // No card of the notifications (nor of WhatsApp) in the list (the owner, 26.10.2026).
+  const ids = await page.locator('#view-mine > *').evaluateAll((els) => els.map((e) => e.id));
+  assert.ok(!ids.includes('push-card') && !ids.includes('wa-card'), ids.join(','));
+  assert.equal(await page.locator('#view-mine .push-card').count(), 0);
+  // The line: at the very bottom of the page's content, small, with "לחבר" (a computer: "במכשיר הזה").
+  await page.waitForSelector('#mine-connect:not([hidden])');
+  assert.equal(await page.innerText('#mine-connect'), 'ההתראות לא מחוברות במכשיר הזה · לחבר');
+  const below = await page.evaluate(() => {
+    const line = document.getElementById('mine-connect').getBoundingClientRect();
+    return [...document.querySelectorAll('#view-mine > *, #land-quiet')].filter((e) => e.offsetParent).every((e) => e.getBoundingClientRect().bottom <= line.top + 1);
+  });
+  assert.equal(below, true, 'the line is under everything of "המשימות שלי"');
+  assert.ok((await page.locator('#connect-push').boundingBox()).height >= 44);
   assert.equal(await page.locator('#push-card').getAttribute('data-state'), 'ready');
+  assert.equal(await page.evaluate(() => window.__asked), 0);
+  await viaLine(page);
   assert.match(await page.locator('#push-card').innerText(), /הפעלת התראות[\s\S]*גם כשהמערכת סגורה[\s\S]*08:30/);
   assert.equal(await page.evaluate(() => window.__asked), 0);
-  // Right under the "now" bar in "my work" (after the four work cards: the tasks given on the spot, the field's deals, the contracts in approval and the clients with no Metricool brand).
-  const ids = await page.locator('#view-mine > *').evaluateAll((els) => els.map((e) => e.id));
-  assert.deepEqual(ids.slice(0, 6), ['now-bar', 'staff-tasks-card', 'deals-card', 'approvals-card', 'metricool-card', 'push-card']);
   await shot(page, '01-card');
 });
 
@@ -257,15 +283,24 @@ await step('"לא הגיעה" sends again with tips; "קיבלתי" confirms and
   await page.waitForSelector('#push-card .push-hint');
   assert.match(await page.locator('#push-card .push-hint').innerText(), /נא לא להפריע/);
   assert.equal(calls.filter((c) => c.path === '/functions/v1/reminders').length, 2);
+  // Waiting for "קיבלתי": not connected yet, the line stays.
+  assert.equal(await page.isHidden('#mine-connect'), false);
   await page.click('#push-card button:has-text("קיבלתי")');
   await page.waitForSelector('#push-card[data-state="on"]');
   await toastHas(page, 'ההתראות פעילות בטלפון הזה');
   assert.ok(calls.some((c) => c.path === '/rest/v1/rpc/push_confirm' && c.body.p_endpoint === 'https://push.test/device-1'));
   assert.match(await page.locator('#push-card').innerText(), /ההתראות פעילות בטלפון הזה\.[\s\S]*שליחת ניסיון[\s\S]*כיבוי/);
+  // Connected: the line is gone, and nothing about the notifications is left in the list.
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.getElementById('dlg-connect').open);
+  assert.equal(await page.isHidden('#mine-connect'), true);
   // With push on, the stage-1 in-page alert switch is not offered again.
   assert.equal(await page.locator('.notify-row').count(), 0);
   await page.reload();
-  await page.waitForSelector('#push-card[data-state="on"]');
+  await page.waitForSelector('#push-card[data-state="on"]', ATTACHED);
+  await page.waitForSelector('#mine-list .wproc');
+  assert.equal(await page.isHidden('#mine-connect'), true);
+  assert.doesNotMatch(await page.innerText('#view-mine'), /ההתראות|הפעלת התראות/);
 });
 
 await step('"התראות": today\'s reminders, newest first, with how each arrived; unread count; mark read', async () => {
@@ -309,11 +344,15 @@ await step('"לדחות…": the reminder comes back later (a snooze mark on the
   await page.waitForFunction(() => !document.getElementById('dlg-inbox').open);
 });
 
-await step('switching off removes this device only', async () => {
+await step('switching off (from the bell\'s "ההתראות שלך") removes this device only, and the quiet line is back', async () => {
+  await viaBell(page);
+  assert.equal(await page.evaluate(() => document.getElementById('dlg-inbox').open), false);
   await page.click('#push-card button:has-text("כיבוי")');
   await page.waitForSelector('#push-card[data-state="ready"]');
   assert.ok(calls.some((c) => c.path === '/rest/v1/rpc/push_unsubscribe'));
   assert.equal(db.push_subscriptions.length, 0);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#mine-connect:not([hidden])');
 });
 await iritCtx.close();
 
@@ -321,6 +360,7 @@ await iritCtx.close();
 // person's reminders kept arriving on it and their unsaved drafts stayed in the browser.
 await step('signing out: this device stops getting the person\'s notifications, and the drafts kept in the browser are gone', async () => {
   const { ctx, page: p } = await open('irit');
+  await viaLine(p);
   await p.click('#push-card button:has-text("הפעלת התראות")');
   await p.waitForSelector('#push-card[data-state="confirm"]');
   assert.equal(db.push_subscriptions.filter((s) => s.email === users.irit.email).length, 1);
@@ -333,6 +373,7 @@ await step('signing out: this device stops getting the person\'s notifications, 
     sessionStorage.setItem('astrateg-draft', '{"state":{"discount":250}}');
   });
   const before = calls.length;
+  await p.keyboard.press('Escape');
   await p.evaluate(() => document.getElementById('btn-logout').click());
   await p.waitForSelector('#login-block:not([hidden])');
   assert.ok(calls.slice(before).some((c) => c.path === '/rest/v1/rpc/push_unsubscribe' && c.body.p_endpoint === 'https://push.test/device-1'));
@@ -351,9 +392,19 @@ await step('signing out: this device stops getting the person\'s notifications, 
 
 // ── iPhone ────────────────────────────────
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
-await step('iPhone in Safari: "הוספה למסך הבית" first, and no permission request', async () => {
-  const { ctx, page: ph } = await open('irit', { viewport: { width: 360, height: 780 }, mobile: true, push: { ua: IPHONE } });
-  await ph.waitForSelector('#push-card[data-state="ios-install"]');
+await step('iPhone in Safari: the quiet line ("בטלפון הזה"), then "הוספה למסך הבית" first, and no permission request', async () => {
+  const { ctx, page: ph } = await open('irit', { viewport: { width: 390, height: 844 }, mobile: true, push: { ua: IPHONE } });
+  await ph.waitForSelector('#push-card[data-state="ios-install"]', ATTACHED);
+  await ph.waitForSelector('#mine-connect:not([hidden])');
+  assert.equal(await ph.innerText('#mine-connect'), 'ההתראות לא מחוברות בטלפון הזה · לחבר');
+  assert.ok(await noHScroll(ph), 'no sideways scroll at 390px');
+  if (OUT) {
+    await ph.waitForSelector('#login-block', { state: 'hidden' });
+    await ph.waitForTimeout(800); // the sign-in screen fades out
+    await ph.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await ph.screenshot({ path: `${OUT}/04a-mine-quiet-line-390.png` });
+  }
+  await viaLine(ph);
   const text = await ph.locator('#push-card').innerText();
   assert.match(text, /הפעלת התראות באייפון[\s\S]*כפתור השיתוף[\s\S]*הוספה למסך הבית[\s\S]*אסטרטג לקוחות/);
   assert.equal(await ph.locator('#push-card button').count(), 0);
@@ -364,13 +415,15 @@ await step('iPhone in Safari: "הוספה למסך הבית" first, and no permi
 });
 await step('iPhone from the home screen: the button; an old iOS: update first', async () => {
   const { ctx, page: ph } = await open('irit', { viewport: { width: 360, height: 780 }, mobile: true, push: { ua: IPHONE, standalone: true } });
-  await ph.waitForSelector('#push-card[data-state="ready"]');
+  await ph.waitForSelector('#push-card[data-state="ready"]', ATTACHED);
+  await viaLine(ph);
   const box = await ph.locator('#push-card button').boundingBox();
   assert.ok(box.height >= 44 && box.x >= 0 && box.x + box.width <= 360, JSON.stringify(box));
   await shot(ph, '05-iphone-installed');
   await ctx.close();
   const old = await open('irit', { viewport: { width: 360, height: 780 }, mobile: true, push: { ua: IPHONE.replace(/17_4/g, '16_3').replace('17.4', '16.3') } });
-  await old.page.waitForSelector('#push-card[data-state="ios-update"]');
+  await old.page.waitForSelector('#push-card[data-state="ios-update"]', ATTACHED);
+  await viaLine(old.page);
   // Nothing to press here: one line, the explanation a tap away (6.10.2026).
   assert.match(await old.page.locator('#push-card summary').innerText(), /ההתראות לא פעילות באייפון הזה\s*מה עושים/);
   await old.page.click('#push-card summary');
@@ -379,7 +432,8 @@ await step('iPhone from the home screen: the button; an old iOS: update first', 
 });
 await step('blocked in the browser: how to allow it, no button', async () => {
   const { ctx, page: pb } = await open('irit', { push: { permission: 'denied' } });
-  await pb.waitForSelector('#push-card[data-state="blocked"]');
+  await pb.waitForSelector('#push-card[data-state="blocked"]', ATTACHED);
+  await viaLine(pb);
   assert.match(await pb.locator('#push-card summary').innerText(), /ההתראות חסומות\s*מה עושים/);
   assert.ok((await pb.locator('#push-card').boundingBox()).height <= 56, 'a blocked state is one line');
   await pb.click('#push-card summary');
@@ -418,6 +472,7 @@ await step('before the migrations: no card, no button, and tasks still load (wit
   await pn.waitForTimeout(300);
   assert.equal(await pn.isHidden('#push-card'), true);
   assert.equal(await pn.isHidden('#btn-inbox'), true);
+  assert.equal(await pn.isHidden('#mine-connect'), true, 'nothing known about the notifications: nothing said');
   assert.match(await pn.locator('.wproc.is-urgent').innerText(), /לתקן את הלוגו בעמוד/);
   assert.equal(await pn.locator('.wproc.is-urgent .task-start').count(), 0);
   await ctx.close();

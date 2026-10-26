@@ -86,6 +86,12 @@
 // not required (p19.testimonial, `variant`); Lior sets the day's number of videos (the mark
 // p18.count, app/production.js). With Eliel, who has no account, Eli's processes (17ב, 18ב,
 // 19ב) do not apply and the drive is Lior's confirmation alone (p19.took).
+// 26.10.2026, still v11 (the owner): the full characterization form is filled in the meeting
+// itself. So once "האפיון הסתיים" (p04.ended) is marked, process 4 has no clock any more (its
+// `due.stopsAt`): no deadline, no ring, never late or "עכשיו", for every client, whatever version
+// it started under. Its items stay open to fill in, and before the mark nothing changes (two
+// hours from the meeting). It was "the rest of the form within 60 minutes" (decision 12, v5).
+// Keys and items are unchanged.
 
 export const PROTOCOL_VERSION = 11;
 
@@ -507,10 +513,11 @@ export const PROCESSES = [
   },
   {
     id: 'p04', num: '4', phase: 'onboarding', title: 'ביצוע פגישת אפיון', owners: characterizer,
-    sla: 'עד שעתיים; אחרי "האפיון הסתיים" שאר הטופס תוך 60 דקות',
-    // Decision 12: once "the characterization ended" is marked (with its 4 short
-    // fields), the full form is due 60 minutes later.
-    start: { from: 'char' }, due: { from: 'char', hours: 2, afterMark: { key: 'p04.ended', minutes: 60 } },
+    sla: 'עד שעתיים, עד "האפיון הסתיים". את הטופס ממלאים בפגישה, בלי שעון אחריה',
+    // Two hours from the meeting until "the characterization ended" is marked (with its 4
+    // short fields, decision 12). The form is filled in the meeting (the owner, 26.10.2026):
+    // from the mark on, process 4 has no clock at all (`stopsAt`, clientState).
+    start: { from: 'char' }, due: { from: 'char', hours: 2, stopsAt: 'p04.ended' },
     what: 'מגיעים פיזית לעסק ועוברים עם הלקוח על כל המידע הנדרש לעבודה. בסיום הפגישה האפיון נשמר במערכת.',
     items: [
       { key: 'p04.address', label: 'כתובת מלאה של העסק' },
@@ -1089,7 +1096,13 @@ export const PROCESSES = [
 ];
 
 // Processes 32 and 33 are office-wide daily reviews, served by the control view.
+// 33, the pass over the clients (pass.html), is Irit's since 26.10.2026 (the owner: she goes
+// over the clients, checks that all is well, updates them and opens tasks for the team; it was
+// Ofir's). It is a task, a ring and a lateness for her alone: the owners, Lior and Ofir may look
+// at it, and are never asked for it (PASS_OWNER below; app/reminder-rules.js control33, thursday).
 export const OFFICE_REVIEWS = [
   { num: '32', title: 'בקרה על ביצוע המשימות', owner: 'irit', sla: 'בכל יום עבודה, כולל הודעות יומיות ללקוחות' },
-  { num: '33', title: 'בקרה על כל רשימת הלקוחות', owner: 'ofir', sla: 'לפחות פעם ביומיים; ביום חמישי מעבר מלא עם סיכום מצב לכל לקוח' },
+  { num: '33', title: 'בקרה על כל רשימת הלקוחות', owner: 'irit', sla: 'לפחות פעם ביומיים; ביום חמישי מעבר מלא עם סיכום מצב לכל לקוח' },
 ];
+// Whose the pass over the clients (33) and its Thursday summaries are.
+export const PASS_OWNER = OFFICE_REVIEWS.find((r) => r.num === '33').owner;

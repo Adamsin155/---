@@ -1,4 +1,9 @@
-// Ofir's pass over the clients (pass.html; process 33, system-plan section 3):
+// The pass over the clients (pass.html; process 33, system-plan section 3). Irit's since
+// 26.10.2026 (the owner: she goes over the clients, checks all is well, updates them and opens
+// tasks for the team; it was Ofir's): PASS_OWNER in app/protocol.js. Anyone else in the office
+// who opens it (the owners, Ofir, Lior) sees where it stands, without its buttons: it is not
+// their task (no ring, no line in "המשימות שלי", no lateness of theirs).
+// The page:
 // the clients sorted by risk (app/health.js) with what changed since the previous
 // pass; "עברתי" or "פתח משימה" (owner and due) on the red, yellow, changed and
 // stuck ones (a stuck one: a task, an update to Lior or a written reason, never
@@ -11,7 +16,7 @@
 // late work says "שלך"; the summary is open on Thursday only (folded on other days);
 // "משימות שפתחתי" only when there are any; the two forms to Lior open from two small buttons.
 // The logic: app/pass-logic.js.
-import { PEOPLE, STAFF_PEOPLE, STATUS_FIELDS, BRIEF_REQUIRED } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, STATUS_FIELDS, BRIEF_REQUIRED, PASS_OWNER } from './protocol.js';
 import { clientState, weekKey, parseDate, CLAIM, addBusinessDays, clientLabel } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, addTask, loadDirectory, loadAllLog, loadStatusNotes, saveStatusNote, loadReviews, markReview,
@@ -50,6 +55,9 @@ const stateOf = (c) => {
   return states.get(c.id);
 };
 const live = (c) => c.status === 'active' || c.status === 'ending';
+// Whether the pass is the signed-in person's own (Irit's); anyone else looks at it.
+const owns = () => me === PASS_OWNER;
+const passOwnerName = PEOPLE[PASS_OWNER]?.name || '';
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash ? `#${hash}` : ''}`;
 const hmFmt = new Intl.DateTimeFormat('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
 const hm = (d) => hmFmt.format(new Date(d));
@@ -148,12 +156,15 @@ function render() {
       .filter(Boolean).map(([id, label, n]) => h('li', {}, h('button', {
         type: 'button', class: 'chip', onclick: () => { const el = $(id); el.scrollIntoView({ block: 'start' }); el.focus({ preventScroll: true }); },
       }, label, n === null ? null : h('span', { class: 'n' }, String(n)))))));
-  fill($('ps-banners'), passes === null ? h('p', { class: 'of-banner is-warn', role: 'status' }, 'שמירת המעבר עוד לא זמינה במסד הנתונים (מיגרציה 20260930150000). אפשר לעבור על הרשימה, והבקרה של היום עדיין נרשמת.') : null);
+  const viewOnly = !owns();
+  fill($('ps-banners'),
+    viewOnly ? h('p', { class: 'of-banner ps-view', id: 'ps-view' }, `המעבר על הלקוחות הוא של ${passOwnerName}. כאן רואים איפה הוא עומד.`) : null,
+    passes === null ? h('p', { class: 'of-banner is-warn', role: 'status' }, 'שמירת המעבר עוד לא זמינה במסד הנתונים (מיגרציה 20260930150000). אפשר לעבור על הרשימה, והבקרה של היום עדיין נרשמת.') : null);
   fill($('ps-status'),
     h('p', { class: 'ps-progress' },
       h('strong', {}, pass?.completed_at ? `המעבר הושלם ${hm(pass.completed_at)}` : due.thursday ? 'היום חמישי: מעבר מלא, והוא נחשב גם כבקרה של היום' : due.due ? 'היום מגיע מעבר' : 'המעבר הבא לא חובה היום'),
-      h('span', {}, `עברת על ${prog.handled} מתוך ${prog.total} לקוחות`),
-      progressBar(prog.handled, prog.total, 'לקוחות שעברת עליהם היום'),
+      h('span', {}, `${viewOnly ? `${passOwnerName} עברה` : 'עברת'} על ${prog.handled} מתוך ${prog.total} לקוחות`),
+      progressBar(prog.handled, prog.total, viewOnly ? `לקוחות ש${passOwnerName} עברה עליהם היום` : 'לקוחות שעברת עליהם היום'),
       h('span', { class: 'muted' }, prev ? `המעבר הקודם: ${formatDay(prev.day)}${prev.by_email ? ` · ${who(prev.by_email)}` : ''}` : 'אין מעבר קודם להשוואה')));
   const attention = rows.filter((r) => r.attention);
   const seenOf = (r) => (closesRow(r, seen[r.client.id]) ? seen[r.client.id] : null);
@@ -164,8 +175,9 @@ function render() {
   const rest = rows.filter((r) => !r.attention);
   const restOpen = rest.filter((r) => !seen[r.client.id]);
   fill($('ps-rest'), rest.length ? [
-    restOpen.length ? h('button', { type: 'button', class: 'btn btn-primary', id: 'ps-rest-btn', onclick: (e) => markRest(restOpen, e.currentTarget) }, `עברתי על כל השאר (${restOpen.length} לקוחות)`)
-      : h('p', { class: 'ps-seen' }, `עברת על כל השאר (${rest.length} לקוחות)`),
+    viewOnly ? h('p', { class: 'ps-seen' }, restOpen.length ? `${restOpen.length} לקוחות ירוקים עוד מחכים למעבר` : `${passOwnerName} עברה על כל השאר (${rest.length} לקוחות)`)
+      : restOpen.length ? h('button', { type: 'button', class: 'btn btn-primary', id: 'ps-rest-btn', onclick: (e) => markRest(restOpen, e.currentTarget) }, `עברתי על כל השאר (${restOpen.length} לקוחות)`)
+        : h('p', { class: 'ps-seen' }, `עברת על כל השאר (${rest.length} לקוחות)`),
     h('details', { class: 'dc-more' }, h('summary', {}, `הלקוחות הירוקים שלא השתנו (${rest.length})`),
       h('ul', { class: 'of-jobs' }, ...rest.map((r) => h('li', {}, h('a', { href: clientUrl(r.client.id) }, r.client.name), r.entry.station ? ` · ${r.entry.station.title}` : '')))),
   ] : null);
@@ -191,6 +203,11 @@ function passRow(r, seen, { group = false } = {}) {
   const c = r.client;
   const id = `ps-${c.id}`;
   const own = r.stuck.length > 0 && !!rowLine(r, me)?.mine;
+  // Looking at someone else's pass: what was done, and no buttons.
+  const acts = !owns() ? null : r.stuck.length ? stuckActs(r, id, { own, group })
+    : h('div', { class: 'of-acts' },
+      h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-seen`, 'aria-label': `עברתי: ${c.name}`, onclick: (e) => markSeen([c], 'seen', e.currentTarget) }, 'עברתי'),
+      h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה'));
   return h('li', { class: `${group ? 'ps-sub' : 'of-card'} ps-row${seen ? ' is-seen' : ''}`, id },
     h('div', { class: 'of-head' },
       healthBadge(r.color),
@@ -200,11 +217,7 @@ function passRow(r, seen, { group = false } = {}) {
       r.stuck.length && !group ? h('span', { class: 'tag tag-warn' }, 'לקוח תקוע') : null),
     lineOf(r, { group }),
     r.changes.texts.length ? h('ul', { class: 'ps-changes', 'aria-label': 'מה השתנה מאז המעבר הקודם' }, ...r.changes.texts.map((t) => h('li', {}, t))) : null,
-    seen ? h('p', { class: 'ps-seen' }, `${seenText(seen)} · ${hm(seen.at)}`)
-      : r.stuck.length ? stuckActs(r, id, { own, group })
-        : h('div', { class: 'of-acts' },
-          h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-seen`, 'aria-label': `עברתי: ${c.name}`, onclick: (e) => markSeen([c], 'seen', e.currentTarget) }, 'עברתי'),
-          h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${id}-task`, 'aria-label': `פתיחת משימה: ${c.name}`, onclick: () => openTask(r) }, 'פתח משימה')));
+    seen ? h('p', { class: 'ps-seen' }, `${seenText(seen)} · ${hm(seen.at)}`) : acts);
 }
 
 // A stuck client leaves the check with a clear action (Ofir's protocol, stage 11):
@@ -221,7 +234,7 @@ function groupRow(g, seenOf) {
       h('span', { class: 'tag tag-warn' }, 'לקוחות תקועים'),
       h('strong', { class: 'ps-group-t' }, `אצל ${ownerName(g.who)}${g.what ? ` · ${g.what}` : ''}`),
       h('span', { class: 'muted' }, `${n} לקוחות`)),
-    open.length ? h('div', { class: 'of-acts' },
+    open.length && owns() ? h('div', { class: 'of-acts' },
       h('button', {
         type: 'button', class: 'btn btn-sm', id: `${id}-lior`, 'aria-label': `עדכון לליאור על ${open.length} הלקוחות התקועים אצל ${ownerName(g.who)}`,
         onclick: () => openGroupUpdate({ ...g, rows: open }),

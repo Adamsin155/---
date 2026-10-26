@@ -276,6 +276,9 @@ const ofir = await newPage(ofirCtx);
 await step('"המשימות שלי": the characterization links straight to "האפיון הסתיים"', async () => {
   await signIn(ofir, 'clients.html#mine', 'ofir@astrateg.test');
   await ofir.waitForSelector('.wproc');
+  // Before "האפיון הסתיים": two hours from the meeting (10:00), so the "עכשיו" bar counts down to 12:00.
+  await ofir.waitForSelector('#now-bar:not([hidden])');
+  assert.match(await ofir.innerText('#now-bar'), /נשארו[^]*ביצוע פגישת אפיון/);
   const link = ofir.locator(`.wproc:has(a.wclient:text("${A.name}")) a.ik-go`).first();
   assert.equal(await link.innerText(), 'האפיון הסתיים');
   assert.ok(await heightOf(ofir, `.wproc:has(a.wclient:text("${A.name}")) a.ik-go`) >= 38);
@@ -345,6 +348,26 @@ await step('the full form keeps a draft on the phone: leaving and coming back re
   // Away to "המשימות שלי" (say, a call came in), and back from the link there.
   await ofir.goto(`${BASE}clients.html#mine`);
   await ofir.waitForSelector('.wproc');
+  // The form is filled in the meeting (the owner, 26.10.2026): after "האפיון הסתיים" nothing of
+  // process 4 runs a clock: no "נשארו" in the "עכשיו" bar, no deadline on its card; it stays to fill in.
+  await ofir.waitForLoadState('networkidle');
+  assert.doesNotMatch(await ofir.locator('#now-bar').innerText().catch(() => ''), /ביצוע פגישת אפיון/);
+  // With no deadline it is not "היום" any more: it waits in "בהמשך", folded on a short list, one tap away.
+  const card4 = ofir.locator(`.wproc:has(a.wclient:text("${A.name}")):has(a.ik-go)`).first();
+  assert.equal(await ofir.locator(`.g-today .wproc:has(a.wclient:text("${A.name}")):has(a.ik-go)`).count(), 0);
+  await ofir.locator('details.g-later > summary').click();
+  await card4.waitFor();
+  assert.match(await card4.innerText(), /ביצוע פגישת אפיון/);
+  assert.doesNotMatch(await card4.innerText(), /נשארו|באיחור|יעד/);
+  if (OUT) {
+    await ofir.setViewportSize({ width: 390, height: 844 });
+    await ofir.waitForTimeout(300);
+    await ofir.evaluate(() => window.scrollTo(0, 0));
+    await ofir.screenshot({ path: `${OUT}/02b-ofir-mine-after-ended-390.png` });
+    await card4.scrollIntoViewIfNeeded();
+    await ofir.screenshot({ path: `${OUT}/02c-ofir-mine-after-ended-card-390.png` });
+    await ofir.setViewportSize(PHONE);
+  }
   const back = ofir.locator(`.wproc:has(a.wclient:text("${A.name}")) a.ik-go`).first();
   assert.equal(await back.innerText(), 'לטופס האפיון');
   await back.click();

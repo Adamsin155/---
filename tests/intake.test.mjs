@@ -16,7 +16,8 @@ import {
   dayBefore, dayBeforeResult, dayBeforeNote, readDayBefore, dayBeforeText, DAY_BEFORE_LABELS, dayBeforeTask, shootDateConcerns, shootDateQuestion, shootDateNote, requestTask, requestDue, requestProblems,
   ackMessage, tellMessage, requestOf, TOPICS,
 } from '../app/shoot-prep.js';
-import { clientState, CHAR_ENDED, resolveTime, applicableProcesses } from '../app/protocol-logic.js';
+import { clientState, CHAR_ENDED, resolveTime, applicableProcesses, openItemsFor } from '../app/protocol-logic.js';
+import { clocksFor } from '../app/clocks.js';
 import { PROCESSES } from '../app/protocol.js';
 import { computeReminders, buildEnv } from '../app/reminder-engine.js';
 import { qaClock } from '../app/reminder-rules.js';
@@ -92,7 +93,7 @@ test('"ended" starts the clocks of Ilai, Ofir (8) and Lior (10) at once, before 
   assert.equal(st('p04').complete, false);
   assert.equal(hhmm(st('p07').dueAt), '6.10 13:20'); // two office hours from the tap, not from 12:00
   assert.equal(hhmm(st('p09').dueAt), '6.10 11:25');
-  assert.equal(hhmm(st('p04').dueAt), '6.10 12:20'); // the form: 60 minutes after the tap
+  assert.equal(st('p04').dueAt, null); // the form is filled in the meeting: no clock after the tap (26.10.2026)
   const at = due(world(c, checks), IL(2026, 10, 6, 11, 20));
   const ilai = one(at, 'started', 'start', 'ilai');
   assert.match(ilai.body, /הכנת 9 גרפיקות ראשונות עד היום 13:20/);
@@ -117,22 +118,42 @@ test('the access given at the end goes straight to Ilai (30 minutes); the vault 
   one(due(world(c, noVault), IL(2026, 10, 6, 12)), 'vault', 'irit', 'irit');
 });
 
-test('the full form within 60 minutes: the characterizer, then Irit, then Lior\'s list; saving it stops the ladder', () => {
+// The owner, 26.10.2026: the full form is filled in the meeting itself. Once "האפיון הסתיים" is
+// marked nothing of process 4 has a clock: no deadline, no ring, never late, no "עכשיו" clock,
+// for any client; its items stay open to fill in. Before the mark: two hours, as before.
+test('after "האפיון הסתיים" process 4 has no clock: no deadline, no ring, never late; the form stays open to fill in', () => {
   const c = client({ char_at: IL(2026, 10, 6, 10).toISOString(), characterizer: 'lior' });
   const checks = { ...imported('char'), ...done(CHAR_ENDED, IL(2026, 10, 6, 11)) };
   const w = world(c, checks);
-  none(due(w, IL(2026, 10, 6, 11, 59)), 'charForm');
-  const form = one(due(w, IL(2026, 10, 6, 12)), 'charForm', 'form', 'lior');
-  assert.equal(form.level, 'ring');
-  assert.equal(form.url, `intake.html?id=${c.id}#form`);
-  one(due(w, IL(2026, 10, 6, 12, 30)), 'charForm', 'irit', 'irit');
-  const l = one(due(w, IL(2026, 10, 6, 13)), 'charForm', 'lior', 'lior');
-  assert.equal(l.list, true);
-  Object.assign(checks, done('p04.saved', IL(2026, 10, 6, 11, 50)));
-  none(due(w, IL(2026, 10, 6, 13)), 'charForm');
-  // Process 4 is not reported late by the general rule meanwhile (its own ladder is above).
-  const w2 = world(c, { ...imported('char'), ...done(CHAR_ENDED, IL(2026, 10, 6, 11)) });
-  none(due(w2, IL(2026, 10, 6, 15)).filter((r) => r.key.includes(':p04@')), 'late');
+  const p4 = (now, cs = checks, cl = c) => clientState(cl, cs, now).states.find((s) => s.proc.id === 'p04');
+  for (const now of [IL(2026, 10, 6, 11, 30), IL(2026, 10, 6, 12, 30), IL(2026, 10, 8, 15)]) {
+    const s = p4(now);
+    assert.equal(s.dueAt, null, hhmm(now));
+    assert.equal(s.late, false, hhmm(now));
+    assert.equal(s.status, 'open', hhmm(now));
+    // Nothing about process 4 rings, for anybody (the form's old ladder, `charForm`, is gone).
+    assert.deepEqual(due(w, now).filter((r) => r.key.includes(':p04@') || r.rule === 'charForm').map((r) => r.key), [], hhmm(now));
+  }
+  // The form is still open to fill in, with no clock: the characterizer's items, and Irit's follow-up.
+  const st = clientState(c, checks, IL(2026, 10, 7, 10));
+  const open = openItemsFor('lior', c, checks, st, IL(2026, 10, 7, 10)).filter((e) => e.proc.id === 'p04');
+  assert.ok(open.some((e) => e.item.key === 'p04.services'));
+  assert.ok(open.every((e) => e.dueAt === null && e.status === 'open'));
+  assert.ok(openItemsFor('irit', c, checks, st, IL(2026, 10, 7, 10)).some((e) => e.item.key === 'p04.followup' && e.dueAt === null));
+  // No "עכשיו" clock for it either (the bar at the top of "המשימות שלי"): what Ofir saw, "נשארו 53:56".
+  assert.deepEqual(clocksFor('lior', [c], { [c.id]: checks }, { now: IL(2026, 10, 6, 11, 6) }).filter((k) => k.proc?.id === 'p04'), []);
+  // A client that started before decision 12 (v4: "two hours from the meeting") has no clock after the mark either.
+  const old = { ...c, protocol_version: 4 };
+  assert.equal(p4(IL(2026, 10, 6, 15), checks, old).dueAt, null);
+  assert.equal(p4(IL(2026, 10, 6, 15), checks, old).late, false);
+  // Before the mark nothing changed: two hours from the meeting, a clock in "עכשיו", late after them.
+  const before = { ...imported('char') };
+  assert.equal(hhmm(p4(IL(2026, 10, 6, 11), before).dueAt), '6.10 12:00');
+  assert.equal(hhmm(p4(IL(2026, 10, 6, 11), before, old).dueAt), '6.10 12:00');
+  assert.equal(p4(IL(2026, 10, 6, 12, 30), before).status, 'overdue');
+  assert.equal(clocksFor('lior', [c], { [c.id]: before }, { now: IL(2026, 10, 6, 11, 6) }).filter((k) => k.proc?.id === 'p04').length, 1);
+  // Undoing the mark ("סימנתי בטעות") brings the two hours back.
+  assert.equal(p4(IL(2026, 10, 6, 12, 30), { ...checks, [CHAR_ENDED]: { ...checks[CHAR_ENDED], state: 'na' } }).status, 'overdue');
   // Without the tap, a late process 4 is still reported the usual way (3.10.2026: Ofir and Lior, quietly).
   const w3 = world(c, imported('char'));
   for (const who of ['ofir', 'lior']) assert.ok(pick(due(w3, IL(2026, 10, 6, 12, 16)), 'late', who).some((r) => r.key.includes(':p04@') && r.level === 'quiet'), who);
