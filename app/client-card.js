@@ -294,6 +294,7 @@ function dressCard() {
   headIcon($('qa-block-h'), 'shield', 'teal', { size: 'md' });
   headIcon($('ik-sum-h'), 'handshake', 'purple', { size: 'md' });
   // The small heads inside the head card and the link to the logins form: the same square.
+  headIcon($('cd-h'), 'sign', 'purple');
   headIcon($('cs-h'), 'file', 'teal');
   headIcon($('deliv-h'), 'box', 'blue');
   headIcon($('al-h'), 'link', 'purple');
