@@ -193,6 +193,14 @@ const both = (name, fn) => step(name, async () => { for (const width of [390, 12
 try {
   await both('1. Irit: "הלקוח ביקש תיקון" opens the same fix task for Ilai, and her card says what there is to do', async (width, db) => {
     const { page, ctx } = await signedIn('irit', db, { width });
+    // Her two daily reviews (32, and since 26.10.2026 the pass, 33) and the counted lines lead
+    // "היום" and are not counted in its five: the cards of her day are not behind "הצג עוד".
+    const day = await page.locator('#mine-list .g-today').evaluate((g) => {
+      const rows = [...g.querySelectorAll(':scope .wprocs > li')];
+      return { reviews: rows.filter((li) => li.matches('.rv-card') && !li.hidden).length, cards: rows.filter((li) => li.matches('.wc')).length, shown: rows.filter((li) => li.matches('.wc') && !li.hidden).length };
+    });
+    assert.equal(day.reviews, 2, 'Irit\'s two daily reviews are in "היום"');
+    assert.equal(day.shown, Math.min(day.cards, 5), `"היום" shows ${day.shown} of its ${day.cards} cards`);
     const c = card(page, FIX, 'p07');
     await c.waitFor();
     assert.match(await text(c), /הלקוח אישר את הגרפיקות/);

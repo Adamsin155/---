@@ -1829,7 +1829,12 @@ function renderMine() {
     person === me && hasLateTab() ? h('a', { href: '#late' }, 'הצגת כל האיחורים') : null)) : null;
   const today = dayIso(new Date());
   // A short list: each group shows its first cards and "הצג עוד" (kept per person and group).
-  const cap = (ul, k) => (full ? ul : capList(ul, MINE_CAP, `mine:${person || 'all'}:${k}`));
+  // The fixed lines before the cards (the counted lines with a clock and Irit's daily reviews,
+  // one of a kind each) are always shown and are not counted in the cap: since her pass over
+  // the clients (33) joined her control (32) on 26.10.2026, they could fill all five places of
+  // "היום" and leave every card of her day behind "הצג עוד".
+  const fixedOf = (k) => (k === 'client' ? 0 : flowIn(k).length) + (k === 'today' ? ownReviews.length : 0);
+  const cap = (ul, k) => (full ? ul : capList(ul, MINE_CAP + fixedOf(k), `mine:${person || 'all'}:${k}`));
   // Thursday's pass is a fixed card of its own, right after urgent work.
   const thuGroup = thursday ? h('section', { class: 'wgroup g-thu', 'aria-label': 'מעבר חובה של יום חמישי' }, h('ul', { class: 'wprocs' }, thursday)) : null;
   fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'today' ? thuGroup : null, k === 'client' ? soon : null, (() => {
