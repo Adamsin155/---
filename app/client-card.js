@@ -937,11 +937,13 @@ function contractBlock(s) {
 // ── The old system's signed documents (legacy-contract.html opens each, read-only) ──
 function legacyBlock() {
   return h('section', { class: 'lc-list', id: 'legacy-contracts', 'aria-label': 'חוזים מהמערכת הישנה' },
-    h('p', { class: 'hint' }, 'המסמכים שנחתמו במערכת הקודמת. לקריאה ולהדפסה בלבד.'),
-    h('ul', { class: 'lc-rows' }, ...legacyRows(legacy).map((r) => h('li', { class: 'lc-row', id: `lc-${r.id}` },
+    h('p', { class: 'hint' }, 'המסמכים מהמערכת הקודמת: שנחתמו, שחיכו לחתימה, והצעות מחיר. לקריאה ולהדפסה בלבד.'),
+    h('ul', { class: 'lc-rows' }, ...legacyRows(legacy).map((r) => h('li', { class: `lc-row lc-is-${r.status}`, id: `lc-${r.id}` },
       h('div', { class: 'lc-text' },
-        h('div', { class: 'lc-title' }, h('span', { class: 'lc-type' }, r.type), r.number ? h('span', { class: 'lc-num num', dir: 'ltr' }, r.number) : null),
-        h('div', { class: 'lc-sub' }, h('span', {}, r.signed ? `נחתם ${r.signed}` : 'בלי תאריך חתימה'), r.signer ? h('span', {}, r.signer) : null, r.total ? h('span', { class: 'num', dir: 'ltr' }, r.total) : null)),
+        h('div', { class: 'lc-title' }, h('span', { class: 'lc-type' }, r.type), r.number ? h('span', { class: 'lc-num num', dir: 'ltr' }, r.number) : null,
+          // Its state (27.10.2026): "נחתם <day>", "ממתין לחתימה (במערכת הישנה)" or "הצעת מחיר".
+          h('span', { class: `lc-tag lc-tag-${r.status}` }, r.status === 'signed' && r.signed ? `נחתם ${r.signed}` : r.statusText)),
+        h('div', { class: 'lc-sub' }, r.signer ? h('span', {}, r.signer) : null, r.total ? h('span', { class: 'num', dir: 'ltr' }, r.total) : null)),
       h('a', { class: 'btn btn-sm lc-open', href: r.href, 'aria-label': `פתיחת ה${r.type}${r.number ? ` ${r.number}` : ''}` }, 'פתיחה')))));
 }
 

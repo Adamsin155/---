@@ -348,4 +348,8 @@ dialog .dlg-foot .btn { min-height: 46px; }
 #cc-head .lc-sub { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 13px; color: var(--ds-ink-2); margin-top: 2px; }
 #cc-head .lc-sub > span + span::before { content: '·'; margin-inline-end: 10px; color: var(--ds-muted); }
 #cc-head .lc-open { min-height: 44px; flex: none; text-decoration: none; display: inline-flex; align-items: center; }
+#cc-head .lc-tag { font-size: 12px; font-weight: 600; line-height: 1.4; padding: 1px 8px; border-radius: var(--ds-r-pill); background: var(--ds-ok-soft); color: var(--ds-ok); }
+#cc-head .lc-tag-pending { background: var(--ds-amber-soft); color: var(--ds-amber); }
+#cc-head .lc-tag-quote { background: var(--ds-soft); color: var(--ds-ink-2); }
+#cc-head .lc-sub:empty { display: none; }
 @media print { #cc-head .lc-open { display: none; } }

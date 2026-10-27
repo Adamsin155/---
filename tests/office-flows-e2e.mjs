@@ -275,8 +275,12 @@ async function fakeSupabase(route) {
     const d = body.p_doc;
     const scrub = (v) => (Array.isArray(v) ? v.map(scrub) : v && typeof v === 'object'
       ? Object.fromEntries(Object.entries(v).filter(([k]) => !['signedip', 'signeduseragent', 'ip', 'useragent', 'ua', 'phone', 'hp'].includes(k.toLowerCase())).map(([k, x]) => [k, scrub(x)])) : v);
+    // The state (20261110100000_batch_2710.sql): not signed keeps no signature and no signing time.
+    const status = { 'נחתם': 'signed', 'ממתין לחתימה': 'pending', 'הצעת מחיר': 'quote', '': 'signed' }[String(d.status ?? '').trim()];
+    if (!status) return json(400, { code: '22023', message: 'an unknown state' });
+    const signed = status === 'signed';
     const row = { id: Number(d.id), client_id: body.p_client, doc_type: d.docType || 'contract', doc_number: d.docNumber || null, signer_name: d.signerName || d.signers?.[0]?.name || null,
-      signed_at: d.signedAt || null, total_amount: d.totalAmount ?? null, retainer: d.retainer ?? null, signature: d.signature || null, doc: scrub(d), imported_at: now, imported_by: me.email };
+      signed_at: signed ? d.signedAt || null : null, total_amount: d.totalAmount ?? null, retainer: d.retainer ?? null, signature: signed ? d.signature || null : null, doc: scrub(d), imported_at: now, imported_by: me.email, status };
     const i = db.legacy_contracts.findIndex((x) => x.id === row.id);
     if (i >= 0) db.legacy_contracts[i] = row; else db.legacy_contracts.push(row);
     return json(200, { id: row.id, client_id: row.client_id, doc_type: row.doc_type });
@@ -1321,22 +1325,27 @@ await step('the old system\'s signed documents: the owner imports through the pa
     termination: { endDate: '2025-09-30', reason: 'סגירת הסניף' }, signers: [{ name: 'רון לוי', signature, signedAt: '2025-09-01T10:00:00.000Z', ip: '1.2.3.4' }],
     signedAt: '2025-09-01T10:00:00.000Z', docHash: 'b'.repeat(64), status: 'נחתם',
   };
-  const list = [contract, termination, { id: 503, clientId: 44, status: 'נשלח' }, { id: 504, clientId: 77, clientName: 'לקוח שלא יובא', status: 'נחתם' }];
+  // Since 27.10.2026 every document: one that waited for the signature there, and a price offer.
+  const pending = { ...contract, id: 505, docNumber: 'AST-2025-120', status: 'ממתין לחתימה', signature, signedAt: null, signerName: '', signers: undefined, signHistory: [{ at: '2025-04-01T09:00:00.000Z', event: 'sent' }], totalAmount: 36000 };
+  const offer = { id: 506, clientId: 44, clientName: 'רון לוי', business: 'מספרת רון', docNumber: 'AST-2025-130', status: 'הצעת מחיר', packageName: 'חבילת בסיס', months: 6, totalAmount: 18000, createdAt: '2025-05-01T08:00:00.000Z' };
+  const list = [contract, termination, pending, offer, { id: 503, clientId: 44, status: 'נשלח' }, { id: 504, clientId: 77, clientName: 'לקוח שלא יובא', status: 'נחתם' }];
   const result = await importInPage(owner, list, (old) => (old === 44 ? V.id : null));
-  assert.deepEqual(result, { ok: [501, 502], skipped: [{ id: 504, clientId: 77, clientName: 'לקוח שלא יובא' }], failed: [] });
-  assert.deepEqual(db.legacy_contracts.map((r) => [r.id, r.client_id, r.doc_type]), [[501, V.id, 'contract'], [502, V.id, 'termination']]);
+  assert.deepEqual(result, { ok: [501, 502, 505, 506], skipped: [{ id: 504, clientId: 77, clientName: 'לקוח שלא יובא' }], other: [{ id: 503, status: 'נשלח' }], failed: [] });
+  assert.deepEqual(db.legacy_contracts.map((r) => [r.id, r.client_id, r.doc_type, r.status, !!r.signature]),
+    [[501, V.id, 'contract', 'signed', true], [502, V.id, 'termination', 'signed', false], [505, V.id, 'contract', 'pending', false], [506, V.id, 'contract', 'quote', false]]);
   assert.doesNotMatch(JSON.stringify(db.legacy_contracts), /1\.2\.3\.4|Mozilla|050-1234567|512345678/);
-  // Again: the same two rows.
-  await importInPage(owner, [contract, termination], (old) => (old === 44 ? V.id : null));
-  assert.equal(db.legacy_contracts.length, 2);
+  // Again: the same four rows.
+  await importInPage(owner, [contract, termination, pending, offer], (old) => (old === 44 ? V.id : null));
+  assert.equal(db.legacy_contracts.length, 4);
 
   // The card: one closed row with the count; opened, the newest signed first.
   await owner.reload();
   await owner.waitForSelector('#fold-legacy');
-  assert.equal((await owner.locator('#fold-legacy > summary').innerText()).replace(/\s+/g, ' ').trim(), 'חוזים מהמערכת הישנה 2 מסמכים');
+  assert.equal((await owner.locator('#fold-legacy > summary').innerText()).replace(/\s+/g, ' ').trim(), 'חוזים מהמערכת הישנה 4 מסמכים');
   await owner.locator('#fold-legacy > summary').click();
   const rows = await owner.locator('#legacy-contracts .lc-row').evaluateAll((els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
-  assert.deepEqual(rows, ['סיום התקשרות AST-2025-090 נחתם 1.9.2025 רון לוי פתיחה', 'חוזה AST-2025-017 נחתם 2.3.2025 רון לוי ₪60,000 פתיחה']);
+  assert.deepEqual(rows, ['סיום התקשרות AST-2025-090 נחתם 1.9.2025 רון לוי פתיחה', 'חוזה AST-2025-017 נחתם 2.3.2025 רון לוי ₪60,000 פתיחה',
+    'חוזה AST-2025-130 הצעת מחיר ₪18,000 פתיחה', 'חוזה AST-2025-120 ממתין לחתימה (במערכת הישנה) ₪36,000 פתיחה']);
   assert.ok(await noHScroll(owner));
   const tooSmall = await owner.locator('#legacy-contracts a, #fold-legacy > summary').evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height < 44).length);
   assert.equal(tooSmall, 0, '44px targets');
@@ -1367,6 +1376,25 @@ await step('the old system\'s signed documents: the owner imports through the pa
   assert.match(await owner.innerText('#lc-doc'), /סיום התקשרות[^]*פרטי סיום ההתקשרות[^]*30 בספטמבר 2025[^]*סגירת הסניף/);
   assert.equal(await owner.getAttribute('.lc-parent a', 'href'), 'legacy-contract.html?id=501');
   await shot(owner, 'office-21-legacy-termination-390');
+  // Waiting for the signature there: no signature block, "לא נחתם"; a price offer: its own title.
+  await owner.goto(BASE + 'legacy-contract.html?id=505');
+  await owner.waitForSelector('#lc-doc');
+  assert.equal(await owner.innerText('#lc-stamp'), 'מסמך מהמערכת הישנה · ממתין לחתימה, לא נחתם · חותמת abcdef012345');
+  assert.match(await owner.innerText('#lc-unsigned'), /לא נחתם: המסמך חיכה לחתימת הלקוח במערכת הישנה/);
+  assert.equal(await owner.locator('.qd-sign, .qd-sign-box img').count(), 0, 'no signature block');
+  assert.match(await owner.innerText('#lc-doc'), /ממתין לחתימה \(במערכת הישנה\)[^]*AST-2025-120[^]*₪36,000/);
+  assert.ok(await noHScroll(owner));
+  await shot(owner, 'office-21b-legacy-pending-390');
+  await owner.goto(BASE + 'legacy-contract.html?id=506');
+  await owner.waitForSelector('#lc-doc');
+  assert.equal((await owner.innerText('#lc-doc h1')).trim(), 'הצעת מחיר');
+  assert.match(await owner.innerText('#lc-unsigned'), /לא נחתם: הצעת מחיר מהמערכת הישנה/);
+  await shot(owner, 'office-21c-legacy-quote-390');
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  assert.equal((await owner.innerText('#lc-kind')).trim(), 'הצעת מחיר');
+  await owner.setViewportSize({ width: 390, height: 844 });
+  await owner.goto(BASE + 'legacy-contract.html?id=502');
+  await owner.waitForSelector('#lc-doc');
   // On the phone the bar keeps the way back and "הדפסה"; on a computer, the signing day too.
   assert.equal((await owner.innerText('#btn-print')).trim(), 'הדפסה');
   assert.equal(await owner.isVisible('#lc-kind'), false);

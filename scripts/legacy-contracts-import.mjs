@@ -1,12 +1,15 @@
-// The old system's signed documents (astrateg-crm) into the new one (the owner's request of
-// 25.10.2026; public.legacy_contracts, 20261105100000_legacy_contracts.sql). Each signed
-// document goes to public.legacy_contract_import(p_client, p_doc), which only the owner may
+// The old system's documents (astrateg-crm) into the new one (the owner's requests of
+// 25.10.2026 and 27.10.2026; public.legacy_contracts, 20261105100000_legacy_contracts.sql and
+// 20261110100000_batch_2710.sql). Each document goes to
+// public.legacy_contract_import(p_client, p_doc), which only the owner may
 // call: run it with the owner's session. Running it again changes the same rows (the old id).
 //
-// importAll(supabase, contracts, clientUuid) is the whole job: it takes the signed ones
-// (status 'נחתם'), finds the new client of each (clientUuid(oldClientId) → uuid, or null), and
-// calls the RPC once per document. It returns { ok: [old ids], skipped: [{ id, clientId,
-// clientName }] (no client), failed: [{ id, error }] }. It uses nothing outside itself, so it
+// importAll(supabase, contracts, clientUuid) is the whole job: it takes every document in one
+// of the three states (STATUS below: 'נחתם', 'ממתין לחתימה', 'הצעת מחיר'; until 27.10.2026
+// only the signed ones), finds the new client of each (clientUuid(oldClientId) → uuid, or
+// null), and calls the RPC once per document. It returns { ok: [old ids], skipped: [{ id,
+// clientId, clientName }] (no client), other: [{ id, status }] (another state, not brought),
+// failed: [{ id, error }] }. It uses nothing outside itself, so it
 // can also run inside a page (importInPage below).
 //
 // Usage:
@@ -22,15 +25,23 @@
 // What identifies the signer's device or number (signedIp, signedUserAgent, phone, hp) is taken
 // out before sending; the database takes it out again (also inside the signers and the history).
 
+// The old system's word for each state, and the new one's (public.legacy_contracts.status).
+export const STATUS = { 'נחתם': 'signed', 'ממתין לחתימה': 'pending', 'הצעת מחיר': 'quote' };
+export const statusOf = (c) => STATUS[String(c?.status ?? '').trim()] || null;
+
 export async function importAll(supabase, contracts, clientUuid) {
   const PRIVATE = ['signedIp', 'signedUserAgent', 'phone', 'hp'];
-  const out = { ok: [], skipped: [], failed: [] };
+  // As STATUS above, here again: importInPage sends this function's own text to the page.
+  const KNOWN = ['נחתם', 'ממתין לחתימה', 'הצעת מחיר'];
+  const out = { ok: [], skipped: [], other: [], failed: [] };
   for (const c of Array.isArray(contracts) ? contracts : []) {
-    if (!c || typeof c !== 'object' || c.status !== 'נחתם') continue;
+    if (!c || typeof c !== 'object') continue;
+    const status = String(c.status ?? '').trim();
+    if (!KNOWN.includes(status)) { out.other.push({ id: c.id ?? null, status: c.status ?? null }); continue; }
     let uuid = null;
     try { uuid = await clientUuid(c.clientId); } catch { uuid = null; }
     if (!uuid) { out.skipped.push({ id: c.id, clientId: c.clientId ?? null, clientName: c.clientName ?? null }); continue; }
-    const doc = { ...c };
+    const doc = { ...c, status };
     for (const k of PRIVATE) delete doc[k];
     try {
       const { error } = await supabase.rpc('legacy_contract_import', { p_client: uuid, p_doc: doc });
@@ -43,20 +54,25 @@ export async function importAll(supabase, contracts, clientUuid) {
   return out;
 }
 
-// What would be imported, without a session: { signed, withClient, skipped, types }.
+// What would be imported, without a session:
+// { total, statuses: { signed, pending, quote }, other: [{ id, status }], withClient, skipped, types }.
 export async function plan(contracts, clientUuid) {
-  const signed = (Array.isArray(contracts) ? contracts : []).filter((c) => c && c.status === 'נחתם');
+  const list = (Array.isArray(contracts) ? contracts : []).filter((c) => c && typeof c === 'object');
+  const kept = list.filter((c) => statusOf(c));
   const skipped = [];
   const types = {};
+  const statuses = {};
   let withClient = 0;
-  for (const c of signed) {
+  for (const c of kept) {
     const t = c.docType || 'contract';
     types[t] = (types[t] || 0) + 1;
+    statuses[statusOf(c)] = (statuses[statusOf(c)] || 0) + 1;
     let uuid = null;
     try { uuid = await clientUuid(c.clientId); } catch { uuid = null; }
     if (uuid) withClient += 1; else skipped.push({ id: c.id, clientId: c.clientId ?? null, clientName: c.clientName ?? null });
   }
-  return { signed: signed.length, withClient, skipped, types };
+  const other = list.filter((c) => !statusOf(c)).map((c) => ({ id: c.id ?? null, status: c.status ?? null }));
+  return { total: kept.length, statuses, other, withClient, skipped, types };
 }
 
 // Runs importAll inside a Playwright page of the site where the owner is signed in, with the
@@ -64,7 +80,7 @@ export async function plan(contracts, clientUuid) {
 export async function importInPage(page, contracts, clientUuid) {
   const map = {};
   for (const c of contracts) {
-    if (!c || c.status !== 'נחתם') continue;
+    if (!c || !statusOf(c)) continue;
     let uuid = null;
     try { uuid = await clientUuid(c.clientId); } catch { uuid = null; }
     if (uuid) map[String(c.clientId)] = uuid;
@@ -96,7 +112,9 @@ if (isMain) {
   const { clientUuid } = await import(pathToFileURL(resolve(mapper)).href);
   if (typeof clientUuid !== 'function') { console.error(`${mapper} exports no clientUuid`); process.exit(2); }
   const p = await plan(contracts, clientUuid);
-  console.log(`signed: ${p.signed} (${Object.entries(p.types).map(([t, n]) => `${t} ${n}`).join(', ')}); with a client: ${p.withClient}; no client: ${p.skipped.length}`);
+  const counts = (o) => Object.entries(o).map(([t, n]) => `${t} ${n}`).join(', ');
+  console.log(`documents: ${p.total} (${counts(p.statuses)}; ${counts(p.types)}); with a client: ${p.withClient}; no client: ${p.skipped.length}; another state: ${p.other.length}`);
+  for (const o of p.other) console.log(`  another state, not brought: old id ${o.id}, ${o.status ?? 'no state'}`);
   for (const s of p.skipped) console.log(`  no client: old id ${s.id}, old client ${s.clientId}, ${s.clientName ?? ''}`);
   console.log('Nothing was written. The import runs with the owner\'s session: importInPage(page, contracts, clientUuid).');
 }

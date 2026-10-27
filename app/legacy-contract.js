@@ -10,7 +10,7 @@ import { supabase } from './supa.js';
 import { h } from './quote-doc.js';
 import {
   DOC_TITLES, typeOf, typeLabel, stampLine, longDayText, timeText, hashStamp, listOf, packageCounts,
-  paymentFacts, termFacts, signersOf, historyLines, extraFacts, sketchesOf,
+  paymentFacts, termFacts, signersOf, historyLines, extraFacts, sketchesOf, statusOf, statusLabel, isSigned,
 } from './legacy-contract-logic.js';
 
 const $ = (id) => document.getElementById(id);
@@ -40,11 +40,14 @@ export function renderLegacyDoc(row) {
   const type = typeOf(row.doc_type);
   const months = Number(doc.months) > 0 && !doc.noMonths ? `${doc.months} חודשים` : null;
   const valid = longDayText(doc.validUntil);
+  // Not signed in the old system (27.10.2026): waiting for a signature, or a price offer.
+  const status = statusOf(row.status);
+  const signed = isSigned(row);
 
   const header = h('header', { class: 'qd-top' },
     h('div', { class: 'qd-titles' },
-      h('span', { class: 'qd-type' }, typeLabel(type)),
-      h('h1', {}, DOC_TITLES[type]),
+      h('span', { class: 'qd-type' }, signed ? typeLabel(type) : `${typeLabel(type)} · ${statusLabel(status)}`),
+      h('h1', {}, status === 'quote' ? 'הצעת מחיר' : DOC_TITLES[type]),
       h('div', { class: 'qd-meta' },
         row.doc_number || doc.docNumber ? h('span', {}, 'מס׳ ', h('b', { class: 'num', dir: 'ltr' }, row.doc_number || String(doc.docNumber))) : null,
         longDayText(doc.createdAt) ? h('span', {}, longDayText(doc.createdAt)) : null,
@@ -108,7 +111,11 @@ export function renderLegacyDoc(row) {
 
   // The signatures: the client's (one or more signers) and the provider's.
   const signers = signersOf(doc, row);
-  const signature = h('section', { class: 'qd-section qd-sign' },
+  // A document that was not signed: no signature block, only that it was not signed.
+  const signature = !signed ? h('section', { class: 'qd-section lc-unsigned', id: 'lc-unsigned' },
+    sectionHead('חתימות הצדדים'),
+    h('p', { class: 'qd-notes' }, status === 'quote' ? 'לא נחתם: הצעת מחיר מהמערכת הישנה.' : 'לא נחתם: המסמך חיכה לחתימת הלקוח במערכת הישנה ולא נחתם שם.'))
+    : h('section', { class: 'qd-section qd-sign' },
     sectionHead('חתימות הצדדים'),
     h('div', { class: 'qd-sign-grid' },
       ...(signers.length ? signers : [{ name: null, png: null, at: null }]).map((s) => h('div', { class: `qd-sign-box${s.png ? ' is-signed' : ''}` },
@@ -133,7 +140,7 @@ export function renderLegacyDoc(row) {
   ) : null;
 
   const docStamp = hashStamp(doc.docHash);
-  const sigStamp = hashStamp(doc.signatureHash);
+  const sigStamp = signed ? hashStamp(doc.signatureHash) : null;
   const foot = h('footer', { class: 'qd-foot' },
     h('span', {}, `${PROVIDER.name} · מסמך מהמערכת הישנה, לקריאה בלבד`),
     h('span', { class: 'qd-hashes' },
@@ -155,8 +162,9 @@ async function main() {
   document.title = `${typeLabel(row.doc_type)}${row.doc_number ? ` ${row.doc_number}` : ''}${name ? ` · ${name}` : ''} · astrateg`;
   $('lc-back').href = `client.html?id=${encodeURIComponent(row.client_id)}`;
   const kind = $('lc-kind');
-  kind.textContent = row.signed_at ? `נחתם ${longDayText(row.signed_at)}` : typeLabel(row.doc_type);
-  kind.classList.toggle('is-signed', !!row.signed_at);
+  const signed = isSigned(row);
+  kind.textContent = !signed ? statusLabel(row.status) : row.signed_at ? `נחתם ${longDayText(row.signed_at)}` : typeLabel(row.doc_type);
+  kind.classList.toggle('is-signed', signed && !!row.signed_at);
   kind.hidden = false;
   kind.title = timeText(row.signed_at) || '';
   $('doc').replaceChildren(renderLegacyDoc(row));
