@@ -46,7 +46,9 @@ import { mountCalendar } from './calendar-card.js';
 import { ilaiSection, coveredByCard } from './ilai-card.js';
 import { landingNow, officeLinks } from './office-ui.js';
 import { hasProfiles, modeOf } from './manager-rules.js';
-import { profileOf, managerTabs, opensClients } from './shell-rules.js';
+import { profileOf, managerTabs, opensClients, writesChar } from './shell-rules.js';
+// The signed contract's file in "לקוח חדש" (27.10.2026); the upload itself (app/files-ui.js) loads only when one is chosen.
+import { CONTRACT_KIND, CONTRACT_LABEL, contractFileProblem } from './contract-file.js';
 import { folderItemOf } from './qa-logic.js';
 import { uploadStepOf } from './files-logic.js';
 // 3.10.2026: Stav's deals waiting for a contract (the office), and Stav's own page.
@@ -400,7 +402,8 @@ function applyScope() {
   // Everyone sees their own row of screen 4 (decision 22); 'own' roles only that.
   $('tab-performance').hidden = (own && !me) || managerTab('performance');
   $('tab-performance').textContent = own ? 'הנתונים שלי' : 'ביצועים';
-  $('btn-new').hidden = !opensClients({ me, scope, error: viewerError }); // the owners and Irit (20.10.2026)
+  $('btn-new').hidden = !opensClients({ me, scope, error: viewerError }); // the owners, Irit, Lior and Ofir (27.10.2026)
+  $('cta-char').hidden = !writesChar({ me, scope, error: viewerError }); // "אפיון חדש": the same four (27.10.2026)
   $('tab-clients').textContent = own ? 'הלקוחות שלי' : 'לקוחות';
   $('tab-mine').textContent = managing || (!me && !personal) ? 'עבודת הצוות' : 'המשימות שלי';
   // One plain heading for everyone who is a person in the protocol: "שלום <name>" (it
@@ -1826,7 +1829,12 @@ function renderMine() {
     person === me && hasLateTab() ? h('a', { href: '#late' }, 'הצגת כל האיחורים') : null)) : null;
   const today = dayIso(new Date());
   // A short list: each group shows its first cards and "הצג עוד" (kept per person and group).
-  const cap = (ul, k) => (full ? ul : capList(ul, MINE_CAP, `mine:${person || 'all'}:${k}`));
+  // The fixed lines before the cards (the counted lines with a clock and Irit's daily reviews,
+  // one of a kind each) are always shown and are not counted in the cap: since her pass over
+  // the clients (33) joined her control (32) on 26.10.2026, they could fill all five places of
+  // "היום" and leave every card of her day behind "הצג עוד".
+  const fixedOf = (k) => (k === 'client' ? 0 : flowIn(k).length) + (k === 'today' ? ownReviews.length : 0);
+  const cap = (ul, k) => (full ? ul : capList(ul, MINE_CAP + fixedOf(k), `mine:${person || 'all'}:${k}`));
   // Thursday's pass is a fixed card of its own, right after urgent work.
   const thuGroup = thursday ? h('section', { class: 'wgroup g-thu', 'aria-label': 'מעבר חובה של יום חמישי' }, h('ul', { class: 'wprocs' }, thursday)) : null;
   fill(wrap, banner, ilai, ...BUCKETS.flatMap(([k, title]) => [k === 'today' ? thuGroup : null, k === 'client' ? soon : null, (() => {
@@ -3360,11 +3368,13 @@ for (const type of ['input', 'change']) dlg.addEventListener(type, (e) => clearI
 // The client opened but its first checks did not save. Closing drops the retry, and
 // nothing else can redo an import: everything before the station would show as late.
 // So the dialog closes only after the user agrees to lose them.
-const unsaved = () => !!(pendingChecks && (pendingChecks.signed.length || pendingChecks.imported.length));
+const unsaved = () => !!(pendingChecks && (pendingChecks.signed.length || pendingChecks.imported.length || pendingChecks.contract));
 let letGo = false;
 function mayClose() {
   if (!unsaved()) return true;
-  letGo = confirm(pendingChecks.imported.length
+  letGo = confirm(!pendingChecks.signed.length && !pendingChecks.imported.length
+    ? 'הלקוח כבר נפתח, אבל קובץ החוזה לא הועלה. אפשר להעלות אותו אחר כך מהכרטיס, תחת ״החוזה והחבילה״. לסגור?'
+    : pendingChecks.imported.length
     ? 'הלקוח כבר נפתח, אבל סימוני הייבוא לא נשמרו. בלעדיהם כל מה שלפני התחנה יופיע באיחור, ואי אפשר להריץ את הייבוא שוב. לסגור בכל זאת?'
     : 'הלקוח כבר נפתח, אבל הסימון של תהליך 1 (נחתם במערכת) לא נשמר. לסגור בכל זאת?');
   if (!letGo) $('new-submit').focus();
@@ -3387,6 +3397,7 @@ $('btn-new').addEventListener('click', async () => {
   derivedShoot = false;
   setMode(false);
   packageChanged();
+  contractChanged();
   $('new-submit').disabled = false;
   dlg.showModal();
   $('new-name').focus();
@@ -3394,11 +3405,28 @@ $('btn-new').addEventListener('click', async () => {
     quotesForNew = await signedQuotes();
   } catch { quotesForNew = []; }
   $('from-quote-field').hidden = !quotesForNew.length;
+  contractChanged();
   fill($('new-quote'), h('option', { value: '' }, 'בלי הסכם (מילוי ידני)'),
     ...quotesForNew.map((q) => h('option', { value: q.id }, `${q.number} · ${q.client_name}${q.company ? ` (${q.company})` : ''} · נחתם ${formatDay(q.signed_at)}`)));
 });
+// The contract: an agreement signed in the system, or else a signed contract's file.
+const FILE_HINT = 'חוזה שנחתם על נייר או מחוץ למערכת. לא חובה. נשמר בכרטיס, תחת ״החוזה והחבילה״, ובתיק הלקוח.';
+function contractChanged() {
+  const q = quoteOf();
+  $('new-file-field').hidden = !!q;
+  $('new-file-label').textContent = quotesForNew.length ? 'או קובץ חוזה חתום (PDF או תמונה)' : 'קובץ חוזה חתום (PDF או תמונה)';
+  if (q) $('new-contract-file').value = '';
+  if (!$('new-contract-file').files?.length) { $('new-file-hint').textContent = FILE_HINT; $('new-file-hint').classList.remove('err'); }
+}
+$('new-contract-file').addEventListener('change', () => {
+  const f = $('new-contract-file').files?.[0];
+  const p = f ? contractFileProblem(f) : null;
+  $('new-file-hint').textContent = p || (f ? `נבחר: ${f.name}. יישמר בכרטיס, תחת ״החוזה והחבילה״, ובתיק הלקוח.` : FILE_HINT);
+  $('new-file-hint').classList.toggle('err', !!p);
+});
 $('new-quote').addEventListener('change', () => {
   const q = quoteOf();
+  contractChanged();
   if (!q) { packageChanged(); return; }
   $('new-name').value = q.client_name || '';
   $('new-business').value = q.company || '';
@@ -3417,6 +3445,13 @@ async function saveFirstChecks(p) {
   if (p.signed.length) { await setChecksBulk(p.row.id, p.signed, 'done', p.signedNote); p.signed = []; }
   if (p.imported.length) { await setChecksBulk(p.row.id, p.imported, 'done', IMPORT_NOTE); p.imported = []; }
 }
+// The signed contract's file, into the new client's files (app/contract-file.js).
+async function saveContractFile(p) {
+  if (!p.contract) return;
+  const { uploadClientFile } = await import('./files-ui.js');
+  await uploadClientFile(p.row.id, CONTRACT_KIND, p.contract, { label: CONTRACT_LABEL });
+  p.contract = null;
+}
 
 $('new-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -3430,10 +3465,20 @@ $('new-form').addEventListener('submit', async (e) => {
   const done = async () => {
     try {
       await saveFirstChecks(pendingChecks);
-      location.href = clientUrl(pendingChecks.row.id);
     } catch (err) {
       fail(`הלקוח נפתח, אבל הסימונים ${pendingChecks.imported.length ? 'של הייבוא ' : ''}לא נשמרו (${errorText(err)}). לחיצה נוספת תנסה לשמור אותם שוב.`);
       $('new-submit').textContent = 'שמירת הסימונים';
+      $('new-submit').disabled = false;
+      return;
+    }
+    try {
+      $('new-submit').textContent = 'מעלה את החוזה…';
+      await saveContractFile(pendingChecks);
+      location.href = clientUrl(pendingChecks.row.id);
+    } catch (err) {
+      const { uploadError } = await import('./files-logic.js');
+      fail(`הלקוח נפתח, אבל קובץ החוזה לא הועלה (${uploadError(err)}). לחיצה נוספת תנסה שוב, או מהכרטיס אחר כך.`);
+      $('new-submit').textContent = 'העלאת החוזה שוב';
       $('new-submit').disabled = false;
     }
   };
@@ -3445,8 +3490,11 @@ $('new-form').addEventListener('submit', async (e) => {
   const invalid = !name ? ['חסר שם לקוח.', $('new-name')]
     : !shoot ? ['חסר סוג יום הצילום: נטלי דדון, דניס, מישל וסמיון, או בלי משפיענים (ליאור + צלם).', $('new-shoot-type')]
       : importing && !station ? ['בחרו את התחנה שבה הלקוח נמצא עכשיו.', $('new-station')] : null;
-  if (invalid) { $('new-submit').disabled = false; return fail(...invalid); }
   const q = quoteOf();
+  const contract = q ? null : $('new-contract-file').files?.[0] || null;
+  const badFile = contract ? contractFileProblem(contract) : null;
+  if (!invalid && badFile) { $('new-submit').disabled = false; return fail(badFile, $('new-contract-file')); }
+  if (invalid) { $('new-submit').disabled = false; return fail(...invalid); }
   const pkg = $('new-package').value;
   const val = (id) => $(id).value.trim() || null;
   const fields = {
@@ -3476,13 +3524,15 @@ $('new-form').addEventListener('submit', async (e) => {
   // An agreement signed in the system already covers process 1.
   const signed = q ? P01 : [];
   pendingChecks = {
-    row, signed, signedNote: q ? `נחתם במערכת: ${q.number}` : null,
+    row, signed, signedNote: q ? `נחתם במערכת: ${q.number}` : null, contract,
     imported: importing ? importKeys(station, { shootSet: !!fields.shoot_at }).filter((k) => !signed.includes(k)) : [],
   };
   return done();
 });
 
 $('btn-refresh').addEventListener('click', () => { perfLog.clear(); load(); });
+// "אפיון חדש" (27.10.2026): the client is picked there.
+$('cta-char').addEventListener('click', () => { location.href = 'intake.html'; });
 window.addEventListener('hashchange', () => {
   if ($('app').hidden) return;
   // The address may belong to the other profile (the button at the top, a link): the tabs follow it.

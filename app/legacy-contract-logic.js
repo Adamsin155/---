@@ -10,6 +10,14 @@ export const DOC_TITLES = { contract: 'הסכם התקשרות', termination: '�
 export const typeOf = (t) => (DOC_TYPES[t] ? t : 'contract');
 export const typeLabel = (t) => DOC_TYPES[typeOf(t)];
 
+// The document's state (public.legacy_contracts.status, 20261110100000_batch_2710.sql; the
+// owner, 27.10.2026): signed there, sent and never signed, or a price offer. A row brought
+// over before that (or read before that migration) is a signed one.
+export const STATUS_LABELS = { signed: 'נחתם', pending: 'ממתין לחתימה (במערכת הישנה)', quote: 'הצעת מחיר' };
+export const statusOf = (s) => (STATUS_LABELS[s] ? s : 'signed');
+export const statusLabel = (s) => STATUS_LABELS[statusOf(s)];
+export const isSigned = (row) => statusOf(row?.status) === 'signed';
+
 // Only a PNG picture is drawn as a signature (as the table's check says).
 const PNG_RE = /^data:image\/png;base64,[A-Za-z0-9+/=]+$/;
 export const isSignaturePng = (s) => typeof s === 'string' && s.length < 400000 && PNG_RE.test(s);
@@ -44,23 +52,32 @@ export function moneyText(v) {
 // The first 12 characters of a SHA-256 in hex (the document's stamp), or null.
 export const hashStamp = (h) => (typeof h === 'string' && /^[0-9a-f]{12,}$/i.test(h) ? h.slice(0, 12).toLowerCase() : null);
 
-// The line under the title: "מסמך מהמערכת הישנה · נחתם <date> · חותמת <12>".
+// The line under the title: "מסמך מהמערכת הישנה · נחתם <date> · חותמת <12>"; a document that
+// was not signed says so in the place of the day.
 export function stampLine(row, doc = row?.doc || {}) {
+  if (!isSigned(row)) {
+    const stamp = hashStamp(doc.docHash);
+    return ['מסמך מהמערכת הישנה', statusOf(row?.status) === 'quote' ? 'הצעת מחיר, לא נחתמה' : 'ממתין לחתימה, לא נחתם', stamp ? `חותמת ${stamp}` : null].filter(Boolean).join(' · ');
+  }
   const signed = dayText(row?.signed_at ?? doc.signedAt);
   const stamp = hashStamp(doc.docHash);
   return ['מסמך מהמערכת הישנה', signed ? `נחתם ${signed}` : null, stamp ? `חותמת ${stamp}` : null].filter(Boolean).join(' · ');
 }
 
 // ── The client card's list ──
-// rows: { id, doc_type, doc_number, signer_name, signed_at, total_amount }, newest signed first.
+// rows: { id, doc_type, doc_number, signer_name, signed_at, total_amount, status }, newest
+// signed first, then those with no signing day (waiting, price offers), the newest id first.
+const signedTime = (r) => (isSigned(r) ? toDate(r.signed_at)?.getTime() ?? -Infinity : -Infinity);
 export function legacyRows(rows) {
   return [...(rows || [])]
-    .sort((a, b) => (toDate(b.signed_at)?.getTime() ?? -Infinity) - (toDate(a.signed_at)?.getTime() ?? -Infinity) || Number(b.id) - Number(a.id))
+    .sort((a, b) => (signedTime(b) - signedTime(a)) || Number(b.id) - Number(a.id))
     .map((r) => ({
       id: r.id,
       type: typeLabel(r.doc_type),
       number: r.doc_number || null,
-      signed: dayText(r.signed_at),
+      status: statusOf(r.status),
+      statusText: statusLabel(r.status),
+      signed: isSigned(r) ? dayText(r.signed_at) : null,
       signer: r.signer_name || null,
       total: moneyText(r.total_amount),
       href: `legacy-contract.html?id=${encodeURIComponent(r.id)}`,
@@ -127,6 +144,7 @@ export function termFacts(t) {
 
 // Who signed: the signers of the record, or its one signer.
 export function signersOf(doc, row = {}) {
+  if (row.status && !isSigned(row)) return [];
   const many = Array.isArray(doc.signers) ? doc.signers.filter((s) => s && typeof s === 'object' && (s.name || s.signature)) : [];
   const list = many.length ? many.map((s) => ({ name: text(s.name), png: s.signature, at: s.signedAt ?? s.at }))
     : [{ name: row.signer_name || text(doc.signerName), png: row.signature || doc.signature, at: row.signed_at ?? doc.signedAt }];

@@ -14,6 +14,12 @@
 // Whoever makes graphics from the characterization and does not fill these forms
 // (Ilai; Nirel on a client she works on: app/intake-ui.js readsChar) gets it here
 // read-only, on one screen: what the meeting gave and the client's materials.
+// The characterization at any time (the owner, 27.10.2026), for the owners, Irit, Lior and
+// Ofir (app/shell-rules.js writesChar), apart from the meeting's form:
+//   ?id=<client>&only=char  the same form alone ("אפיון" / "עדכון אפיון" in the card),
+//                           saved to the client's characterization and nothing else: no
+//                           mark in the protocol, no clock, no task, no ring
+//   (no client)             "אפיון חדש": the client picked from a list, searched by words
 import { PEOPLE, NETWORKS, shootTypeName } from './protocol.js';
 import { clientState, blockers, roundsOf, CHAR_ENDED } from './protocol-logic.js';
 import {
@@ -40,9 +46,15 @@ import { inputValueIL, fromInputIL } from './tz.js';
 // The materials themselves (logo, photos, videos) go into the client's files from the phone.
 import { mountClientFiles, fileCount } from './files-ui.js';
 import { readsChar } from './intake-ui.js';
+import { writesChar } from './shell-rules.js';
+import { searchClients } from './client-search.js';
+import { loadCharacterizations } from './intake-data.js';
+import { supabase } from './supa.js';
 
 const params = new URLSearchParams(location.search);
 const id = params.get('id');
+// The form alone, at any time, with no clock (27.10.2026).
+const charOnly = !!id && params.get('only') === 'char';
 const SECTIONS = [
   ['end', 'סיום אפיון'], ['form', 'טופס אפיון'], ['focus', 'דגשים לקוח'], ['scripts', 'תסריטים וזום'],
 ];
@@ -125,7 +137,7 @@ function render(focusId = null) {
   renderHead();
   renderTabs();
   const body = $('ik-body');
-  const view = { end: renderEnd, form: renderForm, focus: renderFocus, scripts: renderScripts }[section];
+  const view = charOnly ? renderForm : { end: renderEnd, form: renderForm, focus: renderFocus, scripts: renderScripts }[section];
   fill(body, view());
   if (focusId) document.getElementById(focusId)?.focus();
 }
@@ -145,6 +157,8 @@ function renderHead() {
 }
 
 function renderTabs() {
+  $('ik-tabs').hidden = charOnly;
+  if (charOnly) { fill($('ik-tabs')); return; }
   fill($('ik-tabs'), h('ul', {}, ...SECTIONS.map(([k, label]) => h('li', {},
     h('a', { href: `#${k}`, class: `ik-tab${k === section ? ' is-on' : ''}`, 'aria-current': k === section ? 'page' : null, id: `tab-${k}` }, label)))));
 }
@@ -156,7 +170,7 @@ function setSection(k, focusId = null) {
   render(focusId);
   if (!focusId) window.scrollTo({ top: 0 });
 }
-window.addEventListener('hashchange', () => { if (!readMode) setSection(location.hash.slice(1) || 'end', `tab-${location.hash.slice(1) || 'end'}`); });
+window.addEventListener('hashchange', () => { if (!readMode && !charOnly) setSection(location.hash.slice(1) || 'end', `tab-${location.hash.slice(1) || 'end'}`); });
 
 // ── Small builders ────────────────────────
 function field({ fid, label, hint = null, error = null, control, cls = '' }) {
@@ -418,11 +432,12 @@ function renderForm() {
     if (btn && !busy) btn.textContent = saveLabel();
   };
   const hasLogo = client.has_logo !== false;
-  return h('form', { class: 'ik-card', id: 'form-form', novalidate: true, 'aria-labelledby': 'form-h', onsubmit: (e) => { e.preventDefault(); submitForm(); } },
-    h('h2', { id: 'form-h' }, 'טופס האפיון'),
-    ended ? null : h('p', { class: 'ik-note' }, 'עוד לא סומן "האפיון הסתיים". ', h('a', { href: '#end' }, 'קודם ארבעת הפרטים הקצרים'), ', כדי שהשעונים של כולם יתחילו.'),
-    h('p', { class: 'muted' }, p4?.complete ? `נשמר במלואו${charRow?.completed_at ? ` ${formatStamp(charRow.completed_at)}` : ''}. אפשר לעדכן.`
-      : `${p4?.dueAt && ended ? `${dueWords(p4)}. ` : ''}אפשר להקליד בקול: במקלדת של הטלפון לוחצים על המיקרופון.`),
+  return h('form', { class: 'ik-card', id: 'form-form', novalidate: true, 'aria-labelledby': 'form-h', onsubmit: (e) => { e.preventDefault(); if (charOnly) submitCharOnly(); else submitForm(); } },
+    h('h2', { id: 'form-h' }, charOnly ? (charRow ? 'עדכון אפיון' : 'אפיון') : 'טופס האפיון'),
+    ended || charOnly ? null : h('p', { class: 'ik-note' }, 'עוד לא סומן "האפיון הסתיים". ', h('a', { href: '#end' }, 'קודם ארבעת הפרטים הקצרים'), ', כדי שהשעונים של כולם יתחילו.'),
+    charOnly ? h('p', { class: 'muted', id: 'form-only' }, `${charRow?.at ? `עודכן לאחרונה ${formatStamp(charRow.at)}${charRow.by_email ? ` · ${who(charRow.by_email)}` : ''}. ` : ''}אפשר למלא ולעדכן בכל זמן, לפני הפגישה, אחריה או בלעדיה. נשמר בתיק הלקוח, בלי שעונים ובלי סימונים בפרוטוקול.`)
+      : h('p', { class: 'muted' }, p4?.complete ? `נשמר במלואו${charRow?.completed_at ? ` ${formatStamp(charRow.completed_at)}` : ''}. אפשר לעדכן.`
+        : `${p4?.dueAt && ended ? `${dueWords(p4)}. ` : ''}אפשר להקליד בקול: במקלדת של הטלפון לוחצים על המיקרופון.`),
     formDraftAt ? h('div', { class: 'ik-draft', role: 'status' },
       h('span', {}, `שוחזרה טיוטה מהטלפון מ־${formatStamp(formDraftAt)} שעוד לא נשמרה.`),
       h('button', { type: 'button', class: 'btn-text', id: 'draft-drop', onclick: dropDraft }, 'לבטל את הטיוטה')) : null,
@@ -439,7 +454,8 @@ function renderForm() {
       ...MATERIALS.map((m) => radios(`form-mat-${m.key}`, MATERIAL_STATES, formV.materials?.[m.key] || null,
         (v) => { formV.materials = { ...formV.materials, [m.key]: v }; writeDraft(); }, m.label)),
       filesSlot()),
-    h('fieldset', { class: 'ik-group' },
+    // Apart from the meeting (27.10.2026) nothing rings: no "missing today" question.
+    charOnly ? null : h('fieldset', { class: 'ik-group' },
       h('legend', {}, 'משהו חסר שחוסם עבודה היום?'),
       h('label', { class: 'ik-check' },
         h('input', { type: 'checkbox', id: 'form-blocking', checked: !!formV.blocking, onchange: (e) => { formV.blocking = e.currentTarget.checked; writeDraft(); render('form-blocking'); } }),
@@ -451,7 +467,7 @@ function renderForm() {
 }
 function saveLabel() {
   const left = FORM_FIELDS.length - filledCount(formV);
-  return left ? `שמירה (חסרים ${left} שדות)` : 'שמירת טופס האפיון';
+  return left ? `שמירה (חסרים ${left} שדות)` : charOnly ? 'שמירת האפיון' : 'שמירת טופס האפיון';
 }
 function dropDraft() {
   store.set(DRAFT_KEY(id), '');
@@ -497,6 +513,85 @@ async function submitForm() {
   const head = complete ? 'טופס האפיון נשמר במלואו. המעקב של עירית נסגר.' : `נשמר. חסרים עוד ${missingFields(f).length} שדות.`;
   toast([head, ...notes].join(' · '));
   document.getElementById(complete ? 'form-h' : firstEmptyId())?.focus();
+}
+
+// The form alone (27.10.2026): saved to the client's characterization, and nothing else
+// (no mark, no clock, no task for Irit, no ring for Lior). The meeting's form reads the
+// same row, so what is saved here is there too.
+async function submitCharOnly() {
+  if (busy) return;
+  const f = { ...formV };
+  const problems = formProblems(f);
+  formErrors = problems;
+  if (Object.keys(problems).length) { render(); showProblems(problems, ['phone', 'logo_url'], 'form-'); return; }
+  busy = true;
+  render();
+  try {
+    charRow = await saveCharacterization(id, f, isComplete(f));
+  } catch (err) {
+    busy = false;
+    render();
+    toast(missingTable(err) ? 'טבלת האפיון עוד לא הוקמה במסד הנתונים. הטיוטה נשמרת בטלפון.' : `לא נשמר. ${errorText(err)} הטיוטה נשמרת בטלפון.`);
+    return;
+  }
+  store.set(DRAFT_KEY(id), '');
+  formDraftAt = null;
+  busy = false;
+  render();
+  const left = missingFields(f).length;
+  toast(left ? `האפיון נשמר בתיק הלקוח. חסרים עוד ${left} שדות.` : 'האפיון נשמר בתיק הלקוח.');
+  document.getElementById('form-h')?.focus();
+}
+
+// ── "אפיון חדש": the client picked from a list (27.10.2026) ──
+// Every word typed, in any order (app/client-search.js); only the list is drawn again while
+// typing, so the field keeps its focus and what is being typed.
+let pickClients = [];
+let pickChars = {};
+const PICK_MAX = 40;
+async function showPicker() {
+  readMode = true;
+  document.title = 'אפיון חדש · astrateg';
+  $('back').href = 'clients.html#mine';
+  $('back').textContent = '→ המשימות שלי';
+  $('ik-tabs').hidden = true;
+  fill($('ik-tabs'));
+  fill($('ik-head'),
+    h('div', { class: 'kicker' }, 'אפיון'),
+    h('h1', { id: 'pk-h', tabindex: '-1' }, 'אפיון חדש'),
+    h('p', { class: 'muted' }, 'בוחרים לקוח וממלאים את טופס האפיון. אפשר בכל זמן, לפני הפגישה, אחריה או בלעדיה, בלי שעונים ובלי סימונים בפרוטוקול.'));
+  const search = h('input', { class: 'input', id: 'pk-search', type: 'search', autocomplete: 'off', enterkeyhint: 'search', 'aria-describedby': 'pk-hint pk-count', 'aria-controls': 'pk-list' });
+  const list = h('ul', { class: 'pk-list', id: 'pk-list' });
+  const count = h('p', { class: 'hint', id: 'pk-count', 'aria-live': 'polite' });
+  fill($('ik-body'), h('section', { class: 'ik-card pk-card', 'aria-labelledby': 'pk-sh' },
+    h('h2', { id: 'pk-sh' }, 'איזה לקוח?'),
+    h('div', { class: 'field ik-field' }, h('label', { for: 'pk-search' }, 'חיפוש לקוח'), search,
+      h('p', { class: 'hint', id: 'pk-hint' }, 'שם העסק או שם הלקוח. אפשר כמה מילים, בכל סדר.')),
+    count, list));
+  $('state').textContent = 'טוען…';
+  try {
+    const { data, error } = await supabase.from('clients').select('id, name, business').in('status', ['active', 'ending']);
+    if (error) throw error;
+    pickClients = data || [];
+    pickChars = await loadCharacterizations(pickClients.map((c) => c.id));
+    $('state').textContent = '';
+  } catch (err) {
+    $('state').textContent = errorText(err);
+    return;
+  }
+  const draw = () => {
+    const found = searchClients(pickClients, search.value);
+    const shown = found.slice(0, PICK_MAX);
+    fill(list, ...shown.map((c) => h('li', {},
+      h('a', { class: 'pk-row', href: `intake.html?id=${encodeURIComponent(c.id)}&only=char`, id: `pk-${c.id}` },
+        h('span', { class: 'pk-name' }, c.label),
+        h('span', { class: `tag${pickChars[c.id] ? ' pk-has' : ''}` }, pickChars[c.id] ? 'עדכון אפיון' : 'אפיון חדש')))));
+    count.textContent = !found.length ? (search.value.trim() ? 'אין לקוח בשם הזה.' : 'אין לקוחות פעילים.')
+      : found.length > shown.length ? `${found.length} לקוחות. מוצגים ${shown.length}: אפשר לדייק את החיפוש.` : found.length === 1 ? 'לקוח אחד.' : `${found.length} לקוחות.`;
+  };
+  search.addEventListener('input', draw);
+  draw();
+  search.focus({ preventScroll: true });
 }
 
 // ── #focus: the focus call (12א) ──────────
@@ -731,6 +826,18 @@ mountSession(async (staff) => {
   scope = v.scope;
   Object.assign(directory, await loadDirectory());
   if (v.error) { $('state').textContent = VIEWER_UNKNOWN; $('app').hidden = true; return; }
+  // "אפיון חדש" and the form alone (27.10.2026): the owners, Irit, Lior and Ofir.
+  if (!id || charOnly) {
+    if (!writesChar(v)) {
+      $('app').hidden = true;
+      $('state').textContent = id ? 'עדכון האפיון פתוח לבעלים, לעירית, לליאור ולאופיר.' : 'לא נבחר לקוח.';
+      return;
+    }
+    if (!id) { await showPicker(); return; }
+    section = 'form';
+    await load();
+    return;
+  }
   if (scope !== 'office' && readsChar(me)) { await showRead(); return; }
   if (scope !== 'office') {
     $('app').hidden = true;

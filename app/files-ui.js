@@ -303,6 +303,40 @@ async function startUploads(bar, kind, files, { progress, err, label = null, lin
   return all;
 }
 
+// One file into a client's files, with no block on the page: the object into the bucket,
+// then its row (taken out of the bucket again when the row is refused). Returns the row;
+// throws with a status (uploadError words it). The "לקוח חדש" form and the card's contract
+// upload use it (app/contract-file.js); a mounted block reads it again on its next load.
+export async function uploadClientFile(clientId, kind, file, { label = null, link = null, signal = null, onProgress = () => {} } = {}) {
+  const path = objectPath(clientId, kind, uuid(), file.name || 'file');
+  const { data: s } = await supabase.auth.getSession();
+  const token = s?.session?.access_token;
+  if (!token) throw Object.assign(new Error('not signed in'), { status: 403 });
+  const res = await uploadFile({
+    url: SUPABASE_URL, apikey: SUPABASE_KEY, token, bucket: BUCKET, path, file, signal,
+    contentType: file.type || undefined,
+    resumeKey: `upload:${clientId}:${kind}:${file.name}:${file.size}:${file.lastModified || 0}`,
+    onProgress,
+  });
+  const { data: rowData, error } = await supabase.from('client_files').insert({
+    client_id: clientId, kind, label, storage_path: res.path, mime: file.type || null, size_bytes: file.size, link,
+  }).select(COLS).single();
+  if (error) {
+    // The file went up but its row was refused: take it out of the bucket again.
+    await supabase.storage.from(BUCKET).remove([res.path]).catch(() => {});
+    throw Object.assign(new Error(error.message), { status: /row-level security|permission/.test(error.message) ? 403 : 500 });
+  }
+  const st = data.get(clientId);
+  if (st?.loaded && !st.files.some((f) => f.id === rowData.id)) st.files = [rowData, ...st.files];
+  return rowData;
+}
+
+// Downloads a stored file by its path (a signed address for an hour).
+export async function downloadClientFile(path) {
+  const a = h('a', { href: await signedUrl(path, { download: fileNameOf(path) }), download: fileNameOf(path), rel: 'noopener' });
+  document.body.append(a); a.click(); a.remove();
+}
+
 async function uploadOne(o, st, kind, file, { progress, err, label, link }) {
   const ctl = new AbortController();
   const bar = h('progress', { max: '100', value: '0', 'aria-label': `העלאה: ${file.name}` });
@@ -310,26 +344,12 @@ async function uploadOne(o, st, kind, file, { progress, err, label, link }) {
   const cancel = h('button', { type: 'button', class: 'btn-text', onclick: () => ctl.abort() }, 'ביטול');
   const row = h('li', {}, h('span', { class: 'fl-pname' }, `${KINDS[kind].label}: ${file.name}`), bar, pct, cancel);
   progress.append(row);
-  const path = objectPath(o.client.id, kind, uuid(), file.name || 'file');
   try {
-    const { data: s } = await supabase.auth.getSession();
-    const token = s?.session?.access_token;
-    if (!token) throw Object.assign(new Error('not signed in'), { status: 403 });
-    const res = await uploadFile({
-      url: SUPABASE_URL, apikey: SUPABASE_KEY, token, bucket: BUCKET, path, file, signal: ctl.signal,
-      contentType: file.type || undefined,
-      resumeKey: `upload:${o.client.id}:${kind}:${file.name}:${file.size}:${file.lastModified || 0}`,
+    const rowData = await uploadClientFile(o.client.id, kind, file, {
+      label, link, signal: ctl.signal,
       onProgress: (sent, total) => { const v = total ? Math.floor((sent / total) * 100) : 0; bar.value = v; pct.textContent = `${v}%`; },
     });
-    const { data: rowData, error } = await supabase.from('client_files').insert({
-      client_id: o.client.id, kind, label, storage_path: res.path, mime: file.type || null, size_bytes: file.size, link,
-    }).select(COLS).single();
-    if (error) {
-      // The file went up but its row was refused: take it out of the bucket again.
-      await supabase.storage.from(BUCKET).remove([res.path]).catch(() => {});
-      throw Object.assign(new Error(error.message), { status: /row-level security|permission/.test(error.message) ? 403 : 500 });
-    }
-    st.files = [rowData, ...st.files];
+    if (!st.files.some((f) => f.id === rowData.id)) st.files = [rowData, ...st.files];
     row.remove();
     o.toast?.(`הועלה: ${KINDS[kind].label}${file.name && file.name !== 'link.url' ? ` (${file.name})` : ''}.`);
     o.onUploaded?.(kind, rowData);

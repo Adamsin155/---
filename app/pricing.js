@@ -6,7 +6,7 @@ import {
   PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, MAX_DISCOUNT, packageId,
   CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS,
 } from './catalog.js';
-import { PROVIDER, agreementSections } from './legal.js';
+import { PROVIDER, agreementSections, LEGAL_VERSION } from './legal.js';
 
 export function emptySelection() {
   return {
@@ -405,6 +405,8 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
     totals,
     terms: termsText(sel),
     legal: docType.signable ? agreementSections(agreementContext(sel, { tier, paid, free, totals })) : null,
+    // The wording's version (app/legal.js): the stored text is what this document shows for good.
+    legalVersion: docType.signable ? LEGAL_VERSION : null,
     selection: sel,
     ...extra,
   };

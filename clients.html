@@ -79,6 +79,7 @@
   <link rel="modulepreload" href="app/office-ui.js">
   <link rel="modulepreload" href="app/manager-rules.js">
   <link rel="modulepreload" href="app/shell-rules.js">
+  <link rel="modulepreload" href="app/contract-file.js">
   <link rel="modulepreload" href="app/qa-logic.js">
   <link rel="modulepreload" href="app/files-logic.js">
   <link rel="modulepreload" href="app/deal-ui.js">
@@ -196,6 +197,8 @@
           <a class="btn btn-sm" href="messages.html" id="cta-messages" hidden>הודעות ללקוחות</a>
           <a class="btn btn-sm" href="editor.html" id="cta-editor" hidden>הלקוחות שלי בעריכה</a>
           <a class="btn btn-sm" href="shoot.html" id="cta-shoot" hidden>ימי צילום</a>
+          <!-- "אפיון חדש" (27.10.2026): an action, as "לקוח חדש" (the head has no links to screens): the characterization form at any time, for a client picked from a list (intake.html). -->
+          <button type="button" class="btn btn-sm" id="cta-char" hidden>אפיון חדש</button>
           <button type="button" class="btn btn-sm btn-primary" id="btn-new">לקוח חדש</button>
         </div>
       </div>
@@ -274,11 +277,23 @@
           <button type="button" class="chip" id="new-mode-new" aria-pressed="true">עסקה חדשה</button>
           <button type="button" class="chip" id="new-mode-import" aria-pressed="false">ייבוא לקוח קיים</button>
         </div>
-        <div class="field span-2" id="from-quote-field" hidden>
-          <label for="new-quote">פתיחה מהסכם חתום</label>
-          <select class="input" id="new-quote"><option value="">בלי הסכם (מילוי ידני)</option></select>
-          <div class="hint">בחירת הסכם ממלאת את פרטי הלקוח, החבילה, סוג יום הצילום, הכמויות ותאריך סיום החוזה. שעון העסקה מתחיל בשעת החתימה.</div>
-        </div>
+        <!-- The client's contract (27.10.2026): an agreement signed in the system, or a signed contract's file
+             (PDF or a picture) that goes into the client's files (app/contract-file.js). -->
+        <fieldset class="span-2 fs" id="new-contract">
+          <legend>החוזה של הלקוח</legend>
+          <div class="form-grid">
+            <div class="field span-2" id="from-quote-field" hidden>
+              <label for="new-quote">הסכם שנחתם במערכת</label>
+              <select class="input" id="new-quote"><option value="">בלי הסכם (מילוי ידני)</option></select>
+              <div class="hint">בחירת הסכם ממלאת את פרטי הלקוח, החבילה, סוג יום הצילום, הכמויות ותאריך סיום החוזה. שעון העסקה מתחיל בשעת החתימה.</div>
+            </div>
+            <div class="field span-2" id="new-file-field">
+              <label for="new-contract-file" id="new-file-label">קובץ חוזה חתום (PDF או תמונה)</label>
+              <input class="input" id="new-contract-file" type="file" accept="application/pdf,image/*,.pdf,.heic,.heif" aria-describedby="new-file-hint">
+              <div class="hint" id="new-file-hint">חוזה שנחתם על נייר או מחוץ למערכת. לא חובה. נשמר בכרטיס, תחת ״החוזה והחבילה״, ובתיק הלקוח.</div>
+            </div>
+          </div>
+        </fieldset>
         <div class="field"><label for="new-name">שם הלקוח</label><input class="input" id="new-name" required autocomplete="off"></div>
         <div class="field"><label for="new-business">שם העסק</label><input class="input" id="new-business" autocomplete="off"></div>
         <div class="field"><label for="new-phone">טלפון</label><input class="input" id="new-phone" type="tel" dir="ltr" autocomplete="off"></div>
