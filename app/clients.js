@@ -3526,6 +3526,8 @@ $('new-form').addEventListener('submit', async (e) => {
 });
 
 $('btn-refresh').addEventListener('click', () => { perfLog.clear(); load(); });
+// "אפיון חדש" (27.10.2026): the client is picked there.
+$('cta-char').addEventListener('click', () => { location.href = 'intake.html'; });
 window.addEventListener('hashchange', () => {
   if ($('app').hidden) return;
   // The address may belong to the other profile (the button at the top, a link): the tabs follow it.
