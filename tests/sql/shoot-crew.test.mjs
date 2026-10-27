@@ -74,7 +74,7 @@ before(async () => {
 
 test('the file: the newest but one, only adds or replaces, and runs twice', async () => {
   // After it only the old system's characterizations (20261109100000_legacy_characterizations.sql, 26.10.2026).
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261109100000_legacy_characterizations.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   await db.exec(migrationSql(FILE));

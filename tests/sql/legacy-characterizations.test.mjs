@@ -1,7 +1,7 @@
 // supabase/migrations/20261109100000_legacy_characterizations.sql in a real Postgres with every
 // migration (tests/sql/pg.mjs): the characterizations of the old system (astrateg-crm), each in
 // its client's card (the owner's request of 26.10.2026).
-//   - the file is the newest, only adds (none of the three words the production tool refuses)
+//   - the file is the newest but one, only adds (none of the three words the production tool refuses)
 //     and runs twice;
 //   - only the owner imports, through public.legacy_characterization_import(); again on the
 //     same client changes the same row; the client must be there; something must be in it;
@@ -72,8 +72,9 @@ const read = (who) => as(db, who ? users[who] : null, async (tx) => (await tx.qu
 const stored = async (client) => (await db.query('select * from public.legacy_characterizations where client_id = $1', [client])).rows[0];
 const unlisted = async (text) => (await db.query('select private.legacy_unlisted($1) as t', [text])).rows[0].t;
 
-test('the file: the newest, only adds, and runs twice', async () => {
-  assert.equal(migrationFiles().at(-1), FILE);
+test('the file: the newest but one, only adds, and runs twice', async () => {
+  // After it only the requests of 27.10.2026 (20261110100000_batch_2710.sql).
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261110100000_batch_2710.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
