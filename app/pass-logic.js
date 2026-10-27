@@ -1,5 +1,6 @@
-// Ofir's pass over the clients (process 33; system-plan section 3, "מעבר על
-// הלקוחות"): at least every other business day, a full pass on Thursday (it counts
+// The pass over the clients (process 33; system-plan section 3, "מעבר על הלקוחות"),
+// Irit's since 26.10.2026 (Ofir's until then; PASS_OWNER in app/protocol.js): at least
+// every other business day, a full pass on Thursday (it counts
 // as that day's control). The list is sorted by risk (app/health.js) with what
 // changed since the previous pass; action only on the red, yellow, changed and
 // stuck clients, one button for all the rest. Under it the data health checks

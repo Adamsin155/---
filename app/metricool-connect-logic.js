@@ -1,9 +1,11 @@
 // "לקוחות שלא מחוברים ל-Metricool" (the owner's request of 6.10.2026; docs/ops.md,
 // section 33): one card in Ilai's "המשימות שלי" with every active client that has no
 // Metricool brand, the oldest deal first. A client leaves the list when it is
-// connected to its brand (clients.metricool_blog_id, public.gantt_set_brand), or when
-// Ilai or the owner says it has no brand and needs none (clients.metricool_none,
-// public.metricool_set_none). It reads only what is stored on the client: nothing
+// connected to its brand (clients.metricool_blog_id, public.gantt_set_brand). A client
+// marked "ללקוח אין מותג" (clients.metricool_none, public.metricool_set_none) is NOT
+// connected (the owner, 26.10.2026): it moves to a group of its own at the end of the
+// card, "לא רלוונטי ל־Metricool", is counted with the clients that are not connected, and
+// comes back with "החזרה לרשימה". It reads only what is stored on the client: nothing
 // here depends on the sync or on its switch.
 // Pure, no DOM and no network: the card (app/metricool-connect-ui.js) and the unit
 // tests read the same rules. The database decides who may write
@@ -45,9 +47,22 @@ export function unconnected(clients) {
   return (clients || []).filter((c) => inWork(c) && !c.metricool_blog_id && !c.metricool_none)
     .sort((a, b) => (time(a.deal_at) - time(b.deal_at)) || byName(a, b));
 }
-// The clients marked "no brand needed", for the way back.
+// The clients marked "no brand needed": not connected, in their own group at the end.
 export function withoutBrand(clients) {
   return (clients || []).filter((c) => inWork(c) && !c.metricool_blog_id && c.metricool_none).sort(byName);
+}
+// Every client in work with no brand: the ones to connect and the "not relevant" ones.
+// Nobody marked "ללקוח אין מותג" is counted as connected anywhere.
+export const notConnectedCount = (clients) => unconnected(clients).length + withoutBrand(clients).length;
+
+// The search at the top of the card (the owner, 26.10.2026): by the business or the
+// person, every word typed, in any order, any case. An empty search keeps every client.
+const fold = (v) => String(v || '').toLocaleLowerCase('he').replace(/["'״׳`]/g, '').replace(/\s+/g, ' ').trim();
+export function matchesQuery(c, q) {
+  const words = fold(q).split(' ').filter(Boolean);
+  if (!words.length) return true;
+  const hay = fold(`${c?.business || ''} ${c?.name || ''}`);
+  return words.every((w) => hay.includes(w));
 }
 // The brands other clients already use (any client: one brand, one client).
 export const takenBy = (clients, clientId) => (clients || []).filter((c) => c.id !== clientId && c.metricool_blog_id).map((c) => String(c.metricool_blog_id));
@@ -72,7 +87,7 @@ export function sinceText(dealAt) {
 }
 
 export const cardTitle = (n) => `לקוחות שלא מחוברים ל־Metricool (${n})`;
-export const withoutTitle = (n) => `סומנו ״אין מותג״ (${n})`;
+export const withoutTitle = (n) => `לא רלוונטי ל־Metricool (${n})`;
 export const ganttUrl = (clientId) => `gantt.html?id=${encodeURIComponent(clientId)}`;
 
 // What the database answered, in words.

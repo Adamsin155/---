@@ -44,3 +44,16 @@
 .mcn-toggle { min-height: 44px; flex: none; }
 #mcn-body { margin-top: 10px; }
 .mcn-card.is-closed { padding-block: 8px; margin-block: 8px; }
+
+/* The search at the top (26.10.2026): one field, as wide as a phone allows; 16px so the
+   iPhone does not zoom in on it, 44px tall. */
+.mcn-search { margin: 0; min-width: 0; }
+#mcn-body { display: grid; gap: 10px; min-width: 0; }
+#mcn-body[hidden] { display: none; }
+.mcn-q { min-height: 44px; font-size: 16px; inline-size: 100%; max-inline-size: 420px; }
+.mcn-rows { display: grid; gap: 10px; min-width: 0; }
+.mcn-empty { margin: 0; }
+/* "לא רלוונטי ל־Metricool": not connected, at the end, quieter than the clients to connect. */
+.mcn-none-toggle { font-weight: 600; }
+.mcn-list.is-none .mcn-row { background: transparent; box-shadow: inset 0 0 0 1px var(--ds-line); }
+.mcn-list.is-none .mcn-name { color: var(--ds-ink-2); }

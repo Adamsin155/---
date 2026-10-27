@@ -50,6 +50,7 @@
   <link rel="preload" as="font" type="font/woff2" href="app/fonts/varela-round-hebrew.woff2" crossorigin>
   <link rel="preload" as="font" type="font/woff2" href="app/fonts/varela-round-latin.woff2" crossorigin>
   <link rel="modulepreload" href="app/protocol.js">
+  <link rel="modulepreload" href="app/pass-logic.js">
   <link rel="modulepreload" href="app/protocol-logic.js">
   <link rel="modulepreload" href="app/clocks.js">
   <link rel="modulepreload" href="app/landing-data.js">
@@ -72,6 +73,7 @@
   <link rel="modulepreload" href="app/questions-ui.js">
   <link rel="modulepreload" href="app/push.js">
   <link rel="modulepreload" href="app/whatsapp.js">
+  <link rel="modulepreload" href="app/mine-connect.js">
   <link rel="modulepreload" href="app/calendar-card.js">
   <link rel="modulepreload" href="app/ilai-card.js">
   <link rel="modulepreload" href="app/office-ui.js">
@@ -213,8 +215,8 @@
            section 41): one line, to landing.html. Above the panel, so the order of its cards stays. -->
       <div id="land-line" hidden></div>
       <section class="block" id="view-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
-        <!-- One order for the cards of "המשימות שלי": now, the work cards, then how I hear (notifications,
-             WhatsApp, my calendar), then the questions, whose list, the month, the work. -->
+        <!-- One order for the cards of "המשימות שלי": now, the work cards, then my calendar, then the
+             questions, whose list, the month, the work. -->
         <section class="now-bar" id="now-bar" aria-labelledby="now-h" hidden></section>
         <!-- Tasks given on the spot: the ones I got, with "בוצע"; for Irit and the owner, giving one (app/staff-tasks-ui.js). -->
         <section id="staff-tasks-card" hidden></section>
@@ -224,8 +226,8 @@
         <section id="approvals-card" hidden></section>
         <!-- Clients with no Metricool brand yet: Ilai and the owner connect them here (app/metricool-connect-ui.js). -->
         <section id="metricool-card" hidden></section>
-        <section class="push-card" id="push-card" aria-labelledby="push-h" hidden></section>
-        <section class="push-card wa-card" id="wa-card" aria-labelledby="wa-card-h" hidden></section>
+        <!-- The notifications and WhatsApp cards left "המשימות שלי" (26.10.2026): they are in the window
+             "ההתראות שלך" (#dlg-connect), and a quiet line at the very bottom (#mine-connect) says what is not connected. -->
         <section class="cal-card" id="cal-card" aria-labelledby="cal-h" hidden></section>
         <section class="myq" id="my-questions" aria-labelledby="myq-h" hidden></section>
         <div class="filters" role="group" aria-label="של מי" id="mine-people"></div>
@@ -237,6 +239,9 @@
       </section>
       <!-- "המשימות שלי": what I left open on clients still in landing, listed with no clock. -->
       <div class="block" id="land-quiet" hidden></div>
+      <!-- "המשימות שלי", at its very bottom: one quiet line while the notifications or WhatsApp are not
+           connected on this device, with "לחבר" (app/mine-connect.js); nothing when all is connected. -->
+      <div class="mine-connect" id="mine-connect" hidden></div>
 
       <section class="block" id="view-clients" role="tabpanel" aria-labelledby="tab-clients" hidden>
         <div class="filters list-tools">
@@ -425,6 +430,20 @@
         <button type="button" class="btn-text" id="inbox-read">סימון הכול כנקרא</button>
       </div>
       <ul class="inbox-list" id="inbox-list"></ul>
+      <p class="inbox-foot"><button type="button" class="btn-text" id="inbox-settings" aria-haspopup="dialog">ההתראות שלך: טלפון ו־WhatsApp</button></p>
+    </div>
+  </dialog>
+
+  <!-- "ההתראות שלך" (26.10.2026): the notifications of this device and WhatsApp, with their own buttons
+       (connect, a test, off; WhatsApp on or off). From the quiet line of "המשימות שלי" and from the bell's list. -->
+  <dialog id="dlg-connect" class="dlg-connect" aria-labelledby="connect-h">
+    <div class="dlg-head">
+      <h2 id="connect-h" tabindex="-1">ההתראות שלך</h2>
+      <button type="button" class="close" data-close aria-label="סגירה">×</button>
+    </div>
+    <div class="dlg-body">
+      <section class="push-card" id="push-card" aria-labelledby="push-h" hidden></section>
+      <section class="push-card wa-card" id="wa-card" aria-labelledby="wa-card-h" hidden></section>
     </div>
   </dialog>
 

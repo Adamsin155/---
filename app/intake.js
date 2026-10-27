@@ -3,8 +3,9 @@
 // a characterization, Lior's 12א, 12 and 13; decisions 12 and 14).
 //   #end      "האפיון הסתיים": one tap with the 4 required short fields (the clocks
 //             of Ilai, Ofir and Lior start at once; the access goes to the vault)
-//   #form     the full form, within 60 minutes: 11 fields plus the logo link, the
-//             brand colors and the materials; a draft stays on the phone meanwhile
+//   #form     the full form, filled in the meeting (no clock after "האפיון הסתיים",
+//             26.10.2026): 11 fields plus the logo link, the brand colors and the
+//             materials; a draft stays on the phone meanwhile
 //   #focus    Lior's focus call (12א): the 10 topics, saved for the editors
 //   #scripts  the scripts link (12), the Zoom time, its recording and the client's
 //             approval (13), which is never "not relevant"

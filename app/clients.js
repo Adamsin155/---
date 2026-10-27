@@ -2,8 +2,9 @@
 // processes 32 and 33) and the performance report.
 import {
   PEOPLE, STAFF_PEOPLE, EDITORS, PHASES, PROCESSES, CLIENT_STATUS, OFFICE_REVIEWS, REVIEW_TOPICS,
-  STATUS_FIELDS, BRIEF_REQUIRED, STATIONS, DELIVERABLES, editorsOf,
+  STATUS_FIELDS, BRIEF_REQUIRED, STATIONS, DELIVERABLES, PASS_OWNER, editorsOf,
 } from './protocol.js';
+import { passDue } from './pass-logic.js';
 import {
   clientState, openItemsFor, byUrgency, bucketOf, CLAIM, WAIT, waitNote, bulkEligible, isResolved,
   isBusinessDay, businessDaysBetween, addBusinessDays, weekKey, roundsOf, parseDate,
@@ -39,6 +40,7 @@ import { loadDateChanges, loadLogFor, noteDateChange, loadAccessStatus } from '.
 import { refreshQuestions } from './questions-ui.js';
 import { mountPush, siteWorker, pushActive } from './push.js';
 import { mountWhatsappCard } from './whatsapp.js';
+import { mountConnect, openConnect, paintConnectLine } from './mine-connect.js';
 import { mountCalendar } from './calendar-card.js';
 // Stage 3, part 2 (the office's flows): Ilai's day in "המשימות שלי", the first screens of Ofir and Lior.
 import { ilaiSection, coveredByCard } from './ilai-card.js';
@@ -1688,6 +1690,14 @@ function cardsChanged() {
   if (onMine() && !$('app').hidden && !busy()) renderKeepingFocus();
 }
 
+// The quiet line at the very bottom of "המשימות שלי" (26.10.2026; app/mine-connect.js): on
+// the person's own list only (not the team's, not another person's; "באיחור" and the other
+// tabs hide it in app/styles/push.css, as the line stands after the panel).
+function paintConnect() {
+  const ownList = scope === 'own' || personal || (!!me && (minePerson || null) === me);
+  paintConnectLine($('mine-connect'), { own: ownList && !viewerError });
+}
+
 function renderMine() {
   drawn(view === 'late' ? 'late' : 'mine');
   mineShown = view === 'late' ? 'late' : 'mine';
@@ -1696,6 +1706,7 @@ function renderMine() {
   syncLateTab(); // every redraw of the list (a tick, a refresh) keeps the tab's number with it
   const wrap = $('mine-list');
   const own = scope === 'own';
+  paintConnect();
   rebuildClocks();
   paintNowBar();
   // What waits for me on another page (app/mine-flow.js): on my own list only.
@@ -1788,8 +1799,9 @@ function renderMine() {
   const shownKeys = new Set(list.map((g) => g.key));
   const soonGroups = person ? upcomingGroups(person).map((g) => ({ ...g, list: g.list.filter((s) => !shownKeys.has(`${g.client.id}:${s.proc.id}`) && !renewing(s.proc.id) && !covered({ client: g.client, proc: s.proc })) })).filter((g) => g.list.length) : [];
   const soon = person ? upcomingSection(soonGroups, own) : null;
-  const review = person ? OFFICE_REVIEWS.find((r) => r.owner === person && reviewPending(r)) : null;
-  const thursday = person === 'ofir' ? thursdayCard() : null;
+  // The person's own daily reviews: Irit's control (32) and, since 26.10.2026, her pass over the clients (33).
+  const ownReviews = person ? OFFICE_REVIEWS.filter((r) => r.owner === person && reviewPending(r)) : [];
+  const thursday = person && person === PASS_OWNER ? thursdayCard() : null;
   const banner = !person || person === 'irit' ? autoBanner() : null;
   // The counted lines with a clock sit in the group of their urgency, before its cards.
   const flowIn = (k) => flow.filter((f) => f.bucket === k).map(flowCard);
@@ -1797,7 +1809,7 @@ function renderMine() {
   // A contract that ended while the client is still active: Lior's to decide (and the owners see it).
   const ended = person === 'lior' || (!person && !me) ? contractsEnded(clients, new Date()) : [];
   const endedCards = ended.map((x) => contractCard(x, { viewer: { me, scope, error: viewerError }, href: clientUrl(x.cid, '#p34'), onDone: () => load() }));
-  if (!list.length && !review && !thursday && !renewLine && !heldItems.length && !ended.length && !flow.some((f) => f.bucket !== 'landing')) {
+  if (!list.length && !ownReviews.length && !thursday && !renewLine && !heldItems.length && !ended.length && !flow.some((f) => f.bucket !== 'landing')) {
     fill(wrap, banner, ilai, ilai ? null : emptyState({ text: nothing }), soon);
     return;
   }
@@ -1829,7 +1841,7 @@ function renderMine() {
         h('ul', { class: 'wprocs' }, ...flowIn('overdue'), h('li', { class: 'wproc flow-card late-fold' },
           countedLine({ id: 'late-line', n: lateTotal, text: `${lateTotal} דברים באיחור אצלך`, cta: 'לשונית באיחור', href: '#late', tone: 'late', cls: 'late-line' }))));
     }
-    const extra = [...(k === 'today' ? endedCards : []), ...(renewLine && k === (renewOpen.length ? 'today' : 'later') ? [renewLine] : []), ...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' && review ? [reviewCard(review)] : []), ...(k === 'overdue' ? lateRows : [])];
+    const extra = [...(k === 'today' ? endedCards : []), ...(renewLine && k === (renewOpen.length ? 'today' : 'later') ? [renewLine] : []), ...(k === 'client' ? [] : flowIn(k)), ...(k === 'today' ? ownReviews.map(reviewCard) : []), ...(k === 'overdue' ? lateRows : [])];
     if (!g.length && !extra.length && !(k === 'overdue' && inCards)) return null;
     // The number of "באיחור" is the number of the tab: Ilai's late work inside his cards is part of it.
     const more = k === 'overdue' ? inCards : 0;
@@ -1879,8 +1891,8 @@ function personSummary(person, now = new Date()) {
     ['ממתין ללקוח, לבדוק היום', procs.filter((g) => g.status === 'client' && recheckDue(g.wait, today)), (g) => `${line(g)}${g.wait?.reason ? ` · ${g.wait.reason}` : ''}`],
     ['משימות', w.filter((g) => g.task && !g.urgent && !g.escalation).sort((a, b) => (a.dueAt?.getTime() ?? Infinity) - (b.dueAt?.getTime() ?? Infinity)), taskLine],
   ].filter(([, list]) => list.length);
-  // Ofir's Thursday pass over every client (process 33).
-  const pass = person === 'ofir' ? thursdayPass(now) : null;
+  // The Thursday pass over every client (process 33): Irit's since 26.10.2026 (Ofir's until then).
+  const pass = person && person === PASS_OWNER ? thursdayPass(now) : null;
   if (pass) sections.unshift(['מעבר חובה של יום חמישי', [pass], () => `סיכום מצב לכל הלקוחות: סוכמו ${pass.done} מתוך ${pass.total}`]);
   const head = `בוקר טוב ${name},`;
   if (!sections.length) {
@@ -2286,9 +2298,12 @@ function parseReviewNote(note) {
   } catch { /* plain text */ }
   return { general: note, clients: {}, topics: null };
 }
+// The pass over the clients (33) is asked for on the days it is due (at least every other
+// business day, and Thursday; app/pass-logic.js passDue), not as a card every day.
 function reviewPending(r) {
   const now = new Date();
-  return reviews !== null && isBusinessDay(now) && !reviewOn(dayIso(now), reviewKind(r));
+  if (reviews === null || !isBusinessDay(now) || reviewOn(dayIso(now), reviewKind(r))) return false;
+  return reviewKind(r) !== 'p33' || passDue(reviews, now).due;
 }
 
 async function doMarkReview(r, input) {
@@ -2335,10 +2350,11 @@ function reviewMarkControl(r, idPrefix) {
   return h('button', { type: 'button', class: 'btn btn-sm', onclick: (ev) => doMarkReview(r, ev.currentTarget) }, `סימון בשם ${owner.name}`);
 }
 
-// The fixed card in Irit's / Ofir's "today" group, until the review is marked.
+// The fixed cards in Irit's "today" group, until the review is marked.
 function reviewCard(r) {
-  // Ofir's own 33 (the owner, 20.10.2026): it is done on pass.html and finishing the pass
-  // marks it there (app/pass.js), so his card is the way in, with no tick of its own.
+  // The pass over the clients (33; Irit's since 26.10.2026, Ofir's until then): it is done on
+  // pass.html and finishing the pass marks it there (app/pass.js), so the card is the way in,
+  // with no tick of its own.
   if (r.num === '33' && me === r.owner) {
     return h('li', { class: 'wproc rv-card k-pc pc pc-full rv-pass' },
       h('div', { class: 'k-pc-top' },
@@ -2714,8 +2730,9 @@ function thursdayCard() {
       cardMark(null, 'file', 'purple'),
       h('div', { class: 'wproc-h k-pc-body' },
         h('span', { class: 'wtitle' }, `מעבר חובה של יום חמישי: סיכום מצב לכל הלקוחות (${w.done}/${w.total})`),
-        // Ofir writes the Thursday summaries in his pass (pass.html, "סיכום חמישי"); the others in the control.
-        me === 'ofir' ? h('a', { class: 'btn-text', href: 'pass.html#th-h' }, 'מעבר לסיכום המצב')
+        // Irit writes the Thursday summaries in her pass (pass.html, "סיכום חמישי"; Ofir's until
+        // 26.10.2026); anyone else who opens the card, in the control.
+        me === PASS_OWNER ? h('a', { class: 'btn-text', href: 'pass.html#th-h' }, 'מעבר לסיכום המצב')
           : h('a', { class: 'btn-text', href: '#control', onclick: (ev) => { ev.preventDefault(); goToStatus(); } }, 'מעבר לסיכום המצב'))),
     h('p', { class: 'task-meta' }, 'על כל לקוח: מצב נוכחי, מה חסר, פעולה הבאה, אחראי ומועד יעד.'),
     progressBar(w.done, w.total, 'לקוחות שסוכמו השבוע'));
@@ -3527,11 +3544,15 @@ mountSession(async (staff) => {
   // Notifications on the phone and today's list (app/push.js); the owner's list is 'owner'.
   // (The cards here each ask for their own rows; the page is shown when they have
   // answered, so none lands above a list that is already on the screen: bootEnd in protocol-ui.js.)
+  // Since 26.10.2026 both cards are in the window "ההתראות שלך" (#dlg-connect), not in the list:
+  // "המשימות שלי" holds tasks only, and says at its bottom what is not connected (paintConnect).
+  mountConnect($('dlg-connect'), { closed: cardsChanged });
+  $('inbox-settings').addEventListener('click', () => { $('dlg-inbox').close(); openConnect('btn-inbox'); });
   mountPush({
     who: me || (scope === 'office' && !viewerError ? 'owner' : null), card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'),
-    changed: cardsChanged,
+    changed: () => { paintConnect(); cardsChanged(); },
   });
-  mountWhatsappCard($('push-card')); // stage 4: WhatsApp on or off, under the notifications card
+  mountWhatsappCard($('push-card'), { changed: paintConnect }); // stage 4: WhatsApp on or off, under the notifications card
   // "היומן שלי": the personal calendar link (app/calendar-card.js).
   if (!viewerError) mountCalendar($('cal-card'));
   // Tasks given on the spot: the ones this person got ("בוצע"), and giving them (Irit, the owner).

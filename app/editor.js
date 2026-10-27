@@ -42,6 +42,10 @@ import {
 } from './edit-count.js';
 import { mountWorkFiles, workFilesState, forgetFiles, readFiles } from './files-ui.js';
 import { charViewHref } from './intake-ui.js';
+// The old system's characterization of each of my clients (the owner, 26.10.2026: every member of staff reads it).
+import { loadLegacyChars } from './legacy-char-data.js';
+import { legacyCharView, legacyCharSum } from './legacy-char-logic.js';
+import { legacyCharBlock } from './legacy-char-ui.js';
 import { loadIntake } from './landing-data.js';
 import { withLandingEditors } from './landing-logic.js';
 import { videoWindow, videosGate as gateOf, videosLinkOf, driveLinkProblem } from './files-logic.js';
@@ -54,6 +58,7 @@ let tasks = [];
 let chars = {};
 let briefs = {};
 let logos = {}; // the uploaded logo file of each client (client_files, kind 'logo')
+let legacyChars = {}; // the old system's characterization of each client (client id → row; none: no block)
 let viewer = null;
 let statsLog = null;
 let lastLoad = 0;
@@ -98,8 +103,8 @@ async function load() {
   let rows;
   let monthRows;
   const monthly = clients.filter((c) => ids.includes(c.id) && isMonthly(c)).map((c) => c.id);
-  [chars, briefs, logos, scripts, rows, monthRows] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), loadWorkScripts(ids), loadEditorProgress(ids),
-    monthly.length ? loadEditorMonths(monthly, monthKey()) : null, ...ids.map(readFiles)]);
+  [chars, briefs, logos, scripts, rows, monthRows, legacyChars] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), loadWorkScripts(ids), loadEditorProgress(ids),
+    monthly.length ? loadEditorMonths(monthly, monthKey()) : null, loadLegacyChars(ids), ...ids.map(readFiles)]);
   progress = rows ? progressMap(rows) : null;
   months = monthRows ? monthMap(monthRows) : null;
   lastLoad = Date.now();
@@ -413,7 +418,25 @@ function jobCard(job) {
     sheetBlock(job),
     eliNotes(job),
     rawFiles(job),
-    highlightsBlock(job));
+    highlightsBlock(job),
+    legacyCharFold(job));
+}
+
+// The characterization filled in the old system (the owner, 26.10.2026; app/legacy-char-ui.js):
+// closed under the highlights, only when there is one. What is open stays open across re-renders.
+const legacyOpen = new Map(); // card id → the parts open ('all': the row itself)
+function legacyCharFold(job) {
+  const row = legacyChars[job.client.id];
+  const view = legacyCharView(row);
+  if (!view) return null;
+  const id = cardId(job);
+  if (!legacyOpen.has(id)) legacyOpen.set(id, new Set());
+  const open = legacyOpen.get(id);
+  const d = h('details', { class: 'ed-more ed-lch', id: `${id}-lch`, open: open.has('all') },
+    h('summary', {}, 'אפיון מהמערכת הישנה', h('span', { class: 'lch-fs' }, legacyCharSum(view))),
+    legacyCharBlock(row, { id: `${id}-lch-body`, open }));
+  d.addEventListener('toggle', () => { if (d.open) open.add('all'); else open.delete('all'); });
+  return d;
 }
 
 // ── How many I have edited (the owner's request of 22.10.2026) ──

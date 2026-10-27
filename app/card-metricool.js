@@ -18,7 +18,8 @@ export function metricoolWords({ brand, none = false, failed = 0 } = {}) {
   if (brand === undefined) return null;
   const fail = failed > 0 ? (failed === 1 ? 'פרסום אחד נכשל' : `${failed} פרסומים נכשלו`) : null;
   if (brand?.blogId) return { text: `מחובר ל־${brand.brand || 'מותג'}`, tone: fail ? 'warn' : 'ok', failed: fail, connect: false };
-  if (none) return { text: 'סומן שאין ללקוח מותג', tone: 'plain', failed: fail, connect: false };
+  // Marked "ללקוח אין מותג": not connected all the same (26.10.2026).
+  if (none) return { text: 'לא מחובר · לא רלוונטי ל־Metricool', tone: 'plain', failed: fail, connect: false };
   return { text: 'לא מחובר', tone: 'warn', failed: fail, connect: true };
 }
 
