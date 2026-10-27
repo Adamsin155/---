@@ -313,3 +313,14 @@ details.pp-sub[open] > summary.pp-sum::after { transform: rotate(-135deg); }
 /* "עם מי מצלמים" once it is set (25.10.2026): one line, and "שינוי". */
 .pp-shoot-line { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .pp-shoot-line .btn-text { min-height: 36px; }
+
+/* "אפיון חדש" (27.10.2026): the client picked from a list, every row one big tap. */
+.pk-card .field { margin-bottom: 4px; }
+.pk-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.pk-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; padding: 10px 14px;
+  border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-surface); color: var(--ds-ink); text-decoration: none; }
+.pk-row:hover { border-color: var(--ds-navy); }
+.pk-row:focus-visible { outline: 3px solid var(--ds-navy); outline-offset: 2px; }
+.pk-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.pk-row .tag { flex: none; }
+.pk-row .tag.pk-has { background: var(--ds-ok-soft); color: var(--ds-ok); }

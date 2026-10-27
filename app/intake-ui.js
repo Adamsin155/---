@@ -10,6 +10,7 @@ import { briefBlock } from './briefs.js';
 import { businessPhoneOf, logoUrlOf, closingLine } from './characterization.js';
 import { SEEN, DAY_BEFORE_KEY, readDayBefore } from './shoot-prep.js';
 import { loadCharacterization, loadBriefs } from './intake-data.js';
+import { writesChar } from './shell-rules.js';
 
 const enc = encodeURIComponent;
 const baseOf = (procId) => String(procId).replace(/^r\d+-/, '');
@@ -26,6 +27,8 @@ export const scriptsHref = (clientId, round = 1) => `scripts.html?id=${enc(clien
 export const CHAR_READERS = ['ilai', 'nirel'];
 export const readsChar = (me) => CHAR_READERS.includes(me);
 export const charViewHref = (clientId) => `intake.html?id=${enc(clientId)}`;
+// The characterization form alone, at any time (27.10.2026; intake.html, app/intake.js).
+export const charEditHref = (clientId) => `intake.html?id=${enc(clientId)}&only=char`;
 // The graphics processes (7 and 23) and Ilai's new logo (5) are made from it.
 const CHAR_PROCS = ['p05', 'p07', 'p23'];
 
@@ -98,7 +101,10 @@ export function mountClientIntake(slot, { client, scope = 'office', toast = null
     colors ? [h('dt', {}, 'צבעי המותג'), h('dd', {}, colors)] : null,
   ].filter(Boolean);
   const reads = !office && readsChar(me);
+  // "אפיון" / "עדכון אפיון" (27.10.2026): the owners, Irit, Lior and Ofir, at any time, with no clock.
+  const edits = me !== undefined && writesChar({ me, scope });
   const links = office || scripts || reads ? h('div', { class: 'ik-links' },
+    edits ? h('a', { class: 'btn btn-sm', href: charEditHref(client.id), id: 'ik-char-edit' }, cache.char ? 'עדכון אפיון' : 'אפיון') : null,
     office ? h('a', { class: 'btn btn-sm', href: `intake.html?id=${enc(client.id)}` }, 'אפיון ותוכן') : null,
     reads ? h('a', { class: 'btn btn-sm', href: charViewHref(client.id), id: 'ik-char' }, 'האפיון המלא') : null,
     scripts ? h('a', { class: 'btn btn-sm', href: scriptsHref(client.id), id: 'ik-scripts' }, 'כתיבת תסריטים') : null,

@@ -74,8 +74,10 @@ import { ACCESS_STATUS_LABEL, NEW_STATUS, LINKED_STATUS, accessGapQuestion, acce
 import { mountClientMonth, worksCycle } from './month-ui.js';
 import { freshText } from './protocol-versions.js';
 // The client's files ("תיק לקוח"): materials, deliverables and the client's gallery link.
-import { mountClientFiles } from './files-ui.js';
-import { uploadStepOf } from './files-logic.js';
+import { mountClientFiles, workFilesState, uploadClientFile, downloadClientFile } from './files-ui.js';
+import { uploadStepOf, isManager as managesFiles, fileNameOf, uploadError } from './files-logic.js';
+// The client's signed contract as a file (27.10.2026): 'material_other' labelled "חוזה חתום".
+import { CONTRACT_KIND, CONTRACT_LABEL, CONTRACT_ACCEPT, contractFiles, contractFileProblem } from './contract-file.js';
 // The manager's features: the contract summary, and archiving (the owner and Ofir).
 import { contractSummary, fileCounts } from './contract-summary.js';
 import { loadDeliverableFiles, archiveClient } from './manager-data.js';
@@ -336,8 +338,14 @@ const statusOpts = () => ({
 });
 const filesOpts = () => ({
   client, me: viewerError ? undefined : me, myEmail, toast, gallerySlot: $('gal-slot'),
-  onDraw: ({ files, gallery }) => { setFold('files', 'תיק לקוח', files); setFold('gallery', 'גלריה ללקוח', gallery); },
+  onDraw: ({ files, gallery }) => {
+    setFold('files', 'תיק לקוח', files); setFold('gallery', 'גלריה ללקוח', gallery);
+    // The contract's file is listed under "החוזה והחבילה": drawn again when the files arrive with one.
+    if (drawn && !own() && contractCount() !== contractSeen && !busy()) renderKeepingFocus();
+  },
 });
+let contractSeen = -1;
+const contractCount = () => { const st = workFilesState(client.id); return st.loaded ? contractFiles(st.files).length : -1; };
 
 function render() {
   const s = clientState(client, checks, new Date());
@@ -896,7 +904,7 @@ function renderHead(s) {
     linksRow(),
     metricoolLine(),
     // The contract and the package's counters: one closed row with the month (the owner, 20.10.2026).
-    own() ? null : fold('contract', 'החוזה והחבילה', contractWords(s), contractBlock(s), deliverablesBlock(s)),
+    own() ? null : fold('contract', 'החוזה והחבילה', contractWords(s), contractDocs(), contractBlock(s), deliverablesBlock(s)),
     // The documents signed in the old system, when there are any (the owner, 25.10.2026).
     own() || !legacy?.length ? null : fold('legacy', 'חוזים מהמערכת הישנה', legacySum(legacy.length), legacyBlock()),
     c.notes ? h('p', { class: 'cc-notes' }, c.notes) : null,
@@ -910,6 +918,53 @@ function renderHead(s) {
     h('strong', { class: 'num', dir: 'ltr' }, `${prog.done}/${prog.total}`),
     progressBar(prog.done, prog.total, prog.label),
     prog.overdue ? statusBadge('overdue', null) : null);
+}
+
+// ── The signed contract itself (the owner, 27.10.2026) ──
+// The agreement signed in the system (its number and day; its money stays the owners' and
+// Irit's), and a contract signed elsewhere, kept as a file in the client's files. Whoever
+// manages the files (the owner, Irit, Lior, Ofir) adds one here.
+let contractBusy = false;
+function contractDocs() {
+  contractSeen = contractCount();
+  const st = workFilesState(client.id);
+  const files = st.loaded ? contractFiles(st.files) : [];
+  const may = !viewerError && managesFiles(me);
+  const input = may ? h('input', { type: 'file', id: 'cd-file', class: 'sr-only', accept: CONTRACT_ACCEPT, tabindex: '-1', onchange: (e) => addContract(e.currentTarget) }) : null;
+  const rows = [
+    quote ? h('li', { class: 'cd-row', id: 'cd-quote' }, h('span', { class: 'cd-k' }, 'הסכם שנחתם במערכת'),
+      h('span', { class: 'cd-v' }, quote.number ? h('bdi', { class: 'num', dir: 'ltr' }, quote.number) : null, quote.signed_at ? ` · נחתם ${formatDay(quote.signed_at)}` : '')) : null,
+    ...files.map((f) => h('li', { class: 'cd-row', id: `cd-f-${f.id}` }, h('span', { class: 'cd-k' }, 'קובץ חוזה חתום'),
+      h('span', { class: 'cd-v' }, h('bdi', { class: 'cd-name' }, fileNameOf(f.storage_path)), ` · הועלה ${formatDay(f.created_at)}`),
+      h('button', { type: 'button', class: 'btn btn-sm cd-get', 'aria-label': `הורדת החוזה ${fileNameOf(f.storage_path)}`,
+        onclick: () => downloadClientFile(f.storage_path).catch(() => toast('ההורדה לא התחילה. נסו שוב.')) }, 'הורדה'))),
+  ].filter(Boolean);
+  return h('section', { class: 'cd', id: 'contract-docs', 'aria-labelledby': 'cd-h' },
+    h('div', { class: 'cs-head' }, h('h2', { id: 'cd-h' }, 'החוזה החתום')),
+    rows.length ? h('ul', { class: 'cd-rows' }, ...rows)
+      : h('p', { class: 'muted', id: 'cd-none' }, st.loaded || !may ? 'לא צורף חוזה חתום ללקוח.' : 'טוען…'),
+    may ? h('div', { class: 'cd-acts' }, input,
+      h('button', { type: 'button', class: 'btn btn-sm', id: 'cd-add', disabled: contractBusy, onclick: () => $('cd-file')?.click() },
+        contractBusy ? 'מעלה…' : files.length ? 'העלאת קובץ חוזה נוסף' : 'העלאת קובץ חוזה חתום'),
+      h('span', { class: 'hint' }, 'PDF או תמונה. נשמר גם בתיק הלקוח.')) : null);
+}
+async function addContract(input) {
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || contractBusy) return;
+  const problem = contractFileProblem(file);
+  if (problem) { toast(problem); return; }
+  contractBusy = true;
+  renderKeepingFocus();
+  try {
+    await uploadClientFile(client.id, CONTRACT_KIND, file, { label: CONTRACT_LABEL });
+    toast('קובץ החוזה נשמר בכרטיס ובתיק הלקוח.');
+  } catch (err) {
+    toast(`החוזה לא הועלה: ${uploadError(err)}`);
+  }
+  contractBusy = false;
+  renderKeepingFocus();
+  $('cd-add')?.focus();
 }
 
 // ── The contract summary (app/contract-summary.js) ──

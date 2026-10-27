@@ -24,11 +24,18 @@ const seesAllClients = (v) => canSeeTable(v);
 // The calendar page ("יומן", calendar.html; 15.10.2026): everyone with client work, not the
 // field sales (as seesCalendar in calendar-view.js).
 const seesCalendar = (v) => known(v) && v.scope !== 'sales' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
-// The pink "לקוח חדש" on clients.html (the owner, 20.10.2026): whoever opens clients, the
-// owners and Irit (processes 2–3 are hers; a signed agreement opens its client by itself,
-// app/client-open.js, and the field sales have no clients list). Hidden for Ofir, Lior,
-// Ilai, the editors and Eli. A screen only: the database decides who may write a client.
-export const opensClients = (v) => known(v) && v.scope === 'office' && (!v.me || v.me === 'irit');
+// The pink "לקוח חדש" on clients.html (the owner, 20.10.2026; Lior and Ofir since
+// 27.10.2026): the owners, Irit, Lior and Ofir (processes 2–3 are Irit's; a signed agreement
+// opens its client by itself, app/client-open.js, and the field sales have no clients list).
+// Hidden for Ilai, the editors and Eli. A screen only: the database decides who may write a
+// client (the office, "office adds clients").
+export const CLIENT_OPENERS = ['irit', 'lior', 'ofir'];
+export const opensClients = (v) => known(v) && v.scope === 'office' && (!v.me || CLIENT_OPENERS.includes(v.me));
+// "אפיון" / "עדכון אפיון" / "אפיון חדש" (the owner, 27.10.2026): the characterization form at
+// any time, with no clock (intake.html?id=…&only=char, and intake.html with no client to pick
+// one): the owners, Irit, Lior and Ofir. public.characterizations is the office's to write.
+export const CHAR_WRITERS = ['irit', 'lior', 'ofir'];
+export const writesChar = (v) => known(v) && v.scope === 'office' && (!v.me || CHAR_WRITERS.includes(v.me));
 // The index of the content Gantt: the office and Ilai (as worksCycle in month-ui.js).
 export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai');
 // Who changes a Gantt: Ilai, Irit (22.10.2026) and the owner (public.can_edit_gantt() decides).

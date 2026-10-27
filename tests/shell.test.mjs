@@ -15,7 +15,7 @@ import { firstScreenOf } from '../app/office-ui.js';
 import { worksCycle } from '../app/month-ui.js';
 import { seesCalendar } from '../app/calendar-view.js';
 import {
-  menuOf, profileMenu, PERSONAL, homeLink, barOf, groupsOf, GROUP_FROM, currentOf, inMenu, officeScreens, pageOf, initialsOf, nameOf, avatarFill, AVATAR_FILL, seesGantt, editsGantt, NOT_IN_MENU, opensClients,
+  menuOf, profileMenu, PERSONAL, homeLink, barOf, groupsOf, GROUP_FROM, currentOf, inMenu, officeScreens, pageOf, initialsOf, nameOf, avatarFill, AVATAR_FILL, seesGantt, editsGantt, NOT_IN_MENU, opensClients, writesChar,
 } from '../app/shell-rules.js';
 
 const v = (me) => ({ me, scope: scopeOf(me), error: null });
@@ -330,9 +330,17 @@ test('a long menu is two parts: the daily screens, then the rest under "עוד";
   for (const who of ['ilai', 'nadia', 'eli', 'stav']) assert.deepEqual(groupsOf(menuOf(v(who)), v(who)).rest, [], who);
 });
 
-// The owner, 20.10.2026: the pink "לקוח חדש" only for whoever opens clients.
-test('"לקוח חדש": the owners and Irit only', () => {
+// The owner, 20.10.2026: the pink "לקוח חדש" only for whoever opens clients; Lior and Ofir too since 27.10.2026.
+test('"לקוח חדש": the owners, Irit, Lior and Ofir', () => {
   assert.equal(opensClients(OWNER), true);
-  for (const who of ROLES) assert.equal(opensClients(v(who)), who === 'irit', who);
+  for (const who of ROLES) assert.equal(opensClients(v(who)), ['irit', 'lior', 'ofir'].includes(who), who);
   assert.equal(opensClients({ me: null, scope: 'office', error: new Error('x') }), false);
+});
+
+// The owner, 27.10.2026: the characterization at any time, for the same four.
+test('"אפיון חדש" / "עדכון אפיון": the owners, Irit, Lior and Ofir', () => {
+  assert.equal(writesChar(OWNER), true);
+  for (const who of ROLES) assert.equal(writesChar(v(who)), ['irit', 'lior', 'ofir'].includes(who), who);
+  assert.equal(writesChar({ me: null, scope: 'office', error: new Error('x') }), false);
+  assert.equal(writesChar({ me: null, scope: 'own' }), false);
 });
