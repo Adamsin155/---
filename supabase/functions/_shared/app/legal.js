@@ -11,6 +11,14 @@ export const PROVIDER = {
   email: 'info@astrateg.com',
 };
 
+// The version of the wording below, stored in each new document's model (model.legalVersion,
+// app/pricing.js). A document keeps the text it was made with (quotes.model.legal, written
+// when it is sent), so a change here reaches only the documents made after it; a sent or
+// signed one is drawn from its own stored text and never from this file.
+//   1  until 27.10.2026 (documents with no legalVersion)
+//   2  27.10.2026: "חסימת פלטפורמות", the last clause of the platforms chapter (awaits the lawyer's OK)
+export const LEGAL_VERSION = 2;
+
 // Business decisions used in the wording. Defaults pending owner confirmation.
 export const TERMS = {
   earlyExitPercent: 50,       // % of remaining monthly payments on early exit
@@ -156,6 +164,9 @@ export function agreementSections(ctx) {
     () => 'השירותים ניתנים באמצעות פלטפורמות של צדדים שלישיים, כגון מטא (פייסבוק ואינסטגרם), טיקטוק וגוגל, שאינן בשליטת אסטרטג ופועלות לפי מדיניות ואלגוריתמים שהן קובעות ומשנות מעת לעת.',
     () => 'אסטרטג לא תישא באחריות, ולא תהיה ללקוח כל טענה, דרישה או תביעה כלפיה, בגין חסימה, השעיה, הגבלה, הסרה או צמצום חשיפה של עמוד, חשבון, חשבון מודעות, מודעה או תוכן על ידי פלטפורמה, או בגין שינוי במדיניות או באלגוריתם של פלטפורמה.',
     () => 'במקרה כאמור תסייע אסטרטג ללקוח, במאמץ סביר, בפנייה לפלטפורמה ובהמשך מתן השירותים בערוצים האחרים. אירוע כאמור אינו פוטר את הלקוח מתשלום ואינו מזכה אותו בהחזר או בזיכוי.',
+    // Added by the owner's request of 27.10.2026 (LEGAL_VERSION 2). The wording awaits the
+    // lawyer's OK. Last in its chapter, so the references to 2 and 3 above do not move.
+    () => 'חסימת פלטפורמות: אסטרטג אינה אחראית לחסימה, להגבלה, להשעיה או להסרה של עמוד, חשבון, פרסום או תוכן של הלקוח על ידי הפלטפורמות (לרבות Facebook, Instagram ו־TikTok), ולתוצאותיהן. אין בכך כדי לגרוע מהתחייבויות הלקוח לפי הסכם זה.',
   ]);
 
   add('liability', 'הגבלת אחריות', [

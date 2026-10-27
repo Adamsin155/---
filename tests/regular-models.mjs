@@ -38,11 +38,13 @@ export function regularSelections() {
   return out;
 }
 
-export function regularFingerprint() {
+// `shape`: a change made to each model before it is hashed (the test takes out what a later,
+// deliberate change of the wording added, to show nothing else moved).
+export function regularFingerprint(shape = (m) => m) {
   const hash = createHash('sha256');
   const list = regularSelections();
   for (const sel of list) {
-    hash.update(JSON.stringify(buildQuoteModel(sel, CLIENT)));
+    hash.update(JSON.stringify(shape(buildQuoteModel(sel, CLIENT))));
     hash.update(JSON.stringify(computeTotals(sel)));
   }
   return { count: list.length, sha256: hash.digest('hex') };

@@ -235,3 +235,24 @@ test('client fields drop bidi control characters', () => {
   assert.equal(m.client.name, 'evil');
   assert.equal(m.client.company, 'ab');
 });
+
+// The owner's clause of 27.10.2026 (app/legal.js, LEGAL_VERSION 2; the wording awaits the lawyer's OK):
+// the last clause of the platforms chapter, in new agreements only; a sent or signed one keeps its
+// stored text (quotes.model.legal), so nothing here re-draws it.
+test('"חסימת פלטפורמות": the last clause of the platforms chapter of a new agreement, with the version', async () => {
+  const { LEGAL_VERSION } = await import('../app/legal.js');
+  assert.equal(LEGAL_VERSION, 2);
+  const a = buildQuoteModel({ ...sel('social', 'natali'), docType: 'agreement' }, { name: 'x' });
+  assert.equal(a.legalVersion, 2);
+  const ch = a.legal.find((s) => s.title === 'פלטפורמות וחסימת חשבונות');
+  assert.equal(ch.items.length, 4);
+  assert.equal(ch.items[3], 'חסימת פלטפורמות: אסטרטג אינה אחראית לחסימה, להגבלה, להשעיה או להסרה של עמוד, חשבון, פרסום או תוכן של הלקוח על ידי הפלטפורמות (לרבות Facebook, Instagram ו־TikTok), ולתוצאותיהן. אין בכך כדי לגרוע מהתחייבויות הלקוח לפי הסכם זה.');
+  // The references to the chapter's clauses 2 and 3 stay where they were.
+  const n = a.legal.indexOf(ch) + 1;
+  const all = a.legal.flatMap((s) => s.items).join('\n');
+  assert.match(all, new RegExp(`סעיף ${n}\.2`));
+  assert.match(all, new RegExp(`יחול סעיף ${n}\.3`));
+  // A price offer has neither.
+  const q = buildQuoteModel(sel('social', 'natali'), { name: 'x' });
+  assert.deepEqual([q.legal, q.legalVersion], [null, null]);
+});

@@ -24,8 +24,18 @@ const texts = (s) => exceptionOf(s).map((e) => e.text);
 const legalText = (m) => m.legal.map((s) => `${s.title} ${s.items.join(' ')}`).join(' ');
 
 test('regular selections are untouched: the same bytes as before custom contracts existed', () => {
-  // Taken from the engine as it was on 6.10.2026 (commit 4baede1), before this feature.
-  assert.deepEqual(regularFingerprint(), { count: 612, sha256: 'c050c8791427f54f3c18ffc422aa520b47a35ee4478271eca242776735c56ed6' });
+  // Taken from the engine as it was on 6.10.2026 (commit 4baede1), before this feature. The one
+  // deliberate change since: the wording's version 2 (27.10.2026, app/legal.js): the clause
+  // "חסימת פלטפורמות" at the end of the platforms chapter, and model.legalVersion. Without
+  // them every byte is as it was; with them, the fingerprint of version 2.
+  const v1 = (m) => {
+    if (!m.legal) { const { legalVersion, ...rest } = m; assert.equal(legalVersion, null); return rest; }
+    const { legalVersion, ...rest } = m;
+    assert.equal(legalVersion, 2);
+    return { ...rest, legal: m.legal.map((s) => (s.title === 'פלטפורמות וחסימת חשבונות' ? { ...s, items: s.items.filter((t) => !t.startsWith('חסימת פלטפורמות:')) } : s)) };
+  };
+  assert.deepEqual(regularFingerprint(v1), { count: 612, sha256: 'c050c8791427f54f3c18ffc422aa520b47a35ee4478271eca242776735c56ed6' });
+  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '654dce55e5fc1530ced6be4954137a44a40aa64d3bf6c7e70848dbb3fa3880a7' });
   for (const s of regularSelections()) {
     assert.deepEqual(exceptionOf(s), []);
     assert.equal(normalizeSelection(s), s);
