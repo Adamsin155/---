@@ -15,7 +15,7 @@
 -- it to supabase/migrations/20261112100100_new_influencers_checks.sql with the approval noted
 -- in its header). Safe to run again. Tested in tests/sql/new-influencers.test.mjs.
 -- Until it runs: a client with Niro or "הצל" and a field deal with them are refused, and a
--- signed agreement with them opens no client (the signature itself is kept).
+-- signed agreement with them opens its client with no shoot type yet (the office sets it later).
 
 alter table public.clients drop constraint if exists clients_shoot_type_check;
 alter table public.clients add constraint clients_shoot_type_check

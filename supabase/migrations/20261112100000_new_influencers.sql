@@ -21,7 +21,7 @@
 -- 'dms'; 20260929120000) and of deal_requests.influencer and .paid (20261003100000). A check
 -- can only be widened by taking it away first, which this file never does. Until those three
 -- are widened, a client with 'niro' or 'hatzel' and a field deal with them are refused, and
--- a signed agreement with them opens no client (the signing itself is never held back). The
+-- a signed agreement with them opens its client with no shoot type yet (set in the card). The
 -- widening waits for the owner's approval: supabase/pending/new_influencers_checks.sql.
 --
 -- Only adds, safe to run again (tests/sql/new-influencers.test.mjs).
@@ -110,6 +110,7 @@ declare
   cid uuid;
   months int;
   signed timestamptz;
+  v_type text;
 begin
   if new.status is distinct from 'signed' or old.status = 'signed' then
     return new;
@@ -127,14 +128,22 @@ begin
     end if;
     months := coalesce(round((m ->> 'termMonths')::numeric)::int, 12);
     signed := coalesce(new.signed_at, now());
+    v_type := case m -> 'selection' ->> 'influencer' when 'natali' then 'natali' when 'simeon' then 'dms'
+      when 'niro' then 'niro' when 'hatzel' then 'hatzel' end;
+    -- Until the check of clients.shoot_type takes Niro and "הצל" (the pending file), their client
+    -- still opens, with no shoot type yet (the office sets it in the card).
+    if v_type in ('niro', 'hatzel') and not exists (select 1 from pg_constraint
+        where conname = 'clients_shoot_type_check' and conrelid = 'public.clients'::regclass
+          and pg_get_constraintdef(oid) like '%' || v_type || '%') then
+      v_type := null;
+    end if;
     insert into public.clients (name, business, phone, package_name, shoot_type, deal_at, contract_end, quote_id, deliverables)
     values (
       coalesce(nullif(btrim(m -> 'client' ->> 'name'), ''), new.client_name),
       nullif(btrim(m -> 'client' ->> 'company'), ''),
       nullif(btrim(m -> 'client' ->> 'phone'), ''),
       concat_ws(' · ', m -> 'package' ->> 'tierName', m -> 'package' ->> 'influencer'),
-      case m -> 'selection' ->> 'influencer' when 'natali' then 'natali' when 'simeon' then 'dms'
-        when 'niro' then 'niro' when 'hatzel' then 'hatzel' end,
+      v_type,
       signed,
       ((signed at time zone 'Asia/Jerusalem')::date + make_interval(months => months))::date,
       new.id,

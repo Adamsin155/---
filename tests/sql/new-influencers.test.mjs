@@ -74,9 +74,12 @@ test('the pending file: only the three checks, each taken away by name and added
 test('before the approval: Niro and "הצל" are refused where a check lists the values; a signature is kept', async () => {
   await assert.rejects(db.query("insert into public.clients (name, shoot_type) values ('x', 'hatzel')"), /check/);
   await assert.rejects(deal('niro', []), /check/);
-  const { quote, client } = await sign(modelOf('social-niro'));
+  const { quote, client } = await sign(modelOf('social-niro', ['niro-reel']));
   assert.equal(quote.status, 'signed');
-  assert.equal(client, null);
+  // The client opens anyway, with its package and quantities, and no shoot type yet.
+  assert.equal(client.shoot_type, null);
+  assert.equal(client.package_name, 'Social + TV all in one · נירו לוי');
+  assert.equal(client.deliverables.collabs, 1);
 });
 
 test('after the approval: the deal, the client and the signing; runs twice', async () => {
