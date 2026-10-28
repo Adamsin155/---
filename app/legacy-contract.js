@@ -12,6 +12,7 @@ import {
   DOC_TITLES, typeOf, typeLabel, stampLine, longDayText, timeText, hashStamp, listOf, packageCounts,
   paymentFacts, termFacts, signersOf, historyLines, extraFacts, sketchesOf, statusOf, statusLabel, isSigned,
 } from './legacy-contract-logic.js';
+import { fullDoc } from './legacy-contract-full.js';
 
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('id') || '';
@@ -28,6 +29,34 @@ function showState(title, words, link) {
 const sectionHead = (title, aside) => h('div', { class: 'qd-sec-head' }, h('h2', {}, title), aside ? h('span', { class: 'qd-aside' }, aside) : null);
 const factsList = (rows, cls = '') => h('dl', { class: `lc-facts ${cls}` }, rows.map(([k, v]) => h('div', {}, h('dt', {}, k), h('dd', {}, v))));
 const section = (title, ...body) => h('section', { class: 'qd-section' }, sectionHead(title), ...body);
+
+// The whole document as its client read it (the owner, 28.10.2026; app/legacy-contract-full.js).
+// A text is a string, or strings and { b } (bold) one after the other.
+const words = (t) => (Array.isArray(t) ? t.map((x) => (x && typeof x === 'object' ? h('b', {}, x.b) : x)) : t);
+const withBreaks = (lines) => lines.flatMap((l, i) => (i ? [h('br'), ...[].concat(words(l))] : [].concat(words(l))));
+function part(p) {
+  switch (p.type) {
+    case 'h3': return h('h3', { class: 'lc-h3' }, words(p.text));
+    case 'h4': return h('h4', { class: 'lc-h4' }, words(p.text));
+    case 'p': return h('p', { class: 'lc-p' }, p.lines ? withBreaks(p.lines) : words(p.text));
+    case 'ul': return h('ul', { class: 'qd-checks' }, p.items.map((i) => h('li', { class: i.star ? 'lc-star' : null }, i.star ? '⭐ ' : null, words(i.text))));
+    case 'kpis': return h('div', { class: 'qd-grid' }, p.items.map((x) => h('div', { class: 'qd-cell' }, h('div', { class: 'qd-cell-n num' }, x.n), h('div', { class: 'qd-cell-l' }, x.l))));
+    case 'tiles': return h('div', { class: 'lc-tiles' }, p.items.map((x) => h('div', { class: 'lc-tile' }, h('b', { class: 'num' }, x.n), h('span', {}, x.l))));
+    case 'addons': return h('div', { class: 'lc-addons' }, p.items.map((a) => h('div', { class: 'lc-addon' },
+      h('div', {}, h('b', {}, a.name), a.detail ? h('i', {}, a.detail) : null),
+      a.free ? h('span', { class: 'lc-free' }, 'ללא עלות') : h('div', { class: 'lc-amt' }, h('span', { class: 'num' }, a.amount), h('small', {}, a.note)))));
+    case 'table': return h('div', { class: 'lc-table-wrap' }, h('table', { class: 'lc-table' },
+      p.head ? h('thead', {}, h('tr', {}, p.head.map((c) => h('th', {}, c)))) : null,
+      h('tbody', {}, p.rows.map((r) => h('tr', { class: r.cls || null }, r.cells.map((c, i) => h('td', { class: i ? 'num' : null }, c,
+        !i && r.detail ? h('div', { class: 'lc-qd' }, r.detail) : null)))))));
+    default: return null;
+  }
+}
+function fullSections(model) {
+  return model.sections.map((sec) => h('section', { class: `qd-section${sec.terms ? ' lc-terms' : ''}` },
+    sec.title ? h('div', { class: 'qd-sec-head' }, h('h2', {}, words(sec.title))) : null,
+    ...sec.parts.map(part)));
+}
 
 function bullets(title, list) {
   const items = listOf(list);
@@ -148,8 +177,22 @@ export function renderLegacyDoc(row) {
       sigStamp ? h('span', { class: 'num', dir: 'ltr', title: 'טביעת החתימה (SHA-256)' }, `SIG ${sigStamp}`) : null),
   );
 
+  // The whole text as the old system showed it; the summary above only when it cannot be built.
+  const model = fullDoc(doc);
+  const pkgLine = model?.kind === 'contract' && (doc.packageName || inf) && !doc.noServices
+    ? h('p', { class: 'lc-pkgline' }, doc.packageName ? h('b', {}, doc.packageName) : null, doc.packageName && inf ? ' · ' : null, inf || null) : null;
+  const body = model ? [pkgLine, ...fullSections(model), termination] : [pkg, pkgBullets, extraBullets, money, termination, custom, notes];
+  if (model) header.querySelector('h1').textContent = status === 'quote' ? 'הצעת מחיר' : model.title;
+  // What the record holds and the document's text does not say (the payment method of a contract
+  // with its own clauses, the termination's details): after the signatures, nothing lost.
+  const kept = model ? pay : [];
+  const record = kept.length || (model && typeof doc.paymentSummary === 'string' && doc.paymentSummary.trim())
+    ? h('section', { class: 'qd-section lc-record', id: 'lc-record' }, sectionHead('פרטים מהרשומה במערכת הישנה'),
+      kept.length ? factsList(kept, 'lc-money') : null,
+      typeof doc.paymentSummary === 'string' && doc.paymentSummary.trim() ? h('p', { class: 'qd-notes' }, doc.paymentSummary.trim()) : null)
+    : null;
   return h('article', { class: `qd qd--agreement lc-doc lc-${type}`, dir: 'rtl', lang: 'he', id: 'lc-doc' },
-    header, stamp, parties, parent, pkg, pkgBullets, extraBullets, money, termination, custom, special, notes, sketches, signature, more, foot);
+    header, stamp, parties, parent, ...body, special, sketches, signature, record, more, foot);
 }
 
 async function main() {
