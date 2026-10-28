@@ -151,6 +151,9 @@ dialog:not(.dlg-wide) > form > .dlg-body { padding-bottom: 8px; }
 /* The number a month on a row of its own (with its hint); the month that differs and its number side by side. */
 #dlg-edit #ed-month > .field:first-child { grid-column: 1 / -1; }
 #dlg-edit #ed-month-n { inline-size: min(100%, 320px); }
+/* 16px: no zoom on focus in iOS (the details are typed on the phone too, with the email and
+   the company number since 28.10.2026). */
+#dlg-edit .input { font-size: 16px; }
 #dlg-edit .fs, dialog .fs { border-color: var(--ds-line); border-radius: var(--ds-r-item); min-width: 0; }
 #dlg-edit .fs legend.k-h { display: inline-flex; }
 dialog label.only { align-items: flex-start; min-height: 44px; }

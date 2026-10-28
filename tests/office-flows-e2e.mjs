@@ -25,7 +25,7 @@
 //    "אפיון מהמערכת הישנה" (390px), opened: the filled text readable, the brief and the raw
 //    answers in their own rows; the editor reads it on the card and on her page.
 // Run: npx http-server -p 8080 -s . &  then  node tests/office-flows-e2e.mjs [outDir]
-import { chromium } from 'playwright';
+import { chromium, webkit, devices } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 
@@ -1289,6 +1289,141 @@ await step('a monthly client: Irit sets "סרטונים בחודש" and October\
   await card2.locator('.ed-count-s', { hasText: 'נשמר' }).waitFor();
   assert.deepEqual(db.editor_progress_month.filter((x) => x.client_id === V.id).map((x) => [x.month, x.edited]), [['2026-10', 5], ['2026-11', 1]]);
   await n2.close();
+});
+
+// A monthly shoot day, and the client's email and company number (the owner, 28.10.2026): the
+// switch "יום צילום חודשי" next to "סרטונים בחודש" (deliverables.shoot_monthly), and "אימייל"
+// and "ח.פ / ת.ז" next to the phone (the office's, through clients_contact()). Typed key by key
+// and deleted with Backspace, in Chromium and in WebKit as an iPhone 13.
+// Types `text` into a field key by key, deletes `back` characters with Backspace, and returns
+// what the field holds after each part.
+async function typeKeys(page, sel, text, back = 0) {
+  await page.locator(sel).click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(text, { delay: 40 });
+  const typed = await page.inputValue(sel);
+  for (let i = 0; i < back; i += 1) await page.keyboard.press('Backspace');
+  return [typed, await page.inputValue(sel)];
+}
+async function detailsFlow(page, who, shots) {
+  await signIn(page, `client.html?id=${V.id}`, who);
+  await page.waitForSelector('#btn-edit');
+  await page.click('#btn-edit');
+  await page.waitForSelector('#dlg-edit[open]');
+  assert.equal(await page.isChecked('#ed-shoot-monthly'), false);
+  // The switch, tapped (a real tap on the phone), beside "סרטונים בחודש".
+  await page.locator('#ed-shoot-monthly').scrollIntoViewIfNeeded();
+  if (shots.tap) await page.locator('#ed-shoot-monthly').tap(); else await page.locator('#ed-shoot-monthly').click();
+  assert.equal(await page.isChecked('#ed-shoot-monthly'), true);
+  // The email and the company number, typed key by key; a mistake taken back with Backspace.
+  await page.fill('#ed-email', '');
+  assert.deepEqual(await typeKeys(page, '#ed-email', 'Ruth@Shtihim.co.ilX', 1), ['Ruth@Shtihim.co.ilX', 'Ruth@Shtihim.co.il']);
+  await page.fill('#ed-company-id', '');
+  assert.deepEqual(await typeKeys(page, '#ed-company-id', '51-472-993-89', 1), ['51-472-993-89', '51-472-993-8']);
+  // Wrong ones are refused, with the field named; then right.
+  await typeKeys(page, '#ed-company-id', '', 4);
+  assert.equal(await page.inputValue('#ed-company-id'), '51-472-9');
+  await page.click('#ed-submit');
+  assert.match(await page.innerText('#ed-err'), /^ח\.פ \/ ת\.ז: צריך 9 ספרות, ונכתבו 6\.$/);
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'ed-company-id');
+  assert.deepEqual(await typeKeys(page, '#ed-company-id', '93-8'), ['51-472-993-8', '51-472-993-8']);
+  assert.deepEqual(await typeKeys(page, '#ed-email', '', 6), ['Ruth@Shtihim.co.il', 'Ruth@Shtihim']);
+  await page.click('#ed-submit');
+  assert.match(await page.innerText('#ed-err'), /^האימייל לא נראה תקין/);
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'ed-email');
+  await typeKeys(page, '#ed-email', '.co.il');
+  assert.equal(await page.inputValue('#ed-email'), 'Ruth@Shtihim.co.il');
+  assert.deepEqual(await unlabeled(page, '#dlg-edit'), []);
+  assert.ok(await noHScroll(page), 'the details dialog scrolls sideways');
+  // 16px, so iOS does not zoom in on focus (the whole dialog's fields), and 44px to tap.
+  for (const sel of ['#ed-email', '#ed-company-id', '#ed-phone']) {
+    assert.equal(await page.locator(sel).evaluate((el) => getComputedStyle(el).fontSize), '16px', sel);
+    assert.ok((await page.locator(sel).boundingBox()).height >= 44, sel);
+  }
+  if (shots.fields) {
+    await page.locator('#ed-email').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: shots.fields });
+  }
+  if (shots.switch) {
+    // The screen as it is (an element shot of a scrolled dialog comes out wrong in WebKit).
+    await page.locator('#ed-shoot-monthly-h').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await page.screenshot({ path: shots.switch });
+  }
+  await page.click('#ed-submit');
+  await toastHas(page, 'הפרטים נשמרו');
+  // Saved, and kept: the deliverables keep the monthly videos too.
+  assert.equal(V.deliverables.shoot_monthly, true);
+  assert.equal(V.deliverables.videos_month, 8);
+  assert.deepEqual([V.contact_email, V.company_id], ['ruth@shtihim.co.il', '514729938']);
+  // After a reload: the card shows them with the phone, the package block the switch, and the dialog keeps it.
+  // After a reload (Chromium; WebKit with the fixed clock loses this fake's session on a
+  // reload, so there the card drawn again from the saved row is read).
+  if (!shots.tap) await page.reload();
+  await page.waitForSelector('#btn-edit');
+  const facts = (await page.locator('.cc-facts').innerText()).replace(/\s+/g, ' ');
+  assert.match(facts, /אימייל ruth@shtihim\.co\.il/);
+  assert.match(facts, /ח\.פ \/ ת\.ז 514729938/);
+  await page.locator('#deliv-shoot-monthly').waitFor({ state: 'attached' });
+  await page.click('#btn-edit');
+  await page.waitForSelector('#dlg-edit[open]');
+  assert.equal(await page.isChecked('#ed-shoot-monthly'), true);
+  assert.equal(await page.inputValue('#ed-email'), 'ruth@shtihim.co.il');
+  assert.equal(await page.inputValue('#ed-company-id'), '514729938');
+  // Off again: the key goes, nothing else does.
+  if (shots.tap) await page.locator('#ed-shoot-monthly').tap(); else await page.locator('#ed-shoot-monthly').click();
+  await page.click('#ed-submit');
+  await toastHas(page, 'הפרטים נשמרו');
+  assert.equal('shoot_monthly' in V.deliverables, false);
+  assert.equal(V.deliverables.videos_month, 8);
+  // Back on, as the client is.
+  await page.click('#btn-edit');
+  await page.waitForSelector('#dlg-edit[open]');
+  await page.locator('#ed-shoot-monthly').check();
+  await page.click('#ed-submit');
+  await toastHas(page, 'הפרטים נשמרו');
+  assert.equal(V.deliverables.shoot_monthly, true);
+}
+
+await step('"יום צילום חודשי", "אימייל" and "ח.פ / ת.ז": Irit turns the switch on and types both key by key (390px and 1280px), saved and kept; an editor sees neither', async () => {
+  const ictx = await newContext(THU, { width: 390, height: 844 });
+  const irit = await newPage(ictx);
+  await detailsFlow(irit, 'irit', OUT ? { fields: `${OUT}/office-18-contact-fields-390.png`, switch: `${OUT}/office-18-shoot-monthly-390.png` } : {});
+  await ictx.close();
+  // 1280px, the owner, from empty again.
+  Object.assign(V, { contact_email: null, company_id: null });
+  V.deliverables = { ...V.deliverables }; delete V.deliverables.shoot_monthly;
+  const octx2 = await newContext(THU, { width: 1280, height: 900 });
+  const owner = await newPage(octx2);
+  await detailsFlow(owner, 'owner', OUT ? { switch: `${OUT}/office-18-shoot-monthly-1280.png` } : {});
+  await owner.locator('#fold-contract > summary').click();
+  await owner.locator('#deliv-shoot-monthly').scrollIntoViewIfNeeded();
+  assert.equal((await owner.locator('#deliv-shoot-monthly').textContent()).replace(/\s+/g, ' ').trim(), 'יום צילום חודשיבסוף כל חודש עירית מקבלת תזכורת לקבוע את יום הצילום של החודש הבא.שינוי');
+  if (OUT) await owner.locator('section.deliv').screenshot({ path: `${OUT}/office-18-shoot-monthly-package-1280.png` });
+  await octx2.close();
+  // Nadia, the editor: no email and no company number on her card, however the page asks.
+  const nctx = await newContext(THU, { width: 390, height: 844 });
+  const nadia = await newPage(nctx);
+  await signIn(nadia, `client.html?id=${V.id}`, 'nadia');
+  await nadia.waitForSelector('#cc-head h1');
+  const head = await nadia.locator('#cc-head').innerText();
+  assert.doesNotMatch(head, /ruth@shtihim|514729938|אימייל|ח\.פ/);
+  await nctx.close();
+});
+
+await step('the same on an iPhone 13 (WebKit): the switch tapped, both fields typed key by key and deleted with Backspace, saved and kept', async () => {
+  const safari = await webkit.launch();
+  try {
+    Object.assign(V, { contact_email: null, company_id: null });
+    V.deliverables = { ...V.deliverables }; delete V.deliverables.shoot_monthly;
+    const ctx = await safari.newContext({ ...devices['iPhone 13'], locale: 'he-IL', timezoneId: 'Asia/Jerusalem' });
+    await ctx.clock.install({ time: THU });
+    await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
+    const page = await newPage(ctx);
+    await detailsFlow(page, 'irit', { tap: true, ...(OUT ? { fields: `${OUT}/office-18-contact-fields-iphone13-webkit.png`, switch: `${OUT}/office-18-shoot-monthly-iphone13-webkit.png` } : {}) });
+    await ctx.close();
+  } finally {
+    await safari.close();
+  }
 });
 
 await step('the old system\'s signed documents: the owner imports through the page, the card lists them (390px), "פתיחה" shows the document read-only; an editor reads none', async () => {
