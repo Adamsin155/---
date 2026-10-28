@@ -146,9 +146,9 @@ export function termFacts(t) {
 export function signersOf(doc, row = {}) {
   if (row.status && !isSigned(row)) return [];
   const many = Array.isArray(doc.signers) ? doc.signers.filter((s) => s && typeof s === 'object' && (s.name || s.signature)) : [];
-  const list = many.length ? many.map((s) => ({ name: text(s.name), png: s.signature, at: s.signedAt ?? s.at }))
-    : [{ name: row.signer_name || text(doc.signerName), png: row.signature || doc.signature, at: row.signed_at ?? doc.signedAt }];
-  return list.map((s) => ({ name: s.name || null, png: isSignaturePng(s.png) ? s.png : null, at: timeText(s.at) }))
+  const list = many.length ? many.map((s) => ({ name: text(s.name), png: s.signature, at: s.signedAt ?? s.at, id: text(s.idNo), idLabel: text(s.idLabel), ip: text(s.ip ?? s.signedIp) }))
+    : [{ name: row.signer_name || text(doc.signerName), png: row.signature || doc.signature, at: row.signed_at ?? doc.signedAt, id: text(doc.hp), idLabel: 'ח״פ', ip: text(doc.signedIp), ua: text(doc.signedUserAgent) }];
+  return list.map((s) => ({ name: s.name || null, png: isSignaturePng(s.png) ? s.png : null, at: timeText(s.at), id: s.id || null, idLabel: s.idLabel || 'ח״פ', ip: s.ip || null, ua: s.ua || null }))
     .filter((s) => s.name || s.png || s.at);
 }
 
@@ -162,7 +162,10 @@ export function historyLines(v) {
     const at = timeText(e.at ?? e.time ?? e.date ?? e.signedAt);
     const what = text(e.event ?? e.action ?? e.type ?? e.status);
     const who = text(e.name ?? e.by ?? e.signerName);
-    const parts = [at, what ? EVENTS[what] || what : null, who].filter(Boolean);
+    // The device of the signing, as the old system kept it (28.10.2026: everything is copied).
+    const ip = text(e.ip ?? e.signedIp);
+    const ua = text(e.userAgent ?? e.ua ?? e.signedUserAgent);
+    const parts = [at, what ? EVENTS[what] || what : null, who, ip ? `IP ${ip}` : null, ua].filter(Boolean);
     return parts.length ? parts.join(' · ') : null;
   }).filter(Boolean);
 }

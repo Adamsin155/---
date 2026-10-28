@@ -476,8 +476,15 @@ function renderCustom() {
   group.classList.toggle('is-on', on);
   $('custom-on').checked = on;
   $('custom-body').hidden = !on;
-  $('disc-meta').textContent = on ? 'בחוזה מותאם: כל סכום · מעל 200 ₪ נדרש אישור מנהל' : 'עד 200 ₪ לחודש · לפני מע״מ';
+  // The limit with no approval follows the package: 800 ₪ in a podcast, 200 ₪ in the rest (28.10.2026).
+  const free = maxDiscountFor(state.tier) / 100;
+  $('disc-meta').textContent = on ? `בחוזה מותאם: כל סכום · מעל ${free} ₪ נדרש אישור מנהל` : `עד ${free} ₪ לחודש · לפני מע״מ`;
   $('discount').max = String(discountMax());
+  // A podcast's 800 ₪, then another package: the discount comes down to what that package allows.
+  if (!on && (state.discount || 0) > discountMax() * 100) {
+    state = { ...state, discount: discountMax() * 100 };
+    $('discount').value = String(state.discount / 100);
+  }
   if (!on) return;
   // The price went under the discount: the discount follows it down.
   if ((state.discount || 0) > discountMax() * 100) {

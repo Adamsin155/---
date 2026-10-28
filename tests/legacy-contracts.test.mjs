@@ -131,7 +131,7 @@ const OLD = [
 ];
 const UUIDS = { 10: 'u-10', 12: 'u-12' };
 
-test('importAll: signed, waiting and price offers, each with its client; no client is skipped; another state is listed; a failure is reported; nothing private is sent', async () => {
+test('importAll: signed, waiting and price offers, each with its client; no client is skipped; another state is listed; a failure is reported; everything of the record is sent (28.10.2026)', async () => {
   const sb = fakeSupabase(new Set([5]));
   const r = await importAll(sb, OLD, (id) => UUIDS[id] || null);
   assert.deepEqual(r, { ok: [1, 6, 7, 4], skipped: [{ id: 8, clientId: 99, clientName: 'לא קיים' }, { id: 3, clientId: 99, clientName: 'לא קיים' }],
@@ -139,7 +139,7 @@ test('importAll: signed, waiting and price offers, each with its client; no clie
   assert.deepEqual(sb.calls.map(([n, a]) => [n, a.p_client, a.p_doc.id, a.p_doc.status]), [['legacy_contract_import', 'u-10', 1, 'נחתם'], ['legacy_contract_import', 'u-10', 6, 'ממתין לחתימה'],
     ['legacy_contract_import', 'u-12', 7, 'הצעת מחיר'], ['legacy_contract_import', 'u-10', 4, 'נחתם'], ['legacy_contract_import', 'u-12', 5, 'נחתם']]);
   const sent = sb.calls[0][1].p_doc;
-  for (const k of ['signedIp', 'signedUserAgent', 'phone', 'hp']) assert.ok(!(k in sent), k);
+  assert.deepEqual([sent.signedIp, sent.signedUserAgent, sent.phone, sent.hp], ['1.2.3.4', 'UA', '050', '51']);
   assert.equal(sent.signature, PNG);
   assert.equal(OLD[0].signedIp, '1.2.3.4', 'the file read is left as it was');
   // An async mapper, and one that throws, are both fine.

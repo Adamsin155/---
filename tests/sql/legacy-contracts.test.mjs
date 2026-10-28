@@ -105,12 +105,12 @@ test('the owner imports: the columns from the record, the type, the amounts and 
   assert.equal(a.signature, null);
 });
 
-test('the stored document: no IP, browser, phone or company number, even when sent, at any depth', async () => {
+test('the stored document: everything of it, the company number, the phone and the signing's device too (the owner, 28.10.2026)', async () => {
+  // Until 20261112200000_legacy_contracts_full.sql these were taken out; now the record is kept whole.
   const { doc } = await stored(1017);
-  for (const k of ['signedIp', 'signedUserAgent', 'phone', 'hp']) assert.ok(!(k in doc), k);
-  assert.deepEqual(doc.signHistory, [{ at: '2025-03-02T09:00:00.000Z', event: 'signed' }]);
-  assert.deepEqual(Object.keys(doc.signers[0]).sort(), ['name', 'signature', 'signedAt']);
-  assert.doesNotMatch(JSON.stringify(doc), /1\.2\.3\.4|Mozilla|050-1234567|512345678/);
+  assert.deepEqual([doc.hp, doc.phone, doc.signedIp, doc.signedUserAgent], ['512345678', '050-1234567', '1.2.3.4', 'Mozilla/5.0']);
+  assert.deepEqual(doc.signHistory, [{ at: '2025-03-02T09:00:00.000Z', event: 'signed', ip: '1.2.3.4', userAgent: 'Mozilla' }]);
+  assert.deepEqual(Object.keys(doc.signers[0]).sort(), ['ip', 'name', 'phone', 'signature', 'signedAt']);
   // What is needed to read it is kept as it was.
   assert.deepEqual(doc.customClauses, ['סעיף מיוחד', { title: 'בלעדיות', text: 'אין' }]);
   assert.equal(doc.docHash, 'a'.repeat(64));

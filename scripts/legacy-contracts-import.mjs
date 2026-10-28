@@ -22,15 +22,14 @@
 //      It computes the client of each document here (clientUuid may read local files), then runs
 //      importAll in the page with the page's own signed-in client (app/supa.js).
 //   Or with any signed-in supabase client of the owner: await importAll(supabase, contracts, clientUuid).
-// What identifies the signer's device or number (signedIp, signedUserAgent, phone, hp) is taken
-// out before sending; the database takes it out again (also inside the signers and the history).
+// Everything of the record is sent, the company number, the phone and the signing's device included
+// (the owner, 28.10.2026: "להעתיק הכל"; until then they were taken out).
 
 // The old system's word for each state, and the new one's (public.legacy_contracts.status).
 export const STATUS = { 'נחתם': 'signed', 'ממתין לחתימה': 'pending', 'הצעת מחיר': 'quote' };
 export const statusOf = (c) => STATUS[String(c?.status ?? '').trim()] || null;
 
 export async function importAll(supabase, contracts, clientUuid) {
-  const PRIVATE = ['signedIp', 'signedUserAgent', 'phone', 'hp'];
   // As STATUS above, here again: importInPage sends this function's own text to the page.
   const KNOWN = ['נחתם', 'ממתין לחתימה', 'הצעת מחיר'];
   const out = { ok: [], skipped: [], other: [], failed: [] };
@@ -42,7 +41,6 @@ export async function importAll(supabase, contracts, clientUuid) {
     try { uuid = await clientUuid(c.clientId); } catch { uuid = null; }
     if (!uuid) { out.skipped.push({ id: c.id, clientId: c.clientId ?? null, clientName: c.clientName ?? null }); continue; }
     const doc = { ...c, status };
-    for (const k of PRIVATE) delete doc[k];
     try {
       const { error } = await supabase.rpc('legacy_contract_import', { p_client: uuid, p_doc: doc });
       if (error) out.failed.push({ id: c.id, error: error.message || String(error) });

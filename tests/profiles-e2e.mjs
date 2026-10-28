@@ -420,7 +420,7 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\'; Ir
   assert.equal(await page.locator('#rows tr').count(), 3);
   assert.equal(await page.locator('#th-amt').isVisible(), true);
   assert.equal(await page.locator('#rows td.amt').count(), 3);
-  assert.match(await page.innerText('#stats'), /חודשי בהצעות חתומות/);
+  assert.match(await page.innerText('#stats'), /נחתם החודש · כולל מע״מ/);
   assert.match(await page.innerText('#stats'), MONEY);
   await shot(page, 'quotes-owner-1366');
   await ctx.close();
@@ -432,7 +432,7 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\'; Ir
   assert.equal(await i.page.locator('#th-amt').isVisible(), false);
   assert.equal(await i.page.locator('#rows td.amt').count(), 0);
   assert.equal(MONEY.test(await i.page.innerText('main')), false, 'no amount anywhere on Irit\'s list');
-  assert.equal(/חודשי בהצעות חתומות/.test(await i.page.innerText('#stats')), false);
+  assert.equal(/נחתם החודש · כולל מע״מ/.test(await i.page.innerText('#stats')), false);
   assert.ok(await i.page.locator('#rows [data-act="edit"], #rows button').count() > 0, 'her actions are there');
   assert.equal(await i.page.locator('#no-access').isVisible(), false);
   await shot(i.page, 'quotes-irit-1366');
