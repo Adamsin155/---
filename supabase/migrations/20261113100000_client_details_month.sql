@@ -1,5 +1,5 @@
 -- The owner's requests of 28.10.2026 for the client's details, the database's part
--- (docs/ops.md, section 71).
+-- (docs/ops.md, section 72).
 --
 -- The client's email ("אימייל") and company number ("ח.פ", or an ID number, "ת.ז"), filled
 -- by the office in "עריכת פרטים" (app/client-card.js, app/client-contact.js):

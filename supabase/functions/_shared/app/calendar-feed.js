@@ -23,7 +23,7 @@
 // and the characterizer at the meeting (Ofir or Lior). No phone number of a client
 // is ever written into a feed, and no internal note: a title, a time, a place for
 // those who need it, and a link to the card (which asks to sign in).
-import { PEOPLE, SOLO, PASS_OWNER, isEditorOf, isSolo, crewOf, eliFilms, crewWords, shootTypeName } from './protocol.js';
+import { PEOPLE, SOLO, PASS_OWNER, isEditorOf, isSolo, crewOf, eliFilms, crewWords, shootTypeName, isStarDay } from './protocol.js';
 import { clientState, itemsOf, isResolved, roundsOf, roundContext, parseDate, isImported, isBusinessDay, weekKey, isDayEnd } from './protocol-logic.js';
 import { dayKeyIL, addDaysIL, atTimeIL, weekdayIL, partsIL, startOfDayIL, dayFromKeyIL, TZ } from './tz.js';
 
@@ -84,7 +84,8 @@ export function visibleTo(person, client, tasks = [], now = new Date()) {
   if (isEditorOf(client, person) || roundsOf(client).some((r) => isEditorOf(r, person))) return true;
   const recent = now.getTime() - 30 * DAY;
   if (tasks.some((t) => t.client_id === client.id && t.owner === person && (!t.done_at || new Date(t.done_at).getTime() > recent))) return true;
-  if (person === 'nirel' && client.shoot_type === 'natali') return true;
+  // Every client of a star's day (Natali's; Niro's and those of "הצל" since 28.10.2026).
+  if (person === 'nirel' && isStarDay(client.shoot_type)) return true;
   if (person === 'eli') return contextsOf(client).some((x) => inEliWindow(parseDate(x.ctx.shoot_at), now));
   return false;
 }

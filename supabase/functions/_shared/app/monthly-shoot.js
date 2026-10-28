@@ -5,7 +5,7 @@
 // client's deliverables say `shoot_monthly: true` (no column, no migration: deliverables
 // is a free jsonb object, as for videos_month). On the last business day of every Israel
 // month Irit is reminded to set the next month's shoot day with each such client (rule
-// `monthlyShoot` in app/reminder-rules.js; docs/ops.md, section 71).
+// `monthlyShoot` in app/reminder-rules.js; docs/ops.md, section 72).
 import { isBusinessDay, roundsOf, parseDate } from './protocol-logic.js';
 import { dateIL, partsIL, addDaysIL } from './tz.js';
 

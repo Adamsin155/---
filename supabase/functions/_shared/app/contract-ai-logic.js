@@ -22,8 +22,8 @@
 // talks to the network, and nothing here decides a price: a price is either the one written in
 // the text or the package's own.
 import {
-  VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS,
-  MAX_DISCOUNT, CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS, packageId,
+  VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, STARS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS,
+  MAX_DISCOUNT, MAX_DISCOUNT_PODCAST, maxDiscountFor, CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS, packageId,
 } from './catalog.js';
 import {
   emptySelection, reconcile, baseQuantities, computeTotals, normalizeSelection,
@@ -59,7 +59,8 @@ const wholeShekels = (agorot) => Math.round(agorot / 100) * 100;
 
 const ELIGIBILITY = {
   all: 'any package',
-  natali: `only packages with ${INFLUENCERS.natali.name}`,
+  // A star's own reel and story (Natali; Niro and "הצל" since 28.10.2026).
+  ...Object.fromEntries(STARS.map((inf) => [inf, `only packages with ${INFLUENCERS[inf].name}`])),
   'simeon-social': `only the Social and Social + TV packages with ${INFLUENCERS.simeon.name}`,
 };
 
@@ -99,7 +100,7 @@ export function catalogText() {
     `${TERM_MONTHS} months unless the deal says otherwise; ${CUSTOM_LIMITS.termMin}–${CUSTOM_LIMITS.termMax} months.`,
     '## Price and discount',
     `- The package's monthly price before VAT can be set by hand, up to ${ils(CUSTOM_LIMITS.priceMax)}.`,
-    `- A monthly discount before VAT: up to ${ils(MAX_DISCOUNT)} is regular; a larger one is allowed in a custom contract. It can never be more than the monthly price.`,
+    `- A monthly discount before VAT: up to ${ils(MAX_DISCOUNT)} is regular (up to ${ils(MAX_DISCOUNT_PODCAST)} in a podcast package); a larger one is allowed in a custom contract. It can never be more than the monthly price.`,
     '## Extra lines',
     `Things that are sold but are in no package (for example "אתר תדמית"): up to ${CUSTOM_LIMITS.lines} lines, each a label of up to ${CUSTOM_LIMITS.lineLabel} characters, an optional quantity and an optional monthly price.`,
     '## Special terms',
@@ -442,7 +443,7 @@ export function applyAiResult(current, result) {
     summary.push(`הנחה: ${formatILS(discount)} לחודש לפני מע״מ`);
   }
 
-  const customOn = Object.keys(custom).length > 0 || (sel.discount || 0) > MAX_DISCOUNT;
+  const customOn = Object.keys(custom).length > 0 || (sel.discount || 0) > maxDiscountFor(sel.tier);
   const next = reconcile(customOn ? { ...sel, custom } : sel).selection;
   return { selection: next, marks, summary, skipped };
 }

@@ -1259,7 +1259,7 @@ mountSession(async (staff) => {
   }
   $('ed-h1').textContent = isNirel() ? 'העריכה והבריפים שלי' : 'הלקוחות שלי בעריכה';
   $('ed-sub').textContent = isNirel()
-    ? 'הלקוחות של נטלי שבעריכה אצלך, ומתחת הבריפים מכל לקוח.'
+    ? 'הלקוחות של נטלי, נירו והצל שבעריכה אצלך, ומתחת הבריפים מכל לקוח.'
     : 'לכל לקוח: באיזה יום את/ה, עד מתי, וכפתור אחד לשלב הבא.';
   mountPush({ who: me, card: $('push-card'), button: $('btn-inbox'), dialog: $('dlg-inbox'), changed: () => {} });
   await load();

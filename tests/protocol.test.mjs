@@ -312,8 +312,9 @@ test('completion time is kept for the performance report', () => {
 
 test('package quantities in the database match the catalog', async () => {
   const { SPECS } = await import('../app/catalog.js');
-  const sql = readFileSync(new URL('../supabase/migrations/20260929160000_client_protocol_batch2.sql', import.meta.url), 'utf8');
-  const rows = Object.fromEntries([...sql.matchAll(/\('([a-z-]+)', (\d+), (\d+), (\d+), (\d+), (\d+), (\d+)\)/g)].map((m) => [m[1], m.slice(2).map(Number)]));
+  // The latest definition of public.package_deliverables (with Niro's and "הצל"'s packages, 28.10.2026).
+  const sql = readFileSync(new URL('../supabase/migrations/20261112100000_new_influencers.sql', import.meta.url), 'utf8');
+  const rows = Object.fromEntries([...sql.matchAll(/\('([a-z-]+)', (\d+), (\d+), (\d+), (\d+), (\d+), (\d+), \d+\)/g)].map((m) => [m[1], m.slice(2, 8).map(Number)]));
   assert.deepEqual(Object.keys(rows).sort(), Object.keys(SPECS).sort());
   for (const [id, s] of Object.entries(SPECS)) assert.deepEqual(rows[id], [s.videos, s.graphics, s.shootDays, s.collabs, s.stories, s.ch14], id);
 });

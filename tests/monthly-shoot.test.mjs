@@ -1,4 +1,4 @@
-// A monthly shoot day (the owner's request of 28.10.2026; docs/ops.md, section 71):
+// A monthly shoot day (the owner's request of 28.10.2026; docs/ops.md, section 72):
 // the switch in the client's deliverables (app/monthly-shoot.js) and Irit's ring on the
 // last business day of every Israel month at 10:00 (rule monthlyShoot in
 // app/reminder-rules.js). npm test runs this under UTC, New York and Jerusalem.

@@ -17,11 +17,14 @@ const FREE = [
 ];
 const DISCOUNTS = [0, 10000, 20000];
 
-export function regularSelections() {
+// `influencers`: whose packages (every one by default). The fingerprint is of the two the
+// builder had on 6.10.2026; Niro and "הצל" (28.10.2026) are checked beside it, not in it.
+export const FINGERPRINT_INFLUENCERS = ['natali', 'simeon'];
+export function regularSelections(influencers = Object.keys(INFLUENCERS)) {
   const out = [];
   for (const docType of ['quote', 'agreement']) {
     for (const tier of TIERS) {
-      for (const inf of Object.keys(INFLUENCERS)) {
+      for (const inf of influencers) {
         const probe = { ...emptySelection(), docType, tier: tier.id, influencer: inf };
         const avail = PAID_ADDONS.filter((a) => paidAddonAvailable(a, probe));
         for (let mask = 0; mask < 1 << avail.length; mask += 1) {
@@ -42,7 +45,7 @@ export function regularSelections() {
 // deliberate change of the wording added, to show nothing else moved).
 export function regularFingerprint(shape = (m) => m) {
   const hash = createHash('sha256');
-  const list = regularSelections();
+  const list = regularSelections(FINGERPRINT_INFLUENCERS);
   for (const sel of list) {
     hash.update(JSON.stringify(shape(buildQuoteModel(sel, CLIENT))));
     hash.update(JSON.stringify(computeTotals(sel)));

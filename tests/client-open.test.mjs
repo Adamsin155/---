@@ -20,7 +20,7 @@ test('the 8 stations cover every process once, in protocol order', () => {
 });
 
 test('the shoot type comes from the package in the catalog', () => {
-  for (const [id, p] of Object.entries(PACKAGES)) assert.equal(shootTypeOf(id), p.influencer === 'natali' ? 'natali' : 'dms', id);
+  for (const [id, p] of Object.entries(PACKAGES)) assert.equal(shootTypeOf(id), { natali: 'natali', simeon: 'dms', niro: 'niro', hatzel: 'hatzel' }[p.influencer], id);
   assert.equal(shootTypeOf(''), null);
   assert.equal(shootTypeOf('old-package'), null);
 });
@@ -35,7 +35,7 @@ test('packages are shown by name, as the signing trigger writes them', () => {
 test('quantities follow the package, with the agreement add-ons when there are any', () => {
   const d = dealDeliverables('social-natali');
   assert.equal(d.videos, SPECS['social-natali'].videos);
-  assert.equal(d.graphics, 35);
+  assert.equal(d.graphics, 36); // 36 and 36 since 28.10.2026
   assert.equal(d.shoot_days, 1);
   const withAddons = dealDeliverables('social-simeon', { paid: ['simeon-day', 'photographer'], free: { graphics: 4 } });
   assert.equal(withAddons.graphics, 39);

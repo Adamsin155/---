@@ -6,6 +6,13 @@
 import { PACKAGES, PAID_ADDONS, SPECS, INFLUENCERS, TIERS, TERM_MONTHS, packageId } from '../catalog.js';
 import { validateSelection } from '../pricing.js';
 
+// The influencer families this system pays (payout_incomes.family, the commission rates, the
+// influencer tabs, the production costs per package). Niro and "הצל" (the builder's since
+// 28.10.2026) are not here yet: their rates, costs and add-on items wait for the owner, so a
+// deal of theirs is not offered until then (the deal's and the income's pickers list these).
+export const PAYOUT_FAMILIES = ['natali', 'simeon'];
+export const payoutInfluencers = () => PAYOUT_FAMILIES.map((f) => INFLUENCERS[f]);
+
 // Cost items the engine knows how to derive from a deal. Their costs live
 // in settings.items[id] = { real, commission, per: 'unit' | 'deal' }.
 export const ITEMS = {

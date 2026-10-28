@@ -48,7 +48,7 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms, starShort } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
@@ -670,13 +670,13 @@ export const RULES = [
       return [...casesOf(env, 'p17b', today), ...casesOf(env, 'p19', (i) => today(i) && !eliFilms(i.ctx))]
         .map((i) => {
           const at = shootAt(i);
-          return { ...i, id: `${i.proc.id}@${at.toISOString()}`, natali: i.ctx.shoot_type === 'natali', solo: isSolo(i.ctx), eli: eliFilms(i.ctx), url: SHOOT_URL(i.cid), anchors: { event: at, shoot: at, endOfDay: atTimeIL(at, 23, 59) } };
+          return { ...i, id: `${i.proc.id}@${at.toISOString()}`, star: starShort(i.ctx.shoot_type), solo: isSolo(i.ctx), eli: eliFilms(i.ctx), url: SHOOT_URL(i.cid), anchors: { event: at, shoot: at, endOfDay: atTimeIL(at, 23, 59) } };
         });
     },
     steps: (i) => {
       const s = { level: 'ring', exempt: 'shoot', shoot: true, expires: 'endOfDay' };
       const dayOpen = (b) => { const x = i.same(b); return !!x && !x.complete; };
-      const endMin = i.solo ? SOLO.minutes : i.natali ? 180 : 330;
+      const endMin = i.solo ? SOLO.minutes : i.star ? 180 : 330;
       const endLior = { ...s, id: 'endLior', minutes: endMin, to: 'lior', when: () => dayOpen('p19'), title: () => `סיום יום הצילום: ${i.name}`, body: () => (i.solo ? 'כל הסרטונים של היום, והכונן אצלך.' : 'סרטון המלצה, כל הכמות, והכונן חוזר אליך.') };
       if (!i.eli) return [endLior];
       const arrive = arrivalOf(i.anchors.shoot, i.solo);
@@ -692,8 +692,8 @@ export const RULES = [
         { ...s, id: 'eli2h', minutes: -120, to: 'eli', expires: 'shoot', title: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 120) ? `בעוד שעה ההגעה שלך לצילום: ${i.name}` : env.now < arrivalOf(i.anchors.shoot) ? `ההגעה שלך לצילום ${inTimeWords(arrivalOf(i.anchors.shoot), env.now)}: ${i.name}` : `שעת ההגעה שלך לצילום עברה: ${i.name}`), body: () => `${arrivalText(i.anchors.shoot)}${i.client.address ? ` · ${i.client.address}` : ''}.` },
         { ...s, id: 'eli15', minutes: -15, to: 'eli', expires: 'shoot', when: () => !i.check('p17b.brollq'), title: () => `הבי־רול גמור? ${i.name}`, body: (_, env) => `המשפיענים מגיעים ${sentOnTime(i.anchors.shoot, env.now, 15) ? 'בעוד 15 דקות' : inTimeWords(i.anchors.shoot, env.now)}. לענות כן או לא במסך יום הצילום.` },
         { ...s, id: 'arrived', minutes: -45, to: 'lior', when: () => !i.resolved('p17b.arrived'), title: () => `אלי עוד לא סימן הגעה: ${i.name}`, body: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 45) ? 'עברו 15 דקות משעת ההגעה שלו.' : `שעת ההגעה שלו הייתה ${clock(new Date(i.anchors.shoot.getTime() - 36e5))}.`) },
-        ...(i.natali
-          ? [{ ...s, id: 'hourLeft', minutes: 120, to: 'lior', when: () => dayOpen('p19'), title: () => `נותרה שעה: ${i.name}`, body: () => 'צילום עם נטלי: עד 3 שעות.' }]
+        ...(i.star
+          ? [{ ...s, id: 'hourLeft', minutes: 120, to: 'lior', when: () => dayOpen('p19'), title: () => `נותרה שעה: ${i.name}`, body: () => `צילום עם ${i.star}: עד 3 שעות.` }]
           : [
             { ...s, id: 'begin', minutes: 30, to: 'lior', when: () => dayOpen('p19'), title: () => `להתחיל לצלם: ${i.name}`, body: () => 'עברה חצי שעה של התארגנות.' },
             { ...s, id: 'progress', minutes: 240, to: 'lior', when: () => dayOpen('p19'), title: () => `בדיקת התקדמות: ${i.name}`, body: () => 'עברו 4 שעות. כמה סרטונים צולמו?' },
@@ -1088,17 +1088,18 @@ export const RULES = [
   },
 
   // 11ב: Natali's makeup artist and ride. Lior (quiet) once the date is set; three
-  // business days before the shoot, Lior and Irit ring and the owner's screen.
+  // business days before the shoot, Lior and Irit ring and the owner's screen. The same
+  // for Niro's and for "הצל"'s day (28.10.2026), in their own name (`star`); the rule's id stays.
   {
-    id: 'natali', event: 'נטלי: מאפרת והסעה (11ב)', procs: ['p11b'],
+    id: 'natali', event: 'מאפרת והסעה ליום של נטלי, נירו או הצל (11ב)', procs: ['p11b'],
     instances(env) {
       return casesOf(env, 'p11b', (i) => !halted(i) && shootAt(i) && shootAt(i) > env.now && !!i.finishedAt('p11'))
-        .map((i) => ({ ...i, id: `${i.proc.id}@${shootAt(i).toISOString()}`, anchors: { event: i.finishedAt('p11'), shoot: shootAt(i) } }));
+        .map((i) => ({ ...i, id: `${i.proc.id}@${shootAt(i).toISOString()}`, star: starShort(i.ctx.shoot_type), anchors: { event: i.finishedAt('p11'), shoot: shootAt(i) } }));
     },
     steps: [
-      { id: 'lior', to: 'lior', level: 'quiet', title: (i) => `לסדר מאפרת והסעה לנטלי: ${i.name}`, body: (i, env) => `הצילום ${whenText(i.anchors.shoot, env.now)}. המאפרת בבית נטלי שעתיים לפני.` },
-      ...['lior', 'irit'].map((p) => ({ id: `red${p}`, from: 'shoot', prevBusinessDays: 3, at: '10:00', to: p, level: 'ring', exempt: 'urgent', expires: 'shoot', title: (i) => `מאפרת והסעה לנטלי לא סגורות: ${i.name}`, body: (i, env) => `הצילום ${whenText(i.anchors.shoot, env.now)}.` })),
-      { id: 'board', from: 'shoot', prevBusinessDays: 3, at: '10:00', to: OWNER, level: 'board', overdue: true, expires: 'shoot', title: (i) => `מאפרת והסעה לנטלי לא סגורות: ${i.name}`, body: () => 'באחריות ליאור.' },
+      { id: 'lior', to: 'lior', level: 'quiet', title: (i) => `לסדר מאפרת והסעה של ${i.star}: ${i.name}`, body: (i, env) => `הצילום ${whenText(i.anchors.shoot, env.now)}. המאפרת בבית של ${i.star} שעתיים לפני.` },
+      ...['lior', 'irit'].map((p) => ({ id: `red${p}`, from: 'shoot', prevBusinessDays: 3, at: '10:00', to: p, level: 'ring', exempt: 'urgent', expires: 'shoot', title: (i) => `מאפרת והסעה של ${i.star} לא סגורות: ${i.name}`, body: (i, env) => `הצילום ${whenText(i.anchors.shoot, env.now)}.` })),
+      { id: 'board', from: 'shoot', prevBusinessDays: 3, at: '10:00', to: OWNER, level: 'board', overdue: true, expires: 'shoot', title: (i) => `מאפרת והסעה של ${i.star} לא סגורות: ${i.name}`, body: () => 'באחריות ליאור.' },
     ],
   },
 
@@ -2544,7 +2545,7 @@ RULE_BY_ID.set(WAIT_NAG, RULES.at(-1));
 // case is `<client id>@<next month>`). A client that already has a shoot day (its own, or
 // a round's) in the next month is skipped. Active and ending clients only, not in landing.
 // It is a ring like any other, so it reaches the phone (the owner's rule of 7.10.2026).
-// docs/ops.md, section 71.
+// docs/ops.md, section 72.
 import { isShootMonthly, onLastBusinessDay, nextMonthKey, monthName, hasShootIn } from './monthly-shoot.js';
 export const MONTHLY_SHOOT = { id: 'monthlyShoot', follows: 'irit', at: '10:00' };
 RULES.push({

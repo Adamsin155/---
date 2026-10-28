@@ -304,7 +304,7 @@ export const teamText = () => CLIENT_ROLES.map(([k, role]) => `${PEOPLE[k].name}
 // Who comes to the shoot. `crew`: the photographer of a day without influencers (25.10.2026).
 export function crewText(shootType, crew = null) {
   const who = ['ליאור (מנהל יום הצילום)', `${PHOTOGRAPHERS[crew]?.name || 'אלי'} (הצלם)`];
-  if (shootType === 'natali') who.push(SHOOT_TYPES.natali.name);
+  if (SHOOT_TYPES[shootType]?.star) who.push(SHOOT_TYPES[shootType].name);
   if (shootType === 'dms') who.push(`המשפיענים ${SHOOT_TYPES.dms.name}`);
   return listText(who);
 }

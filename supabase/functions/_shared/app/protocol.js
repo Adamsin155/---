@@ -92,6 +92,13 @@
 // it started under. Its items stay open to fill in, and before the mark nothing changes (two
 // hours from the meeting). It was "the rest of the form within 60 minutes" (decision 12, v5).
 // Keys and items are unchanged.
+// 28.10.2026, still v11 (the owner): two more influencers, Niro Levi and "הצל" (Yoav Eliasi),
+// whose shoot day runs exactly as Natali Dadon's (SHOOT_TYPES `star`, isStarDay): the makeup
+// artist and the ride (11ב, 15), the three-hour day (20), Nirel preselected and seeing the
+// client, the same advice for the scripts. Natali's words name the day's own influencer
+// (starWords; applied to every process of the client in app/protocol-logic.js). Keys unchanged.
+
+import { INFLUENCERS, STARS } from './catalog.js';
 
 export const PROTOCOL_VERSION = 11;
 
@@ -162,7 +169,7 @@ export const PEOPLE = {
   lior: { key: 'lior', name: 'ליאור', role: 'ניהול, תוכן, קמפיינים וימי צילום' },
   ofir: { key: 'ofir', name: 'אופיר', role: 'אפיונים, פיקוח ובקרת איכות' },
   ilai: { key: 'ilai', name: 'עילאי', role: 'גרפיקה, סושיאל ותזמון' },
-  nirel: { key: 'nirel', name: 'ניראל', role: 'עריכת סרטוני נטלי, גרפיקה ומשימות מורכבות', editor: true },
+  nirel: { key: 'nirel', name: 'ניראל', role: 'עריכת סרטוני נטלי, נירו והצל, גרפיקה ומשימות מורכבות', editor: true },
   nadia: { key: 'nadia', name: 'נדיה', role: 'עריכת וידאו', editor: true },
   yariv: { key: 'yariv', name: 'יריב', role: 'עריכת וידאו', editor: true },
   anna: { key: 'anna', name: 'אנה', role: 'עריכת וידאו', editor: true },
@@ -257,10 +264,39 @@ export const STATUS_FIELDS = [
   ['next', 'פעולה הבאה', 'מה צריך לקרות עכשיו'],
 ];
 
+// The shoot types (clients.shoot_type, and a round's). `star`: a day with one influencer that
+// runs as Natali Dadon's (Natali; Niro and "הצל" since 28.10.2026, app/catalog.js STARS), with
+// `short`, the name inside a sentence. The stars first, Denis, Michel and Semion last.
+const starType = (inf) => ({ key: INFLUENCERS[inf].shootType, name: INFLUENCERS[inf].name, short: INFLUENCERS[inf].short, star: true });
 export const SHOOT_TYPES = {
-  natali: { key: 'natali', name: 'נטלי דדון' },
+  ...Object.fromEntries(STARS.map((inf) => [INFLUENCERS[inf].shootType, starType(inf)])),
   dms: { key: 'dms', name: 'דניס, מישל וסמיון' },
 };
+export const STAR_TYPES = Object.values(SHOOT_TYPES).filter((t) => t.star).map((t) => t.key);
+// Whether a shoot type is a day like Natali's (the type itself, never a client).
+export const isStarDay = (type) => !!SHOOT_TYPES[type]?.star;
+// The star's name inside a sentence ("נירו"), '' for any other day.
+export const starShort = (type) => (isStarDay(type) ? SHOOT_TYPES[type].short : '');
+// A text written for Natali's day, said for the day of `type`: her names become the star's own.
+// Unchanged for Natali and for any day that is not a star's. The texts never put a letter
+// before her name ("של נטלי", never "לנטלי"): "הצל" takes no prefix (tests/new-influencers.test.mjs).
+export function starWords(text, type) {
+  if (typeof text !== 'string' || !isStarDay(type) || type === 'natali') return text;
+  const { name, short } = SHOOT_TYPES.natali;
+  return text.replaceAll(name, SHOOT_TYPES[type].name).replaceAll(short, SHOOT_TYPES[type].short);
+}
+// A process (or a resolved one) as said for the client's day: titles, the protocol's words, the
+// advice and the items' labels. The same object when nothing changes.
+const PROC_WORDS = ['title', 'sla', 'what', 'rule', 'ownerNote'];
+export function starProcess(p, type) {
+  if (!isStarDay(type) || type === 'natali' || !p) return p;
+  const said = Object.fromEntries(PROC_WORDS.filter((k) => typeof p[k] === 'string').map((k) => [k, starWords(p[k], type)]));
+  return {
+    ...p, ...said,
+    ...(p.guidance?.natali ? { guidance: { ...p.guidance, [type]: starWords(p.guidance.natali, type) } } : {}),
+    items: (p.items || []).map((i) => (typeof i.label === 'string' && i.label.includes(SHOOT_TYPES.natali.short) ? { ...i, label: starWords(i.label, type) } : i)),
+  };
+}
 
 // A shoot day WITHOUT influencers (the owner's decision of 25.10.2026): Lior goes with one
 // photographer to film the client (some clients have such a day every month). "מי מצלם" is
@@ -350,7 +386,8 @@ const characterizer = (c) => (c.characterizer ? [c.characterizer] : ['ofir']);
 // Whoever characterizes takes the access in the meeting; otherwise Irit gets it from the client.
 const accessOwners = (c) => (c.characterizer === 'ofir' || c.characterizer === 'lior' ? [c.characterizer] : ['irit']);
 const editorOf = (c) => (c.editor ? editorsOf(c) : ['editor']);
-const isNatali = (c) => c.shoot_type === 'natali';
+// A day like Natali's: hers, Niro's or that of "הצל" (28.10.2026).
+const isStar = (c) => isStarDay(c.shoot_type);
 const isDms = (c) => c.shoot_type === 'dms';
 // A day without influencers (25.10.2026): what is the influencers' only does not apply, and
 // what is Eli's applies only when he is the one who films. Both are true of every shoot that
@@ -504,10 +541,10 @@ export const PROCESSES = [
   {
     id: 'p11b', round: true, num: '11ב', phase: 'onboarding', title: 'יום צילום עם נטלי: מאפרת והסעה', owners: ['lior'],
     sla: 'מיד לאחר שנסגר תאריך יום הצילום עם נטלי',
-    when: isNatali, start: { from: 'p11' }, due: { from: 'p11' },
+    when: isStar, start: { from: 'p11' }, due: { from: 'p11' },
     what: 'יום צילום עם נטלי לא נחשב סגור עד שגם המאפרת וגם ההסעה סודרו.',
     items: [
-      { key: 'p11b.makeup', label: 'מאפרת תואמה, מגיעה לביתה של נטלי שעתיים לפני הצילום' },
+      { key: 'p11b.makeup', label: 'מאפרת תואמה, מגיעה לבית של נטלי שעתיים לפני הצילום' },
       { key: 'p11b.ride', label: 'הסעה של נטלי לבית העסק וחזרה סודרה' },
     ],
   },
@@ -761,8 +798,8 @@ export const PROCESSES = [
       ...[['time', 'שעה'], ['address', 'כתובת'], ['content', 'תוכן מאושר'], ['details', 'פרטי יום הצילום']]
         .map(([k, l]) => ({ key: `p15.d.${k}`, label: `לכולם יש: ${l}` })),
       { key: 'p15.explain', label: 'בוצעה שיחת הסבר עם הלקוח' },
-      { key: 'p15.natali.makeup', label: 'המאפרת אישרה הגעה לביתה של נטלי שעתיים לפני הצילום', owners: ['lior'], when: isNatali },
-      { key: 'p15.natali.ride', label: 'ההסעה של נטלי סגורה ומאושרת', owners: ['lior'], when: isNatali },
+      { key: 'p15.natali.makeup', label: 'המאפרת אישרה הגעה לבית של נטלי שעתיים לפני הצילום', owners: ['lior'], when: isStar },
+      { key: 'p15.natali.ride', label: 'ההסעה של נטלי סגורה ומאושרת', owners: ['lior'], when: isStar },
       { key: 'p15.irit', label: 'עירית וידאה שהתזכורות נשלחו, שהלקוח זוכר ושאין משימה פתוחה שתפגע ביום הצילום', owners: ['irit'] },
     ],
   },
@@ -869,7 +906,7 @@ export const PROCESSES = [
   {
     id: 'p20', round: true, num: '20', phase: 'shoot', title: 'ניהול יום צילום עם נטלי דדון', owners: ['lior'],
     sla: 'צילום בפועל עד 3 שעות',
-    when: isNatali, start: { from: 'shoot' }, due: { from: 'shoot', hours: 3 },
+    when: isStar, start: { from: 'shoot' }, due: { from: 'shoot', hours: 3 },
     what: 'יום ממוקד לפי התסריטים שאושרו: הפניות לצופה, ראיון עם הלקוח, הסברה, היכרות עם העסק והמקום, הצגת שירותים ומיני־סצנות. מסר ברור, מקצועי ומניע לפעולה, לא קומדיה מוגזמת.',
     items: [
       { key: 'p20.focus', label: 'הצילום התנהל לפי התסריטים המאושרים' },
@@ -898,7 +935,7 @@ export const PROCESSES = [
     needs: ['editor'],
     items: [
       { key: 'p22a.drive', label: 'ליאור החזיר את הכונן', owners: ['lior'] },
-      { key: 'p22a.load', label: 'נבדק עומס העורכים: נדיה, יריב, אנה (וניראל לנטלי)' },
+      { key: 'p22a.load', label: 'נבדק עומס העורכים: נדיה, יריב, אנה (וניראל, ביום צילום של נטלי)' },
       { key: 'p22a.assigned', label: 'הלקוח שויך לעורך והכונן הועבר אליו', requiresFields: ['editor'] },
       { key: 'p22a.irit', label: 'עירית וידאה שהלקוח הועבר לעורך, מי העורך, ומתי מתחילה ומסתיימת העריכה', owners: ['irit'], requires: ['p22a.assigned'] },
     ],
