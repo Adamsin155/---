@@ -1,24 +1,21 @@
 // Ilai's part of "המשימות שלי" (system-plan section 3, "עילאי"), drawn by
 // app/clients.js: the card "יום אפיון: שעתיים" when a characterization ends (one
-// line per client with only the nearest due; opening it shows the access check,
-// whose vault statuses mark it by themselves, the page setup in 6 quick checks and
-// the Metricool link, the 9 graphics with "מוכן לבדיקה" to Irit, the Gantt skeleton
-// and a new logo); and after that day: the rest of the graphics ("מוכן לבדיקה" to
-// Ofir, and his returned fixes), "קיבלתי" on the editor's final versions (it closes
+// line per client with only the nearest due; opening it shows the 9 graphics with
+// "מוכן לבדיקה" to Ofir, the Gantt skeleton and a new logo; the access check and the
+// page setup left it on 28.10.2026: process 6 is Ofir's, app/access-check-ui.js); and
+// after that day: the rest of the graphics ("מוכן לבדיקה" to Ofir, and his returned fixes), "קיבלתי" on the editor's final versions (it closes
 // the editing), and "הגאנט מלא" (Irit is told by itself). The logic: app/ilai-logic.js.
 // Package 1 (docs/ops.md, section 37): the graphics are uploaded in these cards, into
 // the client's files, and "מוכן לבדיקה" opens only once a graphic of that batch is up
 // (the first 9 keep a card of their own after the day's card is gone); each graphics
 // card opens the client's characterization, read-only; the final versions card opens
 // the videos' Drive folder (the videos stay in Drive: the owner's decision of 7.10.2026).
-import { setCheck, clearCheck, setChecksBulk, canUseVault } from './protocol-data.js';
+import { setCheck, clearCheck, setChecksBulk } from './protocol-data.js';
 import { clientLabel } from './protocol-logic.js';
 import { h, toast, errorText, formatWhen, landingTag } from './protocol-ui.js';
 import { offerHandoff } from './handoff-ui.js';
-import { loadAccessStatusForWork } from './office-data.js';
-import { charDay, ilaiWork, PAGE_KEYS, PAGE_LABELS, GANTT_KEYS, AUTO_ACCESS_NOTE } from './ilai-logic.js';
+import { charDay, ilaiWork, GANTT_KEYS } from './ilai-logic.js';
 import { fixList } from './office-ui.js';
-import { ACCESS_STATUS_LABEL, NEW_STATUS } from './access-logic.js';
 import { supabase } from './supa.js';
 import { mountWorkFiles, workFilesState } from './files-ui.js';
 import { graphicsWindow, videoWindow, uploadGate, videosLinkOf } from './files-logic.js';
@@ -31,24 +28,10 @@ import { fastCaseOf, ladderWords } from './fast-ladder.js';
 import { iconSquare, icon, leadIcon } from './kit.js';
 const LANDING_WORDS = 'בקליטה, בלי שעון'; // as LANDING_WORDS in app/mine-flow.js
 
-const NETWORK = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', google: 'Google Business', meta: 'Meta Business', other: 'אחר' };
-// The vault's statuses in words, with 'new' (from the client's form, not checked yet).
-const STATUS = ACCESS_STATUS_LABEL;
 const ganttUrl = (id) => `gantt.html?id=${encodeURIComponent(id)}`;
 const clientUrl = (id, hash = '') => `client.html?id=${encodeURIComponent(id)}${hash ? `#${hash}` : ''}`;
 const isDone = (cs, k) => ['done', 'na'].includes(cs[k]?.state);
 
-// The logins of the day's clients: statuses only (network, label, status), which the
-// office reads without the vault flag; kept a minute. Whether this person may open
-// the passwords themselves (staff.vault, the owner's switch on the team page) is
-// asked once: without it the card says so instead of sending them to the vault.
-let access = {};
-let vault = null; // null until known
-let viaVault = false; // the statuses came from the vault's own rows (before the migration)
-let accessAt = 0;
-let accessFor = '';
-let loading = null;
-const autoTried = new Set();
 // Cards stay open across the page's re-renders.
 const openCards = new Set();
 
@@ -120,11 +103,11 @@ const cardHead = (kind, c, hash, title, ...end) => h('div', { class: 'wproc-h il
 const charLink = (c) => leadIcon(h('a', { class: 'btn-text il-char', href: charViewHref(c.id) }, 'האפיון של הלקוח', h('span', { class: 'sr-only' }, `: ${c.name}`)), 'script');
 
 // Groups of "המשימות שלי" that the cards already cover (client and process), so
-// nothing is listed twice: the day's processes (his new logo in 5, 6, 7, 9), the
+// nothing is listed twice: the day's processes (his new logo in 5, 7, 9), the
 // rest of the graphics (23), the final versions (27) and the Gantt (29).
 export function coveredByCard(ctx) {
   const set = new Set();
-  for (const x of charDay({ ...ctx, now: new Date() })) for (const p of ['p05', 'p06', 'p07', 'p09']) set.add(`${x.client.id}:${p}`);
+  for (const x of charDay({ ...ctx, now: new Date() })) for (const p of ['p05', 'p07', 'p09']) set.add(`${x.client.id}:${p}`);
   const work = ilaiWork(ctx);
   for (const x of [...work.first, ...work.rest]) set.add(`${x.client.id}:${x.state.proc.id}`);
   for (const x of [...work.finals, ...work.gantt]) set.add(`${x.client.id}:${x.state.proc.id}`);
@@ -137,11 +120,9 @@ export function coveredByCard(ctx) {
 export function ilaiSection(ctx, only = null) {
   const keep = (x, procs) => !only || procs.some((p) => only.has(`${x.client.id}:${p}`));
   const one = (x) => keep(x, [x.state.proc.id]);
-  const day = charDay({ ...ctx, access, now: new Date() }).filter((x) => keep(x, ['p05', 'p06', 'p07', 'p09']));
+  const day = charDay({ ...ctx, now: new Date() }).filter((x) => keep(x, ['p05', 'p07', 'p09']));
   const work = ilaiWork(ctx);
   whoAmI(ctx);
-  ensureAccess(day.map((x) => x.client.id), ctx);
-  for (const x of day) autoAccess(x, ctx);
   // A client still in landing is quiet (sections 41 and 46): its cards are not laid out
   // one after the other with the working ones; they fold into one counted line per kind
   // ("N לקוחות עם יתרת גרפיקות · בקליטה, בלי שעון") that opens onto the same cards.
@@ -177,33 +158,6 @@ function landingFold(kind, list, card, ctx) {
       h('strong', { class: 'k-line-t' }, words, h('small', { class: 'k-line-sub' }, h('i', { class: 'k-sep' }, ' · '), LANDING_WORDS)),
       h('span', { class: 'k-go il-fold-go' }, h('span', { class: 'il-fold-open' }, 'הצגה'), h('span', { class: 'il-fold-close' }, 'הסתרה'))),
     h('ul', { class: 'wprocs il-list il-list-quiet' }, ...list.map((x) => card(x, ctx))));
-}
-
-function ensureAccess(ids, ctx) {
-  const key = ids.slice().sort().join(',');
-  if (!ids.length || loading || (key === accessFor && Date.now() - accessAt < 60e3)) return;
-  if (vault === null) canUseVault().then((v) => { vault = v; if (!v) ctx.refresh?.(); }).catch(() => {});
-  loading = loadAccessStatusForWork(ids).then((rows) => {
-    access = {};
-    viaVault = !!rows.viaVault;
-    for (const r of rows) (access[r.client_id] ||= []).push(r);
-    accessAt = Date.now();
-    accessFor = key;
-  }).catch(() => { accessAt = Date.now(); accessFor = key; }).finally(() => { loading = null; ctx.refresh?.(); });
-}
-
-// The statuses in the vault check the access by themselves (once per client and page).
-async function autoAccess(x, ctx) {
-  const line = x.lines.find((l) => l.key === 'access');
-  const cs = ctx.checks[x.client.id] || {};
-  if (!line?.auto || isDone(cs, 'p06.verified') || autoTried.has(x.client.id)) return;
-  autoTried.add(x.client.id);
-  try {
-    const row = await setCheck(x.client.id, 'p06.verified', 'done', AUTO_ACCESS_NOTE);
-    (ctx.checks[x.client.id] ||= {})[row.item_key] = row;
-    toast(`הגישות של ${x.client.name} סומנו כנבדקו, לפי הסטטוסים בכספת.`);
-    ctx.refresh?.();
-  } catch { /* the check stays for Ilai to mark */ }
 }
 
 async function mark(ctx, c, keys, state, doneText, { handoff = null } = {}) {
@@ -247,9 +201,6 @@ function dayCard(x, ctx) {
   const idp = `il-${c.id}`;
   const now = new Date();
   const line = (key) => x.lines.find((l) => l.key === key);
-  const rows = access[c.id] || [];
-  const acc = line('access');
-  const page = line('page');
   const gfx = line('graphics');
   const gantt = line('gantt');
   const logo = line('logo');
@@ -262,25 +213,6 @@ function dayCard(x, ctx) {
         h('strong', {}, clientLabel(c)),
         h('span', {}, `הבא: ${x.next.title}`), until(x.next.due, now),
         h('span', { class: 'muted small' }, `${x.lines.filter((l) => l.done).length} מתוך ${x.lines.length}`)),
-      h('div', { class: 'il-part' },
-        h('h4', {}, 'בדיקת גישות (30 דק׳)', acc.done ? null : until(acc.due, now), acc.done ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'נבדק') : null),
-        acc.waiting ? h('p', { class: 'hint' }, 'מחכה לגישות מהאפיון.') : [
-          rows.length ? h('ul', { class: 'il-net' }, ...rows.map((a) => h('li', { class: 'tag' }, `${NETWORK[a.network] || a.network}${a.label ? ` (${a.label})` : ''}: ${STATUS[a.status] || a.status}`)))
-            : vault === false && viaVault ? null : h('p', { class: 'hint' }, 'אין עדיין רשתות בכספת.'),
-          rows.some((a) => a.status === NEW_STATUS)
-            ? h('p', { class: 'hint il-fromclient' }, 'יש גישות שהלקוח מילא בעצמו ועוד לא נבדקו: מנסים להיכנס, ומעדכנים בכספת ״תקינה״ או ״לא עובדת״.')
-            : null,
-          h('p', { class: 'hint' }, 'הסטטוס של כל רשת בכספת מסמן את הבדיקה לבד. אין עמוד? פותחים אותו באותו חלון זמן.'),
-          vault === false
-            ? h('p', { class: 'hint il-novault' }, 'אין לך גישה לסיסמאות בכספת. בעל המשרד מפעיל אותה בעמוד הצוות.')
-            : h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm', href: clientUrl(c.id, 'access') }, 'לכספת', h('span', { class: 'sr-only' }, ` של ${c.name}`))),
-          acc.done ? null : check(ctx, c, 'p06.verified', 'כל הגישות נבדקו ועובדות', idp),
-        ]),
-      h('div', { class: 'il-part' },
-        h('h4', {}, `סידור העמוד (${page.count}/6)`, page.done ? null : until(page.due, now)),
-        h('div', { class: 'il-checks' }, ...PAGE_KEYS.map((k) => check(ctx, c, k, PAGE_LABELS[k], idp))),
-        // v11: connecting the client to Metricool is Ofir's (with the accesses); here only its state.
-        h('p', { class: isDone(cs, 'p06.metricool') ? 'ps-seen' : 'hint', id: `${idp}-mc` }, isDone(cs, 'p06.metricool') ? 'Metricool מחובר' : 'את החיבור ל־Metricool עושה אופיר')),
       h('div', { class: 'il-part' },
         h('h4', {}, '9 גרפיקות', gfx.done ? null : until(gfx.due, now)),
         h('div', { class: 'of-acts' }, charLink(c)),

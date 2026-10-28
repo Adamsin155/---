@@ -669,7 +669,8 @@ await page.click('.viewbar .chip:has-text("עילאי")');
 await page.check('.only input');
 await page.evaluate(() => document.querySelectorAll('details.phase').forEach((d) => { d.open = true; }));
 const shown = await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id));
-assert.ok(shown.includes('p06') && !shown.includes('p04') && !shown.includes('p12') && !shown.includes('p10'), shown.join());
+// (Process 6 is Ofir's since 28.10.2026, the owner: it is not among Ilai's any more.)
+assert.ok(shown.includes('p07') && !shown.includes('p06') && !shown.includes('p04') && !shown.includes('p12') && !shown.includes('p10'), shown.join());
 await page.uncheck('.only input');
 await page.click('.viewbar .chip:has-text("כל הצוות")');
 await shot('04-client-card');

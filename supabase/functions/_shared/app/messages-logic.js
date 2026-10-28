@@ -296,8 +296,9 @@ export function promisedClosing(shootAt) {
 export const CLIENT_ROLES = [
   ['lior', 'מנהל הלקוח, תוכן, ימי צילום וקמפיינים'],
   ['irit', 'תפעול ולקוחות, הכתובת שלכם לכל שאלה'],
-  ['ofir', 'אפיון העסק ובקרת איכות'],
-  ['ilai', 'גרפיקה, עיצוב העמודים ותזמון התכנים'],
+  // The pages are set up by Ofir since 28.10.2026 (the owner); Ilai designs the graphics.
+  ['ofir', 'אפיון העסק, סידור העמודים ובקרת איכות'],
+  ['ilai', 'גרפיקה ותזמון התכנים'],
 ];
 export const teamText = () => CLIENT_ROLES.map(([k, role]) => `${PEOPLE[k].name}: ${role}`).join('\n');
 

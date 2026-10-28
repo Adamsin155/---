@@ -55,26 +55,30 @@ const check = (c, key, when, by = USER.email) => {
   db.protocol_log.push({ id: db.protocol_log.length + 1, client_id: c.id, item_key: key, action: 'done', note: null, by_email: by, at: when });
 };
 const P4 = ['p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved'];
-// Characterized this morning: the access is Ofir's to hand to Ilai.
-const ron = client({ name: 'מספרת רון', deal_at: hoursAgo(50), char_at: hoursAgo(2) });
+// Characterized this morning with no characterizer set: Irit takes the accesses and hands them to Ofir,
+// whose process 6 (the check and the pages) is since 28.10.2026 (the owner; it was Ilai's).
+const ron = client({ name: 'מספרת רון', deal_at: hoursAgo(50), char_at: hoursAgo(2), characterizer: null });
 for (const k of P4) check(ron, k, hoursAgo(1));
 // Videos checked by Ofir, ready for his approval: Irit sends, Lior builds the campaign.
 const pizza = client({ name: 'פיצה נאפולי', deal_at: hoursAgo(200), char_at: hoursAgo(190), shoot_at: hoursAgo(100) });
 // (The last five: the critical mistakes of editing, protocol v10.)
 for (const k of ['editing', 'errors', 'clear', 'match', 'pro', 'fit', 'sound', 'exposure', 'stable', 'angles', 'export']) check(pizza, `p25.q.${k}`, hoursAgo(1));
 // A third client for the card.
-const cafe = client({ name: 'קפה גליה', deal_at: hoursAgo(50), char_at: hoursAgo(2) });
+const cafe = client({ name: 'קפה גליה', deal_at: hoursAgo(50), char_at: hoursAgo(2), characterizer: null });
 for (const k of P4) check(cafe, k, hoursAgo(1));
 // A client for "המשימות שלי" on a phone.
-const dana = client({ name: 'סטודיו דנה לעיצוב שיער וטיפוח', deal_at: hoursAgo(50), char_at: hoursAgo(2) });
+const dana = client({ name: 'סטודיו דנה לעיצוב שיער וטיפוח', deal_at: hoursAgo(50), char_at: hoursAgo(2), characterizer: null });
+// Ofir characterized this one: he takes the accesses himself, and is offered no message to himself.
+const own = client({ name: 'סלון אור', deal_at: hoursAgo(50), char_at: hoursAgo(2) });
+for (const k of P4) check(own, k, hoursAgo(1));
 for (const k of P4) check(dana, k, hoursAgo(1));
-// Handed over before this feature: Ilai already checked the access. Nothing to send.
-const old = client({ name: 'מאפיית הכרמל', deal_at: hoursAgo(300), char_at: hoursAgo(250) });
+// Handed over before this feature: the access was already checked (by Ilai, whose it was then). Nothing to send.
+const old = client({ name: 'מאפיית הכרמל', deal_at: hoursAgo(300), char_at: hoursAgo(250), characterizer: null });
 for (const k of P4) check(old, k, hoursAgo(249));
 check(old, 'p05.access', hoursAgo(248));
 check(old, 'p06.verified', hoursAgo(247), 'ilai@astrateg.test');
 // A cancelled client with the access checked: nothing to send either.
-const gone = client({ name: 'גלידה בטלה', deal_at: hoursAgo(300), char_at: hoursAgo(250), status: 'cancelled', closed_reason: 'בוטל' });
+const gone = client({ name: 'גלידה בטלה', deal_at: hoursAgo(300), char_at: hoursAgo(250), status: 'cancelled', closed_reason: 'בוטל', characterizer: null });
 for (const k of P4) check(gone, k, hoursAgo(249));
 check(gone, 'p05.access', hoursAgo(248));
 
@@ -195,8 +199,8 @@ async function step(name, fn) {
 
 // ── "המשימות שלי" ─────────────────────────────
 const page = await newPage();
-await step('checking the access item in "המשימות שלי" offers "לשלוח לעילאי" with a ready message', async () => {
-  await signIn(page, 'clients.html#mine'); // Ofir's first screen is qa.html; his list is one link away
+await step('checking the access item in "המשימות שלי" offers "לשלוח לאופיר" with a ready message', async () => {
+  await signIn(page, 'clients.html#mine', IRIT.email); // Irit took the accesses; process 6 is Ofir's
   const cbx = `#w-${ron.id}-p05_access`;
   await page.waitForSelector(cbx);
   assert.equal(await page.locator('#handoff').isHidden(), true, 'nothing offered before a check');
@@ -204,13 +208,13 @@ await step('checking the access item in "המשימות שלי" offers "לשלו
   await toastHas(page, 'סומן כבוצע');
   await page.waitForSelector('#handoff:not([hidden]) a.handoff-wa');
   assert.ok(hasCheck(ron, 'p05.access'));
-  assert.match(await text(page, '#handoff'), /העברה הלאה · מספרת רון[\s\S]*גישות התקבלו · עילאי[\s\S]*יעד: היום 11:30/);
+  assert.match(await text(page, '#handoff'), /העברה הלאה · מספרת רון[\s\S]*גישות התקבלו · אופיר[\s\S]*יעד: היום 11:30/);
   const link = page.locator('#handoff a.handoff-wa');
-  assert.equal((await link.innerText()).split('\n')[0].trim(), 'לשלוח לעילאי בוואטסאפ');
+  assert.equal((await link.innerText()).split('\n')[0].trim(), 'לשלוח לאופיר בוואטסאפ');
   const href = await link.getAttribute('href');
-  assert.ok(href.startsWith('https://wa.me/972500000004?text='), href.slice(0, 40));
+  assert.ok(href.startsWith('https://wa.me/972500000003?text='), href.slice(0, 40));
   assert.equal(waText(href), [
-    'היי עילאי,',
+    'היי אופיר,',
     'גישות התקבלו למספרת רון. יש לך 30 דק׳ לבדוק אותן מהכספת במערכת ולסדר את העמודים.',
     'יעד: היום 11:30',
     `כרטיס הלקוח: ${BASE}client.html?id=${ron.id}#p06`,
@@ -219,7 +223,7 @@ await step('checking the access item in "המשימות שלי" offers "לשלו
   assert.equal(await page.locator('#handoff .handoff-nophone').count(), 0);
   // The undo toast is still there, next to the prompt.
   assert.match(await text(page, '#toast'), /ביטול/);
-  await page.waitForFunction(() => /אפשר לשלוח לעילאי בוואטסאפ/.test(document.getElementById('handoff-say')?.textContent || ''));
+  await page.waitForFunction(() => /אפשר לשלוח לאופיר בוואטסאפ/.test(document.getElementById('handoff-say')?.textContent || ''));
   await shot(page, 'handoff-01-mine');
 });
 
@@ -227,18 +231,32 @@ await step('opening WhatsApp is recorded in the card, and nothing is sent by the
   const popup = page.context().waitForEvent('page');
   await page.click('#handoff a.handoff-wa');
   const wa = await popup;
-  await until(() => hasCheck(ron, 'p05.handoff.ilai'), 'the handoff record');
-  assert.ok(opened.at(-1).startsWith('https://wa.me/972500000004?text='));
+  await until(() => hasCheck(ron, 'p05.handoff.ofir'), 'the handoff record');
+  assert.ok(opened.at(-1).startsWith('https://wa.me/972500000003?text='));
   await wa.close();
-  await page.waitForFunction(() => /וואטסאפ כבר נפתח · לשלוח שוב לעילאי/.test(document.querySelector('#handoff a.handoff-wa')?.textContent || ''));
-  assert.equal(db.protocol_log.filter((r) => r.item_key === 'p05.handoff.ilai').length, 1);
+  await page.waitForFunction(() => /וואטסאפ כבר נפתח · לשלוח שוב לאופיר/.test(document.querySelector('#handoff a.handoff-wa')?.textContent || ''));
+  assert.equal(db.protocol_log.filter((r) => r.item_key === 'p05.handoff.ofir').length, 1);
   // The record keeps whom WhatsApp was opened for.
-  assert.equal(checksOf(ron).find((x) => x.item_key === 'p05.handoff.ilai').note, 'ilai');
+  assert.equal(checksOf(ron).find((x) => x.item_key === 'p05.handoff.ofir').note, 'ofir');
   await page.click('#handoff-close');
   await page.waitForSelector('#handoff', { state: 'hidden' });
 });
 
+const ofirPage = await newPage();
+await step('Ofir took the accesses himself (he characterized): no message to himself', async () => {
+  await signIn(ofirPage, 'clients.html#mine'); // Ofir's first screen is qa.html; his list is one link away
+  const cbx = `#w-${own.id}-p05_access`;
+  await ofirPage.waitForSelector(cbx, { state: 'attached' });
+  if (!(await ofirPage.locator(cbx).isVisible())) await ofirPage.locator(`#mine-list li[data-key="${own.id}:p05"] button.wc-open`).click();
+  await ofirPage.click(cbx);
+  await toastHas(ofirPage, 'סומן כבוצע');
+  await ofirPage.waitForTimeout(600);
+  assert.ok(hasCheck(own, 'p05.access'));
+  assert.equal(await ofirPage.locator('#handoff').isHidden(), true, 'no message to himself');
+});
+
 await step('Ofir approves the videos: Irit (with her number) and Lior (none yet: who adds it)', async () => {
+  const page = ofirPage;
   await page.click(`#w-${pizza.id}-p25_approved`);
   await page.waitForSelector('#handoff:not([hidden]) .handoff-row + .handoff-row');
   const rows = page.locator('#handoff .handoff-row');
@@ -258,6 +276,7 @@ await step('Ofir approves the videos: Irit (with her number) and Lior (none yet:
 });
 
 await step('undoing the check takes the prompt away at once', async () => {
+  const page = ofirPage;
   const before = opened.length;
   await page.click('#toast .toast-act');
   await page.waitForSelector('#handoff', { state: 'hidden' });
@@ -272,7 +291,7 @@ await step('undoing the check takes the prompt away at once', async () => {
 const phone = await newPage({ viewport: { width: 360, height: 740 } });
 await step('checked and undone while the numbers are still loading: no prompt comes up', async () => {
   slowPhones = 1500;
-  await signIn(phone, 'clients.html#mine');
+  await signIn(phone, 'clients.html#mine', IRIT.email);
   const cbx = `#w-${dana.id}-p05_access`;
   await phone.waitForSelector(cbx);
   const asked = phone.waitForRequest((r) => /\/rest\/v1\/staff\?/.test(r.url()) && /phone/.test(r.url()));
@@ -312,7 +331,7 @@ await step('on a phone the prompt sits above the undo message, whose text wraps'
 // ── The client card, on a phone set to New York time ──
 const card = await newPage({ timezoneId: 'America/New_York', viewport: { width: 360, height: 780 } });
 await step('in the card: the prompt and the "העברות" line, on Israel time on any device', async () => {
-  await signIn(card, `client.html?id=${cafe.id}`);
+  await signIn(card, `client.html?id=${cafe.id}`, IRIT.email);
   await card.waitForSelector('#i-p05-access');
   assert.equal(await card.locator('#p05 .handoff-line').count(), 0, 'no line before the handoff');
   await card.click('label[for="i-p05-access"]');
@@ -320,11 +339,11 @@ await step('in the card: the prompt and the "העברות" line, on Israel time 
   // 04:00 in New York is 11:00 in the office: the due time is the office's.
   assert.match(await text(card, '#handoff'), /יעד: היום 11:30/);
   const href = await card.getAttribute('#handoff a.handoff-wa', 'href');
-  assert.ok(href.startsWith('https://wa.me/972500000004?text='));
+  assert.ok(href.startsWith('https://wa.me/972500000003?text='));
   assert.match(waText(href), new RegExp(`\\nיעד: היום 11:30\\nכרטיס הלקוח: ${BASE.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}client\\.html\\?id=${cafe.id}#p06$`));
   await card.waitForSelector('#p05 .handoff-line');
-  assert.match(await text(card, '#p05 .handoff-line'), /העברות:[\s\S]*גישות התקבלו ← עילאי[\s\S]*וואטסאפ עוד לא נפתח[\s\S]*לשלוח לעילאי בוואטסאפ/);
-  assert.equal(await card.getAttribute('#hl-p05-handoff-ilai', 'href'), href);
+  assert.match(await text(card, '#p05 .handoff-line'), /העברות:[\s\S]*גישות התקבלו ← אופיר[\s\S]*וואטסאפ עוד לא נפתח[\s\S]*לשלוח לאופיר בוואטסאפ/);
+  assert.equal(await card.getAttribute('#hl-p05-handoff-ofir', 'href'), href);
   assert.ok(await card.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), 'no sideways scrolling at 360px');
   const box = await card.locator('#handoff a.handoff-wa').boundingBox();
   assert.ok(box.height >= 44, `touch target ${box.height}px`);
@@ -341,12 +360,12 @@ await step('keyboard: Escape closes the prompt and focus goes back to the checkb
 
 await step('the line records who opened WhatsApp; the history says so', async () => {
   const popup = card.context().waitForEvent('page');
-  await card.click('#hl-p05-handoff-ilai');
+  await card.click('#hl-p05-handoff-ofir');
   await (await popup).close();
-  await until(() => hasCheck(cafe, 'p05.handoff.ilai'), 'the handoff record');
-  await card.waitForFunction(() => /וואטסאפ נפתח · אופיר/.test(document.querySelector('#p05 .handoff-line')?.textContent || ''));
-  assert.match(await text(card, '#p05 .handoff-line'), /לשלוח שוב לעילאי/);
-  await card.waitForFunction(() => /פתח\/ה וואטסאפ להעברה: גישות התקבלו ← עילאי/.test(document.querySelector('#hist-list')?.textContent || ''));
+  await until(() => hasCheck(cafe, 'p05.handoff.ofir'), 'the handoff record');
+  await card.waitForFunction(() => /וואטסאפ נפתח · עירית/.test(document.querySelector('#p05 .handoff-line')?.textContent || ''));
+  assert.match(await text(card, '#p05 .handoff-line'), /לשלוח שוב לאופיר/);
+  await card.waitForFunction(() => /פתח\/ה וואטסאפ להעברה: גישות התקבלו ← אופיר/.test(document.querySelector('#hist-list')?.textContent || ''));
 });
 
 await step('unchecking the item takes the prompt away', async () => {
@@ -356,18 +375,18 @@ await step('unchecking the item takes the prompt away', async () => {
   await card.click('label[for="i-p05-access"]');
   await settled(true);
   await card.waitForSelector('#handoff:not([hidden])');
-  assert.match(await text(card, '#handoff'), /וואטסאפ כבר נפתח · לשלוח שוב לעילאי/, 'already opened once: says so');
+  assert.match(await text(card, '#handoff'), /וואטסאפ כבר נפתח · לשלוח שוב לאופיר/, 'already opened once: says so');
   await card.click('label[for="i-p05-access"]');
   await settled(false);
   await card.waitForSelector('#handoff', { state: 'hidden' });
   assert.equal(hasCheck(cafe, 'p05.access'), false);
   // The record of the handoff stays in the card, without a button to send again.
-  await card.waitForFunction(() => !document.getElementById('hl-p05-handoff-ilai'));
-  assert.match(await text(card, '#p05 .handoff-line'), /גישות התקבלו ← עילאי[\s\S]*וואטסאפ נפתח · אופיר/);
+  await card.waitForFunction(() => !document.getElementById('hl-p05-handoff-ofir'));
+  assert.match(await text(card, '#p05 .handoff-line'), /גישות התקבלו ← אופיר[\s\S]*וואטסאפ נפתח · עירית/);
 });
 
 await step('work handed over before, and closed clients: nothing to send', async () => {
-  // Ilai already checked the access: no line, no button.
+  // The access was checked already: no line, no button.
   await card.goto(`${BASE}client.html?id=${old.id}`);
   await card.waitForSelector('#i-p05-access:checked');
   assert.equal(await card.locator('#p05 .handoff-line').count(), 0);

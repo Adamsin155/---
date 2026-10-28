@@ -14,8 +14,10 @@
 //    (a linked task) → close; "התחלתי"; an urgent task back with him; a login
 //    closed as partly fixed; paused editing moved; the Tuesday campaign check; the
 //    lists match the reminder engine.
-//  - Ilai: the characterization day's card (the vault statuses check the access,
-//    the page checks, Metricool's state (Ofir connects it since v11), "מוכן לבדיקה" to Irit, the Gantt), and "קיבלתי".
+//  - Ilai: the characterization day's card ("מוכן לבדיקה" to Ofir, the Gantt), and "קיבלתי". Since
+//    28.10.2026 the access check and the page setup (6) are Ofir's (the owner): the vault statuses
+//    check the access by themselves when he lands on "המשימות שלי", and his card of 6 opens onto
+//    the logins and the six page checks; Ilai's card has none of it.
 //  - A 360px phone: no sideways scrolling, 44px targets.
 //  - The old system's signed documents (25.10.2026): the owner imports two through the page
 //    (scripts/legacy-contracts-import.mjs importInPage), the card lists them, "פתיחה" shows one;
@@ -132,8 +134,8 @@ const tUrgent = task(G, { title: 'לפתוח ללקוח TikTok ולהכניס א
 const tNoDue = task(G, { title: 'לבדוק את הצבעים בגרפיקות', owner: 'irit', created_by_email: 'ofir@astrateg.test', created_at: IL('2026-10-19T11:00:00') });
 const accessRows = [
   { id: randomUUID(), client_id: G.id, network: 'instagram', label: null, username: 'galia', status: 'broken', note: null, updated_by: 'irit@astrateg.test', updated_at: IL('2026-10-19T11:00:00'), created_at: IL('2026-10-01T09:00:00'), secret_id: 'x' },
-  { id: randomUUID(), client_id: I.id, network: 'instagram', label: null, username: 'shahar', status: 'ok', note: null, updated_by: 'ilai@astrateg.test', updated_at: IL('2026-10-20T09:50:00'), created_at: IL('2026-10-20T09:40:00'), secret_id: 'y' },
-  { id: randomUUID(), client_id: I.id, network: 'tiktok', label: null, username: null, status: 'missing', note: null, updated_by: 'ilai@astrateg.test', updated_at: IL('2026-10-20T09:52:00'), created_at: IL('2026-10-20T09:40:00'), secret_id: null },
+  { id: randomUUID(), client_id: I.id, network: 'instagram', label: null, username: 'shahar', status: 'ok', note: null, updated_by: 'ofir@astrateg.test', updated_at: IL('2026-10-20T09:50:00'), created_at: IL('2026-10-20T09:40:00'), secret_id: 'y' },
+  { id: randomUUID(), client_id: I.id, network: 'tiktok', label: null, username: null, status: 'missing', note: null, updated_by: 'ofir@astrateg.test', updated_at: IL('2026-10-20T09:52:00'), created_at: IL('2026-10-20T09:40:00'), secret_id: null },
 ];
 
 const db = {
@@ -414,6 +416,10 @@ await step('Ofir\'s queue, one tap from "המשימות שלי": what waits for 
   await ofir.waitForSelector('#profile-switch[data-to="manager"]');
   await ofir.waitForSelector('#view-mine:not([hidden])');
   assert.match(ofir.url(), /clients\.html(#mine)?$/);
+  // Process 6 is his since 28.10.2026: every login of the morning's client has a status in the vault,
+  // so the check closes by itself the moment his list reads them.
+  await toastHas(ofir, 'הגישות של מאפיית שחר סומנו כנבדקו, לפי הסטטוסים בכספת.');
+  assert.deepEqual([checkOf(I, 'p06.verified').note, checkOf(I, 'p06.verified').by_email], ['נסגר לבד: כל הרשתות בכספת קיבלו סטטוס', 'ofir@astrateg.test']);
   await ofir.click('#side-qa');
   await ofir.waitForURL(/qa\.html$/);
   await ofir.waitForSelector('#qa-list .of-card');
@@ -728,7 +734,7 @@ await step('the Tuesday campaign check, and the lists: the same items the remind
   await globalThis.lctx.close();
 });
 
-await step('Ilai: the characterization day card; the vault statuses check the access; page, the state of Metricool, graphics to Irit, the Gantt; "קיבלתי"', async () => {
+await step('Ilai: the characterization day card (graphics to Ofir, the Gantt, the new logo; nothing of the accesses since 28.10.2026); "קיבלתי"', async () => {
   const ictx = await newContext();
   const ilai = await newPage(ictx);
   await signIn(ilai, 'clients.html#mine', 'ilai');
@@ -736,23 +742,13 @@ await step('Ilai: the characterization day card; the vault statuses check the ac
   assert.equal(await ilai.innerText('#il-h').then((t) => t.split('\n')[0]), 'יום אפיון: שעתיים');
   const card = ilai.locator('.il-card', { hasText: 'מאפיית שחר' }).first();
   assert.match(await card.locator('summary').innerText(), /מאפיית שחר[^]*הבא: /);
-  await toastHas(ilai, 'הגישות של מאפיית שחר סומנו כנבדקו, לפי הסטטוסים בכספת.');
-  assert.equal(checkOf(I, 'p06.verified').note, 'נסגר לבד: כל הרשתות בכספת קיבלו סטטוס');
   await card.locator('summary').click();
-  assert.match(await card.innerText(), /Instagram: תקינה[^]*TikTok: אין רשת/);
-  // No vault flag: the statuses are there, the passwords are not his, and the card says so.
-  assert.equal(staff.find((r) => r.person === 'ilai').vault, false);
-  assert.match(await card.innerText(), /אין לך גישה לסיסמאות בכספת. בעל המשרד מפעיל אותה בעמוד הצוות./);
-  assert.doesNotMatch(await card.innerText(), /אין עדיין רשתות בכספת/);
-  assert.equal(await card.locator('a', { hasText: 'לכספת' }).count(), 0);
-  await card.locator('label', { hasText: 'שם העמוד' }).locator('input').check();
-  await ilai.waitForFunction(() => true);
-  // Protocol v11 (21.10.2026): connecting to Metricool is Ofir's, with the accesses. Ilai's card only says it.
-  assert.equal(await card.locator('input[type=url]').count(), 0);
-  assert.match(await card.innerText(), /את החיבור ל־Metricool עושה אופיר/);
-  for (let i = 0; i < 50 && !checkOf(I, 'p06.name'); i += 1) await ilai.waitForTimeout(100);
-  assert.ok(checkOf(I, 'p06.name'));
-  assert.equal(checkOf(I, 'p06.metricool'), null);
+  // The access check and the page setup are Ofir's (the owner, 28.10.2026): not a line of them here,
+  // no statuses, no "לכספת", no page checks, no word on Metricool; and process 6 is not in his list.
+  const text = await card.innerText();
+  assert.deepEqual(await card.locator('h4').allInnerTexts().then((t) => t.map((x) => x.split('\n')[0].trim())), ['9 גרפיקות', 'שלד גאנט', 'לוגו חדש']);
+  assert.doesNotMatch(text, /בדיקת גישות|סידור העמוד|Instagram: |לכספת|Metricool|שם העמוד/);
+  assert.equal(await ilai.locator('#mine-list .wproc[data-key$=":p06"]').count(), 0);
   await ilai.locator('.il-card', { hasText: 'מאפיית שחר' }).locator('button', { hasText: 'מוכן לבדיקה (לאופיר)' }).click();
   await toastHas(ilai, '9 הגרפיקות עברו לבדיקה של אופיר.');
   assert.ok(checkOf(I, 'p07.made'));
@@ -770,6 +766,46 @@ await step('Ilai: the characterization day card; the vault statuses check the ac
   assert.ok(checkOf(F, 'p27.toilai'));
   await shot(ilai, 'office-05-ilai');
   globalThis.ictx = ictx;
+});
+
+// Process 6 is Ofir's since 28.10.2026 (the owner): on his "המשימות שלי", the morning's client has
+// one card (4 is done; 5, 6 and 8 under it), and 6 opens onto two short parts: the logins with their
+// statuses and "לכספת", then the six page checks. The check itself closed by itself when he landed.
+await step('Ofir: process 6 on "המשימות שלי": the logins and their statuses, "לכספת", the six page checks; a tick is saved (1280px, then 390px)', async () => {
+  for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    const pctx = await newContext(TUE, viewport);
+    const page = await newPage(pctx);
+    await signIn(page, 'clients.html#mine', 'ofir');
+    await page.waitForSelector('#mine-list .wproc');
+    await page.waitForSelector('#login-block', { state: 'hidden' });
+    await shot(page, `office-08-ofir-mine-${viewport.width}`);
+    // Late (its 30 minutes ended at 09:25): on a short list his late work is one line to "באיחור".
+    const sub = page.locator(`#mine-list li[data-key="${I.id}:p06"]`);
+    if (!(await sub.count())) await page.evaluate(() => { location.hash = '#late'; });
+    await sub.waitFor();
+    if (await sub.locator('.ac-panel').count() === 0 || !(await sub.locator('.ac-panel').isVisible())) await sub.locator('button.wc-open, button.wc-more').first().click();
+    const panel = sub.locator('.ac-panel');
+    await panel.waitFor();
+    await page.waitForFunction((id) => document.querySelector(`#mine-list li[data-key="${id}:p06"] .ac-net`), I.id);
+    assert.deepEqual(await panel.locator('h4').allInnerTexts().then((t) => t.map((x) => x.replace(/\s+/g, ' ').trim())), ['בדיקת הגישות נבדק', 'סידור העמוד 0/6']);
+    assert.match(await panel.locator('.ac-net').innerText(), /Instagram: תקינה[^]*TikTok: אין רשת/);
+    assert.equal(await panel.locator('a.ac-vault').getAttribute('href'), `client.html?id=${I.id}#access`);
+    // The check is done; what is left of the logins' part is the new networks (optional, not listed) and Metricool.
+    assert.deepEqual(await panel.locator('.ac-access .wlabel').allInnerTexts(), ['כל הרשתות חוברו ל־Metricool']);
+    assert.deepEqual(await panel.locator('.ac-page .wlabel').allInnerTexts(), ['שם העמוד', 'Bio', 'פרטי עסק', 'טלפון', 'כתובת', 'מראה העמוד']);
+    assert.ok(await noHScroll(page), `${viewport.width}px: sideways scroll`);
+    const small = await panel.evaluate((root) => [...root.querySelectorAll('a.btn, button')].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.textContent.trim()));
+    if (viewport.width < 500) assert.deepEqual(small, [], 'targets under 44px');
+    await shot(page, `office-08-ofir-p06-${viewport.width}`);
+    if (OUT) await sub.screenshot({ path: `${OUT}/office-08-ofir-p06-card-${viewport.width}.png` });
+    if (viewport.width < 500) {
+      await panel.locator('label', { hasText: 'שם העמוד' }).locator('input').check();
+      await toastHas(page, 'סומן כבוצע: שם העמוד סודר');
+      assert.equal(checkOf(I, 'p06.name').by_email, 'ofir@astrateg.test');
+      await page.waitForFunction((id) => /1\/6/.test(document.querySelector(`#mine-list li[data-key="${id}:p06"] .ac-page h4`)?.textContent || ''), I.id);
+    }
+    await pctx.close();
+  }
 });
 
 await step('the pass over the clients is Irit\'s (26.10.2026): the owner and Ofir look at it, with no button of the pass; nothing of it in their "המשימות שלי"', async () => {
@@ -988,6 +1024,8 @@ await step('a 360px phone: no sideways scrolling and 44px targets on the three s
     await page.evaluate((r) => document.querySelectorAll(`${r} details`).forEach((d) => { d.open = true; }), root);
     assert.deepEqual(await unlabeled(page, root), [], `${path}: form controls without a label`);
     await shot(page, `office-07-phone-${path.split('.')[0]}`);
+    if (OUT && root === '.g-ilai') await page.waitForSelector('#login-block', { state: 'hidden' });
+    if (OUT && root === '.g-ilai') await page.locator('.g-ilai .il-card').first().screenshot({ path: `${OUT}/office-07-phone-ilai-card.png` });
     if (OUT && process.env.PHONE_PAGES) {
       const h = await page.evaluate(() => document.documentElement.scrollHeight);
       for (let y = 0, i = 0; y < h && i < 8; y += 760, i += 1) { await page.evaluate((v) => window.scrollTo(0, v), y); await page.screenshot({ path: `${OUT}/office-phone-${path.split('.')[0]}-${i}.png` }); }

@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { dateIL, partsIL, dayKeyIL } from '../app/tz.js';
 import { PROCESSES } from '../app/protocol.js';
-import { clientState, IMPORT_NOTE } from '../app/protocol-logic.js';
+import { clientState, IMPORT_NOTE, openItemsFor } from '../app/protocol-logic.js';
 import { computeReminders } from '../app/reminder-engine.js';
 import {
   qaState, qaRounds, ofirMeetings, MEETING_DONE_KEYS, returnKey, fixedKey, fixedItemKey, returnNote, readReturn, fixDue, qaDue, qaWaited, meetingNow,
@@ -24,7 +24,8 @@ import {
 import {
   urgentState, parseReport, exceptionPath, pausedSinceYesterday, campaignCheck, linkedTitle, withEditor,
 } from '../app/decisions-logic.js';
-import { accessChecked, charDay, ilaiWork, PAGE_KEYS, GANTT_KEYS } from '../app/ilai-logic.js';
+import { charDay, ilaiWork, GANTT_KEYS } from '../app/ilai-logic.js';
+import { accessChecked, PAGE_KEYS } from '../app/access-check.js';
 import { clientHealth, station } from '../app/health.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
@@ -399,7 +400,9 @@ test('the weekly campaign check: from Tuesday until marked that week (decision 2
 });
 
 // ── Ilai ────────────────────────────────────
-test('Ilai\'s characterization day: one line per client with the nearest due; the vault statuses check the access', () => {
+// The access check and the page setup (6) left Ilai's day on 28.10.2026: the process is Ofir's (the
+// owner). The vault statuses still check the access by themselves (app/access-check.js), for Ofir.
+test('Ilai\'s characterization day: one line per client with the nearest due; the vault statuses check the access (Ofir\'s)', () => {
   const w = world();
   const now = IL(2026, 10, 20, 12, 10);
   const c = client(w, { name: 'חדש', char_at: IL(2026, 10, 20, 10).toISOString(), has_logo: false });
@@ -410,16 +413,20 @@ test('Ilai\'s characterization day: one line per client with the nearest due; th
   assert.equal(accessChecked(rows, IL(2026, 10, 20, 12)), true);
   assert.equal(accessChecked([{ status: 'ok', updated_at: IL(2026, 10, 20, 11).toISOString() }], IL(2026, 10, 20, 12)), false);
   assert.equal(accessChecked([], IL(2026, 10, 20, 12)), false);
-  const card = charDay({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, access: { [c.id]: rows }, now });
+  const card = charDay({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, now });
   // A day later what is still open is in his list as late, not in the day's card.
   assert.equal(charDay({ clients: w.clients, stateOf: stateOfW(w, IL(2026, 10, 21, 12, 30)), checks: w.checks, now: IL(2026, 10, 21, 12, 30) }).length, 0);
   assert.equal(card.length, 1);
-  assert.deepEqual(card[0].lines.map((l) => l.key), ['access', 'page', 'graphics', 'gantt', 'logo']);
+  assert.deepEqual(card[0].lines.map((l) => l.key), ['graphics', 'gantt', 'logo']);
   assert.equal(card[0].next.key, 'gantt'); // 5 minutes after the meeting: the nearest
   assert.equal(hhmm(card[0].next.due), '20.10 12:05');
-  assert.equal(card[0].lines[0].auto, true);
-  // Everything done: the card is gone.
-  marks(w, c, ['p06.verified', ...PAGE_KEYS, 'p06.metricool', 'p07.made', ...GANTT_KEYS, 'p05.newlogo'], IL(2026, 10, 20, 13));
+  // Process 6 open in full does not keep his card: it is not his.
+  marks(w, c, ['p07.made', ...GANTT_KEYS, 'p05.newlogo'], IL(2026, 10, 20, 13));
+  assert.equal(charDay({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, now }).length, 0);
+  assert.ok(openItemsFor('ofir', c, w.checks[c.id], stateOfW(w, now)(c), now).some((e) => e.item.key === 'p06.verified'));
+  assert.deepEqual(openItemsFor('ilai', c, w.checks[c.id], stateOfW(w, now)(c), now).filter((e) => e.proc.id === 'p06'), []);
+  // Everything done: still no card.
+  marks(w, c, ['p06.verified', ...PAGE_KEYS, 'p06.metricool'], IL(2026, 10, 20, 13));
   assert.equal(charDay({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, now }).length, 0);
 });
 
@@ -503,7 +510,8 @@ test('the weekly campaign check stops once Lior marked it this week', () => {
   none(due(w, IL(2026, 10, 20, 8, 30)), 'campaignCheck');
 });
 
-test('broken login: closed partly stops the rings to Lior (the owner still follows it); Irit and Ilai are told', () => {
+// Irit and Ofir are told: the accesses are Ofir's since 28.10.2026 (the owner; Ilai was told until then).
+test('broken login: closed partly stops the rings to Lior (the owner still follows it); Irit and Ofir are told', () => {
   const w = world();
   const c = client(w, { name: 'גישה' });
   const at = IL(2026, 10, 20, 10);
@@ -519,7 +527,8 @@ test('broken login: closed partly stops the rings to Lior (the owner still follo
   const irit = one(list, 'accessClosed', 'irit', 'irit');
   assert.equal(irit.title, 'גישה תוקנה חלקית: גישה');
   assert.equal(irit.body, 'Instagram. עדיין חסר: קוד אימות');
-  one(list, 'accessClosed', 'ilai', 'ilai');
+  one(list, 'accessClosed', 'ofir', 'ofir');
+  none(list.filter((r) => r.person === 'ilai'), 'accessClosed');
 });
 
 test('the final versions: Ilai (quiet) at once; Lior\'s list if no "קיבלתי" by the end of that business day', () => {

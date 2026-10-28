@@ -61,7 +61,7 @@ before(async () => {
 
 test('the file: the newest, only adds, and runs twice', async () => {
   // After it only Niro and "הצל" (20261112100000_new_influencers.sql, 28.10.2026).
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261112100000_new_influencers.sql', '20261113100000_client_details_month.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261111100000_p06_ofir.sql', '20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
@@ -94,7 +94,7 @@ test('the three states: signed keeps its signature; waiting and a price offer ke
   const ps = await stored(3002);
   assert.deepEqual([ps.status, ps.signature, ps.signed_at, Number(ps.total_amount)], ['pending', null, null, 24000]);
   assert.equal(ps.doc.status, 'ממתין לחתימה', 'the old record is kept as it was');
-  assert.ok(!('phone' in ps.doc));
+  assert.equal(ps.doc.phone, '050-1112222', 'everything of the record is kept (20261112200000_legacy_contracts_full.sql)');
 
   const q = await imp(ids.dana, OLD({ id: 3003, status: 'הצעת מחיר', signerName: undefined, signature: undefined, signedAt: undefined }));
   assert.equal(q.status, 'quote');

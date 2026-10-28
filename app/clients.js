@@ -44,6 +44,7 @@ import { mountConnect, openConnect, paintConnectLine } from './mine-connect.js';
 import { mountCalendar } from './calendar-card.js';
 // Stage 3, part 2 (the office's flows): Ilai's day in "המשימות שלי", the first screens of Ofir and Lior.
 import { ilaiSection, coveredByCard } from './ilai-card.js';
+import { accessPanel, watchAccess, isAccessCard } from './access-check-ui.js';
 import { landingNow, officeLinks } from './office-ui.js';
 import { hasProfiles, modeOf } from './manager-rules.js';
 import { profileOf, managerTabs, opensClients, writesChar } from './shell-rules.js';
@@ -1194,6 +1195,29 @@ const echoesLeaf = (g, when) => !!g.dueAt && g.status !== 'overdue' && g.status 
 // not the characterization (that is what the rest of 5, the access, is done from).
 const logoOnly = (g) => !g.task && checkable(g).length > 0 && checkable(g).every((e) => baseKeyOf(e.item.key) === 'p05.newlogo');
 const procTitle = (g) => (logoOnly(g) ? `${g.proc.num} · לוגו חדש` : procLabel(g.proc));
+// One line of a card: its tick (or the page it is done on), and what stands beside it.
+// `label`: a shorter name where the card lays its lines out its own way (process 6's page setup).
+function rowOf(e, label = null) {
+  const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
+  return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
+    h('label', { class: 'wrow', for: id },
+      tickOf(e, id),
+      h('span', { class: 'wlabel' }, label || entryLabel(e))),
+    viaLine(e),
+    fixLine(e),
+    fixAsk(e),
+    e.task ? briefDetails(e.task) : null);
+}
+// Process 6 (Ofir's since 28.10.2026): the check of the logins and the page setup, in two
+// short parts (app/access-check-ui.js); its statuses in the vault mark the check by themselves.
+const accessCtx = (g) => ({
+  checks: checks[g.client.id] || {},
+  mayMark: scope === 'office' && !viewerError,
+  refresh: cardsChanged,
+  onMarked: (row) => { (checks[g.client.id] ||= {})[row.item_key] = row; states.delete(g.client.id); cardsChanged(); },
+});
+const listOf = (g, ticks) => (isAccessCard(g) ? accessPanel(g, { checks: checks[g.client.id] || {}, row: rowOf })
+  : h('ul', { class: 'wlist' }, ...ticks.map((e) => rowOf(e))));
 const shortcutOf = (g) => (!g.proc ? null : logoOnly(g) ? h('a', { class: 'btn btn-sm ik-go files-go', href: clientUrl(g.client.id, '#fl-slot') }, 'תיק הלקוח')
   : intakeShortcut(g.proc.id, g.client.id, { checks: checks[g.client.id] || {}, scope, me }));
 function compactCard(g, person) {
@@ -1215,17 +1239,7 @@ function compactCard(g, person) {
   // The action in words: the task, or the process (a single item is named by its own check).
   const what = g.task ? g.task.title : procTitle(g);
   const sub = g.task ? [isEscalation(g.task) ? null : 'משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ') : one || !n ? '' : n === 1 ? 'פריט אחד לסימון' : `${n} פריטים לסימון`;
-  const rows = () => h('ul', { class: 'wlist' }, ...ticks.map((e) => {
-    const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
-    return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
-      h('label', { class: 'wrow', for: id },
-        tickOf(e, id),
-        h('span', { class: 'wlabel' }, entryLabel(e))),
-      viaLine(e),
-      fixLine(e),
-      fixAsk(e),
-      e.task ? briefDetails(e.task) : null);
-  }));
+  const rows = () => (one ? h('ul', { class: 'wlist' }, ...ticks.map((e) => rowOf(e))) : listOf(g, ticks));
   // The one action: "התחלתי" on an urgent task; the form the process is worked in; the
   // single item's own check; or the list of items, which opens here.
   const listIsAction = !needsStart && !shortcut && !one && n > 0;
@@ -1326,17 +1340,7 @@ function groupCard(g, person) {
       }, g.proc.bulkWord ? `${g.proc.bulkWord} (${bulk.items.length})` : bulk.whole ? `סימון כל התהליך כבוצע (${bulk.items.length})` : `סימון כל הפריטים שלי כבוצעו (${bulk.items.length})`) : null,
       canWait && g.status !== 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => openWait(g) }, 'ממתין ללקוח') : null,
       canWait && g.status === 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(g) }, 'סיום המתנה') : null) : null,
-    h('ul', { class: 'wlist' }, ...checkable(g).map((e) => {
-      const id = `w-${e.client.id}-${e.task ? e.task.id : e.item.key}`.replace(/[^\w-]/g, '_');
-      return h('li', { class: `witem${e.task && briefDetails(e.task) ? ' has-brief' : ''}` },
-        h('label', { class: 'wrow', for: id },
-          tickOf(e, id),
-          h('span', { class: 'wlabel' }, entryLabel(e))),
-        viaLine(e),
-        fixLine(e),
-        fixAsk(e),
-        e.task ? briefDetails(e.task) : null);
-    })));
+    listOf(g, checkable(g)));
 }
 
 // ── One card per client (Ofir; the owner, 20.10.2026) ──
@@ -1672,6 +1676,7 @@ function renderLate(flow) {
   mineShares = !!ilaiCtx;
   const covered = ilaiCtx ? coveredByCard(ilaiCtx) : () => false;
   const ilai = ilaiCtx ? ilaiSection(ilaiCtx, new Set(items.map(lateKey))) : null;
+  for (const g of work) watchAccess(g, accessCtx(g)); // process 6 closes by itself from the vault's statuses
   // Worst first: urgent, then the longest lateness (lateItems is sorted by its deadline).
   const cards = items.map((x) => byKey.get(lateKey(x)) || x).filter((g) => !(g.key && covered(g)))
     .sort((a, b) => (a.key && b.key ? worstFirst(a, b) : 0));
@@ -1799,6 +1804,9 @@ function renderMine() {
   const renewLine = renewN || renewOpen.length ? flowCard({ id: 'renewals', n: renewN || renewOpen.length, href: 'year.html#renewals', cta: 'לחידושים', tone: renewOpen.length ? 'today' : 'plain',
     text: `חידושים ב־90 יום: ${renewN || renewOpen.length}` }) : null;
   const list = workFor(person).filter((g) => !covered(g) && !renewing(g.proc?.id));
+  // Process 6: the vault's statuses close the check by themselves, also while its card is folded
+  // behind "N דברים באיחור" or "הצג עוד" (app/access-check-ui.js).
+  for (const g of list) watchAccess(g, accessCtx(g));
   const shownKeys = new Set(list.map((g) => g.key));
   const soonGroups = person ? upcomingGroups(person).map((g) => ({ ...g, list: g.list.filter((s) => !shownKeys.has(`${g.client.id}:${s.proc.id}`) && !renewing(s.proc.id) && !covered({ client: g.client, proc: s.proc })) })).filter((g) => g.list.length) : [];
   const soon = person ? upcomingSection(soonGroups, own) : null;

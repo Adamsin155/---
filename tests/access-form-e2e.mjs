@@ -15,8 +15,8 @@
 //     refuses to work;
 //   - an expired, a revoked, a locked and a malformed link each get a plain message;
 //   - the office: the card says "מולא" with the platforms, the choices and the client's
-//     notes; Lior (vault) sees "התקבל מהלקוח, עוד לא נבדק" and opens the password; Ilai's
-//     ring and Irit's quiet note are due; Ofir's "האפיון הסתיים" form shows what the
+//     notes; Lior (vault) sees "התקבל מהלקוח, עוד לא נבדק" and opens the password; Ofir's
+//     ring (the accesses are his since 28.10.2026, the owner; Ilai's until then) and Irit's quiet note are due; Ofir's "האפיון הסתיים" form shows what the
 //     client already sent and asks only for the rest; a later form of the client does
 //     not touch what it did not fill;
 //   - two days later, with a link still waiting: the nudge is in Irit's queue.
@@ -164,7 +164,7 @@ function formSubmit(token, payload) {
   setCheckAs(c, 'p05.access', `מהלקוח, בטופס פרטי הכניסה: ${names.join(', ')}`);
   setCheckAs(c, 'p05.vault', 'נכנס לכספת מטופס פרטי הכניסה של הלקוח');
   if (open.length) {
-    db.client_tasks.push({ id: randomUUID(), client_id: c.id, title: `לפתוח ללקוח ${open.join(', ')} ולהכניס את הגישה לכספת (הלקוח סימן בטופס: אין כיום)`, owner: 'ilai', urgent: true, due_on: null, done_at: null, done_by_email: null, source: null, brief: null, started_at: null, created_by_email: '', created_at: iso() });
+    db.client_tasks.push({ id: randomUUID(), client_id: c.id, title: `לפתוח ללקוח ${open.join(', ')} ולהכניס את הגישה לכספת (הלקוח סימן בטופס: אין כיום)`, owner: 'ofir', urgent: true, due_on: null, done_at: null, done_by_email: null, source: null, brief: null, started_at: null, created_by_email: '', created_at: iso() });
   }
   return { state: 'done' };
 }
@@ -629,7 +629,7 @@ await step('nothing typed is kept in the browser, and nothing is loaded from a t
   assert.deepEqual(scripts, ['app/access-form.js', 'app/access-logic.js', 'app/frame-guard.js', 'app/supa.js', 'app/tz.js', 'app/vendor/supabase.js']);
 });
 
-await step('sending: thanks; the vault got the logins as the office saves them; process 5 and Ilai\'s task', async () => {
+await step('sending: thanks; the vault got the logins as the office saves them; process 5 and Ofir\'s task', async () => {
   await cl.click('#send');
   await cl.waitForSelector('#thanks:not([hidden])');
   assert.equal(await text(cl, '#thanks-h'), 'תודה! הפרטים התקבלו');
@@ -655,7 +655,7 @@ await step('sending: thanks; the vault got the logins as the office saves them; 
   assert.deepEqual([checkOf(D, 'p05.access').by_email, checkOf(D, 'p05.vault').state], ['system', 'done']);
   assert.equal(checkOf(D, 'p05.access').note, 'מהלקוח, בטופס פרטי הכניסה: Instagram, Facebook, TikTok, Pinterest');
   const t = db.client_tasks.filter((x) => x.client_id === D.id);
-  assert.deepEqual(t.map((x) => [x.title, x.owner, x.urgent]), [['לפתוח ללקוח Facebook ולהכניס את הגישה לכספת (הלקוח סימן בטופס: אין כיום)', 'ilai', true]]);
+  assert.deepEqual(t.map((x) => [x.title, x.owner, x.urgent]), [['לפתוח ללקוח Facebook ולהכניס את הגישה לכספת (הלקוח סימן בטופס: אין כיום)', 'ofir', true]]);
   await shot(cl, '06-thanks-360');
 });
 
@@ -768,29 +768,43 @@ await step('Irit\'s card: "מולא", the platforms and the choices; never a log
   await shotOf(irit, '#access', '10-card-filled-desktop');
 });
 
-await step('Irit hears quietly, Ilai is rung "קיבלת גישות" with 30 office minutes, Lior the broken login: each once', async () => {
+await step('Irit hears quietly, Ofir is rung "קיבלת גישות" with 30 office minutes, Lior the broken login: each once', async () => {
   const first = computeReminders({ ...world(), now: new Date(serverNow().getTime() + 60e3) });
   const of = (rule, cid = D.id) => first.filter((r) => r.rule === rule && r.clientId === cid).map((r) => `${r.step}@${r.person}:${r.level}`).sort();
   assert.deepEqual(of('accessForm'), ['irit@irit:quiet']);
   assert.equal(first.find((r) => r.rule === 'accessForm' && r.clientId === D.id).title, 'הלקוח מילא את פרטי הכניסה לרשתות: קפה דנה · דנה לוי');
-  assert.deepEqual(of('access'), ['now@ilai:ring']);
+  assert.deepEqual(of('access'), ['now@ofir:ring']);
   assert.match(first.find((r) => r.rule === 'access' && r.clientId === D.id).body, /יש לך 30 דקות לבדוק אותן מהכספת.*יעד היום 10:30/);
   assert.deepEqual(of('broken'), ['now@lior:ring']);
-  assert.ok(first.some((r) => r.rule === 'urgent' && r.person === 'ilai' && r.clientId === D.id), 'the task to open Facebook rings Ilai');
+  assert.ok(first.some((r) => r.rule === 'urgent' && r.person === 'ofir' && r.clientId === D.id), 'the task to open Facebook rings Ofir');
+  assert.deepEqual(first.filter((r) => r.person === 'ilai' && r.clientId === D.id).map((r) => r.rule), [], 'nothing of the accesses for Ilai');
   const again = computeReminders({ ...world(), now: new Date(serverNow().getTime() + 5 * 60e3), log: first.map((r) => ({ key: r.key })) });
   assert.deepEqual(again.filter((r) => ['accessForm', 'access', 'broken'].includes(r.rule) && r.clientId === D.id), []);
   const dump = JSON.stringify(first);
   for (const hidden of [SECRET, 'Pin-123', token, 'dana_cafe']) assert.ok(!dump.includes(hidden), hidden);
 });
 
-await step('Ilai (no vault flag) sees the client\'s form in his work and in the card: statuses only', async () => {
+// The accesses are Ofir's since 28.10.2026 (the owner): the task to open Facebook and process 6 are in
+// his "המשימות שלי", not in Ilai's. Ilai keeps his read of the vault (statuses; no passwords without the flag).
+await step('Ofir has the client\'s form in his work; Ilai (no vault flag) has none of it in his, and in the card statuses only', async () => {
+  const octx = await newContext(PHONE);
+  const ofir = await newPage(octx);
+  await signIn(ofir, 'clients.html#mine', 'ofir@astrateg.test');
+  await ofir.waitForFunction((name) => document.getElementById('app').innerText.includes(name), 'קפה דנה');
+  if (!/בדיקת הגישות וסידור הרשתות/.test(await ofir.evaluate(() => document.getElementById('app').innerText))) await ofir.evaluate(() => { location.hash = '#late'; });
+  await ofir.waitForFunction(() => /בדיקת הגישות וסידור הרשתות/.test(document.getElementById('app').innerText));
+  assert.ok(await noHScroll(ofir));
+  await shot(ofir, '11-ofir-mine-360');
+  await octx.close();
+  assert.ok(db.client_tasks.some((t) => t.client_id === D.id && t.owner === 'ofir' && /^לפתוח ללקוח Facebook/.test(t.title)));
   const ctx = await newContext(PHONE);
   const page = await newPage(ctx);
   await signIn(page, 'clients.html#mine', 'ilai@astrateg.test');
-  await page.waitForFunction((name) => document.getElementById('app').innerText.includes(name), 'קפה דנה');
+  await page.waitForSelector('#view-mine:not([hidden])');
+  await page.waitForTimeout(400);
   const mine = await page.evaluate(() => document.getElementById('app').innerText);
-  assert.match(mine, /לפתוח ללקוח Facebook ולהכניס את הגישה לכספת/);
-  assert.match(mine, /בדיקת הגישות וסידור הרשתות/);
+  assert.doesNotMatch(mine, /לפתוח ללקוח Facebook ולהכניס את הגישה לכספת/);
+  assert.doesNotMatch(mine, /בדיקת הגישות וסידור הרשתות/);
   assert.ok(await noHScroll(page));
   await shot(page, '11-ilai-mine-360');
   await page.goto(`${BASE}client.html?id=${D.id}`);
@@ -1028,7 +1042,7 @@ await step('the client\'s page on a 375px phone and on a desktop', async () => {
 });
 
 // ── "שויך" (the owner's request of 21.10.2026) ──
-await step('"שייכתי את העמוד לאסטרטג": Facebook and Instagram with no login; the vault says "שויך", and nothing is opened for Ilai', async () => {
+await step('"שייכתי את העמוד לאסטרטג": Facebook and Instagram with no login; the vault says "שויך", and nothing is opened for them', async () => {
   const l = makeLink(E.id, 'irit@astrateg.test');
   const ctx = await newContext({ width: 390, height: 844 });
   const page = await newPage(ctx);
@@ -1054,9 +1068,9 @@ await step('"שייכתי את העמוד לאסטרטג": Facebook and Instagra
   const rows = db.client_access.filter((a) => a.client_id === E.id);
   assert.deepEqual(rows.map((a) => [a.network, a.status, !!a.linked, a.username, a.has_secret]).sort(),
     [['facebook', 'ok', true, null, null], ['instagram', 'ok', true, null, null], ['tiktok', 'missing', false, null, null]]);
-  const ilai = db.client_tasks.filter((t) => t.client_id === E.id && t.owner === 'ilai');
-  assert.equal(ilai.length, 1);
-  assert.doesNotMatch(ilai[0].title, /Instagram|Facebook/);
+  const ofir = db.client_tasks.filter((t) => t.client_id === E.id && t.owner === 'ofir');
+  assert.equal(ofir.length, 1);
+  assert.doesNotMatch(ofir[0].title, /Instagram|Facebook/);
   await ctx.close();
 });
 

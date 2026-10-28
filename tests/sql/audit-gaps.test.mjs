@@ -93,7 +93,7 @@ test('the migration is the newest one, right after the migration of version 9, a
   // nudges (20261031090000_nudnik_givers.sql), the vault's linked pages and the second editor
   // (20261031100000_access_and_editors.sql), protocol v11 (20261031110000_protocol_2110.sql) and Nirel on any
   // shoot (20261031120000_nirel_any_shoot.sql), 21.10.2026; the editors' edited counts (20261101100000_editor_progress.sql, 22.10.2026); Irit edits the Gantt (20261102100000_gantt_irit.sql, 22.10.2026); a monthly client's count (20261104100000_editor_progress_month.sql, 22.10.2026); the old system's signed documents (20261105100000_legacy_contracts.sql, 25.10.2026); "הכנת חוזה עם AI" (20261106100000_contract_ai.sql) and a shoot day without influencers (20261107100000_shoot_crew.sql, 25.10.2026); the old system's characterizations (20261109100000_legacy_characterizations.sql, 26.10.2026).
-  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261025100000_whatsapp_jako.sql', '20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql', '20261029100000_google_calendar_sync.sql', '20261031090000_nudnik_givers.sql', '20261031100000_access_and_editors.sql', '20261031110000_protocol_2110.sql', '20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql', '20261102100000_gantt_irit.sql', '20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql', '20261112100000_new_influencers.sql', '20261113100000_client_details_month.sql']);
+  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261025100000_whatsapp_jako.sql', '20261026100000_landing_editor.sql', '20261027100000_landing_links.sql', '20261028100000_quotes_insert_fix.sql', '20261029100000_google_calendar_sync.sql', '20261031090000_nudnik_givers.sql', '20261031100000_access_and_editors.sql', '20261031110000_protocol_2110.sql', '20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql', '20261102100000_gantt_irit.sql', '20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql', '20261111100000_p06_ofir.sql', '20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql']);
   assert.equal(files[files.indexOf(MIGRATION) - 1], '20261023100000_ofir_fast_ladder_v9.sql');
   const sql = readFileSync(new URL(`../../supabase/migrations/${MIGRATION}`, import.meta.url), 'utf8');
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
@@ -101,10 +101,10 @@ test('the migration is the newest one, right after the migration of version 9, a
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
   // A key that spells one of those words is still written in two halves and reads the same.
   assert.match(sql, /'p24\.d' \|\| 'ropbox'/);
-  // The writers' block: since protocol v11 (20261031110000_protocol_2110.sql, 21.10.2026) the newest
-  // block is that file's (tests/sql/protocol-2110.test.mjs checks it against app/protocol.js).
+  // The writers' block: since process 6 passed to Ofir (20261111100000_p06_ofir.sql, 28.10.2026) the
+  // newest block is that file's (tests/sql/p06-ofir.test.mjs checks it against app/protocol.js).
   assert.match(sql, /-- protocol-writers:begin/);
-  assert.equal(latestBlock().file, '20261031110000_protocol_2110.sql');
+  assert.equal(latestBlock().file, '20261111100000_p06_ofir.sql');
   // No table, no policy, no trigger is created, and no index: one column, functions, marks and the writers' rows.
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);
 });
@@ -251,13 +251,15 @@ test('the writers table: 23 new rows against version 9, and the database agrees 
   const rowsOf = (sql) => new Map(sql.split('\n').filter((l) => l.startsWith('  (')).map((l) => [l.slice(3, l.indexOf(', ')), l.trim().replace(/,$/, '')]));
   const a = rowsOf(v9.slice(v9.indexOf('-- protocol-writers:begin'), v9.indexOf('-- protocol-writers:end')));
   // This database is the one of version 10, with its own block. Version 11 made p06.metricool the
-  // office's (Ofir's; 20261031110000_protocol_2110.sql, tests/sql/protocol-2110.test.mjs): the app's
-  // rows now are the same but that one.
+  // office's (Ofir's; 20261031110000_protocol_2110.sql, tests/sql/protocol-2110.test.mjs), and on
+  // 28.10.2026 the whole of process 6 (20261111100000_p06_ofir.sql): the app's rows now are the
+  // same but those of 6.
   const v10 = migrationSql(MIGRATION);
   const b = rowsOf(v10.slice(v10.indexOf('-- protocol-writers:begin'), v10.indexOf('-- protocol-writers:end')));
   assert.equal((await db.query('select count(*)::int as n from private.protocol_writers')).rows[0].n, b.size);
   const now = new Set(writerRows().map((r) => `'${r.key}'`));
-  assert.deepEqual([...b.keys()].filter((k) => !now.has(k) && !k.includes(' || ')), ["'p06.metricool'"]);
+  assert.deepEqual([...b.keys()].filter((k) => !now.has(k) && !k.includes(' || ')).sort(),
+    ['p06.@part', 'p06.address', 'p06.bio', 'p06.details', 'p06.look', 'p06.metricool', 'p06.name', 'p06.newpages', 'p06.phone', 'p06.verified'].map((k) => `'${k}'`));
   const added = [...b].filter(([k, v]) => a.get(k) !== v).map(([k]) => k.replace(/'/g, '')).sort();
   assert.deepEqual(added, [...FIVE, ...FINAL, 'p29b.@part', 'p16.photographer', 'p16.read', 'p18b.files'].sort());
   assert.equal(added.length, 23);

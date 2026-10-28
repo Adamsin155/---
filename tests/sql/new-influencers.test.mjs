@@ -54,7 +54,7 @@ before(async () => {
 });
 
 test('the migration: the newest, only adds, runs twice', async () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261113100000_client_details_month.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   await db.exec(migrationSql(FILE));

@@ -114,8 +114,9 @@ test("2. version 11: 'כל הרשתות חוברו ל־Metricool' is Ofir's, rig
   assert.match(v11.changes.join(' '), /ממתין ללקוח.*בכל שעה/);
   assert.equal(itemSince('p06.metricool'), 1);
   const p06 = PROCESSES.find((p) => p.id === 'p06');
-  assert.deepEqual(p06.items.find((i) => i.key === 'p06.metricool').owners, ['ofir']);
-  assert.deepEqual(p06.owners, ['ilai'], "the rest of 6 stays Ilai's");
+  assert.deepEqual(p06.items.find((i) => i.key === 'p06.metricool').owners ?? p06.owners, ['ofir']);
+  // Since 28.10.2026 the rest of 6 is Ofir's too (the owner; tests/p06-ofir.test.mjs).
+  assert.deepEqual(p06.owners, ['ofir']);
   // Ofir took the accesses at the characterization (Monday 5.10 12:30): the item is on his list, not on Ilai's.
   const w = world();
   const c = afterMeeting(w, { name: 'גמא' });
@@ -125,21 +126,22 @@ test("2. version 11: 'כל הרשתות חוברו ל־Metricool' is Ofir's, rig
   const open = (who) => openItemsFor(who, c, w.checks[c.id], st, now).map((e) => e.item.key);
   assert.ok(open('ofir').includes('p06.metricool'));
   assert.ok(!open('ilai').includes('p06.metricool'));
-  assert.ok(open('ilai').includes('p06.verified'));
+  assert.ok(!open('ilai').includes('p06.verified'));
   // Its deadline is 6's: 30 minutes from the accesses.
   assert.equal(hhmm(st.states.find((s) => s.proc.id === 'p06').dueAt), '5.10 13:00');
   // Who may write it: the office (Ofir among them); Ilai no more.
   assert.equal(mayWrite({ person: 'ofir', client: c, key: 'p06.metricool' }), true);
   assert.equal(mayWrite({ person: 'ilai', client: c, key: 'p06.metricool' }), false);
-  assert.equal(mayWrite({ person: 'ilai', client: c, key: 'p06.name' }), true);
+  assert.equal(mayWrite({ person: 'ilai', client: c, key: 'p06.name' }), false);
 });
 
-test("2. Ilai's characterization card: the page setup is done without Metricool, which is only said", () => {
+// Since 28.10.2026 Ilai's characterization card has no page setup and no access check at all:
+// process 6 is Ofir's (the owner). The card holds his graphics and the Gantt skeleton.
+test("2. Ilai's characterization card: no page setup, no access check, no Metricool; his graphics and the Gantt", () => {
   const w = world();
   const c = afterMeeting(w, { name: 'דלתא' });
   for (const k of [...itemsOf('p06'), ...itemsOf('p07'), ...itemsOf('p09')]) delete w.checks[c.id][k];
-  for (const k of ['p06.name', 'p06.bio', 'p06.details', 'p06.phone', 'p06.address', 'p06.look']) mark(w, c, k, IL(2026, 10, 5, 12, 20));
   const now = IL(2026, 10, 5, 12, 30);
   const [card] = charDay({ clients: [c], stateOf: (x) => clientState(x, w.checks[x.id], now), checks: w.checks, now });
-  assert.equal(card.lines.find((l) => l.key === 'page').done, true);
+  assert.deepEqual(card.lines.map((l) => l.key), ['graphics', 'gantt']);
 });

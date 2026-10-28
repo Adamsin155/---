@@ -106,12 +106,17 @@ test('"ended" starts the clocks of Ilai, Ofir (8) and Lior (10) at once, before 
   one(due(world(c, base), IL(2026, 10, 6, 12, 15)), 'char', 'end', 'ofir');
 });
 
-test('the access given at the end goes straight to Ilai (30 minutes); the vault check closes by itself', () => {
+// Process 6 is Ofir's since 28.10.2026 (the owner; it was Ilai's).
+test('the access given at the end goes straight to Ofir (30 minutes); the vault check closes by itself', () => {
   const c = client({ char_at: IL(2026, 10, 6, 10).toISOString() });
   const ended = IL(2026, 10, 6, 11, 30);
   const v = { address: 'הרצל 1', phone: '03-1234567', has_logo: true, networks: [{ network: 'instagram', status: 'ok' }] };
   const checks = { ...imported('char'), ...done(CHAR_ENDED, ended), ...Object.assign({}, ...endedChecks(v).map((x) => done(x.key, ended, x.note, x.state))) };
-  one(due(world(c, checks), ended), 'access', 'now', 'ilai');
+  one(due(world(c, checks), ended), 'access', 'now', 'ofir');
+  // Ofir pressed "האפיון הסתיים" himself: he is not told of the accesses he just gave; his 30 minutes run.
+  const byOfir = { ...checks, 'p05.access': { ...checks['p05.access'], by_email: 'ofir@x' } };
+  none(due(world(c, byOfir), ended), 'access', 'now');
+  one(due(world(c, byOfir), IL(2026, 10, 6, 12)), 'access', 'ofir30', 'ofir');
   none(due(world(c, checks), IL(2026, 10, 6, 12, 5)), 'vault', 'irit');
   // Irit's "not in the vault" ladder starts from the tap, when nothing went in.
   const noVault = { ...imported('char'), ...done(CHAR_ENDED, ended) };

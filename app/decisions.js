@@ -3,7 +3,7 @@
 //    next action with an owner and a due date (opened as a linked task) → close;
 //  - urgent tasks: "התחלתי" within 30 office minutes or back with him (decision 9);
 //  - broken logins, closed as "תוקן" or "תוקן חלקית, עדיין חסר: ___" (partial keeps
-//    the network red in the vault; Irit and Ilai are told by the reminder engine);
+//    the network red in the vault; Irit and Ofir are told by the reminder engine);
 //  - editing still paused the next morning: move the deadlines or reassign, with
 //    Ofir's proposal by load;
 //  - the weekly campaign check on Tuesday (decision 21), as a recurring item;
@@ -350,7 +350,8 @@ async function closeAccess(a, partial, missing, btn) {
     access = await loadAccessRows();
   } catch (e) { btn.disabled = false; toast(`לא נשמר. ${errorText(e)}`); return; }
   renderKeepingState();
-  toast(partial ? `נשמר כתוקן חלקית. הרשת נשארת אדומה בכספת; עירית ועילאי מקבלים עדכון.` : `הגישה של ${c.name} תקינה. עירית ועילאי מקבלים עדכון.`);
+  // Irit and Ofir are told (the rule accessClosed; Ofir checks the accesses since 28.10.2026).
+  toast(partial ? `נשמר כתוקן חלקית. הרשת נשארת אדומה בכספת; עירית ואופיר מקבלים עדכון.` : `הגישה של ${c.name} תקינה. עירית ואופיר מקבלים עדכון.`);
   $('ac-h').focus();
 }
 

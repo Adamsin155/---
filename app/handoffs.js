@@ -41,9 +41,12 @@ const editor2Of = (ctx) => (ctx.editor && ctx.editor2 && ctx.editor2 !== ctx.edi
 // Kept as data, so a wording or a rule changes here without touching the pages.
 export const HANDOFFS = [
   {
+    // Ofir's since 28.10.2026 (the owner: the accesses are no longer Ilai's). When he took the
+    // accesses himself (he runs the characterization) he is offered no message to himself
+    // (`from` in handoffsFor; the card's "העברות" line has no button for him either).
     id: 'access', on: 'p05.access', label: 'גישות התקבלו',
     to: [{
-      id: 'ilai', person: 'ilai', proc: 'p06', until: 'p06.verified',
+      id: 'ofir', person: 'ofir', proc: 'p06', until: 'p06.verified',
       text: 'גישות התקבלו ל{client}. יש לך 30 דק׳ לבדוק אותן מהכספת במערכת ולסדר את העמודים.',
       due: [{ label: 'יעד', proc: 'p06', minutes: 30 }],
     }],
@@ -155,7 +158,7 @@ const isProcId = (on) => /^p\d+[a-z]?$/.test(on);
 const procOfPoint = (point) => (isProcId(point.on) ? point.on : point.on.split('.')[0]);
 
 // The record that WhatsApp was opened for a handoff, stored as a process mark
-// (like `.claim` and `.wait`): `p05.handoff.ilai`, `r2.p24.handoff.ofir`.
+// (like `.claim` and `.wait`): `p05.handoff.ofir`, `r2.p24.handoff.ofir`.
 export const HANDOFF_MARK = /^(?:r\d+\.)?p\d+[a-z]?\.handoff\.[a-z0-9]+$/;
 export const markKeyOf = (pre, point, target) => `${pre}${procOfPoint(point)}.handoff.${target.id}`;
 
@@ -163,11 +166,12 @@ export const markKeyOf = (pre, point, target) => `${pre}${procOfPoint(point)}.ha
 export const nameOf = (person) => (person && person !== 'editor' && PEOPLE[person] ? PEOPLE[person].name : null);
 export const toName = (person) => (nameOf(person) ? `ל${nameOf(person)}` : 'לעורך המשויך');
 
-// A record key in words, for the card's history: "גישות התקבלו ← עילאי". `note` is
+// A record key in words, for the card's history: "גישות התקבלו ← אופיר". `note` is
 // the record's note: the person WhatsApp was opened for (Lior, when he took the
 // editor assignment; the editor by name). Null when the key is not a handoff record.
 // Records of hand-offs that no longer exist, so a client's history keeps its words.
-const RETIRED = { 'p07.handoff.irit': '9 גרפיקות מוכנות לבדיקה ← עירית' };
+// (The accesses went to Ilai until 28.10.2026; they are Ofir's since, `p05.handoff.ofir`.)
+const RETIRED = { 'p07.handoff.irit': '9 גרפיקות מוכנות לבדיקה ← עירית', 'p05.handoff.ilai': 'גישות התקבלו ← עילאי' };
 export function describeMark(key, note = null) {
   const m = /^(?:r\d+\.)?(p\d+[a-z]?)\.handoff\.([a-z0-9]+)$/.exec(String(key || ''));
   if (!m) return null;

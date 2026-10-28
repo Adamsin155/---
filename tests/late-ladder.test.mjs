@@ -75,8 +75,9 @@ test('who holds a late item and who waits for it come from the protocol: its ite
   // 7: Ilai makes; Ofir checks after him (the hand-off "9 גרפיקות מוכנות" goes to him, protocol
   // v9), and Irit sends once he approved. Lior is not a waiter: he has no item in 7.
   assert.deepEqual([by('7').holders, by('7').waiters.sort()], [['ilai'], ['irit', 'ofir']]);
-  // 5: the access is taken by the characterizer and Irit; Ilai's 30 minutes (6) start from it.
-  assert.deepEqual([by('5').holders.sort(), by('5').waiters], [['irit', 'ofir'], ['ilai']]);
+  // 5: the access is taken by the characterizer and Irit; the 30 minutes of 6 start from it, and
+  // 6 is Ofir's since 28.10.2026 (Ilai waited here until then): he holds 5 already, so nobody waits.
+  assert.deepEqual([by('5').holders.sort(), by('5').waiters], [['irit', 'ofir'], []]);
   // 8 and 10 are their owner's alone: nobody waits inside the protocol.
   assert.deepEqual([by('8').holders, by('10').holders], [['ofir'], ['lior']]);
   assert.equal(hhmm(by('7').lateAt), '5.10 14:15'); // the deadline and the grace

@@ -60,7 +60,7 @@ const read = (who) => as(db, users[who], async (tx) => (await tx.query('select c
 
 test("the file: the newest but one (the old documents' after it), only adds, and runs twice", async () => {
   // After it only the old system's signed documents (20261105100000_legacy_contracts.sql, 25.10.2026); "הכנת חוזה עם AI" (20261106100000_contract_ai.sql) and a shoot day without influencers (20261107100000_shoot_crew.sql, 25.10.2026); the old system's characterizations (20261109100000_legacy_characterizations.sql, 26.10.2026).
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql', '20261112100000_new_influencers.sql', '20261113100000_client_details_month.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql', '20261111100000_p06_ofir.sql', '20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   // Every UPDATE in it has a WHERE (an upsert's "do update set" is not one).

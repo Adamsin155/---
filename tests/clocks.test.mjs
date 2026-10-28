@@ -173,11 +173,13 @@ test('deadlines within the hour join the bar; end-of-day deadlines and waits do 
 });
 
 test('an office-time deadline within the hour is stopped before 09:00', () => {
-  // Access arrived at 17:50: Ilai's 30 office minutes end Tuesday 09:20.
+  // Access arrived at 17:50: Ofir's 30 office minutes end Tuesday 09:20 (process 6 is his since
+  // 28.10.2026; Ilai's until then, who has no clock of it any more).
   const c = { ...mid, id: 'd', char_at: '2026-10-05T10:00:00+03:00' };
   const checks = { ...early, ...done(['p05.access'], '2026-10-05T17:50:00+03:00') };
-  assert.equal(clocks('ilai', c, checks, '2026-10-05T17:55:00+03:00', 'soon').filter((x) => x.proc.id === 'p06').length, 0);
-  const p06 = clocks('ilai', c, checks, '2026-10-06T08:30:00+03:00', 'soon').find((x) => x.proc.id === 'p06');
+  assert.equal(clocks('ofir', c, checks, '2026-10-05T17:55:00+03:00', 'soon').filter((x) => x.proc.id === 'p06').length, 0);
+  assert.equal(clocks('ilai', c, checks, '2026-10-06T08:30:00+03:00', 'soon').filter((x) => x.proc.id === 'p06').length, 0);
+  const p06 = clocks('ofir', c, checks, '2026-10-06T08:30:00+03:00', 'soon').find((x) => x.proc.id === 'p06');
   assert.deepEqual([iso(p06.deadline), p06.office, p06.paused, p06.remaining, iso(p06.resumeAt)],
     [iso(at('2026-10-06T09:20:00+03:00')), true, true, 20 * 6e4, iso(at('2026-10-06T09:00:00+03:00'))]);
 });

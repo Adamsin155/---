@@ -188,11 +188,15 @@ test('the migration file: nothing in it removes an object or a row, and there is
   // as the hardening wrote it plus one refusal (Irit edits the Gantt, she does not connect a brand).
   // And Niro and "הצל" (20261112100000_new_influencers.sql, 28.10.2026): who sees a client, as the
   // hardening wrote it, with Nirel seeing every star's day (private.is_star_day) and not only Natali's.
+  // And process 6 passing to Ofir (20261111100000_p06_ofir.sql, 28.10.2026): the form's submission
+  // as "שויך" wrote it, with Ofir instead of Ilai on the task of a network to open.
+  const FORM_KEEP = ["staff cannot send the form for the client", 'v_beside', 'client_note_private', 'vault.update_secret(a.secret_id, v_pass)', "where public.protocol_checks.state <> 'done'"];
   const AGAIN = { '20261031100000_access_and_editors.sql': ['private.access_form_problem', 'public.access_form_submit', 'private.my_assigned_clients', 'private.is_assigned'],
-    '20261102100000_gantt_irit.sql': ['public.clients_columns_guard'],
+    '20261102100000_gantt_irit.sql': ['public.clients_columns_guard'], '20261111100000_p06_ofir.sql': ['public.access_form_submit'],
     '20261112100000_new_influencers.sql': ['private.my_clients', 'public.can_see_client'] };
   const KEEP = { '20261031100000_access_and_editors.sql': ['private.task_gives_access(t.created_by_email)', "staff cannot send the form for the client", "'notes too long'", "char_length(coalesce(p ->> 'notes', '')) > 300", 'v_beside', 'client_note_private', 'vault.update_secret(a.secret_id, v_pass)'],
     '20261102100000_gantt_irit.sql': ["if current_user = 'authenticated' then", 'new.metricool_blog_id := old.metricool_blog_id;', 'new.metricool_brand := old.metricool_brand;', 'new.quote_id := old.quote_id;', 'new.metricool_blog_id := null;'],
+    '20261111100000_p06_ofir.sql': FORM_KEEP,
     '20261112100000_new_influencers.sql': ['select a.id from private.my_assigned_clients() as a(id)', "me.p = 'eli' and private.shoot_in_window(c.shoot_at, c.rounds)",
       'select not private.is_archived(p_client) and (public.is_office() or (me.p is not null and (', 'private.is_assigned(p_client)'] };
   for (const f of migrationFiles().filter((x) => x > MIGRATION)) {

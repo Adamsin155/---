@@ -14,7 +14,7 @@ import {
 } from '../app/access-logic.js';
 import { nudgeTimes, nudgeRef, nudgeDue, NUDGE_KEY } from '../app/access-nudge.js';
 import { suggestFor, dayQueue, templatesByKey, messageText, unfilledIn, unknownVars, templateVars, DEFAULT_TEMPLATES } from '../app/messages-logic.js';
-import { accessChecked, toCheck } from '../app/ilai-logic.js';
+import { accessChecked, toCheck } from '../app/access-check.js';
 import { shootPrep } from '../app/shoot-prep.js';
 import { clientState } from '../app/protocol-logic.js';
 import { computeReminders } from '../app/reminder-engine.js';
@@ -356,7 +356,8 @@ test('the two rules are declared once each, as data', () => {
   for (const id of ['accessForm', 'accessLink', 'access', 'broken']) assert.equal(RULES.filter((r) => r.id === id).length, 1, id);
 });
 
-test('the client filled the form: Irit hears quietly; Ilai\'s "קיבלת גישות" and his 30 office minutes start from the submission', () => {
+// The accesses are Ofir's since 28.10.2026 (the owner; process 6 was Ilai's).
+test('the client filled the form: Irit hears quietly; Ofir\'s "קיבלת גישות" and his 30 office minutes start from the submission', () => {
   const at = IL(2026, 10, 12, 10, 0); // Monday
   const filled = { ...link, submitted_at: at.toISOString(), summary: SUMMARY };
   // The submission marked 5's "access received" (and "in the vault"), as the database does.
@@ -369,14 +370,14 @@ test('the client filled the form: Irit hears quietly; Ilai\'s "קיבלת גיש
   assert.equal(irit.title, 'הלקוח מילא את פרטי הכניסה לרשתות: קפה דנה · דנה');
   assert.equal(irit.body, 'Instagram: התקבלו פרטי כניסה · Facebook: אין כיום, צריך לפתוח · TikTok: צריך לחדש סיסמה');
   assert.equal(irit.url, 'client.html?id=c1#access');
-  // The existing rules do the rest: Ilai's ring (once), and Lior's "גישה שבורה" for the reset.
-  assert.deepEqual(of(now, 'access'), ['now@ilai:ring']);
-  const ilai = now.find((r) => r.rule === 'access');
-  assert.equal(ilai.title, 'קיבלת גישות: קפה דנה · דנה');
-  assert.match(ilai.body, /יעד היום 10:30/);
+  // The existing rules do the rest: Ofir's ring (once), and Lior's "גישה שבורה" for the reset.
+  assert.deepEqual(of(now, 'access'), ['now@ofir:ring']);
+  const ofir = now.find((r) => r.rule === 'access');
+  assert.equal(ofir.title, 'קיבלת גישות: קפה דנה · דנה');
+  assert.match(ofir.body, /יעד היום 10:30/);
   assert.deepEqual(of(now, 'broken'), ['now@lior:ring']);
-  // 30 office minutes later and not checked: Lior, by the existing rule; and Ilai himself, at his own deadline (protocol v10).
-  assert.deepEqual(of(due(w, IL(2026, 10, 12, 10, 31)), 'access'), ['ilai30@ilai:ring', 'lior@lior:ring', 'now@ilai:ring']);
+  // 30 office minutes later and not checked: Lior, by the existing rule; and Ofir himself, at his own deadline (protocol v10).
+  assert.deepEqual(of(due(w, IL(2026, 10, 12, 10, 31)), 'access'), ['lior@lior:ring', 'now@ofir:ring', 'ofir30@ofir:ring']);
   // Each once.
   assert.deepEqual(due(w, IL(2026, 10, 12, 10, 40), now.map((r) => ({ key: r.key }))).filter((r) => r.rule === 'accessForm'), []);
   // Nothing of the reminders holds a secret or the link.
@@ -384,23 +385,23 @@ test('the client filled the form: Irit hears quietly; Ilai\'s "קיבלת גיש
   assert.ok(!all.includes('access.html') && !/t=[A-Za-z0-9_-]{20}/.test(all));
 });
 
-test('the form came after the meeting (5 was marked long ago): Ilai is rung for what the client sent now; Lior after 30 office minutes', () => {
+test('the form came after the meeting (5 was marked long ago): Ofir is rung for what the client sent now; Lior after 30 office minutes', () => {
   const met = IL(2026, 10, 12, 12);
   const at = IL(2026, 10, 14, 9, 30);
   const filled = { ...link, submitted_at: at.toISOString(), summary: SUMMARY };
-  const checks = { ...mark('p05.access', met, 'מסיום האפיון: Instagram', 'ofir@x'), ...mark('p06.verified', IL(2026, 10, 12, 12, 20), null, 'ilai@x') };
+  const checks = { ...mark('p05.access', met, 'מסיום האפיון: Instagram', 'ofir@x'), ...mark('p06.verified', IL(2026, 10, 12, 12, 20), null, 'ofir@x') };
   const access = [{ id: 'a1', client_id: 'c1', network: 'instagram', status: 'new', updated_at: at.toISOString() }];
   const w = world(rc, checks, { accessLinks: [filled], access });
   const now = due(w, new Date(at.getTime() + 60e3));
-  assert.deepEqual(of(now, 'accessForm'), ['ilai@ilai:ring', 'irit@irit:quiet']);
+  assert.deepEqual(of(now, 'accessForm'), ['irit@irit:quiet', 'ofir@ofir:ring']);
   assert.deepEqual(of(now, 'access'), [], 'the old ladder is long over');
-  const ilai = now.find((r) => r.step === 'ilai');
-  assert.equal(ilai.title, 'קיבלת גישות מהלקוח: קפה דנה · דנה');
-  assert.match(ilai.body, /הלקוח מילא בטופס: Instagram\. יש לך 30 דקות לבדוק אותן מהכספת\. יעד היום 10:00\./);
-  assert.deepEqual(of(due(w, IL(2026, 10, 14, 10, 1)), 'accessForm'), ['ilai@ilai:ring', 'irit@irit:quiet', 'lior@lior:ring']);
+  const ofir = now.find((r) => r.step === 'ofir');
+  assert.equal(ofir.title, 'קיבלת גישות מהלקוח: קפה דנה · דנה');
+  assert.match(ofir.body, /הלקוח מילא בטופס: Instagram\. יש לך 30 דקות לבדוק אותן מהכספת\. יעד היום 10:00\./);
+  assert.deepEqual(of(due(w, IL(2026, 10, 14, 10, 1)), 'accessForm'), ['irit@irit:quiet', 'lior@lior:ring', 'ofir@ofir:ring']);
   // Checked meanwhile (no login is "new" any more): Lior is not rung.
-  assert.deepEqual(of(due({ ...w, access: [{ ...access[0], status: 'ok' }] }, IL(2026, 10, 14, 10, 1)), 'accessForm'), ['ilai@ilai:ring', 'irit@irit:quiet']);
-  // The client only asked to open and to reset: nothing for Ilai to check.
+  assert.deepEqual(of(due({ ...w, access: [{ ...access[0], status: 'ok' }] }, IL(2026, 10, 14, 10, 1)), 'accessForm'), ['irit@irit:quiet', 'ofir@ofir:ring']);
+  // The client only asked to open and to reset: nothing for Ofir to check.
   const none = world(rc, checks, { accessLinks: [{ ...filled, summary: SUMMARY.slice(1) }], access: [] });
   assert.deepEqual(of(due(none, IL(2026, 10, 14, 10, 1)), 'accessForm'), ['irit@irit:quiet']);
 });

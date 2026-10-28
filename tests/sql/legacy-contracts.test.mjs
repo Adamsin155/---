@@ -73,12 +73,14 @@ const stored = async (id) => (await db.query('select * from public.legacy_contra
 
 test('the file: the newest but four, only adds, and runs twice', async () => {
   // After it only "הכנת חוזה עם AI" (20261106100000_contract_ai.sql) and a shoot day without influencers (20261107100000_shoot_crew.sql, 25.10.2026); the old system's characterizations (20261109100000_legacy_characterizations.sql, 26.10.2026).
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql', '20261112100000_new_influencers.sql', '20261113100000_client_details_month.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql', '20261111100000_p06_ofir.sql', '20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
   await db.exec(migrationSql(FILE));
   await db.exec(migrationSql(FILE));
+  // Back to the live order: the later file keeps the whole record (20261112200000_legacy_contracts_full.sql).
+  await db.exec(migrationSql('20261112200000_legacy_contracts_full.sql'));
   assert.equal((await db.query("select count(*)::int as n from pg_policies where tablename = 'legacy_contracts'")).rows[0].n, 1);
   assert.equal((await db.query("select relrowsecurity as on from pg_class where oid = 'public.legacy_contracts'::regclass")).rows[0].on, true);
 });
@@ -105,7 +107,7 @@ test('the owner imports: the columns from the record, the type, the amounts and 
   assert.equal(a.signature, null);
 });
 
-test('the stored document: everything of it, the company number, the phone and the signing's device too (the owner, 28.10.2026)', async () => {
+test('the stored document: everything of it, the company number, the phone and the device of the signing too (the owner, 28.10.2026)', async () => {
   // Until 20261112200000_legacy_contracts_full.sql these were taken out; now the record is kept whole.
   const { doc } = await stored(1017);
   assert.deepEqual([doc.hp, doc.phone, doc.signedIp, doc.signedUserAgent], ['512345678', '050-1234567', '1.2.3.4', 'Mozilla/5.0']);
