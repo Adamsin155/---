@@ -3488,7 +3488,7 @@ $('new-form').addEventListener('submit', async (e) => {
   const shoot = $('new-shoot-type').value;
   const station = importing ? $('new-station').value : '';
   const invalid = !name ? ['חסר שם לקוח.', $('new-name')]
-    : !shoot ? ['חסר סוג יום הצילום: נטלי דדון, דניס, מישל וסמיון, או בלי משפיענים (ליאור + צלם).', $('new-shoot-type')]
+    : !shoot ? ['חסר סוג יום הצילום: עם משפיענים (נטלי, נירו, הצל, או דניס, מישל וסמיון), או בלי משפיענים (ליאור + צלם).', $('new-shoot-type')]
       : importing && !station ? ['בחרו את התחנה שבה הלקוח נמצא עכשיו.', $('new-station')] : null;
   const q = quoteOf();
   const contract = q ? null : $('new-contract-file').files?.[0] || null;

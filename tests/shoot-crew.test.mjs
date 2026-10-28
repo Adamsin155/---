@@ -133,7 +133,8 @@ test('closing a day without influencers: Lior\'s items and the drive; no testimo
 
 // ── The forms ─────────────────────────────
 test('the forms\' choice: values, the client\'s fields, a round\'s entry and the time\'s words', () => {
-  assert.deepEqual(CREW_GROUPS.map((g) => g.options.map(([v]) => v)), [['natali', 'dms'], ['solo:eli', 'solo:eliel']]);
+  // Niro and "הצל" beside Natali since 28.10.2026.
+  assert.deepEqual(CREW_GROUPS.map((g) => g.options.map(([v]) => v)), [['natali', 'niro', 'hatzel', 'dms'], ['solo:eli', 'solo:eliel']]);
   assert.deepEqual([soloOf('solo:eliel'), soloOf('solo:eli'), soloOf('solo:nadia'), soloOf('natali'), soloOf(null)], ['eliel', 'eli', null, null, null]);
   assert.deepEqual(['natali', 'dms', 'solo:eli', 'solo:eliel', '', 'solo:', 'x'].map(isChoice), [true, true, true, true, false, false, false]);
   assert.deepEqual([choiceOf(withInf), choiceOf(soloEliel), choiceOf(base({ shoot_type: null })), choiceOf({ shoot_crew: 'eli' })], ['dms', 'solo:eliel', '', 'solo:eli']);

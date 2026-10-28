@@ -36,8 +36,11 @@ test('the prompt describes the builder from the catalog itself, the same text on
   // The package's own quantities, by the keys of the custom contract.
   assert.match(p, /`social-natali`[\s\S]*?Quantities: videos 25, graphics 35, shootDays 1, photoDays 0, collabs 0, stories 0, ch14 0/);
   assert.match(p, /`podcast-simeon`[\s\S]*?Quantities: videos 20, graphics 20, shootDays 0, photoDays 1/);
-  for (const a of PAID_ADDONS) assert.match(p, new RegExp(`\`${a.id}\`: ${a.name}, `), a.id);
+  for (const a of PAID_ADDONS) assert.ok(p.includes(`\`${a.id}\`: ${a.name}, `), a.id);
   assert.match(p, /`natali-reel`.*only packages with נטלי דדון/);
+  // Niro and "הצל" (28.10.2026): their own reel and story, in their own packages only.
+  assert.match(p, /`niro-reel`: העלאה אצל נירו לוי, 1,000 ₪ a month, only packages with נירו לוי\./);
+  assert.ok(p.includes('`hatzel-story`: סטורי אצל הצל (יואב אליאסי), 300 ₪ a month, only packages with הצל (יואב אליאסי).'));
   assert.match(p, /`simeon-day`.*only the Social and Social \+ TV packages with סמיון, מישל ודניס/);
   for (const q of CUSTOM_QTY) assert.match(p, new RegExp(`\`${q.key}\`: ${q.name}, ${q.min || 0}–${q.max}`), q.key);
   for (const k of Object.keys(FREE_ADDONS)) assert.match(p, new RegExp(`\`${k}\``), k);

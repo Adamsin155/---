@@ -20,7 +20,7 @@
 //   requests       her section 17: a client's request opens a task with an owner and
 //                  a due day in one tap; when it is done she gets "לעדכן את הלקוח"
 //                  (a database trigger opens it) with a ready message.
-import { PEOPLE, NETWORKS, PHOTOGRAPHERS, isSolo, crewOf, hasShootType, shootTypeName } from './protocol.js';
+import { PEOPLE, NETWORKS, PHOTOGRAPHERS, isSolo, crewOf, hasShootType, shootTypeName, isStarDay, starShort, starWords } from './protocol.js';
 import {
   parseDate, roundsOf, roundContext, isBusinessDay, businessDaysBetween, addBusinessDays, isDaily, inLanding,
 } from './protocol-logic.js';
@@ -57,8 +57,10 @@ export const PARTIES = [
   { key: 'p11.ok.lior', label: 'ליאור, מנהל יום הצילום', short: 'ליאור' },
   { key: 'p11.ok.photographer', label: 'אלי הצלם', short: 'אלי' },
 ];
+// Natali's makeup artist and ride (11ב); the same on Niro's and "הצל"'s day (28.10.2026), in
+// their own name (starWords).
 export const NATALI = [
-  { key: 'p11b.makeup', label: 'המאפרת, בבית נטלי שעתיים לפני', short: 'מאפרת' },
+  { key: 'p11b.makeup', label: 'המאפרת, בבית של נטלי שעתיים לפני', short: 'מאפרת' },
   { key: 'p11b.ride', label: 'ההסעה של נטלי, הלוך וחזור', short: 'הסעה' },
 ];
 // A day without influencers (25.10.2026): no influencers to approve or to check in the
@@ -72,7 +74,8 @@ export function coordinatorOf(client, checks, x) {
   const approvals = PARTIES.filter((p) => !solo || p.key !== 'p11.ok.influencers').map((p) => item(party(p)));
   const contract = solo ? null : item({ key: 'p11.influencers', label: 'בדקתי בחוזה אילו משפיענים נרכשו' });
   const calendar = item({ key: 'p11.calendar', label: 'יום הצילום ביומן של כולם' });
-  const natali = x.ctx.shoot_type === 'natali' ? NATALI.map(item) : [];
+  const type = x.ctx.shoot_type;
+  const natali = isStarDay(type) ? NATALI.map((p) => item({ ...p, label: starWords(p.label, type) })) : [];
   const shootAt = parseDate(x.ctx.shoot_at);
   const typeSet = hasShootType(x.ctx);
   const needs = [!typeSet ? 'עם מי מצלמים' : null, !shootAt ? 'תאריך ושעה' : null].filter(Boolean);
@@ -83,6 +86,7 @@ export function coordinatorOf(client, checks, x) {
   return {
     n: x.n, pre: x.pre, shootAt, shootType: x.ctx.shoot_type || null, solo, crew, typeSet, typeName: shootTypeName(x.ctx),
     approvals, contract, calendar, natali, needs, missing, closed, nataliMissing, fullyClosed: closed && !nataliMissing.length,
+    star: starShort(type), // the star of the day, inside a sentence ('' on any other day)
   };
 }
 
@@ -201,7 +205,7 @@ export function shootPrep(client, checks, state, { tasks = [], access = [], now 
     }
     const p11b = st('p11b');
     if (p11b && !p11b.complete && (stuck(p11b) || (shoot && businessDaysBetween(now, shoot) <= 3))) {
-      topics.shootday.blockers.push(block('shootday', p11b.proc.id, 'המאפרת וההסעה של נטלי לא סגורות', 'lior'));
+      topics.shootday.blockers.push(block('shootday', p11b.proc.id, `המאפרת וההסעה של ${starShort(x.ctx.shoot_type)} לא סגורות`, 'lior'));
     }
     topics.shootday.clear = !!p11?.complete && (!p11b || p11b.complete);
 
@@ -344,7 +348,7 @@ export function dayBefore(client, checks, prep, x, now = new Date()) {
       auto: prep && prep.topics.find((t) => t.key === 'team')?.blockers.length ? 'fail' : 'ok',
       why: prep ? listText(prep.topics.find((t) => t.key === 'team')?.blockers.map((b) => b.text) || []) : '',
     },
-    ...(x.ctx.shoot_type === 'natali' ? [{ id: 'natali', label: 'המאפרת וההסעה של נטלי אישרו', auto: sys(d('p15.natali.makeup') && d('p15.natali.ride')), why: 'אישור חוזר של ליאור בתהליך 15' }] : []),
+    ...(isStarDay(x.ctx.shoot_type) ? [{ id: 'natali', label: `המאפרת וההסעה של ${starShort(x.ctx.shoot_type)} אישרו`, auto: sys(d('p15.natali.makeup') && d('p15.natali.ride')), why: 'אישור חוזר של ליאור בתהליך 15' }] : []),
     { id: 'remembers', label: 'הלקוח זוכר את היום (שיחה קצרה)', auto: null, why: 'רק עירית יכולה לדעת' },
   ];
   const check = checks[DAY_BEFORE_KEY(x.pre)];
@@ -370,11 +374,12 @@ export const dayBeforeNote = (res) => JSON.stringify({ ok: res.ok, failed: res.f
 export const DAY_BEFORE_LABELS = {
   content: 'הלקוח אישר את התוכן', client: 'הלקוח קיבל תזכורת ליום הצילום', influencers: 'המשפיענים עודכנו',
   crew: 'הצלם והצוות עודכנו', address: 'הכתובת נכונה אצל כולם', tasks: 'אין משימה פתוחה שחוסמת את יום הצילום',
+  // Said for Niro's or "הצל"'s day in their name (dayBeforeText's `shootType`; 28.10.2026).
   natali: 'המאפרת וההסעה של נטלי אישרו', remembers: 'הלקוח זוכר את היום (שיחה קצרה)',
 };
 // The saved result as one line for the client card ("נבדקו 7 פריטים, הכול תקין", or
 // the failed ones by name); null when the note is not a saved result.
-export function dayBeforeText(note) {
+export function dayBeforeText(note, shootType = null) {
   let v = null;
   try { v = JSON.parse(note); } catch { return null; }
   if (!v || typeof v !== 'object' || !Array.isArray(v.failed)) return null;
@@ -382,7 +387,7 @@ export function dayBeforeText(note) {
   const n = ok.length + v.failed.length;
   const count = n === 1 ? 'נבדק פריט אחד' : `נבדקו ${n} פריטים`;
   if (!v.failed.length) return n ? `${count}, הכול תקין` : '';
-  return `${count}. לא תקין: ${v.failed.map((id) => DAY_BEFORE_LABELS[id] || String(id)).join(', ')}`;
+  return `${count}. לא תקין: ${v.failed.map((id) => starWords(DAY_BEFORE_LABELS[id], shootType) || String(id)).join(', ')}`;
 }
 export function readDayBefore(note) {
   try {

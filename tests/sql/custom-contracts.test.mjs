@@ -277,7 +277,8 @@ test('what a signed contract grants: the database and the app agree, custom or n
     { termMonths: 1, lines: [{ label: 'אתר', qty: 2 }, { label: 'ליווי', monthly: 10000 }] },
     { price: 100, terms: 'תנאי' },
   ];
-  for (const id of Object.keys(PACKAGES)) {
+  // The packages of that day; Niro's and "הצל"'s came later (tests/sql/new-influencers.test.mjs).
+  for (const id of Object.keys(PACKAGES).filter((k) => ['natali', 'simeon'].includes(PACKAGES[k].influencer))) {
     const { tier, influencer } = PACKAGES[id];
     for (const c of customs) {
       for (const withPhotographer of [false, true]) {

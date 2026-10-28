@@ -16,10 +16,23 @@ export const DOC_TYPES = {
 export const MAX_DISCOUNT = 20000;
 export const TERM_MONTHS = 12;
 
+// `short`: the name inside a sentence. `shootType`: the shoot day the signed agreement opens
+// the client with (clients.shoot_type; app/protocol.js SHOOT_TYPES).
 export const INFLUENCERS = {
-  natali: { id: 'natali', name: 'נטלי דדון' },
-  simeon: { id: 'simeon', name: 'סמיון, מישל ודניס' },
+  natali: { id: 'natali', name: 'נטלי דדון', short: 'נטלי', shootType: 'natali' },
+  simeon: { id: 'simeon', name: 'סמיון, מישל ודניס', shootType: 'dms' },
+  niro: { id: 'niro', name: 'נירו לוי', short: 'נירו', shootType: 'niro' },
+  hatzel: { id: 'hatzel', name: 'הצל (יואב אליאסי)', short: 'הצל', shootType: 'hatzel' },
 };
+// Niro Levi and "הצל" (Yoav Eliasi), the owner's decision of 28.10.2026: each exactly as Natali
+// Dadon. The same three packages with the same prices and quantities, the same paid add-ons (a
+// reel and a story at the influencer), and a shoot day that runs as hers (app/protocol.js
+// isStarDay). Only "צירוף סמיון ליום הצילום" stays Natali's. The first star is Natali herself.
+export const STARS = ['natali', 'niro', 'hatzel'];
+export const isStar = (influencer) => STARS.includes(influencer);
+const STAR_TIERS = ['podcast', 'social', 'social-tv'];
+// Natali's words, said of another star: her full name becomes theirs.
+const inName = (text, inf) => text.replaceAll(INFLUENCERS.natali.name, INFLUENCERS[inf].name);
 
 export const TIERS = [
   { id: 'podcast', name: 'פודקאסט עם משפיענים', short: 'Podcast' },
@@ -101,6 +114,13 @@ export const PACKAGES = {
     ],
   },
 };
+// The packages of Niro and of "הצל": Natali's, line by line, in their own name.
+for (const inf of STARS.slice(1)) {
+  for (const tier of STAR_TIERS) {
+    const p = PACKAGES[`${tier}-natali`];
+    PACKAGES[`${tier}-${inf}`] = { ...p, influencer: inf, includes: p.includes.map((l) => ({ ...l, label: inName(l.label, inf) })) };
+  }
+}
 
 export const PAID_ADDONS = [
   {
@@ -109,16 +129,21 @@ export const PAID_ADDONS = [
     detail: 'צלם שמגיע לבית העסק כל חודש ומייצר 8 תכנים בכל חודש',
     monthlyOutput: true,
   },
-  {
-    id: 'natali-reel', price: 100000, eligibility: 'natali',
-    name: 'העלאה אצל נטלי דדון',
-    detail: 'רילס אחד בשנה שעולה אצל נטלי דדון',
-  },
-  {
-    id: 'natali-story', price: 30000, eligibility: 'natali',
-    name: 'סטורי אצל נטלי דדון',
-    detail: 'סטורי אחד בשנה שעולה אצל נטלי דדון',
-  },
+  // A reel and a story at each star, in her or his own packages only (eligibility: the
+  // influencer). `post`: what the client gets one more of (app/protocol-logic.js
+  // packageDeliverables; public.package_deliverables in the database).
+  ...STARS.flatMap((inf) => [
+    {
+      id: `${inf}-reel`, price: 100000, eligibility: inf, post: 'collabs',
+      name: `העלאה אצל ${INFLUENCERS[inf].name}`,
+      detail: `רילס אחד בשנה שעולה אצל ${INFLUENCERS[inf].name}`,
+    },
+    {
+      id: `${inf}-story`, price: 30000, eligibility: inf, post: 'stories',
+      name: `סטורי אצל ${INFLUENCERS[inf].name}`,
+      detail: `סטורי אחד בשנה שעולה אצל ${INFLUENCERS[inf].name}`,
+    },
+  ]),
   {
     id: 'simeon-day', price: 50000, eligibility: 'simeon-social',
     name: 'יום צילום נוסף עם סמיון, מישל ודניס',
@@ -159,6 +184,7 @@ export const SPECS = {
   'social-natali': { videos: 25, graphics: 35, shootDays: 1, photographers: 2, collabs: 0, stories: 0, ch14: 0 },
   'social-tv-natali': { videos: 42, graphics: 42, shootDays: 1, photographers: 2, collabs: 0, stories: 0, ch14: 1 },
 };
+for (const inf of STARS.slice(1)) for (const tier of STAR_TIERS) SPECS[`${tier}-${inf}`] = { ...SPECS[`${tier}-natali`] };
 
 export function packageId(tier, influencer) {
   return `${tier}-${influencer}`;
@@ -204,6 +230,7 @@ export const INCLUDES_KEYS = {
   'social-natali': ['shootDays', null, null, 'videos', 'graphics', null],
   'social-tv-natali': ['shootDays', null, null, 'videos', 'graphics', null, 'ch14'],
 };
+for (const inf of STARS.slice(1)) for (const tier of STAR_TIERS) INCLUDES_KEYS[`${tier}-${inf}`] = [...INCLUDES_KEYS[`${tier}-natali`]];
 // The limits of everything typed by hand (the server refuses anything outside them).
 export const CUSTOM_LIMITS = {
   termMin: 1, termMax: 36,

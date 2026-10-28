@@ -22,7 +22,7 @@
 // talks to the network, and nothing here decides a price: a price is either the one written in
 // the text or the package's own.
 import {
-  VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS,
+  VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, STARS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS,
   MAX_DISCOUNT, CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS, packageId,
 } from './catalog.js';
 import {
@@ -59,7 +59,8 @@ const wholeShekels = (agorot) => Math.round(agorot / 100) * 100;
 
 const ELIGIBILITY = {
   all: 'any package',
-  natali: `only packages with ${INFLUENCERS.natali.name}`,
+  // A star's own reel and story (Natali; Niro and "הצל" since 28.10.2026).
+  ...Object.fromEntries(STARS.map((inf) => [inf, `only packages with ${INFLUENCERS[inf].name}`])),
   'simeon-social': `only the Social and Social + TV packages with ${INFLUENCERS.simeon.name}`,
 };
 

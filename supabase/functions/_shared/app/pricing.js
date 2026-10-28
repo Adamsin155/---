@@ -5,7 +5,7 @@
 import {
   VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES,
   PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, MAX_DISCOUNT, packageId,
-  CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS,
+  CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS, isStar,
 } from './catalog.js';
 import { PROVIDER, agreementSections, LEGAL_VERSION } from './legal.js';
 
@@ -30,7 +30,8 @@ export function isSimeonSocial(sel) {
 
 export function paidAddonAvailable(addon, sel) {
   if (addon.eligibility === 'all') return true;
-  if (addon.eligibility === 'natali') return isNataliPackage(sel);
+  // A star's own reel and story (28.10.2026: Natali, Niro, "הצל"): in her or his packages only.
+  if (isStar(addon.eligibility)) return sel.influencer === addon.eligibility;
   if (addon.eligibility === 'simeon-social') return isSimeonSocial(sel);
   return false;
 }
@@ -333,7 +334,7 @@ function agreementContext(sel, { tier, paid, free, totals }) {
     shootDays: specs.shootDays + (sel.paid.includes('simeon-day') ? 1 : 0),
     hasCh14: specs.ch14 > 0 || sel.free.extraCh14 === true,
     influencerPosts: specs.collabs > 0 || specs.stories > 0 || sel.free.simeonStories > 0
-      || sel.paid.includes('natali-reel') || sel.paid.includes('natali-story'),
+      || PAID_ADDONS.some((a) => a.post && sel.paid.includes(a.id)),
     simeonJoin: sel.free.simeonJoin === true,
     paid: paid.map((p) => ({ id: p.id, name: p.name })),
     free: free.map((f) => ({ id: f.id, name: f.name, qty: f.qty })),

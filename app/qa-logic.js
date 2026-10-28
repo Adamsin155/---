@@ -3,7 +3,7 @@
 // today's characterizations, clients waiting for an editor, and the assignment
 // (22א) with each editor's load. Pure, no DOM, Israel time; the marks are in
 // app/office-marks.js.
-import { EDITORS, editorsFor, PEOPLE } from './protocol.js';
+import { EDITORS, editorsFor, PEOPLE, isStarDay, starShort } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   businessDaysBetween, addBusinessDays, pauseOf, roundsOf, parseDate, inLanding, workFloor,
@@ -126,15 +126,16 @@ export function awaitingEditor({ clients, stateOf, checks }) {
 // joint Natali and Semyon day: no preselection, Ofir chooses, a reason asked for (decision 31).
 // The reason is optional (the owner, 21.10.2026): the field and its hint stay, the
 // assignment is never held back without it, and a reason given is kept (REASON_KEY).
-export const preselected = (shootType, joint = false) => (shootType === 'natali' && !joint ? 'nirel' : null);
+// Niro's and "הצל"'s shoots as Natali's (28.10.2026); a joint day is Natali's only.
+export const preselected = (shootType, joint = false) => (isStarDay(shootType) && !joint ? 'nirel' : null);
 export function reasonNeeded({ shootType, joint = false, editor }) {
   if (!editor) return false;
   if (joint) return true;
-  return shootType === 'natali' && editor !== 'nirel';
+  return isStarDay(shootType) && editor !== 'nirel';
 }
 export function reasonHint({ shootType, joint = false }) {
   if (joint) return 'יום צילום משותף לנטלי ולסמיון: בוחרים עורך, וכדאי לרשום למה (החלטה 31).';
-  if (shootType === 'natali') return 'בצילום של נטלי ניראל מסומנת מראש. בשיוך לעורך אחר כדאי לרשום למה.';
+  if (isStarDay(shootType)) return `בצילום של ${starShort(shootType)} ניראל מסומנת מראש. בשיוך לעורך אחר כדאי לרשום למה.`;
   return '';
 }
 export const eligibleEditors = (shootType) => editorsFor(shootType);
@@ -250,7 +251,7 @@ export function proposeEditor(load, shootType, exclude = []) {
 export function suggestEditor(load, shootType, joint = false, exclude = [], now = new Date()) {
   const pre = preselected(shootType, joint);
   if (pre && !exclude.includes(pre)) return { editor: pre, why: 'rule' };
-  const editor = rankEditors(load, shootType === 'natali' ? 'natali' : 'dms', exclude, now)[0]?.editor || null;
+  const editor = rankEditors(load, isStarDay(shootType) ? shootType : 'dms', exclude, now)[0]?.editor || null;
   return editor ? { editor, why: 'load' } : null;
 }
 export const SUGGESTED_TAG = 'מומלץ לפי עומס';
@@ -274,7 +275,7 @@ export function dueThisWeek(l, now = new Date()) {
 // The editors who may take this shoot, the least loaded first: [{ editor, open, week }].
 // Whom the load may suggest: Nirel may edit any shoot since 21.10.2026, and is offered in the
 // dialog for every shoot, but she is suggested by the load only for Natali's (her own work).
-const suggestPool = (shootType) => (shootType === 'natali' ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));
+const suggestPool = (shootType) => (isStarDay(shootType) ? EDITORS : EDITORS.filter((e) => e !== 'nirel'));
 export function rankEditors(load, shootType, exclude = [], now = new Date(), pool = suggestPool(shootType)) {
   if (!load) return [];
   return pool.filter((e) => !exclude.includes(e) && load[e])
@@ -305,7 +306,7 @@ export function suggestAssignment({ client, n = null, shootType, joint = false, 
   const pick = (editor, why, reason) => ({ editor, why, reason, load: load[editor] });
   if (inCard && may.includes(inCard)) return pick(inCard, 'card', 'רשום בכרטיס הלקוח');
   const pre = preselected(shootType, joint);
-  if (pre && may.includes(pre)) return pick(pre, 'rule', `צילום של נטלי: ${editorName(pre)} מסומנת מראש`);
+  if (pre && may.includes(pre)) return pick(pre, 'rule', `צילום של ${starShort(shootType)}: ${editorName(pre)} מסומנת מראש`);
   const before = earlierEditor(client, n, checks);
   if (before && may.includes(before)) return pick(before, 'continuity', 'ערך/ה ללקוח הזה בסבב הקודם');
   // Nobody of the usual ones left (all excluded): whoever may still take it, Nirel too.

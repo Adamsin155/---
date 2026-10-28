@@ -4,7 +4,7 @@
 import {
   PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
   STAFF_PEOPLE, editorsFor, editorNames, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
-  PHOTOGRAPHERS, isSolo, crewOf, crewWords, shootTypeName, eliFilms,
+  PHOTOGRAPHERS, isSolo, crewOf, crewWords, shootTypeName, eliFilms, starWords,
 } from './protocol.js';
 // "מי מצלם" (25.10.2026): a day with influencers, or Lior and one photographer.
 import { SOLO_PREFIX, soloOf, choiceOf, roundWithCrew, timeLabel } from './shoot-crew.js';
@@ -56,7 +56,7 @@ import { stationTitle } from './messages-logic.js';
 function noteWords(key, note) {
   const text = String(note || '');
   if (!/^\s*[[{]/.test(text)) return text;
-  if (String(key || '').replace(/^r\d+\./, '') === 'p15.irit') { const t = dayBeforeText(text); if (t !== null) return t; }
+  if (String(key || '').replace(/^r\d+\./, '') === 'p15.irit') { const t = dayBeforeText(text, client?.shoot_type); if (t !== null) return t; }
   try { JSON.parse(text); return ''; } catch { return text; }
 }
 import { folderItemOf } from './qa-logic.js';
@@ -142,7 +142,8 @@ const pending = new Set();
 const baseKey = (key) => key.replace(/^r\d+\./, '');
 const roundOfKey = (key) => Number(/^r(\d+)\./.exec(key)?.[1] || 1);
 const ITEM_INDEX = new Map(PROCESSES.flatMap((p) => p.items.map((i) => [i.key, { proc: p, item: i }])));
-const labelOf = (key) => ITEM_INDEX.get(baseKey(key))?.item.label || key;
+// In the client's own words: a star's day names its own influencer, not Natali (28.10.2026).
+const labelOf = (key) => starWords(ITEM_INDEX.get(baseKey(key))?.item.label || key, client?.shoot_type);
 const FIELD_NAMES = {
   characterizer: 'מי מבצע את האפיון', char_at: 'מועד פגישת האפיון', shoot_type: 'סוג יום הצילום',
   shoot_at: 'מועד יום הצילום', has_logo: 'האם יש ללקוח לוגו', editor: 'העורך המשויך',
@@ -2318,7 +2319,7 @@ async function loadHistory() {
       h('div', { class: 'hrow-b' },
         h('span', { class: 'num muted hrow-at' }, formatStamp(r.at)), ' ',
         h('strong', {}, who(r.by_email)), ` ${special || `${ACTION[r.action]}: `}`,
-        !special && ref ? h('a', { href: `#${procId}`, onclick: (e) => { e.preventDefault(); goTo(procId); } }, `${round > 1 ? `סבב ${round} · ` : ''}${ref.proc.num} · ${ref.item.label}`) : null,
+        !special && ref ? h('a', { href: `#${procId}`, onclick: (e) => { e.preventDefault(); goTo(procId); } }, `${round > 1 ? `סבב ${round} · ` : ''}${ref.proc.num} · ${labelOf(r.item_key)}`) : null,
         !special && !ref ? r.item_key : null,
         r.note && !special && r.note !== 'בסימון כל התהליך' && noteWords(r.item_key, r.note) ? h('div', { class: 'inote' }, noteWords(r.item_key, r.note)) : null));
   }) : []));

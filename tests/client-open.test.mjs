@@ -20,7 +20,7 @@ test('the 8 stations cover every process once, in protocol order', () => {
 });
 
 test('the shoot type comes from the package in the catalog', () => {
-  for (const [id, p] of Object.entries(PACKAGES)) assert.equal(shootTypeOf(id), p.influencer === 'natali' ? 'natali' : 'dms', id);
+  for (const [id, p] of Object.entries(PACKAGES)) assert.equal(shootTypeOf(id), { natali: 'natali', simeon: 'dms', niro: 'niro', hatzel: 'hatzel' }[p.influencer], id);
   assert.equal(shootTypeOf(''), null);
   assert.equal(shootTypeOf('old-package'), null);
 });

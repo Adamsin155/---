@@ -109,8 +109,9 @@ export function selectionFor(client, model = null) {
   const name = String(client?.package_name || '');
   // The longest tier name first: "Social + TV all in one" also holds "all in one".
   const tier = [...TIERS].sort((a, b) => b.name.length - a.name.length).find((t) => name.includes(t.name))?.id || null;
-  const influencer = client?.shoot_type === 'natali' ? 'natali' : client?.shoot_type === 'dms' ? 'simeon'
-    : Object.values(INFLUENCERS).find((i) => name.includes(i.name))?.id || null;
+  // The day's influencer (Natali, Niro, "הצל", or Denis, Michel and Semion), else the package's name.
+  const influencer = Object.values(INFLUENCERS).find((i) => client?.shoot_type && i.shootType === client.shoot_type)?.id
+    || Object.values(INFLUENCERS).find((i) => name.includes(i.name))?.id || null;
   if (!tier && !influencer) return null;
   return reconcile({ ...base, tier: tier || base.tier, influencer: influencer || base.influencer, docType: 'quote' }).selection;
 }
