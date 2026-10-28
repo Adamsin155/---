@@ -185,18 +185,21 @@ test('1. the clock of "עכשיו" during the meeting: paused, with what he will
 });
 
 // ── 11. Ilai's 30-minute access check: his own ring at the deadline ───────────
-test('11. the access check (6): when its 30 minutes pass Ilai is rung himself, at the deadline, and Lior gets nothing new', () => {
+// Process 6 is Ofir's since 28.10.2026 (the owner; it was Ilai's): the same ladder, his.
+test('11. the access check (6): when its 30 minutes pass Ofir is rung himself, at the deadline, and Lior gets nothing new', () => {
   const { w, c } = afterMeeting();
   for (const k of PROCESSES.find((p) => p.id === 'p06').items.map((i) => i.key)) delete w.checks[c.id][k];
   mark(w, c, 'p05.access', IL(2026, 10, 5, 12, 30)); // a real mark, not history
   const rows = walk(w, IL(2026, 10, 5, 12, 30), IL(2026, 10, 5, 13, 40));
-  assert.deepEqual(of(rows, 'access'), ['5.10 12:30 now@ilai', '5.10 13:00 ilai30@ilai', '5.10 13:00 lior@lior']);
-  const own = rows.find((r) => r.step === 'ilai30');
+  assert.deepEqual(of(rows, 'access'), ['5.10 12:30 now@ofir', '5.10 13:00 ofir30@ofir', '5.10 13:00 lior@lior']);
+  const own = rows.find((r) => r.step === 'ofir30');
   assert.deepEqual([own.level, own.title], ['ring', 'באיחור: לבדוק את הגישות של אלפא']);
   assert.match(own.body, /עברו 30 דקות מקבלת הגישות.*ליאור קיבל הודעה/);
-  // No second "באיחור" ring to Ilai from the ladder of a late item that day (6 keeps its own ladder),
+  // No second "באיחור" ring to Ofir from the ladder of a late item that day (6 keeps its own ladder),
   // and to Lior exactly what he got before: his ring, and the note of every late item.
-  assert.deepEqual(rows.filter((r) => r.person === 'ilai' && r.rule === 'lateOwn'), []);
+  assert.deepEqual(rows.filter((r) => r.person === 'ofir' && r.rule === 'lateOwn'), []);
+  // Ilai hears nothing of the accesses any more.
+  assert.deepEqual(rows.filter((r) => r.person === 'ilai' && /גישות|6 ·/.test(r.title)), []);
   assert.deepEqual(rows.filter((r) => r.person === 'lior' && /6 · בדיקת הגישות|גישות לא נבדקו/.test(r.title)).map((r) => `${r.at} ${r.rule}.${r.step}`), ['5.10 13:00 access.lior', '5.10 13:15 late.lior']);
   // He checked the logins in time (what the ring is about): nobody is rung at the deadline, as before.
   const w2 = world();
@@ -215,6 +218,14 @@ test('11. the access check (6): when its 30 minutes pass Ilai is rung himself, a
   for (const k of PROCESSES.find((p) => p.id === 'p06').items.map((i) => i.key)) delete w5.checks[c5.id][k];
   mark(w5, c5, 'p05.access', IL(2026, 10, 5, 12, 30), IMPORT_NOTE);
   assert.deepEqual(of(walk(w5, IL(2026, 10, 5, 12, 30), IL(2026, 10, 5, 13, 5)), 'access'), []);
+  // Ofir took the accesses himself (he runs the characterization): he is not told what he just
+  // marked; his deadline and Lior's stay.
+  const w6 = world();
+  const { c: c6 } = afterMeeting(w6);
+  for (const k of PROCESSES.find((p) => p.id === 'p06').items.map((i) => i.key)) delete w6.checks[c6.id][k];
+  mark(w6, c6, 'p05.access', IL(2026, 10, 5, 12, 30));
+  w6.checks[c6.id]['p05.access'].by_email = 'ofir@x';
+  assert.deepEqual(of(walk(w6, IL(2026, 10, 5, 12, 30), IL(2026, 10, 5, 13, 40)), 'access'), ['5.10 13:00 ofir30@ofir', '5.10 13:00 lior@lior']);
 });
 
 // ── Scenarios shared by the items below ─────────────────────────────────────

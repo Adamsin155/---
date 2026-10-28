@@ -4,14 +4,15 @@
 //   - Ofir connects a client to its Metricool brand and marks "ללקוח אין מותג", as Ilai and
 //     the owner do (public.can_connect_metricool() is the app's CONNECTORS); he still does not
 //     edit the Gantt, and the old function stays closed to him;
-//   - the writers table is the app's (p06.metricool: the office, Ofir among them; Ilai no more);
-//   - the file is the newest, has none of the words the deploy tool refuses, and runs twice.
+//   - the writers table of that day (p06.metricool: the office, Ofir among them; Ilai no more);
+//   - the file has none of the words the deploy tool refuses, and runs twice. (The newest writers
+//     block is 20261111100000_p06_ofir.sql's since 28.10.2026: tests/sql/p06-ofir.test.mjs.)
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { freshDatabase, as, migrationSql, migrationFiles } from './pg.mjs';
 import { PROTOCOL_VERSION } from '../../app/protocol.js';
 import { CONNECTORS } from '../../app/metricool-connect-logic.js';
-import { sqlBlock, latestBlock, mayWrite } from '../../scripts/protocol-writers.mjs';
+import { latestBlock, mayWrite } from '../../scripts/protocol-writers.mjs';
 
 const MIGRATION = '20261031110000_protocol_2110.sql';
 const PEOPLE = { owner: null, irit: 'irit', lior: 'lior', ofir: 'ofir', ilai: 'ilai', nadia: 'nadia', stav: 'stav' };
@@ -40,19 +41,22 @@ before(async () => {
   ids.b = await add('קפה נדיה');
 });
 
-test('the file: the newest, none of the refused words, every UPDATE with a WHERE, and the writers block the app generates', () => {
+test('the file: what came after it, none of the refused words, every UPDATE with a WHERE, and a writers block', () => {
   const files = migrationFiles();
   // After it only Nirel's file (20261031120000_nirel_any_shoot.sql, 21.10.2026) and the editors' counts
   // (20261101100000_editor_progress.sql, 22.10.2026), which touch nothing of the protocol, and
   // Irit's Gantt (20261102100000_gantt_irit.sql, 22.10.2026), which replaces can_edit_gantt again, and a
   // monthly client's count (20261104100000_editor_progress_month.sql, 22.10.2026), nothing of the protocol either, and
   // the old system's signed documents (20261105100000_legacy_contracts.sql, 25.10.2026); "הכנת חוזה עם AI" (20261106100000_contract_ai.sql) and a shoot day without influencers (20261107100000_shoot_crew.sql, 25.10.2026); the old system's characterizations (20261109100000_legacy_characterizations.sql, 26.10.2026), a table of their own.
-  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql', '20261102100000_gantt_irit.sql', '20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql']);
+  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql', '20261102100000_gantt_irit.sql', '20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql', '20261111100000_p06_ofir.sql']);
   const sql = migrationSql(MIGRATION);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);
-  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], [MIGRATION, true]);
+  // Its writers block was the app's until process 6 passed to Ofir (20261111100000_p06_ofir.sql, 28.10.2026):
+  // the newest block is that file's now (tests/sql/p06-ofir.test.mjs checks it against app/protocol.js).
+  assert.match(sql, /-- protocol-writers:begin/);
+  assert.equal(latestBlock().file, '20261111100000_p06_ofir.sql');
 });
 
 test('version 11: the function, the column default, a new client', async () => {
@@ -102,15 +106,14 @@ test('who connects to Metricool: Ofir, Ilai and the owner (the app\'s CONNECTORS
 
 test('p06.metricool: the office writes it (Ofir among them), Ilai no more; the file runs twice', async () => {
   const insert = (who, key) => as(db, users[who], async (tx) => (await tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, $2, 'done') returning item_key", [ids.a, key])).rows.length).catch(() => 0);
+  // This database stops at version 11's file: the page setup was still Ilai's then (it is the office's,
+  // Ofir's, since 20261111100000_p06_ofir.sql; tests/sql/p06-ofir.test.mjs).
+  const V11 = { 'p06.metricool': ['owner', 'irit', 'lior', 'ofir'], 'p06.name': ['owner', 'irit', 'lior', 'ofir', 'ilai'] };
   for (const who of ['owner', 'irit', 'lior', 'ofir', 'ilai', 'nadia']) {
-    for (const key of ['p06.metricool', 'p06.name']) {
-      const app = mayWrite({ person: who === 'owner' ? null : who, client: { editor: 'nadia' }, key });
-      assert.equal((await insert(who, key)) === 1, app, `${who} ${key}`);
-    }
+    for (const [key, allowed] of Object.entries(V11)) assert.equal((await insert(who, key)) === 1, allowed.includes(who), `${who} ${key}`);
   }
   assert.equal(mayWrite({ person: 'ofir', client: {}, key: 'p06.metricool' }), true);
   assert.equal(mayWrite({ person: 'ilai', client: {}, key: 'p06.metricool' }), false);
-  assert.equal(mayWrite({ person: 'ilai', client: {}, key: 'p06.name' }), true);
   const writers = (await db.query('select key, proc, round, persons from private.protocol_writers order by key')).rows;
   assert.deepEqual(writers.find((r) => r.key === 'p06.metricool')?.persons ?? [], []);
   await db.exec(migrationSql(MIGRATION));

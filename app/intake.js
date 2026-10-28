@@ -257,7 +257,8 @@ function renderEnd() {
     return h('section', { class: 'ik-card ik-done', 'aria-labelledby': 'end-h' },
       h('h2', { id: 'end-h', tabindex: '-1' }, 'האפיון הסתיים'),
       h('p', {}, `סומן ${formatStamp(ended.at)} · ${who(ended.by_email)}`),
-      h('p', {}, 'השעונים התחילו: עילאי (גישות, 9 גרפיקות וגאנט), אופיר (Highlights) וליאור (Meta).'),
+      // The accesses and the pages are Ofir's since 28.10.2026 (the owner).
+      h('p', {}, 'השעונים התחילו: עילאי (9 גרפיקות וגאנט), אופיר (גישות, סידור העמודים ו־Highlights) וליאור (Meta).'),
       ended.note ? h('p', { class: 'muted' }, ended.note.replace(/^האפיון הסתיים · /, '')) : null,
       p4?.complete ? h('p', { class: 'ok-line' }, 'טופס האפיון המלא נשמר.')
         : h('a', { class: 'btn btn-primary ik-big', href: '#form', id: 'to-form' }, `לטופס המלא${p4?.dueAt ? ` · ${dueWords(p4)}` : ''}`),

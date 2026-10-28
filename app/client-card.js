@@ -45,7 +45,7 @@ import { shootDayHint, confirmShootDay } from './availability-ui.js';
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
 import { fastCaseOf, setOfirMeetings } from './fast-ladder.js';
-import { accessChecked, AUTO_ACCESS_NOTE } from './ilai-logic.js';
+import { accessChecked, AUTO_ACCESS_NOTE } from './access-check.js';
 import { dayBeforeText, readFollowup, followupText } from './shoot-prep.js';
 import { checkMark } from './mark-guards.js';
 import { stationTitle } from './messages-logic.js';
@@ -693,8 +693,11 @@ async function refreshAccess() {
   await refreshAccessLog();
 }
 // Process 6: once every login in the vault has a status set after the access came
-// in, the check is done by itself (Ilai, system-plan section 3; app/ilai-logic.js).
+// in, the check is done by itself (system-plan section 3; app/access-check.js). The process
+// is Ofir's since 28.10.2026: only the office writes it (Ilai still reads the vault, and a
+// status he saves no longer closes a check that is not his).
 async function autoAccessCheck() {
+  if (scope !== 'office' || viewerError) return;
   const got = checks['p05.access'];
   if (checks['p06.verified'] || got?.state !== 'done' || !accessChecked(access, got.at)) return;
   if (await mark('p06.verified', 'done', null, AUTO_ACCESS_NOTE)) toast('כל הרשתות בכספת קיבלו סטטוס: בדיקת הגישות (6) סומנה.');
@@ -1934,7 +1937,8 @@ function syncAccTask() {
   $('acc-username-wrap').hidden = linked;
   $('acc-password-wrap').hidden = linked;
   $('acc-task-wrap').hidden = accessWorks(st) || st === NEW_STATUS || accEditing?.status === st;
-  $('acc-task-text').textContent = st === 'broken' ? 'לפתוח משימה לליאור: לשחזר את הגישה עם הלקוח' : 'לפתוח משימה לעילאי: לפתוח את הרשת ללקוח';
+  // A network to open is Ofir's since 28.10.2026 (the owner; process 6 was Ilai's).
+  $('acc-task-text').textContent = st === 'broken' ? 'לפתוח משימה לליאור: לשחזר את הגישה עם הלקוח' : 'לפתוח משימה לאופיר: לפתוח את הרשת ללקוח';
 }
 $('acc-status').addEventListener('change', syncAccTask);
 $('acc-network').addEventListener('change', syncAccTask);
@@ -1970,7 +1974,7 @@ $('acc-form').addEventListener('submit', async (e) => {
     await saveAccess(id, a);
     $('acc-password').value = '';
     if (!accessWorks(st) && accEditing?.status !== st && $('acc-task').checked) {
-      const owner = st === 'broken' ? 'lior' : 'ilai';
+      const owner = st === 'broken' ? 'lior' : 'ofir';
       const title = st === 'broken' ? `לשחזר עם הלקוח את הגישה ל־${networkName(a.network)} ולהכניס לכספת` : `לפתוח ללקוח ${networkName(a.network)} ולהכניס את הגישה לכספת`;
       const t = await addTask({ client_id: id, title, owner, urgent: true });
       tasks = [t, ...tasks];

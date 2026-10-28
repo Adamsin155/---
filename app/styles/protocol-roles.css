@@ -291,6 +291,14 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
 #mine-list .il-until.late { background: var(--ds-hot-soft); color: var(--ds-hot-text); }
 #mine-list .il-part { border-top: 0; padding: 8px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); }
 #mine-list .il-part > h4 { font-weight: 700; color: var(--ds-ink); }
+/* Process 6 (Ofir's since 28.10.2026; app/access-check-ui.js): the logins and the page setup in two
+   short parts; the page's six checks two a row where there is room. */
+#mine-list .ac-panel { display: grid; gap: 8px; min-width: 0; }
+#mine-list .ac-part { gap: 6px; min-width: 0; }
+#mine-list .ac-part > .hint, #mine-list .ac-part > .of-acts { margin: 0; }
+#mine-list .ac-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }
+#mine-list .ac-count { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-soft); color: var(--ds-ink-2); font-size: 13px; font-weight: 700; }
+#mine-list .ac-net .tag { white-space: normal; }
 
 /* ══ "לקוחות" / "הלקוחות שלי": what a row says about lateness, waiting and the shoot day is a pill ══ */
 #client-list .cphase > span:not(.k), #client-list .cnext > span:not(.k, .muted) { font-weight: 600; color: var(--ds-ink); }

@@ -128,7 +128,8 @@ test('characterizer decides who takes the network access; no logo adds a logo ta
   assert.deepEqual(p5({ characterizer: 'lior' }).owners, ['lior']);
   const p6 = applicableProcesses({}).find((p) => p.id === 'p06');
   assert.deepEqual(p6.items.find((i) => i.key === 'p06.recovered').owners, ['lior']);
-  assert.deepEqual(p6.items.find((i) => i.key === 'p06.newpages').owners, ['ilai']);
+  // The whole of 6 is Ofir's since 28.10.2026 (the owner), new networks too; Lior keeps the broken logins.
+  assert.deepEqual(p6.items.find((i) => i.key === 'p06.newpages').owners, ['ofir']);
   assert.deepEqual(applicableProcesses({ characterizer: 'lior' }).find((p) => p.id === 'p04').owners, ['lior']);
   assert.deepEqual(applicableProcesses({}).find((p) => p.id === 'p04').owners, ['ofir']); // Ofir characterizes by default
   assert.ok(p5({ has_logo: false }).items.some((i) => i.key === 'p05.newlogo' && i.owners[0] === 'ilai'));

@@ -215,16 +215,19 @@ test('"the meeting ended" starts the clocks of 6–10: one message each, and 30 
   none(due(w3, IL(2026, 10, 6, 14)), 'started');
 });
 
-test('access received: Ilai at once (30 minutes); Lior after 30 office minutes; stops when checked', () => {
+// Process 6 is Ofir's since 28.10.2026 (the owner; it was Ilai's).
+test('access received: Ofir at once (30 minutes); Lior after 30 office minutes; stops when checked', () => {
   const w = world();
   const c = client(w, { char_at: IL(2026, 10, 6, 10).toISOString() });
   importTo(w, c, 'char');
   mark(w, c, 'p05.access', IL(2026, 10, 6, 12));
-  const now = one(due(w, IL(2026, 10, 6, 12)), 'access', 'now', 'ilai');
+  const now = one(due(w, IL(2026, 10, 6, 12)), 'access', 'now', 'ofir');
   assert.equal(now.exempt, 'clock');
   assert.match(now.body, /יעד היום 12:30/);
+  assert.equal(due(w, IL(2026, 10, 6, 12)).filter((r) => r.rule === 'access' && r.person === 'ilai').length, 0);
   none(due(w, IL(2026, 10, 6, 12, 29)), 'access', 'lior');
-  one(due(w, IL(2026, 10, 6, 12, 30)), 'access', 'lior', 'lior');
+  const lior = one(due(w, IL(2026, 10, 6, 12, 30)), 'access', 'lior', 'lior');
+  assert.equal(lior.body, 'עברו 30 דקות מקבלת הגישות ואופיר עוד לא סימן שבדק.');
   mark(w, c, 'p06.verified', IL(2026, 10, 6, 12, 20));
   none(due(w, IL(2026, 10, 6, 12, 30)), 'access');
 });

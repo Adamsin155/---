@@ -59,8 +59,9 @@ before(async () => {
   ids.dana = rows[0].id;
 });
 
-test('the file: the newest, only adds, and runs twice', async () => {
-  assert.equal(migrationFiles().at(-1), FILE);
+test('the file: the newest but one, only adds, and runs twice', async () => {
+  // After it only process 6 passing to Ofir (20261111100000_p06_ofir.sql, 28.10.2026).
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261111100000_p06_ofir.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));

@@ -812,14 +812,15 @@ assert.equal(await page.locator('.who-panel, .auto-banner, .rv-card, .thu-card, 
 // Every card is a process with an item of his.
 const ilaiTitles = await page.locator('#mine-list .wproc:not(.soon-card) .wtitle').allInnerTexts();
 // Since package 1 the first 9 graphics are a card of his (with the upload), not a row of this list.
-assert.ok(ilaiTitles.length >= 4, ilaiTitles.join('|'));
+// (Process 6 left his list on 28.10.2026: it is Ofir's, the owner.)
+assert.ok(ilaiTitles.length >= 3, ilaiTitles.join('|'));
 assert.ok(!ilaiTitles.some((t) => /^7 · /.test(t)), ilaiTitles.join('|'));
 assert.ok(await page.locator('.g-ilai .il-card[data-key^="il-first:"]').count() >= 1);
 for (const t of ilaiTitles) {
   const proc = PROCESSES.find((p) => p.num === /^(?:סבב \d+ · )?([^ ]+) · /.exec(t)?.[1]);
   assert.ok(proc?.items.some((i) => [].concat(i.owners || proc.owners).includes('ilai')), t);
 }
-assert.match(await page.locator('.g-overdue .wproc:has(.wclient:text("מספרת רון")):has-text("בדיקת הגישות וסידור הרשתות")').innerText(), /באיחור/);
+assert.equal(await page.locator('#mine-list .wproc:has-text("בדיקת הגישות וסידור הרשתות")').count(), 0);
 // His graphics start on the shoot day: coming up, not called his shoot day.
 const ilaiSoon = page.locator('.g-soon .soon-card:has(.wclient:text("מספרת רון"))');
 assert.match(await ilaiSoon.innerText(), /23 · הכנת יתרת הגרפיקות/);
@@ -843,22 +844,19 @@ assert.equal(await page.getAttribute('#tab-mine', 'aria-selected'), 'true');
 await page.keyboard.press('End');
 assert.equal(await page.getAttribute('#tab-performance', 'aria-selected'), 'true');
 // His card: only his processes (with the second round's), none of the office's controls; one click checks.
-await page.goto(`${BASE}client.html?id=${seeded.id}#p06`);
-await page.waitForSelector('#p06');
-// 27 too: Ilai's "קיבלתי" on the final versions closes the editing (protocol v5).
-assert.deepEqual(await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id)), ['p06', 'p07', 'p07b', 'p09', 'p23', 'p23b', 'p27', 'p28', 'p29', 'p29b', 'r2-p27', 'r2-p28', 'r2-p29', 'r2-p29b']); // 29ב: his final check (protocol v10)
+await page.goto(`${BASE}client.html?id=${seeded.id}#p09`);
+await page.waitForSelector('#p09');
+// 27 too: Ilai's "קיבלתי" on the final versions closes the editing (protocol v5). Not 6: Ofir's since 28.10.2026.
+assert.deepEqual(await page.locator('.proc').evaluateAll((els) => els.map((e) => e.id)), ['p07', 'p07b', 'p09', 'p23', 'p23b', 'p27', 'p28', 'p29', 'p29b', 'r2-p27', 'r2-p28', 'r2-p29', 'r2-p29b']); // 29ב: his final check (protocol v10)
 for (const sel of ['#btn-edit', '#view-toggle', '.deliv', '.status-note', '.round-add', '.round-head button', '#task-form:not([hidden])']) assert.equal(await page.locator(sel).count(), 0, sel);
 assert.equal(await page.isHidden('#access'), true); // the vault is not his in this fake
 assert.equal(await page.isHidden('#history'), true);
-// Lior's optional item in process 6 is summed up, not listed.
-assert.equal(await page.locator('#i-p06-recovered').count(), 0);
-// Lior's optional item and, since v11, Ofir's Metricool are summed up, not listed.
-assert.match(await page.locator('#p06 .others-note').innerText(), /ועוד 2 פריטים בתהליך הזה אצל ליאור, אופיר/);
-assert.equal(await page.locator('#i-p06-metricool').count(), 0);
-await page.check('#i-p06-verified');
-await page.waitForFunction(() => document.querySelector('#i-p06-verified')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
-assert.ok(db.protocol_checks.some((c) => c.client_id === seeded.id && c.item_key === 'p06.verified'));
-db.protocol_checks = db.protocol_checks.filter((c) => !(c.client_id === seeded.id && c.item_key === 'p06.verified'));
+// Nothing of process 6 is his, not even a line of it (the check and the pages are Ofir's since 28.10.2026).
+assert.equal(await page.locator('#p06, #i-p06-verified, #i-p06-name').count(), 0);
+await page.check('#i-p09-file');
+await page.waitForFunction(() => document.querySelector('#i-p09-file')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
+assert.ok(db.protocol_checks.some((c) => c.client_id === seeded.id && c.item_key === 'p09.file'));
+db.protocol_checks = db.protocol_checks.filter((c) => !(c.client_id === seeded.id && c.item_key === 'p09.file'));
 await shot('17-ilai-card');
 // On a phone: no sideways scrolling, 44px rows.
 const mobIlai = await ctx.newPage();
@@ -870,7 +868,7 @@ assert.ok(await noHScroll(mobIlai), 'Ilai\'s list scrolls sideways at 360px');
 assert.ok(await mobIlai.locator('.witem').first().evaluate((el) => el.getBoundingClientRect().height) >= 44);
 await shot('18-mobile-ilai-mine', mobIlai);
 await mobIlai.goto(`${BASE}client.html?id=${seeded.id}`);
-await mobIlai.waitForSelector('#p06', { state: 'attached' });
+await mobIlai.waitForSelector('#p07', { state: 'attached' });
 assert.ok(await noHScroll(mobIlai), 'Ilai\'s card scrolls sideways at 360px');
 await mobIlai.close();
 
@@ -907,7 +905,7 @@ db.staff[0].person = 'irit'; await newRole(page);
 await page.goto(`${BASE}client.html?id=${fresh.id}`);
 await page.waitForSelector('#view-toggle');
 assert.equal(await page.innerText('#view-toggle'), 'הצגת כל הפרוטוקול');
-assert.equal(await page.locator('#p06').count(), 0); // Ilai's
+assert.equal(await page.locator('#p06').count(), 0); // Ofir's (Ilai's until 28.10.2026)
 assert.equal(await page.locator('#p02').count(), 1); // hers
 await page.goto('about:blank');
 await page.goto(`${BASE}client.html?id=${seeded.id}#p06`);

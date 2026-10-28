@@ -4,7 +4,7 @@
 // Lior and Ofir), the anonymous page reaching the database only through its two
 // functions and getting nothing stored back, the strict checks (the same as the
 // page's, app/access-logic.js), the vault's rows updated and never duplicated, the
-// statuses ('new', 'missing', 'broken'), process 5 marked, Ilai's task, the limit of
+// statuses ('new', 'missing', 'broken'), process 5 marked, Ofir's task (Ilai's until 28.10.2026), the limit of
 // refused attempts, and the migration run twice.
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -206,7 +206,7 @@ test('a refused submission writes nothing and is counted', async () => {
 
 // Since 20261014100000_security_hardening.sql a login the office saved is never
 // replaced by the form: the client's goes into a row of its own beside it.
-test('a submission: the vault as access_save writes it, the statuses, process 5, Ilai\'s task; nothing comes back', async () => {
+test('a submission: the vault as access_save writes it, the statuses, process 5, Ofir\'s task; nothing comes back', async () => {
   // Ofir already put Instagram (with a password) and YouTube in the vault.
   const [{ id: insta }] = await keep('ofir', "select public.access_save($1, null, 'instagram', 'העמוד הראשי', 'old_user', 'old-pass', 'ok', 'מהאפיון') as id", [ids.dana]);
   const [{ id: yt }] = await keep('ofir', "select public.access_save($1, null, 'youtube', null, 'dana_yt', 'yt-pass', 'ok', null) as id", [ids.dana]);
@@ -258,7 +258,8 @@ test('a submission: the vault as access_save writes it, the statuses, process 5,
   const kept = JSON.stringify(l);
   for (const secret of ['Insta-', 'Li-123', 'dana_cafe', 'dana.tt', 'dana@cafe', token]) assert.ok(!kept.includes(secret), secret);
 
-  // Process 5 is marked, by the system; Ilai gets one task for what has to be opened.
+  // Process 5 is marked, by the system; Ofir gets one task for what has to be opened (Ilai until
+  // 28.10.2026: 20261111100000_p06_ofir.sql).
   const marks = await all("select item_key, state, note, by_email from public.protocol_checks where client_id = $1 and item_key like 'p05.%' order by 1", [ids.dana]);
   // Since protocol v8 the client's own form also answers "are there other networks" (p05.allnets)
   // and closes Irit's "send the client the link" (5ב): 20261022100000_flow_fixes_v8.sql.
@@ -267,7 +268,7 @@ test('a submission: the vault as access_save writes it, the statuses, process 5,
   assert.deepEqual(sentLink, [{ state: 'done', note: 'נסגר לבד: הלקוח מילא את טופס פרטי הכניסה', by_email: 'system' }]);
   assert.equal(marks[0].note, 'מהלקוח, בטופס פרטי הכניסה: Instagram, Facebook, TikTok, LinkedIn');
   const tasks = await all('select title, owner, urgent, done_at from public.client_tasks where client_id = $1', [ids.dana]);
-  assert.deepEqual(tasks, [{ title: 'לפתוח ללקוח Facebook ולהכניס את הגישה לכספת (הלקוח סימן בטופס: אין כיום)', owner: 'ilai', urgent: true, done_at: null }]);
+  assert.deepEqual(tasks, [{ title: 'לפתוח ללקוח Facebook ולהכניס את הגישה לכספת (הלקוח סימן בטופס: אין כיום)', owner: 'ofir', urgent: true, done_at: null }]);
 
   // The vault's log says who set what: the client's form, never an email.
   const log = await all("select network, action, by_email from public.client_access_log where client_id = $1 and by_email = $2 order by id", [ids.dana, CLIENT_BY]);

@@ -402,20 +402,23 @@ export const RULES = [
     ],
   },
 
-  // 5→6: access received. Ilai at once (30 minutes to check); Lior after 30 office minutes.
+  // 5→6: access received. Ofir at once (30 minutes to check); Lior after 30 office minutes.
+  // Process 6 is Ofir's since 28.10.2026 (the owner; it was Ilai's). When Ofir took the
+  // accesses himself (he runs the characterization) he is not told what he just marked
+  // (`self`); his deadline ring and Lior's stay.
   {
     id: 'access', event: 'גישות התקבלו (5→6)', procs: ['p05', 'p06'],
     instances(env) {
       return casesOf(env, 'p06', (i) => !i.pre && !i.resolved('p06.verified') && !i.s.wait && !!i.doneAt('p05.access'))
-        .map((i) => ({ ...i, id: 'p06', anchors: { event: i.doneAt('p05.access') } }));
+        .map((i) => ({ ...i, id: 'p06', self: env.personOf(i.check('p05.access')?.by_email) === 'ofir', anchors: { event: i.doneAt('p05.access') } }));
     },
     steps: [
-      { id: 'now', to: 'ilai', level: 'ring', exempt: 'clock', title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
-      // v10: Ilai hears at his own deadline too (the deadline of 6: these same 30 office minutes).
-      // Until now only Lior was rung then, and Ilai heard nothing until the next morning's
-      // reminder (6 is in OWN_LATE: no "באיחור" of `lateOwn`). Nothing is added for Lior.
-      { id: 'ilai30', officeMinutes: 30, to: 'ilai', level: 'ring', exempt: 'clock', overdue: true, title: (i) => `באיחור: לבדוק את הגישות של ${i.name}`, body: () => `עברו 30 דקות מקבלת הגישות. לבדוק אותן מהכספת ולסמן. ${personName('lior')} קיבל הודעה.` },
-      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', title: (i) => `גישות לא נבדקו: ${i.name}`, body: () => 'עברו 30 דקות מקבלת הגישות ועילאי עוד לא סימן שבדק.' },
+      { id: 'now', to: 'ofir', level: 'ring', exempt: 'clock', when: (i) => !i.self, title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
+      // v10: whoever checks hears at his own deadline too (the deadline of 6: these same 30 office
+      // minutes). Until then only Lior was rung, and the checker heard nothing until the next
+      // morning's reminder (6 is in OWN_LATE: no "באיחור" of `lateOwn`). Nothing is added for Lior.
+      { id: 'ofir30', officeMinutes: 30, to: 'ofir', level: 'ring', exempt: 'clock', overdue: true, title: (i) => `באיחור: לבדוק את הגישות של ${i.name}`, body: () => `עברו 30 דקות מקבלת הגישות. לבדוק אותן מהכספת ולסמן. ${personName('lior')} קיבל הודעה.` },
+      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', title: (i) => `גישות לא נבדקו: ${i.name}`, body: () => `עברו 30 דקות מקבלת הגישות ו${personName('ofir')} עוד לא סימן שבדק.` },
     ],
   },
 
@@ -447,10 +450,10 @@ export const RULES = [
   },
 
   // 5: the client filled the logins form (the owner's request of 6.10.2026;
-  // app/access-logic.js, public.access_form_submit). Irit hears quietly. Ilai's
-  // "קיבלת גישות" and his 30 office minutes are the rule `access` above: the submission
+  // app/access-logic.js, public.access_form_submit). Irit hears quietly. Ofir's (Ilai's
+  // until 28.10.2026) "קיבלת גישות" and his 30 office minutes are the rule `access` above: the submission
   // marks 5's "access received", so that ladder starts from it. Only when 5 was marked
-  // before the form came (the meeting was first, and `access` rang then) is Ilai rung
+  // before the form came (the meeting was first, and `access` rang then) is Ofir rung
   // here, for what the client sent now; Lior after 30 office minutes while a login
   // from the client still waits for its check (status 'new').
   {
@@ -465,7 +468,7 @@ export const RULES = [
         const got = checks['p05.access'];
         const gotAt = got?.state === 'done' ? new Date(got.at) : null;
         const verified = ['done', 'na'].includes(checks['p06.verified']?.state);
-        // `access` rings Ilai for this very event when the form itself marked 5.
+        // `access` rings Ofir for this very event when the form itself marked 5.
         const covered = !!gotAt && Math.abs(gotAt - at) < MIN && !verified;
         const have = (l.summary || []).filter((s) => s.choice === 'have').map((s) => platformName(s.network, s.label));
         const pending = (env.access || []).filter((a) => a.client_id === c.id && a.status === 'new');
@@ -475,7 +478,7 @@ export const RULES = [
     },
     steps: [
       { id: 'irit', to: 'irit', level: 'quiet', title: (i) => `הלקוח מילא את פרטי הכניסה לרשתות: ${i.name}`, body: (i) => summaryText(i.link.summary) || 'הפרטים בכספת.' },
-      { id: 'ilai', to: 'ilai', level: 'ring', exempt: 'clock', when: (i) => !i.covered && i.have.length > 0, title: (i) => `קיבלת גישות מהלקוח: ${i.name}`, body: (i, env) => `הלקוח מילא בטופס: ${i.have.join(', ')}. יש לך 30 דקות לבדוק אותן מהכספת. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
+      { id: 'ofir', to: 'ofir', level: 'ring', exempt: 'clock', when: (i) => !i.covered && i.have.length > 0, title: (i) => `קיבלת גישות מהלקוח: ${i.name}`, body: (i, env) => `הלקוח מילא בטופס: ${i.have.join(', ')}. יש לך 30 דקות לבדוק אותן מהכספת. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
       { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', when: (i) => !i.covered && i.pending.length > 0, title: (i) => `גישות מהלקוח לא נבדקו: ${i.name}`, body: () => 'עברו 30 דקות עבודה מאז שהלקוח מילא את הטופס, והגישות עוד מסומנות ״עוד לא נבדק״.' },
     ],
   },
@@ -1357,7 +1360,8 @@ export const RULES = [
     ],
   },
 
-  // 6: Lior closed a broken login (fixed, or partly: "עדיין חסר"). Irit and Ilai are told (quiet).
+  // 6: Lior closed a broken login (fixed, or partly: "עדיין חסר"). Irit and Ofir are told (quiet):
+  // Ofir checks the accesses since 28.10.2026 (Ilai was told until then).
   {
     id: 'accessClosed', event: 'גישה שבורה נסגרה (6)', procs: ['p06'],
     instances(env) {
@@ -1372,7 +1376,7 @@ export const RULES = [
       }
       return out;
     },
-    steps: ['irit', 'ilai'].map((p) => ({
+    steps: ['irit', 'ofir'].map((p) => ({
       id: p, to: p, level: 'quiet',
       title: (i) => `${i.fix.partial ? 'גישה תוקנה חלקית' : 'גישה תוקנה'}: ${i.name}`,
       body: (i) => `${NETWORK_NAME[i.network] || i.network}.${i.fix.partial ? ` עדיין חסר: ${i.fix.missing}` : ''}`,

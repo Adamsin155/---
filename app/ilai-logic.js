@@ -1,45 +1,26 @@
 // Ilai's part of "המשימות שלי" (system-plan section 3, "עילאי"): when a
 // characterization ends, the card "יום אפיון: שעתיים" with one line per client
-// showing only the nearest due, and inside it the access check (30 minutes; the
-// statuses in the vault mark it), the page setup (6 quick checks; Metricool is Ofir's
-// since v11, and the card only says whether it is connected), the first 9 graphics (2 hours), the
+// showing only the nearest due, and inside it the first 9 graphics (2 hours), the
 // Gantt skeleton and a new logo when there is none. Also his "מוכן לבדיקה" routing
 // (to Ofir, the first 9 as the rest: protocol v9), "הגאנט מלא" and "קיבלתי" on the
 // editor's final versions. Pure, no DOM, Israel time.
+// The access check and the page setup (process 6) left this card on 28.10.2026: the whole
+// process is Ofir's (the owner), in his "המשימות שלי" (app/access-check.js, app/access-check-ui.js).
 import { PROCESSES } from './protocol.js';
 import { IMPORT_NOTE } from './protocol-logic.js';
 import { qaState } from './office-marks.js';
-import { NEW_STATUS, byClient } from './access-logic.js';
 
-export const PAGE_KEYS = ['p06.name', 'p06.bio', 'p06.details', 'p06.phone', 'p06.address', 'p06.look'];
-export const PAGE_LABELS = { 'p06.name': 'שם העמוד', 'p06.bio': 'Bio', 'p06.details': 'פרטי עסק', 'p06.phone': 'טלפון', 'p06.address': 'כתובת', 'p06.look': 'מראה העמוד' };
 export const GANTT_KEYS = PROCESSES.find((p) => p.id === 'p09').items.map((i) => i.key);
-export const AUTO_ACCESS_NOTE = 'נסגר לבד: כל הרשתות בכספת קיבלו סטטוס';
 const done = (cs, k) => ['done', 'na'].includes(cs[k]?.state);
 const inWork = (c) => c.status === 'active' || c.status === 'ending';
 
-// Whether every login in the vault has a status set after the access came in
-// (תקינה, לא עובדת, אין רשת): that is the check of process 6. A login the client's
-// own form put there ('new': received, not checked yet), or any status the form set
-// that nobody of the office saved since, is not a check: someone still has to try it.
-export function accessChecked(rows, accessAt) {
-  if (!accessAt || !rows?.length) return false;
-  return rows.every((a) => a.status && a.status !== NEW_STATUS && !byClient(a) && new Date(a.updated_at) >= new Date(accessAt));
-}
-// The logins that came from the client and wait for the check.
-export const toCheck = (rows) => (rows || []).filter((a) => a.status === NEW_STATUS);
-
 // The day's lines of one client, each with its due (null when it has none) and done.
-function lines(c, st, cs, access) {
+function lines(c, st, cs) {
   const by = new Map(st.states.map((s) => [s.proc.id, s]));
   const p05 = by.get('p05');
-  const p06 = by.get('p06');
   const p07 = by.get('p07');
   const p09 = by.get('p09');
-  const accessAt = cs['p05.access']?.state === 'done' ? new Date(cs['p05.access'].at) : null;
   const out = [
-    { key: 'access', title: 'בדיקת גישות', due: p06?.dueAt || null, done: done(cs, 'p06.verified'), waiting: !accessAt, auto: accessChecked(access, accessAt) },
-    { key: 'page', title: 'סידור העמוד', due: p06?.dueAt || null, done: PAGE_KEYS.every((k) => done(cs, k)), count: PAGE_KEYS.filter((k) => done(cs, k)).length },
     // Returned by Ofir for fixes (protocol v9): the line is open again, with the fix's own deadline.
     { key: 'graphics', title: '9 גרפיקות', due: p07?.dueAt || null, done: done(cs, 'p07.made') && qaState(cs, '', 'graphics9').stage !== 'fixing' },
     { key: 'gantt', title: 'שלד גאנט', due: p09?.dueAt || null, done: !!p09?.complete },
@@ -55,7 +36,7 @@ function lines(c, st, cs, access) {
 // is still open a day later is in his list as late. Each: { client, endAt, lines,
 // next (the nearest open line with a due) }.
 export const CARD_HOURS = 24;
-export function charDay({ clients, stateOf, checks, access = {}, now = new Date() }) {
+export function charDay({ clients, stateOf, checks, now = new Date() }) {
   const out = [];
   for (const c of clients) {
     if (!inWork(c)) continue;
@@ -64,7 +45,7 @@ export function charDay({ clients, stateOf, checks, access = {}, now = new Date(
     const p4 = st.states.find((s) => s.proc.id === 'p04');
     if (!p4?.complete || !p4.completedAt || p4.proc.items.some((i) => cs[i.key]?.note === IMPORT_NOTE)) continue;
     if (now - p4.completedAt > CARD_HOURS * 36e5) continue;
-    const ls = lines(c, st, cs, access[c.id] || []);
+    const ls = lines(c, st, cs);
     const open = ls.filter((l) => !l.done);
     if (!open.length) continue;
     const next = open.filter((l) => l.due).sort((a, b) => a.due - b.due)[0] || open[0];
