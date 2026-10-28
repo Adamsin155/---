@@ -4,10 +4,19 @@
 // client's deliverables say `shoot_monthly: true` (no column, no migration: deliverables
 // is a free jsonb object, as for videos_month). On the last business day of every Israel
 // month Irit is reminded to set the next month's shoot day with each such client (rule
-// `monthlyShoot` in app/reminder-rules.js; docs/ops.md, section 74).
+// `monthlyShoot` in app/reminder-rules.js; docs/ops.md, section 71).
 import { isBusinessDay, roundsOf, parseDate } from './protocol-logic.js';
 import { dateIL, partsIL, addDaysIL } from './tz.js';
-import { monthKey, addMonth, isMonthKey } from './edit-count.js';
+
+// 'YYYY-MM' of the Israel month of a moment, and n months later (as in app/edit-count.js,
+// kept here so that the reminders function does not carry the editors' counting).
+const pad = (n) => String(n).padStart(2, '0');
+const isMonthKey = (k) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(k ?? ''));
+const monthKey = (d) => { const p = partsIL(d); return `${p.year}-${pad(p.month)}`; };
+function addMonth(key, n) {
+  const t = Number(key.slice(0, 4)) * 12 + Number(key.slice(5, 7)) - 1 + n;
+  return `${Math.floor(t / 12)}-${pad((t % 12) + 1)}`;
+}
 
 const MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 

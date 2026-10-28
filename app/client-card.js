@@ -33,6 +33,9 @@ import { markHistory, filesOf, fileLine, filesHint, reportOf, missingWords, CHEC
 import {
   progressMap, editedLine, isMonthly, monthKey, monthMap, monthLine, monthBase, monthExceptions, exceptMonths, monthLabel, withMonthly,
 } from './edit-count.js';
+// A monthly shoot day and the client's email and company number (the owner, 28.10.2026).
+import { isShootMonthly, withShootMonthly } from './monthly-shoot.js';
+import { companyIdValue, emailValue } from './client-contact.js';
 import { loadEditorProgress, loadEditorMonths } from './production-data.js';
 import { canManageTeam, isOwnerView } from './team-rules.js';
 import { activate as activateLanding } from './landing-data.js';
@@ -498,7 +501,7 @@ function inviteLink(kind, n = 1) {
   const at = kind === 'char' ? client.char_at : ctx.shoot_at;
   if (!at) return null;
   const start = kind === 'char' ? new Date(at) : shootStart(new Date(at), isSolo(ctx));
-  const inv = inviteFor({ kind, start, round: n, shootType: ctx.shoot_type, crew: crewOf(ctx) }, { client, emails: emailsOf(directory), clientEmail: clientMail, site: new URL('.', location.href).href });
+  const inv = inviteFor({ kind, start, round: n, shootType: ctx.shoot_type, crew: crewOf(ctx) }, { client, emails: emailsOf(directory), clientEmail: client.contact_email || clientMail, site: new URL('.', location.href).href });
   if (!inv) return null;
   return h('a', { class: 'btn btn-sm', href: inv.url, target: '_blank', rel: 'noopener', title: `מוזמנים: ${guestNames(inv)}`, 'data-guests': inv.guests.join(',') }, 'שליחת זימון');
 }
@@ -812,10 +815,19 @@ function monthlyRow() {
     h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEdit('ed-month-n') }, 'שינוי'));
 }
 
+// A monthly shoot day (28.10.2026): Irit is reminded at the end of every month to set the next one.
+function shootMonthlyRow() {
+  if (!isShootMonthly(client)) return null;
+  return h('div', { class: 'deliv-row', id: 'deliv-shoot-monthly' },
+    h('span', { class: 'deliv-k' }, 'יום צילום חודשי'),
+    h('span', {}, 'בסוף כל חודש עירית מקבלת תזכורת לקבוע את יום הצילום של החודש הבא.'),
+    h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openEdit('ed-shoot-monthly') }, 'שינוי'));
+}
+
 function deliverablesBlock(s) {
   const d = client.deliverables || {};
   const rows = DELIVERABLES.filter((x) => (d[x.key] || 0) > 0);
-  const hasAny = rows.length || d.shoot_days !== undefined || isMonthly(client);
+  const hasAny = rows.length || d.shoot_days !== undefined || isMonthly(client) || isShootMonthly(client);
   return h('section', { class: 'deliv', 'aria-labelledby': 'deliv-h' },
     h('div', { class: 'deliv-head' }, h('h2', { id: 'deliv-h' }, 'מה כלול בחבילה'), h('span', { class: 'hint' }, 'נספר כשהלקוח קיבל ואישר.')),
     hasAny ? null : h('p', { class: 'muted' }, 'הכמויות בחבילה לא הוזנו. ',
@@ -834,6 +846,7 @@ function deliverablesBlock(s) {
         h('span', { class: 'hint', id: `deliv-${x.key}-s` }));
     }),
     monthlyRow(),
+    shootMonthlyRow(),
     roundsSummary(s),
     d.updated_at ? h('p', { class: 'hint' }, `עודכן · ${who(d.updated_by)} · ${formatStamp(d.updated_at)}`) : null);
 }
@@ -893,6 +906,9 @@ function renderHead(s) {
     own() ? h('dl', { class: 'facts cc-facts' }, fact('כתובת העסק', c.address), shootFact, editorFact)
       : h('dl', { class: 'facts cc-facts' },
         fact('טלפון', phone),
+        // The client's email and company number (28.10.2026): the office's, with the phone.
+        fact('אימייל', c.contact_email ? h('a', { href: `mailto:${c.contact_email}`, dir: 'ltr' }, c.contact_email) : null),
+        fact('ח.פ / ת.ז', c.company_id ? h('span', { dir: 'ltr', class: 'num' }, c.company_id) : null),
         fact('כתובת העסק', c.address),
         fact('פרטי העסקה התקבלו', c.deal_at ? formatStamp(c.deal_at) : null),
         fact('פגישת אפיון', c.char_at ? `${formatStamp(c.char_at)}${charBy ? ` · ${charBy}` : ''}` : charBy, calendarMenu('char')),
@@ -2356,7 +2372,11 @@ fill($('ed-month'),
     h('div', { class: 'hint', id: 'ed-month-h' }, 'ריק: הלקוח נספר לפי החבילה. עם מספר: העורך סופר כל חודש מחדש, מאפס ב־1 לחודש.')),
   h('div', { class: 'field' }, h('label', { for: 'ed-month-x' }, 'חריג לחודש'), h('select', { class: 'input', id: 'ed-month-x', 'aria-describedby': 'ed-month-xh' })),
   h('div', { class: 'field' }, h('label', { for: 'ed-month-xn' }, 'סרטונים בחודש החריג'), numberInput('ed-month-xn', '0', { 'aria-describedby': 'ed-month-xh' })),
-  h('p', { class: 'hint span-2', id: 'ed-month-xh' }));
+  h('p', { class: 'hint span-2', id: 'ed-month-xh' }),
+  // "יום צילום חודשי" (the owner, 28.10.2026): deliverables.shoot_monthly (app/monthly-shoot.js).
+  h('div', { class: 'field span-2' },
+    h('label', { class: 'only' }, h('input', { type: 'checkbox', id: 'ed-shoot-monthly', 'aria-describedby': 'ed-shoot-monthly-h' }), ' יום צילום חודשי'),
+    h('div', { class: 'hint', id: 'ed-shoot-monthly-h' }, 'ללקוח יש יום צילום כל חודש. ביום העבודה האחרון של החודש עירית מקבלת תזכורת לקבוע איתו את יום הצילום של החודש הבא.')));
 const monthExceptText = (c) => {
   const x = Object.entries(monthExceptions(c));
   return x.length ? `חריגים: ${x.map(([k, n]) => `${monthLabel(k)}: ${n}`).join(' · ')}. מספר ריק מחזיר את החודש לרגיל.` : 'אין חריגים. חודש עם מספר אחר: בוחרים אותו וכותבים את המספר.';
@@ -2367,6 +2387,7 @@ function fillMonthFields(c) {
   $('ed-month-x').value = monthKey();
   $('ed-month-xn').value = monthExceptions(c)[monthKey()] ?? '';
   $('ed-month-xh').textContent = monthExceptText(c);
+  $('ed-shoot-monthly').checked = isShootMonthly(c);
 }
 $('ed-month-x').addEventListener('change', (e) => { $('ed-month-xn').value = monthExceptions(client)[e.currentTarget.value] ?? ''; });
 
@@ -2377,6 +2398,8 @@ function openEdit(focusId = 'ed-name') {
   $('ed-business').value = c.business || '';
   $('ed-address').value = c.address || '';
   $('ed-phone').value = c.phone || '';
+  $('ed-email').value = c.contact_email || '';
+  $('ed-company-id').value = c.company_id || '';
   $('ed-package').value = c.package_name || '';
   $('ed-deal').value = toLocal(c.deal_at);
   $('ed-status').value = c.status;
@@ -2506,6 +2529,17 @@ $('ed-form').addEventListener('submit', async (e) => {
   if (crew) deliverables.shoot_crew = crew; else delete deliverables.shoot_crew;
   const monthly = withMonthly(deliverables, { base: $('ed-month-n').value, month: $('ed-month-x').value, except: $('ed-month-xn').value });
   if (monthly.error) return fail(monthly.error, $({ base: 'ed-month-n', month: 'ed-month-x', except: 'ed-month-xn' }[monthly.field]));
+  const delivered = withShootMonthly(monthly.deliverables, $('ed-shoot-monthly').checked);
+  // The email and the company number: checked here, and sent only when changed (so a save
+  // before 20261113100000_client_details_month.sql, with both empty, asks nothing new).
+  const mail = emailValue($('ed-email').value);
+  if (mail.error) return fail(mail.error, $('ed-email'));
+  const cid = companyIdValue($('ed-company-id').value);
+  if (cid.error) return fail(cid.error, $('ed-company-id'));
+  const contact = {
+    ...(mail.value !== (client.contact_email ?? null) ? { contact_email: mail.value } : {}),
+    ...(cid.value !== (client.company_id ?? null) ? { company_id: cid.value } : {}),
+  };
   const val = (i) => $(i).value.trim() || null;
   // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.
   const newShoot = fromLocal($('ed-shoot-at').value);
@@ -2523,7 +2557,7 @@ $('ed-form').addEventListener('submit', async (e) => {
       char_at: fromLocal($('ed-char-at').value), characterizer: val('ed-characterizer'),
       has_logo: $('ed-logo').value === '' ? null : $('ed-logo').value === 'true',
       shoot_type: solo ? null : val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor: val('ed-editor'),
-      contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables: monthly.deliverables,
+      contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables: delivered, ...contact,
     });
     if (asked.note) await noteDateChange(id, 'shoot_at', null, newShoot, asked.note);
     edDlg.close();

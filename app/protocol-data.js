@@ -44,6 +44,10 @@ async function all(build) {
 // 20260930210000_hardening.sql: the office reads them through
 // public.clients_private(), and nobody else gets them (they come back null). Before
 // that migration the function is missing, and they are read from the table as before.
+// The client's email and company number (contact_email, company_id; the owner, 28.10.2026)
+// are the office's too, from 20261113100000_client_details_month.sql: read through
+// public.clients_contact() beside clients_private() (null before that migration, and
+// outside the office).
 export const CLIENT_PRIVATE = ['phone', 'notes', 'closed_reason'];
 const CLIENT_COLS = 'id, name, business, address, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, editor, protocol_version';
 const LEGACY_COLS = `${CLIENT_COLS}, ${CLIENT_PRIVATE.join(', ')}`;
@@ -70,15 +74,25 @@ const TASK_COLS = 'id, client_id, title, owner, due_on, done_at, done_by_email, 
 // `ids` is null); {} for anyone else; null before the migration.
 const missingFunction = (error, status) => error?.code === 'PGRST202' || error?.code === '42883' || status === 404;
 async function privateFields(ids = null) {
-  const { data, error, status } = await supabase.rpc('clients_private', ids ? { p_ids: ids } : {});
+  const [{ data, error, status }, contact] = await Promise.all([supabase.rpc('clients_private', ids ? { p_ids: ids } : {}), contactFields(ids)]);
   if (error) {
     if (missingFunction(error, status)) return null;
     throw error;
   }
-  return Object.fromEntries((data || []).map((r) => [r.id, r]));
+  return Object.fromEntries((data || []).map((r) => [r.id, { ...r, ...contact[r.id] }]));
+}
+// { id: { contact_email, company_id } } from public.clients_contact() (the office's; {} for
+// anyone else, before 20261113100000_client_details_month.sql, or when it does not answer:
+// the card then shows them empty, and the rest of it as always).
+async function contactFields(ids = null) {
+  try {
+    const { data, error } = await supabase.rpc('clients_contact', ids ? { p_ids: ids } : {});
+    return error || !Array.isArray(data) ? {} : Object.fromEntries(data.map((r) => [r.id, { contact_email: r.contact_email ?? null, company_id: r.company_id ?? null }]));
+  } catch { return {}; }
 }
 const withPrivate = (row, priv) => row && {
   ...row, phone: priv[row.id]?.phone ?? null, notes: priv[row.id]?.notes ?? null, closed_reason: priv[row.id]?.closed_reason ?? null,
+  contact_email: priv[row.id]?.contact_email ?? null, company_id: priv[row.id]?.company_id ?? null,
 };
 // One client row as the pages use it: the office's columns added (null outside the office).
 async function complete(row) {

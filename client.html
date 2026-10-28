@@ -142,6 +142,9 @@
         <div class="field"><label for="ed-name">שם הלקוח</label><input class="input" id="ed-name" required autocomplete="off"></div>
         <div class="field"><label for="ed-business">שם העסק</label><input class="input" id="ed-business" autocomplete="off"></div>
         <div class="field"><label for="ed-phone">טלפון</label><input class="input" id="ed-phone" type="tel" dir="ltr" autocomplete="off"></div>
+        <!-- The client's email and company number (the owner, 28.10.2026): the office's, like the phone (app/client-contact.js). -->
+        <div class="field"><label for="ed-email">אימייל</label><input class="input" id="ed-email" type="email" inputmode="email" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+        <div class="field"><label for="ed-company-id">ח.פ / ת.ז</label><input class="input" id="ed-company-id" type="text" inputmode="numeric" dir="ltr" autocomplete="off" maxlength="20" aria-describedby="ed-company-id-h"><div class="hint" id="ed-company-id-h">9 ספרות.</div></div>
         <div class="field"><label for="ed-package">חבילה</label><input class="input" id="ed-package" autocomplete="off"></div>
         <div class="field span-2"><label for="ed-address">כתובת העסק</label><input class="input" id="ed-address" autocomplete="off"></div>
         <div class="field"><label for="ed-deal">קבלת פרטי העסקה</label><input class="input" id="ed-deal" type="datetime-local" dir="ltr"></div>

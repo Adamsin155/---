@@ -5,10 +5,12 @@
 //     for everyone, as PostgREST does with a column privilege;
 //   - the rows sent back never carry those columns;
 //   - public.clients_private(p_ids) gives them to the office (the owner, Irit, Lior,
-//     Ofir, Ilai), and nothing to anyone else.
+//     Ofir, Ilai), and nothing to anyone else; public.clients_contact(p_ids) the same for
+//     the client's email and company number.
 // Each suite wraps its own handler: ctx.route(URL, withClientColumns(fakeSupabase,
 // { clients: () => db.clients, staff: () => staff })).
-export const CLIENT_PRIVATE = ['phone', 'notes', 'closed_reason'];
+// With the client's email and company number since 20261113100000_client_details_month.sql.
+export const CLIENT_PRIVATE = ['phone', 'notes', 'closed_reason', 'contact_email', 'company_id'];
 const OFFICE = new Set(['irit', 'lior', 'ofir', 'ilai']);
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
 
@@ -43,6 +45,15 @@ export function withClientColumns(handler, { clients, staff }) {
       const ids = Array.isArray(body.p_ids) ? new Set(body.p_ids) : null;
       const rows = office ? (clients() || []).filter((c) => !ids || ids.has(c.id))
         .map((c) => ({ id: c.id, phone: c.phone ?? null, notes: c.notes ?? null, closed_reason: c.closed_reason ?? null })) : [];
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(rows) });
+    }
+    // The client's email and company number (20261113100000_client_details_month.sql): the office's.
+    if (url.pathname === '/rest/v1/rpc/clients_contact') {
+      if (!email) return route.fulfill({ status: 401, contentType: 'application/json', headers: CORS, body: JSON.stringify({ code: '42501', message: 'permission denied for function clients_contact' }) });
+      const body = req.postData() ? JSON.parse(req.postData()) : {};
+      const ids = Array.isArray(body.p_ids) ? new Set(body.p_ids) : null;
+      const rows = office ? (clients() || []).filter((c) => !ids || ids.has(c.id))
+        .map((c) => ({ id: c.id, contact_email: c.contact_email ?? null, company_id: c.company_id ?? null })) : [];
       return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(rows) });
     }
     if (url.pathname !== '/rest/v1/clients') return handler(route);

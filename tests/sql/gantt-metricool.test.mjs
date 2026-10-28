@@ -312,7 +312,7 @@ test('anon runs nothing of it; the tables have row level security; the three mig
 test('20261102100000_gantt_irit.sql: the newest, none of the refused words, runs twice; Irit edits rows but connects no brand', async () => {
   const FILE = '20261102100000_gantt_irit.sql';
   // After it only the editors' monthly count (20261104100000_editor_progress_month.sql, 22.10.2026) and the old system's signed documents (20261105100000_legacy_contracts.sql, 25.10.2026); "הכנת חוזה עם AI" (20261106100000_contract_ai.sql) and a shoot day without influencers (20261107100000_shoot_crew.sql, 25.10.2026); the old system's characterizations (20261109100000_legacy_characterizations.sql, 26.10.2026), not the Gantt's.
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql', '20261113100000_client_details_month.sql']);
   const sql = migrationSql(FILE);
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);
