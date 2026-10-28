@@ -34,7 +34,7 @@ import { checkMark } from './mark-guards.js';
 import {
   accessStatusesFor, MAIN_NETWORKS, networkName, FORM_FIELDS, MATERIALS, MATERIAL_STATES, endedProblems, endedNote, endedChecks,
   endedClientFields, formProblems, isComplete, missingFields, filledCount, missingMaterials, formChecks, missingTask, blockingTask,
-  MISSING_TITLE, BLOCKING_TITLE, DRAFT_KEY, readDraft, draftText, draftWins, validUrl,
+  MISSING_TITLE, BLOCKING_TITLE, DRAFT_KEY, readDraft, draftText, draftWins, validUrl, CAMPAIGN_FIELDS, campaignValue,
 } from './characterization.js';
 import { FOCUS_TOPICS, MUST, MUST_NOT, briefChecks, emptyTopics, roundKey, NOT_RAISED, SUMMARY, BRIEF_KEYS } from './briefs.js';
 import { loadCharacterization, saveCharacterization, loadBriefs, saveBrief, missingTable } from './intake-data.js';
@@ -442,10 +442,10 @@ function renderForm() {
       h('span', {}, `שוחזרה טיוטה מהטלפון מ־${formatStamp(formDraftAt)} שעוד לא נשמרה.`),
       h('button', { type: 'button', class: 'btn-text', id: 'draft-drop', onclick: dropDraft }, 'לבטל את הטיוטה')) : null,
     h('p', { class: 'ik-progress', id: 'form-progress', 'aria-live': 'polite' }, progressText()),
-    ...FORM_FIELDS.map((f) => field({
+    ...FORM_FIELDS.flatMap((f) => [field({
       fid: `form-${f.key}`, label: f.label, hint: f.hint || null, error: problems[f.key],
       control: f.short ? textInput(formV[f.key], onField(f.key), f.tel ? { type: 'tel', inputmode: 'tel', dir: 'ltr' } : {}) : textArea(formV[f.key], onField(f.key)),
-    })),
+    }), f.key === 'campaigns' ? campaignGroup(onField) : null]),
     h('fieldset', { class: 'ik-group' },
       h('legend', {}, 'מיתוג וחומרים'),
       hasLogo ? field({ fid: 'form-logo_url', label: 'קישור ללוגו', hint: 'קישור לקובץ, בלי סיסמה בקישור. אפשר במקום זה להעלות את הקובץ עצמו למטה.', error: problems.logo_url,
@@ -464,6 +464,17 @@ function renderForm() {
     h('div', { class: 'ik-actions ik-sticky' },
       h('span', { class: 'hint', id: 'form-draft', 'aria-live': 'off' }),
       h('button', { type: 'submit', class: 'btn btn-primary ik-big', id: 'form-save', disabled: busy }, busy ? 'שומר…' : saveLabel())));
+}
+// "קמפיין ממומן" (Ofir, 28.10.2026): five questions under "צרכים לקמפיינים", none of them required.
+function campaignGroup(onField) {
+  return h('fieldset', { class: 'ik-group', id: 'form-ads' },
+    h('legend', {}, 'קמפיין ממומן'),
+    h('p', { class: 'muted' }, 'לא חובה, אבל זה מה שאופיר צריך כדי לבנות את הקמפיין.'),
+    ...CAMPAIGN_FIELDS.map((x) => (x.choices
+      ? h('div', { class: 'ik-field' },
+        radios(`form-${x.key}`, x.choices, formV[x.key] || null, (v) => { formV[x.key] = v; writeDraft(); }, x.label, { describe: `form-${x.key}-hint` }),
+        h('p', { class: 'hint', id: `form-${x.key}-hint` }, x.hint))
+      : field({ fid: `form-${x.key}`, label: x.label, hint: x.hint, control: x.short ? textInput(formV[x.key], onField(x.key)) : textArea(formV[x.key], onField(x.key), 2) }))));
 }
 function saveLabel() {
   const left = FORM_FIELDS.length - filledCount(formV);
@@ -802,6 +813,9 @@ async function showRead() {
       !charRow ? h('p', { class: 'ik-note', id: 'rd-none' }, charError && !missingTable(charError) ? 'לא הצלחנו לטעון את האפיון. רעננו את הדף.' : 'האפיון עוד לא נשמר במערכת. כשהוא יישמר, הוא יופיע כאן.')
         : [filled < FORM_FIELDS.length ? h('p', { class: 'muted' }, `מולאו ${filled} מתוך ${FORM_FIELDS.length} השדות. מה שחסר: לשאול את ${charBy || 'אופיר'}.`) : null,
           h('dl', { class: 'ik-read', id: 'rd-fields' }, ...FORM_FIELDS.flatMap((x) => row(x.label, f[x.key], { ltr: !!x.tel })))]),
+    charRow ? h('section', { class: 'ik-card', 'aria-labelledby': 'rd-ads-h' },
+      h('h2', { id: 'rd-ads-h' }, 'קמפיין ממומן'),
+      h('dl', { class: 'ik-read', id: 'rd-ads' }, ...CAMPAIGN_FIELDS.flatMap((x) => row(x.label, campaignValue(f, x))))) : null,
     charRow ? h('section', { class: 'ik-card', 'aria-labelledby': 'rd-brand-h' },
       h('h2', { id: 'rd-brand-h' }, 'מותג וחומרים'),
       h('dl', { class: 'ik-read', id: 'rd-brand' },

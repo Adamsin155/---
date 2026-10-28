@@ -53,6 +53,23 @@ export const FORM_FIELDS = [
   { key: 'campaigns', item: 'p04.campaigns', label: 'צרכים לקמפיינים' },
   { key: 'special', item: 'p04.special', label: 'דגשים מיוחדים' },
 ];
+// "קמפיין ממומן" (Ofir, 28.10.2026): five more questions, right under "צרכים לקמפיינים". Not
+// required: they are not among the 11 and close no item of the protocol. `choices`: a pick of
+// one; the rest are text.
+export const AD_ACCOUNT = [['yes', 'כן, יש'], ['no', 'אין'], ['unknown', 'לא יודעים']];
+export const CAMPAIGN_FIELDS = [
+  { key: 'ad_budget', label: 'תקציב חודשי לקמפיין ממומן', short: true, hint: 'כמה הלקוח מוכן להשקיע בחודש בפרסום, מעבר לריטיינר. למשל: 1,500 ₪.' },
+  { key: 'ad_account', label: 'יש ללקוח חשבון מודעות?', choices: AD_ACCOUNT, hint: 'חשבון מודעות קיים ב־Meta (פייסבוק ואינסטגרם).' },
+  { key: 'ad_past', label: 'קמפיינים בעבר', hint: 'פרסמו בממומן בעבר? איפה, כמה זמן, באיזה תקציב, ומה יצא מזה.' },
+  { key: 'ad_goal', label: 'מטרת הקמפיין', hint: 'לידים, מכירות, הודעות בוואטסאפ, הגעה לעסק או חשיפה.' },
+  { key: 'ad_success', label: 'מה ייחשב אצלם הצלחה', hint: 'כמה שיותר במספרים: כמה לידים או לקוחות חדשים בחודש, או כמה מוכנים לשלם לליד.' },
+];
+// The words of a campaign answer (a choice in its words; '' when empty).
+export function campaignValue(f, x) {
+  const v = clean(f?.[x.key]);
+  return x.choices ? (x.choices.find(([k]) => k === v)?.[1] || '') : v;
+}
+
 // Process 4's own items the complete form closes as well: "saved in full", and
 // Irit's two verifications (her section 5: the system knows the form is saved and
 // that the clocks of 5–10 started at the tap).

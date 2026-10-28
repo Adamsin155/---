@@ -11,7 +11,7 @@
 //     does the day-before check (15) and takes a client's request (her section 17)
 //     through to "לעדכן את הלקוח".
 // Run: npx http-server -p 8123 -s . &  then  BASE_URL=http://localhost:8123/ node tests/intake-e2e.mjs [outDir]
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -228,7 +228,8 @@ async function fakeSupabase(route) {
 }
 
 // ── Browser ───────────────────────────────
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+// E2E_BROWSER=webkit: the same suite in the iPhone's engine (real typing, test-real-typing).
+const browser = process.env.E2E_BROWSER === 'webkit' ? await webkit.launch() : await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const errors = [];
 const PHONE = { width: 360, height: 740 };
 async function newContext(viewport = { width: 1280, height: 900 }) {
@@ -382,6 +383,21 @@ await step('saving the complete form checks process 4, closes Irit\'s follow-up,
   const fill = { advantages: 'ספר עם 20 שנות ניסיון', goals: 'יותר תורים באמצע השבוע', offers: 'תספורת 80 ש״ח', content: 'לפני ואחרי',
     graphics: 'מחירון ושעות פתיחה', campaigns: 'לידים לתורים', special: 'לא לצלם לקוחות בלי אישור' };
   for (const [k, v] of Object.entries(fill)) await ofir.fill(`#form-${k}`, v);
+  // "קמפיין ממומן" (Ofir, 28.10.2026): typed key by key, a mistake erased, a choice, under the campaigns' field.
+  assert.equal(await ofir.locator('#form-campaigns ~ * #form-ads, #form-ads').count(), 1);
+  await ofir.locator('#form-ad_budget').click();
+  await ofir.keyboard.type('2,0000', { delay: 15 });
+  await ofir.keyboard.press('Backspace');
+  await ofir.keyboard.type(' ₪', { delay: 15 });
+  assert.equal(await ofir.inputValue('#form-ad_budget'), '2,000 ₪');
+  await ofir.check('#form-ad_account-yes');
+  await ofir.locator('#form-ad_goal').click();
+  await ofir.keyboard.type('לידיםם', { delay: 15 });
+  await ofir.keyboard.press('Backspace');
+  await ofir.keyboard.type(' לתורים', { delay: 15 });
+  assert.equal(await ofir.inputValue('#form-ad_goal'), 'לידים לתורים');
+  await ofir.locator('#form-ad_success').click();
+  await ofir.keyboard.type('30 תורים בחודש', { delay: 10 });
   await ofir.fill('#form-colors', 'שחור וזהב');
   await ofir.check('#form-mat-photos-got');
   await ofir.check('#form-mat-videos-missing');
@@ -394,6 +410,9 @@ await step('saving the complete form checks process 4, closes Irit\'s follow-up,
   const row = db.characterizations.find((r) => r.client_id === A.id);
   assert.ok(row.completed_at);
   assert.equal(row.fields.special, 'לא לצלם לקוחות בלי אישור');
+  assert.deepEqual([row.fields.ad_budget, row.fields.ad_account, row.fields.ad_goal, row.fields.ad_success, row.fields.ad_past ?? ''],
+    ['2,000 ₪', 'yes', 'לידים לתורים', '30 תורים בחודש', '']);
+  if (OUT) { await ofir.locator('#form-ads').scrollIntoViewIfNeeded(); await ofir.screenshot({ path: `${OUT}/02d-form-ads-360.png` }); }
   for (const k of ['p04.address', 'p04.phone', 'p04.services', 'p04.special', 'p04.saved']) assert.equal(checkOf(A, k)?.state, 'done', k);
   assert.equal(checkOf(A, 'p04.followup').note, 'נסגר אוטומטית מטופס האפיון');
   assert.equal(checkOf(A, 'p05.photos').state, 'done');
