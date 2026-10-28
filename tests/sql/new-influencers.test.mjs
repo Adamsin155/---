@@ -124,6 +124,10 @@ test('the quantities of every star package, with and without the reel and the st
       }
     }
   }
+  // A contract changed by hand on a new package, as on Natali's (custom quantities and lines).
+  const custom = modelOf('social-tv-hatzel', ['hatzel-reel']);
+  custom.selection.custom = { qty: { videos: 30, collabs: 2, shootDays: 2 }, termMonths: 6, lines: [{ label: 'אתר', qty: 1 }] };
+  assert.deepEqual((await db.query('select public.package_deliverables($1) as d', [JSON.stringify(custom)])).rows[0].d, packageDeliverables(custom));
   const tv = (await db.query('select public.package_deliverables($1) as d', [JSON.stringify(modelOf('social-tv-niro'))])).rows[0].d;
   assert.deepEqual(tv, { videos: 42, graphics: 42, shoot_days: 1, collabs: 0, stories: 0, ch14: 1, monthly: 0 });
 });

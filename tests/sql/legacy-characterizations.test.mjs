@@ -74,7 +74,7 @@ const unlisted = async (text) => (await db.query('select private.legacy_unlisted
 
 test('the file: the newest but one, only adds, and runs twice', async () => {
   // After it only the requests of 27.10.2026 (20261110100000_batch_2710.sql).
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261110100000_batch_2710.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261110100000_batch_2710.sql', '20261112100000_new_influencers.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
