@@ -76,7 +76,8 @@ async function getSupa() {
 
 /* ── Rendering ─────────────────────────────── */
 
-const MONOGRAM = { natali: 'נד', simeon: 'סמד' };
+// Niro Levi and "הצל" (Yoav Eliasi) since 28.10.2026: the picker is two by two.
+const MONOGRAM = { natali: 'נד', simeon: 'סמד', niro: 'נל', hatzel: 'הצל' };
 const TIER_INDEX = { podcast: 'P', social: 'S', 'social-tv': 'S+TV' };
 // Largest value of each comparison row across all packages, for the meters.
 const SPEC_MAX = Object.fromEntries(SPEC_ROWS.map((r) => [r.key, Math.max(...Object.values(SPECS).map((s) => s[r.key]))]));

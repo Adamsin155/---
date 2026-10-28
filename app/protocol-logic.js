@@ -3,8 +3,8 @@
 // can also run in an edge function.
 // Every date is computed in Israel time (tz.js), whatever the zone of the device
 // or the server: office hours, business days, "today" and the day before a shoot.
-import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER, PHOTOGRAPHERS, isEditorOf, crewOf } from './protocol.js';
-import { SPECS, TERM_MONTHS, PACKAGES } from './catalog.js';
+import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER, PHOTOGRAPHERS, isEditorOf, crewOf, starProcess } from './protocol.js';
+import { SPECS, TERM_MONTHS, PACKAGES, PAID_ADDONS } from './catalog.js';
 import { holidayOn as closedOn, erevOn } from './holidays.js';
 import { adjustForVersion, laterDue } from './protocol-versions.js';
 import {
@@ -228,12 +228,14 @@ const ROUND_IDS = new Set(PROCESSES.filter((p) => p.round).map((p) => p.id));
 // An item's `variant` (protocol.js) is said here, for this client or round: its own words
 // and whether it is required; the key and the owners stay the item's.
 const said = (i, ctx) => { const v = i.variant?.(ctx); return v ? { ...i, ...v } : i; };
+// A star's day (Niro's, or that of "הצל"; 28.10.2026) says its own influencer's name where
+// the protocol names Natali (starProcess).
 const resolve = (p, ctx) => {
   const owners = ownersOf(p, ctx);
-  return {
+  return starProcess({
     ...p, owners, keyBase: p.id,
     items: p.items.filter((i) => applies(i, ctx)).map((i) => ({ ...said(i, ctx), owners: i.owners ? ownersOf(i, ctx) : owners })),
-  };
+  }, ctx.shoot_type);
 };
 
 export const roundsOf = (client) => (Array.isArray(client.rounds) ? client.rounds : []);
@@ -981,14 +983,16 @@ export function packageDeliverables(model) {
   const custom = sel.custom || {};
   const qty = custom.qty || {};
   const num = (key, base) => (Number.isInteger(qty[key]) ? qty[key] : base);
+  // A reel or a story at a star (Natali's; Niro's and those of "הצל" since 28.10.2026).
+  const posts = (key) => PAID_ADDONS.filter((a) => a.post === key && paid.includes(a.id)).length;
   const months = Number.isFinite(model?.termMonths) ? Math.round(model.termMonths)
     : Number.isInteger(custom.termMonths) ? custom.termMonths : TERM_MONTHS;
   const out = {
     videos: num('videos', spec.videos),
     graphics: num('graphics', spec.graphics) + (free.graphics || 0),
     shoot_days: num('shootDays', spec.shootDays) + (paid.includes('simeon-day') ? 1 : 0),
-    collabs: num('collabs', spec.collabs) + (paid.includes('natali-reel') ? 1 : 0),
-    stories: num('stories', spec.stories) + (free.simeonStories || 0) + (paid.includes('natali-story') ? 1 : 0),
+    collabs: num('collabs', spec.collabs) + posts('collabs'),
+    stories: num('stories', spec.stories) + (free.simeonStories || 0) + posts('stories'),
     ch14: num('ch14', spec.ch14) + (free.extraCh14 ? 1 : 0),
     monthly: paid.includes('photographer') ? num('monthly', 8) * months : 0,
   };

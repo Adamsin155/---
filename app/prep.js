@@ -275,7 +275,7 @@ function coordinatorBlock(e, k) {
   const choice = drafted ? crewDraft.get(k) : choiceOf(x.ctx);
   const set = !!e.coord.shootAt && e.coord.typeSet;
   const status = coord.closed
-    ? (coord.nataliMissing.length ? `סגור מול כולם · חסר עוד לנטלי: ${coord.nataliMissing.join(' ו')}` : 'היום סגור: כולם אישרו והוא ביומן')
+    ? (coord.nataliMissing.length ? `סגור מול כולם · חסר עוד ליום של ${coord.star}: ${coord.nataliMissing.join(' ו')}` : 'היום סגור: כולם אישרו והוא ביומן')
     : `עוד לא סגור · חסר: ${coord.missing.join(', ')}`;
   const party = (a, note = null) => h('li', { class: 'pp-party' },
     h('button', {
@@ -325,7 +325,7 @@ function coordinatorBlock(e, k) {
         onclick: (ev) => toggleCheck(c.id, coord.calendar.key, !coord.calendar.done, ev.currentTarget.id),
       }, coord.calendar.done ? '✓ ביומן של כולם' : 'הוכנס ליומן של כולם')),
     coord.natali.length ? h('div', { class: 'pp-sub' },
-      headIcon(h('h3', {}, 'נטלי: מאפרת והסעה (11ב, באחריות ליאור)'), 'users', 'purple'),
+      headIcon(h('h3', {}, `${coord.star}: מאפרת והסעה (11ב, באחריות ליאור)`), 'users', 'purple'),
       h('ul', { class: 'pp-parties' }, ...coord.natali.map((a) => party(a, me === 'lior' ? null : 'סימון בשם ליאור נרשם בשמך')))) : null);
 }
 // The date with, under it, what the photographer handed over for the day being picked.

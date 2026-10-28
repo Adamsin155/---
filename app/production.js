@@ -35,7 +35,7 @@
 // p19b.notes (Eli's notes for the editor, in its note), p19.testimonial / p19.took
 // (Lior's side of the handoff) and p22.pause (note JSON { stage, left, why, for,
 // task }: `for` is whoever asked for the urgent task, "עצירה לבקשת <שם>").
-import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES, PHOTOGRAPHERS, SOLO, isEditorOf, editorNames, isSolo, eliFilms, photographerOf, crewWords } from './protocol.js';
+import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES, PHOTOGRAPHERS, SOLO, isEditorOf, editorNames, isSolo, eliFilms, photographerOf, crewWords, isStarDay, starShort } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   roundsOf, roundContext, businessDaysBetween, parseDate, erevOn, IMPORT_NOTE, addBusinessDays, isBusinessDay, nextWorkMoment,
@@ -444,8 +444,9 @@ export function shootCases(client) {
   if (!client || !(client.status === 'active' || client.status === 'ending')) return [];
   const list = [{ n: 1, pre: '', ctx: client }, ...roundsOf(client).map((r) => ({ n: r.n, pre: `r${r.n}.`, ctx: roundContext(client, r) }))];
   // `solo`: a day without influencers (25.10.2026); `crew`: who films it; `eli`: whether it is Eli.
+  // `natali`: a day like Natali's (hers, Niro's or "הצל"'s since 28.10.2026), `star` its name.
   return list.map((x) => ({
-    ...x, key: `${client.id}:${x.n}`, client, shootAt: parseDate(x.ctx.shoot_at), natali: x.ctx.shoot_type === 'natali',
+    ...x, key: `${client.id}:${x.n}`, client, shootAt: parseDate(x.ctx.shoot_at), natali: isStarDay(x.ctx.shoot_type), star: starShort(x.ctx.shoot_type),
     solo: isSolo(x.ctx), crew: photographerOf(x.ctx), eli: eliFilms(x.ctx),
   }))
     .filter((x) => x.shootAt);
@@ -477,7 +478,7 @@ export function timeline(sc) {
     ];
   }
   const list = [
-    ...(sc.natali ? [{ key: 'makeup', at: at(-120), label: 'המאפרת בבית של נטלי' }] : []),
+    ...(sc.natali ? [{ key: 'makeup', at: at(-120), label: `המאפרת בבית של ${sc.star || 'נטלי'}` }] : []),
     { key: 'eli', at: at(-60), label: 'אלי מגיע · בי־רול של העסק' },
     { key: 'influencers', at: at(0), label: 'המשפיענים מגיעים' },
     ...(sc.natali
