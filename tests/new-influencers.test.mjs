@@ -107,7 +107,7 @@ test('what the signed client gets: Natali\'s quantities, one more collab or stor
   const q = (id, paid = []) => packageDeliverables({ package: { id }, selection: { paid, free: {} } });
   for (const inf of NEW) {
     for (const tier of ['podcast', 'social', 'social-tv']) assert.deepEqual(q(`${tier}-${inf}`), q(`${tier}-natali`));
-    assert.deepEqual(q(`social-tv-${inf}`, [`${inf}-reel`, `${inf}-story`]), { videos: 42, graphics: 42, shoot_days: 1, collabs: 1, stories: 1, ch14: 1, monthly: 0 });
+    assert.deepEqual(q(`social-tv-${inf}`, [`${inf}-reel`, `${inf}-story`]), { videos: 36, graphics: 36, shoot_days: 1, collabs: 1, stories: 1, ch14: 1, monthly: 0 });
     assert.equal(shootTypeOf(`social-${inf}`), inf);
   }
   assert.equal(packageName('social-hatzel'), 'Social all in one · הצל (יואב אליאסי)');

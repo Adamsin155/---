@@ -442,15 +442,16 @@ await step('the protocol\'s versions: the owners only, closed until asked for; w
   await signIn(owner, 'year.html', 'owner@astrateg.test');
   const v = owner.locator('#versions');
   await v.locator('summary').waitFor();
-  assert.match(await v.locator('summary').innerText(), /גרסה 10 · הצגת כל הגרסאות/);
+  assert.match(await v.locator('summary').innerText(), /גרסה 11 · הצגת כל הגרסאות/);
   assert.equal(await v.locator('.yr-versions').isVisible(), false);
   await shot(owner, 'year-06a-versions-closed');
   await v.locator('summary').click();
-  assert.equal(await v.locator('.yr-versions > li').count(), 10); // versions 1 to 10
-  assert.match(await v.locator('.yr-versions > li').first().innerText(), /גרסה 10 · אחרי הבדיקה מול הפרוטוקולים הכתובים[^]*24 פריטים חדשים[^]*חמש הטעויות הקריטיות/);
-  assert.match(await v.locator('.yr-versions > li').nth(1).innerText(), /גרסה 9 · אופיר לבדו בודק את הגרפיקות ומשייך עורך, עם סולם מהיר[^]*פריט חדש אחד[^]*בדיקת הגרפיקות היא של אופיר בלבד[^]*עד 21:00/);
-  assert.match(await v.locator('.yr-versions > li').nth(2).innerText(), /גרסה 8 · אחרי הסימולציה המלאה[^]*נוספו 5ב ו־7א/);
-  assert.match(await v.locator('.yr-versions > li').nth(3).innerText(), /גרסה 7 · העלאת ה־Highlights לרשתות[^]*פריט חדש אחד[^]*נוסף 8ב/);
+  assert.equal(await v.locator('.yr-versions > li').count(), 11); // versions 1 to 11
+  assert.match(await v.locator('.yr-versions > li').first().innerText(), /גרסה 11 · אופיר מחבר ל־Metricool/);
+  assert.match(await v.locator('.yr-versions > li').nth(1).innerText(), /גרסה 10 · אחרי הבדיקה מול הפרוטוקולים הכתובים[^]*24 פריטים חדשים[^]*חמש הטעויות הקריטיות/);
+  assert.match(await v.locator('.yr-versions > li').nth(2).innerText(), /גרסה 9 · אופיר לבדו בודק את הגרפיקות ומשייך עורך, עם סולם מהיר[^]*פריט חדש אחד[^]*בדיקת הגרפיקות היא של אופיר בלבד[^]*עד 21:00/);
+  assert.match(await v.locator('.yr-versions > li').nth(3).innerText(), /גרסה 8 · אחרי הסימולציה המלאה[^]*נוספו 5ב ו־7א/);
+  assert.match(await v.locator('.yr-versions > li').nth(4).innerText(), /גרסה 7 · העלאת ה־Highlights לרשתות[^]*פריט חדש אחד[^]*נוסף 8ב/);
   assert.match(await v.innerText(), /גרסה 6 · יום הצילום מיד אחרי פתיחת הקבוצה[^]*3 פריטים חדשים/);
   assert.match(await v.innerText(), /גרסה 5 · זרימות המשרד והאפיון[^]*התסריטים עד סוף יום העסקים השני/);
   assert.match(await v.innerText(), /גרסה 4 · הפרוטוקול של הצלם[^]*15 פריטים חדשים/);

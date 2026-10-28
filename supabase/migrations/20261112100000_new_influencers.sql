@@ -66,14 +66,14 @@ language sql immutable set search_path = '' as $$
       ('podcast-simeon', 20, 20, 0, 0, 0, 0, 1),
       ('social-simeon', 25, 35, 1, 1, 0, 0, 0),
       ('social-tv-simeon', 42, 42, 2, 3, 3, 1, 0),
-      ('social-natali', 25, 35, 1, 0, 0, 0, 0),
-      ('social-tv-natali', 42, 42, 1, 0, 0, 1, 0),
+      ('social-natali', 36, 36, 1, 0, 0, 0, 0),
+      ('social-tv-natali', 36, 36, 1, 0, 0, 1, 0),
       ('podcast-niro', 20, 20, 0, 0, 0, 0, 1),
-      ('social-niro', 25, 35, 1, 0, 0, 0, 0),
-      ('social-tv-niro', 42, 42, 1, 0, 0, 1, 0),
+      ('social-niro', 36, 36, 1, 0, 0, 0, 0),
+      ('social-tv-niro', 36, 36, 1, 0, 0, 1, 0),
       ('podcast-hatzel', 20, 20, 0, 0, 0, 0, 1),
-      ('social-hatzel', 25, 35, 1, 0, 0, 0, 0),
-      ('social-tv-hatzel', 42, 42, 1, 0, 0, 1, 0)
+      ('social-hatzel', 36, 36, 1, 0, 0, 0, 0),
+      ('social-tv-hatzel', 36, 36, 1, 0, 0, 1, 0)
     ) as v (id, videos, graphics, shoot_days, collabs, stories, ch14, photo_days) on v.id = t.id
   )
   select coalesce((

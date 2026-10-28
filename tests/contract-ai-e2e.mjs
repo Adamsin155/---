@@ -233,7 +233,7 @@ async function checkFilled(page) {
   assert.equal(await page.locator('#custom-on').isChecked(), true);
   assert.equal(await page.locator('#cq-videos').inputValue(), '20');
   assert.equal(await page.locator('#cq-shootDays').inputValue(), '2');
-  assert.equal(await page.locator('#cq-graphics').inputValue(), '35', 'what the text did not change stays the package\'s');
+  assert.equal(await page.locator('#cq-graphics').inputValue(), '36', 'what the text did not change stays the package\'s');
   assert.equal(await page.locator('#custom-price').inputValue(), '3500');
   assert.equal(await page.locator('#custom-term').inputValue(), '12');
   assert.equal(await page.locator('#custom-terms').inputValue(), 'ללא Highlights');
@@ -315,7 +315,7 @@ try {
     assert.deepEqual(await texts(irit, '#ai-summary li'), [
       'פרטי הלקוח: שם הלקוח: דנה לוי · שם העסק: קפה דנה · טלפון: 050-1234567',
       'חבילה: Social all in one · נטלי דדון (3,900 ₪ לחודש)',
-      'סרטונים: 20 (בחבילה 25)',
+      'סרטונים: 20 (בחבילה 36)',
       'ימי צילום עם המשפיענים: 2 (בחבילה 1)',
       'מחיר החבילה: 3,500 ₪ לחודש לפני מע״מ (בחבילה 3,900 ₪)',
       'תקופה: 12 חודשים (כמו בחבילה)',
@@ -338,7 +338,7 @@ try {
     assert.match(await text(irit, '#sum-diff'), /חוזה חריג · 5 שינויים מהחבילה · הוכן עם AI: נשלח ללקוח בלי אישור מנהל/);
     assert.match(await text(irit, '#custom-diff .needs'), /הוכן עם AI/);
     assert.deepEqual(await texts(irit, '#custom-diff-list li'), [
-      '20 סרטונים במקום 25', '2 ימי צילום עם המשפיענים במקום 1', 'מחיר חודשי 3,500 ₪ במקום 3,900 ₪',
+      '20 סרטונים במקום 36', '2 ימי צילום עם המשפיענים במקום 1', 'מחיר חודשי 3,500 ₪ במקום 3,900 ₪',
       'הנחה חודשית 300 ₪ (המותר בלי אישור: 200 ₪)', 'תנאים מיוחדים',
     ]);
     assert.equal(await noSideScroll(irit), true);

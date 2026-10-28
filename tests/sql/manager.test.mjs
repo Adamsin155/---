@@ -227,8 +227,9 @@ test('a signed agreement stores everything it grants: the database and the app a
     {}, { paid: ['photographer'] }, { paid: ['natali-reel', 'natali-story'] }, { paid: ['simeon-day'], free: { graphics: 24, simeonStories: 3, extraCh14: true } },
     { free: { simeonJoin: true } },
   ];
-  // The packages of that day; Niro's and "הצל"'s came later (tests/sql/new-influencers.test.mjs).
-  for (const id of Object.keys(PACKAGES).filter((k) => ['natali', 'simeon'].includes(PACKAGES[k].influencer))) {
+  // The packages of that day, with the quantities they still have; Niro's and "הצל"'s came later, and
+  // Natali's Social packages became 36 and 36 (28.10.2026): tests/sql/new-influencers.test.mjs checks those.
+  for (const id of Object.keys(PACKAGES).filter((k) => ['natali', 'simeon'].includes(PACKAGES[k].influencer) && !['social-natali', 'social-tv-natali'].includes(k))) {
     for (const s of sels) {
       const m = model(id, s);
       const [{ d }] = (await db.query('select public.package_deliverables($1) as d', [JSON.stringify(m)])).rows;

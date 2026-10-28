@@ -277,8 +277,9 @@ test('what a signed contract grants: the database and the app agree, custom or n
     { termMonths: 1, lines: [{ label: 'אתר', qty: 2 }, { label: 'ליווי', monthly: 10000 }] },
     { price: 100, terms: 'תנאי' },
   ];
-  // The packages of that day; Niro's and "הצל"'s came later (tests/sql/new-influencers.test.mjs).
-  for (const id of Object.keys(PACKAGES).filter((k) => ['natali', 'simeon'].includes(PACKAGES[k].influencer))) {
+  // The packages of that day, with the quantities they still have; Niro's and "הצל"'s came later, and
+  // Natali's Social packages became 36 and 36 (28.10.2026): tests/sql/new-influencers.test.mjs checks those.
+  for (const id of Object.keys(PACKAGES).filter((k) => ['natali', 'simeon'].includes(PACKAGES[k].influencer) && !['social-natali', 'social-tv-natali'].includes(k))) {
     const { tier, influencer } = PACKAGES[id];
     for (const c of customs) {
       for (const withPhotographer of [false, true]) {

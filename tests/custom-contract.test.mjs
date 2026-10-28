@@ -5,7 +5,7 @@
 // it produced before custom contracts existed.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PACKAGES, SPECS, CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MAX_DISCOUNT } from '../app/catalog.js';
+import { PACKAGES, SPECS, CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MAX_DISCOUNT, MAX_DISCOUNT_PODCAST } from '../app/catalog.js';
 import {
   emptySelection, computeTotals, validateSelection, buildQuoteModel, exceptionOf, isExceptional,
   normalizeSelection, baseQuantities, effectiveQuantities, termOf,
@@ -27,15 +27,16 @@ test('regular selections are untouched: the same bytes as before custom contract
   // Taken from the engine as it was on 6.10.2026 (commit 4baede1), before this feature. The one
   // deliberate change since: the wording's version 2 (27.10.2026, app/legal.js): the clause
   // "חסימת פלטפורמות" at the end of the platforms chapter, and model.legalVersion. Without
-  // them every byte is as it was; with them, the fingerprint of version 2.
+  // them every byte is as it was; with them, the fingerprint of version 2. Since 28.10.2026 (the owner)
+  // Natali's Social packages give 36 videos and 36 graphics: the fingerprints are of that.
   const v1 = (m) => {
     if (!m.legal) { const { legalVersion, ...rest } = m; assert.equal(legalVersion, null); return rest; }
     const { legalVersion, ...rest } = m;
     assert.equal(legalVersion, 2);
     return { ...rest, legal: m.legal.map((s) => (s.title === 'פלטפורמות וחסימת חשבונות' ? { ...s, items: s.items.filter((t) => !t.startsWith('חסימת פלטפורמות:')) } : s)) };
   };
-  assert.deepEqual(regularFingerprint(v1), { count: 612, sha256: 'c050c8791427f54f3c18ffc422aa520b47a35ee4478271eca242776735c56ed6' });
-  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '654dce55e5fc1530ced6be4954137a44a40aa64d3bf6c7e70848dbb3fa3880a7' });
+  assert.deepEqual(regularFingerprint(v1), { count: 612, sha256: '04fcafefbb3c166366eb7a49936b011a57e018b1e9a3b7bccd242e209f5f28ef' });
+  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '5197a222148f68f4614fe6a149f618de5f08d1b859bb2e25a64f477ee4d64149' });
   for (const s of regularSelections()) {
     assert.deepEqual(exceptionOf(s), []);
     assert.equal(normalizeSelection(s), s);
@@ -62,7 +63,7 @@ test('a custom contract that changes nothing is a regular contract, byte for byt
 
 test('the deviations, as data and as Hebrew sentences', () => {
   const s = sel('podcast', 'natali', [], {
-    qty: { videos: 25, graphics: 20, collabs: 2 }, price: 430000, discount: 35000, termMonths: 6,
+    qty: { videos: 25, graphics: 20, collabs: 2 }, price: 430000, discount: 85000, termMonths: 6,
     lines: [{ label: 'אתר תדמית', qty: 1, monthly: 50000 }, { label: 'ליווי אישי' }], terms: 'הלקוח רשאי לסיים אחרי 3 חודשים.',
   });
   validateSelection(s);
@@ -70,7 +71,7 @@ test('the deviations, as data and as Hebrew sentences', () => {
     '25 סרטונים במקום 20',
     '2 קולאבים באינסטגרם במקום 0',
     'מחיר חודשי 4,300 ₪ במקום 3,500 ₪',
-    'הנחה חודשית 350 ₪ (המותר בלי אישור: 200 ₪)',
+    'הנחה חודשית 850 ₪ (המותר בלי אישור: 800 ₪)', // a podcast: up to 800 ₪ with no approval (28.10.2026)
     'תקופה 6 חודשים במקום 12',
     'שורה נוספת: אתר תדמית × 1 · 500 ₪ לחודש',
     'שורה נוספת: ליווי אישי',
@@ -78,7 +79,7 @@ test('the deviations, as data and as Hebrew sentences', () => {
   ]);
   const e = exceptionOf(s);
   assert.deepEqual(e[0], { kind: 'qty', key: 'videos', from: 20, to: 25, text: '25 סרטונים במקום 20' });
-  assert.deepEqual(e.find((x) => x.kind === 'discount'), { kind: 'discount', from: MAX_DISCOUNT, to: 35000, text: 'הנחה חודשית 350 ₪ (המותר בלי אישור: 200 ₪)' });
+  assert.deepEqual(e.find((x) => x.kind === 'discount'), { kind: 'discount', from: MAX_DISCOUNT_PODCAST, to: 85000, text: 'הנחה חודשית 850 ₪ (המותר בלי אישור: 800 ₪)' });
   assert.equal(isExceptional(s), true);
   // Each kind alone is a deviation; the graphics equal the package, so they are not.
   assert.deepEqual(texts(sel('social', 'simeon', [], { termMonths: 1 })), ['תקופה חודש אחד במקום 12']);

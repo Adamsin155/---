@@ -9,7 +9,7 @@
 // Pure, no DOM and no network: deal.html, Irit's block in "המשימות שלי", the builder
 // and the reminder rules (app/reminder-rules.js, also on the server) share it. The
 // table is public.deal_requests (supabase/migrations/20261003100000_sales_deals.sql).
-import { TIERS, INFLUENCERS, PAID_ADDONS, FREE_ADDONS, MAX_DISCOUNT, DOC_TYPES, CUSTOM_QTY, CUSTOM_LIMITS } from './catalog.js';
+import { TIERS, INFLUENCERS, PAID_ADDONS, FREE_ADDONS, MAX_DISCOUNT, maxDiscountFor, DOC_TYPES, CUSTOM_QTY, CUSTOM_LIMITS } from './catalog.js';
 import { emptySelection, reconcile, formatILS } from './pricing.js';
 import { addWorkingMinutes, parseDate } from './protocol-logic.js';
 import { isSales } from './protocol.js';
@@ -73,8 +73,9 @@ export function validateDeal(form = {}) {
   if (!TIERS.some((t) => t.id === form.tier)) errors.tier = 'בחרו חבילה.';
   if (!INFLUENCERS[form.influencer]) errors.influencer = 'בחרו משפיענים.';
   const discount = Number(form.discount ?? 0);
-  if (!Number.isFinite(discount) || discount < 0 || discount * 100 > MAX_DISCOUNT || Math.round(discount) !== discount) {
-    errors.discount = `הנחה בשקלים שלמים, עד ${MAX_DISCOUNT / 100} ₪ לחודש.`;
+  const cap = maxDiscountFor(form.tier);
+  if (!Number.isFinite(discount) || discount < 0 || discount * 100 > cap || Math.round(discount) !== discount) {
+    errors.discount = `הנחה בשקלים שלמים, עד ${cap / 100} ₪ לחודש.`;
   }
   if (Object.keys(errors).length) return { ok: false, errors, row: null };
   const f = form.free || {};
@@ -164,7 +165,7 @@ export function prefillFromDeal(d) {
     influencer: INFLUENCERS[d?.influencer] ? d.influencer : emptySelection().influencer,
     paid: Array.isArray(d?.paid) ? d.paid.filter((id) => PAID_ADDONS.some((a) => a.id === id)) : [],
     free: { ...emptySelection().free, ...(d?.free || {}) },
-    discount: Math.max(0, Math.min(MAX_DISCOUNT, Number(d?.discount_agorot) || 0)),
+    discount: Math.max(0, Math.min(maxDiscountFor(d?.tier), Number(d?.discount_agorot) || 0)),
   });
   return {
     selection,

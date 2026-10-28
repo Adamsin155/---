@@ -61,14 +61,15 @@ test('the migration: the newest, only adds, runs twice', async () => {
   await db.exec(migrationSql(FILE));
 });
 
-test('the pending file: only the three checks, each taken away by name and added again wider', () => {
+test('the pending file: only the four checks, each taken away by name and added again wider', () => {
   const sql = readFileSync(PENDING, 'utf8');
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/\b(drop|delete|truncate)\b[^\n]*/gi), [
     'drop constraint if exists clients_shoot_type_check;',
     'drop constraint if exists deal_requests_influencer_check;',
+    'drop constraint if exists deal_requests_discount_agorot_check;',
     'drop constraint if exists deal_requests_paid_check;',
   ]);
-  assert.equal((sql.replace(/--[^\n]*/g, '').match(/add constraint/g) || []).length, 3);
+  assert.equal((sql.replace(/--[^\n]*/g, '').match(/add constraint/g) || []).length, 4);
 });
 
 test('before the approval: Niro and "הצל" are refused where a check lists the values; a signature is kept', async () => {
@@ -94,7 +95,7 @@ test('after the approval: the deal, the client and the signing; runs twice', asy
   const { client } = await sign(modelOf('social-tv-hatzel', ['hatzel-reel', 'hatzel-story']));
   assert.equal(client.shoot_type, 'hatzel');
   assert.equal(client.package_name, 'Social + TV all in one · הצל (יואב אליאסי)');
-  assert.deepEqual(client.deliverables, { videos: 42, graphics: 42, shoot_days: 1, collabs: 1, stories: 1, ch14: 1, monthly: 0 });
+  assert.deepEqual(client.deliverables, { videos: 36, graphics: 36, shoot_days: 1, collabs: 1, stories: 1, ch14: 1, monthly: 0 });
 });
 
 test('Nirel sees the clients of every star day, not a day with Denis, Michel and Semion', async () => {
@@ -132,5 +133,5 @@ test('the quantities of every star package, with and without the reel and the st
   custom.selection.custom = { qty: { videos: 30, collabs: 2, shootDays: 2 }, termMonths: 6, lines: [{ label: 'אתר', qty: 1 }] };
   assert.deepEqual((await db.query('select public.package_deliverables($1) as d', [JSON.stringify(custom)])).rows[0].d, packageDeliverables(custom));
   const tv = (await db.query('select public.package_deliverables($1) as d', [JSON.stringify(modelOf('social-tv-niro'))])).rows[0].d;
-  assert.deepEqual(tv, { videos: 42, graphics: 42, shoot_days: 1, collabs: 0, stories: 0, ch14: 1, monthly: 0 });
+  assert.deepEqual(tv, { videos: 36, graphics: 36, shoot_days: 1, collabs: 0, stories: 0, ch14: 1, monthly: 0 }); // 36 and 36 since 28.10.2026
 });

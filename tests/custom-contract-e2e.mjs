@@ -741,7 +741,7 @@ try {
   });
 
   await step('nobody approves their own contract (Lior), another manager may; an editor sees nothing new', async () => {
-    // Lior prepares one himself. (Ofir builds no contracts since 8.10.2026: the builder refuses him.)
+    // Lior prepares one himself. (Ofir builds contracts too since 28.10.2026.)
     await lior.goto(`${BASE}index.html`);
     await lior.evaluate(() => sessionStorage.clear());
     await lior.reload();
@@ -762,9 +762,10 @@ try {
     await ofir.goto(`${BASE}qa.html`);
     await ofir.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' }).waitFor();
     assert.equal(await ofir.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' }).locator('[data-act="approve"]').count(), 1);
-    // And the builder is not his screen.
+    // And the builder is his screen too (the owner, 28.10.2026).
     await ofir.goto(`${BASE}index.html`);
-    await ofir.getByText('אין לך גישה לעמוד הזה').first().waitFor();
+    await ofir.locator('#start-agreement').waitFor();
+    assert.equal(await ofir.getByText('אין לך גישה לעמוד הזה').first().isVisible().catch(() => false), false);
     // An editor: no card (and the database gives her no quote).
     const nadia = await newPage({ width: 390, height: 844 });
     await signIn(nadia, 'clients.html', 'nadia');

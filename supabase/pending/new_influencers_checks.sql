@@ -25,6 +25,12 @@ alter table public.deal_requests drop constraint if exists deal_requests_influen
 alter table public.deal_requests add constraint deal_requests_influencer_check
   check (influencer in ('natali', 'simeon', 'niro', 'hatzel'));
 
+-- A podcast deal may take up to 800 ₪ a month with no approval (the owner, 28.10.2026; app/catalog.js
+-- maxDiscountFor); every other package keeps 200 ₪, as the app checks.
+alter table public.deal_requests drop constraint if exists deal_requests_discount_agorot_check;
+alter table public.deal_requests add constraint deal_requests_discount_agorot_check
+  check (discount_agorot between 0 and 80000 and (discount_agorot <= 20000 or tier = 'podcast'));
+
 alter table public.deal_requests drop constraint if exists deal_requests_paid_check;
 alter table public.deal_requests add constraint deal_requests_paid_check
   check (paid <@ array['photographer', 'natali-reel', 'natali-story', 'niro-reel', 'niro-story',
