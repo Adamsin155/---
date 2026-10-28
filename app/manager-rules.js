@@ -31,11 +31,11 @@ export const canSeeQuoteList = (v) => isOwnerView(v) || (known(v) && QUOTE_LIST_
 // Irit, who prepares the contract from them, and the owners.
 export const canSeeDeals = (v) => canSeeQuoteList(v);
 // The builder of a quote and of the contract (index.html), 8.10.2026: whoever prepares a
-// contract. Ofir approves an exceptional one from his approvals card and builds none (the
-// owner's decision of 8.10.2026), so his screens leave the builder out too. The create-quote function answers the office only
+// contract. Ofir builds them too (the owner, 28.10.2026; until then he only approved an
+// exceptional one from his approvals card). The create-quote function answers the office only
 // (public.is_office(): these and Ilai); Ilai builds no contracts, so the screens leave him
 // out, and so the editors, Nirel, Eli and the field sales, whom the server refuses anyway.
-export const QUOTE_BUILDERS = ['irit', 'lior'];   // and the owner
+export const QUOTE_BUILDERS = ['irit', 'lior', 'ofir'];   // and the owner
 export const canBuildQuote = (v) => isOwnerView(v) || (known(v) && QUOTE_BUILDERS.includes(v.me));
 // "החלטות" (decisions.html) and "בקרה ושיוך" (qa.html): Lior's and Ofir's screens, and the
 // owners'. Irit is of the office and the database would take her writes, but neither
