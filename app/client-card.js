@@ -56,7 +56,7 @@ import { stationTitle } from './messages-logic.js';
 function noteWords(key, note) {
   const text = String(note || '');
   if (!/^\s*[[{]/.test(text)) return text;
-  if (String(key || '').replace(/^r\d+\./, '') === 'p15.irit') { const t = dayBeforeText(text); if (t !== null) return t; }
+  if (String(key || '').replace(/^r\d+\./, '') === 'p15.irit') { const t = dayBeforeText(text, client?.shoot_type); if (t !== null) return t; }
   try { JSON.parse(text); return ''; } catch { return text; }
 }
 import { folderItemOf } from './qa-logic.js';
