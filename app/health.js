@@ -23,7 +23,7 @@
 // Time waiting on the client never counts against the staff: a process that waits
 // on the client is not late (its deadline moved on by the wait, decision 3), it is
 // never "not started", and deliverables the client is holding are not behind.
-import { STATIONS, PEOPLE, PROCESSES, WORK_HOURS, DELIVERABLES, NETWORKS, PASS_OWNER } from './protocol.js';
+import { STATIONS, PEOPLE, PROCESSES, WORK_HOURS, DELIVERABLES, NETWORKS, PASS_OWNER, isStarDay, starShort } from './protocol.js';
 import {
   isResolved, blockers, businessDaysBetween, isBusinessDay, parseDate, roundsOf, roundContext, IMPORT_NOTE,
   isImported, workingMinutesBetween, addWorkingMinutes, workedMinutes, targetMinutes, durationStart, weekKey,
@@ -380,7 +380,7 @@ export function clientHealth(client, state, extras = {}) {
     // waiting for the office's decision, docs/protocols/README.md), but not the alert.
     const prep = (s, whom, what) => risk(s, whom, what, 'shoot-prep', 'הכנת יום הצילום לא הושלמה');
     if (ahead <= 2 && st('p11') && !st('p11').complete) prep(st('p11'), who(st('p11')) || 'irit', 'יום הצילום עוד לא נסגר מול כולם');
-    if (x.ctx.shoot_type === 'natali' && ahead <= 3 && st('p11b') && !st('p11b').complete) prep(st('p11b'), 'lior', 'המאפרת וההסעה של נטלי עוד לא סודרו');
+    if (isStarDay(x.ctx.shoot_type) && ahead <= 3 && st('p11b') && !st('p11b').complete) prep(st('p11b'), 'lior', `המאפרת וההסעה של ${starShort(x.ctx.shoot_type)} עוד לא סודרו`);
   }
   const moves = new Map();
   for (const ch of extras.dateChanges || []) {

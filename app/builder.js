@@ -1,6 +1,6 @@
 import {
   INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS, SPEC_ROWS, SPECS,
-  VAT_RATE_PERCENT, TERM_MONTHS, DOC_TYPES, MAX_DISCOUNT, packageId,
+  VAT_RATE_PERCENT, TERM_MONTHS, DOC_TYPES, MAX_DISCOUNT, maxDiscountFor, packageId,
   CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS,
 } from './catalog.js';
 import {
@@ -76,7 +76,8 @@ async function getSupa() {
 
 /* ── Rendering ─────────────────────────────── */
 
-const MONOGRAM = { natali: 'נד', simeon: 'סמד' };
+// Niro Levi and "הצל" (Yoav Eliasi) since 28.10.2026: the picker is two by two.
+const MONOGRAM = { natali: 'נד', simeon: 'סמד', niro: 'נל', hatzel: 'הצל' };
 const TIER_INDEX = { podcast: 'P', social: 'S', 'social-tv': 'S+TV' };
 // Largest value of each comparison row across all packages, for the meters.
 const SPEC_MAX = Object.fromEntries(SPEC_ROWS.map((r) => [r.key, Math.max(...Object.values(SPECS).map((s) => s[r.key]))]));
@@ -395,9 +396,10 @@ function selectionToSend() {
   if (String(c.terms || '').trim()) custom.terms = c.terms;
   return normalizeSelection({ ...rest, discount: 0, custom });
 }
-// The most the discount field takes: 200 ₪, or the whole monthly price in a custom contract.
+// The most the discount field takes: 200 ₪ (800 ₪ in a podcast package, 28.10.2026), or the whole
+// monthly price in a custom contract.
 function discountMax() {
-  if (!customOn()) return MAX_DISCOUNT / 100;
+  if (!customOn()) return maxDiscountFor(state.tier) / 100;
   return Math.floor(computeTotals(selectionToSend()).monthlyList / 100);
 }
 
@@ -509,7 +511,7 @@ function setCustom(on) {
     state = { ...state, custom: state.custom || {} };
   } else {
     const { custom, ...rest } = state;
-    state = { ...rest, discount: Math.min(rest.discount || 0, MAX_DISCOUNT) };
+    state = { ...rest, discount: Math.min(rest.discount || 0, maxDiscountFor(rest.tier)) };
     $('discount').value = String(state.discount / 100);
   }
   syncCustomInputs();

@@ -26,8 +26,8 @@ export function packageName(id) {
 export const PACKAGE_OPTIONS = Object.keys(PACKAGES).map((id) => ({ id, name: packageName(id) }));
 
 // Who comes to the shoot follows from the package itself, never from a guess on a name.
-const SHOOT_OF = { natali: 'natali', simeon: 'dms' };
-export const shootTypeOf = (id) => SHOOT_OF[PACKAGES[id]?.influencer] || null;
+// (app/catalog.js INFLUENCERS shootType: Natali, Niro and "הצל" their own day, Simeon 'dms'.)
+export const shootTypeOf = (id) => INFLUENCERS[PACKAGES[id]?.influencer]?.shootType || null;
 
 // Quantities for a package: with the agreement's add-ons when it has them
 // (the same numbers the signing trigger stores), otherwise the package alone.

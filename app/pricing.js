@@ -3,8 +3,8 @@
 
 import {
   VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES,
-  PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, MAX_DISCOUNT, packageId,
-  CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS,
+  PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, MAX_DISCOUNT, maxDiscountFor, packageId,
+  CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS, isStar,
 } from './catalog.js';
 import { PROVIDER, agreementSections, LEGAL_VERSION } from './legal.js';
 
@@ -29,7 +29,8 @@ export function isSimeonSocial(sel) {
 
 export function paidAddonAvailable(addon, sel) {
   if (addon.eligibility === 'all') return true;
-  if (addon.eligibility === 'natali') return isNataliPackage(sel);
+  // A star's own reel and story (28.10.2026: Natali, Niro, "הצל"): in her or his packages only.
+  if (isStar(addon.eligibility)) return sel.influencer === addon.eligibility;
   if (addon.eligibility === 'simeon-social') return isSimeonSocial(sel);
   return false;
 }
@@ -77,7 +78,7 @@ export function validateSelection(sel) {
   if (typeof f.simeonJoin !== 'boolean') errors.push('simeonJoin must be boolean');
   if (typeof f.extraCh14 !== 'boolean') errors.push('extraCh14 must be boolean');
   const d = sel.discount ?? 0;
-  if (!isWholeInRange(d, MAX_DISCOUNT) || d % 100 !== 0) errors.push('discount out of range');
+  if (!isWholeInRange(d, maxDiscountFor(sel.tier)) || d % 100 !== 0) errors.push('discount out of range');
   if (errors.length === 0) {
     if (f.simeonJoin && !freeAddonAvailable('simeonJoin', sel)) errors.push('simeonJoin not available');
     if (f.simeonStories > 0 && !freeAddonAvailable('simeonStories', sel)) errors.push('simeonStories not available');
@@ -207,7 +208,7 @@ export function normalizeSelection(sel) {
   if (terms) c.terms = terms;
   // A discount the seller may give anyway is a regular discount.
   if (Number.isInteger(raw.discount)) {
-    if (raw.discount > MAX_DISCOUNT) { c.discount = raw.discount; rest.discount = 0; } else rest.discount = raw.discount;
+    if (raw.discount > maxDiscountFor(rest.tier)) { c.discount = raw.discount; rest.discount = 0; } else rest.discount = raw.discount;
   }
   return Object.keys(c).length ? { ...rest, custom: c } : rest;
 }
@@ -226,7 +227,8 @@ export function exceptionOf(selection) {
     out.push({ kind: 'qty', key: q.key, from: base[q.key], to, text: `${to} ${q.name} במקום ${base[q.key]}` });
   }
   if (given(c.price)) out.push({ kind: 'price', from: pkgOf(sel).price, to: c.price, text: `מחיר חודשי ${formatILS(c.price)} במקום ${formatILS(pkgOf(sel).price)}` });
-  if (given(c.discount)) out.push({ kind: 'discount', from: MAX_DISCOUNT, to: c.discount, text: `הנחה חודשית ${formatILS(c.discount)} (המותר בלי אישור: ${formatILS(MAX_DISCOUNT)})` });
+  const freeMax = maxDiscountFor(sel.tier);
+  if (given(c.discount)) out.push({ kind: 'discount', from: freeMax, to: c.discount, text: `הנחה חודשית ${formatILS(c.discount)} (המותר בלי אישור: ${formatILS(freeMax)})` });
   if (given(c.termMonths)) out.push({ kind: 'term', from: TERM_MONTHS, to: c.termMonths, text: `תקופה ${c.termMonths === 1 ? 'חודש אחד' : `${c.termMonths} חודשים`} במקום ${TERM_MONTHS}` });
   for (const l of c.lines || []) {
     out.push({
@@ -332,7 +334,7 @@ function agreementContext(sel, { tier, paid, free, totals }) {
     shootDays: specs.shootDays + (sel.paid.includes('simeon-day') ? 1 : 0),
     hasCh14: specs.ch14 > 0 || sel.free.extraCh14 === true,
     influencerPosts: specs.collabs > 0 || specs.stories > 0 || sel.free.simeonStories > 0
-      || sel.paid.includes('natali-reel') || sel.paid.includes('natali-story'),
+      || PAID_ADDONS.some((a) => a.post && sel.paid.includes(a.id)),
     simeonJoin: sel.free.simeonJoin === true,
     paid: paid.map((p) => ({ id: p.id, name: p.name })),
     free: free.map((f) => ({ id: f.id, name: f.name, qty: f.qty })),
