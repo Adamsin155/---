@@ -2536,3 +2536,32 @@ RULES.push({
   }],
 });
 RULE_BY_ID.set(WAIT_NAG, RULES.at(-1));
+
+// ── A monthly shoot day (the owner's request of 28.10.2026) ──
+// Some clients have a shoot day every month (the switch "יום צילום חודשי" in the client's
+// details: deliverables.shoot_monthly, app/monthly-shoot.js). On the last business day of
+// every Israel month (Sunday to Thursday, not a holiday: when the month ends on a Friday,
+// a Saturday or a holiday, the working day before it), at 10:00, Irit gets one ring per
+// such client: to set the next month's shoot day with them. Once per client and month (the
+// case is `<client id>@<next month>`). A client that already has a shoot day (its own, or
+// a round's) in the next month is skipped. Active and ending clients only, not in landing.
+// It is a ring like any other, so it reaches the phone (the owner's rule of 7.10.2026).
+// docs/ops.md, section 72.
+import { isShootMonthly, onLastBusinessDay, nextMonthKey, monthName, hasShootIn } from './monthly-shoot.js';
+export const MONTHLY_SHOOT = { id: 'monthlyShoot', follows: 'irit', at: '10:00' };
+RULES.push({
+  id: MONTHLY_SHOOT.id, event: 'לקוח עם יום צילום חודשי: לקבוע את יום הצילום של החודש הבא', procs: [],
+  instances(env) {
+    if (!onLastBusinessDay(env.now)) return [];
+    const next = nextMonthKey(env.now);
+    return env.clients
+      .filter((c) => liveClient(c) && c.landing !== true && isShootMonthly(c) && !hasShootIn(c, next))
+      .map((c) => ({ id: `${c.id}@${next}`, cid: c.id, client: c, name: clientLabel(c), next, url: clientUrl(c.id), anchors: { event: atIL(env.now, MONTHLY_SHOOT.at) } }));
+  },
+  steps: [{
+    id: 'irit', to: MONTHLY_SHOOT.follows, level: 'ring',
+    title: (i) => `לקבוע יום צילום חודשי: ${i.name}`,
+    body: (i) => `ללקוח יש יום צילום כל חודש. לקבוע איתו את יום הצילום של ${monthName(i.next)}.`,
+  }],
+});
+RULE_BY_ID.set(MONTHLY_SHOOT.id, RULES.at(-1));

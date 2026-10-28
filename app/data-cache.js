@@ -35,7 +35,7 @@ export const KEPT_TABLES = new Set([
   'client_surveys', 'client_files', 'client_status_views',
 ]);
 export const KEPT_RPCS = new Set([
-  'is_staff', 'clients_private', 'whatsapp_my_consent', 'calendar_feed_status', 'quote_facts', 'ofir_meetings', 'can_write_scripts',
+  'is_staff', 'clients_private', 'clients_contact', 'whatsapp_my_consent', 'calendar_feed_status', 'quote_facts', 'ofir_meetings', 'can_write_scripts',
 ]);
 // Functions that only read but are never kept (the vault's, the money's, the settings').
 // Listed so that calling one is not taken for a write; any function on neither list is.

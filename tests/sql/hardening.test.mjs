@@ -21,7 +21,8 @@ import { MONTH_ITEMS, SPREAD_ITEMS } from '../../app/year-logic.js';
 import { wordingFor } from '../../app/status-logic.js';
 
 const HARDENING = '20260930210000_hardening.sql';
-const PRIVATE = ['phone', 'notes', 'closed_reason'];
+// The client's email and company number (20261113100000_client_details_month.sql) are the office's too.
+const PRIVATE = ['phone', 'notes', 'closed_reason', 'contact_email', 'company_id'];
 const PEOPLE = { owner: null, irit: 'irit', lior: 'lior', ofir: 'ofir', ilai: 'ilai', nadia: 'nadia', yariv: 'yariv', nirel: 'nirel', eli: 'eli' };
 const RLS = /row-level security|permission denied/;
 
