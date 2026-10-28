@@ -7,7 +7,7 @@ import { reconcile, paidAddonAvailable, freeAddonAvailable } from '../pricing.js
 import { PACKAGES, PAID_ADDONS, TIERS, INFLUENCERS, FREE_ADDONS, TERM_MONTHS, packageId } from '../catalog.js';
 import {
   ITEMS, SOURCE_LABEL, MONTH_ITEM_KINDS, influencerMonth, dealProfitOf, CHECKS_UPFRONT, DEFER_MONTHS, computeMonth, computeDeal, commissionStatement, settingsOn,
-  monthBounds, shiftMonth, packageName, monthItemLabel,
+  monthBounds, shiftMonth, packageName, monthItemLabel, payoutInfluencers,
 } from './engine.js';
 import * as db from './data.js';
 // The look (docs/ops.md, section 56): the shared kit's pieces, and the sign-in card.
@@ -1018,7 +1018,7 @@ async function openDeal(existing) {
         h('div', { class: 'choices' }, TIERS.map((t) => radio('tier', t.id, t.name, `${formatILS(PACKAGES[packageId(t.id, s.influencer)].price)} לחודש`, s.tier === t.id,
           () => keepFocus(() => { s.tier = t.id; applyReconcile(); drawAll(); }))))),
       h('fieldset', { class: 'group' }, h('legend', {}, 'משפיענים'),
-        h('div', { class: 'choices two' }, Object.values(INFLUENCERS).map((inf) => radio('influencer', inf.id, inf.name, null, s.influencer === inf.id,
+        h('div', { class: 'choices two' }, payoutInfluencers().map((inf) => radio('influencer', inf.id, inf.name, null, s.influencer === inf.id,
           () => keepFocus(() => { s.influencer = inf.id; applyReconcile(); drawAll(); }))))),
     );
   }
@@ -1171,7 +1171,7 @@ async function openDeal(existing) {
     field('סכום העסקה הכולל (₪, לפני מע״מ)', customAmountIn, { hint: 'הסכום לכל תקופת העסקה, כמו באקסל. לא צריך לפרט מה כלול.' }),
     field('ימי צילום עם המשפיענים', customDaysIn, { hint: 'לחלוקת התשלום למשפיענים בלשונית שלהם.' }),
     h('fieldset', { class: 'group' }, h('legend', {}, 'משפיענים'),
-      h('div', { class: 'choices two' }, Object.values(INFLUENCERS).map((inf) => radio('cfamily', inf.id, inf.name, null, cFamily === inf.id,
+      h('div', { class: 'choices two' }, payoutInfluencers().map((inf) => radio('cfamily', inf.id, inf.name, null, cFamily === inf.id,
         () => { cFamily = inf.id; update(true); })))));
   customAmountIn.addEventListener('input', () => update());
   customAmountIn.addEventListener('change', () => update(true));
@@ -1259,7 +1259,7 @@ function openIncome(existing) {
   const dateIn = h('input', { class: 'input', type: 'date', value: e.date });
   const labelIn = textInput(e.label, { maxlength: '200' });
   const amountIn = moneyInput(e.amount);
-  const famIn = h('select', { class: 'input' }, Object.values(INFLUENCERS).map((i) => h('option', { value: i.id, selected: e.family === i.id }, i.name)));
+  const famIn = h('select', { class: 'input' }, payoutInfluencers().map((i) => h('option', { value: i.id, selected: e.family === i.id }, i.name)));
   const errBox = h('div');
   const save = btn('שמירה', {
     class: 'btn btn-primary',
