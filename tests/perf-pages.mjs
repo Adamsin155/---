@@ -44,10 +44,12 @@ const fake = makeFake(liveSized());
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'he-IL', timezoneId: 'Asia/Jerusalem' });
 await ctx.clock.install({ time: NOW });
 let log = [];
+let t0 = Date.now();
 await ctx.route(`${SUPA}/**`, async (route) => {
   const req = route.request();
   const u = new URL(req.url());
-  const entry = { what: `${req.method()} ${u.pathname.replace('/rest/v1/', '')}${u.searchParams.get('offset') ? `@${u.searchParams.get('offset')}` : ''}`, rows: null, bytes: 0 };
+  const entry = { what: `${req.method()} ${u.pathname.replace('/rest/v1/', '')}${u.searchParams.get('offset') ? `@${u.searchParams.get('offset')}` : ''}`, rows: null, bytes: 0, from: Date.now() - t0, to: 0 };
+  if (process.env.CALLS === '2') entry.what += ` ${decodeURIComponent(u.search).slice(0, 160)}`;
   if (req.method() !== 'OPTIONS') log.push(entry);
   const slow = {
     request: () => req,
@@ -57,6 +59,7 @@ await ctx.route(`${SUPA}/**`, async (route) => {
       entry.bytes = Buffer.byteLength(String(body || ''));
       try { const v = JSON.parse(body); entry.rows = Array.isArray(v) ? v.length : 1; } catch { /* not json */ }
       await new Promise((done) => { setTimeout(done, LATENCY + entry.bytes / KBPS); });
+      entry.to = Date.now() - t0;
       return route.fulfill(o);
     },
   };
@@ -81,12 +84,13 @@ for (const p of PAGES) {
     await ctx.clock.fastForward(11 * 60e3); // past what the tab may show from its store (app/data-cache.js MAX_AGE)
     log = [];
     const t = Date.now();
+    t0 = t;
     await page.goto(`${BASE}${p}`, { waitUntil: 'domcontentloaded' });
     await content();
     const toContent = Date.now() - t;
     await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {});
     const toIdle = Date.now() - t - 500;
-    runs.push({ toContent, toIdle, requests: log.length, kb: Math.round(log.reduce((n, e) => n + e.bytes, 0) / 1024), calls: log.map((e) => `${e.what} ${e.rows ?? ''}`) });
+    runs.push({ toContent, toIdle, requests: log.length, kb: Math.round(log.reduce((n, e) => n + e.bytes, 0) / 1024), calls: log.map((e) => `${String(e.from).padStart(5)}-${String(e.to).padStart(5)} ${e.what} ${e.rows ?? ''}`) });
   }
   const med = (k) => runs.map((x) => x[k]).sort((a, b) => a - b)[Math.floor(runs.length / 2)];
   out.pages[p] = { requests: med('requests'), kb: med('kb'), toContent: med('toContent'), toIdle: med('toIdle'), calls: runs.at(-1).calls };

@@ -35,6 +35,7 @@ import { loadPasses, savePass, loadTasksBy, updateTask, addChangeRequest, loadCh
 import { officeLinks, markFirstLanded, startControl } from './office-ui.js';
 import { emptyItem, dress } from './kit.js';
 import { dayKeyIL, dayFromKeyIL, endOfDayIL, inputValueIL, fromInputIL, weekdayIL, TZ } from './tz.js';
+import { warm, taken } from './supa.js';
 
 let viewer = null;
 let me = null;
@@ -70,6 +71,10 @@ const staffOptions = (sel = null) => [
 ];
 
 // ── Data ────────────────────────────────────
+// The first rows of the page, asked for while the session is being confirmed (app/supa.js warm;
+// docs/ops.md, section 77), as "המשימות שלי" does.
+const firstRows = () => Promise.all([loadClients(), loadChecks(), loadTasks({ openOnly: true })]);
+warm('pass', firstRows);
 let inflight = null;
 function load() {
   inflight ||= doLoad().finally(() => { inflight = null; });
@@ -91,7 +96,7 @@ async function doLoad() {
     loadTasksBy(myEmail, new Date(now.getTime() - 14 * 864e5).toISOString()), loadChangeRequests(),
   ]);
   try {
-    [clients, checks, tasks] = await Promise.all([loadClients(), loadChecks(), loadTasks({ openOnly: true })]);
+    [clients, checks, tasks] = await taken('pass', firstRows);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;

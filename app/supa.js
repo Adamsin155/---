@@ -185,6 +185,17 @@ export function taken(name, start) {
   return asked || start();
 }
 
+// The team's list, staff (email, person): the directory of names (app/protocol-data.js) and the
+// approvals' card ask for it while a page opens; asked at the same moment, they share one
+// request (docs/ops.md, section 77). Nothing is kept once it answered: a later read asks again.
+let teamAsked = null;
+export function staffList() {
+  teamAsked ||= Promise.resolve(supabase.from('staff').select('email, person'))
+    .then((r) => r, (error) => ({ data: null, error }))
+    .finally(() => { teamAsked = null; });
+  return teamAsked;
+}
+
 // staff.person of an address: { person, error }. The page and the app menu both ask
 // while a page opens; they share one request (the answer is kept for those few
 // seconds only, and a failed lookup is never kept).

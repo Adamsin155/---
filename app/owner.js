@@ -44,6 +44,7 @@ import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeCl
 // The owners' end of the day (docs/ops.md, section 48): the same numbers as the 19:00 message.
 import { daySummary, headline, waitingText } from './day-summary.js';
 import { icon as kIcon, iconSquare, headIcon, besideIcon, leadIcon, dateLeaf } from './kit.js';
+import { warm, taken } from './supa.js';
 
 let viewer = null;
 let landingCtl = null;  // the owners' control of the clients in landing
@@ -98,6 +99,10 @@ const groupBy = (rows, key) => {
 };
 
 // ── Data ────────────────────────────────────
+// The first rows of the page, asked for while the session is being confirmed (app/supa.js warm;
+// docs/ops.md, section 77), as "המשימות שלי" does.
+const firstRows = () => Promise.all([loadClients({ includeEnded: true }), loadChecks(), loadTasks({ openOnly: true })]);
+warm('owner', firstRows);
 // One load at a time: the refresh button, coming back to the app and the timer
 // share the one in flight, so a slower, older answer never overwrites a newer one.
 let inflight = null;
@@ -123,7 +128,7 @@ async function doLoad() {
     loadTasksDoneSince(officeWeekStart(now)),
   ]);
   try {
-    [allClients, checks, tasks] = await Promise.all([loadClients({ includeEnded: true }), loadChecks(), loadTasks({ openOnly: true })]);
+    [allClients, checks, tasks] = await taken('owner', firstRows);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;

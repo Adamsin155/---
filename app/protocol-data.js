@@ -3,8 +3,8 @@
 // clients they work on (supabase/migrations/20260930130000_assignment_rls.sql), so
 // a list can come back shorter or empty, and a client not theirs as null. Who
 // checked an item and when are stamped by the database.
-import { supabase } from './supa.js';
-import { withLanding, landingFlags } from './landing-data.js';
+import { supabase, staffList } from './supa.js';
+import { withLanding } from './landing-data.js';
 import { accessRow } from './access-logic.js';
 import { expandChecks } from './log-brief.js';
 
@@ -112,12 +112,24 @@ export async function loadClients({ includeEnded = false } = {}) {
     return q;
   });
   // Every row carries its landing columns (docs/ops.md, section 41): the deadlines,
-  // the lists and the clocks of every page read them through clientState. They are asked
-  // for together with the rows, not in a round of their own after them (section 77).
-  const flags = landingFlags();
-  const [rows, priv] = await Promise.all([e2Throws(() => read(withE2(CLIENT_COLS))), privateFields()]);
-  return withLanding(priv ? rows.map((r) => withPrivate(r, priv)) : await e2Throws(() => read(withE2(LEGACY_COLS))), await flags);
+  // the lists and the clocks of every page read them through clientState. They are read
+  // with the rows, not in a request of their own after them (section 77); before their
+  // migrations (a column missing), apart from the rows, as before (landingFlags).
+  const [rows, priv] = await Promise.all([landingThrows(() => e2Throws(() => read(withLandingCols(withE2(CLIENT_COLS))))), privateFields()]);
+  const flags = hasLanding ? landingOf(rows) : null;
+  return withLanding(priv ? rows.map((r) => withPrivate(r, priv)) : await e2Throws(() => read(withE2(LEGACY_COLS))), flags);
 }
+// The landing columns of a client row (20261018100000_clients_landing.sql and the slot of
+// 20261020100000_landing_intake.sql), read with the row; what landingFlags() answers.
+const LANDING_COLS = 'landing, landed_at, landed_by, landing_slot';
+let hasLanding = true;
+const withLandingCols = (cols) => (hasLanding ? `${cols}, ${LANDING_COLS}` : cols);
+const noLanding = (err) => ['42703', 'PGRST204'].includes(err?.code) && /landing|landed/.test(String(err?.message || ''));
+async function landingThrows(run) {
+  try { return await run(); } catch (err) { if (!hasLanding || !noLanding(err)) throw err; hasLanding = false; return run(); }
+}
+const landingOf = (rows) => Object.fromEntries(rows.filter((r) => r && (r.landing === true || r.landed_at))
+  .map((r) => [r.id, { id: r.id, landing: r.landing, landed_at: r.landed_at, landed_by: r.landed_by, landing_slot: r.landing_slot }]));
 
 export async function loadClient(id) {
   const [{ data, error }, priv] = await Promise.all([
@@ -295,7 +307,7 @@ export async function signedQuotes() {
 // the page's first loadDirectory() takes that answer, and every later one asks again.
 let warmDir = null;
 async function readDirectory() {
-  const { data, error } = await supabase.from('staff').select('email, person');
+  const { data, error } = await staffList();
   if (error) return {};
   return Object.fromEntries(data.filter((r) => r.person).map((r) => [r.email, r.person]));
 }

@@ -294,6 +294,15 @@ async function loadRows() {
     office ? (canSeeDeals(viewer) ? loadDeals() : null) : none,
     office ? none : loadOfirMeetings(new Date(now.getTime() - 864e5).toISOString()).catch(() => null),
   ]);
+  // The counted lines of "המשימות שלי" ask for their own rows meanwhile (app/mine-flow-data.js),
+  // together with the clients; only Ofir's "Lior is on a shoot" waits for them (it is worked
+  // out from the clients' marks), as before (docs/ops.md, section 77).
+  const flowWants = flowNeeds(viewer, now);
+  // The owners have no list of their own: they read the contracts still out for signature
+  // for the control's "חתימות" (the database answers only whoever may read the quotes).
+  if (!flowWants.includes('unsigned') && canSeeQuoteList(viewer)) flowWants.push('unsigned');
+  const AFTER_ROWS = ['liorShoot'];
+  const flowEarly = loadFlowExtra(flowWants.filter((n) => !AFTER_ROWS.includes(n)), { now });
   try {
     [clients, checks, tasks] = await taken('clients', firstRows);
   } catch (err) {
@@ -306,12 +315,7 @@ async function loadRows() {
   // card has just read its rows when the page opens: mountDeals.)
   refreshQuestions($('my-questions'), me, clients);
   if (!first) refreshDeals();
-  // The counted lines of "המשימות שלי" ask for their own rows meanwhile (app/mine-flow-data.js).
-  const flowWants = flowNeeds(viewer, now);
-  // The owners have no list of their own: they read the contracts still out for signature
-  // for the control's "חתימות" (the database answers only whoever may read the quotes).
-  if (!flowWants.includes('unsigned') && canSeeQuoteList(viewer)) flowWants.push('unsigned');
-  const flowAsked = loadFlowExtra(flowWants, { now, clients, checks, stateOf });
+  const flowLate = loadFlowExtra(flowWants.filter((n) => AFTER_ROWS.includes(n)), { now, clients, checks, stateOf });
   // What does wait for the clients: the agreement numbers of the new ones (an extra too),
   // and what was said about the clients still in landing.
   const [qi, landed, [rv, sn, lg, dl, om]] = await Promise.all([
@@ -331,7 +335,7 @@ async function loadRows() {
     for (const r of lg.value) if (!lastLog.has(r.client_id) || r.at > lastLog.get(r.client_id)) lastLog.set(r.client_id, r.at);
   }
   if (!office) setOfirMeetings(om.value);
-  flowExtra = await flowAsked;
+  flowExtra = { ...(await flowEarly), ...(await flowLate) };
   changed();
   lastLoad = Date.now();
   $('state').textContent = '';
