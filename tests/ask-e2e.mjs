@@ -348,8 +348,39 @@ try {
     assert.ok(!g.mine.includes('quotes'));
     await howTo(safari, 'nadia', { viewport: { width: 1280, height: 900 } }, 'איפה אני רואה מה באיחור?', LATE, 'webkit-1280-nadia');
   });
-  await step('how-to: a field agent on an iPhone 13 (WebKit): "איך שולחים עסקה חדשה?"; the phone bar holds both screens', async () => {
+  await step('how-to: a field agent on an iPhone 13 (WebKit): "איך שולחים עסקה חדשה?"', async () => {
     await howTo(safari, 'stav', { ...devices['iPhone 13'] }, 'איך שולחים עסקה חדשה?', { path: /^בתפריט ← עסקה חדשה/, link: 'https://app.astrateg.tech/deal.html' }, 'webkit-iphone13-stav');
+  });
+  // The phone's bottom bar with the bot (shell-rules.js barOf): nobody's own screens left it.
+  await step('the phone bars: the editors and Eli keep their four, the bot under "עוד"; Ilai four; the field agent both', async () => {
+    const BARS = {
+      nadia: ['המשימות שלי', 'הלקוחות שלי', 'בעריכה', 'יומן', 'עוד'],
+      eli: ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'יומן', 'עוד'],
+      ilai: ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'שאלו'],
+      stav: ['עסקה חדשה', 'שאלו'],
+    };
+    for (const [browser, opts, tag] of [[safari, { ...devices['iPhone 13'] }, 'webkit-iphone13'], [chrome, { viewport: { width: 360, height: 760 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, 'chromium-360']]) {
+      for (const [who, want] of Object.entries(BARS)) {
+        const { page, ctx } = await opensAsk(browser, who, opts);
+        const items = page.locator('#side-list > .side-link');
+        const texts = (await items.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim());
+        assert.deepEqual(texts, want, `${tag} ${who}`);
+        // Every name fits its place: nothing cut, nothing on two lines, 44px to tap.
+        const bad = await page.evaluate(() => [...document.querySelectorAll('#side-list > .side-link')].filter((a) => {
+          const t = a.querySelector('.side-t') || a;
+          return t.scrollWidth > t.clientWidth + 1 || a.getBoundingClientRect().height < 43.5;
+        }).map((a) => a.textContent.trim()));
+        assert.deepEqual(bad, [], `${tag} ${who}`);
+        if (want.includes('עוד')) {
+          await page.locator('#side-more').click();
+          await page.locator('#side-sheet a[href="ask.html"]').waitFor();
+          if (OUT) await page.screenshot({ path: `${OUT}/${tag}-bar-${who}-more.png` });
+          await page.locator('#side-more').click();
+        }
+        if (OUT) await page.screenshot({ path: `${OUT}/${tag}-bar-${who}.png` });
+        await ctx.close();
+      }
+    }
   });
 
   await step('Lior at 1280 (Chromium): types key by key, deletes, asks; the answer; a chip with the client\'s slot', async () => {

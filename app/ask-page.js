@@ -22,13 +22,18 @@ const keepTalk = () => { try { sessionStorage.setItem(KEY, JSON.stringify(talk.s
 
 // The answer's text, with its https links as links.
 const URL_RE = /https:\/\/[^\s<>"')]+/g;
+const APP_URL = /^https:\/\/app\.astrateg\.tech\//;
 function richText(text) {
   const out = [];
   let at = 0;
   for (const m of String(text).matchAll(URL_RE)) {
     const url = m[0].replace(/[.,;:!?]+$/, '');
     if (m.index > at) out.push(String(text).slice(at, m.index));
-    out.push(h('a', { href: url, target: '_blank', rel: 'noopener noreferrer', dir: 'ltr' }, /drive\.google\.com/.test(url) ? 'פתיחה בדרייב' : url));
+    // A screen of the app (from a "איפה…" answer): its name, not the address.
+    // It opens here, as the menu does; anything else in a new tab.
+    const app = APP_URL.test(url);
+    const words = /drive\.google\.com/.test(url) ? 'פתיחה בדרייב' : app ? 'פתיחת המסך' : null;
+    out.push(h('a', { href: url, target: app ? null : '_blank', rel: app ? null : 'noopener noreferrer', dir: words ? null : 'ltr' }, words || url));
     at = m.index + url.length;
   }
   if (at < String(text).length) out.push(String(text).slice(at));
