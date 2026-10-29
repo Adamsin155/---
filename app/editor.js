@@ -181,7 +181,7 @@ async function copy(text, what) {
 
 function datesLine(job, st) {
   const now = new Date();
-  if (st.blocked) return h('p', { class: 'ed-dates is-blocked' }, h('strong', {}, 'חסום'), ` · חסר ${P.missingText(st.blocked.what) || 'חומר'} · דווח לעירית ${formatWhen(st.blocked.at, now)}. המועד לא רץ עד שזה מגיע.`);
+  if (st.blocked) return h('p', { class: 'ed-dates is-blocked' }, h('strong', {}, 'חסום'), ` · חסר ${P.missingText(st.blocked.what) || 'חומר'} · דווח ל${P.reportToName(st.blocked.to)} ${formatWhen(st.blocked.at, now)}. המועד לא רץ עד שזה מגיע.`);
   const ofir = job.p24?.dueAt;
   const close = job.p27?.dueAt;
   const parts = [];
@@ -256,7 +256,7 @@ function rawFiles(job) {
 // versions replace the files in that folder. Uploading the videos here as well is
 // optional; an uploaded video of this round stands in for the link.
 const VIDEO = 'deliverable_video';
-const FAIL_HELP = 'אם זה חוזר: ״חסר לוגו / טלפון / חומר״, לסמן ״העלאה למערכת״ ו״לדווח״. עירית מקבלת מיד, והעריכה ממשיכה.';
+const FAIL_HELP = 'אם זה חוזר: ״חסר לוגו / טלפון / חומר״, לסמן ״העלאה למערכת״ ו״לדווח״. מי שבוחרים (עירית, ליאור או אופיר) מקבל מיד, והעריכה ממשיכה.';
 const windowOf = (job) => videoWindow(job.client, cs(job.client), job.round);
 const linkOf = (job) => videosLinkOf(job.client, cs(job.client), job.pre);
 function videosGate(job) {
@@ -394,7 +394,7 @@ function jobCard(job) {
     datesLine(job, st),
     // The one next step comes first; what the work needs follows.
     st.blocked ? h('div', { class: 'ed-blocked', role: 'note' },
-      h('p', {}, `עירית קיבלה הודעה ${formatWhen(st.blocked.at, now)}.${st.blocked.note ? ` ״${st.blocked.note}״` : ''}`),
+      h('p', {}, `${P.reportGot(st.blocked.to)} הודעה ${formatWhen(st.blocked.at, now)}.${st.blocked.note ? ` ״${st.blocked.note}״` : ''}`),
       h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-unblock`, onclick: (e) => endBlock(job, { btn: e.currentTarget }) }, 'הגיע, ממשיכים')) : null,
     st.report && !st.blocked ? reportBlock(job, st.report) : null,
     st.paused ? null : stateBlock(job, st),
@@ -580,6 +580,14 @@ function moreBlock(prefix, k, { of, open, have = '', note = '' }) {
       h('label', { for: `${prefix}-note` }, 'מה חסר? (לא חובה)'),
       h('input', { class: 'input', id: `${prefix}-note`, maxlength: P.NOTE_MAX, autocomplete: 'off', placeholder: NOTE_HINT[k] || '', value: note })));
 }
+// "למי לשלוח את הדיווח?" (the owner, 29.10.2026): עירית, ליאור or אופיר, one chosen.
+// Irit is the default, as before; a report already sent comes with whom it went to.
+function fillTo(prefix, chosen = 'irit') {
+  const to = P.reportTo(chosen);
+  fill($(`${prefix}-to-chips`), ...P.REPORT_TO.map(([k, l]) => h('label', { class: 'ed-to-o', for: `${prefix}-to-${k}` },
+    h('input', { type: 'radio', id: `${prefix}-to-${k}`, name: `${prefix}-to`, value: k, checked: k === to }), h('span', {}, l))));
+}
+const toOf = (prefix) => P.reportTo(document.querySelector(`input[name="${prefix}-to"]:checked`)?.value);
 const wordsOf = (prefix, keys) => Object.fromEntries(keys.map((k) => [k, $(`${prefix}-${k}-note`)?.value.trim() || '']).filter(([, t]) => t));
 // "יש חומר ל־N": a whole number below the editor's part (0 too). The problem in words, or null.
 function haveProblem(have, raw, of) {
@@ -611,6 +619,7 @@ function openStart(job) {
       moreBlock(`start-${k}`, k, { of, open: answer === 'no', have: k === 'footage' && open?.have != null ? String(open.have) : '', note: open?.notes?.[k] || '' }));
   }));
   // The logo line stands on what the card shows: say so when there is none to look at.
+  fillTo('start', open?.to);
   if (!P.sheetOf(job.client, chars[job.client.id], logos[job.client.id]).hasLogo) {
     $('start-list').append(h('p', { class: 'hint', id: 'start-nologo' }, 'אין לוגו בתיק הלקוח. אם הוא לא אצלך: ״חסר״ בשורת הלוגו.'));
   }
@@ -623,10 +632,13 @@ function openStart(job) {
 function startAnswered() {
   const lines = startLines();
   const all = lines.every((l) => l.answer);
+  // Whom to tell, once something is "חסר".
+  $('start-to').hidden = !lines.some((l) => l.answer === 'no');
   $('start-submit').disabled = !all;
   $('start-hint').textContent = all ? 'מה שמסומן ״חסר״ יירשם כחסר, והעריכה ממשיכה.' : 'עונים ״יש״ או ״חסר״ בכל שורה.';
   return lines;
 }
+$('start-to').addEventListener('change', () => startAnswered());
 $('start-list').addEventListener('change', (e) => {
   const line = e.target.closest('.ed-q');
   if (!line || e.target.type !== 'radio') return;
@@ -664,10 +676,11 @@ $('start-form').addEventListener('submit', async (e) => {
     // A block from before waited for this: the drive is here and the editing starts, so it ends.
     if (job.st?.blocked) await endBlock(job, { quiet: true, tasks: false });
     await markMany(job, ['p22.received', ...lines.filter((l) => l.answer === 'yes').map((l) => l.key)]);
-    const lior = missing.length ? await reportGoing(job, missing, { notes: wordsOf('start', missing), have, of }) : null;
+    const to = toOf('start');
+    const lior = missing.length ? await reportGoing(job, missing, { notes: wordsOf('start', missing), have, of, to }) : null;
     startDlg.close();
     toast(!missing.length ? `התחלת: ${jobName(job)}. בהצלחה!`
-      : `התחלת: ${jobName(job)}. עירית קיבלה הודעה על מה שחסר${lior === 'failed' ? ', אבל המשימה לליאור על החומר לא נפתחה. עדכנו אותו ישירות.' : lior === 'opened' ? ', וליאור משימה להשלים את החומר.' : '.'}`);
+      : `התחלת: ${jobName(job)}. ${P.reportGot(to)} הודעה על מה שחסר${lior === 'failed' ? ', אבל המשימה לליאור על החומר לא נפתחה. עדכנו אותו ישירות.' : lior === 'opened' ? ', וליאור משימה להשלים את החומר.' : '.'}`);
     renderKeepingFocus(`${cardId(job)}-go`);
   } catch (err) {
     showErr('start-err', `הסימון לא נשמר. ${errorText(err)}`);
@@ -684,7 +697,7 @@ $('start-missing').addEventListener('click', () => {
   const yes = lines.filter((l) => l.answer === 'yes');
   const have = no.includes('footage') ? editedValue($('start-footage-have').value) : null;
   startDlg.close();
-  openMissing(job, { what: no, notes: wordsOf('start', no), have, yes: yes.map((l) => l.k), received: yes.map((l) => l.key) });
+  openMissing(job, { what: no, notes: wordsOf('start', no), have, yes: yes.map((l) => l.k), received: yes.map((l) => l.key), to: toOf('start') });
 });
 
 // Marks keys of a job (only those not done yet: a done check keeps its time).
@@ -716,7 +729,7 @@ async function unmark(job, key) {
 // comes first, and stopping is "אי אפשר להמשיך: לעצור את העריכה".
 const missDlg = dialog('dlg-missing');
 let missCtx = null;
-function openMissing(job, { what = null, notes = null, have = null, yes = null, received = null } = {}) {
+function openMissing(job, { what = null, notes = null, have = null, yes = null, received = null, to = null } = {}) {
   const c = cs(job.client);
   const starting = !!received || job.st?.key === 'waiting';
   const open = job.st?.report || null;
@@ -733,13 +746,14 @@ function openMissing(job, { what = null, notes = null, have = null, yes = null, 
     checkRow(`miss-${k}`, l, marked.includes(k)),
     moreBlock(`miss-${k}`, k, { of, open: marked.includes(k), have: k === 'footage' && known !== null ? String(known) : '', note: words[k] || '' })))
     : [h('p', { class: 'hint', id: 'miss-none' }, 'הכול מסומן ״יש״. אם משהו בכל זאת חסר, ״חסר״ בשורה שלו.')]));
+  fillTo('miss', to ?? open?.to ?? job.st?.blocked?.to);
   $('miss-submit').textContent = starting ? 'אי אפשר להתחיל: לעצור את העריכה' : 'אי אפשר להמשיך: לעצור את העריכה';
   $('miss-submit').className = starting ? 'btn btn-primary' : 'btn';
   $('miss-go').hidden = starting;
   for (const id of ['miss-submit', 'miss-go']) $(id).disabled = !list.length;
   $('miss-hint').textContent = starting
-    ? 'עירית מקבלת הודעה עכשיו, והמועד שלך מסומן ״חסום״ ולא ״באיחור״ עד שזה מגיע.'
-    : 'עירית מקבלת הודעה עכשיו. לעצור רק כשאי אפשר להמשיך בלי זה: אז המועד מסומן ״חסום״ עד שזה מגיע.';
+    ? 'ההודעה יוצאת עכשיו למי שבחרת, והמועד שלך מסומן ״חסום״ ולא ״באיחור״ עד שזה מגיע.'
+    : 'ההודעה יוצאת עכשיו למי שבחרת. לעצור רק כשאי אפשר להמשיך בלי זה: אז המועד מסומן ״חסום״ עד שזה מגיע.';
   showErr('miss-err', '');
   missDlg.showModal();
   (document.querySelector('#miss-list .cbx:checked') || document.querySelector('#miss-list .cbx') || $('miss-cancel')).focus();
@@ -770,6 +784,7 @@ async function sendMissing(stop) {
     if (problem) { showErr('miss-err', problem); $('miss-footage-have').focus(); return; }
   }
   const notes = wordsOf('miss', what);
+  const to = toOf('miss');
   for (const id of ['miss-submit', 'miss-go']) $(id).disabled = true;
   try {
     let lior = null;
@@ -785,15 +800,15 @@ async function sendMissing(stop) {
         const row = await setCheck(job.client.id, WAIT(s.proc), 'done', waitNote(P.blockedReason(what), null));
         cs(job.client)[row.item_key] = row;
       }
-      await markOne(job, 'p22.missing', P.missingNote(what, '', { notes, have, of }));
+      await markOne(job, 'p22.missing', P.missingNote(what, '', { notes, have, of, to }));
       lior = await syncMaterial(job, { what, notes, have, of });
     } else {
-      lior = await reportGoing(job, what, { notes, have, of });
+      lior = await reportGoing(job, what, { notes, have, of, to });
     }
     missDlg.close();
     const extra = lior === 'failed' ? ' המשימה לליאור על החומר לא נפתחה: עדכנו אותו ישירות.' : lior === 'opened' ? ' ליאור קיבל משימה להשלים את החומר.' : '';
-    toast(stop ? `עירית קיבלה הודעה: חסר ${P.missingText(what)}. המועד שלך מסומן ״חסום״.${extra}`
-      : `עירית קיבלה הודעה: חסר ${P.missingText(what)}. העריכה ממשיכה.${extra}`);
+    toast(stop ? `${P.reportGot(to)} הודעה: חסר ${P.missingText(what)}. המועד שלך מסומן ״חסום״.${extra}`
+      : `${P.reportGot(to)} הודעה: חסר ${P.missingText(what)}. העריכה ממשיכה.${extra}`);
     renderKeepingFocus(stop ? `${cardId(job)}-unblock` : `${cardId(job)}-arrived`);
   } catch (err) {
     showErr('miss-err', `הדיווח לא נשמר. ${errorText(err)}`);
@@ -802,13 +817,13 @@ async function sendMissing(stop) {
   }
 }
 
-// A report while the editing goes on: no wait, the clock runs. Irit is rung on it
+// A report while the editing goes on: no wait, the clock runs. Irit (or Lior or Ofir, `to`) is rung on it
 // (app/reminder-rules.js editorMissing). What an earlier report named and this one does
 // not came in the meantime (its check is marked). Returns how Lior's task went (syncMaterial).
-async function reportGoing(job, what, { notes = {}, have = null, of = null } = {}) {
+async function reportGoing(job, what, { notes = {}, have = null, of = null, to = 'irit' } = {}) {
   const c = cs(job.client);
   const before = P.reportOf(c, job.pre);
-  await markOne(job, 'p22.missing', P.missingNote(what, '', { notes, have, of, going: true }));
+  await markOne(job, 'p22.missing', P.missingNote(what, '', { notes, have, of, going: true, to }));
   const came = (before?.what || []).filter((k) => !what.includes(k)).map((k) => P.CHECK_OF[k]).filter(Boolean);
   if (came.length && c[`${job.pre}p22.received`]?.state === 'done') await markMany(job, came);
   return syncMaterial(job, { what, notes, have, of });
@@ -839,7 +854,7 @@ function reportBlock(job, r) {
     h('ul', { class: 'ed-report-list' }, ...P.MISSING_WHAT.filter(([k]) => r.what.includes(k)).map(([k, l]) => h('li', {},
       h('strong', {}, `חסר ${l}`), r.notes[k] ? ` · ${r.notes[k]}` : ''))),
     r.note ? h('p', { class: 'ed-note' }, `״${r.note}״`) : null,
-    h('p', { class: 'hint' }, `עירית קיבלה הודעה ${formatWhen(r.at, new Date())}. העריכה ממשיכה.`),
+    h('p', { class: 'hint' }, `${P.reportGot(r.to)} הודעה ${formatWhen(r.at, new Date())}. העריכה ממשיכה.`),
     h('button', { type: 'button', class: 'btn btn-sm', id: `${id}-arrived`, onclick: (e) => endReport(job, e.currentTarget) }, 'הגיע הכול'));
 }
 async function endReport(job, btn) {

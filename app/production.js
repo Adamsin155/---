@@ -10,7 +10,7 @@
 // existing `pNN.wait` and `pNN.pause`. In a shoot round the keys carry its prefix
 // ('r2.p22.received'). The marks added here:
 //   p22.missing  the editor reported a missing logo / phone / footage / scripts (note
-//                JSON { what, note, notes, have, of, going }; MISSING_WHAT below). A
+//                JSON { what, note, notes, have, of, going, to }; MISSING_WHAT below). A
 //                blocking one holds while the process waits (p22.wait, and p24/p27
 //                with it), so the deadline is "חסום", not late (decision 3 moves it on
 //                by the blocked time); a going one (22.10.2026) leaves the clock running
@@ -171,6 +171,15 @@ export const missingText = (what) => MISSING_WHAT.filter(([k]) => (what || []).i
 export const CHECK_OF = { logo: 'p22.check.logo', phone: 'p22.check.phone', footage: 'p22.check.footage', scripts: 'p22.check.scripts' };
 export const missingKeyOf = (check) => Object.keys(CHECK_OF).find((k) => CHECK_OF[k] === check) || null;
 export const NOTE_MAX = 200; // what is missing, per line
+// Who gets the report (the owner, 29.10.2026: "שיהיה להם אופציה ... לשלוח דיווח לאופיר או
+// ליאור"). Irit stays the default, as before; only these three can be chosen. Anything else
+// in the note (an old report, or a value typed by hand) reads as Irit, so the ring the
+// reminders function sends goes to one of the three and never to anyone else.
+export const REPORT_TO = [['irit', 'עירית'], ['lior', 'ליאור'], ['ofir', 'אופיר']];
+export const reportTo = (v) => (REPORT_TO.some(([k]) => k === v) ? v : 'irit');
+export const reportToName = (v) => REPORT_TO.find(([k]) => k === reportTo(v))[1];
+// "עירית קיבלה הודעה" / "ליאור קיבל הודעה".
+export const reportGot = (v) => `${reportToName(v)} ${reportTo(v) === 'irit' ? 'קיבלה' : 'קיבל'}`;
 const cleanNotes = (notes, what) => Object.fromEntries(Object.entries(notes && typeof notes === 'object' ? notes : {})
   .map(([k, t]) => [k, String(t ?? '').trim().slice(0, NOTE_MAX)]).filter(([k, t]) => t && what.includes(k)));
 const videoCount = (n) => (Number.isInteger(n) && n >= 0 && n <= 999 ? n : null);
@@ -180,7 +189,7 @@ function readReport(m) {
   const have = what.includes('footage') ? videoCount(v.have) : null;
   return {
     at: new Date(m.at), what, note: String(v.note || ''), notes: cleanNotes(v.notes, what),
-    have, of: have === null ? null : videoCount(v.of) || null, going: v.going === true, by_email: m.by_email,
+    have, of: have === null ? null : videoCount(v.of) || null, going: v.going === true, to: reportTo(v.to), by_email: m.by_email,
   };
 }
 // The blocking report, while its wait holds the process.
@@ -197,12 +206,13 @@ export function reportOf(checks, pre = '') {
   const r = readReport(m);
   return r.going ? r : null;
 }
-export const missingNote = (what, note = '', { notes = null, have = null, of = null, going = false } = {}) => {
+export const missingNote = (what, note = '', { notes = null, have = null, of = null, going = false, to = 'irit' } = {}) => {
   const n = cleanNotes(notes, what);
   const h = what.includes('footage') ? videoCount(have) : null;
   return JSON.stringify({
     what, note: String(note || '').trim(), ...(Object.keys(n).length ? { notes: n } : {}),
     ...(h !== null ? { have: h, of: videoCount(of) || null } : {}), ...(going ? { going: true } : {}),
+    ...(reportTo(to) !== 'irit' ? { to: reportTo(to) } : {}),
   });
 };
 // "חומר ל־14 מתוך 36" (or "חומר ל־14 סרטונים" when the editor's part is not known).
