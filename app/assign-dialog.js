@@ -37,69 +37,52 @@ const AFTER_SWAP = 'ההחלפה נרשמת בהיסטוריה של הלקוח, 
 const AFTER_KEPT = '22א כבר מסומן, ולכן השיוך רק רושם את העורך בכרטיס: הסימון ומועדי העריכה נשארים כמו שהם. השיוך נרשם בהיסטוריה של הלקוח, והלקוח מופיע אצל העורך. אם העריכה עוד פתוחה, מוכן לו וואטסאפ.';
 const AFTER_EARLY = 'העורך נרשם בכרטיס. 22א עוד לא הגיע: כשיגיע, העורך הזה יופיע ב״בקרה ושיוך״ כ״רשום בכרטיס״, ושם מסמנים את השיוך והמועדים מתחילים.';
 
-const MARKUP = `
-<dialog id="dlg-assign" class="dlg-wide" aria-labelledby="as-h">
-  <form id="as-form" novalidate>
-    <div class="dlg-head">
-      <h2 id="as-h">שיוך עורך</h2>
-      <button type="button" class="close" data-close aria-label="סגירה">×</button>
-    </div>
-    <div class="dlg-body">
-      <p class="of-meta" id="as-meta"></p>
-      <label class="wrow as-joint" id="as-joint-wrap" for="as-joint" hidden>
-        <input type="checkbox" class="cbx" id="as-joint">
-        <span class="wlabel">יום צילום משותף לנטלי ולסמיון</span>
-      </label>
-      <fieldset class="as-editors">
-        <legend>העורך</legend>
-        <div id="as-editors"></div>
-      </fieldset>
-      <button type="button" class="btn btn-sm btn-ghost as-add2" id="as-editor2-add" hidden>+ עורך/ת נוסף/ת</button>
-      <div class="field as-pair" id="as-editor2-wrap" hidden>
-        <label for="as-editor2">עורך/ת נוסף/ת</label>
-        <select class="input" id="as-editor2"></select>
-        <fieldset class="as-split" id="as-split">
-          <legend id="as-split-h">חלוקת הסרטונים</legend>
-          <div class="as-split-row">
-            <label for="as-split-1" id="as-split-1-name"></label><input class="input num" id="as-split-1" type="number" min="0" max="500" inputmode="numeric" dir="ltr">
-            <span aria-hidden="true">·</span>
-            <label for="as-split-2" id="as-split-2-name"></label><input class="input num" id="as-split-2" type="number" min="0" max="500" inputmode="numeric" dir="ltr">
-          </div>
-        </fieldset>
-        <button type="button" class="btn-text" id="as-editor2-remove">בלי עורך נוסף</button>
-      </div>
-      <fieldset class="as-clock" id="as-clock-wrap" hidden>
-        <legend>מועדי העריכה</legend>
-        <p class="as-clock-late" id="as-clock-late" hidden></p>
-        <label class="wrow" for="as-clock-restart">
-          <input type="radio" class="radio" name="as-clock" id="as-clock-restart" value="restart">
-          <span class="wlabel" id="as-clock-restart-label"></span>
-        </label>
-        <label class="wrow" for="as-clock-keep">
-          <input type="radio" class="radio" name="as-clock" id="as-clock-keep" value="keep">
-          <span class="wlabel" id="as-clock-keep-label"></span>
-        </label>
-      </fieldset>
-      <div class="field" id="as-reason-wrap">
-        <label for="as-reason" id="as-reason-label">סיבה</label>
-        <textarea class="input" id="as-reason" rows="2" maxlength="500" aria-describedby="as-reason-hint"></textarea>
-        <p class="hint" id="as-reason-hint"></p>
-      </div>
-      <p class="hint" id="as-after"></p>
-      <div class="err" id="as-err" role="alert" hidden></div>
-    </div>
-    <div class="dlg-foot">
-      <button type="button" class="btn btn-ghost" data-close>ביטול</button>
-      <button type="submit" class="btn btn-primary" id="as-submit">שיוך</button>
-    </div>
-  </form>
-</dialog>`;
+// The dialog's elements, built once with the ids qa.html had in its page (no markup from text: tests/csp.test.mjs).
+const clockRow = (id, value) => h('label', { class: 'wrow', for: id },
+  h('input', { type: 'radio', class: 'radio', name: 'as-clock', id, value }), h('span', { class: 'wlabel', id: `${id}-label` }));
+const splitInput = (id) => h('input', { class: 'input num', id, type: 'number', min: '0', max: '500', inputmode: 'numeric', dir: 'ltr' });
+const markup = () => h('dialog', { id: 'dlg-assign', class: 'dlg-wide', 'aria-labelledby': 'as-h' },
+  h('form', { id: 'as-form', novalidate: true },
+    h('div', { class: 'dlg-head' },
+      h('h2', { id: 'as-h' }, 'שיוך עורך'),
+      h('button', { type: 'button', class: 'close', 'data-close': true, 'aria-label': 'סגירה' }, '×')),
+    h('div', { class: 'dlg-body' },
+      h('p', { class: 'of-meta', id: 'as-meta' }),
+      h('label', { class: 'wrow as-joint', id: 'as-joint-wrap', for: 'as-joint', hidden: true },
+        h('input', { type: 'checkbox', class: 'cbx', id: 'as-joint' }),
+        h('span', { class: 'wlabel' }, 'יום צילום משותף לנטלי ולסמיון')),
+      h('fieldset', { class: 'as-editors' }, h('legend', {}, 'העורך'), h('div', { id: 'as-editors' })),
+      h('button', { type: 'button', class: 'btn btn-sm btn-ghost as-add2', id: 'as-editor2-add', hidden: true }, '+ עורך/ת נוסף/ת'),
+      h('div', { class: 'field as-pair', id: 'as-editor2-wrap', hidden: true },
+        h('label', { for: 'as-editor2' }, 'עורך/ת נוסף/ת'),
+        h('select', { class: 'input', id: 'as-editor2' }),
+        h('fieldset', { class: 'as-split', id: 'as-split' },
+          h('legend', { id: 'as-split-h' }, 'חלוקת הסרטונים'),
+          h('div', { class: 'as-split-row' },
+            h('label', { for: 'as-split-1', id: 'as-split-1-name' }), splitInput('as-split-1'),
+            h('span', { 'aria-hidden': 'true' }, '·'),
+            h('label', { for: 'as-split-2', id: 'as-split-2-name' }), splitInput('as-split-2'))),
+        h('button', { type: 'button', class: 'btn-text', id: 'as-editor2-remove' }, 'בלי עורך נוסף')),
+      h('fieldset', { class: 'as-clock', id: 'as-clock-wrap', hidden: true },
+        h('legend', {}, 'מועדי העריכה'),
+        h('p', { class: 'as-clock-late', id: 'as-clock-late', hidden: true }),
+        clockRow('as-clock-restart', 'restart'),
+        clockRow('as-clock-keep', 'keep')),
+      h('div', { class: 'field', id: 'as-reason-wrap' },
+        h('label', { for: 'as-reason', id: 'as-reason-label' }, 'סיבה'),
+        h('textarea', { class: 'input', id: 'as-reason', rows: '2', maxlength: '500', 'aria-describedby': 'as-reason-hint' }),
+        h('p', { class: 'hint', id: 'as-reason-hint' })),
+      h('p', { class: 'hint', id: 'as-after' }),
+      h('div', { class: 'err', id: 'as-err', role: 'alert', hidden: true })),
+    h('div', { class: 'dlg-foot' },
+      h('button', { type: 'button', class: 'btn btn-ghost', 'data-close': true }, 'ביטול'),
+      h('button', { type: 'submit', class: 'btn btn-primary', id: 'as-submit' }, 'שיוך'))));
 
 const videosOf = (ctx) => Number(ctx?.deliverables?.videos) || 0;
 const showErr = (id, text) => { $(id).textContent = text; $(id).hidden = false; };
 
 export function assignDialog(store) {
-  if (!document.getElementById('dlg-assign')) document.body.insertAdjacentHTML('beforeend', MARKUP);
+  if (!document.getElementById('dlg-assign')) document.body.append(markup());
   const dlg = $('dlg-assign');
   let item = null;
   let returnTo = null;
