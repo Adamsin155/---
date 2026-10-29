@@ -88,7 +88,7 @@ function renderStats() {
   // squeezed into a sixth of the row ran into the tile beside it.
   $('stats').classList.toggle('has-money', showMoney);
   $('stats').replaceChildren(
-    stat('הצעות', String(quotes.length)),
+    stat('הצעות', String(quotes.filter((q) => !q.legacy).length)),
     stat('ממתינות לחתימה', String(count('sent') + count('viewed'))),
     stat('הצעות לצפייה', String(count('shared') + count('seen'))),
     stat('נחתמו', String(count('signed'))),
@@ -157,6 +157,50 @@ async function share(q, btn) {
   }, btn, toast);
 }
 
+// A contract signed in the old system or on paper since the new system began (the owner,
+// 29.10.2026: "צריך להוסיף את מה שיש מהמערכת הישנה"): read from public.legacy_contracts, shown
+// as a signed row with its amount, counted in "נחתם החודש". Its only action opens the document.
+function legacyRow(q, s) {
+  return h('tr', { class: 'is-legacy' },
+    h('td', { 'data-label': 'מספר' }, h('span', { class: 'num', dir: 'ltr' }, q.number), h('small', { class: 'doc-type' }, q.doc)),
+    h('td', { class: 'client', 'data-label': 'לקוח' }, q.client_name),
+    h('td', { class: 'client', 'data-label': 'חבילה' }, h('span', { dir: 'auto' }, q.tier || ''), h('small', {}, q.influencer || '')),
+    showMoney ? h('td', { class: 'amt', dir: 'ltr', 'data-label': 'סה״כ כולל מע״מ' }, formatILS(q.term_gross_agorot ?? 0),
+      q.monthly_gross_agorot ? h('small', { class: 'by', dir: 'rtl' }, `${formatILS(q.monthly_gross_agorot)} לחודש`) : null) : null,
+    h('td', { 'data-label': 'נוצר' }, formatDate(q.created_at), h('small', { class: 'by' }, 'מחוץ למחולל')),
+    h('td', { 'data-label': 'סטטוס' }, h('span', { class: `pill k-pill k-pill-${TONE[s] || 'plain'} ${s}` }, STATUS[s]), h('small', { class: 'when' }, h('span', { class: 'k-sep' }, ' · '), formatDate(q.signed_at, true))),
+    h('td', { 'data-label': 'אישור מנהל' }, h('span', { class: 'apv-cell' }, '—')),
+    h('td', { class: 'acts-cell' }, h('div', { class: 'acts' },
+      h('a', { class: 'btn btn-sm btn-ghost', href: `legacy-contract.html?id=${encodeURIComponent(q.legacy)}` }, 'פתיחה'))));
+}
+
+// The old system's signed contracts from this date on: the clients the office signed outside the
+// builder after the new system began, until everyone sends from it (the owner, 29.10.2026).
+const LEGACY_FROM = '2026-10-01';
+function legacyAsQuote(l) {
+  const d = l.doc || {};
+  const vat = 1.18;
+  return {
+    legacy: l.id, number: l.doc_number || `#${l.id}`, client_name: l.client_name || d.clientName || '', status: 'signed',
+    signed_at: l.signed_at, created_at: l.signed_at, signer_name: l.signer_name || null,
+    term_gross_agorot: l.total_amount != null ? Math.round(Number(l.total_amount) * 100) : 0,
+    monthly_gross_agorot: l.retainer != null ? Math.round(Number(l.retainer) * vat) * 100 : 0,
+    tier: d.packageName || '', influencer: d.influencers || '', doc: 'חוזה · מהמערכת הישנה', signable: 'true',
+  };
+}
+async function loadLegacy() {
+  const { data, error } = await supabase.from('legacy_contracts')
+    .select('id, client_id, doc_type, doc_number, status, total_amount, retainer, signed_at, signer_name, doc')
+    .eq('status', 'signed').eq('doc_type', 'contract').gte('signed_at', LEGACY_FROM).order('signed_at', { ascending: false }).limit(100);
+  if (error || !data?.length) return [];
+  const ids = [...new Set(data.map((l) => l.client_id))];
+  const { data: cs } = await supabase.from('clients').select('id, name, business, quote_id').in('id', ids);
+  const name = Object.fromEntries((cs || []).map((c) => [c.id, c.business || c.name]));
+  // A client whose agreement was signed in the builder is counted there, not twice (רוזיטה, 26.10).
+  const built = new Set((cs || []).filter((c) => c.quote_id).map((c) => c.id));
+  return data.filter((l) => !built.has(l.client_id)).map((l) => legacyAsQuote({ ...l, client_name: name[l.client_id] }));
+}
+
 function renderRows() {
   const list = quotes.filter((q) => {
     const s = statusOf(q);
@@ -170,6 +214,7 @@ function renderRows() {
   if (filter === UNSIGNED_FILTER) list.sort((a, b) => sentForSignatureAt(a) - sentForSignatureAt(b));
   $('rows').replaceChildren(...list.map((q) => {
     const s = statusOf(q);
+    if (q.legacy) return legacyRow(q, s);
     const link = quoteLink(q.token);
     const when = s === 'signed' ? formatDate(q.signed_at, true) : (s === 'viewed' || s === 'seen') ? formatDate(q.first_viewed_at, true) : '';
     const open = OPEN.includes(s);
@@ -219,7 +264,9 @@ async function loadQuotes() {
   // Before the custom-contracts migration the approval columns are not there yet.
   if (missing(error)) ({ data, error } = await read(BASE));
   if (error) { $('state').textContent = explainError(error); return; }
-  quotes = data;
+  // With the old system's signed contracts since 1.10.2026, newest first among them all.
+  const old = await loadLegacy().catch(() => []);
+  quotes = [...data, ...old].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   $('state').textContent = '';
   $('list-block').hidden = false;
   renderStats();
