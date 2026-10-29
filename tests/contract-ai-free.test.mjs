@@ -295,3 +295,13 @@ test('Stav writes what he closed and picks חוזה or הצעת מחיר; Irit\'
   assert.equal(pkg.row.doc_type, 'quote');
   assert.equal(prefillFromDeal({ ...pkg.row }).selection.docType, 'quote');
 });
+
+test('no amount written at all: 36 videos and 36 graphics, as the package (the owner, 29.10.2026: "את אותה כמות תכנים שיש 72, 36 ו־36")', () => {
+  const { applied } = run(answer([draft({ influencer: 'none', monthlyPrice: 490000 })]));
+  const a = applied[0];
+  assert.deepEqual(a.selection.custom.qty, { videos: 36, graphics: 36 });
+  assert.ok(a.summary.includes('לא נכתבה כמות, ולכן כמו בחבילה: 36 סרטונים ו־36 גרפיקות'), a.summary.join(' | '));
+  // A written amount is the amount ("אלא אם כן רושמים כמות אחרת").
+  const b = run(answer([draft({ influencer: 'none', monthlyPrice: 490000, quantities: [{ key: 'videos', value: 20 }, { key: 'graphics', value: 12 }] })])).applied[0];
+  assert.deepEqual(b.selection.custom.qty, { videos: 20, graphics: 12 });
+});

@@ -496,8 +496,11 @@ const TIER_IDS = TIERS.map((t) => t.id);
 const FREE_QTY = QTY_KEYS.filter((k) => k !== 'monthly');
 // What can be added in a free contract (the monthly photographer is `monthlyShoot`).
 const FREE_ADDON_IDS = PAID_IDS.filter((id) => id !== 'photographer');
-// Without an influencer, everything the package counts is only what was written.
-const FREE_ZERO = ['videos', 'graphics', 'photoDays', 'ch14'];
+// Without an influencer, what was not written: 36 videos and 36 graphics (72 contents, as the
+// Social package; the owner, 29.10.2026: "את אותה כמות תכנים שיש 72, 36 ו־36"), and no extra
+// shoot days or channel-14 items.
+const FREE_DEFAULT = { videos: 36, graphics: 36, photoDays: 0, ch14: 0 };
+const FREE_ZERO = Object.keys(FREE_DEFAULT);
 
 export function freeCatalogText() {
   const infl = FREE_INFLUENCERS.map((k) => `- \`${k}\`: ${INFLUENCERS[k].name}`).join('\n');
@@ -668,9 +671,13 @@ export function applyFreeDraft(current, draft) {
   const base = baseQuantities(sel);
   const qty = {};
   const written = d.quantities || {};
+  // The package's 36 and 36 only when no amount of contents was written at all ("אלא אם כן רושמים
+  // כמות אחרת"): a written number of videos, graphics or monthly contents is the amount.
+  const noAmount = none && !d.monthlyShoot && !['videos', 'graphics'].some((k) => given(written[k]));
+  const fill = (k) => (noAmount ? FREE_DEFAULT[k] : 0);
   for (const def of CUSTOM_QTY) {
     if (def.key === 'monthly') continue;
-    const v = given(written[def.key]) ? written[def.key] : none && FREE_ZERO.includes(def.key) ? 0 : undefined;
+    const v = given(written[def.key]) ? written[def.key] : none && FREE_ZERO.includes(def.key) ? fill(def.key) : undefined;
     if (!given(v)) continue;
     if (none && INF_KEYS.includes(def.key)) { if (v > 0) skipped.push(`${def.name}: אין בחוזה בלי משפיענים`); continue; }
     if (v !== base[def.key]) qty[def.key] = v;
@@ -681,7 +688,9 @@ export function applyFreeDraft(current, draft) {
     if (per !== MONTHLY_CONTENTS) { qty.monthly = per; marks['q:monthly'] = per; }
     summary.push(`צילום כל חודש (צלם חודשי): ${per} תכנים בכל חודש`);
   }
-  const notWritten = none ? FREE_ZERO.filter((k) => !given(written[k]) && base[k] > 0).map((k) => qtyDef(k).name) : [];
+  const byDefault = noAmount ? FREE_ZERO.filter((k) => FREE_DEFAULT[k] > 0).map((k) => `${FREE_DEFAULT[k]} ${qtyDef(k).name}`) : [];
+  if (byDefault.length) summary.push(`לא נכתבה כמות, ולכן כמו בחבילה: ${byDefault.join(' ו־')}`);
+  const notWritten = none && !noAmount ? FREE_ZERO.filter((k) => !given(written[k]) && base[k] > 0).map((k) => qtyDef(k).name) : [];
   if (notWritten.length) summary.push(`לא נכתבו, ולכן לא בחוזה: ${notWritten.join(', ')}`);
   if (Object.keys(qty).length) custom.qty = qty;
 
