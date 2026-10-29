@@ -222,6 +222,8 @@ async function opensAsk(browser, who, options) {
     await page.waitForFunction(() => document.getElementById('state').textContent.includes('אין לך גישה'));
   }
   const allowed = await page.locator('#ak-form').isVisible();
+  if (allowed) await page.locator('#login-block').waitFor({ state: 'hidden' });
+  await page.waitForTimeout(400); // the sign-in door has closed
   // The shell's menu (the side list or the phone's bar and "עוד") has a link to ask.html.
   await page.waitForTimeout(300);
   const inMenu = await page.locator('a[href="ask.html"]:not(.navlink)').count();
@@ -245,21 +247,33 @@ async function converse(page, tag) {
   assert.match(await page.locator('.ak-a-bubble').first().innerText(), /12 לקוחות פעילים/);
   assert.equal(await page.locator('#ak-q').inputValue(), '');
   assert.deepEqual(calls.filter((c) => c.ask).at(-1).ask, { question: 'כמה לקוחות פעילים יש?', history: [] });
-  // A chip with "<לקוח>": the words in the box, the slot selected for the name.
-  await page.locator('.ak-chip', { hasText: 'מה עלה לדרייב' }).click();
-  const sel = await page.evaluate(() => { const t = document.getElementById('ak-q'); return t.value.slice(t.selectionStart, t.selectionEnd); });
-  assert.equal(sel, '<לקוח>');
-  await page.keyboard.type('מספרת רון', { delay: 12 });
-  assert.equal(await page.locator('#ak-q').inputValue(), 'מה עלה לדרייב של מספרת רון?');
+  // Once there is a conversation the examples step aside; the box goes on, with what was said.
+  assert.equal(await page.locator('#ak-chips').isHidden(), true);
+  assert.equal(await page.locator('#ak-new').isVisible(), true);
+  await page.locator('#ak-q').click();
+  await page.keyboard.type('מה עלה לדרייב של מספרת רון?', { delay: 12 });
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.querySelectorAll('.ak-a-bubble:not(.is-wait)').length === 2);
   const second = calls.filter((c) => c.ask).at(-1).ask;
+  assert.equal(second.question, 'מה עלה לדרייב של מספרת רון?');
   assert.equal(second.history.length, 1, 'the earlier turn goes with the next question');
   // The Drive link in the answer is a link.
   assert.equal(await page.locator('.ak-a-bubble a[href="https://drive.google.com/file/d/f4/view"]').count(), 1);
   assert.ok(await noSideScroll(page), `${tag}: sideways scroll`);
   assert.deepEqual(await smallTargets(page, '.ak-chip, #ak-send, #ak-q'), [], tag);
   await shot(page, `${tag}-answered`);
+  // "שיחה חדשה": the conversation goes, the examples come back; a chip with "<לקוח>" selects
+  // the slot for the name.
+  await page.locator('#ak-new').click();
+  assert.equal(await page.locator('.ak-turn').count(), 0);
+  await page.locator('.ak-chip', { hasText: 'מה עלה לדרייב' }).click();
+  const sel = await page.evaluate(() => { const t = document.getElementById('ak-q'); return t.value.slice(t.selectionStart, t.selectionEnd); });
+  assert.equal(sel, '<לקוח>');
+  await page.keyboard.type('מספרת רון', { delay: 12 });
+  assert.equal(await page.locator('#ak-q').inputValue(), 'מה עלה לדרייב של מספרת רון?');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelectorAll('.ak-a-bubble:not(.is-wait)').length === 1);
+  assert.deepEqual(calls.filter((c) => c.ask).at(-1).ask.history, [], 'a new conversation carries nothing');
 }
 
 let exitCode = 0;

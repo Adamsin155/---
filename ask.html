@@ -67,6 +67,8 @@
           <h1 id="ak-h">שאלו את המערכת</h1>
           <p>כמה לקוחות, כמה תוכן מגיע להם, מה עלה לדרייב. התשובה מגיעה מהנתונים במערכת. סיסמאות לא נמסרות כאן.</p>
         </div>
+        <!-- A clean start: the conversation goes, the example questions come back. -->
+        <button type="button" class="btn btn-sm btn-ghost ak-new" id="ak-new" hidden>שיחה חדשה</button>
       </div>
       <!-- The conversation of this visit (app/ask-page.js), newest at the bottom. -->
       <ol class="ak-talk" id="ak-talk" aria-live="polite" aria-label="השיחה"></ol>
@@ -74,7 +76,7 @@
         <div class="ak-chips" id="ak-chips" role="group" aria-label="שאלות לדוגמה"></div>
         <label class="sr-only" for="ak-q">השאלה</label>
         <div class="ak-box">
-          <textarea class="input ak-q" id="ak-q" rows="2" maxlength="500" placeholder="למשל: כמה לקוחות פעילים יש?" enterkeyhint="send"></textarea>
+          <textarea class="input ak-q" id="ak-q" rows="2" maxlength="500" placeholder="כתבו כאן שאלה…" enterkeyhint="send"></textarea>
           <button type="submit" class="btn btn-primary ak-send" id="ak-send">שאלו</button>
         </div>
         <p class="ak-err" id="ak-err" role="alert" hidden></p>

@@ -45,7 +45,9 @@ function render() {
   const list = $('ak-talk');
   fill(list, ...talk.map(turnNode));
   list.hidden = !talk.length;
-  $('ak-chips').hidden = talk.length > 0 && asking;
+  // The examples are for the start; once there is a conversation, the box is the way on.
+  $('ak-chips').hidden = talk.length > 0;
+  $('ak-new').hidden = !talk.length || asking;
 }
 const scrollDown = () => {
   const last = $('ak-talk').lastElementChild;
@@ -116,6 +118,13 @@ function mountChips() {
   }, text)));
 }
 
+$('ak-new').addEventListener('click', () => {
+  talk = [];
+  keepTalk();
+  showError('');
+  render();
+  $('ak-q').focus();
+});
 $('ak-form').addEventListener('submit', (e) => { e.preventDefault(); ask($('ak-q').value); });
 // Enter sends (a phone's "send" key too); Shift+Enter is a new line.
 $('ak-q').addEventListener('keydown', (e) => {
