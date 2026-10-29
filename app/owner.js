@@ -10,7 +10,7 @@ import { mountApprovals } from './approvals-ui.js';
 import { PEOPLE } from './protocol.js';
 import { clientState, weekKey, clientLabel } from './protocol-logic.js';
 import {
-  loadClients, loadChecks, loadTasks, loadTasksDoneSince, loadAllLog, loadStatusNotes, loadReviews, loadDirectory,
+  loadClients, loadChecks, loadTasks, loadTasksDoneSince, loadAllLog, loadLogBrief, loadStatusNotes, loadReviews, loadDirectory,
 } from './protocol-data.js';
 import {
   loadMessagesSince, loadAccessStatus, loadDateChanges, loadQuestions, askQuestion, withdrawQuestion, loadLogFor,
@@ -18,7 +18,7 @@ import {
 import {
   clientHealth, station, ownerRows, officeReasons, colorCounts, lateNow, shootsAhead, closedProcesses, onTimeTrend,
   trendSince, upcomingEvents, canSeeOwnerScreen, canSeeAllClients, personName, bySeverity, COLORS, dayText,
-  historyKeys, withHistory,
+  historyKeys, withHistory, LOG_NEEDS, historySuffixes,
 } from './health.js';
 import { healthBadge, reasonText, nextText, stationBar, markOwnerLanded } from './health-ui.js';
 import {
@@ -44,6 +44,7 @@ import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeCl
 // The owners' end of the day (docs/ops.md, section 48): the same numbers as the 19:00 message.
 import { daySummary, headline, waitingText } from './day-summary.js';
 import { icon as kIcon, iconSquare, headIcon, besideIcon, leadIcon, dateLeaf } from './kit.js';
+import { warm, taken } from './supa.js';
 
 let viewer = null;
 let landingCtl = null;  // the owners' control of the clients in landing
@@ -98,6 +99,10 @@ const groupBy = (rows, key) => {
 };
 
 // ── Data ────────────────────────────────────
+// The first rows of the page, asked for while the session is being confirmed (app/supa.js warm;
+// docs/ops.md, section 77), as "המשימות שלי" does.
+const firstRows = () => Promise.all([loadClients({ includeEnded: true }), loadChecks(), loadTasks({ openOnly: true })]);
+warm('owner', firstRows);
 // One load at a time: the refresh button, coming back to the app and the timer
 // share the one in flight, so a slower, older answer never overwrites a newer one.
 let inflight = null;
@@ -108,32 +113,45 @@ function load() {
 async function doLoad() {
   if (!entries.length) $('state').textContent = 'טוען…';
   const now = new Date();
+  const since30 = new Date(now.getTime() - 30 * 864e5);
+  const since = new Date(Math.min(+trendSince(now), +since30)).toISOString();
+  // Each extra is optional: without it, its rule is left out, never assumed. They do not
+  // wait for the clients: they are asked for together with them (docs/ops.md, section 77).
+  // Of the history, only what the screens read (app/health.js LOG_NEEDS), and the whole
+  // history of the items whose rounds count (every key historyKeys() can name), in one answer.
+  const brief = loadLogBrief(since, { suffixes: LOG_NEEDS, history: historySuffixes() });
+  const extrasAsked = Promise.allSettled([
+    brief, loadMessagesSince(since30.toISOString()), loadAccessStatus(),
+    loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }), loadReviews(dayKeyIL(new Date(now.getTime() - 14 * 864e5))),
+    loadDateChanges({ sinceIso: since30.toISOString() }), loadQuestions({ sinceIso: since30.toISOString() }),
+    showMoney ? loadFinance() : null, mayTable ? loadDeliverableFiles() : null,
+    loadTasksDoneSince(officeWeekStart(now)),
+  ]);
   try {
-    [allClients, checks, tasks] = await Promise.all([loadClients({ includeEnded: true }), loadChecks(), loadTasks({ openOnly: true })]);
+    [allClients, checks, tasks] = await taken('owner', firstRows);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
   }
   clients = allClients.filter((c) => c.status === 'active' || c.status === 'ending');
-  const since30 = new Date(now.getTime() - 30 * 864e5);
-  const since = new Date(Math.min(+trendSince(now), +since30)).toISOString();
-  // Each extra is optional: without it, its rule is left out, never assumed.
   // Rounds of corrections count the whole history of their items, not just the window's.
   const hist = historyKeys(clients);
-  const got = await Promise.allSettled([
-    loadAllLog(since), loadMessagesSince(since30.toISOString()), loadAccessStatus(),
-    loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }), loadReviews(dayKeyIL(new Date(now.getTime() - 14 * 864e5))),
-    loadDateChanges({ sinceIso: since30.toISOString() }), loadQuestions({ sinceIso: since30.toISOString() }), loadLogFor(hist),
-    showMoney ? loadFinance() : null, mayTable ? loadDeliverableFiles() : null,
-    loadTasksDoneSince(officeWeekStart(now)),
-  ]);
+  const got = await extrasAsked;
   const ok = (i) => (got[i].status === 'fulfilled' ? got[i].value : null);
-  [log, messages, access, notes, reviews, changes] = [0, 1, 2, 3, 4, 5].map(ok);
-  log = withHistory(log, ok(7), hist);
+  [messages, access, notes, reviews, changes] = [1, 2, 3, 4, 5].map(ok);
+  if (got[0].status === 'fulfilled' && got[0].value) {
+    // The window's part of the answer, with the whole history of those items in place of its part.
+    const from = new Date(since).getTime();
+    log = withHistory(got[0].value.filter((r) => new Date(r.at).getTime() >= from), got[0].value, hist);
+  } else {
+    // Before 20261117100000_speed_pages.sql (or when it did not answer): as before.
+    const [w, h] = await Promise.allSettled([loadAllLog(since), loadLogFor(hist)]);
+    log = withHistory(w.status === 'fulfilled' ? w.value : null, h.status === 'fulfilled' ? h.value : null, hist);
+  }
   questions = ok(6) || [];
-  finance = ok(8);
-  files = ok(9);
-  doneTasks = ok(10);
+  finance = ok(7);
+  files = ok(8);
+  doneTasks = ok(9);
   lastLoad = Date.now();
   $('state').textContent = '';
   compute();

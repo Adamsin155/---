@@ -3,9 +3,10 @@
 // clients they work on (supabase/migrations/20260930130000_assignment_rls.sql), so
 // a list can come back shorter or empty, and a client not theirs as null. Who
 // checked an item and when are stamped by the database.
-import { supabase } from './supa.js';
+import { supabase, staffList } from './supa.js';
 import { withLanding } from './landing-data.js';
 import { accessRow } from './access-logic.js';
+import { expandChecks } from './log-brief.js';
 
 // Every row of a query, a thousand at a time (the most the database gives in one answer).
 // `build(COUNTED)` may pass its argument on to select(): the first answer then says how
@@ -110,11 +111,25 @@ export async function loadClients({ includeEnded = false } = {}) {
     if (!includeEnded) q = q.neq('status', 'ended');
     return q;
   });
-  const [rows, priv] = await Promise.all([e2Throws(() => read(withE2(CLIENT_COLS))), privateFields()]);
   // Every row carries its landing columns (docs/ops.md, section 41): the deadlines,
-  // the lists and the clocks of every page read them through clientState.
-  return withLanding(priv ? rows.map((r) => withPrivate(r, priv)) : await e2Throws(() => read(withE2(LEGACY_COLS))));
+  // the lists and the clocks of every page read them through clientState. They are read
+  // with the rows, not in a request of their own after them (section 77); before their
+  // migrations (a column missing), apart from the rows, as before (landingFlags).
+  const [rows, priv] = await Promise.all([landingThrows(() => e2Throws(() => read(withLandingCols(withE2(CLIENT_COLS))))), privateFields()]);
+  const flags = hasLanding ? landingOf(rows) : null;
+  return withLanding(priv ? rows.map((r) => withPrivate(r, priv)) : await e2Throws(() => read(withE2(LEGACY_COLS))), flags);
 }
+// The landing columns of a client row (20261018100000_clients_landing.sql and the slot of
+// 20261020100000_landing_intake.sql), read with the row; what landingFlags() answers.
+const LANDING_COLS = 'landing, landed_at, landed_by, landing_slot';
+let hasLanding = true;
+const withLandingCols = (cols) => (hasLanding ? `${cols}, ${LANDING_COLS}` : cols);
+const noLanding = (err) => ['42703', 'PGRST204'].includes(err?.code) && /landing|landed/.test(String(err?.message || ''));
+async function landingThrows(run) {
+  try { return await run(); } catch (err) { if (!hasLanding || !noLanding(err)) throw err; hasLanding = false; return run(); }
+}
+const landingOf = (rows) => Object.fromEntries(rows.filter((r) => r && (r.landing === true || r.landed_at))
+  .map((r) => [r.id, { id: r.id, landing: r.landing, landed_at: r.landed_at, landed_by: r.landed_by, landing_slot: r.landing_slot }]));
 
 export async function loadClient(id) {
   const [{ data, error }, priv] = await Promise.all([
@@ -127,7 +142,18 @@ export async function loadClient(id) {
 }
 
 // Checks grouped by client: { clientId: { itemKey: check } }.
+// In one answer through public.protocol_checks_compact() (20261117100000_speed_pages.sql;
+// docs/ops.md, section 77), which reads the table as the signed-in person, under the same
+// row level security; the marks of forty clients were seven pages of a thousand rows.
+// Before that migration the function is missing, and the table is read as before.
+let compactReady = true;
 export async function loadChecks(clientId = null) {
+  if (compactReady) {
+    const { data, error, status } = await supabase.rpc('protocol_checks_compact', clientId ? { p_client: clientId } : {});
+    if (!error && Array.isArray(data?.v) && Array.isArray(data?.c)) return expandChecks(data);
+    if (error && !missingFunction(error, status)) throw error;
+    compactReady = false;
+  }
   const rows = await all((counted) => {
     const q = supabase.from('protocol_checks').select(CHECK_COLS, counted).order('client_id').order('item_key');
     return clientId ? q.eq('client_id', clientId) : q;
@@ -281,7 +307,7 @@ export async function signedQuotes() {
 // the page's first loadDirectory() takes that answer, and every later one asks again.
 let warmDir = null;
 async function readDirectory() {
-  const { data, error } = await supabase.from('staff').select('email, person');
+  const { data, error } = await staffList();
   if (error) return {};
   return Object.fromEntries(data.filter((r) => r.person).map((r) => [r.email, r.person]));
 }
@@ -328,6 +354,22 @@ export async function loadQuoteSummary(id) {
   const { data, error } = await supabase.from('quotes').select('id, number, signed_at').eq('id', id).maybeSingle();
   if (error) return null;
   return data;
+}
+
+// Of the history since a moment, only what the office's lists read (app/health.js LOG_NEEDS;
+// docs/ops.md, section 77), in one answer: public.protocol_log_brief() gives the newest row
+// of each client and the rows of the items ending in one of `suffixes`, and from all time
+// those ending in one of `history`, oldest first (app/log-brief.js says it in JS). It reads
+// the table as the signed-in person, under the same row level security. Null before
+// 20261117100000_speed_pages.sql: the caller then reads the history as before.
+let briefReady = true;
+export async function loadLogBrief(sinceIso, { suffixes = [], history = [] } = {}) {
+  if (!briefReady) return null;
+  const { data, error, status } = await supabase.rpc('protocol_log_brief', { p_since: sinceIso, p_suffixes: suffixes, p_history: history });
+  if (!error && Array.isArray(data)) return data;
+  if (error && !missingFunction(error, status)) throw error;
+  briefReady = false;
+  return null;
 }
 
 // All checks with their times, for the performance report.

@@ -462,7 +462,8 @@ await step('a sign-in asks for who the person is and for the first rows side by 
   const staff = of(/^rpc\/is_staff/);
   const person = of(/^staff\?select=person/);
   const rows = of(/^clients\?select=id%2Cname/);
-  const checks = of(/^protocol_checks/);
+  // The marks: one answer since 20261117100000_speed_pages.sql (docs/ops.md, section 77), the table's pages before it.
+  const checks = of(/^(rpc\/protocol_checks_compact|protocol_checks)/);
   for (const c of [staff, person, rows, checks]) {
     assert.ok(c.start >= yes.end - 5, `${c.name} after the server said yes`);
     assert.ok(c.start < staff.end && c.start < person.end, `${c.name} left before "who is this" came back`);

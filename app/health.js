@@ -893,6 +893,17 @@ export function reworkCounts(clients, log, since = null) {
 // Items whose whole history counts: returns to fix and rounds of corrections. A
 // window of the log would take the first event inside it for the original.
 const HISTORY = [...REWORK, 'p07.sent', 'p23.sent', 'p27.notes'];
+// What of the history the office's lists read (docs/ops.md, section 77): besides the newest
+// row of each client (lastActivity), only the items ending in one of these (an item "ends
+// in" s when it is s or ends in "." and s): the sendings of the graphics and the client's
+// notes on the videos (revisionRounds) and the editing stops (closedProcesses, PAUSE).
+// public.protocol_log_brief() answers with that much; app/log-brief.js says it in JS.
+// A new reader of `extras.log` in these lists adds what it reads here.
+export const LOG_NEEDS = ['p07.sent', 'p23.sent', 'p27.notes', 'pause'];
+// Every key historyKeys() can name, as endings (the same rule): its whole history is asked
+// for before the clients are known.
+export const historySuffixes = () => [...new Set([...HISTORY,
+  ...Object.values(RETURNS).flatMap((v) => Array.from({ length: RETURNS_MAX }, (_, i) => `${v}.return.${i + 1}`))])];
 export function historyKeys(clients) {
   const out = new Set();
   for (const c of clients) {

@@ -26,10 +26,11 @@ export async function landingFlags(ids = null) {
 }
 
 // Client rows with their landing columns added (a client not in the answer: never in landing).
-export async function withLanding(rows) {
+// `known`: the answer of landingFlags() for every client, when it was asked for already.
+export async function withLanding(rows, known = null) {
   const list = (Array.isArray(rows) ? rows : [rows]).filter(Boolean);
   if (!list.length) return rows;
-  const flags = await landingFlags(Array.isArray(rows) ? null : list.map((r) => r.id));
+  const flags = known && Array.isArray(rows) ? known : await landingFlags(Array.isArray(rows) ? null : list.map((r) => r.id));
   const add = (r) => r && ({ ...r, landing: flags[r.id]?.landing === true, landed_at: flags[r.id]?.landed_at ?? null, landed_by: flags[r.id]?.landed_by ?? null, landing_slot: flags[r.id]?.landing_slot ?? null });
   return Array.isArray(rows) ? rows.map(add) : add(rows);
 }

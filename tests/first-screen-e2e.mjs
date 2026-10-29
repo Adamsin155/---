@@ -31,7 +31,9 @@ const tableOf = (url) => new URL(url).pathname.replace('/rest/v1/', '').replace(
 // A phone, signed in. `slow`: { table: ms } an answer of that table waits; `count`: false
 // for a database that does not say how many rows a query has. `log`: every request to
 // the database, with when it left and when it was answered (ms since the sign-in tap).
-async function signedIn(role, { db = buildBigWorld(), slow = {}, count = true, init = null } = {}) {
+// `before`: the database before 20261117100000_speed_pages.sql (docs/ops.md, section 77): its
+// two reading functions are missing, and the pages read the tables as they did.
+async function signedIn(role, { db = buildBigWorld(), slow = {}, count = true, init = null, before = false } = {}) {
   const fake = makeFake(db);
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await ctx.clock.install({ time: NOW });
@@ -42,6 +44,11 @@ async function signedIn(role, { db = buildBigWorld(), slow = {}, count = true, i
     const row = { table: tableOf(req.url()), method: req.method(), url: req.url(), start: Date.now() - t0, end: null };
     if (req.method() !== 'OPTIONS') log.push(row);
     if (slow[row.table]) await new Promise((done) => { setTimeout(done, slow[row.table]); });
+    if (before && /^rpc\/protocol_(checks_compact|log_brief)$/.test(row.table)) {
+      await route.fulfill({ status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ code: 'PGRST202', message: 'not found' }) });
+      row.end = Date.now() - t0;
+      return;
+    }
     // Without `Prefer: count=exact` the fake answers as a database that gives no count.
     const plain = count ? route : {
       request: () => ({ url: () => req.url(), method: () => req.method(), postData: () => req.postData(), headers: () => { const h = { ...req.headers() }; delete h.prefer; return h; } }),
@@ -98,8 +105,8 @@ try {
   // Peak number of the pages that were on their way at the same moment.
   const peak = (rows) => Math.max(0, ...rows.map((r) => rows.filter((x) => x.start <= r.start && x.end > r.start).length));
   for (const count of [true, false]) {
-    await step(`A: the marks of every client arrive whole, ${count ? 'their pages asked for together' : 'page after page from a database that gives no count'}`, async () => {
-      const { page, ctx, db, log } = await signedIn('irit', { count, slow: { protocol_checks: 120 } });
+    await step(`A: before the migration of section 77, the marks of every client arrive whole, ${count ? 'their pages asked for together' : 'page after page from a database that gives no count'}`, async () => {
+      const { page, ctx, db, log } = await signedIn('irit', { count, before: true, slow: { protocol_checks: 120 } });
       const total = db.protocol_checks.length;
       assert.ok(total > 3000, `the world is big enough to need several pages (${total} marks)`);
       const pages = log.filter((r) => r.table === 'protocol_checks' && r.method === 'GET' && !/client_id=eq\./.test(r.url) && /offset=/.test(r.url));
@@ -114,12 +121,21 @@ try {
     });
   }
 
+  await step('A: with the migration of section 77, the marks of every client arrive in one answer, whole', async () => {
+    const { page, ctx, db, log } = await signedIn('irit', { slow: { 'rpc/protocol_checks_compact': 120 } });
+    assert.equal(log.filter((r) => r.table === 'protocol_checks' && r.method === 'GET').length, 0, 'the table is not read page by page');
+    assert.equal(log.filter((r) => r.table === 'rpc/protocol_checks_compact').length, 1, 'one answer for the list');
+    const c = lastClient(db);
+    assert.equal(await shownProgress(page, c), progressOf(db, c), 'the client of the last marks shows all of its marks');
+    await ctx.close();
+  });
+
   // ── B ──
   await step('B: the reviews, the summaries, the history, the questions and the cards do not wait for the marks', async () => {
-    const { ctx, log } = await signedIn('irit', { slow: { protocol_checks: 500 } });
-    const firstMarks = log.find((r) => r.table === 'protocol_checks' && /offset=0(&|$)/.test(r.url));
-    for (const table of ['office_reviews', 'client_status_notes', 'protocol_log']) {
-      const r = log.find((x) => x.table === table && x.method === 'GET');
+    const { ctx, log } = await signedIn('irit', { slow: { 'rpc/protocol_checks_compact': 500 } });
+    const firstMarks = log.find((r) => r.table === 'rpc/protocol_checks_compact');
+    for (const table of ['office_reviews', 'client_status_notes', 'rpc/protocol_log_brief']) {
+      const r = log.find((x) => x.table === table);
       assert.ok(r, `${table} is asked for`);
       assert.ok(r.start < firstMarks.end, `${table} is asked for while the marks are on their way (${r.start} ms; the marks answered at ${firstMarks.end})`);
     }

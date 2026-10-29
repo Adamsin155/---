@@ -49,7 +49,8 @@ test('only the listed reads are kept; the vault, money, links to clients and eve
   }
   // Nothing in the list of kept names looks like any of those.
   for (const name of [...KEPT_TABLES, ...KEPT_RPCS]) assert.doesNotMatch(name, /access|vault|payout|quote(?!_facts)|deal|token|link|secret|backup|crm/, name);
-  assert.ok(KEPT_TABLES.size <= 25 && KEPT_RPCS.size <= 8, 'the list stays short enough to read');
+  // (10: the marks and the history in one answer each, docs/ops.md section 77, are kept as their tables were.)
+  assert.ok(KEPT_TABLES.size <= 25 && KEPT_RPCS.size <= 10, 'the list stays short enough to read');
   // A write is never kept, to any table, listed or not; nor is anything a function may change.
   for (const method of ['POST', 'PATCH', 'PUT', 'DELETE']) {
     assert.equal(plan('clients?id=eq.1', method, '{}').kind, 'write', method);

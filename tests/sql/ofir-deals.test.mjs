@@ -85,7 +85,7 @@ before(async () => {
 });
 
 test('the file: the newest, none of the refused words, only its one function, runs twice', () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), []);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261117100000_speed_pages.sql']);
   const sql = migrationSql(FILE);
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   const code = sql.replace(/--[^\n]*/g, '');

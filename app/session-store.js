@@ -29,7 +29,7 @@
 //  - a page belongs to the account it was opened as. A request in another account's
 //    name (someone else signed in on this device meanwhile) is not sent: the page is
 //    hidden and loads again.
-import { supabase, SUPABASE_URL, useFetchLayer, requestsIdle, redraws, clearKept } from './supa.js';
+import { supabase, SUPABASE_URL, useFetchLayer, requestsIdle, redraws, clearKept, ACCOUNT_CHOSEN } from './supa.js';
 import { sessionCache, planOf, tokenUser, CACHE_KEY } from './data-cache.js';
 import { quietPage } from './feel.js';
 
@@ -44,6 +44,10 @@ let checking = 0;
 let drawn = false;
 let asks = 0;
 let pageUser = null; // the account this page was opened as: the first request that carried a token
+// The person chose, on this page, to move to the account of a link (app/supa.js mayUseLink): the
+// next account the page asks in is its own from then on (docs/ops.md, section 77).
+let chosen = false;
+try { window.addEventListener(ACCOUNT_CHOSEN, () => { chosen = true; }); } catch { /* not a browser */ }
 // One turn of the event loop after everything that is already queued.
 const nextTurn = () => new Promise((done) => {
   if (typeof MessageChannel !== 'function') { setTimeout(done, 0); return; }
@@ -182,7 +186,7 @@ function layer(input, init, method) {
   if (uid !== pageUser) {
     let form = null;
     try { form = document.getElementById('login-form'); } catch { form = null; }
-    if (form && form.offsetParent !== null) pageUser = uid;
+    if ((form && form.offsetParent !== null) || chosen) { pageUser = uid; chosen = false; }
     else { leavePage(); return () => new Promise(() => {}); }
   }
   if (plan.kind === 'write') {

@@ -10,7 +10,7 @@
 // The database decides who may do what (public.quote_approve / quote_reject, row
 // level security on quotes); the logic is app/approvals-logic.js. The page gives a
 // section and its own toast; the dialogs and the styles come from here.
-import { supabase, quoteLink, explainError } from './supa.js';
+import { supabase, quoteLink, explainError, staffList } from './supa.js';
 import { h, renderQuoteDoc, whatsappLink, formatDate } from './quote-doc.js';
 import { formatILS } from './pricing.js';
 import { PEOPLE } from './protocol.js';
@@ -61,7 +61,7 @@ export async function loadApprovals() {
 }
 async function loadPeople() {
   try {
-    const { data } = await supabase.from('staff').select('email, person');
+    const { data } = await staffList();
     if (Array.isArray(data)) people = Object.fromEntries(data.map((s) => [String(s.email || '').toLowerCase(), s.person || null]));
   } catch { /* names fall back to the email */ }
 }
@@ -250,16 +250,21 @@ export async function mountApprovals(el, who, { mail = '', toast = () => {}, cha
   el.classList.add('approvals-card');
   el.setAttribute('aria-labelledby', 'approvals-h');
   active = true;
+  // The list and the names are asked for together, not one after the other (docs/ops.md,
+  // section 77); the list is drawn once both are in.
+  const asked = loadApprovals();
+  asked.catch(() => {});
   await loadPeople();
-  await refreshApprovals();
+  await refreshApprovals(asked);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshApprovals(); });
   setInterval(() => { if (!document.hidden && rejecting === null) refreshApprovals(); }, 60e3);
 }
 
-export async function refreshApprovals() {
+// `asked`: the list already asked for (the first draw); otherwise it is asked for now.
+export async function refreshApprovals(asked = null) {
   if (!box || !active) return;
   try {
-    const rows = await loadApprovals();
+    const rows = await (asked instanceof Promise ? asked : loadApprovals());
     quotes = rows || [];
   } catch {
     return; // keep the last list
