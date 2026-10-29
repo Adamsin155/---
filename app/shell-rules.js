@@ -60,11 +60,13 @@ export function officeScreens(viewer) {
 }
 
 export const QUOTE_LABEL = 'הצעה חדשה והכנת חוזה';
+const ASK_ITEM = { id: 'ask', href: 'ask.html', label: 'שאלו את המערכת', short: 'שאלו' };
 // Every screen this person may open, in the menu's order. The owners, Irit, Ofir and
 // Lior see this list in two parts, one profile at a time: profileMenu below.
 export function menuOf(viewer) {
   const me = viewer?.me || null;
-  if (known(viewer) && isSales(me)) return [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }];
+  // The field sales: their deals, and "שאלו את המערכת" (everyone on the staff since 29.10.2026).
+  if (known(viewer) && isSales(me)) return [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }, ASK_ITEM];
   const list = [{ id: 'mine', href: MODES.mine.href, label: MODES.mine.label }];
   if (!known(viewer)) return list; // not identified: nothing is assumed
   const office = officeOf(viewer);
@@ -94,9 +96,10 @@ export function menuOf(viewer) {
   // The list of sent quotes: the owners and Irit (6.10.2026), and Ofir with its amounts
   // (29.10.2026; the database answers nobody else).
   if (canSeeQuoteList(viewer)) list.push({ id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
-  // "שאלו את המערכת" (29.10.2026): the owners, Lior and Ofir (the ask function decides). In the
-  // manager profile, so that nobody's personal menu and phone bar change.
-  if (canAsk(viewer)) list.push({ id: 'ask', href: 'ask.html', label: 'שאלו את המערכת', short: 'שאלו' });
+  // "שאלו את המערכת" (29.10.2026): everyone on the staff (the ask function decides). In the
+  // manager profile for whoever has one, and at the end of everyone else's menu; on a phone it
+  // never takes a place in the bottom bar (barOf), so that nobody's bar changes.
+  if (canAsk(viewer)) list.push(ASK_ITEM);
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
   // The payments app (payouts/, another app with its own gate, public.payout_owners): the owners.
   if (isOwnerView(viewer)) list.push({ id: 'payouts', href: 'payouts/', label: 'אסטרטג פיימנט' });
@@ -234,7 +237,15 @@ const homeOf = (viewer) => {
 // The phone's bottom bar: the three most important screens of this role and "עוד"
 // for the rest; four screens or fewer all fit, and one screen needs no bar at all.
 // Returns { bar: [items], more: [items] }, each in the menu's order.
+// "שאלו את המערכת" is never one of the three: it stands under "עוד" (a bar of four or fewer
+// screens stays as it was, with "עוד" holding the bot alone). Only a menu of one screen and the
+// bot (the field sales) shows both in the bar.
 export function barOf(items, viewer) {
+  const rest = items.filter((it) => it.id !== 'ask');
+  if (rest.length < items.length && rest.length >= 2) {
+    const { bar, more } = barOf(rest, viewer);
+    return { bar, more: [...more, ...items.filter((it) => it.id === 'ask')] };
+  }
   if (items.length < 2) return { bar: [], more: [] };
   if (items.length <= 4) return { bar: items, more: [] };
   const first = ['mine', 'manager', 'overview', homeOf(viewer), 'clients', BAR_NEXT[viewer?.me]].filter(Boolean);
