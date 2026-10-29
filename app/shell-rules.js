@@ -90,7 +90,8 @@ export function menuOf(viewer) {
   // the name in the phone's bottom bar, where the full one does not fit a quarter of 360px.
   // Only for whoever builds a contract (canBuildQuote, 8.10.2026): the owners, Irit, Lior, and Ofir since 28.10.2026.
   if (canBuildQuote(viewer)) list.push({ id: 'quote', href: 'index.html', label: QUOTE_LABEL, short: 'הצעה וחוזה' });
-  // The list of sent quotes: the owners and Irit (6.10.2026; the database answers nobody else).
+  // The list of sent quotes: the owners and Irit (6.10.2026), and Ofir with its amounts
+  // (29.10.2026; the database answers nobody else).
   if (canSeeQuoteList(viewer)) list.push({ id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
   // The payments app (payouts/, another app with its own gate, public.payout_owners): the owners.
