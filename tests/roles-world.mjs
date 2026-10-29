@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { importKeys } from '../app/client-open.js';
 import { withClientColumns } from './fake-clients.mjs';
+import { compactChecks, briefOfLog } from '../app/log-brief.js';
 
 export const NOW = new Date('2026-10-20T10:00:00+03:00'); // Tuesday
 export const SUPA = 'https://czncjzziqrqtezpwxxpz.supabase.co';
@@ -242,6 +243,17 @@ export function makeFake(db, { now = () => NOW.toISOString() } = {}) {
       if (req.method() === 'POST') return json(200, { signedURL: `${p.replace('/storage/v1', '')}?token=t` });
       const hue = (Number(/pic-(\d+)/.exec(p)?.[1] || 0) * 47) % 360;
       return route.fulfill({ status: 200, contentType: 'image/svg+xml', headers: CORS, body: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320"><rect width="320" height="320" fill="hsl(${hue} 70% 45%)"/></svg>` });
+    }
+    // The marks and the history in one answer each (20261117100000_speed_pages.sql): the rows
+    // the table reads below give the same person, packed as the database packs them.
+    const readable = (t) => (personOf(me) === 'stav' ? [] : db[t] || []);
+    if (p === '/rest/v1/rpc/protocol_checks_compact') {
+      if (!me) return json(401, { message: 'permission denied' });
+      return json(200, compactChecks(readable('protocol_checks').filter((r) => !body?.p_client || r.client_id === body.p_client)));
+    }
+    if (p === '/rest/v1/rpc/protocol_log_brief') {
+      if (!me) return json(401, { message: 'permission denied' });
+      return json(200, briefOfLog(readable('protocol_log'), { since: body.p_since, suffixes: body.p_suffixes || [], history: body.p_history || [] }));
     }
     if (p.startsWith('/rest/v1/rpc/') || p.startsWith('/functions/v1/')) return json(404, { code: 'PGRST202', message: 'not found' });
     if (p.startsWith('/storage/v1/')) return json(404, { message: 'not found' });

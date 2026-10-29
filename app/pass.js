@@ -19,13 +19,13 @@
 import { PEOPLE, STAFF_PEOPLE, STATUS_FIELDS, BRIEF_REQUIRED, PASS_OWNER } from './protocol.js';
 import { clientState, weekKey, parseDate, CLAIM, addBusinessDays, clientLabel } from './protocol-logic.js';
 import {
-  loadClients, loadChecks, loadTasks, setCheck, addTask, loadDirectory, loadAllLog, loadStatusNotes, saveStatusNote, loadReviews, markReview,
+  loadClients, loadChecks, loadTasks, setCheck, addTask, loadDirectory, loadAllLog, loadLogBrief, loadStatusNotes, saveStatusNote, loadReviews, markReview,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, formatDay, mountSession, directory, viewerOf, who, progressBar, taskBadge, capList
 } from './protocol-ui.js';
 import { loadMessagesSince, loadAccessStatus, loadDateChanges } from './owner-data.js';
-import { clientHealth, station, procName } from './health.js';
+import { clientHealth, station, procName, LOG_NEEDS } from './health.js';
 import { healthBadge } from './health-ui.js';
 import {
   passRows, passProgress, passDue, previousPass, snapshotOf, stuckOf, dataHealth, summaryDraft, thursdayTarget,
@@ -78,19 +78,25 @@ function load() {
 async function doLoad() {
   if (!clients.length) $('state').textContent = 'טוען…';
   const now = new Date();
+  // The extras do not wait for the clients: they are asked for together with them, not in
+  // a round of their own after they arrive (docs/ops.md, section 77). Of the history, only
+  // what the colours read (app/health.js LOG_NEEDS), in one answer; before the migration of
+  // that answer, the whole three weeks as before.
+  const since21 = new Date(now.getTime() - 21 * 864e5).toISOString();
+  const since30 = new Date(now.getTime() - 30 * 864e5).toISOString();
+  const extrasAsked = Promise.allSettled([
+    loadLogBrief(since21, { suffixes: LOG_NEEDS }).then((brief) => brief ?? loadAllLog(since21)), loadMessagesSince(since30), loadAccessStatus(),
+    loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }), loadDateChanges({ sinceIso: since30 }),
+    loadReviews(dayKeyIL(new Date(now.getTime() - 14 * 864e5))), loadPasses(dayKeyIL(new Date(now.getTime() - 30 * 864e5))),
+    loadTasksBy(myEmail, new Date(now.getTime() - 14 * 864e5).toISOString()), loadChangeRequests(),
+  ]);
   try {
     [clients, checks, tasks] = await Promise.all([loadClients(), loadChecks(), loadTasks({ openOnly: true })]);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
   }
-  const since30 = new Date(now.getTime() - 30 * 864e5).toISOString();
-  const got = await Promise.allSettled([
-    loadAllLog(new Date(now.getTime() - 21 * 864e5).toISOString()), loadMessagesSince(since30), loadAccessStatus(),
-    loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }), loadDateChanges({ sinceIso: since30 }),
-    loadReviews(dayKeyIL(new Date(now.getTime() - 14 * 864e5))), loadPasses(dayKeyIL(new Date(now.getTime() - 30 * 864e5))),
-    loadTasksBy(myEmail, new Date(now.getTime() - 14 * 864e5).toISOString()), loadChangeRequests(),
-  ]);
+  const got = await extrasAsked;
   const ok = (i) => (got[i].status === 'fulfilled' ? got[i].value : null);
   extras = { log: ok(0), messages: ok(1), access: ok(2), statusNotes: ok(3), dateChanges: ok(4), reviews: ok(5) || [] };
   passes = ok(6);

@@ -36,6 +36,8 @@ export const KEPT_TABLES = new Set([
 ]);
 export const KEPT_RPCS = new Set([
   'is_staff', 'clients_private', 'clients_contact', 'whatsapp_my_consent', 'calendar_feed_status', 'quote_facts', 'ofir_meetings', 'can_write_scripts',
+  // The marks and the history in one answer each (20261117100000_speed_pages.sql), as the tables were.
+  'protocol_checks_compact', 'protocol_log_brief',
 ]);
 // Functions that only read but are never kept (the vault's, the money's, the settings').
 // Listed so that calling one is not taken for a write; any function on neither list is.

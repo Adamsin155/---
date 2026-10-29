@@ -18,7 +18,7 @@ import { glide } from './shell.js'; // a filter chosen: the rows that stay glide
 import { renderNowBar, updateNowBar, clockRows, ranOutText } from './now-bar.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, setTaskDone, createClient,
-  signedQuotes, loadDirectory, loadReviews, markReview, loadAllLog, addTask,
+  signedQuotes, loadDirectory, loadReviews, markReview, loadAllLog, loadLogBrief, addTask,
   loadStatusNotes, saveStatusNote, setTaskStarted, updateClient,
 } from './protocol-data.js';
 import {
@@ -283,10 +283,13 @@ async function loadRows() {
   // the history are extras: the page works without them. They serve the office screens
   // only, so an 'own' view does not load them (it reads Ofir's meetings instead).
   const none = Promise.reject(null); // eslint-disable-line prefer-promise-reject-errors
+  const since21 = new Date(now.getTime() - 21 * 864e5).toISOString();
   const early = Promise.allSettled([
     office ? loadReviews(dayIso(lastBusinessDays(7, now).at(-1))) : none,
     office ? loadStatusNotes({ sinceWeek: weekKey(new Date(now.getTime() - 7 * 864e5)) }) : none,
-    office ? loadAllLog(new Date(now.getTime() - 21 * 864e5).toISOString()) : none,
+    // Of the history, the newest row of each client is what the list reads (`lastLog`): in one
+    // answer (docs/ops.md, section 77); before its migration, the three weeks as before.
+    office ? loadLogBrief(since21).then((brief) => brief ?? loadAllLog(since21)) : none,
     // The deals answer only Irit and the owners (the database decides; canSeeDeals mirrors it).
     office ? (canSeeDeals(viewer) ? loadDeals() : null) : none,
     office ? none : loadOfirMeetings(new Date(now.getTime() - 864e5).toISOString()).catch(() => null),
