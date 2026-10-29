@@ -154,6 +154,7 @@ export function makeDrive(sa, { fetch = globalThis.fetch, now = () => Date.now()
           out.push(item);
           if (item.mimeType === FOLDER_MIME && dir.depth + 1 <= MAX_DEPTH) queue.push({ id: f.id, path: dir.path ? `${dir.path}/${item.name}` : item.name, depth: dir.depth + 1 });
         }
+        if (out.length >= MAX_FILES && body?.nextPageToken) truncated = true;
         pageToken = out.length >= MAX_FILES ? null : body?.nextPageToken || null;
       } while (pageToken);
       first = false;
