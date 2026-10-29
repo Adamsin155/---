@@ -9,7 +9,7 @@ import { applicableProcesses, clientState, packageDeliverables } from '../app/pr
 import { importKeys } from '../app/client-open.js';
 import { clientHealth, station } from '../app/health.js';
 import {
-  isManager, canArchive, seesFinance, canSeeTable, canSeeQuoteList, canSeeDeals, hasProfiles, managerHome, modeOf, setMode, resetMode, defaultMode, MODES,
+  isManager, canArchive, seesFinance, seesQuoteMoney, canSeeTable, canSeeQuoteList, canSeeDeals, hasProfiles, managerHome, modeOf, setMode, resetMode, defaultMode, MODES,
 } from '../app/manager-rules.js';
 import { profileOf, profileMenu, profileSwitch, managerTabs, PERSONAL } from '../app/shell-rules.js';
 import { firstScreenOf } from '../app/office-ui.js';
@@ -27,9 +27,12 @@ test('the managers: the owner, Irit and Ofir; the prices for the owners only (6.
   const who = [OWNER, v('irit'), v('ofir'), v('lior'), v('ilai', 'own'), v('nadia', 'own'), v('eli', 'own')];
   assert.deepEqual(who.map(isManager), [true, true, true, false, false, false, false]);
   assert.deepEqual(who.map(seesFinance), [true, false, false, false, false, false, false]);
-  // The list of sent quotes and the sellers' deals: the owners and Irit, who builds the contracts.
-  assert.deepEqual(who.map(canSeeQuoteList), [true, true, false, false, false, false, false]);
+  // The list of sent quotes: the owners, Irit, who builds the contracts, and Ofir (29.10.2026);
+  // its amounts and the month's sums: the owners and Ofir. The sellers' deals: the owners and Irit.
+  assert.deepEqual(who.map(canSeeQuoteList), [true, true, true, false, false, false, false]);
+  assert.deepEqual(who.map(seesQuoteMoney), [true, false, true, false, false, false, false]);
   assert.deepEqual(who.map(canSeeDeals), [true, true, false, false, false, false, false]);
+  assert.equal(seesQuoteMoney(v('ofir', 'office', new Error('x'))), false);
   assert.equal(seesFinance(v(null, 'office', new Error('x'))), false);
   assert.equal(canSeeQuoteList(v('irit', 'office', new Error('x'))), false);
   assert.deepEqual(who.map(canArchive), [true, false, true, false, false, false, false]);
