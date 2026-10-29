@@ -22,6 +22,8 @@ import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import { withClientColumns } from './fake-clients.mjs';
 import { mayAsk, cleanQuestion } from '../app/ask-logic.js';
 import { guideFor } from '../app/ask-guide.js';
+import { contractSummary } from '../app/contract-summary.js';
+import { clientState } from '../app/protocol-logic.js';
 import { scopeOf } from '../app/protocol.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8393/';
@@ -106,6 +108,14 @@ async function askFn(body, me, json) {
     calls.push({ guide: { person, mine: g.mine.map((s) => s.id), manager: g.manager.map((s) => s.id) } });
     if (!hit) return json(200, { answer: 'זה לא במסכים שלך. המשרד יעזור.', model: 'claude-sonnet-5-5', tools: ['app_guide'] });
     return json(200, { answer: `${hit.path}\n${hit.link}`, model: 'claude-sonnet-5-5', tools: ['app_guide'] });
+  }
+  // "לכל לקוח כמה תכנים הוא לא קיבל": what the model does with content_owed (one call for every
+  // client, the card's own numbers): the totals and the top clients, one short line each.
+  if (/לא קיבל/.test(q.text)) {
+    const sum = contractSummary(CLIENT, clientState(CLIENT, {}, NOW), {}, { now: NOW });
+    const line = sum.items.filter((x) => x.left).map((x) => `${x.left} ${x.short}`).join(', ');
+    calls.push({ owed: sum.items.length });
+    return json(200, { answer: `לקוח אחד מחכה לתכנים:\n• מספרת רון: ${line}\nבסך הכול: ${line}.`, model: 'claude-sonnet-5-5', tools: ['content_owed'] });
   }
   if (/דרייב/.test(q.text)) return json(200, { answer: 'בתיקייה של מספרת רון יש 3 סרטונים ו־2 גרפיקות. האחרון: 19-11 טיזר.mov\nhttps://drive.google.com/file/d/f4/view', model: 'claude-sonnet-5-5', tools: ['drive_files'] });
   return json(200, { answer: 'יש 12 לקוחות פעילים: 10 פעילים ו־2 מסיימים התקשרות.', model: 'claude-sonnet-5-5', tools: ['find_clients'] });
@@ -407,6 +417,21 @@ try {
     const wide = await opensAsk(safari, 'owner', { viewport: { width: 1280, height: 900 } });
     await converse(wide.page, 'webkit-1280');
     await wide.ctx.close();
+  });
+
+  await step('"לכל לקוח כמה תכנים הוא לא קיבל?": one answer for every client (Chromium 390, iPhone 13)', async () => {
+    for (const [browser, opts, tag] of [[chrome, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, 'chromium-390'], [safari, { ...devices['iPhone 13'] }, 'webkit-iphone13']]) {
+      const { page, ctx } = await opensAsk(browser, 'owner', opts);
+      await page.locator('#ak-q').click();
+      await page.keyboard.type('לכל לקוח כמה תכנים הוא לא קיבל?', { delay: 12 });
+      await page.keyboard.press('Enter');
+      await page.locator('.ak-a-bubble:not(.is-wait)').first().waitFor();
+      const answer = await page.locator('.ak-a-bubble').first().innerText();
+      assert.match(answer, /מספרת רון: 36 סרטונים, 36 גרפיקות, 1 ימי צילום/, tag);
+      assert.ok(await noSideScroll(page), `${tag}: sideways scroll`);
+      await shot(page, `${tag}-owed`);
+      await ctx.close();
+    }
   });
 
   await step('the AI not configured: said in plain words, in the conversation', async () => {
