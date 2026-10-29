@@ -353,7 +353,7 @@ async function editorsProgress(ctx, i) {
         current_clients: mine.length,
         clients: mine.slice(0, 30).map(label),
         edited_per_shoot: prog.filter((p) => p.editor === e && names[p.client_id]).slice(0, 30).map((p) => ({ client: names[p.client_id], round: p.round, edited: p.edited })),
-        edited_this_month_total: pm.reduce((t, p) => t + (p.edited || 0), 0),
+        edited_this_month_sum: pm.reduce((t, p) => t + (p.edited || 0), 0),
         edited_this_month: pm.slice(0, 30).map((p) => ({ client: names[p.client_id] || null, edited: p.edited })),
       };
     }),

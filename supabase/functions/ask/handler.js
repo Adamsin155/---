@@ -19,30 +19,8 @@ import { mayAsk, cleanQuestion, cleanHistory } from '../_shared/app/ask-logic.js
 import { serviceAccountOf, makeDrive } from '../_shared/drive.js';
 import { TOOLS, runTool, guardDb } from './tools.js';
 import { dayKeyIL, partsIL } from '../_shared/app/tz.js';
+import { corsHeaders } from '../_shared/cors.js';
 
-// The office's own sites (and a local server), as contract-ai and create-quote (the unit tests
-// hold the lists equal).
-export const SITE_ORIGINS = ['https://adamsin155.github.io', 'https://app.astrateg.tech'];
-export function allowedOrigin(origin) {
-  if (!origin) return null;
-  if (SITE_ORIGINS.includes(origin)) return origin;
-  try {
-    const u = new URL(origin);
-    if (u.protocol === 'http:' && u.hostname === 'localhost' && u.origin === origin) return origin;
-  } catch { /* not a URL */ }
-  return null;
-}
-export function corsHeaders(origin) {
-  const headers = {
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Max-Age': '600',
-    Vary: 'Origin',
-  };
-  const ok = allowedOrigin(origin);
-  if (ok) headers['Access-Control-Allow-Origin'] = ok;
-  return headers;
-}
 // A failed call to Claude, by the SDK's own error classes (as contract-ai).
 export function failureOf(err, Errors = {}) {
   const is = (name) => typeof Errors[name] === 'function' && err instanceof Errors[name];

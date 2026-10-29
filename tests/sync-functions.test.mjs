@@ -16,9 +16,9 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'files-logic.js', 'gcal-logic.js', 'handoffs.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
+    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'ask-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'fast-ladder.js', 'files-logic.js', 'gcal-logic.js', 'handoffs.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
-    'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
+    'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'team-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
 });
 
@@ -92,6 +92,23 @@ test('the calendar function imports only its own reader of Google calendars and 
 // What each function deploys (supabase functions deploy <name> uploads these; docs/ops.md).
 const APP = (...xs) => xs.map((x) => `_shared/app/${x}`);
 const DEPLOY = {
+  // "שאלו את המערכת" (docs/ops.md, section 74): who asks, the protocol's names, a monthly client's
+  // videos; the Drive listing and the sites it answers, hand-written in _shared/.
+  ask: [
+    ...APP('access-logic.js', 'access-nudge.js', 'ask-logic.js', 'catalog.js', 'characterization.js', 'edit-count.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'team-rules.js', 'tz.js'),
+    '_shared/cors.js',
+    '_shared/drive.js',
+    'ask/handler.js',
+    'ask/index.ts',
+    'ask/tools.js',
+  ],
+  // "משיכת קישורים מהדרייב" in the Gantt: the client's Drive folder, names and links only.
+  drive: [
+    '_shared/cors.js',
+    '_shared/drive.js',
+    'drive/handler.js',
+    'drive/index.ts',
+  ],
   calendar: [
     ...APP('calendar-feed.js', 'catalog.js', 'gcal-logic.js', 'holidays.js', 'ics.js', 'metricool-logic.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'tz.js'),
     'calendar/google.js',
@@ -159,7 +176,7 @@ test('every function, and every file it deploys (the shared copies it reaches ar
   for (const rel of reached) assert.ok(modules().includes(rel), rel);
   for (const rel of modules()) assert.ok(reached.has(rel), `${rel} is copied but no function reaches it`);
   // The hand-written shared files are not in the generated folder.
-  for (const f of ['_shared/wa-graph.js', '_shared/wa-jako.js', '_shared/wa-jako-reply.js']) assert.ok(!readFileSync(join(FUNCTIONS, f), 'utf8').startsWith(MARK), f);
+  for (const f of ['_shared/wa-graph.js', '_shared/wa-jako.js', '_shared/wa-jako-reply.js', '_shared/drive.js', '_shared/cors.js']) assert.ok(!readFileSync(join(FUNCTIONS, f), 'utf8').startsWith(MARK), f);
 });
 
 test('verify_jwt: off for the functions that check their caller themselves', () => {
