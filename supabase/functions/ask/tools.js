@@ -13,10 +13,16 @@
 //      The sales tool asks for money columns only then, and `withoutMoney` takes every money
 //      field out of anything a tool returns to anyone else, as a last net.
 // Every list is capped (ROW_CAP rows, and OUTPUT_MAX characters for a whole tool answer).
+//
+// And one tool that reads nothing: app_guide, the asker's own screens and how-tos ("איפה…",
+// "איך…"; app/ask-guide.js), from the menu rules for the person the function identified.
 import { PEOPLE, SHOOT_TYPES, CLIENT_STATUS, PROCESSES, editorsOf } from '../_shared/app/protocol.js';
 import { monthTarget, monthKey, isMonthKey, monthLabel } from '../_shared/app/edit-count.js';
 import { dayKeyIL, partsIL } from '../_shared/app/tz.js';
 import { folderIdOf, summarize } from '../_shared/drive.js';
+import { guideFor, clientLink, ganttLink } from '../_shared/app/ask-guide.js';
+import { contractSummary, fileCounts } from '../_shared/app/contract-summary.js';
+import { clientState } from '../_shared/app/protocol-logic.js';
 
 export const ROW_CAP = 50;
 export const OUTPUT_MAX = 14000;
@@ -25,7 +31,7 @@ const LOAD_MAX = 1000;
 // The only tables a tool may read.
 export const TABLES = [
   'clients', 'client_tasks', 'staff_tasks', 'protocol_checks', 'editor_progress', 'editor_progress_month',
-  'client_gantt', 'deal_requests', 'quotes',
+  'client_gantt', 'deal_requests', 'quotes', 'client_files',
 ];
 // Never, whatever is added to TABLES one day (tests/ask.test.mjs holds the two apart).
 export const NEVER = /access|vault|secret|password|token|link|consent|push|whatsapp|staff$|payout|log$/;
@@ -169,6 +175,26 @@ export const TOOLS = [
     input_schema: { type: 'object', properties: { client: str('The client\'s name.'), since: str('Optional YYYY-MM-DD: only files added from then.') }, required: ['client'], additionalProperties: false },
   },
   {
+    name: 'content_owed',
+    description: 'For EVERY client the person sees, in one call: what the agreement grants (videos, graphics, shoot days, collabs, stories, ch14, monthly photographer) against what was done so far, the same numbers as the client card\'s "סיכום החוזה", and for a monthly client this month\'s videos against what was edited. Sorted by most owed, with totals. Use for any list over many clients: "לכל לקוח כמה תכנים הוא לא קיבל", "מי מחכה להכי הרבה סרטונים", "כמה גרפיקות חייבים בסך הכול".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: STATUS_CHOICES, description: 'current = active or ending (default).' },
+        editor: str('Only one editor\'s clients.'),
+        shoot_type: str('Shoot type key or name.'),
+        only_owing: { type: 'boolean', description: 'Default true: only clients still owed something.' },
+        limit: { type: 'integer', description: 'How many clients to list (default 15, at most 50); the totals always cover all.' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'app_guide',
+    description: 'How to use the app, for the person asking only: the screens of their menu ("mine": "המשימות שלי" and the rest of their personal menu; "manager": the screens behind the "מבט מנהל" button, only for whoever has it), each with its link and what is there, and common how-tos with the clicks ("path"). Use for every "איפה…", "איך…", "מה יש ב…", "איפה רואים…" question about the app. A screen that is not in this answer does not exist for this person.',
+    input_schema: { type: 'object', properties: { topic: str('The subject in the person\'s words, e.g. "לקוח חדש", "קישור לדרייב", "הצעות שנשלחו".') }, additionalProperties: false },
+  },
+  {
     name: 'team',
     description: 'The team: names and roles.',
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
@@ -178,12 +204,13 @@ export const TOOLS = [
 const todayKey = (ctx) => dayKeyIL(ctx.now());
 const okDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s ?? '')) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
 
-async function findClients(ctx, i) {
-  const list = await clientsOf(ctx);
+// The filters of find_clients and content_owed: status (default current), name, package, editor,
+// shoot type, monthly.
+function filterClients(list, i, ctx) {
   const status = STATUS_CHOICES.includes(i.status) ? i.status : 'current';
   const ed = i.editor ? personKey(i.editor) : null;
   const st = plain(i.shoot_type);
-  const out = list.filter((c) => {
+  return list.filter((c) => {
     if (status === 'current' && !isCurrent(c)) return false;
     if (status === 'archived' && !c.archived_at) return false;
     if (!['current', 'archived', 'all'].includes(status) && (c.status !== status || c.archived_at)) return false;
@@ -194,12 +221,19 @@ async function findClients(ctx, i) {
     if (i.monthly && !monthTarget(c, ctx.now())) return false;
     return true;
   });
+}
+
+async function findClients(ctx, i) {
+  const out = filterClients(await clientsOf(ctx), i, ctx);
   const { rows: shown, more } = cap(out);
+  // A search for a client by name gives the way to its pages in the app, too.
+  const links = !!i.name && out.length <= 10;
   return {
     count: out.length,
     clients: shown.map((c) => ({
       name: label(c), status: CLIENT_STATUS[c.status] || c.status, archived: !!c.archived_at || undefined, package: c.package_name || null,
       editors: editorsOf(c).map(personName), shoot_type: SHOOT_TYPES[c.shoot_type]?.name || null,
+      ...(links ? { app_links: { card: clientLink(c.id), gantt: ganttLink(c.id) } } : {}),
     })),
     more,
   };
@@ -252,6 +286,8 @@ async function clientDetails(ctx, i) {
     gantt_this_month: { items: inMonth.length, by_state: countBy(inMonth, 'state'), by_kind: countBy(inMonth, 'kind') },
     links: Object.fromEntries(Object.entries(c.links || {}).filter(([, v]) => typeof v === 'string' && /^https:\/\//.test(v))),
     landing: c.landing ? true : undefined,
+    // The client's own pages in the app (the card, and its content Gantt).
+    app_links: { card: clientLink(c.id), gantt: ganttLink(c.id) },
   };
   // The agreement's price: the owners only (public.sees_money()); nobody else's query asks for it.
   if (ctx.seesMoney && c.quote_id) {
@@ -442,16 +478,89 @@ async function driveFiles(ctx, i) {
   }
 }
 
+// ── What each client is still owed (content_owed) ──
+// For every client this person sees, at once: what the agreement grants against what was done,
+// by the client card's own function (contractSummary in app/contract-summary.js, with clientState
+// of app/protocol-logic.js and the deliverable files, exactly as the card and the manager table
+// call it), and for a monthly client this month's videos against what its editors wrote. Read as
+// the caller (RLS); no money (the summary has none). The card's columns, never phone or notes.
+const OWED_COLS = 'id, name, business, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, editor, editor2, protocol_version, archived_at, landing, landed_at, landing_slot';
+const CHECK_COLS = 'client_id, item_key, state, note, by_email, at';
+const PAGE = 1000;
+const PAGES_MAX = 30;
+// Every row of a read, a page at a time (the marks of the whole office are thousands).
+async function allRows(build) {
+  const out = [];
+  for (let p = 0; p < PAGES_MAX; p += 1) {
+    const got = await rows(build().range(p * PAGE, p * PAGE + PAGE - 1));
+    out.push(...got);
+    if (got.length < PAGE) break;
+  }
+  return out;
+}
+export const OWED_SHOW = 15;
+// One client's line: the card's summary items with something left, and the month of a monthly client.
+export function owedOf(client, checks, files, monthRows, now) {
+  const sum = contractSummary(client, clientState(client, checks, now), checks, { files, now });
+  const items = sum.items.map((x) => ({ what: x.short, done: x.done, in_agreement: x.total, left: x.left }));
+  const target = monthTarget(client, now);
+  let month;
+  if (target !== null) {
+    const eds = editorsOf(client);
+    const edited = monthRows.filter((r) => r.client_id === client.id && eds.includes(r.editor)).reduce((t, r) => t + (r.edited || 0), 0);
+    month = { label: monthLabel(monthKey(now)), videos: target, edited, left: Math.max(0, target - edited) };
+  }
+  return { items, left: items.reduce((t, x) => t + x.left, 0), month };
+}
+async function contentOwed(ctx, i) {
+  const now = ctx.now();
+  const list = filterClients(await rows(ctx.db.from('clients').select(OWED_COLS).order('name').limit(LOAD_MAX)), i, ctx);
+  const ids = new Set(list.map((c) => c.id));
+  const month = monthKey(now);
+  const [checkRows, fileRows, monthRows] = await Promise.all([
+    allRows(() => ctx.db.from('protocol_checks').select(CHECK_COLS).order('client_id')),
+    // As the card: the deliverable files when the table can be read, otherwise none counted.
+    allRows(() => ctx.db.from('client_files').select('client_id, kind, deleted_at').order('client_id')).catch(() => null),
+    rows(ctx.db.from('editor_progress_month').select('client_id, editor, month, edited').eq('month', month).limit(LOAD_MAX)).catch(() => []),
+  ]);
+  const checks = {};
+  for (const r of checkRows) if (ids.has(r.client_id)) (checks[r.client_id] ||= {})[r.item_key] = r;
+  const all = list.map((c) => ({ c, o: owedOf(c, checks[c.id] || {}, fileRows ? fileCounts(fileRows, c.id) : null, monthRows, now) }));
+  const owing = all.filter(({ o }) => o.left > 0 || o.month?.left > 0);
+  const pick = i.only_owing === false ? all : owing;
+  pick.sort((a, b) => (b.o.left + (b.o.month?.left || 0)) - (a.o.left + (a.o.month?.left || 0)) || label(a.c).localeCompare(label(b.c), 'he'));
+  const show = Math.min(ROW_CAP, Math.max(1, Number(i.limit) || OWED_SHOW));
+  const overall = {};
+  for (const { o } of all) for (const x of o.items) overall[x.what] = (overall[x.what] || 0) + x.left;
+  return {
+    clients: all.length,
+    clients_owing: owing.length,
+    left_overall: overall,
+    rows: pick.slice(0, show).map(({ c, o }) => ({
+      name: label(c), status: CLIENT_STATUS[c.status] || c.status,
+      left: Object.fromEntries(o.items.filter((x) => x.left > 0).map((x) => [x.what, x.left])),
+      items: o.items, this_month: o.month,
+    })),
+    more: Math.max(0, pick.length - show),
+    files_counted: !!fileRows,
+  };
+}
+
+// The asker's own screens and how-tos; nothing is read (ctx.viewer: { me, scope }, from the function).
+function appGuide(ctx, i) {
+  return guideFor(ctx.viewer, typeof i.topic === 'string' ? i.topic.slice(0, 200) : '') || { error: 'אין מדריך לחשבון הזה.' };
+}
+
 function team() {
   return { people: Object.values(PEOPLE).filter((p) => p.key !== 'editor').map((p) => ({ name: p.name, role: p.role })) };
 }
 
 const RUN = {
   find_clients: findClients, client_details: clientDetails, tasks: tasksTool, shoot_days: shootDays,
-  editors_progress: editorsProgress, content_gantt: contentGantt, sales, drive_files: driveFiles, team,
+  editors_progress: editorsProgress, content_gantt: contentGantt, sales, drive_files: driveFiles, app_guide: appGuide, content_owed: contentOwed, team,
 };
 
-// One tool call: { content: string, isError }. ctx: { db (guardDb), seesMoney, drive (or null), now() }.
+// One tool call: { content: string, isError }. ctx: { db (guardDb), seesMoney, drive (or null), now(), viewer }.
 export async function runTool(ctx, name, input) {
   const fn = RUN[name];
   if (!fn) return { content: JSON.stringify({ error: 'unknown tool' }), isError: true };

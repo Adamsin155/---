@@ -4,8 +4,11 @@
 //
 //   POST { question, history? }  →  200 { answer, model, tools }
 //
-//   - the owners, Lior and Ofir only (public.is_office() and public.my_person(), mayAsk in
-//     app/ask-logic.js): anyone else 403, whatever their screen shows;
+//   - every staff member (the owners, public.is_office() with no person, and every person from
+//     public.my_person(); mayAsk in app/ask-logic.js; "תוסיף כבר לכולם וזהו", 29.10.2026): anyone
+//     else 403, whatever their screen shows;
+//   - "איפה…" / "איך…" about the app: the tool app_guide answers from the asker's own screens
+//     (app/ask-guide.js), with the viewer the function builds from my_person() (never the page's);
 //   - Claude reads the system only through ./tools.js, as the person who asked (their JWT goes
 //     with every read, so row level security answers what their own screens answer); never the
 //     vault or the clients' logins; money only for the owners (public.sees_money());
@@ -16,6 +19,7 @@
 //     is set; without it the drive tool answers "הדרייב עוד לא מחובר" and everything else works;
 //   - nothing is kept and nothing is logged but a short code (no question, no answer, no rows).
 import { mayAsk, cleanQuestion, cleanHistory } from '../_shared/app/ask-logic.js';
+import { PEOPLE, scopeOf } from '../_shared/app/protocol.js';
 import { serviceAccountOf, makeDrive } from '../_shared/drive.js';
 import { TOOLS, runTool, guardDb } from './tools.js';
 import { dayKeyIL, partsIL } from '../_shared/app/tz.js';
@@ -55,13 +59,17 @@ const WEEKDAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמיש�
 
 // The same on every call (cached with the tools): who the office is and how to answer.
 export const SYSTEM = [
-  'You answer questions from the managers of Astrateg, an Israeli marketing office that makes short videos, graphics and social content for small businesses with influencers (Natali Dadon, Niro, "הצל", Denis-Michel-Semion).',
+  'You answer questions from the staff of Astrateg, an Israeli marketing office that makes short videos, graphics and social content for small businesses with influencers (Natali Dadon, Niro, "הצל", Denis-Michel-Semion).',
   'Answer in Hebrew, short and plain: the number or the fact first, then at most a few short lines or a short list. No tables, no markdown headings. Dates as D.M (e.g. 3.11).',
   'Use the tools to read the system; never guess a number. If the tools do not hold the answer, say so in one line and say what you can tell instead.',
   'The tools read the system with the rights of the person asking: what they cannot see is simply missing. Never mention tools, JSON, tables or databases.',
   'Passwords and the clients\' logins are never available here: if asked, say that passwords are only in the vault in the client\'s card.',
   'When the tools hold no money fields, the person does not see prices or income: if asked about money, say that money is shown to the owners only.',
+  'For a list or a total over many clients of what they are still owed (videos, graphics, shoot days…: "לכל לקוח כמה תכנים הוא לא קיבל"), call content_owed once, never client_details client by client: answer with the totals and the top few owing clients (up to 10, one short line each), then offer the rest.',
   'When several clients match a name, ask which one, listing them. When a Drive file is asked for, give its link.',
+  'The person asking may be an owner, a manager, Ilai (graphics), an editor, the photographer or a field sales agent: answer only from what the tools return for them, never from what others might see.',
+  'Questions on where something is or how to do something in the app ("איפה…", "איך…", "מה יש ב…", "איפה רואים…"): call app_guide and answer from it only, as the way in clicks with " ← " (e.g. "בתפריט ← הצעות שנשלחו") and then the link. Never describe a screen, tab or button that is not in app_guide\'s answer: if it is not there, say in one line that it is not in their screens and that the office can help.',
+  'When the screen is in app_guide\'s "manager" list, say first to switch with the "מבט מנהל" button at the top of the screen. For one client\'s card or Gantt, find the client (find_clients with its name, or client_details) and give its app_links.',
   'Words: "פעיל" = active, "מסיים התקשרות" = ending. "לקוחות פעילים" means current clients (active or ending, not archived) unless asked otherwise. A monthly client gets a fixed number of videos every month; the others get the package\'s videos over the agreement.',
 ].join('\n');
 
@@ -173,16 +181,19 @@ export function makeHandler(deps) {
     if (!allow(user.id, now())) return json(429, { error: 'rate_limited' });
 
     const sa = serviceAccountOf(deps.env('GOOGLE_DRIVE_SERVICE_ACCOUNT'));
+    // Who asks, for the guide: from the database's answer, never from the page.
+    const me = person.data ?? null;
+    const viewer = { me: me && PEOPLE[me] ? me : null, scope: scopeOf(me), error: null };
     const ctx = {
+      viewer,
       db: guardDb(userClient),
       seesMoney,
       drive: sa ? makeDrive(sa, { fetch: deps.fetch || globalThis.fetch }) : null,
       now: () => new Date(now()),
     };
-    const names = { lior: 'ליאור', ofir: 'אופיר' };
     const out = await converse({
       client: deps.makeClient(apiKey), ctx, question, history, Errors: deps.Errors, log,
-      ctxLine: contextLine(new Date(now()), { name: names[person.data] || null, seesMoney }),
+      ctxLine: contextLine(new Date(now()), { name: PEOPLE[me]?.name || null, seesMoney }),
     });
     if (out.error) return json(out.status || 502, { error: out.error });
     return json(200, out);

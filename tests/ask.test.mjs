@@ -1,9 +1,12 @@
-// "שאלו את המערכת" (docs/ops.md, section 74): who may ask, what the tools may read, money for the
+// "שאלו את המערכת" (docs/ops.md, sections 75 and 78): who may ask, what the tools may read, money for the
 // owners only, never the vault, and the function's loop with Claude (a fake model).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { canAsk, mayAsk, cleanQuestion, cleanHistory, QUESTION_MAX, EXAMPLES, slotRange, errorWords, ERRORS } from '../app/ask-logic.js';
+import { scopeOf } from '../app/protocol.js';
+import { contractSummary, fileCounts } from '../app/contract-summary.js';
+import { clientState } from '../app/protocol-logic.js';
 import { TOOLS, TABLES, NEVER, guardDb, runTool, withoutMoney, matchClient, fit, OUTPUT_MAX, DRIVE_OFF } from '../supabase/functions/ask/tools.js';
 import { makeHandler, buildRequest, MODEL, MAX_ROUNDS, SYSTEM, contextLine } from '../supabase/functions/ask/handler.js';
 import { SITE_ORIGINS as ASK_ORIGINS } from '../supabase/functions/_shared/cors.js';
@@ -13,22 +16,22 @@ import { fakeClient } from './fake-pgrest.mjs';
 const NOW = new Date('2026-11-12T08:00:00Z'); // Thursday 12.11.2026, 10:00 in Israel
 
 // ── Who asks ───────────────────────────────────
-test('the owners, Lior and Ofir ask; nobody else (the screen and the server)', () => {
+// Everyone on the staff since 29.10.2026 ("תוסיף כבר לכולם וזהו"): each reads with their own rights.
+test('everyone on the staff asks; nobody who is not staff (the screen and the server)', () => {
+  const STAFF = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'stav', 'amos'];
   assert.equal(canAsk({ me: null, scope: 'office', error: null }), true);
-  for (const me of ['lior', 'ofir']) assert.equal(canAsk({ me, scope: 'office', error: null }), true, me);
-  for (const me of ['irit', 'ilai', 'nadia', 'yariv', 'anna', 'nirel', 'eli', 'stav', 'amos']) {
-    assert.equal(canAsk({ me, scope: me === 'irit' ? 'office' : 'own', error: null }), false, me);
-  }
+  for (const me of STAFF) assert.equal(canAsk({ me, scope: scopeOf(me), error: null }), true, me);
+  assert.equal(canAsk({ me: null, scope: 'own', error: null }), false, 'the generic editor account: no person');
   assert.equal(canAsk({ me: null, scope: 'own', error: 'x' }), false);
   assert.equal(canAsk(null), false);
   assert.equal(mayAsk({ office: true, person: null }), true);
-  assert.equal(mayAsk({ office: true, person: 'lior' }), true);
-  assert.equal(mayAsk({ office: true, person: 'ofir' }), true);
-  assert.equal(mayAsk({ office: true, person: 'irit' }), false);
-  assert.equal(mayAsk({ office: true, person: 'ilai' }), false);
+  for (const person of STAFF) assert.equal(mayAsk({ office: ['irit', 'lior', 'ofir', 'ilai'].includes(person), person }), true, person);
+  assert.equal(mayAsk({ office: false, person: 'editor' }), false, 'the placeholder is nobody');
+  assert.equal(mayAsk({ office: false, person: 'someone' }), false);
   assert.equal(mayAsk({ office: false, person: null }), false, 'not staff: my_person() is null too');
   assert.equal(mayAsk({ office: 'true', person: null }), false);
   assert.equal(mayAsk({}), false);
+  assert.match(ERRORS.not_allowed, /צוות/);
 });
 
 test('the question and the history are cleaned and capped', () => {
@@ -213,8 +216,8 @@ function rig({ person = null, office = true, money = person === null, key = 'sk-
 const toolUse = (name, input, id = 't1') => ({ stop_reason: 'tool_use', content: [{ type: 'thinking', thinking: '', signature: 's' }, { type: 'tool_use', id, name, input }] });
 const final = (text) => ({ stop_reason: 'end_turn', model: MODEL, content: [{ type: 'text', text }] });
 
-test('the function: refuses Irit, Ilai and anyone not of the office, before any model call', async () => {
-  for (const [person, office] of [['irit', true], ['ilai', true], [null, false]]) {
+test('the function: refuses anyone who is not staff, before any model call', async () => {
+  for (const [person, office] of [[null, false], ['editor', false], ['stranger', false]]) {
     const r = rig({ person, office, replies: [final('x')] });
     const res = await r.ask({ question: 'כמה לקוחות?' });
     assert.equal(res.status, 403, String(person));
@@ -282,4 +285,110 @@ test('the same model, sites and request shape as contract-ai', () => {
   assert.ok(req.tools.at(-1).cache_control);
   assert.ok(!('thinking' in req) && !('temperature' in req));
   assert.match(contextLine(NOW, { seesMoney: true }), /יום חמישי 2026-11-12.*הבעלים.*רואה כספים/);
+});
+
+// ── content_owed: every client at once, with the card's own numbers ───
+test('content_owed: what each client is still owed, the same numbers as the card\'s summary, the most owed first', async () => {
+  const C2b = { ...C2, deliverables: { videos: 20, graphics: 10, done: { videos: 5 } } };
+  const C4 = { ...C1, id: '44444444-4444-4444-8444-444444444444', name: 'הכול נמסר', business: null, quote_id: null, rounds: [], deliverables: { videos: 2, done: { videos: 2 } } };
+  const tables = {
+    ...TABLE_ROWS,
+    clients: [C1, C2b, C3, C4],
+    client_files: [
+      { client_id: C1.id, kind: 'deliverable_video', deleted_at: null },
+      { client_id: C1.id, kind: 'deliverable_video', deleted_at: null },
+      { client_id: C1.id, kind: 'deliverable_graphic', deleted_at: '2026-11-01T00:00:00Z' },
+      { client_id: C2.id, kind: 'contract', deleted_at: null },
+    ],
+  };
+  const raw = fakeClient(tables);
+  const ctx = { db: guardDb(raw), seesMoney: false, drive: null, now: () => NOW };
+  const out = await call(ctx, 'content_owed');
+  // The card: contractSummary(client, clientState(client, checks, now), checks, { files, now }).
+  const card = (c) => {
+    const checks = Object.fromEntries(TABLE_ROWS.protocol_checks.filter((k) => k.client_id === c.id).map((k) => [k.item_key, k]));
+    return contractSummary(c, clientState(c, checks, NOW), checks, { files: fileCounts(tables.client_files, c.id), now: NOW });
+  };
+  assert.equal(out.clients, 3, 'the current clients (the ended one is out)');
+  assert.equal(out.clients_owing, 2, 'the one with everything delivered is not owing');
+  assert.deepEqual(out.rows.map((r) => r.name), ['רון כהן (מספרת רון)', 'קפה נדיה']);
+  for (const [row, c] of [[out.rows[0], C1], [out.rows[1], C2b]]) {
+    assert.deepEqual(row.items, card(c).items.map((x) => ({ what: x.short, done: x.done, in_agreement: x.total, left: x.left })), c.name);
+  }
+  assert.equal(out.rows[0].items.find((x) => x.what === 'סרטונים').done, 2, 'two deliverable files, the deleted graphic not counted');
+  assert.deepEqual(out.rows[1].left, { סרטונים: 15, גרפיקות: 10 });
+  // The monthly client: this month's videos against what its editors wrote.
+  assert.deepEqual(out.rows[0].this_month, { label: 'נובמבר 2026', videos: 12, edited: 5, left: 7 });
+  assert.equal(out.left_overall['סרטונים'], card(C1).items.find((x) => x.key === 'videos').left + 15);
+  assert.ok(out.files_counted);
+  // Everyone, a short list, a filter.
+  assert.equal((await call(ctx, 'content_owed', { only_owing: false })).rows.length, 3);
+  const one = await call(ctx, 'content_owed', { limit: 1 });
+  assert.equal(one.rows.length, 1);
+  assert.equal(one.more, 1);
+  assert.deepEqual((await call(ctx, 'content_owed', { editor: 'יריב' })).rows.map((r) => r.name), ['קפה נדיה']);
+  // The same answer for the owners: there is no money in it at all.
+  const owner = await call({ ...ctx, seesMoney: true }, 'content_owed');
+  assert.deepEqual(owner, out);
+  // The card's columns only: never the phone, the notes or the contact.
+  for (const r of raw.reads) assert.ok(!/phone|contact_email|notes|address/.test(r.cols), r.cols);
+  // Without the files table: counted as the card does when it cannot read them.
+  const noFiles = fakeClient((t) => (t === 'client_files' ? null : tables[t]));
+  noFiles.from = ((from) => (t) => { if (t === 'client_files') return { select: () => ({ order: () => ({ range: () => Promise.reject(new Error('42P01')) }) }) }; return from(t); })(noFiles.from);
+  const nf = await call({ ...ctx, db: guardDb(noFiles) }, 'content_owed');
+  assert.equal(nf.files_counted, false);
+  assert.ok(TOOLS.some((t) => t.name === 'content_owed'));
+  assert.match(SYSTEM, /content_owed/);
+});
+
+test('content_owed: the marks of a big office are read page by page', async () => {
+  const many = Array.from({ length: 2500 }, (_, i) => ({ client_id: C2.id, item_key: `x.${i}`, state: 'done', at: '2026-11-01T00:00:00Z', note: null, by_email: null }));
+  const raw = fakeClient({ ...TABLE_ROWS, protocol_checks: many, client_files: [] });
+  await call({ db: guardDb(raw), seesMoney: false, drive: null, now: () => NOW }, 'content_owed');
+  assert.equal(raw.reads.filter((r) => r.table === 'protocol_checks').length, 3);
+});
+
+// ── "איפה…" / "איך…" (docs/ops.md, section 78) ───
+test('the function: a how-to goes to app_guide, with the guide of whoever asked (from the database, not the page)', async () => {
+  const guideOfReply = async (person, office, question) => {
+    const r = rig({ person, office, replies: [toolUse('app_guide', { topic: question }), final('בתפריט ← …')] });
+    const res = await r.ask({ question });
+    assert.equal(res.status, 200, String(person));
+    assert.deepEqual((await res.json()).tools, ['app_guide']);
+    return { guide: JSON.parse(r.sent[1].messages[2].content[0].content), first: r.sent[0].messages[0].content };
+  };
+  // An editor: her own screens, no manager profile, her name in the context line.
+  const nadia = await guideOfReply('nadia', false, 'איפה אני רואה את הלקוחות שלי?');
+  assert.deepEqual(nadia.guide.manager, []);
+  assert.ok(nadia.guide.mine.some((s) => s.label === 'הלקוחות שלי בעריכה'));
+  assert.match(nadia.first, /שואל: נדיה/);
+  assert.match(nadia.first, /לא רואה כספים/);
+  // Ofir: the sent quotes behind "מבט מנהל".
+  const ofir = await guideOfReply('ofir', true, 'איפה רואים את העסקאות של החודש?');
+  assert.ok(ofir.guide.manager.some((s) => s.id === 'quotes'));
+  // The owner: the manager profile, the evening summary.
+  const owner = await guideOfReply(null, true, 'מה יש במבט מנהל?');
+  assert.ok(owner.guide.howto.some((h) => /סיכום היום/.test(h.path)));
+  // A field agent: the deal page and the bot, nothing else.
+  const stav = await guideOfReply('stav', false, 'איך שולחים עסקה?');
+  assert.deepEqual(stav.guide.mine.map((s) => s.id), ['deal', 'ask']);
+  assert.match(stav.first, /שואל: סתיו/);
+});
+
+test('the instructions: app_guide for where/how, the clicks and the link, never a screen the person lacks, "מבט מנהל" first', () => {
+  assert.match(SYSTEM, /app_guide/);
+  assert.match(SYSTEM, /בתפריט ← הצעות שנשלחו/);
+  assert.match(SYSTEM, /Never describe a screen/);
+  assert.match(SYSTEM, /"מבט מנהל" button/);
+  assert.match(SYSTEM, /app_links/);
+  assert.ok(TOOLS.map((t) => t.name).includes('app_guide'));
+});
+
+test('a client\'s own pages: client_details and a search by name give the card and the Gantt', async () => {
+  const { ctx } = ctxFor(false);
+  const d = await call(ctx, 'client_details', { client: 'רון' });
+  assert.deepEqual(d.app_links, { card: `https://app.astrateg.tech/client.html?id=${C1.id}`, gantt: `https://app.astrateg.tech/gantt.html?id=${C1.id}` });
+  const found = await call(ctx, 'find_clients', { name: 'רון' });
+  assert.equal(found.clients[0].app_links.gantt, `https://app.astrateg.tech/gantt.html?id=${C1.id}`);
+  assert.equal((await call(ctx, 'find_clients')).clients[0].app_links, undefined, 'a plain list stays short');
 });

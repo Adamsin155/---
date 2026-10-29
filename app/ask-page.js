@@ -1,12 +1,13 @@
-// "שאלו את המערכת" (ask.html; the owner's request of 29.10.2026; docs/ops.md, section 74): the
-// owners, Lior and Ofir write a question, the ask edge function answers from the system's data.
+// "שאלו את המערכת" (ask.html; the owner's request of 29.10.2026; docs/ops.md, sections 75 and 78):
+// everyone on the staff writes a question, the ask edge function answers from the system's data
+// (as the person who asked) and, for "איפה…" / "איך…", from their own screens (app/ask-guide.js).
 // The page is a box, a few example questions and the conversation of this visit (kept in this tab
 // only, sessionStorage: a refresh keeps it, a new tab starts clean). Who may ask is the function's
 // to decide (mayAsk in app/ask-logic.js); this page only follows. All text goes through text
 // nodes; a link in an answer (a Drive file) is an https link, opened in a new tab.
 import { supabase } from './supa.js';
 import { $, fill, h, mountSession, viewerOf, VIEWER_UNKNOWN } from './protocol-ui.js';
-import { canAsk, cleanQuestion, EXAMPLES, slotRange, errorWords, HISTORY_TURNS } from './ask-logic.js';
+import { canAsk, cleanQuestion, examplesFor, slotRange, errorWords, HISTORY_TURNS } from './ask-logic.js';
 import { homeLink } from './shell-rules.js';
 import { icon } from './kit.js';
 
@@ -21,13 +22,18 @@ const keepTalk = () => { try { sessionStorage.setItem(KEY, JSON.stringify(talk.s
 
 // The answer's text, with its https links as links.
 const URL_RE = /https:\/\/[^\s<>"')]+/g;
+const APP_URL = /^https:\/\/app\.astrateg\.tech\//;
 function richText(text) {
   const out = [];
   let at = 0;
   for (const m of String(text).matchAll(URL_RE)) {
     const url = m[0].replace(/[.,;:!?]+$/, '');
     if (m.index > at) out.push(String(text).slice(at, m.index));
-    out.push(h('a', { href: url, target: '_blank', rel: 'noopener noreferrer', dir: 'ltr' }, /drive\.google\.com/.test(url) ? 'פתיחה בדרייב' : url));
+    // A screen of the app (from a "איפה…" answer): its name, not the address.
+    // It opens here, as the menu does; anything else in a new tab.
+    const app = APP_URL.test(url);
+    const words = /drive\.google\.com/.test(url) ? 'פתיחה בדרייב' : app ? 'פתיחת המסך' : null;
+    out.push(h('a', { href: url, target: app ? null : '_blank', rel: app ? null : 'noopener noreferrer', dir: words ? null : 'ltr' }, words || url));
     at = m.index + url.length;
   }
   if (at < String(text).length) out.push(String(text).slice(at));
@@ -103,8 +109,8 @@ async function ask(text) {
   }
 }
 
-function mountChips() {
-  fill($('ak-chips'), ...EXAMPLES.map((text) => h('button', {
+function mountChips(v) {
+  fill($('ak-chips'), ...examplesFor(v).map((text) => h('button', {
     type: 'button', class: 'ak-chip',
     onclick: () => {
       const box = $('ak-q');
@@ -142,7 +148,7 @@ mountSession(async (staff) => {
     return;
   }
   $('ak-send').prepend(icon('send', { size: 18 }));
-  mountChips();
+  mountChips(v);
   talk = readTalk().filter((t) => t && typeof t.q === 'string' && typeof t.a === 'string');
   render();
   if (talk.length) scrollDown();

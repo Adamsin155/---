@@ -24,7 +24,9 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 //   metricool-logic.js                 metricool (Metricool's planner onto the content Gantt)
 //   contract-ai-logic.js               contract-ai ("הכנת חוזה עם AI": the prompt, the check of the answer)
 //   ask-logic.js, edit-count.js        ask ("שאלו את המערכת": who asks, the words; a monthly client's videos)
-export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'ask-logic.js', 'edit-count.js'];
+//   ask-guide.js                       ask ("איפה…" / "איך…": the asker's own screens, from shell-rules.js)
+//   contract-summary.js                ask (content_owed: what each client is still owed, as the card)
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js'];
 
 // Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
 // the folder has no other, and what each one deploys).

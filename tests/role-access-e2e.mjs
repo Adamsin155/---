@@ -73,12 +73,13 @@ async function step(name, fn) {
 
 // ── 1. The builder: the menus ───────────────
 // "יומן" (calendar.html, 15.10.2026): everyone with client work, not the field sales.
+// "שאלו את המערכת" (29.10.2026): everyone on the staff, at the end.
 const MENU = {
-  ilai: ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן'], // the year and the calendar left his menu (20.10.2026); they open by address
-  ...Object.fromEntries(EDITORS.map((e) => [e, ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה', 'יומן']])),
-  eli: ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'יומן'],
-  stav: ['עסקה חדשה'],
-  amos: ['עסקה חדשה'],
+  ilai: ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'שאלו את המערכת'], // the year and the calendar left his menu (20.10.2026); they open by address
+  ...Object.fromEntries(EDITORS.map((e) => [e, ['המשימות שלי', 'הלקוחות שלי', 'הלקוחות שלי בעריכה', 'יומן', 'שאלו את המערכת']])),
+  eli: ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'יומן', 'שאלו את המערכת'],
+  stav: ['עסקה חדשה', 'שאלו את המערכת'],
+  amos: ['עסקה חדשה', 'שאלו את המערכת'],
 };
 
 await step('the menus of Ilai, Nirel, the editors, Eli and the field sales have no builder, on a wide screen and in the phone\'s bar', async () => {
@@ -91,7 +92,7 @@ await step('the menus of Ilai, Nirel, the editors, Eli and the field sales have 
       assert.equal(await page.locator('#app-side, #side-sheet').locator(`text=${QUOTE}`).count(), 0, what);
       assert.equal(await page.locator('#app-side, #side-sheet').locator('text=הצעה וחוזה').count(), 0, what);
       assert.equal(await page.locator('#app-side a.side-link[href="index.html"], #app-side a.side-link[href="./"]').count(), 0, what);
-      // Four screens or fewer: all in the bar, no "עוד". Ilai has five since the calendar: three and "עוד".
+      // Four screens or fewer: all in the bar, no "עוד". The editors and Eli: their four, and the bot alone under "עוד".
       if (viewport === NARROW) assert.equal(await page.locator('#side-more').count(), MENU[role].length > 4 ? 1 : 0, what);
       await ctx.close();
     }

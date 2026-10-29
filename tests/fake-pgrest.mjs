@@ -1,7 +1,7 @@
 // A tiny in-memory stand-in for supabase-js's query builder (from().select().eq()…), for the
 // unit tests of the edge functions that read as the caller (tests/ask.test.mjs,
 // tests/drive.test.mjs). Only what those functions use: select with named columns, eq, in, is,
-// gte, lte, lt, order, limit, maybeSingle, update. `tables` is { name: rows[] }, or a function
+// gte, lte, lt, order, limit, range, maybeSingle, update. `tables` is { name: rows[] }, or a function
 // (name) => rows[] (the "row level security" of a test). Every read is recorded in `reads`.
 export function fakeClient(tables, { rpc = {}, user = { id: 'u1', email: 'x@astrateg.test' } } = {}) {
   const reads = [];
@@ -11,6 +11,7 @@ export function fakeClient(tables, { rpc = {}, user = { id: 'u1', email: 'x@astr
     let cols = null;
     let order = null;
     let max = Infinity;
+    let skip = 0;
     let single = false;
     const q = {
       select(c) { cols = c; reads.push({ table, cols: c }); return q; },
@@ -22,11 +23,12 @@ export function fakeClient(tables, { rpc = {}, user = { id: 'u1', email: 'x@astr
       lt(k, v) { filters.push((r) => r[k] != null && String(r[k]) < String(v)); return q; },
       order(k, o = {}) { order = [k, o.ascending !== false]; return q; },
       limit(n) { max = n; return q; },
+      range(a, b) { skip = a; max = b - a + 1; return q; },
       maybeSingle() { single = true; return q; },
       then(ok, bad) {
         let out = rowsOf(table).filter((r) => filters.every((f) => f(r)));
         if (order) out = [...out].sort((a, b) => (String(a[order[0]] ?? '') < String(b[order[0]] ?? '') ? -1 : String(a[order[0]] ?? '') > String(b[order[0]] ?? '') ? 1 : 0) * (order[1] ? 1 : -1));
-        out = out.slice(0, max);
+        out = out.slice(skip, skip + max);
         const names = cols ? cols.split(',').map((s) => s.trim()) : null;
         const pick = (r) => (names ? Object.fromEntries(names.map((n) => [n, r[n] ?? null])) : r);
         const data = single ? (out[0] ? pick(out[0]) : null) : out.map(pick);

@@ -2,8 +2,11 @@
 // section 74), against an in-memory fake of Supabase whose ask function answers like the real one
 // (the real app/ask-logic.js decides who asks; the model is faked) and whose drive function lists
 // a fake Drive folder:
-//   - the owner, Lior and Ofir have "שאלו את המערכת" in the menu and the page; Irit, Ilai and an
-//     editor have neither (the page says "אין לך גישה");
+//   - everyone on the staff has "שאלו את המערכת" in the menu and the page (29.10.2026): the owner,
+//     Lior, Ofir, Irit, Ilai, an editor, Eli and a field agent, each with their own example chips;
+//   - "איך…" / "איפה…" (section 78): Irit taps "איך מוסיפים לקוח חדש?", an editor taps "איפה אני
+//     רואה מה באיחור?"; the fake function answers from the real guide of whoever asked
+//     (app/ask-guide.js): the clicks and the link, never a screen they do not have;
 //   - Lior types a question key by key (and deletes a word), sends it: the busy bubble, then the
 //     answer; a chip with "<לקוח>" selects the slot for the name; the AI not configured says so;
 //   - Ilai in a client's Gantt presses "משיכת קישורים מהדרייב": the empty items get their links,
@@ -18,6 +21,10 @@ import { mkdirSync } from 'node:fs';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import { withClientColumns } from './fake-clients.mjs';
 import { mayAsk, cleanQuestion } from '../app/ask-logic.js';
+import { guideFor } from '../app/ask-guide.js';
+import { contractSummary } from '../app/contract-summary.js';
+import { clientState } from '../app/protocol-logic.js';
+import { scopeOf } from '../app/protocol.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8393/';
 const OUT = process.argv[2] || null;
@@ -28,7 +35,7 @@ const NOW = new Date('2026-11-12T08:00:00Z');
 const skew = NOW.getTime() - Date.now();
 const serverNow = () => new Date(Date.now() + skew).toISOString();
 
-const PEOPLE = { owner: null, lior: 'lior', ofir: 'ofir', irit: 'irit', ilai: 'ilai', nadia: 'nadia' };
+const PEOPLE = { owner: null, lior: 'lior', ofir: 'ofir', irit: 'irit', ilai: 'ilai', nadia: 'nadia', eli: 'eli', stav: 'stav' };
 const OFFICE = new Set(['irit', 'lior', 'ofir', 'ilai']);
 const users = new Map();
 const staff = [];
@@ -92,6 +99,24 @@ async function askFn(body, me, json) {
   if (q.error) return json(400, { error: q.error });
   if (aiMode === 'not-configured') return json(503, { error: 'ai_not_configured' });
   await new Promise((r) => setTimeout(r, 400));
+  // "איך…" / "איפה…": what the model does with app_guide, for whoever asked (from the server's
+  // own person, never the page's): the first how-to that fits, as the clicks and the link.
+  if (/^(איך|איפה)/.test(q.text)) {
+    const person = personOf(me) ?? null;
+    const g = guideFor({ me: person, scope: scopeOf(person), error: null }, q.text);
+    const hit = g.howto.find((h) => h.q === g.likely?.[0]);
+    calls.push({ guide: { person, mine: g.mine.map((s) => s.id), manager: g.manager.map((s) => s.id) } });
+    if (!hit) return json(200, { answer: 'זה לא במסכים שלך. המשרד יעזור.', model: 'claude-sonnet-5-5', tools: ['app_guide'] });
+    return json(200, { answer: `${hit.path}\n${hit.link}`, model: 'claude-sonnet-5-5', tools: ['app_guide'] });
+  }
+  // "לכל לקוח כמה תכנים הוא לא קיבל": what the model does with content_owed (one call for every
+  // client, the card's own numbers): the totals and the top clients, one short line each.
+  if (/לא קיבל/.test(q.text)) {
+    const sum = contractSummary(CLIENT, clientState(CLIENT, {}, NOW), {}, { now: NOW });
+    const line = sum.items.filter((x) => x.left).map((x) => `${x.left} ${x.short}`).join(', ');
+    calls.push({ owed: sum.items.length });
+    return json(200, { answer: `לקוח אחד מחכה לתכנים:\n• מספרת רון: ${line}\nבסך הכול: ${line}.`, model: 'claude-sonnet-5-5', tools: ['content_owed'] });
+  }
   if (/דרייב/.test(q.text)) return json(200, { answer: 'בתיקייה של מספרת רון יש 3 סרטונים ו־2 גרפיקות. האחרון: 19-11 טיזר.mov\nhttps://drive.google.com/file/d/f4/view', model: 'claude-sonnet-5-5', tools: ['drive_files'] });
   return json(200, { answer: 'יש 12 לקוחות פעילים: 10 פעילים ו־2 מסיימים התקשרות.', model: 'claude-sonnet-5-5', tools: ['find_clients'] });
 }
@@ -280,15 +305,91 @@ let exitCode = 0;
 const chrome = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const safari = await webkit.launch();
 try {
-  await step('the owner, Lior and Ofir have the page and the menu entry; Irit, Ilai and an editor have neither', async () => {
-    for (const who of ['owner', 'lior', 'ofir', 'irit', 'ilai', 'nadia']) {
+  await step('everyone on the staff has the page and the menu entry, with chips of their own', async () => {
+    for (const who of ['owner', 'lior', 'ofir', 'irit', 'ilai', 'nadia', 'eli', 'stav']) {
       const { page, ctx, allowed, inMenu } = await opensAsk(chrome, who, { viewport: { width: 1280, height: 900 } });
-      const should = ['owner', 'lior', 'ofir'].includes(who);
-      assert.equal(allowed, should, `${who}: the page`);
-      assert.equal(inMenu > 0, should, `${who}: the menu`);
-      if (!should) assert.match(await page.locator('#state').innerText(), /אין לך גישה/);
-      if (who === 'owner' || who === 'irit') await shot(page, `access-${who}-1280`);
+      assert.equal(allowed, true, `${who}: the page`);
+      assert.ok(inMenu > 0, `${who}: the menu`);
+      const chips = await page.locator('.ak-chip').allInnerTexts();
+      const office = ['owner', 'lior', 'ofir', 'irit'].includes(who);
+      assert.equal(chips.includes('איך מוסיפים לקוח חדש?'), office, `${who}: the new-client chip`);
+      if (who === 'stav') assert.deepEqual(chips, ['כמה עסקאות שלחתי החודש?', 'איך שולחים עסקה חדשה?']);
+      if (['ilai', 'nadia', 'eli'].includes(who)) assert.ok(chips.includes('איפה אני רואה מה באיחור?'), who);
+      if (['owner', 'irit', 'nadia', 'stav'].includes(who)) await shot(page, `access-${who}-1280`);
       await ctx.close();
+    }
+  });
+
+  // "איך…" / "איפה…": a chip, the answer in clicks with its link, from the asker's own screens.
+  const howTo = async (browser, who, options, chip, expect, tag) => {
+    const { page, ctx } = await opensAsk(browser, who, options);
+    await page.locator('.ak-chip', { hasText: chip }).click();
+    await page.locator('.ak-a-bubble:not(.is-wait)').first().waitFor();
+    const answer = await page.locator('.ak-a-bubble').first().innerText();
+    assert.match(answer, expect.path, tag);
+    assert.equal(await page.locator(`.ak-a-bubble a[href="${expect.link}"]`).count(), 1, `${tag}: the link`);
+    const g = calls.filter((c) => c.guide).at(-1).guide;
+    assert.equal(g.person, who === 'owner' ? null : who);
+    assert.ok(await noSideScroll(page), `${tag}: sideways scroll`);
+    assert.deepEqual(await smallTargets(page, '.ak-chip, #ak-send, #ak-q'), [], tag);
+    await shot(page, `${tag}-howto`);
+    // A question about a screen this person does not have: no path is invented.
+    if (expect.notMine) {
+      await page.locator('#ak-q').click();
+      await page.keyboard.type(expect.notMine, { delay: 12 });
+      await page.keyboard.press('Enter');
+      await page.waitForFunction(() => document.querySelectorAll('.ak-a-bubble:not(.is-wait)').length === 2);
+      assert.match(await page.locator('.ak-a-bubble').nth(1).innerText(), /לא במסכים שלך/);
+      await shot(page, `${tag}-howto-not-mine`);
+    }
+    await ctx.close();
+    return g;
+  };
+  const NEW_CLIENT = { path: /^בתפריט ← לקוחות ← הכפתור "לקוח חדש" למעלה/, link: 'https://app.astrateg.tech/clients.html#clients' };
+  const LATE = { path: /^בתפריט ← המשימות שלי ← לשונית "באיחור"/, link: 'https://app.astrateg.tech/clients.html#mine', notMine: 'איפה רואים את ההצעות שנשלחו?' };
+  await step('how-to: Irit taps "איך מוסיפים לקוח חדש?" (Chromium 1280 and 390)', async () => {
+    const g = await howTo(chrome, 'irit', { viewport: { width: 1280, height: 900 } }, 'איך מוסיפים לקוח חדש?', NEW_CLIENT, 'chromium-1280-irit');
+    assert.ok(g.manager.includes('ask') && !g.manager.includes('payouts'), 'her manager profile, not the owners\'');
+    await howTo(chrome, 'irit', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, 'איך מוסיפים לקוח חדש?', NEW_CLIENT, 'chromium-390-irit');
+  });
+  await step('how-to: an editor taps "איפה אני רואה מה באיחור?" (iPhone 13 WebKit, WebKit 1280); the sent quotes are not hers', async () => {
+    const g = await howTo(safari, 'nadia', { ...devices['iPhone 13'] }, 'איפה אני רואה מה באיחור?', LATE, 'webkit-iphone13-nadia');
+    assert.deepEqual(g.manager, []);
+    assert.ok(!g.mine.includes('quotes'));
+    await howTo(safari, 'nadia', { viewport: { width: 1280, height: 900 } }, 'איפה אני רואה מה באיחור?', LATE, 'webkit-1280-nadia');
+  });
+  await step('how-to: a field agent on an iPhone 13 (WebKit): "איך שולחים עסקה חדשה?"', async () => {
+    await howTo(safari, 'stav', { ...devices['iPhone 13'] }, 'איך שולחים עסקה חדשה?', { path: /^בתפריט ← עסקה חדשה/, link: 'https://app.astrateg.tech/deal.html' }, 'webkit-iphone13-stav');
+  });
+  // The phone's bottom bar with the bot (shell-rules.js barOf): nobody's own screens left it.
+  await step('the phone bars: the editors and Eli keep their four, the bot under "עוד"; Ilai four; the field agent both', async () => {
+    const BARS = {
+      nadia: ['המשימות שלי', 'הלקוחות שלי', 'בעריכה', 'יומן', 'עוד'],
+      eli: ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'יומן', 'עוד'],
+      ilai: ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'שאלו'],
+      stav: ['עסקה חדשה', 'שאלו'],
+    };
+    for (const [browser, opts, tag] of [[safari, { ...devices['iPhone 13'] }, 'webkit-iphone13'], [chrome, { viewport: { width: 360, height: 760 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, 'chromium-360']]) {
+      for (const [who, want] of Object.entries(BARS)) {
+        const { page, ctx } = await opensAsk(browser, who, opts);
+        const items = page.locator('#side-list > .side-link');
+        const texts = (await items.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim());
+        assert.deepEqual(texts, want, `${tag} ${who}`);
+        // Every name fits its place: nothing cut, nothing on two lines, 44px to tap.
+        const bad = await page.evaluate(() => [...document.querySelectorAll('#side-list > .side-link')].filter((a) => {
+          const t = a.querySelector('.side-t') || a;
+          return t.scrollWidth > t.clientWidth + 1 || a.getBoundingClientRect().height < 43.5;
+        }).map((a) => a.textContent.trim()));
+        assert.deepEqual(bad, [], `${tag} ${who}`);
+        if (want.includes('עוד')) {
+          await page.locator('#side-more').click();
+          await page.locator('#side-sheet a[href="ask.html"]').waitFor();
+          if (OUT) await page.screenshot({ path: `${OUT}/${tag}-bar-${who}-more.png` });
+          await page.locator('#side-more').click();
+        }
+        if (OUT) await page.screenshot({ path: `${OUT}/${tag}-bar-${who}.png` });
+        await ctx.close();
+      }
     }
   });
 
@@ -316,6 +417,21 @@ try {
     const wide = await opensAsk(safari, 'owner', { viewport: { width: 1280, height: 900 } });
     await converse(wide.page, 'webkit-1280');
     await wide.ctx.close();
+  });
+
+  await step('"לכל לקוח כמה תכנים הוא לא קיבל?": one answer for every client (Chromium 390, iPhone 13)', async () => {
+    for (const [browser, opts, tag] of [[chrome, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, 'chromium-390'], [safari, { ...devices['iPhone 13'] }, 'webkit-iphone13']]) {
+      const { page, ctx } = await opensAsk(browser, 'owner', opts);
+      await page.locator('#ak-q').click();
+      await page.keyboard.type('לכל לקוח כמה תכנים הוא לא קיבל?', { delay: 12 });
+      await page.keyboard.press('Enter');
+      await page.locator('.ak-a-bubble:not(.is-wait)').first().waitFor();
+      const answer = await page.locator('.ak-a-bubble').first().innerText();
+      assert.match(answer, /מספרת רון: 36 סרטונים, 36 גרפיקות, 1 ימי צילום/, tag);
+      assert.ok(await noSideScroll(page), `${tag}: sideways scroll`);
+      await shot(page, `${tag}-owed`);
+      await ctx.close();
+    }
   });
 
   await step('the AI not configured: said in plain words, in the conversation', async () => {

@@ -16,9 +16,9 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'ask-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'fast-ladder.js', 'files-logic.js', 'gcal-logic.js', 'handoffs.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
+    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'contract-summary.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'fast-ladder.js', 'files-logic.js', 'gcal-logic.js', 'handoffs.js', 'health.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'manager-rules.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
-    'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'team-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
+    'shell-rules.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'team-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
 });
 
@@ -95,7 +95,7 @@ const DEPLOY = {
   // "שאלו את המערכת" (docs/ops.md, section 74): who asks, the protocol's names, a monthly client's
   // videos; the Drive listing and the sites it answers, hand-written in _shared/.
   ask: [
-    ...APP('access-logic.js', 'access-nudge.js', 'ask-logic.js', 'catalog.js', 'characterization.js', 'edit-count.js', 'holidays.js', 'legal.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'team-rules.js', 'tz.js'),
+    ...APP('access-logic.js', 'access-nudge.js', 'ask-guide.js', 'ask-logic.js', 'catalog.js', 'characterization.js', 'contract-summary.js', 'edit-count.js', 'health.js', 'holidays.js', 'legal.js', 'manager-rules.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'shell-rules.js', 'shoot-prep.js', 'team-rules.js', 'tz.js'),
     '_shared/cors.js',
     '_shared/drive.js',
     'ask/handler.js',
