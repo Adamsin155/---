@@ -3,21 +3,21 @@
 // sent from the browser. ../_shared/app/ is a generated copy of app/
 // (node scripts/sync-functions.mjs), deployed together with this file.
 //
-// Custom (exceptional) contracts, 6.10.2026 (docs/ops.md, section 30): a selection with
-// `custom` (anything that differs from the built-in rules) is validated strictly, its
-// totals are computed here, and the database stores it as approval 'pending'. No
-// token is returned for it: the client's link exists only after a manager approved
-// (public.quote_approve). `revise: <quote id>` stores a corrected version of a contract
-// that went for approval (public.quote_revise).
+// Custom contracts, 6.10.2026 (docs/ops.md, section 30): a selection with `custom`
+// (anything that differs from the built-in rules) is validated strictly and its totals
+// are computed here. Since 29.10.2026 (the owner: "להוריד את חוזה חריג באישור מנהל";
+// docs/ops.md, section 79) no contract waits for a manager: the database stores it as a
+// regular quote with what differs from the package (exceptions) as information, and the
+// token comes back at once. `revise: <quote id>` stores a corrected version of a contract
+// that went for approval before that date (public.quote_revise), as a regular quote.
 //
 // Who may call: the office only (public.is_office()), for every kind of quote, and
 // only from the office's own site (./http.js; security audit of 6.10.2026, ops.md 36).
 //
 // "הכנת חוזה עם AI" (25.10.2026, docs/ops.md, section 68): `aiRun: <run id>` from the contract-ai
-// function marks a new contract as prepared with AI, and it goes to the client without a manager's
-// approval (the owner's decision). The run must be the caller's own, successful, from the last
-// 24 hours and not used yet (aiRunProblem; the database checks it again): otherwise 409
-// 'ai run <problem>' and nothing is created. A corrected version (`revise`) keeps the approval.
+// function marks a new contract "הוכן ע״י AI". The run must be the caller's own, successful, from
+// the last 24 hours and not used yet (aiRunProblem; the database checks it again); otherwise the
+// contract is created all the same, as one filled by hand (no tag).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateSelection, buildQuoteModel, normalizeSelection, exceptionOf } from '../_shared/app/pricing.js';
 import { corsHeaders, callerIsOffice, aiRunProblem } from './http.js';
@@ -102,18 +102,10 @@ Deno.serve(async (req) => {
     }
     if (body.aiRun !== undefined && body.aiRun !== null) {
       if (typeof body.aiRun !== 'string' || !UUID.test(body.aiRun)) throw new Error('invalid ai run');
-      // A corrected version stays with the managers.
       if (!revise) aiRun = body.aiRun;
     }
   } catch (e) {
     return json(400, { error: String((e as Error).message ?? e) });
-  }
-
-  // Only the owners (no person), Irit and Ofir send an AI-prepared contract without approval (the owner,
-  // 25.10.2026); anyone else's goes to approval as if filled by hand.
-  if (aiRun) {
-    const { data: me, error: meError } = await userClient.rpc('my_person');
-    if (meError || !(me === null || ['irit', 'ofir'].includes(me))) aiRun = null;
   }
 
   const exceptions = exceptionOf(selection);
@@ -130,16 +122,16 @@ Deno.serve(async (req) => {
       const known = /quote not found|only a contract that went for approval/.test(reviseError.message ?? '');
       return json(known ? 409 : 500, { error: known ? 'this contract can no longer be changed' : 'could not save quote' });
     }
-    // { id, number, created_at, approval, version, token (only when it became a regular quote) }
-    return json(200, revised.token ? revised : { ...revised, token: undefined });
+    // { id, number, created_at, approval, version, token }
+    return json(200, revised);
   }
   if (aiRun) {
     const [{ data: run }, { count: usedBy }] = await Promise.all([
       admin.from('contract_ai_runs').select('id, user_id, status, created_at').eq('id', aiRun).maybeSingle(),
       admin.from('quotes').select('id', { count: 'exact', head: true }).eq('ai_run_id', aiRun),
     ]);
-    const problem = aiRunProblem(run, user.id, usedBy ?? 0);
-    if (problem) return json(409, { error: `ai run ${problem}` });
+    // Not good any more (older than 24 hours, used, not the caller's): a contract by hand.
+    if (aiRunProblem(run, user.id, usedBy ?? 0)) aiRun = null;
   }
   const { data, error } = await admin
     .from('quotes')
@@ -165,8 +157,8 @@ Deno.serve(async (req) => {
   }
   if (!exceptions.length && !aiRun) return json(200, data);
   const row = data as unknown as { id: string; token: string; number: string; created_at: string; approval: string; prepared_by: string | null };
-  // Waiting for a manager: there is no link to send yet.
+  // Before the migration of 29.10.2026 the database may still hold it for a manager: no link yet.
   if (row.approval === 'pending') return json(200, { id: row.id, number: row.number, created_at: row.created_at, approval: row.approval });
-  // Prepared with AI: the link at once, as a regular quote.
+  // The link at once, as a regular quote.
   return json(200, { id: row.id, token: row.token, number: row.number, created_at: row.created_at, approval: row.approval, prepared_by: row.prepared_by });
 });

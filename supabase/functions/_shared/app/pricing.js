@@ -28,8 +28,13 @@ export function isSimeonSocial(sel) {
   return sel.influencer === 'simeon' && sel.tier !== 'podcast';
 }
 
+// "בלי משפיענים" (selection.custom.noInfluencer, a free contract; 29.10.2026): nothing at an
+// influencer can be added.
+const noInfluencer = (sel) => sel?.custom?.noInfluencer === true;
+
 export function paidAddonAvailable(addon, sel) {
   if (addon.eligibility === 'all') return true;
+  if (noInfluencer(sel)) return false;
   // A star's own reel and story (28.10.2026: Natali, Niro, "הצל"): in her or his packages only.
   if (isStar(addon.eligibility)) return sel.influencer === addon.eligibility;
   if (addon.eligibility === 'simeon-social') return isSimeonSocial(sel);
@@ -42,9 +47,9 @@ export function freeAddonAvailable(id, sel) {
     case 'extraCh14':
       return true;
     case 'simeonJoin':
-      return isNataliPackage(sel);
+      return !noInfluencer(sel) && isNataliPackage(sel);
     case 'simeonStories':
-      return isSimeonSocial(sel) || (isNataliPackage(sel) && sel.free.simeonJoin === true);
+      return noInfluencer(sel) ? false : isSimeonSocial(sel) || (isNataliPackage(sel) && sel.free.simeonJoin === true);
     default:
       return false;
   }
@@ -100,17 +105,25 @@ export function validateSelection(sel) {
      lines      up to 10 × { label, qty?, monthly? (agorot) }: added to "מה כלול", and to
                 the price when they carry one
      terms      "תנאים מיוחדים", free text shown in the document and in the agreement
+     noInfluencer   true: "בלי משפיענים" (29.10.2026, the free contract of "הכנת חוזה עם
+                AI"): the package without its influencer: no shoot day, collab or story at
+                one, nothing of an influencer to add, and the document says so
+     addonsIncluded true: the monthly price is the whole price; the paid add-ons chosen are
+                included in it (shown as "כלול במחיר", no price of their own)
    Types and ranges are strict (catalog.js CUSTOM_QTY, CUSTOM_LIMITS); the totals are
    always computed here, never taken from the caller. Whatever equals the built-in
    rule is dropped (normalizeSelection), so a contract without deviations is exactly a
-   regular one. exceptionOf() lists the deviations; any of them needs a manager's approval. */
+   regular one. exceptionOf() lists the deviations, for the owners to see what changed
+   (information only: since 29.10.2026 no contract waits for a manager's approval). */
 
 const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 const cleanLine = (v) => String(v ?? '').replace(BIDI, '').replace(/\s+/g, ' ').trim();
 const cleanBlock = (v) => String(v ?? '').replace(BIDI, '').replace(/\r\n?/g, '\n').replace(/[^\S\n]+/g, ' ')
   .split('\n').map((l) => l.trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
 const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
-const CUSTOM_KEYS = ['qty', 'price', 'discount', 'termMonths', 'lines', 'terms'];
+const CUSTOM_KEYS = ['qty', 'price', 'discount', 'termMonths', 'lines', 'terms', 'noInfluencer', 'addonsIncluded'];
+// What an influencer brings to a package: none of it in a contract "בלי משפיענים".
+const INF_QTY = ['shootDays', 'collabs', 'stories'];
 const given = (v) => v !== undefined && v !== null;
 
 function customErrors(sel, selectionOk) {
@@ -145,6 +158,7 @@ function customErrors(sel, selectionOk) {
       }
     }
   }
+  for (const k of ['noInfluencer', 'addonsIncluded']) if (given(c[k]) && typeof c[k] !== 'boolean') errors.push(`custom ${k} must be boolean`);
   if (given(c.terms) && (typeof c.terms !== 'string' || cleanBlock(c.terms).length > CUSTOM_LIMITS.terms)) errors.push('custom terms too long');
   if (given(c.discount) && !(Number.isInteger(c.discount) && c.discount >= 0 && c.discount % 100 === 0)) errors.push('custom discount out of range');
   // The discount can never be more than the price it is taken from.
@@ -172,12 +186,13 @@ export function effectiveQuantities(sel) {
   }
   return out;
 }
+const addonsIncluded = (sel) => sel?.custom?.addonsIncluded === true;
 const linesOf = (sel) => (Array.isArray(sel?.custom?.lines) ? sel.custom.lines : []);
 const packagePrice = (sel) => (Number.isInteger(sel?.custom?.price) ? sel.custom.price : pkgOf(sel).price);
 // The monthly price before any discount: the package, the paid add-ons, the added lines.
 function listPrice(sel) {
   return packagePrice(sel)
-    + sel.paid.reduce((s, id) => s + (PAID_ADDONS.find((a) => a.id === id)?.price || 0), 0)
+    + (addonsIncluded(sel) ? 0 : sel.paid.reduce((s, id) => s + (PAID_ADDONS.find((a) => a.id === id)?.price || 0), 0))
     + linesOf(sel).reduce((s, l) => s + (Number.isInteger(l?.monthly) ? l.monthly : 0), 0);
 }
 const discountOf = (sel) => (Number.isInteger(sel?.custom?.discount) ? sel.custom.discount : sel.discount || 0);
@@ -195,7 +210,14 @@ export function normalizeSelection(sel) {
     const v = raw.qty?.[q.key];
     if (Number.isInteger(v) && v !== base[q.key] && (!q.addon || rest.paid.includes(q.addon))) qty[q.key] = v;
   }
+  // No influencer: nothing of one stays in the package.
+  if (raw.noInfluencer === true) {
+    c.noInfluencer = true;
+    for (const k of INF_QTY) { if (base[k] > 0) qty[k] = 0; else delete qty[k]; }
+  }
   if (Object.keys(qty).length) c.qty = qty;
+  // The add-ons inside the price: only when there are add-ons.
+  if (raw.addonsIncluded === true && rest.paid.length) c.addonsIncluded = true;
   if (Number.isInteger(raw.price) && raw.price !== pkgOf(rest).price) c.price = raw.price;
   if (Number.isInteger(raw.termMonths) && raw.termMonths !== TERM_MONTHS) c.termMonths = raw.termMonths;
   const lines = (Array.isArray(raw.lines) ? raw.lines : []).map((l) => {
@@ -224,6 +246,8 @@ export function exceptionOf(selection) {
   const base = baseQuantities(sel);
   for (const q of CUSTOM_QTY) {
     if (!given(c.qty?.[q.key])) continue;
+    // "בלי משפיענים" says it once, not per thing an influencer brings.
+    if (c.noInfluencer && INF_QTY.includes(q.key)) continue;
     const to = c.qty[q.key];
     out.push({ kind: 'qty', key: q.key, from: base[q.key], to, text: `${to} ${q.name} במקום ${base[q.key]}` });
   }
@@ -238,6 +262,8 @@ export function exceptionOf(selection) {
     });
   }
   if (c.terms) out.push({ kind: 'terms', text: 'תנאים מיוחדים' });
+  if (c.noInfluencer) out.push({ kind: 'noInfluencer', text: 'בלי משפיענים' });
+  if (c.addonsIncluded) out.push({ kind: 'addonsIncluded', text: 'התוספות כלולות במחיר החודשי' });
   return out;
 }
 export const isExceptional = (selection) => exceptionOf(selection).length > 0;
@@ -250,8 +276,11 @@ function effectiveIncludes(sel) {
   const seen = new Set();
   const out = [];
   const line = (q, n) => ({ qty: n, label: q.label(n, sel) });
+  const infName = INFLUENCERS[sel.influencer]?.name || '';
   for (const [i, inc] of PACKAGES[pid].includes.entries()) {
     const q = CUSTOM_QTY.find((x) => x.key === keys[i]);
+    // No influencer: the lines of the influencer's day go (its crew, and anything in its name).
+    if (c.noInfluencer && ((!q && inc.qty !== null) || (infName && inc.label.includes(infName)))) continue;
     const v = q ? c.qty?.[q.key] : undefined;
     if (!given(v)) { out.push(inc); continue; }
     seen.add(q.key);
@@ -330,7 +359,8 @@ function agreementContext(sel, { tier, paid, free, totals }) {
     validHours: DOC_TYPES.agreement.validHours,
     totals,
     packageName: tier.name,
-    influencer: INFLUENCERS[sel.influencer].name,
+    influencer: noInfluencer(sel) ? '' : INFLUENCERS[sel.influencer].name,
+    noInfluencer: noInfluencer(sel),
     tier: sel.tier,
     shootDays: specs.shootDays + (sel.paid.includes('simeon-day') ? 1 : 0),
     hasCh14: specs.ch14 > 0 || sel.free.extraCh14 === true,
@@ -357,7 +387,8 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
     .map((a) => ({
       id: a.id, name: a.name,
       detail: a.monthlyOutput && monthlyContents !== MONTHLY_CONTENTS ? a.detail.replace(String(MONTHLY_CONTENTS), String(monthlyContents)) : a.detail,
-      monthly: a.price, term: a.price * term,
+      monthly: addonsIncluded(sel) ? 0 : a.price, term: addonsIncluded(sel) ? 0 : a.price * term,
+      ...(addonsIncluded(sel) ? { included: true } : {}),
     }));
   const free = [];
   if (sel.free.graphics > 0) free.push({ id: 'graphics', name: FREE_ADDONS.graphics.name, qty: sel.free.graphics });
@@ -396,7 +427,7 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
     package: {
       id: pid,
       tierName: tier.name,
-      influencer: INFLUENCERS[sel.influencer].name,
+      influencer: noInfluencer(sel) ? NO_INFLUENCER : INFLUENCERS[sel.influencer].name,
       monthly: price,
       term: price * term,
       includes: custom ? effectiveIncludes(sel) : pkg.includes,
@@ -415,6 +446,7 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
   };
 }
 
+export const NO_INFLUENCER = 'בלי משפיענים';
 const ils = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 export function formatILS(agorot) {
   return `${ils.format(agorot / 100)} ₪`;

@@ -39,9 +39,8 @@ export async function callerIsOffice(rpc) {
   return !error && data === true;
 }
 
-// "הכנת חוזה עם AI" (the owner's decision of 25.10.2026; docs/ops.md, section 68): a contract
-// prepared by the contract-ai function and reviewed by the office goes to the client without a
-// manager's approval. `aiRun` is the id that function gave back; it counts only for a successful
+// "הכנת חוזה עם AI" (docs/ops.md, sections 68 and 79): a contract prepared by the contract-ai
+// function is marked "הוכן ע״י AI". `aiRun` is the id that function gave back; it counts only for a successful
 // run of the caller's own, from the last AI_RUN_HOURS hours, not used for another contract yet
 // (the database checks the same in public.quotes_set_hash). What is wrong with it, or null:
 // 'not found' | 'used' | 'expired'.

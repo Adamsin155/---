@@ -148,10 +148,12 @@ export function renderQuoteDoc(model, meta = {}) {
   );
 
   const paidSection = model.paid.length ? h('section', { class: 'qd-section' },
-    sectionHead('תוספות בתשלום', 'לפני מע״מ'),
+    // Included in the monthly price (a free contract, 29.10.2026): no price of their own.
+    model.paid.every((p) => p.included) ? sectionHead('כלול במחיר') : sectionHead('תוספות בתשלום', 'לפני מע״מ'),
     h('div', { class: 'qd-rows' }, model.paid.map((p) => h('div', { class: 'qd-row' },
       h('div', {}, h('div', { class: 'qd-strong' }, p.name), h('div', { class: 'qd-muted' }, p.detail)),
-      h('div', { class: 'qd-row-price' }, money(p.monthly), h('small', {}, 'לחודש')),
+      p.included ? h('span', { class: 'qd-tag' }, 'כלול במחיר')
+        : h('div', { class: 'qd-row-price' }, money(p.monthly), h('small', {}, 'לחודש')),
     ))),
   ) : null;
 
@@ -181,7 +183,7 @@ export function renderQuoteDoc(model, meta = {}) {
       )),
       h('tbody', {},
         priceRow(`חבילה · ${pkg.tierName}`, pkg.monthly),
-        model.paid.map((p) => priceRow(p.name, p.monthly)),
+        model.paid.filter((p) => !p.included).map((p) => priceRow(p.name, p.monthly)),
         // A contract changed by hand: the added lines that carry a price.
         (model.extraLines || []).filter((l) => l.monthly).map((l) => priceRow(l.label, l.monthly)),
         t.discount ? h('tr', { class: 'discount' },

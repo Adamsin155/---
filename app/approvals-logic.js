@@ -1,5 +1,9 @@
 // Exceptional contracts and their approval (the owner's decisions of 6.10.2026): who
-// decides, what each person sees of a contract that went for approval, and the words.
+// decided, what each person sees of a contract that went for approval, and the words.
+// Since 29.10.2026 no contract waits for a manager (the owner: "להוריד את חוזה חריג באישור
+// מנהל"; docs/ops.md, section 79): nobody decides any more (canApprove is false for all), a
+// contract still marked 'pending' from before is ready to send like a regular one, and the card
+// lists only what is left from that time (to send, or to correct when it was turned down).
 // Pure, no DOM and no network: the approvers' card and Irit's states
 // (app/approvals-ui.js), quotes.html (app/dashboard.js), the builder and the reminder
 // rules (app/reminder-rules.js, also on the server) share it. The database enforces
@@ -21,7 +25,8 @@ export const personOfViewer = (viewer) => {
   if (viewer.me) return viewer.me;
   return viewer.scope === 'office' ? OWNER : null;
 };
-export const canApprove = (viewer) => APPROVERS.includes(personOfViewer(viewer));
+// Nobody approves contracts any more (29.10.2026).
+export const canApprove = () => false;
 // The office prepares custom contracts and sees their state (the quotes are theirs).
 export const seesApprovals = (viewer) => !!viewer && !viewer.error && viewer.scope === 'office';
 
@@ -36,7 +41,8 @@ export function mayDecide(q, viewer, email) {
 
 // The states, as the office reads them.
 export const APPROVAL_TEXT = {
-  pending: 'ממתין לאישור',
+  // Marked 'pending' before 29.10.2026: its link works, it goes to the client as it is.
+  pending: 'מוכן לשליחה',
   approved: 'אושר — אפשר לשלוח',
   rejected: 'לא אושר',
 };

@@ -1,5 +1,9 @@
 // "חוזים חריגים": the card of exceptional contracts (the owner's decisions of
 // 6.10.2026), at the top of the first screen of whoever deals with them.
+// Since 29.10.2026 (docs/ops.md, section 79) nobody approves: the card shows only the contracts
+// left from before, "מוכן לשליחה" (a 'pending' one, its link works) with "שליחה ללקוח", an
+// approved one not signed yet, and "לא אושר" with "תיקון ושליחה מחדש". The words below about
+// deciding are kept for the history of that time.
 //   - The approvers (the owner, Ofir, Lior): "חוזים חריגים לאישור (N)". Each contract
 //     with the business, the package, what differs from the built-in rules, the
 //     totals, who prepared it, the full agreement in a preview, and "מאשר" /
@@ -84,7 +88,7 @@ export function previewContract(q, from = document.activeElement) {
   dlg.replaceChildren(
     h('div', { class: 'dlg-head' },
       h('h2', { id: 'apv-h' }, `${q.model?.docTitle || 'הסכם'} `, h('bdi', { class: 'num', dir: 'ltr' }, q.number)),
-      h('span', { class: 'apv-hint' }, q.approval === 'pending' ? 'כך הלקוח יראה אותו אחרי האישור' : ''),
+      h('span', { class: 'apv-hint' }, ''),
       closeBtn('סגירת התצוגה')),
     h('div', { class: 'preview-body' }, renderQuoteDoc(q.model, { number: q.number, createdAt: q.created_at, validUntil: q.expires_at })));
   dlg._returnTo = from;
@@ -102,7 +106,7 @@ export function shareContract(q, from = document.activeElement, notify = say) {
   dlg.replaceChildren(
     h('div', { class: 'dlg-head' }, h('h2', { id: 'aps-h' }, 'הקישור מוכן'), closeBtn('סגירה')),
     h('div', { class: 'dlg-body' },
-      h('p', {}, 'החוזה ', h('strong', { class: 'num', dir: 'ltr' }, q.number), ` של ${businessOf(q)} אושר. `,
+      h('p', {}, 'החוזה ', h('strong', { class: 'num', dir: 'ltr' }, q.number), ` של ${businessOf(q)} מוכן. `,
         q.expires_at ? `הלקוח יכול לחתום עד ${formatDate(q.expires_at, true)}.` : ''),
       h('label', { class: 'field-label', for: 'aps-link' }, 'קישור ללקוח'),
       h('div', { class: 'linkbox' }, input,
@@ -217,9 +221,9 @@ function followCard(q) {
     meta(q),
     state === 'rejected' ? h('p', { class: 'apv-note' }, h('strong', {}, `${by} לא אישר/ה: `), q.approval_note || '') : null,
     state === 'approved' ? h('p', { class: 'apv-meta' }, `אישר/ה ${by}, ${formatDate(q.approval_at, true)}`, q.expires_at ? ` · לחתימה עד ${formatDate(q.expires_at, true)}` : '') : null,
-    state === 'pending' ? h('p', { class: 'apv-meta' }, `ממתין להחלטה של ${APPROVER_NAMES}. מספיק שאחד מהם יאשר.`) : null,
+    state === 'pending' ? h('p', { class: 'apv-meta' }, 'אין יותר אישור מנהל: אפשר לשלוח אותו ללקוח כמו שהוא.') : null,
     h('div', { class: 'apv-acts' },
-      state === 'approved' ? h('button', { type: 'button', class: 'btn', 'data-act': 'share', onclick: (e) => shareContract(q, e.currentTarget) }, 'שליחה ללקוח') : null,
+      state === 'approved' || state === 'pending' ? h('button', { type: 'button', class: 'btn', 'data-act': 'share', onclick: (e) => shareContract(q, e.currentTarget) }, 'שליחה ללקוח') : null,
       state === 'rejected' ? h('a', { class: 'btn', 'data-act': 'revise', href: reviseUrl(q) }, 'תיקון ושליחה מחדש') : null,
       previewBtn(q)));
 }
@@ -230,7 +234,7 @@ function render() {
   box.hidden = !toDecide.length && !follow.length;
   if (box.hidden) { box.replaceChildren(); return; }
   box.replaceChildren(...[
-    toDecide.length ? h('h2', { id: 'approvals-h' }, `חוזים חריגים לאישור (${toDecide.length})`) : h('h2', { id: 'approvals-h' }, `חוזים חריגים (${follow.length})`),
+    toDecide.length ? h('h2', { id: 'approvals-h' }, `חוזים חריגים לאישור (${toDecide.length})`) : h('h2', { id: 'approvals-h' }, `חוזים מותאמים לשליחה (${follow.length})`),
     toDecide.length ? h('p', { class: 'hint' }, 'חוזה שהוכן עם שינוי מהחבילות. הלקוח מקבל אותו רק אחרי אישור של אחד מכם.') : null,
     ...toDecide.map(decideCard),
     toDecide.length && follow.length ? h('h3', { class: 'apv-sub' }, `במעקב (${follow.length})`) : null,

@@ -90,6 +90,14 @@ async function loadDeals(now: Date): Promise<Row[]> {
   const since = new Date(now.getTime() - 2 * 864e5).toISOString();
   try {
     try {
+      // What was sold (custom: "הצעה אחרת", or the seller's own words since 29.10.2026) and what Irit
+      // prepares (doc_type, 20261118100000_no_manager_approval.sql), for the words of Irit's ring.
+      try {
+        return await all(() => admin.from('deal_requests').select(`${DEAL_COLS}, cancelled_at, custom, doc_type`)
+          .or(`status.eq.pending,signed_at.gte."${since}",sent_at.gte."${since}",cancelled_at.gte."${since}"`).order('id'));
+      } catch (err) {
+        if ((err as { code?: string })?.code !== '42703') throw err;
+      }
       return await all(() => admin.from('deal_requests').select(`${DEAL_COLS}, cancelled_at`)
         .or(`status.eq.pending,signed_at.gte."${since}",sent_at.gte."${since}",cancelled_at.gte."${since}"`).order('id'));
     } catch (err) {

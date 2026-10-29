@@ -3,6 +3,11 @@
 // the Anthropic SDK. "הכנת חוזה עם AI" (the owner, 25.10.2026; docs/ops.md, section 68):
 //
 //   POST { text }  →  200 { runId, result, dropped, model }
+//   POST { text, mode: 'free' }  →  200 { mode: 'free', runId, runIds, result: { drafts, questions,
+//     notes }, dropped, model }: "בדיוק כמו שכתבתי (חוזה חופשי)" (the owner, 29.10.2026; docs/ops.md,
+//     section 79): the text as one or more custom contracts exactly as written, nothing mapped
+//     onto a package. Each draft is kept as its own run (runIds, in the drafts' order), so each
+//     contract made from it carries its own "הוכן ע״י AI";
 //
 //   - the office only (public.is_office(): the owner, Irit, Lior, Ofir, Ilai), from the office's
 //     own site, like create-quote;
@@ -13,12 +18,15 @@
 //     (structured outputs); the answer is checked against the catalog here (unknown keys
 //     dropped, numbers clamped) before it goes back, with the list of what was dropped;
 //   - every preparation is kept in public.contract_ai_runs (who, when, the words, the checked
-//     result): its id is what lets create-quote send the contract without a manager's approval
-//     (the owner's decision of 25.10.2026), and the owners can see later what the AI prepared;
+//     result): its id marks the contract made from it "הוכן ע״י AI" (create-quote), and the
+//     owners can see later what the AI prepared (no contract waits for a manager since 29.10.2026);
 //   - at most RATE_PER_MINUTE preparations a minute for each person; the call to Claude is
 //     bounded (the SDK's timeout, one retry), and a timeout answers 504 { error: 'ai_timeout' }.
 // Nothing is sent to the client and nothing is created here: Irit reviews and sends as always.
-import { systemPrompt, userMessage, RESULT_SCHEMA, validateAiResult, AI_TEXT_MAX } from '../_shared/app/contract-ai-logic.js';
+import {
+  systemPrompt, userMessage, RESULT_SCHEMA, validateAiResult, AI_TEXT_MAX,
+  freeSystemPrompt, FREE_SCHEMA, validateFreeResult,
+} from '../_shared/app/contract-ai-logic.js';
 
 export const SITE_ORIGINS = ['https://adamsin155.github.io', 'https://app.astrateg.tech'];
 
@@ -65,14 +73,16 @@ export const TIMEOUT_MS = 30000;
 // on every call and is cached; the office's words come last. Server-side fallback ("default") is
 // on: a decline the model's safeguards make in error is retried on the fallback model in the
 // same call.
-export function buildRequest(text) {
+export const MODES = ['catalog', 'free'];
+export function buildRequest(text, mode = 'catalog') {
+  const free = mode === 'free';
   return {
     model: MODEL,
     max_tokens: 16000,
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
-    output_config: { effort: EFFORT, format: { type: 'json_schema', schema: RESULT_SCHEMA } },
-    system: [{ type: 'text', text: systemPrompt(), cache_control: { type: 'ephemeral' } }],
+    output_config: { effort: EFFORT, format: { type: 'json_schema', schema: free ? FREE_SCHEMA : RESULT_SCHEMA } },
+    system: [{ type: 'text', text: free ? freeSystemPrompt() : systemPrompt(), cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userMessage(text) }],
   };
 }
@@ -149,11 +159,16 @@ export function makeHandler(deps) {
     if (!(await callerIsOffice((fn) => userClient.rpc(fn)))) return json(403, { error: 'not staff: contracts are prepared by the office' });
 
     let text;
+    let mode = 'catalog';
     try {
       const body = await req.json();
       const t = cleanText(body?.text);
       if (t.error) return json(400, { error: t.error });
       text = t.text;
+      if (body?.mode !== undefined && body?.mode !== null) {
+        if (!MODES.includes(body.mode)) return json(400, { error: 'mode_unknown' });
+        mode = body.mode;
+      }
     } catch {
       return json(400, { error: 'text_required' });
     }
@@ -179,7 +194,7 @@ export function makeHandler(deps) {
 
     let message;
     try {
-      message = await deps.makeClient(apiKey).beta.messages.create(buildRequest(text));
+      message = await deps.makeClient(apiKey).beta.messages.create(buildRequest(text, mode));
     } catch (err) {
       const f = failureOf(err, deps.Errors);
       // The status only: never the key, the headers or the office's words.
@@ -194,6 +209,15 @@ export function makeHandler(deps) {
       log(`contract-ai: ${answer.error} (${message?.stop_reason ?? 'no stop reason'})`);
       await keep({ status: 'error', result: { error: answer.error, stop: message?.stop_reason ?? null, blocks: (message?.content || []).map((x) => x?.type) } });
       return json(502, { error: answer.error });
+    }
+    if (mode === 'free') {
+      const { result, dropped } = validateFreeResult(answer.raw);
+      const runIds = [];
+      // One run for each draft (each makes one contract); a text with no draft still leaves its run.
+      for (const [i, draft] of (result.drafts.length ? result.drafts : [null]).entries()) {
+        runIds.push(await keep({ status: 'ok', result: { mode: 'free', draft: i + 1, of: result.drafts.length, ...(draft ? { value: draft } : {}), questions: result.questions, notes: result.notes }, left_out: dropped }));
+      }
+      return json(200, { mode: 'free', runId: runIds[0] ?? null, runIds: result.drafts.length ? runIds : [], result, dropped, model: message.model ?? MODEL });
     }
     const { result, dropped } = validateAiResult(answer.raw);
     const runId = await keep({ status: 'ok', result, left_out: dropped });
