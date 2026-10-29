@@ -439,6 +439,73 @@ test('missing while the editing goes on: Irit at once with the words; no 3-hour 
   none(due(w, IL(2026, 10, 18, 16)), 'editorMissing');
 });
 
+// The owner, 29.10.2026: the editor chooses whom the report goes to: Irit (as before), Lior or Ofir.
+test('report to: only Irit, Lior or Ofir; anything else reads as Irit; Irit is not written', () => {
+  assert.deepEqual(P.REPORT_TO.map(([k]) => k), ['irit', 'lior', 'ofir']);
+  for (const bad of [undefined, null, '', 'nadia', 'owner', 'stav', 'IRIT', '<x>', 7, {}]) assert.equal(P.reportTo(bad), 'irit');
+  assert.equal(P.reportTo('lior'), 'lior');
+  assert.equal(P.reportGot('irit'), 'עירית קיבלה');
+  assert.equal(P.reportGot('ofir'), 'אופיר קיבל');
+  assert.equal(JSON.parse(P.missingNote(['logo'], '', { going: true })).to, undefined); // as before
+  assert.equal(JSON.parse(P.missingNote(['logo'], '', { going: true, to: 'irit' })).to, undefined);
+  assert.equal(JSON.parse(P.missingNote(['logo'], '', { going: true, to: 'ofir' })).to, 'ofir');
+  assert.equal(JSON.parse(P.missingNote(['logo'], '', { going: true, to: 'eli' })).to, undefined);
+  const read = (to) => P.reportOf({ 'p22.missing': done(IL(2026, 10, 18, 10), JSON.stringify({ what: ['logo'], going: true, to })) }).to;
+  assert.equal(read('lior'), 'lior');
+  assert.equal(read('nadia'), 'irit');
+  assert.equal(read(undefined), 'irit');
+});
+
+test('"לא התקבל" on a start-check row: which rows; the report grows; "סיימתי" on the row closes its part', () => {
+  assert.deepEqual(P.checkRowOf('p22.check.logo'), { pre: '', k: 'logo' });
+  assert.deepEqual(P.checkRowOf('r2.p22.check.footage'), { pre: 'r2.', k: 'footage' });
+  for (const k of ['p22.edited', 'p22.received', 'p22.self.closing', 'p22.check.other', 'p23.q.logo', 'xp22.check.logo']) assert.equal(P.checkRowOf(k), null, k);
+  const cs = {};
+  cs['r2.p22.missing'] = done(IL(2026, 10, 18, 10), P.rowReportNote(cs, 'r2.', 'logo', { note: ' מטושטש ', to: 'lior' }));
+  let r = P.reportOf(cs, 'r2.');
+  assert.deepEqual([r.what, r.notes, r.to, r.going], [['logo'], { logo: 'מטושטש' }, 'lior', true]);
+  // A second row, to Ofir: both are in the report, the words of the first stay.
+  cs['r2.p22.missing'] = done(IL(2026, 10, 18, 11), P.rowReportNote(cs, 'r2.', 'phone', { to: 'ofir' }));
+  r = P.reportOf(cs, 'r2.');
+  assert.deepEqual([r.what, r.notes, r.to], [['logo', 'phone'], { logo: 'מטושטש' }, 'ofir']);
+  assert.equal(P.reportOf(cs, ''), null); // another round
+  cs['r2.p22.check.logo'] = done(IL(2026, 10, 18, 12));
+  r = P.reportOf(cs, 'r2.');
+  assert.deepEqual([r.what, r.notes], [['phone'], {}]);
+  cs['r2.p22.check.phone'] = done(IL(2026, 10, 18, 12));
+  assert.equal(P.reportOf(cs, 'r2.'), null);
+});
+
+// The four editors (the owner, 29.10.2026: ניראל, יריב, אנה ונדיה), Nirel on a Natali day.
+for (const editor of ['nadia', 'yariv', 'anna', 'nirel']) {
+  test(`${editor}: the report goes to whom the editor chose, and to nobody else`, () => {
+    const w = world({ editor, ...(editor === 'nirel' ? { shoot_type: 'natali' } : {}) });
+    w.cs['p22a.assigned'] = done(IL(2026, 10, 18, 10));
+    w.cs['p22.received'] = done(IL(2026, 10, 18, 10, 30));
+    for (const [to, expect] of [['lior', 'lior'], ['ofir', 'ofir'], ['irit', 'irit'], ['owner', 'irit'], [editor, 'irit']]) {
+      w.cs['p22.missing'] = done(IL(2026, 10, 18, 11), JSON.stringify({ what: ['logo'], notes: { logo: 'אין' }, going: true, to }));
+      const list = pick(due(w, IL(2026, 10, 18, 11)), 'editorMissing');
+      assert.deepEqual(list.map((x) => x.person), [expect], `${editor} → ${to}`);
+      assert.equal(list[0].level, 'ring');
+      assert.match(list[0].url, /client\.html\?id=/);
+      assert.match(list[0].body, /חסר לוגו \(אין\)\. העריכה ממשיכה\./);
+    }
+  });
+}
+
+test('stopped and sent to Lior: no second ring to him after 3 hours; sent to Ofir: Lior after 3 hours, "אופיר עוד לא סגר"', () => {
+  const w = world();
+  w.cs['p22a.assigned'] = done(IL(2026, 10, 18, 10));
+  w.cs['p22.received'] = done(IL(2026, 10, 18, 10, 30));
+  w.cs['p22.wait'] = done(IL(2026, 10, 18, 11), JSON.stringify({ reason: P.blockedReason(['logo']) }));
+  w.cs['p22.missing'] = done(IL(2026, 10, 18, 11), P.missingNote(['logo'], '', { to: 'lior' }));
+  assert.equal(one(due(w, IL(2026, 10, 18, 11)), 'editorMissing', 'irit').person, 'lior');
+  assert.deepEqual(pick(due(w, IL(2026, 10, 18, 16)), 'editorMissing').map((x) => x.person), ['lior']);
+  w.cs['p22.missing'] = done(IL(2026, 10, 18, 11), P.missingNote(['logo'], '', { to: 'ofir' }));
+  assert.equal(one(due(w, IL(2026, 10, 18, 11)), 'editorMissing', 'irit').person, 'ofir');
+  assert.match(one(due(w, IL(2026, 10, 18, 14)), 'editorMissing', 'lior').body, /אופיר עוד לא סגר את זה\.$/);
+});
+
 test('QA return (the office\'s rule, one per event): the editor at once on their page; the QA clock stops; fixed starts a new one; the owner from round 2', () => {
   const w = world();
   w.cs['p22a.assigned'] = done(IL(2026, 10, 18, 10));
