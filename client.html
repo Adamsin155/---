@@ -219,6 +219,30 @@
     </form>
   </dialog>
 
+  <!-- "לא התקבל" on an editor's start check (29.10.2026): to whom, and in a few words what. -->
+  <dialog id="dlg-notgot" aria-labelledby="notgot-h">
+    <form id="notgot-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="notgot-h">לא התקבל</h2>
+        <button type="button" class="close" data-close aria-label="סגירה">×</button>
+      </div>
+      <div class="dlg-body">
+        <p id="notgot-item"></p>
+        <fieldset class="ed-to">
+          <legend>למי לשלוח את הדיווח?</legend>
+          <div class="ed-to-chips" id="notgot-to-chips"></div>
+        </fieldset>
+        <div class="field"><label for="notgot-note">מה חסר? (לא חובה)</label><input class="input" id="notgot-note" maxlength="200" autocomplete="off" placeholder="למשל: הלוגו מטושטש"></div>
+        <p class="hint">ההודעה מגיעה לטלפון עכשיו. כשזה מגיע מסמנים ״סיימתי״ בשורה.</p>
+        <div class="err" id="notgot-err" role="alert" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
+        <button type="submit" class="btn btn-primary" id="notgot-submit">לשלוח</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="dlg-call" class="dlg-wide" aria-labelledby="call-h">
     <form id="call-form" novalidate>
       <div class="dlg-head">

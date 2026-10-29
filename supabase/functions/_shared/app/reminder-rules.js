@@ -68,7 +68,7 @@ import {
 } from './office-marks.js';
 import { partsIL, dayKeyIL, atTimeIL, addDaysIL, dayFromKeyIL, daysBetweenIL, weekdayIL } from './tz.js';
 import {
-  missingOf, reportOf, missingWords, missingText, briefingOf, pauseText, arrivalOf, driveName, noteOf,
+  missingOf, reportOf, missingWords, missingText, reportTo, reportToName, briefingOf, pauseText, arrivalOf, driveName, noteOf,
 } from './production.js';
 // The client's logins form (6.10.2026): filled, or still waiting (rules accessForm, accessLink).
 import { linkState, summaryText, platformName } from './access-logic.js';
@@ -1279,7 +1279,8 @@ export const RULES = [
   },
 
   // 22: the editor reported something missing (p22.missing). Stopped ("לעצור את העריכה":
-  // the editing waits, its deadline is "חסום", not late): Irit at once; Lior after 3
+  // the editing waits, its deadline is "חסום", not late): Irit at once (or Lior or Ofir,
+  // whom the editor chose, 29.10.2026); Lior after 3
   // office hours (decision 7); it stops when the wait ends. Going on ("קיבלתי את הכונן
   // והתחלתי" with a line answered "חסר", 22.10.2026): Irit at once, with what the editor
   // wrote under each line; the clock runs, and part of the footage is Lior's own task
@@ -1293,8 +1294,11 @@ export const RULES = [
       });
     },
     steps: [
-      { id: 'irit', to: 'irit', level: 'ring', title: (i) => `חסר לעורך: ${i.name}`, body: (i) => `${i.who ? `${i.who}: ` : ''}חסר ${missingWords(i.missing) || 'חומר'}${i.missing.note ? ` (${i.missing.note})` : ''}. ${i.going ? 'העריכה ממשיכה.' : 'העריכה חסומה עד שזה מגיע.'}` },
-      { id: 'lior', officeMinutes: 180, to: 'lior', level: 'ring', exception: true, when: (i) => !i.going, title: (i) => `עריכה חסומה 3 שעות: ${i.name}`, body: (i) => `חסר ${missingText(i.missing.what) || 'חומר'}${i.who ? ` אצל ${i.who}` : ''}. עירית עוד לא סגרה את זה.` },
+      // To whom the editor chose (Irit, Lior or Ofir; production.js reportTo keeps it to
+      // those three). The step keeps its id 'irit' so a report already rung is not rung again.
+      { id: 'irit', to: (i) => reportTo(i.missing.to), level: 'ring', title: (i) => `חסר לעורך: ${i.name}`, body: (i) => `${i.who ? `${i.who}: ` : ''}חסר ${missingWords(i.missing) || 'חומר'}${i.missing.note ? ` (${i.missing.note})` : ''}. ${i.going ? 'העריכה ממשיכה.' : 'העריכה חסומה עד שזה מגיע.'}` },
+      // Sent to Lior himself: he has it already, so no second ring to him.
+      { id: 'lior', officeMinutes: 180, to: 'lior', level: 'ring', exception: true, when: (i) => !i.going && reportTo(i.missing.to) !== 'lior', title: (i) => `עריכה חסומה 3 שעות: ${i.name}`, body: (i) => `חסר ${missingText(i.missing.what) || 'חומר'}${i.who ? ` אצל ${i.who}` : ''}. ${reportToName(i.missing.to)} עוד לא ${reportTo(i.missing.to) === 'irit' ? 'סגרה' : 'סגר'} את זה.` },
     ],
   },
 

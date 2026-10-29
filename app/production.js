@@ -200,11 +200,35 @@ export function missingOf(checks, pre = '') {
   return r.going ? null : r;
 }
 // The report made while the editing goes on, until it is closed ("הגיע הכול", or "מוכן לבדיקה").
+// A thing whose start check is marked since (its row's "סיימתי" on the client card, 29.10.2026)
+// has arrived: it drops out, and with nothing left the report is closed.
 export function reportOf(checks, pre = '') {
   const m = checks?.[`${pre}p22.missing`];
   if (!m || m.state !== 'done') return null;
   const r = readReport(m);
-  return r.going ? r : null;
+  if (!r.going) return null;
+  const what = r.what.filter((k) => !CHECK_OF[k] || checks?.[pre + CHECK_OF[k]]?.state !== 'done');
+  if (!what.length) return null;
+  if (what.length === r.what.length) return r;
+  return { ...r, what, notes: cleanNotes(r.notes, what), have: what.includes('footage') ? r.have : null, of: what.includes('footage') ? r.of : null };
+}
+// "לא התקבל" on a row of the client card (the owner, 29.10.2026; p22.check.logo / phone /
+// footage / scripts): the start check's key → { pre, k } ('r2.p22.check.logo' →
+// { pre: 'r2.', k: 'logo' }), or null for any other row.
+export function checkRowOf(key) {
+  const m = /^((?:r\d+\.)?)(p22\.check\.[a-z]+)$/.exec(String(key || ''));
+  const k = m ? missingKeyOf(m[2]) : null;
+  return k ? { pre: m[1], k } : null;
+}
+// The note of p22.missing after "לא התקבל" on one row: added to the report made while the
+// editing goes on (what it names already stays, with its words), to whom the editor chose.
+export function rowReportNote(checks, pre, k, { note = '', to = 'irit' } = {}) {
+  const r = reportOf(checks, pre);
+  const what = MISSING_WHAT.map(([x]) => x).filter((x) => x === k || r?.what.includes(x));
+  const notes = { ...(r?.notes || {}) };
+  const said = String(note || '').trim();
+  if (said) notes[k] = said; else if (!r?.what.includes(k)) delete notes[k];
+  return missingNote(what, r?.note || '', { notes, have: r?.have ?? null, of: r?.of ?? null, going: true, to });
 }
 export const missingNote = (what, note = '', { notes = null, have = null, of = null, going = false, to = 'irit' } = {}) => {
   const n = cleanNotes(notes, what);
