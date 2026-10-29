@@ -1594,7 +1594,7 @@ const contractCase = (env, q) => {
 };
 RULES.push(
   {
-    id: 'contractApproval', event: 'חוזה חריג: ממתין לאישור מנהל', procs: [],
+    id: 'contractApproval', event: 'חוזה חריג לאישור מנהל (עד 29.10.2026)', procs: [],
     // No manager approves a contract any more (29.10.2026): nothing to ring about.
     instances() {
       return [];

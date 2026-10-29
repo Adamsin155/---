@@ -1,15 +1,17 @@
 // "הכנת חוזה עם AI" in the browser (the owner, 25.10.2026; docs/ops.md, section 68), against an
 // in-memory fake of Supabase whose contract-ai function answers with the JSON the model would give
 // (checked by the real app/contract-ai-logic.js, as the function does) and whose create-quote
-// honours an AI run as the database does (aiRunProblem; tests/sql/contract-ai.test.mjs):
-//   - by hand: a custom contract still goes for a manager's approval;
+// honours an AI run as the database does (aiRunProblem; tests/sql/contract-ai.test.mjs). Since
+// 29.10.2026 no contract waits for a manager (docs/ops.md, section 79): the run only marks the
+// contract "הוכן ע״י AI". The free mode ("בדיוק כמו שכתבתי") is tests/contract-ai-free-e2e.mjs.
+//   - by hand: a custom contract gets its link at once too;
 //   - the key not set: a quiet line "החיבור ל־AI עוד לא הוגדר", and nothing on the builder moves;
 //   - Irit types the deal key by key, presses "הכנת חוזה עם AI": the busy state, then the package,
 //     the custom contract's fields, the discount and the totals as if she had set them by hand,
 //     "מולא אוטומטית" on each, what was set and "צריך לבדוק:"; she changes the price by hand (its
 //     tag goes, the contract stays an AI one), previews, and "יצירת קישור לחתימה" gives the link at
-//     once: no approval, even with a discount above 200 ₪; the client's link works; the list
-//     shows "הוכן ע״י AI"; the run is used (sending again would go for approval);
+//     at once, even with a discount above 200 ₪; the client's link works; the list shows
+//     "הוכן ע״י AI" and what it changed; the run is used (sending again is a contract by hand);
 //   - a phone (390px, Chromium) and an iPhone 13 (WebKit): the same typing and button, 44px targets,
 //     nothing scrolls sideways.
 // Run: npx http-server -p 5501 -s -c-1 . &  then
@@ -95,21 +97,15 @@ function createQuote(body, me, json) {
   try { validateSelection(body.selection); selection = normalizeSelection(body.selection); } catch (e) { return json(400, { error: e.message }); }
   const exceptions = exceptionOf(selection);
   let ai = false;
-  // Only the owners, Irit and Ofir skip the approval through AI (the owner, 25.10.2026).
-  const person = staff.find((x) => x.email === me.email)?.person ?? null;
-  if (body.aiRun && !(person === null || ['irit', 'ofir'].includes(person))) body = { ...body, aiRun: null };
-  if (body.aiRun) {
-    const problem = aiRunProblem(runs.find((r) => r.id === body.aiRun), me.id, quotes.filter((q) => q.ai_run_id === body.aiRun).length, Date.parse(serverNow()));
-    if (problem) return json(409, { error: `ai run ${problem}` });
-    ai = true;
-  }
+  // A run that is no good (old, used, someone else's) only loses the tag (29.10.2026).
+  if (body.aiRun) ai = !aiRunProblem(runs.find((r) => r.id === body.aiRun), me.id, quotes.filter((q) => q.ai_run_id === body.aiRun).length, Date.parse(serverNow()));
   const model = buildQuoteModel(selection, body.client);
-  const pending = exceptions.length > 0 && !ai;
+  const pending = false; // no manager's approval since 29.10.2026
   const q = {
     id: randomUUID(), token: randomUUID(), number: `AST-2026-${String(++seq).padStart(4, '0')}`, created_at: serverNow(), created_by: me.id, created_by_email: me.email,
     model: { ...model }, client_name: model.client.name, monthly_gross_agorot: model.totals.monthlyGross, term_gross_agorot: model.totals.termGross, status: 'sent',
     first_viewed_at: null, signed_at: null, signer_name: null, approval: pending ? 'pending' : 'none', approval_by: null, approval_note: null, approval_at: null,
-    exceptions: exceptions.length && (pending || ai) ? exceptions : null, prepared_by: ai ? 'ai' : null, ai_run_id: ai ? body.aiRun : null,
+    exceptions: exceptions.length ? exceptions : null, prepared_by: ai ? 'ai' : null, ai_run_id: ai ? body.aiRun : null,
     expires_at: pending ? null : new Date(Date.parse(serverNow()) + model.validHours * 3600e3).toISOString(),
   };
   q.model.number = q.number;
@@ -250,21 +246,22 @@ try {
   const irit = await newPage(browser, { viewport: { width: 1280, height: 900 } });
   await signIn(irit, 'irit');
 
-  await step('by hand: a custom contract that differs from the package still goes for a manager\'s approval', async () => {
+  await step('by hand: a custom contract that differs from the package gets its link at once (no manager since 29.10.2026)', async () => {
     await freshBuilder(irit);
     await irit.locator('#c-name').fill('רון כהן');
     await irit.locator('.custom-head .switch').click();
     await irit.locator('#custom-body').waitFor();
     await irit.locator('#discount').fill('350');
-    assert.equal(await text(irit, '#btn-link'), 'שליחה לאישור');
-    assert.match(await text(irit, '#custom-diff .needs'), /אדם, אופיר או ליאור/);
+    assert.equal(await text(irit, '#btn-link'), 'יצירת קישור לחתימה');
+    assert.match(await text(irit, '#custom-diff .needs'), /הקישור ללקוח נוצר מיד/);
+    assert.doesNotMatch(await irit.locator('#sec-addons, #summary').allInnerTexts().then((t) => t.join(' ')), /אישור מנהל|לאישור/);
     assert.equal(await irit.locator('.tag-ai:visible').count(), 0);
     await irit.locator('#btn-link').click();
-    await irit.locator('#dlg-pending[open]').waitFor();
+    await irit.locator('#dlg-share[open]').waitFor();
     const sent = lastCreate();
     assert.equal('aiRun' in sent, false);
-    assert.deepEqual([quotes.at(-1).approval, quotes.at(-1).prepared_by], ['pending', null]);
-    await irit.locator('#dlg-pending .close').click();
+    assert.deepEqual([quotes.at(-1).approval, quotes.at(-1).prepared_by, quotes.at(-1).exceptions.length], ['none', null, 1]);
+    await irit.locator('#dlg-share .close').click();
   });
 
   await step('the key not set: a quiet line, and nothing on the builder moves', async () => {
@@ -325,18 +322,18 @@ try {
     assert.equal(await text(irit, '.ai-check-h'), 'צריך לבדוק:');
     assert.deepEqual(await texts(irit, '#ai-check li'), ['Highlights אינו חלק מהחבילה: נרשם כתנאי מיוחד. לוודא שזה מה שסוכם.']);
     assert.match(await text(irit, '.ai-notes'), /לפני מע״מ/);
-    assert.match(await text(irit, '.ai-flag'), /בלי אישור מנהל/);
+    assert.match(await text(irit, '.ai-flag'), /בודקים, ויוצרים קישור כרגיל/);
     assert.equal(await irit.evaluate(() => document.activeElement?.id), 'ai-result');
     // "מולא אוטומטית" on each field that was filled, and on nothing else.
     const tagged = async () => irit.evaluate(() => [...document.querySelectorAll('.tag-ai')].filter((t) => t.offsetParent)
       .map((t) => t.closest('.custom-q')?.querySelector('input')?.id || t.closest('.tier')?.querySelector('input')?.id || t.closest('.inf')?.querySelector('input')?.id || t.id).sort());
     assert.deepEqual(await tagged(), ['cq-shootDays', 'cq-videos', 'custom-price-ai', 'custom-terms-ai', 'disc-ai', 'inf-natali', 'tier-social'].sort());
     assert.ok(await irit.locator('.custom-q.is-ai #cq-videos').count());
-    // Prepared with AI: the link at once, no approval (the owner's decision), though it differs.
+    // The link at once, though it differs; what differs is information only.
     assert.equal(await text(irit, '#btn-link'), 'יצירת קישור לחתימה');
-    assert.match(await text(irit, '#act-hint'), /הוכן עם AI: אחרי שבדקת, הקישור נוצר מיד, בלי אישור מנהל/);
-    assert.match(await text(irit, '#sum-diff'), /חוזה חריג · 5 שינויים מהחבילה · הוכן עם AI: נשלח ללקוח בלי אישור מנהל/);
-    assert.match(await text(irit, '#custom-diff .needs'), /הוכן עם AI/);
+    assert.match(await text(irit, '#act-hint'), /חוזה מותאם אישית: הקישור נוצר מיד/);
+    assert.match(await text(irit, '#sum-diff'), /חוזה מותאם אישית · 5 שינויים מהחבילה · הוכן עם AI/);
+    assert.match(await text(irit, '#custom-diff .needs'), /הקישור ללקוח נוצר מיד/);
     assert.deepEqual(await texts(irit, '#custom-diff-list li'), [
       '20 סרטונים במקום 36', '2 ימי צילום עם המשפיענים במקום 1', 'מחיר חודשי 3,500 ₪ במקום 3,900 ₪',
       'הנחה חודשית 300 ₪ (בחוזה רגיל עד 200 ₪)', 'תנאים מיוחדים',
@@ -382,8 +379,8 @@ try {
     assert.match(await irit.locator('#sh-link').inputValue(), new RegExp(`q\\.html#t=${sentQuote.token}$`));
     await shot(irit, '03-ai-share-1280', false);
     await irit.locator('#dlg-share .close').click();
-    // The run is used: the same contract again would go for approval; the tags are gone.
-    assert.equal(await text(irit, '#btn-link'), 'שליחה לאישור');
+    // The run is used: the same contract again would be one by hand; the tags are gone.
+    assert.equal(await text(irit, '#btn-link'), 'יצירת קישור לחתימה');
     assert.equal(await irit.locator('.tag-ai:visible').count(), 0);
     // Sent: the draft is gone, so a refresh starts a new one (the owner, 25.10.2026).
     assert.equal(await irit.evaluate(() => sessionStorage.getItem('astrateg-draft')), null);
@@ -393,19 +390,22 @@ try {
     await anon.locator('#signbox').waitFor();
     assert.match(await anon.locator('.qd-grid').innerText(), /20\s*סרטונים/);
     await anon.context().close();
-    // The list: "הוכן ע״י AI", without an approval, with what it changed.
+    // The list: "הוכן ע״י AI", with what it changed (for the owners, information only).
     await irit.goto(`${BASE}quotes.html`);
     const row = irit.locator('#rows tr', { hasText: sentQuote.number });
     await row.waitFor();
     assert.equal(await row.locator('.doc-ai').innerText(), 'הוכן ע״י AI');
-    assert.match(await row.locator('.apv-cell').innerText(), /^בלי אישור · הוכן ע״י AI\s*5 שינויים מהחבילה$/);
+    assert.match(await row.locator('.apv-cell').innerText(), /^5 שינויים מהחבילה\s*20 סרטונים במקום 36 · 2 ימי צילום/);
     assert.ok(await row.locator('.btn', { hasText: 'העתקת קישור' }).count());
-    // The hand contract of the first step is still waiting for a manager.
-    assert.match(await irit.locator('#rows tr', { hasText: quotes[0].number }).locator('.apv-cell').innerText(), /ממתין/);
+    // The hand contract of the first step: its link works, what it changed is shown, nothing waits.
+    const hand = irit.locator('#rows tr', { hasText: quotes[0].number });
+    assert.match(await hand.locator('.apv-cell').innerText(), /שינוי אחד מהחבילה/);
+    assert.ok(await hand.locator('.btn', { hasText: 'העתקת קישור' }).count());
+    assert.doesNotMatch(await irit.locator('#rows').innerText(), /ממתין לאישור/);
     await shot(irit, '04-quotes-list-ai-tag-1280', false);
   });
 
-  await step('an AI preparation used already: nothing is created, the contract stays, now by hand', async () => {
+  await step('an AI preparation used already: the contract is created all the same, by hand (no tag)', async () => {
     await freshBuilder(irit);
     await irit.locator('#c-name').fill('יוסי');
     await typeDeal(irit);
@@ -415,14 +415,14 @@ try {
     quotes.push({ ...sentQuote, id: randomUUID(), ai_run_id: runs.at(-1).id });
     const n = quotes.length;
     await irit.locator('#btn-link').click();
-    await irit.locator('#toast:not([hidden])').waitFor();
-    assert.match(await text(irit, '#toast'), /ההכנה עם AI כבר לא בתוקף/);
-    assert.equal(quotes.length, n);
-    assert.equal(await text(irit, '#btn-link'), 'שליחה לאישור');
+    await irit.locator('#dlg-share[open]').waitFor();
+    assert.equal(quotes.length, n + 1);
+    assert.deepEqual([quotes.at(-1).approval, quotes.at(-1).prepared_by], ['none', null]);
+    await irit.locator('#dlg-share .close').click();
     assert.equal(await irit.locator('#cq-videos').inputValue(), '20');
   });
 
-  await step('Lior prepares with AI: the builder fills, but his contract goes for approval (only the owners, Irit and Ofir skip it)', async () => {
+  await step('Lior prepares with AI: the builder fills, and his contract gets its link at once too', async () => {
     const lior = await newPage(browser);
     // Lior has no quotes list: signed in once the sign-in form is gone.
     await lior.goto(`${BASE}quotes.html`);
@@ -436,7 +436,7 @@ try {
     await lior.locator('#ai-go').click();
     await lior.locator('#ai-result:not([hidden])').waitFor();
     assert.equal(await lior.locator('#cq-videos').inputValue(), '20');
-    assert.equal(await text(lior, '#btn-link'), 'שליחה לאישור');
+    assert.equal(await text(lior, '#btn-link'), 'יצירת קישור לחתימה');
     await lior.context().close();
   });
 

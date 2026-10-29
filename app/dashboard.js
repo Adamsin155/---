@@ -164,7 +164,7 @@ function legacyRow(q, s) {
       q.monthly_gross_agorot ? h('small', { class: 'by', dir: 'rtl' }, `${formatILS(q.monthly_gross_agorot)} לחודש`) : null) : null,
     h('td', { 'data-label': 'נוצר' }, formatDate(q.created_at), h('small', { class: 'by' }, 'מחוץ למחולל')),
     h('td', { 'data-label': 'סטטוס' }, h('span', { class: `pill k-pill k-pill-${TONE[s] || 'plain'} ${s}` }, STATUS[s]), h('small', { class: 'when' }, h('span', { class: 'k-sep' }, ' · '), formatDate(q.signed_at, true))),
-    h('td', { 'data-label': 'אישור מנהל' }, h('span', { class: 'apv-cell' }, '—')),
+    h('td', { 'data-label': 'שינויים מהחבילה' }, h('span', { class: 'apv-cell' }, '—')),
     h('td', { class: 'acts-cell' }, h('div', { class: 'acts' },
       h('a', { class: 'btn btn-sm btn-ghost', href: `legacy-contract.html?id=${encodeURIComponent(q.legacy)}` }, 'פתיחה'))));
 }

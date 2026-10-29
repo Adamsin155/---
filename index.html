@@ -360,14 +360,15 @@
 
   <dialog id="dlg-pending" aria-labelledby="pd-h">
     <div class="dlg-head">
-      <h2 id="pd-h">נשלח לאישור</h2>
+      <h2 id="pd-h">החוזה נשמר</h2>
       <button type="button" class="close" data-close aria-label="סגירה">×</button>
     </div>
     <div class="dlg-body">
-      <p>החוזה <strong class="num" id="pd-number" dir="ltr"></strong> נשמר ונשלח לאישור של אדם, אופיר או ליאור. מספיק שאחד מהם יאשר.</p>
+      <!-- Only before the migration of 29.10.2026 (docs/ops.md, section 79) can the database still hold a contract. -->
+      <p>החוזה <strong class="num" id="pd-number" dir="ltr"></strong> נשמר, אבל המסד עוד לא עודכן לשינוי של 29.10 (בלי אישור מנהל), ולכן עדיין אין קישור ללקוח.</p>
       <p style="margin-bottom:6px"><strong>מה שונה מהחבילה</strong></p>
       <ul class="pending-list" id="pd-list"></ul>
-      <p>עדיין אין קישור ללקוח. כשהחוזה יאושר תגיע התראה, והקישור יופיע ב״המשימות שלי״ וב״הצעות שנשלחו״. אם לא יאושר, הוא יחזור עם הערה לתיקון.</p>
+      <p>אחרי העדכון הקישור יופיע ב״המשימות שלי״, עם ״שליחה ללקוח״.</p>
     </div>
     <div class="dlg-foot">
       <button type="button" class="btn btn-ghost" data-close>סגירה</button>

@@ -71,7 +71,7 @@ test('contracts and signatures: Stav\'s deals before there is a client, and proc
     ['חדש', 'החוזה לא הוכן', true],
     ['פיצה רמי', 'עסקה מהשטח: להכין חוזה', true], // the 10 office minutes ran out at 09:10
     ['הוכן', 'החוזה הוכן ולא נשלח', true],
-    ['חריג', 'חוזה חריג: ממתין לאישור מנהל', false],
+    ['חריג', 'חוזה מותאם: מוכן לשליחה', false],
   ]);
   assert.equal(t.contracts.items[1].href, 'index.html?deal=d1');
   assert.equal(t.contracts.items[0].hash, 'p01');
