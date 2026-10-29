@@ -247,7 +247,7 @@ assert.equal(await page.inputValue('#new-name'), 'דנה לוי');
 assert.equal(await page.inputValue('#new-package'), 'social-natali');
 assert.equal(await page.inputValue('#new-shoot-type'), 'natali');
 assert.match(await page.innerText('#new-shoot-hint'), /לפי החבילה/);
-assert.match(await page.innerText('#new-package-hint'), /סרטונים 25 · גרפיקות 39[^]*כולל התוספות בהסכם/);
+assert.match(await page.innerText('#new-package-hint'), /סרטונים 36 · גרפיקות 40[^]*כולל התוספות בהסכם/);
 await page.click('#new-submit');
 await page.waitForURL(/client\.html\?id=/);
 const created = db.clients.find((c) => c.name === 'דנה לוי');
@@ -255,7 +255,7 @@ assert.equal(created.quote_id, signedQuote.id);
 assert.equal(created.shoot_type, 'natali');
 assert.equal(created.deal_at, signedQuote.signed_at);
 assert.equal(created.package_name, 'Social all in one · נטלי דדון');
-assert.deepEqual(created.deliverables, { videos: 25, graphics: 39, shoot_days: 1, collabs: 0, stories: 1, ch14: 0, monthly: 0 });
+assert.deepEqual(created.deliverables, { videos: 36, graphics: 40, shoot_days: 1, collabs: 0, stories: 1, ch14: 0, monthly: 0 });
 
 // Irit's card opens on her own processes and items; the whole protocol is one explicit click away.
 await page.waitForSelector('#p02');

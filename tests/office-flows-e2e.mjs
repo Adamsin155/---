@@ -1506,7 +1506,8 @@ await step('the old system\'s signed documents: the owner imports through the pa
   assert.deepEqual(result, { ok: [501, 502, 505, 506], skipped: [{ id: 504, clientId: 77, clientName: 'לקוח שלא יובא' }], other: [{ id: 503, status: 'נשלח' }], failed: [] });
   assert.deepEqual(db.legacy_contracts.map((r) => [r.id, r.client_id, r.doc_type, r.status, !!r.signature]),
     [[501, V.id, 'contract', 'signed', true], [502, V.id, 'termination', 'signed', false], [505, V.id, 'contract', 'pending', false], [506, V.id, 'contract', 'quote', false]]);
-  assert.doesNotMatch(JSON.stringify(db.legacy_contracts), /1\.2\.3\.4|Mozilla|050-1234567|512345678/);
+  // Everything of the record is kept (the owner, 28.10.2026: "אמרתי לך להעתיק הכל"), the company number and the device too.
+  for (const want of ['1.2.3.4', 'Mozilla', '050-1234567', '512345678']) assert.ok(JSON.stringify(db.legacy_contracts).includes(want), want);
   // Again: the same four rows.
   await importInPage(owner, [contract, termination, pending, offer], (old) => (old === 44 ? V.id : null));
   assert.equal(db.legacy_contracts.length, 4);
@@ -1533,7 +1534,7 @@ await step('the old system\'s signed documents: the owner imports through the pa
   const text = await owner.innerText('#lc-doc');
   for (const want of ['הסכם התקשרות', 'AST-2025-017', 'רון לוי', 'מספרת רון', 'חבילת פרימיום', 'ניהול אינסטגרם וטיקטוק', 'קמפיין ממומן', '₪60,000', '₪5,000', 'הוראת קבע',
     '12 תשלומים של ₪5,000 + מע״מ', 'בלעדיות', 'סרטון אחד באנגלית', 'הצילום בבוקר', 'החותם אישר: ״קראתי ואני מאשר את ההסכם״', 'DOC abcdef012345', 'SIG ffffffffffff']) assert.ok(text.includes(want), want);
-  assert.doesNotMatch(text, /1\.2\.3\.4|Mozilla|050-1234567|512345678/);
+  for (const want of ['512345678', '050-1234567', '1.2.3.4', 'Mozilla']) assert.ok(text.includes(want), want);
   assert.match(await owner.getAttribute('.qd-sign-box.is-signed img', 'src'), /^data:image\/png;base64,/);
   assert.equal(await owner.getAttribute('#lc-back', 'href'), `client.html?id=${V.id}`);
   assert.equal(await owner.isVisible('#btn-print'), true);
