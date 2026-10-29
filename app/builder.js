@@ -157,14 +157,16 @@ function renderTiers() {
 
 function renderIncluded() {
   const pid = packageId(state.tier, state.influencer);
-  const pkg = PACKAGES[pid];
   const tier = TIERS.find((t) => t.id === state.tier);
+  // "בלי משפיענים" (29.10.2026): what this contract itself includes, not the package it starts from.
+  const none = state.custom?.noInfluencer === true;
+  const includes = none ? currentModel().package.includes : PACKAGES[pid].includes;
   $('included').replaceChildren(
     h('div', { class: 'included-head' },
-      h('span', { class: 'included-title' }, h('span', { class: 'nw' }, 'מה כלול ב־', h('bdi', {}, tier.short)), h('span', { class: 'k-sep' }, ' · '), h('span', { class: 'of' }, INFLUENCERS[state.influencer].name)),
-      h('span', { class: 'tag' }, 'כמויות לשנה'),
+      h('span', { class: 'included-title' }, h('span', { class: 'nw' }, 'מה כלול ב־', h('bdi', {}, tier.short)), h('span', { class: 'k-sep' }, ' · '), h('span', { class: 'of' }, none ? 'בלי משפיענים' : INFLUENCERS[state.influencer].name)),
+      h('span', { class: 'tag' }, none ? 'כמו שנכתב בחוזה' : 'כמויות לשנה'),
     ),
-    h('ul', {}, pkg.includes.map((i) => h('li', {},
+    h('ul', {}, includes.map((i) => h('li', {},
       h('span', { class: 'inc-qty' + (i.qty === null ? ' is-check' : '') }, i.qty === null ? '✓' : String(i.qty)),
       h('span', {}, i.label),
     ))),
@@ -194,7 +196,8 @@ function renderPaid() {
         }),
       ),
       h('span', { class: 'tile-detail' }, a.detail),
-      h('span', { class: 'tile-foot' }, priceBlock(a.price),
+      // Inside the monthly price of a free contract (29.10.2026): no price of its own.
+      h('span', { class: 'tile-foot' }, on && state.custom?.addonsIncluded === true ? h('span', { class: 'tag' }, 'כלול במחיר החודשי') : priceBlock(a.price),
         a.monthlyOutput ? h('span', { class: 'tag tag-warn' }, 'תפוקה חודשית') : null),
     );
   }));
@@ -281,13 +284,13 @@ function renderSummary() {
   const t = model.totals;
   const tier = TIERS.find((x) => x.id === state.tier);
   $('sum-pkg').textContent = tier.name;
-  $('sum-inf').textContent = INFLUENCERS[state.influencer].name;
+  $('sum-inf').textContent = model.package.influencer;
 
   const line = (name, val, cls = '') => h('li', { class: cls },
     h('span', { class: 'name' }, name), h('span', { class: 'lead', 'aria-hidden': 'true' }), val);
   const lines = [
     line('חבילה', h('span', { class: 'val', dir: 'ltr' }, formatILS(model.package.monthly))),
-    ...model.paid.map((p) => line(p.name, h('span', { class: 'val', dir: 'ltr' }, `+${formatILS(p.monthly)}`))),
+    ...model.paid.map((p) => line(p.name, p.included ? h('span', { class: 'free' }, 'כלול') : h('span', { class: 'val', dir: 'ltr' }, `+${formatILS(p.monthly)}`))),
     ...(model.extraLines || []).filter((l) => l.monthly).map((l) => line(l.label, h('span', { class: 'val', dir: 'ltr' }, `+${formatILS(l.monthly)}`))),
     t.discount ? line('הנחה', h('span', { class: 'val is-discount', dir: 'ltr' }, `−${formatILS(t.discount)}`)) : null,
   ].filter(Boolean);
@@ -508,8 +511,11 @@ function renderCustom() {
   $('custom-incl').disabled = !state.paid.length;
   $('custom-noinf-ai').hidden = !aiLive.has('noinf');
   $('custom-incl-ai').hidden = !aiLive.has('incl');
+  // "בלי משפיענים": nothing of an influencer to count.
+  const noInf = state.custom.noInfluencer === true;
   $('custom-qty').replaceChildren(...CUSTOM_QTY
     .filter((q) => !q.addon || state.paid.includes(q.addon))
+    .filter((q) => !noInf || !['shootDays', 'collabs', 'stories'].includes(q.key))
     .map((q) => customStepper(q, base[q.key])));
   const active = document.activeElement;
   if (active !== $('custom-price')) $('custom-price').value = String((Number.isInteger(state.custom.price) ? state.custom.price : pkg.price) / 100);
@@ -1363,12 +1369,15 @@ async function openFromDeal(id) {
     render();
     saveDraft();
     if (words !== null) {
-      // The box is on the screen with the words in it: one press and the contract fills itself.
-      $('ai-box').scrollIntoView({ block: 'start' });
-      $('ai-go').focus({ preventScroll: true });
+      // The box is on the screen with the words in it: one press and the contract fills itself
+      // (after the frame, once the office's part of the page is drawn).
+      requestAnimationFrame(() => {
+        $('ai-box').scrollIntoView({ block: 'center' });
+        $('ai-go').focus({ preventScroll: true });
+      });
     }
     toast(words !== null
-      ? `${contractTitle(d)}: מה שנכתב בשטח כבר בתיבת ה־AI, ״בדיוק כמו שכתבתי״ מסומן. ללחוץ ״הכנה בדיוק כמו שכתבתי״, לבדוק ולשלוח.`
+      ? `${contractTitle(d)}: מה שנכתב בשטח כבר בתיבה. ללחוץ ״הכנה בדיוק כמו שכתבתי״.`
       : state.custom
         ? `${contractTitle(d)}: הצעה אחרת מהשטח. נפתח חוזה מותאם אישית עם מה שנכתב; לבחור חבילת בסיס, לבדוק, וליצור קישור.`
         : `${contractTitle(d)}: הפרטים מהעסקה נטענו. לבדוק ולהשלים, ואז ליצור קישור.`);

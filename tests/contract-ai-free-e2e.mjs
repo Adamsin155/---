@@ -229,6 +229,9 @@ async function signIn(page, who, path = 'quotes.html', ready = '#list-block') {
   await page.fill('#lg-pass', 'correct-horse');
   await page.click('#lg-submit');
   if (ready) await page.locator(ready).first().waitFor();
+  // The sign-in card's goodbye (the door) is over before anything is looked at.
+  await page.waitForFunction(() => !document.querySelector('#lg-email')?.offsetParent, null, { timeout: 15000 });
+  await page.waitForTimeout(400);
 }
 async function freshBuilder(page, doc = 'agreement') {
   await page.goto(`${BASE}index.html`);
@@ -504,6 +507,8 @@ if (!exitCode) {
       await open.tap();
       await irit.waitForURL(/index\.html\?deal=/);
       await irit.waitForFunction(() => document.getElementById('c-company').value === 'שטיחי רות');
+      await irit.waitForFunction(() => { const r = document.getElementById('ai-box').getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; });
+      assert.equal(await irit.evaluate(() => document.activeElement.id), 'ai-go', 'one press away');
       assert.equal(await irit.inputValue('#ai-text'), STAV);
       assert.equal(await irit.locator('#ai-free').isChecked(), true);
       assert.equal(await text(irit, '#ai-go'), 'הכנה בדיוק כמו שכתבתי');

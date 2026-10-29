@@ -57,7 +57,7 @@ function card(d) {
     h('div', { class: 'deal-task-acts' },
       // The design keeps pink for the screen's one main action ("לקוח חדש"): a row's own action is the navy outline.
       h('a', { class: 'btn', href: dealUrl(d) }, docTypeOf(d) === 'quote' ? 'להכנת הצעת המחיר' : 'להכנת החוזה'),
-      h('button', { type: 'button', class: 'btn btn-ghost', onclick: (e) => move(d, 'sent', e.currentTarget, `סומן שהחוזה נשלח: ${d.business_name}`) }, 'החוזה נשלח'),
+      h('button', { type: 'button', class: 'btn btn-ghost', onclick: (e) => move(d, 'sent', e.currentTarget, `סומן ש${docTypeOf(d) === 'quote' ? 'ההצעה נשלחה' : 'החוזה נשלח'}: ${d.business_name}`) }, docTypeOf(d) === 'quote' ? 'ההצעה נשלחה' : 'החוזה נשלח'),
       h('button', {
         type: 'button', class: 'btn btn-ghost',
         onclick: (e) => { if (window.confirm(`לסמן שהעסקה של ${d.business_name} בוטלה?`)) move(d, 'cancelled', e.currentTarget, `העסקה סומנה כמבוטלת: ${d.business_name}`); },
