@@ -13,10 +13,14 @@
 //      The sales tool asks for money columns only then, and `withoutMoney` takes every money
 //      field out of anything a tool returns to anyone else, as a last net.
 // Every list is capped (ROW_CAP rows, and OUTPUT_MAX characters for a whole tool answer).
+//
+// And one tool that reads nothing: app_guide, the asker's own screens and how-tos ("איפה…",
+// "איך…"; app/ask-guide.js), from the menu rules for the person the function identified.
 import { PEOPLE, SHOOT_TYPES, CLIENT_STATUS, PROCESSES, editorsOf } from '../_shared/app/protocol.js';
 import { monthTarget, monthKey, isMonthKey, monthLabel } from '../_shared/app/edit-count.js';
 import { dayKeyIL, partsIL } from '../_shared/app/tz.js';
 import { folderIdOf, summarize } from '../_shared/drive.js';
+import { guideFor, clientLink, ganttLink } from '../_shared/app/ask-guide.js';
 
 export const ROW_CAP = 50;
 export const OUTPUT_MAX = 14000;
@@ -169,6 +173,11 @@ export const TOOLS = [
     input_schema: { type: 'object', properties: { client: str('The client\'s name.'), since: str('Optional YYYY-MM-DD: only files added from then.') }, required: ['client'], additionalProperties: false },
   },
   {
+    name: 'app_guide',
+    description: 'How to use the app, for the person asking only: the screens of their menu ("mine": "המשימות שלי" and the rest of their personal menu; "manager": the screens behind the "מבט מנהל" button, only for whoever has it), each with its link and what is there, and common how-tos with the clicks ("path"). Use for every "איפה…", "איך…", "מה יש ב…", "איפה רואים…" question about the app. A screen that is not in this answer does not exist for this person.',
+    input_schema: { type: 'object', properties: { topic: str('The subject in the person\'s words, e.g. "לקוח חדש", "קישור לדרייב", "הצעות שנשלחו".') }, additionalProperties: false },
+  },
+  {
     name: 'team',
     description: 'The team: names and roles.',
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
@@ -195,11 +204,14 @@ async function findClients(ctx, i) {
     return true;
   });
   const { rows: shown, more } = cap(out);
+  // A search for a client by name gives the way to its pages in the app, too.
+  const links = !!i.name && out.length <= 10;
   return {
     count: out.length,
     clients: shown.map((c) => ({
       name: label(c), status: CLIENT_STATUS[c.status] || c.status, archived: !!c.archived_at || undefined, package: c.package_name || null,
       editors: editorsOf(c).map(personName), shoot_type: SHOOT_TYPES[c.shoot_type]?.name || null,
+      ...(links ? { app_links: { card: clientLink(c.id), gantt: ganttLink(c.id) } } : {}),
     })),
     more,
   };
@@ -252,6 +264,8 @@ async function clientDetails(ctx, i) {
     gantt_this_month: { items: inMonth.length, by_state: countBy(inMonth, 'state'), by_kind: countBy(inMonth, 'kind') },
     links: Object.fromEntries(Object.entries(c.links || {}).filter(([, v]) => typeof v === 'string' && /^https:\/\//.test(v))),
     landing: c.landing ? true : undefined,
+    // The client's own pages in the app (the card, and its content Gantt).
+    app_links: { card: clientLink(c.id), gantt: ganttLink(c.id) },
   };
   // The agreement's price: the owners only (public.sees_money()); nobody else's query asks for it.
   if (ctx.seesMoney && c.quote_id) {
@@ -442,16 +456,21 @@ async function driveFiles(ctx, i) {
   }
 }
 
+// The asker's own screens and how-tos; nothing is read (ctx.viewer: { me, scope }, from the function).
+function appGuide(ctx, i) {
+  return guideFor(ctx.viewer, typeof i.topic === 'string' ? i.topic.slice(0, 200) : '') || { error: 'אין מדריך לחשבון הזה.' };
+}
+
 function team() {
   return { people: Object.values(PEOPLE).filter((p) => p.key !== 'editor').map((p) => ({ name: p.name, role: p.role })) };
 }
 
 const RUN = {
   find_clients: findClients, client_details: clientDetails, tasks: tasksTool, shoot_days: shootDays,
-  editors_progress: editorsProgress, content_gantt: contentGantt, sales, drive_files: driveFiles, team,
+  editors_progress: editorsProgress, content_gantt: contentGantt, sales, drive_files: driveFiles, app_guide: appGuide, team,
 };
 
-// One tool call: { content: string, isError }. ctx: { db (guardDb), seesMoney, drive (or null), now() }.
+// One tool call: { content: string, isError }. ctx: { db (guardDb), seesMoney, drive (or null), now(), viewer }.
 export async function runTool(ctx, name, input) {
   const fn = RUN[name];
   if (!fn) return { content: JSON.stringify({ error: 'unknown tool' }), isError: true };

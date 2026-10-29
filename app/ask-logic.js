@@ -66,6 +66,20 @@ export const EXAMPLES = [
   'מה ימי הצילום השבוע?',
   'אילו משימות באיחור?',
 ];
+// "איפה…" / "איך…" about the app (app/ask-guide.js answers them, from the asker's own screens).
+export const HOWTO_EXAMPLES = {
+  office: ['איך מוסיפים לקוח חדש?', 'איך מחברים קישור לדרייב ללקוח?'],
+  own: ['איפה אני רואה מה באיחור?', `איפה הגאנט של ${CLIENT_SLOT}?`],
+  sales: ['איך שולחים עסקה חדשה?'],
+};
+// The chips for this person: questions about what they see, and one or two how-tos. The field
+// sales see their deals only; Ilai, the editors and Eli their own clients and tasks.
+export function examplesFor(v) {
+  if (!canAsk(v)) return [];
+  if (v.scope === 'sales') return ['כמה עסקאות שלחתי החודש?', ...HOWTO_EXAMPLES.sales];
+  if (isOwnerView(v) || v.scope === 'office') return [...EXAMPLES, ...HOWTO_EXAMPLES.office];
+  return ['אילו משימות שלי באיחור?', `כמה סרטונים מגיע ל${CLIENT_SLOT} החודש?`, 'מה ימי הצילום השבוע?', ...HOWTO_EXAMPLES.own];
+}
 // Where the slot starts and ends in a chip's words, for the selection: [start, end] or null.
 export function slotRange(text) {
   const i = String(text).indexOf(CLIENT_SLOT);

@@ -1,0 +1,333 @@
+// generated — edit app/ instead. Source: app/shell-rules.js. Regenerate: node scripts/sync-functions.mjs
+// The app menu's plain rules: which screens the signed-in person is offered, in what
+// order, which of them sit in the phone's bottom bar, and which one is the page they
+// are on. One list for every page (the side menu on a wide screen, the bottom bar and
+// "עוד" on a phone; app/shell.js draws it). It only gathers the rules the pages
+// already had: the office's screens (officeScreens, which app/office-ui.js
+// officeLinks draws), the managers' two profiles (app/manager-rules.js), the team
+// screen (app/team-rules.js), and the predicates of health.js, messages-logic.js and
+// insights.js, repeated here in one line each so that the quote pages do not load those
+// modules (tests/shell.test.mjs holds them equal for every role).
+// Screens only: what anyone may read or open is decided by the database and by each
+// page's own gate. No DOM here, so node can test it.
+import { PEOPLE, isSales } from './protocol.js';
+import { isOwnerView, canManageTeam } from './team-rules.js';
+import { canAsk } from './ask-logic.js';
+import {
+  isManager, hasProfiles, canSeeTable, canSeeShootTable, canSeeQuoteList, canBuildQuote, managerHome, MODES, BACK_LABEL,
+} from './manager-rules.js';
+
+const known = (v) => !!v && !v.error;
+const officeOf = (v) => known(v) && v.scope === 'office';
+// As canSendMessages (messages-logic.js), canSeeInsights (insights.js), canSeeAllClients (health.js).
+const sendsMessages = (v) => known(v) && ((!v.me && v.scope === 'office') || ['irit', 'lior'].includes(v.me));
+const seesInsights = (v) => known(v) && ((!v.me && v.scope === 'office') || v.me === 'lior');
+const seesAllClients = (v) => canSeeTable(v);
+// The calendar page ("יומן", calendar.html; 15.10.2026): everyone with client work, not the
+// field sales (as seesCalendar in calendar-view.js).
+const seesCalendar = (v) => known(v) && v.scope !== 'sales' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
+// The pink "לקוח חדש" on clients.html (the owner, 20.10.2026; Lior and Ofir since
+// 27.10.2026): the owners, Irit, Lior and Ofir (processes 2–3 are Irit's; a signed agreement
+// opens its client by itself, app/client-open.js, and the field sales have no clients list).
+// Hidden for Ilai, the editors and Eli. A screen only: the database decides who may write a
+// client (the office, "office adds clients").
+export const CLIENT_OPENERS = ['irit', 'lior', 'ofir'];
+export const opensClients = (v) => known(v) && v.scope === 'office' && (!v.me || CLIENT_OPENERS.includes(v.me));
+// "אפיון" / "עדכון אפיון" / "אפיון חדש" (the owner, 27.10.2026): the characterization form at
+// any time, with no clock (intake.html?id=…&only=char, and intake.html with no client to pick
+// one): the owners, Irit, Lior and Ofir. public.characterizations is the office's to write.
+export const CHAR_WRITERS = ['irit', 'lior', 'ofir'];
+export const writesChar = (v) => known(v) && v.scope === 'office' && (!v.me || CHAR_WRITERS.includes(v.me));
+// The index of the content Gantt: the office and Ilai (as worksCycle in month-ui.js).
+export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai');
+// Who changes a Gantt: Ilai, Irit (22.10.2026) and the owner (public.can_edit_gantt() decides).
+export const editsGantt = (v) => known(v) && (v.me === 'ilai' || v.me === 'irit' || (!v.me && v.scope === 'office'));
+
+// The office screens, one order everywhere: Ofir's queue, the pass over the clients (Irit's
+// since 26.10.2026; Ofir, who did it until then, and the owner look at it), Lior's decisions
+// (and the assignment, which he takes when Ofir cannot), all three for the owner; the monthly
+// insights for the owner and Lior; the package year for the office and Ilai.
+export function officeScreens(viewer) {
+  const me = viewer?.me || null;
+  const ok = known(viewer);
+  const owner = ok && !me && viewer.scope === 'office';
+  return [
+    ['qa', 'qa.html', 'בקרה ושיוך', me === 'ofir' || me === 'lior' || owner],
+    ['pass', 'pass.html', 'מעבר על הלקוחות', me === 'irit' || me === 'ofir' || owner, 'מעבר'],
+    ['decisions', 'decisions.html', 'החלטות', me === 'lior' || me === 'ofir' || owner],
+    ['insights', 'insights.html', 'תובנות', seesInsights(viewer)],
+    ['year', 'year.html', 'שנת החבילה', ok && (viewer.scope === 'office' || me === 'ilai')],
+  ].filter(([, , , show]) => show).map(([id, href, label, , short]) => (short ? { id, href, label, short } : { id, href, label }));
+}
+
+export const QUOTE_LABEL = 'הצעה חדשה והכנת חוזה';
+const ASK_ITEM = { id: 'ask', href: 'ask.html', label: 'שאלו את המערכת', short: 'שאלו' };
+// Every screen this person may open, in the menu's order. The owners, Irit, Ofir and
+// Lior see this list in two parts, one profile at a time: profileMenu below.
+export function menuOf(viewer) {
+  const me = viewer?.me || null;
+  // The field sales: their deals, and "שאלו את המערכת" (everyone on the staff since 29.10.2026).
+  if (known(viewer) && isSales(me)) return [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }, ASK_ITEM];
+  const list = [{ id: 'mine', href: MODES.mine.href, label: MODES.mine.label }];
+  if (!known(viewer)) return list; // not identified: nothing is assumed
+  const office = officeOf(viewer);
+  if (isManager(viewer)) {
+    list.push({ id: 'manager', href: MODES.manager.href, label: MODES.manager.label }); // the owner, Irit, Ofir: behind the button
+  } else if (seesAllClients(viewer)) {
+    list.push({ id: 'overview', href: 'owner.html#all', label: 'כל הלקוחות במבט', short: 'במבט' }); // Lior: screen 2 and the table
+  }
+  list.push({ id: 'clients', href: 'clients.html#clients', label: office ? 'לקוחות' : 'הלקוחות שלי' });
+  // The content Gantt of every client (gantt.html without a client), 6.10.2026: Ilai, whose
+  // it is, always has a way in, also with no open work; the owner, Irit, Lior and Ofir read.
+  if (seesGantt(viewer)) list.push({ id: 'gantt', href: 'gantt.html', label: 'גאנט תוכן' });
+  list.push(...officeScreens(viewer));
+  if (office) list.push({ id: 'prep', href: 'prep.html', label: 'לפני יום צילום', short: 'לפני צילום' });
+  if (sendsMessages(viewer)) list.push({ id: 'messages', href: 'messages.html', label: 'הודעות ללקוחות' });
+  if (PEOPLE[me]?.editor) list.push({ id: 'editor', href: 'editor.html', label: 'הלקוחות שלי בעריכה', short: 'בעריכה' });
+  if (me === 'eli' || office) list.push({ id: 'shoot', href: 'shoot.html', label: 'ימי צילום' });
+  // The meetings and shoot days in a week or a month (15.10.2026): the office sees every
+  // client's, everyone else their own (app/calendar-view.js).
+  if (seesCalendar(viewer)) list.push({ id: 'calendar', href: 'calendar.html', label: 'יומן' });
+  // Every client by its last shoot day, the oldest first (6.10.2026): Lior, Ofir and the owner.
+  if (canSeeShootTable(viewer)) list.push({ id: 'shoot-table', href: 'owner.html#shoots', label: 'טבלת ימי צילום' });
+  // The builder of a quote and of the contract (the owner's wording, 7.10.2026). `short` is
+  // the name in the phone's bottom bar, where the full one does not fit a quarter of 360px.
+  // Only for whoever builds a contract (canBuildQuote, 8.10.2026): the owners, Irit, Lior, and Ofir since 28.10.2026.
+  if (canBuildQuote(viewer)) list.push({ id: 'quote', href: 'index.html', label: QUOTE_LABEL, short: 'הצעה וחוזה' });
+  // The list of sent quotes: the owners and Irit (6.10.2026), and Ofir with its amounts
+  // (29.10.2026; the database answers nobody else).
+  if (canSeeQuoteList(viewer)) list.push({ id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
+  // "שאלו את המערכת" (29.10.2026): everyone on the staff (the ask function decides). In the
+  // manager profile for whoever has one, and at the end of everyone else's menu; on a phone it
+  // never takes a place in the bottom bar (barOf), so that nobody's bar changes.
+  if (canAsk(viewer)) list.push(ASK_ITEM);
+  if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
+  // The payments app (payouts/, another app with its own gate, public.payout_owners): the owners.
+  if (isOwnerView(viewer)) list.push({ id: 'payouts', href: 'payouts/', label: 'אסטרטג פיימנט' });
+  return unique(list);
+}
+// No screen twice: one entry per id, per address and per name (the first one stays).
+function unique(list) {
+  const seen = new Set();
+  return list.filter((it) => {
+    const keys = [`id:${it.id}`, `href:${it.href}`, `label:${it.label}`];
+    if (keys.some((k) => seen.has(k))) return false;
+    for (const k of keys) seen.add(k);
+    return true;
+  });
+}
+
+// The way back from a page that is not this person's ("אין לך גישה לעמוד הזה"): their own
+// first screen. The field sales have one screen, their deals; everyone else their tasks.
+export const homeLink = (viewer) => (known(viewer) && isSales(viewer.me)
+  ? { href: 'deal.html', label: 'מעבר לעסקה חדשה' }
+  : { href: MODES.mine.href, label: 'מעבר להמשימות שלי' });
+
+// The person's home: the one answer to "where does this person start" (the owner's rule,
+// 9.10.2026; docs/ops.md, section 54). Everyone on "המשימות שלי" in the personal profile:
+// the owners and the office, Ilai, and since that day also the editors, Nirel and Eli
+// (who used to land on editor.html / shoot.html; those stay one tap away in their menu).
+// The field sales have no "המשימות שלי": their home is the deal page.
+export const homeHref = (viewer) => homeLink(viewer).href;
+// After a sign-in form said yes: stay on this page, or go home.
+//   { stay: true }                 this page is the person's home already
+//   { stay: true, rewrite: href }  the same page, another tab of it: the address becomes the home
+//   { stay: true, guard: href }    a deep link opened on purpose in this visit (`entry`):
+//                                  the page opens; if it answers "אין לך גישה", go to `guard`
+//   { go: href }                   any other page: the home
+export function afterSignIn(viewer, { pathname = '', hash = '', search = '', entry = false } = {}) {
+  const home = homeHref(viewer);
+  const to = split(home);
+  const here = pageOf(pathname);
+  const atHome = here === to.page && !search;
+  if (atHome && (here !== 'clients.html' || !hash || hash === to.hash)) return { stay: true };
+  if (entry) return { stay: true, guard: home };
+  if (atHome) return { stay: true, rewrite: home };
+  return { go: home };
+}
+
+// ── The two profiles of the owners, Ofir, Lior (6.10.2026) and Irit (7.10.2026) ──
+// The personal profile: only what this person acts on every day, "המשימות שלי" first.
+// Everything else they may open is the manager profile's, behind the one button at the
+// top of every screen. The clients list is in both (a client is looked up from either).
+export const PERSONAL = {
+  owner: ['mine', 'clients', 'quote', 'quotes'],                 // their tasks and approvals, a client, a contract
+  lior: ['mine', 'clients', 'decisions', 'messages', 'shoot', 'calendar'], // his decisions, the clients' messages, the shoot day, the calendar
+  ofir: ['mine', 'clients', 'qa', 'calendar'],                   // his queue and his meetings (the owner, 15.10.2026); the pass is Irit's since 26.10.2026
+  // Irit: her tasks, a client, her pass over the clients (26.10.2026), her part before a
+  // shoot day and the clients' requests, the daily messages to clients, the calendar she
+  // invites from (15.10.2026), and building and following a contract.
+  irit: ['mine', 'clients', 'pass', 'prep', 'messages', 'calendar', 'quote', 'quotes'],
+};
+const IN_BOTH = ['clients'];
+// Screens a person may open that are not in their menu (the page review of Ofir, Lior and
+// Ilai, approved by the owner on 20.10.2026): another person's work, or a repeat of what
+// another screen of theirs already holds. Nothing is closed: the pages open by their
+// address and from the links in the work, and menuOf keeps them, so a page head's link to
+// them stays hidden too (app/shell.js hideRepeats) and profileOf still places them.
+//   lior  "בקרה ושיוך" (Ofir's), "לפני יום צילום" (Irit's), and "טבלת ימי צילום",
+//         which is a tab of "כל הלקוחות במבט" already;
+//   ilai  "שנת החבילה" and "יומן": both only repeat his "המשימות שלי";
+//   ofir  his manager profile without "גאנט תוכן", "שנת החבילה" and "לפני יום צילום"
+//         (Ilai's and Irit's work). "החלטות" (as Lior's backup) and "ימי צילום" stay
+//         until the owner decides (one line here to take back).
+export const NOT_IN_MENU = {
+  lior: ['qa', 'prep', 'shoot-table'],
+  ilai: ['year', 'calendar'],
+  ofir: ['gantt', 'year', 'prep'],
+};
+const shownIn = (viewer) => { const out = NOT_IN_MENU[known(viewer) ? viewer.me : null] || []; return (it) => !out.includes(it.id); };
+const profileKey = (viewer) => (hasProfiles(viewer) ? viewer.me || 'owner' : null);
+// The tabs of clients.html that are the manager profile's, for whoever has profiles: the
+// whole team's work (#team: the list of "המשימות שלי" with the choice of whose), the
+// office's daily review and the performance. The daily review stays in Irit's personal
+// profile: the daily control over every task (process 32) is her own process, and since
+// 26.10.2026 the pass over the clients (process 33, pass.html) too.
+export const MANAGER_TABS = ['team', 'control', 'performance'];
+const OWN_TABS = { irit: ['control'] };
+export const managerTabs = (viewer) => (hasProfiles(viewer) ? MANAGER_TABS.filter((t) => !(OWN_TABS[profileKey(viewer)] || []).includes(t)) : []);
+// The menu of one profile ('mine' or 'manager'); for anyone without profiles, the whole menu.
+export function profileMenu(viewer, profile) {
+  const items = menuOf(viewer).filter(shownIn(viewer));
+  const mine = PERSONAL[profileKey(viewer)];
+  if (!mine) return items;
+  if (profile !== 'manager') return items.filter((it) => mine.includes(it.id));
+  return items.filter((it) => !mine.includes(it.id) || IN_BOTH.includes(it.id));
+}
+// The button at the top of every screen: { to, label, href }, or null without profiles.
+export function profileSwitch(viewer, profile) {
+  if (!hasProfiles(viewer)) return null;
+  return profile === 'manager'
+    ? { to: 'mine', label: BACK_LABEL, href: MODES.mine.href }
+    : { to: 'manager', label: MODES.manager.label, href: managerHome(viewer) };
+}
+// Which profile this page is shown in. A page of one profile only decides by itself, so
+// a manager screen opened by its address or from a notification opens in the manager
+// profile; a page of both (a client's card, the clients list) keeps the last choice.
+// On clients.html: "המשימות שלי" (#mine) is personal; the team's work (#team), the
+// office's daily review and the performance are the manager's (managerTabs).
+export function profileOf(viewer, pathname, hash = '', search = '', saved = null) {
+  const mine = PERSONAL[profileKey(viewer)];
+  if (!mine) return null;
+  const last = saved === 'manager' ? 'manager' : 'mine';
+  const page = pageOf(pathname);
+  if (page === 'owner.html') return 'manager';
+  if (page === 'clients.html') {
+    if (isMineHash(hash)) return 'mine';
+    return managerTabs(viewer).includes(hash.slice(1)) ? 'manager' : last;
+  }
+  const { id } = currentOf(menuOf(viewer), pathname, hash, search);
+  if (!id || IN_BOTH.includes(id)) return last;
+  return mine.includes(id) ? 'mine' : 'manager';
+}
+
+// The role's own first screen (app/office-ui.js firstScreenOf), as a menu id; for Ilai,
+// who stays on "המשימות שלי", his own screen is the Gantt.
+const HOME = { ofir: 'qa', lior: 'decisions', eli: 'shoot', ilai: 'gantt' };
+// The next one in the bar when the role's own screen is not in this profile: Lior's
+// manager profile keeps the package year (the renewals) there, not the Gantt (20.10.2026);
+// Irit's phone keeps "לפני יום צילום" there, before her pass over the clients (26.10.2026).
+// Ofir's manager profile keeps "החלטות" there, before the pass he may look at (26.10.2026).
+const BAR_NEXT = { lior: 'year', irit: 'prep', ofir: 'decisions' };
+const homeOf = (viewer) => {
+  const me = viewer?.me || null;
+  if (PEOPLE[me]?.editor) return 'editor';
+  return HOME[me] || null;
+};
+
+// The phone's bottom bar: the three most important screens of this role and "עוד"
+// for the rest; four screens or fewer all fit, and one screen needs no bar at all.
+// Returns { bar: [items], more: [items] }, each in the menu's order.
+// "שאלו את המערכת" (29.10.2026) never pushes a screen out of the bar: a menu of four with it
+// all fits (Ilai, the field sales); a role whose own four screens filled the bar (the editors,
+// Eli) keeps them, with the bot alone under "עוד"; in a longer menu it ranks last, as before.
+export function barOf(items, viewer) {
+  const rest = items.filter((it) => it.id !== 'ask');
+  if (items.length > 4 && rest.length < items.length && rest.length >= 2 && rest.length <= 4) {
+    return { bar: rest, more: items.filter((it) => it.id === 'ask') };
+  }
+  if (items.length < 2) return { bar: [], more: [] };
+  if (items.length <= 4) return { bar: items, more: [] };
+  const first = ['mine', 'manager', 'overview', homeOf(viewer), 'clients', BAR_NEXT[viewer?.me]].filter(Boolean);
+  const rank = (it) => { const i = first.indexOf(it.id); return i < 0 ? first.length : i; };
+  const picked = new Set([...items].sort((a, b) => rank(a) - rank(b)).slice(0, 3).map((it) => it.id));
+  return { bar: items.filter((it) => picked.has(it.id)), more: items.filter((it) => !picked.has(it.id)) };
+}
+
+// A long menu in two parts (the simplicity pass of 6.10.2026; the office's menus had
+// 11 to 16 entries in one run): the screens this role opens every day, in the menu's
+// order, and the rest under a quiet "עוד" heading. Nothing is hidden and no entry
+// changes: only where it stands. A menu of up to GROUP_FROM entries stays one list (8 since
+// 26.10.2026: Irit's own menu, with her pass over the clients, is eight, and stays one list;
+// 9 since 29.10.2026: Ofir's manager profile, with the sent quotes and "שאלו את המערכת").
+// The phone's bar is always part of the daily ones (tests/shell.test.mjs).
+const DAILY = {
+  owner: ['mine', 'manager', 'clients', 'decisions', 'messages'],
+  irit: ['mine', 'manager', 'clients', 'messages', 'quote', 'quotes'],
+  lior: ['mine', 'overview', 'clients', 'decisions', 'messages'],
+  ofir: ['mine', 'manager', 'clients', 'qa'],
+};
+export const GROUP_FROM = 9;
+export function groupsOf(items, viewer) {
+  const key = known(viewer) ? (viewer.me || (viewer.scope === 'office' ? 'owner' : null)) : null;
+  const daily = DAILY[key];
+  if (!daily || items.length <= GROUP_FROM) return { daily: items, rest: [] };
+  return { daily: items.filter((it) => daily.includes(it.id)), rest: items.filter((it) => !daily.includes(it.id)) };
+}
+
+// "המשימות שלי" on clients.html: no hash, #mine, and its "באיחור" tab (#late; docs/ops.md, section 50).
+export const isMineHash = (hash) => !hash || hash === '#mine' || hash === '#late';
+const split = (href) => { const [page, hash = ''] = String(href).split('#'); return { page: page || 'index.html', hash: hash ? `#${hash}` : '' }; };
+export const pageOf = (pathname) => String(pathname || '').split('/').pop() || 'index.html';
+// Pages that belong to a client: the menu marks the clients list as where they are.
+const UNDER_CLIENTS = new Set(['client.html', 'gantt.html', 'scripts.html', 'intake.html']);
+
+// Which menu item is this page: { id, exact }. `exact` is false for a page under an
+// item (a client's card under the clients list), which is marked but is not "the page".
+export function currentOf(items, pathname, hash = '', search = '') {
+  const page = pageOf(pathname);
+  const same = items.filter((it) => split(it.href).page === page);
+  // gantt.html is the index; with a client (?id=…) it is a page under it.
+  if (same.length === 1 && same[0].id === 'gantt') return { id: 'gantt', exact: !/[?&]id=/.test(String(search)) };
+  if (same.length === 1) return { id: same[0].id, exact: true };
+  if (same.length > 1 && page === 'owner.html') {
+    // The shoot-day table (#shoots) is its own entry; every other tab is the manager's view.
+    const table = (it) => split(it.href).hash === '#shoots';
+    const hit = same.find((it) => table(it) === (hash === '#shoots')) || same[0];
+    return { id: hit.id, exact: true };
+  }
+  if (same.length > 1) {
+    // clients.html holds "המשימות שלי" (no hash, or #mine) and the lists (#clients, #control …).
+    const mine = isMineHash(hash);
+    const hit = same.find((it) => (split(it.href).hash === '#mine') === mine) || same[0];
+    return { id: hit.id, exact: true };
+  }
+  if (UNDER_CLIENTS.has(page) && items.some((it) => it.id === 'clients')) return { id: 'clients', exact: false };
+  return { id: null, exact: false };
+}
+
+// Whether a link (its href as written, resolved by the caller to page + hash) leads to
+// a screen the menu already offers: such a link in a page head is not shown twice.
+export function inMenu(items, pathname, hash = '') {
+  const page = pageOf(pathname);
+  return items.some((it) => {
+    const s = split(it.href);
+    if (s.page !== page) return false;
+    if (page !== 'clients.html') return true;         // owner.html, owner.html#all: the same screen
+    return (s.hash === '#mine') === isMineHash(hash);
+  });
+}
+
+// The person's name and avatar. Pastel fills per person (ink text on each: 12:1 and up);
+// the initials are the first two letters of the name.
+export const AVATAR_FILL = {
+  irit: '#FAD4DF', lior: '#D6E6FB', ofir: '#E3DBFC', ilai: '#D5F0E1', nadia: '#FDE9C4', yariv: '#D9F0F4',
+  anna: '#F4DCF6', eli: '#E6E9C9', stav: '#FFE0CC', nirel: '#DDE3FA', amos: '#E9DCCB', editor: '#E4E8F3',
+};
+export const avatarFill = (person) => AVATAR_FILL[person] || '#E4E8F3';
+export const initialsOf = (name) => [...String(name || '').trim()].filter((c) => /\S/.test(c)).slice(0, 2).join('');
+export function nameOf(viewer, email = '') {
+  const me = viewer?.me || null;
+  if (me && PEOPLE[me]) return PEOPLE[me].name;
+  return String(email || '').split('@')[0];
+}

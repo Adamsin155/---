@@ -1,12 +1,13 @@
-// "שאלו את המערכת" (ask.html; the owner's request of 29.10.2026; docs/ops.md, section 74): the
-// owners, Lior and Ofir write a question, the ask edge function answers from the system's data.
+// "שאלו את המערכת" (ask.html; the owner's request of 29.10.2026; docs/ops.md, sections 75 and 78):
+// everyone on the staff writes a question, the ask edge function answers from the system's data
+// (as the person who asked) and, for "איפה…" / "איך…", from their own screens (app/ask-guide.js).
 // The page is a box, a few example questions and the conversation of this visit (kept in this tab
 // only, sessionStorage: a refresh keeps it, a new tab starts clean). Who may ask is the function's
 // to decide (mayAsk in app/ask-logic.js); this page only follows. All text goes through text
 // nodes; a link in an answer (a Drive file) is an https link, opened in a new tab.
 import { supabase } from './supa.js';
 import { $, fill, h, mountSession, viewerOf, VIEWER_UNKNOWN } from './protocol-ui.js';
-import { canAsk, cleanQuestion, EXAMPLES, slotRange, errorWords, HISTORY_TURNS } from './ask-logic.js';
+import { canAsk, cleanQuestion, examplesFor, slotRange, errorWords, HISTORY_TURNS } from './ask-logic.js';
 import { homeLink } from './shell-rules.js';
 import { icon } from './kit.js';
 
@@ -103,8 +104,8 @@ async function ask(text) {
   }
 }
 
-function mountChips() {
-  fill($('ak-chips'), ...EXAMPLES.map((text) => h('button', {
+function mountChips(v) {
+  fill($('ak-chips'), ...examplesFor(v).map((text) => h('button', {
     type: 'button', class: 'ak-chip',
     onclick: () => {
       const box = $('ak-q');
@@ -142,7 +143,7 @@ mountSession(async (staff) => {
     return;
   }
   $('ak-send').prepend(icon('send', { size: 18 }));
-  mountChips();
+  mountChips(v);
   talk = readTalk().filter((t) => t && typeof t.q === 'string' && typeof t.a === 'string');
   render();
   if (talk.length) scrollDown();

@@ -237,14 +237,13 @@ const homeOf = (viewer) => {
 // The phone's bottom bar: the three most important screens of this role and "עוד"
 // for the rest; four screens or fewer all fit, and one screen needs no bar at all.
 // Returns { bar: [items], more: [items] }, each in the menu's order.
-// "שאלו את המערכת" is never one of the three: it stands under "עוד" (a bar of four or fewer
-// screens stays as it was, with "עוד" holding the bot alone). Only a menu of one screen and the
-// bot (the field sales) shows both in the bar.
+// "שאלו את המערכת" (29.10.2026) never pushes a screen out of the bar: a menu of four with it
+// all fits (Ilai, the field sales); a role whose own four screens filled the bar (the editors,
+// Eli) keeps them, with the bot alone under "עוד"; in a longer menu it ranks last, as before.
 export function barOf(items, viewer) {
   const rest = items.filter((it) => it.id !== 'ask');
-  if (rest.length < items.length && rest.length >= 2) {
-    const { bar, more } = barOf(rest, viewer);
-    return { bar, more: [...more, ...items.filter((it) => it.id === 'ask')] };
+  if (items.length > 4 && rest.length < items.length && rest.length >= 2 && rest.length <= 4) {
+    return { bar: rest, more: items.filter((it) => it.id === 'ask') };
   }
   if (items.length < 2) return { bar: [], more: [] };
   if (items.length <= 4) return { bar: items, more: [] };
