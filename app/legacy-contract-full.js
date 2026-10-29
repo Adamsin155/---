@@ -180,7 +180,7 @@ function termination(c) {
   const client = signers.length ? signers.join(', ') : str(c.clientName) + (str(c.business) ? `, ${str(c.business)}` : '');
   const sections = [{ title: null, parts: [{ type: 'p', lines: [
     ['בין: ', B(str(t.companyName) || 'אסטרטג טכנולוגיות בע״מ'), ' (להלן: "אסטרטג")'],
-    ['לבין: ', B(client), ' (להלן: "הלקוח")'],
+    ['לבין: ', B(client), str(c.hp) ? ` · ח״פ/ת״ז ${str(c.hp)}` : '', ' (להלן: "הלקוח")'],
   ] }] }];
   const recitals = strs(t.recitals);
   if (recitals.length) sections.push({ title: null, parts: [...recitals.map((r) => ({ type: 'p', text: r })), ...(t.noWhereas ? [] : [{ type: 'p', text: [B('לפיכך הוסכם והותנה בין הצדדים כדלקמן:')] }])] });

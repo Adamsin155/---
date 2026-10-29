@@ -574,7 +574,7 @@ export const PROCESSES = [
   },
   {
     id: 'p05', num: '5', phase: 'onboarding', title: 'לקיחת גישות לרשתות', owners: accessOwners,
-    ownerNote: 'מי שמבצע את האפיון לוקח את הגישות בפגישה. אחרת עירית בודקת מול הלקוח אילו רשתות יש לו ואם הוא יודע את הגישות. גישה שלא עובדת: משימה לליאור. אין רשתות: משימה לעילאי לפתוח.',
+    ownerNote: 'מי שמבצע את האפיון לוקח את הגישות בפגישה. אחרת עירית בודקת מול הלקוח אילו רשתות יש לו ואם הוא יודע את הגישות. גישה שלא עובדת: משימה לליאור. אין רשתות: משימה לאופיר לפתוח.',
     sla: 'מיד במהלך או מיד לאחר פגישת האפיון',
     start: { from: 'char' }, due: { from: 'charEnd' },
     what: 'מקבלים מהלקוח גישה לכל הרשתות הרלוונטיות ולוקחים גם את חומרי המותג.',
@@ -609,22 +609,27 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p06', num: '6', phase: 'onboarding', title: 'בדיקת הגישות וסידור הרשתות', owners: ['ilai'],
+    // The whole process is Ofir's (the owner, 28.10.2026: "להוריד מעילאי את כל עניין הגישות
+    // לרשתות, זה צריך לעבור לאופיר"): checking every login, opening the networks the client has
+    // not got, setting the pages up and Metricool (his since v11). Lior keeps the broken logins.
+    // Ilai keeps his read of the vault: he still posts the graphics to the networks (7ב, 23ב).
+    // Who owns an item needs no new protocol version (app/protocol-versions.js).
+    id: 'p06', num: '6', phase: 'onboarding', title: 'בדיקת הגישות וסידור הרשתות', owners: ['ofir'],
     sla: 'עד 30 דקות מרגע קבלת הגישות',
     start: { from: 'item:p05.access' }, due: { from: 'item:p05.access', minutes: 30 },
     what: 'בודקים שכל שם משתמש וסיסמה עובדים. גישה לא תקינה: מתקשרים ללקוח ומאפסים או משחזרים איתו. אין עמודים: פותחים עמודים חדשים באותו חלון זמן.',
     items: [
       { key: 'p06.verified', label: 'כל שמות המשתמש והסיסמאות נבדקו ועובדים' },
       { key: 'p06.recovered', label: 'גישות לא תקינות אופסו או שוחזרו עם הלקוח והוכנסו לכספת', owners: ['lior'], optional: true },
-      { key: 'p06.newpages', label: 'נפתחו רשתות חדשות (אם לא היו) והגישות הוכנסו לכספת', owners: ['ilai'], optional: true },
+      { key: 'p06.newpages', label: 'נפתחו רשתות חדשות (אם לא היו) והגישות הוכנסו לכספת', optional: true },
       { key: 'p06.name', label: 'שם העמוד סודר' },
       { key: 'p06.bio', label: 'Bio נכתב או תוקן' },
       { key: 'p06.details', label: 'פרטי העסק עודכנו' },
       { key: 'p06.phone', label: 'הטלפון נבדק' },
       { key: 'p06.address', label: 'הכתובת נבדקה' },
       { key: 'p06.look', label: 'נראות העמוד סודרה' },
-      // v11: Ofir's, right after he took the accesses (5); not Ilai's any more.
-      { key: 'p06.metricool', label: 'כל הרשתות חוברו ל־Metricool', owners: ['ofir'] },
+      // v11: Ofir's, right after he took the accesses (5); since 28.10.2026 the whole process is his.
+      { key: 'p06.metricool', label: 'כל הרשתות חוברו ל־Metricool' },
     ],
   },
   {

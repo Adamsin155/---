@@ -17,7 +17,7 @@
 //   p22a.shift          Lior moved the editing deadlines (app/protocol-logic.js SHIFT).
 //   p22.decision        Lior's decision on editing still paused the next morning.
 //                       Note JSON { choice: 'move' | 'reassign', days, editor, proposal }.
-//   p06.fixed.<network> Lior closed a broken login: fixed, or partly (Irit and Ilai
+//   p06.fixed.<network> Lior closed a broken login: fixed, or partly (Irit and Ofir
 //                       are told). Note JSON { partial, missing, access }.
 import { PROCESSES, PEOPLE, editorsOf } from './protocol.js';
 import {

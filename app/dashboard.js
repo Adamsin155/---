@@ -5,6 +5,7 @@ import {
 import { h, formatDate, whatsappLink } from './quote-doc.js';
 import { dressHead, headIcon, besideIcon, leadIcon } from './kit.js';
 import { formatILS } from './pricing.js';
+import { dayKeyIL } from './tz.js';
 import { glide, countUp, viewerFor } from './shell.js';
 // Who opens this list (the owners and Irit) and who sees its amounts (the owners), 6.10.2026.
 import { canSeeQuoteList, seesFinance, resetMode } from './manager-rules.js';
@@ -74,14 +75,20 @@ function setSession(staff) {
 let statsShown = null;
 function renderStats() {
   const count = (s) => quotes.filter((q) => statusOf(q) === s).length;
-  const signedMonthly = quotes.filter((q) => q.status === 'signed').reduce((s, q) => s + q.monthly_gross_agorot, 0);
+  // The whole agreement with VAT (its months × the monthly gross), not a month of it (the owner,
+  // 28.10.2026): what was sent this month, and what was signed this month (Israel months).
+  const month = dayKeyIL(new Date()).slice(0, 7);
+  const inMonth = (t) => !!t && dayKeyIL(new Date(t)).slice(0, 7) === month;
+  const total = (list) => list.reduce((s, q) => s + (q.term_gross_agorot || 0), 0);
+  const sentThisMonth = total(quotes.filter((q) => inMonth(q.created_at) && q.status !== 'cancelled'));
+  const signedThisMonth = total(quotes.filter((q) => q.status === 'signed' && inMonth(q.signed_at)));
   const stat = (k, v) => h('div', { class: 'stat' }, h('div', { class: 'k' }, k), h('div', { class: 'v ds-num', dir: 'ltr' }, v));
   $('stats').replaceChildren(
     stat('הצעות', String(quotes.length)),
     stat('ממתינות לחתימה', String(count('sent') + count('viewed'))),
     stat('הצעות לצפייה', String(count('shared') + count('seen'))),
     stat('נחתמו', String(count('signed'))),
-    ...(showMoney ? [stat('חודשי בהצעות חתומות', formatILS(signedMonthly))] : []),
+    ...(showMoney ? [stat('נשלח החודש · כולל מע״מ', formatILS(sentThisMonth)), stat('נחתם החודש · כולל מע״מ', formatILS(signedThisMonth))] : []),
   );
   $('stats').hidden = false;
   // The numbers count up the first time the page shows them.
@@ -171,7 +178,8 @@ function renderRows() {
         ...(q.prepared_by === 'ai' ? [h('span', { class: 'tag tag-ai doc-ai' }, 'הוכן ע״י AI')] : [])),
       h('td', { class: 'client', 'data-label': 'לקוח' }, q.client_name, q.signer_name && s === 'signed' ? h('small', {}, `נחתם ע״י ${q.signer_name}`) : null),
       h('td', { class: 'client', 'data-label': 'חבילה' }, h('span', { dir: 'auto' }, q.tier || ''), h('small', {}, q.influencer || '')),
-      showMoney ? h('td', { class: 'amt', dir: 'ltr', 'data-label': 'לחודש' }, formatILS(q.monthly_gross_agorot)) : null,
+      showMoney ? h('td', { class: 'amt', dir: 'ltr', 'data-label': 'סה״כ כולל מע״מ' }, formatILS(q.term_gross_agorot ?? 0),
+        h('small', { class: 'by', dir: 'rtl' }, `${formatILS(q.monthly_gross_agorot)} לחודש`)) : null,
       h('td', { 'data-label': 'נוצר' }, formatDate(q.created_at), h('small', { class: 'by' }, q.created_by_email || '')),
       h('td', { 'data-label': 'סטטוס' }, h('span', { class: `pill k-pill k-pill-${TONE[s] || 'plain'} ${s}` }, STATUS[s]), when ? h('small', { class: 'when' }, h('span', { class: 'k-sep' }, ' · '), when) : null,
         open && q.expires_at ? h('small', { class: 'until' }, `${agreement ? 'לחתימה' : 'בתוקף'} עד ${formatDate(q.expires_at, true)}`) : null),
@@ -195,7 +203,7 @@ function renderRows() {
 
 async function loadQuotes() {
   $('state').textContent = 'טוען…';
-  const BASE = 'id, token, number, client_name, monthly_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer, doc:model->>docTitle, signable:model->>signable, expires_at, phone:model->client->>phone';
+  const BASE = 'id, token, number, client_name, monthly_gross_agorot, term_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer, doc:model->>docTitle, signable:model->>signable, expires_at, phone:model->client->>phone';
   const APPROVAL_COLS = ', approval, approval_by, approval_note, approval_at, term:model->>termMonths, valid:model->>validHours, company:model->client->>company, email:model->client->>email';
   // Who prepared it ("הכנת חוזה עם AI", 20261106100000_contract_ai.sql) and what it changed.
   const AI_COLS = ', prepared_by, exceptions';

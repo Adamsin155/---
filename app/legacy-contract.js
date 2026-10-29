@@ -97,7 +97,10 @@ export function renderLegacyDoc(row) {
     h('div', { class: 'qd-party' },
       h('div', { class: 'qd-label' }, 'לכבוד'),
       h('div', { class: 'qd-party-name qd-client' }, doc.clientName || row.signer_name || '—'),
-      doc.business ? h('div', {}, doc.business) : null),
+      doc.business ? h('div', {}, doc.business) : null,
+      // As the old document showed them (28.10.2026: everything is copied).
+      doc.hp ? h('div', {}, 'ח.פ ', h('span', { class: 'num', dir: 'ltr' }, String(doc.hp))) : null,
+      doc.phone ? h('div', {}, h('span', { class: 'num', dir: 'ltr' }, String(doc.phone))) : null),
   );
 
   const parent = doc.parentContractId !== undefined && doc.parentContractId !== null && /^\d+$/.test(String(doc.parentContractId))
@@ -151,7 +154,10 @@ export function renderLegacyDoc(row) {
         h('div', { class: 'qd-label' }, 'הלקוח'),
         h('div', { class: 'qd-strong' }, s.name || '—'),
         s.png ? h('img', { src: s.png, alt: `חתימה של ${s.name || 'הלקוח'}` }) : h('p', { class: 'qd-muted' }, 'אין תמונת חתימה במסמך.'),
-        s.at ? h('div', { class: 'qd-muted' }, `נחתם ב־${s.at}`) : null)),
+        s.id ? h('div', { class: 'qd-muted' }, `${s.idLabel}: `, h('span', { class: 'num', dir: 'ltr' }, s.id)) : null,
+        s.at ? h('div', { class: 'qd-muted' }, `נחתם ב־${s.at}`) : null,
+        s.ip ? h('div', { class: 'qd-muted' }, 'IP ', h('span', { class: 'num', dir: 'ltr' }, s.ip)) : null,
+        s.ua ? h('div', { class: 'qd-muted lc-ua', dir: 'ltr' }, s.ua) : null)),
       h('div', { class: 'qd-sign-box' },
         h('div', { class: 'qd-label' }, 'הספק'),
         h('div', { class: 'qd-strong' }, PROVIDER.name),
