@@ -63,6 +63,10 @@ await ctx.route(`${SUPA}/**`, async (route) => {
       return route.fulfill(o);
     },
   };
+  // NO_MIGRATION=1: the database before 20261117100000_speed_pages.sql (its two functions missing).
+  if (process.env.NO_MIGRATION && /\/rpc\/protocol_(checks_compact|log_brief)$/.test(u.pathname)) {
+    return slow.fulfill({ status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ code: 'PGRST202', message: 'not found' }) });
+  }
   return fake.route(slow);
 });
 const page = await ctx.newPage();
