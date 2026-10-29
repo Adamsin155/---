@@ -286,11 +286,18 @@ export function linkQuestion(link, current) {
 export const LINK_KEPT = 'נשארת בחשבון המחובר. הקישור לא נוצל.';
 // May this link be used here? Yes when nobody is signed in, or the link is for the
 // same account; otherwise the person chooses.
+// The person chose to move to the link's account: the page is that account's from here on
+// (app/session-store.js takes it as the page's person, as it does for the sign-in form,
+// instead of loading the page again when a read of the page leaves in the new name).
+export const ACCOUNT_CHOSEN = 'astrateg:account-chosen';
 export async function mayUseLink(link, ask = (text) => window.confirm(text)) {
   let current = null;
   try { current = (await supabase.auth.getSession()).data?.session?.user?.email || null; } catch { /* no session */ }
   const question = linkQuestion(link, current);
-  return question ? !!ask(question) : true;
+  if (!question) return true;
+  const yes = !!ask(question);
+  if (yes) { try { window.dispatchEvent(new CustomEvent(ACCOUNT_CHOSEN)); } catch { /* not a browser */ } }
+  return yes;
 }
 
 // Signs in with a link read by readAuthLink. Returns the error, or null when it worked.
