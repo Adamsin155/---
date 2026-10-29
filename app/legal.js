@@ -34,6 +34,7 @@ const money = (agorot) => `${ils.format(agorot / 100)} ₪`;
  * ctx: {
  *   termMonths, totals, packageName, influencer, tier ('podcast'|'social'|'social-tv'),
  *   shootDays, hasCh14, paid: [{id, name}], free: [{id, name, qty}],
+ *   noInfluencer (bool: a free contract "בלי משפיענים", 29.10.2026),
  *   influencerPosts (bool: collabs/stories/reels on influencer accounts), simeonJoin (bool),
  *   and, only in a contract changed by hand (selection.custom, app/pricing.js):
  *   monthlyContents (the monthly photographer's contents a month), extraLines
@@ -62,9 +63,11 @@ export function agreementSections(ctx) {
 
   add('parties', 'הצדדים, הגדרות ומסמכי ההסכם', [
     () => `הסכם זה נערך בין ${PROVIDER.name}, ח.פ ${PROVIDER.companyId} (להלן: "אסטרטג"), לבין הלקוח ששמו ופרטיו מופיעים בראש מסמך זה (להלן: "הלקוח").`,
-    () => `הלקוח רוכש את חבילת ${packageName}, בהשתתפות ${inf}${addonsText}${freeText}${linesText}, כמפורט במסמך זה (להלן: "פרטי החבילה"). פרטי החבילה הם חלק בלתי נפרד מההסכם, ו"התוצרים" הם כל השירותים והתוצרים המפורטים בהם.`,
+    () => `הלקוח רוכש את חבילת ${packageName}, ${ctx.noInfluencer ? 'ללא משפיענים' : `בהשתתפות ${inf}`}${addonsText}${freeText}${linesText}, כמפורט במסמך זה (להלן: "פרטי החבילה"). פרטי החבילה הם חלק בלתי נפרד מההסכם, ו"התוצרים" הם כל השירותים והתוצרים המפורטים בהם.`,
     () => `הכמויות בפרטי החבילה הן לכל תקופת ההתקשרות ולא לחודש${photographer ? `, למעט שירות הצלם החודשי, המספק ${ctx.monthlyContents ?? 8} תכנים בכל חודש` : ''}.`,
-    () => (podcast
+    () => (ctx.noInfluencer
+      ? '"יום צילום": יום צילום של וידאו וסטילס עם צלם בבית העסק של הלקוח.'
+      : podcast
       ? `הקלטת הפודקאסט עם המשפיענים תתקיים במשרדי אסטרטג, ברחוב ${PROVIDER.addresses[1]}. "יום צילום": יום צילום של וידאו וסטילס עם צלם בבית העסק של הלקוח. יום הצילום יכול להתקיים באותו יום עם הקלטת הפודקאסט או ביום נפרד, לפי קביעת אסטרטג.`
       : `"יום צילום": יום צילום בבית העסק של הלקוח עם המשפיענים.${ctx.shootDays > 1 ? ` בחבילה זו כלולים ${ctx.shootDays} ימי צילום.` : ''}`),
     () => '"ימי עסקים": ימים א׳ עד ה׳, למעט ימי חג, ערבי חג וימי שבתון על פי דין.',
@@ -78,7 +81,7 @@ export function agreementSections(ctx) {
   ]);
 
   add('payment', 'התמורה ותנאי תשלום', [
-    () => `התמורה עבור החבילה (${packageName} · ${influencer})${ctx.paid.length ? ' והתוספות שנבחרו' : ''} היא ${money(totals.monthlyNet)} לחודש + מע״מ כחוק${totals.discount ? `, לאחר הנחה של ${money(totals.discount)} לחודש, שניתנה בהתחשב בהתחייבות הלקוח לכל תקופת ההתקשרות` : ''}, למשך ${termMonths} חודשים (סה״כ ${money(totals.termNet)} + מע״מ). שינוי בשיעור המע״מ יחול על כל תשלום שמועד החיוב בו לאחר השינוי.`,
+    () => `התמורה עבור החבילה (${packageName} · ${ctx.noInfluencer ? 'ללא משפיענים' : influencer})${ctx.paid.length ? ' והתוספות שנבחרו' : ''} היא ${money(totals.monthlyNet)} לחודש + מע״מ כחוק${totals.discount ? `, לאחר הנחה של ${money(totals.discount)} לחודש, שניתנה בהתחשב בהתחייבות הלקוח לכל תקופת ההתקשרות` : ''}, למשך ${termMonths} חודשים (סה״כ ${money(totals.termNet)} + מע״מ). שינוי בשיעור המע״מ יחול על כל תשלום שמועד החיוב בו לאחר השינוי.`,
     () => 'התשלום יתבצע באמצעות מערכת פיימנט בלבד, בחיוב חודשי שוטף, ללא תפיסת מסגרת. הלקוח ימסור אמצעי תשלום תקף, ויעדכן את אסטרטג מיד אם אמצעי התשלום השתנה או בוטל.',
     () => 'המחיר קבוע לכל תקופת ההתקשרות, למעט שינוי בשיעור המע״מ.',
     () => 'חשבונית מס כדין תופק ותישלח ללקוח בנפרד עבור כל חיוב.',
@@ -122,7 +125,8 @@ export function agreementSections(ctx) {
     infItems.push(() => 'פרסומים בחשבונות המשפיענים (כגון קולאב, סטורי ורילס) כפופים לאישור המשפיען לתוכן, לכללי הפלטפורמה ולמדיניות חשבונו. מועד הפרסום ייקבע בתיאום עם המשפיען, וסטורי מתפרסם לפרק הזמן שהפלטפורמה מאפשרת.');
   }
   infItems.push(() => 'תוכן שמתפרסם אצל משפיענים, או תוכן שמשפיען מקדם בו את הלקוח, יסומן כתוכן שיווקי כנדרש על פי דין, והלקוח לא יבקש פרסום ללא סימון.');
-  add('influencers', 'משפיעני רשת', infItems);
+  // A contract "בלי משפיענים" (29.10.2026) has no chapter about them.
+  if (!ctx.noInfluencer) add('influencers', 'משפיעני רשת', infItems);
 
   if (ctx.hasCh14) {
     add('tv', 'אייטם בערוץ 14', [

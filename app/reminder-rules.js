@@ -1577,6 +1577,10 @@ RULES.push(...YEAR_RULES);
 //     ends the case, so nothing more is sent.
 //   contractDecided   approved or not: whoever prepared it rings ("החוזה של <עסק> אושר
 //     — אפשר לשלוח" / "לא אושר: …"), and the seller of the deal hears quietly.
+// Since 29.10.2026 no contract waits for a manager (the owner: "להוריד את חוזה חריג באישור מנהל";
+// docs/ops.md, section 79): `contractApproval` has no cases any more (a contract still marked
+// 'pending' from before can be sent as it is, so nobody is asked to approve it), and
+// `contractDecided` only speaks of a decision taken before that date.
 import { APPROVERS, APPROVAL_NUDGE_MINUTES, businessOf as contractBusiness, preparedBy as contractPreparedBy } from './approvals-logic.js';
 const contractNote = (q) => { const t = String(q.approval_note || '').replace(/\s+/g, ' ').trim(); return t.length > 90 ? `${t.slice(0, 90)}…` : t; };
 const contractCase = (env, q) => {
@@ -1590,12 +1594,10 @@ const contractCase = (env, q) => {
 };
 RULES.push(
   {
-    id: 'contractApproval', event: 'חוזה חריג: ממתין לאישור מנהל', procs: [],
-    instances(env) {
-      return (env.approvals || []).filter((q) => q.status === 'sent' && q.approval === 'pending' && parseDate(q.submitted_at || q.created_at)).map((q) => {
-        const at = parseDate(q.submitted_at || q.created_at);
-        return { ...contractCase(env, q), id: `${q.id}@v${q.version || 1}`, anchors: { event: at, nudge: addWorkingMinutes(at, APPROVAL_NUDGE_MINUTES) } };
-      });
+    id: 'contractApproval', event: 'חוזה חריג לאישור מנהל (עד 29.10.2026)', procs: [],
+    // No manager approves a contract any more (29.10.2026): nothing to ring about.
+    instances() {
+      return [];
     },
     steps: [
       {

@@ -77,3 +77,10 @@
 .deal-item-head > .k-ico { flex: none; }
 .deal-item-head > .deal-item-name { flex: 1 1 auto; min-width: 0; }
 .deal-list > .k-emptyrow { list-style: none; }
+
+/* The seller's own words (29.10.2026; docs/ops.md, section 79): kept as he wrote them, line by line. */
+.deal-task-words { white-space: pre-line; color: var(--ds-ink, var(--text)); }
+.deal-free textarea { min-height: 150px; font-size: 16px; line-height: 1.55; resize: vertical; }
+.deal-free .hint { display: block; margin-top: 4px; }
+.deal-switch { min-height: 44px; justify-self: start; }
+.deal-back { margin: -4px 0 4px; }

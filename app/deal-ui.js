@@ -9,7 +9,7 @@ import { fill, h, toast, errorText, formatStamp } from './protocol-ui.js';
 import { PEOPLE } from './protocol.js';
 import { clockTime, clockDigits } from './clocks.js';
 import {
-  contractTitle, dealSummary, dealDue, dealUrl, pendingDeals, DEAL_MINUTES,
+  contractTitle, dealSummary, dealDue, dealUrl, pendingDeals, DEAL_MINUTES, docTypeOf, isFreeDeal,
 } from './deal-logic.js';
 import { loadDeals, setDealStatus } from './deal-data.js';
 import { canSeeDeals } from './manager-rules.js';
@@ -48,15 +48,16 @@ function card(d) {
     h('div', { class: 'deal-task-head' },
       h('span', { class: 'deal-task-title', id: `dt-${d.id}`, dir: 'auto' }, contractTitle(d)),
       h('span', { class: `deal-clock${c.late ? ' is-late' : ''}`, role: 'timer' }, c.text)),
-    h('p', { class: 'deal-task-meta' }, dealSummary(d)),
+    // The seller's own words (29.10.2026), whole, as he wrote them; otherwise the line of what was sold.
+    isFreeDeal(d) ? h('p', { class: 'deal-task-meta deal-task-words', dir: 'auto' }, `${docTypeOf(d) === 'quote' ? 'הצעת מחיר' : 'חוזה'}: ${d.custom.text}`) : h('p', { class: 'deal-task-meta' }, dealSummary(d)),
     h('p', { class: 'deal-task-meta' },
       `${d.contact_name} · `, h('a', { href: telHref(d.phone), dir: 'ltr' }, d.phone),
       ` · מ${sellerName(d)}, ${formatStamp(d.created_at)}`),
     d.notes ? h('p', { class: 'deal-task-meta' }, `הערות: ${d.notes}`) : null,
     h('div', { class: 'deal-task-acts' },
       // The design keeps pink for the screen's one main action ("לקוח חדש"): a row's own action is the navy outline.
-      h('a', { class: 'btn', href: dealUrl(d) }, 'להכנת החוזה'),
-      h('button', { type: 'button', class: 'btn btn-ghost', onclick: (e) => move(d, 'sent', e.currentTarget, `סומן שהחוזה נשלח: ${d.business_name}`) }, 'החוזה נשלח'),
+      h('a', { class: 'btn', href: dealUrl(d) }, docTypeOf(d) === 'quote' ? 'להכנת הצעת המחיר' : 'להכנת החוזה'),
+      h('button', { type: 'button', class: 'btn btn-ghost', onclick: (e) => move(d, 'sent', e.currentTarget, `סומן ש${docTypeOf(d) === 'quote' ? 'ההצעה נשלחה' : 'החוזה נשלח'}: ${d.business_name}`) }, docTypeOf(d) === 'quote' ? 'ההצעה נשלחה' : 'החוזה נשלח'),
       h('button', {
         type: 'button', class: 'btn btn-ghost',
         onclick: (e) => { if (window.confirm(`לסמן שהעסקה של ${d.business_name} בוטלה?`)) move(d, 'cancelled', e.currentTarget, `העסקה סומנה כמבוטלת: ${d.business_name}`); },
@@ -69,7 +70,7 @@ function render() {
   if (!list.length) { fill(box); return; }
   fill(box,
     h('h2', { id: 'deals-h' }, `עסקאות חדשות מהשטח (${list.length})`),
-    h('p', { class: 'hint' }, `חוזה תוך ${DEAL_MINUTES} דקות עבודה מכל עסקה. ״להכנת החוזה״ פותח את מחולל ההצעות עם פרטי העסקה.`),
+    h('p', { class: 'hint' }, `חוזה או הצעת מחיר תוך ${DEAL_MINUTES} דקות עבודה מכל עסקה. הכפתור פותח את מחולל ההצעות עם פרטי העסקה, ומה שנכתב בשטח כבר בתיבת ה־AI.`),
     ...list.map(card));
 }
 

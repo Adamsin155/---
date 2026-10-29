@@ -1,6 +1,9 @@
 // deal.html: the field sales agent's page (Stav; the owner's decision of 3.10.2026).
-// "עסקה חדשה": the business, the contact, the phone, the package, the influencers,
-// the add-ons, the discount and notes, sent "לעירית להכנת חוזה"; under it his own
+// "עסקה חדשה": the business, the contact, the phone, what Irit prepares (חוזה / הצעת
+// מחיר), and what was closed in his own words, as he would write it on WhatsApp (29.10.2026;
+// docs/ops.md, section 79), sent "לעירית להכנת חוזה" / "לעירית להכנת הצעת מחיר". A package
+// from the list (the influencers, the add-ons, the discount and notes) stays as a second
+// way ("או לבחור חבילה מהרשימה"); under it his own
 // deals with their status (ממתין לחוזה / חוזה נשלח / נחתם). He sees nothing else: the
 // database lets him read and add only his own deals (deal_requests, row level
 // security), and no client, item, vault, quote or payout. The logic is
@@ -9,7 +12,7 @@ import { TIERS, INFLUENCERS, FREE_ADDONS, PACKAGES, packageId } from './catalog.
 import { formatILS } from './pricing.js';
 import { PEOPLE, isSales } from './protocol.js';
 import {
-  validateDeal, addonsFor, statusText, byNewest, dealSummary,
+  validateDeal, addonsFor, statusText, byNewest, dealSummary, submitText,
 } from './deal-logic.js';
 import { loadDeals, addDeal } from './deal-data.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, formatStamp } from './protocol-ui.js';
@@ -19,31 +22,46 @@ import { icon as kIcon, iconSquare, headIcon } from './kit.js';
 
 // The look of the kit (app/kit.js; docs/ops.md, section 53): every card of the form takes
 // its icon square in front of its heading; the words and the fields stay as they are.
-const SEC_LOOK = [['user', 'navy'], ['handshake', 'purple'], ['edit', 'orange'], ['box', 'blue'], ['users', 'pink'], ['star', 'green'], ['tag', 'teal']];
+const SEC_LOOK = [['user', 'navy'], ['file', 'purple'], ['edit', 'orange'], ['box', 'blue'], ['users', 'pink'], ['star', 'green'], ['tag', 'teal']];
 document.querySelectorAll('#deal-form > .deal-sec > legend').forEach((lg, i) => headIcon(lg, ...(SEC_LOOK[i] || ['list', 'navy']), { size: 'md' }));
 headIcon($('mine-h'), 'briefcase', 'navy', { size: 'md' });
 headIcon($('na-h'), 'lock', 'navy', { size: 'md' });
-const STATUS_ICON = { pending: ['hourglass', 'orange'], approval: ['shield', 'blue'], rejected: ['alert', 'pink'], sent: ['send', 'purple'], signed: ['check-circle', 'green'], cancelled: ['archive', 'navy'] };
+const STATUS_ICON = { pending: ['hourglass', 'orange'], approval: ['send', 'purple'], rejected: ['alert', 'pink'], sent: ['send', 'purple'], signed: ['check-circle', 'green'], cancelled: ['archive', 'navy'] };
 
 let me = null;
 let deals = [];
-// "הצעה אחרת" (6.10.2026): the seller's own words and numbers instead of a built-in package.
-const CUSTOM_FIELDS = ['description', 'videos', 'graphics', 'shoot_days', 'price', 'term_months'];
-const FIELDS = ['business', 'contact', 'phone', 'tier', 'influencer', 'discount', ...CUSTOM_FIELDS];
+// The seller's own words (29.10.2026) first; a package from the list is the second way.
+const FIELDS = ['business', 'contact', 'phone', 'doc_type', 'text', 'tier', 'influencer', 'discount'];
 const FIELD_OF = {
-  business_name: 'business', contact_name: 'contact', phone: 'phone', tier: 'tier', influencer: 'influencer', discount: 'discount',
-  ...Object.fromEntries(CUSTOM_FIELDS.map((f) => [f, f])),
+  business_name: 'business', contact_name: 'contact', phone: 'phone', doc_type: 'doc_type', text: 'text',
+  tier: 'tier', influencer: 'influencer', discount: 'discount',
 };
-const kind = () => (document.querySelector('input[name="kind"]:checked')?.value === 'custom' ? 'custom' : 'package');
-// The chosen kind shows its own fields; the other kind's are hidden (and not sent).
+let kindNow = 'free';
+const kind = () => kindNow;
+const docType = () => document.querySelector('input[name="doc_type"]:checked')?.value || null;
+// The text opens once the document is chosen; the chosen way shows its own fields (the other's are
+// hidden and not sent). The button says what Irit is asked to prepare.
 function showKind() {
-  const custom = kind() === 'custom';
-  $('d-custom').hidden = !custom;
-  for (const el of document.querySelectorAll('.deal-builtin')) el.hidden = custom;
+  const chosen = !!docType();
+  const free = kind() === 'free';
+  $('d-free').hidden = !chosen;
+  $('d-text').closest('.field').hidden = !free;
+  $('d-to-package').hidden = !free;
+  for (const el of document.querySelectorAll('.deal-builtin')) el.hidden = !chosen || free;
   $('d-submit').textContent = SUBMIT_TEXT();
 }
-const SUBMIT_TEXT = () => (kind() === 'custom' ? 'לעירית להכנת חוזה מותאם' : 'לעירית להכנת חוזה');
-for (const el of document.querySelectorAll('input[name="kind"]')) el.addEventListener('change', () => { showErrors({}); showKind(); });
+const SUBMIT_TEXT = () => submitText(docType());
+for (const el of document.querySelectorAll('input[name="doc_type"]')) {
+  el.addEventListener('change', () => {
+    clearErr('doc_type');
+    const first = $('d-free').hidden;
+    showKind();
+    // The big box opens: the cursor is already in it.
+    if (first && kind() === 'free') $('d-text').focus();
+  });
+}
+$('d-to-package').addEventListener('click', () => { kindNow = 'package'; showErrors({}); showKind(); document.querySelector('input[name="tier"]')?.focus(); });
+$('d-to-free').addEventListener('click', () => { kindNow = 'free'; showErrors({}); showKind(); $('d-text').focus(); });
 
 // ── The form ────────────────────────────────
 const picked = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || null;
@@ -97,11 +115,10 @@ function readForm() {
     if (f.max) free[f.id] = Number($(`d-free-${f.id}`)?.value || 0);
     else free[f.id] = !!document.querySelector(`input[name="free"][value="${f.id}"]:checked`);
   }
-  const custom = kind() === 'custom'
-    ? { kind: 'custom', ...Object.fromEntries(CUSTOM_FIELDS.map((f) => [f, $(`d-${f}`).value])) }
-    : {};
+  const words = kind() === 'free' ? { kind: 'free', text: $('d-text').value } : {};
   return {
-    ...custom,
+    ...words,
+    doc_type: docType() || '',
     business_name: $('d-business').value,
     contact_name: $('d-contact').value,
     phone: $('d-phone').value,
@@ -131,6 +148,7 @@ function showErrors(errors) {
     err.textContent = msg;
     err.hidden = false;
     const input = $(`d-${f}`) || document.querySelector(`input[name="${k}"]`);
+    if (input?.closest('[hidden]')) continue;
     if (input?.id === `d-${f}`) input.setAttribute('aria-invalid', 'true');
     first ||= input;
   }
@@ -150,10 +168,11 @@ $('deal-form').addEventListener('submit', async (e) => {
     const d = await addDeal(v.row);
     deals = [d, ...deals];
     $('deal-form').reset();
+    kindNow = 'free';
     renderChoices();
     showKind();
     renderList();
-    toast(d.custom ? `נשלח לעירית: ${d.business_name}. חוזה מותאם, ואחריו אישור מנהל.` : `נשלח לעירית: ${d.business_name}. החוזה בדרך.`);
+    toast(`נשלח לעירית: ${d.business_name}. ${d.doc_type === 'quote' ? 'הצעת המחיר' : 'החוזה'} בדרך.`);
     $('deal-h1').setAttribute('tabindex', '-1');
     $('deal-h1').focus();
   } catch (err) {
@@ -164,7 +183,7 @@ $('deal-form').addEventListener('submit', async (e) => {
     btn.textContent = SUBMIT_TEXT();
   }
 });
-for (const id of ['d-business', 'd-contact', 'd-phone', 'd-discount', ...CUSTOM_FIELDS.map((f) => `d-${f}`)]) $(id).addEventListener('input', () => clearErr(id.slice(2)));
+for (const id of ['d-business', 'd-contact', 'd-phone', 'd-discount', 'd-text']) $(id).addEventListener('input', () => clearErr(id.slice(2)));
 
 // ── His deals ───────────────────────────────
 const STATUS_CLASS = { pending: 'is-pending', approval: 'is-approval', rejected: 'is-rejected', sent: 'is-sent', signed: 'is-signed', cancelled: 'is-cancelled' };
@@ -178,8 +197,7 @@ function renderList() {
       h('strong', { class: 'deal-item-name', dir: 'auto' }, d.business_name),
       h('span', { class: `deal-status ${STATUS_CLASS[d.status] || ''}` }, statusText(d))),
     h('p', { class: 'deal-item-meta' }, `${dealSummary(d)} · נשלח ${formatStamp(d.created_at)}`),
-    d.status === 'approval' ? h('p', { class: 'deal-item-meta' }, 'עירית הכינה את החוזה. מחכה לאישור של אדם, אופיר או ליאור.') : null,
-    d.status === 'rejected' ? h('p', { class: 'deal-item-meta' }, 'המנהל לא אישר את החוזה כמו שהוא. עירית מתקנת ושולחת שוב לאישור.') : null,
+    d.status === 'rejected' ? h('p', { class: 'deal-item-meta' }, 'החוזה לא אושר כמו שהוא. עירית מתקנת ושולחת אותו ללקוח.') : null,
     d.status === 'signed' && d.signed_at ? h('p', { class: 'deal-item-meta' }, `נחתם ${formatStamp(d.signed_at)} 🎉`) : null)));
 }
 

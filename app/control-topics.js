@@ -59,7 +59,7 @@ function contracts({ live, cs, st, deals, now }) {
   const out = [];
   for (const d of deals || []) {
     if (d.status === 'pending') out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: 'עסקה מהשטח: להכין חוזה', href: dealUrl(d), since: parseDate(d.created_at), late: !!dealDue(d) && dealDue(d) < now }));
-    if (d.status === 'approval') out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: 'חוזה חריג: ממתין לאישור מנהל', href: 'quotes.html', since: parseDate(d.created_at) }));
+    if (d.status === 'approval') out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: 'חוזה מותאם: מוכן לשליחה', href: 'quotes.html', since: parseDate(d.created_at) }));
     if (d.status === 'rejected') out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: 'החוזה לא אושר: לתקן ולשלוח מחדש', href: 'quotes.html', since: parseDate(d.created_at), late: true }));
   }
   for (const c of live) {

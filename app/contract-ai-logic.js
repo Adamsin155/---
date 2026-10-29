@@ -44,6 +44,8 @@ const FREE_NUMBERS = { graphics: FREE_ADDONS.graphics.max, simeonStories: FREE_A
 // What the model may name in `removals`: a quantity of the contract that goes to 0 (the monthly
 // photographer's contents cannot be 0: that add-on is simply not chosen).
 const REMOVABLE = CUSTOM_QTY.filter((q) => !q.min).map((q) => q.key);
+// What an influencer brings to a package (none of it in a contract "בלי משפיענים").
+const INF_KEYS = ['shootDays', 'collabs', 'stories'];
 
 const tierOf = (id) => TIERS.find((t) => t.id === id);
 const qtyDef = (key) => CUSTOM_QTY.find((q) => q.key === key);
@@ -464,8 +466,267 @@ export function aiMarksOf(sel, marks) {
                 : kind === 'discount' ? (sel.discount || 0) === v
                   : kind === 'lines' ? JSON.stringify((c.lines || []).map((l) => ({ label: l.label, ...(given(l.qty) ? { qty: l.qty } : {}), ...(given(l.monthly) ? { monthly: l.monthly } : {}) }))) === v
                     : kind === 'terms' ? c.terms === v
-                      : false;
+                      : kind === 'noinf' ? c.noInfluencer === true
+                        : kind === 'incl' ? c.addonsIncluded === true
+                          : false;
     if (holds) out.add(key);
   }
   return out;
+}
+
+/* ── "בדיוק כמו שכתבתי": the free contract (the owner, 29.10.2026; docs/ops.md, section 79) ──
+   The office writes the deal as it was closed, for example Ofir's
+     "תוציא לי הצעת מחיר 4,900 עם שתי דפי נחיתה / בלי משפיען 4,900 בחודש / צילום כל חודש 8 תכנים",
+   and the switch "בדיוק כמו שכתבתי (חוזה חופשי)" is on: nothing is mapped onto a package. The text
+   becomes a custom contract exactly as written (the builder's "חוזה מותאם אישית", its fields and
+   its checks): the monthly price as written (before VAT unless the text says "כולל מע״מ"), no
+   influencer when it says so (and when it names none), the quantities as written, extra lines as
+   written, the term (else 12 months) and the document type (else the one chosen on the builder).
+   Several documents in one text ("שתי הצעות: …") are up to FREE_MAX_DRAFTS separate drafts.
+     freeSystemPrompt()   the instructions of this mode (the same text on every call: cached);
+     FREE_SCHEMA          its JSON shape;
+     validateFreeResult() the answer checked: { result: { drafts, questions, notes }, dropped };
+     applyFreeDraft()     one draft on the builder: { selection, marks, summary, skipped, questions }. */
+export const FREE_MAX_DRAFTS = 3;
+export const FREE_MAX_QUESTIONS = 2;
+const FREE_INFLUENCERS = Object.keys(INFLUENCERS);
+const TIER_IDS = TIERS.map((t) => t.id);
+// What the text may change itself in a free contract (the monthly photographer's contents are
+// `monthlyContents`).
+const FREE_QTY = QTY_KEYS.filter((k) => k !== 'monthly');
+// What can be added in a free contract (the monthly photographer is `monthlyShoot`).
+const FREE_ADDON_IDS = PAID_IDS.filter((id) => id !== 'photographer');
+// Without an influencer, what was not written: 36 videos and 36 graphics (72 contents, as the
+// Social package; the owner, 29.10.2026: "את אותה כמות תכנים שיש 72, 36 ו־36"), and no extra
+// shoot days or channel-14 items.
+const FREE_DEFAULT = { videos: 36, graphics: 36, photoDays: 0, ch14: 0 };
+const FREE_ZERO = Object.keys(FREE_DEFAULT);
+
+export function freeCatalogText() {
+  const infl = FREE_INFLUENCERS.map((k) => `- \`${k}\`: ${INFLUENCERS[k].name}`).join('\n');
+  const tiers = TIERS.map((t) => `- \`${t.id}\`: ${t.name}`).join('\n');
+  const addons = FREE_ADDON_IDS.map((id) => { const a = PAID_ADDONS.find((x) => x.id === id); return `- \`${id}\`: ${a.name} (${ELIGIBILITY[a.eligibility]})`; }).join('\n');
+  const qty = CUSTOM_QTY.filter((q) => FREE_QTY.includes(q.key)).map((q) => `- \`${q.key}\`: ${q.name}, 0–${q.max}, for the whole contract`).join('\n');
+  return [
+    '## Influencers (only when the text names one)', infl,
+    '## Package types (only when the text says it: "פודקאסט"; "טלוויזיה" or "ערוץ 14" for social-tv; else null)', tiers,
+    '## Additions at an influencer (only when the text asks for them)', addons,
+    '## Quantities', qty,
+    `## Term\n${TERM_MONTHS} months unless the text says otherwise; ${CUSTOM_LIMITS.termMin}–${CUSTOM_LIMITS.termMax}.`,
+  ].join('\n\n');
+}
+
+const FREE_RULES = `# How to answer (free mode: exactly as written)
+Do exactly what the text says, nothing more. Do not map the deal onto a catalog package, do not add anything that was not written, and never second-guess what was written.
+- drafts: one item for each document the text asks for ("שתי הצעות: אחת … ואחת …" is two drafts), at most ${FREE_MAX_DRAFTS}. Lines that repeat the same deal (for example the same price written twice, once by the seller and once by the office) are one draft.
+- title: a short Hebrew name for the draft, from the text (for example "4,900 בלי משפיען").
+- docType: "quote" when the text asks for "הצעת מחיר" or "הצעה", "agreement" when it asks for "חוזה" or "הסכם"; null when it does not say.
+- influencer: the key of the influencer the text names; "none" when it says there is none ("בלי משפיען", "ללא משפיענים") and also when it names none.
+- tier: only when the text says the kind of package; else null.
+- monthlyPrice: the monthly price written, in agorot (4,900 is 490000). It is the whole monthly price, with everything in the draft included. A price is before VAT unless the text says it includes VAT ("כולל מע״מ"; then priceIncludesVat is true and the number is given as written). Never compute or guess a price; null when none is written.
+- monthlyShoot: true when the text has a shoot or a photographer every month ("צילום כל חודש", "צלם חודשי"); monthlyContents: the contents a month written with it ("8 תכנים"), else null.
+- quantities: one {key, value} for each quantity the text states (the value for the whole contract). Nothing that was not written.
+- addons: only additions at the influencer that the text asks for.
+- months: only when the text states the term.
+- extraLines: anything else that is sold ("2 דפי נחיתה" is {label: "דפי נחיתה", qty: 2}), with a monthly price only when the text gives that thing its own price. Without a price it is included in the monthly price.
+- specialClauses: short Hebrew clauses for anything agreed that is not a setting above (payment, exit terms).
+- discount: a monthly discount before VAT in agorot, only when the text states one.
+- client: the customer's details when the text gives them; "" for anything it does not give.
+- questions: at most ${FREE_MAX_QUESTIONS} short Hebrew questions, only for what is genuinely missing to write the document (no price at all, or a price that is truly ambiguous). Never ask about something the text states, and never suggest a package.
+- notes: one short Hebrew sentence for the office, or null.
+Write every text for the office in Hebrew.`;
+
+let FREE_PROMPT = null;
+export function freeSystemPrompt() {
+  FREE_PROMPT ??= [
+    'You turn a deal that the office of Astrateg, an Israeli social media agency, wrote in free Hebrew into one or more custom contracts, exactly as written. You never invent anything the text does not say.',
+    '# What a custom contract can hold',
+    freeCatalogText(),
+    FREE_RULES,
+  ].join('\n\n');
+  return FREE_PROMPT;
+}
+
+const CLIENT_SCHEMA = object({ name: { type: 'string' }, company: { type: 'string' }, companyId: { type: 'string' }, phone: { type: 'string' }, email: { type: 'string' } });
+export const FREE_SCHEMA = object({
+  drafts: {
+    type: 'array',
+    items: object({
+      title: { type: 'string' },
+      docType: nullable({ type: 'string', enum: ['quote', 'agreement'] }),
+      influencer: nullable({ type: 'string', enum: [...FREE_INFLUENCERS, 'none'] }),
+      tier: nullable({ type: 'string', enum: TIER_IDS }),
+      monthlyPrice: nullable(INT),
+      priceIncludesVat: { type: 'boolean' },
+      monthlyShoot: { type: 'boolean' },
+      monthlyContents: nullable(INT),
+      quantities: { type: 'array', items: object({ key: { type: 'string', enum: FREE_QTY }, value: INT }) },
+      addons: { type: 'array', items: { type: 'string', enum: FREE_ADDON_IDS } },
+      months: nullable(INT),
+      extraLines: { type: 'array', items: object({ label: { type: 'string' }, qty: nullable(INT), monthly: nullable(INT) }) },
+      specialClauses: { type: 'array', items: { type: 'string' } },
+      discount: nullable(INT),
+      client: CLIENT_SCHEMA,
+    }),
+  },
+  questions: { type: 'array', items: { type: 'string' } },
+  notes: nullable({ type: 'string' }),
+});
+
+// One draft, checked (the same limits as the builder's own fields). `n`: its number, for the words.
+function checkFreeDraft(d, n, drop) {
+  const r = isObject(d) ? d : {};
+  const at = (text) => drop(`drafts.${n}`, `הצעה ${n}: ${text}`);
+  const out = {
+    title: clip(cleanLine(r.title), 60),
+    docType: ['quote', 'agreement'].includes(r.docType) ? r.docType : null,
+    influencer: 'none',
+    tier: TIER_IDS.includes(r.tier) ? r.tier : null,
+    monthlyPrice: null, vatFrom: null,
+    monthlyShoot: r.monthlyShoot === true, monthlyContents: null,
+    quantities: {}, addons: [], months: null, extraLines: [], specialClauses: [], discount: null, client: {},
+  };
+  if (given(r.influencer) && r.influencer !== 'none') {
+    if (FREE_INFLUENCERS.includes(r.influencer)) out.influencer = r.influencer;
+    else at(`משפיען לא מוכר: ${cleanLine(r.influencer)}`);
+  }
+  // The catalog mode's checks for the parts both modes share.
+  const { result: base, dropped } = validateAiResult({
+    months: r.months, monthlyPrice: r.monthlyPrice, priceIncludesVat: r.priceIncludesVat, discount: r.discount,
+    extraLines: r.extraLines, specialClauses: r.specialClauses, client: r.client,
+    quantities: (Array.isArray(r.quantities) ? r.quantities : []).filter((x) => isObject(x) && FREE_QTY.includes(x.key)),
+  });
+  for (const x of dropped) if (x.field !== 'priceIncludesVat') at(x.text);
+  if (r.priceIncludesVat === true && given(base.monthlyPrice)) out.vatFrom = wholeShekels(toInt(r.monthlyPrice));
+  Object.assign(out, {
+    months: base.months, monthlyPrice: base.monthlyPrice, discount: base.discount, quantities: base.quantities,
+    extraLines: base.extraLines, specialClauses: base.specialClauses, client: base.client,
+  });
+  if (out.monthlyShoot && given(r.monthlyContents)) {
+    const def = qtyDef('monthly');
+    const m = toInt(r.monthlyContents);
+    if (m === null) at('מספר התכנים בחודש לא מספרי');
+    else out.monthlyContents = Math.max(def.min, Math.min(def.max, m));
+  }
+  for (const id of Array.isArray(r.addons) ? r.addons : []) {
+    if (!FREE_ADDON_IDS.includes(id)) at(`תוספת לא מוכרת: ${cleanLine(id)}`);
+    else if (!out.addons.includes(id)) out.addons.push(id);
+  }
+  return out;
+}
+
+// The model's answer in free mode, checked: { result: { drafts, questions, notes }, dropped }.
+// Never throws.
+export function validateFreeResult(raw) {
+  const dropped = [];
+  const drop = (field, text) => dropped.push({ field, text });
+  const r = isObject(raw) ? raw : {};
+  if (!isObject(raw)) drop('', 'התשובה לא הייתה בפורמט הנכון');
+  const list = Array.isArray(r.drafts) ? r.drafts : [];
+  if (list.length > FREE_MAX_DRAFTS) drop('drafts', `בטקסט יותר מ־${FREE_MAX_DRAFTS} מסמכים: הוכנו ${FREE_MAX_DRAFTS} הראשונים`);
+  const drafts = list.slice(0, FREE_MAX_DRAFTS).map((d, i) => checkFreeDraft(d, i + 1, drop));
+  const questions = texts(r.questions).map((s) => clip(s, AI_LIMITS.question)).slice(0, FREE_MAX_QUESTIONS);
+  const notes = cleanLine(r.notes);
+  return { result: { drafts, questions, notes: notes ? clip(notes, AI_LIMITS.notes) : null }, dropped };
+}
+
+const monthsWords = (m) => (m === 1 ? 'חודש אחד' : `${m} חודשים`);
+export const draftTitle = (d, i) => `הצעה ${i + 1}${d?.title ? ` · ${d.title}` : ''}`;
+
+// One draft on the builder, as "חוזה מותאם אישית" (the switch on): { selection, marks, summary,
+// skipped, questions }. `current`: the builder's selection now (its document type is kept when
+// the text does not say one). The totals and the checks stay the pricing engine's.
+export function applyFreeDraft(current, draft) {
+  const d = draft || checkFreeDraft({}, 1, () => {});
+  const marks = {};
+  const summary = [];
+  const skipped = [];
+  const questions = [];
+  const docType = d.docType || current?.docType || 'agreement';
+  summary.push(`מסמך: ${docType === 'quote' ? 'הצעת מחיר' : 'הסכם התקשרות'}${d.docType ? '' : ' (כמו שנבחר במחולל)'}`);
+  const none = d.influencer === 'none' || !INFLUENCERS[d.influencer];
+  let tier = d.tier || 'social';
+  if (none && tier === 'podcast') { skipped.push('פודקאסט בלי משפיענים לא קיים: הוכן כ־Social'); tier = 'social'; }
+  const influencer = none ? (INFLUENCERS[current?.influencer] ? current.influencer : 'simeon') : d.influencer;
+  let sel = { ...emptySelection(), docType, tier, influencer };
+  const custom = {};
+  if (none) {
+    custom.noInfluencer = true;
+    marks.noinf = true;
+    summary.push('משפיענים: בלי');
+  } else {
+    marks.package = packageId(tier, influencer);
+    summary.push(`משפיענים: ${INFLUENCERS[influencer].name} (${tierOf(tier).name})`);
+  }
+  if (d.monthlyShoot) sel.paid = ['photographer'];
+  for (const id of d.addons || []) {
+    const addon = PAID_ADDONS.find((a) => a.id === id);
+    if (!addon) continue;
+    if (!paidAddonAvailable(addon, { ...sel, custom })) { skipped.push(`${addon.name}: רק בחבילה עם המשפיען שלה`); continue; }
+    sel.paid = PAID_IDS.filter((x) => x === id || sel.paid.includes(x));
+  }
+  for (const id of sel.paid) marks[`paid:${id}`] = true;
+
+  // The quantities: as written. Without an influencer, only what was written (the rest is 0).
+  const base = baseQuantities(sel);
+  const qty = {};
+  const written = d.quantities || {};
+  // The package's 36 and 36 only when no amount of contents was written at all ("אלא אם כן רושמים
+  // כמות אחרת"): a written number of videos, graphics or monthly contents is the amount.
+  const noAmount = none && !d.monthlyShoot && !['videos', 'graphics'].some((k) => given(written[k]));
+  const fill = (k) => (noAmount ? FREE_DEFAULT[k] : 0);
+  for (const def of CUSTOM_QTY) {
+    if (def.key === 'monthly') continue;
+    const v = given(written[def.key]) ? written[def.key] : none && FREE_ZERO.includes(def.key) ? fill(def.key) : undefined;
+    if (!given(v)) continue;
+    if (none && INF_KEYS.includes(def.key)) { if (v > 0) skipped.push(`${def.name}: אין בחוזה בלי משפיענים`); continue; }
+    if (v !== base[def.key]) qty[def.key] = v;
+    if (given(written[def.key])) { marks[`q:${def.key}`] = v; summary.push(`${def.name}: ${v}`); }
+  }
+  if (d.monthlyShoot) {
+    const per = d.monthlyContents ?? MONTHLY_CONTENTS;
+    if (per !== MONTHLY_CONTENTS) { qty.monthly = per; marks['q:monthly'] = per; }
+    summary.push(`צילום כל חודש (צלם חודשי): ${per} תכנים בכל חודש`);
+  }
+  const byDefault = noAmount ? FREE_ZERO.filter((k) => FREE_DEFAULT[k] > 0).map((k) => `${FREE_DEFAULT[k]} ${qtyDef(k).name}`) : [];
+  if (byDefault.length) summary.push(`לא נכתבה כמות, ולכן כמו בחבילה: ${byDefault.join(' ו־')}`);
+  const notWritten = none && !noAmount ? FREE_ZERO.filter((k) => !given(written[k]) && base[k] > 0).map((k) => qtyDef(k).name) : [];
+  if (notWritten.length) summary.push(`לא נכתבו, ולכן לא בחוזה: ${notWritten.join(', ')}`);
+  if (Object.keys(qty).length) custom.qty = qty;
+
+  const lines = (d.extraLines || []).map((l) => ({ label: l.label, ...(given(l.qty) ? { qty: l.qty } : {}), ...(given(l.monthly) ? { monthly: l.monthly } : {}) }));
+  if (given(d.monthlyPrice)) {
+    custom.price = d.monthlyPrice;
+    marks.price = d.monthlyPrice;
+    const allIn = sel.paid.length > 0 || lines.some((l) => !l.monthly);
+    summary.push(`מחיר: ${formatILS(d.monthlyPrice)} לחודש לפני מע״מ${d.vatFrom ? ` (נכתב ${formatILS(d.vatFrom)} כולל מע״מ)` : ''}${allIn ? ', הכול כלול' : ''}`);
+    if (sel.paid.length) { custom.addonsIncluded = true; marks.incl = true; }
+  } else {
+    questions.push('מה המחיר החודשי לפני מע״מ? לא נכתב מחיר, ובינתיים נשאר המחיר של החבילה.');
+  }
+  if (given(d.months)) {
+    if (d.months !== TERM_MONTHS) { custom.termMonths = d.months; marks.term = d.months; }
+    summary.push(`תקופה: ${monthsWords(d.months)}`);
+  } else summary.push(`תקופה: ${monthsWords(TERM_MONTHS)} (לא נכתבה תקופה)`);
+  if (lines.length) {
+    custom.lines = lines;
+    marks.lines = JSON.stringify(lines);
+    for (const l of lines) summary.push(`${l.qty ? `${l.qty} ` : ''}${l.label}${l.monthly ? ` · ${formatILS(l.monthly)} לחודש` : ' (כלול במחיר)'}`);
+  }
+  if ((d.specialClauses || []).length) {
+    custom.terms = d.specialClauses.join('\n');
+    marks.terms = custom.terms;
+    for (const c of d.specialClauses) summary.push(`תנאי מיוחד: ${c}`);
+  }
+  if (given(d.discount)) {
+    const list = computeTotals(normalizeSelection({ ...sel, discount: 0, custom: { ...custom } })).monthlyList;
+    let discount = d.discount;
+    if (discount > list) { skipped.push(`הנחה של ${formatILS(discount)} גדולה מהמחיר החודשי: הוזנה ${formatILS(list)}`); discount = list; }
+    sel.discount = discount;
+    marks.discount = discount;
+    summary.push(`הנחה: ${formatILS(discount)} לחודש לפני מע״מ`);
+  }
+  // Always a custom contract: the switch is on, even when nothing differs.
+  sel = reconcile({ ...sel, custom }).selection;
+  return { selection: sel, marks, summary, skipped, questions };
 }

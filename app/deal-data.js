@@ -6,16 +6,28 @@
 import { supabase } from './supa.js';
 
 const BASE_COLS = 'id, created_at, created_by_email, seller, business_name, contact_name, phone, tier, influencer, paid, free, discount_agorot, notes, status, quote_id, sent_at, signed_at, status_by_email';
-// `custom`: "הצעה אחרת" (supabase/migrations/20261010100000_custom_contracts.sql).
-const COLS = `${BASE_COLS}, custom`;
+// `custom`: "הצעה אחרת" (supabase/migrations/20261010100000_custom_contracts.sql), or since
+// 29.10.2026 the seller's own words ({ text }); `doc_type`: what Irit prepares (חוזה / הצעת מחיר,
+// 20261118100000_no_manager_approval.sql). Before that migration the list is read without it.
+const OLD_COLS = `${BASE_COLS}, custom`;
+let COLS = `${OLD_COLS}, doc_type`;
+const missingColumn = (error) => error?.code === '42703' || error?.code === 'PGRST204';
+async function withCols(run) {
+  const r = await run(COLS);
+  if (!missingColumn(r.error) || COLS === OLD_COLS) return r;
+  COLS = OLD_COLS;
+  return run(COLS);
+}
 const missingTable = (error) => error?.code === '42P01' || error?.code === 'PGRST205' || error?.code === 'PGRST202';
 
 // Every deal the signed-in person may read, newest first (`pendingOnly`: still waiting
 // for a contract). null when the table is not there yet.
 export async function loadDeals({ pendingOnly = false } = {}) {
-  let q = supabase.from('deal_requests').select(COLS).order('created_at', { ascending: false }).limit(200);
-  if (pendingOnly) q = q.eq('status', 'pending');
-  const { data, error } = await q;
+  const { data, error } = await withCols((cols) => {
+    let q = supabase.from('deal_requests').select(cols).order('created_at', { ascending: false }).limit(200);
+    if (pendingOnly) q = q.eq('status', 'pending');
+    return q;
+  });
   if (error) {
     if (missingTable(error)) return null;
     throw error;
@@ -24,7 +36,7 @@ export async function loadDeals({ pendingOnly = false } = {}) {
 }
 
 export async function loadDeal(id) {
-  const { data, error } = await supabase.from('deal_requests').select(COLS).eq('id', id).maybeSingle();
+  const { data, error } = await withCols((cols) => supabase.from('deal_requests').select(cols).eq('id', id).maybeSingle());
   if (error) throw error;
   return data;
 }
