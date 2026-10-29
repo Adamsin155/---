@@ -348,7 +348,7 @@ await step('uploading into the system is optional: a failed upload says what to 
   flags.failUploads = 1;
   await nadia.locator(`${card}-v-in`).setInputFiles({ name: 'video-1.mp4', mimeType: 'video/mp4', buffer: mp4() });
   await nadia.waitForSelector(`${card}-v-files .fl-errs .err`);
-  assert.equal(await text(nadia, `${card}-v-files .fl-errs .err`), 'video-1.mp4: ההעלאה לא הצליחה. נסו שוב. אם זה חוזר: ״חסר לוגו / טלפון / חומר״, לסמן ״העלאה למערכת״ ו״לדווח״. עירית מקבלת מיד, והעריכה ממשיכה.');
+  assert.equal(await text(nadia, `${card}-v-files .fl-errs .err`), 'video-1.mp4: ההעלאה לא הצליחה. נסו שוב. אם זה חוזר: ״חסר לוגו / טלפון / חומר״, לסמן ״העלאה למערכת״ ו״לדווח״. מי שבוחרים (עירית, ליאור או אופיר) מקבל מיד, והעריכה ממשיכה.');
   assert.equal(liveVideos().length, 0);
   await nadia.click(`${card}-missing`);
   await nadia.waitForSelector('#dlg-missing[open]');

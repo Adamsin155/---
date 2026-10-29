@@ -111,6 +111,10 @@
           <legend>לפני שמתחילים: יש או חסר?</legend>
           <div id="start-list"></div>
         </fieldset>
+        <fieldset class="ed-to" id="start-to" hidden>
+          <legend>למי לשלוח את הדיווח?</legend>
+          <div class="ed-to-chips" id="start-to-chips"></div>
+        </fieldset>
         <div class="err" id="start-err" role="alert" hidden></div>
       </div>
       <div class="dlg-foot ed-start-foot">
@@ -121,7 +125,7 @@
     </form>
   </dialog>
 
-  <!-- What is missing, to Irit at once: going on, or (when it cannot go on) stopping. -->
+  <!-- What is missing, at once to Irit, Lior or Ofir (the editor chooses): going on, or (when it cannot go on) stopping. -->
   <dialog id="dlg-missing" class="ed-dlg" aria-labelledby="miss-h">
     <form id="miss-form" novalidate>
       <div class="dlg-head">
@@ -133,6 +137,10 @@
         <fieldset class="prod-checks ed-qs">
           <legend>חסר לי</legend>
           <div id="miss-list"></div>
+        </fieldset>
+        <fieldset class="ed-to" id="miss-to">
+          <legend>למי לשלוח את הדיווח?</legend>
+          <div class="ed-to-chips" id="miss-to-chips"></div>
         </fieldset>
         <p class="hint" id="miss-hint"></p>
         <div class="err" id="miss-err" role="alert" hidden></div>
