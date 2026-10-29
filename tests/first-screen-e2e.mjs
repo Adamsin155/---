@@ -121,10 +121,13 @@ try {
     });
   }
 
-  await step('A: with the migration of section 77, the marks of every client arrive in one answer, whole', async () => {
-    const { page, ctx, db, log } = await signedIn('irit', { slow: { 'rpc/protocol_checks_compact': 120 } });
-    assert.equal(log.filter((r) => r.table === 'protocol_checks' && r.method === 'GET').length, 0, 'the table is not read page by page');
-    assert.equal(log.filter((r) => r.table === 'rpc/protocol_checks_compact').length, 1, 'one answer for the list');
+  // Measured live (29.10.2026): the one compact answer for every client took 4.4s on the server;
+  // the list reads the table's pages in parallel again, the compact answer stays for one client.
+  await step('A: with the migration of section 77, the list still reads the marks in parallel pages, whole', async () => {
+    const { page, ctx, db, log } = await signedIn('irit', { slow: { protocol_checks: 120 } });
+    assert.equal(log.filter((r) => r.table === 'rpc/protocol_checks_compact' && !/p_client/.test(r.body || r.url)).length, 0, 'no compact answer for every client');
+    const pages = log.filter((r) => r.table === 'protocol_checks' && r.method === 'GET' && !/client_id=eq\./.test(r.url) && /offset=/.test(r.url));
+    assert.ok(pages.length >= 3, `the pages are read (${pages.length})`);
     const c = lastClient(db);
     assert.equal(await shownProgress(page, c), progressOf(db, c), 'the client of the last marks shows all of its marks');
     await ctx.close();
@@ -132,8 +135,8 @@ try {
 
   // ── B ──
   await step('B: the reviews, the summaries, the history, the questions and the cards do not wait for the marks', async () => {
-    const { ctx, log } = await signedIn('irit', { slow: { 'rpc/protocol_checks_compact': 500 } });
-    const firstMarks = log.find((r) => r.table === 'rpc/protocol_checks_compact');
+    const { ctx, log } = await signedIn('irit', { slow: { protocol_checks: 500 } });
+    const firstMarks = log.find((r) => r.table === 'protocol_checks' && r.method === 'GET');
     for (const table of ['office_reviews', 'client_status_notes', 'rpc/protocol_log_brief']) {
       const r = log.find((x) => x.table === table);
       assert.ok(r, `${table} is asked for`);
