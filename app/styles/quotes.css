@@ -52,6 +52,8 @@
 .qtable .pill.k-pill-late { color: var(--ds-hot-text); }
 .qtable .pill.k-pill-info { color: var(--k-blue); }
 .qtable .apv-state { display: inline-flex; align-items: center; min-height: 26px; border-radius: var(--ds-r-pill); }
+/* In the narrow approval column the label wraps instead of running past the card (29.10.2026). */
+.qtable .apv-cell .apv-state { white-space: normal; max-width: 100%; }
 .doc-type { display: block; font-size: 12px; color: var(--muted); }
 .qtable small.until, .qtable small.by, .qtable small.when { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .qtable small.when, .qtable small.until { margin-top: 3px; }
