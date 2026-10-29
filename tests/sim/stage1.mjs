@@ -20,6 +20,9 @@ sim.save("s0");
   await page.fill("#d-business", "מאפיית הדקל");
   await page.fill("#d-contact", "רונית דקל");
   await page.fill("#d-phone", "050-5550142");
+  // Since 29.10.2026: what Irit prepares first, and a package from the list is the second way.
+  await page.check("#d-doc-agreement");
+  await page.click("#d-to-package");
   await page.check("#d-influencer-simeon").catch(() => null);
   await page.check("#d-tier-social");
   const controls = await page.evaluate(scrapeControls);

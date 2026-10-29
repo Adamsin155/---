@@ -511,16 +511,16 @@ const aligned = (rows, tag) => {
     }
   }
 };
-await step('deal.html "הצעה אחרת": the three counts stand on one line and so do the price and the period (360, 390, 393, 1280)', async () => {
+await step('deal.html: "מה להכין" in one column, and the box of his own words the width of the card (360, 390, 393, 1280)', async () => {
+  // Since 29.10.2026 "הצעה אחרת" is the seller's own words in one box (docs/ops.md, section 79).
   for (const viewport of [SMALL, IPHONE, IPHONE_15, WIDE]) {
     const ctx = await context({ viewport });
     const page = await tab(ctx);
     await signIn(page, 'deal.html', 'stav');
-    await page.check('#d-kind-custom', { force: true });
-    await page.waitForSelector('#d-custom:not([hidden])');
-    const rows = await rowsOf(page, '.deal-custom-qty, .deal-custom-money');
-    assert.deepEqual(rows.map((r) => r.lines.map((l) => l.length)), [[3], [2]], `${viewport.width}`);
-    aligned(rows, `deal ${viewport.width}`);
+    await page.check('#d-doc-quote', { force: true });
+    await page.waitForSelector('#d-free:not([hidden])');
+    const w = await page.evaluate(() => { const t = document.getElementById('d-text').getBoundingClientRect(); const f = document.getElementById('d-free').getBoundingClientRect(); return { t: t.width, f: f.width, left: t.left >= f.left - 1, right: t.right <= f.right + 1 }; });
+    assert.ok(w.left && w.right && w.t > w.f * 0.8, `${viewport.width}: ${JSON.stringify(w)}`);
     assert.ok(await sideways(page) <= 0);
     await ctx.close();
   }
