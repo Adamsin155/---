@@ -253,7 +253,7 @@ export function exceptionOf(selection) {
   }
   if (given(c.price)) out.push({ kind: 'price', from: pkgOf(sel).price, to: c.price, text: `מחיר חודשי ${formatILS(c.price)} במקום ${formatILS(pkgOf(sel).price)}` });
   const freeMax = maxDiscountFor(sel.tier);
-  if (given(c.discount)) out.push({ kind: 'discount', from: freeMax, to: c.discount, text: `הנחה חודשית ${formatILS(c.discount)} (המותר בלי אישור: ${formatILS(freeMax)})` });
+  if (given(c.discount)) out.push({ kind: 'discount', from: freeMax, to: c.discount, text: `הנחה חודשית ${formatILS(c.discount)} (בחוזה רגיל עד ${formatILS(freeMax)})` });
   if (given(c.termMonths)) out.push({ kind: 'term', from: TERM_MONTHS, to: c.termMonths, text: `תקופה ${c.termMonths === 1 ? 'חודש אחד' : `${c.termMonths} חודשים`} במקום ${TERM_MONTHS}` });
   for (const l of c.lines || []) {
     out.push({

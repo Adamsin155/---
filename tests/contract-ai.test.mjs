@@ -467,13 +467,17 @@ test('create-quote: an AI run counts only if it is the caller\'s own, successful
   assert.equal(aiRunProblem({ ...run, created_at: 'nope' }, 'u-irit', 0, now), 'expired');
 });
 
-test('create-quote: the run is checked before anything is stored; a corrected version keeps the approval', () => {
+test('create-quote: the run is checked before anything is stored; a run that is no good is a contract by hand', () => {
   const src = readFileSync(new URL('../supabase/functions/create-quote/index.ts', import.meta.url), 'utf8');
   assert.ok(src.indexOf('aiRunProblem(run, user.id') < src.indexOf(".from('quotes')\n    .insert("), 'checked before the insert');
   assert.match(src, /if \(!revise\) aiRun = body\.aiRun;/);
   assert.match(src, /\.\.\.\(aiRun \? \{ prepared_by: 'ai', ai_run_id: aiRun \} : \{\}\)/);
-  assert.match(src, /if \(problem\) return json\(409, \{ error: `ai run \$\{problem\}` \}\);/);
-  // Waiting for a manager: no token; prepared with AI: the token at once.
+  // Since 29.10.2026 nothing waits for a manager: an old or used run only loses the tag, and
+  // nobody is left out of it (it was the owners, Irit and Ofir while it skipped the approval).
+  assert.match(src, /if \(aiRunProblem\(run, user\.id, usedBy \?\? 0\)\) aiRun = null;/);
+  assert.doesNotMatch(src, /json\(409, \{ error: `ai run/);
+  assert.doesNotMatch(src, /my_person/);
+  // Only before the migration can the database still hold a contract for a manager: then no token.
   assert.match(src, /if \(row\.approval === 'pending'\) return json\(200, \{ id: row\.id, number: row\.number, created_at: row\.created_at, approval: row\.approval \}\);/);
 });
 

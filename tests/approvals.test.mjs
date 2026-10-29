@@ -1,5 +1,8 @@
 // Exceptional contracts outside the engine (the owner's decisions of 6.10.2026), at
-// fixed Israel times (npm test runs this under UTC, New York and Jerusalem):
+// fixed Israel times (npm test runs this under UTC, New York and Jerusalem). Since 29.10.2026
+// no contract waits for a manager (the owner: "להוריד את חוזה חריג באישור מנהל"; docs/ops.md,
+// section 79): nobody decides, nothing rings for an approval, a contract left 'pending' is
+// ready to send, and only the decisions taken before that date still speak.
 //   - who decides and what each person's card lists (app/approvals-logic.js);
 //   - the reminders (app/reminder-rules.js `contractApproval`, `contractDecided`): the
 //     approvers ring at once and once more after 30 office minutes, whoever prepared
@@ -44,26 +47,19 @@ const quote = (o = {}) => {
   };
 };
 
-test('who decides: the owner, Ofir and Lior; never their own contract, except the owner', () => {
-  assert.deepEqual(APPROVERS, ['owner', 'ofir', 'lior']);
-  for (const k of ['owner', 'ofir', 'lior']) assert.equal(canApprove(VIEW[k]), true, k);
-  for (const k of ['irit', 'ilai', 'nadia', 'stav', 'unknown']) assert.equal(canApprove(VIEW[k]), false, k);
+test('nobody decides any more: no approver, and no contract is left for anyone to decide', () => {
+  assert.deepEqual(APPROVERS, ['owner', 'ofir', 'lior'], 'kept for the decisions taken before 29.10.2026');
+  for (const k of Object.keys(VIEW)) assert.equal(canApprove(VIEW[k]), false, k);
   assert.equal(canApprove(null), false);
   assert.equal(personOfViewer(VIEW.owner), 'owner');
   assert.equal(personOfViewer(VIEW.unknown), null);
-  // The office sees the contracts in approval; editors and sales see nothing new.
+  // The office still sees what is left from that time; editors and sales see nothing new.
   for (const k of ['owner', 'ofir', 'lior', 'irit', 'ilai']) assert.equal(seesApprovals(VIEW[k]), true, k);
   for (const k of ['nadia', 'stav', 'unknown']) assert.equal(seesApprovals(VIEW[k]), false, k);
-  const q = quote();
-  assert.equal(mayDecide(q, VIEW.lior, 'lior@x'), true);
-  assert.equal(mayDecide(q, VIEW.irit, 'irit@x'), false);
-  assert.equal(mayDecide(quote({ submitted_by_email: 'Ofir@X' }), VIEW.ofir, 'ofir@x'), false);
-  assert.equal(mayDecide(quote({ submitted_by_email: 'ofir@x' }), VIEW.lior, 'lior@x'), true);
-  assert.equal(mayDecide(quote({ submitted_by_email: 'owner@x' }), VIEW.owner, 'owner@x'), true);
-  for (const o of [{ approval: 'approved' }, { approval: 'rejected' }, { status: 'cancelled' }, { status: 'signed', approval: 'approved' }]) assert.equal(mayDecide(quote(o), VIEW.owner, 'owner@x'), false);
+  for (const k of ['owner', 'ofir', 'lior']) assert.equal(mayDecide(quote(), VIEW[k], `${k}@x`), false, k);
 });
 
-test('the card: approvers get what waits; whoever prepared follows the states, with the words', () => {
+test('the card: what is left from before, the same for everyone: to send, or to correct', () => {
   const list = [
     quote({ id: 'a', submitted_at: IL(2026, 10, 5, 11).toISOString() }),
     quote({ id: 'b', submitted_at: IL(2026, 10, 5, 9).toISOString() }),
@@ -73,15 +69,15 @@ test('the card: approvers get what waits; whoever prepared follows the states, w
     quote({ id: 'f', approval: 'pending', status: 'cancelled' }),
     quote({ id: 'g', approval: 'none' }),
   ];
-  const lior = approvalLists(list, VIEW.lior, 'lior@x');
-  assert.deepEqual(lior.toDecide.map((q) => q.id), ['b', 'a'], 'oldest first');
-  assert.deepEqual(lior.follow.map((q) => q.id), ['d', 'c']);
-  const irit = approvalLists(list, VIEW.irit, 'irit@x');
-  assert.deepEqual(irit.toDecide, []);
-  assert.deepEqual(irit.follow.map((q) => q.id), ['d', 'c', 'a', 'b'], 'sent back first, then ready to send, then waiting');
-  assert.equal(irit.mine(list[0]), true);
+  for (const who of ['lior', 'irit', 'owner']) {
+    const l = approvalLists(list, VIEW[who], `${who}@x`);
+    assert.deepEqual(l.toDecide, [], who);
+    assert.deepEqual(l.follow.map((q) => q.id), ['d', 'c', 'a', 'b'], `${who}: turned down first, then ready to send`);
+  }
+  assert.equal(approvalLists(list, VIEW.irit, 'irit@x').mine(list[0]), true);
   assert.deepEqual(list.map(inApproval), [true, true, true, true, false, false, false]);
-  assert.equal(approvalText(list[0]), 'ממתין לאישור');
+  // A contract left 'pending' is not "waiting" any more: its link works.
+  assert.equal(approvalText(list[0]), 'מוכן לשליחה');
   assert.equal(approvalText(list[2]), 'אושר — אפשר לשלוח');
   assert.equal(approvalText(list[3]), 'לא אושר: ההנחה גבוהה מדי');
   assert.equal(approvalText(list[6]), '');
@@ -89,97 +85,37 @@ test('the card: approvers get what waits; whoever prepared follows the states, w
   assert.equal(businessOf(q), 'קפה דנה');
   assert.equal(businessOf({ client_name: 'דנה' }), 'דנה');
   assert.equal(packageOf(q), 'Social all in one · סמיון, מישל ודניס');
-  assert.deepEqual(deviationsOf(q), ['30 סרטונים במקום 25', 'הנחה חודשית 350 ₪ (המותר בלי אישור: 200 ₪)']);
+  assert.deepEqual(deviationsOf(q), ['30 סרטונים במקום 25', 'הנחה חודשית 350 ₪ (בחוזה רגיל עד 200 ₪)']);
   assert.equal(reviseUrl(q), 'index.html?revise=q1');
   assert.equal(shareText(q, 'https://x/q', 72), 'שלום דנה לוי, מצורף הסכם ההתקשרות מאסטרטג (AST-2026-0042) ל־12 חודשים. אפשר לעיין ולחתום כאן בתוך 72 שעות:\nhttps://x/q');
 });
 
-test('sent for approval: the owner, Ofir and Lior ring at once, outside the daily cap; nothing for editors or sales', () => {
+test('nothing rings for an approval: not when created, not after 30 minutes, not for one left pending', () => {
   const w = world();
-  w.approvals.push(quote());
-  const now = due(w, IL(2026, 10, 5, 10));
-  assert.deepEqual(people(now, 'contractApproval', 'now'), ['lior', 'ofir', 'owner']);
-  const r = of(now, 'contractApproval', 'now')[0];
-  assert.deepEqual([r.level, r.exempt, r.title, r.url], ['ring', 'clock', 'חוזה חריג לאישור: קפה דנה', 'clients.html#mine']);
-  assert.match(r.body, /הכין\/ה: עירית · 30 סרטונים במקום 25 · הנחה חודשית 350 ₪/);
-  assert.deepEqual(of(now, 'contractApproval', 'again'), []);
-  assert.deepEqual(of(now, 'contractDecided'), []);
-  assert.ok(now.filter((x) => x.rule.startsWith('contract')).every((x) => ['owner', 'ofir', 'lior'].includes(x.person)));
-  // A protocol clock: it goes out even when the person already had six rings today.
-  const log = Array.from({ length: 6 }, (_, i) => ({ key: `x${i}`, person: 'lior', level: 'ring', channel: 'push', status: 'sent', exempt: null, sent_at: IL(2026, 10, 5, 9).toISOString() }));
-  const plan = planDelivery({ reminders: now, now: IL(2026, 10, 5, 10), log });
-  assert.deepEqual(plan.filter((p) => p.person === 'lior').map((p) => [p.channel, p.status]), [['push', 'sent']]);
+  w.approvals.push(quote(), quote({ id: 'q2', submitted_by_email: 'ofir@x', created_by_email: 'ofir@x' }));
+  assert.equal(APPROVAL_NUDGE_MINUTES, 30);
+  assert.ok(approvalNudgeAt(quote()) instanceof Date);
+  for (const at of [IL(2026, 10, 5, 10), IL(2026, 10, 5, 10, 30), IL(2026, 10, 6, 9, 20)]) {
+    const got = due(w, at);
+    assert.deepEqual(of(got, 'contractApproval'), [], at.toISOString());
+    assert.deepEqual(of(got, 'contractDecided'), [], at.toISOString());
+  }
   assert.ok(RULE_BY_ID.get('contractApproval').event && RULE_BY_ID.get('contractDecided').event);
 });
 
-test('nobody decided in 30 office minutes: one more ring to the approvers and a quiet note to Irit; then nothing more', () => {
+test('a decision taken before 29.10.2026 still tells whoever prepared it, once; not the owner about his own', () => {
   const w = world();
-  w.approvals.push(quote());
-  assert.equal(APPROVAL_NUDGE_MINUTES, 30);
-  assert.equal(approvalNudgeAt(quote()).getTime(), IL(2026, 10, 5, 10, 30).getTime());
-  assert.deepEqual(of(due(w, IL(2026, 10, 5, 10, 29)), 'contractApproval', 'again'), []);
-  const at30 = due(w, IL(2026, 10, 5, 10, 30));
-  assert.deepEqual(people(at30, 'contractApproval', 'again'), ['lior', 'ofir', 'owner']);
-  assert.equal(of(at30, 'contractApproval', 'again')[0].title, 'עדיין מחכה לאישור: החוזה החריג של קפה דנה');
-  const wait = of(at30, 'contractApproval', 'wait');
-  assert.deepEqual(wait.map((x) => [x.person, x.level, x.title]), [['irit', 'quiet', 'עוד לא הוחלט על החוזה החריג של קפה דנה']]);
-  // Once: everything is in the log, and a day later there is nothing new.
-  assert.deepEqual(due(w, IL(2026, 10, 6, 12), at30.map((x) => x.key)).filter((x) => x.rule.startsWith('contract')), []);
-  // Office time only: sent at 17:50, the second ring is at 09:20 the next business day.
-  const late = world();
-  late.approvals.push(quote({ submitted_at: IL(2026, 10, 5, 17, 50).toISOString() }));
-  assert.deepEqual(of(due(late, IL(2026, 10, 5, 18, 30)), 'contractApproval', 'again'), []);
-  assert.deepEqual(of(due(late, IL(2026, 10, 6, 9, 19)), 'contractApproval', 'again'), []);
-  assert.equal(of(due(late, IL(2026, 10, 6, 9, 20)), 'contractApproval', 'again').length, 3);
-});
-
-test('relevance: a decision, a cancellation or a signature stops the ladder; a corrected version starts a new one', () => {
-  const w = world();
-  w.approvals.push(quote());
-  const first = due(w, IL(2026, 10, 5, 10)).map((x) => x.key);
-  // Decided at 10:10: the 10:30 ring never goes out.
-  w.approvals[0] = quote({ approval: 'rejected', approval_by: 'lior', approval_at: IL(2026, 10, 5, 10, 10).toISOString(), approval_note: 'ההנחה גבוהה מדי, עד 300 ₪.' });
-  const after = due(w, IL(2026, 10, 5, 10, 40), first);
-  assert.deepEqual(of(after, 'contractApproval'), []);
+  w.approvals.push(quote({ approval: 'rejected', approval_by: 'lior', approval_at: IL(2026, 10, 5, 10, 10).toISOString(), approval_note: 'ההנחה גבוהה מדי, עד 300 ₪.' }));
+  const after = due(w, IL(2026, 10, 5, 10, 40));
   const told = of(after, 'contractDecided', 'prep');
   assert.deepEqual(told.map((x) => [x.person, x.level, x.exempt, x.title]), [['irit', 'ring', 'clock', 'החוזה של קפה דנה לא אושר: ההנחה גבוהה מדי, עד 300 ₪.']]);
   assert.match(told[0].body, /ליאור החזיר\/ה לתיקון/);
-  // Irit corrected it: version 2 waits, and the approvers ring for it again.
-  w.approvals[0] = quote({ version: 2, submitted_at: IL(2026, 10, 5, 11).toISOString() });
-  const again = due(w, IL(2026, 10, 5, 11), [...first, ...after.map((x) => x.key)]);
-  assert.deepEqual(people(again, 'contractApproval', 'now'), ['lior', 'ofir', 'owner']);
-  assert.deepEqual(of(again, 'contractDecided'), []);
-  // Ofir approves: Irit rings with "אפשר לשלוח".
   w.approvals[0] = quote({ version: 2, approval: 'approved', approval_by: 'ofir', approval_at: IL(2026, 10, 5, 11, 5).toISOString() });
   const ok = of(due(w, IL(2026, 10, 5, 11, 5)), 'contractDecided', 'prep');
   assert.deepEqual(ok.map((x) => [x.person, x.level, x.title]), [['irit', 'ring', 'החוזה של קפה דנה אושר — אפשר לשלוח']]);
-  assert.match(ok[0].body, /אישר\/ה אופיר/);
-  // Cancelled while waiting, or signed meanwhile: nothing.
-  for (const o of [{ status: 'cancelled' }, { status: 'signed' }]) {
-    const x = world();
-    x.approvals.push(quote(o));
-    assert.deepEqual(of(due(x, IL(2026, 10, 5, 10, 40)), 'contractApproval'), [], JSON.stringify(o));
-  }
-});
-
-test('who prepared it: they do not ring for their own contract, and the owner is not told about his own decision', () => {
-  const w = world();
-  w.approvals.push(quote({ submitted_by_email: 'ofir@x', created_by_email: 'ofir@x' }));
-  const now = due(w, IL(2026, 10, 5, 10, 30));
-  assert.deepEqual(people(now, 'contractApproval', 'now'), ['lior', 'owner']);
-  assert.deepEqual(people(now, 'contractApproval', 'wait'), ['ofir']);
-  // The owner prepared and approved it himself: no ring back to himself, no quiet note.
   const own = world();
-  own.approvals.push(quote({ submitted_by_email: 'owner@x', created_by_email: 'owner@x' }));
-  const o = due(own, IL(2026, 10, 5, 10, 30));
-  assert.deepEqual(people(o, 'contractApproval', 'now'), ['lior', 'ofir']);
-  assert.deepEqual(of(o, 'contractApproval', 'wait'), []);
-  own.approvals[0] = quote({ submitted_by_email: 'owner@x', approval: 'approved', approval_by: 'owner', approval_at: IL(2026, 10, 5, 10, 35).toISOString() });
+  own.approvals.push(quote({ submitted_by_email: 'owner@x', approval: 'approved', approval_by: 'owner', approval_at: IL(2026, 10, 5, 10, 35).toISOString() }));
   assert.deepEqual(of(due(own, IL(2026, 10, 5, 10, 35)), 'contractDecided'), []);
-  // Prepared by someone who is not on the team list: Irit is told.
-  const x = world();
-  x.approvals.push(quote({ submitted_by_email: 'someone@else', created_by_email: 'someone@else' }));
-  assert.deepEqual(people(due(x, IL(2026, 10, 5, 10, 30)), 'contractApproval', 'wait'), ['irit']);
 });
 
 test('the seller of the deal hears quietly about the decision; only when it concerns his deal', () => {
@@ -232,7 +168,8 @@ test('another offer: what Irit reads, the two new statuses, and the builder open
   assert.equal(isCustomDeal({ tier: 'social' }), false);
   assert.equal(contractTitle(d), 'להכין חוזה ל־פיצה רון');
   assert.equal(dealSummary(d), 'הצעה אחרת · 2,500 ₪ לחודש · 6 חודשים · 15 סרטונים · 10 גרפיקות · 15 סרטונים ו־10 גרפיקות, בלי משפיענים');
-  assert.equal(statusText({ status: 'approval' }), 'ממתין לאישור מנהל');
+  // No manager approves since 29.10.2026: a deal left in this status has its contract.
+  assert.equal(statusText({ status: 'approval' }), 'החוזה הוכן');
   assert.equal(statusText({ status: 'rejected' }), 'לא אושר');
   const pre = prefillFromDeal(d);
   assert.equal(pre.selection.docType, 'agreement');
@@ -244,19 +181,19 @@ test('another offer: what Irit reads, the two new statuses, and the builder open
   assert.equal(computeTotals(pre.selection).termNet, 250000 * 6);
 });
 
-test('the 10-minute contract ladder stops when Irit sent the contract for approval; the approvers\' ladder takes over', () => {
+test('the 10-minute contract ladder stops once the deal has its contract (also a deal left in "approval")', () => {
   const w = world();
   const d = { ...validateDeal(FORM).row, id: 'd9', status: 'pending', created_by_email: 'stav@x', created_at: IL(2026, 10, 5, 10).toISOString() };
   w.deals.push(d);
   const first = due(w, IL(2026, 10, 5, 10));
   assert.deepEqual(of(first, 'dealNew', 'now').map((x) => [x.person, x.title]), [['irit', 'להכין חוזה ל־פיצה רון']]);
   assert.match(of(first, 'dealNew', 'now')[0].body, /מסתיו: הצעה אחרת · 2,500 ₪ לחודש/);
-  // 10:06: she sent it for approval. The deal waits for a manager, not for her.
+  // 10:06: a deal left in 'approval' from before 29.10.2026: not her clock, and nobody rings to approve.
   w.deals[0] = { ...d, status: 'approval', quote_id: 'q1' };
   w.approvals.push(quote({ seller_email: 'stav@x', submitted_at: IL(2026, 10, 5, 10, 6).toISOString() }));
   const later = due(w, IL(2026, 10, 5, 10, 15), first.map((x) => x.key));
   assert.deepEqual(of(later, 'dealNew'), [], 'no "10 minutes passed", no ring to Ofir about Irit');
-  assert.deepEqual(people(later, 'contractApproval', 'now'), ['lior', 'ofir', 'owner']);
+  assert.deepEqual(of(later, 'contractApproval'), []);
   assert.deepEqual(pendingDeals(w.deals), []);
   // Not approved: still not Irit's 10-minute clock (she got the decision's ring).
   w.deals[0] = { ...d, status: 'rejected', quote_id: 'q1' };

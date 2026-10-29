@@ -71,7 +71,7 @@ test('the deviations, as data and as Hebrew sentences', () => {
     '25 סרטונים במקום 20',
     '2 קולאבים באינסטגרם במקום 0',
     'מחיר חודשי 4,300 ₪ במקום 3,500 ₪',
-    'הנחה חודשית 850 ₪ (המותר בלי אישור: 800 ₪)', // a podcast: up to 800 ₪ with no approval (28.10.2026)
+    'הנחה חודשית 850 ₪ (בחוזה רגיל עד 800 ₪)', // a podcast: up to 800 ₪ with no approval (28.10.2026)
     'תקופה 6 חודשים במקום 12',
     'שורה נוספת: אתר תדמית × 1 · 500 ₪ לחודש',
     'שורה נוספת: ליווי אישי',
@@ -79,7 +79,7 @@ test('the deviations, as data and as Hebrew sentences', () => {
   ]);
   const e = exceptionOf(s);
   assert.deepEqual(e[0], { kind: 'qty', key: 'videos', from: 20, to: 25, text: '25 סרטונים במקום 20' });
-  assert.deepEqual(e.find((x) => x.kind === 'discount'), { kind: 'discount', from: MAX_DISCOUNT_PODCAST, to: 85000, text: 'הנחה חודשית 850 ₪ (המותר בלי אישור: 800 ₪)' });
+  assert.deepEqual(e.find((x) => x.kind === 'discount'), { kind: 'discount', from: MAX_DISCOUNT_PODCAST, to: 85000, text: 'הנחה חודשית 850 ₪ (בחוזה רגיל עד 800 ₪)' });
   assert.equal(isExceptional(s), true);
   // Each kind alone is a deviation; the graphics equal the package, so they are not.
   assert.deepEqual(texts(sel('social', 'simeon', [], { termMonths: 1 })), ['תקופה חודש אחד במקום 12']);
@@ -89,7 +89,7 @@ test('the deviations, as data and as Hebrew sentences', () => {
   const small = sel('social', 'simeon', [], { discount: 20000 });
   assert.deepEqual(texts(small), []);
   assert.equal(normalizeSelection(small).discount, 20000);
-  assert.deepEqual(texts(sel('social', 'simeon', [], { discount: 20100 })), ['הנחה חודשית 201 ₪ (המותר בלי אישור: 200 ₪)']);
+  assert.deepEqual(texts(sel('social', 'simeon', [], { discount: 20100 })), ['הנחה חודשית 201 ₪ (בחוזה רגיל עד 200 ₪)']);
 });
 
 test('totals with overrides: the price, the lines, the discount, VAT and the term are computed here', () => {

@@ -339,7 +339,7 @@ try {
     assert.match(await text(irit, '#custom-diff .needs'), /הוכן עם AI/);
     assert.deepEqual(await texts(irit, '#custom-diff-list li'), [
       '20 סרטונים במקום 36', '2 ימי צילום עם המשפיענים במקום 1', 'מחיר חודשי 3,500 ₪ במקום 3,900 ₪',
-      'הנחה חודשית 300 ₪ (המותר בלי אישור: 200 ₪)', 'תנאים מיוחדים',
+      'הנחה חודשית 300 ₪ (בחוזה רגיל עד 200 ₪)', 'תנאים מיוחדים',
     ]);
     assert.equal(await noSideScroll(irit), true);
     await irit.locator('#ai-box').scrollIntoViewIfNeeded();

@@ -385,7 +385,7 @@ try {
     await irit.locator('#cl-price-0').fill('500');
     await irit.locator('#custom-terms').fill('הלקוח רשאי לסיים את ההסכם אחרי 3 חודשים, בהודעה של 30 ימים.');
     assert.deepEqual(await texts(irit, '#custom-diff-list li'), [
-      '30 סרטונים במקום 25', '0 קולאבים באינסטגרם במקום 1', 'הנחה חודשית 350 ₪ (המותר בלי אישור: 200 ₪)', 'תקופה 6 חודשים במקום 12',
+      '30 סרטונים במקום 25', '0 קולאבים באינסטגרם במקום 1', 'הנחה חודשית 350 ₪ (בחוזה רגיל עד 200 ₪)', 'תקופה 6 חודשים במקום 12',
       'שורה נוספת: אתר תדמית × 1 · 500 ₪ לחודש', 'תנאים מיוחדים',
     ]);
     assert.match(await text(irit, '#custom-diff .needs'), /אדם, אופיר או ליאור/);
@@ -534,7 +534,7 @@ try {
     assert.equal(await irit.locator('#custom-terms').inputValue(), 'הלקוח רשאי לסיים את ההסכם אחרי 3 חודשים, בהודעה של 30 ימים.');
     assert.equal(await irit.locator('#c-company').inputValue(), 'קפה דנה');
     await irit.locator('#discount').fill('300');
-    assert.ok((await texts(irit, '#custom-diff-list li')).includes('הנחה חודשית 300 ₪ (המותר בלי אישור: 200 ₪)'));
+    assert.ok((await texts(irit, '#custom-diff-list li')).includes('הנחה חודשית 300 ₪ (בחוזה רגיל עד 200 ₪)'));
     await irit.locator('#btn-link').click();
     await irit.locator('#dlg-pending[open]').waitFor();
     assert.equal(lastCreate().revise, custom.id);
@@ -551,7 +551,7 @@ try {
     await item.waitFor();
     assert.equal(await ofir.locator('#approvals-card h2').innerText(), 'חוזים חריגים לאישור (1)');
     assert.match(await item.locator('.apv-meta').first().innerText(), /גרסה 2/);
-    assert.ok((await item.locator('.apv-diff li').allInnerTexts()).includes('הנחה חודשית 300 ₪ (המותר בלי אישור: 200 ₪)'));
+    assert.ok((await item.locator('.apv-diff li').allInnerTexts()).includes('הנחה חודשית 300 ₪ (בחוזה רגיל עד 200 ₪)'));
     await item.locator('[data-act="approve"]').click();
     await ofir.locator('#approvals-card .apv-state.is-approved').waitFor();
     assert.deepEqual([custom.approval, custom.approval_by], ['approved', 'ofir']);

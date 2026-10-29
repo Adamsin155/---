@@ -31,9 +31,10 @@ export const UNSIGNED_URL = `quotes.html#${UNSIGNED_FILTER}`;
 const signable = (q) => !(q?.signable === false || q?.signable === 'false' || q?.model?.signable === false);
 // A contract a manager has to approve first is not with the client yet (the rule
 // `contractApproval` follows it); sent back, it is with whoever prepared it.
-// Since 29.10.2026 no contract waits for a manager: one still marked 'pending' from before is with
-// the client as well (its link works). Only a contract a manager turned down is not.
-const withClient = (q) => q?.approval !== 'rejected';
+// A contract still marked 'pending' from before 29.10.2026 (no manager approves since; docs/ops.md,
+// section 79) is not counted: its client may not have it yet. It waits in the card "חוזים מותאמים
+// לשליחה" (app/approvals-ui.js) until the office sends it.
+const withClient = (q) => !q?.approval || q.approval === 'none' || q.approval === 'approved';
 const validHours = (q) => { const v = Number(q?.valid ?? q?.model?.validHours); return Number.isFinite(v) && v > 0 ? v : null; };
 
 // When the client got it to sign: the approval of an exceptional contract, else the
