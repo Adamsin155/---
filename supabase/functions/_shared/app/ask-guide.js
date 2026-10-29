@@ -177,16 +177,20 @@ export function guideOf(viewer) {
 
 // The guide, with what fits the words of the question first (`likely`: the how-tos and screens
 // that share a word with the topic). The whole guide always goes along: it is short.
-const words = (s) => String(s || '').replace(/[?"'״׳.,!:;()]/g, ' ').split(/\s+/).filter((w) => w.length >= 3);
+// The question words alone count ("איפה", "איך", "רואים" … fit everything).
+const STOP = new Set(['איפה', 'איך', 'רואים', 'רואה', 'אני', 'את', 'של', 'מה', 'יש', 'אפשר', 'עושים', 'מוצא', 'מוצאים', 'שלי', 'בבקשה']);
+const words = (s) => String(s || '').replace(/[?"'״׳.,!:;()]/g, ' ').split(/\s+/).filter((w) => w.length >= 3 && !STOP.has(w));
 export function guideFor(viewer, topic) {
   const g = guideOf(viewer);
   if (!g) return null;
   const ws = words(topic);
   if (!ws.length) return g;
-  const hit = (text) => ws.some((w) => String(text).includes(w));
+  // The best fits first: the most shared words.
+  const score = (...texts) => ws.filter((w) => texts.some((t) => String(t).includes(w))).length;
+  const ranked = (list) => list.filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).map(([text]) => text);
   const likely = [
-    ...g.howto.filter((t) => hit(t.q)).map((t) => t.q),
-    ...[...g.mine, ...g.manager].filter((s) => hit(s.label) || hit(s.what)).map((s) => s.label),
+    ...ranked(g.howto.map((t) => [t.q, score(t.q)])),
+    ...ranked([...g.mine, ...g.manager].map((s) => [s.label, score(s.label, s.what)])),
   ].slice(0, 6);
   return likely.length ? { likely, ...g } : g;
 }
