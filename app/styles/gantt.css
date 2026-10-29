@@ -581,3 +581,26 @@ button.gt-alert-t { cursor: pointer; }
   body:not(.is-share) .gt-row:not(.gx-row) > .gt-state { margin-inline-end: auto; }
 }
 .gt-more > summary { font-size: 15.5px; color: var(--ds-ink); }
+
+/* "משיכת קישורים מהדרייב" (app/gantt-drive.js): the summary under the title. Three counts, then
+   what was not placed, folded when long. */
+.gt-drive { display: grid; gap: 12px; padding: 16px; border-radius: var(--ds-r-card); background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-float); min-width: 0; }
+.gt-drive[hidden] { display: none; }
+.gt-drive:focus { outline: none; }
+.gt-drive:focus-visible { outline: 2px solid var(--ds-navy); outline-offset: 2px; }
+.gd-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gd-head h2 { margin: 0; font: 400 19px/1.3 var(--ds-font-h); color: var(--ds-ink); }
+.gd-close { min-height: 44px; }
+.gd-counts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.gd-count { padding: 8px 14px; border-radius: var(--ds-r-pill); background: var(--ds-ground); color: var(--ds-ink); font-size: 15px; }
+.gd-count strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+.gd-count.is-ok { background: var(--ds-ok-soft); }
+.gd-count.is-warn { background: var(--ds-amber-soft); }
+.gd-more > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; color: var(--ds-ink); }
+.gd-list { margin: 4px 0 0; padding-inline-start: 18px; display: grid; gap: 6px; }
+.gd-list li { display: grid; gap: 2px; overflow-wrap: anywhere; }
+.gd-name { color: var(--ds-ink); }
+.gd-why { color: var(--ds-muted); font-size: 13.5px; }
+.gd-fail { margin: 0; color: var(--ds-danger); font-weight: 600; }
+.gd-hint { margin: 0; color: var(--ds-muted); }
+#btn-drive { display: inline-flex; align-items: center; gap: 6px; }

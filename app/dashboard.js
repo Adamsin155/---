@@ -7,8 +7,9 @@ import { dressHead, headIcon, besideIcon, leadIcon } from './kit.js';
 import { formatILS } from './pricing.js';
 import { dayKeyIL } from './tz.js';
 import { glide, countUp, viewerFor } from './shell.js';
-// Who opens this list (the owners and Irit) and who sees its amounts (the owners), 6.10.2026.
-import { canSeeQuoteList, seesFinance, resetMode } from './manager-rules.js';
+// Who opens this list (the owners, Irit and Ofir) and who sees its amounts (the owners, 6.10.2026,
+// and Ofir, 29.10.2026: app/manager-rules.js seesQuoteMoney).
+import { canSeeQuoteList, seesQuoteMoney, resetMode } from './manager-rules.js';
 import { forgetPlace, signInPlan, refusedHere } from './visit.js';
 // The sign-in screen and its button with the door (docs/ops.md, section 51).
 import { loginDoor } from './login-ui.js';
@@ -29,7 +30,7 @@ besideIcon($('empty'), 'inbox', 'navy', { size: 'sm' }).parentNode.classList.add
 leadIcon($('btn-refresh'), 'loop');
 let quotes = [];
 let filter = location.hash === `#${UNSIGNED_FILTER}` ? UNSIGNED_FILTER : 'all';
-let showMoney = false;      // the amounts and their sum: the owners only (seesFinance)
+let showMoney = false;      // the amounts and their sums: the owners and Ofir (seesQuoteMoney)
 
 const STATUS = {
   sent: 'ממתין לחתימה',
@@ -82,13 +83,16 @@ function renderStats() {
   const total = (list) => list.reduce((s, q) => s + (q.term_gross_agorot || 0), 0);
   const sentThisMonth = total(quotes.filter((q) => inMonth(q.created_at) && q.status !== 'cancelled'));
   const signedThisMonth = total(quotes.filter((q) => q.status === 'signed' && inMonth(q.signed_at)));
-  const stat = (k, v) => h('div', { class: 'stat' }, h('div', { class: 'k' }, k), h('div', { class: 'v ds-num', dir: 'ltr' }, v));
+  const stat = (k, v, cls = '') => h('div', { class: `stat${cls}` }, h('div', { class: 'k' }, k), h('div', { class: 'v ds-num', dir: 'ltr' }, v));
+  // The two sums take a row of their own, half each (app/styles/quotes.css): a sum in shekels
+  // squeezed into a sixth of the row ran into the tile beside it.
+  $('stats').classList.toggle('has-money', showMoney);
   $('stats').replaceChildren(
     stat('הצעות', String(quotes.length)),
     stat('ממתינות לחתימה', String(count('sent') + count('viewed'))),
     stat('הצעות לצפייה', String(count('shared') + count('seen'))),
     stat('נחתמו', String(count('signed'))),
-    ...(showMoney ? [stat('נשלח החודש · כולל מע״מ', formatILS(sentThisMonth)), stat('נחתם החודש · כולל מע״מ', formatILS(signedThisMonth))] : []),
+    ...(showMoney ? [stat('נשלח החודש · כולל מע״מ', formatILS(sentThisMonth), ' stat-money'), stat('נחתם החודש · כולל מע״מ', formatILS(signedThisMonth), ' stat-money')] : []),
   );
   $('stats').hidden = false;
   // The numbers count up the first time the page shows them.
@@ -231,11 +235,11 @@ async function boot() {
     $('login-block').hidden = true;
     // The app shell: the menu of this person's screens, with the managers' switch (app/shell.js).
     import('./shell.js').then((m) => m.mountShell(staff.email)).catch(() => {});
-    // The list is the owners' and Irit's; its amounts are the owners'. The database decides
+    // The list is the owners', Irit's and Ofir's; its amounts the owners' and Ofir's. The database decides
     // the same (public.quotes answers nobody else). Someone the app could not identify
     // gets the list the database gives them, without amounts.
     const viewer = await viewerFor(staff.email);
-    showMoney = seesFinance(viewer);
+    showMoney = seesQuoteMoney(viewer);
     $('th-amt').hidden = !showMoney;
     const denied = !viewer.error && !canSeeQuoteList(viewer);
     $('no-access').hidden = !denied;

@@ -8,6 +8,11 @@
 .stat { min-width: 0; }
 .stat .v { font-family: var(--font-h); font-size: clamp(28px, 3.2vw, 40px); line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stat:first-child { background: var(--ds-navy-grad); color: var(--ds-on-navy); }
+/* With the month's two sums (the owners and Ofir, app/dashboard.js): the four counts in one
+   row and the two sums under them, half the row each, so a sum in shekels never runs into
+   the tile beside it (it did in six tiles of a row, 29.10.2026). */
+.stats.has-money { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.stats.has-money .stat-money { grid-column: span 2; }
 .stat:first-child .k { color: inherit; opacity: .85; }
 
 .login { max-width: 400px; margin: 0 auto; padding: 32px 24px; display: grid; gap: 14px; }
@@ -77,7 +82,7 @@
 }
 @media (max-width: 760px) {
   .list-shell { padding: 14px 10px 20px; gap: 14px; }
-  .stats { grid-template-columns: 1fr 1fr; }
+  .stats, .stats.has-money { grid-template-columns: 1fr 1fr; }
   .stats .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .chip { min-height: 44px; }
   .page-head { flex-wrap: wrap; }

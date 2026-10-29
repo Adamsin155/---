@@ -697,7 +697,7 @@ function swapChoice() {
   if (!sw) return { late: false, restart: false };
   return { late: swapClock(sw.job, new Date()).late, restart: $('as-clock-restart').checked };
 }
-// The editor's reason itself is optional (21.10.2026): only a late job counted again needs one.
+// The reason is optional (21.10.2026), also for a late job counted again (29.10.2026).
 function needsReason(editor) {
   return swapReasonNeeded({ editor, ...swapChoice() });
 }

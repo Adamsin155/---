@@ -29,7 +29,7 @@ import { googleCalendarUrl, downloadIcs } from './calendar.js';
 import { inviteFor, emailsOf, clientEmails, guestNames } from './calendar-view.js';
 import { offerHandoff, dropHandoff, handoffLine, ensurePhones } from './handoff-ui.js';
 import { describeMark } from './handoffs.js';
-import { markHistory, filesOf, fileLine, filesHint, reportOf, missingWords, CHECK_OF, isMaterialTask } from './production.js';
+import { markHistory, filesOf, fileLine, filesHint, reportOf, missingOf, missingWords, CHECK_OF, isMaterialTask, checkRowOf, rowReportNote, REPORT_TO, reportTo, reportToName, NOTE_MAX } from './production.js';
 import {
   progressMap, editedLine, isMonthly, monthKey, monthMap, monthLine, monthBase, monthExceptions, exceptMonths, monthLabel, withMonthly,
 } from './edit-count.js';
@@ -1235,7 +1235,7 @@ function reportLine(x) {
   if (!r) return null;
   const can = !own() || !!PEOPLE[me]?.editor;
   return h('div', { class: 'wait-line report-line', id: `${x.proc.id}-report` },
-    h('span', {}, `חסר לעורך: ${missingWords(r) || 'חומר'} · ${who(r.by_email)} · ${formatStamp(r.at)} · העריכה ממשיכה${r.note ? ` · ״${r.note}״` : ''}`),
+    h('span', {}, `חסר לעורך: ${missingWords(r) || 'חומר'} · ${who(r.by_email)} · ${formatStamp(r.at)} · דווח ל${reportToName(r.to)} · העריכה ממשיכה${r.note ? ` · ״${r.note}״` : ''}`),
     can ? h('button', { type: 'button', class: 'btn-text', id: `${x.proc.id}-arrived`, onclick: () => endReport(x) }, 'הגיע הכול') : null);
 }
 // Everything came: the report closes, its checks are marked, and Lior's task for the rest
@@ -1568,6 +1568,12 @@ function itemRow(p, i, idp = '') {
   if (via) meta.push(h('span', { class: 'blocked', id: `${cid}-u` }, via.text, ' ', h('a', { href: via.href }, 'לעמוד')));
   if (i.optional && !c) meta.push(h('span', { class: 'tag' }, 'אם רלוונטי'));
   if (i.fresh && !state) meta.push(h('span', { class: 'tag tag-fresh' }, freshText(i.fresh)));
+  // "לא התקבל" (the owner, 29.10.2026): the editor's start checks (logo, phone, footage,
+  // scripts) can be reported to Irit, Lior or Ofir from the row; it stays open, marked as reported.
+  const notGot = !state ? checkRowOf(i.key) : null;
+  const reported = notGot ? reportOf(checks, notGot.pre) : null;
+  const isReported = !!reported?.what.includes(notGot?.k);
+  if (isReported) meta.push(h('span', { class: 'reported', id: `${cid}-r` }, `לא התקבל · דווח ל${reportToName(reported.to)} · ${formatStamp(reported.at)}${reported.notes[notGot.k] ? ` · ״${reported.notes[notGot.k]}״` : ''}`));
   if (ownOwners) meta.push(peopleChips(i.owners));
 
   if (i.recurring === 'daily') return followRow(i, c, mine);
@@ -1582,7 +1588,10 @@ function itemRow(p, i, idp = '') {
   const leftAct = leftKey && !state && !printing && !own() && !checks[leftKey]
     ? h('button', { type: 'button', class: 'btn-text left-btn', id: `${cid}-left`, disabled: busy, onclick: () => mark(leftKey, 'done', cid) }, 'נשארו תיקונים') : null;
   const naLabel = state === 'na' ? 'החזרה לפתוח' : leftKey && i.optional ? 'אין תיקונים' : i.optional ? 'לא נדרש' : 'לא רלוונטי';
-  return h('li', { class: `item fin-row${state === 'done' ? ' is-done' : ''}${state === 'na' ? ' is-na' : ''}${mine ? ' is-mine' : ''}${busy ? ' is-busy' : ''}${block ? ' is-blocked' : ''}` },
+  // The editors' answer (the office sees the row's line and closes it with "סיימתי"); not while the editing is stopped on a report.
+  const notGotAct = notGot && !printing && !block && !via && !!PEOPLE[me]?.editor && !missingOf(checks, notGot.pre)
+    ? h('button', { type: 'button', class: 'btn btn-sm notgot-btn', id: `${cid}-notgot`, disabled: busy, 'aria-label': `${isReported ? 'לשלוח שוב' : 'לא התקבל'}: ${i.label}`, onclick: () => openNotGot(i, notGot, `${cid}-notgot`) }, isReported ? 'לשלוח שוב' : 'לא התקבל') : null;
+  return h('li', { class: `item fin-row${state === 'done' ? ' is-done' : ''}${state === 'na' ? ' is-na' : ''}${mine ? ' is-mine' : ''}${busy ? ' is-busy' : ''}${block ? ' is-blocked' : ''}${isReported ? ' is-reported' : ''}` },
     h('label', { class: 'irow', for: cid },
       h('input', {
         type: 'checkbox', id: cid, class: 'cbx fin', 'data-word': i.word || null, checked: state === 'done', disabled: busy || state === 'na' || !!block || !!via,
@@ -1597,6 +1606,7 @@ function itemRow(p, i, idp = '') {
     calendar,
     fixAct,
     leftAct,
+    notGotAct,
     state === 'done' || via || (baseKey(i.key) === 'p13.approved' && state !== 'na') ? null : h('button', {
       type: 'button', class: `btn-text na-btn${i.optional ? ' is-opt' : ''}`, disabled: busy, id: `${cid}-na`,
       'aria-label': `${naLabel}: ${i.label}`,
@@ -1637,6 +1647,10 @@ async function mark(key, state, focusId, note = null) {
         try { const done = await setTaskDone(t.id, true); tasks = tasks.map((x) => (x.id === t.id ? done : x)); renderTasks(); } catch { /* the task stays */ }
       }
     }
+    // "סיימתי" on a row reported "לא התקבל": it arrived. With nothing left the report closes,
+    // and with the footage here Lior's task for the rest of it closes too.
+    const row = state === 'done' ? checkRowOf(key) : null;
+    if (row) await closeArrived(row);
     // A handoff item: offer the ready WhatsApp message to the next person.
     if (state === 'done') offerHandoff({ client, key, checks: () => checks, me, canTeam: canTeam(), onSent: afterHandoff });
     else dropHandoff(key);
@@ -1716,6 +1730,53 @@ $('na-form').addEventListener('submit', async (e) => {
   $('na-submit').disabled = false;
   if (ok) naDlg.close();
 });
+
+// "לא התקבל" on an editor's start check: to whom (עירית, ליאור, אופיר) and, if wanted, in a
+// few words what is missing. It is the same report as the editor page's "חסר לוגו / טלפון /
+// חומר" while the editing goes on (p22.missing, going): the chosen one is rung at once
+// (app/reminder-rules.js editorMissing) with a link to this card.
+let notGotTarget = null;
+const notGotDlg = dialog('dlg-notgot', () => { if (notGotTarget) document.getElementById(notGotTarget.focusId)?.focus(); });
+function openNotGot(item, row, focusId) {
+  const r = reportOf(checks, row.pre);
+  notGotTarget = { item, row, focusId };
+  $('notgot-form').reset();
+  $('notgot-err').hidden = true;
+  $('notgot-item').textContent = item.label;
+  $('notgot-note').maxLength = NOTE_MAX;
+  $('notgot-note').value = r?.notes?.[row.k] || '';
+  const to = reportTo(r?.to);
+  $('notgot-to-chips').replaceChildren(...REPORT_TO.map(([k, l]) => h('label', { class: 'ed-to-o', for: `notgot-to-${k}` },
+    h('input', { type: 'radio', id: `notgot-to-${k}`, name: 'notgot-to', value: k, checked: k === to }), h('span', {}, l))));
+  notGotDlg.showModal();
+  $(`notgot-to-${to}`).focus();
+}
+$('notgot-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const { row, focusId } = notGotTarget;
+  const to = reportTo(document.querySelector('input[name="notgot-to"]:checked')?.value);
+  $('notgot-submit').disabled = true;
+  const ok = await mark(`${row.pre}p22.missing`, 'done', focusId, rowReportNote(checks, row.pre, row.k, { note: $('notgot-note').value, to }));
+  $('notgot-submit').disabled = false;
+  if (!ok) return;
+  notGotDlg.close();
+  toast(`נשלח ל${reportToName(to)}. כשזה מגיע מסמנים ״סיימתי״ בשורה.`);
+});
+async function closeArrived(row) {
+  const key = `${row.pre}p22.missing`;
+  const m = checks[key];
+  let going = false;
+  try { going = JSON.parse(m?.note || '{}').going === true; } catch { /* not a report */ }
+  if (m?.state === 'done' && going && !reportOf(checks, row.pre)) {
+    try { await clearCheck(id, key); delete checks[key]; } catch { /* reportOf shows it closed anyway */ }
+  }
+  if (row.k !== 'footage') return;
+  const round = row.pre ? Number(row.pre.slice(1, -1)) : 1;
+  for (const t of tasks.filter((t2) => isMaterialTask(t2, round))) {
+    try { const done = await setTaskDone(t.id, true); tasks = tasks.map((t2) => (t2.id === t.id ? done : t2)); } catch { /* it stays open */ }
+  }
+  renderTasks();
+}
 
 // Waiting on the client: a reason is required, a recheck date is optional.
 let waitTarget = null;

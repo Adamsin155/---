@@ -25,11 +25,20 @@ export const seesFinance = (v) => isOwnerView(v);
 // The list of sent quotes (quotes.html): the owners, and Irit, who builds the contracts
 // (she sees it without the amounts). public.quotes answers nobody else, except with the
 // quotes a person made, and the approvers with the contracts that wait for them.
+// QUOTE_LIST_VIEWERS also gives Irit her line "ממתינות לחתימה" in "המשימות שלי" (app/mine-flow.js).
 export const QUOTE_LIST_VIEWERS = ['irit'];
-export const canSeeQuoteList = (v) => isOwnerView(v) || (known(v) && QUOTE_LIST_VIEWERS.includes(v.me));
+// The same list WITH its amounts and the month's two sums ("נשלח החודש", "נחתם החודש"):
+// the owners, and Ofir since 29.10.2026 (the owner: "לאופיר את העסקאות של חודש ... כמו שאתה
+// רואה"). Only this screen: every other sum of income, the prices in the table and the
+// payments stay the owners' (seesFinance). In the database: public.sees_quote_money()
+// (supabase/migrations/20261114100000_ofir_deals.sql).
+export const QUOTE_MONEY_VIEWERS = ['ofir'];
+export const seesQuoteMoney = (v) => isOwnerView(v) || (known(v) && QUOTE_MONEY_VIEWERS.includes(v.me));
+export const canSeeQuoteList = (v) => seesQuoteMoney(v) || (known(v) && QUOTE_LIST_VIEWERS.includes(v.me));
 // Stav's and Amos's deals with what was agreed (the discount, a price typed by hand):
-// Irit, who prepares the contract from them, and the owners.
-export const canSeeDeals = (v) => canSeeQuoteList(v);
+// Irit, who prepares the contract from them, and the owners (not Ofir: they are not on
+// quotes.html, and public.deal_requests does not answer him).
+export const canSeeDeals = (v) => isOwnerView(v) || (known(v) && QUOTE_LIST_VIEWERS.includes(v.me));
 // The builder of a quote and of the contract (index.html), 8.10.2026: whoever prepares a
 // contract. Ofir builds them too (the owner, 28.10.2026; until then he only approved an
 // exceptional one from his approvals card). The create-quote function answers the office only
