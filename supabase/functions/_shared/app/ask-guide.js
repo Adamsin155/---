@@ -66,45 +66,49 @@ const WHAT = {
   control: () => 'בקרה יומית: 11 הנושאים של הבקרה, שורה לכל נושא עם מספר הפריטים הפתוחים, וכל פריט מוביל לכרטיס הלקוח.',
   performance: () => 'ביצועים: עמידה בזמנים של כל אחד מהצוות.',
 };
+// The tabs of the clients screen that belong to a profile (MANAGER_TABS in shell-rules.js):
+// reached through "לקוחות" ("עבודת הצוות" through "הצגת עבודת הצוות" on "המשימות שלי").
 const TAB_SCREENS = [
-  { id: 'team-work', tab: 'team', href: 'clients.html#team', label: 'עבודת הצוות' },
-  { id: 'control', tab: 'control', href: 'clients.html#control', label: 'בקרה יומית' },
-  { id: 'performance', tab: 'performance', href: 'clients.html#performance', label: 'ביצועים' },
+  { id: 'team-work', tab: 'team', href: 'clients.html#team', label: 'עבודת הצוות', via: 'בתפריט ← המשימות שלי ← "הצגת עבודת הצוות"' },
+  { id: 'control', tab: 'control', href: 'clients.html#control', label: 'בקרה יומית', via: 'בתפריט ← לקוחות ← לשונית "בקרה יומית"' },
+  { id: 'performance', tab: 'performance', href: 'clients.html#performance', label: 'ביצועים', via: 'בתפריט ← לקוחות ← לשונית "ביצועים"' },
 ];
-const screenOf = (v, it) => ({ id: it.id, label: it.label, link: linkOf(it.href), what: (WHAT[it.id] || (() => ''))(v) });
+// The way to a screen in clicks: from the menu, and for the manager profile's screens, through
+// the "מבט מנהל" button first.
+const SWITCH = `כפתור "${MODES.manager.label}" בראש המסך`;
+const screenOf = (v, it, manager) => {
+  const own = it.via || `בתפריט ← ${it.label}`;
+  const path = !manager ? own : it.id === 'manager' ? SWITCH : `${SWITCH} ← ${own}`;
+  return { id: it.id, label: it.label, path, link: linkOf(it.href), what: (WHAT[it.id] || (() => ''))(v) };
+};
 
 // The two lists of one person: { mine, manager } (manager is empty for anyone without the profile).
 export function screensOf(viewer) {
   const v = viewer;
   const mineItems = profileMenu(v, 'mine');
-  if (!hasProfiles(v)) return { mine: mineItems.map((it) => screenOf(v, it)), manager: [] };
+  if (!hasProfiles(v)) return { mine: mineItems.map((it) => screenOf(v, it, false)), manager: [] };
   const mineIds = new Set(mineItems.map((it) => it.id));
   const managerItems = profileMenu(v, 'manager').filter((it) => !mineIds.has(it.id));
   const mTabs = managerTabs(v);
-  const tabs = TAB_SCREENS.filter((t) => t.tab !== 'team'); // #team is always the manager's
-  const ownTabs = tabs.filter((t) => !mTabs.includes(t.tab) && officeOf(v));
+  // #team is always the manager profile's; the daily review is Irit's own (OWN_TABS in shell-rules.js).
+  const ownTabs = TAB_SCREENS.filter((t) => t.tab !== 'team' && !mTabs.includes(t.tab) && officeOf(v));
   const mgrTabs = TAB_SCREENS.filter((t) => mTabs.includes(t.tab));
   return {
-    mine: [...mineItems, ...ownTabs].map((it) => screenOf(v, it)),
-    manager: [...managerItems, ...mgrTabs].map((it) => screenOf(v, it)),
+    mine: [...mineItems, ...ownTabs].map((it) => screenOf(v, it, false)),
+    manager: [...managerItems, ...mgrTabs].map((it) => screenOf(v, it, true)),
   };
 }
 
-// The way to a screen in clicks, from where the person stands.
-const SWITCH = `כפתור "${MODES.manager.label}" בראש המסך`;
 function pathTo(lists, id) {
-  const m = lists.mine.find((s) => s.id === id);
-  if (m) return { path: `בתפריט ← ${m.label}`, link: m.link, manager: false };
-  const g = lists.manager.find((s) => s.id === id);
-  if (g) return { path: id === 'manager' ? SWITCH : `${SWITCH} ← בתפריט ← ${g.label}`, link: g.link, manager: true };
-  return null;
+  const s = lists.mine.find((x) => x.id === id) || lists.manager.find((x) => x.id === id);
+  return s ? { path: s.path, link: s.link } : null;
 }
 
 // The common how-tos: `via` is the screen it starts from, `when` who has it at all, `then` the
 // clicks after reaching the screen.
 const HOWTOS = [
   { id: 'new-client', q: 'איך מוסיפים לקוח חדש?', via: 'clients', when: opensClients,
-    then: 'הכפתור הוורוד "לקוח חדש" למעלה ← ממלאים שם, עסק וטלפון ← שמירה. לקוח שחתם על הסכם נפתח לבד.' },
+    then: 'הכפתור "לקוח חדש" למעלה ← "עסקה חדשה" (או "ייבוא לקוח קיים") ← שם הלקוח, שם העסק, טלפון, חבילה וסוג יום צילום ← "פתיחת כרטיס לקוח". לקוח שחתם על הסכם במערכת נפתח לבד.' },
   { id: 'edit-client', q: 'איך משנים פרטים של לקוח (טלפון, אימייל, ח.פ / ת.ז, תאריכים, כמויות)?', via: 'clients', when: officeOf,
     then: 'מחפשים את הלקוח ← כרטיס הלקוח ← "עריכת פרטים" ← משנים ← "שמירה".' },
   { id: 'drive-link', q: 'איך מחברים ללקוח קישור לדרייב?', via: 'clients', when: officeOf,
@@ -123,7 +127,7 @@ const HOWTOS = [
     then: 'בוחרים חבילה ומשפיענים ← תוספות ← פרטי הלקוח ← יוצרים קישור ושולחים ללקוח לחתימה.' },
   { id: 'vault', q: 'איפה הסיסמאות של לקוח (הכספת)?', via: 'clients', when: (v) => officeOf(v) || (known(v) && v.me === 'ilai'),
     then: 'כרטיס הלקוח ← "גישות לרשתות" ← "הצגת סיסמה" ← מקלידים את קוד הכספת. רק למי שיש לו הרשאת כספת. הבוט לא מוסר סיסמאות.' },
-  { id: 'calendar', q: 'איפה היומן ואיך שולחים זימון?', via: 'calendar', when: known,
+  { id: 'calendar', q: (v) => (officeOf(v) ? 'איפה היומן ואיך שולחים זימון?' : 'איפה היומן שלי?'), via: 'calendar', when: known,
     then: 'שבוע או חודש, "הקודם" / "הבא" / "היום". לחיצה על אירוע פותחת את כרטיס הלקוח.', office: '"שליחת זימון" ליד כל פגישת אפיון ויום צילום. חיבור Google: "היומן שלי ב־Google" בתחתית העמוד.' },
   { id: 'not-received', q: 'איך מדווחים שלוגו / טלפון / חומר לא התקבל?', via: 'mine', when: isEditor,
     then: 'כרטיס הלקוח ← בשורה של הסעיף (תהליך 22) ← "לא התקבל" ← בוחרים עירית, ליאור או אופיר ← "מה חסר?" (לא חובה) ← "לשלוח". גם ב"הלקוחות שלי בעריכה" ב"קיבלתי את הכונן".' },
@@ -150,7 +154,7 @@ export function guideOf(viewer) {
     if (!to) continue;
     let then = t.then;
     if (t.office && officeOf(v)) then = `${then} ${t.office}`;
-    const item = { q: t.q, path: `${to.path} ← ${then}`, link: to.link };
+    const item = { q: typeof t.q === 'function' ? t.q(v) : t.q, path: `${to.path} ← ${then}`, link: to.link };
     if (t.alsoVia) {
       const also = pathTo(lists, t.alsoVia);
       if (also) item.or = `${also.path} ← בוחרים את הלקוח`;
