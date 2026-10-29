@@ -148,7 +148,10 @@ export async function loadClient(id) {
 // Before that migration the function is missing, and the table is read as before.
 let compactReady = true;
 export async function loadChecks(clientId = null) {
-  if (compactReady) {
+  // All the clients at once: the pages of the table, in parallel (measured live 29.10.2026: the one
+  // compact answer for every client took 4.4s on the server, the parallel pages under a second).
+  // One client: the compact answer.
+  if (compactReady && clientId) {
     const { data, error, status } = await supabase.rpc('protocol_checks_compact', clientId ? { p_client: clientId } : {});
     if (!error && Array.isArray(data?.v) && Array.isArray(data?.c)) return expandChecks(data);
     if (error && !missingFunction(error, status)) throw error;
