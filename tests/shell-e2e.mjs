@@ -92,10 +92,11 @@ await step('a wide screen: the side menu, the rail on the current screen, the na
   };
   await railOn('#side-mine');
   // Irit's personal profile (7.10.2026): her daily screens in one list, no switch inside the menu;
-  // seven since the calendar she invites from (calendar.html, 15.10.2026).
+  // seven since the calendar she invites from (calendar.html, 15.10.2026), eight since her pass
+  // over the clients (pass.html, 26.10.2026).
   assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#side-list .side-link, #side-list .side-k')].map((e) => e.textContent.trim())),
-    ['המשימות שלי', 'לקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
-  assert.equal(await page.locator('#side-list .side-link:visible').count(), 7);
+    ['המשימות שלי', 'לקוחות', 'מעבר על הלקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+  assert.equal(await page.locator('#side-list .side-link:visible').count(), 8);
   assert.equal(await page.locator('#mode-bar, .mode-opt').count(), 0);
   assert.equal(await page.innerText('#profile-switch'), 'מבט מנהל');
   // The lists of clients.html are the "לקוחות" entry: the rail slides there without a page load.
