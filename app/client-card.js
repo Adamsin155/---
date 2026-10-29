@@ -14,7 +14,7 @@ import {
   waitNote, parseWaitNote, bulkEligible, roundsOf, roundContext, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited, clientLabel,
 } from './protocol-logic.js';
 import {
-  loadClient, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
+  loadClient, loadClients, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
   addTask, setTaskDone, updateClient, loadDirectory, loadQuoteSummary, loadCalls, quoteFacts,
   loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes, setPasswordGate, GATE_CANCELLED,
 } from './protocol-data.js';
@@ -62,8 +62,11 @@ function noteWords(key, note) {
   if (String(key || '').replace(/^r\d+\./, '') === 'p15.irit') { const t = dayBeforeText(text, client?.shoot_type); if (t !== null) return t; }
   try { JSON.parse(text); return ''; } catch { return text; }
 }
-import { folderItemOf } from './qa-logic.js';
-import { loadOfirMeetings } from './office-data.js';
+import { folderItemOf, awaitingEditor, editorLoad } from './qa-logic.js';
+import { loadOfirMeetings, loadSelections } from './office-data.js';
+// "שיוך עורך" from the card (the owner, 29.10.2026): qa.html's own dialog, and who may open it.
+import { assignDialog } from './assign-dialog.js';
+import { cardAssignMode } from './card-assign-logic.js';
 import { intakeShortcut, mountClientIntake, describeIntakeMark, writesScripts } from './intake-ui.js';
 import { canWriteScripts } from './scripts-data.js';
 // Stage 4: the client's status page, approvals, surveys and WhatsApp consent.
@@ -548,6 +551,79 @@ function fact(k, v, extra = null) {
   return h('div', { class: 'fact' }, h('dt', {}, k), h('dd', {}, v || h('span', { class: 'muted' }, 'לא הוזן'), extra));
 }
 
+// "אין עורך · שיוך עורך" and "שינוי" beside "עורך" (the owner, 29.10.2026; app/card-assign-logic.js):
+// the people of "בקרה ושיוך", Lior and Irit, on a client in work. The dialog is qa.html's
+// (app/assign-dialog.js); the office's other clients are read when it opens, for the editors' load.
+const assignMode = (s) => (printing || !client ? null : cardAssignMode({ viewer: viewerInfo, client, checks, state: s }));
+function assignButton(s) {
+  const mode = assignMode(s);
+  if (!mode) return null;
+  const change = mode === 'change';
+  return h('button', {
+    type: 'button', class: `btn btn-sm cc-assign${change ? ' btn-ghost' : ' k-btn-navy'}`, id: 'cc-assign', 'data-mode': mode,
+    'aria-label': change ? `שינוי העורך של ${client.name}` : `שיוך עורך ל${client.name}`, onclick: () => openCardAssign(),
+  }, change ? 'שינוי' : 'שיוך עורך');
+}
+let assignUi = null;
+let assignWorld = null; // the office's clients, checks, open tasks and the star day's selection, read when the dialog opens
+let assignOpening = false;
+async function openCardAssign() {
+  if (assignOpening) return;
+  assignOpening = true;
+  const btn = $('cc-assign');
+  if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+  let w;
+  try {
+    const [cs, ch, ts, sel] = await Promise.all([loadClients(), loadChecks(), loadTasks({ openOnly: true }),
+      client.quote_id ? loadSelections([client.quote_id]).catch(() => new Map()) : new Map()]);
+    // This client as the card has it: its marks are the card's own object, so what the dialog writes the card sees.
+    w = { clients: [client, ...cs.filter((x) => x.id !== client.id)], checks: { ...ch, [client.id]: checks }, tasks: ts, selections: sel, states: new Map() };
+  } catch (err) {
+    toast(`לא הצלחנו לפתוח את השיוך. ${errorText(err)}`);
+    return;
+  } finally {
+    assignOpening = false;
+    const b = $('cc-assign');
+    if (b) { b.disabled = false; b.removeAttribute('aria-busy'); }
+  }
+  assignWorld = w;
+  const stateOf = (c) => {
+    if (!assignWorld.states.has(c.id)) assignWorld.states.set(c.id, clientState(c, assignWorld.checks[c.id] || {}, new Date()));
+    return assignWorld.states.get(c.id);
+  };
+  if (!assignUi) {
+    assignUi = assignDialog({
+      clients: () => assignWorld.clients,
+      setClient: (row) => { assignWorld.clients = assignWorld.clients.map((x) => (x.id === row.id ? row : x)); if (row.id === client?.id) client = row; },
+      checks: () => assignWorld.checks, tasks: () => assignWorld.tasks, setTasks: (list) => { assignWorld.tasks = list; },
+      selections: () => assignWorld.selections, stateOf: (c) => assignWorld.stateOf(c), clearStates: () => assignWorld.states.clear(), me: () => me,
+      onClose: () => { if (!busy()) renderKeepingFocus(); },
+      // The card reads itself again (the folder task, the marks, the history) once the dialog is closed.
+      onSaved: () => { setTimeout(() => load(), 0); },
+    });
+    dialogs.push(assignUi.dialog);
+  }
+  assignWorld.stateOf = stateOf;
+  const st = stateOf(client);
+  const mode = cardAssignMode({ viewer: viewerInfo, client, checks, state: st });
+  const s22 = st.states.find((x) => x.proc.id === 'p22a');
+  if (!mode || !s22) { toast('אין כאן שיוך לפתוח. רעננו את העמוד.'); return; }
+  const base = { key: `${client.id}:p22a`, client, pre: '', n: null, proc: s22.proc, ctx: s22.proc.ctx || client, state: s22, dueAt: s22.dueAt };
+  const kept = checks['p22a.assigned']?.state === 'done';
+  if (mode === 'first') {
+    // Exactly qa.html's waiting item (with the fast ladder's due time).
+    assignUi.open(awaitingEditor({ clients: [client], stateOf, checks: assignWorld.checks }).find((x) => !x.n) || base);
+  } else if (mode === 'change') {
+    // The editing is on: qa.html's swap, with its clocks. Otherwise only the editor is rewritten.
+    const job = Object.values(editorLoad({ clients: [client], stateOf, checks: assignWorld.checks, tasks: assignWorld.tasks }))
+      .flatMap((l) => l.jobs).find((j) => !j.n && !j.second);
+    if (job && kept) assignUi.openSwap(client.editor, job);
+    else assignUi.open({ ...base, record: { from: client.editor, kept } });
+  } else {
+    assignUi.open({ ...base, record: { kept: mode === 'record' } });
+  }
+}
+
 // How many videos the editors edited (22.10.2026): "27/48", or "נדיה 8/10 · יריב 12/15";
 // a round's after the client's own. Only once an editor wrote a number. A monthly client:
 // this month's in place of the client's own shoot, "5/12 החודש" (app/edit-count.js monthLine).
@@ -872,7 +948,8 @@ function renderHead(s) {
     ? { done: counted.filter((x) => x.complete).length, total: counted.length, label: 'התהליכים שלי שהושלמו', overdue: counted.filter((x) => x.status === 'overdue').length, waiting: counted.filter((x) => x.status === 'client').length }
     : { done: s.procsDone, total: s.procsTotal, label: 'תהליכים שהושלמו', overdue: s.overdue, waiting: s.waitingOnClient };
   const shootFact = fact('יום צילום', [shootTypeName(c) || null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot'));
-  const editorFact = fact(c.editor && c.editor2 ? 'עורכים' : 'עורך', c.editor ? editorNames(c) : c.editor_name);
+  const editorFact = fact(c.editor && c.editor2 ? 'עורכים' : 'עורך',
+    c.editor ? editorNames(c) : c.editor_name || (assignMode(s) ? h('span', { class: 'cc-noeditor' }, 'אין עורך') : null), assignButton(s));
   fill($('cc-head'),
     landingNote(),
     autoBanner(),

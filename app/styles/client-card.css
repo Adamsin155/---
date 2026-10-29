@@ -169,7 +169,15 @@ dialog .dlg-foot .btn { min-height: 46px; }
   dialog .dlg-foot .btn.btn-ghost { flex: 0 1 auto; }
 }
 
+/* "אין עורך · שיוך עורך" and "שינוי" beside the editor (the owner, 29.10.2026; app/card-assign-logic.js):
+   the editor's row takes the whole width, the words and a 44px button on one line when they fit. */
+#cc-head .cc-facts .fact:has(.cc-assign) { grid-column: 1 / -1; }
+#cc-head .cc-facts .fact:has(.cc-assign) dd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+#cc-head .cc-noeditor { color: var(--ds-danger); }
+#cc-head .cc-facts .cc-assign { min-block-size: 44px; min-inline-size: 44px; padding-inline: 16px; }
+
 @media print {
+  #cc-head .cc-assign { display: none !important; }
   #cc-head .cc-facts { border: 1px solid #999; }
 }
 /* The owner and the date of a new task stand on exactly one line (their labels and fields were a pixel apart). */
