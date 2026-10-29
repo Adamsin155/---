@@ -1,14 +1,14 @@
-// End-to-end check of custom (exceptional) contracts and their approval in the browser
-// (the owner's decisions of 6.10.2026), against an in-memory fake of Supabase that
-// answers as the database and the create-quote function do (the engine itself runs in
-// the fake: app/pricing.js; the database rules are tested in tests/sql):
+// End-to-end check of custom contracts in the browser (the owner's decisions of 6.10.2026,
+// and of 29.10.2026: no manager's approval any more; docs/ops.md, section 79), against an
+// in-memory fake of Supabase that answers as the database and the create-quote function do
+// (the engine itself runs in the fake: app/pricing.js; the database rules are tested in
+// tests/sql/no-approval.test.mjs):
 //   - a regular contract is unchanged: the same request, a link at once, signable;
-//   - Irit builds a custom contract → "שליחה לאישור", no link; the client's link does
-//     not exist; Lior sees "חוזים חריגים לאישור" with what differs and rejects with a
-//     note → Irit fixes and resubmits → Ofir approves → the link works → the client
-//     signs → the client opens with the custom quantities;
-//   - Stav writes "הצעה אחרת" → Irit's builder opens in custom mode from it → his list
-//     shows "ממתין לאישור מנהל", "לא אושר", "חוזה נשלח", "נחתם";
+//   - Irit builds a custom contract → "יצירת קישור לחתימה", the link at once, what differs
+//     kept for the owners → the client signs → the client opens with the custom quantities;
+//   - what was left from before: a contract that waited is "מוכן לשליחה" and signs; one
+//     turned down is corrected into a regular one; nobody has anything to approve;
+//   - a deal of "הצעה אחרת" sent before opens the builder in custom mode;
 //   - phones (375px): nothing scrolls sideways, targets of 44px.
 // Run: npx http-server -p 8111 -s -c-1 . &  then
 //      BASE_URL=http://localhost:8111/ node tests/custom-contract-e2e.mjs [outDir]
@@ -85,26 +85,24 @@ function createQuote(body, me, json) {
     if (!q || q.status !== 'sent' || q.approval === 'none') return json(409, { error: 'this contract can no longer be changed' });
     Object.assign(q, {
       model: { ...model, number: q.number, createdAt: q.created_at }, client_name: model.client.name, monthly_gross_agorot: model.totals.monthlyGross, term_gross_agorot: model.totals.termGross,
-      exceptions: exceptions.length ? exceptions : null, approval: exceptions.length ? 'pending' : 'none', approval_by: null, approval_by_email: null, approval_at: null, approval_note: null,
-      version: q.version + 1, submitted_at: exceptions.length ? serverNow() : null, submitted_by_email: me.email, first_viewed_at: null,
+      exceptions: exceptions.length ? exceptions : null, approval: 'none', approval_by: null, approval_by_email: null, approval_at: null, approval_note: null,
+      version: q.version + 1, submitted_at: null, submitted_by_email: me.email, first_viewed_at: null,
     });
-    stamp(q, exceptions.length ? null : model.validHours);
+    stamp(q, model.validHours);
     syncDeal(q);
-    return json(200, { id: q.id, number: q.number, created_at: q.created_at, approval: q.approval, version: q.version, ...(q.approval === 'none' ? { token: q.token } : {}) });
+    return json(200, { id: q.id, number: q.number, created_at: q.created_at, approval: q.approval, version: q.version, token: q.token });
   }
   const q = {
     id: randomUUID(), token: randomUUID(), number: `AST-2026-${String(++seq).padStart(4, '0')}`, created_at: serverNow(), created_by: me.id, created_by_email: me.email,
     model, client_name: model.client.name, monthly_gross_agorot: model.totals.monthlyGross, term_gross_agorot: model.totals.termGross, status: 'sent',
     first_viewed_at: null, signed_at: null, signer_name: null, signature_png: null,
-    approval: exceptions.length ? 'pending' : 'none', approval_by: null, approval_by_email: null, approval_at: null, approval_note: null,
-    exceptions: exceptions.length ? exceptions : null, version: 1, submitted_at: exceptions.length ? serverNow() : null, submitted_by_email: me.email,
+    approval: 'none', approval_by: null, approval_by_email: null, approval_at: null, approval_note: null,
+    exceptions: exceptions.length ? exceptions : null, version: 1, submitted_at: null, submitted_by_email: me.email,
   };
   q.model = { ...model, number: q.number, createdAt: q.created_at };
-  stamp(q, exceptions.length ? null : model.validHours);
+  stamp(q, model.validHours);
   quotes.push(q);
-  // Waiting for a manager: no token goes back.
-  if (exceptions.length) return json(200, { id: q.id, number: q.number, created_at: q.created_at, approval: 'pending' });
-  return json(200, { id: q.id, token: q.token, number: q.number, created_at: q.created_at });
+  return json(200, { id: q.id, token: q.token, number: q.number, created_at: q.created_at, ...(exceptions.length ? { approval: 'none' } : {}) });
 }
 
 const view = (q) => ({
@@ -113,7 +111,8 @@ const view = (q) => ({
   consentText: `קראתי ואני מאשר/ת את הסכם ההתקשרות ${q.number}, בהתחייבות ל־${q.model.termMonths} חודשים`, signatureHash: q.signature_png ? 'cd'.repeat(32) : null,
   status: q.status, signerName: q.signer_name, signedAt: q.signed_at, signaturePng: q.signature_png,
 });
-const hidden = (q) => !q || q.status === 'cancelled' || ['pending', 'rejected'].includes(q.approval);
+// Since 29.10.2026 only a contract a manager turned down has no link.
+const hidden = (q) => !q || q.status === 'cancelled' || q.approval === 'rejected';
 
 function rpc(name, body, me, json) {
   if (name === 'is_staff') return json(200, !!me && staff.some((s) => s.email === me.email));
@@ -388,16 +387,16 @@ try {
       '30 סרטונים במקום 25', '0 קולאבים באינסטגרם במקום 1', 'הנחה חודשית 350 ₪ (בחוזה רגיל עד 200 ₪)', 'תקופה 6 חודשים במקום 12',
       'שורה נוספת: אתר תדמית × 1 · 500 ₪ לחודש', 'תנאים מיוחדים',
     ]);
-    assert.match(await text(irit, '#custom-diff .needs'), /אדם, אופיר או ליאור/);
+    assert.match(await text(irit, '#custom-diff .needs'), /הקישור ללקוח נוצר מיד/);
     // 3,900 + 500 − 350 = 4,050; VAT 729; six months.
     assert.equal(await text(irit, '#t-mnet'), '4,050 ₪');
     assert.equal(await text(irit, '#t-mgross'), '4,779 ₪');
     assert.equal(await text(irit, '#t-ynet-label'), '6 חודשים, לפני מע״מ');
     assert.equal(await text(irit, '#t-ynet'), '24,300 ₪');
     assert.equal(await text(irit, '#t-ygross'), '28,674 ₪');
-    assert.match(await text(irit, '#sum-diff'), /חוזה חריג · 6 שינויים מהחבילה/);
-    assert.equal(await text(irit, '#btn-link'), 'שליחה לאישור');
-    assert.match(await text(irit, '#act-hint'), /הקישור ללקוח נוצר אחרי האישור/);
+    assert.match(await text(irit, '#sum-diff'), /חוזה מותאם אישית · 6 שינויים מהחבילה/);
+    assert.equal(await text(irit, '#btn-link'), 'יצירת קישור לחתימה');
+    assert.match(await text(irit, '#act-hint'), /חוזה מותאם אישית: הקישור נוצר מיד/);
     assert.equal(await noSideScroll(irit), true);
     await shot(irit, '01-builder-custom-desktop');
     // The preview is the document the client will get.
@@ -412,187 +411,29 @@ try {
     await irit.locator('#dlg-preview .close').click();
   });
 
-  await step('"שליחה לאישור": stored as pending, no link comes back, and to the client it does not exist', async () => {
+  await step('"יצירת קישור לחתימה": the link at once (no manager since 29.10.2026), what differs kept for the owners; the client signs', async () => {
     await irit.locator('#btn-link').click();
-    await irit.locator('#dlg-pending[open]').waitFor();
+    await irit.locator('#dlg-share[open]').waitFor();
     custom = quotes.at(-1);
-    assert.equal(custom.approval, 'pending');
-    assert.equal(custom.expires_at, null);
-    assert.equal(await text(irit, '#pd-number'), custom.number);
-    assert.equal(await irit.locator('#pd-list li').count(), 6);
-    assert.ok(await irit.locator('#dlg-share').isHidden());
-    // The request: the selection with `custom`, never totals; the answer carries no token.
+    assert.equal(custom.approval, 'none');
+    assert.ok(custom.expires_at, 'the signing window starts now');
+    assert.equal(custom.exceptions.length, 6);
+    // The request: the selection with `custom`, never totals.
     const sent = lastCreate();
     assert.deepEqual(sent.selection.custom, { qty: { videos: 30, collabs: 0 }, termMonths: 6, lines: [{ label: 'אתר תדמית', qty: 1, monthly: 50000 }], terms: 'הלקוח רשאי לסיים את ההסכם אחרי 3 חודשים, בהודעה של 30 ימים.', discount: 35000 });
     assert.ok(!JSON.stringify(sent).includes('monthlyGross'));
-    await shot(irit, '03-sent-for-approval-dialog', false);
-    await irit.locator('#dlg-pending [data-close]').last().click();
-    const anon = await newPage({ width: 390, height: 844 });
-    await anon.goto(`${BASE}q.html?t=${custom.token}`);
-    await anon.locator('#state h1').waitFor();
-    await anon.waitForFunction(() => !/טוען/.test(document.getElementById('state').textContent));
-    assert.ok(await anon.locator('#doc').isHidden());
-    assert.ok(await anon.locator('#signbox').isHidden());
-    await anon.context().close();
-  });
-
-  await step('Irit sees "ממתין לאישור" on quotes.html and in her work list, with nothing to send', async () => {
-    await irit.goto(`${BASE}quotes.html`);
-    const row = irit.locator('#rows tr', { hasText: custom.number });
-    await row.waitFor();
-    assert.equal(await row.locator('.pill').innerText(), 'ממתין לאישור');
-    assert.match(await row.locator('.apv-cell').innerText(), /ממתין לאישור/);
-    assert.deepEqual(await row.locator('.acts .btn').allInnerTexts(), ['תיקון', 'ביטול']);
-    assert.equal(await irit.locator('#filters .chip', { hasText: 'באישור מנהל' }).count(), 1);
-    await shot(irit, '04-quotes-approval-column');
-    await fresh(irit, "clients.html#mine");
-    const card = irit.locator('#approvals-card');
-    await card.locator('.apv-item').waitFor();
-    assert.equal(await card.locator('h2').innerText(), 'חוזים חריגים (1)');
-    assert.equal(await card.locator('.apv-state').innerText(), 'ממתין לאישור');
-    assert.equal(await card.locator('[data-act="approve"], [data-act="reject"]').count(), 0, 'Irit does not decide');
-    assert.match(await card.locator('.apv-item').innerText(), /מספיק שאחד מהם יאשר/);
-  });
-
-  // ── Lior rejects with a note ───────────────
-  const lior = await newPage({ width: 1280, height: 900 });
-  await step('Lior: "חוזים חריגים לאישור (1)" on his first screen, with what differs, the totals, who prepared it and the preview', async () => {
-    await signIn(lior, 'decisions.html', 'lior');
-    const card = lior.locator('#approvals-card');
-    await card.locator('.apv-item').waitFor();
-    assert.equal(await card.locator('h2').innerText(), 'חוזים חריגים לאישור (1)');
-    const item = card.locator('.apv-item');
-    assert.equal(await item.locator('.apv-title').innerText(), 'קפה דנה');
-    assert.match(await item.locator('.apv-meta').first().innerText(), /Social all in one · סמיון, מישל ודניס · AST-2026-\d+ · הכין\/ה: עירית/);
-    assert.deepEqual(await item.locator('.apv-diff li').allInnerTexts(), custom.exceptions.map((e) => e.text));
-    // He sees the price and the discount of what he is asked to approve.
-    const facts = await item.locator('.apv-facts').innerText();
-    for (const re of [/לחודש לפני מע״מ\s*4,050 ₪/, /הנחה לחודש\s*350 ₪/, /לחודש כולל מע״מ\s*4,779 ₪/, /תקופה\s*6 חודשים/, /סה״כ כולל מע״מ\s*28,674 ₪/]) assert.match(facts, re);
-    assert.deepEqual(await item.locator('.apv-acts .btn').allInnerTexts(), ['מאשר', 'לא מאשר', 'תצוגת ההסכם']);
-    await shot(lior, '05-approver-card-desktop');
-    await item.locator('[data-act="preview"]').click();
-    await lior.locator('#dlg-approval-preview[open]').waitFor();
-    assert.match(await lior.locator('#dlg-approval-preview .qd-clauses').innerText(), /תנאים מיוחדים/);
-    assert.match(await lior.locator('#dlg-approval-preview .qd-top').innerText(), /6 חודשים/);
-    await lior.locator('#dlg-approval-preview .close').click();
-  });
-
-  await step('the card on a phone (375px): one column, 44px targets, nothing scrolls sideways', async () => {
-    const phone = await newPage({ width: 375, height: 800 });
-    await signIn(phone, 'decisions.html', 'lior');
-    await phone.locator('#approvals-card .apv-item').waitFor();
-    assert.equal(await noSideScroll(phone), true);
-    assert.deepEqual(await smallTargets(phone, '#approvals-card .btn'), []);
-    await phone.locator('#approvals-card').scrollIntoViewIfNeeded();
-    await shot(phone, '06-approver-card-phone');
-    await phone.locator('#approvals-card [data-act="reject"]').click();
-    await phone.locator('.apv-reject textarea').waitFor();
-    assert.equal(await noSideScroll(phone), true);
-    assert.deepEqual(await smallTargets(phone, '#approvals-card .btn, #approvals-card textarea'), []);
-    await shot(phone, '07-approver-reject-note-phone');
-    await phone.context().close();
-  });
-
-  await step('"לא מאשר" asks for a note; with it the contract goes back, and it leaves his list', async () => {
-    const item = lior.locator('#approvals-card .apv-item');
-    await item.locator('[data-act="reject"]').click();
-    const note = item.locator('.apv-reject textarea');
-    await note.waitFor();
-    await item.locator('[data-act="reject-send"]').click();
-    assert.ok(await item.locator('.apv-reject .err').isVisible());
-    assert.equal(calls.filter((c) => c.quote_reject).length, 0, 'nothing was sent without a note');
-    await note.fill('ההנחה גבוהה מדי. עד 300 ₪.');
-    await item.locator('[data-act="reject-send"]').click();
-    await lior.locator('#approvals-card h2', { hasText: 'חוזים חריגים (1)' }).waitFor();
-    assert.deepEqual([custom.approval, custom.approval_by, custom.approval_note], ['rejected', 'lior', 'ההנחה גבוהה מדי. עד 300 ₪.']);
-    assert.match(await text(lior, '#toast'), /חזר לעירית עם ההערה/);
-    assert.equal(await lior.locator('#approvals-card [data-act="approve"]').count(), 0);
-  });
-
-  // ── Irit fixes and resubmits ───────────────
-  await step('Irit: "לא אושר: <הערה>" with "תיקון ושליחה מחדש"; the builder opens on the same contract with the note', async () => {
-    await irit.goto(`${BASE}quotes.html`);
-    const row = irit.locator('#rows tr', { hasText: custom.number });
-    await row.waitFor();
-    assert.match(await row.locator('.apv-cell').innerText(), /לא אושר\s*ליאור: ההנחה גבוהה מדי\. עד 300 ₪\./);
-    assert.deepEqual(await row.locator('.acts .btn').allInnerTexts(), ['תיקון ושליחה מחדש', 'ביטול']);
-    await fresh(irit, "clients.html#mine");
-    const item = irit.locator('#approvals-card .apv-item');
-    await item.waitFor();
-    assert.equal(await item.locator('.apv-state').innerText(), 'לא אושר');
-    assert.match(await item.locator('.apv-note').innerText(), /ליאור לא אישר\/ה: ההנחה גבוהה מדי\. עד 300 ₪\./);
-    await shot(irit, '08-irit-rejected-in-work-list');
-    await item.locator('[data-act="revise"]').click();
-    await irit.waitForURL(/index\.html\?revise=/);
-    await irit.locator('#revise-note:not([hidden])').waitFor();
-    assert.match(await text(irit, '#revise-note'), new RegExp(`תיקון חוזה ${custom.number} · לא אושר: ההנחה גבוהה מדי`));
-    assert.equal(await irit.locator('#custom-on').isChecked(), true);
-    assert.equal(await irit.locator('#cq-videos').inputValue(), '30');
-    assert.equal(await irit.locator('#discount').inputValue(), '350');
-    assert.equal(await irit.locator('#custom-term').inputValue(), '6');
-    assert.equal(await irit.locator('#cl-label-0').inputValue(), 'אתר תדמית');
-    assert.equal(await irit.locator('#custom-terms').inputValue(), 'הלקוח רשאי לסיים את ההסכם אחרי 3 חודשים, בהודעה של 30 ימים.');
-    assert.equal(await irit.locator('#c-company').inputValue(), 'קפה דנה');
-    await irit.locator('#discount').fill('300');
-    assert.ok((await texts(irit, '#custom-diff-list li')).includes('הנחה חודשית 300 ₪ (בחוזה רגיל עד 200 ₪)'));
-    await irit.locator('#btn-link').click();
-    await irit.locator('#dlg-pending[open]').waitFor();
-    assert.equal(lastCreate().revise, custom.id);
-    assert.deepEqual([custom.approval, custom.version, custom.approval_note, custom.model.totals.discount], ['pending', 2, null, 30000]);
-    assert.equal(quotes.filter((q) => q.number === custom.number).length, 1, 'the same quote, a new version');
-    await irit.locator('#dlg-pending [data-close]').last().click();
-  });
-
-  // ── Ofir approves ──────────────────────────
-  const ofir = await newPage({ width: 1280, height: 900 });
-  await step('Ofir approves on his first screen: one approval is enough; Lior has nothing left to decide', async () => {
-    await signIn(ofir, 'qa.html', 'ofir');
-    const item = ofir.locator('#approvals-card .apv-item');
-    await item.waitFor();
-    assert.equal(await ofir.locator('#approvals-card h2').innerText(), 'חוזים חריגים לאישור (1)');
-    assert.match(await item.locator('.apv-meta').first().innerText(), /גרסה 2/);
-    assert.ok((await item.locator('.apv-diff li').allInnerTexts()).includes('הנחה חודשית 300 ₪ (בחוזה רגיל עד 200 ₪)'));
-    await item.locator('[data-act="approve"]').click();
-    await ofir.locator('#approvals-card .apv-state.is-approved').waitFor();
-    assert.deepEqual([custom.approval, custom.approval_by], ['approved', 'ofir']);
-    // The signing window starts at the approval.
-    assert.ok(Math.abs(Date.parse(custom.expires_at) - Date.parse(serverNow()) - 72 * 3600e3) < 60e3);
-    await lior.reload();
-    await lior.locator('#approvals-card .apv-item').waitFor();
-    assert.equal(await lior.locator('#approvals-card [data-act="approve"]').count(), 0);
-    assert.equal(await lior.locator('#approvals-card .apv-state').innerText(), 'אושר — אפשר לשלוח');
-  });
-
-  await step('Irit: "אושר — אפשר לשלוח" with the share dialog; the link works and the client signs', async () => {
-    await fresh(irit, "clients.html#mine");
-    const item = irit.locator('#approvals-card .apv-item');
-    await item.locator('.apv-state.is-approved').waitFor();
-    assert.match(await item.innerText(), /אישר\/ה אופיר/);
-    await item.locator('[data-act="share"]').click();
-    await irit.locator('#dlg-approval-share[open]').waitFor();
-    const link = await irit.locator('#aps-link').inputValue();
+    const link = await irit.locator('#sh-link').inputValue();
     assert.match(link, new RegExp(`q\\.html#t=${custom.token}$`));
-    assert.match(decodeURIComponent(await irit.locator('#aps-wa').getAttribute('href')), /wa\.me\/972501234567\?text=שלום דנה לוי, מצורף הסכם ההתקשרות מאסטרטג \(AST-2026-\d+\) ל־6 חודשים\. אפשר לעיין ולחתום כאן בתוך 72 שעות/);
-    await shot(irit, '09-irit-approved-share-dialog', false);
-    await irit.locator('#dlg-approval-share .close').click();
-    // The same from quotes.html.
-    await irit.goto(`${BASE}quotes.html`);
-    const row = irit.locator('#rows tr', { hasText: custom.number });
-    await row.waitFor();
-    assert.match(await row.locator('.apv-cell').innerText(), /אושר — אפשר לשלוח\s*אישר\/ה אופיר/);
-    await row.locator('[data-act="share"]').click();
-    await irit.locator('#dlg-approval-share[open]').waitFor();
-    assert.equal(await irit.locator('#aps-link').inputValue(), link);
-    await irit.locator('#dlg-approval-share .close').click();
-
+    await shot(irit, '03-custom-link-at-once', false);
+    await irit.locator('#dlg-share .close').click();
     const client = await newPage({ width: 375, height: 800 });
     await client.goto(link);
     await client.locator('#signbox').waitFor();
-    assert.match(await client.locator('#strip-sub').innerText(), /6 חודשים · סה״כ 29,028 ₪ כולל מע״מ/); // (3,900 + 500 − 300) × 1.18 × 6
+    assert.match(await client.locator('#strip-sub').innerText(), /6 חודשים · סה״כ 28,674 ₪ כולל מע״מ/); // (3,900 + 500 − 350) × 1.18 × 6
     assert.match(await client.locator('.qd-clauses').innerText(), /תנאים מיוחדים/);
     assert.match(await client.locator('.qd-grid').innerText(), /30\s*סרטונים בבית העסק/);
     assert.equal(await noSideScroll(client), true);
-    await shot(client, '10-client-custom-agreement-phone');
+    await shot(client, '04-client-custom-agreement-phone');
     await drawAndSign(client, 'דנה לוי');
     assert.equal(custom.status, 'signed');
     await client.context().close();
@@ -607,165 +448,126 @@ try {
     assert.equal(await text(irit, '#cs-graphics .cs-t'), 'עוד לא בוצעו גרפיקות · 35 בחוזה');
     assert.equal(await irit.locator('#cs-collabs').count(), 0, 'the collab was taken out of this contract');
     assert.equal(await text(irit, '.cs-flags'), 'כלול גם: אתר תדמית × 1');
-    await shot(irit, '11-client-card-custom-quantities');
-    // Signed: it left the approval cards.
-    await fresh(irit, "clients.html#mine");
-    await irit.locator('#now-bar, #mine-list, .mine').first().waitFor({ state: 'attached' });
-    await irit.waitForTimeout(400);
-    assert.ok(await irit.locator('#approvals-card').isHidden());
+    await shot(irit, '05-client-card-custom-quantities');
   });
 
-  // ── Stav's "הצעה אחרת" ─────────────────────
-  const stav = await newPage({ width: 375, height: 800 });
-  let deal;
-  await step('Stav: "הצעה אחרת" instead of a built-in package: his words, optional quantities, the price and the term', async () => {
-    await signIn(stav, 'deal.html', 'stav');
-    await stav.locator('#deal-form').waitFor();
-    assert.ok(await stav.locator('#d-custom').isHidden());
-    assert.ok(await stav.locator('#d-tiers').isVisible());
-    await stav.locator('label[for="d-kind-custom"]').click();
-    await stav.locator('#d-custom').waitFor();
-    assert.ok(await stav.locator('#d-tiers').isHidden());
-    assert.ok(await stav.locator('#d-discount').isHidden());
-    assert.equal(await text(stav, '#d-submit'), 'לעירית להכנת חוזה מותאם');
-    await stav.locator('#d-business').fill('מוסך אבי');
-    await stav.locator('#d-contact').fill('אבי');
-    await stav.locator('#d-phone').fill('052-1112233');
-    await stav.locator('#d-submit').click();
-    assert.ok(await stav.locator('#d-description-err').isVisible());
-    assert.ok(await stav.locator('#d-price-err').isVisible());
-    assert.equal(deals.length, 0);
-    await stav.locator('#d-description').fill('15 סרטונים ו־10 גרפיקות, יום צילום אחד, בלי קולאב');
-    await stav.locator('#d-videos').fill('15');
-    await stav.locator('#d-graphics').fill('10');
-    await stav.locator('#d-price').fill('2500');
-    await stav.locator('#d-term_months').fill('6');
-    await stav.locator('#d-notes').fill('רוצה להתחיל בנובמבר');
-    assert.equal(await noSideScroll(stav), true);
-    assert.deepEqual(await smallTargets(stav, '#deal-form .btn, #deal-form input:not([type="radio"]), #deal-form textarea, #deal-form .deal-choice'), []);
-    await shot(stav, '12-stav-other-offer-phone');
-    await stav.locator('#d-submit').click();
-    await stav.locator('.deal-item', { hasText: 'מוסך אבי' }).waitFor();
-    deal = deals.at(-1);
-    assert.deepEqual(deal.custom, { description: '15 סרטונים ו־10 גרפיקות, יום צילום אחד, בלי קולאב', videos: 15, graphics: 10, price_agorot: 250000, term_months: 6 });
-    assert.deepEqual([deal.tier, deal.influencer, deal.discount_agorot], [null, null, 0]);
-    const item = stav.locator('.deal-item', { hasText: 'מוסך אבי' });
-    assert.equal(await item.locator('.deal-status').innerText(), 'ממתין לחוזה');
-    assert.match(await item.innerText(), /הצעה אחרת · 2,500 ₪ לחודש · 6 חודשים · 15 סרטונים · 10 גרפיקות/);
-    // A built-in deal still works as before.
-    assert.ok(await stav.locator('#d-custom').isHidden(), 'the form is back on the built-in package');
-    assert.equal(await text(stav, '#d-submit'), 'לעירית להכנת חוזה');
+  await step('quotes.html: what it changed, as information; no "ממתין לאישור", no "באישור מנהל" chip', async () => {
+    await irit.goto(`${BASE}quotes.html`);
+    const row = irit.locator('#rows tr', { hasText: custom.number });
+    await row.waitFor();
+    assert.match(await row.locator('.apv-cell').innerText(), /^6 שינויים מהחבילה\s*30 סרטונים במקום 25 · 0 קולאבים באינסטגרם במקום 1 · הנחה חודשית 350 ₪/);
+    assert.equal(await irit.locator('#filters .chip', { hasText: 'באישור מנהל' }).count(), 0);
+    assert.doesNotMatch(await irit.locator('#list-block').innerText(), /ממתין לאישור|אישור מנהל/);
+    await shot(irit, '06-quotes-changes-column');
   });
 
-  await step('Irit opens the builder from it: custom mode, prefilled from what he wrote; sending it stops her clock and waits for a manager', async () => {
-    await fresh(irit, "clients.html#mine");
-    const task = irit.locator('#deals-card .deal-task', { hasText: 'מוסך אבי' });
-    await task.waitFor();
-    assert.match(await task.innerText(), /להכין חוזה ל־מוסך אבי/);
-    assert.match(await task.innerText(), /הצעה אחרת · 2,500 ₪ לחודש/);
-    await task.locator('a.btn', { hasText: 'להכנת החוזה' }).click();
-    await irit.waitForURL(/index\.html\?deal=/);
-    await irit.locator('#custom-body').waitFor();
-    assert.equal(await irit.locator('#custom-on').isChecked(), true);
-    assert.equal(await irit.locator('#cq-videos').inputValue(), '15');
-    assert.equal(await irit.locator('#cq-graphics').inputValue(), '10');
-    assert.equal(await irit.locator('#custom-price').inputValue(), '2500');
-    assert.equal(await irit.locator('#custom-term').inputValue(), '6');
-    assert.equal(await irit.locator('#custom-terms').inputValue(), '15 סרטונים ו־10 גרפיקות, יום צילום אחד, בלי קולאב');
-    assert.equal(await irit.locator('#c-company').inputValue(), 'מוסך אבי');
-    assert.equal(await irit.locator('#c-notes').inputValue(), 'רוצה להתחיל בנובמבר');
-    assert.equal(await text(irit, '#t-mnet'), '2,500 ₪');
-    assert.equal(await text(irit, '#btn-link'), 'שליחה לאישור');
-    // Irit turns his text into the terms she wants in the agreement, and takes the collab out.
-    await irit.locator('#cq-collabs-dec').click();
-    await irit.locator('#custom-terms').fill('החבילה אינה כוללת קולאב אצל המשפיענים.');
-    await irit.locator('#btn-link').click();
-    await irit.locator('#dlg-pending[open]').waitFor();
-    const q = quotes.at(-1);
-    assert.deepEqual([q.approval, deal.quote_id, deal.status], ['pending', q.id, 'approval']);
-    await irit.locator('#dlg-pending [data-close]').last().click();
-    // Her deals card no longer lists it: her part is done.
-    await fresh(irit, "clients.html#mine");
-    await irit.locator('#approvals-card .apv-item').waitFor();
-    assert.equal(await irit.locator('#deals-card .deal-task', { hasText: 'מוסך אבי' }).count(), 0);
-  });
+  // ── What was left from before 29.10.2026 ───
+  // A contract still waiting for a manager, one turned down, as the database keeps them.
+  const legacy = (o) => {
+    const sel = normalizeSelection({ ...emptySelection(), docType: 'agreement', custom: { qty: { videos: 20 }, discount: 0 } });
+    const model = buildQuoteModel(sel, { name: o.name, company: o.company, phone: '050-2223344' });
+    const q = {
+      id: randomUUID(), token: randomUUID(), number: `AST-2026-${String(++seq).padStart(4, '0')}`, created_at: minutesAgo(600), created_by: null, created_by_email: 'irit@astrateg.test',
+      model: { ...model }, client_name: o.name, monthly_gross_agorot: model.totals.monthlyGross, term_gross_agorot: model.totals.termGross, status: 'sent',
+      first_viewed_at: null, signed_at: null, signer_name: null, signature_png: null, approval_by: null, approval_by_email: null, approval_at: null, approval_note: null,
+      exceptions: exceptionOf(sel), version: 1, submitted_at: minutesAgo(600), submitted_by_email: 'irit@astrateg.test', expires_at: null, ...o.q,
+    };
+    q.model.number = q.number;
+    quotes.push(q);
+    return q;
+  };
+  const waiting = legacy({ name: 'יעל', company: 'פרחי יעל', q: { approval: 'pending' } });
+  const refused = legacy({ name: 'משה', company: 'מסגריית משה', q: { approval: 'rejected', approval_by: 'lior', approval_at: minutesAgo(500), approval_note: 'ההנחה גבוהה מדי.' } });
 
-  await step('Stav\'s list follows the approval: "ממתין לאישור מנהל" → "לא אושר" → "חוזה נשלח" → "נחתם"; he reads no quote', async () => {
-    const q = quotes.at(-1);
-    const status = async () => { await stav.reload(); const item = stav.locator('.deal-item', { hasText: 'מוסך אבי' }); await item.waitFor(); return item.locator('.deal-status').innerText(); };
-    assert.equal(await status(), 'ממתין לאישור מנהל');
-    await shot(stav, '13-stav-waiting-for-manager-phone');
-    // Lior sends it back.
-    await lior.reload();
-    const item = lior.locator('#approvals-card .apv-item', { hasText: 'מוסך אבי' });
-    await item.waitFor();
-    await item.locator('[data-act="reject"]').click();
-    await item.locator('.apv-reject textarea').fill('המחיר נמוך מדי ל־15 סרטונים. לפחות 2,900 ₪.');
-    await item.locator('[data-act="reject-send"]').click();
-    await lior.locator('#approvals-card .apv-state.is-rejected').first().waitFor();
-    assert.equal(await status(), 'לא אושר');
-    assert.match(await stav.locator('.deal-item', { hasText: 'מוסך אבי' }).innerText(), /עירית מתקנת ושולחת שוב לאישור/);
-    // Irit corrects the price and resubmits.
-    await irit.goto(`${BASE}index.html?revise=${q.id}`);
-    await irit.locator('#revise-note:not([hidden])').waitFor();
-    await irit.locator('#custom-price').fill('2900');
-    await irit.locator('#custom-price').blur();
-    assert.equal(await text(irit, '#t-mnet'), '2,900 ₪');
-    await irit.locator('#btn-link').click();
-    await irit.locator('#dlg-pending[open]').waitFor();
-    assert.equal(await status(), 'ממתין לאישור מנהל');
-    // The owner approves, on his own screen.
-    const owner = await newPage({ width: 1280, height: 900 });
-    await signIn(owner, 'owner.html', 'owner');
-    const mine = owner.locator('#approvals-card .apv-item', { hasText: 'מוסך אבי' });
-    await mine.waitFor();
-    assert.match(await mine.locator('.apv-facts').innerText(), /לחודש לפני מע״מ\s*2,900 ₪/);
-    await shot(owner, '14-owner-card-desktop');
-    await mine.locator('[data-act="approve"]').click();
-    await owner.locator('#approvals-card .apv-state.is-approved').first().waitFor();
-    assert.deepEqual([q.approval, q.approval_by, deal.status], ['approved', 'owner', 'sent']);
-    await owner.context().close();
-    assert.equal(await status(), 'חוזה נשלח');
-    // The client signs.
+  await step('Irit: "חוזים מותאמים לשליחה": the one that waited is ready to send, its link works and the client signs', async () => {
+    await fresh(irit, 'clients.html#mine');
+    const card = irit.locator('#approvals-card');
+    await card.locator('.apv-item').first().waitFor();
+    assert.equal(await card.locator('h2').innerText(), 'חוזים מותאמים לשליחה (2)');
+    const item = card.locator('.apv-item', { hasText: 'פרחי יעל' });
+    assert.equal(await item.locator('.apv-state').innerText(), 'מוכן לשליחה');
+    assert.match(await item.innerText(), /אין יותר אישור מנהל: אפשר לשלוח אותו ללקוח כמו שהוא/);
+    assert.equal(await card.locator('[data-act="approve"], [data-act="reject"]').count(), 0, 'nobody decides');
+    assert.doesNotMatch(await card.innerText(), /ממתין לאישור|מספיק שאחד מהם יאשר/);
+    await shot(irit, '07-irit-left-from-before');
+    await item.locator('[data-act="share"]').click();
+    await irit.locator('#dlg-approval-share[open]').waitFor();
+    const link = await irit.locator('#aps-link').inputValue();
+    assert.match(link, new RegExp(`q\\.html#t=${waiting.token}$`));
+    assert.match(await irit.locator('#dlg-approval-share').innerText(), /פרחי יעל מוכן/);
+    await shot(irit, '08-irit-share-left-from-before', false);
+    await irit.locator('#dlg-approval-share .close').click();
     const client = await newPage({ width: 390, height: 844 });
-    await client.goto(`${BASE}q.html#t=${q.token}`); // the link as it is made now (the others here: as sent before 6.10.2026)
+    await client.goto(link);
     await client.locator('#signbox').waitFor();
-    await drawAndSign(client, 'אבי מוסך');
+    await drawAndSign(client, 'יעל');
     await client.context().close();
-    assert.equal(await status(), 'נחתם');
-    assert.deepEqual(tables.clients.find((c) => c.quote_id === q.id).deliverables, { videos: 15, graphics: 10, shoot_days: 1, collabs: 0, stories: 0, ch14: 0, monthly: 0 });
-    // Sales never see quotes: the list is empty for him, and he has no approvals card.
-    await stav.goto(`${BASE}quotes.html`);
-    await stav.waitForLoadState('networkidle');
-    assert.equal(await stav.locator('#rows tr').count(), 0);
+    assert.deepEqual([waiting.status, waiting.approval], ['signed', 'pending']);
   });
 
-  await step('nobody approves their own contract (Lior), another manager may; an editor sees nothing new', async () => {
-    // Lior prepares one himself. (Ofir builds contracts too since 28.10.2026.)
-    await lior.goto(`${BASE}index.html`);
-    await lior.evaluate(() => sessionStorage.clear());
-    await lior.reload();
-    await lior.locator('#start-agreement').click();
-    await lior.locator('#custom-group').waitFor();
-    await lior.locator('#c-name').fill('גליה');
-    await lior.locator('#c-company').fill('קפה גליה');
-    await lior.locator('.custom-head .switch').click();
-    await lior.locator('#custom-term').fill('3');
-    await lior.locator('#btn-link').click();
-    await lior.locator('#dlg-pending[open]').waitFor();
-    await lior.goto(`${BASE}decisions.html`);
-    const own = lior.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' });
-    await own.waitFor();
-    assert.equal(await own.locator('[data-act="approve"], [data-act="reject"]').count(), 0);
-    assert.match(await own.innerText(), /את החוזה הזה הכנת בעצמך: מנהל אחר צריך לאשר אותו/);
-    // Ofir may.
-    await ofir.goto(`${BASE}qa.html`);
-    await ofir.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' }).waitFor();
-    assert.equal(await ofir.locator('#approvals-card .apv-item', { hasText: 'קפה גליה' }).locator('[data-act="approve"]').count(), 1);
+  await step('the one turned down: no link; "תיקון ושליחה מחדש" makes it a regular contract with its link at once', async () => {
+    const anon = await newPage({ width: 390, height: 844 });
+    await anon.goto(`${BASE}q.html?t=${refused.token}`);
+    await anon.locator('#state h1').waitFor();
+    await anon.waitForFunction(() => !/טוען/.test(document.getElementById('state').textContent));
+    assert.ok(await anon.locator('#signbox').isHidden());
+    await anon.context().close();
+    await fresh(irit, 'clients.html#mine');
+    const item = irit.locator('#approvals-card .apv-item', { hasText: 'מסגריית משה' });
+    await item.waitFor();
+    assert.equal(await item.locator('.apv-state').innerText(), 'לא אושר');
+    await item.locator('[data-act="revise"]').click();
+    await irit.waitForURL(/index\.html\?revise=/);
+    await irit.locator('#revise-note:not([hidden])').waitFor();
+    assert.match(await text(irit, '#revise-note'), new RegExp(`תיקון חוזה ${refused.number} · לא אושר: ההנחה גבוהה מדי`));
+    assert.equal(await text(irit, '#btn-link'), 'יצירת קישור לחתימה');
+    await irit.locator('#btn-link').click();
+    await irit.locator('#dlg-share[open]').waitFor();
+    assert.equal(lastCreate().revise, refused.id);
+    assert.deepEqual([refused.approval, refused.version], ['none', 2]);
+    assert.match(await irit.locator('#sh-link').inputValue(), new RegExp(`q\\.html#t=${refused.token}$`));
+    await irit.locator('#dlg-share .close').click();
+  });
+
+  await step('Lior and Ofir: nothing to approve on their first screens any more', async () => {
+    const lior = await newPage({ width: 1280, height: 900 });
+    await signIn(lior, 'decisions.html', 'lior');
+    await lior.waitForLoadState('networkidle');
+    assert.equal(await lior.locator('#approvals-card [data-act="approve"], #approvals-card [data-act="reject"]').count(), 0);
+    assert.doesNotMatch(await lior.locator('main').innerText(), /חוזים חריגים לאישור/);
+    await shot(lior, '09-lior-nothing-to-approve');
+    await lior.context().close();
+    const ofir = await newPage({ width: 1280, height: 900 });
+    await signIn(ofir, 'qa.html', 'ofir');
+    await ofir.waitForLoadState('networkidle');
+    assert.equal(await ofir.locator('#approvals-card [data-act="approve"]').count(), 0);
     // And the builder is his screen too (the owner, 28.10.2026).
     await ofir.goto(`${BASE}index.html`);
     await ofir.locator('#start-agreement').waitFor();
     assert.equal(await ofir.getByText('אין לך גישה לעמוד הזה').first().isVisible().catch(() => false), false);
+    await ofir.context().close();
+  });
+
+  await step('a deal of "הצעה אחרת" sent before: the builder opens in custom mode from it, the link at once, the deal "חוזה נשלח"', async () => {
+    const deal = {
+      id: randomUUID(), created_at: minutesAgo(5), created_by_email: 'stav@astrateg.test', seller: 'stav', business_name: 'מוסך אבי', contact_name: 'אבי', phone: '052-1112233',
+      tier: null, influencer: null, paid: [], free: {}, discount_agorot: 0, notes: 'רוצה להתחיל בנובמבר', status: 'pending', quote_id: null, sent_at: null, signed_at: null, status_by_email: null,
+      custom: { description: '15 סרטונים ו־10 גרפיקות, יום צילום אחד, בלי קולאב', videos: 15, graphics: 10, price_agorot: 250000, term_months: 6 },
+    };
+    deals.push(deal);
+    await irit.goto(`${BASE}index.html?deal=${deal.id}`);
+    await irit.locator('#custom-body').waitFor();
+    assert.equal(await irit.locator('#custom-on').isChecked(), true);
+    assert.equal(await irit.locator('#cq-videos').inputValue(), '15');
+    assert.equal(await irit.locator('#custom-price').inputValue(), '2500');
+    assert.equal(await irit.locator('#custom-term').inputValue(), '6');
+    assert.equal(await text(irit, '#btn-link'), 'יצירת קישור לחתימה');
+    await irit.locator('#btn-link').click();
+    await irit.locator('#dlg-share[open]').waitFor();
+    const q = quotes.at(-1);
+    for (let i = 0; i < 50 && deal.status !== 'sent'; i += 1) await irit.waitForTimeout(100);
+    assert.deepEqual([q.approval, deal.quote_id, deal.status], ['none', q.id, 'sent']);
+    await irit.locator('#dlg-share .close').click();
     // An editor: no card (and the database gives her no quote).
     const nadia = await newPage({ width: 390, height: 844 });
     await signIn(nadia, 'clients.html', 'nadia');
@@ -779,7 +581,7 @@ try {
     await signIn(phone, 'quotes.html', 'irit');
     await phone.locator('#list-block').waitFor();
     assert.equal(await noSideScroll(phone), true);
-    await shot(phone, '15-quotes-approval-phone');
+    await shot(phone, '10-quotes-phone');
     await phone.goto(`${BASE}index.html`);
     await phone.locator('#start-agreement').click();
     await phone.locator('#custom-group').waitFor();
@@ -789,9 +591,9 @@ try {
     await phone.locator('#custom-add-line').click();
     await phone.locator('#cl-label-0').fill('אתר תדמית');
     assert.equal(await noSideScroll(phone), true);
-    assert.deepEqual(await smallTargets(phone, '#custom-group .btn, #custom-group input.input, #custom-group textarea, #custom-group .stepper button, #custom-group .custom-line .x'), []);
+    assert.deepEqual(await smallTargets(phone, '#custom-group .btn, #custom-group input.input, #custom-group textarea, #custom-group .stepper button, #custom-group .custom-line .x, #custom-group label.custom-flag'), []);
     await phone.locator('#custom-group').scrollIntoViewIfNeeded();
-    await shot(phone, '16-builder-custom-phone');
+    await shot(phone, '11-builder-custom-phone');
     await phone.context().close();
   });
 

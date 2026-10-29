@@ -167,7 +167,8 @@ await step('Stav signs in through clients.html and lands on his page; he sees on
 
 await step('the form: what is missing is said field by field; every target is 44px or more', async () => {
   await stav.click('#d-submit');
-  for (const id of ['d-business-err', 'd-contact-err', 'd-phone-err', 'd-tier-err', 'd-influencer-err']) assert.equal(await stav.locator(`#${id}`).isVisible(), true, id);
+  // Since 29.10.2026 he first picks what Irit prepares (חוזה / הצעת מחיר); the box or the package come after.
+  for (const id of ['d-business-err', 'd-contact-err', 'd-phone-err', 'd-doc_type-err']) assert.equal(await stav.locator(`#${id}`).isVisible(), true, id);
   assert.equal(await stav.evaluate(() => document.activeElement.id), 'd-business');
   const small = await stav.evaluate(() => [...document.querySelectorAll('#deal-form .deal-choice, #deal-form .input, #d-submit')]
     .filter((el) => el.offsetParent && el.getBoundingClientRect().height < 44).map((el) => el.id || el.className));
@@ -179,6 +180,9 @@ await step('Stav sends the deal "לעירית להכנת חוזה": the add-ons 
   await stav.fill('#d-business', 'פיצה רון');
   await stav.fill('#d-contact', 'רון כהן');
   await stav.fill('#d-phone', '050-7654321');
+  // "חוזה", then the second way: a package from the list.
+  await stav.check('#d-doc-agreement');
+  await stav.click('#d-to-package');
   await stav.check('#d-influencer-natali');
   await stav.check('#d-tier-social');
   // Natali's package: her reel and story; Semyon joining her day; no extra day with Semyon.
@@ -192,7 +196,7 @@ await step('Stav sends the deal "לעירית להכנת חוזה": the add-ons 
   await stav.waitForFunction(() => document.querySelectorAll('#deal-list .deal-item').length === 2);
   const sent = calls.filter((c) => c.insert).at(-1).insert;
   assert.deepEqual({ ...sent, free: undefined }, {
-    business_name: 'פיצה רון', contact_name: 'רון כהן', phone: '050-7654321', notes: 'לחזור אחרי 17:00',
+    business_name: 'פיצה רון', contact_name: 'רון כהן', phone: '050-7654321', notes: 'לחזור אחרי 17:00', doc_type: 'agreement',
     tier: 'social', influencer: 'natali', paid: ['photographer'], discount_agorot: 15000, free: undefined,
   });
   assert.equal(sent.free.simeonJoin, true);
