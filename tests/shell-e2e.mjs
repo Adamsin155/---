@@ -260,7 +260,7 @@ await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and 
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['במבט', 'לקוחות', 'שנת החבילה', 'עוד']);
   await page.click('#side-more');
   assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(),
-    ['גאנט תוכן', 'תובנות', 'הצעה חדשה והכנת חוזה', 'צוות']);
+    ['גאנט תוכן', 'תובנות', 'הצעה חדשה והכנת חוזה', 'שאלו את המערכת', 'צוות']);
   // A screen behind "עוד" marks "עוד" as where you are.
   await page.click('#side-insights');
   await page.waitForURL(/insights\.html$/);
