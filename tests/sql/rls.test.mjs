@@ -466,9 +466,10 @@ test('signing an agreement still opens its client by itself (anon signs; the off
 
 // It was the whole office (20260930210000_hardening.sql); since 20261013100000_money_owners_only.sql
 // the owners and Irit (tests/sql/money.test.mjs holds the rule per role).
-test('quotes are the owners\' and Irit\'s (the agreement carries the client\'s phone and the prices); payouts are for payout owners', async () => {
-  for (const who of ['owner', 'irit']) assert.ok((await rows(who, 'select 1 from public.quotes')).length >= 1, who);
-  for (const who of ['lior', 'ofir', 'ilai', 'nadia', 'nirel', 'eli']) assert.deepEqual(await rows(who, 'select 1 from public.quotes'), [], who);
+test('quotes are the owners\', Irit\'s and Ofir\'s (the agreement carries the client\'s phone and the prices); payouts are for payout owners', async () => {
+  // Ofir too since 29.10.2026 (20261114100000_ofir_deals.sql: the sent quotes with their amounts).
+  for (const who of ['owner', 'irit', 'ofir']) assert.ok((await rows(who, 'select 1 from public.quotes')).length >= 1, who);
+  for (const who of ['lior', 'ilai', 'nadia', 'nirel', 'eli']) assert.deepEqual(await rows(who, 'select 1 from public.quotes'), [], who);
   assert.deepEqual(await rows('irit', 'select 1 from public.payout_deals'), []);
 });
 

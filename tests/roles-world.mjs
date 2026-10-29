@@ -264,10 +264,11 @@ export function makeFake(db, { now = () => NOW.toISOString() } = {}) {
       if (person === 'stav' && table !== 'deal_requests' && table !== 'staff' && table !== 'reminder_log') rows = [];
       // Money (20261013100000_money_owners_only.sql): the owners and Irit read the deals and the
       // quotes; a seller their own deals; Ofir and Lior a contract that waits for approval;
-      // anyone a quote they made.
+      // anyone a quote they made. Ofir every quote since 20261114100000_ofir_deals.sql
+      // (public.sees_quote_money()), but still not the sellers' deals.
       const readsAll = person === null || person === 'irit';
       if (table === 'deal_requests' && !readsAll) rows = rows.filter((r) => r.seller === person);
-      if (table === 'quotes' && !readsAll) {
+      if (table === 'quotes' && !readsAll && person !== 'ofir') {
         const approver = person === 'ofir' || person === 'lior';
         rows = rows.filter((r) => r.created_by_email === me.email || (approver && r.approval && r.approval !== 'none' && r.status === 'sent'));
       }

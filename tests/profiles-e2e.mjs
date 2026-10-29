@@ -107,7 +107,8 @@ const MANAGER = {
   // 20.10.2026 (the owner): Lior without qa, prep and the second shoot-day table; Ofir without the Gantt, the year and prep.
   lior: ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'תובנות', 'שנת החבילה', 'הצעה חדשה והכנת חוזה', 'צוות'],
   // 28.10.2026 (the owner): Ofir builds contracts too (app/shell-rules.js, commit de2c40b).
-  ofir: ['מבט מנהל', 'לקוחות', 'מעבר על הלקוחות', 'החלטות', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה'],
+  // 29.10.2026 (the owner): Ofir has the sent quotes with their amounts ("לאופיר את העסקאות של חודש").
+  ofir: ['מבט מנהל', 'לקוחות', 'מעבר על הלקוחות', 'החלטות', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
   irit: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'ימי צילום', 'צוות'],
 };
 const HOME = { owner: 'owner.html#now', lior: 'owner.html#all', ofir: 'owner.html#now', irit: 'owner.html#now' };
@@ -413,7 +414,7 @@ await step('nobody without profiles has a button or a switch', async () => {
   }
 });
 
-await step('money: the amounts in "הצעות שנשלחו" are the owners\'; Irit has the list without them; the rest have no access', async () => {
+await step('money: the amounts in "הצעות שנשלחו" are the owners\' and Ofir\'s; Irit has the list without them; the rest have no access', async () => {
   const MONEY = /₪/;
   const { page, ctx } = await open('owner', { path: 'quotes.html' });
   await page.waitForSelector('#rows tr');
@@ -439,7 +440,35 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\'; Ir
   await shot(i.page, 'quotes-irit-1366');
   await i.ctx.close();
 
-  for (const role of ['lior', 'ofir', 'ilai', 'nadia', 'eli']) {
+  // Ofir (29.10.2026, the owner: "לאופיר את העסקאות של חודש ... כמו שאתה רואה"): the list as
+  // the owners see it, with the amounts and the month's two sums, on the phone and the computer.
+  for (const [viewport, name] of [[{ width: 1280, height: 860 }, 'quotes-ofir-1280'], [PHONE, 'quotes-ofir-390']]) {
+    const o = await open('ofir', { viewport });
+    await o.page.waitForSelector('#view-mine:not([hidden])');
+    await o.page.goto(`${BASE}quotes.html`);
+    await o.page.waitForSelector('#rows tr');
+    await settle(o.page);
+    assert.equal(await o.page.locator('#no-access').isVisible(), false, name);
+    assert.equal(await o.page.locator('#rows tr').count(), 3, name);
+    assert.equal(await o.page.locator('#rows td.amt').count(), 3, name);
+    if (viewport !== PHONE) assert.equal(await o.page.locator('#th-amt').isVisible(), true, name);
+    const stats = await o.page.innerText('#stats');
+    assert.match(stats, /נשלח החודש · כולל מע״מ/, name);
+    assert.match(stats, /נחתם החודש · כולל מע״מ/, name);
+    assert.match(stats, MONEY, name);
+    // In his manager profile.
+    assert.equal(await o.page.locator('#side-quotes').count(), 1, name);
+    assert.equal((await sw(o.page))[2], 'mine', name);
+    await noSideScroll(o.page, name);
+    await shot(o.page, name);
+    if (viewport === PHONE) {
+      await o.page.locator('#rows tr').first().scrollIntoViewIfNeeded();
+      await shot(o.page, `${name}-rows`);
+    }
+    await o.ctx.close();
+  }
+
+  for (const role of ['lior', 'ilai', 'nadia', 'eli']) {
     // Signed in, then the page by its address. (A sign-in ON a page that is not theirs takes
     // them home instead of showing the refusal: docs/ops.md, section 54; tests/phone-bugs-e2e.mjs.)
     const x = await open(role);

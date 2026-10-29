@@ -148,7 +148,8 @@ test('prepared with AI: no approval even with a discount above 200 ₪; the link
   assert.deepEqual(c.deliverables, packageDeliverables(r.model));
   assert.equal(c.deliverables.videos, 20);
   // Not on the managers' list: Ofir and Lior read a contract only while it waits for them.
-  for (const who of ['lior', 'ofir']) assert.deepEqual((await q(who, 'select id from public.quotes where id = $1', [r.id])).rows, [], who);
+  // (Ofir reads every quote since 20261114100000_ofir_deals.sql; Lior still only what waits for approval.)
+  for (const who of ['lior']) assert.deepEqual((await q(who, 'select id from public.quotes where id = $1', [r.id])).rows, [], who);
   for (const who of ['owner', 'irit']) assert.equal((await q(who, 'select prepared_by from public.quotes where id = $1', [r.id])).rows[0].prepared_by, 'ai', who);
 });
 
