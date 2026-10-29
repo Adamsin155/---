@@ -154,15 +154,16 @@ export const reasonOf = (checks, pre = '') => readJson(checks[REASON_KEY(pre)]);
 // assignment does, starts them over from now; leaving the mark keeps them.
 // A job that is already late is never restarted silently: there the default keeps
 // the deadlines (the job stays late with the new editor), and starting over is
-// Ofir's explicit choice with a written reason, kept in the reason mark.
+// Ofir's explicit choice; a reason, if he writes one, is kept in the reason mark.
 //   job: one of editorLoad()'s jobs ({ dueAt, of, assignedAt, … }).
 export function swapClock(job, now = new Date()) {
   const late = !!job?.dueAt && job.dueAt < now;
   return { late, keepDue: job?.dueAt || null, restartDue: addBusinessDays(now, job?.of || 3), choice: late ? 'keep' : 'restart' };
 }
-// The one reason that is still required: counting a late job's deadlines again.
-export function swapReasonNeeded({ editor, late = false, restart = false }) {
-  return !!editor && late && restart;
+// No reason is required in a swap (the owner, 29.10.2026: "שלא יהיה חובה"), also not for
+// counting a late job's deadlines again; one written is kept in the reason mark.
+export function swapReasonNeeded() {
+  return false;
 }
 // The reason mark of a swap: the usual { editor, reason, preselected, joint } and
 // { swap: true, from, restart, prev (the earlier assignment time), late }. It

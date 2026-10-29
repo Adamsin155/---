@@ -613,12 +613,10 @@ await step('a swap never resets a late job silently: the deadlines stay unless O
   assert.deepEqual(await ofir.locator('#as-editors input').evaluateAll((els) => els.map((e) => e.value)), ['nadia', 'yariv', 'anna', 'nirel']); // every editor, any shoot (21.10.2026)
   await ofir.check('#as-e-anna');
   assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (לא חובה)');
-  // Counting again is his explicit choice, with a reason.
+  // Counting again is his explicit choice; the reason stays optional (the owner, 29.10.2026).
   await ofir.check('#as-clock-restart');
-  assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (חובה)');
-  await ofir.click('#as-submit');
-  assert.match(await ofir.innerText('#as-err'), /העריכה כבר באיחור\. כדי לספור את המועדים מחדש כתבו למה\./);
-  assert.equal(db.clients.find((c) => c.id === F.id).editor, 'nadia');
+  assert.equal(await ofir.innerText('#as-reason-label'), 'סיבה (לא חובה)');
+  assert.equal(await ofir.getAttribute('#as-reason', 'required'), null);
   await shot(ofir, 'office-03b-swap-late');
   // Left as it is: the job moves and stays late.
   await ofir.check('#as-clock-keep');

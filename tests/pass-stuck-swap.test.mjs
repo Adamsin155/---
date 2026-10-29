@@ -144,9 +144,9 @@ test('a swap and the editing clocks: on time the days start over, a late job kee
   const lateJob = jobOf(w2, l, now);
   k = swapClock(lateJob, now);
   assert.deepEqual([k.late, k.choice, hhmm(k.keepDue)], [true, 'keep', '13.10 18:00']);
-  // The reason is required only for a late job restarted (the editor's reason is optional since 21.10.2026).
+  // No reason is required (the editor's since 21.10.2026; a late job restarted since 29.10.2026).
   assert.equal(swapReasonNeeded({ shootType: 'dms', editor: 'yariv', late: true, restart: false }), false);
-  assert.equal(swapReasonNeeded({ shootType: 'dms', editor: 'yariv', late: true, restart: true }), true);
+  assert.equal(swapReasonNeeded({ shootType: 'dms', editor: 'yariv', late: true, restart: true }), false);
   assert.equal(swapReasonNeeded({ shootType: 'dms', editor: 'yariv', late: false, restart: true }), false);
   assert.equal(swapReasonNeeded({ shootType: 'natali', editor: 'nadia' }), false);
   assert.equal(swapReasonNeeded({ shootType: 'natali', editor: 'nirel' }), false);
