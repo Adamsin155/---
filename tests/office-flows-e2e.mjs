@@ -275,8 +275,8 @@ async function fakeSupabase(route) {
     if (!person || person.person !== null) return json(403, { code: '42501', message: 'not allowed' });
     if (!db.clients.some((c) => c.id === body.p_client)) return json(400, { code: '22023', message: 'no such client' });
     const d = body.p_doc;
-    const scrub = (v) => (Array.isArray(v) ? v.map(scrub) : v && typeof v === 'object'
-      ? Object.fromEntries(Object.entries(v).filter(([k]) => !['signedip', 'signeduseragent', 'ip', 'useragent', 'ua', 'phone', 'hp'].includes(k.toLowerCase())).map(([k, x]) => [k, scrub(x)])) : v);
+    // The whole record is kept (20261112200000_legacy_contracts_full.sql: private.legacy_scrub returns it as it came).
+    const scrub = (v) => v;
     // The state (20261110100000_batch_2710.sql): not signed keeps no signature and no signing time.
     const status = { 'נחתם': 'signed', 'ממתין לחתימה': 'pending', 'הצעת מחיר': 'quote', '': 'signed' }[String(d.status ?? '').trim()];
     if (!status) return json(400, { code: '22023', message: 'an unknown state' });
