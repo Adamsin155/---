@@ -91,6 +91,8 @@ test('the listing: every page, the subfolders, a folder not shared', async () =>
   const s = summarize(files);
   assert.deepEqual(s.counts, { video: 3, image: 0, doc: 0, other: 0, folder: 2 });
   assert.equal(s.files[0].name, '16.11 טיזר.mp4', 'newest first');
+  // Each subfolder's counts, for "are there graphics?" when the newest files are videos (29.10.2026).
+  assert.deepEqual(s.folders, { 'נובמבר': { video: 1, image: 0, doc: 0, other: 0 } });
   assert.equal(kindOf('application/vnd.google-apps.document'), 'doc');
   await assert.rejects(drive.list('nope'), { code: 'no_access' });
   await assert.rejects(makeDrive({ email: SA.client_email, key: PEM }, { fetch: fakeGoogle(tree, { tokenStatus: 400 }).fetch }).list('root'), { code: 'auth' });

@@ -184,5 +184,14 @@ export function summarize(files, { since = null, limit = 60 } = {}) {
   const list = all.filter((f) => kindOf(f.mimeType) !== 'folder')
     .sort((a, b) => String(b.createdTime || '').localeCompare(String(a.createdTime || '')))
     .map((f) => ({ name: f.name, kind: kindOf(f.mimeType), folder: f.path || null, added: f.createdTime ? String(f.createdTime).slice(0, 10) : null, link: f.link }));
-  return { counts, files: list.slice(0, limit), more: Math.max(0, list.length - limit) };
+  // Each subfolder's counts ("גרפיקות": 9 images), so a question about the graphics is answered
+  // even when the newest files listed are all videos (the owner, 29.10.2026).
+  const folders = {};
+  for (const f of all) {
+    const k = kindOf(f.mimeType);
+    if (k === 'folder' || !f.path) continue;
+    const c = (folders[f.path] ||= { video: 0, image: 0, doc: 0, other: 0 });
+    c[k] += 1;
+  }
+  return { counts, folders, files: list.slice(0, limit), more: Math.max(0, list.length - limit) };
 }

@@ -165,7 +165,7 @@ export const TOOLS = [
   },
   {
     name: 'drive_files',
-    description: 'The files in a client\'s Google Drive folder (names, kinds, dates, links; never the contents): how many videos, what was uploaded lately, a file\'s link.',
+    description: 'The files in a client\'s Google Drive folder (names, kinds, dates, links; never the contents): how many videos, what was uploaded lately, a file\'s link. counts: every file by kind (image = graphics and photos); by_folder: the same per subfolder (e.g. "גרפיקות"), for questions about graphics; files: only the newest ones.',
     input_schema: { type: 'object', properties: { client: str('The client\'s name.'), since: str('Optional YYYY-MM-DD: only files added from then.') }, required: ['client'], additionalProperties: false },
   },
   {
@@ -433,7 +433,7 @@ async function driveFiles(ctx, i) {
     const { files, truncated } = await ctx.drive.list(id);
     const since = okDate(i.since) ? i.since : null;
     const s = summarize(files, { since, limit: 40 });
-    return { client: label(c), folder: link, since: since || undefined, counts: s.counts, files: s.files, more: s.more, partial: truncated || undefined };
+    return { client: label(c), folder: link, since: since || undefined, counts: s.counts, by_folder: s.folders, files: s.files, more: s.more, partial: truncated || undefined };
   } catch (e) {
     const code = e?.code || 'error';
     if (code === 'no_access') return { client: label(c), error: `אין גישה לתיקייה. צריך לשתף אותה (צפייה) עם ${ctx.drive.email}.` };
