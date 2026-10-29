@@ -413,9 +413,11 @@ for (const [role, title] of [['nadia', 'הלקוחות שלי בעריכה'], ['
     assert.deepEqual(await page.locator('.tabs [role=tab]:visible:not(#tab-late)').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'הנתונים שלי']);
     // Her screens are the bar; the head does not repeat them.
     assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
-    // (Her screens: "הצעות שנשלחו" left on 6.10.2026 and the builder on 8.10.2026; "יומן" came on 15.10.2026: four, so there is no "עוד".)
-    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'בעריכה', 'יומן']);
-    assert.equal(await page.locator('#side-more, #side-quotes, #side-quote').count(), 0);
+    // (Her screens: "הצעות שנשלחו" left on 6.10.2026 and the builder on 8.10.2026; "יומן" came on 15.10.2026: four.
+    // "שאלו את המערכת" (29.10.2026) is under "עוד", alone: her four stay in the bar.)
+    assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'בעריכה', 'יומן', 'עוד']);
+    assert.equal(await page.locator('#side-quotes, #side-quote').count(), 0);
+    assert.equal(await page.locator('#side-sheet a.side-link[href="ask.html"]').count(), 1);
     assert.ok(await heightOf(page) < 1500);
   });
 }
@@ -438,12 +440,13 @@ await step('Eli lands on "ימי הצילום שלי", with tomorrow\'s shoots',
   await settle(page);
   await tidy(page, 'eli mine');
   assert.deepEqual(await page.locator('.page-head .head-actions a:visible').allInnerTexts(), []);
-  // (His screens: no "הצעות שנשלחו" since 6.10.2026, no builder since 8.10.2026, "יומן" since 15.10.2026: four, so no "עוד".)
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'יומן']);
+  // (His screens: no "הצעות שנשלחו" since 6.10.2026, no builder since 8.10.2026, "יומן" since 15.10.2026: four;
+  // "שאלו את המערכת" since 29.10.2026, alone under "עוד".)
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'ימי צילום', 'יומן', 'עוד']);
 });
 
 // ── Stav ──────────────────────────────────
-await step('Stav lands on "עסקה חדשה", sees his deals, and is offered no other screen', async () => {
+await step('Stav lands on "עסקה חדשה", sees his deals, and is offered only "שאלו את המערכת" besides', async () => {
   const { page } = await open('stav');
   await page.waitForURL(/deal\.html/);
   await settle(page);
@@ -451,9 +454,9 @@ await step('Stav lands on "עסקה חדשה", sees his deals, and is offered no
   await tidy(page, 'stav');
   assert.match(await page.innerText('main'), /העסקאות שלי[^]*מאפיית השכונה[^]*ממתין לחוזה[^]*סלון יופי לילך[^]*חוזה נשלח/);
   assert.equal(await page.locator('.page-head .head-actions a:visible, header.topbar nav a:visible').count(), 0);
-  // One screen needs no bar.
-  assert.equal(await page.locator('#app-side').isVisible(), false);
-  assert.equal(await page.locator('#app-side .side-link').count(), 1);
+  // His deals and the bot (29.10.2026): both in the bar.
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['עסקה חדשה', 'שאלו']);
+  assert.equal(await page.locator('#app-side .side-link').count(), 2);
   assert.ok((await page.locator('#deal-submit, .deal-submit').first().boundingBox()).height >= 44);
   await shot(page, 'stav-01-deal');
   await page.goto(`${BASE}clients.html#mine`);

@@ -110,7 +110,8 @@ const MANAGER = {
   // 29.10.2026 (the owner): Ofir has the sent quotes with their amounts ("לאופיר את העסקאות של חודש").
   // 29.10.2026: "שאלו את המערכת" for the owners, Lior and Ofir (app/ask-logic.js).
   ofir: ['מבט מנהל', 'לקוחות', 'מעבר על הלקוחות', 'החלטות', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו', 'שאלו את המערכת'],
-  irit: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'ימי צילום', 'צוות'],
+  // 29.10.2026: "שאלו את המערכת" for everyone on the staff; Irit's is in her manager profile.
+  irit: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'ימי צילום', 'שאלו את המערכת', 'צוות'],
 };
 const HOME = { owner: 'owner.html#now', lior: 'owner.html#all', ofir: 'owner.html#now', irit: 'owner.html#now' };
 // The daily review stays with Ofir (process 33) and with Irit (process 32): their own work.
