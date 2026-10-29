@@ -378,16 +378,16 @@ await step('Nadia starts with the logo "חסר": "למי לשלוח את הדי�
   await shots(page, 'card-reported-ofir', `${card}-report`);
 });
 
-await step('mid-editing, "חסר לוגו / טלפון / חומר": the chip comes on whom it went to (אופיר); she picks ליאור and reports the phone too; Lior is rung; "הגיע הכול" closes it', async () => {
+await step('mid-editing, "חסר לוגו / טלפון / חומר": the chip comes on whom it went to (אופיר); she picks ליאור and reports the upload too; Lior is rung; "הגיע הכול" closes it', async () => {
   const { page } = nadia;
   await page.click(`${card}-missing`);
   await page.waitForSelector('#dlg-missing[open]');
   await chipsOk(page, 'miss');
   assert.equal(await page.isChecked('#miss-to-ofir'), true);
   await page.click('label[for="miss-to-lior"]');
-  await page.click('label[for="miss-phone"]');
-  await typeKeys(page, '#miss-phone-note', 'לא עונהה', 'ה');
-  assert.equal(await page.inputValue('#miss-phone-note'), 'לא עונה');
+  await page.click('label[for="miss-upload"]');
+  await typeKeys(page, '#miss-upload-note', 'נתקע באמצעע', 'ע');
+  assert.equal(await page.inputValue('#miss-upload-note'), 'נתקע באמצע');
   assert.equal(await text(page, '#miss-hint'), 'ההודעה יוצאת עכשיו למי שבחרת. לעצור רק כשאי אפשר להמשיך בלי זה: אז המועד מסומן ״חסום״ עד שזה מגיע.');
   assert.ok(await noHScroll(page));
   assert.deepEqual(await unlabeled(page), []);
@@ -395,7 +395,7 @@ await step('mid-editing, "חסר לוגו / טלפון / חומר": the chip com
   await page.click('#miss-go');
   await toastHas(page, 'ליאור קיבל הודעה: חסר');
   assert.equal(noteOf(A).to, 'lior');
-  assert.deepEqual(noteOf(A).what, ['logo', 'phone']);
+  assert.deepEqual(noteOf(A).what, ['logo', 'upload']);
   assert.deepEqual(ringsNow().map((r) => r.person), ['lior']);
   assert.match(await text(page, `${card}-report`), /ליאור קיבל הודעה/);
   await page.click(`${card}-arrived`);
@@ -415,7 +415,8 @@ await step('Nirel (a Natali client), on the client card: "לא התקבל" on th
   const row = 'i-p22-check-logo';
   await page.waitForSelector(`#${row}-notgot`);
   // Only the four start checks have it.
-  assert.deepEqual((await page.locator('.notgot-btn').evaluateAll((l) => l.map((e) => e.id))).sort(),
+  // (Drawn twice: in the process, and in "הצעד הבא שלך" with the prefix mn-.)
+  assert.deepEqual((await page.locator('.notgot-btn').evaluateAll((l) => l.map((e) => e.id))).map((x) => x.replace(/^mn-/, '')).filter((x, i, a) => a.indexOf(x) === i).sort(),
     ['i-p22-check-footage-notgot', 'i-p22-check-logo-notgot', 'i-p22-check-phone-notgot', 'i-p22-check-scripts-notgot']);
   assert.equal(await text(page, `#${row}-notgot`), 'לא התקבל');
   assert.ok(await height(page, `#${row}-notgot`) >= 44);
@@ -466,14 +467,14 @@ await step('Nirel (a Natali client), on the client card: "לא התקבל" on th
 });
 
 // WebKit as an iPhone 13: Yariv, the start dialog and the row, typed key by key.
-await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "לא התקבל" on the phone row → אופיר, typed key by key', async () => {
+await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "לשלוח שוב" on the logo row of the client card → אופיר, typed key by key', async () => {
   const wk = await webkit.launch();
   clockNow = T('2026-10-19T12:00:00');
   clockSetAt = Date.now();
   const ctx = await wk.newContext({ ...devices['iPhone 13'], locale: 'he-IL', timezoneId: 'Asia/Jerusalem' });
   await ctx.clock.install({ time: clockNow });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
-  const page = await ctx.newPage();
+  let page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`webkit: ${e}`));
   const B_ID = `c-${B.id}`;
   await signIn(page, 'editor.html', 'yariv');
@@ -493,27 +494,36 @@ await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "ל�
   await page.waitForFunction(() => /ליאור קיבל הודעה/.test(document.querySelector('#toast')?.textContent || ''));
   assert.deepEqual(noteOf(B), { what: ['logo'], note: '', notes: { logo: 'קובץ פגום' }, going: true, to: 'lior' });
   assert.deepEqual(ringsNow().map((r) => [r.person, r.clientId]), [['lior', B.id]]);
-  // "הגיע הכול", then the client card's row.
-  await page.locator(`#${B_ID}-arrived`).tap();
-  await page.waitForFunction(() => /סומן שהכול הגיע/.test(document.querySelector('#toast')?.textContent || ''));
-  await page.goto(`${BASE}client.html?id=${B.id}#p22`);
-  await page.waitForSelector('#i-p22-check-phone-notgot');
-  await page.locator('#i-p22-check-phone-notgot').tap();
+  // The client card's row: reported already ("לשלוח שוב"), now to Ofir, the words written again.
+  // (In its own context: a second page load in the same WebKit context loses this fake's session.)
+  await ctx.close();
+  const ctx2 = await wk.newContext({ ...devices['iPhone 13'], locale: 'he-IL', timezoneId: 'Asia/Jerusalem' });
+  await ctx2.clock.install({ time: clockNow });
+  await ctx2.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, CLIENT_SHAPE));
+  page = await ctx2.newPage();
+  page.on('pageerror', (e) => errors.push(`webkit: ${e}`));
+  await signIn(page, `client.html?id=${B.id}#p22`, 'yariv');
+  await page.waitForSelector('#i-p22-check-logo-notgot');
+  assert.equal(await page.locator('#i-p22-check-logo-notgot').innerText(), 'לשלוח שוב');
+  await page.locator('#i-p22-check-logo-notgot').tap();
   await page.waitForSelector('#dlg-notgot[open]');
+  assert.equal(await page.isChecked('#notgot-to-lior'), true);
+  assert.equal(await page.inputValue('#notgot-note'), 'קובץ פגום');
   await page.locator('label[for="notgot-to-ofir"]').tap();
   await page.locator('#notgot-note').tap();
-  await page.keyboard.type('המספר שגויי', { delay: 40 });
+  for (let i = 0; i < 2; i += 1) await page.keyboard.press('Backspace');
+  await page.keyboard.type('ום, אין PNGג', { delay: 40 });
   await page.keyboard.press('Backspace');
-  assert.equal(await page.inputValue('#notgot-note'), 'המספר שגוי');
+  assert.equal(await page.inputValue('#notgot-note'), 'קובץ פגום, אין PNG');
   if (OUT) await page.screenshot({ path: `${OUT}/webkit-row-dialog-ofir.png` });
   await page.locator('#notgot-submit').tap();
   await page.waitForFunction(() => /נשלח לאופיר/.test(document.querySelector('#toast')?.textContent || ''));
-  assert.deepEqual(noteOf(B), { what: ['phone'], note: '', notes: { phone: 'המספר שגוי' }, going: true, to: 'ofir' });
+  assert.deepEqual(noteOf(B), { what: ['logo'], note: '', notes: { logo: 'קובץ פגום, אין PNG' }, going: true, to: 'ofir' });
   assert.deepEqual(ringsNow().map((r) => [r.person, r.clientId]), [['ofir', B.id]]);
-  await page.waitForSelector('#i-p22-check-phone-r');
-  await page.evaluate(() => { document.querySelector('#toast')?.classList.remove('on'); document.querySelector('#i-p22-check-phone-r')?.scrollIntoView({ block: 'center' }); });
+  await page.waitForSelector('#i-p22-check-logo-r');
+  await page.evaluate(() => { document.querySelector('#toast')?.classList.remove('on'); document.querySelector('#i-p22-check-logo-r')?.scrollIntoView({ block: 'center' }); });
   if (OUT) await page.screenshot({ path: `${OUT}/webkit-row-reported.png` });
-  await ctx.close();
+  await ctx2.close();
   await wk.close();
 });
 
