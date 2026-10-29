@@ -370,11 +370,12 @@ dialog .dlg-foot .btn { min-height: 46px; }
 #cc-head .cd-acts .hint { margin: 0; }
 @media print { #cc-head .cd-acts, #cc-head .cd-get { display: none; } }
 
-/* "לא התקבל" on the editor's start checks (29.10.2026): a plain 44px button under the row,
+/* "לא התקבל" on the editor's start checks (29.10.2026): a plain 44px button under the pill
+   (on a phone on the line of "לא רלוונטי", across from it),
    the row tinted while it is reported, and the dialog's three chips: עירית / ליאור / אופיר. */
-.fin-row > .notgot-btn { justify-self: start; min-height: 44px; margin: 2px 0 6px; padding-inline: 14px; }
-.fin-row.is-reported { background: var(--warn-soft); border-radius: var(--ds-r-ctl, 10px); }
-.imeta .reported { color: var(--warn-ink, var(--text)); font-weight: 600; overflow-wrap: anywhere; }
+.fin-row > .notgot-btn { grid-column: 1 / -1; grid-row: 2; justify-self: end; min-height: 44px; margin: 0 0 8px; padding-inline: 14px; }
+.fin-row.is-reported, #phases .proc .items > .item.is-reported, #mc-slot .items > .item.is-reported, .my-next .items > .item.is-reported { background: var(--warn-soft); box-shadow: inset -3px 0 0 var(--warn); }
+.imeta .reported { color: var(--text); font-weight: 700; overflow-wrap: anywhere; }
 #dlg-notgot .ed-to { border: 0; margin: 12px 0; padding: 0; min-inline-size: 0; }
 #dlg-notgot .ed-to legend { font-weight: 600; font-size: 15px; margin-bottom: 6px; padding: 0; }
 #dlg-notgot .ed-to-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }

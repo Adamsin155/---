@@ -1588,8 +1588,8 @@ function itemRow(p, i, idp = '') {
   const leftAct = leftKey && !state && !printing && !own() && !checks[leftKey]
     ? h('button', { type: 'button', class: 'btn-text left-btn', id: `${cid}-left`, disabled: busy, onclick: () => mark(leftKey, 'done', cid) }, 'נשארו תיקונים') : null;
   const naLabel = state === 'na' ? 'החזרה לפתוח' : leftKey && i.optional ? 'אין תיקונים' : i.optional ? 'לא נדרש' : 'לא רלוונטי';
-  // Only the editor writes the report (and the office, as on "הגיע הכול"); not while the editing is stopped on one.
-  const notGotAct = notGot && !printing && !block && !via && (!own() || !!PEOPLE[me]?.editor) && !missingOf(checks, notGot.pre)
+  // The editors' answer (the office sees the row's line and closes it with "סיימתי"); not while the editing is stopped on a report.
+  const notGotAct = notGot && !printing && !block && !via && !!PEOPLE[me]?.editor && !missingOf(checks, notGot.pre)
     ? h('button', { type: 'button', class: 'btn btn-sm notgot-btn', id: `${cid}-notgot`, disabled: busy, 'aria-label': `${isReported ? 'לשלוח שוב' : 'לא התקבל'}: ${i.label}`, onclick: () => openNotGot(i, notGot, `${cid}-notgot`) }, isReported ? 'לשלוח שוב' : 'לא התקבל') : null;
   return h('li', { class: `item fin-row${state === 'done' ? ' is-done' : ''}${state === 'na' ? ' is-na' : ''}${mine ? ' is-mine' : ''}${busy ? ' is-busy' : ''}${block ? ' is-blocked' : ''}${isReported ? ' is-reported' : ''}` },
     h('label', { class: 'irow', for: cid },

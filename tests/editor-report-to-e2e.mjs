@@ -341,6 +341,8 @@ async function shots(page, name, top = null) {
   }
   await page.setViewportSize({ width: 390, height: 844 });
 }
+// The sign-in screen has faded out (before a screenshot).
+const loginGone = async (page) => { await page.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.()); await page.waitForTimeout(400); };
 const chipsOk = async (page, prefix) => {
   assert.deepEqual(await page.locator(`#${prefix}-to-chips label`).allInnerTexts(), ['עירית', 'ליאור', 'אופיר']);
   for (const k of ['irit', 'lior', 'ofir']) assert.ok(await height(page, `label[for="${prefix}-to-${k}"]`) >= 44, `${prefix}-to-${k}`);
@@ -352,6 +354,7 @@ await step('Nadia starts with the logo "חסר": "למי לשלוח את הדי�
   const { page } = nadia;
   await signIn(page, 'editor.html', 'nadia');
   await page.waitForSelector(`${card}-go`);
+  await loginGone(page);
   await page.click(`${card}-go`);
   await page.waitForSelector('#dlg-start[open]');
   assert.equal(await page.locator('#start-to').isHidden(), true, 'nothing missing yet: no question');
@@ -414,6 +417,7 @@ await step('Nirel (a Natali client), on the client card: "לא התקבל" on th
   await signIn(page, `client.html?id=${N_ID}#p22`, 'nirel');
   const row = 'i-p22-check-logo';
   await page.waitForSelector(`#${row}-notgot`);
+  await loginGone(page);
   // Only the four start checks have it.
   // (Drawn twice: in the process, and in "הצעד הבא שלך" with the prefix mn-.)
   assert.deepEqual((await page.locator('.notgot-btn').evaluateAll((l) => l.map((e) => e.id))).map((x) => x.replace(/^mn-/, '')).filter((x, i, a) => a.indexOf(x) === i).sort(),
@@ -455,6 +459,16 @@ await step('Nirel (a Natali client), on the client card: "לא התקבל" on th
   await toastHas(page, 'נשלח לאופיר');
   assert.equal(noteOf(N).to, 'ofir');
   assert.deepEqual(ringsNow().map((r) => r.person), ['ofir']);
+  // Ofir, the ring's link open: the row says it, and only the editors have "לא התקבל".
+  const ofir = await scene('2026-10-19T11:05:00', { width: 1280, height: 900 });
+  await signIn(ofir.page, `client.html?id=${N_ID}#p22`, 'ofir');
+  await ofir.page.waitForSelector(`#${row}-r`);
+  assert.match(await text(ofir.page, `#${row}-r`), /^לא התקבל · דווח לאופיר · /);
+  assert.equal(await ofir.page.locator('.notgot-btn').count(), 0);
+  await loginGone(ofir.page);
+  await ofir.page.evaluate((id) => document.getElementById(id)?.scrollIntoView({ block: 'center' }), `${row}-r`);
+  if (OUT) await ofir.page.screenshot({ path: `${OUT}/ofir-sees-row-1280.png` });
+  await ofir.ctx.close();
   // It arrived: "סיימתי" on the row, and the report closes by itself.
   await page.locator(`#${row}`).check();
   for (let i = 0; i < 50 && checkOf(N, 'p22.missing'); i += 1) await page.waitForTimeout(100);
@@ -504,6 +518,7 @@ await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "ל�
   page.on('pageerror', (e) => errors.push(`webkit: ${e}`));
   await signIn(page, `client.html?id=${B.id}#p22`, 'yariv');
   await page.waitForSelector('#i-p22-check-logo-notgot');
+  await loginGone(page);
   assert.equal(await page.locator('#i-p22-check-logo-notgot').innerText(), 'לשלוח שוב');
   await page.locator('#i-p22-check-logo-notgot').tap();
   await page.waitForSelector('#dlg-notgot[open]');
