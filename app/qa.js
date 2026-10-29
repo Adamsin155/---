@@ -9,25 +9,23 @@
 // Drive link (and any uploaded into the system, played in place), or the rest of the
 // graphics from the client's files.
 // The logic: app/qa-logic.js and app/office-marks.js.
-import { PEOPLE, EDITORS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue, evenSplit, splitProblem, shootTypeName } from './protocol.js';
+import { PEOPLE, EDITORS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue, shootTypeName } from './protocol.js';
 import { clientState, clientLabel, roundsOf, roundContext } from './protocol-logic.js';
 import {
-  loadClients, loadChecks, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addTask, updateClient, loadDirectory, setTaskDone, editor2Ready,
+  loadClients, loadChecks, loadTasks, setCheck, clearCheck, clearChecksBulk, loadDirectory,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, leafOf, mountSession, directory, viewerOf, officeMinutes, landingTag,
 } from './protocol-ui.js';
 import {
-  qaQueue, qaFixing, charsToday, awaitingEditor, editorLoad, loadText, dayText, preselected, reasonNeeded, reasonHint,
-  eligibleEditors, jointFromSelection, reasonNote, folderTitle, folderDueOn,
-  swapClock, swapReasonNeeded, swapNote, suggestAssignment, SUGGESTED_TAG, CONTINUITY_TAG,
+  qaQueue, qaFixing, charsToday, awaitingEditor, editorLoad, loadText, dayText, reasonNeeded, jointFromSelection,
 } from './qa-logic.js';
-import { autoReasonOf, AUTO_DRIVE_NOTE } from './auto-assign.js';
+import { autoReasonOf } from './auto-assign.js';
 import { ladderWords, setOfirMeetings } from './fast-ladder.js';
 import {
-  QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, REASON_KEY, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
+  QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
 } from './office-marks.js';
-import { withEditor, swapEditor } from './decisions-logic.js';
+import { assignDialog } from './assign-dialog.js';
 import { loadScriptCounts, scriptsWords, loadEditorProgress, loadEditorMonths } from './production-data.js';
 import { scriptsCountOf } from './production.js';
 import {
@@ -41,7 +39,7 @@ import { officeLinks, markFirstLanded, navLink } from './office-ui.js';
 import { mountApprovals } from './approvals-ui.js';
 import { emptyItem, dress, dateLeaf, iconSquare } from './kit.js';
 import { canSeeOfficeQueues } from './manager-rules.js';
-import { inputValueIL, fromInputIL, dayFromKeyIL, endOfDayIL, TZ } from './tz.js';
+import { inputValueIL, fromInputIL, TZ } from './tz.js';
 import { mountWorkFiles, forgetFiles } from './files-ui.js';
 import { loadIntake } from './landing-data.js';
 import { withLandingEditors } from './landing-logic.js';
@@ -239,12 +237,8 @@ function charCard(x, now) {
       h('a', { class: 'btn btn-sm btn-ghost', href: clientUrl(c.id, 'p04') }, 'לכרטיס', h('span', { class: 'sr-only' }, ` של ${c.name}`))));
 }
 
-// The suggestion of one waiting shoot (the owner's choice of 13.10.2026; app/qa-logic.js
-// suggestAssignment): the card and the dialog ask the same question, so they never disagree.
-const inCardOf = (a) => (!a.swap && a.ctx.editor && eligibleEditors(a.ctx.shoot_type).includes(a.ctx.editor) ? a.ctx.editor : null);
-const suggestionOf = (a, load, joint, now = new Date()) => suggestAssignment({
-  client: a.client, n: a.n, shootType: a.ctx.shoot_type, joint, inCard: inCardOf(a), load, checks: checksOf(a.client), now,
-});
+// The suggestion of one waiting shoot: the dialog's own (app/assign-dialog.js), so the card and the dialog never disagree.
+const suggestionOf = (a, load, joint, now = new Date()) => assign.suggestionOf(a, load, joint, now);
 // "שיוך ל<שם>" on the card: two taps on the same button, the first asks ("בטוח? שיוך ל…"),
 // the second assigns (the pattern of the owner's "מפעילים" buttons, app/landing-control.js).
 // Not a toast with "ביטול": an assignment cannot be taken back cleanly (the editor is rung
@@ -582,262 +576,16 @@ $('qa-send-return').addEventListener('click', async () => {
   });
 });
 
-// The assignment (22א).
-const asDlg = dialog('dlg-assign');
-let asItem = null;
-const AS_AFTER = $('as-after').textContent;
-function openAssign(a) {
-  asItem = a;
-  returnTo = document.activeElement?.id || null;
-  const type = a.ctx.shoot_type;
-  const joint = jointFromSelection(selections.get(a.client.quote_id));
-  const sw = a.swap || null;
-  $('as-h').textContent = `${sw ? 'החלפת עורך' : 'שיוך עורך'} · ${a.client.name}${roundText(a.ctx)}`;
-  $('as-meta').textContent = sw
-    ? [shootTypeName(a.ctx) || null, `עכשיו אצל ${PEOPLE[sw.from].name}`, sw.job.day === null ? null : dayText(sw.job.day, sw.job.of), sw.job.paused ? 'העריכה עצורה' : null].filter(Boolean).join(' · ')
-    : [shootTypeName(a.ctx) || null, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.client.landing === true ? LANDING_LINE : a.fast ? `${ladderWords(a.fast, new Date())} · לשייך עד ${formatWhen(a.fast.dueAt)}` : a.dueAt ? `לשייך עד ${formatWhen(a.dueAt)}` : null].filter(Boolean).join(' · ');
-  $('as-joint-wrap').hidden = type !== 'natali';
-  $('as-joint').checked = joint;
-  $('as-reason').value = '';
-  $('as-err').hidden = true;
-  $('as-submit').textContent = sw ? 'החלפה' : 'שיוך';
-  $('as-after').textContent = sw ? 'ההחלפה נרשמת בהיסטוריה של הלקוח, העורך החדש מקבל את ההודעה על לקוח חדש בעריכה, ומוכן לו וואטסאפ עם שני המועדים.' : AS_AFTER;
-  // The editing clocks of a swap (app/qa-logic.js swapClock): a late job keeps its deadlines unless Ofir says otherwise.
-  $('as-clock-wrap').hidden = !sw;
-  if (sw) {
-    const now = new Date();
-    const k = swapClock(sw.job, now);
-    $('as-clock-restart').checked = k.choice === 'restart';
-    $('as-clock-keep').checked = k.choice === 'keep';
-    $('as-clock-restart-label').textContent = `לספור מחדש מהיום: יעד ${formatWhen(k.restartDue, now)}`;
-    $('as-clock-keep-label').textContent = k.keepDue ? `להשאיר את המועד: יעד ${formatWhen(k.keepDue, now)}${k.late ? ' (באיחור)' : ''}` : 'להשאיר את המועדים כמו שהם';
-    $('as-clock-late').hidden = !k.late;
-    $('as-clock-late').textContent = k.late ? 'העריכה כבר באיחור. ההחלפה לא מאפסת את האיחור, אלא אם בוחרים לספור מחדש וכותבים למה.' : '';
-  }
-  renderEditors(true);
-  asDlg.showModal();
-  ($('as-editors').querySelector('input:checked') || $('as-editors').querySelector('input:not(:disabled)'))?.focus();
-}
-function renderEditors(preselect = false) {
-  const a = asItem;
-  const type = a.ctx.shoot_type;
-  const joint = $('as-joint').checked;
-  const load = editorLoad({ clients, stateOf, checks, tasks, now: new Date() });
-  const pre = preselected(type, joint);
-  const from = a.swap?.from || null;
-  // The suggestion (protocol v9: Ofir assigns, the system only suggests): the rule's own
-  // choice (Nirel for Natali), else the least loaded editor who may take this shoot. It is
-  // marked and already chosen, so the usual case is one tap on "שיוך".
-  // A swap preselects nobody but the rule's own, never the one who has it now.
-  // The same answer as the card's line (suggestAssignment): an editor the office already
-  // wrote in the card, the editor of the client's earlier round, else the least loaded.
-  const sug = a.swap ? null : suggestionOf(a, load, joint);
-  const inCard = inCardOf(a);
-  const first = a.swap ? (pre && pre !== from ? pre : null) : sug.editor;
-  const chosen = preselect ? first : $('as-editors').querySelector('input:checked')?.value || null;
-  // A swap keeps the other editor of the pair: they are not offered in the place being swapped.
-  const partner = a.swap?.job?.partner || null;
-  fill($('as-editors'), ...eligibleEditors(type).map((k) => h('label', { class: 'wrow as-editor', for: `as-e-${k}` },
-    h('input', { type: 'radio', class: 'radio', name: 'as-editor', id: `as-e-${k}`, value: k, checked: chosen === k, disabled: k === from || k === partner, onchange: () => { fillEditor2(); syncReason(); } }),
-    h('span', { class: 'wlabel' }, h('strong', {}, PEOPLE[k].name), pre === k ? h('span', { class: 'tag' }, 'מסומנת מראש') : null,
-      sug?.editor === k && sug.why === 'load' ? h('span', { class: 'tag as-suggested', id: 'as-suggested' }, SUGGESTED_TAG) : null,
-      sug?.editor === k && sug.why === 'continuity' ? h('span', { class: 'tag as-suggested', id: 'as-suggested' }, CONTINUITY_TAG) : null,
-      inCard === k ? h('span', { class: 'tag' }, 'רשום בכרטיס') : null,
-      k === from ? h('span', { class: 'tag' }, 'העורך הנוכחי') : null,
-      k === partner ? h('span', { class: 'tag' }, a.swap.job.second ? 'העורך הראשי' : 'העורך הנוסף') : null,
-      h('span', { class: 'muted small as-load' }, loadText(load[k]))))));
-  if (preselect) pairOpen = false;
-  fillEditor2();
-  syncReason();
-}
-// "+ עורך/ת נוסף/ת" (the owner's request of 21.10.2026): a second editor beside the chosen
-// one, and how the package's videos are split between them ("נדיה 8 · יריב 4"). Offered on
-// the first assignment, once the database has the column.
-let pairOpen = false;
-const videosOf = (ctx) => Number(ctx?.deliverables?.videos) || 0;
-function fillEditor2() {
-  const a = asItem;
-  const can = !a.swap && editor2Ready();
-  const main = $('as-editors').querySelector('input:checked')?.value || null;
-  $('as-editor2-add').hidden = !can || pairOpen || !main;
-  $('as-editor2-wrap').hidden = !can || !pairOpen || !main;
-  if ($('as-editor2-wrap').hidden) return;
-  const keys = eligibleEditors(a.ctx.shoot_type).filter((k) => k !== main);
-  const was = $('as-editor2').value;
-  fill($('as-editor2'), ...keys.map((k) => h('option', { value: k }, PEOPLE[k].name)));
-  $('as-editor2').value = keys.includes(was) ? was : keys[0];
-  fillSplit();
-}
-// The two numbers, even by default (the main editor takes the odd one).
-function fillSplit() {
-  const main = $('as-editors').querySelector('input:checked')?.value;
-  const second = $('as-editor2').value;
-  const total = videosOf(asItem.ctx);
-  $('as-split-h').textContent = total ? `חלוקת הסרטונים (${total} לפי החבילה)` : 'חלוקת הסרטונים (לא חובה: מספר הסרטונים לא הוזן)';
-  $('as-split-1-name').textContent = PEOPLE[main].name;
-  $('as-split-2-name').textContent = PEOPLE[second].name;
-  const even = evenSplit(total, main, second);
-  $('as-split-1').value = even ? String(even[main]) : '';
-  $('as-split-2').value = even ? String(even[second]) : '';
-}
-// The split as typed: null when both are empty (only allowed without a count).
-function splitValue(main, second) {
-  const v = (id) => ($(id).value.trim() === '' ? null : Number($(id).value));
-  const a = v('as-split-1');
-  const b = v('as-split-2');
-  return a === null && b === null ? null : { [main]: a, [second]: b };
-}
-$('as-editor2-add').addEventListener('click', () => { pairOpen = true; fillEditor2(); $('as-editor2').focus(); });
-$('as-editor2-remove').addEventListener('click', () => { pairOpen = false; fillEditor2(); $('as-editor2-add').focus(); });
-$('as-editor2').addEventListener('change', fillSplit);
-for (const id of ['as-split-1', 'as-split-2']) $(id).addEventListener('input', () => { $('as-err').hidden = true; });
-// A swap that restarts the clocks of a late job needs its reason too.
-function swapChoice() {
-  const sw = asItem?.swap;
-  if (!sw) return { late: false, restart: false };
-  return { late: swapClock(sw.job, new Date()).late, restart: $('as-clock-restart').checked };
-}
-// The reason is optional (21.10.2026), also for a late job counted again (29.10.2026).
-function needsReason(editor) {
-  return swapReasonNeeded({ editor, ...swapChoice() });
-}
-function syncReason() {
-  const a = asItem;
-  const editor = $('as-editors').querySelector('input:checked')?.value || null;
-  const joint = $('as-joint').checked;
-  const need = needsReason(editor);
-  $('as-reason-label').textContent = need ? 'סיבה (חובה)' : 'סיבה (לא חובה)';
-  $('as-reason').required = need;
-  $('as-reason-hint').textContent = reasonHint({ shootType: a.ctx.shoot_type, joint }) || 'הסיבה נשמרת בהיסטוריה של הלקוח.';
-}
-$('as-joint').addEventListener('change', () => renderEditors(true));
-for (const id of ['as-clock-restart', 'as-clock-keep']) $(id).addEventListener('change', syncReason);
-
-// "החלפת עורך": the same dialog, for a job that already has an editor.
-function openSwap(from, job) {
-  const c = job.client;
-  const s = stateOf(c).states.find((x) => x.proc.id === `${job.n ? `r${job.n}-` : ''}p22a`);
-  if (!s) { toast('לא נמצא שיוך להחלפה. רעננו את העמוד.'); return; }
-  openAssign({ key: `${c.id}:${s.proc.id}`, client: c, pre: job.pre, n: job.n, proc: s.proc, ctx: s.proc.ctx || c, state: s, dueAt: s.dueAt, swap: { from, job } });
-}
-async function saveSwap(a, editor, joint, reason) {
-  const c = a.client;
-  const { from, job } = a.swap;
-  const now = new Date();
-  const k = swapClock(job, now);
-  const restart = $('as-clock-restart').checked;
-  const assigned = `${a.pre}p22a.assigned`;
-  const prev = checks[c.id]?.[assigned]?.at || null;
-  const client = await updateClient(c.id, swapEditor(c, a.n, from, editor));
-  clients = clients.map((x) => (x.id === c.id ? client : x));
-  // Marking 22א again, as the first assignment does, starts the editing days over.
-  if (restart) for (const row of await setChecksBulk(c.id, ['p22a.load', 'p22a.assigned'].map((x) => `${a.pre}${x}`), 'done')) (checks[c.id] ||= {})[row.item_key] = row;
-  (checks[c.id] ||= {})[REASON_KEY(a.pre)] = await setCheck(c.id, REASON_KEY(a.pre), 'done',
-    swapNote({ editor, from, reason, preselected: preselected(a.ctx.shoot_type, joint), joint, restart, late: k.late, prev }));
-  // The new editor starts: a pause of the one before ends, and its tasks close (as Lior's reassignment does).
-  if (job.paused) {
-    const pause = `${a.pre}p22.pause`;
-    try {
-      await clearCheck(c.id, pause);
-      delete checks[c.id][pause];
-      for (const t of tasks.filter((x) => x.client_id === c.id && x.source === 'pause' && !x.done_at)) {
-        const done = await setTaskDone(t.id, true);
-        tasks = tasks.map((x) => (x.id === t.id ? done : x));
-      }
-    } catch { /* the swap is saved; the pause is closed in the card */ }
-  }
-  states.clear();
-  const due = restart ? `מועדי העריכה נספרים מהיום: יעד ${formatWhen(k.restartDue, now)}.` : k.late ? 'המועדים לא השתנו: העריכה נשארת באיחור.' : 'המועדים לא השתנו.';
-  return { client, text: `${c.name} עבר מ${PEOPLE[from].name} ל${PEOPLE[editor].name}. ${due}` };
-}
-$('as-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const a = asItem;
-  const editor = $('as-editors').querySelector('input:checked')?.value || null;
-  const joint = $('as-joint').checked && a.ctx.shoot_type === 'natali';
-  const reason = $('as-reason').value.trim();
-  const pair = !a.swap && !$('as-editor2-wrap').hidden;
-  const editor2 = pair ? $('as-editor2').value || null : undefined;
-  const split = pair && editor2 ? splitValue(editor, editor2) : pair ? null : undefined;
-  if (pair && editor2) {
-    const bad = splitProblem(split, videosOf(a.ctx), editor, editor2);
-    if (bad) { showErr('as-err', bad); $('as-split-1').focus(); return; }
-  }
-  if (!editor) { showErr('as-err', a.swap ? 'בחרו את העורך החדש.' : 'בחרו עורך.'); $('as-editors').querySelector('input:not(:disabled)')?.focus(); return; }
-  if (needsReason(editor) && !reason) {
-    $('as-reason').setAttribute('aria-invalid', 'true');
-    showErr('as-err', 'העריכה כבר באיחור. כדי לספור את המועדים מחדש כתבו למה.');
-    $('as-reason').focus();
-    return;
-  }
-  $('as-reason').removeAttribute('aria-invalid');
-  $('as-submit').disabled = true;
-  const c = a.client;
-  if (a.swap) {
-    let saved;
-    try {
-      saved = await saveSwap(a, editor, joint, reason);
-    } catch (err) {
-      showErr('as-err', `ההחלפה לא נשמרה. ${errorText(err)}`);
-      $('as-submit').disabled = false;
-      return;
-    }
-    $('as-submit').disabled = false;
-    asDlg.close();
-    toast(saved.text);
-    // As after the first assignment: a ready WhatsApp to the editor with both dates and the link.
-    offerHandoff({ client: saved.client, key: `${a.pre}p22a.assigned`, checks: () => checks[c.id], me });
-    return;
-  }
-  let saved;
-  try {
-    saved = await saveAssign(a, editor, joint, reason, editor2, split);
-  } catch (err) {
-    showErr('as-err', `השיוך לא נשמר. ${errorText(err)}`);
-    $('as-submit').disabled = false;
-    return;
-  }
-  $('as-submit').disabled = false;
-  asDlg.close();
-  toast(`${c.name} שויך ל${PEOPLE[editor].name}${editor2 ? ` ול${PEOPLE[editor2].name}` : ''}.${saved.folder}`);
-  // Until stage 4, a ready WhatsApp to the editor with both dates and the link.
-  offerHandoff({ client: saved.client, key: `${a.pre}p22a.assigned`, checks: () => checks[c.id], me });
+// The assignment (22א) and the swap: the shared dialog (app/assign-dialog.js), also opened from the client card.
+const assign = assignDialog({
+  clients: () => clients, setClient: (row) => { clients = clients.map((x) => (x.id === row.id ? row : x)); },
+  checks: () => checks, tasks: () => tasks, setTasks: (list) => { tasks = list; }, selections: () => selections,
+  stateOf, clearStates: () => states.clear(), me: () => me,
+  onClose: () => { if (!busy()) renderKeepingFocus(); },
 });
-
-// The first assignment's write, the same for the dialog's "שיוך" and for the card's
-// "שיוך ל<שם>": the editor in the card, 22א's "נבדק העומס" and "שויך", Irit's and Lior's
-// items that close with it, the reason when he wrote one, and Ofir's folder task (24).
-// Throws when the assignment itself was not saved. → { client, folder (a sentence for the toast) }
-async function saveAssign(a, editor, joint, reason, editor2 = undefined, split = undefined) {
-  const c = a.client;
-  const client = await updateClient(c.id, withEditor(c, a.n, editor, editor2, split));
-  clients = clients.map((x) => (x.id === c.id ? client : x));
-  const keys = ['p22a.load', 'p22a.assigned'].map((k) => `${a.pre}${k}`);
-  for (const row of await setChecksBulk(c.id, keys, 'done')) (checks[c.id] ||= {})[row.item_key] = row;
-  // Irit's check that the client moved to editing closes by itself (section 4, 5א).
-  const irit = `${a.pre}p22a.irit`;
-  if (checks[c.id][irit]?.state !== 'done') checks[c.id][irit] = await setCheck(c.id, irit, 'done', 'נסגר לבד: השיוך נרשם במערכת');
-  // Lior's "the drive came back" (22א) is what he confirmed when he closed the shoot day
-  // (19, "הכונן חזר אליי"): it closes with the assignment, so 22א does not stay open on it.
-  const drive = `${a.pre}p22a.drive`;
-  if (checks[c.id][`${a.pre}p19.took`]?.state === 'done' && !['done', 'na'].includes(checks[c.id][drive]?.state)) checks[c.id][drive] = await setCheck(c.id, drive, 'done', AUTO_DRIVE_NOTE);
-  // The reason is optional: kept when Ofir wrote one.
-  if (reason) {
-    checks[c.id][REASON_KEY(a.pre)] = await setCheck(c.id, REASON_KEY(a.pre), 'done', reasonNote({ editor, reason, preselected: preselected(a.ctx.shoot_type, joint), joint }));
-  }
-  // Ofir's folder task (24), due at the end of editing day 1 (once: a swap opens none).
-  let folder = '';
-  const title = folderTitle(a.n);
-  if (checks[c.id][`${a.pre}p24.folder`]?.state !== 'done' && !tasks.some((t) => t.client_id === c.id && t.title === title && !t.done_at)) {
-    try {
-      const t = await addTask({ client_id: c.id, title, owner: 'ofir', due_on: folderDueOn(new Date()) });
-      tasks = [t, ...tasks];
-      folder = ` נפתחה לאופיר משימת תיקייה (24) עד ${formatWhen(endOfDayIL(dayFromKeyIL(t.due_on)))}.`;
-    } catch { folder = ' משימת התיקייה (24) לא נפתחה: לפתוח אותה בכרטיס.'; }
-  }
-  states.clear();
-  return { client, folder };
-}
+const openAssign = (a) => assign.open(a);
+const openSwap = (from, job) => assign.openSwap(from, job);
+const saveAssign = (...args) => assign.saveAssign(...args);
 
 // ── Boot ────────────────────────────────────
 function goToSection(hash) {
