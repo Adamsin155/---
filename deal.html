@@ -67,7 +67,7 @@
         <div>
           <div class="kicker latin">SALES</div>
           <h1 id="deal-h1">עסקה חדשה</h1>
-          <p>ממלאים את מה שסגרת עם הלקוח, ועירית מכינה את החוזה תוך 10 דקות עבודה.</p>
+          <p>בוחרים חוזה או הצעת מחיר, כותבים מה סגרת עם הלקוח, ועירית מכינה אותו תוך 10 דקות עבודה.</p>
         </div>
         <div class="head-actions">
           <button type="button" class="btn btn-sm btn-ghost inbox-btn" id="btn-inbox" aria-haspopup="dialog" hidden>התראות</button>
@@ -105,56 +105,30 @@
           </div>
         </fieldset>
 
-        <!-- A built-in package (as always), or another offer in the seller's own words
-             (6.10.2026): Irit builds a custom contract from it, and a manager approves it. -->
-        <fieldset class="deal-sec">
-          <legend>מה נסגר</legend>
-          <div class="deal-choices deal-kind" id="d-kinds">
-            <label class="deal-choice" for="d-kind-package"><input type="radio" class="radio" name="kind" id="d-kind-package" value="package" checked><span class="deal-choice-text"><span class="deal-choice-label">חבילה מובנית</span><span class="deal-choice-sub">אחת מהחבילות, עם תוספות</span></span></label>
-            <label class="deal-choice" for="d-kind-custom"><input type="radio" class="radio" name="kind" id="d-kind-custom" value="custom"><span class="deal-choice-text"><span class="deal-choice-label">הצעה אחרת</span><span class="deal-choice-sub">תכנים ומחיר שסיכמת, באישור מנהל</span></span></label>
+        <!-- What Irit prepares, then what was closed in the seller's own words (the owner, 29.10.2026:
+             "סתיו צריך לרשום בדף שלו בשטח את זה, לא בוואטסאפ"; docs/ops.md, section 79). A package
+             from the list stays as a second way. -->
+        <fieldset class="deal-sec" aria-describedby="d-doc_type-err">
+          <legend>מה להכין<span class="req" aria-hidden="true">*</span></legend>
+          <div class="deal-choices deal-doc" id="d-docs">
+            <label class="deal-choice" for="d-doc-agreement"><input type="radio" class="radio" name="doc_type" id="d-doc-agreement" value="agreement"><span class="deal-choice-text"><span class="deal-choice-label">חוזה</span><span class="deal-choice-sub">הלקוח קורא וחותם אונליין</span></span></label>
+            <label class="deal-choice" for="d-doc-quote"><input type="radio" class="radio" name="doc_type" id="d-doc-quote" value="quote"><span class="deal-choice-text"><span class="deal-choice-label">הצעת מחיר</span><span class="deal-choice-sub">הלקוח צופה בהצעה, בלי חתימה</span></span></label>
           </div>
+          <div class="err" id="d-doc_type-err" hidden></div>
         </fieldset>
-
-        <fieldset class="deal-sec" id="d-custom" hidden>
-          <legend>הצעה אחרת</legend>
-          <p class="hint">כותבים מה סוכם עם הלקוח. עירית מכינה מזה חוזה מותאם, ואדם, אופיר או ליאור מאשרים אותו לפני שהוא נשלח ללקוח.</p>
-          <div class="field">
-            <label for="d-description">מה ההצעה כוללת<span class="req" aria-hidden="true">*</span></label>
-            <textarea class="input" id="d-description" name="description" rows="4" maxlength="2000" aria-describedby="d-description-err" placeholder="למשל: 15 סרטונים ו־10 גרפיקות, יום צילום אחד עם צלם, בלי משפיענים"></textarea>
-            <div class="err" id="d-description-err" hidden></div>
+        <fieldset class="deal-sec deal-free" id="d-free" hidden>
+          <legend>מה סגרת עם הלקוח</legend>
+          <div class="field deal-freetext">
+            <label for="d-text">מה סגרת עם הלקוח (כמו שהיית כותב בוואטסאפ)<span class="req" aria-hidden="true">*</span></label>
+            <textarea class="input" id="d-text" name="text" rows="6" maxlength="2000" aria-describedby="d-text-hint d-text-err" placeholder="למשל: בלי משפיען 4,900 בחודש · צילום כל חודש 8 תכנים · 2 דפי נחיתה"></textarea>
+            <small class="hint" id="d-text-hint">כותבים במילים שלך: מחיר, מה כלול, תקופה. עירית מכינה מזה בדיוק את מה שכתבת.</small>
+            <div class="err" id="d-text-err" hidden></div>
           </div>
-          <div class="deal-custom-qty">
-            <div class="field">
-              <label for="d-videos">סרטונים</label>
-              <input class="input deal-num" id="d-videos" name="videos" type="number" inputmode="numeric" min="0" max="200" step="1" dir="ltr" aria-describedby="d-videos-err">
-            </div>
-            <div class="field">
-              <label for="d-graphics">גרפיקות</label>
-              <input class="input deal-num" id="d-graphics" name="graphics" type="number" inputmode="numeric" min="0" max="300" step="1" dir="ltr" aria-describedby="d-graphics-err">
-            </div>
-            <div class="field">
-              <label for="d-shoot_days">ימי צילום</label>
-              <input class="input deal-num" id="d-shoot_days" name="shoot_days" type="number" inputmode="numeric" min="0" max="12" step="1" dir="ltr" aria-describedby="d-shoot_days-err">
-            </div>
-          </div>
-          <p class="hint">הכמויות הן רשות: ממלאים רק מה שסוכם במספר.</p>
-          <div class="err" id="d-videos-err" hidden></div>
-          <div class="err" id="d-graphics-err" hidden></div>
-          <div class="err" id="d-shoot_days-err" hidden></div>
-          <div class="deal-custom-money">
-            <div class="field">
-              <label for="d-price">מחיר לחודש (₪, לפני מע״מ)<span class="req" aria-hidden="true">*</span></label>
-              <input class="input deal-num" id="d-price" name="price" type="number" inputmode="numeric" min="1" max="100000" step="1" dir="ltr" aria-describedby="d-price-err">
-            </div>
-            <div class="field">
-              <label for="d-term_months">תקופה (חודשים)</label>
-              <input class="input deal-num" id="d-term_months" name="term_months" type="number" inputmode="numeric" min="1" max="36" step="1" value="12" dir="ltr" aria-describedby="d-term_months-err">
-            </div>
-          </div>
-          <div class="err" id="d-price-err" hidden></div>
-          <div class="err" id="d-term_months-err" hidden></div>
+          <button type="button" class="btn-text deal-switch" id="d-to-package">או לבחור חבילה מהרשימה</button>
         </fieldset>
-
+        <div class="deal-builtin deal-back" hidden>
+          <button type="button" class="btn-text deal-switch" id="d-to-free">חזרה לכתיבה חופשית</button>
+        </div>
         <fieldset class="deal-sec deal-builtin" aria-describedby="d-tier-err">
           <legend>חבילה<span class="req" aria-hidden="true">*</span></legend>
           <div class="deal-choices" id="d-tiers"></div>
@@ -172,7 +146,7 @@
           <div class="deal-choices" id="d-addons"></div>
         </fieldset>
 
-        <fieldset class="deal-sec">
+        <fieldset class="deal-sec deal-builtin">
           <legend>הנחה והערות</legend>
           <div class="field deal-builtin">
             <label for="d-discount">הנחה לחודש (₪, עד 200; בפודקאסט עד 800)</label>
@@ -186,7 +160,7 @@
         </fieldset>
 
         <div class="err" id="d-err" role="alert" hidden></div>
-        <button type="submit" class="btn btn-primary deal-submit" id="d-submit">לעירית להכנת חוזה</button>
+        <button type="submit" class="btn btn-primary deal-submit" id="d-submit">לעירית</button>
       </form>
 
       <section class="deal-mine" id="deal-mine" aria-labelledby="mine-h" hidden>
