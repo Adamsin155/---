@@ -23,11 +23,12 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 //   files-logic.js                     client-media (the client's gallery and graphics)
 //   metricool-logic.js                 metricool (Metricool's planner onto the content Gantt)
 //   contract-ai-logic.js               contract-ai ("הכנת חוזה עם AI": the prompt, the check of the answer)
-export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js'];
+//   ask-logic.js, edit-count.js        ask ("שאלו את המערכת": who asks, the words; a monthly client's videos)
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'ask-logic.js', 'edit-count.js'];
 
 // Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
 // the folder has no other, and what each one deploys).
-export const FUNCTIONS = ['calendar', 'client-media', 'contract-ai', 'create-quote', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook'];
+export const FUNCTIONS = ['ask', 'calendar', 'client-media', 'contract-ai', 'create-quote', 'drive', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook'];
 export const FUNCTIONS_DIR = join(ROOT, 'supabase/functions');
 
 export const MARK = '// generated — edit app/ instead.';

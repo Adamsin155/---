@@ -11,6 +11,7 @@
 // page's own gate. No DOM here, so node can test it.
 import { PEOPLE, isSales } from './protocol.js';
 import { isOwnerView, canManageTeam } from './team-rules.js';
+import { canAsk } from './ask-logic.js';
 import {
   isManager, hasProfiles, canSeeTable, canSeeShootTable, canSeeQuoteList, canBuildQuote, managerHome, MODES, BACK_LABEL,
 } from './manager-rules.js';
@@ -93,6 +94,9 @@ export function menuOf(viewer) {
   // The list of sent quotes: the owners and Irit (6.10.2026), and Ofir with its amounts
   // (29.10.2026; the database answers nobody else).
   if (canSeeQuoteList(viewer)) list.push({ id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
+  // "שאלו את המערכת" (29.10.2026): the owners, Lior and Ofir (the ask function decides). In the
+  // manager profile, so that nobody's personal menu and phone bar change.
+  if (canAsk(viewer)) list.push({ id: 'ask', href: 'ask.html', label: 'שאלו את המערכת', short: 'שאלו' });
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
   // The payments app (payouts/, another app with its own gate, public.payout_owners): the owners.
   if (isOwnerView(viewer)) list.push({ id: 'payouts', href: 'payouts/', label: 'אסטרטג פיימנט' });
@@ -243,7 +247,8 @@ export function barOf(items, viewer) {
 // 11 to 16 entries in one run): the screens this role opens every day, in the menu's
 // order, and the rest under a quiet "עוד" heading. Nothing is hidden and no entry
 // changes: only where it stands. A menu of up to GROUP_FROM entries stays one list (8 since
-// 26.10.2026: Irit's own menu, with her pass over the clients, is eight, and stays one list).
+// 26.10.2026: Irit's own menu, with her pass over the clients, is eight, and stays one list;
+// 9 since 29.10.2026: Ofir's manager profile, with the sent quotes and "שאלו את המערכת").
 // The phone's bar is always part of the daily ones (tests/shell.test.mjs).
 const DAILY = {
   owner: ['mine', 'manager', 'clients', 'decisions', 'messages'],
@@ -251,7 +256,7 @@ const DAILY = {
   lior: ['mine', 'overview', 'clients', 'decisions', 'messages'],
   ofir: ['mine', 'manager', 'clients', 'qa'],
 };
-export const GROUP_FROM = 8;
+export const GROUP_FROM = 9;
 export function groupsOf(items, viewer) {
   const key = known(viewer) ? (viewer.me || (viewer.scope === 'office' ? 'owner' : null)) : null;
   const daily = DAILY[key];

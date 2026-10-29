@@ -48,6 +48,7 @@ let canEdit = false;    // Ilai, Irit (22.10.2026: the links of the videos) and 
 let canConnect = false; // Metricool's brand: Ilai, the owner and Ofir (v11: connecting is his step)
 let canShare = false;   // the office (and Ilai): the client's read-only link, and the index
 let brandUi = null;     // app/gantt-brand.js (staff only)
+let driveUi = null;     // app/gantt-drive.js: "משיכת קישורים מהדרייב" (whoever changes the Gantt)
 let mc = { settings: undefined, brand: undefined, sync: null }; // Metricool: the switch, this client's brand, its last sync
 let missing = false;    // the table is not there yet
 let shown = null;       // { year, month }
@@ -127,6 +128,7 @@ async function boot() {
     canShare = worksCycle(viewer);
     canEdit = !viewer.error && (viewer.me === 'ilai' || viewer.me === 'irit' || isOwnerView(viewer));
     canConnect = canConnectMetricool(viewer);
+    if (canEdit) driveUi = await import('./gantt-drive.js').catch(() => null);
     $('nav-year').hidden = !canShare;
     if (!id) {
       if (!canShare) { $('state').textContent = 'לא נבחר לקוח. פתחו את הגאנט מכרטיס הלקוח.'; return; }
@@ -319,6 +321,13 @@ function renderHero() {
   if (canEdit && rows.length) {
     acts.push(h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-add', onclick: () => openEntry(null) }, 'הוספת פריט'));
     acts.push(h('button', { type: 'button', class: 'btn btn-sm', id: 'btn-regen', onclick: regenerate }, 'עדכון מהתבנית'));
+    // The links of the files in the client's Drive folder, by the date in their names (29.10.2026).
+    if (driveUi && String(client.links?.drive || '').trim()) {
+      acts.push(driveUi.driveButton({
+        client, rows: () => rows, setRows: (r) => { rows = r; }, cols: data.ganttCols(), kinds: GANTT_KINDS, today: todayKey,
+        redraw: () => { renderStats(); renderGlance(); renderMonth(); }, toast,
+      }));
+    }
   }
   $('gt-actions').replaceChildren(...acts);
 }

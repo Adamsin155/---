@@ -17,7 +17,7 @@ export const SHELL_VERSION = 1;
 export const SHELL_PAGES = [
   'clients.html', 'client.html', 'owner.html', 'gantt.html', 'scripts.html', 'intake.html', 'landing.html', 'qa.html', 'pass.html',
   'decisions.html', 'insights.html', 'year.html', 'prep.html', 'messages.html', 'editor.html', 'shoot.html', 'quotes.html',
-  'team.html', 'deal.html', 'calendar.html',
+  'team.html', 'deal.html', 'calendar.html', 'ask.html',
 ];
 export const SHELL_VIEWS = {
   'clients.html': ['#mine', '#late', '#clients', '#team', '#control', '#performance'],
