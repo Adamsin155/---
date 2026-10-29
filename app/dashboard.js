@@ -83,13 +83,16 @@ function renderStats() {
   const total = (list) => list.reduce((s, q) => s + (q.term_gross_agorot || 0), 0);
   const sentThisMonth = total(quotes.filter((q) => inMonth(q.created_at) && q.status !== 'cancelled'));
   const signedThisMonth = total(quotes.filter((q) => q.status === 'signed' && inMonth(q.signed_at)));
-  const stat = (k, v) => h('div', { class: 'stat' }, h('div', { class: 'k' }, k), h('div', { class: 'v ds-num', dir: 'ltr' }, v));
+  const stat = (k, v, cls = '') => h('div', { class: `stat${cls}` }, h('div', { class: 'k' }, k), h('div', { class: 'v ds-num', dir: 'ltr' }, v));
+  // The two sums take a row of their own, half each (app/styles/quotes.css): a sum in shekels
+  // squeezed into a sixth of the row ran into the tile beside it.
+  $('stats').classList.toggle('has-money', showMoney);
   $('stats').replaceChildren(
     stat('הצעות', String(quotes.length)),
     stat('ממתינות לחתימה', String(count('sent') + count('viewed'))),
     stat('הצעות לצפייה', String(count('shared') + count('seen'))),
     stat('נחתמו', String(count('signed'))),
-    ...(showMoney ? [stat('נשלח החודש · כולל מע״מ', formatILS(sentThisMonth)), stat('נחתם החודש · כולל מע״מ', formatILS(signedThisMonth))] : []),
+    ...(showMoney ? [stat('נשלח החודש · כולל מע״מ', formatILS(sentThisMonth), ' stat-money'), stat('נחתם החודש · כולל מע״מ', formatILS(signedThisMonth), ' stat-money')] : []),
   );
   $('stats').hidden = false;
   // The numbers count up the first time the page shows them.
