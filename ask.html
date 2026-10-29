@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-boot>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Only this site's own files, and the office's database and files (docs/ops.md, section 36). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <!-- First, before any script: the page takes part in the move from the screen before it (app/styles/nav.css). -->
+  <link rel="stylesheet" href="app/styles/nav.css">
+  <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
+  <script src="app/frame-guard.js"></script>
+  <!-- The sign-in screen (docs/ops.md, section 51): what the first paint is, before the page is drawn. -->
+  <script src="app/login-gate.js"></script>
+  <!-- The app's frame (the menu, the name) in the first paint, as it was last drawn in this tab (docs/ops.md, section 60). -->
+  <script src="app/shell-gate.js"></script>
+  <link rel="stylesheet" href="app/styles/login.css">
+  <title>שאלו את המערכת · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#EEF0F4">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/tokens.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/kit.css">
+  <link rel="stylesheet" href="app/styles/ask.css">
+  <link rel="stylesheet" href="app/styles/shell.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="clients.html" aria-label="astrateg · לקוחות ופרוטוקול">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">שאלו את המערכת</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="clients.html">לקוחות</a>
+      <a class="navlink" href="ask.html" aria-current="page">שאלו את המערכת</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">ברוכים השבים</h2>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="ak-app" hidden>
+      <div class="page-head">
+        <div>
+          <div class="kicker latin">ASK</div>
+          <h1 id="ak-h">שאלו את המערכת</h1>
+          <p>כמה לקוחות, כמה תוכן מגיע להם, מה עלה לדרייב. התשובה מגיעה מהנתונים במערכת. סיסמאות לא נמסרות כאן.</p>
+        </div>
+      </div>
+      <!-- The conversation of this visit (app/ask-page.js), newest at the bottom. -->
+      <ol class="ak-talk" id="ak-talk" aria-live="polite" aria-label="השיחה"></ol>
+      <form class="ak-form" id="ak-form" novalidate>
+        <div class="ak-chips" id="ak-chips" role="group" aria-label="שאלות לדוגמה"></div>
+        <label class="sr-only" for="ak-q">השאלה</label>
+        <div class="ak-box">
+          <textarea class="input ak-q" id="ak-q" rows="2" maxlength="500" placeholder="למשל: כמה לקוחות פעילים יש?" enterkeyhint="send"></textarea>
+          <button type="submit" class="btn btn-primary ak-send" id="ak-send">שאלו</button>
+        </div>
+        <p class="ak-err" id="ak-err" role="alert" hidden></p>
+        <p class="ak-note">כל שאלה עולה מעט קרדיט של AI. תשובה עשויה לטעות: לפני החלטה, כדאי לבדוק בכרטיס הלקוח.</p>
+      </form>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/ask-page.js"></script>
+</body>
+</html>

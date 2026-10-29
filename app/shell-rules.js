@@ -11,6 +11,7 @@
 // page's own gate. No DOM here, so node can test it.
 import { PEOPLE, isSales } from './protocol.js';
 import { isOwnerView, canManageTeam } from './team-rules.js';
+import { canAsk } from './ask-logic.js';
 import {
   isManager, hasProfiles, canSeeTable, canSeeShootTable, canSeeQuoteList, canBuildQuote, managerHome, MODES, BACK_LABEL,
 } from './manager-rules.js';
@@ -92,6 +93,9 @@ export function menuOf(viewer) {
   if (canBuildQuote(viewer)) list.push({ id: 'quote', href: 'index.html', label: QUOTE_LABEL, short: 'הצעה וחוזה' });
   // The list of sent quotes: the owners and Irit (6.10.2026; the database answers nobody else).
   if (canSeeQuoteList(viewer)) list.push({ id: 'quotes', href: 'quotes.html', label: 'הצעות שנשלחו' });
+  // "שאלו את המערכת" (29.10.2026): the owners, Lior and Ofir (the ask function decides). In the
+  // manager profile, so that nobody's personal menu and phone bar change.
+  if (canAsk(viewer)) list.push({ id: 'ask', href: 'ask.html', label: 'שאלו את המערכת', short: 'שאלו' });
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
   // The payments app (payouts/, another app with its own gate, public.payout_owners): the owners.
   if (isOwnerView(viewer)) list.push({ id: 'payouts', href: 'payouts/', label: 'אסטרטג פיימנט' });
