@@ -182,6 +182,10 @@
 .proc:target { outline: 2.5px solid var(--ds-navy-2); outline-offset: 2px; }
 .proc-head { display: flex; align-items: flex-start; gap: 12px; }
 .pnum { flex: none; min-width: 30px; height: 30px; padding-inline: 6px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; font-weight: 600; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+/* The process numbers beside the titles are hidden (the owner, 29.10.2026: they bother some of the
+   team). The number stays in the text where a step is named ("תהליך 22 · …"), and in print. */
+.pnum { display: none; }
+@media print { .pnum { display: grid; } }
 .proc-title { flex: 1; min-width: 0; }
 .proc-title h3 { margin: 2px 0 4px; font-size: 16px; }
 .proc-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--text-2); }
