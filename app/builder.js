@@ -11,7 +11,12 @@ import {
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
 import { iconSquare, headIcon, noteIcon } from './kit.js';
 // "הכנת חוזה עם AI" (docs/ops.md, section 68): the result set on the builder, and its tags.
-import { validateAiResult, applyAiResult, aiMarksOf, AI_TEXT_MAX } from './contract-ai-logic.js';
+// "בדיוק כמו שכתבתי (חוזה חופשי)" (29.10.2026; section 79): the text as custom contracts exactly as
+// written, up to three drafts.
+import {
+  validateAiResult, applyAiResult, aiMarksOf, AI_TEXT_MAX,
+  validateFreeResult, applyFreeDraft, draftTitle, FREE_MAX_DRAFTS,
+} from './contract-ai-logic.js';
 // The sign-in form's look and its button with the door (docs/ops.md, section 51).
 import { loginDoor } from './login-ui.js';
 
@@ -32,26 +37,26 @@ let state = emptySelection();
 // the client signs).
 const DEAL_PARAM = new URLSearchParams(location.search).get('deal');
 let dealId = null;
-// A contract that went for a manager's approval, opened again to be corrected
-// (index.html?revise=<quote id>, 6.10.2026): what is sent replaces it as a new version.
+// A contract that went for a manager's approval before 29.10.2026, opened again to be corrected
+// (index.html?revise=<quote id>, 6.10.2026): what is sent replaces it as a new version, now a
+// regular one (no manager approves since 29.10.2026; docs/ops.md, section 79).
 const REVISE_PARAM = new URLSearchParams(location.search).get('revise');
 let reviseId = null;
 // "חוזה מותאם אישית" is the office's (the server refuses it from anyone else).
 let office = false;
 // "הכנת חוזה עם AI" (the owner, 25.10.2026): the preparation that filled this contract,
-// { runId, marks }. `runId` (the contract-ai function's record) is what sends the contract to
-// the client without a manager's approval, the owner's decision, also after Irit changed things
-// by hand; `marks` holds the value each field got, for the "מולא אוטומטית" tags (a field changed
-// by hand loses its tag). Null: a contract filled by hand, with the approval as always.
+// { runId, marks }. `runId` (the contract-ai function's record) marks the contract "הוכן ע״י AI"
+// in "הצעות שנשלחו"; `marks` holds the value each field got, for the "מולא אוטומטית" tags (a field
+// changed by hand loses its tag). Null: a contract filled by hand.
 let ai = null;
+// The drafts of the free mode (several documents in one text): { list: [{ draft, runId, done }],
+// current, questions, dropped, notes }. Null: none, or one only (applied at once).
+let aiDrafts = null;
 let freshAsking = false; // "חוזה חדש" asked once: the second tap clears
 let aiLive = new Set();
 const aiTag = () => h('span', { class: 'tag tag-ai' }, 'מולא אוטומטית');
-// A new contract prepared with AI goes without approval; a corrected version stays with the managers.
-// Only the owners, Irit and Ofir send an AI-prepared contract without approval (the owner, 25.10.2026);
-// create-quote decides the same on the server.
-const AI_FREE = ['irit', 'ofir'];
-const aiSkipsApproval = () => !!ai?.runId && !reviseId && ai.free === true;
+// A new contract prepared with AI carries its run ("הוכן ע״י AI"); a corrected version does not.
+const aiTagged = () => !!ai?.runId && !reviseId;
 // The builder is for whoever builds a contract (canBuildQuote in app/manager-rules.js: the
 // owners, Irit, Lior, Ofir). A signed-in member of staff who is not one of them gets
 // "אין לך גישה לעמוד הזה" with the way back to their own screen, and nothing of the builder.
@@ -84,6 +89,10 @@ const SPEC_MAX = Object.fromEntries(SPEC_ROWS.map((r) => [r.key, Math.max(...Obj
 
 function renderInfluencers() {
   const box = $('influencers');
+  // A contract "בלי משפיענים" (29.10.2026): the picker only chooses the base of the package.
+  const none = state.custom?.noInfluencer === true;
+  box.classList.toggle('is-noinf', none);
+  $('inf-none').hidden = !none;
   box.replaceChildren(...Object.values(INFLUENCERS).map((inf) => {
     const id = `inf-${inf.id}`;
     const on = state.influencer === inf.id;
@@ -327,9 +336,10 @@ function renderSummary() {
   }
   const diff = exceptionOf(model.selection);
   $('sum-diff').hidden = !diff.length;
-  $('sum-diff').classList.toggle('is-ai', diff.length > 0 && aiSkipsApproval());
-  $('sum-diff').replaceChildren(...(diff.length ? [h('strong', {}, 'חוזה חריג'), ` · ${diff.length === 1 ? 'שינוי אחד' : `${diff.length} שינויים`} מהחבילה · `
-    + (aiSkipsApproval() ? 'הוכן עם AI: נשלח ללקוח בלי אישור מנהל' : 'נשלח לאישור מנהל לפני הלקוח')] : []));
+  $('sum-diff').classList.toggle('is-ai', diff.length > 0 && aiTagged());
+  // Information only (no manager approves since 29.10.2026): the owners see it in "הצעות שנשלחו".
+  $('sum-diff').replaceChildren(...(diff.length ? [h('strong', {}, 'חוזה מותאם אישית'), ` · ${diff.length === 1 ? 'שינוי אחד' : `${diff.length} שינויים`} מהחבילה`
+    + (aiTagged() ? ' · הוכן עם AI' : '')] : []));
   return t;
 }
 
@@ -347,16 +357,13 @@ function renderDocType() {
   if (!freshAsking) $('btn-fresh').textContent = signable ? 'חוזה חדש' : 'הצעה חדשה';
   document.title = `${signable ? 'הסכם התקשרות' : 'הצעת מחיר'} · astrateg`;
   $('sum-doc').textContent = doc.name;
-  // A contract that differs from the built-in rules goes to a manager first: no link yet. Prepared
-  // with AI and reviewed here, it goes to the client at once (the owner's decision, 25.10.2026).
+  // Every contract gets its link at once (the owner, 29.10.2026: no manager's approval any more);
+  // what a custom one changed from the package is kept with it for the owners to see.
   const differs = exceptionOf(selectionToSend()).length > 0;
-  const exceptional = differs && !aiSkipsApproval();
-  $('btn-link').textContent = exceptional ? 'שליחה לאישור' : signable ? 'יצירת קישור לחתימה' : 'יצירת קישור לצפייה';
-  $('act-hint').textContent = exceptional
-    ? 'חוזה חריג: נשלח לאישור של אדם, אופיר או ליאור · הקישור ללקוח נוצר אחרי האישור'
-    : differs
-      ? 'הוכן עם AI: אחרי שבדקת, הקישור נוצר מיד, בלי אישור מנהל · נשמר ב״הצעות שנשלחו״'
-      : signable
+  $('btn-link').textContent = signable ? 'יצירת קישור לחתימה' : 'יצירת קישור לצפייה';
+  $('act-hint').textContent = differs
+    ? 'חוזה מותאם אישית: הקישור נוצר מיד · מה ששונה מהחבילה נשמר ב״הצעות שנשלחו״'
+    : signable
         ? 'הלקוח קורא את ההסכם וחותם אונליין · נשמר ב״הצעות שנשלחו״'
         : 'הלקוח צופה בהצעה, בלי חתימה · נשמר ב״הצעות שנשלחו״';
   document.querySelectorAll('#doc-switch [data-doc]').forEach((b) => {
@@ -369,8 +376,9 @@ function renderDocType() {
    package's own quantities, its monthly price, the term, a discount of any size,
    added lines and special terms (state.custom; the rules and the limits are in
    app/pricing.js and app/catalog.js). The panel "מה שונה מהחבילה" lists the
-   deviations as the server will see them. Any deviation: the contract goes to a
-   manager's approval, and the client's link is made only after it. */
+   deviations as the server will see them, as information (since 29.10.2026 no
+   contract waits for a manager's approval). "בלי משפיענים" and "המחיר כולל את
+   התוספות" are the free contract's (29.10.2026). */
 const customOn = () => !!state.custom;
 const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v))));
 
@@ -394,6 +402,8 @@ function selectionToSend() {
   }));
   if (lines.length) custom.lines = lines;
   if (String(c.terms || '').trim()) custom.terms = c.terms;
+  if (c.noInfluencer === true) custom.noInfluencer = true;
+  if (c.addonsIncluded === true) custom.addonsIncluded = true;
   return normalizeSelection({ ...rest, discount: 0, custom });
 }
 // The most the discount field takes: 200 ₪ (800 ₪ in a podcast package, 28.10.2026), or the whole
@@ -466,7 +476,7 @@ function syncCustomInputs() {
 function renderCustom() {
   const group = $('custom-group');
   group.hidden = !office;
-  // "הכנת חוזה עם AI" is for a new contract (a corrected version stays as it was sent for approval).
+  // "הכנת חוזה עם AI" is for a new contract (not for a correction of one from before 29.10.2026).
   $('ai-box').hidden = !!reviseId;
   $('disc-ai').hidden = !aiLive.has('discount');
   $('discount').closest('.discount-input')?.classList.toggle('is-ai', aiLive.has('discount'));
@@ -478,7 +488,7 @@ function renderCustom() {
   $('custom-body').hidden = !on;
   // The limit with no approval follows the package: 800 ₪ in a podcast, 200 ₪ in the rest (28.10.2026).
   const free = maxDiscountFor(state.tier) / 100;
-  $('disc-meta').textContent = on ? `בחוזה מותאם: כל סכום · מעל ${free} ₪ נדרש אישור מנהל` : `עד ${free} ₪ לחודש · לפני מע״מ`;
+  $('disc-meta').textContent = on ? 'בחוזה מותאם: כל סכום · לפני מע״מ' : `עד ${free} ₪ לחודש · לפני מע״מ`;
   $('discount').max = String(discountMax());
   // A podcast's 800 ₪, then another package: the discount comes down to what that package allows.
   if (!on && (state.discount || 0) > discountMax() * 100) {
@@ -493,6 +503,11 @@ function renderCustom() {
   }
   const pkg = PACKAGES[packageId(state.tier, state.influencer)];
   const base = baseQuantities(state);
+  $('custom-noinf').checked = state.custom.noInfluencer === true;
+  $('custom-incl').checked = state.custom.addonsIncluded === true;
+  $('custom-incl').disabled = !state.paid.length;
+  $('custom-noinf-ai').hidden = !aiLive.has('noinf');
+  $('custom-incl-ai').hidden = !aiLive.has('incl');
   $('custom-qty').replaceChildren(...CUSTOM_QTY
     .filter((q) => !q.addon || state.paid.includes(q.addon))
     .map((q) => customStepper(q, base[q.key])));
@@ -505,11 +520,9 @@ function renderCustom() {
     h('h4', {}, 'מה שונה מהחבילה'),
     diff.length
       ? h('ul', { id: 'custom-diff-list' }, diff.map((d) => h('li', {}, d.text)))
-      : h('p', {}, 'אין שינוי מהחבילה: זה חוזה רגיל, והוא נשלח ללקוח בלי אישור.'),
+      : h('p', {}, 'אין שינוי מהחבילה: זה חוזה רגיל.'),
     // (replaceChildren would print a null as the word 'null'.)
-    ...(diff.length ? [aiSkipsApproval()
-      ? h('p', { class: 'needs is-ai' }, 'הוכן עם AI: אחרי שבדקת, החוזה נשלח ללקוח בלי אישור מנהל.')
-      : h('p', { class: 'needs' }, 'נדרש אישור של אדם, אופיר או ליאור לפני שהלקוח מקבל את החוזה.')] : []),
+    ...(diff.length ? [h('p', { class: 'needs is-ai' }, 'הקישור ללקוח נוצר מיד. הרשימה נשמרת עם החוזה, לידיעת הבעלים.')] : []),
   );
 }
 
@@ -525,6 +538,14 @@ function setCustom(on) {
   update({}, { focus: 'custom-on' });
 }
 $('custom-on').addEventListener('change', (e) => setCustom(e.target.checked));
+// "בלי משפיענים" and "המחיר כולל את התוספות" (the free contract, 29.10.2026).
+for (const [id, key] of [['custom-noinf', 'noInfluencer'], ['custom-incl', 'addonsIncluded']]) {
+  $(id).addEventListener('change', (e) => {
+    const custom = { ...state.custom };
+    if (e.target.checked) custom[key] = true; else delete custom[key];
+    update({ custom }, { focus: id });
+  });
+}
 $('custom-price').addEventListener('input', (e) => {
   const pkg = PACKAGES[packageId(state.tier, state.influencer)];
   const raw = e.target.value;
@@ -572,25 +593,100 @@ function aiQuiet(text) {
   $('ai-quiet').hidden = !text;
 }
 
+// The drafts of one text (free mode): "הצעה 1 · הצעה 2", each with its short "מה מולא"; one tap
+// loads it on the builder. The one on the builder is marked; a created one says so.
+function draftCards() {
+  if (!aiDrafts || aiDrafts.list.length < 2) return [];
+  return [h('div', { class: 'ai-drafts', role: 'group', 'aria-label': 'ההצעות שהוכנו' },
+    ...aiDrafts.list.map((x, i) => h('button', {
+      type: 'button', class: `ai-draft${i === aiDrafts.current ? ' is-on' : ''}${x.done ? ' is-done' : ''}`, id: `ai-draft-${i}`,
+      'aria-pressed': String(i === aiDrafts.current),
+      onclick: () => loadDraft(i),
+    },
+    h('span', { class: 'ai-draft-t' }, draftTitle(x.draft, i)),
+    h('span', { class: 'ai-draft-s' }, x.done ? `נוצר · ${x.done}` : i === aiDrafts.current ? 'על המסך עכשיו' : 'לחיצה טוענת אותה'))))];
+}
+
 function renderAiResult({ summary, check, notes, kept }) {
   $('ai-result').replaceChildren(
-    h('h4', {}, 'מה מולא'),
+    ...draftCards(),
+    h('h4', {}, aiDrafts && aiDrafts.list.length > 1 ? `מה מולא · ${draftTitle(aiDrafts.list[aiDrafts.current].draft, aiDrafts.current)}` : 'מה מולא'),
     h('ul', { id: 'ai-summary' }, summary.map((s) => h('li', {}, s))),
     // (replaceChildren would print a null as the word 'null'.)
     ...(notes ? [h('p', { class: 'ai-notes' }, notes)] : []),
     ...(check.length ? [h('h4', { class: 'ai-check-h' }, 'צריך לבדוק:'), h('ul', { id: 'ai-check' }, check.map((s) => h('li', {}, s)))] : []),
     h('p', { class: 'ai-flag' }, kept
-      ? 'השדות שמולאו מסומנים ״מולא אוטומטית״. אחרי שבדקת, החוזה נשלח ללקוח בלי אישור מנהל.'
-      : 'השדות שמולאו מסומנים ״מולא אוטומטית״. ההכנה לא נשמרה במערכת, ולכן חוזה ששונה מהחבילה יישלח לאישור מנהל.'),
+      ? 'השדות שמולאו מסומנים ״מולא אוטומטית״. בודקים, ויוצרים קישור כרגיל.'
+      : 'השדות שמולאו מסומנים ״מולא אוטומטית״. בודקים, ויוצרים קישור כרגיל (ההכנה לא נשמרה במערכת, ולכן החוזה לא יסומן ״הוכן ע״י AI״).'),
   );
   $('ai-result').hidden = false;
 }
 
-function applyAi(data, free = false) {
+// The customer's details from the text fill "פרטי הלקוח" (25.10.2026); a field already written is
+// kept. Returns { lines, checks } for the panel.
+function fillClient(cl = {}) {
+  const lines = [];
+  const checks = [];
+  for (const [fid, key, label] of [['c-name', 'name', 'שם הלקוח'], ['c-company', 'company', 'שם העסק'], ['c-companyid', 'companyId', 'ח.פ / ע.מ'], ['c-phone', 'phone', 'טלפון'], ['c-email', 'email', 'אימייל']]) {
+    if (!cl[key]) continue;
+    const el = $(fid);
+    const now = el.value.trim();
+    if (now && now !== cl[key]) { checks.push(`${label}: כבר כתוב ״${now}״, והטקסט אומר ״${cl[key]}״. לא שונה.`); continue; }
+    el.value = cl[key];
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    lines.push(`${label}: ${cl[key]}`);
+  }
+  return { lines, checks };
+}
+
+// One draft of the free mode on the builder (the custom contract, exactly as written).
+// `apply: false` (a refresh): only the panel again, what is on the builder stays as it was left.
+function loadDraft(i, { focus = true, apply = true } = {}) {
+  if (!aiDrafts?.list[i]) return;
+  aiDrafts.current = i;
+  const x = aiDrafts.list[i];
+  const { selection, marks, summary, skipped, questions } = applyFreeDraft(state, x.draft);
+  if (apply) {
+    ai = { runId: x.done ? null : x.runId, marks };
+    state = selection;
+    $('discount').value = String((state.discount || 0) / 100);
+    syncCustomInputs();
+  }
+  const { lines, checks } = apply ? fillClient(x.draft.client) : { lines: [], checks: [] };
+  renderAiResult({
+    summary: [...(lines.length ? [`פרטי הלקוח: ${lines.join(' · ')}`] : []), ...summary],
+    check: [...aiDrafts.questions, ...questions, ...checks, ...skipped, ...aiDrafts.dropped].slice(0, 6),
+    notes: aiDrafts.notes,
+    kept: !!x.runId,
+  });
+  if (apply) update({});
+  if (focus) $('ai-result').focus({ preventScroll: true });
+}
+
+function applyFree(data) {
+  const { result, dropped: here } = validateFreeResult(data?.result);
+  const runIds = Array.isArray(data?.runIds) ? data.runIds : [];
+  const dropped = [...(Array.isArray(data?.dropped) ? data.dropped : []), ...here].map((d) => d?.text).filter((t) => typeof t === 'string' && t);
+  if (!result.drafts.length) {
+    aiDrafts = null;
+    ai = null;
+    renderAiResult({ summary: ['לא נמצא בטקסט מה להכין.'], check: [...result.questions, ...dropped], notes: result.notes, kept: false });
+    return false;
+  }
+  aiDrafts = {
+    list: result.drafts.map((draft, i) => ({ draft, runId: typeof runIds[i] === 'string' ? runIds[i] : null, done: null })),
+    current: 0, questions: result.questions, dropped, notes: result.notes,
+  };
+  loadDraft(0, { focus: false });
+  return true;
+}
+
+function applyAi(data) {
   // Checked again here: the builder takes only what its own controls could set.
   const { result, dropped: here } = validateAiResult(data?.result);
   const { selection, marks, summary, skipped } = applyAiResult(state, result);
-  ai = { runId: typeof data?.runId === 'string' ? data.runId : null, marks, free };
+  ai = { runId: typeof data?.runId === 'string' ? data.runId : null, marks };
+  aiDrafts = null;
   state = selection;
   $('discount').value = String((state.discount || 0) / 100);
   syncCustomInputs();
@@ -614,6 +710,9 @@ function applyAi(data, free = false) {
 
 let aiAsking = false;
 $('ai-text').addEventListener('input', () => { aiQuiet(''); saveDraft(); });
+// "בדיוק כמו שכתבתי (חוזה חופשי)": the button says what it will do.
+const aiGoText = () => ($('ai-free').checked ? 'הכנה בדיוק כמו שכתבתי' : 'הכנת חוזה עם AI');
+$('ai-free').addEventListener('change', () => { $('ai-go').textContent = aiGoText(); $('ai-free-hint').hidden = !$('ai-free').checked; saveDraft(); });
 $('ai-go').addEventListener('click', async (e) => {
   if (aiAsking) return;
   const btn = e.currentTarget;
@@ -624,9 +723,10 @@ $('ai-go').addEventListener('click', async (e) => {
   aiAsking = true;
   busy(btn, true, 'מכין את החוזה…');
   let done = false;
+  const free = $('ai-free').checked;
   try {
     const s = await getSupa();
-    const ask = () => s.supabase.functions.invoke('contract-ai', { body: { text } });
+    const ask = () => s.supabase.functions.invoke('contract-ai', { body: free ? { text, mode: 'free' } : { text } });
     let { data, error } = await ask();
     // A sign-in that went stale on this device: renew it once, as the link does.
     if (error && error.context?.status === 401) {
@@ -641,8 +741,9 @@ $('ai-go').addEventListener('click', async (e) => {
       return;
     }
     if (!data?.result || typeof data.result !== 'object') { aiQuiet(AI_FAILED); return; }
-    const { data: me, error: meError } = await s.supabase.rpc('my_person');
-    applyAi(data, !meError && (me === null || AI_FREE.includes(me)));
+    if (free) applyFree(data);
+    else applyAi(data);
+    saveDraft();
     done = true;
   } catch (err) {
     const s = await getSupa().catch(() => null);
@@ -650,6 +751,7 @@ $('ai-go').addEventListener('click', async (e) => {
   } finally {
     aiAsking = false;
     busy(btn, false);
+    btn.textContent = aiGoText();
     // What was set is read first (the panel takes the focus, the page stays where it is).
     if (done) $('ai-result').focus({ preventScroll: true });
   }
@@ -718,7 +820,7 @@ function saveDraft() {
   if (sentDone || document.body.classList.contains('is-choosing')) return;
   try {
     const client = Object.fromEntries(CLIENT_FIELDS.map((id) => [id, $(id).value]));
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ state, client, dealId, reviseId, ai, aiText: $('ai-text').value }));
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ state, client, dealId, reviseId, ai, aiDrafts, aiText: $('ai-text').value, aiFree: $('ai-free').checked }));
   } catch { /* storage unavailable */ }
 }
 function restoreDraft(forDeal = null, forRevise = null) {
@@ -734,8 +836,17 @@ function restoreDraft(forDeal = null, forRevise = null) {
     if (state.custom === null || typeof state.custom !== 'object') delete state.custom;
     const a = draft.ai;
     ai = a && typeof a === 'object' && a.marks && typeof a.marks === 'object'
-      ? { runId: typeof a.runId === 'string' ? a.runId : null, marks: a.marks, free: a.free === true } : null;
+      ? { runId: typeof a.runId === 'string' ? a.runId : null, marks: a.marks } : null;
+    const ds = draft.aiDrafts;
+    aiDrafts = ds && Array.isArray(ds.list) && ds.list.length && ds.list.length <= FREE_MAX_DRAFTS
+      ? { list: validateFreeResult({ drafts: ds.list.map((x) => x?.draft) }).result.drafts.map((d, i) => ({ draft: d, runId: typeof ds.list[i]?.runId === 'string' ? ds.list[i].runId : null, done: typeof ds.list[i]?.done === 'string' ? ds.list[i].done : null })),
+        current: Number.isInteger(ds.current) && ds.current >= 0 && ds.current < ds.list.length ? ds.current : 0,
+        questions: Array.isArray(ds.questions) ? ds.questions.filter((t) => typeof t === 'string') : [],
+        dropped: Array.isArray(ds.dropped) ? ds.dropped.filter((t) => typeof t === 'string') : [],
+        notes: typeof ds.notes === 'string' ? ds.notes : null }
+      : null;
     $('ai-text').value = typeof draft.aiText === 'string' ? draft.aiText : '';
+    $('ai-free').checked = draft.aiFree === true;
     for (const id of CLIENT_FIELDS) if (typeof draft.client?.[id] === 'string') $(id).value = draft.client[id];
     $('discount').value = String((state.discount || 0) / 100);
     syncCustomInputs();
@@ -1053,9 +1164,9 @@ async function createLink(btn) {
   busy(btn, true, 'יוצר קישור…');
   try {
     const s = await getSupa();
-    // Prepared with AI: the run goes with it, and the contract goes without a manager's approval.
+    // Prepared with AI: the run goes with it ("הוכן ע״י AI" in "הצעות שנשלחו").
     const send = () => s.supabase.functions.invoke('create-quote', {
-      body: { selection: selectionToSend(), client: readClient(), ...(reviseId ? { revise: reviseId } : {}), ...(aiSkipsApproval() ? { aiRun: ai.runId } : {}) },
+      body: { selection: selectionToSend(), client: readClient(), ...(reviseId ? { revise: reviseId } : {}), ...(aiTagged() ? { aiRun: ai.runId } : {}) },
     });
     let { data, error } = await send();
     // A sign-in that went stale on this device (the owner, 21.10.2026: "יש להתחבר מחדש" while the
@@ -1073,10 +1184,14 @@ async function createLink(btn) {
     }
     // The AI preparation prepared this contract: it is used (one run, one contract). What is on
     // the screen stays; sending it again would be a contract by hand.
-    if (aiSkipsApproval()) { ai = null; render(); }
-    sentDone = true;
-    dropDraft();
-    // An exceptional contract: stored, waiting for a manager. There is no link yet.
+    if (aiTagged()) { ai = null; render(); }
+    // Several drafts: this one is done, and the next is one tap away ("להמשיך להצעה 2").
+    const next = markDraftDone(data.number);
+    sentDone = next === null;
+    if (sentDone) dropDraft(); else saveDraft();
+    $('sh-next').hidden = next === null;
+    if (next !== null) $('sh-next').textContent = `להמשיך ל${draftTitle(aiDrafts.list[next].draft, next).replace(/ · .*/, '')}`;
+    // Only before the migration of 29.10.2026 can the database still hold it for a manager: no link yet.
     if (data.approval === 'pending') {
       if (dealId) {
         try {
@@ -1126,13 +1241,13 @@ async function createLink(btn) {
   } catch (err) {
     const s = await getSupa().catch(() => null);
     const msg = String(err?.message || err || '');
-    // The AI preparation is no longer good (older than 24 hours, or already sent): the contract
-    // stays as it is, now as one by hand.
+    // The AI preparation was already used for another contract at the same moment: the contract
+    // stays as it is, as one by hand; pressing again creates it.
     if (/^ai run (expired|used|not found)$/.test(msg) && ai) {
       ai = { ...ai, runId: null };
       render();
       saveDraft();
-      toast('ההכנה עם AI כבר לא בתוקף (עברו 24 שעות, או שכבר נשלח ממנה חוזה). החוזה נשאר כמו שהוא: אפשר ללחוץ שוב על ״הכנת חוזה עם AI״, או לשלוח לאישור מנהל.');
+      toast('ההכנה עם AI כבר שימשה לחוזה אחר. החוזה נשאר כמו שהוא: ללחוץ שוב על יצירת הקישור.');
       return;
     }
     toast(/custom contracts are prepared by the office/.test(msg) ? 'חוזה מותאם אישית מכינים במשרד בלבד.'
@@ -1143,6 +1258,30 @@ async function createLink(btn) {
     renderDocType();
   }
 }
+
+// The draft on the builder was created: marked, and the next one not created yet (or null).
+function markDraftDone(number) {
+  if (!aiDrafts || aiDrafts.list.length < 2) return null;
+  aiDrafts.list[aiDrafts.current].done = String(number || '');
+  const n = aiDrafts.list.length;
+  for (let k = 1; k < n; k += 1) {
+    const i = (aiDrafts.current + k) % n;
+    if (!aiDrafts.list[i].done) return i;
+  }
+  return null;
+}
+// "להמשיך להצעה 2": the share dialog closes and the next draft is on the builder.
+$('sh-next').addEventListener('click', () => {
+  const next = aiDrafts ? aiDrafts.list.findIndex((x, i) => !x.done && i !== aiDrafts.current) : -1;
+  const i = next >= 0 ? next : aiDrafts?.list.findIndex((x) => !x.done) ?? -1;
+  $('dlg-share').close();
+  if (i < 0) return;
+  // A new document: the client's details stay (the same client), the link of the last one is in "הצעות שנשלחו".
+  sentDone = false;
+  loadDraft(i, { focus: false });
+  $('ai-box').scrollIntoView({ block: 'start' });
+  $(`ai-draft-${i}`)?.focus();
+});
 
 function renderPrevQuotes(prev) {
   const box = $('sh-prev');
@@ -1203,20 +1342,36 @@ async function openFromDeal(id) {
     const d = await loadDeal(id);
     if (!d) { toast('העסקה לא נמצאה, או שאין לך גישה אליה.'); return; }
     dealId = d.id;
+    let words = null;
     if (!restoreDraft(d.id)) {
-      const { selection, client } = prefillFromDeal(d);
+      const { selection, client, ai: aiFill } = prefillFromDeal(d);
       state = selection;
       for (const [fid, v] of Object.entries(client)) $(fid).value = v;
       $('discount').value = String((state.discount || 0) / 100);
+      // The seller's own words (29.10.2026): in "הכנת חוזה עם AI", the free mode on.
+      if (aiFill) {
+        words = aiFill.text;
+        $('ai-text').value = aiFill.text;
+        $('ai-free').checked = aiFill.free === true;
+      }
       syncCustomInputs();
     }
+    $('ai-go').textContent = aiGoText();
+    $('ai-free-hint').hidden = !$('ai-free').checked;
     document.body.classList.remove('is-choosing');
     $('start').hidden = true;
     render();
     saveDraft();
-    toast(state.custom
-      ? `${contractTitle(d)}: הצעה אחרת מהשטח. נפתח חוזה מותאם אישית עם מה שנכתב; לבחור חבילת בסיס, לבדוק, ולשלוח לאישור.`
-      : `${contractTitle(d)}: הפרטים מהעסקה נטענו. לבדוק ולהשלים, ואז ליצור קישור.`);
+    if (words !== null) {
+      // The box is on the screen with the words in it: one press and the contract fills itself.
+      $('ai-box').scrollIntoView({ block: 'start' });
+      $('ai-go').focus({ preventScroll: true });
+    }
+    toast(words !== null
+      ? `${contractTitle(d)}: מה שנכתב בשטח כבר בתיבת ה־AI, ״בדיוק כמו שכתבתי״ מסומן. ללחוץ ״הכנה בדיוק כמו שכתבתי״, לבדוק ולשלוח.`
+      : state.custom
+        ? `${contractTitle(d)}: הצעה אחרת מהשטח. נפתח חוזה מותאם אישית עם מה שנכתב; לבחור חבילת בסיס, לבדוק, וליצור קישור.`
+        : `${contractTitle(d)}: הפרטים מהעסקה נטענו. לבדוק ולהשלים, ואז ליצור קישור.`);
   } catch (err) {
     const s = await getSupa().catch(() => null);
     toast(`העסקה לא נטענה. ${s ? s.explainError(err) : ''}`.trim());
@@ -1257,8 +1412,7 @@ async function openForRevise(id) {
     note.classList.toggle('is-plain', q.approval !== 'rejected');
     note.replaceChildren(h('span', {}, h('strong', {}, 'תיקון חוזה ', h('bdi', { class: 'num', dir: 'ltr' }, q.number), ' · '),
       q.approval === 'rejected' ? `לא אושר: ${q.approval_note || ''}`
-        : q.approval === 'approved' ? 'החוזה כבר אושר. כל שינוי בו מחזיר אותו לאישור, והקישור שנשלח ללקוח מפסיק לעבוד עד האישור החדש.'
-          : 'החוזה ממתין לאישור. אפשר לתקן ולשלוח שוב.'));
+        : 'אין יותר אישור מנהל: אחרי התיקון החוזה נשמר כגרסה חדשה, והקישור שנשלח ללקוח מציג אותה.'));
     // The strip of the kit: a small icon square, the tone of what happened (app/kit.js).
     noteIcon(note, q.approval === 'rejected' ? 'late' : 'warn');
     document.body.classList.remove('is-choosing');
@@ -1277,6 +1431,9 @@ if (!DEAL_PARAM && !REVISE_PARAM && restoreDraft()) {
   $('start').hidden = true;
 }
 render();
+$('ai-go').textContent = aiGoText();
+$('ai-free-hint').hidden = !$('ai-free').checked;
+if (aiDrafts) loadDraft(aiDrafts.current, { focus: false, apply: false });
 setupSectionNav();
 if (DEAL_PARAM) openFromDeal(DEAL_PARAM);
 else if (REVISE_PARAM) openForRevise(REVISE_PARAM);

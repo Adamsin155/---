@@ -25,9 +25,9 @@ export const DEAL_MINUTES = 10;
 // The statuses as Stav reads them.
 export const DEAL_STATUS = {
   pending: 'ממתין לחוזה',
-  // An exceptional contract (another offer, or anything Irit changed by hand): Irit
-  // prepared it and a manager decides (6.10.2026).
-  approval: 'ממתין לאישור מנהל',
+  // Until 29.10.2026 a contract that differed from the packages waited for a manager here; since
+  // then nothing does (docs/ops.md, section 79). A deal still in this status: Irit has its contract.
+  approval: 'החוזה הוכן',
   rejected: 'לא אושר',
   sent: 'חוזה נשלח',
   signed: 'נחתם',
@@ -35,7 +35,13 @@ export const DEAL_STATUS = {
 };
 export const statusText = (d) => DEAL_STATUS[d?.status] || '';
 
-export const contractTitle = (d) => `להכין חוזה ל־${String(d?.business_name || '').trim()}`;
+// What Stav asked Irit to prepare (deal_requests.doc_type, 29.10.2026): 'agreement' (חוזה, also
+// every deal sent before) or 'quote' (הצעת מחיר).
+export const DEAL_DOC = { agreement: 'חוזה', quote: 'הצעת מחיר' };
+export const docTypeOf = (d) => (d?.doc_type === 'quote' ? 'quote' : 'agreement');
+export const contractTitle = (d) => `להכין ${DEAL_DOC[docTypeOf(d)]} ל־${String(d?.business_name || '').trim()}`;
+// The button that sends the deal to Irit, by what she is asked to prepare.
+export const submitText = (docType) => (docType === 'quote' ? 'לעירית להכנת הצעת מחיר' : docType === 'agreement' ? 'לעירית להכנת חוזה' : 'לעירית');
 // Where Irit's notification opens: the builder, prefilled from the deal.
 export const dealUrl = (d) => `index.html?deal=${encodeURIComponent(d.id)}`;
 export const dealDue = (d) => { const at = parseDate(d?.created_at); return at ? addWorkingMinutes(at, DEAL_MINUTES) : null; };
@@ -69,6 +75,12 @@ export function validateDeal(form = {}) {
   const digits = row.phone.replace(/\D/g, '');
   if (!row.phone) errors.phone = 'חסר טלפון.';
   else if (digits.length < 9 || digits.length > 12 || !/^[\d\s()+-]+$/.test(row.phone)) errors.phone = 'מספר הטלפון לא תקין.';
+  // What Irit prepares: asked on the page (29.10.2026); a form without it is an agreement, as before.
+  if (form.kind === 'free' || form.doc_type !== undefined) {
+    if (!DEAL_DOC[form.doc_type]) errors.doc_type = 'בחרו מה להכין: חוזה או הצעת מחיר.';
+    else row.doc_type = form.doc_type;
+  }
+  if (form.kind === 'free') return validateFreeDeal(form, row, errors);
   if (form.kind === 'custom') return validateCustomDeal(form, row, errors);
   if (!TIERS.some((t) => t.id === form.tier)) errors.tier = 'בחרו חבילה.';
   if (!INFLUENCERS[form.influencer]) errors.influencer = 'בחרו משפיענים.';
@@ -97,8 +109,8 @@ export function validateDeal(form = {}) {
 // "הצעה אחרת" (6.10.2026): not one of the built-in packages. The seller writes what it
 // includes, optional quantities (videos, graphics, shoot days), the monthly price he
 // agreed (whole shekels, before VAT) and the term. Stored in deal_requests.custom; the
-// table checks the same limits. Irit builds a custom contract from it, and a manager
-// approves it before the client can sign.
+// table checks the same limits. Irit builds a custom contract from it (since
+// 29.10.2026 with no manager's approval, and the page sends the seller's words instead: validateFreeDeal).
 export const DEAL_CUSTOM_QTY = [['videos', 'סרטונים'], ['graphics', 'גרפיקות'], ['shoot_days', 'ימי צילום']];
 const QTY_MAX = { videos: 'videos', graphics: 'graphics', shoot_days: 'shootDays' };
 const qtyMax = (k) => CUSTOM_QTY.find((q) => q.key === QTY_MAX[k]).max;
@@ -125,8 +137,25 @@ function validateCustomDeal(form, row, errors) {
   return { ok: true, errors: {}, row: { ...row, tier: null, influencer: null, paid: [], free: {}, discount_agorot: 0, custom } };
 }
 
+// What the seller closed, in his own words (29.10.2026: "סתיו צריך לרשום בדף שלו בשטח את זה, לא
+// בוואטסאפ"): one text, as he would write it on WhatsApp. Stored as deal_requests.custom = { text };
+// Irit's builder opens with it in "הכנת חוזה עם AI", the free mode on.
+export const FREE_TEXT_MAX = 2000;
+export const isFreeDeal = (d) => isCustomDeal(d) && typeof d.custom.text === 'string';
+function validateFreeDeal(form, row, errors) {
+  const text = String(form.text ?? '').replace(/\r\n?/g, '\n').trim();
+  if (!text) errors.text = 'כתבו מה סגרת עם הלקוח.';
+  else if (text.length > FREE_TEXT_MAX) errors.text = `עד ${FREE_TEXT_MAX} תווים.`;
+  if (Object.keys(errors).length) return { ok: false, errors, row: null };
+  return { ok: true, errors: {}, row: { ...row, tier: null, influencer: null, paid: [], free: {}, discount_agorot: 0, custom: { text } } };
+}
+
 // One line of what was sold, for Irit's notification and her task.
 export function dealSummary(d) {
+  if (isFreeDeal(d)) {
+    const text = d.custom.text.replace(/\s+/g, ' ').trim();
+    return [DEAL_DOC[docTypeOf(d)], text.length > 120 ? `${text.slice(0, 120)}…` : text].join(' · ');
+  }
   if (isCustomDeal(d)) {
     const c = d.custom;
     const qty = DEAL_CUSTOM_QTY.filter(([k]) => Number.isInteger(c[k])).map(([k, name]) => `${c[k]} ${name}`);
@@ -157,10 +186,11 @@ export function addonNames(d) {
 // and discount, and the client's details. Anything the catalog no longer allows is
 // left out (reconcile), as in the builder itself.
 export function prefillFromDeal(d) {
+  if (isFreeDeal(d)) return prefillFromFreeDeal(d);
   if (isCustomDeal(d)) return prefillFromCustomDeal(d);
   const { selection } = reconcile({
     ...emptySelection(),
-    docType: DOC_TYPES.agreement.id,
+    docType: docTypeOf(d),
     tier: TIERS.some((t) => t.id === d?.tier) ? d.tier : emptySelection().tier,
     influencer: INFLUENCERS[d?.influencer] ? d.influencer : emptySelection().influencer,
     paid: Array.isArray(d?.paid) ? d.paid.filter((id) => PAID_ADDONS.some((a) => a.id === id)) : [],
@@ -178,6 +208,17 @@ export function prefillFromDeal(d) {
   };
 }
 
+// The seller's own words: the builder opens on the document he asked for, the client's details
+// filled, and "הכנת חוזה עם AI" with his text and the free mode on (`ai`); Irit presses the button,
+// reviews and sends.
+function prefillFromFreeDeal(d) {
+  return {
+    selection: { ...emptySelection(), docType: docTypeOf(d) },
+    client: { 'c-name': d?.contact_name || '', 'c-company': d?.business_name || '', 'c-phone': d?.phone || '', 'c-notes': d?.notes || '' },
+    ai: { text: d.custom.text.slice(0, FREE_TEXT_MAX), free: true },
+  };
+}
+
 // Another offer: the builder opens in "חוזה מותאם אישית" on a base package Irit picks
 // (the default one to begin with), with the seller's numbers as the overrides and his
 // description as the draft of the special terms.
@@ -190,7 +231,7 @@ function prefillFromCustomDeal(d) {
   if (Number.isInteger(c.price_agorot)) custom.price = Math.max(0, Math.min(CUSTOM_LIMITS.priceMax, c.price_agorot));
   if (Number.isInteger(c.term_months)) custom.termMonths = Math.max(CUSTOM_LIMITS.termMin, Math.min(CUSTOM_LIMITS.termMax, c.term_months));
   return {
-    selection: { ...emptySelection(), docType: DOC_TYPES.agreement.id, custom },
+    selection: { ...emptySelection(), docType: docTypeOf(d), custom },
     client: { 'c-name': d?.contact_name || '', 'c-company': d?.business_name || '', 'c-phone': d?.phone || '', 'c-notes': d?.notes || '' },
   };
 }
