@@ -188,9 +188,9 @@ test('the migration holds nothing the deploy tool refuses, and no UPDATE at all'
 });
 
 // Ten, and since 20261027100000_landing_links.sql the two of the personal intake link (15.10.2026).
-test('who is not signed in still runs exactly the twelve public functions', async () => {
+test('who is not signed in still runs exactly the twelve public functions, and the gate PostgREST runs before every request', async () => {
   const { rows } = await db.query(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') order by 1`);
-  assert.deepEqual(rows.map((r) => r.proname), ['access_form_info', 'access_form_submit', 'answer_survey', 'approve_item', 'get_gantt', 'get_quote', 'get_scripts', 'get_status', 'landing_link_read', 'landing_link_take', 'request_fix', 'sign_quote']);
+  assert.deepEqual(rows.map((r) => r.proname), ['access_form_info', 'access_form_submit', 'answer_survey', 'approve_item', 'get_gantt', 'get_quote', 'get_scripts', 'get_status', 'landing_link_read', 'landing_link_take', 'mcp_request_gate', 'request_fix', 'sign_quote']);
   assert.ok(ALL.length);
 });

@@ -115,9 +115,11 @@ test('anon runs only the deliberate token functions: the quote, the signature, t
     where n.nspname in ('public', 'private') and p.prosecdef and has_function_privilege('anon', p.oid, 'execute') order by 1`);
   // … and, since 20261008100000_client_access_form.sql, the client's logins form
   // (write-only: its two functions return a state and the business name, nothing stored),
-  // and since 20261027100000_landing_links.sql the personal intake link (a token of one person).
+  // and since 20261027100000_landing_links.sql the personal intake link (a token of one person),
+  // and since 20261121100000_mcp.sql the request gate: PostgREST runs it for every request, in the
+  // request's role, so anon must be able to (it returns nothing and reads nothing for anon).
   assert.deepEqual(rows.map((r) => r.f), [
-    'public.access_form_info', 'public.access_form_submit', 'public.answer_survey', 'public.approve_item', 'public.get_gantt', 'public.get_quote', 'public.get_scripts', 'public.get_status', 'public.landing_link_read', 'public.landing_link_take', 'public.request_fix', 'public.sign_quote',
+    'public.access_form_info', 'public.access_form_submit', 'public.answer_survey', 'public.approve_item', 'public.get_gantt', 'public.get_quote', 'public.get_scripts', 'public.get_status', 'public.landing_link_read', 'public.landing_link_take', 'public.mcp_request_gate', 'public.request_fix', 'public.sign_quote',
   ]);
   // And no table of stages 4–6 is open to anon.
   const t = await db.query(`select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace

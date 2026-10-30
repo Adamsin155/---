@@ -49,13 +49,13 @@ function localImports(fn, file, seen = new Set()) {
 
 test('create-quote imports only the shared copy, never the repository', () => {
   assert.ok(importsOf(readFileSync(join(FUNCTIONS, 'create-quote/index.ts'), 'utf8')).includes('../_shared/app/pricing.js'));
-  assert.deepEqual([...localImports('create-quote', 'index.ts')].filter((f) => !f.startsWith('_shared/app/')), ['create-quote/http.js']);
+  assert.deepEqual([...localImports('create-quote', 'index.ts')].filter((f) => !f.startsWith('_shared/app/')).sort(), ['_shared/oauth-token.js', 'create-quote/http.js']);
   assert.deepEqual([...localImports('create-quote', 'http.js')], []);
 });
 
 test('contract-ai imports only its handler and the shared copy; the key never leaves the environment', () => {
   const files = new Set(['index.ts', 'handler.js'].flatMap((f) => [...localImports('contract-ai', f)]));
-  assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')), ['contract-ai/handler.js']);
+  assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), ['_shared/oauth-token.js', 'contract-ai/handler.js']);
   for (const f of files) if (f.startsWith('_shared/app/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
   const src = readFileSync(join(FUNCTIONS, 'contract-ai/index.ts'), 'utf8') + readFileSync(join(FUNCTIONS, 'contract-ai/handler.js'), 'utf8');
   // The SDK pinned to an exact release; the key read once, never logged or answered.

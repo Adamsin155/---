@@ -251,7 +251,7 @@ test('rate limits have their own code', () => {
 test('the function is deployable on its own and does not log links or tokens', () => {
   const src = readFileSync(new URL('../supabase/functions/staff-admin/index.ts', import.meta.url), 'utf8');
   const imports = [...src.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
-  assert.deepEqual(imports.sort(), ['./rules.js', 'npm:@supabase/supabase-js@2']);
+  assert.deepEqual(imports.sort(), ['../_shared/oauth-token.js', './rules.js', 'npm:@supabase/supabase-js@2']);
   assert.match(src, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(src, /auth\.getUser\(token\)/);
   // The function hands the rules what they check (a manager's own vault, a payouts
