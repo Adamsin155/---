@@ -24,7 +24,7 @@ create table if not exists public.drive_scan_state (
   scanned_at timestamptz not null default now(),
   error text,
   files integer not null default 0,
-  truncated boolean not null default false
+  partial boolean not null default false
 );
 
 alter table public.drive_daily enable row level security;

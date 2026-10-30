@@ -35,7 +35,7 @@ export function mergeRows(clientId, fresh, before) {
 }
 
 // store: { targets() → [{ id, links, scanned_at }], before(clientId, fromDay) → rows,
-//          save(rows), state({ client_id, scanned_at, error, files, truncated }) }
+//          save(rows), state({ client_id, scanned_at, error, files, partial }) }
 export async function runScan({ store, drive, now = new Date(), clock = () => Date.now(), batch = BATCH, budgetMs = BUDGET_MS }) {
   const started = clock();
   const since = atTimeIL(addDaysIL(now, -WINDOW_DAYS), 0);
@@ -48,7 +48,7 @@ export async function runScan({ store, drive, now = new Date(), clock = () => Da
     const folder = folderIdOf(c.links?.drive);
     const at = now.toISOString();
     if (!folder) {
-      await store.state({ client_id: c.id, scanned_at: at, error: 'not_a_folder', files: 0, truncated: false });
+      await store.state({ client_id: c.id, scanned_at: at, error: 'not_a_folder', files: 0, partial: false });
       stats.failed += 1;
       continue;
     }
@@ -58,12 +58,12 @@ export async function runScan({ store, drive, now = new Date(), clock = () => Da
       const rows = mergeRows(c.id, fresh, await store.before(c.id, fromDay));
       if (rows.length) await store.save(rows);
       const n = fresh.reduce((sum, r) => sum + r.files, 0);
-      await store.state({ client_id: c.id, scanned_at: at, error: null, files: n, truncated: !!truncated });
+      await store.state({ client_id: c.id, scanned_at: at, error: null, files: n, partial: !!truncated });
       stats.clients += 1;
       stats.files += n;
     } catch (e) {
       // A client that fails moves to the back of the line, and the page names it as not counted.
-      await store.state({ client_id: c.id, scanned_at: at, error: String(e?.code || 'error').slice(0, 40), files: 0, truncated: false });
+      await store.state({ client_id: c.id, scanned_at: at, error: String(e?.code || 'error').slice(0, 40), files: 0, partial: false });
       stats.failed += 1;
     }
   }

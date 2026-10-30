@@ -1,7 +1,7 @@
 // "עבודה לפי עובד" (app/work-history-logic.js): who did what on which day, per employee and client.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { workHistory, standingMarks, lastWork, canSeeWorkHistory } from '../app/work-history-logic.js';
+import { workHistory, standingMarks, lastWork, canSeeWorkHistory, allDays, filesLine, driveCoverage, dayLine, LINE_PARTS } from '../app/work-history-logic.js';
 import { IMPORT_NOTE } from '../app/protocol-logic.js';
 import { AUTO_DRIVE_NOTE } from '../app/auto-assign.js';
 import { dateIL } from '../app/tz.js';
@@ -35,7 +35,7 @@ test('an editor: the day\'s sum per client, a correction lowers it, and never be
 test('steps: several items of one process are one step; named marks have their words; the newest day first', () => {
   const log = [mark('p25.q.sound', 'ofir@x', 26), mark('p25.q.stable', 'ofir@x', 26), mark('p22a.assigned', 'ofir@x', 27), mark('p25.q.sound', 'ofir@x', 27, 'c2')];
   const { days } = of(run({ log }), 'ofir');
-  assert.deepEqual(days.map((d) => [d.day, d.line]), [['2026-10-27', 'שיוך עורך, עוד שלב אחד'], ['2026-10-26', 'שלב אחד']]);
+  assert.deepEqual(days.map((d) => [d.day, d.line]), [['2026-10-27', 'שיוך עורך, בקרת איכות על הסרטונים'], ['2026-10-26', 'בקרת איכות על הסרטונים']]);
 });
 
 test('a named mark says its process: it is not counted again as a step', () => {
@@ -100,4 +100,57 @@ test('who sees the tab: the owners, Lior and Ofir', () => {
   assert.equal(canSeeWorkHistory({ scope: 'assigned', me: 'anna' }), false);
   assert.equal(canSeeWorkHistory({ error: 'x', scope: 'office', me: 'ofir' }), false);
   assert.equal(canSeeWorkHistory(null), false);
+});
+
+const driveRow = (day, cid, folder, kind, files) => ({ client_id: cid, day, folder, kind, files });
+
+test('the line says actions, never a number of steps: a process by its title and how many clients, and a small remainder', () => {
+  const log = [mark('p25.q.sound', 'ofir@x', 26), mark('p25.q.sound', 'ofir@x', 26, 'c2'), mark('p22a.assigned', 'ofir@x', 26, 'c2')];
+  const [d] = of(run({ log }), 'ofir').days;
+  assert.equal(d.line, 'שיוך עורך, בקרת איכות על הסרטונים · 2 לקוחות');
+  assert.doesNotMatch(d.line, /שלב/);
+  const many = { edited: 1, graphics: 1, uploaded: 1, driveGraphics: 1, driveVideos: 1, named: new Map([['p29.sent', 1]]), steps: new Map([['x', 'תהליך']]) };
+  assert.match(dayLine([many]), new RegExp(`, ועוד 2$`));
+  assert.equal(dayLine([many]).split(', ').length, LINE_PARTS + 1);
+});
+
+test('the files of a day: the words, one file and none', () => {
+  assert.equal(filesLine({ video: 14, graphic: 9, raw: 40, other: 0 }), 'עלו 63 קבצים: 14 סרטונים, 9 גרפיקות, 40 חומר גלם');
+  assert.equal(filesLine({ video: 0, graphic: 1, raw: 0, other: 0 }), 'עלה קובץ אחד: גרפיקה אחת');
+  assert.equal(filesLine({ video: 0, graphic: 0, raw: 0, other: 0 }), '');
+});
+
+test('Drive on the employee: graphics folders on Ilai, in words that say so; videos on the one editor in the card; never raw footage or a pair', () => {
+  const list = workHistory({
+    personOf, clients: [{ id: 'c1', name: 'בטא', editor: 'anna' }, { id: 'c2', name: 'אלפא', editor: 'anna', editor2: 'nadia' }],
+    drive: [driveRow('2026-10-30', 'c1', 'גרפיקות', 'graphic', 9), driveRow('2026-10-30', 'c1', 'מוכנים', 'video', 4), driveRow('2026-10-30', 'c1', 'חומר גלם', 'raw', 40),
+      driveRow('2026-10-30', 'c2', 'מוכנים', 'video', 3), driveRow('2026-10-29', 'c1', 'מוכנים', 'video', 0)],
+  });
+  assert.deepEqual(of(list, 'ilai').days.map((d) => [d.day, d.line]), [['2026-10-30', '9 קבצים נוספו לתיקיית הגרפיקות']]);
+  assert.deepEqual(of(list, 'anna').days.map((d) => [d.day, d.line]), [['2026-10-30', '4 סרטונים נוספו לדרייב (לפי העורך בכרטיס)']]);
+  assert.deepEqual(of(list, 'nadia').days, []);
+});
+
+test('כל הימים: newest first, the files and the work of everyone, then client by client', () => {
+  const days = allDays({
+    personOf, clients, log: [mark('p22a.assigned', 'ofir@x', 30), mark('p29.sent', 'ilai@x', 29, 'c2')],
+    drive: [driveRow('2026-10-30', 'c1', 'גרפיקות', 'graphic', 9), driveRow('2026-10-30', 'c1', 'מוכנים', 'video', 14), driveRow('2026-10-30', 'c1', 'חומר גלם', 'raw', 40), driveRow('2026-10-30', 'c1', 'גרפיקות', 'other', 0)],
+  });
+  assert.deepEqual(days.map((d) => d.day), ['2026-10-30', '2026-10-29']);
+  assert.equal(days[0].filesLine, 'עלו 63 קבצים: 14 סרטונים, 9 גרפיקות, 40 חומר גלם');
+  assert.equal(days[0].workLine, 'שיוך עורך');
+  const [c] = days[0].clients;
+  assert.equal(c.files, '14 סרטונים, 9 גרפיקות, 40 חומר גלם');
+  assert.deepEqual(c.folders, ['חומר גלם: 40', 'מוכנים: 14', 'גרפיקות: 9']);
+  assert.deepEqual(c.work, [{ person: 'ofir', name: 'אופיר', lines: ['שיוך עורך'] }]);
+  assert.equal(days[1].filesLine, '');
+  assert.equal(days[1].workLine, 'גאנט אחד נשלח');
+});
+
+test('what the Drive numbers do not cover is named: no link, a folder that did not open; before the scan it says so', () => {
+  const cs = [{ id: 'a', name: 'א', status: 'active', links: { drive: 'x' } }, { id: 'b', name: 'ב', status: 'active', links: {} }, { id: 'c', name: 'ג', status: 'ending', links: { drive: 'x' } }, { id: 'd', name: 'ד', status: 'closed', links: {} }, { id: 'e', name: 'ה', status: 'active', links: { drive: 'x' } }];
+  const off = driveCoverage(cs, null);
+  assert.deepEqual([off.on, off.noLink], [false, ['ב']]);
+  const on = driveCoverage(cs, [{ client_id: 'a', scanned_at: '2026-10-30T08:00:00Z', error: null }, { client_id: 'c', scanned_at: '2026-10-30T09:00:00Z', error: 'no_access' }]);
+  assert.deepEqual([on.on, on.at.toISOString(), on.noLink, on.failed, on.waiting, on.scanned], [true, '2026-10-30T09:00:00.000Z', ['ב'], ['ג'], 1, 1]);
 });

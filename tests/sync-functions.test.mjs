@@ -130,6 +130,12 @@ const DEPLOY = {
     'create-quote/http.js',
     'create-quote/index.ts',
   ],
+  'drive-scan': [
+    ...APP('tz.js'),
+    '_shared/drive.js',
+    'drive-scan/index.ts',
+    'drive-scan/scan.js',
+  ],
   metricool: [
     ...APP('metricool-logic.js', 'tz.js'),
     'metricool/index.ts',
@@ -182,7 +188,7 @@ test('every function, and every file it deploys (the shared copies it reaches ar
 test('verify_jwt: off for the functions that check their caller themselves', () => {
   const config = readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8');
   const off = [...config.matchAll(/\[functions\.([a-z-]+)\]\s*\nverify_jwt = false/g)].map((m) => m[1]).sort();
-  assert.deepEqual(off, ['calendar', 'client-media', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook']);
+  assert.deepEqual(off, ['calendar', 'client-media', 'drive-scan', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook']);
 });
 
 test('the shared pricing engine computes the same quote as app/', async () => {

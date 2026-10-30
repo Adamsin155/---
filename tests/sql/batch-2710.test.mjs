@@ -61,7 +61,7 @@ before(async () => {
 
 test('the file: the newest, only adds, and runs twice', async () => {
   // After it only Niro and "הצל" (20261112100000_new_influencers.sql, 28.10.2026).
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261111100000_p06_ofir.sql', '20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261111100000_p06_ofir.sql', '20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
