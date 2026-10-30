@@ -37,6 +37,7 @@ import { mountPush } from './push.js';
 import { offerHandoff } from './handoff-ui.js';
 import { closedProcesses } from './health.js';
 import * as P from './production.js';
+import { todoText } from './office-marks.js';
 import {
   progressMap, progressKey, editTarget, editedValue, isMonthly, monthlyFor, monthTarget, monthKey, monthRowKey, monthMap, monthVideosText,
 } from './edit-count.js';
@@ -389,6 +390,7 @@ function jobCard(job) {
       h('h2', { id: `${id}-h`, tabindex: '-1' }, jobName(job), c.business && c.business !== c.name ? h('small', {}, c.business) : null),
       h('span', { class: `ed-state s-${st.key}` }, st.blocked ? 'חסום' : st.paused ? P.pauseText(st.paused) : P.STATE_TEXT[st.key])),
     h('p', { class: 'ed-day' }, c.landing === true ? 'בקליטה · הימים עוד לא נספרים' : P.editingDayText(day, now, job.assignedAt, editingDaysOf(c))),
+    job.todo ? h('p', { class: 'ed-day ed-todo' }, h('strong', {}, todoText(job.todo))) : null,
     // Two editors on this shoot (editor2): with whom.
     editorsOf(job.ctx).length > 1 ? h('p', { class: 'ed-pair', id: `${id}-pair` }, `עורכים יחד: ${editorNames(job.ctx)}`) : null,
     datesLine(job, st),

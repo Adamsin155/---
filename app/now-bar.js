@@ -40,7 +40,7 @@ export const rowRef = (row) => (row.clocks.length > 1 ? `תהליכים ${row.cl
 // What the row is about, in one line.
 export function rowWhat(row, t) {
   const what = listHe(row.clocks.map((c) => c.what));
-  if (row.kind === 'fast') return row.fast.kind === 'assign' ? 'לשייך עורך' : `לבדוק ולאשר: ${what}${row.fast.round > 1 ? ' (אחרי תיקון)' : ''}`;
+  if (row.kind === 'fast') return `לבדוק ולאשר: ${what}${row.fast.round > 1 ? ' (אחרי תיקון)' : ''}`;
   if (row.kind === 'deal') return `עסקה חדשה: ${what}`;
   if (row.kind === 'answer') return t.state === 'expired' ? `הלקוח לא ענה: ${what}` : `נשלח ללקוח: ${what}`;
   return what;
@@ -73,7 +73,7 @@ const leftText = (row, t, now) => (t.phase ? fastLeft(t) : t.state === 'expired'
 function fastAct(row) {
   const sid = clockDomId(row.id);
   return h('div', { class: 'now-acts now-fast-acts' },
-    h('a', { class: 'btn btn-sm k-btn-navy now-go', id: `now-go-${sid}`, href: row.url, 'aria-describedby': `now-a-${sid}` }, row.fast.kind === 'assign' ? 'שיוך עורך' : 'לבדיקה'));
+    h('a', { class: 'btn btn-sm k-btn-navy now-go', id: `now-go-${sid}`, href: row.url, 'aria-describedby': `now-a-${sid}` }, 'לבדיקה'));
 }
 
 // "Call": the client's number, as a link and in text.

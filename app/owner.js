@@ -42,7 +42,7 @@ import { weekClosings, weekSummary, weekLabel } from './week-chart.js';
 import { countUp, growOnce, glide } from './shell.js';
 import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeClient } from './manager-data.js';
 // The owners' end of the day (docs/ops.md, section 48): the same numbers as the 19:00 message.
-import { daySummary, headline, waitingText } from './day-summary.js';
+import { daySummary, headline, waitingText, assignText } from './day-summary.js';
 import { icon as kIcon, iconSquare, headIcon, besideIcon, leadIcon, dateLeaf } from './kit.js';
 import { warm, taken } from './supa.js';
 
@@ -436,6 +436,8 @@ function renderEod() {
   capList($('eod-items'), 12, 'ow:eod');
   $('eod-wait').hidden = !sum.waiting.length;
   $('eod-wait').textContent = waitingText(sum);
+  $('eod-assign').hidden = !sum.assign;
+  $('eod-assign').textContent = assignText(sum);
 }
 
 // ── Asking the responsible person ───────────

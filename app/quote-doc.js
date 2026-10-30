@@ -110,13 +110,14 @@ export function renderQuoteDoc(model, meta = {}) {
       h('div', {}, provider.addresses.join(' · ')),
       h('div', { dir: 'ltr', class: 'qd-ltr' }, provider.email),
     ]),
-    party('לכבוד', [
-      h('div', { class: 'qd-party-name qd-client' }, c.name || '—'),
+    // A price offer may go without the client's details (29.10.2026): then there is no "לכבוד".
+    (c.name || c.company || c.companyId || c.phone || c.email) ? party('לכבוד', [
+      h('div', { class: 'qd-party-name qd-client' }, c.name || c.company || '—'),
       c.company ? h('div', {}, c.company) : null,
       c.companyId ? h('div', {}, 'ח.פ ', h('span', { class: 'num', dir: 'ltr' }, c.companyId)) : null,
       c.phone ? h('div', { dir: 'ltr', class: 'qd-ltr num' }, c.phone) : null,
       c.email ? h('div', { dir: 'ltr', class: 'qd-ltr' }, c.email) : null,
-    ]),
+    ]) : null,
   );
 
   const stat = (label, value, sub, cls = '') => h('div', { class: `qd-stat ${cls}` },

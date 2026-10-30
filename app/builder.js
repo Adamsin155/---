@@ -372,6 +372,10 @@ function renderDocType() {
   document.querySelectorAll('#doc-switch [data-doc]').forEach((b) => {
     b.setAttribute('aria-checked', String(b.dataset.doc === state.docType));
   });
+  // A price offer needs no client details (the owner, 29.10.2026); an agreement needs the name.
+  $('c-name').required = signable;
+  document.querySelector('label[for="c-name"] .req').hidden = !signable;
+  if (!signable) { $('c-name').setAttribute('aria-invalid', 'false'); $('c-name-err').hidden = true; }
 }
 
 /* ── Custom contract ("חוזה מותאם אישית") ──────
@@ -899,7 +903,8 @@ function validateClient() {
   const name = $('c-name');
   const email = $('c-email');
   const cid = $('c-companyid');
-  const nameOk = name.value.trim().length > 0;
+  // A price offer may go without the client's details (the owner, 29.10.2026).
+  const nameOk = name.value.trim().length > 0 || !DOC_TYPES[state.docType].signable;
   const emailOk = !email.value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim());
   const cidOk = !cid.value.trim() || /^[0-9][0-9-]{3,18}$/.test(cid.value.trim());
   cid.setAttribute('aria-invalid', String(!cidOk));
@@ -1238,8 +1243,8 @@ async function createLink(btn) {
     const name = readClient().name.trim();
     const hours = DOC_TYPES[state.docType].validHours;
     const text = signable
-      ? `שלום ${name}, מצורף הסכם ההתקשרות מאסטרטג (${data.number}) ${currentModel().termMonths === 1 ? 'לחודש אחד' : `ל־${currentModel().termMonths} חודשים`}. אפשר לעיין ולחתום כאן בתוך ${hours} שעות:\n${link}`
-      : `שלום ${name}, מצורפת הצעת המחיר מאסטרטג (${data.number}), בתוקף ל־${hours} שעות. לצפייה:\n${link}`;
+      ? `שלום${name ? ` ${name}` : ''}, מצורף הסכם ההתקשרות מאסטרטג (${data.number}) ${currentModel().termMonths === 1 ? 'לחודש אחד' : `ל־${currentModel().termMonths} חודשים`}. אפשר לעיין ולחתום כאן בתוך ${hours} שעות:\n${link}`
+      : `שלום${name ? ` ${name}` : ''}, מצורפת הצעת המחיר מאסטרטג (${data.number}), בתוקף ל־${hours} שעות. לצפייה:\n${link}`;
     $('sh-wa').href = whatsappLink(readClient().phone, text);
     $('sh-mail').href = `mailto:${encodeURIComponent(readClient().email.trim())}?subject=${encodeURIComponent(`${DOC_TYPES[state.docType].name} ${data.number} · astrateg`)}&body=${encodeURIComponent(text)}`;
     openDialog($('dlg-share'), btn);

@@ -10,7 +10,7 @@ import {
 } from './protocol-logic.js';
 import { dayKeyIL, daysBetweenIL, weekdayIL, addDaysIL, endOfDayIL } from './tz.js';
 import {
-  QA_KINDS, qaState, qaDue, qaWaited, meetingNow, kindOfProc, readJson, REASON_KEY,
+  QA_KINDS, qaState, qaDue, qaWaited, meetingNow, kindOfProc, readJson, REASON_KEY, readTodo, TODO_KEY,
 } from './office-marks.js';
 import { fastCaseOf, fastWaited } from './fast-ladder.js';
 
@@ -114,13 +114,22 @@ export function awaitingEditor({ clients, stateOf, checks }) {
       if (cs[`${pre}p22a.assigned`]?.state === 'done') continue;
       const ctx = s.proc.ctx || c;
       out.push({
-        key: `${c.id}:${s.proc.id}`, client: c, pre, n: ctx.round || null, proc: s.proc, ctx, state: s, dueAt: s.dueAt, fast: fastCaseOf(c, s, stateOf(c).states, cs),
-        landing: c.landing === true, late: c.landing !== true && s.status === 'overdue',
+        key: `${c.id}:${s.proc.id}`, client: c, pre, n: ctx.round || null, proc: s.proc, ctx, state: s, todo: readTodo(cs[TODO_KEY(pre)]),
+        landing: c.landing === true,
       });
     }
   }
-  return out.sort(byClock);
+  // No clock on the assignment (30.10.2026): the most videos left first, a client in landing last.
+  return out.sort((a, b) => Number(a.landing) - Number(b.landing) || b.todo - a.todo);
 }
+
+// How long the editing may take, as Ofir chooses when he assigns (30.10.2026), in business days
+// from the assignment. A client's own editing days are the shortest choice, and the days above
+// them are a shift of the deadlines (SHIFT_KEY), which moves 22, 24, 25 and 27 together.
+const EDITING_CHOICES = [2, 3, 5, 7, 10];
+export const editingChoices = (client) => EDITING_CHOICES.filter((d) => d >= editingDaysOf(client));
+export const editingShift = (client, days) => Math.max(0, (Number(days) || 0) - editingDaysOf(client));
+export const editingChoiceText = (d) => `${d} ימי עסקים`;
 
 // Natali's shoot: Nirel is preselected, and for anyone else a reason is asked for. A
 // joint Natali and Semyon day: no preselection, Ofir chooses, a reason asked for (decision 31).

@@ -9,7 +9,8 @@ import { PEOPLE } from './protocol.js';
 import { clientLabel, inLanding, pauseOf } from './protocol-logic.js';
 import { ofirMeetings } from './office-marks.js';
 import { waitingApprovals, waitDays } from './client-waits.js';
-import { dayKeyIL, dayFromKeyIL, endOfDayIL } from './tz.js';
+import { awaitingEditor } from './qa-logic.js';
+import { dayKeyIL, dayFromKeyIL, endOfDayIL, daysBetweenIL } from './tz.js';
 
 // The numbers: each is a one-line change.
 export const EOD = {
@@ -91,7 +92,13 @@ export function daySummary({ clients = [], checksOf = () => ({}), stateOf, tasks
     longestAt: first?.dueAt || null, longest: first?.how || '',
   };
   const longest = waiting.filter((x) => x.days !== null).sort((a, b) => b.days - a.days)[0] || null;
-  return { day: todayKey, rows, totals, items, waiting, waitingLongest: longest ? { days: longest.days, name: longest.name, words: waitDays(longest.days) } : null, empty: !items.length };
+  // Clients waiting for an editor: no clock on them (30.10.2026), so the owners see how many and the oldest.
+  const checksById = Object.fromEntries(live.map((c) => [c.id, checksOf(c)]));
+  const queue = awaitingEditor({ clients: live, stateOf, checks: checksById });
+  const assignDays = (a) => (a.state.startAt ? Math.max(0, daysBetweenIL(a.state.startAt, now)) : 0);
+  const oldest = queue.reduce((x, a) => (!x || assignDays(a) > assignDays(x) ? a : x), null);
+  const assign = oldest ? { n: queue.length, days: assignDays(oldest), name: clientLabel(oldest.client) } : null;
+  return { day: todayKey, rows, totals, items, waiting, assign, waitingLongest: longest ? { days: longest.days, name: longest.name, words: waitDays(longest.days) } : null, empty: !items.length };
 }
 
 // "היום: 6 באיחור אצל 3 עובדים, 4 לא בוצעו": the push says the numbers by itself.
@@ -106,9 +113,16 @@ export function headline(sum) {
 const rowText = (r) => `${r.name}: ${[r.late ? `${r.late} באיחור (הארוך: ${r.longest})` : null, r.today ? (r.today === 1 ? 'אחד מהיום לא בוצע' : `${r.today} מהיום לא בוצעו`) : null].filter(Boolean).join(', ')}`;
 // The lines of the push under its title: the headline, then a line per employee.
 export function pushLines(sum, max = EOD.pushPeople) {
-  if (sum.empty) return [EMPTY_DAY];
+  const line = assignText(sum);
+  if (sum.empty) return [EMPTY_DAY, ...(line ? [line] : [])];
   const rest = sum.rows.length - max;
-  return [headline(sum), ...sum.rows.slice(0, max).map(rowText), ...(rest > 0 ? [`ועוד ${count(rest, 'עובד אחד', 'עובדים')} בטבלה`] : [])];
+  return [headline(sum), ...sum.rows.slice(0, max).map(rowText), ...(rest > 0 ? [`ועוד ${count(rest, 'עובד אחד', 'עובדים')} בטבלה`] : []), ...(line ? [line] : [])];
+}
+// "מחכים לשיוך עורך: 12, הכי ותיק 5 ימים (פינת החי)".
+export function assignText(sum) {
+  if (!sum.assign) return '';
+  const { n, days, name } = sum.assign;
+  return `מחכים לשיוך עורך: ${n}${days ? `, הכי ותיק ${days === 1 ? 'יום אחד' : `${days} ימים`} (${name})` : ''}`;
 }
 // The same day as one WhatsApp text, for when the channel is connected (not sent now).
 // The sentence about work that is late on paper and waits for the client's answer: how many,
