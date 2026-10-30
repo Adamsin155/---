@@ -92,6 +92,7 @@
           <button type="button" role="tab" class="tab" id="tab-now" aria-controls="view-now">מה דורש אותי</button>
           <button type="button" role="tab" class="tab" id="tab-all" aria-controls="view-all">כל הלקוחות במבט</button>
           <button type="button" role="tab" class="tab" id="tab-eod" aria-controls="view-eod" hidden>סיכום היום</button>
+          <button type="button" role="tab" class="tab" id="tab-work" aria-controls="view-work" hidden>עבודה לפי עובד</button>
           <button type="button" role="tab" class="tab" id="tab-table" aria-controls="view-table" hidden>טבלה</button>
           <button type="button" role="tab" class="tab" id="tab-shoots" aria-controls="view-shoots" hidden>ימי צילום</button>
           <button type="button" role="tab" class="tab" id="tab-archive" aria-controls="view-archive" hidden>ארכיון</button>
@@ -152,6 +153,11 @@
           <p class="eod-note" id="eod-wait" hidden></p>
           <p class="eod-note" id="eod-assign" hidden></p>
           <p class="eod-note" id="eod-about">נספר מה שעבר את היעד שלו ונמצא אצל מישהו מהצוות, ומה שהיעד שלו היום ועוד פתוח. לקוחות בקליטה, ״ממתין ללקוח״ ועריכה עצורה לא נספרים. ההודעה היומית יוצאת ב־19:00 (בערב חג ב־13:00).</p>
+        </section>
+
+        <!-- Who did what on which day (app/work-history-logic.js; docs/ops.md, section 82). -->
+        <section class="block ow-view wh-view" id="view-work" role="tabpanel" aria-labelledby="tab-work" hidden>
+          <div id="wh-body" aria-live="polite"></div>
         </section>
 
         <!-- The manager table (app/manager-table.js): one row per client. The price columns

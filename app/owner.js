@@ -22,13 +22,13 @@ import {
 } from './health.js';
 import { healthBadge, reasonText, nextText, stationBar, markOwnerLanded } from './health-ui.js';
 import {
-  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, leafOf, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN, progressBar, capList
+  $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, leafOf, leafFar, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN, progressBar, capList
 } from './protocol-ui.js';
 import { canManageTeam, isOwnerView } from './team-rules.js';
 import { mountLandingControl } from './landing-control.js';
 import { canSeeInsights } from './insights.js';
 import { canSendMessages } from './messages-logic.js';
-import { TZ, dayKeyIL, daysBetweenIL } from './tz.js';
+import { TZ, dayKeyIL, dayFromKeyIL, daysBetweenIL } from './tz.js';
 // The manager profile (app/manager-rules.js): the table and the archive.
 import { canArchive, canSeeTable, canSeeShootTable, seesFinance, sameName } from './manager-rules.js';
 import {
@@ -43,6 +43,9 @@ import { countUp, growOnce, glide } from './shell.js';
 import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeClient } from './manager-data.js';
 // The owners' end of the day (docs/ops.md, section 48): the same numbers as the 19:00 message.
 import { daySummary, headline, waitingText, assignText } from './day-summary.js';
+// Who did what on which day (docs/ops.md, section 82).
+import { WORK_DAYS, canSeeWorkHistory, workHistory, lastWork } from './work-history-logic.js';
+import { loadWorkHistory } from './work-history-data.js';
 import { icon as kIcon, iconSquare, headIcon, besideIcon, leadIcon, dateLeaf } from './kit.js';
 import { warm, taken } from './supa.js';
 
@@ -194,13 +197,14 @@ function renderKeepingFocus() {
 }
 
 // ── Tabs ────────────────────────────────────
-const TABS = ['now', 'all', 'eod', 'table', 'shoots', 'archive'];
+const TABS = ['now', 'all', 'eod', 'work', 'table', 'shoots', 'archive'];
 const tabsShown = () => TABS.filter((t) => !$(`tab-${t}`).hidden);
 // The page's heading follows the tab.
 const VIEW_TITLES = {
   now: ['מה דורש אותי', 'רק מה שחרג, עם שם אחד וסיבה אחת. הכול מחושב ממה שהצוות מסמן.'],
   all: ['כל הלקוחות במבט', 'איפה כל לקוח, מה הבא, מי ומתי. לחיצה על לקוח מציגה את השאר.'],
   eod: ['סיכום היום', 'כמה פריטים באיחור אצל כל עובד, ומה היה להיום ועוד לא בוצע.'],
+  work: ['עבודה לפי עובד', 'מה כל עובד עשה בכל יום. בוחרים עובד, ואז יום.'],
   table: ['כל הלקוחות בטבלה', 'שורה לכל לקוח: מה בחוזה, איפה הוא עומד, מה הבא ומה בוצע. מיון, סינון וייצוא.'],
   shoots: ['טבלת ימי צילום', 'כל הלקוחות הפעילים לפי יום הצילום האחרון שהתקיים: מי שצולם הכי מזמן למעלה, ומתחתם מי שטרם צולם.'],
   archive: ['ארכיון', 'לקוחות שהועברו לארכיון: שחזור, או מחיקה לצמיתות.'],
@@ -248,6 +252,7 @@ $('ow-tabs').addEventListener('keydown', (e) => {
 function render() {
   if (view === 'now') renderNow();
   else if (view === 'eod') renderEod();
+  else if (view === 'work') renderWork();
   else if (view === 'table') renderTable();
   else if (view === 'shoots') renderShoots();
   else if (view === 'archive') renderArchive();
@@ -438,6 +443,67 @@ function renderEod() {
   $('eod-wait').textContent = waitingText(sum);
   $('eod-assign').hidden = !sum.assign;
   $('eod-assign').textContent = assignText(sum);
+}
+
+// ── Work per employee ───────────────────────
+// Read when the tab opens, and again when it opens a minute later, so today stays up to date.
+const work = { days: WORK_DAYS, data: null, at: 0, busy: false, failed: false, person: null, open: null };
+async function loadWork(days = work.days) {
+  if (work.busy) return;
+  work.busy = true;
+  work.failed = false;
+  try {
+    work.data = await loadWorkHistory(days);
+    work.days = days;
+    work.at = Date.now();
+  } catch {
+    work.failed = true;
+  }
+  work.busy = false;
+  if (view === 'work') renderWork();
+}
+const whDayLeaf = (day, now) => dateLeaf({ ...leafFar(dayFromKeyIL(day), now), sub: null, tone: 'teal' });
+function whPerson(p, now) {
+  const today = dayKeyIL(now);
+  const last = lastWork(p, today);
+  return h('li', {}, h('button', { type: 'button', class: 'wh-row', id: `wh-p-${p.person}`, onclick: () => { work.person = p.person; work.open = null; renderWork(); $('wh-back')?.focus(); } },
+    personChip(p.person),
+    h('span', { class: 'wh-sum' }, last ? `${last.isToday ? 'היום' : 'לאחרונה'}: ${last.line}` : `אין פעולות ב־${work.days} הימים האחרונים`)));
+}
+function whDay(d, now) {
+  const open = work.open === d.day;
+  const id = `wh-d-${d.day}`;
+  return h('li', { class: 'wh-day' },
+    h('button', { type: 'button', class: 'wh-row', id, 'aria-expanded': String(open), 'aria-controls': `${id}-b`, onclick: () => { work.open = open ? null : d.day; renderWork(); $(id)?.focus(); } },
+      whDayLeaf(d.day, now), h('span', { class: 'wh-sum' }, d.line)),
+    h('ul', { class: 'wh-clients', id: `${id}-b`, hidden: !open }, ...d.clients.map((c) => h('li', {},
+      h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(c.cid)}` }, c.name),
+      h('span', { class: 'wh-what' }, c.lines.join(' · '))))));
+}
+function renderWork() {
+  const fresh = Date.now() - work.at < 60000;
+  if (!work.busy && !work.failed && (!work.data || !fresh)) loadWork();
+  if (!work.data) {
+    fill($('wh-body'), h('p', { class: 'muted' }, work.failed ? 'לא הצלחנו לטעון. נסו לרענן את העמוד.' : 'טוען…'));
+    return;
+  }
+  const now = new Date();
+  const people = workHistory({ ...work.data, clients: allClients, personOf: (e) => directory[String(e || '').toLowerCase()] || null });
+  const p = people.find((x) => x.person === work.person);
+  if (!p) {
+    fill($('wh-body'), h('ul', { class: 'wh-list', id: 'wh-people' }, ...people.map((x) => whPerson(x, now))));
+    return;
+  }
+  const editor = !!PEOPLE[p.person]?.editor;
+  fill($('wh-body'),
+    h('button', { type: 'button', class: 'btn btn-sm wh-back', id: 'wh-back', onclick: () => { const from = work.person; work.person = null; renderWork(); $(`wh-p-${from}`)?.focus(); } }, 'כל העובדים'),
+    h('h2', { class: 'wh-name', id: 'wh-name' }, p.name),
+    p.days.length ? h('ul', { class: 'wh-list', id: 'wh-days' }, ...p.days.map((d) => whDay(d, now)))
+      : h('p', { class: 'muted' }, `אין פעולות ב־${work.days} הימים האחרונים.`),
+    h('button', { type: 'button', class: 'btn btn-sm wh-more', id: 'wh-more', disabled: work.busy, onclick: () => loadWork(work.days + WORK_DAYS) }, 'ימים קודמים'),
+    h('p', { class: 'eod-note', id: 'wh-about' }, editor
+      ? 'הסרטונים נספרים לפי מה שהעורך מעדכן בכרטיס שלו, מהיום שבו הספירה הופעלה.'
+      : 'נספר מה שסומן והועלה במערכת. סימון שסומן שוב נספר ביום של הסימון האחרון.'));
 }
 
 // ── Asking the responsible person ───────────
@@ -826,6 +892,7 @@ mountSession(async (staff) => {
   $('tab-table').hidden = !mayTable;
   $('tab-shoots').hidden = !mayShoots;
   $('tab-eod').hidden = !mayEod;
+  $('tab-work').hidden = !canSeeWorkHistory(v);
   $('tab-archive').hidden = !mayArchive;
   $('ow-tabs').hidden = tabsShown().length < 2;
   // Someone with a person of their own goes back to their own tasks; the owner to the team's work.

@@ -384,3 +384,17 @@
 .eod-item .eod-how { align-self: start; }
 .eod-item .eod-how.is-late { justify-self: end; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-hot-soft); }
 .eod-item .eod-how:not(.is-late) { justify-self: end; padding: 2px 10px; border-radius: var(--ds-r-pill); background: var(--ds-amber-soft); color: var(--ds-amber); font-weight: 600; }
+
+/* "עבודה לפי עובד" (owner.html#work; docs/ops.md, section 82). */
+.wh-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+.wh-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 12px; text-align: start; font: inherit; color: inherit; background: var(--surface, #fff); border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; }
+.wh-row:hover { border-color: var(--line-strong); }
+.wh-sum { flex: 1; min-width: 0; font-size: 15px; color: var(--ds-ink-2); overflow-wrap: anywhere; }
+.wh-back { margin: 0 0 12px; }
+.wh-name { margin: 0 0 12px; font-family: var(--font-h); font-size: 22px; }
+.wh-more { margin: 0 0 12px; }
+.wh-clients { list-style: none; margin: 6px 0 0; padding: 0 12px; display: grid; gap: 8px; }
+.wh-clients > li { display: grid; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.wh-clients > li:last-child { border-bottom: 0; }
+.wh-clients .wclient { font-weight: 600; overflow-wrap: anywhere; }
+.wh-what { font-size: 14px; color: var(--text-2); overflow-wrap: anywhere; }
