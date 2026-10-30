@@ -19,9 +19,9 @@ const GATED = SCREENS.filter((p) => p !== 'gantt.html');
 const GATE = '<script src="app/login-gate.js"></script>';
 const SHEET = '<link rel="stylesheet" href="app/styles/login.css">';
 
-test('the twenty-two pages keep one small form shell; the rest is built in one place', () => {
-  // 21 since the calendar page (calendar.html, 15.10.2026); 22 with "שאלו את המערכת" (ask.html, 29.10.2026).
-  assert.equal(WITH_FORM.length, 22);
+test('the twenty-three pages keep one small form shell; the rest is built in one place', () => {
+  // 21 since the calendar page (calendar.html, 15.10.2026); 22 with "שאלו את המערכת" (ask.html, 29.10.2026); 23 with the Claude consent page (mcp-consent.html, 30.10.2026).
+  assert.equal(WITH_FORM.length, 23);
   const shells = new Set();
   for (const page of SCREENS) {
     const html = read(page);

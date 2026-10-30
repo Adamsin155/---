@@ -1,7 +1,8 @@
 /* The page where someone approves connecting their Claude account (mcp-consent.html;
    docs/ops.md, section 84). One card, a few short lines, two buttons. */
-body { background: var(--ds-bg, #EEF0F4); }
-.mc-shell { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 16px; max-width: none; margin: 0; }
+body { padding: 0; }
+/* One card on the plain page: the app's panel behind <main> is not drawn here. */
+main.mc-shell { box-sizing: border-box; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 16px; max-width: none; width: 100%; margin: 0; background: none; border: 0; border-radius: 0; box-shadow: none; }
 #app { width: 100%; max-width: 460px; }
 .mc-card { background: #fff; border-radius: 20px; padding: 24px 20px; box-shadow: 0 8px 30px rgba(7, 20, 51, .10); }
 .mc-logo { display: block; width: 76px; height: auto; margin: 0 0 12px; }
@@ -17,10 +18,10 @@ body { background: var(--ds-bg, #EEF0F4); }
 .mc-acts { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
 .mc-acts .btn { width: 100%; min-height: 48px; justify-content: center; }
 .mc-err { margin: 14px 0 0; color: var(--danger, #B3261E); font-size: 15px; }
-.mc-who { margin: 16px 0 0; font-size: 14px; color: var(--ds-muted, #4A5568); overflow-wrap: anywhere; }
-.mc-other { background: none; border: 0; padding: 0 4px; min-height: 44px; font: inherit; color: var(--accent-deep, #071433); text-decoration: underline; cursor: pointer; }
+.mc-who { margin: 16px 0 0 0; font-size: 14px; color: var(--ds-muted, #4A5568); overflow-wrap: anywhere; }
+.mc-other { display: block; background: none; border: 0; padding: 0 4px; min-height: 44px; font: inherit; color: var(--accent-deep, #071433); text-decoration: underline; cursor: pointer; }
 @media (min-width: 720px) {
   .mc-card { padding: 32px; }
-  .mc-acts { flex-direction: row-reverse; justify-content: flex-start; }
+  .mc-acts { flex-direction: row; }
   .mc-acts .btn { width: auto; flex: 1; }
 }

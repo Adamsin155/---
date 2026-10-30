@@ -42,7 +42,7 @@ export function paintMcpCard(list, before, reload, nameOf) {
       h('div', { class: 'tm-mcp-who' },
         h('strong', {}, nameOf(row.email)),
         h('span', { class: 'muted', dir: 'ltr' }, row.email),
-        h('span', { class: 'muted', id: `mcp-used-${i}` }, usageWords(row.last_used, formatWhen))),
+        h('span', { class: 'muted', id: `mcp-used-${i}` }, usageWords(row.last_used, (at) => formatWhen(new Date(at))))),
       h('label', { class: 'switch' },
         h('input', {
           type: 'checkbox', id: `mcp-on-${i}`, role: 'switch', checked: row.enabled, 'aria-label': `חיבור ל־Claude: ${nameOf(row.email)}, ${row.email}`,

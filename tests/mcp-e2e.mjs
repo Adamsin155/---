@@ -144,6 +144,7 @@ const NARROW = { viewport: { width: 390, height: 844 } };
 
 let failures = 0;
 async function step(name, fn) {
+  if (process.env.MCP_ONLY && !new RegExp(process.env.MCP_ONLY).test(name)) return;
   try { await fn(); console.log(`ok - ${name}`); } catch (err) { failures += 1; console.log(`not ok - ${name}\n  ${String(err.stack || err).slice(0, 900)}`); }
 }
 
@@ -180,7 +181,8 @@ try {
       assert.match(await page.locator('#mc-who').innerText(), /lior@astrateg\.test/);
       assert.equal(await noSideScroll(page), true);
       assert.deepEqual(await smallTargets(page, '#mc-yes, #mc-no, #mc-other'), []);
-      assert.equal(await page.evaluate(() => document.documentElement.dataset.door ?? 'none'), 'none', 'the night is gone from over the question');
+      // The sign-in's night lifts off the question by itself, after the green button.
+      await page.waitForFunction(() => !('door' in document.documentElement.dataset), null, { timeout: 5000 });
       await shot(page, `consent-ask-${label.replace(/\W+/g, '-')}`);
       await page.locator('#mc-yes').click();
       await page.waitForURL(`${CALLBACK}?code=abc&state=s1`);
@@ -359,7 +361,7 @@ try {
       calls.length = 0;
       const { page, ctx, errors } = await opened(chrome, 'owner', options);
       await page.goto(`${BASE}team.html`);
-      await page.locator('#mcp-panel').waitFor();
+      await page.locator('#mcp-panel .tm-mcp-row').first().waitFor();
       const card = page.locator('#mcp-panel');
       assert.equal(await card.locator('.tm-mcp-row').count(), 3);
       assert.match(await card.innerText(), /שימוש אחרון/);

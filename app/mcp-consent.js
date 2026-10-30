@@ -80,16 +80,17 @@ function consentScreen(details, email) {
     el('div', { class: 'mc-acts' },
       el('button', { type: 'button', class: 'btn btn-primary', id: 'mc-yes', onclick: () => decide('approve') }, 'אישור'),
       el('button', { type: 'button', class: 'btn', id: 'mc-no', onclick: () => decide('deny') }, 'לא עכשיו')),
-    el('p', { class: 'mc-who', id: 'mc-who' }, `מחובר/ת בתור ${email || ''} · `, anotherAccount()));
+    el('p', { class: 'mc-who', id: 'mc-who' }, `מחובר/ת בתור ${email || ''}`), anotherAccount());
 }
 
 // Signed in: is this person on the list, and what does Supabase say of this request?
 async function ask() {
   const email = await sessionEmail().catch(() => null);
-  const allowed = await supabase.rpc('mcp_allowed').catch(() => ({ error: true }));
+  // (A database call is a thenable with no .catch of its own.)
+  const allowed = await Promise.resolve(supabase.rpc('mcp_allowed')).catch(() => ({ error: true }));
   // Before the migration, or on a failure: no button either.
   if (allowed.error || allowed.data !== true) {
-    show('אין גישה', sub(CONSENT_WORDS.not_allowed), el('p', { class: 'mc-who', id: 'mc-who' }, `מחובר/ת בתור ${email || ''} · `, anotherAccount()));
+    show('אין גישה', sub(CONSENT_WORDS.not_allowed), el('p', { class: 'mc-who', id: 'mc-who' }, `מחובר/ת בתור ${email || ''}`), anotherAccount());
     return;
   }
   const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(AUTH_ID).catch(() => ({ error: true }));
