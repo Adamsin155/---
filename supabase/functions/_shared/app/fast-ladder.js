@@ -28,7 +28,7 @@
 //     (then the fix's own deadline holds, and it is his).
 import { FAST_LADDER } from './protocol.js';
 import {
-  addFastMinutes, fastMsBetween, fastOpen, nextFastMoment, inLanding, workFloor, isImported, clientLabel,
+  addFastMinutes, fastMsBetween, fastOpen, nextFastMoment, inLanding, workFloor, clientLabel,
 } from './protocol-logic.js';
 import { QA_KINDS, GRAPHICS_KINDS, kindOfProc, qaState } from './office-marks.js';
 
@@ -87,14 +87,12 @@ export const MEETING_WORDS = 'ממתין לסוף פגישת האפיון';
 const baseId = (id) => String(id).replace(/^r\d+-/, '');
 const preOf = (proc) => { const kb = proc.keyBase || proc.id; return kb.slice(0, kb.length - baseId(proc.id).length); };
 const live = (c) => c?.status === 'active' || c?.status === 'ending';
-const settled = (c) => !!c && (c.state === 'done' || c.state === 'na');
 
 // Where each case is done: Ofir's screen, opened on that very check or assignment.
 export const reviewUrl = (clientId, procId) => `qa.html#review-${encodeURIComponent(clientId)}-${procId}`;
-export const assignUrl = (clientId, round = null) => `qa.html#assign-${encodeURIComponent(clientId)}${round ? `-r${round}` : ''}`;
 
 // The case of one process state of one client, or null.
-//   { kind: 'review' | 'assign', qa (the QA kind of a review), spec, client, cid, state,
+//   { kind: 'review', qa (the QA kind), spec, client, cid, state,
 //     proc, procId, pre, n (the shoot round of an assignment), round (the number of this
 //     check: 2 after one return), t0, startAt (the first moment of the window at or after
 //     T0: when the first ring goes), dueAt (T0 + minutes), tellAt (+ more), what, url,
@@ -123,14 +121,6 @@ export function fastCaseOf(client, s, states, checks, meetings = known) {
     const q = qaState(checks, pre, qa);
     if (q.stage !== 'ofir') return null;
     return make('review', q.readyAt, { qa, round: q.round, what: k.title, url: reviewUrl(client.id, s.proc.id) });
-  }
-  if (b === 'p22a') {
-    if (settled(checks[`${pre}p22a.assigned`])) return null;
-    const p19 = states.find((x) => x.proc.id === `${s.proc.id.slice(0, s.proc.id.length - b.length)}p19`);
-    // Only a shoot day closed for real: imported history is not an event.
-    if (!p19?.complete || !p19.completedAt || isImported(p19.proc, checks)) return null;
-    const n = s.proc.ctx?.round || null;
-    return make('assign', p19.completedAt, { qa: null, n, round: 1, what: `שיוך עורך${n ? ` · סבב ${n}` : ''}`, url: assignUrl(client.id, n) });
   }
   return null;
 }
@@ -181,7 +171,7 @@ export function ladderWords(c, now = new Date(), { waiting = false, managerName 
   const t = ladderAt(c, now);
   const left = `${minutesLeft(t.remaining)} דק׳`;
   if (waiting) {
-    const where = c.kind === 'assign' ? `אצל ${whoName} לשיוך עורך` : `אצל ${whoName} לבדיקה`;
+    const where = `אצל ${whoName} לבדיקה`;
     if (t.meeting && t.phase === 'run') return `${where} · ${whoName} בפגישת אפיון`;
     return t.phase === 'run' ? `${where} · נשארו ${left}` : `${where} · באיחור`;
   }

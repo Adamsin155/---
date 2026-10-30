@@ -925,9 +925,9 @@ await step('Lior\'s shoot-day mode: quiet mode from Eli\'s arrival, the timeline
   await shot(page, 'lior-shoot');
   await page.click(`#${S_ID}-close`);
   // The toast says what really happens: Ofir is rung to assign the editor (protocol v9; nothing is assigned by itself).
-  await toastHas(page, 'יום הצילום נסגר. אופיר קיבל הודעה לשייך עורך.');
+  await toastHas(page, 'יום הצילום נסגר. עובר לאופיר לשיוך עורך.');
   for (const k of ['p18.order', 'p18.all', 'p19.all', 'p19.drive', 'p19.took', 'p19.testimonial']) assert.ok(checkOf(S, k), k);
-  assert.match(await text(page, sCard), /יום הצילום נסגר[^]*אופיר קיבל הודעה לשייך עורך/);
+  assert.match(await text(page, sCard), /יום הצילום נסגר[^]*עובר לאופיר לשיוך עורך/);
   assert.doesNotMatch(await text(page, sCard), /ישויך אוטומטית/);
   // Closed: the counter is final (no "+1", no "ביטול סרטון"), and the drive is with Lior.
   assert.equal(await page.locator(`#${S_ID}-plus, #${S_ID}-minus`).count(), 0);
@@ -1051,7 +1051,7 @@ await step('Eliel\'s day: the counter to Lior\'s number, no testimonial required
   await shot(page, '390-solo-shoot-card');
   if (OUT) await page.locator(`#${SL_ID}`).screenshot({ path: `${OUT}/390-solo-shoot-card-only.png` });
   await page.click(`#${SL_ID}-close`);
-  await toastHas(page, 'יום הצילום נסגר. אופיר קיבל הודעה לשייך עורך.');
+  await toastHas(page, 'יום הצילום נסגר. עובר לאופיר לשיוך עורך.');
   assert.doesNotMatch(await text(page, '#toast'), /אלי קיבל/);
   for (const k of ['p18.order', 'p18.all', 'p19.all', 'p19.drive', 'p19.took']) assert.ok(checkOf(SL, k), k);
   assert.equal(checkOf(SL, 'p19.testimonial'), null, 'not required, not marked');

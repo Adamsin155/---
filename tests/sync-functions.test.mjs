@@ -17,7 +17,7 @@ test('shared copy covers pricing.js, the reminder engine and everything they imp
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
     'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'contract-summary.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'fast-ladder.js', 'files-logic.js', 'gcal-logic.js', 'handoffs.js', 'health.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'manager-rules.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
-    'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
+    'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
     'shell-rules.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'team-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
 });
@@ -136,7 +136,7 @@ const DEPLOY = {
     'metricool/sync.js',
   ],
   reminders: [
-    ...APP('access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
+    ...APP('access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
     '_shared/wa-jako-reply.js',
     '_shared/wa-jako.js',
@@ -153,7 +153,7 @@ const DEPLOY = {
     'staff-admin/rules.js',
   ],
   'whatsapp-webhook': [
-    ...APP('access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'reminder-rules.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
+    ...APP('qa-logic.js', 'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'reminder-rules.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
     '_shared/wa-jako-reply.js',
     '_shared/wa-jako.js',

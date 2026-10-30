@@ -249,9 +249,9 @@ test('the suggestion in Ofir\'s dialog (it was the automatic assignment): Natali
   assert.deepEqual(ladderOf(w, now), []);
   closeDay(w, dms);
   closeDay(w, nat);
-  // Both wait for Ofir, each on his ten-minute ladder from the closing; no editor was written anywhere.
+  // Both wait for Ofir, with no clock (30.10.2026); no editor was written anywhere.
   assert.deepEqual(waitingOf(w, now).map((a) => a.client.name).sort(), ['דמס', 'נטלי']);
-  assert.deepEqual(ladderOf(w, now).map((f) => [f.client.name, hhmm(f.dueAt)]).sort(), [['דמס', '18.10 17:10'], ['נטלי', '18.10 17:10']]);
+  assert.deepEqual(ladderOf(w, now), []);
   assert.deepEqual([dms.editor ?? null, nat.editor ?? null, w.checks[dms.id]['p22a.assigned']], [null, null, undefined]);
   // What the dialog marks: by the rule for Natali, by the load otherwise.
   assert.deepEqual(suggestEditor(loadOf(w, now), 'dms'), { editor: 'anna', why: 'load' });
@@ -266,20 +266,14 @@ test('the suggestion in Ofir\'s dialog (it was the automatic assignment): Natali
   assert.deepEqual(suggestEditor(loadOf(w, now), 'dms'), { editor: 'yariv', why: 'load' });
   // Never the editor being replaced (a swap).
   assert.equal(suggestEditor(loadOf(w, now), 'dms', false, ['yariv']).editor, 'anna');
-  // Imported history is not a closed day: no ladder.
-  const imp = shotClient(w, { name: 'מיובא' });
-  marks(w, imp, itemsOf('p19'), IL(2026, 10, 18, 17), IMPORT_NOTE);
-  assert.ok(!ladderOf(w, now).some((f) => f.client.id === imp.id));
 });
 
-test('the shoot day closed: Ofir is rung to assign; once he does, the editor\'s ladder starts; a client assigned automatically before the change stays as it is', () => {
+test('the shoot day closed: no ring on the spot (Ofir hears at 12:00); once he assigns, the editor\'s ladder starts; a client assigned automatically before the change stays as it is', () => {
   const w = world();
   const c = shotClient(w);
   closeDay(w, c);
   const now = IL(2026, 10, 18, 17, 1);
-  const ring = one(due(w, now), 'fast', 'now', 'ofir');
-  assert.equal(ring.level, 'ring');
-  assert.match(ring.body, /^יום הצילום נסגר\. 10 דקות לשייך, עד 17:10\./);
+  none(due(w, now), 'fast');
   none(due(w, now), 'autoAssigned');
   none(due(w, now), 'editing');
   assignAs(w, c, 'anna', IL(2026, 10, 18, 17, 4));
@@ -404,7 +398,7 @@ test('"מיד" gets 15 office minutes before it is late anywhere; Ofir and Lior 
   assert.deepEqual(Object.fromEntries(Object.entries(ANSWER_CLOCKS).map(([k, v]) => [k, v.minutes])), { p07: 10, p23: 10, p26: 5 });
 });
 
-test('the shoot day closed and the editor assigned by Ofir: 22א is whole; while it waits it is his fast ladder\'s alone, never a note of the rule `late`', () => {
+test('the shoot day closed and the editor assigned by Ofir: 22א is whole; while it waits it is never a note of the rule `late`', () => {
   const w = world();
   const c = shotClient(w);
   closeDay(w, c, IL(2026, 10, 18, 16)); // Sunday 16:00
@@ -425,14 +419,13 @@ test('the shoot day closed and the editor assigned by Ofir: 22א is whole; while
   assignAs(w2, d, 'anna', now);
   assert.equal(w2.checks[d.id]['p22a.drive'], undefined);
   assert.equal(clientState(d, w2.checks[d.id], now).states.find((x) => x.proc.id === 'p22a').complete, false);
-  // Nobody assigns: it is late after Ofir's ten minutes, and the fast ladder is the only thing that says so
-  // (Lior is told by it at 16:15; the rule `late` adds nothing, at any hour).
+  // Nobody assigns: it is never late (no clock since 30.10.2026), and neither the ladder nor the rule `late` says anything.
   const w3 = world();
   const e = shotClient(w3);
   closeDay(w3, e, IL(2026, 10, 18, 16));
   const late3 = (t) => due(w3, t).filter((r) => r.rule === 'late' && r.key.includes(':p22a@')).map((r) => r.person).sort();
   for (const t of [IL(2026, 10, 18, 16, 29), IL(2026, 10, 18, 16, 30), IL(2026, 10, 19, 9, 0), IL(2026, 10, 19, 14, 0)]) assert.deepEqual(late3(t), [], hhmm(t));
-  assert.deepEqual(due(w3, IL(2026, 10, 18, 16, 15)).filter((r) => r.rule === 'fast').map((r) => `${r.step}@${r.person}`).sort(), ['late@ofir', 'lior@lior', 'now@ofir']);
+  assert.deepEqual(due(w3, IL(2026, 10, 18, 16, 15)).filter((r) => r.rule === 'fast'), []);
 });
 
 // Found live (6.10.2026): lists, clocks, the Thursday summary and reminder titles named

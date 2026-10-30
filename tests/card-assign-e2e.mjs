@@ -174,7 +174,8 @@ try {
       await btn.click();
       await page.waitForSelector('#dlg-assign[open]');
       assert.match(await text(page.locator('#as-h')), /^שיוך עורך · נועם פרץ$/);
-      assert.match(await text(page.locator('#as-meta')), /לשייך עד היום 10:06/);
+      assert.doesNotMatch(await text(page.locator('#as-meta')), /לשייך עד/);
+      assert.equal(await page.locator('#as-days-wrap').isVisible(), true);
       assert.match(await text(page.locator('#as-after')), /השיוך מסמן את 22א/);
       assert.equal(await page.locator('#as-editors input:checked').getAttribute('value'), 'anna');
       assert.equal(await text(page.locator('#as-suggested')), 'מומלץ לפי עומס');

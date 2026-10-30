@@ -168,5 +168,6 @@ test('v1 client: editing is due 5 business days from the shoot as it started, ev
   // 22א itself (all of it from version 2) is open work, never late.
   const p22a = proc(stateOf(c1, checks, IL(2026, 11, 20, 10)), 'p22a');
   assert.equal(p22a.status === 'overdue', false);
-  assert.equal(proc(stateOf(client({ protocol_version: 2, shoot_at: shoot.toISOString() }), checks, IL(2026, 11, 20, 10)), 'p22a').status, 'overdue');
+  // No client's 22א is late since 30.10.2026 (the owner: no clock on the assignment).
+  assert.notEqual(proc(stateOf(client({ protocol_version: 2, shoot_at: shoot.toISOString() }), checks, IL(2026, 11, 20, 10)), 'p22a').status, 'overdue');
 });

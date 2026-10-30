@@ -1,8 +1,8 @@
 // Protocol version 9 in the browser (docs/ops.md, section 57), each role signed in as itself, on a phone
 // (390px) and on a desktop (1280px), against the office of tests/flow-world.mjs (Tuesday 20.10.2026,
 // 10:00 in Israel; invented names):
-//   1  Ofir's "המשימות שלי": the countdown of the graphics he has to check ("נשארו 7:00") and of the editor
-//      he has to assign ("נשארו 6:00"), each with a button straight to the place;
+//   1  Ofir's "המשימות שלי": the countdown of the graphics he has to check ("נשארו 7:00"), with a button
+//      straight to the place; the editor he has to assign has no clock (30.10.2026), its card opens the place;
 //   2  the assignment: the ring's address opens the dialog on that client with the editor "מומלץ לפי עומס"
 //      already chosen; one tap on "שיוך" writes the editor and 22א's marks, closes Lior's "the drive came back"
 //      (he confirmed it when he closed the shoot day), and the clock is gone;
@@ -94,31 +94,31 @@ async function step(name, fn) {
 
 try {
   for (const width of [390, 1280]) {
-    await step(`${width}px · Ofir's "עכשיו": the graphics to check and the editor to assign, each counting down, each with its button`, async () => {
+    await step(`${width}px · Ofir's "עכשיו": the graphics to check count down with their button; the editor to assign has no clock`, async () => {
       const { page, ctx } = await signedIn('ofir', office(), { width });
       const clocks = page.locator('#now-bar .now-clock.k-fast');
       await clocks.first().waitFor();
-      assert.equal(await clocks.count(), 2);
-      const assign = clocks.filter({ hasText: 'פרץ נדל״ן' });
+      assert.equal(await clocks.count(), 1);
+      assert.equal(await clocks.filter({ hasText: 'פרץ נדל״ן' }).count(), 0);
       const review = clocks.filter({ hasText: 'סטודיו גל' });
-      // 09:56 + 10 minutes = 10:06 (six minutes left at 10:00, less the seconds the page took to open); 09:57 + 10 = 10:07.
-      assert.match(await text(assign), /^נשארו (6:00|5:5\d) .*לשייך עורך .*תהליך 22א · הגיע היום 09:56 · יעד היום 10:06 שיוך עורך$/);
+      // 09:57 + 10 minutes = 10:07 (seven minutes left at 10:00, less the seconds the page took to open).
       assert.match(await text(review), /^נשארו (7:00|6:5\d) .*לבדוק ולאשר: 9 הגרפיקות הראשונות .*תהליך 7 · הגיע היום 09:57 · יעד היום 10:07 לבדיקה$/);
-      assert.deepEqual([await assign.getAttribute('data-phase'), await review.getAttribute('data-phase')], ['run', 'run']);
-      assert.equal(await assign.locator('a.now-go').getAttribute('href'), `qa.html#assign-${SHOT}`);
+      assert.equal(await review.getAttribute('data-phase'), 'run');
       assert.equal(await review.locator('a.now-go').getAttribute('href'), `qa.html#review-${GFX}-p07`);
-      for (const c of [assign, review]) { assert.ok((await c.locator('a.now-go').boundingBox()).height >= 44); await inside(page, c.locator('a.now-go')); await inside(page, c.locator('.now-left')); }
+      assert.ok((await review.locator('a.now-go').boundingBox()).height >= 44);
+      await inside(page, review.locator('a.now-go'));
+      await inside(page, review.locator('.now-left'));
       // The clock runs: a minute later it reads a minute less.
       await page.clock.fastForward(60_000);
-      await page.waitForFunction(() => [...document.querySelectorAll('#now-bar .now-clock.k-fast .now-left')].some((e) => /^(5:00|4:5\d)$/.test(e.textContent.trim())));
-      // The card of 22א carries the same door; the plain "soon" clock of that process is not there twice.
+      await page.waitForFunction(() => [...document.querySelectorAll('#now-bar .now-clock.k-fast .now-left')].some((e) => /^(6:00|5:5\d)$/.test(e.textContent.trim())));
+      // The card of 22א is the door to the assignment; no "soon" clock for that process either.
       assert.equal(await card(page, SHOT, 'p22a').locator('a.ik-go').getAttribute('href'), `qa.html#assign-${SHOT}`);
       assert.equal(await page.locator('#now-bar .now-clock.k-soon').filter({ hasText: 'פרץ נדל״ן' }).count(), 0);
       await noOverflow(page);
       await shot(page, `ofir-mine-${width}`);
       // Past the ten minutes and the extra five: "באיחור · ליאור עודכן", in words that fit the column.
       await page.clock.fastForward(16 * 60_000);
-      await page.waitForFunction(() => document.querySelectorAll('#now-bar .now-clock.k-fast[data-phase="told"]').length === 2);
+      await page.waitForFunction(() => document.querySelectorAll('#now-bar .now-clock.k-fast[data-phase="told"]').length === 1);
       assert.match(await text(clocks.first()), /^באיחור ליאור עודכן /);
       await inside(page, clocks.first().locator('.now-left'));
       await noOverflow(page);
@@ -126,11 +126,16 @@ try {
       await ctx.close();
     });
 
-    await step(`${width}px · the assignment: the dialog opens on the client with the suggested editor chosen; one tap assigns, closes Lior's drive item, and the clock is gone`, async () => {
+    await step(`${width}px · the assignment: the dialog opens on the client with the suggested editor chosen; he chooses the editing time; one tap assigns, closes Lior's drive item, and the card is gone`, async () => {
       const { page, ctx, db } = await signedIn('ofir', office(), { path: `qa.html#assign-${SHOT}`, width });
       await page.waitForSelector('#dlg-assign[open]');
       assert.match(await text(page.locator('#as-h')), /שיוך עורך · נועם פרץ/);
-      assert.match(await text(page.locator('#as-meta')), /נשארו 6 דק׳ · לשייך עד היום 10:06/);
+      assert.doesNotMatch(await text(page.locator('#as-meta')), /לשייך עד|נשארו/);
+      // The editing time: the client's own days first; five days moves the deadlines by the difference.
+      assert.equal(await page.locator('#as-days-wrap').isVisible(), true);
+      const days = await page.locator('#as-days option').evaluateAll((o) => o.map((x) => x.value));
+      assert.equal(await page.inputValue('#as-days'), days[0]);
+      await page.selectOption('#as-days', '5');
       // Nadia has two jobs and Yariv one: Anna is suggested, marked, and already chosen.
       assert.equal(await page.locator('#as-editors input:checked').getAttribute('value'), 'anna');
       assert.equal(await text(page.locator('#as-suggested')), 'מומלץ לפי עומס');
@@ -143,6 +148,7 @@ try {
       await settle(page);
       assert.equal(db.clients.find((c) => c.id === SHOT).editor, 'anna');
       for (const k of ['p22a.load', 'p22a.assigned', 'p22a.irit']) assert.equal(checkOf(db, SHOT, k)?.state, 'done', k);
+      assert.equal(JSON.parse(checkOf(db, SHOT, 'p22a.shift').note).days, 5 - Number(days[0]));
       assert.equal(checkOf(db, SHOT, 'p22a.drive')?.note, 'נסגר לבד: ליאור אישר בסגירת יום הצילום שהכונן חזר');
       assert.ok(db.client_tasks.some((t) => t.client_id === SHOT && t.owner === 'ofir' && /פתיחת תיקייה מסודרת בדרייב לעריכה \(24\)/.test(t.title)));
       assert.equal(await page.locator(`#assign-list [data-key="${SHOT}:p22a"]`).count(), 0);
@@ -268,9 +274,10 @@ try {
     assert.equal(await page.locator('#now-bar .now-clock.k-fast').count(), 0);
     assert.equal(await page.locator('#mine-list [data-flow*="assign"]').count(), 0);
     assert.equal(await card(page, GFX, 'p07').count(), 0);
+    // (No deadline since 30.10.2026: it sits in the list's later group.)
     const mine = card(page, SHOT, 'p22a');
-    await mine.waitFor();
-    assert.equal(await text(mine.locator('.wlabel')), 'ליאור החזיר את הכונן');
+    await mine.waitFor({ state: 'attached' });
+    assert.equal((await mine.locator('.wlabel').textContent()).trim(), 'ליאור החזיר את הכונן');
     assert.equal(await mine.locator('.cbx').count(), 1);
     assert.equal(await mine.locator('a.ik-go').count(), 0);
     await shot(page, 'lior-mine-390');
@@ -279,7 +286,9 @@ try {
     await settle(page);
     assert.equal(await page.locator('#dlg-assign[open]').count(), 0, 'the ring\'s address opens no dialog for him');
     const row = page.locator(`#assign-list [data-key="${SHOT}:p22a"]`);
-    assert.match(await text(row), /נשארו 6 דק׳ · לשייך עד היום 10:06 אופיר משייך את העורך\.$/);
+    assert.match(await text(row), /אופיר משייך את העורך\.$/);
+    assert.doesNotMatch(await text(row), /לשייך עד|נשארו/);
+    assert.equal(await row.locator('select').count(), 0, 'the editing time is Ofir\'s to choose');
     assert.equal(await row.locator('button').count(), 0);
     // He sees whom the system suggests (he supervises), and still has nothing to press.
     assert.equal(await text(row.locator('.as-sug')), 'מומלץ: אנה · העומס הנמוך ביותר: אין לקוחות בעריכה');

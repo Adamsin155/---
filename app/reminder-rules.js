@@ -724,7 +724,7 @@ export const RULES = [
           // Lior moved the deadlines (editing paused): days 2 and 3 move with them.
           const shift = readShift(i.checks[SHIFT_KEY(i.pre)]);
           return {
-            ...i, id: i.proc.id, who: editorsOf(i.ctx), days: editingDaysOf(i.client), url: EDITOR_URL(i.cid), ready: !!p24 && (p24.complete || i.resolved('p24.notify')), p24due: p24?.dueAt, p27due: i.same('p27')?.dueAt,
+            ...i, id: i.proc.id, who: editorsOf(i.ctx), todo: readTodo(i.checks[TODO_KEY(i.pre)]), days: editingDaysOf(i.client), url: EDITOR_URL(i.cid), ready: !!p24 && (p24.complete || i.resolved('p24.notify')), p24due: p24?.dueAt, p27due: i.same('p27')?.dueAt,
             anchors: { event: assigned, days: shift ? businessDayFrom(assigned, shift) : assigned },
           };
         })
@@ -735,7 +735,7 @@ export const RULES = [
         id: 'assigned', to: (i) => i.who, level: 'ring',
         // An editor swap (Ofir's "החלפת עורך", Lior's decision on a paused editing, or the card): the one before hears too.
         handover: { title: (i) => `העריכה של ${i.name} עברה ל${personName(i.who)}`, body: () => 'הלקוח כבר לא בעריכה אצלך.', url: () => 'editor.html' },
-        title: (i) => `לקוח חדש בעריכה אצלך: ${i.name}`, body: (i, env) => [i.p24due && `בדרייב ואצל אופיר עד ${whenText(i.p24due, env.now)}`, i.p27due && `סגירה עד ${whenText(i.p27due, env.now)}`].filter(Boolean).join(' · '),
+        title: (i) => `לקוח חדש בעריכה אצלך: ${i.name}`, body: (i, env) => [i.todo && todoText(i.todo), i.p24due && `בדרייב ואצל אופיר עד ${whenText(i.p24due, env.now)}`, i.p27due && `סגירה עד ${whenText(i.p27due, env.now)}`].filter(Boolean).join(' · '),
       },
       { id: 'nostart', officeMinutes: 120, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved('p22.received'), title: (i) => `עוד לא התחלת: ${i.name}`, body: () => 'עברו שעתיים עבודה מאז שהכונן נמסר. ללחוץ "קיבלתי את הכונן והתחלתי".' },
       { id: 'nostartLior', officeMinutes: 240, to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עברו 4 שעות עבודה מהשיוך.' },
@@ -892,6 +892,23 @@ export const RULES = [
     steps: [
       { id: 'list', at: '08:30', to: 'irit', level: 'digest', title: (i) => followupLine(i.n), body: () => '' },
       { id: '1200', at: '12:00', to: 'irit', level: 'ring', title: (i) => `${followupLine(i.n)} עוד לא נבדקו היום`.replace('לקוח אחד עוד לא נבדקו', 'לקוח אחד עוד לא נבדק'), body: () => 'לכל לקוח לחיצה אחת: ״הכול תקין״, או מה תקוע.' },
+    ],
+  },
+
+  // 22א: no clock on the assignment since 30.10.2026 (the owner): one ring to Ofir at 12:00 on a
+  // working day while clients wait for an editor. None on a day nobody waits at noon: a client
+  // that starts waiting in the afternoon is told the next day (`until`).
+  {
+    id: 'assign12', event: 'לקוחות שמחכים לשיוך עורך (22א)', procs: ['p22a'],
+    instances(env) {
+      if (!isBusinessDay(env.now)) return [];
+      const checks = Object.fromEntries(env.clients.map((c) => [c.id, env.checksOf(c)]));
+      const n = awaitingEditor({ clients: env.clients.filter((c) => !inLanding(c)), stateOf: env.stateOf, checks }).length;
+      if (!n) return [];
+      return [{ id: dayKeyIL(env.now), cid: null, name: '', n, url: 'qa.html#assign-h', anchors: { event: atTimeIL(env.now, 0), until: atTimeIL(env.now, 12, 30) } }];
+    },
+    steps: [
+      { id: '1200', at: '12:00', to: 'ofir', level: 'ring', expires: 'until', title: (i) => (i.n === 1 ? 'לקוח אחד מחכה לשיוך עורך' : `${i.n} לקוחות מחכים לשיוך עורך`), body: () => 'בוחרים עורך וזמן עריכה בעמוד בקרה ושיוך.' },
     ],
   },
 
@@ -2018,7 +2035,9 @@ RULE_BY_ID.set(SHOOT_SET, SHOOT_SET_RULE);
 // Nobody is told of what they did themselves. A message written outside the sending
 // hours is due when they next open (`nextSendMoment`): it goes out by itself at 08:30,
 // with its own title, and is never one line among others in a digest.
-import { DECISION_KEY, readJson as readMark } from './office-marks.js';
+import { DECISION_KEY, readJson as readMark, readTodo, TODO_KEY, todoText } from './office-marks.js';
+import { awaitingEditor } from './qa-logic.js';
+import { inLanding } from './protocol-logic.js';
 export function nextSendMoment(d) {
   let t = new Date(d);
   for (let i = 0; i < 40; i += 1) {
@@ -2357,18 +2376,10 @@ const FAST_WORDS = {
     again: (i) => `עדיין באיחור: לעבור על הגרפיקות של ${i.name} ולאשר`,
     until: 'שיאשר או יחזיר לתיקון',
   },
-  assign: {
-    now: (i) => `לשייך עורך: ${i.name}`,
-    nowBody: (i) => `יום הצילום נסגר. ${i.f.spec.minutes} דקות לשייך, עד ${clockOf(i.f.dueAt)}. בחלון השיוך מסומן העורך המומלץ לפי העומס.`,
-    late: (i) => `באיחור: לשייך עורך ל${i.name} — עוד ${i.f.spec.more} דקות`,
-    told: (i) => `אופיר באיחור בשיוך עורך: ${i.name}`,
-    again: (i) => `עדיין באיחור: לשייך עורך ל${i.name}`,
-    until: 'שישייך',
-  },
 };
-const fastWhat = (i) => (i.f.kind === 'assign' ? i.f.what : `${i.f.what}${i.f.round > 1 ? ` (בדיקה ${i.f.round}, אחרי תיקון)` : ''}`);
+const fastWhat = (i) => `${i.f.what}${i.f.round > 1 ? ` (בדיקה ${i.f.round}, אחרי תיקון)` : ''}`;
 const FAST_RULE = {
-  id: 'fast', event: 'הסולם המהיר של אופיר: בדיקת הגרפיקות (7, 23) ושיוך עורך (22א)', procs: ['p07', 'p23', 'p22a'],
+  id: 'fast', event: 'הסולם המהיר של אופיר: בדיקת הגרפיקות (7, 23)', procs: ['p07', 'p23'],
   instances(env) {
     return fastCases({ clients: env.clients, checksOf: env.checksOf, stateOf: env.stateOf, meetings: env.ofirMeetings || [] }).map((f) => {
       const i = procCase(env, f.client, f.state);

@@ -74,10 +74,10 @@ export const HANDOFFS = [
   {
     id: 'shootDone', on: 'p19', label: 'יום הצילום הסתיים',
     to: [{
-      // Protocol v9: Ofir alone assigns, within the fast ladder's minutes (the process's own deadline).
+      // Protocol v9: Ofir alone assigns; no deadline since 30.10.2026.
       id: 'assigner', person: 'ofir', proc: 'p22a', until: 'p22a.assigned',
       text: 'יום הצילום של {client} הסתיים. צריך לשייך עורך ולהעביר אליו את הכונן.',
-      due: [{ label: 'יעד', proc: 'p22a' }],
+      due: [],
     }],
   },
   {

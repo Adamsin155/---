@@ -22,6 +22,8 @@ import {
 } from './qa-logic.js';
 import { autoReasonOf } from './auto-assign.js';
 import { ladderWords, setOfirMeetings } from './fast-ladder.js';
+import { todoText } from './office-marks.js';
+import { editingChoices, editingChoiceText } from './qa-logic.js';
 import {
   QA_KINDS, qaState, returnKey, returnNote, fixDue, ofirMeetings, meetingNow, ISSUE_MAX, ISSUE_TEXT_MAX, ISSUE_REF_MAX,
 } from './office-marks.js';
@@ -267,7 +269,7 @@ async function quickAssign(a, editor, joint) {
   renderKeepingFocus();
   let saved;
   try {
-    saved = await saveAssign(a, editor, joint, '');
+    saved = await saveAssign(a, editor, joint, '', undefined, undefined, daysFor(a));
   } catch (err) {
     quickBusy = false;
     toast(`השיוך לא נשמר. ${errorText(err)}`);
@@ -280,6 +282,10 @@ async function quickAssign(a, editor, joint) {
   toast(`${a.client.name} שויך ל${PEOPLE[editor].name}.${saved.folder}`);
   offerHandoff({ client: saved.client, key: `${a.pre}p22a.assigned`, checks: () => checks[a.client.id], me });
 }
+
+// The editing time chosen on a card, until it is saved (the dialog opens on the same choice).
+const daysOf = new Map();
+const daysFor = (a) => daysOf.get(a.key) || editingChoices(a.client)[0];
 
 function assignCard(a, load, now) {
   const type = a.ctx.shoot_type;
@@ -300,7 +306,7 @@ function assignCard(a, load, now) {
       shot ? dateLeaf({ ...leafOf(shot, now), tone: 'teal' }) : null,
       h('a', { class: 'wclient', href: clientUrl(a.client.id, a.proc.id) }, clientLabel(a.client)), landingTag(a.client),
       h('span', { class: 'wtitle' }, `${shootTypeName(a.ctx) || 'סוג יום הצילום לא נקבע'}${roundText(a.ctx)}`),
-      a.state.status === 'overdue' && a.client.landing !== true ? h('span', { class: 'sbadge s-overdue' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'באיחור') : null),
+      null),
     a.ctx.shoot_at || joint || scriptsLine(a.client.id, a.n) ? h('p', { class: 'of-line' }, [a.ctx.shoot_at ? `הצילום: ${formatStamp(a.ctx.shoot_at)}` : null, joint ? 'יום משותף לנטלי ולסמיון' : null, scriptsLine(a.client.id, a.n)].filter(Boolean).join(' · ')) : null,
     // An old client already in editing: its real editor is known in the office, not guessed here.
     a.client.landing === true ? h('p', { class: 'of-line muted as-landing' }, LANDING_EDITOR_LINE) : null,
@@ -309,7 +315,10 @@ function assignCard(a, load, now) {
       iconSquare(sug.editor ? 'user' : 'question', sug.editor ? 'teal' : 'orange', { size: 'sm' }),
       h('span', { class: 'as-sug-t' }, h('strong', {}, sug.editor ? `מומלץ: ${name}` : 'אין המלצה'), ` · ${sug.reason}`,
         sug.editor && !oneTap ? ' · ביום משותף בוחרים עורך בחלון' : '')),
-    a.fast ? h('p', { class: 'of-line as-fast' }, ladderWords(a.fast, now), ` · לשייך עד ${formatWhen(a.fast.dueAt, now)}`) : null,
+    a.todo ? h('p', { class: 'of-line as-todo' }, h('strong', {}, todoText(a.todo))) : null,
+    me === 'lior' ? null : h('label', { class: 'of-line as-days', for: `as-days-${id}` }, 'זמן עריכה ',
+      h('select', { class: 'input input-sm', id: `as-days-${id}`, onchange: (e) => daysOf.set(a.key, Number(e.target.value)) },
+        ...editingChoices(a.client).map((d) => h('option', { value: String(d), selected: daysFor(a) === d }, editingChoiceText(d))))),
     // The assignment is Ofir's alone (protocol v9). Lior supervises here: he sees it, without the buttons.
     me === 'lior' ? h('p', { class: 'of-line muted as-ofir-only' }, 'אופיר משייך את העורך.') : h('div', { class: 'of-acts as-acts' },
       oneTap ? h('button', {
@@ -323,7 +332,7 @@ function assignCard(a, load, now) {
       }, sure ? `בטוח? שיוך ל${name}` : `שיוך ל${name}`) : null,
       h('button', {
         type: 'button', class: `btn btn-sm${oneTap ? '' : ' k-btn-navy'}`, id: `as-open-${id}`, disabled: quickBusy,
-        'aria-label': `${oneTap ? 'עורך אחר' : 'שיוך עורך'}: ${label}`, onclick: () => { disarm(); openAssign(a); },
+        'aria-label': `${oneTap ? 'עורך אחר' : 'שיוך עורך'}: ${label}`, onclick: () => { disarm(); openAssign({ ...a, days: daysFor(a) }); },
       }, oneTap ? 'עורך אחר' : 'שיוך עורך'),
       sure ? h('span', { class: 'sr-only', role: 'status' }, `לחיצה נוספת משייכת את ${a.client.name} ל${name}.`) : null));
 }

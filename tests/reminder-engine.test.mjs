@@ -476,26 +476,19 @@ test('shoot day: Eli 2 hours and 15 minutes before; Lior if Eli did not arrive; 
   one(due(w2, IL(2026, 10, 15, 14)), 'shoot', 'endLior', 'lior');
 });
 
-test('assign an editor (22א): Ofir alone, on his fast ladder (protocol v9): at once, late after 10 minutes, Lior after 15; the old rule is gone', () => {
+test('assign an editor (22א): Ofir alone, no clock and no ring per client (30.10.2026); the old rule is gone', () => {
   const w = world();
   const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString() });
   importTo(w, c, 'post');
   for (const k of itemsOf('p22a')) delete w.checks[c.id][k];
   marks(w, c, itemsOf('p19'), IL(2026, 10, 15, 17));
   assert.ok(!RULES.some((r) => r.id === 'assign' || r.id === 'autoAssigned'));
-  assert.equal(one(due(w, IL(2026, 10, 15, 17)), 'fast', 'now', 'ofir').title, `לשייך עורך: ${c.name}`);
-  none(due(w, IL(2026, 10, 15, 17, 9)), 'fast', 'late');
-  one(due(w, IL(2026, 10, 15, 17, 10)), 'fast', 'late', 'ofir');
-  none(due(w, IL(2026, 10, 15, 17, 14)), 'fast', 'lior');
-  assert.equal(one(due(w, IL(2026, 10, 15, 17, 15)), 'fast', 'lior', 'lior').title, `אופיר באיחור בשיוך עורך: ${c.name}`);
-  // An "אני על זה" from before the change means nothing now: the ladder is Ofir's whatever was claimed.
-  mark(w, c, 'p22a.claim', IL(2026, 10, 15, 17, 5), 'lior');
-  one(due(w, IL(2026, 10, 15, 17, 15)), 'fast', 'lior', 'lior');
-  one(due(w, IL(2026, 10, 15, 17, 25)), 'fast', 'again.1', 'ofir');
-  // No digest line the next morning and no "hard stop" at 12:00: the ladder is all there is.
-  assert.deepEqual(due(w, IL(2026, 10, 18, 12)).filter((r) => r.clientId === c.id && /עורך/.test(r.title) && r.rule !== 'fast'), []);
+  for (const t of [IL(2026, 10, 15, 17), IL(2026, 10, 15, 17, 10), IL(2026, 10, 15, 17, 15)]) none(due(w, t), 'fast');
+  // The one thing said about it: Ofir's 12:00 on a working day (tests/assign-no-clock.test.mjs). Sunday 18.10.
+  assert.deepEqual(due(w, IL(2026, 10, 18, 12)).filter((r) => r.clientId === c.id && /עורך/.test(r.title)), []);
+  assert.equal(one(due(w, IL(2026, 10, 18, 12)), 'assign12', '1200', 'ofir').title, 'לקוח אחד מחכה לשיוך עורך');
   mark(w, c, 'p22a.assigned', IL(2026, 10, 18, 11));
-  none(due(w, IL(2026, 10, 18, 12)), 'fast');
+  none(due(w, IL(2026, 10, 18, 12)), 'assign12');
 });
 
 test('editing (22, 24), a client from before protocol v11: assigned, not started after 2 office hours (Lior after 4), days 2 and 3, day 3 at 15:00', () => {

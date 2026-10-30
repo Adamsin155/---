@@ -208,7 +208,7 @@ try {
     const old = page.locator('#assign-list li.of-card:has(.tag-landing)');
     assert.equal(await old.count(), COUNTS.assign.landing);
     assert.equal(await lateMarks(old), 0, 'a client in landing is late in the assignment list');
-    assert.ok(await lateMarks(page.locator('#assign-list li.of-card:not(:has(.tag-landing))')) > 0, 'the clients with a clock keep it');
+    assert.equal(await lateMarks(page.locator('#assign-list li.of-card:not(:has(.tag-landing))')), 0, 'the assignment has no clock since 30.10.2026');
     for (const n of [31, 32, 33]) assert.equal(await page.locator(`#assign-list li[data-key^="${cid(n)}:"] .tag-landing`).count(), 1, `client ${n}`);
     // The dialog says the same, and names no hour.
     // (Since 13.10.2026 the card's first button is "שיוך ל<שם>"; the dialog is behind "עורך אחר".)

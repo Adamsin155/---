@@ -156,7 +156,6 @@ export const FAST_LADDER = {
   manager: 'lior', // who is told when he is late (the owners instead, while Lior is on a shoot day)
   window: { from: '08:30', until: '21:00' },
   review: { minutes: 10, more: 5, every: 10 }, // the graphics: the first 9 (7) and the rest (23)
-  assign: { minutes: 10, more: 5, every: 10 }, // the editor's assignment (22א)
   // v10: while Ofir is the characterizer of a meeting in progress (from its time until
   // "האפיון הסתיים", at most `capHours`, the window the protocol gives a meeting) neither
   // ladder counts. The first ring still goes out; the minutes start when the meeting ends.
@@ -410,7 +409,6 @@ const eliOnDay = (c) => eliFilms(c);
 //     ladder's own minutes and window (FAST_LADDER). `qa` names the process whose
 //     returns for fixes count: handed again after a fix, the minutes start again; while
 //     it is back with whoever fixes, the deadline is the fix's own.
-//   fast: 'assign' (v9, on the due itself): FAST_LADDER's minutes from the anchor.
 // `sla` is the protocol's own wording and is always shown.
 // `round: true`: the process repeats for every extra shoot round (a second shoot day).
 // Item `noBulk`: a confirmation by the client or someone outside the office; never marked in bulk.
@@ -933,9 +931,10 @@ export const PROCESSES = [
   },
   {
     id: 'p22a', round: true, num: '22א', phase: 'post', title: 'העברה לעריכה ושיוך לעורך', owners: ['ofir'],
-    sla: 'תוך 10 דקות מסגירת יום הצילום',
-    // v9: Ofir alone assigns, on the fast ladder, from the moment the shoot day is closed.
-    start: { from: 'p19' }, due: { from: 'p19', fast: 'assign' },
+    sla: 'בלי זמן קצוב: בכל יום עבודה ב־12:00 אופיר מקבל כמה לקוחות מחכים לשיוך',
+    // Ofir alone assigns (v9). No clock on the assignment since 30.10.2026 (the owner): he also
+    // chooses the editing time in the dialog, and hears at 12:00 (the rule `assign12`).
+    start: { from: 'p19' },
     what: 'ליאור מחזיר את הכונן. אופיר בודק את עומס העורכים (מי פנוי, מי מחזיק הרבה לקוחות, אילו משימות פתוחות, מי יעמוד בזמן) ומשייך את הלקוח. מכאן מתחילה ספירת זמני העריכה.',
     needs: ['editor'],
     items: [

@@ -123,14 +123,12 @@ test('both editing deadlines go to the editor, counted in business days from the
   ].join('\n'));
 });
 
-test('due times: the fast ladder\'s ten minutes, office hours, right away, already late, or the protocol\'s words', () => {
+test('due times: none on the assignment, the fast ladder\'s ten minutes, office hours, right away, already late, or the protocol\'s words', () => {
   const c = client();
-  // A Thursday evening shoot closed at 19:00: Ofir assigns within ten minutes (protocol v9; the ladder counts until 21:00).
+  // A Thursday evening shoot closed at 19:00: Ofir assigns, with no deadline (30.10.2026).
   const [s] = offer(c, all('p19', '2026-10-08T19:00:00+03:00'), 'p19.took', '2026-10-08T19:01:00+03:00');
-  assert.match(msg(s, '2026-10-08T19:01:00+03:00'), /^היי אופיר,\nיום הצילום של מספרת רון הסתיים\. צריך לשייך עורך ולהעביר אליו את הכונן\.\nיעד: היום 19:10\n.*#p22a$/);
-  // Closed at 20:55: five minutes that evening, five more from 08:30 on Sunday.
-  const [s2] = offer(c, all('p19', '2026-10-08T20:55:00+03:00'), 'p19.took', '2026-10-08T20:56:00+03:00');
-  assert.match(msg(s2, '2026-10-08T20:56:00+03:00'), /\nיעד: יום א׳ 11\.10 08:35\n/);
+  assert.match(msg(s, '2026-10-08T19:01:00+03:00'), /^היי אופיר,\nיום הצילום של מספרת רון הסתיים\. צריך לשייך עורך ולהעביר אליו את הכונן\.\n.*#p22a$/);
+  assert.doesNotMatch(msg(s, '2026-10-08T19:01:00+03:00'), /יעד/);
   // Ofir checks the rest of the graphics within the same ten minutes.
   const [g] = offer(c, { 'p23.made': done('2026-10-29T10:00:00+02:00') }, 'p23.made', '2026-10-29T10:00:00+02:00');
   assert.match(msg(g, '2026-10-29T10:00:00+02:00'), /\nיעד: היום 10:10\n/);

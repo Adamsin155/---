@@ -1,11 +1,12 @@
 // Protocol version 9 (the owner's decision of 10.10.2026; docs/ops.md, section 57): Ofir
-// alone checks the graphics (the first 9: process 7; the rest: 23) and assigns the editor
-// (22א), each on a fast ladder of its own: 10 minutes, 5 more, then Lior is told, then
-// Ofir again every 10 minutes; counted and rung on working days until 21:00.
+// alone checks the graphics (the first 9: process 7; the rest: 23), on a fast ladder of its
+// own: 10 minutes, 5 more, then Lior is told, then Ofir again every 10 minutes; counted and
+// rung on working days until 21:00. He also assigns the editor (22א), with no clock since
+// 30.10.2026 (the owner; tests/assign-no-clock.test.mjs).
 // Fixed Israel times; npm test runs this under UTC, New York and Jerusalem.
 //   1. the numbers and the window are data, and the arithmetic of the window;
 //   2. the ladder of the graphics (7 and 23): in time, ignored, returned for fixes;
-//   3. the ladder of the assignment (22א), and a T0 at 20:55;
+//   3. the assignment (22א) is on no ladder, and a T0 at 20:55;
 //   4. it replaces the ladder of a late item, and still counts as Ofir's lateness;
 //   5. the sending hours do not hold it; Lior on a shoot day;
 //   6. landing, imported history, a client activated out of landing;
@@ -21,7 +22,7 @@ import {
   clientState, openItemsFor, IMPORT_NOTE, addFastMinutes, fastMsBetween, fastOpen, nextFastMoment, reviewClock, creditedTo, performanceReport,
 } from '../app/protocol-logic.js';
 import { PROTOCOL_HISTORY, itemSince } from '../app/protocol-versions.js';
-import { fastCases, ladderAt, ladderWords, reviewUrl, assignUrl } from '../app/fast-ladder.js';
+import { fastCases, ladderAt, ladderWords, reviewUrl } from '../app/fast-ladder.js';
 import { lateItems, heldLate } from '../app/late-chain.js';
 import { daySummary } from '../app/day-summary.js';
 import { QA_KINDS, qaState, returnKey, fixedKey, returnNote, QA_MARK, describeOfficeMark } from '../app/office-marks.js';
@@ -97,7 +98,7 @@ const closeDay = (w, c, at) => marks(w, c, itemsOf('p19'), at);
 test('version 9 as data: the numbers and the window in one place; the graphics and the assignment are Ofir\'s alone', () => {
   assert.ok(PROTOCOL_VERSION >= 9);
   // (`meeting`: version 10, the count waits while Ofir is in a characterization meeting; tests/audit-gaps-v10.test.mjs.)
-  assert.deepEqual(FAST_LADDER, { who: 'ofir', manager: 'lior', window: { from: '08:30', until: '21:00' }, review: { minutes: 10, more: 5, every: 10 }, assign: { minutes: 10, more: 5, every: 10 }, meeting: { pause: true, capHours: 2 } });
+  assert.deepEqual(FAST_LADDER, { who: 'ofir', manager: 'lior', window: { from: '08:30', until: '21:00' }, review: { minutes: 10, more: 5, every: 10 }, meeting: { pause: true, capHours: 2 } });
   const byId = Object.fromEntries(PROCESSES.map((p) => [p.id, p]));
   const own = (id, key) => { const p = byId[id]; return p.items.find((i) => i.key === key).owners || p.owners; };
   // 7: Ilai makes; the seven checks and the approval are Ofir's; the sending and the client's answer are Irit's.
@@ -117,7 +118,7 @@ test('version 9 as data: the numbers and the window in one place; the graphics a
   // 22א: Ofir's; Lior keeps "the drive came back", Irit her verification.
   assert.deepEqual(byId.p22a.owners, ['ofir']);
   assert.deepEqual(byId.p22a.items.map((i) => [i.key, i.owners || byId.p22a.owners]), [['p22a.drive', ['lior']], ['p22a.load', ['ofir']], ['p22a.assigned', ['ofir']], ['p22a.irit', ['irit']]]);
-  assert.deepEqual(byId.p22a.due, { from: 'p19', fast: 'assign' });
+  assert.equal(byId.p22a.due, undefined, 'no clock on the assignment since 30.10.2026');
   // The editing clock still starts at the assignment (2 business days since version 11).
   assert.deepEqual(byId.p22.due, { from: 'item:p22a.assigned', businessDays: 2 });
   // The history: nothing of version 9 is gated by the version. The approval is not "חדש בפרוטוקול" for
@@ -299,31 +300,16 @@ test('a mistake in the first 9 graphics goes back to Ilai by the same path as th
 });
 
 // ── 3. The assignment ───────────────────────────────────────────────────────
-test('the editor\'s assignment, ignored: a ring when the shoot day is closed, lateness at 10 minutes, Lior at 15, then Ofir every 10 minutes until he assigns', () => {
+test('the editor\'s assignment has no clock: no ladder, never late; the editing clock starts when he assigns', () => {
   const { w, c } = shot();
   closeDay(w, c, IL(2026, 10, 15, 17, 0)); // Thursday 17:00
-  const [f] = casesAt(w, IL(2026, 10, 15, 17, 1));
-  assert.deepEqual([f.kind, f.procId, hhmm(f.t0), hhmm(f.dueAt), hhmm(f.tellAt), f.url], ['assign', 'p22a', '15.10 17:00', '15.10 17:10', '15.10 17:15', assignUrl(c.id)]);
-  const all = walk(w, IL(2026, 10, 15, 17, 0), IL(2026, 10, 15, 17, 46));
-  const rows = all.filter((r) => r.rule === 'fast');
-  assert.deepEqual(rows.map((r) => `${r.at} ${r.step}@${r.person}:${r.level}`), [
-    '15.10 17:00 now@ofir:ring',
-    '15.10 17:10 late@ofir:ring',
-    '15.10 17:15 lior@lior:ring',
-    '15.10 17:25 again.1@ofir:ring',
-    '15.10 17:35 again.2@ofir:ring',
-    '15.10 17:45 again.3@ofir:ring',
-  ]);
-  assert.equal(rows[0].title, 'לשייך עורך: בטא');
-  assert.equal(rows[0].body, 'יום הצילום נסגר. 10 דקות לשייך, עד 17:10. בחלון השיוך מסומן העורך המומלץ לפי העומס.');
-  assert.equal(rows[1].title, 'באיחור: לשייך עורך לבטא — עוד 5 דקות');
-  assert.equal(rows[2].title, 'אופיר באיחור בשיוך עורך: בטא');
-  assert.equal(rows[2].body, 'שיוך עורך · מחכה מ־היום 17:00 (15 דקות). אופיר מקבל תזכורת כל 10 דקות עד שישייך.');
-  assert.equal(rows[3].title, 'עדיין באיחור: לשייך עורך לבטא');
-  for (const r of rows) assert.equal(r.url, `qa.html#assign-${c.id}`);
-  // Nothing else about the assignment, to anybody: no digest line, no 12:00 "hard stop", no note of the rule `late`.
-  assert.deepEqual(all.filter((r) => r.rule !== 'fast' && (/עורך/.test(r.title) || /22א/.test(r.title))), []);
-  // He assigns at 17:50: the ladder stops, and the editing clock starts from that minute (two business days, protocol v11).
+  assert.deepEqual(casesAt(w, IL(2026, 10, 15, 17, 1)), []);
+  const all = walk(w, IL(2026, 10, 15, 17, 0), IL(2026, 10, 15, 18, 0));
+  assert.deepEqual(all.filter((r) => r.rule === 'fast'), []);
+  // Nothing about the assignment that evening, to anybody (its one ring is at 12:00: tests/assign-no-clock.test.mjs).
+  assert.deepEqual(all.filter((r) => r.rule !== 'assign12' && (/עורך/.test(r.title) || /22א/.test(r.title))), []);
+  for (const t of [IL(2026, 10, 15, 18), IL(2026, 10, 18, 9), IL(2026, 11, 20, 9)]) assert.notEqual(proc(w, c, 'p22a', t).status, 'overdue', hhmm(t));
+  // He assigns at 17:50: the editing clock starts from that minute (two business days, protocol v11).
   c.editor = 'anna';
   for (const k of ['p22a.drive', 'p22a.load', 'p22a.assigned', 'p22a.irit']) mark(w, c, k, IL(2026, 10, 15, 17, 50));
   assert.deepEqual(fastOf(due(w, IL(2026, 10, 15, 17, 55))), []);
@@ -332,30 +318,19 @@ test('the editor\'s assignment, ignored: a ring when the shoot day is closed, la
 });
 
 test('a T0 at 20:55: one ring that evening, nothing after 21:00, at night or on the weekend; the count goes on the next working morning', () => {
-  // The assignment: the shoot day is closed on Thursday 15.10 at 20:55.
-  const { w, c } = shot();
-  closeDay(w, c, IL(2026, 10, 15, 20, 55));
-  const [f] = casesAt(w, IL(2026, 10, 15, 20, 56));
-  assert.deepEqual([hhmm(f.dueAt), hhmm(f.tellAt)], ['18.10 08:35', '18.10 08:40']);
-  const rows = walk(w, IL(2026, 10, 15, 20, 55), IL(2026, 10, 18, 9, 5)).filter((r) => r.rule === 'fast');
-  assert.deepEqual(rows.map((r) => `${r.at} ${r.step}@${r.person}`), [
-    '15.10 20:55 now@ofir',
-    '18.10 08:35 late@ofir',
-    '18.10 08:40 lior@lior',
-    '18.10 08:50 again.1@ofir',
-    '18.10 09:00 again.2@ofir',
-  ]);
-  // The countdown says so: paused at 21:00 with five minutes left, until Sunday 08:30.
-  const night = ladderAt(f, IL(2026, 10, 15, 22, 0));
-  assert.deepEqual([night.phase, night.remaining / 6e4, night.paused, hhmm(night.resumeAt)], ['run', 5, true, '18.10 08:30']);
-  // It is not late on Friday, Saturday or before the count ends on Sunday; from 08:35 it is.
-  for (const t of [IL(2026, 10, 16, 10), IL(2026, 10, 17, 22), IL(2026, 10, 18, 8, 34)]) assert.notEqual(proc(w, c, 'p22a', t).status, 'overdue', hhmm(t));
-  assert.equal(proc(w, c, 'p22a', IL(2026, 10, 18, 8, 36)).status, 'overdue');
-  // The graphics the same: handed over on Monday 12.10 at 20:55.
+  // The graphics: handed over on Monday 12.10 at 20:55.
   const g = afterMeeting();
   mark(g.w, g.c, 'p07.made', IL(2026, 10, 12, 20, 55));
+  const [f] = casesAt(g.w, IL(2026, 10, 12, 20, 56));
+  assert.deepEqual([hhmm(f.dueAt), hhmm(f.tellAt)], ['13.10 08:35', '13.10 08:40']);
   const gr = walk(g.w, IL(2026, 10, 12, 20, 55), IL(2026, 10, 13, 8, 51)).filter((r) => r.rule === 'fast');
   assert.deepEqual(gr.map((r) => `${r.at} ${r.step}@${r.person}`), ['12.10 20:55 now@ofir', '13.10 08:35 late@ofir', '13.10 08:40 lior@lior', '13.10 08:50 again.1@ofir']);
+  // The countdown says so: paused at 21:00 with five minutes left, until the next morning at 08:30.
+  const night = ladderAt(f, IL(2026, 10, 12, 22, 0));
+  assert.deepEqual([night.phase, night.remaining / 6e4, night.paused, hhmm(night.resumeAt)], ['run', 5, true, '13.10 08:30']);
+  // It is not late at night or before the count ends in the morning; from 08:35 it is.
+  for (const t of [IL(2026, 10, 12, 22), IL(2026, 10, 13, 8, 34)]) assert.notEqual(proc(g.w, g.c, 'p07', t).status, 'overdue', hhmm(t));
+  assert.equal(proc(g.w, g.c, 'p07', IL(2026, 10, 13, 8, 36)).status, 'overdue');
   // Handed over at 23:00 (Ilai worked late): the first ring is at 08:30, and the ten minutes start there.
   const n = afterMeeting();
   mark(n.w, n.c, 'p07.made', IL(2026, 10, 12, 23, 0));
@@ -372,13 +347,15 @@ test('it counts as Ofir\'s lateness from T0 + 10 (the "באיחור" tab and the
   const seven = (now) => lateAt(w, now).find((x) => x.cid === c.id && x.num === '7');
   const assign = (now) => lateAt(w, now).find((x) => x.cid === b.c.id && x.num === '22א');
   // Before the ten minutes passed: not late.
-  assert.deepEqual([seven(IL(2026, 10, 6, 10, 9)), assign(IL(2026, 10, 6, 10, 9))], [undefined, undefined]);
-  // From 10:10: his, and his alone. Lior's "the drive came back" is not Lior's lateness on Ofir's ten minutes.
-  for (const x of [seven(IL(2026, 10, 6, 10, 11)), assign(IL(2026, 10, 6, 10, 11))]) assert.deepEqual([x.holders, x.fast, x.ownLadder, hhmm(x.dueAt)], [['ofir'], true, true, '6.10 10:10']);
-  assert.ok(assign(IL(2026, 10, 6, 10, 11)).waiters.includes('lior'));
+  assert.equal(seven(IL(2026, 10, 6, 10, 9)), undefined);
+  // From 10:10: his, and his alone.
+  const x = seven(IL(2026, 10, 6, 10, 11));
+  assert.deepEqual([x.holders, x.fast, x.ownLadder, hhmm(x.dueAt)], [['ofir'], true, true, '6.10 10:10']);
+  // The assignment waiting beside it is nobody's lateness, whenever (no clock since 30.10.2026).
+  for (const t of [IL(2026, 10, 6, 10, 11), IL(2026, 10, 7, 14), IL(2026, 11, 2, 14)]) assert.equal(assign(t), undefined, hhmm(t));
   const now = IL(2026, 10, 6, 19, 0);
   const held = heldLate(lateAt(w, now), 'ofir', now).map((x) => x.num).sort();
-  assert.deepEqual(held, ['22א', '7']);
+  assert.deepEqual(held, ['7']);
   for (const p of ['irit', 'lior', 'ilai']) assert.deepEqual(heldLate(lateAt(w, now), p, now).filter((x) => ['7', '22א'].includes(x.num)), [], p);
   const sum = daySummary({ clients: w.clients, checksOf: (x) => w.checks[x.id] || {}, stateOf: (x) => stateOf(w, x, now), tasks: [], personOf: () => null, now });
   assert.equal(JSON.stringify(sum).includes('"ofir"'), true);
@@ -390,8 +367,8 @@ test('it counts as Ofir\'s lateness from T0 + 10 (the "באיחור" tab and the
 
 // ── 5. The sending hours, and Lior on a shoot day ───────────────────────────
 test('the general 19:00 end of the sending hours does not hold these rings; after 21:00 there is no step at all', () => {
-  const { w, c } = shot();
-  closeDay(w, c, IL(2026, 10, 15, 19, 30)); // after the sending hours of every other rule
+  const { w, c } = afterMeeting();
+  mark(w, c, 'p07.made', IL(2026, 10, 15, 19, 30)); // after the sending hours of every other rule
   const at = (now) => planDelivery({ reminders: due(w, now).filter((r) => r.clientId === c.id), now, liorShoot: buildEnv({ ...w, now }).liorShoot });
   const first = at(IL(2026, 10, 15, 19, 30)).filter((r) => r.rule === 'fast');
   assert.deepEqual(first.map((r) => [r.step, r.person, r.channel, r.status, r.reason]), [['now', 'ofir', 'push', 'sent', null]]);
@@ -403,9 +380,8 @@ test('the general 19:00 end of the sending hours does not hold these rings; afte
   // 21:00 and on, Friday, Saturday: the rule gives no step, so nothing can go out (not even late).
   for (const t of [IL(2026, 10, 15, 21, 0), IL(2026, 10, 15, 23, 30), IL(2026, 10, 16, 11), IL(2026, 10, 17, 20)]) assert.deepEqual(fastOf(due(w, t)), [], hhmm(t));
   // Erev chag: until the office closes (13:00), not until 21:00.
-  const e = shot();
-  e.c.shoot_at = IL(2027, 4, 21, 9).toISOString();
-  closeDay(e.w, e.c, IL(2027, 4, 21, 12, 40));
+  const e = afterMeeting();
+  mark(e.w, e.c, 'p07.made', IL(2027, 4, 21, 12, 40));
   assert.deepEqual(fastOf(due(e.w, IL(2027, 4, 21, 12, 56))), ['late@ofir', 'lior@lior', 'now@ofir']);
   assert.deepEqual(fastOf(due(e.w, IL(2027, 4, 21, 13, 0))), []);
   assert.deepEqual(fastOf(due(e.w, IL(2027, 4, 21, 15, 0))), []);
@@ -574,13 +550,13 @@ test('existing clients, case by case: what was sent or fully checked is not reop
   for (const k of ['p22a.drive', 'p22a.load', 'p22a.assigned', 'p22a.irit']) mark(f.w, f.c, k, IL(2026, 10, 8, 17, 1), 'שויך אוטומטית בסיום יום הצילום');
   assert.equal(proc(f.w, f.c, 'p22a', now).complete, true);
   assert.deepEqual(fastOf(due(f.w, now)), []);
-  // g. An assignment Lior had taken ("אני על זה") and not made yet: it is Ofir's now, on the ladder.
+  // g. An assignment Lior had taken ("אני על זה") and not made yet: it is Ofir's now, on no ladder.
   const g = shot(world(), { name: 'נלקח', protocol_version: 8 });
   closeDay(g.w, g.c, IL(2026, 10, 11, 9, 55));
   mark(g.w, g.c, 'p22a.claim', IL(2026, 10, 11, 9, 56), 'lior');
   assert.deepEqual(mine(g.w, g.c, 'lior', now).filter((k) => k.startsWith('p22a.')), ['p22a.drive']);
   assert.ok(mine(g.w, g.c, 'ofir', now).includes('p22a.load'));
-  assert.deepEqual(casesAt(g.w, now).map((x) => [x.kind, hhmm(x.dueAt)]), [['assign', '11.10 10:05']]);
+  assert.deepEqual(casesAt(g.w, now), []);
 });
 
 // ── 8. What the screens read ────────────────────────────────────────────────
@@ -593,7 +569,6 @@ test('the countdown on Ofir\'s "המשימות שלי": "נשארו", then "בא
   const run = clocks('ofir', IL(2026, 10, 6, 10, 2, 48));
   assert.deepEqual(run.map((k) => [k.kind, k.proc.id, k.state, k.phase, Math.round(k.remaining / 1000), k.url]), [
     ['fast', 'p07', 'running', 'run', 432, `qa.html#review-${c.id}-p07`], // 7:12 left
-    ['fast', 'p22a', 'running', 'run', 552, `qa.html#assign-${b.c.id}`],
   ]);
   const [f7] = casesAt(w, IL(2026, 10, 6, 10, 3)).filter((f) => f.procId === 'p07');
   assert.equal(ladderWords(f7, IL(2026, 10, 6, 10, 2, 48)), 'נשארו 8 דק׳');
@@ -604,11 +579,11 @@ test('the countdown on Ofir\'s "המשימות שלי": "נשארו", then "בא
   assert.deepEqual([told.state, told.phase], ['expired', 'told']);
   assert.equal(ladderWords(f7, IL(2026, 10, 6, 10, 20)), 'באיחור · ליאור עודכן');
   // Late ones first; the row stays until it is done (also the next day).
-  assert.deepEqual(clocks('ofir', IL(2026, 10, 7, 12)).map((k) => k.phase), ['told', 'told']);
+  assert.deepEqual(clocks('ofir', IL(2026, 10, 7, 12)).map((k) => k.phase), ['told']);
   // Nobody else has these clocks: not Lior (whose only item of 22א is the drive), not Irit, not Ilai.
   for (const p of ['lior', 'irit', 'ilai']) assert.deepEqual(clocks(p, IL(2026, 10, 6, 10, 3)), [], p);
   // The owners' view of the team shows them, with whose they are.
-  assert.deepEqual(clocks(null, IL(2026, 10, 6, 10, 3)).map((k) => [k.kind, k.people]), [['fast', ['ofir']], ['fast', ['ofir']]]);
+  assert.deepEqual(clocks(null, IL(2026, 10, 6, 10, 3)).map((k) => [k.kind, k.people]), [['fast', ['ofir']]]);
   // Approved, assigned: gone.
   marks(w, c, REVIEW_KEYS('p07'), IL(2026, 10, 6, 10, 25));
   b.c.editor = 'yariv';
@@ -648,11 +623,7 @@ test('performance: an assignment Lior took and closed before the change stays hi
   for (const k of ['p22a.drive', 'p22a.load', 'p22a.assigned', 'p22a.irit']) mark(w, c, k, IL(2026, 10, 5, 17, 5));
   const rep = performanceReport(w.clients, w.checks, { days: 30, now: IL(2026, 10, 11, 12) });
   const who = (p) => rep.people.find((x) => x.key === p)?.done || 0;
-  // (Lior also closed the shoot day itself, 19, in that window: two of his, none of Ofir's.)
-  assert.equal(rep.processes.find((x) => x.key === 'p22a').done, 1);
-  assert.deepEqual([who('lior'), who('ofir')], [2, 0]);
-  // The same assignment with no claim on it is the owner's of 22א today: Ofir's.
-  delete w.checks[c.id]['p22a.claim'];
-  const rep2 = performanceReport(w.clients, w.checks, { days: 30, now: IL(2026, 10, 11, 12) });
-  assert.deepEqual(['lior', 'ofir'].map((p) => rep2.people.find((x) => x.key === p)?.done || 0), [1, 1]);
+  // 22א has no deadline since 30.10.2026, so it is not measured: what is left is Lior's shoot day (19).
+  assert.equal(rep.processes.find((x) => x.key === 'p22a'), undefined);
+  assert.deepEqual([who('lior'), who('ofir')], [1, 0]);
 });

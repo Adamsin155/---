@@ -855,6 +855,11 @@ await step('the pass over the clients is Irit\'s (26.10.2026): the owner and Ofi
 
 await step('Thursday: the pass (Irit: עברתי, one tap for the rest, the day\'s control), a data fix in one tap, the summary prefilled', async () => {
   clockNow = THU;
+  // Editing that is days late at Yariv's: a stuck client of this pass (22א has no clock since 30.10.2026).
+  const K = client({ name: 'סטודיו קשת', shoot_at: IL('2026-10-11T10:00:00'), editor: 'yariv' });
+  all(K, UPTO_SHOOT, IL('2026-10-11T09:00:00'));
+  all(K, ['p19', 'p22a'], IL('2026-10-11T15:00:00'), null);
+  db.clients.push(K);
   const tctx = await newContext(THU);
   const o = await newPage(tctx);
   await signIn(o, 'pass.html', 'irit');
@@ -876,8 +881,6 @@ await step('Thursday: the pass (Irit: עברתי, one tap for the rest, the day\
   // has been open, and offers a task, an update to Lior, or a written reason.
   const stuckIds = await o.locator('#ps-list .ps-row:not(.is-seen):has(.ps-stuck-acts)').evaluateAll((els) => els.map((e) => e.id));
   assert.ok(stuckIds.length >= 2, `stuck rows: ${stuckIds.length}`);
-  // (One of them is סטודיו נטלי: its 22א is still open on Lior's "the drive came back", see the fixture.)
-  assert.equal(checkOf(N, 'p22a.drive'), null);
   // The simplification of 20.10.2026 (the owner): each row says it once (what, whose, how
   // late; no "תקוע: …" again under it); the clients stuck at one person stand together with
   // one update to Lior; Ofir's own late work says "שלך", with "בטיפול שלי" and no Lior.
@@ -1039,7 +1042,7 @@ await step('a 390px phone: the stuck row (three ways out, the reason field) and 
   await signIn(page, 'pass.html', 'irit');
   await page.waitForSelector('#ps-list .ps-row');
   if (await page.locator('#ps-list .more-btn').count()) await page.click('#ps-list .more-btn');
-  const row = page.locator('#ps-list .ps-row:has(.ps-stuck-acts)').first();
+  const row = page.locator('#ps-list .ps-row:has(.ps-stuck-acts):has([id$="-why-open"])').first();
   const id = await row.getAttribute('id');
   await page.click(`#${id}-why-open`);
   await page.waitForSelector(`#${id}-why-text`);

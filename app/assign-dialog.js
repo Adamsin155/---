@@ -19,11 +19,10 @@ import { setCheck, setChecksBulk, clearCheck, addTask, updateClient, setTaskDone
 import { $, fill, h, toast, errorText, formatWhen, formatStamp } from './protocol-ui.js';
 import {
   editorLoad, loadText, dayText, preselected, reasonHint, eligibleEditors, jointFromSelection, reasonNote, folderTitle, folderDueOn,
-  swapClock, swapReasonNeeded, swapNote, suggestAssignment, SUGGESTED_TAG, CONTINUITY_TAG,
+  swapClock, swapReasonNeeded, swapNote, suggestAssignment, SUGGESTED_TAG, CONTINUITY_TAG, editingChoices, editingShift, editingChoiceText,
 } from './qa-logic.js';
 import { AUTO_DRIVE_NOTE } from './auto-assign.js';
-import { ladderWords } from './fast-ladder.js';
-import { REASON_KEY } from './office-marks.js';
+import { REASON_KEY, SHIFT_KEY, shiftNote, todoText } from './office-marks.js';
 import { withEditor, swapEditor } from './decisions-logic.js';
 import { offerHandoff } from './handoff-ui.js';
 import { dayFromKeyIL, endOfDayIL } from './tz.js';
@@ -32,7 +31,7 @@ import { recordNote } from './card-assign-logic.js';
 const roundText = (ctx) => (ctx?.round ? ` · סבב צילום ${ctx.round}` : '');
 // What stands in place of a clock on work of a client that came from the old system (docs/ops.md, sections 41 and 46).
 export const LANDING_LINE = 'בקליטה · בלי שעון עד שהלקוח יופעל';
-const AFTER_FIRST = 'השיוך מסמן את 22א, פותח לך את משימת התיקייה (24) עד סוף יום העריכה הראשון, ומכין וואטסאפ לעורך עם שני המועדים.';
+const AFTER_FIRST = 'השיוך מסמן את 22א, מתחיל את זמן העריכה שבחרת, פותח לך את משימת התיקייה (24) עד סוף יום העריכה הראשון, ומכין וואטסאפ לעורך עם שני המועדים.';
 const AFTER_SWAP = 'ההחלפה נרשמת בהיסטוריה של הלקוח, העורך החדש מקבל את ההודעה על לקוח חדש בעריכה, ומוכן לו וואטסאפ עם שני המועדים.';
 const AFTER_KEPT = '22א כבר מסומן, ולכן השיוך רק רושם את העורך בכרטיס: הסימון ומועדי העריכה נשארים כמו שהם. השיוך נרשם בהיסטוריה של הלקוח, והלקוח מופיע אצל העורך. אם העריכה עוד פתוחה, מוכן לו וואטסאפ.';
 const AFTER_EARLY = 'העורך נרשם בכרטיס. 22א עוד לא הגיע: כשיגיע, העורך הזה יופיע ב״בקרה ושיוך״ כ״רשום בכרטיס״, ושם מסמנים את השיוך והמועדים מתחילים.';
@@ -63,6 +62,9 @@ const markup = () => h('dialog', { id: 'dlg-assign', class: 'dlg-wide', 'aria-la
             h('span', { 'aria-hidden': 'true' }, '·'),
             h('label', { for: 'as-split-2', id: 'as-split-2-name' }), splitInput('as-split-2'))),
         h('button', { type: 'button', class: 'btn-text', id: 'as-editor2-remove' }, 'בלי עורך נוסף')),
+      h('div', { class: 'field', id: 'as-days-wrap', hidden: true },
+        h('label', { for: 'as-days' }, 'זמן עריכה'),
+        h('select', { class: 'input', id: 'as-days' })),
       h('fieldset', { class: 'as-clock', id: 'as-clock-wrap', hidden: true },
         h('legend', {}, 'מועדי העריכה'),
         h('p', { class: 'as-clock-late', id: 'as-clock-late', hidden: true }),
@@ -116,7 +118,7 @@ export function assignDialog(store) {
     $('as-meta').textContent = sw
       ? [shootTypeName(a.ctx) || null, `עכשיו אצל ${PEOPLE[sw.from].name}`, sw.job.day === null ? null : dayText(sw.job.day, sw.job.of), sw.job.paused ? 'העריכה עצורה' : null].filter(Boolean).join(' · ')
       : rec ? [shootTypeName(a.ctx) || null, rec.from ? `עכשיו אצל ${PEOPLE[rec.from]?.name || rec.from}` : null, rec.kept ? '22א כבר מסומן' : '22א עוד לא הגיע'].filter(Boolean).join(' · ')
-        : [shootTypeName(a.ctx) || null, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.client.landing === true ? LANDING_LINE : a.fast ? `${ladderWords(a.fast, new Date())} · לשייך עד ${formatWhen(a.fast.dueAt)}` : a.dueAt ? `לשייך עד ${formatWhen(a.dueAt)}` : null].filter(Boolean).join(' · ');
+        : [shootTypeName(a.ctx) || null, a.ctx.shoot_at ? `צולם ${formatStamp(a.ctx.shoot_at)}` : null, a.client.landing === true ? LANDING_LINE : null, a.todo ? todoText(a.todo) : null].filter(Boolean).join(' · ');
     $('as-joint-wrap').hidden = type !== 'natali';
     $('as-joint').checked = joint;
     $('as-reason').value = '';
@@ -127,6 +129,13 @@ export function assignDialog(store) {
     $('as-after').textContent = sw ? AFTER_SWAP : rec ? (rec.kept ? AFTER_KEPT : AFTER_EARLY) : AFTER_FIRST;
     // The editing clocks of a swap (app/qa-logic.js swapClock): a late job keeps its deadlines unless Ofir says otherwise.
     $('as-clock-wrap').hidden = !sw;
+    // The editing time is chosen on a first assignment only: a swap has its own clocks, a record keeps them.
+    $('as-days-wrap').hidden = !!sw || !!rec;
+    if (!sw && !rec) {
+      const days = editingChoices(a.client);
+      fill($('as-days'), ...days.map((d) => h('option', { value: String(d) }, editingChoiceText(d))));
+      $('as-days').value = String(days.includes(a.days) ? a.days : days[0]);
+    }
     if (sw) {
       const now = new Date();
       const k = swapClock(sw.job, now);
@@ -275,7 +284,7 @@ export function assignDialog(store) {
   // "שיוך ל<שם>": the editor in the card, 22א's "נבדק העומס" and "שויך", Irit's and Lior's
   // items that close with it, the reason when one was written, and Ofir's folder task (24).
   // Throws when the assignment itself was not saved. → { client, folder (a sentence for the toast) }
-  async function saveAssign(a, editor, joint, reason, editor2 = undefined, split = undefined) {
+  async function saveAssign(a, editor, joint, reason, editor2 = undefined, split = undefined, days = null) {
     const c = a.client;
     const client = await updateClient(c.id, withEditor(c, a.n, editor, editor2, split));
     store.setClient(client);
@@ -289,6 +298,9 @@ export function assignDialog(store) {
     // (19, "הכונן חזר אליי"): it closes with the assignment, so 22א does not stay open on it.
     const drive = `${a.pre}p22a.drive`;
     if (rows[`${a.pre}p19.took`]?.state === 'done' && !['done', 'na'].includes(rows[drive]?.state)) rows[drive] = await setCheck(c.id, drive, 'done', AUTO_DRIVE_NOTE);
+    // The editing time he chose: the days above the client's own move its deadlines.
+    const shift = editingShift(c, days);
+    if (shift) rows[SHIFT_KEY(a.pre)] = await setCheck(c.id, SHIFT_KEY(a.pre), 'done', shiftNote(shift, 'זמן העריכה שנבחר בשיוך'));
     // The reason is optional: kept when one was written.
     if (reason) {
       rows[REASON_KEY(a.pre)] = await setCheck(c.id, REASON_KEY(a.pre), 'done', reasonNote({ editor, reason, preselected: preselected(a.ctx.shoot_type, joint), joint }));
@@ -357,7 +369,7 @@ export function assignDialog(store) {
         text = a.record.from ? `העורך של ${c.name} עודכן ל${names}. המועדים לא השתנו.`
           : a.record.kept ? `${c.name} שויך ל${names}. 22א והמועדים נשארו כמו שהם.` : `${names} נרשם/ה בכרטיס של ${c.name}.`;
       } else {
-        saved = await saveAssign(a, editor, joint, reason, editor2, split);
+        saved = await saveAssign(a, editor, joint, reason, editor2, split, Number($('as-days').value));
         text = `${c.name} שויך ל${names}.${saved.folder}`;
       }
     } catch (err) {

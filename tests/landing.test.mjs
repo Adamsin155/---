@@ -241,12 +241,13 @@ test('activation: what stayed open is counted from landed_at, and nothing is bor
   assert.equal(clientState(c, checks, new Date('2026-10-21T08:00:00Z')).overdue, 0);
   assert.ok(clientState(c, checks, new Date('2026-11-05T08:00:00Z')).overdue > 0);
   // Work finished before the activation is not measured; after it, it is, on its fresh deadline.
-  const doneKeys = at.states.find((s) => s.proc.id === 'p22a').proc.items.map((i) => i.key);
+  // (22, since 22א has no deadline to be measured against: 30.10.2026.)
+  const doneKeys = at.states.filter((s) => ['p22a', 'p22'].includes(s.proc.id)).flatMap((s) => s.proc.items.map((i) => i.key));
   const finished = { ...checks, ...Object.fromEntries(doneKeys.map((k) => [k, { state: 'done', at: '2026-10-20T10:00:00Z' }])) };
   const rep = performanceReport([c], { c1: finished }, { now: new Date('2026-10-22T08:00:00Z') });
-  assert.deepEqual(rep.processes.filter((p) => p.key === 'p22a').map((p) => [p.done, p.onTime]), [[1, 1]]);
+  assert.deepEqual(rep.processes.filter((p) => p.key === 'p22').map((p) => [p.done, p.onTime]), [[1, 1]]);
   const early = { ...checks, ...Object.fromEntries(doneKeys.map((k) => [k, { state: 'done', at: '2026-10-15T10:00:00Z' }])) };
-  assert.deepEqual(performanceReport([c], { c1: early }, { now: new Date('2026-10-22T08:00:00Z') }).processes.filter((p) => p.key === 'p22a'), []);
+  assert.deepEqual(performanceReport([c], { c1: early }, { now: new Date('2026-10-22T08:00:00Z') }).processes.filter((p) => p.key === 'p22'), []);
   // "How long" elsewhere is counted from the activation too.
   assert.ok(lastActivity(c, { checks: {} }) >= floor);
   assert.equal(clientHealth(c, at, { checks, now: new Date(landed), messages: [], statusNotes: [], tasks: [] }).reasons.filter((r) => ['quiet', 'stuck', 'no-contact', 'late'].includes(r.code)).length, 0);

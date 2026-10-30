@@ -143,22 +143,13 @@ test('1. graphics that arrive while Ofir is in a meeting: the ring goes out at T
   assert.deepEqual(heldLate(lateAt(w, now), 'ofir', now).filter((x) => x.cid === c.id).map((x) => [x.procId, hhmm(x.dueAt)]), [['p07', '6.10 11:30']]);
 });
 
-test('1. he never presses "האפיון הסתיים": the count goes on two hours after the meeting\'s time; the assignment of an editor waits the same way; a shoot day does not stop it', () => {
+test('1. he never presses "האפיון הסתיים": the count goes on two hours after the meeting\'s time; a shoot day does not stop it', () => {
   const { w, c } = afterMeeting();
   meeting(w, IL(2026, 10, 6, 10));
   mark(w, c, 'p07.made', IL(2026, 10, 6, 9, 55)); // five minutes before the meeting
   const rows = walk(w, IL(2026, 10, 6, 9, 55), IL(2026, 10, 6, 12, 12));
   assert.deepEqual(of(rows, 'fast'), ['6.10 09:55 now@ofir', '6.10 12:05 late@ofir', '6.10 12:10 lior@lior']);
   assert.match(rows.find((r) => r.rule === 'fast').body, /10 דקות לעבור עליהן ולאשר/, 'the work came before the meeting: the usual words');
-  // The assignment (22א): the shoot day is closed while he is in a meeting.
-  const w2 = world();
-  const s = client(w2, { name: 'בטא', char_at: IL(2026, 10, 5, 10).toISOString(), shoot_at: IL(2026, 10, 15, 10).toISOString() });
-  importTo(w2, s, 'post');
-  for (const id of ['p22a', 'p22', 'p23', 'p23b', 'p24', 'p25', 'p26', 'p27']) for (const i of PROCESSES.find((p) => p.id === id).items) delete w2.checks[s.id][i.key];
-  marks(w2, s, itemsOf('p19'), IL(2026, 10, 15, 16, 30));
-  meeting(w2, IL(2026, 10, 15, 16), { name: 'דלתא' });
-  const got = walk(w2, IL(2026, 10, 15, 16, 30), IL(2026, 10, 15, 18, 20));
-  assert.deepEqual(of(got, 'fast'), ['15.10 16:30 now@ofir', '15.10 18:10 late@ofir', '15.10 18:15 lior@lior']);
   // A shoot day is not a meeting: a client Ofir does not characterize, or a shoot, stops nothing.
   const w3 = world();
   const { c: c3 } = afterMeeting(w3);

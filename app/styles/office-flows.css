@@ -394,3 +394,8 @@ details.ps-sum { min-width: 0; }
 #dlg-assign .as-split-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 #dlg-assign .as-split-row .input { width: 72px; min-height: 44px; text-align: center; }
 #dlg-assign .as-pair .btn-text { justify-self: start; min-height: 44px; }
+
+/* Ofir's choice of the editing time on a waiting client, and the videos left (30.10.2026). */
+.as-days { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.as-days select { width: auto; min-width: 140px; }
+.as-todo strong { color: var(--ds-ink); }

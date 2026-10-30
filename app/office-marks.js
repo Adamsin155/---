@@ -183,6 +183,11 @@ export const shiftNote = (days, why = '') => JSON.stringify({ days, why: String(
 export const readShift = (check) => (check?.state === 'done' ? Number(json(check.note)?.days) || 0 : 0);
 export const DECISION_KEY = (pre = '') => `${pre}p22.decision`;
 export const REASON_KEY = (pre = '') => `${pre}p22a.reason`;
+// How many videos are left to edit, when it is not the whole package (Ofir's sheet, 30.10.2026). Note JSON { videos }.
+export const TODO_KEY = (pre = '') => `${pre}p22a.todo`;
+export const todoNote = (videos) => JSON.stringify({ videos });
+export const readTodo = (check) => (check?.state === 'done' ? Number(json(check.note)?.videos) || 0 : 0);
+export const todoText = (n) => (n === 1 ? 'חסר סרטון אחד' : `חסרים ${n} סרטונים`);
 export const readJson = (check) => (check?.state === 'done' ? json(check.note) : null);
 
 // ── Broken logins closed by Lior (process 6) ──
@@ -217,6 +222,7 @@ export function describeOfficeMark(key, action, note) {
   if (key === 'p35.opened') return clear ? 'ביטל/ה את פתיחת סיום ההתקשרות' : 'התחיל/ה את סיום ההתקשרות (החוזה הסתיים)';
   if (key === 'p16.read') return clear ? 'ביטל/ה את ״קראתי את התסריטים״' : 'הצלם קרא את התסריטים של יום הצילום';
   if (key === 'p18b.files') return clear ? 'ניקה/תה את חומרי הגלם שנרשמו ליד התסריטים' : 'עודכנו חומרי הגלם והטייקים שנבחרו ליד התסריטים';
+  if (key === 'p22a.todo') return clear ? 'ביטל/ה את כמות הסרטונים החסרה' : `רשם/ה כמה סרטונים חסרים: ${readTodo({ state: 'done', note })}`;
   if (key === 'p22a.reason') {
     const v = json(note);
     return clear ? 'ביטל/ה את סיבת השיוך' : `נימק/ה את בחירת העורך${v?.editor ? ` (${nameOf(v.editor)})` : ''}: ${v?.reason || ''}`;

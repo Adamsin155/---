@@ -43,7 +43,7 @@ import {
   inLanding, workFloor,
 } from './protocol-logic.js';
 import { partsIL, dayKeyIL, daysBetweenIL, atTimeIL, endOfDayIL, addDaysIL } from './tz.js';
-import { qaState, qaRounds } from './office-marks.js';
+import { qaState, qaRounds, readTodo, TODO_KEY } from './office-marks.js';
 import { businessPhoneOf, logoUrlOf, closingLine, validUrl } from './characterization.js';
 
 const MIN = 6e4;
@@ -296,7 +296,7 @@ export function editingCases(client, checks, person, state) {
       // "יום X מתוך 3" of a client that came from the old system: from its activation,
       // and not counted at all while it is in landing.
       assignedAt: inLanding(client) ? null : laterOf(atOf(checks, `${j.pre}p22a.assigned`), workFloor(client)),
-      p22: st('p22'), p24: st('p24'), p25: st('p25'), p27: st('p27'),
+      p22: st('p22'), p24: st('p24'), p25: st('p25'), p27: st('p27'), todo: readTodo(checks?.[TODO_KEY(j.pre)]),
     });
   }
   return out;
@@ -674,8 +674,8 @@ export const caseLock = (sc, checks, now = new Date()) => closeLock(checks, sc.p
 export function afterCloseText(checks, pre = '', ctx = null) {
   const editor = ctx?.editor && PEOPLE[ctx.editor] ? editorNames(ctx) : null;
   if (done(checks, `${pre}p22a.assigned`) && editor) return `העריכה אצל ${editor}.`;
-  if (editor) return `בכרטיס רשום ${editor} כעורך. אופיר קיבל הודעה לשייך.`;
-  return 'אופיר קיבל הודעה לשייך עורך.';
+  if (editor) return `בכרטיס רשום ${editor} כעורך. עובר לאופיר לשיוך.`;
+  return 'עובר לאופיר לשיוך עורך.';
 }
 // What closing the day marks (with the testimonial and the handoff already marked).
 export const CLOSE_KEYS = ['p18.order', 'p18.all', 'p19.all', 'p19.drive'];

@@ -335,7 +335,7 @@ test('a pending ring taken again after 19:00 waits for the morning digest instea
 // Until protocol v9 a shoot day closed with no editor got one in the tick itself (the
 // owner's decision of 3.10.2026). The owner's decision of 10.10.2026: Ofir assigns. The
 // tick writes nothing to the client, also when the database still offers the old door.
-test('a tick no longer assigns an editor when the shoot day was closed: nothing is written, and Ofir is rung to assign', async () => {
+test('a tick no longer assigns an editor when the shoot day was closed: nothing is written, and Ofir hears at 12:00, not before', async () => {
   const items = (id) => PROCESSES.find((p) => p.id === id).items.filter((i) => !i.optional).map((i) => i.key);
   const shoot = IL(2026, 10, 18, 10);
   const c = { ...deal(IL(2026, 9, 1, 10), 'צולם'), id: 'c9', shoot_at: shoot.toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() };
@@ -360,12 +360,15 @@ test('a tick no longer assigns an editor when the shoot day was closed: nothing 
   assert.equal(c.editor ?? null, null);
   assert.ok(!checks.some((r) => r.item_key === 'p22a.assigned'));
   assert.ok(!db.log.some((r) => r.rule === 'assign' || r.rule === 'autoAssigned'));
-  const ring = db.log.find((r) => r.rule === 'fast' && r.person === 'ofir');
-  assert.deepEqual([ring.level, ring.title, ring.url], ['ring', 'לשייך עורך: צולם', 'qa.html#assign-c9']);
-  // The next minute: the same ring is not sent again.
-  const t2 = IL(2026, 10, 18, 17, 2);
+  assert.ok(!db.log.some((r) => r.rule === 'fast'));
+  // Monday 12:00: one ring with the count, and the next minute it is not sent again.
+  const t2 = IL(2026, 10, 19, 12, 0);
   await runTick({ db: db.at(t2), push, now: t2 });
-  assert.equal(db.log.filter((r) => r.rule === 'fast').length, 1);
+  const ring = db.log.find((r) => r.rule === 'assign12' && r.person === 'ofir' && r.key.includes('2026-10-19'));
+  assert.deepEqual([ring.level, ring.title, ring.url, ring.status], ['ring', 'לקוח אחד מחכה לשיוך עורך', 'qa.html#assign-h', 'sent']);
+  const t3 = IL(2026, 10, 19, 12, 1);
+  await runTick({ db: db.at(t3), push, now: t3 });
+  assert.equal(db.log.filter((r) => r.rule === 'assign12' && r.key.includes('2026-10-19')).length, 1);
   assert.deepEqual(writes, []);
 });
 
