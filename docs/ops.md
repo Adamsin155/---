@@ -4016,11 +4016,13 @@ select email, checked_at, read_until from public.whatsapp_poll order by email;
 
 **הדלקה (הבעלים), לפי הסדר:**
 
-1. **Supabase ← Authentication ← OAuth Server:** להפעיל את השרת. **Authorization path:** `/mcp-consent.html`. לוודא ש־Site URL (ב־URL Configuration) הוא `https://app.astrateg.tech/`, כי הנתיב מתווסף אליו. להפעיל **Dynamic client registration**.
-2. **בדיקה:** הכתובת `https://czncjzziqrqtezpwxxpz.supabase.co/.well-known/oauth-authorization-server/auth/v1` מחזירה JSON ולא "OAuth server is disabled".
-3. **SQL Editor:** להריץ את `supabase/migrations/20261121100000_mcp.sql` (רק מוסיפה; אפשר להריץ פעמיים, ומי שכובה נשאר כבוי). **מכאן השער דלוק על כל ה־API:** מיד אחרי זה לפתוח את האפליקציה ולוודא שהיא עובדת כרגיל. אם משהו נשבר, שורת החזרה אחורה למטה.
-4. **פריסה, שמונה פונקציות:** `mcp`, `ask`, `contract-ai`, `create-quote`, `drive`, `metricool`, `reminders`, `staff-admin`. לכל אחת: `supabase functions deploy <שם> --project-ref czncjzziqrqtezpwxxpz --use-api`. **לפני שמחברים חשבון ראשון**, כי עד אז הן עוד מקבלות טוקן של אפליקציה. (`verify_jwt = false` של `mcp` כבר ב־`supabase/config.toml`, והטוקן נבדק בקוד.)
-5. **פרסום האתר** (העמוד, המחולל והכרטיס בצוות).
+הסדר: קודם כל ההגנות, ושרת ה־OAuth אחרון. כל עוד הוא כבוי, אין טוקן כזה בעולם.
+
+1. **SQL Editor:** להריץ את `supabase/migrations/20261121100000_mcp.sql` (רק מוסיפה; אפשר להריץ פעמיים, ומי שכובה נשאר כבוי). **מכאן השער דלוק על כל ה־API:** מיד אחרי זה לפתוח את האפליקציה ולוודא שהיא עובדת כרגיל. אם משהו נשבר, שורת החזרה אחורה למטה.
+2. **פריסה, שמונה פונקציות:** `mcp`, `ask`, `contract-ai`, `create-quote`, `drive`, `metricool`, `reminders`, `staff-admin`. לכל אחת: `supabase functions deploy <שם> --project-ref czncjzziqrqtezpwxxpz --use-api`. **לפני שמחברים חשבון ראשון**, כי עד אז הן עוד מקבלות טוקן של אפליקציה. (`verify_jwt = false` של `mcp` כבר ב־`supabase/config.toml`, והטוקן נבדק בקוד.)
+3. **פרסום האתר** (העמוד, המחולל והכרטיס בצוות).
+4. **Supabase ← Authentication ← OAuth Server:** להפעיל את השרת. **Authorization path:** `/mcp-consent.html`. לוודא ש־Site URL (ב־URL Configuration) הוא `https://app.astrateg.tech/`, כי הנתיב מתווסף אליו. להפעיל **Dynamic client registration**.
+5. **בדיקה:** הכתובת `https://czncjzziqrqtezpwxxpz.supabase.co/.well-known/oauth-authorization-server/auth/v1` מחזירה JSON ולא "OAuth server is disabled".
 6. **חיבור בכל חשבון:**
    - **claude.ai:** ‏Settings ← Connectors ← הוספת custom connector, כתובת: `https://czncjzziqrqtezpwxxpz.supabase.co/functions/v1/mcp`. באפשרויות OAuth client לבחור **Register automatically**. נפתח עמוד האישור שלנו. **בחשבון Team רק owner של הארגון יכול להוסיף connector**, ואז כל אחד מתחבר עם הכניסה שלו.
    - **Claude Code:** `claude mcp add --transport http astrateg https://czncjzziqrqtezpwxxpz.supabase.co/functions/v1/mcp`, ואז `/mcp` להתחברות.
