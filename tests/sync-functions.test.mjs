@@ -16,7 +16,7 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'contract-summary.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'fast-ladder.js', 'files-logic.js', 'gcal-logic.js', 'handoffs.js', 'health.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'manager-rules.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
+    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'contract-summary.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'fast-ladder.js', 'files-logic.js', 'gcal-logic.js', 'handoffs.js', 'health.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'manager-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
     'shell-rules.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'team-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
@@ -101,6 +101,16 @@ const DEPLOY = {
     'ask/handler.js',
     'ask/index.ts',
     'ask/tools.js',
+  ],
+  // Claude accounts of the owners, Lior and Ofir (docs/ops.md, section 84): ask's tools and walls, imported.
+  mcp: [
+    ...APP('access-logic.js', 'access-nudge.js', 'ask-guide.js', 'ask-logic.js', 'catalog.js', 'characterization.js', 'contract-ai-logic.js', 'contract-summary.js', 'edit-count.js', 'health.js', 'holidays.js', 'legal.js', 'manager-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'shell-rules.js', 'shoot-prep.js', 'team-rules.js', 'tz.js'),
+    '_shared/cors.js',
+    '_shared/drive.js',
+    'ask/handler.js',
+    'ask/tools.js',
+    'mcp/handler.js',
+    'mcp/index.ts',
   ],
   // "משיכת קישורים מהדרייב" in the Gantt: the client's Drive folder, names and links only.
   drive: [
@@ -188,7 +198,7 @@ test('every function, and every file it deploys (the shared copies it reaches ar
 test('verify_jwt: off for the functions that check their caller themselves', () => {
   const config = readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8');
   const off = [...config.matchAll(/\[functions\.([a-z-]+)\]\s*\nverify_jwt = false/g)].map((m) => m[1]).sort();
-  assert.deepEqual(off, ['calendar', 'client-media', 'drive-scan', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook']);
+  assert.deepEqual(off, ['calendar', 'client-media', 'drive-scan', 'mcp', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook']);
 });
 
 test('the shared pricing engine computes the same quote as app/', async () => {

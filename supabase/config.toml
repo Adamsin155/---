@@ -35,6 +35,12 @@ verify_jwt = false
 [functions.drive-scan]
 verify_jwt = false
 
+# Claude accounts of the owners, Lior and Ofir (MCP): a client's first request has no token and must be
+# answered with 401 and where to sign in; the OAuth token is checked in code on every request.
+# See supabase/functions/mcp/index.ts.
+[functions.mcp]
+verify_jwt = false
+
 # Metricool and the content Gantt: pg_cron calls it with the cron secret (the sync),
 # and the office calls it signed in (the account's brands, the owner's connection
 # check); each is checked in code. See supabase/functions/metricool/index.ts.

@@ -34,8 +34,8 @@ async function tryAs(who, sql, params = []) {
   } catch (err) { return { error: err.message }; }
 }
 
-test('the file: the newest, only adds, and runs twice', async () => {
-  assert.equal(migrationFiles().at(-1), FILE);
+test('the file: the newest but the Claude connection, only adds, and runs twice', async () => {
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261121100000_mcp.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   await db.exec(migrationSql(FILE));
