@@ -35,14 +35,15 @@ function serviceKey(): string {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LIMITS = { name: 120, company: 120, companyId: 20, phone: 40, email: 160, notes: 2000 };
 
-function cleanClient(raw: Record<string, unknown> = {}) {
+// A price offer may go without the client's details (the owner, 29.10.2026); an agreement needs the name.
+function cleanClient(raw: Record<string, unknown> = {}, nameRequired = true) {
   const out: Record<string, string> = {};
   for (const [key, max] of Object.entries(LIMITS)) {
     const value = typeof raw[key] === 'string' ? (raw[key] as string).trim() : '';
     if (value.length > max) throw new Error(`${key} too long`);
     out[key] = value;
   }
-  if (!out.name) throw new Error('client name required');
+  if (!out.name && nameRequired) throw new Error('client name required');
   if (out.companyId && !/^[0-9][0-9-]{3,18}$/.test(out.companyId)) throw new Error('invalid company id');
   return out;
 }
@@ -95,7 +96,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     selection = cleanSelection(body.selection);
-    client = cleanClient(body.client);
+    client = cleanClient(body.client, selection?.docType !== 'quote');
     if (body.revise !== undefined && body.revise !== null) {
       if (typeof body.revise !== 'string' || !UUID.test(body.revise)) throw new Error('invalid quote id');
       revise = body.revise;

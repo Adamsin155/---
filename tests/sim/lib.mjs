@@ -168,7 +168,7 @@ export class Sim {
     if (p === "/functions/v1/create-quote") {
       if (!me) return [401, { error: "not signed in" }];
       try { validateSelection(body.selection); } catch (e) { return [400, { error: e.message }]; }
-      if (!body.client?.name?.trim()) return [400, { error: "client name required" }];
+      if (!body.client?.name?.trim() && body.selection?.docType !== 'quote') return [400, { error: "client name required" }];
       const n = db.quotes.length + 1;
       const q = { id: randomUUID(), token: randomUUID(), number: `AST-2026-${String(n).padStart(4, "0")}`, created_at: now, created_by_email: me.email, model: buildQuoteModel(body.selection, body.client), status: "sent", approval: "none", signed_at: null, signer_name: null };
       q.expires_at = new Date(Date.parse(now) + q.model.validHours * 3600e3).toISOString();

@@ -76,7 +76,7 @@ function createQuote(body, me, json) {
   if (!me) return json(401, { error: 'not signed in' });
   let selection;
   try { validateSelection(body.selection); selection = normalizeSelection(body.selection); } catch (e) { return json(400, { error: e.message }); }
-  if (!body.client?.name?.trim()) return json(400, { error: 'client name required' });
+  if (!body.client?.name?.trim() && body.selection?.docType !== 'quote') return json(400, { error: 'client name required' });
   const exceptions = exceptionOf(selection);
   if ((exceptions.length || body.revise) && !isOffice(me)) return json(403, { error: 'custom contracts are prepared by the office' });
   const model = buildQuoteModel(selection, body.client);

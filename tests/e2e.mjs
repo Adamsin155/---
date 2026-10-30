@@ -55,7 +55,7 @@ async function fakeSupabase(route) {
     if (!(req.headers().authorization || '').includes(JWT)) return json(401, { error: 'not signed in' });
     if (staleOnce) { staleOnce = false; return json(401, { error: 'not signed in' }); }
     try { validateSelection(body.selection); } catch (e) { return json(400, { error: e.message }); }
-    if (!body.client?.name?.trim()) return json(400, { error: 'client name required' });
+    if (!body.client?.name?.trim() && body.selection?.docType !== 'quote') return json(400, { error: 'client name required' });
     const q = {
       id: randomUUID(), token: randomUUID(), number: `AST-2026-${String(++seq).padStart(4, '0')}`,
       created_at: new Date().toISOString(), created_by_email: USER.email,
@@ -200,6 +200,20 @@ await step('preview/print/link require client name', async () => {
   await page.locator('#btn-print').click();
   assert.equal(await page.evaluate(() => window.__printed || 0), 0);
   assert.ok(await page.locator('#c-name-err').isVisible());
+});
+
+await step('a price offer needs no client details: the preview opens with no name and no "לכבוד" (29.10.2026)', async () => {
+  await page.locator('#doc-switch [data-doc="quote"]').click();
+  assert.equal(await page.locator('label[for="c-name"] .req').isVisible(), false, 'no asterisk on the name');
+  await page.locator('#c-name').fill('');
+  await page.locator('#btn-preview').click();
+  const dlg = page.locator('#dlg-preview');
+  await dlg.waitFor({ state: 'visible' });
+  assert.equal(await page.locator('#c-name-err').isVisible(), false);
+  assert.doesNotMatch(await dlg.innerText(), /לכבוד/);
+  await page.keyboard.press('Escape');
+  await page.locator('#doc-switch [data-doc="agreement"]').click();
+  assert.equal(await page.locator('label[for="c-name"] .req').isVisible(), true, 'an agreement needs the name');
 });
 
 const nasty = 'דנה "הלקוחה" <img src=x onerror=alert(1)> & שות\'';
