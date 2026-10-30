@@ -40,6 +40,7 @@ const DRIVE_GRAPHICS = { one: 'קובץ אחד נוסף לתיקיית הגרפ�
 const DRIVE_VIDEOS = { one: 'סרטון אחד נוסף לדרייב (לפי העורך בכרטיס)', many: (n) => `${n} סרטונים נוספו לדרייב (לפי העורך בכרטיס)` };
 // How many actions one line says; the rest is "ועוד N".
 export const LINE_PARTS = 5;
+const SHORT_PARTS = 3; // beside an employee in the list
 const DRIVE_WORDS = {
   video: { one: 'סרטון אחד', many: (n) => `${n} סרטונים` },
   graphic: { one: 'גרפיקה אחת', many: (n) => `${n} גרפיקות` },
@@ -75,6 +76,7 @@ export function workHistory(input = {}) {
       .map(([day, cs]) => ({
         day,
         line: dayLine([...cs.values()]),
+        short: dayLine([...cs.values()], SHORT_PARTS),
         clients: [...cs.entries()].map(([cid, c]) => ({ cid, name: labels.get(cid) || GONE, lines: clientLines(c) }))
           .sort((a, b) => a.name.localeCompare(b.name, 'he')),
       })),
@@ -135,7 +137,7 @@ const stepsOf = (c) => {
 };
 // "5 שיוכי עורך, 2 בקרות סרטונים אושרו, הכנת גאנט · 3 לקוחות, ועוד 2": the one line of a day,
 // always actions in words: a process by its title and how many clients, never "13 שלבים".
-export function dayLine(cells) {
+export function dayLine(cells, max = LINE_PARTS) {
   const parts = [];
   const add = (n, w) => { if (n) parts.push(word(n, w)); };
   add(counted(cells.map((c) => c.edited)), EDITED);
@@ -147,8 +149,8 @@ export function dayLine(cells) {
   const titles = new Map();
   for (const c of cells) for (const t of stepsOf(c)) titles.set(t, (titles.get(t) || 0) + 1);
   for (const [t, n] of [...titles].sort((a, b) => b[1] - a[1])) parts.push(n === 1 ? t : `${t} · ${n} לקוחות`);
-  const rest = parts.length - LINE_PARTS;
-  return rest > 0 ? `${parts.slice(0, LINE_PARTS).join(', ')}, ועוד ${rest}` : parts.join(', ');
+  const rest = parts.length - max;
+  return rest > 0 ? `${parts.slice(0, max).join(', ')}, ועוד ${rest}` : parts.join(', ');
 }
 // The lines of one client on that day.
 function clientLines(c) {
@@ -239,5 +241,5 @@ export function driveCoverage(clients = [], state = null) {
 export function lastWork(person, today) {
   const last = person.days[0];
   if (!last) return null;
-  return { day: last.day, isToday: last.day === today, line: last.line };
+  return { day: last.day, isToday: last.day === today, line: last.short || last.line };
 }
