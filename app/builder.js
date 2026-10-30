@@ -17,6 +17,8 @@ import {
   validateAiResult, applyAiResult, aiMarksOf, AI_TEXT_MAX,
   validateFreeResult, applyFreeDraft, draftTitle, FREE_MAX_DRAFTS,
 } from './contract-ai-logic.js';
+// A draft prepared in a Claude account (docs/ops.md, section 84): the link's choices, checked again.
+import { draftFromHash, draftOf } from './mcp-draft.js';
 // The sign-in form's look and its button with the door (docs/ops.md, section 51).
 import { loginDoor } from './login-ui.js';
 
@@ -42,6 +44,10 @@ let dealId = null;
 // regular one (no manager approves since 29.10.2026; docs/ops.md, section 79).
 const REVISE_PARAM = new URLSearchParams(location.search).get('revise');
 let reviseId = null;
+// A draft from a Claude account (index.html#mcp-draft=…, docs/ops.md, section 84): only package
+// choices, no client's details (draftFromHash refuses anything else). Never trusted: it goes through
+// the same checks as "הכנת חוזה עם AI", and the person checks, fills in the client and creates as always.
+const MCP_DRAFT = DEAL_PARAM || REVISE_PARAM ? {} : draftFromHash(location.hash);
 // "חוזה מותאם אישית" is the office's (the server refuses it from anyone else).
 let office = false;
 // "הכנת חוזה עם AI" (the owner, 25.10.2026): the preparation that filled this contract,
@@ -1440,7 +1446,31 @@ async function openForRevise(id) {
   }
 }
 
-if (!DEAL_PARAM && !REVISE_PARAM && restoreDraft()) {
+// The address loses the draft once it was read: a refresh keeps what was edited here (the tab's draft).
+const clearDraftAddress = () => history.replaceState(null, '', location.pathname + location.search);
+// A draft from a Claude account: the builder as "הכנת חוזה עם AI" leaves it, with no client's details.
+async function openFromMcpDraft(input) {
+  const staff = await refreshSession();
+  if (!staff?.isStaff && !(await askLogin())) return;
+  if (denied) return;
+  clearDraftAddress();
+  const d = draftOf(input);
+  if (d.error) { toast('הקישור לטיוטה לא תקין. אפשר להכין אותה שוב ב־Claude.'); return; }
+  ai = { runId: null, marks: d.marks };
+  aiDrafts = null;
+  state = d.selection;
+  $('discount').value = String((state.discount || 0) / 100);
+  syncCustomInputs();
+  document.body.classList.remove('is-choosing');
+  $('start').hidden = true;
+  render();
+  renderAiResult({ summary: d.summary, check: d.check, notes: null, kept: false });
+  update({});
+  saveDraft();
+  toast('הטיוטה מ־Claude נטענה. לבדוק, למלא את פרטי הלקוח, וליצור קישור.');
+}
+
+if (!DEAL_PARAM && !REVISE_PARAM && !MCP_DRAFT.input && restoreDraft()) {
   document.body.classList.remove('is-choosing');
   $('start').hidden = true;
 }
@@ -1451,7 +1481,11 @@ if (aiDrafts) loadDraft(aiDrafts.current, { focus: false, apply: false });
 setupSectionNav();
 if (DEAL_PARAM) openFromDeal(DEAL_PARAM);
 else if (REVISE_PARAM) openForRevise(REVISE_PARAM);
-else refreshSession();
+else if (MCP_DRAFT.input) openFromMcpDraft(MCP_DRAFT.input);
+else {
+  refreshSession();
+  if (MCP_DRAFT.bad) { clearDraftAddress(); toast('הקישור לטיוטה לא תקין. אפשר להכין אותה שוב ב־Claude.'); }
+}
 
 // "חוזה חדש" / "הצעה חדשה" (the owner, 25.10.2026): everything on the builder is cleared, after a
 // second tap ("בטוח?"), and the page starts again as a new one (a deal or a correction is left).

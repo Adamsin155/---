@@ -92,6 +92,15 @@
 .tm-mc-ok { color: var(--ok); font-weight: 600; }
 .tm-mc p { overflow-wrap: anywhere; }
 
+/* "חיבור ל־Claude" (app/mcp-team.js): the owners' card. */
+.tm-mcp-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.tm-mcp-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding-block: 6px; }
+.tm-mcp-row + .tm-mcp-row { border-top: 1px solid var(--line, #E2E5EC); }
+.tm-mcp-who { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.tm-mcp-who span { font-size: 13px; overflow-wrap: anywhere; }
+.tm-mcp-who [dir='ltr'] { text-align: end; align-self: flex-start; }
+.tm-mcp .switch input { min-width: 44px; min-height: 44px; }
+
 /* "קוד הכספת" (app/vault-code-team.js): the owner's card. */
 .tm-vc-on { color: var(--ok); font-weight: 600; }
 .tm-vc-form { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 8px 0; }

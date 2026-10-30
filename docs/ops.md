@@ -3999,3 +3999,43 @@ select email, checked_at, read_until from public.whatsapp_poll order by email;
 - **ניסוחים:** השורה של יום אומרת פעולות (שם התהליך וכמה לקוחות) ולא "13 שלבים", עד 5 פעולות ואז "ועוד N".
 - **הדלקה, לפי הסדר:** `supabase functions deploy drive-scan --project-ref czncjzziqrqtezpwxxpz --use-api` (בלי שדרוג של פונקציה אחרת), הרצת `20261120100000_drive_daily.sql` ב־SQL Editor, ופרסום האתר.
 - **בדיקות:** `tests/drive-scan.test.mjs`, `tests/work-history.test.mjs`, `tests/sql/drive-daily.test.mjs`.
+
+## 84. חיבור חשבונות Claude למערכת (MCP): קריאה והכנת טיוטת חוזה, כל אחד עם הכניסה שלו (בקשת הבעלים, 30.10.2026)
+
+**מה זה:** הבעלים, ליאור ואופיר מחברים את חשבון ה־Claude שלהם למערכת. בתוך Claude הם שואלים על לקוחות, משימות, ימי צילום, גאנט ועריכה, ומכינים טיוטת חוזה. Claude רואה רק מה שהאדם המחובר רואה במסכים שלו. אין סיסמאות ואין מפתחות אצלנו: הכניסה היא שרת ה־OAuth של Supabase Auth (בטא), עם המייל והסיסמה הרגילים.
+
+- **הפונקציה `mcp`** (`supabase/functions/mcp/`: `index.ts` ו־`handler.js`). MCP ב־Streamable HTTP, בלי מצב ובלי session id, לפי המפרט 2025-11-25 (מקבלת גם 2025-06-18 ו־2025-03-26). כתובת החיבור: `https://czncjzziqrqtezpwxxpz.supabase.co/functions/v1/mcp`.
+- **כלי הקריאה:** בדיוק אלה של "שאלו את המערכת" (`supabase/functions/ask/tools.js`, ביבוא ולא בהעתקה), עם אותן חומות: בלי טלפון, מייל, כתובת, הערות, כספת, כניסות ושכר; כסף רק למי ש־`sees_money()` (הבעלים). **שינוי ב־`ask/tools.js` או ב־`ask/handler.js` מחייב לפרוס גם את `mcp`.**
+- **מי נכנס:** הבעלים, ליאור ואופיר (`mayUseMcp` ב־`app/mcp-logic.js`) **וגם** מופעלים בטבלה `public.mcp_access` (`public.mcp_allowed()`). נבדק בכל בקשה, ולכן כיבוי עובד מיד, גם לחיבור שכבר קיים. הטוקן נבדק מול Supabase בכל בקשה, וחייב `client_id`: טוקן של כניסה רגילה בדפדפן לא מתקבל. כל אחד אחר מקבל סירוב ברור בעברית. לפני שהמיגרציה רצה: אף אחד לא נכנס.
+- **טיוטת חוזה (`prepare_contract_draft`):** לכלי יש רק בחירות של חבילה (אין לו שדה לשם, עסק, ח.פ, טלפון, מייל או כתובת, וטקסט עם מייל או מספר ארוך נדחה). הבחירות עוברות את אותן בדיקות של "הכנת חוזה עם AI" (סעיפים 68 ו־79, כולל חוזה חופשי ב־`mode: free`) ואת מנוע המחירים. הכלי **לא כותב למסד ולא שולח כלום**: הוא מחזיר סיכום עם סכומים וקישור למחולל (`https://app.astrateg.tech/#mcp-draft=…`, אחרי ה־`#`, כך שזה לא מגיע לשום שרת). המחולל בודק שוב, נפתח ממולא, והאדם ממלא את פרטי הלקוח, יוצר ושולח כרגיל. סכומי הטיוטה מוצגים גם לליאור ולאופיר, כי הם רואים אותם ממילא במחולל.
+- **עמוד האישור:** `mcp-consent.html` (`app/mcp-consent.js`): שם האפליקציה, מה היא תוכל ומה לא, אישור או "לא עכשיו". מי שלא ברשימה לא מקבל כפתור.
+- **המתג של הבעלים:** ב"צוות וכניסות" (`team.html`) הכרטיס "חיבור ל־Claude": כל אדם, דלוק או כבוי, ומתי השתמש לאחרונה. מי שנוסף לצוות אחרי המיגרציה מופיע כבוי.
+- **מה נשמר:** `public.mcp_usage`: מי, איזה כלי, `ok` או קוד קצר, מתי. **בלי הארגומנטים ובלי התשובות.** רק השרת כותב, והבעלים קוראים. בלוג רק קודים קצרים.
+- **מה לא נכנס:** "עבודה לפי עובד" (`editor_progress_log`). הטבלה נחסמת בחומה של הכלים (`NEVER` כולל `log$`), ולא החלשנו חומה בשביל זה.
+
+**הדלקה (הבעלים), לפי הסדר:**
+
+1. **Supabase ← Authentication ← OAuth Server:** להפעיל את השרת. **Authorization path:** `/mcp-consent.html`. לוודא ש־Site URL (ב־URL Configuration) הוא `https://app.astrateg.tech/`, כי הנתיב מתווסף אליו. להפעיל **Dynamic client registration**.
+2. **בדיקה:** הכתובת `https://czncjzziqrqtezpwxxpz.supabase.co/.well-known/oauth-authorization-server/auth/v1` מחזירה JSON ולא "OAuth server is disabled".
+3. **SQL Editor:** להריץ את `supabase/migrations/20261121100000_mcp.sql` (רק מוסיפה; אפשר להריץ פעמיים, ומי שכובה נשאר כבוי).
+4. **פריסה:** `supabase functions deploy mcp --project-ref czncjzziqrqtezpwxxpz --use-api` (`verify_jwt = false` כבר ב־`supabase/config.toml`, והטוקן נבדק בקוד).
+5. **פרסום האתר** (העמוד, המחולל והכרטיס בצוות).
+6. **חיבור בכל חשבון:**
+   - **claude.ai:** ‏Settings ← Connectors ← הוספת custom connector, כתובת: `https://czncjzziqrqtezpwxxpz.supabase.co/functions/v1/mcp`. באפשרויות OAuth client לבחור **Register automatically**. נפתח עמוד האישור שלנו. **בחשבון Team רק owner של הארגון יכול להוסיף connector**, ואז כל אחד מתחבר עם הכניסה שלו.
+   - **Claude Code:** `claude mcp add --transport http astrateg https://czncjzziqrqtezpwxxpz.supabase.co/functions/v1/mcp`, ואז `/mcp` להתחברות.
+   - האפשרות **"Claude's published identity"** כנראה דורשת CIMD, ו־Supabase כנראה לא תומך בזה. **זה לא נבדק.**
+
+**מה עדיין לא נבדק בלי השרת החי:** כל הזרימה מול Supabase נבדקה רק מול זיופים (fakes), כי שרת ה־OAuth כבוי. אחרי ההדלקה לבדוק:
+
+- שטוקן של OAuth באמת מכיל `client_id`, `email`, `aud: authenticated` ו־`iss` כצפוי. בלי `email`, הפונקציות `my_person()` ו־`mcp_allowed()` יענו "לא", וכולם יקבלו סירוב. התיעוד מראה `email` בטוקן אבל לא אומר אם זה תלוי ב־scope.
+- ש־`auth.getUser(token)` מקבל טוקן OAuth.
+- שהנתיב מגיע לפונקציה כ־`/mcp/.well-known/oauth-protected-resource` (הקוד מקבל גם עם קידומת `/functions/v1`).
+- שעמוד האישור מקבל מ־`getAuthorizationDetails` את הצורה שבתיעוד.
+- ש־claude.ai משלים את הרישום ואת ההתחברות בפועל.
+
+**שתי מגבלות שצריך לדעת:**
+
+- **הטוקן של OAuth הוא טוקן מלא של האדם מול המסד.** התיעוד של Supabase אומר ש־scopes לא מגבילים גישה למסד. מי שמחזיק בטוקן (כלומר Claude, אחרי אישור) יכול טכנית לפנות ישירות ל־REST API עם כל הזכויות של אותו אדם, כולל כתיבה וכולל מה שהכלים חוסמים. החומות של הכלים מחזיקות רק בתוך הפונקציה `mcp`. לחיזוק אפשר בהמשך להוסיף מדיניות `AS RESTRICTIVE` שבודקת `auth.jwt() ->> 'client_id'` על טבלאות רגישות (הכספת, הכניסות, השכר) ועל הפונקציות שלהן. זה עוד לא נעשה: זה נוגע בטבלאות חיות, והבעלים צריך להחליט. המתג עצמו (`mcp_set_access`) כבר לא מקבל טוקן כזה. רק מי שמופעל יכול לאשר חיבור בעמוד, אבל כיבוי במתג חוסם רק את `mcp`, לא טוקן שכבר ניתן מול ה־REST: לניתוק מלא צריך גם לנתק את ה־session של האדם ב־Supabase.
+- **הטוקן לא קשור לשרת הזה בלבד (RFC 8707).** ‏Supabase מוציא `aud: authenticated` ולא את כתובת השרת, אז הבדיקה היא `aud` ו־`iss` ו־`client_id`. כל אפליקציה שאדם מורשה אישר לה בעמוד תיכנס. עם Dynamic registration כל אחד יכול לרשום אפליקציה, ולכן עמוד האישור מציג את שמה ואת הכתובת שאליה חוזרים: **מאשרים רק בקשה שהתחלתם בעצמכם מתוך Claude.**
+
+- **בדיקות:** `tests/mcp.test.mjs`, `tests/sql/mcp.test.mjs`, `tests/mcp-e2e.mjs` (דפדפן, מול זיוף של Supabase), `tests/mcp-sdk-check.mjs` (הלקוח הרשמי של MCP, מתיקייה זמנית; לא תלות של המאגר).
