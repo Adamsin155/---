@@ -502,6 +502,9 @@ test('every client table has row level security, and no policy on it lets every 
     reminder_log: /reminder_person\(\)/,
     // The editors' daily log (20261119100000_work_history.sql): the office only, no one else's row.
     editor_progress_log: /progress_office\(\)/,
+    // The counts from the Drive (20261120100000_drive_daily.sql): the office only, as the log above.
+    drive_daily: /progress_office\(\)/,
+    drive_scan_state: /progress_office\(\)/,
     // The scripts (20261003120000_scripts.sql): Lior and the owner, and the people they
     // granted the client to; not the rest of the office (tests/sql/scripts.test.mjs).
     client_scripts: /can_manage_scripts\(\)/,
