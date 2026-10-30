@@ -462,13 +462,22 @@ async function loadWork(days = work.days) {
   work.busy = false;
   if (view === 'work') renderWork();
 }
+// "היום", "אתמול", else the date.
+function whDayWord(day, now) {
+  const d = dayFromKeyIL(day);
+  const ago = daysBetweenIL(d, now);
+  if (ago === 0) return 'היום';
+  if (ago === 1) return 'אתמול';
+  const leaf = leafFar(d, now);
+  return `${leaf.top} ${dmy(d)}`;
+}
 const whDayLeaf = (day, now) => dateLeaf({ ...leafFar(dayFromKeyIL(day), now), sub: null, tone: 'teal' });
 function whPerson(p, now) {
   const today = dayKeyIL(now);
   const last = lastWork(p, today);
   return h('li', {}, h('button', { type: 'button', class: 'wh-row', id: `wh-p-${p.person}`, onclick: () => { work.person = p.person; work.open = null; renderWork(); $('wh-back')?.focus(); } },
     personChip(p.person),
-    h('span', { class: 'wh-sum' }, last ? `${last.isToday ? 'היום' : 'לאחרונה'}: ${last.line}` : `אין פעולות ב־${work.days} הימים האחרונים`)));
+    h('span', { class: 'wh-sum' }, last ? `${whDayWord(last.day, now)}: ${last.line}` : `אין פעולות ב־${work.days} הימים האחרונים`)));
 }
 function whDay(d, now) {
   const open = work.open === d.day;

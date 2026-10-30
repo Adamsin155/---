@@ -88,7 +88,7 @@ before(async () => {
 });
 
 test('the file: the newest but one (only the end of the manager approval after it), none of the refused words, its two functions only, invoker, not for anon', async () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261118100000_no_manager_approval.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql']);
   const sql = migrationSql(FILE);
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   assert.deepEqual([...sql.matchAll(/create or replace function ([\w.]+)/g)].map((m) => m[1]), ['public.protocol_checks_compact', 'public.protocol_log_brief']);

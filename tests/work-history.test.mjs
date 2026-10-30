@@ -38,6 +38,13 @@ test('steps: several items of one process are one step; named marks have their w
   assert.deepEqual(days.map((d) => [d.day, d.line]), [['2026-10-27', 'שיוך עורך, עוד שלב אחד'], ['2026-10-26', 'שלב אחד']]);
 });
 
+test('a named mark says its process: it is not counted again as a step', () => {
+  const log = [mark('p22a.load', 'ofir@x', 27), mark('p22a.assigned', 'ofir@x', 27)];
+  const [d] = of(run({ log }), 'ofir').days;
+  assert.equal(d.line, 'שיוך עורך');
+  assert.deepEqual(d.clients[0].lines, ['שיוך עורך']);
+});
+
 test('a round\'s mark counts as its process; what nobody did by hand, what an owner did and a key of no item do not', () => {
   const log = [
     mark('r2.p28.scheduled', 'ilai@x', 26),

@@ -54,8 +54,7 @@ export function standingMarks(log = []) {
 
 // → [{ person, name, days: [{ day, line, clients: [{ cid, name, lines }] }] }], every employee of
 // the office in the protocol's order; the newest day first, and days with nothing are not listed.
-export function workHistory({ log = [], files = [], progress = [], clients = [], personOf = () => null, now = new Date() } = {}) {
-  void now;
+export function workHistory({ log = [], files = [], progress = [], clients = [], personOf = () => null } = {}) {
   const labels = new Map(clients.map((c) => [c.id, clientLabel(c)]));
   const people = new Map();
   const cell = (person, day, cid) => {
@@ -104,6 +103,11 @@ export function workHistory({ log = [], files = [], progress = [], clients = [],
 }
 
 const counted = (list) => list.reduce((sum, c) => sum + c, 0);
+// The steps of a client's day, without a process its named mark already says ("שיוך עורך", not also its process).
+const stepsOf = (c) => {
+  const said = new Set([...c.named.keys()].map((k) => PROC_OF.get(k).id));
+  return [...c.steps].filter(([id]) => !said.has(id)).map(([, title]) => title);
+};
 // "4 גרפיקות, 2 גאנטים נשלחו, עוד 3 שלבים": the one line of a day.
 export function dayLine(cells) {
   const parts = [];
@@ -112,7 +116,7 @@ export function dayLine(cells) {
   add(counted(cells.map((c) => c.graphics)), GRAPHICS);
   add(counted(cells.map((c) => c.uploaded)), UPLOADED);
   for (const key of Object.keys(NAMED)) add(counted(cells.map((c) => c.named.get(key) || 0)), NAMED[key]);
-  const steps = counted(cells.map((c) => c.steps.size));
+  const steps = counted(cells.map((c) => stepsOf(c).length));
   add(steps, parts.length ? MORE_STEPS : STEPS);
   return parts.join(', ');
 }
@@ -124,7 +128,7 @@ function clientLines(c) {
   add(c.graphics, GRAPHICS);
   add(c.uploaded, UPLOADED);
   for (const key of Object.keys(NAMED)) add(c.named.get(key) || 0, NAMED[key]);
-  return [...out, ...c.steps.values()];
+  return [...out, ...stepsOf(c)];
 }
 
 // The line beside an employee in the list: the last day they did something.
