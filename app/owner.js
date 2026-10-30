@@ -44,7 +44,7 @@ import { loadFinance, loadDeliverableFiles, loadArchived, restoreClient, purgeCl
 // The owners' end of the day (docs/ops.md, section 48): the same numbers as the 19:00 message.
 import { daySummary, headline, waitingText, assignText } from './day-summary.js';
 // Who did what on which day (docs/ops.md, section 82).
-import { WORK_DAYS, canSeeWorkHistory, workHistory, lastWork } from './work-history-logic.js';
+import { WORK_DAYS, canSeeWorkHistory, workHistory, lastWork, allDays, driveCoverage } from './work-history-logic.js';
 import { loadWorkHistory } from './work-history-data.js';
 import { icon as kIcon, iconSquare, headIcon, besideIcon, leadIcon, dateLeaf } from './kit.js';
 import { warm, taken } from './supa.js';
@@ -489,6 +489,29 @@ function whDay(d, now) {
       h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(c.cid)}` }, c.name),
       h('span', { class: 'wh-what' }, c.lines.join(' · '))))));
 }
+// "כל הימים": the files and the work of everyone, per day.
+function whAllDay(d, now) {
+  const open = work.open === d.day;
+  const id = `wh-d-${d.day}`;
+  return h('li', { class: 'wh-day' },
+    h('button', { type: 'button', class: 'wh-row', id, 'aria-expanded': String(open), 'aria-controls': `${id}-b`, onclick: () => { work.open = open ? null : d.day; renderWork(); $(id)?.focus(); } },
+      whDayLeaf(d.day, now),
+      h('span', { class: 'wh-sum' },
+        d.filesLine ? h('strong', { class: 'wh-files' }, d.filesLine) : null,
+        d.workLine ? h('span', { class: 'wh-work' }, `במערכת: ${d.workLine}`) : null)),
+    h('ul', { class: 'wh-clients', id: `${id}-b`, hidden: !open }, ...d.clients.map((c) => h('li', {},
+      h('a', { class: 'wclient', href: `client.html?id=${encodeURIComponent(c.cid)}` }, c.name),
+      c.files ? h('span', { class: 'wh-what' }, `עלו: ${c.files}`) : null,
+      c.folders.length ? h('span', { class: 'wh-folders' }, c.folders.join(' · ')) : null,
+      ...c.work.map((w) => h('span', { class: 'wh-what' }, `${w.name}: ${w.lines.join(' · ')}`))))));
+}
+function whCoverage(cover, now) {
+  const about = !cover.on ? 'ספירת הקבצים בדרייב עוד לא התחילה.'
+    : `הקבצים נספרים מהדרייב לפי התאריך שבו נוספו. עודכן ${cover.at ? formatWhen(cover.at, now) : ''}. הספירה עוברת על כל הלקוחות בערך פעם בשעה וחצי.`;
+  const list = (title, names) => (names.length ? h('details', { class: 'wh-missing' }, h('summary', {}, `${title}: ${names.length}`), h('p', {}, names.join(', '))) : null);
+  return h('div', { class: 'wh-cover', id: 'wh-cover' }, h('p', { class: 'eod-note' }, about),
+    list('לא נספרו, אין קישור לדרייב בכרטיס', cover.noLink), list('לא נספרו, הדרייב לא נפתח', cover.failed));
+}
 function renderWork() {
   const fresh = Date.now() - work.at < 60000;
   if (!work.busy && !work.failed && (!work.data || !fresh)) loadWork();
@@ -498,9 +521,25 @@ function renderWork() {
   }
   const now = new Date();
   const people = workHistory({ ...work.data, clients: allClients, personOf: (e) => directory[String(e || '').toLowerCase()] || null });
+  const days = allDays({ ...work.data, clients: allClients, personOf: (e) => directory[String(e || '').toLowerCase()] || null });
+  const cover = driveCoverage(allClients, work.data.driveState);
+  if (work.person === 'all') {
+    fill($('wh-body'),
+      h('button', { type: 'button', class: 'btn btn-sm wh-back', id: 'wh-back', onclick: () => { work.person = null; renderWork(); $('wh-p-all')?.focus(); } }, 'חזרה'),
+      h('h2', { class: 'wh-name', id: 'wh-name' }, 'כל הימים'),
+      days.length ? h('ul', { class: 'wh-list', id: 'wh-days' }, ...days.map((d) => whAllDay(d, now))) : h('p', { class: 'muted' }, `אין פעולות ב־${work.days} הימים האחרונים.`),
+      h('button', { type: 'button', class: 'btn btn-sm wh-more', id: 'wh-more', disabled: work.busy, onclick: () => loadWork(work.days + WORK_DAYS) }, 'ימים קודמים'),
+      whCoverage(cover, now));
+    return;
+  }
   const p = people.find((x) => x.person === work.person);
   if (!p) {
-    fill($('wh-body'), h('ul', { class: 'wh-list', id: 'wh-people' }, ...people.map((x) => whPerson(x, now))));
+    const top = days[0];
+    fill($('wh-body'),
+      h('button', { type: 'button', class: 'wh-row wh-all', id: 'wh-p-all', onclick: () => { work.person = 'all'; work.open = null; renderWork(); $('wh-back')?.focus(); } },
+        h('strong', { class: 'wh-all-t' }, 'כל הימים'),
+        h('span', { class: 'wh-sum' }, top ? `${whDayWord(top.day, now)}: ${top.filesLine || top.workLine}` : 'קבצים ועבודה של כולם, יום אחרי יום')),
+      h('ul', { class: 'wh-list', id: 'wh-people' }, ...people.map((x) => whPerson(x, now))));
     return;
   }
   const editor = !!PEOPLE[p.person]?.editor;
@@ -511,8 +550,10 @@ function renderWork() {
       : h('p', { class: 'muted' }, `אין פעולות ב־${work.days} הימים האחרונים.`),
     h('button', { type: 'button', class: 'btn btn-sm wh-more', id: 'wh-more', disabled: work.busy, onclick: () => loadWork(work.days + WORK_DAYS) }, 'ימים קודמים'),
     h('p', { class: 'eod-note', id: 'wh-about' }, editor
-      ? 'הסרטונים נספרים לפי מה שהעורך מעדכן בכרטיס שלו, מהיום שבו הספירה הופעלה.'
-      : 'נספר מה שסומן והועלה במערכת. סימון שסומן שוב נספר ביום של הסימון האחרון.'));
+      ? 'הסרטונים נספרים לפי מה שהעורך מעדכן בכרטיס שלו, מהיום שבו הספירה הופעלה. "נוספו לדרייב" הוא מה שנוסף לתיקיית הלקוח שהעורך רשום בכרטיס שלו: הדרייב לא אומר מי העלה.'
+      : p.person === 'ilai'
+        ? 'נספר מה שסומן והועלה במערכת. "נוספו לתיקיית הגרפיקות" הוא מה שנוסף לתיקייה בדרייב: הדרייב לא אומר מי העלה.'
+        : 'נספר מה שסומן והועלה במערכת. סימון שסומן שוב נספר ביום של הסימון האחרון.'));
 }
 
 // ── Asking the responsible person ───────────

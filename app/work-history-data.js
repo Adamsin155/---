@@ -16,15 +16,18 @@ async function all(build) {
   }
 }
 
-// → { log, files, progress } of the last `days` days, the oldest first.
+// → { log, files, progress, drive, driveState } of the last `days` days, the oldest first.
+// `driveState` is null while the Drive counts are not there yet (20261120100000_drive_daily.sql).
 export async function loadWorkHistory(days, now = new Date()) {
   const start = atTimeIL(addDaysIL(now, -days), 0);
   const iso = start.toISOString();
-  const [log, files, progress] = await Promise.all([
+  const [log, files, progress, drive, driveState] = await Promise.all([
     loadAllLog(iso),
     all(() => supabase.from('client_files').select('client_id, kind, uploaded_by, created_at, deleted_at')
       .in('kind', ['deliverable_graphic', 'deliverable_video']).gte('created_at', iso).order('created_at')),
     all(() => supabase.from('editor_progress_log').select('client_id, editor, day, delta').gte('day', dayKeyIL(start)).order('id')).catch(() => []),
+    all(() => supabase.from('drive_daily').select('client_id, day, folder, kind, files').gte('day', dayKeyIL(start)).gt('files', 0).order('day')).catch(() => []),
+    all(() => supabase.from('drive_scan_state').select('client_id, scanned_at, error').order('client_id')).catch(() => null),
   ]);
-  return { log, files, progress };
+  return { log, files, progress, drive, driveState };
 }

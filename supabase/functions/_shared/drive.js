@@ -114,9 +114,11 @@ export function makeDrive(sa, { fetch = globalThis.fetch, now = () => Date.now()
     token = { value: body.access_token, until: now() + (Number(body.expires_in) || 3600) * 1000 };
     return token.value;
   }
-  async function page(folderId, pageToken) {
+  async function page(folderId, pageToken, since) {
+    // `since`: only what was added from then on, and the folders (an old folder may hold a new file).
+    const newer = since ? ` and (mimeType = '${FOLDER_MIME}' or createdTime > '${since}')` : '';
     const q = new URLSearchParams({
-      q: `'${folderId.replace(/'/g, '')}' in parents and trashed = false`,
+      q: `'${folderId.replace(/'/g, '')}' in parents and trashed = false${newer}`,
       fields: FIELDS, pageSize: '200', orderBy: 'createdTime desc',
       supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
     });
@@ -127,7 +129,7 @@ export function makeDrive(sa, { fetch = globalThis.fetch, now = () => Date.now()
     if (!res.ok) throw fail(`http_${res.status}`);
     return res.json();
   }
-  async function list(folderId) {
+  async function list(folderId, { since = null, maxDepth = MAX_DEPTH, maxFiles = MAX_FILES } = {}) {
     const out = [];
     let truncated = false;
     // Breadth first: the folder's own files, then its subfolders' (a month, "סרטונים ערוכים").
@@ -139,26 +141,26 @@ export function makeDrive(sa, { fetch = globalThis.fetch, now = () => Date.now()
       do {
         let body;
         try {
-          body = await page(dir.id, pageToken);
+          body = await page(dir.id, pageToken, since);
         } catch (e) {
           // The client's folder itself must open; a subfolder that does not is only skipped.
           if (first) throw e;
           break;
         }
         for (const f of Array.isArray(body?.files) ? body.files : []) {
-          if (out.length >= MAX_FILES) { truncated = true; break; }
+          if (out.length >= maxFiles) { truncated = true; break; }
           const item = {
             name: String(f.name ?? ''), mimeType: String(f.mimeType ?? ''), createdTime: f.createdTime ?? null,
             modifiedTime: f.modifiedTime ?? null, link: f.webViewLink ?? null, size: f.size ? Number(f.size) : null, path: dir.path,
           };
           out.push(item);
-          if (item.mimeType === FOLDER_MIME && dir.depth + 1 <= MAX_DEPTH) queue.push({ id: f.id, path: dir.path ? `${dir.path}/${item.name}` : item.name, depth: dir.depth + 1 });
+          if (item.mimeType === FOLDER_MIME && dir.depth + 1 <= maxDepth) queue.push({ id: f.id, path: dir.path ? `${dir.path}/${item.name}` : item.name, depth: dir.depth + 1 });
         }
-        if (out.length >= MAX_FILES && body?.nextPageToken) truncated = true;
-        pageToken = out.length >= MAX_FILES ? null : body?.nextPageToken || null;
+        if (out.length >= maxFiles && body?.nextPageToken) truncated = true;
+        pageToken = out.length >= maxFiles ? null : body?.nextPageToken || null;
       } while (pageToken);
       first = false;
-      if (out.length >= MAX_FILES) { truncated = truncated || queue.length > 0; break; }
+      if (out.length >= maxFiles) { truncated = truncated || queue.length > 0; break; }
     }
     return { files: out, truncated };
   }
@@ -172,6 +174,21 @@ export function kindOf(mimeType) {
   if (m.startsWith('video/')) return 'video';
   if (m.startsWith('image/')) return 'image';
   if (m.startsWith('application/vnd.google-apps.') || m === 'application/pdf' || m.startsWith('text/')) return 'doc';
+  return 'other';
+}
+
+// What a file is to the office, by its type and the name of its folder (the folders are not
+// uniform: "סרטונים מוכנים", "גלם יום 1/סופי", "יום צילום 3"…): 'graphic' (not a video, in a
+// graphics or highlights folder), 'raw' (footage and photos of a shoot), 'video', 'other'.
+const GRAPHIC_FOLDER = /גרפיק|היילייט/;
+const READY_FOLDER = /סופי|מוכנ|ערוכ|סגיר|מתוקן/;
+const RAW_FOLDER = /גלם|מצלמה|רחפן|בירול|יום צילום|ראיונות|מאחורי הקלעים/;
+export function fileClass(mimeType, path) {
+  const p = String(path || '');
+  const k = kindOf(mimeType);
+  if (k === 'video') return !READY_FOLDER.test(p) && RAW_FOLDER.test(p) ? 'raw' : 'video';
+  if (GRAPHIC_FOLDER.test(p)) return 'graphic';
+  if (k === 'image' && (RAW_FOLDER.test(p) || /תמונות/.test(p))) return 'raw';
   return 'other';
 }
 
