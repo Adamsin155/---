@@ -18,6 +18,7 @@
 // 'vapid_subject') through public.reminders_vapid() (service role only); the
 // public key is app/push-config.js. Deploy every file listed in docs/ops.md.
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { isOAuthToken } from '../_shared/oauth-token.js';
 import { runTick, sendTest } from './tick.js';
 import { sendWebPush } from './webpush.js';
 import { whatsappChannel } from './wa-server.ts';
@@ -444,6 +445,8 @@ Deno.serve(async (req) => {
   }
 
   // action 'test'
+  // A connected app's token is for the mcp function alone (docs/ops.md, section 84).
+  if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });
   const token = bearer(req.headers.get('authorization'));
   if (!token) return json(401, { error: 'not_signed_in' });
   const { data: who, error: whoError } = await admin.auth.getUser(token);

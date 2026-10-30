@@ -24,7 +24,7 @@ const handle = makeHandler({
   env: (k) => ({ SUPABASE_URL: BASE, SUPABASE_ANON_KEY: 'anon' })[k],
   serviceKey: () => 'service',
   createClient: (_u, key) => {
-    if (key === 'service') return { from: () => ({ insert: async (row) => { usage.push(row); return { error: null }; } }) };
+    if (key === 'service') return { rpc: async () => ({ data: 'the-gate-key', error: null }), from: () => ({ insert: async (row) => { usage.push(row); return { error: null }; } }) };
     const c = fakeClient({ clients: [{ id: 'c', name: 'רון', status: 'active', phone: '050-1112222' }] }, { rpc: { is_office: true, my_person: null, sees_money: true, mcp_allowed: true } });
     c.auth.getUser = async () => ({ data: { user: { id: 'u1', email: 'owner@astrateg.test' } }, error: null });
     return c;

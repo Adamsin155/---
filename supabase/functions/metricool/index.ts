@@ -18,6 +18,7 @@
 // 'metricool_user_id') through public.metricool_config() (service role only). They are
 // never returned and never logged; an error is a short code.
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { isOAuthToken } from '../_shared/oauth-token.js';
 import { runSync, listBrands, checkAccount, corsHeaders, bearer, mayCall, ACTIONS } from './sync.js';
 
 // The new secret key when the project has one, else the legacy service-role key.
@@ -97,6 +98,8 @@ Deno.serve(async (req) => {
   }
 
   // 'brands' and 'check': a signed-in member of staff.
+  // A connected app's token is for the mcp function alone (docs/ops.md, section 84).
+  if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });
   const token = bearer(req.headers.get('authorization'));
   if (!token) return json(401, { error: 'not_signed_in' });
   const { data: who, error: whoError } = await admin.auth.getUser(token);

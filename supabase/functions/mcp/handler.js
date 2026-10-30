@@ -31,6 +31,11 @@ export const SERVER_VERSION = '1.0.0';
 export const RATE_PER_MINUTE = 60;
 export const BODY_MAX = 256 * 1024;
 export const METADATA_PATH = '/.well-known/oauth-protected-resource';
+// What this function asks the database as the person, besides the tools' tables (TABLES in ../ask/tools.js).
+// public.mcp_request_gate() lets a connected app's token ask these and nothing else; tests/sql/mcp-gate.test.mjs
+// holds the two lists equal.
+export const GATE_RPCS = ['is_office', 'my_person', 'mcp_allowed', 'sees_money'];
+export const GATE_HEADER = 'x-mcp-gate';
 
 // JSON-RPC's own codes, and two of ours for "who".
 export const E = { PARSE: -32700, INVALID: -32600, NO_METHOD: -32601, PARAMS: -32602, INTERNAL: -32603, AUTH: -32001, REFUSED: -32003, LIMIT: -32029 };
@@ -101,6 +106,21 @@ export function makeHandler(deps) {
   const log = deps.log || (() => {});
   const allow = makeLimiter(RATE_PER_MINUTE);
   let admin = null;
+  let gateKey = null;
+  const adminClient = () => {
+    admin ||= deps.createClient(deps.env('SUPABASE_URL'), deps.serviceKey(), { auth: { persistSession: false, autoRefreshToken: false } });
+    return admin;
+  };
+  // The key that opens the database's gate (public.mcp_request_gate()) for this function alone: a token
+  // held anywhere else, without it, is refused at the REST API. Read once with the service key; never
+  // logged and never sent back.
+  async function gateKeyOf() {
+    if (gateKey) return gateKey;
+    const { data, error } = await adminClient().rpc('mcp_gate_key');
+    if (error || typeof data !== 'string' || !data) throw new Error('no gate key');
+    gateKey = data;
+    return gateKey;
+  }
 
   const baseUrl = () => String(deps.env('SUPABASE_URL') || '').replace(/\/+$/, '');
   const resourceUrl = () => `${baseUrl()}/functions/v1/mcp`;
@@ -109,8 +129,7 @@ export function makeHandler(deps) {
   // Who, which tool, ok or a short code, when. Nothing else, and a failure here fails nothing.
   async function keepUsage(email, tool, code) {
     try {
-      admin ||= deps.createClient(deps.env('SUPABASE_URL'), deps.serviceKey(), { auth: { persistSession: false, autoRefreshToken: false } });
-      const { error } = await admin.from('mcp_usage').insert({ email: String(email || '').toLowerCase().slice(0, 200), tool, code, at: new Date(now()).toISOString() });
+      const { error } = await adminClient().from('mcp_usage').insert({ email: String(email || '').toLowerCase().slice(0, 200), tool, code, at: new Date(now()).toISOString() });
       if (error) log(`mcp: usage not kept (${String(error.code || 'error').slice(0, 20)})`);
     } catch (err) {
       log(`mcp: usage not kept (${err?.name || 'error'})`);
@@ -158,7 +177,7 @@ export function makeHandler(deps) {
     let user = null;
     try {
       userClient = deps.createClient(deps.env('SUPABASE_URL'), deps.env('SUPABASE_ANON_KEY'), {
-        global: { headers: { Authorization: `Bearer ${token}` } },
+        global: { headers: { Authorization: `Bearer ${token}`, [GATE_HEADER]: await gateKeyOf() } },
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
       });
       const { data, error } = await userClient.auth.getUser(token);
@@ -199,7 +218,7 @@ export function makeHandler(deps) {
     // ── Who: the database decides, on every request ──
     let office; let person; let on; let money;
     try {
-      [office, person, on, money] = await Promise.all(['is_office', 'my_person', 'mcp_allowed', 'sees_money'].map((fn) => userClient.rpc(fn)));
+      [office, person, on, money] = await Promise.all(GATE_RPCS.map((fn) => userClient.rpc(fn)));
     } catch {
       log('mcp: who could not be asked');
       return rpcError(503, id, E.INTERNAL, 'unavailable', { code: 'unavailable' });

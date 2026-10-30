@@ -5,8 +5,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeHandler, claimsOf, claimsProblem, allowedOrigin, INSTRUCTIONS, MCP_READ_TOOLS, VERSIONS, LATEST_VERSION, RATE_PER_MINUTE, METADATA_PATH, E } from '../supabase/functions/mcp/handler.js';
-import { TOOLS } from '../supabase/functions/ask/tools.js';
+import { makeHandler, claimsOf, claimsProblem, allowedOrigin, INSTRUCTIONS, MCP_READ_TOOLS, VERSIONS, LATEST_VERSION, RATE_PER_MINUTE, METADATA_PATH, E, GATE_RPCS, GATE_HEADER } from '../supabase/functions/mcp/handler.js';
+import { isOAuthToken } from '../supabase/functions/_shared/oauth-token.js';
+import { FUNCTIONS, deployFiles } from '../scripts/sync-functions.mjs';
+import { makeHandler as askHandler } from '../supabase/functions/ask/handler.js';
+import { makeHandler as driveHandler } from '../supabase/functions/drive/handler.js';
+import { makeHandler as contractHandler } from '../supabase/functions/contract-ai/handler.js';
+import { TOOLS, TABLES } from '../supabase/functions/ask/tools.js';
 import { SYSTEM } from '../supabase/functions/ask/handler.js';
 import { mayUseMcp, MCP_PEOPLE, authorizationIdOf, safeRedirect, clientNameOf, clientHostOf } from '../app/mcp-logic.js';
 import { DRAFT_TOOL, DRAFT_SCHEMA, DRAFT_PARAM, DRAFT_LINK_MAX, draftAnswer, draftOf, draftFromHash, checkDraftInput, draftLink } from '../app/mcp-draft.js';
@@ -49,12 +54,13 @@ const PEOPLE_ROWS = {
   stranger: { office: false, person: null, money: false },
 };
 
-function world({ on = ['owner', 'lior', 'ofir'], env = {}, getUserThrows = false, noAccessFn = false } = {}) {
+function world({ on = ['owner', 'lior', 'ofir'], env = {}, getUserThrows = false, noAccessFn = false, noGateKey = false } = {}) {
   const usage = [];
   const writes = [];
   const reads = [];
   const logs = [];
-  const state = { on: new Set(on), revoked: new Set(), at: NOW };
+  const headersSeen = [];
+  const state = { on: new Set(on), revoked: new Set(), at: NOW, keyAsked: 0 };
   const deps = {
     env: (k) => ({ SUPABASE_URL: BASE, SUPABASE_ANON_KEY: 'anon', ...env })[k],
     serviceKey: () => 'service',
@@ -63,11 +69,13 @@ function world({ on = ['owner', 'lior', 'ofir'], env = {}, getUserThrows = false
     createClient: (_url, key, opts) => {
       if (key === 'service') {
         return {
+          rpc: async (fn) => { state.keyAsked += 1; return fn === 'mcp_gate_key' && !noGateKey ? { data: 'the-gate-key', error: null } : { data: null, error: { message: 'no such function' } }; },
           from: (table) => ({
             insert: async (row) => { writes.push(table); if (table === 'mcp_usage') usage.push(row); return { error: null }; },
           }),
         };
       }
+      headersSeen.push(opts?.global?.headers || {});
       const token = String(opts?.global?.headers?.Authorization || '').replace(/^Bearer /, '');
       const claims = claimsOf(token);
       const who = claims?.sub?.replace(/^id-/, '');
@@ -89,7 +97,7 @@ function world({ on = ['owner', 'lior', 'ofir'], env = {}, getUserThrows = false
       return c;
     },
   };
-  return { handle: makeHandler(deps), usage, writes, reads, logs, state };
+  return { handle: makeHandler(deps), usage, writes, reads, logs, state, headersSeen };
 }
 
 const post = (handle, body, { token, headers = {}, raw = false, path = '/mcp' } = {}) => handle(new Request(`http://edge.local${path}`, {
@@ -425,10 +433,11 @@ test('the log: short codes only; a usage row that fails fails nothing', async ()
   const logs = [];
   const handle = makeHandler({
     env: (k) => ({ SUPABASE_URL: BASE, SUPABASE_ANON_KEY: 'anon' })[k],
-    serviceKey: () => { throw new Error('no key here: abc'); },
+    serviceKey: () => 'service',
     now: () => NOW,
     log: (m) => logs.push(m),
-    createClient: (_u, _k, opts) => {
+    createClient: (_u, k, opts) => {
+      if (k === 'service') return { rpc: async () => ({ data: 'the-gate-key', error: null }), from: () => ({ insert: async () => { throw new Error('no table here: abc'); } }) };
       const c = fakeClient(TABLES_ROWS, { rpc: { is_office: true, my_person: null, sees_money: true, mcp_allowed: true } });
       c.auth.getUser = async () => ({ data: { user: { id: claimsOf(opts.global.headers.Authorization.slice(7)).sub, email: 'o@astrateg.test' } } });
       return c;
@@ -438,6 +447,106 @@ test('the log: short codes only; a usage row that fails fails nothing', async ()
   assert.equal(res.status, 200);
   assert.equal(logs.length, 1);
   assert.doesNotMatch(logs[0], /abc|astrateg/);
+});
+
+// ── The gate ───────────────────────────────────
+test('the database\'s gate: the person\'s client carries the key, read once with the service key, and it goes nowhere else', async () => {
+  const { handle, headersSeen, state, usage, logs } = world();
+  const res = await callTool(handle, 'owner', 'find_clients', {});
+  await callTool(handle, 'ofir', 'team', {});
+  assert.ok(!JSON.stringify(res).includes('the-gate-key'));
+  assert.equal(state.keyAsked, 1, 'once for the instance');
+  assert.ok(headersSeen.length >= 2);
+  for (const h of headersSeen) assert.equal(h[GATE_HEADER], 'the-gate-key');
+  assert.ok(!JSON.stringify(usage).includes('the-gate-key'));
+  assert.ok(!logs.join(' ').includes('the-gate-key'));
+});
+
+test('no key (before the migration): nobody in, and no database words', async () => {
+  const { handle } = world({ noGateKey: true });
+  const res = await post(handle, rpc('tools/list'), { token: tokenFor('owner') });
+  assert.equal(res.status, 503);
+  assert.doesNotMatch(await res.text(), /no such function|gate/);
+});
+
+test('everything the handler and the tools ask the database is on the gate\'s lists (a new table or rpc fails here)', async () => {
+  const asked = { tables: new Set(), rpcs: new Set() };
+  const { handle, reads } = world();
+  for (const who of ['owner', 'ofir']) {
+    for (const [name, args] of [
+      ['find_clients', { name: 'רון' }], ['client_details', { client: 'רון' }], ['tasks', { include_done: true }], ['shoot_days', {}], ['editors_progress', {}],
+      ['content_gantt', {}], ['sales', {}], ['drive_files', { client: 'רון' }], ['content_owed', {}], ['app_guide', {}], ['team', {}],
+    ]) await callTool(handle, who, name, args);
+  }
+  for (const r of reads.flat()) asked.tables.add(r.table);
+  assert.ok(asked.tables.size >= 8, 'the tools did read');
+  for (const t of asked.tables) assert.ok(TABLES.includes(t), t);
+  // In the source: every table and rpc that is not the tools' own list, and no other way to the database.
+  const code = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+  const tools = code('../supabase/functions/ask/tools.js');
+  for (const m of tools.matchAll(/\.from\('([a-z_]+)'\)/g)) assert.ok(TABLES.includes(m[1]), m[1]);
+  assert.doesNotMatch(tools, /\.rpc\(/);
+  const handler = code('../supabase/functions/mcp/handler.js');
+  assert.deepEqual([...handler.matchAll(/userClient\.(rpc|from)\(/g)].length, 1, 'one call on the person\'s client');
+  assert.match(handler, /GATE_RPCS\.map\(\(fn\) => userClient\.rpc\(fn\)\)/);
+  assert.deepEqual([...handler.matchAll(/\.from\('([a-z_]+)'\)/g)].map((m) => m[1]), ['mcp_usage'], 'with the service key');
+  assert.deepEqual([...handler.matchAll(/\.rpc\('([a-z_]+)'\)/g)].map((m) => m[1]), ['mcp_gate_key'], 'with the service key');
+  assert.deepEqual(GATE_RPCS, ['is_office', 'my_person', 'mcp_allowed', 'sees_money']);
+});
+
+// ── The other functions ────────────────────────
+const appToken = tokenFor('owner');
+const session = tokenFor('owner', { client_id: undefined });
+test('isOAuthToken: only a token with the claim; never throws', () => {
+  assert.equal(isOAuthToken(`Bearer ${appToken}`), true);
+  assert.equal(isOAuthToken(`bearer  ${appToken}`), true);
+  for (const h of [`Bearer ${session}`, `Bearer ${tokenFor('owner', { client_id: '' })}`, `Bearer ${tokenFor('owner', { client_id: null })}`, 'Bearer x', 'Bearer a.b.c', 'Bearer', appToken, '', null, undefined, 5, {}]) {
+    assert.equal(isOAuthToken(h), false, String(h).slice(0, 30));
+  }
+});
+
+// Every function that takes a user's token, and those that take none (a secret in the link, a cron secret, Meta).
+const TAKES_TOKEN = ['ask', 'contract-ai', 'create-quote', 'drive', 'metricool', 'reminders', 'staff-admin'];
+const NO_USER_TOKEN = ['calendar', 'client-media', 'drive-scan', 'whatsapp-webhook'];
+test('every function that takes a user\'s token refuses a connected app\'s, before it asks who this is', () => {
+  assert.deepEqual([...TAKES_TOKEN, ...NO_USER_TOKEN, 'mcp'].sort(), [...FUNCTIONS].sort());
+  const ROOT = new URL('../supabase/functions/', import.meta.url);
+  const own = (fn) => deployFiles(fn).filter((f) => f.startsWith(`${fn}/`)).map((f) => readFileSync(new URL(f, ROOT), 'utf8')).join('\n');
+  for (const fn of TAKES_TOKEN) {
+    const src = own(fn);
+    assert.match(src, /import \{ isOAuthToken \} from '\.\.\/_shared\/oauth-token\.js'/, fn);
+    const line = src.indexOf("if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });");
+    assert.ok(line > 0, fn);
+    const who = src.search(/auth\.getUser\(/);
+    assert.ok(who > 0 && line < who, `${fn}: the refusal comes before auth.getUser`);
+  }
+  for (const fn of NO_USER_TOKEN) assert.doesNotMatch(own(fn), /auth\.getUser\(/, `${fn} takes no user's token`);
+});
+
+test('run whole: ask, drive and contract-ai refuse a connected app\'s token, and take a session\'s as before', async () => {
+  const seen = [];
+  const deps = {
+    env: (k) => ({ SUPABASE_URL: BASE, SUPABASE_ANON_KEY: 'anon' })[k],
+    serviceKey: () => 'service',
+    createClient: () => {
+      seen.push(1);
+      const c = fakeClient({}, { rpc: { is_office: false, my_person: null, sees_money: false, can_edit_gantt: false } });
+      return c;
+    },
+    makeClient: () => ({}),
+    now: () => NOW,
+  };
+  for (const [name, make] of [['ask', askHandler], ['drive', driveHandler], ['contract-ai', contractHandler]]) {
+    const handle = make(deps);
+    const call = (t) => handle(new Request('http://edge.local/x', { method: 'POST', headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }, body: '{}' }));
+    seen.length = 0;
+    const refused = await call(appToken);
+    assert.equal(refused.status, 403, name);
+    assert.deepEqual(await refused.json(), { error: 'not_allowed' }, name);
+    assert.equal(seen.length, 0, `${name}: nothing was asked`);
+    await call(session);
+    assert.ok(seen.length > 0, `${name}: a browser session goes on to its usual checks`);
+  }
 });
 
 // ── The draft ──────────────────────────────────

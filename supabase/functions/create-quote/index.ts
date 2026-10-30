@@ -20,6 +20,7 @@
 // contract is created all the same, as one filled by hand (no tag).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateSelection, buildQuoteModel, normalizeSelection, exceptionOf } from '../_shared/app/pricing.js';
+import { isOAuthToken } from '../_shared/oauth-token.js';
 import { corsHeaders, callerIsOffice, aiRunProblem } from './http.js';
 
 // The new secret key when the project has one, else the legacy service-role key (as the other
@@ -77,6 +78,8 @@ Deno.serve(async (req) => {
   });
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json(405, { error: 'method not allowed' });
+  // A connected app's token is for the mcp function alone (docs/ops.md, section 84).
+  if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });
 
   const authHeader = req.headers.get('Authorization') ?? '';
   const url = Deno.env.get('SUPABASE_URL')!;

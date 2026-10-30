@@ -17,6 +17,7 @@
 //                                    never on the owner's row)
 // Errors: { error: code } with the codes in ERR. Links and tokens are never logged.
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { isOAuthToken } from '../_shared/oauth-token.js';
 import {
   ERR, normEmail, roleOf, bearer, corsHeaders, planUpsert, planRemove, planLink, planPhone, linkTypeFor,
   buildLoginLink, summarize, linkErrorCode,
@@ -101,6 +102,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json(405, { error: ERR.badRequest });
 
+  // A connected app's token is for the mcp function alone (docs/ops.md, section 84).
+  if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });
   const token = bearer(req.headers.get('authorization'));
   if (!token) return json(401, { error: ERR.notSignedIn });
   const { data: who, error: whoError } = await admin.auth.getUser(token);

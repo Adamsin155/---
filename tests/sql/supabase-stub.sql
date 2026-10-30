@@ -17,6 +17,7 @@ create schema if not exists net;
 create role anon nologin noinherit;
 create role authenticated nologin noinherit;
 create role service_role nologin noinherit bypassrls;
+create role authenticator nologin noinherit;
 
 grant usage on schema public, extensions, auth to anon, authenticated, service_role;
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;

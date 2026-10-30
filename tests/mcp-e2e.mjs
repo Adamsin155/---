@@ -33,7 +33,7 @@ await new Promise((r) => { server.listen(0, '127.0.0.1', r); });
 const BASE = `http://localhost:${server.address().port}/`;
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-const PEOPLE = { owner: null, lior: 'lior', ofir: 'ofir', irit: 'irit', anna: 'anna' };
+const PEOPLE = { owner: null, owner2: null, lior: 'lior', ofir: 'ofir', irit: 'irit', anna: 'anna' };
 const users = new Map();
 const staff = [];
 for (const [k, person] of Object.entries(PEOPLE)) {
@@ -49,7 +49,7 @@ const userOf = (headers) => {
   return [...users.values()].find((u) => jwtFor(u) === token) || null;
 };
 
-const access = new Map([['owner@astrateg.test', true], ['lior@astrateg.test', true], ['ofir@astrateg.test', true]]);
+const access = new Map([['owner@astrateg.test', true], ['owner2@astrateg.test', true], ['lior@astrateg.test', true], ['ofir@astrateg.test', true]]);
 const lastUsed = { 'ofir@astrateg.test': new Date(Date.now() - 3600000).toISOString() };
 const calls = [];
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
@@ -363,13 +363,25 @@ try {
       await page.goto(`${BASE}team.html`);
       await page.locator('#mcp-panel .tm-mcp-row').first().waitFor();
       const card = page.locator('#mcp-panel');
-      assert.equal(await card.locator('.tm-mcp-row').count(), 3);
+      // Two owners: a row and a switch for each, told apart by their address.
+      assert.equal(await card.locator('.tm-mcp-row').count(), 4);
+      assert.equal(await card.locator('.tm-mcp-row', { hasText: 'owner@astrateg.test' }).locator('input[role=switch]').count(), 1);
+      assert.equal(await card.locator('.tm-mcp-row', { hasText: 'owner2@astrateg.test' }).locator('input[role=switch]').count(), 1);
       assert.match(await card.innerText(), /שימוש אחרון/);
       assert.match(await card.innerText(), /עוד לא התחבר/);
       assert.equal(await noSideScroll(page), true, label);
       await card.scrollIntoViewIfNeeded();
       if (OUT) await card.screenshot({ path: join(OUT, `team-card-${label}.png`) });
       if (label === '1280') {
+        // One owner's switch moves that owner only.
+        await card.locator('.tm-mcp-row', { hasText: 'owner2@astrateg.test' }).locator('input[role=switch]').click({ force: true });
+        await page.waitForFunction(() => /כובה/.test(document.querySelector('.toast')?.textContent || ''));
+        assert.equal(access.get('owner2@astrateg.test'), false);
+        assert.equal(access.get('owner@astrateg.test'), true);
+        access.set('owner2@astrateg.test', true);
+        await page.reload();
+        await page.locator('#mcp-panel .tm-mcp-row').first().waitFor();
+        calls.length = 0;
         const row = card.locator('.tm-mcp-row', { hasText: 'lior@astrateg.test' });
         const box = row.locator('input[role=switch]');
         assert.equal(await box.isChecked(), true);

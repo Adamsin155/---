@@ -27,6 +27,7 @@ import {
   systemPrompt, userMessage, RESULT_SCHEMA, validateAiResult, AI_TEXT_MAX,
   freeSystemPrompt, FREE_SCHEMA, validateFreeResult,
 } from '../_shared/app/contract-ai-logic.js';
+import { isOAuthToken } from '../_shared/oauth-token.js';
 
 export const SITE_ORIGINS = ['https://adamsin155.github.io', 'https://app.astrateg.tech'];
 
@@ -147,6 +148,8 @@ export function makeHandler(deps) {
     });
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
     if (req.method !== 'POST') return json(405, { error: 'method not allowed' });
+    // A connected app's token is for the mcp function alone (docs/ops.md, section 84).
+    if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });
 
     const url = deps.env('SUPABASE_URL');
     const userClient = deps.createClient(url, deps.env('SUPABASE_ANON_KEY'), {

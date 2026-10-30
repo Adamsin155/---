@@ -24,6 +24,7 @@ import { serviceAccountOf, makeDrive } from '../_shared/drive.js';
 import { TOOLS, runTool, guardDb } from './tools.js';
 import { dayKeyIL, partsIL } from '../_shared/app/tz.js';
 import { corsHeaders } from '../_shared/cors.js';
+import { isOAuthToken } from '../_shared/oauth-token.js';
 
 // A failed call to Claude, by the SDK's own error classes (as contract-ai).
 export function failureOf(err, Errors = {}) {
@@ -151,6 +152,8 @@ export function makeHandler(deps) {
     const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
     if (req.method !== 'POST') return json(405, { error: 'method not allowed' });
+    // A connected app's token is for the mcp function alone (docs/ops.md, section 84).
+    if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });
 
     const userClient = deps.createClient(deps.env('SUPABASE_URL'), deps.env('SUPABASE_ANON_KEY'), {
       global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },

@@ -70,7 +70,7 @@ test('contract-ai imports only its handler and the shared copy; the key never le
 test('the reminders function imports only its own files and the shared copy', () => {
   const files = new Set(['index.ts', 'tick.js', 'webpush.js', 'http.js', 'wa-server.ts', 'whatsapp.js', 'wa-poll.js'].flatMap((f) => [...localImports('reminders', f)]));
   assert.deepEqual([...files].filter((f) => !f.startsWith('_shared/app/')).sort(), [
-    '_shared/wa-graph.js', '_shared/wa-jako-reply.js', '_shared/wa-jako.js', 'reminders/http.js', 'reminders/tick.js', 'reminders/wa-poll.js', 'reminders/wa-server.ts', 'reminders/webpush.js', 'reminders/whatsapp.js',
+    '_shared/oauth-token.js', '_shared/wa-graph.js', '_shared/wa-jako-reply.js', '_shared/wa-jako.js', 'reminders/http.js', 'reminders/tick.js', 'reminders/wa-poll.js', 'reminders/wa-server.ts', 'reminders/webpush.js', 'reminders/whatsapp.js',
   ]);
   for (const f of files) if (f.startsWith('_shared/app/')) assert.ok(modules().includes(f.slice('_shared/app/'.length)), f);
 });
@@ -95,6 +95,7 @@ const DEPLOY = {
   // "שאלו את המערכת" (docs/ops.md, section 74): who asks, the protocol's names, a monthly client's
   // videos; the Drive listing and the sites it answers, hand-written in _shared/.
   ask: [
+    '_shared/oauth-token.js',
     ...APP('access-logic.js', 'access-nudge.js', 'ask-guide.js', 'ask-logic.js', 'catalog.js', 'characterization.js', 'contract-summary.js', 'edit-count.js', 'health.js', 'holidays.js', 'legal.js', 'manager-rules.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'shell-rules.js', 'shoot-prep.js', 'team-rules.js', 'tz.js'),
     '_shared/cors.js',
     '_shared/drive.js',
@@ -104,6 +105,7 @@ const DEPLOY = {
   ],
   // Claude accounts of the owners, Lior and Ofir (docs/ops.md, section 84): ask's tools and walls, imported.
   mcp: [
+    '_shared/oauth-token.js',
     ...APP('access-logic.js', 'access-nudge.js', 'ask-guide.js', 'ask-logic.js', 'catalog.js', 'characterization.js', 'contract-ai-logic.js', 'contract-summary.js', 'edit-count.js', 'health.js', 'holidays.js', 'legal.js', 'manager-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'shell-rules.js', 'shoot-prep.js', 'team-rules.js', 'tz.js'),
     '_shared/cors.js',
     '_shared/drive.js',
@@ -114,6 +116,7 @@ const DEPLOY = {
   ],
   // "משיכת קישורים מהדרייב" in the Gantt: the client's Drive folder, names and links only.
   drive: [
+    '_shared/oauth-token.js',
     '_shared/cors.js',
     '_shared/drive.js',
     'drive/handler.js',
@@ -131,11 +134,13 @@ const DEPLOY = {
   ],
   // "הכנת חוזה עם AI" (docs/ops.md, section 68): the prompt and the check of the answer, from app/.
   'contract-ai': [
+    '_shared/oauth-token.js',
     ...APP('catalog.js', 'contract-ai-logic.js', 'legal.js', 'pricing.js'),
     'contract-ai/handler.js',
     'contract-ai/index.ts',
   ],
   'create-quote': [
+    '_shared/oauth-token.js',
     ...APP('catalog.js', 'legal.js', 'pricing.js'),
     'create-quote/http.js',
     'create-quote/index.ts',
@@ -147,11 +152,13 @@ const DEPLOY = {
     'drive-scan/scan.js',
   ],
   metricool: [
+    '_shared/oauth-token.js',
     ...APP('metricool-logic.js', 'tz.js'),
     'metricool/index.ts',
     'metricool/sync.js',
   ],
   reminders: [
+    '_shared/oauth-token.js',
     ...APP('access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
     '_shared/wa-jako-reply.js',
@@ -165,6 +172,7 @@ const DEPLOY = {
     'reminders/whatsapp.js',
   ],
   'staff-admin': [
+    '_shared/oauth-token.js',
     'staff-admin/index.ts',
     'staff-admin/rules.js',
   ],
@@ -192,7 +200,7 @@ test('every function, and every file it deploys (the shared copies it reaches ar
   for (const rel of reached) assert.ok(modules().includes(rel), rel);
   for (const rel of modules()) assert.ok(reached.has(rel), `${rel} is copied but no function reaches it`);
   // The hand-written shared files are not in the generated folder.
-  for (const f of ['_shared/wa-graph.js', '_shared/wa-jako.js', '_shared/wa-jako-reply.js', '_shared/drive.js', '_shared/cors.js']) assert.ok(!readFileSync(join(FUNCTIONS, f), 'utf8').startsWith(MARK), f);
+  for (const f of ['_shared/wa-graph.js', '_shared/wa-jako.js', '_shared/wa-jako-reply.js', '_shared/drive.js', '_shared/cors.js', '_shared/oauth-token.js']) assert.ok(!readFileSync(join(FUNCTIONS, f), 'utf8').startsWith(MARK), f);
 });
 
 test('verify_jwt: off for the functions that check their caller themselves', () => {

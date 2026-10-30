@@ -12,6 +12,7 @@
 // Nothing is written here: the page fills the empty links through its own session.
 import { serviceAccountOf, makeDrive, folderIdOf } from '../_shared/drive.js';
 import { corsHeaders } from '../_shared/cors.js';
+import { isOAuthToken } from '../_shared/oauth-token.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -23,6 +24,8 @@ export function makeHandler(deps) {
     const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
     if (req.method !== 'POST') return json(405, { error: 'method not allowed' });
+    // A connected app's token is for the mcp function alone (docs/ops.md, section 84).
+    if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });
     const db = deps.createClient(deps.env('SUPABASE_URL'), deps.env('SUPABASE_ANON_KEY'), {
       global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
     });
